@@ -209,8 +209,12 @@ app.delete('/jobs/:id', requireAuth, async (req, res) => {
 
 // ── STRIPE BILLING ────────────────────────────────────────────────────────────
 let stripe;
-if (process.env.STRIPE_SECRET_KEY) {
-  stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+try {
+  if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY.startsWith('sk_')) {
+    stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+  }
+} catch (e) {
+  console.log('Stripe not initialised:', e.message);
 }
 
 // Create checkout session
