@@ -4706,7 +4706,11 @@ function renderRoofSheetPlan() {
   function pNear(a,b,t){return len2(a[0]-b[0],a[1]-b[1])<(t||35);}
   function angDiff(a,b){var d=Math.abs(a-b)%180;return d>90?180-d:d;}
   function clipHalf(pts,eA,eB,invert){if(!pts||pts.length<3)return[];var edx=eB[0]-eA[0],edy=eB[1]-eA[1],sign=invert?-1:1;function ins(p){return sign*((p[0]-eA[0])*(-edy)+(p[1]-eA[1])*(edx))>=0;}function isc(a,b){var dx=b[0]-a[0],dy=b[1]-a[1],dn=dx*(-edy)+dy*edx;if(Math.abs(dn)<0.001)return null;var t=((eA[0]-a[0])*(-edy)+(eA[1]-a[1])*edx)/dn;if(t<-0.001||t>1.001)return null;return[a[0]+t*dx,a[1]+t*dy];}var out=[];for(var i=0;i<pts.length;i++){var c=pts[i],p=pts[(i-1+pts.length)%pts.length],ci=ins(c),pi=ins(p);if(ci){if(!pi){var ip=isc(p,c);if(ip)out.push(ip);}out.push(c);}else if(pi){var ip=isc(p,c);if(ip)out.push(ip);}}return out;}
-  function clipToOutline(pts){var ol=DRAW.outline,n=ol.length;for(var ei=0;ei<n&&pts.length>=3;ei++)pts=clipHalf(pts,ol[ei],ol[(ei+1)%n],false);return pts;}
+  // Normalise outline winding: Sutherland-Hodgman needs counterclockwise (positive signed area in standard math)
+  var _clipOl=DRAW.outline.slice(),_olSA=0;
+  _clipOl.forEach(function(p,i){var q=_clipOl[(i+1)%_clipOl.length];_olSA+=p[0]*q[1]-q[0]*p[1];});
+  if(_olSA<0)_clipOl=_clipOl.slice().reverse();
+  function clipToOutline(pts){var ol=_clipOl,n=ol.length;for(var ei=0;ei<n&&pts.length>=3;ei++)pts=clipHalf(pts,ol[ei],ol[(ei+1)%n],false);return pts;}
   function hipInside(pts,hip){var hA=hip.pts[0],hB=hip.pts[1],edx=hB[0]-hA[0],edy=hB[1]-hA[1];return clipHalf(pts,hA,hB,(cX-hA[0])*(-edy)+(cY-hA[1])*edx<0);}
   function hipOutside(pts,hip){var hA=hip.pts[0],hB=hip.pts[1],edx=hB[0]-hA[0],edy=hB[1]-hA[1];return clipHalf(pts,hA,hB,(cX-hA[0])*(-edy)+(cY-hA[1])*edx>=0);}
   function drawPoly(pts,fill,stroke,lw,dash){if(!pts||pts.length<3)return;ctx.save();ctx.beginPath();pts.forEach(function(pt,i){var c=toC(pt);if(i===0)ctx.moveTo(c[0],c[1]);else ctx.lineTo(c[0],c[1]);});ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.setLineDash(dash||[]);ctx.stroke();ctx.setLineDash([]);}ctx.restore();}
