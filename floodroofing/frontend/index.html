@@ -677,18 +677,6 @@ textarea{resize:vertical;min-height:70px}
     <button class="sec-btn" onclick="populateMaterialsFromLines()" style="margin-top:.5rem">↻ Refresh from drawing</button>
   </div>
 
-  <!-- QUICK GENERATE 4-HIP ROOF -->
-  <div class="card" id="quickHipCard">
-    <div class="card-hd"><span class="card-dot"></span>⚡ Quick generate — standard 4-hip roof</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:1rem">Enter your building dimensions to instantly generate the sheet cut layout — no drawing required.</p>
-    <div class="f3">
-      <div><label>Building width (m)</label><input type="number" id="qhWidth" value="10" min="1" step="0.1" placeholder="e.g. 10"></div>
-      <div><label>Building length (m)</label><input type="number" id="qhLength" value="15" min="1" step="0.1" placeholder="e.g. 15"></div>
-      <div><label>Sheet effective width (mm)</label><input type="number" id="qhSheetW" value="762" min="100" placeholder="762"></div>
-    </div>
-    <button class="sec-btn" onclick="quickGenerateHipRoof()">⚡ Generate 4-hip sheet layout</button>
-  </div>
-
   <!-- ROOF SHEET PLAN CARD -->
   <div class="card" id="roofSheetPlanCard">
     <div class="card-hd"><span class="card-dot"></span>Roof sheet plan — colour-coded cut layout
@@ -1674,46 +1662,6 @@ function renderSheetLayout(){
   try { renderRoofSheetPlan(); } catch(e) { console.warn('renderRoofSheetPlan error:', e); }
 }
 
-function quickGenerateHipRoof(){
-  var W=parseFloat(document.getElementById('qhWidth').value)||10;
-  var L=parseFloat(document.getElementById('qhLength').value)||15;
-  var sheetWmm=parseFloat(document.getElementById('qhSheetW').value)||762;
-  if(L<W){var tmp=W;W=L;L=tmp;} // ensure L >= W
-  // update sheet width input
-  var swEl=document.getElementById('sheetWidth');if(swEl)swEl.value=sheetWmm;
-  // scale: fit nicely in canvas
-  var scPx=Math.min(Math.floor(700/Math.max(W,L)),40);
-  var ox=60,oy=60;
-  var Wpx=W*scPx,Lpx=L*scPx;
-  var hipDpx=Wpx/2; // 45° hip end depth
-  var rtX=ox+Wpx/2,rtY=oy+hipDpx;   // ridge top apex
-  var rbX=ox+Wpx/2,rbY=oy+Lpx-hipDpx; // ridge bottom apex
-  // Outline
-  DRAW.outline=[[ox,oy],[ox+Wpx,oy],[ox+Wpx,oy+Lpx],[ox,oy+Lpx]];
-  DRAW.outlineDone=true;
-  DRAW.lines=[
-    // Main ridge (vertical)
-    {type:'ridge',pts:[[rtX,rtY],[rbX,rbY]],measM:(L-W).toFixed(2)},
-    // Tiny apex ridges (horizontal) so hip-end faces are detected
-    {type:'ridge',pts:[[rtX-2,rtY],[rtX+2,rtY]]},
-    {type:'ridge',pts:[[rbX-2,rbY],[rbX+2,rbY]]},
-    // 4 hips
-    {type:'hip',pts:[[ox,oy],[rtX,rtY]]},
-    {type:'hip',pts:[[ox+Wpx,oy],[rtX,rtY]]},
-    {type:'hip',pts:[[ox,oy+Lpx],[rbX,rbY]]},
-    {type:'hip',pts:[[ox+Wpx,oy+Lpx],[rbX,rbY]]},
-    // 4 gutters with measurements
-    {type:'gutter',pts:[[ox,oy],[ox+Wpx,oy]],measM:W},
-    {type:'gutter',pts:[[ox+Wpx,oy],[ox+Wpx,oy+Lpx]],measM:L},
-    {type:'gutter',pts:[[ox+Wpx,oy+Lpx],[ox,oy+Lpx]],measM:W},
-    {type:'gutter',pts:[[ox,oy+Lpx],[ox,oy]],measM:L}
-  ];
-  DRAW.scaleMetresPerPx=1/scPx;
-  // scroll to and render sheet plan
-  try{renderRoofSheetPlan();}catch(e){console.warn('quickGenerate:',e);}
-  var planCard=document.getElementById('roofSheetPlanCard');
-  if(planCard)planCard.scrollIntoView({behavior:'smooth',block:'start'});
-}
 
 // ── SCOPE ────────────────────────────────────────────────────────
 function toggleChk(el){el.classList.toggle('on');calcLabour();}
@@ -4782,13 +4730,13 @@ function renderRoofSheetPlan() {
   faces.sort(function(a,b){return b.gutterM-a.gutterM;});
   var COLS=['#E8741A','#1B8AC9','#22c55e','#a855f7'];
   faces.forEach(function(f,i){f.col=COLS[i%COLS.length];});
-  // Classify: main faces (longer gutters) vs end faces (short triangular hip ends)
-  var mainFaces=faces.filter(function(f){return f.gL>=faces[0].gL*0.75;});
-  var endFaces=faces.filter(function(f){return f.gL<faces[0].gL*0.75;});
-  if(!endFaces.length)mainFaces=faces;
   drawPoly(DRAW.outline,'#dde3ea',null);
   var hasRealScale=DRAW.scaleMetresPerPx>0;
-  // Hatching overlay: diagonal lines clipped inside polygon to mark off-cut pieces
+
+  // Polygon area via shoelace — used to skip near-zero pieces clipped by hips
+  function polyArea(pts){var a=0,n=pts.length;for(var i=0;i<n;i++){var p=pts[i],q=pts[(i+1)%n];a+=p[0]*q[1]-q[0]*p[1];}return Math.abs(a)/2;}
+
+  // Hatching overlay — diagonal lines clipped inside a polygon to indicate off-cut
   function drawHatching(pts){
     if(!pts||pts.length<3)return;
     var cPts=pts.map(toC);
@@ -4797,79 +4745,64 @@ function renderRoofSheetPlan() {
     ctx.closePath();ctx.clip();
     var mnX=Infinity,mxX=-Infinity,mnY=Infinity,mxY=-Infinity;
     cPts.forEach(function(p){mnX=Math.min(mnX,p[0]);mxX=Math.max(mxX,p[0]);mnY=Math.min(mnY,p[1]);mxY=Math.max(mxY,p[1]);});
-    ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=1.2;
+    ctx.strokeStyle='rgba(0,0,0,0.22)';ctx.lineWidth=1.2;
     var sp=7,span=mxX-mnX+mxY-mnY+20;
     for(var t=-span;t<span;t+=sp){ctx.beginPath();ctx.moveTo(mnX+t,mnY);ctx.lineTo(mnX+t+(mxY-mnY)+10,mxY+10);ctx.stroke();}
     ctx.restore();
   }
-  // PASS 1: Off-cut strips from main faces at hip cuts (same color as source sheet, hatched)
-  // These are sheet-column strips (perpendicular to gutter) clipped OUTSIDE the hip line.
-  mainFaces.forEach(function(f){
+
+  // ── PASS 1: Off-cut triangles at every hip/valley cut ────────────────────────
+  // For each face and each sheet column, the piece clipped OUTSIDE the hip line is
+  // an off-cut. It keeps the same colour as the source sheet and gets hatching.
+  // Off-cuts land in adjacent face territory — Rule: all sheets perpendicular to gutter;
+  // hip/valley cuts produce 90° off-cuts that are reused in other faces.
+  faces.forEach(function(f){
     var dep=f.depImg,sw=f.swImg;
     for(var s=0;s<f.nSheets;s++){
       var BL=[f.p0[0]+f.gnx*s*sw,f.p0[1]+f.gny*s*sw],BR=[f.p0[0]+f.gnx*(s+1)*sw,f.p0[1]+f.gny*(s+1)*sw];
       var TL=[BL[0]+f.perpX*dep,BL[1]+f.perpY*dep],TR=[BR[0]+f.perpX*dep,BR[1]+f.perpY*dep];
-      if(f.lHip){var offL=hipOutside(clipToOutline([BL,BR,TR,TL].slice()),f.lHip);if(offL&&offL.length>=3){drawPoly(offL,f.col,'rgba(0,0,0,0.55)',1.5);drawHatching(offL);lbl(offL,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(12,toCV(sw)*0.45)),0.9);}}
-      if(f.rHip){var offR=hipOutside(clipToOutline([BL,BR,TR,TL].slice()),f.rHip);if(offR&&offR.length>=3){drawPoly(offR,f.col,'rgba(0,0,0,0.55)',1.5);drawHatching(offR);lbl(offR,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(12,toCV(sw)*0.45)),0.9);}}
+      if(f.lHip){var offL=hipOutside(clipToOutline([BL,BR,TR,TL].slice()),f.lHip);if(offL&&offL.length>=3){drawPoly(offL,f.col,'rgba(0,0,0,0.5)',1.5);drawHatching(offL);lbl(offL,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(11,toCV(sw)*0.42)),0.9);}}
+      if(f.rHip){var offR=hipOutside(clipToOutline([BL,BR,TR,TL].slice()),f.rHip);if(offR&&offR.length>=3){drawPoly(offR,f.col,'rgba(0,0,0,0.5)',1.5);drawHatching(offR);lbl(offR,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(11,toCV(sw)*0.42)),0.9);}}
     }
   });
-  // PASS 2: Main face full sheet strips (solid fill, own color, perpendicular to main gutter)
-  mainFaces.forEach(function(f){
-    var dep=f.depImg,sw=f.swImg;
+
+  // ── PASS 2: Installed sheet strips (solid fill, own colour) ──────────────────
+  // For each face, draw the part of each sheet column that sits within the face's
+  // own boundary (inside hips/valleys). Tiny pieces that remain after hip clipping
+  // (< 8% of a sheet-square area) are skipped — those areas are already covered
+  // by off-cuts drawn in PASS 1 from the adjacent face. Grid lines show sheet divisions.
+  faces.forEach(function(f){
+    var dep=f.depImg,sw=f.swImg,minA=sw*sw*0.08;
     for(var s=0;s<f.nSheets;s++){
       var BL=[f.p0[0]+f.gnx*s*sw,f.p0[1]+f.gny*s*sw],BR=[f.p0[0]+f.gnx*(s+1)*sw,f.p0[1]+f.gny*(s+1)*sw];
       var TL=[BL[0]+f.perpX*dep,BL[1]+f.perpY*dep],TR=[BR[0]+f.perpX*dep,BR[1]+f.perpY*dep];
       var used=clipToOutline([BL,BR,TR,TL].slice());
       if(f.lHip&&used.length>=3)used=hipInside(used,f.lHip);
       if(f.rHip&&used.length>=3)used=hipInside(used,f.rHip);
-      if(!used||used.length<3)continue;
+      if(!used||used.length<3||polyArea(used)<minA)continue;
       drawPoly(used,f.col,'rgba(0,0,0,0.75)',2.2);
-      lbl(used,s+1,'rgba(0,0,0,0.9)',Math.max(8,Math.min(15,toCV(sw)*0.5)));
+      lbl(used,s+1,'rgba(0,0,0,0.9)',Math.max(8,Math.min(14,toCV(sw)*0.5)));
     }
+    // Sheet division grid lines (dashed, perpendicular to gutter)
+    for(var g=1;g<f.nSheets;g++){
+      var dB=[f.p0[0]+f.gnx*g*sw,f.p0[1]+f.gny*g*sw],dT=[dB[0]+f.perpX*dep,dB[1]+f.perpY*dep];
+      var cA=toC(dB),cB=toC(dT);
+      ctx.save();ctx.strokeStyle='rgba(0,0,0,0.18)';ctx.lineWidth=0.7;ctx.setLineDash([3,3]);
+      ctx.beginPath();ctx.moveTo(cA[0],cA[1]);ctx.lineTo(cB[0],cB[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+    }
+    // Gutter length label
     var mc=toC([(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2]);
     ctx.save();ctx.font='11px sans-serif';ctx.fillStyle='#5b21b6';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m':'',mc[0]-f.perpX*24,mc[1]-f.perpY*24);
     ctx.restore();
   });
-  // PASS 3: End triangular face strips (off-cuts placed perpendicular to END gutter, hatched)
-  // Each strip coloured from the adjacent main face whose off-cut physically fills it.
-  endFaces.forEach(function(ef){
-    // Match hip lines to find which main face is adjacent on each end
-    var lMF=null,rMF=null;
-    mainFaces.forEach(function(mf){
-      if(ef.lHip&&(mf.lHip===ef.lHip||mf.rHip===ef.lHip)){if(!lMF)lMF=mf;}
-      if(ef.rHip&&(mf.lHip===ef.rHip||mf.rHip===ef.rHip)){if(!rMF)rMF=mf;}
-    });
-    if(!lMF)lMF=mainFaces[0];
-    if(!rMF)rMF=mainFaces.length>1?mainFaces[1]:mainFaces[0];
-    var sw=ef.swImg,dep=ef.depImg,gL=ef.gL;
-    var nStrips=Math.ceil(gL/sw);
-    for(var s=0;s<nStrips;s++){
-      var BL=[ef.p0[0]+ef.gnx*s*sw,ef.p0[1]+ef.gny*s*sw],BR=[ef.p0[0]+ef.gnx*(s+1)*sw,ef.p0[1]+ef.gny*(s+1)*sw];
-      var TL=[BL[0]+ef.perpX*dep,BL[1]+ef.perpY*dep],TR=[BR[0]+ef.perpX*dep,BR[1]+ef.perpY*dep];
-      var strip=clipToOutline([BL,BR,TR,TL].slice());
-      if(ef.lHip&&strip.length>=3)strip=hipInside(strip,ef.lHip);
-      if(ef.rHip&&strip.length>=3)strip=hipInside(strip,ef.rHip);
-      if(!strip||strip.length<3)continue;
-      var ctr=(s+0.5)*sw,col=(ctr<gL/2)?lMF.col:rMF.col;
-      var srcN=(ctr<gL/2)?(s+1):(nStrips-s);
-      drawPoly(strip,col,'rgba(0,0,0,0.6)',1.5);
-      drawHatching(strip);
-      lbl(strip,srcN,'rgba(0,0,0,0.85)',Math.max(7,Math.min(12,toCV(sw)*0.45)),0.9);
-    }
-    var mc2=toC([(ef.p0[0]+ef.p1[0])/2,(ef.p0[1]+ef.p1[1])/2]);
-    ctx.save();ctx.font='11px sans-serif';ctx.fillStyle='#5b21b6';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(hasRealScale&&ef.gutterM>0?ef.gutterM.toFixed(2)+'m':'',mc2[0]-ef.perpX*24,mc2[1]-ef.perpY*24);
-    ctx.restore();
-  });
   [{type:'ridge',c:'#c00',w:4,d:[]},{type:'hip',c:'#1d4ed8',w:3,d:[]},{type:'gutter',c:'#5b21b6',w:2,d:[]}].forEach(function(st){DRAW.lines.forEach(function(l){if(l.type!==st.type)return;var c0=toC(l.pts[0]),c1=toC(l.pts[1]);ctx.save();ctx.strokeStyle=st.c;ctx.lineWidth=st.w;ctx.setLineDash(st.d);ctx.beginPath();ctx.moveTo(c0[0],c0[1]);ctx.lineTo(c1[0],c1[1]);ctx.stroke();ctx.restore();});});
   ctx.save();ctx.strokeStyle='#5b21b6';ctx.lineWidth=3;ctx.beginPath();DRAW.outline.forEach(function(p,i){var c=toC(p);if(i===0)ctx.moveTo(c[0],c[1]);else ctx.lineTo(c[0],c[1]);});ctx.closePath();ctx.stroke();ctx.restore();
-  var totSheets=mainFaces.reduce(function(s,f){return s+f.nSheets;},0);
+  var totSheets=faces.reduce(function(s,f){return s+f.nSheets;},0);
   var calNote=hasRealScale?'':' <em style="color:#d97706;font-size:10px">(calibrate scale for real measurements)</em>';
-  var legHtml='<div style="margin-top:14px"><div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px"><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">■ Solid = full sheet (own colour)</span><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">╳ Hatched = off-cut, same colour as source sheet</span></div><div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b"><strong>\u2702 Puzzle piece rule:</strong> Hip cuts produce 90\xb0 triangular off-cuts. These fill the end faces — all strips perpendicular to their local gutter. Hatching = off-cut. Number = source sheet.</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
-  mainFaces.forEach(function(f){var cutLen=hasRealScale&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m':'Long face')+'</div><div style="font-size:20px;font-weight:700;color:#7c3aed">'+f.nSheets+'</div><div style="font-size:10px;color:#6b7280">full sheets'+(cutLen!=='—'?' @ '+cutLen+' each':'')+'</div></div>';});
-  if(endFaces.length){legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid #888;border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">Hip ends ('+endFaces.length+')</div><div style="font-size:13px;font-weight:700;color:#7c3aed">✂ off-cuts</div><div style="font-size:10px;color:#6b7280">filled by hip off-cuts<br>no extra sheets needed</div></div>';}
-  legHtml+='</div><div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:13px"><strong>Total: '+totSheets+' full-length sheets to order</strong>'+calNote+'</div></div>';
+  var legHtml='<div style="margin-top:14px"><div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px"><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">■ Solid = full sheet (own colour)</span><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">╳ Hatched = off-cut, same colour as source sheet</span></div><div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b"><strong>\u2702 Puzzle piece rule:</strong> Hip cuts produce 90\xb0 triangular off-cuts. These fill the end faces — all strips perpendicular to their local gutter. Hatching = off-cut, number = source sheet. Gutter length ÷ sheet width = sheets per face.</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
+  faces.forEach(function(f){var cutLen=hasRealScale&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m gutter':'Face')+'</div><div style="font-size:20px;font-weight:700;color:#7c3aed">'+f.nSheets+'</div><div style="font-size:10px;color:#6b7280">sheets'+(cutLen!=='—'?' @ '+cutLen+' long':'')+'</div></div>';});
+  legHtml+='</div><div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:13px"><strong>Total: '+totSheets+' full-length sheets</strong>'+calNote+'<br><span style="font-size:11px;color:#64748b">Hip/valley off-cuts fill adjacent faces — order to gutter lengths only</span></div></div>';
   outEl.innerHTML='';outEl.appendChild(cv);var dd=document.createElement('div');dd.innerHTML=legHtml;outEl.appendChild(dd);
 }
 </script>
