@@ -4835,14 +4835,15 @@ function renderRoofSheetPlan() {
       if(f.lHip&&used.length>=3)used=hipOutside(used,f.lHip);
       if(f.rHip&&used.length>=3)used=hipOutside(used,f.rHip);
       if(!used||used.length<3||polyArea(used)<minA)continue;
+      // NZ rule: off-cuts are SPUN (not flipped) so each half uses off-cuts from the OPPOSITE face
       var col,srcSheet;
       if(s<halfIdx){
-        col=f.lHipCol;
-        srcSheet=f.lHipFromStart?s+1:f.lHipMFnSheets-s;
+        col=f.rHipCol;  // opposite face's off-cuts spun into this half
+        srcSheet=f.rHipFromStart?s+1:f.rHipMFnSheets-s;
       }else{
-        col=f.rHipCol;
+        col=f.lHipCol;  // opposite face's off-cuts spun into this half
         var s2=s-halfIdx;
-        srcSheet=f.rHipFromStart?(halfIdx-s2):(f.rHipMFnSheets-halfIdx+1+s2);
+        srcSheet=f.lHipFromStart?(halfIdx-s2):(f.lHipMFnSheets-halfIdx+1+s2);
       }
       drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
       drawHatching(used);
