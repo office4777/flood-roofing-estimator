@@ -4762,10 +4762,20 @@ function renderRoofSheetPlan() {
   faces.forEach(function(ef){
     if(!ef.isEndFace)return;
     ef.lHipCol=ef.col;ef.rHipCol=ef.col;
+    ef.lHipMFnSheets=0;ef.lHipFromStart=true;
+    ef.rHipMFnSheets=0;ef.rHipFromStart=true;
     faces.forEach(function(mf){
       if(mf.isEndFace)return;
-      if(mf.lHip===ef.lHip||mf.rHip===ef.lHip)ef.lHipCol=mf.col;
-      if(mf.lHip===ef.rHip||mf.rHip===ef.rHip)ef.rHipCol=mf.col;
+      if(mf.lHip===ef.lHip||mf.rHip===ef.lHip){
+        ef.lHipCol=mf.col;
+        ef.lHipMFnSheets=mf.nSheets;
+        ef.lHipFromStart=pNear(ef.p0,mf.p0);
+      }
+      if(mf.lHip===ef.rHip||mf.rHip===ef.rHip){
+        ef.rHipCol=mf.col;
+        ef.rHipMFnSheets=mf.nSheets;
+        ef.rHipFromStart=pNear(ef.p1,mf.p0);
+      }
     });
   });
   drawPoly(DRAW.outline,'#dde3ea',null);
@@ -4821,10 +4831,18 @@ function renderRoofSheetPlan() {
       if(f.lHip&&used.length>=3)used=hipOutside(used,f.lHip);
       if(f.rHip&&used.length>=3)used=hipOutside(used,f.rHip);
       if(!used||used.length<3||polyArea(used)<minA)continue;
-      var col=s<halfIdx?f.lHipCol:f.rHipCol;
+      var col,srcSheet;
+      if(s<halfIdx){
+        col=f.lHipCol;
+        srcSheet=f.lHipFromStart?s+1:f.lHipMFnSheets-s;
+      }else{
+        col=f.rHipCol;
+        var s2=s-halfIdx;
+        srcSheet=f.rHipFromStart?(halfIdx-s2):(f.rHipMFnSheets-halfIdx+1+s2);
+      }
       drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
       drawHatching(used);
-      lbl(used,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(11,toCV(sw)*0.42)),0.9);
+      lbl(used,srcSheet,'rgba(0,0,0,0.8)',Math.max(7,Math.min(11,toCV(sw)*0.42)),0.9);
     }
     for(var g=1;g<f.nSheets;g++){
       var dB=[f.p0[0]+f.gnx*g*sw,f.p0[1]+f.gny*g*sw],dT=[dB[0]+f.perpX*dep,dB[1]+f.perpY*dep];
@@ -4846,10 +4864,4 @@ function renderRoofSheetPlan() {
   var calNote=hasRealScale?'':' <em style="color:#d97706;font-size:10px">(calibrate scale for real measurements)</em>';
   var legHtml='<div style="margin-top:14px"><div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px"><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9632; Solid = full sheet installed (own colour)</span><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#10007; Hatched = off-cut reused (source face colour)</span></div><div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b"><strong>Puzzle piece rule:</strong> All sheets run perpendicular to their local gutter. Hip/valley cuts produce 90&deg; off-cuts that fill end faces (shown hatched in source face colour). Number = source sheet #. Order sheets by gutter lengths only.</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
   mainFaces.forEach(function(f){var cutLen=hasRealScale&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m gutter':'Face')+'</div><div style="font-size:20px;font-weight:700;color:#7c3aed">'+f.nSheets+'</div><div style="font-size:10px;color:#6b7280">sheets'+(cutLen!=='—'?' @ '+cutLen+' long':'')+'</div></div>';});
-  if(endFaces.length){legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid #888;border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">End faces</div><div style="font-size:11px;color:#6b7280">Filled with off-cuts — no extra sheets needed</div></div>';}
-  legHtml+='</div><div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:13px"><strong>Total: '+totSheets+' full-length sheets</strong>'+calNote+'<br><span style="font-size:11px;color:#64748b">Order to gutter lengths only — off-cuts fill end/hip faces</span></div></div>';
-  outEl.innerHTML='';outEl.appendChild(cv);var dd=document.createElement('div');dd.innerHTML=legHtml;outEl.appendChild(dd);
-}
-
-</script>
-</html>
+  if(endFaces.length){legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid #888;border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">End faces</div><div style="font-size:11px;color:#6b7
