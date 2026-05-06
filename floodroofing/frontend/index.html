@@ -215,6 +215,7 @@ textarea{resize:vertical;min-height:70px}
       localStorage.setItem('fr_user',JSON.stringify(d.user));
       document.getElementById('login-screen').style.display='none';
       document.querySelector('.app') && (document.querySelector('.app').style.display='');
+      setTimeout(function(){ window._aerialMap && window._aerialMap.resize(); }, 300);
     } catch(e){
       err.textContent=e.message; err.style.display='block';
     }
@@ -4678,6 +4679,12 @@ document.addEventListener('mousedown',function(e){
     window.MAPBOX_TOKEN = T;
     map.once('render', function(){ map.resize(); });
     setTimeout(function(){ map.resize(); }, 800);
+    setTimeout(function(){ map.resize(); }, 2000);
+    // Automatically resize whenever the container dimensions change
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(function(){ map.resize(); }).observe(md);
+    }
+    window.addEventListener('resize', function(){ map.resize(); });
     window._initAerialMap = function(lat, lon) {
       if (window._aerialMap) window._aerialMap.flyTo({center:[lon,lat], zoom:19, essential:true});
     };
@@ -4775,24 +4782,40 @@ function renderRoofSheetPlan() {
   faces.sort(function(a,b){return b.gutterM-a.gutterM;});
   var COLS=['#E8741A','#1B8AC9','#22c55e','#a855f7'];
   faces.forEach(function(f,i){f.col=COLS[i%COLS.length];});
+  // Classify: main faces (longer gutters) vs end faces (short triangular hip ends)
+  var mainFaces=faces.filter(function(f){return f.gL>=faces[0].gL*0.75;});
+  var endFaces=faces.filter(function(f){return f.gL<faces[0].gL*0.75;});
+  if(!endFaces.length)mainFaces=faces;
   drawPoly(DRAW.outline,'#dde3ea',null);
   var hasRealScale=DRAW.scaleMetresPerPx>0;
-  // PASS 1: offcut corners in DEPTH direction (perpendicular to gutter = horizontal seams)
-  faces.forEach(function(f,fi){
-    var dep=f.depImg,sw=f.swImg,gL=f.gL,oppCol=faces.length>1?faces[(fi+1)%faces.length].col:COLS[1];
-    var nDepBands=Math.ceil(dep/sw);
-    for(var b=0;b<nDepBands;b++){
-      var d0=b*sw,d1=Math.min((b+1)*sw,dep);
-      var BL=[f.p0[0]+f.perpX*d0,f.p0[1]+f.perpY*d0],BR=[f.p0[0]+f.gnx*gL+f.perpX*d0,f.p0[1]+f.gny*gL+f.perpY*d0];
-      var TR=[f.p0[0]+f.gnx*gL+f.perpX*d1,f.p0[1]+f.gny*gL+f.perpY*d1],TL=[f.p0[0]+f.perpX*d1,f.p0[1]+f.perpY*d1];
-      var band=[BL,BR,TR,TL];
-      if(f.lHip){var offL=hipOutside(clipToOutline(band.slice()),f.lHip);if(offL&&offL.length>=3){drawPoly(offL,oppCol,'rgba(0,0,0,0.7)',2);lbl(offL,(b+1)+'\u21bb',oppCol,Math.max(7,Math.min(12,toCV(sw)*0.45)),0.9);}}
-      if(f.rHip){var offR=hipOutside(clipToOutline(band.slice()),f.rHip);if(offR&&offR.length>=3){drawPoly(offR,oppCol,'rgba(0,0,0,0.7)',2);lbl(offR,(b+1)+'\u21bb',oppCol,Math.max(7,Math.min(12,toCV(sw)*0.45)),0.9);}}
+  // Hatching overlay: diagonal lines clipped inside polygon to mark off-cut pieces
+  function drawHatching(pts){
+    if(!pts||pts.length<3)return;
+    var cPts=pts.map(toC);
+    ctx.save();ctx.beginPath();
+    cPts.forEach(function(p,i){if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);});
+    ctx.closePath();ctx.clip();
+    var mnX=Infinity,mxX=-Infinity,mnY=Infinity,mxY=-Infinity;
+    cPts.forEach(function(p){mnX=Math.min(mnX,p[0]);mxX=Math.max(mxX,p[0]);mnY=Math.min(mnY,p[1]);mxY=Math.max(mxY,p[1]);});
+    ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=1.2;
+    var sp=7,span=mxX-mnX+mxY-mnY+20;
+    for(var t=-span;t<span;t+=sp){ctx.beginPath();ctx.moveTo(mnX+t,mnY);ctx.lineTo(mnX+t+(mxY-mnY)+10,mxY+10);ctx.stroke();}
+    ctx.restore();
+  }
+  // PASS 1: Off-cut strips from main faces at hip cuts (same color as source sheet, hatched)
+  // These are sheet-column strips (perpendicular to gutter) clipped OUTSIDE the hip line.
+  mainFaces.forEach(function(f){
+    var dep=f.depImg,sw=f.swImg;
+    for(var s=0;s<f.nSheets;s++){
+      var BL=[f.p0[0]+f.gnx*s*sw,f.p0[1]+f.gny*s*sw],BR=[f.p0[0]+f.gnx*(s+1)*sw,f.p0[1]+f.gny*(s+1)*sw];
+      var TL=[BL[0]+f.perpX*dep,BL[1]+f.perpY*dep],TR=[BR[0]+f.perpX*dep,BR[1]+f.perpY*dep];
+      if(f.lHip){var offL=hipOutside(clipToOutline([BL,BR,TR,TL].slice()),f.lHip);if(offL&&offL.length>=3){drawPoly(offL,f.col,'rgba(0,0,0,0.55)',1.5);drawHatching(offL);lbl(offL,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(12,toCV(sw)*0.45)),0.9);}}
+      if(f.rHip){var offR=hipOutside(clipToOutline([BL,BR,TR,TL].slice()),f.rHip);if(offR&&offR.length>=3){drawPoly(offR,f.col,'rgba(0,0,0,0.55)',1.5);drawHatching(offR);lbl(offR,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(12,toCV(sw)*0.45)),0.9);}}
     }
   });
-  // PASS 2: main sheets
-  faces.forEach(function(f){
-    var dep=f.depImg,sw=f.swImg,gL=f.gL;
+  // PASS 2: Main face full sheet strips (solid fill, own color, perpendicular to main gutter)
+  mainFaces.forEach(function(f){
+    var dep=f.depImg,sw=f.swImg;
     for(var s=0;s<f.nSheets;s++){
       var BL=[f.p0[0]+f.gnx*s*sw,f.p0[1]+f.gny*s*sw],BR=[f.p0[0]+f.gnx*(s+1)*sw,f.p0[1]+f.gny*(s+1)*sw];
       var TL=[BL[0]+f.perpX*dep,BL[1]+f.perpY*dep],TR=[BR[0]+f.perpX*dep,BR[1]+f.perpY*dep];
@@ -4808,12 +4831,44 @@ function renderRoofSheetPlan() {
     ctx.fillText(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m':'',mc[0]-f.perpX*24,mc[1]-f.perpY*24);
     ctx.restore();
   });
+  // PASS 3: End triangular face strips (off-cuts placed perpendicular to END gutter, hatched)
+  // Each strip coloured from the adjacent main face whose off-cut physically fills it.
+  endFaces.forEach(function(ef){
+    // Match hip lines to find which main face is adjacent on each end
+    var lMF=null,rMF=null;
+    mainFaces.forEach(function(mf){
+      if(ef.lHip&&(mf.lHip===ef.lHip||mf.rHip===ef.lHip)){if(!lMF)lMF=mf;}
+      if(ef.rHip&&(mf.lHip===ef.rHip||mf.rHip===ef.rHip)){if(!rMF)rMF=mf;}
+    });
+    if(!lMF)lMF=mainFaces[0];
+    if(!rMF)rMF=mainFaces.length>1?mainFaces[1]:mainFaces[0];
+    var sw=ef.swImg,dep=ef.depImg,gL=ef.gL;
+    var nStrips=Math.ceil(gL/sw);
+    for(var s=0;s<nStrips;s++){
+      var BL=[ef.p0[0]+ef.gnx*s*sw,ef.p0[1]+ef.gny*s*sw],BR=[ef.p0[0]+ef.gnx*(s+1)*sw,ef.p0[1]+ef.gny*(s+1)*sw];
+      var TL=[BL[0]+ef.perpX*dep,BL[1]+ef.perpY*dep],TR=[BR[0]+ef.perpX*dep,BR[1]+ef.perpY*dep];
+      var strip=clipToOutline([BL,BR,TR,TL].slice());
+      if(ef.lHip&&strip.length>=3)strip=hipInside(strip,ef.lHip);
+      if(ef.rHip&&strip.length>=3)strip=hipInside(strip,ef.rHip);
+      if(!strip||strip.length<3)continue;
+      var ctr=(s+0.5)*sw,col=(ctr<gL/2)?lMF.col:rMF.col;
+      var srcN=(ctr<gL/2)?(s+1):(nStrips-s);
+      drawPoly(strip,col,'rgba(0,0,0,0.6)',1.5);
+      drawHatching(strip);
+      lbl(strip,srcN,'rgba(0,0,0,0.85)',Math.max(7,Math.min(12,toCV(sw)*0.45)),0.9);
+    }
+    var mc2=toC([(ef.p0[0]+ef.p1[0])/2,(ef.p0[1]+ef.p1[1])/2]);
+    ctx.save();ctx.font='11px sans-serif';ctx.fillStyle='#5b21b6';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(hasRealScale&&ef.gutterM>0?ef.gutterM.toFixed(2)+'m':'',mc2[0]-ef.perpX*24,mc2[1]-ef.perpY*24);
+    ctx.restore();
+  });
   [{type:'ridge',c:'#c00',w:4,d:[]},{type:'hip',c:'#1d4ed8',w:3,d:[]},{type:'gutter',c:'#5b21b6',w:2,d:[]}].forEach(function(st){DRAW.lines.forEach(function(l){if(l.type!==st.type)return;var c0=toC(l.pts[0]),c1=toC(l.pts[1]);ctx.save();ctx.strokeStyle=st.c;ctx.lineWidth=st.w;ctx.setLineDash(st.d);ctx.beginPath();ctx.moveTo(c0[0],c0[1]);ctx.lineTo(c1[0],c1[1]);ctx.stroke();ctx.restore();});});
   ctx.save();ctx.strokeStyle='#5b21b6';ctx.lineWidth=3;ctx.beginPath();DRAW.outline.forEach(function(p,i){var c=toC(p);if(i===0)ctx.moveTo(c[0],c[1]);else ctx.lineTo(c[0],c[1]);});ctx.closePath();ctx.stroke();ctx.restore();
-  var totSheets=faces.reduce(function(s,f){return s+f.nSheets;},0);
+  var totSheets=mainFaces.reduce(function(s,f){return s+f.nSheets;},0);
   var calNote=hasRealScale?'':' <em style="color:#d97706;font-size:10px">(calibrate scale for real measurements)</em>';
-  var legHtml='<div style="margin-top:14px"><div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px"><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">Solid = full sheet (own colour)</span><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">Opposite colour \u21bb = offcut from that face, perpendicular to gutter</span></div><div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b"><strong>\u2702 Puzzle piece rule:</strong> Hip = 45\xb0 cut. Offcut from face A fills corners of face B. Same colour as source. \u21bb = which sheet it came from.</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
-  faces.forEach(function(f){var cutLen=hasRealScale&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m':'Face')+'</div><div style="font-size:20px;font-weight:700;color:#7c3aed">'+f.nSheets+'</div><div style="font-size:10px;color:#6b7280">sheets'+(cutLen!=='—'?' @ '+cutLen+' each':'')+'</div></div>';});
+  var legHtml='<div style="margin-top:14px"><div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px"><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">■ Solid = full sheet (own colour)</span><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">╳ Hatched = off-cut, same colour as source sheet</span></div><div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b"><strong>\u2702 Puzzle piece rule:</strong> Hip cuts produce 90\xb0 triangular off-cuts. These fill the end faces — all strips perpendicular to their local gutter. Hatching = off-cut. Number = source sheet.</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
+  mainFaces.forEach(function(f){var cutLen=hasRealScale&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m':'Long face')+'</div><div style="font-size:20px;font-weight:700;color:#7c3aed">'+f.nSheets+'</div><div style="font-size:10px;color:#6b7280">full sheets'+(cutLen!=='—'?' @ '+cutLen+' each':'')+'</div></div>';});
+  if(endFaces.length){legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid #888;border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">Hip ends ('+endFaces.length+')</div><div style="font-size:13px;font-weight:700;color:#7c3aed">✂ off-cuts</div><div style="font-size:10px;color:#6b7280">filled by hip off-cuts<br>no extra sheets needed</div></div>';}
   legHtml+='</div><div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:13px"><strong>Total: '+totSheets+' full-length sheets to order</strong>'+calNote+'</div></div>';
   outEl.innerHTML='';outEl.appendChild(cv);var dd=document.createElement('div');dd.innerHTML=legHtml;outEl.appendChild(dd);
 }
