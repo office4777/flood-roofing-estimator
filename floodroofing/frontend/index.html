@@ -4762,22 +4762,25 @@ function renderRoofSheetPlan() {
   faces.sort(function(a,b){return b.gutterM-a.gutterM;});
   var COLS=['#E8741A','#1B8AC9','#22c55e','#a855f7'];
   faces.forEach(function(f,i){f.col=COLS[i%COLS.length];});
-  // Link end faces to dominant main-face (longest adjacent) for off-cut colouring
-  // NZ rule: off-cuts cannot be flipped (colour one side only) - only spun.
-  // End faces use off-cuts exclusively from the LONGEST adjacent main face.
+  // Link end faces to adjacent main-face colours (each half from its own adjacent face)
   faces.forEach(function(ef){
     if(!ef.isEndFace)return;
-    var domFace=null;
+    ef.lHipCol=ef.col;ef.rHipCol=ef.col;
+    ef.lHipMFnSheets=0;ef.lHipFromStart=true;
+    ef.rHipMFnSheets=0;ef.rHipFromStart=true;
     faces.forEach(function(mf){
       if(mf.isEndFace)return;
-      var adj=(mf.lHip===ef.lHip||mf.rHip===ef.lHip||mf.lHip===ef.rHip||mf.rHip===ef.rHip);
-      if(adj&&(!domFace||mf.nSheets>domFace.nSheets))domFace=mf;
+      if(mf.lHip===ef.lHip||mf.rHip===ef.lHip){
+        ef.lHipCol=mf.col;
+        ef.lHipMFnSheets=mf.nSheets;
+        ef.lHipFromStart=pNear(ef.p0,mf.p0);
+      }
+      if(mf.lHip===ef.rHip||mf.rHip===ef.rHip){
+        ef.rHipCol=mf.col;
+        ef.rHipMFnSheets=mf.nSheets;
+        ef.rHipFromStart=pNear(ef.p1,mf.p0);
+      }
     });
-    if(!domFace){ef.domCol=ef.col;ef.domNSheets=ef.nSheets;ef.lHipFromStart=true;ef.rHipFromStart=false;return;}
-    ef.domCol=domFace.col;
-    ef.domNSheets=domFace.nSheets;
-    ef.lHipFromStart=pNear(ef.p0,domFace.p0);
-    ef.rHipFromStart=pNear(ef.p1,domFace.p0);
   });
   drawPoly(DRAW.outline,'#dde3ea',null);
   var hasRealScale=DRAW.scaleMetresPerPx>0;
@@ -4832,12 +4835,14 @@ function renderRoofSheetPlan() {
       if(f.lHip&&used.length>=3)used=hipOutside(used,f.lHip);
       if(f.rHip&&used.length>=3)used=hipOutside(used,f.rHip);
       if(!used||used.length<3||polyArea(used)<minA)continue;
-      var col=f.domCol,srcSheet;
+      var col,srcSheet;
       if(s<halfIdx){
-        srcSheet=f.lHipFromStart?s+1:f.domNSheets-s;
+        col=f.lHipCol;
+        srcSheet=f.lHipFromStart?s+1:f.lHipMFnSheets-s;
       }else{
+        col=f.rHipCol;
         var s2=s-halfIdx;
-        srcSheet=f.rHipFromStart?(halfIdx-s2):(f.domNSheets-halfIdx+1+s2);
+        srcSheet=f.rHipFromStart?(halfIdx-s2):(f.rHipMFnSheets-halfIdx+1+s2);
       }
       drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
       drawHatching(used);
