@@ -299,7 +299,7 @@ textarea{resize:vertical;min-height:70px}
     </div>
     <div id="aerialHint" style="font-size:12px;color:#888;margin-top:4px">Enter a NZ address, then <strong>zoom in until individual rooftops are clearly visible</strong> before clicking "Use this view".</div>
     <div id="aerialMapWrap" style="margin-top:10px;border-radius:8px;border:1px solid #ddd;display:block;overflow:visible">
-      <div id="aerialLeafletMap2" style="width:100%;height:700px;background:#e8e8e8;border-radius:8px 8px 0 0"></div>
+      <div id="aerialLeafletMap2" style="width:100%;height:calc(100vh - 220px);min-height:500px;background:#e8e8e8;border-radius:8px 8px 0 0"></div>
       <div style="background:#f5f5f3;padding:8px 12px;border-top:1px solid #ddd;border-radius:0 0 8px 8px;display:flex;justify-content:flex-end">
         <button onclick="useAerialView()" style="padding:8px 20px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">📸 Use this view</button>
       </div>
@@ -673,6 +673,18 @@ textarea{resize:vertical;min-height:70px}
       <p style="font-size:12px;color:var(--text2)">Draw lines and add measurements on the Roof map tab, then click Calibrate scale to populate this automatically.</p>
     </div>
     <button class="sec-btn" onclick="populateMaterialsFromLines()" style="margin-top:.5rem">↻ Refresh from drawing</button>
+  </div>
+
+  <!-- QUICK GENERATE 4-HIP ROOF -->
+  <div class="card" id="quickHipCard">
+    <div class="card-hd"><span class="card-dot"></span>⚡ Quick generate — standard 4-hip roof</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:1rem">Enter your building dimensions to instantly generate the sheet cut layout — no drawing required.</p>
+    <div class="f3">
+      <div><label>Building width (m)</label><input type="number" id="qhWidth" value="10" min="1" step="0.1" placeholder="e.g. 10"></div>
+      <div><label>Building length (m)</label><input type="number" id="qhLength" value="15" min="1" step="0.1" placeholder="e.g. 15"></div>
+      <div><label>Sheet effective width (mm)</label><input type="number" id="qhSheetW" value="762" min="100" placeholder="762"></div>
+    </div>
+    <button class="sec-btn" onclick="quickGenerateHipRoof()">⚡ Generate 4-hip sheet layout</button>
   </div>
 
   <!-- ROOF SHEET PLAN CARD -->
@@ -1658,6 +1670,47 @@ function buildSheetSections() {
 function renderSheetLayout(){
   // Delegate to the colour-coded sheet plan
   try { renderRoofSheetPlan(); } catch(e) { console.warn('renderRoofSheetPlan error:', e); }
+}
+
+function quickGenerateHipRoof(){
+  var W=parseFloat(document.getElementById('qhWidth').value)||10;
+  var L=parseFloat(document.getElementById('qhLength').value)||15;
+  var sheetWmm=parseFloat(document.getElementById('qhSheetW').value)||762;
+  if(L<W){var tmp=W;W=L;L=tmp;} // ensure L >= W
+  // update sheet width input
+  var swEl=document.getElementById('sheetWidth');if(swEl)swEl.value=sheetWmm;
+  // scale: fit nicely in canvas
+  var scPx=Math.min(Math.floor(700/Math.max(W,L)),40);
+  var ox=60,oy=60;
+  var Wpx=W*scPx,Lpx=L*scPx;
+  var hipDpx=Wpx/2; // 45° hip end depth
+  var rtX=ox+Wpx/2,rtY=oy+hipDpx;   // ridge top apex
+  var rbX=ox+Wpx/2,rbY=oy+Lpx-hipDpx; // ridge bottom apex
+  // Outline
+  DRAW.outline=[[ox,oy],[ox+Wpx,oy],[ox+Wpx,oy+Lpx],[ox,oy+Lpx]];
+  DRAW.outlineDone=true;
+  DRAW.lines=[
+    // Main ridge (vertical)
+    {type:'ridge',pts:[[rtX,rtY],[rbX,rbY]],measM:(L-W).toFixed(2)},
+    // Tiny apex ridges (horizontal) so hip-end faces are detected
+    {type:'ridge',pts:[[rtX-2,rtY],[rtX+2,rtY]]},
+    {type:'ridge',pts:[[rbX-2,rbY],[rbX+2,rbY]]},
+    // 4 hips
+    {type:'hip',pts:[[ox,oy],[rtX,rtY]]},
+    {type:'hip',pts:[[ox+Wpx,oy],[rtX,rtY]]},
+    {type:'hip',pts:[[ox,oy+Lpx],[rbX,rbY]]},
+    {type:'hip',pts:[[ox+Wpx,oy+Lpx],[rbX,rbY]]},
+    // 4 gutters with measurements
+    {type:'gutter',pts:[[ox,oy],[ox+Wpx,oy]],measM:W},
+    {type:'gutter',pts:[[ox+Wpx,oy],[ox+Wpx,oy+Lpx]],measM:L},
+    {type:'gutter',pts:[[ox+Wpx,oy+Lpx],[ox,oy+Lpx]],measM:W},
+    {type:'gutter',pts:[[ox,oy+Lpx],[ox,oy]],measM:L}
+  ];
+  DRAW.scaleMetresPerPx=1/scPx;
+  // scroll to and render sheet plan
+  try{renderRoofSheetPlan();}catch(e){console.warn('quickGenerate:',e);}
+  var planCard=document.getElementById('roofSheetPlanCard');
+  if(planCard)planCard.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 // ── SCOPE ────────────────────────────────────────────────────────
@@ -4733,4 +4786,35 @@ function renderRoofSheetPlan() {
       var TR=[f.p0[0]+f.gnx*gL+f.perpX*d1,f.p0[1]+f.gny*gL+f.perpY*d1],TL=[f.p0[0]+f.perpX*d1,f.p0[1]+f.perpY*d1];
       var band=[BL,BR,TR,TL];
       if(f.lHip){var offL=hipOutside(clipToOutline(band.slice()),f.lHip);if(offL&&offL.length>=3){drawPoly(offL,oppCol,'rgba(0,0,0,0.7)',2);lbl(offL,(b+1)+'\u21bb',oppCol,Math.max(7,Math.min(12,toCV(sw)*0.45)),0.9);}}
-      if(f.rHip){var
+      if(f.rHip){var offR=hipOutside(clipToOutline(band.slice()),f.rHip);if(offR&&offR.length>=3){drawPoly(offR,oppCol,'rgba(0,0,0,0.7)',2);lbl(offR,(b+1)+'\u21bb',oppCol,Math.max(7,Math.min(12,toCV(sw)*0.45)),0.9);}}
+    }
+  });
+  // PASS 2: main sheets
+  faces.forEach(function(f){
+    var dep=f.depImg,sw=f.swImg,gL=f.gL;
+    for(var s=0;s<f.nSheets;s++){
+      var BL=[f.p0[0]+f.gnx*s*sw,f.p0[1]+f.gny*s*sw],BR=[f.p0[0]+f.gnx*(s+1)*sw,f.p0[1]+f.gny*(s+1)*sw];
+      var TL=[BL[0]+f.perpX*dep,BL[1]+f.perpY*dep],TR=[BR[0]+f.perpX*dep,BR[1]+f.perpY*dep];
+      var used=clipToOutline([BL,BR,TR,TL].slice());
+      if(f.lHip&&used.length>=3)used=hipInside(used,f.lHip);
+      if(f.rHip&&used.length>=3)used=hipInside(used,f.rHip);
+      if(!used||used.length<3)continue;
+      drawPoly(used,f.col,'rgba(0,0,0,0.75)',2.2);
+      lbl(used,s+1,'rgba(0,0,0,0.9)',Math.max(8,Math.min(15,toCV(sw)*0.5)));
+    }
+    var mc=toC([(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2]);
+    ctx.save();ctx.font='11px sans-serif';ctx.fillStyle='#5b21b6';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m':'',mc[0]-f.perpX*24,mc[1]-f.perpY*24);
+    ctx.restore();
+  });
+  [{type:'ridge',c:'#c00',w:4,d:[]},{type:'hip',c:'#1d4ed8',w:3,d:[]},{type:'gutter',c:'#5b21b6',w:2,d:[]}].forEach(function(st){DRAW.lines.forEach(function(l){if(l.type!==st.type)return;var c0=toC(l.pts[0]),c1=toC(l.pts[1]);ctx.save();ctx.strokeStyle=st.c;ctx.lineWidth=st.w;ctx.setLineDash(st.d);ctx.beginPath();ctx.moveTo(c0[0],c0[1]);ctx.lineTo(c1[0],c1[1]);ctx.stroke();ctx.restore();});});
+  ctx.save();ctx.strokeStyle='#5b21b6';ctx.lineWidth=3;ctx.beginPath();DRAW.outline.forEach(function(p,i){var c=toC(p);if(i===0)ctx.moveTo(c[0],c[1]);else ctx.lineTo(c[0],c[1]);});ctx.closePath();ctx.stroke();ctx.restore();
+  var totSheets=faces.reduce(function(s,f){return s+f.nSheets;},0);
+  var calNote=hasRealScale?'':' <em style="color:#d97706;font-size:10px">(calibrate scale for real measurements)</em>';
+  var legHtml='<div style="margin-top:14px"><div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px"><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">Solid = full sheet (own colour)</span><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">Opposite colour \u21bb = offcut from that face, perpendicular to gutter</span></div><div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b"><strong>\u2702 Puzzle piece rule:</strong> Hip = 45\xb0 cut. Offcut from face A fills corners of face B. Same colour as source. \u21bb = which sheet it came from.</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
+  faces.forEach(function(f){var cutLen=hasRealScale&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m':'Face')+'</div><div style="font-size:20px;font-weight:700;color:#7c3aed">'+f.nSheets+'</div><div style="font-size:10px;color:#6b7280">sheets'+(cutLen!=='—'?' @ '+cutLen+' each':'')+'</div></div>';});
+  legHtml+='</div><div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:13px"><strong>Total: '+totSheets+' full-length sheets to order</strong>'+calNote+'</div></div>';
+  outEl.innerHTML='';outEl.appendChild(cv);var dd=document.createElement('div');dd.innerHTML=legHtml;outEl.appendChild(dd);
+}
+</script>
+</html>
