@@ -2125,10 +2125,18 @@ function getXY(e){
           });
         }
         if(_ds.length===0)return;
-        var _vrd=Math.min.apply(null,_ds)*0.5;
-        if(_vrd<=MAGNET)return;
-        // Two gutter directions
+        var _perpVrd=Math.min.apply(null,_ds)*0.5;
+        if(_perpVrd<=MAGNET)return;
+        // Two gutter directions — clamp vrd by parallel (gutter) depth so hip stops at ridge
         [[_gx,_gy],[-_gx,-_gy]].forEach(function(gs){
+          var _pds=[];
+          DRAW.outline.forEach(function(p){
+            var _d2=(p[0]-sp[0])*gs[0]+(p[1]-sp[1])*gs[1];
+            if(_d2>MAGNET)_pds.push(_d2);
+          });
+          var _paraVrd=_pds.length>0?Math.min.apply(null,_pds)*0.5:_perpVrd;
+          var _vrd=Math.min(_perpVrd,_paraVrd);
+          if(_vrd<=MAGNET)return;
           var _cmx=sp[0]+gs[0]*_vrd+_px*_vrd;
           var _cmy=sp[1]+gs[1]*_vrd+_py*_vrd;
           // Must be inward (perp dot > 0) and inside polygon
@@ -4201,17 +4209,7 @@ function buildHipValleyLines(outline) {
   var result = [];
   var EPS = 1.5;
   function vlen(v){return Math.sqrt(v[0]*v[0]+v[1]*v[1]);}
-  function vnorm(v){var l=vlen(v)||1;return[v[0]/l,v[1]/l];}
   function vdot(a,b){return a[0]*b[0]+a[1]*b[1];}
-  function vcen(pts){var cx=0,cy=0;for(var i=0;i<pts.length;i++){cx+=pts[i][0];cy+=pts[i][1];}return[cx/pts.length,cy/pts.length];}
-
-  // Inward unit normal for edge a→b, given interior centroid
-  function enorm(a,b,cen){
-    var dx=b[0]-a[0],dy=b[1]-a[1],l=vlen([dx,dy])||1;
-    var n1=[-dy/l,dx/l],n2=[dy/l,-dx/l];
-    var m=[(a[0]+b[0])/2,(a[1]+b[1])/2];
-    return vdot([cen[0]-m[0],cen[1]-m[1]],n1)>=0?n1:n2;
-  }
 
   function run(pts,isOrig,depth){
     var n=pts.length;
@@ -4222,10 +4220,19 @@ function buildHipValleyLines(outline) {
       if(d>1)result.push({type:'ridge',pts:[pts[0].slice(),pts[1].slice()]});
       return;
     }
-    var cen=vcen(pts);
-    // Edge normals
-    var en=[];for(var i=0;i<n;i++)en.push(enorm(pts[i],pts[(i+1)%n],cen));
-    // Vertex bisectors, velocities, reflex flags
+    // Winding-based inward normals (robust for concave polygons — centroid fails on step edges)
+    var _pa=0;
+    for(var i=0;i<n;i++){var j=(i+1)%n;_pa+=pts[i][0]*pts[j][1]-pts[j][0]*pts[i][1];}
+    var _cw=_pa>0; // positive shoelace area = CW in screen coords (Y-down)
+    // CW: inward normal = 90° CCW rotation of edge = (-dy,dx)/l
+    // CCW: inward normal = 90° CW rotation = (dy,-dx)/l
+    var en=[];
+    for(var i=0;i<n;i++){
+      var a=pts[i],b=pts[(i+1)%n];
+      var dx=b[0]-a[0],dy=b[1]-a[1],l=vlen([dx,dy])||1;
+      en.push(_cw?[-dy/l,dx/l]:[dy/l,-dx/l]);
+    }
+    // Vertex bisectors, velocities, reflex flags (cross-product winding check)
     var vel=[],refl=[];
     for(var i=0;i<n;i++){
       var na=en[(i+n-1)%n],nb=en[i];
@@ -4233,8 +4240,10 @@ function buildHipValleyLines(outline) {
       bx/=bl;by/=bl;
       var d=vdot(na,[bx,by]);
       var spd=(Math.abs(d)>0.001)?1/d:0;
-      var toI=[cen[0]-pts[i][0],cen[1]-pts[i][1]];
-      refl.push(vdot(toI,[bx,by])<0);
+      var prev=pts[(i+n-1)%n],curr=pts[i],next=pts[(i+1)%n];
+      var e1=[curr[0]-prev[0],curr[1]-prev[1]],e2=[next[0]-curr[0],next[1]-curr[1]];
+      var cross=e1[0]*e2[1]-e1[1]*e2[0];
+      refl.push(_cw?(cross<-0.1):(cross>0.1));
       vel.push([bx*spd,by*spd]);
     }
     // Find minimum event time (edge collapse or split)
@@ -4251,18 +4260,27 @@ function buildHipValleyLines(outline) {
       if(t<minT-EPS){minT=t;minEdges=[i];}
       else if(t<=minT+EPS)minEdges.push(i);
     }
-    // Split events (reflex vertex hits opposite edge — static approx)
+    // Split events: reflex vertex hits opposite MOVING edge
+    // t = (pts[i]-pts[j])·n_j / (1 - vel[i]·n_j)  — exact for straight-skeleton moving edges
     for(var i=0;i<n;i++){
       if(!refl[i])continue;
       for(var j=0;j<n;j++){
         var jj=(j+1)%n;
         if(j===i||j===(i+n-1)%n||jj===i)continue;
-        var ex=pts[jj][0]-pts[j][0],ey=pts[jj][1]-pts[j][1];
-        var cr=vel[i][0]*ey-vel[i][1]*ex;
-        if(Math.abs(cr)<1e-8)continue;
-        var ddx=pts[j][0]-pts[i][0],ddy=pts[j][1]-pts[i][1];
-        var t=(ddx*ey-ddy*ex)/cr,s=(ddx*vel[i][1]-ddy*vel[i][0])/cr;
-        if(t<0.05||s<-0.02||s>1.02)continue;
+        var nj=en[j];
+        var dist=(pts[i][0]-pts[j][0])*nj[0]+(pts[i][1]-pts[j][1])*nj[1];
+        var denom=1-(vel[i][0]*nj[0]+vel[i][1]*nj[1]);
+        if(Math.abs(denom)<1e-8)continue;
+        var t=dist/denom;
+        if(t<0.05)continue;
+        // Verify hit is inside the MOVING edge segment at time t
+        var hx=pts[i][0]+t*vel[i][0],hy=pts[i][1]+t*vel[i][1];
+        var jx=pts[j][0]+t*vel[j][0],jy=pts[j][1]+t*vel[j][1];
+        var kx=pts[jj][0]+t*vel[jj][0],ky=pts[jj][1]+t*vel[jj][1];
+        var ex_t=kx-jx,ey_t=ky-jy,el2=ex_t*ex_t+ey_t*ey_t;
+        if(el2<0.01)continue;
+        var s=((hx-jx)*ex_t+(hy-jy)*ey_t)/el2;
+        if(s<-0.02||s>1.02)continue;
         if(t<minT-EPS){minT=t;minEdges=[];splitEv={vi:i,ej:j,ejj:jj};}
         else if(t<minT+EPS&&!splitEv)splitEv={vi:i,ej:j,ejj:jj};
       }
@@ -4278,8 +4296,8 @@ function buildHipValleyLines(outline) {
       var type=refl[i]?'valley':isOrig[i]?'hip':'ridge';
       result.push({type:type,pts:[pts[i].slice(),np[i].slice()]});
     }
-    // Handle split event first (has priority)
-    if(splitEv&&minEdges.length===0){
+    // Handle split event — always takes priority over edge collapses (simultaneous events)
+    if(splitEv){
       var vi=splitEv.vi,ej=splitEv.ej,ejj=splitEv.ejj;
       var sp=np[vi].slice();
       var s1=[],o1=[],s2=[],o2=[];
@@ -4291,11 +4309,14 @@ function buildHipValleyLines(outline) {
       s2.push(sp.slice());o2.push(false);
       for(var k=ejj;;k=(k+1)%n){
         s2.push(np[k].slice());o2.push(isOrig[k]);
-        if(k===(vi+n-1)%n){s2.push(np[vi].slice());o2.push(isOrig[vi]);break;}
+        if(k===(vi+n-1)%n){s2.push(np[vi].slice());o2.push(false);break;} // split pt → not orig
         if(s2.length>n+4)break;
       }
-      if(s1.length>=3)run(s1,o1,depth+1);
-      if(s2.length>=3)run(s2,o2,depth+1);
+      // Deduplicate adjacent coincident vertices before recursing (handles simultaneous collapse+split)
+      function _dd(pp,oo){var fp=[],fo=[];for(var i=0;i<pp.length;i++){var pv=pp[(i+pp.length-1)%pp.length];if((pp[i][0]-pv[0])*(pp[i][0]-pv[0])+(pp[i][1]-pv[1])*(pp[i][1]-pv[1])>0.25){fp.push(pp[i]);fo.push(oo[i]);}}return[fp,fo];}
+      var _d1=_dd(s1,o1),_d2=_dd(s2,o2);
+      if(_d1[0].length>=2)run(_d1[0],_d1[1],depth+1);
+      if(_d2[0].length>=2)run(_d2[0],_d2[1],depth+1);
       return;
     }
     // Edge collapse(s)
