@@ -495,6 +495,9 @@ textarea{resize:vertical;min-height:70px}
           <button onclick="clearLineMeas()" style="padding:10px 14px;background:#fff0f0;color:#dc2626;border:1px solid #f09595;border-radius:8px;cursor:pointer;font-size:13px">Clear</button>
           <button onclick="closeLineMeasPopup()" style="padding:10px 14px;background:#f5f5f3;color:#666;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px">✕</button>
         </div>
+        <div style="margin-top:8px">
+          <button onclick="deleteLineFromMeas()" style="width:100%;padding:8px;background:#fff0f0;color:#dc2626;border:1px solid #f09595;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">🗑 Delete this line</button>
+        </div>
       </div>
       <div id="lineMeasOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:999" onclick="closeLineMeasPopup()"></div>
 
@@ -2316,8 +2319,8 @@ function autoPopulateGutters(){
     DRAW.lines.push({type:'gutter',pts:[a.slice(),b.slice()],label:'',lengthM:'',measM:null,sheetLengthM:null});
   }
 
-  // Measure all gutters
-  DRAW.lines.forEach(function(l,i){if(l.type==='gutter'&&!l.measM)calcLineMeasIfCalibrated(i);});
+  // Measure all lines (gutters, ridges, valleys, hips, etc.)
+  DRAW.lines.forEach(function(l,i){if(!l.measM)calcLineMeasIfCalibrated(i);});
 
   // Convert gutter→barge ONLY where a ridge meets the gutter at an INTERIOR point
   // (not at the corners). This handles gable roofs correctly.
@@ -3594,6 +3597,9 @@ function updateMeasTotals() {
   var unknownCount = DRAW.lines.filter(function(l){return l.type==='unknown';}).length;
   var sheetLengths = {}; // gutter index -> sheet length
   var hasAny = false;
+
+  // Auto-calculate measM for any line that doesn't have one yet (if scale is calibrated)
+  if(DRAW.scaleMetresPerPx) DRAW.lines.forEach(function(l,i){if(!l.measM)calcLineMeasIfCalibrated(i);});
 
   DRAW.lines.forEach(function(l, i) {
     if(l.measM) { hasAny=true; if(totals[l.type]!==undefined) totals[l.type]+=parseFloat(l.measM); }
@@ -5058,8 +5064,7 @@ function renderRoofSheetPlan() {
     DRAW.lines.forEach(function(r){if(r.type!=='hip'&&r.type!=='valley')return;if(pNear(r.pts[0],p0)||pNear(r.pts[1],p0))lHip=r;if(pNear(r.pts[0],p1)||pNear(r.pts[1],p1))rHip=r;});
     // Search for parallel ridge/valley
     var bestD=Infinity;
-    var _dbgLines=[];
-    DRAW.lines.forEach(function(r){if(r.type!=='ridge'&&r.type!=='valley')return;var _ra=Math.atan2(r.pts[1][1]-r.pts[0][1],r.pts[1][0]-r.pts[0][0])*180/Math.PI;var _ad2=angDiff(_ra,gAng);var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];var _dd=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],perpX,perpY);_dbgLines.push({type:r.type,ang:_ra.toFixed(1),angDiff:_ad2.toFixed(1),dot:_dd.toFixed(1)});if(_ad2>30)return;if(_dd>0&&_dd<bestD)bestD=_dd;});
+    DRAW.lines.forEach(function(r){if(r.type!=='ridge'&&r.type!=='valley')return;if(angDiff(Math.atan2(r.pts[1][1]-r.pts[0][1],r.pts[1][0]-r.pts[0][0])*180/Math.PI,gAng)>30)return;var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];var d=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],perpX,perpY);if(d>0&&d<bestD)bestD=d;});
     // Opposite-direction fallback: centroid-based can point outward for concave step gutters
     if(bestD===Infinity){
       var _altD=Infinity;
@@ -5075,7 +5080,6 @@ function renderRoofSheetPlan() {
       var ad=dot(apex[0]-gmid[0],apex[1]-gmid[1],perpX,perpY);
       if(ad>0){bestD=ad;isEndFace=true;}
     }
-    console.log('FACE gutterM='+parseFloat(gl.measM||0).toFixed(2)+'m gAng='+gAng.toFixed(1)+'° perpX='+perpX.toFixed(2)+' perpY='+perpY.toFixed(2)+' bestD='+bestD.toFixed(1)+' isEndFace='+isEndFace+' lHip='+!!lHip+' rHip='+!!rHip+' ridgeValleyLines=',JSON.stringify(_dbgLines));
     if(bestD===Infinity)return;
     var depImg=bestD,gutterM=parseFloat(gl.measM||0),depM=effectiveScale>0?depImg*effectiveScale:0;
     var swImg=effectiveScale>0?swM/effectiveScale:gL/10,nSheets=Math.max(1,Math.ceil(gL/swImg));
@@ -5191,5 +5195,4 @@ function renderRoofSheetPlan() {
   var calNote=hasRealScale?'':' <em style="color:#d97706;font-size:10px">(calibrate scale for real measurements)</em>';
   var legHtml='<div style="margin-top:14px"><div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px"><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9632; Solid = full sheet installed (own colour)</span><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#10007; Hatched = off-cut reused (source face colour)</span></div><div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b"><strong>Puzzle piece rule:</strong> All sheets run perpendicular to their local gutter. Hip/valley cuts produce 90&deg; off-cuts that fill end faces (shown hatched in source face colour). Number = source sheet #. Order sheets by gutter lengths only.</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
   mainFaces.forEach(function(f){var cutLen=hasRealScale&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m gutter':'Face')+'</div><div style="font-size:20px;font-weight:700;color:#7c3aed">'+f.nSheets+'</div><div style="font-size:10px;color:#6b7280">sheets'+(cutLen!=='—'?' @ '+cutLen+' long':'')+'</div></div>';});
-  if(endFaces.length){legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid #888;border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">End faces</div><div style="font-size:11px;color:#6b7280">Filled with off-cuts — no extra sheets needed</div></div>';}
-  legHtml+='</div><div style="backgrou
+  if(endFaces.length){legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid #888;border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">End faces</div><div style="font-size:11px;color:#6b7280">Filled with off-cuts — no ext
