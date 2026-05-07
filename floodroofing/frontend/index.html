@@ -1679,7 +1679,16 @@ function buildSheetSections() {
 
 function renderSheetLayout(){
   // Delegate to the colour-coded sheet plan
-  try { renderRoofSheetPlan(); } catch(e) { console.warn('renderRoofSheetPlan error:', e); }
+  try {
+    renderRoofSheetPlan();
+    // Scroll the output into view after rendering
+    var out=document.getElementById('roofSheetPlanOut');
+    if(out&&out.querySelector('canvas')) out.scrollIntoView({behavior:'smooth',block:'start'});
+  } catch(e) {
+    var out=document.getElementById('roofSheetPlanOut');
+    if(out) out.innerHTML='<p style="color:#dc2626;font-weight:600">⚠ Sheet plan error: '+e.message+'</p>';
+    console.error('renderRoofSheetPlan error:', e);
+  }
 }
 
 
@@ -5086,6 +5095,18 @@ function renderRoofSheetPlan() {
     faces.push({gl:gl,p0:p0,p1:p1,gnx:gnx,gny:gny,perpX:perpX,perpY:perpY,gL:gL,depImg:depImg,depM:depM,lHip:lHip,rHip:rHip,gutterM:gutterM,swImg:swImg,nSheets:nSheets,isEndFace:isEndFace});
   });
   faces.sort(function(a,b){return b.gutterM-a.gutterM;});
+  if(!faces.length){
+    // Diagnose why no faces were built
+    var hipCount=DRAW.lines.filter(function(l){return l.type==='hip';}).length;
+    var ridgeCount=DRAW.lines.filter(function(l){return l.type==='ridge';}).length;
+    var valleyCount=DRAW.lines.filter(function(l){return l.type==='valley';}).length;
+    outEl.innerHTML='<p style="color:#92400e;background:#fef3c7;border-radius:8px;padding:12px;font-size:12px">'+
+      '⚠ No roof faces could be built from your lines.<br>'+
+      'Found: '+gutters.length+' gutter(s), '+hipCount+' hip(s), '+ridgeCount+' ridge(s), '+valleyCount+' valley(s).<br>'+
+      'Each gutter needs a hip or valley touching each endpoint, and a parallel ridge/valley line above it.<br>'+
+      'Use <b>↻ Refresh</b> after setting all line types correctly.</p>';
+    return;
+  }
   var COLS=['#E8741A','#1B8AC9','#22c55e','#a855f7'];
   faces.forEach(function(f,i){f.col=COLS[i%COLS.length];});
   // Link end faces to adjacent main-face colours (each half from its own adjacent face)
@@ -5193,6 +5214,4 @@ function renderRoofSheetPlan() {
   var endFaces=faces.filter(function(f){return f.isEndFace;});
   var totSheets=mainFaces.reduce(function(s,f){return s+f.nSheets;},0);
   var calNote=hasRealScale?'':' <em style="color:#d97706;font-size:10px">(calibrate scale for real measurements)</em>';
-  var legHtml='<div style="margin-top:14px"><div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px"><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9632; Solid = full sheet installed (own colour)</span><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#10007; Hatched = off-cut reused (source face colour)</span></div><div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b"><strong>Puzzle piece rule:</strong> All sheets run perpendicular to their local gutter. Hip/valley cuts produce 90&deg; off-cuts that fill end faces (shown hatched in source face colour). Number = source sheet #. Order sheets by gutter lengths only.</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
-  mainFaces.forEach(function(f){var cutLen=hasRealScale&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m gutter':'Face')+'</div><div style="font-size:20px;font-weight:700;color:#7c3aed">'+f.nSheets+'</div><div style="font-size:10px;color:#6b7280">sheets'+(cutLen!=='—'?' @ '+cutLen+' long':'')+'</div></div>';});
-  if(endFaces.length){legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid #888;border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">End faces</div><div style="font-size:11px;color:#6b7280">Filled with off-cuts — no ext
+  var legHtml='<div style="margin-top:14px"><div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px"><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9632; Solid = full sheet installed (own colour)</span><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#10007; Hatched = off-cut reused (source face colour)</span></div><div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b"><strong>Puzzle piece rul
