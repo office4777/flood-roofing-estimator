@@ -4342,6 +4342,16 @@ function buildHipValleyLines(outline) {
 
   var initOrig=outline.map(function(){return true;});
   run(outline.map(function(p){return p.slice();}),initOrig,0);
+  // Post-process: reclassify 'ridge' arcs that run at ~45° to any outline edge as 'hip'
+  // These are generated at skeleton junctions where two faces meet diagonally — geometrically hips
+  var _oa=[];
+  for(var _oi=0;_oi<outline.length;_oi++){var _a=outline[_oi],_b=outline[(_oi+1)%outline.length],_dx2=_b[0]-_a[0],_dy2=_b[1]-_a[1];if(vlen([_dx2,_dy2])>1)_oa.push(Math.atan2(_dy2,_dx2));}
+  result.forEach(function(seg){
+    if(seg.type!=='ridge')return;
+    var _sdx=seg.pts[1][0]-seg.pts[0][0],_sdy=seg.pts[1][1]-seg.pts[0][1],_sa=Math.atan2(_sdy,_sdx);
+    var _is45=_oa.some(function(oa){var _df=Math.abs(_sa-oa)%Math.PI;if(_df>Math.PI/2)_df=Math.PI-_df;return Math.abs(_df-Math.PI/4)<(18*Math.PI/180);});
+    if(_is45)seg.type='hip';
+  });
   return result;
 }
 
@@ -5040,8 +5050,9 @@ function renderRoofSheetPlan() {
   gutters.forEach(function(gl){
     var p0=gl.pts[0],p1=gl.pts[1],gdx=p1[0]-p0[0],gdy=p1[1]-p0[1],gL=len2(gdx,gdy);if(gL<1)return;
     var gnx=gdx/gL,gny=gdy/gL,px1=-gny,py1=gnx,px2=gny,py2=-gnx;
-    var gmid=[(p0[0]+p1[0])/2,(p0[1]+p1[1])/2],d1=dot(cX-gmid[0],cY-gmid[1],px1,py1);
-    var perpX=d1>=0?px1:px2,perpY=d1>=0?py1:py2;
+    var gmid=[(p0[0]+p1[0])/2,(p0[1]+p1[1])/2];
+    // Use outline-winding inward normal (robust for concave step gutters — centroid can be on wrong side)
+    var perpX=(_olSA>0)?px1:px2,perpY=(_olSA>0)?py1:py2;
     var gAng=Math.atan2(gdy,gdx)*180/Math.PI;
     // Detect hips first (needed for end-face apex fallback)
     var lHip=null,rHip=null;
@@ -5096,8 +5107,16 @@ function renderRoofSheetPlan() {
     for(var s=0;s<f.nSheets;s++){
       var BL=[f.p0[0]+f.gnx*s*sw,f.p0[1]+f.gny*s*sw],BR=[f.p0[0]+f.gnx*(s+1)*sw,f.p0[1]+f.gny*(s+1)*sw];
       var TL=[BL[0]+f.perpX*dep,BL[1]+f.perpY*dep],TR=[BR[0]+f.perpX*dep,BR[1]+f.perpY*dep];
-      if(f.lHip){var offL=hipOutside(clipToOutline([BL,BR,TR,TL].slice()),f.lHip);if(offL&&offL.length>=3){drawPoly(offL,f.col,'rgba(0,0,0,0.5)',1.5);drawHatching(offL);lbl(offL,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(11,toCV(sw)*0.42)),0.9);}}
-      if(f.rHip){var offR=hipOutside(clipToOutline([BL,BR,TR,TL].slice()),f.rHip);if(offR&&offR.length>=3){drawPoly(offR,f.col,'rgba(0,0,0,0.5)',1.5);drawHatching(offR);lbl(offR,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(11,toCV(sw)*0.42)),0.9);}}
+      // Off-cuts: for each hip/valley bounding this face, render the piece that falls outside it
+      DRAW.lines.forEach(function(cl){
+        if(cl.type!=='hip'&&cl.type!=='valley')return;
+        var _d0=dot(cl.pts[0][0]-gmid[0],cl.pts[0][1]-gmid[1],f.perpX,f.perpY);
+        var _d1=dot(cl.pts[1][0]-gmid[0],cl.pts[1][1]-gmid[1],f.perpX,f.perpY);
+        if((_d0>-sw&&_d0<dep+sw)||(_d1>-sw&&_d1<dep+sw)){
+          var offC=hipOutside(clipToOutline([BL,BR,TR,TL].slice()),cl);
+          if(offC&&offC.length>=3){drawPoly(offC,f.col,'rgba(0,0,0,0.5)',1.5);drawHatching(offC);lbl(offC,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(11,toCV(sw)*0.42)),0.9);}
+        }
+      });
     }
   });
 
@@ -5109,8 +5128,13 @@ function renderRoofSheetPlan() {
       var BL=[f.p0[0]+f.gnx*s*sw,f.p0[1]+f.gny*s*sw],BR=[f.p0[0]+f.gnx*(s+1)*sw,f.p0[1]+f.gny*(s+1)*sw];
       var TL=[BL[0]+f.perpX*dep,BL[1]+f.perpY*dep],TR=[BR[0]+f.perpX*dep,BR[1]+f.perpY*dep];
       var used=clipToOutline([BL,BR,TR,TL].slice());
-      if(f.lHip&&used.length>=3)used=hipInside(used,f.lHip);
-      if(f.rHip&&used.length>=3)used=hipInside(used,f.rHip);
+      // Clip against ALL hip/valley lines within face depth range (handles L-shapes with valleys)
+      DRAW.lines.forEach(function(cl){
+        if(cl.type!=='hip'&&cl.type!=='valley')return;
+        var _d0=dot(cl.pts[0][0]-gmid[0],cl.pts[0][1]-gmid[1],f.perpX,f.perpY);
+        var _d1=dot(cl.pts[1][0]-gmid[0],cl.pts[1][1]-gmid[1],f.perpX,f.perpY);
+        if((_d0>-sw&&_d0<dep+sw)||(_d1>-sw&&_d1<dep+sw)){if(used.length>=3)used=hipInside(used,cl);}
+      });
       if(!used||used.length<3||polyArea(used)<minA)continue;
       drawPoly(used,f.col,'rgba(0,0,0,0.75)',2.2);
       lbl(used,s+1,'rgba(0,0,0,0.9)',Math.max(8,Math.min(14,toCV(sw)*0.5)));
@@ -5165,7 +5189,7 @@ function renderRoofSheetPlan() {
     ctx.restore();
   });
 
-  [{type:'ridge',c:'#c00',w:4,d:[]},{type:'hip',c:'#1d4ed8',w:3,d:[]},{type:'gutter',c:'#5b21b6',w:2,d:[]}].forEach(function(st){DRAW.lines.forEach(function(l){if(l.type!==st.type)return;var c0=toC(l.pts[0]),c1=toC(l.pts[1]);ctx.save();ctx.strokeStyle=st.c;ctx.lineWidth=st.w;ctx.setLineDash(st.d);ctx.beginPath();ctx.moveTo(c0[0],c0[1]);ctx.lineTo(c1[0],c1[1]);ctx.stroke();ctx.restore();});});
+  [{type:'ridge',c:'#c00',w:4,d:[]},{type:'valley',c:'#dc2626',w:3,d:[6,4]},{type:'hip',c:'#1d4ed8',w:3,d:[]},{type:'gutter',c:'#5b21b6',w:2,d:[]}].forEach(function(st){DRAW.lines.forEach(function(l){if(l.type!==st.type)return;var c0=toC(l.pts[0]),c1=toC(l.pts[1]);ctx.save();ctx.strokeStyle=st.c;ctx.lineWidth=st.w;ctx.setLineDash(st.d);ctx.beginPath();ctx.moveTo(c0[0],c0[1]);ctx.lineTo(c1[0],c1[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();});});
   ctx.save();ctx.strokeStyle='#5b21b6';ctx.lineWidth=3;ctx.beginPath();DRAW.outline.forEach(function(p,i){var c=toC(p);if(i===0)ctx.moveTo(c[0],c[1]);else ctx.lineTo(c[0],c[1]);});ctx.closePath();ctx.stroke();ctx.restore();
   var mainFaces=faces.filter(function(f){return !f.isEndFace;});
   var endFaces=faces.filter(function(f){return f.isEndFace;});
