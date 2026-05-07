@@ -5009,17 +5009,21 @@ function renderRoofSheetPlan() {
   if(!DRAW.lines.some(function(l){return l.type==='gutter';})){try{autoPopulateGutters();}catch(e){}}
   var effectiveScale=DRAW.scaleMetresPerPx>0?DRAW.scaleMetresPerPx:0.02;
   DRAW.lines.forEach(function(l,i){
-    if(l.type==='gutter'&&(!l.measM||!parseFloat(l.measM))){
+    if(!l.measM||!parseFloat(l.measM)){
       try{calcLineMeasIfCalibrated(i);}catch(e){}
       if(!l.measM||!parseFloat(l.measM)){var dx=l.pts[1][0]-l.pts[0][0],dy=l.pts[1][1]-l.pts[0][1];l.measM=parseFloat((Math.sqrt(dx*dx+dy*dy)*effectiveScale).toFixed(3));}
     }
   });
   var gutters=DRAW.lines.filter(function(l){return l.type==='gutter'&&l.measM&&parseFloat(l.measM)>0;});
   if(DRAW.outline.length<3){outEl.innerHTML='<p style="color:var(--text2)">Draw your building outline first.</p>';return;}
-  if(!DRAW.lines.some(function(l){return l.type==='hip'||l.type==='ridge';})){outEl.innerHTML='<p style="color:var(--text2)">Add hip and ridge lines to your drawing, then click Refresh.</p>';return;}
-  if(!gutters.length){outEl.innerHTML='<p style="color:var(--text2)">No gutter lines found. Close your outline and add hip lines, then Refresh.</p>';return;}
-  var sheetWidthMm=parseFloat(document.getElementById('sheetWidth')?document.getElementById('sheetWidth').value:762)||762;
-  var swM=sheetWidthMm/1000,overlapM=(parseFloat(document.getElementById('overlapMm')?document.getElementById('overlapMm').value:150)||150)/1000;
+  if(!DRAW.lines.some(function(l){return l.type==='hip'||l.type==='ridge';})){outEl.innerHTML='<p style="color:var(--text2)">Add hip and ridge lines, then click Refresh.</p>';return;}
+  if(!gutters.length){outEl.innerHTML='<p style="color:var(--text2)">No gutter lines found. Close outline and add hip lines, then Refresh.</p>';return;}
+
+  var sheetWidthMm=parseFloat((document.getElementById('sheetWidth')||{}).value||762)||762;
+  var swM=sheetWidthMm/1000;
+  var overlapM=(parseFloat((document.getElementById('overlapMm')||{}).value||150)||150)/1000;
+
+  /* ── Canvas setup ── */
   var minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
   DRAW.outline.forEach(function(p){minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);});
   var W=960,H=480,padX=60,padY=50;
@@ -5029,23 +5033,58 @@ function renderRoofSheetPlan() {
   var cv=document.createElement('canvas');cv.width=W;cv.height=H;
   cv.style.cssText='width:100%;max-width:'+W+'px;border:1px solid #ccd;border-radius:8px;display:block;background:#f5f7fa';
   var ctx=cv.getContext('2d');ctx.fillStyle='#f5f7fa';ctx.fillRect(0,0,W,H);
-  var cX=0,cY=0;DRAW.outline.forEach(function(p){cX+=p[0];cY+=p[1];});cX/=DRAW.outline.length;cY/=DRAW.outline.length;
+
+  /* ── Building centroid ── */
+  var cX=0,cY=0;
+  DRAW.outline.forEach(function(p){cX+=p[0];cY+=p[1];});
+  cX/=DRAW.outline.length;cY/=DRAW.outline.length;
+
+  /* ── Geometry helpers ── */
   function len2(ax,ay){return Math.sqrt(ax*ax+ay*ay);}
   function dot(ax,ay,bx,by){return ax*bx+ay*by;}
   function pNear(a,b,t){return len2(a[0]-b[0],a[1]-b[1])<(t||35);}
   function angDiff(a,b){var d=Math.abs(a-b)%180;return d>90?180-d:d;}
-  function clipHalf(pts,eA,eB,invert){if(!pts||pts.length<3)return[];var edx=eB[0]-eA[0],edy=eB[1]-eA[1],sign=invert?-1:1;function ins(p){return sign*((p[0]-eA[0])*(-edy)+(p[1]-eA[1])*(edx))>=0;}function isc(a,b){var dx=b[0]-a[0],dy=b[1]-a[1],dn=dx*(-edy)+dy*edx;if(Math.abs(dn)<0.001)return null;var t=((eA[0]-a[0])*(-edy)+(eA[1]-a[1])*edx)/dn;if(t<-0.001||t>1.001)return null;return[a[0]+t*dx,a[1]+t*dy];}var out=[];for(var i=0;i<pts.length;i++){var c=pts[i],p=pts[(i-1+pts.length)%pts.length],ci=ins(c),pi=ins(p);if(ci){if(!pi){var ip=isc(p,c);if(ip)out.push(ip);}out.push(c);}else if(pi){var ip=isc(p,c);if(ip)out.push(ip);}}return out;}
-  // Normalise outline winding: Sutherland-Hodgman needs counterclockwise (positive signed area in standard math)
-  var _clipOl=DRAW.outline.slice(),_olSA=0;
-  _clipOl.forEach(function(p,i){var q=_clipOl[(i+1)%_clipOl.length];_olSA+=p[0]*q[1]-q[0]*p[1];});
-  if(_olSA<0)_clipOl=_clipOl.slice().reverse();
-  function clipToOutline(pts){var ol=_clipOl,n=ol.length;for(var ei=0;ei<n&&pts.length>=3;ei++)pts=clipHalf(pts,ol[ei],ol[(ei+1)%n],false);return pts;}
-  function hipInside(pts,hip){var hA=hip.pts[0],hB=hip.pts[1],edx=hB[0]-hA[0],edy=hB[1]-hA[1];return clipHalf(pts,hA,hB,(cX-hA[0])*(-edy)+(cY-hA[1])*edx<0);}
-  function hipOutside(pts,hip){var hA=hip.pts[0],hB=hip.pts[1],edx=hB[0]-hA[0],edy=hB[1]-hA[1];return clipHalf(pts,hA,hB,(cX-hA[0])*(-edy)+(cY-hA[1])*edx>=0);}
-  function drawPoly(pts,fill,stroke,lw,dash){if(!pts||pts.length<3)return;ctx.save();ctx.beginPath();pts.forEach(function(pt,i){var c=toC(pt);if(i===0)ctx.moveTo(c[0],c[1]);else ctx.lineTo(c[0],c[1]);});ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.setLineDash(dash||[]);ctx.stroke();ctx.setLineDash([]);}ctx.restore();}
-  function centroid(pts){var cx=0,cy=0;pts.forEach(function(p){cx+=p[0];cy+=p[1];});return[cx/pts.length,cy/pts.length];}
-  function lbl(pts,text,col,sz,alpha){if(!pts||pts.length<3)return;var c=centroid(pts),cp=toC(c);ctx.save();ctx.globalAlpha=alpha||1;ctx.font='bold '+(sz||11)+'px sans-serif';ctx.fillStyle=col||'#000';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,cp[0],cp[1]);ctx.restore();}
   function polyArea(pts){var a=0,n=pts.length;for(var i=0;i<n;i++){var p=pts[i],q=pts[(i+1)%n];a+=p[0]*q[1]-q[0]*p[1];}return Math.abs(a)/2;}
+  function centroid(pts){var cx=0,cy=0;pts.forEach(function(p){cx+=p[0];cy+=p[1];});return[cx/pts.length,cy/pts.length];}
+
+  /* ── Sutherland-Hodgman half-plane clip ── */
+  function clipHalf(pts,eA,eB,invert){
+    if(!pts||pts.length<3)return[];
+    var edx=eB[0]-eA[0],edy=eB[1]-eA[1],sign=invert?-1:1;
+    function ins(p){return sign*((p[0]-eA[0])*(-edy)+(p[1]-eA[1])*(edx))>=0;}
+    function isc(a,b){var dx=b[0]-a[0],dy=b[1]-a[1],dn=dx*(-edy)+dy*edx;if(Math.abs(dn)<0.001)return null;var t=((eA[0]-a[0])*(-edy)+(eA[1]-a[1])*edx)/dn;if(t<-0.001||t>1.001)return null;return[a[0]+t*dx,a[1]+t*dy];}
+    var out=[];
+    for(var i=0;i<pts.length;i++){var c=pts[i],p=pts[(i-1+pts.length)%pts.length],ci=ins(c),pi=ins(p);if(ci){if(!pi){var ip=isc(p,c);if(ip)out.push(ip);}out.push(c);}else if(pi){var ip2=isc(p,c);if(ip2)out.push(ip2);}}
+    return out;
+  }
+
+  /* Normalise outline winding CCW (needed for Sutherland-Hodgman) */
+  var _ol=DRAW.outline.slice(),_olSA=0;
+  _ol.forEach(function(p,i){var q=_ol[(i+1)%_ol.length];_olSA+=p[0]*q[1]-q[0]*p[1];});
+  if(_olSA<0)_ol=_ol.slice().reverse();
+  function clipToOutline(pts){var n=_ol.length;for(var ei=0;ei<n&&pts.length>=3;ei++)pts=clipHalf(pts,_ol[ei],_ol[(ei+1)%n],false);return pts;}
+
+  /* Clip to centroid side of a hip/valley (the installed sheet region) */
+  function clipHipInside(pts,hip){
+    var hA=hip.pts[0],hB=hip.pts[1],edx=hB[0]-hA[0],edy=hB[1]-hA[1];
+    return clipHalf(pts,hA,hB,(cX-hA[0])*(-edy)+(cY-hA[1])*edx<0);
+  }
+  /* Clip to non-centroid side (off-cut / end-face territory) */
+  function clipHipOutside(pts,hip){
+    var hA=hip.pts[0],hB=hip.pts[1],edx=hB[0]-hA[0],edy=hB[1]-hA[1];
+    return clipHalf(pts,hA,hB,(cX-hA[0])*(-edy)+(cY-hA[1])*edx>=0);
+  }
+
+  /* ── Drawing helpers ── */
+  function drawPoly(pts,fill,stroke,lw,dash){
+    if(!pts||pts.length<3)return;
+    ctx.save();ctx.beginPath();
+    pts.forEach(function(pt,i){var c=toC(pt);if(i===0)ctx.moveTo(c[0],c[1]);else ctx.lineTo(c[0],c[1]);});
+    ctx.closePath();
+    if(fill){ctx.fillStyle=fill;ctx.fill();}
+    if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.setLineDash(dash||[]);ctx.stroke();ctx.setLineDash([]);}
+    ctx.restore();
+  }
   function drawHatching(pts){
     if(!pts||pts.length<3)return;
     var cPts=pts.map(toC);
@@ -5054,170 +5093,297 @@ function renderRoofSheetPlan() {
     ctx.closePath();ctx.clip();
     var mnX=Infinity,mxX=-Infinity,mnY=Infinity,mxY=-Infinity;
     cPts.forEach(function(p){mnX=Math.min(mnX,p[0]);mxX=Math.max(mxX,p[0]);mnY=Math.min(mnY,p[1]);mxY=Math.max(mxY,p[1]);});
-    ctx.strokeStyle='rgba(0,0,0,0.22)';ctx.lineWidth=1.2;
-    var sp=7,span=mxX-mnX+mxY-mnY+20;
-    for(var t=-span;t<span;t+=sp){ctx.beginPath();ctx.moveTo(mnX+t,mnY);ctx.lineTo(mnX+t+(mxY-mnY)+10,mxY+10);ctx.stroke();}
+    ctx.strokeStyle='rgba(0,0,0,0.28)';ctx.lineWidth=1.3;
+    var sp=8,span=mxX-mnX+mxY-mnY+20;
+    for(var t=-span;t<span;t+=sp){ctx.beginPath();ctx.moveTo(mnX+t,mnY-5);ctx.lineTo(mnX+t+(mxY-mnY+10),mxY+5);ctx.stroke();}
     ctx.restore();
   }
+  function lbl(pts,text,col,sz,alpha){
+    if(!pts||pts.length<3)return;
+    var c=centroid(pts),cp=toC(c);
+    ctx.save();ctx.globalAlpha=alpha||1;ctx.font='bold '+(sz||11)+'px sans-serif';
+    ctx.fillStyle=col||'#000';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(text,cp[0],cp[1]);ctx.restore();
+  }
 
-  // Build faces — detect hips before ridge search; end-face apex fallback
+  /* ── FACE DETECTION ─────────────────────────────────────────────────────── */
   var faces=[];
   gutters.forEach(function(gl){
-    var p0=gl.pts[0],p1=gl.pts[1],gdx=p1[0]-p0[0],gdy=p1[1]-p0[1],gL=len2(gdx,gdy);if(gL<1)return;
-    var gnx=gdx/gL,gny=gdy/gL,px1=-gny,py1=gnx,px2=gny,py2=-gnx;
-    var gmid=[(p0[0]+p1[0])/2,(p0[1]+p1[1])/2],d1=dot(cX-gmid[0],cY-gmid[1],px1,py1);
+    var p0=gl.pts[0],p1=gl.pts[1];
+    var gdx=p1[0]-p0[0],gdy=p1[1]-p0[1],gL=len2(gdx,gdy);
+    if(gL<1)return;
+    var gnx=gdx/gL,gny=gdy/gL;
+    var px1=-gny,py1=gnx,px2=gny,py2=-gnx;
+    var gmid=[(p0[0]+p1[0])/2,(p0[1]+p1[1])/2];
+    var d1=dot(cX-gmid[0],cY-gmid[1],px1,py1);
     var perpX=d1>=0?px1:px2,perpY=d1>=0?py1:py2;
     var gAng=Math.atan2(gdy,gdx)*180/Math.PI;
-    // Detect hips first (needed for end-face apex fallback)
+
+    /* Hips/valleys touching gutter endpoints */
     var lHip=null,rHip=null;
-    DRAW.lines.forEach(function(r){if(r.type!=='hip'&&r.type!=='valley')return;if(pNear(r.pts[0],p0)||pNear(r.pts[1],p0))lHip=r;if(pNear(r.pts[0],p1)||pNear(r.pts[1],p1))rHip=r;});
-    // Search for parallel ridge/valley
+    DRAW.lines.forEach(function(r){
+      if(r.type!=='hip'&&r.type!=='valley')return;
+      if(pNear(r.pts[0],p0)||pNear(r.pts[1],p0))lHip=r;
+      if(pNear(r.pts[0],p1)||pNear(r.pts[1],p1))rHip=r;
+    });
+
+    /* Find parallel ridge/valley (main face) */
     var bestD=Infinity;
-    DRAW.lines.forEach(function(r){if(r.type!=='ridge'&&r.type!=='valley')return;if(angDiff(Math.atan2(r.pts[1][1]-r.pts[0][1],r.pts[1][0]-r.pts[0][0])*180/Math.PI,gAng)>30)return;var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];var d=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],perpX,perpY);if(d>0&&d<bestD)bestD=d;});
-    // Opposite-direction fallback: centroid-based can point outward for concave step gutters
+    DRAW.lines.forEach(function(r){
+      if(r.type!=='ridge'&&r.type!=='valley')return;
+      if(angDiff(Math.atan2(r.pts[1][1]-r.pts[0][1],r.pts[1][0]-r.pts[0][0])*180/Math.PI,gAng)>30)return;
+      var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];
+      var d=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],perpX,perpY);
+      if(d>0&&d<bestD)bestD=d;
+    });
+    /* Opposite-direction fallback (concave/step gutters) */
     if(bestD===Infinity){
       var _altD=Infinity;
-      DRAW.lines.forEach(function(r){if(r.type!=='ridge'&&r.type!=='valley')return;if(angDiff(Math.atan2(r.pts[1][1]-r.pts[0][1],r.pts[1][0]-r.pts[0][0])*180/Math.PI,gAng)>30)return;var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];var d=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],-perpX,-perpY);if(d>0&&d<_altD)_altD=d;});
+      DRAW.lines.forEach(function(r){
+        if(r.type!=='ridge'&&r.type!=='valley')return;
+        if(angDiff(Math.atan2(r.pts[1][1]-r.pts[0][1],r.pts[1][0]-r.pts[0][0])*180/Math.PI,gAng)>30)return;
+        var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];
+        var d=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],-perpX,-perpY);
+        if(d>0&&d<_altD)_altD=d;
+      });
       if(_altD<Infinity){bestD=_altD;perpX=-perpX;perpY=-perpY;}
     }
-    // End-face fallback: hips converge at apex, no parallel ridge
-    var isEndFace=false;
+
+    /* End face: two hips meet at apex, no parallel ridge found */
+    var isEndFace=false,apexPt=null,apexS=0;
     if(bestD===Infinity&&lHip&&rHip){
       var lFar=pNear(lHip.pts[0],p0)||pNear(lHip.pts[0],p1)?lHip.pts[1]:lHip.pts[0];
       var rFar=pNear(rHip.pts[0],p0)||pNear(rHip.pts[0],p1)?rHip.pts[1]:rHip.pts[0];
-      var apex=[(lFar[0]+rFar[0])/2,(lFar[1]+rFar[1])/2];
-      var ad=dot(apex[0]-gmid[0],apex[1]-gmid[1],perpX,perpY);
+      apexPt=[(lFar[0]+rFar[0])/2,(lFar[1]+rFar[1])/2];
+      var ad=dot(apexPt[0]-gmid[0],apexPt[1]-gmid[1],perpX,perpY);
       if(ad>0){bestD=ad;isEndFace=true;}
     }
     if(bestD===Infinity)return;
-    var depImg=bestD,gutterM=parseFloat(gl.measM||0),depM=effectiveScale>0?depImg*effectiveScale:0;
-    var swImg=effectiveScale>0?swM/effectiveScale:gL/10,nSheets=Math.max(1,Math.ceil(gL/swImg));
-    faces.push({gl:gl,p0:p0,p1:p1,gnx:gnx,gny:gny,perpX:perpX,perpY:perpY,gL:gL,depImg:depImg,depM:depM,lHip:lHip,rHip:rHip,gutterM:gutterM,swImg:swImg,nSheets:nSheets,isEndFace:isEndFace});
+
+    var gutterM=parseFloat(gl.measM||0);
+    var depM=effectiveScale>0?bestD*effectiveScale:0;
+    var swImg=effectiveScale>0?swM/effectiveScale:gL/10;
+    var nSheets=Math.max(1,Math.ceil(gL/swImg));
+
+    /* For end faces: find apex position along gutter (in sheet units) */
+    if(isEndFace&&apexPt){
+      var apexProj=dot(apexPt[0]-p0[0],apexPt[1]-p0[1],gnx,gny);
+      apexS=apexProj/swImg;
+    } else {
+      apexS=nSheets/2;
+    }
+
+    faces.push({gl:gl,p0:p0,p1:p1,gnx:gnx,gny:gny,perpX:perpX,perpY:perpY,gL:gL,
+      depImg:bestD,depM:depM,lHip:lHip,rHip:rHip,gutterM:gutterM,swImg:swImg,
+      nSheets:nSheets,isEndFace:isEndFace,apexS:apexS,apexPt:apexPt});
   });
+
   faces.sort(function(a,b){return b.gutterM-a.gutterM;});
+
   if(!faces.length){
     var hipCount=DRAW.lines.filter(function(l){return l.type==='hip';}).length;
     var ridgeCount=DRAW.lines.filter(function(l){return l.type==='ridge';}).length;
     var valleyCount=DRAW.lines.filter(function(l){return l.type==='valley';}).length;
     outEl.innerHTML='<p style="color:#92400e;background:#fef3c7;border-radius:8px;padding:12px;font-size:12px">'+
-      '⚠ No roof faces could be built from your lines.<br>'+
-      'Found: '+gutters.length+' gutter(s), '+hipCount+' hip(s), '+ridgeCount+' ridge(s), '+valleyCount+' valley(s).<br>'+
-      'Each gutter needs a hip or valley touching each endpoint, and a parallel ridge/valley line above it.<br>'+
-      'Use <b>↻ Refresh</b> after setting all line types correctly.</p>';
+      '⚠ No roof faces could be built.<br>Found: '+gutters.length+' gutter(s), '+hipCount+' hip(s), '+ridgeCount+' ridge(s), '+valleyCount+' valley(s).<br>'+
+      'Each gutter needs a hip/valley at each endpoint plus a parallel ridge/valley above it.</p>';
     return;
   }
-  var COLS=['#E8741A','#1B8AC9','#22c55e','#a855f7'];
+
+  var COLS=['#E8741A','#1B8AC9','#22c55e','#a855f7','#f59e0b','#06b6d4'];
   faces.forEach(function(f,i){f.col=COLS[i%COLS.length];});
-  // Link end faces to adjacent main-face colours (each half from its own adjacent face)
+
+  /* Link each end-face half to the adjacent main face that shares the same hip */
   faces.forEach(function(ef){
     if(!ef.isEndFace)return;
-    ef.lHipCol=ef.col;ef.rHipCol=ef.col;
-    ef.lHipMFnSheets=0;ef.lHipFromStart=true;
-    ef.rHipMFnSheets=0;ef.rHipFromStart=true;
+    ef.lAdj=null;ef.rAdj=null;ef.lAdjP0=true;ef.rAdjP0=true;
     faces.forEach(function(mf){
       if(mf.isEndFace)return;
-      if(mf.lHip===ef.lHip||mf.rHip===ef.lHip){
-        ef.lHipCol=mf.col;
-        ef.lHipMFnSheets=mf.nSheets;
-        ef.lHipFromStart=pNear(ef.p0,mf.p0);
+      if(ef.lHip&&(mf.lHip===ef.lHip||mf.rHip===ef.lHip)){
+        ef.lAdj=mf;
+        /* Which end of mf is closest to ef.p0? */
+        ef.lAdjP0=len2(ef.p0[0]-mf.p0[0],ef.p0[1]-mf.p0[1])<len2(ef.p0[0]-mf.p1[0],ef.p0[1]-mf.p1[1]);
       }
-      if(mf.lHip===ef.rHip||mf.rHip===ef.rHip){
-        ef.rHipCol=mf.col;
-        ef.rHipMFnSheets=mf.nSheets;
-        ef.rHipFromStart=pNear(ef.p1,mf.p0);
+      if(ef.rHip&&(mf.lHip===ef.rHip||mf.rHip===ef.rHip)){
+        ef.rAdj=mf;
+        ef.rAdjP0=len2(ef.p1[0]-mf.p0[0],ef.p1[1]-mf.p0[1])<len2(ef.p1[0]-mf.p1[0],ef.p1[1]-mf.p1[1]);
       }
     });
   });
+
+  /* Draw building footprint */
   drawPoly(DRAW.outline,'#dde3ea',null);
   var hasRealScale=DRAW.scaleMetresPerPx>0;
 
-  // PASS 1: Off-cut fragments — main faces only, skip end faces (handled in 2b)
+  /* ── RENDER ALL FACES ───────────────────────────────────────────────────── */
   faces.forEach(function(f){
-    if(f.isEndFace)return;
     var dep=f.depImg,sw=f.swImg;
-    for(var s=0;s<f.nSheets;s++){
-      var BL=[f.p0[0]+f.gnx*s*sw,f.p0[1]+f.gny*s*sw],BR=[f.p0[0]+f.gnx*(s+1)*sw,f.p0[1]+f.gny*(s+1)*sw];
-      var TL=[BL[0]+f.perpX*dep,BL[1]+f.perpY*dep],TR=[BR[0]+f.perpX*dep,BR[1]+f.perpY*dep];
-      if(f.lHip){var offL=hipOutside(clipToOutline([BL,BR,TR,TL].slice()),f.lHip);if(offL&&offL.length>=3){drawPoly(offL,f.col,'rgba(0,0,0,0.5)',1.5);drawHatching(offL);lbl(offL,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(11,toCV(sw)*0.42)),0.9);}}
-      if(f.rHip){var offR=hipOutside(clipToOutline([BL,BR,TR,TL].slice()),f.rHip);if(offR&&offR.length>=3){drawPoly(offR,f.col,'rgba(0,0,0,0.5)',1.5);drawHatching(offR);lbl(offR,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(11,toCV(sw)*0.42)),0.9);}}
-    }
-  });
+    var minA=sw*sw*0.06;
 
-  // PASS 2a: Main face installed sheets (solid fill, own colour)
-  faces.forEach(function(f){
-    if(f.isEndFace)return;
-    var dep=f.depImg,sw=f.swImg,minA=sw*sw*0.08;
-    for(var s=0;s<f.nSheets;s++){
-      var BL=[f.p0[0]+f.gnx*s*sw,f.p0[1]+f.gny*s*sw],BR=[f.p0[0]+f.gnx*(s+1)*sw,f.p0[1]+f.gny*(s+1)*sw];
-      var TL=[BL[0]+f.perpX*dep,BL[1]+f.perpY*dep],TR=[BR[0]+f.perpX*dep,BR[1]+f.perpY*dep];
-      var used=clipToOutline([BL,BR,TR,TL].slice());
-      if(f.lHip&&used.length>=3)used=hipInside(used,f.lHip);
-      if(f.rHip&&used.length>=3)used=hipInside(used,f.rHip);
-      if(!used||used.length<3||polyArea(used)<minA)continue;
-      drawPoly(used,f.col,'rgba(0,0,0,0.75)',2.2);
-      lbl(used,s+1,'rgba(0,0,0,0.9)',Math.max(8,Math.min(14,toCV(sw)*0.5)));
-    }
-    for(var g=1;g<f.nSheets;g++){
-      var dB=[f.p0[0]+f.gnx*g*sw,f.p0[1]+f.gny*g*sw],dT=[dB[0]+f.perpX*dep,dB[1]+f.perpY*dep];
-      var cA=toC(dB),cB=toC(dT);
-      ctx.save();ctx.strokeStyle='rgba(0,0,0,0.18)';ctx.lineWidth=0.7;ctx.setLineDash([3,3]);
-      ctx.beginPath();ctx.moveTo(cA[0],cA[1]);ctx.lineTo(cB[0],cB[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();
-    }
-    var mc=toC([(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2]);
-    ctx.save();ctx.font='11px sans-serif';ctx.fillStyle='#5b21b6';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m':'',mc[0]-f.perpX*24,mc[1]-f.perpY*24);
-    ctx.restore();
-  });
+    if(!f.isEndFace){
+      /* ═══ MAIN FACE (trapezoid): sheets run perp to gutter, clipped by hips ═══ */
+      for(var s=0;s<f.nSheets;s++){
+        var BL=[f.p0[0]+f.gnx*s*sw,     f.p0[1]+f.gny*s*sw];
+        var BR=[f.p0[0]+f.gnx*(s+1)*sw,  f.p0[1]+f.gny*(s+1)*sw];
+        var TL=[BL[0]+f.perpX*dep,       BL[1]+f.perpY*dep];
+        var TR=[BR[0]+f.perpX*dep,        BR[1]+f.perpY*dep];
+        var full=clipToOutline([BL,BR,TR,TL].slice());
+        if(!full||full.length<3)continue;
 
-  // PASS 2b: End-face strips — perpendicular to end gutter (hatched = reused off-cuts)
-  // hipOutside gives the non-centroid region = end-face territory
-  faces.forEach(function(f){
-    if(!f.isEndFace)return;
-    var dep=f.depImg,sw=f.swImg,minA=sw*sw*0.04,halfIdx=f.nSheets/2;
-    for(var s=0;s<f.nSheets;s++){
-      var BL=[f.p0[0]+f.gnx*s*sw,f.p0[1]+f.gny*s*sw],BR=[f.p0[0]+f.gnx*(s+1)*sw,f.p0[1]+f.gny*(s+1)*sw];
-      var TL=[BL[0]+f.perpX*dep,BL[1]+f.perpY*dep],TR=[BR[0]+f.perpX*dep,BR[1]+f.perpY*dep];
-      var used=clipToOutline([BL,BR,TR,TL].slice());
-      if(f.lHip&&used.length>=3)used=hipOutside(used,f.lHip);
-      if(f.rHip&&used.length>=3)used=hipOutside(used,f.rHip);
-      if(!used||used.length<3||polyArea(used)<minA)continue;
-      // NZ rule: off-cuts are SPUN (not flipped) so each half uses off-cuts from the OPPOSITE face
-      var col,srcSheet;
-      if(s<halfIdx){
-        col=f.rHipCol;  // opposite face's off-cuts spun into this half
-        srcSheet=f.rHipFromStart?s+1:f.rHipMFnSheets-s;
-      }else{
-        col=f.lHipCol;  // opposite face's off-cuts spun into this half
-        var s2=s-halfIdx;
-        srcSheet=f.lHipFromStart?(halfIdx-s2):(f.lHipMFnSheets-halfIdx+1+s2);
+        /* Installed portion: inside both hips */
+        var used=full.slice();
+        if(f.lHip&&used.length>=3)used=clipHipInside(used,f.lHip);
+        if(f.rHip&&used.length>=3)used=clipHipInside(used,f.rHip);
+        if(used&&used.length>=3&&polyArea(used)>minA){
+          drawPoly(used,f.col,'rgba(0,0,0,0.75)',2.2);
+          lbl(used,s+1,'rgba(0,0,0,0.9)',Math.max(8,Math.min(14,toCV(sw)*0.52)));
+        }
+
+        /* Off-cut on lHip side — goes to adjacent end face */
+        if(f.lHip){
+          var offL=clipHipOutside(full.slice(),f.lHip);
+          if(offL&&offL.length>=3&&polyArea(offL)>minA*0.05){
+            drawPoly(offL,f.col,'rgba(0,0,0,0.45)',1.2);
+            drawHatching(offL);
+            lbl(offL,s+1,'rgba(0,0,0,0.7)',Math.max(6,Math.min(9,toCV(sw)*0.36)),0.85);
+          }
+        }
+        /* Off-cut on rHip side */
+        if(f.rHip){
+          var offR=clipHipOutside(full.slice(),f.rHip);
+          if(offR&&offR.length>=3&&polyArea(offR)>minA*0.05){
+            drawPoly(offR,f.col,'rgba(0,0,0,0.45)',1.2);
+            drawHatching(offR);
+            lbl(offR,s+1,'rgba(0,0,0,0.7)',Math.max(6,Math.min(9,toCV(sw)*0.36)),0.85);
+          }
+        }
       }
-      drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
-      drawHatching(used);
-      lbl(used,srcSheet,'rgba(0,0,0,0.8)',Math.max(7,Math.min(11,toCV(sw)*0.42)),0.9);
+      /* Sheet divider lines */
+      for(var g=1;g<f.nSheets;g++){
+        var dB=[f.p0[0]+f.gnx*g*sw,f.p0[1]+f.gny*g*sw];
+        var dT=[dB[0]+f.perpX*dep,dB[1]+f.perpY*dep];
+        var cA=toC(dB),cB=toC(dT);
+        ctx.save();ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
+        ctx.beginPath();ctx.moveTo(cA[0],cA[1]);ctx.lineTo(cB[0],cB[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+      }
+
+    } else {
+      /* ═══ END FACE (triangle): filled by off-cuts from adjacent main faces ═══
+         KEY FIX: clip each strip by ONE hip only (the one on that side of apex),
+         not both simultaneously (which incorrectly eliminates all middle strips). */
+      for(var s=0;s<f.nSheets;s++){
+        var BL=[f.p0[0]+f.gnx*s*sw,     f.p0[1]+f.gny*s*sw];
+        var BR=[f.p0[0]+f.gnx*(s+1)*sw,  f.p0[1]+f.gny*(s+1)*sw];
+        var TL=[BL[0]+f.perpX*dep,       BL[1]+f.perpY*dep];
+        var TR=[BR[0]+f.perpX*dep,        BR[1]+f.perpY*dep];
+        var used=clipToOutline([BL,BR,TR,TL].slice());
+        if(!used||used.length<3)continue;
+
+        /* Clip by ONE hip based on which side of the apex this strip falls on */
+        var isLeftHalf=(s+0.5<=f.apexS);
+        if(isLeftHalf){
+          if(f.lHip)used=clipHipOutside(used,f.lHip);
+          /* Do NOT also clip by rHip — that would eliminate strips near the apex */
+        } else {
+          if(f.rHip)used=clipHipOutside(used,f.rHip);
+          /* Do NOT also clip by lHip */
+        }
+        if(!used||used.length<3||polyArea(used)<minA*0.04)continue;
+
+        /* Determine source colour and sheet number (NZ mirror rule):
+           Left half off-cuts come from the adjacent main face on the lHip side,
+           counting from the shared end. Right half from the rHip side. */
+        var col,srcNum;
+        if(isLeftHalf){
+          col=f.lAdj?f.lAdj.col:f.col;
+          /* Mirror: strip 0 (near p0) = sheet 1 of adjacent face from shared end */
+          srcNum=f.lAdjP0?s+1:(f.lAdj?f.lAdj.nSheets-s:s+1);
+        } else {
+          col=f.rAdj?f.rAdj.col:f.col;
+          var s2=s-Math.floor(f.apexS);
+          srcNum=f.rAdjP0?s2+1:(f.rAdj?f.rAdj.nSheets-s2:s2+1);
+        }
+
+        drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
+        drawHatching(used);
+        lbl(used,srcNum,'rgba(0,0,0,0.75)',Math.max(6,Math.min(9,toCV(sw)*0.38)),0.9);
+      }
+      /* Sheet divider lines for end face */
+      for(var g=1;g<f.nSheets;g++){
+        var dB=[f.p0[0]+f.gnx*g*sw,f.p0[1]+f.gny*g*sw];
+        var dT=[dB[0]+f.perpX*dep,dB[1]+f.perpY*dep];
+        var cA=toC(dB),cB=toC(dT);
+        ctx.save();ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
+        ctx.beginPath();ctx.moveTo(cA[0],cA[1]);ctx.lineTo(cB[0],cB[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+      }
     }
-    for(var g=1;g<f.nSheets;g++){
-      var dB=[f.p0[0]+f.gnx*g*sw,f.p0[1]+f.gny*g*sw],dT=[dB[0]+f.perpX*dep,dB[1]+f.perpY*dep];
-      var cA=toC(dB),cB=toC(dT);
-      ctx.save();ctx.strokeStyle='rgba(0,0,0,0.18)';ctx.lineWidth=0.7;ctx.setLineDash([3,3]);
-      ctx.beginPath();ctx.moveTo(cA[0],cA[1]);ctx.lineTo(cB[0],cB[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();
-    }
+  });
+
+  /* ── Draw structural lines on top ── */
+  [{type:'ridge',c:'#b91c1c',w:4,d:[]},
+   {type:'valley',c:'#dc2626',w:3,d:[6,4]},
+   {type:'hip',c:'#1d4ed8',w:3,d:[]},
+   {type:'gutter',c:'#5b21b6',w:2,d:[]}
+  ].forEach(function(st){
+    DRAW.lines.forEach(function(l){
+      if(l.type!==st.type)return;
+      var c0=toC(l.pts[0]),c1=toC(l.pts[1]);
+      ctx.save();ctx.strokeStyle=st.c;ctx.lineWidth=st.w;ctx.setLineDash(st.d);
+      ctx.beginPath();ctx.moveTo(c0[0],c0[1]);ctx.lineTo(c1[0],c1[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+    });
+  });
+
+  /* Building outline */
+  ctx.save();ctx.strokeStyle='#5b21b6';ctx.lineWidth=3;ctx.beginPath();
+  DRAW.outline.forEach(function(p,i){var c=toC(p);if(i===0)ctx.moveTo(c[0],c[1]);else ctx.lineTo(c[0],c[1]);});
+  ctx.closePath();ctx.stroke();ctx.restore();
+
+  /* Gutter length labels */
+  var hasRealSc=DRAW.scaleMetresPerPx>0;
+  faces.forEach(function(f){
+    if(!hasRealSc||!f.gutterM)return;
     var mc=toC([(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2]);
     ctx.save();ctx.font='11px sans-serif';ctx.fillStyle='#5b21b6';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m':'',mc[0]-f.perpX*24,mc[1]-f.perpY*24);
+    ctx.fillText(f.gutterM.toFixed(2)+'m',mc[0]-f.perpX*22,mc[1]-f.perpY*22);
     ctx.restore();
   });
 
-  [{type:'ridge',c:'#c00',w:4,d:[]},{type:'valley',c:'#dc2626',w:3,d:[6,4]},{type:'hip',c:'#1d4ed8',w:3,d:[]},{type:'gutter',c:'#5b21b6',w:2,d:[]}].forEach(function(st){DRAW.lines.forEach(function(l){if(l.type!==st.type)return;var c0=toC(l.pts[0]),c1=toC(l.pts[1]);ctx.save();ctx.strokeStyle=st.c;ctx.lineWidth=st.w;ctx.setLineDash(st.d);ctx.beginPath();ctx.moveTo(c0[0],c0[1]);ctx.lineTo(c1[0],c1[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();});});
-  ctx.save();ctx.strokeStyle='#5b21b6';ctx.lineWidth=3;ctx.beginPath();DRAW.outline.forEach(function(p,i){var c=toC(p);if(i===0)ctx.moveTo(c[0],c[1]);else ctx.lineTo(c[0],c[1]);});ctx.closePath();ctx.stroke();ctx.restore();
+  /* ── Legend ── */
   var mainFaces=faces.filter(function(f){return !f.isEndFace;});
   var endFaces=faces.filter(function(f){return f.isEndFace;});
   var totSheets=mainFaces.reduce(function(s,f){return s+f.nSheets;},0);
-  var calNote=hasRealScale?'':' <em style="color:#d97706;font-size:10px">(calibrate scale for real measurements)</em>';
-  var legHtml='<div style="margin-top:14px"><div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px"><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9632; Solid = full sheet installed (own colour)</span><span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#10007; Hatched = off-cut reused (source face colour)</span></div><div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b"><strong>Puzzle piece rule:</strong> All sheets run perpendicular to their local gutter. Hip/valley cuts produce 90&deg; off-cuts that fill end faces (shown hatched in source face colour). Number = source sheet #. Order sheets by gutter lengths only.</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
-  mainFaces.forEach(function(f){var cutLen=hasRealScale&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealScale&&f.gutterM>0?f.gutterM.toFixed(2)+'m gutter':'Face')+'</div><div style="font-size:20px;font-weight:700;color:#7c3aed">'+f.nSheets+'</div><div style="font-size:10px;color:#6b7280">sheets'+(cutLen!=='—'?' @ '+cutLen+' long':'')+'</div></div>';});
-  if(endFaces.length){legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid #888;border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa"><div style="font-weight:700;font-size:11px;margin-bottom:2px">End faces</div><div style="font-size:11px;color:#6b7280">Filled with off-cuts — no extra sheets needed</div></div>';}
-  legHtml+='</div><div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:13px"><strong>Total: '+totSheets+' full-length sheets</strong>'+calNote+'<br><span style="font-size:11px;color:#64748b">Order to gutter lengths only — off-cuts fill end/hip faces</span></div></div>';
-  outEl.innerHTML='';outEl.appendChild(cv);var dd=document.createElement('div');dd.innerHTML=legHtml;outEl.appendChild(dd);
+  var calNote=hasRealSc?'':' <em style="color:#d97706;font-size:10px">(calibrate scale for real measurements)</em>';
+  var legHtml='<div style="margin-top:14px">';
+  legHtml+='<div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px">';
+  legHtml+='<span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9632; Solid = full sheet installed</span>';
+  legHtml+='<span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9135; Hatched = off-cut reused (number = source sheet #)</span>';
+  legHtml+='</div>';
+  legHtml+='<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b">';
+  legHtml+='<strong>NZ roofing rule:</strong> Sheets run perpendicular to each gutter (ridge→gutter). Hip cuts produce triangular off-cuts that spin 180° to fill end/hip faces — shown hatched in the source face colour. Order sheets by gutter lengths only.';
+  legHtml+='</div>';
+  legHtml+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
+  mainFaces.forEach(function(f){
+    var cutLen=hasRealSc&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';
+    legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa">';
+    legHtml+='<div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealSc&&f.gutterM>0?f.gutterM.toFixed(2)+'m gutter':'Face')+'</div>';
+    legHtml+='<div style="font-size:20px;font-weight:700;color:#7c3aed">'+f.nSheets+'</div>';
+    legHtml+='<div style="font-size:10px;color:#6b7280">sheets'+(cutLen!=='—'?' @ '+cutLen+' long':'')+'</div>';
+    legHtml+='</div>';
+  });
+  if(endFaces.length){
+    legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid #888;border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa">';
+    legHtml+='<div style="font-weight:700;font-size:11px;margin-bottom:2px">End faces ('+endFaces.length+')</div>';
+    legHtml+='<div style="font-size:11px;color:#6b7280">Filled with off-cuts from adjacent faces</div>';
+    legHtml+='</div>';
+  }
+  legHtml+='</div>';
+  legHtml+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:13px">';
+  legHtml+='<strong>Total: '+totSheets+' full-length sheets</strong>'+calNote;
+  legHtml+='<br><span style="font-size:11px;color:#64748b">Off-cuts fill hip/end faces — order by gutter lengths only</span>';
+  legHtml+='</div></div>';
+
+  outEl.innerHTML='';outEl.appendChild(cv);
+  var dd=document.createElement('div');dd.innerHTML=legHtml;outEl.appendChild(dd);
 }
 
 </script>
