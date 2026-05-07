@@ -2543,7 +2543,7 @@ function showLineEditor(i) {
   showPropPanel('Edit: '+(typeLabels[l.type]||l.type));
   document.getElementById('lineEditor').style.display='block';
   document.getElementById('editLineLabel').value=l.label||'';
-  document.getElementById('editLineLength').value=l.lengthM||'';
+  var _ll=document.getElementById('editLineLength'); if(_ll) _ll.value=l.lengthM||'';
   // Set type selector
   var ts=document.getElementById('editLineType');
   if(ts) ts.value=l.type||'ridge';
@@ -5108,10 +5108,11 @@ function renderRoofSheetPlan() {
       var BL=[f.p0[0]+f.gnx*s*sw,f.p0[1]+f.gny*s*sw],BR=[f.p0[0]+f.gnx*(s+1)*sw,f.p0[1]+f.gny*(s+1)*sw];
       var TL=[BL[0]+f.perpX*dep,BL[1]+f.perpY*dep],TR=[BR[0]+f.perpX*dep,BR[1]+f.perpY*dep];
       // Off-cuts: for each hip/valley bounding this face, render the piece that falls outside it
+      var _fmid1=[(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2];
       DRAW.lines.forEach(function(cl){
         if(cl.type!=='hip'&&cl.type!=='valley')return;
-        var _d0=dot(cl.pts[0][0]-gmid[0],cl.pts[0][1]-gmid[1],f.perpX,f.perpY);
-        var _d1=dot(cl.pts[1][0]-gmid[0],cl.pts[1][1]-gmid[1],f.perpX,f.perpY);
+        var _d0=dot(cl.pts[0][0]-_fmid1[0],cl.pts[0][1]-_fmid1[1],f.perpX,f.perpY);
+        var _d1=dot(cl.pts[1][0]-_fmid1[0],cl.pts[1][1]-_fmid1[1],f.perpX,f.perpY);
         if((_d0>-sw&&_d0<dep+sw)||(_d1>-sw&&_d1<dep+sw)){
           var offC=hipOutside(clipToOutline([BL,BR,TR,TL].slice()),cl);
           if(offC&&offC.length>=3){drawPoly(offC,f.col,'rgba(0,0,0,0.5)',1.5);drawHatching(offC);lbl(offC,s+1,'rgba(0,0,0,0.8)',Math.max(7,Math.min(11,toCV(sw)*0.42)),0.9);}
@@ -5129,10 +5130,11 @@ function renderRoofSheetPlan() {
       var TL=[BL[0]+f.perpX*dep,BL[1]+f.perpY*dep],TR=[BR[0]+f.perpX*dep,BR[1]+f.perpY*dep];
       var used=clipToOutline([BL,BR,TR,TL].slice());
       // Clip against ALL hip/valley lines within face depth range (handles L-shapes with valleys)
+      var _fmid=[(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2];
       DRAW.lines.forEach(function(cl){
         if(cl.type!=='hip'&&cl.type!=='valley')return;
-        var _d0=dot(cl.pts[0][0]-gmid[0],cl.pts[0][1]-gmid[1],f.perpX,f.perpY);
-        var _d1=dot(cl.pts[1][0]-gmid[0],cl.pts[1][1]-gmid[1],f.perpX,f.perpY);
+        var _d0=dot(cl.pts[0][0]-_fmid[0],cl.pts[0][1]-_fmid[1],f.perpX,f.perpY);
+        var _d1=dot(cl.pts[1][0]-_fmid[0],cl.pts[1][1]-_fmid[1],f.perpX,f.perpY);
         if((_d0>-sw&&_d0<dep+sw)||(_d1>-sw&&_d1<dep+sw)){if(used.length>=3)used=hipInside(used,cl);}
       });
       if(!used||used.length<3||polyArea(used)<minA)continue;
