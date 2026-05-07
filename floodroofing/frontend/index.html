@@ -5050,9 +5050,8 @@ function renderRoofSheetPlan() {
   gutters.forEach(function(gl){
     var p0=gl.pts[0],p1=gl.pts[1],gdx=p1[0]-p0[0],gdy=p1[1]-p0[1],gL=len2(gdx,gdy);if(gL<1)return;
     var gnx=gdx/gL,gny=gdy/gL,px1=-gny,py1=gnx,px2=gny,py2=-gnx;
-    var gmid=[(p0[0]+p1[0])/2,(p0[1]+p1[1])/2];
-    // Use outline-winding inward normal (robust for concave step gutters — centroid can be on wrong side)
-    var perpX=(_olSA>0)?px1:px2,perpY=(_olSA>0)?py1:py2;
+    var gmid=[(p0[0]+p1[0])/2,(p0[1]+p1[1])/2],d1=dot(cX-gmid[0],cY-gmid[1],px1,py1);
+    var perpX=d1>=0?px1:px2,perpY=d1>=0?py1:py2;
     var gAng=Math.atan2(gdy,gdx)*180/Math.PI;
     // Detect hips first (needed for end-face apex fallback)
     var lHip=null,rHip=null;
@@ -5060,6 +5059,12 @@ function renderRoofSheetPlan() {
     // Search for parallel ridge/valley
     var bestD=Infinity;
     DRAW.lines.forEach(function(r){if(r.type!=='ridge'&&r.type!=='valley')return;if(angDiff(Math.atan2(r.pts[1][1]-r.pts[0][1],r.pts[1][0]-r.pts[0][0])*180/Math.PI,gAng)>30)return;var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];var d=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],perpX,perpY);if(d>0&&d<bestD)bestD=d;});
+    // Opposite-direction fallback: centroid-based can point outward for concave step gutters
+    if(bestD===Infinity){
+      var _altD=Infinity;
+      DRAW.lines.forEach(function(r){if(r.type!=='ridge'&&r.type!=='valley')return;if(angDiff(Math.atan2(r.pts[1][1]-r.pts[0][1],r.pts[1][0]-r.pts[0][0])*180/Math.PI,gAng)>30)return;var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];var d=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],-perpX,-perpY);if(d>0&&d<_altD)_altD=d;});
+      if(_altD<Infinity){bestD=_altD;perpX=-perpX;perpY=-perpY;}
+    }
     // End-face fallback: hips converge at apex, no parallel ridge
     var isEndFace=false;
     if(bestD===Infinity&&lHip&&rHip){
