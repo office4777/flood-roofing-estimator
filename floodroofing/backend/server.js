@@ -8,16 +8,11 @@ const { createClient } = require('@supabase/supabase-js');
 const app = express();
 const PORT = process.env.PORT || 3456;
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
-
-let supabase;
-if (SUPABASE_URL && SUPABASE_KEY) {
-  supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-} else {
-  console.warn('WARNING: Supabase not configured - auth will not work');
-  supabase = { from: () => ({ select: () => ({ eq: () => ({ single: async () => ({}) }) }), insert: async () => ({}) }, update: () => ({ eq: () => ({ eq: () => ({ select: () => ({ single: async () => ({}) }) }) }) }), delete: () => ({ eq: () => ({ eq: async () => ({}) }) }) }), auth: { signInWithPassword: async () => ({ error: { message: 'Supabase not configured' } }), admin: { createUser: async () => ({ error: { message: 'Supabase not configured' } }) } } };
-}
+// Supabase - uses SUPABASE_ANON_KEY (set on Railway)
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY
+);
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,
@@ -67,7 +62,7 @@ async function requireSubscription(req, res, next) {
 }
 
 app.get('/health', (req, res) => {
-  res.json({ ok: true, supabase: SUPABASE_URL ? 'OK' : 'NOT SET' });
+  res.json({ ok: true, supabase: process.env.SUPABASE_URL ? 'OK' : 'NOT SET' });
 });
 
 app.post('/auth/register', async (req, res) => {
@@ -191,6 +186,6 @@ app.get('/proxy-image', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log('Flood Roofing backend running on port ' + PORT);
-  console.log('Supabase: ' + (SUPABASE_URL ? 'OK' : 'NOT SET'));
+  console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
   console.log('Stripe: disabled');
 });
