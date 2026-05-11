@@ -5385,12 +5385,27 @@ function renderRoofSheetPlan() {
         return len2(other.ridgeMid[0]-f.ridgeMid[0],other.ridgeMid[1]-f.ridgeMid[1])<sw*2;
       });
       if(!_hasBack&&f.ridgeMid){
+        /* Reference point INSIDE the back face — sits just past the ridge so it's
+           guaranteed to be on the back-face side of any wing-junction valley. */
+        var fAnchorBack=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*1.02,(f.p0[1]+f.p1[1])/2+f.perpY*dep*1.02];
         for(var bs=0;bs<f.nSheets;bs++){
           var bBL=[f.p0[0]+f.gnx*bs*sw+f.perpX*dep,     f.p0[1]+f.gny*bs*sw+f.perpY*dep];
           var bBR=[f.p0[0]+f.gnx*(bs+1)*sw+f.perpX*dep,  f.p0[1]+f.gny*(bs+1)*sw+f.perpY*dep];
           var bTL=[bBL[0]+f.perpX*dep,                   bBL[1]+f.perpY*dep];
           var bTR=[bBR[0]+f.perpX*dep,                   bBR[1]+f.perpY*dep];
           var bPieces=clipToOutline([bBL,bBR,bTR,bTL].slice());
+          if(!bPieces.length)continue;
+
+          /* Clip by every valley line. The wing-junction valley bounds the back
+             face from the wing side — without this clip the back-mirror bleeds
+             through the valley and overlays the wing's own faces. */
+          DRAW.lines.forEach(function(vl){
+            if(vl.type!=='valley')return;
+            bPieces=bPieces.map(function(p){
+              if(!p||p.length<3)return p;
+              return clipHipInside(p,vl,fAnchorBack);
+            }).filter(function(p){return p&&p.length>=3;});
+          });
           if(!bPieces.length)continue;
 
           var bLT=null,bLA=0;
