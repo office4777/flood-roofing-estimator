@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Flood Roofing Estimator</title>
-<style>
+<style>h
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--fr-blue:#0099cc;--fr-dark:#0a1628;--fr-mid:#1a3a5c;--fr-light:#e8f6fc;--bg:#f5f5f3;--card:#fff;--border:#e0e0db;--text:#1a1a18;--text2:#666;--radius:10px;--radius-lg:14px}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
@@ -5062,7 +5062,50 @@ function renderRoofSheetPlan() {
   var _ol=DRAW.outline.slice(),_olSA=0;
   _ol.forEach(function(p,i){var q=_ol[(i+1)%_ol.length];_olSA+=p[0]*q[1]-q[0]*p[1];});
   if(_olSA<0)_ol=_ol.slice().reverse();
-  function clipToOutline(pts){var n=_ol.length;for(var ei=0;ei<n&&pts.length>=3;ei++)pts=clipHalf(pts,_ol[ei],_ol[(ei+1)%n],false);return pts;}
+
+  /* Ear-clip outline into triangles. Sutherland-Hodgman half-plane clipping needs a
+     convex clip polygon — running it edge-by-edge against a concave outline (L/T/U)
+     wipes out valid sheets across reflex vertices (e.g. an L's far arm). Decomposing
+     into triangles gives a per-triangle convex clip we can union by drawing pieces. */
+  function _earClipPoly(src){
+    var pts=src.slice(),tris=[];
+    function _sgn(a,b,c){return(a[0]-c[0])*(b[1]-c[1])-(b[0]-c[0])*(a[1]-c[1]);}
+    function _inTri(p,a,b,c){var d1=_sgn(p,a,b),d2=_sgn(p,b,c),d3=_sgn(p,c,a);return!((d1<0||d2<0||d3<0)&&(d1>0||d2>0||d3>0));}
+    var guard=pts.length*pts.length+8;
+    while(pts.length>3&&guard-->0){
+      var found=false;
+      for(var i=0;i<pts.length;i++){
+        var pv=pts[(i-1+pts.length)%pts.length],cv=pts[i],nv=pts[(i+1)%pts.length];
+        if((cv[0]-pv[0])*(nv[1]-cv[1])-(cv[1]-pv[1])*(nv[0]-cv[0])<=0)continue;
+        var bad=false;
+        for(var j=0;j<pts.length;j++){
+          if(j===i||j===(i-1+pts.length)%pts.length||j===(i+1)%pts.length)continue;
+          if(_inTri(pts[j],pv,cv,nv)){bad=true;break;}
+        }
+        if(bad)continue;
+        tris.push([pv,cv,nv]);pts.splice(i,1);found=true;break;
+      }
+      if(!found)break;
+    }
+    if(pts.length===3)tris.push([pts[0],pts[1],pts[2]]);
+    return tris;
+  }
+  var _olTris=_earClipPoly(_ol);
+  /* Returns an array of polygon pieces representing pts ∩ outline (handles concave). */
+  function clipToOutline(pts){
+    var pieces=[];
+    if(!_olTris.length){
+      var p=pts.slice(),n=_ol.length;
+      for(var ei=0;ei<n&&p.length>=3;ei++)p=clipHalf(p,_ol[ei],_ol[(ei+1)%n],false);
+      return p.length>=3?[p]:[];
+    }
+    _olTris.forEach(function(t){
+      var p=pts.slice();
+      for(var i=0;i<3&&p.length>=3;i++)p=clipHalf(p,t[i],t[(i+1)%3],false);
+      if(p.length>=3)pieces.push(p);
+    });
+    return pieces;
+  }
 
   /* Clip to centroid side of a hip/valley (the installed sheet region) */
   function clipHipInside(pts,hip){
@@ -5234,18 +5277,23 @@ function renderRoofSheetPlan() {
         var BR=[f.p0[0]+f.gnx*(s+1)*sw,  f.p0[1]+f.gny*(s+1)*sw];
         var TL=[BL[0]+f.perpX*dep,       BL[1]+f.perpY*dep];
         var TR=[BR[0]+f.perpX*dep,        BR[1]+f.perpY*dep];
-        var full=clipToOutline([BL,BR,TR,TL].slice());
-        if(!full||full.length<3)continue;
+        var fullPieces=clipToOutline([BL,BR,TR,TL].slice());
+        if(!fullPieces.length)continue;
 
-        /* Installed portion: inside both hips */
-        var used=full.slice();
-        if(f.lHip&&used.length>=3)used=clipHipInside(used,f.lHip);
-        if(f.rHip&&used.length>=3)used=clipHipInside(used,f.rHip);
-        if(used&&used.length>=3&&polyArea(used)>minA){
+        var labelTarget=null,labelArea=0,didCut=false;
+        fullPieces.forEach(function(full){
+          var used=full.slice();
+          if(f.lHip&&used.length>=3)used=clipHipInside(used,f.lHip);
+          if(f.rHip&&used.length>=3)used=clipHipInside(used,f.rHip);
+          if(!used||used.length<3||polyArea(used)<=minA*0.25)return;
           drawPoly(used,f.col,'rgba(0,0,0,0.75)',2.2);
-          var didCut=(f.lHip&&used.length<full.length)||(f.rHip&&used.length<full.length);
+          if((f.lHip||f.rHip)&&used.length<full.length)didCut=true;
+          var a=polyArea(used);
+          if(a>labelArea){labelArea=a;labelTarget=used;}
+        });
+        if(labelTarget){
           var sheetLbl=(s+1)+(didCut?' ↻':'');
-          lbl(used,sheetLbl,'rgba(0,0,0,0.9)',Math.max(8,Math.min(14,toCV(sw)*0.52)));
+          lbl(labelTarget,sheetLbl,'rgba(0,0,0,0.9)',Math.max(8,Math.min(14,toCV(sw)*0.52)));
         }
       }
       /* Sheet divider lines */
@@ -5268,13 +5316,8 @@ function renderRoofSheetPlan() {
         var BR=[f.p0[0]+f.gnx*(s+1)*sw,  f.p0[1]+f.gny*(s+1)*sw];
         var TL=[BL[0]+f.perpX*dep,       BL[1]+f.perpY*dep];
         var TR=[BR[0]+f.perpX*dep,        BR[1]+f.perpY*dep];
-        var used=clipToOutline([BL,BR,TR,TL].slice());
-        if(!used||used.length<3)continue;
-
-        /* Clip by BOTH hips: keep only the part inside the end-face triangle. */
-        if(f.lHip&&used.length>=3)used=clipHipOutside(used,f.lHip);
-        if(f.rHip&&used.length>=3)used=clipHipOutside(used,f.rHip);
-        if(!used||used.length<3||polyArea(used)<minA*0.04)continue;
+        var basePieces=clipToOutline([BL,BR,TR,TL].slice());
+        if(!basePieces.length)continue;
 
         /* Donor main face supplies the off-cut. Strips on the lHip side of apex
            get their material from f.lAdj (whose sheet near the shared corner
@@ -5291,9 +5334,20 @@ function renderRoofSheetPlan() {
           srcNum=f.rAdjP0?s2+1:(f.rAdj?f.rAdj.nSheets-s2:s2+1);
         }
 
-        drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
-        drawHatching(used);
-        lbl(used,srcNum+' ↻','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
+        var labelTarget=null,labelArea=0;
+        basePieces.forEach(function(used){
+          /* Clip by BOTH hips: keep only the part inside the end-face triangle. */
+          if(f.lHip&&used.length>=3)used=clipHipOutside(used,f.lHip);
+          if(f.rHip&&used.length>=3)used=clipHipOutside(used,f.rHip);
+          if(!used||used.length<3||polyArea(used)<minA*0.04)return;
+          drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
+          drawHatching(used);
+          var a=polyArea(used);
+          if(a>labelArea){labelArea=a;labelTarget=used;}
+        });
+        if(labelTarget){
+          lbl(labelTarget,srcNum+' ↻','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
+        }
       }
       /* Sheet divider lines for end face */
       for(var g=1;g<f.nSheets;g++){
