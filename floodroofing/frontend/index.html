@@ -5122,6 +5122,16 @@ function renderRoofSheetPlan() {
     return tris;
   }
   var _olTris=_earClipPoly(_ol);
+  /* Even-odd point-in-polygon test against the (possibly concave) building outline. */
+  function _ptInOl(p){
+    var inside=false,n=_ol.length;
+    for(var i=0,j=n-1;i<n;j=i++){
+      var xi=_ol[i][0],yi=_ol[i][1],xj=_ol[j][0],yj=_ol[j][1];
+      if(((yi>p[1])!==(yj>p[1]))&&(p[0]<(xj-xi)*(p[1]-yi)/(yj-yi+1e-10)+xi))inside=!inside;
+    }
+    return inside;
+  }
+
   /* Returns an array of polygon pieces representing pts ∩ outline (handles concave). */
   function clipToOutline(pts){
     var pieces=[];
@@ -5198,46 +5208,64 @@ function renderRoofSheetPlan() {
     var perpX=d1>=0?px1:px2,perpY=d1>=0?py1:py2;
     var gAng=Math.atan2(gdy,gdx)*180/Math.PI;
 
-    /* Hips/valleys touching gutter endpoints */
+    /* Hips/valleys touching gutter endpoints. Prefer 'hip' over 'valley' when both
+       meet at the same corner — at an L-shape's inner corner a hip rises to the
+       hipped section's ridge and a valley rises to the inter-roof junction; the hip
+       is what bounds this gutter's face. */
     var lHip=null,rHip=null;
     DRAW.lines.forEach(function(r){
       if(r.type!=='hip'&&r.type!=='valley')return;
-      if(pNear(r.pts[0],p0)||pNear(r.pts[1],p0))lHip=r;
-      if(pNear(r.pts[0],p1)||pNear(r.pts[1],p1))rHip=r;
+      if(pNear(r.pts[0],p0)||pNear(r.pts[1],p0)){
+        if(!lHip||(lHip.type==='valley'&&r.type==='hip'))lHip=r;
+      }
+      if(pNear(r.pts[0],p1)||pNear(r.pts[1],p1)){
+        if(!rHip||(rHip.type==='valley'&&r.type==='hip'))rHip=r;
+      }
     });
 
-    /* Find parallel ridge/valley (main face) */
+    /* Find parallel ridge/valley in EITHER perpendicular direction. Pick the closer
+       one provided its face-anchor falls inside the outline. Centroid-only direction
+       picking fails on L/T/U buildings where the centroid sits in another arm and
+       points the gutter's perpendicular into a concave notch. */
     var bestD=Infinity;
-    DRAW.lines.forEach(function(r){
-      if(r.type!=='ridge'&&r.type!=='valley')return;
-      if(angDiff(Math.atan2(r.pts[1][1]-r.pts[0][1],r.pts[1][0]-r.pts[0][0])*180/Math.PI,gAng)>30)return;
-      var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];
-      var d=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],perpX,perpY);
-      if(d>0&&d<bestD)bestD=d;
-    });
-    /* Opposite-direction fallback (concave/step gutters) */
-    if(bestD===Infinity){
-      var _altD=Infinity;
+    [[perpX,perpY],[-perpX,-perpY]].forEach(function(dir){
+      var dx=dir[0],dy=dir[1],dirBest=Infinity;
       DRAW.lines.forEach(function(r){
         if(r.type!=='ridge'&&r.type!=='valley')return;
         if(angDiff(Math.atan2(r.pts[1][1]-r.pts[0][1],r.pts[1][0]-r.pts[0][0])*180/Math.PI,gAng)>30)return;
         var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];
-        var d=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],-perpX,-perpY);
-        if(d>0&&d<_altD)_altD=d;
+        var d=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],dx,dy);
+        if(d>0&&d<dirBest)dirBest=d;
       });
-      if(_altD<Infinity){bestD=_altD;perpX=-perpX;perpY=-perpY;}
-    }
+      if(dirBest===Infinity||dirBest>=bestD)return;
+      var _anc=[(p0[0]+p1[0])/2+dx*dirBest*0.5,(p0[1]+p1[1])/2+dy*dirBest*0.5];
+      if(!_ptInOl(_anc))return;
+      bestD=dirBest;perpX=dx;perpY=dy;
+    });
 
-    /* End face: two hips meet at apex, no parallel ridge found */
+    /* End face: two hips meet at apex, no parallel ridge found.
+       Hips must terminate at (or very near) the SAME apex point — otherwise this
+       gutter spans two separate roof structures (e.g. an L-shape's right edge runs
+       past both the wing's hip apex and the main's hip apex), and treating it as
+       one end face would render a huge spurious off-cut block between them. */
     var isEndFace=false,apexPt=null,apexS=0;
     if(bestD===Infinity&&lHip&&rHip){
       var lFar=pNear(lHip.pts[0],p0)||pNear(lHip.pts[0],p1)?lHip.pts[1]:lHip.pts[0];
       var rFar=pNear(rHip.pts[0],p0)||pNear(rHip.pts[0],p1)?rHip.pts[1]:rHip.pts[0];
-      apexPt=[(lFar[0]+rFar[0])/2,(lFar[1]+rFar[1])/2];
-      var ad=dot(apexPt[0]-gmid[0],apexPt[1]-gmid[1],perpX,perpY);
-      if(ad>0){bestD=ad;isEndFace=true;}
+      var _apexGap=len2(lFar[0]-rFar[0],lFar[1]-rFar[1]);
+      if(_apexGap<=gL*0.35){
+        apexPt=[(lFar[0]+rFar[0])/2,(lFar[1]+rFar[1])/2];
+        var ad=dot(apexPt[0]-gmid[0],apexPt[1]-gmid[1],perpX,perpY);
+        if(ad>0){bestD=ad;isEndFace=true;}
+      }
     }
     if(bestD===Infinity)return;
+
+    /* Reject faces whose interior anchor falls OUTSIDE the building (e.g. a gutter
+       on an L's inner edge whose perpendicular search direction points into the
+       cut-out notch). Without this the spurious face overlaps real ones. */
+    var _anchorChk=[(p0[0]+p1[0])/2+perpX*bestD*0.5,(p0[1]+p1[1])/2+perpY*bestD*0.5];
+    if(!_ptInOl(_anchorChk))return;
 
     var gutterM=parseFloat(gl.measM||0);
     var depM=effectiveScale>0?bestD*effectiveScale:0;
