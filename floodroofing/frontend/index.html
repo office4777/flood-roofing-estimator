@@ -5226,21 +5226,22 @@ function renderRoofSheetPlan() {
     /* Find parallel ridge/valley in EITHER perpendicular direction. Pick the closer
        one provided its face-anchor falls inside the outline. Centroid-only direction
        picking fails on L/T/U buildings where the centroid sits in another arm and
-       points the gutter's perpendicular into a concave notch. */
-    var bestD=Infinity;
+       points the gutter's perpendicular into a concave notch. Also remember the
+       matched ridge midpoint so we can detect "shared ridge" later. */
+    var bestD=Infinity,bestRMid=null;
     [[perpX,perpY],[-perpX,-perpY]].forEach(function(dir){
-      var dx=dir[0],dy=dir[1],dirBest=Infinity;
+      var dx=dir[0],dy=dir[1],dirBest=Infinity,dirRMid=null;
       DRAW.lines.forEach(function(r){
         if(r.type!=='ridge'&&r.type!=='valley')return;
         if(angDiff(Math.atan2(r.pts[1][1]-r.pts[0][1],r.pts[1][0]-r.pts[0][0])*180/Math.PI,gAng)>30)return;
         var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];
         var d=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],dx,dy);
-        if(d>0&&d<dirBest)dirBest=d;
+        if(d>0&&d<dirBest){dirBest=d;dirRMid=rMid;}
       });
       if(dirBest===Infinity||dirBest>=bestD)return;
       var _anc=[(p0[0]+p1[0])/2+dx*dirBest*0.5,(p0[1]+p1[1])/2+dy*dirBest*0.5];
       if(!_ptInOl(_anc))return;
-      bestD=dirBest;perpX=dx;perpY=dy;
+      bestD=dirBest;perpX=dx;perpY=dy;bestRMid=dirRMid;
     });
 
     /* End face: two hips meet at apex, no parallel ridge found.
@@ -5286,7 +5287,8 @@ function renderRoofSheetPlan() {
 
     faces.push({gl:gl,p0:p0,p1:p1,gnx:gnx,gny:gny,perpX:perpX,perpY:perpY,gL:gL,
       depImg:bestD,depM:depM,lHip:lHip,rHip:rHip,gutterM:gutterM,swImg:swImg,
-      nSheets:nSheets,sheetsHalf:sheetsHalf,isEndFace:isEndFace,apexS:apexS,apexPt:apexPt});
+      nSheets:nSheets,sheetsHalf:sheetsHalf,isEndFace:isEndFace,apexS:apexS,apexPt:apexPt,
+      ridgeMid:bestRMid});
   });
 
   faces.sort(function(a,b){return b.gutterM-a.gutterM;});
@@ -5370,6 +5372,39 @@ function renderRoofSheetPlan() {
         var cA=toC(dB),cB=toC(dT);
         ctx.save();ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
         ctx.beginPath();ctx.moveTo(cA[0],cA[1]);ctx.lineTo(cB[0],cB[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+      }
+
+      /* ═══ BACK-FACE MIRROR (NZ "double the long gutter" rule) ═══
+         If no other main face shares this face's ridge (i.e. the back side is
+         bounded by an internal valley on an L/T-shape, not by an outline gutter),
+         order DOUBLE sheets and mirror each one across the ridge as a hatched
+         off-cut. clipToOutline auto-trims the sheet at the wing-junction valley. */
+      var _hasBack=faces.some(function(other){
+        if(other===f||other.isEndFace)return false;
+        if(!other.ridgeMid||!f.ridgeMid)return false;
+        return len2(other.ridgeMid[0]-f.ridgeMid[0],other.ridgeMid[1]-f.ridgeMid[1])<sw*2;
+      });
+      if(!_hasBack&&f.ridgeMid){
+        for(var bs=0;bs<f.nSheets;bs++){
+          var bBL=[f.p0[0]+f.gnx*bs*sw+f.perpX*dep,     f.p0[1]+f.gny*bs*sw+f.perpY*dep];
+          var bBR=[f.p0[0]+f.gnx*(bs+1)*sw+f.perpX*dep,  f.p0[1]+f.gny*(bs+1)*sw+f.perpY*dep];
+          var bTL=[bBL[0]+f.perpX*dep,                   bBL[1]+f.perpY*dep];
+          var bTR=[bBR[0]+f.perpX*dep,                   bBR[1]+f.perpY*dep];
+          var bPieces=clipToOutline([bBL,bBR,bTR,bTL].slice());
+          if(!bPieces.length)continue;
+
+          var bLT=null,bLA=0;
+          bPieces.forEach(function(used){
+            if(!used||used.length<3||polyArea(used)<=minA*0.25)return;
+            drawPoly(used,f.col,'rgba(0,0,0,0.5)',1.5);
+            drawHatching(used);
+            var a=polyArea(used);
+            if(a>bLA){bLA=a;bLT=used;}
+          });
+          if(bLT){
+            lbl(bLT,(bs+1)+' ↻','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
+          }
+        }
       }
 
     } else {
