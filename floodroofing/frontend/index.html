@@ -5388,11 +5388,24 @@ function renderRoofSheetPlan() {
         /* Reference point INSIDE the back face — sits just past the ridge so it's
            guaranteed to be on the back-face side of any wing-junction valley. */
         var fAnchorBack=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*1.02,(f.p0[1]+f.p1[1])/2+f.perpY*dep*1.02];
+        /* Cap back-face depth at the closest REFLEX outline vertex projected into
+           the back area. On an L/T/U building this is the inner corner — its perp
+           projection past the ridge is exactly where the wing's body meets the lower
+           section's roof, i.e. the natural top of the back face. */
+        var depBack=dep,gmidF=[(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2];
+        _ol.forEach(function(rc,ri){
+          var rp=_ol[(ri-1+_ol.length)%_ol.length],rn=_ol[(ri+1)%_ol.length];
+          if((rc[0]-rp[0])*(rn[1]-rc[1])-(rc[1]-rp[1])*(rn[0]-rc[0])>=0)return;
+          var rxProj=dot(rc[0]-gmidF[0],rc[1]-gmidF[1],f.perpX,f.perpY);
+          var tProj=dot(rc[0]-f.p0[0],rc[1]-f.p0[1],f.gnx,f.gny);
+          if(tProj<-f.gL*0.2||tProj>f.gL*1.2)return;
+          if(rxProj>dep){var cand=rxProj-dep;if(cand<depBack)depBack=cand;}
+        });
         for(var bs=0;bs<f.nSheets;bs++){
           var bBL=[f.p0[0]+f.gnx*bs*sw+f.perpX*dep,     f.p0[1]+f.gny*bs*sw+f.perpY*dep];
           var bBR=[f.p0[0]+f.gnx*(bs+1)*sw+f.perpX*dep,  f.p0[1]+f.gny*(bs+1)*sw+f.perpY*dep];
-          var bTL=[bBL[0]+f.perpX*dep,                   bBL[1]+f.perpY*dep];
-          var bTR=[bBR[0]+f.perpX*dep,                   bBR[1]+f.perpY*dep];
+          var bTL=[bBL[0]+f.perpX*depBack,               bBL[1]+f.perpY*depBack];
+          var bTR=[bBR[0]+f.perpX*depBack,               bBR[1]+f.perpY*depBack];
           var bPieces=clipToOutline([bBL,bBR,bTR,bTL].slice());
           if(!bPieces.length)continue;
 
