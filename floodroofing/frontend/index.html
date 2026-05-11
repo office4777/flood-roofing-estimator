@@ -5163,7 +5163,11 @@ function renderRoofSheetPlan() {
     var gutterM=parseFloat(gl.measM||0);
     var depM=effectiveScale>0?bestD*effectiveScale:0;
     var swImg=effectiveScale>0?swM/effectiveScale:gL/10;
-    var nSheets=Math.max(1,Math.ceil(gL/swImg));
+    /* Sheets to ORDER: round up to nearest 0.5 (you can rip a sheet lengthwise; never round down). */
+    var sheetsExact=gL/swImg;
+    var sheetsHalf=Math.max(0.5,Math.ceil(sheetsExact*2)/2);
+    /* Sheets to DRAW: integer count of full-width sheets (the half goes onto the last column). */
+    var nSheets=Math.max(1,Math.ceil(sheetsHalf));
 
     /* For end faces: find apex position along gutter (in sheet units) */
     if(isEndFace&&apexPt){
@@ -5175,7 +5179,7 @@ function renderRoofSheetPlan() {
 
     faces.push({gl:gl,p0:p0,p1:p1,gnx:gnx,gny:gny,perpX:perpX,perpY:perpY,gL:gL,
       depImg:bestD,depM:depM,lHip:lHip,rHip:rHip,gutterM:gutterM,swImg:swImg,
-      nSheets:nSheets,isEndFace:isEndFace,apexS:apexS,apexPt:apexPt});
+      nSheets:nSheets,sheetsHalf:sheetsHalf,isEndFace:isEndFace,apexS:apexS,apexPt:apexPt});
   });
 
   faces.sort(function(a,b){return b.gutterM-a.gutterM;});
@@ -5221,7 +5225,10 @@ function renderRoofSheetPlan() {
     var minA=sw*sw*0.06;
 
     if(!f.isEndFace){
-      /* ═══ MAIN FACE (trapezoid): sheets run perp to gutter, clipped by hips ═══ */
+      /* ═══ MAIN FACE (trapezoid): sheets run perp to gutter, clipped by hips ═══
+         Off-cuts are NOT drawn here — they're rendered in-place on the end face
+         that consumes them (perpendicular to that face's gutter, no flip). The
+         hip line of the trapezoid itself shows the 45° cut visually. */
       for(var s=0;s<f.nSheets;s++){
         var BL=[f.p0[0]+f.gnx*s*sw,     f.p0[1]+f.gny*s*sw];
         var BR=[f.p0[0]+f.gnx*(s+1)*sw,  f.p0[1]+f.gny*(s+1)*sw];
@@ -5236,26 +5243,9 @@ function renderRoofSheetPlan() {
         if(f.rHip&&used.length>=3)used=clipHipInside(used,f.rHip);
         if(used&&used.length>=3&&polyArea(used)>minA){
           drawPoly(used,f.col,'rgba(0,0,0,0.75)',2.2);
-          lbl(used,s+1,'rgba(0,0,0,0.9)',Math.max(8,Math.min(14,toCV(sw)*0.52)));
-        }
-
-        /* Off-cut on lHip side — goes to adjacent end face */
-        if(f.lHip){
-          var offL=clipHipOutside(full.slice(),f.lHip);
-          if(offL&&offL.length>=3&&polyArea(offL)>minA*0.05){
-            drawPoly(offL,f.col,'rgba(0,0,0,0.45)',1.2);
-            drawHatching(offL);
-            lbl(offL,s+1,'rgba(0,0,0,0.7)',Math.max(6,Math.min(9,toCV(sw)*0.36)),0.85);
-          }
-        }
-        /* Off-cut on rHip side */
-        if(f.rHip){
-          var offR=clipHipOutside(full.slice(),f.rHip);
-          if(offR&&offR.length>=3&&polyArea(offR)>minA*0.05){
-            drawPoly(offR,f.col,'rgba(0,0,0,0.45)',1.2);
-            drawHatching(offR);
-            lbl(offR,s+1,'rgba(0,0,0,0.7)',Math.max(6,Math.min(9,toCV(sw)*0.36)),0.85);
-          }
+          var didCut=(f.lHip&&used.length<full.length)||(f.rHip&&used.length<full.length);
+          var sheetLbl=(s+1)+(didCut?' ↻':'');
+          lbl(used,sheetLbl,'rgba(0,0,0,0.9)',Math.max(8,Math.min(14,toCV(sw)*0.52)));
         }
       }
       /* Sheet divider lines */
@@ -5269,8 +5259,10 @@ function renderRoofSheetPlan() {
 
     } else {
       /* ═══ END FACE (triangle): filled by off-cuts from adjacent main faces ═══
-         KEY FIX: clip each strip by ONE hip only (the one on that side of apex),
-         not both simultaneously (which incorrectly eliminates all middle strips). */
+         Each strip runs perpendicular to the end-face's own gutter and is clipped
+         by BOTH hips so it stays inside the end-face triangle (won't bleed past
+         the apex into the opposite main face). The strip is filled with an off-cut
+         from the donor main face — no flipping (corrugations stay running gutter→ridge). */
       for(var s=0;s<f.nSheets;s++){
         var BL=[f.p0[0]+f.gnx*s*sw,     f.p0[1]+f.gny*s*sw];
         var BR=[f.p0[0]+f.gnx*(s+1)*sw,  f.p0[1]+f.gny*(s+1)*sw];
@@ -5279,24 +5271,19 @@ function renderRoofSheetPlan() {
         var used=clipToOutline([BL,BR,TR,TL].slice());
         if(!used||used.length<3)continue;
 
-        /* Clip by ONE hip based on which side of the apex this strip falls on */
-        var isLeftHalf=(s+0.5<=f.apexS);
-        if(isLeftHalf){
-          if(f.lHip)used=clipHipOutside(used,f.lHip);
-          /* Do NOT also clip by rHip — that would eliminate strips near the apex */
-        } else {
-          if(f.rHip)used=clipHipOutside(used,f.rHip);
-          /* Do NOT also clip by lHip */
-        }
+        /* Clip by BOTH hips: keep only the part inside the end-face triangle. */
+        if(f.lHip&&used.length>=3)used=clipHipOutside(used,f.lHip);
+        if(f.rHip&&used.length>=3)used=clipHipOutside(used,f.rHip);
         if(!used||used.length<3||polyArea(used)<minA*0.04)continue;
 
-        /* Determine source colour and sheet number (NZ mirror rule):
-           Left half off-cuts come from the adjacent main face on the lHip side,
-           counting from the shared end. Right half from the rHip side. */
+        /* Donor main face supplies the off-cut. Strips on the lHip side of apex
+           get their material from f.lAdj (whose sheet near the shared corner
+           had the matching triangular waste); right side from f.rAdj.
+           No mirroring of corrugations — sheet rotates 90° in-plane only. */
+        var isLeftHalf=(s+0.5<=f.apexS);
         var col,srcNum;
         if(isLeftHalf){
           col=f.lAdj?f.lAdj.col:f.col;
-          /* Mirror: strip 0 (near p0) = sheet 1 of adjacent face from shared end */
           srcNum=f.lAdjP0?s+1:(f.lAdj?f.lAdj.nSheets-s:s+1);
         } else {
           col=f.rAdj?f.rAdj.col:f.col;
@@ -5306,7 +5293,7 @@ function renderRoofSheetPlan() {
 
         drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
         drawHatching(used);
-        lbl(used,srcNum,'rgba(0,0,0,0.75)',Math.max(6,Math.min(9,toCV(sw)*0.38)),0.9);
+        lbl(used,srcNum+' ↻','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
       }
       /* Sheet divider lines for end face */
       for(var g=1;g<f.nSheets;g++){
@@ -5351,22 +5338,26 @@ function renderRoofSheetPlan() {
   /* ── Legend ── */
   var mainFaces=faces.filter(function(f){return !f.isEndFace;});
   var endFaces=faces.filter(function(f){return f.isEndFace;});
-  var totSheets=mainFaces.reduce(function(s,f){return s+f.nSheets;},0);
+  /* Count what to ORDER: half-sheet increments on each main face, then bump to whole sheets to buy. */
+  var totHalf=mainFaces.reduce(function(s,f){return s+(f.sheetsHalf||f.nSheets);},0);
+  var totWhole=Math.ceil(totHalf);
   var calNote=hasRealSc?'':' <em style="color:#d97706;font-size:10px">(calibrate scale for real measurements)</em>';
   var legHtml='<div style="margin-top:14px">';
   legHtml+='<div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px">';
   legHtml+='<span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9632; Solid = full sheet installed</span>';
-  legHtml+='<span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9135; Hatched = off-cut reused (number = source sheet #)</span>';
+  legHtml+='<span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9135; Hatched ↻ = off-cut reused (number = source sheet # &middot; same colour as donor face)</span>';
   legHtml+='</div>';
   legHtml+='<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b">';
-  legHtml+='<strong>NZ roofing rule:</strong> Sheets run perpendicular to each gutter (ridge→gutter). Hip cuts produce triangular off-cuts that spin 180° to fill end/hip faces — shown hatched in the source face colour. Order sheets by gutter lengths only.';
+  legHtml+='<strong>NZ roofing rule:</strong> Every sheet runs gutter→ridge so the corrugations carry water down. The 45° hip cut produces a right-triangle off-cut that fits an adjacent end/hip face — rotated 90° in-plane only, <em>never flipped</em> (Colorsteel can\'t be laid upside-down). Order sheets by gutter lengths only; off-cuts cover the end faces with zero extra sheets.';
   legHtml+='</div>';
   legHtml+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
   mainFaces.forEach(function(f){
     var cutLen=hasRealSc&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';
+    var sH=f.sheetsHalf||f.nSheets;
+    var sHTxt=(sH%1===0)?String(sH):sH.toFixed(1);
     legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa">';
     legHtml+='<div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealSc&&f.gutterM>0?f.gutterM.toFixed(2)+'m gutter':'Face')+'</div>';
-    legHtml+='<div style="font-size:20px;font-weight:700;color:#7c3aed">'+f.nSheets+'</div>';
+    legHtml+='<div style="font-size:20px;font-weight:700;color:#7c3aed">'+sHTxt+'</div>';
     legHtml+='<div style="font-size:10px;color:#6b7280">sheets'+(cutLen!=='—'?' @ '+cutLen+' long':'')+'</div>';
     legHtml+='</div>';
   });
@@ -5378,8 +5369,9 @@ function renderRoofSheetPlan() {
   }
   legHtml+='</div>';
   legHtml+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:13px">';
-  legHtml+='<strong>Total: '+totSheets+' full-length sheets</strong>'+calNote;
-  legHtml+='<br><span style="font-size:11px;color:#64748b">Off-cuts fill hip/end faces — order by gutter lengths only</span>';
+  var totHalfTxt=(totHalf%1===0)?String(totHalf):totHalf.toFixed(1);
+  legHtml+='<strong>Order: '+totWhole+' full-length sheets</strong> <span style="color:#64748b;font-size:12px">('+totHalfTxt+' actually used; the half-sheet rip serves the last column)</span>'+calNote;
+  legHtml+='<br><span style="font-size:11px;color:#64748b">Off-cuts fill hip/end faces (rotated in-plane, never flipped) — order by gutter lengths only</span>';
   legHtml+='</div></div>';
 
   outEl.innerHTML='';outEl.appendChild(cv);
