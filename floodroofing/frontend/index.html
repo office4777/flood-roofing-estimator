@@ -4367,6 +4367,37 @@ function buildHipValleyLines(outline) {
     var _is45=_oa.some(function(oa){var _df=Math.abs(_sa-oa)%Math.PI;if(_df>Math.PI/2)_df=Math.PI-_df;return Math.abs(_df-Math.PI/4)<(18*Math.PI/180);});
     if(_is45)seg.type='hip';
   });
+  /* Merge collinear same-type segments that share an endpoint. Straight-skeleton split
+     events emit a single hip as two arcs (one per recursion); without this they show as
+     two short pieces when they are geometrically one continuous hip. */
+  var _MERGE_POS_TOL=2.0,_MERGE_ANG_TOL=0.05;
+  function _mLen(p,q){return Math.sqrt((q[0]-p[0])*(q[0]-p[0])+(q[1]-p[1])*(q[1]-p[1]));}
+  var _mChanged=true,_mGuard=result.length*4+8;
+  while(_mChanged&&_mGuard-->0){
+    _mChanged=false;
+    outer:
+    for(var _mi=0;_mi<result.length;_mi++){
+      for(var _mj=_mi+1;_mj<result.length;_mj++){
+        if(result[_mi].type!==result[_mj].type)continue;
+        for(var _ei=0;_ei<2;_ei++)for(var _ej=0;_ej<2;_ej++){
+          var pA=result[_mi].pts[_ei],pB=result[_mj].pts[_ej];
+          if(_mLen(pA,pB)>_MERGE_POS_TOL)continue;
+          var fA=result[_mi].pts[1-_ei],fB=result[_mj].pts[1-_ej];
+          var dxA=fA[0]-pA[0],dyA=fA[1]-pA[1],lA=_mLen(pA,fA);
+          var dxB=fB[0]-pB[0],dyB=fB[1]-pB[1],lB=_mLen(pB,fB);
+          if(lA<0.5||lB<0.5)continue;
+          /* Vectors should point in OPPOSITE directions from the shared endpoint */
+          var cross=(dxA*dyB-dyA*dxB)/(lA*lB);
+          var dotN=(dxA*dxB+dyA*dyB)/(lA*lB);
+          if(Math.abs(cross)>_MERGE_ANG_TOL||dotN>-0.9)continue;
+          result[_mi].pts=[fA.slice(),fB.slice()];
+          result.splice(_mj,1);
+          _mChanged=true;
+          break outer;
+        }
+      }
+    }
+  }
   return result;
 }
 
@@ -5107,15 +5138,20 @@ function renderRoofSheetPlan() {
     return pieces;
   }
 
-  /* Clip to centroid side of a hip/valley (the installed sheet region) */
-  function clipHipInside(pts,hip){
+  /* Clip to the side of a hip/valley containing refPt (defaults to building centroid).
+     For L/T/U-shaped buildings the centroid can fall in the WRONG arm relative to a
+     given face's hips, so callers should pass a face-local anchor (gutter midpoint
+     pushed half-depth into the face) which is always genuinely inside that face. */
+  function clipHipInside(pts,hip,refPt){
+    var rx=refPt?refPt[0]:cX,ry=refPt?refPt[1]:cY;
     var hA=hip.pts[0],hB=hip.pts[1],edx=hB[0]-hA[0],edy=hB[1]-hA[1];
-    return clipHalf(pts,hA,hB,(cX-hA[0])*(-edy)+(cY-hA[1])*edx<0);
+    return clipHalf(pts,hA,hB,(rx-hA[0])*(-edy)+(ry-hA[1])*edx<0);
   }
-  /* Clip to non-centroid side (off-cut / end-face territory) */
-  function clipHipOutside(pts,hip){
+  /* Clip to the side of a hip/valley NOT containing refPt. */
+  function clipHipOutside(pts,hip,refPt){
+    var rx=refPt?refPt[0]:cX,ry=refPt?refPt[1]:cY;
     var hA=hip.pts[0],hB=hip.pts[1],edx=hB[0]-hA[0],edy=hB[1]-hA[1];
-    return clipHalf(pts,hA,hB,(cX-hA[0])*(-edy)+(cY-hA[1])*edx>=0);
+    return clipHalf(pts,hA,hB,(rx-hA[0])*(-edy)+(ry-hA[1])*edx>=0);
   }
 
   /* ── Drawing helpers ── */
@@ -5272,6 +5308,9 @@ function renderRoofSheetPlan() {
          Off-cuts are NOT drawn here — they're rendered in-place on the end face
          that consumes them (perpendicular to that face's gutter, no flip). The
          hip line of the trapezoid itself shows the 45° cut visually. */
+      /* Face-local anchor: gutter midpoint pushed half-depth into the face. Always inside
+         this face even on L/T/U buildings where the building centroid is in another arm. */
+      var fAnchor=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*0.5,(f.p0[1]+f.p1[1])/2+f.perpY*dep*0.5];
       for(var s=0;s<f.nSheets;s++){
         var BL=[f.p0[0]+f.gnx*s*sw,     f.p0[1]+f.gny*s*sw];
         var BR=[f.p0[0]+f.gnx*(s+1)*sw,  f.p0[1]+f.gny*(s+1)*sw];
@@ -5283,8 +5322,8 @@ function renderRoofSheetPlan() {
         var labelTarget=null,labelArea=0,didCut=false;
         fullPieces.forEach(function(full){
           var used=full.slice();
-          if(f.lHip&&used.length>=3)used=clipHipInside(used,f.lHip);
-          if(f.rHip&&used.length>=3)used=clipHipInside(used,f.rHip);
+          if(f.lHip&&used.length>=3)used=clipHipInside(used,f.lHip,fAnchor);
+          if(f.rHip&&used.length>=3)used=clipHipInside(used,f.rHip,fAnchor);
           if(!used||used.length<3||polyArea(used)<=minA*0.25)return;
           drawPoly(used,f.col,'rgba(0,0,0,0.75)',2.2);
           if((f.lHip||f.rHip)&&used.length<full.length)didCut=true;
@@ -5311,6 +5350,9 @@ function renderRoofSheetPlan() {
          by BOTH hips so it stays inside the end-face triangle (won't bleed past
          the apex into the opposite main face). The strip is filled with an off-cut
          from the donor main face — no flipping (corrugations stay running gutter→ridge). */
+      /* End-face anchor: midway between gutter midpoint and apex — always inside the
+         end-face triangle, even when the building centroid is in another arm of the L. */
+      var fAnchor=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*0.5,(f.p0[1]+f.p1[1])/2+f.perpY*dep*0.5];
       for(var s=0;s<f.nSheets;s++){
         var BL=[f.p0[0]+f.gnx*s*sw,     f.p0[1]+f.gny*s*sw];
         var BR=[f.p0[0]+f.gnx*(s+1)*sw,  f.p0[1]+f.gny*(s+1)*sw];
@@ -5336,9 +5378,10 @@ function renderRoofSheetPlan() {
 
         var labelTarget=null,labelArea=0;
         basePieces.forEach(function(used){
-          /* Clip by BOTH hips: keep only the part inside the end-face triangle. */
-          if(f.lHip&&used.length>=3)used=clipHipOutside(used,f.lHip);
-          if(f.rHip&&used.length>=3)used=clipHipOutside(used,f.rHip);
+          /* Clip by BOTH hips: keep only the part on the apex side (= end-face interior).
+             Use the face anchor (always inside the triangle) as the reference. */
+          if(f.lHip&&used.length>=3)used=clipHipInside(used,f.lHip,fAnchor);
+          if(f.rHip&&used.length>=3)used=clipHipInside(used,f.rHip,fAnchor);
           if(!used||used.length<3||polyArea(used)<minA*0.04)return;
           drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
           drawHatching(used);
