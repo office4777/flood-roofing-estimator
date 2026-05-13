@@ -5675,7 +5675,15 @@ function renderRoofSheetPlan() {
                 if(!fp||fp.length<3)return;
                 var _diagOff=clipHipOutside(fp,line,fAnchor);
                 if(_diagOff&&_diagOff.length>=3&&polyArea(_diagOff)>minA*0.05){
-                  _extensionDraws.push({poly:_diagOff,col:f.col,label:(s+1)+' c',sw:sw});
+                  /* Anchor for confining clipping: cut line midpoint shifted
+                     perpendicular AWAY from the face anchor — this lands
+                     inside the wedge/matching-triangle area between the cut
+                     line and the opposite face's main territory. */
+                  var _cMid=[(line.pts[0][0]+line.pts[1][0])/2,(line.pts[0][1]+line.pts[1][1])/2];
+                  var _toOff=[_cMid[0]-fAnchor[0],_cMid[1]-fAnchor[1]];
+                  var _tLen=Math.sqrt(_toOff[0]*_toOff[0]+_toOff[1]*_toOff[1])||1;
+                  var _wedgeAnchor=[_cMid[0]+_toOff[0]/_tLen*8,_cMid[1]+_toOff[1]/_tLen*8];
+                  _extensionDraws.push({poly:_diagOff,col:f.col,label:(s+1)+' c',sw:sw,anchor:_wedgeAnchor});
                 }
               });
             });
@@ -5912,8 +5920,9 @@ function renderRoofSheetPlan() {
      hip (in the natural matching-triangle area) rather than drifting into
      the opposite face's main territory. */
   _extensionDraws.forEach(function(ed){
-    /* Use just the offcut's centroid as the in-area anchor. */
-    var _epC=centroid(ed.poly);
+    /* Use the wedge-side anchor (cut-line midpoint shifted into wedge) if
+       supplied, else fall back to polygon centroid. */
+    var _epC=ed.anchor||centroid(ed.poly);
     var _epClipped=ed.poly.slice();
     /* Clip only by lines whose tangential range covers the offcut's bbox. */
     var _bbXLo=Infinity,_bbXHi=-Infinity,_bbYLo=Infinity,_bbYHi=-Infinity;
