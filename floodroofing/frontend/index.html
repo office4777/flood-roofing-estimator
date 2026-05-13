@@ -5381,7 +5381,15 @@ function renderRoofSheetPlan() {
       });
       if(_apexGap<=gL*0.35||(_hasConnector&&_apexGap<=gL*1.2)){
         apexPt=[(lFar[0]+rFar[0])/2,(lFar[1]+rFar[1])/2];
-        var ad=dot(apexPt[0]-gmid[0],apexPt[1]-gmid[1],perpX,perpY);
+        var _adL=dot(lFar[0]-gmid[0],lFar[1]-gmid[1],perpX,perpY);
+        var _adR=dot(rFar[0]-gmid[0],rFar[1]-gmid[1],perpX,perpY);
+        /* For a true point-apex end face lFar == rFar so midpoint depth and
+           max depth match. For a WEDGE end face (lFar != rFar, connected by
+           a connector hip), the wedge is a quadrilateral whose two far
+           corners sit at different perpendicular depths. Use MAX so the
+           strip rectangles extend far enough to be clipped properly by the
+           connector hip + lHip + rHip at the wedge's far edge. */
+        var ad=Math.max(_adL,_adR);
         if(ad>0){bestD=ad;isEndFace=true;}
       }
     }
