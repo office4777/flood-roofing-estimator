@@ -5809,20 +5809,21 @@ function renderRoofSheetPlan() {
            smallest, near gutter) is labeled with sheet (K - s) where K is the
            number of cut sheets in this hip's column. */
         var K_left=Math.floor(f.apexS)+1;        /* count of strips in left half */
-        var K_right=f.nSheets-Math.floor(f.apexS); /* count of strips in right half */
+        var K_right=f.nSheets-K_left;            /* count of strips in right half (fixed: complement of K_left) */
         if(isLeftHalf){
           col=lDonor?lDonor.col:f.col;
-          /* lDonorP0 TRUE => donor.p0 is at the hip-touching corner (this side's
-             cut sheets are donor sheets 1..K). Strip 0 (smallest) ← sheet K.
-             lDonorP0 FALSE => donor.p1 is at the hip-touching corner (cut sheets
-             are donor sheets nSheets..nSheets-K+1). Strip 0 (smallest) ← sheet
-             nSheets-K+1 (the lowest-numbered cut sheet, farthest from p1). */
-          srcNum=lDonorP0?(K_left-s):(lDonor?lDonor.nSheets-K_left+s+1:s+1);
+          /* Strip s in left half: s=0 is at the gutter end of the end face
+             (LARGEST strip area). Pair it with the donor sheet whose offcut
+             is BIGGEST = the sheet most heavily cut by the hip = the donor
+             sheet farthest from the gutter corner / closest to the apex. */
+          srcNum=lDonorP0?(s+1):(lDonor?lDonor.nSheets-s:s+1);
         } else {
           col=rDonor?rDonor.col:f.col;
-          var s2=s-Math.floor(f.apexS);  /* s2 = 1..K_right */
-          /* Symmetric reasoning for the right half. */
-          srcNum=rDonorP0?(K_right-s2+1):(rDonor?rDonor.nSheets-K_right+s2:s2+1);
+          var s2=s-Math.floor(f.apexS);
+          /* Right half: s2=0 is near apex (smallest strip), s2=K_right-1 is
+             near p1 gutter (largest strip). Pair largest strip with biggest
+             offcut = smallest-numbered donor sheet (closest to apex). */
+          srcNum=rDonorP0?(K_right-s2):(rDonor?rDonor.nSheets-K_right+s2+1:s2+1);
         }
 
         var labelTarget=null,labelArea=0;
