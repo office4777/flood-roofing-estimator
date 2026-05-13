@@ -5334,24 +5334,22 @@ function renderRoofSheetPlan() {
   faces.forEach(function(f,i){f.col=COLS[i%COLS.length];});
 
   /* Link each end-face half to the adjacent main face that supplies its off-cuts.
-     CORRUGATION-DIRECTION RULE: a hip off-cut keeps its source sheet's corrugation
-     axis, and Colorsteel cannot be flipped. So the off-cut sitting on the LEFT half
-     of an end face (closest to its p0/lHip corner) physically came from the main
-     face on the OPPOSITE side of the apex — the one sharing the RIGHT hip — because
-     that face's sheets run with the corrugations pointing INTO the left half of the
-     end face. Hence: lAdj ← shares rHip, rAdj ← shares lHip. */
+     PLACEMENT RULE (corrected): a hip off-cut keeps its source sheet's painted side
+     up. Any in-plane rotation (90°/180°/270°) is allowed; the only forbidden
+     operation is mirroring (painted side down). The off-cut on the LEFT half of an
+     end face (closest to its p0/lHip corner) physically continues from the main
+     face SHARING that lHip line — the 45° cut traces straight across the hip into
+     the end face's left half. So: lAdj ← shares lHip, rAdj ← shares rHip. */
   faces.forEach(function(ef){
     if(!ef.isEndFace)return;
     ef.lAdj=null;ef.rAdj=null;ef.lAdjP0=true;ef.rAdjP0=true;
     faces.forEach(function(mf){
       if(mf.isEndFace)return;
-      if(ef.rHip&&(mf.lHip===ef.rHip||mf.rHip===ef.rHip)){
-        /* Main face on the rHip side donates to the LEFT half of the end face. */
+      if(ef.lHip&&(mf.lHip===ef.lHip||mf.rHip===ef.lHip)){
         ef.lAdj=mf;
         ef.lAdjP0=len2(ef.p0[0]-mf.p0[0],ef.p0[1]-mf.p0[1])<len2(ef.p0[0]-mf.p1[0],ef.p0[1]-mf.p1[1]);
       }
-      if(ef.lHip&&(mf.lHip===ef.lHip||mf.rHip===ef.lHip)){
-        /* Main face on the lHip side donates to the RIGHT half of the end face. */
+      if(ef.rHip&&(mf.lHip===ef.rHip||mf.rHip===ef.rHip)){
         ef.rAdj=mf;
         ef.rAdjP0=len2(ef.p1[0]-mf.p0[0],ef.p1[1]-mf.p0[1])<len2(ef.p1[0]-mf.p1[0],ef.p1[1]-mf.p1[1]);
       }
@@ -5513,10 +5511,10 @@ function renderRoofSheetPlan() {
         basePieces=_keepPieceAtCenter(basePieces,scX,scY);
 
         /* Donor main face supplies the off-cut. Strips on the LEFT half of the
-           apex (s < apexS) get their material from f.lAdj, which is the face
-           sharing the RIGHT hip — the off-cut from that face's hip-cut sheet has
-           corrugations aligned with this strip (no flip, no 90° rotation). The
-           right half mirrors. See the lAdj/rAdj swap above for the rule. */
+           apex (s < apexS) come from f.lAdj, which is the face sharing the LEFT
+           hip — the off-cut's 45° cut runs straight from that face's hip into this
+           strip. Any in-plane rotation is allowed (corrugations stay painted-side-up),
+           only mirroring is forbidden. */
         var isLeftHalf=(s+0.5<=f.apexS);
         var col,srcNum;
         if(isLeftHalf){
@@ -5601,7 +5599,7 @@ function renderRoofSheetPlan() {
   legHtml+='<span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9135; Hatched ↻ = off-cut reused (number = source sheet # &middot; same colour as donor face)</span>';
   legHtml+='</div>';
   legHtml+='<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b">';
-  legHtml+='<strong>NZ roofing rule:</strong> Every sheet runs gutter→ridge so the corrugations carry water downhill. The 45° hip cut produces a right-triangle off-cut whose corrugations are <em>locked</em> to the source sheet\'s direction — Colorsteel can\'t be flipped upside-down, so an off-cut only fits a destination face whose sheets run the <em>same</em> axis (0° or 180° re-seat, never 90°). That means end-face off-cuts come from the main face on the <em>opposite</em> side of the apex, not the adjacent one. A wing whose back is bounded by a valley (L/T/U shapes) doubles its long-face order — front and back share identical sheet sets, with the wing-junction valley trimming the back at the inner corner.';
+  legHtml+='<strong>NZ roofing rule:</strong> Every sheet runs gutter→ridge so the corrugations carry water downhill. The 45° hip cut produces a right-triangle off-cut. Colorsteel can\'t be <em>flipped</em> (painted side must stay up), but any in-plane <em>rotation</em> (90°/180°/270°) is fine. Off-cuts travel along the 45° hip line into the matching triangle in the adjacent end/hip face — same colour + same sheet number marks the pair. A wing whose back is bounded by a valley (L/T/U shapes) doubles its long-face order: front and back share identical sheet sets, with the wing-junction valley trimming the back at the inner corner.';
   legHtml+='</div>';
   legHtml+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
   mainFaces.forEach(function(f){
@@ -5626,7 +5624,7 @@ function renderRoofSheetPlan() {
   legHtml+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:13px">';
   var totHalfTxt=(totHalf%1===0)?String(totHalf):totHalf.toFixed(1);
   legHtml+='<strong>Order: '+totWhole+' full-length sheets</strong> <span style="color:#64748b;font-size:12px">('+totHalfTxt+' actually used; the half-sheet rip serves the last column)</span>'+calNote;
-  legHtml+='<br><span style="font-size:11px;color:#64748b">Off-cuts fill hip/end faces from the OPPOSITE-side donor (corrugations preserved, never flipped) — order by gutter lengths only</span>';
+  legHtml+='<br><span style="font-size:11px;color:#64748b">Off-cuts trace the 45° hip into the matching end-face triangle (in-plane rotation OK, no flip) — order by gutter lengths only</span>';
   legHtml+='</div></div>';
 
   outEl.innerHTML='';outEl.appendChild(cv);
