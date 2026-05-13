@@ -5331,6 +5331,35 @@ function renderRoofSheetPlan() {
       bestD=dirBest;perpX=dx;perpY=dy;bestRMid=dirRMid;
     });
 
+    /* Detect mixed-depth faces — gutters whose tangential extent spans regions
+       served by DIFFERENT parallel ridges at different perpendicular depths.
+       On an L-shape the long top gutter is bound by the shallow top-arm ridge
+       on its left half and by the much deeper lower-wing ridge on its right
+       half. Sheets in those regions are physically different lengths and the
+       user expects different colours (matches the bill-of-materials view in
+       their reference). hasDeeperRidge flags the face; the main-face render
+       checks each sheet's actual depth against bestD to pick its colour. */
+    var hasDeeperRidge=false;
+    if(bestD!==Infinity){
+      DRAW.lines.forEach(function(r){
+        if(r.type!=='ridge'&&r.type!=='valley')return;
+        if(angDiff(Math.atan2(r.pts[1][1]-r.pts[0][1],r.pts[1][0]-r.pts[0][0])*180/Math.PI,gAng)>30)return;
+        var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];
+        var d=dot(rMid[0]-gmid[0],rMid[1]-gmid[1],perpX,perpY);
+        if(d<=bestD*1.5)return;
+        /* Must also tangentially overlap a meaningful chunk of the gutter. A
+           ridge that lies above a different roof section but only marginally
+           overlaps this gutter at its edge (e.g. the top-arm ridge clipping
+           the lower-wing gutter's leftmost couple of sheets) is not a real
+           secondary back-bound. Require >=15% of gutter length overlap. */
+        var _t0=dot(r.pts[0][0]-p0[0],r.pts[0][1]-p0[1],gnx,gny);
+        var _t1=dot(r.pts[1][0]-p0[0],r.pts[1][1]-p0[1],gnx,gny);
+        var _tLo=Math.min(_t0,_t1),_tHi=Math.max(_t0,_t1);
+        var _ov=Math.min(_tHi,gL)-Math.max(_tLo,0);
+        if(_ov>gL*0.15)hasDeeperRidge=true;
+      });
+    }
+
     /* End face: two hips meet at apex, no parallel ridge found.
        Hips must terminate at (or very near) the SAME apex point — otherwise this
        gutter spans two separate roof structures (e.g. an L-shape's right edge runs
@@ -5391,7 +5420,7 @@ function renderRoofSheetPlan() {
     faces.push({gl:gl,p0:p0,p1:p1,gnx:gnx,gny:gny,perpX:perpX,perpY:perpY,gL:gL,
       depImg:bestD,depM:depM,lHip:lHip,rHip:rHip,gutterM:gutterM,swImg:swImg,
       nSheets:nSheets,sheetsHalf:sheetsHalf,isEndFace:isEndFace,apexS:apexS,apexPt:apexPt,
-      ridgeMid:bestRMid});
+      ridgeMid:bestRMid,hasDeeperRidge:hasDeeperRidge});
   });
 
   faces.sort(function(a,b){return b.gutterM-a.gutterM;});
@@ -5546,7 +5575,23 @@ function renderRoofSheetPlan() {
           if(f.lHip&&used.length>=3)used=clipHipInside(used,f.lHip,fAnchor);
           if(f.rHip&&used.length>=3)used=clipHipInside(used,f.rHip,fAnchor);
           if(!used||used.length<3||polyArea(used)<=minA*0.25)return;
-          drawPoly(used,f.col,'rgba(0,0,0,0.75)',2.2);
+          /* MIXED-DEPTH FACE COLOURING:
+             A face whose gutter spans regions served by a shallow ridge on one
+             side and a deeper ridge on the other (e.g. an L-shape's top gutter
+             above a top arm with shallow ridge1 and lower wing with deeper
+             ridge2) has sheets of TWO physical lengths. The user's reference
+             groups these by colour: short sheets = purple, long sheets = the
+             face's primary colour. Per-sheet depth lookup decides which. */
+          var _drawCol=f.col;
+          if(f.hasDeeperRidge){
+            var _sheetDepImg=0;
+            used.forEach(function(pt){
+              var d=(pt[0]-f.p0[0])*f.perpX+(pt[1]-f.p0[1])*f.perpY;
+              if(d>_sheetDepImg)_sheetDepImg=d;
+            });
+            if(_sheetDepImg<=f.depImg*1.3)_drawCol='#a855f7';
+          }
+          drawPoly(used,_drawCol,'rgba(0,0,0,0.75)',2.2);
           if((f.lHip||f.rHip)&&used.length<full.length)didCut=true;
           var a=polyArea(used);
           if(a>labelArea){labelArea=a;labelTarget=used;}
