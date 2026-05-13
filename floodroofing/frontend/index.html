@@ -5435,15 +5435,24 @@ function renderRoofSheetPlan() {
         ef.rAdjP0=len2(ef.p1[0]-mf.p0[0],ef.p1[1]-mf.p0[1])<len2(ef.p1[0]-mf.p1[0],ef.p1[1]-mf.p1[1]);
       }
     });
-    /* Donor mapping is the NATURAL geometric adjacency: the off-cut from a
-       main-face sheet cut by a hip lands physically on the side of the end
-       face adjacent to that main face. Left half of end face (closer to its
-       p0/lHip corner) ← lAdj (face sharing lHip). Right half ← rAdj. No
-       cross-wing rotation is applied — confirmed by Flood Roofing on a
-       simple 4-hip rectangle: orange south-face off-cuts go to the south
-       (bottom) half of each end face, blue north-face off-cuts go to the
-       north (top) half. */
+    /* NO-FLIP RULE — the geometric position where an off-cut physically lands
+       after the hip cut requires a mirror (flip) to install, because the cut
+       sheet would have to be folded across the hip line onto a different roof
+       plane. Colorsteel can't be flipped (painted side must stay up). The
+       allowed operation is a 180° SPIN about the end face's apex — same plane,
+       painted side stays up, lands on the OPPOSITE half of the end face.
+
+       That swap applies whenever the two donor faces are perpendicular-opposite
+       (their gutter perpendiculars point in opposite directions across the end
+       face — e.g. south face perp UP, north face perp DOWN on a simple hip end).
+       It does NOT apply when both donors face the same way (e.g. L-shape wing-
+       junction wedge with both donors above the gutter) — natural adjacency is
+       fine there since no flip is needed for the geometry. */
     ef.crossWing=false;
+    if(ef.lAdj&&ef.rAdj){
+      var _perpDot=ef.lAdj.perpX*ef.rAdj.perpX+ef.lAdj.perpY*ef.rAdj.perpY;
+      ef.crossWing=_perpDot<-0.5;
+    }
   });
 
   /* Mark which main faces need a BACK-FACE mirror (no parallel sibling face on the
