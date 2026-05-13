@@ -5604,8 +5604,20 @@ function renderRoofSheetPlan() {
         var labelTarget=null,labelArea=0,didCut=false;
         fullPieces.forEach(function(full){
           var used=full.slice();
-          if(f.lHip&&used.length>=3)used=clipHipInside(used,f.lHip,fAnchor);
-          if(f.rHip&&used.length>=3)used=clipHipInside(used,f.rHip,fAnchor);
+          /* Track offcuts from each hip cut so we can spin them 180° about the
+             hip midpoint and draw at their destination (the SOP's "matching
+             triangle" rule — same colour as donor, hatched as offcut). */
+          var _offcuts=[];
+          if(f.lHip&&used.length>=3){
+            var _offL=clipHipOutside(used,f.lHip,fAnchor);
+            if(_offL&&_offL.length>=3&&polyArea(_offL)>minA*0.05)_offcuts.push({poly:_offL,hip:f.lHip});
+            used=clipHipInside(used,f.lHip,fAnchor);
+          }
+          if(f.rHip&&used.length>=3){
+            var _offR=clipHipOutside(used,f.rHip,fAnchor);
+            if(_offR&&_offR.length>=3&&polyArea(_offR)>minA*0.05)_offcuts.push({poly:_offR,hip:f.rHip});
+            used=clipHipInside(used,f.rHip,fAnchor);
+          }
           if(!used||used.length<3||polyArea(used)<=minA*0.25)return;
           /* MIXED-DEPTH FACE COLOURING:
              A face whose gutter spans regions served by a shallow ridge on one
@@ -5627,6 +5639,20 @@ function renderRoofSheetPlan() {
           if((f.lHip||f.rHip)&&used.length<full.length)didCut=true;
           var a=polyArea(used);
           if(a>labelArea){labelArea=a;labelTarget=used;}
+          /* Draw each offcut at the spin-180° destination per SOP. The pivot
+             is the cut hip's midpoint. clipToOutline keeps the rotated piece
+             inside the building outline. */
+          _offcuts.forEach(function(oc){
+            var _mp=[(oc.hip.pts[0][0]+oc.hip.pts[1][0])/2,(oc.hip.pts[0][1]+oc.hip.pts[1][1])/2];
+            var _rotated=oc.poly.map(function(p){return[2*_mp[0]-p[0],2*_mp[1]-p[1]];});
+            var _rPieces=clipToOutline(_rotated);
+            _rPieces.forEach(function(rp){
+              if(!rp||rp.length<3||polyArea(rp)<minA*0.05)return;
+              drawPoly(rp,_drawCol,'rgba(0,0,0,0.5)',1.5);
+              drawHatching(rp);
+              lbl(rp,(s+1)+' ↻','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
+            });
+          });
         });
         if(labelTarget){
           var sheetLbl=(s+1)+(didCut?' ↻':'');
