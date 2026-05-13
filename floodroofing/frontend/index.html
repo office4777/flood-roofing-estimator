@@ -5977,6 +5977,30 @@ function renderRoofSheetPlan() {
     ctx.restore();
   });
 
+  /* HYBRID ZONE LABELS: big F (full-sheet zone) or C (offcut zone)
+     overlaid on each face's territory. Per user's annotated drawing
+     this signals which zones are FULL SHEETS vs which are OFFCUTS. */
+  faces.forEach(function(f){
+    var faceCenter;
+    if(f.isEndFace){
+      faceCenter=[(f.p0[0]+f.p1[0])/2+f.perpX*f.depImg*0.5,(f.p0[1]+f.p1[1])/2+f.perpY*f.depImg*0.5];
+    } else {
+      faceCenter=[(f.p0[0]+f.p1[0])/2+f.perpX*f.depImg*0.5,(f.p0[1]+f.p1[1])/2+f.perpY*f.depImg*0.5];
+    }
+    var cp=toC(faceCenter);
+    /* F if main face OR short-gutter end face; C if long-gutter end face. */
+    var letter=(!f.isEndFace||f.gutterM<5)?'F':'C';
+    ctx.save();
+    ctx.font='bold 28px sans-serif';
+    ctx.fillStyle='rgba(255,255,255,0.85)';
+    ctx.strokeStyle='rgba(0,0,0,0.4)';
+    ctx.lineWidth=3;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.strokeText(letter,cp[0],cp[1]);
+    ctx.fillText(letter,cp[0],cp[1]);
+    ctx.restore();
+  });
+
   /* ── Legend ── */
   var mainFaces=faces.filter(function(f){return !f.isEndFace;});
   var endFaces=faces.filter(function(f){return f.isEndFace;});
