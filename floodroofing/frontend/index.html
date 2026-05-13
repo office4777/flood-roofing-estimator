@@ -5518,20 +5518,22 @@ function renderRoofSheetPlan() {
           DRAW.lines.forEach(function(line){
             if(line.type==='gutter')return;
             if(line===f.lHip||line===f.rHip)return;
-            /* Skip "internal" hips — hips whose both endpoints sit on ridges (no
-               gutter-corner endpoint). On L/T shapes the wing-junction hip runs
-               ridge→ridge and would falsely clip orange sheets that should run
-               full length to the deeper ridge. Real outline hips have at least
-               one endpoint at a gutter corner. */
+            /* Skip "internal" hips — hips whose endpoint sits at a RIDGE JUNCTION
+               (a point where 2+ ridges meet). On L/T shapes the wing-junction hip
+               runs from the inner-corner gutter vertex up to the ridge-ridge
+               junction; it would falsely clip orange sheets that should run full
+               length to the long ridge. External outline hips touch at most ONE
+               ridge endpoint (the end of a single ridge), never a junction. */
             if(line.type==='hip'){
-              var ridgePts=[];
-              DRAW.lines.forEach(function(r){
-                if(r.type==='ridge'){ridgePts.push(r.pts[0]);ridgePts.push(r.pts[1]);}
-              });
-              var nearPt=function(a,b){var dx=a[0]-b[0],dy=a[1]-b[1];return dx*dx+dy*dy<25;};
-              var on0=ridgePts.some(function(rp){return nearPt(line.pts[0],rp);});
-              var on1=ridgePts.some(function(rp){return nearPt(line.pts[1],rp);});
-              if(on0&&on1)return;
+              var ridges=DRAW.lines.filter(function(r){return r.type==='ridge';});
+              var ridgesAtPt=function(p){
+                var c=0;
+                ridges.forEach(function(r){
+                  if(pNear(r.pts[0],p,15)||pNear(r.pts[1],p,15))c++;
+                });
+                return c;
+              };
+              if(ridgesAtPt(line.pts[0])>=2||ridgesAtPt(line.pts[1])>=2)return;
             }
             var lmid=[(line.pts[0][0]+line.pts[1][0])/2,(line.pts[0][1]+line.pts[1][1])/2];
             var fwdProj=(lmid[0]-f.p0[0])*f.perpX+(lmid[1]-f.p0[1])*f.perpY;
