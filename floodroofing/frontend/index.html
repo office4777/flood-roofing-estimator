@@ -5494,6 +5494,26 @@ function renderRoofSheetPlan() {
          (blue bottom from bottom-gutter, orange top from top-gutter). */
       ef.crossWing=false;
       ef.isWedge=_perpDot>0.5;
+      /* SMALL-ARM end face: one whose adjacent faces include a short non-
+         mixed face (rAdj or lAdj with gutterM < 10m and no deeper ridge).
+         Per user's drawing, the top-arm's left-end face is BLUE — coming
+         from BLUE long sheets via multi-step transfer. Override donor to
+         the LARGEST plain (blue) main face. */
+      var _shortAdj=false;
+      if(ef.lAdj&&ef.lAdj.gutterM<10&&!ef.lAdj.hasDeeperRidge)_shortAdj=true;
+      if(ef.rAdj&&ef.rAdj.gutterM<10&&!ef.rAdj.hasDeeperRidge)_shortAdj=true;
+      if(_shortAdj&&!ef.isWedge){
+        var _blueFace=null;
+        faces.forEach(function(mf){
+          if(mf.isEndFace||mf.hasDeeperRidge)return;
+          if(!_blueFace||mf.gutterM>_blueFace.gutterM)_blueFace=mf;
+        });
+        if(_blueFace){
+          ef.lAdj=_blueFace;ef.rAdj=_blueFace;
+          ef.lAdjP0=len2(ef.p0[0]-_blueFace.p0[0],ef.p0[1]-_blueFace.p0[1])<len2(ef.p0[0]-_blueFace.p1[0],ef.p0[1]-_blueFace.p1[1]);
+          ef.rAdjP0=len2(ef.p1[0]-_blueFace.p0[0],ef.p1[1]-_blueFace.p0[1])<len2(ef.p1[0]-_blueFace.p1[0],ef.p1[1]-_blueFace.p1[1]);
+        }
+      }
       /* WING-JUNCTION WEDGE override:
          When both adjacent main faces point the SAME way (perpDot ~ +1), the
          end-face area is the inner-corner of an L-shape, spanning BOTH:
