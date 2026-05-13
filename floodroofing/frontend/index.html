@@ -5486,9 +5486,11 @@ function renderRoofSheetPlan() {
        junction wedge with both donors above the gutter) — natural adjacency is
        fine there since no flip is needed for the geometry. */
     ef.crossWing=false;
+    ef.isWedge=false;
     if(ef.lAdj&&ef.rAdj){
       var _perpDot=ef.lAdj.perpX*ef.rAdj.perpX+ef.lAdj.perpY*ef.rAdj.perpY;
       ef.crossWing=_perpDot<-0.5;
+      ef.isWedge=_perpDot>0.5;
       /* WING-JUNCTION WEDGE override:
          When both adjacent main faces point the SAME way (perpDot ~ +1), the
          end-face area is the inner-corner of an L-shape, spanning BOTH:
@@ -5639,6 +5641,43 @@ function renderRoofSheetPlan() {
           if((f.lHip||f.rHip)&&used.length<full.length)didCut=true;
           var a=polyArea(used);
           if(a>labelArea){labelArea=a;labelTarget=used;}
+          /* Per SOP: when a sheet is SHORT (clipped by the shallow ridge of a
+             mixed-depth face), the long-sheet variant of this column would
+             have extended past the short ridge down to the deeper ridge. The
+             extension is the OFFCUT — same colour as the face's primary
+             colour, hatched. Drawn in the area between the short ridge and
+             the deeper ridge for this column, clipped to the natural
+             destination. */
+          if(f.hasDeeperRidge&&_drawCol!==f.col){
+            var _kDep=0;
+            used.forEach(function(pt){
+              var d=(pt[0]-f.p0[0])*f.perpX+(pt[1]-f.p0[1])*f.perpY;
+              if(d>_kDep)_kDep=d;
+            });
+            /* Extension rectangle from kept-end to depMax in this sheet's column. */
+            var _eBL=[f.p0[0]+f.gnx*s*sw+f.perpX*_kDep, f.p0[1]+f.gny*s*sw+f.perpY*_kDep];
+            var _eBR=[f.p0[0]+f.gnx*(s+1)*sw+f.perpX*_kDep, f.p0[1]+f.gny*(s+1)*sw+f.perpY*_kDep];
+            var _eTL=[_eBL[0]+f.perpX*(depMax-_kDep), _eBL[1]+f.perpY*(depMax-_kDep)];
+            var _eTR=[_eBR[0]+f.perpX*(depMax-_kDep), _eBR[1]+f.perpY*(depMax-_kDep)];
+            var _extPieces=clipToOutline([_eBL,_eBR,_eTR,_eTL]);
+            _extPieces.forEach(function(ep){
+              if(!ep||ep.length<3)return;
+              /* Clip extension by all other hip/valley lines using its own
+                 centroid as the "stay-inside" anchor — confines to the
+                 natural matching-triangle destination. */
+              var _epC=centroid(ep);
+              var _epClipped=ep.slice();
+              DRAW.lines.forEach(function(ln){
+                if(ln.type==='gutter')return;
+                if(ln.type!=='hip'&&ln.type!=='valley')return;
+                if(_epClipped.length>=3)_epClipped=clipHipInside(_epClipped,ln,_epC);
+              });
+              if(!_epClipped||_epClipped.length<3||polyArea(_epClipped)<minA*0.05)return;
+              drawPoly(_epClipped,f.col,'rgba(0,0,0,0.5)',1.5);
+              drawHatching(_epClipped);
+              lbl(_epClipped,(s+1)+' c','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
+            });
+          }
           /* Draw each offcut at its NATURAL position — the cut-off polygon is
              already in the wedge / matching-triangle area on the outside of
              the cut hip. Also clip by the OTHER hip/valley lines that bound
@@ -5759,10 +5798,10 @@ function renderRoofSheetPlan() {
 
     } else {
       /* ═══ END FACE (triangle): filled by off-cuts from adjacent main faces ═══
-         Each strip runs perpendicular to the end-face's own gutter and is clipped
-         by BOTH hips so it stays inside the end-face triangle (won't bleed past
-         the apex into the opposite main face). The strip is filled with an off-cut
-         from the donor main face — no flipping (corrugations stay running gutter→ridge). */
+         Skip wing-junction WEDGE end-faces — those are filled by the main-face
+         offcut pass (per-sheet clipHipOutside polygons drawn in the wedge area).
+         Strip rendering here would overlap and clutter the visual. */
+      if(f.isWedge){return;}
       /* End-face anchor: midway between gutter midpoint and apex — always inside the
          end-face triangle, even when the building centroid is in another arm of the L. */
       var fAnchor=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*0.5,(f.p0[1]+f.p1[1])/2+f.perpY*dep*0.5];
