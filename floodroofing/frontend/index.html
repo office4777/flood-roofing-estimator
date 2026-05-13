@@ -5651,66 +5651,12 @@ function renderRoofSheetPlan() {
              colour, hatched. Drawn in the area between the short ridge and
              the deeper ridge for this column, clipped to the natural
              destination. */
-          /* Compute additional offcuts from non-own-hip lines (valleys + internal
-             hips like the wing-junction connector). When a sheet's column
-             tangentially overlaps such a line, clipHipOutside gives the OFFCUT
-             on the far side — naturally a DIAGONAL TRIANGLE matching the cut.
-             Drawn at its natural position in the matching-triangle area. */
-          if(f.hasDeeperRidge&&_drawCol===f.col){
-            /* Build the full sheet rect (not the kept polygon) for the cut. */
-            var _frBL=[f.p0[0]+f.gnx*s*sw, f.p0[1]+f.gny*s*sw];
-            var _frBR=[f.p0[0]+f.gnx*(s+1)*sw, f.p0[1]+f.gny*(s+1)*sw];
-            var _frTL=[_frBL[0]+f.perpX*depMax, _frBL[1]+f.perpY*depMax];
-            var _frTR=[_frBR[0]+f.perpX*depMax, _frBR[1]+f.perpY*depMax];
-            var _frPieces=clipToOutline([_frBL,_frBR,_frTR,_frTL]);
-            DRAW.lines.forEach(function(line){
-              if(line===f.lHip||line===f.rHip||line.type==='gutter')return;
-              if(line.type!=='hip'&&line.type!=='valley')return;
-              var _lAngL=Math.atan2(line.pts[1][1]-line.pts[0][1],line.pts[1][0]-line.pts[0][0])*180/Math.PI;
-              if(angDiff(_lAngL,_faceGutAng)<=20)return;
-              var _t0L=dot(line.pts[0][0]-f.p0[0],line.pts[0][1]-f.p0[1],f.gnx,f.gny);
-              var _t1L=dot(line.pts[1][0]-f.p0[0],line.pts[1][1]-f.p0[1],f.gnx,f.gny);
-              if(Math.max(_t0L,_t1L)<sheetTLow-1||Math.min(_t0L,_t1L)>sheetTHigh+1)return;
-              _frPieces.forEach(function(fp){
-                if(!fp||fp.length<3)return;
-                var _diagOff=clipHipOutside(fp,line,fAnchor);
-                if(_diagOff&&_diagOff.length>=3&&polyArea(_diagOff)>minA*0.05){
-                  /* Anchor for confining clipping: cut line midpoint shifted
-                     perpendicular AWAY from the face anchor — this lands
-                     inside the wedge/matching-triangle area between the cut
-                     line and the opposite face's main territory. */
-                  var _cMid=[(line.pts[0][0]+line.pts[1][0])/2,(line.pts[0][1]+line.pts[1][1])/2];
-                  var _toOff=[_cMid[0]-fAnchor[0],_cMid[1]-fAnchor[1]];
-                  var _tLen=Math.sqrt(_toOff[0]*_toOff[0]+_toOff[1]*_toOff[1])||1;
-                  var _wedgeAnchor=[_cMid[0]+_toOff[0]/_tLen*8,_cMid[1]+_toOff[1]/_tLen*8];
-                  _extensionDraws.push({poly:_diagOff,col:f.col,label:(s+1)+' c',sw:sw,anchor:_wedgeAnchor});
-                }
-              });
-            });
-          }
-          /* Draw each offcut at its NATURAL position — the cut-off polygon is
-             already in the wedge / matching-triangle area on the outside of
-             the cut hip. Also clip by the OTHER hip/valley lines that bound
-             the wedge so the offcut doesn't leak into the adjacent main face
-             territory (the wedge is enclosed by cut hip + valley + connector
-             hip + maybe an inner gutter). Use the offcut's own centroid as
-             the "stay-inside" anchor for these auxiliary clips. */
-          _offcuts.forEach(function(oc){
-            var _ocC=centroid(oc.poly);
-            var _ocClipped=oc.poly.slice();
-            DRAW.lines.forEach(function(ln){
-              if(ln===oc.hip||ln.type==='gutter')return;
-              if(ln.type!=='hip'&&ln.type!=='valley')return;
-              if(_ocClipped.length>=3)_ocClipped=clipHipInside(_ocClipped,ln,_ocC);
-            });
-            var _ocPieces=clipToOutline(_ocClipped);
-            _ocPieces.forEach(function(op){
-              if(!op||op.length<3||polyArea(op)<minA*0.05)return;
-              drawPoly(op,_drawCol,'rgba(0,0,0,0.5)',1.5);
-              drawHatching(op);
-              lbl(op,(s+1)+' ↻','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
-            });
-          });
+          /* Offcut extension overlay disabled in puzzle-first mode. Each
+             face just renders its own clean polygon + sheet dividers; offcut
+             allocation is a separate later pass. */
+          /* Per-sheet offcut overlay drawing disabled in puzzle-first mode.
+             The wedge / matching-triangle areas are handled by the end-face
+             rendering pass — they're separate PUZZLE PIECES. */
         });
         if(labelTarget){
           var sheetLbl=(s+1)+(didCut?' ↻':'');
@@ -5807,11 +5753,9 @@ function renderRoofSheetPlan() {
       }
 
     } else {
-      /* ═══ END FACE (triangle): filled by off-cuts from adjacent main faces ═══
-         Skip wing-junction WEDGE end-faces — those are filled by the main-face
-         offcut pass (per-sheet clipHipOutside polygons drawn in the wedge area).
-         Strip rendering here would overlap and clutter the visual. */
-      if(f.isWedge){return;}
+      /* ═══ END FACE (triangle): rendered as a PUZZLE PIECE with sheet
+         dividers, regardless of wedge type. Offcut allocation is a later
+         separate pass. */
       /* End-face anchor: midway between gutter midpoint and apex — always inside the
          end-face triangle, even when the building centroid is in another arm of the L. */
       var fAnchor=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*0.5,(f.p0[1]+f.p1[1])/2+f.perpY*dep*0.5];
@@ -5892,10 +5836,8 @@ function renderRoofSheetPlan() {
           }
           if(!used||used.length<3||polyArea(used)<minA*0.04)return;
           drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
-          /* Per user's F/O annotation: short-gutter end faces (< 5m) get
-             FULL sheets (no hatching). Long-gutter end faces (>= 5m) get
-             OFFCUTS from cutting the long main sheets (hatched). */
-          if(f.gutterM>=5)drawHatching(used);
+          /* No hatching in puzzle-first mode — every face renders as a
+             clean polygon. Offcut allocation is later. */
           var a=polyArea(used);
           if(a>labelArea){labelArea=a;labelTarget=used;}
         });
@@ -5977,29 +5919,7 @@ function renderRoofSheetPlan() {
     ctx.restore();
   });
 
-  /* HYBRID ZONE LABELS: big F (full-sheet zone) or C (offcut zone)
-     overlaid on each face's territory. Per user's annotated drawing
-     this signals which zones are FULL SHEETS vs which are OFFCUTS. */
-  faces.forEach(function(f){
-    var faceCenter;
-    if(f.isEndFace){
-      faceCenter=[(f.p0[0]+f.p1[0])/2+f.perpX*f.depImg*0.5,(f.p0[1]+f.p1[1])/2+f.perpY*f.depImg*0.5];
-    } else {
-      faceCenter=[(f.p0[0]+f.p1[0])/2+f.perpX*f.depImg*0.5,(f.p0[1]+f.p1[1])/2+f.perpY*f.depImg*0.5];
-    }
-    var cp=toC(faceCenter);
-    /* F if main face OR short-gutter end face; C if long-gutter end face. */
-    var letter=(!f.isEndFace||f.gutterM<5)?'F':'C';
-    ctx.save();
-    ctx.font='bold 28px sans-serif';
-    ctx.fillStyle='rgba(255,255,255,0.85)';
-    ctx.strokeStyle='rgba(0,0,0,0.4)';
-    ctx.lineWidth=3;
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.strokeText(letter,cp[0],cp[1]);
-    ctx.fillText(letter,cp[0],cp[1]);
-    ctx.restore();
-  });
+  /* F/C zone labels disabled in puzzle-first mode. */
 
   /* ── Legend ── */
   var mainFaces=faces.filter(function(f){return !f.isEndFace;});
