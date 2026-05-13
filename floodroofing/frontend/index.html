@@ -5881,7 +5881,10 @@ function renderRoofSheetPlan() {
           }
           if(!used||used.length<3||polyArea(used)<minA*0.04)return;
           drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
-          drawHatching(used);
+          /* Per user's F/O annotation: short-gutter end faces (< 5m) get
+             FULL sheets (no hatching). Long-gutter end faces (>= 5m) get
+             OFFCUTS from cutting the long main sheets (hatched). */
+          if(f.gutterM>=5)drawHatching(used);
           var a=polyArea(used);
           if(a>labelArea){labelArea=a;labelTarget=used;}
         });
