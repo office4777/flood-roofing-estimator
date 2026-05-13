@@ -5435,23 +5435,15 @@ function renderRoofSheetPlan() {
         ef.rAdjP0=len2(ef.p1[0]-mf.p0[0],ef.p1[1]-mf.p0[1])<len2(ef.p1[0]-mf.p1[0],ef.p1[1]-mf.p1[1]);
       }
     });
+    /* Donor mapping is the NATURAL geometric adjacency: the off-cut from a
+       main-face sheet cut by a hip lands physically on the side of the end
+       face adjacent to that main face. Left half of end face (closer to its
+       p0/lHip corner) ← lAdj (face sharing lHip). Right half ← rAdj. No
+       cross-wing rotation is applied — confirmed by Flood Roofing on a
+       simple 4-hip rectangle: orange south-face off-cuts go to the south
+       (bottom) half of each end face, blue north-face off-cuts go to the
+       north (top) half. */
     ef.crossWing=false;
-    if(ef.lAdj&&ef.rAdj){
-      /* CORRUGATION RULE: a hip off-cut keeps its corrugation axis. The two
-         donors of an end face face AWAY from each other across the apex —
-         their gutter perpendiculars point in opposite directions. To install
-         the off-cut without flipping (Colorsteel can't go painted-side-down),
-         the cut piece rotates 180° about the end face's apex. That 180°
-         rotation swaps which half of the end face each donor supplies.
-
-         Applies to EVERY end face with opposite-perpendicular donors —
-         simple-gable 4-hip ends, L-shape combined ends, upper-arm hipped
-         ends. Only end faces whose donors point the SAME direction (e.g. an
-         L-shape wing-junction wedge where both donors sit above the gutter)
-         skip the swap. */
-      var _perpDot=ef.lAdj.perpX*ef.rAdj.perpX+ef.lAdj.perpY*ef.rAdj.perpY;
-      ef.crossWing=_perpDot<-0.5;
-    }
   });
 
   /* Mark which main faces need a BACK-FACE mirror (no parallel sibling face on the
