@@ -5534,20 +5534,23 @@ function renderRoofSheetPlan() {
           /* Same concave-outline filter as the front: keep the piece at this sheet's centre. */
           bPieces=_keepPieceAtCenter(bPieces,bcX,bcY);
 
-          /* Clip by every ridge/valley/hip in the drawing — each of these is a
-             real roof boundary that the back-mirror must respect. clipHipInside
-             keeps the side containing fAnchorBack (just past this face's ridge),
-             so adjacent ridges of OTHER wings (e.g. the upper-wing ridge bounding
-             a lower-wing back-mirror) correctly truncate each sheet. Skip THIS
-             face's own ridge — that's the boundary the back-mirror is mirroring
-             across, not a clipping line. */
+          /* Clip by every ridge/valley/hip on the BACK SIDE of this face's ridge.
+             clipHipInside treats lines as infinite, so a front-face hip would
+             extend across the ridge and clip the back-mirror incorrectly. Filter
+             to only lines whose midpoint is on the back-perpendicular side. */
           DRAW.lines.forEach(function(vl){
             if(vl.type!=='valley'&&vl.type!=='ridge'&&vl.type!=='hip')return;
-            /* Don't clip by this face's own ridge — back-mirror lives on the
-               opposite side of it by definition. */
+            var lmid=[(vl.pts[0][0]+vl.pts[1][0])/2,(vl.pts[0][1]+vl.pts[1][1])/2];
+            /* Skip THIS face's own ridge — back-mirror lives on the opposite
+               side of it by definition. */
+            if(f.ridgeMid&&len2(lmid[0]-f.ridgeMid[0],lmid[1]-f.ridgeMid[1])<f.swImg)return;
+            /* Only clip by lines on the BACK side. perpX/perpY points from gutter
+               toward ridge; a line midpoint past the ridge in the perp direction
+               has positive dot product, putting it in the back area where it can
+               legitimately bound the back-mirror. */
             if(f.ridgeMid){
-              var rmid=[(vl.pts[0][0]+vl.pts[1][0])/2,(vl.pts[0][1]+vl.pts[1][1])/2];
-              if(len2(rmid[0]-f.ridgeMid[0],rmid[1]-f.ridgeMid[1])<f.swImg)return;
+              var fwdProj=(lmid[0]-f.ridgeMid[0])*f.perpX+(lmid[1]-f.ridgeMid[1])*f.perpY;
+              if(fwdProj<=f.swImg*0.5)return;
             }
             bPieces=bPieces.map(function(p){
               if(!p||p.length<3)return p;
