@@ -5643,21 +5643,49 @@ function renderRoofSheetPlan() {
              real life by an OFFCUT from the OPPOSITE LONG face — not by a
              dedicated full sheet. Colour it with that opposite face's colour
              so the visual matches where the material actually comes from. */
-          var _fullArea=sw*dep;
-          var _usedArea=polyArea(used);
-          /* Threshold 0.7 = sheets <70% of full get source-coloured. Captures
-             the leftmost ~5 sheets near a wing-junction-adjacent lHip on an
-             L-shape's lower wing. Right-side sheets cut by rHip (which goes
-             to the right-end face) should also get source colour but their
-             offcuts naturally go to the end face, not into this face. */
-          if(_usedArea<_fullArea*0.7){
+          /* SOURCE-COLOURING: a sheet whose column tangentially overlaps
+             f.lHip when lHip touches a WING-JUNCTION (its far-endpoint has
+             another hip meeting it) gets the OPPOSITE long-face's colour.
+             Per SOP: the cut at the wing-junction means the small kept
+             triangle is filled by an offcut from the opposite face, so the
+             rendering should show that face's colour at this position. */
+          (function(){
+            if(!f.lHip)return;
+            var _lFar=pNear(f.lHip.pts[0],f.p0)||pNear(f.lHip.pts[0],f.p1)?f.lHip.pts[1]:f.lHip.pts[0];
+            /* Is this a TRUE wing-junction? lFar must be connected to another
+               hip whose OTHER end touches a DIFFERENT ridge from any ridge
+               touching lFar. A simple hipped end has all connecting lines
+               terminating at outline corners or the same ridge. */
+            var _ridgesAtLFar=[];
+            DRAW.lines.forEach(function(r){
+              if(r.type!=='ridge')return;
+              if(pNear(r.pts[0],_lFar,8)||pNear(r.pts[1],_lFar,8))_ridgesAtLFar.push(r);
+            });
+            var _isWingJunc=false;
+            DRAW.lines.forEach(function(ln){
+              if(ln===f.lHip||ln.type!=='hip')return;
+              var _connectsLFar=pNear(ln.pts[0],_lFar,8)||pNear(ln.pts[1],_lFar,8);
+              if(!_connectsLFar)return;
+              var _otherEnd=pNear(ln.pts[0],_lFar,8)?ln.pts[1]:ln.pts[0];
+              /* Check if otherEnd touches a ridge NOT in _ridgesAtLFar. */
+              DRAW.lines.forEach(function(r){
+                if(r.type!=='ridge')return;
+                if(_ridgesAtLFar.indexOf(r)>=0)return;
+                if(pNear(r.pts[0],_otherEnd,8)||pNear(r.pts[1],_otherEnd,8))_isWingJunc=true;
+              });
+            });
+            if(!_isWingJunc)return;
+            var _t0=dot(f.lHip.pts[0][0]-f.p0[0],f.lHip.pts[0][1]-f.p0[1],f.gnx,f.gny);
+            var _t1=dot(f.lHip.pts[1][0]-f.p0[0],f.lHip.pts[1][1]-f.p0[1],f.gnx,f.gny);
+            var _tLo=Math.min(_t0,_t1),_tHi=Math.max(_t0,_t1);
+            if(sheetTHigh<=_tLo||sheetTLow>=_tHi)return;
             var _oppositeFace=null;
             faces.forEach(function(of){
               if(of===f||of.isEndFace)return;
               if(!_oppositeFace||of.gutterM>_oppositeFace.gutterM)_oppositeFace=of;
             });
             if(_oppositeFace)_drawCol=_oppositeFace.col;
-          }
+          })();
           drawPoly(used,_drawCol,'rgba(0,0,0,0.75)',2.2);
           if((f.lHip||f.rHip)&&used.length<full.length)didCut=true;
           var a=polyArea(used);
