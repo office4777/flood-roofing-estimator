@@ -5642,7 +5642,12 @@ function renderRoofSheetPlan() {
              so the visual matches where the material actually comes from. */
           var _fullArea=sw*dep;
           var _usedArea=polyArea(used);
-          if(_usedArea<_fullArea*0.45){
+          /* Threshold 0.7 = sheets <70% of full get source-coloured. Captures
+             the leftmost ~5 sheets near a wing-junction-adjacent lHip on an
+             L-shape's lower wing. Right-side sheets cut by rHip (which goes
+             to the right-end face) should also get source colour but their
+             offcuts naturally go to the end face, not into this face. */
+          if(_usedArea<_fullArea*0.7){
             var _oppositeFace=null;
             faces.forEach(function(of){
               if(of===f||of.isEndFace)return;
