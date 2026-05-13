@@ -5639,14 +5639,22 @@ function renderRoofSheetPlan() {
           if((f.lHip||f.rHip)&&used.length<full.length)didCut=true;
           var a=polyArea(used);
           if(a>labelArea){labelArea=a;labelTarget=used;}
-          /* Draw each offcut at its NATURAL position — the part of the full
-             sheet rectangle that was cut off by lHip/rHip is geometrically
-             ALREADY in the wedge / matching-triangle area on the outside of
-             the cut hip. No rotation needed; just draw as a hatched offcut
-             with the source sheet number. clipToOutline trims anything that
-             extends past the building outline. */
+          /* Draw each offcut at its NATURAL position — the cut-off polygon is
+             already in the wedge / matching-triangle area on the outside of
+             the cut hip. Also clip by the OTHER hip/valley lines that bound
+             the wedge so the offcut doesn't leak into the adjacent main face
+             territory (the wedge is enclosed by cut hip + valley + connector
+             hip + maybe an inner gutter). Use the offcut's own centroid as
+             the "stay-inside" anchor for these auxiliary clips. */
           _offcuts.forEach(function(oc){
-            var _ocPieces=clipToOutline(oc.poly.slice());
+            var _ocC=centroid(oc.poly);
+            var _ocClipped=oc.poly.slice();
+            DRAW.lines.forEach(function(ln){
+              if(ln===oc.hip||ln.type==='gutter')return;
+              if(ln.type!=='hip'&&ln.type!=='valley')return;
+              if(_ocClipped.length>=3)_ocClipped=clipHipInside(_ocClipped,ln,_ocC);
+            });
+            var _ocPieces=clipToOutline(_ocClipped);
             _ocPieces.forEach(function(op){
               if(!op||op.length<3||polyArea(op)<minA*0.05)return;
               drawPoly(op,_drawCol,'rgba(0,0,0,0.5)',1.5);
