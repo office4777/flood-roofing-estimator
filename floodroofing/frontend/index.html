@@ -5373,10 +5373,17 @@ function renderRoofSheetPlan() {
     /* Sheets to DRAW: integer count of full-width sheets (the half goes onto the last column). */
     var nSheets=Math.max(1,Math.ceil(sheetsHalf));
 
-    /* For end faces: find apex position along gutter (in sheet units) */
+    /* For end faces: find apex position along gutter (in sheet units).
+       Standard hipped end has apex BETWEEN the two gutter endpoints. For wedge
+       end faces (L-shape wing junction) the lFar and rFar terminate at
+       DIFFERENT points outside the gutter's [0, gL] range — apexS becomes
+       negative or > nSheets, which breaks the left/right donor split (every
+       strip falls in the same half). Fall back to a midpoint split so each
+       donor face gets half the wedge. */
     if(isEndFace&&apexPt){
       var apexProj=dot(apexPt[0]-p0[0],apexPt[1]-p0[1],gnx,gny);
       apexS=apexProj/swImg;
+      if(apexS<0.5||apexS>nSheets-0.5)apexS=nSheets/2;
     } else {
       apexS=nSheets/2;
     }
