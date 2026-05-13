@@ -5281,7 +5281,16 @@ function renderRoofSheetPlan() {
       var lFar=pNear(lHip.pts[0],p0)||pNear(lHip.pts[0],p1)?lHip.pts[1]:lHip.pts[0];
       var rFar=pNear(rHip.pts[0],p0)||pNear(rHip.pts[0],p1)?rHip.pts[1]:rHip.pts[0];
       var _apexGap=len2(lFar[0]-rFar[0],lFar[1]-rFar[1]);
-      if(_apexGap<=gL*0.35){
+      /* Accept either a true point-apex (gap ~0) OR a "wedge" end face where the two
+         hips terminate at different points but a connector hip/valley/ridge spans
+         between them (treats the connector as the wedge's far edge). The L-shape's
+         wing-junction triangle is exactly this case. */
+      var _hasConnector=DRAW.lines.some(function(ll){
+        if(ll.type!=='hip'&&ll.type!=='valley'&&ll.type!=='ridge')return false;
+        return (pNear(ll.pts[0],lFar,15)&&pNear(ll.pts[1],rFar,15))||
+               (pNear(ll.pts[0],rFar,15)&&pNear(ll.pts[1],lFar,15));
+      });
+      if(_apexGap<=gL*0.35||(_hasConnector&&_apexGap<=gL*1.2)){
         apexPt=[(lFar[0]+rFar[0])/2,(lFar[1]+rFar[1])/2];
         var ad=dot(apexPt[0]-gmid[0],apexPt[1]-gmid[1],perpX,perpY);
         if(ad>0){bestD=ad;isEndFace=true;}
@@ -5334,12 +5343,17 @@ function renderRoofSheetPlan() {
   faces.forEach(function(f,i){f.col=COLS[i%COLS.length];});
 
   /* Link each end-face half to the adjacent main face that supplies its off-cuts.
-     PLACEMENT RULE (corrected): a hip off-cut keeps its source sheet's painted side
-     up. Any in-plane rotation (90°/180°/270°) is allowed; the only forbidden
-     operation is mirroring (painted side down). The off-cut on the LEFT half of an
-     end face (closest to its p0/lHip corner) physically continues from the main
-     face SHARING that lHip line — the 45° cut traces straight across the hip into
-     the end face's left half. So: lAdj ← shares lHip, rAdj ← shares rHip. */
+     PLACEMENT RULE: a hip off-cut keeps its source sheet's painted side up. Any
+     in-plane rotation (90°/180°/270°) is allowed; only mirroring is forbidden.
+
+     SIMPLE GABLE: lAdj and rAdj share the same ridge (front & back of one wing).
+     The 45° cut continues straight across each hip into the matching half — left
+     half ← shares lHip, right half ← shares rHip. Geometrically natural.
+
+     CROSS-WING (e.g. L-shape combined end face): lAdj and rAdj belong to different
+     wings (their ridgeMids are far apart). Each wing's hip-cut sheets physically
+     rotate 180° about the apex to land on the OTHER half of the end face — so the
+     donor mapping flips. The crossWing flag below toggles this in the renderer. */
   faces.forEach(function(ef){
     if(!ef.isEndFace)return;
     ef.lAdj=null;ef.rAdj=null;ef.lAdjP0=true;ef.rAdjP0=true;
@@ -5354,6 +5368,11 @@ function renderRoofSheetPlan() {
         ef.rAdjP0=len2(ef.p1[0]-mf.p0[0],ef.p1[1]-mf.p0[1])<len2(ef.p1[0]-mf.p1[0],ef.p1[1]-mf.p1[1]);
       }
     });
+    ef.crossWing=false;
+    if(ef.lAdj&&ef.rAdj&&ef.lAdj.ridgeMid&&ef.rAdj.ridgeMid){
+      var _rd=len2(ef.lAdj.ridgeMid[0]-ef.rAdj.ridgeMid[0],ef.lAdj.ridgeMid[1]-ef.rAdj.ridgeMid[1]);
+      ef.crossWing=_rd>ef.lAdj.swImg*3;
+    }
   });
 
   /* Mark which main faces will also need a BACK-FACE mirror (no parallel ridge on
@@ -5510,20 +5529,24 @@ function renderRoofSheetPlan() {
         var scX=(BL[0]+BR[0]+TL[0]+TR[0])/4,scY=(BL[1]+BR[1]+TL[1]+TR[1])/4;
         basePieces=_keepPieceAtCenter(basePieces,scX,scY);
 
-        /* Donor main face supplies the off-cut. Strips on the LEFT half of the
-           apex (s < apexS) come from f.lAdj, which is the face sharing the LEFT
-           hip — the off-cut's 45° cut runs straight from that face's hip into this
-           strip. Any in-plane rotation is allowed (corrugations stay painted-side-up),
-           only mirroring is forbidden. */
+        /* Donor main face supplies the off-cut. SIMPLE GABLE (lAdj/rAdj share the
+           same ridge): left half ← lAdj, right half ← rAdj. CROSS-WING (different
+           ridges, e.g. L-shape combined end): left half ← rAdj, right half ← lAdj,
+           because each wing's hip-cut sheets rotate 180° about the apex into the
+           opposite half. */
         var isLeftHalf=(s+0.5<=f.apexS);
+        var lDonor=f.crossWing?f.rAdj:f.lAdj;
+        var rDonor=f.crossWing?f.lAdj:f.rAdj;
+        var lDonorP0=f.crossWing?f.rAdjP0:f.lAdjP0;
+        var rDonorP0=f.crossWing?f.lAdjP0:f.rAdjP0;
         var col,srcNum;
         if(isLeftHalf){
-          col=f.lAdj?f.lAdj.col:f.col;
-          srcNum=f.lAdjP0?s+1:(f.lAdj?f.lAdj.nSheets-s:s+1);
+          col=lDonor?lDonor.col:f.col;
+          srcNum=lDonorP0?s+1:(lDonor?lDonor.nSheets-s:s+1);
         } else {
-          col=f.rAdj?f.rAdj.col:f.col;
+          col=rDonor?rDonor.col:f.col;
           var s2=s-Math.floor(f.apexS);
-          srcNum=f.rAdjP0?s2+1:(f.rAdj?f.rAdj.nSheets-s2:s2+1);
+          srcNum=rDonorP0?s2+1:(rDonor?rDonor.nSheets-s2:s2+1);
         }
 
         var labelTarget=null,labelArea=0;
