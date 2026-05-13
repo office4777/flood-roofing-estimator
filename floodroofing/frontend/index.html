@@ -5624,13 +5624,8 @@ function renderRoofSheetPlan() {
             used=clipHipInside(used,f.rHip,fAnchor);
           }
           if(!used||used.length<3||polyArea(used)<=minA*0.25)return;
-          /* MIXED-DEPTH FACE COLOURING:
-             A face whose gutter spans regions served by a shallow ridge on one
-             side and a deeper ridge on the other (e.g. an L-shape's top gutter
-             above a top arm with shallow ridge1 and lower wing with deeper
-             ridge2) has sheets of TWO physical lengths. The user's reference
-             groups these by colour: short sheets = purple, long sheets = the
-             face's primary colour. Per-sheet depth lookup decides which. */
+          /* MIXED-DEPTH FACE COLOURING: short sheets get purple, long get
+             face colour. */
           var _drawCol=f.col;
           if(f.hasDeeperRidge){
             var _sheetDepImg=0;
@@ -5639,6 +5634,21 @@ function renderRoofSheetPlan() {
               if(d>_sheetDepImg)_sheetDepImg=d;
             });
             if(_sheetDepImg<=f.depImg*1.3)_drawCol='#a855f7';
+          }
+          /* OFFCUT-SOURCED COLOURING: a sheet whose kept area is small (cut
+             by lHip/rHip into a triangle <50% of full area) is filled in
+             real life by an OFFCUT from the OPPOSITE LONG face — not by a
+             dedicated full sheet. Colour it with that opposite face's colour
+             so the visual matches where the material actually comes from. */
+          var _fullArea=sw*dep;
+          var _usedArea=polyArea(used);
+          if(_usedArea<_fullArea*0.45){
+            var _oppositeFace=null;
+            faces.forEach(function(of){
+              if(of===f||of.isEndFace)return;
+              if(!_oppositeFace||of.gutterM>_oppositeFace.gutterM)_oppositeFace=of;
+            });
+            if(_oppositeFace)_drawCol=_oppositeFace.col;
           }
           drawPoly(used,_drawCol,'rgba(0,0,0,0.75)',2.2);
           if((f.lHip||f.rHip)&&used.length<full.length)didCut=true;
