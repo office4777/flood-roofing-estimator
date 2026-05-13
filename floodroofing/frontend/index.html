@@ -5651,31 +5651,34 @@ function renderRoofSheetPlan() {
              colour, hatched. Drawn in the area between the short ridge and
              the deeper ridge for this column, clipped to the natural
              destination. */
-          if(f.hasDeeperRidge&&_drawCol!==f.col){
-            var _kDep=0;
-            used.forEach(function(pt){
-              var d=(pt[0]-f.p0[0])*f.perpX+(pt[1]-f.p0[1])*f.perpY;
-              if(d>_kDep)_kDep=d;
-            });
-            /* Only emit extension if this sheet's column is in the LONG ARM
-               portion of the face — i.e. the deeper ridge's tangential range
-               covers the column. The deeper ridge's range was used to set
-               hasDeeperRidge; reproduce the check here using the perpDist of
-               outline points in this sheet's column. If the FAR side (depMax
-               point) of this column is significantly deeper than f.depImg,
-               the column is in the long-arm portion. */
-            var _colC=[f.p0[0]+f.gnx*(s+0.5)*sw+f.perpX*depMax*0.6,f.p0[1]+f.gny*(s+0.5)*sw+f.perpY*depMax*0.6];
-            if(_ptInOl(_colC)){
-              var _eBL=[f.p0[0]+f.gnx*s*sw+f.perpX*_kDep, f.p0[1]+f.gny*s*sw+f.perpY*_kDep];
-              var _eBR=[f.p0[0]+f.gnx*(s+1)*sw+f.perpX*_kDep, f.p0[1]+f.gny*(s+1)*sw+f.perpY*_kDep];
-              var _eTL=[_eBL[0]+f.perpX*(depMax-_kDep), _eBL[1]+f.perpY*(depMax-_kDep)];
-              var _eTR=[_eBR[0]+f.perpX*(depMax-_kDep), _eBR[1]+f.perpY*(depMax-_kDep)];
-              var _extPieces=clipToOutline([_eBL,_eBR,_eTR,_eTL]);
-              _extPieces.forEach(function(ep){
-                if(!ep||ep.length<3)return;
-                _extensionDraws.push({poly:ep,col:f.col,label:(s+1)+' c',sw:sw});
+          /* Compute additional offcuts from non-own-hip lines (valleys + internal
+             hips like the wing-junction connector). When a sheet's column
+             tangentially overlaps such a line, clipHipOutside gives the OFFCUT
+             on the far side — naturally a DIAGONAL TRIANGLE matching the cut.
+             Drawn at its natural position in the matching-triangle area. */
+          if(f.hasDeeperRidge&&_drawCol===f.col){
+            /* Build the full sheet rect (not the kept polygon) for the cut. */
+            var _frBL=[f.p0[0]+f.gnx*s*sw, f.p0[1]+f.gny*s*sw];
+            var _frBR=[f.p0[0]+f.gnx*(s+1)*sw, f.p0[1]+f.gny*(s+1)*sw];
+            var _frTL=[_frBL[0]+f.perpX*depMax, _frBL[1]+f.perpY*depMax];
+            var _frTR=[_frBR[0]+f.perpX*depMax, _frBR[1]+f.perpY*depMax];
+            var _frPieces=clipToOutline([_frBL,_frBR,_frTR,_frTL]);
+            DRAW.lines.forEach(function(line){
+              if(line===f.lHip||line===f.rHip||line.type==='gutter')return;
+              if(line.type!=='hip'&&line.type!=='valley')return;
+              var _lAngL=Math.atan2(line.pts[1][1]-line.pts[0][1],line.pts[1][0]-line.pts[0][0])*180/Math.PI;
+              if(angDiff(_lAngL,_faceGutAng)<=20)return;
+              var _t0L=dot(line.pts[0][0]-f.p0[0],line.pts[0][1]-f.p0[1],f.gnx,f.gny);
+              var _t1L=dot(line.pts[1][0]-f.p0[0],line.pts[1][1]-f.p0[1],f.gnx,f.gny);
+              if(Math.max(_t0L,_t1L)<sheetTLow-1||Math.min(_t0L,_t1L)>sheetTHigh+1)return;
+              _frPieces.forEach(function(fp){
+                if(!fp||fp.length<3)return;
+                var _diagOff=clipHipOutside(fp,line,fAnchor);
+                if(_diagOff&&_diagOff.length>=3&&polyArea(_diagOff)>minA*0.05){
+                  _extensionDraws.push({poly:_diagOff,col:f.col,label:(s+1)+' c',sw:sw});
+                }
               });
-            }
+            });
           }
           /* Draw each offcut at its NATURAL position — the cut-off polygon is
              already in the wedge / matching-triangle area on the outside of
