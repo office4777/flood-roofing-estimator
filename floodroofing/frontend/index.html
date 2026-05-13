@@ -5438,7 +5438,14 @@ function renderRoofSheetPlan() {
     ef.crossWing=false;
     if(ef.lAdj&&ef.rAdj&&ef.lAdj.ridgeMid&&ef.rAdj.ridgeMid){
       var _rd=len2(ef.lAdj.ridgeMid[0]-ef.rAdj.ridgeMid[0],ef.lAdj.ridgeMid[1]-ef.rAdj.ridgeMid[1]);
-      ef.crossWing=_rd>ef.lAdj.swImg*3;
+      /* Cross-wing 180° rotation only applies when the two donor wings face
+         AWAY from each other across the end face — perpendiculars point in
+         opposite directions (e.g. blue points up from south gutter, orange
+         points down from north gutter). When perpendiculars point the same
+         way (wedge end face with both donors above the gutter), no rotation
+         is needed and the natural geometric adjacency is correct. */
+      var _perpDot=ef.lAdj.perpX*ef.rAdj.perpX+ef.lAdj.perpY*ef.rAdj.perpY;
+      ef.crossWing=_rd>ef.lAdj.swImg*3&&_perpDot<-0.5;
     }
   });
 
