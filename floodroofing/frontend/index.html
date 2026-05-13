@@ -5535,30 +5535,18 @@ function renderRoofSheetPlan() {
           bPieces=_keepPieceAtCenter(bPieces,bcX,bcY);
 
           /* Clip by every ridge/valley/hip on the BACK SIDE of this face's ridge.
-             clipHipInside treats lines as infinite — to avoid extending a roof
-             line past its endpoints, we also require the line's tangential
-             projection along this face's gutter to overlap with this specific
-             sheet's [bs, bs+1] column. A short ridge segment (e.g. an upper
-             ridge that only spans the upper-left arm of an L) then can't clip
-             a back-mirror sheet that lives past the ridge's east endpoint. */
-          var bsTLow=bs*sw,bsTHigh=(bs+1)*sw;
+             Treats lines as infinite, which over-clips when a short ridge segment
+             extends past the area it really bounds, but under-clipping would let
+             back-mirror sheets spill into the opposite wing's main face area —
+             over-clipping leaves a small gap which is the less damaging failure. */
           DRAW.lines.forEach(function(vl){
             if(vl.type!=='valley'&&vl.type!=='ridge'&&vl.type!=='hip')return;
             var lmid=[(vl.pts[0][0]+vl.pts[1][0])/2,(vl.pts[0][1]+vl.pts[1][1])/2];
-            /* Skip THIS face's own ridge — back-mirror lives on the opposite
-               side of it by definition. */
             if(f.ridgeMid&&len2(lmid[0]-f.ridgeMid[0],lmid[1]-f.ridgeMid[1])<f.swImg)return;
-            /* Only clip by lines on the BACK side. */
             if(f.ridgeMid){
               var fwdProj=(lmid[0]-f.ridgeMid[0])*f.perpX+(lmid[1]-f.ridgeMid[1])*f.perpY;
               if(fwdProj<=f.swImg*0.5)return;
             }
-            /* Bounded-segment check: only clip if the line's actual extent (not
-               its infinite extension) crosses this sheet's tangential range. */
-            var t0=dot(vl.pts[0][0]-f.p0[0],vl.pts[0][1]-f.p0[1],f.gnx,f.gny);
-            var t1=dot(vl.pts[1][0]-f.p0[0],vl.pts[1][1]-f.p0[1],f.gnx,f.gny);
-            var tLow=Math.min(t0,t1),tHigh=Math.max(t0,t1);
-            if(tHigh<bsTLow-1||tLow>bsTHigh+1)return;
             bPieces=bPieces.map(function(p){
               if(!p||p.length<3)return p;
               return clipHipInside(p,vl,fAnchorBack);
