@@ -5437,7 +5437,11 @@ function renderRoofSheetPlan() {
 
   /* Mark which main faces will also need a BACK-FACE mirror (no parallel ridge on
      the back, i.e. no sibling face shares this face's ridgeMid). When active, the
-     order count doubles for that face — front and back take identical sheet sets. */
+     order count doubles for that face — front and back take identical sheet sets.
+     Also compute the back-mirror depth here so the order doubling reflects whether
+     any back-sheet actually fits — if the back area is squeezed to a sliver by an
+     inner corner (e.g. an L-shape whose ridge sits right on the wing junction),
+     the doubling would be phantom. Gate hasBackMirror on depBack >= half a sheet. */
   faces.forEach(function(f){
     if(f.isEndFace){f.hasBackMirror=false;return;}
     var hasOpposite=faces.some(function(other){
@@ -5445,7 +5449,22 @@ function renderRoofSheetPlan() {
       if(!other.ridgeMid||!f.ridgeMid)return false;
       return len2(other.ridgeMid[0]-f.ridgeMid[0],other.ridgeMid[1]-f.ridgeMid[1])<f.swImg*2;
     });
-    f.hasBackMirror=!hasOpposite&&!!f.ridgeMid;
+    /* Mirror the renderer's depBack calculation so the order count and the render
+       agree on whether the back-mirror is real. */
+    var depBack=Infinity,gmidF=[(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2];
+    _ol.forEach(function(rc){
+      var rxProj=dot(rc[0]-gmidF[0],rc[1]-gmidF[1],f.perpX,f.perpY);
+      if(rxProj<=f.depImg+1e-3)return;
+      var tProj=dot(rc[0]-f.p0[0],rc[1]-f.p0[1],f.gnx,f.gny);
+      if(tProj<-f.gL*0.05||tProj>f.gL*1.05)return;
+      var cand=rxProj-f.depImg;if(cand<depBack)depBack=cand;
+    });
+    if(depBack===Infinity)depBack=f.depImg;
+    if(depBack>f.depImg*1.5)depBack=f.depImg;
+    f.depBack=depBack;
+    /* Only mark back-mirror active if at least half a sheet's length fits in the
+       back area — otherwise the geometry has no real "back" to double. */
+    f.hasBackMirror=!hasOpposite&&!!f.ridgeMid&&depBack>=Math.max(f.swImg,f.depImg*0.25);
   });
 
   /* Draw building footprint */
@@ -5512,24 +5531,8 @@ function renderRoofSheetPlan() {
         /* Reference point INSIDE the back face — sits just past the ridge so it's
            guaranteed to be on the back-face side of any wing-junction valley. */
         var fAnchorBack=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*1.02,(f.p0[1]+f.p1[1])/2+f.perpY*dep*1.02];
-        /* Cap back-face depth at the closest outline vertex past the ridge whose
-           tangential projection falls within this gutter's span. Considering ALL
-           vertices (not just reflex) is essential — on an L-shape the actual top
-           boundary of the back face is the *opposite outline edge*, whose endpoints
-           are convex corners, not reflex. The reflex-only cap let the back-mirror
-           spill into adjacent wings whenever the inner corner wasn't aligned. */
-        var depBack=Infinity,gmidF=[(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2];
-        _ol.forEach(function(rc){
-          var rxProj=dot(rc[0]-gmidF[0],rc[1]-gmidF[1],f.perpX,f.perpY);
-          if(rxProj<=dep+1e-3)return;
-          var tProj=dot(rc[0]-f.p0[0],rc[1]-f.p0[1],f.gnx,f.gny);
-          if(tProj<-f.gL*0.05||tProj>f.gL*1.05)return;
-          var cand=rxProj-dep;if(cand<depBack)depBack=cand;
-        });
-        if(depBack===Infinity)depBack=dep; /* simple gable fallback */
-        /* Safety: never let the back-mirror exceed the front depth — that would mean
-           the algorithm has lost track of where the building ends. */
-        if(depBack>dep*1.5)depBack=dep;
+        /* depBack was computed up-front (see the hasBackMirror detection pass). */
+        var depBack=f.depBack;
         for(var bs=0;bs<f.nSheets;bs++){
           var bBL=[f.p0[0]+f.gnx*bs*sw+f.perpX*dep,     f.p0[1]+f.gny*bs*sw+f.perpY*dep];
           var bBR=[f.p0[0]+f.gnx*(bs+1)*sw+f.perpX*dep,  f.p0[1]+f.gny*(bs+1)*sw+f.perpY*dep];
