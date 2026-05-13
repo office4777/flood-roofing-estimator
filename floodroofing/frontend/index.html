@@ -5145,7 +5145,67 @@ function renderRoofSheetPlan() {
       for(var i=0;i<3&&p.length>=3;i++)p=clipHalf(p,t[i],t[(i+1)%3],false);
       if(p.length>=3)pieces.push(p);
     });
-    return pieces;
+    /* Adjacent ear-clip triangles share an interior edge. A sheet spanning two
+       adjacent triangles produces two pieces that share that edge; rendering
+       them as separate polygons paints the triangulation diagonal as a black
+       border — the "phantom cut line" you see slicing across sheets. Union the
+       adjacent pieces along their shared edges before returning. */
+    return _unionAdjacentPieces(pieces);
+  }
+
+  /* Merge polygons that share an edge (within ~0.5 px). Iterates until no more
+     merges are possible — pieces from the same connected region collapse into
+     one polygon; pieces from genuinely disjoint regions (e.g. opposite arms of
+     an L) stay separate, so _keepPieceAtCenter can still drop spurious ones. */
+  function _unionAdjacentPieces(pieces){
+    if(pieces.length<=1)return pieces;
+    var work=pieces.map(function(p){return p.slice();});
+    var changed=true;
+    while(changed){
+      changed=false;
+      outer:for(var i=0;i<work.length;i++){
+        for(var j=i+1;j<work.length;j++){
+          var combined=_tryMergeAdjacent(work[i],work[j]);
+          if(combined){
+            work[i]=combined;
+            work.splice(j,1);
+            changed=true;
+            break outer;
+          }
+        }
+      }
+    }
+    return work;
+  }
+
+  function _tryMergeAdjacent(a,b){
+    var tol=0.5;
+    for(var i=0;i<a.length;i++){
+      var a0=a[i],a1=a[(i+1)%a.length];
+      for(var j=0;j<b.length;j++){
+        var b0=b[j],b1=b[(j+1)%b.length];
+        /* Shared edge: a's edge i→i+1 matches b's edge j+1→j (reversed, since
+           the two polygons are on opposite sides of the shared edge). */
+        if(pNear(a0,b1,tol)&&pNear(a1,b0,tol)){
+          /* Traverse a from i+1 back to i (skipping shared edge), then b from
+             j+2 to j-1 (skipping shared edge endpoints already covered). */
+          var merged=[];
+          var p=(i+1)%a.length;
+          while(true){
+            merged.push(a[p]);
+            if(p===i)break;
+            p=(p+1)%a.length;
+          }
+          var q=(j+2)%b.length;
+          while(q!==j){
+            merged.push(b[q]);
+            q=(q+1)%b.length;
+          }
+          return merged;
+        }
+      }
+    }
+    return null;
   }
 
   /* Generic point-in-polygon (even-odd) test. */
