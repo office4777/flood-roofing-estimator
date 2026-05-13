@@ -5753,6 +5753,27 @@ function renderRoofSheetPlan() {
              Use the face anchor (always inside the triangle) as the reference. */
           if(f.lHip&&used.length>=3)used=clipHipInside(used,f.lHip,fAnchor);
           if(f.rHip&&used.length>=3)used=clipHipInside(used,f.rHip,fAnchor);
+          /* WEDGE END FACE (L-shape wing junction): the wedge is a quadrilateral
+             bounded by lHip + rHip + a CONNECTOR line at the apex (the wing-
+             junction hip / valley / ridge spanning between lHip-far and rHip-far).
+             Without clipping by that connector the strips leak past the wedge
+             apex into the adjacent main face. Find any non-lHip/rHip line that
+             touches both lFar and rFar and clip by it too — that's the wedge's
+             far edge that hipsides can't see. The user calls this the "second
+             cut" — the offcut lands in the wedge and must itself be cut by the
+             wedge's far edge (valley/hip) to fit. */
+          if(used&&used.length>=3&&f.lHip&&f.rHip){
+            var _lFar=pNear(f.lHip.pts[0],f.p0)||pNear(f.lHip.pts[0],f.p1)?f.lHip.pts[1]:f.lHip.pts[0];
+            var _rFar=pNear(f.rHip.pts[0],f.p0)||pNear(f.rHip.pts[0],f.p1)?f.rHip.pts[1]:f.rHip.pts[0];
+            DRAW.lines.forEach(function(ln){
+              if(ln===f.lHip||ln===f.rHip||ln.type==='gutter')return;
+              if(ln.type!=='hip'&&ln.type!=='valley'&&ln.type!=='ridge')return;
+              var _t0=pNear(ln.pts[0],_lFar,15)&&pNear(ln.pts[1],_rFar,15);
+              var _t1=pNear(ln.pts[1],_lFar,15)&&pNear(ln.pts[0],_rFar,15);
+              if(!_t0&&!_t1)return;
+              if(used&&used.length>=3)used=clipHipInside(used,ln,fAnchor);
+            });
+          }
           if(!used||used.length<3||polyArea(used)<minA*0.04)return;
           drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
           drawHatching(used);
