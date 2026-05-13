@@ -5534,6 +5534,9 @@ function renderRoofSheetPlan() {
   drawPoly(DRAW.outline,'#dde3ea',null);
   var hasRealScale=DRAW.scaleMetresPerPx>0;
 
+  /* Collect orange offcut extensions (short-sheet's would-be long-sheet
+     extension) to draw in a FINAL pass — otherwise later faces overdraw. */
+  var _extensionDraws=[];
   /* ── RENDER ALL FACES ───────────────────────────────────────────────────── */
   faces.forEach(function(f){
     var dep=f.depImg,sw=f.swImg;
@@ -5654,29 +5657,25 @@ function renderRoofSheetPlan() {
               var d=(pt[0]-f.p0[0])*f.perpX+(pt[1]-f.p0[1])*f.perpY;
               if(d>_kDep)_kDep=d;
             });
-            /* Extension rectangle from kept-end to depMax in this sheet's column. */
-            var _eBL=[f.p0[0]+f.gnx*s*sw+f.perpX*_kDep, f.p0[1]+f.gny*s*sw+f.perpY*_kDep];
-            var _eBR=[f.p0[0]+f.gnx*(s+1)*sw+f.perpX*_kDep, f.p0[1]+f.gny*(s+1)*sw+f.perpY*_kDep];
-            var _eTL=[_eBL[0]+f.perpX*(depMax-_kDep), _eBL[1]+f.perpY*(depMax-_kDep)];
-            var _eTR=[_eBR[0]+f.perpX*(depMax-_kDep), _eBR[1]+f.perpY*(depMax-_kDep)];
-            var _extPieces=clipToOutline([_eBL,_eBR,_eTR,_eTL]);
-            _extPieces.forEach(function(ep){
-              if(!ep||ep.length<3)return;
-              /* Clip extension by all other hip/valley lines using its own
-                 centroid as the "stay-inside" anchor — confines to the
-                 natural matching-triangle destination. */
-              var _epC=centroid(ep);
-              var _epClipped=ep.slice();
-              DRAW.lines.forEach(function(ln){
-                if(ln.type==='gutter')return;
-                if(ln.type!=='hip'&&ln.type!=='valley')return;
-                if(_epClipped.length>=3)_epClipped=clipHipInside(_epClipped,ln,_epC);
+            /* Only emit extension if this sheet's column is in the LONG ARM
+               portion of the face — i.e. the deeper ridge's tangential range
+               covers the column. The deeper ridge's range was used to set
+               hasDeeperRidge; reproduce the check here using the perpDist of
+               outline points in this sheet's column. If the FAR side (depMax
+               point) of this column is significantly deeper than f.depImg,
+               the column is in the long-arm portion. */
+            var _colC=[f.p0[0]+f.gnx*(s+0.5)*sw+f.perpX*depMax*0.6,f.p0[1]+f.gny*(s+0.5)*sw+f.perpY*depMax*0.6];
+            if(_ptInOl(_colC)){
+              var _eBL=[f.p0[0]+f.gnx*s*sw+f.perpX*_kDep, f.p0[1]+f.gny*s*sw+f.perpY*_kDep];
+              var _eBR=[f.p0[0]+f.gnx*(s+1)*sw+f.perpX*_kDep, f.p0[1]+f.gny*(s+1)*sw+f.perpY*_kDep];
+              var _eTL=[_eBL[0]+f.perpX*(depMax-_kDep), _eBL[1]+f.perpY*(depMax-_kDep)];
+              var _eTR=[_eBR[0]+f.perpX*(depMax-_kDep), _eBR[1]+f.perpY*(depMax-_kDep)];
+              var _extPieces=clipToOutline([_eBL,_eBR,_eTR,_eTL]);
+              _extPieces.forEach(function(ep){
+                if(!ep||ep.length<3)return;
+                _extensionDraws.push({poly:ep,col:f.col,label:(s+1)+' c',sw:sw});
               });
-              if(!_epClipped||_epClipped.length<3||polyArea(_epClipped)<minA*0.05)return;
-              drawPoly(_epClipped,f.col,'rgba(0,0,0,0.5)',1.5);
-              drawHatching(_epClipped);
-              lbl(_epClipped,(s+1)+' c','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
-            });
+            }
           }
           /* Draw each offcut at its NATURAL position — the cut-off polygon is
              already in the wedge / matching-triangle area on the outside of
@@ -5899,6 +5898,21 @@ function renderRoofSheetPlan() {
         ctx.beginPath();ctx.moveTo(cA[0],cA[1]);ctx.lineTo(cB[0],cB[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();
       }
     }
+  });
+
+  /* Draw collected extensions LAST so other faces don't overdraw them. */
+  _extensionDraws.forEach(function(ed){
+    var _epC=centroid(ed.poly);
+    var _epClipped=ed.poly.slice();
+    DRAW.lines.forEach(function(ln){
+      if(ln.type==='gutter')return;
+      if(ln.type!=='hip'&&ln.type!=='valley')return;
+      if(_epClipped.length>=3)_epClipped=clipHipInside(_epClipped,ln,_epC);
+    });
+    if(!_epClipped||_epClipped.length<3)return;
+    drawPoly(_epClipped,ed.col,'rgba(0,0,0,0.5)',1.5);
+    drawHatching(_epClipped);
+    lbl(_epClipped,ed.label,'rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(ed.sw)*0.4)),0.95);
   });
 
   /* ── Draw structural lines on top ── */
