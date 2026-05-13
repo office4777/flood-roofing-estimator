@@ -5707,6 +5707,13 @@ function renderRoofSheetPlan() {
             if(_oppositeFace)_drawCol=_oppositeFace.col;
           })();
           drawPoly(used,_drawCol,'rgba(0,0,0,0.75)',2.2);
+          /* Offcut indicator: if the draw colour differs from the face's
+             primary colour (i.e. source-coloured sheet from opposite face),
+             add light hatching to visually distinguish it as an offcut
+             zone matching the donor face. */
+          if(_drawCol!==f.col&&_drawCol!=='#a855f7'){
+            drawHatching(used);
+          }
           if((f.lHip||f.rHip)&&used.length<full.length)didCut=true;
           var a=polyArea(used);
           if(a>labelArea){labelArea=a;labelTarget=used;}
