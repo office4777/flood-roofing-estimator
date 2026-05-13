@@ -5518,22 +5518,25 @@ function renderRoofSheetPlan() {
           DRAW.lines.forEach(function(line){
             if(line.type==='gutter')return;
             if(line===f.lHip||line===f.rHip)return;
-            /* Skip "internal" hips — hips whose endpoint sits at a RIDGE JUNCTION
-               (a point where 2+ ridges meet). On L/T shapes the wing-junction hip
-               runs from the inner-corner gutter vertex up to the ridge-ridge
-               junction; it would falsely clip orange sheets that should run full
-               length to the long ridge. External outline hips touch at most ONE
-               ridge endpoint (the end of a single ridge), never a junction. */
+            /* Skip "internal" hips — hips whose endpoint sits at a REFLEX vertex
+               of the outline (the inner corner of an L/T/U). External outline
+               hips run from a convex outline corner up to a ridge end. Wing-
+               junction internal hips run from the inner-corner reflex vertex
+               up to a ridge end (or ridge junction). Detecting the reflex
+               vertex catches every wing-junction hip regardless of how many
+               ridges meet at its upper end. */
             if(line.type==='hip'){
-              var ridges=DRAW.lines.filter(function(r){return r.type==='ridge';});
-              var ridgesAtPt=function(p){
-                var c=0;
-                ridges.forEach(function(r){
-                  if(pNear(r.pts[0],p,15)||pNear(r.pts[1],p,15))c++;
-                });
-                return c;
-              };
-              if(ridgesAtPt(line.pts[0])>=2||ridgesAtPt(line.pts[1])>=2)return;
+              var reflexHip=false;
+              for(var _ri=0;_ri<_ol.length&&!reflexHip;_ri++){
+                var _pv=_ol[(_ri-1+_ol.length)%_ol.length];
+                var _cv=_ol[_ri];
+                var _nv=_ol[(_ri+1)%_ol.length];
+                /* _ol is CCW-normalised; reflex turn has cross<0. */
+                var _crs=(_cv[0]-_pv[0])*(_nv[1]-_cv[1])-(_cv[1]-_pv[1])*(_nv[0]-_cv[0]);
+                if(_crs>=0)continue;
+                if(pNear(line.pts[0],_cv,15)||pNear(line.pts[1],_cv,15))reflexHip=true;
+              }
+              if(reflexHip)return;
             }
             var lmid=[(line.pts[0][0]+line.pts[1][0])/2,(line.pts[0][1]+line.pts[1][1])/2];
             var fwdProj=(lmid[0]-f.p0[0])*f.perpX+(lmid[1]-f.p0[1])*f.perpY;
