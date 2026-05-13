@@ -5489,7 +5489,10 @@ function renderRoofSheetPlan() {
     ef.isWedge=false;
     if(ef.lAdj&&ef.rAdj){
       var _perpDot=ef.lAdj.perpX*ef.rAdj.perpX+ef.lAdj.perpY*ef.rAdj.perpY;
-      ef.crossWing=_perpDot<-0.5;
+      /* crossWing disabled — empirically the natural lAdj/rAdj adjacency
+         produces the SOP-correct colours for an L-shape's right-end face
+         (blue bottom from bottom-gutter, orange top from top-gutter). */
+      ef.crossWing=false;
       ef.isWedge=_perpDot>0.5;
       /* WING-JUNCTION WEDGE override:
          When both adjacent main faces point the SAME way (perpDot ~ +1), the
