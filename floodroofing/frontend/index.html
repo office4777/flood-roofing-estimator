@@ -5435,13 +5435,12 @@ function renderRoofSheetPlan() {
     }
   });
 
-  /* Mark which main faces will also need a BACK-FACE mirror (no parallel ridge on
-     the back, i.e. no sibling face shares this face's ridgeMid). When active, the
-     order count doubles for that face — front and back take identical sheet sets.
-     Also compute the back-mirror depth here so the order doubling reflects whether
-     any back-sheet actually fits — if the back area is squeezed to a sliver by an
-     inner corner (e.g. an L-shape whose ridge sits right on the wing junction),
-     the doubling would be phantom. Gate hasBackMirror on depBack >= half a sheet. */
+  /* Mark which main faces need a BACK-FACE mirror (no parallel sibling face on the
+     other side of the ridge → an L/T/U wing whose back is bounded by a valley/hip
+     rather than another main face). The back-mirror always uses the FRONT depth
+     as its target depth — per-sheet clipping (outline + every ridge/valley) does
+     the natural truncation, so sheets in the back narrow toward the inner corner
+     and open out where the wing-junction lets them. */
   faces.forEach(function(f){
     if(f.isEndFace){f.hasBackMirror=false;return;}
     var hasOpposite=faces.some(function(other){
@@ -5449,22 +5448,7 @@ function renderRoofSheetPlan() {
       if(!other.ridgeMid||!f.ridgeMid)return false;
       return len2(other.ridgeMid[0]-f.ridgeMid[0],other.ridgeMid[1]-f.ridgeMid[1])<f.swImg*2;
     });
-    /* Mirror the renderer's depBack calculation so the order count and the render
-       agree on whether the back-mirror is real. */
-    var depBack=Infinity,gmidF=[(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2];
-    _ol.forEach(function(rc){
-      var rxProj=dot(rc[0]-gmidF[0],rc[1]-gmidF[1],f.perpX,f.perpY);
-      if(rxProj<=f.depImg+1e-3)return;
-      var tProj=dot(rc[0]-f.p0[0],rc[1]-f.p0[1],f.gnx,f.gny);
-      if(tProj<-f.gL*0.05||tProj>f.gL*1.05)return;
-      var cand=rxProj-f.depImg;if(cand<depBack)depBack=cand;
-    });
-    if(depBack===Infinity)depBack=f.depImg;
-    if(depBack>f.depImg*1.5)depBack=f.depImg;
-    f.depBack=depBack;
-    /* Only mark back-mirror active if at least half a sheet's length fits in the
-       back area — otherwise the geometry has no real "back" to double. */
-    f.hasBackMirror=!hasOpposite&&!!f.ridgeMid&&depBack>=Math.max(f.swImg,f.depImg*0.25);
+    f.hasBackMirror=!hasOpposite&&!!f.ridgeMid;
   });
 
   /* Draw building footprint */
@@ -5531,8 +5515,11 @@ function renderRoofSheetPlan() {
         /* Reference point INSIDE the back face — sits just past the ridge so it's
            guaranteed to be on the back-face side of any wing-junction valley. */
         var fAnchorBack=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*1.02,(f.p0[1]+f.p1[1])/2+f.perpY*dep*1.02];
-        /* depBack was computed up-front (see the hasBackMirror detection pass). */
-        var depBack=f.depBack;
+        /* Use the front depth as the back-mirror target depth. Per-sheet clipping
+           by all valleys, ridges, and the outline truncates each sheet naturally,
+           so the back opens out where the wing-junction allows and narrows toward
+           the inner corner — without one global cap collapsing the whole back. */
+        var depBack=dep;
         for(var bs=0;bs<f.nSheets;bs++){
           var bBL=[f.p0[0]+f.gnx*bs*sw+f.perpX*dep,     f.p0[1]+f.gny*bs*sw+f.perpY*dep];
           var bBR=[f.p0[0]+f.gnx*(bs+1)*sw+f.perpX*dep,  f.p0[1]+f.gny*(bs+1)*sw+f.perpY*dep];
@@ -5547,11 +5534,21 @@ function renderRoofSheetPlan() {
           /* Same concave-outline filter as the front: keep the piece at this sheet's centre. */
           bPieces=_keepPieceAtCenter(bPieces,bcX,bcY);
 
-          /* Clip by every valley line. The wing-junction valley bounds the back
-             face from the wing side — without this clip the back-mirror bleeds
-             through the valley and overlays the wing's own faces. */
+          /* Clip by every ridge/valley/hip in the drawing — each of these is a
+             real roof boundary that the back-mirror must respect. clipHipInside
+             keeps the side containing fAnchorBack (just past this face's ridge),
+             so adjacent ridges of OTHER wings (e.g. the upper-wing ridge bounding
+             a lower-wing back-mirror) correctly truncate each sheet. Skip THIS
+             face's own ridge — that's the boundary the back-mirror is mirroring
+             across, not a clipping line. */
           DRAW.lines.forEach(function(vl){
-            if(vl.type!=='valley')return;
+            if(vl.type!=='valley'&&vl.type!=='ridge'&&vl.type!=='hip')return;
+            /* Don't clip by this face's own ridge — back-mirror lives on the
+               opposite side of it by definition. */
+            if(f.ridgeMid){
+              var rmid=[(vl.pts[0][0]+vl.pts[1][0])/2,(vl.pts[0][1]+vl.pts[1][1])/2];
+              if(len2(rmid[0]-f.ridgeMid[0],rmid[1]-f.ridgeMid[1])<f.swImg)return;
+            }
             bPieces=bPieces.map(function(p){
               if(!p||p.length<3)return p;
               return clipHipInside(p,vl,fAnchorBack);
