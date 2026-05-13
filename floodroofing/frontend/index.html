@@ -5906,13 +5906,31 @@ function renderRoofSheetPlan() {
     }
   });
 
-  /* Draw collected extensions LAST so other faces don't overdraw them. */
+  /* Draw collected extensions LAST so other faces don't overdraw them. The
+     anchor for additional clipping is the offcut polygon's centroid biased
+     SHIFTED TOWARDS the cut line — this keeps the offcut adjacent to the cut
+     hip (in the natural matching-triangle area) rather than drifting into
+     the opposite face's main territory. */
   _extensionDraws.forEach(function(ed){
+    /* Use just the offcut's centroid as the in-area anchor. */
     var _epC=centroid(ed.poly);
     var _epClipped=ed.poly.slice();
+    /* Clip only by lines whose tangential range covers the offcut's bbox. */
+    var _bbXLo=Infinity,_bbXHi=-Infinity,_bbYLo=Infinity,_bbYHi=-Infinity;
+    ed.poly.forEach(function(p){
+      if(p[0]<_bbXLo)_bbXLo=p[0]; if(p[0]>_bbXHi)_bbXHi=p[0];
+      if(p[1]<_bbYLo)_bbYLo=p[1]; if(p[1]>_bbYHi)_bbYHi=p[1];
+    });
     DRAW.lines.forEach(function(ln){
       if(ln.type==='gutter')return;
       if(ln.type!=='hip'&&ln.type!=='valley')return;
+      /* Only clip by lines that pass NEAR the offcut. Distance-from-line
+         check for both endpoints; skip lines that are entirely far away. */
+      var _far=true;
+      [ln.pts[0],ln.pts[1]].forEach(function(p){
+        if(p[0]>=_bbXLo-30&&p[0]<=_bbXHi+30&&p[1]>=_bbYLo-30&&p[1]<=_bbYHi+30)_far=false;
+      });
+      if(_far)return;
       if(_epClipped.length>=3)_epClipped=clipHipInside(_epClipped,ln,_epC);
     });
     if(!_epClipped||_epClipped.length<3)return;
