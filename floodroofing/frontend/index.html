@@ -5436,16 +5436,21 @@ function renderRoofSheetPlan() {
       }
     });
     ef.crossWing=false;
-    if(ef.lAdj&&ef.rAdj&&ef.lAdj.ridgeMid&&ef.rAdj.ridgeMid){
-      var _rd=len2(ef.lAdj.ridgeMid[0]-ef.rAdj.ridgeMid[0],ef.lAdj.ridgeMid[1]-ef.rAdj.ridgeMid[1]);
-      /* Cross-wing 180° rotation only applies when the two donor wings face
-         AWAY from each other across the end face — perpendiculars point in
-         opposite directions (e.g. blue points up from south gutter, orange
-         points down from north gutter). When perpendiculars point the same
-         way (wedge end face with both donors above the gutter), no rotation
-         is needed and the natural geometric adjacency is correct. */
+    if(ef.lAdj&&ef.rAdj){
+      /* CORRUGATION RULE: a hip off-cut keeps its corrugation axis. The two
+         donors of an end face face AWAY from each other across the apex —
+         their gutter perpendiculars point in opposite directions. To install
+         the off-cut without flipping (Colorsteel can't go painted-side-down),
+         the cut piece rotates 180° about the end face's apex. That 180°
+         rotation swaps which half of the end face each donor supplies.
+
+         Applies to EVERY end face with opposite-perpendicular donors —
+         simple-gable 4-hip ends, L-shape combined ends, upper-arm hipped
+         ends. Only end faces whose donors point the SAME direction (e.g. an
+         L-shape wing-junction wedge where both donors sit above the gutter)
+         skip the swap. */
       var _perpDot=ef.lAdj.perpX*ef.rAdj.perpX+ef.lAdj.perpY*ef.rAdj.perpY;
-      ef.crossWing=_rd>ef.lAdj.swImg*3&&_perpDot<-0.5;
+      ef.crossWing=_perpDot<-0.5;
     }
   });
 
