@@ -5455,20 +5455,16 @@ function renderRoofSheetPlan() {
     }
   });
 
-  /* Mark which main faces need a BACK-FACE mirror (no parallel sibling face on the
-     other side of the ridge → an L/T/U wing whose back is bounded by a valley/hip
-     rather than another main face). The back-mirror always uses the FRONT depth
-     as its target depth — per-sheet clipping (outline + every ridge/valley) does
-     the natural truncation, so sheets in the back narrow toward the inner corner
-     and open out where the wing-junction lets them. */
+  /* Back-mirror is now disabled across the board. The main-face extension
+     (per-sheet bounded-segment clipping against all back-side roof lines)
+     covers the area the back-mirror used to draw — and on L-shape wing
+     junctions the back-mirror was visibly overlapping the extended sheets
+     of the opposite face (e.g. blue's back-mirror painted over orange's
+     full-length sheets reaching down to the lower ridge). One full-length
+     sheet per column, no overlay. */
   faces.forEach(function(f){
     if(f.isEndFace){f.hasBackMirror=false;return;}
-    var hasOpposite=faces.some(function(other){
-      if(other===f||other.isEndFace)return false;
-      if(!other.ridgeMid||!f.ridgeMid)return false;
-      return len2(other.ridgeMid[0]-f.ridgeMid[0],other.ridgeMid[1]-f.ridgeMid[1])<f.swImg*2;
-    });
-    f.hasBackMirror=!hasOpposite&&!!f.ridgeMid;
+    f.hasBackMirror=false;
   });
 
   /* Draw building footprint */
