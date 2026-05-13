@@ -5483,21 +5483,26 @@ function renderRoofSheetPlan() {
       ef.crossWing=_perpDot<-0.5;
       /* WING-JUNCTION WEDGE override:
          When both adjacent main faces point the SAME way (perpDot ~ +1), the
-         end face is a wing-junction wedge. Per the owner's SOP, the wedge
-         offcuts come from BLUE full-length sheets cut at the wedge's rHip
-         (which IS bottom-gutter's lHip). Use the LONGEST plain main face
-         (bottom-gutter on an L) as the donor for ALL wedge strips so the
-         wedge matches SOP step 2's "blue offcut above the belly/valley". */
+         end-face area is the inner-corner of an L-shape, spanning BOTH:
+           (a) the wedge proper above the wing-junction hip — BLUE offcuts
+               (cut from the bottom-gutter long sheets at the wedge boundary)
+           (b) the lower-wing top-left triangle below the wing-junction hip —
+               ORANGE offcuts (cut from the top-gutter long sheets)
+         SOP steps 2 (blue) + 5 (orange) place these in opposite halves of the
+         strip stack. Strips closer to ef.p0 (valley side, near top arm) get
+         the blue donor; strips closer to ef.p1 (bottom-hip side, near lower
+         wing) get the orange donor. */
       if(_perpDot>0.5){
-        var blueFace=null;
+        var plainFace=null,longFace=null;
         faces.forEach(function(mf){
-          if(mf.isEndFace||mf.hasDeeperRidge)return;
-          if(!blueFace||mf.gutterM>blueFace.gutterM)blueFace=mf;
+          if(mf.isEndFace)return;
+          if(mf.hasDeeperRidge){if(!longFace||mf.gutterM>longFace.gutterM)longFace=mf;}
+          else{if(!plainFace||mf.gutterM>plainFace.gutterM)plainFace=mf;}
         });
-        if(blueFace){
-          ef.lAdj=blueFace;ef.rAdj=blueFace;
-          ef.lAdjP0=len2(ef.p0[0]-blueFace.p0[0],ef.p0[1]-blueFace.p0[1])<len2(ef.p0[0]-blueFace.p1[0],ef.p0[1]-blueFace.p1[1]);
-          ef.rAdjP0=len2(ef.p1[0]-blueFace.p0[0],ef.p1[1]-blueFace.p0[1])<len2(ef.p1[0]-blueFace.p1[0],ef.p1[1]-blueFace.p1[1]);
+        if(plainFace&&longFace){
+          ef.lAdj=plainFace;ef.rAdj=longFace;
+          ef.lAdjP0=len2(ef.p0[0]-plainFace.p0[0],ef.p0[1]-plainFace.p0[1])<len2(ef.p0[0]-plainFace.p1[0],ef.p0[1]-plainFace.p1[1]);
+          ef.rAdjP0=len2(ef.p1[0]-longFace.p0[0],ef.p1[1]-longFace.p0[1])<len2(ef.p1[0]-longFace.p1[0],ef.p1[1]-longFace.p1[1]);
         }
       }
     }
