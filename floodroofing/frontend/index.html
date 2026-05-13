@@ -5513,31 +5513,21 @@ function renderRoofSheetPlan() {
            overlaps this sheet's column. Excludes this face's own hips (handled below)
            and the gutter itself. clipHipInside keeps the side containing fAnchor (the
            face interior), so each back-side line correctly bounds the sheet from above. */
+        var _faceGutAng=Math.atan2(f.gny,f.gnx)*180/Math.PI;
         fullPieces=fullPieces.map(function(p){
           if(!p||p.length<3)return p;
           DRAW.lines.forEach(function(line){
             if(line.type==='gutter')return;
             if(line===f.lHip||line===f.rHip)return;
-            /* Skip "internal" hips — hips whose endpoint sits at a REFLEX vertex
-               of the outline (the inner corner of an L/T/U). External outline
-               hips run from a convex outline corner up to a ridge end. Wing-
-               junction internal hips run from the inner-corner reflex vertex
-               up to a ridge end (or ridge junction). Detecting the reflex
-               vertex catches every wing-junction hip regardless of how many
-               ridges meet at its upper end. */
-            if(line.type==='hip'){
-              var reflexHip=false;
-              for(var _ri=0;_ri<_ol.length&&!reflexHip;_ri++){
-                var _pv=_ol[(_ri-1+_ol.length)%_ol.length];
-                var _cv=_ol[_ri];
-                var _nv=_ol[(_ri+1)%_ol.length];
-                /* _ol is CCW-normalised; reflex turn has cross<0. */
-                var _crs=(_cv[0]-_pv[0])*(_nv[1]-_cv[1])-(_cv[1]-_pv[1])*(_nv[0]-_cv[0]);
-                if(_crs>=0)continue;
-                if(pNear(line.pts[0],_cv,15)||pNear(line.pts[1],_cv,15))reflexHip=true;
-              }
-              if(reflexHip)return;
-            }
+            /* Only clip by lines roughly PARALLEL to this face's gutter. Diagonal
+               hips (wing-junction connectors, end-face hips on adjacent faces) are
+               not back-bounds of THIS face — they're geometrically irrelevant and
+               their extrapolated half-plane wrongly removes entire sheets when the
+               sheet's centre lies on the "wrong" side of the line's extension. A
+               back-bound is by definition parallel to the gutter, so a 20° angle
+               tolerance keeps real parallel ridges/valleys but rejects diagonals. */
+            var _lAng=Math.atan2(line.pts[1][1]-line.pts[0][1],line.pts[1][0]-line.pts[0][0])*180/Math.PI;
+            if(angDiff(_lAng,_faceGutAng)>20)return;
             var lmid=[(line.pts[0][0]+line.pts[1][0])/2,(line.pts[0][1]+line.pts[1][1])/2];
             var fwdProj=(lmid[0]-f.p0[0])*f.perpX+(lmid[1]-f.p0[1])*f.perpY;
             if(fwdProj<f.swImg*0.5)return; /* line is on the gutter side, not the back */
