@@ -5518,6 +5518,21 @@ function renderRoofSheetPlan() {
           DRAW.lines.forEach(function(line){
             if(line.type==='gutter')return;
             if(line===f.lHip||line===f.rHip)return;
+            /* Skip "internal" hips — hips whose both endpoints sit on ridges (no
+               gutter-corner endpoint). On L/T shapes the wing-junction hip runs
+               ridge→ridge and would falsely clip orange sheets that should run
+               full length to the deeper ridge. Real outline hips have at least
+               one endpoint at a gutter corner. */
+            if(line.type==='hip'){
+              var ridgePts=[];
+              DRAW.lines.forEach(function(r){
+                if(r.type==='ridge'){ridgePts.push(r.pts[0]);ridgePts.push(r.pts[1]);}
+              });
+              var nearPt=function(a,b){var dx=a[0]-b[0],dy=a[1]-b[1];return dx*dx+dy*dy<25;};
+              var on0=ridgePts.some(function(rp){return nearPt(line.pts[0],rp);});
+              var on1=ridgePts.some(function(rp){return nearPt(line.pts[1],rp);});
+              if(on0&&on1)return;
+            }
             var lmid=[(line.pts[0][0]+line.pts[1][0])/2,(line.pts[0][1]+line.pts[1][1])/2];
             var fwdProj=(lmid[0]-f.p0[0])*f.perpX+(lmid[1]-f.p0[1])*f.perpY;
             if(fwdProj<f.swImg*0.5)return; /* line is on the gutter side, not the back */
