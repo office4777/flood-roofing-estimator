@@ -5639,18 +5639,19 @@ function renderRoofSheetPlan() {
           if((f.lHip||f.rHip)&&used.length<full.length)didCut=true;
           var a=polyArea(used);
           if(a>labelArea){labelArea=a;labelTarget=used;}
-          /* Draw each offcut at the spin-180° destination per SOP. The pivot
-             is the cut hip's midpoint. clipToOutline keeps the rotated piece
-             inside the building outline. */
+          /* Draw each offcut at its NATURAL position — the part of the full
+             sheet rectangle that was cut off by lHip/rHip is geometrically
+             ALREADY in the wedge / matching-triangle area on the outside of
+             the cut hip. No rotation needed; just draw as a hatched offcut
+             with the source sheet number. clipToOutline trims anything that
+             extends past the building outline. */
           _offcuts.forEach(function(oc){
-            var _mp=[(oc.hip.pts[0][0]+oc.hip.pts[1][0])/2,(oc.hip.pts[0][1]+oc.hip.pts[1][1])/2];
-            var _rotated=oc.poly.map(function(p){return[2*_mp[0]-p[0],2*_mp[1]-p[1]];});
-            var _rPieces=clipToOutline(_rotated);
-            _rPieces.forEach(function(rp){
-              if(!rp||rp.length<3||polyArea(rp)<minA*0.05)return;
-              drawPoly(rp,_drawCol,'rgba(0,0,0,0.5)',1.5);
-              drawHatching(rp);
-              lbl(rp,(s+1)+' ↻','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
+            var _ocPieces=clipToOutline(oc.poly.slice());
+            _ocPieces.forEach(function(op){
+              if(!op||op.length<3||polyArea(op)<minA*0.05)return;
+              drawPoly(op,_drawCol,'rgba(0,0,0,0.5)',1.5);
+              drawHatching(op);
+              lbl(op,(s+1)+' ↻','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
             });
           });
         });
