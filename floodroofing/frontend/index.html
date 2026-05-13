@@ -5488,16 +5488,51 @@ function renderRoofSheetPlan() {
       /* Face-local anchor: gutter midpoint pushed half-depth into the face. Always inside
          this face even on L/T/U buildings where the building centroid is in another arm. */
       var fAnchor=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*0.5,(f.p0[1]+f.p1[1])/2+f.perpY*dep*0.5];
+      /* Max possible depth for any sheet of this face = perpendicular distance from
+         the gutter to the FARTHEST point of the building outline. On a simple rectangle
+         this equals the building depth; on an L-shape it equals the diagonal extent. We
+         use this generous depth for every sheet rectangle and then trim per-sheet via
+         bounded-segment clipping by ridges, valleys, and OTHER faces' hips — so a sheet
+         in the "extended arm" of an L (where the orange face continues past its own
+         upper ridge to the lower wing's ridge) gets the longer length it deserves. */
+      var depMax=dep;
+      _ol.forEach(function(p){
+        var d=dot(p[0]-f.p0[0],p[1]-f.p0[1],f.perpX,f.perpY);
+        if(d>depMax)depMax=d;
+      });
       for(var s=0;s<f.nSheets;s++){
         var BL=[f.p0[0]+f.gnx*s*sw,     f.p0[1]+f.gny*s*sw];
         var BR=[f.p0[0]+f.gnx*(s+1)*sw,  f.p0[1]+f.gny*(s+1)*sw];
-        var TL=[BL[0]+f.perpX*dep,       BL[1]+f.perpY*dep];
-        var TR=[BR[0]+f.perpX*dep,        BR[1]+f.perpY*dep];
+        var TL=[BL[0]+f.perpX*depMax,    BL[1]+f.perpY*depMax];
+        var TR=[BR[0]+f.perpX*depMax,    BR[1]+f.perpY*depMax];
         var fullPieces=clipToOutline([BL,BR,TR,TL].slice());
         if(!fullPieces.length)continue;
-        /* Sheet centre = midpoint of this sheet's rectangle (inside the face). */
-        var scX=(BL[0]+BR[0]+TL[0]+TR[0])/4,scY=(BL[1]+BR[1]+TL[1]+TR[1])/4;
+        /* Sheet centre at the FRONT (near gutter) — using depMax/2 may land outside the
+           face on extended-arm sheets. Use a point inside the face just past the gutter. */
+        var scX=(BL[0]+BR[0])/2+f.perpX*dep*0.5,scY=(BL[1]+BR[1])/2+f.perpY*dep*0.5;
         fullPieces=_keepPieceAtCenter(fullPieces,scX,scY);
+
+        var sheetTLow=s*sw,sheetTHigh=(s+1)*sw;
+        /* Bounded-segment clip by every BACK-SIDE roof line whose tangential extent
+           overlaps this sheet's column. Excludes this face's own hips (handled below)
+           and the gutter itself. clipHipInside keeps the side containing fAnchor (the
+           face interior), so each back-side line correctly bounds the sheet from above. */
+        fullPieces=fullPieces.map(function(p){
+          if(!p||p.length<3)return p;
+          DRAW.lines.forEach(function(line){
+            if(line.type==='gutter')return;
+            if(line===f.lHip||line===f.rHip)return;
+            var lmid=[(line.pts[0][0]+line.pts[1][0])/2,(line.pts[0][1]+line.pts[1][1])/2];
+            var fwdProj=(lmid[0]-f.p0[0])*f.perpX+(lmid[1]-f.p0[1])*f.perpY;
+            if(fwdProj<f.swImg*0.5)return; /* line is on the gutter side, not the back */
+            var t0=dot(line.pts[0][0]-f.p0[0],line.pts[0][1]-f.p0[1],f.gnx,f.gny);
+            var t1=dot(line.pts[1][0]-f.p0[0],line.pts[1][1]-f.p0[1],f.gnx,f.gny);
+            var tLow=Math.min(t0,t1),tHigh=Math.max(t0,t1);
+            if(tHigh<sheetTLow-1||tLow>sheetTHigh+1)return;
+            if(p&&p.length>=3)p=clipHipInside(p,line,fAnchor);
+          });
+          return p;
+        }).filter(function(p){return p&&p.length>=3;});
 
         var labelTarget=null,labelArea=0,didCut=false;
         fullPieces.forEach(function(full){
