@@ -5148,6 +5148,33 @@ function renderRoofSheetPlan() {
     return pieces;
   }
 
+  /* Generic point-in-polygon (even-odd) test. */
+  function _ptInPoly(poly,pt){
+    var inside=false,n=poly.length;
+    for(var i=0,j=n-1;i<n;j=i++){
+      var xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];
+      if(((yi>pt[1])!==(yj>pt[1]))&&(pt[0]<(xj-xi)*(pt[1]-yi)/(yj-yi+1e-10)+xi))inside=!inside;
+    }
+    return inside;
+  }
+
+  /* When clipToOutline returns multiple pieces (concave L/T/U building splits the
+     sheet rectangle across the notch), keep only the piece that contains the
+     sheet's geometric centre. The other pieces are spurious — they sit in a
+     different arm of the building and would render as diagonal artifacts. */
+  function _keepPieceAtCenter(pieces,cx,cy){
+    if(pieces.length<=1)return pieces;
+    var pt=[cx,cy];
+    for(var i=0;i<pieces.length;i++)if(_ptInPoly(pieces[i],pt))return[pieces[i]];
+    /* Fallback: keep the piece whose centroid is closest to (cx,cy). */
+    var best=pieces[0],bestD=Infinity;
+    pieces.forEach(function(p){
+      var c=centroid(p),d=len2(c[0]-cx,c[1]-cy);
+      if(d<bestD){bestD=d;best=p;}
+    });
+    return[best];
+  }
+
   /* Clip to the side of a hip/valley containing refPt (defaults to building centroid).
      For L/T/U-shaped buildings the centroid can fall in the WRONG arm relative to a
      given face's hips, so callers should pass a face-local anchor (gutter midpoint
@@ -5368,6 +5395,9 @@ function renderRoofSheetPlan() {
         var TR=[BR[0]+f.perpX*dep,        BR[1]+f.perpY*dep];
         var fullPieces=clipToOutline([BL,BR,TR,TL].slice());
         if(!fullPieces.length)continue;
+        /* Sheet centre = midpoint of this sheet's rectangle (inside the face). */
+        var scX=(BL[0]+BR[0]+TL[0]+TR[0])/4,scY=(BL[1]+BR[1]+TL[1]+TR[1])/4;
+        fullPieces=_keepPieceAtCenter(fullPieces,scX,scY);
 
         var labelTarget=null,labelArea=0,didCut=false;
         fullPieces.forEach(function(full){
@@ -5405,26 +5435,37 @@ function renderRoofSheetPlan() {
         /* Reference point INSIDE the back face — sits just past the ridge so it's
            guaranteed to be on the back-face side of any wing-junction valley. */
         var fAnchorBack=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*1.02,(f.p0[1]+f.p1[1])/2+f.perpY*dep*1.02];
-        /* Cap back-face depth at the closest REFLEX outline vertex projected into
-           the back area. On an L/T/U building this is the inner corner — its perp
-           projection past the ridge is exactly where the wing's body meets the lower
-           section's roof, i.e. the natural top of the back face. */
-        var depBack=dep,gmidF=[(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2];
-        _ol.forEach(function(rc,ri){
-          var rp=_ol[(ri-1+_ol.length)%_ol.length],rn=_ol[(ri+1)%_ol.length];
-          if((rc[0]-rp[0])*(rn[1]-rc[1])-(rc[1]-rp[1])*(rn[0]-rc[0])>=0)return;
+        /* Cap back-face depth at the closest outline vertex past the ridge whose
+           tangential projection falls within this gutter's span. Considering ALL
+           vertices (not just reflex) is essential — on an L-shape the actual top
+           boundary of the back face is the *opposite outline edge*, whose endpoints
+           are convex corners, not reflex. The reflex-only cap let the back-mirror
+           spill into adjacent wings whenever the inner corner wasn't aligned. */
+        var depBack=Infinity,gmidF=[(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2];
+        _ol.forEach(function(rc){
           var rxProj=dot(rc[0]-gmidF[0],rc[1]-gmidF[1],f.perpX,f.perpY);
+          if(rxProj<=dep+1e-3)return;
           var tProj=dot(rc[0]-f.p0[0],rc[1]-f.p0[1],f.gnx,f.gny);
-          if(tProj<-f.gL*0.2||tProj>f.gL*1.2)return;
-          if(rxProj>dep){var cand=rxProj-dep;if(cand<depBack)depBack=cand;}
+          if(tProj<-f.gL*0.05||tProj>f.gL*1.05)return;
+          var cand=rxProj-dep;if(cand<depBack)depBack=cand;
         });
+        if(depBack===Infinity)depBack=dep; /* simple gable fallback */
+        /* Safety: never let the back-mirror exceed the front depth — that would mean
+           the algorithm has lost track of where the building ends. */
+        if(depBack>dep*1.5)depBack=dep;
         for(var bs=0;bs<f.nSheets;bs++){
           var bBL=[f.p0[0]+f.gnx*bs*sw+f.perpX*dep,     f.p0[1]+f.gny*bs*sw+f.perpY*dep];
           var bBR=[f.p0[0]+f.gnx*(bs+1)*sw+f.perpX*dep,  f.p0[1]+f.gny*(bs+1)*sw+f.perpY*dep];
           var bTL=[bBL[0]+f.perpX*depBack,               bBL[1]+f.perpY*depBack];
           var bTR=[bBR[0]+f.perpX*depBack,               bBR[1]+f.perpY*depBack];
+          /* Skip sheets whose centre is outside the building outline — these would
+             be back-mirror columns past the inner corner that have no real face. */
+          var bcX=(bBL[0]+bBR[0]+bTL[0]+bTR[0])/4,bcY=(bBL[1]+bBR[1]+bTL[1]+bTR[1])/4;
+          if(!_ptInOl([bcX,bcY]))continue;
           var bPieces=clipToOutline([bBL,bBR,bTR,bTL].slice());
           if(!bPieces.length)continue;
+          /* Same concave-outline filter as the front: keep the piece at this sheet's centre. */
+          bPieces=_keepPieceAtCenter(bPieces,bcX,bcY);
 
           /* Clip by every valley line. The wing-junction valley bounds the back
              face from the wing side — without this clip the back-mirror bleeds
@@ -5468,6 +5509,8 @@ function renderRoofSheetPlan() {
         var TR=[BR[0]+f.perpX*dep,        BR[1]+f.perpY*dep];
         var basePieces=clipToOutline([BL,BR,TR,TL].slice());
         if(!basePieces.length)continue;
+        var scX=(BL[0]+BR[0]+TL[0]+TR[0])/4,scY=(BL[1]+BR[1]+TL[1]+TR[1])/4;
+        basePieces=_keepPieceAtCenter(basePieces,scX,scY);
 
         /* Donor main face supplies the off-cut. Strips on the LEFT half of the
            apex (s < apexS) get their material from f.lAdj, which is the face
