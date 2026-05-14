@@ -5441,652 +5441,353 @@ function renderRoofSheetPlan() {
     return;
   }
 
-  var COLS=['#E8741A','#1B8AC9','#22c55e','#a855f7','#f59e0b','#06b6d4'];
-  faces.forEach(function(f,i){f.col=COLS[i%COLS.length];});
+  /* ─── BLOCK DETECTION ───────────────────────────────────────────────────
+     A "block" is a cutting unit per the AppliCad block-cutting method: a
+     contiguous set of planes cut from one rectangle of full-length sheets
+     running gutter→ridge. Hip-end triangles fold into the rectangle's
+     corners so their pieces come from corner-sheet offcuts.
 
-  /* Link each end-face half to the adjacent main face that supplies its off-cuts.
-     PLACEMENT RULE: a hip off-cut keeps its source sheet's painted side up. Any
-     in-plane rotation (90°/180°/270°) is allowed; only mirroring is forbidden.
-
-     SIMPLE GABLE: lAdj and rAdj share the same ridge (front & back of one wing).
-     The 45° cut continues straight across each hip into the matching half — left
-     half ← shares lHip, right half ← shares rHip. Geometrically natural.
-
-     CROSS-WING (e.g. L-shape combined end face): lAdj and rAdj belong to different
-     wings (their ridgeMids are far apart). Each wing's hip-cut sheets physically
-     rotate 180° about the apex to land on the OTHER half of the end face — so the
-     donor mapping flips. The crossWing flag below toggles this in the renderer. */
+     MVP rule: group main faces by their parallel ridge (ridgeMid clustered
+     to a 40-px grid). Assign each end face to the block whose main face
+     supplies its hip. */
+  var BLOCK_COLS=['#3b82f6','#22c55e','#f59e0b','#a855f7','#ef4444','#06b6d4'];
+  function _ridgeKey(rm){
+    if(!rm)return null;
+    return Math.round(rm[0]/40)+':'+Math.round(rm[1]/40);
+  }
+  var blockMap={};
+  faces.forEach(function(f){
+    if(f.isEndFace)return;
+    var k=_ridgeKey(f.ridgeMid);
+    if(k===null)return;
+    if(!blockMap[k])blockMap[k]={mainFaces:[],endFaces:[]};
+    blockMap[k].mainFaces.push(f);
+  });
+  var blocks=Object.keys(blockMap).map(function(k){return blockMap[k];});
+  if(!blocks.length){
+    outEl.innerHTML='<p style="color:#92400e;background:#fef3c7;border-radius:8px;padding:12px;font-size:12px">⚠ No roof blocks detected — main faces could not be grouped by parallel ridge. Check ridge lines.</p>';
+    return;
+  }
+  blocks.sort(function(a,b){
+    var aLen=a.mainFaces.reduce(function(s,f){return s+f.gutterM;},0);
+    var bLen=b.mainFaces.reduce(function(s,f){return s+f.gutterM;},0);
+    return bLen-aLen;
+  });
+  blocks.forEach(function(b,i){
+    b.label=String.fromCharCode(65+i);
+    b.col=BLOCK_COLS[i%BLOCK_COLS.length];
+    b.mainFaces.forEach(function(f){f._block=b;f.col=b.col;});
+  });
+  /* Assign each end face to a block via its donor main face (shared hip). */
   faces.forEach(function(ef){
     if(!ef.isEndFace)return;
-    ef.lAdj=null;ef.rAdj=null;ef.lAdjP0=true;ef.rAdjP0=true;
+    var donor=null;
     faces.forEach(function(mf){
       if(mf.isEndFace)return;
-      if(ef.lHip&&(mf.lHip===ef.lHip||mf.rHip===ef.lHip)){
-        ef.lAdj=mf;
-        ef.lAdjP0=len2(ef.p0[0]-mf.p0[0],ef.p0[1]-mf.p0[1])<len2(ef.p0[0]-mf.p1[0],ef.p0[1]-mf.p1[1]);
-      }
-      if(ef.rHip&&(mf.lHip===ef.rHip||mf.rHip===ef.rHip)){
-        ef.rAdj=mf;
-        ef.rAdjP0=len2(ef.p1[0]-mf.p0[0],ef.p1[1]-mf.p0[1])<len2(ef.p1[0]-mf.p1[0],ef.p1[1]-mf.p1[1]);
-      }
+      if(ef.lHip&&(mf.lHip===ef.lHip||mf.rHip===ef.lHip)){donor=donor||mf;}
+      if(ef.rHip&&(mf.lHip===ef.rHip||mf.rHip===ef.rHip)){donor=donor||mf;}
     });
-    /* NO-FLIP RULE — the geometric position where an off-cut physically lands
-       after the hip cut requires a mirror (flip) to install, because the cut
-       sheet would have to be folded across the hip line onto a different roof
-       plane. Colorsteel can't be flipped (painted side must stay up). The
-       allowed operation is a 180° SPIN about the end face's apex — same plane,
-       painted side stays up, lands on the OPPOSITE half of the end face.
-
-       That swap applies whenever the two donor faces are perpendicular-opposite
-       (their gutter perpendiculars point in opposite directions across the end
-       face — e.g. south face perp UP, north face perp DOWN on a simple hip end).
-       It does NOT apply when both donors face the same way (e.g. L-shape wing-
-       junction wedge with both donors above the gutter) — natural adjacency is
-       fine there since no flip is needed for the geometry. */
-    ef.crossWing=false;
-    ef.isWedge=false;
-    if(ef.lAdj&&ef.rAdj){
-      var _perpDot=ef.lAdj.perpX*ef.rAdj.perpX+ef.lAdj.perpY*ef.rAdj.perpY;
-      /* Per user iter41+ feedback: end-face top half should be BLUE (long-
-         arm-bottom continuation, sheets continuing past the right-end hip).
-         Bottom half should be ORANGE. This is the SPIN-180 swap — enabled
-         when adjacent main faces point opposite ways (perpDot<-0.5). */
-      ef.crossWing=_perpDot<-0.5;
-      ef.isWedge=_perpDot>0.5;
-      /* SMALL-ARM end face: one whose adjacent faces include a short non-
-         mixed face (rAdj or lAdj with gutterM < 10m and no deeper ridge).
-         Per user's drawing, the top-arm's left-end face is BLUE — coming
-         from BLUE long sheets via multi-step transfer. Override donor to
-         the LARGEST plain (blue) main face. */
-      var _shortAdj=false;
-      if(ef.lAdj&&ef.lAdj.gutterM<10&&!ef.lAdj.hasDeeperRidge)_shortAdj=true;
-      if(ef.rAdj&&ef.rAdj.gutterM<10&&!ef.rAdj.hasDeeperRidge)_shortAdj=true;
-      if(_shortAdj&&!ef.isWedge){
-        var _blueFace=null;
-        faces.forEach(function(mf){
-          if(mf.isEndFace||mf.hasDeeperRidge)return;
-          if(!_blueFace||mf.gutterM>_blueFace.gutterM)_blueFace=mf;
-        });
-        if(_blueFace){
-          ef.lAdj=_blueFace;ef.rAdj=_blueFace;
-          ef.lAdjP0=len2(ef.p0[0]-_blueFace.p0[0],ef.p0[1]-_blueFace.p0[1])<len2(ef.p0[0]-_blueFace.p1[0],ef.p0[1]-_blueFace.p1[1]);
-          ef.rAdjP0=len2(ef.p1[0]-_blueFace.p0[0],ef.p1[1]-_blueFace.p0[1])<len2(ef.p1[0]-_blueFace.p1[0],ef.p1[1]-_blueFace.p1[1]);
-        }
-      }
-      /* WING-JUNCTION WEDGE override:
-         When both adjacent main faces point the SAME way (perpDot ~ +1), the
-         end-face area is the inner-corner of an L-shape, spanning BOTH:
-           (a) the wedge proper above the wing-junction hip — BLUE offcuts
-               (cut from the bottom-gutter long sheets at the wedge boundary)
-           (b) the lower-wing top-left triangle below the wing-junction hip —
-               ORANGE offcuts (cut from the top-gutter long sheets)
-         SOP steps 2 (blue) + 5 (orange) place these in opposite halves of the
-         strip stack. Strips closer to ef.p0 (valley side, near top arm) get
-         the blue donor; strips closer to ef.p1 (bottom-hip side, near lower
-         wing) get the orange donor. */
-      if(_perpDot>0.5){
-        var plainFace=null,longFace=null;
-        faces.forEach(function(mf){
-          if(mf.isEndFace)return;
-          if(mf.hasDeeperRidge){if(!longFace||mf.gutterM>longFace.gutterM)longFace=mf;}
-          else{if(!plainFace||mf.gutterM>plainFace.gutterM)plainFace=mf;}
-        });
-        if(plainFace&&longFace){
-          ef.lAdj=plainFace;ef.rAdj=longFace;
-          ef.lAdjP0=len2(ef.p0[0]-plainFace.p0[0],ef.p0[1]-plainFace.p0[1])<len2(ef.p0[0]-plainFace.p1[0],ef.p0[1]-plainFace.p1[1]);
-          ef.rAdjP0=len2(ef.p1[0]-longFace.p0[0],ef.p1[1]-longFace.p0[1])<len2(ef.p1[0]-longFace.p1[0],ef.p1[1]-longFace.p1[1]);
-        }
-      }
+    if(!donor){
+      var efMid=[(ef.p0[0]+ef.p1[0])/2,(ef.p0[1]+ef.p1[1])/2];
+      var best=Infinity;
+      faces.forEach(function(mf){
+        if(mf.isEndFace)return;
+        var mfMid=[(mf.p0[0]+mf.p1[0])/2,(mf.p0[1]+mf.p1[1])/2];
+        var d=len2(efMid[0]-mfMid[0],efMid[1]-mfMid[1]);
+        if(d<best){best=d;donor=mf;}
+      });
+    }
+    if(donor&&donor._block){
+      ef._block=donor._block;
+      ef.col=donor._block.col;
+      ef._donor=donor;
+      donor._block.endFaces.push(ef);
     }
   });
-
-  /* Back-mirror is now disabled across the board. The main-face extension
-     (per-sheet bounded-segment clipping against all back-side roof lines)
-     covers the area the back-mirror used to draw — and on L-shape wing
-     junctions the back-mirror was visibly overlapping the extended sheets
-     of the opposite face (e.g. blue's back-mirror painted over orange's
-     full-length sheets reaching down to the lower ridge). One full-length
-     sheet per column, no overlay. */
-  faces.forEach(function(f){
-    if(f.isEndFace){f.hasBackMirror=false;return;}
-    f.hasBackMirror=false;
+  /* Per-block dimensions: width = longest main-face gutter, depth = its depM. */
+  blocks.forEach(function(b){
+    var longest=b.mainFaces.reduce(function(a,f){return f.gutterM>a.gutterM?f:a;},b.mainFaces[0]);
+    b.longest=longest;
+    b.widthM=longest.gutterM;
+    b.depM=longest.depM+overlapM;
+    b.nSheets=Math.max(1,Math.ceil(b.widthM/swM-0.001));
+    b.fullCoverM=(b.nSheets-1)*swM;
+    b.lastSheetCoverMm=Math.max(0,Math.round((b.widthM-b.fullCoverM)*1000));
+    b.sheetLenMm=Math.max(0,Math.round(b.depM*1000));
+    /* Hip-end placement: project end-face midpoint onto longest gutter axis
+       — t<half → LEFT corner, t>=half → RIGHT corner. */
+    b.lEnd=null;b.rEnd=null;
+    b.endFaces.forEach(function(ef){
+      var efMid=[(ef.p0[0]+ef.p1[0])/2,(ef.p0[1]+ef.p1[1])/2];
+      var t=dot(efMid[0]-longest.p0[0],efMid[1]-longest.p0[1],longest.gnx,longest.gny);
+      if(t<longest.gL*0.5){
+        if(!b.lEnd||ef.gutterM>b.lEnd.gutterM)b.lEnd=ef;
+      } else {
+        if(!b.rEnd||ef.gutterM>b.rEnd.gutterM)b.rEnd=ef;
+      }
+    });
   });
 
-  /* Draw building footprint */
-  drawPoly(DRAW.outline,'#dde3ea',null);
+  /* ─── CANVAS LAYOUT: PLAN VIEW (top) + CUT LAYOUT (bottom) ───────────── */
   var hasRealScale=DRAW.scaleMetresPerPx>0;
+  var planTopH=Math.min(260,H*0.55);
+  var planExtX=(maxX-minX)||1,planExtY=(maxY-minY)||1;
+  var planSc=Math.min((W-padX*2)/planExtX,(planTopH-30)/planExtY);
+  var planOffX=padX+((W-padX*2)-planExtX*planSc)/2;
+  var planOffY=15+((planTopH-30)-planExtY*planSc)/2;
+  function toCP(p){return [(p[0]-minX)*planSc+planOffX,(p[1]-minY)*planSc+planOffY];}
+  function drawPolyAt(pts,fill,stroke,lw,dash,proj){
+    if(!pts||pts.length<3)return;
+    ctx.save();ctx.beginPath();
+    pts.forEach(function(p,i){var c=proj(p);if(i===0)ctx.moveTo(c[0],c[1]);else ctx.lineTo(c[0],c[1]);});
+    ctx.closePath();
+    if(fill){ctx.fillStyle=fill;ctx.fill();}
+    if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||1.5;ctx.setLineDash(dash||[]);ctx.stroke();ctx.setLineDash([]);}
+    ctx.restore();
+  }
+  function _facePolygon(f){
+    var depX=f.depImg;
+    var apxL=[f.p0[0]+f.perpX*depX,f.p0[1]+f.perpY*depX];
+    var apxR=[f.p1[0]+f.perpX*depX,f.p1[1]+f.perpY*depX];
+    var rect=[f.p0,f.p1,apxR,apxL];
+    var anchor=[(f.p0[0]+f.p1[0])/2+f.perpX*depX*0.4,
+                (f.p0[1]+f.p1[1])/2+f.perpY*depX*0.4];
+    var pieces=clipToOutline(rect);
+    if(!pieces.length)return null;
+    pieces=_keepPieceAtCenter(pieces,anchor[0],anchor[1]);
+    var poly=pieces[0];
+    if(!poly||poly.length<3)return null;
+    if(f.lHip&&poly.length>=3)poly=clipHipInside(poly,f.lHip,anchor);
+    if(f.rHip&&poly.length>=3)poly=clipHipInside(poly,f.rHip,anchor);
+    return poly&&poly.length>=3?poly:null;
+  }
 
-  /* Collect orange offcut extensions (short-sheet's would-be long-sheet
-     extension) to draw in a FINAL pass — otherwise later faces overdraw. */
-  var _extensionDraws=[];
-  /* ── RENDER ALL FACES ───────────────────────────────────────────────────── */
+  /* ── DRAW PLAN VIEW (top) ───────────────────────────────────────────── */
+  drawPolyAt(_ol,'#dde3ea',null,0,null,toCP);
   faces.forEach(function(f){
-    var dep=f.depImg,sw=f.swImg;
-    var minA=sw*sw*0.06;
-
-    if(!f.isEndFace){
-      /* ═══ MAIN FACE (trapezoid): sheets run perp to gutter, clipped by hips ═══
-         Off-cuts are NOT drawn here — they're rendered in-place on the end face
-         that consumes them (perpendicular to that face's gutter, no flip). The
-         hip line of the trapezoid itself shows the 45° cut visually. */
-      /* Face-local anchor: gutter midpoint pushed half-depth into the face. Always inside
-         this face even on L/T/U buildings where the building centroid is in another arm. */
-      var fAnchor=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*0.5,(f.p0[1]+f.p1[1])/2+f.perpY*dep*0.5];
-      /* Max possible depth for any sheet of this face = perpendicular distance from
-         the gutter to the FARTHEST point of the building outline. On a simple rectangle
-         this equals the building depth; on an L-shape it equals the diagonal extent. We
-         use this generous depth for every sheet rectangle and then trim per-sheet via
-         bounded-segment clipping by ridges, valleys, and OTHER faces' hips — so a sheet
-         in the "extended arm" of an L (where the orange face continues past its own
-         upper ridge to the lower wing's ridge) gets the longer length it deserves. */
-      var depMax=dep;
-      _ol.forEach(function(p){
-        var d=dot(p[0]-f.p0[0],p[1]-f.p0[1],f.perpX,f.perpY);
-        if(d>depMax)depMax=d;
-      });
-      for(var s=0;s<f.nSheets;s++){
-        var BL=[f.p0[0]+f.gnx*s*sw,     f.p0[1]+f.gny*s*sw];
-        var BR=[f.p0[0]+f.gnx*(s+1)*sw,  f.p0[1]+f.gny*(s+1)*sw];
-        var TL=[BL[0]+f.perpX*depMax,    BL[1]+f.perpY*depMax];
-        var TR=[BR[0]+f.perpX*depMax,    BR[1]+f.perpY*depMax];
-        var fullPieces=clipToOutline([BL,BR,TR,TL].slice());
-        if(!fullPieces.length)continue;
-        /* Sheet centre at the FRONT (near gutter) — using depMax/2 may land outside the
-           face on extended-arm sheets. Use a point inside the face just past the gutter. */
-        var scX=(BL[0]+BR[0])/2+f.perpX*dep*0.5,scY=(BL[1]+BR[1])/2+f.perpY*dep*0.5;
-        fullPieces=_keepPieceAtCenter(fullPieces,scX,scY);
-
-        var sheetTLow=s*sw,sheetTHigh=(s+1)*sw;
-        /* Bounded-segment clip by every BACK-SIDE roof line whose tangential extent
-           overlaps this sheet's column. Excludes this face's own hips (handled below)
-           and the gutter itself. clipHipInside keeps the side containing fAnchor (the
-           face interior), so each back-side line correctly bounds the sheet from above. */
-        var _faceGutAng=Math.atan2(f.gny,f.gnx)*180/Math.PI;
-        fullPieces=fullPieces.map(function(p){
-          if(!p||p.length<3)return p;
-          DRAW.lines.forEach(function(line){
-            if(line.type==='gutter')return;
-            if(line===f.lHip||line===f.rHip)return;
-            /* Only clip by lines roughly PARALLEL to this face's gutter. Diagonal
-               hips (wing-junction connectors, end-face hips on adjacent faces) are
-               not back-bounds of THIS face — they're geometrically irrelevant and
-               their extrapolated half-plane wrongly removes entire sheets when the
-               sheet's centre lies on the "wrong" side of the line's extension. A
-               back-bound is by definition parallel to the gutter, so a 20° angle
-               tolerance keeps real parallel ridges/valleys but rejects diagonals. */
-            var _lAng=Math.atan2(line.pts[1][1]-line.pts[0][1],line.pts[1][0]-line.pts[0][0])*180/Math.PI;
-            if(angDiff(_lAng,_faceGutAng)>20)return;
-            var lmid=[(line.pts[0][0]+line.pts[1][0])/2,(line.pts[0][1]+line.pts[1][1])/2];
-            var fwdProj=(lmid[0]-f.p0[0])*f.perpX+(lmid[1]-f.p0[1])*f.perpY;
-            if(fwdProj<f.swImg*0.5)return; /* line is on the gutter side, not the back */
-            var t0=dot(line.pts[0][0]-f.p0[0],line.pts[0][1]-f.p0[1],f.gnx,f.gny);
-            var t1=dot(line.pts[1][0]-f.p0[0],line.pts[1][1]-f.p0[1],f.gnx,f.gny);
-            var tLow=Math.min(t0,t1),tHigh=Math.max(t0,t1);
-            if(tHigh<sheetTLow-1||tLow>sheetTHigh+1)return;
-            if(p&&p.length>=3)p=clipHipInside(p,line,fAnchor);
-          });
-          return p;
-        }).filter(function(p){return p&&p.length>=3;});
-
-        var labelTarget=null,labelArea=0,didCut=false;
-        fullPieces.forEach(function(full){
-          var used=full.slice();
-          /* Track offcuts from each hip cut so we can spin them 180° about the
-             hip midpoint and draw at their destination (the SOP's "matching
-             triangle" rule — same colour as donor, hatched as offcut). */
-          var _offcuts=[];
-          if(f.lHip&&used.length>=3){
-            var _offL=clipHipOutside(used,f.lHip,fAnchor);
-            if(_offL&&_offL.length>=3&&polyArea(_offL)>minA*0.05)_offcuts.push({poly:_offL,hip:f.lHip});
-            used=clipHipInside(used,f.lHip,fAnchor);
-          }
-          if(f.rHip&&used.length>=3){
-            var _offR=clipHipOutside(used,f.rHip,fAnchor);
-            if(_offR&&_offR.length>=3&&polyArea(_offR)>minA*0.05)_offcuts.push({poly:_offR,hip:f.rHip});
-            used=clipHipInside(used,f.rHip,fAnchor);
-          }
-          if(!used||used.length<3||polyArea(used)<=minA*0.25)return;
-          /* MIXED-DEPTH FACE COLOURING: short sheets get purple, long get
-             face colour. */
-          var _drawCol=f.col;
-          if(f.hasDeeperRidge){
-            var _sheetDepImg=0;
-            used.forEach(function(pt){
-              var d=(pt[0]-f.p0[0])*f.perpX+(pt[1]-f.p0[1])*f.perpY;
-              if(d>_sheetDepImg)_sheetDepImg=d;
-            });
-            if(_sheetDepImg<=f.depImg*1.3)_drawCol='#a855f7';
-          }
-          /* OFFCUT-SOURCED COLOURING: a sheet whose kept area is small (cut
-             by lHip/rHip into a triangle <50% of full area) is filled in
-             real life by an OFFCUT from the OPPOSITE LONG face — not by a
-             dedicated full sheet. Colour it with that opposite face's colour
-             so the visual matches where the material actually comes from. */
-          /* Source-coloring disabled (iter41 revert). Per user feedback:
-             cut sheets stay in their FACE COLOR — a small blue triangle on
-             the lower-wing top-left is still a BLUE full-length sheet (just
-             cut short by the wing-junction hip), not an orange offcut. */
-          drawPoly(used,_drawCol,'rgba(0,0,0,0.75)',2.2);
-          /* No source-color hatching in iter41+. */
-          if((f.lHip||f.rHip)&&used.length<full.length)didCut=true;
-          var a=polyArea(used);
-          if(a>labelArea){labelArea=a;labelTarget=used;}
-          /* Per SOP: when a sheet is SHORT (clipped by the shallow ridge of a
-             mixed-depth face), the long-sheet variant of this column would
-             have extended past the short ridge down to the deeper ridge. The
-             extension is the OFFCUT — same colour as the face's primary
-             colour, hatched. Drawn in the area between the short ridge and
-             the deeper ridge for this column, clipped to the natural
-             destination. */
-          /* Offcut extension overlay disabled in puzzle-first mode. Each
-             face just renders its own clean polygon + sheet dividers; offcut
-             allocation is a separate later pass. */
-          /* Per-sheet offcut overlay drawing disabled in puzzle-first mode.
-             The wedge / matching-triangle areas are handled by the end-face
-             rendering pass — they're separate PUZZLE PIECES. */
-        });
-        if(labelTarget){
-          /* For mixed-depth faces (top gutter of an L spans both long and
-             short arms): renumber so each arm has its own 1..N count.
-             splitPoint = tangential position of the reflex vertex projection
-             onto the gutter. Sheets below splitPoint = long arm. Sheets above
-             splitPoint = short arm (relabel from 1). */
-          var _displaySheetN=s+1;
-          if(f.hasDeeperRidge){
-            var _splitPoint=-1;
-            _ol.forEach(function(vert,vi){
-              var _pv=_ol[(vi-1+_ol.length)%_ol.length];
-              var _nv=_ol[(vi+1)%_ol.length];
-              var _crs=(vert[0]-_pv[0])*(_nv[1]-vert[1])-(vert[1]-_pv[1])*(_nv[0]-vert[0]);
-              if(_crs>=0)return; /* reflex vertex in CCW outline has cross<0 */
-              var _tProj=(vert[0]-f.p0[0])*f.gnx+(vert[1]-f.p0[1])*f.gny;
-              if(_tProj>0&&_tProj<f.gL&&(_splitPoint<0||_tProj>_splitPoint))_splitPoint=_tProj;
-            });
-            if(_splitPoint>0){
-              /* Round split UP to the next sheet boundary so the long-arm
-                 portion includes the partial sheet at the split point. */
-              var _shortArmStart=Math.ceil(_splitPoint/sw);
-              if(s>=_shortArmStart){
-                _displaySheetN=s-_shortArmStart+1;
-              }
-            }
-          }
-          var sheetLbl=_displaySheetN+(didCut?' ↻':'');
-          lbl(labelTarget,sheetLbl,'rgba(0,0,0,0.9)',Math.max(8,Math.min(14,toCV(sw)*0.52)));
-        }
-      }
-      /* Sheet divider lines */
-      for(var g=1;g<f.nSheets;g++){
-        var dB=[f.p0[0]+f.gnx*g*sw,f.p0[1]+f.gny*g*sw];
-        var dT=[dB[0]+f.perpX*dep,dB[1]+f.perpY*dep];
-        var cA=toC(dB),cB=toC(dT);
-        ctx.save();ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
-        ctx.beginPath();ctx.moveTo(cA[0],cA[1]);ctx.lineTo(cB[0],cB[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();
-      }
-
-      /* ═══ BACK-FACE MIRROR (NZ "double the long gutter" rule) ═══
-         If no other main face shares this face's ridge (i.e. the back side is
-         bounded by an internal valley on an L/T-shape, not by an outline gutter),
-         order DOUBLE sheets and mirror each one across the ridge as a hatched
-         off-cut. clipToOutline auto-trims the sheet at the wing-junction valley.
-         Detection happens once up-front (f.hasBackMirror) so the order total and
-         the render stay consistent. */
-      if(f.hasBackMirror){
-        /* Reference point INSIDE the back face — sits just past the ridge so it's
-           guaranteed to be on the back-face side of any wing-junction valley. */
-        var fAnchorBack=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*1.02,(f.p0[1]+f.p1[1])/2+f.perpY*dep*1.02];
-        /* Use the front depth as the back-mirror target depth. Per-sheet clipping
-           by all valleys, ridges, and the outline truncates each sheet naturally,
-           so the back opens out where the wing-junction allows and narrows toward
-           the inner corner — without one global cap collapsing the whole back. */
-        var depBack=dep;
-        for(var bs=0;bs<f.nSheets;bs++){
-          var bBL=[f.p0[0]+f.gnx*bs*sw+f.perpX*dep,     f.p0[1]+f.gny*bs*sw+f.perpY*dep];
-          var bBR=[f.p0[0]+f.gnx*(bs+1)*sw+f.perpX*dep,  f.p0[1]+f.gny*(bs+1)*sw+f.perpY*dep];
-          var bTL=[bBL[0]+f.perpX*depBack,               bBL[1]+f.perpY*depBack];
-          var bTR=[bBR[0]+f.perpX*depBack,               bBR[1]+f.perpY*depBack];
-          /* Skip sheets whose centre is outside the building outline — these would
-             be back-mirror columns past the inner corner that have no real face. */
-          var bcX=(bBL[0]+bBR[0]+bTL[0]+bTR[0])/4,bcY=(bBL[1]+bBR[1]+bTL[1]+bTR[1])/4;
-          if(!_ptInOl([bcX,bcY]))continue;
-          /* Skip if this back-mirror sheet's centre falls inside ANY end-face
-             triangle — that end face owns the area and draws its own strips
-             (perpendicular to its gutter). Drawing a vertical back-mirror sheet
-             on top of horizontal end-face strips makes the layout look like two
-             sheets are lapped to fill the same area. */
-          var _inEnd=faces.some(function(_ef){
-            if(!_ef.isEndFace||!_ef.apexPt)return false;
-            var _a=_ef.p0,_b=_ef.p1,_c=_ef.apexPt;
-            var _d1=(bcX-_c[0])*(_a[1]-_c[1])-(_a[0]-_c[0])*(bcY-_c[1]);
-            var _d2=(bcX-_a[0])*(_b[1]-_a[1])-(_b[0]-_a[0])*(bcY-_a[1]);
-            var _d3=(bcX-_b[0])*(_c[1]-_b[1])-(_c[0]-_b[0])*(bcY-_b[1]);
-            var _hn=(_d1<0)||(_d2<0)||(_d3<0);
-            var _hp=(_d1>0)||(_d2>0)||(_d3>0);
-            return!(_hn&&_hp);
-          });
-          if(_inEnd)continue;
-          var bPieces=clipToOutline([bBL,bBR,bTR,bTL].slice());
-          if(!bPieces.length)continue;
-          /* Same concave-outline filter as the front: keep the piece at this sheet's centre. */
-          bPieces=_keepPieceAtCenter(bPieces,bcX,bcY);
-
-          /* Clip by every ridge/valley/hip on the BACK SIDE of this face's ridge.
-             Treats lines as infinite, which over-clips when a short ridge segment
-             extends past the area it really bounds, but under-clipping would let
-             back-mirror sheets spill into the opposite wing's main face area —
-             over-clipping leaves a small gap which is the less damaging failure. */
-          DRAW.lines.forEach(function(vl){
-            if(vl.type!=='valley'&&vl.type!=='ridge'&&vl.type!=='hip')return;
-            var lmid=[(vl.pts[0][0]+vl.pts[1][0])/2,(vl.pts[0][1]+vl.pts[1][1])/2];
-            if(f.ridgeMid&&len2(lmid[0]-f.ridgeMid[0],lmid[1]-f.ridgeMid[1])<f.swImg)return;
-            if(f.ridgeMid){
-              var fwdProj=(lmid[0]-f.ridgeMid[0])*f.perpX+(lmid[1]-f.ridgeMid[1])*f.perpY;
-              if(fwdProj<=f.swImg*0.5)return;
-            }
-            bPieces=bPieces.map(function(p){
-              if(!p||p.length<3)return p;
-              return clipHipInside(p,vl,fAnchorBack);
-            }).filter(function(p){return p&&p.length>=3;});
-          });
-          if(!bPieces.length)continue;
-
-          var bLT=null,bLA=0;
-          bPieces.forEach(function(used){
-            if(!used||used.length<3||polyArea(used)<=minA*0.25)return;
-            drawPoly(used,f.col,'rgba(0,0,0,0.5)',1.5);
-            drawHatching(used);
-            var a=polyArea(used);
-            if(a>bLA){bLA=a;bLT=used;}
-          });
-          if(bLT){
-            lbl(bLT,(bs+1)+' ↻','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
-          }
-        }
-      }
-
-    } else {
-      /* ═══ END FACE (triangle): rendered as a PUZZLE PIECE with sheet
-         dividers, regardless of wedge type. Offcut allocation is a later
-         separate pass. */
-      /* End-face anchor: midway between gutter midpoint and apex — always inside the
-         end-face triangle, even when the building centroid is in another arm of the L. */
-      var fAnchor=[(f.p0[0]+f.p1[0])/2+f.perpX*dep*0.5,(f.p0[1]+f.p1[1])/2+f.perpY*dep*0.5];
-      for(var s=0;s<f.nSheets;s++){
-        var BL=[f.p0[0]+f.gnx*s*sw,     f.p0[1]+f.gny*s*sw];
-        var BR=[f.p0[0]+f.gnx*(s+1)*sw,  f.p0[1]+f.gny*(s+1)*sw];
-        var TL=[BL[0]+f.perpX*dep,       BL[1]+f.perpY*dep];
-        var TR=[BR[0]+f.perpX*dep,        BR[1]+f.perpY*dep];
-        var basePieces=clipToOutline([BL,BR,TR,TL].slice());
-        if(!basePieces.length)continue;
-        var scX=(BL[0]+BR[0]+TL[0]+TR[0])/4,scY=(BL[1]+BR[1]+TL[1]+TR[1])/4;
-        basePieces=_keepPieceAtCenter(basePieces,scX,scY);
-
-        /* Donor main face supplies the off-cut. SIMPLE GABLE (lAdj/rAdj share the
-           same ridge): left half ← lAdj, right half ← rAdj. CROSS-WING (different
-           ridges, e.g. L-shape combined end): left half ← rAdj, right half ← lAdj,
-           because each wing's hip-cut sheets rotate 180° about the apex into the
-           opposite half. */
-        var isLeftHalf=(s+0.5<=f.apexS);
-        var lDonor=f.crossWing?f.rAdj:f.lAdj;
-        var rDonor=f.crossWing?f.lAdj:f.rAdj;
-        var lDonorP0=f.crossWing?f.rAdjP0:f.lAdjP0;
-        var rDonorP0=f.crossWing?f.lAdjP0:f.rAdjP0;
-        var col,srcNum;
-        /* SIZE-MATCHED LABELING: each end-face strip is labeled with the donor
-           sheet whose CUT-OFF size matches this strip's size. Kept-sheet N (small)
-           + offcut N (large) must total ONE full-length sheet. The sheet closest
-           to the hip-touching corner of the donor is most heavily cut — its kept
-           portion is smallest, its cut-off is largest. That cut-off lands on the
-           LARGEST strip of the end face (near the apex). The sheet farthest from
-           the hip endpoint is barely cut — its small offcut lands on the smallest
-           strip (near the gutter). So strip s in the left half (where s=0 is the
-           smallest, near gutter) is labeled with sheet (K - s) where K is the
-           number of cut sheets in this hip's column. */
-        var K_left=Math.floor(f.apexS)+1;        /* count of strips in left half */
-        var K_right=f.nSheets-K_left;            /* count of strips in right half (fixed: complement of K_left) */
-        if(isLeftHalf){
-          col=lDonor?lDonor.col:f.col;
-          /* Strip s in left half: s=0 is at the gutter end of the end face
-             (LARGEST strip area). Pair it with the donor sheet whose offcut
-             is BIGGEST = the sheet most heavily cut by the hip = the donor
-             sheet farthest from the gutter corner / closest to the apex. */
-          srcNum=lDonorP0?(s+1):(lDonor?lDonor.nSheets-s:s+1);
-        } else {
-          col=rDonor?rDonor.col:f.col;
-          var s2=s-Math.floor(f.apexS);
-          /* Right half: s2=0 is near apex (smallest strip), s2=K_right-1 is
-             near p1 gutter (largest strip). Pair largest strip with biggest
-             offcut = smallest-numbered donor sheet (closest to apex). */
-          srcNum=rDonorP0?(K_right-s2):(rDonor?rDonor.nSheets-K_right+s2+1:s2+1);
-        }
-
-        var labelTarget=null,labelArea=0;
-        basePieces.forEach(function(used){
-          /* Clip by BOTH hips: keep only the part on the apex side (= end-face interior).
-             Use the face anchor (always inside the triangle) as the reference. */
-          if(f.lHip&&used.length>=3)used=clipHipInside(used,f.lHip,fAnchor);
-          if(f.rHip&&used.length>=3)used=clipHipInside(used,f.rHip,fAnchor);
-          /* WEDGE END FACE (L-shape wing junction): the wedge is a quadrilateral
-             bounded by lHip + rHip + a CONNECTOR line at the apex (the wing-
-             junction hip / valley / ridge spanning between lHip-far and rHip-far).
-             Without clipping by that connector the strips leak past the wedge
-             apex into the adjacent main face. Find any non-lHip/rHip line that
-             touches both lFar and rFar and clip by it too — that's the wedge's
-             far edge that hipsides can't see. The user calls this the "second
-             cut" — the offcut lands in the wedge and must itself be cut by the
-             wedge's far edge (valley/hip) to fit. */
-          if(used&&used.length>=3&&f.lHip&&f.rHip){
-            var _lFar=pNear(f.lHip.pts[0],f.p0)||pNear(f.lHip.pts[0],f.p1)?f.lHip.pts[1]:f.lHip.pts[0];
-            var _rFar=pNear(f.rHip.pts[0],f.p0)||pNear(f.rHip.pts[0],f.p1)?f.rHip.pts[1]:f.rHip.pts[0];
-            DRAW.lines.forEach(function(ln){
-              if(ln===f.lHip||ln===f.rHip||ln.type==='gutter')return;
-              if(ln.type!=='hip'&&ln.type!=='valley'&&ln.type!=='ridge')return;
-              var _t0=pNear(ln.pts[0],_lFar,15)&&pNear(ln.pts[1],_rFar,15);
-              var _t1=pNear(ln.pts[1],_lFar,15)&&pNear(ln.pts[0],_rFar,15);
-              if(!_t0&&!_t1)return;
-              if(used&&used.length>=3)used=clipHipInside(used,ln,fAnchor);
-            });
-          }
-          if(!used||used.length<3||polyArea(used)<minA*0.04)return;
-          /* End-face strips: lighter stroke so the zone reads as a single
-             colour blob rather than individual slices — matches the user's
-             drawing style. */
-          drawPoly(used,col,'rgba(0,0,0,0.15)',0.8);
-          /* No hatching in puzzle-first mode — every face renders as a
-             clean polygon. Offcut allocation is later. */
-          var a=polyArea(used);
-          if(a>labelArea){labelArea=a;labelTarget=used;}
-        });
-        if(labelTarget){
-          lbl(labelTarget,srcNum+' ↻','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
-        }
-      }
-      /* Sheet divider lines for end face */
-      for(var g=1;g<f.nSheets;g++){
-        var dB=[f.p0[0]+f.gnx*g*sw,f.p0[1]+f.gny*g*sw];
-        var dT=[dB[0]+f.perpX*dep,dB[1]+f.perpY*dep];
-        var cA=toC(dB),cB=toC(dT);
-        ctx.save();ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
-        ctx.beginPath();ctx.moveTo(cA[0],cA[1]);ctx.lineTo(cB[0],cB[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();
-      }
-    }
+    var poly=_facePolygon(f);
+    if(!poly)return;
+    var fillCol=f.col?f.col+'40':'#cccc';
+    drawPolyAt(poly,fillCol,f.col||'#888',1.8,null,toCP);
   });
-
-  /* Draw collected extensions LAST so other faces don't overdraw them. The
-     anchor for additional clipping is the offcut polygon's centroid biased
-     SHIFTED TOWARDS the cut line — this keeps the offcut adjacent to the cut
-     hip (in the natural matching-triangle area) rather than drifting into
-     the opposite face's main territory. */
-  _extensionDraws.forEach(function(ed){
-    /* Use the wedge-side anchor (cut-line midpoint shifted into wedge) if
-       supplied, else fall back to polygon centroid. */
-    var _epC=ed.anchor||centroid(ed.poly);
-    var _epClipped=ed.poly.slice();
-    /* Clip only by lines whose tangential range covers the offcut's bbox. */
-    var _bbXLo=Infinity,_bbXHi=-Infinity,_bbYLo=Infinity,_bbYHi=-Infinity;
-    ed.poly.forEach(function(p){
-      if(p[0]<_bbXLo)_bbXLo=p[0]; if(p[0]>_bbXHi)_bbXHi=p[0];
-      if(p[1]<_bbYLo)_bbYLo=p[1]; if(p[1]>_bbYHi)_bbYHi=p[1];
+  blocks.forEach(function(b){
+    var cx=0,cy=0,n=0;
+    b.mainFaces.concat(b.endFaces).forEach(function(f){
+      var poly=_facePolygon(f);
+      if(!poly)return;
+      var c=centroid(poly);cx+=c[0];cy+=c[1];n++;
     });
-    DRAW.lines.forEach(function(ln){
-      if(ln.type==='gutter')return;
-      if(ln.type!=='hip'&&ln.type!=='valley')return;
-      /* Only clip by lines that pass NEAR the offcut. Distance-from-line
-         check for both endpoints; skip lines that are entirely far away. */
-      var _far=true;
-      [ln.pts[0],ln.pts[1]].forEach(function(p){
-        if(p[0]>=_bbXLo-30&&p[0]<=_bbXHi+30&&p[1]>=_bbYLo-30&&p[1]<=_bbYHi+30)_far=false;
-      });
-      if(_far)return;
-      if(_epClipped.length>=3)_epClipped=clipHipInside(_epClipped,ln,_epC);
-    });
-    if(!_epClipped||_epClipped.length<3)return;
-    drawPoly(_epClipped,ed.col,'rgba(0,0,0,0.5)',1.5);
-    drawHatching(_epClipped);
-    lbl(_epClipped,ed.label,'rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(ed.sw)*0.4)),0.95);
+    if(!n)return;
+    cx/=n;cy/=n;
+    var cp=toCP([cx,cy]);
+    ctx.save();
+    ctx.font='bold 32px sans-serif';
+    ctx.fillStyle=b.col+'CC';
+    ctx.strokeStyle='rgba(255,255,255,0.95)';
+    ctx.lineWidth=3.5;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.strokeText(b.label,cp[0],cp[1]);
+    ctx.fillText(b.label,cp[0],cp[1]);
+    ctx.restore();
   });
-
-  /* ── Draw structural lines on top ── */
-  [{type:'ridge',c:'#b91c1c',w:4,d:[]},
-   {type:'valley',c:'#dc2626',w:3,d:[6,4]},
-   {type:'hip',c:'#1d4ed8',w:3,d:[]},
+  [{type:'ridge',c:'#b91c1c',w:3,d:[]},
+   {type:'valley',c:'#dc2626',w:2.5,d:[6,4]},
+   {type:'hip',c:'#1d4ed8',w:2.5,d:[]},
    {type:'gutter',c:'#5b21b6',w:2,d:[]}
   ].forEach(function(st){
     DRAW.lines.forEach(function(l){
       if(l.type!==st.type)return;
-      var c0=toC(l.pts[0]),c1=toC(l.pts[1]);
+      var c0=toCP(l.pts[0]),c1=toCP(l.pts[1]);
       ctx.save();ctx.strokeStyle=st.c;ctx.lineWidth=st.w;ctx.setLineDash(st.d);
       ctx.beginPath();ctx.moveTo(c0[0],c0[1]);ctx.lineTo(c1[0],c1[1]);ctx.stroke();ctx.setLineDash([]);ctx.restore();
     });
   });
-
-  /* Building outline */
-  ctx.save();ctx.strokeStyle='#5b21b6';ctx.lineWidth=3;ctx.beginPath();
-  DRAW.outline.forEach(function(p,i){var c=toC(p);if(i===0)ctx.moveTo(c[0],c[1]);else ctx.lineTo(c[0],c[1]);});
+  ctx.save();ctx.strokeStyle='#5b21b6';ctx.lineWidth=2;ctx.beginPath();
+  _ol.forEach(function(p,i){var c=toCP(p);if(i===0)ctx.moveTo(c[0],c[1]);else ctx.lineTo(c[0],c[1]);});
   ctx.closePath();ctx.stroke();ctx.restore();
-
-  /* Gutter length labels */
-  var hasRealSc=DRAW.scaleMetresPerPx>0;
   faces.forEach(function(f){
-    if(!hasRealSc||!f.gutterM)return;
-    var mc=toC([(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2]);
-    ctx.save();ctx.font='11px sans-serif';ctx.fillStyle='#5b21b6';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(f.gutterM.toFixed(2)+'m',mc[0]-f.perpX*22,mc[1]-f.perpY*22);
+    if(!hasRealScale||!f.gutterM)return;
+    var mc=toCP([(f.p0[0]+f.p1[0])/2,(f.p0[1]+f.p1[1])/2]);
+    ctx.save();ctx.font='10px sans-serif';ctx.fillStyle='#5b21b6';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(f.gutterM.toFixed(2)+'m',mc[0]+f.perpX*15,mc[1]+f.perpY*15);
     ctx.restore();
   });
 
-  /* SHEET COUNT SUMMARY: groups face sheet counts into "long arm" (faces
-     with hasDeeperRidge, plus their opposite plain face) and "short arm"
-     (everything else). Displays in top-left of canvas. */
-  var _longCount=0,_shortCount=0;
-  faces.forEach(function(f){
-    if(f.isEndFace)return;
-    if(f.hasDeeperRidge){
-      /* Top-gutter face on an L: split count between long-arm and short-arm. */
-      var _split=-1;
-      _ol.forEach(function(vert,vi){
-        var _pv=_ol[(vi-1+_ol.length)%_ol.length];
-        var _nv=_ol[(vi+1)%_ol.length];
-        var _crs=(vert[0]-_pv[0])*(_nv[1]-vert[1])-(vert[1]-_pv[1])*(_nv[0]-vert[0]);
-        if(_crs>=0)return;
-        var _tProj=(vert[0]-f.p0[0])*f.gnx+(vert[1]-f.p0[1])*f.gny;
-        if(_tProj>0&&_tProj<f.gL&&(_split<0||_tProj>_split))_split=_tProj;
-      });
-      var _shortStart=_split>0?Math.ceil(_split/f.swImg):f.nSheets;
-      _longCount+=_shortStart;
-      _shortCount+=(f.nSheets-_shortStart);
-    } else {
-      /* Plain face: long if gutter >= 10m, short otherwise. */
-      if(f.gutterM>=10)_longCount+=f.nSheets;
-      else _shortCount+=f.nSheets;
-    }
-  });
-  ctx.save();
-  ctx.font='bold 13px sans-serif';
-  ctx.fillStyle='rgba(255,255,255,0.92)';
-  ctx.strokeStyle='rgba(0,0,0,0.65)';
-  ctx.lineWidth=3;
-  ctx.textAlign='left';ctx.textBaseline='top';
-  var _summaryX=padX+8,_summaryY=padY+8;
-  var _lines=[
-    'SHEETS TO ORDER:',
-    _longCount+' LONG (@ 7650mm)',
-    _shortCount+' SHORT (@ 3900mm)'
-  ];
-  _lines.forEach(function(line,i){
-    var _y=_summaryY+i*18;
-    ctx.strokeText(line,_summaryX,_y);
-    ctx.fillStyle=(i===0)?'rgba(255,255,255,0.95)':(i===1?'#FFA040':'#9D6FE8');
-    ctx.fillText(line,_summaryX,_y);
-  });
-  ctx.restore();
+  /* Divider + heading */
+  ctx.save();ctx.strokeStyle='#cbd5e1';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(padX,planTopH+5);ctx.lineTo(W-padX,planTopH+5);ctx.stroke();
+  ctx.setLineDash([]);ctx.restore();
+  ctx.save();ctx.font='bold 11px sans-serif';ctx.fillStyle='#475569';ctx.textAlign='left';
+  ctx.fillText('CUT LAYOUT — one rectangle per block, sheets run gutter→ridge',padX,planTopH+18);ctx.restore();
 
-  /* Subtle F/C zone labels — small, semi-transparent, in zone centroid. */
-  faces.forEach(function(f){
-    var faceCenter=[(f.p0[0]+f.p1[0])/2+f.perpX*f.depImg*0.45,(f.p0[1]+f.p1[1])/2+f.perpY*f.depImg*0.45];
-    var cp=toC(faceCenter);
-    /* Wedges (wing-junction end faces) are filled with offcuts → C.
-       Other small-gutter end faces (free corners on the short arm) → F.
-       Long-gutter end faces → C. Main faces → F. */
-    var letter='F';
-    if(f.isEndFace){
-      if(f.isWedge)letter='C';
-      else if(f.gutterM>=5)letter='C';
-    }
+  /* ── DRAW CUT-LAYOUT PANEL (bottom) ─────────────────────────────────── */
+  var layoutInnerY=planTopH+30;
+  var captionH=42;
+  var maxRectH=Math.max(40,H-layoutInnerY-captionH-10);
+  var blockGapPx=24;
+  var totalWidthM=blocks.reduce(function(s,b){return s+b.widthM;},0);
+  var maxDepM=blocks.reduce(function(m,b){return Math.max(m,b.depM);},0)||1;
+  var availW=W-padX*2-blockGapPx*(blocks.length-1);
+  var rectScale=Math.min(availW/(totalWidthM||1),maxRectH/maxDepM);
+  if(!isFinite(rectScale)||rectScale<=0)rectScale=1;
+
+  var rectX=padX;
+  blocks.forEach(function(b){
+    var rectW=b.widthM*rectScale;
+    var rectH=b.depM*rectScale;
+    var rectY=layoutInnerY+(maxRectH-rectH);
+
+    /* Outer block rectangle: light fill + solid border in block colour */
     ctx.save();
-    ctx.font='bold 16px sans-serif';
-    ctx.fillStyle='rgba(255,255,255,0.6)';
-    ctx.strokeStyle='rgba(0,0,0,0.25)';
+    ctx.fillStyle=b.col+'1A';
+    ctx.strokeStyle=b.col;
     ctx.lineWidth=2;
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.strokeText(letter,cp[0],cp[1]);
-    ctx.fillText(letter,cp[0],cp[1]);
+    ctx.fillRect(rectX,rectY,rectW,rectH);
+    ctx.strokeRect(rectX,rectY,rectW,rectH);
     ctx.restore();
+
+    /* Vertical sheet column dividers */
+    var sheetCovPx=swM*rectScale;
+    ctx.save();
+    ctx.strokeStyle='rgba(0,0,0,0.18)';
+    ctx.lineWidth=0.8;
+    for(var si=1;si<b.nSheets;si++){
+      var x=rectX+si*sheetCovPx;
+      if(x>=rectX+rectW-0.5)break;
+      ctx.beginPath();ctx.moveTo(x,rectY);ctx.lineTo(x,rectY+rectH);ctx.stroke();
+    }
+    ctx.restore();
+
+    /* Hip-end corner folds: faded spun copy of the end-face triangle, drawn
+       as a right-isosceles triangle in the corner. Legs = endGutter/2 (the
+       symmetric case for equal pitches; the long-face's two corner sheets
+       supply this half each). Dashed line = the 45° hip cut. */
+    function _drawSpunEnd(ef,corner){
+      if(!ef)return;
+      var halfBasePx=ef.gutterM*0.5*rectScale;
+      var leg=Math.min(halfBasePx,rectH-2,rectW*0.5-2);
+      if(leg<3)return;
+      ctx.save();
+      if(corner==='TL'){
+        ctx.beginPath();
+        ctx.moveTo(rectX,rectY);
+        ctx.lineTo(rectX+leg,rectY);
+        ctx.lineTo(rectX,rectY+leg);
+        ctx.closePath();
+        ctx.fillStyle=b.col+'33';
+        ctx.fill();
+        ctx.strokeStyle=b.col;
+        ctx.lineWidth=1.2;
+        ctx.setLineDash([4,3]);
+        ctx.beginPath();
+        ctx.moveTo(rectX+leg,rectY);
+        ctx.lineTo(rectX,rectY+leg);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font='9px sans-serif';
+        ctx.fillStyle=b.col;
+        ctx.textAlign='left';ctx.textBaseline='top';
+        ctx.fillText('end ('+ef.gutterM.toFixed(1)+'m)',rectX+3,rectY+Math.min(leg,16)+2);
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(rectX+rectW,rectY);
+        ctx.lineTo(rectX+rectW-leg,rectY);
+        ctx.lineTo(rectX+rectW,rectY+leg);
+        ctx.closePath();
+        ctx.fillStyle=b.col+'33';
+        ctx.fill();
+        ctx.strokeStyle=b.col;
+        ctx.lineWidth=1.2;
+        ctx.setLineDash([4,3]);
+        ctx.beginPath();
+        ctx.moveTo(rectX+rectW-leg,rectY);
+        ctx.lineTo(rectX+rectW,rectY+leg);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font='9px sans-serif';
+        ctx.fillStyle=b.col;
+        ctx.textAlign='right';ctx.textBaseline='top';
+        ctx.fillText('end ('+ef.gutterM.toFixed(1)+'m)',rectX+rectW-3,rectY+Math.min(leg,16)+2);
+      }
+      ctx.restore();
+    }
+    _drawSpunEnd(b.lEnd,'TL');
+    _drawSpunEnd(b.rEnd,'TR');
+
+    /* Sheet numbers along top */
+    ctx.save();
+    ctx.font='9px sans-serif';
+    ctx.fillStyle='#475569';
+    ctx.textAlign='center';
+    ctx.textBaseline='bottom';
+    for(var si2=0;si2<b.nSheets;si2++){
+      var sx=rectX+(si2+0.5)*sheetCovPx;
+      if(sx>rectX+rectW-2)sx=rectX+rectW-2;
+      ctx.fillText(String(si2+1),sx,rectY-2);
+    }
+    ctx.restore();
+
+    /* Big block letter in centre */
+    ctx.save();
+    ctx.font='bold 36px sans-serif';
+    ctx.fillStyle=b.col+'33';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(b.label,rectX+rectW/2,rectY+rectH/2);
+    ctx.restore();
+
+    /* Caption */
+    ctx.save();
+    ctx.font='bold 12px sans-serif';
+    ctx.fillStyle=b.col;
+    ctx.textAlign='left';
+    ctx.fillText('BLOCK '+b.label,rectX,rectY+rectH+14);
+    ctx.font='10px sans-serif';
+    ctx.fillStyle='#475569';
+    var cap=b.nSheets+' × '+b.sheetLenMm+'mm';
+    if(b.lastSheetCoverMm<sheetWidthMm-5){
+      cap+='  (last rip '+b.lastSheetCoverMm+'mm)';
+    }
+    ctx.fillText(cap,rectX,rectY+rectH+28);
+    ctx.restore();
+
+    rectX+=rectW+blockGapPx;
   });
 
-  /* ── Legend ── */
-  var mainFaces=faces.filter(function(f){return !f.isEndFace;});
-  var endFaces=faces.filter(function(f){return f.isEndFace;});
-  /* Count what to ORDER: half-sheet increments on each main face, doubled when the
-     face also drives a back-mirror (front + back take identical sheet sets). */
-  var totHalf=mainFaces.reduce(function(s,f){
-    var mult=f.hasBackMirror?2:1;
-    return s+(f.sheetsHalf||f.nSheets)*mult;
-  },0);
-  var totWhole=Math.ceil(totHalf);
-  var calNote=hasRealSc?'':' <em style="color:#d97706;font-size:10px">(calibrate scale for real measurements)</em>';
+  /* ── HTML legend ─────────────────────────────────────────────────────── */
+  var totalSheets=blocks.reduce(function(s,b){return s+b.nSheets;},0);
   var legHtml='<div style="margin-top:14px">';
-  legHtml+='<div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;margin-bottom:10px">';
-  legHtml+='<span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9632; Solid = full sheet installed</span>';
-  legHtml+='<span style="background:#f1f5f9;border-radius:4px;padding:3px 8px">&#9135; Hatched ↻ = off-cut reused (number = source sheet # &middot; same colour as donor face)</span>';
-  legHtml+='</div>';
-  legHtml+='<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b">';
-  legHtml+='<strong>NZ roofing rule:</strong> Every sheet runs gutter→ridge so the corrugations carry water downhill. The 45° hip cut produces a right-triangle off-cut. Colorsteel can\'t be <em>flipped</em> (painted side must stay up), but any in-plane <em>rotation</em> (90°/180°/270°) is fine. Off-cuts travel along the 45° hip line into the matching triangle in the adjacent end/hip face — same colour + same sheet number marks the pair. A wing whose back is bounded by a valley (L/T/U shapes) doubles its long-face order: front and back share identical sheet sets, with the wing-junction valley trimming the back at the inner corner.';
+  legHtml+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:12px;margin-bottom:12px">';
+  legHtml+='<strong>Block-cutting method.</strong> Each block is cut from one rectangle of full-length sheets running gutter→ridge. Hip-end triangles fold into the rectangle\'s corners (dashed 45° cut), so corner-sheet offcuts become the hip-end pieces — no separate short sheets needed.';
   legHtml+='</div>';
   legHtml+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
-  mainFaces.forEach(function(f){
-    var cutLen=hasRealSc&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';
-    var mult=f.hasBackMirror?2:1;
-    var sH=(f.sheetsHalf||f.nSheets)*mult;
-    var sHTxt=(sH%1===0)?String(sH):sH.toFixed(1);
-    var mirrorTag=f.hasBackMirror?'<span style="font-size:10px;color:#0e7490;font-weight:600;margin-left:4px">(×2 back)</span>':'';
-    legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa">';
-    legHtml+='<div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealSc&&f.gutterM>0?f.gutterM.toFixed(2)+'m gutter':'Face')+mirrorTag+'</div>';
-    legHtml+='<div style="font-size:20px;font-weight:700;color:#7c3aed">'+sHTxt+'</div>';
-    legHtml+='<div style="font-size:10px;color:#6b7280">sheets'+(cutLen!=='—'?' @ '+cutLen+' long':'')+'</div>';
+  blocks.forEach(function(b){
+    var cutLenTxt=hasRealScale?b.sheetLenMm+'mm':'—';
+    legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+b.col+';border-radius:8px;padding:10px 14px;min-width:160px;background:#fafafa">';
+    legHtml+='<div style="font-weight:700;font-size:11px;margin-bottom:2px">BLOCK '+b.label+'</div>';
+    legHtml+='<div style="font-size:22px;font-weight:700;color:'+b.col+'">'+b.nSheets+'</div>';
+    legHtml+='<div style="font-size:10px;color:#6b7280">sheets @ '+cutLenTxt+' long</div>';
+    if(b.lastSheetCoverMm<sheetWidthMm-5){
+      legHtml+='<div style="font-size:10px;color:#6b7280;margin-top:2px">last sheet ripped to '+b.lastSheetCoverMm+'mm wide</div>';
+    }
+    var endNames=[];
+    if(b.lEnd)endNames.push('L: '+b.lEnd.gutterM.toFixed(1)+'m');
+    if(b.rEnd)endNames.push('R: '+b.rEnd.gutterM.toFixed(1)+'m');
+    if(endNames.length){
+      legHtml+='<div style="font-size:10px;color:#6b7280;margin-top:2px">hip ends → '+endNames.join(', ')+'</div>';
+    }
     legHtml+='</div>';
   });
-  if(endFaces.length){
-    legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid #888;border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa">';
-    legHtml+='<div style="font-weight:700;font-size:11px;margin-bottom:2px">End faces ('+endFaces.length+')</div>';
-    legHtml+='<div style="font-size:11px;color:#6b7280">Filled with off-cuts from adjacent faces</div>';
-    legHtml+='</div>';
-  }
   legHtml+='</div>';
-  legHtml+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:13px">';
-  var totHalfTxt=(totHalf%1===0)?String(totHalf):totHalf.toFixed(1);
-  legHtml+='<strong>Order: '+totWhole+' full-length sheets</strong> <span style="color:#64748b;font-size:12px">('+totHalfTxt+' actually used; the half-sheet rip serves the last column)</span>'+calNote;
-  legHtml+='<br><span style="font-size:11px;color:#64748b">Off-cuts trace the 45° hip into the matching end-face triangle (in-plane rotation OK, no flip) — order by gutter lengths only</span>';
+  var calNote=hasRealScale?'':' <em style="color:#d97706;font-size:10px">(calibrate scale for real measurements)</em>';
+  legHtml+='<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:12px 16px;font-size:13px">';
+  legHtml+='<strong>Order: '+totalSheets+' sheets</strong>';
+  if(blocks.length>1){
+    var parts=blocks.map(function(b){return b.nSheets+' @ '+b.sheetLenMm+'mm';});
+    legHtml+=' &middot; <span style="color:#475569">'+parts.join(' + ')+'</span>';
+  } else {
+    legHtml+=' @ '+blocks[0].sheetLenMm+'mm long';
+  }
+  legHtml+=calNote;
   legHtml+='</div></div>';
 
   outEl.innerHTML='';outEl.appendChild(cv);
