@@ -5269,16 +5269,23 @@ function renderRoofSheetPlan() {
     ctx.closePath();ctx.clip();
     var mnX=Infinity,mxX=-Infinity,mnY=Infinity,mxY=-Infinity;
     cPts.forEach(function(p){mnX=Math.min(mnX,p[0]);mxX=Math.max(mxX,p[0]);mnY=Math.min(mnY,p[1]);mxY=Math.max(mxY,p[1]);});
-    ctx.strokeStyle='rgba(0,0,0,0.28)';ctx.lineWidth=1.3;
-    var sp=8,span=mxX-mnX+mxY-mnY+20;
+    /* iter57: more prominent hatching to match user's reference drawing
+       style (clearly visible diagonal lines on off-cut sheets). */
+    ctx.strokeStyle='rgba(0,0,0,0.45)';ctx.lineWidth=1.6;
+    var sp=6,span=mxX-mnX+mxY-mnY+20;
     for(var t=-span;t<span;t+=sp){ctx.beginPath();ctx.moveTo(mnX+t,mnY-5);ctx.lineTo(mnX+t+(mxY-mnY+10),mxY+5);ctx.stroke();}
     ctx.restore();
   }
   function lbl(pts,text,col,sz,alpha){
     if(!pts||pts.length<3)return;
     var c=centroid(pts),cp=toC(c);
+    /* iter59: white halo behind the label text for readability over
+       coloured/hatched backgrounds. */
     ctx.save();ctx.globalAlpha=alpha||1;ctx.font='bold '+(sz||11)+'px sans-serif';
-    ctx.fillStyle=col||'#000';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.lineJoin='round';ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,0.85)';
+    ctx.strokeText(text,cp[0],cp[1]);
+    ctx.fillStyle=col||'#000';
     ctx.fillText(text,cp[0],cp[1]);ctx.restore();
   }
 
@@ -5441,8 +5448,37 @@ function renderRoofSheetPlan() {
     return;
   }
 
-  var COLS=['#E8741A','#1B8AC9','#22c55e','#a855f7','#f59e0b','#06b6d4'];
-  faces.forEach(function(f,i){f.col=COLS[i%COLS.length];});
+  /* iter50: Assign colors by SEMANTIC FACE ROLE, not by sort-order index.
+     ORANGE = longest main face (long-arm top).
+     BLUE   = the main face whose perpendicular is ANTI-PARALLEL to orange's
+              (i.e. the "back" of the long arm — long-arm-bottom face).
+     PURPLE = any other main face (short arms, notch faces, etc.)
+     Per user iter50: bottom-arm sheets must be BLUE because they're the
+     long-arm-bottom face, not a separate short arm. */
+  var COL_ORANGE='#E8741A',COL_BLUE='#1B8AC9',COL_PURPLE='#a855f7',COL_END='#22c55e';
+  var _orangeFace=null;
+  faces.forEach(function(f){
+    if(f.isEndFace)return;
+    if(!_orangeFace||f.gutterM>_orangeFace.gutterM)_orangeFace=f;
+  });
+  /* BLUE = the LONGEST face anti-parallel to orange (long-arm-bottom).
+     Other anti-parallel faces (e.g. inner-step short-arm) stay PURPLE. */
+  var _blueFace=null;
+  if(_orangeFace){
+    faces.forEach(function(f){
+      if(f.isEndFace||f===_orangeFace)return;
+      var _pdot=f.perpX*_orangeFace.perpX+f.perpY*_orangeFace.perpY;
+      if(_pdot<-0.5){
+        if(!_blueFace||f.gutterM>_blueFace.gutterM)_blueFace=f;
+      }
+    });
+  }
+  faces.forEach(function(f){
+    if(f.isEndFace){f.col=COL_END;return;}
+    if(f===_orangeFace){f.col=COL_ORANGE;return;}
+    if(f===_blueFace){f.col=COL_BLUE;return;}
+    f.col=COL_PURPLE;
+  });
 
   /* Link each end-face half to the adjacent main face that supplies its off-cuts.
      PLACEMENT RULE: a hip off-cut keeps its source sheet's painted side up. Any
@@ -5513,24 +5549,22 @@ function renderRoofSheetPlan() {
           ef.rAdjP0=len2(ef.p1[0]-_blueFace.p0[0],ef.p1[1]-_blueFace.p0[1])<len2(ef.p1[0]-_blueFace.p1[0],ef.p1[1]-_blueFace.p1[1]);
         }
       }
-      /* WING-JUNCTION WEDGE override (iter47):
-         lAdj stays NATURAL (inner-top-gutter face, purple) so wedge UPPER
-         (left half, closest to valley) gets purple offcuts labelled 1, 2
-         per user's SOP. Force lAdjP0=true so the labels start from 1 (the
-         valley-end sheets, not the far-end sheets).
-         rAdj overrides to long-arm top face (orange) so wedge LOWER gets
-         orange offcuts continuing the long-arm pattern. */
+      /* WING-JUNCTION WEDGE override (iter52):
+         Per user iter51 feedback "purple offcuts should be orange full sheets
+         which orange offcuts filling in the split hip" — the wedge is filled
+         with orange offcuts (long-arm-top continuation). Both wedge donors
+         become the orange long-arm-top face. */
       if(_perpDot>0.5){
-        var longFace=null;
+        var orangeFace=null;
         faces.forEach(function(mf){
-          if(mf.isEndFace||!mf.hasDeeperRidge)return;
-          if(!longFace||mf.gutterM>longFace.gutterM)longFace=mf;
+          if(mf.isEndFace)return;
+          if(!orangeFace||mf.gutterM>orangeFace.gutterM)orangeFace=mf;
         });
-        if(longFace){
-          ef.rAdj=longFace;
-          ef.rAdjP0=len2(ef.p1[0]-longFace.p0[0],ef.p1[1]-longFace.p0[1])<len2(ef.p1[0]-longFace.p1[0],ef.p1[1]-longFace.p1[1]);
-          /* Force lAdj label numbering from 1 (valley side = sheet 1, 2). */
-          ef.lAdjP0=true;
+        if(orangeFace){
+          ef.lAdj=orangeFace;
+          ef.rAdj=orangeFace;
+          ef.lAdjP0=len2(ef.p0[0]-orangeFace.p0[0],ef.p0[1]-orangeFace.p0[1])<len2(ef.p0[0]-orangeFace.p1[0],ef.p0[1]-orangeFace.p1[1]);
+          ef.rAdjP0=len2(ef.p1[0]-orangeFace.p0[0],ef.p1[1]-orangeFace.p0[1])<len2(ef.p1[0]-orangeFace.p1[0],ef.p1[1]-orangeFace.p1[1]);
         }
       }
     }
@@ -5659,16 +5693,18 @@ function renderRoofSheetPlan() {
             used=clipHipInside(used,f.rHip,fAnchor);
           }
           if(!used||used.length<3||polyArea(used)<=minA*0.25)return;
-          /* MIXED-DEPTH FACE COLOURING: short sheets get purple, long get
-             face colour. */
+          /* MIXED-DEPTH FACE COLOURING: only apply purple short-sheet
+             override on the LONG-ARM-TOP face (orange). The long-arm-bottom
+             (blue) face keeps blue throughout — its sheets aren't split into
+             a "short arm" zone in user's SOP. iter50. */
           var _drawCol=f.col;
-          if(f.hasDeeperRidge){
+          if(f.hasDeeperRidge&&f.col===COL_ORANGE){
             var _sheetDepImg=0;
             used.forEach(function(pt){
               var d=(pt[0]-f.p0[0])*f.perpX+(pt[1]-f.p0[1])*f.perpY;
               if(d>_sheetDepImg)_sheetDepImg=d;
             });
-            if(_sheetDepImg<=f.depImg*1.3)_drawCol='#a855f7';
+            if(_sheetDepImg<=f.depImg*1.3)_drawCol=COL_PURPLE;
           }
           /* OFFCUT-SOURCED COLOURING: a sheet whose kept area is small (cut
              by lHip/rHip into a triangle <50% of full area) is filled in
@@ -5713,12 +5749,14 @@ function renderRoofSheetPlan() {
               var _crs=(vert[0]-_pv[0])*(_nv[1]-vert[1])-(vert[1]-_pv[1])*(_nv[0]-vert[0]);
               if(_crs>=0)return; /* reflex vertex in CCW outline has cross<0 */
               var _tProj=(vert[0]-f.p0[0])*f.gnx+(vert[1]-f.p0[1])*f.gny;
-              if(_tProj>0&&_tProj<f.gL&&(_splitPoint<0||_tProj>_splitPoint))_splitPoint=_tProj;
+              /* iter55: was buggy — undeclared `_split` made condition never fire. */
+              if(_tProj>0&&_tProj<f.gL&&_tProj>_splitPoint)_splitPoint=_tProj;
             });
             if(_splitPoint>0){
-              /* Round split UP to the next sheet boundary so the long-arm
-                 portion includes the partial sheet at the split point. */
-              var _shortArmStart=Math.ceil(_splitPoint/sw);
+              /* iter56: floor (not ceil) so the boundary sheet straddling
+                 the reflex gets renumbered with the short-arm group —
+                 matches its purple-recoloring by the mixed-depth override. */
+              var _shortArmStart=Math.floor(_splitPoint/sw);
               if(s>=_shortArmStart){
                 _displaySheetN=s-_shortArmStart+1;
               }
@@ -5901,12 +5939,11 @@ function renderRoofSheetPlan() {
             });
           }
           if(!used||used.length<3||polyArea(used)<minA*0.04)return;
-          /* End-face strips: lighter stroke so the zone reads as a single
-             colour blob rather than individual slices — matches the user's
-             drawing style. */
-          drawPoly(used,col,'rgba(0,0,0,0.15)',0.8);
-          /* No hatching in puzzle-first mode — every face renders as a
-             clean polygon. Offcut allocation is later. */
+          /* End-face strips: matches the user's drawing style with a
+             lighter stroke + DIAGONAL HATCHING (iter58) marking them as
+             off-cuts from adjacent full-length sheets. */
+          drawPoly(used,col,'rgba(0,0,0,0.25)',1);
+          drawHatching(used);
           var a=polyArea(used);
           if(a>labelArea){labelArea=a;labelTarget=used;}
         });
@@ -5988,14 +6025,14 @@ function renderRoofSheetPlan() {
     ctx.restore();
   });
 
-  /* SHEET COUNT SUMMARY: groups face sheet counts into "long arm" (faces
-     with hasDeeperRidge, plus their opposite plain face) and "short arm"
-     (everything else). Displays in top-left of canvas. */
-  var _longCount=0,_shortCount=0;
+  /* SHEET COUNT SUMMARY: split long sheets by face colour role —
+     orange long sheets (long-arm-top) and blue long sheets (long-arm-bottom)
+     are counted separately to match the user's legend (=N LONG per color).
+     Short sheets come from purple short-arm faces. iter53. */
+  var _orangeLong=0,_blueLong=0,_shortCount=0;
   faces.forEach(function(f){
     if(f.isEndFace)return;
-    if(f.hasDeeperRidge){
-      /* Top-gutter face on an L: split count between long-arm and short-arm. */
+    if(f.col===COL_ORANGE&&f.hasDeeperRidge){
       var _split=-1;
       _ol.forEach(function(vert,vi){
         var _pv=_ol[(vi-1+_ol.length)%_ol.length];
@@ -6005,32 +6042,39 @@ function renderRoofSheetPlan() {
         var _tProj=(vert[0]-f.p0[0])*f.gnx+(vert[1]-f.p0[1])*f.gny;
         if(_tProj>0&&_tProj<f.gL&&(_split<0||_tProj>_split))_split=_tProj;
       });
-      var _shortStart=_split>0?Math.ceil(_split/f.swImg):f.nSheets;
-      _longCount+=_shortStart;
+      var _shortStart=_split>0?Math.floor(_split/f.swImg):f.nSheets;
+      _orangeLong+=_shortStart;
       _shortCount+=(f.nSheets-_shortStart);
+    } else if(f.col===COL_ORANGE){
+      _orangeLong+=f.nSheets;
+    } else if(f.col===COL_BLUE){
+      _blueLong+=f.nSheets;
     } else {
-      /* Plain face: long if gutter >= 10m, short otherwise. */
-      if(f.gutterM>=10)_longCount+=f.nSheets;
-      else _shortCount+=f.nSheets;
+      _shortCount+=f.nSheets;
     }
   });
+  /* iter54: opaque summary text with white background panel for readability. */
   ctx.save();
   ctx.font='bold 13px sans-serif';
-  ctx.fillStyle='rgba(255,255,255,0.92)';
-  ctx.strokeStyle='rgba(0,0,0,0.65)';
-  ctx.lineWidth=3;
   ctx.textAlign='left';ctx.textBaseline='top';
   var _summaryX=padX+8,_summaryY=padY+8;
   var _lines=[
-    'SHEETS TO ORDER:',
-    _longCount+' LONG (@ 7650mm)',
-    _shortCount+' SHORT (@ 3900mm)'
+    {t:'SHEETS TO ORDER:',c:'#0a1628'},
+    {t:_shortCount+' SHORT (@ 3900mm)',c:COL_PURPLE},
+    {t:_orangeLong+' LONG (@ 7650mm)',c:COL_ORANGE},
+    {t:_blueLong+' LONG (@ 7650mm)',c:COL_BLUE}
   ];
+  var _maxW=0;
+  _lines.forEach(function(line){var w=ctx.measureText(line.t).width;if(w>_maxW)_maxW=w;});
+  ctx.fillStyle='rgba(255,255,255,0.95)';
+  ctx.fillRect(_summaryX-6,_summaryY-4,_maxW+12,_lines.length*18+6);
+  ctx.strokeStyle='rgba(0,0,0,0.25)';
+  ctx.lineWidth=1;
+  ctx.strokeRect(_summaryX-6,_summaryY-4,_maxW+12,_lines.length*18+6);
   _lines.forEach(function(line,i){
     var _y=_summaryY+i*18;
-    ctx.strokeText(line,_summaryX,_y);
-    ctx.fillStyle=(i===0)?'rgba(255,255,255,0.95)':(i===1?'#FFA040':'#9D6FE8');
-    ctx.fillText(line,_summaryX,_y);
+    ctx.fillStyle=line.c;
+    ctx.fillText(line.t,_summaryX,_y);
   });
   ctx.restore();
 
