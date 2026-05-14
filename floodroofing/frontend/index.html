@@ -5513,11 +5513,13 @@ function renderRoofSheetPlan() {
           ef.rAdjP0=len2(ef.p1[0]-_blueFace.p0[0],ef.p1[1]-_blueFace.p0[1])<len2(ef.p1[0]-_blueFace.p1[0],ef.p1[1]-_blueFace.p1[1]);
         }
       }
-      /* WING-JUNCTION WEDGE override (iter45 revert):
-         Both donors set to top-gutter (long-arm orange) — the wedge is the
-         orange's "matching triangle" destination after spinning offcuts.
-         Per user iter44 feedback the 8v/9v wedge sheets are ORANGE not
-         PURPLE. */
+      /* WING-JUNCTION WEDGE override (iter47):
+         lAdj stays NATURAL (inner-top-gutter face, purple) so wedge UPPER
+         (left half, closest to valley) gets purple offcuts labelled 1, 2
+         per user's SOP. Force lAdjP0=true so the labels start from 1 (the
+         valley-end sheets, not the far-end sheets).
+         rAdj overrides to long-arm top face (orange) so wedge LOWER gets
+         orange offcuts continuing the long-arm pattern. */
       if(_perpDot>0.5){
         var longFace=null;
         faces.forEach(function(mf){
@@ -5525,9 +5527,10 @@ function renderRoofSheetPlan() {
           if(!longFace||mf.gutterM>longFace.gutterM)longFace=mf;
         });
         if(longFace){
-          ef.lAdj=longFace;ef.rAdj=longFace;
-          ef.lAdjP0=len2(ef.p0[0]-longFace.p0[0],ef.p0[1]-longFace.p0[1])<len2(ef.p0[0]-longFace.p1[0],ef.p0[1]-longFace.p1[1]);
+          ef.rAdj=longFace;
           ef.rAdjP0=len2(ef.p1[0]-longFace.p0[0],ef.p1[1]-longFace.p0[1])<len2(ef.p1[0]-longFace.p1[0],ef.p1[1]-longFace.p1[1]);
+          /* Force lAdj label numbering from 1 (valley side = sheet 1, 2). */
+          ef.lAdjP0=true;
         }
       }
     }
