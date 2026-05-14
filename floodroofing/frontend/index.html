@@ -5615,6 +5615,23 @@ function renderRoofSheetPlan() {
             var t0=dot(line.pts[0][0]-f.p0[0],line.pts[0][1]-f.p0[1],f.gnx,f.gny);
             var t1=dot(line.pts[1][0]-f.p0[0],line.pts[1][1]-f.p0[1],f.gnx,f.gny);
             var tLow=Math.min(t0,t1),tHigh=Math.max(t0,t1);
+            /* iter46: if a parallel ridge crosses a reflex-vertex projection
+               on the gutter, the ridge belongs to ONLY the short-arm side of
+               the reflex. The long-arm-side sheets shouldn't get clipped by
+               this ridge — they should extend deeper. Restrict tLow to be
+               at or past the reflex projection. */
+            if(f.hasDeeperRidge){
+              var _rfxT=-1;
+              _ol.forEach(function(vert,vi){
+                var _pv=_ol[(vi-1+_ol.length)%_ol.length];
+                var _nv=_ol[(vi+1)%_ol.length];
+                var _crs=(vert[0]-_pv[0])*(_nv[1]-vert[1])-(vert[1]-_pv[1])*(_nv[0]-vert[0]);
+                if(_crs>=0)return;
+                var _tP=(vert[0]-f.p0[0])*f.gnx+(vert[1]-f.p0[1])*f.gny;
+                if(_tP>0&&_tP<f.gL&&(_rfxT<0||_tP>_rfxT))_rfxT=_tP;
+              });
+              if(_rfxT>0&&tLow<_rfxT&&tHigh>_rfxT)tLow=_rfxT;
+            }
             if(tHigh<sheetTLow-1||tLow>sheetTHigh+1)return;
             if(p&&p.length>=3)p=clipHipInside(p,line,fAnchor);
           });
