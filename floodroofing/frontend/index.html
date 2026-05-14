@@ -5487,10 +5487,11 @@ function renderRoofSheetPlan() {
     ef.isWedge=false;
     if(ef.lAdj&&ef.rAdj){
       var _perpDot=ef.lAdj.perpX*ef.rAdj.perpX+ef.lAdj.perpY*ef.rAdj.perpY;
-      /* crossWing disabled — empirically the natural lAdj/rAdj adjacency
-         produces the SOP-correct colours for an L-shape's right-end face
-         (blue bottom from bottom-gutter, orange top from top-gutter). */
-      ef.crossWing=false;
+      /* Per user iter41+ feedback: end-face top half should be BLUE (long-
+         arm-bottom continuation, sheets continuing past the right-end hip).
+         Bottom half should be ORANGE. This is the SPIN-180 swap — enabled
+         when adjacent main faces point opposite ways (perpDot<-0.5). */
+      ef.crossWing=_perpDot<-0.5;
       ef.isWedge=_perpDot>0.5;
       /* SMALL-ARM end face: one whose adjacent faces include a short non-
          mixed face (rAdj or lAdj with gutterM < 10m and no deeper ridge).
@@ -5661,57 +5662,12 @@ function renderRoofSheetPlan() {
              real life by an OFFCUT from the OPPOSITE LONG face — not by a
              dedicated full sheet. Colour it with that opposite face's colour
              so the visual matches where the material actually comes from. */
-          /* SOURCE-COLOURING: a sheet whose column tangentially overlaps
-             f.lHip when lHip touches a WING-JUNCTION (its far-endpoint has
-             another hip meeting it) gets the OPPOSITE long-face's colour.
-             Per SOP: the cut at the wing-junction means the small kept
-             triangle is filled by an offcut from the opposite face, so the
-             rendering should show that face's colour at this position. */
-          (function(){
-            if(!f.lHip)return;
-            var _lFar=pNear(f.lHip.pts[0],f.p0)||pNear(f.lHip.pts[0],f.p1)?f.lHip.pts[1]:f.lHip.pts[0];
-            /* Is this a TRUE wing-junction? lFar must be connected to another
-               hip whose OTHER end touches a DIFFERENT ridge from any ridge
-               touching lFar. A simple hipped end has all connecting lines
-               terminating at outline corners or the same ridge. */
-            var _ridgesAtLFar=[];
-            DRAW.lines.forEach(function(r){
-              if(r.type!=='ridge')return;
-              if(pNear(r.pts[0],_lFar,8)||pNear(r.pts[1],_lFar,8))_ridgesAtLFar.push(r);
-            });
-            var _isWingJunc=false;
-            DRAW.lines.forEach(function(ln){
-              if(ln===f.lHip||ln.type!=='hip')return;
-              var _connectsLFar=pNear(ln.pts[0],_lFar,8)||pNear(ln.pts[1],_lFar,8);
-              if(!_connectsLFar)return;
-              var _otherEnd=pNear(ln.pts[0],_lFar,8)?ln.pts[1]:ln.pts[0];
-              /* Check if otherEnd touches a ridge NOT in _ridgesAtLFar. */
-              DRAW.lines.forEach(function(r){
-                if(r.type!=='ridge')return;
-                if(_ridgesAtLFar.indexOf(r)>=0)return;
-                if(pNear(r.pts[0],_otherEnd,8)||pNear(r.pts[1],_otherEnd,8))_isWingJunc=true;
-              });
-            });
-            if(!_isWingJunc)return;
-            var _t0=dot(f.lHip.pts[0][0]-f.p0[0],f.lHip.pts[0][1]-f.p0[1],f.gnx,f.gny);
-            var _t1=dot(f.lHip.pts[1][0]-f.p0[0],f.lHip.pts[1][1]-f.p0[1],f.gnx,f.gny);
-            var _tLo=Math.min(_t0,_t1),_tHi=Math.max(_t0,_t1);
-            if(sheetTHigh<=_tLo||sheetTLow>=_tHi)return;
-            var _oppositeFace=null;
-            faces.forEach(function(of){
-              if(of===f||of.isEndFace)return;
-              if(!_oppositeFace||of.gutterM>_oppositeFace.gutterM)_oppositeFace=of;
-            });
-            if(_oppositeFace)_drawCol=_oppositeFace.col;
-          })();
+          /* Source-coloring disabled (iter41 revert). Per user feedback:
+             cut sheets stay in their FACE COLOR — a small blue triangle on
+             the lower-wing top-left is still a BLUE full-length sheet (just
+             cut short by the wing-junction hip), not an orange offcut. */
           drawPoly(used,_drawCol,'rgba(0,0,0,0.75)',2.2);
-          /* Offcut indicator: if the draw colour differs from the face's
-             primary colour (i.e. source-coloured sheet from opposite face),
-             add light hatching to visually distinguish it as an offcut
-             zone matching the donor face. */
-          if(_drawCol!==f.col&&_drawCol!=='#a855f7'){
-            drawHatching(used);
-          }
+          /* No source-color hatching in iter41+. */
           if((f.lHip||f.rHip)&&used.length<full.length)didCut=true;
           var a=polyArea(used);
           if(a>labelArea){labelArea=a;labelTarget=used;}
