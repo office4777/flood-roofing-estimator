@@ -5975,6 +5975,52 @@ function renderRoofSheetPlan() {
     ctx.restore();
   });
 
+  /* SHEET COUNT SUMMARY: groups face sheet counts into "long arm" (faces
+     with hasDeeperRidge, plus their opposite plain face) and "short arm"
+     (everything else). Displays in top-left of canvas. */
+  var _longCount=0,_shortCount=0;
+  faces.forEach(function(f){
+    if(f.isEndFace)return;
+    if(f.hasDeeperRidge){
+      /* Top-gutter face on an L: split count between long-arm and short-arm. */
+      var _split=-1;
+      _ol.forEach(function(vert,vi){
+        var _pv=_ol[(vi-1+_ol.length)%_ol.length];
+        var _nv=_ol[(vi+1)%_ol.length];
+        var _crs=(vert[0]-_pv[0])*(_nv[1]-vert[1])-(vert[1]-_pv[1])*(_nv[0]-vert[0]);
+        if(_crs>=0)return;
+        var _tProj=(vert[0]-f.p0[0])*f.gnx+(vert[1]-f.p0[1])*f.gny;
+        if(_tProj>0&&_tProj<f.gL&&(_split<0||_tProj>_split))_split=_tProj;
+      });
+      var _shortStart=_split>0?Math.ceil(_split/f.swImg):f.nSheets;
+      _longCount+=_shortStart;
+      _shortCount+=(f.nSheets-_shortStart);
+    } else {
+      /* Plain face: long if gutter >= 10m, short otherwise. */
+      if(f.gutterM>=10)_longCount+=f.nSheets;
+      else _shortCount+=f.nSheets;
+    }
+  });
+  ctx.save();
+  ctx.font='bold 13px sans-serif';
+  ctx.fillStyle='rgba(255,255,255,0.92)';
+  ctx.strokeStyle='rgba(0,0,0,0.65)';
+  ctx.lineWidth=3;
+  ctx.textAlign='left';ctx.textBaseline='top';
+  var _summaryX=padX+8,_summaryY=padY+8;
+  var _lines=[
+    'SHEETS TO ORDER:',
+    _longCount+' LONG (@ 7650mm)',
+    _shortCount+' SHORT (@ 3900mm)'
+  ];
+  _lines.forEach(function(line,i){
+    var _y=_summaryY+i*18;
+    ctx.strokeText(line,_summaryX,_y);
+    ctx.fillStyle=(i===0)?'rgba(255,255,255,0.95)':(i===1?'#FFA040':'#9D6FE8');
+    ctx.fillText(line,_summaryX,_y);
+  });
+  ctx.restore();
+
   /* Subtle F/C zone labels — small, semi-transparent, in zone centroid. */
   faces.forEach(function(f){
     var faceCenter=[(f.p0[0]+f.p1[0])/2+f.perpX*f.depImg*0.45,(f.p0[1]+f.p1[1])/2+f.perpY*f.depImg*0.45];
