@@ -5564,6 +5564,49 @@ function renderRoofSheetPlan() {
     if(f.rHip&&poly.length>=3)poly=clipHipInside(poly,f.rHip,anchor);
     return poly&&poly.length>=3?poly:null;
   }
+  /* Cache plan-view polygons so we don't recompute. */
+  faces.forEach(function(f){f._planPoly=_facePolygon(f);});
+
+  /* Split an end face's plan-view polygon into strips aligned with the donor's
+     sheet columns. Each strip = the offcut of one donor sheet, post-rotation onto
+     this end face. Strip k (1-indexed) corresponds to donor sheet k. */
+  function _stripsForEndFace(ef){
+    if(!ef.isEndFace||!ef._donor||!ef._planPoly)return [];
+    var donor=ef._donor;
+    var efPoly=ef._planPoly;
+    var tMin=Infinity,tMax=-Infinity;
+    efPoly.forEach(function(p){
+      var t=(p[0]-donor.p0[0])*donor.gnx+(p[1]-donor.p0[1])*donor.gny;
+      if(t<tMin)tMin=t;
+      if(t>tMax)tMax=t;
+    });
+    var kStart=Math.max(0,Math.floor(tMin/donor.swImg+0.001));
+    var kEnd=Math.min(donor.nSheets-1,Math.floor((tMax-0.001)/donor.swImg));
+    /* Cross-product orientation: clipHalf keeps the side where
+       sign·cross_z(eB-eA,p-eA)≥0. Our line goes from gutter-point in the +perp
+       direction; cross_z(perp,(p-eA))=(perpX·gny−perpY·gnx)·(t−t0). The leading
+       coefficient is ±1 depending on perp's rotation sense, so we determine
+       invert by sign. */
+    var perpRot=donor.perpX*donor.gny-donor.perpY*donor.gnx;
+    var invertLow=perpRot<0;
+    var invertHigh=perpRot>=0;
+    var strips=[];
+    for(var k=kStart;k<=kEnd;k++){
+      var t0=k*donor.swImg;
+      var t1=(k+1)*donor.swImg;
+      var lowP1=[donor.p0[0]+donor.gnx*t0,donor.p0[1]+donor.gny*t0];
+      var lowP2=[lowP1[0]+donor.perpX*100,lowP1[1]+donor.perpY*100];
+      var highP1=[donor.p0[0]+donor.gnx*t1,donor.p0[1]+donor.gny*t1];
+      var highP2=[highP1[0]+donor.perpX*100,highP1[1]+donor.perpY*100];
+      var strip=clipHalf(efPoly,lowP1,lowP2,invertLow);
+      if(!strip||strip.length<3)continue;
+      strip=clipHalf(strip,highP1,highP2,invertHigh);
+      if(!strip||strip.length<3)continue;
+      strips.push({k:k+1,poly:strip});
+    }
+    return strips;
+  }
+  faces.forEach(function(f){if(f.isEndFace)f._strips=_stripsForEndFace(f);});
 
   /* ── DRAW PLAN VIEW (top) ───────────────────────────────────────────── */
   drawPolyAt(_ol,'#dde3ea',null,0,null,toCP);
@@ -5614,6 +5657,67 @@ function renderRoofSheetPlan() {
     ctx.save();ctx.font='10px sans-serif';ctx.fillStyle='#5b21b6';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(f.gutterM.toFixed(2)+'m',mc[0]+f.perpX*15,mc[1]+f.perpY*15);
     ctx.restore();
+  });
+
+  /* ── Sheet-column dividers + numbers on long faces ──────────────────────
+     Each main face: vertical (perpendicular to its gutter) dividers between
+     sheet columns, plus a sheet number near the gutter so the user can read
+     which column is which. */
+  faces.forEach(function(f){
+    if(f.isEndFace||!f._planPoly)return;
+    var col=f.col||'#666';
+    /* Dividers */
+    ctx.save();
+    ctx.strokeStyle=col+'55';
+    ctx.lineWidth=0.8;
+    ctx.setLineDash([3,3]);
+    for(var k=1;k<f.nSheets;k++){
+      var t=k*f.swImg;
+      var p0=[f.p0[0]+f.gnx*t,f.p0[1]+f.gny*t];
+      var p1=[p0[0]+f.perpX*f.depImg,p0[1]+f.perpY*f.depImg];
+      var c0=toCP(p0),c1=toCP(p1);
+      ctx.beginPath();ctx.moveTo(c0[0],c0[1]);ctx.lineTo(c1[0],c1[1]);ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.restore();
+    /* Numbers: place each sheet's number at gutter+a small perp nudge so it
+       sits clearly inside the face. Only label sheets that actually fit. */
+    ctx.save();
+    ctx.font='bold 9px sans-serif';
+    ctx.fillStyle=col;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    var labelDepImg=Math.min(f.depImg*0.25,18/planSc);
+    for(var k2=0;k2<f.nSheets;k2++){
+      var t2=(k2+0.5)*f.swImg;
+      var lp=[f.p0[0]+f.gnx*t2+f.perpX*labelDepImg,
+              f.p0[1]+f.gny*t2+f.perpY*labelDepImg];
+      var cp=toCP(lp);
+      ctx.fillText(String(k2+1),cp[0],cp[1]);
+    }
+    ctx.restore();
+  });
+
+  /* ── End-face strip dividers + matching donor-sheet numbers ─────────────
+     Each end face is covered by offcuts from its donor's sheet columns. Draw
+     the strip subdivisions and label each with the donor sheet number — same
+     number that appears on the long face's column, same colour as the block. */
+  faces.forEach(function(f){
+    if(!f.isEndFace||!f._strips||!f._strips.length)return;
+    var col=f.col||'#666';
+    f._strips.forEach(function(s){
+      drawPolyAt(s.poly,null,col+'AA',1,[2,3],toCP);
+      var c=centroid(s.poly);
+      var cp=toCP(c);
+      ctx.save();
+      ctx.font='bold 10px sans-serif';
+      ctx.fillStyle=col;
+      ctx.strokeStyle='rgba(255,255,255,0.9)';
+      ctx.lineWidth=2.5;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.strokeText(String(s.k),cp[0],cp[1]);
+      ctx.fillText(String(s.k),cp[0],cp[1]);
+      ctx.restore();
+    });
   });
 
   /* Divider + heading */
@@ -5671,6 +5775,7 @@ function renderRoofSheetPlan() {
       var leg=Math.min(halfBasePx,rectH-2,rectW*0.5-2);
       if(leg<3)return;
       ctx.save();
+      /* Outline + 45° dashed cut line */
       if(corner==='TL'){
         ctx.beginPath();
         ctx.moveTo(rectX,rectY);
@@ -5687,10 +5792,6 @@ function renderRoofSheetPlan() {
         ctx.lineTo(rectX,rectY+leg);
         ctx.stroke();
         ctx.setLineDash([]);
-        ctx.font='9px sans-serif';
-        ctx.fillStyle=b.col;
-        ctx.textAlign='left';ctx.textBaseline='top';
-        ctx.fillText('end ('+ef.gutterM.toFixed(1)+'m)',rectX+3,rectY+Math.min(leg,16)+2);
       } else {
         ctx.beginPath();
         ctx.moveTo(rectX+rectW,rectY);
@@ -5707,8 +5808,59 @@ function renderRoofSheetPlan() {
         ctx.lineTo(rectX+rectW,rectY+leg);
         ctx.stroke();
         ctx.setLineDash([]);
-        ctx.font='9px sans-serif';
-        ctx.fillStyle=b.col;
+      }
+      /* Strip dividers inside the corner triangle — one per donor sheet that
+         contributes an offcut. Strip closest to corner = sheet 1 (TL) or
+         sheet N (TR). */
+      var nStrips=Math.max(1,Math.ceil(leg/sheetCovPx));
+      ctx.strokeStyle=b.col+'AA';
+      ctx.lineWidth=0.8;
+      for(var k=1;k<nStrips;k++){
+        var off=k*sheetCovPx;
+        if(off>=leg-0.5)break;
+        if(corner==='TL'){
+          ctx.beginPath();
+          ctx.moveTo(rectX+off,rectY);
+          ctx.lineTo(rectX+off,rectY+leg-off);
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(rectX+rectW-off,rectY);
+          ctx.lineTo(rectX+rectW-off,rectY+leg-off);
+          ctx.stroke();
+        }
+      }
+      /* Strip labels = donor sheet numbers */
+      ctx.font='bold 9px sans-serif';
+      ctx.fillStyle=b.col;
+      ctx.strokeStyle='rgba(255,255,255,0.95)';
+      ctx.lineWidth=2.5;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      for(var k2=0;k2<nStrips;k2++){
+        var stripL=k2*sheetCovPx;
+        var stripR=Math.min((k2+1)*sheetCovPx,leg);
+        if(stripR<=stripL+1)break;
+        var leftH=leg-stripL,rightH=leg-stripR;
+        var midH=(leftH+rightH)/2;
+        var stripCy=rectY+midH/2;
+        var stripCx,labelTxt;
+        if(corner==='TL'){
+          stripCx=rectX+(stripL+stripR)/2;
+          labelTxt=String(k2+1);
+        } else {
+          stripCx=rectX+rectW-(stripL+stripR)/2;
+          labelTxt=String(b.nSheets-k2);
+        }
+        ctx.strokeText(labelTxt,stripCx,stripCy);
+        ctx.fillText(labelTxt,stripCx,stripCy);
+      }
+      /* "end (Nm)" caption tucked just outside the corner triangle's apex */
+      ctx.font='9px sans-serif';
+      ctx.fillStyle=b.col;
+      if(corner==='TL'){
+        ctx.textAlign='left';ctx.textBaseline='top';
+        ctx.fillText('end ('+ef.gutterM.toFixed(1)+'m)',rectX+3,rectY+Math.min(leg,16)+2);
+      } else {
         ctx.textAlign='right';ctx.textBaseline='top';
         ctx.fillText('end ('+ef.gutterM.toFixed(1)+'m)',rectX+rectW-3,rectY+Math.min(leg,16)+2);
       }
