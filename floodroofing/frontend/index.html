@@ -5513,27 +5513,23 @@ function renderRoofSheetPlan() {
           ef.rAdjP0=len2(ef.p1[0]-_blueFace.p0[0],ef.p1[1]-_blueFace.p0[1])<len2(ef.p1[0]-_blueFace.p1[0],ef.p1[1]-_blueFace.p1[1]);
         }
       }
-      /* WING-JUNCTION WEDGE override:
-         When both adjacent main faces point the SAME way (perpDot ~ +1), the
-         end-face area is the inner-corner of an L-shape, spanning BOTH:
-           (a) the wedge proper above the wing-junction hip — BLUE offcuts
-               (cut from the bottom-gutter long sheets at the wedge boundary)
-           (b) the lower-wing top-left triangle below the wing-junction hip —
-               ORANGE offcuts (cut from the top-gutter long sheets)
-         SOP steps 2 (blue) + 5 (orange) place these in opposite halves of the
-         strip stack. Strips closer to ef.p0 (valley side, near top arm) get
-         the blue donor; strips closer to ef.p1 (bottom-hip side, near lower
-         wing) get the orange donor. */
+      /* WING-JUNCTION WEDGE override (iter44):
+         Wedge UPPER (near valley) gets PURPLE offcuts from cutting purple
+         full sheets at the valley — i.e. inner-top-gutter face's offcuts,
+         placed naturally adjacent (lAdj stays as the natural face whose
+         rHip = wedge's valley).
+         Wedge LOWER (near bottom hip) gets ORANGE offcuts from cutting
+         the LONG ARM TOP sheets at the wing-junction — override rAdj to
+         the largest mixed-depth face (top-gutter long portion). */
       if(_perpDot>0.5){
-        var plainFace=null,longFace=null;
+        var longFace=null;
         faces.forEach(function(mf){
-          if(mf.isEndFace)return;
-          if(mf.hasDeeperRidge){if(!longFace||mf.gutterM>longFace.gutterM)longFace=mf;}
-          else{if(!plainFace||mf.gutterM>plainFace.gutterM)plainFace=mf;}
+          if(mf.isEndFace||!mf.hasDeeperRidge)return;
+          if(!longFace||mf.gutterM>longFace.gutterM)longFace=mf;
         });
-        if(plainFace&&longFace){
-          ef.lAdj=plainFace;ef.rAdj=longFace;
-          ef.lAdjP0=len2(ef.p0[0]-plainFace.p0[0],ef.p0[1]-plainFace.p0[1])<len2(ef.p0[0]-plainFace.p1[0],ef.p0[1]-plainFace.p1[1]);
+        if(longFace){
+          /* Keep lAdj as natural (inner-top-gutter — purple). Override only rAdj. */
+          ef.rAdj=longFace;
           ef.rAdjP0=len2(ef.p1[0]-longFace.p0[0],ef.p1[1]-longFace.p0[1])<len2(ef.p1[0]-longFace.p1[0],ef.p1[1]-longFace.p1[1]);
         }
       }
