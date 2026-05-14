@@ -5567,42 +5567,59 @@ function renderRoofSheetPlan() {
   /* Cache plan-view polygons so we don't recompute. */
   faces.forEach(function(f){f._planPoly=_facePolygon(f);});
 
-  /* Split an end face's plan-view polygon into strips aligned with the donor's
-     sheet columns. Each strip = the offcut of one donor sheet, post-rotation onto
-     this end face. Strip k (1-indexed) corresponds to donor sheet k. */
+  /* Split an end face's plan-view polygon into strips that run perpendicular
+     to the END FACE's OWN gutter (i.e. sheets gutter→apex, matching how
+     corrugated sheets must actually be laid). Strip 1 sits at the shared
+     gutter-corner with the donor and represents the offcut from donor sheet 1
+     (LEFT hip-end) or donor sheet N (RIGHT hip-end) — that offcut becomes the
+     longest strip on the end face after its 90° rotation about the shared
+     corner during block-cutting. */
   function _stripsForEndFace(ef){
     if(!ef.isEndFace||!ef._donor||!ef._planPoly)return [];
     var donor=ef._donor;
     var efPoly=ef._planPoly;
-    var tMin=Infinity,tMax=-Infinity;
-    efPoly.forEach(function(p){
-      var t=(p[0]-donor.p0[0])*donor.gnx+(p[1]-donor.p0[1])*donor.gny;
-      if(t<tMin)tMin=t;
-      if(t>tMax)tMax=t;
+    /* Find which endpoint of ef's gutter coincides with which endpoint of
+       donor's gutter — that's the shared corner where strips start. */
+    function dist2(a,b){var dx=a[0]-b[0],dy=a[1]-b[1];return dx*dx+dy*dy;}
+    var best=Infinity,sharedAtP0=true,donorEndIsP0=true;
+    [[true,true,dist2(ef.p0,donor.p0)],
+     [true,false,dist2(ef.p0,donor.p1)],
+     [false,true,dist2(ef.p1,donor.p0)],
+     [false,false,dist2(ef.p1,donor.p1)]].forEach(function(c){
+      if(c[2]<best){best=c[2];sharedAtP0=c[0];donorEndIsP0=c[1];}
     });
-    var kStart=Math.max(0,Math.floor(tMin/donor.swImg+0.001));
-    var kEnd=Math.min(donor.nSheets-1,Math.floor((tMax-0.001)/donor.swImg));
-    /* Cross-product orientation: clipHalf keeps the side where
-       sign·cross_z(eB-eA,p-eA)≥0. Our line goes from gutter-point in the +perp
-       direction; cross_z(perp,(p-eA))=(perpX·gny−perpY·gnx)·(t−t0). The leading
-       coefficient is ±1 depending on perp's rotation sense, so we determine
-       invert by sign. */
-    var perpRot=donor.perpX*donor.gny-donor.perpY*donor.gnx;
-    var invertLow=perpRot<0;
-    var invertHigh=perpRot>=0;
+    /* Tolerance in image-px (small data has exact int coords; surveyed data
+       may drift by 1–2px). */
+    if(best>16)return [];
+    /* Strip count = number of donor sheets that the hip actually slices into,
+       = ceil(donor.depM / swM). Each such donor sheet contributes one
+       sheet-width strip to the end face. */
+    var K=Math.min(donor.nSheets,Math.max(1,Math.ceil(donor.depM/swM-0.001)));
+    var dirSign=sharedAtP0?+1:-1;
+    var startT=sharedAtP0?0:ef.gL;
+    /* clipHalf orientation: cross_z(perp,(p−eA)) = (perpX·gny − perpY·gnx)·Δt.
+       The sign of that leading factor tells us which clipHalf invert keeps
+       the t≥t0 side vs the t≤t1 side. */
+    var perpRot=ef.perpX*ef.gny-ef.perpY*ef.gnx;
+    var stripWidthImg=ef.swImg||donor.swImg;
     var strips=[];
-    for(var k=kStart;k<=kEnd;k++){
-      var t0=k*donor.swImg;
-      var t1=(k+1)*donor.swImg;
-      var lowP1=[donor.p0[0]+donor.gnx*t0,donor.p0[1]+donor.gny*t0];
-      var lowP2=[lowP1[0]+donor.perpX*100,lowP1[1]+donor.perpY*100];
-      var highP1=[donor.p0[0]+donor.gnx*t1,donor.p0[1]+donor.gny*t1];
-      var highP2=[highP1[0]+donor.perpX*100,highP1[1]+donor.perpY*100];
+    for(var k=1;k<=K;k++){
+      var tA=startT+dirSign*(k-1)*stripWidthImg;
+      var tB=startT+dirSign*k*stripWidthImg;
+      var tLow=Math.min(tA,tB),tHigh=Math.max(tA,tB);
+      var lowP1=[ef.p0[0]+ef.gnx*tLow,ef.p0[1]+ef.gny*tLow];
+      var lowP2=[lowP1[0]+ef.perpX*100,lowP1[1]+ef.perpY*100];
+      var highP1=[ef.p0[0]+ef.gnx*tHigh,ef.p0[1]+ef.gny*tHigh];
+      var highP2=[highP1[0]+ef.perpX*100,highP1[1]+ef.perpY*100];
+      var invertLow=perpRot<0,invertHigh=perpRot>=0;
       var strip=clipHalf(efPoly,lowP1,lowP2,invertLow);
       if(!strip||strip.length<3)continue;
       strip=clipHalf(strip,highP1,highP2,invertHigh);
       if(!strip||strip.length<3)continue;
-      strips.push({k:k+1,poly:strip});
+      /* Donor sheet number: shared at donor.p0 → strip k ← donor sheet k.
+         Shared at donor.p1 → strip k ← donor sheet (N−k+1). */
+      var donorSheet=donorEndIsP0?k:(donor.nSheets-k+1);
+      strips.push({k:k,donorSheet:donorSheet,poly:strip});
     }
     return strips;
   }
@@ -5714,8 +5731,9 @@ function renderRoofSheetPlan() {
       ctx.strokeStyle='rgba(255,255,255,0.9)';
       ctx.lineWidth=2.5;
       ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.strokeText(String(s.k),cp[0],cp[1]);
-      ctx.fillText(String(s.k),cp[0],cp[1]);
+      var lbl=String(s.donorSheet||s.k);
+      ctx.strokeText(lbl,cp[0],cp[1]);
+      ctx.fillText(lbl,cp[0],cp[1]);
       ctx.restore();
     });
   });
