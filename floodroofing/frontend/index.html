@@ -5412,17 +5412,15 @@ function renderRoofSheetPlan() {
 
     /* For end faces: find apex position along gutter (in sheet units).
        Standard hipped end has apex BETWEEN the two gutter endpoints. For wedge
-       end faces (L-shape wing junction) the lFar and rFar terminate at
-       DIFFERENT points outside the gutter's [0, gL] range — apexS becomes
-       negative or > nSheets, which breaks the left/right donor split (every
-       strip falls in the same half). Fall back to a midpoint split so each
-       donor face gets half the wedge. */
+       end faces the apex projection is negative; fall back to nSheets/3 so
+       the BLUE upper half is smaller than the ORANGE lower half (matches
+       the user's drawing where 3 blue offcuts sit above ~5 orange offcuts). */
     if(isEndFace&&apexPt){
       var apexProj=dot(apexPt[0]-p0[0],apexPt[1]-p0[1],gnx,gny);
       apexS=apexProj/swImg;
-      if(apexS<0.5||apexS>nSheets-0.5)apexS=nSheets/2;
+      if(apexS<0.5||apexS>nSheets-0.5)apexS=Math.max(1,Math.round(nSheets/3));
     } else {
-      apexS=nSheets/2;
+      apexS=Math.max(1,Math.round(nSheets/3));
     }
 
     faces.push({gl:gl,p0:p0,p1:p1,gnx:gnx,gny:gny,perpX:perpX,perpY:perpY,gL:gL,
@@ -5909,7 +5907,10 @@ function renderRoofSheetPlan() {
             });
           }
           if(!used||used.length<3||polyArea(used)<minA*0.04)return;
-          drawPoly(used,col,'rgba(0,0,0,0.5)',1.5);
+          /* End-face strips: lighter stroke so the zone reads as a single
+             colour blob rather than individual slices — matches the user's
+             drawing style. */
+          drawPoly(used,col,'rgba(0,0,0,0.15)',0.8);
           /* No hatching in puzzle-first mode — every face renders as a
              clean polygon. Offcut allocation is later. */
           var a=polyArea(used);
