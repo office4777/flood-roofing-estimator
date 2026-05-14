@@ -5360,37 +5360,40 @@ function renderRoofSheetPlan() {
       });
     }
 
-    /* End face: two hips meet at apex, no parallel ridge found.
-       Hips must terminate at (or very near) the SAME apex point — otherwise this
-       gutter spans two separate roof structures (e.g. an L-shape's right edge runs
-       past both the wing's hip apex and the main's hip apex), and treating it as
-       one end face would render a huge spurious off-cut block between them. */
+    /* End face: two hips meet at apex.
+       Previously this only fired when no parallel ridge was found at all. But on
+       L-shape arms the hip-end gutter (e.g. top-of-vertical-arm) often finds a
+       distant parallel ridge from the OTHER arm (9m away in our 12×6 L-shape test)
+       and gets mis-classified as a huge main face. Rule: if both hips converge to
+       one apex AND that apex is much closer than the matched parallel ridge
+       (<60% of bestD), adopt the apex — the distant ridge is from a different
+       block and shouldn't bound this face. */
     var isEndFace=false,apexPt=null,apexS=0;
-    if(bestD===Infinity&&lHip&&rHip){
+    if(lHip&&rHip){
       var lFar=pNear(lHip.pts[0],p0)||pNear(lHip.pts[0],p1)?lHip.pts[1]:lHip.pts[0];
       var rFar=pNear(rHip.pts[0],p0)||pNear(rHip.pts[0],p1)?rHip.pts[1]:rHip.pts[0];
       var _apexGap=len2(lFar[0]-rFar[0],lFar[1]-rFar[1]);
-      /* Accept either a true point-apex (gap ~0) OR a "wedge" end face where the two
-         hips terminate at different points but a connector hip/valley/ridge spans
-         between them (treats the connector as the wedge's far edge). The L-shape's
-         wing-junction triangle is exactly this case. */
+      /* Point-apex (gap ~0) OR wedge end face where a connector hip/valley/ridge
+         spans between the two hip-far endpoints. */
       var _hasConnector=DRAW.lines.some(function(ll){
         if(ll.type!=='hip'&&ll.type!=='valley'&&ll.type!=='ridge')return false;
         return (pNear(ll.pts[0],lFar,15)&&pNear(ll.pts[1],rFar,15))||
                (pNear(ll.pts[0],rFar,15)&&pNear(ll.pts[1],lFar,15));
       });
       if(_apexGap<=gL*0.35||(_hasConnector&&_apexGap<=gL*1.2)){
-        apexPt=[(lFar[0]+rFar[0])/2,(lFar[1]+rFar[1])/2];
+        var _apexCandidate=[(lFar[0]+rFar[0])/2,(lFar[1]+rFar[1])/2];
         var _adL=dot(lFar[0]-gmid[0],lFar[1]-gmid[1],perpX,perpY);
         var _adR=dot(rFar[0]-gmid[0],rFar[1]-gmid[1],perpX,perpY);
-        /* For a true point-apex end face lFar == rFar so midpoint depth and
-           max depth match. For a WEDGE end face (lFar != rFar, connected by
-           a connector hip), the wedge is a quadrilateral whose two far
-           corners sit at different perpendicular depths. Use MAX so the
-           strip rectangles extend far enough to be clipped properly by the
-           connector hip + lHip + rHip at the wedge's far edge. */
+        /* Use MAX so wedge end faces extend far enough for clipping. */
         var ad=Math.max(_adL,_adR);
-        if(ad>0){bestD=ad;isEndFace=true;}
+        if(ad>0&&(bestD===Infinity||ad<bestD*0.6)){
+          apexPt=_apexCandidate;
+          bestD=ad;
+          isEndFace=true;
+          /* Clear the stale far-ridge match so block grouping doesn't pull this
+             face into the wrong cluster. */
+          bestRMid=null;
+        }
       }
     }
     if(bestD===Infinity)return;
