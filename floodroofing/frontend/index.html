@@ -5994,7 +5994,28 @@ function renderRoofSheetPlan() {
     ctx.restore();
   });
 
-  /* F/C zone labels disabled in puzzle-first mode. */
+  /* Subtle F/C zone labels — small, semi-transparent, in zone centroid. */
+  faces.forEach(function(f){
+    var faceCenter=[(f.p0[0]+f.p1[0])/2+f.perpX*f.depImg*0.45,(f.p0[1]+f.p1[1])/2+f.perpY*f.depImg*0.45];
+    var cp=toC(faceCenter);
+    /* Wedges (wing-junction end faces) are filled with offcuts → C.
+       Other small-gutter end faces (free corners on the short arm) → F.
+       Long-gutter end faces → C. Main faces → F. */
+    var letter='F';
+    if(f.isEndFace){
+      if(f.isWedge)letter='C';
+      else if(f.gutterM>=5)letter='C';
+    }
+    ctx.save();
+    ctx.font='bold 16px sans-serif';
+    ctx.fillStyle='rgba(255,255,255,0.6)';
+    ctx.strokeStyle='rgba(0,0,0,0.25)';
+    ctx.lineWidth=2;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.strokeText(letter,cp[0],cp[1]);
+    ctx.fillText(letter,cp[0],cp[1]);
+    ctx.restore();
+  });
 
   /* ── Legend ── */
   var mainFaces=faces.filter(function(f){return !f.isEndFace;});
