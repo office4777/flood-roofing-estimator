@@ -5730,7 +5730,32 @@ function renderRoofSheetPlan() {
              rendering pass — they're separate PUZZLE PIECES. */
         });
         if(labelTarget){
-          var sheetLbl=(s+1)+(didCut?' ↻':'');
+          /* For mixed-depth faces (top gutter of an L spans both long and
+             short arms): renumber so each arm has its own 1..N count.
+             splitPoint = tangential position of the reflex vertex projection
+             onto the gutter. Sheets below splitPoint = long arm. Sheets above
+             splitPoint = short arm (relabel from 1). */
+          var _displaySheetN=s+1;
+          if(f.hasDeeperRidge){
+            var _splitPoint=-1;
+            _ol.forEach(function(vert,vi){
+              var _pv=_ol[(vi-1+_ol.length)%_ol.length];
+              var _nv=_ol[(vi+1)%_ol.length];
+              var _crs=(vert[0]-_pv[0])*(_nv[1]-vert[1])-(vert[1]-_pv[1])*(_nv[0]-vert[0]);
+              if(_crs>=0)return; /* reflex vertex in CCW outline has cross<0 */
+              var _tProj=(vert[0]-f.p0[0])*f.gnx+(vert[1]-f.p0[1])*f.gny;
+              if(_tProj>0&&_tProj<f.gL&&(_splitPoint<0||_tProj>_splitPoint))_splitPoint=_tProj;
+            });
+            if(_splitPoint>0){
+              /* Round split UP to the next sheet boundary so the long-arm
+                 portion includes the partial sheet at the split point. */
+              var _shortArmStart=Math.ceil(_splitPoint/sw);
+              if(s>=_shortArmStart){
+                _displaySheetN=s-_shortArmStart+1;
+              }
+            }
+          }
+          var sheetLbl=_displaySheetN+(didCut?' ↻':'');
           lbl(labelTarget,sheetLbl,'rgba(0,0,0,0.9)',Math.max(8,Math.min(14,toCV(sw)*0.52)));
         }
       }
