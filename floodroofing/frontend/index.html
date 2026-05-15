@@ -5931,7 +5931,7 @@ function renderRoofSheetPlan() {
            iter78b: right-end-face's 2 smallest top strips (adjacent to orange
            long-arm-top donor) render as ORANGE FULL SHEETS — their original
            hatched-blue rendering moves out (offcuts placed elsewhere). */
-        /* iter84: every end-face strip — wedge AND simple-hip — renders as
+        /* iter89: every end-face strip — wedge AND simple-hip — renders as
            an ORANGE FULL SHEET at the long-arm length. Their hip-cut
            offcut triangles together form a complete set that fills the
            triangular destination zones on adjacent faces (left simple-hip
@@ -6104,7 +6104,7 @@ function renderRoofSheetPlan() {
      Short sheets come from purple short-arm faces. iter53. */
   var _orangeLong=0,_blueLong=0,_shortCount=0;
   faces.forEach(function(f){
-    /* iter84: ALL end-face strips (wedge + simple-hip) count as orange
+    /* iter89: ALL end-face strips (wedge + simple-hip) count as orange
        full sheets — each end-face triangle is built from full-length
        orange sheets, with the cut-off triangles forming the offcut set. */
     if(f.isEndFace){_orangeLong+=f.nSheets;return;}
