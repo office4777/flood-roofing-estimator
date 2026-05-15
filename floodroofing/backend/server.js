@@ -31,7 +31,8 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
-app.use(express.json());
+// 25mb cap so saved jobs can include a base64 roof image + photos
+app.use(express.json({ limit: '25mb' }));
 
 function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -136,6 +137,27 @@ app.delete('/jobs/:id', requireAuth, async (req, res) => {
   const { error } = await supabase.from('jobs').delete().eq('id', req.params.id).eq('user_id', req.user.id);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
+});
+
+// Per-user settings: branding, quote defaults, JMS API keys.
+app.get('/settings', requireAuth, async (req, res) => {
+  const { data, error } = await supabase.from('user_settings').select('*').eq('user_id', req.user.id).maybeSingle();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || { user_id: req.user.id, branding: {}, quote_defaults: {}, jms_keys: {} });
+});
+
+app.put('/settings', requireAuth, async (req, res) => {
+  const { branding, quote_defaults, jms_keys } = req.body;
+  const row = {
+    user_id: req.user.id,
+    branding: branding || {},
+    quote_defaults: quote_defaults || {},
+    jms_keys: jms_keys || {},
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase.from('user_settings').upsert(row, { onConflict: 'user_id' }).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
 });
 
 function httpsPost(host, path, headers, body) {

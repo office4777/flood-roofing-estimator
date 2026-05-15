@@ -49,3 +49,15 @@ create policy "Users see own jobs" on jobs for all using (auth.uid() = user_id);
 -- Index for fast job lookups
 create index jobs_user_id_idx on jobs(user_id);
 create index jobs_updated_at_idx on jobs(updated_at desc);
+
+-- Per-user app settings (branding, quote defaults, JMS API keys)
+create table user_settings (
+  user_id uuid references auth.users primary key,
+  branding jsonb default '{}',     -- {company_name, tagline, address, email, phone, website, logo_data_url, primary_color, accent_color, dark_color}
+  quote_defaults jsonb default '{}', -- {validity_days, terms, options:[{label,enabled}], sections:[{title,body}]}
+  jms_keys jsonb default '{}',     -- {fergus, servicem8, jobber, tradify}
+  updated_at timestamptz default now()
+);
+
+alter table user_settings enable row level security;
+create policy "Users see own settings" on user_settings for all using (auth.uid() = user_id);

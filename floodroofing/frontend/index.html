@@ -216,6 +216,7 @@ textarea{resize:vertical;min-height:70px}
       document.getElementById('login-screen').style.display='none';
       document.querySelector('.app') && (document.querySelector('.app').style.display='');
       setTimeout(function(){ window._aerialMap && window._aerialMap.resize(); }, 300);
+      try { window.loadSettings && window.loadSettings(); } catch(e){}
     } catch(e){
       err.textContent=e.message; err.style.display='block';
     }
@@ -254,6 +255,8 @@ textarea{resize:vertical;min-height:70px}
   <button class="nav-btn" onclick="gotoTab('report')"><svg viewBox="0 0 16 16" fill="none"><rect x="3" y="1.5" width="10" height="13" rx="1.2" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5H10.5M5.5 8H10.5M5.5 10.5H8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Inspection report</button>
   <button class="nav-btn" onclick="gotoTab('fergus')"><svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3" width="13" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 6.5H14.5" stroke="currentColor" stroke-width="1.1"/><circle cx="4.5" cy="9.5" r="1" fill="currentColor"/><circle cx="7.5" cy="9.5" r="1" fill="currentColor"/></svg>Fergus</button>
   <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
+  <button class="nav-btn" onclick="gotoTab('jobs')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
+  <button class="nav-btn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
 </div>
 
 <!-- TAB 1: ROOF MAP -->
@@ -879,6 +882,109 @@ textarea{resize:vertical;min-height:70px}
     <div id="quoteContent"><div style="text-align:center;padding:2.5rem 1rem;color:var(--text2);font-size:13px">Complete the roof analysis, scope, and materials to generate your quote.</div></div>
   </div>
 </div>
+
+<!-- TAB 7: JOBS -->
+<div class="panel" id="tab-jobs">
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Save current job
+      <button onclick="saveCurrentJob()" id="saveJobBtn" style="margin-left:auto;padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save</button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Current job: <strong id="currentJobLabel">— new (not yet saved)</strong></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="newJob()" class="tool-btn" style="font-size:12px">+ New job</button>
+      <span id="saveJobMsg" style="font-size:12px;color:var(--text2);align-self:center"></span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Saved jobs
+      <button onclick="refreshJobsList()" style="margin-left:auto;padding:4px 10px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
+    </div>
+    <div id="jobsList"><div style="text-align:center;padding:2rem 1rem;color:var(--text2);font-size:13px">Loading…</div></div>
+  </div>
+</div>
+
+<!-- TAB 8: SETTINGS -->
+<div class="panel" id="tab-settings">
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Settings
+      <button onclick="saveSettings()" id="saveSettingsBtn" style="margin-left:auto;padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save settings</button>
+    </div>
+    <div class="tab-row">
+      <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Branding</button>
+      <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
+      <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
+    </div>
+    <span id="saveSettingsMsg" style="font-size:12px;color:var(--text2);margin-left:8px"></span>
+
+    <!-- BRANDING -->
+    <div class="sub-panel on settings-sub" id="set-brand" style="margin-top:14px">
+      <div class="f2">
+        <div><label>Company name</label><input type="text" id="brCompanyName" placeholder="Flood Roofing"></div>
+        <div><label>Tagline</label><input type="text" id="brTagline" placeholder="Northland's Roofing Specialists"></div>
+      </div>
+      <div class="f3">
+        <div><label>Phone</label><input type="tel" id="brPhone" placeholder="09 000 0000"></div>
+        <div><label>Email</label><input type="email" id="brEmail" placeholder="office@floodroofing.co.nz"></div>
+        <div><label>Website</label><input type="text" id="brWebsite" placeholder="floodroofing.co.nz"></div>
+      </div>
+      <div><label>Business address</label><input type="text" id="brAddress" placeholder="Whangarei, Northland, NZ"></div>
+      <div class="f3" style="margin-top:8px">
+        <div><label>Primary colour</label><input type="color" id="brPrimary" value="#0099cc" style="width:100%;height:38px;padding:2px"></div>
+        <div><label>Dark / header</label><input type="color" id="brDark" value="#0a1628" style="width:100%;height:38px;padding:2px"></div>
+        <div><label>Accent</label><input type="color" id="brAccent" value="#1a3a5c" style="width:100%;height:38px;padding:2px"></div>
+      </div>
+      <div style="margin-top:12px">
+        <label>Logo (PNG / JPG / SVG, &lt; 2MB)</label>
+        <input type="file" id="brLogoFile" accept="image/*" onchange="onLogoFile(event)">
+        <div style="margin-top:8px;display:flex;gap:12px;align-items:center">
+          <img id="brLogoPreview" alt="logo preview" style="max-height:60px;max-width:200px;background:#0a1628;padding:8px;border-radius:6px;display:none">
+          <button onclick="clearLogo()" type="button" class="tool-btn" style="font-size:11px">Remove logo</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUOTE DEFAULTS -->
+    <div class="sub-panel settings-sub" id="set-quote" style="margin-top:14px">
+      <div class="f2">
+        <div><label>Quote validity (days)</label><input type="number" id="qdValidity" value="30" min="1" max="365"></div>
+        <div><label>GST rate (%)</label><input type="number" id="qdGst" value="15" min="0" max="50" step="0.5"></div>
+      </div>
+      <div><label>Default warranty / terms text</label><textarea id="qdTerms" rows="3" placeholder="10-year materials warranty. Workmanship guaranteed. Quote valid 30 days."></textarea></div>
+      <div style="margin-top:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <strong style="font-size:13px">Selectable quote options</strong>
+          <button onclick="addQuoteOption()" type="button" class="tool-btn" style="font-size:11px;margin-left:auto">+ Add option</button>
+        </div>
+        <div id="qdOptionsList"></div>
+        <div style="font-size:11px;color:var(--text2);margin-top:6px">Toggle which optional line items appear by default on new quotes (gutter clean, scaffold, asbestos disposal, etc.)</div>
+      </div>
+      <div style="margin-top:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <strong style="font-size:13px">Custom report sections</strong>
+          <button onclick="addReportSection()" type="button" class="tool-btn" style="font-size:11px;margin-left:auto">+ Add section</button>
+        </div>
+        <div id="qdSectionsList"></div>
+        <div style="font-size:11px;color:var(--text2);margin-top:6px">Extra sections appended to the inspection report (e.g. health &amp; safety statement, council compliance notes).</div>
+      </div>
+    </div>
+
+    <!-- INTEGRATIONS -->
+    <div class="sub-panel settings-sub" id="set-int" style="margin-top:14px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Enter API keys for the job-management systems you use. Keys are stored against your user account and never shared.</div>
+      <div class="f2" style="margin-bottom:10px">
+        <div><label>Fergus API key <span style="font-size:10px;color:var(--text2)">(already integrated)</span></label><input type="password" id="intFergus" placeholder="fergus_..." autocomplete="off"></div>
+        <div><label>ServiceM8 API key</label><input type="password" id="intServiceM8" placeholder="sm8_..." autocomplete="off"></div>
+      </div>
+      <div class="f2">
+        <div><label>Jobber API key</label><input type="password" id="intJobber" placeholder="jbr_..." autocomplete="off"></div>
+        <div><label>Tradify API key</label><input type="password" id="intTradify" placeholder="trd_..." autocomplete="off"></div>
+      </div>
+      <div style="margin-top:14px;padding:10px 12px;background:#fff8e1;border-left:3px solid #f59e0b;border-radius:6px;font-size:12px;color:#664500">
+        <strong>Phase 2:</strong> "Send job to JMS" + "Email quote" buttons (and the JMS adapters for ServiceM8, Jobber, Tradify) ship in the next iteration. Fergus push already works from the Fergus tab.
+      </div>
+    </div>
+  </div>
+</div>
 </div>
 
 <script>
@@ -909,14 +1015,16 @@ async function checkProxy(){S.proxyOk=true;var el=document.getElementById('proxy
 async function claudeCall(body){var tok=localStorage.getItem('fr_token')||'';return fetch(PROXY+'/claude/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify(body)});}
 
 function gotoTab(t) {
-  var ids=['roof','scope','materials','report','fergus','quote'];
+  var ids=['roof','scope','materials','report','fergus','quote','jobs','settings'];
   document.querySelectorAll('.nav-btn').forEach(function(b,i){b.classList.toggle('active',ids[i]===t);});
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
-  document.getElementById('tab-'+t).classList.add('active');
+  var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='report') refreshReport();
   if(t==='quote') buildQuote();
   if(t==='fergus'){prefillFergus();autoConnect();}
   if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}}
+  if(t==='jobs') refreshJobsList();
+  if(t==='settings') refreshSettingsUI();
 }
 function switchSubTab(grp,id,btn){
   var sel=grp==='mat'?'#tab-materials .sub-panel':'#tab-fergus .sub-panel';
@@ -925,6 +1033,349 @@ function switchSubTab(grp,id,btn){
   btn.closest('.tab-row').querySelectorAll('.tab-sm').forEach(function(b){b.classList.remove('on');});
   btn.classList.add('on');
 }
+function switchSettingsSub(id,btn){
+  document.querySelectorAll('#tab-settings .settings-sub').forEach(function(p){p.classList.remove('on');});
+  document.getElementById(id).classList.add('on');
+  btn.closest('.tab-row').querySelectorAll('.tab-sm').forEach(function(b){b.classList.remove('on');});
+  btn.classList.add('on');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// JOBS + SETTINGS — backend-backed save/load + branding
+// ══════════════════════════════════════════════════════════════════
+S.currentJobId = null;
+S.settings = null; // cached user settings (branding/quote_defaults/jms_keys)
+
+async function api(method, path, body) {
+  var tok = localStorage.getItem('fr_token') || '';
+  var opts = { method: method, headers: { 'Authorization': 'Bearer ' + tok } };
+  if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  var r = await fetch(PROXY + path, opts);
+  if (!r.ok) { var t = await r.text().catch(function(){return '';}); throw new Error('HTTP ' + r.status + ' ' + t.slice(0,200)); }
+  if (r.status === 204) return null;
+  return r.json();
+}
+
+// — Settings —
+function defaultSettings(){
+  return {
+    branding: { company_name:'Flood Roofing', tagline:"Northland's Roofing Specialists",
+                phone:'', email:'office@floodroofing.co.nz', website:'floodroofing.co.nz',
+                address:'Whangarei, Northland, NZ',
+                primary_color:'#0099cc', dark_color:'#0a1628', accent_color:'#1a3a5c',
+                logo_data_url:'' },
+    quote_defaults: { validity_days: 30, gst_rate: 15, terms: '',
+                      options: [], sections: [] },
+    jms_keys: { fergus:'', servicem8:'', jobber:'', tradify:'' }
+  };
+}
+
+async function loadSettings(){
+  try {
+    var s = await api('GET', '/settings');
+    var d = defaultSettings();
+    S.settings = {
+      branding: Object.assign(d.branding, s.branding || {}),
+      quote_defaults: Object.assign(d.quote_defaults, s.quote_defaults || {}),
+      jms_keys: Object.assign(d.jms_keys, s.jms_keys || {})
+    };
+  } catch(e) {
+    console.warn('settings load failed, using defaults:', e.message);
+    S.settings = defaultSettings();
+  }
+  applyBranding();
+  return S.settings;
+}
+
+async function saveSettings(){
+  // Read form values back into S.settings
+  collectSettingsFromUI();
+  var btn = document.getElementById('saveSettingsBtn');
+  var msg = document.getElementById('saveSettingsMsg');
+  if (btn) btn.disabled = true;
+  msg.textContent = 'Saving…';
+  try {
+    var saved = await api('PUT', '/settings', S.settings);
+    S.settings.branding = saved.branding || S.settings.branding;
+    S.settings.quote_defaults = saved.quote_defaults || S.settings.quote_defaults;
+    S.settings.jms_keys = saved.jms_keys || S.settings.jms_keys;
+    msg.textContent = '✓ Saved'; msg.style.color = '#15803d';
+    applyBranding();
+  } catch(e) {
+    msg.textContent = 'Save failed: ' + e.message; msg.style.color = '#b91c1c';
+  }
+  if (btn) btn.disabled = false;
+  setTimeout(function(){msg.textContent='';msg.style.color='';}, 4000);
+}
+
+function collectSettingsFromUI(){
+  if (!S.settings) S.settings = defaultSettings();
+  var b = S.settings.branding;
+  b.company_name = (document.getElementById('brCompanyName')||{}).value || '';
+  b.tagline      = (document.getElementById('brTagline')||{}).value || '';
+  b.phone        = (document.getElementById('brPhone')||{}).value || '';
+  b.email        = (document.getElementById('brEmail')||{}).value || '';
+  b.website      = (document.getElementById('brWebsite')||{}).value || '';
+  b.address      = (document.getElementById('brAddress')||{}).value || '';
+  b.primary_color= (document.getElementById('brPrimary')||{}).value || '#0099cc';
+  b.dark_color   = (document.getElementById('brDark')||{}).value || '#0a1628';
+  b.accent_color = (document.getElementById('brAccent')||{}).value || '#1a3a5c';
+  // logo_data_url is set by onLogoFile()
+  var q = S.settings.quote_defaults;
+  q.validity_days = parseInt((document.getElementById('qdValidity')||{}).value || 30, 10);
+  q.gst_rate      = parseFloat((document.getElementById('qdGst')||{}).value || 15);
+  q.terms         = (document.getElementById('qdTerms')||{}).value || '';
+  q.options       = collectListEditor('qdOptionsList', ['label','enabled']);
+  q.sections      = collectListEditor('qdSectionsList', ['title','body']);
+  var k = S.settings.jms_keys;
+  k.fergus     = (document.getElementById('intFergus')||{}).value || '';
+  k.servicem8  = (document.getElementById('intServiceM8')||{}).value || '';
+  k.jobber     = (document.getElementById('intJobber')||{}).value || '';
+  k.tradify    = (document.getElementById('intTradify')||{}).value || '';
+}
+
+function refreshSettingsUI(){
+  if (!S.settings) { loadSettings().then(refreshSettingsUI); return; }
+  var b = S.settings.branding, q = S.settings.quote_defaults, k = S.settings.jms_keys;
+  function set(id,v){var el=document.getElementById(id); if(el) el.value = v||'';}
+  set('brCompanyName', b.company_name); set('brTagline', b.tagline);
+  set('brPhone', b.phone); set('brEmail', b.email); set('brWebsite', b.website); set('brAddress', b.address);
+  set('brPrimary', b.primary_color||'#0099cc'); set('brDark', b.dark_color||'#0a1628'); set('brAccent', b.accent_color||'#1a3a5c');
+  var lp = document.getElementById('brLogoPreview');
+  if (b.logo_data_url) { lp.src = b.logo_data_url; lp.style.display = 'inline-block'; } else { lp.style.display = 'none'; }
+  set('qdValidity', q.validity_days||30); set('qdGst', q.gst_rate==null?15:q.gst_rate); set('qdTerms', q.terms);
+  renderOptionsList(q.options || []);
+  renderSectionsList(q.sections || []);
+  set('intFergus', k.fergus); set('intServiceM8', k.servicem8); set('intJobber', k.jobber); set('intTradify', k.tradify);
+}
+
+function renderOptionsList(list){
+  var box = document.getElementById('qdOptionsList'); if(!box) return;
+  if (!list.length) { box.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:4px 0">No options yet.</div>'; return; }
+  box.innerHTML = list.map(function(o,i){
+    return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px" data-row="opt">'+
+      '<input type="checkbox" data-field="enabled"'+ (o.enabled?' checked':'') +'>'+
+      '<input type="text" data-field="label" value="'+ (o.label||'').replace(/"/g,'&quot;') +'" placeholder="e.g. Gutter clean (+$250)" style="flex:1;margin:0">'+
+      '<button type="button" onclick="this.parentNode.remove()" class="tool-btn" style="font-size:11px;color:#b91c1c">×</button></div>';
+  }).join('');
+}
+function renderSectionsList(list){
+  var box = document.getElementById('qdSectionsList'); if(!box) return;
+  if (!list.length) { box.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:4px 0">No custom sections yet.</div>'; return; }
+  box.innerHTML = list.map(function(s,i){
+    return '<div style="border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:8px" data-row="sec">'+
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">'+
+        '<input type="text" data-field="title" value="'+ (s.title||'').replace(/"/g,'&quot;') +'" placeholder="Section title" style="flex:1;margin:0">'+
+        '<button type="button" onclick="this.closest(\'[data-row=sec]\').remove()" class="tool-btn" style="font-size:11px;color:#b91c1c">×</button></div>'+
+      '<textarea data-field="body" rows="2" placeholder="Body text">'+ (s.body||'') +'</textarea></div>';
+  }).join('');
+}
+function addQuoteOption(){
+  var list = collectListEditor('qdOptionsList', ['label','enabled']);
+  list.push({label:'', enabled:true}); renderOptionsList(list);
+}
+function addReportSection(){
+  var list = collectListEditor('qdSectionsList', ['title','body']);
+  list.push({title:'', body:''}); renderSectionsList(list);
+}
+function collectListEditor(containerId, fields){
+  var box = document.getElementById(containerId); if (!box) return [];
+  var rows = box.querySelectorAll('[data-row]');
+  var out = [];
+  rows.forEach(function(r){
+    var o = {};
+    fields.forEach(function(f){
+      var el = r.querySelector('[data-field="'+f+'"]');
+      if (!el) { o[f] = ''; return; }
+      o[f] = el.type === 'checkbox' ? !!el.checked : el.value;
+    });
+    out.push(o);
+  });
+  return out;
+}
+
+function onLogoFile(e){
+  var f = e.target.files[0]; if (!f) return;
+  if (f.size > 2*1024*1024) { alert('Logo must be < 2MB'); return; }
+  var r = new FileReader();
+  r.onload = function(ev){
+    if (!S.settings) S.settings = defaultSettings();
+    S.settings.branding.logo_data_url = ev.target.result;
+    var lp = document.getElementById('brLogoPreview'); lp.src = ev.target.result; lp.style.display = 'inline-block';
+  };
+  r.readAsDataURL(f);
+}
+function clearLogo(){
+  if (!S.settings) S.settings = defaultSettings();
+  S.settings.branding.logo_data_url = '';
+  var lp = document.getElementById('brLogoPreview'); lp.style.display = 'none'; lp.src = '';
+  var f = document.getElementById('brLogoFile'); if (f) f.value = '';
+}
+
+function applyBranding(){
+  if (!S.settings) return;
+  var b = S.settings.branding;
+  var root = document.documentElement.style;
+  if (b.primary_color) root.setProperty('--fr-blue', b.primary_color);
+  if (b.dark_color)    root.setProperty('--fr-dark', b.dark_color);
+  if (b.accent_color)  root.setProperty('--fr-mid',  b.accent_color);
+  // Header logo block — replace with custom logo image if present, else show text branding
+  var hdrLogo = document.querySelector('.hdr-logo');
+  if (hdrLogo) {
+    var parts = b.company_name ? b.company_name.split(' ') : ['FLOOD','ROOFING'];
+    var line1 = (parts[0] || 'FLOOD').toUpperCase();
+    var line2 = (parts.slice(1).join(' ') || 'ROOFING').toUpperCase();
+    var inner = b.logo_data_url
+      ? '<img src="'+ b.logo_data_url +'" style="max-height:42px;max-width:160px;object-fit:contain">'
+      : '<div><div class="hdr-logo-text">'+ line1 +'</div><div class="hdr-logo-sub">'+ line2 +'</div></div>';
+    // Preserve any sibling icon already in .hdr-logo by replacing only the text block
+    hdrLogo.innerHTML = inner;
+  }
+  // Report preview header
+  var rpName = document.querySelector('.rp-logo-name'); if (rpName) rpName.textContent = (b.company_name || 'FLOOD ROOFING').toUpperCase();
+  var rpTag  = document.querySelector('.rp-logo-tag');  if (rpTag)  rpTag.textContent = b.tagline || '';
+  var rpFooter = document.querySelector('.rp-footer span:first-child');
+  if (rpFooter) rpFooter.textContent = [b.company_name, b.address, b.website].filter(Boolean).join(' | ');
+}
+
+// — Jobs —
+function snapshotCurrentJob(){
+  // Capture all in-memory state needed to fully restore a job: form fields,
+  // S object (minus runtime flags), and the DRAW canvas state.
+  var formIds = ['jobClient','jobAddr','jobEmail','jobPhone','jobDate'];
+  var form = {}; formIds.forEach(function(id){var el=document.getElementById(id); if(el) form[id]=el.value;});
+  return {
+    form: form,
+    state: { img64:S.img64, roofData:S.roofData, labour:S.labour, materials:S.materials,
+             condition:S.condition, photos:S.photos, linkedJobId:S.linkedJobId, linkedJobName:S.linkedJobName },
+    draw: { outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
+            penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
+            scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step }
+  };
+}
+function restoreFromJob(j){
+  if (!j) return;
+  var snap = j.draw_state || {};
+  if (snap.form) {
+    Object.keys(snap.form).forEach(function(id){var el=document.getElementById(id); if(el) el.value=snap.form[id];});
+  }
+  if (snap.state) {
+    Object.assign(S, snap.state);
+    if (S.img64) {
+      var img = document.getElementById('roofPrevImg');
+      if (img) { img.src = 'data:image/png;base64,' + S.img64;
+        var pv=document.getElementById('roofPrev'); if(pv) pv.style.display='block';
+        var uz=document.getElementById('roofUZ'); if(uz) uz.style.display='none';
+      }
+    }
+  }
+  if (snap.draw) {
+    DRAW.outline = snap.draw.outline || [];
+    DRAW.sections = snap.draw.sections || [];
+    DRAW.lines = snap.draw.lines || [];
+    DRAW.penetrations = snap.draw.penetrations || [];
+    DRAW.dimLabels = snap.draw.dimLabels || [];
+    DRAW.infoItems = snap.draw.infoItems || [];
+    DRAW.scaleMetresPerPx = snap.draw.scaleMetresPerPx || 0;
+    DRAW.outlineDone = !!snap.draw.outlineDone;
+    DRAW.step = snap.draw.step || 'outline';
+    try { redrawAll(); } catch(e){}
+    try { syncToRoofData(); } catch(e){}
+  }
+  S.currentJobId = j.id;
+  setCurrentJobLabel(j);
+}
+
+function setCurrentJobLabel(j){
+  var el = document.getElementById('currentJobLabel'); if (!el) return;
+  if (j && j.id) el.textContent = (j.client_name || '(untitled)') + ' — ' + (j.site_address || '');
+  else el.textContent = '— new (not yet saved)';
+}
+
+async function refreshJobsList(){
+  var box = document.getElementById('jobsList'); if (!box) return;
+  box.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:var(--text2);font-size:13px">Loading…</div>';
+  try {
+    var jobs = await api('GET', '/jobs');
+    if (!jobs.length) { box.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:var(--text2);font-size:13px">No saved jobs yet. Fill in client + address on the Roof map tab, then click Save.</div>'; return; }
+    box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+      '<thead><tr style="background:var(--bg);text-align:left"><th style="padding:8px 10px">Client</th><th style="padding:8px 10px">Address</th><th style="padding:8px 10px">Updated</th><th style="padding:8px 10px;width:1%"></th></tr></thead><tbody>'+
+      jobs.map(function(j){
+        var when = j.updated_at ? new Date(j.updated_at).toLocaleDateString('en-NZ',{day:'2-digit',month:'short',year:'numeric'}) : '';
+        var sel = (j.id===S.currentJobId)?'background:var(--fr-light)':'';
+        return '<tr style="border-top:1px solid var(--border);'+sel+'">'+
+          '<td style="padding:8px 10px;font-weight:600">'+ esc(j.client_name||'(untitled)') +'</td>'+
+          '<td style="padding:8px 10px;color:var(--text2)">'+ esc(j.site_address||'—') +'</td>'+
+          '<td style="padding:8px 10px;color:var(--text2)">'+ when +'</td>'+
+          '<td style="padding:8px 10px;white-space:nowrap"><button onclick="openJob(\''+j.id+'\')" class="tool-btn" style="font-size:11px">Open</button> '+
+          '<button onclick="deleteJob(\''+j.id+'\')" class="tool-btn" style="font-size:11px;color:#b91c1c">Delete</button></td>'+
+        '</tr>';
+      }).join('') + '</tbody></table>';
+  } catch(e) {
+    box.innerHTML = '<div style="padding:1rem;color:#b91c1c;font-size:13px">Failed to load jobs: '+ esc(e.message) +'</div>';
+  }
+}
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
+
+async function saveCurrentJob(){
+  var client = (document.getElementById('jobClient')||{}).value || '';
+  var addr   = (document.getElementById('jobAddr')||{}).value || '';
+  var msg = document.getElementById('saveJobMsg');
+  if (!client && !addr) { if (msg) { msg.textContent='Enter a client name or address first (Roof map tab).'; msg.style.color='#b91c1c'; } return; }
+  if (msg) { msg.textContent='Saving…'; msg.style.color=''; }
+  var body = { client_name: client, site_address: addr, draw_state: snapshotCurrentJob(), settings: {} };
+  try {
+    var saved;
+    if (S.currentJobId) saved = await api('PUT', '/jobs/' + S.currentJobId, body);
+    else                saved = await api('POST', '/jobs', body);
+    S.currentJobId = saved.id;
+    setCurrentJobLabel(saved);
+    if (msg) { msg.textContent = '✓ Saved'; msg.style.color = '#15803d'; }
+    refreshJobsList();
+  } catch(e) {
+    if (msg) { msg.textContent = 'Save failed: ' + e.message; msg.style.color = '#b91c1c'; }
+  }
+  setTimeout(function(){if(msg){msg.textContent='';msg.style.color='';}}, 4000);
+}
+
+async function openJob(id){
+  try {
+    var j = await api('GET', '/jobs/' + id);
+    restoreFromJob(j);
+    refreshJobsList();
+    gotoTab('roof');
+  } catch(e) { alert('Could not open job: ' + e.message); }
+}
+
+async function deleteJob(id){
+  if (!confirm('Delete this job? This cannot be undone.')) return;
+  try {
+    await api('DELETE', '/jobs/' + id);
+    if (S.currentJobId === id) { S.currentJobId = null; setCurrentJobLabel(null); }
+    refreshJobsList();
+  } catch(e) { alert('Delete failed: ' + e.message); }
+}
+
+function newJob(){
+  if (!confirm('Start a new job? Unsaved changes will be lost.')) return;
+  S.currentJobId = null;
+  ['jobClient','jobAddr','jobEmail','jobPhone'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
+  try { clearAll && clearAll(); } catch(e){}
+  S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[];
+  setCurrentJobLabel(null);
+  gotoTab('roof');
+}
+
+// Boot: load settings + apply branding once the user is logged in.
+(function bootJobsSettings(){
+  function tryBoot(){
+    if (!localStorage.getItem('fr_token')) { setTimeout(tryBoot, 1000); return; }
+    loadSettings().catch(function(e){console.warn(e);});
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') tryBoot();
+  else document.addEventListener('DOMContentLoaded', tryBoot);
+})();
 
 // ── ROOF IMAGE ───────────────────────────────────────────────────
 function onRoofImg(e){
@@ -1789,7 +2240,8 @@ function refreshReport(){
   var scope=Array.from(document.querySelectorAll('#scopeGrid .chk-item.on')).map(function(el){return el.dataset.item;});
   document.getElementById('rpScope').innerHTML=scope.length?scope.map(function(s){return '• '+s;}).join('<br>'):'--';
   document.getElementById('rpTotal').textContent='$'+tot.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2});
-  document.getElementById('rpBreakdown').innerHTML='Labour: $'+S.labour.toFixed(2)+'<br>Materials: $'+S.materials.toFixed(2)+'<br>GST: $'+gst.toFixed(2)+'<br>Quote valid 30 days';
+  var _validity = (S.settings && S.settings.quote_defaults && S.settings.quote_defaults.validity_days) || 30;
+  document.getElementById('rpBreakdown').innerHTML='Labour: $'+S.labour.toFixed(2)+'<br>Materials: $'+S.materials.toFixed(2)+'<br>GST: $'+gst.toFixed(2)+'<br>Quote valid '+_validity+' days';
   document.getElementById('rpCostBreakdown').innerHTML='<div class="r-row"><span class="rp-rl">Labour</span><span class="rp-rv">$'+S.labour.toFixed(2)+'</span></div><div class="r-row"><span class="rp-rl">Materials</span><span class="rp-rv">$'+S.materials.toFixed(2)+'</span></div><div class="r-row"><span class="rp-rl">GST 15%</span><span class="rp-rv">$'+gst.toFixed(2)+'</span></div><div class="r-row" style="font-weight:700"><span class="rp-rl">Total incl. GST</span><span class="rp-rv">$'+tot.toLocaleString('en-NZ',{minimumFractionDigits:2})+'</span></div>';
   document.getElementById('rpGenDate').textContent='Generated '+new Date().toLocaleDateString('en-NZ');
   if(S.photos.length){
