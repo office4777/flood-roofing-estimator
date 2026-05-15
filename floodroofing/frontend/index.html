@@ -150,6 +150,12 @@ textarea{resize:vertical;min-height:70px}
   #tab-report{display:block!important}.panel:not(#tab-report){display:none!important}
   .card{border:none;padding:0;margin:0}.report-preview{border:none;border-radius:0}
   .rp-header,.rp-summary-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  /* When Print Quote is invoked, only the quote proposal block shows. */
+  html.print-quote #tab-report{display:none!important}
+  html.print-quote #tab-quote{display:block!important}
+  html.print-quote .panel:not(#tab-quote){display:none!important}
+  html.print-quote #tab-quote > .card:not(:last-child){display:none!important}
+  html.print-quote #tab-quote > .card:last-child > .card-hd{display:none!important}
 }
 </style>
   <!-- Google Maps API - Replace YOUR_MAPS_API_KEY with your actual key -->
@@ -885,9 +891,138 @@ textarea{resize:vertical;min-height:70px}
 
 <!-- TAB 6: QUOTE -->
 <div class="panel" id="tab-quote">
+
+  <!-- Action bar -->
+  <div class="card" style="display:flex;gap:8px;align-items:center;padding:12px 16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:700">Quote</div>
+      <div style="font-size:13px;color:var(--text2)">Ref: <strong id="qaRef" style="color:#0a1628">FR-001</strong> &nbsp;·&nbsp; Total incl. GST: <strong id="qaTotal" style="color:#0a1628">$0.00</strong></div>
+    </div>
+    <button onclick="saveQuote()" id="qaSaveBtn" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">💾 Save</button>
+    <button onclick="emailQuote()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Email Quote</button>
+    <button onclick="openJMSPushModal()" style="padding:8px 14px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📤 Push to JMS</button>
+    <button onclick="printQuote()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
+    <span id="qaMsg" style="font-size:12px;color:var(--text2);width:100%"></span>
+  </div>
+
+  <!-- Quote details (editable) -->
   <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Quote summary</div>
-    <div id="quoteContent"><div style="text-align:center;padding:2.5rem 1rem;color:var(--text2);font-size:13px">Complete the roof analysis, scope, and materials to generate your quote.</div></div>
+    <div class="card-hd"><span class="card-dot"></span>Quote details</div>
+    <div class="f3">
+      <div><label>Quote reference</label><input type="text" id="qdRef" placeholder="FR-001" oninput="onQuoteEdit()"></div>
+      <div><label>Quote date</label><input type="text" id="qdDate" oninput="onQuoteEdit()"></div>
+      <div><label>Valid until</label><input type="text" id="qdValidUntil" placeholder="30 days" oninput="onQuoteEdit()"></div>
+    </div>
+    <div class="f3" style="margin-top:8px">
+      <div><label>Client name</label><input type="text" id="qdClient" oninput="onQuoteEdit()"></div>
+      <div><label>Site address</label><input type="text" id="qdAddr" oninput="onQuoteEdit()"></div>
+      <div><label>Email</label><input type="email" id="qdEmail" oninput="onQuoteEdit()"></div>
+    </div>
+  </div>
+
+  <!-- Line items -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Line items
+      <button onclick="addQuoteLine()" style="margin-left:auto;padding:5px 12px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">+ Add line</button>
+      <button onclick="resyncQuoteLines()" style="margin-left:6px;padding:5px 12px;background:transparent;color:#0099cc;border:1px solid #0099cc;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Sync from scope &amp; materials</button>
+    </div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:13px" id="qLineTable">
+      <thead><tr style="background:var(--bg);text-align:left">
+        <th style="padding:8px 10px;width:55%">Description</th>
+        <th style="padding:8px 10px;width:10%">Qty</th>
+        <th style="padding:8px 10px;width:15%">Unit ($)</th>
+        <th style="padding:8px 10px;width:15%;text-align:right">Line total</th>
+        <th style="padding:8px 6px;width:5%"></th>
+      </tr></thead>
+      <tbody id="qLineBody"></tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- Scope, notes & terms -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Scope, notes &amp; terms</div>
+    <label>Scope of works</label>
+    <textarea id="qdScope" rows="3" placeholder="Strip existing iron, install new ColorSteel Endura, replace flashings, gutters and downpipes…" oninput="onQuoteEdit()"></textarea>
+    <label style="margin-top:8px">Notes for client</label>
+    <textarea id="qdNotes" rows="2" placeholder="Access, timing, special considerations…" oninput="onQuoteEdit()"></textarea>
+    <label style="margin-top:8px">Terms &amp; warranty</label>
+    <textarea id="qtTerms" rows="3" placeholder="10 year workmanship warranty. 50% deposit on acceptance. Balance on completion. Quote valid 30 days." oninput="onQuoteEdit()"></textarea>
+  </div>
+
+  <!-- Totals -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Totals</div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text2);margin:0;display:flex;align-items:center;gap:6px">GST rate (%) <input type="number" id="qdGstRate" value="15" min="0" max="50" step="0.5" style="width:70px;padding:4px 8px;font-size:13px;margin:0" oninput="onQuoteEdit()"></label>
+    </div>
+    <div class="sum-box">
+      <div style="font-size:11px;opacity:.55;margin-bottom:4px;text-transform:uppercase;letter-spacing:.07em">Total incl. GST</div>
+      <div class="sum-total" id="qSumTotal">$0.00</div>
+      <div class="sum-grid">
+        <div class="sum-item">Subtotal<strong id="qSumSub">$0.00</strong></div>
+        <div class="sum-item">GST<strong id="qSumGst">$0.00</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full proposal preview (editable via the fields above) -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Full proposal preview
+      <button onclick="refreshQuoteProposal()" style="margin-left:auto;padding:4px 10px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
+    </div>
+    <div class="report-preview" id="quoteProposal">
+      <div class="rp-header">
+        <div>
+          <img id="qpLogo" alt="logo" style="max-height:50px;max-width:200px;display:none;margin-bottom:8px">
+          <div class="rp-logo-name" id="qpCompany">FLOOD ROOFING</div>
+          <div class="rp-logo-tag" id="qpTagline">NORTHLAND'S ROOFING SPECIALISTS</div>
+          <div class="rp-logo-stripe"></div>
+          <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:6px" id="qpContact">floodroofing.co.nz | Whangarei, NZ</div>
+        </div>
+        <div class="rp-hdr-right"><strong>Roofing Quote &amp; Proposal</strong><span id="qpDate"></span><br>Ref: <span id="qpRef">FR-001</span><br>Valid: <span id="qpValid">30 days</span></div>
+      </div>
+      <div class="rp-body">
+        <div class="rp-2col">
+          <div class="rp-section">
+            <div class="rp-section-title">Prepared for</div>
+            <div class="rp-row"><span class="rp-rl">Client</span><span class="rp-rv" id="qpClient">—</span></div>
+            <div class="rp-row"><span class="rp-rl">Site address</span><span class="rp-rv" id="qpAddr">—</span></div>
+            <div class="rp-row"><span class="rp-rl">Email</span><span class="rp-rv" id="qpEmail">—</span></div>
+            <div class="rp-row"><span class="rp-rl">Phone</span><span class="rp-rv" id="qpPhone">—</span></div>
+          </div>
+          <div class="rp-section">
+            <div class="rp-section-title">Roof details</div>
+            <div class="rp-row"><span class="rp-rl">Roof type</span><span class="rp-rv" id="qpRoofType">—</span></div>
+            <div class="rp-row"><span class="rp-rl">Roof area</span><span class="rp-rv" id="qpArea">—</span></div>
+            <div class="rp-row"><span class="rp-rl">Pitch</span><span class="rp-rv" id="qpPitch">—</span></div>
+            <div class="rp-row"><span class="rp-rl">Inspector</span><span class="rp-rv" id="qpInspector">—</span></div>
+          </div>
+        </div>
+        <div class="rp-section"><div class="rp-section-title">Scope of works</div><div class="rp-text" id="qpScope">—</div></div>
+        <div class="rp-section">
+          <div class="rp-section-title">Itemised pricing</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="text-align:left;border-bottom:1px solid #ddd">
+              <th style="padding:6px 4px">Description</th>
+              <th style="padding:6px 4px;text-align:right;width:60px">Qty</th>
+              <th style="padding:6px 4px;text-align:right;width:90px">Unit</th>
+              <th style="padding:6px 4px;text-align:right;width:90px">Total</th>
+            </tr></thead>
+            <tbody id="qpLineBody"></tbody>
+          </table>
+        </div>
+        <div class="rp-section"><div class="rp-section-title">Notes</div><div class="rp-text" id="qpNotes">—</div></div>
+        <div class="rp-section"><div class="rp-section-title">Site photos</div><div class="rp-photos" id="qpPhotos"></div></div>
+        <div class="rp-section"><div class="rp-section-title">Terms &amp; warranty</div><div class="rp-text" id="qpTerms">—</div></div>
+      </div>
+      <div class="rp-summary-bar">
+        <div><div class="rp-total-lbl">Total quoted (incl. <span id="qpGstLbl">15%</span> GST)</div><div class="rp-total-val" id="qpTotal">$0.00</div></div>
+        <div class="rp-breakdown" id="qpBreakdown">Subtotal $0.00<br>GST $0.00</div>
+      </div>
+      <div class="rp-footer"><span id="qpFooter">Flood Roofing Ltd | Whangarei, Northland, NZ | floodroofing.co.nz</span><span id="qpGenDate"></span></div>
+    </div>
   </div>
 </div>
 
@@ -922,6 +1057,63 @@ textarea{resize:vertical;min-height:70px}
     <input id="selectJobSearch" type="text" placeholder="Search by client or address…" oninput="filterSelectJobList()" style="width:100%;padding:9px 12px;border:1px solid #ccc;border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit">
   </div>
   <div id="selectJobList" style="flex:1;overflow-y:auto;padding:10px 14px;min-height:200px"></div>
+</div>
+
+<!-- PUSH TO JMS MODAL -->
+<div id="jmsPushOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998" onclick="closeJMSPushModal()"></div>
+<div id="jmsPushModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:560px;max-width:95vw;max-height:85vh;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:9999;overflow:hidden;flex-direction:column">
+  <div style="padding:14px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">
+    <strong style="flex:1;font-size:14px">📤 Push quote to job-management system</strong>
+    <button onclick="closeJMSPushModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px">✕ Close</button>
+  </div>
+  <div style="padding:14px 18px;overflow-y:auto;flex:1">
+    <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Job-management system</label>
+    <select id="jmsProvider" onchange="setJMSProvider(this.value)" style="width:100%;padding:9px 12px;border:1.5px solid #ccc;border-radius:8px;font-size:13px;font-family:inherit;margin-bottom:14px">
+      <option value="fergus">Fergus</option>
+      <option value="servicem8">ServiceM8 — adapter coming soon</option>
+      <option value="jobber">Jobber — adapter coming soon</option>
+      <option value="tradify">Tradify — adapter coming soon</option>
+    </select>
+
+    <div id="jmsComingSoon" style="display:none;padding:14px;background:#fff8e1;border-left:3px solid #f59e0b;border-radius:6px;font-size:12px;color:#664500;line-height:1.6">
+      <strong>Coming soon.</strong> The <span id="jmsComingSoonName"></span> adapter is on the roadmap. For now, save your <span id="jmsComingSoonName2"></span> API key in <em>Settings → Integrations</em> and use Fergus or Email Quote.
+    </div>
+
+    <div id="jmsFergusFlow">
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button id="jmsModeExistingBtn" onclick="setJMSMode('existing')" class="tool-btn" style="flex:1;font-weight:600">Add to existing job</button>
+        <button id="jmsModeNewBtn" onclick="setJMSMode('new')" class="tool-btn" style="flex:1">Add as new job</button>
+      </div>
+
+      <div id="jmsExistingPane">
+        <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Search Fergus jobs</label>
+        <input id="jmsFergSearch" type="text" placeholder="Client name or job number…" oninput="filterJMSFergJobs()" style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit;margin-bottom:8px">
+        <div id="jmsFergJobList" style="max-height:240px;overflow-y:auto;border:1px solid #eee;border-radius:8px;padding:6px;background:#fafafa">
+          <div style="text-align:center;padding:1.5rem;color:#666;font-size:13px">Loading Fergus jobs…</div>
+        </div>
+        <div id="jmsPickedJob" style="display:none;margin-top:10px;padding:10px 12px;background:#e8f4fd;border-radius:8px;font-size:12px;color:#0a1628">
+          Selected job: <strong id="jmsPickedJobLabel"></strong>
+        </div>
+      </div>
+
+      <div id="jmsNewPane" style="display:none">
+        <div class="f2">
+          <div><label>Client name</label><input type="text" id="jmsNewClient" placeholder="Acme Ltd"></div>
+          <div><label>Site address</label><input type="text" id="jmsNewAddr" placeholder="123 Main St"></div>
+        </div>
+        <div class="f2">
+          <div><label>Job type</label><select id="jmsNewType"><option>Residential roofing</option><option>Commercial roofing</option><option>Repairs and maintenance</option><option>New build roofing</option><option>Gutter and drainage</option></select></div>
+          <div><label>Priority</label><select id="jmsNewPriority"><option>Standard</option><option>Urgent</option><option>Low</option></select></div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:6px">A new draft job will be created in Fergus, then this quote will be attached as a draft quote.</div>
+      </div>
+    </div>
+
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid #eee">
+      <button id="jmsPushBtn" onclick="pushQuoteToJMS()" style="width:100%;padding:11px;background:#059669;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px">📤 Push quote</button>
+      <div id="jmsPushMsg" style="font-size:12px;margin-top:8px;text-align:center"></div>
+    </div>
+  </div>
 </div>
 
 <!-- TAB 8: SETTINGS -->
@@ -1010,7 +1202,8 @@ textarea{resize:vertical;min-height:70px}
 
 <script>
 var PROXY='https://flood-roofing-estimator-production.up.railway.app';
-var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],linkedJobId:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true};
+var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],linkedJobId:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true,
+  quote:null /* {ref,date,validUntil,client,addr,email,scope,notes,terms,gstRate,lineItems:[{desc,qty,unit}]} — lazy-init in buildQuote */};
 var COLORS=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#ea580c','#65a30d'];
 var COLORS_BG=['#dbeafe','#d1fae5','#fef3c7','#fee2e2','#ede9fe','#cffafe','#ffedd5','#ecfccb'];
 
@@ -1268,7 +1461,8 @@ function snapshotCurrentJob(){
   return {
     form: form,
     state: { img64:S.img64, roofData:S.roofData, labour:S.labour, materials:S.materials,
-             condition:S.condition, photos:S.photos, linkedJobId:S.linkedJobId, linkedJobName:S.linkedJobName },
+             condition:S.condition, photos:S.photos, linkedJobId:S.linkedJobId, linkedJobName:S.linkedJobName,
+             quote:S.quote },
     draw: { outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
             penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
             scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step }
@@ -2322,18 +2516,423 @@ function refreshReport(){
 }
 
 // ── QUOTE ────────────────────────────────────────────────────────
+// S.quote is the editable quote state; the inputs in the Quote tab are
+// the source of truth while the tab is open, then mirrored back into
+// S.quote on every keystroke so the snapshot includes whatever the user
+// has typed.
+function fmtMoney(n){var v=parseFloat(n)||0;return '$'+v.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function esc2(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
+
+function defaultQuote(){
+  var d = S.roofData || {};
+  var qd = (S.settings && S.settings.quote_defaults) || {};
+  var validityDays = ((qd.validity_days || 30)) + ' days';
+  var gst = (qd.gst_rate != null) ? qd.gst_rate : 15;
+  var todayStr = (document.getElementById('jobDate')||{}).value || new Date().toLocaleDateString('en-NZ');
+  var scopeChips = Array.from(document.querySelectorAll('#scopeGrid .chk-item.on'))
+                        .map(function(el){return el.dataset.item;});
+  var scopeNotes = (document.getElementById('scopeNotes')||{}).value || '';
+  var terms = qd.terms || '10-year workmanship warranty. 50% deposit on acceptance, balance on completion. Quote valid '+validityDays+'.';
+  return {
+    ref: 'FR-' + (Date.now().toString().slice(-5)),
+    date: todayStr,
+    validUntil: validityDays,
+    client: (document.getElementById('jobClient')||{}).value || '',
+    addr:   (document.getElementById('jobAddr')||{}).value || '',
+    email:  (document.getElementById('jobEmail')||{}).value || '',
+    scope: scopeChips.length ? scopeChips.map(function(s){return '• '+s;}).join('\n') : '',
+    notes: scopeNotes,
+    terms: terms,
+    gstRate: parseFloat(gst) || 15,
+    lineItems: defaultQuoteLineItems()
+  };
+}
+
+function defaultQuoteLineItems(){
+  var items = [];
+  if (S.labour > 0)    items.push({desc:'Labour',    qty:1, unit:S.labour});
+  if (S.materials > 0) items.push({desc:'Materials', qty:1, unit:S.materials});
+  if (items.length === 0) items.push({desc:'', qty:1, unit:0});
+  return items;
+}
+
 function buildQuote(){
-  var d=S.roofData||{};var gst=(S.labour+S.materials)*0.15;var tot=S.labour+S.materials+gst;
-  var client=document.getElementById('jobClient').value||d.owner||'--';
-  var addr=document.getElementById('jobAddr').value||d.address||'--';
-  var scope=Array.from(document.querySelectorAll('#scopeGrid .chk-item.on')).map(function(el){return el.dataset.item;});
-  var notes=document.getElementById('scopeNotes').value;
-  var html='<div style="font-size:13px;background:#f0f8fb;border-radius:10px;padding:12px 16px;margin-bottom:1rem;border-left:3px solid #0099cc"><strong>'+client+'</strong><br>'+addr+'<br>'+document.getElementById('jobDate').value+'</div>';
-  html+='<div class="sum-box"><div style="font-size:11px;opacity:.55;margin-bottom:4px;text-transform:uppercase;letter-spacing:.07em">Total estimate incl. 15% GST</div><div class="sum-total">$'+tot.toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="sum-grid"><div class="sum-item">Labour<strong>$'+S.labour.toLocaleString('en-NZ',{minimumFractionDigits:2})+'</strong></div><div class="sum-item">Materials<strong>$'+S.materials.toLocaleString('en-NZ',{minimumFractionDigits:2})+'</strong></div><div class="sum-item">GST 15%<strong>$'+gst.toLocaleString('en-NZ',{minimumFractionDigits:2})+'</strong></div><div class="sum-item">Roof type<strong>'+(d.roof_type||'--')+'</strong></div></div></div>';
-  if(scope.length) html+='<div style="margin-top:1rem;font-size:13px;color:var(--text2);line-height:2">'+scope.map(function(s){return '• '+s;}).join('<br>')+'</div>';
-  if(notes) html+='<div style="margin-top:.75rem;font-size:12px;background:#f0f8fb;padding:10px 13px;border-radius:10px;border-left:3px solid #0099cc"><strong>Notes:</strong> '+notes+'</div>';
-  html+='<button class="sec-btn" onclick="refreshReport();gotoTab(\'report\')" style="margin-top:1rem">View full report</button>';
-  document.getElementById('quoteContent').innerHTML=html;
+  if (!S.quote) S.quote = defaultQuote();
+  // Backfill missing fields (e.g. a job loaded from before this feature)
+  var def = defaultQuote();
+  Object.keys(def).forEach(function(k){
+    if (S.quote[k] === undefined || S.quote[k] === null) S.quote[k] = def[k];
+  });
+  if (!Array.isArray(S.quote.lineItems) || !S.quote.lineItems.length) {
+    S.quote.lineItems = defaultQuoteLineItems();
+  }
+  // Push state into the form
+  function set(id, val){var el=document.getElementById(id); if(el && el.value !== val) el.value = (val==null?'':val);}
+  set('qdRef',        S.quote.ref);
+  set('qdDate',       S.quote.date);
+  set('qdValidUntil', S.quote.validUntil);
+  set('qdClient',     S.quote.client);
+  set('qdAddr',       S.quote.addr);
+  set('qdEmail',      S.quote.email);
+  set('qdScope',      S.quote.scope);
+  set('qdNotes',      S.quote.notes);
+  set('qtTerms',      S.quote.terms);
+  set('qdGstRate',    String(S.quote.gstRate));
+  renderQuoteLines();
+  recalcQuoteTotals();
+  refreshQuoteProposal();
+}
+
+function readQuoteFromInputs(){
+  var q = S.quote || (S.quote = defaultQuote());
+  function val(id){var el=document.getElementById(id); return el ? el.value : '';}
+  q.ref        = val('qdRef');
+  q.date       = val('qdDate');
+  q.validUntil = val('qdValidUntil');
+  q.client     = val('qdClient');
+  q.addr       = val('qdAddr');
+  q.email      = val('qdEmail');
+  q.scope      = val('qdScope');
+  q.notes      = val('qdNotes');
+  q.terms      = val('qtTerms');
+  q.gstRate    = parseFloat(val('qdGstRate')) || 0;
+}
+
+function onQuoteEdit(){
+  readQuoteFromInputs();
+  recalcQuoteTotals();
+  refreshQuoteProposal();
+}
+
+function renderQuoteLines(){
+  var body = document.getElementById('qLineBody'); if (!body) return;
+  var rows = S.quote.lineItems.map(function(li, i){
+    var line = (parseFloat(li.qty)||0) * (parseFloat(li.unit)||0);
+    return '<tr style="border-top:1px solid var(--border)">'+
+      '<td style="padding:4px"><input type="text" value="'+esc2(li.desc||'')+'" oninput="updateQuoteLine('+i+',\'desc\',this.value)" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:6px;margin:0"></td>'+
+      '<td style="padding:4px"><input type="number" value="'+(li.qty!=null?li.qty:1)+'" step="0.01" min="0" oninput="updateQuoteLine('+i+',\'qty\',this.value)" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:6px;margin:0"></td>'+
+      '<td style="padding:4px"><input type="number" value="'+(li.unit!=null?li.unit:0)+'" step="0.01" min="0" oninput="updateQuoteLine('+i+',\'unit\',this.value)" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:6px;margin:0"></td>'+
+      '<td id="qLineTot-'+i+'" style="padding:4px 10px;text-align:right;font-weight:600">'+fmtMoney(line)+'</td>'+
+      '<td style="padding:4px"><button onclick="removeQuoteLine('+i+')" style="background:transparent;border:none;color:#b91c1c;cursor:pointer;font-size:14px;padding:4px 6px" title="Remove line">×</button></td>'+
+    '</tr>';
+  }).join('');
+  body.innerHTML = rows;
+}
+
+// Update one line item without rebuilding the whole table (avoids focus loss).
+function updateQuoteLine(i, key, val){
+  if (!S.quote || !S.quote.lineItems[i]) return;
+  if (key === 'desc') S.quote.lineItems[i].desc = val;
+  else                S.quote.lineItems[i][key] = parseFloat(val) || 0;
+  var li = S.quote.lineItems[i];
+  var cell = document.getElementById('qLineTot-' + i);
+  if (cell) cell.textContent = fmtMoney((parseFloat(li.qty)||0)*(parseFloat(li.unit)||0));
+  recalcQuoteTotals();
+  refreshQuoteProposal();
+}
+function addQuoteLine(){
+  if (!S.quote) S.quote = defaultQuote();
+  S.quote.lineItems.push({desc:'', qty:1, unit:0});
+  renderQuoteLines();
+  recalcQuoteTotals();
+  refreshQuoteProposal();
+}
+function removeQuoteLine(i){
+  if (!S.quote || !S.quote.lineItems[i]) return;
+  S.quote.lineItems.splice(i, 1);
+  if (!S.quote.lineItems.length) S.quote.lineItems.push({desc:'', qty:1, unit:0});
+  renderQuoteLines();
+  recalcQuoteTotals();
+  refreshQuoteProposal();
+}
+function resyncQuoteLines(){
+  if (!S.quote) S.quote = defaultQuote();
+  S.quote.lineItems = defaultQuoteLineItems();
+  // Also refresh scope from the chips so the proposal matches what's selected
+  var chips = Array.from(document.querySelectorAll('#scopeGrid .chk-item.on'))
+                   .map(function(el){return '• '+el.dataset.item;});
+  if (chips.length) S.quote.scope = chips.join('\n');
+  renderQuoteLines();
+  buildQuote();   // re-applies S.quote → inputs, then recalcs + redraws
+  var msg = document.getElementById('qaMsg');
+  if (msg){ msg.textContent = '✓ Synced line items from labour ($'+S.labour.toFixed(2)+') + materials ($'+S.materials.toFixed(2)+')'; msg.style.color='#15803d'; setTimeout(function(){msg.textContent='';},3500); }
+}
+
+function quoteSubtotal(){
+  return (S.quote && S.quote.lineItems || []).reduce(function(s,li){return s + (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);}, 0);
+}
+function recalcQuoteTotals(){
+  var sub = quoteSubtotal();
+  var gst = sub * ((S.quote && S.quote.gstRate || 0)/100);
+  var tot = sub + gst;
+  var s1=document.getElementById('qSumSub');   if(s1) s1.textContent = fmtMoney(sub);
+  var s2=document.getElementById('qSumGst');   if(s2) s2.textContent = fmtMoney(gst);
+  var s3=document.getElementById('qSumTotal'); if(s3) s3.textContent = fmtMoney(tot);
+  var ta=document.getElementById('qaTotal');   if(ta) ta.textContent = fmtMoney(tot);
+  var rr=document.getElementById('qaRef');     if(rr) rr.textContent = (S.quote && S.quote.ref) || 'FR-001';
+}
+
+function refreshQuoteProposal(){
+  if (!S.quote) return;
+  var d = S.roofData || {};
+  var sub = quoteSubtotal();
+  var gst = sub * (S.quote.gstRate/100);
+  var tot = sub + gst;
+  // Branding (from Settings → Branding)
+  var br = (S.settings && S.settings.branding) || {};
+  var company = br.company_name || 'FLOOD ROOFING';
+  var tagline = (br.tagline || "NORTHLAND'S ROOFING SPECIALISTS").toUpperCase();
+  var contactBits = [br.website, br.phone, br.email, br.address].filter(Boolean).join(' | ') || 'floodroofing.co.nz | Whangarei, NZ';
+  function setText(id, v){var el=document.getElementById(id); if(el) el.textContent = v;}
+  setText('qpCompany', company);
+  setText('qpTagline', tagline);
+  setText('qpContact', contactBits);
+  setText('qpFooter',  (br.company_name||'Flood Roofing') + (br.address?' | '+br.address:' | Whangarei, Northland, NZ') + (br.website?' | '+br.website:' | floodroofing.co.nz'));
+  setText('qpDate',    S.quote.date || '');
+  setText('qpRef',     S.quote.ref || '');
+  setText('qpValid',   S.quote.validUntil || '');
+  setText('qpClient',  S.quote.client || '—');
+  setText('qpAddr',    S.quote.addr || '—');
+  setText('qpEmail',   S.quote.email || '—');
+  setText('qpPhone',   (document.getElementById('jobPhone')||{}).value || '—');
+  setText('qpRoofType',d.roof_type || '—');
+  setText('qpArea',    d.area_m2 ? d.area_m2+' m²' : '—');
+  setText('qpPitch',   d.pitch ? d.pitch+'°' : '—');
+  setText('qpInspector', (document.getElementById('inspName')||{}).value || '—');
+  document.getElementById('qpScope').innerHTML = (S.quote.scope||'—').split('\n').map(esc2).join('<br>');
+  document.getElementById('qpNotes').innerHTML = (S.quote.notes||'—').split('\n').map(esc2).join('<br>');
+  document.getElementById('qpTerms').innerHTML = (S.quote.terms||'—').split('\n').map(esc2).join('<br>');
+  setText('qpGstLbl', S.quote.gstRate + '%');
+  setText('qpTotal',  fmtMoney(tot));
+  document.getElementById('qpBreakdown').innerHTML = 'Subtotal '+fmtMoney(sub)+'<br>GST '+fmtMoney(gst);
+  document.getElementById('qpGenDate').textContent = 'Generated ' + new Date().toLocaleDateString('en-NZ');
+  // Logo
+  var logo = document.getElementById('qpLogo');
+  if (logo) {
+    if (br.logo_data_url) { logo.src = br.logo_data_url; logo.style.display='block'; }
+    else                  { logo.style.display='none'; }
+  }
+  // Photos
+  var photos = (S.photos||[]).slice(0,6);
+  var photoEl = document.getElementById('qpPhotos');
+  if (photoEl) {
+    if (photos.length) {
+      photoEl.innerHTML = photos.map(function(p){return '<div class="rp-photo-slot"><img src="'+p.src+'"></div>';}).join('');
+    } else {
+      photoEl.innerHTML = '<div class="rp-photo-slot">No photos</div><div class="rp-photo-slot">—</div><div class="rp-photo-slot">—</div>';
+    }
+  }
+  // Line items
+  var lb = document.getElementById('qpLineBody');
+  if (lb) {
+    lb.innerHTML = (S.quote.lineItems||[]).map(function(li){
+      var line = (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);
+      return '<tr style="border-bottom:1px solid #f0f0ee">'+
+        '<td style="padding:5px 4px">'+esc2(li.desc||'—')+'</td>'+
+        '<td style="padding:5px 4px;text-align:right">'+(li.qty||0)+'</td>'+
+        '<td style="padding:5px 4px;text-align:right">'+fmtMoney(li.unit)+'</td>'+
+        '<td style="padding:5px 4px;text-align:right;font-weight:600">'+fmtMoney(line)+'</td>'+
+        '</tr>';
+    }).join('') +
+      '<tr style="border-top:2px solid #0a1628"><td colspan="3" style="padding:7px 4px;text-align:right;font-weight:700">Subtotal</td><td style="padding:7px 4px;text-align:right;font-weight:700">'+fmtMoney(sub)+'</td></tr>'+
+      '<tr><td colspan="3" style="padding:5px 4px;text-align:right">GST '+S.quote.gstRate+'%</td><td style="padding:5px 4px;text-align:right">'+fmtMoney(gst)+'</td></tr>'+
+      '<tr style="background:#f5f5f3"><td colspan="3" style="padding:8px 4px;text-align:right;font-weight:700">Total</td><td style="padding:8px 4px;text-align:right;font-weight:700;color:#059669">'+fmtMoney(tot)+'</td></tr>';
+  }
+}
+
+async function saveQuote(){
+  readQuoteFromInputs();
+  var msg = document.getElementById('qaMsg');
+  if (msg){ msg.textContent = 'Saving…'; msg.style.color=''; }
+  try {
+    await saveCurrentJob();
+    if (msg){ msg.textContent = '✓ Quote saved'; msg.style.color='#15803d'; }
+  } catch(e) {
+    if (msg){ msg.textContent = 'Save failed: '+e.message; msg.style.color='#b91c1c'; }
+  }
+  setTimeout(function(){ if(msg){msg.textContent='';msg.style.color='';} }, 4000);
+}
+
+function emailQuote(){
+  readQuoteFromInputs();
+  var q = S.quote || {};
+  var sub = quoteSubtotal();
+  var gst = sub * (q.gstRate/100);
+  var tot = sub + gst;
+  var br = (S.settings && S.settings.branding) || {};
+  var company = br.company_name || 'Flood Roofing';
+  var subject = 'Roofing quote ' + (q.ref || '') + ' — ' + (q.client || 'Client');
+  var lines = (q.lineItems||[]).map(function(li){
+    var line = (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);
+    return '  ' + (li.desc||'—') + '   ' + (li.qty||0) + ' × ' + fmtMoney(li.unit) + '  =  ' + fmtMoney(line);
+  }).join('\n');
+  var body =
+    'Hi ' + (q.client||'') + ',\n\n' +
+    'Please find our roofing quote below.\n\n' +
+    'Quote ref: ' + (q.ref||'') + '\n' +
+    'Date:      ' + (q.date||'') + '\n' +
+    'Valid:     ' + (q.validUntil||'') + '\n' +
+    'Site:      ' + (q.addr||'') + '\n\n' +
+    'SCOPE OF WORKS\n' + (q.scope||'—') + '\n\n' +
+    'ITEMISED PRICING\n' + lines + '\n\n' +
+    '  Subtotal:  ' + fmtMoney(sub) + '\n' +
+    '  GST '+q.gstRate+'%:  ' + fmtMoney(gst) + '\n' +
+    '  Total:     ' + fmtMoney(tot) + '\n\n' +
+    (q.notes ? 'NOTES\n' + q.notes + '\n\n' : '') +
+    'TERMS & WARRANTY\n' + (q.terms||'—') + '\n\n' +
+    'Kind regards,\n' + company + '\n' +
+    (br.phone ? br.phone + '\n' : '') +
+    (br.email ? br.email + '\n' : '') +
+    (br.website || '');
+  var href = 'mailto:' + encodeURIComponent(q.email||'') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  // mailto: has size limits in some clients (~2KB) — warn if exceeded
+  if (href.length > 1900) {
+    var msg = document.getElementById('qaMsg');
+    if (msg){ msg.textContent = 'Quote is long — your mail client may truncate. Tip: Print to PDF and attach instead.'; msg.style.color='#92400e'; setTimeout(function(){msg.textContent='';msg.style.color='';},6000); }
+  }
+  window.location.href = href;
+}
+
+function printQuote(){
+  // Tag <html> so the print stylesheet hides everything except the proposal
+  document.documentElement.classList.add('print-quote');
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){ document.documentElement.classList.remove('print-quote'); }, 500);
+  }, 50);
+}
+
+// ── JMS PUSH MODAL ───────────────────────────────────────────────
+var _jmsState = { provider:'fergus', mode:'existing', pickedJobId:null, pickedJobLabel:'', jobsCache:[] };
+
+function openJMSPushModal(){
+  readQuoteFromInputs();
+  var ov = document.getElementById('jmsPushOverlay'),
+      md = document.getElementById('jmsPushModal');
+  if (!ov || !md) return;
+  ov.style.display='block'; md.style.display='flex';
+  // Prefill new-job pane from current quote
+  var s1 = document.getElementById('jmsNewClient'); if(s1 && !s1.value) s1.value = (S.quote||{}).client || '';
+  var s2 = document.getElementById('jmsNewAddr');   if(s2 && !s2.value) s2.value = (S.quote||{}).addr || '';
+  setJMSProvider(document.getElementById('jmsProvider').value || 'fergus');
+  setJMSMode(_jmsState.mode || 'existing');
+}
+function closeJMSPushModal(){
+  document.getElementById('jmsPushOverlay').style.display='none';
+  document.getElementById('jmsPushModal').style.display='none';
+}
+function setJMSProvider(p){
+  _jmsState.provider = p;
+  var supported = (p === 'fergus');
+  document.getElementById('jmsFergusFlow').style.display = supported ? 'block' : 'none';
+  var cs = document.getElementById('jmsComingSoon');
+  cs.style.display = supported ? 'none' : 'block';
+  document.getElementById('jmsComingSoonName').textContent = ({servicem8:'ServiceM8',jobber:'Jobber',tradify:'Tradify'})[p] || p;
+  document.getElementById('jmsComingSoonName2').textContent = document.getElementById('jmsComingSoonName').textContent;
+  var btn = document.getElementById('jmsPushBtn');
+  btn.disabled = !supported;
+  btn.style.opacity = supported ? '1' : '.5';
+  btn.style.cursor  = supported ? 'pointer' : 'not-allowed';
+  if (supported) loadJMSFergJobs();
+}
+function setJMSMode(m){
+  _jmsState.mode = m;
+  document.getElementById('jmsExistingPane').style.display = m==='existing' ? 'block' : 'none';
+  document.getElementById('jmsNewPane').style.display      = m==='new'      ? 'block' : 'none';
+  [['jmsModeExistingBtn','existing'],['jmsModeNewBtn','new']].forEach(function(pair){
+    var b = document.getElementById(pair[0]); if (!b) return;
+    var active = (m === pair[1]);
+    b.style.background = active ? '#0a1628' : '#fff';
+    b.style.color      = active ? '#fff'    : '#0a1628';
+    b.style.border     = '1.5px solid #0a1628';
+    b.style.fontWeight = active ? '700' : '500';
+  });
+}
+async function loadJMSFergJobs(){
+  var list = document.getElementById('jmsFergJobList'); if (!list) return;
+  list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#666;font-size:13px">Loading Fergus jobs…</div>';
+  try {
+    var resp = await fergusCall('GET','/jobs?page=1&per_page=50');
+    if (!resp.ok) throw new Error('HTTP '+resp.status);
+    var data = await resp.json();
+    _jmsState.jobsCache = data.value || data.jobs || data.data || [];
+    renderJMSFergJobs(_jmsState.jobsCache);
+  } catch(e){
+    list.innerHTML = '<div style="padding:1rem;color:#b91c1c;font-size:12px">Couldn\'t load Fergus jobs ('+esc2(e.message)+'). Make sure Fergus is connected on the Fergus tab and your API key is set.</div>';
+  }
+}
+function filterJMSFergJobs(){
+  var q = ((document.getElementById('jmsFergSearch')||{}).value||'').toLowerCase().trim();
+  if (!q) return renderJMSFergJobs(_jmsState.jobsCache);
+  renderJMSFergJobs(_jmsState.jobsCache.filter(function(j){
+    var t = ((j.brief_description||'')+' '+(j.client_name||'')+' '+(j.internal_id||j.id||'')+' '+((j.site_address||{}).address1||'')).toLowerCase();
+    return t.indexOf(q) >= 0;
+  }));
+}
+function renderJMSFergJobs(jobs){
+  var list = document.getElementById('jmsFergJobList'); if (!list) return;
+  if (!jobs.length){ list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#666;font-size:13px">No matching jobs.</div>'; return; }
+  list.innerHTML = jobs.map(function(j){
+    var title = j.brief_description || j.client_name || j.name || 'Job';
+    var num   = j.internal_id || j.id || j.job_id;
+    var addr  = (j.site_address && j.site_address.address1) ? (j.site_address.address1+', '+(j.site_address.addressCity||'')) : '';
+    return '<div onclick="pickJMSFergJob(\''+num+'\', \''+esc2(title).replace(/\'/g,"\\\'")+'\', this)" '+
+      'style="padding:9px 11px;border:1px solid #eee;border-radius:6px;margin-bottom:5px;cursor:pointer;background:#fff" '+
+      'onmouseover="this.style.background=\'#f0f8fb\';this.style.borderColor=\'#0099cc\'" onmouseout="if(!this.classList.contains(\'sel\')){this.style.background=\'#fff\';this.style.borderColor=\'#eee\';}">'+
+      '<div style="font-weight:600;font-size:13px">'+esc2(title)+'</div>'+
+      '<div style="font-size:11px;color:#666;margin-top:2px">#'+esc2(String(num))+(addr?' · '+esc2(addr):'')+'</div></div>';
+  }).join('');
+}
+function pickJMSFergJob(id, label, el){
+  _jmsState.pickedJobId = id;
+  _jmsState.pickedJobLabel = label;
+  document.querySelectorAll('#jmsFergJobList > div').forEach(function(d){ d.classList.remove('sel'); d.style.background='#fff'; d.style.borderColor='#eee'; });
+  if (el) { el.classList.add('sel'); el.style.background='#dbeafe'; el.style.borderColor='#0099cc'; }
+  document.getElementById('jmsPickedJob').style.display='block';
+  document.getElementById('jmsPickedJobLabel').textContent = label + ' (#'+id+')';
+}
+async function pushQuoteToJMS(){
+  var msg = document.getElementById('jmsPushMsg');
+  function say(t,color){ if(msg){ msg.textContent=t; msg.style.color=color||''; } }
+  if (_jmsState.provider !== 'fergus') { say('Adapter coming soon for this JMS.', '#92400e'); return; }
+  readQuoteFromInputs();
+  var sub = quoteSubtotal();
+  var gst = sub * (S.quote.gstRate/100);
+  var tot = sub + gst;
+  var line_items = (S.quote.lineItems||[]).map(function(li){
+    return { description: li.desc||'—', quantity: parseFloat(li.qty)||0, unit_price: parseFloat(li.unit)||0 };
+  });
+  line_items.push({ description: 'GST '+S.quote.gstRate+'%', quantity: 1, unit_price: gst });
+  var quoteTitle = 'Quote ' + (S.quote.ref||'') + ' — ' + (S.quote.client||'Client');
+  try {
+    say('Pushing…','');
+    var jobId = _jmsState.pickedJobId;
+    if (_jmsState.mode === 'new'){
+      var client = (document.getElementById('jmsNewClient')||{}).value || S.quote.client;
+      var addr   = (document.getElementById('jmsNewAddr')||{}).value || S.quote.addr;
+      if (!client){ say('Enter a client name for the new Fergus job.', '#b91c1c'); return; }
+      var resp = await fergusCall('POST', '/jobs', { brief_description: client + (addr?' — '+addr:''), site_address: addr ? { address1: addr } : undefined });
+      if (!resp.ok) throw new Error('Could not create Fergus job (HTTP '+resp.status+')');
+      var d = await resp.json();
+      jobId = d.id || d.job_id || d.internal_id;
+      if (!jobId) throw new Error('Fergus returned no job id');
+    }
+    if (!jobId){ say('Select an existing Fergus job or switch to "Add as new job".', '#b91c1c'); return; }
+    var qResp = await fergusCall('POST', '/jobs/'+jobId+'/quotes', {
+      title: quoteTitle,
+      line_items: line_items,
+      total: tot,
+      notes: (S.quote.scope||'') + (S.quote.notes ? '\n\nNotes: '+S.quote.notes : ''),
+      status: 'draft'
+    });
+    if (!qResp.ok) throw new Error('Quote create failed (HTTP '+qResp.status+')');
+    S.linkedJobId = jobId;
+    S.linkedJobName = (_jmsState.pickedJobLabel || quoteTitle);
+    say('✓ Pushed to Fergus job #'+jobId+' as a draft quote.', '#15803d');
+    setTimeout(closeJMSPushModal, 1800);
+  } catch(e){
+    say('Push failed: ' + e.message, '#b91c1c');
+  }
 }
 
 // ── FERGUS ───────────────────────────────────────────────────────
