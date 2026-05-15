@@ -5934,13 +5934,20 @@ function renderRoofSheetPlan() {
         var _isWedge=f.isWedge;
         var _isWedgeFull=false;
         if(_isWedge){
-          /* iter83: drop iter78a's purple-offcut special case for s<2. Every
-             wedge strip now renders as an ORANGE FULL SHEET, numbered from 1.
-             Avoids the two purple ↻ slivers at the bottom of the wedge that
-             read as offcuts when they should be full orange continuations. */
-          col=COL_ORANGE;
-          srcNum=s+1;
-          _isWedgeFull=true;
+          /* iter84: top 2 wedge strips (largest s, closest to inner-corner
+             valley / short-arm sheet 1) carry PURPLE OFFCUTS sourced from
+             short-arm sheets 7 and 8. Those leftmost short-arm sheets get
+             hip-cut by the left-end-face; their offcuts physically fill the
+             small valley area next to sheet 1. Lower wedge strips remain
+             ORANGE full sheets renumbered from 1. */
+          if(s>=f.nSheets-2){
+            col=COL_PURPLE;
+            srcNum=(s===f.nSheets-1)?8:7;
+          } else {
+            col=COL_ORANGE;
+            srcNum=s+1;
+            _isWedgeFull=true;
+          }
         } else if(isLeftHalf&&s<2&&lDonor&&lDonor.col===COL_ORANGE){
           /* iter81: use lDonor (respects crossWing swap) instead of f.lAdj —
              on the right-end-face of an L-shape, crossWing=true and the
