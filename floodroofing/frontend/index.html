@@ -5937,9 +5937,20 @@ function renderRoofSheetPlan() {
             srcNum=s-1;
             _isWedgeFull=true;
           }
-        } else if(isLeftHalf&&s<2&&f.lAdj&&f.lAdj.col===COL_ORANGE){
+        } else if(isLeftHalf&&s<2&&lDonor&&lDonor.col===COL_ORANGE){
+          /* iter81: use lDonor (respects crossWing swap) instead of f.lAdj —
+             on the right-end-face of an L-shape, crossWing=true and the
+             left-half donor is f.rAdj, so checking f.lAdj.col read the
+             non-donor face and never matched orange. */
           col=COL_ORANGE;
           srcNum=s+1;
+          _isWedgeFull=true;
+        } else if(!isLeftHalf&&(f.nSheets-1-s)<2&&rDonor&&rDonor.col===COL_ORANGE){
+          /* iter81: symmetric right-half clause — when the orange donor sits
+             on the p1 side of the end face (outline-winding dependent), the
+             "2 top strips adjacent to orange" land at high s, not low s. */
+          col=COL_ORANGE;
+          srcNum=f.nSheets-s;
           _isWedgeFull=true;
         } else if(isLeftHalf){
           col=lDonor?lDonor.col:f.col;
