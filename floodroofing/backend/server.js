@@ -219,6 +219,25 @@ app.all('/fergus/*', requireAuth, requireSubscription, async (req, res) => {
   }
 });
 
+// JMS configuration diagnostic. Returns just enough information for the
+// user to verify Railway env vars are loaded WITHOUT exposing the secret
+// (only the last 4 chars of the key + length, like Stripe's UI shows).
+app.get('/jms/debug', requireAuth, (req, res) => {
+  const k = process.env.FERGUS_API_KEY || '';
+  res.json({
+    fergus: {
+      key_set: !!k,
+      key_format_ok: k.startsWith('fergPAT_'),
+      key_length: k.length,
+      key_tail: k ? k.slice(-4) : null,
+      host: FERGUS_HOST,
+      path_prefix: FERGUS_PREFIX,
+      computed_test_url: `https://${FERGUS_HOST}${FERGUS_PREFIX}/jobs?page=1&per_page=1`,
+    },
+    backend_uptime_seconds: Math.round(process.uptime()),
+  });
+});
+
 app.get('/proxy-image', async (req, res) => {
   const url = req.query.url;
   if (!url || !url.startsWith('https://api.mapbox.com')) return res.status(400).end();

@@ -854,9 +854,13 @@ textarea{resize:vertical;min-height:70px}
   </div>
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Fergus API key</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:.75rem">Loaded from .env automatically. Leave blank to use it.</p>
-    <div class="api-input-wrap"><input type="password" id="fergKey" placeholder="Leave blank — auto loads from .env"><button class="api-toggle" onclick="toggleKeyVis()">show</button></div>
-    <button class="sec-btn" onclick="testFergus()">Connect to Fergus</button>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:.75rem">The Fergus PAT used for connections is read from <code>FERGUS_API_KEY</code> on the backend (Railway env var). The field below is informational only — changes here are <em>not</em> sent to Fergus.</p>
+    <div class="api-input-wrap"><input type="password" id="fergKey" placeholder="(read from Railway FERGUS_API_KEY)"><button class="api-toggle" onclick="toggleKeyVis()">show</button></div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button class="sec-btn" onclick="testFergus()" style="margin:0">Connect to Fergus</button>
+      <button onclick="diagnoseFergus()" style="padding:9px 16px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔍 Diagnose config</button>
+    </div>
+    <div id="fergDiag" style="display:none;margin-top:10px;padding:12px 14px;background:#f5f5f3;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.7;white-space:pre-wrap;color:#0a1628"></div>
     <div class="err" id="fergErr"></div>
     <div class="notice" id="fergOk" style="display:none">Connected to Fergus successfully.</div>
   </div>
@@ -2937,6 +2941,40 @@ async function pushQuoteToJMS(){
 
 // ── FERGUS ───────────────────────────────────────────────────────
 function toggleKeyVis(){var inp=document.getElementById('fergKey');var btn=event.target;inp.type=inp.type==='password'?'text':'password';btn.textContent=inp.type==='password'?'show':'hide';}
+
+async function diagnoseFergus(){
+  var box = document.getElementById('fergDiag');
+  box.style.display = 'block';
+  box.style.background = '#f5f5f3';
+  box.style.color = '#0a1628';
+  box.textContent = 'Checking backend config…';
+  try {
+    var d = await api('GET', '/jms/debug');
+    var f = d.fergus || {};
+    var uptime = d.backend_uptime_seconds || 0;
+    var uptimeStr = uptime < 60 ? uptime + 's' : Math.round(uptime/60) + 'm ' + (uptime%60) + 's';
+    var issues = [];
+    if (!f.key_set)       issues.push('❌ FERGUS_API_KEY is NOT set on Railway.');
+    if (f.key_set && !f.key_format_ok) issues.push('⚠ Key does not start with "fergPAT_" — make sure you copied the full Personal Access Token from Fergus.');
+    if (!f.path_prefix)   issues.push('⚠ FERGUS_PATH_PREFIX is empty. Set it to "/api/v2" on Railway.');
+    if (uptime > 300 && (f.key_set===false || !f.path_prefix))
+      issues.push('⚠ Backend has been running for ' + uptimeStr + ' — if you just changed an env var, Railway hasn\'t restarted yet. Wait or trigger a manual redeploy.');
+    var summary =
+      'FERGUS_API_KEY      : ' + (f.key_set ? '✓ set, length=' + f.key_length + ', ends with …' + f.key_tail + (f.key_format_ok ? '  (fergPAT_ ✓)' : '  (⚠ no fergPAT_ prefix)') : '✗ NOT SET') + '\n' +
+      'FERGUS_HOST         : ' + (f.host || '(default api.fergus.com)') + '\n' +
+      'FERGUS_PATH_PREFIX  : ' + (f.path_prefix || '(empty — likely cause of 403)') + '\n' +
+      'Computed test URL   : ' + (f.computed_test_url || '?') + '\n' +
+      'Backend uptime      : ' + uptimeStr + '\n' +
+      '\n' +
+      (issues.length ? issues.join('\n') : '✓ Config looks healthy. If Connect still 403s, the Fergus account may not have public-API access enabled — check Fergus → Settings → Integrations → API.');
+    box.textContent = summary;
+    if (issues.length) { box.style.background = '#fff3e0'; box.style.color = '#92400e'; }
+    else               { box.style.background = '#e8f5e9'; box.style.color = '#15803d'; }
+  } catch(e) {
+    box.style.background = '#fee2e2'; box.style.color = '#991b1b';
+    box.textContent = 'Diagnose failed: ' + e.message + '\n\nIf this says "Not Found", the new backend code hasn\'t deployed yet — wait for Railway to finish, then try again.';
+  }
+}
 async function fergusCall(method,path,body){var tok=localStorage.getItem('fr_token')||'';return fetch(PROXY+'/fergus'+path,{method:method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:body?JSON.stringify(body):undefined});}
 async function testFergus(){
   var key=document.getElementById('fergKey').value.trim();S.fergKey=key||null;
