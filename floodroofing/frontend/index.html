@@ -5931,44 +5931,17 @@ function renderRoofSheetPlan() {
            iter78b: right-end-face's 2 smallest top strips (adjacent to orange
            long-arm-top donor) render as ORANGE FULL SHEETS — their original
            hatched-blue rendering moves out (offcuts placed elsewhere). */
+        /* iter84: every end-face strip — wedge AND simple-hip — renders as
+           an ORANGE FULL SHEET at the long-arm length. Their hip-cut
+           offcut triangles together form a complete set that fills the
+           triangular destination zones on adjacent faces (left simple-hip
+           end-face offcuts pair with the right wedge's matching slots and
+           vice-versa). Was iter83: only wedges got this treatment;
+           simple-hip end-faces rendered as donor-coloured hatched offcuts. */
         var _isWedge=f.isWedge;
-        var _isWedgeFull=false;
-        if(_isWedge){
-          /* iter83: every wedge strip renders as an ORANGE FULL SHEET. */
-          col=COL_ORANGE;
-          srcNum=s+1;
-          _isWedgeFull=true;
-        } else if(isLeftHalf&&s<2&&lDonor&&lDonor.col===COL_ORANGE){
-          /* iter81: use lDonor (respects crossWing swap) instead of f.lAdj —
-             on the right-end-face of an L-shape, crossWing=true and the
-             left-half donor is f.rAdj, so checking f.lAdj.col read the
-             non-donor face and never matched orange. */
-          col=COL_ORANGE;
-          srcNum=s+1;
-          _isWedgeFull=true;
-        } else if(!isLeftHalf&&(f.nSheets-1-s)<2&&rDonor&&rDonor.col===COL_ORANGE){
-          /* iter81: symmetric right-half clause — when the orange donor sits
-             on the p1 side of the end face (outline-winding dependent), the
-             "2 top strips adjacent to orange" land at high s, not low s. */
-          col=COL_ORANGE;
-          srcNum=f.nSheets-s;
-          _isWedgeFull=true;
-        } else if(isLeftHalf){
-          col=lDonor?lDonor.col:f.col;
-          /* iter80: labels match source full-sheet numbers so the roofer
-             can identify which long-arm-bottom (or long-arm-top) full sheet
-             each offcut came from. The K_left strips in this half map to the
-             LAST K_left donor sheets (those cut by the hip). Smallest strip
-             (s=0, near gutter corner) → smallest source from cut zone;
-             largest strip (near apex) → largest source. */
-          srcNum=lDonorP0?(s+1):(lDonor?lDonor.nSheets-K_left+s+1:s+1);
-        } else {
-          col=rDonor?rDonor.col:f.col;
-          var s2=s-Math.floor(f.apexS);
-          /* iter80: right-half labels also match source full-sheet numbers
-             from the donor face's cut zone. */
-          srcNum=rDonorP0?(K_right-s2):(rDonor?rDonor.nSheets-K_right+s2+1:s2+1);
-        }
+        var _isWedgeFull=true;
+        col=COL_ORANGE;
+        srcNum=s+1;
 
         var labelTarget=null,labelArea=0;
         basePieces.forEach(function(used){
@@ -6131,8 +6104,10 @@ function renderRoofSheetPlan() {
      Short sheets come from purple short-arm faces. iter53. */
   var _orangeLong=0,_blueLong=0,_shortCount=0;
   faces.forEach(function(f){
-    /* iter64: wedge end-faces count as orange full sheets. */
-    if(f.isEndFace){if(f.isWedge)_orangeLong+=f.nSheets;return;}
+    /* iter84: ALL end-face strips (wedge + simple-hip) count as orange
+       full sheets — each end-face triangle is built from full-length
+       orange sheets, with the cut-off triangles forming the offcut set. */
+    if(f.isEndFace){_orangeLong+=f.nSheets;return;}
     if(f.col===COL_ORANGE&&f.hasDeeperRidge){
       var _split=-1;
       _ol.forEach(function(vert,vi){
