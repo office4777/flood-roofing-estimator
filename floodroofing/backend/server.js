@@ -161,15 +161,22 @@ app.put('/settings', requireAuth, async (req, res) => {
 });
 
 function httpsPost(host, path, headers, body) {
+  return httpsRequest(host, path, 'POST', headers, body);
+}
+
+function httpsRequest(host, path, method, headers, body) {
   return new Promise((resolve, reject) => {
-    const data = JSON.stringify(body);
-    const req = https.request({ hostname: host, path, method: 'POST', headers: { ...headers, 'Content-Length': Buffer.byteLength(data) } }, (res) => {
+    const hasBody = body != null && method !== 'GET' && method !== 'HEAD';
+    const data = hasBody ? JSON.stringify(body) : null;
+    const h = { ...headers };
+    if (hasBody) h['Content-Length'] = Buffer.byteLength(data);
+    const req = https.request({ hostname: host, path, method, headers: h }, (res) => {
       let b = '';
       res.on('data', c => b += c);
-      res.on('end', () => resolve({ status: res.statusCode, body: b }));
+      res.on('end', () => resolve({ status: res.statusCode, body: b, headers: res.headers }));
     });
     req.on('error', reject);
-    req.write(data);
+    if (hasBody) req.write(data);
     req.end();
   });
 }
@@ -183,13 +190,33 @@ app.post('/claude/*', requireAuth, requireSubscription, async (req, res) => {
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
+// Fergus proxy. Honors the caller's HTTP method (GET/POST/PUT/DELETE) and
+// only sends a JSON body when the method allows one. Host + path prefix
+// are env-configurable so they can be fixed without a code change.
+const FERGUS_HOST   = process.env.FERGUS_HOST        || 'api.fergus.com';
+const FERGUS_PREFIX = process.env.FERGUS_PATH_PREFIX || '';
 app.all('/fergus/*', requireAuth, requireSubscription, async (req, res) => {
   if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
-  const p = req.path.replace(/^\/fergus/, '');
+  const tail = req.url.replace(/^\/fergus/, '');           // keep the querystring
+  const upstreamPath = FERGUS_PREFIX + tail;
   try {
-    const r = await httpsPost('api.fergus.com', p, { 'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY, 'Content-Type': 'application/json' }, req.body);
-    res.status(r.status).json(JSON.parse(r.body));
-  } catch (e) { res.status(502).json({ error: e.message }); }
+    const r = await httpsRequest(FERGUS_HOST, upstreamPath, req.method, {
+      'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+      'Content-Type':  'application/json',
+      'Accept':        'application/json',
+    }, req.body);
+    res.status(r.status);
+    if (!r.body)                       return res.json({});
+    try { return res.json(JSON.parse(r.body)); }
+    catch {
+      // Fergus's edge can return HTML on auth/403; surface the raw text so
+      // the caller can see what went wrong instead of a generic JSON-parse
+      // crash on the proxy side.
+      return res.type('text/plain').send(r.body.slice(0, 1000));
+    }
+  } catch (e) {
+    res.status(502).json({ error: e.message, host: FERGUS_HOST, path: upstreamPath });
+  }
 });
 
 app.get('/proxy-image', async (req, res) => {
