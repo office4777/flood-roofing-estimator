@@ -542,7 +542,7 @@ textarea{resize:vertical;min-height:70px}
             </div>
           </div>
           <div>
-            <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Roof pitch (for m² calc)</label>
+            <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Roof pitch (m² + hip/valley/barge/sheet lengths)</label>
             <div style="display:flex;gap:6px;align-items:center">
               <input type="number" id="calPitchInput" placeholder="e.g. 20" step="1" min="0" max="60"
                 style="flex:1;font-size:15px;padding:9px 11px;border:1px solid #ccc;border-radius:8px;outline:none;font-family:inherit">
@@ -3115,8 +3115,18 @@ function updateLine() {
   var l=DRAW.lines[i];
   var ts=document.getElementById('editLineType');
   var ml=document.getElementById('editLineMeasM');
+  var oldType = l.type;
   if(ts) l.type=ts.value;
-  if(ml) { var mv=parseFloat(ml.value); l.measM=mv>0?mv:null; }
+  // If the user changed the line type AND we have a stored plan-view length
+  // from calibration, recompute measM using the new type's slope factor.
+  // Otherwise read the measurement from the input as the user's value.
+  if(ts && l.type !== oldType && l.planM != null) {
+    var _p = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+    l.measM = Math.round(l.planM * slopeFactorForLineType(l.type, _p) * 100)/100;
+    if(ml) ml.value = l.measM;
+  } else if(ml) {
+    var mv=parseFloat(ml.value); l.measM=mv>0?mv:null;
+  }
   l.label=document.getElementById('editLineLabel').value;
   document.getElementById('propTitle').textContent='Edit: '+({ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge'}[l.type]||l.type);
   redrawAll(); syncToRoofData(); updateMeasTotals();
@@ -4294,18 +4304,42 @@ function outlineRoofAreaM2() {
   return planArea * pitchFactor;
 }
 
+// ── SLOPE FACTOR PER LINE TYPE ───────────────────────────────────
+// Returns the multiplier to convert a plan-view length into the actual
+// on-roof (3D) length, based on the line's type and the roof pitch.
+//   • ridge / gutter / apron / changepitch / penetration → 1 (horizontal)
+//   • barge (gable rake, runs straight up the slope)     → sec θ
+//   • hip / valley (assumed at 45° to ridge, standard NZ hip)
+//                                                        → √(1 + ½·tan²θ)
+function slopeFactorForLineType(type, pitchDeg) {
+  if (!pitchDeg || pitchDeg <= 0) return 1;
+  var theta = pitchDeg * Math.PI / 180;
+  if (type === 'hip' || type === 'valley') {
+    var t = Math.tan(theta);
+    return Math.sqrt(1 + t*t/2);
+  }
+  if (type === 'barge') {
+    return 1 / Math.cos(theta);
+  }
+  return 1;
+}
+
 // Auto-calculate pixel length of every drawn line and convert to metres
 function autoCalcLineMeasurements() {
   if(!DRAW.scaleMetresPerPx) return;
+  var pitch = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
   DRAW.lines.forEach(function(l) {
     if(!l.pts||l.pts.length<2) return;
     var pixLen = Math.sqrt(
       Math.pow(l.pts[1][0]-l.pts[0][0], 2) +
       Math.pow(l.pts[1][1]-l.pts[0][1], 2)
     );
-    var measM = Math.round(pixLen * DRAW.scaleMetresPerPx * 100) / 100;
+    var planM = pixLen * DRAW.scaleMetresPerPx;
+    var factor = slopeFactorForLineType(l.type, pitch);
+    var measM = Math.round(planM * factor * 100) / 100;
     if(measM > 0) {
       l.measM = measM;
+      l.planM = Math.round(planM * 100) / 100;
       l.label = measM.toFixed(2) + 'm';
     }
   });
@@ -4325,8 +4359,11 @@ function calcLineMeasIfCalibrated(lineIdx) {
   var pixLen = Math.sqrt(
     Math.pow(l.pts[1][0]-l.pts[0][0],2)+Math.pow(l.pts[1][1]-l.pts[0][1],2)
   );
-  var measM = Math.round(pixLen * DRAW.scaleMetresPerPx * 100) / 100;
-  if(measM > 0) { l.measM = measM; l.label = measM.toFixed(2)+'m'; }
+  var pitch = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+  var planM = pixLen * DRAW.scaleMetresPerPx;
+  var factor = slopeFactorForLineType(l.type, pitch);
+  var measM = Math.round(planM * factor * 100) / 100;
+  if(measM > 0) { l.measM = measM; l.planM = Math.round(planM*100)/100; l.label = measM.toFixed(2)+'m'; }
 }
 
 // ── PENETRATION POPUP ────────────────────────────────────────────
@@ -4562,7 +4599,12 @@ function populateMaterialsFromLines() {
             if(d<minDist) minDist=d;
           }
         });
-        if(minDist<Infinity){sheetLen=minDist*DRAW.scaleMetresPerPx;sheetLenSource=' (est)';}
+        if(minDist<Infinity){
+          var planSheet = minDist*DRAW.scaleMetresPerPx;
+          // Sheet runs straight up the slope: actual length = plan run / cos θ
+          sheetLen = planSheet * (pitch>0 ? 1/Math.cos(pitch*Math.PI/180) : 1);
+          sheetLenSource=' (est)';
+        }
       }
 
       // Detect hip/valley at ends
