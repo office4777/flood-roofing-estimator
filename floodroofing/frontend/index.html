@@ -5372,7 +5372,7 @@ function renderRoofSheetPlan() {
        gutter spans two separate roof structures (e.g. an L-shape's right edge runs
        past both the wing's hip apex and the main's hip apex), and treating it as
        one end face would render a huge spurious off-cut block between them. */
-    var isEndFace=false,apexPt=null,apexS=0;
+    var isEndFace=false,apexPt=null,apexS=0,_isWedge=false;
     if(bestD===Infinity&&lHip&&rHip){
       var lFar=pNear(lHip.pts[0],p0)||pNear(lHip.pts[0],p1)?lHip.pts[1]:lHip.pts[0];
       var rFar=pNear(rHip.pts[0],p0)||pNear(rHip.pts[0],p1)?rHip.pts[1]:rHip.pts[0];
@@ -5387,6 +5387,7 @@ function renderRoofSheetPlan() {
                (pNear(ll.pts[0],rFar,15)&&pNear(ll.pts[1],lFar,15));
       });
       if(_apexGap<=gL*0.35||(_hasConnector&&_apexGap<=gL*1.2)){
+        _isWedge=_hasConnector&&_apexGap>gL*0.1;
         apexPt=[(lFar[0]+rFar[0])/2,(lFar[1]+rFar[1])/2];
         var _adL=dot(lFar[0]-gmid[0],lFar[1]-gmid[1],perpX,perpY);
         var _adR=dot(rFar[0]-gmid[0],rFar[1]-gmid[1],perpX,perpY);
@@ -5433,7 +5434,7 @@ function renderRoofSheetPlan() {
     faces.push({gl:gl,p0:p0,p1:p1,gnx:gnx,gny:gny,perpX:perpX,perpY:perpY,gL:gL,
       depImg:bestD,depM:depM,lHip:lHip,rHip:rHip,gutterM:gutterM,swImg:swImg,
       nSheets:nSheets,sheetsHalf:sheetsHalf,isEndFace:isEndFace,apexS:apexS,apexPt:apexPt,
-      ridgeMid:bestRMid,hasDeeperRidge:hasDeeperRidge});
+      ridgeMid:bestRMid,hasDeeperRidge:hasDeeperRidge,isWedge:_isWedge});
   });
 
   faces.sort(function(a,b){return b.gutterM-a.gutterM;});
@@ -5520,7 +5521,9 @@ function renderRoofSheetPlan() {
        junction wedge with both donors above the gutter) — natural adjacency is
        fine there since no flip is needed for the geometry. */
     ef.crossWing=false;
-    ef.isWedge=false;
+    /* iter64: keep the geometric isWedge set during face detection (a wedge
+       is an end-face with a connector spanning lFar–rFar). Don't overwrite
+       it with perpDot-based detection. */
     if(ef.lAdj&&ef.rAdj){
       var _perpDot=ef.lAdj.perpX*ef.rAdj.perpX+ef.lAdj.perpY*ef.rAdj.perpY;
       /* Per user iter41+ feedback: end-face top half should be BLUE (long-
@@ -5528,7 +5531,6 @@ function renderRoofSheetPlan() {
          Bottom half should be ORANGE. This is the SPIN-180 swap — enabled
          when adjacent main faces point opposite ways (perpDot<-0.5). */
       ef.crossWing=_perpDot<-0.5;
-      ef.isWedge=_perpDot>0.5;
       /* SMALL-ARM end face: one whose adjacent faces include a short non-
          mixed face (rAdj or lAdj with gutterM < 10m and no deeper ridge).
          Per user's drawing, the top-arm's left-end face is BLUE — coming
@@ -5549,12 +5551,15 @@ function renderRoofSheetPlan() {
           ef.rAdjP0=len2(ef.p1[0]-_blueFace.p0[0],ef.p1[1]-_blueFace.p0[1])<len2(ef.p1[0]-_blueFace.p1[0],ef.p1[1]-_blueFace.p1[1]);
         }
       }
-      /* WING-JUNCTION WEDGE override (iter52):
-         Per user iter51 feedback "purple offcuts should be orange full sheets
-         which orange offcuts filling in the split hip" — the wedge is filled
-         with orange offcuts (long-arm-top continuation). Both wedge donors
-         become the orange long-arm-top face. */
-      if(_perpDot>0.5){
+      /* WING-JUNCTION WEDGE override (iter61):
+         The small triangle ABOVE THE VALLEY (left half of wedge) gets PURPLE
+         offcuts labelled 1, 2 (offcuts of short-arm purple sheets 1, 2 placed
+         next to purple sheet 9 by the valley). The rest of the wedge (right
+         half, by the connector hip) gets ORANGE offcuts continuing the long-
+         arm-top pattern. lAdj kept natural (purple short-arm), rAdj overridden
+         to orange long-arm-top. */
+      /* iter75 baseline: wedge donor = orange long-arm-top face. */
+      if(ef.isWedge){
         var orangeFace=null;
         faces.forEach(function(mf){
           if(mf.isEndFace)return;
@@ -5563,8 +5568,8 @@ function renderRoofSheetPlan() {
         if(orangeFace){
           ef.lAdj=orangeFace;
           ef.rAdj=orangeFace;
-          ef.lAdjP0=len2(ef.p0[0]-orangeFace.p0[0],ef.p0[1]-orangeFace.p0[1])<len2(ef.p0[0]-orangeFace.p1[0],ef.p0[1]-orangeFace.p1[1]);
-          ef.rAdjP0=len2(ef.p1[0]-orangeFace.p0[0],ef.p1[1]-orangeFace.p0[1])<len2(ef.p1[0]-orangeFace.p1[0],ef.p1[1]-orangeFace.p1[1]);
+          ef.lAdjP0=true;
+          ef.rAdjP0=true;
         }
       }
     }
@@ -5693,10 +5698,11 @@ function renderRoofSheetPlan() {
             used=clipHipInside(used,f.rHip,fAnchor);
           }
           if(!used||used.length<3||polyArea(used)<=minA*0.25)return;
-          /* MIXED-DEPTH FACE COLOURING: only apply purple short-sheet
-             override on the LONG-ARM-TOP face (orange). The long-arm-bottom
-             (blue) face keeps blue throughout — its sheets aren't split into
-             a "short arm" zone in user's SOP. iter50. */
+          /* iter78c: re-enable purple recolor for orange face short-half
+             ONLY when the sheet's tangential position is past the reflex
+             (i.e. in the short-arm zone, west of the reflex). Sheets at the
+             far-right that get shallow-clipped by the right-end hip should
+             stay ORANGE, not recolor purple. */
           var _drawCol=f.col;
           if(f.hasDeeperRidge&&f.col===COL_ORANGE){
             var _sheetDepImg=0;
@@ -5704,7 +5710,23 @@ function renderRoofSheetPlan() {
               var d=(pt[0]-f.p0[0])*f.perpX+(pt[1]-f.p0[1])*f.perpY;
               if(d>_sheetDepImg)_sheetDepImg=d;
             });
-            if(_sheetDepImg<=f.depImg*1.3)_drawCol=COL_PURPLE;
+            if(_sheetDepImg<=f.depImg*1.3){
+              /* Only recolor if sheet is in the short-arm tangential zone. */
+              var _rfxT2=-1;
+              _ol.forEach(function(vert){
+                var _pv=_ol[(_ol.indexOf(vert)-1+_ol.length)%_ol.length];
+                var _nv=_ol[(_ol.indexOf(vert)+1)%_ol.length];
+                var _crs=(vert[0]-_pv[0])*(_nv[1]-vert[1])-(vert[1]-_pv[1])*(_nv[0]-vert[0]);
+                if(_crs>=0)return;
+                var _tP=(vert[0]-f.p0[0])*f.gnx+(vert[1]-f.p0[1])*f.gny;
+                if(_tP>0&&_tP<f.gL&&(_rfxT2<0||_tP>_rfxT2))_rfxT2=_tP;
+              });
+              if(_rfxT2>0){
+                var _shortStartT=Math.floor(_rfxT2/sw)*sw;
+                var _sheetT=s*sw+sw*0.5;
+                if(_sheetT>_shortStartT)_drawCol=COL_PURPLE;
+              }
+            }
           }
           /* OFFCUT-SOURCED COLOURING: a sheet whose kept area is small (cut
              by lHip/rHip into a triangle <50% of full area) is filled in
@@ -5735,30 +5757,33 @@ function renderRoofSheetPlan() {
              rendering pass — they're separate PUZZLE PIECES. */
         });
         if(labelTarget){
-          /* For mixed-depth faces (top gutter of an L spans both long and
-             short arms): renumber so each arm has its own 1..N count.
-             splitPoint = tangential position of the reflex vertex projection
-             onto the gutter. Sheets below splitPoint = long arm. Sheets above
-             splitPoint = short arm (relabel from 1). */
+          /* iter67: when an orange-face sheet is recoloured PURPLE by the
+             mixed-depth short-arm override, its label should match the
+             inner-step (short-arm) sheet directly below it — they're TWO
+             halves of the SAME source purple sheet. Otherwise keep natural
+             orange numbering. */
           var _displaySheetN=s+1;
-          if(f.hasDeeperRidge){
-            var _splitPoint=-1;
-            _ol.forEach(function(vert,vi){
-              var _pv=_ol[(vi-1+_ol.length)%_ol.length];
-              var _nv=_ol[(vi+1)%_ol.length];
-              var _crs=(vert[0]-_pv[0])*(_nv[1]-vert[1])-(vert[1]-_pv[1])*(_nv[0]-vert[0]);
-              if(_crs>=0)return; /* reflex vertex in CCW outline has cross<0 */
-              var _tProj=(vert[0]-f.p0[0])*f.gnx+(vert[1]-f.p0[1])*f.gny;
-              /* iter55: was buggy — undeclared `_split` made condition never fire. */
-              if(_tProj>0&&_tProj<f.gL&&_tProj>_splitPoint)_splitPoint=_tProj;
-            });
-            if(_splitPoint>0){
-              /* iter56: floor (not ceil) so the boundary sheet straddling
-                 the reflex gets renumbered with the short-arm group —
-                 matches its purple-recoloring by the mixed-depth override. */
-              var _shortArmStart=Math.floor(_splitPoint/sw);
-              if(s>=_shortArmStart){
-                _displaySheetN=s-_shortArmStart+1;
+          if(f.col===COL_ORANGE&&f.hasDeeperRidge){
+            var _ltCx=0,_ltCy=0;
+            labelTarget.forEach(function(p){_ltCx+=p[0];_ltCy+=p[1];});
+            _ltCx/=labelTarget.length;_ltCy/=labelTarget.length;
+            var _ltDep=(_ltCx-f.p0[0])*f.perpX+(_ltCy-f.p0[1])*f.perpY;
+            if(_ltDep<=f.depImg*1.3){
+              /* Find the matching inner-step short-arm face. */
+              var _innerStep=null;
+              faces.forEach(function(g){
+                if(g.isEndFace||g===f)return;
+                if(g.col!==COL_PURPLE)return;
+                var _pd=g.perpX*f.perpX+g.perpY*f.perpY;
+                if(_pd>-0.5)return;
+                if(!_innerStep||g.gutterM>_innerStep.gutterM)_innerStep=g;
+              });
+              if(_innerStep){
+                var _t=(_ltCx-_innerStep.p0[0])*_innerStep.gnx+(_ltCy-_innerStep.p0[1])*_innerStep.gny;
+                var _innerS=Math.floor(_t/_innerStep.swImg);
+                if(_innerS>=0&&_innerS<_innerStep.nSheets){
+                  _displaySheetN=_innerS+1;
+                }
               }
             }
           }
@@ -5895,19 +5920,41 @@ function renderRoofSheetPlan() {
            number of cut sheets in this hip's column. */
         var K_left=Math.floor(f.apexS)+1;        /* count of strips in left half */
         var K_right=f.nSheets-K_left;            /* count of strips in right half (fixed: complement of K_left) */
-        if(isLeftHalf){
+        /* iter78a: wedge first 2 strips (nearest valley, next to short-arm
+           purple sheet 9) render as PURPLE OFFCUTS 1↻, 2↻. Remaining strips
+           stay ORANGE full sheets, renumbered 1,2,3,4...
+           iter78b: right-end-face's 2 smallest top strips (adjacent to orange
+           long-arm-top donor) render as ORANGE FULL SHEETS — their original
+           hatched-blue rendering moves out (offcuts placed elsewhere). */
+        var _isWedge=f.isWedge;
+        var _isWedgeFull=false;
+        if(_isWedge){
+          if(s<2){
+            col=COL_PURPLE;
+            srcNum=s+1;
+          } else {
+            col=COL_ORANGE;
+            srcNum=s-1;
+            _isWedgeFull=true;
+          }
+        } else if(isLeftHalf&&s<2&&f.lAdj&&f.lAdj.col===COL_ORANGE){
+          col=COL_ORANGE;
+          srcNum=s+1;
+          _isWedgeFull=true;
+        } else if(isLeftHalf){
           col=lDonor?lDonor.col:f.col;
-          /* Strip s in left half: s=0 is at the gutter end of the end face
-             (LARGEST strip area). Pair it with the donor sheet whose offcut
-             is BIGGEST = the sheet most heavily cut by the hip = the donor
-             sheet farthest from the gutter corner / closest to the apex. */
-          srcNum=lDonorP0?(s+1):(lDonor?lDonor.nSheets-s:s+1);
+          /* iter80: labels match source full-sheet numbers so the roofer
+             can identify which long-arm-bottom (or long-arm-top) full sheet
+             each offcut came from. The K_left strips in this half map to the
+             LAST K_left donor sheets (those cut by the hip). Smallest strip
+             (s=0, near gutter corner) → smallest source from cut zone;
+             largest strip (near apex) → largest source. */
+          srcNum=lDonorP0?(s+1):(lDonor?lDonor.nSheets-K_left+s+1:s+1);
         } else {
           col=rDonor?rDonor.col:f.col;
           var s2=s-Math.floor(f.apexS);
-          /* Right half: s2=0 is near apex (smallest strip), s2=K_right-1 is
-             near p1 gutter (largest strip). Pair largest strip with biggest
-             offcut = smallest-numbered donor sheet (closest to apex). */
+          /* iter80: right-half labels also match source full-sheet numbers
+             from the donor face's cut zone. */
           srcNum=rDonorP0?(K_right-s2):(rDonor?rDonor.nSheets-K_right+s2+1:s2+1);
         }
 
@@ -5939,16 +5986,21 @@ function renderRoofSheetPlan() {
             });
           }
           if(!used||used.length<3||polyArea(used)<minA*0.04)return;
-          /* End-face strips: matches the user's drawing style with a
-             lighter stroke + DIAGONAL HATCHING (iter58) marking them as
-             off-cuts from adjacent full-length sheets. */
-          drawPoly(used,col,'rgba(0,0,0,0.25)',1);
-          drawHatching(used);
+          /* iter66: wedge LOWER strips render SOLID (full sheets); wedge
+             UPPER strips and non-wedge end-faces render hatched (off-cuts). */
+          drawPoly(used,col,'rgba(0,0,0,0.5)',1.2);
+          if(!_isWedgeFull)drawHatching(used);
           var a=polyArea(used);
           if(a>labelArea){labelArea=a;labelTarget=used;}
+          /* iter73: revert iter70–72 offcut overlays. The wedge renders as
+             full-length orange sheets (iter68a baseline); offcut placement
+             is handled implicitly by adjacent-face renders. Per AppliCad
+             4-hip-plus-wing logic the wing-junction sheets ARE the offcuts
+             of full sheets that conceptually pass through the wedge area. */
         });
         if(labelTarget){
-          lbl(labelTarget,srcNum+' ↻','rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
+          var _lbl=_isWedgeFull?String(srcNum):(srcNum+' ↻');
+          lbl(labelTarget,_lbl,'rgba(0,0,0,0.85)',Math.max(7,Math.min(10,toCV(sw)*0.4)),0.95);
         }
       }
       /* Sheet divider lines for end face */
@@ -6031,7 +6083,8 @@ function renderRoofSheetPlan() {
      Short sheets come from purple short-arm faces. iter53. */
   var _orangeLong=0,_blueLong=0,_shortCount=0;
   faces.forEach(function(f){
-    if(f.isEndFace)return;
+    /* iter64: wedge end-faces count as orange full sheets. */
+    if(f.isEndFace){if(f.isWedge)_orangeLong+=f.nSheets;return;}
     if(f.col===COL_ORANGE&&f.hasDeeperRidge){
       var _split=-1;
       _ol.forEach(function(vert,vi){
@@ -6053,30 +6106,10 @@ function renderRoofSheetPlan() {
       _shortCount+=f.nSheets;
     }
   });
-  /* iter54: opaque summary text with white background panel for readability. */
-  ctx.save();
-  ctx.font='bold 13px sans-serif';
-  ctx.textAlign='left';ctx.textBaseline='top';
-  var _summaryX=padX+8,_summaryY=padY+8;
-  var _lines=[
-    {t:'SHEETS TO ORDER:',c:'#0a1628'},
-    {t:_shortCount+' SHORT (@ 3900mm)',c:COL_PURPLE},
-    {t:_orangeLong+' LONG (@ 7650mm)',c:COL_ORANGE},
-    {t:_blueLong+' LONG (@ 7650mm)',c:COL_BLUE}
-  ];
-  var _maxW=0;
-  _lines.forEach(function(line){var w=ctx.measureText(line.t).width;if(w>_maxW)_maxW=w;});
-  ctx.fillStyle='rgba(255,255,255,0.95)';
-  ctx.fillRect(_summaryX-6,_summaryY-4,_maxW+12,_lines.length*18+6);
-  ctx.strokeStyle='rgba(0,0,0,0.25)';
-  ctx.lineWidth=1;
-  ctx.strokeRect(_summaryX-6,_summaryY-4,_maxW+12,_lines.length*18+6);
-  _lines.forEach(function(line,i){
-    var _y=_summaryY+i*18;
-    ctx.fillStyle=line.c;
-    ctx.fillText(line.t,_summaryX,_y);
-  });
-  ctx.restore();
+  /* iter63: the on-canvas summary panel was moved below the canvas as a
+     separate HTML block (replaces the old per-gutter info boxes that the
+     user said weren't needed). The counts (_shortCount, _orangeLong,
+     _blueLong) are emitted into the legend block instead. */
 
   /* Subtle F/C zone labels — small, semi-transparent, in zone centroid. */
   faces.forEach(function(f){
@@ -6120,30 +6153,16 @@ function renderRoofSheetPlan() {
   legHtml+='<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:12px;color:#064e3b">';
   legHtml+='<strong>NZ roofing rule:</strong> Every sheet runs gutter→ridge so the corrugations carry water downhill. The 45° hip cut produces a right-triangle off-cut. Colorsteel can\'t be <em>flipped</em> (painted side must stay up), but any in-plane <em>rotation</em> (90°/180°/270°) is fine. Off-cuts travel along the 45° hip line into the matching triangle in the adjacent end/hip face — same colour + same sheet number marks the pair. A wing whose back is bounded by a valley (L/T/U shapes) doubles its long-face order: front and back share identical sheet sets, with the wing-junction valley trimming the back at the inner corner.';
   legHtml+='</div>';
-  legHtml+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
-  mainFaces.forEach(function(f){
-    var cutLen=hasRealSc&&f.depM>0?(f.depM+overlapM).toFixed(2)+'m':'—';
-    var mult=f.hasBackMirror?2:1;
-    var sH=(f.sheetsHalf||f.nSheets)*mult;
-    var sHTxt=(sH%1===0)?String(sH):sH.toFixed(1);
-    var mirrorTag=f.hasBackMirror?'<span style="font-size:10px;color:#0e7490;font-weight:600;margin-left:4px">(×2 back)</span>':'';
-    legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid '+f.col+';border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa">';
-    legHtml+='<div style="font-weight:700;font-size:11px;margin-bottom:2px">'+(hasRealSc&&f.gutterM>0?f.gutterM.toFixed(2)+'m gutter':'Face')+mirrorTag+'</div>';
-    legHtml+='<div style="font-size:20px;font-weight:700;color:#7c3aed">'+sHTxt+'</div>';
-    legHtml+='<div style="font-size:10px;color:#6b7280">sheets'+(cutLen!=='—'?' @ '+cutLen+' long':'')+'</div>';
-    legHtml+='</div>';
-  });
-  if(endFaces.length){
-    legHtml+='<div style="border:1px solid #e5e7eb;border-left:4px solid #888;border-radius:8px;padding:10px 14px;min-width:145px;background:#fafafa">';
-    legHtml+='<div style="font-weight:700;font-size:11px;margin-bottom:2px">End faces ('+endFaces.length+')</div>';
-    legHtml+='<div style="font-size:11px;color:#6b7280">Filled with off-cuts from adjacent faces</div>';
-    legHtml+='</div>';
-  }
+  /* iter63: SHEETS TO ORDER summary (moved from on-canvas to below).
+     Replaces the per-gutter info boxes which the user said weren't needed.
+     Three rows matching the in-canvas legend colour scheme. */
+  legHtml+='<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px">';
+  legHtml+='<div style="border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px;background:#fff;min-width:240px">';
+  legHtml+='<div style="font-weight:800;font-size:13px;color:#0a1628;letter-spacing:.04em;margin-bottom:10px">SHEETS TO ORDER</div>';
+  legHtml+='<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px"><span style="font-size:24px;font-weight:800;color:'+COL_PURPLE+'">'+_shortCount+'</span><span style="font-size:12px;color:#6b7280">SHORT @ 3900mm</span></div>';
+  legHtml+='<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px"><span style="font-size:24px;font-weight:800;color:'+COL_ORANGE+'">'+_orangeLong+'</span><span style="font-size:12px;color:#6b7280">LONG @ 7650mm</span></div>';
+  legHtml+='<div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:24px;font-weight:800;color:'+COL_BLUE+'">'+_blueLong+'</span><span style="font-size:12px;color:#6b7280">LONG @ 7650mm</span></div>';
   legHtml+='</div>';
-  legHtml+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;font-size:13px">';
-  var totHalfTxt=(totHalf%1===0)?String(totHalf):totHalf.toFixed(1);
-  legHtml+='<strong>Order: '+totWhole+' full-length sheets</strong> <span style="color:#64748b;font-size:12px">('+totHalfTxt+' actually used; the half-sheet rip serves the last column)</span>'+calNote;
-  legHtml+='<br><span style="font-size:11px;color:#64748b">Off-cuts trace the 45° hip into the matching end-face triangle (in-plane rotation OK, no flip) — order by gutter lengths only</span>';
   legHtml+='</div></div>';
 
   outEl.innerHTML='';outEl.appendChild(cv);
