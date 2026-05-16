@@ -238,6 +238,29 @@ app.get('/jms/debug', requireAuth, (req, res) => {
   });
 });
 
+// Live Fergus probe — fires a real GET /jobs request and returns the raw
+// status code, response headers, and first 2KB of the body. Lets the user
+// see exactly what Fergus says when it 403s, instead of just a bare code.
+app.get('/jms/debug/fergus-probe', requireAuth, async (req, res) => {
+  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'FERGUS_API_KEY not set' });
+  const path = FERGUS_PREFIX + '/jobs?page=1&per_page=1';
+  try {
+    const r = await httpsRequest(FERGUS_HOST, path, 'GET', {
+      'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+      'Accept':        'application/json',
+    });
+    res.json({
+      url: `https://${FERGUS_HOST}${path}`,
+      status: r.status,
+      headers: r.headers,
+      body_preview: (r.body || '').slice(0, 2000),
+      body_length: (r.body || '').length,
+    });
+  } catch (e) {
+    res.status(502).json({ error: e.message, url: `https://${FERGUS_HOST}${path}` });
+  }
+});
+
 app.get('/proxy-image', async (req, res) => {
   const url = req.query.url;
   if (!url || !url.startsWith('https://api.mapbox.com')) return res.status(400).end();

@@ -859,6 +859,7 @@ textarea{resize:vertical;min-height:70px}
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
       <button class="sec-btn" onclick="testFergus()" style="margin:0">Connect to Fergus</button>
       <button onclick="diagnoseFergus()" style="padding:9px 16px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔍 Diagnose config</button>
+      <button onclick="probeFergus()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔬 Probe Fergus (show raw response)</button>
     </div>
     <div id="fergDiag" style="display:none;margin-top:10px;padding:12px 14px;background:#f5f5f3;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.7;white-space:pre-wrap;color:#0a1628"></div>
     <div class="err" id="fergErr"></div>
@@ -2941,6 +2942,41 @@ async function pushQuoteToJMS(){
 
 // ── FERGUS ───────────────────────────────────────────────────────
 function toggleKeyVis(){var inp=document.getElementById('fergKey');var btn=event.target;inp.type=inp.type==='password'?'text':'password';btn.textContent=inp.type==='password'?'show':'hide';}
+
+async function probeFergus(){
+  var box = document.getElementById('fergDiag');
+  box.style.display = 'block';
+  box.style.background = '#f5f5f3';
+  box.style.color = '#0a1628';
+  box.textContent = 'Calling Fergus directly with your PAT…';
+  try {
+    var d = await api('GET', '/jms/debug/fergus-probe');
+    var hdrs = d.headers || {};
+    var importantHdrs = ['content-type','www-authenticate','x-ratelimit-remaining','x-fergus-error','retry-after']
+      .filter(function(h){return hdrs[h];})
+      .map(function(h){return '  '+h+': '+hdrs[h];})
+      .join('\n');
+    var out =
+      'URL              : ' + d.url + '\n' +
+      'HTTP status      : ' + d.status + '\n' +
+      'Response length  : ' + d.body_length + ' bytes\n' +
+      (importantHdrs ? 'Notable headers  :\n' + importantHdrs + '\n' : '') +
+      '\n' +
+      '── Fergus response body (first 2KB) ──────────\n' +
+      (d.body_preview || '(empty)');
+    box.textContent = out;
+    if (d.status >= 200 && d.status < 300) {
+      box.style.background = '#e8f5e9'; box.style.color = '#15803d';
+    } else if (d.status === 401 || d.status === 403) {
+      box.style.background = '#fff3e0'; box.style.color = '#92400e';
+    } else {
+      box.style.background = '#fee2e2'; box.style.color = '#991b1b';
+    }
+  } catch (e) {
+    box.style.background = '#fee2e2'; box.style.color = '#991b1b';
+    box.textContent = 'Probe failed: ' + e.message + '\n\nIf this says "Not Found", the new backend code hasn\'t deployed yet — wait for Railway to finish and try again.';
+  }
+}
 
 async function diagnoseFergus(){
   var box = document.getElementById('fergDiag');
