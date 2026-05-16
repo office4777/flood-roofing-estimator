@@ -2863,15 +2863,28 @@ function setJMSMode(m){
     b.style.fontWeight = active ? '700' : '500';
   });
 }
+function showJMSFergJobsList(){
+  var cache = (_jmsState.jobsCache && _jmsState.jobsCache.length) ? _jmsState.jobsCache : (S.fergJobsCache || []);
+  var sorted = cache.slice().sort(function(a,b){ return (parseInt(b.id,10)||0) - (parseInt(a.id,10)||0); });
+  renderJMSFergJobs(sorted.slice(0, 100));
+}
 async function loadJMSFergJobs(){
   var list = document.getElementById('jmsFergJobList'); if (!list) return;
+  // If the Fergus tab already cached the account, reuse it instantly
+  // — the cache is newest-first sorted on render, so we get the most
+  // recent 100 jobs without re-paginating.
+  if (S.fergJobsCache && S.fergJobsCache.length) {
+    _jmsState.jobsCache = S.fergJobsCache.slice();
+    showJMSFergJobsList();
+    return;
+  }
   list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#666;font-size:13px">Loading Fergus jobs…</div>';
   try {
     var resp = await fergusCall('GET','/jobs?page=1&per_page=100');
     if (!resp.ok) throw new Error('HTTP '+resp.status);
     var data = await resp.json();
     _jmsState.jobsCache = (data.value || data.jobs || data.data || []).map(_fergJobView);
-    renderJMSFergJobs(_jmsState.jobsCache);
+    showJMSFergJobsList();
   } catch(e){
     list.innerHTML = '<div style="padding:1rem;color:#b91c1c;font-size:12px">Couldn\'t load Fergus jobs ('+esc2(e.message)+'). Make sure Fergus is connected on the Fergus tab and your API key is set.</div>';
   }
@@ -2890,7 +2903,7 @@ function runJMSFergSearch(){
   var q = ((document.getElementById('jmsFergSearch')||{}).value||'').trim();
   var list = document.getElementById('jmsFergJobList');
   var cache = _jmsState.jobsCache || S.fergJobsCache || [];
-  if (!q){ renderJMSFergJobs(cache); return; }
+  if (!q){ showJMSFergJobsList(); return; }
   var qLow = q.toLowerCase();
   var matched = cache.filter(function(j){
     return (j.jobNo + '').indexOf(q) >= 0
@@ -3098,7 +3111,7 @@ async function testFergus(){
     document.getElementById('fergChip').innerHTML = '<span class="pill-dot" style="background:#27500a"></span>Fergus: connected';
     var data = await resp.json();
     S.fergJobsCache = (data.value || data.jobs || data.data || []).map(_fergJobView);
-    renderFergJobs(S.fergJobsCache);
+    showFergJobsList();
     // Fergus's REST API doesn't appear to honour text-search query params
     // for our account, so the only reliable way to find a deep job (e.g.
     // #2996 when there are thousands) is to cache the lot. Fire-and-forget
@@ -3158,6 +3171,16 @@ function selectFergJob(id, name, el){
   document.getElementById('fergJobName').textContent = name + ' (#' + id + ')';
 }
 
+// Default list view = the most recent 100 jobs. Fergus assigns internal
+// ids monotonically (verified: jobNo 1 → id 15576244, jobNo 2 → id
+// 15576318), so the highest id = the newest job. Sort the cache
+// descending by id and slice.
+function showFergJobsList(){
+  var all = (S.fergJobsCache || []).slice();
+  all.sort(function(a,b){ return (parseInt(b.id, 10) || 0) - (parseInt(a.id, 10) || 0); });
+  renderFergJobs(all.slice(0, 100));
+}
+
 // Debounced search — on each keystroke, run a client-side filter on the
 // cached first-page jobs for instant feedback, then hit Fergus with
 // ?search=<term> to cover jobs that aren't in the cache.
@@ -3202,8 +3225,11 @@ async function preloadAllFergusJobs(){
         if (b.jobs.length === PAGE_SIZE) anyFull = true;
       });
       if (window._jmsState) _jmsState.jobsCache = S.fergJobsCache.slice();
-      // Re-run live search if the user is typing — new matches fade in.
-      if (((document.getElementById('fergSearch')||{}).value || '').trim()) runFergSearch();
+      // Keep the visible list re-sorted as the cache fills — the user
+      // sees the most-recent-cached jobs surface at the top in real
+      // time instead of staring at the oldest 100 the whole preload.
+      if (!((document.getElementById('fergSearch')||{}).value || '').trim()) showFergJobsList();
+      else runFergSearch();
       // Stop only when the entire batch came back empty/short AND we got
       // no new rows. A single short page in the middle (transient hiccup)
       // no longer kills the loop the way the previous version did.
@@ -3273,7 +3299,7 @@ function onFergSearchInput(){
 async function runFergSearch(){
   var q = ((document.getElementById('fergSearch')||{}).value || '').trim();
   var list = document.getElementById('fergJobList');
-  if (!q) { renderFergJobs(S.fergJobsCache || []); return; }
+  if (!q) { showFergJobsList(); return; }
   var qLow = q.toLowerCase();
   var matched = (S.fergJobsCache || []).filter(function(j){
     return (j.jobNo + '').indexOf(q) >= 0
