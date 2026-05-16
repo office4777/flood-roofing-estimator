@@ -1209,6 +1209,11 @@ textarea{resize:vertical;min-height:70px}
         <div><label>Jobber API key</label><input type="password" id="intJobber" placeholder="jbr_..." autocomplete="off"></div>
         <div><label>Tradify API key</label><input type="password" id="intTradify" placeholder="trd_..." autocomplete="off"></div>
       </div>
+      <div style="margin-top:14px;padding:10px 14px;background:#f0f8fb;border-left:3px solid #0099cc;border-radius:6px;font-size:12px;color:#0a1628">
+        <strong>Fergus — Material Sales account id</strong><br>
+        <span style="color:var(--text2)">Fergus's partner API doesn't expose your chart of accounts, so paste the numeric id of your "Material Sales" account here. Find it in Fergus → Settings → Sales Account Codes — click the Material Sales row and the id is the trailing number in the URL.</span><br>
+        <input type="text" id="intFergusMatAcct" placeholder="e.g. 12345678" autocomplete="off" style="margin-top:6px;width:100%;max-width:280px">
+      </div>
       <div style="margin-top:14px;padding:10px 12px;background:#fff8e1;border-left:3px solid #f59e0b;border-radius:6px;font-size:12px;color:#664500">
         <strong>Phase 2:</strong> "Send job to JMS" + "Email quote" buttons (and the JMS adapters for ServiceM8, Jobber, Tradify) ship in the next iteration. Fergus push already works from the Fergus tab.
       </div>
@@ -1363,6 +1368,7 @@ function collectSettingsFromUI(){
   k.servicem8  = (document.getElementById('intServiceM8')||{}).value || '';
   k.jobber     = (document.getElementById('intJobber')||{}).value || '';
   k.tradify    = (document.getElementById('intTradify')||{}).value || '';
+  k.fergusMaterialsAccountId = (document.getElementById('intFergusMatAcct')||{}).value || '';
 }
 
 function refreshSettingsUI(){
@@ -1377,7 +1383,7 @@ function refreshSettingsUI(){
   set('qdValidity', q.validity_days||30); set('qdGst', q.gst_rate==null?15:q.gst_rate); set('qdTerms', q.terms);
   renderOptionsList(q.options || []);
   renderSectionsList(q.sections || []);
-  set('intFergus', k.fergus); set('intServiceM8', k.servicem8); set('intJobber', k.jobber); set('intTradify', k.tradify);
+  set('intFergus', k.fergus); set('intServiceM8', k.servicem8); set('intJobber', k.jobber); set('intTradify', k.tradify); set('intFergusMatAcct', k.fergusMaterialsAccountId);
 }
 
 function renderOptionsList(list){
@@ -3038,36 +3044,51 @@ async function pushQuoteToJMS(){
     return (nonLabour || accts[0]).id;
   }
 
-  var sections = [];
-  // Labour section — one line per worker, all flagged isLabour
+  // Labour section — one line per worker, all flagged isLabour.
+  // Fergus may use any of several field names for the per-hour rate;
+  // send them all so whichever it recognises sticks.
   if (S.labour > 0 && workers > 0) {
     var labourLineItems = [];
+    var qty = parseFloat(perWorkerHours.toFixed(2)) || 1;
     for (var w = 1; w <= workers; w++) {
       labourLineItems.push({
         description: 'Labour — Worker ' + w,
-        quantity:    parseFloat(perWorkerHours.toFixed(2)) || 1,
+        quantity:    qty,
         unitPrice:   rate,
+        hourlyRate:  rate,
+        sellPrice:   rate,
+        price:       rate,
+        cost:        rate,
+        unitCost:    rate,
         isLabour:    true
       });
     }
     sections.push({ name: 'Labour', lineItems: labourLineItems });
   }
-  // Materials section — 1 line, needs a sales account id
-  var materialsAccountId = await getMaterialsSalesAccountId();
+  // Materials section — needs a salesAccountId. The Partner API doesn't
+  // expose the chart of accounts (all 10 endpoint variants 404), so the
+  // id has to come from a user-supplied Settings value the first time.
+  var jmsKeys = (S.settings && S.settings.jms_keys) || {};
+  var materialsAccountId = jmsKeys.fergusMaterialsAccountId || null;
   if (S.materials > 0) {
     if (!materialsAccountId) {
-      say('Push failed: no sales accounts found in your Fergus account. Create at least one "Materials" sales account in Fergus → Settings → Sales Accounts, then retry.', '#b91c1c');
-      return;
+      say('Materials skipped — paste your Material Sales account id in Settings → Integrations → Fergus Materials Account ID. Find it in Fergus → Settings → Sales Account Codes, click the row, the id is in the URL.', '#92400e');
+      // Don't fail the whole push — labour still goes through.
+    } else {
+      sections.push({
+        name: 'Materials',
+        lineItems: [{
+          description:    'Materials',
+          quantity:       1,
+          unitPrice:      S.materials,
+          price:          S.materials,
+          sellPrice:      S.materials,
+          cost:           S.materials,
+          unitCost:       S.materials,
+          salesAccountId: parseFloat(materialsAccountId) || materialsAccountId
+        }]
+      });
     }
-    sections.push({
-      name: 'Materials',
-      lineItems: [{
-        description:    'Materials',
-        quantity:       1,
-        unitPrice:      S.materials,
-        salesAccountId: materialsAccountId
-      }]
-    });
   }
   if (!sections.length) {
     say('Nothing to push: enter labour and/or materials totals on the Scope and Materials tabs first.', '#b91c1c');
@@ -3109,10 +3130,18 @@ async function pushQuoteToJMS(){
       var err = await bodyText(qResp);
       throw new Error('Quote create failed (HTTP '+qResp.status+'): ' + err);
     }
+    // Capture what Fergus actually stored — fields it didn't recognise
+    // get dropped silently, so the response tells us what the canonical
+    // body shape is. Logged to the console for debugging.
+    try {
+      var qData = await qResp.json();
+      console.log('[Fergus quote pushed]', qData);
+      window._lastFergusQuote = qData;
+    } catch(e){}
     S.linkedJobId = jobId;
     S.linkedJobName = (_jmsState.pickedJobLabel || quoteTitle);
-    say('✓ Pushed to Fergus job #'+jobId+' as a draft quote.', '#15803d');
-    setTimeout(closeJMSPushModal, 1800);
+    say('✓ Pushed to Fergus job #'+jobId+' as a draft quote. Open Fergus to verify — line item details logged to browser console.', '#15803d');
+    setTimeout(closeJMSPushModal, 2600);
   } catch(e){
     say('Push failed: ' + e.message, '#b91c1c');
   }
