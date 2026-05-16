@@ -767,9 +767,9 @@ select{
 </div>
 
 <div class="nav">
-  <button class="nav-btn active" onclick="gotoTab('roof')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.3"/></svg>Roof map</button>
+  <button class="nav-btn active" onclick="gotoTab('roof')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.3"/></svg>Map Roof</button>
+  <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Materials &amp; Sheet Layout</button>
   <button class="nav-btn" onclick="gotoTab('scope')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8H11M5 5.5H11M5 10.5H8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Scope &amp; labour</button>
-  <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Materials</button>
   <button class="nav-btn" onclick="gotoTab('report')"><svg viewBox="0 0 16 16" fill="none"><rect x="3" y="1.5" width="10" height="13" rx="1.2" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5H10.5M5.5 8H10.5M5.5 10.5H8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Inspection report</button>
   <button class="nav-btn" onclick="gotoTab('fergus')"><svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3" width="13" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 6.5H14.5" stroke="currentColor" stroke-width="1.1"/><circle cx="4.5" cy="9.5" r="1" fill="currentColor"/><circle cx="7.5" cy="9.5" r="1" fill="currentColor"/></svg>Fergus</button>
   <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
@@ -1223,7 +1223,7 @@ select{
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>From your drawing measurements</div>
     <div id="matAutoFromLines" style="min-height:40px">
-      <p style="font-size:12px;color:var(--text2)">Draw lines and add measurements on the Roof map tab, then click Calibrate scale to populate this automatically.</p>
+      <p style="font-size:12px;color:var(--text2)">Draw lines and add measurements on the Map Roof tab, then click Calibrate scale to populate this automatically.</p>
     </div>
     <button class="sec-btn" onclick="populateMaterialsFromLines()" style="margin-top:.5rem">↻ Refresh from drawing</button>
   </div>
@@ -2100,7 +2100,7 @@ async function refreshJobsList(){
   box.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:var(--text2);font-size:13px">Loading…</div>';
   try {
     var jobs = await api('GET', '/jobs');
-    if (!jobs.length) { box.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:var(--text2);font-size:13px">No saved jobs yet. Fill in client + address on the Roof map tab, then click Save.</div>'; return; }
+    if (!jobs.length) { box.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:var(--text2);font-size:13px">No saved jobs yet. Fill in client + address on the Map Roof tab, then click Save.</div>'; return; }
     box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
       '<thead><tr style="background:var(--bg);text-align:left"><th style="padding:8px 10px">Client</th><th style="padding:8px 10px">Address</th><th style="padding:8px 10px">Updated</th><th style="padding:8px 10px;width:1%"></th></tr></thead><tbody>'+
       jobs.map(function(j){
@@ -2125,7 +2125,7 @@ async function saveCurrentJob(){
   var client = (document.getElementById('jobClient')||{}).value || '';
   var addr   = (document.getElementById('jobAddr')||{}).value || '';
   var msg = document.getElementById('saveJobMsg');
-  if (!client && !addr) { if (msg) { msg.textContent='Enter a client name or address first (Roof map tab).'; msg.style.color='#b91c1c'; } return; }
+  if (!client && !addr) { if (msg) { msg.textContent='Enter a client name or address first (Map Roof tab).'; msg.style.color='#b91c1c'; } return; }
   if (msg) { msg.textContent='Saving…'; msg.style.color=''; }
   var body = { client_name: client, site_address: addr, draw_state: snapshotCurrentJob(), settings: {} };
   try {
