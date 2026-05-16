@@ -19,7 +19,7 @@ const path = require('path');
   });
   const ctx = await browser.newContext({
     deviceScaleFactor: 2,
-    viewport: { width: 1400, height: 900 },
+    viewport: { width: 1680, height: 920 },
   });
   const page = await ctx.newPage();
   // Silence console noise from unfinished integrations.

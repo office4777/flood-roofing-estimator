@@ -84,6 +84,19 @@ body{
   padding:0;
   margin:0;
   position:relative;
+  /* Background-only symbol pattern: a 460px tile of thin-stroke
+     line-art symbols (house/roof, pencil, hammer, drill, tin snips,
+     ruler, hand seamer) scattered + rotated so the repeat is hard to
+     spot. Sits behind sidebar and content; sidebar is opaque white so
+     symbols only show through on the open canvas around the cards and
+     in the side margins on wide screens. Fixed attachment keeps the
+     pattern still when scrolling — feels like a printed page behind
+     the app rather than a long banner. */
+  background-color:var(--bg);
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='460' height='460' viewBox='0 0 460 460' fill='none' stroke='%230a1628' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'><g opacity='.055'><g transform='translate(40 50)'><path d='M0 58 L42 14 L84 58 L84 96 L0 96 Z'/><path d='M30 96 V70 H54 V96'/><path d='M14 64 L24 64 L24 74 L14 74 Z'/><path d='M60 64 L70 64 L70 74 L60 74 Z'/><path d='M42 14 L42 4'/></g><g transform='translate(290 40) rotate(22)'><path d='M0 4 L52 4 L52 12 L0 12 Z'/><path d='M0 4 L-9 8 L0 12 L-12 8 Z'/><path d='M52 3 L62 3 L62 13 L52 13'/><path d='M62 4 L66 4 L66 12 L62 12'/></g><g transform='translate(60 220) rotate(-22)'><path d='M0 0 L34 0 L34 14 L0 14 Z'/><path d='M0 3 L-9 0 L-9 14 L0 11'/><path d='M15 14 L15 56'/><path d='M11 56 L19 56'/></g><g transform='translate(300 210)'><path d='M0 0 L26 0 L30 4 L30 12 L26 16 L0 16 Z'/><path d='M30 4 L36 4 L36 12 L30 12'/><path d='M36 6 L36 10 L48 8 Z'/><path d='M4 16 L4 26 L14 26 L14 16'/><path d='M2 26 L16 26 L16 32 L2 32 Z'/></g><g transform='translate(70 360) rotate(18)'><path d='M0 0 Q-4 -2 -3 3 Q-2 7 2 7 L14 8'/><path d='M0 14 Q-4 16 -3 11 Q-2 7 2 7'/><path d='M14 8 L26 7 L40 0'/><path d='M14 8 L26 9 L40 16'/><circle cx='18' cy='8' r='1.4'/></g><g transform='translate(240 350) rotate(-12)'><path d='M0 0 L120 0 L120 10 L0 10 Z'/><path d='M10 0 V5 M20 0 V8 M30 0 V5 M40 0 V8 M50 0 V5 M60 0 V8 M70 0 V5 M80 0 V8 M90 0 V5 M100 0 V8 M110 0 V5'/></g></g></svg>");
+  background-size:460px 460px;
+  background-repeat:repeat;
+  background-attachment:fixed;
 }
 
 .sidebar{
@@ -104,51 +117,15 @@ body{
 .sidebar::-webkit-scrollbar{width:6px}
 .sidebar::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
 
-/* Subtle inline-SVG roof line art behind the sidebar — sets the
-   "we know roofs" tone without illustrations elsewhere. */
-.sidebar::before{
-  content:'';
-  position:absolute;
-  inset:0;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='none' stroke='%230a1628' stroke-width='.8' stroke-linejoin='round' opacity='.045'><path d='M10 80 L40 50 L70 80 L70 105 L10 105 Z'/><path d='M40 50 L40 105'/><path d='M65 95 L95 65 L120 90'/></g></svg>");
-  background-size:160px 160px;
-  background-position:center top;
-  pointer-events:none;
-}
-.sidebar > *{position:relative;z-index:1}
 
 .content{
   min-width:0;
+  width:100%;
+  max-width:1240px;
+  margin:0 auto;
   padding:28px 32px 80px;
   overflow-x:hidden;
   position:relative;
-  /* Architect's drafting paper — two crossed gradients at 40px form a
-     1:50 grid behind the cards. Cards are opaque white so the grid
-     only shows through gaps, which gives the "estimate on graph paper"
-     feel without fighting the content. */
-  background-image:
-    linear-gradient(to right, rgba(10,22,40,.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(10,22,40,.035) 1px, transparent 1px),
-    linear-gradient(to right, rgba(10,22,40,.055) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(10,22,40,.055) 1px, transparent 1px);
-  background-size:40px 40px,40px 40px,200px 200px,200px 200px;
-  background-position:-1px -1px,-1px -1px,-1px -1px,-1px -1px;
-}
-/* Tiny architect's title-block stamp tucked into the bottom-right
-   corner of the canvas. Pure decoration; pointer-events off so it
-   never blocks clicks on cards above it. */
-.content::after{
-  content:'';
-  position:fixed;
-  right:18px;
-  bottom:18px;
-  width:128px;
-  height:64px;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 64' fill='none' stroke='%230a1628' stroke-width='.8' stroke-linecap='round' stroke-linejoin='round' opacity='.18'><rect x='2' y='2' width='124' height='60'/><path d='M2 18 H126 M2 42 H126 M46 2 V62 M86 2 V62'/><text x='6' y='13' font-family='Inter,sans-serif' font-size='6' fill='%230a1628' opacity='.7' stroke='none'>SCALE 1:50</text><text x='50' y='13' font-family='Inter,sans-serif' font-size='6' fill='%230a1628' opacity='.7' stroke='none'>SHEET A</text><text x='90' y='13' font-family='Inter,sans-serif' font-size='6' fill='%230a1628' opacity='.7' stroke='none'>REV 02</text><path d='M8 28 L18 28 M14 26 L18 28 L14 30 M30 28 L40 28 M26 26 L30 28 L26 30'/><text x='20' y='30' font-family='Inter,sans-serif' font-size='5' fill='%230a1628' opacity='.7' stroke='none'>4.0m</text><path d='M6 52 L122 52' stroke-dasharray='3 2'/></svg>");
-  background-size:contain;
-  background-repeat:no-repeat;
-  pointer-events:none;
-  z-index:0;
 }
 
 /* ── Sidebar: brand block + nav + status ────────────────────── */
@@ -251,42 +228,6 @@ body{
   flex:0 0 auto;
 }
 
-/* Roofer's tool rail — sits at the bottom of the sidebar, fills the
-   leftover space below the nav. Each SVG is thin-stroke line art of a
-   real hand tool from the trade, sized so the proportions read as
-   "size of the thing in your hand", not as a UI icon. */
-.sidebar-tools{
-  margin-top:auto;
-  padding:18px 16px 22px;
-  border-top:1px solid var(--border);
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-.sidebar-tools-label{
-  font-size:9px;
-  letter-spacing:.22em;
-  color:var(--text3);
-  text-transform:uppercase;
-  font-weight:600;
-}
-.sidebar-tools-row{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:10px 6px;
-  align-items:center;
-  justify-items:center;
-}
-.tool-glyph{
-  width:100%;
-  height:auto;
-  max-width:54px;
-  color:var(--ink);
-  opacity:.42;
-  transition:opacity .2s,color .2s,transform .2s;
-}
-.tool-glyph:hover{opacity:.85;color:var(--accent);transform:translateY(-1px)}
-.tool-glyph .accent{stroke:var(--accent);opacity:.85}
 .nav-btn{
   display:flex;
   align-items:center;
@@ -833,71 +774,6 @@ select{
   <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <button class="nav-btn" onclick="gotoTab('jobs')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
   <button class="nav-btn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
-</div>
-
-<div class="sidebar-tools" aria-hidden="true">
-  <div class="sidebar-tools-label">The kit</div>
-  <div class="sidebar-tools-row">
-    <!-- Claw hammer — head + handle, claw on the side -->
-    <svg class="tool-glyph" viewBox="0 0 50 44" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 6 L34 6 L34 18 L12 18 Z"/>
-      <path d="M16 4 L30 4 L30 6 L16 6 Z"/>
-      <path d="M12 10 L4 6 L4 18 L12 14"/>
-      <path d="M22 18 L22 40"/>
-      <path d="M18 40 L26 40"/>
-      <path d="M22 22 L22 36" class="accent"/>
-    </svg>
-
-    <!-- Cordless drill — body, chuck + bit, pistol grip, slide-on battery -->
-    <svg class="tool-glyph" viewBox="0 0 60 44" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M10 8 L36 8 L40 12 L40 22 L36 26 L10 26 Z"/>
-      <path d="M40 14 L46 14 L46 20 L40 20"/>
-      <path d="M46 16 L46 18 L58 17 L58 17 Z"/>
-      <path d="M46 17 L58 17" class="accent"/>
-      <path d="M16 26 L16 36 L26 36 L26 26"/>
-      <path d="M14 36 L28 36 L28 42 L14 42 Z"/>
-      <path d="M20 28 L20 32"/>
-    </svg>
-
-    <!-- Tin snips — two long loop handles, pivot, short curved cutting jaws -->
-    <svg class="tool-glyph" viewBox="0 0 60 40" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M4 6 Q1 8 2 12 Q3 15 7 15 L20 17"/>
-      <path d="M4 34 Q1 32 2 28 Q3 25 7 25 L20 23"/>
-      <path d="M20 17 L36 16 L52 6"/>
-      <path d="M20 23 L36 24 L52 34"/>
-      <path d="M36 16 L36 24" class="accent"/>
-      <circle cx="26" cy="20" r="1.6"/>
-    </svg>
-
-    <!-- Hand seamer / sheet-metal folder — flat jaws, pivot, two long handles -->
-    <svg class="tool-glyph" viewBox="0 0 70 32" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M2 11 L24 11 L26 13 L30 14"/>
-      <path d="M2 21 L24 21 L26 19 L30 18"/>
-      <path d="M2 11 L2 21"/>
-      <path d="M2 14 L24 14" class="accent"/>
-      <circle cx="32" cy="16" r="1.6"/>
-      <path d="M34 14 L62 8 L66 9"/>
-      <path d="M34 18 L62 24 L66 23"/>
-      <path d="M66 9 L66 23"/>
-    </svg>
-
-    <!-- Carpenter's pencil — flat-section body, sharpened tip, ferrule + eraser -->
-    <svg class="tool-glyph" viewBox="0 0 70 18" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M14 4 L52 4 L52 14 L14 14 Z"/>
-      <path d="M14 4 L6 9 L14 14"/>
-      <path d="M6 9 L2 9" class="accent"/>
-      <path d="M52 3 L60 3 L60 15 L52 15"/>
-      <path d="M60 4 L66 4 L66 14 L60 14"/>
-      <path d="M18 9 L48 9"/>
-    </svg>
-
-    <!-- Folding ruler — long flat body with tick marks at every 10mm -->
-    <svg class="tool-glyph" viewBox="0 0 70 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M2 5 L68 5 L68 11 L2 11 Z"/>
-      <path d="M8 5 V8 M14 5 V9 M20 5 V8 M26 5 V9 M32 5 V8 M38 5 V9 M44 5 V8 M50 5 V9 M56 5 V8 M62 5 V9"/>
-      <path d="M2 8 L68 8" class="accent" stroke-dasharray="1 5"/>
-    </svg>
-  </div>
 </div>
 </aside>
 <main class="content">
