@@ -1655,8 +1655,10 @@ select{
     <div class="card-hd"><span class="card-dot"></span>11. Flashings</div>
     <p style="font-size:11px;color:var(--text2);margin:-4px 0 10px">Each flashing: pick a type, enter the length of every face (a face = one bend section). "Line breaks" records where a continuous run joins — e.g. "join at 6.0m". Use Sketch for a quick custom profile.</p>
     <div id="flashingsList"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;align-items:center">
       <button type="button" onclick="addFlashing()" class="add-link">+ Add flashing</button>
+      <button type="button" onclick="openSavedFlashingsPicker()" class="add-link">+ Add from saved</button>
+      <span id="savedFlashCount" style="font-size:11px;color:var(--text3)"></span>
     </div>
   </div>
 
@@ -1687,6 +1689,26 @@ select{
     <div style="padding:16px 20px;background:var(--surface-2)">
       <canvas id="flashCanvas" width="720" height="380" style="background:#fff;border:1px solid var(--border);border-radius:8px;width:100%;max-width:720px;display:block;touch-action:none;cursor:crosshair"></canvas>
       <div style="font-size:11px;color:var(--text2);margin-top:8px">Draw the cross-section as you'd hand-sketch it on a job bag. Tap/drag to draw. Saves into the flashing as a thumbnail.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Saved-flashings picker — shows the user's library of previously
+     saved flashings (sketch thumbnail + name + default face count).
+     Click one to add a fresh copy to the current order, complete with
+     the saved sketch and default face measurements that the user can
+     then tweak per-job. -->
+<div id="savedFlashModal" style="display:none;position:fixed;inset:0;background:rgba(13,13,12,.55);z-index:9999;align-items:center;justify-content:center;padding:24px">
+  <div style="background:#fff;border-radius:14px;max-width:840px;width:100%;max-height:84vh;box-shadow:var(--shadow-pop);overflow:hidden;display:flex;flex-direction:column">
+    <div style="padding:14px 20px;display:flex;align-items:center;border-bottom:1px solid var(--border)">
+      <div style="font-size:14px;font-weight:600">Saved flashings library</div>
+      <button onclick="closeSavedFlashingsPicker()" style="margin-left:auto;background:none;border:none;font-size:20px;color:var(--text2);cursor:pointer;line-height:1">×</button>
+    </div>
+    <div id="savedFlashGrid" style="padding:18px 20px;overflow-y:auto;flex:1">
+      <!-- populated by _renderSavedFlashingsPicker() -->
+    </div>
+    <div style="padding:10px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--text2);background:var(--surface-2)">
+      Saves are stored on your account in <code>materials_catalog.savedFlashings</code>. Use <strong>Save to library</strong> on any flashing card to add to this list.
     </div>
   </div>
 </div>
@@ -3732,9 +3754,12 @@ function _ensureCatalog(){
   if (!S.settings) S.settings = defaultSettings();
   if (!S.settings.materials_catalog) {
     S.settings.materials_catalog = {
-      suppliers:[], products:[], underlays:[], screws:[], flashings:[]
+      suppliers:[], products:[], underlays:[], screws:[], flashings:[], savedFlashings:[]
     };
   }
+  // Older accounts may have the catalog without savedFlashings — top
+  // it up so the library reads/writes don't have to null-check.
+  if (!S.settings.materials_catalog.savedFlashings) S.settings.materials_catalog.savedFlashings = [];
   return S.settings.materials_catalog;
 }
 
@@ -3798,13 +3823,14 @@ function addCatalogItem(key){
   var _origDefaults = defaultSettings;
   defaultSettings = function(){
     var d = _origDefaults();
-    d.materials_catalog = { suppliers:[], products:[], underlays:[], screws:[], flashings:[] };
+    d.materials_catalog = { suppliers:[], products:[], underlays:[], screws:[], flashings:[], savedFlashings:[] };
     return d;
   };
   var _origLoad = loadSettings;
   loadSettings = async function(){
     var s = await _origLoad();
-    if (s && !s.materials_catalog) s.materials_catalog = { suppliers:[], products:[], underlays:[], screws:[], flashings:[] };
+    if (s && !s.materials_catalog) s.materials_catalog = { suppliers:[], products:[], underlays:[], screws:[], flashings:[], savedFlashings:[] };
+    if (s && s.materials_catalog && !s.materials_catalog.savedFlashings) s.materials_catalog.savedFlashings = [];
     return s;
   };
   var _origCollect = collectSettingsFromUI;
@@ -3816,6 +3842,9 @@ function addCatalogItem(key){
     cat.underlays = collectListEditor('catalogUnderlays', ['name']);
     cat.screws    = collectListEditor('catalogScrews', ['name']);
     cat.flashings = collectListEditor('catalogFlashings', ['name']);
+    // savedFlashings is updated in place by Save to library / Delete
+    // actions — it's not driven by a list-editor in the Settings UI,
+    // so no collect step here; just leave whatever is on the catalog.
   };
   var _origRefresh = (typeof refreshSettingsUI === 'function') ? refreshSettingsUI : null;
   if (_origRefresh) {
@@ -3980,13 +4009,15 @@ function _renderFlashings(){
           '<textarea rows="2" onchange="_setFlashing('+idx+',\'notes\',this.value)" placeholder="Mitres, end caps, colour notes…">'+esc(f.notes)+'</textarea>'+
         '</div>'+
       '</div>'+
-      '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">'+
+      '<div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap">'+
         sketch +
         '<button type="button" onclick="openFlashSketch('+idx+')" class="tool-btn" style="font-size:11px">'+ (f.sketch?'Edit sketch':'Sketch custom flashing') +'</button>'+
         (f.sketch ? '<button type="button" onclick="_clearFlashingSketch('+idx+')" class="tool-btn" style="font-size:11px;color:#b91c1c">Clear sketch</button>' : '') +
+        '<button type="button" onclick="saveFlashingToLibrary('+idx+')" class="tool-btn" style="font-size:11px;margin-left:auto;background:var(--accent-soft);border-color:var(--accent);color:var(--accent-dark)">💾 Save to library</button>'+
       '</div>'+
     '</div>';
   }).join('');
+  _updateSavedFlashCount();
 }
 function addFlashing(){
   var types = _flashingTypeOptions();
@@ -4016,6 +4047,125 @@ function removeFlashingFace(i,fi){
 function _clearFlashingSketch(i){
   if (S.order.flashings[i]) S.order.flashings[i].sketch = '';
   _renderFlashings();
+}
+
+// ── Saved-flashings library ──────────────────────────────────────
+// Stored on S.settings.materials_catalog.savedFlashings as
+//   [{ name, type, qty, faces, lineBreaks, notes, sketch }]
+// — same shape as a working flashing record so "use from saved" is a
+// trivial structural clone. Persisted through the existing settings
+// save path; saving a flashing or removing one triggers an immediate
+// background PUT /settings so the library survives reloads without
+// the user remembering to hit "Save settings".
+
+function _getSavedFlashings(){
+  var cat = _ensureCatalog();
+  if (!cat.savedFlashings) cat.savedFlashings = [];
+  return cat.savedFlashings;
+}
+function _updateSavedFlashCount(){
+  var el = document.getElementById('savedFlashCount'); if (!el) return;
+  var n = _getSavedFlashings().length;
+  el.textContent = n ? (n + ' saved') : '(library empty)';
+}
+function _persistCatalogSilently(){
+  // Best-effort sync to the backend so the library survives reloads.
+  // Wrap in try/catch — if the user isn't logged in or the proxy is
+  // down, the change still lives in memory for this session.
+  try { saveSettings(); } catch(e){ console.warn('library persist failed:', e); }
+}
+
+function saveFlashingToLibrary(orderIdx){
+  var src = S.order.flashings[orderIdx];
+  if (!src) return;
+  var defaultName = (src.type || 'Custom flashing');
+  var name = window.prompt('Save this flashing to your library — give it a name:', defaultName);
+  if (!name) return;
+  name = name.trim();
+  if (!name) return;
+  var lib = _getSavedFlashings();
+  // Snapshot every field that defines a reusable template, including
+  // the measurements the user is asking us to remember as defaults.
+  var entry = {
+    name:       name,
+    type:       src.type || '',
+    qty:        src.qty || 1,
+    faces:      (src.faces || []).map(function(f){ return { label:f.label||'', length:f.length||'' }; }),
+    lineBreaks: src.lineBreaks || '',
+    notes:      src.notes || '',
+    sketch:     src.sketch || ''
+  };
+  // If a saved flashing with the same name already exists, overwrite
+  // — feels less surprising than silently creating duplicates.
+  var existing = lib.findIndex(function(x){ return x.name === name; });
+  if (existing >= 0) lib[existing] = entry; else lib.push(entry);
+  _updateSavedFlashCount();
+  _persistCatalogSilently();
+  // Light feedback so the user knows it worked.
+  var msg = document.getElementById('orderMsg');
+  if (msg){ msg.textContent = '✓ Saved "' + name + '" to library' + (existing>=0?' (overwrote existing)':''); msg.style.color='var(--ok)'; setTimeout(function(){ msg.textContent=''; msg.style.color=''; }, 3500); }
+}
+
+function openSavedFlashingsPicker(){
+  _renderSavedFlashingsPicker();
+  document.getElementById('savedFlashModal').style.display = 'flex';
+}
+function closeSavedFlashingsPicker(){
+  document.getElementById('savedFlashModal').style.display = 'none';
+}
+function _renderSavedFlashingsPicker(){
+  var grid = document.getElementById('savedFlashGrid'); if (!grid) return;
+  var lib = _getSavedFlashings();
+  if (!lib.length){
+    grid.innerHTML = '<div style="text-align:center;padding:36px 20px;color:var(--text2);font-size:13px">No saved flashings yet.<br><br><span style="font-size:12px">Draw or fill in a flashing on the order, then click <strong>💾 Save to library</strong> on that flashing\'s card to add it here.</span></div>';
+    return;
+  }
+  function esc(v){ return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+  grid.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">'+
+    lib.map(function(s, i){
+      var thumb = s.sketch
+        ? '<img src="'+ s.sketch +'" alt="" style="width:100%;height:120px;object-fit:contain;background:#fff;border-bottom:1px solid var(--border)">'
+        : '<div style="width:100%;height:120px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);color:var(--text3);font-size:11px;border-bottom:1px solid var(--border)">No sketch</div>';
+      var faceN = (s.faces||[]).filter(function(f){return f.length;}).length;
+      var typeLine = s.type ? esc(s.type) : 'Custom';
+      return '<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">'+
+        thumb +
+        '<div style="padding:10px 12px;flex:1;display:flex;flex-direction:column;gap:4px">'+
+          '<strong style="font-size:13px;color:var(--text)">'+ esc(s.name) +'</strong>'+
+          '<span style="font-size:11px;color:var(--text2)">'+ typeLine + ' · ' + (faceN||0) + ' face' + (faceN===1?'':'s') + ' · qty ' + (s.qty||1) +'</span>'+
+        '</div>'+
+        '<div style="padding:8px 10px;display:flex;gap:6px;border-top:1px solid var(--border);background:var(--surface-2)">'+
+          '<button type="button" onclick="addFlashingFromSaved('+i+')" class="sec-btn" style="margin:0;flex:1;padding:7px 10px;font-size:12px">Use this</button>'+
+          '<button type="button" onclick="removeSavedFlashing('+i+')" class="tool-btn" style="font-size:11px;color:#b91c1c">Delete</button>'+
+        '</div>'+
+      '</div>';
+    }).join('') +
+  '</div>';
+}
+
+function addFlashingFromSaved(savedIdx){
+  var s = _getSavedFlashings()[savedIdx]; if (!s) return;
+  // Deep-copy so the new order entry is independent of the library
+  // record — editing one mustn't mutate the other.
+  S.order.flashings.push({
+    type:       s.type || 'Custom',
+    qty:        s.qty  || 1,
+    faces:      (s.faces || []).map(function(f){ return { label:f.label||'', length:f.length||'' }; }),
+    lineBreaks: s.lineBreaks || '',
+    notes:      s.notes      || '',
+    sketch:     s.sketch     || ''
+  });
+  closeSavedFlashingsPicker();
+  _renderFlashings();
+}
+
+function removeSavedFlashing(savedIdx){
+  var lib = _getSavedFlashings();
+  if (!confirm('Remove "' + (lib[savedIdx] && lib[savedIdx].name) + '" from your saved flashings?')) return;
+  lib.splice(savedIdx, 1);
+  _renderSavedFlashingsPicker();
+  _updateSavedFlashCount();
+  _persistCatalogSilently();
 }
 
 // — Flashing sketch canvas modal —
