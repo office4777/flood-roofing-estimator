@@ -292,6 +292,21 @@ app.get('/jms/debug/fergus-find', requireAuth, async (req, res) => {
     { tag: 'GET /jobs (default sort)',     path: '/jobs?page=1&per_page=3' },
     { tag: 'GET /jobs?sort=-id',           path: '/jobs?page=1&per_page=3&sort=-id' },
     { tag: 'GET /jobs?sort_by=id&order=desc', path: '/jobs?page=1&per_page=3&sort_by=id&order=desc' },
+    // Status / scope filter probes — does /jobs filter by default and
+    // hide jobs in other statuses?
+    { tag: 'GET /jobs?status=active',      path: '/jobs?page=1&per_page=20&status=active' },
+    { tag: 'GET /jobs?status=open',        path: '/jobs?page=1&per_page=20&status=open' },
+    { tag: 'GET /jobs?status=quoted',      path: '/jobs?page=1&per_page=20&status=quoted' },
+    { tag: 'GET /jobs?stage=open',         path: '/jobs?page=1&per_page=20&stage=open' },
+    { tag: 'GET /jobs?archived=true',      path: '/jobs?page=1&per_page=20&archived=true' },
+    { tag: 'GET /jobs?include_archived=true', path: '/jobs?page=1&per_page=20&include_archived=true' },
+    { tag: 'GET /jobs?include_all=true',   path: '/jobs?page=1&per_page=20&include_all=true' },
+    // Different entity types — maybe #2996 is a quote or a customer.
+    { tag: 'GET /quotes/<q>',              path: '/quotes/' + encodeURIComponent(q) },
+    { tag: 'GET /quotes?q=<q>',            path: '/quotes?page=1&per_page=5&q=' + encodeURIComponent(q) },
+    { tag: 'GET /customers/<q>',           path: '/customers/' + encodeURIComponent(q) },
+    { tag: 'GET /site_visits/<q>',         path: '/site_visits/' + encodeURIComponent(q) },
+    { tag: 'GET /sites/<q>',               path: '/sites/' + encodeURIComponent(q) },
   ];
   const headers = {
     'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
