@@ -3053,7 +3053,10 @@ async function testFergus(){
   document.getElementById('fergErr').style.display='none';
   document.getElementById('fergOk').style.display='none';
   try{
-    var resp = await fergusCall('GET', '/jobs?page=1&per_page=100');
+    // Sort descending by id so page 1 is the *newest* 100 jobs. Fergus
+    // ignores the sort param if it doesn't recognise it, but several
+    // common formats are sent to maximise the chance one is honoured.
+    var resp = await fergusCall('GET', '/jobs?page=1&per_page=100&sort=-id&order=desc');
     if (!resp.ok) throw new Error(resp.status);
     S.fergConnected = true;
     document.getElementById('fergOk').style.display = 'block';
@@ -3138,30 +3141,40 @@ async function preloadAllFergusJobs(){
   S._fergPreloading = true;
   var PAGE_SIZE = 100;
   var MAX_PAGES = 100;          // safety cap: 10 000 jobs max
+  var BATCH = 5;                // 5 pages in parallel per round to speed up
   var statusEl = document.getElementById('fergPreloadStatus');
   function status(t){ if (statusEl) statusEl.textContent = t; }
   try {
-    for (var page = 2; page <= MAX_PAGES; page++){
+    var page = 2;
+    var stop = false;
+    while (!stop && page <= MAX_PAGES){
+      var batchPages = [];
+      for (var i=0; i<BATCH && (page+i) <= MAX_PAGES; i++) batchPages.push(page+i);
       status('Caching all Fergus jobs in the background… ' + (S.fergJobsCache||[]).length + ' loaded');
-      var resp;
-      try { resp = await fergusCall('GET', '/jobs?page=' + page + '&per_page=' + PAGE_SIZE); }
-      catch(e) { break; }
-      if (!resp.ok) break;
-      var data = await resp.json();
-      var batch = (data.value || data.jobs || data.data || []).map(_fergJobView);
-      if (!batch.length) break;
+      var batchResults = await Promise.all(batchPages.map(function(p){
+        return fergusCall('GET', '/jobs?page=' + p + '&per_page=' + PAGE_SIZE + '&sort=-id&order=desc')
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(d){ return d ? (d.value || d.jobs || d.data || []) : []; })
+          .catch(function(){ return []; });
+      }));
       var seen = {};
       (S.fergJobsCache||[]).forEach(function(j){ seen[j.id] = 1; });
-      var fresh = batch.filter(function(j){ return !seen[j.id]; });
-      S.fergJobsCache = (S.fergJobsCache||[]).concat(fresh);
-      // Mirror into the JMS push modal's cache so the modal sees them too.
+      var added = 0;
+      batchResults.forEach(function(batch){
+        var mapped = batch.map(_fergJobView);
+        mapped.forEach(function(j){ if (!seen[j.id]) { seen[j.id]=1; S.fergJobsCache.push(j); added++; } });
+        if (batch.length < PAGE_SIZE) stop = true;     // any short page = end reached
+      });
       if (window._jmsState) _jmsState.jobsCache = S.fergJobsCache.slice();
-      if (batch.length < PAGE_SIZE) break;   // last page
-      // tiny pause to avoid spiking Fergus's rate limiter
-      await new Promise(function(r){ setTimeout(r, 80); });
+      // If the user has a live search going, re-run it so new matches
+      // appear as the cache fills.
+      if (((document.getElementById('fergSearch')||{}).value || '').trim()) runFergSearch();
+      if (!added) break;        // duplicate page or all empty = stop
+      page += BATCH;
+      await new Promise(function(r){ setTimeout(r, 60); });
     }
     status('✓ All Fergus jobs cached: ' + (S.fergJobsCache||[]).length + ' total — search works instantly now');
-    setTimeout(function(){ status(''); }, 6000);
+    setTimeout(function(){ status(''); }, 8000);
   } finally {
     S._fergPreloading = false;
   }
@@ -3174,24 +3187,39 @@ async function preloadAllFergusJobs(){
 async function loadFergusJobById(){
   var raw = ((document.getElementById('fergDirectId')||{}).value || '').trim();
   if (!raw) return;
-  // Accept either a bare id or a full URL like https://app.fergus.com/jobs/15576244
-  var m = raw.match(/(\d{4,})/);
+  // Accept any of:
+  //   bare jobNo or internal id   → "2996", "15576244"
+  //   full web URL                → "https://app.fergus.com/jobs/view/2996/site_visit/a/scheduling/"
+  //   api URL                     → "https://api.fergus.com/jobs/15576244"
+  // Pull the FIRST number out of the input regardless of surrounding text.
+  var m = raw.match(/(\d{2,})/);
   var id = m ? m[1] : raw;
   var list = document.getElementById('fergJobList');
   list.innerHTML = '<div style="font-size:13px;color:var(--text2);padding:.5rem 0">Loading job #' + esc2(id) + '…</div>';
-  try {
-    var resp = await fergusCall('GET', '/jobs/' + encodeURIComponent(id));
-    if (!resp.ok) throw new Error('HTTP '+resp.status);
-    var data = await resp.json();
-    var jobRaw = data.data || data.value || data;
-    var job = _fergJobView(jobRaw);
-    // Stash in cache so future searches can find it locally, then render alone.
-    S.fergJobsCache = S.fergJobsCache || [];
-    if (!S.fergJobsCache.some(function(j){return j.id == job.id;})) S.fergJobsCache.unshift(job);
-    renderFergJobs([job]);
-  } catch(e) {
-    list.innerHTML = '<div style="font-size:13px;color:#b91c1c;padding:.5rem 0">Couldn\'t load job ' + esc2(id) + ' — ' + esc2(e.message) + '</div>';
+  // Fergus's web URL uses jobNo; the REST /jobs/:id endpoint uses the
+  // internal id. Try both in parallel — whichever resolves first wins.
+  var paths = ['/jobs/' + id, '/jobs/view/' + id, '/jobs/by-number/' + id];
+  var hits = await Promise.all(paths.map(function(p){
+    return fergusCall('GET', p)
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if (!d) return null;
+        var payload = d.data || d.value || d.job || d;
+        if (Array.isArray(payload)) return payload[0] || null;
+        if (payload && (payload.id || payload.jobNo || payload.jobNumber)) return payload;
+        return null;
+      })
+      .catch(function(){ return null; });
+  }));
+  var found = hits.filter(Boolean).map(_fergJobView);
+  if (!found.length){
+    list.innerHTML = '<div style="font-size:13px;color:#b91c1c;padding:.5rem 0">Couldn\'t find a Fergus job for <strong>' + esc2(id) + '</strong>. Tried /jobs/' + esc2(id) + ', /jobs/view/' + esc2(id) + ', and /jobs/by-number/' + esc2(id) + '.</div>';
+    return;
   }
+  S.fergJobsCache = S.fergJobsCache || [];
+  found.forEach(function(j){
+    if (!S.fergJobsCache.some(function(c){return String(c.id) === String(j.id);})) S.fergJobsCache.unshift(j);
+  });
+  renderFergJobs(found);
 }
 
 var _fergSearchTimer = null;
@@ -3212,10 +3240,37 @@ async function runFergSearch(){
   }
   var local = (S.fergJobsCache || []).filter(matches);
   renderFergJobs(local);
-  // Server-side: Fergus's API doesn't document which query parameter
-  // does text search, and unknown params are silently ignored (so the
-  // server happily returns an unfiltered page). Try several parameter
-  // names in parallel and always client-side filter the merged result.
+
+  // For a purely numeric query (a jobNo like "2996"), Fergus's web app
+  // routes to /jobs/view/<jobNo>/... so jobNo IS the user-facing
+  // identifier. Try several REST path patterns directly — if any of
+  // them resolves to a job, we've found a match without depending on
+  // the (apparently unsupported) search query parameter.
+  var directHits = [];
+  if (/^\d+$/.test(q) && q.length >= 2){
+    var directPaths = ['/jobs/' + q, '/jobs/view/' + q, '/jobs/by-number/' + q];
+    var directResults = await Promise.all(directPaths.map(function(p){
+      return fergusCall('GET', p)
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){ if (!d) return null;
+          var payload = d.data || d.value || d.job || d;
+          // Skip if Fergus returned a list (some routes might) or a wrapper without a real job
+          if (Array.isArray(payload)) return payload[0] || null;
+          if (payload && (payload.id || payload.jobNo || payload.jobNumber)) return payload;
+          return null;
+        })
+        .catch(function(){ return null; });
+    }));
+    directHits = directResults.filter(Boolean).map(_fergJobView);
+    // Cache them so the next search finds them locally
+    directHits.forEach(function(j){
+      if (!S.fergJobsCache.some(function(c){return String(c.id) === String(j.id);})) S.fergJobsCache.unshift(j);
+    });
+  }
+
+  // Try several text-search param names in parallel — Fergus may
+  // honour one even if the others are ignored — and always
+  // client-side filter the merged result.
   var params = ['search','q','keyword'];
   if (/^\d+$/.test(q)) params.push('jobNo','job_no','jobNumber');
   var attempts = params.map(function(p){
@@ -3226,12 +3281,13 @@ async function runFergSearch(){
   });
   var batches = await Promise.all(attempts);
   var serverJobs = [].concat.apply([], batches).map(_fergJobView).filter(matches);
+
   var seen = {};
-  var merged = serverJobs.concat(local).filter(function(j){
+  var merged = directHits.concat(serverJobs, local).filter(function(j){
     if (seen[j.id]) return false; seen[j.id]=1; return true;
   });
   if (merged.length) renderFergJobs(merged);
-  else list.innerHTML = '<div style="font-size:13px;color:var(--text2);padding:.75rem 0">No jobs match <strong>' + esc2(q) + '</strong>. Cached page 1 doesn\'t include it and Fergus\'s REST API didn\'t respond to any of the search parameters we tried (search, q, keyword' + (/^\d+$/.test(q)?', jobNo, job_no, jobNumber':'') + '). Find the job in the Fergus web app, copy its URL, and paste the trailing number below to load it directly.</div>';
+  else list.innerHTML = '<div style="font-size:13px;color:var(--text2);padding:.75rem 0">No jobs match <strong>' + esc2(q) + '</strong> yet. The background preloader is still running — wait for it to finish, or open the disclosure below and paste the full Fergus URL of the job.</div>';
 }
 async function createFergJob(){
   var client=document.getElementById('fNewClient').value||document.getElementById('jobClient').value;
