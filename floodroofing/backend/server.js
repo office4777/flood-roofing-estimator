@@ -247,6 +247,48 @@ app.get('/jms/debug', requireAuth, (req, res) => {
   });
 });
 
+// Probe every endpoint we can think of for the Sales Account Codes list.
+// Returns a one-row-per-URL summary so we can see which path actually
+// responds with the user's chart of accounts.
+app.get('/jms/debug/fergus-sales-accounts', requireAuth, async (req, res) => {
+  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'FERGUS_API_KEY not set' });
+  const candidates = [
+    '/sales-account-codes',
+    '/salesAccountCodes',
+    '/sales-accounts',
+    '/salesAccounts',
+    '/account-codes',
+    '/accountCodes',
+    '/accounts',
+    '/chart-of-accounts',
+    '/settings/sales-account-codes',
+    '/company/sales-account-codes',
+  ];
+  const headers = { 'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY, 'Accept': 'application/json' };
+  const out = await Promise.all(candidates.map(async (p) => {
+    const upstream = FERGUS_PREFIX + p;
+    try {
+      const r = await httpsRequest(FERGUS_HOST, upstream, 'GET', headers);
+      let summary = '';
+      try {
+        const j = JSON.parse(r.body || '{}');
+        const payload = j.value || j.data || j.salesAccountCodes || j.salesAccounts || j.accounts || j;
+        if (Array.isArray(payload)) {
+          const names = payload.slice(0, 5).map(x => (x.title || x.name || '?')).join(' | ');
+          const ids = payload.slice(0, 5).map(x => x.id).join(',');
+          summary = 'array(' + payload.length + ') ids=[' + ids + '] names=[' + names + ']';
+        } else if (payload && payload.message) {
+          summary = 'error: ' + payload.message;
+        } else {
+          summary = '(' + (r.body || '').slice(0, 100) + ')';
+        }
+      } catch { summary = '(non-JSON: ' + (r.body || '').slice(0, 80) + ')'; }
+      return { tag: 'GET ' + p, status: r.status, summary };
+    } catch (e) { return { tag: 'GET ' + p, status: 'ERR', summary: e.message }; }
+  }));
+  res.json({ probes: out });
+});
+
 // Live Fergus probe — fires a real GET /jobs request and returns the raw
 // status code, response headers, and first 2KB of the body. Lets the user
 // see exactly what Fergus says when it 403s, instead of just a bare code.

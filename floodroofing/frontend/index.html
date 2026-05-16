@@ -862,6 +862,7 @@ textarea{resize:vertical;min-height:70px}
       <button onclick="probeFergus()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔬 Probe Fergus (show raw response)</button>
       <button onclick="findJobProbe()" style="padding:9px 16px;background:#fff;color:#dc2626;border:1.5px solid #dc2626;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🩺 Find job # (probe all patterns)</button>
       <button onclick="dumpFergCache()" style="padding:9px 16px;background:#fff;color:#059669;border:1.5px solid #059669;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">📦 Show cache stats</button>
+      <button onclick="probeSalesAccounts()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">💰 Probe sales accounts</button>
     </div>
     <div id="fergDiag" style="display:none;margin-top:10px;padding:12px 14px;background:#f5f5f3;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.7;white-space:pre-wrap;color:#0a1628"></div>
     <div class="err" id="fergErr"></div>
@@ -2990,18 +2991,30 @@ async function pushQuoteToJMS(){
   var perWorkerCost  = (workers > 0) ? (S.labour / workers) : 0;
 
   // Sales accounts — first push fetches the list; cache for the session
-  // so subsequent pushes are instant. Prefer an account named after
-  // "material" / "sales", fall back to the first one returned.
+  // so subsequent pushes are instant. The user's Fergus settings page
+  // labels these as "Sales Account Codes" and shows DEFAULT MATERIALS /
+  // DEFAULT LABOUR badges on the entries we care about. Prefer the
+  // account with the DEFAULT MATERIALS flag; fall back to a "material"
+  // name match; last resort = the first non-labour account.
   async function getMaterialsSalesAccountId(){
     if (S._fergSalesAccounts == null) {
-      var endpoints = ['/sales-accounts', '/salesAccounts', '/accounts'];
+      var endpoints = [
+        '/sales-account-codes',
+        '/salesAccountCodes',
+        '/sales-accounts',
+        '/salesAccounts',
+        '/account-codes',
+        '/accounts'
+      ];
       S._fergSalesAccounts = [];
       for (var i=0; i<endpoints.length; i++){
         try {
-          var r = await fergusCall('GET', endpoints[i] + '?pageSize=100');
+          // Plain GET — these endpoints may not accept pagination params
+          // and returning 500 on unknown query strings would skip them.
+          var r = await fergusCall('GET', endpoints[i]);
           if (r.ok) {
             var d = await r.json();
-            var list = d.value || d.data || d.salesAccounts || [];
+            var list = d.value || d.data || d.salesAccountCodes || d.salesAccounts || d.accounts || (Array.isArray(d) ? d : []);
             if (list.length) { S._fergSalesAccounts = list; break; }
           }
         } catch(e) {}
@@ -3009,9 +3022,20 @@ async function pushQuoteToJMS(){
     }
     var accts = S._fergSalesAccounts || [];
     if (!accts.length) return null;
-    var mat = accts.find(function(a){ return /material/i.test(a.name || a.title || ''); });
-    var sale = accts.find(function(a){ return /sale/i.test(a.name || a.title || ''); });
-    return (mat || sale || accts[0]).id;
+    function nm(a){ return (a.title || a.name || '').toLowerCase(); }
+    // 1) DEFAULT MATERIALS flag (various shapes Fergus might use)
+    var def = accts.find(function(a){
+      return a.isDefaultMaterials === true || a.defaultMaterials === true ||
+             a.isDefault === 'materials' || a.defaultType === 'materials' ||
+             (a.isDefault && /material/i.test(nm(a)));
+    });
+    if (def) return def.id;
+    // 2) Named "Material Sales" / "Materials" but NOT labour or combined
+    var mat = accts.find(function(a){ return /material/i.test(nm(a)) && !/labour|combin/i.test(nm(a)); });
+    if (mat) return mat.id;
+    // 3) Anything that's clearly not labour
+    var nonLabour = accts.find(function(a){ return !/labour/i.test(nm(a)); });
+    return (nonLabour || accts[0]).id;
   }
 
   var sections = [];
@@ -3096,6 +3120,32 @@ async function pushQuoteToJMS(){
 
 // ── FERGUS ───────────────────────────────────────────────────────
 function toggleKeyVis(){var inp=document.getElementById('fergKey');var btn=event.target;inp.type=inp.type==='password'?'text':'password';btn.textContent=inp.type==='password'?'show':'hide';}
+
+async function probeSalesAccounts(){
+  var box = document.getElementById('fergDiag');
+  box.style.display = 'block';
+  box.style.background = '#f5f5f3';
+  box.style.color = '#0a1628';
+  box.textContent = 'Probing every plausible sales-account endpoint…';
+  try {
+    var d = await api('GET', '/jms/debug/fergus-sales-accounts');
+    var probes = d.probes || [];
+    var rows = probes.map(function(p){
+      var ok = (p.status === 200) ? '✓' : (typeof p.status === 'number' && p.status >= 400 ? '✗' : '·');
+      return ' ' + ok + '  ' + ('  ' + p.status).slice(-3) + '   ' + (p.tag + '                                       ').slice(0, 40) + '  ' + (p.summary || '');
+    }).join('\n');
+    var winner = probes.find(function(p){ return p.status === 200 && /array\(([1-9]\d*)\)/.test(p.summary || ''); });
+    var verdict = winner
+      ? '✓ Found sales accounts at: "' + winner.tag + '". Push will use the Material Sales account from this list.'
+      : '✗ No endpoint returned an array of sales accounts. Paste this output and I\'ll add the right path.';
+    box.textContent = rows + '\n\n' + verdict;
+    box.style.background = winner ? '#e8f5e9' : '#fff3e0';
+    box.style.color      = winner ? '#15803d' : '#92400e';
+  } catch(e){
+    box.style.background = '#fee2e2'; box.style.color = '#991b1b';
+    box.textContent = 'Probe failed: ' + e.message;
+  }
+}
 
 function dumpFergCache(){
   var box = document.getElementById('fergDiag');
