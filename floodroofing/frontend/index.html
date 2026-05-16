@@ -861,6 +861,7 @@ textarea{resize:vertical;min-height:70px}
       <button onclick="diagnoseFergus()" style="padding:9px 16px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔍 Diagnose config</button>
       <button onclick="probeFergus()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔬 Probe Fergus (show raw response)</button>
       <button onclick="findJobProbe()" style="padding:9px 16px;background:#fff;color:#dc2626;border:1.5px solid #dc2626;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🩺 Find job # (probe all patterns)</button>
+      <button onclick="dumpFergCache()" style="padding:9px 16px;background:#fff;color:#059669;border:1.5px solid #059669;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">📦 Show cache stats</button>
     </div>
     <div id="fergDiag" style="display:none;margin-top:10px;padding:12px 14px;background:#f5f5f3;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.7;white-space:pre-wrap;color:#0a1628"></div>
     <div class="err" id="fergErr"></div>
@@ -2865,8 +2866,8 @@ function setJMSMode(m){
 }
 function showJMSFergJobsList(){
   var cache = (_jmsState.jobsCache && _jmsState.jobsCache.length) ? _jmsState.jobsCache : (S.fergJobsCache || []);
-  var sorted = cache.slice().sort(function(a,b){ return (parseInt(b.id,10)||0) - (parseInt(a.id,10)||0); });
-  renderJMSFergJobs(sorted.slice(0, 100));
+  var sorted = cache.slice().sort(_fergRecencyComp);
+  renderJMSFergJobs(sorted.slice(0, 30));
 }
 async function loadJMSFergJobs(){
   var list = document.getElementById('jmsFergJobList'); if (!list) return;
@@ -2904,13 +2905,8 @@ function runJMSFergSearch(){
   var list = document.getElementById('jmsFergJobList');
   var cache = _jmsState.jobsCache || S.fergJobsCache || [];
   if (!q){ showJMSFergJobsList(); return; }
-  var qLow = q.toLowerCase();
-  var matched = cache.filter(function(j){
-    return (j.jobNo + '').indexOf(q) >= 0
-        || (j.customer || '').toLowerCase().indexOf(qLow) >= 0
-        || (j.title    || '').toLowerCase().indexOf(qLow) >= 0
-        || (j.address  || '').toLowerCase().indexOf(qLow) >= 0;
-  });
+  var matched = cache.filter(function(j){ return _fergMatches(j, q); });
+  matched.sort(_fergRecencyComp);
   if (matched.length) { renderJMSFergJobs(matched); return; }
   list.innerHTML = '<div style="padding:1rem;color:#666;font-size:12px">No jobs match <strong>' + esc2(q) + '</strong> in the ' + cache.length + ' jobs cached. ' +
     (S._fergPreloading ? 'Preloader still running — try again in a moment.' : 'Connect on the Fergus tab if you haven\'t (the preload runs there).') +
@@ -2920,7 +2916,7 @@ function renderJMSFergJobs(jobs){
   var list = document.getElementById('jmsFergJobList'); if (!list) return;
   if (!jobs.length){ list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#666;font-size:13px">No matching jobs.</div>'; return; }
   list.innerHTML = jobs.map(function(j){
-    var line2 = '#' + esc2(j.jobNo) +
+    var line2 = '#' + esc2(j.displayNo || j.jobNo) +
       (j.customer ? ' · <strong>' + esc2(j.customer) + '</strong>' : '') +
       (j.address  ? ' · ' + esc2(j.address) : '');
     var displayName = (j.customer || j.title || 'Job') + (j.title && j.customer ? ' — ' + j.title : '');
@@ -2985,6 +2981,49 @@ async function pushQuoteToJMS(){
 
 // ── FERGUS ───────────────────────────────────────────────────────
 function toggleKeyVis(){var inp=document.getElementById('fergKey');var btn=event.target;inp.type=inp.type==='password'?'text':'password';btn.textContent=inp.type==='password'?'show':'hide';}
+
+function dumpFergCache(){
+  var box = document.getElementById('fergDiag');
+  box.style.display = 'block';
+  box.style.background = '#f0f8fb';
+  box.style.color = '#0a1628';
+  var cache = S.fergJobsCache || [];
+  if (!cache.length){
+    box.textContent = 'Cache is empty. Click "Connect to Fergus" first; the preloader fills it in the background.';
+    return;
+  }
+  // Range of jobNo (numeric) and jobNumber (numeric, abs value)
+  function pickNumeric(field){
+    var nums = cache.map(function(j){
+      var v = j[field];
+      if (v == null || v === '') return null;
+      var n = parseInt(String(v).replace(/^-/, ''), 10);
+      return isNaN(n) ? null : n;
+    }).filter(function(n){ return n !== null; });
+    if (!nums.length) return null;
+    return { min: Math.min.apply(null, nums), max: Math.max.apply(null, nums), count: nums.length };
+  }
+  var jobNoR     = pickNumeric('jobNo');
+  var jobNumberR = pickNumeric('jobNumber');
+  var idR        = pickNumeric('id');
+  function fmt(r){ return r ? ('min=' + r.min + ' max=' + r.max + ' (' + r.count + ' present)') : '(none populated)'; }
+  var sorted = cache.slice().sort(_fergRecencyComp);
+  var newest5 = sorted.slice(0, 5).map(function(j, i){
+    return '  ' + (i+1) + '. id=' + j.id + ' jobNo=' + j.jobNo + ' jobNumber=' + j.jobNumber + ' display=#' + j.displayNo + ' customer=' + (j.customer || '?') + ' addr=' + (j.address || '?');
+  }).join('\n');
+  // Does anything in cache contain "2996"?
+  var hits2996 = cache.filter(function(j){ return _fergMatches(j, '2996'); }).slice(0, 5);
+  var hitsLine = hits2996.length
+    ? ('✓ Found ' + hits2996.length + ' job(s) matching "2996":\n' + hits2996.map(function(j){return '    id='+j.id+' jobNo='+j.jobNo+' jobNumber='+j.jobNumber+' display=#'+j.displayNo+' customer='+(j.customer||'?');}).join('\n'))
+    : '✗ Nothing in cache matches "2996" — across jobNo, jobNumber, customerReference, or internal id.';
+  box.textContent =
+    'Total jobs cached      : ' + cache.length + '\n' +
+    'jobNo range            : ' + fmt(jobNoR) + '\n' +
+    'jobNumber range (abs)  : ' + fmt(jobNumberR) + '\n' +
+    'internal id range      : ' + fmt(idR) + '\n\n' +
+    '── 5 most recent (by jobNumber, fallback by id) ──\n' + newest5 + '\n\n' +
+    hitsLine;
+}
 
 async function findJobProbe(){
   var q = window.prompt('Enter the Fergus job number to find (e.g. 2996):', '2996');
@@ -3135,14 +3174,39 @@ async function autoConnect(){
 // "brief_description"/"client_name"/"internal_id" which don't exist on
 // Fergus's response, so every row rendered as "Job #<internal-id>".
 function _fergJobView(j){
-  var jobNo = j.jobNo || j.jobNumber || '';
-  var id    = j.id    || j.job_id    || jobNo;
-  var title = j.description || j.longDescription || j.brief_description || '';
-  var customer = (j.customer && (j.customer.customerFullName || j.customer.full_name)) || j.client_name || '';
-  var addr  = '';
+  // Fergus stores multiple distinct "job number"-ish fields per job.
+  // From the probe response on this account:
+  //   id                  → internal db id (e.g. 15576244)
+  //   jobNo               → user-facing short ref (e.g. "1", "2", "5")
+  //   jobNumber           → another reference (signed, e.g. "-1")
+  //   customerReference   → optional customer-supplied PO/ref
+  // The "#2996" shown in Fergus's UI URLs is one of these — different
+  // accounts use different conventions, so we keep all four and match
+  // against all of them in search.
+  var id          = j.id || j.job_id || '';
+  var jobNo       = j.jobNo || '';
+  var jobNumber   = (j.jobNumber != null) ? String(j.jobNumber) : '';
+  var customerRef = j.customerReference || j.customer_reference || '';
+  var title       = j.description || j.longDescription || j.brief_description || '';
+  var customer    = (j.customer && (j.customer.customerFullName || j.customer.full_name)) || j.client_name || '';
+  var addr        = '';
   var sa = j.siteAddress || j.site_address;
   if (sa) addr = (sa.address1 || '') + (sa.addressCity ? ', ' + sa.addressCity : '');
-  return { id:id, jobNo:String(jobNo || id), title:title, customer:customer, address:addr, status:j.status || '' };
+  // Display label: prefer a positive jobNumber (Fergus's UI seems to use
+  // this for newer/proper job numbers like "2996"), then jobNo, then id.
+  var jnPositive = (jobNumber && !jobNumber.startsWith('-') && parseInt(jobNumber, 10) > 0);
+  var displayNo  = jnPositive ? jobNumber : (jobNo || id);
+  return {
+    id: id,
+    jobNo: String(jobNo || id),
+    jobNumber: jobNumber,
+    customerRef: customerRef,
+    displayNo: String(displayNo || id),
+    title: title,
+    customer: customer,
+    address: addr,
+    status: j.status || ''
+  };
 }
 
 function renderFergJobs(jobs){
@@ -3152,7 +3216,7 @@ function renderFergJobs(jobs){
     return;
   }
   list.innerHTML = jobs.map(function(j){
-    var line2 = '#' + esc2(j.jobNo) +
+    var line2 = '#' + esc2(j.displayNo || j.jobNo) +
       (j.customer ? ' · <strong>' + esc2(j.customer) + '</strong>' : '') +
       (j.address  ? ' · ' + esc2(j.address) : '');
     var displayName = (j.customer || j.title || 'Job') + (j.title && j.customer ? ' — ' + j.title : '');
@@ -3161,6 +3225,41 @@ function renderFergJobs(jobs){
              '<div class="job-card-id">' + line2 + '</div>' +
            '</div>';
   }).join('');
+}
+
+// Default list view = the 30 most recent jobs.
+function showFergJobsList(){
+  var all = (S.fergJobsCache || []).slice();
+  all.sort(_fergRecencyComp);
+  renderFergJobs(all.slice(0, 30));
+}
+
+// Sort comparator — "most recent first". Prefer positive jobNumber if
+// both jobs have one (Fergus seems to use this for primary job numbers);
+// otherwise fall back to descending internal id.
+function _fergRecencyComp(a, b){
+  var aJN = parseInt(a.jobNumber, 10);
+  var bJN = parseInt(b.jobNumber, 10);
+  var aHasJN = !isNaN(aJN) && aJN > 0;
+  var bHasJN = !isNaN(bJN) && bJN > 0;
+  if (aHasJN && bHasJN) return bJN - aJN;
+  return (parseInt(b.id, 10) || 0) - (parseInt(a.id, 10) || 0);
+}
+
+// Predicate: does this job match the user's query against any of its
+// identifier fields (jobNo, jobNumber abs-value, customerReference, id)
+// or any text field (customer, title, address)?
+function _fergMatches(j, q){
+  var qLow = (q || '').toLowerCase();
+  var jnAbs = (j.jobNumber || '').replace(/^-/, '');
+  return (j.jobNo + '').indexOf(q) >= 0
+      || (j.jobNumber + '').indexOf(q) >= 0
+      || jnAbs.indexOf(q) >= 0
+      || (j.customerRef || '').indexOf(q) >= 0
+      || (j.id + '').indexOf(q) >= 0
+      || (j.customer || '').toLowerCase().indexOf(qLow) >= 0
+      || (j.title    || '').toLowerCase().indexOf(qLow) >= 0
+      || (j.address  || '').toLowerCase().indexOf(qLow) >= 0;
 }
 function selectFergJob(id, name, el){
   S.linkedJobId = id;
@@ -3171,15 +3270,6 @@ function selectFergJob(id, name, el){
   document.getElementById('fergJobName').textContent = name + ' (#' + id + ')';
 }
 
-// Default list view = the most recent 100 jobs. Fergus assigns internal
-// ids monotonically (verified: jobNo 1 → id 15576244, jobNo 2 → id
-// 15576318), so the highest id = the newest job. Sort the cache
-// descending by id and slice.
-function showFergJobsList(){
-  var all = (S.fergJobsCache || []).slice();
-  all.sort(function(a,b){ return (parseInt(b.id, 10) || 0) - (parseInt(a.id, 10) || 0); });
-  renderFergJobs(all.slice(0, 100));
-}
 
 // Debounced search — on each keystroke, run a client-side filter on the
 // cached first-page jobs for instant feedback, then hit Fergus with
@@ -3300,13 +3390,8 @@ async function runFergSearch(){
   var q = ((document.getElementById('fergSearch')||{}).value || '').trim();
   var list = document.getElementById('fergJobList');
   if (!q) { showFergJobsList(); return; }
-  var qLow = q.toLowerCase();
-  var matched = (S.fergJobsCache || []).filter(function(j){
-    return (j.jobNo + '').indexOf(q) >= 0
-        || (j.customer || '').toLowerCase().indexOf(qLow) >= 0
-        || (j.title    || '').toLowerCase().indexOf(qLow) >= 0
-        || (j.address  || '').toLowerCase().indexOf(qLow) >= 0;
-  });
+  var matched = (S.fergJobsCache || []).filter(function(j){ return _fergMatches(j, q); });
+  matched.sort(_fergRecencyComp);
   if (matched.length) { renderFergJobs(matched); return; }
   var loaded = (S.fergJobsCache || []).length;
   var stillPreloading = S._fergPreloading;
