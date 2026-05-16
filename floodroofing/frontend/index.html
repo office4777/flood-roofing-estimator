@@ -872,7 +872,16 @@ textarea{resize:vertical;min-height:70px}
       <button class="tab-sm" onclick="switchSubTab('ferg','ferg-new',this)">Create new job</button>
     </div>
     <div class="sub-panel on" id="ferg-existing">
-      <label>Search jobs</label><input type="text" id="fergSearch" placeholder="Job # / client name / address — searches Fergus directly" oninput="onFergSearchInput()">      <div id="fergJobList"></div>
+      <label>Search jobs</label><input type="text" id="fergSearch" placeholder="Job # / client name / address — searches Fergus directly" oninput="onFergSearchInput()">
+      <div id="fergJobList"></div>
+      <details style="margin-top:10px">
+        <summary style="font-size:11px;color:var(--text2);cursor:pointer">Can't find your job? Load by Fergus internal ID</summary>
+        <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
+          <input type="text" id="fergDirectId" placeholder="e.g. 15576244 (from the Fergus URL when viewing the job)" style="flex:1;padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;margin:0">
+          <button onclick="loadFergusJobById()" style="padding:7px 14px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Load</button>
+        </div>
+        <div style="font-size:10px;color:var(--text2);margin-top:4px">In the Fergus web app, open the job. The number at the end of the URL (after <code>/jobs/</code>) is the internal id.</div>
+      </details>
       <div class="notice" id="fergSelNotice" style="display:none">Job linked: <strong id="fergJobName"></strong></div>
     </div>
     <div class="sub-panel" id="ferg-new">
@@ -2877,23 +2886,28 @@ async function runJMSFergSearch(){
   var list = document.getElementById('jmsFergJobList');
   if (!q){ renderJMSFergJobs(_jmsState.jobsCache || []); return; }
   var qLow = q.toLowerCase();
-  var local = (_jmsState.jobsCache||[]).filter(function(j){
+  function matches(j){
     return (j.jobNo + '').indexOf(q) >= 0
         || (j.customer || '').toLowerCase().indexOf(qLow) >= 0
         || (j.title    || '').toLowerCase().indexOf(qLow) >= 0
         || (j.address  || '').toLowerCase().indexOf(qLow) >= 0;
-  });
+  }
+  var local = (_jmsState.jobsCache||[]).filter(matches);
   renderJMSFergJobs(local);
-  try {
-    var resp = await fergusCall('GET','/jobs?page=1&per_page=50&search=' + encodeURIComponent(q));
-    if (!resp.ok) return;
-    var data = await resp.json();
-    var server = (data.value || data.jobs || data.data || []).map(_fergJobView);
-    var seen = {};
-    var merged = server.concat(local).filter(function(j){ if (seen[j.id]) return false; seen[j.id]=1; return true; });
-    if (merged.length) renderJMSFergJobs(merged);
-    else if (!local.length) list.innerHTML = '<div style="padding:1rem;color:#666;font-size:12px">No jobs match <strong>' + esc2(q) + '</strong>.</div>';
-  } catch(e) {}
+  var params = ['search','q','keyword'];
+  if (/^\d+$/.test(q)) params.push('jobNo','job_no','jobNumber');
+  var attempts = params.map(function(p){
+    return fergusCall('GET','/jobs?page=1&per_page=50&' + p + '=' + encodeURIComponent(q))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ return d ? (d.value || d.jobs || d.data || []) : []; })
+      .catch(function(){ return []; });
+  });
+  var batches = await Promise.all(attempts);
+  var serverJobs = [].concat.apply([], batches).map(_fergJobView).filter(matches);
+  var seen = {};
+  var merged = serverJobs.concat(local).filter(function(j){ if (seen[j.id]) return false; seen[j.id]=1; return true; });
+  if (merged.length) renderJMSFergJobs(merged);
+  else list.innerHTML = '<div style="padding:1rem;color:#666;font-size:12px">No jobs match <strong>' + esc2(q) + '</strong>. Use the "Load by Fergus job ID" field below if you have the internal job id.</div>';
 }
 function renderJMSFergJobs(jobs){
   var list = document.getElementById('jmsFergJobList'); if (!list) return;
@@ -3105,6 +3119,33 @@ function selectFergJob(id, name, el){
 // Debounced search — on each keystroke, run a client-side filter on the
 // cached first-page jobs for instant feedback, then hit Fergus with
 // ?search=<term> to cover jobs that aren't in the cache.
+// Fallback: load a single Fergus job by its internal id (the trailing
+// number in https://app.fergus.com/jobs/<id>). Uses /jobs/<id>, prepends
+// the result to the cache and renders it as a single-row pickable list
+// so the user can select it like any other search result.
+async function loadFergusJobById(){
+  var raw = ((document.getElementById('fergDirectId')||{}).value || '').trim();
+  if (!raw) return;
+  // Accept either a bare id or a full URL like https://app.fergus.com/jobs/15576244
+  var m = raw.match(/(\d{4,})/);
+  var id = m ? m[1] : raw;
+  var list = document.getElementById('fergJobList');
+  list.innerHTML = '<div style="font-size:13px;color:var(--text2);padding:.5rem 0">Loading job #' + esc2(id) + '…</div>';
+  try {
+    var resp = await fergusCall('GET', '/jobs/' + encodeURIComponent(id));
+    if (!resp.ok) throw new Error('HTTP '+resp.status);
+    var data = await resp.json();
+    var jobRaw = data.data || data.value || data;
+    var job = _fergJobView(jobRaw);
+    // Stash in cache so future searches can find it locally, then render alone.
+    S.fergJobsCache = S.fergJobsCache || [];
+    if (!S.fergJobsCache.some(function(j){return j.id == job.id;})) S.fergJobsCache.unshift(job);
+    renderFergJobs([job]);
+  } catch(e) {
+    list.innerHTML = '<div style="font-size:13px;color:#b91c1c;padding:.5rem 0">Couldn\'t load job ' + esc2(id) + ' — ' + esc2(e.message) + '</div>';
+  }
+}
+
 var _fergSearchTimer = null;
 function onFergSearchInput(){
   clearTimeout(_fergSearchTimer);
@@ -3115,23 +3156,34 @@ async function runFergSearch(){
   var list = document.getElementById('fergJobList');
   if (!q) { renderFergJobs(S.fergJobsCache || []); return; }
   var qLow = q.toLowerCase();
-  var local = (S.fergJobsCache || []).filter(function(j){
+  function matches(j){
     return (j.jobNo + '').indexOf(q) >= 0
         || (j.customer || '').toLowerCase().indexOf(qLow) >= 0
         || (j.title    || '').toLowerCase().indexOf(qLow) >= 0
         || (j.address  || '').toLowerCase().indexOf(qLow) >= 0;
-  });
+  }
+  var local = (S.fergJobsCache || []).filter(matches);
   renderFergJobs(local);
-  try {
-    var resp = await fergusCall('GET', '/jobs?page=1&per_page=50&search=' + encodeURIComponent(q));
-    if (!resp.ok) return;
-    var data = await resp.json();
-    var server = (data.value || data.jobs || data.data || []).map(_fergJobView);
-    var seen = {};
-    var merged = server.concat(local).filter(function(j){ if (seen[j.id]) return false; seen[j.id]=1; return true; });
-    if (merged.length) renderFergJobs(merged);
-    else if (!local.length) list.innerHTML = '<div style="font-size:13px;color:var(--text2);padding:.75rem">No jobs match <strong>' + esc2(q) + '</strong>.</div>';
-  } catch(e) { /* keep local results visible */ }
+  // Server-side: Fergus's API doesn't document which query parameter
+  // does text search, and unknown params are silently ignored (so the
+  // server happily returns an unfiltered page). Try several parameter
+  // names in parallel and always client-side filter the merged result.
+  var params = ['search','q','keyword'];
+  if (/^\d+$/.test(q)) params.push('jobNo','job_no','jobNumber');
+  var attempts = params.map(function(p){
+    return fergusCall('GET', '/jobs?page=1&per_page=50&' + p + '=' + encodeURIComponent(q))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ return d ? (d.value || d.jobs || d.data || []) : []; })
+      .catch(function(){ return []; });
+  });
+  var batches = await Promise.all(attempts);
+  var serverJobs = [].concat.apply([], batches).map(_fergJobView).filter(matches);
+  var seen = {};
+  var merged = serverJobs.concat(local).filter(function(j){
+    if (seen[j.id]) return false; seen[j.id]=1; return true;
+  });
+  if (merged.length) renderFergJobs(merged);
+  else list.innerHTML = '<div style="font-size:13px;color:var(--text2);padding:.75rem 0">No jobs match <strong>' + esc2(q) + '</strong>. Cached page 1 doesn\'t include it and Fergus\'s REST API didn\'t respond to any of the search parameters we tried (search, q, keyword' + (/^\d+$/.test(q)?', jobNo, job_no, jobNumber':'') + '). Find the job in the Fergus web app, copy its URL, and paste the trailing number below to load it directly.</div>';
 }
 async function createFergJob(){
   var client=document.getElementById('fNewClient').value||document.getElementById('jobClient').value;
