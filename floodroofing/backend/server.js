@@ -270,6 +270,61 @@ app.get('/jms/debug/fergus-probe', requireAuth, async (req, res) => {
   }
 });
 
+// Find-specific-job probe. Fires every plausible REST pattern + sort
+// variant in parallel and returns a one-row-per-URL summary so we can
+// see, in a single click, which pattern Fergus actually accepts on this
+// account. Caller passes ?q=<jobNo>, e.g. ?q=2996.
+app.get('/jms/debug/fergus-find', requireAuth, async (req, res) => {
+  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'FERGUS_API_KEY not set' });
+  const q = String(req.query.q || '').trim();
+  if (!q) return res.status(400).json({ error: 'pass ?q=<jobNo>' });
+  const probes = [
+    // Direct path attempts — does Fergus accept jobNo as a path param?
+    { tag: 'GET /jobs/<q>',                path: '/jobs/' + encodeURIComponent(q) },
+    { tag: 'GET /jobs/view/<q>',           path: '/jobs/view/' + encodeURIComponent(q) },
+    { tag: 'GET /jobs/by-number/<q>',      path: '/jobs/by-number/' + encodeURIComponent(q) },
+    // Query-string filter attempts.
+    { tag: 'GET /jobs?jobNo=<q>',          path: '/jobs?page=1&per_page=5&jobNo=' + encodeURIComponent(q) },
+    { tag: 'GET /jobs?job_no=<q>',         path: '/jobs?page=1&per_page=5&job_no=' + encodeURIComponent(q) },
+    { tag: 'GET /jobs?search=<q>',         path: '/jobs?page=1&per_page=5&search=' + encodeURIComponent(q) },
+    { tag: 'GET /jobs?q=<q>',              path: '/jobs?page=1&per_page=5&q=' + encodeURIComponent(q) },
+    // Sort-check probes — does sort=-id flip the order?
+    { tag: 'GET /jobs (default sort)',     path: '/jobs?page=1&per_page=3' },
+    { tag: 'GET /jobs?sort=-id',           path: '/jobs?page=1&per_page=3&sort=-id' },
+    { tag: 'GET /jobs?sort_by=id&order=desc', path: '/jobs?page=1&per_page=3&sort_by=id&order=desc' },
+  ];
+  const headers = {
+    'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+    'Accept':        'application/json',
+  };
+  const out = await Promise.all(probes.map(async (p) => {
+    const upstream = FERGUS_PREFIX + p.path;
+    try {
+      const r = await httpsRequest(FERGUS_HOST, upstream, 'GET', headers);
+      // Extract a tiny summary — first job's jobNo + customer if it looks like a list,
+      // or the whole job if it's a single resource response.
+      let summary = '';
+      try {
+        const j = JSON.parse(r.body || '{}');
+        const payload = j.data || j.value || j;
+        if (Array.isArray(payload)) {
+          summary = 'array(' + payload.length + ') jobNos=[' + payload.slice(0, 5).map(x => x.jobNo).join(',') + ']';
+        } else if (payload && (payload.id || payload.jobNo)) {
+          summary = 'single id=' + payload.id + ' jobNo=' + payload.jobNo + ' customer=' + ((payload.customer || {}).customerFullName || '?');
+        } else if (payload && payload.message) {
+          summary = 'error: ' + payload.message;
+        } else {
+          summary = 'unknown body shape';
+        }
+      } catch { summary = '(non-JSON response: ' + (r.body || '').slice(0, 80) + ')'; }
+      return { tag: p.tag, status: r.status, summary };
+    } catch (e) {
+      return { tag: p.tag, status: 'ERR', summary: e.message };
+    }
+  }));
+  res.json({ query: q, probes: out });
+});
+
 app.get('/proxy-image', async (req, res) => {
   const url = req.query.url;
   if (!url || !url.startsWith('https://api.mapbox.com')) return res.status(400).end();

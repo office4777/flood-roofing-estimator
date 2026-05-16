@@ -860,6 +860,7 @@ textarea{resize:vertical;min-height:70px}
       <button class="sec-btn" onclick="testFergus()" style="margin:0">Connect to Fergus</button>
       <button onclick="diagnoseFergus()" style="padding:9px 16px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔍 Diagnose config</button>
       <button onclick="probeFergus()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔬 Probe Fergus (show raw response)</button>
+      <button onclick="findJobProbe()" style="padding:9px 16px;background:#fff;color:#dc2626;border:1.5px solid #dc2626;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🩺 Find job # (probe all patterns)</button>
     </div>
     <div id="fergDiag" style="display:none;margin-top:10px;padding:12px 14px;background:#f5f5f3;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.7;white-space:pre-wrap;color:#0a1628"></div>
     <div class="err" id="fergErr"></div>
@@ -2979,6 +2980,45 @@ async function pushQuoteToJMS(){
 
 // ── FERGUS ───────────────────────────────────────────────────────
 function toggleKeyVis(){var inp=document.getElementById('fergKey');var btn=event.target;inp.type=inp.type==='password'?'text':'password';btn.textContent=inp.type==='password'?'show':'hide';}
+
+async function findJobProbe(){
+  var q = window.prompt('Enter the Fergus job number to find (e.g. 2996):', '2996');
+  if (!q) return;
+  q = String(q).trim();
+  var box = document.getElementById('fergDiag');
+  box.style.display = 'block';
+  box.style.background = '#f5f5f3';
+  box.style.color = '#0a1628';
+  box.textContent = 'Probing every plausible Fergus URL pattern for #' + q + '…';
+  try {
+    var d = await api('GET', '/jms/debug/fergus-find?q=' + encodeURIComponent(q));
+    var probes = d.probes || [];
+    var rows = probes.map(function(p){
+      var ok = (p.status === 200) ? '✓' : (typeof p.status==='number' && p.status>=400 ? '✗' : '·');
+      return ' ' + ok + '  ' + ('  ' + p.status).slice(-3) + '   ' + (p.tag + '                                          ').slice(0, 42) + '  ' + (p.summary || '');
+    }).join('\n');
+    var winner = probes.find(function(p){ return p.status === 200 && /single id=|jobNo=/.test(p.summary || ''); });
+    var sortWorks = (function(){
+      var def = probes.find(function(p){ return p.tag === 'GET /jobs (default sort)'; });
+      var desc = probes.find(function(p){ return p.tag === 'GET /jobs?sort=-id'; });
+      if (!def || !desc) return null;
+      var defNos = (def.summary.match(/jobNos=\[([^\]]+)\]/) || [])[1] || '';
+      var descNos = (desc.summary.match(/jobNos=\[([^\]]+)\]/) || [])[1] || '';
+      return (defNos && descNos && defNos !== descNos);
+    })();
+    var verdict = '';
+    if (winner) verdict = '✓ Found job by URL pattern: "' + winner.tag + '". Search now hits this directly when you type a number.';
+    else        verdict = '✗ No URL pattern returned job #' + q + ' as a single resource. Fergus seems not to expose a job-by-jobNo REST endpoint on this account — the background preloader has to fetch the full job list.';
+    if (sortWorks === true)  verdict += '\n✓ sort=-id IS honoured — page 1 holds newest jobs.';
+    if (sortWorks === false) verdict += '\n✗ sort=-id is IGNORED — preloader has to walk the full list to find recent jobs.';
+    box.textContent = 'Query: ' + d.query + '\n\n' + rows + '\n\n' + verdict;
+    box.style.background = winner ? '#e8f5e9' : '#fff3e0';
+    box.style.color      = winner ? '#15803d' : '#92400e';
+  } catch(e){
+    box.style.background = '#fee2e2'; box.style.color = '#991b1b';
+    box.textContent = 'Probe failed: ' + e.message + '\n\nIf this is "Not Found", the new backend code hasn\'t deployed yet.';
+  }
+}
 
 async function probeFergus(){
   var box = document.getElementById('fergDiag');
