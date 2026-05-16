@@ -309,6 +309,15 @@ app.get('/jms/debug/fergus-find', requireAuth, async (req, res) => {
     { tag: 'GET /jobs?limit=200&status=scheduled',path: '/jobs?page=1&limit=200&status=scheduled' },
     { tag: 'GET /jobs?limit=200&status=invoicing',path: '/jobs?page=1&limit=200&status=invoicing' },
     { tag: 'GET /jobs?per_page=500',              path: '/jobs?page=1&per_page=500' },
+    // Documented Fergus partner-API parameters (from api.fergus.com/docs):
+    // pageSize (max 100), pageCursor (cursor-based), sortField, sortOrder,
+    // filterJobNo, filterJobStatus (CapitalCase values), filterSearchText.
+    // These should actually work, unlike everything above.
+    { tag: 'GET /jobs?filterJobNo=<q>',              path: '/jobs?pageSize=10&filterJobNo=' + encodeURIComponent(q) },
+    { tag: 'GET /jobs?filterSearchText=<q>',         path: '/jobs?pageSize=10&filterSearchText=' + encodeURIComponent(q) },
+    { tag: 'GET /jobs?pageSize=100&filterJobStatus=Active',   path: '/jobs?pageSize=100&filterJobStatus=Active' },
+    { tag: 'GET /jobs?pageSize=100 sortField=createdAt desc', path: '/jobs?pageSize=100&sortField=createdAt&sortOrder=desc' },
+    { tag: 'GET /jobs?pageSize=100&filterShowArchived=true',  path: '/jobs?pageSize=100&filterShowArchived=true' },
     // Different entity types — maybe #2996 is a quote or a customer.
     { tag: 'GET /quotes/<q>',              path: '/quotes/' + encodeURIComponent(q) },
     { tag: 'GET /quotes?q=<q>',            path: '/quotes?page=1&per_page=5&q=' + encodeURIComponent(q) },
