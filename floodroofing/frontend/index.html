@@ -872,8 +872,7 @@ textarea{resize:vertical;min-height:70px}
       <button class="tab-sm" onclick="switchSubTab('ferg','ferg-new',this)">Create new job</button>
     </div>
     <div class="sub-panel on" id="ferg-existing">
-      <label>Search jobs</label><input type="text" id="fergSearch" placeholder="Client name or job number...">
-      <div id="fergJobList"></div>
+      <label>Search jobs</label><input type="text" id="fergSearch" placeholder="Job # / client name / address — searches Fergus directly" oninput="onFergSearchInput()">      <div id="fergJobList"></div>
       <div class="notice" id="fergSelNotice" style="display:none">Job linked: <strong id="fergJobName"></strong></div>
     </div>
     <div class="sub-panel" id="ferg-new">
@@ -2857,35 +2856,58 @@ async function loadJMSFergJobs(){
   var list = document.getElementById('jmsFergJobList'); if (!list) return;
   list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#666;font-size:13px">Loading Fergus jobs…</div>';
   try {
-    var resp = await fergusCall('GET','/jobs?page=1&per_page=50');
+    var resp = await fergusCall('GET','/jobs?page=1&per_page=100');
     if (!resp.ok) throw new Error('HTTP '+resp.status);
     var data = await resp.json();
-    _jmsState.jobsCache = data.value || data.jobs || data.data || [];
+    _jmsState.jobsCache = (data.value || data.jobs || data.data || []).map(_fergJobView);
     renderJMSFergJobs(_jmsState.jobsCache);
   } catch(e){
     list.innerHTML = '<div style="padding:1rem;color:#b91c1c;font-size:12px">Couldn\'t load Fergus jobs ('+esc2(e.message)+'). Make sure Fergus is connected on the Fergus tab and your API key is set.</div>';
   }
 }
+// Same client-side + server-side search pattern as the Fergus tab — the
+// JMS modal needs to find jobs beyond the cached first 100 too.
+var _jmsSearchTimer = null;
 function filterJMSFergJobs(){
-  var q = ((document.getElementById('jmsFergSearch')||{}).value||'').toLowerCase().trim();
-  if (!q) return renderJMSFergJobs(_jmsState.jobsCache);
-  renderJMSFergJobs(_jmsState.jobsCache.filter(function(j){
-    var t = ((j.brief_description||'')+' '+(j.client_name||'')+' '+(j.internal_id||j.id||'')+' '+((j.site_address||{}).address1||'')).toLowerCase();
-    return t.indexOf(q) >= 0;
-  }));
+  clearTimeout(_jmsSearchTimer);
+  _jmsSearchTimer = setTimeout(runJMSFergSearch, 280);
+}
+async function runJMSFergSearch(){
+  var q = ((document.getElementById('jmsFergSearch')||{}).value||'').trim();
+  var list = document.getElementById('jmsFergJobList');
+  if (!q){ renderJMSFergJobs(_jmsState.jobsCache || []); return; }
+  var qLow = q.toLowerCase();
+  var local = (_jmsState.jobsCache||[]).filter(function(j){
+    return (j.jobNo + '').indexOf(q) >= 0
+        || (j.customer || '').toLowerCase().indexOf(qLow) >= 0
+        || (j.title    || '').toLowerCase().indexOf(qLow) >= 0
+        || (j.address  || '').toLowerCase().indexOf(qLow) >= 0;
+  });
+  renderJMSFergJobs(local);
+  try {
+    var resp = await fergusCall('GET','/jobs?page=1&per_page=50&search=' + encodeURIComponent(q));
+    if (!resp.ok) return;
+    var data = await resp.json();
+    var server = (data.value || data.jobs || data.data || []).map(_fergJobView);
+    var seen = {};
+    var merged = server.concat(local).filter(function(j){ if (seen[j.id]) return false; seen[j.id]=1; return true; });
+    if (merged.length) renderJMSFergJobs(merged);
+    else if (!local.length) list.innerHTML = '<div style="padding:1rem;color:#666;font-size:12px">No jobs match <strong>' + esc2(q) + '</strong>.</div>';
+  } catch(e) {}
 }
 function renderJMSFergJobs(jobs){
   var list = document.getElementById('jmsFergJobList'); if (!list) return;
   if (!jobs.length){ list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:#666;font-size:13px">No matching jobs.</div>'; return; }
   list.innerHTML = jobs.map(function(j){
-    var title = j.brief_description || j.client_name || j.name || 'Job';
-    var num   = j.internal_id || j.id || j.job_id;
-    var addr  = (j.site_address && j.site_address.address1) ? (j.site_address.address1+', '+(j.site_address.addressCity||'')) : '';
-    return '<div onclick="pickJMSFergJob(\''+num+'\', \''+esc2(title).replace(/\'/g,"\\\'")+'\', this)" '+
+    var line2 = '#' + esc2(j.jobNo) +
+      (j.customer ? ' · <strong>' + esc2(j.customer) + '</strong>' : '') +
+      (j.address  ? ' · ' + esc2(j.address) : '');
+    var displayName = (j.customer || j.title || 'Job') + (j.title && j.customer ? ' — ' + j.title : '');
+    return '<div onclick="pickJMSFergJob(\'' + esc2(String(j.id)) + '\', \'' + esc2(displayName).replace(/\'/g,"\\\'") + '\', this)" '+
       'style="padding:9px 11px;border:1px solid #eee;border-radius:6px;margin-bottom:5px;cursor:pointer;background:#fff" '+
       'onmouseover="this.style.background=\'#f0f8fb\';this.style.borderColor=\'#0099cc\'" onmouseout="if(!this.classList.contains(\'sel\')){this.style.background=\'#fff\';this.style.borderColor=\'#eee\';}">'+
-      '<div style="font-weight:600;font-size:13px">'+esc2(title)+'</div>'+
-      '<div style="font-size:11px;color:#666;margin-top:2px">#'+esc2(String(num))+(addr?' · '+esc2(addr):'')+'</div></div>';
+      '<div style="font-weight:600;font-size:13px">' + esc2(j.title || j.customer || 'Job') + '</div>'+
+      '<div style="font-size:11px;color:#666;margin-top:2px">' + line2 + '</div></div>';
   }).join('');
 }
 function pickJMSFergJob(id, label, el){
@@ -3013,37 +3035,104 @@ async function diagnoseFergus(){
 }
 async function fergusCall(method,path,body){var tok=localStorage.getItem('fr_token')||'';return fetch(PROXY+'/fergus'+path,{method:method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:body?JSON.stringify(body):undefined});}
 async function testFergus(){
-  var key=document.getElementById('fergKey').value.trim();S.fergKey=key||null;
-  document.getElementById('fergErr').style.display='none';document.getElementById('fergOk').style.display='none';
+  document.getElementById('fergErr').style.display='none';
+  document.getElementById('fergOk').style.display='none';
   try{
-    var resp=await fergusCall('GET','/jobs?page=1&per_page=20');
-    if(!resp.ok)throw new Error(resp.status);
-    S.fergConnected=true;
-    document.getElementById('fergOk').style.display='block';
-    document.getElementById('fergJobsCard').style.display='block';
-    document.getElementById('fergPushCard').style.display='block';
-    document.getElementById('fergChip').style.cssText='background:rgba(59,109,17,.15);color:#27500a;border-color:rgba(59,109,17,.35)';
-    document.getElementById('fergChip').innerHTML='<span class="pill-dot" style="background:#27500a"></span>Fergus: connected';
-    var data=await resp.json();renderFergJobs(data.value||data.jobs||data.data||[]);
-  }catch(e){
-    if(!S.fergConnected){document.getElementById('fergErr').style.display='block';document.getElementById('fergErr').textContent='Connection failed ('+e.message+')';}
+    var resp = await fergusCall('GET', '/jobs?page=1&per_page=100');
+    if (!resp.ok) throw new Error(resp.status);
+    S.fergConnected = true;
+    document.getElementById('fergOk').style.display = 'block';
+    document.getElementById('fergJobsCard').style.display = 'block';
+    document.getElementById('fergPushCard').style.display = 'block';
+    document.getElementById('fergChip').style.cssText = 'background:rgba(59,109,17,.15);color:#27500a;border-color:rgba(59,109,17,.35)';
+    document.getElementById('fergChip').innerHTML = '<span class="pill-dot" style="background:#27500a"></span>Fergus: connected';
+    var data = await resp.json();
+    S.fergJobsCache = (data.value || data.jobs || data.data || []).map(_fergJobView);
+    renderFergJobs(S.fergJobsCache);
+  } catch(e){
+    if (!S.fergConnected){
+      document.getElementById('fergErr').style.display = 'block';
+      document.getElementById('fergErr').textContent = 'Connection failed (' + e.message + ')';
+    }
   }
 }
 async function autoConnect(){
   var ok=await checkProxy();
   if(ok) setTimeout(function(){ testFergus(); }, 400);
 }
+
+// Map Fergus's raw job payload to the small shape the UI cares about.
+// Field names came from a live probe — earlier code looked for
+// "brief_description"/"client_name"/"internal_id" which don't exist on
+// Fergus's response, so every row rendered as "Job #<internal-id>".
+function _fergJobView(j){
+  var jobNo = j.jobNo || j.jobNumber || '';
+  var id    = j.id    || j.job_id    || jobNo;
+  var title = j.description || j.longDescription || j.brief_description || '';
+  var customer = (j.customer && (j.customer.customerFullName || j.customer.full_name)) || j.client_name || '';
+  var addr  = '';
+  var sa = j.siteAddress || j.site_address;
+  if (sa) addr = (sa.address1 || '') + (sa.addressCity ? ', ' + sa.addressCity : '');
+  return { id:id, jobNo:String(jobNo || id), title:title, customer:customer, address:addr, status:j.status || '' };
+}
+
 function renderFergJobs(jobs){
-  var list=document.getElementById('fergJobList');
-  if(!jobs.length){list.innerHTML='<div style="font-size:13px;color:var(--text2);padding:.5rem 0">No jobs returned.</div>';return;}
-  list.innerHTML=jobs.map(function(j){
-    var title=j.brief_description||j.client_name||j.name||'Job';
-    var num=j.internal_id||j.id||j.job_id;
-    var addr=(j.site_address&&j.site_address.address1)?j.site_address.address1+', '+(j.site_address.addressCity||''):'';
-    return '<div class="job-card" onclick="selectFergJob(\''+j.job_id+'\',\''+title.replace(/'/g,"\\'")+'\',this)"><div style="font-weight:600;font-size:13px">'+title+'</div><div class="job-card-id">#'+num+' | '+addr+'</div></div>';
+  var list = document.getElementById('fergJobList');
+  if (!jobs.length){
+    list.innerHTML = '<div style="font-size:13px;color:var(--text2);padding:.5rem 0">No matching jobs.</div>';
+    return;
+  }
+  list.innerHTML = jobs.map(function(j){
+    var line2 = '#' + esc2(j.jobNo) +
+      (j.customer ? ' · <strong>' + esc2(j.customer) + '</strong>' : '') +
+      (j.address  ? ' · ' + esc2(j.address) : '');
+    var displayName = (j.customer || j.title || 'Job') + (j.title && j.customer ? ' — ' + j.title : '');
+    return '<div class="job-card" onclick="selectFergJob(\'' + esc2(String(j.id)) + '\',\'' + esc2(displayName).replace(/\'/g,"\\\'") + '\',this)">' +
+             '<div style="font-weight:600;font-size:13px">' + esc2(j.title || j.customer || 'Job') + '</div>' +
+             '<div class="job-card-id">' + line2 + '</div>' +
+           '</div>';
   }).join('');
 }
-function selectFergJob(id,name,el){S.linkedJobId=id;S.linkedJobName=name;document.querySelectorAll('.job-card').forEach(function(c){c.classList.remove('sel');});el.classList.add('sel');document.getElementById('fergSelNotice').style.display='block';document.getElementById('fergJobName').textContent=name+' (#'+id+')';}
+function selectFergJob(id, name, el){
+  S.linkedJobId = id;
+  S.linkedJobName = name;
+  document.querySelectorAll('.job-card').forEach(function(c){ c.classList.remove('sel'); });
+  el.classList.add('sel');
+  document.getElementById('fergSelNotice').style.display = 'block';
+  document.getElementById('fergJobName').textContent = name + ' (#' + id + ')';
+}
+
+// Debounced search — on each keystroke, run a client-side filter on the
+// cached first-page jobs for instant feedback, then hit Fergus with
+// ?search=<term> to cover jobs that aren't in the cache.
+var _fergSearchTimer = null;
+function onFergSearchInput(){
+  clearTimeout(_fergSearchTimer);
+  _fergSearchTimer = setTimeout(runFergSearch, 280);
+}
+async function runFergSearch(){
+  var q = ((document.getElementById('fergSearch')||{}).value || '').trim();
+  var list = document.getElementById('fergJobList');
+  if (!q) { renderFergJobs(S.fergJobsCache || []); return; }
+  var qLow = q.toLowerCase();
+  var local = (S.fergJobsCache || []).filter(function(j){
+    return (j.jobNo + '').indexOf(q) >= 0
+        || (j.customer || '').toLowerCase().indexOf(qLow) >= 0
+        || (j.title    || '').toLowerCase().indexOf(qLow) >= 0
+        || (j.address  || '').toLowerCase().indexOf(qLow) >= 0;
+  });
+  renderFergJobs(local);
+  try {
+    var resp = await fergusCall('GET', '/jobs?page=1&per_page=50&search=' + encodeURIComponent(q));
+    if (!resp.ok) return;
+    var data = await resp.json();
+    var server = (data.value || data.jobs || data.data || []).map(_fergJobView);
+    var seen = {};
+    var merged = server.concat(local).filter(function(j){ if (seen[j.id]) return false; seen[j.id]=1; return true; });
+    if (merged.length) renderFergJobs(merged);
+    else if (!local.length) list.innerHTML = '<div style="font-size:13px;color:var(--text2);padding:.75rem">No jobs match <strong>' + esc2(q) + '</strong>.</div>';
+  } catch(e) { /* keep local results visible */ }
+}
 async function createFergJob(){
   var client=document.getElementById('fNewClient').value||document.getElementById('jobClient').value;
   if(!client){alert('Enter a client name.');return;}
