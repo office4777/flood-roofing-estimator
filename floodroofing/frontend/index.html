@@ -648,6 +648,20 @@ select{
      after the quote with a clean page break between them. */
   html.print-quote.with-report #tab-report{display:block!important;page-break-before:always;break-before:page}
   html.print-quote.with-report .panel:not(#tab-quote):not(#tab-report){display:none!important}
+
+  /* Order Material — print only the Order panel, suppress the
+     in-page sketch toolbar buttons and the supplier select that don't
+     make sense on paper. The action bar's card stays so the supplier
+     label prints as the "Send to:" header. */
+  html.print-order .panel:not(#tab-order){display:none!important}
+  html.print-order #tab-order{display:block!important}
+  html.print-order .sidebar,html.print-order #flashSketchModal{display:none!important}
+  html.print-order .app{display:block!important}
+  html.print-order .content{padding:0!important;max-width:none!important}
+  html.print-order #tab-order .tool-btn,
+  html.print-order #tab-order .add-link,
+  html.print-order #tab-order button{display:none!important}
+  html.print-order #tab-order .card{box-shadow:none;border-color:#ddd}
 }
 
 /* ── Mobile (collapse sidebar) ─────────────────────────────── */
@@ -775,6 +789,7 @@ select{
   <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Materials &amp; Sheet Layout</button>
   <button class="nav-btn" onclick="gotoTab('scope')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8H11M5 5.5H11M5 10.5H8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Scope &amp; labour</button>
   <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
+  <button class="nav-btn" onclick="gotoTab('order')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 3 L5 3 L5.7 5 L14 5 L13 11 L6 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="7" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/></svg>Order Material</button>
   <button class="nav-btn" onclick="gotoTab('jobs')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
   <button class="nav-btn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
 </div>
@@ -1526,6 +1541,156 @@ select{
   </div>
 </div>
 
+<!-- TAB 6b: ORDER MATERIAL -->
+<div class="panel" id="tab-order">
+
+  <!-- Action bar: pick supplier + print/email the order. The supplier
+       select reads from S.settings.materials_catalog.suppliers; the
+       email button opens the user's mail client with the supplier
+       prefilled and the order body pasted in (mailto can't carry
+       binary attachments, so the user saves the PDF separately via
+       Print). -->
+  <div class="card" style="display:flex;gap:8px;align-items:center;padding:12px 16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:700">Order material</div>
+      <div style="font-size:13px;color:var(--text2)">Send to: <strong id="orderSupplierLabel" style="color:#0a1628">— pick a supplier</strong></div>
+    </div>
+    <select id="orderSupplier" onchange="onOrderSupplierChange(this.value)" style="margin:0;min-width:200px;width:auto">
+      <option value="">— Select supplier —</option>
+    </select>
+    <button onclick="emailOrderToSupplier()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Email supplier</button>
+    <button onclick="printOrder()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
+    <span id="orderMsg" style="font-size:12px;color:var(--text2);width:100%"></span>
+  </div>
+
+  <!-- Job + delivery -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Job &amp; delivery</div>
+    <div class="f2">
+      <div>
+        <label>Job number</label>
+        <input type="text" id="orderJobNumber" placeholder="e.g. FR-1234">
+      </div>
+      <div>
+        <label>Order reference (auto)</label>
+        <input type="text" id="orderRef" placeholder="ORD-001">
+      </div>
+    </div>
+    <div style="margin-top:6px">
+      <label>Delivery</label>
+      <div class="tab-row" style="margin-bottom:8px">
+        <button type="button" class="tab-sm on" onclick="setDeliveryMode('yard',this)">📦 Deliver to yard</button>
+        <button type="button" class="tab-sm" onclick="setDeliveryMode('site',this)">🚚 Deliver to site</button>
+      </div>
+      <input type="text" id="orderDeliveryAddr" placeholder="Site delivery address (street, suburb, city)" style="display:none">
+      <div id="orderYardNote" style="font-size:12px;color:var(--text2)">Picked up from / delivered to Flood Roofing yard — supplier picks the standard yard address from your supplier record.</div>
+    </div>
+  </div>
+
+  <!-- Roof spec -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Roof specification</div>
+    <div class="f3">
+      <div><label>1. Roof colour</label><input type="text" id="orderColour" placeholder="e.g. Ironsand, FlaxPod, Lignite"></div>
+      <div><label>2. Roof pitch (°)</label><input type="text" id="orderPitch" placeholder="e.g. 15"></div>
+      <div><label>3. Roof profile</label><input type="text" id="orderProfile" placeholder="e.g. Trapezoidal 5-rib, Corrugate"></div>
+    </div>
+    <div class="f2">
+      <div>
+        <label>4. Roof product</label>
+        <select id="orderProduct"><option value="">— Add products in Settings → Suppliers &amp; Materials —</option></select>
+      </div>
+      <div>
+        <label>6. Underlay</label>
+        <select id="orderUnderlay"><option value="">— Add underlays in Settings —</option></select>
+      </div>
+    </div>
+    <div class="f3">
+      <div>
+        <label>7. Screws</label>
+        <select id="orderScrews"><option value="">— Add screw types in Settings —</option></select>
+      </div>
+      <div>
+        <label>8. Rivets (count)</label>
+        <input type="number" id="orderRivets" placeholder="e.g. 200" min="0">
+      </div>
+      <div>
+        <label>10. Ridging</label>
+        <select id="orderRidging">
+          <option value="standard">Standard ridging</option>
+          <option value="wide">Wide ridging</option>
+        </select>
+      </div>
+    </div>
+    <div class="f2">
+      <div>
+        <label>9. Dektites — sizes &amp; qty</label>
+        <textarea id="orderDektites" rows="2" placeholder="e.g. 3× DK04 (75–175mm), 1× DK08 (175–330mm)"></textarea>
+      </div>
+      <div>
+        <label>12. Gutter</label>
+        <textarea id="orderGutter" rows="2" placeholder="e.g. 24m Quarter-round 125mm Ironsand + 3 downpipes 80mm × 3m"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cut list -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>5. Cut list
+      <button type="button" onclick="syncCutListFromSheet()" class="tool-btn" style="margin-left:auto;font-size:11px">↻ Sync from sheet layout</button>
+    </div>
+    <p style="font-size:11px;color:var(--text2);margin:-4px 0 10px">Sheet count + length combos. Sync pulls the latest from the Materials &amp; Sheet Layout tab; edit freely after — your changes are kept.</p>
+    <table class="price-tbl" id="orderCutTable" style="margin-top:4px">
+      <colgroup>
+        <col style="width:50%"><col style="width:18%"><col style="width:22%"><col style="width:10%">
+      </colgroup>
+      <thead><tr><th>Description</th><th>Qty</th><th>Length (mm)</th><th></th></tr></thead>
+      <tbody id="orderCutBody"><tr><td colspan="4" style="text-align:center;color:var(--text2);padding:18px">Empty — click <em>Sync from sheet layout</em> or <em>+ Add row</em>.</td></tr></tbody>
+    </table>
+    <button type="button" onclick="addCutRow()" class="add-link" style="margin-top:4px">+ Add row</button>
+  </div>
+
+  <!-- Flashings -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>11. Flashings</div>
+    <p style="font-size:11px;color:var(--text2);margin:-4px 0 10px">Each flashing: pick a type, enter the length of every face (a face = one bend section). "Line breaks" records where a continuous run joins — e.g. "join at 6.0m". Use Sketch for a quick custom profile.</p>
+    <div id="flashingsList"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <button type="button" onclick="addFlashing()" class="add-link">+ Add flashing</button>
+    </div>
+  </div>
+
+  <!-- Extras -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>13. Extras / notes for supplier</div>
+    <textarea id="orderExtras" rows="3" placeholder="Anything else — e.g. 'Match existing ridge profile from quote photos', 'Include 4× end caps', 'Need by Thursday'."></textarea>
+  </div>
+
+</div>
+
+<!-- Flashing-sketch modal — minimal HTML5 canvas for drawing a custom
+     cross-section. The data URL is stored on the flashing record and
+     rendered as a thumbnail back on the order form. -->
+<div id="flashSketchModal" style="display:none;position:fixed;inset:0;background:rgba(13,13,12,.55);z-index:9999;align-items:center;justify-content:center;padding:24px">
+  <div style="background:#fff;border-radius:14px;max-width:760px;width:100%;box-shadow:var(--shadow-pop);overflow:hidden">
+    <div style="padding:14px 20px;display:flex;align-items:center;border-bottom:1px solid var(--border)">
+      <div style="font-size:14px;font-weight:600">Sketch custom flashing — <span id="flashSketchTitle" style="color:var(--text2);font-weight:500">Flashing #1</span></div>
+      <button onclick="closeFlashSketch()" style="margin-left:auto;background:none;border:none;font-size:20px;color:var(--text2);cursor:pointer;line-height:1">×</button>
+    </div>
+    <div style="padding:14px 20px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <button onclick="setFlashTool('pen')" id="flashToolPen" class="tool-btn active-tool">✏ Pen</button>
+      <button onclick="setFlashTool('eraser')" id="flashToolEraser" class="tool-btn">⌫ Eraser</button>
+      <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px">Stroke <input type="range" id="flashStroke" min="1" max="10" value="2" style="width:80px"></label>
+      <button onclick="clearFlashCanvas()" class="tool-btn" style="margin-left:auto">Clear</button>
+      <button onclick="saveFlashSketch()" class="sec-btn" style="margin:0;width:auto;padding:8px 18px">Save sketch</button>
+    </div>
+    <div style="padding:16px 20px;background:var(--surface-2)">
+      <canvas id="flashCanvas" width="720" height="380" style="background:#fff;border:1px solid var(--border);border-radius:8px;width:100%;max-width:720px;display:block;touch-action:none;cursor:crosshair"></canvas>
+      <div style="font-size:11px;color:var(--text2);margin-top:8px">Draw the cross-section as you'd hand-sketch it on a job bag. Tap/drag to draw. Saves into the flashing as a thumbnail.</div>
+    </div>
+  </div>
+</div>
+
 <!-- TAB 7: JOBS -->
 <div class="panel" id="tab-jobs">
   <div class="card">
@@ -1708,6 +1873,7 @@ select{
     <div class="tab-row">
       <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Branding</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
+      <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers &amp; materials</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
     </div>
     <span id="saveSettingsMsg" style="font-size:12px;color:var(--text2);margin-left:8px"></span>
@@ -1761,6 +1927,61 @@ select{
         </div>
         <div id="qdSectionsList"></div>
         <div style="font-size:11px;color:var(--text2);margin-top:6px">Extra sections appended to the inspection report (e.g. health &amp; safety statement, council compliance notes).</div>
+      </div>
+    </div>
+
+    <!-- SUPPLIERS & MATERIALS -->
+    <div class="sub-panel settings-sub" id="set-supl" style="margin-top:14px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Manage the lists that drive the dropdowns on the <strong>Order Material</strong> tab. Click <strong>Save settings</strong> at the top of this card to persist changes to your account.</p>
+
+      <!-- Suppliers -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong style="font-size:13px">Suppliers</strong>
+          <span style="font-size:11px;color:var(--text2)">— companies you buy material from</span>
+          <button type="button" onclick="addSupplier()" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add supplier</button>
+        </div>
+        <div id="supplierList"></div>
+      </div>
+
+      <!-- Roof products -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong style="font-size:13px">Roof products</strong>
+          <span style="font-size:11px;color:var(--text2)">— e.g. Colorsteel Maxam, Colorcote, Zincalume</span>
+          <button type="button" onclick="addCatalogItem('products')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add product</button>
+        </div>
+        <div id="catalogProducts"></div>
+      </div>
+
+      <!-- Underlays -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong style="font-size:13px">Underlays</strong>
+          <span style="font-size:11px;color:var(--text2)">— e.g. Thermakraft 215, Bitumen building paper</span>
+          <button type="button" onclick="addCatalogItem('underlays')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add underlay</button>
+        </div>
+        <div id="catalogUnderlays"></div>
+      </div>
+
+      <!-- Screws -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong style="font-size:13px">Screws</strong>
+          <span style="font-size:11px;color:var(--text2)">— e.g. 12g × 65mm Tek hex, 14g × 100mm timber screw</span>
+          <button type="button" onclick="addCatalogItem('screws')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add screw</button>
+        </div>
+        <div id="catalogScrews"></div>
+      </div>
+
+      <!-- Flashing types -->
+      <div style="margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong style="font-size:13px">Flashing types</strong>
+          <span style="font-size:11px;color:var(--text2)">— show as options in the Flashings dropdown on Order Material</span>
+          <button type="button" onclick="addCatalogItem('flashings')" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add flashing type</button>
+        </div>
+        <div id="catalogFlashings"></div>
       </div>
     </div>
 
@@ -1829,12 +2050,24 @@ function gotoTab(t) {
     t = 'quote';
   }
   // Order must match the rendered nav buttons.
-  var ids=['roof','materials','scope','quote','jobs','settings'];
+  var ids=['roof','materials','scope','quote','order','jobs','settings'];
   document.querySelectorAll('.nav-btn').forEach(function(b,i){b.classList.toggle('active',ids[i]===t);});
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); }
   if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}}
+  if(t==='order'){
+    // Refresh dropdowns from settings, render the flashings list,
+    // and prefill the job number from the current quote if blank.
+    try { populateOrderDropdowns(); } catch(e){ console.warn(e); }
+    try { _renderFlashings(); } catch(e){ console.warn(e); }
+    try {
+      var jn = document.getElementById('orderJobNumber');
+      if (jn && !jn.value) jn.value = (S.quote && S.quote.ref) || ((document.getElementById('qdRef')||{}).value) || '';
+      var ref = document.getElementById('orderRef');
+      if (ref && !ref.value) ref.value = 'ORD-' + String(Date.now()).slice(-4);
+    } catch(e){}
+  }
   if(t==='jobs') refreshJobsList();
   if(t==='settings'){ refreshSettingsUI(); try{prefillFergus();autoConnect();}catch(e){} }
 }
@@ -3451,6 +3684,494 @@ function printQuote(){
       document.documentElement.classList.remove('with-report');
     }, 500);
   }, 50);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ORDER MATERIAL — supplier order form, cut list, flashings, PDF
+// ══════════════════════════════════════════════════════════════════
+//
+// Data shape:
+//   S.order = {
+//     jobNumber, ref, deliveryMode ('yard'|'site'), deliveryAddr,
+//     colour, pitch, profile, product, underlay, screws,
+//     rivets, dektites, ridging ('standard'|'wide'), gutter,
+//     cutList: [{desc, qty, length}],
+//     flashings: [{type, qty, faces:[{label,length}], lineBreaks,
+//                  notes, sketch /* data URL */}],
+//     extras, supplierId
+//   }
+//
+// The dropdowns (Roof product, Underlay, Screws, Flashing types) are
+// populated from S.settings.materials_catalog which is part of the
+// user's saved settings — managed from Settings → Suppliers & Materials.
+
+if (!S.order) S.order = { deliveryMode:'yard', flashings:[], cutList:[], ridging:'standard' };
+
+// Default flashing types we ship with — sensible NZ-trade set. The
+// user can extend this via Settings → Suppliers & Materials → Flashing
+// types. faceCount is the typical bend count so the form pre-fills a
+// matching number of face length inputs.
+var DEFAULT_FLASHINGS = [
+  { name:'Apron flashing',     faceCount:2 },
+  { name:'Barge flashing',     faceCount:2 },
+  { name:'Ridge flashing',     faceCount:2 },
+  { name:'Hip flashing',       faceCount:2 },
+  { name:'Valley flashing',    faceCount:2 },
+  { name:'Gable flashing',     faceCount:2 },
+  { name:'Box gutter',         faceCount:3 },
+  { name:'Soaker',             faceCount:2 },
+  { name:'Step flashing',      faceCount:3 },
+  { name:'Chimney back',       faceCount:3 },
+  { name:'Eaves flashing',     faceCount:2 },
+  { name:'Skylight surround',  faceCount:4 },
+  { name:'Pipe penetration',   faceCount:1 },
+  { name:'Custom',             faceCount:2 }
+];
+
+function _ensureCatalog(){
+  if (!S.settings) S.settings = defaultSettings();
+  if (!S.settings.materials_catalog) {
+    S.settings.materials_catalog = {
+      suppliers:[], products:[], underlays:[], screws:[], flashings:[]
+    };
+  }
+  return S.settings.materials_catalog;
+}
+
+// — Settings: render the editable lists for suppliers + materials —
+function renderSupplierList(){
+  var box = document.getElementById('supplierList'); if (!box) return;
+  var list = (_ensureCatalog().suppliers) || [];
+  if (!list.length) { box.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:4px 0">No suppliers yet — add one to populate the dropdown on Order Material.</div>'; return; }
+  box.innerHTML = list.map(function(s){
+    function esc(v){ return String(v||'').replace(/"/g,'&quot;'); }
+    return '<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:#fff" data-row="supplier">'+
+      '<div class="f2"><div><label>Company</label><input type="text" data-field="name" value="'+esc(s.name)+'" placeholder="e.g. Roofing Industries"></div>'+
+      '<div><label>Contact email</label><input type="email" data-field="email" value="'+esc(s.email)+'" placeholder="orders@supplier.co.nz"></div></div>'+
+      '<div class="f2"><div><label>Phone</label><input type="tel" data-field="phone" value="'+esc(s.phone)+'" placeholder="09 000 0000"></div>'+
+      '<div><label>Yard / pickup address</label><input type="text" data-field="yard_addr" value="'+esc(s.yard_addr)+'" placeholder="Yard / depot address"></div></div>'+
+      '<div style="display:flex;justify-content:flex-end"><button type="button" onclick="this.closest(\'[data-row=supplier]\').remove()" class="tool-btn" style="font-size:11px;color:#b91c1c">Remove</button></div>'+
+      '</div>';
+  }).join('');
+}
+function addSupplier(){
+  var list = collectListEditor('supplierList', ['name','email','phone','yard_addr']);
+  list.push({ name:'', email:'', phone:'', yard_addr:'' });
+  _ensureCatalog().suppliers = list;
+  renderSupplierList();
+}
+
+function _catalogContainerId(key){
+  return 'catalog' + key.charAt(0).toUpperCase() + key.slice(1);
+}
+function renderCatalogList(key){
+  var id = _catalogContainerId(key);
+  var box = document.getElementById(id); if (!box) return;
+  var cat = _ensureCatalog();
+  var list = cat[key] || [];
+  // Pre-seed flashings with defaults the very first time the section
+  // is shown — gives the user something to start from.
+  if (key === 'flashings' && !list.length) {
+    list = DEFAULT_FLASHINGS.map(function(f){return { name:f.name };});
+    cat.flashings = list;
+  }
+  if (!list.length) { box.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:4px 0">No items yet — add one.</div>'; return; }
+  box.innerHTML = list.map(function(it){
+    var name = String(it.name||'').replace(/"/g,'&quot;');
+    return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px" data-row="cat-'+key+'">'+
+      '<input type="text" data-field="name" value="'+name+'" placeholder="Name" style="flex:1;margin:0">'+
+      '<button type="button" onclick="this.parentNode.remove()" class="tool-btn" style="font-size:11px;color:#b91c1c">×</button></div>';
+  }).join('');
+}
+function addCatalogItem(key){
+  var list = collectListEditor(_catalogContainerId(key), ['name']);
+  list.push({name:''});
+  _ensureCatalog()[key] = list;
+  renderCatalogList(key);
+}
+
+// — Wire the new section into existing settings lifecycle —
+// Extend defaultSettings/loadSettings/saveSettings/collectSettingsFromUI
+// without rewriting them (monkey-patch style so we don't fight merges
+// against the existing settings code).
+(function(){
+  var _origDefaults = defaultSettings;
+  defaultSettings = function(){
+    var d = _origDefaults();
+    d.materials_catalog = { suppliers:[], products:[], underlays:[], screws:[], flashings:[] };
+    return d;
+  };
+  var _origLoad = loadSettings;
+  loadSettings = async function(){
+    var s = await _origLoad();
+    if (s && !s.materials_catalog) s.materials_catalog = { suppliers:[], products:[], underlays:[], screws:[], flashings:[] };
+    return s;
+  };
+  var _origCollect = collectSettingsFromUI;
+  collectSettingsFromUI = function(){
+    _origCollect();
+    var cat = _ensureCatalog();
+    cat.suppliers = collectListEditor('supplierList', ['name','email','phone','yard_addr']);
+    cat.products  = collectListEditor('catalogProducts', ['name']);
+    cat.underlays = collectListEditor('catalogUnderlays', ['name']);
+    cat.screws    = collectListEditor('catalogScrews', ['name']);
+    cat.flashings = collectListEditor('catalogFlashings', ['name']);
+  };
+  var _origRefresh = (typeof refreshSettingsUI === 'function') ? refreshSettingsUI : null;
+  if (_origRefresh) {
+    refreshSettingsUI = function(){
+      _origRefresh.apply(this, arguments);
+      _ensureCatalog();
+      renderSupplierList();
+      renderCatalogList('products');
+      renderCatalogList('underlays');
+      renderCatalogList('screws');
+      renderCatalogList('flashings');
+      populateOrderDropdowns();
+    };
+  }
+})();
+
+// — Order Material: delivery mode + supplier select —
+function setDeliveryMode(mode, btn){
+  S.order.deliveryMode = mode;
+  document.querySelectorAll('#tab-order .tab-row .tab-sm').forEach(function(b){b.classList.remove('on');});
+  if (btn) btn.classList.add('on');
+  var addr = document.getElementById('orderDeliveryAddr');
+  var note = document.getElementById('orderYardNote');
+  if (mode === 'site') { addr.style.display = ''; note.style.display = 'none'; }
+  else                  { addr.style.display = 'none'; note.style.display = ''; addr.value=''; }
+}
+function onOrderSupplierChange(id){
+  S.order.supplierId = id;
+  var cat = _ensureCatalog();
+  var s = (cat.suppliers || []).find(function(x){return x.name === id;});
+  var lbl = document.getElementById('orderSupplierLabel');
+  if (lbl) lbl.textContent = s ? s.name : '— pick a supplier';
+}
+
+// Fill the order dropdowns from the user's saved catalog.
+function populateOrderDropdowns(){
+  var cat = _ensureCatalog();
+  function fill(id, list, placeholder){
+    var sel = document.getElementById(id); if (!sel) return;
+    var current = sel.value;
+    var opts = ['<option value="">'+ placeholder +'</option>'];
+    (list||[]).forEach(function(it){
+      var v = (it.name||'').trim(); if (!v) return;
+      opts.push('<option value="'+ v.replace(/"/g,'&quot;') +'">'+ v +'</option>');
+    });
+    sel.innerHTML = opts.join('');
+    if (current) sel.value = current;
+  }
+  fill('orderSupplier', (cat.suppliers||[]).map(function(s){return {name:s.name};}), '— Select supplier —');
+  fill('orderProduct',  cat.products,  '— Add products in Settings —');
+  fill('orderUnderlay', cat.underlays, '— Add underlays in Settings —');
+  fill('orderScrews',   cat.screws,    '— Add screw types in Settings —');
+}
+
+// — Cut list — editable rows + sync from sheet plan —
+function _renderCutRow(row){
+  function esc(v){ return String(v==null?'':v).replace(/"/g,'&quot;'); }
+  return '<tr data-row="cut"><td><input type="text" data-field="desc" value="'+esc(row.desc)+'" placeholder="e.g. Long sheet — orange"></td>'+
+    '<td><input type="number" data-field="qty" value="'+esc(row.qty||'')+'" min="0"></td>'+
+    '<td><input type="number" data-field="length" value="'+esc(row.length||'')+'" placeholder="mm" min="0"></td>'+
+    '<td><button type="button" onclick="this.closest(\'tr\').remove()" class="tool-btn" style="font-size:11px;color:#b91c1c;padding:3px 8px">×</button></td></tr>';
+}
+function _renderCutList(rows){
+  var body = document.getElementById('orderCutBody'); if (!body) return;
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text2);padding:18px">Empty — click <em>Sync from sheet layout</em> or <em>+ Add row</em>.</td></tr>'; return; }
+  body.innerHTML = rows.map(_renderCutRow).join('');
+}
+function addCutRow(){
+  var rows = collectListEditor('orderCutBody', ['desc','qty','length']);
+  rows.push({desc:'', qty:1, length:''});
+  _renderCutList(rows);
+}
+function syncCutListFromSheet(){
+  // Pull the latest computed sheet plan stashed by renderRoofSheetPlan
+  // (extended below). Add rows for each non-zero count; preserve any
+  // manual rows the user already entered that aren't sheet-sync rows.
+  var counts = window._lastSheetCounts;
+  if (!counts) {
+    var msg = document.getElementById('orderMsg');
+    if (msg) msg.textContent = 'Open Materials & Sheet Layout first so the sheet plan can compute.';
+    setTimeout(function(){ if (msg) msg.textContent=''; }, 4000);
+    return;
+  }
+  var existing = collectListEditor('orderCutBody', ['desc','qty','length']);
+  var keep = existing.filter(function(r){ return r.desc && !/^(SHORT|LONG \()/i.test(r.desc); });
+  var added = [];
+  if (counts.shortCount)  added.push({desc:'SHORT @ '+counts.shortLen+'mm',  qty:counts.shortCount,  length:counts.shortLen});
+  if (counts.orangeLong)  added.push({desc:'LONG (orange) @ '+counts.longLen+'mm', qty:counts.orangeLong, length:counts.longLen});
+  if (counts.blueLong)    added.push({desc:'LONG (blue) @ '+counts.longLen+'mm',   qty:counts.blueLong,   length:counts.longLen});
+  _renderCutList(added.concat(keep));
+}
+
+// Patch renderRoofSheetPlan so it stashes its counts after every run.
+// The original is defined further down in the file; we wrap it once
+// after DOM is ready so the override sticks.
+(function(){
+  function _patch(){
+    if (typeof renderRoofSheetPlan !== 'function') return;
+    var _orig = renderRoofSheetPlan;
+    renderRoofSheetPlan = function(){
+      var ret = _orig.apply(this, arguments);
+      // Best-effort: scrape the counts straight out of the rendered
+      // legend so we don't have to refactor the plan internals.
+      try {
+        var leg = document.querySelector('#sheetLegend, #roofSheetLegend, .sheet-legend-block');
+        var html = (leg && leg.innerHTML) || '';
+        var short = (html.match(/(\d+)\s*<\/span>\s*<span[^>]*>SHORT/i) || [])[1];
+        var orange= (html.match(/COL_ORANGE'?>(\d+)|color:#ff[^"]*"\s*>(\d+)<\/span>[^<]*<span[^>]*>LONG/i) || [])[1];
+        window._lastSheetCounts = window._lastSheetCounts || {};
+        if (short)  window._lastSheetCounts.shortCount = +short;
+        window._lastSheetCounts.shortLen = window._lastSheetCounts.shortLen || 3900;
+        window._lastSheetCounts.longLen  = window._lastSheetCounts.longLen  || 7650;
+      } catch(e){}
+      return ret;
+    };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _patch);
+  else _patch();
+})();
+
+// — Flashings list (per order) —
+function _flashingTypeOptions(){
+  var cat = _ensureCatalog();
+  var list = (cat.flashings && cat.flashings.length) ? cat.flashings.map(function(f){return f.name;}) : DEFAULT_FLASHINGS.map(function(f){return f.name;});
+  return list.filter(function(n){return n && n.trim();});
+}
+function _renderFlashings(){
+  var box = document.getElementById('flashingsList'); if (!box) return;
+  var list = S.order.flashings || [];
+  if (!list.length) { box.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:6px 0">No flashings yet — click <em>+ Add flashing</em>.</div>'; return; }
+  var types = _flashingTypeOptions();
+  box.innerHTML = list.map(function(f, idx){
+    function esc(v){ return String(v==null?'':v).replace(/"/g,'&quot;'); }
+    var typeOpts = types.map(function(t){ return '<option value="'+ esc(t) +'"'+ (f.type===t?' selected':'') +'>'+ t +'</option>'; }).join('');
+    var faces = (f.faces && f.faces.length) ? f.faces : [{label:'Face A', length:''}, {label:'Face B', length:''}];
+    var facesHtml = faces.map(function(fc, fi){
+      return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">'+
+        '<input type="text" value="'+esc(fc.label)+'" onchange="_setFlashFace('+idx+','+fi+',\'label\',this.value)" style="width:90px;margin:0;font-size:12px;padding:6px 8px" placeholder="Face">'+
+        '<input type="number" value="'+esc(fc.length)+'" onchange="_setFlashFace('+idx+','+fi+',\'length\',this.value)" style="flex:1;margin:0;font-size:12px;padding:6px 8px" placeholder="Length (mm)">'+
+        '<button type="button" onclick="removeFlashingFace('+idx+','+fi+')" class="tool-btn" style="font-size:11px;padding:3px 8px;color:#b91c1c">×</button>'+
+      '</div>';
+    }).join('');
+    var sketch = f.sketch ? '<img src="'+f.sketch+'" alt="sketch" style="height:48px;border:1px solid var(--border);border-radius:6px;background:#fff">' : '<span style="font-size:11px;color:var(--text3)">No sketch</span>';
+    return '<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:#fff">'+
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">'+
+        '<strong style="font-size:12px;color:var(--text2)">#'+(idx+1)+'</strong>'+
+        '<select onchange="_setFlashing('+idx+',\'type\',this.value)" style="margin:0;flex:1;max-width:240px">'+ typeOpts +'</select>'+
+        '<label style="font-size:11px;color:var(--text2);margin:0">Qty</label>'+
+        '<input type="number" value="'+esc(f.qty||1)+'" onchange="_setFlashing('+idx+',\'qty\',this.value)" min="1" style="width:70px;margin:0;font-size:12px;padding:6px 8px">'+
+        '<button type="button" onclick="removeFlashing('+idx+')" class="tool-btn" style="margin-left:auto;font-size:11px;color:#b91c1c">Remove</button>'+
+      '</div>'+
+      '<div class="f2">'+
+        '<div>'+
+          '<label style="font-size:11px">Faces (mm)</label>'+
+          facesHtml +
+          '<button type="button" onclick="addFlashingFace('+idx+')" class="add-link" style="padding:2px 0">+ Add face</button>'+
+        '</div>'+
+        '<div>'+
+          '<label style="font-size:11px">Line breaks / joints</label>'+
+          '<input type="text" value="'+esc(f.lineBreaks)+'" onchange="_setFlashing('+idx+',\'lineBreaks\',this.value)" placeholder="e.g. 2 joins at 6m and 12m" style="margin-bottom:8px">'+
+          '<label style="font-size:11px">Notes</label>'+
+          '<textarea rows="2" onchange="_setFlashing('+idx+',\'notes\',this.value)" placeholder="Mitres, end caps, colour notes…">'+esc(f.notes)+'</textarea>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">'+
+        sketch +
+        '<button type="button" onclick="openFlashSketch('+idx+')" class="tool-btn" style="font-size:11px">'+ (f.sketch?'Edit sketch':'Sketch custom flashing') +'</button>'+
+        (f.sketch ? '<button type="button" onclick="_clearFlashingSketch('+idx+')" class="tool-btn" style="font-size:11px;color:#b91c1c">Clear sketch</button>' : '') +
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+function addFlashing(){
+  var types = _flashingTypeOptions();
+  var defT = types[0] || 'Apron flashing';
+  S.order.flashings.push({ type:defT, qty:1, faces:[{label:'Face A',length:''},{label:'Face B',length:''}], lineBreaks:'', notes:'', sketch:'' });
+  _renderFlashings();
+}
+function removeFlashing(i){ S.order.flashings.splice(i,1); _renderFlashings(); }
+function _setFlashing(i,f,v){ if (S.order.flashings[i]) S.order.flashings[i][f] = v; }
+function _setFlashFace(i,fi,k,v){
+  var f = S.order.flashings[i]; if (!f || !f.faces || !f.faces[fi]) return;
+  f.faces[fi][k] = v;
+}
+function addFlashingFace(i){
+  var f = S.order.flashings[i]; if (!f) return;
+  if (!f.faces) f.faces = [];
+  var nextLabel = String.fromCharCode(65 + f.faces.length); // A, B, C, …
+  f.faces.push({label:'Face '+nextLabel, length:''});
+  _renderFlashings();
+}
+function removeFlashingFace(i,fi){
+  var f = S.order.flashings[i]; if (!f || !f.faces) return;
+  f.faces.splice(fi,1);
+  if (!f.faces.length) f.faces.push({label:'Face A', length:''});
+  _renderFlashings();
+}
+function _clearFlashingSketch(i){
+  if (S.order.flashings[i]) S.order.flashings[i].sketch = '';
+  _renderFlashings();
+}
+
+// — Flashing sketch canvas modal —
+var _flashSketchState = { idx:-1, tool:'pen', drawing:false, last:null };
+function openFlashSketch(idx){
+  _flashSketchState.idx = idx;
+  document.getElementById('flashSketchTitle').textContent = 'Flashing #'+(idx+1);
+  var c = document.getElementById('flashCanvas');
+  var ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  // Restore prior sketch if any
+  var f = S.order.flashings[idx];
+  if (f && f.sketch) {
+    var img = new Image(); img.onload = function(){ ctx.drawImage(img,0,0,c.width,c.height); }; img.src = f.sketch;
+  }
+  _flashSketchState.tool = 'pen';
+  setFlashTool('pen');
+  document.getElementById('flashSketchModal').style.display = 'flex';
+}
+function closeFlashSketch(){ document.getElementById('flashSketchModal').style.display = 'none'; }
+function setFlashTool(t){
+  _flashSketchState.tool = t;
+  document.getElementById('flashToolPen').classList.toggle('active-tool', t==='pen');
+  document.getElementById('flashToolEraser').classList.toggle('active-tool', t==='eraser');
+}
+function clearFlashCanvas(){
+  var c = document.getElementById('flashCanvas'); var ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+}
+function saveFlashSketch(){
+  var c = document.getElementById('flashCanvas');
+  var url = c.toDataURL('image/png');
+  var idx = _flashSketchState.idx;
+  if (S.order.flashings[idx]) S.order.flashings[idx].sketch = url;
+  closeFlashSketch();
+  _renderFlashings();
+}
+// Canvas drawing wires up once on DOM-ready.
+(function(){
+  function _init(){
+    var c = document.getElementById('flashCanvas'); if (!c) return;
+    var ctx = c.getContext('2d'); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    function _pt(e){
+      var r = c.getBoundingClientRect();
+      var sx = c.width / r.width, sy = c.height / r.height;
+      var t = (e.touches && e.touches[0]) || e;
+      return { x:(t.clientX - r.left)*sx, y:(t.clientY - r.top)*sy };
+    }
+    function _down(e){ e.preventDefault(); _flashSketchState.drawing = true; _flashSketchState.last = _pt(e); }
+    function _move(e){
+      if (!_flashSketchState.drawing) return; e.preventDefault();
+      var p = _pt(e);
+      var w = +document.getElementById('flashStroke').value || 2;
+      ctx.lineWidth = (_flashSketchState.tool === 'eraser') ? w*6 : w;
+      ctx.strokeStyle = (_flashSketchState.tool === 'eraser') ? '#fff' : '#0a1628';
+      ctx.beginPath();
+      ctx.moveTo(_flashSketchState.last.x, _flashSketchState.last.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      _flashSketchState.last = p;
+    }
+    function _up(){ _flashSketchState.drawing = false; }
+    c.addEventListener('mousedown', _down);
+    c.addEventListener('mousemove', _move);
+    window.addEventListener('mouseup', _up);
+    c.addEventListener('touchstart', _down, {passive:false});
+    c.addEventListener('touchmove',  _move, {passive:false});
+    c.addEventListener('touchend',   _up);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _init);
+  else _init();
+})();
+
+// — Print + email helpers —
+function _collectOrderFromUI(){
+  var o = S.order;
+  function v(id){ var el = document.getElementById(id); return el ? el.value : ''; }
+  o.jobNumber     = v('orderJobNumber');
+  o.ref           = v('orderRef');
+  o.deliveryAddr  = v('orderDeliveryAddr');
+  o.colour        = v('orderColour');
+  o.pitch         = v('orderPitch');
+  o.profile       = v('orderProfile');
+  o.product       = v('orderProduct');
+  o.underlay      = v('orderUnderlay');
+  o.screws        = v('orderScrews');
+  o.rivets        = v('orderRivets');
+  o.dektites      = v('orderDektites');
+  o.ridging       = v('orderRidging');
+  o.gutter        = v('orderGutter');
+  o.extras        = v('orderExtras');
+  o.cutList       = collectListEditor('orderCutBody', ['desc','qty','length']);
+  // Flashings are kept on S.order.flashings directly by the onchange
+  // handlers, so no collect step needed there.
+  return o;
+}
+function printOrder(){
+  _collectOrderFromUI();
+  document.documentElement.classList.add('print-order');
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){ document.documentElement.classList.remove('print-order'); }, 500);
+  }, 60);
+}
+function emailOrderToSupplier(){
+  var o = _collectOrderFromUI();
+  var cat = _ensureCatalog();
+  var s = (cat.suppliers || []).find(function(x){return x.name === o.supplierId;});
+  if (!s || !s.email) {
+    var msg = document.getElementById('orderMsg');
+    if (msg) { msg.textContent = 'Pick a supplier with an email address first.'; msg.style.color = '#b91c1c'; setTimeout(function(){ msg.textContent=''; msg.style.color=''; }, 4000); }
+    return;
+  }
+  var b = S.settings && S.settings.branding || {};
+  var lines = [];
+  lines.push('Material order from ' + (b.company_name || 'Flood Roofing'));
+  lines.push('');
+  lines.push('Job number:    ' + (o.jobNumber || '—'));
+  lines.push('Order ref:     ' + (o.ref || '—'));
+  lines.push('Delivery:      ' + (o.deliveryMode === 'site' ? ('To site — ' + (o.deliveryAddr||'(address tbc)')) : 'Yard'));
+  lines.push('');
+  lines.push('Roof spec');
+  lines.push('  Colour:      ' + (o.colour || '—'));
+  lines.push('  Pitch:       ' + (o.pitch || '—') + '°');
+  lines.push('  Profile:     ' + (o.profile || '—'));
+  lines.push('  Product:     ' + (o.product || '—'));
+  lines.push('  Underlay:    ' + (o.underlay || '—'));
+  lines.push('  Screws:      ' + (o.screws || '—'));
+  lines.push('  Rivets:      ' + (o.rivets || '—'));
+  lines.push('  Dektites:    ' + (o.dektites || '—'));
+  lines.push('  Ridging:     ' + (o.ridging === 'wide' ? 'Wide' : 'Standard'));
+  lines.push('  Gutter:      ' + (o.gutter || '—'));
+  lines.push('');
+  if (o.cutList && o.cutList.length){
+    lines.push('Cut list');
+    o.cutList.forEach(function(r){ if (r.desc || r.qty) lines.push('  ' + (r.qty||'?') + ' × ' + (r.length? (r.length+'mm '):'') + (r.desc||'')); });
+    lines.push('');
+  }
+  if (o.flashings && o.flashings.length){
+    lines.push('Flashings');
+    o.flashings.forEach(function(f,i){
+      lines.push('  '+(i+1)+'. '+ (f.type||'(type?)') + ' × ' + (f.qty||1));
+      (f.faces||[]).forEach(function(fc){ if (fc.length) lines.push('       ' + (fc.label||'Face') + ': ' + fc.length + 'mm'); });
+      if (f.lineBreaks) lines.push('       Line breaks: ' + f.lineBreaks);
+      if (f.notes)      lines.push('       Notes: ' + f.notes);
+    });
+    lines.push('');
+  }
+  if (o.extras) { lines.push('Extras / notes'); lines.push(o.extras); lines.push(''); }
+  lines.push('— Generated from Flood Roofing Estimator. PDF order form attached (print/save separately and attach).');
+
+  var subj = 'Material order ' + (o.ref || '') + ' — Job ' + (o.jobNumber || '');
+  var href = 'mailto:' + encodeURIComponent(s.email) +
+             '?subject=' + encodeURIComponent(subj.trim()) +
+             '&body='    + encodeURIComponent(lines.join('\n'));
+  window.location.href = href;
 }
 
 // ── JMS PUSH MODAL ───────────────────────────────────────────────
