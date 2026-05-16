@@ -2973,16 +2973,82 @@ async function pushQuoteToJMS(){
   var sub = quoteSubtotal();
   var gst = sub * (S.quote.gstRate/100);
   var tot = sub + gst;
-  // Fergus organises quote bodies into "sections", each containing
-  // lineItems. The flat lineItems list we keep in S.quote.lineItems
-  // becomes a single section here. GST goes in as a line item alongside
-  // the rest. dueDays is required by Fergus and pairs with the existing
-  // S.quote.validUntil field ("30 days" → 30).
-  var sectionLineItems = (S.quote.lineItems||[]).map(function(li){
-    return { description: li.desc||'—', quantity: parseFloat(li.qty)||0, unitPrice: parseFloat(li.unit)||0 };
-  });
-  sectionLineItems.push({ description: 'GST '+S.quote.gstRate+'%', quantity: 1, unitPrice: gst });
-  var sections = [{ name: 'Roofing quote', lineItems: sectionLineItems }];
+  // Fergus structures quotes as sections of line items. Two rules
+  // matter for us:
+  //   1) every line item MUST have isLabour:true OR salesAccountId,
+  //      exactly one of them. So labour lines flag isLabour, materials
+  //      lines reference a Fergus sales-account id.
+  //   2) Fergus calculates tax (GST) automatically — don't send it as
+  //      a line item.
+  //
+  // The user wants one labour line per worker, plus one materials
+  // line. We derive worker count + rate from the Scope tab so the
+  // line items line up with what they've already entered.
+  var workers = parseFloat((document.getElementById('nWorkers')||{}).value) || 1;
+  var rate    = parseFloat((document.getElementById('wRate')||{}).value)    || 55;
+  var perWorkerHours = (workers > 0 && rate > 0) ? (S.labour / (rate * workers)) : 0;
+  var perWorkerCost  = (workers > 0) ? (S.labour / workers) : 0;
+
+  // Sales accounts — first push fetches the list; cache for the session
+  // so subsequent pushes are instant. Prefer an account named after
+  // "material" / "sales", fall back to the first one returned.
+  async function getMaterialsSalesAccountId(){
+    if (S._fergSalesAccounts == null) {
+      var endpoints = ['/sales-accounts', '/salesAccounts', '/accounts'];
+      S._fergSalesAccounts = [];
+      for (var i=0; i<endpoints.length; i++){
+        try {
+          var r = await fergusCall('GET', endpoints[i] + '?pageSize=100');
+          if (r.ok) {
+            var d = await r.json();
+            var list = d.value || d.data || d.salesAccounts || [];
+            if (list.length) { S._fergSalesAccounts = list; break; }
+          }
+        } catch(e) {}
+      }
+    }
+    var accts = S._fergSalesAccounts || [];
+    if (!accts.length) return null;
+    var mat = accts.find(function(a){ return /material/i.test(a.name || a.title || ''); });
+    var sale = accts.find(function(a){ return /sale/i.test(a.name || a.title || ''); });
+    return (mat || sale || accts[0]).id;
+  }
+
+  var sections = [];
+  // Labour section — one line per worker, all flagged isLabour
+  if (S.labour > 0 && workers > 0) {
+    var labourLineItems = [];
+    for (var w = 1; w <= workers; w++) {
+      labourLineItems.push({
+        description: 'Labour — Worker ' + w,
+        quantity:    parseFloat(perWorkerHours.toFixed(2)) || 1,
+        unitPrice:   rate,
+        isLabour:    true
+      });
+    }
+    sections.push({ name: 'Labour', lineItems: labourLineItems });
+  }
+  // Materials section — 1 line, needs a sales account id
+  var materialsAccountId = await getMaterialsSalesAccountId();
+  if (S.materials > 0) {
+    if (!materialsAccountId) {
+      say('Push failed: no sales accounts found in your Fergus account. Create at least one "Materials" sales account in Fergus → Settings → Sales Accounts, then retry.', '#b91c1c');
+      return;
+    }
+    sections.push({
+      name: 'Materials',
+      lineItems: [{
+        description:    'Materials',
+        quantity:       1,
+        unitPrice:      S.materials,
+        salesAccountId: materialsAccountId
+      }]
+    });
+  }
+  if (!sections.length) {
+    say('Nothing to push: enter labour and/or materials totals on the Scope and Materials tabs first.', '#b91c1c');
+    return;
+  }
   var dueDays = (function(){
     var m = String(S.quote.validUntil||'').match(/(\d+)/);
     return m ? parseInt(m[1], 10) : 30;
@@ -3487,33 +3553,17 @@ async function createFergJob(){
   try{var resp=await fergusCall('POST','/jobs',{brief_description:client,site_address:document.getElementById('fNewAddr').value});var data=await resp.json();var newId=data.id||data.job_id||'FR'+Date.now().toString().slice(-5);S.linkedJobId=newId;S.linkedJobName=client;document.getElementById('fNewOk').style.display='block';document.getElementById('fNewJobId').textContent=newId;}catch(e){alert('Job creation failed: '+e.message);}
 }
 async function pushToFergus(){
-  if(!S.linkedJobId){alert('Link a Fergus job first.');return;}
-  document.getElementById('fergPushErr').style.display='none';document.getElementById('fergPushOk').style.display='none';
-  var gst=(S.labour+S.materials)*0.15,tot=S.labour+S.materials+gst;
-  var scope=Array.from(document.querySelectorAll('#scopeGrid .chk-item.on')).map(function(el){return el.dataset.item;});
-  try{
-    var resp=await fergusCall('POST','/jobs/'+S.linkedJobId+'/quotes',{
-      title:'Roof quote — '+(document.getElementById('jobClient').value||'Client'),
-      sections:[{
-        name:'Roofing quote',
-        lineItems:[
-          {description:'Labour',    quantity:1, unitPrice:S.labour},
-          {description:'Materials', quantity:1, unitPrice:S.materials},
-          {description:'GST 15%',   quantity:1, unitPrice:gst}
-        ]
-      }],
-      dueDays:30,
-      total:tot,
-      notes:scope.join(', '),
-      status:'Draft'
-    });
-    if (resp.ok) { document.getElementById('fergPushOk').style.display='block'; return; }
-    var detail = ''; try { detail = (await resp.text()).slice(0, 300); } catch(e){}
-    throw new Error('HTTP '+resp.status+(detail?' — '+detail:''));
-  } catch(e){
-    document.getElementById('fergPushErr').style.display='block';
-    document.getElementById('fergPushErr').textContent='Push failed ('+e.message+')';
-  }
+  // Legacy Fergus-tab push button — defer to the richer Quote-tab
+  // "Push to JMS" flow which knows about sales accounts, per-worker
+  // labour breakdown, and the exact body shape Fergus's quote API
+  // expects.
+  if (!S.linkedJobId) { alert('Link a Fergus job first.'); return; }
+  _jmsState.provider = 'fergus';
+  _jmsState.mode = 'existing';
+  _jmsState.pickedJobId = S.linkedJobId;
+  _jmsState.pickedJobLabel = S.linkedJobName || ('Job #' + S.linkedJobId);
+  gotoTab('quote');
+  setTimeout(openJMSPushModal, 200);
 }
 function prefillFergus(){document.getElementById('fNewClient').value=document.getElementById('jobClient').value;document.getElementById('fNewAddr').value=document.getElementById('jobAddr').value;}
 
