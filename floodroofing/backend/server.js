@@ -301,6 +301,14 @@ app.get('/jms/debug/fergus-find', requireAuth, async (req, res) => {
     { tag: 'GET /jobs?archived=true',      path: '/jobs?page=1&per_page=20&archived=true' },
     { tag: 'GET /jobs?include_archived=true', path: '/jobs?page=1&per_page=20&include_archived=true' },
     { tag: 'GET /jobs?include_all=true',   path: '/jobs?page=1&per_page=20&include_all=true' },
+    // Documented Fergus param names (from public docs): `limit` (not
+    // `per_page`), status values 'active'/'to price'/etc.
+    { tag: 'GET /jobs?limit=200',                 path: '/jobs?page=1&limit=200' },
+    { tag: 'GET /jobs?limit=200&status=active',   path: '/jobs?page=1&limit=200&status=active' },
+    { tag: 'GET /jobs?limit=200&status=to price', path: '/jobs?page=1&limit=200&status=to+price' },
+    { tag: 'GET /jobs?limit=200&status=scheduled',path: '/jobs?page=1&limit=200&status=scheduled' },
+    { tag: 'GET /jobs?limit=200&status=invoicing',path: '/jobs?page=1&limit=200&status=invoicing' },
+    { tag: 'GET /jobs?per_page=500',              path: '/jobs?page=1&per_page=500' },
     // Different entity types — maybe #2996 is a quote or a customer.
     { tag: 'GET /quotes/<q>',              path: '/quotes/' + encodeURIComponent(q) },
     { tag: 'GET /quotes?q=<q>',            path: '/quotes?page=1&per_page=5&q=' + encodeURIComponent(q) },
@@ -323,7 +331,9 @@ app.get('/jms/debug/fergus-find', requireAuth, async (req, res) => {
         const j = JSON.parse(r.body || '{}');
         const payload = j.data || j.value || j;
         if (Array.isArray(payload)) {
-          summary = 'array(' + payload.length + ') jobNos=[' + payload.slice(0, 5).map(x => x.jobNo).join(',') + ']';
+          const nos = payload.slice(0, 5).map(x => x.jobNo).join(',');
+          const statuses = Array.from(new Set(payload.map(x => x.status).filter(Boolean))).join('/');
+          summary = 'array(' + payload.length + ') jobNos=[' + nos + ']' + (statuses ? ' statuses=[' + statuses + ']' : '');
         } else if (payload && (payload.id || payload.jobNo)) {
           summary = 'single id=' + payload.id + ' jobNo=' + payload.jobNo + ' customer=' + ((payload.customer || {}).customerFullName || '?');
         } else if (payload && payload.message) {
