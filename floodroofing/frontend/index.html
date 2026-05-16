@@ -644,6 +644,10 @@ select{
   html.print-quote .panel:not(#tab-quote){display:none!important}
   html.print-quote #tab-quote > .card:not(:last-child){display:none!important}
   html.print-quote #tab-quote > .card:last-child > .card-hd{display:none!important}
+  /* When "Include inspection report" is on, also print the report
+     after the quote with a clean page break between them. */
+  html.print-quote.with-report #tab-report{display:block!important;page-break-before:always;break-before:page}
+  html.print-quote.with-report .panel:not(#tab-quote):not(#tab-report){display:none!important}
 }
 
 /* ── Mobile (collapse sidebar) ─────────────────────────────── */
@@ -770,8 +774,6 @@ select{
   <button class="nav-btn active" onclick="gotoTab('roof')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.3"/></svg>Map Roof</button>
   <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Materials &amp; Sheet Layout</button>
   <button class="nav-btn" onclick="gotoTab('scope')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8H11M5 5.5H11M5 10.5H8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Scope &amp; labour</button>
-  <button class="nav-btn" onclick="gotoTab('report')"><svg viewBox="0 0 16 16" fill="none"><rect x="3" y="1.5" width="10" height="13" rx="1.2" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5H10.5M5.5 8H10.5M5.5 10.5H8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Inspection report</button>
-  <button class="nav-btn" onclick="gotoTab('fergus')"><svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="3" width="13" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 6.5H14.5" stroke="currentColor" stroke-width="1.1"/><circle cx="4.5" cy="9.5" r="1" fill="currentColor"/><circle cx="7.5" cy="9.5" r="1" fill="currentColor"/></svg>Fergus</button>
   <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <button class="nav-btn" onclick="gotoTab('jobs')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
   <button class="nav-btn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
@@ -1358,67 +1360,11 @@ select{
   </div>
 </div>
 
-<!-- TAB 5: FERGUS -->
-<div class="panel" id="tab-fergus">
-  <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Fergus connection</div>
-    <div id="proxyStatusBanner" class="proxy-status proxy-warn"><span class="proxy-dot"></span><span id="proxyStatusText">Checking proxy...</span></div>
-    <div class="warn-box" id="proxyInstructions" style="display:none"><strong>API connection issue.</strong></div>
-    <div class="notice" id="proxyOkMsg" style="display:none">Proxy running. Connecting to Fergus...</div>
-  </div>
-  <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Fergus API key</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:.75rem">The Fergus PAT used for connections is read from <code>FERGUS_API_KEY</code> on the backend (Railway env var). The field below is informational only — changes here are <em>not</em> sent to Fergus.</p>
-    <div class="api-input-wrap"><input type="password" id="fergKey" placeholder="(read from Railway FERGUS_API_KEY)"><button class="api-toggle" onclick="toggleKeyVis()">show</button></div>
-    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-      <button class="sec-btn" onclick="testFergus()" style="margin:0">Connect to Fergus</button>
-      <button onclick="diagnoseFergus()" style="padding:9px 16px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔍 Diagnose config</button>
-      <button onclick="probeFergus()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔬 Probe Fergus (show raw response)</button>
-      <button onclick="findJobProbe()" style="padding:9px 16px;background:#fff;color:#dc2626;border:1.5px solid #dc2626;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🩺 Find job # (probe all patterns)</button>
-      <button onclick="dumpFergCache()" style="padding:9px 16px;background:#fff;color:#059669;border:1.5px solid #059669;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">📦 Show cache stats</button>
-      <button onclick="probeSalesAccounts()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">💰 Probe sales accounts</button>
-    </div>
-    <div id="fergDiag" style="display:none;margin-top:10px;padding:12px 14px;background:#f5f5f3;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.7;white-space:pre-wrap;color:#0a1628"></div>
-    <div class="err" id="fergErr"></div>
-    <div class="notice" id="fergOk" style="display:none">Connected to Fergus successfully.</div>
-  </div>
-  <div class="card" id="fergJobsCard" style="display:none">
-    <div class="card-hd"><span class="card-dot"></span>Link to Fergus job</div>
-    <div class="tab-row">
-      <button class="tab-sm on" onclick="switchSubTab('ferg','ferg-existing',this)">Select existing job</button>
-      <button class="tab-sm" onclick="switchSubTab('ferg','ferg-new',this)">Create new job</button>
-    </div>
-    <div class="sub-panel on" id="ferg-existing">
-      <label>Search jobs</label><input type="text" id="fergSearch" placeholder="Job # / client name / address — searches Fergus directly" oninput="onFergSearchInput()">
-      <div id="fergPreloadStatus" style="font-size:11px;color:var(--text2);margin-top:4px;min-height:14px"></div>
-      <div id="fergJobList"></div>
-      <details style="margin-top:10px">
-        <summary style="font-size:11px;color:var(--text2);cursor:pointer">Can't find your job? Load by Fergus internal ID</summary>
-        <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
-          <input type="text" id="fergDirectId" placeholder="e.g. 15576244 (from the Fergus URL when viewing the job)" style="flex:1;padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;margin:0">
-          <button onclick="loadFergusJobById()" style="padding:7px 14px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Load</button>
-        </div>
-        <div style="font-size:10px;color:var(--text2);margin-top:4px">In the Fergus web app, open the job. The number at the end of the URL (after <code>/jobs/</code>) is the internal id.</div>
-      </details>
-      <div class="notice" id="fergSelNotice" style="display:none">Job linked: <strong id="fergJobName"></strong></div>
-    </div>
-    <div class="sub-panel" id="ferg-new">
-      <div class="f2"><div><label>Client name</label><input type="text" id="fNewClient"></div><div><label>Site address</label><input type="text" id="fNewAddr"></div></div>
-      <div class="f2">
-        <div><label>Job type</label><select id="fNewType"><option>Residential roofing</option><option>Commercial roofing</option><option>Repairs and maintenance</option><option>New build roofing</option><option>Gutter and drainage</option></select></div>
-        <div><label>Priority</label><select id="fNewPriority"><option>Standard</option><option>Urgent</option><option>Low</option></select></div>
-      </div>
-      <button class="sec-btn" onclick="createFergJob()">Create job in Fergus</button>
-      <div class="notice" id="fNewOk" style="display:none">Job created! ID: <strong id="fNewJobId"></strong></div>
-    </div>
-  </div>
-  <div class="card" id="fergPushCard" style="display:none">
-    <div class="card-hd"><span class="card-dot"></span>Push to Fergus</div>
-    <button class="sec-btn" onclick="pushToFergus()">Push quote to Fergus</button>
-    <div class="notice" id="fergPushOk" style="display:none"><strong>Pushed to Fergus.</strong> Draft quote created.</div>
-    <div class="err" id="fergPushErr"></div>
-  </div>
-</div>
+<!-- TAB 5 (legacy id retained, no longer in nav): the Fergus cards
+     were physically moved into Settings under "Link Job Management
+     System". Keeping the empty panel only so legacy gotoTab('fergus')
+     calls don't blow up — the panel just stays inactive. -->
+<div class="panel" id="tab-fergus"></div>
 
 <!-- TAB 6: QUOTE -->
 <div class="panel" id="tab-quote">
@@ -1434,6 +1380,29 @@ select{
     <button onclick="openJMSPushModal()" style="padding:8px 14px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📤 Push to JMS</button>
     <button onclick="printQuote()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
     <span id="qaMsg" style="font-size:12px;color:var(--text2);width:100%"></span>
+  </div>
+
+  <!-- Quote inclusions: optional add-ons baked into the PDF/email when
+       the quote goes out. Inspection report used to be its own nav tab;
+       it now lives here as a checkbox so the report only ships with the
+       quote when the user actively opts in. -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Quote inclusions</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Optional sections to append to the printed/emailed quote.</div>
+    <label class="chk-item on" id="qIncludeReportLabel" style="max-width:380px;cursor:pointer" onclick="toggleIncludeReport(event)">
+      <span class="chk-dot"></span>
+      <span style="display:flex;flex-direction:column;gap:2px">
+        <strong style="font-size:13px">Include inspection report</strong>
+        <span style="font-size:11px;color:var(--text2);font-weight:400">Appends the condition assessment, photos and scope notes after the quote proposal.</span>
+      </span>
+      <input type="checkbox" id="qIncludeReport" checked style="display:none">
+    </label>
+    <details style="margin-top:14px">
+      <summary style="font-size:12px;color:var(--text2);cursor:pointer">Edit inspection report content →</summary>
+      <div style="margin-top:8px;padding:10px 14px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text2)">
+        The inspection report fields (condition, photos, scope notes, custom sections) are populated from the Map Roof and Scope &amp; labour tabs. The report preview is rendered below in the legacy <code>#tab-report</code> container — it stays hidden in the app, but prints when this option is on.
+      </div>
+    </details>
   </div>
 
   <!-- Quote details (editable) -->
@@ -1649,6 +1618,89 @@ select{
 
 <!-- TAB 8: SETTINGS -->
 <div class="panel" id="tab-settings">
+
+  <!-- Link Job Management System -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Link Job Management System</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Pick the platform you run jobs in. Selecting a system reveals its connection settings below. You can still push to a different system per-quote via the <strong>Push to JMS</strong> button on the Quote tab.</p>
+    <div style="max-width:340px">
+      <label>Job management system</label>
+      <select id="jmsSelect" onchange="setJMS(this.value)">
+        <option value="none">None — manual quoting only</option>
+        <option value="fergus" selected>Fergus</option>
+        <option value="tradify" disabled>Tradify (coming soon)</option>
+        <option value="servicem8" disabled>ServiceM8 (coming soon)</option>
+        <option value="jobber" disabled>Jobber (coming soon)</option>
+        <option value="aroflo" disabled>AroFlo (coming soon)</option>
+        <option value="simpro" disabled>simPRO (coming soon)</option>
+        <option value="workflowmax" disabled>WorkflowMax (coming soon)</option>
+      </select>
+    </div>
+    <div id="jmsNoneMsg" style="display:none;margin-top:10px;padding:10px 14px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text2)">No JMS linked. Quotes will print/email locally only.</div>
+  </div>
+
+  <!-- Fergus configuration (shown when JMS = fergus) -->
+  <div id="jms-fergus-content">
+    <div class="card">
+      <div class="card-hd"><span class="card-dot"></span>Fergus connection</div>
+      <div id="proxyStatusBanner" class="proxy-status proxy-warn"><span class="proxy-dot"></span><span id="proxyStatusText">Checking proxy...</span></div>
+      <div class="warn-box" id="proxyInstructions" style="display:none"><strong>API connection issue.</strong></div>
+      <div class="notice" id="proxyOkMsg" style="display:none">Proxy running. Connecting to Fergus...</div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-dot"></span>Fergus API key</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:.75rem">The Fergus PAT used for connections is read from <code>FERGUS_API_KEY</code> on the backend (Railway env var). The field below is informational only — changes here are <em>not</em> sent to Fergus.</p>
+      <div class="api-input-wrap"><input type="password" id="fergKey" placeholder="(read from Railway FERGUS_API_KEY)"><button class="api-toggle" onclick="toggleKeyVis()">show</button></div>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="sec-btn" onclick="testFergus()" style="margin:0">Connect to Fergus</button>
+        <button onclick="diagnoseFergus()" style="padding:9px 16px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔍 Diagnose config</button>
+        <button onclick="probeFergus()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔬 Probe Fergus (show raw response)</button>
+        <button onclick="findJobProbe()" style="padding:9px 16px;background:#fff;color:#dc2626;border:1.5px solid #dc2626;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🩺 Find job # (probe all patterns)</button>
+        <button onclick="dumpFergCache()" style="padding:9px 16px;background:#fff;color:#059669;border:1.5px solid #059669;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">📦 Show cache stats</button>
+        <button onclick="probeSalesAccounts()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">💰 Probe sales accounts</button>
+      </div>
+      <div id="fergDiag" style="display:none;margin-top:10px;padding:12px 14px;background:#f5f5f3;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.7;white-space:pre-wrap;color:#0a1628"></div>
+      <div class="err" id="fergErr"></div>
+      <div class="notice" id="fergOk" style="display:none">Connected to Fergus successfully.</div>
+    </div>
+    <div class="card" id="fergJobsCard" style="display:none">
+      <div class="card-hd"><span class="card-dot"></span>Link to Fergus job</div>
+      <div class="tab-row">
+        <button class="tab-sm on" onclick="switchSubTab('ferg','ferg-existing',this)">Select existing job</button>
+        <button class="tab-sm" onclick="switchSubTab('ferg','ferg-new',this)">Create new job</button>
+      </div>
+      <div class="sub-panel on" id="ferg-existing">
+        <label>Search jobs</label><input type="text" id="fergSearch" placeholder="Job # / client name / address — searches Fergus directly" oninput="onFergSearchInput()">
+        <div id="fergPreloadStatus" style="font-size:11px;color:var(--text2);margin-top:4px;min-height:14px"></div>
+        <div id="fergJobList"></div>
+        <details style="margin-top:10px">
+          <summary style="font-size:11px;color:var(--text2);cursor:pointer">Can't find your job? Load by Fergus internal ID</summary>
+          <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
+            <input type="text" id="fergDirectId" placeholder="e.g. 15576244 (from the Fergus URL when viewing the job)" style="flex:1;padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;margin:0">
+            <button onclick="loadFergusJobById()" style="padding:7px 14px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Load</button>
+          </div>
+          <div style="font-size:10px;color:var(--text2);margin-top:4px">In the Fergus web app, open the job. The number at the end of the URL (after <code>/jobs/</code>) is the internal id.</div>
+        </details>
+        <div class="notice" id="fergSelNotice" style="display:none">Job linked: <strong id="fergJobName"></strong></div>
+      </div>
+      <div class="sub-panel" id="ferg-new">
+        <div class="f2"><div><label>Client name</label><input type="text" id="fNewClient"></div><div><label>Site address</label><input type="text" id="fNewAddr"></div></div>
+        <div class="f2">
+          <div><label>Job type</label><select id="fNewType"><option>Residential roofing</option><option>Commercial roofing</option><option>Repairs and maintenance</option><option>New build roofing</option><option>Gutter and drainage</option></select></div>
+          <div><label>Priority</label><select id="fNewPriority"><option>Standard</option><option>Urgent</option><option>Low</option></select></div>
+        </div>
+        <button class="sec-btn" onclick="createFergJob()">Create job in Fergus</button>
+        <div class="notice" id="fNewOk" style="display:none">Job created! ID: <strong id="fNewJobId"></strong></div>
+      </div>
+    </div>
+    <div class="card" id="fergPushCard" style="display:none">
+      <div class="card-hd"><span class="card-dot"></span>Push to Fergus</div>
+      <button class="sec-btn" onclick="pushToFergus()">Push quote to Fergus</button>
+      <div class="notice" id="fergPushOk" style="display:none"><strong>Pushed to Fergus.</strong> Draft quote created.</div>
+      <div class="err" id="fergPushErr"></div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Settings
       <button onclick="saveSettings()" id="saveSettingsBtn" style="margin-left:auto;padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save settings</button>
@@ -1765,23 +1817,73 @@ async function checkProxy(){S.proxyOk=true;var el=document.getElementById('proxy
 async function claudeCall(body){var tok=localStorage.getItem('fr_token')||'';return fetch(PROXY+'/claude/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify(body)});}
 
 function gotoTab(t) {
-  var ids=['roof','scope','materials','report','fergus','quote','jobs','settings'];
+  // Legacy tabs that no longer have nav buttons:
+  //   'fergus' → folded into Settings → "Link Job Management System"
+  //   'report' → folded into Quote → "Include inspection report"
+  // Redirect those to the new homes so old links/buttons keep working.
+  if (t === 'fergus') { t = 'settings'; }
+  if (t === 'report') {
+    // Still call refreshReport so the printable proposal stays in sync,
+    // but show the Quote tab instead.
+    try { refreshReport(); } catch(e){}
+    t = 'quote';
+  }
+  // Order must match the rendered nav buttons.
+  var ids=['roof','materials','scope','quote','jobs','settings'];
   document.querySelectorAll('.nav-btn').forEach(function(b,i){b.classList.toggle('active',ids[i]===t);});
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
-  if(t==='report') refreshReport();
-  if(t==='quote') buildQuote();
-  if(t==='fergus'){prefillFergus();autoConnect();}
+  if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); }
   if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}}
   if(t==='jobs') refreshJobsList();
-  if(t==='settings') refreshSettingsUI();
+  if(t==='settings'){ refreshSettingsUI(); try{prefillFergus();autoConnect();}catch(e){} }
 }
 function switchSubTab(grp,id,btn){
-  var sel=grp==='mat'?'#tab-materials .sub-panel':'#tab-fergus .sub-panel';
-  document.querySelectorAll(sel).forEach(function(p){p.classList.remove('on');});
+  // Scope sub-panel toggling to the card the button lives in. This keeps
+  // the Materials and Fergus tab-row controls working even though the
+  // Fergus cards have been relocated into Settings (where they share
+  // the surface with the Branding/Quote/Integrations sub-tabs we don't
+  // want to inadvertently toggle).
+  var scope = btn.closest('.card') || btn.closest('.panel') || document;
+  scope.querySelectorAll('.sub-panel').forEach(function(p){p.classList.remove('on');});
   document.getElementById(id).classList.add('on');
   btn.closest('.tab-row').querySelectorAll('.tab-sm').forEach(function(b){b.classList.remove('on');});
   btn.classList.add('on');
+}
+
+// Job Management System selector — drives visibility of provider-specific
+// config blocks within Settings and persists the choice locally so it
+// survives reloads. Only Fergus is wired up today; the rest are stubs.
+function setJMS(provider){
+  try { localStorage.setItem('fr_jms', provider || 'none'); } catch(e){}
+  var fergus = document.getElementById('jms-fergus-content');
+  var noneMsg = document.getElementById('jmsNoneMsg');
+  if (fergus)  fergus.style.display  = (provider === 'fergus') ? '' : 'none';
+  if (noneMsg) noneMsg.style.display = (provider === 'none')   ? '' : 'none';
+}
+// Apply the saved JMS choice on load.
+(function(){
+  function _init(){
+    var saved = (function(){ try { return localStorage.getItem('fr_jms'); } catch(e){ return null; } })() || 'fergus';
+    var sel = document.getElementById('jmsSelect');
+    if (sel) sel.value = saved;
+    setJMS(saved);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _init);
+  else _init();
+})();
+
+// "Include inspection report" toggle on the Quote tab. The hidden
+// <input type=checkbox id=qIncludeReport> is the source of truth; the
+// visible label uses the existing .chk-item styling so it matches the
+// other selectable controls in the app.
+function toggleIncludeReport(ev){
+  if (ev) ev.preventDefault();
+  var cb = document.getElementById('qIncludeReport');
+  var lbl = document.getElementById('qIncludeReportLabel');
+  if (!cb || !lbl) return;
+  cb.checked = !cb.checked;
+  lbl.classList.toggle('on', cb.checked);
 }
 function switchSettingsSub(id,btn){
   document.querySelectorAll('#tab-settings .settings-sub').forEach(function(p){p.classList.remove('on');});
@@ -3331,11 +3433,23 @@ function emailQuote(){
 }
 
 function printQuote(){
-  // Tag <html> so the print stylesheet hides everything except the proposal
+  // Tag <html> so the print stylesheet hides everything except the
+  // proposal. If "Include inspection report" is ticked on the Quote
+  // tab, additionally tag with .with-report so the report panel prints
+  // after the quote (page-break controlled in the stylesheet).
+  var inc = document.getElementById('qIncludeReport');
+  var withReport = !!(inc && inc.checked);
+  if (withReport) {
+    try { refreshReport(); } catch(e){}
+  }
   document.documentElement.classList.add('print-quote');
+  if (withReport) document.documentElement.classList.add('with-report');
   setTimeout(function(){
     window.print();
-    setTimeout(function(){ document.documentElement.classList.remove('print-quote'); }, 500);
+    setTimeout(function(){
+      document.documentElement.classList.remove('print-quote');
+      document.documentElement.classList.remove('with-report');
+    }, 500);
   }, 50);
 }
 
