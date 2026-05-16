@@ -2982,7 +2982,7 @@ async function pushQuoteToJMS(){
     return { description: li.desc||'—', quantity: parseFloat(li.qty)||0, unitPrice: parseFloat(li.unit)||0 };
   });
   sectionLineItems.push({ description: 'GST '+S.quote.gstRate+'%', quantity: 1, unitPrice: gst });
-  var sections = [{ title: 'Roofing quote', lineItems: sectionLineItems }];
+  var sections = [{ name: 'Roofing quote', lineItems: sectionLineItems }];
   var dueDays = (function(){
     var m = String(S.quote.validUntil||'').match(/(\d+)/);
     return m ? parseInt(m[1], 10) : 30;
@@ -3495,7 +3495,7 @@ async function pushToFergus(){
     var resp=await fergusCall('POST','/jobs/'+S.linkedJobId+'/quotes',{
       title:'Roof quote — '+(document.getElementById('jobClient').value||'Client'),
       sections:[{
-        title:'Roofing quote',
+        name:'Roofing quote',
         lineItems:[
           {description:'Labour',    quantity:1, unitPrice:S.labour},
           {description:'Materials', quantity:1, unitPrice:S.materials},
