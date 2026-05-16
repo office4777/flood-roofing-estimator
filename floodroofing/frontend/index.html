@@ -873,6 +873,7 @@ textarea{resize:vertical;min-height:70px}
     </div>
     <div class="sub-panel on" id="ferg-existing">
       <label>Search jobs</label><input type="text" id="fergSearch" placeholder="Job # / client name / address — searches Fergus directly" oninput="onFergSearchInput()">
+      <div id="fergPreloadStatus" style="font-size:11px;color:var(--text2);margin-top:4px;min-height:14px"></div>
       <div id="fergJobList"></div>
       <details style="margin-top:10px">
         <summary style="font-size:11px;color:var(--text2);cursor:pointer">Can't find your job? Load by Fergus internal ID</summary>
@@ -3063,6 +3064,12 @@ async function testFergus(){
     var data = await resp.json();
     S.fergJobsCache = (data.value || data.jobs || data.data || []).map(_fergJobView);
     renderFergJobs(S.fergJobsCache);
+    // Fergus's REST API doesn't appear to honour text-search query params
+    // for our account, so the only reliable way to find a deep job (e.g.
+    // #2996 when there are thousands) is to cache the lot. Fire-and-forget
+    // background loader: walks pages 2..N until an empty/short page comes
+    // back, surfacing progress in #fergPreloadStatus.
+    preloadAllFergusJobs();
   } catch(e){
     if (!S.fergConnected){
       document.getElementById('fergErr').style.display = 'block';
@@ -3119,6 +3126,47 @@ function selectFergJob(id, name, el){
 // Debounced search — on each keystroke, run a client-side filter on the
 // cached first-page jobs for instant feedback, then hit Fergus with
 // ?search=<term> to cover jobs that aren't in the cache.
+// Background pagination — walks /jobs?page=2&per_page=100 onwards and
+// appends to S.fergJobsCache so the in-memory list eventually contains
+// every job in the user's Fergus account. Subsequent client-side text
+// searches then work for any jobNo / customer / address regardless of
+// where the job sits in the pagination, without depending on Fergus's
+// (unsupported) REST search parameters. Bounded at MAX_PAGES so a
+// runaway/malformed pagination response can't loop forever.
+async function preloadAllFergusJobs(){
+  if (S._fergPreloading) return;
+  S._fergPreloading = true;
+  var PAGE_SIZE = 100;
+  var MAX_PAGES = 100;          // safety cap: 10 000 jobs max
+  var statusEl = document.getElementById('fergPreloadStatus');
+  function status(t){ if (statusEl) statusEl.textContent = t; }
+  try {
+    for (var page = 2; page <= MAX_PAGES; page++){
+      status('Caching all Fergus jobs in the background… ' + (S.fergJobsCache||[]).length + ' loaded');
+      var resp;
+      try { resp = await fergusCall('GET', '/jobs?page=' + page + '&per_page=' + PAGE_SIZE); }
+      catch(e) { break; }
+      if (!resp.ok) break;
+      var data = await resp.json();
+      var batch = (data.value || data.jobs || data.data || []).map(_fergJobView);
+      if (!batch.length) break;
+      var seen = {};
+      (S.fergJobsCache||[]).forEach(function(j){ seen[j.id] = 1; });
+      var fresh = batch.filter(function(j){ return !seen[j.id]; });
+      S.fergJobsCache = (S.fergJobsCache||[]).concat(fresh);
+      // Mirror into the JMS push modal's cache so the modal sees them too.
+      if (window._jmsState) _jmsState.jobsCache = S.fergJobsCache.slice();
+      if (batch.length < PAGE_SIZE) break;   // last page
+      // tiny pause to avoid spiking Fergus's rate limiter
+      await new Promise(function(r){ setTimeout(r, 80); });
+    }
+    status('✓ All Fergus jobs cached: ' + (S.fergJobsCache||[]).length + ' total — search works instantly now');
+    setTimeout(function(){ status(''); }, 6000);
+  } finally {
+    S._fergPreloading = false;
+  }
+}
+
 // Fallback: load a single Fergus job by its internal id (the trailing
 // number in https://app.fergus.com/jobs/<id>). Uses /jobs/<id>, prepends
 // the result to the cache and renders it as a single-row pickable list
