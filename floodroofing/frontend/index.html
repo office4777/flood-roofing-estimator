@@ -2973,12 +2973,20 @@ async function pushQuoteToJMS(){
   var sub = quoteSubtotal();
   var gst = sub * (S.quote.gstRate/100);
   var tot = sub + gst;
-  // Fergus uses camelCase everywhere (jobNo, customerFullName, pageSize,
-  // filterSearchText) so quote-body fields are camelCase too.
-  var lineItems = (S.quote.lineItems||[]).map(function(li){
+  // Fergus organises quote bodies into "sections", each containing
+  // lineItems. The flat lineItems list we keep in S.quote.lineItems
+  // becomes a single section here. GST goes in as a line item alongside
+  // the rest. dueDays is required by Fergus and pairs with the existing
+  // S.quote.validUntil field ("30 days" → 30).
+  var sectionLineItems = (S.quote.lineItems||[]).map(function(li){
     return { description: li.desc||'—', quantity: parseFloat(li.qty)||0, unitPrice: parseFloat(li.unit)||0 };
   });
-  lineItems.push({ description: 'GST '+S.quote.gstRate+'%', quantity: 1, unitPrice: gst });
+  sectionLineItems.push({ description: 'GST '+S.quote.gstRate+'%', quantity: 1, unitPrice: gst });
+  var sections = [{ title: 'Roofing quote', lineItems: sectionLineItems }];
+  var dueDays = (function(){
+    var m = String(S.quote.validUntil||'').match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : 30;
+  })();
   var quoteTitle = 'Quote ' + (S.quote.ref||'') + ' — ' + (S.quote.client||'Client');
   // Helper: read full upstream error body so we can show Fergus's actual
   // complaint, not just the HTTP status code.
@@ -3001,7 +3009,8 @@ async function pushQuoteToJMS(){
     if (!jobId){ say('Select an existing Fergus job or switch to "Add as new job".', '#b91c1c'); return; }
     var qResp = await fergusCall('POST', '/jobs/'+jobId+'/quotes', {
       title: quoteTitle,
-      lineItems: lineItems,
+      sections: sections,
+      dueDays: dueDays,
       total: tot,
       notes: (S.quote.scope||'') + (S.quote.notes ? '\n\nNotes: '+S.quote.notes : ''),
       status: 'Draft'
@@ -3485,11 +3494,15 @@ async function pushToFergus(){
   try{
     var resp=await fergusCall('POST','/jobs/'+S.linkedJobId+'/quotes',{
       title:'Roof quote — '+(document.getElementById('jobClient').value||'Client'),
-      lineItems:[
-        {description:'Labour',    quantity:1, unitPrice:S.labour},
-        {description:'Materials', quantity:1, unitPrice:S.materials},
-        {description:'GST 15%',   quantity:1, unitPrice:gst}
-      ],
+      sections:[{
+        title:'Roofing quote',
+        lineItems:[
+          {description:'Labour',    quantity:1, unitPrice:S.labour},
+          {description:'Materials', quantity:1, unitPrice:S.materials},
+          {description:'GST 15%',   quantity:1, unitPrice:gst}
+        ]
+      }],
+      dueDays:30,
       total:tot,
       notes:scope.join(', '),
       status:'Draft'
