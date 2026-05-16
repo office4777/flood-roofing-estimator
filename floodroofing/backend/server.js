@@ -45,7 +45,14 @@ function requireAuth(req, res, next) {
   }
 }
 
+// Billing flag: when no Stripe key is present (or BILLING_ENABLED is not
+// explicitly set true) we treat billing as "not yet configured" — and
+// the subscription gate becomes a no-op so a missing/expired trial row
+// in Supabase doesn't 403 every JMS/AI call.
+const BILLING_ENABLED = process.env.BILLING_ENABLED === 'true' || !!process.env.STRIPE_SECRET_KEY;
+
 async function requireSubscription(req, res, next) {
+  if (!BILLING_ENABLED) return next();
   try {
     const { data } = await supabase
       .from('subscriptions')
@@ -235,6 +242,8 @@ app.get('/jms/debug', requireAuth, (req, res) => {
       computed_test_url: `https://${FERGUS_HOST}${FERGUS_PREFIX}/jobs?page=1&per_page=1`,
     },
     backend_uptime_seconds: Math.round(process.uptime()),
+    billing_enabled: BILLING_ENABLED,
+    subscription_gate: BILLING_ENABLED ? 'enforced' : 'bypassed (billing not configured)',
   });
 });
 
