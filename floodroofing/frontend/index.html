@@ -2973,11 +2973,18 @@ async function pushQuoteToJMS(){
   var sub = quoteSubtotal();
   var gst = sub * (S.quote.gstRate/100);
   var tot = sub + gst;
-  var line_items = (S.quote.lineItems||[]).map(function(li){
-    return { description: li.desc||'—', quantity: parseFloat(li.qty)||0, unit_price: parseFloat(li.unit)||0 };
+  // Fergus uses camelCase everywhere (jobNo, customerFullName, pageSize,
+  // filterSearchText) so quote-body fields are camelCase too.
+  var lineItems = (S.quote.lineItems||[]).map(function(li){
+    return { description: li.desc||'—', quantity: parseFloat(li.qty)||0, unitPrice: parseFloat(li.unit)||0 };
   });
-  line_items.push({ description: 'GST '+S.quote.gstRate+'%', quantity: 1, unit_price: gst });
+  lineItems.push({ description: 'GST '+S.quote.gstRate+'%', quantity: 1, unitPrice: gst });
   var quoteTitle = 'Quote ' + (S.quote.ref||'') + ' — ' + (S.quote.client||'Client');
+  // Helper: read full upstream error body so we can show Fergus's actual
+  // complaint, not just the HTTP status code.
+  async function bodyText(r){
+    try { return (await r.text()).slice(0, 400); } catch(e) { return ''; }
+  }
   try {
     say('Pushing…','');
     var jobId = _jmsState.pickedJobId;
@@ -2985,21 +2992,24 @@ async function pushQuoteToJMS(){
       var client = (document.getElementById('jmsNewClient')||{}).value || S.quote.client;
       var addr   = (document.getElementById('jmsNewAddr')||{}).value || S.quote.addr;
       if (!client){ say('Enter a client name for the new Fergus job.', '#b91c1c'); return; }
-      var resp = await fergusCall('POST', '/jobs', { brief_description: client + (addr?' — '+addr:''), site_address: addr ? { address1: addr } : undefined });
-      if (!resp.ok) throw new Error('Could not create Fergus job (HTTP '+resp.status+')');
+      var resp = await fergusCall('POST', '/jobs', { briefDescription: client + (addr?' — '+addr:''), siteAddress: addr ? { address1: addr } : undefined });
+      if (!resp.ok) throw new Error('Could not create Fergus job (HTTP '+resp.status+'): ' + await bodyText(resp));
       var d = await resp.json();
-      jobId = d.id || d.job_id || d.internal_id;
+      jobId = d.id || d.jobId || d.job_id;
       if (!jobId) throw new Error('Fergus returned no job id');
     }
     if (!jobId){ say('Select an existing Fergus job or switch to "Add as new job".', '#b91c1c'); return; }
     var qResp = await fergusCall('POST', '/jobs/'+jobId+'/quotes', {
       title: quoteTitle,
-      line_items: line_items,
+      lineItems: lineItems,
       total: tot,
       notes: (S.quote.scope||'') + (S.quote.notes ? '\n\nNotes: '+S.quote.notes : ''),
-      status: 'draft'
+      status: 'Draft'
     });
-    if (!qResp.ok) throw new Error('Quote create failed (HTTP '+qResp.status+')');
+    if (!qResp.ok) {
+      var err = await bodyText(qResp);
+      throw new Error('Quote create failed (HTTP '+qResp.status+'): ' + err);
+    }
     S.linkedJobId = jobId;
     S.linkedJobName = (_jmsState.pickedJobLabel || quoteTitle);
     say('✓ Pushed to Fergus job #'+jobId+' as a draft quote.', '#15803d');
@@ -3472,8 +3482,25 @@ async function pushToFergus(){
   document.getElementById('fergPushErr').style.display='none';document.getElementById('fergPushOk').style.display='none';
   var gst=(S.labour+S.materials)*0.15,tot=S.labour+S.materials+gst;
   var scope=Array.from(document.querySelectorAll('#scopeGrid .chk-item.on')).map(function(el){return el.dataset.item;});
-  try{var resp=await fergusCall('POST','/jobs/'+S.linkedJobId+'/quotes',{title:'Roof quote — '+(document.getElementById('jobClient').value||'Client'),line_items:[{description:'Labour',quantity:1,unit_price:S.labour},{description:'Materials',quantity:1,unit_price:S.materials},{description:'GST 15%',quantity:1,unit_price:gst}],total:tot,notes:scope.join(', '),status:'draft'});if(resp.ok)document.getElementById('fergPushOk').style.display='block';else throw new Error(resp.status);}
-  catch(e){document.getElementById('fergPushErr').style.display='block';document.getElementById('fergPushErr').textContent='Push failed ('+e.message+')';}
+  try{
+    var resp=await fergusCall('POST','/jobs/'+S.linkedJobId+'/quotes',{
+      title:'Roof quote — '+(document.getElementById('jobClient').value||'Client'),
+      lineItems:[
+        {description:'Labour',    quantity:1, unitPrice:S.labour},
+        {description:'Materials', quantity:1, unitPrice:S.materials},
+        {description:'GST 15%',   quantity:1, unitPrice:gst}
+      ],
+      total:tot,
+      notes:scope.join(', '),
+      status:'Draft'
+    });
+    if (resp.ok) { document.getElementById('fergPushOk').style.display='block'; return; }
+    var detail = ''; try { detail = (await resp.text()).slice(0, 300); } catch(e){}
+    throw new Error('HTTP '+resp.status+(detail?' — '+detail:''));
+  } catch(e){
+    document.getElementById('fergPushErr').style.display='block';
+    document.getElementById('fergPushErr').textContent='Push failed ('+e.message+')';
+  }
 }
 function prefillFergus(){document.getElementById('fNewClient').value=document.getElementById('jobClient').value;document.getElementById('fNewAddr').value=document.getElementById('jobAddr').value;}
 
