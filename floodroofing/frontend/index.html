@@ -7245,19 +7245,100 @@ function redrawAll() {
       var planM  = minPerp * DRAW.scaleMetresPerPx;
       var pitch  = DRAW.calPitch || 0;
       var sheetM = (pitch > 0 && pitch < 80) ? (planM / Math.cos(pitch * Math.PI / 180)) : planM;
-      // Tuck the label just inside the gutter, on a short stub.
+      // Convert the in-image perpendicular distance to canvas-px so
+      // we can park the label at the midpoint of the rafter run
+      // (halfway between the gutter and the ridge) instead of on
+      // top of the gutter's own measurement label.
+      var _tr = getImgTransform();
+      var perpCanvasPx = minPerp * (_tr ? _tr.s : 1);
       var midScreen = dp([midX, midY]);
-      var lblX = midScreen[0] + nx * 22;
-      var lblY = midScreen[1] + ny * 22;
+      var lblX = midScreen[0] + nx * (perpCanvasPx / 2);
+      var lblY = midScreen[1] + ny * (perpCanvasPx / 2);
       var label = sheetM.toFixed(2) + 'm sheet';
-      // White halo via stroke, then dark fill — keeps the label
-      // readable on any background without a heavy box.
+      // White halo via stroke, then dark fill so the label reads
+      // against any background without a heavy box.
       ctx.lineJoin = 'round';
       ctx.strokeStyle = 'rgba(255,255,255,0.9)';
       ctx.lineWidth = 3;
       ctx.strokeText(label, lblX, lblY);
       ctx.fillStyle = '#0a1628';
       ctx.fillText(label, lblX, lblY);
+      // Small arrows above + below the label — one pointing toward
+      // the ridge, one toward the gutter — so the measurement is
+      // unambiguously "from gutter up to ridge along the slope".
+      // Skip when the rafter run is short enough that the arrows
+      // would crash through the label text.
+      if (perpCanvasPx > 36) {
+        var tw = ctx.measureText(label).width;
+        var lineGap = 9;             // space between label edge and arrow start
+        var armLen  = Math.min(14, (perpCanvasPx / 2) - 12);  // length of each arrow
+        if (armLen >= 6) {
+          var ridgeX = lblX + nx * (lineGap + armLen);
+          var ridgeY = lblY + ny * (lineGap + armLen);
+          var gutX   = lblX - nx * (lineGap + armLen);
+          var gutY   = lblY - ny * (lineGap + armLen);
+          var startRidgeX = lblX + nx * lineGap;
+          var startRidgeY = lblY + ny * lineGap;
+          var startGutX   = lblX - nx * lineGap;
+          var startGutY   = lblY - ny * lineGap;
+          ctx.lineWidth = 1.4;
+          ctx.lineCap = 'round';
+          // Arrow toward ridge
+          ctx.beginPath();
+          ctx.moveTo(startRidgeX, startRidgeY);
+          ctx.lineTo(ridgeX, ridgeY);
+          ctx.stroke();
+          var aR = Math.atan2(ridgeY - startRidgeY, ridgeX - startRidgeX);
+          var ah = 4, aw = 3;
+          ctx.beginPath();
+          ctx.moveTo(ridgeX, ridgeY);
+          ctx.lineTo(ridgeX - ah*Math.cos(aR) + aw*Math.sin(aR), ridgeY - ah*Math.sin(aR) - aw*Math.cos(aR));
+          ctx.lineTo(ridgeX - ah*Math.cos(aR) - aw*Math.sin(aR), ridgeY - ah*Math.sin(aR) + aw*Math.cos(aR));
+          ctx.closePath();
+          ctx.fillStyle = '#0a1628';
+          ctx.fill();
+          // Arrow toward gutter
+          ctx.beginPath();
+          ctx.moveTo(startGutX, startGutY);
+          ctx.lineTo(gutX, gutY);
+          ctx.stroke();
+          var aG = Math.atan2(gutY - startGutY, gutX - startGutX);
+          ctx.beginPath();
+          ctx.moveTo(gutX, gutY);
+          ctx.lineTo(gutX - ah*Math.cos(aG) + aw*Math.sin(aG), gutY - ah*Math.sin(aG) - aw*Math.cos(aG));
+          ctx.lineTo(gutX - ah*Math.cos(aG) - aw*Math.sin(aG), gutY - ah*Math.sin(aG) + aw*Math.cos(aG));
+          ctx.closePath();
+          ctx.fill();
+          // Tiny tick at the gutter and at the ridge tip so the
+          // arrowheads visually touch the two edges they measure.
+          ctx.lineWidth = 1.2;
+          var perpX = -ny * 3, perpY = nx * 3;
+          ctx.beginPath();
+          ctx.moveTo(ridgeX - perpX, ridgeY - perpY);
+          ctx.lineTo(ridgeX + perpX, ridgeY + perpY);
+          ctx.moveTo(gutX - perpX, gutY - perpY);
+          ctx.lineTo(gutX + perpX, gutY + perpY);
+          ctx.stroke();
+          // Tiny "ridge" / "gutter" hint on each end. Keep them very
+          // small so they don't fight the main label.
+          ctx.save();
+          ctx.font = '500 8px Inter, -apple-system, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+          var rLabelX = lblX + nx * (lineGap + armLen + 6);
+          var rLabelY = lblY + ny * (lineGap + armLen + 6);
+          var gLabelX = lblX - nx * (lineGap + armLen + 6);
+          var gLabelY = lblY - ny * (lineGap + armLen + 6);
+          ctx.strokeText('ridge',  rLabelX, rLabelY);
+          ctx.strokeText('gutter', gLabelX, gLabelY);
+          ctx.fillStyle = '#5f5f59';
+          ctx.fillText('ridge',  rLabelX, rLabelY);
+          ctx.fillText('gutter', gLabelX, gLabelY);
+          ctx.restore();
+        }
+      }
     });
     ctx.restore();
   }
