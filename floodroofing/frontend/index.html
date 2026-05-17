@@ -5712,6 +5712,12 @@ var DRAG_EP = null;
 var DRAG_OUTLINE_VERT = null;
 // Smaller of: hit-test radius for grabbing a corner (~14 canvas px).
 var OUTLINE_VERT_GRAB = 14;
+// Set true on corner-drag mouseup so the subsequent click event
+// (browsers fire click → mouseup → click on the same gesture) is
+// swallowed by onCanvasClick — without this, finishing a drag near
+// a hip/ridge/valley line lands a "click" on it and pops up the
+// propPanel ("Edit: Hip"), which is annoying right after a drag.
+var SUPPRESS_NEXT_CLICK = false;
 
 // Snap a candidate outline-vertex position to a 90° angle relative to
 // the building's dominant axis, using a small angular zone so the
@@ -5994,7 +6000,17 @@ function onCanvasMouseUp(e) {
     }
     saveSnapshot();
     try { syncToRoofData && syncToRoofData(); } catch(err){}
+    // Clear any selected line — the regen rebuilt DRAW.lines so the
+    // previously-selected entry no longer exists (or worse, the
+    // selection index now points at a different line). Also hide
+    // the propPanel so the "Edit: Hip" side window doesn't survive
+    // the drag.
+    DRAW.selectedLine = -1;
+    DRAW.selectedSection = -1;
+    DRAW.selectedPen = -1;
+    try { hidePropPanel && hidePropPanel(); } catch(err){}
     DRAG_OUTLINE_VERT = null;
+    SUPPRESS_NEXT_CLICK = true;
     var cv = document.getElementById('roofCanvas');
     if (cv) cv.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
     redrawAll();
@@ -6026,7 +6042,12 @@ document.addEventListener('mouseup', function(e) {
     }
     try { saveSnapshot(); } catch(err){}
     try { syncToRoofData && syncToRoofData(); } catch(err){}
+    DRAW.selectedLine = -1;
+    DRAW.selectedSection = -1;
+    DRAW.selectedPen = -1;
+    try { hidePropPanel && hidePropPanel(); } catch(err){}
     DRAG_OUTLINE_VERT = null;
+    SUPPRESS_NEXT_CLICK = true;
     var cv0 = document.getElementById('roofCanvas');
     if(cv0) cv0.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
     redrawAll();
@@ -6291,6 +6312,11 @@ function onCanvasClick(e) {
   if(e.detail>=2) return;
   document.getElementById('ctxMenu').style.display='none';
 
+  // Swallow the click immediately following a corner-drag mouseup —
+  // otherwise the click handler hit-tests at the new corner position
+  // and pops up the propPanel for whichever auto-generated line ends
+  // there (the "Edit: Hip" annoyance).
+  if (SUPPRESS_NEXT_CLICK) { SUPPRESS_NEXT_CLICK = false; return; }
   // If we dragged more than 5px, treat as pan not click
   if(PAN.totalMoved > 5 && (DRAW.tool === 'select' || DRAW.tool === 'addmeas')) { PAN.totalMoved=0; return; }
   PAN.totalMoved = 0;
@@ -7057,17 +7083,19 @@ function redrawAll() {
     }
   });
 
-  // Sheet-length labels per gutter — only after calibration. Each
-  // gutter gets a "Sheet: X.XXm" tag drawn just inside the outline
-  // with an arrow back to the gutter so the installer can see which
-  // way the sheets run for that face. The number is the slope
-  // distance from the gutter line up to the farthest non-gutter,
-  // non-barge point in the outline (ridge endpoint / hip apex),
-  // converted with DRAW.calPitch from plan-metres to rafter-metres.
+  // Sheet-length label per ridge-bearing gutter — only after
+  // calibration. Hip-end gutters (the short triangular ends with no
+  // ridge running parallel) are deliberately skipped because the
+  // sheets that cover them are cut from the same stock as the long
+  // ridge faces — labelling both would clutter the canvas with
+  // duplicate/conflicting numbers. The label is rendered as light
+  // text with a white halo (no box) so it stays out of the way.
   if (DRAW.scaleMetresPerPx > 0 && DRAW.outline && DRAW.outline.length >= 3) {
     var _cenX = 0, _cenY = 0;
     DRAW.outline.forEach(function(p){ _cenX += p[0]; _cenY += p[1]; });
     _cenX /= DRAW.outline.length; _cenY /= DRAW.outline.length;
+
+    // Cache candidate elevation points + ridge angles once.
     var _candPts = [];
     DRAW.outline.forEach(function(p){ _candPts.push(p); });
     DRAW.lines.forEach(function(ll){
@@ -7075,20 +7103,49 @@ function redrawAll() {
       if (ll.type === 'gutter' || ll.type === 'barge') return;
       _candPts.push(ll.pts[0]); _candPts.push(ll.pts[1]);
     });
+    var _ridgeAngs = [];
+    DRAW.lines.forEach(function(rl){
+      if (!rl || rl.type !== 'ridge' || !rl.pts) return;
+      var rdx = rl.pts[1][0] - rl.pts[0][0], rdy = rl.pts[1][1] - rl.pts[0][1];
+      var rL = Math.sqrt(rdx*rdx + rdy*rdy);
+      if (rL < 1) return;
+      _ridgeAngs.push(Math.atan2(rdy, rdx));
+    });
+    // Returns true if a ridge exists parallel (within ~14°) to the
+    // given gutter — i.e. the gutter belongs to a face that has its
+    // own ridge above it (a "ridge sheet" face, not a hip end).
+    function _gutterParallelToRidge(gdx, gdy){
+      if (!_ridgeAngs.length) return false;
+      var gAng = Math.atan2(gdy, gdx);
+      for (var i = 0; i < _ridgeAngs.length; i++) {
+        var diff = gAng - _ridgeAngs[i];
+        diff = diff - Math.round(diff / Math.PI) * Math.PI; // mod π
+        if (Math.abs(diff) < 0.25) return true;
+      }
+      return false;
+    }
+
+    ctx.save();
+    ctx.font = '600 10px Inter, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     DRAW.lines.forEach(function(l){
       if (!l || l.type !== 'gutter' || !l.pts || l.pts.length !== 2) return;
       var ga = l.pts[0], gb = l.pts[1];
       var gdx = gb[0] - ga[0], gdy = gb[1] - ga[1];
       var gL  = Math.sqrt(gdx*gdx + gdy*gdy);
       if (gL < 8) return;
+      // Skip gutters without a parallel ridge above — hip-end faces
+      // inherit the sheet length from the long-side faces, so a
+      // separate label would be misleading and visually noisy.
+      if (!_gutterParallelToRidge(gdx, gdy)) return;
       // Inward-pointing perpendicular (toward the outline centroid).
       var nx = -gdy / gL, ny = gdx / gL;
       var midX = (ga[0] + gb[0]) / 2, midY = (ga[1] + gb[1]) / 2;
       if ((_cenX - midX) * nx + (_cenY - midY) * ny < 0) { nx = -nx; ny = -ny; }
       // Max signed inward perpendicular distance from this gutter
-      // line to a candidate point. Restrict to points whose along-
-      // gutter projection lies on (or just past) the gutter span so
-      // we don't pick up unrelated ridge endpoints from another face.
+      // line to a candidate elevation point that projects within the
+      // gutter's along-axis span.
       var maxPerp = 0;
       _candPts.forEach(function(p){
         var pdx = p[0] - ga[0], pdy = p[1] - ga[1];
@@ -7101,43 +7158,21 @@ function redrawAll() {
       var planM  = maxPerp * DRAW.scaleMetresPerPx;
       var pitch  = DRAW.calPitch || 0;
       var sheetM = (pitch > 0 && pitch < 80) ? (planM / Math.cos(pitch * Math.PI / 180)) : planM;
-      // Place the label inside the outline, offset 28 canvas-px from
-      // the gutter midpoint along the inward perpendicular. The
-      // transform is rotation-free so direction is preserved.
+      // Tuck the label just inside the gutter, on a short stub.
       var midScreen = dp([midX, midY]);
-      var lblOffset = 28;
-      var lblX = midScreen[0] + nx * lblOffset;
-      var lblY = midScreen[1] + ny * lblOffset;
-      var label = 'Sheet: ' + sheetM.toFixed(2) + 'm';
-      ctx.save();
-      ctx.font = 'bold 12px Inter, -apple-system, sans-serif';
-      var tw = ctx.measureText(label).width;
-      ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.fillRect(lblX - tw/2 - 6, lblY - 11, tw + 12, 18);
-      ctx.strokeStyle = '#0a1628';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(lblX - tw/2 - 6, lblY - 11, tw + 12, 18);
+      var lblX = midScreen[0] + nx * 22;
+      var lblY = midScreen[1] + ny * 22;
+      var label = sheetM.toFixed(2) + 'm sheet';
+      // White halo via stroke, then dark fill — keeps the label
+      // readable on any background without a heavy box.
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = 3;
+      ctx.strokeText(label, lblX, lblY);
       ctx.fillStyle = '#0a1628';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillText(label, lblX, lblY + 2);
-      // Arrow from the label back to the gutter midpoint.
-      ctx.strokeStyle = '#0a1628';
-      ctx.fillStyle   = '#0a1628';
-      ctx.lineWidth   = 1.6;
-      var startX = lblX - nx * 10, startY = lblY - ny * 10;
-      var endX   = midScreen[0] - nx * 4, endY = midScreen[1] - ny * 4;
-      ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(endX, endY); ctx.stroke();
-      var ang = Math.atan2(endY - startY, endX - startX);
-      var ah = 6, aw = 4;
-      ctx.beginPath();
-      ctx.moveTo(endX, endY);
-      ctx.lineTo(endX - ah * Math.cos(ang) + aw * Math.sin(ang), endY - ah * Math.sin(ang) - aw * Math.cos(ang));
-      ctx.lineTo(endX - ah * Math.cos(ang) - aw * Math.sin(ang), endY - ah * Math.sin(ang) + aw * Math.cos(ang));
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
+      ctx.fillText(label, lblX, lblY);
     });
+    ctx.restore();
   }
 
   // Info items — numbered bright asterisks
