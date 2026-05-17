@@ -5841,39 +5841,82 @@ function computeSectionSheet(sec){
   };
 }
 
+// Snap a candidate outline-vertex position so the corners adjacent
+// to the dragged vertex hit a true 90°. The previous version used
+// getOutlineDominantAngle() (the longest edge) as the reference,
+// which inherited any existing tilt — so dragging a near-square
+// building's corner snapped to "almost square" rather than truly
+// square. This version snaps each side of the dragged vertex
+// perpendicular to its OWN next-along edge:
+//
+//   constraint 1: edge prev → V perpendicular to edge prevPrev → prev
+//   constraint 2: edge V → next perpendicular to edge next → nextNext
+//
+// On a quad both constraints reference the same opposite vertex
+// from different sides — when they agree we average them so the
+// dragged corner lands at the true-square intersection. The snap
+// zone is small (10°) so it only pulls when the user is genuinely
+// close; Shift bypasses snap entirely.
 function snapOutlineVertex(x, y, idx){
-  var SNAP_DEG = 8;
+  var SNAP_DEG = 10;
   var n = DRAW.outline.length;
-  if (n < 3) return [x, y];
+  if (n < 4) return [x, y];
   var prev = DRAW.outline[(idx - 1 + n) % n];
   var next = DRAW.outline[(idx + 1) % n];
-  var domAng = getOutlineDominantAngle();
-  function snapEdge(anchor, candidate){
-    var dx = candidate[0] - anchor[0], dy = candidate[1] - anchor[1];
-    var L = Math.sqrt(dx*dx + dy*dy);
-    if (L < 1) return null;
-    var ang = Math.atan2(dy, dx);
-    var refs = [domAng, domAng + Math.PI/2, domAng + Math.PI, domAng - Math.PI/2];
-    var bestRef = refs[0], bestDiff = Infinity;
-    refs.forEach(function(a){
-      var d = ang - a;
+
+  // Snap candidate so the segment from `anchor` to it is perpendicular
+  // to the reference edge defined by (refDx, refDy). The cursor's
+  // projection along the snapped axis is preserved so the user
+  // controls how far the edge extends — only the perpendicular drift
+  // is removed.
+  function snapPerpEdge(anchor, refDx, refDy, candidate){
+    var refL = Math.sqrt(refDx*refDx + refDy*refDy);
+    if (refL < 1) return null;
+    var refAng = Math.atan2(refDy, refDx);
+    var cdx = candidate[0] - anchor[0], cdy = candidate[1] - anchor[1];
+    var cL  = Math.sqrt(cdx*cdx + cdy*cdy);
+    if (cL < 1) return null;
+    var cAng = Math.atan2(cdy, cdx);
+    var dirs = [refAng + Math.PI/2, refAng - Math.PI/2];
+    var bestDir = dirs[0], bestDiff = Infinity;
+    dirs.forEach(function(a){
+      var d = cAng - a;
       d = d - Math.round(d/(2*Math.PI))*2*Math.PI;
-      if (Math.abs(d) < bestDiff){ bestDiff = Math.abs(d); bestRef = a; }
+      var ad = Math.abs(d);
+      if (ad < bestDiff){ bestDiff = ad; bestDir = a; }
     });
     if (bestDiff < SNAP_DEG * Math.PI / 180){
-      var c = Math.cos(bestRef), s = Math.sin(bestRef);
-      var proj = dx*c + dy*s;  // length along the snapped axis
+      var c = Math.cos(bestDir), s = Math.sin(bestDir);
+      var proj = cdx*c + cdy*s;
       return { x: anchor[0] + proj*c, y: anchor[1] + proj*s, diff: bestDiff };
     }
     return null;
   }
-  // Try snapping based on both adjacent edges (prev → corner, corner
-  // → next). Pick whichever needs the smaller correction so the snap
-  // feels like it's pulling toward the nearest square corner.
-  var s1 = snapEdge(prev, [x, y]);
-  var s2 = snapEdge(next, [x, y]);
-  var best = (s1 && s2) ? (s1.diff < s2.diff ? s1 : s2) : (s1 || s2);
-  return best ? [best.x, best.y] : [x, y];
+
+  var candidates = [];
+  // Constraint 1 — right angle at prev: edge prev→V ⟂ edge prevPrev→prev.
+  var prevPrev = DRAW.outline[(idx - 2 + n) % n];
+  var s1 = snapPerpEdge(prev, prev[0] - prevPrev[0], prev[1] - prevPrev[1], [x, y]);
+  if (s1) candidates.push(s1);
+  // Constraint 2 — right angle at next: edge V→next ⟂ edge next→nextNext.
+  var nextNext = DRAW.outline[(idx + 2) % n];
+  var s2 = snapPerpEdge(next, nextNext[0] - next[0], nextNext[1] - next[1], [x, y]);
+  if (s2) candidates.push(s2);
+
+  if (!candidates.length) return [x, y];
+  candidates.sort(function(a, b){ return a.diff - b.diff; });
+  // Both constraints fired and their snapped positions almost agree
+  // → average so the dragged corner sits at the true-square
+  // intersection (both adjacent angles become 90°).
+  if (candidates.length >= 2){
+    var ddx = candidates[0].x - candidates[1].x;
+    var ddy = candidates[0].y - candidates[1].y;
+    if (Math.sqrt(ddx*ddx + ddy*ddy) < 6){
+      return [(candidates[0].x + candidates[1].x) / 2,
+              (candidates[0].y + candidates[1].y) / 2];
+    }
+  }
+  return [candidates[0].x, candidates[0].y];
 }
 
 function onCanvasMouseDown(e) {
