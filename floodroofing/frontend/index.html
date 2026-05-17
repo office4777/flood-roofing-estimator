@@ -1100,6 +1100,25 @@ select{
             </div>
           </div>
         </div>
+        <!-- Was the calibration measurement taken flat (on the plan,
+             e.g. a gutter run measured on the ground) or along the
+             roof slope (e.g. a sheet measured on the actual roof)?
+             Both end up as the same in-image pixel line, so we need
+             the user to tell us which world distance that pixel
+             length represents — otherwise sheet-length numbers come
+             out scaled by 1/cos(pitch). -->
+        <div style="margin-bottom:14px;padding:10px 12px;background:#f5f5f3;border-radius:8px">
+          <div style="font-size:12px;font-weight:600;color:#555;margin-bottom:6px">How was that real-world length measured?</div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+              <input type="radio" name="calMeasType" value="flat" checked> Flat / plan (gutter run, building edge)
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+              <input type="radio" name="calMeasType" value="pitched"> Along the roof pitch (sheet length, rafter)
+            </label>
+          </div>
+          <div style="font-size:10px;color:#999;margin-top:4px">Pitched measurements get reduced by cos(pitch) so the canvas scale stays in plan-metres.</div>
+        </div>
         <div id="calScaleInfo" style="font-size:11px;color:#059669;margin-bottom:14px;display:none">
           ✓ Scale set. All line measurements will auto-calculate.
         </div>
@@ -7925,6 +7944,13 @@ function updateMeasTotals() {
 }
 
 // ── SCALE CALIBRATION ────────────────────────────────────────────
+function _restoreCalMeasType(){
+  // Restore the last-used flat/pitched choice if any; default to flat.
+  var t = DRAW.calMeasType || 'flat';
+  var radios = document.getElementsByName('calMeasType');
+  for (var i = 0; i < radios.length; i++) radios[i].checked = (radios[i].value === t);
+}
+
 function showCalibratePopup(pixelDist) {
   var info = pixelDist
     ? 'Line drawn: ' + Math.round(pixelDist) + ' pixels. Enter the real-world length below:'
@@ -7932,6 +7958,7 @@ function showCalibratePopup(pixelDist) {
   document.getElementById('calPixelInfo').textContent = info;
   document.getElementById('calRealInput').value = '';
   document.getElementById('calPitchInput').value = DRAW.calPitch||'';
+  _restoreCalMeasType();
   document.getElementById('calScaleInfo').style.display = 'none';
   document.getElementById('calPopup').style.display = 'block';
   document.getElementById('calOverlay').style.display = 'block';
@@ -7943,6 +7970,7 @@ function openCalPopupForDrawing() {
   document.getElementById('calPixelInfo').textContent = 'Click two points on the photo that you know the real distance of (e.g. a wall edge, road width, property boundary).';
   document.getElementById('calRealInput').value = '';
   document.getElementById('calPitchInput').value = DRAW.calPitch||'';
+  _restoreCalMeasType();
   document.getElementById('calScaleInfo').style.display = 'none';
   document.getElementById('calPopup').style.display = 'block';
   document.getElementById('calOverlay').style.display = 'block';
@@ -7953,17 +7981,33 @@ function confirmCalibrate() {
   var pitch = parseFloat(document.getElementById('calPitchInput').value)||0;
   if(!realM || realM <= 0) { alert('Please enter a real-world measurement first.'); return; }
   if(!DRAW.calibratePixels) { alert('Draw a calibration line on the image first, then click Calibrate.'); return; }
-  DRAW.scaleMetresPerPx = realM / DRAW.calibratePixels;
+  // If the measurement was taken along the roof pitch (sheet length /
+  // rafter), the pixel line on the plan view covers a SHORTER plan
+  // distance — realM * cos(pitch). Convert to plan-metres so
+  // scaleMetresPerPx stays in plan-units, then every downstream
+  // sheet-length calc (plan / cos(pitch)) gives back the rafter
+  // length correctly.
+  var measType = (document.querySelector('input[name="calMeasType"]:checked') || {}).value || 'flat';
+  var planM = realM;
+  if (measType === 'pitched' && pitch > 0 && pitch < 80) {
+    planM = realM * Math.cos(pitch * Math.PI / 180);
+  }
+  DRAW.scaleMetresPerPx = planM / DRAW.calibratePixels;
+  DRAW.calMeasType = measType;
   DRAW.calPitch = pitch;
   if(pitch>0) {
     var el=document.getElementById('pitchDeg'); if(el) el.value=pitch;
     var el2=document.getElementById('editPitch'); if(el2) el2.value=pitch;
   }
   document.getElementById('calScaleInfo').style.display = 'block';
+  var _typeNote = (measType === 'pitched')
+    ? ' (treated as <strong>sheet length</strong> — reduced by cos('+pitch+'°) for plan scale)'
+    : '';
   document.getElementById('calScaleInfo').innerHTML =
-    '<strong>✓ Scale set:</strong> 1 pixel = ' + (DRAW.scaleMetresPerPx * 1000).toFixed(3) + ' mm'+
-    (pitch>0?' | Pitch: '+pitch+'°':'')+'. All line measurements auto-calculated.';
-  DRAW.scaleLabel = '1px='+(DRAW.scaleMetresPerPx*1000).toFixed(2)+'mm | ref:'+realM+'m'+(pitch>0?' | '+pitch+'°':'');
+    '<strong>✓ Scale set:</strong> 1 pixel = ' + (DRAW.scaleMetresPerPx * 1000).toFixed(3) + ' mm of plan'+
+    (pitch>0?' | Pitch: '+pitch+'°':'') + _typeNote +
+    '. All line measurements auto-calculated.';
+  DRAW.scaleLabel = '1px='+(DRAW.scaleMetresPerPx*1000).toFixed(2)+'mm | ref:'+realM+'m '+measType+(pitch>0?' | '+pitch+'°':'');
   autoCalcLineMeasurements();
   updateMeasTotals();
   populateMaterialsFromLines();
