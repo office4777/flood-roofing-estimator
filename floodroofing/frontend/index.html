@@ -5920,33 +5920,62 @@ function computeSectionSheet(sec){
 }
 
 // Snap a candidate outline-vertex position so the corners adjacent
-// to the dragged vertex hit a true 90°. The previous version used
-// getOutlineDominantAngle() (the longest edge) as the reference,
-// which inherited any existing tilt — so dragging a near-square
-// building's corner snapped to "almost square" rather than truly
-// square. This version snaps each side of the dragged vertex
-// perpendicular to its OWN next-along edge:
+// to the dragged vertex hit a true 90°. Strategy:
 //
-//   constraint 1: edge prev → V perpendicular to edge prevPrev → prev
-//   constraint 2: edge V → next perpendicular to edge next → nextNext
+//   1. Compute the GEOMETRIC INTERSECTION of the two perpendicular
+//      constraint lines (line through `prev` perpendicular to
+//      prevPrev→prev, line through `next` perpendicular to
+//      next→nextNext). This is the exact point where BOTH adjacent
+//      angles are 90°. If the cursor is within a generous radius of
+//      that intersection (default 48 image-px), snap there
+//      regardless of how the cursor approaches it — i.e. real
+//      magnetic pull to true square. This is what makes "moving
+//      back to square" easy.
 //
-// On a quad both constraints reference the same opposite vertex
-// from different sides — when they agree we average them so the
-// dragged corner lands at the true-square intersection. The snap
-// zone is small (10°) so it only pulls when the user is genuinely
-// close; Shift bypasses snap entirely.
+//   2. If the cursor is further out, fall back to the older single-
+//      constraint snap: if the candidate edge from `prev` is within
+//      SNAP_DEG of perpendicular to prevPrev→prev (or the
+//      symmetric next-side constraint), snap that one axis only.
+//      Pick the constraint with the smaller angular delta.
+//
+//   3. Shift bypasses every snap layer entirely.
 function snapOutlineVertex(x, y, idx){
-  var SNAP_DEG = 10;
+  var SNAP_DEG = 12;
+  var INTERSECT_RADIUS = 48;    // image-pixel "magnet" radius for true-square pull
   var n = DRAW.outline.length;
   if (n < 4) return [x, y];
-  var prev = DRAW.outline[(idx - 1 + n) % n];
-  var next = DRAW.outline[(idx + 1) % n];
+  var prev     = DRAW.outline[(idx - 1 + n) % n];
+  var next     = DRAW.outline[(idx + 1) % n];
+  var prevPrev = DRAW.outline[(idx - 2 + n) % n];
+  var nextNext = DRAW.outline[(idx + 2) % n];
 
-  // Snap candidate so the segment from `anchor` to it is perpendicular
-  // to the reference edge defined by (refDx, refDy). The cursor's
-  // projection along the snapped axis is preserved so the user
-  // controls how far the edge extends — only the perpendicular drift
-  // is removed.
+  // True-square intersection — solve for the corner position where
+  // both perpendicular constraints are satisfied at once.
+  function perpDir(from, to){
+    var ddx = to[0] - from[0], ddy = to[1] - from[1];
+    var L = Math.sqrt(ddx*ddx + ddy*ddy);
+    if (L < 1) return null;
+    return [-ddy / L, ddx / L];  // unit perpendicular
+  }
+  var d1 = perpDir(prevPrev, prev);
+  var d2 = perpDir(next, nextNext);
+  if (d1 && d2) {
+    var det = d1[1] * d2[0] - d1[0] * d2[1];
+    if (Math.abs(det) > 1e-6) {
+      var dx2 = next[0] - prev[0], dy2 = next[1] - prev[1];
+      var t = (-dx2 * d2[1] + dy2 * d2[0]) / det;
+      var ix = prev[0] + t * d1[0];
+      var iy = prev[1] + t * d1[1];
+      var rdx = ix - x, rdy = iy - y;
+      if (Math.sqrt(rdx*rdx + rdy*rdy) < INTERSECT_RADIUS) {
+        return [ix, iy];
+      }
+    }
+  }
+
+  // Single-constraint fallback — snap along just one perpendicular
+  // axis when the cursor is too far from the true-square intersection
+  // for the magnetic pull to fire.
   function snapPerpEdge(anchor, refDx, refDy, candidate){
     var refL = Math.sqrt(refDx*refDx + refDy*refDy);
     if (refL < 1) return null;
@@ -5970,30 +5999,13 @@ function snapOutlineVertex(x, y, idx){
     }
     return null;
   }
-
   var candidates = [];
-  // Constraint 1 — right angle at prev: edge prev→V ⟂ edge prevPrev→prev.
-  var prevPrev = DRAW.outline[(idx - 2 + n) % n];
   var s1 = snapPerpEdge(prev, prev[0] - prevPrev[0], prev[1] - prevPrev[1], [x, y]);
   if (s1) candidates.push(s1);
-  // Constraint 2 — right angle at next: edge V→next ⟂ edge next→nextNext.
-  var nextNext = DRAW.outline[(idx + 2) % n];
   var s2 = snapPerpEdge(next, nextNext[0] - next[0], nextNext[1] - next[1], [x, y]);
   if (s2) candidates.push(s2);
-
   if (!candidates.length) return [x, y];
   candidates.sort(function(a, b){ return a.diff - b.diff; });
-  // Both constraints fired and their snapped positions almost agree
-  // → average so the dragged corner sits at the true-square
-  // intersection (both adjacent angles become 90°).
-  if (candidates.length >= 2){
-    var ddx = candidates[0].x - candidates[1].x;
-    var ddy = candidates[0].y - candidates[1].y;
-    if (Math.sqrt(ddx*ddx + ddy*ddy) < 6){
-      return [(candidates[0].x + candidates[1].x) / 2,
-              (candidates[0].y + candidates[1].y) / 2];
-    }
-  }
   return [candidates[0].x, candidates[0].y];
 }
 
@@ -6999,6 +7011,52 @@ function redrawAll() {
         ctx.stroke();
         ctx.restore();
       });
+      // While dragging a corner, draw a small cyan crosshair at the
+      // true-square target position (intersection of the two
+      // adjacent-perpendicular lines) so the user can see exactly
+      // where to head to land back on square.
+      if (DRAG_OUTLINE_VERT && DRAW.outline.length >= 4) {
+        var n2 = DRAW.outline.length;
+        var ai = DRAG_OUTLINE_VERT.idx;
+        var prv  = DRAW.outline[(ai - 1 + n2) % n2];
+        var nxt  = DRAW.outline[(ai + 1) % n2];
+        var pprv = DRAW.outline[(ai - 2 + n2) % n2];
+        var nnxt = DRAW.outline[(ai + 2) % n2];
+        function _pd(from, to){
+          var ddx = to[0]-from[0], ddy = to[1]-from[1];
+          var L = Math.sqrt(ddx*ddx + ddy*ddy);
+          return L < 1 ? null : [-ddy/L, ddx/L];
+        }
+        var pd1 = _pd(pprv, prv), pd2 = _pd(nxt, nnxt);
+        if (pd1 && pd2) {
+          var det = pd1[1]*pd2[0] - pd1[0]*pd2[1];
+          if (Math.abs(det) > 1e-6) {
+            var dxn = nxt[0]-prv[0], dyn = nxt[1]-prv[1];
+            var tt = (-dxn*pd2[1] + dyn*pd2[0]) / det;
+            var tx = prv[0] + tt*pd1[0];
+            var ty = prv[1] + tt*pd1[1];
+            var sp = dp([tx, ty]);
+            // Distance from the currently-dragged corner (in image
+            // coords) to the target — colour the crosshair full cyan
+            // when we're "in the magnet zone" so the user sees the
+            // pull is about to fire.
+            var cur = DRAW.outline[ai];
+            var dxc = tx - cur[0], dyc = ty - cur[1];
+            var inMagnet = Math.sqrt(dxc*dxc + dyc*dyc) < 48;
+            ctx.save();
+            ctx.lineWidth = inMagnet ? 2 : 1.4;
+            ctx.strokeStyle = inMagnet ? '#0099cc' : 'rgba(0,153,204,0.55)';
+            ctx.beginPath();
+            ctx.moveTo(sp[0] - 9, sp[1]); ctx.lineTo(sp[0] + 9, sp[1]);
+            ctx.moveTo(sp[0], sp[1] - 9); ctx.lineTo(sp[0], sp[1] + 9);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(sp[0], sp[1], 5, 0, Math.PI*2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+      }
     }
   }
 
