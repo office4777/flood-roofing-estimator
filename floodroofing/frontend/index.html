@@ -1582,22 +1582,32 @@ select{
 <div class="panel" id="tab-order">
 
   <!-- Action bar: pick supplier + print/email the order. The supplier
-       select reads from S.settings.materials_catalog.suppliers; the
-       email button opens the user's mail client with the supplier
-       prefilled and the order body pasted in (mailto can't carry
-       binary attachments, so the user saves the PDF separately via
-       Print). -->
-  <div class="card" style="display:flex;gap:8px;align-items:center;padding:12px 16px;flex-wrap:wrap">
-    <div style="flex:1;min-width:0">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:700">Order material</div>
-      <div style="font-size:13px;color:var(--text2)">Send to: <strong id="orderSupplierLabel" style="color:#0a1628">— pick a supplier</strong></div>
+       field is a text input with autocomplete suggestions from
+       S.settings.materials_catalog.suppliers — the user can either
+       pick a saved name or type something one-off. The email field
+       below is independently editable so an ad-hoc order can be
+       sent to any address without saving the supplier first. -->
+  <div class="card" style="padding:12px 16px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:700">Order material</div>
+        <div style="font-size:13px;color:var(--text2)">Send to: <strong id="orderSupplierLabel" style="color:#0a1628">— pick a supplier or type one —</strong></div>
+      </div>
+      <button onclick="emailOrderToSupplier()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Email supplier</button>
+      <button onclick="printOrder()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
     </div>
-    <select id="orderSupplier" onchange="onOrderSupplierChange(this.value)" style="margin:0;min-width:200px;width:auto">
-      <option value="">— Select supplier —</option>
-    </select>
-    <button onclick="emailOrderToSupplier()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Email supplier</button>
-    <button onclick="printOrder()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
-    <span id="orderMsg" style="font-size:12px;color:var(--text2);width:100%"></span>
+    <div class="f2" style="margin-top:10px">
+      <div>
+        <label style="font-size:11px;color:var(--text2);margin-bottom:4px">Supplier name <span style="color:var(--text3);font-weight:400">(pick a saved one or type a new name)</span></label>
+        <input type="text" id="orderSupplier" list="orderSupplierList" placeholder="Type or pick supplier…" oninput="onOrderSupplierChange(this.value)" style="margin:0">
+        <datalist id="orderSupplierList"></datalist>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text2);margin-bottom:4px">Send to email <span style="color:var(--text3);font-weight:400">(auto-fills from saved, otherwise type freely)</span></label>
+        <input type="email" id="orderSupplierEmail" placeholder="orders@supplier.co.nz" style="margin:0">
+      </div>
+    </div>
+    <span id="orderMsg" style="font-size:12px;color:var(--text2);width:100%;margin-top:6px;display:block"></span>
   </div>
 
   <!-- Job + delivery -->
@@ -1632,20 +1642,26 @@ select{
       <div><label>2. Roof pitch (°)</label><input type="text" id="orderPitch" placeholder="e.g. 15"></div>
       <div><label>3. Roof profile</label><input type="text" id="orderProfile" placeholder="e.g. Trapezoidal 5-rib, Corrugate"></div>
     </div>
+    <!-- Free-text-with-autocomplete: text input + datalist. The user
+         can either pick a saved option from the dropdown or type
+         something one-off without having to add it to Settings first. -->
     <div class="f2">
       <div>
         <label>4. Roof product</label>
-        <select id="orderProduct"><option value="">— Add products in Settings → Suppliers &amp; Materials —</option></select>
+        <input type="text" id="orderProduct" list="orderProductList" placeholder="Type or pick — e.g. Colorsteel Maxam">
+        <datalist id="orderProductList"></datalist>
       </div>
       <div>
         <label>6. Underlay</label>
-        <select id="orderUnderlay"><option value="">— Add underlays in Settings —</option></select>
+        <input type="text" id="orderUnderlay" list="orderUnderlayList" placeholder="Type or pick — e.g. Thermakraft 215">
+        <datalist id="orderUnderlayList"></datalist>
       </div>
     </div>
     <div class="f3">
       <div>
         <label>7. Screws</label>
-        <select id="orderScrews"><option value="">— Add screw types in Settings —</option></select>
+        <input type="text" id="orderScrews" list="orderScrewsList" placeholder="Type or pick — e.g. 12g × 65mm Tek">
+        <datalist id="orderScrewsList"></datalist>
       </div>
       <div>
         <label>8. Rivets (count)</label>
@@ -4013,32 +4029,52 @@ function setDeliveryMode(mode, btn){
   if (mode === 'site') { addr.style.display = ''; note.style.display = 'none'; }
   else                  { addr.style.display = 'none'; note.style.display = ''; addr.value=''; }
 }
-function onOrderSupplierChange(id){
-  S.order.supplierId = id;
+function onOrderSupplierChange(name){
+  S.order.supplierId = name;
   var cat = _ensureCatalog();
-  var s = (cat.suppliers || []).find(function(x){return x.name === id;});
+  // Match by name first (input fired from datalist pick or typed
+  // text). If it matches a saved supplier, auto-fill the email
+  // field. If the user has manually edited the email already, leave
+  // it alone — they may be sending an ad-hoc order to a one-off
+  // address.
+  var matched = (cat.suppliers || []).find(function(x){ return x.name === name; });
   var lbl = document.getElementById('orderSupplierLabel');
-  if (lbl) lbl.textContent = s ? s.name : '— pick a supplier';
+  if (lbl) lbl.textContent = (name && name.trim()) ? name : '— pick a supplier or type one —';
+  var emailEl = document.getElementById('orderSupplierEmail');
+  if (emailEl && matched && matched.email) {
+    // Only overwrite if the email is empty or matches a previously-
+    // selected supplier's email — never clobber user-typed text.
+    if (!emailEl.value || emailEl.dataset.autofilled === '1') {
+      emailEl.value = matched.email;
+      emailEl.dataset.autofilled = '1';
+    }
+  } else if (emailEl && !matched && emailEl.dataset.autofilled === '1') {
+    // User typed a custom supplier name → drop the auto-filled email
+    // so they can enter a one-off address freely.
+    emailEl.value = '';
+    delete emailEl.dataset.autofilled;
+  }
 }
 
-// Fill the order dropdowns from the user's saved catalog.
+// Fill the order autocomplete lists from the user's saved catalog.
+// The fields themselves are <input list=…> text inputs, so options
+// here just show up as picker suggestions — the user can still type
+// anything.
 function populateOrderDropdowns(){
   var cat = _ensureCatalog();
-  function fill(id, list, placeholder){
-    var sel = document.getElementById(id); if (!sel) return;
-    var current = sel.value;
-    var opts = ['<option value="">'+ placeholder +'</option>'];
-    (list||[]).forEach(function(it){
+  function fillList(listId, items){
+    var dl = document.getElementById(listId); if (!dl) return;
+    var html = '';
+    (items||[]).forEach(function(it){
       var v = (it.name||'').trim(); if (!v) return;
-      opts.push('<option value="'+ v.replace(/"/g,'&quot;') +'">'+ v +'</option>');
+      html += '<option value="'+ v.replace(/"/g,'&quot;') +'"></option>';
     });
-    sel.innerHTML = opts.join('');
-    if (current) sel.value = current;
+    dl.innerHTML = html;
   }
-  fill('orderSupplier', (cat.suppliers||[]).map(function(s){return {name:s.name};}), '— Select supplier —');
-  fill('orderProduct',  cat.products,  '— Add products in Settings —');
-  fill('orderUnderlay', cat.underlays, '— Add underlays in Settings —');
-  fill('orderScrews',   cat.screws,    '— Add screw types in Settings —');
+  fillList('orderSupplierList', (cat.suppliers||[]).map(function(s){return {name:s.name};}));
+  fillList('orderProductList',  cat.products);
+  fillList('orderUnderlayList', cat.underlays);
+  fillList('orderScrewsList',   cat.screws);
 }
 
 // — Cut list — editable rows + sync from sheet plan —
@@ -4442,6 +4478,11 @@ function _collectOrderFromUI(){
   o.gutter        = v('orderGutter');
   o.extras        = v('orderExtras');
   o.cutList       = collectListEditor('orderCutBody', ['desc','qty','length']);
+  // Supplier name + email are read at the moment of email/print so
+  // the user can edit either freely without picking from a saved
+  // entry first.
+  o.supplierId    = v('orderSupplier');
+  o.supplierEmail = v('orderSupplierEmail');
   // Flashings are kept on S.order.flashings directly by the onchange
   // handlers, so no collect step needed there.
   return o;
@@ -4456,11 +4497,23 @@ function printOrder(){
 }
 function emailOrderToSupplier(){
   var o = _collectOrderFromUI();
-  var cat = _ensureCatalog();
-  var s = (cat.suppliers || []).find(function(x){return x.name === o.supplierId;});
-  if (!s || !s.email) {
+  // Prefer the typed email field, fall back to the saved supplier's
+  // email if it exists. Either way the supplier can be a one-off
+  // name the user typed without saving it first.
+  var emailEl = document.getElementById('orderSupplierEmail');
+  var email = emailEl ? (emailEl.value || '').trim() : '';
+  if (!email) {
+    var cat = _ensureCatalog();
+    var saved = (cat.suppliers || []).find(function(x){ return x.name === o.supplierId; });
+    if (saved && saved.email) email = saved.email;
+  }
+  if (!email) {
     var msg = document.getElementById('orderMsg');
-    if (msg) { msg.textContent = 'Pick a supplier with an email address first.'; msg.style.color = '#b91c1c'; setTimeout(function(){ msg.textContent=''; msg.style.color=''; }, 4000); }
+    if (msg) {
+      msg.textContent = 'Enter a supplier email above (or pick a saved supplier that has one).';
+      msg.style.color = '#b91c1c';
+      setTimeout(function(){ msg.textContent=''; msg.style.color=''; }, 4500);
+    }
     return;
   }
   var b = S.settings && S.settings.branding || {};
@@ -4502,7 +4555,7 @@ function emailOrderToSupplier(){
   lines.push('— Generated from Flood Roofing Estimator. PDF order form attached (print/save separately and attach).');
 
   var subj = 'Material order ' + (o.ref || '') + ' — Job ' + (o.jobNumber || '');
-  var href = 'mailto:' + encodeURIComponent(s.email) +
+  var href = 'mailto:' + encodeURIComponent(email) +
              '?subject=' + encodeURIComponent(subj.trim()) +
              '&body='    + encodeURIComponent(lines.join('\n'));
   window.location.href = href;
