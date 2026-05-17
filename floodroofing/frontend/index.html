@@ -5706,6 +5706,56 @@ var IMG_OFFSET = { x: 0, y: 0 };
 var IMG_FINE_ROTATION = 0; // fine angle -45 to +45 degrees
 
 var DRAG_EP = null;
+// Corner-drag state for the building outline. Set when the user
+// mouses down within OUTLINE_VERT_GRAB pixels of an outline vertex
+// while the Move/select tool is active. `idx` is the outline index;
+// `attached` is the list of line endpoints (ridges, valleys, hips,
+// etc.) that share the vertex's position at drag-start so they
+// follow the corner instead of detaching from it.
+var DRAG_OUTLINE_VERT = null;
+// Smaller of: hit-test radius for grabbing a corner (~14 canvas px).
+var OUTLINE_VERT_GRAB = 14;
+
+// Snap a candidate outline-vertex position to a 90° angle relative to
+// the building's dominant axis, using a small angular zone so the
+// snap only kicks in when the user is genuinely close to square. The
+// drawing-time snap zone is ~35°; this one is 8° so dragging a
+// corner mostly tracks the cursor (the building goes out-of-square
+// freely) and only locks when you're nearly there.
+function snapOutlineVertex(x, y, idx){
+  var SNAP_DEG = 8;
+  var n = DRAW.outline.length;
+  if (n < 3) return [x, y];
+  var prev = DRAW.outline[(idx - 1 + n) % n];
+  var next = DRAW.outline[(idx + 1) % n];
+  var domAng = getOutlineDominantAngle();
+  function snapEdge(anchor, candidate){
+    var dx = candidate[0] - anchor[0], dy = candidate[1] - anchor[1];
+    var L = Math.sqrt(dx*dx + dy*dy);
+    if (L < 1) return null;
+    var ang = Math.atan2(dy, dx);
+    var refs = [domAng, domAng + Math.PI/2, domAng + Math.PI, domAng - Math.PI/2];
+    var bestRef = refs[0], bestDiff = Infinity;
+    refs.forEach(function(a){
+      var d = ang - a;
+      d = d - Math.round(d/(2*Math.PI))*2*Math.PI;
+      if (Math.abs(d) < bestDiff){ bestDiff = Math.abs(d); bestRef = a; }
+    });
+    if (bestDiff < SNAP_DEG * Math.PI / 180){
+      var c = Math.cos(bestRef), s = Math.sin(bestRef);
+      var proj = dx*c + dy*s;  // length along the snapped axis
+      return { x: anchor[0] + proj*c, y: anchor[1] + proj*s, diff: bestDiff };
+    }
+    return null;
+  }
+  // Try snapping based on both adjacent edges (prev → corner, corner
+  // → next). Pick whichever needs the smaller correction so the snap
+  // feels like it's pulling toward the nearest square corner.
+  var s1 = snapEdge(prev, [x, y]);
+  var s2 = snapEdge(next, [x, y]);
+  var best = (s1 && s2) ? (s1.diff < s2.diff ? s1 : s2) : (s1 || s2);
+  return best ? [best.x, best.y] : [x, y];
+}
 
 function onCanvasMouseDown(e) {
   // Endpoint drag for addmeas/select tool
@@ -5717,6 +5767,36 @@ function onCanvasMouseDown(e) {
     for(var ei=0; ei<2; ei++){
       var ep=l.pts[ei], dx=ep[0]-xy2[0], dy=ep[1]-xy2[1];
       if(Math.sqrt(dx*dx+dy*dy)<THRESH){ DRAG_EP={lineIdx:DRAW.selectedLine,epIdx:ei}; return; }
+    }
+  }
+  // Corner-drag for the building outline (Move tool only). The
+  // existing pan logic runs in the same tool, so we have to claim the
+  // event first if the click landed on a vertex.
+  if(DRAW.tool==='select' && DRAW.outlineDone && DRAW.outline.length>=3){
+    var vxy = getXY(e);
+    var tr = getImgTransform();
+    var GRAB = tr ? OUTLINE_VERT_GRAB/tr.s : OUTLINE_VERT_GRAB;
+    for(var vi=0; vi<DRAW.outline.length; vi++){
+      var v = DRAW.outline[vi];
+      var vdx = v[0]-vxy[0], vdy = v[1]-vxy[1];
+      if(Math.sqrt(vdx*vdx + vdy*vdy) < GRAB){
+        // Find any line endpoints currently sitting on this vertex so
+        // they travel with the corner instead of detaching from it.
+        var attached = [];
+        var EPS = 0.6;
+        DRAW.lines.forEach(function(ln, li){
+          [0,1].forEach(function(epi){
+            var p = ln.pts[epi];
+            if (Math.abs(p[0]-v[0]) < EPS && Math.abs(p[1]-v[1]) < EPS) {
+              attached.push({lineIdx: li, epIdx: epi});
+            }
+          });
+        });
+        DRAG_OUTLINE_VERT = { idx: vi, attached: attached };
+        document.getElementById('roofCanvas').style.cursor = 'grabbing';
+        e.preventDefault();
+        return;
+      }
     }
   }
   // Only pan in Move (select) tool
@@ -5733,6 +5813,18 @@ function onCanvasMouseDown(e) {
 
 function onCanvasMouseUp(e) {
   if(DRAG_EP) { saveSnapshot(); updateMeasTotals(); DRAG_EP=null; redrawAll(); return; }
+  if(DRAG_OUTLINE_VERT) {
+    // Re-sync dependent state so the rest of the app (gutters,
+    // sections, sheet plan inputs) sees the new outline shape.
+    saveSnapshot();
+    try { syncToRoofData && syncToRoofData(); } catch(err){}
+    try { autoPopulateGutters && autoPopulateGutters(); } catch(err){}
+    DRAG_OUTLINE_VERT = null;
+    var cv = document.getElementById('roofCanvas');
+    if (cv) cv.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    redrawAll();
+    return;
+  }
   if(!PAN.active) return;
   PAN.active = false;
   var cv = document.getElementById('roofCanvas');
@@ -5751,6 +5843,15 @@ document.addEventListener('mousemove', function(e) {
   redrawAll();
 });
 document.addEventListener('mouseup', function(e) {
+  if(DRAG_OUTLINE_VERT){
+    try { saveSnapshot(); } catch(err){}
+    try { syncToRoofData && syncToRoofData(); } catch(err){}
+    try { autoPopulateGutters && autoPopulateGutters(); } catch(err){}
+    DRAG_OUTLINE_VERT = null;
+    var cv0 = document.getElementById('roofCanvas');
+    if(cv0) cv0.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    redrawAll();
+  }
   if(PAN.active) {
     PAN.active = false;
     var cv = document.getElementById('roofCanvas');
@@ -5964,6 +6065,35 @@ function onCanvasMove(e) {
   if(DRAG_EP) {
     DRAW.lines[DRAG_EP.lineIdx].pts[DRAG_EP.epIdx] = [xy[0],xy[1]];
     redrawAll(); return;
+  }
+  // Drag building-outline corner. getXY already disables the
+  // drawing-time snap when Shift is held; we add a small-zone 90°
+  // corner snap on top, also bypassed by Shift, so the user can
+  // freely take the building out of square.
+  if(DRAG_OUTLINE_VERT) {
+    var p = xy;
+    if (!e.shiftKey) p = snapOutlineVertex(p[0], p[1], DRAG_OUTLINE_VERT.idx);
+    DRAW.outline[DRAG_OUTLINE_VERT.idx] = [p[0], p[1]];
+    // Drag any attached line endpoints (ridge / valley / gutter etc.
+    // that started this drag co-located with the corner).
+    DRAG_OUTLINE_VERT.attached.forEach(function(a){
+      DRAW.lines[a.lineIdx].pts[a.epIdx] = [p[0], p[1]];
+    });
+    redrawAll();
+    return;
+  }
+  // Hover affordance for corners — change cursor when the pointer is
+  // close to a draggable vertex while the Move tool is active.
+  if(DRAW.tool==='select' && DRAW.outlineDone && DRAW.outline.length>=3){
+    var trH = getImgTransform();
+    var GRAB = trH ? OUTLINE_VERT_GRAB/trH.s : OUTLINE_VERT_GRAB;
+    var near = false;
+    for(var hi=0; hi<DRAW.outline.length; hi++){
+      var v=DRAW.outline[hi], hdx=v[0]-xy[0], hdy=v[1]-xy[1];
+      if(Math.sqrt(hdx*hdx+hdy*hdy) < GRAB){ near = true; break; }
+    }
+    var cv = document.getElementById('roofCanvas');
+    if (cv) cv.style.cursor = near ? 'move' : 'grab';
   }
 
   DRAW.hoveredLine=-1;
@@ -6567,6 +6697,24 @@ function redrawAll() {
   if(DRAW.outline.length>=3){
     ctx.beginPath();DRAW.outline.forEach(function(pt,i){var p=dp(pt);if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);});ctx.closePath();ctx.fillStyle='rgba(200,230,201,0.25)';ctx.fill();ctx.strokeStyle='#1b5e20';ctx.lineWidth=1.5;ctx.stroke();
     var _n=DRAW.outline.length;for(var _oi=0;_oi<_n;_oi++){var _pA=DRAW.outline[(_oi+_n-1)%_n],_pB=DRAW.outline[_oi],_pC=DRAW.outline[(_oi+1)%_n];var _v1x=_pA[0]-_pB[0],_v1y=_pA[1]-_pB[1],_m1=Math.sqrt(_v1x*_v1x+_v1y*_v1y)||1,_v2x=_pC[0]-_pB[0],_v2y=_pC[1]-_pB[1],_m2=Math.sqrt(_v2x*_v2x+_v2y*_v2y)||1;if(Math.abs((_v1x/_m1)*(_v2x/_m2)+(_v1y/_m1)*(_v2y/_m2))<0.12){var _cp=dp(_pB),_sz=7;ctx.save();ctx.strokeStyle='#1b5e20';ctx.lineWidth=1.2;ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(_cp[0]+(_v1x/_m1)*_sz,_cp[1]+(_v1y/_m1)*_sz);ctx.lineTo(_cp[0]+(_v1x/_m1)*_sz+(_v2x/_m2)*_sz,_cp[1]+(_v1y/_m1)*_sz+(_v2y/_m2)*_sz);ctx.lineTo(_cp[0]+(_v2x/_m2)*_sz,_cp[1]+(_v2y/_m2)*_sz);ctx.stroke();ctx.restore();}}
+    // Drag handles — show a small grab dot at each corner when the
+    // Move tool is active so the user can see what's draggable. The
+    // active corner highlights cyan; the rest stay green-on-white.
+    if (DRAW.tool === 'select') {
+      var activeIdx = DRAG_OUTLINE_VERT ? DRAG_OUTLINE_VERT.idx : -1;
+      DRAW.outline.forEach(function(pt, oi){
+        var pp = dp(pt);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(pp[0], pp[1], 6, 0, Math.PI*2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = (oi === activeIdx) ? '#0099cc' : '#1b5e20';
+        ctx.stroke();
+        ctx.restore();
+      });
+    }
   }
 
   // Roof sections
