@@ -662,6 +662,27 @@ select{
   html.print-order #tab-order .add-link,
   html.print-order #tab-order button{display:none!important}
   html.print-order #tab-order .card{box-shadow:none;border-color:#ddd}
+
+  /* Job Pack — bundle of roof map + sheet layout + cut list + order
+     onto distinct pages for the install crew. The preview block on
+     #tab-jobpack is the canonical layout; sections hidden by the
+     inclusion checkboxes (display:none on the data-jp-section) stay
+     hidden in print, so the user controls the contents from the
+     checklist. The inclusion-checklist card itself, the action bar
+     and the cover-card label all get suppressed. */
+  html.print-jobpack .panel:not(#tab-jobpack){display:none!important}
+  html.print-jobpack #tab-jobpack{display:block!important}
+  html.print-jobpack .sidebar{display:none!important}
+  html.print-jobpack .app{display:block!important}
+  html.print-jobpack .content{padding:0!important;max-width:none!important}
+  /* Hide the action bar (1st card) and the inclusion-checklist card
+     (2nd). The cover (data-jp-section=cover) onwards is the actual
+     printable pack. */
+  html.print-jobpack #tab-jobpack > .card:nth-child(1),
+  html.print-jobpack #tab-jobpack > .card:nth-child(2){display:none!important}
+  html.print-jobpack #jobPackPreview > .card{border:none;box-shadow:none;padding:0;margin:0 0 0 0;page-break-after:always;break-after:page}
+  html.print-jobpack #jobPackPreview > .card:last-child{page-break-after:auto;break-after:auto}
+  html.print-jobpack #jobPackPreview img{max-width:100%;height:auto;border:none!important}
 }
 
 /* ── Mobile (collapse sidebar) ─────────────────────────────── */
@@ -790,6 +811,7 @@ select{
   <button class="nav-btn" onclick="gotoTab('scope')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8H11M5 5.5H11M5 10.5H8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Scope &amp; labour</button>
   <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <button class="nav-btn" onclick="gotoTab('order')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 3 L5 3 L5.7 5 L14 5 L13 11 L6 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="7" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/></svg>Order Material</button>
+  <button class="nav-btn" onclick="gotoTab('jobpack')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3.5" width="11" height="10" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.5 H13.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 9.5 H10 M6 11.5 H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Job Pack</button>
   <button class="nav-btn" onclick="gotoTab('jobs')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
   <button class="nav-btn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
 </div>
@@ -1670,6 +1692,94 @@ select{
 
 </div>
 
+<!-- TAB 6c: SEND JOB PACK
+     Packages roof map + sheet layout + cut list + material order into
+     a single printable PDF that goes to the install crew (or to the
+     job-management system, or to anyone via email). The preview area
+     below the action bar is what the print stylesheet renders to PDF;
+     the user toggles which sections to include and clicks Refresh
+     before printing or emailing. -->
+<div class="panel" id="tab-jobpack">
+
+  <div class="card" style="display:flex;gap:8px;align-items:center;padding:12px 16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:700">Job Pack</div>
+      <div style="font-size:13px;color:var(--text2)">For the install crew · <strong id="jpJobLabel" style="color:#0a1628">— new job</strong></div>
+    </div>
+    <button onclick="refreshJobPack()" class="tool-btn" style="font-size:12px">↻ Refresh preview</button>
+    <button onclick="downloadJobPack()" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⬇ Download PDF</button>
+    <button onclick="emailJobPack()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Email crew</button>
+    <button onclick="sendJobPackToJMS()" style="padding:8px 14px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📤 Send to JMS</button>
+    <span id="jpMsg" style="font-size:12px;color:var(--text2);width:100%"></span>
+  </div>
+
+  <!-- Inclusions checklist — what to bake into the PDF -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Include in pack</div>
+    <div class="chk-grid">
+      <label class="chk-item on" data-jp-inc="roofmap" onclick="toggleJobPackInc(event,this)">
+        <span class="chk-dot"></span>
+        <span style="display:flex;flex-direction:column;gap:1px">
+          <strong style="font-size:12px">Roof map</strong>
+          <span style="font-size:10px;color:var(--text2);font-weight:400">Aerial + line measurements</span>
+        </span>
+      </label>
+      <label class="chk-item on" data-jp-inc="sheetlayout" onclick="toggleJobPackInc(event,this)">
+        <span class="chk-dot"></span>
+        <span style="display:flex;flex-direction:column;gap:1px">
+          <strong style="font-size:12px">Sheet layout</strong>
+          <span style="font-size:10px;color:var(--text2);font-weight:400">Roof sheet diagram</span>
+        </span>
+      </label>
+      <label class="chk-item on" data-jp-inc="cutlist" onclick="toggleJobPackInc(event,this)">
+        <span class="chk-dot"></span>
+        <span style="display:flex;flex-direction:column;gap:1px">
+          <strong style="font-size:12px">Cut list</strong>
+          <span style="font-size:10px;color:var(--text2);font-weight:400">Sheet counts + lengths</span>
+        </span>
+      </label>
+      <label class="chk-item on" data-jp-inc="order" onclick="toggleJobPackInc(event,this)">
+        <span class="chk-dot"></span>
+        <span style="display:flex;flex-direction:column;gap:1px">
+          <strong style="font-size:12px">Material order</strong>
+          <span style="font-size:10px;color:var(--text2);font-weight:400">Spec, flashings, gutter, extras</span>
+        </span>
+      </label>
+    </div>
+    <p style="font-size:11px;color:var(--text2);margin:6px 0 0">Toggle a section off to skip it in the PDF. The preview below shows exactly what will print.</p>
+  </div>
+
+  <!-- Preview / print container. Each section is renderered into the
+       corresponding inner div by refreshJobPack(); hidden when the
+       inclusion is off, shown otherwise. The print stylesheet uses
+       these data-jp-section markers to lay out one section per page. -->
+  <div id="jobPackPreview">
+    <div class="card" data-jp-section="cover">
+      <div id="jpCover" style="padding:6px 0">
+        <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;color:#0a1628" id="jpCoverTitle">Roofing — Job Pack</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:6px" id="jpCoverMeta">— pack will populate when you click Refresh preview —</div>
+      </div>
+    </div>
+    <div class="card" data-jp-section="roofmap">
+      <div class="card-hd"><span class="card-dot"></span>Roof map</div>
+      <div id="jpRoofMap" style="text-align:center;padding:10px 0;color:var(--text2);font-size:12px">— click Refresh preview to capture the current roof map —</div>
+    </div>
+    <div class="card" data-jp-section="sheetlayout">
+      <div class="card-hd"><span class="card-dot"></span>Sheet layout</div>
+      <div id="jpSheetLayout" style="text-align:center;padding:10px 0;color:var(--text2);font-size:12px">— click Refresh preview to capture the current sheet layout —</div>
+    </div>
+    <div class="card" data-jp-section="cutlist">
+      <div class="card-hd"><span class="card-dot"></span>Cut list</div>
+      <div id="jpCutList" style="font-size:13px"></div>
+    </div>
+    <div class="card" data-jp-section="order">
+      <div class="card-hd"><span class="card-dot"></span>Material order</div>
+      <div id="jpOrder" style="font-size:13px"></div>
+    </div>
+  </div>
+
+</div>
+
 <!-- Flashing-sketch modal — minimal HTML5 canvas for drawing a custom
      cross-section. The data URL is stored on the flashing record and
      rendered as a thumbnail back on the order form. -->
@@ -1736,15 +1846,25 @@ select{
 
 <!-- SELECT JOB MODAL -->
 <div id="selectJobOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998" onclick="closeSelectJobModal()"></div>
-<div id="selectJobModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:640px;max-width:95vw;max-height:80vh;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:9999;overflow:hidden;flex-direction:column">
+<div id="selectJobModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:680px;max-width:95vw;max-height:80vh;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:9999;overflow:hidden;flex-direction:column">
   <div style="padding:14px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">
-    <strong style="flex:1;font-size:14px">Select a saved job</strong>
+    <strong style="flex:1;font-size:14px">Select a job</strong>
     <button onclick="closeSelectJobModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px">✕ Close</button>
+  </div>
+  <!-- Source tabs: local saved jobs vs Fergus. Local is the default
+       because that's the path most uses follow; Fergus tab is shown
+       only if Fergus is connected. -->
+  <div style="padding:10px 14px 0;border-bottom:1px solid #eee">
+    <div class="tab-row" style="margin:0">
+      <button type="button" class="tab-sm on" onclick="setSelectJobSource('local',this)">📁 Saved jobs</button>
+      <button type="button" class="tab-sm" onclick="setSelectJobSource('fergus',this)" id="selectJobFergBtn">🔗 Fergus jobs</button>
+    </div>
   </div>
   <div style="padding:12px 14px;border-bottom:1px solid #eee">
     <input id="selectJobSearch" type="text" placeholder="Search by client or address…" oninput="filterSelectJobList()" style="width:100%;padding:9px 12px;border:1px solid #ccc;border-radius:8px;font-size:13px;box-sizing:border-box;font-family:inherit">
   </div>
   <div id="selectJobList" style="flex:1;overflow-y:auto;padding:10px 14px;min-height:200px"></div>
+  <div id="selectJobFergList" style="flex:1;overflow-y:auto;padding:10px 14px;min-height:200px;display:none"></div>
 </div>
 
 <!-- PUSH TO JMS MODAL -->
@@ -2073,7 +2193,7 @@ function gotoTab(t) {
     t = 'quote';
   }
   // Order must match the rendered nav buttons.
-  var ids=['roof','materials','scope','quote','order','jobs','settings'];
+  var ids=['roof','materials','scope','quote','order','jobpack','jobs','settings'];
   document.querySelectorAll('.nav-btn').forEach(function(b,i){b.classList.toggle('active',ids[i]===t);});
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
@@ -2090,6 +2210,12 @@ function gotoTab(t) {
       var ref = document.getElementById('orderRef');
       if (ref && !ref.value) ref.value = 'ORD-' + String(Date.now()).slice(-4);
     } catch(e){}
+  }
+  if(t==='jobpack'){
+    // Auto-refresh the preview the first time the user opens the tab
+    // so they see something straight away. Wrapped in try/catch in
+    // case any of the upstream sources aren't ready yet.
+    try { refreshJobPack(); } catch(e){ console.warn('jobpack init:', e); }
   }
   if(t==='jobs') refreshJobsList();
   if(t==='settings'){ refreshSettingsUI(); try{prefillFergus();autoConnect();}catch(e){} }
@@ -4365,6 +4491,288 @@ function emailOrderToSupplier(){
              '?subject=' + encodeURIComponent(subj.trim()) +
              '&body='    + encodeURIComponent(lines.join('\n'));
   window.location.href = href;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SELECT JOB MODAL — tabbed: local saved jobs + Fergus search
+// ══════════════════════════════════════════════════════════════════
+
+var _selectJobSource = 'local';
+
+function setSelectJobSource(src, btn){
+  _selectJobSource = src;
+  document.querySelectorAll('#selectJobModal .tab-row .tab-sm').forEach(function(b){b.classList.remove('on');});
+  if (btn) btn.classList.add('on');
+  var local = document.getElementById('selectJobList');
+  var ferg  = document.getElementById('selectJobFergList');
+  var search = document.getElementById('selectJobSearch');
+  if (src === 'fergus') {
+    if (local) local.style.display = 'none';
+    if (ferg)  ferg.style.display  = '';
+    if (search) search.placeholder = 'Search Fergus by job number, client or address…';
+    // Render whatever's cached now; if Fergus isn't connected the
+    // panel shows a "connect first" message.
+    _renderSelectJobFergusList();
+  } else {
+    if (local) local.style.display = '';
+    if (ferg)  ferg.style.display  = 'none';
+    if (search) search.placeholder = 'Search by client or address…';
+    filterSelectJobList();
+  }
+}
+
+function _renderSelectJobFergusList(){
+  var box = document.getElementById('selectJobFergList'); if (!box) return;
+  if (!S.fergConnected && !(S.fergJobsCache && S.fergJobsCache.length)) {
+    box.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:var(--text2);font-size:13px">'+
+      'Fergus isn\'t connected yet.<br><br>'+
+      '<button type="button" class="sec-btn" style="margin:8px auto;width:auto;padding:9px 18px;display:inline-flex" onclick="closeSelectJobModal();gotoTab(\'settings\')">Open Settings to connect Fergus</button>'+
+      '</div>';
+    return;
+  }
+  var q = ((document.getElementById('selectJobSearch')||{}).value || '').toLowerCase().trim();
+  var all = S.fergJobsCache || [];
+  var matched = !q ? all.slice() : all.filter(function(j){
+    return (typeof _fergMatches === 'function') ? _fergMatches(j, q)
+      : ((j.customer||'').toLowerCase().indexOf(q)>=0 || (j.address||'').toLowerCase().indexOf(q)>=0 || String(j.jobNo||'').indexOf(q)>=0);
+  });
+  if (typeof _fergRecencyComp === 'function') matched.sort(_fergRecencyComp);
+  matched = matched.slice(0, 80);
+  if (!matched.length) {
+    var loaded = all.length;
+    box.innerHTML = '<div style="padding:1rem;color:var(--text2);font-size:13px;text-align:center">'+
+      (q ? 'No Fergus jobs match <strong>'+esc(q)+'</strong> in ' + loaded + ' cached jobs.'
+         : (loaded ? 'No jobs to show.' : 'Fergus cache empty — try typing a search; the cache builds in the background.'))+
+      '</div>';
+    return;
+  }
+  box.innerHTML = matched.map(function(j){
+    var label = (j.customer || j.client || '(no client)') + (j.jobNo ? ' · Job '+j.jobNo : '');
+    var sub   = (j.address || j.siteAddress || '');
+    return '<div class="job-card" onclick="useFergusJobInModal(\''+ String(j.id).replace(/[\\\\\']/g,'') +'\')">'+
+      '<strong>'+ esc(label) +'</strong>'+
+      (sub ? '<div class="job-card-id">'+ esc(sub) +'</div>' : '')+
+      '</div>';
+  }).join('');
+}
+
+// Re-route searchbox input to the Fergus list when that tab is on.
+(function(){
+  var origFilter = window.filterSelectJobList;
+  window.filterSelectJobList = function(){
+    if (_selectJobSource === 'fergus') return _renderSelectJobFergusList();
+    return origFilter && origFilter.apply(this, arguments);
+  };
+})();
+
+function useFergusJobInModal(jobId){
+  var j = (S.fergJobsCache || []).find(function(x){ return String(x.id) === String(jobId); });
+  if (!j) return;
+  // Mirror the existing Fergus-link state used by the rest of the app
+  // so Push to JMS and friends keep working.
+  S.linkedJobId   = j.id;
+  S.linkedJobName = (j.customer || '') + ' — ' + (j.address || '');
+  // Populate the Job Details fields on the Map Roof tab.
+  var c = document.getElementById('jobClient'); if (c) c.value = j.customer || j.client || '';
+  var a = document.getElementById('jobAddr');   if (a) a.value = j.address  || j.siteAddress || '';
+  // Update the "current job" labels at the top of the Map Roof tab.
+  var label = ((j.customer||'(no client)')) + ' — ' + (j.address||'') + (j.jobNo ? '  (Fergus #'+j.jobNo+')' : '');
+  var lt = document.getElementById('currentJobLabel');    if (lt) lt.textContent = label;
+  var lb = document.getElementById('currentJobLabelTop'); if (lb) lb.textContent = label;
+  // Also reflect it on the Fergus side so the existing notice + push
+  // flow recognises this as the linked job.
+  var n = document.getElementById('fergSelNotice'); if (n) { n.style.display = ''; }
+  var nn = document.getElementById('fergJobName');  if (nn) nn.textContent = label;
+  closeSelectJobModal();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SEND JOB PACK — roof map + sheet layout + cut list + order, as PDF
+// ══════════════════════════════════════════════════════════════════
+//
+// Approach: we render each section into the preview block on
+// #tab-jobpack at refresh time (canvas → data URL via toDataURL, plus
+// HTML for the cut list and order). The print stylesheet then shows
+// only #tab-jobpack + the cards whose data-jp-section matches an
+// included key, and forces page breaks between sections so the PDF
+// comes out as a clean, install-crew-ready document.
+
+function _jobPackIncluded(){
+  var out = {};
+  document.querySelectorAll('#tab-jobpack [data-jp-inc]').forEach(function(el){
+    out[el.getAttribute('data-jp-inc')] = el.classList.contains('on');
+  });
+  return out;
+}
+function toggleJobPackInc(ev, el){
+  if (ev) ev.preventDefault();
+  el.classList.toggle('on');
+  // Toggle visibility of the matching preview card in the live
+  // preview — saves the user a Refresh click for visibility-only
+  // changes.
+  var key = el.getAttribute('data-jp-inc');
+  var sect = document.querySelector('[data-jp-section="'+key+'"]');
+  if (sect) sect.style.display = el.classList.contains('on') ? '' : 'none';
+}
+
+function _formatJobPackCover(){
+  var jobNum  = (document.getElementById('jobNum')||{}).value
+              || (document.getElementById('orderJobNumber')||{}).value
+              || (S.linkedJobId ? ('Fergus '+S.linkedJobId) : '');
+  var client  = (document.getElementById('jobClient')||{}).value || '';
+  var addr    = (document.getElementById('jobAddr')||{}).value   || '';
+  var date    = (document.getElementById('jobDate')||{}).value   || new Date().toLocaleDateString();
+  var title   = 'Job Pack — ' + (client || 'Roofing job');
+  var meta    = [
+    addr ? ('Site: ' + addr) : '',
+    jobNum ? ('Job #: ' + jobNum) : '',
+    'Date: ' + date,
+    (S.linkedJobName ? ('Fergus: ' + S.linkedJobName) : '')
+  ].filter(Boolean).join('  ·  ');
+  document.getElementById('jpCoverTitle').textContent = title;
+  document.getElementById('jpCoverMeta').textContent  = meta;
+  var lbl = document.getElementById('jpJobLabel');
+  if (lbl) lbl.textContent = client ? (client + (addr ? ' — '+addr : '')) : '— new job';
+}
+
+function _captureCanvasInto(canvasId, mountId, label){
+  var cv = document.getElementById(canvasId);
+  var mount = document.getElementById(mountId); if (!mount) return;
+  if (!cv) { mount.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:14px">'+label+' not available.</div>'; return; }
+  // Some canvases can't be re-read with toDataURL after the context
+  // has been used cross-origin (e.g. tainted by a map tile). Wrap in
+  // try/catch and degrade to a friendly note.
+  try {
+    var url = cv.toDataURL('image/png');
+    mount.innerHTML = '<img src="'+ url +'" alt="'+label+'" style="max-width:100%;border:1px solid var(--border);border-radius:8px;background:#fff">';
+  } catch(e) {
+    mount.innerHTML = '<div style="color:var(--warn);font-size:12px;padding:14px;background:var(--warn-soft);border-radius:8px">Couldn\'t capture '+label+' for the PDF — the underlying map tile may be cross-origin. Try the proxy / cached image route, then refresh.</div>';
+  }
+}
+
+function _renderJobPackCutList(){
+  var rows = (typeof collectListEditor === 'function')
+    ? collectListEditor('orderCutBody', ['desc','qty','length'])
+    : ((S.order && S.order.cutList) || []);
+  var box = document.getElementById('jpCutList'); if (!box) return;
+  if (!rows.length) {
+    box.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:10px 0">No cut list yet — fill it in on Order Material (sync from sheet layout or add rows).</div>';
+    return;
+  }
+  box.innerHTML = '<table class="price-tbl" style="margin-top:4px">'+
+    '<thead><tr><th>Description</th><th style="width:70px">Qty</th><th style="width:110px">Length (mm)</th></tr></thead>'+
+    '<tbody>'+ rows.map(function(r){
+      return '<tr><td>'+ esc(r.desc||'') +'</td><td>'+ esc(r.qty||'') +'</td><td>'+ esc(r.length||'') +'</td></tr>';
+    }).join('') +'</tbody></table>';
+}
+
+function _renderJobPackOrder(){
+  var o = (typeof _collectOrderFromUI === 'function') ? _collectOrderFromUI() : (S.order || {});
+  var box = document.getElementById('jpOrder'); if (!box) return;
+  function row(k,v){ if (!v && v!==0) return ''; return '<div style="display:flex;gap:10px;padding:4px 0;font-size:12px;border-bottom:1px solid #f0f0ee"><span style="min-width:120px;color:var(--text2);font-weight:500">'+k+'</span><span style="color:var(--text);font-weight:600">'+esc(String(v))+'</span></div>'; }
+  var spec = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px;margin-bottom:10px">'+
+    row('Colour',   o.colour) +
+    row('Pitch',    o.pitch ? (o.pitch + '°') : '') +
+    row('Profile',  o.profile) +
+    row('Product',  o.product) +
+    row('Underlay', o.underlay) +
+    row('Screws',   o.screws) +
+    row('Rivets',   o.rivets) +
+    row('Dektites', o.dektites) +
+    row('Ridging',  o.ridging === 'wide' ? 'Wide' : 'Standard') +
+    row('Gutter',   o.gutter) +
+    '</div>';
+  var flashHtml = '';
+  if (o.flashings && o.flashings.length) {
+    flashHtml = '<div style="margin-top:14px"><strong style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Flashings</strong></div>'+
+      o.flashings.map(function(f, i){
+        var faces = (f.faces||[]).filter(function(fc){return fc.length;}).map(function(fc){ return (fc.label||'Face')+' '+fc.length+'mm'; }).join(' · ');
+        var sketch = f.sketch ? '<img src="'+f.sketch+'" alt="" style="height:50px;border:1px solid var(--border);border-radius:6px;background:#fff;margin-left:auto">' : '';
+        return '<div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #f0f0ee">'+
+          '<div style="flex:1">'+
+            '<div style="font-size:13px;font-weight:600">'+(i+1)+'. '+ esc(f.type||'(type?)') +' · qty '+ (f.qty||1) +'</div>'+
+            (faces  ? '<div style="font-size:11px;color:var(--text2);margin-top:2px">'+esc(faces)+'</div>' : '')+
+            (f.lineBreaks ? '<div style="font-size:11px;color:var(--text2)">Line breaks: '+esc(f.lineBreaks)+'</div>' : '')+
+            (f.notes ? '<div style="font-size:11px;color:var(--text2)">Notes: '+esc(f.notes)+'</div>' : '')+
+          '</div>'+ sketch +'</div>';
+      }).join('');
+  }
+  var extras = o.extras ? '<div style="margin-top:14px"><strong style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Extras / notes</strong><div style="font-size:12px;margin-top:4px;white-space:pre-wrap">'+esc(o.extras)+'</div></div>' : '';
+  box.innerHTML = spec + flashHtml + extras;
+}
+
+function refreshJobPack(){
+  _formatJobPackCover();
+  var inc = _jobPackIncluded();
+  // Keep the sheet layout up to date — it only re-renders when the
+  // user opens the Materials tab, so force a render here if the
+  // canvas is empty.
+  if (inc.sheetlayout) {
+    try { if (typeof renderRoofSheetPlan === 'function') renderRoofSheetPlan(); } catch(e){}
+  }
+  if (inc.roofmap)     _captureCanvasInto('roofCanvas',  'jpRoofMap',     'Roof map');
+  else                 (function(){var m=document.getElementById('jpRoofMap'); if(m) m.innerHTML='';}());
+  if (inc.sheetlayout) _captureCanvasInto('sheetCanvas', 'jpSheetLayout', 'Sheet layout');
+  else                 (function(){var m=document.getElementById('jpSheetLayout'); if(m) m.innerHTML='';}());
+  if (inc.cutlist) _renderJobPackCutList();
+  if (inc.order)   _renderJobPackOrder();
+
+  // Match preview visibility to the inclusion checkboxes.
+  Object.keys(inc).forEach(function(k){
+    var sect = document.querySelector('[data-jp-section="'+k+'"]');
+    if (sect) sect.style.display = inc[k] ? '' : 'none';
+  });
+
+  var msg = document.getElementById('jpMsg');
+  if (msg){ msg.textContent = '✓ Preview refreshed'; msg.style.color = 'var(--ok)'; setTimeout(function(){ msg.textContent=''; msg.style.color=''; }, 2200); }
+}
+
+function downloadJobPack(){
+  refreshJobPack();
+  // Tag <html> so the print stylesheet shows only #tab-jobpack and
+  // splits sections onto fresh pages.
+  document.documentElement.classList.add('print-jobpack');
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){ document.documentElement.classList.remove('print-jobpack'); }, 600);
+  }, 80);
+}
+
+function emailJobPack(){
+  refreshJobPack();
+  var client = (document.getElementById('jobClient')||{}).value || '';
+  var addr   = (document.getElementById('jobAddr')||{}).value   || '';
+  var jobNum = (document.getElementById('orderJobNumber')||{}).value || '';
+  var subj   = 'Job pack — ' + (client || 'Roofing job') + (jobNum ? ' (Job '+jobNum+')' : '');
+  var lines  = [];
+  lines.push('Hi team,');
+  lines.push('');
+  lines.push('Attached: job pack for ' + (client || 'this job') + '.');
+  if (addr)   lines.push('Site: ' + addr);
+  if (jobNum) lines.push('Job #: ' + jobNum);
+  if (S.linkedJobName) lines.push('Fergus: ' + S.linkedJobName);
+  lines.push('');
+  lines.push('Includes:');
+  var inc = _jobPackIncluded();
+  if (inc.roofmap)     lines.push('  • Roof map (aerial + measurements)');
+  if (inc.sheetlayout) lines.push('  • Sheet layout diagram');
+  if (inc.cutlist)     lines.push('  • Cut list');
+  if (inc.order)       lines.push('  • Material order (spec + flashings)');
+  lines.push('');
+  lines.push('— Generated by Flood Roofing Estimator. PDF saved separately and attached.');
+  var href = 'mailto:?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(lines.join('\n'));
+  window.location.href = href;
+}
+
+function sendJobPackToJMS(){
+  // Reuse the existing Push to JMS modal — the JMS push is keyed off
+  // the linked job, which is the same one this pack belongs to.
+  if (typeof openJMSPushModal === 'function') {
+    openJMSPushModal();
+  } else {
+    var msg = document.getElementById('jpMsg');
+    if (msg){ msg.textContent = 'JMS push not available yet — try the Quote tab\'s Push to JMS button.'; msg.style.color = 'var(--text2)'; setTimeout(function(){ msg.textContent=''; msg.style.color=''; }, 4000); }
+  }
 }
 
 // ── JMS PUSH MODAL ───────────────────────────────────────────────
