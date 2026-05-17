@@ -7287,7 +7287,14 @@ function calcFromDrawing() {
   document.getElementById('measGrid').innerHTML=html;
 }
 
-// Load bg image when roof sketch uploaded — resize canvas to match photo ratio
+// Load bg image when a roof photo is uploaded. We deliberately do NOT
+// resize the canvas bitmap to match the photo's aspect ratio — that
+// was the old behaviour and it shrunk the displayed height for any
+// photo squarer than 900×620 (because the canvas has CSS
+// width:100%; height:auto). The satellite-snap path leaves the
+// canvas alone and lets getImgTransform() fit + centre the image
+// inside the existing canvas; this matches that behaviour so
+// uploading a photo doesn't shrink the drawing surface.
 var _origOnRoofImg = onRoofImg;
 onRoofImg = function(e){
   _origOnRoofImg(e);
@@ -7297,21 +7304,7 @@ onRoofImg = function(e){
     var img=new Image();
     img.onload=function(){
       DRAW.bgImg=img;
-      var cv=document.getElementById('roofCanvas');
-      // Fit image inside the canvas wrap, preserving aspect ratio
-      var wrap=document.getElementById('canvasWrap');
-      var maxW=wrap?wrap.offsetWidth:900;
-      var maxH=wrap?wrap.offsetHeight:500;
-      var ratio=img.height/img.width;
-      var newW=maxW;
-      var newH=Math.round(maxW*ratio);
-      if(newH>maxH){newH=maxH;newW=Math.round(maxH/ratio);}
-      // Min size
-      if(newW<400){newW=400;newH=Math.round(400*ratio);}
-      cv.width=newW;
-      cv.height=newH;
       redrawAll();
-
     };
     img.src=ev.target.result;
   };
