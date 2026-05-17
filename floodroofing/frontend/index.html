@@ -1071,24 +1071,11 @@ select{
       </div>
       <div id="lineMeasOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:999" onclick="closeLineMeasPopup()"></div>
 
-      <!-- Totals panel — permanently hidden. It used to pop up after
-           calibration and steal horizontal space from the canvas
-           (the "image got smaller after calibrate" bug). The totals
-           data is still computed by updateMeasTotals() so other tabs
-           keep working; we just don't surface it here. -->
-      <div id="measTotalsPanel" style="display:none !important;margin:.5rem .75rem;background:#f0f8fb;border-radius:10px;border-left:3px solid #0099cc;overflow:hidden">
-        <!-- Collapsed header - always visible -->
-        <div id="measUnknownWarn" style="display:none;padding:6px 14px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:600;border-bottom:1px solid #fcd34d"></div>
-        <div onclick="toggleMeasPanel()" style="padding:8px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
-          <span style="font-size:11px;font-weight:700;color:#0099cc;text-transform:uppercase;letter-spacing:.05em;flex:1">📐 Line totals &amp; sheet lengths</span>
-          <span id="measPanelToggleIcon" style="color:#0099cc;font-size:14px;font-weight:700">▲</span>
-        </div>
-        <!-- Expandable body -->
-        <div id="measTotalsBody" style="padding:0 14px 12px;">
-          <div id="measTotalsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:8px"></div>
-          <div id="m2Estimate"></div>
-        </div>
-      </div>
+      <!-- Totals panel removed — its content (measUnknownWarn,
+           measTotalsGrid, m2Estimate) was relocated into the Roofing
+           Measurements card below the canvas so it can't pop up over
+           the canvas and shrink the drawing surface. updateMeasTotals
+           still populates those same IDs in their new home. -->
 
       <!-- Calibrate scale popup -->
       <div id="calPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;padding:24px 28px;box-shadow:0 8px 32px rgba(0,0,0,.25);z-index:1000;min-width:320px">
@@ -1223,6 +1210,11 @@ select{
   <!-- Measurement tiles like Roofbuddy -->
   <div class="card">
       <div class="card-hd"><span class="card-dot"></span>Roofing measurements</div>
+      <!-- Warning + totals + sheet length, relocated here from the old
+           floating side panel so they don't pop over the canvas. -->
+      <div id="measUnknownWarn" style="display:none;padding:8px 12px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:600;border:1px solid #fcd34d;border-radius:8px;margin-bottom:10px"></div>
+      <div id="measTotalsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:10px"></div>
+      <div id="m2Estimate" style="margin-bottom:10px"></div>
       <div class="meas-grid" id="measGrid"></div>
       <button class="out-btn" onclick="calcFromDrawing()" style="margin-top:.75rem">Recalculate from drawing</button>
     </div>
@@ -5669,8 +5661,9 @@ function setTool(t) {
   var wrap=document.getElementById('canvasWrap');
   var cur=(t==='select')?'grab':(t==='addmeas')?'pointer':(t==='calibrate')?'crosshair':'crosshair';
   if(t==='addmeas') {
-    var tp=document.getElementById('measTotalsPanel');
-    if(tp) { tp.style.display='block'; var bd=document.getElementById('measTotalsBody'); if(bd) bd.style.display='block'; }
+    // Totals panel no longer exists as a floating side window; just
+    // refresh the values in the Roofing Measurements card below the
+    // canvas so they're current when the user opens this tool.
     updateMeasTotals();
   }
   // calibrate: just set cursor, popup opens AFTER line is drawn
@@ -7686,14 +7679,8 @@ function getBargeMeasurements(bargeIdx) {
   return segments;
 }
 
-function toggleMeasPanel() {
-  var body = document.getElementById('measTotalsBody');
-  var icon = document.getElementById('measPanelToggleIcon');
-  if(!body) return;
-  var collapsed = body.style.display==='none';
-  body.style.display = collapsed ? 'block' : 'none';
-  icon.textContent = collapsed ? '▲' : '▼';
-}
+// toggleMeasPanel removed — the floating panel it used to expand /
+// collapse is gone; its content lives in the Roofing Measurements card.
 
 function updateMeasTotals() {
   var totals = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
@@ -7709,7 +7696,15 @@ function updateMeasTotals() {
     if(l.sheetLengthM) sheetLengths[i]=parseFloat(l.sheetLengthM);
   });
 
-  if(!hasAny) { document.getElementById('measTotalsPanel').style.display='none'; return; }
+  if(!hasAny) {
+    // Nothing to show — clear the inline totals area in the Roofing
+    // Measurements card and bail. Old code hid the floating panel
+    // here; the panel is gone now.
+    var _wEl=document.getElementById('measUnknownWarn'); if(_wEl){_wEl.textContent=''; _wEl.style.display='none';}
+    var _gEl=document.getElementById('measTotalsGrid'); if(_gEl) _gEl.innerHTML='';
+    var _mEl=document.getElementById('m2Estimate');     if(_mEl) _mEl.innerHTML='';
+    return;
+  }
 
   // Roof area: prefer outline polygon area (most accurate when calibrated)
   var roofArea = 0;
