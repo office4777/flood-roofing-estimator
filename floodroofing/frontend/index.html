@@ -7057,6 +7057,89 @@ function redrawAll() {
     }
   });
 
+  // Sheet-length labels per gutter — only after calibration. Each
+  // gutter gets a "Sheet: X.XXm" tag drawn just inside the outline
+  // with an arrow back to the gutter so the installer can see which
+  // way the sheets run for that face. The number is the slope
+  // distance from the gutter line up to the farthest non-gutter,
+  // non-barge point in the outline (ridge endpoint / hip apex),
+  // converted with DRAW.calPitch from plan-metres to rafter-metres.
+  if (DRAW.scaleMetresPerPx > 0 && DRAW.outline && DRAW.outline.length >= 3) {
+    var _cenX = 0, _cenY = 0;
+    DRAW.outline.forEach(function(p){ _cenX += p[0]; _cenY += p[1]; });
+    _cenX /= DRAW.outline.length; _cenY /= DRAW.outline.length;
+    var _candPts = [];
+    DRAW.outline.forEach(function(p){ _candPts.push(p); });
+    DRAW.lines.forEach(function(ll){
+      if (!ll || !ll.pts) return;
+      if (ll.type === 'gutter' || ll.type === 'barge') return;
+      _candPts.push(ll.pts[0]); _candPts.push(ll.pts[1]);
+    });
+    DRAW.lines.forEach(function(l){
+      if (!l || l.type !== 'gutter' || !l.pts || l.pts.length !== 2) return;
+      var ga = l.pts[0], gb = l.pts[1];
+      var gdx = gb[0] - ga[0], gdy = gb[1] - ga[1];
+      var gL  = Math.sqrt(gdx*gdx + gdy*gdy);
+      if (gL < 8) return;
+      // Inward-pointing perpendicular (toward the outline centroid).
+      var nx = -gdy / gL, ny = gdx / gL;
+      var midX = (ga[0] + gb[0]) / 2, midY = (ga[1] + gb[1]) / 2;
+      if ((_cenX - midX) * nx + (_cenY - midY) * ny < 0) { nx = -nx; ny = -ny; }
+      // Max signed inward perpendicular distance from this gutter
+      // line to a candidate point. Restrict to points whose along-
+      // gutter projection lies on (or just past) the gutter span so
+      // we don't pick up unrelated ridge endpoints from another face.
+      var maxPerp = 0;
+      _candPts.forEach(function(p){
+        var pdx = p[0] - ga[0], pdy = p[1] - ga[1];
+        var alongT = (pdx * gdx + pdy * gdy) / (gL * gL);
+        if (alongT < -0.15 || alongT > 1.15) return;
+        var perp = pdx * nx + pdy * ny;
+        if (perp > maxPerp) maxPerp = perp;
+      });
+      if (maxPerp < 4) return;
+      var planM  = maxPerp * DRAW.scaleMetresPerPx;
+      var pitch  = DRAW.calPitch || 0;
+      var sheetM = (pitch > 0 && pitch < 80) ? (planM / Math.cos(pitch * Math.PI / 180)) : planM;
+      // Place the label inside the outline, offset 28 canvas-px from
+      // the gutter midpoint along the inward perpendicular. The
+      // transform is rotation-free so direction is preserved.
+      var midScreen = dp([midX, midY]);
+      var lblOffset = 28;
+      var lblX = midScreen[0] + nx * lblOffset;
+      var lblY = midScreen[1] + ny * lblOffset;
+      var label = 'Sheet: ' + sheetM.toFixed(2) + 'm';
+      ctx.save();
+      ctx.font = 'bold 12px Inter, -apple-system, sans-serif';
+      var tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.fillRect(lblX - tw/2 - 6, lblY - 11, tw + 12, 18);
+      ctx.strokeStyle = '#0a1628';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(lblX - tw/2 - 6, lblY - 11, tw + 12, 18);
+      ctx.fillStyle = '#0a1628';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(label, lblX, lblY + 2);
+      // Arrow from the label back to the gutter midpoint.
+      ctx.strokeStyle = '#0a1628';
+      ctx.fillStyle   = '#0a1628';
+      ctx.lineWidth   = 1.6;
+      var startX = lblX - nx * 10, startY = lblY - ny * 10;
+      var endX   = midScreen[0] - nx * 4, endY = midScreen[1] - ny * 4;
+      ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(endX, endY); ctx.stroke();
+      var ang = Math.atan2(endY - startY, endX - startX);
+      var ah = 6, aw = 4;
+      ctx.beginPath();
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(endX - ah * Math.cos(ang) + aw * Math.sin(ang), endY - ah * Math.sin(ang) - aw * Math.cos(ang));
+      ctx.lineTo(endX - ah * Math.cos(ang) - aw * Math.sin(ang), endY - ah * Math.sin(ang) + aw * Math.cos(ang));
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
   // Info items — numbered bright asterisks
   DRAW.infoItems.forEach(function(item){
     var _ip=dp([item.cx,item.cy]); var cx=_ip[0], cy=_ip[1];
