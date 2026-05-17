@@ -1707,8 +1707,9 @@ select{
     <div id="savedFlashGrid" style="padding:18px 20px;overflow-y:auto;flex:1">
       <!-- populated by _renderSavedFlashingsPicker() -->
     </div>
-    <div style="padding:10px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--text2);background:var(--surface-2)">
-      Saves are stored on your account in <code>materials_catalog.savedFlashings</code>. Use <strong>Save to library</strong> on any flashing card to add to this list.
+    <div style="padding:10px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--text2);background:var(--surface-2);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="flex:1;min-width:240px">Saves are stored on your account in <code>materials_catalog.savedFlashings</code>. Use <strong>Save to library</strong> on any flashing card to add to this list.</span>
+      <button type="button" onclick="loadDefaultFlashings()" class="add-link" style="padding:0">+ Load default set</button>
     </div>
   </div>
 </div>
@@ -4117,7 +4118,11 @@ function _renderSavedFlashingsPicker(){
   var grid = document.getElementById('savedFlashGrid'); if (!grid) return;
   var lib = _getSavedFlashings();
   if (!lib.length){
-    grid.innerHTML = '<div style="text-align:center;padding:36px 20px;color:var(--text2);font-size:13px">No saved flashings yet.<br><br><span style="font-size:12px">Draw or fill in a flashing on the order, then click <strong>💾 Save to library</strong> on that flashing\'s card to add it here.</span></div>';
+    grid.innerHTML = '<div style="text-align:center;padding:36px 20px;color:var(--text2);font-size:13px">'+
+      'No saved flashings yet.<br>'+
+      '<button type="button" onclick="loadDefaultFlashings()" class="sec-btn" style="margin:18px auto 8px;width:auto;padding:10px 22px;display:inline-flex">+ Load 7 default flashings</button><br>'+
+      '<span style="font-size:12px">Loads a set traced from the standard order-form sketch (apron, valley, ridge, chimney back, etc.). Or fill in a flashing on the order and click <strong>💾 Save to library</strong> to build your own.</span>'+
+      '</div>';
     return;
   }
   function esc(v){ return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
@@ -4166,6 +4171,144 @@ function removeSavedFlashing(savedIdx){
   _renderSavedFlashingsPicker();
   _updateSavedFlashCount();
   _persistCatalogSilently();
+}
+
+// ── Default flashing set ─────────────────────────────────────────
+// Hand-traced from the user's order-form sketch (the seven common
+// profiles on the Samsung Notes screenshot). Each entry has the SVG
+// path data so we can render the cross-section thumbnail at runtime,
+// plus a sensible NZ-roofing default for face lengths so adding one
+// from saved gives the user a working starting point.
+//
+// Path coordinates target a 240×120 viewBox; stroke matches the user's
+// hand-drawn black at 2.6px. "M…L…" follows the visible bends of each
+// drawing, with the occasional Q for a curled hem.
+var DEFAULT_SAVED_FLASHINGS = [
+  {
+    name: 'Apron — colour side hem',
+    type: 'Apron flashing',
+    qty: 1,
+    faces: [
+      {label:'Vertical', length:180},
+      {label:'Top',      length:25}
+    ],
+    notes: 'Colour side faces out. Top hem returns. Drip kick at bottom.',
+    pathD: 'M55 102 L72 90 L72 32 L172 32 L172 22 L156 22'
+  },
+  {
+    name: 'Apron — hem both ends',
+    type: 'Apron flashing',
+    qty: 1,
+    faces: [
+      {label:'Top hem',  length:25},
+      {label:'Top face', length:120},
+      {label:'Vertical', length:180}
+    ],
+    notes: 'Hem on top and a drip kick at the bottom.',
+    pathD: 'M58 22 L82 22 L82 32 L180 32 L180 96 L196 108'
+  },
+  {
+    name: 'Valley — return hem',
+    type: 'Valley flashing',
+    qty: 1,
+    faces: [
+      {label:'Pitch face', length:250},
+      {label:'Return',     length:60}
+    ],
+    notes: 'Pitched face down into a flat, returns hem to lock the edge.',
+    pathD: 'M30 28 L150 82 L208 82 Q220 80 214 70'
+  },
+  {
+    name: 'L flashing — drip',
+    type: 'Custom',
+    qty: 1,
+    faces: [
+      {label:'Vertical', length:80},
+      {label:'Top face', length:200}
+    ],
+    notes: 'Simple L with a drip turn at the far end.',
+    pathD: 'M52 28 L52 64 L196 64 L196 78'
+  },
+  {
+    name: 'Soaker / Z with curl',
+    type: 'Step flashing',
+    qty: 1,
+    faces: [
+      {label:'Top',    length:100},
+      {label:'Web',    length:150},
+      {label:'Bottom', length:80}
+    ],
+    notes: 'Z-profile with a curled bottom edge.',
+    pathD: 'M60 26 L60 60 L150 60 L150 96 Q150 108 158 106 Q162 102 158 98'
+  },
+  {
+    name: 'Chimney back — stepped',
+    type: 'Chimney back',
+    qty: 1,
+    faces: [
+      {label:'Face A', length:60},
+      {label:'Face B', length:90},
+      {label:'Face C', length:80},
+      {label:'Face D', length:120}
+    ],
+    notes: 'Multi-bend stepped flashing with a curled end.',
+    pathD: 'M50 28 L50 64 L132 64 L132 94 L204 94 Q212 94 209 104 Q204 110 208 114'
+  },
+  {
+    name: 'Ridge cap — soft-edge optional',
+    type: 'Ridge flashing',
+    qty: 1,
+    faces: [
+      {label:'Left slope',  length:180},
+      {label:'Top',         length:100},
+      {label:'Right slope', length:180}
+    ],
+    notes: 'Soft-edge one end? Y / N — note on the order if so.',
+    pathD: 'M52 86 L88 28 L168 28 L204 86'
+  }
+];
+
+function _flashingSketchUrl(pathD){
+  // Build the SVG inline so the source stays readable and svg → data
+  // URL conversion happens at runtime. ASCII-only path data, so btoa()
+  // is safe here.
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="120" viewBox="0 0 240 120">' +
+              '<path d="' + pathD + '" stroke="#0a1628" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+            '</svg>';
+  return 'data:image/svg+xml;base64,' + btoa(svg);
+}
+
+function loadDefaultFlashings(){
+  var lib = _getSavedFlashings();
+  var existingNames = lib.map(function(x){return x.name;});
+  var added = 0;
+  DEFAULT_SAVED_FLASHINGS.forEach(function(s){
+    if (existingNames.indexOf(s.name) !== -1) return;
+    lib.push({
+      name:       s.name,
+      type:       s.type,
+      qty:        s.qty,
+      faces:      s.faces.map(function(f){return {label:f.label, length:f.length};}),
+      lineBreaks: '',
+      notes:      s.notes || '',
+      sketch:     _flashingSketchUrl(s.pathD)
+    });
+    added++;
+  });
+  _updateSavedFlashCount();
+  _renderSavedFlashingsPicker();
+  _persistCatalogSilently();
+  var msg = document.getElementById('orderMsg');
+  if (msg){
+    if (added) {
+      msg.textContent = '✓ Added ' + added + ' default flashing' + (added===1?'':'s') + ' to your library' + (added < DEFAULT_SAVED_FLASHINGS.length ? ' (' + (DEFAULT_SAVED_FLASHINGS.length-added) + ' already saved)' : '');
+      msg.style.color = 'var(--ok)';
+    } else {
+      msg.textContent = 'All defaults already in your library.';
+      msg.style.color = 'var(--text2)';
+    }
+    setTimeout(function(){ msg.textContent=''; msg.style.color=''; }, 4000);
+  }
 }
 
 // — Flashing sketch canvas modal —
