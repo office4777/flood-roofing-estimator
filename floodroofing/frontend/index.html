@@ -7215,19 +7215,34 @@ function redrawAll() {
       var nx = -gdy / gL, ny = gdx / gL;
       var midX = (ga[0] + gb[0]) / 2, midY = (ga[1] + gb[1]) / 2;
       if ((_cenX - midX) * nx + (_cenY - midY) * ny < 0) { nx = -nx; ny = -ny; }
-      // Max signed inward perpendicular distance from this gutter
-      // line to a candidate elevation point that projects within the
-      // gutter's along-axis span.
-      var maxPerp = 0;
-      _candPts.forEach(function(p){
-        var pdx = p[0] - ga[0], pdy = p[1] - ga[1];
-        var alongT = (pdx * gdx + pdy * gdy) / (gL * gL);
-        if (alongT < -0.15 || alongT > 1.15) return;
-        var perp = pdx * nx + pdy * ny;
-        if (perp > maxPerp) maxPerp = perp;
+      // Sheet length = perpendicular plan distance from this gutter
+      // to the NEAREST ridge line parallel to it. Earlier versions
+      // used the farthest interior point, which for a hip roof
+      // grabbed the opposite long-side gutter and reported the full
+      // building depth instead of the actual rafter run. We now
+      // measure to the ridge in the middle, which is what the
+      // installer means by "sheet length".
+      var gAng = Math.atan2(gdy, gdx);
+      var minPerp = Infinity;
+      DRAW.lines.forEach(function(rl){
+        if (!rl || rl.type !== 'ridge' || !rl.pts || rl.pts.length !== 2) return;
+        var rdx = rl.pts[1][0] - rl.pts[0][0];
+        var rdy = rl.pts[1][1] - rl.pts[0][1];
+        var rL  = Math.sqrt(rdx*rdx + rdy*rdy);
+        if (rL < 1) return;
+        var rAng = Math.atan2(rdy, rdx);
+        var diff = gAng - rAng;
+        diff = diff - Math.round(diff / Math.PI) * Math.PI;
+        if (Math.abs(diff) > 0.25) return; // not parallel enough
+        // Inward perpendicular distance from gutter line to the
+        // ridge midpoint (negative = ridge on the wrong side; skip).
+        var rmx = (rl.pts[0][0] + rl.pts[1][0]) / 2;
+        var rmy = (rl.pts[0][1] + rl.pts[1][1]) / 2;
+        var perp = (rmx - ga[0]) * nx + (rmy - ga[1]) * ny;
+        if (perp > 2 && perp < minPerp) minPerp = perp;
       });
-      if (maxPerp < 4) return;
-      var planM  = maxPerp * DRAW.scaleMetresPerPx;
+      if (!isFinite(minPerp)) return;
+      var planM  = minPerp * DRAW.scaleMetresPerPx;
       var pitch  = DRAW.calPitch || 0;
       var sheetM = (pitch > 0 && pitch < 80) ? (planM / Math.cos(pitch * Math.PI / 180)) : planM;
       // Tuck the label just inside the gutter, on a short stub.
