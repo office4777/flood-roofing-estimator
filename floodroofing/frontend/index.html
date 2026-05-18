@@ -7386,6 +7386,23 @@ function redrawAll() {
       }
       return false;
     }
+    // Ray-casting point-in-polygon test against the outline. Used to
+    // reject sheet labels whose computed position lands OUTSIDE the
+    // polygon — happens on an L when a gutter on one arm gets paired
+    // with a ridge on the other arm and the midpoint between them
+    // falls in the L's indent (which is outside the roof shape).
+    function _pointInOutline(px, py){
+      var inside = false, j = DRAW.outline.length - 1;
+      for (var i = 0; i < DRAW.outline.length; i++){
+        var xi = DRAW.outline[i][0], yi = DRAW.outline[i][1];
+        var xj = DRAW.outline[j][0], yj = DRAW.outline[j][1];
+        if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi + 1e-9) + xi)) {
+          inside = !inside;
+        }
+        j = i;
+      }
+      return inside;
+    }
 
     // Cache candidate elevation points + ridge angles once.
     var _candPts = [];
@@ -7482,19 +7499,22 @@ function redrawAll() {
       var planM  = minPerp * DRAW.scaleMetresPerPx;
       var pitch  = DRAW.calPitch || 0;
       var sheetM = (pitch > 0 && pitch < 80) ? (planM / Math.cos(pitch * Math.PI / 180)) : planM;
-      // Park the label at the midpoint of the rafter run — halfway
-      // between the gutter and the parallel ridge. The arrows /
-      // tick-marks / "ridge"/"gutter" captions were removed: the
-      // ridge already shows its own red measurement, the gutter its
-      // own blue one, and the arrows were overlaying those numbers
-      // on horizontal rafter faces. Just the plain centred label
-      // now — the position alone (mid-face, between ridge & gutter)
-      // tells the reader what it measures.
+      // Compute the label position in IMAGE coords first so we can
+      // run a point-in-polygon test on it before drawing.
+      var lblImgX = midX + nx * (minPerp / 2);
+      var lblImgY = midY + ny * (minPerp / 2);
+      // Skip labels whose computed position lands OUTSIDE the
+      // outline polygon. On an L / T-shape a gutter on one arm can
+      // match (parallel, overlap-along) a ridge on the OTHER arm,
+      // and the midpoint between them lands in the L's indent —
+      // not on a real roof face. The point-in-polygon test catches
+      // exactly this case so we don't draw a sheet label there.
+      if (!_pointInOutline(lblImgX, lblImgY)) return;
       var _tr = getImgTransform();
       var perpCanvasPx = minPerp * (_tr ? _tr.s : 1);
-      var midScreen = dp([midX, midY]);
-      var lblX = midScreen[0] + nx * (perpCanvasPx / 2);
-      var lblY = midScreen[1] + ny * (perpCanvasPx / 2);
+      var labelScreen = dp([lblImgX, lblImgY]);
+      var lblX = labelScreen[0];
+      var lblY = labelScreen[1];
       var label = sheetM.toFixed(2) + 'm sheet';
       // White halo + dark fill so the label reads on any background.
       ctx.lineJoin = 'round';
@@ -7504,24 +7524,31 @@ function redrawAll() {
       ctx.fillStyle = '#0a1628';
       ctx.fillText(label, lblX, lblY);
       // Up + down arrows from the label toward the ridge and gutter
-      // respectively. Only when there's enough room (label sits
-      // mid-face with at least 11 px of clearance to either tip,
-      // measured in canvas pixels along the perpendicular axis).
+      // respectively. The clearance from the label centre to the
+      // arrow tail depends on which axis the arrows go: when the
+      // arrows extend along the label's BASELINE direction (e.g. a
+      // horizontal-rafter face has horizontal arrows pointing at
+      // vertical gutters), we have to clear half the text WIDTH,
+      // not half its height. Computing the projection of the label
+      // bounding box onto (nx, ny) handles both axis-aligned cases
+      // and any diagonal in between.
       if (perpCanvasPx > 36) {
         var tw = ctx.measureText(label).width;
-        var halfFont = 7;                // approx half-height of the 10px font
-        var gap = 4;                     // space between label edge and arrow tail
-        var arm = Math.min(14, (perpCanvasPx / 2) - (halfFont + gap + 2));
+        var halfW = tw / 2;
+        var halfH = 7;                                 // half-height of the 10px font
+        var clearance = Math.abs(nx) * halfW + Math.abs(ny) * halfH;
+        var gap = 4;                                   // space between label edge and arrow tail
+        var arm = Math.min(14, (perpCanvasPx / 2) - (clearance + gap + 2));
         if (arm >= 6) {
           // Tail starts just past the label box; tip is at tail + arm.
-          var ridgeTailX = lblX + nx * (halfFont + gap);
-          var ridgeTailY = lblY + ny * (halfFont + gap);
-          var ridgeTipX  = lblX + nx * (halfFont + gap + arm);
-          var ridgeTipY  = lblY + ny * (halfFont + gap + arm);
-          var gutTailX   = lblX - nx * (halfFont + gap);
-          var gutTailY   = lblY - ny * (halfFont + gap);
-          var gutTipX    = lblX - nx * (halfFont + gap + arm);
-          var gutTipY    = lblY - ny * (halfFont + gap + arm);
+          var ridgeTailX = lblX + nx * (clearance + gap);
+          var ridgeTailY = lblY + ny * (clearance + gap);
+          var ridgeTipX  = lblX + nx * (clearance + gap + arm);
+          var ridgeTipY  = lblY + ny * (clearance + gap + arm);
+          var gutTailX   = lblX - nx * (clearance + gap);
+          var gutTailY   = lblY - ny * (clearance + gap);
+          var gutTipX    = lblX - nx * (clearance + gap + arm);
+          var gutTipY    = lblY - ny * (clearance + gap + arm);
           ctx.lineCap   = 'round';
           ctx.lineWidth = 1.4;
           ctx.strokeStyle = '#0a1628';
