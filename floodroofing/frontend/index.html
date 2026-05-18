@@ -10321,17 +10321,89 @@ function renderRoofSheetPlan() {
     }
   });
 
-  // ── Number strips: sequential within each colour group ────────
+  // ── Number strips & pair offcuts ──────────────────────────────
+  // SOP §8: offcuts can be rotated by 90°/180°/270° but NEVER flipped
+  // (corrugation direction must stay correct for water flow). When
+  // a sheet on one long-side gets clipped by a hip at its end, the
+  // triangular offcut left over can rotate 180° to fit the matching
+  // corner on the OPPOSITE long-side. We pair those two pieces by
+  // sharing the same sheet reference number so the roofer can see
+  // "sheet 5" appears once on top (the source) and once at the
+  // matching corner on the bottom (the offcut destination).
+  //
+  // Pairing rule: for each pair of opposite long-side faces, walk
+  // the strips on the donor face in order, find strips that are
+  // clipped (the strip's piece length is noticeably shorter than
+  // the face's full sheet length), and match each with the
+  // corresponding clipped strip at the mirror corner of the
+  // receiver face. Mark the receiver strip as offcut-fed so the
+  // legend can deduct it from the receiver face's order count.
+  function _isClipped(s){
+    return s.pieceM < s.face.sheetM * 0.9;
+  }
+  function _pairOffcuts(donor, receiver){
+    if (!donor || !receiver) return;
+    var donorStrips = allStrips.filter(function(s){return s.face === donor;});
+    var recvStrips  = allStrips.filter(function(s){return s.face === receiver;});
+    // Project each strip's centroid onto the donor's along-gutter
+    // axis (in image coords). Closest along-axis position wins.
+    function alongPos(face, strip){
+      var dx = strip.centroid[0] - face.a[0];
+      var dy = strip.centroid[1] - face.a[1];
+      return dx*face.tx + dy*face.ty;
+    }
+    var donorClipped = donorStrips.filter(_isClipped);
+    var recvClipped  = recvStrips.filter(_isClipped);
+    if (!donorClipped.length || !recvClipped.length) return;
+    // Donor and receiver gutters likely point in opposite directions
+    // for an upside-down long-side. Use the FRACTION along each
+    // gutter (0..1) so we can match left↔left and right↔right
+    // regardless of direction.
+    function frac(face, strip){
+      var t = alongPos(face, strip) / face.gL;
+      // If the receiver's tangent runs opposite to the donor's, flip
+      // the fraction so the same building corner gives the same f.
+      return t;
+    }
+    var sameDir = (donor.tx*receiver.tx + donor.ty*receiver.ty) > 0;
+    donorClipped.forEach(function(ds){
+      var df = frac(donor, ds);
+      // Find the closest still-unmatched receiver clipped strip.
+      var best = null, bestD = Infinity;
+      recvClipped.forEach(function(rs){
+        if (rs._offcutMatched) return;
+        var rf = sameDir ? frac(receiver, rs) : (1 - frac(receiver, rs));
+        var d  = Math.abs(rf - df);
+        if (d < bestD) { bestD = d; best = rs; }
+      });
+      if (best && bestD < 0.18) {
+        best._offcutMatched = true;
+        best._offcutSource  = ds;
+        ds._offcutDest      = best;
+      }
+    });
+  }
+  if (mainA && mainB) _pairOffcuts(mainA, mainB);
+
+  // Sequence numbering — paired strips share a number; non-paired
+  // strips get fresh numbers, walking left-to-right within colour.
   var byColor = {};
   allStrips.forEach(function(s){
     (byColor[s.color] = byColor[s.color] || []).push(s);
   });
+  var nextSeq = 1;
   Object.keys(byColor).forEach(function(c){
-    // Sort by gutter midpoint x then y for a left-to-right install order.
     byColor[c].sort(function(a, b){
       return a.centroid[0] - b.centroid[0] || a.centroid[1] - b.centroid[1];
     });
-    byColor[c].forEach(function(s, i){ s.seq = i + 1; });
+    byColor[c].forEach(function(s){
+      if (s._offcutMatched && s._offcutSource && s._offcutSource.seq) {
+        s.seq = s._offcutSource.seq;          // share donor's number
+        s.isOffcut = true;
+      } else {
+        s.seq = nextSeq++;
+      }
+    });
   });
 
   // ── Canvas + draw ─────────────────────────────────────────────
@@ -10363,7 +10435,11 @@ function renderRoofSheetPlan() {
   });
 
   // Draw each strip filled in its colour, with a thin separator line.
+  // Offcut-fed strips get a diagonal hatch overlay so the roofer can
+  // see at a glance "this piece comes from the matching numbered
+  // sheet on the donor face".
   allStrips.forEach(function(s){
+    ctx.save();
     ctx.beginPath();
     s.poly.forEach(function(p, i){
       var cc = toC(p);
@@ -10372,7 +10448,36 @@ function renderRoofSheetPlan() {
     });
     ctx.closePath();
     ctx.fillStyle = s.color; ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+    if (s.isOffcut) {
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 1.4;
+      // Diagonal hatch across the strip's bounding box.
+      var minSx = Infinity, maxSx = -Infinity, minSy = Infinity, maxSy = -Infinity;
+      s.poly.forEach(function(p){
+        var cc = toC(p);
+        minSx = Math.min(minSx, cc[0]); maxSx = Math.max(maxSx, cc[0]);
+        minSy = Math.min(minSy, cc[1]); maxSy = Math.max(maxSy, cc[1]);
+      });
+      for (var hx = minSx - (maxSy - minSy); hx < maxSx; hx += 6) {
+        ctx.beginPath();
+        ctx.moveTo(hx, minSy);
+        ctx.lineTo(hx + (maxSy - minSy), maxSy);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    // Outline on top of (potentially hatched) fill.
+    ctx.beginPath();
+    s.poly.forEach(function(p, i){
+      var cc = toC(p);
+      if (i === 0) ctx.moveTo(cc[0], cc[1]);
+      else         ctx.lineTo(cc[0], cc[1]);
+    });
+    ctx.closePath();
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
   });
 
   // Outline + hip/ridge lines on top so the structure stays readable.
@@ -10408,11 +10513,13 @@ function renderRoofSheetPlan() {
   });
 
   // ── Legend ────────────────────────────────────────────────────
-  // Group sheets by (colour, orderedLengthMm). Each group needs ONE
-  // entry: quantity + ordered length. SOP: legend must list quantity
-  // and length.
+  // Group sheets by (colour, orderedLengthMm). Offcut-fed pieces
+  // (the receiver of a paired offcut) DON'T add to the order count
+  // — they reuse the donor sheet — so they're excluded here per the
+  // SOP §10 "Large offcut reused" reward.
   var groups = {};
   allStrips.forEach(function(s){
+    if (s.isOffcut) return;
     var key = s.color + ':' + s.orderedLengthMm;
     if (!groups[key]) groups[key] = { color: s.color, orderedMm: s.orderedLengthMm, count: 0 };
     groups[key].count++;

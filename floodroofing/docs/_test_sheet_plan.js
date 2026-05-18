@@ -49,12 +49,21 @@ const path = require('path');
     window.autoGenerateRoof && window.autoGenerateRoof('hip');
   });
 
-  // CASE 2 — L-shape (upper arm at top-right, lower arm at bottom-left).
-  // Going clockwise from the top-left of the upper arm.
+  // CASE 2 — SOP-style L-shape: a long horizontal main body with a
+  // wing extending DOWN from the right portion (matches the
+  // schematic on SOP page 8).
+  //
+  //   +--------------------+   ← top of main
+  //   |     main body      |
+  //   +--------+----+------+   ← bottom of main meets wing on the right
+  //            |    |          ← wing extends DOWN
+  //            +----+
+  //
+  // 6 corners, no self-overlap.
   await renderCase('Lshape', () => {
     window.DRAW.outline = [
-      [350,120], [780,120], [780,420], [560,420],
-      [560,520], [180,520], [180,320], [350,320]
+      [200, 150], [780, 150], [780, 480], [560, 480],
+      [560, 320], [200, 320]
     ];
     window.DRAW.outlineDone = true;
     window.DRAW.scaleMetresPerPx = 0.02;
