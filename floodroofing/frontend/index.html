@@ -5995,6 +5995,122 @@ function snapOutlineToSquare(){
   redrawAll();
 }
 
+// Stretch the outline so the dragged corner can move freely while
+// every other corner stays at its original 90° angle. Works for any
+// rectilinear polygon (rectangle, L, T, U…), not just 4-corner
+// quads.
+//
+// Approach (works in a rotated basis if the outline isn't axis-
+// aligned — `u` is the longest edge's direction, `v` is its
+// perpendicular):
+//
+//   1. Pick the longest edge → unit direction u; v = perpendicular.
+//   2. Classify every edge in the initial outline as parallel to u
+//      ('U') or parallel to v ('V'), based on which axis the edge
+//      vector is more aligned with.
+//   3. Project all corners into (u, v) coordinates.
+//   4. Drag corner C_k to the cursor's (u, v) position. The two
+//      adjacent corners follow:
+//         edge (k-1)→k is U  →  C(k-1).v = newC.v
+//         edge (k-1)→k is V  →  C(k-1).u = newC.u
+//         edge k→(k+1)   is U  →  C(k+1).v = newC.v
+//         edge k→(k+1)   is V  →  C(k+1).u = newC.u
+//      That keeps each of the two adjacent edges in its original
+//      direction — so the four right angles at C(k-1), C_k, C_k,
+//      C(k+1) all stay 90°.
+//   5. The other corners along the polygon ALSO need to follow
+//      whenever their incoming edge is the SAME axis we just moved.
+//      Propagation walks forward from C(k+1) and backward from
+//      C(k-1): each step, if the new corner needs a shared
+//      coordinate with its already-moved neighbor (because the
+//      edge between them is on that axis), translate it; stop when
+//      the next edge changes axis (i.e. the shared coordinate is
+//      no longer the one being propagated).
+//   6. Project everything back to image space.
+//
+// Returns the new positions for every corner, or null if anything
+// degenerate is detected (zero-length edges, fewer than 3 corners).
+function _stretchRectilinearOutline(cornerIdx, cursorX, cursorY, initialOutline){
+  var n = initialOutline.length;
+  if (n < 3) return null;
+  // Find longest edge — primary axis direction
+  var bestL = 0, ux = 1, uy = 0;
+  for (var i = 0; i < n; i++) {
+    var a = initialOutline[i], b = initialOutline[(i+1)%n];
+    var dx = b[0]-a[0], dy = b[1]-a[1];
+    var L = Math.sqrt(dx*dx + dy*dy);
+    if (L > bestL) { bestL = L; ux = dx/L; uy = dy/L; }
+  }
+  var vx = -uy, vy = ux;
+  // Classify each edge as 'U' or 'V'
+  var edgeAxis = [];
+  for (var i = 0; i < n; i++) {
+    var a = initialOutline[i], b = initialOutline[(i+1)%n];
+    var dx = b[0]-a[0], dy = b[1]-a[1];
+    var L = Math.sqrt(dx*dx + dy*dy);
+    if (L < 1) { edgeAxis.push('U'); continue; }
+    var dotU = (dx*ux + dy*uy) / L;
+    edgeAxis.push(Math.abs(dotU) > 0.7071 ? 'U' : 'V');
+  }
+  // Transform all corners into (u, v) coordinates with the
+  // outline's first corner as the origin.
+  var origin = initialOutline[0];
+  function toUV(p){
+    var dx2 = p[0]-origin[0], dy2 = p[1]-origin[1];
+    return [dx2*ux + dy2*uy, dx2*vx + dy2*vy];
+  }
+  function fromUV(uvp){
+    return [origin[0] + uvp[0]*ux + uvp[1]*vx,
+            origin[1] + uvp[0]*uy + uvp[1]*vy];
+  }
+  var newCorners = initialOutline.map(function(p){ return toUV(p); });
+  var k = cornerIdx;
+  var cursorUV = toUV([cursorX, cursorY]);
+  // Track which coordinate of each corner has been "set" by the
+  // propagation so we don't fight ourselves on the second pass.
+  newCorners[k] = cursorUV.slice();
+  // Propagate FORWARD from k. We carry the 'shared coord' that the
+  // last-modified corner needs the next one to inherit.
+  // After modifying C_k, the edge k→(k+1) determines what C(k+1)
+  // inherits: if U, share v; if V, share u.
+  function propagate(startIdx, startNewUV, startEdgeAxis, dir){
+    // dir = +1 forward, -1 backward
+    var cur = startIdx;
+    var sharedAxis = startEdgeAxis;     // 'U' or 'V'
+    var lastUV = startNewUV;             // the UV of the most recently moved corner
+    var steps = 0;
+    while (steps++ < n) {
+      var nextIdx = (cur + dir + n) % n;
+      if (nextIdx === k) break;          // wrapped back to the dragged corner
+      // The edge between `cur` and `nextIdx` — its axis tells us
+      // which coord nextIdx shares with cur.
+      // Forward: edge cur → nextIdx is edgeAxis[cur]
+      // Backward: edge nextIdx → cur is edgeAxis[nextIdx]
+      var eAx = (dir === 1) ? edgeAxis[cur] : edgeAxis[nextIdx];
+      if (eAx !== sharedAxis) break;     // axis change — stop propagating
+      // Inherit the shared coord
+      var nUV = newCorners[nextIdx].slice();
+      if (sharedAxis === 'U') nUV[1] = lastUV[1];   // edge along u → share v
+      else                     nUV[0] = lastUV[0];   // edge along v → share u
+      newCorners[nextIdx] = nUV;
+      cur = nextIdx;
+      lastUV = nUV;
+      // Now the edge BEYOND nextIdx — its axis tells whether to
+      // keep propagating. We need its axis to still be `sharedAxis`
+      // for the chain to continue.
+      var furtherEdgeIdx = (dir === 1) ? cur : (cur - 1 + n) % n;
+      var furtherAxis = edgeAxis[furtherEdgeIdx];
+      if (furtherAxis !== sharedAxis) break;
+    }
+  }
+  // Forward propagation — edge k → (k+1) determines start axis
+  propagate(k, cursorUV, edgeAxis[k], +1);
+  // Backward propagation — edge (k-1) → k determines start axis
+  propagate(k, cursorUV, edgeAxis[(k - 1 + n) % n], -1);
+  // Project back to image space
+  return newCorners.map(fromUV);
+}
+
 // Stretch a 4-corner outline so the dragged corner can move freely
 // to the cursor while the other three corners follow the rule that
 // the polygon stays a rectangle (or any quad with the SAME angles as
@@ -6395,24 +6511,24 @@ function onCanvasMove(e) {
   // corner snap on top, also bypassed by Shift, so the user can
   // freely take the building out of square.
   if(DRAG_OUTLINE_VERT) {
-    // No snap on corner drag. For a 4-corner outline we stretch the
-    // whole quad so all corners stay at their original angles (90°
-    // for a real rectangle) — dragged corner tracks the cursor, the
-    // two adjacent corners slide along the original AB / AD axes,
-    // the opposite corner pins. Shift bypasses the stretch.
+    // No snap on corner drag. For any rectilinear outline (rectangle,
+    // L, T, U, …) we stretch the whole polygon so every angle stays
+    // at its original 90°. The dragged corner tracks the cursor and
+    // every other corner is propagated along its shared axis until
+    // the shape's geometry says "stop here". Shift bypasses the
+    // stretch — useful for the rare diagonal roof.
     var stretched = null;
-    if (!e.shiftKey && DRAW.outline.length === 4 && DRAG_OUTLINE_VERT.initialOutline) {
-      stretched = _stretchQuadOutline(
+    if (!e.shiftKey && DRAG_OUTLINE_VERT.initialOutline) {
+      stretched = _stretchRectilinearOutline(
         DRAG_OUTLINE_VERT.idx, xy[0], xy[1], DRAG_OUTLINE_VERT.initialOutline
       );
     }
     var movedC;
-    if (stretched) {
-      DRAW.outline[stretched.A_idx] = stretched.A.slice();
-      DRAW.outline[stretched.B_idx] = stretched.newB;
-      DRAW.outline[stretched.D_idx] = stretched.newD;
-      DRAW.outline[DRAG_OUTLINE_VERT.idx] = stretched.newC;
-      movedC = stretched.newC;
+    if (stretched && stretched.length === DRAW.outline.length) {
+      for (var si = 0; si < stretched.length; si++) {
+        DRAW.outline[si] = stretched[si];
+      }
+      movedC = stretched[DRAG_OUTLINE_VERT.idx];
     } else {
       DRAW.outline[DRAG_OUTLINE_VERT.idx] = [xy[0], xy[1]];
       movedC = [xy[0], xy[1]];
@@ -6423,8 +6539,8 @@ function onCanvasMove(e) {
       if (a.ref && a.ref.pts) a.ref.pts[a.epIdx] = movedC.slice();
     });
     // Regenerate auto ridges / hips / valleys + gutters from the new
-    // outline. Because the stretch keeps the polygon a rectangle,
-    // buildHipValleyLines naturally produces 45° hips.
+    // outline. Because the stretch keeps all angles at 90°,
+    // buildHipValleyLines produces 45° hips naturally.
     if (DRAG_OUTLINE_VERT.regenRoofType) {
       regenerateAutoRoofLines(DRAG_OUTLINE_VERT.regenRoofType);
     }
