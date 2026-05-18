@@ -6511,16 +6511,29 @@ function onCanvasMove(e) {
   // corner snap on top, also bypassed by Shift, so the user can
   // freely take the building out of square.
   if(DRAG_OUTLINE_VERT) {
-    // No snap on corner drag. For any rectilinear outline (rectangle,
-    // L, T, U, …) we stretch the whole polygon so every angle stays
-    // at its original 90°. The dragged corner tracks the cursor and
-    // every other corner is propagated along its shared axis until
-    // the shape's geometry says "stop here". Shift bypasses the
-    // stretch — useful for the rare diagonal roof.
+    // Use RAW cursor image coordinates here (bypass getXY's grid-
+    // snap + magnet-to-nearby-corner snap), so the dragged corner
+    // moves at the mouse's natural pixel precision. Without this,
+    // every move jumped the corner by the grid size — at typical
+    // scales that worked out to ~0.05–0.4 m steps, which felt
+    // chunky when fine-tuning a measurement.
+    var cv = document.getElementById('roofCanvas');
+    var rect = cv.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    var cxr = (e.clientX - rect.left) * (cv.width / rect.width) / dpr;
+    var cyr = (e.clientY - rect.top)  * (cv.height / rect.height) / dpr;
+    var tr  = getImgTransform();
+    var rawX = tr ? (cxr - tr.ix) / tr.s : cxr;
+    var rawY = tr ? (cyr - tr.iy) / tr.s : cyr;
+    // For any rectilinear outline (rectangle, L, T, U…) we stretch
+    // the whole polygon so every angle stays at its original 90°.
+    // The dragged corner tracks the cursor and every other corner
+    // propagates along its shared axis until the geometry says
+    // "stop". Shift bypasses the stretch — for diagonal roofs.
     var stretched = null;
     if (!e.shiftKey && DRAG_OUTLINE_VERT.initialOutline) {
       stretched = _stretchRectilinearOutline(
-        DRAG_OUTLINE_VERT.idx, xy[0], xy[1], DRAG_OUTLINE_VERT.initialOutline
+        DRAG_OUTLINE_VERT.idx, rawX, rawY, DRAG_OUTLINE_VERT.initialOutline
       );
     }
     var movedC;
@@ -6530,17 +6543,12 @@ function onCanvasMove(e) {
       }
       movedC = stretched[DRAG_OUTLINE_VERT.idx];
     } else {
-      DRAW.outline[DRAG_OUTLINE_VERT.idx] = [xy[0], xy[1]];
-      movedC = [xy[0], xy[1]];
+      DRAW.outline[DRAG_OUTLINE_VERT.idx] = [rawX, rawY];
+      movedC = [rawX, rawY];
     }
-    // Update manual attached lines via ref so they keep tracking the
-    // corner even after a regen reorders DRAW.lines.
     DRAG_OUTLINE_VERT.attached.forEach(function(a){
       if (a.ref && a.ref.pts) a.ref.pts[a.epIdx] = movedC.slice();
     });
-    // Regenerate auto ridges / hips / valleys + gutters from the new
-    // outline. Because the stretch keeps all angles at 90°,
-    // buildHipValleyLines produces 45° hips naturally.
     if (DRAG_OUTLINE_VERT.regenRoofType) {
       regenerateAutoRoofLines(DRAG_OUTLINE_VERT.regenRoofType);
     }
@@ -7343,17 +7351,41 @@ function redrawAll() {
     }
   });
 
-  // Sheet-length label per ridge-bearing gutter — only after
-  // calibration. Hip-end gutters (the short triangular ends with no
-  // ridge running parallel) are deliberately skipped because the
-  // sheets that cover them are cut from the same stock as the long
-  // ridge faces — labelling both would clutter the canvas with
-  // duplicate/conflicting numbers. The label is rendered as light
-  // text with a white halo (no box) so it stays out of the way.
+  // Sheet-length label per ridge-bearing OUTER gutter. We deliberately
+  // skip: hip-end gutters (no ridge parallel — sheets come from the
+  // long faces) and any gutter whose endpoints aren't both on the
+  // outline's convex hull (those are interior-step edges of an L / T
+  // / U shape — labelling them puts the tag on the wrong face, often
+  // visually overlapping the ridge of the OTHER arm).
   if (DRAW.scaleMetresPerPx > 0 && DRAW.outline && DRAW.outline.length >= 3) {
     var _cenX = 0, _cenY = 0;
     DRAW.outline.forEach(function(p){ _cenX += p[0]; _cenY += p[1]; });
     _cenX /= DRAW.outline.length; _cenY /= DRAW.outline.length;
+
+    // Andrew's monotone-chain convex hull of the outline corners.
+    var _hull = (function(pts){
+      if (pts.length < 3) return pts.slice();
+      var sorted = pts.slice().sort(function(a, b){ return a[0]-b[0] || a[1]-b[1]; });
+      function cross(o, a, b){ return (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]); }
+      var lower = [], upper = [], i;
+      for (i = 0; i < sorted.length; i++) {
+        while (lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], sorted[i]) <= 0) lower.pop();
+        lower.push(sorted[i]);
+      }
+      for (i = sorted.length - 1; i >= 0; i--) {
+        while (upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], sorted[i]) <= 0) upper.pop();
+        upper.push(sorted[i]);
+      }
+      lower.pop(); upper.pop();
+      return lower.concat(upper);
+    })(DRAW.outline);
+    function _onHull(p){
+      for (var i = 0; i < _hull.length; i++) {
+        var h = _hull[i];
+        if (Math.abs(h[0]-p[0]) < 1 && Math.abs(h[1]-p[1]) < 1) return true;
+      }
+      return false;
+    }
 
     // Cache candidate elevation points + ridge angles once.
     var _candPts = [];
@@ -7399,6 +7431,11 @@ function redrawAll() {
       // inherit the sheet length from the long-side faces, so a
       // separate label would be misleading and visually noisy.
       if (!_gutterParallelToRidge(gdx, gdy)) return;
+      // Skip interior-step gutters (both endpoints must be on the
+      // convex hull of the outline). For an L-shape, the inner
+      // step's gutters are on indented corners — their inward
+      // perpendicular often points at the WRONG ridge.
+      if (!_onHull(ga) || !_onHull(gb)) return;
       // Inward-pointing perpendicular (toward the outline centroid).
       var nx = -gdy / gL, ny = gdx / gL;
       var midX = (ga[0] + gb[0]) / 2, midY = (ga[1] + gb[1]) / 2;
