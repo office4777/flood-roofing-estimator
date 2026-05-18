@@ -10428,8 +10428,8 @@ function renderRoofSheetPlan() {
     for (var s = 0; s < nStrips; s++){
       var s0 = Math.min(s * coverPx, f.gL);
       var s1 = Math.min((s + 1) * coverPx, f.gL);
-      var d0 = _rayDepth(f, s0 + 0.5);
-      var d1 = _rayDepth(f, s1 - 0.5);
+      var d0 = _rayDepth(f, s0);
+      var d1 = _rayDepth(f, s1);
       var d  = Math.max(d0, d1);
       if (d > maxD) maxD = d;
     }
@@ -10437,6 +10437,31 @@ function renderRoofSheetPlan() {
     f.planSheetM = maxD * effectiveScale;
     f.sheetM     = maxD * effectiveScale * pitchFactor;
   });
+  // Skeleton vertices "bulging out" into a face (e.g. apex of a hip
+  // line, end of a ridge) need to appear as vertices on a strip's
+  // inward edge — otherwise the straight line between the strip's two
+  // ray-cast endpoints chops the corner off and leaves a white sliver.
+  function _innerApexes(face, s0, s1, d0, d1) {
+    var apexes = [];
+    DRAW.lines.forEach(function(l){
+      if (l.type !== 'hip' && l.type !== 'valley' && l.type !== 'ridge' && l.type !== 'barge') return;
+      if (!l.pts || l.pts.length !== 2) return;
+      [l.pts[0], l.pts[1]].forEach(function(p){
+        // along-gutter projection
+        var sPos = (p[0]-face.a[0]) * face.tx + (p[1]-face.a[1]) * face.ty;
+        if (sPos <= s0 + 0.1 || sPos >= s1 - 0.1) return;
+        // perpendicular depth into the face
+        var depth = (p[0]-face.a[0]) * face.nx + (p[1]-face.a[1]) * face.ny;
+        if (depth < 1) return;
+        // Skip points that the straight strip-edge already covers.
+        var interp = d0 + (d1 - d0) * (sPos - s0) / Math.max(1e-6, s1 - s0);
+        if (depth <= interp + 0.5) return;
+        apexes.push({ sPos: sPos, depth: depth });
+      });
+    });
+    apexes.sort(function(a, b){ return a.sPos - b.sPos; });
+    return apexes;
+  }
   var allStrips = [];
   faces.forEach(function(f){
     var nStrips = Math.ceil(f.gL / coverPx);
@@ -10446,20 +10471,35 @@ function renderRoofSheetPlan() {
       if (s1 - s0 < 0.5) continue;
       var p0 = [f.a[0] + s0*f.tx, f.a[1] + s0*f.ty];
       var p1 = [f.a[0] + s1*f.tx, f.a[1] + s1*f.ty];
-      var d0 = _rayDepth(f, s0 + 0.5);
-      var d1 = _rayDepth(f, s1 - 0.5);
-      // Strip is a TRAPEZOID — its inward edge follows the local
-      // skeleton, so a strip near a hip-clipped corner is shorter
-      // along that side than along its full-depth side.
+      // Sample depth at the strip's actual boundary positions so
+      // adjacent strips share a vertex (no 0.5 px seam).
+      var d0 = _rayDepth(f, s0);
+      var d1 = _rayDepth(f, s1);
+      // Walk the inward edge from (s1, d1) back to (s0, d0), inserting
+      // any skeleton apex vertices that bulge out past the straight
+      // interpolation between the two corners.
+      var inwardEdge = [];
+      var apexes = _innerApexes(f, s0, s1, d0, d1);
+      // The polygon is laid out: p0 → p1 → (apex pts in REVERSE order of sPos)
+      // because the inward edge runs back from the s1 corner to the s0
+      // corner.
+      for (var ai = apexes.length - 1; ai >= 0; ai--) {
+        var ap = apexes[ai];
+        var apX = f.a[0] + ap.sPos * f.tx + ap.depth * f.nx;
+        var apY = f.a[1] + ap.sPos * f.ty + ap.depth * f.ny;
+        inwardEdge.push([apX, apY]);
+      }
       var stripPoly = [
         p0,
         p1,
-        [p1[0] + d1*f.nx, p1[1] + d1*f.ny],
+        [p1[0] + d1*f.nx, p1[1] + d1*f.ny]
+      ].concat(inwardEdge).concat([
         [p0[0] + d0*f.nx, p0[1] + d0*f.ny]
-      ];
+      ]);
       var sCent = polyCentroid(stripPoly);
       if (!_ptInOutline(sCent[0], sCent[1])) continue;
-      var maxDeep    = Math.max(d0, d1);
+      var maxDeep = Math.max(d0, d1);
+      apexes.forEach(function(a){ if (a.depth > maxDeep) maxDeep = a.depth; });
       var stripPieceM = maxDeep * effectiveScale * pitchFactor;
       allStrips.push({
         face:   f,
