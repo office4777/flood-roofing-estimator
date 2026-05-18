@@ -7403,6 +7403,34 @@ function redrawAll() {
       }
       return inside;
     }
+    // Segment-segment intersection. Used to confirm a gutter ↔ ridge
+    // pairing is genuinely on the same face: if the straight line
+    // from the gutter midpoint to the ridge midpoint crosses ANY
+    // other ridge / hip / valley, the gutter and ridge are on
+    // different faces and we must not label that pairing.
+    function _segCross(p1, p2, p3, p4){
+      function _orient(a, b, c){
+        var v = (b[0]-a[0])*(c[1]-a[1]) - (b[1]-a[1])*(c[0]-a[0]);
+        if (v >  1e-6) return  1;
+        if (v < -1e-6) return -1;
+        return 0;
+      }
+      var o1 = _orient(p1, p2, p3);
+      var o2 = _orient(p1, p2, p4);
+      var o3 = _orient(p3, p4, p1);
+      var o4 = _orient(p3, p4, p2);
+      return o1 !== o2 && o3 !== o4;
+    }
+    function _crossesAnotherRoofLine(p1, p2, excludeRidge){
+      for (var i = 0; i < DRAW.lines.length; i++) {
+        var l = DRAW.lines[i];
+        if (l === excludeRidge) continue;
+        if (l.type !== 'ridge' && l.type !== 'hip' && l.type !== 'valley') continue;
+        if (!l.pts || l.pts.length !== 2) continue;
+        if (_segCross(p1, p2, l.pts[0], l.pts[1])) return true;
+      }
+      return false;
+    }
 
     // Cache candidate elevation points + ridge angles once.
     var _candPts = [];
@@ -7448,11 +7476,6 @@ function redrawAll() {
       // inherit the sheet length from the long-side faces, so a
       // separate label would be misleading and visually noisy.
       if (!_gutterParallelToRidge(gdx, gdy)) return;
-      // Skip interior-step gutters (both endpoints must be on the
-      // convex hull of the outline). For an L-shape, the inner
-      // step's gutters are on indented corners — their inward
-      // perpendicular often points at the WRONG ridge.
-      if (!_onHull(ga) || !_onHull(gb)) return;
       // Inward-pointing perpendicular (toward the outline centroid).
       var nx = -gdy / gL, ny = gdx / gL;
       var midX = (ga[0] + gb[0]) / 2, midY = (ga[1] + gb[1]) / 2;
@@ -7468,6 +7491,7 @@ function redrawAll() {
       // Of the matching ridges we take the NEAREST one (smallest
       // perpendicular distance).
       var gAng = Math.atan2(gdy, gdx);
+      var gutterMid = [(ga[0] + gb[0]) / 2, (ga[1] + gb[1]) / 2];
       var minPerp = Infinity;
       DRAW.lines.forEach(function(rl){
         if (!rl || rl.type !== 'ridge' || !rl.pts || rl.pts.length !== 2) return;
@@ -7479,20 +7503,23 @@ function redrawAll() {
         var diff = gAng - rAng;
         diff = diff - Math.round(diff / Math.PI) * Math.PI;
         if (Math.abs(diff) > 0.25) return;
-        // Inward perpendicular distance from gutter line to ridge mid.
         var rmx = (rl.pts[0][0] + rl.pts[1][0]) / 2;
         var rmy = (rl.pts[0][1] + rl.pts[1][1]) / 2;
         var perp = (rmx - ga[0]) * nx + (rmy - ga[1]) * ny;
         if (perp <= 2) return;
-        // Along-gutter overlap test — project both ridge endpoints
-        // onto the gutter's tangent axis (relative to ga) and check
-        // that the resulting interval intersects the gutter's
-        // [0, gL] span.
+        // Along-gutter overlap — the ridge must sit "above" the
+        // gutter in the gutter's local frame.
         var tg = [gdx / gL, gdy / gL];
         var r0t = (rl.pts[0][0] - ga[0]) * tg[0] + (rl.pts[0][1] - ga[1]) * tg[1];
         var r1t = (rl.pts[1][0] - ga[0]) * tg[0] + (rl.pts[1][1] - ga[1]) * tg[1];
         var rMin = Math.min(r0t, r1t), rMax = Math.max(r0t, r1t);
-        if (rMax < -0.1 * gL || rMin > 1.1 * gL) return;  // no overlap → not the same face
+        if (rMax < -0.1 * gL || rMin > 1.1 * gL) return;
+        // SAME-FACE TEST — the straight line from the gutter mid to
+        // the ridge mid must not cross any OTHER ridge / hip / valley.
+        // If it does, the pairing spans more than one face (typical
+        // cross-arm match on an L-shape) and the label would be
+        // wrong: skip.
+        if (_crossesAnotherRoofLine(gutterMid, [rmx, rmy], rl)) return;
         if (perp < minPerp) minPerp = perp;
       });
       if (!isFinite(minPerp)) return;
