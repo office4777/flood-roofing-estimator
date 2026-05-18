@@ -49,21 +49,32 @@ const path = require('path');
     window.autoGenerateRoof && window.autoGenerateRoof('hip');
   });
 
-  // CASE 2 — SOP-style L-shape: a long horizontal main body with a
-  // wing extending DOWN from the right portion (matches the
-  // schematic on SOP page 8).
+  // CASE 2 — SOP-style L matching the page-3 colour-coded example:
+  // a SMALL square-ish wing at the top-left and a LARGER wider main
+  // body extending to the right at the bottom. The wing and main
+  // share the left edge of the building so the outline is a single
+  // simple polygon with 6 corners.
   //
-  //   +--------------------+   ← top of main
-  //   |     main body      |
-  //   +--------+----+------+   ← bottom of main meets wing on the right
-  //            |    |          ← wing extends DOWN
-  //            +----+
+  //   +------+
+  //   | wing |
+  //   |      |
+  //   +------+--------+
+  //   |               |
+  //   |     main      |
+  //   |               |
+  //   +---------------+
   //
-  // 6 corners, no self-overlap.
+  // Building dims tuned so main faces produce LONG sheets (7.65 m
+  // ordered length) and the wing produces SHORT (3.9 m) — matches
+  // the SOP page-3 legend "Purple 22 @ 3900, Orange 15 @ 7650,
+  // Blue 15 @ 7650".
+  //
+  // Wing: 300×300 px = 6m × 6m  → sheet length ~3.2 m → SHORT
+  // Main: 900×700 px = 18m × 14m → sheet length ~7.5 m → LONG
   await renderCase('Lshape', () => {
     window.DRAW.outline = [
-      [200, 150], [780, 150], [780, 480], [560, 480],
-      [560, 320], [200, 320]
+      [100, 100], [400, 100], [400, 400],
+      [1000, 400], [1000, 1100], [100, 1100]
     ];
     window.DRAW.outlineDone = true;
     window.DRAW.scaleMetresPerPx = 0.02;

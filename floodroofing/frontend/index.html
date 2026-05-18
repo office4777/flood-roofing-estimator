@@ -10148,38 +10148,79 @@ function renderRoofSheetPlan() {
   }
 
   // ── Build faces ────────────────────────────────────────────────
-  // For each gutter line, find the two adjacent inward boundaries
-  // (hips / barges / valleys), trace them to their interior endpoints,
-  // and produce the face polygon. Triangular if the two inward lines
-  // meet at the same apex (hip-end); quadrilateral if they reach
-  // distinct ridge endpoints.
-  function findConnectedInward(p, excludeLine){
+  // For each gutter line, walk the skeleton (hips / valleys / ridges)
+  // inward from one endpoint to the other to recover the FULL face
+  // polygon — concave outlines (L, T, etc.) produce pentagons or
+  // larger because the skeleton between the two endpoints has
+  // multiple segments.
+  function _findIncidentSkeleton(p, visited){
     var matches = [];
     DRAW.lines.forEach(function(l){
-      if (l === excludeLine) return;
-      if (l.type !== 'hip' && l.type !== 'barge' && l.type !== 'valley') return;
+      if (visited.indexOf(l) >= 0) return;
+      if (l.type !== 'hip' && l.type !== 'barge' && l.type !== 'valley' && l.type !== 'ridge') return;
       if (!l.pts || l.pts.length !== 2) return;
       if (ptEq(l.pts[0], p)) matches.push({ line: l, far: l.pts[1].slice() });
       else if (ptEq(l.pts[1], p)) matches.push({ line: l, far: l.pts[0].slice() });
     });
     return matches;
   }
+  // BFS shortest skeleton path from gutter endpoint a to b.
+  function _walkSkeleton(g){
+    var a = g.pts[0], b = g.pts[1];
+    // Try greedy first (cheapest), fall back to BFS if greedy fails.
+    function greedy(){
+      var visited = [g];
+      var path = [a.slice()];
+      var cur = a.slice();
+      var safety = 24;
+      while (!ptEq(cur, b) && safety-- > 0) {
+        var cands = _findIncidentSkeleton(cur, visited);
+        if (!cands.length) return null;
+        var best = null, bestD = Infinity;
+        cands.forEach(function(c){
+          var d = ptDist(c.far, b);
+          if (d < bestD) { bestD = d; best = c; }
+        });
+        visited.push(best.line);
+        cur = best.far;
+        path.push(cur.slice());
+        if (path.length > 2 && ptEq(cur, a)) return null; // looped
+      }
+      return ptEq(cur, b) ? path : null;
+    }
+    function bfs(){
+      var queue = [{ pt: a.slice(), path: [a.slice()], used: [g] }];
+      var bestPath = null;
+      var iter = 0;
+      while (queue.length && iter++ < 400) {
+        var node = queue.shift();
+        if (ptEq(node.pt, b) && node.path.length > 1) { bestPath = node.path; break; }
+        var cands = _findIncidentSkeleton(node.pt, node.used);
+        cands.forEach(function(c){
+          queue.push({ pt: c.far, path: node.path.concat([c.far.slice()]), used: node.used.concat([c.line]) });
+        });
+      }
+      return bestPath;
+    }
+    return greedy() || bfs();
+  }
   var faces = [];
   DRAW.lines.forEach(function(g){
     if (g.type !== 'gutter') return;
     if (!g.pts || g.pts.length !== 2) return;
     var a = g.pts[0], b = g.pts[1];
-    var aSide = findConnectedInward(a, g);
-    var bSide = findConnectedInward(b, g);
-    if (!aSide.length || !bSide.length) return;
-    var sa = aSide[0], sb = bSide[0];
+    var path = _walkSkeleton(g);
+    if (!path || path.length < 2) return;
+    // path includes a at index 0; append b explicitly if not already.
+    if (!ptEq(path[path.length-1], b)) path.push(b.slice());
     var faceType, poly;
-    if (ptEq(sa.far, sb.far)) {
+    if (path.length === 3) {
+      // a → apex → b: hip-end
       faceType = 'hip-end';
-      poly = [a.slice(), sa.far, b.slice()];
+      poly = path;
     } else {
       faceType = 'long-side';
-      poly = [a.slice(), sa.far, sb.far, b.slice()];
+      poly = path;
     }
     // Force the face polygon to CCW so clipHalf works downstream.
     var fsa = 0;
@@ -10228,25 +10269,90 @@ function renderRoofSheetPlan() {
   }
 
   // ── Colour assignment per SOP ─────────────────────────────────
-  // 1. Sort faces by their gutter length (longer = more important).
-  // 2. The two longest LONG-SIDE faces with similar gutter direction
-  //    form the MAIN PAIR: orange + blue.
-  // 3. Hip-end faces inherit the colour of their long-side partner
-  //    (matched by which hip line they share).
-  // 4. Anything left (e.g. an L-shape wing's faces) gets PURPLE.
-  faces.sort(function(a, b){ return b.gL - a.gL; });
-  // Find the main long-side pair: longest long-side, then longest
-  // long-side roughly anti-parallel to it.
-  var mainA = null, mainB = null;
-  for (var fi = 0; fi < faces.length; fi++) {
-    if (faces[fi].type === 'long-side') { mainA = faces[fi]; break; }
+  // SOP §12 step 1: "Find the MAIN rectangle — the largest rectangle
+  // that behaves like a normal 4-hip roof". We compute the largest
+  // axis-aligned rectangle inscribed in the outline, then call the
+  // gutter faces lying on its LONG edges the main long-side faces
+  // (orange + blue). Everything else (wing, L's long composite
+  // edge, etc.) becomes purple. Hip-ends inherit their long-side
+  // partner's colour further down.
+  function _findMainRect(){
+    var xs = {}, ys = {};
+    outline.forEach(function(p){ xs[Math.round(p[0])] = true; ys[Math.round(p[1])] = true; });
+    var xArr = Object.keys(xs).map(Number).sort(function(a,b){return a-b;});
+    var yArr = Object.keys(ys).map(Number).sort(function(a,b){return a-b;});
+    function rectInside(x1, y1, x2, y2){
+      for (var i = 0; i < 7; i++){
+        for (var j = 0; j < 7; j++){
+          var px = x1 + (x2-x1) * (i+0.5)/7;
+          var py = y1 + (y2-y1) * (j+0.5)/7;
+          if (!_ptInOutline(px, py)) return false;
+        }
+      }
+      return true;
+    }
+    var best = null, bestA = 0;
+    for (var i1 = 0; i1 < xArr.length; i1++){
+      for (var i2 = i1+1; i2 < xArr.length; i2++){
+        for (var j1 = 0; j1 < yArr.length; j1++){
+          for (var j2 = j1+1; j2 < yArr.length; j2++){
+            var x1 = xArr[i1], x2 = xArr[i2], y1 = yArr[j1], y2 = yArr[j2];
+            var area = (x2-x1) * (y2-y1);
+            if (area <= bestA) continue;
+            if (!rectInside(x1, y1, x2, y2)) continue;
+            bestA = area;
+            best = { x1:x1, y1:y1, x2:x2, y2:y2, w:x2-x1, h:y2-y1, area:area };
+          }
+        }
+      }
+    }
+    return best;
   }
-  if (mainA) {
-    for (var fi = 0; fi < faces.length; fi++) {
-      var f = faces[fi];
-      if (f === mainA || f.type !== 'long-side') continue;
-      var dot = mainA.tx*f.tx + mainA.ty*f.ty;
-      if (Math.abs(dot) > 0.85) { mainB = f; break; }  // (anti-)parallel
+  function _gutterOnLine(f, axis, val, lo, hi){
+    var TOL = 6;
+    var a = f.a, b = f.b;
+    if (axis === 'y'){
+      if (Math.abs(a[1]-val) > TOL || Math.abs(b[1]-val) > TOL) return false;
+      var aMin = Math.min(a[0], b[0]), aMax = Math.max(a[0], b[0]);
+      return Math.min(aMax, hi) - Math.max(aMin, lo) > TOL;
+    } else {
+      if (Math.abs(a[0]-val) > TOL || Math.abs(b[0]-val) > TOL) return false;
+      var bMin = Math.min(a[1], b[1]), bMax = Math.max(a[1], b[1]);
+      return Math.min(bMax, hi) - Math.max(bMin, lo) > TOL;
+    }
+  }
+  var mainRect = _findMainRect();
+  var mainA = null, mainB = null;
+  if (mainRect) {
+    var horizontalLong = mainRect.w >= mainRect.h;
+    faces.forEach(function(f){
+      if (f.type !== 'long-side') return;
+      if (horizontalLong) {
+        if (_gutterOnLine(f, 'y', mainRect.y1, mainRect.x1, mainRect.x2)) mainA = mainA || f;
+        else if (_gutterOnLine(f, 'y', mainRect.y2, mainRect.x1, mainRect.x2)) mainB = mainB || f;
+      } else {
+        if (_gutterOnLine(f, 'x', mainRect.x1, mainRect.y1, mainRect.y2)) mainA = mainA || f;
+        else if (_gutterOnLine(f, 'x', mainRect.x2, mainRect.y1, mainRect.y2)) mainB = mainB || f;
+      }
+    });
+  }
+  // Fallback for non-axis-aligned outlines: largest long-side area,
+  // partnered with the closest anti-parallel long-side of similar
+  // sheet length.
+  if (!mainA) {
+    var byArea = faces.slice().sort(function(a, b){ return b.area - a.area; });
+    for (var fi = 0; fi < byArea.length; fi++) {
+      if (byArea[fi].type === 'long-side') { mainA = byArea[fi]; break; }
+    }
+    if (mainA && !mainB) {
+      for (var fi = 0; fi < byArea.length; fi++) {
+        var f = byArea[fi];
+        if (f === mainA || f.type !== 'long-side') continue;
+        var dot = mainA.tx*f.tx + mainA.ty*f.ty;
+        if (Math.abs(dot) > 0.85 && Math.abs(f.sheetM - mainA.sheetM) < (mainA.sheetM * 0.25 + 0.5)) {
+          mainB = f; break;
+        }
+      }
     }
   }
   faces.forEach(function(f){ f.color = COL_PURPLE; });
@@ -10271,52 +10377,136 @@ function renderRoofSheetPlan() {
   });
 
   // ── Lay sheet strips on each face ─────────────────────────────
-  // Strips run perpendicular to the face's gutter. Each strip is a
-  // narrow rectangle of width = coverPx centred on its line, clipped
-  // against the face polygon.
+  // Strips run perpendicular to the face's gutter. For each strip we
+  // cast a perpendicular ray inward from the gutter and stop at the
+  // first skeleton edge — this gives the LOCAL depth at that point
+  // along the gutter, and handles non-convex face polygons (the L's
+  // FA face is a pentagon that goes around the wing+main bridge) and
+  // varying-depth faces (a strip near a hip corner is shorter than
+  // one in the middle of a long-side face).
+  function _segIntersect(p, dir, q0, q1) {
+    // Intersect ray p + t*dir (t >= 0) with segment q0 → q1.
+    // System: t*dir - u*(q1-q0) = q0 - p   (column form). Solve via
+    // Cramer's rule. Returns t along the ray, or null if no hit.
+    var qdx = q1[0] - q0[0], qdy = q1[1] - q0[1];
+    var det = -dir[0] * qdy + dir[1] * qdx;
+    if (Math.abs(det) < 1e-9) return null;
+    var t = (-(q0[0]-p[0]) * qdy + (q0[1]-p[1]) * qdx) / det;
+    var u = (dir[0] * (q0[1]-p[1]) - dir[1] * (q0[0]-p[0])) / det;
+    // Accept zero-distance hits — at a gutter corner the inward hip
+    // STARTS on the ray and we want depth=0 there, not "ray passes
+    // through to the far side of the building".
+    if (t < -0.001 || u < -0.005 || u > 1.005) return null;
+    return Math.max(t, 0);
+  }
+  function _rayDepth(face, alongPos) {
+    var px = face.a[0] + alongPos * face.tx;
+    var py = face.a[1] + alongPos * face.ty;
+    var best = Infinity;
+    DRAW.lines.forEach(function(l){
+      if (l === face.gutter) return;
+      if (l.type !== 'hip' && l.type !== 'valley' && l.type !== 'ridge' && l.type !== 'barge') return;
+      if (!l.pts || l.pts.length !== 2) return;
+      var t = _segIntersect([px, py], [face.nx, face.ny], l.pts[0], l.pts[1]);
+      if (t !== null && t < best) best = t;
+    });
+    // Also clip against other gutter segments (for the opposite gutter on
+    // a thin building) so strips don't shoot through the building.
+    DRAW.lines.forEach(function(l){
+      if (l === face.gutter) return;
+      if (l.type !== 'gutter') return;
+      var t = _segIntersect([px, py], [face.nx, face.ny], l.pts[0], l.pts[1]);
+      if (t !== null && t < best) best = t;
+    });
+    return best === Infinity ? face.perpPx : best;
+  }
+  // First pass: compute per-face MAX strip depth so we can set
+  // face.sheetM accurately (the longest sheet that needs ordering).
+  faces.forEach(function(f){
+    var nStrips = Math.ceil(f.gL / coverPx);
+    var maxD = 0;
+    for (var s = 0; s < nStrips; s++){
+      var s0 = Math.min(s * coverPx, f.gL);
+      var s1 = Math.min((s + 1) * coverPx, f.gL);
+      var d0 = _rayDepth(f, s0);
+      var d1 = _rayDepth(f, s1);
+      var d  = Math.max(d0, d1);
+      if (d > maxD) maxD = d;
+    }
+    f.perpPx     = maxD;
+    f.planSheetM = maxD * effectiveScale;
+    f.sheetM     = maxD * effectiveScale * pitchFactor;
+  });
+  // Skeleton vertices "bulging out" into a face (e.g. apex of a hip
+  // line, end of a ridge) need to appear as vertices on a strip's
+  // inward edge — otherwise the straight line between the strip's two
+  // ray-cast endpoints chops the corner off and leaves a white sliver.
+  // Only consider apexes that are ACTUALLY ON THIS FACE's polygon (a
+  // hip-end across the building has its own apex which would otherwise
+  // get sucked in and draw a phantom line across the whole roof).
+  function _innerApexes(face, s0, s1, d0, d1) {
+    var apexes = [];
+    face.poly.forEach(function(p){
+      if (ptEq(p, face.a) || ptEq(p, face.b)) return;
+      var sPos = (p[0]-face.a[0]) * face.tx + (p[1]-face.a[1]) * face.ty;
+      if (sPos <= s0 + 0.1 || sPos >= s1 - 0.1) return;
+      var depth = (p[0]-face.a[0]) * face.nx + (p[1]-face.a[1]) * face.ny;
+      if (depth < 1) return;
+      var interp = d0 + (d1 - d0) * (sPos - s0) / Math.max(1e-6, s1 - s0);
+      if (depth <= interp + 0.5) return;
+      apexes.push({ sPos: sPos, depth: depth });
+    });
+    apexes.sort(function(a, b){ return a.sPos - b.sPos; });
+    return apexes;
+  }
   var allStrips = [];
   faces.forEach(function(f){
-    // Start at gutter-a, march along the gutter at coverPx spacing.
     var nStrips = Math.ceil(f.gL / coverPx);
     for (var s = 0; s < nStrips; s++){
-      // Strip footprint: rectangle from (a + s*coverPx*t) to
-      // (a + (s+1)*coverPx*t) along gutter, extending inward by
-      // perpPx + small overshoot.
       var s0 = Math.min(s * coverPx, f.gL);
       var s1 = Math.min((s + 1) * coverPx, f.gL);
       if (s1 - s0 < 0.5) continue;
+      var p0 = [f.a[0] + s0*f.tx, f.a[1] + s0*f.ty];
+      var p1 = [f.a[0] + s1*f.tx, f.a[1] + s1*f.ty];
+      // Sample depth at the strip's actual boundary positions so
+      // adjacent strips share a vertex (no 0.5 px seam).
+      var d0 = _rayDepth(f, s0);
+      var d1 = _rayDepth(f, s1);
+      // Walk the inward edge from (s1, d1) back to (s0, d0), inserting
+      // any skeleton apex vertices that bulge out past the straight
+      // interpolation between the two corners.
+      var inwardEdge = [];
+      var apexes = _innerApexes(f, s0, s1, d0, d1);
+      // The polygon is laid out: p0 → p1 → (apex pts in REVERSE order of sPos)
+      // because the inward edge runs back from the s1 corner to the s0
+      // corner.
+      for (var ai = apexes.length - 1; ai >= 0; ai--) {
+        var ap = apexes[ai];
+        var apX = f.a[0] + ap.sPos * f.tx + ap.depth * f.nx;
+        var apY = f.a[1] + ap.sPos * f.ty + ap.depth * f.ny;
+        inwardEdge.push([apX, apY]);
+      }
       var stripPoly = [
-        [f.a[0] + s0*f.tx, f.a[1] + s0*f.ty],
-        [f.a[0] + s1*f.tx, f.a[1] + s1*f.ty],
-        [f.a[0] + s1*f.tx + (f.perpPx + 4)*f.nx, f.a[1] + s1*f.ty + (f.perpPx + 4)*f.ny],
-        [f.a[0] + s0*f.tx + (f.perpPx + 4)*f.nx, f.a[1] + s0*f.ty + (f.perpPx + 4)*f.ny]
-      ];
-      var clipped = clipToConvexPoly(stripPoly, f.poly);
-      if (!clipped || clipped.length < 3) continue;
-      // Reject strips whose centroid lands outside the building
-      // outline — important for concave (L / T) outlines where a
-      // face polygon's convex hull can poke into the other arm.
-      var sCent = polyCentroid(clipped);
+        p0,
+        p1,
+        [p1[0] + d1*f.nx, p1[1] + d1*f.ny]
+      ].concat(inwardEdge).concat([
+        [p0[0] + d0*f.nx, p0[1] + d0*f.ny]
+      ]);
+      var sCent = polyCentroid(stripPoly);
       if (!_ptInOutline(sCent[0], sCent[1])) continue;
-      // Determine the strip's longest perpendicular run — this is the
-      // shaped sheet length (full sheet OR a hip-cut piece).
-      var maxDeep = 0;
-      clipped.forEach(function(p){
-        var d = (p[0]-f.a[0])*f.nx + (p[1]-f.a[1])*f.ny;
-        if (d > maxDeep) maxDeep = d;
-      });
+      var maxDeep = Math.max(d0, d1);
+      apexes.forEach(function(a){ if (a.depth > maxDeep) maxDeep = a.depth; });
       var stripPieceM = maxDeep * effectiveScale * pitchFactor;
       allStrips.push({
         face:   f,
-        poly:   clipped,
+        poly:   stripPoly,
         color:  f.color,
         pieceM: stripPieceM,
-        // The ORDERED sheet length is the face's full sheet length
-        // (we order to the longest piece on the face; hip-cut pieces
-        // come from that same sheet's offcut).
+        // Order to the FACE's longest sheet length so a clipped corner
+        // strip comes from the same SKU as the full middle strips.
         orderedLengthMm: orderedLengthMm(f.sheetM),
-        // Centroid for the sequence label.
-        centroid: polyCentroid(clipped)
+        centroid: sCent
       });
     }
   });
@@ -10338,68 +10528,72 @@ function renderRoofSheetPlan() {
   // corresponding clipped strip at the mirror corner of the
   // receiver face. Mark the receiver strip as offcut-fed so the
   // legend can deduct it from the receiver face's order count.
-  function _isClipped(s){
-    return s.pieceM < s.face.sheetM * 0.9;
-  }
-  function _pairOffcuts(donor, receiver){
-    if (!donor || !receiver) return;
-    var donorStrips = allStrips.filter(function(s){return s.face === donor;});
-    var recvStrips  = allStrips.filter(function(s){return s.face === receiver;});
-    // Project each strip's centroid onto the donor's along-gutter
-    // axis (in image coords). Closest along-axis position wins.
-    function alongPos(face, strip){
-      var dx = strip.centroid[0] - face.a[0];
-      var dy = strip.centroid[1] - face.a[1];
-      return dx*face.tx + dy*face.ty;
-    }
-    var donorClipped = donorStrips.filter(_isClipped);
-    var recvClipped  = recvStrips.filter(_isClipped);
-    if (!donorClipped.length || !recvClipped.length) return;
-    // Donor and receiver gutters likely point in opposite directions
-    // for an upside-down long-side. Use the FRACTION along each
-    // gutter (0..1) so we can match left↔left and right↔right
-    // regardless of direction.
-    function frac(face, strip){
-      var t = alongPos(face, strip) / face.gL;
-      // If the receiver's tangent runs opposite to the donor's, flip
-      // the fraction so the same building corner gives the same f.
-      return t;
-    }
-    var sameDir = (donor.tx*receiver.tx + donor.ty*receiver.ty) > 0;
-    donorClipped.forEach(function(ds){
-      var df = frac(donor, ds);
-      // Find the closest still-unmatched receiver clipped strip.
-      var best = null, bestD = Infinity;
-      recvClipped.forEach(function(rs){
-        if (rs._offcutMatched) return;
-        var rf = sameDir ? frac(receiver, rs) : (1 - frac(receiver, rs));
-        var d  = Math.abs(rf - df);
-        if (d < bestD) { bestD = d; best = rs; }
-      });
-      if (best && bestD < 0.18) {
-        best._offcutMatched = true;
-        best._offcutSource  = ds;
-        ds._offcutDest      = best;
+  // ── Number strips & route hip-end pieces to long-side offcuts ─
+  // SOP: each long-side face (with a ridge above it) gets its own
+  // FULL sheets ordered (gutter length ÷ cover width). Hip-end faces
+  // (two hips meeting at an apex, no ridge) order NOTHING — they're
+  // filled by the OFFCUTS of the corner sheets on the two adjacent
+  // long-sides. Each hip-end piece shares the reference number of the
+  // long-side corner sheet whose offcut feeds it.
+  function _findAdjacentLongSides(hipEnd){
+    // hipEnd.poly = [outline_corner_a, apex, outline_corner_b]
+    var a = hipEnd.poly[0], apex = hipEnd.poly[1], b = hipEnd.poly[2];
+    var out = { atA: null, atB: null };
+    faces.forEach(function(f){
+      if (f === hipEnd || f.type !== 'long-side') return;
+      for (var i = 0; i < f.poly.length; i++) {
+        var p = f.poly[i], q = f.poly[(i+1) % f.poly.length];
+        if ((ptEq(p, a) && ptEq(q, apex)) || (ptEq(p, apex) && ptEq(q, a))) out.atA = f;
+        if ((ptEq(p, b) && ptEq(q, apex)) || (ptEq(p, apex) && ptEq(q, b))) out.atB = f;
       }
     });
+    return out;
   }
-  if (mainA && mainB) _pairOffcuts(mainA, mainB);
-
-  // Sequence numbering — paired strips share a number; non-paired
-  // strips get fresh numbers, walking left-to-right within colour.
-  var byColor = {};
-  allStrips.forEach(function(s){
-    (byColor[s.color] = byColor[s.color] || []).push(s);
-  });
+  function _alongPos(face, pt){
+    return (pt[0]-face.a[0]) * face.tx + (pt[1]-face.a[1]) * face.ty;
+  }
+  // Number long-side strips first (sequentially, walking the gutter
+  // from a→b within each face, faces in iteration order).
   var nextSeq = 1;
-  Object.keys(byColor).forEach(function(c){
-    byColor[c].sort(function(a, b){
-      return a.centroid[0] - b.centroid[0] || a.centroid[1] - b.centroid[1];
-    });
-    byColor[c].forEach(function(s){
-      if (s._offcutMatched && s._offcutSource && s._offcutSource.seq) {
-        s.seq = s._offcutSource.seq;          // share donor's number
-        s.isOffcut = true;
+  faces.forEach(function(f){
+    if (f.type !== 'long-side') return;
+    var sideStrips = allStrips.filter(function(s){ return s.face === f; });
+    sideStrips.sort(function(p, q){ return _alongPos(f, p.centroid) - _alongPos(f, q.centroid); });
+    sideStrips.forEach(function(s){ s.seq = nextSeq++; });
+  });
+  // Each hip-end strip → find which adjacent long-side's corner strip
+  // (the one whose hip-cut offcut, rotated 90°, fills this position).
+  // Strips in the "a-half" of the hip-end come from the adjacent
+  // long-side that shares the hip at corner a (matching the same
+  // distance-from-corner on that long-side's gutter).
+  faces.forEach(function(f){
+    if (f.type !== 'hip-end') return;
+    var adj = _findAdjacentLongSides(f);
+    var heStrips = allStrips.filter(function(s){ return s.face === f; });
+    heStrips.forEach(function(s){
+      var alongPos = _alongPos(f, s.centroid);
+      var distFromA = alongPos;
+      var distFromB = f.gL - alongPos;
+      var closeIsA = distFromA <= distFromB;
+      var sourceFace = closeIsA ? adj.atA : adj.atB;
+      var sharedCorner = closeIsA ? f.poly[0] : f.poly[2];
+      var distFromCorner = closeIsA ? distFromA : distFromB;
+      if (!sourceFace) { s.seq = nextSeq++; return; }
+      // Distance along the source face's gutter from the shared corner
+      var sideStrips = allStrips.filter(function(ss){ return ss.face === sourceFace; });
+      var fromAside = ptEq(sourceFace.a, sharedCorner);
+      // Match by distance from the shared corner
+      var best = null, bestD = Infinity;
+      sideStrips.forEach(function(ss){
+        var ssAlong = _alongPos(sourceFace, ss.centroid);
+        var ssDist  = fromAside ? ssAlong : (sourceFace.gL - ssAlong);
+        var d       = Math.abs(ssDist - distFromCorner);
+        if (d < bestD) { bestD = d; best = ss; }
+      });
+      if (best) {
+        s.seq      = best.seq;          // share long-side sheet number
+        s.color    = best.color;        // adopt source colour
+        s.isOffcut = true;              // skipped from order count
       } else {
         s.seq = nextSeq++;
       }
