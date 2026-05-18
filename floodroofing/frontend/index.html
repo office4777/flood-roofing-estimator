@@ -10503,49 +10503,107 @@ function renderRoofSheetPlan() {
     var dx = p[0]-pivot[0], dy = p[1]-pivot[1];
     return dir > 0 ? [pivot[0]-dy, pivot[1]+dx] : [pivot[0]+dy, pivot[1]-dx];
   }
-  // Rotate a phantom strip about the reflex vertex and split it across
-  // every non-donor face it overlaps.  Returns the array of new
-  // sub-strips (one per face it lands on).  The CALLER ordering pass
-  // gives them all the same sheet number — one physical sheet, cut at
-  // the hips between faces (the SOP cascade re-cut).
-  function _routePhantom(strip){
-    if (!reflexV) return [];
-    var c = strip.centroid;
-    var dirs = [+1, -1];
-    var chosen = null;
-    dirs.forEach(function(dir){
-      if (chosen) return;
-      var rc = _rotPt(c, reflexV, dir);
-      if (!_ptInOutline(rc[0], rc[1])) return;
-      for (var i = 0; i < faces.length; i++) {
-        var f = faces[i];
-        if (f === strip.face) continue;
-        if (_ptInPoly(rc[0], rc[1], f.poly)) { chosen = dir; break; }
-      }
-    });
-    if (!chosen) return [];
-    var rotPoly = strip.poly.map(function(p){return _rotPt(p, reflexV, chosen);});
-    var pieces = [];
+  // For each donor, find the PRIMARY receiver face: the wing's
+  // long-side face whose gutter shares an endpoint with the reflex
+  // vertex (i.e. the wing face that physically sits next to the
+  // bridge).  Phantom strips rotate cleanly onto this single face —
+  // anything that overflows past the receiver's apex becomes cascade
+  // offcut that fills the bridge-junction triangle.
+  function _primaryReceiver(donor) {
+    if (!reflexV || !donor) return null;
+    var best = null;
     faces.forEach(function(f){
-      if (f === strip.face) return;
-      var clipped = clipToConvexPoly(rotPoly, f.poly);
-      if (!clipped || clipped.length < 3) return;
-      var area = polyArea(clipped);
-      if (area < 40) return;          // ignore slivers
-      pieces.push({ poly: clipped, centroid: polyCentroid(clipped), face: f, area: area });
+      if (f === donor || f.type !== 'long-side') return;
+      // Receiver gutter must TOUCH the reflex vertex.
+      var touchesReflex = ptEq(f.a, reflexV) || ptEq(f.b, reflexV);
+      if (!touchesReflex) return;
+      // Receiver gutter must be PERPENDICULAR to donor's gutter
+      // (otherwise rotating donor onto it makes no sense).
+      var dot = Math.abs(donor.tx*f.tx + donor.ty*f.ty);
+      if (dot > 0.3) return;
+      if (!best || f.gL > best.gL) best = f;
     });
+    return best;
+  }
+  // Construct the bridge-triangle "face" — the small region near the
+  // reflex vertex bounded by the valley, the bridge-hip, and the line
+  // back to the reflex vertex.  This region isn't picked up by the
+  // gutter-driven face detection because it has no gutter of its own;
+  // we synthesise it here so cascade overflow has a place to land.
+  function _bridgeTriangle(){
+    if (!reflexV) return null;
+    // Find the valley line emanating from the reflex vertex.
+    var valley = null;
+    DRAW.lines.forEach(function(l){
+      if (l.type !== 'valley') return;
+      if (ptEq(l.pts[0], reflexV)) valley = { far: l.pts[1].slice() };
+      else if (ptEq(l.pts[1], reflexV)) valley = { far: l.pts[0].slice() };
+    });
+    if (!valley) return null;
+    var valleyFar = valley.far;
+    // Find a 'hip' line that connects to valleyFar — that's the bridge hip.
+    var bridgeFar = null;
+    DRAW.lines.forEach(function(l){
+      if (l.type !== 'hip') return;
+      if (ptEq(l.pts[0], valleyFar) && !ptEq(l.pts[1], reflexV)) bridgeFar = l.pts[1].slice();
+      else if (ptEq(l.pts[1], valleyFar) && !ptEq(l.pts[0], reflexV)) bridgeFar = l.pts[0].slice();
+    });
+    if (!bridgeFar) return null;
+    return [reflexV.slice(), valleyFar.slice(), bridgeFar.slice()];
+  }
+  var bridgeTri = _bridgeTriangle();
+
+  // Route phantom strips: rotate, clip cleanly to the primary
+  // receiver, and route the overflow to the bridge triangle (if any).
+  // Each donor strip's PRIMARY piece replaces a receiver-face slot;
+  // the cascade overflow piece (if it exists) sits in the bridge tri
+  // with the same seq number.
+  var primaryRecvA = _primaryReceiver(mainA);
+  var primaryRecvB = _primaryReceiver(mainB);
+  function _routePhantom(strip){
+    if (!reflexV) return null;
+    var primaryRecv = (strip.face === mainA) ? primaryRecvA :
+                      (strip.face === mainB) ? primaryRecvB : null;
+    if (!primaryRecv) return null;
+    // Pick rotation direction that maps the strip's centroid TOWARD
+    // the primary receiver.
+    var c = strip.centroid;
+    var ccw = _rotPt(c, reflexV, +1), cw = _rotPt(c, reflexV, -1);
+    var ccwIn = _ptInPoly(ccw[0], ccw[1], primaryRecv.poly);
+    var cwIn  = _ptInPoly(cw[0], cw[1], primaryRecv.poly);
+    var dir = ccwIn ? +1 : (cwIn ? -1 : null);
+    if (!dir) {
+      // Centroid landed outside the receiver — but the strip itself
+      // (which is bigger than its centroid) may still overlap it.
+      // Try both directions; keep the one that yields a non-empty
+      // clipped piece on the primary receiver.
+      [+1, -1].forEach(function(d){
+        if (dir) return;
+        var rp = strip.poly.map(function(p){return _rotPt(p, reflexV, d);});
+        var cp = clipToConvexPoly(rp, primaryRecv.poly);
+        if (cp && cp.length >= 3 && polyArea(cp) > 60) dir = d;
+      });
+    }
+    if (!dir) return null;
+    var rotPoly = strip.poly.map(function(p){return _rotPt(p, reflexV, dir);});
+    var primary = clipToConvexPoly(rotPoly, primaryRecv.poly);
+    if (!primary || primary.length < 3 || polyArea(primary) < 60) return null;
+    var pieces = [{ poly: primary, centroid: polyCentroid(primary), face: primaryRecv, area: polyArea(primary) }];
+    // Cascade overflow → bridge triangle (if it exists and the rotated
+    // strip overlaps it).
+    if (bridgeTri) {
+      var overflow = clipToConvexPoly(rotPoly, bridgeTri);
+      if (overflow && overflow.length >= 3 && polyArea(overflow) > 60) {
+        pieces.push({ poly: overflow, centroid: polyCentroid(overflow), face: null, area: polyArea(overflow) });
+      }
+    }
     return pieces;
   }
-  // Replace each phantom strip with cascade pieces.  All pieces share
-  // the parent strip's seq (one physical sheet); only the LARGEST
-  // piece keeps `isPhantom`, the rest are tagged as cascade-offcuts
-  // so they don't double-count.
   var phantomStrips = allStrips.filter(function(s){return s.isPhantom;});
   var cascadeAdds = [];
   phantomStrips.forEach(function(s){
     var pieces = _routePhantom(s);
-    if (!pieces.length) { s.isPhantom = false; return; }
-    pieces.sort(function(a,b){return b.area - a.area;});
+    if (!pieces || !pieces.length) { s.isPhantom = false; return; }
     s.poly     = pieces[0].poly;
     s.centroid = pieces[0].centroid;
     s.receiver = pieces[0].face;
