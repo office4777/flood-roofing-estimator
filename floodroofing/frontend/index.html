@@ -10441,23 +10441,20 @@ function renderRoofSheetPlan() {
   // line, end of a ridge) need to appear as vertices on a strip's
   // inward edge — otherwise the straight line between the strip's two
   // ray-cast endpoints chops the corner off and leaves a white sliver.
+  // Only consider apexes that are ACTUALLY ON THIS FACE's polygon (a
+  // hip-end across the building has its own apex which would otherwise
+  // get sucked in and draw a phantom line across the whole roof).
   function _innerApexes(face, s0, s1, d0, d1) {
     var apexes = [];
-    DRAW.lines.forEach(function(l){
-      if (l.type !== 'hip' && l.type !== 'valley' && l.type !== 'ridge' && l.type !== 'barge') return;
-      if (!l.pts || l.pts.length !== 2) return;
-      [l.pts[0], l.pts[1]].forEach(function(p){
-        // along-gutter projection
-        var sPos = (p[0]-face.a[0]) * face.tx + (p[1]-face.a[1]) * face.ty;
-        if (sPos <= s0 + 0.1 || sPos >= s1 - 0.1) return;
-        // perpendicular depth into the face
-        var depth = (p[0]-face.a[0]) * face.nx + (p[1]-face.a[1]) * face.ny;
-        if (depth < 1) return;
-        // Skip points that the straight strip-edge already covers.
-        var interp = d0 + (d1 - d0) * (sPos - s0) / Math.max(1e-6, s1 - s0);
-        if (depth <= interp + 0.5) return;
-        apexes.push({ sPos: sPos, depth: depth });
-      });
+    face.poly.forEach(function(p){
+      if (ptEq(p, face.a) || ptEq(p, face.b)) return;
+      var sPos = (p[0]-face.a[0]) * face.tx + (p[1]-face.a[1]) * face.ty;
+      if (sPos <= s0 + 0.1 || sPos >= s1 - 0.1) return;
+      var depth = (p[0]-face.a[0]) * face.nx + (p[1]-face.a[1]) * face.ny;
+      if (depth < 1) return;
+      var interp = d0 + (d1 - d0) * (sPos - s0) / Math.max(1e-6, s1 - s0);
+      if (depth <= interp + 0.5) return;
+      apexes.push({ sPos: sPos, depth: depth });
     });
     apexes.sort(function(a, b){ return a.sPos - b.sPos; });
     return apexes;
