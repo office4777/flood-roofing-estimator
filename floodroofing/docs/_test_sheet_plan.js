@@ -50,20 +50,43 @@ const path = require('path');
   });
 
   // CASE 2 — SOP-style L-shape: a long horizontal main body with a
-  // wing extending DOWN from the right portion (matches the
-  // schematic on SOP page 8).
+  // wing extending DOWN from the right portion. The blue (bottom)
+  // long-side is the one truncated by the wing.
   //
   //   +--------------------+   ← top of main
   //   |     main body      |
   //   +--------+----+------+   ← bottom of main meets wing on the right
   //            |    |          ← wing extends DOWN
   //            +----+
-  //
-  // 6 corners, no self-overlap.
   await renderCase('Lshape', () => {
     window.DRAW.outline = [
       [200, 150], [780, 150], [780, 480], [560, 480],
       [560, 320], [200, 320]
+    ];
+    window.DRAW.outlineDone = true;
+    window.DRAW.scaleMetresPerPx = 0.02;
+    window.DRAW.calPitch = 22;
+    window.DRAW.lines = [];
+    window.autoGenerateRoof && window.autoGenerateRoof('hip');
+  });
+
+  // CASE 3 — bigger SOP L-shape: wing on the TOP-LEFT, main on the
+  // bottom-right. 900×700 main + 300×300 wing.  This time the orange
+  // (top) long-side is the truncated one — its phantom extension
+  // crosses x=100..400 over the wing footprint.
+  //
+  //   +-----+
+  //   | wing|
+  //   |     |
+  //   +-----+--------------+   ← top of main starts at C=(400,400)
+  //   |                    |
+  //   |     main body      |
+  //   |                    |
+  //   +--------------------+
+  await renderCase('LshapeBig', () => {
+    window.DRAW.outline = [
+      [100, 100], [400, 100], [400, 400], [1000, 400],
+      [1000, 1100], [100, 1100]
     ];
     window.DRAW.outlineDone = true;
     window.DRAW.scaleMetresPerPx = 0.02;

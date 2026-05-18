@@ -10227,82 +10227,243 @@ function renderRoofSheetPlan() {
     return;
   }
 
-  // ── Colour assignment per SOP ─────────────────────────────────
-  // 1. Sort faces by their gutter length (longer = more important).
-  // 2. The two longest LONG-SIDE faces with similar gutter direction
-  //    form the MAIN PAIR: orange + blue.
-  // 3. Hip-end faces inherit the colour of their long-side partner
-  //    (matched by which hip line they share).
-  // 4. Anything left (e.g. an L-shape wing's faces) gets PURPLE.
-  faces.sort(function(a, b){ return b.gL - a.gL; });
-  // Find the main long-side pair: longest long-side, then longest
-  // long-side roughly anti-parallel to it.
-  var mainA = null, mainB = null;
-  for (var fi = 0; fi < faces.length; fi++) {
-    if (faces[fi].type === 'long-side') { mainA = faces[fi]; break; }
+  // ── Main rectangle detection (for phantom-4-hip extension) ────
+  // The "main rectangle" is the largest axis-aligned rectangle that
+  // fits inside the outline.  For an L / T shape this is the main body
+  // (ignoring the wing).  For a plain 4-hip it's the building itself.
+  // Orange / blue are picked as the two long-side faces whose gutters
+  // run along the main rect's LONG axis — if either gutter is shorter
+  // than the main rect edge it lies on, the missing piece is a
+  // "phantom" extension that gets sheets ordered for it but routed as
+  // offcuts onto the wing faces.
+  function _findMainRect() {
+    var xs = [], ys = [];
+    outline.forEach(function(p){
+      if (xs.every(function(v){return Math.abs(v-p[0]) > 1;})) xs.push(p[0]);
+      if (ys.every(function(v){return Math.abs(v-p[1]) > 1;})) ys.push(p[1]);
+    });
+    xs.sort(function(a,b){return a-b;});
+    ys.sort(function(a,b){return a-b;});
+    var best = null, bestA = 0;
+    for (var i = 0; i < xs.length - 1; i++) {
+      for (var j = i + 1; j < xs.length; j++) {
+        for (var k = 0; k < ys.length - 1; k++) {
+          for (var l = k + 1; l < ys.length; l++) {
+            var x0 = xs[i], x1 = xs[j], y0 = ys[k], y1 = ys[l];
+            // All 4×4 inner sample points must be inside the outline.
+            var ok = true;
+            for (var u = 1; u <= 4 && ok; u++) {
+              for (var v = 1; v <= 4 && ok; v++) {
+                if (!_ptInOutline(x0 + (x1-x0)*u/5, y0 + (y1-y0)*v/5)) ok = false;
+              }
+            }
+            if (!ok) continue;
+            var area = (x1-x0)*(y1-y0);
+            if (area > bestA) { bestA = area; best = {x0:x0,y0:y0,x1:x1,y1:y1}; }
+          }
+        }
+      }
+    }
+    return best;
   }
-  if (mainA) {
+  var mainRect = _findMainRect();
+  var mainAxis = mainRect && (mainRect.x1-mainRect.x0) >= (mainRect.y1-mainRect.y0) ? 'h' : 'v';
+
+  // ── Colour assignment ─────────────────────────────────────────
+  // Orange = long-side along main rect's "low" long edge
+  // Blue   = long-side along main rect's "high" long edge
+  // Hip-end faces inherit the colour of whichever long-side they share
+  // an apex with.  Anything else (wing faces) gets PURPLE.
+  faces.sort(function(a, b){ return b.gL - a.gL; });
+  faces.forEach(function(f){ f.color = COL_PURPLE; });
+  var mainA = null, mainB = null;  // orange, blue
+  if (mainRect) {
+    faces.forEach(function(f){
+      if (f.type !== 'long-side') return;
+      var a = f.a, b = f.b;
+      if (mainAxis === 'h') {
+        if (Math.abs(a[1]-b[1]) > 4) return;       // gutter not horizontal
+        if (Math.abs(a[1]-mainRect.y0) < 4) {
+          if (!mainA || f.gL > mainA.gL) mainA = f;
+        } else if (Math.abs(a[1]-mainRect.y1) < 4) {
+          if (!mainB || f.gL > mainB.gL) mainB = f;
+        }
+      } else {
+        if (Math.abs(a[0]-b[0]) > 4) return;       // gutter not vertical
+        if (Math.abs(a[0]-mainRect.x0) < 4) {
+          if (!mainA || f.gL > mainA.gL) mainA = f;
+        } else if (Math.abs(a[0]-mainRect.x1) < 4) {
+          if (!mainB || f.gL > mainB.gL) mainB = f;
+        }
+      }
+    });
+  }
+  // Fallback (no main rect detected): pick the longest long-side and
+  // its anti-parallel partner.
+  if (!mainA) {
     for (var fi = 0; fi < faces.length; fi++) {
-      var f = faces[fi];
-      if (f === mainA || f.type !== 'long-side') continue;
-      var dot = mainA.tx*f.tx + mainA.ty*f.ty;
-      if (Math.abs(dot) > 0.85) { mainB = f; break; }  // (anti-)parallel
+      if (faces[fi].type === 'long-side') { mainA = faces[fi]; break; }
+    }
+    if (mainA) {
+      for (var fi = 0; fi < faces.length; fi++) {
+        var f = faces[fi];
+        if (f === mainA || f.type !== 'long-side') continue;
+        var dot = mainA.tx*f.tx + mainA.ty*f.ty;
+        if (Math.abs(dot) > 0.85) { mainB = f; break; }
+      }
     }
   }
-  faces.forEach(function(f){ f.color = COL_PURPLE; });
   if (mainA) mainA.color = COL_ORANGE;
   if (mainB) mainB.color = COL_BLUE;
   // Hip-end faces inherit colour of whichever long-side face they
   // share a hip with.
   faces.forEach(function(f){
     if (f.type !== 'hip-end') return;
-    // Find a long-side face that shares an inward boundary line with
-    // this hip-end (i.e. shares the apex point).
-    var apex = f.poly[1];  // index 1 is the apex after CCW
-    // Try matching against mainA / mainB first
+    var apex = f.poly[1];
     var partner = null;
     [mainA, mainB].forEach(function(m){
       if (!m || partner) return;
-      // Long-side has apex_a (poly[1]) and apex_b (poly[2]) — match
-      // either.
       if (ptEq(m.poly[1], apex) || ptEq(m.poly[2], apex)) partner = m;
     });
     if (partner) f.color = partner.color;
   });
 
+  // ── Phantom-4-hip extents ─────────────────────────────────────
+  // For each of orange/blue, see if the gutter spans the whole main
+  // rect edge.  If not, record the missing interval(s) as phantom.
+  function _phantomFor(face) {
+    if (!face || !mainRect) return null;
+    var a = face.a, b = face.b;
+    var t0, t1, full0, full1;
+    if (mainAxis === 'h') {
+      t0 = Math.min(a[0], b[0]); t1 = Math.max(a[0], b[0]);
+      full0 = mainRect.x0;       full1 = mainRect.x1;
+    } else {
+      t0 = Math.min(a[1], b[1]); t1 = Math.max(a[1], b[1]);
+      full0 = mainRect.y0;       full1 = mainRect.y1;
+    }
+    var phantoms = [];
+    if (t0 - full0 > 4) phantoms.push([full0, t0]);
+    if (full1 - t1 > 4) phantoms.push([t1, full1]);
+    if (!phantoms.length) return null;
+    return { phantoms: phantoms, full: [full0, full1], real: [t0, t1] };
+  }
+  if (mainA) mainA.phantom = _phantomFor(mainA);
+  if (mainB) mainB.phantom = _phantomFor(mainB);
+
+  // Generic point-in-polygon (ray cast). Used to detect strips that
+  // lie inside the donor's REAL face vs its phantom extension.
+  function _ptInPoly(px, py, poly){
+    var inside = false, n2 = poly.length;
+    for (var k = 0, j = n2-1; k < n2; j = k++) {
+      var xi = poly[k][0], yi = poly[k][1];
+      var xj = poly[j][0], yj = poly[j][1];
+      if (((yi > py) !== (yj > py)) && (px < (xj-xi)*(py-yi)/(yj-yi+1e-10) + xi))
+        inside = !inside;
+    }
+    return inside;
+  }
+
+  // For phantom-extended donor faces, the strip layout walks the FULL
+  // main rect edge (real + phantom), clipped against the phantom-4-hip
+  // trapezoid (not the truncated real face polygon).  Strips whose
+  // centroid lands OUTSIDE the donor's real face polygon are tagged
+  // `isPhantom` — they're counted as ordered sheets for the donor
+  // colour but their physical install location is on a wing face.
+  function _extendedDonor(f) {
+    if (!f.phantom || !mainRect) return null;
+    var w = mainRect.x1 - mainRect.x0;
+    var h = mainRect.y1 - mainRect.y0;
+    var aStart, aEnd, nx, ny, poly, perpPx;
+    if (mainAxis === 'h') {
+      var rY  = (mainRect.y0 + mainRect.y1) / 2;
+      var rX0 = mainRect.x0 + h/2;
+      var rX1 = mainRect.x1 - h/2;
+      perpPx = h/2;
+      if (Math.abs(f.a[1] - mainRect.y0) < 4) {
+        // Top long-side — face on the low-Y edge, normal points +y
+        aStart = f.tx > 0 ? [mainRect.x0, mainRect.y0] : [mainRect.x1, mainRect.y0];
+        aEnd   = f.tx > 0 ? [mainRect.x1, mainRect.y0] : [mainRect.x0, mainRect.y0];
+        nx = 0; ny = 1;
+        poly = [[mainRect.x0, mainRect.y0], [rX0, rY], [rX1, rY], [mainRect.x1, mainRect.y0]];
+      } else {
+        aStart = f.tx > 0 ? [mainRect.x0, mainRect.y1] : [mainRect.x1, mainRect.y1];
+        aEnd   = f.tx > 0 ? [mainRect.x1, mainRect.y1] : [mainRect.x0, mainRect.y1];
+        nx = 0; ny = -1;
+        poly = [[mainRect.x0, mainRect.y1], [mainRect.x1, mainRect.y1], [rX1, rY], [rX0, rY]];
+      }
+    } else {
+      var rX  = (mainRect.x0 + mainRect.x1) / 2;
+      var rY0 = mainRect.y0 + w/2;
+      var rY1 = mainRect.y1 - w/2;
+      perpPx = w/2;
+      if (Math.abs(f.a[0] - mainRect.x0) < 4) {
+        aStart = f.ty > 0 ? [mainRect.x0, mainRect.y0] : [mainRect.x0, mainRect.y1];
+        aEnd   = f.ty > 0 ? [mainRect.x0, mainRect.y1] : [mainRect.x0, mainRect.y0];
+        nx = 1; ny = 0;
+        poly = [[mainRect.x0, mainRect.y0], [mainRect.x0, mainRect.y1], [rX, rY1], [rX, rY0]];
+      } else {
+        aStart = f.ty > 0 ? [mainRect.x1, mainRect.y0] : [mainRect.x1, mainRect.y1];
+        aEnd   = f.ty > 0 ? [mainRect.x1, mainRect.y1] : [mainRect.x1, mainRect.y0];
+        nx = -1; ny = 0;
+        poly = [[mainRect.x1, mainRect.y0], [rX, rY0], [rX, rY1], [mainRect.x1, mainRect.y1]];
+      }
+    }
+    var gL = Math.abs(aEnd[0]-aStart[0]) + Math.abs(aEnd[1]-aStart[1]);
+    return {
+      aStart: aStart, aEnd: aEnd,
+      tx: (aEnd[0]-aStart[0])/gL, ty: (aEnd[1]-aStart[1])/gL,
+      nx: nx, ny: ny,
+      gL: gL, perpPx: perpPx, poly: poly
+    };
+  }
+
   // ── Lay sheet strips on each face ─────────────────────────────
   // Strips run perpendicular to the face's gutter. Each strip is a
   // narrow rectangle of width = coverPx centred on its line, clipped
-  // against the face polygon.
+  // against the face polygon.  Phantom-extended donors (orange/blue
+  // on an L-shape) walk the FULL main-rect edge and clip against the
+  // phantom-4-hip trapezoid; strips landing outside the donor's real
+  // face polygon are flagged for routing to a wing receiver face.
   var allStrips = [];
   faces.forEach(function(f){
-    // Start at gutter-a, march along the gutter at coverPx spacing.
-    var nStrips = Math.ceil(f.gL / coverPx);
+    var ext = _extendedDonor(f);  // null unless f is a phantom-extended donor
+    var aStart = ext ? ext.aStart : f.a;
+    var tx     = ext ? ext.tx    : f.tx;
+    var ty     = ext ? ext.ty    : f.ty;
+    var nx     = ext ? ext.nx    : f.nx;
+    var ny     = ext ? ext.ny    : f.ny;
+    var gL     = ext ? ext.gL    : f.gL;
+    var perpPx = ext ? ext.perpPx: f.perpPx;
+    var clipPoly = ext ? ext.poly : f.poly;
+    var nStrips = Math.ceil(gL / coverPx);
     for (var s = 0; s < nStrips; s++){
-      // Strip footprint: rectangle from (a + s*coverPx*t) to
-      // (a + (s+1)*coverPx*t) along gutter, extending inward by
-      // perpPx + small overshoot.
-      var s0 = Math.min(s * coverPx, f.gL);
-      var s1 = Math.min((s + 1) * coverPx, f.gL);
+      var s0 = Math.min(s * coverPx, gL);
+      var s1 = Math.min((s + 1) * coverPx, gL);
       if (s1 - s0 < 0.5) continue;
       var stripPoly = [
-        [f.a[0] + s0*f.tx, f.a[1] + s0*f.ty],
-        [f.a[0] + s1*f.tx, f.a[1] + s1*f.ty],
-        [f.a[0] + s1*f.tx + (f.perpPx + 4)*f.nx, f.a[1] + s1*f.ty + (f.perpPx + 4)*f.ny],
-        [f.a[0] + s0*f.tx + (f.perpPx + 4)*f.nx, f.a[1] + s0*f.ty + (f.perpPx + 4)*f.ny]
+        [aStart[0] + s0*tx, aStart[1] + s0*ty],
+        [aStart[0] + s1*tx, aStart[1] + s1*ty],
+        [aStart[0] + s1*tx + (perpPx + 4)*nx, aStart[1] + s1*ty + (perpPx + 4)*ny],
+        [aStart[0] + s0*tx + (perpPx + 4)*nx, aStart[1] + s0*ty + (perpPx + 4)*ny]
       ];
-      var clipped = clipToConvexPoly(stripPoly, f.poly);
+      var clipped = clipToConvexPoly(stripPoly, clipPoly);
       if (!clipped || clipped.length < 3) continue;
-      // Reject strips whose centroid lands outside the building
-      // outline — important for concave (L / T) outlines where a
-      // face polygon's convex hull can poke into the other arm.
       var sCent = polyCentroid(clipped);
+      // For non-phantom strips, require the centroid to be inside the
+      // building outline (rejects spurious strips that poke into the
+      // other arm of an L).  For phantom donors the centroid can be
+      // outside the donor's real polygon but should still be inside
+      // the building footprint.
       if (!_ptInOutline(sCent[0], sCent[1])) continue;
-      // Determine the strip's longest perpendicular run — this is the
-      // shaped sheet length (full sheet OR a hip-cut piece).
+      var isPhantomStrip = false;
+      if (ext) {
+        // Phantom if the centroid lies OUTSIDE the donor's real face polygon
+        isPhantomStrip = !_ptInPoly(sCent[0], sCent[1], f.poly);
+      }
       var maxDeep = 0;
       clipped.forEach(function(p){
-        var d = (p[0]-f.a[0])*f.nx + (p[1]-f.a[1])*f.ny;
+        var d = (p[0]-aStart[0])*nx + (p[1]-aStart[1])*ny;
         if (d > maxDeep) maxDeep = d;
       });
       var stripPieceM = maxDeep * effectiveScale * pitchFactor;
@@ -10311,15 +10472,28 @@ function renderRoofSheetPlan() {
         poly:   clipped,
         color:  f.color,
         pieceM: stripPieceM,
-        // The ORDERED sheet length is the face's full sheet length
-        // (we order to the longest piece on the face; hip-cut pieces
-        // come from that same sheet's offcut).
         orderedLengthMm: orderedLengthMm(f.sheetM),
-        // Centroid for the sequence label.
-        centroid: polyCentroid(clipped)
+        centroid: sCent,
+        isPhantom: isPhantomStrip
       });
     }
   });
+
+  // Suppress receiver-face strips that overlap a phantom strip — the
+  // phantom donor sheet PHYSICALLY occupies that slot, so the wing's
+  // own purple sheet isn't ordered there.
+  var phantomStrips = allStrips.filter(function(s){return s.isPhantom;});
+  if (phantomStrips.length) {
+    allStrips = allStrips.filter(function(s){
+      if (s.isPhantom) return true;
+      if (s.face === mainA || s.face === mainB) return true;  // donors keep their real strips
+      // Drop receiver strips whose centroid lies inside any phantom strip's polygon.
+      for (var i = 0; i < phantomStrips.length; i++) {
+        if (_ptInPoly(s.centroid[0], s.centroid[1], phantomStrips[i].poly)) return false;
+      }
+      return true;
+    });
+  }
 
   // ── Number strips & pair offcuts ──────────────────────────────
   // SOP §8: offcuts can be rotated by 90°/180°/270° but NEVER flipped
