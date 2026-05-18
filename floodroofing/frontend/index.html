@@ -10479,15 +10479,96 @@ function renderRoofSheetPlan() {
     }
   });
 
-  // Suppress receiver-face strips that overlap a phantom strip — the
-  // phantom donor sheet PHYSICALLY occupies that slot, so the wing's
-  // own purple sheet isn't ordered there.
+  // ── Rotate phantom strips onto the wing receiver ──────────────
+  // The phantom donor sheet doesn't physically sit at its natural
+  // donor-face position (which is over the wing's footprint, not on
+  // the wing's roof at all).  It gets ROTATED 90° about the outline's
+  // reflex vertex onto the wing face that fronts the bridge area, so
+  // its corrugation matches that face's gutter-to-ridge flow.
+  function _findReflexVertex(){
+    var n = outline.length;
+    // We've already forced the outline CCW (positive shoelace), so a
+    // reflex vertex has a NEGATIVE cross product at that corner.
+    for (var i = 0; i < n; i++) {
+      var prev = outline[(i-1+n)%n], curr = outline[i], next = outline[(i+1)%n];
+      var ex1 = curr[0]-prev[0], ey1 = curr[1]-prev[1];
+      var ex2 = next[0]-curr[0], ey2 = next[1]-curr[1];
+      var cross = ex1*ey2 - ey1*ex2;
+      if (cross < -1) return curr.slice();
+    }
+    return null;
+  }
+  var reflexV = _findReflexVertex();
+  function _rotPt(p, pivot, dir){
+    var dx = p[0]-pivot[0], dy = p[1]-pivot[1];
+    return dir > 0 ? [pivot[0]-dy, pivot[1]+dx] : [pivot[0]+dy, pivot[1]-dx];
+  }
+  // Rotate a phantom strip about the reflex vertex and split it across
+  // every non-donor face it overlaps.  Returns the array of new
+  // sub-strips (one per face it lands on).  The CALLER ordering pass
+  // gives them all the same sheet number — one physical sheet, cut at
+  // the hips between faces (the SOP cascade re-cut).
+  function _routePhantom(strip){
+    if (!reflexV) return [];
+    var c = strip.centroid;
+    var dirs = [+1, -1];
+    var chosen = null;
+    dirs.forEach(function(dir){
+      if (chosen) return;
+      var rc = _rotPt(c, reflexV, dir);
+      if (!_ptInOutline(rc[0], rc[1])) return;
+      for (var i = 0; i < faces.length; i++) {
+        var f = faces[i];
+        if (f === strip.face) continue;
+        if (_ptInPoly(rc[0], rc[1], f.poly)) { chosen = dir; break; }
+      }
+    });
+    if (!chosen) return [];
+    var rotPoly = strip.poly.map(function(p){return _rotPt(p, reflexV, chosen);});
+    var pieces = [];
+    faces.forEach(function(f){
+      if (f === strip.face) return;
+      var clipped = clipToConvexPoly(rotPoly, f.poly);
+      if (!clipped || clipped.length < 3) return;
+      var area = polyArea(clipped);
+      if (area < 40) return;          // ignore slivers
+      pieces.push({ poly: clipped, centroid: polyCentroid(clipped), face: f, area: area });
+    });
+    return pieces;
+  }
+  // Replace each phantom strip with cascade pieces.  All pieces share
+  // the parent strip's seq (one physical sheet); only the LARGEST
+  // piece keeps `isPhantom`, the rest are tagged as cascade-offcuts
+  // so they don't double-count.
   var phantomStrips = allStrips.filter(function(s){return s.isPhantom;});
+  var cascadeAdds = [];
+  phantomStrips.forEach(function(s){
+    var pieces = _routePhantom(s);
+    if (!pieces.length) { s.isPhantom = false; return; }
+    pieces.sort(function(a,b){return b.area - a.area;});
+    s.poly     = pieces[0].poly;
+    s.centroid = pieces[0].centroid;
+    s.receiver = pieces[0].face;
+    for (var i = 1; i < pieces.length; i++) {
+      cascadeAdds.push({
+        face: s.face, color: s.color,
+        pieceM: s.pieceM, orderedLengthMm: s.orderedLengthMm,
+        poly: pieces[i].poly, centroid: pieces[i].centroid,
+        isPhantom: true, isCascade: true, cascadeParent: s,
+        receiver: pieces[i].face
+      });
+    }
+  });
+  cascadeAdds.forEach(function(s){ allStrips.push(s); });
+  phantomStrips = allStrips.filter(function(s){return s.isPhantom;});
+
+  // Suppress receiver-face strips that overlap a rotated phantom strip
+  // — the phantom donor sheet PHYSICALLY occupies that slot, so the
+  // wing's own purple sheet isn't ordered there.
   if (phantomStrips.length) {
     allStrips = allStrips.filter(function(s){
       if (s.isPhantom) return true;
-      if (s.face === mainA || s.face === mainB) return true;  // donors keep their real strips
-      // Drop receiver strips whose centroid lies inside any phantom strip's polygon.
+      if (s.face === mainA || s.face === mainB) return true;
       for (var i = 0; i < phantomStrips.length; i++) {
         if (_ptInPoly(s.centroid[0], s.centroid[1], phantomStrips[i].poly)) return false;
       }
@@ -10571,11 +10652,25 @@ function renderRoofSheetPlan() {
       return a.centroid[0] - b.centroid[0] || a.centroid[1] - b.centroid[1];
     });
     byColor[c].forEach(function(s){
+      if (s.isCascade && s.cascadeParent) {
+        // Cascade pieces share the parent's seq (one physical sheet,
+        // cut at the hip between two faces).  Numbering happens AFTER
+        // the parent has been numbered — we set seq lazily below.
+        return;
+      }
       if (s._offcutMatched && s._offcutSource && s._offcutSource.seq) {
         s.seq = s._offcutSource.seq;          // share donor's number
         s.isOffcut = true;
       } else {
         s.seq = nextSeq++;
+      }
+    });
+    // Second pass — cascade pieces inherit their parent's seq.  Marked
+    // as offcut so the legend doesn't double-count the sheet.
+    byColor[c].forEach(function(s){
+      if (s.isCascade && s.cascadeParent && s.cascadeParent.seq) {
+        s.seq = s.cascadeParent.seq;
+        s.isOffcut = true;
       }
     });
   });
