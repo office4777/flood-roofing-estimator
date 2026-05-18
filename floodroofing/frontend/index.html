@@ -10491,68 +10491,72 @@ function renderRoofSheetPlan() {
   // corresponding clipped strip at the mirror corner of the
   // receiver face. Mark the receiver strip as offcut-fed so the
   // legend can deduct it from the receiver face's order count.
-  function _isClipped(s){
-    return s.pieceM < s.face.sheetM * 0.9;
-  }
-  function _pairOffcuts(donor, receiver){
-    if (!donor || !receiver) return;
-    var donorStrips = allStrips.filter(function(s){return s.face === donor;});
-    var recvStrips  = allStrips.filter(function(s){return s.face === receiver;});
-    // Project each strip's centroid onto the donor's along-gutter
-    // axis (in image coords). Closest along-axis position wins.
-    function alongPos(face, strip){
-      var dx = strip.centroid[0] - face.a[0];
-      var dy = strip.centroid[1] - face.a[1];
-      return dx*face.tx + dy*face.ty;
-    }
-    var donorClipped = donorStrips.filter(_isClipped);
-    var recvClipped  = recvStrips.filter(_isClipped);
-    if (!donorClipped.length || !recvClipped.length) return;
-    // Donor and receiver gutters likely point in opposite directions
-    // for an upside-down long-side. Use the FRACTION along each
-    // gutter (0..1) so we can match left↔left and right↔right
-    // regardless of direction.
-    function frac(face, strip){
-      var t = alongPos(face, strip) / face.gL;
-      // If the receiver's tangent runs opposite to the donor's, flip
-      // the fraction so the same building corner gives the same f.
-      return t;
-    }
-    var sameDir = (donor.tx*receiver.tx + donor.ty*receiver.ty) > 0;
-    donorClipped.forEach(function(ds){
-      var df = frac(donor, ds);
-      // Find the closest still-unmatched receiver clipped strip.
-      var best = null, bestD = Infinity;
-      recvClipped.forEach(function(rs){
-        if (rs._offcutMatched) return;
-        var rf = sameDir ? frac(receiver, rs) : (1 - frac(receiver, rs));
-        var d  = Math.abs(rf - df);
-        if (d < bestD) { bestD = d; best = rs; }
-      });
-      if (best && bestD < 0.18) {
-        best._offcutMatched = true;
-        best._offcutSource  = ds;
-        ds._offcutDest      = best;
+  // ── Number strips & route hip-end pieces to long-side offcuts ─
+  // SOP: each long-side face (with a ridge above it) gets its own
+  // FULL sheets ordered (gutter length ÷ cover width). Hip-end faces
+  // (two hips meeting at an apex, no ridge) order NOTHING — they're
+  // filled by the OFFCUTS of the corner sheets on the two adjacent
+  // long-sides. Each hip-end piece shares the reference number of the
+  // long-side corner sheet whose offcut feeds it.
+  function _findAdjacentLongSides(hipEnd){
+    // hipEnd.poly = [outline_corner_a, apex, outline_corner_b]
+    var a = hipEnd.poly[0], apex = hipEnd.poly[1], b = hipEnd.poly[2];
+    var out = { atA: null, atB: null };
+    faces.forEach(function(f){
+      if (f === hipEnd || f.type !== 'long-side') return;
+      for (var i = 0; i < f.poly.length; i++) {
+        var p = f.poly[i], q = f.poly[(i+1) % f.poly.length];
+        if ((ptEq(p, a) && ptEq(q, apex)) || (ptEq(p, apex) && ptEq(q, a))) out.atA = f;
+        if ((ptEq(p, b) && ptEq(q, apex)) || (ptEq(p, apex) && ptEq(q, b))) out.atB = f;
       }
     });
+    return out;
   }
-  if (mainA && mainB) _pairOffcuts(mainA, mainB);
-
-  // Sequence numbering — paired strips share a number; non-paired
-  // strips get fresh numbers, walking left-to-right within colour.
-  var byColor = {};
-  allStrips.forEach(function(s){
-    (byColor[s.color] = byColor[s.color] || []).push(s);
-  });
+  function _alongPos(face, pt){
+    return (pt[0]-face.a[0]) * face.tx + (pt[1]-face.a[1]) * face.ty;
+  }
+  // Number long-side strips first (sequentially, walking the gutter
+  // from a→b within each face, faces in iteration order).
   var nextSeq = 1;
-  Object.keys(byColor).forEach(function(c){
-    byColor[c].sort(function(a, b){
-      return a.centroid[0] - b.centroid[0] || a.centroid[1] - b.centroid[1];
-    });
-    byColor[c].forEach(function(s){
-      if (s._offcutMatched && s._offcutSource && s._offcutSource.seq) {
-        s.seq = s._offcutSource.seq;          // share donor's number
-        s.isOffcut = true;
+  faces.forEach(function(f){
+    if (f.type !== 'long-side') return;
+    var sideStrips = allStrips.filter(function(s){ return s.face === f; });
+    sideStrips.sort(function(p, q){ return _alongPos(f, p.centroid) - _alongPos(f, q.centroid); });
+    sideStrips.forEach(function(s){ s.seq = nextSeq++; });
+  });
+  // Each hip-end strip → find which adjacent long-side's corner strip
+  // (the one whose hip-cut offcut, rotated 90°, fills this position).
+  // Strips in the "a-half" of the hip-end come from the adjacent
+  // long-side that shares the hip at corner a (matching the same
+  // distance-from-corner on that long-side's gutter).
+  faces.forEach(function(f){
+    if (f.type !== 'hip-end') return;
+    var adj = _findAdjacentLongSides(f);
+    var heStrips = allStrips.filter(function(s){ return s.face === f; });
+    heStrips.forEach(function(s){
+      var alongPos = _alongPos(f, s.centroid);
+      var distFromA = alongPos;
+      var distFromB = f.gL - alongPos;
+      var closeIsA = distFromA <= distFromB;
+      var sourceFace = closeIsA ? adj.atA : adj.atB;
+      var sharedCorner = closeIsA ? f.poly[0] : f.poly[2];
+      var distFromCorner = closeIsA ? distFromA : distFromB;
+      if (!sourceFace) { s.seq = nextSeq++; return; }
+      // Distance along the source face's gutter from the shared corner
+      var sideStrips = allStrips.filter(function(ss){ return ss.face === sourceFace; });
+      var fromAside = ptEq(sourceFace.a, sharedCorner);
+      // Match by distance from the shared corner
+      var best = null, bestD = Infinity;
+      sideStrips.forEach(function(ss){
+        var ssAlong = _alongPos(sourceFace, ss.centroid);
+        var ssDist  = fromAside ? ssAlong : (sourceFace.gL - ssAlong);
+        var d       = Math.abs(ssDist - distFromCorner);
+        if (d < bestD) { bestD = d; best = ss; }
+      });
+      if (best) {
+        s.seq      = best.seq;          // share long-side sheet number
+        s.color    = best.color;        // adopt source colour
+        s.isOffcut = true;              // skipped from order count
       } else {
         s.seq = nextSeq++;
       }
