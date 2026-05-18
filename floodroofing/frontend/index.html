@@ -7493,6 +7493,7 @@ function redrawAll() {
       var gAng = Math.atan2(gdy, gdx);
       var gutterMid = [(ga[0] + gb[0]) / 2, (ga[1] + gb[1]) / 2];
       var minPerp = Infinity;
+      var bestRidge = null;
       DRAW.lines.forEach(function(rl){
         if (!rl || rl.type !== 'ridge' || !rl.pts || rl.pts.length !== 2) return;
         var rdx = rl.pts[1][0] - rl.pts[0][0];
@@ -7507,29 +7508,42 @@ function redrawAll() {
         var rmy = (rl.pts[0][1] + rl.pts[1][1]) / 2;
         var perp = (rmx - ga[0]) * nx + (rmy - ga[1]) * ny;
         if (perp <= 2) return;
-        // Along-gutter overlap — the ridge must sit "above" the
-        // gutter in the gutter's local frame.
         var tg = [gdx / gL, gdy / gL];
         var r0t = (rl.pts[0][0] - ga[0]) * tg[0] + (rl.pts[0][1] - ga[1]) * tg[1];
         var r1t = (rl.pts[1][0] - ga[0]) * tg[0] + (rl.pts[1][1] - ga[1]) * tg[1];
         var rMin = Math.min(r0t, r1t), rMax = Math.max(r0t, r1t);
         if (rMax < -0.1 * gL || rMin > 1.1 * gL) return;
-        // SAME-FACE TEST — the straight line from the gutter mid to
-        // the ridge mid must not cross any OTHER ridge / hip / valley.
-        // If it does, the pairing spans more than one face (typical
-        // cross-arm match on an L-shape) and the label would be
-        // wrong: skip.
         if (_crossesAnotherRoofLine(gutterMid, [rmx, rmy], rl)) return;
-        if (perp < minPerp) minPerp = perp;
+        if (perp < minPerp) {
+          minPerp = perp;
+          bestRidge = rl;
+        }
       });
-      if (!isFinite(minPerp)) return;
+      if (!isFinite(minPerp) || !bestRidge) return;
       var planM  = minPerp * DRAW.scaleMetresPerPx;
       var pitch  = DRAW.calPitch || 0;
       var sheetM = (pitch > 0 && pitch < 80) ? (planM / Math.cos(pitch * Math.PI / 180)) : planM;
-      // Compute the label position in IMAGE coords first so we can
-      // run a point-in-polygon test on it before drawing.
-      var lblImgX = midX + nx * (minPerp / 2);
-      var lblImgY = midY + ny * (minPerp / 2);
+      // Place the label at the midpoint of the segment connecting
+      // gutter-mid to the matched ridge-mid. For symmetric faces
+      // (gutter directly opposite the ridge) this matches the old
+      // perpendicular-midpoint placement. For asymmetric faces —
+      // notably a hip-end where the apex is offset, or where the
+      // ridge is shifted along the gutter — the connector midpoint
+      // sits in the geometric centre of the face instead of right
+      // up against a converging hip. The arrows are then aimed
+      // along this same gutter→ridge connector so each arrow tip
+      // unambiguously heads toward its target line.
+      var bestRMx = (bestRidge.pts[0][0] + bestRidge.pts[1][0]) / 2;
+      var bestRMy = (bestRidge.pts[0][1] + bestRidge.pts[1][1]) / 2;
+      var lblImgX = (midX + bestRMx) / 2;
+      var lblImgY = (midY + bestRMy) / 2;
+      // Arrow direction follows the gutter → ridge connector rather
+      // than the gutter's perpendicular — it's the same when the
+      // ridge sits squarely above the gutter, and points clearly at
+      // the two lines when they're offset along the gutter axis.
+      var connDx = bestRMx - midX, connDy = bestRMy - midY;
+      var connL  = Math.sqrt(connDx*connDx + connDy*connDy);
+      if (connL > 1) { nx = connDx / connL; ny = connDy / connL; }
       // Skip labels whose computed position lands OUTSIDE the
       // outline polygon. On an L / T-shape a gutter on one arm can
       // match (parallel, overlap-along) a ridge on the OTHER arm,
@@ -7538,7 +7552,9 @@ function redrawAll() {
       // exactly this case so we don't draw a sheet label there.
       if (!_pointInOutline(lblImgX, lblImgY)) return;
       var _tr = getImgTransform();
-      var perpCanvasPx = minPerp * (_tr ? _tr.s : 1);
+      // Arrows fit inside half the connector length (label → gutter
+      // mid / label → ridge mid) so the tip touches each line.
+      var halfConnCanvasPx = (connL / 2) * (_tr ? _tr.s : 1);
       var labelScreen = dp([lblImgX, lblImgY]);
       var lblX = labelScreen[0];
       var lblY = labelScreen[1];
@@ -7559,13 +7575,13 @@ function redrawAll() {
       // not half its height. Computing the projection of the label
       // bounding box onto (nx, ny) handles both axis-aligned cases
       // and any diagonal in between.
-      if (perpCanvasPx > 36) {
+      if (halfConnCanvasPx > 22) {
         var tw = ctx.measureText(label).width;
         var halfW = tw / 2;
         var halfH = 7;                                 // half-height of the 10px font
         var clearance = Math.abs(nx) * halfW + Math.abs(ny) * halfH;
         var gap = 4;                                   // space between label edge and arrow tail
-        var arm = Math.min(14, (perpCanvasPx / 2) - (clearance + gap + 2));
+        var arm = Math.min(16, halfConnCanvasPx - (clearance + gap + 2));
         if (arm >= 6) {
           // Tail starts just past the label box; tip is at tail + arm.
           var ridgeTailX = lblX + nx * (clearance + gap);
