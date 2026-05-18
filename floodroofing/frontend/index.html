@@ -925,12 +925,13 @@ select{
           <button onclick="autoGenerateRoof('dutch')" class="tool-btn" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:600">🏡 Dutch Gable</button>
           <button onclick="autoGenerateRoof('mono')" class="tool-btn" style="background:#d97706;color:#fff;border-color:#d97706;font-weight:600">📐 Mono-Pitch</button>
           <button onclick="clearRoofLines()" class="tool-btn" style="color:#dc2626;border-color:#dc2626;margin-left:4px">🗑 Clear lines</button>
+          <button onclick="snapOutlineToSquare()" class="tool-btn" style="background:#fff;color:#0a1628;border-color:#0a1628;font-weight:600" title="Force the outline to a true rectangle (best-fit). Use after a drag if the building drifted out of square.">📐 Snap Square</button>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <button onclick="addSecondaryRoof()" class="tool-btn" style="color:#0891b2;border-color:#0891b2;font-weight:600">+ Add secondary roof</button>
           <span style="font-size:10px;color:#64748b">Draw a 2nd outline for a lean-to, entranceway, etc. (colour-coded separately)</span>
         </div>
-        <div style="font-size:10px;color:#94a3b8;margin-top:6px">💡 Hold <kbd style="background:#eee;border:1px solid #ccc;border-radius:3px;padding:0 3px">Shift</kbd> while drawing to bypass snap &nbsp;|&nbsp; Right-click any line to delete</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:6px">💡 Hold <kbd style="background:#eee;border:1px solid #ccc;border-radius:3px;padding:0 3px">Shift</kbd> while dragging a corner to disable the rectangle-stretch (lets you make diagonal / non-square roofs) &nbsp;|&nbsp; Right-click any line to delete</div>
       </div>
 
       <!-- Toolbar -->
@@ -5919,94 +5920,129 @@ function computeSectionSheet(sec){
   };
 }
 
-// Snap a candidate outline-vertex position so the corners adjacent
-// to the dragged vertex hit a true 90°. Strategy:
-//
-//   1. Compute the GEOMETRIC INTERSECTION of the two perpendicular
-//      constraint lines (line through `prev` perpendicular to
-//      prevPrev→prev, line through `next` perpendicular to
-//      next→nextNext). This is the exact point where BOTH adjacent
-//      angles are 90°. If the cursor is within a generous radius of
-//      that intersection (default 48 image-px), snap there
-//      regardless of how the cursor approaches it — i.e. real
-//      magnetic pull to true square. This is what makes "moving
-//      back to square" easy.
-//
-//   2. If the cursor is further out, fall back to the older single-
-//      constraint snap: if the candidate edge from `prev` is within
-//      SNAP_DEG of perpendicular to prevPrev→prev (or the
-//      symmetric next-side constraint), snap that one axis only.
-//      Pick the constraint with the smaller angular delta.
-//
-//   3. Shift bypasses every snap layer entirely.
-function snapOutlineVertex(x, y, idx){
-  var SNAP_DEG = 12;
-  var INTERSECT_RADIUS = 48;    // image-pixel "magnet" radius for true-square pull
-  var n = DRAW.outline.length;
-  if (n < 4) return [x, y];
-  var prev     = DRAW.outline[(idx - 1 + n) % n];
-  var next     = DRAW.outline[(idx + 1) % n];
-  var prevPrev = DRAW.outline[(idx - 2 + n) % n];
-  var nextNext = DRAW.outline[(idx + 2) % n];
-
-  // True-square intersection — solve for the corner position where
-  // both perpendicular constraints are satisfied at once.
-  function perpDir(from, to){
-    var ddx = to[0] - from[0], ddy = to[1] - from[1];
-    var L = Math.sqrt(ddx*ddx + ddy*ddy);
-    if (L < 1) return null;
-    return [-ddy / L, ddx / L];  // unit perpendicular
+// "Snap Square" — force the outline to a true rectangle. Used when
+// the user accidentally drew a sloping/diagonal outline and wants to
+// straighten it up in one click. Algorithm:
+//   1. Pick the dominant edge (longest one) — its direction defines
+//      the rectangle's primary axis u; v is its perpendicular.
+//   2. Project all current corners onto the (u, v) basis to find
+//      min/max along each axis — the axis-aligned bounding rectangle
+//      in that rotated frame.
+//   3. The four extreme points (minU,minV) … (maxU,maxV) make the
+//      target rectangle.
+//   4. Assign each ORIGINAL corner to its NEAREST rectangle corner
+//      (greedy) so the polygon winding order is preserved.
+// Then regenerate auto roof lines from the new rectangle so hips +
+// ridge land at 45° again.
+function snapOutlineToSquare(){
+  if (!DRAW.outline || DRAW.outline.length !== 4) {
+    var msg = 'Snap Square works on a 4-corner outline. Draw the outline first.';
+    try { alert(msg); } catch(e){}
+    return;
   }
-  var d1 = perpDir(prevPrev, prev);
-  var d2 = perpDir(next, nextNext);
-  if (d1 && d2) {
-    var det = d1[1] * d2[0] - d1[0] * d2[1];
-    if (Math.abs(det) > 1e-6) {
-      var dx2 = next[0] - prev[0], dy2 = next[1] - prev[1];
-      var t = (-dx2 * d2[1] + dy2 * d2[0]) / det;
-      var ix = prev[0] + t * d1[0];
-      var iy = prev[1] + t * d1[1];
-      var rdx = ix - x, rdy = iy - y;
-      if (Math.sqrt(rdx*rdx + rdy*rdy) < INTERSECT_RADIUS) {
-        return [ix, iy];
-      }
+  saveSnapshot();
+  var pts = DRAW.outline;
+  var n = pts.length;
+  // Find longest edge — its direction is u.
+  var bestI = 0, bestL = 0;
+  for (var i = 0; i < n; i++) {
+    var a = pts[i], b = pts[(i+1)%n];
+    var dx = b[0]-a[0], dy = b[1]-a[1];
+    var L = Math.sqrt(dx*dx + dy*dy);
+    if (L > bestL) { bestL = L; bestI = i; }
+  }
+  var p1 = pts[bestI], p2 = pts[(bestI+1)%n];
+  var ax = p2[0]-p1[0], ay = p2[1]-p1[1];
+  var aL = Math.sqrt(ax*ax + ay*ay);
+  if (aL < 1) return;
+  var ux = ax/aL, uy = ay/aL;
+  var vx = -uy, vy = ux;
+  var origin = p1;
+  var minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+  pts.forEach(function(p){
+    var dx2 = p[0]-origin[0], dy2 = p[1]-origin[1];
+    var pu = dx2*ux + dy2*uy;
+    var pv = dx2*vx + dy2*vy;
+    if (pu < minU) minU = pu; if (pu > maxU) maxU = pu;
+    if (pv < minV) minV = pv; if (pv > maxV) maxV = pv;
+  });
+  function toXY(pu, pv){
+    return [origin[0] + pu*ux + pv*vx, origin[1] + pu*uy + pv*vy];
+  }
+  var rect = [toXY(minU,minV), toXY(maxU,minV), toXY(maxU,maxV), toXY(minU,maxV)];
+  // Greedy assign each original corner to its nearest rectangle corner.
+  var assigned = [false,false,false,false];
+  var newPts = new Array(4);
+  for (var k = 0; k < 4; k++) {
+    var bestJ = -1, bestD = Infinity;
+    for (var j = 0; j < 4; j++) {
+      if (assigned[j]) continue;
+      var ddx = pts[k][0]-rect[j][0], ddy = pts[k][1]-rect[j][1];
+      var d = Math.sqrt(ddx*ddx + ddy*ddy);
+      if (d < bestD) { bestD = d; bestJ = j; }
     }
+    if (bestJ >= 0) { newPts[k] = rect[bestJ]; assigned[bestJ] = true; }
   }
+  DRAW.outline = newPts;
+  var roofType = (typeof _detectAutoRoofType === 'function') ? _detectAutoRoofType() : null;
+  if (roofType) {
+    try { regenerateAutoRoofLines(roofType); } catch(e){}
+  } else {
+    try { autoPopulateGutters && autoPopulateGutters(); } catch(e){}
+  }
+  try { autoCalcLineMeasurements && autoCalcLineMeasurements(); } catch(e){}
+  try { syncToRoofData && syncToRoofData(); } catch(e){}
+  redrawAll();
+}
 
-  // Single-constraint fallback — snap along just one perpendicular
-  // axis when the cursor is too far from the true-square intersection
-  // for the magnetic pull to fire.
-  function snapPerpEdge(anchor, refDx, refDy, candidate){
-    var refL = Math.sqrt(refDx*refDx + refDy*refDy);
-    if (refL < 1) return null;
-    var refAng = Math.atan2(refDy, refDx);
-    var cdx = candidate[0] - anchor[0], cdy = candidate[1] - anchor[1];
-    var cL  = Math.sqrt(cdx*cdx + cdy*cdy);
-    if (cL < 1) return null;
-    var cAng = Math.atan2(cdy, cdx);
-    var dirs = [refAng + Math.PI/2, refAng - Math.PI/2];
-    var bestDir = dirs[0], bestDiff = Infinity;
-    dirs.forEach(function(a){
-      var d = cAng - a;
-      d = d - Math.round(d/(2*Math.PI))*2*Math.PI;
-      var ad = Math.abs(d);
-      if (ad < bestDiff){ bestDiff = ad; bestDir = a; }
-    });
-    if (bestDiff < SNAP_DEG * Math.PI / 180){
-      var c = Math.cos(bestDir), s = Math.sin(bestDir);
-      var proj = cdx*c + cdy*s;
-      return { x: anchor[0] + proj*c, y: anchor[1] + proj*s, diff: bestDiff };
-    }
-    return null;
-  }
-  var candidates = [];
-  var s1 = snapPerpEdge(prev, prev[0] - prevPrev[0], prev[1] - prevPrev[1], [x, y]);
-  if (s1) candidates.push(s1);
-  var s2 = snapPerpEdge(next, nextNext[0] - next[0], nextNext[1] - next[1], [x, y]);
-  if (s2) candidates.push(s2);
-  if (!candidates.length) return [x, y];
-  candidates.sort(function(a, b){ return a.diff - b.diff; });
-  return [candidates[0].x, candidates[0].y];
+// Stretch a 4-corner outline so the dragged corner can move freely
+// to the cursor while the other three corners follow the rule that
+// the polygon stays a rectangle (or any quad with the SAME angles as
+// the initial shape — for a true rectangle, all four corners stay
+// at 90°). Approach:
+//
+//   • The opposite corner (A) stays put.
+//   • Express the cursor's offset from A in the initial AB / AD
+//     basis (the two edges of the original quad meeting at A).
+//   • New B = A + (cursor·uAB) * uAB
+//     New D = A + (cursor·uAD) * uAD
+//     New C = A + (cursor·uAB) * uAB + (cursor·uAD) * uAD
+//
+// If uAB ⊥ uAD (true rectangle) then New C === cursor — the user
+// gets free 2D motion at the dragged corner, and B + D slide so the
+// rectangle just grows / shrinks. Hip lines, regenerated from the
+// new outline by buildHipValleyLines(), come out at 45° again.
+//
+// Returns the four new positions keyed by polygon index, or null if
+// the outline isn't a 4-corner quad we can handle.
+function _stretchQuadOutline(cornerIdx, cursorX, cursorY, initialOutline){
+  if (!initialOutline || initialOutline.length !== 4) return null;
+  var n = 4;
+  var A_idx = (cornerIdx + 2) % n;
+  var B_idx = (cornerIdx + 3) % n;   // "prev" of the dragged corner
+  var D_idx = (cornerIdx + 1) % n;   // "next" of the dragged corner
+  var A = initialOutline[A_idx];
+  var origB = initialOutline[B_idx];
+  var origD = initialOutline[D_idx];
+  var abx = origB[0] - A[0], aby = origB[1] - A[1];
+  var adx = origD[0] - A[0], ady = origD[1] - A[1];
+  var abL = Math.sqrt(abx*abx + aby*aby);
+  var adL = Math.sqrt(adx*adx + ady*ady);
+  if (abL < 1 || adL < 1) return null;
+  var uABx = abx/abL, uABy = aby/abL;
+  var uADx = adx/adL, uADy = ady/adL;
+  var cx = cursorX - A[0], cy = cursorY - A[1];
+  var pAB = cx*uABx + cy*uABy;
+  var pAD = cx*uADx + cy*uADy;
+  // Don't let a side flip to negative length (would invert the
+  // polygon). Clamp each projection to at least 5 image-px so the
+  // building can't collapse onto itself.
+  if (pAB < 5) pAB = 5;
+  if (pAD < 5) pAD = 5;
+  var newB = [A[0] + pAB*uABx, A[1] + pAB*uABy];
+  var newD = [A[0] + pAD*uADx, A[1] + pAD*uADy];
+  var newC = [A[0] + pAB*uABx + pAD*uADx, A[1] + pAB*uABy + pAD*uADy];
+  return { A_idx:A_idx, B_idx:B_idx, D_idx:D_idx, A:A, newB:newB, newD:newD, newC:newC };
 }
 
 function onCanvasMouseDown(e) {
@@ -6053,7 +6089,11 @@ function onCanvasMouseDown(e) {
           attached: attached,
           // Capture what kind of auto roof to rebuild as the user
           // drags. null = nothing to regen, drag is pure outline-only.
-          regenRoofType: _detectAutoRoofType()
+          regenRoofType: _detectAutoRoofType(),
+          // Snapshot the whole outline at drag-start so the stretch
+          // math always references the ORIGINAL AB / AD axes
+          // (otherwise the basis drifts as we keep moving).
+          initialOutline: DRAW.outline.map(function(p){ return p.slice(); })
         };
         document.getElementById('roofCanvas').style.cursor = 'grabbing';
         e.preventDefault();
@@ -6355,19 +6395,36 @@ function onCanvasMove(e) {
   // corner snap on top, also bypassed by Shift, so the user can
   // freely take the building out of square.
   if(DRAG_OUTLINE_VERT) {
-    var p = xy;
-    if (!e.shiftKey) p = snapOutlineVertex(p[0], p[1], DRAG_OUTLINE_VERT.idx);
-    DRAW.outline[DRAG_OUTLINE_VERT.idx] = [p[0], p[1]];
+    // No snap on corner drag. For a 4-corner outline we stretch the
+    // whole quad so all corners stay at their original angles (90°
+    // for a real rectangle) — dragged corner tracks the cursor, the
+    // two adjacent corners slide along the original AB / AD axes,
+    // the opposite corner pins. Shift bypasses the stretch.
+    var stretched = null;
+    if (!e.shiftKey && DRAW.outline.length === 4 && DRAG_OUTLINE_VERT.initialOutline) {
+      stretched = _stretchQuadOutline(
+        DRAG_OUTLINE_VERT.idx, xy[0], xy[1], DRAG_OUTLINE_VERT.initialOutline
+      );
+    }
+    var movedC;
+    if (stretched) {
+      DRAW.outline[stretched.A_idx] = stretched.A.slice();
+      DRAW.outline[stretched.B_idx] = stretched.newB;
+      DRAW.outline[stretched.D_idx] = stretched.newD;
+      DRAW.outline[DRAG_OUTLINE_VERT.idx] = stretched.newC;
+      movedC = stretched.newC;
+    } else {
+      DRAW.outline[DRAG_OUTLINE_VERT.idx] = [xy[0], xy[1]];
+      movedC = [xy[0], xy[1]];
+    }
     // Update manual attached lines via ref so they keep tracking the
     // corner even after a regen reorders DRAW.lines.
     DRAG_OUTLINE_VERT.attached.forEach(function(a){
-      if (a.ref && a.ref.pts) a.ref.pts[a.epIdx] = [p[0], p[1]];
+      if (a.ref && a.ref.pts) a.ref.pts[a.epIdx] = movedC.slice();
     });
-    // Live regen of auto-generated ridges / hips / valleys + gutters
-    // so the ridge stretches and the hips stay at 45° while the
-    // user drags. When both corners have been moved back to square,
-    // the regen at that moment is what would have happened if they
-    // clicked the "Hip & Valley" button manually.
+    // Regenerate auto ridges / hips / valleys + gutters from the new
+    // outline. Because the stretch keeps the polygon a rectangle,
+    // buildHipValleyLines naturally produces 45° hips.
     if (DRAG_OUTLINE_VERT.regenRoofType) {
       regenerateAutoRoofLines(DRAG_OUTLINE_VERT.regenRoofType);
     }
@@ -6997,6 +7054,8 @@ function redrawAll() {
     // Drag handles — show a small grab dot at each corner when the
     // Move tool is active so the user can see what's draggable. The
     // active corner highlights cyan; the rest stay green-on-white.
+    // (No snap target marker — corner drag now stretches the quad
+    // freely and doesn't snap to anything.)
     if (DRAW.tool === 'select') {
       var activeIdx = DRAG_OUTLINE_VERT ? DRAG_OUTLINE_VERT.idx : -1;
       DRAW.outline.forEach(function(pt, oi){
@@ -7011,52 +7070,6 @@ function redrawAll() {
         ctx.stroke();
         ctx.restore();
       });
-      // While dragging a corner, draw a small cyan crosshair at the
-      // true-square target position (intersection of the two
-      // adjacent-perpendicular lines) so the user can see exactly
-      // where to head to land back on square.
-      if (DRAG_OUTLINE_VERT && DRAW.outline.length >= 4) {
-        var n2 = DRAW.outline.length;
-        var ai = DRAG_OUTLINE_VERT.idx;
-        var prv  = DRAW.outline[(ai - 1 + n2) % n2];
-        var nxt  = DRAW.outline[(ai + 1) % n2];
-        var pprv = DRAW.outline[(ai - 2 + n2) % n2];
-        var nnxt = DRAW.outline[(ai + 2) % n2];
-        function _pd(from, to){
-          var ddx = to[0]-from[0], ddy = to[1]-from[1];
-          var L = Math.sqrt(ddx*ddx + ddy*ddy);
-          return L < 1 ? null : [-ddy/L, ddx/L];
-        }
-        var pd1 = _pd(pprv, prv), pd2 = _pd(nxt, nnxt);
-        if (pd1 && pd2) {
-          var det = pd1[1]*pd2[0] - pd1[0]*pd2[1];
-          if (Math.abs(det) > 1e-6) {
-            var dxn = nxt[0]-prv[0], dyn = nxt[1]-prv[1];
-            var tt = (-dxn*pd2[1] + dyn*pd2[0]) / det;
-            var tx = prv[0] + tt*pd1[0];
-            var ty = prv[1] + tt*pd1[1];
-            var sp = dp([tx, ty]);
-            // Distance from the currently-dragged corner (in image
-            // coords) to the target — colour the crosshair full cyan
-            // when we're "in the magnet zone" so the user sees the
-            // pull is about to fire.
-            var cur = DRAW.outline[ai];
-            var dxc = tx - cur[0], dyc = ty - cur[1];
-            var inMagnet = Math.sqrt(dxc*dxc + dyc*dyc) < 48;
-            ctx.save();
-            ctx.lineWidth = inMagnet ? 2 : 1.4;
-            ctx.strokeStyle = inMagnet ? '#0099cc' : 'rgba(0,153,204,0.55)';
-            ctx.beginPath();
-            ctx.moveTo(sp[0] - 9, sp[1]); ctx.lineTo(sp[0] + 9, sp[1]);
-            ctx.moveTo(sp[0], sp[1] - 9); ctx.lineTo(sp[0], sp[1] + 9);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(sp[0], sp[1], 5, 0, Math.PI*2);
-            ctx.stroke();
-            ctx.restore();
-          }
-        }
-      }
     }
   }
 
