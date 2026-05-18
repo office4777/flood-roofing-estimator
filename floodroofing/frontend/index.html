@@ -10467,6 +10467,11 @@ function renderRoofSheetPlan() {
         if (d > maxDeep) maxDeep = d;
       });
       var stripPieceM = maxDeep * effectiveScale * pitchFactor;
+      // Strip's "would-be" full rectangle (before face-poly clipping).
+      // If clipped area is materially smaller than the rectangle, the
+      // strip has an offcut cut at a hip — i.e. it's a corner donor.
+      var rectArea = (s1 - s0) * perpPx;
+      var clipArea = polyArea(clipped);
       allStrips.push({
         face:   f,
         poly:   clipped,
@@ -10474,7 +10479,9 @@ function renderRoofSheetPlan() {
         pieceM: stripPieceM,
         orderedLengthMm: orderedLengthMm(f.sheetM),
         centroid: sCent,
-        isPhantom: isPhantomStrip
+        isPhantom: isPhantomStrip,
+        rectArea: rectArea,
+        clipArea: clipArea
       });
     }
   });
@@ -10696,35 +10703,103 @@ function renderRoofSheetPlan() {
       }
     });
   }
-  if (mainA && mainB) _pairOffcuts(mainA, mainB);
+  // _pairOffcuts (orange↔blue corner pairing) only makes sense when
+  // one long-side is truncated by a wing — in a clean 4-hip the
+  // corner offcuts cascade onto the adjacent HIP-END, not across to
+  // the opposite long-side.  Skip when no phantom strips exist.
+  var hasPhantom = allStrips.some(function(s){return s.isPhantom;});
+  if (mainA && mainB && hasPhantom) _pairOffcuts(mainA, mainB);
+
+  // ── 4-hip corner cascade ──────────────────────────────────────
+  // For every hip-end face, its strips are physically OFFCUTS of the
+  // adjacent long-side's corner sheets (the sheet is laid on the
+  // long-side; the part that overhangs the hip is cut off and
+  // rotated 90° onto the hip-end).  We pair each hip-end strip with
+  // a clipped long-side corner strip so they share a seq number and
+  // no separate hip-end sheets get ordered.
+  function _pairCornerToHipEnd(longSide, hipEnd, apex) {
+    if (!longSide || !hipEnd || !apex) return;
+    function distToApex(p){return Math.hypot(p[0]-apex[0], p[1]-apex[1]);}
+    var longApexL = longSide.poly[1], longApexR = longSide.poly[2];
+    var apexIsL = ptEq(apex, longApexL);
+    var otherLongApex = apexIsL ? longApexR : longApexL;
+    // Donor strips: long-side strips whose rectangle is clipped by a
+    // hip (i.e. clipArea < rectArea) AND whose centroid is closer to
+    // this apex than to the long-side's other apex (corner zone).
+    var donorStrips = allStrips.filter(function(s){
+      if (s.face !== longSide) return false;
+      if (!s.rectArea || s.clipArea >= s.rectArea - 1) return false;
+      return distToApex(s.centroid) <
+             Math.hypot(s.centroid[0]-otherLongApex[0], s.centroid[1]-otherLongApex[1]);
+    }).sort(function(a,b){return distToApex(a.centroid) - distToApex(b.centroid);});
+    // Receiver strips: hip-end strips on the SAME side of the
+    // (apex → gutter-mid) line as the long-side's gutter midpoint.
+    var gmid = [(hipEnd.a[0]+hipEnd.b[0])/2, (hipEnd.a[1]+hipEnd.b[1])/2];
+    var longMid = [(longSide.a[0]+longSide.b[0])/2, (longSide.a[1]+longSide.b[1])/2];
+    var lx = apex[0]-gmid[0], ly = apex[1]-gmid[1];
+    function sg(p){ return lx*(p[1]-gmid[1]) - ly*(p[0]-gmid[0]); }
+    var longSign = Math.sign(sg(longMid));
+    var recvStrips = allStrips.filter(function(s){
+      return s.face === hipEnd && !s._offcutMatched && Math.sign(sg(s.centroid)) === longSign;
+    }).sort(function(a,b){return distToApex(a.centroid) - distToApex(b.centroid);});
+    var n = Math.min(donorStrips.length, recvStrips.length);
+    for (var i = 0; i < n; i++) {
+      recvStrips[i]._offcutMatched = true;
+      recvStrips[i]._offcutSource  = donorStrips[i];
+      donorStrips[i]._offcutDest   = recvStrips[i];
+    }
+  }
+  [mainA, mainB].forEach(function(longSide){
+    if (!longSide || longSide.type !== 'long-side') return;
+    var apexL = longSide.poly[1], apexR = longSide.poly[2];
+    faces.forEach(function(hipEnd){
+      if (hipEnd.type !== 'hip-end') return;
+      // hip-end's apex (poly[1] after CCW) is the inland point where
+      // the two hips converge.  Match it to the long-side's apex.
+      if (ptEq(hipEnd.poly[1], apexL))      _pairCornerToHipEnd(longSide, hipEnd, apexL);
+      else if (ptEq(hipEnd.poly[1], apexR)) _pairCornerToHipEnd(longSide, hipEnd, apexR);
+    });
+  });
 
   // Sequence numbering — paired strips share a number; non-paired
   // strips get fresh numbers, walking left-to-right within colour.
+  // Three passes: (1) plain non-offcut strips (donors), (2) offcut-
+  // matched strips inherit their donor's seq, (3) cascade pieces
+  // inherit their parent's seq.  Pass 1 must complete across ALL
+  // colours before pass 2, so a donor in another colour is numbered
+  // before its receivers reference it.
   var byColor = {};
   allStrips.forEach(function(s){
     (byColor[s.color] = byColor[s.color] || []).push(s);
   });
-  var nextSeq = 1;
   Object.keys(byColor).forEach(function(c){
     byColor[c].sort(function(a, b){
       return a.centroid[0] - b.centroid[0] || a.centroid[1] - b.centroid[1];
     });
+  });
+  var nextSeq = 1;
+  // Pass 1: number donor / standalone strips.
+  Object.keys(byColor).forEach(function(c){
     byColor[c].forEach(function(s){
-      if (s.isCascade && s.cascadeParent) {
-        // Cascade pieces share the parent's seq (one physical sheet,
-        // cut at the hip between two faces).  Numbering happens AFTER
-        // the parent has been numbered — we set seq lazily below.
-        return;
-      }
+      if (s.isCascade) return;          // cascade piece — handled in pass 3
+      if (s._offcutMatched) return;     // offcut receiver — handled in pass 2
+      s.seq = nextSeq++;
+    });
+  });
+  // Pass 2: offcut receivers inherit their donor's seq.
+  Object.keys(byColor).forEach(function(c){
+    byColor[c].forEach(function(s){
+      if (s.isCascade) return;
       if (s._offcutMatched && s._offcutSource && s._offcutSource.seq) {
-        s.seq = s._offcutSource.seq;          // share donor's number
+        s.seq = s._offcutSource.seq;
         s.isOffcut = true;
-      } else {
-        s.seq = nextSeq++;
+      } else if (!s.seq) {
+        s.seq = nextSeq++;              // fallback if pairing was incomplete
       }
     });
-    // Second pass — cascade pieces inherit their parent's seq.  Marked
-    // as offcut so the legend doesn't double-count the sheet.
+  });
+  // Pass 3: cascade pieces inherit parent seq.
+  Object.keys(byColor).forEach(function(c){
     byColor[c].forEach(function(s){
       if (s.isCascade && s.cascadeParent && s.cascadeParent.seq) {
         s.seq = s.cascadeParent.seq;
@@ -10732,6 +10807,9 @@ function renderRoofSheetPlan() {
       }
     });
   });
+
+  // DEBUG hook — expose results to window for tests.
+  window.__lastSheetPlan = { faces: faces, strips: allStrips, mainA: mainA, mainB: mainB };
 
   // ── Canvas + draw ─────────────────────────────────────────────
   var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
