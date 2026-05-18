@@ -7312,8 +7312,9 @@ function redrawAll() {
       ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillRect(mmx-mtw/2,mty-11,mtw,13);
       ctx.fillStyle=c; ctx.fillText(measStr,mmx,mty);
     }
-    // Sheet direction arrow: gutters and valleys have sheets running INTO them
-    if(l.type==='gutter'||l.type==='valley'){
+    // Sheet direction arrow on gutters only — valleys used to also
+    // get an arrow but the user found it noisy on the canvas.
+    if(l.type==='gutter'){
       // Arrow points FROM midpoint of line INWARD (perpendicular, toward roof centre)
       var amx=(lp0[0]+lp1[0])/2, amy=(lp0[1]+lp1[1])/2;
       // Line direction
@@ -7403,12 +7404,15 @@ function redrawAll() {
       var midX = (ga[0] + gb[0]) / 2, midY = (ga[1] + gb[1]) / 2;
       if ((_cenX - midX) * nx + (_cenY - midY) * ny < 0) { nx = -nx; ny = -ny; }
       // Sheet length = perpendicular plan distance from this gutter
-      // to the NEAREST ridge line parallel to it. Earlier versions
-      // used the farthest interior point, which for a hip roof
-      // grabbed the opposite long-side gutter and reported the full
-      // building depth instead of the actual rafter run. We now
-      // measure to the ridge in the middle, which is what the
-      // installer means by "sheet length".
+      // to the ridge line on the SAME FACE. Match criteria:
+      //   • Ridge parallel to gutter (mod π, ~14° tolerance)
+      //   • Ridge on the inward side of the gutter (perp > 2 px)
+      //   • Ridge's along-gutter projection overlaps the gutter's
+      //     span — without this filter, on an L-shape a gutter on
+      //     one arm could "see" the ridge of the OTHER arm and we'd
+      //     place a sheet label on a face that doesn't exist.
+      // Of the matching ridges we take the NEAREST one (smallest
+      // perpendicular distance).
       var gAng = Math.atan2(gdy, gdx);
       var minPerp = Infinity;
       DRAW.lines.forEach(function(rl){
@@ -7420,13 +7424,22 @@ function redrawAll() {
         var rAng = Math.atan2(rdy, rdx);
         var diff = gAng - rAng;
         diff = diff - Math.round(diff / Math.PI) * Math.PI;
-        if (Math.abs(diff) > 0.25) return; // not parallel enough
-        // Inward perpendicular distance from gutter line to the
-        // ridge midpoint (negative = ridge on the wrong side; skip).
+        if (Math.abs(diff) > 0.25) return;
+        // Inward perpendicular distance from gutter line to ridge mid.
         var rmx = (rl.pts[0][0] + rl.pts[1][0]) / 2;
         var rmy = (rl.pts[0][1] + rl.pts[1][1]) / 2;
         var perp = (rmx - ga[0]) * nx + (rmy - ga[1]) * ny;
-        if (perp > 2 && perp < minPerp) minPerp = perp;
+        if (perp <= 2) return;
+        // Along-gutter overlap test — project both ridge endpoints
+        // onto the gutter's tangent axis (relative to ga) and check
+        // that the resulting interval intersects the gutter's
+        // [0, gL] span.
+        var tg = [gdx / gL, gdy / gL];
+        var r0t = (rl.pts[0][0] - ga[0]) * tg[0] + (rl.pts[0][1] - ga[1]) * tg[1];
+        var r1t = (rl.pts[1][0] - ga[0]) * tg[0] + (rl.pts[1][1] - ga[1]) * tg[1];
+        var rMin = Math.min(r0t, r1t), rMax = Math.max(r0t, r1t);
+        if (rMax < -0.1 * gL || rMin > 1.1 * gL) return;  // no overlap → not the same face
+        if (perp < minPerp) minPerp = perp;
       });
       if (!isFinite(minPerp)) return;
       var planM  = minPerp * DRAW.scaleMetresPerPx;
@@ -7446,12 +7459,63 @@ function redrawAll() {
       var lblX = midScreen[0] + nx * (perpCanvasPx / 2);
       var lblY = midScreen[1] + ny * (perpCanvasPx / 2);
       var label = sheetM.toFixed(2) + 'm sheet';
+      // White halo + dark fill so the label reads on any background.
       ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.92)';
       ctx.lineWidth = 3;
       ctx.strokeText(label, lblX, lblY);
       ctx.fillStyle = '#0a1628';
       ctx.fillText(label, lblX, lblY);
+      // Up + down arrows from the label toward the ridge and gutter
+      // respectively. Only when there's enough room (label sits
+      // mid-face with at least 11 px of clearance to either tip,
+      // measured in canvas pixels along the perpendicular axis).
+      if (perpCanvasPx > 36) {
+        var tw = ctx.measureText(label).width;
+        var halfFont = 7;                // approx half-height of the 10px font
+        var gap = 4;                     // space between label edge and arrow tail
+        var arm = Math.min(14, (perpCanvasPx / 2) - (halfFont + gap + 2));
+        if (arm >= 6) {
+          // Tail starts just past the label box; tip is at tail + arm.
+          var ridgeTailX = lblX + nx * (halfFont + gap);
+          var ridgeTailY = lblY + ny * (halfFont + gap);
+          var ridgeTipX  = lblX + nx * (halfFont + gap + arm);
+          var ridgeTipY  = lblY + ny * (halfFont + gap + arm);
+          var gutTailX   = lblX - nx * (halfFont + gap);
+          var gutTailY   = lblY - ny * (halfFont + gap);
+          var gutTipX    = lblX - nx * (halfFont + gap + arm);
+          var gutTipY    = lblY - ny * (halfFont + gap + arm);
+          ctx.lineCap   = 'round';
+          ctx.lineWidth = 1.4;
+          ctx.strokeStyle = '#0a1628';
+          ctx.fillStyle   = '#0a1628';
+          // Ridge-side arrow
+          ctx.beginPath();
+          ctx.moveTo(ridgeTailX, ridgeTailY);
+          ctx.lineTo(ridgeTipX,  ridgeTipY);
+          ctx.stroke();
+          var aR = Math.atan2(ridgeTipY - ridgeTailY, ridgeTipX - ridgeTailX);
+          var ah = 4, aw = 3;
+          ctx.beginPath();
+          ctx.moveTo(ridgeTipX, ridgeTipY);
+          ctx.lineTo(ridgeTipX - ah*Math.cos(aR) + aw*Math.sin(aR), ridgeTipY - ah*Math.sin(aR) - aw*Math.cos(aR));
+          ctx.lineTo(ridgeTipX - ah*Math.cos(aR) - aw*Math.sin(aR), ridgeTipY - ah*Math.sin(aR) + aw*Math.cos(aR));
+          ctx.closePath();
+          ctx.fill();
+          // Gutter-side arrow
+          ctx.beginPath();
+          ctx.moveTo(gutTailX, gutTailY);
+          ctx.lineTo(gutTipX,  gutTipY);
+          ctx.stroke();
+          var aG = Math.atan2(gutTipY - gutTailY, gutTipX - gutTailX);
+          ctx.beginPath();
+          ctx.moveTo(gutTipX, gutTipY);
+          ctx.lineTo(gutTipX - ah*Math.cos(aG) + aw*Math.sin(aG), gutTipY - ah*Math.sin(aG) - aw*Math.cos(aG));
+          ctx.lineTo(gutTipX - ah*Math.cos(aG) - aw*Math.sin(aG), gutTipY - ah*Math.sin(aG) + aw*Math.cos(aG));
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
     });
     ctx.restore();
   }
