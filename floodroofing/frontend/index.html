@@ -10732,15 +10732,19 @@ function renderRoofSheetPlan() {
       return distToApex(s.centroid) <
              Math.hypot(s.centroid[0]-otherLongApex[0], s.centroid[1]-otherLongApex[1]);
     }).sort(function(a,b){return distToApex(a.centroid) - distToApex(b.centroid);});
-    // Receiver strips: hip-end strips on the SAME side of the
-    // (apex → gutter-mid) line as the long-side's gutter midpoint.
+    // Receiver strips: hip-end strips on the OPPOSITE side of the
+    // (apex → gutter-mid) line from the long-side's gutter midpoint —
+    // i.e. north's NW corner offcut crosses the apex line and lands on
+    // the SW half of the west hip-end (and vice versa).  Per the
+    // roofer's SOP, this is the spin-direction the cascade actually
+    // uses.
     var gmid = [(hipEnd.a[0]+hipEnd.b[0])/2, (hipEnd.a[1]+hipEnd.b[1])/2];
     var longMid = [(longSide.a[0]+longSide.b[0])/2, (longSide.a[1]+longSide.b[1])/2];
     var lx = apex[0]-gmid[0], ly = apex[1]-gmid[1];
     function sg(p){ return lx*(p[1]-gmid[1]) - ly*(p[0]-gmid[0]); }
     var longSign = Math.sign(sg(longMid));
     var recvStrips = allStrips.filter(function(s){
-      return s.face === hipEnd && !s._offcutMatched && Math.sign(sg(s.centroid)) === longSign;
+      return s.face === hipEnd && !s._offcutMatched && Math.sign(sg(s.centroid)) !== longSign;
     }).sort(function(a,b){return distToApex(a.centroid) - distToApex(b.centroid);});
     var n = Math.min(donorStrips.length, recvStrips.length);
     for (var i = 0; i < n; i++) {
