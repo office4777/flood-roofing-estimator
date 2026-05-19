@@ -49,6 +49,19 @@ const path = require('path');
     window.autoGenerateRoof && window.autoGenerateRoof('hip');
   });
 
+  // CASE 1b — same 4-hip rotated 90° so the LONG axis runs N–S.
+  // East/west are the long-sides; north/south are the hip-ends.
+  // Exercises the cascade in the opposite orientation to verify the
+  // logic isn't hard-coded to a horizontal long axis.
+  await renderCase('4hipNS', () => {
+    window.DRAW.outline = [[200,150],[500,150],[500,650],[200,650]];
+    window.DRAW.outlineDone = true;
+    window.DRAW.scaleMetresPerPx = 0.02;
+    window.DRAW.calPitch = 22;
+    window.DRAW.lines = [];
+    window.autoGenerateRoof && window.autoGenerateRoof('hip');
+  });
+
   // CASE 2 — SOP-style L-shape: a long horizontal main body with a
   // wing extending DOWN from the right portion. The blue (bottom)
   // long-side is the one truncated by the wing.
