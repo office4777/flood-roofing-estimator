@@ -27,7 +27,7 @@ const path = require('path');
       window.renderRoofSheetPlan && window.renderRoofSheetPlan();
     });
     await page.waitForTimeout(600);
-    const out = `floodroofing/docs/sheet_plan_${label}.png`;
+    const out = `floodroofing/docs/${label}.png`;
     // Try to scroll the sheet plan into view first.
     await page.evaluate(() => {
       const el = document.querySelector('#tab-materials .canvas-wrap, #roofSheetPlanOut');
@@ -40,7 +40,7 @@ const path = require('path');
 
   // CASE 1 — 4-hip rectangle (8 m wide × 5 m deep at 0.02 m/px scale).
   // Outline ABCD clockwise. Auto-generate hip & valley first.
-  await renderCase('4hip', () => {
+  await renderCase('01_4hip_EW', () => {
     window.DRAW.outline = [[200,150],[700,150],[700,450],[200,450]];
     window.DRAW.outlineDone = true;
     window.DRAW.scaleMetresPerPx = 0.02;
@@ -53,7 +53,7 @@ const path = require('path');
   // East/west are the long-sides; north/south are the hip-ends.
   // Exercises the cascade in the opposite orientation to verify the
   // logic isn't hard-coded to a horizontal long axis.
-  await renderCase('4hipNS', () => {
+  await renderCase('02_4hip_NS', () => {
     window.DRAW.outline = [[200,150],[500,150],[500,650],[200,650]];
     window.DRAW.outlineDone = true;
     window.DRAW.scaleMetresPerPx = 0.02;
@@ -71,7 +71,7 @@ const path = require('path');
   //   +--------+----+------+   ← bottom of main meets wing on the right
   //            |    |          ← wing extends DOWN
   //            +----+
-  await renderCase('Lshape', () => {
+  await renderCase('04_Lshape_SOP', () => {
     window.DRAW.outline = [
       [200, 150], [780, 150], [780, 480], [560, 480],
       [560, 320], [200, 320]
@@ -96,7 +96,7 @@ const path = require('path');
   //   |     main body      |
   //   |                    |
   //   +--------------------+
-  await renderCase('LshapeBig', () => {
+  await renderCase('05_Lshape_Big', () => {
     window.DRAW.outline = [
       [100, 100], [400, 100], [400, 400], [1000, 400],
       [1000, 1100], [100, 1100]
