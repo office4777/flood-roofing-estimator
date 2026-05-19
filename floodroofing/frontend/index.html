@@ -10703,12 +10703,15 @@ function renderRoofSheetPlan() {
       }
     });
   }
-  // _pairOffcuts (orange↔blue corner pairing) only makes sense when
-  // one long-side is truncated by a wing — in a clean 4-hip the
-  // corner offcuts cascade onto the adjacent HIP-END, not across to
-  // the opposite long-side.  Skip when no phantom strips exist.
-  var hasPhantom = allStrips.some(function(s){return s.isPhantom;});
-  if (mainA && mainB && hasPhantom) _pairOffcuts(mainA, mainB);
+  // _pairOffcuts (orange↔blue cross-pairing) is legacy logic that
+  // predates the corner cascade.  It used to bind blue's clipped
+  // corner strips to orange's truncated-end strips, but this created
+  // chained pairings (blue receiver → blue donor that is itself an
+  // offcut of orange) which pass-2 inheritance can't resolve in one
+  // step.  With _routePhantom handling wing routing and
+  // _pairCornerToHipEnd handling all corner-to-hip-end cascades, it's
+  // no longer needed — keep the function defined for clarity but
+  // never call it.
 
   // ── 4-hip corner cascade ──────────────────────────────────────
   // For every hip-end face, its strips are physically OFFCUTS of the
