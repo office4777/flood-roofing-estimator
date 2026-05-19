@@ -10803,18 +10803,41 @@ function renderRoofSheetPlan() {
     var half = Math.ceil(donorStrips.length / 2);
     var donorsLower = donorStrips.slice(0, half);   // closest to gutter corner = biggest offcuts → lower (near shared apex)
     var donorsUpper = donorStrips.slice(half);      // smaller offcuts → upper (near wing's far gutter end)
-    // Identify the wing's far gutter endpoint (opposite from where the
-    // shared apex projects onto its gutter).
-    var wingGutterFar = (dist(wingFace.a, sharedApex) > dist(wingFace.b, sharedApex))
-                        ? wingFace.a : wingFace.b;
+    // Wing-long-side face has two ridge apexes — the sharedApex (with
+    // longSide) and the wing's "top" apex where the wing's own hips
+    // converge.  Project onto wing's along-gutter axis so we can
+    // partition wing strips into:
+    //   • "mid zone"  — between top apex and shared apex (the section
+    //     of the wing-long-side that runs alongside the main, just
+    //     above the wing-junction hip).  Lower group receivers live
+    //     here.
+    //   • "tip zone"  — beyond the top apex (the wing's actual roof
+    //     section).  Upper group receivers live here.
+    var wingApexes = [wingFace.poly[1], wingFace.poly[2]];
+    var wingTopApex = ptEq(wingApexes[0], sharedApex) ? wingApexes[1] : wingApexes[0];
+    function gutterProj(p){
+      return (p[0]-wingFace.a[0])*wingFace.tx + (p[1]-wingFace.a[1])*wingFace.ty;
+    }
+    var sharedProj = gutterProj(sharedApex);
+    var topProj    = gutterProj(wingTopApex);
+    var midLo = Math.min(topProj, sharedProj), midHi = Math.max(topProj, sharedProj);
     var wingStrips = allStrips.filter(function(s){return s.face === wingFace && !s._offcutMatched;});
-    var lowerRecv = wingStrips
-      .sort(function(a,b){return dist(a.centroid, sharedApex) - dist(b.centroid, sharedApex);})
+    var lowerRecv = wingStrips.filter(function(s){
+      var p = gutterProj(s.centroid);
+      return p >= midLo && p <= midHi;
+    }).sort(function(a,b){return dist(a.centroid, sharedApex) - dist(b.centroid, sharedApex);})
       .slice(0, donorsLower.length);
     var lowerSet = new Set(lowerRecv);
-    var upperRecv = wingStrips.filter(function(s){return !lowerSet.has(s);})
-      .sort(function(a,b){return dist(a.centroid, wingGutterFar) - dist(b.centroid, wingGutterFar);})
+    var upperRecv = wingStrips.filter(function(s){
+      if (lowerSet.has(s)) return false;
+      var p = gutterProj(s.centroid);
+      return (topProj < sharedProj) ? (p < topProj) : (p > topProj);
+    }).sort(function(a,b){return dist(a.centroid, wingTopApex) - dist(b.centroid, wingTopApex);})
       .slice(0, donorsUpper.length);
+    // Reverse upper group order so the LARGEST (most-clipped) of the
+    // upper donors pairs with the wing-tip strip nearest the top apex
+    // — keeps the donor-N → receiver-N walking sequentially.
+    upperRecv.reverse();
     function pair(donors, receivers) {
       var n = Math.min(donors.length, receivers.length);
       for (var i = 0; i < n; i++) {
