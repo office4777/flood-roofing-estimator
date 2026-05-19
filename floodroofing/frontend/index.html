@@ -10726,12 +10726,18 @@ function renderRoofSheetPlan() {
     // Donor strips: long-side strips whose rectangle is clipped by a
     // hip (i.e. clipArea < rectArea) AND whose centroid is closer to
     // this apex than to the long-side's other apex (corner zone).
+    // Donors sorted FURTHEST-from-apex first (so the corner-most sheet
+    // — which has the biggest hip-cut offcut — pairs with the largest
+    // hip-end slot near the apex).  Receivers sorted CLOSEST-to-apex
+    // first.  Pair index-by-index: donor[i] → recv[i] gives the
+    // "biggest-to-biggest, smallest-to-smallest" matching, so sheet N
+    // body + offcut N visually reassemble into one full sheet.
     var donorStrips = allStrips.filter(function(s){
       if (s.face !== longSide) return false;
       if (!s.rectArea || s.clipArea >= s.rectArea - 1) return false;
       return distToApex(s.centroid) <
              Math.hypot(s.centroid[0]-otherLongApex[0], s.centroid[1]-otherLongApex[1]);
-    }).sort(function(a,b){return distToApex(a.centroid) - distToApex(b.centroid);});
+    }).sort(function(a,b){return distToApex(b.centroid) - distToApex(a.centroid);});
     // Receiver strips: hip-end strips on the OPPOSITE side of the
     // (apex → gutter-mid) line from the long-side's gutter midpoint —
     // i.e. north's NW corner offcut crosses the apex line and lands on
@@ -10750,6 +10756,10 @@ function renderRoofSheetPlan() {
     for (var i = 0; i < n; i++) {
       recvStrips[i]._offcutMatched = true;
       recvStrips[i]._offcutSource  = donorStrips[i];
+      // The offcut is physically a piece of the donor sheet, so it
+      // takes the donor's colour — orange offcuts on the south-side
+      // hip-end halves, blue offcuts on the north-side halves.
+      recvStrips[i].color          = donorStrips[i].color;
       donorStrips[i]._offcutDest   = recvStrips[i];
     }
   }
