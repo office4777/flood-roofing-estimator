@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1300" style="background:#fafafa">
+  <style>
+    .gutter { stroke: #333; stroke-width: 4; fill: none; }
+    .hip { stroke: #c62828; stroke-width: 2.5; fill: none; }
+    .ridge { stroke: #8e24aa; stroke-width: 2.5; fill: none; }
+    .valley { stroke: #1565c0; stroke-width: 3; stroke-dasharray: 12,6; fill: none; }
+    .face-main-n { fill: #f9731680; stroke: #f97316; stroke-width: 1; }
+    .face-main-s { fill: #2563eb80; stroke: #2563eb; stroke-width: 1; }
+    .face-main-w { fill: #16a34a80; stroke: #16a34a; stroke-width: 1; }
+    .face-main-e { fill: #16a34a80; stroke: #16a34a; stroke-width: 1; }
+    .face-wing-n { fill: #a855f780; stroke: #a855f7; stroke-width: 1; }
+    .face-wing-s { fill: #a855f750; stroke: #a855f7; stroke-width: 1; stroke-dasharray: 4,3; }
+    .face-wing-w { fill: #a855f780; stroke: #a855f7; stroke-width: 1; }
+    .face-wing-e { fill: #a855f780; stroke: #a855f7; stroke-width: 1; }
+    .label { font-family: -apple-system, sans-serif; font-size: 18px; font-weight: 600; fill: #111; }
+    .label-sm { font-family: -apple-system, sans-serif; font-size: 14px; fill: #333; }
+  </style>
+
+  <!-- Faces -->
+  <path d="M 100,400 L 400,400 L 700,700 L 650,750 L 450,750 L 100,400 Z" class="face-main-n" />
+  <path d="M 100,1100 L 1000,1100 L 650,750 L 450,750 Z" class="face-main-s" />
+  <path d="M 100,400 L 450,750 L 100,1100 Z" class="face-main-w" />
+  <path d="M 1000,400 L 1000,1100 L 650,750 L 700,700 Z" class="face-main-e" />
+  <path d="M 100,100 L 400,100 L 250,250 Z" class="face-wing-n" />
+  <path d="M 100,100 L 250,250 L 100,400 Z" class="face-wing-w" />
+  <path d="M 400,100 L 400,400 L 250,250 Z" class="face-wing-e" />
+  <path d="M 100,400 L 400,400 L 250,250 Z" class="face-wing-s" />
+
+  <!-- L-shape outline -->
+  <path d="M 100,100 L 400,100 L 400,400 L 1000,400 L 1000,1100 L 100,1100 Z" fill="none" stroke="#000" stroke-width="3" />
+
+  <!-- Valley -->
+  <path d="M 400,400 L 700,700" class="valley" />
+
+  <!-- Labels -->
+  <text x="250" y="170" class="label">Wing N</text>
+  <text x="155" y="265" class="label">Wing W</text>
+  <text x="320" y="265" class="label">Wing E</text>
+  <text x="200" y="370" class="label">Wing S</text>
+
+  <text x="540" y="550" class="label">Main N long-side</text>
+  <text x="500" y="970" class="label">Main S long-side</text>
+  <text x="170" y="780" class="label">Main W hip-end</text>
+  <text x="850" y="780" class="label">Main E hip-end</text>
+
+  <text x="450" y="540" class="label-sm" fill="#1565c0">VALLEY (400,400)→(700,700)</text>
+  <text x="290" y="425" class="label-sm" fill="#1565c0">↘ 45°</text>
+
+  <!-- Key corners -->
+  <circle cx="400" cy="400" r="6" fill="#1565c0" />
+  <text x="412" y="395" class="label-sm" fill="#1565c0">inner corner</text>
+  <circle cx="700" cy="700" r="6" fill="#1565c0" />
+  <text x="715" y="710" class="label-sm" fill="#1565c0">valley termination</text>
+
+  <!-- Main ridge -->
+  <line x1="450" y1="750" x2="650" y2="750" class="ridge" />
+  <!-- Main hip lines -->
+  <line x1="100" y1="400" x2="450" y2="750" class="hip" />
+  <line x1="1000" y1="400" x2="650" y2="750" class="hip" />
+  <line x1="100" y1="1100" x2="450" y2="750" class="hip" />
+  <line x1="1000" y1="1100" x2="650" y2="750" class="hip" />
+
+  <!-- Wing pyramid hips -->
+  <line x1="100" y1="100" x2="250" y2="250" class="hip" />
+  <line x1="400" y1="100" x2="250" y2="250" class="hip" />
+  <line x1="100" y1="400" x2="250" y2="250" class="hip" />
+  <line x1="400" y1="400" x2="250" y2="250" class="hip" />
+</svg>
