@@ -10955,25 +10955,66 @@ function renderRoofSheetPlan() {
     }).sort(function(a,b){
       return dist(a.centroid, wmlsFarGutter) - dist(b.centroid, wmlsFarGutter);
     }).slice(0, Math.min(7, donors.length));
-    // Stage 2 receivers: ALL wingHipEnd strips, sorted by distance from
-    // wingTopApex (closest first — small offcut goes to apex).
-    var stage2 = allStrips.filter(function(s){
-      return s.face === wingHipEnd && !s._offcutMatched;
-    }).sort(function(a,b){
-      return dist(a.centroid, wingTopApex) - dist(b.centroid, wingTopApex);
-    });
-    // Pair donor[i] → stage1[i], donor[i] → stage2[i].
-    // Donor ordering: furthest-into-wing (closest to wing top corner)
-    // first.  Receivers ordered closest-to-corner first.
+    // Pair donor[i] → stage1[i].  Donor ordering: furthest-into-wing
+    // first (closest to wing top corner).  Receivers sorted closest-
+    // to-far-gutter first.
     for (var i = 0; i < stage1.length; i++) {
       stage1[i]._offcutMatched = true;
       stage1[i]._offcutSource  = donors[i];
       stage1[i].color          = donors[i].color;
     }
-    for (var i = 0; i < Math.min(stage2.length, donors.length); i++) {
-      stage2[i]._offcutMatched = true;
-      stage2[i]._offcutSource  = donors[i];
-      stage2[i].color          = donors[i].color;
+    // Stage 2: wingHipEnd strips are NOT cascade offcuts — they're
+    // ordered as full LONG sheets in the donorFace colour (orange).
+    // Together with the existing face-3 → face-5 cascade pieces inside
+    // the wing's inner long-side they form a single "big-triangle hip"
+    // sheeted with longer sheets.  Each donor sheet runs from the
+    // wing's outline gutter (y=100 in Big-L) past the wing-top apex,
+    // is cut at the valley, and its tail becomes a face-5 cascade
+    // piece.  Implementation: re-skin wingHipEnd strips as orange long
+    // sheets, and re-source the face-5 cascade pieces (currently
+    // sourced from donorFace body strips 1,4,7) to instead point at
+    // wingHipEnd donors so they share seq + colour with the actual
+    // sheet they're cut from.
+    allStrips.forEach(function(s){
+      if (s.face !== wingHipEnd) return;
+      s.color           = donorFace.color;
+      s.orderedLengthMm = orderedLengthMm(donorFace.sheetM);
+      s.pieceM          = donorFace.sheetM;
+    });
+    // Sort wingHipEnd donors east-to-west along their gutter so the
+    // pairing to face-5 cascade pieces is geometrically natural —
+    // the east-half donors (the ones that physically reach past the
+    // wing-top apex into the inner long-side) are the ones that
+    // produce face-5 offcuts.
+    var hipDonors = allStrips.filter(function(s){return s.face === wingHipEnd;})
+      .sort(function(a,b){
+        // Sort by along-gutter projection from wingHipEnd.a.
+        var pa = (a.centroid[0]-wingHipEnd.a[0])*wingHipEnd.tx
+               + (a.centroid[1]-wingHipEnd.a[1])*wingHipEnd.ty;
+        var pb = (b.centroid[0]-wingHipEnd.a[0])*wingHipEnd.tx
+               + (b.centroid[1]-wingHipEnd.a[1])*wingHipEnd.ty;
+        return pa - pb;
+      });
+    // Re-source any existing innerLS cascade pieces (originally from
+    // donorFace phantoms) to point at wingHipEnd donors instead.  Pair
+    // by along-axis order — the eastern hipDonors map to the southern
+    // innerLS cascade pieces.
+    var innerLSPieces = allStrips.filter(function(s){
+      return s.face === innerLS && (s.isOffcut || s.isCascade || s._offcutMatched);
+    }).sort(function(a,b){
+      // Sort by distance from wingTopApex (closer first matches western
+      // wingHipEnd donors).  Actually we want east-donor → south-piece,
+      // so sort by distance ASCENDING from reflexV.
+      function dst(p,q){return Math.hypot(p[0]-q[0],p[1]-q[1]);}
+      return dst(b.centroid, reflexV) - dst(a.centroid, reflexV);
+    });
+    // Pair donor[i] → innerLSPieces[i] using the EAST half of hipDonors
+    // (those reach into innerLS area when cut at valley).
+    var eastHalf = hipDonors.slice(Math.floor(hipDonors.length/2));
+    for (var i = 0; i < Math.min(eastHalf.length, innerLSPieces.length); i++) {
+      innerLSPieces[i]._offcutMatched = true;
+      innerLSPieces[i]._offcutSource  = eastHalf[i];
+      innerLSPieces[i].color          = eastHalf[i].color;
     }
   }
   _pairPhantomToWing();
