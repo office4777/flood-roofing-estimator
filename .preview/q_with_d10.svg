@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 1300" style="background:#fff">
+  <style>
+    .gutter { stroke: #000; stroke-width: 3; fill: none; }
+    .ph { stroke: #ca8a04; stroke-width: 1; stroke-dasharray: 6,4; fill: none; }
+    .hip-nw { stroke: #c62828; stroke-width: 2; fill: none; }
+    .hip-sw { stroke: #c62828; stroke-width: 2; fill: none; }
+    .valley { stroke: #1565c0; stroke-width: 2; stroke-dasharray: 10,5; fill: none; }
+    .ridge { stroke: #8e24aa; stroke-width: 2; fill: none; }
+    .ridge-ext { stroke: #8e24aa; stroke-width: 1.5; stroke-dasharray: 6,4; fill: none; }
+    .yellow-box { stroke: #ca8a04; stroke-width: 2; fill: none; stroke-dasharray: 4,3; }
+    .lbl { font-family: -apple-system, sans-serif; font-size: 14px; fill: #111; font-weight: 600; }
+    .dim { font-family: -apple-system, sans-serif; font-size: 12px; fill: #444; }
+    .empty { fill: #f5f5f5; stroke: #999; stroke-width: 1.5; stroke-dasharray: 5,4; }
+  </style>
+
+  <path d="M 100,100 L 400,100 L 400,400 L 1000,400 L 1000,1100 L 100,1100 Z" class="gutter" />
+
+  <!-- Phantom main 4-hip lines -->
+  <line x1="1000" y1="400" x2="650" y2="750" class="ph" />
+  <line x1="1000" y1="1100" x2="650" y2="750" class="ph" />
+  <line x1="450" y1="750" x2="650" y2="750" class="ridge" />
+
+  <!-- Donor origin tints in yellow box (extended for D10) -->
+  <rect x="100" y="400" width="38" height="350" fill="#ef4444" fill-opacity="0.06" stroke="#ef4444" stroke-width="0.4" stroke-dasharray="2,2" /><rect x="138" y="400" width="38" height="350" fill="#f59e0b" fill-opacity="0.06" stroke="#f59e0b" stroke-width="0.4" stroke-dasharray="2,2" /><rect x="176" y="400" width="38" height="350" fill="#eab308" fill-opacity="0.06" stroke="#eab308" stroke-width="0.4" stroke-dasharray="2,2" /><rect x="214" y="400" width="38" height="350" fill="#84cc16" fill-opacity="0.06" stroke="#84cc16" stroke-width="0.4" stroke-dasharray="2,2" /><rect x="252" y="400" width="38" height="350" fill="#10b981" fill-opacity="0.06" stroke="#10b981" stroke-width="0.4" stroke-dasharray="2,2" /><rect x="290" y="400" width="38" height="350" fill="#06b6d4" fill-opacity="0.06" stroke="#06b6d4" stroke-width="0.4" stroke-dasharray="2,2" /><rect x="328" y="400" width="38" height="350" fill="#3b82f6" fill-opacity="0.06" stroke="#3b82f6" stroke-width="0.4" stroke-dasharray="2,2" /><rect x="366" y="400" width="38" height="350" fill="#8b5cf6" fill-opacity="0.06" stroke="#8b5cf6" stroke-width="0.4" stroke-dasharray="2,2" /><rect x="404" y="400" width="38" height="350" fill="#ec4899" fill-opacity="0.06" stroke="#ec4899" stroke-width="0.4" stroke-dasharray="2,2" /><rect x="442" y="400" width="38" height="350" fill="#a3a3a3" fill-opacity="0.06" stroke="#a3a3a3" stroke-width="0.4" stroke-dasharray="2,2" />
+  <rect x="100" y="400" width="380" height="350" class="yellow-box" />
+
+  <!-- Empty upper-half W hip-end -->
+  <polygon points="100,400 450,750 100,750" class="empty" />
+  <text x="160" y="600" font-family="-apple-system" font-size="22" fill="#999" font-weight="700">?</text>
+
+  <!-- All translated/moved pieces -->
+  <polygon points="100,100 138,100 138,138 100,100" fill="#ef4444" fill-opacity="0.6" stroke="#ef4444" stroke-width="0.8" /><text x="119" y="113.5" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D1</text><polygon points="138,100 176,100 176,176 138,138" fill="#f59e0b" fill-opacity="0.6" stroke="#f59e0b" stroke-width="0.8" /><text x="157" y="132.5" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D2</text><polygon points="176,100 214,100 214,214 176,176" fill="#eab308" fill-opacity="0.6" stroke="#eab308" stroke-width="0.8" /><text x="195" y="151.5" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D3</text><polygon points="214,100 252,100 252,252 214,214" fill="#84cc16" fill-opacity="0.6" stroke="#84cc16" stroke-width="0.8" /><text x="233" y="170.5" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D4</text><polygon points="252,100 290,100 290,210 252,248" fill="#10b981" fill-opacity="0.6" stroke="#10b981" stroke-width="0.8" /><text x="271" y="168.5" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D5</text><polygon points="290,100 328,100 328,172 290,210" fill="#06b6d4" fill-opacity="0.6" stroke="#06b6d4" stroke-width="0.8" /><text x="309" y="149.5" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D6</text><polygon points="328,100 366,100 366,134 328,172" fill="#3b82f6" fill-opacity="0.6" stroke="#3b82f6" stroke-width="0.8" /><text x="347" y="130.5" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D7</text><polygon points="366,100 404,100 404,96 366,134" fill="#8b5cf6" fill-opacity="0.6" stroke="#8b5cf6" stroke-width="0.8" /><text x="385" y="111.5" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D8</text>
+  <polygon points="404,400 442,400 442,742 404,704" fill="#ec4899" fill-opacity="0.6" stroke="#ec4899" stroke-width="0.8" /><text x="423" y="565.5" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D9</text><polygon points="442,400 480,400 480,750 450,750 442,742" fill="#a3a3a3" fill-opacity="0.6" stroke="#a3a3a3" stroke-width="0.8" /><text x="458.79999999999995" y="612.4" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D10</text>
+  <polygon points="252,548 290,510 290,590 252,552" fill="#10b981" fill-opacity="0.6" stroke="#10b981" stroke-width="0.8" /><text x="271" y="554" text-anchor="middle" font-family="-apple-system" font-size="9" font-weight="700" fill="#222">D5</text><polygon points="290,510 328,472 328,628 290,590" fill="#06b6d4" fill-opacity="0.6" stroke="#06b6d4" stroke-width="0.8" /><text x="309" y="554" text-anchor="middle" font-family="-apple-system" font-size="9" font-weight="700" fill="#222">D6</text><polygon points="328,472 366,434 366,666 328,628" fill="#3b82f6" fill-opacity="0.6" stroke="#3b82f6" stroke-width="0.8" /><text x="347" y="554" text-anchor="middle" font-family="-apple-system" font-size="9" font-weight="700" fill="#222">D7</text><polygon points="366,434 404,396 404,704 366,666" fill="#8b5cf6" fill-opacity="0.6" stroke="#8b5cf6" stroke-width="0.8" /><text x="385" y="554" text-anchor="middle" font-family="-apple-system" font-size="9" font-weight="700" fill="#222">D8</text>
+  <polygon points="450,750 412,788 100,788 100,750" fill="#ef4444" fill-opacity="0.6" stroke="#ef4444" stroke-width="0.8" /><text x="265.5" y="773" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D1</text><polygon points="412,788 374,826 100,826 100,788" fill="#f59e0b" fill-opacity="0.6" stroke="#f59e0b" stroke-width="0.8" /><text x="246.5" y="811" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D2</text><polygon points="374,826 336,864 100,864 100,826" fill="#eab308" fill-opacity="0.6" stroke="#eab308" stroke-width="0.8" /><text x="227.5" y="849" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D3</text><polygon points="336,864 298,902 100,902 100,864" fill="#84cc16" fill-opacity="0.6" stroke="#84cc16" stroke-width="0.8" /><text x="208.5" y="887" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D4</text><polygon points="298,902 260,940 100,940 100,902" fill="#10b981" fill-opacity="0.6" stroke="#10b981" stroke-width="0.8" /><text x="189.5" y="925" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D5</text><polygon points="260,940 222,978 100,978 100,940" fill="#06b6d4" fill-opacity="0.6" stroke="#06b6d4" stroke-width="0.8" /><text x="170.5" y="963" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D6</text><polygon points="222,978 184,1016 100,1016 100,978" fill="#3b82f6" fill-opacity="0.6" stroke="#3b82f6" stroke-width="0.8" /><text x="151.5" y="1001" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D7</text><polygon points="184,1016 146,1054 100,1054 100,1016" fill="#8b5cf6" fill-opacity="0.6" stroke="#8b5cf6" stroke-width="0.8" /><text x="132.5" y="1039" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D8</text><polygon points="146,1054 108,1092 100,1092 100,1054" fill="#ec4899" fill-opacity="0.6" stroke="#ec4899" stroke-width="0.8" /><text x="113.5" y="1077" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D9</text><polygon points="108,1092 100,1100 100,1092" fill="#a3a3a3" fill-opacity="0.6" stroke="#a3a3a3" stroke-width="0.8" /><text x="102.66666666666669" y="1098.6666666666667" text-anchor="middle" font-family="-apple-system" font-size="10" font-weight="700" fill="#222">D10</text>
+  <text x="465" y="735" font-family="-apple-system" font-size="8" fill="#666" text-anchor="middle">on ridge</text>
+
+  <!-- Hip / valley / wing hip lines on top -->
+  <line x1="100" y1="400" x2="450" y2="750" class="hip-nw" />
+  <line x1="100" y1="1100" x2="450" y2="750" class="hip-sw" />
+  <line x1="400" y1="400" x2="250" y2="550" class="valley" />
+  <line x1="100" y1="100" x2="250" y2="250" class="hip-nw" />
+  <line x1="400" y1="100" x2="250" y2="250" class="hip-nw" />
+
+  <!-- Destination labels -->
+  <text x="250" y="225" text-anchor="middle" class="lbl">Wing N hip-end</text>
+  <text x="250" y="242" text-anchor="middle" class="dim">D1..D8 (translated north)</text>
+
+  <text x="430" y="455" class="lbl" fill="#222">D9, D10</text>
+  <text x="430" y="472" class="dim">main N long-side</text>
+  <text x="430" y="488" class="dim">(NOT translated)</text>
+
+  <text x="330" y="475" class="lbl" fill="#444">chunk</text>
+  <text x="290" y="492" class="dim">D5–D8 (middle)</text>
+
+  <text x="230" y="940" class="lbl">SW corner hip</text>
+  <text x="220" y="958" class="dim">D1–D10 (rotated south)</text>
+
+  <text x="540" y="450" class="lbl">Donor inventory: D1..D10 (10 sheets total)</text>
+  <text x="540" y="475" class="dim">D1..D8 NORTH pieces → wing N hip-end (translate 300px north)</text>
+  <text x="540" y="495" class="dim">D9, D10 NORTH pieces → stay in main N long-side strip x=[404,480]</text>
+  <text x="540" y="515" class="dim">D5..D8 MIDDLE pieces → stay → chunk</text>
+  <text x="540" y="535" class="dim">D1..D10 SOUTH pieces → rotate 90° CCW around (100,750) → SW corner</text>
+
+  <text x="540" y="580" class="lbl" fill="#222">D10 detail:</text>
+  <text x="540" y="600" class="dim">• full-width sheet at x=[442, 480]</text>
+  <text x="540" y="618" class="dim">• part of it crosses x=450 (apex) — sits on the ridge line</text>
+  <text x="540" y="636" class="dim">• south piece is a tiny triangle near apex</text>
+
+  <text x="540" y="690" class="lbl" fill="#777">Upper-half W hip-end remains empty (per [B])</text>
+
+  <rect x="540" y="730" width="600" height="180" fill="#fffbeb" stroke="#ca8a04" stroke-width="1.5" rx="8" />
+  <text x="555" y="760" class="lbl">Match what you had in mind?</text>
+  <text x="555" y="785" class="dim">Wing N hip-end = D1..D8 translated.</text>
+  <text x="555" y="803" class="dim">D9, D10 stay as vertical strips in main N long-side, with D10 on ridge.</text>
+  <text x="555" y="821" class="dim">SW corner = 10 horizontal strips D1..D10 (rotated south offcuts).</text>
+  <text x="555" y="860" class="dim">Upper W hip-end = empty (next step?).</text>
+</svg>
