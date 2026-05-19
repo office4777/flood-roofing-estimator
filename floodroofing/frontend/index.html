@@ -10792,8 +10792,11 @@ function renderRoofSheetPlan() {
     });
   });
   var nextSeq = 1;
-  // Pass 1: number donor / standalone strips.
+  // Pass 1: number donor / standalone strips.  Sequence counter
+  // RESETS per colour so orange and blue both run 1..N — each donor
+  // and its matched offcut share that number within their own colour.
   Object.keys(byColor).forEach(function(c){
+    nextSeq = 1;
     byColor[c].forEach(function(s){
       if (s.isCascade) return;          // cascade piece — handled in pass 3
       if (s._offcutMatched) return;     // offcut receiver — handled in pass 2
