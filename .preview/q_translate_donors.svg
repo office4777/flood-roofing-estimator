@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 1300" style="background:#fff">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#444" />
+    </marker>
+  </defs>
+  <style>
+    .gutter { stroke: #000; stroke-width: 3; fill: none; }
+    .ph { stroke: #ca8a04; stroke-width: 1; stroke-dasharray: 6,4; fill: none; }
+    .hip-nw { stroke: #c62828; stroke-width: 2.5; fill: none; }
+    .valley { stroke: #1565c0; stroke-width: 2.5; stroke-dasharray: 10,5; fill: none; }
+    .ridge-ext { stroke: #8e24aa; stroke-width: 2; stroke-dasharray: 6,4; fill: none; }
+    .yellow-box { stroke: #ca8a04; stroke-width: 3; fill: none; }
+    .wing-hip { stroke: #c62828; stroke-width: 2.5; fill: none; }
+    .lbl { font-family: -apple-system, sans-serif; font-size: 14px; fill: #111; font-weight: 600; }
+    .dim { font-family: -apple-system, sans-serif; font-size: 12px; fill: #444; }
+  </style>
+
+  <!-- L-shape outline -->
+  <path d="M 100,100 L 400,100 L 400,400 L 1000,400 L 1000,1100 L 100,1100 Z" class="gutter" />
+
+  <!-- Phantom main 4-hip lines (faded) -->
+  <line x1="1000" y1="400" x2="650" y2="750" class="ph" />
+  <line x1="100" y1="1100" x2="450" y2="750" class="ph" />
+  <line x1="1000" y1="1100" x2="650" y2="750" class="ph" />
+  <line x1="450" y1="750" x2="650" y2="750" class="ph" />
+
+  <!-- WING N hip-end (the "northern most double hip") -->
+  <polygon points="100,100 400,100 250,250" fill="none" stroke="#000" stroke-width="0" />
+  <line x1="100" y1="100" x2="250" y2="250" class="wing-hip" />
+  <line x1="400" y1="100" x2="250" y2="250" class="wing-hip" />
+
+  <!-- Translation arrows -->
+  <line x1="119" y1="380" x2="119" y2="280" stroke="#ef4444" stroke-width="1.2" marker-end="url(#arr)" stroke-opacity="0.6" /><line x1="157" y1="380" x2="157" y2="280" stroke="#f59e0b" stroke-width="1.2" marker-end="url(#arr)" stroke-opacity="0.6" /><line x1="195" y1="380" x2="195" y2="280" stroke="#eab308" stroke-width="1.2" marker-end="url(#arr)" stroke-opacity="0.6" /><line x1="233" y1="380" x2="233" y2="280" stroke="#84cc16" stroke-width="1.2" marker-end="url(#arr)" stroke-opacity="0.6" /><line x1="271" y1="380" x2="271" y2="280" stroke="#10b981" stroke-width="1.2" marker-end="url(#arr)" stroke-opacity="0.6" /><line x1="309" y1="380" x2="309" y2="280" stroke="#06b6d4" stroke-width="1.2" marker-end="url(#arr)" stroke-opacity="0.6" /><line x1="347" y1="380" x2="347" y2="280" stroke="#3b82f6" stroke-width="1.2" marker-end="url(#arr)" stroke-opacity="0.6" /><line x1="385" y1="380" x2="385" y2="280" stroke="#8b5cf6" stroke-width="1.2" marker-end="url(#arr)" stroke-opacity="0.6" /><line x1="423" y1="380" x2="423" y2="280" stroke="#ec4899" stroke-width="1.2" marker-end="url(#arr)" stroke-opacity="0.6" /><line x1="446" y1="380" x2="446" y2="280" stroke="#ef4444" stroke-width="1.2" marker-end="url(#arr)" stroke-opacity="0.6" />
+
+  <!-- Donor pieces (south + middle + north, plus translated wing) -->
+  <polygon points="100,400 138,438 138,750 100,750" fill="#ef4444" fill-opacity="0.35" stroke="#ef4444" stroke-width="0.8" /><polygon points="100,100 138,100 138,138 100,100" fill="#ef4444" fill-opacity="0.55" stroke="#ef4444" stroke-width="0.8" /><polygon points="100,400 138,400 138,438 100,400" fill="#ef4444" fill-opacity="0.10" stroke="#ef4444" stroke-width="0.5" stroke-dasharray="3,2" /><text x="119" y="409.5" text-anchor="middle" font-family="-apple-system" font-size="10" fill="#222" font-weight="700">D1</text><polygon points="138,438 176,476 176,750 138,750" fill="#f59e0b" fill-opacity="0.35" stroke="#f59e0b" stroke-width="0.8" /><polygon points="138,100 176,100 176,176 138,138" fill="#f59e0b" fill-opacity="0.55" stroke="#f59e0b" stroke-width="0.8" /><polygon points="138,400 176,400 176,476 138,438" fill="#f59e0b" fill-opacity="0.10" stroke="#f59e0b" stroke-width="0.5" stroke-dasharray="3,2" /><text x="157" y="428.5" text-anchor="middle" font-family="-apple-system" font-size="10" fill="#222" font-weight="700">D2</text><polygon points="176,476 214,514 214,750 176,750" fill="#eab308" fill-opacity="0.35" stroke="#eab308" stroke-width="0.8" /><polygon points="176,100 214,100 214,214 176,176" fill="#eab308" fill-opacity="0.55" stroke="#eab308" stroke-width="0.8" /><polygon points="176,400 214,400 214,514 176,476" fill="#eab308" fill-opacity="0.10" stroke="#eab308" stroke-width="0.5" stroke-dasharray="3,2" /><text x="195" y="447.5" text-anchor="middle" font-family="-apple-system" font-size="10" fill="#222" font-weight="700">D3</text><polygon points="214,514 252,552 252,750 214,750" fill="#84cc16" fill-opacity="0.35" stroke="#84cc16" stroke-width="0.8" /><polygon points="214,100 252,100 252,252 214,214" fill="#84cc16" fill-opacity="0.55" stroke="#84cc16" stroke-width="0.8" /><polygon points="214,400 252,400 252,552 214,514" fill="#84cc16" fill-opacity="0.10" stroke="#84cc16" stroke-width="0.5" stroke-dasharray="3,2" /><text x="233" y="466.5" text-anchor="middle" font-family="-apple-system" font-size="10" fill="#222" font-weight="700">D4</text><polygon points="252,552 290,590 290,750 252,750" fill="#10b981" fill-opacity="0.35" stroke="#10b981" stroke-width="0.8" /><polygon points="252,548 290,510 290,590 252,552" fill="#10b981" fill-opacity="0.35" stroke="#10b981" stroke-width="0.8" /><polygon points="252,100 290,100 290,210 252,248" fill="#10b981" fill-opacity="0.55" stroke="#10b981" stroke-width="0.8" /><polygon points="252,400 290,400 290,510 252,548" fill="#10b981" fill-opacity="0.10" stroke="#10b981" stroke-width="0.5" stroke-dasharray="3,2" /><text x="271" y="464.5" text-anchor="middle" font-family="-apple-system" font-size="10" fill="#222" font-weight="700">D5</text><polygon points="290,590 328,628 328,750 290,750" fill="#06b6d4" fill-opacity="0.35" stroke="#06b6d4" stroke-width="0.8" /><polygon points="290,510 328,472 328,628 290,590" fill="#06b6d4" fill-opacity="0.35" stroke="#06b6d4" stroke-width="0.8" /><polygon points="290,100 328,100 328,172 290,210" fill="#06b6d4" fill-opacity="0.55" stroke="#06b6d4" stroke-width="0.8" /><polygon points="290,400 328,400 328,472 290,510" fill="#06b6d4" fill-opacity="0.10" stroke="#06b6d4" stroke-width="0.5" stroke-dasharray="3,2" /><text x="309" y="445.5" text-anchor="middle" font-family="-apple-system" font-size="10" fill="#222" font-weight="700">D6</text><polygon points="328,628 366,666 366,750 328,750" fill="#3b82f6" fill-opacity="0.35" stroke="#3b82f6" stroke-width="0.8" /><polygon points="328,472 366,434 366,666 328,628" fill="#3b82f6" fill-opacity="0.35" stroke="#3b82f6" stroke-width="0.8" /><polygon points="328,100 366,100 366,134 328,172" fill="#3b82f6" fill-opacity="0.55" stroke="#3b82f6" stroke-width="0.8" /><polygon points="328,400 366,400 366,434 328,472" fill="#3b82f6" fill-opacity="0.10" stroke="#3b82f6" stroke-width="0.5" stroke-dasharray="3,2" /><text x="347" y="426.5" text-anchor="middle" font-family="-apple-system" font-size="10" fill="#222" font-weight="700">D7</text><polygon points="366,666 404,704 404,750 366,750" fill="#8b5cf6" fill-opacity="0.35" stroke="#8b5cf6" stroke-width="0.8" /><polygon points="366,434 404,396 404,704 366,666" fill="#8b5cf6" fill-opacity="0.35" stroke="#8b5cf6" stroke-width="0.8" /><polygon points="366,100 404,100 404,96 366,134" fill="#8b5cf6" fill-opacity="0.55" stroke="#8b5cf6" stroke-width="0.8" /><polygon points="366,400 404,400 404,396 366,434" fill="#8b5cf6" fill-opacity="0.10" stroke="#8b5cf6" stroke-width="0.5" stroke-dasharray="3,2" /><text x="385" y="407.5" text-anchor="middle" font-family="-apple-system" font-size="10" fill="#222" font-weight="700">D8</text><polygon points="404,704 442,742 442,750 404,750" fill="#ec4899" fill-opacity="0.35" stroke="#ec4899" stroke-width="0.8" /><polygon points="404,100 442,100 442,442 404,404" fill="#ec4899" fill-opacity="0.55" stroke="#ec4899" stroke-width="0.8" /><polygon points="404,400 442,400 442,742 404,704" fill="#ec4899" fill-opacity="0.10" stroke="#ec4899" stroke-width="0.5" stroke-dasharray="3,2" /><text x="423" y="561.5" text-anchor="middle" font-family="-apple-system" font-size="10" fill="#222" font-weight="700">D9</text><polygon points="442,742 450,750 450,750 442,750" fill="#ef4444" fill-opacity="0.35" stroke="#ef4444" stroke-width="0.8" /><polygon points="442,100 450,100 450,450 442,442" fill="#ef4444" fill-opacity="0.55" stroke="#ef4444" stroke-width="0.8" /><polygon points="442,400 450,400 450,750 442,742" fill="#ef4444" fill-opacity="0.10" stroke="#ef4444" stroke-width="0.5" stroke-dasharray="3,2" /><text x="446" y="573" text-anchor="middle" font-family="-apple-system" font-size="10" fill="#222" font-weight="700">D10</text>
+
+  <!-- Yellow box outline -->
+  <rect x="100" y="400" width="350" height="350" class="yellow-box" />
+
+  <!-- NW hip line and valley (drawn on top of donor fills) -->
+  <line x1="100" y1="400" x2="450" y2="750" class="hip-nw" />
+  <line x1="400" y1="400" x2="250" y2="550" class="valley" />
+  <line x1="100" y1="750" x2="450" y2="750" class="ridge-ext" />
+
+  <!-- Labels -->
+  <text x="540" y="180" class="lbl">WING N HIP-END</text>
+  <text x="540" y="200" class="dim">("northern most double hip wing")</text>
+  <text x="540" y="218" class="dim">= where all donor TOP pieces land after translating north by 300px</text>
+
+  <text x="540" y="450" class="lbl">YELLOW BOX (phantom hip)</text>
+  <text x="540" y="470" class="dim">9 vertical donor sheets D1..D9</text>
+  <text x="540" y="488" class="dim">each cut up to twice (NW hip + valley)</text>
+
+  <text x="540" y="560" class="lbl" fill="#1565c0">Valley cut</text>
+  <text x="540" y="580" class="dim">(400,400) → (250,550)</text>
+
+  <text x="540" y="640" class="lbl" fill="#c62828">NW hip cut</text>
+  <text x="540" y="660" class="dim">(100,400) → (450,750)</text>
+
+  <text x="540" y="730" class="lbl" fill="#8e24aa">phantom ridge extension</text>
+  <text x="540" y="750" class="dim">bottom edge of yellow box at y=750</text>
+
+  <!-- Color legend -->
+  <text x="540" y="820" class="lbl">Per donor (e.g. D5 yellow-green):</text>
+  <text x="540" y="845" class="dim">• SOUTH piece (faded fill, below NW hip in yellow box) → main W hip-end</text>
+  <text x="540" y="865" class="dim">• MIDDLE piece (faded fill, between valley + NW hip) → chunk</text>
+  <text x="540" y="885" class="dim">• NORTH piece original location (dashed outline, above valley)</text>
+  <text x="540" y="905" class="dim">• NORTH piece TRANSLATED 300px north → fills wing N hip-end (solid)</text>
+
+  <rect x="540" y="950" width="600" height="160" fill="#fffbeb" stroke="#ca8a04" stroke-width="1.5" rx="8" />
+  <text x="555" y="980" class="lbl">Did I get the translation rule right?</text>
+  <text x="555" y="1005" class="dim">Each donor's NORTH piece slides up by 300px (= wing height).</text>
+  <text x="555" y="1025" class="dim">Wing's left hip line is the NW hip line translated north.</text>
+  <text x="555" y="1045" class="dim">Wing's right hip line is the valley translated north.</text>
+  <text x="555" y="1075" class="lbl">If yes, next step?</text>
+</svg>
