@@ -10786,8 +10786,23 @@ function renderRoofSheetPlan() {
   allStrips.forEach(function(s){
     (byColor[s.color] = byColor[s.color] || []).push(s);
   });
+  // Sort each colour group by projection onto a SHARED canonical axis
+  // (mainA's along-gutter direction) so both long-sides number 1..N
+  // walking in the SAME direction across the building — e.g. both
+  // start at the south hip-corner and end at the north hip-corner.
+  // mainA and mainB have anti-parallel gutters, so projecting onto
+  // mainA's axis gives a consistent direction for blue as well.
+  // Falls back to x-then-y for colours with no long-side (e.g. an
+  // L-shape wing).
   Object.keys(byColor).forEach(function(c){
     byColor[c].sort(function(a, b){
+      if (mainA) {
+        var pa = (a.centroid[0]-mainA.a[0])*mainA.tx +
+                 (a.centroid[1]-mainA.a[1])*mainA.ty;
+        var pb = (b.centroid[0]-mainA.a[0])*mainA.tx +
+                 (b.centroid[1]-mainA.a[1])*mainA.ty;
+        return pa - pb;
+      }
       return a.centroid[0] - b.centroid[0] || a.centroid[1] - b.centroid[1];
     });
   });
