@@ -10778,6 +10778,77 @@ function renderRoofSheetPlan() {
     });
   });
 
+  // ── L-shape corner-to-wing cascade ────────────────────────────
+  // When one of mainA/mainB's apexes is shared with a LONG-SIDE face
+  // (the wing's adjacent long-side) instead of a hip-end, the corner
+  // sheets at that apex still need a cascade target. Per the SOP
+  // (per-roofer demo), the 10 corner sheets nearest the apex donate
+  // their offcuts to 10 wing-long-side strips: 5 nearest the shared
+  // apex on the wing-long-side (the "lower" group), and 5 nearest
+  // the wing's FAR end (the "upper" group).  The roofer cuts each
+  // offcut to fit and rotates 90° onto the wing.
+  function _pairCornerToWing(longSide, wingFace, sharedApex) {
+    if (!longSide || !wingFace || !sharedApex) return;
+    function dist(p, q){return Math.hypot(p[0]-q[0], p[1]-q[1]);}
+    // Identify which gutter endpoint of longSide is nearest the
+    // shared apex — donors are the 10 strips closest to THIS gutter
+    // endpoint (the corner side).
+    var longGutterNear = (dist(longSide.a, sharedApex) < dist(longSide.b, sharedApex))
+                         ? longSide.a : longSide.b;
+    var donorStrips = allStrips.filter(function(s){return s.face === longSide;})
+      .sort(function(a,b){
+        return dist(a.centroid, longGutterNear) - dist(b.centroid, longGutterNear);
+      }).slice(0, 10);
+    if (!donorStrips.length) return;
+    var half = Math.ceil(donorStrips.length / 2);
+    var donorsLower = donorStrips.slice(0, half);   // closest to gutter corner = biggest offcuts → lower (near shared apex)
+    var donorsUpper = donorStrips.slice(half);      // smaller offcuts → upper (near wing's far gutter end)
+    // Identify the wing's far gutter endpoint (opposite from where the
+    // shared apex projects onto its gutter).
+    var wingGutterFar = (dist(wingFace.a, sharedApex) > dist(wingFace.b, sharedApex))
+                        ? wingFace.a : wingFace.b;
+    var wingStrips = allStrips.filter(function(s){return s.face === wingFace && !s._offcutMatched;});
+    var lowerRecv = wingStrips
+      .sort(function(a,b){return dist(a.centroid, sharedApex) - dist(b.centroid, sharedApex);})
+      .slice(0, donorsLower.length);
+    var lowerSet = new Set(lowerRecv);
+    var upperRecv = wingStrips.filter(function(s){return !lowerSet.has(s);})
+      .sort(function(a,b){return dist(a.centroid, wingGutterFar) - dist(b.centroid, wingGutterFar);})
+      .slice(0, donorsUpper.length);
+    function pair(donors, receivers) {
+      var n = Math.min(donors.length, receivers.length);
+      for (var i = 0; i < n; i++) {
+        receivers[i]._offcutMatched = true;
+        receivers[i]._offcutSource  = donors[i];
+        receivers[i].color          = donors[i].color;
+        donors[i]._offcutDest       = receivers[i];
+      }
+    }
+    pair(donorsLower, lowerRecv);
+    pair(donorsUpper, upperRecv);
+  }
+  [mainA, mainB].forEach(function(longSide){
+    if (!longSide || longSide.type !== 'long-side') return;
+    var apexL = longSide.poly[1], apexR = longSide.poly[2];
+    [apexL, apexR].forEach(function(apex){
+      // Skip if this apex already paired with a hip-end (4-hip cascade).
+      var hasHipEnd = faces.some(function(f){
+        return f.type === 'hip-end' && ptEq(f.poly[1], apex);
+      });
+      if (hasHipEnd) return;
+      // Look for a long-side face that shares this apex AND isn't
+      // mainA / mainB itself (i.e. the wing's long-side).
+      var wingFace = null;
+      faces.forEach(function(f){
+        if (wingFace) return;
+        if (f.type !== 'long-side') return;
+        if (f === longSide || f === mainA || f === mainB) return;
+        if (ptEq(f.poly[1], apex) || ptEq(f.poly[2], apex)) wingFace = f;
+      });
+      if (wingFace) _pairCornerToWing(longSide, wingFace, apex);
+    });
+  });
+
   // Sequence numbering — paired strips share a number; non-paired
   // strips get fresh numbers, walking left-to-right within colour.
   // Three passes: (1) plain non-offcut strips (donors), (2) offcut-
