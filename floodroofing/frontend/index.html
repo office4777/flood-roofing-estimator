@@ -10872,6 +10872,112 @@ function renderRoofSheetPlan() {
     });
   });
 
+  // ── L-shape phantom-4th-hip cascade ───────────────────────────
+  // The donor long-side (orange in Big-L) extends past the reflex
+  // into the wing's column; its strips in that extension are either
+  // phantom-flagged or body strips whose centroid sits past the
+  // gutter's reflex endpoint.  In the roofer's SOP these 8 strips
+  // are CUT TWICE — once at the imaginary "phantom 4th hip" line
+  // (the would-be hip of the rectangle if the wing weren't carved
+  // out) and once at the valley (the wing's own inner ridge) —
+  // producing pieces that fill:
+  //   • The wing's MAIN long-side (face 0 in Big-L), at the far end
+  //     from the wing's top apex (i.e. the strips adjacent to the
+  //     SW main hip).  7 receivers.
+  //   • The wing's HIP-END (face 4 in Big-L) — ALL of its strips.
+  //     8 receivers.
+  // We mark these receivers as cascade offcuts of the orange donor
+  // strips so they share seq + colour.
+  function _pairPhantomToWing() {
+    if (!reflexV) return;
+    function dist(p,q){return Math.hypot(p[0]-q[0],p[1]-q[1]);}
+    // Donor long-side = the mainA/mainB face whose poly extends past
+    // the reflex (has phantom strips or strips in the wing column).
+    var donorFace = null;
+    [mainA, mainB].forEach(function(f){
+      if (donorFace || !f) return;
+      var hasPhantom = allStrips.some(function(s){return s.face===f && s.isPhantom;});
+      if (hasPhantom) donorFace = f;
+    });
+    if (!donorFace) return;
+    // Inner long-side = long-side face whose gutter touches reflex.
+    var innerLS = null;
+    faces.forEach(function(f){
+      if (innerLS) return;
+      if (f === donorFace || f.type !== 'long-side') return;
+      if (ptEq(f.a, reflexV) || ptEq(f.b, reflexV)) innerLS = f;
+    });
+    if (!innerLS) return;
+    // Wing's top apex = the ridge end of innerLS opposite the reflex.
+    // innerLS.poly is CCW from b; poly[1]=sb.far, poly[2]=sa.far.
+    var aIsReflex_inner = ptEq(innerLS.a, reflexV);
+    var wingTopApex = aIsReflex_inner ? innerLS.poly[1] : innerLS.poly[2];
+    // Wing's hip-end: a hip-end whose apex is wingTopApex.
+    var wingHipEnd = null;
+    faces.forEach(function(f){
+      if (wingHipEnd) return;
+      if (f.type !== 'hip-end') return;
+      if (ptEq(f.poly[1], wingTopApex)) wingHipEnd = f;
+    });
+    // Wing's main long-side: long-side touching wingTopApex (not innerLS).
+    var wingMainLS = null;
+    faces.forEach(function(f){
+      if (wingMainLS) return;
+      if (f.type !== 'long-side' || f === innerLS || f === donorFace) return;
+      if (ptEq(f.poly[1], wingTopApex) || ptEq(f.poly[2], wingTopApex)) wingMainLS = f;
+    });
+    if (!wingHipEnd || !wingMainLS) return;
+    // Identify donors on donorFace: strips with centroid past the reflex
+    // (along the donor's gutter direction, past the reflex endpoint).
+    var aIsReflex = ptEq(donorFace.a, reflexV);
+    var reflexEnd = aIsReflex ? donorFace.a : donorFace.b;
+    var farEnd    = aIsReflex ? donorFace.b : donorFace.a;
+    var dx = farEnd[0]-reflexEnd[0], dy = farEnd[1]-reflexEnd[1];
+    var dlen = Math.hypot(dx, dy); dx /= dlen; dy /= dlen;
+    var donors = allStrips.filter(function(s){
+      if (s.face !== donorFace) return false;
+      var px = s.centroid[0]-reflexEnd[0], py = s.centroid[1]-reflexEnd[1];
+      return (px*dx + py*dy) < 0;       // past reflex into wing column
+    }).sort(function(a,b){
+      // Sort by along-axis projection: most-negative (furthest into
+      // wing) first.
+      var pa = (a.centroid[0]-reflexEnd[0])*dx + (a.centroid[1]-reflexEnd[1])*dy;
+      var pb = (b.centroid[0]-reflexEnd[0])*dx + (b.centroid[1]-reflexEnd[1])*dy;
+      return pa - pb;
+    });
+    if (!donors.length) return;
+    // Stage 1 receivers: wingMainLS strips closest to the gutter end
+    // FAR from wingTopApex (the SW outline corner in Big-L).
+    var wmlsFarGutter = (dist(wingMainLS.a, wingTopApex) > dist(wingMainLS.b, wingTopApex))
+                       ? wingMainLS.a : wingMainLS.b;
+    var stage1 = allStrips.filter(function(s){
+      return s.face === wingMainLS && !s._offcutMatched;
+    }).sort(function(a,b){
+      return dist(a.centroid, wmlsFarGutter) - dist(b.centroid, wmlsFarGutter);
+    }).slice(0, Math.min(7, donors.length));
+    // Stage 2 receivers: ALL wingHipEnd strips, sorted by distance from
+    // wingTopApex (closest first — small offcut goes to apex).
+    var stage2 = allStrips.filter(function(s){
+      return s.face === wingHipEnd && !s._offcutMatched;
+    }).sort(function(a,b){
+      return dist(a.centroid, wingTopApex) - dist(b.centroid, wingTopApex);
+    });
+    // Pair donor[i] → stage1[i], donor[i] → stage2[i].
+    // Donor ordering: furthest-into-wing (closest to wing top corner)
+    // first.  Receivers ordered closest-to-corner first.
+    for (var i = 0; i < stage1.length; i++) {
+      stage1[i]._offcutMatched = true;
+      stage1[i]._offcutSource  = donors[i];
+      stage1[i].color          = donors[i].color;
+    }
+    for (var i = 0; i < Math.min(stage2.length, donors.length); i++) {
+      stage2[i]._offcutMatched = true;
+      stage2[i]._offcutSource  = donors[i];
+      stage2[i].color          = donors[i].color;
+    }
+  }
+  _pairPhantomToWing();
+
   // Sequence numbering — paired strips share a number; non-paired
   // strips get fresh numbers, walking left-to-right within colour.
   // Three passes: (1) plain non-offcut strips (donors), (2) offcut-
