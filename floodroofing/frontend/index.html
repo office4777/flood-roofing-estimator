@@ -10946,55 +10946,63 @@ function renderRoofSheetPlan() {
       return pa - pb;
     });
     if (!donors.length) return;
-    // Stage 1 receivers: wingMainLS strips closest to the gutter end
-    // FAR from wingTopApex (the SW outline corner in Big-L).
-    var wmlsFarGutter = (dist(wingMainLS.a, wingTopApex) > dist(wingMainLS.b, wingTopApex))
-                       ? wingMainLS.a : wingMainLS.b;
-    var stage1 = allStrips.filter(function(s){
-      return s.face === wingMainLS && !s._offcutMatched;
-    }).sort(function(a,b){
-      return dist(a.centroid, wmlsFarGutter) - dist(b.centroid, wmlsFarGutter);
-    }).slice(0, Math.min(7, donors.length));
-    // Pair donor[i] → stage1[i].  Donor ordering: furthest-into-wing
-    // first (closest to wing top corner).  Receivers sorted closest-
-    // to-far-gutter first.
-    for (var i = 0; i < stage1.length; i++) {
-      stage1[i]._offcutMatched = true;
-      stage1[i]._offcutSource  = donors[i];
-      stage1[i].color          = donors[i].color;
-    }
-    // Stage 2: wingHipEnd strips are NOT cascade offcuts — they're
-    // ordered as full LONG sheets in the donorFace colour (orange).
-    // Together with the existing face-3 → face-5 cascade pieces inside
-    // the wing's inner long-side they form a single "big-triangle hip"
-    // sheeted with longer sheets.  Each donor sheet runs from the
-    // wing's outline gutter (y=100 in Big-L) past the wing-top apex,
-    // is cut at the valley, and its tail becomes a face-5 cascade
-    // piece.  Implementation: re-skin wingHipEnd strips as orange long
-    // sheets, and re-source the face-5 cascade pieces (currently
-    // sourced from donorFace body strips 1,4,7) to instead point at
-    // wingHipEnd donors so they share seq + colour with the actual
-    // sheet they're cut from.
+    // Re-skin wingHipEnd strips first so face-4 sheets enter the
+    // pairing as orange long donors (the "big-triangle hip" upper
+    // half).  Tag them as a separate seq sub-group so they number
+    // 1..8 within orange independent of face-3 body strips.
     allStrips.forEach(function(s){
       if (s.face !== wingHipEnd) return;
       s.color           = donorFace.color;
       s.orderedLengthMm = orderedLengthMm(donorFace.sheetM);
       s.pieceM          = donorFace.sheetM;
+      s._seqGroup       = 'wingHipDonor';   // separate seq counter
     });
-    // Sort wingHipEnd donors east-to-west along their gutter so the
-    // pairing to face-5 cascade pieces is geometrically natural —
-    // the east-half donors (the ones that physically reach past the
-    // wing-top apex into the inner long-side) are the ones that
-    // produce face-5 offcuts.
+    // Sort wingHipEnd donors east-to-west along their gutter so seq 1
+    // is the westernmost long donor.
     var hipDonors = allStrips.filter(function(s){return s.face === wingHipEnd;})
       .sort(function(a,b){
-        // Sort by along-gutter projection from wingHipEnd.a.
         var pa = (a.centroid[0]-wingHipEnd.a[0])*wingHipEnd.tx
                + (a.centroid[1]-wingHipEnd.a[1])*wingHipEnd.ty;
         var pb = (b.centroid[0]-wingHipEnd.a[0])*wingHipEnd.tx
                + (b.centroid[1]-wingHipEnd.a[1])*wingHipEnd.ty;
         return pa - pb;
       });
+    // Stage 1 cascade: only the 3 wing-column donors closest to the
+    // donor-face's gutter (the SW corner of Big-L) produce face-0
+    // south offcuts.  The other phantom-extension donors don't yield
+    // usable offcuts at the SW corner.
+    var wmlsFarGutter = (dist(wingMainLS.a, wingTopApex) > dist(wingMainLS.b, wingTopApex))
+                       ? wingMainLS.a : wingMainLS.b;
+    var stage1Recv = allStrips.filter(function(s){
+      return s.face === wingMainLS && !s._offcutMatched;
+    }).sort(function(a,b){
+      return dist(a.centroid, wmlsFarGutter) - dist(b.centroid, wmlsFarGutter);
+    });
+    // Keep only the 3 face-3 donors that physically reach the SW
+    // corner (those at the lowest-x in the wing-column extension).
+    var stage1Donors = donors.slice(0, 3);
+    var stage1FaceMainLS = stage1Recv.slice(0, stage1Donors.length);
+    for (var i = 0; i < stage1FaceMainLS.length; i++) {
+      stage1FaceMainLS[i]._offcutMatched = true;
+      stage1FaceMainLS[i]._offcutSource  = stage1Donors[i];
+      stage1FaceMainLS[i].color          = stage1Donors[i].color;
+    }
+    // Stage 1b: the 2 westernmost wingHipEnd donors (long sheets 1 & 2)
+    // produce offcuts that fit the wingMainLS strips JUST SOUTH of the
+    // SW apex — the 2 strips between the existing cascade zone and the
+    // apex itself.
+    var swApex = ptEq(wingMainLS.poly[1], wingTopApex) ? wingMainLS.poly[2] : wingMainLS.poly[1];
+    var stage1bRecv = allStrips.filter(function(s){
+      return s.face === wingMainLS && !s._offcutMatched;
+    }).sort(function(a,b){
+      return dist(a.centroid, swApex) - dist(b.centroid, swApex);
+    }).slice(0, 2);
+    var westHipDonors = hipDonors.slice(0, 2);
+    for (var i = 0; i < Math.min(westHipDonors.length, stage1bRecv.length); i++) {
+      stage1bRecv[i]._offcutMatched = true;
+      stage1bRecv[i]._offcutSource  = westHipDonors[i];
+      stage1bRecv[i].color          = westHipDonors[i].color;
+    }
     // Re-source any existing innerLS cascade pieces (originally from
     // donorFace phantoms) to point at wingHipEnd donors instead.  Pair
     // by along-axis order — the eastern hipDonors map to the southern
@@ -11026,9 +11034,14 @@ function renderRoofSheetPlan() {
   // inherit their parent's seq.  Pass 1 must complete across ALL
   // colours before pass 2, so a donor in another colour is numbered
   // before its receivers reference it.
+  // Group by (color + optional sub-group).  Strips with the same
+  // colour but a distinct `_seqGroup` get an independent seq counter
+  // — e.g. the wing-hip donors run 1..8 separately from the donor
+  // long-side's body 1..N.
   var byColor = {};
   allStrips.forEach(function(s){
-    (byColor[s.color] = byColor[s.color] || []).push(s);
+    var key = s.color + (s._seqGroup ? '|' + s._seqGroup : '');
+    (byColor[key] = byColor[key] || []).push(s);
   });
   // Sort each colour group by projection onto a SHARED canonical axis
   // (mainA's along-gutter direction) so both long-sides number 1..N
