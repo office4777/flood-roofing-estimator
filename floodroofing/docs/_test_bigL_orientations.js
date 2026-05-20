@@ -62,6 +62,23 @@ const fs = require('fs');
       label: 'J: 350x350 wing + 850x750 main (orient 2, wing BOTTOM-right)',
       outline: [[950,1200],[600,1200],[600,850],[100,850],[100,100],[950,100]],
     },
+    // ─── 4 PERFECT L's: arms of equal width so all sheets are same length ───
+    {
+      label: 'K: perfect L of 3x 300x300 squares (300-wide arms, 900 long, orient 0)',
+      outline: [[100,100],[400,100],[400,400],[1000,400],[1000,700],[100,700]],
+    },
+    {
+      label: 'L: perfect L 200-wide arms x 600 long (orient 0)',
+      outline: [[100,100],[300,100],[300,500],[700,500],[700,700],[100,700]],
+    },
+    {
+      label: 'M: perfect L 400-wide arms x 1000 long (orient 0)',
+      outline: [[100,100],[500,100],[500,700],[1100,700],[1100,1100],[100,1100]],
+    },
+    {
+      label: 'N: perfect L 400-wide arms x 1000 long, wing bottom (orient 2)',
+      outline: [[1100,1100],[700,1100],[700,500],[100,500],[100,100],[1100,100]],
+    },
   ];
 
   const captures = [];
