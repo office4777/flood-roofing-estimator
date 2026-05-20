@@ -81,8 +81,13 @@ const fs = require('fs');
     if (fx > 1000 && fy > 800 && fy < 1000) {
       return cy < 900 ? 'mainE_N_half' : 'mainE_S_half';
     }
-    // Wing W long-side
-    if (fx < 250 && fy > 400 && fy < 900) return 'wingW';
+    // Wing W long-side: split into TOP (regular orange) and BOTTOM
+    // (clipped by SW hip — this is the "external hip face" donor, blue)
+    if (fx < 250 && fy > 400 && fy < 900) {
+      // Strip centroid y > 900 means the strip is in the SW-clipped
+      // portion of wing W → external hip face → BLUE donor.
+      return cy > 900 ? 'wingW_extHip' : 'wingW';
+    }
     // Wing E long-side
     if (fx > 300 && fx < 500 && fy > 200 && fy < 700) return 'wingE';
     // Main N long-side
@@ -109,6 +114,7 @@ const fs = require('fs');
   const designColor = {
     wingW: DESIGN_ORANGE,
     wingE: DESIGN_BLUE,
+    wingW_extHip: DESIGN_BLUE,       // SW-clipped wing W = external hip face, BLUE donor
     mainN: DESIGN_ORANGE,            // unchanged from 6-face default
     mainS: DESIGN_BLUE,              // unchanged from 6-face default
     // End-hip offcuts: each half coloured to match the donor it pairs with
@@ -152,16 +158,18 @@ const fs = require('fs');
 
   // ── The two internal valley triangles ──
   // The cascade fills these with offcuts from the two external hip
-  // donor sheets at the SW corner.  Both external hips are orange
-  // donors, so both valley triangles become orange.
-  //   North of valley : (500,700), (300,700), (300,900)  in wing E face
-  //   South of valley : (500,700), (500,900), (300,900)  in main N face
+  // donor sheets at the SW corner.  Each offcut matches its donor's
+  // colour:
+  //   North of valley (in wing E face) <- offcut from main S west
+  //     donor (orange 76..108) → ORANGE.
+  //   South of valley (in main N face) <- offcut from wing W bottom
+  //     donor (the SW-clipped wing W which is BLUE) → BLUE.
   const valleyTriangles = [
-    [[500,700],[300,700],[300,900]],  // north of valley (from main S west donor)
-    [[500,700],[500,900],[300,900]],  // south of valley (from wing W bottom donor)
+    { pts: [[500,700],[300,700],[300,900]], fill: DESIGN_ORANGE },  // north of valley
+    { pts: [[500,700],[500,900],[300,900]], fill: DESIGN_BLUE   },  // south of valley
   ];
-  const valleySvg = valleyTriangles.map(pts =>
-    `<polygon points="${polyAttr(pts)}" fill="${DESIGN_ORANGE}" fill-opacity="0.55" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>`
+  const valleySvg = valleyTriangles.map(t =>
+    `<polygon points="${polyAttr(t.pts)}" fill="${t.fill}" fill-opacity="0.55" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>`
   ).join('');
 
   const outlinePolyAttr = polyAttr(outline);
