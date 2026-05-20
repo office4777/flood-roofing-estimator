@@ -10301,6 +10301,34 @@ function renderRoofSheetPlan() {
     }
   }
 
+  // Proportions gate: the Big-L cascade is hand-designed around a wing
+  // that (a) has its own N hip-end triangle (wing_w <= wing_h) and
+  // (b) fits within the main's W hip-end horizontally (wing_w <= main_h/2).
+  // SOP-style L-shapes (wing nearly as tall as main, wing wider than tall)
+  // fail these and must fall back to the generic 6-face cascade.
+  if (isBigL && bigL && bigL.orientation === 0 && bigL.wing && bigL.main) {
+    var _bgWingW = bigL.wing.x1 - bigL.wing.x0;
+    var _bgWingH = bigL.wing.y1 - bigL.wing.y0;
+    var _bgMainH = bigL.main.y1 - bigL.main.y0;
+    var _bgFitsHipEnd = (_bgWingW <= _bgMainH / 2 + 1);
+    var _bgWingHasNHipEnd = (_bgWingW <= _bgWingH + 1);
+    if (!_bgFitsHipEnd || !_bgWingHasNHipEnd) {
+      if (__nTurnsCW > 0 && __origDrawLines) {
+        DRAW.lines = __origDrawLines;
+        outline = DRAW.outline.slice();
+        var _olSA3 = 0;
+        for (var _i3 = 0; _i3 < outline.length; _i3++) {
+          var _p3 = outline[_i3], _q3 = outline[(_i3+1)%outline.length];
+          _olSA3 += _p3[0]*_q3[1] - _q3[0]*_p3[1];
+        }
+        if (_olSA3 < 0) outline = outline.slice().reverse();
+      }
+      isBigL = false;
+      __nTurnsCW = 0;
+      __pivot = null;
+    }
+  }
+
   if (!isBigL) {
 
   // ── Build faces ────────────────────────────────────────────────
