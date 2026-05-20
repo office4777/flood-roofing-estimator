@@ -10147,18 +10147,26 @@ function renderRoofSheetPlan() {
     return inside;
   }
 
-  // ── Big-L (wing-top-left) detection ───────────────────────────
-  // The 05_Lshape_Big test case has a 6-vertex outline with a wing in
-  // the top-left and a main body in the bottom-right.  The reflex
-  // vertex sits at the wing's south-east corner; the wing extends
-  // NORTH-WEST from there and the main body extends EAST and SOUTH.
-  // This case has a hand-designed sheet layout (donor-rainbow cascade
-  // from the main's N long-side, valley-cut wing sheets, SW corner
-  // built from rotated donor offcuts) that replaces the generic
-  // cascade — see buildBigLLayout() below.
+  // ── Big-L detection (all 4 orientations) ──────────────────────
+  // A "Big-L" outline has 6 vertices and exactly one reflex.  The
+  // canonical orientation (used by buildBigLLayout below) is
+  // wing-top-left, main-bottom-right, which means at the reflex the
+  // prev_edge runs SOUTH and the next_edge runs EAST.  All three
+  // other orientations (90° CW / 180° / 270° CW rotations of the
+  // canonical) are also valid L-shapes — we detect their orientation
+  // and let the caller rotate the outline into canonical, run the
+  // hand-designed layout, then rotate the output back.
+  //
+  // Orientation table (CCW outline, screen y-down):
+  //   0: prev=S, next=E   (wing top-left)      — canonical
+  //   1: prev=E, next=N   (wing top-right)
+  //   2: prev=N, next=W   (wing bottom-right)
+  //   3: prev=W, next=S   (wing bottom-left)
+  //
+  // `n` quarter-turns CW around the outline's bbox centre brings the
+  // outline to canonical: n == orientation.
   function _detectBigL(ol){
     if (!ol || ol.length !== 6) return null;
-    // Find the reflex vertex (cross product < 0 after CCW normalization).
     var n = ol.length;
     var reflexIdx = -1;
     for (var i = 0; i < n; i++) {
@@ -10173,30 +10181,125 @@ function renderRoofSheetPlan() {
     }
     if (reflexIdx < 0) return null;
     var reflex = ol[reflexIdx];
-    var prev = ol[(reflexIdx-1+n)%n];
-    var next = ol[(reflexIdx+1)%n];
-    // For "wing top-left, main bottom-right" (CCW outline), the edge
-    // BEFORE reflex comes from the north and the edge AFTER reflex goes
-    // east.  i.e. prev is directly above reflex (same x, smaller y) and
-    // next is directly right of reflex (larger x, same y).
-    var prevAbove = Math.abs(prev[0]-reflex[0]) < 4 && prev[1] < reflex[1] - 4;
-    var nextRight = Math.abs(next[1]-reflex[1]) < 4 && next[0] > reflex[0] + 4;
-    if (!(prevAbove && nextRight)) return null;
-    // Compute wing & main bounding boxes from the outline corners.
-    // Wing top-left corner: (minX, minY).  Main bottom-right: (maxX, maxY).
+    var prevP = ol[(reflexIdx-1+n)%n];
+    var nextP = ol[(reflexIdx+1)%n];
+    // Classify each edge direction (axis-aligned only).
+    function dirOf(from, to){
+      var dx = to[0]-from[0], dy = to[1]-from[1];
+      if (Math.abs(dx) < 4 && dy >  4) return 'S';
+      if (Math.abs(dx) < 4 && dy < -4) return 'N';
+      if (Math.abs(dy) < 4 && dx >  4) return 'E';
+      if (Math.abs(dy) < 4 && dx < -4) return 'W';
+      return null;
+    }
+    var prevDir = dirOf(prevP, reflex);
+    var nextDir = dirOf(reflex, nextP);
+    if (!prevDir || !nextDir) return null;
+    var orientation = -1;
+    if (prevDir === 'S' && nextDir === 'E') orientation = 0;
+    else if (prevDir === 'E' && nextDir === 'N') orientation = 1;
+    else if (prevDir === 'N' && nextDir === 'W') orientation = 2;
+    else if (prevDir === 'W' && nextDir === 'S') orientation = 3;
+    else return null;
+    // Bounding-box pivot (used by the rotation wrapper).
     var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     ol.forEach(function(p){
       if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
       if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
     });
+    var cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
     return {
+      orientation: orientation,
+      pivot: [cx, cy],
       reflex: reflex.slice(),
-      wing: { x0: minX,        y0: minY,        x1: reflex[0], y1: reflex[1] },
-      main: { x0: minX,        y0: reflex[1],   x1: maxX,      y1: maxY      }
+      // wing/main bboxes are computed AFTER rotation to canonical
+      // (filled in by the caller).  For orientation 0 they're already
+      // in canonical space and we fill them here for compatibility.
+      wing: orientation === 0
+        ? { x0: minX, y0: minY, x1: reflex[0], y1: reflex[1] }
+        : null,
+      main: orientation === 0
+        ? { x0: minX, y0: reflex[1], x1: maxX, y1: maxY }
+        : null
     };
   }
+
+  // ── Rotation helpers ──────────────────────────────────────────
+  // `n` quarter-turns CW around pivot (cx, cy).  In screen y-down
+  // coords, "CW" means a visual clockwise rotation (E→S→W→N→E).
+  // 90° CW around (cx, cy):  (x, y) → (cx - (y - cy), cy + (x - cx))
+  // 180° :                   (x, y) → (2cx - x, 2cy - y)
+  // 90° CCW (== 3 CW):       (x, y) → (cx + (y - cy), cy - (x - cx))
+  function rotate90(pt, cx, cy, nTurns){
+    var n = ((nTurns % 4) + 4) % 4;
+    var x = pt[0], y = pt[1];
+    for (var k = 0; k < n; k++) {
+      var nx = cx - (y - cy);
+      var ny = cy + (x - cx);
+      x = nx; y = ny;
+    }
+    return [x, y];
+  }
+  // Rotate a free vector (no pivot translation).
+  function rotateVec(v, nTurns){
+    var n = ((nTurns % 4) + 4) % 4;
+    var x = v[0], y = v[1];
+    for (var k = 0; k < n; k++) {
+      var nx = -y, ny = x;
+      x = nx; y = ny;
+    }
+    return [x, y];
+  }
+  function rotatePoly(poly, cx, cy, nTurns){
+    return poly.map(function(p){ return rotate90(p, cx, cy, nTurns); });
+  }
+
   var bigL = _detectBigL(outline);
   var isBigL = !!bigL;
+
+  // ── Canonicalization wrapper (orientation != 0) ───────────────
+  // For non-canonical orientations we rotate the outline + DRAW.lines
+  // by `bigL.orientation` quarter-turns CW into canonical space, run
+  // the hand-designed Big-L layout, then rotate every output back.
+  // `DRAW.outline` itself is NEVER mutated (idempotency: future runs
+  // re-read it fresh).  `DRAW.lines` is rotated to canonical, the
+  // layout function mutates it (removes bridge hip, adds ridge), and
+  // then we rotate it back so it sits in original coordinate space.
+  var __nTurnsCW = 0;     // quarter-turns CW applied to canonical
+  var __pivot    = null;  // rotation pivot (bbox centre of original)
+  var __origDrawLines = null;
+  if (bigL && bigL.orientation !== 0) {
+    __nTurnsCW = bigL.orientation;
+    __pivot    = bigL.pivot.slice();
+    // Snapshot original DRAW.lines so we can detect mutations later.
+    __origDrawLines = DRAW.lines;
+    // Rotate outline + DRAW.lines into canonical space.
+    outline = outline.map(function(p){ return rotate90(p, __pivot[0], __pivot[1], __nTurnsCW); });
+    DRAW.lines = DRAW.lines.map(function(l){
+      if (!l || !l.pts) return l;
+      var newL = {};
+      for (var k in l) if (l.hasOwnProperty(k)) newL[k] = l[k];
+      newL.pts = l.pts.map(function(p){ return rotate90(p, __pivot[0], __pivot[1], __nTurnsCW); });
+      return newL;
+    });
+    // Re-detect bigL on the canonical outline to get wing/main bboxes.
+    bigL = _detectBigL(outline);
+    if (!bigL || bigL.orientation !== 0) {
+      // Defensive: rotation didn't produce canonical orientation.
+      // Restore and skip Big-L path.
+      DRAW.lines = __origDrawLines;
+      outline = DRAW.outline.slice();
+      var _olSA2 = 0;
+      for (var _i2 = 0; _i2 < outline.length; _i2++) {
+        var _p2 = outline[_i2], _q2 = outline[(_i2+1)%outline.length];
+        _olSA2 += _p2[0]*_q2[1] - _q2[0]*_p2[1];
+      }
+      if (_olSA2 < 0) outline = outline.slice().reverse();
+      isBigL = false;
+      __nTurnsCW = 0;
+      __pivot = null;
+    }
+  }
 
   if (!isBigL) {
 
@@ -11688,6 +11791,71 @@ function renderRoofSheetPlan() {
       byColor[c].forEach(function(s){ s.seq = seq++; });
     });
   }  // end of isBigL branch
+
+  // ── Un-rotate Big-L output back into the original outline space ──
+  // Inverse of the canonicalization rotation: 4-n CW quarter-turns.
+  // We rotate everything that downstream canvas / legend code reads:
+  //   - faces[*].poly, .a, .b, .centroid (points)
+  //   - faces[*].tx/ty/nx/ny           (unit vectors — no pivot offset)
+  //   - allStrips[*].poly, .centroid   (points)
+  //   - DRAW.lines (the mutated set: bridge hip removed, ridge added)
+  //   - outline (back to its original coords)
+  // Sequence numbers ARE re-computed (centroid sort) after un-rotation
+  // so the left-to-right ordering reflects the user's coordinate space.
+  if (isBigL && __nTurnsCW !== 0 && __pivot) {
+    var inv = (4 - __nTurnsCW) % 4;
+    var px = __pivot[0], py = __pivot[1];
+    function _rotPt(p){ return rotate90(p, px, py, inv); }
+    function _rotVec(v){ return rotateVec(v, inv); }
+    if (faces && faces.length) {
+      faces.forEach(function(f){
+        if (!f) return;
+        if (f.poly) f.poly = f.poly.map(_rotPt);
+        if (f.a) f.a = _rotPt(f.a);
+        if (f.b) f.b = _rotPt(f.b);
+        if (f.centroid) f.centroid = _rotPt(f.centroid);
+        if (typeof f.tx === 'number' && typeof f.ty === 'number') {
+          var tv = _rotVec([f.tx, f.ty]); f.tx = tv[0]; f.ty = tv[1];
+        }
+        if (typeof f.nx === 'number' && typeof f.ny === 'number') {
+          var nv = _rotVec([f.nx, f.ny]); f.nx = nv[0]; f.ny = nv[1];
+        }
+      });
+    }
+    if (allStrips && allStrips.length) {
+      allStrips.forEach(function(s){
+        if (!s) return;
+        if (s.poly)     s.poly     = s.poly.map(_rotPt);
+        if (s.centroid) s.centroid = _rotPt(s.centroid);
+      });
+      // Re-assign sequence numbers in original-space left-to-right.
+      var byColor2 = {};
+      allStrips.forEach(function(s){
+        var key = s.color + ':' + s.orderedLengthMm;
+        (byColor2[key] = byColor2[key] || []).push(s);
+      });
+      Object.keys(byColor2).forEach(function(c){
+        byColor2[c].sort(function(a, b){
+          return a.centroid[0] - b.centroid[0] || a.centroid[1] - b.centroid[1];
+        });
+        var seq = 1;
+        byColor2[c].forEach(function(s){ s.seq = seq++; });
+      });
+    }
+    // Un-rotate DRAW.lines back to original space.  The Big-L code
+    // mutated DRAW.lines (in canonical space).  We rotate ALL lines
+    // back so they line up with the user's outline.
+    DRAW.lines = DRAW.lines.map(function(l){
+      if (!l || !l.pts) return l;
+      var newL = {};
+      for (var k in l) if (l.hasOwnProperty(k)) newL[k] = l[k];
+      newL.pts = l.pts.map(_rotPt);
+      return newL;
+    });
+    // Restore outline local var to original-space coords for the
+    // canvas drawing (toC maps original-space coords → canvas pixels).
+    outline = outline.map(_rotPt);
+  }
 
   // DEBUG hook — expose results to window for tests.
   window.__lastSheetPlan = { faces: faces, strips: allStrips, mainA: mainA, mainB: mainB };

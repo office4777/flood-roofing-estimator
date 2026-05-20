@@ -108,5 +108,42 @@ const path = require('path');
     window.autoGenerateRoof && window.autoGenerateRoof('hip');
   });
 
+  // CASE 4 — same Big-L as case 3 but rotated 90° CW around (550, 600).
+  // Detects as orientation 3 (wing bottom-left); the rotation wrapper
+  // brings it back to canonical, runs buildBigLLayout, then un-rotates
+  // every face / strip / DRAW.line so the render matches "Big-L rotated
+  // 90° CW" visually.
+  //
+  // Original Big-L vertices [100,100], [400,100], [400,400], [1000,400],
+  // [1000,1100], [100,1100] under (x,y)→(1150-y, 50+x) become:
+  //   [1050,150], [1050,450], [750,450], [750,1050], [50,1050], [50,150]
+  await renderCase('06_Lshape_BigRotated90', () => {
+    window.DRAW.outline = [
+      [1050, 150], [1050, 450], [750, 450], [750, 1050],
+      [50, 1050], [50, 150]
+    ];
+    window.DRAW.outlineDone = true;
+    window.DRAW.scaleMetresPerPx = 0.02;
+    window.DRAW.calPitch = 22;
+    window.DRAW.lines = [];
+    window.autoGenerateRoof && window.autoGenerateRoof('hip');
+  });
+
+  // CASE 5 — same Big-L rotated 180° around (550, 600).
+  // Detects as orientation 2 (wing bottom-right).  Original
+  // (x,y)→(1100-x, 1200-y) yields:
+  //   [1000,1100], [700,1100], [700,800], [100,800], [100,100], [1000,100]
+  await renderCase('07_Lshape_BigRotated180', () => {
+    window.DRAW.outline = [
+      [1000, 1100], [700, 1100], [700, 800], [100, 800],
+      [100, 100], [1000, 100]
+    ];
+    window.DRAW.outlineDone = true;
+    window.DRAW.scaleMetresPerPx = 0.02;
+    window.DRAW.calPitch = 22;
+    window.DRAW.lines = [];
+    window.autoGenerateRoof && window.autoGenerateRoof('hip');
+  });
+
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });
