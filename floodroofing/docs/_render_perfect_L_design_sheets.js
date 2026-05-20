@@ -191,43 +191,6 @@ const fs = require('fs');
     ${lineSvg(ridges, '#dc2626')}
     ${lineSvg(valleys, '#f59e0b', '10,5')}
 
-    <!-- Region labels (letters A-J) overlaid for user reference -->
-    <g font-family="Inter,sans-serif" font-weight="700" font-size="22">
-      <!-- A: orange north-of-valley triangle (wing E face wedge) -->
-      <circle cx="${toX(360)}" cy="${toY(770)}" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
-      <text x="${toX(360)}" y="${toY(770) + 8}" text-anchor="middle" fill="#000">A</text>
-      <!-- B: blue south-of-valley triangle (main N face wedge) -->
-      <circle cx="${toX(440)}" cy="${toY(840)}" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
-      <text x="${toX(440)}" y="${toY(840) + 8}" text-anchor="middle" fill="#000">B</text>
-      <!-- C: main N long-side strips (orange, middle of horizontal arm top) -->
-      <circle cx="${toX(700)}" cy="${toY(800)}" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
-      <text x="${toX(700)}" y="${toY(800) + 8}" text-anchor="middle" fill="#000">C</text>
-      <!-- D: main E hip-end N half (blue) -->
-      <circle cx="${toX(1020)}" cy="${toY(830)}" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
-      <text x="${toX(1020)}" y="${toY(830) + 8}" text-anchor="middle" fill="#000">D</text>
-      <!-- E: main E hip-end S half (orange) -->
-      <circle cx="${toX(1020)}" cy="${toY(990)}" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
-      <text x="${toX(1020)}" y="${toY(990) + 8}" text-anchor="middle" fill="#000">E</text>
-      <!-- F: main S long-side strips (blue) -->
-      <circle cx="${toX(700)}" cy="${toY(1010)}" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
-      <text x="${toX(700)}" y="${toY(1010) + 8}" text-anchor="middle" fill="#000">F</text>
-      <!-- G: wing E long-side (blue) -->
-      <circle cx="${toX(400)}" cy="${toY(500)}" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
-      <text x="${toX(400)}" y="${toY(500) + 8}" text-anchor="middle" fill="#000">G</text>
-      <!-- H: wing W long-side (orange) -->
-      <circle cx="${toX(200)}" cy="${toY(500)}" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
-      <text x="${toX(200)}" y="${toY(500) + 8}" text-anchor="middle" fill="#000">H</text>
-      <!-- I: wing W bottom (recoloured blue, SW-clipped external hip face) -->
-      <circle cx="${toX(170)}" cy="${toY(970)}" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
-      <text x="${toX(170)}" y="${toY(970) + 8}" text-anchor="middle" fill="#000">I</text>
-      <!-- J: main S west orange donors (76..108) -->
-      <circle cx="${toX(220)}" cy="${toY(1050)}" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
-      <text x="${toX(220)}" y="${toY(1050) + 8}" text-anchor="middle" fill="#000">J</text>
-      <!-- K: wing N hip-end (entire) -->
-      <circle cx="${toX(300)}" cy="${toY(170)}" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
-      <text x="${toX(300)}" y="${toY(170) + 8}" text-anchor="middle" fill="#000">K</text>
-    </g>
-
     <!-- Cross-pair arrows -->
     <!-- Wing N: W donors -> E half ; E donors -> W half -->
     <line x1="${toX(180)}" y1="${toY(270)}" x2="${toX(380)}" y2="${toY(200)}" stroke="#111" stroke-width="2.2" marker-end="url(#arrow)"/>
