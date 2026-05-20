@@ -11336,8 +11336,12 @@ function renderRoofSheetPlan() {
 
     // ── Constants ──
     var coverPxL  = coverPx;
-    var DONOR_COLORS = ['#ef4444','#f59e0b','#eab308','#84cc16','#10b981',
-                        '#06b6d4','#3b82f6','#8b5cf6','#ec4899','#a3a3a3'];
+    // All rainbow donor sheets render in main-N orange — the donor
+    // identity is conveyed by the shared seq number on each piece,
+    // not by colour.  (Each donor sheet originates on the main's N
+    // long-side, which is orange.)
+    var DONOR_COLORS = [COL_ORANGE, COL_ORANGE, COL_ORANGE, COL_ORANGE, COL_ORANGE,
+                        COL_ORANGE, COL_ORANGE, COL_ORANGE, COL_ORANGE, COL_ORANGE];
 
     function _faceMakeNS(a, b, perpPx, color, type){
       // Build a face whose gutter runs a→b, with inward perpendicular
@@ -11800,22 +11804,82 @@ function renderRoofSheetPlan() {
     // share a region (e.g. the wing N hip-end).
     allStrips = stripsBase.concat(stripsWing, stripsBlueMv, stripsDonors);
 
-    // ── Sequence numbering ──
-    // Group strips by (color, ordered length) and assign seq 1..N
-    // walking left-to-right (sorted by centroid x then y).  Offcuts
-    // share seq with no donor for simplicity (each offcut gets its own
-    // seq within its color group but is excluded from order count).
-    var byColor = {};
+    // ── Sequence numbering (sheet-identity based) ──
+    // Each physical sheet gets one seq number, shared across all its
+    // pieces.  Numbers are global 1..N in reading order (top-to-bottom,
+    // then left-to-right).  Multi-piece sheets:
+    //   - Rainbow donors (D1..D10): _donorIdx identifies the sheet.
+    //   - PR + PN purple pair: keyed by yMax (PN's yMax + |dy|).
+    //   - BS-SW donor + BN/BW offcut pair: keyed by SW col index.
+    //   - BS-SE donor + BE offcut pair: keyed by SE col index.
+    //   - ON-SE donor + OE offcut pair: keyed by SE col index.
+    var _wingApexY = wy0 + (wx1 - wx0) / 2;
+    var _firstSeColIdx = Math.floor((eApex[0] - mx0) / coverPxL) + 1;
+    function _sheetKey(s) {
+      if (s._donorIdx !== undefined) return 'D' + s._donorIdx;
+      var ft = s.face && s.face.type;
+      var xs = s.poly.map(function(p){return p[0];});
+      var ys = s.poly.map(function(p){return p[1];});
+      var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
+      var yMin = Math.min.apply(null, ys), yMax = Math.max.apply(null, ys);
+      var xMid = (xMin + xMax) / 2;
+      var cp = coverPxL;
+      if (s.color === COL_PURPLE) {
+        if (yMax < _wingApexY + 1) return 'PR-' + Math.round(yMax + (refY - wy0));
+        if (xMid < (wx0 + wx1) / 2) return 'PL-' + Math.round(yMax);
+        return 'PR-' + Math.round(yMax);
+      }
+      if (s.color === COL_BLUE) {
+        if (yMax <= _wingApexY + 1 && xMin <= mx0 + 0.5 && ft === 'long-side') {
+          var idx = Math.round((yMin - wy0) / cp);
+          return 'BS-SW-' + (8 - idx);
+        }
+        if (yMin >= valleyEnd[1] - 1 && yMax <= midY + 1 && xMin <= mx0 + 0.5 && ft === 'hip-end') {
+          var idx = Math.round((yMin - valleyEnd[1]) / cp);
+          if (idx <= 4) return 'BS-SW-' + (4 - idx);
+          return 'BW-narrow-' + Math.round(yMin);
+        }
+        if (ft === 'hip-end' && xMax >= mx1 - 1 && yMin < midY) {
+          var idx = Math.round((yMin - my0) / cp);
+          if (idx >= 0 && idx <= 8) return 'BS-SE-' + idx;
+          return 'BE-straddle-' + Math.round(yMin);
+        }
+        if (ft === 'long-side' && yMax > my1 - 1) {
+          var col = Math.round((xMin - mx0) / cp);
+          if (col >= 0 && col <= 8) return 'BS-SW-' + col;
+          var seJ = col - _firstSeColIdx;
+          if (seJ >= 0) return 'BS-SE-' + seJ;
+          return 'BS-full-' + col;
+        }
+      }
+      if (s.color === COL_ORANGE) {
+        if (ft === 'hip-end' && xMax >= mx1 - 1 && yMin >= midY) {
+          var idx = Math.round((yMin - (midY + cp)) / cp);
+          if (idx >= 0 && idx <= 8) return 'ON-SE-' + (8 - idx);
+          return 'OE-' + Math.round(yMin);
+        }
+        if (ft === 'long-side' && yMin <= my0 + 1) {
+          var col = Math.round((xMin - mx0) / cp);
+          var seJ = col - _firstSeColIdx;
+          if (seJ >= 0) return 'ON-SE-' + seJ;
+          return 'ON-' + col;
+        }
+      }
+      return s.color + '-' + Math.round(s.centroid[0]) + '-' + Math.round(s.centroid[1]);
+    }
+    var _bySheet = {};
     allStrips.forEach(function(s){
-      var key = s.color + ':' + s.orderedLengthMm;
-      (byColor[key] = byColor[key] || []).push(s);
+      var k = _sheetKey(s);
+      s._sheetKey = k;
+      (_bySheet[k] = _bySheet[k] || []).push(s);
     });
-    Object.keys(byColor).forEach(function(c){
-      byColor[c].sort(function(a, b){
-        return a.centroid[0] - b.centroid[0] || a.centroid[1] - b.centroid[1];
-      });
-      var seq = 1;
-      byColor[c].forEach(function(s){ s.seq = seq++; });
+    var _sortedKeys = Object.keys(_bySheet).sort(function(a, b){
+      var aR = _bySheet[a].find(function(s){return !s.isOffcut;}) || _bySheet[a][0];
+      var bR = _bySheet[b].find(function(s){return !s.isOffcut;}) || _bySheet[b][0];
+      return aR.centroid[1] - bR.centroid[1] || aR.centroid[0] - bR.centroid[0];
+    });
+    _sortedKeys.forEach(function(k, i){
+      _bySheet[k].forEach(function(s){ s.seq = i + 1; });
     });
   }  // end of isBigL branch
 
