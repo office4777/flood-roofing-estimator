@@ -11919,18 +11919,22 @@ function renderRoofSheetPlan() {
         if (s.poly)     s.poly     = s.poly.map(_rotPt);
         if (s.centroid) s.centroid = _rotPt(s.centroid);
       });
-      // Re-assign sequence numbers in original-space left-to-right.
-      var byColor2 = {};
+      // Re-assign sequence numbers in original-space using the same
+      // sheet-identity grouping computed in canonical space.  Each
+      // strip's _sheetKey survives rotation (it's just a string key);
+      // we re-sort sheets by their (now-rotated) representative
+      // centroid and re-assign global seq.
+      var _bySheet2 = {};
       allStrips.forEach(function(s){
-        var key = s.color + ':' + s.orderedLengthMm;
-        (byColor2[key] = byColor2[key] || []).push(s);
+        (_bySheet2[s._sheetKey] = _bySheet2[s._sheetKey] || []).push(s);
       });
-      Object.keys(byColor2).forEach(function(c){
-        byColor2[c].sort(function(a, b){
-          return a.centroid[0] - b.centroid[0] || a.centroid[1] - b.centroid[1];
-        });
-        var seq = 1;
-        byColor2[c].forEach(function(s){ s.seq = seq++; });
+      var _sortedKeys2 = Object.keys(_bySheet2).sort(function(a, b){
+        var aR = _bySheet2[a].find(function(s){return !s.isOffcut;}) || _bySheet2[a][0];
+        var bR = _bySheet2[b].find(function(s){return !s.isOffcut;}) || _bySheet2[b][0];
+        return aR.centroid[1] - bR.centroid[1] || aR.centroid[0] - bR.centroid[0];
+      });
+      _sortedKeys2.forEach(function(k, i){
+        _bySheet2[k].forEach(function(s){ s.seq = i + 1; });
       });
     }
     // Un-rotate DRAW.lines back to original space.  The Big-L code
