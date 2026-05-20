@@ -21,20 +21,28 @@ const fs = require('fs');
 
   const cases = [
     {
-      label: 'A: canonical Big-L (orientation 0, wing top-left, 300x300 wing + 900x700 main)',
+      label: 'A: canonical (300x300 wing + 900x700 main, orient 0)',
       outline: [[100,100],[400,100],[400,400],[1000,400],[1000,1100],[100,1100]],
     },
     {
-      label: 'B: Big-L rotated 90° CW (orientation 3, wing bottom-left)',
+      label: 'B: rotated 90 CW (orient 3, wing bottom-left)',
       outline: [[1050,150],[1050,450],[750,450],[750,1050],[50,1050],[50,150]],
     },
     {
-      label: 'C: Big-L rotated 180° (orientation 2, wing bottom-right)',
+      label: 'C: rotated 180 (orient 2, wing bottom-right)',
       outline: [[1000,1100],[700,1100],[700,800],[100,800],[100,100],[1000,100]],
     },
     {
-      label: 'D: smaller Big-L (200x200 wing + 700x500 main, same orientation 0)',
+      label: 'D: smaller (200x200 wing + 700x500 main, orient 0)',
       outline: [[100,100],[300,100],[300,300],[800,300],[800,800],[100,800]],
+    },
+    {
+      label: 'E: tiny wing (150x150 wing + 900x700 main, orient 0)',
+      outline: [[100,100],[250,100],[250,250],[1000,250],[1000,950],[100,950]],
+    },
+    {
+      label: 'F: wing near max (350x350 wing + 1000x800 main, orient 0)',
+      outline: [[100,100],[450,100],[450,450],[1100,450],[1100,1250],[100,1250]],
     },
   ];
 
@@ -75,7 +83,7 @@ const fs = require('fs');
     *{box-sizing:border-box;}
     body{margin:0;padding:24px;background:#fff;font:13px/1.4 -apple-system,Inter,sans-serif;color:#111;}
     h1{font-size:18px;margin:0 0 16px;}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+    .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;}
     .cell{border:1px solid #ddd;border-radius:8px;padding:12px;background:#fafafa;}
     .ttl{font-weight:600;font-size:12.5px;margin-bottom:6px;}
     .stat{font-size:11.5px;color:#555;margin-bottom:8px;}

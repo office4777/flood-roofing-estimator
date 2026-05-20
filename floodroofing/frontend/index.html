@@ -11433,6 +11433,12 @@ function renderRoofSheetPlan() {
     // wing" — their north piece translates to the wing's N hip-end,
     // they may have a middle piece in the chunk, and a south piece
     // rotates 90° CCW onto the SW corner.  D9..D10 don't fit the wing.
+    //
+    // Cascade geometry (parameterised so any Big-L proportions work):
+    //   - phantom NW hip line:  y = x + phantomHipB     (slope +1)
+    //   - valley line:          y = valleyA - x         (slope -1)
+    var phantomHipB = refY - mx0;     // intercept of phantom NW hip
+    var valleyA    = refX + refY;     // x+y on the valley line
     function _seqFromCounter(){ /* placeholder, seq is assigned later */ }
     var donorSeqs = [];  // donor index → seq number
     for (var di = 0; di < 10; di++) {
@@ -11448,16 +11454,16 @@ function renderRoofSheetPlan() {
       // (i.e. positioned at its natural place on the main's N long-side).
       var northPoly;
       if (hasValley) {
-        // Bounded by valley line y = 800 - x (from refY+wingHalfWidth
-        // generalized: valley runs (refX, refY)→(valleyEnd) at slope -1).
-        northPoly = [[x0, refY], [x1, refY], [x1, 800 - x1], [x0, 800 - x0]];
+        // Bounded by valley line y = valleyA - x (slope -1, passes
+        // through reflex (refX, refY) and valleyEnd).
+        northPoly = [[x0, refY], [x1, refY], [x1, valleyA - x1], [x0, valleyA - x0]];
       } else if (x1 <= wApexX) {
-        // Bounded by phantom NW hip line y = x + (refY - mx0) = x + 300
+        // Bounded by phantom NW hip line y = x + phantomHipB
         // (slope 1 from (mx0, refY) up to wApex).
-        northPoly = [[x0, refY], [x1, refY], [x1, x1 + 300], [x0, x0 + 300]];
+        northPoly = [[x0, refY], [x1, refY], [x1, x1 + phantomHipB], [x0, x0 + phantomHipB]];
       } else if (x0 < wApexX && x1 > wApexX) {
         // Straddle apex: bounded by NW hip on left half, ridge on right.
-        northPoly = [[x0, refY], [x1, refY], [x1, midY], [wApexX, midY], [x0, x0 + 300]];
+        northPoly = [[x0, refY], [x1, refY], [x1, midY], [wApexX, midY], [x0, x0 + phantomHipB]];
       } else {
         // Past apex: bounded by ridge y = midY.
         northPoly = [[x0, refY], [x1, refY], [x1, midY], [x0, midY]];
@@ -11489,7 +11495,7 @@ function renderRoofSheetPlan() {
       donorSeqs.push(donorPrimary);
       // Middle piece (only when has_valley).
       if (hasValley) {
-        var midPoly = [[x0, 800 - x0], [x1, 800 - x1], [x1, x1 + 300], [x0, x0 + 300]];
+        var midPoly = [[x0, valleyA - x0], [x1, valleyA - x1], [x1, x1 + phantomHipB], [x0, x0 + phantomHipB]];
         // Middle stays in chunk (no translation); but mid-piece is
         // in the area below wing & above ridge — that's the
         // "Main W hip-end UPPER" zone (y in [400, 750], x near valley).
@@ -11505,9 +11511,9 @@ function renderRoofSheetPlan() {
       // South piece.
       var southPoly = null;
       if (x1 <= wApexX) {
-        southPoly = [[x0, x0 + 300], [x1, x1 + 300], [x1, midY], [x0, midY]];
+        southPoly = [[x0, x0 + phantomHipB], [x1, x1 + phantomHipB], [x1, midY], [x0, midY]];
       } else if (x0 < wApexX && x1 > wApexX) {
-        southPoly = [[x0, x0 + 300], [wApexX, midY], [x0, midY]];
+        southPoly = [[x0, x0 + phantomHipB], [wApexX, midY], [x0, midY]];
       }
       if (southPoly) {
         // Rotate 90° CCW around (mx0, midY): (x,y) → (mx0 - (y - midY), midY + (x - mx0))
@@ -11710,13 +11716,12 @@ function renderRoofSheetPlan() {
       } else if (ya >= refY) {
         // Strip is fully below refY in cut region.
         // Right edges follow valley: x = 800 - y.
-        var rA = 800 - ya, rB = 800 - yb;
+        var rA = valleyA - ya, rB = valleyA - yb;
         poly = [[wingApex[0], ya], [rA, ya], [rB, yb], [wingApex[0], yb]];
       } else {
         // Straddle refY=400.  Top half full, bottom half cut.
-        var rB = 800 - yb;
-        poly = [[wingApex[0], ya], [wx1, ya], [wx1, refY], [800 - refY, refY], [rB, yb], [wingApex[0], yb]];
-        // Simplify: (800 - refY) = 400 = wx1, so [wx1, refY] === [800-refY, refY].
+        var rB = valleyA - yb;
+        // (valleyA - refY) = refX = wx1 by construction, so [wx1, refY] is on the valley line.
         poly = [[wingApex[0], ya], [wx1, ya], [wx1, refY], [rB, yb], [wingApex[0], yb]];
       }
       stripsWing.push({
@@ -11730,7 +11735,7 @@ function renderRoofSheetPlan() {
       if (hasValleyCut && ya < refY) {
         // Straddle: only the part below refY is cut.  East-of-valley
         // polygon = [(wx1, refY), (wx1, yb), (rB, yb)].
-        var ofcPoly = [[wx1, refY], [wx1, yb], [800 - yb, yb]];
+        var ofcPoly = [[wx1, refY], [wx1, yb], [valleyA - yb, yb]];
         // Translate by (0, -300).
         var dy2 = wy0 - refY;  // -300
         var ofcTrans = ofcPoly.map(function(p){return [p[0], p[1] + dy2];});
@@ -11743,7 +11748,7 @@ function renderRoofSheetPlan() {
         });
       } else if (hasValleyCut && ya >= refY) {
         // Fully below refY: east-of-valley = [(rA, ya), (wx1, ya), (wx1, yb), (rB, yb)].
-        var ofcPoly = [[800 - ya, ya], [wx1, ya], [wx1, yb], [800 - yb, yb]];
+        var ofcPoly = [[valleyA - ya, ya], [wx1, ya], [wx1, yb], [valleyA - yb, yb]];
         var dy2 = wy0 - refY;
         var ofcTrans = ofcPoly.map(function(p){return [p[0], p[1] + dy2];});
         stripsWing.push({
