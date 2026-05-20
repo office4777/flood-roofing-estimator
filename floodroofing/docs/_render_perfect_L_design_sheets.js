@@ -114,9 +114,9 @@ const fs = require('fs');
   const designColor = {
     wingW: DESIGN_ORANGE,
     wingE: DESIGN_BLUE,
-    wingW_extHip: DESIGN_BLUE,       // SW-clipped wing W = external hip face, BLUE donor
-    mainN: DESIGN_ORANGE,            // unchanged from 6-face default
-    mainS: DESIGN_BLUE,              // unchanged from 6-face default
+    wingW_extHip: DESIGN_ORANGE,     // I: SW-clipped wing W = orange donor (matches A)
+    mainN: DESIGN_ORANGE,            // C: orange main N
+    mainS: DESIGN_BLUE,              // J: blue main S (incl. SW corner 76..108)
     // End-hip offcuts: each half coloured to match the donor it pairs with
     wingN_W_half: DESIGN_BLUE,       // offcut from wing E (blue)
     wingN_E_half: DESIGN_ORANGE,     // offcut from wing W (orange)
