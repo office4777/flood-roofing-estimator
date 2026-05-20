@@ -175,32 +175,130 @@ const fs = require('fs');
     });
   }
 
+  // ── The two internal valley triangles — subdivided into 5 strips each
+  //    so each strip can be labelled with its paired donor's number. ──
+  // A = north of valley (orange offcuts from wing W bottom donors I).
+  // B = south of valley (blue offcuts from main S west donors J).
+  const valleyStrips = [];
+  for (let i = 0; i < 5; i++) {
+    const ya = 700 + i * 40, yb = 700 + (i + 1) * 40;
+    const xEa = 1200 - ya, xEb = 1200 - yb;
+    valleyStrips.push({
+      poly: [[300, ya], [xEa, ya], [xEb, yb], [300, yb]],
+      region: 'wingN_E_half_dummy',
+      _designColor: DESIGN_ORANGE,
+      _key: `wingW_bot:${i}`,
+    });
+  }
+  for (let i = 0; i < 5; i++) {
+    const ya = 700 + i * 40, yb = 700 + (i + 1) * 40;
+    const xWa = 1200 - ya, xWb = 1200 - yb;
+    valleyStrips.push({
+      poly: [[xWa, ya], [500, ya], [500, yb], [xWb, yb]],
+      region: 'mainE_N_half_dummy',
+      _designColor: DESIGN_BLUE,
+      _key: `mainS_west:${4 - i}`,
+    });
+  }
+
   // For strips classified as one of our design regions, recolour.  For
   // everything else (the main face strips not touched by the cascade),
   // keep the original 6-face colour.
-  const allRenderStrips = [...stripsKept, ...fullLengthStrips];
+  const allRenderStrips = [...stripsKept, ...fullLengthStrips, ...valleyStrips];
   allRenderStrips.forEach(s => { if (!s.region) s.region = classify(s); });
+
+  // Compute strip centroid (polygon-based, simple avg of bbox).
+  function stripCentroid(s) {
+    const xs = s.poly.map(p => p[0]);
+    const ys = s.poly.map(p => p[1]);
+    return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+  }
+
+  // ── Sheet-identity numbering ──
+  // Each physical donor sheet gets one number; its offcut shares the number.
+  //
+  // Donor-offcut pairs by y-band (NW/NE/SW hips and the valley all
+  // run at 45 degrees, so a donor at y-band Y pairs with the destination
+  // strip at the matching band position):
+  //   wingW top (y < 300, x < 300)   <-> wingN_E_half  (cross-pair)
+  //   wingE top (y < 300, x >= 300)  <-> wingN_W_half
+  //   wingW bottom / extHip (y > 900) <-> A north-of-valley
+  //   mainN east near apex           <-> mainE_S_half
+  //   mainS west (SW-clipped)        <-> B south-of-valley
+  //   mainS east (SE-clipped)        <-> mainE_N_half
+  // All other strips are standalone (single-piece sheets).
+  function bandKey(s) {
+    const [cx, cy] = stripCentroid(s);
+    const cp = 38.1;
+    switch (s.region) {
+      case 'wingW': {
+        if (cy < 300) return `wingW_top:${Math.round((cy - 100) / cp)}`;
+        if (cy > 900) return `wingW_bot:${Math.round((cy - 900) / cp)}`;
+        return `wingW_mid:${Math.round((cy - 300) / cp)}`;
+      }
+      case 'wingW_extHip': return `wingW_bot:${Math.round((cy - 900) / cp)}`;
+      case 'wingE': {
+        if (cy < 300) return `wingE_top:${Math.round((cy - 100) / cp)}`;
+        return `wingE_mid:${Math.round((cy - 300) / cp)}`;
+      }
+      case 'mainN': {
+        if (cx > 900) return `mainN_east:${Math.round((cx - 900) / cp)}`;
+        return `mainN_mid:${Math.round((cx - 500) / cp)}`;
+      }
+      case 'mainS': {
+        if (cx < 300) return `mainS_west:${Math.round((300 - cx) / cp)}`;
+        if (cx > 900) return `mainS_east:${Math.round((cx - 900) / cp)}`;
+        return `mainS_mid:${Math.round((cx - 300) / cp)}`;
+      }
+      case 'wingN_W_half': return `wingE_top:${Math.round((cy - 100) / cp)}`;  // cross-pair
+      case 'wingN_E_half': return `wingW_top:${Math.round((cy - 100) / cp)}`;  // cross-pair
+      case 'mainE_N_half': return `mainS_east:${Math.round((cy - 700) / cp)}`; // cross-pair (offcut pos vs donor)
+      case 'mainE_S_half': return `mainN_east:${Math.round((cy - 900) / cp)}`; // cross-pair
+    }
+    return `${s.region}:${Math.round(cx)},${Math.round(cy)}`;
+  }
+  // For strips that already have a _key set (valleyStrips), keep it.
+  // Otherwise compute from bandKey.
+  allRenderStrips.forEach(s => { if (!s._key) s._key = bandKey(s); });
+
+  // Add the valley triangles to the sheet-key system: each triangle
+  // counts as one "offcut" sheet linked to a specific donor.  For the
+  // mockup we'll number them with hard-coded keys.
+  // A north-of-valley <- wingW bottom group (single sheet for now)
+  // B south-of-valley <- mainS west group
+  // We'll attach these AFTER assigning numbers, by giving the
+  // triangles the same key as a representative donor.
+
+  // Sort distinct keys by representative position (top-to-bottom, left-to-right)
+  // and assign 1..N.  Representative = first strip in each key, sorted by centroid.
+  const keyGroups = {};
+  allRenderStrips.forEach(s => {
+    (keyGroups[s._key] = keyGroups[s._key] || []).push(s);
+  });
+  const keysList = Object.keys(keyGroups);
+  keysList.forEach(k => {
+    keyGroups[k].forEach(s => { s._centroid = stripCentroid(s); });
+  });
+  keysList.sort((a, b) => {
+    const ra = keyGroups[a][0]._centroid;
+    const rb = keyGroups[b][0]._centroid;
+    return ra[1] - rb[1] || ra[0] - rb[0];
+  });
+  const numByKey = {};
+  keysList.forEach((k, i) => { numByKey[k] = i + 1; });
+  allRenderStrips.forEach(s => { s._num = numByKey[s._key]; });
+
   const stripSvg = allRenderStrips.map(s => {
-    const c = designColor[s.region] || s.origColor || '#cccccc';
+    const c = s._designColor || designColor[s.region] || s.origColor || '#cccccc';
     const op = s.region.includes('_half') ? 0.55 : 0.65;
     return `<polygon points="${polyAttr(s.poly)}" fill="${c}" fill-opacity="${op}" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>`;
   }).join('');
 
-  // ── The two internal valley triangles ──
-  // The cascade fills these with offcuts from the two external hip
-  // donor sheets at the SW corner.  Each offcut matches its donor's
-  // colour:
-  //   North of valley (in wing E face) <- offcut from main S west
-  //     donor (orange 76..108) → ORANGE.
-  //   South of valley (in main N face) <- offcut from wing W bottom
-  //     donor (the SW-clipped wing W which is BLUE) → BLUE.
-  const valleyTriangles = [
-    { pts: [[500,700],[300,700],[300,900]], fill: DESIGN_ORANGE },  // north of valley
-    { pts: [[500,700],[500,900],[300,900]], fill: DESIGN_BLUE   },  // south of valley
-  ];
-  const valleySvg = valleyTriangles.map(t =>
-    `<polygon points="${polyAttr(t.pts)}" fill="${t.fill}" fill-opacity="1" stroke="rgba(0,0,0,0.4)" stroke-width="1"/>`
-  ).join('');
+  // Sheet-number labels overlaid at each strip's centroid.
+  const labelSvg = allRenderStrips.map(s => {
+    const [cx, cy] = s._centroid;
+    return `<text x="${toX(cx).toFixed(1)}" y="${toY(cy).toFixed(1)}" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#111" text-anchor="middle" dominant-baseline="central" paint-order="stroke" stroke="rgba(255,255,255,0.92)" stroke-width="2.5" stroke-linejoin="round">${s._num}</text>`;
+  }).join('');
 
   const outlinePolyAttr = polyAttr(outline);
 
@@ -216,10 +314,10 @@ const fs = require('fs');
 
     <polygon points="${outlinePolyAttr}" fill="none" stroke="#0a1628" stroke-width="2.5"/>
     ${stripSvg}
-    ${valleySvg}
     ${lineSvg(hips, '#16a34a')}
     ${lineSvg(ridges, '#dc2626')}
     ${lineSvg(valleys, '#f59e0b', '10,5')}
+    ${labelSvg}
 
     <!-- Cross-pair arrows -->
     <!-- Wing N: W donors -> E half ; E donors -> W half -->
