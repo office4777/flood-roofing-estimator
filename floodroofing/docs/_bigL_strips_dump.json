@@ -1230,7 +1230,7 @@
   {
     "color": "#2563eb",
     "seq": 7,
-    "isOffcut": false,
+    "isOffcut": true,
     "isPhantom": false,
     "faceType": "hip-end",
     "faceColor": "#2563eb",
@@ -1262,7 +1262,7 @@
   {
     "color": "#2563eb",
     "seq": 9,
-    "isOffcut": false,
+    "isOffcut": true,
     "isPhantom": false,
     "faceType": "hip-end",
     "faceColor": "#2563eb",
@@ -1294,7 +1294,7 @@
   {
     "color": "#2563eb",
     "seq": 10,
-    "isOffcut": false,
+    "isOffcut": true,
     "isPhantom": false,
     "faceType": "hip-end",
     "faceColor": "#2563eb",
@@ -1326,7 +1326,7 @@
   {
     "color": "#2563eb",
     "seq": 12,
-    "isOffcut": false,
+    "isOffcut": true,
     "isPhantom": false,
     "faceType": "hip-end",
     "faceColor": "#2563eb",
@@ -1358,7 +1358,7 @@
   {
     "color": "#2563eb",
     "seq": 13,
-    "isOffcut": false,
+    "isOffcut": true,
     "isPhantom": false,
     "faceType": "hip-end",
     "faceColor": "#2563eb",
@@ -1390,7 +1390,7 @@
   {
     "color": "#2563eb",
     "seq": 15,
-    "isOffcut": false,
+    "isOffcut": true,
     "isPhantom": false,
     "faceType": "hip-end",
     "faceColor": "#2563eb",

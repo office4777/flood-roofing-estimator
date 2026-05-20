@@ -78,11 +78,16 @@ const fs = require('fs');
   // --- Assign a SHEET ID to each strip (every piece of one physical
   //     sheet shares one id).  Then number sheets 1..N in reading order
   //     and label each strip with that number. ---
+  // Canonical column starts (rounded to integer) so BS/BE pairings on
+  // the SW side and BS/BE on the SE side line up exactly.
+  const SW_BS_COLS = [100, 138, 176, 214, 252, 291, 329, 367, 405];  // col 1..9 SW-clipped
+  const SE_BS_COLS = [672, 710, 748, 786, 824, 862, 900, 938, 976];  // SE-clipped east
   function sheetGroupKey(s) {
     // 1) Rainbow donors — _donorIdx identifies the physical donor sheet.
     if (s._donorIdx !== undefined) return `D${s._donorIdx}`;
     const PURPLE = '#a855f7';
     const BLUE   = '#2563eb';
+    const ORANGE = '#f97316';
     const xs = s.poly.map(p => p[0]);
     const ys = s.poly.map(p => p[1]);
     const xMid = (Math.min(...xs) + Math.max(...xs)) / 2;
@@ -95,39 +100,62 @@ const fs = require('fs');
       if (xMid < 250) return `PL-${Math.round(yMax)}`;
       return `PR-${Math.round(yMax)}`;
     }
-    // 3) Blue — BW + BN strips are offcuts of BS donors at SW-hip-clipped
-    //    columns (x ∈ [100, 443]).  Each BS donor pairs with one BW or BN
-    //    strip; the pairing is size-matched ascending so the donor's
-    //    offcut material is exactly enough for the destination strip.
-    //      BN1 (yMin=100)  ↔ BS col 9 (xMin=405)
-    //      BN2 (138)       ↔ BS col 8 (367)
-    //      BN3 (176)       ↔ BS col 7 (329)
-    //      BN4 (214)       ↔ BS col 6 (291)
-    //      BW1 (yMin=550)  ↔ BS col 5 (xMin=252)
-    //      BW2 (588)       ↔ BS col 4 (214)
-    //      BW3 (626)       ↔ BS col 3 (176)
-    //      BW4 (664)       ↔ BS col 2 (138)
-    //      BW5 (702)       ↔ BS col 1 (100)
+    // 3) Blue cascade:
+    //   BS-SW (SW-hip-clipped donors x ∈ [100, 443]) pair with BN+BW
+    //   offcuts size-matched ascending.
+    //   BS-SE (SE-hip-clipped donors x ∈ [672, 1000]) pair with BE
+    //   E hip-end UPPER offcuts size-matched ascending.
     if (s.color === BLUE) {
       // BN strip: wing NW, y ≤ 250, x starts at 100.
       if (yMax <= 251 && xMin <= 100.5) {
         const idx = Math.round((yMin - 100) / coverPx);   // 0..3
-        const colXStart = 100 + coverPx * (8 - idx);      // 405, 367, 329, 291
-        return `BS-${Math.round(colXStart)}`;
+        return `BS-${SW_BS_COLS[8 - idx]}`;
       }
-      // BW strip: main W hip-end UPPER, y in [550, 750], hip-end face, x starts at 100.
+      // BW strip: main W hip-end UPPER, y in [550, 750], hip-end face.
       if (yMin >= 549 && yMax <= 751 && xMin <= 100.5 && s.faceType === 'hip-end') {
-        const idx = Math.round((yMin - 550) / coverPx);   // 0..4
-        const colXStart = 100 + coverPx * (4 - idx);      // 252, 214, 176, 138, 100
-        return `BS-${Math.round(colXStart)}`;
+        const idx = Math.round((yMin - 550) / coverPx);   // 0..5 (5 = narrow)
+        if (idx <= 4) return `BS-${SW_BS_COLS[4 - idx]}`;
+        return `BW-narrow-${Math.round(yMin)}`;  // 6th BW (thin ridge slice) unpaired
       }
-      // BS donor in SW-hip-clipped area: long-side face, reaches gutter
-      // at y=1100, xMin in [100, 442].
-      if (s.faceType === 'long-side' && yMax > 1099 && xMin >= 99 && xMax <= 443) {
-        return `BS-${Math.round(xMin)}`;
+      // BE strip: main E hip-end UPPER, blue offcut, hip-end face, x reaches mx1.
+      if (s.faceType === 'hip-end' && xMax >= 999 && yMin < 750) {
+        const idx = Math.round((yMin - 400) / coverPx);   // 0..8
+        if (idx >= 0 && idx <= 8) return `BS-${SE_BS_COLS[idx]}`;
+        return `BE-straddle-${Math.round(yMin)}`;          // 10th BE (straddle band) unpaired
+      }
+      // BS donor on south long-side (any column).  Match against known
+      // SW/SE column starts so the key collides with the right offcut.
+      if (s.faceType === 'long-side' && yMax > 1099) {
+        const swCol = SW_BS_COLS.find(x => Math.abs(x - xMin) < 2);
+        if (swCol !== undefined) return `BS-${swCol}`;
+        const seCol = SE_BS_COLS.find(x => Math.abs(x - xMin) < 2);
+        if (seCol !== undefined) return `BS-${seCol}`;
+        return `BS-${Math.round(xMin)}`;                    // full-length cols (no offcut pair)
       }
     }
-    // 4) Anything else: each strip is its own physical sheet.
+    // 4) Orange cascade:
+    //   ON donors (N long-side east of D10) pair with OE E hip-end LOWER
+    //   offcuts.  Full-length ON donors (x ∈ [481, 672]) have no offcut.
+    //   NE-clipped ON donors (x ∈ [672, 1000]) pair with OE offcuts
+    //   size-matched ascending.
+    if (s.color === ORANGE) {
+      // OE strip: E hip-end LOWER, orange offcut, hip-end face, x reaches mx1, y > midY.
+      if (s.faceType === 'hip-end' && xMax >= 999 && yMin >= 749) {
+        const idx = Math.round((yMin - 781) / coverPx);   // 0..8 (i=0 closest to ridge)
+        if (idx >= 0 && idx <= 8) {
+          // Largest OE (closest to ridge) ↔ farthest ON (largest offcut).
+          return `ON-${SE_BS_COLS[8 - idx]}`;
+        }
+        return `OE-${Math.round(yMin)}`;
+      }
+      // ON donor: N long-side, yMin = 400.  NE-clipped cols pair via SE_BS_COLS lookup.
+      if (s.faceType === 'long-side' && yMin <= 401) {
+        const seCol = SE_BS_COLS.find(x => Math.abs(x - xMin) < 2);
+        if (seCol !== undefined) return `ON-${seCol}`;
+        return `ON-${Math.round(xMin)}`;                    // full-length cols (no offcut pair)
+      }
+    }
+    // 5) Anything else: each strip is its own physical sheet.
     return `${s.color}-${Math.round(s.centroid[0])}-${Math.round(s.centroid[1])}`;
   }
 
@@ -219,10 +247,12 @@ const fs = require('fs');
         <h3>How to read the numbers</h3>
         <ul>
           <li>Find a number on the cascade. If it appears in 2 (or 3) places, those pieces all come from the same physical donor sheet.</li>
-          <li><b>10 rainbow donor sheets</b> sit conceptually on the main's N long-side. Each is cut into a north piece (translated up to the wing's N hip-end, except D9/D10 which stay) + an optional middle piece (D5–D8) + a south piece (rotated 90° CCW into the main's SW hip-end).</li>
+          <li><b>10 rainbow donor sheets</b> on the main's N long-side. Each is cut into a north piece (translated up to the wing's N hip-end, except D9/D10 which stay) + an optional middle piece (D5–D8) + a south piece (rotated 90° CCW into the main's SW hip-end).</li>
           <li><b>Wing's purple east-side sheets (PR)</b> that cross the valley have their east-of-valley offcut translated 300 px up into the wing's N triangle. PR sheet and PN offcut share a number.</li>
-          <li><b>9 blue BS donor sheets</b> at the SW-hip-clipped columns (x = 100..443) pair with the 4 BN strips in the wing NW + 5 BW strips in the main W hip-end upper. The BS donor gets clipped at the SW hip; the offcut material is reused to fill its paired BN or BW destination. Pairing is size-matched (smallest BS offcut ↔ smallest BN, largest BS offcut ↔ largest BW).</li>
-          <li>All other strips (PL wing left, ON main N east, remaining BS main S, BE/OE main E hip-end) are single-piece sheets, each with its own number.</li>
+          <li><b>9 blue BS donor sheets</b> at the SW-hip-clipped columns (x = 100..443) pair with the 4 BN strips in the wing NW + 5 BW strips in the main W hip-end upper. Pairing is size-matched.</li>
+          <li><b>9 blue BS donor sheets</b> at the SE-hip-clipped columns (x = 672..1000) pair with the 9 BE offcuts in the main E hip-end UPPER (above the ridge). Pairing is size-matched.</li>
+          <li><b>9 orange ON donor sheets</b> at the NE-hip-clipped columns (x = 672..1000) pair with the 9 OE offcuts in the main E hip-end LOWER (below the ridge). Pairing is size-matched.</li>
+          <li>All other strips (PL wing left, full-length BS/ON main middle, narrow ridge slices) are single-piece sheets, each with its own number.</li>
         </ul>
       </div>
     </div>

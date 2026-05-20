@@ -11603,13 +11603,12 @@ function renderRoofSheetPlan() {
       x += coverPxL;
     }
 
-    // ── Main W hip-end UPPER (longer blue strips) ──
-    // Horizontal strips at y in [midY - (mainH/2 - (wx1-wx0))/2 ...] —
-    // simpler: y in [550, 750] for our test case.
-    // Each strip from x = mx0 east to the (removed) NW hip line:
-    //   x_east = y - (refY - mx0) = y - 300
-    // Step 38px (coverPxL) vertically.  Mark COUNTS toward order (these
-    // are the donor sheets for the W hip-end upper area).
+    // ── Main W hip-end UPPER (blue offcuts paired with BS donors) ──
+    // Horizontal strips at y in [550, 750].  Each strip is an OFFCUT of
+    // a south long-side BS donor at a SW-hip-clipped column: the BS
+    // donor's leftover (after the SW hip cut) is rotated into this
+    // W hip-end position.  Marked isOffcut so it doesn't count toward
+    // the order — the BS donor it pairs with is the counted sheet.
     var wUpperY0 = valleyEnd[1];  // 550
     var wUpperY1 = midY;          // 750
     var y = wUpperY0;
@@ -11625,7 +11624,7 @@ function renderRoofSheetPlan() {
           poly: poly, centroid: polyCentroid(poly),
           orderedLengthMm: orderedLengthMm(faceMainW.sheetM),
           pieceM: faceMainW.sheetM,
-          isOffcut: false, isPhantom: false,
+          isOffcut: true, isPhantom: false,
           _wUpperLongerIdx: Math.round((y - wUpperY0) / coverPxL)
         });
       }
