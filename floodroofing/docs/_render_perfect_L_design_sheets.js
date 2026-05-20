@@ -56,65 +56,39 @@ const fs = require('fs');
     return [cx / poly.length, cy / poly.length];
   }
 
-  // ── Cascade-design classification (face-based) ──
-  // Identify each strip's face by the face-centroid:
-  //   wing W long-side : face centroid x < 250, y in [400..900]
-  //   wing E long-side : face centroid x in [350..500], y in [200..800]
-  //   wing N hip-end   : face centroid y < 200
-  //   main N long-side : face centroid x in [550..1050], y in [750..850]
-  //   main S long-side : face centroid x > 300, y > 950
-  //   main E hip-end   : face centroid x > 1000
-  // Strips within N hip-end split by their own centroid x relative to apex 300.
-  // Strips within E hip-end split by their own centroid y relative to apex 900.
-  // Valley wedges fall outside the obvious face buckets.
+  // ── Cascade-design classification (face-based using face polygon) ──
+  // Use the strip's face polygon centroid to identify which face it's
+  // on.  Each Big-L face has a distinctive centroid:
+  //   wing N hip-end   : ~(300, 167)   small y
+  //   main E hip-end   : ~(1033, 900)  large x
+  //   wing W long-side : ~(200, 600)
+  //   wing E long-side : ~(375, 525)   (with valley clip, smaller area)
+  //   main N long-side : ~(700, 800)
+  //   main S long-side : ~(600, 1000)
   function classify(s) {
-    const sc = s.centroid;
     const fc = faceCentroid(s.facePoly);
+    if (!fc) return 'other';
+    const [fx, fy] = fc;
     const xs = s.poly.map(p => p[0]);
     const ys = s.poly.map(p => p[1]);
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
     const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-    // Wing N hip-end: any strip with centroid y < 300 and in wing
-    if (cy < 300 && cx > 100 && cx < 500) {
+    // Wing N hip-end (face centroid near top)
+    if (fy < 220 && fx > 200 && fx < 400) {
       return cx < 300 ? 'wingN_W_half' : 'wingN_E_half';
     }
-    // Main E hip-end: strip centroid x > 900 and y in main range
-    if (cx > 900 && cy > 700 && cy < 1100) {
+    // Main E hip-end (face centroid far east)
+    if (fx > 1000 && fy > 800 && fy < 1000) {
       return cy < 900 ? 'mainE_N_half' : 'mainE_S_half';
     }
-    // Wing W long-side: centroid x < 300, y between 100..1100
-    if (cx < 300 && cy >= 300 && cy <= 900) {
-      return 'wingW';
-    }
-    // Wing W bottom (clipped by SW hip): centroid x < 300, y in 900..1100
-    if (cx < 300 && cy > 900 && cy <= 1100 && cy > 1200 - cx) {
-      // BELOW SW hip - in main S face area
-      return 'mainS_west';
-    }
-    // Wing W bottom donors that are inside W face but below ridge meeting?
-    if (cx < 300 && cy > 900 && cy < 1200 - cx) {
-      return 'wingW_bottom';  // wing W bottom face (above SW hip)
-    }
-    // Wing E long-side (above valley)
-    if (cx >= 300 && cx <= 500 && cy >= 300 && cy <= 700) {
-      return 'wingE';
-    }
-    // Wing E lower portion (near valley)
-    if (cx >= 300 && cx <= 500 && cy > 700 && cy < 900 && cy < 1200 - cx) {
-      return 'wingE_near_valley';
-    }
-    // Valley south (main NW interior, north of valley but south of ridge)
-    if (cx >= 100 && cx <= 500 && cy >= 700 && cy <= 900 && cy >= 1200 - cx) {
-      return 'valley_south';
-    }
-    // Main N long-side (east of valley)
-    if (cx > 300 && cx < 1100 && cy >= 700 && cy < 900) {
-      return 'mainN';
-    }
+    // Wing W long-side
+    if (fx < 250 && fy > 400 && fy < 900) return 'wingW';
+    // Wing E long-side
+    if (fx > 300 && fx < 500 && fy > 200 && fy < 700) return 'wingE';
+    // Main N long-side
+    if (fx > 500 && fx < 1000 && fy > 700 && fy < 900) return 'mainN';
     // Main S long-side
-    if (cx >= 100 && cx <= 1100 && cy >= 900 && cy <= 1100) {
-      return 'mainS';
-    }
+    if (fx > 300 && fx < 1000 && fy > 950) return 'mainS';
     return 'other';
   }
 
@@ -130,20 +104,18 @@ const fs = require('fs');
   //   wingW-bottom (orange) -> valley S       (orange offcut there)
   const DESIGN_ORANGE = '#f97316';
   const DESIGN_BLUE   = '#2563eb';
+  // Keep main N / main S in their original 6-face colours; only the END
+  // HIPS get re-coloured so the offcut matches its donor.
   const designColor = {
-    wingW: DESIGN_ORANGE,            // outward face
-    wingE: DESIGN_BLUE,              // inward face
-    wingW_bottom: DESIGN_ORANGE,
-    wingE_near_valley: DESIGN_BLUE,
-    wingN_W_half: DESIGN_BLUE,       // offcut from wing E (blue, inward)
-    wingN_E_half: DESIGN_ORANGE,     // offcut from wing W (orange, outward)
-    mainN: DESIGN_BLUE,              // inward face (matches wing E)
-    mainS: DESIGN_ORANGE,            // outward face (matches wing W)
-    mainS_west: DESIGN_ORANGE,
-    mainE_N_half: DESIGN_ORANGE,     // offcut from main S (orange, outward)
-    mainE_S_half: DESIGN_BLUE,       // offcut from main N (blue, inward)
-    valley_south: DESIGN_ORANGE,     // offcut from wing W bottom (orange)
-    valley_north: DESIGN_ORANGE,     // offcut from main S west (orange)
+    wingW: DESIGN_ORANGE,
+    wingE: DESIGN_BLUE,
+    mainN: DESIGN_ORANGE,            // unchanged from 6-face default
+    mainS: DESIGN_BLUE,              // unchanged from 6-face default
+    // End-hip offcuts: each half coloured to match the donor it pairs with
+    wingN_W_half: DESIGN_BLUE,       // offcut from wing E (blue)
+    wingN_E_half: DESIGN_ORANGE,     // offcut from wing W (orange)
+    mainE_N_half: DESIGN_BLUE,       // offcut from main S (blue)
+    mainE_S_half: DESIGN_ORANGE,     // offcut from main N (orange)
   };
 
   // ── Render to SVG ──
@@ -169,9 +141,12 @@ const fs = require('fs');
     `<line x1="${toX(a[0])}" y1="${toY(a[1])}" x2="${toX(b[0])}" y2="${toY(b[1])}" stroke="${color}" stroke-width="2.5" ${dash?`stroke-dasharray="${dash}"`:''}/>`
   ).join('');
 
+  // For strips classified as one of our design regions, recolour.  For
+  // everything else (the main face strips not touched by the cascade),
+  // keep the original 6-face colour.
   const stripSvg = strips.map(s => {
-    const c = designColor[s.region] || '#cccccc';
-    const op = s.region.includes('_half') || s.region.startsWith('valley') ? 0.45 : 0.65;
+    const c = designColor[s.region] || s.origColor || '#cccccc';
+    const op = s.region.includes('_half') ? 0.55 : 0.65;
     return `<polygon points="${polyAttr(s.poly)}" fill="${c}" fill-opacity="${op}" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>`;
   }).join('');
 
