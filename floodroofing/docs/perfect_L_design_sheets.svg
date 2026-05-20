@@ -15,6 +15,43 @@
     <line x1="475" y1="385" x2="475" y2="935" stroke="#dc2626" stroke-width="2.5" /><line x1="475" y1="935" x2="1025" y2="935" stroke="#dc2626" stroke-width="2.5" />
     <line x1="658.3333333333333" y1="751.6666666666666" x2="475" y2="935" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="10,5"/>
 
+    <!-- Region labels (letters A-J) overlaid for user reference -->
+    <g font-family="Inter,sans-serif" font-weight="700" font-size="22">
+      <!-- A: orange north-of-valley triangle (wing E face wedge) -->
+      <circle cx="530" cy="815.8333333333333" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+      <text x="530" y="823.8333333333333" text-anchor="middle" fill="#000">A</text>
+      <!-- B: blue south-of-valley triangle (main N face wedge) -->
+      <circle cx="603.3333333333333" cy="880" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+      <text x="603.3333333333333" y="888" text-anchor="middle" fill="#000">B</text>
+      <!-- C: main N long-side strips (orange, middle of horizontal arm top) -->
+      <circle cx="841.6666666666666" cy="843.3333333333333" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+      <text x="841.6666666666666" y="851.3333333333333" text-anchor="middle" fill="#000">C</text>
+      <!-- D: main E hip-end N half (blue) -->
+      <circle cx="1135" cy="870.8333333333333" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+      <text x="1135" y="878.8333333333333" text-anchor="middle" fill="#000">D</text>
+      <!-- E: main E hip-end S half (orange) -->
+      <circle cx="1135" cy="1017.5" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+      <text x="1135" y="1025.5" text-anchor="middle" fill="#000">E</text>
+      <!-- F: main S long-side strips (blue) -->
+      <circle cx="841.6666666666666" cy="1035.8333333333333" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+      <text x="841.6666666666666" y="1043.8333333333333" text-anchor="middle" fill="#000">F</text>
+      <!-- G: wing E long-side (blue) -->
+      <circle cx="566.6666666666666" cy="568.3333333333333" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+      <text x="566.6666666666666" y="576.3333333333333" text-anchor="middle" fill="#000">G</text>
+      <!-- H: wing W long-side (orange) -->
+      <circle cx="383.3333333333333" cy="568.3333333333333" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+      <text x="383.3333333333333" y="576.3333333333333" text-anchor="middle" fill="#000">H</text>
+      <!-- I: wing W bottom (recoloured blue, SW-clipped external hip face) -->
+      <circle cx="355.8333333333333" cy="999.1666666666666" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+      <text x="355.8333333333333" y="1007.1666666666666" text-anchor="middle" fill="#000">I</text>
+      <!-- J: main S west orange donors (76..108) -->
+      <circle cx="401.66666666666663" cy="1072.5" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+      <text x="401.66666666666663" y="1080.5" text-anchor="middle" fill="#000">J</text>
+      <!-- K: wing N hip-end (entire) -->
+      <circle cx="475" cy="265.8333333333333" r="18" fill="#fff" stroke="#000" stroke-width="2"/>
+      <text x="475" y="273.8333333333333" text-anchor="middle" fill="#000">K</text>
+    </g>
+
     <!-- Cross-pair arrows -->
     <!-- Wing N: W donors -> E half ; E donors -> W half -->
     <line x1="365" y1="357.5" x2="548.3333333333333" y2="293.3333333333333" stroke="#111" stroke-width="2.2" marker-end="url(#arrow)"/>
