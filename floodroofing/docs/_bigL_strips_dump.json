@@ -1,0 +1,3622 @@
+[
+  {
+    "color": "#f97316",
+    "seq": 1,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      500.1,
+      575
+    ],
+    "poly": [
+      [
+        481,
+        400
+      ],
+      [
+        519.1,
+        400
+      ],
+      [
+        519.1,
+        750
+      ],
+      [
+        481,
+        750
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 2,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      538.2,
+      575
+    ],
+    "poly": [
+      [
+        519.1,
+        400
+      ],
+      [
+        557.2,
+        400
+      ],
+      [
+        557.2,
+        750
+      ],
+      [
+        519.1,
+        750
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 3,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      576.3,
+      575
+    ],
+    "poly": [
+      [
+        557.2,
+        400
+      ],
+      [
+        595.3,
+        400
+      ],
+      [
+        595.3,
+        750
+      ],
+      [
+        557.2,
+        750
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 4,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      614.4,
+      575
+    ],
+    "poly": [
+      [
+        595.3,
+        400
+      ],
+      [
+        633.4,
+        400
+      ],
+      [
+        633.4,
+        750
+      ],
+      [
+        595.3,
+        750
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 5,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      652,
+      605.7
+    ],
+    "poly": [
+      [
+        633.4,
+        400
+      ],
+      [
+        671.5,
+        400
+      ],
+      [
+        671.5,
+        728.5
+      ],
+      [
+        650,
+        750
+      ],
+      [
+        633.4,
+        750
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 6,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      690.6,
+      554.7
+    ],
+    "poly": [
+      [
+        671.5,
+        400
+      ],
+      [
+        709.6,
+        400
+      ],
+      [
+        709.6,
+        690.4
+      ],
+      [
+        671.5,
+        728.5
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 7,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      728.7,
+      535.7
+    ],
+    "poly": [
+      [
+        709.6,
+        400
+      ],
+      [
+        747.7,
+        400
+      ],
+      [
+        747.7,
+        652.3
+      ],
+      [
+        709.6,
+        690.4
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 8,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      766.8,
+      516.6
+    ],
+    "poly": [
+      [
+        747.7,
+        400
+      ],
+      [
+        785.8,
+        400
+      ],
+      [
+        785.8,
+        614.2
+      ],
+      [
+        747.7,
+        652.3
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 9,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      804.9,
+      497.6
+    ],
+    "poly": [
+      [
+        785.8,
+        400
+      ],
+      [
+        823.9,
+        400
+      ],
+      [
+        823.9,
+        576.1
+      ],
+      [
+        785.8,
+        614.2
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 10,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      843,
+      478.5
+    ],
+    "poly": [
+      [
+        823.9,
+        400
+      ],
+      [
+        862,
+        400
+      ],
+      [
+        862,
+        538
+      ],
+      [
+        823.9,
+        576.1
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 13,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      881.1,
+      459.5
+    ],
+    "poly": [
+      [
+        862,
+        400
+      ],
+      [
+        900.1,
+        400
+      ],
+      [
+        900.1,
+        499.9
+      ],
+      [
+        862,
+        538
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 16,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      919.2,
+      440.4
+    ],
+    "poly": [
+      [
+        900.1,
+        400
+      ],
+      [
+        938.2,
+        400
+      ],
+      [
+        938.2,
+        461.8
+      ],
+      [
+        900.1,
+        499.9
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 19,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      957.3,
+      421.4
+    ],
+    "poly": [
+      [
+        938.2,
+        400
+      ],
+      [
+        976.3,
+        400
+      ],
+      [
+        976.3,
+        423.7
+      ],
+      [
+        938.2,
+        461.8
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 22,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      988.2,
+      405.9
+    ],
+    "poly": [
+      [
+        976.3,
+        400
+      ],
+      [
+        1000,
+        400
+      ],
+      [
+        1000,
+        400
+      ],
+      [
+        976.3,
+        423.7
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 2,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      119.1,
+      1090.5
+    ],
+    "poly": [
+      [
+        100,
+        1100
+      ],
+      [
+        138.1,
+        1061.9
+      ],
+      [
+        138.1,
+        1100
+      ],
+      [
+        100,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 5,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      157.1,
+      1071.4
+    ],
+    "poly": [
+      [
+        138.1,
+        1061.9
+      ],
+      [
+        176.2,
+        1023.8
+      ],
+      [
+        176.2,
+        1100
+      ],
+      [
+        138.1,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 8,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      195.3,
+      1052.4
+    ],
+    "poly": [
+      [
+        176.2,
+        1023.8
+      ],
+      [
+        214.3,
+        985.7
+      ],
+      [
+        214.3,
+        1100
+      ],
+      [
+        176.2,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 11,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      233.3,
+      1033.3
+    ],
+    "poly": [
+      [
+        214.3,
+        985.7
+      ],
+      [
+        252.4,
+        947.6
+      ],
+      [
+        252.4,
+        1100
+      ],
+      [
+        214.3,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 14,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      271.5,
+      1014.3
+    ],
+    "poly": [
+      [
+        252.4,
+        947.6
+      ],
+      [
+        290.5,
+        909.5
+      ],
+      [
+        290.5,
+        1100
+      ],
+      [
+        252.4,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 16,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      309.6,
+      995.2
+    ],
+    "poly": [
+      [
+        290.5,
+        909.5
+      ],
+      [
+        328.6,
+        871.4
+      ],
+      [
+        328.6,
+        1100
+      ],
+      [
+        290.5,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 17,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      347.7,
+      976.2
+    ],
+    "poly": [
+      [
+        328.6,
+        871.4
+      ],
+      [
+        366.7,
+        833.3
+      ],
+      [
+        366.7,
+        1100
+      ],
+      [
+        328.6,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 18,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      385.8,
+      957.1
+    ],
+    "poly": [
+      [
+        366.7,
+        833.3
+      ],
+      [
+        404.8,
+        795.2
+      ],
+      [
+        404.8,
+        1100
+      ],
+      [
+        366.7,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 19,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      423.9,
+      938.1
+    ],
+    "poly": [
+      [
+        404.8,
+        795.2
+      ],
+      [
+        442.9,
+        757.1
+      ],
+      [
+        442.9,
+        1100
+      ],
+      [
+        404.8,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 20,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      459.6,
+      891.4
+    ],
+    "poly": [
+      [
+        442.9,
+        757.1
+      ],
+      [
+        450,
+        750
+      ],
+      [
+        481,
+        750
+      ],
+      [
+        481,
+        1100
+      ],
+      [
+        442.9,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 21,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      500.1,
+      925
+    ],
+    "poly": [
+      [
+        481,
+        750
+      ],
+      [
+        519.1,
+        750
+      ],
+      [
+        519.1,
+        1100
+      ],
+      [
+        481,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 22,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      538.2,
+      925
+    ],
+    "poly": [
+      [
+        519.1,
+        750
+      ],
+      [
+        557.2,
+        750
+      ],
+      [
+        557.2,
+        1100
+      ],
+      [
+        519.1,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 23,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      576.3,
+      925
+    ],
+    "poly": [
+      [
+        557.2,
+        750
+      ],
+      [
+        595.3,
+        750
+      ],
+      [
+        595.3,
+        1100
+      ],
+      [
+        557.2,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 24,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      614.4,
+      925
+    ],
+    "poly": [
+      [
+        595.3,
+        750
+      ],
+      [
+        633.4,
+        750
+      ],
+      [
+        633.4,
+        1100
+      ],
+      [
+        595.3,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 25,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      652,
+      894.3
+    ],
+    "poly": [
+      [
+        633.4,
+        750
+      ],
+      [
+        650,
+        750
+      ],
+      [
+        671.5,
+        771.5
+      ],
+      [
+        671.5,
+        1100
+      ],
+      [
+        633.4,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 26,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      690.6,
+      945.3
+    ],
+    "poly": [
+      [
+        671.5,
+        771.5
+      ],
+      [
+        709.6,
+        809.6
+      ],
+      [
+        709.6,
+        1100
+      ],
+      [
+        671.5,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 27,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      728.7,
+      964.3
+    ],
+    "poly": [
+      [
+        709.6,
+        809.6
+      ],
+      [
+        747.7,
+        847.7
+      ],
+      [
+        747.7,
+        1100
+      ],
+      [
+        709.6,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 28,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      766.8,
+      983.4
+    ],
+    "poly": [
+      [
+        747.7,
+        847.7
+      ],
+      [
+        785.8,
+        885.8
+      ],
+      [
+        785.8,
+        1100
+      ],
+      [
+        747.7,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 29,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      804.9,
+      1002.4
+    ],
+    "poly": [
+      [
+        785.8,
+        885.8
+      ],
+      [
+        823.9,
+        923.9
+      ],
+      [
+        823.9,
+        1100
+      ],
+      [
+        785.8,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 32,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      843,
+      1021.5
+    ],
+    "poly": [
+      [
+        823.9,
+        923.9
+      ],
+      [
+        862,
+        962
+      ],
+      [
+        862,
+        1100
+      ],
+      [
+        823.9,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 35,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      881.1,
+      1040.5
+    ],
+    "poly": [
+      [
+        862,
+        962
+      ],
+      [
+        900.1,
+        1000.1
+      ],
+      [
+        900.1,
+        1100
+      ],
+      [
+        862,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 38,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      919.2,
+      1059.6
+    ],
+    "poly": [
+      [
+        900.1,
+        1000.1
+      ],
+      [
+        938.2,
+        1038.2
+      ],
+      [
+        938.2,
+        1100
+      ],
+      [
+        900.1,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 41,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      957.3,
+      1078.6
+    ],
+    "poly": [
+      [
+        938.2,
+        1038.2
+      ],
+      [
+        976.3,
+        1076.3
+      ],
+      [
+        976.3,
+        1100
+      ],
+      [
+        938.2,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 43,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      988.2,
+      1094.1
+    ],
+    "poly": [
+      [
+        976.3,
+        1076.3
+      ],
+      [
+        1000,
+        1100
+      ],
+      [
+        1000,
+        1100
+      ],
+      [
+        976.3,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 7,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      184.5,
+      569.1
+    ],
+    "poly": [
+      [
+        100,
+        550
+      ],
+      [
+        250,
+        550
+      ],
+      [
+        288.1,
+        588.1
+      ],
+      [
+        100,
+        588.1
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 9,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      203.6,
+      607.2
+    ],
+    "poly": [
+      [
+        100,
+        588.1
+      ],
+      [
+        288.1,
+        588.1
+      ],
+      [
+        326.2,
+        626.2
+      ],
+      [
+        100,
+        626.2
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 10,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      222.6,
+      645.3
+    ],
+    "poly": [
+      [
+        100,
+        626.2
+      ],
+      [
+        326.2,
+        626.2
+      ],
+      [
+        364.3,
+        664.3
+      ],
+      [
+        100,
+        664.3
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 12,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      241.7,
+      683.4
+    ],
+    "poly": [
+      [
+        100,
+        664.3
+      ],
+      [
+        364.3,
+        664.3
+      ],
+      [
+        402.4,
+        702.4
+      ],
+      [
+        100,
+        702.4
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 13,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      260.7,
+      721.5
+    ],
+    "poly": [
+      [
+        100,
+        702.4
+      ],
+      [
+        402.4,
+        702.4
+      ],
+      [
+        440.5,
+        740.5
+      ],
+      [
+        100,
+        740.5
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 15,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      272.6,
+      745.3
+    ],
+    "poly": [
+      [
+        100,
+        740.5
+      ],
+      [
+        440.5,
+        740.5
+      ],
+      [
+        450,
+        750
+      ],
+      [
+        100,
+        750
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 44,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      990.5,
+      419.1
+    ],
+    "poly": [
+      [
+        1000,
+        400
+      ],
+      [
+        1000,
+        400
+      ],
+      [
+        1000,
+        438.1
+      ],
+      [
+        961.9,
+        438.1
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 42,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      971.4,
+      457.2
+    ],
+    "poly": [
+      [
+        961.9,
+        438.1
+      ],
+      [
+        1000,
+        438.1
+      ],
+      [
+        1000,
+        476.2
+      ],
+      [
+        923.8,
+        476.2
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 40,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      952.4,
+      495.3
+    ],
+    "poly": [
+      [
+        923.8,
+        476.2
+      ],
+      [
+        1000,
+        476.2
+      ],
+      [
+        1000,
+        514.3
+      ],
+      [
+        885.7,
+        514.3
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 39,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      933.3,
+      533.4
+    ],
+    "poly": [
+      [
+        885.7,
+        514.3
+      ],
+      [
+        1000,
+        514.3
+      ],
+      [
+        1000,
+        552.4
+      ],
+      [
+        847.6,
+        552.4
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 37,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      914.3,
+      571.5
+    ],
+    "poly": [
+      [
+        847.6,
+        552.4
+      ],
+      [
+        1000,
+        552.4
+      ],
+      [
+        1000,
+        590.5
+      ],
+      [
+        809.5,
+        590.5
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 36,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      895.2,
+      609.6
+    ],
+    "poly": [
+      [
+        809.5,
+        590.5
+      ],
+      [
+        1000,
+        590.5
+      ],
+      [
+        1000,
+        628.6
+      ],
+      [
+        771.4,
+        628.6
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 34,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      876.2,
+      647.7
+    ],
+    "poly": [
+      [
+        771.4,
+        628.6
+      ],
+      [
+        1000,
+        628.6
+      ],
+      [
+        1000,
+        666.7
+      ],
+      [
+        733.3,
+        666.7
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 33,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      857.1,
+      685.8
+    ],
+    "poly": [
+      [
+        733.3,
+        666.7
+      ],
+      [
+        1000,
+        666.7
+      ],
+      [
+        1000,
+        704.8
+      ],
+      [
+        695.2,
+        704.8
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 31,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      838.1,
+      723.9
+    ],
+    "poly": [
+      [
+        695.2,
+        704.8
+      ],
+      [
+        1000,
+        704.8
+      ],
+      [
+        1000,
+        742.9
+      ],
+      [
+        657.1,
+        742.9
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 30,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      834.5,
+      762
+    ],
+    "poly": [
+      [
+        657.1,
+        742.9
+      ],
+      [
+        1000,
+        742.9
+      ],
+      [
+        1000,
+        781
+      ],
+      [
+        681,
+        781
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 11,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      850,
+      800.1
+    ],
+    "poly": [
+      [
+        681,
+        781
+      ],
+      [
+        1000,
+        781
+      ],
+      [
+        1000,
+        819.1
+      ],
+      [
+        719.1,
+        819.1
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 12,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      869.1,
+      838.2
+    ],
+    "poly": [
+      [
+        719.1,
+        819.1
+      ],
+      [
+        1000,
+        819.1
+      ],
+      [
+        1000,
+        857.2
+      ],
+      [
+        757.2,
+        857.2
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 14,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      888.1,
+      876.3
+    ],
+    "poly": [
+      [
+        757.2,
+        857.2
+      ],
+      [
+        1000,
+        857.2
+      ],
+      [
+        1000,
+        895.3
+      ],
+      [
+        795.3,
+        895.3
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 15,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      907.2,
+      914.4
+    ],
+    "poly": [
+      [
+        795.3,
+        895.3
+      ],
+      [
+        1000,
+        895.3
+      ],
+      [
+        1000,
+        933.4
+      ],
+      [
+        833.4,
+        933.4
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 17,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      926.2,
+      952.5
+    ],
+    "poly": [
+      [
+        833.4,
+        933.4
+      ],
+      [
+        1000,
+        933.4
+      ],
+      [
+        1000,
+        971.5
+      ],
+      [
+        871.5,
+        971.5
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 18,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      945.3,
+      990.6
+    ],
+    "poly": [
+      [
+        871.5,
+        971.5
+      ],
+      [
+        1000,
+        971.5
+      ],
+      [
+        1000,
+        1009.6
+      ],
+      [
+        909.6,
+        1009.6
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 20,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      964.3,
+      1028.7
+    ],
+    "poly": [
+      [
+        909.6,
+        1009.6
+      ],
+      [
+        1000,
+        1009.6
+      ],
+      [
+        1000,
+        1047.7
+      ],
+      [
+        947.7,
+        1047.7
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 21,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      983.4,
+      1066.8
+    ],
+    "poly": [
+      [
+        947.7,
+        1047.7
+      ],
+      [
+        1000,
+        1047.7
+      ],
+      [
+        1000,
+        1085.8
+      ],
+      [
+        985.8,
+        1085.8
+      ]
+    ]
+  },
+  {
+    "color": "#f97316",
+    "seq": 23,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      996.5,
+      1092.9
+    ],
+    "poly": [
+      [
+        985.8,
+        1085.8
+      ],
+      [
+        1000,
+        1085.8
+      ],
+      [
+        1000,
+        1100
+      ],
+      [
+        1000,
+        1100
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 1,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      175,
+      269.1
+    ],
+    "poly": [
+      [
+        100,
+        250
+      ],
+      [
+        250,
+        250
+      ],
+      [
+        250,
+        288.1
+      ],
+      [
+        100,
+        288.1
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 2,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      175,
+      307.2
+    ],
+    "poly": [
+      [
+        100,
+        288.1
+      ],
+      [
+        250,
+        288.1
+      ],
+      [
+        250,
+        326.2
+      ],
+      [
+        100,
+        326.2
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 3,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      175,
+      345.3
+    ],
+    "poly": [
+      [
+        100,
+        326.2
+      ],
+      [
+        250,
+        326.2
+      ],
+      [
+        250,
+        364.3
+      ],
+      [
+        100,
+        364.3
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 4,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      175,
+      383.4
+    ],
+    "poly": [
+      [
+        100,
+        364.3
+      ],
+      [
+        250,
+        364.3
+      ],
+      [
+        250,
+        402.4
+      ],
+      [
+        100,
+        402.4
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 5,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      175,
+      421.5
+    ],
+    "poly": [
+      [
+        100,
+        402.4
+      ],
+      [
+        250,
+        402.4
+      ],
+      [
+        250,
+        440.5
+      ],
+      [
+        100,
+        440.5
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 6,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      175,
+      459.6
+    ],
+    "poly": [
+      [
+        100,
+        440.5
+      ],
+      [
+        250,
+        440.5
+      ],
+      [
+        250,
+        478.6
+      ],
+      [
+        100,
+        478.6
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 7,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      175,
+      497.7
+    ],
+    "poly": [
+      [
+        100,
+        478.6
+      ],
+      [
+        250,
+        478.6
+      ],
+      [
+        250,
+        516.7
+      ],
+      [
+        100,
+        516.7
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 8,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      175,
+      533.4
+    ],
+    "poly": [
+      [
+        100,
+        516.7
+      ],
+      [
+        250,
+        516.7
+      ],
+      [
+        250,
+        550
+      ],
+      [
+        100,
+        550
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 13,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      325,
+      269.1
+    ],
+    "poly": [
+      [
+        250,
+        250
+      ],
+      [
+        400,
+        250
+      ],
+      [
+        400,
+        288.1
+      ],
+      [
+        250,
+        288.1
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 14,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      325,
+      307.2
+    ],
+    "poly": [
+      [
+        250,
+        288.1
+      ],
+      [
+        400,
+        288.1
+      ],
+      [
+        400,
+        326.2
+      ],
+      [
+        250,
+        326.2
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 15,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      325,
+      345.3
+    ],
+    "poly": [
+      [
+        250,
+        326.2
+      ],
+      [
+        400,
+        326.2
+      ],
+      [
+        400,
+        364.3
+      ],
+      [
+        250,
+        364.3
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 17,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      339.5,
+      386.7
+    ],
+    "poly": [
+      [
+        250,
+        364.3
+      ],
+      [
+        400,
+        364.3
+      ],
+      [
+        400,
+        400
+      ],
+      [
+        397.6,
+        402.4
+      ],
+      [
+        250,
+        402.4
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 21,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      399.2,
+      101.6
+    ],
+    "poly": [
+      [
+        400,
+        100
+      ],
+      [
+        400,
+        102.4
+      ],
+      [
+        397.6,
+        102.4
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 12,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      314.3,
+      421.5
+    ],
+    "poly": [
+      [
+        250,
+        402.4
+      ],
+      [
+        397.6,
+        402.4
+      ],
+      [
+        359.5,
+        440.5
+      ],
+      [
+        250,
+        440.5
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 20,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      389.3,
+      121.5
+    ],
+    "poly": [
+      [
+        397.6,
+        102.4
+      ],
+      [
+        400,
+        102.4
+      ],
+      [
+        400,
+        140.5
+      ],
+      [
+        359.5,
+        140.5
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 11,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      295.2,
+      459.6
+    ],
+    "poly": [
+      [
+        250,
+        440.5
+      ],
+      [
+        359.5,
+        440.5
+      ],
+      [
+        321.4,
+        478.6
+      ],
+      [
+        250,
+        478.6
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 19,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      370.2,
+      159.6
+    ],
+    "poly": [
+      [
+        359.5,
+        140.5
+      ],
+      [
+        400,
+        140.5
+      ],
+      [
+        400,
+        178.6
+      ],
+      [
+        321.4,
+        178.6
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 10,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      276.2,
+      497.7
+    ],
+    "poly": [
+      [
+        250,
+        478.6
+      ],
+      [
+        321.4,
+        478.6
+      ],
+      [
+        283.3,
+        516.7
+      ],
+      [
+        250,
+        516.7
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 18,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      351.2,
+      197.7
+    ],
+    "poly": [
+      [
+        321.4,
+        178.6
+      ],
+      [
+        400,
+        178.6
+      ],
+      [
+        400,
+        216.7
+      ],
+      [
+        283.3,
+        216.7
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 9,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      258.3,
+      533.4
+    ],
+    "poly": [
+      [
+        250,
+        516.7
+      ],
+      [
+        283.3,
+        516.7
+      ],
+      [
+        250,
+        550
+      ],
+      [
+        250,
+        550
+      ]
+    ]
+  },
+  {
+    "color": "#a855f7",
+    "seq": 16,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 3900,
+    "pieceM": 3.23560422803275,
+    "centroid": [
+      333.3,
+      233.4
+    ],
+    "poly": [
+      [
+        283.3,
+        216.7
+      ],
+      [
+        400,
+        216.7
+      ],
+      [
+        400,
+        250
+      ],
+      [
+        250,
+        250
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 1,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      109.5,
+      119.1
+    ],
+    "poly": [
+      [
+        100,
+        100
+      ],
+      [
+        100,
+        100
+      ],
+      [
+        138.1,
+        138.1
+      ],
+      [
+        100,
+        138.1
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 3,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      128.6,
+      157.2
+    ],
+    "poly": [
+      [
+        100,
+        138.1
+      ],
+      [
+        138.1,
+        138.1
+      ],
+      [
+        176.2,
+        176.2
+      ],
+      [
+        100,
+        176.2
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 4,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      147.6,
+      195.3
+    ],
+    "poly": [
+      [
+        100,
+        176.2
+      ],
+      [
+        176.2,
+        176.2
+      ],
+      [
+        214.3,
+        214.3
+      ],
+      [
+        100,
+        214.3
+      ]
+    ]
+  },
+  {
+    "color": "#2563eb",
+    "seq": 6,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#a855f7",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      166.1,
+      232.2
+    ],
+    "poly": [
+      [
+        100,
+        214.3
+      ],
+      [
+        214.3,
+        214.3
+      ],
+      [
+        250,
+        250
+      ],
+      [
+        100,
+        250
+      ]
+    ]
+  },
+  {
+    "color": "#ef4444",
+    "seq": 1,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      119.1,
+      109.5
+    ],
+    "poly": [
+      [
+        100,
+        100
+      ],
+      [
+        138.1,
+        100
+      ],
+      [
+        138.1,
+        138.1
+      ],
+      [
+        100,
+        100
+      ]
+    ],
+    "_donorIdx": 0
+  },
+  {
+    "color": "#ef4444",
+    "seq": 2,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      265.5,
+      769.1
+    ],
+    "poly": [
+      [
+        450,
+        750
+      ],
+      [
+        411.9,
+        788.1
+      ],
+      [
+        100,
+        788.1
+      ],
+      [
+        100,
+        750
+      ]
+    ],
+    "_donorIdx": 0
+  },
+  {
+    "color": "#f59e0b",
+    "seq": 1,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      157.1,
+      128.6
+    ],
+    "poly": [
+      [
+        138.1,
+        100
+      ],
+      [
+        176.2,
+        100
+      ],
+      [
+        176.2,
+        176.2
+      ],
+      [
+        138.1,
+        138.1
+      ]
+    ],
+    "_donorIdx": 1
+  },
+  {
+    "color": "#f59e0b",
+    "seq": 2,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      246.4,
+      807.2
+    ],
+    "poly": [
+      [
+        411.9,
+        788.1
+      ],
+      [
+        373.8,
+        826.2
+      ],
+      [
+        100,
+        826.2
+      ],
+      [
+        100,
+        788.1
+      ]
+    ],
+    "_donorIdx": 1
+  },
+  {
+    "color": "#eab308",
+    "seq": 1,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      195.3,
+      147.6
+    ],
+    "poly": [
+      [
+        176.2,
+        100
+      ],
+      [
+        214.3,
+        100
+      ],
+      [
+        214.3,
+        214.3
+      ],
+      [
+        176.2,
+        176.2
+      ]
+    ],
+    "_donorIdx": 2
+  },
+  {
+    "color": "#eab308",
+    "seq": 2,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      227.4,
+      845.3
+    ],
+    "poly": [
+      [
+        373.8,
+        826.2
+      ],
+      [
+        335.7,
+        864.3
+      ],
+      [
+        100,
+        864.3
+      ],
+      [
+        100,
+        826.2
+      ]
+    ],
+    "_donorIdx": 2
+  },
+  {
+    "color": "#84cc16",
+    "seq": 2,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      233.4,
+      166.7
+    ],
+    "poly": [
+      [
+        214.3,
+        100
+      ],
+      [
+        252.4,
+        100
+      ],
+      [
+        252.4,
+        252.4
+      ],
+      [
+        214.3,
+        214.3
+      ]
+    ],
+    "_donorIdx": 3
+  },
+  {
+    "color": "#84cc16",
+    "seq": 1,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      208.3,
+      883.4
+    ],
+    "poly": [
+      [
+        335.7,
+        864.3
+      ],
+      [
+        297.6,
+        902.4
+      ],
+      [
+        100,
+        902.4
+      ],
+      [
+        100,
+        864.3
+      ]
+    ],
+    "_donorIdx": 3
+  },
+  {
+    "color": "#10b981",
+    "seq": 2,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      271.5,
+      164.3
+    ],
+    "poly": [
+      [
+        252.4,
+        100
+      ],
+      [
+        290.5,
+        100
+      ],
+      [
+        290.5,
+        209.5
+      ],
+      [
+        252.4,
+        247.6
+      ]
+    ],
+    "_donorIdx": 4
+  },
+  {
+    "color": "#10b981",
+    "seq": 3,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      271.5,
+      550
+    ],
+    "poly": [
+      [
+        252.4,
+        547.6
+      ],
+      [
+        290.5,
+        509.5
+      ],
+      [
+        290.5,
+        590.5
+      ],
+      [
+        252.4,
+        552.4
+      ]
+    ],
+    "_donorIdx": 4
+  },
+  {
+    "color": "#10b981",
+    "seq": 1,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      189.3,
+      921.5
+    ],
+    "poly": [
+      [
+        297.6,
+        902.4
+      ],
+      [
+        259.5,
+        940.5
+      ],
+      [
+        100,
+        940.5
+      ],
+      [
+        100,
+        902.4
+      ]
+    ],
+    "_donorIdx": 4
+  },
+  {
+    "color": "#06b6d4",
+    "seq": 2,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      309.6,
+      145.2
+    ],
+    "poly": [
+      [
+        290.5,
+        100
+      ],
+      [
+        328.6,
+        100
+      ],
+      [
+        328.6,
+        171.4
+      ],
+      [
+        290.5,
+        209.5
+      ]
+    ],
+    "_donorIdx": 5
+  },
+  {
+    "color": "#06b6d4",
+    "seq": 3,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      309.6,
+      550
+    ],
+    "poly": [
+      [
+        290.5,
+        509.5
+      ],
+      [
+        328.6,
+        471.4
+      ],
+      [
+        328.6,
+        628.6
+      ],
+      [
+        290.5,
+        590.5
+      ]
+    ],
+    "_donorIdx": 5
+  },
+  {
+    "color": "#06b6d4",
+    "seq": 1,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      170.2,
+      959.6
+    ],
+    "poly": [
+      [
+        259.5,
+        940.5
+      ],
+      [
+        221.4,
+        978.6
+      ],
+      [
+        100,
+        978.6
+      ],
+      [
+        100,
+        940.5
+      ]
+    ],
+    "_donorIdx": 5
+  },
+  {
+    "color": "#3b82f6",
+    "seq": 2,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      347.7,
+      126.2
+    ],
+    "poly": [
+      [
+        328.6,
+        100
+      ],
+      [
+        366.7,
+        100
+      ],
+      [
+        366.7,
+        133.3
+      ],
+      [
+        328.6,
+        171.4
+      ]
+    ],
+    "_donorIdx": 6
+  },
+  {
+    "color": "#3b82f6",
+    "seq": 3,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      347.7,
+      550
+    ],
+    "poly": [
+      [
+        328.6,
+        471.4
+      ],
+      [
+        366.7,
+        433.3
+      ],
+      [
+        366.7,
+        666.7
+      ],
+      [
+        328.6,
+        628.6
+      ]
+    ],
+    "_donorIdx": 6
+  },
+  {
+    "color": "#3b82f6",
+    "seq": 1,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      151.2,
+      997.7
+    ],
+    "poly": [
+      [
+        221.4,
+        978.6
+      ],
+      [
+        183.3,
+        1016.7
+      ],
+      [
+        100,
+        1016.7
+      ],
+      [
+        100,
+        978.6
+      ]
+    ],
+    "_donorIdx": 6
+  },
+  {
+    "color": "#8b5cf6",
+    "seq": 2,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      385.8,
+      107.1
+    ],
+    "poly": [
+      [
+        366.7,
+        100
+      ],
+      [
+        404.8,
+        100
+      ],
+      [
+        404.8,
+        95.2
+      ],
+      [
+        366.7,
+        133.3
+      ]
+    ],
+    "_donorIdx": 7
+  },
+  {
+    "color": "#8b5cf6",
+    "seq": 3,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      385.8,
+      550
+    ],
+    "poly": [
+      [
+        366.7,
+        433.3
+      ],
+      [
+        404.8,
+        395.2
+      ],
+      [
+        404.8,
+        704.8
+      ],
+      [
+        366.7,
+        666.7
+      ]
+    ],
+    "_donorIdx": 7
+  },
+  {
+    "color": "#8b5cf6",
+    "seq": 1,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      132.1,
+      1035.8
+    ],
+    "poly": [
+      [
+        183.3,
+        1016.7
+      ],
+      [
+        145.2,
+        1054.8
+      ],
+      [
+        100,
+        1054.8
+      ],
+      [
+        100,
+        1016.7
+      ]
+    ],
+    "_donorIdx": 7
+  },
+  {
+    "color": "#ec4899",
+    "seq": 2,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      423.9,
+      561.9
+    ],
+    "poly": [
+      [
+        404.8,
+        400
+      ],
+      [
+        442.9,
+        400
+      ],
+      [
+        442.9,
+        742.9
+      ],
+      [
+        404.8,
+        704.8
+      ]
+    ],
+    "_donorIdx": 8
+  },
+  {
+    "color": "#ec4899",
+    "seq": 1,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      113.1,
+      1073.9
+    ],
+    "poly": [
+      [
+        145.2,
+        1054.8
+      ],
+      [
+        107.1,
+        1092.9
+      ],
+      [
+        100,
+        1092.9
+      ],
+      [
+        100,
+        1054.8
+      ]
+    ],
+    "_donorIdx": 8
+  },
+  {
+    "color": "#a3a3a3",
+    "seq": 2,
+    "isOffcut": false,
+    "isPhantom": false,
+    "faceType": "long-side",
+    "faceColor": "#f97316",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      459.6,
+      608.6
+    ],
+    "poly": [
+      [
+        442.9,
+        400
+      ],
+      [
+        481,
+        400
+      ],
+      [
+        481,
+        750
+      ],
+      [
+        450,
+        750
+      ],
+      [
+        442.9,
+        742.9
+      ]
+    ],
+    "_donorIdx": 9
+  },
+  {
+    "color": "#a3a3a3",
+    "seq": 1,
+    "isOffcut": true,
+    "isPhantom": false,
+    "faceType": "hip-end",
+    "faceColor": "#2563eb",
+    "orderedLengthMm": 7650,
+    "pieceM": 7.549743198743084,
+    "centroid": [
+      102.4,
+      1095.3
+    ],
+    "poly": [
+      [
+        107.1,
+        1092.9
+      ],
+      [
+        100,
+        1100
+      ],
+      [
+        100,
+        1092.9
+      ]
+    ],
+    "_donorIdx": 9
+  }
+]

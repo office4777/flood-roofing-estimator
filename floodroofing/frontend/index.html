@@ -11999,6 +11999,11 @@ function renderRoofSheetPlan() {
   // (the receiver of a paired offcut) DON'T add to the order count
   // — they reuse the donor sheet — so they're excluded here per the
   // SOP §10 "Large offcut reused" reward.
+  try {
+    window.__lastAllStrips = allStrips;
+    window.__lastFaces = faces;
+    window.__lastSheetTransform = { minX: minX, minY: minY, sc: sc, padX: padX, padY: padY, W: W, H: H };
+  } catch(e){}
   var groups = {};
   allStrips.forEach(function(s){
     if (s.isOffcut) return;
