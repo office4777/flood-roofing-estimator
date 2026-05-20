@@ -169,7 +169,7 @@ const fs = require('fs');
     { pts: [[500,700],[500,900],[300,900]], fill: DESIGN_BLUE   },  // south of valley
   ];
   const valleySvg = valleyTriangles.map(t =>
-    `<polygon points="${polyAttr(t.pts)}" fill="${t.fill}" fill-opacity="0.55" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>`
+    `<polygon points="${polyAttr(t.pts)}" fill="${t.fill}" fill-opacity="1" stroke="rgba(0,0,0,0.4)" stroke-width="1"/>`
   ).join('');
 
   const outlinePolyAttr = polyAttr(outline);
