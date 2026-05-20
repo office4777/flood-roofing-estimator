@@ -131,18 +131,19 @@ const fs = require('fs');
   const DESIGN_ORANGE = '#f97316';
   const DESIGN_BLUE   = '#2563eb';
   const designColor = {
-    wingW: DESIGN_ORANGE,
-    wingE: DESIGN_BLUE,
-    wingW_bottom: DESIGN_ORANGE,   // wing W bottom donors (still orange)
-    wingE_near_valley: DESIGN_BLUE, // wing E near valley
-    wingN_W_half: DESIGN_BLUE,     // offcut from wing E (blue) lands here
-    wingN_E_half: DESIGN_ORANGE,   // offcut from wing W (orange) lands here
-    mainN: DESIGN_ORANGE,
-    mainS: DESIGN_BLUE,
-    mainS_west: DESIGN_ORANGE,     // main S west (76..108 area), per user data
-    mainE_N_half: DESIGN_BLUE,     // offcut from main S (blue) lands here
-    mainE_S_half: DESIGN_ORANGE,   // offcut from main N (orange) lands here
-    valley_south: DESIGN_ORANGE,   // offcut from wing W bottom (orange)
+    wingW: DESIGN_ORANGE,            // outward face
+    wingE: DESIGN_BLUE,              // inward face
+    wingW_bottom: DESIGN_ORANGE,
+    wingE_near_valley: DESIGN_BLUE,
+    wingN_W_half: DESIGN_BLUE,       // offcut from wing E (blue, inward)
+    wingN_E_half: DESIGN_ORANGE,     // offcut from wing W (orange, outward)
+    mainN: DESIGN_BLUE,              // inward face (matches wing E)
+    mainS: DESIGN_ORANGE,            // outward face (matches wing W)
+    mainS_west: DESIGN_ORANGE,
+    mainE_N_half: DESIGN_ORANGE,     // offcut from main S (orange, outward)
+    mainE_S_half: DESIGN_BLUE,       // offcut from main N (blue, inward)
+    valley_south: DESIGN_ORANGE,     // offcut from wing W bottom (orange)
+    valley_north: DESIGN_ORANGE,     // offcut from main S west (orange)
   };
 
   // ── Render to SVG ──
