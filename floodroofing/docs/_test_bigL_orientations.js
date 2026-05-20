@@ -79,6 +79,23 @@ const fs = require('fs');
       label: 'N: perfect L 400-wide arms x 1000 long, wing bottom (orient 2)',
       outline: [[1100,1100],[700,1100],[700,500],[100,500],[100,100],[1100,100]],
     },
+    // ─── T-shapes (8-vertex, 2 reflex points — Big-L can\'t apply) ───
+    {
+      label: 'O: T-shape 800x300 top + 200x500 stem (200/300-wide arms)',
+      outline: [[100,100],[900,100],[900,400],[600,400],[600,900],[400,900],[400,400],[100,400]],
+    },
+    {
+      label: 'P: inverted T 800x300 bottom + 200x500 stem on top',
+      outline: [[400,100],[600,100],[600,600],[900,600],[900,900],[100,900],[100,600],[400,600]],
+    },
+    {
+      label: 'Q: sideways T (rotated 90° CW) — bar on right, stem on left',
+      outline: [[100,400],[600,400],[600,100],[900,100],[900,900],[600,900],[600,600],[100,600]],
+    },
+    {
+      label: 'R: perfect T with equal arms (300-wide arms, 900-long bar, 600 stem)',
+      outline: [[100,100],[1000,100],[1000,400],[700,400],[700,1000],[400,1000],[400,400],[100,400]],
+    },
   ];
 
   const captures = [];
