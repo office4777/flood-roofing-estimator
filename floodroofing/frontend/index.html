@@ -11340,9 +11340,6 @@ function renderRoofSheetPlan() {
     // identity is conveyed by the shared seq number on each piece,
     // not by colour.  (Each donor sheet originates on the main's N
     // long-side, which is orange.)
-    var DONOR_COLORS = [COL_ORANGE, COL_ORANGE, COL_ORANGE, COL_ORANGE, COL_ORANGE,
-                        COL_ORANGE, COL_ORANGE, COL_ORANGE, COL_ORANGE, COL_ORANGE];
-
     function _faceMakeNS(a, b, perpPx, color, type){
       // Build a face whose gutter runs a→b, with inward perpendicular
       // pointing away from the gutter into the face interior.  Returns
@@ -11439,9 +11436,14 @@ function renderRoofSheetPlan() {
     //   - valley line:          y = valleyA - x         (slope -1)
     var phantomHipB = refY - mx0;     // intercept of phantom NW hip
     var valleyA    = refX + refY;     // x+y on the valley line
+    // Number of donor columns: enough so the cascade reaches past
+    // wApex (the donor at index nDonors-1 either straddles or sits
+    // east of wApex).  For canonical Big-L this gives 10; for wider
+    // wings (or smaller mains) it scales up.
+    var nDonors = Math.max(1, Math.ceil((wApexX - mx0) / coverPxL));
     function _seqFromCounter(){ /* placeholder, seq is assigned later */ }
     var donorSeqs = [];  // donor index → seq number
-    for (var di = 0; di < 10; di++) {
+    for (var di = 0; di < nDonors; di++) {
       var x0 = mx0 + coverPxL * di;
       var x1 = mx0 + coverPxL * (di+1);
       var xMid = (x0 + x1) / 2;
@@ -11449,7 +11451,7 @@ function renderRoofSheetPlan() {
       // Equivalent simpler check using the spec: x_mid ∈ [250, 400]
       hasValley = (xMid >= valleyEnd[0] && xMid <= wx1);
       var fitsWing = (xMid < wx1);
-      var donorColor = DONOR_COLORS[di];
+      var donorColor = COL_ORANGE;
       // Determine the north piece polygon in donor-face coordinates
       // (i.e. positioned at its natural place on the main's N long-side).
       var northPoly;
@@ -11539,7 +11541,7 @@ function renderRoofSheetPlan() {
     // ── Main N long-side strips east of D10 ──
     // From x = mx0 + 10*coverPx to eApex (and beyond to mx1, but those
     // are cut by the NE hip).
-    var nStartX = mx0 + 10 * coverPxL;
+    var nStartX = mx0 + nDonors * coverPxL;
     var x = nStartX;
     while (x < mx1 - 0.1) {
       var xa = x, xb = Math.min(x + coverPxL, mx1);

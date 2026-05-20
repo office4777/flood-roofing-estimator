@@ -20,29 +20,47 @@ const fs = require('fs');
   });
 
   const cases = [
+    // ─── First 6: previously verified ───
     {
-      label: 'A: canonical (300x300 wing + 900x700 main, orient 0)',
+      label: 'A: canonical 300x300 wing + 900x700 main (orient 0, wing top-left)',
       outline: [[100,100],[400,100],[400,400],[1000,400],[1000,1100],[100,1100]],
     },
     {
-      label: 'B: rotated 90 CW (orient 3, wing bottom-left)',
+      label: 'B: 300x300 wing + 900x700 main (orient 3, wing top-right)',
       outline: [[1050,150],[1050,450],[750,450],[750,1050],[50,1050],[50,150]],
     },
     {
-      label: 'C: rotated 180 (orient 2, wing bottom-right)',
+      label: 'C: 300x300 wing + 900x700 main (orient 2, wing bottom-right)',
       outline: [[1000,1100],[700,1100],[700,800],[100,800],[100,100],[1000,100]],
     },
     {
-      label: 'D: smaller (200x200 wing + 700x500 main, orient 0)',
+      label: 'D: 200x200 wing + 700x500 main (orient 0, wing top-left)',
       outline: [[100,100],[300,100],[300,300],[800,300],[800,800],[100,800]],
     },
     {
-      label: 'E: tiny wing (150x150 wing + 900x700 main, orient 0)',
+      label: 'E: 150x150 wing + 900x700 main (orient 0, tiny wing)',
       outline: [[100,100],[250,100],[250,250],[1000,250],[1000,950],[100,950]],
     },
     {
-      label: 'F: wing near max (350x350 wing + 1000x800 main, orient 0)',
+      label: 'F: 350x350 wing + 1000x800 main (orient 0, wing near max)',
       outline: [[100,100],[450,100],[450,450],[1100,450],[1100,1250],[100,1250]],
+    },
+    // ─── 4 NEW: more even wing/main ratios + wing at bottom ───
+    {
+      label: 'G: 400x400 wing + 900x800 main (orient 0, even ratio)',
+      outline: [[100,100],[500,100],[500,500],[1000,500],[1000,1300],[100,1300]],
+    },
+    {
+      label: 'H: 450x450 wing + 1000x900 main (orient 0, bigger even ratio)',
+      outline: [[100,100],[550,100],[550,550],[1100,550],[1100,1450],[100,1450]],
+    },
+    {
+      label: 'I: 400x400 wing + 900x800 main (orient 2, wing BOTTOM-right, even ratio)',
+      outline: [[1000,1300],[600,1300],[600,900],[100,900],[100,100],[1000,100]],
+    },
+    {
+      label: 'J: 350x350 wing + 850x750 main (orient 2, wing BOTTOM-right)',
+      outline: [[950,1200],[600,1200],[600,850],[100,850],[100,100],[950,100]],
     },
   ];
 
