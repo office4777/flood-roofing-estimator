@@ -73,6 +73,12 @@ const fs = require('fs');
     const ys = s.poly.map(p => p[1]);
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
     const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    // Override (strip-centroid based): anything in the C area (main N
+    // long-side between the valley and E hip-end) is orange regardless
+    // of which face the 6-face cascade assigned it to.  This catches
+    // phantom-extended wing E strips and any offcut-purple strips
+    // that ended up in this region.
+    if (cx > 500 && cx < 900 && cy > 700 && cy < 900) return 'mainN';
     // Wing N hip-end (face centroid near top)
     if (fy < 220 && fx > 200 && fx < 400) {
       return cx < 300 ? 'wingN_W_half' : 'wingN_E_half';
@@ -82,15 +88,14 @@ const fs = require('fs');
       return cy < 900 ? 'mainE_N_half' : 'mainE_S_half';
     }
     // Wing W long-side: split into TOP (regular orange) and BOTTOM
-    // (clipped by SW hip — this is the "external hip face" donor, blue)
+    // (clipped by SW hip — this is the "external hip face" donor)
     if (fx < 250 && fy > 400 && fy < 900) {
-      // Strip centroid y > 900 means the strip is in the SW-clipped
-      // portion of wing W → external hip face → BLUE donor.
       return cy > 900 ? 'wingW_extHip' : 'wingW';
     }
     // Wing E long-side
     if (fx > 300 && fx < 500 && fy > 200 && fy < 700) return 'wingE';
-    // Main N long-side
+    // Main N long-side (face-centroid catch — most strips already
+    // caught by the C-area override above)
     if (fx > 500 && fx < 1000 && fy > 700 && fy < 900) return 'mainN';
     // Main S long-side
     if (fx > 300 && fx < 1000 && fy > 950) return 'mainS';
