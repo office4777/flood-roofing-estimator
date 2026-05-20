@@ -150,6 +150,20 @@ const fs = require('fs');
     return `<polygon points="${polyAttr(s.poly)}" fill="${c}" fill-opacity="${op}" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>`;
   }).join('');
 
+  // ── The two internal valley triangles ──
+  // The cascade fills these with offcuts from the two external hip
+  // donor sheets at the SW corner.  Both external hips are orange
+  // donors, so both valley triangles become orange.
+  //   North of valley : (500,700), (300,700), (300,900)  in wing E face
+  //   South of valley : (500,700), (500,900), (300,900)  in main N face
+  const valleyTriangles = [
+    [[500,700],[300,700],[300,900]],  // north of valley (from main S west donor)
+    [[500,700],[500,900],[300,900]],  // south of valley (from wing W bottom donor)
+  ];
+  const valleySvg = valleyTriangles.map(pts =>
+    `<polygon points="${polyAttr(pts)}" fill="${DESIGN_ORANGE}" fill-opacity="0.55" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>`
+  ).join('');
+
   const outlinePolyAttr = polyAttr(outline);
 
   const svg = `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="background:#fff;font-family:Inter,sans-serif">
@@ -164,6 +178,7 @@ const fs = require('fs');
 
     <polygon points="${outlinePolyAttr}" fill="none" stroke="#0a1628" stroke-width="2.5"/>
     ${stripSvg}
+    ${valleySvg}
     ${lineSvg(hips, '#16a34a')}
     ${lineSvg(ridges, '#dc2626')}
     ${lineSvg(valleys, '#f59e0b', '10,5')}
