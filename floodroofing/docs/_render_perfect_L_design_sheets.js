@@ -152,10 +152,35 @@ const fs = require('fs');
     `<line x1="${toX(a[0])}" y1="${toY(a[1])}" x2="${toX(b[0])}" y2="${toY(b[1])}" stroke="${color}" stroke-width="2.5" ${dash?`stroke-dasharray="${dash}"`:''}/>`
   ).join('');
 
+  // ── Filter out the C area strips (they're phantom-extended wing E
+  //    strips and offcut-purple strips from the 6-face cascade — not
+  //    proper main N donors) and replace with FULL-LENGTH orange
+  //    donor sheets running from y=700 (gutter) to y=900 (ridge). ──
+  const C_xMin = 500, C_xMax = 900, C_yMin = 700, C_yMax = 900;
+  const stripsKept = strips.filter(s => {
+    const xs = s.poly.map(p => p[0]);
+    const ys = s.poly.map(p => p[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    return !(cx > C_xMin && cx < C_xMax && cy > C_yMin && cy < C_yMax);
+  });
+  const coverPx = 38.1;
+  const fullLengthStrips = [];
+  for (let x = C_xMin; x < C_xMax - 0.1; x += coverPx) {
+    const xa = x, xb = Math.min(x + coverPx, C_xMax);
+    fullLengthStrips.push({
+      poly: [[xa, C_yMin], [xb, C_yMin], [xb, C_yMax], [xa, C_yMax]],
+      region: 'mainN',  // → DESIGN_ORANGE
+      isFullLength: true,
+    });
+  }
+
   // For strips classified as one of our design regions, recolour.  For
   // everything else (the main face strips not touched by the cascade),
   // keep the original 6-face colour.
-  const stripSvg = strips.map(s => {
+  const allRenderStrips = [...stripsKept, ...fullLengthStrips];
+  allRenderStrips.forEach(s => { if (!s.region) s.region = classify(s); });
+  const stripSvg = allRenderStrips.map(s => {
     const c = designColor[s.region] || s.origColor || '#cccccc';
     const op = s.region.includes('_half') ? 0.55 : 0.65;
     return `<polygon points="${polyAttr(s.poly)}" fill="${c}" fill-opacity="${op}" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>`;
