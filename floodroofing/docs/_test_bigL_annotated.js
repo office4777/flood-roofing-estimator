@@ -75,116 +75,57 @@ const fs = require('fs');
   const mx0 = 100, my0 = 400, my1 = 1100, midY = 750, wApex = 450, eApex = 650, refY = 400;
   const wx0 = 100, wy0 = 100, wx1 = 400, wy1 = 400;
 
-  // --- Assign a semantic label to each strip ---
-  function labelFor(s) {
-    // 1) Rainbow donor strips: D1..D10 with piece tag derived from polygon position.
-    if (s._donorIdx !== undefined) {
-      const d = `D${s._donorIdx + 1}`;
-      // Determine piece role by polygon Y range:
-      //   N piece in wing  → all y < refY (~400)
-      //   M piece in chunk → y in [refY, midY] AND x in [wx0, wx1]  (between valley & phantom NW hip)
-      //   N piece stays    → y in [refY, midY] AND x in main NW (D9, D10)
-      //   S piece (rotated)→ y > midY in main SW corner
-      const ys = s.poly.map(p => p[1]);
-      const yMin = Math.min(...ys), yMax = Math.max(...ys);
-      const xs = s.poly.map(p => p[0]);
-      const xMid = (Math.min(...xs) + Math.max(...xs)) / 2;
-      if (yMax < refY + 1) return `${d}.N`;                   // translated north (wing)
-      if (yMin > midY - 1) return `${d}.S`;                   // rotated south (SW corner)
-      // y in main NW area between gutter and ridge:
-      if (s._donorIdx < 4 || s._donorIdx >= 8) {
-        // D1..D4 don't have middle pieces; D9..D10 don't either
-        // → this must be a non-translated north piece
-        return `${d}.N`;
-      }
-      // D5..D8: distinguish middle (between valley line y=800-x and phantom NW hip y=x+300)
-      //                     vs north (above valley)  — but D5..D8 north pieces are
-      //                     translated; if we got here, it's the middle.
-      return `${d}.M`;
-    }
-    // 2) Purple wing strips.
+  // --- Assign a SHEET ID to each strip (every piece of one physical
+  //     sheet shares one id).  Then number sheets 1..N in reading order
+  //     and label each strip with that number. ---
+  function sheetGroupKey(s) {
+    // 1) Rainbow donors — _donorIdx identifies the physical donor sheet.
+    if (s._donorIdx !== undefined) return `D${s._donorIdx}`;
     const PURPLE = '#a855f7';
+    const xs = s.poly.map(p => p[0]);
+    const ys = s.poly.map(p => p[1]);
+    const xMid = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const yMax = Math.max(...ys);
+    const yMin = Math.min(...ys);
+    // 2) Purple wing — PR sheet and its PN offcut share the same yMax
+    //    in donor space (PN's yMax = PR's yMax after un-translating).
     if (s.color === PURPLE) {
-      // Wing W LEFT: x range entirely in [wx0, ~250] (wingApex x = (wx0+wx1)/2 = 250)
-      // Wing E RIGHT: x range entirely in [~250, wx1]
-      // Wing N triangle offcut: y range entirely in [wy0, ~250]
-      const xs = s.poly.map(p => p[0]);
-      const ys = s.poly.map(p => p[1]);
-      const xMid = (Math.min(...xs) + Math.max(...xs)) / 2;
-      const yMid = (Math.min(...ys) + Math.max(...ys)) / 2;
-      if (yMid < (wy0 + (wx1-wx0)/2)) {
-        // y < 250 → in wing N triangle (translated offcut from PR5..PR8)
-        return 'PN';
+      // PN offcut (in wing N triangle, y entirely < 250): translate yMax
+      //   by +300 to recover the donor-space yMax.
+      if (yMax < 250 + 1) {
+        const key = Math.round(yMax + 300);
+        return `PR-${key}`;
       }
-      if (xMid < (wx0 + wx1) / 2) return 'PL';   // left side
-      return 'PR';                                // right side
+      // PL (left half): own sheet per polygon — key by yMax.
+      if (xMid < 250) return `PL-${Math.round(yMax)}`;
+      // PR (right half): pairs with a PN by yMax.
+      return `PR-${Math.round(yMax)}`;
     }
-    // 3) Blue strips.
-    const BLUE = '#2563eb';
-    if (s.color === BLUE) {
-      const xs = s.poly.map(p => p[0]);
-      const ys = s.poly.map(p => p[1]);
-      const xMid = (Math.min(...xs) + Math.max(...xs)) / 2;
-      const yMid = (Math.min(...ys) + Math.max(...ys)) / 2;
-      // Wing NW moved-offcut: x in [wx0, ~250], y in [wy0, 250]
-      if (yMid < wy0 + (wx1-wx0)/2 + 1 && xMid < (wx0+wx1)/2 + 1) return 'BN';
-      // Main W hip-end UPPER donors: y in [valleyEnd.y, midY] = [550, 750], x near mx0
-      if (yMid >= 550 - 1 && yMid <= midY + 1 && xMid < wApex && s.faceType === 'hip-end') return 'BW';
-      // Main E hip-end UPPER: x near mx1, y < midY
-      if (xMid > eApex && yMid < midY) return 'BE';
-      // Otherwise main S long-side
-      return 'BS';
-    }
-    // 4) Orange (non-donor) strips.
-    const ORANGE = '#f97316';
-    if (s.color === ORANGE) {
-      const xs = s.poly.map(p => p[0]);
-      const ys = s.poly.map(p => p[1]);
-      const xMid = (Math.min(...xs) + Math.max(...xs)) / 2;
-      const yMid = (Math.min(...ys) + Math.max(...ys)) / 2;
-      // Main E hip-end LOWER: x near mx1, y > midY
-      if (xMid > eApex && yMid > midY) return 'OE';
-      // Main N long-side east of D10
-      return 'ON';
-    }
-    return '?';
+    // 3) All other strips: each strip is its own physical sheet.
+    return `${s.color}-${Math.round(s.centroid[0])}-${Math.round(s.centroid[1])}`;
   }
 
-  // Group strips by their label prefix and assign sequence numbers.
-  const labelPrefix = strips.map(labelFor);
-  const idxByPrefix = {};
-  const finalLabels = strips.map((s, i) => {
-    const lbl = labelPrefix[i];
-    // For rainbow donor labels like "D5.N", "D5.M", "D5.S" we keep as-is
-    // (donor identity is in the colour + the index, and the suffix is the
-    // semantic piece role).
-    if (lbl.startsWith('D')) return lbl;
-    if (lbl === '?') return '?';
-    // For PL/PR/PN/BS/BW/BN/BE/ON/OE: number them within their group in
-    // a natural reading order (top-to-bottom for vertical groups,
-    // left-to-right for horizontal groups).
-    idxByPrefix[lbl] = (idxByPrefix[lbl] || 0) + 1;
-    return `${lbl}${idxByPrefix[lbl]}`;
-  });
-
-  // Sort within each prefix by a natural axis BEFORE numbering — recompute.
-  function naturalSortKey(prefix, s) {
-    // Vertical groups (running top-to-bottom): PL (wing W), PR (wing E),
-    //   BS / BW / BE — sort by centroid y, then x.
-    // Horizontal groups (running left-to-right): BN, PN — sort by x.
-    if (['BN', 'PN'].includes(prefix)) return s.centroid[0]*1000 + s.centroid[1];
-    return s.centroid[1]*1000 + s.centroid[0];
-  }
-  const grouped = {};
+  const sheetKey = strips.map(sheetGroupKey);
+  // Pick a representative strip per sheet to determine sort order
+  // (prefer the primary / non-offcut piece).
+  const reps = {};
   strips.forEach((s, i) => {
-    const p = labelPrefix[i];
-    if (p.startsWith('D') || p === '?') return;
-    (grouped[p] = grouped[p] || []).push({ s, i });
+    const k = sheetKey[i];
+    if (!reps[k]) { reps[k] = { idx: i, centroid: s.centroid.slice() }; return; }
+    if (strips[reps[k].idx].isOffcut && !s.isOffcut) {
+      reps[k] = { idx: i, centroid: s.centroid.slice() };
+    }
   });
-  Object.keys(grouped).forEach(p => {
-    grouped[p].sort((a, b) => naturalSortKey(p, a.s) - naturalSortKey(p, b.s));
-    grouped[p].forEach((entry, k) => { finalLabels[entry.i] = `${p}${k+1}`; });
+
+  // Sort sheets by reading order (top-to-bottom by y, then left-to-right by x).
+  const sortedKeys = Object.keys(reps).sort((a, b) => {
+    const A = reps[a].centroid, B = reps[b].centroid;
+    return A[1] - B[1] || A[0] - B[0];
   });
+  const numberByKey = {};
+  sortedKeys.forEach((k, i) => { numberByKey[k] = i + 1; });
+
+  const finalLabels = strips.map((s, i) => String(numberByKey[sheetKey[i]] || '?'));
 
   // --- Build SVG overlay ---
   const cw = tx.W, ch = tx.H;
@@ -193,28 +134,24 @@ const fs = require('fs');
     return `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" class="lbl">${finalLabels[i]}</text>`;
   }).join('');
 
-  // Conservation summary per donor.
-  const donorSummary = {};
+  // Conservation summary: count distinct sheet numbers and how many
+  // pieces each one has.
+  const sheetsByNum = {};
   strips.forEach((s, i) => {
-    if (s._donorIdx === undefined) return;
-    const d = `D${s._donorIdx + 1}`;
-    (donorSummary[d] = donorSummary[d] || []).push({ label: finalLabels[i], color: s.color, pieceM: s.pieceM });
+    const n = finalLabels[i];
+    (sheetsByNum[n] = sheetsByNum[n] || []).push(s);
   });
-
-  const dColorName = {
-    '#ef4444': 'red', '#f59e0b': 'orange', '#eab308': 'yellow', '#84cc16': 'lime',
-    '#10b981': 'emerald', '#06b6d4': 'cyan', '#3b82f6': 'blue', '#8b5cf6': 'purple',
-    '#ec4899': 'pink', '#a3a3a3': 'gray'
-  };
-  const donorRowHTML = Object.keys(donorSummary).sort((a,b) => +a.slice(1) - +b.slice(1)).map(d => {
-    const ps = donorSummary[d];
+  const totalSheets = Object.keys(sheetsByNum).length;
+  const multiPieceSheets = Object.entries(sheetsByNum)
+    .filter(([n, ps]) => ps.length > 1)
+    .sort((a, b) => +a[0] - +b[0]);
+  const donorRowHTML = multiPieceSheets.map(([n, ps]) => {
     const col = ps[0].color;
-    const tags = ps.map(p => p.label).sort().join(', ');
     return `<tr>
-      <td><span class="dot" style="background:${col}"></span>${d}</td>
-      <td>${dColorName[col] || col}</td>
+      <td><b>${n}</b></td>
+      <td><span class="dot" style="background:${col}"></span></td>
       <td>${ps.length}</td>
-      <td>${tags}</td>
+      <td>${ps.map(p => p.isOffcut ? 'offcut' : 'primary').join(', ')}</td>
     </tr>`;
   }).join('');
 
@@ -237,37 +174,28 @@ const fs = require('fs');
     th{background:#f3f4f6;font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:#374151;}
     .dot{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:middle;border:1px solid rgba(0,0,0,.2);}
   </style></head><body>
-    <h1>Canonical Big-L cascade — annotated reference (image A)</h1>
-    <div class="sub">Each strip is labelled with its donor identity + piece role. Conservation: every "D<i>n</i>" group's pieces, taped back together, equal exactly one full main-N donor sheet. Exception: the wing's purple PN1–PN4 offcuts in the N triangle come from valley cuts on PR5–PR8 (wing E sheets), not from the rainbow donors.</div>
+    <h1>Canonical Big-L cascade — numbered (image A)</h1>
+    <div class="sub">Each physical sheet is numbered 1–${totalSheets}. Pieces of the same physical sheet share its number — taped back together, they equal one full donor sheet. The only sheets cut into multiple pieces are the 10 rainbow main-N donors (each cut into N + optional M + S) and the wing's PR sheets that get clipped by the valley (their east-of-valley offcuts land in the wing's N triangle).</div>
     <div class="frame">
       <img src="${canvasDataURL}" width="${cw}" height="${ch}"/>
       <svg viewBox="0 0 ${cw} ${ch}" preserveAspectRatio="none">${labels}</svg>
     </div>
     <div class="legend">
       <div class="key">
-        <h3>Rainbow donors (10 main-N donor sheets, D1–D10)</h3>
-        <ul>
-          <li><b>.N</b> — north piece. For D1–D8 it's translated −300 px up into the wing's N hip-end. For D9, D10 it stays in the main's NW area (between gutter and phantom NW hip).</li>
-          <li><b>.M</b> — middle piece (only D5–D8). Stays in the main NW chunk between the valley line (y=800−x) and the phantom NW hip (y=x+300).</li>
-          <li><b>.S</b> — south piece. Rotated 90° CCW around (mx0, midY) into the main's SW hip-end. D1–D9 produce full bands; D10 is a tiny triangle.</li>
-        </ul>
+        <h3>Multi-piece sheets (one physical sheet → multiple offcut locations)</h3>
         <table>
-          <thead><tr><th>Donor</th><th>Colour</th><th>#pieces</th><th>Tags</th></tr></thead>
+          <thead><tr><th>Sheet&nbsp;#</th><th>Colour</th><th>#pieces</th><th>Roles</th></tr></thead>
           <tbody>${donorRowHTML}</tbody>
         </table>
+        <p style="font-size:11.5px;color:#555;margin-top:10px;">Every other sheet is a single piece — those are the 1-piece sheets installed as-is.</p>
       </div>
       <div class="key">
-        <h3>Other groups (numbered top-to-bottom or left-to-right within group)</h3>
+        <h3>How to read the numbers</h3>
         <ul>
-          <li><b>PL1–PL8</b> — purple wing W-side full sheets (count as order).</li>
-          <li><b>PR1–PR8</b> — purple wing E-side full sheets. PR5–PR8 are cut at the valley.</li>
-          <li><b>PN1–PN4</b> — purple wing-N triangle offcuts: the east-of-valley pieces from PR5–PR8, translated 300 px up. <em>This is the exception</em>: PN's parent sheets are PR5–PR8, not the rainbow donors.</li>
-          <li><b>BW</b> — blue donors in main W hip-end UPPER (y=550–750, longer horizontal strips).</li>
-          <li><b>BN1–BN4</b> — blue offcuts in wing NW (moved from y=400–550 → y=100–250). Sourced from BW donors.</li>
-          <li><b>ON</b> — orange main N long-side strips east of D10.</li>
-          <li><b>BS</b> — blue main S long-side strips.</li>
-          <li><b>BE</b> — blue main E hip-end UPPER strips.</li>
-          <li><b>OE</b> — orange main E hip-end LOWER strips.</li>
+          <li>Find a number on the cascade. If it appears in 2 (or 3) places, those pieces all come from the same physical donor sheet.</li>
+          <li>The 10 rainbow donor sheets sit conceptually on the main's N long-side. Each is cut into a north piece (translated up to the wing's N hip-end, except D9/D10 which stay) + an optional middle piece (D5–D8) + a south piece (rotated 90° CCW into the main's SW hip-end).</li>
+          <li>The wing's purple east-side sheets (PR) that cross the valley have their east-of-valley offcut translated 300 px up into the wing's N triangle. PR sheet and PN offcut share a number.</li>
+          <li>All other strips (PL wing left, BW main W hip-end upper, BN wing NW, ON main N east, BS main S, BE/OE main E hip-end) are single-piece sheets, each with its own number.</li>
         </ul>
       </div>
     </div>
