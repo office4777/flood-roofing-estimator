@@ -250,10 +250,14 @@ const fs = require('fs');
         if (cx > 900) return `mainS_east:${Math.round((cx - 900) / cp)}`;
         return `mainS_mid:${Math.round((cx - 300) / cp)}`;
       }
-      case 'wingN_W_half': return `wingE_top:${Math.round((cy - 100) / cp)}`;  // cross-pair
-      case 'wingN_E_half': return `wingW_top:${Math.round((cy - 100) / cp)}`;  // cross-pair
-      case 'mainE_N_half': return `mainS_east:${Math.round((cy - 700) / cp)}`; // cross-pair (offcut pos vs donor)
-      case 'mainE_S_half': return `mainN_east:${Math.round((cy - 900) / cp)}`; // cross-pair
+      // Cross-pair: destinations are vertical strips perpendicular to
+      // the N gutter / horizontal strips perpendicular to the E gutter,
+      // so the band index uses the strip's cx (wingN) or cy (mainE),
+      // and reflects to match the donor's position on the other axis.
+      case 'wingN_W_half': return `wingE_top:${Math.round((cx - 100) / cp)}`;
+      case 'wingN_E_half': return `wingW_top:${Math.round((500 - cx) / cp)}`;
+      case 'mainE_N_half': return `mainS_east:${Math.round((900 - cy) / cp)}`;
+      case 'mainE_S_half': return `mainN_east:${Math.round((cy - 900) / cp)}`;
     }
     return `${s.region}:${Math.round(cx)},${Math.round(cy)}`;
   }
