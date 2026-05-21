@@ -175,29 +175,39 @@ const fs = require('fs');
     });
   }
 
-  // ── The two internal valley triangles — subdivided into 5 strips each
-  //    so each strip can be labelled with its paired donor's number. ──
-  // A = north of valley (orange offcuts from wing W bottom donors I).
-  // B = south of valley (blue offcuts from main S west donors J).
+  // ── The two internal valley triangles ──
+  // A = north of valley (orange offcuts from wing W bottom donors).
+  //     Horizontal strips matching wing W natural orientation.
+  // B = south of valley (BLUE offcuts from main S east donors clipped
+  //     by SE hip).  Vertical strips matching main N donor orientation
+  //     (perpendicular to the N gutter at y=700).
   const valleyStrips = [];
+  // A: horizontal strips of A clipped to triangle (500,700)-(300,700)-(300,900).
   for (let i = 0; i < 5; i++) {
     const ya = 700 + i * 40, yb = 700 + (i + 1) * 40;
     const xEa = 1200 - ya, xEb = 1200 - yb;
     valleyStrips.push({
       poly: [[300, ya], [xEa, ya], [xEb, yb], [300, yb]],
-      region: 'wingN_E_half_dummy',
+      region: 'valley_A',                  // orange offcut
       _designColor: DESIGN_ORANGE,
-      _key: `wingW_bot:${i}`,
+      _pairRegion: 'wingW_extHip',         // pairs with wing W bottom donor
+      _pairIdx: i,                         // i=0 (top of A, smallest) ↔ wingW bottom idx 0
+      _isOffcut: true,
     });
   }
+  // B: vertical strips of B clipped to triangle (500,700)-(500,900)-(300,900).
+  //   x bands from x=300..500.  Each strip clipped above by valley
+  //   (y_top = 1200 - x), below by ridge y=900.
   for (let i = 0; i < 5; i++) {
-    const ya = 700 + i * 40, yb = 700 + (i + 1) * 40;
-    const xWa = 1200 - ya, xWb = 1200 - yb;
+    const xa = 300 + i * 40, xb = 300 + (i + 1) * 40;
+    const yTa = 1200 - xa, yTb = 1200 - xb;
     valleyStrips.push({
-      poly: [[xWa, ya], [500, ya], [500, yb], [xWb, yb]],
-      region: 'mainE_N_half_dummy',
+      poly: [[xa, yTa], [xb, yTb], [xb, 900], [xa, 900]],
+      region: 'valley_B',                  // blue offcut
       _designColor: DESIGN_BLUE,
-      _key: `mainS_west:${4 - i}`,
+      _pairRegion: 'mainS_east',           // pairs with main S east donor
+      _pairIdx: i,                         // i=0 (smallest strip) ↔ mainS east idx 0
+      _isOffcut: true,
     });
   }
 
@@ -236,12 +246,19 @@ const fs = require('fs');
   sortAndIndex('wingE_top',    (a, b) => a._centroid[1] - b._centroid[1]);
   sortAndIndex('mainN_east',   (a, b) => a._centroid[0] - b._centroid[0]);
   sortAndIndex('mainS_east',   (a, b) => a._centroid[0] - b._centroid[0]);
-  // Destinations: sort so largest strip (matches largest offcut from
-  // smallest donor) gets index 0.
-  sortAndIndex('wingN_E_half', (a, b) => a._centroid[0] - b._centroid[0]);   // small cx = closest to apex = largest
-  sortAndIndex('wingN_W_half', (a, b) => b._centroid[0] - a._centroid[0]);   // large cx = closest to apex = largest
-  sortAndIndex('mainE_S_half', (a, b) => a._centroid[1] - b._centroid[1]);   // small cy = closest to ridge = largest
-  sortAndIndex('mainE_N_half', (a, b) => b._centroid[1] - a._centroid[1]);   // large cy = closest to ridge = largest
+  // Destinations: sort to pair with donor's offcut size (length conservation).
+  // - Wing W/E top donors: smallest cy = LARGEST offcut. Dest idx 0 must be
+  //   the LARGEST dest (closest to apex).
+  //     wingN_E_half cx ASC: small cx = near apex = LARGEST dest.
+  //     wingN_W_half cx DESC: large cx = near apex = LARGEST dest.
+  // - Main N/S east donors: smallest cx = least-clipped = SMALLEST offcut.
+  //   Dest idx 0 must be SMALLEST dest (closest to gutter).
+  //     mainE_S_half cy DESC: large cy = near gutter = SMALLEST dest.
+  //     mainE_N_half cy ASC: small cy = near gutter = SMALLEST dest.
+  sortAndIndex('wingN_E_half', (a, b) => a._centroid[0] - b._centroid[0]);
+  sortAndIndex('wingN_W_half', (a, b) => b._centroid[0] - a._centroid[0]);
+  sortAndIndex('mainE_S_half', (a, b) => b._centroid[1] - a._centroid[1]);
+  sortAndIndex('mainE_N_half', (a, b) => a._centroid[1] - b._centroid[1]);
   // Non-paired regions.
   sortAndIndex('wingW',        (a, b) => a._centroid[1] - b._centroid[1]);
   sortAndIndex('wingW_extHip', (a, b) => a._centroid[1] - b._centroid[1]);
@@ -258,7 +275,12 @@ const fs = require('fs');
     'mainE_N_half': 'mainS_east',
   };
   allRenderStrips.forEach(s => {
-    if (s._key) return;  // valley strips already have explicit keys
+    // Valley strips have explicit pair info.
+    if (s._pairRegion != null && s._pairIdx != null) {
+      s._key = `${s._pairRegion}:${s._pairIdx}`;
+      return;
+    }
+    if (s._key) return;
     const region = pairTo[s.region] || s.region;
     s._key = `${region}:${s._idx != null ? s._idx : Math.round(s._centroid[0])+','+Math.round(s._centroid[1])}`;
   });
@@ -279,10 +301,26 @@ const fs = require('fs');
   keysList.forEach((k, i) => { numByKey[k] = i + 1; });
   allRenderStrips.forEach(s => { s._num = numByKey[s._key]; });
 
+  // Offcut destinations: cross-pair hip-end halves + valley strips.
+  // These should be rendered with a hatched pattern (like Big-L's
+  // isOffcut shading) so they're visibly distinct from donor sheets.
+  function isOffcutStrip(s) {
+    if (s._isOffcut) return true;
+    if (s.region && s.region.endsWith('_half')) return true;
+    return false;
+  }
   const stripSvg = allRenderStrips.map(s => {
     const c = s._designColor || designColor[s.region] || s.origColor || '#cccccc';
-    const op = s.region.includes('_half') ? 0.55 : 0.65;
-    return `<polygon points="${polyAttr(s.poly)}" fill="${c}" fill-opacity="${op}" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>`;
+    const op = isOffcutStrip(s) ? 0.5 : 0.65;
+    // Hatched overlay for offcuts: draw the solid colour at lower
+    // opacity, then overlay a diagonal hatch pattern.
+    const patternId = c === DESIGN_ORANGE ? 'hatchOrange' :
+                      c === DESIGN_BLUE   ? 'hatchBlue'   : 'hatchGrey';
+    const fill = isOffcutStrip(s)
+      ? `<polygon points="${polyAttr(s.poly)}" fill="${c}" fill-opacity="${op}" stroke="rgba(0,0,0,0.3)" stroke-width="0.6"/>
+         <polygon points="${polyAttr(s.poly)}" fill="url(#${patternId})" stroke="none"/>`
+      : `<polygon points="${polyAttr(s.poly)}" fill="${c}" fill-opacity="${op}" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>`;
+    return fill;
   }).join('');
 
   // Polygon area helper (shoelace).
@@ -391,6 +429,15 @@ const fs = require('fs');
       <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
         <path d="M 0 0 L 10 5 L 0 10 z" fill="#111"/>
       </marker>
+      <pattern id="hatchOrange" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="6" stroke="#c2410c" stroke-width="2.2"/>
+      </pattern>
+      <pattern id="hatchBlue" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="6" stroke="#1e3a8a" stroke-width="2.2"/>
+      </pattern>
+      <pattern id="hatchGrey" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="6" stroke="#374151" stroke-width="2.2"/>
+      </pattern>
     </defs>
     <text x="${W/2}" y="38" text-anchor="middle" font-size="24" font-weight="700" fill="#0a1628">Perfect-L cascade — sheets placed per the design</text>
     <text x="${W/2}" y="62" text-anchor="middle" font-size="13" fill="#475569">Strips re-coloured: orange = orange-fed donor or destination, blue = blue-fed. Geometry from the 6-face cascade.</text>
