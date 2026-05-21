@@ -126,6 +126,7 @@ const fs = require('fs');
     mainN_east: DESIGN_ORANGE,          // sub-region (matches mainN)
     mainS: DESIGN_BLUE,                 // J: blue main S (incl. SW corner 76..108)
     mainS_east: DESIGN_BLUE,            // sub-region (matches mainS)
+    mainS_west: DESIGN_BLUE,            // sub-region (SW-clipped — valley B donor)
     // End-hip offcuts: each half coloured to match the donor it pairs with
     wingN_W_half: DESIGN_BLUE,          // offcut from wing E (blue)
     wingN_E_half: DESIGN_ORANGE,        // offcut from wing W (orange)
@@ -226,9 +227,10 @@ const fs = require('fs');
   }
   // B: vertical strips of B clipped to triangle (500,700)-(500,900)-(300,900).
   //   Smallest strip is i=0 (left, near corner, length ~20); largest is i=4 (right, near apex, length ~180).
-  //   mainS_east donor sort cx ASC: idx 0 = LONGEST (190.5) = SMALLEST offcut (9.5);
-  //                                  idx 4 = SHORTEST (38.1) = LARGEST offcut (161.9).
-  //   Length conservation: valley B i=k ↔ donor i=k (both progressions go small→large).
+  //   Pairs with mainS_west donors (clipped by SW hip — same external corner as wingW_extHip).
+  //   mainS_west sorted cx DESC: idx 0 = LONGEST (199.9, cx=281.5) = SMALLEST offcut (0.1);
+  //                              idx 4 = SHORTEST (47.5, cx=132.7) = LARGEST offcut (152.5).
+  //   Length conservation: valley B i=k ↔ donor i=k.
   for (let i = 0; i < 5; i++) {
     const xa = 300 + i * 40, xb = 300 + (i + 1) * 40;
     const yTa = 1200 - xa, yTb = 1200 - xb;
@@ -236,7 +238,7 @@ const fs = require('fs');
       poly: [[xa, yTa], [xb, yTb], [xb, 900], [xa, 900]],
       region: 'valley_B',                  // blue offcut
       _designColor: DESIGN_BLUE,
-      _pairRegion: 'mainS_east',           // pairs with main S east donor
+      _pairRegion: 'mainS_west',           // pairs with main S west clipped donor
       _pairIdx: i,
       _isOffcut: true,
     });
@@ -283,6 +285,7 @@ const fs = require('fs');
     if (s.region === 'wingE' && cy < 300) s.region = 'wingE_top';
     if (s.region === 'mainN' && cx > 900) s.region = 'mainN_east';
     if (s.region === 'mainS' && cx > 900) s.region = 'mainS_east';
+    if (s.region === 'mainS' && cx < 300) s.region = 'mainS_west';
   });
 
   // ── Sheet-identity numbering by SORT-AND-INDEX ──
@@ -325,7 +328,8 @@ const fs = require('fs');
   sortAndIndex('wingE',        (a, b) => a._centroid[1] - b._centroid[1]);
   sortAndIndex('mainN',        (a, b) => a._centroid[0] - b._centroid[0]);
   sortAndIndex('mainS',        (a, b) => a._centroid[0] - b._centroid[0]);
-  sortAndIndex('mainS_west',   (a, b) => a._centroid[1] - b._centroid[1]);
+  // mainS_west: cx DESC so idx 0 = LONGEST donor (cx=281.5) = SMALLEST offcut (paired with smallest valley B).
+  sortAndIndex('mainS_west',   (a, b) => b._centroid[0] - a._centroid[0]);
 
   // Cross-pair: destination shares its donor's region+index key.
   const pairTo = {
