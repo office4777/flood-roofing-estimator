@@ -13,37 +13,67 @@ const DESIGN_ORANGE = '#f97316';
 const DESIGN_BLUE   = '#2563eb';
 
 // ── Per-case parameters ────────────────────────────────────────────────
+// Orientations of a perfect-L (all arm_w=400, arm_len=1000):
+//   N — wing points north (canonical orient 0)
+//   E — wing points east  (rotated 90° CW)
+//   S — wing points south (rotated 180°)
+//   W — wing points west  (rotated 90° CCW)
+//   mirror — horizontal mirror of orient 0 (notch top-left, wing top-right)
 const CASES = [
-  { label: 'K: arm_w=400, arm_len=1000 (canonical)', ox: 100, oy: 100, arm_w: 400, arm_len: 1000 },
-  { label: 'L: arm_w=300, arm_len=900 (smaller)',    ox: 100, oy: 100, arm_w: 300, arm_len: 900 },
-  { label: 'M: arm_w=500, arm_len=1100 (wider)',     ox: 100, oy: 100, arm_w: 500, arm_len: 1100 },
-  { label: 'N: arm_w=350, arm_len=1100 (longer)',    ox: 100, oy: 100, arm_w: 350, arm_len: 1100 },
+  { label: 'N — wing points north',  ox: 100, oy: 100, arm_w: 400, arm_len: 1000, orient: 0 },
+  { label: 'E — wing points east',   ox: 100, oy: 100, arm_w: 400, arm_len: 1000, orient: 1 },
+  { label: 'S — wing points south',  ox: 100, oy: 100, arm_w: 400, arm_len: 1000, orient: 2 },
+  { label: 'W — wing points west',   ox: 100, oy: 100, arm_w: 400, arm_len: 1000, orient: 3 },
+  { label: 'inverted — horizontal mirror of canonical',  ox: 100, oy: 100, arm_w: 400, arm_len: 1000, orient: 0, mirror: true },
 ];
 
 // ── Build the cascade design SVG for one case ──────────────────────────
 async function renderCase(page, c) {
-  const { ox, oy, arm_w, arm_len } = c;
+  const { ox, oy, arm_w, arm_len, orient = 0, mirror = false } = c;
   const half_w  = arm_w / 2;                    // = sheet length for all faces
   const reflex_x = ox + arm_w;
   const reflex_y = oy + arm_len - arm_w;
   const ridge_corner_x = ox + half_w;
   const ridge_corner_y = oy + arm_len - half_w;
-  const main_apex_x = ox + arm_len - half_w;    // ridge end on the main arm
-  const wing_apex_y = oy + half_w;               // ridge top on the wing arm
-  const valley_sum = ox + oy + arm_len;          // valley line: x + y = valley_sum
-  const sw_corner_x = ox;
-  const sw_corner_y = oy + arm_len;
-  const se_corner_x = ox + arm_len;
-  const se_corner_y = oy + arm_len;
-  const ne_corner_x = ox + arm_len;
-  const ne_corner_y = oy + arm_len - arm_w;      // = reflex_y
+  const main_apex_x = ox + arm_len - half_w;
+  const wing_apex_y = oy + half_w;
+  const valley_sum = ox + oy + arm_len;
 
-  const outline = [
+  // Canonical outline (orient 0).  We always RUN the cascade design in
+  // canonical space; for non-zero orientations we rotate the outline to
+  // get the display outline, get strips from the app (in display space),
+  // inverse-rotate them to canonical for classification, then forward-
+  // rotate the final result for rendering.
+  const canonical_outline = [
     [ox, oy], [ox+arm_w, oy], [ox+arm_w, reflex_y],
     [ox+arm_len, reflex_y], [ox+arm_len, oy+arm_len], [ox, oy+arm_len]
   ];
 
-  // Push outline into the app and grab the 6-face cascade output.
+  // Rotation around bbox centre.  bbox is a square of side arm_len.
+  const bcx = ox + arm_len / 2;
+  const bcy = oy + arm_len / 2;
+  function rot([x, y]) {
+    const dx = x - bcx, dy = y - bcy;
+    if (orient === 1) return [bcx - dy, bcy + dx];  // 90° CW
+    if (orient === 2) return [bcx - dx, bcy - dy];  // 180°
+    if (orient === 3) return [bcx + dy, bcy - dx];  // 90° CCW
+    return [x, y];
+  }
+  function unrot([x, y]) {
+    const dx = x - bcx, dy = y - bcy;
+    if (orient === 1) return [bcx + dy, bcy - dx];
+    if (orient === 2) return [bcx - dx, bcy - dy];
+    if (orient === 3) return [bcx - dy, bcy + dx];
+    return [x, y];
+  }
+  function mir([x, y]) { return mirror ? [2 * bcx - x, y] : [x, y]; }   // self-inverse
+  // canonical → display: rotate, then (optionally) mirror.
+  const fwd = (p) => mir(rot(p));
+  // display → canonical: un-mirror, then un-rotate.
+  const inv = (p) => unrot(mir(p));
+  const display_outline = canonical_outline.map(fwd);
+
+  // Push display outline into the app and grab the 6-face cascade output.
   await page.evaluate((outline) => {
     window.DRAW.outline = outline;
     window.DRAW.outlineDone = true;
@@ -51,18 +81,25 @@ async function renderCase(page, c) {
     window.DRAW.calPitch = 22;
     window.DRAW.lines = [];
     window.autoGenerateRoof && window.autoGenerateRoof('hip');
-  }, outline);
+  }, display_outline);
   await page.waitForTimeout(300);
   await page.evaluate(() => {
     window.gotoTab && window.gotoTab('materials');
     window.renderRoofSheetPlan && window.renderRoofSheetPlan();
   });
   await page.waitForTimeout(700);
-  const strips = await page.evaluate(() => (window.__lastAllStrips || []).map(s => ({
+  const rawStrips = await page.evaluate(() => (window.__lastAllStrips || []).map(s => ({
     origColor: s.color,
     facePoly: s.face && s.face.poly ? s.face.poly.map(p => p.slice()) : null,
     poly: s.poly.map(p => p.slice()),
   })));
+  // Inverse-rotate strip + face polys into canonical space so the
+  // cascade design code can use canonical hardcoded thresholds.
+  const strips = rawStrips.map(s => ({
+    origColor: s.origColor,
+    facePoly: s.facePoly ? s.facePoly.map(inv) : null,
+    poly: s.poly.map(inv),
+  }));
 
   // ── Classify each strip by its strip-centroid position ──
   // Robust face-polygon-centroid classification.  We can't use the
@@ -306,6 +343,15 @@ async function renderCase(page, c) {
     return false;
   }
 
+  // ── Apply forward transform to bring everything into display space ──
+  // The cascade design ran in canonical space; rotate strips, centroids,
+  // outline, and roof lines so the rendering matches the orientation.
+  allRenderStrips.forEach(s => {
+    s.poly = s.poly.map(fwd);
+    s._centroid = fwd(s._centroid);
+  });
+  const outline = display_outline;
+
   // ── Compose the per-case SVG ──
   const W = 600, H = 600;
   const minX = ox - 30, minY = oy - 30, maxX = ox + arm_len + 30, maxY = oy + arm_len + 30;
@@ -316,19 +362,20 @@ async function renderCase(page, c) {
   const toY = y => padY + (y - minY) * scale;
   const polyAttr = (p) => p.map(pt => `${toX(pt[0]).toFixed(1)},${toY(pt[1]).toFixed(1)}`).join(' ');
 
-  // Hip / ridge / valley lines for this geometry.
+  // Hip / ridge / valley lines (canonical → forward-rotate to display).
+  const rotLine = ([a, b]) => [fwd(a), fwd(b)];
   const hips = [
     [[ox, oy], [ridge_corner_x, wing_apex_y]],
     [[ox+arm_w, oy], [ridge_corner_x, wing_apex_y]],
     [[ox+arm_len, reflex_y], [main_apex_x, ridge_corner_y]],
     [[ox+arm_len, oy+arm_len], [main_apex_x, ridge_corner_y]],
     [[ox, oy+arm_len], [ridge_corner_x, ridge_corner_y]],
-  ];
+  ].map(rotLine);
   const ridges = [
     [[ridge_corner_x, wing_apex_y], [ridge_corner_x, ridge_corner_y]],
     [[ridge_corner_x, ridge_corner_y], [main_apex_x, ridge_corner_y]],
-  ];
-  const valleys = [[[reflex_x, reflex_y], [ridge_corner_x, ridge_corner_y]]];
+  ].map(rotLine);
+  const valleys = [[[reflex_x, reflex_y], [ridge_corner_x, ridge_corner_y]]].map(rotLine);
   const lineSvg = (lines, color, dash='') => lines.map(([a, b]) =>
     `<line x1="${toX(a[0])}" y1="${toY(a[1])}" x2="${toX(b[0])}" y2="${toY(b[1])}" stroke="${color}" stroke-width="2" ${dash?`stroke-dasharray="6,3"`:''}/>`
   ).join('');
@@ -363,9 +410,14 @@ async function renderCase(page, c) {
   function place(region, sortFn, lxFn, lyFn) {
     const g = (calloutsByRegion[region] || []).slice();
     g.sort(sortFn);
-    return g.map((s, i) => ({ cx: s._centroid[0], cy: s._centroid[1], num: s._num, lx: lxFn(i, g.length), ly: lyFn(i, g.length) }));
+    return g.map((s, i) => {
+      // Callout target positions are computed in CANONICAL space and
+      // then forward-rotated so they land correctly for any orientation.
+      const [lx, ly] = fwd([lxFn(i, g.length), lyFn(i, g.length)]);
+      return { cx: s._centroid[0], cy: s._centroid[1], num: s._num, lx, ly };
+    });
   }
-  // Place callouts outside the building outline.
+  // Place callouts outside the building outline (canonical-space targets).
   const cN_W = place('wingN_W_half', (a, b) => a._centroid[0] - b._centroid[0], (i) => ox + i * (arm_w / 12), () => oy - 25);
   const cN_E = place('wingN_E_half', (a, b) => a._centroid[0] - b._centroid[0], (i) => ridge_corner_x + 8 + i * (arm_w / 12), () => oy - 25);
   const cE_N = place('mainE_N_half', (a, b) => a._centroid[1] - b._centroid[1], () => ox + arm_len + 25, (i) => reflex_y + i * (arm_w / 12));
@@ -410,15 +462,16 @@ async function renderCase(page, c) {
   }
   await browser.close();
 
-  // ── 2x2 grid of cases ──
+  // ── 3-column grid of N cases ──
   const W = 600, H = 600;
-  const totalW = W * 2 + 40, totalH = H * 2 + 60;
-  const cellPositions = [
-    `<g transform="translate(0, 0)">${groups[0]}</g>`,
-    `<g transform="translate(${W + 20}, 0)">${groups[1]}</g>`,
-    `<g transform="translate(0, ${H + 30})">${groups[2]}</g>`,
-    `<g transform="translate(${W + 20}, ${H + 30})">${groups[3]}</g>`,
-  ];
+  const cols = 3;
+  const rows = Math.ceil(groups.length / cols);
+  const totalW = W * cols + 20 * (cols + 1);
+  const totalH = H * rows + 30 * (rows + 1);
+  const cellPositions = groups.map((g, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    return `<g transform="translate(${20 + col * (W + 20)}, ${30 + row * (H + 30)})">${g}</g>`;
+  });
   const svg = `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}" style="background:#fff;font-family:Inter,sans-serif">
     <defs>
       <pattern id="hatchOrange" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
