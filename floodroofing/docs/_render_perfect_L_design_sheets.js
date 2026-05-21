@@ -302,11 +302,104 @@ const fs = require('fs');
     return `<polygon points="${polyAttr(s.poly)}" fill="${c}" fill-opacity="${op}" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>`;
   }).join('');
 
-  // Sheet-number labels overlaid at each strip's centroid.
-  const labelSvg = allRenderStrips.map(s => {
-    const [cx, cy] = s._centroid;
-    return `<text x="${toX(cx).toFixed(1)}" y="${toY(cy).toFixed(1)}" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#111" text-anchor="middle" dominant-baseline="central" paint-order="stroke" stroke="rgba(255,255,255,0.92)" stroke-width="2.5" stroke-linejoin="round">${s._num}</text>`;
+  // Polygon area helper (shoelace).
+  function polyArea(pts) {
+    let a = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const [x1, y1] = pts[i];
+      const [x2, y2] = pts[(i + 1) % pts.length];
+      a += x1 * y2 - x2 * y1;
+    }
+    return Math.abs(a) / 2;
+  }
+
+  // Sheet-number labels.  For small strips (where a label wouldn't fit)
+  // use a leader line to an external callout circle so the number is
+  // readable.  For larger strips, label inside at the centroid.
+  function stripDims(s) {
+    const xs = s.poly.map(p => p[0]);
+    const ys = s.poly.map(p => p[1]);
+    return {
+      w: Math.max(...xs) - Math.min(...xs),
+      h: Math.max(...ys) - Math.min(...ys),
+    };
+  }
+  // A strip needs a callout if its bbox is small OR if it's in a
+  // hip-end region (where centroids are too close together for inline
+  // labels to read clearly).
+  function isSmall(s) {
+    const d = stripDims(s);
+    if (d.w < 22 || d.h < 22) return true;
+    if (s.region && s.region.endsWith('_half')) return true;
+    return false;
+  }
+
+  // Group small strips by their region for callout placement.
+  const calloutsByRegion = {};
+  const insideLabels = [];
+  allRenderStrips.forEach(s => {
+    if (isSmall(s)) {
+      (calloutsByRegion[s.region] = calloutsByRegion[s.region] || []).push(s);
+    } else {
+      const [cx, cy] = s._centroid;
+      insideLabels.push({ cx, cy, num: s._num });
+    }
+  });
+
+  // Place callouts per region in an outside zone with a sensible
+  // direction.  Each region's callouts are stacked along the edge
+  // farthest from the building, sorted by the donor band so the
+  // sequence reads naturally.
+  function place(region, sortFn, lxFn, lyFn) {
+    const group = (calloutsByRegion[region] || []).slice();
+    group.sort(sortFn);
+    return group.map((s, i) => ({
+      cx: s._centroid[0], cy: s._centroid[1], num: s._num,
+      lx: lxFn(i, group.length), ly: lyFn(i, group.length),
+    }));
+  }
+  // wingN_W_half (top-left of wing) → callouts above the wing.
+  const cN_W = place('wingN_W_half',
+    (a, b) => a._centroid[0] - b._centroid[0],   // sort by x ascending
+    (i, n) => 100 + i * 32,                       // x stacked
+    (i) => 50);                                   // y above building
+  // wingN_E_half (top-right of wing) → callouts above the wing too.
+  const cN_E = place('wingN_E_half',
+    (a, b) => a._centroid[0] - b._centroid[0],
+    (i, n) => 320 + i * 32,
+    (i) => 50);
+  // mainE_N_half (north half of E hip-end) → callouts above the main arm.
+  const cE_N = place('mainE_N_half',
+    (a, b) => a._centroid[1] - b._centroid[1],
+    (i, n) => 1170,
+    (i) => 700 + i * 32);
+  // mainE_S_half → callouts to the right.
+  const cE_S = place('mainE_S_half',
+    (a, b) => a._centroid[1] - b._centroid[1],
+    (i, n) => 1170,
+    (i) => 950 + i * 32);
+  // wingW_extHip (SW area of wing W) → callouts to the left of bottom.
+  const cWext = place('wingW_extHip',
+    (a, b) => a._centroid[1] - b._centroid[1],
+    (i, n) => 30,
+    (i) => 920 + i * 32);
+  // mainS_west (SW corner of main S) → callouts below the main arm.
+  const cSwest = place('mainS_west',  // may not have entries
+    (a, b) => a._centroid[0] - b._centroid[0],
+    (i, n) => 100 + i * 32,
+    (i) => 1180);
+
+  const allCallouts = [...cN_W, ...cN_E, ...cE_N, ...cE_S, ...cWext, ...cSwest];
+
+  const calloutSvg = allCallouts.map(c => {
+    return `<line x1="${toX(c.cx).toFixed(1)}" y1="${toY(c.cy).toFixed(1)}" x2="${toX(c.lx).toFixed(1)}" y2="${toY(c.ly).toFixed(1)}" stroke="rgba(0,0,0,0.55)" stroke-width="0.8"/>
+            <circle cx="${toX(c.lx).toFixed(1)}" cy="${toY(c.ly).toFixed(1)}" r="11" fill="#fff" stroke="#0a1628" stroke-width="1"/>
+            <text x="${toX(c.lx).toFixed(1)}" y="${toY(c.ly).toFixed(1)}" font-family="Inter,sans-serif" font-size="12" font-weight="700" fill="#0a1628" text-anchor="middle" dominant-baseline="central">${c.num}</text>`;
   }).join('');
+
+  const labelSvg = insideLabels.map(l => {
+    return `<text x="${toX(l.cx).toFixed(1)}" y="${toY(l.cy).toFixed(1)}" font-family="Inter,sans-serif" font-size="11" font-weight="700" fill="#0a1628" text-anchor="middle" dominant-baseline="central" paint-order="stroke" stroke="rgba(255,255,255,0.93)" stroke-width="2.8" stroke-linejoin="round">${l.num}</text>`;
+  }).join('') + calloutSvg;
 
   const outlinePolyAttr = polyAttr(outline);
 
