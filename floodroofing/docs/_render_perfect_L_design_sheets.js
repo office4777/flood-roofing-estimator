@@ -245,6 +245,18 @@ const fs = require('fs');
   }
   allRenderStrips.forEach(s => { s._centroid = stripCentroid(s); });
 
+  // Refine region: split big regions into donor sub-regions used by the
+  // pairing map.  Without this the pairTo lookup misses (e.g. wingN_E_half
+  // pairs with 'wingW_top' but the actual donor strip's region is just
+  // 'wingW' until we tag it).
+  allRenderStrips.forEach(s => {
+    const [cx, cy] = s._centroid;
+    if (s.region === 'wingW' && cy < 300) s.region = 'wingW_top';
+    if (s.region === 'wingE' && cy < 300) s.region = 'wingE_top';
+    if (s.region === 'mainN' && cx > 900) s.region = 'mainN_east';
+    if (s.region === 'mainS' && cx > 900) s.region = 'mainS_east';
+  });
+
   // ── Sheet-identity numbering by SORT-AND-INDEX ──
   // Group strips by region, sort by appropriate axis, assign sequential
   // indices.  Pairs share keys so donor and offcut get the same final
