@@ -11921,6 +11921,48 @@ function renderRoofSheetPlan() {
     });
   }  // end of isBigL branch
 
+  // ── Re-insert hip-end apex into strips that cut it off ───────────
+  // Sutherland–Hodgman clipping a strip rectangle against a triangular
+  // hip-end face produces a polygon whose far edge is a CHORD from
+  // where the rect enters one hip line to where it exits the other —
+  // bypassing the apex itself.  Visually this leaves a small white
+  // triangle at the apex.  Insert the apex vertex into the strip's
+  // polygon when an edge passes within ~25px of it.
+  function _faceApex(f) {
+    if (!f || f.type !== 'hip-end' || !f.poly || f.poly.length !== 3) return null;
+    for (var i = 0; i < 3; i++) {
+      var v = f.poly[i];
+      var dA = Math.hypot(v[0] - f.a[0], v[1] - f.a[1]);
+      var dB = Math.hypot(v[0] - f.b[0], v[1] - f.b[1]);
+      if (dA > 1 && dB > 1) return v;
+    }
+    return null;
+  }
+  if (allStrips && allStrips.length) allStrips.forEach(function(s){
+    var f = (s.isPhantom && s.receiver) ? s.receiver : s.face;
+    var apex = _faceApex(f);
+    if (!apex) return;
+    var p = s.poly;
+    if (!p || p.length < 3) return;
+    for (var k = 0; k < p.length; k++) {
+      if (Math.hypot(p[k][0] - apex[0], p[k][1] - apex[1]) < 1) return;
+    }
+    for (var i = 0; i < p.length; i++) {
+      var a = p[i], b = p[(i+1) % p.length];
+      var dx = b[0] - a[0], dy = b[1] - a[1];
+      var len2 = dx*dx + dy*dy;
+      if (len2 < 1) continue;
+      var t = ((apex[0]-a[0])*dx + (apex[1]-a[1])*dy) / len2;
+      if (t < 0.02 || t > 0.98) continue;
+      var px = a[0] + t*dx, py = a[1] + t*dy;
+      var perpDist2 = (apex[0]-px)*(apex[0]-px) + (apex[1]-py)*(apex[1]-py);
+      if (perpDist2 < 25*25) {
+        p.splice(i+1, 0, apex.slice());
+        break;
+      }
+    }
+  });
+
   // ── Un-rotate Big-L output back into the original outline space ──
   // Inverse of the canonicalization rotation: 4-n CW quarter-turns.
   // We rotate everything that downstream canvas / legend code reads:
