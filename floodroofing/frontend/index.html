@@ -5364,10 +5364,17 @@ async function testFergus(){
     document.getElementById('fergChip').innerHTML = '<span class="pill-dot" style="background:#27500a"></span>Fergus: connected';
     var data = await resp.json();
     S.fergJobsCache = (data.value || data.jobs || data.data || []).map(_fergJobView);
+    // Stash the cursor from response 1 so preloadAllFergusJobs can
+    // continue from page 2. Without this the preloader has no valid
+    // cursor and cursor='0' just refetches page 1, capping the cache at
+    // ~100 jobs (so anything older than #2900-ish was unfindable).
+    S._fergFirstCursor = data.nextCursor || data.next_cursor || data.cursor ||
+                         (data.pagination && (data.pagination.nextCursor || data.pagination.next_cursor || data.pagination.cursor)) ||
+                         null;
     showFergJobsList();
     // Fergus's REST API doesn't appear to honour text-search query params
     // for our account, so the only reliable way to find a deep job (e.g.
-    // #2996 when there are thousands) is to cache the lot. Fire-and-forget
+    // #2570 when there are thousands) is to cache the lot. Fire-and-forget
     // background loader: walks pages 2..N until an empty/short page comes
     // back, surfacing progress in #fergPreloadStatus.
     preloadAllFergusJobs();
@@ -5507,10 +5514,19 @@ async function preloadAllFergusJobs(){
   var statusEl = document.getElementById('fergPreloadStatus');
   function status(t){ if (statusEl) statusEl.textContent = t; }
   try {
-    // The first page was already fetched by testFergus, but we don't
-    // have the cursor from it — start fresh from cursor 0 so we have
-    // the cursor chain.
-    var cursor = '0';
+    // testFergus stashes the nextCursor from its first response in
+    // S._fergFirstCursor — use that so we actually advance to page 2.
+    // Fergus uses opaque cursor tokens, not page numbers, so '0' was
+    // never a valid starting cursor: it just refetched page 1 and the
+    // dedup made newCount=0, breaking the loop after one iteration.
+    // That's why job #2570 (and anything older than ~100 jobs back)
+    // was unfindable even though MAX_PAGES allows up to 20,000 jobs.
+    var cursor = S._fergFirstCursor;
+    if (!cursor) {
+      status('⚠ Fergus didn\'t return a pagination cursor — only the first ' + (S.fergJobsCache||[]).length + ' jobs are cached. Use direct job-ID lookup for older jobs.');
+      setTimeout(function(){ status(''); }, 15000);
+      return;
+    }
     var pages = 0;
     while (pages < MAX_PAGES) {
       status('Caching all Fergus jobs… ' + (S.fergJobsCache||[]).length + ' loaded');
