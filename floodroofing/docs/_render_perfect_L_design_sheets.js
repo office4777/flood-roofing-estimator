@@ -241,11 +241,28 @@ const fs = require('fs');
   const allRenderStrips = [...stripsKept, ...fullLengthStrips, ...valleyStrips];
   allRenderStrips.forEach(s => { if (!s.region) s.region = classify(s); });
 
-  // Compute strip centroid (polygon-based, simple avg of bbox).
+  // Compute strip centroid using polygon shoelace (area-weighted).  This
+  // is necessary so that triangle-shaped strips in the valley don't
+  // collide with their neighbours at the same bbox centroid.  Falls back
+  // to bbox centroid for degenerate polygons.
   function stripCentroid(s) {
-    const xs = s.poly.map(p => p[0]);
-    const ys = s.poly.map(p => p[1]);
-    return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+    const pts = s.poly;
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const [x1, y1] = pts[i];
+      const [x2, y2] = pts[(i + 1) % pts.length];
+      const cross = x1 * y2 - x2 * y1;
+      a += cross;
+      cx += (x1 + x2) * cross;
+      cy += (y1 + y2) * cross;
+    }
+    a /= 2;
+    if (Math.abs(a) < 0.001) {
+      const xs = pts.map(p => p[0]);
+      const ys = pts.map(p => p[1]);
+      return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+    }
+    return [cx / (6 * a), cy / (6 * a)];
   }
   allRenderStrips.forEach(s => { s._centroid = stripCentroid(s); });
 
