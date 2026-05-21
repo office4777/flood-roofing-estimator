@@ -65,32 +65,70 @@ async function renderCase(page, c) {
   })));
 
   // ── Classify each strip by its strip-centroid position ──
-  // Robust position-based classification using building geometry.
+  // Robust face-polygon-centroid classification.  We can't use the
+  // strip's centroid alone because NE-hip-clipped mainN strips and
+  // SE-hip-clipped mainS strips share an (x, y) bbox with the mainE
+  // hip-end face — they need to be distinguished by which face they
+  // belong to.  Each face's polygon centroid is unique enough.
+  function faceCentroid(poly) {
+    if (!poly || !poly.length) return null;
+    let cx = 0, cy = 0;
+    poly.forEach(p => { cx += p[0]; cy += p[1]; });
+    return [cx / poly.length, cy / poly.length];
+  }
+  // Face centroids for the perfect L (computed from geometry, all derived
+  // from ox/oy/arm_w/arm_len so this scales):
+  //   wing N hip-end:  ((ox + ox+arm_w + ridge_corner_x)/3, (oy + oy + wing_apex_y)/3)
+  //   wing W long:     polygon (ox,oy)-(ridge_corner_x,wing_apex_y)-(ridge_corner_x,ridge_corner_y)-(ox,oy+arm_len)
+  //   wing E long:     (ox+arm_w,oy)-(ridge_corner_x,wing_apex_y)-(ridge_corner_x,ridge_corner_y)-(reflex_x,reflex_y)
+  //   main N long:     (reflex_x,reflex_y)-(ox+arm_len,reflex_y)-(main_apex_x,ridge_corner_y)-(ridge_corner_x,ridge_corner_y)
+  //   main E hip-end:  ((ox+arm_len + ox+arm_len + main_apex_x)/3, (reflex_y + oy+arm_len + ridge_corner_y)/3)
+  //   main S long:     (ox,oy+arm_len)-(ox+arm_len,oy+arm_len)-(main_apex_x,ridge_corner_y)-(ridge_corner_x,ridge_corner_y)
   function classify(s) {
+    const fc = faceCentroid(s.facePoly);
+    if (!fc) return 'other';
+    const [fx, fy] = fc;
     const xs = s.poly.map(p => p[0]);
     const ys = s.poly.map(p => p[1]);
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
     const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
 
-    // C area: main N donor zone between valley apex (reflex_x) and main E apex.
+    // C area override: anything in the main N donor zone (between valley
+    // and E hip-end) is mainN regardless of which face the 6-face
+    // cascade assigned it to (catches phantom-extended wing E strips).
     if (cx > reflex_x && cx < main_apex_x && cy > reflex_y && cy < ridge_corner_y) return 'mainN';
-    // Wing N hip-end: above wing N apex (cy < wing_apex_y), cx in [ox, ox+arm_w].
-    if (cy < wing_apex_y && cx > ox && cx < ox + arm_w) {
+
+    // Tolerance for matching face centroids (allow some drift).
+    const tol = arm_w * 0.25;
+    // Wing N hip-end face centroid: ((2*ox + arm_w + ridge_corner_x)/3, (2*oy + wing_apex_y)/3)
+    //   = (ox + (arm_w/2 + arm_w/2)/3... let me just compute from formula above):
+    //   = ((2*ox + arm_w + ox + arm_w/2)/3, (2*oy + oy + arm_w/2)/3)
+    //   actually easier: average the three vertices.
+    const wingN_cx = (ox + ox+arm_w + ridge_corner_x) / 3;
+    const wingN_cy = (oy + oy + wing_apex_y) / 3;
+    if (Math.abs(fx - wingN_cx) < tol && Math.abs(fy - wingN_cy) < tol) {
       return cx < ridge_corner_x ? 'wingN_W_half' : 'wingN_E_half';
     }
-    // Main E hip-end: right of main E apex.
-    if (cx > main_apex_x && cy > reflex_y && cy < oy + arm_len) {
+    // Main E hip-end face centroid:
+    const mainE_cx = ((ox+arm_len) + (ox+arm_len) + main_apex_x) / 3;
+    const mainE_cy = (reflex_y + (oy+arm_len) + ridge_corner_y) / 3;
+    if (Math.abs(fx - mainE_cx) < tol && Math.abs(fy - mainE_cy) < tol) {
       return cy < ridge_corner_y ? 'mainE_N_half' : 'mainE_S_half';
     }
-    // Wing W long-side: cx < ridge_corner_x, cy between wing N apex and SW corner.
-    if (cx < ridge_corner_x && cy > wing_apex_y && cy < oy + arm_len) {
-      // SW-clipped (extHip) if centroid is below ridge_corner_y (i.e., near SW hip area)
+    // Wing W long-side: face centroid roughly (ox + arm_w/4, oy + arm_len/2).
+    if (fx < ridge_corner_x && fy > wing_apex_y && fy < oy + arm_len) {
       return cy > ridge_corner_y ? 'wingW_extHip' : 'wingW';
     }
-    // Wing E long-side: between ridge and reflex_x, above reflex_y.
-    if (cx > ridge_corner_x && cx < reflex_x && cy > wing_apex_y && cy < reflex_y) return 'wingE';
-    // Main S long-side: cy > ridge_corner_y, cx between SW corner area and main_apex_x area.
-    if (cy > ridge_corner_y && cy < oy + arm_len && cx > ox && cx < main_apex_x) return 'mainS';
+    // Wing E long-side: face centroid between ridge_corner_x and reflex_x.
+    if (fx > ridge_corner_x && fx < reflex_x && fy > wing_apex_y && fy < oy + arm_len) {
+      return 'wingE';
+    }
+    // Main N long-side: face centroid roughly (avg of 4 vertices).
+    const mainN_fcx = (reflex_x + (ox+arm_len) + main_apex_x + ridge_corner_x) / 4;
+    const mainN_fcy = (reflex_y + reflex_y + ridge_corner_y + ridge_corner_y) / 4;
+    if (Math.abs(fx - mainN_fcx) < arm_w && Math.abs(fy - mainN_fcy) < arm_w/2) return 'mainN';
+    // Main S long-side: face centroid roughly (avg of 4 vertices).
+    if (fy > ridge_corner_y) return 'mainS';
     return 'other';
   }
   strips.forEach(s => { s.region = classify(s); });
@@ -200,8 +238,9 @@ async function renderCase(page, c) {
     const [cx, cy] = s._centroid;
     if (s.region === 'wingW' && cy < oy + arm_w) s.region = 'wingW_top';
     if (s.region === 'wingE' && cy < oy + arm_w) s.region = 'wingE_top';
-    if (s.region === 'mainN' && cx > main_apex_x - arm_w) s.region = 'mainN_east';
-    if (s.region === 'mainS' && cx > main_apex_x - arm_w) s.region = 'mainS_east';
+    // mainN_east / mainS_east = only the corner-clipped strips (cx > main_apex_x).
+    if (s.region === 'mainN' && cx > main_apex_x) s.region = 'mainN_east';
+    if (s.region === 'mainS' && cx > main_apex_x) s.region = 'mainS_east';
     if (s.region === 'mainS' && cx < ridge_corner_x) s.region = 'mainS_west';
   });
 
