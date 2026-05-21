@@ -227,6 +227,27 @@ async function renderCase(page, c) {
            cx + cy > valley_sum;
   }
   const C_eps = 19;  // small overlap to catch the apex-straddle strip
+  // Wing E face body (canonical) — we'll regenerate clean strips inside.
+  // The cascade for rotated outlines splits wing E coverage between
+  // legitimate wing-E-face strips and staggered mainN-face phantoms
+  // (offset by ~9px in y), so the rendered tiles look "random".
+  // Bounded above by wing N hip-right (y > -x + (ox+arm_w+oy)) and below
+  // by reflex_y.  Doesn't include the wing N hip-end triangle (which has
+  // its own clean cascade strips) — those are above the hip line.
+  function inWingEBody(cx, cy) {
+    return cx > ridge_corner_x && cx < ox + arm_w &&
+           cy > oy && cy < reflex_y &&
+           (cx + cy) > (ox + arm_w + oy);
+  }
+  // Wing W face body (canonical).  Bounded above by wing N hip-left
+  // (y > x - (ox-oy), i.e. cy > cx - ox + oy) and below by SW hip
+  // (cy < ox + oy + arm_len - cx).
+  function inWingWBody(cx, cy) {
+    return cx > ox && cx < ridge_corner_x &&
+           cy > oy && cy < oy + arm_len &&
+           (cy - cx) > (oy - ox) &&
+           (cx + cy) < (ox + oy + arm_len);
+  }
   const stripsKept = stripsOnFace.filter(s => {
     const xs = s.poly.map(p => p[0]);
     const ys = s.poly.map(p => p[1]);
@@ -234,6 +255,8 @@ async function renderCase(page, c) {
     const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
     if (cx > reflex_x && cx < main_apex_x + C_eps && cy > reflex_y && cy < ridge_corner_y) return false;
     if (inValleyA(cx, cy) || inValleyB(cx, cy)) return false;
+    if (inWingEBody(cx, cy)) return false;
+    if (inWingWBody(cx, cy)) return false;
     return true;
   });
 
@@ -245,6 +268,55 @@ async function renderCase(page, c) {
     fullLengthStrips.push({
       poly: [[xa, reflex_y], [xb, reflex_y], [xb, ridge_corner_y], [xa, ridge_corner_y]],
       region: 'mainN',
+      isFullLength: true,
+    });
+  }
+
+  // Clean wing E donor strips covering the wing E face (canonical) — replaces
+  // the cascade's split coverage so the wing E body tiles uniformly.
+  // Wing N hip line (right side): y = -x + (ox+arm_w+oy) → at any y, the
+  // minimum x of wing E face is max(ridge_corner_x, ox+arm_w+oy - y).
+  // We tile horizontal bands from y=oy to y=reflex_y.
+  const hipRightX = (y) => (ox + arm_w + oy) - y;
+  for (let y = oy; y < reflex_y - 0.1; y += coverPx) {
+    const ya = y, yb = Math.min(y + coverPx, reflex_y);
+    const xL_top = Math.max(ridge_corner_x, hipRightX(ya));
+    const xL_bot = Math.max(ridge_corner_x, hipRightX(yb));
+    const xR = ox + arm_w;
+    if (xR - xL_top < 0.5 && xR - xL_bot < 0.5) continue;  // degenerate
+    fullLengthStrips.push({
+      poly: [[xL_top, ya], [xR, ya], [xR, yb], [xL_bot, yb]],
+      region: 'wingE',
+      isFullLength: true,
+    });
+  }
+  // Clean wing W donor strips covering the wing W face (canonical).
+  // Wing N hip line (left side): y = x - (ox-oy) → at any y, min x of wing W
+  // face is ox, max x is min(ridge_corner_x, y + (ox-oy)).  Wait simpler:
+  // wing N hip from (ox, oy) to (ridge_corner_x, wing_apex_y): line y = x.
+  // For wing W face, x range is [ox, min(ridge_corner_x, y)].
+  // SW hip from (ox, oy+arm_len) to (ridge_corner_x, ridge_corner_y):
+  // line y = -x + (ox + oy + arm_len).  Below this line, x > (ox+oy+arm_len) - y.
+  // For wing W body, x range is [ox + max(0, (ox+oy+arm_len) - y - ox), ...]
+  //   wait simpler: max x = ridge_corner_x; min x = max(ox, hip values).
+  const hipLeftX_top = (y) => y - (oy - ox);    // wing N hip line: at y, x = y - (oy - ox)... at y=oy: x=ox.  at y=wing_apex_y: x = wing_apex_y - (oy-ox) = ridge_corner_x. ✓
+  const hipLeftX_bot = (y) => (ox + oy + arm_len) - y;  // SW hip: at y, x value.
+  for (let y = oy; y < oy + arm_len - 0.1; y += coverPx) {
+    const ya = y, yb = Math.min(y + coverPx, oy + arm_len);
+    // Top clip (wing N hip): wing W face requires x < hip_x at top.
+    // For wing W body, the min x is ox, max x is min(ridge_corner_x, hipLeftX_top(y)).
+    // For y past wing_apex_y, hipLeftX_top > ridge_corner_x so max x = ridge_corner_x.
+    const xR_top = Math.min(ridge_corner_x, Math.max(ox, hipLeftX_top(ya)));
+    const xR_bot = Math.min(ridge_corner_x, Math.max(ox, hipLeftX_top(yb)));
+    // Bottom clip (SW hip): wing W requires x < (ox+oy+arm_len) - y.
+    const xR_swTop = Math.min(xR_top, hipLeftX_bot(ya));
+    const xR_swBot = Math.min(xR_bot, hipLeftX_bot(yb));
+    if (xR_swTop - ox < 0.5 && xR_swBot - ox < 0.5) continue;
+    // Region: 'wingW' for body, 'wingW_extHip' for SW-clipped strips at bottom.
+    const isExtHip = yb > ridge_corner_y;
+    fullLengthStrips.push({
+      poly: [[ox, ya], [xR_swTop, ya], [xR_swBot, yb], [ox, yb]],
+      region: isExtHip ? 'wingW_extHip' : 'wingW',
       isFullLength: true,
     });
   }
