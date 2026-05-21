@@ -10254,10 +10254,15 @@ function renderRoofSheetPlan() {
     return poly.map(function(p){ return rotate90(p, cx, cy, nTurns); });
   }
 
-  var bigL = _detectBigL(outline);
-  var isBigL = !!bigL;
-
-  // ── Canonicalization wrapper (orientation != 0) ───────────────
+  // ── Big-L canonicalization (orientation 0–3 + horizontal mirror) ───
+  // We try the Big-L cascade twice: once on the input outline, and if
+  // that fails the proportions gate, again on a horizontally-mirrored
+  // copy.  The detection table only covers four rotations, but a
+  // mirrored Big-L confuses it into picking an orientation whose
+  // rotation produces a shape with swapped wing/main dimensions (gate
+  // fails).  Mirroring the input first canonicalises the chirality so
+  // the gate can pass.
+  //
   // For non-canonical orientations we rotate the outline + DRAW.lines
   // by `bigL.orientation` quarter-turns CW into canonical space, run
   // the hand-designed Big-L layout, then rotate every output back.
@@ -10267,66 +10272,92 @@ function renderRoofSheetPlan() {
   // then we rotate it back so it sits in original coordinate space.
   var __nTurnsCW = 0;     // quarter-turns CW applied to canonical
   var __pivot    = null;  // rotation pivot (bbox centre of original)
-  var __origDrawLines = null;
-  if (bigL && bigL.orientation !== 0) {
-    __nTurnsCW = bigL.orientation;
-    __pivot    = bigL.pivot.slice();
-    // Snapshot original DRAW.lines so we can detect mutations later.
-    __origDrawLines = DRAW.lines;
-    // Rotate outline + DRAW.lines into canonical space.
-    outline = outline.map(function(p){ return rotate90(p, __pivot[0], __pivot[1], __nTurnsCW); });
-    DRAW.lines = DRAW.lines.map(function(l){
-      if (!l || !l.pts) return l;
-      var newL = {};
-      for (var k in l) if (l.hasOwnProperty(k)) newL[k] = l[k];
-      newL.pts = l.pts.map(function(p){ return rotate90(p, __pivot[0], __pivot[1], __nTurnsCW); });
-      return newL;
-    });
-    // Re-detect bigL on the canonical outline to get wing/main bboxes.
+  var __origDrawLines = DRAW.lines;
+  var __origOutlineSnap = outline.slice();  // post-CCW-force outline
+  // Mirror state:
+  var __mirrored      = false;
+  var __mirrorPivotX  = null;
+  // Try Big-L; if the proportions gate fails, retry with a horizontal
+  // mirror of the input outline + DRAW.lines.
+  var bigL = null;
+  var isBigL = false;
+  for (var __attempt = 0; __attempt < 2; __attempt++) {
     bigL = _detectBigL(outline);
-    if (!bigL || bigL.orientation !== 0) {
-      // Defensive: rotation didn't produce canonical orientation.
-      // Restore and skip Big-L path.
-      DRAW.lines = __origDrawLines;
-      outline = DRAW.outline.slice();
-      var _olSA2 = 0;
-      for (var _i2 = 0; _i2 < outline.length; _i2++) {
-        var _p2 = outline[_i2], _q2 = outline[(_i2+1)%outline.length];
-        _olSA2 += _p2[0]*_q2[1] - _q2[0]*_p2[1];
+    isBigL = !!bigL;
+    __nTurnsCW = 0;
+    __pivot = null;
+    if (bigL && bigL.orientation !== 0) {
+      __nTurnsCW = bigL.orientation;
+      __pivot    = bigL.pivot.slice();
+      outline = outline.map(function(p){ return rotate90(p, __pivot[0], __pivot[1], __nTurnsCW); });
+      DRAW.lines = DRAW.lines.map(function(l){
+        if (!l || !l.pts) return l;
+        var newL = {};
+        for (var k in l) if (l.hasOwnProperty(k)) newL[k] = l[k];
+        newL.pts = l.pts.map(function(p){ return rotate90(p, __pivot[0], __pivot[1], __nTurnsCW); });
+        return newL;
+      });
+      bigL = _detectBigL(outline);
+      if (!bigL || bigL.orientation !== 0) {
+        // Rotation didn't produce canonical orientation — skip this attempt.
+        isBigL = false;
       }
-      if (_olSA2 < 0) outline = outline.slice().reverse();
+    }
+    // Proportions gate: the hand-designed cascade requires a small wing
+    // (a) with its own N hip-end (wing_w ≤ wing_h) and (b) that fits
+    // inside the main's W hip-end horizontally (wing_w ≤ main_h/2).
+    if (isBigL && bigL && bigL.orientation === 0 && bigL.wing && bigL.main) {
+      var _bgWingW = bigL.wing.x1 - bigL.wing.x0;
+      var _bgWingH = bigL.wing.y1 - bigL.wing.y0;
+      var _bgMainH = bigL.main.y1 - bigL.main.y0;
+      var _bgFitsHipEnd     = (_bgWingW <= _bgMainH / 2 + 1);
+      var _bgWingHasNHipEnd = (_bgWingW <= _bgWingH + 1);
+      if (!_bgFitsHipEnd || !_bgWingHasNHipEnd) {
+        isBigL = false;
+      }
+    } else {
       isBigL = false;
-      __nTurnsCW = 0;
-      __pivot = null;
+    }
+    if (isBigL) break;
+    // Reset to original state before next attempt.
+    DRAW.lines = __origDrawLines;
+    outline = __origOutlineSnap.slice();
+    __nTurnsCW = 0;
+    __pivot = null;
+    // Second attempt: horizontally mirror the outline + DRAW.lines.
+    if (__attempt === 0) {
+      var _omX = Infinity, _oMX = -Infinity;
+      outline.forEach(function(p){
+        if (p[0] < _omX) _omX = p[0];
+        if (p[0] > _oMX) _oMX = p[0];
+      });
+      __mirrorPivotX = (_omX + _oMX) / 2;
+      __mirrored = true;
+      outline = outline.map(function(p){ return [2*__mirrorPivotX - p[0], p[1]]; });
+      DRAW.lines = DRAW.lines.map(function(l){
+        if (!l || !l.pts) return l;
+        var newL = {};
+        for (var k in l) if (l.hasOwnProperty(k)) newL[k] = l[k];
+        newL.pts = l.pts.map(function(p){ return [2*__mirrorPivotX - p[0], p[1]]; });
+        return newL;
+      });
+      // Force CCW winding on the mirrored outline (mirror reverses winding).
+      var _olSAm = 0;
+      for (var _im = 0; _im < outline.length; _im++) {
+        var _pm = outline[_im], _qm = outline[(_im+1)%outline.length];
+        _olSAm += _pm[0]*_qm[1] - _qm[0]*_pm[1];
+      }
+      if (_olSAm < 0) outline = outline.slice().reverse();
     }
   }
-
-  // Proportions gate: the Big-L cascade is hand-designed around a wing
-  // that (a) has its own N hip-end triangle (wing_w <= wing_h) and
-  // (b) fits within the main's W hip-end horizontally (wing_w <= main_h/2).
-  // SOP-style L-shapes (wing nearly as tall as main, wing wider than tall)
-  // fail these and must fall back to the generic 6-face cascade.
-  if (isBigL && bigL && bigL.orientation === 0 && bigL.wing && bigL.main) {
-    var _bgWingW = bigL.wing.x1 - bigL.wing.x0;
-    var _bgWingH = bigL.wing.y1 - bigL.wing.y0;
-    var _bgMainH = bigL.main.y1 - bigL.main.y0;
-    var _bgFitsHipEnd = (_bgWingW <= _bgMainH / 2 + 1);
-    var _bgWingHasNHipEnd = (_bgWingW <= _bgWingH + 1);
-    if (!_bgFitsHipEnd || !_bgWingHasNHipEnd) {
-      if (__nTurnsCW > 0 && __origDrawLines) {
-        DRAW.lines = __origDrawLines;
-        outline = DRAW.outline.slice();
-        var _olSA3 = 0;
-        for (var _i3 = 0; _i3 < outline.length; _i3++) {
-          var _p3 = outline[_i3], _q3 = outline[(_i3+1)%outline.length];
-          _olSA3 += _p3[0]*_q3[1] - _q3[0]*_p3[1];
-        }
-        if (_olSA3 < 0) outline = outline.slice().reverse();
-      }
-      isBigL = false;
-      __nTurnsCW = 0;
-      __pivot = null;
-    }
+  // If both attempts failed, ensure we end up in a clean fallback state.
+  if (!isBigL) {
+    DRAW.lines = __origDrawLines;
+    outline = __origOutlineSnap.slice();
+    __nTurnsCW = 0;
+    __pivot = null;
+    __mirrored = false;
+    __mirrorPivotX = null;
   }
 
   if (!isBigL) {
@@ -11957,6 +11988,60 @@ function renderRoofSheetPlan() {
     // Restore outline local var to original-space coords for the
     // canvas drawing (toC maps original-space coords → canvas pixels).
     outline = outline.map(_rotPt);
+  }
+
+  // Un-mirror: if the input was a horizontal mirror of a Big-L, the
+  // cascade ran in mirrored-then-rotated canonical space.  After
+  // un-rotating, apply the same horizontal mirror (self-inverse) to
+  // bring outputs back to the user's original chirality.
+  if (isBigL && __mirrored && __mirrorPivotX != null) {
+    var __mpx = __mirrorPivotX;
+    function _mirPt(p){ return [2*__mpx - p[0], p[1]]; }
+    function _mirVec(v){ return [-v[0], v[1]]; }
+    if (faces && faces.length) {
+      faces.forEach(function(f){
+        if (!f) return;
+        if (f.poly) f.poly = f.poly.map(_mirPt);
+        if (f.a) f.a = _mirPt(f.a);
+        if (f.b) f.b = _mirPt(f.b);
+        if (f.centroid) f.centroid = _mirPt(f.centroid);
+        if (typeof f.tx === 'number' && typeof f.ty === 'number') {
+          var _tv = _mirVec([f.tx, f.ty]); f.tx = _tv[0]; f.ty = _tv[1];
+        }
+        if (typeof f.nx === 'number' && typeof f.ny === 'number') {
+          var _nv = _mirVec([f.nx, f.ny]); f.nx = _nv[0]; f.ny = _nv[1];
+        }
+      });
+    }
+    if (allStrips && allStrips.length) {
+      allStrips.forEach(function(s){
+        if (!s) return;
+        if (s.poly)     s.poly     = s.poly.map(_mirPt);
+        if (s.centroid) s.centroid = _mirPt(s.centroid);
+      });
+      // Re-assign sequence numbers in original-space using the same
+      // sheet-identity grouping.
+      var _bySheet3 = {};
+      allStrips.forEach(function(s){
+        (_bySheet3[s._sheetKey] = _bySheet3[s._sheetKey] || []).push(s);
+      });
+      var _sortedKeys3 = Object.keys(_bySheet3).sort(function(a, b){
+        var aR = _bySheet3[a].find(function(s){return !s.isOffcut;}) || _bySheet3[a][0];
+        var bR = _bySheet3[b].find(function(s){return !s.isOffcut;}) || _bySheet3[b][0];
+        return aR.centroid[1] - bR.centroid[1] || aR.centroid[0] - bR.centroid[0];
+      });
+      _sortedKeys3.forEach(function(k, i){
+        _bySheet3[k].forEach(function(s){ s.seq = i + 1; });
+      });
+    }
+    DRAW.lines = DRAW.lines.map(function(l){
+      if (!l || !l.pts) return l;
+      var newL = {};
+      for (var k in l) if (l.hasOwnProperty(k)) newL[k] = l[k];
+      newL.pts = l.pts.map(_mirPt);
+      return newL;
+    });
+    outline = outline.map(_mirPt);
   }
 
   // DEBUG hook — expose results to window for tests.
