@@ -928,9 +928,11 @@ select{
           <button onclick="snapOutlineToSquare()" class="tool-btn" style="background:#fff;color:#0a1628;border-color:#0a1628;font-weight:600" title="Force the outline to a true rectangle (best-fit). Use after a drag if the building drifted out of square.">📐 Snap Square</button>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <button onclick="addSecondaryRoof()" class="tool-btn" style="color:#0891b2;border-color:#0891b2;font-weight:600">+ Add secondary roof</button>
-          <span style="font-size:10px;color:#64748b">Draw a 2nd outline for a lean-to, entranceway, etc. (colour-coded separately)</span>
+          <button onclick="rotateActiveRoof()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed;font-weight:600" title="Rotate the generated roof lines 90° around the outline centre. Useful for switching ridge direction on gable/dutch or slope direction on mono-pitch.">⟳ Rotate roof 90°</button>
+          <span style="font-size:10px;color:#64748b">Use this to flip the ridge direction on gable/dutch, or the slope direction on mono-pitch.</span>
         </div>
+        <!-- Roof switcher (shown when >= 1 roof exists) -->
+        <div id="roofSwitcher" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #b3d4f0;gap:4px;flex-wrap:wrap;align-items:center"></div>
         <div style="font-size:10px;color:#94a3b8;margin-top:6px">💡 Hold <kbd style="background:#eee;border:1px solid #ccc;border-radius:3px;padding:0 3px">Shift</kbd> while dragging a corner to disable the rectangle-stretch (lets you make diagonal / non-square roofs) &nbsp;|&nbsp; Right-click any line to delete</div>
       </div>
 
@@ -5718,6 +5720,13 @@ var STEP_INFO = {
 
 function setTool(t) {
   finishCurrent();
+  // Auto-start a new roof when the user re-selects the Building Outline
+  // tool after the current roof's outline is already finished.  This
+  // lets them draw a 2nd, 3rd ... outline anywhere on the canvas
+  // without an explicit "add roof" button.
+  if (t === 'outline' && DRAW.outlineDone && DRAW.outline && DRAW.outline.length >= 3) {
+    _addAndSwitchToNewRoof();
+  }
   DRAW.tool = t;
   DRAW.currentPts = [];
   document.querySelectorAll('.tool-btn').forEach(function(b){b.classList.remove('active-tool');});
@@ -6709,7 +6718,24 @@ function finishCurrent() {
   var pts = DRAW.currentPts;
   var t = DRAW.tool;
 
-  if(t==='outline'&&pts.length>=3){DRAW.outline=pts.slice();DRAW.outlineDone=true;DRAW.currentPts=[];saveSnapshot();autoPopulateGutters();syncToRoofData();redrawAll();setTool('select');var rtp=document.getElementById('roofTypePanel');if(rtp)rtp.style.display='block';return;}
+  if(t==='outline'&&pts.length>=3){
+    DRAW.outline=pts.slice();
+    DRAW.outlineDone=true;
+    DRAW.currentPts=[];
+    // Lazily seed roofs[] for the very first outline so subsequent
+    // outlines extend the multi-roof model.
+    if (DRAW.activeRoofIdx < 0) {
+      DRAW.roofs.push(_newEmptyRoof('Main Roof'));
+      DRAW.activeRoofIdx = 0;
+    }
+    _syncCurrentToRoof();
+    saveSnapshot(); autoPopulateGutters(); _syncCurrentToRoof(); syncToRoofData(); redrawAll();
+    renderRoofSwitcher();
+    setTool('select');
+    var rtp=document.getElementById('roofTypePanel');
+    if(rtp)rtp.style.display='block';
+    return;
+  }
 
   if(t==='section' && pts.length>=3) {
     var i = DRAW.sections.length;
@@ -7171,7 +7197,57 @@ function redrawAll() {
   var _t=getImgTransform();
   function dp(pt){var r=_t?imgToCanvas(pt,_t):pt;return [r[0],r[1]];} // draw-point helper
 
-  // Building outline
+  // ── Inactive-roof outlines (faded background) ────────────────────
+  // Show every other roof's outline + roof lines faintly so the user
+  // can see where they sit relative to the active roof.  The active
+  // roof itself is drawn solid below.
+  if (DRAW.roofs && DRAW.roofs.length > 1) {
+    DRAW.roofs.forEach(function(r, ri){
+      if (ri === DRAW.activeRoofIdx) return;
+      if (!r || !r.outline || r.outline.length < 3) return;
+      ctx.save();
+      ctx.beginPath();
+      r.outline.forEach(function(pt, i){
+        var p = dp(pt);
+        if (i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+      });
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(180,180,180,0.10)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(27,94,32,0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.stroke();
+      // Inactive roof lines: very light
+      if (r.lines && r.lines.length) {
+        var styleByType = {ridge:'rgba(220,38,38,0.40)', valley:'rgba(245,158,11,0.40)', gutter:'rgba(124,58,237,0.40)', hip:'rgba(5,150,105,0.40)', barge:'rgba(124,58,237,0.40)', apron:'rgba(225,29,72,0.40)'};
+        r.lines.forEach(function(l){
+          if (!l || !l.pts || l.pts.length < 2) return;
+          ctx.beginPath();
+          var a = dp(l.pts[0]), b = dp(l.pts[1]);
+          ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+          ctx.strokeStyle = styleByType[l.type] || 'rgba(100,116,139,0.35)';
+          ctx.lineWidth = 1.6;
+          ctx.setLineDash(l.type === 'valley' ? [6, 3] : []);
+          ctx.stroke();
+        });
+      }
+      // Label the inactive roof with its name (centred).
+      var cx = 0, cy = 0;
+      r.outline.forEach(function(pt){ cx += pt[0]; cy += pt[1]; });
+      cx /= r.outline.length; cy /= r.outline.length;
+      var lp = dp([cx, cy]);
+      ctx.setLineDash([]);
+      ctx.font = 'bold 12px Inter, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(10,22,40,0.40)';
+      ctx.fillText(_nthName(ri + 1), lp[0], lp[1]);
+      ctx.restore();
+    });
+  }
+
+  // Building outline (active roof)
   if(DRAW.outline.length>=3){
     ctx.beginPath();DRAW.outline.forEach(function(pt,i){var p=dp(pt);if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);});ctx.closePath();ctx.fillStyle='rgba(200,230,201,0.25)';ctx.fill();ctx.strokeStyle='#1b5e20';ctx.lineWidth=1.5;ctx.stroke();
     var _n=DRAW.outline.length;for(var _oi=0;_oi<_n;_oi++){var _pA=DRAW.outline[(_oi+_n-1)%_n],_pB=DRAW.outline[_oi],_pC=DRAW.outline[(_oi+1)%_n];var _v1x=_pA[0]-_pB[0],_v1y=_pA[1]-_pB[1],_m1=Math.sqrt(_v1x*_v1x+_v1y*_v1y)||1,_v2x=_pC[0]-_pB[0],_v2y=_pC[1]-_pB[1],_m2=Math.sqrt(_v2x*_v2x+_v2y*_v2y)||1;if(Math.abs((_v1x/_m1)*(_v2x/_m2)+(_v1y/_m1)*(_v2y/_m2))<0.12){var _cp=dp(_pB),_sz=7;ctx.save();ctx.strokeStyle='#1b5e20';ctx.lineWidth=1.2;ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(_cp[0]+(_v1x/_m1)*_sz,_cp[1]+(_v1y/_m1)*_sz);ctx.lineTo(_cp[0]+(_v1x/_m1)*_sz+(_v2x/_m2)*_sz,_cp[1]+(_v1y/_m1)*_sz+(_v2y/_m2)*_sz);ctx.lineTo(_cp[0]+(_v2x/_m2)*_sz,_cp[1]+(_v2y/_m2)*_sz);ctx.stroke();ctx.restore();}}
@@ -9428,8 +9504,13 @@ function buildDutchGableRoofLines(outline) {
 }
 
 // Mono pitch: no internal lines (single slope)
-function buildMonoPitchRoofLines(outline) {
-  // Find longest and shortest edges
+function buildMonoPitchRoofLines(outline, rotation) {
+  // Find the longest edge — that's the default gutter.  `rotation` (in
+  // degrees) shifts which edge is selected, so the user can cycle
+  // the slope direction (each 90° step picks the next edge round the
+  // outline).  For a 4-sided rectangle one rotation step picks the
+  // adjacent edge; for L-shapes it picks the next outline edge in
+  // CCW order.
   var n=outline.length,result=[];
   var best=0,bestI=0;
   for(var i=0;i<n;i++){
@@ -9437,29 +9518,55 @@ function buildMonoPitchRoofLines(outline) {
     var l=Math.sqrt((b[0]-a[0])*(b[0]-a[0])+(b[1]-a[1])*(b[1]-a[1]));
     if(l>best){best=l;bestI=i;}
   }
-  // Gutter = longest edge
+  var rotSteps = Math.round(((rotation||0) % 360) / 90) % n;
+  if (rotSteps < 0) rotSteps += n;
+  bestI = (bestI + rotSteps) % n;
+  // Gutter = (rotated) selected edge
   result.push({type:'gutter',pts:[outline[bestI].slice(),outline[(bestI+1)%n].slice()]});
-  // Barge lines on end walls, ridge on top
+  // Ridge on the opposite edge
   var oppI=(bestI+Math.floor(n/2))%n;
   result.push({type:'ridge',pts:[outline[oppI].slice(),outline[(oppI+1)%n].slice()]});
   return result;
 }
 
-// Main auto-generate function
-function autoGenerateRoof(type) {
+// Main auto-generate function.  `rotation` (optional, in degrees, multiple
+// of 90) flips the ridge / slope direction — used by the "Rotate roof 90°"
+// button.  Clicking a roof-type button defaults to rotation 0.
+//   • mono accepts the rotation directly (shifts which outline edge
+//     becomes the gutter).
+//   • gable / dutch / hip get rotation applied by geometrically rotating
+//     the generated lines around the outline centroid.
+function autoGenerateRoof(type, rotation) {
   if(!DRAW.outline||DRAW.outline.length<3){alert('Draw your building outline first.');return;}
   saveSnapshot();
-  // Remove existing auto-generated lines (keep manually added ones? — clear all for clean state)
   clearRoofLines();
   var lines=[];
-  if(type==='hip')    lines=buildHipValleyLines(DRAW.outline);
+  var rot = ((rotation || 0) % 360 + 360) % 360;
+  var rotSteps = Math.round(rot / 90) % 4;
+  if(type==='hip')        lines=buildHipValleyLines(DRAW.outline);
   else if(type==='gable') lines=buildGableRoofLines(DRAW.outline);
   else if(type==='dutch') lines=buildDutchGableRoofLines(DRAW.outline);
-  else if(type==='mono')  lines=buildMonoPitchRoofLines(DRAW.outline);
+  else if(type==='mono')  lines=buildMonoPitchRoofLines(DRAW.outline, rot);
+  if (rotSteps && type !== 'mono') {
+    var cx = 0, cy = 0;
+    DRAW.outline.forEach(function(p){ cx += p[0]; cy += p[1]; });
+    cx /= DRAW.outline.length; cy /= DRAW.outline.length;
+    function _agrR90(p, n){
+      var dx = p[0] - cx, dy = p[1] - cy;
+      for (var k = 0; k < n; k++) { var nx = -dy, ny = dx; dx = nx; dy = ny; }
+      return [cx + dx, cy + dy];
+    }
+    lines = lines.map(function(l){
+      return { type: l.type, pts: l.pts.map(function(p){ return _agrR90(p, rotSteps); }) };
+    });
+  }
   lines.forEach(function(l){
     DRAW.lines.push({type:l.type,pts:[l.pts[0].slice(),l.pts[1].slice()],label:'',lengthM:'',measM:null,sheetLengthM:null,autoGenerated:true});
   });
   autoPopulateGutters();
+  DRAW.roofType = type;
+  DRAW.rotation = rot;
+  _syncCurrentToRoof();
   saveSnapshot();
   syncToRoofData();
   redrawAll();
@@ -9474,23 +9581,94 @@ function clearRoofLines() {
   redrawAll();
 }
 
-// Secondary roof: start drawing a 2nd outline in a different colour
-var SECONDARY_ROOF_ACTIVE=false;
-function addSecondaryRoof(){
-  SECONDARY_ROOF_ACTIVE=true;
-  DRAW.secondaryOutlines=DRAW.secondaryOutlines||[];
-  alert('Draw the 2nd building outline on the canvas (e.g. lean-to or entranceway), then press Enter/Finish. Use "Auto-generate" again to fill its roof lines.');
-  setTool('outline');
-  DRAW._secondaryCapture=true;
+// ── Multi-roof support ────────────────────────────────────────────
+// DRAW.roofs is the persistent archive of every roof the user has
+// drawn.  DRAW.outline / DRAW.lines / DRAW.sections / etc. always
+// represent the CURRENTLY ACTIVE roof — switching roofs syncs the
+// working state out to DRAW.roofs[activeIdx] and reads the target
+// roof's snapshot back into DRAW.  Existing code can keep using
+// DRAW.outline as before; the model is additive.
+DRAW.roofs = DRAW.roofs || [];
+DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
+var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','outlineDone','roofType','calPitch','rotation'];
+function _newEmptyRoof(name){
+  return {
+    name: name || ('Roof ' + (DRAW.roofs.length + 1)),
+    outline: [], lines: [], sections: [], penetrations: [], infoItems: [],
+    outlineDone: false, roofType: '', calPitch: 22, rotation: 0,
+  };
 }
-
-// Override finishCurrent outline handling for secondary roofs
-var _origFinishCurrent=null; // patched below inline
+function _syncCurrentToRoof(){
+  if (DRAW.activeRoofIdx < 0 || DRAW.activeRoofIdx >= DRAW.roofs.length) return;
+  var r = DRAW.roofs[DRAW.activeRoofIdx];
+  ROOF_FIELDS.forEach(function(k){ if (DRAW[k] !== undefined) r[k] = DRAW[k]; });
+}
+function _loadRoofToCurrent(idx){
+  if (idx < 0 || idx >= DRAW.roofs.length) return;
+  var r = DRAW.roofs[idx];
+  ROOF_FIELDS.forEach(function(k){ if (r[k] !== undefined) DRAW[k] = r[k]; });
+  DRAW.activeRoofIdx = idx;
+  DRAW.currentPts = [];
+  DRAW.selectedSection = -1;
+  DRAW.selectedLine = -1;
+  DRAW.selectedPen = -1;
+}
+// Create a new empty roof and switch to it (used when user clicks
+// "Building outline" while the current roof already has a finished
+// outline — auto-starts the next roof).
+function _addAndSwitchToNewRoof(){
+  _syncCurrentToRoof();
+  var r = _newEmptyRoof();
+  DRAW.roofs.push(r);
+  _loadRoofToCurrent(DRAW.roofs.length - 1);
+  renderRoofSwitcher();
+}
+function switchToRoof(idx){
+  if (idx === DRAW.activeRoofIdx) return;
+  _syncCurrentToRoof();
+  _loadRoofToCurrent(idx);
+  var rtp = document.getElementById('roofTypePanel');
+  if (rtp) rtp.style.display = DRAW.outlineDone ? 'block' : 'none';
+  syncToRoofData(); redrawAll(); renderRoofSwitcher();
+}
+function _nthName(n){
+  if (n === 1) return 'Main Roof';
+  var suf = (n % 10 === 1 && n % 100 !== 11) ? 'st'
+          : (n % 10 === 2 && n % 100 !== 12) ? 'nd'
+          : (n % 10 === 3 && n % 100 !== 13) ? 'rd' : 'th';
+  return n + suf + ' Roof';
+}
+function renderRoofSwitcher(){
+  var el = document.getElementById('roofSwitcher');
+  if (!el) return;
+  if (DRAW.roofs.length === 0) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  var html = '<div style="font-weight:600;font-size:12px;color:#475569;margin-right:6px">Roofs:</div>';
+  DRAW.roofs.forEach(function(r, i){
+    var isActive = (i === DRAW.activeRoofIdx);
+    var label = _nthName(i + 1);
+    html += '<button class="tool-btn" onclick="switchToRoof(' + i + ')" style="font-size:12px;padding:4px 10px;' +
+      (isActive ? 'background:#0a1628;color:#fff;border-color:#0a1628;font-weight:700' : 'color:#0a1628') +
+      '">' + label + '</button>';
+  });
+  el.innerHTML = html;
+}
+// Rotate the active roof type 90° CW.  Bumps DRAW.rotation and re-runs
+// autoGenerateRoof, which honours the rotation by virtually rotating
+// the outline before running the matching roof-type builder, then
+// rotating the resulting lines back into the original outline space.
+function rotateActiveRoof(){
+  if (!DRAW.outline || DRAW.outline.length < 3) return;
+  if (!DRAW.roofType) return;  // Nothing to rotate yet — pick a roof type first.
+  var next = (((DRAW.rotation || 0) + 90) % 360 + 360) % 360;
+  autoGenerateRoof(DRAW.roofType, next);
+}
 
 
 
 setTool('select');
 renderInfoPanel();
+renderRoofSwitcher();
 
 // Size canvas: CSS sets width:100%+aspect-ratio, we just sync the resolution
 // Use ResizeObserver on the canvas itself - most reliable
@@ -9992,7 +10170,48 @@ document.addEventListener('mousedown',function(e){
 </script>
 </body>
 <script>
+// Multi-roof dispatcher: when several roofs are drawn, iterate each and
+// render its sheet plan into a labelled section.  Single-roof or
+// pre-multi-roof code paths go straight to the inner renderer.
 function renderRoofSheetPlan() {
+  if (DRAW.roofs && DRAW.roofs.length > 1) {
+    var outEl = document.getElementById('roofSheetPlanOut');
+    if (!outEl) return;
+    var savedActive = DRAW.activeRoofIdx;
+    _syncCurrentToRoof();
+    outEl.innerHTML = '';
+    var combined = {orangeLong:0, blueLong:0, purpleLong:0, shortCount:0, shortLen:0, longLen:0};
+    DRAW.roofs.forEach(function(r, idx){
+      _loadRoofToCurrent(idx);
+      if (!r.outline || r.outline.length < 3) return;
+      var hdr = document.createElement('h2');
+      hdr.textContent = _nthName(idx + 1);
+      hdr.style.cssText = 'margin:20px 0 8px;color:#0a1628;background:linear-gradient(135deg,#f0f8ff,#e8f4fd);padding:12px 16px;border-radius:8px;font-size:17px;text-align:center;border:1px solid #b3d4f0';
+      outEl.appendChild(hdr);
+      var sec = document.createElement('div');
+      sec.id = '__rrspSect_' + idx;
+      outEl.appendChild(sec);
+      window.__rrspTargetEl = sec;
+      try { _renderRoofSheetPlanInner(); } finally { window.__rrspTargetEl = null; }
+      // Accumulate counts for combined order quantities.
+      var c = window._lastSheetCounts;
+      if (c) {
+        combined.orangeLong += c.orangeLong || 0;
+        combined.blueLong   += c.blueLong   || 0;
+        combined.purpleLong += c.purpleLong || 0;
+        combined.shortCount += c.shortCount || 0;
+        combined.shortLen    = c.shortLen   || combined.shortLen;
+        combined.longLen     = c.longLen    || combined.longLen;
+      }
+    });
+    window._lastSheetCounts = combined;
+    _loadRoofToCurrent(savedActive);
+    return;
+  }
+  _renderRoofSheetPlanInner();
+}
+
+function _renderRoofSheetPlanInner() {
   // Clean SOP-aligned sheet layout. Reads the building outline and the
   // auto-generated hip / valley / ridge / gutter lines, identifies each
   // roof FACE (a polygon bounded by one gutter on the bottom edge and
@@ -10013,7 +10232,10 @@ function renderRoofSheetPlan() {
   //
   // Numbers run sequentially within each colour group so the installer
   // has a clear cut/install order.
-  var outEl = document.getElementById('roofSheetPlanOut');
+  // Multi-roof mode passes the target via window.__rrspTargetEl so
+  // each roof's plan renders into its own section.  Default to the
+  // top-level container otherwise.
+  var outEl = window.__rrspTargetEl || document.getElementById('roofSheetPlanOut');
   if (!outEl) return;
   if (!DRAW.outline || DRAW.outline.length < 3) {
     outEl.innerHTML = '<p style="color:var(--text2)">Draw your building outline first.</p>';
