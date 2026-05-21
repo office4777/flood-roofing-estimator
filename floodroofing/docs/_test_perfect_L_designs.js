@@ -168,7 +168,52 @@ async function renderCase(page, c) {
     if (fy > ridge_corner_y) return 'mainS';
     return 'other';
   }
-  strips.forEach(s => { s.region = classify(s); });
+  // Position-based classification — used to RE-classify strips whose
+  // centroid is outside their face polygon.  These are "phantom-extended"
+  // cascade strips that the 6-face engine sometimes generates for rotated
+  // outlines (e.g., a mainN strip physically living in the wing E area).
+  // If we kept them with their face-based region we'd render them with
+  // the wrong color; reclassify by position so they show the colour of
+  // the face they're physically in.
+  function classifyByPosition(s) {
+    const xs = s.poly.map(p => p[0]), ys = s.poly.map(p => p[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    if (cy < wing_apex_y && cx > ox && cx < ox + arm_w) {
+      return cx < ridge_corner_x ? 'wingN_W_half' : 'wingN_E_half';
+    }
+    if (cx > main_apex_x && cy > reflex_y && cy < oy + arm_len) {
+      return cy < ridge_corner_y ? 'mainE_N_half' : 'mainE_S_half';
+    }
+    if (cy < reflex_y) {
+      // Wing body
+      return cx < ridge_corner_x ? 'wingW' : 'wingE';
+    }
+    if (cy > ridge_corner_y) return 'mainS';
+    return 'mainN';
+  }
+  function pointInPoly([px, py], poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const xi = poly[i][0], yi = poly[i][1];
+      const xj = poly[j][0], yj = poly[j][1];
+      if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+  strips.forEach(s => {
+    if (s.facePoly) {
+      const xs = s.poly.map(p => p[0]), ys = s.poly.map(p => p[1]);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+      if (!pointInPoly([cx, cy], s.facePoly)) {
+        s.region = classifyByPosition(s);
+      }
+    }
+  });
+  const stripsOnFace = strips;
 
   // ── Filter and add full-length C strips + valley triangle subdivisions ──
   function inValleyA(cx, cy) {
@@ -182,7 +227,7 @@ async function renderCase(page, c) {
            cx + cy > valley_sum;
   }
   const C_eps = 19;  // small overlap to catch the apex-straddle strip
-  const stripsKept = strips.filter(s => {
+  const stripsKept = stripsOnFace.filter(s => {
     const xs = s.poly.map(p => p[0]);
     const ys = s.poly.map(p => p[1]);
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
@@ -380,6 +425,22 @@ async function renderCase(page, c) {
     `<line x1="${toX(a[0])}" y1="${toY(a[1])}" x2="${toX(b[0])}" y2="${toY(b[1])}" stroke="${color}" stroke-width="2" ${dash?`stroke-dasharray="6,3"`:''}/>`
   ).join('');
 
+  // Face backdrops: fill each face polygon with its design colour at low
+  // opacity so any tiny gap in strip tiling shows the face colour rather
+  // than white.  Strips draw at 0.65 alpha on top, so the gap shows ~0.25
+  // alpha of the face colour — light enough that filled areas still look
+  // right but visible enough to mask cascade-extension gaps.
+  const faceBackdrops = [
+    { poly: [[ox, oy], [ridge_corner_x, wing_apex_y], [ridge_corner_x, ridge_corner_y], [ox, oy+arm_len]],               color: DESIGN_ORANGE }, // wing W
+    { poly: [[ox+arm_w, oy], [ridge_corner_x, wing_apex_y], [ridge_corner_x, ridge_corner_y], [reflex_x, reflex_y]],     color: DESIGN_BLUE },   // wing E
+    { poly: [[reflex_x, reflex_y], [ox+arm_len, reflex_y], [main_apex_x, ridge_corner_y], [ridge_corner_x, ridge_corner_y]], color: DESIGN_ORANGE }, // main N
+    { poly: [[ox, oy+arm_len], [ox+arm_len, oy+arm_len], [main_apex_x, ridge_corner_y], [ridge_corner_x, ridge_corner_y]], color: DESIGN_BLUE },   // main S
+  ];
+  const backdropSvg = faceBackdrops.map(f => {
+    const rotated = f.poly.map(fwd);
+    return `<polygon points="${polyAttr(rotated)}" fill="${f.color}" fill-opacity="0.25" stroke="none"/>`;
+  }).join('');
+
   const stripSvg = allRenderStrips.map(s => {
     const c = s._designColor || designColor[s.region] || s.origColor || '#cccccc';
     const op = isOffcutStrip(s) ? 0.5 : 0.65;
@@ -435,6 +496,7 @@ async function renderCase(page, c) {
       <text x="${W/2}" y="20" text-anchor="middle" font-size="13" font-weight="700" fill="#0a1628">${c.label}</text>
       <text x="${W/2}" y="38" text-anchor="middle" font-size="11" fill="#475569">${totalSheets} sheets • ${valleySlices} valley slices • sheet length ${half_w}px</text>
       <polygon points="${polyAttr(outline)}" fill="none" stroke="#0a1628" stroke-width="1.5"/>
+      ${backdropSvg}
       ${stripSvg}
       ${lineSvg(hips, '#16a34a')}
       ${lineSvg(ridges, '#dc2626')}
