@@ -118,15 +118,19 @@ const fs = require('fs');
   // HIPS get re-coloured so the offcut matches its donor.
   const designColor = {
     wingW: DESIGN_ORANGE,
+    wingW_top: DESIGN_ORANGE,           // sub-region (matches wingW)
     wingE: DESIGN_BLUE,
-    wingW_extHip: DESIGN_ORANGE,     // I: SW-clipped wing W = orange donor (matches A)
-    mainN: DESIGN_ORANGE,            // C: orange main N
-    mainS: DESIGN_BLUE,              // J: blue main S (incl. SW corner 76..108)
+    wingE_top: DESIGN_BLUE,             // sub-region (matches wingE)
+    wingW_extHip: DESIGN_ORANGE,        // I: SW-clipped wing W = orange donor (matches A)
+    mainN: DESIGN_ORANGE,               // C: orange main N
+    mainN_east: DESIGN_ORANGE,          // sub-region (matches mainN)
+    mainS: DESIGN_BLUE,                 // J: blue main S (incl. SW corner 76..108)
+    mainS_east: DESIGN_BLUE,            // sub-region (matches mainS)
     // End-hip offcuts: each half coloured to match the donor it pairs with
-    wingN_W_half: DESIGN_BLUE,       // offcut from wing E (blue)
-    wingN_E_half: DESIGN_ORANGE,     // offcut from wing W (orange)
-    mainE_N_half: DESIGN_BLUE,       // offcut from main S (blue)
-    mainE_S_half: DESIGN_ORANGE,     // offcut from main N (orange)
+    wingN_W_half: DESIGN_BLUE,          // offcut from wing E (blue)
+    wingN_E_half: DESIGN_ORANGE,        // offcut from wing W (orange)
+    mainE_N_half: DESIGN_BLUE,          // offcut from main S (blue)
+    mainE_S_half: DESIGN_ORANGE,        // offcut from main N (orange)
   };
 
   // ── Render to SVG ──
