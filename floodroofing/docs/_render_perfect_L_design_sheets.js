@@ -250,12 +250,16 @@ const fs = require('fs');
         if (cx > 900) return `mainS_east:${Math.round((cx - 900) / cp)}`;
         return `mainS_mid:${Math.round((cx - 300) / cp)}`;
       }
-      // Cross-pair: destinations are vertical strips perpendicular to
-      // the N gutter / horizontal strips perpendicular to the E gutter,
-      // so the band index uses the strip's cx (wingN) or cy (mainE),
-      // and reflects to match the donor's position on the other axis.
-      case 'wingN_W_half': return `wingE_top:${Math.round((cx - 100) / cp)}`;
-      case 'wingN_E_half': return `wingW_top:${Math.round((500 - cx) / cp)}`;
+      // Cross-pair: donor + offcut must sum to a full-length sheet
+      // (length 200).  Smallest donor (clipped most) has the largest
+      // offcut, which lands at the largest destination strip (closest
+      // to the apex).  So pair by length-match:
+      //   wing W top donor cy=119 (installed 19, offcut 181)
+      //     ↔ wingN_E_half cx=310 (length 190, closest to apex)
+      //   wing W top donor cy=281 (installed 181, offcut 19)
+      //     ↔ wingN_E_half cx=491 (length 9, closest to east edge)
+      case 'wingN_W_half': return `wingE_top:${Math.round((300 - cx) / cp)}`;
+      case 'wingN_E_half': return `wingW_top:${Math.round((cx - 300) / cp)}`;
       case 'mainE_N_half': return `mainS_east:${Math.round((900 - cy) / cp)}`;
       case 'mainE_S_half': return `mainN_east:${Math.round((cy - 900) / cp)}`;
     }
