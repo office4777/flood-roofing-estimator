@@ -207,6 +207,11 @@ const fs = require('fs');
   //     (perpendicular to the N gutter at y=700).
   const valleyStrips = [];
   // A: horizontal strips of A clipped to triangle (500,700)-(300,700)-(300,900).
+  //   Largest strip is i=0 (top, length ~180); smallest is i=4 (bottom, length ~20).
+  //   wingW_extHip donor sort cy ASC: idx 0 = LONGEST donor (190.5) = SMALLEST offcut (9.5);
+  //                                    idx 4 = SHORTEST donor (38.1)  = LARGEST offcut (161.9).
+  //   Length conservation: largest valley strip pairs with largest-offcut donor,
+  //   i.e. valley A i=0 ↔ donor i=4, valley A i=4 ↔ donor i=0.
   for (let i = 0; i < 5; i++) {
     const ya = 700 + i * 40, yb = 700 + (i + 1) * 40;
     const xEa = 1200 - ya, xEb = 1200 - yb;
@@ -215,13 +220,15 @@ const fs = require('fs');
       region: 'valley_A',                  // orange offcut
       _designColor: DESIGN_ORANGE,
       _pairRegion: 'wingW_extHip',         // pairs with wing W bottom donor
-      _pairIdx: i,                         // i=0 (top of A, smallest) ↔ wingW bottom idx 0
+      _pairIdx: 4 - i,                     // REVERSED for length conservation
       _isOffcut: true,
     });
   }
   // B: vertical strips of B clipped to triangle (500,700)-(500,900)-(300,900).
-  //   x bands from x=300..500.  Each strip clipped above by valley
-  //   (y_top = 1200 - x), below by ridge y=900.
+  //   Smallest strip is i=0 (left, near corner, length ~20); largest is i=4 (right, near apex, length ~180).
+  //   mainS_east donor sort cx ASC: idx 0 = LONGEST (190.5) = SMALLEST offcut (9.5);
+  //                                  idx 4 = SHORTEST (38.1) = LARGEST offcut (161.9).
+  //   Length conservation: valley B i=k ↔ donor i=k (both progressions go small→large).
   for (let i = 0; i < 5; i++) {
     const xa = 300 + i * 40, xb = 300 + (i + 1) * 40;
     const yTa = 1200 - xa, yTb = 1200 - xb;
@@ -230,7 +237,7 @@ const fs = require('fs');
       region: 'valley_B',                  // blue offcut
       _designColor: DESIGN_BLUE,
       _pairRegion: 'mainS_east',           // pairs with main S east donor
-      _pairIdx: i,                         // i=0 (smallest strip) ↔ mainS east idx 0
+      _pairIdx: i,
       _isOffcut: true,
     });
   }
