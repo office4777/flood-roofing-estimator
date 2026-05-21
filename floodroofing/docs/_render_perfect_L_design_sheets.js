@@ -156,13 +156,18 @@ const fs = require('fs');
   //    strips and offcut-purple strips from the 6-face cascade — not
   //    proper main N donors) and replace with FULL-LENGTH orange
   //    donor sheets running from y=700 (gutter) to y=900 (ridge). ──
+  //    Also catch the straddle strip at the E apex (cx~900 borderline
+  //    that visually overlaps my last full-length strip).
   const C_xMin = 500, C_xMax = 900, C_yMin = 700, C_yMax = 900;
   const stripsKept = strips.filter(s => {
     const xs = s.poly.map(p => p[0]);
     const ys = s.poly.map(p => p[1]);
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
     const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-    return !(cx > C_xMin && cx < C_xMax && cy > C_yMin && cy < C_yMax);
+    // C area: drop strips inside, including borderline strips that
+    // straddle the apex (cx within ~19 px of C_xMax).
+    if (cx > C_xMin && cx < C_xMax + 19 && cy > C_yMin && cy < C_yMax) return false;
+    return true;
   });
   const coverPx = 38.1;
   const fullLengthStrips = [];
