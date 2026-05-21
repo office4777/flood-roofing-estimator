@@ -213,84 +213,67 @@ const fs = require('fs');
     const ys = s.poly.map(p => p[1]);
     return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
   }
+  allRenderStrips.forEach(s => { s._centroid = stripCentroid(s); });
 
-  // ── Sheet-identity numbering ──
-  // Each physical donor sheet gets one number; its offcut shares the number.
-  //
-  // Donor-offcut pairs by y-band (NW/NE/SW hips and the valley all
-  // run at 45 degrees, so a donor at y-band Y pairs with the destination
-  // strip at the matching band position):
-  //   wingW top (y < 300, x < 300)   <-> wingN_E_half  (cross-pair)
-  //   wingE top (y < 300, x >= 300)  <-> wingN_W_half
-  //   wingW bottom / extHip (y > 900) <-> A north-of-valley
-  //   mainN east near apex           <-> mainE_S_half
-  //   mainS west (SW-clipped)        <-> B south-of-valley
-  //   mainS east (SE-clipped)        <-> mainE_N_half
-  // All other strips are standalone (single-piece sheets).
-  function bandKey(s) {
-    const [cx, cy] = stripCentroid(s);
-    const cp = 38.1;
-    switch (s.region) {
-      case 'wingW': {
-        if (cy < 300) return `wingW_top:${Math.round((cy - 100) / cp)}`;
-        if (cy > 900) return `wingW_bot:${Math.round((cy - 900) / cp)}`;
-        return `wingW_mid:${Math.round((cy - 300) / cp)}`;
-      }
-      case 'wingW_extHip': return `wingW_bot:${Math.round((cy - 900) / cp)}`;
-      case 'wingE': {
-        if (cy < 300) return `wingE_top:${Math.round((cy - 100) / cp)}`;
-        return `wingE_mid:${Math.round((cy - 300) / cp)}`;
-      }
-      case 'mainN': {
-        if (cx > 900) return `mainN_east:${Math.round((cx - 900) / cp)}`;
-        return `mainN_mid:${Math.round((cx - 500) / cp)}`;
-      }
-      case 'mainS': {
-        if (cx < 300) return `mainS_west:${Math.round((300 - cx) / cp)}`;
-        if (cx > 900) return `mainS_east:${Math.round((cx - 900) / cp)}`;
-        return `mainS_mid:${Math.round((cx - 300) / cp)}`;
-      }
-      // Cross-pair: donor + offcut must sum to a full-length sheet
-      // (length 200).  Smallest donor (clipped most) has the largest
-      // offcut, which lands at the largest destination strip (closest
-      // to the apex).  So pair by length-match:
-      //   wing W top donor cy=119 (installed 19, offcut 181)
-      //     ↔ wingN_E_half cx=310 (length 190, closest to apex)
-      //   wing W top donor cy=281 (installed 181, offcut 19)
-      //     ↔ wingN_E_half cx=491 (length 9, closest to east edge)
-      case 'wingN_W_half': return `wingE_top:${Math.round((300 - cx) / cp)}`;
-      case 'wingN_E_half': return `wingW_top:${Math.round((cx - 300) / cp)}`;
-      case 'mainE_N_half': return `mainS_east:${Math.round((900 - cy) / cp)}`;
-      case 'mainE_S_half': return `mainN_east:${Math.round((cy - 900) / cp)}`;
-    }
-    return `${s.region}:${Math.round(cx)},${Math.round(cy)}`;
+  // ── Sheet-identity numbering by SORT-AND-INDEX ──
+  // Group strips by region, sort by appropriate axis, assign sequential
+  // indices.  Pairs share keys so donor and offcut get the same final
+  // sheet number after global numbering.  Length-conservation: smallest
+  // donor (clipped most, largest offcut) pairs with largest destination
+  // strip.
+  const regionGroups = {};
+  allRenderStrips.forEach(s => {
+    (regionGroups[s.region] = regionGroups[s.region] || []).push(s);
+  });
+  function sortAndIndex(region, comparator) {
+    const g = regionGroups[region];
+    if (!g) return;
+    g.sort(comparator);
+    g.forEach((s, i) => { s._idx = i; });
   }
-  // For strips that already have a _key set (valleyStrips), keep it.
-  // Otherwise compute from bandKey.
-  allRenderStrips.forEach(s => { if (!s._key) s._key = bandKey(s); });
+  // Donors: ascending by their position axis (small-to-large donor).
+  sortAndIndex('wingW_top',    (a, b) => a._centroid[1] - b._centroid[1]);
+  sortAndIndex('wingE_top',    (a, b) => a._centroid[1] - b._centroid[1]);
+  sortAndIndex('mainN_east',   (a, b) => a._centroid[0] - b._centroid[0]);
+  sortAndIndex('mainS_east',   (a, b) => a._centroid[0] - b._centroid[0]);
+  // Destinations: sort so largest strip (matches largest offcut from
+  // smallest donor) gets index 0.
+  sortAndIndex('wingN_E_half', (a, b) => a._centroid[0] - b._centroid[0]);   // small cx = closest to apex = largest
+  sortAndIndex('wingN_W_half', (a, b) => b._centroid[0] - a._centroid[0]);   // large cx = closest to apex = largest
+  sortAndIndex('mainE_S_half', (a, b) => a._centroid[1] - b._centroid[1]);   // small cy = closest to ridge = largest
+  sortAndIndex('mainE_N_half', (a, b) => b._centroid[1] - a._centroid[1]);   // large cy = closest to ridge = largest
+  // Non-paired regions.
+  sortAndIndex('wingW',        (a, b) => a._centroid[1] - b._centroid[1]);
+  sortAndIndex('wingW_extHip', (a, b) => a._centroid[1] - b._centroid[1]);
+  sortAndIndex('wingE',        (a, b) => a._centroid[1] - b._centroid[1]);
+  sortAndIndex('mainN',        (a, b) => a._centroid[0] - b._centroid[0]);
+  sortAndIndex('mainS',        (a, b) => a._centroid[0] - b._centroid[0]);
+  sortAndIndex('mainS_west',   (a, b) => a._centroid[1] - b._centroid[1]);
 
-  // Add the valley triangles to the sheet-key system: each triangle
-  // counts as one "offcut" sheet linked to a specific donor.  For the
-  // mockup we'll number them with hard-coded keys.
-  // A north-of-valley <- wingW bottom group (single sheet for now)
-  // B south-of-valley <- mainS west group
-  // We'll attach these AFTER assigning numbers, by giving the
-  // triangles the same key as a representative donor.
+  // Cross-pair: destination shares its donor's region+index key.
+  const pairTo = {
+    'wingN_E_half': 'wingW_top',
+    'wingN_W_half': 'wingE_top',
+    'mainE_S_half': 'mainN_east',
+    'mainE_N_half': 'mainS_east',
+  };
+  allRenderStrips.forEach(s => {
+    if (s._key) return;  // valley strips already have explicit keys
+    const region = pairTo[s.region] || s.region;
+    s._key = `${region}:${s._idx != null ? s._idx : Math.round(s._centroid[0])+','+Math.round(s._centroid[1])}`;
+  });
 
-  // Sort distinct keys by representative position (top-to-bottom, left-to-right)
-  // and assign 1..N.  Representative = first strip in each key, sorted by centroid.
+  // Sort distinct keys by representative position and assign 1..N.
   const keyGroups = {};
   allRenderStrips.forEach(s => {
     (keyGroups[s._key] = keyGroups[s._key] || []).push(s);
   });
   const keysList = Object.keys(keyGroups);
-  keysList.forEach(k => {
-    keyGroups[k].forEach(s => { s._centroid = stripCentroid(s); });
-  });
   keysList.sort((a, b) => {
-    const ra = keyGroups[a][0]._centroid;
-    const rb = keyGroups[b][0]._centroid;
-    return ra[1] - rb[1] || ra[0] - rb[0];
+    // Use the FIRST non-offcut piece (largest area) as representative.
+    const aRep = keyGroups[a].slice().sort((x, y) => (y.poly.length - x.poly.length))[0]._centroid;
+    const bRep = keyGroups[b].slice().sort((x, y) => (y.poly.length - x.poly.length))[0]._centroid;
+    return aRep[1] - bRep[1] || aRep[0] - bRep[0];
   });
   const numByKey = {};
   keysList.forEach((k, i) => { numByKey[k] = i + 1; });
