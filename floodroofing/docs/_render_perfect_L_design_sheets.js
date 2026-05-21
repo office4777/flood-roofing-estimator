@@ -152,21 +152,36 @@ const fs = require('fs');
     `<line x1="${toX(a[0])}" y1="${toY(a[1])}" x2="${toX(b[0])}" y2="${toY(b[1])}" stroke="${color}" stroke-width="2.5" ${dash?`stroke-dasharray="${dash}"`:''}/>`
   ).join('');
 
-  // ── Filter out the C area strips (they're phantom-extended wing E
-  //    strips and offcut-purple strips from the 6-face cascade — not
-  //    proper main N donors) and replace with FULL-LENGTH orange
-  //    donor sheets running from y=700 (gutter) to y=900 (ridge). ──
-  //    Also catch the straddle strip at the E apex (cx~900 borderline
-  //    that visually overlaps my last full-length strip).
+  // ── Filter out the C area strips and the inside-corner valley area ──
+  //    C area = main N long-side donor area between valley and E hip-end.
+  //    Inside corner = the two valley triangles (A north, B south) which
+  //    we redraw with our subdivisions.  Without this filter, the 6-face
+  //    cascade's wing E strips and mainN strips at the valley area
+  //    overlay the valley triangle subdivisions.
   const C_xMin = 500, C_xMax = 900, C_yMin = 700, C_yMax = 900;
+  // Test if centroid is inside the A triangle (north of valley) OR the
+  // B triangle (south of valley).  Both share x=300..500, y=700..900,
+  // separated by the valley line y = 1200 - x.
+  function inValleyA(cx, cy) {
+    // North of valley (above the diagonal): x in [300, 500], y in [700, 900],
+    // and y < 1200 - x.
+    return cx >= 300 && cx <= 500 && cy >= 700 && cy <= 900 && cy < 1200 - cx;
+  }
+  function inValleyB(cx, cy) {
+    // South of valley: x in [300, 500], y in [700, 900], and y > 1200 - x.
+    return cx >= 300 && cx <= 500 && cy >= 700 && cy <= 900 && cy > 1200 - cx;
+  }
   const stripsKept = strips.filter(s => {
     const xs = s.poly.map(p => p[0]);
     const ys = s.poly.map(p => p[1]);
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
     const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-    // C area: drop strips inside, including borderline strips that
-    // straddle the apex (cx within ~19 px of C_xMax).
+    // C area (main N donor region) — extend slightly past x=900 to
+    // catch the apex-straddle strip.
     if (cx > C_xMin && cx < C_xMax + 19 && cy > C_yMin && cy < C_yMax) return false;
+    // Valley triangles: drop only strips whose centroid is strictly
+    // inside A or B.
+    if (inValleyA(cx, cy) || inValleyB(cx, cy)) return false;
     return true;
   });
   const coverPx = 38.1;
