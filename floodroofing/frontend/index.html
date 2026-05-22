@@ -4263,6 +4263,151 @@ function needsLightLabel(hex){
   return lum < 140;
 }
 
+// ── Proposal graphics helpers ────────────────────────────────────────
+// Small inline-SVG icons used by section headings + stat tiles in the
+// modernised proposal layout.  All icons are 24×24, single-stroke, and
+// accept a colour so they tint with the section's accent.
+function rpIcon(name, color, size){
+  size = size || 18;
+  color = color || 'currentColor';
+  var p = {
+    house:    '<path d="M3 11L12 3l9 8M5 10v10h14V10" stroke="'+color+'" stroke-width="1.6" fill="none" stroke-linejoin="round" stroke-linecap="round"/>',
+    roof:     '<path d="M2 13L12 4l10 9M5 11v9h14v-9" stroke="'+color+'" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M10 20v-5h4v5" stroke="'+color+'" stroke-width="1.6" fill="none"/>',
+    pitch:    '<path d="M3 19h18M3 19L12 6l9 13" stroke="'+color+'" stroke-width="1.6" fill="none" stroke-linejoin="round"/><text x="16" y="17" font-family="Arial" font-size="6" fill="'+color+'">°</text>',
+    area:     '<path d="M4 4h16v16H4z" stroke="'+color+'" stroke-width="1.6" fill="none"/><path d="M8 8h8v8H8z" stroke="'+color+'" stroke-width="1.2" fill="none" stroke-dasharray="2 2"/>',
+    ridge:    '<path d="M3 17L12 7l9 10" stroke="'+color+'" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/>',
+    valley:   '<path d="M3 7L12 17l9-10" stroke="'+color+'" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/>',
+    sheets:   '<path d="M5 5h11v14H5z M9 9h11v14H9z" stroke="'+color+'" stroke-width="1.6" fill="none" stroke-linejoin="round"/>',
+    palette:  '<path d="M12 3a9 9 0 109 9 4 4 0 01-4 4h-2a2 2 0 00-2 2v1a2 2 0 01-1 0z" stroke="'+color+'" stroke-width="1.6" fill="none"/><circle cx="7" cy="11" r="1.3" fill="'+color+'"/><circle cx="10" cy="7" r="1.3" fill="'+color+'"/><circle cx="14" cy="7" r="1.3" fill="'+color+'"/><circle cx="17" cy="10" r="1.3" fill="'+color+'"/>',
+    shield:   '<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z" stroke="'+color+'" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M8 12l3 3 5-6" stroke="'+color+'" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+    tick:     '<circle cx="12" cy="12" r="9" stroke="'+color+'" stroke-width="1.6" fill="none"/><path d="M8 12l3 3 5-6" stroke="'+color+'" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+    clipboard:'<rect x="5" y="4" width="14" height="17" rx="2" stroke="'+color+'" stroke-width="1.6" fill="none"/><rect x="8" y="2" width="8" height="4" rx="1" stroke="'+color+'" stroke-width="1.6" fill="none"/><path d="M8 11h8M8 14h8M8 17h5" stroke="'+color+'" stroke-width="1.4" stroke-linecap="round"/>',
+    pencil:   '<path d="M4 20l4-1 10-10-3-3L5 16zM14 6l3 3" stroke="'+color+'" stroke-width="1.6" fill="none" stroke-linejoin="round"/>',
+    truck:    '<path d="M2 6h11v10H2zM13 9h5l3 3v4h-8" stroke="'+color+'" stroke-width="1.6" fill="none" stroke-linejoin="round"/><circle cx="7" cy="18" r="1.7" stroke="'+color+'" stroke-width="1.6" fill="none"/><circle cx="17" cy="18" r="1.7" stroke="'+color+'" stroke-width="1.6" fill="none"/>',
+    wrench:   '<path d="M14 4a4 4 0 105 5l-3 3 5 5-2 2-5-5-3 3a4 4 0 11-5-5l3 3 5-5z" stroke="'+color+'" stroke-width="1.6" fill="none" stroke-linejoin="round"/>',
+    signature:'<path d="M3 18s2-7 6-7 4 5 7 5 5-3 5-3" stroke="'+color+'" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M3 21h18" stroke="'+color+'" stroke-width="1.4"/>',
+    award:    '<circle cx="12" cy="9" r="6" stroke="'+color+'" stroke-width="1.6" fill="none"/><path d="M8 14l-2 7 6-3 6 3-2-7" stroke="'+color+'" stroke-width="1.6" fill="none" stroke-linejoin="round"/>',
+    star:     '<path d="M12 3l2.6 5.6 6 .9-4.3 4.4 1 6.1L12 17l-5.3 3 1-6.1L3.4 9.5l6-.9z" stroke="'+color+'" stroke-width="1.4" fill="none" stroke-linejoin="round"/>',
+    drop:     '<path d="M12 3s7 7 7 12a7 7 0 11-14 0c0-5 7-12 7-12z" stroke="'+color+'" stroke-width="1.6" fill="none" stroke-linejoin="round"/>',
+  };
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" style="display:inline-block;vertical-align:-3px;flex-shrink:0">'+(p[name]||'')+'</svg>';
+}
+
+// Modernised section heading — icon + label, accent underline.
+// The label may contain HTML entities (e.g. "&amp;") so it's inserted
+// verbatim rather than re-escaped.
+function rpHeading(icon, label){
+  return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--accent)">'+
+    '<span style="color:var(--accent)">'+rpIcon(icon, '#0099cc', 20)+'</span>'+
+    '<div style="font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#0a1628">'+label+'</div>'+
+  '</div>';
+}
+
+// Stat tile used on the cover + project details pages.
+function rpStat(icon, value, label, sub){
+  return '<div style="flex:1;min-width:130px;padding:14px 16px;background:#fff;border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;gap:4px">'+
+    '<div style="display:flex;align-items:center;gap:6px;color:#0099cc">'+rpIcon(icon, '#0099cc', 16)+
+      '<div style="font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:#0a1628">'+esc2(label)+'</div></div>'+
+    '<div style="font-size:22px;font-weight:800;color:#0a1628;letter-spacing:-.02em;line-height:1.1">'+esc2(value)+'</div>'+
+    (sub ? '<div style="font-size:10.5px;color:var(--text2);font-weight:500">'+esc2(sub)+'</div>' : '')+
+  '</div>';
+}
+
+// Build an SVG roof plan from S.roofData (outline + faces + ridges /
+// valleys / hips, all in percentage coords 0–100).  Renders a clean
+// pastel-faced overhead plan with face labels and ridge/valley overlay
+// so the proposal carries the actual job geometry, not a stock photo.
+function buildRoofPlanSvg(d, w, h){
+  d = d || {};
+  w = w || 520; h = h || 320;
+  var outline = (d.outline || []);
+  var faces   = (d.faces   || []);
+  var ridges  = (d.ridges  || []);
+  var valleys = (d.valleys || []);
+  var hips    = (d.hips    || []);
+  if (outline.length < 3 && !faces.length){
+    return '<div style="aspect-ratio:'+w+'/'+h+';display:flex;align-items:center;justify-content:center;background:#f4f6fa;border:1px dashed #d4d8e0;border-radius:8px;color:#9aa3b2;font-size:12px">Roof plan unavailable — map roof in the <strong style="margin:0 4px">Map Roof</strong> tab to embed it here.</div>';
+  }
+  var pad = 26;
+  function X(xPct){ return pad + xPct/100 * (w - pad*2); }
+  function Y(yPct){ return pad + yPct/100 * (h - pad*2); }
+  var pal = ['#e0f2fe','#dcfce7','#fef3c7','#fce7f3','#e0e7ff','#fed7aa','#fae8ff','#cffafe'];
+  var palB = ['#0369a1','#15803d','#b45309','#9d174d','#3730a3','#c2410c','#7e22ce','#0e7490'];
+  var s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+w+' '+h+'" style="width:100%;height:auto;display:block;background:#fafbfc;border-radius:8px;border:1px solid #e6e9ef">';
+  // Drop shadow for the outline
+  s += '<defs><filter id="rpsh" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0a1628" flood-opacity=".10"/></filter></defs>';
+  // Outline fill
+  if (outline.length >= 3){
+    var ptsO = outline.map(function(p){ return X(p[0])+','+Y(p[1]); }).join(' ');
+    s += '<polygon points="'+ptsO+'" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.4" filter="url(#rpsh)"/>';
+  }
+  // Faces
+  faces.forEach(function(f, i){
+    var poly = f.poly || [];
+    if (poly.length < 3) return;
+    var fill = pal[i % pal.length];
+    var stroke = palB[i % palB.length];
+    var pts = poly.map(function(p){ return X(p[0])+','+Y(p[1]); }).join(' ');
+    s += '<polygon points="'+pts+'" fill="'+fill+'" fill-opacity=".92" stroke="'+stroke+'" stroke-width="1.2"/>';
+    // Centroid label
+    var cx = 0, cy = 0; poly.forEach(function(p){ cx += p[0]; cy += p[1]; });
+    cx = X(cx / poly.length); cy = Y(cy / poly.length);
+    var area = f.area_m2 ? (f.area_m2.toFixed(1) + ' m²') : '';
+    s += '<g text-anchor="middle" font-family="-apple-system,Segoe UI,Arial,sans-serif">'+
+      '<text x="'+cx+'" y="'+(cy-3)+'" font-size="10" font-weight="700" fill="#0a1628">'+esc2(f.name||f.label||('Face '+(i+1)))+'</text>'+
+      (area ? '<text x="'+cx+'" y="'+(cy+10)+'" font-size="11" font-weight="800" fill="'+stroke+'">'+esc2(area)+'</text>' : '')+
+    '</g>';
+  });
+  // Ridges (red)
+  ridges.forEach(function(r){
+    if (!r.from || !r.to) return;
+    s += '<line x1="'+X(r.from[0])+'" y1="'+Y(r.from[1])+'" x2="'+X(r.to[0])+'" y2="'+Y(r.to[1])+'" stroke="#dc2626" stroke-width="2.4" stroke-linecap="round"/>';
+  });
+  // Valleys (amber)
+  valleys.forEach(function(v){
+    if (!v.from || !v.to) return;
+    s += '<line x1="'+X(v.from[0])+'" y1="'+Y(v.from[1])+'" x2="'+X(v.to[0])+'" y2="'+Y(v.to[1])+'" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round"/>';
+  });
+  // Hips (purple)
+  hips.forEach(function(hp){
+    if (!hp.from || !hp.to) return;
+    s += '<line x1="'+X(hp.from[0])+'" y1="'+Y(hp.from[1])+'" x2="'+X(hp.to[0])+'" y2="'+Y(hp.to[1])+'" stroke="#7c3aed" stroke-width="2.2" stroke-linecap="round"/>';
+  });
+  // Legend
+  var legY = h - 14;
+  s += '<g font-family="-apple-system,Segoe UI,Arial,sans-serif" font-size="9.5" font-weight="600">'+
+    '<line x1="14" y1="'+legY+'" x2="28" y2="'+legY+'" stroke="#dc2626" stroke-width="2.4"/><text x="32" y="'+(legY+3)+'" fill="#475569">Ridge</text>'+
+    '<line x1="78" y1="'+legY+'" x2="92" y2="'+legY+'" stroke="#f59e0b" stroke-width="2.2"/><text x="96" y="'+(legY+3)+'" fill="#475569">Valley</text>'+
+    '<line x1="146" y1="'+legY+'" x2="160" y2="'+legY+'" stroke="#7c3aed" stroke-width="2.2"/><text x="164" y="'+(legY+3)+'" fill="#475569">Hip</text>'+
+  '</g>';
+  s += '</svg>';
+  return s;
+}
+
+// Horizontal "how we work" process timeline used on the About page.
+function buildProcessTimeline(){
+  var steps = [
+    { icon:'clipboard', label:'Inspection',  sub:'Site visit + measure' },
+    { icon:'pencil',    label:'Quote',       sub:'Detailed proposal' },
+    { icon:'truck',     label:'Materials',   sub:'NZ Steel ordered' },
+    { icon:'wrench',    label:'Install',     sub:'On-site by our team' },
+    { icon:'signature', label:'Sign-off',    sub:'10-yr workmanship' },
+  ];
+  var n = steps.length;
+  var s = '<div style="position:relative;margin:6px 0 4px">'+
+    '<div style="position:absolute;left:8%;right:8%;top:22px;height:2px;background:linear-gradient(90deg,#0099cc 0%,#0099cc 100%);opacity:.4"></div>'+
+    '<div style="position:relative;display:grid;grid-template-columns:repeat('+n+',1fr);gap:8px">'+
+    steps.map(function(st, i){
+      return '<div style="text-align:center">'+
+        '<div style="width:44px;height:44px;margin:0 auto;background:#fff;border:2px solid #0099cc;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#0099cc;position:relative;z-index:1;box-shadow:0 2px 6px rgba(0,153,204,.15)">'+rpIcon(st.icon,'#0099cc',22)+'</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#0a1628;margin-top:8px">'+(i+1)+'. '+esc2(st.label)+'</div>'+
+        '<div style="font-size:10px;color:var(--text2);margin-top:2px;line-height:1.4">'+esc2(st.sub)+'</div>'+
+      '</div>';
+    }).join('')+
+    '</div></div>';
+  return s;
+}
+
 function refreshQuoteProposal(){
   if (!S.quote) return;
   var root = document.getElementById('qpRoot');
@@ -4317,22 +4462,43 @@ function refreshQuoteProposal(){
 
   // ── Cover page ──
   if (on('cover')) {
-    html += '<div class="rp-body rp-page">'+
-      '<div style="text-align:center;padding:30px 0 12px">'+
-        '<div style="font-size:11px;color:var(--accent);letter-spacing:.16em;text-transform:uppercase;font-weight:700;margin-bottom:8px">Roofing Proposal</div>'+
-        '<div style="font-size:30px;font-weight:800;color:#0a1628;line-height:1.1;letter-spacing:-.02em">'+esc2(S.quote.coverTitle || 'Roofing Proposal for ' + (S.quote.client || 'your project'))+'</div>'+
-        '<div style="font-size:13px;color:var(--text2);margin-top:14px;line-height:1.6">Prepared for <strong>'+esc2(S.quote.client||'—')+'</strong>'+
-          (S.quote.addr ? '<br>'+esc2(S.quote.addr) : '')+
+    var hero = resolveSlotSrc('cover_hero');
+    html += '<div class="rp-body rp-page" style="padding:0;background:#fff">'+
+      // Hero band: tall photo with dark overlay + title block.  Falls
+      // back to a sleek navy gradient if no hero photo is assigned.
+      '<div style="position:relative;aspect-ratio:16/9;overflow:hidden;background:#0a1628">'+
+        (hero
+          ? '<img src="'+esc2(hero)+'" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">'
+          : '<div style="position:absolute;inset:0;background:linear-gradient(135deg,#0a1628 0%,#162338 60%,#0099cc 140%)"></div>'
+        )+
+        // Dark gradient overlay so text always sits on a legible base
+        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,22,40,.05) 0%,rgba(10,22,40,.45) 55%,rgba(10,22,40,.92) 100%)"></div>'+
+        // Decorative roof line on the bottom-right
+        '<svg viewBox="0 0 200 80" preserveAspectRatio="xMaxYMax meet" style="position:absolute;right:0;bottom:0;width:46%;height:60%;opacity:.18"><path d="M0 78 L60 30 L120 78 L120 50 L160 18 L200 60" stroke="#0099cc" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>'+
+        // Title block bottom-left
+        '<div style="position:absolute;left:30px;right:30px;bottom:26px;color:#fff">'+
+          '<div style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:rgba(0,153,204,.92);color:#fff;border-radius:20px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:700">'+rpIcon('roof','#fff',13)+'Roofing Proposal</div>'+
+          '<div style="font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1.05;margin-top:14px;max-width:78%;text-shadow:0 2px 12px rgba(0,0,0,.35)">'+esc2(S.quote.coverTitle || 'Roofing Proposal for ' + (S.quote.client || 'your project'))+'</div>'+
+          '<div style="font-size:13px;color:rgba(255,255,255,.85);margin-top:10px;line-height:1.6;text-shadow:0 1px 6px rgba(0,0,0,.4)">Prepared for <strong style="color:#fff">'+esc2(S.quote.client||'—')+'</strong>'+(S.quote.addr ? '  ·  '+esc2(S.quote.addr) : '')+'</div>'+
         '</div>'+
-        '<div style="font-size:12px;color:var(--text2);margin-top:24px">Prepared by '+esc2(company)+' &middot; '+esc2(S.quote.date || '')+'</div>'+
       '</div>'+
-      // Hero image: pulled from the named "cover_hero" slot which the
-      // user can assign in the Quote tab — defaults to job photo #1 then
-      // gallery #1 so existing proposals look the same as before.
-      (function(){
-        var hero = resolveSlotSrc('cover_hero');
-        return hero ? '<div style="margin-top:24px;aspect-ratio:16/9;border-radius:10px;overflow:hidden"><img src="'+esc2(hero)+'" style="width:100%;height:100%;object-fit:cover;display:block"></div>' : '';
-      })()+
+      // Meta strip — three pills sitting underneath the hero band
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-bottom:1px solid var(--border);background:#fff">'+
+        '<div style="padding:14px 22px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text2);font-weight:700">Reference</div><div style="font-size:15px;font-weight:700;color:#0a1628;margin-top:3px">'+esc2(S.quote.ref || 'FR-001')+'</div></div>'+
+        '<div style="padding:14px 22px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text2);font-weight:700">Prepared</div><div style="font-size:15px;font-weight:700;color:#0a1628;margin-top:3px">'+esc2(S.quote.date || '')+'</div></div>'+
+        '<div style="padding:14px 22px;text-align:center"><div style="font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text2);font-weight:700">Valid</div><div style="font-size:15px;font-weight:700;color:#0a1628;margin-top:3px">'+esc2(S.quote.validUntil || '30 days')+'</div></div>'+
+      '</div>'+
+      // "By the numbers" stat strip — gives the cover a credibility hit
+      // before the client turns the page.
+      '<div style="padding:20px 30px 24px;background:linear-gradient(180deg,#fafbfc,#fff)">'+
+        '<div style="font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;color:var(--accent);margin-bottom:10px;text-align:center">Flood Roofing · at a glance</div>'+
+        '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
+          rpStat('award',   '15+',         'Years on the tools', 'Owner-operated')+
+          rpStat('shield',  '25 yr',       'Maxam warranty',     'Backed by NZ Steel')+
+          rpStat('tick',    '10 yr',       'Workmanship',        'Every roof we install')+
+          rpStat('star',    'LBP',         'Licensed Building',   'Northland-based')+
+        '</div>'+
+      '</div>'+
     '</div>';
   }
 
@@ -4340,17 +4506,28 @@ function refreshQuoteProposal(){
   if (on('about')) {
     var aboutText = S.quote.aboutText || (br.about_text) ||
       'Flood Roofing is a Northland-based roofing specialist established in 2016. Owner Aron Flood has 15+ years on the tools — from high-end architectural homes through to large commercial re-roofs — and only hires the best team along the way. We pride ourselves on superior workmanship, premium NZ-made materials, and standing behind every roof we install.';
+    var features = [
+      { icon:'shield', title:'Premium NZ materials',    body:'Colorsteel® Maxam, Endura and other top-tier NZ Steel products only — no parallel imports.' },
+      { icon:'wrench', title:'15+ years on the tools',  body:'Every job is supervised on-site by an experienced lead roofer. Owner-operated.' },
+      { icon:'tick',   title:'10-yr workmanship',       body:'A written workmanship warranty on every roof, in addition to the NZ Steel manufacturer cover.' },
+      { icon:'award',  title:'LBP &amp; insured',        body:'Licensed Building Practitioner. Public liability + contract works cover, SiteSafe certified.' },
+    ];
     html += '<div class="rp-body rp-page">'+
-      '<div class="rp-section"><div class="rp-section-title">About '+esc2(company)+'</div><div class="rp-text">'+(aboutText.split('\n').map(esc2).join('<br>'))+'</div></div>'+
-      '<div class="rp-2col" style="margin-top:18px">'+
-        '<div style="padding:16px;background:var(--surface-2);border-radius:8px">'+
-          '<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--accent);margin-bottom:6px">Our promise</div>'+
-          '<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text);line-height:1.7"><li><strong>Premium NZ materials</strong> — we install Colorsteel Maxam, Endura, and other top-tier NZ Steel products only.</li><li><strong>15+ years on the tools</strong> — every job is supervised on-site by an experienced lead roofer.</li><li><strong>10-year workmanship warranty</strong> — backing every roof we install, in addition to the manufacturer\'s warranty.</li></ul>'+
-        '</div>'+
-        '<div style="padding:16px;background:var(--surface-2);border-radius:8px">'+
-          '<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--accent);margin-bottom:6px">Credentials</div>'+
-          '<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text);line-height:1.7"><li>Licensed Building Practitioner (LBP)</li><li>GST registered &middot; GST No. 120-543-997</li><li>Public liability + contract works insured</li><li>SiteSafe Passport &middot; H&amp;S Code-of-Practice certified</li></ul>'+
-        '</div>'+
+      rpHeading('house', 'About '+esc2(company))+
+      '<div class="rp-text" style="font-size:14px;color:var(--text);line-height:1.75;margin-bottom:18px">'+aboutText.split('\n').map(esc2).join('<br>')+'</div>'+
+      // Feature card grid (4-up)
+      '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:22px">'+
+        features.map(function(f){
+          return '<div style="padding:14px 16px;background:#fff;border:1px solid var(--border);border-radius:10px;display:flex;gap:12px;align-items:flex-start">'+
+            '<div style="width:38px;height:38px;background:linear-gradient(135deg,#e0f5fc,#cdeaf7);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+rpIcon(f.icon,'#0099cc',20)+'</div>'+
+            '<div><div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:3px">'+f.title+'</div><div style="font-size:11.5px;color:var(--text2);line-height:1.55">'+f.body+'</div></div>'+
+          '</div>';
+        }).join('')+
+      '</div>'+
+      // "How we work" process timeline
+      '<div style="padding:18px;background:linear-gradient(180deg,#fafbfc,#fff);border:1px solid var(--border);border-radius:10px;margin-bottom:20px">'+
+        '<div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;color:var(--accent);text-align:center;margin-bottom:14px">How we work</div>'+
+        buildProcessTimeline()+
       '</div>'+
       // Recent work strip — pulls from named recent_1..3 slots, each
       // user-assignable in the Quote tab.  Strip is hidden if every slot
@@ -4371,25 +4548,52 @@ function refreshQuoteProposal(){
 
   // ── Project details ──
   if (on('project')) {
+    // Aggregate ridge / valley / hip lengths from the live roof data
+    // so the stat row reflects what was measured in the Map Roof tab.
+    var sumLen = function(arr){ return (arr||[]).reduce(function(a,x){ return a + (parseFloat(x.lengthM)||0); }, 0); };
+    var ridgeM = sumLen(d.ridges);
+    var valleyM = sumLen(d.valleys);
+    var hipM   = sumLen(d.hips);
+    var nFaces = (d.faces||[]).length;
+    var sheetCount = (S.materials && S.materials.sheets) || (d.sheet_count) || 0;
     html += '<div class="rp-body rp-page">'+
-      '<div class="rp-2col">'+
-        '<div class="rp-section">'+
-          '<div class="rp-section-title">Prepared for</div>'+
-          '<div class="rp-row"><span class="rp-rl">Client</span><span class="rp-rv">'+esc2(S.quote.client||'—')+'</span></div>'+
-          '<div class="rp-row"><span class="rp-rl">Site address</span><span class="rp-rv">'+esc2(S.quote.addr||'—')+'</span></div>'+
-          '<div class="rp-row"><span class="rp-rl">Email</span><span class="rp-rv">'+esc2(S.quote.email||'—')+'</span></div>'+
-          '<div class="rp-row"><span class="rp-rl">Phone</span><span class="rp-rv">'+esc2(phone||'—')+'</span></div>'+
+      rpHeading('clipboard', 'Project details')+
+      // Stat row — pulls live data from S.roofData
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">'+
+        rpStat('area',  (d.area_m2 ? (+d.area_m2).toFixed(1) : '—'), 'Roof area',  'square metres')+
+        rpStat('pitch', (d.pitch ? d.pitch+'°' : '—'),               'Pitch',      'degrees off horizontal')+
+        rpStat('roof',  esc2(d.roof_type || 'Hip'),                  'Roof type',  nFaces ? (nFaces+' faces') : '')+
+        rpStat('ridge', (ridgeM ? ridgeM.toFixed(1)+' m' : '—'),     'Ridge length','total cap run')+
+      '</div>'+
+      // Two-column: roof plan SVG (left) + client + scope (right)
+      '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px;align-items:start">'+
+        '<div style="padding:14px;background:#fff;border:1px solid var(--border);border-radius:10px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">'+
+            '<div style="font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#0a1628;display:flex;align-items:center;gap:6px">'+rpIcon('roof','#0099cc',16)+'Roof plan</div>'+
+            '<div style="font-size:10px;color:var(--text2)">As mapped on site</div>'+
+          '</div>'+
+          buildRoofPlanSvg(d, 520, 320)+
+          ((valleyM || hipM) ? '<div style="display:flex;gap:18px;justify-content:center;margin-top:10px;font-size:11px;color:var(--text2)">'+
+            (valleyM ? '<div><strong style="color:#b45309">Valleys</strong> · '+valleyM.toFixed(1)+' m</div>' : '')+
+            (hipM    ? '<div><strong style="color:#7c3aed">Hips</strong> · '+hipM.toFixed(1)+' m</div>'    : '')+
+            (sheetCount ? '<div><strong style="color:#0369a1">Sheets</strong> · '+sheetCount+'</div>' : '')+
+          '</div>' : '')+
         '</div>'+
-        '<div class="rp-section">'+
-          '<div class="rp-section-title">Roof details</div>'+
-          '<div class="rp-row"><span class="rp-rl">Roof type</span><span class="rp-rv">'+esc2(d.roof_type||'—')+'</span></div>'+
-          '<div class="rp-row"><span class="rp-rl">Roof area</span><span class="rp-rv">'+(d.area_m2 ? esc2(d.area_m2+' m²') : '—')+'</span></div>'+
-          '<div class="rp-row"><span class="rp-rl">Pitch</span><span class="rp-rv">'+(d.pitch ? esc2(d.pitch+'°') : '—')+'</span></div>'+
-          '<div class="rp-row"><span class="rp-rl">Inspector</span><span class="rp-rv">'+esc2(inspector||'—')+'</span></div>'+
+        '<div>'+
+          '<div style="padding:14px 16px;background:var(--surface-2);border-radius:10px;border:1px solid var(--border);margin-bottom:12px">'+
+            '<div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:6px">'+rpIcon('house','#0099cc',14)+'Prepared for</div>'+
+            '<div class="rp-row"><span class="rp-rl">Client</span><span class="rp-rv">'+esc2(S.quote.client||'—')+'</span></div>'+
+            '<div class="rp-row"><span class="rp-rl">Address</span><span class="rp-rv">'+esc2(S.quote.addr||'—')+'</span></div>'+
+            '<div class="rp-row"><span class="rp-rl">Email</span><span class="rp-rv">'+esc2(S.quote.email||'—')+'</span></div>'+
+            '<div class="rp-row"><span class="rp-rl">Phone</span><span class="rp-rv">'+esc2(phone||'—')+'</span></div>'+
+            '<div class="rp-row"><span class="rp-rl">Inspector</span><span class="rp-rv">'+esc2(inspector||'—')+'</span></div>'+
+          '</div>'+
+          (S.quote.scope ? '<div style="padding:14px 16px;background:#fff;border:1px solid var(--border);border-radius:10px">'+
+            '<div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:6px">'+rpIcon('pencil','#0099cc',14)+'Scope summary</div>'+
+            '<div class="rp-text" style="font-size:12.5px">'+S.quote.scope.split('\n').map(esc2).join('<br>')+'</div></div>' : '')+
         '</div>'+
       '</div>'+
-      (S.quote.scope ? '<div class="rp-section" style="margin-top:14px"><div class="rp-section-title">Scope summary</div><div class="rp-text">'+S.quote.scope.split('\n').map(esc2).join('<br>')+'</div></div>' : '')+
-      (photos.length > 1 ? '<div class="rp-section" style="margin-top:14px"><div class="rp-section-title">Site photos</div><div class="rp-photos">'+photos.slice(1, 7).map(function(p){return '<div class="rp-photo-slot"><img src="'+esc2(p.src)+'"></div>';}).join('')+'</div></div>' : '')+
+      (photos.length > 1 ? '<div style="margin-top:18px"><div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;gap:6px">'+rpIcon('clipboard','#0099cc',14)+'Site photos</div><div class="rp-photos">'+photos.slice(1, 7).map(function(p){return '<div class="rp-photo-slot"><img src="'+esc2(p.src)+'"></div>';}).join('')+'</div></div>' : '')+
     '</div>';
   }
 
@@ -4399,32 +4603,40 @@ function refreshQuoteProposal(){
       var optSub = _optTotal(o);
       var optGst = optSub * (S.quote.gstRate/100);
       var optTot = optSub + optGst;
-      html += '<div class="rp-body rp-page rp-option-page" style="border-top:6px solid var(--accent)">'+
-        '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;gap:14px;flex-wrap:wrap">'+
-          '<div>'+
-            '<div style="font-size:10px;color:var(--accent);letter-spacing:.14em;font-weight:700;text-transform:uppercase">Option '+String.fromCharCode(65+oi)+'</div>'+
-            '<div style="font-size:22px;font-weight:800;color:#0a1628;line-height:1.1;margin-top:4px">'+esc2(o.title||'Option')+'</div>'+
+      html += '<div class="rp-body rp-page rp-option-page" style="position:relative;background:#fff">'+
+        // Top accent bar with gradient
+        '<div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#0099cc 0%,#00b4e5 50%,#0099cc 100%)"></div>'+
+        '<div style="display:grid;grid-template-columns:1fr auto;gap:18px;margin-bottom:16px;align-items:stretch">'+
+          '<div style="padding:16px 18px;background:linear-gradient(135deg,#fafbfc,#f1f5f9);border:1px solid var(--border);border-radius:10px">'+
+            '<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#0099cc;color:#fff;border-radius:14px;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase">Option '+String.fromCharCode(65+oi)+'</div>'+
+            '<div style="font-size:22px;font-weight:800;color:#0a1628;line-height:1.15;margin-top:10px;letter-spacing:-.015em">'+esc2(o.title||'Option')+'</div>'+
+            (o.description ? '<div style="font-size:12.5px;color:var(--text2);margin-top:8px;line-height:1.6">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
           '</div>'+
-          '<div style="text-align:right">'+
-            '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Total incl. GST</div>'+
-            '<div style="font-size:26px;font-weight:800;color:#0a1628">'+fmtMoney(optTot)+'</div>'+
-            '<div style="font-size:11px;color:var(--text2)">Subtotal '+fmtMoney(optSub)+' &middot; GST '+fmtMoney(optGst)+'</div>'+
+          '<div style="padding:16px 20px;background:#0a1628;color:#fff;border-radius:10px;min-width:200px;display:flex;flex-direction:column;justify-content:center;text-align:right">'+
+            '<div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;opacity:.65;font-weight:700">Total incl. GST</div>'+
+            '<div style="font-size:30px;font-weight:800;letter-spacing:-.02em;margin-top:3px">'+fmtMoney(optTot)+'</div>'+
+            '<div style="font-size:10.5px;opacity:.65;margin-top:4px">Subtotal '+fmtMoney(optSub)+'  ·  GST '+fmtMoney(optGst)+'</div>'+
           '</div>'+
         '</div>'+
-        (o.description ? '<div class="rp-text" style="margin-bottom:14px;padding:12px 14px;background:var(--surface-2);border-left:3px solid var(--accent);border-radius:0 6px 6px 0">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
         (o.inclusions && o.inclusions.length
-          ? '<div class="rp-section"><div class="rp-section-title">What\'s included</div><ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.7;color:var(--text)">'+o.inclusions.map(function(b){return '<li>'+esc2(b)+'</li>';}).join('')+'</ul></div>'
+          ? '<div class="rp-section">'+rpHeading('tick',"What's included")+
+              '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px 14px">'+
+              o.inclusions.map(function(b){
+                return '<div style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--text);line-height:1.5">'+
+                  '<span style="color:#15803d;flex-shrink:0;margin-top:1px">'+rpIcon('tick','#15803d',14)+'</span>'+esc2(b)+'</div>';
+              }).join('')+'</div></div>'
           : '')+
-        '<div class="rp-section">'+
-          '<div class="rp-section-title">Itemised pricing</div>'+
-          '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="text-align:left;border-bottom:1px solid #ddd"><th style="padding:6px 4px">Description</th><th style="padding:6px 4px;text-align:right;width:60px">Qty</th><th style="padding:6px 4px;text-align:right;width:90px">Unit</th><th style="padding:6px 4px;text-align:right;width:90px">Total</th></tr></thead><tbody>'+
-            (o.lineItems||[]).map(function(li){
+        '<div class="rp-section" style="margin-top:18px">'+rpHeading('pencil','Itemised pricing')+
+          '<table style="width:100%;border-collapse:separate;border-spacing:0;font-size:12px;border:1px solid var(--border);border-radius:8px;overflow:hidden">'+
+            '<thead><tr style="text-align:left;background:#0a1628;color:#fff"><th style="padding:9px 12px;font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase">Description</th><th style="padding:9px 12px;text-align:right;width:60px;font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase">Qty</th><th style="padding:9px 12px;text-align:right;width:90px;font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase">Unit</th><th style="padding:9px 12px;text-align:right;width:100px;font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase">Total</th></tr></thead><tbody>'+
+            (o.lineItems||[]).map(function(li, idx){
               var line = (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);
-              return '<tr style="border-bottom:1px solid #f0f0ee"><td style="padding:5px 4px">'+esc2(li.desc||'—')+'</td><td style="padding:5px 4px;text-align:right">'+(li.qty||0)+'</td><td style="padding:5px 4px;text-align:right">'+fmtMoney(li.unit)+'</td><td style="padding:5px 4px;text-align:right;font-weight:600">'+fmtMoney(line)+'</td></tr>';
+              var bg = idx % 2 === 0 ? '#fff' : '#fafbfc';
+              return '<tr style="background:'+bg+'"><td style="padding:8px 12px;color:var(--text)">'+esc2(li.desc||'—')+'</td><td style="padding:8px 12px;text-align:right">'+(li.qty||0)+'</td><td style="padding:8px 12px;text-align:right">'+fmtMoney(li.unit)+'</td><td style="padding:8px 12px;text-align:right;font-weight:700;color:#0a1628">'+fmtMoney(line)+'</td></tr>';
             }).join('')+
-            '<tr style="border-top:2px solid #0a1628"><td colspan="3" style="padding:7px 4px;text-align:right;font-weight:700">Subtotal</td><td style="padding:7px 4px;text-align:right;font-weight:700">'+fmtMoney(optSub)+'</td></tr>'+
-            '<tr><td colspan="3" style="padding:5px 4px;text-align:right">GST '+S.quote.gstRate+'%</td><td style="padding:5px 4px;text-align:right">'+fmtMoney(optGst)+'</td></tr>'+
-            '<tr style="background:#f5f5f3"><td colspan="3" style="padding:8px 4px;text-align:right;font-weight:700">Total</td><td style="padding:8px 4px;text-align:right;font-weight:700;color:#059669">'+fmtMoney(optTot)+'</td></tr>'+
+            '<tr style="background:#f1f5f9"><td colspan="3" style="padding:8px 12px;text-align:right;font-weight:600;color:var(--text2)">Subtotal</td><td style="padding:8px 12px;text-align:right;font-weight:700;color:#0a1628">'+fmtMoney(optSub)+'</td></tr>'+
+            '<tr style="background:#f1f5f9"><td colspan="3" style="padding:6px 12px;text-align:right;color:var(--text2)">GST '+S.quote.gstRate+'%</td><td style="padding:6px 12px;text-align:right;color:var(--text2)">'+fmtMoney(optGst)+'</td></tr>'+
+            '<tr style="background:linear-gradient(90deg,#0a1628,#1a2740)"><td colspan="3" style="padding:11px 12px;text-align:right;font-weight:700;color:#fff;font-size:13px">Total incl. GST</td><td style="padding:11px 12px;text-align:right;font-weight:800;font-size:14px;color:#0099cc">'+fmtMoney(optTot)+'</td></tr>'+
           '</tbody></table>'+
         '</div>'+
         // Upgrades on the same page
@@ -4519,8 +4731,8 @@ function refreshQuoteProposal(){
   // ── Summary (selectable) ──
   if (on('summary')) {
     var sumOpts = opts.length ? opts : null;
-    html += '<div class="rp-body rp-page" style="background:#fafbfc">'+
-      '<div class="rp-section-title" style="margin-bottom:14px">Summary — please tick the option(s) you\'d like to proceed with</div>'+
+    html += '<div class="rp-body rp-page" style="background:linear-gradient(180deg,#fafbfc,#f1f5f9)">'+
+      rpHeading('tick','Summary — tick the option(s) you\'d like to proceed with')+
       (sumOpts
         ? sumOpts.map(function(o, oi){
             var optSub = _optTotal(o);
@@ -4551,20 +4763,34 @@ function refreshQuoteProposal(){
   // ── Terms & warranty ──
   if (on('terms')) {
     html += '<div class="rp-body rp-page">'+
-      '<div class="rp-section"><div class="rp-section-title">Terms &amp; warranty</div><div class="rp-text">'+
+      '<div class="rp-section">'+rpHeading('shield','Terms &amp; warranty')+'<div class="rp-text">'+
         (S.quote.terms || 'Standard terms — 10-year workmanship warranty. 25% deposit on acceptance, 50% progress payment on completion of roof and gutters, 25% on practical completion. Quote valid 30 days.').split('\n').map(esc2).join('<br>')+
       '</div></div>'+
-      (S.quote.notes ? '<div class="rp-section"><div class="rp-section-title">Customer notes</div><div class="rp-text">'+S.quote.notes.split('\n').map(esc2).join('<br>')+'</div></div>' : '')+
-      '<div class="rp-section" style="margin-top:14px"><div class="rp-section-title">Payment schedule</div><div class="rp-text"><ol style="margin:0;padding-left:20px;line-height:1.8"><li><strong>25% deposit</strong> on quote acceptance — materials ordered.</li><li><strong>50% progress payment</strong> on completion of roof &amp; gutters.</li><li><strong>25% final</strong> on practical completion.</li></ol><p style="margin:10px 0 0;color:var(--text2);font-size:12px">Final payment due by the 20th of the month following completion. 2.5%/mo interest applies to overdue balances.</p></div></div>'+
+      (S.quote.notes ? '<div class="rp-section">'+rpHeading('pencil','Customer notes')+'<div class="rp-text">'+S.quote.notes.split('\n').map(esc2).join('<br>')+'</div></div>' : '')+
+      '<div class="rp-section" style="margin-top:14px">'+rpHeading('clipboard','Payment schedule')+
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">'+
+          [['25%','Deposit','Materials ordered'],['50%','Progress','Roof &amp; gutters complete'],['25%','Final','Practical completion']]
+          .map(function(p,i){
+            return '<div style="padding:14px;background:#fff;border:1px solid var(--border);border-radius:10px;text-align:center;position:relative;overflow:hidden">'+
+              '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#0099cc,#00b4e5)"></div>'+
+              '<div style="font-size:10px;color:var(--accent);letter-spacing:.14em;text-transform:uppercase;font-weight:700">Stage '+(i+1)+'</div>'+
+              '<div style="font-size:28px;font-weight:800;color:#0a1628;letter-spacing:-.02em;margin-top:4px">'+p[0]+'</div>'+
+              '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-top:2px">'+p[1]+'</div>'+
+              '<div style="font-size:11px;color:var(--text2);margin-top:2px">'+p[2]+'</div>'+
+            '</div>';
+          }).join('')+
+        '</div>'+
+        '<div style="font-size:11.5px;color:var(--text2);line-height:1.6;padding:0 4px">Final payment due by the 20th of the month following completion. 2.5%/mo interest applies to overdue balances.</div>'+
+      '</div>'+
     '</div>';
   }
 
   // ── Signature page ──
   if (on('signature')) {
     var dateLine = (S.quote.date || new Date().toLocaleDateString('en-NZ'));
-    html += '<div class="rp-body rp-page" style="background:#fafbfc">'+
-      '<div class="rp-section-title" style="margin-bottom:18px">Acceptance</div>'+
-      '<div style="padding:18px;background:#fff;border:1px solid var(--border);border-radius:10px">'+
+    html += '<div class="rp-body rp-page" style="background:linear-gradient(180deg,#fafbfc,#f1f5f9)">'+
+      rpHeading('signature','Acceptance')+
+      '<div style="padding:22px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 2px 8px rgba(10,22,40,.04)">'+
         '<p style="font-size:13px;color:var(--text);line-height:1.7;margin:0 0 18px">I, <strong>'+esc2(S.quote.client||'—')+'</strong>, accept the option(s) ticked on the summary page and the terms set out in this proposal. Total payable will be confirmed in the variation invoice once option / upgrade selections are finalised.</p>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">'+
           '<div><div style="border-bottom:1px solid #0a1628;height:30px"></div><div style="font-size:11px;color:var(--text2);margin-top:4px">Client signature</div></div>'+
