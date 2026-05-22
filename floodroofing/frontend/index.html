@@ -1561,6 +1561,15 @@ select{
     <div id="galleryGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px"></div>
   </div>
 
+  <!-- Proposal image slots — fixed-ratio positions in the proposal layout -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Proposal image slots
+      <span style="margin-left:6px;font-size:11px;color:var(--text2);font-weight:400">— assign a photo to each fixed-ratio slot in the proposal.</span>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Each slot has a locked aspect ratio so the proposal layout stays consistent. Click <strong>Choose</strong> to pick from <strong>Stock photos</strong>, this job's <strong>Photos</strong> tab, or <strong>Upload</strong> directly. Photos are auto-cropped centred to the slot. Leave a slot unset to fall back to the stock library in order.</div>
+    <div id="slotGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px"></div>
+  </div>
+
   <!-- Full proposal preview (editable via the fields above) -->
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Full proposal preview
@@ -3628,6 +3637,11 @@ function defaultQuote(){
     inclusions: [],
     exclusions: [],
     timeline: [],
+    // Named image slots in the proposal — each slot has a fixed aspect
+    // ratio and is assigned a photo from {stock library, this job's
+    // photos, or a direct upload}.  Missing slots fall back to the
+    // gallery / first job photo so existing proposals keep working.
+    imageSlots: {},
   };
 }
 
@@ -3719,6 +3733,7 @@ function buildQuote(){
   renderProposalOptions();
   renderProposalSectionToggles();
   renderGallery();
+  renderSlotGrid();
   recalcQuoteTotals();
   refreshQuoteProposal();
 }
@@ -3924,8 +3939,9 @@ function toggleProposalSection(key, ev){
 function _galleryArr(){
   if (!S.settings) S.settings = defaultSettings();
   if (!S.settings.branding) S.settings.branding = defaultSettings().branding;
-  if (!Array.isArray(S.settings.branding.gallery_photos)) S.settings.branding.gallery_photos = [];
-  return S.settings.branding.gallery_photos;
+  var br = S.settings.branding;
+  if (!Array.isArray(br.gallery_photos)) br.gallery_photos = [];
+  return br.gallery_photos;
 }
 function addGalleryPhotos(ev){
   var files = ev && ev.target && ev.target.files ? Array.from(ev.target.files) : [];
@@ -3939,6 +3955,7 @@ function addGalleryPhotos(ev){
       pending--;
       if (pending === 0) {
         renderGallery();
+        renderSlotGrid();
         refreshQuoteProposal();
         try { saveSettings && saveSettings(); } catch(e){}
       }
@@ -3950,7 +3967,17 @@ function addGalleryPhotos(ev){
 function removeGalleryPhoto(idx){
   var arr = _galleryArr();
   arr.splice(idx, 1);
+  // Re-index any stock-slot assignments that pointed past the removed photo.
+  var asn = (S.quote && S.quote.imageSlots) || {};
+  Object.keys(asn).forEach(function(k){
+    var a = asn[k];
+    if (a && a.source === 'stock'){
+      if (a.ref === idx) delete asn[k];
+      else if (a.ref > idx) a.ref--;
+    }
+  });
   renderGallery();
+  renderSlotGrid();
   refreshQuoteProposal();
   try { saveSettings && saveSettings(); } catch(e){}
 }
@@ -3974,6 +4001,184 @@ function renderGallery(){
       '<input type="text" value="'+esc2(p.caption||'')+'" placeholder="Caption" oninput="setGalleryCaption('+i+', this.value)" style="position:absolute;bottom:0;left:0;right:0;margin:0;padding:4px 6px;font-size:10px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:0">'+
     '</div>';
   }).join('');
+}
+
+// ── Proposal image slots ─────────────────────────────────────────────
+// Each named slot has a fixed aspect ratio in the rendered proposal.
+// The user assigns a photo per slot from the stock gallery, this job's
+// inspection photos, or a direct file upload.  Unassigned slots fall
+// back to gallery[N] (or for cover_hero, photos[0] then gallery[0]) so
+// historical proposals keep their previous look.
+var PROPOSAL_SLOTS = [
+  { id: 'cover_hero',  label: 'Cover hero',         ratio: '16/9' },
+  { id: 'recent_1',    label: 'Recent work — 1',    ratio: '4/3'  },
+  { id: 'recent_2',    label: 'Recent work — 2',    ratio: '4/3'  },
+  { id: 'recent_3',    label: 'Recent work — 3',    ratio: '4/3'  },
+  { id: 'maxam_1',     label: 'Maxam field — 1',    ratio: '4/3'  },
+  { id: 'maxam_2',     label: 'Maxam field — 2',    ratio: '4/3'  },
+  { id: 'maxam_3',     label: 'Maxam field — 3',    ratio: '4/3'  },
+  { id: 'maxam_4',     label: 'Maxam field — 4',    ratio: '4/3'  },
+];
+function _slotAssignments(){
+  if (!S.quote) S.quote = defaultQuote();
+  if (!S.quote.imageSlots) S.quote.imageSlots = {};
+  return S.quote.imageSlots;
+}
+function resolveSlotSrc(slotId){
+  var asn = _slotAssignments()[slotId];
+  var ga = _galleryArr();
+  var ph = S.photos || [];
+  if (asn){
+    if (asn.source === 'upload' && asn.dataUrl) return asn.dataUrl;
+    if (asn.source === 'job'){
+      var p = ph[asn.ref|0];
+      if (p && p.src) return p.src;
+    }
+    if (asn.source === 'stock'){
+      var g = ga[asn.ref|0];
+      if (g && g.src) return g.src;
+    }
+  }
+  if (slotId === 'cover_hero')
+    return (ph[0] && ph[0].src) || (ga[0] && ga[0].src) || null;
+  var m = slotId.match(/^(?:recent|maxam)_(\d+)$/);
+  if (m){
+    var idx = parseInt(m[1], 10) - 1;
+    return (ga[idx] && ga[idx].src) || null;
+  }
+  return null;
+}
+function resolveSlotCaption(slotId){
+  var asn = _slotAssignments()[slotId];
+  var ga = _galleryArr();
+  var ph = S.photos || [];
+  if (asn){
+    if (asn.caption) return asn.caption;
+    if (asn.source === 'job'){
+      var p = ph[asn.ref|0]; if (p && p.caption) return p.caption;
+    }
+    if (asn.source === 'stock'){
+      var g = ga[asn.ref|0]; if (g && g.caption) return g.caption;
+    }
+    return '';
+  }
+  if (slotId === 'cover_hero') return '';
+  var m = slotId.match(/^(?:recent|maxam)_(\d+)$/);
+  if (m){
+    var idx = parseInt(m[1], 10) - 1;
+    return (ga[idx] && ga[idx].caption) || '';
+  }
+  return '';
+}
+function renderSlotGrid(){
+  var host = document.getElementById('slotGrid');
+  if (!host) return;
+  var asnMap = _slotAssignments();
+  host.innerHTML = PROPOSAL_SLOTS.map(function(s){
+    var src = resolveSlotSrc(s.id);
+    var asn = asnMap[s.id];
+    var srcLabel = !asn ? 'Default'
+      : asn.source === 'stock'  ? 'Stock #' + ((asn.ref|0) + 1)
+      : asn.source === 'job'    ? 'Job photo #' + ((asn.ref|0) + 1)
+      : asn.source === 'upload' ? 'Uploaded'
+      : 'Default';
+    return '<div style="border:1px solid var(--border);border-radius:8px;padding:8px;background:var(--surface-2)">'+
+      '<div style="aspect-ratio:'+s.ratio+';background:#0a1018;border-radius:6px;overflow:hidden;display:flex;align-items:center;justify-content:center;margin-bottom:6px">'+
+        (src ? '<img src="'+esc2(src)+'" style="width:100%;height:100%;object-fit:cover">'
+             : '<div style="color:#5b6677;font-size:11px">empty</div>') +
+      '</div>'+
+      '<div style="font-size:11px;font-weight:600;color:var(--text)">'+esc2(s.label)+'</div>'+
+      '<div style="font-size:10px;color:var(--text2);margin-bottom:6px">'+s.ratio+' · '+esc2(srcLabel)+'</div>'+
+      '<div style="display:flex;gap:4px">'+
+        '<button onclick="openSlotPicker(\''+s.id+'\')" style="flex:1;padding:5px 8px;background:#0099cc;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600">Choose</button>'+
+        (asn ? '<button onclick="clearSlot(\''+s.id+'\')" title="Reset to default" style="padding:5px 8px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer">↺</button>' : '')+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+var _slotPickerActive = null;
+function openSlotPicker(slotId){
+  _slotPickerActive = slotId;
+  var modal = document.getElementById('slotPickerModal');
+  if (modal){
+    var ttl = document.getElementById('slotPickerTitle');
+    var spec = PROPOSAL_SLOTS.filter(function(s){return s.id===slotId;})[0];
+    if (ttl && spec) ttl.textContent = 'Choose photo — ' + spec.label + ' (' + spec.ratio + ')';
+    modal.style.display = 'flex';
+  }
+  slotPickerTab('stock');
+}
+function closeSlotPicker(){
+  var modal = document.getElementById('slotPickerModal');
+  if (modal) modal.style.display = 'none';
+  _slotPickerActive = null;
+}
+function slotPickerTab(tab){
+  var body = document.getElementById('slotPickerBody');
+  if (!body) return;
+  Array.from(document.querySelectorAll('#slotPickerModal .slot-tab')).forEach(function(t){
+    var on = t.dataset.tab === tab;
+    t.style.borderBottomColor = on ? '#0099cc' : 'transparent';
+    t.style.color = on ? '#0099cc' : '';
+    t.style.fontWeight = on ? '600' : '400';
+  });
+  if (tab === 'stock'){
+    var arr = _galleryArr();
+    if (!arr.length){
+      body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px">No stock photos yet. Add some via the <strong>Stock proposal photos</strong> card.</div>';
+      return;
+    }
+    body.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">'+
+      arr.map(function(p, i){
+        return '<div onclick="assignSlot(\'stock\','+i+')" style="cursor:pointer;border-radius:6px;overflow:hidden;background:#000;aspect-ratio:4/3;position:relative">'+
+          '<img src="'+esc2(p.src)+'" style="width:100%;height:100%;object-fit:cover">'+
+          (p.caption?'<div style="position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.6);color:#fff;font-size:10px">'+esc2(p.caption)+'</div>':'')+
+        '</div>';
+      }).join('') + '</div>';
+  } else if (tab === 'job'){
+    var ph = S.photos || [];
+    if (!ph.length){
+      body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px">No photos on this inspection yet. Upload some via the <strong>Photos</strong> tab.</div>';
+      return;
+    }
+    body.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">'+
+      ph.map(function(p, i){
+        return '<div onclick="assignSlot(\'job\','+i+')" style="cursor:pointer;border-radius:6px;overflow:hidden;background:#000;aspect-ratio:4/3;position:relative">'+
+          '<img src="'+esc2(p.src)+'" style="width:100%;height:100%;object-fit:cover">'+
+          (p.caption?'<div style="position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.6);color:#fff;font-size:10px">'+esc2(p.caption)+'</div>':'')+
+        '</div>';
+      }).join('') + '</div>';
+  } else if (tab === 'upload'){
+    body.innerHTML = '<div style="padding:32px;text-align:center">'+
+      '<label style="display:inline-block;padding:12px 22px;background:#0099cc;color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Choose file<input type="file" accept="image/*" style="display:none" onchange="uploadSlotFile(event)"></label>'+
+      '<div style="font-size:11px;color:var(--text2);margin-top:10px">Saves to this proposal only. Use <strong>Stock proposal photos</strong> for re-usable photos.</div>'+
+    '</div>';
+  }
+}
+function assignSlot(source, ref){
+  if (!_slotPickerActive) return;
+  _slotAssignments()[_slotPickerActive] = { source: source, ref: ref };
+  closeSlotPicker();
+  renderSlotGrid();
+  refreshQuoteProposal();
+}
+function uploadSlotFile(ev){
+  var f = ev && ev.target && ev.target.files && ev.target.files[0];
+  if (!f) return;
+  var slotId = _slotPickerActive;
+  var r = new FileReader();
+  r.onload = function(e){
+    if (!slotId) return;
+    _slotAssignments()[slotId] = { source: 'upload', dataUrl: e.target.result };
+    closeSlotPicker();
+    renderSlotGrid();
+    refreshQuoteProposal();
+  };
+  r.readAsDataURL(f);
+}
+function clearSlot(slotId){
+  var m = _slotAssignments();
+  if (m[slotId]){ delete m[slotId]; renderSlotGrid(); refreshQuoteProposal(); }
 }
 
 function onQuoteEdit(){
@@ -4077,7 +4282,7 @@ function refreshQuoteProposal(){
   //             proposal.  Show on Cover hero, About strip, Maxam page.
   //   photos  — job-specific photos uploaded under this inspection.
   //             Show on Project details only.
-  var gallery = (br.gallery_photos || []).filter(function(p){return p && p.src;});
+  var gallery = (_galleryArr() || []).filter(function(p){return p && p.src;});
   var photos  = (S.photos||[]).filter(function(p){return p && p.src;}).slice(0, 8);
   var sub0 = quoteSubtotal();
   var gst0 = sub0 * (S.quote.gstRate/100);
@@ -4121,11 +4326,12 @@ function refreshQuoteProposal(){
         '</div>'+
         '<div style="font-size:12px;color:var(--text2);margin-top:24px">Prepared by '+esc2(company)+' &middot; '+esc2(S.quote.date || '')+'</div>'+
       '</div>'+
-      // Hero image: prefer a job-specific site photo; fall back to the
-      // first stock gallery photo so the cover always has a hero shot.
+      // Hero image: pulled from the named "cover_hero" slot which the
+      // user can assign in the Quote tab — defaults to job photo #1 then
+      // gallery #1 so existing proposals look the same as before.
       (function(){
-        var hero = (photos[0] && photos[0].src) || (gallery[0] && gallery[0].src);
-        return hero ? '<div style="margin-top:24px"><img src="'+esc2(hero)+'" style="width:100%;max-height:320px;object-fit:cover;border-radius:10px"></div>' : '';
+        var hero = resolveSlotSrc('cover_hero');
+        return hero ? '<div style="margin-top:24px;aspect-ratio:16/9;border-radius:10px;overflow:hidden"><img src="'+esc2(hero)+'" style="width:100%;height:100%;object-fit:cover;display:block"></div>' : '';
       })()+
     '</div>';
   }
@@ -4146,13 +4352,20 @@ function refreshQuoteProposal(){
           '<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text);line-height:1.7"><li>Licensed Building Practitioner (LBP)</li><li>GST registered &middot; GST No. 120-543-997</li><li>Public liability + contract works insured</li><li>SiteSafe Passport &middot; H&amp;S Code-of-Practice certified</li></ul>'+
         '</div>'+
       '</div>'+
-      // Recent work strip — pulls from the stock photo library so every
-      // proposal showcases past Colorsteel jobs.
-      (gallery.length ? '<div class="rp-section" style="margin-top:20px"><div class="rp-section-title">Recent Colorsteel work</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+
-        gallery.slice(0, 6).map(function(p){
-          return '<div style="aspect-ratio:4/3;border-radius:6px;overflow:hidden;background:#000;position:relative"><img src="'+esc2(p.src)+'" style="width:100%;height:100%;object-fit:cover">'+(p.caption?'<div style="position:absolute;bottom:0;left:0;right:0;padding:4px 8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px">'+esc2(p.caption)+'</div>':'')+'</div>';
-        }).join('')+
-      '</div></div>' : '')+
+      // Recent work strip — pulls from named recent_1..3 slots, each
+      // user-assignable in the Quote tab.  Strip is hidden if every slot
+      // resolves to nothing (e.g. brand-new account with empty gallery).
+      (function(){
+        var slots = ['recent_1','recent_2','recent_3'].map(function(id){
+          return { src: resolveSlotSrc(id), cap: resolveSlotCaption(id) };
+        }).filter(function(x){return x.src;});
+        if (!slots.length) return '';
+        return '<div class="rp-section" style="margin-top:20px"><div class="rp-section-title">Recent Colorsteel work</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+
+          slots.map(function(s){
+            return '<div style="aspect-ratio:4/3;border-radius:6px;overflow:hidden;background:#000;position:relative"><img src="'+esc2(s.src)+'" style="width:100%;height:100%;object-fit:cover">'+(s.cap?'<div style="position:absolute;bottom:0;left:0;right:0;padding:4px 8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px">'+esc2(s.cap)+'</div>':'')+'</div>';
+          }).join('')+
+        '</div></div>';
+      })()+
     '</div>';
   }
 
@@ -4261,10 +4474,13 @@ function refreshQuoteProposal(){
         return '<div style="aspect-ratio:1/1.05;border-radius:6px;background:'+c.hex+';position:relative;border:1px solid rgba(0,0,0,.08);overflow:hidden;display:flex;align-items:flex-end;padding:5px 6px"><div style="font-size:9.5px;font-weight:700;line-height:1.15;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.35)':'none')+'">'+esc2(c.name)+'</div></div>';
       }).join('')+
       '</div><div style="font-size:10.5px;color:var(--text2);margin-top:6px;line-height:1.5">Approximate colour rendering — final selection from NZ Steel\'s physical Colorsteel® Maxam chip card. Premium and standard colours both at no extra charge.</div></div>';
-    // "Maxam in action" photo strip — uses the stock gallery if present.
-    var maxamPhotos = gallery.length ? '<div class="rp-section" style="margin-top:14px"><div class="rp-section-title">Maxam in the field</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'+
-      gallery.slice(0, 4).map(function(p){
-        return '<div style="aspect-ratio:4/3;border-radius:6px;overflow:hidden;background:#000;position:relative"><img src="'+esc2(p.src)+'" style="width:100%;height:100%;object-fit:cover">'+(p.caption?'<div style="position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.6);color:#fff;font-size:10px">'+esc2(p.caption)+'</div>':'')+'</div>';
+    // "Maxam in the field" photo strip — driven by named maxam_1..4 slots.
+    var maxamSlots = ['maxam_1','maxam_2','maxam_3','maxam_4'].map(function(id){
+      return { src: resolveSlotSrc(id), cap: resolveSlotCaption(id) };
+    }).filter(function(x){return x.src;});
+    var maxamPhotos = maxamSlots.length ? '<div class="rp-section" style="margin-top:14px"><div class="rp-section-title">Maxam in the field</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'+
+      maxamSlots.map(function(s){
+        return '<div style="aspect-ratio:4/3;border-radius:6px;overflow:hidden;background:#000;position:relative"><img src="'+esc2(s.src)+'" style="width:100%;height:100%;object-fit:cover">'+(s.cap?'<div style="position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.6);color:#fff;font-size:10px">'+esc2(s.cap)+'</div>':'')+'</div>';
       }).join('')+
       '</div></div>' : '';
     html += '<div class="rp-body rp-page" style="background:linear-gradient(135deg,#fafbfc,#eef2f7);position:relative">'+
@@ -10757,6 +10973,23 @@ document.addEventListener('mousedown',function(e){
 
 })();
 </script>
+
+<!-- Image-slot picker modal (lives outside any tab so it overlays the app) -->
+<div id="slotPickerModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(8,14,28,0.72);z-index:5000;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)closeSlotPicker()">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:760px;width:100%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div style="display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)">
+      <div id="slotPickerTitle" style="flex:1;font-size:15px;font-weight:600;color:var(--text)">Choose photo</div>
+      <button onclick="closeSlotPicker()" style="background:transparent;border:none;color:var(--text2);font-size:22px;line-height:1;cursor:pointer;padding:2px 8px">×</button>
+    </div>
+    <div style="display:flex;border-bottom:1px solid var(--border);padding:0 18px;gap:18px">
+      <button class="slot-tab" data-tab="stock"  onclick="slotPickerTab('stock')"  style="padding:10px 0;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--text2)">Stock photos</button>
+      <button class="slot-tab" data-tab="job"    onclick="slotPickerTab('job')"    style="padding:10px 0;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--text2)">Job photos</button>
+      <button class="slot-tab" data-tab="upload" onclick="slotPickerTab('upload')" style="padding:10px 0;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--text2)">Upload from file</button>
+    </div>
+    <div id="slotPickerBody" style="flex:1;padding:14px 18px;overflow:auto"></div>
+  </div>
+</div>
+
 </body>
 <script>
 // Multi-roof dispatcher: when several roofs are drawn, iterate each and
