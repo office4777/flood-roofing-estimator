@@ -3924,8 +3924,9 @@ function toggleProposalSection(key, ev){
 function _galleryArr(){
   if (!S.settings) S.settings = defaultSettings();
   if (!S.settings.branding) S.settings.branding = defaultSettings().branding;
-  if (!Array.isArray(S.settings.branding.gallery_photos)) S.settings.branding.gallery_photos = [];
-  return S.settings.branding.gallery_photos;
+  var br = S.settings.branding;
+  if (!Array.isArray(br.gallery_photos)) br.gallery_photos = [];
+  return br.gallery_photos;
 }
 function addGalleryPhotos(ev){
   var files = ev && ev.target && ev.target.files ? Array.from(ev.target.files) : [];
@@ -4077,7 +4078,7 @@ function refreshQuoteProposal(){
   //             proposal.  Show on Cover hero, About strip, Maxam page.
   //   photos  — job-specific photos uploaded under this inspection.
   //             Show on Project details only.
-  var gallery = (br.gallery_photos || []).filter(function(p){return p && p.src;});
+  var gallery = (_galleryArr() || []).filter(function(p){return p && p.src;});
   var photos  = (S.photos||[]).filter(function(p){return p && p.src;}).slice(0, 8);
   var sub0 = quoteSubtotal();
   var gst0 = sub0 * (S.quote.gstRate/100);
