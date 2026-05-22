@@ -55,6 +55,21 @@ app.options('*', cors(corsOptions));
 // 25mb cap so saved jobs can include a base64 roof image + photos
 app.use(express.json({ limit: '25mb' }));
 
+// Health-check + visible status root.  `/` is the easiest URL to type
+// in a browser and it now returns JSON so we can confirm which build
+// of the backend is live without having to dig into a real route.
+const BUILD_SHA = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_SHA || 'unknown').slice(0, 7);
+app.get('/', (req, res) => {
+  res.json({
+    service: 'flood-roofing-estimator-backend',
+    status: 'ok',
+    build: BUILD_SHA,
+    corsAllow: 'localhost + *.vercel.app (flood-roofing-estimator-*) + FRONTEND_URL',
+    time: new Date().toISOString(),
+  });
+});
+app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA }));
+
 function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'No token' });
