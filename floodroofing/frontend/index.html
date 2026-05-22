@@ -605,6 +605,12 @@ select{
 .rp-breakdown{font-size:11px;opacity:.65;text-align:right;line-height:1.8}
 .rp-footer{background:var(--surface-2);padding:12px 30px;font-size:11px;color:var(--text2);display:flex;justify-content:space-between;border-top:1px solid var(--border)}
 .rp-scope-list{font-size:13px;color:var(--text);line-height:2}
+/* Page-break helpers for the multi-section proposal preview.  Each
+   .rp-page becomes its own page when printing so options, the Maxam
+   spotlight, summary and signature lines all land on clean sheets. */
+.rp-page{border-top:1px solid var(--border)}
+.rp-page:first-of-type{border-top:none}
+@media print{.rp-page{page-break-before:always;break-before:page}.rp-page:first-of-type{page-break-before:auto;break-before:auto}}
 .rp-cond-badge{display:inline-block;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:600}
 .cond-good{background:#eaf3de;color:#27500a}.cond-fair{background:#faeeda;color:#633806}.cond-poor{background:#fcebeb;color:#791f1f}
 
@@ -1522,61 +1528,48 @@ select{
     </div>
   </div>
 
+  <!-- Proposal options: selectable packages the client can choose between -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Proposal options
+      <span style="margin-left:6px;font-size:11px;color:var(--text2);font-weight:400">— give the client 2–3 packages to pick from</span>
+      <button onclick="addProposalOption()" style="margin-left:auto;padding:5px 12px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">+ Add option</button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Each option becomes its own page in the printed proposal. The client tick-selects which option(s) they want — the summary page rolls up the selected total in real time.</div>
+    <div id="qProposalOptions"></div>
+  </div>
+
+  <!-- Proposal section toggles -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Proposal sections</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Tick which sections to include in the printed/emailed proposal.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px" id="qProposalSections">
+      <!-- populated by renderProposalSectionToggles() -->
+    </div>
+    <label style="display:block;margin-top:14px"><span style="font-size:11px;color:var(--text2);margin-bottom:4px;display:block">Proposal cover title <span style="color:var(--text3);font-weight:400">(optional — defaults to "Roofing Proposal")</span></span><input type="text" id="qdCoverTitle" placeholder="e.g. Roof Replacement Proposal — Smith Residence" oninput="onQuoteEdit()"></label>
+    <label style="display:block;margin-top:10px"><span style="font-size:11px;color:var(--text2);margin-bottom:4px;display:block">"About us" blurb <span style="color:var(--text3);font-weight:400">(used on the company-profile page — falls back to settings → branding)</span></span><textarea id="qdAboutText" rows="3" oninput="onQuoteEdit()" placeholder="Founded in 2016, Flood Roofing is a proud Northland-based roofing company…"></textarea></label>
+  </div>
+
   <!-- Full proposal preview (editable via the fields above) -->
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Full proposal preview
       <button onclick="refreshQuoteProposal()" style="margin-left:auto;padding:4px 10px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
     </div>
+    <!-- The proposal preview is rendered into qpRoot by refreshQuoteProposal().
+         The hidden placeholders below are kept so legacy ID lookups still
+         resolve (some other code reads qpClient / qpTotal etc.). -->
     <div class="report-preview" id="quoteProposal">
-      <div class="rp-header">
-        <div>
-          <img id="qpLogo" alt="logo" style="max-height:50px;max-width:200px;display:none;margin-bottom:8px">
-          <div class="rp-logo-name" id="qpCompany">FLOOD ROOFING</div>
-          <div class="rp-logo-tag" id="qpTagline">NORTHLAND'S ROOFING SPECIALISTS</div>
-          <div class="rp-logo-stripe"></div>
-          <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:6px" id="qpContact">floodroofing.co.nz | Whangarei, NZ</div>
-        </div>
-        <div class="rp-hdr-right"><strong>Roofing Quote &amp; Proposal</strong><span id="qpDate"></span><br>Ref: <span id="qpRef">FR-001</span><br>Valid: <span id="qpValid">30 days</span></div>
-      </div>
-      <div class="rp-body">
-        <div class="rp-2col">
-          <div class="rp-section">
-            <div class="rp-section-title">Prepared for</div>
-            <div class="rp-row"><span class="rp-rl">Client</span><span class="rp-rv" id="qpClient">—</span></div>
-            <div class="rp-row"><span class="rp-rl">Site address</span><span class="rp-rv" id="qpAddr">—</span></div>
-            <div class="rp-row"><span class="rp-rl">Email</span><span class="rp-rv" id="qpEmail">—</span></div>
-            <div class="rp-row"><span class="rp-rl">Phone</span><span class="rp-rv" id="qpPhone">—</span></div>
-          </div>
-          <div class="rp-section">
-            <div class="rp-section-title">Roof details</div>
-            <div class="rp-row"><span class="rp-rl">Roof type</span><span class="rp-rv" id="qpRoofType">—</span></div>
-            <div class="rp-row"><span class="rp-rl">Roof area</span><span class="rp-rv" id="qpArea">—</span></div>
-            <div class="rp-row"><span class="rp-rl">Pitch</span><span class="rp-rv" id="qpPitch">—</span></div>
-            <div class="rp-row"><span class="rp-rl">Inspector</span><span class="rp-rv" id="qpInspector">—</span></div>
-          </div>
-        </div>
-        <div class="rp-section"><div class="rp-section-title">Scope of works</div><div class="rp-text" id="qpScope">—</div></div>
-        <div class="rp-section">
-          <div class="rp-section-title">Itemised pricing</div>
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
-            <thead><tr style="text-align:left;border-bottom:1px solid #ddd">
-              <th style="padding:6px 4px">Description</th>
-              <th style="padding:6px 4px;text-align:right;width:60px">Qty</th>
-              <th style="padding:6px 4px;text-align:right;width:90px">Unit</th>
-              <th style="padding:6px 4px;text-align:right;width:90px">Total</th>
-            </tr></thead>
-            <tbody id="qpLineBody"></tbody>
-          </table>
-        </div>
-        <div class="rp-section"><div class="rp-section-title">Notes</div><div class="rp-text" id="qpNotes">—</div></div>
-        <div class="rp-section"><div class="rp-section-title">Site photos</div><div class="rp-photos" id="qpPhotos"></div></div>
-        <div class="rp-section"><div class="rp-section-title">Terms &amp; warranty</div><div class="rp-text" id="qpTerms">—</div></div>
-      </div>
-      <div class="rp-summary-bar">
-        <div><div class="rp-total-lbl">Total quoted (incl. <span id="qpGstLbl">15%</span> GST)</div><div class="rp-total-val" id="qpTotal">$0.00</div></div>
-        <div class="rp-breakdown" id="qpBreakdown">Subtotal $0.00<br>GST $0.00</div>
-      </div>
-      <div class="rp-footer"><span id="qpFooter">Flood Roofing Ltd | Whangarei, Northland, NZ | floodroofing.co.nz</span><span id="qpGenDate"></span></div>
+      <div id="qpRoot"></div>
+    </div>
+    <!-- Legacy ID anchors kept for backwards compatibility with other tabs -->
+    <div style="display:none">
+      <span id="qpCompany"></span><span id="qpTagline"></span><span id="qpContact"></span>
+      <span id="qpDate"></span><span id="qpRef"></span><span id="qpValid"></span>
+      <span id="qpClient"></span><span id="qpAddr"></span><span id="qpEmail"></span><span id="qpPhone"></span>
+      <span id="qpRoofType"></span><span id="qpArea"></span><span id="qpPitch"></span><span id="qpInspector"></span>
+      <span id="qpScope"></span><span id="qpNotes"></span><span id="qpTerms"></span>
+      <span id="qpGstLbl"></span><span id="qpTotal"></span><span id="qpBreakdown"></span>
+      <span id="qpFooter"></span><span id="qpGenDate"></span>
+      <img id="qpLogo"><div id="qpPhotos"></div><tbody id="qpLineBody"></tbody>
     </div>
   </div>
 </div>
@@ -3599,7 +3592,57 @@ function defaultQuote(){
     notes: scopeNotes,
     terms: terms,
     gstRate: parseFloat(gst) || 15,
-    lineItems: defaultQuoteLineItems()
+    lineItems: defaultQuoteLineItems(),
+    // Multi-option proposal: selectable packages the client can choose
+    // between, each with its own inclusions/scope, line items and
+    // optional upgrades.  Empty by default — the legacy flat
+    // line-items list stays the default until the user adds options.
+    options: [],
+    selectedOptionIds: [],     // ids of options + upgrades the client ticked
+    // Long-form proposal sections — toggle on/off in the editor.
+    proposalSections: {
+      cover: true, about: true, project: true,
+      options: true, maxam: true, summary: true,
+      terms: true, signature: true,
+    },
+    coverTitle: '',
+    aboutText: '',
+    inclusions: [],
+    exclusions: [],
+    timeline: [],
+  };
+}
+
+// Sample option used when the user clicks "+ Add option" for the
+// first time.  Pre-fills sensible Flood-Roofing scope so they can
+// just edit, not start from scratch.
+function defaultProposalOption(name){
+  return {
+    id: 'opt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    title: name || 'Option — Colorsteel Maxam Corrugate Re-roof',
+    description: 'Full strip and re-roof using Colorsteel Maxam corrugate over a Thermakraft Covertek 405 underlay. Maxam is NZ Steel’s premium pre-painted coil — backed by a 25-year* perforation warranty in severe coastal/marine environments. (*subject to NZ Steel’s published exposure zones).',
+    inclusions: [
+      'Set up safety / edge protection around the building perimeter',
+      'Strip and cart away the existing roof and underlay',
+      'Inspect and replace any rotten or damaged battens (POA per LM)',
+      'Install Thermakraft Covertek 405 underlay',
+      'Supply & install 0.55bmt Colorsteel Maxam corrugate (or selected profile)',
+      'Supply & install all associated apron, ridge, barge, valley and pipe flashings',
+      'Supply & install seamless Colonial Quad spouting with downpipes',
+      'Final site clean and waste disposal',
+    ],
+    lineItems: defaultQuoteLineItems(),
+    upgrades: [],
+    isPrimary: true,
+  };
+}
+
+function defaultProposalUpgrade(name){
+  return {
+    id: 'upg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    title: name || 'Upgrade — Continuous Colonial Quad spouting',
+    description: 'Single seamless run with no joins.  Better long-term water-tightness than jointed spouting.',
+    lineItems: [{desc:'Continuous spouting upgrade', qty:1, unit:0}],
   };
 }
 
@@ -3633,7 +3676,11 @@ function buildQuote(){
   set('qdNotes',      S.quote.notes);
   set('qtTerms',      S.quote.terms);
   set('qdGstRate',    String(S.quote.gstRate));
+  set('qdCoverTitle', S.quote.coverTitle || '');
+  set('qdAboutText',  S.quote.aboutText  || '');
   renderQuoteLines();
+  renderProposalOptions();
+  renderProposalSectionToggles();
   recalcQuoteTotals();
   refreshQuoteProposal();
 }
@@ -3651,6 +3698,188 @@ function readQuoteFromInputs(){
   q.notes      = val('qdNotes');
   q.terms      = val('qtTerms');
   q.gstRate    = parseFloat(val('qdGstRate')) || 0;
+  q.coverTitle = val('qdCoverTitle');
+  q.aboutText  = val('qdAboutText');
+}
+
+// ── Proposal-options editor ──────────────────────────────────────────
+function addProposalOption(){
+  if (!S.quote) S.quote = defaultQuote();
+  if (!Array.isArray(S.quote.options)) S.quote.options = [];
+  var idx = S.quote.options.length;
+  var name = idx === 0 ? 'Option A — Colorsteel Maxam Corrugate Re-roof'
+           : idx === 1 ? 'Option B — Colorsteel Endura (budget-friendly)'
+           : 'Option ' + String.fromCharCode(65 + idx) + ' — ';
+  S.quote.options.push(defaultProposalOption(name));
+  renderProposalOptions();
+  refreshQuoteProposal();
+}
+function removeProposalOption(id){
+  if (!S.quote || !S.quote.options) return;
+  S.quote.options = S.quote.options.filter(function(o){return o.id !== id;});
+  renderProposalOptions();
+  refreshQuoteProposal();
+}
+function addProposalUpgrade(optId){
+  if (!S.quote || !S.quote.options) return;
+  var o = S.quote.options.find(function(x){return x.id === optId;});
+  if (!o) return;
+  if (!Array.isArray(o.upgrades)) o.upgrades = [];
+  o.upgrades.push(defaultProposalUpgrade());
+  renderProposalOptions();
+  refreshQuoteProposal();
+}
+function removeProposalUpgrade(optId, upgId){
+  if (!S.quote || !S.quote.options) return;
+  var o = S.quote.options.find(function(x){return x.id === optId;});
+  if (!o || !o.upgrades) return;
+  o.upgrades = o.upgrades.filter(function(u){return u.id !== upgId;});
+  renderProposalOptions();
+  refreshQuoteProposal();
+}
+function _findOptOrUpgrade(optId, upgId){
+  if (!S.quote || !S.quote.options) return null;
+  var o = S.quote.options.find(function(x){return x.id === optId;});
+  if (!o) return null;
+  if (!upgId) return o;
+  if (!o.upgrades) return null;
+  return o.upgrades.find(function(u){return u.id === upgId;});
+}
+function updateOptField(optId, upgId, field, value){
+  var t = _findOptOrUpgrade(optId, upgId);
+  if (!t) return;
+  if (field === 'inclusionsText') {
+    t.inclusions = value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  } else {
+    t[field] = value;
+  }
+  refreshQuoteProposal();
+}
+function addOptLine(optId, upgId){
+  var t = _findOptOrUpgrade(optId, upgId);
+  if (!t) return;
+  if (!Array.isArray(t.lineItems)) t.lineItems = [];
+  t.lineItems.push({desc:'', qty:1, unit:0});
+  renderProposalOptions();
+  refreshQuoteProposal();
+}
+function removeOptLine(optId, upgId, idx){
+  var t = _findOptOrUpgrade(optId, upgId);
+  if (!t || !t.lineItems) return;
+  t.lineItems.splice(idx, 1);
+  renderProposalOptions();
+  refreshQuoteProposal();
+}
+function updateOptLine(optId, upgId, idx, field, value){
+  var t = _findOptOrUpgrade(optId, upgId);
+  if (!t || !t.lineItems || !t.lineItems[idx]) return;
+  t.lineItems[idx][field] = (field === 'desc') ? value : (parseFloat(value)||0);
+  refreshQuoteProposal();
+}
+
+function _optTotal(o){
+  var sub = 0;
+  (o.lineItems||[]).forEach(function(li){
+    sub += (parseFloat(li.qty)||0) * (parseFloat(li.unit)||0);
+  });
+  return sub;
+}
+
+function renderProposalOptions(){
+  var host = document.getElementById('qProposalOptions');
+  if (!host) return;
+  var opts = (S.quote && S.quote.options) || [];
+  if (!opts.length) {
+    host.innerHTML = '<div style="padding:14px;background:var(--surface-2);border:1px dashed var(--border);border-radius:8px;font-size:12px;color:var(--text2);text-align:center">No options yet — click <strong>+ Add option</strong> to give the client a choice of packages (e.g. Colorsteel Maxam vs. Endura, hip vs. gable, etc.).</div>';
+    return;
+  }
+  host.innerHTML = opts.map(function(o, i){
+    var sub = _optTotal(o);
+    var inclText = (o.inclusions||[]).join('\n');
+    var lineRows = (o.lineItems||[]).map(function(li, idx){
+      return '<tr>'+
+        '<td style="padding:4px 6px"><input type="text" value="'+esc2(li.desc||'')+'" oninput="updateOptLine(\''+o.id+'\', null, '+idx+', \'desc\', this.value)" style="width:100%;margin:0;padding:5px 8px;font-size:12px"></td>'+
+        '<td style="padding:4px 6px;width:70px"><input type="number" value="'+(li.qty||0)+'" oninput="updateOptLine(\''+o.id+'\', null, '+idx+', \'qty\', this.value)" style="width:100%;margin:0;padding:5px 8px;font-size:12px;text-align:right"></td>'+
+        '<td style="padding:4px 6px;width:90px"><input type="number" value="'+(li.unit||0)+'" step="0.01" oninput="updateOptLine(\''+o.id+'\', null, '+idx+', \'unit\', this.value)" style="width:100%;margin:0;padding:5px 8px;font-size:12px;text-align:right"></td>'+
+        '<td style="padding:4px 6px;text-align:right;width:90px;font-weight:600">'+fmtMoney((parseFloat(li.qty)||0)*(parseFloat(li.unit)||0))+'</td>'+
+        '<td style="padding:4px 4px;width:30px"><button onclick="removeOptLine(\''+o.id+'\', null, '+idx+')" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:14px" title="Remove line">×</button></td>'+
+      '</tr>';
+    }).join('');
+    var upgrades = (o.upgrades||[]).map(function(u){
+      var uSub = _optTotal(u);
+      var uRows = (u.lineItems||[]).map(function(li, idx){
+        return '<tr>'+
+          '<td style="padding:3px 6px"><input type="text" value="'+esc2(li.desc||'')+'" oninput="updateOptLine(\''+o.id+'\', \''+u.id+'\', '+idx+', \'desc\', this.value)" style="width:100%;margin:0;padding:4px 6px;font-size:11px"></td>'+
+          '<td style="padding:3px 6px;width:60px"><input type="number" value="'+(li.qty||0)+'" oninput="updateOptLine(\''+o.id+'\', \''+u.id+'\', '+idx+', \'qty\', this.value)" style="width:100%;margin:0;padding:4px 6px;font-size:11px;text-align:right"></td>'+
+          '<td style="padding:3px 6px;width:80px"><input type="number" value="'+(li.unit||0)+'" step="0.01" oninput="updateOptLine(\''+o.id+'\', \''+u.id+'\', '+idx+', \'unit\', this.value)" style="width:100%;margin:0;padding:4px 6px;font-size:11px;text-align:right"></td>'+
+          '<td style="padding:3px 6px;text-align:right;width:80px;font-weight:600;font-size:11px">'+fmtMoney((parseFloat(li.qty)||0)*(parseFloat(li.unit)||0))+'</td>'+
+          '<td style="padding:3px 4px;width:24px"><button onclick="removeOptLine(\''+o.id+'\', \''+u.id+'\', '+idx+')" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:13px">×</button></td>'+
+        '</tr>';
+      }).join('');
+      return '<div style="margin-left:24px;margin-top:10px;padding:10px 12px;background:#fdfaf3;border:1px dashed #d4a06a;border-radius:6px">'+
+        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.05em">Upgrade / add-on</span><input type="text" value="'+esc2(u.title||'')+'" oninput="updateOptField(\''+o.id+'\', \''+u.id+'\', \'title\', this.value)" style="flex:1;margin:0;padding:4px 8px;font-size:12px;font-weight:600"><button onclick="removeProposalUpgrade(\''+o.id+'\', \''+u.id+'\')" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:14px">🗑</button></div>'+
+        '<textarea oninput="updateOptField(\''+o.id+'\', \''+u.id+'\', \'description\', this.value)" rows="2" style="font-size:11px;padding:6px 8px;margin-bottom:6px" placeholder="Short description shown to the client">'+esc2(u.description||'')+'</textarea>'+
+        '<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="text-align:left;color:var(--text2);font-size:10px"><th style="padding:2px 6px">Description</th><th style="padding:2px 6px;text-align:right">Qty</th><th style="padding:2px 6px;text-align:right">Unit $</th><th style="padding:2px 6px;text-align:right">Total</th><th></th></tr></thead><tbody>'+uRows+'</tbody></table>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px"><button onclick="addOptLine(\''+o.id+'\', \''+u.id+'\')" style="padding:3px 9px;background:transparent;color:#92400e;border:1px solid #d4a06a;border-radius:5px;font-size:11px;cursor:pointer">+ Line</button><span style="font-size:11px;font-weight:700;color:#92400e">Upgrade total: '+fmtMoney(uSub)+'</span></div>'+
+      '</div>';
+    }).join('');
+    return '<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:14px;background:#fff;overflow:hidden">'+
+      '<div style="display:flex;align-items:center;gap:6px;padding:10px 14px;background:linear-gradient(135deg,#f0f8ff,#e8f4fd);border-bottom:1px solid #b3d4f0">'+
+        '<span style="font-size:11px;font-weight:700;color:#0a1628;background:#fff;padding:2px 8px;border-radius:4px">'+(i===0?'Primary':'Alt')+'</span>'+
+        '<input type="text" value="'+esc2(o.title||'')+'" oninput="updateOptField(\''+o.id+'\', null, \'title\', this.value)" style="flex:1;margin:0;padding:6px 10px;font-size:13px;font-weight:700;border:1px solid #b3d4f0;background:#fff">'+
+        '<button onclick="removeProposalOption(\''+o.id+'\')" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:16px" title="Delete option">🗑</button>'+
+      '</div>'+
+      '<div style="padding:12px 14px">'+
+        '<label style="font-size:11px;color:var(--text2);margin-bottom:3px;display:block">Description <span style="color:var(--text3);font-weight:400">— short blurb shown at the top of the option page</span></label>'+
+        '<textarea rows="2" oninput="updateOptField(\''+o.id+'\', null, \'description\', this.value)" style="margin-bottom:10px">'+esc2(o.description||'')+'</textarea>'+
+        '<label style="font-size:11px;color:var(--text2);margin-bottom:3px;display:block">Inclusions <span style="color:var(--text3);font-weight:400">— one bullet per line</span></label>'+
+        '<textarea rows="6" oninput="updateOptField(\''+o.id+'\', null, \'inclusionsText\', this.value)" style="margin-bottom:10px;font-family:ui-monospace,Menlo,monospace;font-size:11px">'+esc2(inclText)+'</textarea>'+
+        '<label style="font-size:11px;color:var(--text2);margin-bottom:3px;display:block">Itemised pricing</label>'+
+        '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:6px"><thead><tr style="background:var(--bg);text-align:left;color:var(--text2);font-size:11px"><th style="padding:5px 6px">Description</th><th style="padding:5px 6px;text-align:right">Qty</th><th style="padding:5px 6px;text-align:right">Unit $</th><th style="padding:5px 6px;text-align:right">Total</th><th></th></tr></thead><tbody>'+lineRows+'</tbody></table>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'+
+          '<button onclick="addOptLine(\''+o.id+'\', null)" style="padding:5px 12px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">+ Add line</button>'+
+          '<button onclick="addProposalUpgrade(\''+o.id+'\')" style="padding:5px 12px;background:transparent;color:#92400e;border:1px solid #d4a06a;border-radius:6px;font-size:11px;cursor:pointer">+ Add upgrade</button>'+
+          '<span style="margin-left:auto;font-size:13px;font-weight:700;color:#0a1628">Option total: '+fmtMoney(sub)+'</span>'+
+        '</div>'+
+        upgrades +
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function renderProposalSectionToggles(){
+  var host = document.getElementById('qProposalSections');
+  if (!host) return;
+  var sec = (S.quote && S.quote.proposalSections) || {};
+  var labels = [
+    ['cover',    'Cover page',          'Custom-titled cover sheet'],
+    ['about',    'About Flood Roofing', 'Company profile + promise'],
+    ['project',  'Project details',     'Client / site / roof summary'],
+    ['options',  'Quote options',       'Selectable packages + upgrades'],
+    ['maxam',    'Colorsteel Maxam',    '25-yr warranty spotlight'],
+    ['summary',  'Summary + select',    'Client ticks which option(s)'],
+    ['terms',    'Terms & warranty',    'Payment schedule, conditions'],
+    ['signature','Signature page',      'Acceptance signature lines'],
+  ];
+  host.innerHTML = labels.map(function(p){
+    var on = sec[p[0]] !== false;
+    return '<label class="chk-item '+(on?'on':'')+'" data-section="'+p[0]+'" onclick="toggleProposalSection(\''+p[0]+'\', event)" style="cursor:pointer">'+
+      '<span class="chk-dot"></span>'+
+      '<span style="display:flex;flex-direction:column;gap:2px">'+
+        '<strong style="font-size:12px">'+esc2(p[1])+'</strong>'+
+        '<span style="font-size:11px;color:var(--text2);font-weight:400">'+esc2(p[2])+'</span>'+
+      '</span>'+
+      '<input type="checkbox" '+(on?'checked':'')+' style="display:none">'+
+    '</label>';
+  }).join('');
+}
+function toggleProposalSection(key, ev){
+  if (ev) ev.preventDefault();
+  if (!S.quote) S.quote = defaultQuote();
+  if (!S.quote.proposalSections) S.quote.proposalSections = {};
+  S.quote.proposalSections[key] = !(S.quote.proposalSections[key] !== false);
+  renderProposalSectionToggles();
+  refreshQuoteProposal();
 }
 
 function onQuoteEdit(){
@@ -3729,70 +3958,292 @@ function recalcQuoteTotals(){
 
 function refreshQuoteProposal(){
   if (!S.quote) return;
+  var root = document.getElementById('qpRoot');
+  if (!root) return;
   var d = S.roofData || {};
-  var sub = quoteSubtotal();
-  var gst = sub * (S.quote.gstRate/100);
-  var tot = sub + gst;
-  // Branding (from Settings → Branding)
   var br = (S.settings && S.settings.branding) || {};
   var company = br.company_name || 'FLOOD ROOFING';
   var tagline = (br.tagline || "NORTHLAND'S ROOFING SPECIALISTS").toUpperCase();
   var contactBits = [br.website, br.phone, br.email, br.address].filter(Boolean).join(' | ') || 'floodroofing.co.nz | Whangarei, NZ';
-  function setText(id, v){var el=document.getElementById(id); if(el) el.textContent = v;}
-  setText('qpCompany', company);
-  setText('qpTagline', tagline);
-  setText('qpContact', contactBits);
-  setText('qpFooter',  (br.company_name||'Flood Roofing') + (br.address?' | '+br.address:' | Whangarei, Northland, NZ') + (br.website?' | '+br.website:' | floodroofing.co.nz'));
-  setText('qpDate',    S.quote.date || '');
-  setText('qpRef',     S.quote.ref || '');
-  setText('qpValid',   S.quote.validUntil || '');
-  setText('qpClient',  S.quote.client || '—');
-  setText('qpAddr',    S.quote.addr || '—');
-  setText('qpEmail',   S.quote.email || '—');
-  setText('qpPhone',   (document.getElementById('jobPhone')||{}).value || '—');
-  setText('qpRoofType',d.roof_type || '—');
-  setText('qpArea',    d.area_m2 ? d.area_m2+' m²' : '—');
-  setText('qpPitch',   d.pitch ? d.pitch+'°' : '—');
-  setText('qpInspector', (document.getElementById('inspName')||{}).value || '—');
-  document.getElementById('qpScope').innerHTML = (S.quote.scope||'—').split('\n').map(esc2).join('<br>');
-  document.getElementById('qpNotes').innerHTML = (S.quote.notes||'—').split('\n').map(esc2).join('<br>');
-  document.getElementById('qpTerms').innerHTML = (S.quote.terms||'—').split('\n').map(esc2).join('<br>');
-  setText('qpGstLbl', S.quote.gstRate + '%');
-  setText('qpTotal',  fmtMoney(tot));
-  document.getElementById('qpBreakdown').innerHTML = 'Subtotal '+fmtMoney(sub)+'<br>GST '+fmtMoney(gst);
-  document.getElementById('qpGenDate').textContent = 'Generated ' + new Date().toLocaleDateString('en-NZ');
-  // Logo
-  var logo = document.getElementById('qpLogo');
-  if (logo) {
-    if (br.logo_data_url) { logo.src = br.logo_data_url; logo.style.display='block'; }
-    else                  { logo.style.display='none'; }
+  var phone = (document.getElementById('jobPhone')||{}).value || '';
+  var inspector = (document.getElementById('inspName')||{}).value || '';
+  var sec = S.quote.proposalSections || {};
+  var on = function(k){ return sec[k] !== false; };
+  var opts = S.quote.options || [];
+  var photos = (S.photos||[]).slice(0, 8);
+  var sub0 = quoteSubtotal();
+  var gst0 = sub0 * (S.quote.gstRate/100);
+  var tot0 = sub0 + gst0;
+
+  // Pre-compute combined totals across all options (every option's primary
+  // line items contribute; upgrades shown but not auto-included until the
+  // client ticks them in the printed summary).
+  function optsSubtotal(){
+    if (!opts.length) return sub0;
+    var s = 0;
+    opts.forEach(function(o){ s += _optTotal(o); });
+    return s;
   }
-  // Photos
-  var photos = (S.photos||[]).slice(0,6);
-  var photoEl = document.getElementById('qpPhotos');
-  if (photoEl) {
-    if (photos.length) {
-      photoEl.innerHTML = photos.map(function(p){return '<div class="rp-photo-slot"><img src="'+p.src+'"></div>';}).join('');
-    } else {
-      photoEl.innerHTML = '<div class="rp-photo-slot">No photos</div><div class="rp-photo-slot">—</div><div class="rp-photo-slot">—</div>';
-    }
+  function optsTotal(){
+    var s = optsSubtotal();
+    return s + s * (S.quote.gstRate/100);
   }
-  // Line items
-  var lb = document.getElementById('qpLineBody');
-  if (lb) {
-    lb.innerHTML = (S.quote.lineItems||[]).map(function(li){
+
+  // ── Header (always shown) ──
+  var html = '';
+  html += '<div class="rp-header">'+
+    '<div>'+
+      (br.logo_data_url ? '<img src="'+esc2(br.logo_data_url)+'" alt="logo" style="max-height:50px;max-width:200px;display:block;margin-bottom:8px">' : '')+
+      '<div class="rp-logo-name">'+esc2(company)+'</div>'+
+      '<div class="rp-logo-tag">'+esc2(tagline)+'</div>'+
+      '<div class="rp-logo-stripe"></div>'+
+      '<div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:6px">'+esc2(contactBits)+'</div>'+
+    '</div>'+
+    '<div class="rp-hdr-right"><strong>'+esc2(S.quote.coverTitle || 'Roofing Quote & Proposal')+'</strong>'+esc2(S.quote.date || '')+'<br>Ref: '+esc2(S.quote.ref || 'FR-001')+'<br>Valid: '+esc2(S.quote.validUntil || '30 days')+'</div>'+
+  '</div>';
+
+  // ── Cover page ──
+  if (on('cover')) {
+    html += '<div class="rp-body rp-page">'+
+      '<div style="text-align:center;padding:30px 0 12px">'+
+        '<div style="font-size:11px;color:var(--accent);letter-spacing:.16em;text-transform:uppercase;font-weight:700;margin-bottom:8px">Roofing Proposal</div>'+
+        '<div style="font-size:30px;font-weight:800;color:#0a1628;line-height:1.1;letter-spacing:-.02em">'+esc2(S.quote.coverTitle || 'Roofing Proposal for ' + (S.quote.client || 'your project'))+'</div>'+
+        '<div style="font-size:13px;color:var(--text2);margin-top:14px;line-height:1.6">Prepared for <strong>'+esc2(S.quote.client||'—')+'</strong>'+
+          (S.quote.addr ? '<br>'+esc2(S.quote.addr) : '')+
+        '</div>'+
+        '<div style="font-size:12px;color:var(--text2);margin-top:24px">Prepared by '+esc2(company)+' &middot; '+esc2(S.quote.date || '')+'</div>'+
+      '</div>'+
+      (photos.length ? '<div style="margin-top:24px"><img src="'+esc2(photos[0].src)+'" style="width:100%;max-height:320px;object-fit:cover;border-radius:10px"></div>' : '')+
+    '</div>';
+  }
+
+  // ── About Flood Roofing ──
+  if (on('about')) {
+    var aboutText = S.quote.aboutText || (br.about_text) ||
+      'Flood Roofing is a Northland-based roofing specialist established in 2016. Owner Aron Flood has 15+ years on the tools — from high-end architectural homes through to large commercial re-roofs — and only hires the best team along the way. We pride ourselves on superior workmanship, premium NZ-made materials, and standing behind every roof we install.';
+    html += '<div class="rp-body rp-page">'+
+      '<div class="rp-section"><div class="rp-section-title">About '+esc2(company)+'</div><div class="rp-text">'+(aboutText.split('\n').map(esc2).join('<br>'))+'</div></div>'+
+      '<div class="rp-2col" style="margin-top:18px">'+
+        '<div style="padding:16px;background:var(--surface-2);border-radius:8px">'+
+          '<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--accent);margin-bottom:6px">Our promise</div>'+
+          '<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text);line-height:1.7"><li><strong>Premium NZ materials</strong> — we install Colorsteel Maxam, Endura, and other top-tier NZ Steel products only.</li><li><strong>15+ years on the tools</strong> — every job is supervised on-site by an experienced lead roofer.</li><li><strong>10-year workmanship warranty</strong> — backing every roof we install, in addition to the manufacturer\'s warranty.</li></ul>'+
+        '</div>'+
+        '<div style="padding:16px;background:var(--surface-2);border-radius:8px">'+
+          '<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--accent);margin-bottom:6px">Credentials</div>'+
+          '<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text);line-height:1.7"><li>Licensed Building Practitioner (LBP)</li><li>GST registered &middot; GST No. 120-543-997</li><li>Public liability + contract works insured</li><li>SiteSafe Passport &middot; H&amp;S Code-of-Practice certified</li></ul>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }
+
+  // ── Project details ──
+  if (on('project')) {
+    html += '<div class="rp-body rp-page">'+
+      '<div class="rp-2col">'+
+        '<div class="rp-section">'+
+          '<div class="rp-section-title">Prepared for</div>'+
+          '<div class="rp-row"><span class="rp-rl">Client</span><span class="rp-rv">'+esc2(S.quote.client||'—')+'</span></div>'+
+          '<div class="rp-row"><span class="rp-rl">Site address</span><span class="rp-rv">'+esc2(S.quote.addr||'—')+'</span></div>'+
+          '<div class="rp-row"><span class="rp-rl">Email</span><span class="rp-rv">'+esc2(S.quote.email||'—')+'</span></div>'+
+          '<div class="rp-row"><span class="rp-rl">Phone</span><span class="rp-rv">'+esc2(phone||'—')+'</span></div>'+
+        '</div>'+
+        '<div class="rp-section">'+
+          '<div class="rp-section-title">Roof details</div>'+
+          '<div class="rp-row"><span class="rp-rl">Roof type</span><span class="rp-rv">'+esc2(d.roof_type||'—')+'</span></div>'+
+          '<div class="rp-row"><span class="rp-rl">Roof area</span><span class="rp-rv">'+(d.area_m2 ? esc2(d.area_m2+' m²') : '—')+'</span></div>'+
+          '<div class="rp-row"><span class="rp-rl">Pitch</span><span class="rp-rv">'+(d.pitch ? esc2(d.pitch+'°') : '—')+'</span></div>'+
+          '<div class="rp-row"><span class="rp-rl">Inspector</span><span class="rp-rv">'+esc2(inspector||'—')+'</span></div>'+
+        '</div>'+
+      '</div>'+
+      (S.quote.scope ? '<div class="rp-section" style="margin-top:14px"><div class="rp-section-title">Scope summary</div><div class="rp-text">'+S.quote.scope.split('\n').map(esc2).join('<br>')+'</div></div>' : '')+
+      (photos.length > 1 ? '<div class="rp-section" style="margin-top:14px"><div class="rp-section-title">Site photos</div><div class="rp-photos">'+photos.slice(1, 7).map(function(p){return '<div class="rp-photo-slot"><img src="'+esc2(p.src)+'"></div>';}).join('')+'</div></div>' : '')+
+    '</div>';
+  }
+
+  // ── Quote options (one page per option) ──
+  if (on('options') && opts.length) {
+    opts.forEach(function(o, oi){
+      var optSub = _optTotal(o);
+      var optGst = optSub * (S.quote.gstRate/100);
+      var optTot = optSub + optGst;
+      html += '<div class="rp-body rp-page rp-option-page" style="border-top:6px solid var(--accent)">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;gap:14px;flex-wrap:wrap">'+
+          '<div>'+
+            '<div style="font-size:10px;color:var(--accent);letter-spacing:.14em;font-weight:700;text-transform:uppercase">Option '+String.fromCharCode(65+oi)+'</div>'+
+            '<div style="font-size:22px;font-weight:800;color:#0a1628;line-height:1.1;margin-top:4px">'+esc2(o.title||'Option')+'</div>'+
+          '</div>'+
+          '<div style="text-align:right">'+
+            '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Total incl. GST</div>'+
+            '<div style="font-size:26px;font-weight:800;color:#0a1628">'+fmtMoney(optTot)+'</div>'+
+            '<div style="font-size:11px;color:var(--text2)">Subtotal '+fmtMoney(optSub)+' &middot; GST '+fmtMoney(optGst)+'</div>'+
+          '</div>'+
+        '</div>'+
+        (o.description ? '<div class="rp-text" style="margin-bottom:14px;padding:12px 14px;background:var(--surface-2);border-left:3px solid var(--accent);border-radius:0 6px 6px 0">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
+        (o.inclusions && o.inclusions.length
+          ? '<div class="rp-section"><div class="rp-section-title">What\'s included</div><ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.7;color:var(--text)">'+o.inclusions.map(function(b){return '<li>'+esc2(b)+'</li>';}).join('')+'</ul></div>'
+          : '')+
+        '<div class="rp-section">'+
+          '<div class="rp-section-title">Itemised pricing</div>'+
+          '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="text-align:left;border-bottom:1px solid #ddd"><th style="padding:6px 4px">Description</th><th style="padding:6px 4px;text-align:right;width:60px">Qty</th><th style="padding:6px 4px;text-align:right;width:90px">Unit</th><th style="padding:6px 4px;text-align:right;width:90px">Total</th></tr></thead><tbody>'+
+            (o.lineItems||[]).map(function(li){
+              var line = (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);
+              return '<tr style="border-bottom:1px solid #f0f0ee"><td style="padding:5px 4px">'+esc2(li.desc||'—')+'</td><td style="padding:5px 4px;text-align:right">'+(li.qty||0)+'</td><td style="padding:5px 4px;text-align:right">'+fmtMoney(li.unit)+'</td><td style="padding:5px 4px;text-align:right;font-weight:600">'+fmtMoney(line)+'</td></tr>';
+            }).join('')+
+            '<tr style="border-top:2px solid #0a1628"><td colspan="3" style="padding:7px 4px;text-align:right;font-weight:700">Subtotal</td><td style="padding:7px 4px;text-align:right;font-weight:700">'+fmtMoney(optSub)+'</td></tr>'+
+            '<tr><td colspan="3" style="padding:5px 4px;text-align:right">GST '+S.quote.gstRate+'%</td><td style="padding:5px 4px;text-align:right">'+fmtMoney(optGst)+'</td></tr>'+
+            '<tr style="background:#f5f5f3"><td colspan="3" style="padding:8px 4px;text-align:right;font-weight:700">Total</td><td style="padding:8px 4px;text-align:right;font-weight:700;color:#059669">'+fmtMoney(optTot)+'</td></tr>'+
+          '</tbody></table>'+
+        '</div>'+
+        // Upgrades on the same page
+        ((o.upgrades && o.upgrades.length)
+          ? '<div class="rp-section" style="margin-top:18px"><div class="rp-section-title">Optional upgrades</div>' +
+            o.upgrades.map(function(u){
+              var uSub = _optTotal(u);
+              var uTot = uSub + uSub * (S.quote.gstRate/100);
+              return '<div style="padding:12px 14px;background:#fdfaf3;border:1px solid #f3e2c1;border-radius:8px;margin-bottom:10px">'+
+                '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">'+
+                  '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;color:#92400e">'+esc2(u.title||'Upgrade')+'</div>'+
+                  (u.description ? '<div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.6">'+esc2(u.description).split('\n').join('<br>')+'</div>' : '') +
+                  '</div>'+
+                  '<div style="text-align:right"><div style="font-size:10px;color:#92400e;text-transform:uppercase;letter-spacing:.05em">Upgrade total incl. GST</div><div style="font-size:18px;font-weight:700;color:#92400e">'+fmtMoney(uTot)+'</div></div>'+
+                '</div>'+
+              '</div>';
+            }).join('') + '</div>'
+          : '')+
+      '</div>';
+    });
+  } else if (on('options') && !opts.length) {
+    // Fallback to the legacy flat line-items table when no options exist
+    var lb = (S.quote.lineItems||[]).map(function(li){
       var line = (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);
-      return '<tr style="border-bottom:1px solid #f0f0ee">'+
-        '<td style="padding:5px 4px">'+esc2(li.desc||'—')+'</td>'+
-        '<td style="padding:5px 4px;text-align:right">'+(li.qty||0)+'</td>'+
-        '<td style="padding:5px 4px;text-align:right">'+fmtMoney(li.unit)+'</td>'+
-        '<td style="padding:5px 4px;text-align:right;font-weight:600">'+fmtMoney(line)+'</td>'+
-        '</tr>';
-    }).join('') +
-      '<tr style="border-top:2px solid #0a1628"><td colspan="3" style="padding:7px 4px;text-align:right;font-weight:700">Subtotal</td><td style="padding:7px 4px;text-align:right;font-weight:700">'+fmtMoney(sub)+'</td></tr>'+
-      '<tr><td colspan="3" style="padding:5px 4px;text-align:right">GST '+S.quote.gstRate+'%</td><td style="padding:5px 4px;text-align:right">'+fmtMoney(gst)+'</td></tr>'+
-      '<tr style="background:#f5f5f3"><td colspan="3" style="padding:8px 4px;text-align:right;font-weight:700">Total</td><td style="padding:8px 4px;text-align:right;font-weight:700;color:#059669">'+fmtMoney(tot)+'</td></tr>';
+      return '<tr style="border-bottom:1px solid #f0f0ee"><td style="padding:5px 4px">'+esc2(li.desc||'—')+'</td><td style="padding:5px 4px;text-align:right">'+(li.qty||0)+'</td><td style="padding:5px 4px;text-align:right">'+fmtMoney(li.unit)+'</td><td style="padding:5px 4px;text-align:right;font-weight:600">'+fmtMoney(line)+'</td></tr>';
+    }).join('');
+    html += '<div class="rp-body rp-page">'+
+      '<div class="rp-section"><div class="rp-section-title">Itemised pricing</div>'+
+        '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="text-align:left;border-bottom:1px solid #ddd"><th style="padding:6px 4px">Description</th><th style="padding:6px 4px;text-align:right;width:60px">Qty</th><th style="padding:6px 4px;text-align:right;width:90px">Unit</th><th style="padding:6px 4px;text-align:right;width:90px">Total</th></tr></thead><tbody>'+lb+
+          '<tr style="border-top:2px solid #0a1628"><td colspan="3" style="padding:7px 4px;text-align:right;font-weight:700">Subtotal</td><td style="padding:7px 4px;text-align:right;font-weight:700">'+fmtMoney(sub0)+'</td></tr>'+
+          '<tr><td colspan="3" style="padding:5px 4px;text-align:right">GST '+S.quote.gstRate+'%</td><td style="padding:5px 4px;text-align:right">'+fmtMoney(gst0)+'</td></tr>'+
+          '<tr style="background:#f5f5f3"><td colspan="3" style="padding:8px 4px;text-align:right;font-weight:700">Total</td><td style="padding:8px 4px;text-align:right;font-weight:700;color:#059669">'+fmtMoney(tot0)+'</td></tr>'+
+        '</tbody></table></div>'+
+      (S.quote.notes ? '<div class="rp-section"><div class="rp-section-title">Notes</div><div class="rp-text">'+S.quote.notes.split('\n').map(esc2).join('<br>')+'</div></div>' : '')+
+    '</div>';
   }
+
+  // ── Colorsteel Maxam spotlight ──
+  if (on('maxam')) {
+    html += '<div class="rp-body rp-page" style="background:linear-gradient(135deg,#fafbfc,#eef2f7);position:relative">'+
+      '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:24px;align-items:start">'+
+        '<div>'+
+          '<div style="font-size:10px;color:#0099cc;font-weight:700;letter-spacing:.15em;text-transform:uppercase">Premium NZ-made steel</div>'+
+          '<div style="font-size:30px;font-weight:800;color:#0a1628;letter-spacing:-.02em;line-height:1.05;margin-top:6px">Colorsteel® Maxam<sup style="font-size:14px">®</sup></div>'+
+          '<div style="font-size:14px;color:var(--text2);margin-top:10px;line-height:1.7">Maxam is NZ Steel\'s top-tier pre-painted roofing &amp; cladding coil — engineered specifically for New Zealand\'s harshest atmospheres. Heavier zinc-aluminium coating, thicker paint film, and a tougher Colorbond finish than standard Endura. It\'s what we use whenever a job is close to the coast or has long-life expectations.</div>'+
+          '<div style="margin-top:18px;padding:14px 16px;background:#0a1628;color:#fff;border-radius:8px">'+
+            '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.7;font-weight:600">Manufacturer\'s warranty</div>'+
+            '<div style="font-size:28px;font-weight:800;letter-spacing:-.02em;margin-top:2px">Up to 25 years*</div>'+
+            '<div style="font-size:11px;opacity:.7;margin-top:4px">Perforation warranty in Severe Marine zones (zone &lt; 100m to surf) — substantially longer than standard Endura. Paint film and weather-side cosmetic warranty also included. * Subject to NZ Steel published exposure zones &amp; standard install / wash requirements.</div>'+
+          '</div>'+
+        '</div>'+
+        '<div>'+
+          '<div style="padding:14px;background:#fff;border:1px solid var(--border);border-radius:8px;margin-bottom:10px">'+
+            '<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--accent);margin-bottom:8px">Why Maxam?</div>'+
+            '<ul style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.7;color:var(--text)"><li><strong>Severe-marine grade</strong> — formulated for coastal Northland.</li><li><strong>Heavier substrate</strong> — Galvalloy® AZ200 zinc-aluminium coating vs AZ150 on Endura.</li><li><strong>Thicker paint film</strong> — better UV / chalk resistance.</li><li><strong>Wider colour range</strong> — including premium Maxam-only colours.</li><li><strong>Warranty is transferable</strong> to the next owner.</li></ul>'+
+          '</div>'+
+          '<div style="padding:14px;background:#fff;border:1px solid var(--border);border-radius:8px">'+
+            '<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--accent);margin-bottom:8px">Maxam vs Endura at a glance</div>'+
+            '<table style="width:100%;border-collapse:collapse;font-size:11.5px"><tbody>'+
+              '<tr style="border-bottom:1px solid #eee"><td style="padding:4px 0;color:var(--text2)">Substrate</td><td style="text-align:right;font-weight:600">AZ200</td><td style="text-align:right;font-weight:600;color:var(--text2)">AZ150</td></tr>'+
+              '<tr style="border-bottom:1px solid #eee"><td style="padding:4px 0;color:var(--text2)">Severe Marine warranty</td><td style="text-align:right;font-weight:600">25 yrs</td><td style="text-align:right;font-weight:600;color:var(--text2)">N/A</td></tr>'+
+              '<tr style="border-bottom:1px solid #eee"><td style="padding:4px 0;color:var(--text2)">Marine zone warranty</td><td style="text-align:right;font-weight:600">30 yrs</td><td style="text-align:right;font-weight:600;color:var(--text2)">20 yrs</td></tr>'+
+              '<tr><td style="padding:4px 0;color:var(--text2)">Paint film warranty</td><td style="text-align:right;font-weight:600">15 yrs</td><td style="text-align:right;font-weight:600;color:var(--text2)">12 yrs</td></tr>'+
+            '</tbody></table>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }
+
+  // ── Summary (selectable) ──
+  if (on('summary')) {
+    var sumOpts = opts.length ? opts : null;
+    html += '<div class="rp-body rp-page" style="background:#fafbfc">'+
+      '<div class="rp-section-title" style="margin-bottom:14px">Summary — please tick the option(s) you\'d like to proceed with</div>'+
+      (sumOpts
+        ? sumOpts.map(function(o, oi){
+            var optSub = _optTotal(o);
+            var optTot = optSub + optSub * (S.quote.gstRate/100);
+            return '<div style="display:flex;gap:14px;padding:14px;background:#fff;border:1px solid var(--border);border-radius:10px;margin-bottom:12px">'+
+              '<div style="width:22px;height:22px;border:2px solid #0a1628;border-radius:4px;flex-shrink:0;margin-top:2px"></div>'+
+              '<div style="flex:1">'+
+                '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px"><div><div style="font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;font-weight:700">Option '+String.fromCharCode(65+oi)+'</div><div style="font-size:15px;font-weight:700;color:#0a1628;margin-top:2px">'+esc2(o.title||'')+'</div></div><div style="font-size:18px;font-weight:800;color:#0a1628">'+fmtMoney(optTot)+'</div></div>'+
+                (o.description ? '<div style="font-size:12px;color:var(--text2);margin-top:6px;line-height:1.6">'+esc2(o.description)+'</div>' : '')+
+                ((o.upgrades && o.upgrades.length)
+                  ? '<div style="margin-top:10px;border-top:1px dashed var(--border);padding-top:10px">'+
+                      '<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:#92400e;margin-bottom:6px">Upgrades</div>'+
+                      o.upgrades.map(function(u){
+                        var uSub = _optTotal(u);
+                        var uTot = uSub + uSub * (S.quote.gstRate/100);
+                        return '<div style="display:flex;gap:10px;align-items:flex-start;padding:6px 0"><div style="width:18px;height:18px;border:1.5px solid #92400e;border-radius:3px;flex-shrink:0;margin-top:2px"></div><div style="flex:1;font-size:12px;color:var(--text)"><strong>'+esc2(u.title||'')+'</strong>'+(u.description?'<br><span style="color:var(--text2);font-size:11px">'+esc2(u.description)+'</span>':'')+'</div><div style="font-size:13px;font-weight:700;color:#92400e">+'+fmtMoney(uTot)+'</div></div>';
+                      }).join('')+
+                    '</div>'
+                  : '')+
+              '</div>'+
+            '</div>';
+          }).join('')
+        : '<div style="padding:16px;background:#fff;border:1px solid var(--border);border-radius:10px;font-size:12px;color:var(--text2);text-align:center">Add options in the editor above to make this a multi-pick proposal.</div>'
+      )+
+    '</div>';
+  }
+
+  // ── Terms & warranty ──
+  if (on('terms')) {
+    html += '<div class="rp-body rp-page">'+
+      '<div class="rp-section"><div class="rp-section-title">Terms &amp; warranty</div><div class="rp-text">'+
+        (S.quote.terms || 'Standard terms — 10-year workmanship warranty. 25% deposit on acceptance, 50% progress payment on completion of roof and gutters, 25% on practical completion. Quote valid 30 days.').split('\n').map(esc2).join('<br>')+
+      '</div></div>'+
+      (S.quote.notes ? '<div class="rp-section"><div class="rp-section-title">Customer notes</div><div class="rp-text">'+S.quote.notes.split('\n').map(esc2).join('<br>')+'</div></div>' : '')+
+      '<div class="rp-section" style="margin-top:14px"><div class="rp-section-title">Payment schedule</div><div class="rp-text"><ol style="margin:0;padding-left:20px;line-height:1.8"><li><strong>25% deposit</strong> on quote acceptance — materials ordered.</li><li><strong>50% progress payment</strong> on completion of roof &amp; gutters.</li><li><strong>25% final</strong> on practical completion.</li></ol><p style="margin:10px 0 0;color:var(--text2);font-size:12px">Final payment due by the 20th of the month following completion. 2.5%/mo interest applies to overdue balances.</p></div></div>'+
+    '</div>';
+  }
+
+  // ── Signature page ──
+  if (on('signature')) {
+    var dateLine = (S.quote.date || new Date().toLocaleDateString('en-NZ'));
+    html += '<div class="rp-body rp-page" style="background:#fafbfc">'+
+      '<div class="rp-section-title" style="margin-bottom:18px">Acceptance</div>'+
+      '<div style="padding:18px;background:#fff;border:1px solid var(--border);border-radius:10px">'+
+        '<p style="font-size:13px;color:var(--text);line-height:1.7;margin:0 0 18px">I, <strong>'+esc2(S.quote.client||'—')+'</strong>, accept the option(s) ticked on the summary page and the terms set out in this proposal. Total payable will be confirmed in the variation invoice once option / upgrade selections are finalised.</p>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">'+
+          '<div><div style="border-bottom:1px solid #0a1628;height:30px"></div><div style="font-size:11px;color:var(--text2);margin-top:4px">Client signature</div></div>'+
+          '<div><div style="border-bottom:1px solid #0a1628;height:30px"></div><div style="font-size:11px;color:var(--text2);margin-top:4px">Date ('+esc2(dateLine)+')</div></div>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px">'+
+          '<div><div style="border-bottom:1px solid #0a1628;height:30px"></div><div style="font-size:11px;color:var(--text2);margin-top:4px">'+esc2(company)+' representative</div></div>'+
+          '<div><div style="border-bottom:1px solid #0a1628;height:30px"></div><div style="font-size:11px;color:var(--text2);margin-top:4px">Date</div></div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }
+
+  // ── Summary bar (always shown at the bottom) ──
+  var sumSub = opts.length ? optsSubtotal() : sub0;
+  var sumGst = sumSub * (S.quote.gstRate/100);
+  var sumTot = sumSub + sumGst;
+  html += '<div class="rp-summary-bar">'+
+    '<div><div class="rp-total-lbl">'+(opts.length ? 'All options total (incl. ' : 'Total quoted (incl. ')+esc2(S.quote.gstRate+'%')+' GST)</div><div class="rp-total-val">'+fmtMoney(sumTot)+'</div></div>'+
+    '<div class="rp-breakdown">Subtotal '+fmtMoney(sumSub)+'<br>GST '+fmtMoney(sumGst)+(opts.length?'<br><span style="opacity:.55">Client picks option(s) on the summary page</span>':'')+'</div>'+
+  '</div>'+
+  '<div class="rp-footer"><span>'+esc2((br.company_name||'Flood Roofing')+(br.address?' | '+br.address:' | Whangarei, Northland, NZ')+(br.website?' | '+br.website:' | floodroofing.co.nz'))+'</span><span>Generated '+esc2(new Date().toLocaleDateString('en-NZ'))+'</span></div>';
+
+  root.innerHTML = html;
+
+  // Keep legacy hidden anchors in sync so other tabs reading qpTotal etc. still work.
+  function setText(id, v){var el=document.getElementById(id); if(el) el.textContent = v;}
+  setText('qpCompany', company); setText('qpTagline', tagline); setText('qpContact', contactBits);
+  setText('qpDate', S.quote.date||''); setText('qpRef', S.quote.ref||''); setText('qpValid', S.quote.validUntil||'');
+  setText('qpClient', S.quote.client||'—'); setText('qpAddr', S.quote.addr||'—'); setText('qpEmail', S.quote.email||'—'); setText('qpPhone', phone||'—');
+  setText('qpRoofType', d.roof_type||'—'); setText('qpArea', d.area_m2?d.area_m2+' m²':'—'); setText('qpPitch', d.pitch?d.pitch+'°':'—'); setText('qpInspector', inspector||'—');
+  setText('qpGstLbl', S.quote.gstRate+'%'); setText('qpTotal', fmtMoney(sumTot));
+  setText('qpGenDate', 'Generated '+new Date().toLocaleDateString('en-NZ'));
 }
 
 async function saveQuote(){
