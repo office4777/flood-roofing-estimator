@@ -21,9 +21,30 @@ const allowedOrigins = [
   'http://localhost:3456',
 ].filter(Boolean);
 
+// Any *.vercel.app origin owned by this project's account is also
+// trusted — that covers the production alias plus every PR / branch
+// preview URL Vercel auto-generates.  Strict enough that random
+// *.vercel.app subdomains owned by someone else still get rejected
+// (we whitelist by project name prefix).
+const VERCEL_PROJECT_PREFIXES = [
+  'flood-roofing-estimator',
+];
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;                       // same-origin / non-browser
+  if (allowedOrigins.includes(origin)) return true;
+  try {
+    var host = new URL(origin).hostname;
+    if (host.endsWith('.vercel.app')) {
+      return VERCEL_PROJECT_PREFIXES.some(function(p){ return host.startsWith(p); });
+    }
+  } catch (e) {}
+  return false;
+}
+
 const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    if (isAllowedOrigin(origin)) return cb(null, true);
     cb(new Error('Not allowed by CORS'));
   },
   credentials: true,
