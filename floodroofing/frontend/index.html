@@ -607,10 +607,12 @@ select{
 .rp-scope-list{font-size:13px;color:var(--text);line-height:2}
 /* Page-break helpers for the multi-section proposal preview.  Each
    .rp-page becomes its own page when printing so options, the Maxam
-   spotlight, summary and signature lines all land on clean sheets. */
+   spotlight, summary and signature lines all land on clean sheets.
+   We only break between *adjacent* .rp-page siblings so the first
+   one keeps the header on the cover page. */
 .rp-page{border-top:1px solid var(--border)}
-.rp-page:first-of-type{border-top:none}
-@media print{.rp-page{page-break-before:always;break-before:page}.rp-page:first-of-type{page-break-before:auto;break-before:auto}}
+.rp-header + .rp-page,.rp-page:first-child{border-top:none}
+@media print{.rp-page + .rp-page{page-break-before:always;break-before:page}}
 .rp-cond-badge{display:inline-block;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:600}
 .cond-good{background:#eaf3de;color:#27500a}.cond-fair{background:#faeeda;color:#633806}.cond-poor{background:#fcebeb;color:#791f1f}
 
