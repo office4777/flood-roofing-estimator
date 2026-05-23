@@ -4567,15 +4567,15 @@ function gutterProfileSvg(key){
 
 // Curated profile lists for the renderer.  Keeping these inline so
 // editing the marketing copy doesn't require touching the renderer.
-// Marley NZ residential spouting range (Stratus Design Series + Classic).
-// Specs sourced from marley.co.nz/rainwater/residential-spouting-compare-chart
-// — width × depth in mm, plus typical cross-sectional flow area where
-// published.  These match what Marley actually stocks in 2026.
+// Marley NZ residential spouting range — Typhoon leads because it's
+// Flood Roofing's standard fit (far superior to Classic for our
+// catchments).  Classic remains for heritage homes; Stormcloud for
+// modern square detail; Magnum for high-flow / commercial.
 var MARLEY_PROFILES = [
-  { key:'stratus',    name:'Stormcloud®',                blurb:'Modern square-fronted Stratus Design profile, 125mm × 90mm. The most-installed new-build spouting in NZ.' },
+  { key:'typhoon',    name:'Marley Typhoon®',            blurb:'Our standard fit. High-flow half-round profile, 145mm × 90mm. Far superior to Classic — bigger capacity, better drainage for NZ rainfall.', flag:'STANDARD' },
   { key:'classic',    name:'Marley Classic®',            blurb:'Traditional ogee-shouldered profile, 125mm × 80mm. The heritage choice — softens architectural lines on character homes.' },
-  { key:'typhoon',    name:'Typhoon®',                   blurb:'High-flow Stratus Design half-round profile, 145mm × 90mm. Engineered for steep roofs and large catchments.' },
-  { key:'magnum',     name:'Magnum®',                    blurb:'Deep Stratus Design rectangular profile — cross-section 14,300mm². Maximum flow rate, commercial-grade.' },
+  { key:'stratus',    name:'Stormcloud®',                blurb:'Modern square-fronted Stratus Design profile, 125mm × 90mm. Sharp contemporary look for new builds.' },
+  { key:'magnum',     name:'Marley Magnum®',             blurb:'Deep rectangular profile — cross-section 14,300mm². Maximum flow rate, commercial-grade.' },
 ];
 var MARLEY_COLOURS = [
   { name:'White',          hex:'#f5f5f0' },
@@ -4713,10 +4713,10 @@ function refreshQuoteProposal(){
   if (on('about')) {
     var aboutText = S.quote.aboutText || (br.about_text) || '';
     var features = [
-      { title:'Premium NZ materials',  body:'Colorsteel® Maxam, Endura and top-tier NZ Steel products only.' },
-      { title:'15+ years on the tools',body:'Every job supervised on-site by an experienced lead roofer.' },
-      { title:'10-yr workmanship',     body:'Written warranty on every roof, in addition to manufacturer cover.' },
-      { title:'LBP &amp; insured',      body:'Licensed Building Practitioner. PL + contract works covered.' },
+      { title:'Trade-qualified &amp; LBP', body:'All lead roofers are trade-qualified Licensed Building Practitioners. Apprentices work alongside them.' },
+      { title:'100% price guarantee',  body:'The price we quote is the price you pay. No hidden extras, scaffolding included — we do our own.' },
+      { title:'Genuine NZ Colorsteel', body:'Maxam, ColorZen and Zinc-Aluminium — all NZ-made, backed by manufacturer warranty.' },
+      { title:'Northland-based since 2016', body:'The well-trusted name in Whangarei, Kerikeri and the Bay of Islands. Ask around.' },
     ];
     var team = _teamArr();
     partAbout =
@@ -4898,7 +4898,7 @@ function refreshQuoteProposal(){
         '<div style="border-top:1px solid var(--ed-ink);padding-top:14px">'+
           '<div class="ed-eyebrow">What we need from you</div>'+
           '<div style="margin-top:8px">'+
-            ['Sign &amp; return acceptance page','Pay 25% deposit — locks in start','Clear roof access (gardens, vehicles)','Pick your colour from page 5'].map(function(t, i){
+            ['Sign &amp; return acceptance page','Pay 50% deposit — locks in start (invoiced ~7 days before)','Clear roof access (gardens, vehicles)','Pick your colour from page 5'].map(function(t, i){
               return '<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--ed-line)">'+
                 '<div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-accent);min-width:22px">0'+(i+1)+'</div>'+
                 '<div class="ed-body" style="font-size:12px;line-height:1.5">'+t+'</div>'+
@@ -4911,67 +4911,101 @@ function refreshQuoteProposal(){
 
   // ── Quote inclusions + pricing (editorial page) ──
   if (on('inclusions') && opts.length) {
-    partInclusions = edHeading('04','The work & the cost','Quote inclusions &amp; pricing') + opts.map(function(o, oi){
+    // Each option block carries its own "A.", "B.", etc. title so the
+    // section header would just repeat what the options already say —
+    // following how Flood Roofing's real quote (#2776) is laid out
+    // (Main House Re-Roof / Garage Re-Roof, each as a stand-alone
+    // section).  We add a slim intro band so the page still announces
+    // itself rather than dropping the reader cold into Option A.
+    partInclusions =
+      '<div style="margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--ed-line)">'+
+        '<div class="ed-eyebrow">The work &amp; the cost</div>'+
+        '<div class="ed-serif" style="font-size:22px;color:var(--ed-ink);margin-top:6px;letter-spacing:-.005em;font-weight:400">Quote inclusions &amp; pricing</div>'+
+      '</div>'+
+      opts.map(function(o, oi){
       var optSub = _optTotal(o);
       var optGst = optSub * (S.quote.gstRate/100);
       var optTot = optSub + optGst;
       var optLetter = String.fromCharCode(65+oi);
-      return '<div class="ed-keep" style="margin-bottom:24px;border-top:1px solid var(--ed-ink)">'+
-        // Title row: editorial — big italic letter, serif title, right-aligned total
-        '<div style="display:grid;grid-template-columns:50px 1fr auto;gap:16px;align-items:flex-start;padding:18px 0 14px;border-bottom:1px solid var(--ed-line)">'+
-          '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:36px;color:var(--ed-accent);line-height:.9">'+optLetter+'.</div>'+
+      // Option blocks are intentionally NOT wrapped in .ed-keep — at A4
+      // size each block is too tall to fit on one page alongside a
+      // section header, so forcing atomic page-breaks creates large
+      // areas of empty cream paper.  Letting them break naturally is
+      // better; the table-row break-inside rule below still keeps each
+      // row whole.
+      return '<div style="margin-bottom:24px;border-top:1px solid var(--ed-ink);page-break-inside:auto">'+
+        // Title row: italic letter + serif title + intro paragraph
+        '<div style="display:grid;grid-template-columns:58px 1fr;gap:16px;align-items:flex-start;padding:18px 0 10px">'+
+          '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:38px;color:var(--ed-accent);line-height:.9">'+optLetter+'.</div>'+
           '<div>'+
             '<div class="ed-eyebrow">Option '+optLetter+'</div>'+
-            '<div class="ed-serif" style="font-size:19px;font-weight:400;color:var(--ed-ink);margin-top:5px;line-height:1.2;letter-spacing:-.005em">'+esc2(o.title||'Option')+'</div>'+
-            (o.description ? '<div class="ed-body" style="margin-top:5px;font-size:12px;max-width:42em">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
-          '</div>'+
-          '<div style="text-align:right;min-width:130px">'+
-            '<div class="ed-eyebrow">Incl. GST</div>'+
-            '<div class="ed-serif" style="font-size:26px;color:var(--ed-ink);margin-top:4px;line-height:1;letter-spacing:-.01em">'+fmtMoney(optTot)+'</div>'+
-            '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);margin-top:4px;letter-spacing:.02em">Sub '+fmtMoney(optSub)+' · GST '+fmtMoney(optGst)+'</div>'+
+            '<div class="ed-serif" style="font-size:21px;font-weight:400;color:var(--ed-ink);margin-top:5px;line-height:1.2;letter-spacing:-.005em">'+esc2(o.title||'Option')+'</div>'+
+            (o.description ? '<div class="ed-body" style="margin-top:6px;font-size:12px;line-height:1.5;max-width:48em">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
           '</div>'+
         '</div>'+
-        // Body — two-column: inclusions list (left) + pricing table (right)
-        '<div style="display:grid;grid-template-columns:1fr 1.2fr;gap:24px;padding:16px 0">'+
-          '<div>'+
-            (o.inclusions && o.inclusions.length
-              ? '<div class="ed-eyebrow" style="margin-bottom:10px">Included in the work</div>'+
-                '<div style="display:flex;flex-direction:column">'+
-                o.inclusions.map(function(b, ii){
-                  return '<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px dotted var(--ed-line)">'+
-                    '<div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-accent);flex-shrink:0;min-width:22px">'+(ii<9?'0':'')+(ii+1)+'</div>'+
-                    '<div class="ed-body" style="font-size:12px;line-height:1.5">'+esc2(b)+'</div>'+
-                  '</div>';
-                }).join('')+'</div>'
-              : '<div class="ed-body" style="font-style:italic;color:var(--ed-text2)">No inclusions listed</div>')+
-          '</div>'+
-          '<div>'+
-            '<div class="ed-eyebrow" style="margin-bottom:10px">Itemised pricing</div>'+
-            '<table style="width:100%;border-collapse:collapse;font-family:var(--ed-sans);font-size:12px">'+
-              '<thead><tr style="border-bottom:1px solid var(--ed-ink)"><th style="padding:6px 4px;text-align:left;font-weight:600;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ed-text2)">Description</th><th style="padding:6px 4px;text-align:right;width:34px;font-weight:600;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2)">Qty</th><th style="padding:6px 4px;text-align:right;width:62px;font-weight:600;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2)">Unit</th><th style="padding:6px 4px;text-align:right;width:74px;font-weight:600;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2)">Total</th></tr></thead><tbody>'+
-              (o.lineItems||[]).map(function(li){
-                var line = (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);
-                return '<tr style="border-bottom:1px solid var(--ed-line)"><td style="padding:6px 4px;color:var(--ed-ink-2)">'+esc2(li.desc||'—')+'</td><td style="padding:6px 4px;text-align:right;color:var(--ed-ink-2)">'+(li.qty||0)+'</td><td style="padding:6px 4px;text-align:right;color:var(--ed-ink-2)">'+fmtMoney(li.unit)+'</td><td style="padding:6px 4px;text-align:right;color:var(--ed-ink);font-weight:600">'+fmtMoney(line)+'</td></tr>';
+        // Inclusions — full width, bullet list reading like a quote
+        (o.inclusions && o.inclusions.length
+          ? '<div style="padding:10px 0 4px 74px">'+
+              '<div class="ed-eyebrow" style="margin-bottom:8px">Includes the following work</div>'+
+              '<ul style="margin:0;padding:0;list-style:none">'+
+              o.inclusions.map(function(b){
+                return '<li style="display:flex;gap:10px;padding:3px 0;font-family:var(--ed-sans);font-size:12px;line-height:1.5;color:var(--ed-ink-2)">'+
+                  '<span style="color:var(--ed-accent);flex-shrink:0;line-height:1.5">•</span>'+
+                  '<span>'+esc2(b)+'</span>'+
+                '</li>';
               }).join('')+
-              '<tr style="border-bottom:none;border-top:1px solid var(--ed-ink)"><td colspan="3" style="padding:8px 4px;text-align:right;font-family:var(--ed-serif);font-style:italic;font-size:12.5px;color:var(--ed-ink)">Total incl. GST</td><td style="padding:8px 4px;text-align:right;font-family:var(--ed-serif);font-size:14px;color:var(--ed-ink);font-weight:500">'+fmtMoney(optTot)+'</td></tr>'+
-            '</tbody></table>'+
+              '</ul>'+
+            '</div>'
+          : '')+
+        // Upgrade/downgrade options if there's a lineItems table OR description
+        // includes them.  Right now we surface the lineItems table inline
+        // beneath the inclusions, in a more breathing single column.
+        ((o.lineItems && o.lineItems.length)
+          ? '<div style="padding:12px 0 4px 74px;border-top:1px dotted var(--ed-line);margin-top:10px">'+
+              '<div class="ed-eyebrow" style="margin-bottom:8px">Itemised pricing</div>'+
+              '<table style="width:100%;border-collapse:collapse;font-family:var(--ed-sans);font-size:12px">'+
+                '<thead><tr style="border-bottom:1px solid var(--ed-ink)"><th style="padding:6px 4px;text-align:left;font-weight:600;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ed-text2)">Description</th><th style="padding:6px 4px;text-align:right;width:44px;font-weight:600;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2)">Qty</th><th style="padding:6px 4px;text-align:right;width:80px;font-weight:600;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2)">Unit</th><th style="padding:6px 4px;text-align:right;width:90px;font-weight:600;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2)">Total</th></tr></thead><tbody>'+
+                (o.lineItems||[]).map(function(li){
+                  var line = (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);
+                  return '<tr style="border-bottom:1px solid var(--ed-line);page-break-inside:avoid"><td style="padding:5px 4px;color:var(--ed-ink-2)">'+esc2(li.desc||'—')+'</td><td style="padding:5px 4px;text-align:right;color:var(--ed-ink-2)">'+(li.qty||0)+'</td><td style="padding:5px 4px;text-align:right;color:var(--ed-ink-2)">'+fmtMoney(li.unit)+'</td><td style="padding:5px 4px;text-align:right;color:var(--ed-ink);font-weight:600">'+fmtMoney(line)+'</td></tr>';
+                }).join('')+
+              '</tbody></table>'+
+            '</div>'
+          : '')+
+        // Big right-aligned price summary — mirrors the way the real
+        // Flood Roofing quote shows the per-section total in a single
+        // bold figure rather than burying it in the table footer.
+        '<div style="display:flex;justify-content:flex-end;align-items:baseline;gap:16px;padding:12px 0 4px 74px;margin-top:4px;border-top:1px solid var(--ed-ink)">'+
+          '<div style="text-align:right">'+
+            '<div class="ed-eyebrow">Section total — incl. GST</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);margin-top:2px;letter-spacing:.02em">Sub '+fmtMoney(optSub)+' · GST '+fmtMoney(optGst)+'</div>'+
           '</div>'+
+          '<div class="ed-serif" style="font-size:26px;color:var(--ed-ink);line-height:1;letter-spacing:-.01em;font-weight:500">'+fmtMoney(optTot)+'</div>'+
         '</div>'+
-        // Upgrades footer band (only if present)
+        // "Upgrade / downgrade options" — Flood Roofing's standard
+        // quote format lists these inline below the scope.  Sign of
+        // the price reflects whether it adds (+$) or removes (−$) from
+        // the section total.  An item is treated as a downgrade if its
+        // line-item total is negative.
         ((o.upgrades && o.upgrades.length)
-          ? '<div style="padding:12px 0;border-top:1px solid var(--ed-line)">'+
-              '<div class="ed-eyebrow" style="margin-bottom:8px;color:var(--ed-warm)">Optional upgrades</div>'+
+          ? '<div style="padding:12px 0 4px 74px;margin-top:2px">'+
+              '<div class="ed-eyebrow" style="margin-bottom:8px">Upgrade / downgrade options</div>'+
+              '<ul style="margin:0;padding:0;list-style:none">'+
               o.upgrades.map(function(u){
                 var uSub = _optTotal(u);
                 var uTot = uSub + uSub * (S.quote.gstRate/100);
-                return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:4px 0">'+
+                var isDown = uTot < 0;
+                var sign = isDown ? '−' : '+';
+                var color = isDown ? 'var(--ed-text2)' : 'var(--ed-warm)';
+                return '<li style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:5px 0;border-bottom:1px dotted var(--ed-line);page-break-inside:avoid">'+
                   '<div style="flex:1;min-width:0">'+
-                    '<div class="ed-serif" style="font-size:14.5px;font-style:italic;color:var(--ed-ink)">'+esc2(u.title||'Upgrade')+'</div>'+
-                    (u.description ? '<div class="ed-body" style="font-size:11.5px;margin-top:2px">'+esc2(u.description)+'</div>' : '')+
+                    '<div style="font-family:var(--ed-sans);font-size:12px;line-height:1.4;color:var(--ed-ink)">'+esc2(u.title||'Option')+'</div>'+
+                    (u.description ? '<div class="ed-body" style="font-size:11px;margin-top:2px;line-height:1.45">'+esc2(u.description)+'</div>' : '')+
                   '</div>'+
-                  '<div class="ed-serif" style="font-size:14px;font-weight:500;color:var(--ed-warm);white-space:nowrap">+'+fmtMoney(uTot)+'</div>'+
-                '</div>';
+                  '<div class="ed-serif" style="font-size:13.5px;font-weight:500;color:'+color+';white-space:nowrap">'+sign+fmtMoney(Math.abs(uTot))+'</div>'+
+                '</li>';
               }).join('')+
+              '</ul>'+
             '</div>'
           : '')+
       '</div>';
@@ -5012,35 +5046,49 @@ function refreshQuoteProposal(){
       }).join('')+
       '</div></div>' : '';
     partColorsteel =
-      edHeading('05','The material','Colorsteel® MAXAM with Activate™')+
-      '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:start;margin-bottom:24px">'+
+      edHeading('05','The material','Colorsteel® MAXAM &amp; alternatives')+
+      '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:start;margin-bottom:22px">'+
         '<div class="ed-body-lg">'+
-          '<p style="margin:0 0 12px">Colorsteel® is NZ Steel\'s pre-painted roofing and cladding range — rolled and painted at Glenbrook from New Zealand iron sand.</p>'+
-          '<p style="margin:0 0 12px">As of 2024, the previous <span class="ed-serif" style="font-style:italic;font-size:15px">Endura</span> and <span class="ed-serif" style="font-style:italic;font-size:15px">Maxx</span> grades have been replaced by a single, stronger product — <span class="ed-serif" style="font-style:italic;font-size:15px">MAXAM</span>. One spec, one chip card, suitable from inland alpine sites through to urban coastal builds.</p>'+
-          '<p style="margin:0">MAXAM is built on <span class="ed-serif" style="font-style:italic;font-size:15px">Activate™</span> technology — a patented aluminium-zinc-magnesium (AM) metallic coating that significantly slows corrosion. The result is a meaningful step-up in warranty length across every environmental zone NZ Steel publishes.</p>'+
+          '<p style="margin:0 0 10px">Flood Roofing uses <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® MAXAM</span> as standard — NZ Steel\'s newest pre-painted roofing product, rolled and painted at Glenbrook from New Zealand iron sand. MAXAM is built on <span class="ed-serif" style="font-style:italic;font-size:15px">Activate™</span> technology, a patented aluminium-zinc-magnesium coating that meaningfully slows corrosion.</p>'+
+          '<p style="margin:0">For tighter budgets we also fit two alternatives at a lower price point — <span class="ed-serif" style="font-style:italic;font-size:15px">Armorsteel ColorZen</span> (30-yr warranty, mild environments) and plain-silver <span class="ed-serif" style="font-style:italic;font-size:15px">Zinc-Aluminium</span> (20-yr non-perforation). Detail and cost of each downgrade is shown on your pricing page.</p>'+
         '</div>'+
-        '<div style="background:var(--ed-ink);color:#fff;padding:22px 22px 20px">'+
-          '<div class="ed-eyebrow" style="color:rgba(255,255,255,.65)">Perforation warranty — up to</div>'+
-          '<div class="ed-serif" style="font-style:italic;font-size:48px;line-height:1;margin-top:8px;color:#fff;font-weight:400">50 yrs<sup style="font-size:18px">*</sup></div>'+
-          '<div style="font-family:var(--ed-sans);font-size:12.5px;color:rgba(255,255,255,.72);margin-top:8px;line-height:1.55">Up to 50 years against perforation in Mild environments, up to 20 years in Very Severe Marine, and up to 18 years on paint film. *NZ Steel published exposure zones apply.</div>'+
+        '<div style="background:var(--ed-ink);color:#fff;padding:20px 22px 18px">'+
+          '<div class="ed-eyebrow" style="color:rgba(255,255,255,.65)">MAXAM perforation — up to</div>'+
+          '<div class="ed-serif" style="font-style:italic;font-size:46px;line-height:1;margin-top:8px;color:#fff;font-weight:400">50 yrs<sup style="font-size:18px">*</sup></div>'+
+          '<div style="font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,.72);margin-top:8px;line-height:1.55">Up to 50 years in Mild environments (more than 5km from breaking surf). *NZ Steel exposure zones apply — see table below.</div>'+
         '</div>'+
       '</div>'+
-      // MAXAM warranty by environmental zone — single product, rule-only table
-      '<div class="ed-eyebrow" style="margin-bottom:8px">Warranty by exposure zone</div>'+
-      '<table style="width:100%;border-collapse:collapse;font-family:var(--ed-sans);font-size:13px;margin-bottom:28px">'+
-        '<thead><tr style="border-top:1px solid var(--ed-ink);border-bottom:1px solid var(--ed-ink)"><th style="padding:8px 6px;text-align:left;font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Zone</th><th style="padding:8px 6px;text-align:right;font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Perforation</th><th style="padding:8px 6px;text-align:right;font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Paint film</th></tr></thead>'+
+      // Flood Roofing's actual warranty-by-zone breakdown (surf distance)
+      '<div class="ed-eyebrow" style="margin-bottom:8px">Colorsteel MAXAM warranty — by distance to breaking surf</div>'+
+      '<table style="width:100%;border-collapse:collapse;font-family:var(--ed-sans);font-size:12.5px;margin-bottom:20px">'+
+        '<thead><tr style="border-top:1px solid var(--ed-ink);border-bottom:1px solid var(--ed-ink)"><th style="padding:8px 6px;text-align:left;font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Zone</th><th style="padding:8px 6px;text-align:left;font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Distance from surf</th><th style="padding:8px 6px;text-align:right;font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Perforation</th></tr></thead>'+
         '<tbody>'+
-          ['Mild (inland)|up to 50 yr|up to 18 yr','Moderate|up to 36 yr|up to 18 yr','Severe Marine|up to 25 yr|up to 15 yr','Very Severe Marine (<100m to surf)|up to 20 yr|up to 12 yr','Geothermal|up to 25 yr|up to 12 yr'].map(function(row){
+          ['Mild|5 km +|50 yr','Moderate|500 m – 1,000 m|40 yr','Severe|100 m – 500 m|30 yr','Very Severe|25 m – 100 m|20 yr'].map(function(row){
             var c = row.split('|');
-            return '<tr style="border-bottom:1px solid var(--ed-line)"><td style="padding:9px 6px;font-family:var(--ed-serif);font-style:italic;color:var(--ed-ink-2)">'+c[0]+'</td><td style="padding:9px 6px;text-align:right;color:var(--ed-ink)">'+c[1]+'</td><td style="padding:9px 6px;text-align:right;color:var(--ed-ink);font-weight:500">'+c[2]+'</td></tr>';
+            return '<tr style="border-bottom:1px solid var(--ed-line)"><td style="padding:9px 6px;font-family:var(--ed-serif);font-style:italic;color:var(--ed-ink-2)">'+c[0]+'</td><td style="padding:9px 6px;color:var(--ed-ink-2)">'+c[1]+'</td><td style="padding:9px 6px;text-align:right;color:var(--ed-ink);font-weight:500">'+c[2]+'</td></tr>';
           }).join('')+
-          '<tr><td colspan="3" style="padding:8px 6px;font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);line-height:1.6;font-style:italic">For Extremely Severe environments NZ Steel offers <span class="ed-serif" style="font-style:italic">Colorsteel® Altimate®</span> — a heavier-spec alternative we\'ll quote separately on request.</td></tr>'+
         '</tbody>'+
       '</table>'+
+      // Product tier strip — Maxam (premium) / ColorZen (mid) / Zinc-Aluminium (budget)
+      '<div class="ed-eyebrow" style="margin-bottom:10px">Three product tiers</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:24px">'+
+        [
+          { tier:'Premium',   name:'Colorsteel® MAXAM',       warranty:'up to 50 yr',  body:'NZ Steel\'s latest. Activate™ aluminium-zinc-magnesium coating. What we install as standard.' },
+          { tier:'Mid-range', name:'Armorsteel ColorZen',     warranty:'30 yr (mild)', body:'A cheaper Colorsteel alternative. Solid warranty, good colour range, less corrosion protection in coastal zones.' },
+          { tier:'Budget',    name:'Zinc-Aluminium (silver)', warranty:'20 yr',        body:'Plain silver Zincalume. Commercial-grade. Dramatically lower cost. Painting in 20–25 years prolongs life.' },
+        ].map(function(t, i){
+          return '<div style="border-top:1px solid var(--ed-ink);padding-top:12px">'+
+            '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:13px;color:var(--ed-accent);line-height:1">— '+t.tier+'</div>'+
+            '<div class="ed-serif" style="font-size:15px;color:var(--ed-ink);margin-top:6px;letter-spacing:-.005em;line-height:1.2">'+t.name+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-warm);margin-top:3px;letter-spacing:.04em;font-weight:600">'+t.warranty+' warranty</div>'+
+            '<div class="ed-body" style="margin-top:6px;font-size:11px;line-height:1.55">'+t.body+'</div>'+
+          '</div>';
+        }).join('')+
+      '</div>'+
       // Colour palette — editorial label
-      '<div class="ed-eyebrow" style="margin-bottom:10px">The colour range</div>'+
-      '<div class="ed-serif" style="font-size:18px;font-style:italic;margin-bottom:14px;color:var(--ed-ink)">Standard Colorsteel® palette</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">'+
+      '<div class="ed-eyebrow" style="margin-bottom:8px">The colour range</div>'+
+      '<div class="ed-serif" style="font-size:16px;font-style:italic;margin-bottom:10px;color:var(--ed-ink)">Standard Colorsteel® palette</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">'+
         MAXAM_COLOURS.map(function(c){
           var labelStyle = 'color:'+(needsLightLabel(c.hex)?'#fff':'#0a1628');
           return '<div style="position:relative;background:'+c.hex+';height:80px;display:flex;align-items:flex-end;padding:6px 8px">'+
@@ -5058,13 +5106,15 @@ function refreshQuoteProposal(){
   // ── Marley PVC spouting (full page) ──
   if (on('marley')) {
     partMarley =
-      edHeading('06','The spouting — option one','Marley PVC')+
-      '<div class="ed-body-lg" style="margin-bottom:24px;max-width:60em">Marley is New Zealand\'s most-installed PVC spouting brand — UV-stabilised, light, doesn\'t corrode, won\'t dent in hail. Choice of profile suits both modern and heritage homes. A <em>15-year manufacturer\'s warranty</em> covers the spouting, downpipes and fittings.</div>'+
-      // Profile grid — editorial cards with serif name + italic blurb
+      edHeading('06','The spouting — our standard fit','Marley Typhoon® PVC')+
+      '<div class="ed-body-lg" style="margin-bottom:22px;max-width:60em">Marley is New Zealand\'s most-installed PVC spouting brand — UV-stabilised, light, doesn\'t corrode and won\'t dent in hail. <span class="ed-serif" style="font-style:italic;font-size:15px">Typhoon</span> is what we fit as standard: a high-flow half-round profile, far superior to the older Marley Classic for our catchments. For larger roofs or extra peace of mind we recommend the upgrade to <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — page 07. A <em>15-year manufacturer\'s warranty</em> covers the spouting, downpipes and fittings.</div>'+
+      // Profile grid — editorial cards with serif name + italic blurb.
+      // First profile (Typhoon) wears a "STANDARD" flag in the corner.
       '<div class="ed-eyebrow" style="margin-bottom:10px">Available profiles</div>'+
-      '<div style="display:grid;grid-template-columns:repeat('+MARLEY_PROFILES.length+',1fr);gap:14px;margin-bottom:28px">'+
+      '<div style="display:grid;grid-template-columns:repeat('+MARLEY_PROFILES.length+',1fr);gap:14px;margin-bottom:24px">'+
         MARLEY_PROFILES.map(function(p, pi){
-          return '<div style="border-top:1px solid var(--ed-ink);padding-top:14px">'+
+          return '<div style="border-top:1px solid var(--ed-ink);padding-top:14px;position:relative">'+
+            (p.flag ? '<div style="position:absolute;top:-1px;right:0;background:var(--ed-accent);color:#fff;font-family:var(--ed-sans);font-size:9px;font-weight:600;letter-spacing:.16em;padding:3px 8px">'+p.flag+'</div>' : '')+
             '<div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-accent);line-height:1">0'+(pi+1)+'</div>'+
             '<div style="margin:10px 0;background:var(--ed-paper-2);padding:10px;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">'+gutterProfileSvg(p.key)+'</div>'+
             '<div class="ed-serif" style="font-size:14.5px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em">'+esc2(p.name)+'</div>'+
@@ -5089,8 +5139,8 @@ function refreshQuoteProposal(){
   // ── Continuous steel spouting / RI gutters (full page) ──
   if (on('ri_gutters')) {
     partRiGutters =
-      edHeading('07','The spouting — option two','Continuous steel')+
-      '<div class="ed-body-lg" style="margin-bottom:24px;max-width:60em">Continuous spouting — also called <em>seamless</em> — is rolled on-site from coil-stock Colorsteel® in 0.55bmt steel. No factory joins, far stiffer than PVC, finished in the same colour family as your roof. Made by Roofing Industries for our Northland jobs. A <em>15-year paint film warranty</em> sits on top of the substrate cover.</div>'+
+      edHeading('07','The spouting — recommended upgrade','Colorsteel® 125mm Box Gutter')+
+      '<div class="ed-body-lg" style="margin-bottom:22px;max-width:60em">For larger roofs, or for added peace of mind on Northland\'s heavy rainfall events, we recommend stepping up from Marley Typhoon to a continuous <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — rolled on-site in 0.55bmt steel, no factory joins, much higher flow capacity than any PVC profile. Finished in the same Colorsteel colour family as your roof for a fully coordinated finish, with a <em>15-year paint film warranty</em> on top of the substrate cover.</div>'+
       // Profile grid
       '<div class="ed-eyebrow" style="margin-bottom:10px">Available profiles</div>'+
       '<div style="display:grid;grid-template-columns:repeat('+STEEL_GUTTER_PROFILES.length+',1fr);gap:14px;margin-bottom:28px">'+
@@ -5173,22 +5223,23 @@ function refreshQuoteProposal(){
     // ownership and disputes.
     var customTerms = (S.quote.terms||'').trim();
     var dflt = [
-      { h:'1. Quote validity',    b:'This quote is valid for 30 days from the date issued. After that date materials and labour rates may be re-quoted.' },
-      { h:'2. Acceptance',        b:'The contract is formed when the client signs the acceptance page (or confirms in writing) AND the 25% deposit has cleared into our account. Verbal acceptance does not bind either party.' },
-      { h:'3. Materials &amp; products', b:'All materials are NZ-made unless explicitly noted. Colorsteel® MAXAM (with Activate™ Technology) carries NZ Steel\'s manufacturer warranty — up to 50 years against perforation in mild environments, lower in marine zones per NZ Steel\'s published exposure zones. Marley spouting carries Marley\'s 15-year warranty. Manufacturer documentation handed over at sign-off.' },
-      { h:'4. Workmanship warranty', b:'We warrant the workmanship of the installed roof for 10 years from the date of practical completion. This covers fixing, lapping, flashing penetration of weather. It does not cover: damage by other trades, modifications by others, storm or impact damage, or normal wear of paint film (covered separately by manufacturer).' },
-      { h:'5. Payment terms',     b:'25% deposit on acceptance (materials ordered). 50% progress payment due on completion of roof and gutters. 25% final due on practical completion. Invoices payable by the 20th of the month following invoice date. 2.5% per month interest applies to overdue balances. We reserve the right to suspend work for non-payment.' },
-      { h:'6. Variations &amp; provisional sums', b:'Any change to the agreed scope must be authorised in writing (email is fine). Variations are billed at quoted rates or current trade rates if not pre-quoted. Provisional Cost (PC) items — typically rotten battens or hidden flashings — are charged at cost + 15% on inspection during strip-out.' },
-      { h:'7. Hidden defects / latent conditions', b:'The quote is based on visible roof condition only. Concealed defects (rotten purlins, asbestos sheeting, structural sag, etc.) discovered during strip-out will be raised with the client immediately, priced, and treated as a variation.' },
-      { h:'8. Weather &amp; programme', b:'Outdoor roofing work is weather-dependent. Heavy rain or sustained high winds (over 40 km/h) will halt work for safety. We will catch the building up overnight if a strip is incomplete. Re-scheduled days do not attract additional cost unless the client cancels access.' },
-      { h:'9. Site access &amp; health and safety', b:'Client to provide reasonable site access, water and power. We follow WorkSafe / SiteSafe procedures including edge protection, harness anchors and exclusion zones. Children, pets and visitors must stay out of the active work zone. The client is responsible for moving valuable garden items / parked vehicles clear of the building line.' },
-      { h:'10. Insurance',        b:'We carry $2 million Public Liability + Contract Works insurance. Sub-trades engaged by us carry their own insurance. Client\'s building insurance must remain in force during the work.' },
-      { h:'11. Waste &amp; disposal', b:'All stripped roofing, underlay and packaging is removed from site and disposed of legally. Old metal is recycled where possible. Client may keep salvaged sheets on request, advised before strip-out.' },
-      { h:'12. Ownership of materials', b:'Title in materials remains with us until paid for in full. Materials installed before payment may be removed at our cost in the event of cancellation, subject to the Construction Contracts Act 2002.' },
-      { h:'13. Cancellation',     b:'Cancellation after deposit but before materials ordered: deposit refunded less a $250 admin fee. Cancellation after materials are ordered: client pays for all materials ordered + 10% restocking fee where applicable. Cancellation after work has commenced: client pays for all work done to date + materials.' },
-      { h:'14. Photographs',      b:'We typically take before/during/after photographs for our records. We may use anonymised photographs for marketing (website, social media). Tell us in writing if you don\'t want photos used externally.' },
-      { h:'15. Dispute resolution', b:'Any dispute will first be raised in writing and we will attempt to resolve it within 14 days. Unresolved disputes go to mediation under the Construction Contracts Act 2002. Disputes governed by New Zealand law, jurisdiction Whangarei District Court.' },
-      { h:'16. GST',              b:'All prices in this quote are exclusive of GST unless explicitly marked "incl. GST". 15% GST is added at invoice. We are GST-registered.' },
+      { h:'1. Quote validity',    b:'This quote is valid for 21 days from the date issued. After that date materials and labour rates may be re-quoted.' },
+      { h:'2. 100% price guarantee', b:'The price we quote is the price you pay. No hidden extras — and no separate scaffolding quote, because we do our own edge-protection scaffolding in-house.' },
+      { h:'3. Acceptance',        b:'The contract is formed when the client signs the acceptance page (or confirms in writing) AND the 50% deposit has cleared into our account. Verbal acceptance does not bind either party.' },
+      { h:'4. Materials &amp; products', b:'All materials are NZ-made unless explicitly noted. Colorsteel® MAXAM (with Activate™ Technology) carries NZ Steel\'s manufacturer warranty — up to 50 years against perforation in Mild environments (5km+ from breaking surf), reducing in Marine zones per NZ Steel\'s published exposure zones. Marley Typhoon spouting carries Marley\'s 15-year warranty. Manufacturer documentation handed over at sign-off.' },
+      { h:'5. Workmanship warranty', b:'We warrant the workmanship of the installed roof for 10 years from the date of practical completion. This covers fixing, lapping, flashing penetration of weather. It does not cover: damage by other trades, modifications by others, storm or impact damage, or normal wear of paint film (covered separately by manufacturer).' },
+      { h:'6. Payment terms',     b:'50% deposit invoice sent approximately 7 days before commencement of work — work is scheduled once the deposit clears. 50% final payment due within 7 days of practical completion. Invoices payable by the 20th of the month following invoice date. 2.5% per month interest applies to overdue balances. We reserve the right to suspend work for non-payment.' },
+      { h:'7. Variations &amp; provisional sums', b:'Any change to the agreed scope must be authorised in writing (email is fine). Variations are billed at quoted rates or current trade rates if not pre-quoted. Provisional Cost (PC) items — typically rotten battens or hidden flashings — are charged at cost + 15% on inspection during strip-out.' },
+      { h:'8. Hidden defects / latent conditions', b:'The quote is based on visible roof condition only. Concealed defects (rotten purlins, asbestos sheeting, structural sag, etc.) discovered during strip-out will be raised with the client immediately, priced, and treated as a variation.' },
+      { h:'9. Lead time &amp; programme', b:'Average lead time from acceptance to start is 5–8 weeks, scheduled first-in first-served. Outdoor work is weather-dependent — heavy rain or sustained high winds (40+ km/h) will halt work for safety. We catch the building up overnight if a strip is incomplete. Re-scheduled days do not attract additional cost unless the client cancels access.' },
+      { h:'10. Site access &amp; health and safety', b:'Client to provide reasonable site access, water and power. We follow WorkSafe / SiteSafe procedures including edge protection, harness anchors and exclusion zones. Children, pets and visitors must stay out of the active work zone. The client is responsible for moving valuable garden items / parked vehicles clear of the building line.' },
+      { h:'11. Insurance',        b:'We carry $2 million Public Liability + Contract Works insurance. Sub-trades engaged by us carry their own insurance. Client\'s building insurance must remain in force during the work.' },
+      { h:'12. Waste &amp; disposal', b:'All stripped roofing, underlay and packaging is removed from site and disposed of legally. Old metal is recycled where possible. Client may keep salvaged sheets on request, advised before strip-out.' },
+      { h:'13. Ownership of materials', b:'Title in materials remains with us until paid for in full. Materials installed before payment may be removed at our cost in the event of cancellation, subject to the Construction Contracts Act 2002.' },
+      { h:'14. Cancellation',     b:'Cancellation after deposit but before materials ordered: deposit refunded less a $250 admin fee. Cancellation after materials are ordered: client pays for all materials ordered + 10% restocking fee where applicable. Cancellation after work has commenced: client pays for all work done to date + materials.' },
+      { h:'15. Photographs',      b:'We typically take before/during/after photographs for our records. We may use anonymised photographs for marketing (website, social media). Tell us in writing if you don\'t want photos used externally.' },
+      { h:'16. Dispute resolution', b:'Any dispute will first be raised in writing and we will attempt to resolve it within 14 days. Unresolved disputes go to mediation under the Construction Contracts Act 2002. Disputes governed by New Zealand law, jurisdiction Whangarei District Court.' },
+      { h:'17. GST',              b:'All prices in this quote are exclusive of GST unless explicitly marked "incl. GST". 15% GST is added at invoice. We are GST-registered.' },
     ];
     var clauses = customTerms
       ? '<div class="ed-body" style="column-count:2;column-gap:24px;font-size:12px;line-height:1.6">'+
@@ -5207,13 +5258,13 @@ function refreshQuoteProposal(){
       // clauses + the schedule sit on one A4 sheet.
       '<div class="ed-keep" style="margin-top:18px;border-top:1px solid var(--ed-ink);padding-top:12px;display:flex;align-items:baseline;justify-content:space-between;gap:18px;flex-wrap:wrap">'+
         '<div class="ed-eyebrow">Payment schedule</div>'+
-        [['25%','Deposit','Materials ordered'],['50%','Progress','Roof &amp; gutters complete'],['25%','Final','Practical completion']]
+        [['50%','Deposit','~7 days before start'],['50%','Final','Within 7 days of completion']]
         .map(function(p,i){
           return '<div style="display:flex;align-items:baseline;gap:10px">'+
-            '<div class="ed-serif" style="font-size:24px;color:var(--ed-ink);line-height:1;letter-spacing:-.01em;font-weight:500">'+p[0]+'</div>'+
+            '<div class="ed-serif" style="font-size:26px;color:var(--ed-ink);line-height:1;letter-spacing:-.01em;font-weight:500">'+p[0]+'</div>'+
             '<div>'+
-              '<div class="ed-serif" style="font-size:12.5px;font-style:italic;color:var(--ed-ink);line-height:1.1">'+p[1]+'</div>'+
-              '<div class="ed-body" style="font-size:10px;color:var(--ed-text2);margin-top:1px">'+p[2]+'</div>'+
+              '<div class="ed-serif" style="font-size:13px;font-style:italic;color:var(--ed-ink);line-height:1.1">'+p[1]+'</div>'+
+              '<div class="ed-body" style="font-size:10.5px;color:var(--ed-text2);margin-top:1px">'+p[2]+'</div>'+
             '</div>'+
           '</div>';
         }).join('')+
