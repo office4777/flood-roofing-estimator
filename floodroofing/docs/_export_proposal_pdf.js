@@ -186,13 +186,12 @@ const path = require('path');
     st.textContent =
       '@page { size: A4; margin: 0; }' +
       'html, body { margin:0; padding:0; background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }' +
-      // Force each major page section onto its own physical page so the
-      // section toggles (cover/about/project/optA/optB/maxam/summary/
-      // terms/signature) map 1:1 to printed pages.
+      // 5-page compact layout: each .rp-page forces a new sheet.  The
+      // tail footer must stick to the last page so it doesn't spill.
       '#__pdfHolder .rp-page { page-break-inside: avoid; break-inside: avoid; page-break-after: always; break-after: page; }' +
       '#__pdfHolder .rp-page:last-of-type { page-break-after: auto; break-after: auto; }' +
       '#__pdfHolder .rp-header { page-break-after: avoid; break-after: avoid; }' +
-      '#__pdfHolder .rp-summary-bar, #__pdfHolder .rp-footer { page-break-before: avoid; break-before: avoid; }' +
+      '#__pdfHolder .rp-pdf-footer { page-break-before: avoid; break-before: avoid; page-break-inside: avoid; break-inside: avoid; }' +
       '#__pdfHolder img { max-width:100%; }';
     document.head.appendChild(st);
   });
