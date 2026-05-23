@@ -195,7 +195,7 @@ const path = require('path');
     // Wrap the proposal in a clean container at the body root.
     var holder = document.createElement('div');
     holder.id = '__pdfHolder';
-    holder.style.cssText = 'background:#fff;width:1100px;margin:0 auto;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif';
+    holder.style.cssText = 'background:#fff;width:794px;margin:0 auto;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif';
     // Move (don't clone) so any inline event hooks stay live.
     while (body.firstChild) body.removeChild(body.firstChild);
     var clone = keep.cloneNode(true);
