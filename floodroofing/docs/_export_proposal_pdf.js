@@ -43,6 +43,12 @@ const path = require('path');
       phone: '021 277 5555',
       email: 'office@floodroofing.co.nz',
       address: 'Whangarei, Northland, NZ',
+      team: [
+        { role: 'Owner / Project Lead', name: 'Aron Flood',  responsibilities: 'Quoting, site supervision, sign-off' },
+        { role: 'Lead Roofer',          name: 'Sam Whittaker', responsibilities: 'On-site lead, installation, QC' },
+        { role: 'Roofers (×2)',         name: 'Jase + Mason',  responsibilities: 'Strip-out + install crew' },
+        { role: 'Apprentice',           name: 'Tane Mahuta',   responsibilities: 'Materials handling, supervised work' },
+      ],
     });
     window.S.settings.branding.gallery_photos = [
       { src: tile('#3f3a32', 'Ironsand Hip — Tutukaka'),     caption: 'Ironsand Maxam — Tutukaka' },
@@ -92,7 +98,25 @@ const path = require('path');
       aboutText:
         'Flood Roofing is a Northland-based roofing specialist established in 2016. Owner Aron Flood has 15+ years on the tools — from high-end architectural homes through to large commercial re-roofs — and only hires the best team along the way. We install premium NZ-made Colorsteel® Maxam and Endura products only, and back every roof with a written 10-year workmanship warranty.',
       scope: '• Strip existing corrugated steel roof + dispose to landfill\n• Inspect, replace damaged purlins (PC sum allowed)\n• Install new Maxam corrugate, all flashings, ridge caps\n• Re-flash chimney + 2× plumbing vents\n• 6m of new spouting on the south elevation',
-      terms: '10-year workmanship warranty. Materials carry NZ Steel\'s 25-year perforation warranty in this exposure zone. 25% deposit on acceptance, 50% progress on completion of roof & gutters, 25% on practical completion. Quote valid 30 days.',
+      conditionSummary: 'The existing roof is original ~1995 Colorsteel corrugate showing significant paint film failure on the north and west faces, with rust beginning at fixing points. Ridge cap is flat-bar fixed (now superseded) and has lifted in three places on the western run. Spouting on the south elevation is sagging and undersized for the catchment. We recommend a full strip-and-replace rather than overcoat — the underlying steel has begun to perforate in isolated areas.',
+      conditionObservations: [
+        'Paint film failure 60-70% on north + west faces (chalk + flake)',
+        'Surface rust at all fixing points, perforation starting at 4 fixings',
+        'Ridge cap lifted in 3 locations — flat-bar fixings outdated',
+        'Underlay has degraded (visible from inside ceiling space)',
+        '6m of south-elevation spouting sagging; downpipe undersized',
+        'No identified asbestos products in the existing roof structure',
+      ],
+      startDate: 'Mid-June 2026 (week of 15 June)',
+      timeline: [
+        { label:'Site setup + edge protection', days:1 },
+        { label:'Strip existing roof + dispose',  days:1 },
+        { label:'Inspect / replace battens',      days:1 },
+        { label:'Install underlay + Maxam',       days:3 },
+        { label:'Flashings + new spouting',       days:1 },
+        { label:'Final clean + sign-off',         days:1 },
+      ],
+      terms: '',
       gstRate: 15,
       options: [
         {
