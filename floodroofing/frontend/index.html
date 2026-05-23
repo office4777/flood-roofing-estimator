@@ -4404,9 +4404,13 @@ function edHeading(num, eyebrow, title, opts){
   return '<div class="ed-heading-band" style="margin:'+topMargin+' -36px 22px;padding:24px 36px 22px;background:linear-gradient(135deg,var(--ed-ink) 0%,#0d2440 60%,#0b1c33 100%);color:#fff;position:relative;overflow:hidden">'+
     // Top accent stripe — brand-blue
     '<div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--ed-accent) 0%,#3ab8ee 50%,var(--ed-accent) 100%)"></div>'+
-    // Subtle roof-line motif at far right, very low opacity
-    '<svg viewBox="0 0 240 100" preserveAspectRatio="xMaxYMid meet" style="position:absolute;right:0;top:0;height:100%;width:auto;opacity:.08;pointer-events:none"><path d="M0 90 L60 30 L120 90 L120 60 L180 18 L240 70" stroke="#fff" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>'+
-    '<div style="display:flex;align-items:flex-start;gap:22px;position:relative">'+
+    // Bottom accent stripe — slim brand-blue underscore
+    '<div style="position:absolute;bottom:0;left:0;right:0;height:1px;background:rgba(0,153,224,.4)"></div>'+
+    // Flood Roofing logo — white-on-transparent so it pops on the
+    // dark heading band.  Sits in the far right, vertically centred,
+    // sized ~52px tall (≈124px wide at the cropped 340×143 aspect).
+    '<img src="brand/logo_wide_white.png" onerror="this.style.display=\'none\'" alt="" style="position:absolute;right:36px;top:50%;transform:translateY(-50%);height:54px;width:auto;opacity:.92;pointer-events:none">'+
+    '<div style="display:flex;align-items:flex-start;gap:22px;position:relative;padding-right:160px">'+
       '<div class="ed-number" style="flex-shrink:0;width:80px;color:var(--ed-accent);font-size:48px;line-height:1">'+esc2(num)+'</div>'+
       '<div style="flex:1;padding-top:4px">'+
         (eyebrow ? '<div class="ed-eyebrow" style="color:var(--ed-accent)">'+esc2(eyebrow)+'</div>' : '')+
