@@ -592,20 +592,24 @@ select{
   --ed-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 }
 .report-preview .ed-serif{font-family:var(--ed-serif)}
-.report-preview .ed-number{font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:64px;line-height:.9;color:var(--ed-accent);letter-spacing:-.02em}
-.report-preview .ed-eyebrow{font-family:var(--ed-sans);font-size:10px;letter-spacing:.32em;text-transform:uppercase;font-weight:600;color:var(--ed-accent)}
-.report-preview .ed-title{font-family:var(--ed-serif);font-weight:400;color:var(--ed-ink);letter-spacing:-.01em;line-height:1.05}
-.report-preview .ed-h1{font-size:44px}
-.report-preview .ed-h2{font-size:32px}
-.report-preview .ed-h3{font-size:22px}
+.report-preview .ed-number{font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:54px;line-height:.9;color:var(--ed-accent);letter-spacing:-.02em}
+.report-preview .ed-eyebrow{font-family:var(--ed-sans);font-size:10.5px;letter-spacing:.26em;text-transform:uppercase;font-weight:600;color:var(--ed-accent)}
+.report-preview .ed-title{font-family:var(--ed-serif);font-weight:400;color:var(--ed-ink);letter-spacing:-.01em;line-height:1.1}
+.report-preview .ed-h1{font-size:36px}
+.report-preview .ed-h2{font-size:26px}
+.report-preview .ed-h3{font-size:19px}
 .report-preview .ed-rule{height:1px;background:var(--ed-line);border:0;margin:14px 0}
 .report-preview .ed-rule-dark{height:1px;background:var(--ed-ink);border:0;margin:14px 0}
-.report-preview .ed-body{font-family:var(--ed-sans);font-size:11.5px;line-height:1.75;color:var(--ed-ink-2);font-weight:400}
-.report-preview .ed-body-lg{font-family:var(--ed-sans);font-size:13px;line-height:1.75;color:var(--ed-ink-2);font-weight:300;letter-spacing:.005em}
+.report-preview .ed-body{font-family:var(--ed-sans);font-size:12.5px;line-height:1.6;color:var(--ed-ink-2);font-weight:400}
+.report-preview .ed-body-lg{font-family:var(--ed-sans);font-size:14px;line-height:1.65;color:var(--ed-ink-2);font-weight:300;letter-spacing:.005em}
 .report-preview .ed-card{background:#fff;border:1px solid var(--ed-line);padding:18px 20px}
 .report-preview .ed-cream{background:var(--ed-paper-2)}
 .report-preview .rp-page{background:var(--ed-paper)!important;border-top:none}
-.report-preview .rp-body{padding:46px 48px}
+.report-preview .rp-body{padding:38px 36px}
+/* Atomic blocks — option cards on the pricing page, the payment
+   schedule strip on the T&Cs page, profile cards, etc.  Keeps them
+   from splitting awkwardly across an A4 page break. */
+.report-preview .ed-keep{break-inside:avoid;page-break-inside:avoid}
 .report-preview .rp-header{background:var(--ed-ink);color:#fff;padding:22px 48px}
 .report-preview .rp-header .rp-logo-name{font-family:var(--ed-serif);font-weight:400;letter-spacing:.02em;font-size:22px}
 .report-preview .rp-header .rp-logo-tag{font-family:var(--ed-sans);letter-spacing:.28em;font-size:8.5px;color:rgba(255,255,255,.55);text-transform:uppercase;font-weight:500;margin-top:6px}
@@ -3983,7 +3987,7 @@ function renderProposalSectionToggles(){
     ['about',     'About us + team structure',  'Company profile + team roles'],
     ['condition', 'Existing roof condition',    'Condition summary + site photos'],
     ['inclusions','Quote inclusions + pricing', 'Selectable options + itemised pricing'],
-    ['colorsteel','Colorsteel® range',          'Endura/Maxam + standard colours'],
+    ['colorsteel','Colorsteel® range',          'MAXAM with Activate™ + standard colours'],
     ['marley',    'Marley PVC spouting',        'Profiles + colour palette'],
     ['ri_gutters','Continuous steel spouting',  'Profiles + Colorsteel colours'],
     ['scopework', 'Scope of work + timeline',   'Phases, duration, estimated start'],
@@ -4563,12 +4567,15 @@ function gutterProfileSvg(key){
 
 // Curated profile lists for the renderer.  Keeping these inline so
 // editing the marketing copy doesn't require touching the renderer.
+// Marley NZ residential spouting range (Stratus Design Series + Classic).
+// Specs sourced from marley.co.nz/rainwater/residential-spouting-compare-chart
+// — width × depth in mm, plus typical cross-sectional flow area where
+// published.  These match what Marley actually stocks in 2026.
 var MARLEY_PROFILES = [
-  { key:'stratus',    name:'Marley Stratus Design®',     blurb:'Modern square-front profile, 125mm width — most popular new-build choice.' },
-  { key:'classic',    name:'Marley Stratus Classic®',    blurb:'Rounded shoulders, 125mm — softens architectural lines, great on heritage homes.' },
-  { key:'typhoon',    name:'Marley Typhoon®',            blurb:'High-capacity 145mm — engineered for steep roofs / large catchments.' },
-  { key:'magnum',     name:'Marley Magnum®',             blurb:'Deep 150mm rectangular — maximum flow rate, commercial-grade.' },
-  { key:'rp80',       name:'Marley RP80®',               blurb:'Compact 80mm rectangular — sheds, garages, low-flow applications.' },
+  { key:'stratus',    name:'Stormcloud®',                blurb:'Modern square-fronted Stratus Design profile, 125mm × 90mm. The most-installed new-build spouting in NZ.' },
+  { key:'classic',    name:'Marley Classic®',            blurb:'Traditional ogee-shouldered profile, 125mm × 80mm. The heritage choice — softens architectural lines on character homes.' },
+  { key:'typhoon',    name:'Typhoon®',                   blurb:'High-flow Stratus Design half-round profile, 145mm × 90mm. Engineered for steep roofs and large catchments.' },
+  { key:'magnum',     name:'Magnum®',                    blurb:'Deep Stratus Design rectangular profile — cross-section 14,300mm². Maximum flow rate, commercial-grade.' },
 ];
 var MARLEY_COLOURS = [
   { name:'White',          hex:'#f5f5f0' },
@@ -4639,7 +4646,7 @@ function refreshQuoteProposal(){
       '<div class="rp-logo-name">'+esc2(company)+'</div>'+
       '<div class="rp-logo-tag">'+esc2(tagline)+'</div>'+
       '<div class="rp-logo-stripe"></div>'+
-      '<div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:6px">'+esc2(contactBits)+'</div>'+
+      '<div style="font-size:11.5px;color:rgba(255,255,255,.4);margin-top:6px">'+esc2(contactBits)+'</div>'+
     '</div>'+
     '<div class="rp-hdr-right"><strong>'+esc2(S.quote.coverTitle || 'Roofing Quote & Proposal')+'</strong>'+esc2(S.quote.date || '')+'<br>Ref: '+esc2(S.quote.ref || 'FR-001')+'<br>Valid: '+esc2(S.quote.validUntil || '30 days')+'</div>'+
   '</div>';
@@ -4680,7 +4687,7 @@ function refreshQuoteProposal(){
         // Bottom strip only — capability label left, section number right.
         // (Header above already carries the company mark + ref / date.)
         '<div style="position:absolute;bottom:0;left:0;right:0;padding:20px 32px;display:flex;justify-content:space-between;align-items:flex-end;color:#fff">'+
-          '<div style="font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:11px;color:rgba(255,255,255,.78);letter-spacing:.04em">Capability statement &amp; quote</div>'+
+          '<div style="font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:12.5px;color:rgba(255,255,255,.78);letter-spacing:.04em">Capability statement &amp; quote</div>'+
           '<div style="font-family:var(--ed-serif);font-style:italic;font-size:14px;color:rgba(255,255,255,.7)">— 01 —</div>'+
         '</div>'+
       '</div>'+
@@ -4688,7 +4695,7 @@ function refreshQuoteProposal(){
       '<div style="padding:48px 48px 36px;background:var(--ed-paper)">'+
         '<div class="ed-eyebrow">A roofing proposal — Prepared for</div>'+
         '<div class="ed-title ed-h1" style="margin-top:12px;font-size:42px"><span style="font-style:italic;font-weight:400;color:var(--ed-accent)">'+esc2(S.quote.client||'your project')+'</span></div>'+
-        '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em">'+esc2(S.quote.addr || '—')+'</div>'+
+        '<div style="font-family:var(--ed-sans);font-size:13.5px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em">'+esc2(S.quote.addr || '—')+'</div>'+
         '<hr class="ed-rule" style="margin:28px 0 22px">'+
         // Title (cover) — second line in serif
         '<div class="ed-serif" style="font-size:22px;font-weight:400;line-height:1.3;color:var(--ed-ink);max-width:78%">'+esc2(S.quote.coverTitle || 'A re-roof, done with care.')+'</div>'+
@@ -4731,7 +4738,7 @@ function refreshQuoteProposal(){
           return '<div>'+
             '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:24px;color:var(--ed-accent);line-height:1">— 0'+(i+1)+'</div>'+
             '<div class="ed-serif" style="font-size:14px;color:var(--ed-ink);margin-top:8px;letter-spacing:-.005em;line-height:1.3">'+f.title+'</div>'+
-            '<div class="ed-body" style="margin-top:5px;font-size:10.5px">'+f.body+'</div>'+
+            '<div class="ed-body" style="margin-top:5px;font-size:12px">'+f.body+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
@@ -4743,8 +4750,8 @@ function refreshQuoteProposal(){
           return '<div style="border-top:1px solid var(--ed-ink);padding-top:14px">'+
             '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:20px;color:var(--ed-accent);line-height:1">'+(i<9?'0':'')+(i+1)+'.</div>'+
             '<div class="ed-serif" style="font-size:15px;color:var(--ed-ink);margin-top:8px;line-height:1.25">'+esc2(m.role||'—')+'</div>'+
-            (m.name ? '<div style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-ink-2);margin-top:6px;font-weight:500">'+esc2(m.name)+'</div>' : '<div style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2);margin-top:6px;font-style:italic">Add name in Settings</div>')+
-            (m.responsibilities ? '<div class="ed-body" style="margin-top:6px;font-size:10px;line-height:1.55">'+esc2(m.responsibilities)+'</div>' : '')+
+            (m.name ? '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink-2);margin-top:6px;font-weight:500">'+esc2(m.name)+'</div>' : '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-text2);margin-top:6px;font-style:italic">Add name in Settings</div>')+
+            (m.responsibilities ? '<div class="ed-body" style="margin-top:6px;font-size:11.5px;line-height:1.55">'+esc2(m.responsibilities)+'</div>' : '')+
           '</div>';
         }).join('')+
       '</div>';
@@ -4761,9 +4768,9 @@ function refreshQuoteProposal(){
     for (var ci = 0; ci < 6; ci++){
       var pp = photos[ci];
       if (pp && pp.src){
-        photoBoxes += '<div style="aspect-ratio:4/3;border-radius:6px;overflow:hidden;background:#000;border:1px solid var(--border);position:relative"><img src="'+esc2(pp.src)+'" style="width:100%;height:100%;object-fit:cover">'+(pp.caption?'<div style="position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.6);color:#fff;font-size:9.5px">'+esc2(pp.caption)+'</div>':'')+'</div>';
+        photoBoxes += '<div style="aspect-ratio:4/3;border-radius:6px;overflow:hidden;background:#000;border:1px solid var(--border);position:relative"><img src="'+esc2(pp.src)+'" style="width:100%;height:100%;object-fit:cover">'+(pp.caption?'<div style="position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.6);color:#fff;font-size:11px">'+esc2(pp.caption)+'</div>':'')+'</div>';
       } else {
-        photoBoxes += '<div style="aspect-ratio:4/3;border-radius:6px;background:#fafbfc;border:1.5px dashed #cbd2dc;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#94a0b0">'+rpIcon('clipboard','#94a0b0',20)+'<div style="font-size:10px;font-weight:600">Upload site photo here</div></div>';
+        photoBoxes += '<div style="aspect-ratio:4/3;border-radius:6px;background:#fafbfc;border:1.5px dashed #cbd2dc;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#94a0b0">'+rpIcon('clipboard','#94a0b0',20)+'<div style="font-size:11.5px;font-weight:600">Upload site photo here</div></div>';
       }
     }
     // Rebuild photoBoxes in the editorial style — squared, hairline
@@ -4773,9 +4780,9 @@ function refreshQuoteProposal(){
     for (var ci2 = 0; ci2 < 6; ci2++){
       var pp2 = photos[ci2];
       if (pp2 && pp2.src){
-        photoBoxes += '<figure style="margin:0;aspect-ratio:4/3;background:#000;overflow:hidden;position:relative;border:1px solid var(--ed-ink)"><img src="'+esc2(pp2.src)+'" style="width:100%;height:100%;object-fit:cover;filter:saturate(.95)">'+(pp2.caption?'<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:6px 10px;background:rgba(26,26,26,.78);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:10.5px;letter-spacing:.01em">'+esc2(pp2.caption)+'</figcaption>':'')+'</figure>';
+        photoBoxes += '<figure style="margin:0;aspect-ratio:4/3;background:#000;overflow:hidden;position:relative;border:1px solid var(--ed-ink)"><img src="'+esc2(pp2.src)+'" style="width:100%;height:100%;object-fit:cover;filter:saturate(.95)">'+(pp2.caption?'<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:6px 10px;background:rgba(26,26,26,.78);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:12px;letter-spacing:.01em">'+esc2(pp2.caption)+'</figcaption>':'')+'</figure>';
       } else {
-        photoBoxes += '<div style="aspect-ratio:4/3;background:var(--ed-paper-2);border:1px dashed var(--ed-line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--ed-text2)"><div class="ed-serif" style="font-style:italic;font-size:13px;color:var(--ed-accent)">— photo —</div><div style="font-family:var(--ed-sans);font-size:9.5px;letter-spacing:.22em;text-transform:uppercase">Upload site photo here</div></div>';
+        photoBoxes += '<div style="aspect-ratio:4/3;background:var(--ed-paper-2);border:1px dashed var(--ed-line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--ed-text2)"><div class="ed-serif" style="font-style:italic;font-size:14.5px;color:var(--ed-accent)">— photo —</div><div style="font-family:var(--ed-sans);font-size:11px;letter-spacing:.22em;text-transform:uppercase">Upload site photo here</div></div>';
       }
     }
     partCondition =
@@ -4792,8 +4799,8 @@ function refreshQuoteProposal(){
               '<div style="border-top:1px solid var(--ed-ink)">'+
                 condObs.map(function(o, i){
                   return '<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--ed-line)">'+
-                    '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:13px;color:var(--ed-accent);flex-shrink:0;min-width:24px">0'+(i+1)+'</div>'+
-                    '<div class="ed-body" style="font-size:10.5px;line-height:1.55">'+esc2(o)+'</div>'+
+                    '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:14.5px;color:var(--ed-accent);flex-shrink:0;min-width:24px">0'+(i+1)+'</div>'+
+                    '<div class="ed-body" style="font-size:12px;line-height:1.55">'+esc2(o)+'</div>'+
                   '</div>';
                 }).join('')+
               '</div>'
@@ -4837,7 +4844,7 @@ function refreshQuoteProposal(){
           return '<div>'+
             '<div class="ed-eyebrow">'+s.l+'</div>'+
             '<div class="ed-serif" style="font-size:30px;color:var(--ed-ink);margin-top:5px;line-height:1;letter-spacing:-.01em">'+s.n+'</div>'+
-            '<div style="font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);margin-top:4px;letter-spacing:.02em">'+s.s+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2);margin-top:4px;letter-spacing:.02em">'+s.s+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
@@ -4846,7 +4853,7 @@ function refreshQuoteProposal(){
         '<div>'+
           '<div class="ed-eyebrow" style="margin-bottom:8px">Roof plan</div>'+
           '<div style="background:#fff;border:1px solid var(--ed-line);padding:10px">'+buildRoofPlanSvg(d, 460, 260)+'</div>'+
-          ((valleyM || hipM || ridgeM) ? '<div style="display:flex;gap:18px;margin-top:8px;font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2)">'+
+          ((valleyM || hipM || ridgeM) ? '<div style="display:flex;gap:18px;margin-top:8px;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2)">'+
             (ridgeM  ? '<div><span class="ed-serif" style="font-style:italic;color:var(--ed-accent)">Ridge</span>  '+ridgeM.toFixed(1)+' m</div>' : '')+
             (valleyM ? '<div><span class="ed-serif" style="font-style:italic;color:var(--ed-warm)">Valley</span>  '+valleyM.toFixed(1)+' m</div>' : '')+
             (hipM    ? '<div><span class="ed-serif" style="font-style:italic;color:var(--ed-ink)">Hip</span>  '+hipM.toFixed(1)+' m</div>'    : '')+
@@ -4858,8 +4865,8 @@ function refreshQuoteProposal(){
             ? '<div>'+
                 scopeLines.map(function(l, i){
                   return '<div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
-                    '<div class="ed-serif" style="font-style:italic;font-size:13px;color:var(--ed-accent);flex-shrink:0;min-width:22px">'+(i<9?'0':'')+(i+1)+'</div>'+
-                    '<div class="ed-body" style="font-size:10.5px;line-height:1.5">'+esc2(l.replace(/^•\s*/, ''))+'</div>'+
+                    '<div class="ed-serif" style="font-style:italic;font-size:14.5px;color:var(--ed-accent);flex-shrink:0;min-width:22px">'+(i<9?'0':'')+(i+1)+'</div>'+
+                    '<div class="ed-body" style="font-size:12px;line-height:1.5">'+esc2(l.replace(/^•\s*/, ''))+'</div>'+
                   '</div>';
                 }).join('')+
               '</div>'
@@ -4872,12 +4879,12 @@ function refreshQuoteProposal(){
         timeline.map(function(t, ti){
           var widthPct = totalDays ? Math.max(8, Math.round((parseInt(t.days)||1) / totalDays * 100)) : 16;
           return '<div style="display:grid;grid-template-columns:30px 200px 1fr 60px;gap:14px;align-items:center;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
-            '<div class="ed-serif" style="font-style:italic;font-size:13px;color:var(--ed-accent)">'+(ti<9?'0':'')+(ti+1)+'</div>'+
-            '<div class="ed-serif" style="font-size:12.5px;color:var(--ed-ink);letter-spacing:-.005em">'+esc2(t.label||'Phase')+'</div>'+
+            '<div class="ed-serif" style="font-style:italic;font-size:14.5px;color:var(--ed-accent)">'+(ti<9?'0':'')+(ti+1)+'</div>'+
+            '<div class="ed-serif" style="font-size:14px;color:var(--ed-ink);letter-spacing:-.005em">'+esc2(t.label||'Phase')+'</div>'+
             '<div style="height:6px;background:var(--ed-paper-2);position:relative">'+
               '<div style="position:absolute;top:0;bottom:0;left:0;width:'+widthPct+'%;background:var(--ed-accent)"></div>'+
             '</div>'+
-            '<div style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-ink);font-weight:500;text-align:right">'+(t.days||1)+' '+((t.days||1)===1?'day':'days')+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink);font-weight:500;text-align:right">'+(t.days||1)+' '+((t.days||1)===1?'day':'days')+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
@@ -4886,15 +4893,15 @@ function refreshQuoteProposal(){
         '<div style="background:var(--ed-ink);color:#fff;padding:24px 28px">'+
           '<div class="ed-eyebrow" style="color:rgba(255,255,255,.6)">Estimated start date</div>'+
           '<div class="ed-serif" style="font-style:italic;font-size:32px;color:#fff;margin-top:8px;line-height:1.05;font-weight:400">'+esc2(S.quote.startDate || 'TBC on acceptance')+'</div>'+
-          '<div style="font-family:var(--ed-sans);font-size:10.5px;color:rgba(255,255,255,.65);margin-top:10px;line-height:1.6">Subject to deposit clearance, materials supply and weather. We confirm the start date in writing once the deposit is paid.</div>'+
+          '<div style="font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,.65);margin-top:10px;line-height:1.6">Subject to deposit clearance, materials supply and weather. We confirm the start date in writing once the deposit is paid.</div>'+
         '</div>'+
         '<div style="border-top:1px solid var(--ed-ink);padding-top:14px">'+
           '<div class="ed-eyebrow">What we need from you</div>'+
           '<div style="margin-top:8px">'+
             ['Sign &amp; return acceptance page','Pay 25% deposit — locks in start','Clear roof access (gardens, vehicles)','Pick your colour from page 5'].map(function(t, i){
               return '<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--ed-line)">'+
-                '<div class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-accent);min-width:22px">0'+(i+1)+'</div>'+
-                '<div class="ed-body" style="font-size:10.5px;line-height:1.5">'+t+'</div>'+
+                '<div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-accent);min-width:22px">0'+(i+1)+'</div>'+
+                '<div class="ed-body" style="font-size:12px;line-height:1.5">'+t+'</div>'+
               '</div>';
             }).join('')+
           '</div>'+
@@ -4909,19 +4916,19 @@ function refreshQuoteProposal(){
       var optGst = optSub * (S.quote.gstRate/100);
       var optTot = optSub + optGst;
       var optLetter = String.fromCharCode(65+oi);
-      return '<div style="margin-bottom:24px;border-top:1px solid var(--ed-ink)">'+
+      return '<div class="ed-keep" style="margin-bottom:24px;border-top:1px solid var(--ed-ink)">'+
         // Title row: editorial — big italic letter, serif title, right-aligned total
         '<div style="display:grid;grid-template-columns:50px 1fr auto;gap:16px;align-items:flex-start;padding:18px 0 14px;border-bottom:1px solid var(--ed-line)">'+
           '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:36px;color:var(--ed-accent);line-height:.9">'+optLetter+'.</div>'+
           '<div>'+
             '<div class="ed-eyebrow">Option '+optLetter+'</div>'+
             '<div class="ed-serif" style="font-size:19px;font-weight:400;color:var(--ed-ink);margin-top:5px;line-height:1.2;letter-spacing:-.005em">'+esc2(o.title||'Option')+'</div>'+
-            (o.description ? '<div class="ed-body" style="margin-top:5px;font-size:10.5px;max-width:42em">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
+            (o.description ? '<div class="ed-body" style="margin-top:5px;font-size:12px;max-width:42em">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
           '</div>'+
           '<div style="text-align:right;min-width:130px">'+
             '<div class="ed-eyebrow">Incl. GST</div>'+
             '<div class="ed-serif" style="font-size:26px;color:var(--ed-ink);margin-top:4px;line-height:1;letter-spacing:-.01em">'+fmtMoney(optTot)+'</div>'+
-            '<div style="font-family:var(--ed-sans);font-size:9.5px;color:var(--ed-text2);margin-top:4px;letter-spacing:.02em">Sub '+fmtMoney(optSub)+' · GST '+fmtMoney(optGst)+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);margin-top:4px;letter-spacing:.02em">Sub '+fmtMoney(optSub)+' · GST '+fmtMoney(optGst)+'</div>'+
           '</div>'+
         '</div>'+
         // Body — two-column: inclusions list (left) + pricing table (right)
@@ -4932,21 +4939,21 @@ function refreshQuoteProposal(){
                 '<div style="display:flex;flex-direction:column">'+
                 o.inclusions.map(function(b, ii){
                   return '<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px dotted var(--ed-line)">'+
-                    '<div class="ed-serif" style="font-style:italic;font-size:11px;color:var(--ed-accent);flex-shrink:0;min-width:22px">'+(ii<9?'0':'')+(ii+1)+'</div>'+
-                    '<div class="ed-body" style="font-size:10.5px;line-height:1.5">'+esc2(b)+'</div>'+
+                    '<div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-accent);flex-shrink:0;min-width:22px">'+(ii<9?'0':'')+(ii+1)+'</div>'+
+                    '<div class="ed-body" style="font-size:12px;line-height:1.5">'+esc2(b)+'</div>'+
                   '</div>';
                 }).join('')+'</div>'
               : '<div class="ed-body" style="font-style:italic;color:var(--ed-text2)">No inclusions listed</div>')+
           '</div>'+
           '<div>'+
             '<div class="ed-eyebrow" style="margin-bottom:10px">Itemised pricing</div>'+
-            '<table style="width:100%;border-collapse:collapse;font-family:var(--ed-sans);font-size:10.5px">'+
-              '<thead><tr style="border-bottom:1px solid var(--ed-ink)"><th style="padding:6px 4px;text-align:left;font-weight:600;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--ed-text2)">Description</th><th style="padding:6px 4px;text-align:right;width:34px;font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2)">Qty</th><th style="padding:6px 4px;text-align:right;width:62px;font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2)">Unit</th><th style="padding:6px 4px;text-align:right;width:74px;font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2)">Total</th></tr></thead><tbody>'+
+            '<table style="width:100%;border-collapse:collapse;font-family:var(--ed-sans);font-size:12px">'+
+              '<thead><tr style="border-bottom:1px solid var(--ed-ink)"><th style="padding:6px 4px;text-align:left;font-weight:600;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ed-text2)">Description</th><th style="padding:6px 4px;text-align:right;width:34px;font-weight:600;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2)">Qty</th><th style="padding:6px 4px;text-align:right;width:62px;font-weight:600;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2)">Unit</th><th style="padding:6px 4px;text-align:right;width:74px;font-weight:600;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2)">Total</th></tr></thead><tbody>'+
               (o.lineItems||[]).map(function(li){
                 var line = (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);
                 return '<tr style="border-bottom:1px solid var(--ed-line)"><td style="padding:6px 4px;color:var(--ed-ink-2)">'+esc2(li.desc||'—')+'</td><td style="padding:6px 4px;text-align:right;color:var(--ed-ink-2)">'+(li.qty||0)+'</td><td style="padding:6px 4px;text-align:right;color:var(--ed-ink-2)">'+fmtMoney(li.unit)+'</td><td style="padding:6px 4px;text-align:right;color:var(--ed-ink);font-weight:600">'+fmtMoney(line)+'</td></tr>';
               }).join('')+
-              '<tr style="border-bottom:none;border-top:1px solid var(--ed-ink)"><td colspan="3" style="padding:8px 4px;text-align:right;font-family:var(--ed-serif);font-style:italic;font-size:11px;color:var(--ed-ink)">Total incl. GST</td><td style="padding:8px 4px;text-align:right;font-family:var(--ed-serif);font-size:14px;color:var(--ed-ink);font-weight:500">'+fmtMoney(optTot)+'</td></tr>'+
+              '<tr style="border-bottom:none;border-top:1px solid var(--ed-ink)"><td colspan="3" style="padding:8px 4px;text-align:right;font-family:var(--ed-serif);font-style:italic;font-size:12.5px;color:var(--ed-ink)">Total incl. GST</td><td style="padding:8px 4px;text-align:right;font-family:var(--ed-serif);font-size:14px;color:var(--ed-ink);font-weight:500">'+fmtMoney(optTot)+'</td></tr>'+
             '</tbody></table>'+
           '</div>'+
         '</div>'+
@@ -4959,8 +4966,8 @@ function refreshQuoteProposal(){
                 var uTot = uSub + uSub * (S.quote.gstRate/100);
                 return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:4px 0">'+
                   '<div style="flex:1;min-width:0">'+
-                    '<div class="ed-serif" style="font-size:13px;font-style:italic;color:var(--ed-ink)">'+esc2(u.title||'Upgrade')+'</div>'+
-                    (u.description ? '<div class="ed-body" style="font-size:10px;margin-top:2px">'+esc2(u.description)+'</div>' : '')+
+                    '<div class="ed-serif" style="font-size:14.5px;font-style:italic;color:var(--ed-ink)">'+esc2(u.title||'Upgrade')+'</div>'+
+                    (u.description ? '<div class="ed-body" style="font-size:11.5px;margin-top:2px">'+esc2(u.description)+'</div>' : '')+
                   '</div>'+
                   '<div class="ed-serif" style="font-size:14px;font-weight:500;color:var(--ed-warm);white-space:nowrap">+'+fmtMoney(uTot)+'</div>'+
                 '</div>';
@@ -4977,7 +4984,7 @@ function refreshQuoteProposal(){
     }).join('');
     partInclusions =
       rpHeading('pencil','Quote inclusions &amp; pricing')+
-      '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="text-align:left;border-bottom:1px solid #ddd"><th style="padding:6px 4px">Description</th><th style="padding:6px 4px;text-align:right;width:60px">Qty</th><th style="padding:6px 4px;text-align:right;width:90px">Unit</th><th style="padding:6px 4px;text-align:right;width:90px">Total</th></tr></thead><tbody>'+lb+
+      '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr style="text-align:left;border-bottom:1px solid #ddd"><th style="padding:6px 4px">Description</th><th style="padding:6px 4px;text-align:right;width:60px">Qty</th><th style="padding:6px 4px;text-align:right;width:90px">Unit</th><th style="padding:6px 4px;text-align:right;width:90px">Total</th></tr></thead><tbody>'+lb+
         '<tr style="border-top:2px solid #0a1628"><td colspan="3" style="padding:7px 4px;text-align:right;font-weight:700">Subtotal</td><td style="padding:7px 4px;text-align:right;font-weight:700">'+fmtMoney(sub0)+'</td></tr>'+
         '<tr><td colspan="3" style="padding:5px 4px;text-align:right">GST '+S.quote.gstRate+'%</td><td style="padding:5px 4px;text-align:right">'+fmtMoney(gst0)+'</td></tr>'+
         '<tr style="background:#f5f5f3"><td colspan="3" style="padding:8px 4px;text-align:right;font-weight:700">Total</td><td style="padding:8px 4px;text-align:right;font-weight:700;color:#059669">'+fmtMoney(tot0)+'</td></tr>'+
@@ -4989,44 +4996,45 @@ function refreshQuoteProposal(){
   // ── Colorsteel® range + standard colours (full page) ──
   if (on('colorsteel')) {
     var swatchGrid = '<div style="margin-top:10px">'+
-      '<div style="font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:#0a1628;margin-bottom:6px;display:flex;align-items:center;gap:5px">'+rpIcon('palette','#0099cc',13)+'Standard Colorsteel® colours</div>'+
+      '<div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:#0a1628;margin-bottom:6px;display:flex;align-items:center;gap:5px">'+rpIcon('palette','#0099cc',13)+'Standard Colorsteel® colours</div>'+
       '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">'+
       MAXAM_COLOURS.map(function(c){
         var labelStyle = 'color:'+(needsLightLabel(c.hex)?'#fff':'#0a1628');
-        return '<div style="aspect-ratio:2.4/1;border-radius:5px;background:'+c.hex+';position:relative;border:1px solid rgba(0,0,0,.08);overflow:hidden;display:flex;align-items:flex-end;padding:4px 6px"><div style="font-size:9px;font-weight:700;line-height:1.15;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.35)':'none')+'">'+esc2(c.name)+'</div></div>';
+        return '<div style="aspect-ratio:2.4/1;border-radius:5px;background:'+c.hex+';position:relative;border:1px solid rgba(0,0,0,.08);overflow:hidden;display:flex;align-items:flex-end;padding:4px 6px"><div style="font-size:10.5px;font-weight:700;line-height:1.15;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.35)':'none')+'">'+esc2(c.name)+'</div></div>';
       }).join('')+
-      '</div><div style="font-size:9.5px;color:var(--text2);margin-top:5px;line-height:1.45">Approximate colour rendering — final selection from NZ Steel\'s physical Colorsteel® chip card.</div></div>';
+      '</div><div style="font-size:11px;color:var(--text2);margin-top:5px;line-height:1.45">Approximate colour rendering — final selection from NZ Steel\'s physical Colorsteel® chip card.</div></div>';
     var fieldSlots = ['maxam_1','maxam_2','maxam_3','maxam_4'].map(function(id){
       return { src: resolveSlotSrc(id), cap: resolveSlotCaption(id) };
     }).filter(function(x){return x.src;});
     var fieldPhotos = fieldSlots.length ? '<div style="margin-top:24px"><div class="ed-eyebrow" style="margin-bottom:10px">Recent installations</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'+
       fieldSlots.map(function(s){
-        return '<figure style="margin:0;aspect-ratio:4/3;background:#000;position:relative;overflow:hidden;border:1px solid var(--ed-ink)"><img src="'+esc2(s.src)+'" style="width:100%;height:100%;object-fit:cover;filter:saturate(.95)">'+(s.cap?'<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:5px 8px;background:rgba(26,26,26,.78);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:9.5px">'+esc2(s.cap)+'</figcaption>':'')+'</figure>';
+        return '<figure style="margin:0;aspect-ratio:4/3;background:#000;position:relative;overflow:hidden;border:1px solid var(--ed-ink)"><img src="'+esc2(s.src)+'" style="width:100%;height:100%;object-fit:cover;filter:saturate(.95)">'+(s.cap?'<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:5px 8px;background:rgba(26,26,26,.78);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:11px">'+esc2(s.cap)+'</figcaption>':'')+'</figure>';
       }).join('')+
       '</div></div>' : '';
     partColorsteel =
-      edHeading('05','The material','Colorsteel® Endura &amp; Maxam')+
+      edHeading('05','The material','Colorsteel® MAXAM with Activate™')+
       '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:start;margin-bottom:24px">'+
         '<div class="ed-body-lg">'+
           '<p style="margin:0 0 12px">Colorsteel® is NZ Steel\'s pre-painted roofing and cladding range — rolled and painted at Glenbrook from New Zealand iron sand.</p>'+
-          '<p style="margin:0 0 12px"><span class="ed-serif" style="font-style:italic;font-size:14px">Endura</span> is the standard grade — AZ150 zinc-aluminium substrate, 15-year paint film warranty. Tough across most of the country.</p>'+
-          '<p style="margin:0"><span class="ed-serif" style="font-style:italic;font-size:14px">Maxam</span> is the premium coastal grade — AZ200 substrate, 25-year severe-marine perforation cover. What we install whenever a site sits inside 500m of the surf.</p>'+
+          '<p style="margin:0 0 12px">As of 2024, the previous <span class="ed-serif" style="font-style:italic;font-size:15px">Endura</span> and <span class="ed-serif" style="font-style:italic;font-size:15px">Maxx</span> grades have been replaced by a single, stronger product — <span class="ed-serif" style="font-style:italic;font-size:15px">MAXAM</span>. One spec, one chip card, suitable from inland alpine sites through to urban coastal builds.</p>'+
+          '<p style="margin:0">MAXAM is built on <span class="ed-serif" style="font-style:italic;font-size:15px">Activate™</span> technology — a patented aluminium-zinc-magnesium (AM) metallic coating that significantly slows corrosion. The result is a meaningful step-up in warranty length across every environmental zone NZ Steel publishes.</p>'+
         '</div>'+
         '<div style="background:var(--ed-ink);color:#fff;padding:22px 22px 20px">'+
-          '<div class="ed-eyebrow" style="color:rgba(255,255,255,.65)">Manufacturer\'s warranty</div>'+
-          '<div class="ed-serif" style="font-style:italic;font-size:48px;line-height:1;margin-top:8px;color:#fff;font-weight:400">25 yrs<sup style="font-size:18px">*</sup></div>'+
-          '<div style="font-family:var(--ed-sans);font-size:10px;color:rgba(255,255,255,.7);margin-top:8px;line-height:1.55">Maxam: severe-marine perforation cover (&lt;100m to surf). Endura: 15-yr in Marine zone. *NZ Steel exposure zones apply.</div>'+
+          '<div class="ed-eyebrow" style="color:rgba(255,255,255,.65)">Perforation warranty — up to</div>'+
+          '<div class="ed-serif" style="font-style:italic;font-size:48px;line-height:1;margin-top:8px;color:#fff;font-weight:400">50 yrs<sup style="font-size:18px">*</sup></div>'+
+          '<div style="font-family:var(--ed-sans);font-size:12.5px;color:rgba(255,255,255,.72);margin-top:8px;line-height:1.55">Up to 50 years against perforation in Mild environments, up to 20 years in Very Severe Marine, and up to 18 years on paint film. *NZ Steel published exposure zones apply.</div>'+
         '</div>'+
       '</div>'+
-      // Endura vs Maxam comparison table — clean rule-only
-      '<div class="ed-eyebrow" style="margin-bottom:8px">At a glance</div>'+
-      '<table style="width:100%;border-collapse:collapse;font-family:var(--ed-sans);font-size:11px;margin-bottom:28px">'+
-        '<thead><tr style="border-top:1px solid var(--ed-ink);border-bottom:1px solid var(--ed-ink)"><th style="padding:8px 6px;text-align:left;font-weight:500;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)"></th><th style="padding:8px 6px;text-align:right;font-weight:500;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Endura</th><th style="padding:8px 6px;text-align:right;font-weight:500;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Maxam</th></tr></thead>'+
+      // MAXAM warranty by environmental zone — single product, rule-only table
+      '<div class="ed-eyebrow" style="margin-bottom:8px">Warranty by exposure zone</div>'+
+      '<table style="width:100%;border-collapse:collapse;font-family:var(--ed-sans);font-size:13px;margin-bottom:28px">'+
+        '<thead><tr style="border-top:1px solid var(--ed-ink);border-bottom:1px solid var(--ed-ink)"><th style="padding:8px 6px;text-align:left;font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Zone</th><th style="padding:8px 6px;text-align:right;font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Perforation</th><th style="padding:8px 6px;text-align:right;font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ed-text2)">Paint film</th></tr></thead>'+
         '<tbody>'+
-          ['Substrate|AZ150|AZ200','Severe Marine|N/A|25 yr','Marine zone|20 yr|30 yr','Paint film|12 yr|15 yr','Profiles|Standard|Standard'].map(function(row){
+          ['Mild (inland)|up to 50 yr|up to 18 yr','Moderate|up to 36 yr|up to 18 yr','Severe Marine|up to 25 yr|up to 15 yr','Very Severe Marine (<100m to surf)|up to 20 yr|up to 12 yr','Geothermal|up to 25 yr|up to 12 yr'].map(function(row){
             var c = row.split('|');
             return '<tr style="border-bottom:1px solid var(--ed-line)"><td style="padding:9px 6px;font-family:var(--ed-serif);font-style:italic;color:var(--ed-ink-2)">'+c[0]+'</td><td style="padding:9px 6px;text-align:right;color:var(--ed-ink)">'+c[1]+'</td><td style="padding:9px 6px;text-align:right;color:var(--ed-ink);font-weight:500">'+c[2]+'</td></tr>';
           }).join('')+
+          '<tr><td colspan="3" style="padding:8px 6px;font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);line-height:1.6;font-style:italic">For Extremely Severe environments NZ Steel offers <span class="ed-serif" style="font-style:italic">Colorsteel® Altimate®</span> — a heavier-spec alternative we\'ll quote separately on request.</td></tr>'+
         '</tbody>'+
       '</table>'+
       // Colour palette — editorial label
@@ -5036,12 +5044,15 @@ function refreshQuoteProposal(){
         MAXAM_COLOURS.map(function(c){
           var labelStyle = 'color:'+(needsLightLabel(c.hex)?'#fff':'#0a1628');
           return '<div style="position:relative;background:'+c.hex+';height:80px;display:flex;align-items:flex-end;padding:6px 8px">'+
-            '<div style="font-family:var(--ed-sans);font-size:9.5px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.4)':'none')+'">'+esc2(c.name)+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:11px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.4)':'none')+'">'+esc2(c.name)+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
-      '<div style="font-family:var(--ed-sans);font-size:9.5px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em;font-style:italic">Approximate colour rendering — final selection from NZ Steel\'s physical Colorsteel® chip card.</div>'+
-      fieldPhotos;
+      '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em;font-style:italic">Approximate colour rendering — final selection from NZ Steel\'s physical Colorsteel® chip card.</div>';
+    // Note: "Recent installations" photo strip removed from this page
+    // to keep all the Colorsteel content on a single A4 sheet — the
+    // cover hero photo already showcases recent work.
+    void fieldPhotos;
   }
 
   // ── Marley PVC spouting (full page) ──
@@ -5056,8 +5067,8 @@ function refreshQuoteProposal(){
           return '<div style="border-top:1px solid var(--ed-ink);padding-top:14px">'+
             '<div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-accent);line-height:1">0'+(pi+1)+'</div>'+
             '<div style="margin:10px 0;background:var(--ed-paper-2);padding:10px;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">'+gutterProfileSvg(p.key)+'</div>'+
-            '<div class="ed-serif" style="font-size:13px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em">'+esc2(p.name)+'</div>'+
-            '<div class="ed-body" style="margin-top:4px;font-size:9.5px;line-height:1.5">'+p.blurb+'</div>'+
+            '<div class="ed-serif" style="font-size:14.5px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em">'+esc2(p.name)+'</div>'+
+            '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.5">'+p.blurb+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
@@ -5068,11 +5079,11 @@ function refreshQuoteProposal(){
         MARLEY_COLOURS.map(function(c){
           var labelStyle = 'color:'+(needsLightLabel(c.hex)?'#fff':'#0a1628');
           return '<div style="position:relative;background:'+c.hex+';height:60px;display:flex;align-items:flex-end;padding:5px 7px;border:1px solid '+(c.hex.toLowerCase()==='#f5f5f0'?'var(--ed-line)':'rgba(0,0,0,.12)')+'">'+
-            '<div style="font-family:var(--ed-sans);font-size:9px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.35)':'none')+'">'+esc2(c.name)+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:10.5px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.35)':'none')+'">'+esc2(c.name)+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
-      '<div style="font-family:var(--ed-sans);font-size:9.5px;color:var(--ed-text2);margin-top:8px;font-style:italic">Marley range matches the Colorsteel® colour family. White and Black are universal stock colours; coloured profiles are made-to-order.</div>';
+      '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);margin-top:8px;font-style:italic">Marley range matches the Colorsteel® colour family. White and Black are universal stock colours; coloured profiles are made-to-order.</div>';
   }
 
   // ── Continuous steel spouting / RI gutters (full page) ──
@@ -5087,8 +5098,8 @@ function refreshQuoteProposal(){
           return '<div style="border-top:1px solid var(--ed-ink);padding-top:14px">'+
             '<div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-accent);line-height:1">0'+(pi+1)+'</div>'+
             '<div style="margin:10px 0;background:var(--ed-paper-2);padding:10px;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">'+gutterProfileSvg(p.key)+'</div>'+
-            '<div class="ed-serif" style="font-size:13px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em">'+esc2(p.name)+'</div>'+
-            '<div class="ed-body" style="margin-top:4px;font-size:9.5px;line-height:1.5">'+p.blurb+'</div>'+
+            '<div class="ed-serif" style="font-size:14.5px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em">'+esc2(p.name)+'</div>'+
+            '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.5">'+p.blurb+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
@@ -5099,7 +5110,7 @@ function refreshQuoteProposal(){
         MAXAM_COLOURS.slice(0, 12).map(function(c){
           var labelStyle = 'color:'+(needsLightLabel(c.hex)?'#fff':'#0a1628');
           return '<div style="position:relative;background:'+c.hex+';height:60px;display:flex;align-items:flex-end;padding:5px 7px">'+
-            '<div style="font-family:var(--ed-sans);font-size:9px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.35)':'none')+'">'+esc2(c.name)+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:10.5px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.35)':'none')+'">'+esc2(c.name)+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
@@ -5113,7 +5124,7 @@ function refreshQuoteProposal(){
           return '<div>'+
             '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:20px;color:var(--ed-accent);line-height:1">— 0'+(i+1)+'</div>'+
             '<div class="ed-serif" style="font-size:14px;color:var(--ed-ink);margin-top:8px;letter-spacing:-.005em">'+c.t+'</div>'+
-            '<div class="ed-body" style="margin-top:5px;font-size:10.5px">'+c.b+'</div>'+
+            '<div class="ed-body" style="margin-top:5px;font-size:12px">'+c.b+'</div>'+
           '</div>';
         }).join('')+
       '</div>';
@@ -5132,7 +5143,7 @@ function refreshQuoteProposal(){
               '<div style="width:18px;height:18px;border:1.5px solid #0a1628;border-radius:3px;flex-shrink:0;margin-top:2px"></div>'+
               '<div style="flex:1">'+
                 '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">'+
-                  '<div><span style="font-size:9px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;font-weight:700">Option '+String.fromCharCode(65+oi)+'</span> <strong style="font-size:12.5px;color:#0a1628">'+esc2(o.title||'')+'</strong></div>'+
+                  '<div><span style="font-size:10.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;font-weight:700">Option '+String.fromCharCode(65+oi)+'</span> <strong style="font-size:14px;color:#0a1628">'+esc2(o.title||'')+'</strong></div>'+
                   '<div style="font-size:14px;font-weight:800;color:#0a1628">'+fmtMoney(optTot)+'</div>'+
                 '</div>'+
                 ((o.upgrades && o.upgrades.length)
@@ -5141,15 +5152,15 @@ function refreshQuoteProposal(){
                       var uTot = uSub + uSub * (S.quote.gstRate/100);
                       return '<div style="display:flex;gap:8px;align-items:center;padding:3px 0 0">'+
                         '<div style="width:14px;height:14px;border:1.5px solid #92400e;border-radius:3px;flex-shrink:0"></div>'+
-                        '<div style="flex:1;font-size:10.5px;color:var(--text2)"><strong style="color:#92400e">+ '+esc2(u.title||'')+'</strong></div>'+
-                        '<div style="font-size:11px;font-weight:700;color:#92400e">+'+fmtMoney(uTot)+'</div>'+
+                        '<div style="flex:1;font-size:12px;color:var(--text2)"><strong style="color:#92400e">+ '+esc2(u.title||'')+'</strong></div>'+
+                        '<div style="font-size:12.5px;font-weight:700;color:#92400e">+'+fmtMoney(uTot)+'</div>'+
                       '</div>';
                     }).join('')
                   : '')+
               '</div>'+
             '</div>';
           }).join('')
-        : '<div style="padding:12px;background:#fff;border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--text2);text-align:center">Add options to make this a multi-pick proposal.</div>'
+        : '<div style="padding:12px;background:#fff;border:1px solid var(--border);border-radius:8px;font-size:12.5px;color:var(--text2);text-align:center">Add options to make this a multi-pick proposal.</div>'
       );
   }
 
@@ -5164,7 +5175,7 @@ function refreshQuoteProposal(){
     var dflt = [
       { h:'1. Quote validity',    b:'This quote is valid for 30 days from the date issued. After that date materials and labour rates may be re-quoted.' },
       { h:'2. Acceptance',        b:'The contract is formed when the client signs the acceptance page (or confirms in writing) AND the 25% deposit has cleared into our account. Verbal acceptance does not bind either party.' },
-      { h:'3. Materials &amp; products', b:'All materials are NZ-made unless explicitly noted. Colorsteel® Endura/Maxam carry NZ Steel\'s manufacturer warranty. Marley spouting carries Marley\'s 15-year warranty. Manufacturer documentation handed over at sign-off.' },
+      { h:'3. Materials &amp; products', b:'All materials are NZ-made unless explicitly noted. Colorsteel® MAXAM (with Activate™ Technology) carries NZ Steel\'s manufacturer warranty — up to 50 years against perforation in mild environments, lower in marine zones per NZ Steel\'s published exposure zones. Marley spouting carries Marley\'s 15-year warranty. Manufacturer documentation handed over at sign-off.' },
       { h:'4. Workmanship warranty', b:'We warrant the workmanship of the installed roof for 10 years from the date of practical completion. This covers fixing, lapping, flashing penetration of weather. It does not cover: damage by other trades, modifications by others, storm or impact damage, or normal wear of paint film (covered separately by manufacturer).' },
       { h:'5. Payment terms',     b:'25% deposit on acceptance (materials ordered). 50% progress payment due on completion of roof and gutters. 25% final due on practical completion. Invoices payable by the 20th of the month following invoice date. 2.5% per month interest applies to overdue balances. We reserve the right to suspend work for non-payment.' },
       { h:'6. Variations &amp; provisional sums', b:'Any change to the agreed scope must be authorised in writing (email is fine). Variations are billed at quoted rates or current trade rates if not pre-quoted. Provisional Cost (PC) items — typically rotten battens or hidden flashings — are charged at cost + 15% on inspection during strip-out.' },
@@ -5180,31 +5191,32 @@ function refreshQuoteProposal(){
       { h:'16. GST',              b:'All prices in this quote are exclusive of GST unless explicitly marked "incl. GST". 15% GST is added at invoice. We are GST-registered.' },
     ];
     var clauses = customTerms
-      ? '<div class="ed-body" style="column-count:2;column-gap:24px;font-size:10.5px;line-height:1.6">'+
+      ? '<div class="ed-body" style="column-count:2;column-gap:24px;font-size:12px;line-height:1.6">'+
           esc2(customTerms).split('\n').join('<br>')+
         '</div>'
-      : '<div style="column-count:2;column-gap:24px;font-family:var(--ed-sans);font-size:9.5px;line-height:1.55;color:var(--ed-ink-2)">'+
+      : '<div style="column-count:2;column-gap:24px;font-family:var(--ed-sans);font-size:11px;line-height:1.55;color:var(--ed-ink-2)">'+
           dflt.map(function(c){
-            return '<div style="margin-bottom:9px;break-inside:avoid"><div class="ed-serif" style="font-style:italic;font-size:11px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em">'+c.h+'</div><div style="margin-top:3px">'+c.b+'</div></div>';
+            return '<div style="margin-bottom:9px;break-inside:avoid"><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em">'+c.h+'</div><div style="margin-top:3px">'+c.b+'</div></div>';
           }).join('')+
         '</div>';
     partTerms =
       edHeading('09','The fine print','Terms &amp; conditions')+
       clauses +
-      // Payment three-stage band — editorial flat type, no cards
-      '<div style="margin-top:24px;border-top:1px solid var(--ed-ink);padding-top:16px">'+
-        '<div class="ed-eyebrow" style="margin-bottom:12px">Payment schedule</div>'+
-        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">'+
-          [['25%','Deposit','Materials ordered'],['50%','Progress','Roof &amp; gutters complete'],['25%','Final','Practical completion']]
-          .map(function(p,i){
-            return '<div>'+
-              '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:13px;color:var(--ed-accent)">Stage 0'+(i+1)+'</div>'+
-              '<div class="ed-serif" style="font-size:36px;color:var(--ed-ink);margin-top:6px;line-height:1;letter-spacing:-.01em">'+p[0]+'</div>'+
-              '<div class="ed-serif" style="font-size:14px;font-style:italic;color:var(--ed-ink);margin-top:6px">'+p[1]+'</div>'+
-              '<div class="ed-body" style="font-size:10px;margin-top:2px">'+p[2]+'</div>'+
-            '</div>';
-          }).join('')+
-        '</div>'+
+      // Payment three-stage band — single horizontal row tucked at
+      // the bottom of the T&Cs page.  Vertically compact so all the
+      // clauses + the schedule sit on one A4 sheet.
+      '<div class="ed-keep" style="margin-top:18px;border-top:1px solid var(--ed-ink);padding-top:12px;display:flex;align-items:baseline;justify-content:space-between;gap:18px;flex-wrap:wrap">'+
+        '<div class="ed-eyebrow">Payment schedule</div>'+
+        [['25%','Deposit','Materials ordered'],['50%','Progress','Roof &amp; gutters complete'],['25%','Final','Practical completion']]
+        .map(function(p,i){
+          return '<div style="display:flex;align-items:baseline;gap:10px">'+
+            '<div class="ed-serif" style="font-size:24px;color:var(--ed-ink);line-height:1;letter-spacing:-.01em;font-weight:500">'+p[0]+'</div>'+
+            '<div>'+
+              '<div class="ed-serif" style="font-size:12.5px;font-style:italic;color:var(--ed-ink);line-height:1.1">'+p[1]+'</div>'+
+              '<div class="ed-body" style="font-size:10px;color:var(--ed-text2);margin-top:1px">'+p[2]+'</div>'+
+            '</div>'+
+          '</div>';
+        }).join('')+
       '</div>';
   }
 
@@ -5218,12 +5230,12 @@ function refreshQuoteProposal(){
       '</div>'+
       // Signature block — clean dashed rules, italic captions
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:24px">'+
-        '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-text2);margin-top:6px">Client signature</div></div>'+
-        '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-text2);margin-top:6px">Date <span style="font-style:normal">·</span> '+esc2(dateLine)+'</div></div>'+
+        '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-text2);margin-top:6px">Client signature</div></div>'+
+        '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-text2);margin-top:6px">Date <span style="font-style:normal">·</span> '+esc2(dateLine)+'</div></div>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:36px">'+
-        '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-text2);margin-top:6px">'+esc2(company||'Company')+' representative</div></div>'+
-        '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-text2);margin-top:6px">Date</div></div>'+
+        '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-text2);margin-top:6px">'+esc2(company||'Company')+' representative</div></div>'+
+        '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-text2);margin-top:6px">Date</div></div>'+
       '</div>'+
       // Closing brand mark
       '<div style="text-align:center;margin-top:30px">'+
