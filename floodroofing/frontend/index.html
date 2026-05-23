@@ -1,10 +1,14 @@
-<!-- Roofing Estimator -->
+<!-- RoofMap -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Roofing Estimator</title>
+<title>RoofMap</title>
+<meta name="description" content="RoofMap — roofing quote &amp; proposal builder">
+<link rel="icon" type="image/png" href="brand/roofmap_icon.png">
+<link rel="apple-touch-icon" href="brand/roofmap_icon.png">
+<meta name="theme-color" content="#1f6fc0">
 <!-- Editorial typography for the proposal preview — degrades to
      Georgia + system sans if the network's not available (e.g. when
      printing offline). -->
@@ -13,7 +17,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap">
 <style>
 /* ──────────────────────────────────────────────────────────────
-   Flood Roofing Estimator — Minimal Scandi design system
+   RoofMap — Minimal Scandi design system
    Tokens → layout → components → utilities → print.
    Component class names match the existing markup so JS keeps
    working; this is purely a visual + layout refresh.
@@ -157,6 +161,12 @@ body{
 .hdr-logo svg{
   width:32px;height:32px;
   flex-shrink:0;
+}
+.hdr-logo img.hdr-logo-mark{
+  width:34px;height:34px;
+  flex-shrink:0;
+  object-fit:contain;
+  display:block;
 }
 .hdr-logo-text{
   color:var(--ink);
@@ -782,9 +792,7 @@ select{
 <div id="login-screen" style="display:none;position:fixed;inset:0;background:#0a1628;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
   <div style="background:#fff;border-radius:16px;padding:2.5rem 2rem;width:100%;max-width:400px;box-shadow:0 25px 60px rgba(0,0,0,.4);margin:1rem">
     <div style="text-align:center;margin-bottom:2rem">
-      <svg width="48" height="48" viewBox="0 0 38 38" fill="none" style="margin-bottom:12px"><polygon points="19,4 36,20 32,20 32,34 24,34 24,25 14,25 14,34 6,34 6,20 2,20" fill="#0099cc"/></svg>
-      <div style="font-size:24px;font-weight:700;color:#0a1628;letter-spacing:-.03em">ROOFING</div>
-      <div style="font-size:12px;color:#666;letter-spacing:.15em;margin-top:2px">ESTIMATOR</div>
+      <img src="brand/roofmap_logo.png" alt="RoofMap" style="width:172px;height:auto;display:inline-block">
     </div>
     <div id="login-err" style="display:none;background:#fee2e2;color:#991b1b;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:1rem"></div>
     <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:4px">Email</label>
@@ -838,17 +846,11 @@ select{
 <aside class="sidebar">
 <div class="hdr">
   <div class="hdr-logo">
-    <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true">
-      <!-- Thin-stroke roof line art — minimal Scandi mark for the brand -->
-      <path d="M3 18 L17 5 L31 18" stroke="#0a1628" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
-      <path d="M6 16 V29 H28 V16" stroke="#0a1628" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
-      <path d="M14 29 V21 H20 V29" stroke="#0099cc" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
-      <path d="M17 8.5 L17 12" stroke="#0099cc" stroke-width="1.4" stroke-linecap="round"/>
-    </svg>
-    <div><div class="hdr-logo-text" id="hdrLogoText">Roofing Estimator</div><div class="hdr-logo-sub" id="hdrLogoSub">Quote &amp; proposal builder</div></div>
+    <img class="hdr-logo-mark" src="brand/roofmap_icon.png" alt="RoofMap">
+    <div><div class="hdr-logo-text" id="hdrLogoText">Roof<span style="color:var(--accent)">Map</span></div><div class="hdr-logo-sub" id="hdrLogoSub">Quote &amp; proposal builder</div></div>
   </div>
   <div class="hdr-info">
-    <div><span class="hdr-field">System</span><span class="hdr-val">Estimator v2</span></div>
+    <div><span class="hdr-field">System</span><span class="hdr-val">RoofMap v2</span></div>
     <div><span class="hdr-field">Region</span><span class="hdr-val">Whangarei, NZ</span></div>
     <div><span class="hdr-field">GST</span><span class="hdr-val">15%</span></div>
   </div>
@@ -2562,8 +2564,8 @@ function applyBranding(){
   if (b.dark_color)    root.setProperty('--fr-dark', b.dark_color);
   if (b.accent_color)  root.setProperty('--fr-mid',  b.accent_color);
   // Header logo block — custom logo image if uploaded, else company name
-  // text.  When neither is set we show a neutral "Roofing Estimator"
-  // placeholder so the app stays usable before branding is configured.
+  // text.  When neither is set we fall back to the RoofMap mark + name
+  // so the app stays branded before a company is configured.
   var hdrLogo = document.querySelector('.hdr-logo');
   if (hdrLogo) {
     var inner;
@@ -2573,17 +2575,18 @@ function applyBranding(){
       inner = '<div><div class="hdr-logo-text">'+ esc2(b.company_name) +'</div>'+
               '<div class="hdr-logo-sub">'+ esc2(b.tagline || 'Quote &amp; proposal builder') +'</div></div>';
     } else {
-      inner = '<div><div class="hdr-logo-text">Roofing Estimator</div>'+
+      inner = '<img class="hdr-logo-mark" src="brand/roofmap_icon.png" alt="RoofMap">'+
+              '<div><div class="hdr-logo-text">Roof<span style="color:var(--accent)">Map</span></div>'+
               '<div class="hdr-logo-sub">Add your company in Settings &middot; Branding</div></div>';
     }
     hdrLogo.innerHTML = inner;
   }
   // Browser tab title — track the company name so it doesn't say
-  // "Roofing Estimator" once the user has branded.
+  // "RoofMap" once the user has branded.
   try {
     document.title = b.company_name
-      ? (b.company_name + ' — Estimator')
-      : 'Roofing Estimator';
+      ? (b.company_name + ' — RoofMap')
+      : 'RoofMap';
   } catch(e){}
   // Report preview header (legacy text fallbacks — primary render is now
   // refreshQuoteProposal() which reads b directly).
@@ -6218,7 +6221,7 @@ function emailOrderToSupplier(){
     lines.push('');
   }
   if (o.extras) { lines.push('Extras / notes'); lines.push(o.extras); lines.push(''); }
-  lines.push('— Generated from Flood Roofing Estimator. PDF order form attached (print/save separately and attach).');
+  lines.push('— Generated from RoofMap. PDF order form attached (print/save separately and attach).');
 
   var subj = 'Material order ' + (o.ref || '') + ' — Job ' + (o.jobNumber || '');
   var href = 'mailto:' + encodeURIComponent(email) +
@@ -6493,7 +6496,7 @@ function emailJobPack(){
   if (inc.cutlist)     lines.push('  • Cut list');
   if (inc.order)       lines.push('  • Material order (spec + flashings)');
   lines.push('');
-  lines.push('— Generated by Flood Roofing Estimator. PDF saved separately and attached.');
+  lines.push('— Generated by RoofMap. PDF saved separately and attached.');
   var href = 'mailto:?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(lines.join('\n'));
   window.location.href = href;
 }

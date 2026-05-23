@@ -1,4 +1,4 @@
-# Flood Roofing Estimator
+# RoofMap
 
 NZ roofing estimation SaaS — satellite imagery, AI analysis, sheet layout diagrams, Fergus integration.
 

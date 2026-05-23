@@ -1,4 +1,4 @@
-# Flood Roofing Estimator — Setup Guide
+# RoofMap — Setup Guide
 
 ## Overview
 - **Frontend:** `frontend/` → deployed to Vercel (free)
@@ -76,8 +76,8 @@ git push
 
 1. stripe.com → Create account → activate with business details
 2. Create two products in Stripe dashboard:
-   - "Flood Roofing Estimator Monthly" → $X/month → copy Price ID
-   - "Flood Roofing Estimator Yearly" → $X/year → copy Price ID
+   - "RoofMap Monthly" → $X/month → copy Price ID
+   - "RoofMap Yearly" → $X/year → copy Price ID
 3. Add to Railway environment variables:
    ```
    STRIPE_SECRET_KEY=sk_live_...

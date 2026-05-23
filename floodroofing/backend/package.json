@@ -1,7 +1,7 @@
 {
-  "name": "floodroofing-backend",
+  "name": "roofmap-backend",
   "version": "1.0.0",
-  "description": "Flood Roofing Estimator - Backend API",
+  "description": "RoofMap - Backend API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
