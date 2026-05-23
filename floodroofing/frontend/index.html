@@ -4789,16 +4789,32 @@ function refreshQuoteProposal(){
         photoBoxes += '<div style="aspect-ratio:4/3;border-radius:6px;background:#fafbfc;border:1.5px dashed #cbd2dc;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#94a0b0">'+rpIcon('clipboard','#94a0b0',20)+'<div style="font-size:11.5px;font-weight:600">Upload site photo here</div></div>';
       }
     }
-    // Rebuild photoBoxes in the editorial style — squared, hairline
-    // border, italic-serif caption strip, terracotta placeholder text
-    // so the "Upload site photo here" empty state still reads warmly.
+    // Editorial photo grid for the condition page.  When real site
+    // photos are uploaded we use those (with the user's captions);
+    // when empty we fall back to a curated set of Flood Roofing
+    // brand photos so the page never looks blank in the test PDF or
+    // before site visits.  Each tile gets a slight asymmetric
+    // rotation for a magazine-spread feel.
+    var brandPhotoFallback = [
+      { src:'brand/roof_aerial_multipitch.jpg',  cap:'Multi-pitch Colorsteel re-roof — Northland' },
+      { src:'brand/roof_detail_corrugate.jpg',   cap:'0.55g Maxam corrugate, stainless fixings' },
+      { src:'brand/portfolio_grid.jpg',          cap:'Recent work across the region' },
+      { src:'brand/poleshed_truck.jpg',          cap:'Pole shed build — on-site Flood Roofing crew' },
+      { src:'brand/team_photo.jpg',              cap:'The Flood Roofing crew on site' },
+      null,
+    ];
     photoBoxes = '';
+    var rotations = ['rotate(-1.2deg)','rotate(0.8deg)','rotate(-.6deg)','rotate(1.4deg)','rotate(-1deg)','rotate(.4deg)'];
     for (var ci2 = 0; ci2 < 6; ci2++){
       var pp2 = photos[ci2];
+      var fb  = brandPhotoFallback[ci2];
+      var rot = rotations[ci2];
       if (pp2 && pp2.src){
-        photoBoxes += '<figure style="margin:0;aspect-ratio:4/3;background:#000;overflow:hidden;position:relative;border:1px solid var(--ed-ink)"><img src="'+esc2(pp2.src)+'" style="width:100%;height:100%;object-fit:cover;filter:saturate(.95)">'+(pp2.caption?'<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:6px 10px;background:rgba(26,26,26,.78);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:12px;letter-spacing:.01em">'+esc2(pp2.caption)+'</figcaption>':'')+'</figure>';
+        photoBoxes += '<figure style="margin:0;aspect-ratio:4/3;background:#000;overflow:hidden;position:relative;border:1px solid var(--ed-ink);transform:'+rot+';box-shadow:0 6px 18px -10px rgba(10,24,40,.4)"><img src="'+esc2(pp2.src)+'" style="width:100%;height:100%;object-fit:cover;filter:saturate(.95)">'+(pp2.caption?'<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:6px 10px;background:rgba(10,24,40,.82);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:12px">'+esc2(pp2.caption)+'</figcaption>':'')+'</figure>';
+      } else if (fb){
+        photoBoxes += '<figure style="margin:0;aspect-ratio:4/3;background:#000;overflow:hidden;position:relative;border:1px solid var(--ed-ink);transform:'+rot+';box-shadow:0 6px 18px -10px rgba(10,24,40,.4)"><img src="'+esc2(fb.src)+'" style="width:100%;height:100%;object-fit:cover;filter:saturate(.95)">'+'<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:6px 10px;background:rgba(10,24,40,.82);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:12px">'+esc2(fb.cap)+'</figcaption>'+'</figure>';
       } else {
-        photoBoxes += '<div style="aspect-ratio:4/3;background:var(--ed-paper-2);border:1px dashed var(--ed-line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--ed-text2)"><div class="ed-serif" style="font-style:italic;font-size:14.5px;color:var(--ed-accent)">— photo —</div><div style="font-family:var(--ed-sans);font-size:11px;letter-spacing:.22em;text-transform:uppercase">Upload site photo here</div></div>';
+        photoBoxes += '<div style="aspect-ratio:4/3;background:var(--ed-paper-2);border:1px dashed var(--ed-line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--ed-text2);transform:'+rot+'"><div class="ed-serif" style="font-style:italic;font-size:14.5px;color:var(--ed-accent)">— photo —</div><div style="font-family:var(--ed-sans);font-size:11px;letter-spacing:.22em;text-transform:uppercase">Site photo</div></div>';
       }
     }
     partCondition =
@@ -4823,8 +4839,10 @@ function refreshQuoteProposal(){
             : '')+
         '</div>'+
       '</div>'+
-      '<div class="ed-eyebrow" style="margin-bottom:10px">Site documentation</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+photoBoxes+'</div>';
+      '<div class="ed-eyebrow" style="margin-bottom:10px">Site documentation &amp; recent work</div>'+
+      // Bumped gap so the slightly-rotated photo tiles have room to
+      // breathe without clipping into each other.
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px 16px;padding:6px 4px">'+photoBoxes+'</div>';
   }
 
   // ── Scope of work + timeline + estimated start (full page) ──
@@ -5113,9 +5131,6 @@ function refreshQuoteProposal(){
         }).join('')+
       '</div>'+
       '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em;font-style:italic">Approximate colour rendering — final selection from NZ Steel\'s physical Colorsteel® chip card.</div>';
-    // Note: "Recent installations" photo strip removed from this page
-    // to keep all the Colorsteel content on a single A4 sheet — the
-    // cover hero photo already showcases recent work.
     void fieldPhotos;
   }
 
@@ -5155,6 +5170,15 @@ function refreshQuoteProposal(){
   // ── Continuous steel spouting / RI gutters (full page) ──
   if (on('ri_gutters')) {
     partRiGutters =
+      // Full-bleed aerial banner sits at the top of this page, above
+      // the editorial heading.  Negative margin extends it past the
+      // rp-body padding to both A4 page edges; a soft diagonal clip
+      // at the bottom hands off to the cream paper below.  Aspect
+      // tightened to 21:5 so the page-7 content (heading, body,
+      // profile cards, palette, 3-benefit row) still fits below.
+      '<div style="margin:-38px -36px 18px;overflow:hidden;background:var(--ed-ink);clip-path:polygon(0 0,100% 0,100% 92%,0 100%)">'+
+        '<img src="brand/roof_aerial_multipitch.jpg" alt="Multi-pitch Colorsteel roof from above" style="display:block;width:100%;height:auto;aspect-ratio:21/5;object-fit:cover;object-position:center 55%;filter:saturate(1.02) contrast(1.04)">'+
+      '</div>'+
       edHeading('07','The spouting — recommended upgrade','Colorsteel® 125mm Box Gutter')+
       '<div class="ed-body-lg" style="margin-bottom:22px;max-width:60em">For larger roofs, or for added peace of mind on Northland\'s heavy rainfall events, we recommend stepping up from Marley Typhoon to a continuous <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — rolled on-site in 0.55bmt steel, no factory joins, much higher flow capacity than any PVC profile. Finished in the same Colorsteel colour family as your roof for a fully coordinated finish, with a <em>15-year paint film warranty</em> on top of the substrate cover.</div>'+
       // Profile grid
@@ -5305,8 +5329,18 @@ function refreshQuoteProposal(){
         '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-text2);margin-top:6px">Date</div></div>'+
       '</div>'+
       // Closing brand mark
-      '<div style="text-align:center;margin-top:30px">'+
+      '<div style="text-align:center;margin-top:24px">'+
         '<div style="display:inline-flex;align-items:center;gap:14px"><div style="width:30px;height:1px;background:var(--ed-ink)"></div><div class="ed-serif" style="font-style:italic;font-size:16px;color:var(--ed-ink)">Thank you for the opportunity.</div><div style="width:30px;height:1px;background:var(--ed-ink)"></div></div>'+
+      '</div>'+
+      // Full-bleed closing banner — the 6-tile portfolio of recent
+      // Colorsteel work serves as the parting impression after the
+      // signature block.  Diagonal clip at the top hands off from the
+      // cream paper; brand-blue duotone wash ties it to the colour
+      // scheme.
+      '<div style="margin:28px -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative;clip-path:polygon(0 8%,100% 0,100% 100%,0 100%)">'+
+        '<img src="brand/portfolio_grid.jpg" alt="Recent Flood Roofing work" style="display:block;width:100%;height:auto;aspect-ratio:21/8;object-fit:cover;object-position:center 30%;filter:saturate(1)">'+
+        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.08),rgba(0,153,224,.12))"></div>'+
+        '<div style="position:absolute;left:0;right:0;bottom:14px;text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:14px;color:#fff;letter-spacing:.04em;text-shadow:0 2px 6px rgba(0,0,0,.6)">Recent work · Whangarei, Kerikeri &amp; the Bay of Islands</div>'+
       '</div>';
   }
 
