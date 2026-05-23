@@ -180,7 +180,9 @@ const path = require('path');
         },
       ],
       imageSlots: {
-        cover_hero: { source:'stock', ref: 0 },
+        // cover_hero intentionally unset — the renderer falls back to
+        // the real Flood Roofing team photo (brand/team_photo.png) for
+        // a stronger first impression.
         recent_1:   { source:'stock', ref: 1 },
         recent_2:   { source:'stock', ref: 2 },
         recent_3:   { source:'stock', ref: 3 },
