@@ -4696,10 +4696,10 @@ function refreshQuoteProposal(){
   // ── Cover (editorial / capability-statement style) ──
   if (on('cover')) {
     // Cover hero — explicitly assigned slot wins, otherwise we show
-    // the real Flood Roofing team photo (stronger first impression
-    // than a stock chevron gradient).
+    // the real Flood Roofing winter-crew team photo (strong cover
+    // hero — full crew lined up in front of the branded fleet).
     var heroAsn = (S.imageSlots && S.imageSlots.cover_hero);
-    var hero = (heroAsn ? resolveSlotSrc('cover_hero') : null) || 'brand/team_photo.jpg';
+    var hero = (heroAsn ? resolveSlotSrc('cover_hero') : null) || 'brand/team_winter.jpg';
     // Full-bleed hero photo + warm-cream title plate underneath.  All
     // type sits on the cream paper, not over the image, so it reads
     // clean regardless of how dark / colourful the photo is.
@@ -5190,9 +5190,10 @@ function refreshQuoteProposal(){
       // Full-bleed team banner across the top of the page.  Straight
       // rectangular crop; corner wedges get the angled treatment, not
       // banners.  Aspect 21:4 (shorter) leaves room for the coloured
-      // heading band + content below.
+      // heading band + content below.  Uses the alt team-photo shot
+      // because the winter-jacket version is now the cover hero.
       '<div style="margin:-38px -36px 0;overflow:hidden;background:var(--ed-ink)">'+
-        '<img src="brand/team_winter.jpg" alt="The Flood Roofing winter crew" style="display:block;width:100%;height:auto;aspect-ratio:21/4;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
+        '<img src="brand/team_photo.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/4;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
       '</div>'+
       edHeading('07','The spouting — recommended upgrade','Colorsteel® 125mm Box Gutter',{afterBanner:true})+
       '<div class="ed-body-lg" style="margin-bottom:22px;max-width:60em">For larger roofs, or for added peace of mind on Northland\'s heavy rainfall events, we recommend stepping up from Marley Typhoon to a continuous <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — rolled on-site in 0.55bmt steel, no factory joins, much higher flow capacity than any PVC profile. Finished in the same Colorsteel colour family as your roof for a fully coordinated finish, with a <em>15-year paint film warranty</em> on top of the substrate cover.</div>'+
