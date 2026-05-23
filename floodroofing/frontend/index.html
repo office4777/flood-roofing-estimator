@@ -579,14 +579,16 @@ select{
 /* ── Report preview (printable proposal) ────────────────────── */
 .report-preview{background:#faf6f0;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-top:1rem;box-shadow:var(--shadow-sm);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
 /* ── Editorial / capability-statement palette ───────────────────
-   Warm cream paper, deep charcoal ink, muted sage accent and
-   terracotta warm-tone — channels the "designer-builder magazine"
-   aesthetic rather than corporate quote.  Headlines run on a serif
-   display face (Playfair → Georgia fallback), body on Inter. */
+   Warm cream paper, deep brand-blue-black ink, Flood Roofing
+   electric-blue accent and terracotta warm-tone — channels the
+   "designer-builder magazine" aesthetic while staying tied to the
+   real Flood Roofing brand colours (cyan-blue + black).  Headlines
+   run on a serif display face (Playfair → Georgia fallback), body
+   on Inter. */
 .report-preview{
   --ed-paper:#faf6f0; --ed-paper-2:#f1ece2;
-  --ed-ink:#1a1a1a; --ed-ink-2:#2a2823;
-  --ed-accent:#6b7a5a; --ed-warm:#b86b4c;
+  --ed-ink:#0a1828; --ed-ink-2:#1d2a3d;
+  --ed-accent:#0099e0; --ed-accent-deep:#006fb3; --ed-warm:#b86b4c;
   --ed-line:#d9d2c5; --ed-text2:#6f6a60;
   --ed-serif:'Playfair Display','Cormorant Garamond',Georgia,'Times New Roman',serif;
   --ed-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
@@ -4639,14 +4641,21 @@ function refreshQuoteProposal(){
   }
 
   // ── Header (always shown) ──
+  // Uses the real Flood Roofing logo file when present (placed in
+  // /brand/logo_square.webp during setup) and falls back to the saved
+  // branding logo data-url, then to plain company text.
   var html = '';
-  html += '<div class="rp-header">'+
-    '<div>'+
-      (br.logo_data_url ? '<img src="'+esc2(br.logo_data_url)+'" alt="logo" style="max-height:50px;max-width:200px;display:block;margin-bottom:8px">' : '')+
-      '<div class="rp-logo-name">'+esc2(company)+'</div>'+
-      '<div class="rp-logo-tag">'+esc2(tagline)+'</div>'+
-      '<div class="rp-logo-stripe"></div>'+
-      '<div style="font-size:11.5px;color:rgba(255,255,255,.4);margin-top:6px">'+esc2(contactBits)+'</div>'+
+  var brandLogo = 'brand/logo_square.png';
+  html += '<div class="rp-header" style="display:flex;align-items:center;justify-content:space-between;gap:18px">'+
+    '<div style="display:flex;align-items:center;gap:14px">'+
+      '<img src="'+esc2(brandLogo)+'" onerror="this.style.display=\'none\'" alt="" style="height:54px;width:54px;border-radius:6px;display:block;flex-shrink:0;object-fit:cover">'+
+      '<div>'+
+        (br.logo_data_url ? '<img src="'+esc2(br.logo_data_url)+'" alt="logo" style="max-height:36px;max-width:180px;display:block;margin-bottom:6px">' : '')+
+        '<div class="rp-logo-name">'+esc2(company)+'</div>'+
+        '<div class="rp-logo-tag">'+esc2(tagline)+'</div>'+
+        '<div class="rp-logo-stripe"></div>'+
+        '<div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:6px;font-family:var(--ed-sans);letter-spacing:.02em">'+esc2(contactBits)+'</div>'+
+      '</div>'+
     '</div>'+
     '<div class="rp-hdr-right"><strong>'+esc2(S.quote.coverTitle || 'Roofing Quote & Proposal')+'</strong>'+esc2(S.quote.date || '')+'<br>Ref: '+esc2(S.quote.ref || 'FR-001')+'<br>Valid: '+esc2(S.quote.validUntil || '30 days')+'</div>'+
   '</div>';
@@ -4672,23 +4681,25 @@ function refreshQuoteProposal(){
 
   // ── Cover (editorial / capability-statement style) ──
   if (on('cover')) {
-    var hero = resolveSlotSrc('cover_hero');
+    // Cover hero — explicitly assigned slot wins, otherwise we show
+    // the real Flood Roofing team photo (stronger first impression
+    // than a stock chevron gradient).
+    var heroAsn = (S.imageSlots && S.imageSlots.cover_hero);
+    var hero = (heroAsn ? resolveSlotSrc('cover_hero') : null) || 'brand/team_photo.jpg';
     // Full-bleed hero photo + warm-cream title plate underneath.  All
     // type sits on the cream paper, not over the image, so it reads
     // clean regardless of how dark / colourful the photo is.
     partCover =
       '<div style="position:relative;aspect-ratio:3/2;overflow:hidden;background:var(--ed-ink);margin:0">'+
-        (hero
-          ? '<img src="'+esc2(hero)+'" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(.92) contrast(1.02)">'
-          : '<div style="position:absolute;inset:0;background:linear-gradient(180deg,#2a2823 0%,#1a1a1a 70%,#0e0e0c 100%)"></div>'
-        )+
-        // Subtle vignette so the bottom logo strip sits on a clean base
-        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.0) 50%,rgba(0,0,0,.55) 100%)"></div>'+
+        '<img src="'+esc2(hero)+'" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(1) contrast(1.02)">'+
+        // Brand-blue gradient overlay at the bottom — ties hero to the
+        // Flood Roofing electric-blue brand colour without obscuring
+        // the photo content.
+        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 55%,rgba(0,153,224,.18) 80%,rgba(10,24,40,.78) 100%)"></div>'+
         // Bottom strip only — capability label left, section number right.
-        // (Header above already carries the company mark + ref / date.)
         '<div style="position:absolute;bottom:0;left:0;right:0;padding:20px 32px;display:flex;justify-content:space-between;align-items:flex-end;color:#fff">'+
-          '<div style="font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:12.5px;color:rgba(255,255,255,.78);letter-spacing:.04em">Capability statement &amp; quote</div>'+
-          '<div style="font-family:var(--ed-serif);font-style:italic;font-size:14px;color:rgba(255,255,255,.7)">— 01 —</div>'+
+          '<div style="font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:13px;color:#fff;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.5)">The Flood Roofing crew · Northland</div>'+
+          '<div style="font-family:var(--ed-serif);font-style:italic;font-size:14px;color:rgba(255,255,255,.85)">— 01 —</div>'+
         '</div>'+
       '</div>'+
       // Title plate on cream paper underneath the photo
@@ -4721,39 +4732,44 @@ function refreshQuoteProposal(){
     var team = _teamArr();
     partAbout =
       edHeading('02','Who you\'re hiring','About '+(esc2(company)||'our company'))+
-      // Two-column editorial layout: body text left, pull-quote right
-      '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:start;margin-bottom:30px">'+
+      // Two-column: body text left, pull-quote right
+      '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:28px;align-items:start;margin-bottom:22px">'+
         '<div>'+
           (aboutText
-            ? '<div class="ed-body-lg">'+aboutText.split('\n').map(function(p){return '<p style="margin:0 0 12px">'+esc2(p)+'</p>';}).join('')+'</div>'
+            ? '<div class="ed-body-lg">'+aboutText.split('\n').map(function(p){return '<p style="margin:0 0 10px">'+esc2(p)+'</p>';}).join('')+'</div>'
             : '<div class="ed-body-lg" style="font-style:italic;color:var(--ed-text2)">Add your company story in the Quote tab under "About us blurb" — this paragraph appears on every proposal.</div>')+
         '</div>'+
         '<div>'+
-          edPullquote('We treat every roof like it\'s our own home — premium materials, no shortcuts, and we stand behind the work for a decade.', (br.company_name || 'The owner').toUpperCase())+
+          edPullquote('100% price guarantee — the price we quote is the price you pay. No hidden extras, scaffolding included.', (br.company_name || 'FLOOD ROOFING').toUpperCase())+
         '</div>'+
       '</div>'+
       // Feature row — minimalist, no icons, just numbered serif numerals
-      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:18px 0;margin-bottom:32px">'+
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:14px 0;margin-bottom:22px">'+
         features.map(function(f, i){
           return '<div>'+
-            '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:24px;color:var(--ed-accent);line-height:1">— 0'+(i+1)+'</div>'+
-            '<div class="ed-serif" style="font-size:14px;color:var(--ed-ink);margin-top:8px;letter-spacing:-.005em;line-height:1.3">'+f.title+'</div>'+
-            '<div class="ed-body" style="margin-top:5px;font-size:12px">'+f.body+'</div>'+
+            '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:22px;color:var(--ed-accent);line-height:1">— 0'+(i+1)+'</div>'+
+            '<div class="ed-serif" style="font-size:13.5px;color:var(--ed-ink);margin-top:6px;letter-spacing:-.005em;line-height:1.3">'+f.title+'</div>'+
+            '<div class="ed-body" style="margin-top:4px;font-size:11.5px">'+f.body+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
-      // Team section — serif heading + horizontal team strip
-      '<div class="ed-eyebrow" style="margin-bottom:8px">The team</div>'+
-      '<div class="ed-title ed-h3" style="margin-bottom:20px;font-style:italic;font-weight:400">Who\'ll be on your roof</div>'+
-      '<div style="display:grid;grid-template-columns:repeat('+team.length+',1fr);gap:20px">'+
-        team.map(function(m, i){
-          return '<div style="border-top:1px solid var(--ed-ink);padding-top:14px">'+
-            '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:20px;color:var(--ed-accent);line-height:1">'+(i<9?'0':'')+(i+1)+'.</div>'+
-            '<div class="ed-serif" style="font-size:15px;color:var(--ed-ink);margin-top:8px;line-height:1.25">'+esc2(m.role||'—')+'</div>'+
-            (m.name ? '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink-2);margin-top:6px;font-weight:500">'+esc2(m.name)+'</div>' : '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-text2);margin-top:6px;font-style:italic">Add name in Settings</div>')+
-            (m.responsibilities ? '<div class="ed-body" style="margin-top:6px;font-size:11.5px;line-height:1.55">'+esc2(m.responsibilities)+'</div>' : '')+
-          '</div>';
-        }).join('')+
+      // Team block — eyebrow + photo + role strip wrapped together so
+      // they never orphan across the A4 page boundary.
+      '<div style="page-break-inside:avoid;break-inside:avoid">'+
+        '<div class="ed-eyebrow" style="margin-bottom:8px">The team — who\'ll be on your roof</div>'+
+        '<figure style="margin:0 0 12px;position:relative;aspect-ratio:3/2;overflow:hidden;background:var(--ed-ink);border:1px solid var(--ed-ink)">'+
+          '<img src="brand/team_photo.jpg" onerror="this.parentNode.style.display=\'none\'" alt="" style="width:100%;height:100%;object-fit:cover;display:block">'+
+          '<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:8px 14px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.78));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:12.5px;letter-spacing:.01em">The Flood Roofing crew</figcaption>'+
+        '</figure>'+
+        '<div style="display:grid;grid-template-columns:repeat('+team.length+',1fr);gap:14px">'+
+          team.map(function(m, i){
+            return '<div style="border-top:1px solid var(--ed-ink);padding-top:8px">'+
+              '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:14px;color:var(--ed-accent);line-height:1">'+(i<9?'0':'')+(i+1)+'.</div>'+
+              '<div class="ed-serif" style="font-size:12.5px;color:var(--ed-ink);margin-top:4px;line-height:1.2">'+esc2(m.role||'—')+'</div>'+
+              (m.name ? '<div style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-ink-2);margin-top:3px;font-weight:500">'+esc2(m.name)+'</div>' : '')+
+            '</div>';
+          }).join('')+
+        '</div>'+
       '</div>';
   }
 
