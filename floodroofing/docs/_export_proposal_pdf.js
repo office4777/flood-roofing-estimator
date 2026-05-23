@@ -73,12 +73,11 @@ const path = require('path');
       penetrations: [],
     };
     window.S.materials = { sheets: 78 };
+    // Two filled job photos + four empty slots so the proposal shows
+    // both states (real photo crop vs "Upload site photo here" placeholder).
     window.S.photos = [
       { src: tile('#1b1b1d', 'Site overview'),            caption: 'Site overview' },
       { src: tile('#5a4a3a', 'Existing ridge cap'),       caption: 'Existing ridge cap — flat-bar fixings' },
-      { src: tile('#2c3128', 'North face'),               caption: 'North face — paint film failure' },
-      { src: tile('#4a4a4d', 'East gutter line'),         caption: 'East gutter line + downpipe' },
-      { src: tile('#5b6577', 'South soffit'),             caption: 'South soffit — rust at fixings' },
     ];
 
     if (!window.S.quote) window.S.quote = window.defaultQuote();
