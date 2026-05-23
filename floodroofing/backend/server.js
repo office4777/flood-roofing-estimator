@@ -452,7 +452,7 @@ app.get('/proxy-image', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log('Flood Roofing backend running on port ' + PORT);
+  console.log('RoofMap backend running on port ' + PORT);
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
   console.log('Stripe: disabled');
 });
