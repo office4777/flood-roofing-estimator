@@ -4744,7 +4744,7 @@ function refreshQuoteProposal(){
         '</div>'+
       '</div>'+
       // Feature row — minimalist, no icons, just numbered serif numerals
-      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:14px 0;margin-bottom:22px">'+
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:14px 0">'+
         features.map(function(f, i){
           return '<div>'+
             '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:22px;color:var(--ed-accent);line-height:1">— 0'+(i+1)+'</div>'+
@@ -4752,25 +4752,10 @@ function refreshQuoteProposal(){
             '<div class="ed-body" style="margin-top:4px;font-size:11.5px">'+f.body+'</div>'+
           '</div>';
         }).join('')+
-      '</div>'+
-      // Team block — eyebrow + photo + role strip wrapped together so
-      // they never orphan across the A4 page boundary.
-      '<div style="page-break-inside:avoid;break-inside:avoid">'+
-        '<div class="ed-eyebrow" style="margin-bottom:8px">The team — who\'ll be on your roof</div>'+
-        '<figure style="margin:0 0 12px;position:relative;aspect-ratio:3/2;overflow:hidden;background:var(--ed-ink);border:1px solid var(--ed-ink)">'+
-          '<img src="brand/team_photo.jpg" onerror="this.parentNode.style.display=\'none\'" alt="" style="width:100%;height:100%;object-fit:cover;display:block">'+
-          '<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:8px 14px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.78));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:12.5px;letter-spacing:.01em">The Flood Roofing crew</figcaption>'+
-        '</figure>'+
-        '<div style="display:grid;grid-template-columns:repeat('+team.length+',1fr);gap:14px">'+
-          team.map(function(m, i){
-            return '<div style="border-top:1px solid var(--ed-ink);padding-top:8px">'+
-              '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:14px;color:var(--ed-accent);line-height:1">'+(i<9?'0':'')+(i+1)+'.</div>'+
-              '<div class="ed-serif" style="font-size:12.5px;color:var(--ed-ink);margin-top:4px;line-height:1.2">'+esc2(m.role||'—')+'</div>'+
-              (m.name ? '<div style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-ink-2);margin-top:3px;font-weight:500">'+esc2(m.name)+'</div>' : '')+
-            '</div>';
-          }).join('')+
-        '</div>'+
       '</div>';
+    // _teamArr referenced upstream but not used inline now that the
+    // dedicated team section has been removed from this page.
+    void team;
   }
 
   // ── Existing roof condition report (full page) ──
@@ -4805,12 +4790,12 @@ function refreshQuoteProposal(){
       }
     }
     partCondition =
-      // Full-bleed sunset-roof banner extends across the top of the
-      // inspection-report page — angled bottom edge hands off to the
-      // cream paper.  Sets the visual tone before the editorial
-      // heading kicks in.
-      '<div style="margin:-38px -36px 18px;overflow:hidden;background:var(--ed-ink);clip-path:polygon(0 0,100% 0,100% 88%,0 100%)">'+
-        '<img src="brand/trapezoidal_sunset.jpg" alt="" style="display:block;width:100%;height:auto;aspect-ratio:21/5;object-fit:cover;object-position:center 50%;filter:saturate(.98) contrast(1.05)">'+
+      // Full-bleed team-photo banner across the top of the page.
+      // Straight rectangular crop (no diagonal clip) — banners get
+      // the clean horizontal treatment; corner wedges below get the
+      // angled cuts.
+      '<div style="margin:-38px -36px 18px;overflow:hidden;background:var(--ed-ink)">'+
+        '<img src="brand/team_lineup_ute.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/5;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
       '</div>'+
       edHeading('03','Inspection report','Existing roof condition')+
       '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:28px;align-items:start;margin-bottom:24px">'+
@@ -4944,17 +4929,19 @@ function refreshQuoteProposal(){
     // section).  We add a slim intro band so the page still announces
     // itself rather than dropping the reader cold into Option A.
     partInclusions =
-      // Top-right corner wedge — team lined up by the branded ute,
+      // Top-right corner wedge — dark Maxam corrugate detail close-up,
       // angle-clipped on the bottom-left.  Lands at the top of the
-      // first physical page of the inclusions section (Option A).
-      '<div style="position:absolute;top:0;right:0;width:220px;height:120px;overflow:hidden;clip-path:polygon(0 0,100% 0,100% 100%,40% 100%);background:var(--ed-ink);box-shadow:0 8px 24px -12px rgba(10,24,40,.35)">'+
-        '<img src="brand/team_lineup_ute.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:30% 50%">'+
+      // first physical page of the inclusions section (Option A —
+      // Main House Re-Roof).  Big (300 × 220).
+      '<div style="position:absolute;top:0;right:0;width:300px;height:220px;overflow:hidden;clip-path:polygon(0 0,100% 0,100% 100%,40% 100%);background:var(--ed-ink);box-shadow:0 10px 28px -14px rgba(10,24,40,.4)">'+
+        '<img src="brand/roof_detail_corrugate.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:55% 50%">'+
       '</div>'+
-      // Bottom-right corner wedge — wide fleet shot, angle-clipped on
-      // the top-left.  Lands at the bottom of the last physical page
-      // of the inclusions section (Option B).
-      '<div style="position:absolute;bottom:0;right:0;width:240px;height:130px;overflow:hidden;clip-path:polygon(40% 0,100% 0,100% 100%,0 100%);background:var(--ed-ink);box-shadow:-8px 0 24px -12px rgba(10,24,40,.35)">'+
-        '<img src="brand/fleet_wide.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:center 50%">'+
+      // Bottom-right corner wedge — 6-tile portfolio of recent
+      // Colorsteel work, angle-clipped on the top-left.  Lands at
+      // the bottom of the last physical page of the inclusions
+      // section (Option B — Garage Re-Roof).  Big (320 × 220).
+      '<div style="position:absolute;bottom:0;right:0;width:320px;height:220px;overflow:hidden;clip-path:polygon(40% 0,100% 0,100% 100%,0 100%);background:var(--ed-ink);box-shadow:-10px 0 28px -14px rgba(10,24,40,.4)">'+
+        '<img src="brand/portfolio_grid.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:65% 50%">'+
       '</div>'+
       '<div style="margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--ed-line)">'+
         '<div class="ed-eyebrow">The work &amp; the cost</div>'+
@@ -5137,9 +5124,8 @@ function refreshQuoteProposal(){
       '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em;font-style:italic">Approximate colour rendering — final selection from NZ Steel\'s physical Colorsteel® chip card.</div>'+
       // Bottom-right corner wedge — sunset trapezoidal roof close-up
       // wedges into the page from the corner, top-left angle-clipped.
-      // Sized to overlap only the rightmost two palette swatches so
-      // the dominant colours stay visible.
-      '<div style="position:absolute;bottom:0;right:0;width:200px;height:120px;overflow:hidden;clip-path:polygon(40% 0,100% 0,100% 100%,0 100%);background:var(--ed-ink);box-shadow:-8px 0 24px -12px rgba(10,24,40,.35)">'+
+      // Big (300 × 200) to match the other roof corner wedges.
+      '<div style="position:absolute;bottom:0;right:0;width:300px;height:200px;overflow:hidden;clip-path:polygon(40% 0,100% 0,100% 100%,0 100%);background:var(--ed-ink);box-shadow:-10px 0 28px -14px rgba(10,24,40,.4)">'+
         '<img src="brand/trapezoidal_sunset.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:center 45%">'+
       '</div>';
     void fieldPhotos;
@@ -5176,26 +5162,24 @@ function refreshQuoteProposal(){
         }).join('')+
       '</div>'+
       '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);margin-top:8px;font-style:italic">Marley range matches the Colorsteel® colour family. White and Black are universal stock colours; coloured profiles are made-to-order.</div>'+
-      // Bottom-right corner wedge — pole shed + branded Flood ute,
-      // angled on the top-left so it reads like a modern photo card
-      // wedging into the page from the corner.  Small (220 × 130) so
-      // it accents the page without obscuring the colour palette.
-      '<div style="position:absolute;bottom:0;right:0;width:220px;height:130px;overflow:hidden;clip-path:polygon(45% 0,100% 0,100% 100%,0 100%);background:var(--ed-ink);box-shadow:-8px 0 24px -12px rgba(10,24,40,.35)">'+
-        '<img src="brand/poleshed_truck.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:25% 50%">'+
+      // Bottom-right corner wedge — aerial multi-pitch Colorsteel
+      // roof close-up, angle-clipped on the top-left.  Sized large
+      // (300 × 220) to feel like a hero accent rather than a small
+      // ornament — the "big corner photo" treatment.
+      '<div style="position:absolute;bottom:0;right:0;width:300px;height:220px;overflow:hidden;clip-path:polygon(40% 0,100% 0,100% 100%,0 100%);background:var(--ed-ink);box-shadow:-10px 0 28px -14px rgba(10,24,40,.4)">'+
+        '<img src="brand/roof_aerial_multipitch.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:60% 55%">'+
       '</div>';
   }
 
   // ── Continuous steel spouting / RI gutters (full page) ──
   if (on('ri_gutters')) {
     partRiGutters =
-      // Full-bleed aerial banner sits at the top of this page, above
-      // the editorial heading.  Negative margin extends it past the
-      // rp-body padding to both A4 page edges; a soft diagonal clip
-      // at the bottom hands off to the cream paper below.  Aspect
-      // tightened to 21:5 so the page-7 content (heading, body,
-      // profile cards, palette, 3-benefit row) still fits below.
-      '<div style="margin:-38px -36px 18px;overflow:hidden;background:var(--ed-ink);clip-path:polygon(0 0,100% 0,100% 92%,0 100%)">'+
-        '<img src="brand/roof_aerial_multipitch.jpg" alt="Multi-pitch Colorsteel roof from above" style="display:block;width:100%;height:auto;aspect-ratio:21/5;object-fit:cover;object-position:center 55%;filter:saturate(1.02) contrast(1.04)">'+
+      // Full-bleed team banner across the top of the page.  Straight
+      // rectangular crop; corner wedges get the angled treatment, not
+      // banners.  Aspect 21:5 leaves room for heading + profile cards
+      // + palette + 3-benefit row underneath.
+      '<div style="margin:-38px -36px 18px;overflow:hidden;background:var(--ed-ink)">'+
+        '<img src="brand/team_winter.jpg" alt="The Flood Roofing winter crew" style="display:block;width:100%;height:auto;aspect-ratio:21/5;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
       '</div>'+
       edHeading('07','The spouting — recommended upgrade','Colorsteel® 125mm Box Gutter')+
       '<div class="ed-body-lg" style="margin-bottom:22px;max-width:60em">For larger roofs, or for added peace of mind on Northland\'s heavy rainfall events, we recommend stepping up from Marley Typhoon to a continuous <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — rolled on-site in 0.55bmt steel, no factory joins, much higher flow capacity than any PVC profile. Finished in the same Colorsteel colour family as your roof for a fully coordinated finish, with a <em>15-year paint film warranty</em> on top of the substrate cover.</div>'+
@@ -5350,15 +5334,14 @@ function refreshQuoteProposal(){
       '<div style="text-align:center;margin-top:24px">'+
         '<div style="display:inline-flex;align-items:center;gap:14px"><div style="width:30px;height:1px;background:var(--ed-ink)"></div><div class="ed-serif" style="font-style:italic;font-size:16px;color:var(--ed-ink)">Thank you for the opportunity.</div><div style="width:30px;height:1px;background:var(--ed-ink)"></div></div>'+
       '</div>'+
-      // Full-bleed closing banner — the 6-tile portfolio of recent
-      // Colorsteel work serves as the parting impression after the
-      // signature block.  Diagonal clip at the top hands off from the
-      // cream paper; brand-blue duotone wash ties it to the colour
-      // scheme.
-      '<div style="margin:28px -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative;clip-path:polygon(0 8%,100% 0,100% 100%,0 100%)">'+
-        '<img src="brand/portfolio_grid.jpg" alt="Recent Flood Roofing work" style="display:block;width:100%;height:auto;aspect-ratio:21/8;object-fit:cover;object-position:center 30%;filter:saturate(1)">'+
-        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.08),rgba(0,153,224,.12))"></div>'+
-        '<div style="position:absolute;left:0;right:0;bottom:14px;text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:14px;color:#fff;letter-spacing:.04em;text-shadow:0 2px 6px rgba(0,0,0,.6)">Recent work · Whangarei, Kerikeri &amp; the Bay of Islands</div>'+
+      // Full-bleed team closing banner — the Flood Roofing crew sees
+      // the proposal out under the signature block.  Straight
+      // rectangular crop (no diagonal clip); brand-blue duotone wash
+      // ties it to the colour scheme.
+      '<div style="margin:28px -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
+        '<img src="brand/team_alt.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/8;object-fit:cover;object-position:center 35%;filter:saturate(.98) contrast(1.04)">'+
+        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.18),rgba(0,153,224,.22))"></div>'+
+        '<div style="position:absolute;left:0;right:0;bottom:14px;text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:14px;color:#fff;letter-spacing:.04em;text-shadow:0 2px 6px rgba(0,0,0,.6)">The Flood Roofing crew · Whangarei, Kerikeri &amp; the Bay of Islands</div>'+
       '</div>';
   }
 
