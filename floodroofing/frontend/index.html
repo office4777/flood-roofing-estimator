@@ -4601,7 +4601,28 @@ function refreshQuoteProposal(){
             '<div class="rp-text" style="font-size:12.5px">'+S.quote.scope.split('\n').map(esc2).join('<br>')+'</div></div>' : '')+
         '</div>'+
       '</div>'+
-      (photos.length > 1 ? '<div style="margin-top:14px"><div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:6px">'+rpIcon('clipboard','#0099cc',14)+'Site photos</div><div class="rp-photos">'+photos.slice(1, 7).map(function(p){return '<div class="rp-photo-slot"><img src="'+esc2(p.src)+'"></div>';}).join('')+'</div></div>' : '');
+      // Site photos — always 6 boxes (3×2 grid) on the page.  Boxes
+      // with a corresponding job photo show the image cropped to 4:3;
+      // empty boxes show a dashed "Upload site photo here" placeholder
+      // so the user can see at a glance where the gaps are.  The boxes
+      // are proportional (aspect-ratio 4/3) so they scale with the
+      // page width without distortion.
+      '<div style="margin-top:14px"><div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:6px">'+rpIcon('clipboard','#0099cc',14)+'Site photos</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+
+          (function(){
+            var out = [];
+            for (var i = 0; i < 6; i++){
+              var p = photos[i];
+              if (p && p.src){
+                out.push('<div style="aspect-ratio:4/3;border-radius:6px;overflow:hidden;background:#000;border:1px solid var(--border);position:relative"><img src="'+esc2(p.src)+'" style="width:100%;height:100%;object-fit:cover">'+(p.caption?'<div style="position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.6);color:#fff;font-size:9.5px">'+esc2(p.caption)+'</div>':'')+'</div>');
+              } else {
+                out.push('<div style="aspect-ratio:4/3;border-radius:6px;background:#fafbfc;border:1.5px dashed #cbd2dc;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#94a0b0">'+rpIcon('clipboard','#94a0b0',22)+'<div style="font-size:10.5px;font-weight:600;letter-spacing:.02em">Upload site photo here</div></div>');
+              }
+            }
+            return out.join('');
+          })()+
+        '</div>'+
+      '</div>';
   }
 
   // ── Quote options (compact: both options stack on a single page) ──
