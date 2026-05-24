@@ -11331,14 +11331,35 @@ function switchToRoof(idx){
   _loadRoofToCurrent(idx);
   var rtp = document.getElementById('roofTypePanel');
   if (rtp) rtp.style.display = DRAW.outlineDone ? 'block' : 'none';
-  syncToRoofData(); redrawAll(); renderRoofSwitcher();
+  syncToRoofData(); redrawAll(); renderRoofSwitcher(); updateMeasTotals();
+}
+// Delete a roof entirely (outline + lines + measurements).  If the
+// active roof is removed we fall back to the nearest remaining roof;
+// deleting the last roof clears the canvas back to a blank outline.
+function deleteRoof(idx){
+  if (idx < 0 || idx >= DRAW.roofs.length) return;
+  if (typeof confirm === 'function' && !confirm('Delete Roof ' + (idx + 1) + '? This removes its outline, lines and measurements.')) return;
+  saveSnapshot();
+  _syncCurrentToRoof();
+  var wasActive = (idx === DRAW.activeRoofIdx);
+  DRAW.roofs.splice(idx, 1);
+  if (DRAW.roofs.length === 0) {
+    DRAW.activeRoofIdx = -1;
+    DRAW.outline = []; DRAW.lines = []; DRAW.sections = [];
+    DRAW.penetrations = []; DRAW.infoItems = []; DRAW.currentPts = [];
+    DRAW.outlineDone = false; DRAW.roofType = ''; DRAW.rotation = 0;
+    var rtp0 = document.getElementById('roofTypePanel'); if (rtp0) rtp0.style.display = 'none';
+  } else {
+    var newIdx = wasActive ? Math.min(idx, DRAW.roofs.length - 1)
+                           : (idx < DRAW.activeRoofIdx ? DRAW.activeRoofIdx - 1 : DRAW.activeRoofIdx);
+    DRAW.activeRoofIdx = -1;      // force a clean reload
+    _loadRoofToCurrent(newIdx);
+    var rtp1 = document.getElementById('roofTypePanel'); if (rtp1) rtp1.style.display = DRAW.outlineDone ? 'block' : 'none';
+  }
+  syncToRoofData(); renderRoofSwitcher(); redrawAll(); updateMeasTotals();
 }
 function _nthName(n){
-  if (n === 1) return 'Main Roof';
-  var suf = (n % 10 === 1 && n % 100 !== 11) ? 'st'
-          : (n % 10 === 2 && n % 100 !== 12) ? 'nd'
-          : (n % 10 === 3 && n % 100 !== 13) ? 'rd' : 'th';
-  return n + suf + ' Roof';
+  return 'Roof ' + n;
 }
 function renderRoofSwitcher(){
   var el = document.getElementById('roofSwitcher');
@@ -11349,9 +11370,10 @@ function renderRoofSwitcher(){
   DRAW.roofs.forEach(function(r, i){
     var isActive = (i === DRAW.activeRoofIdx);
     var label = _nthName(i + 1);
-    html += '<button class="tool-btn" onclick="switchToRoof(' + i + ')" style="font-size:12px;padding:4px 10px;' +
-      (isActive ? 'background:#0a1628;color:#fff;border-color:#0a1628;font-weight:700' : 'color:#0a1628') +
-      '">' + label + '</button>';
+    html += '<span style="display:inline-flex;align-items:center;border:1px solid '+(isActive?'#0a1628':'#cbd5e1')+';border-radius:6px;overflow:hidden;'+(isActive?'background:#0a1628':'background:#fff')+'">'+
+      '<button onclick="switchToRoof('+i+')" title="Edit '+label+'" style="font-size:12px;padding:4px 10px;border:none;background:transparent;cursor:pointer;font-weight:'+(isActive?'700':'500')+';color:'+(isActive?'#fff':'#0a1628')+'">'+label+'</button>'+
+      '<button onclick="deleteRoof('+i+')" title="Delete '+label+'" style="font-size:13px;line-height:1;padding:4px 8px 4px 2px;border:none;background:transparent;cursor:pointer;color:'+(isActive?'rgba(255,255,255,.85)':'#94a3b8')+'">✕</button>'+
+    '</span>';
   });
   el.innerHTML = html;
 }
