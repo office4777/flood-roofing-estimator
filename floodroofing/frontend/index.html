@@ -12008,6 +12008,19 @@ function _renderRoofSheetPlanInner() {
     return out;
   }
   // Clip rect against a convex polygon by walking each polygon edge.
+  function _isConvexPoly(poly){
+    if (!poly || poly.length < 4) return true;  // tri / degenerate → convex
+    var n = poly.length, sign = 0;
+    for (var i = 0; i < n; i++) {
+      var a = poly[i], b = poly[(i+1)%n], c = poly[(i+2)%n];
+      var cr = (b[0]-a[0])*(c[1]-b[1]) - (b[1]-a[1])*(c[0]-b[0]);
+      if (Math.abs(cr) < 1e-6) continue;
+      var s = cr > 0 ? 1 : -1;
+      if (sign === 0) sign = s;
+      else if (s !== sign) return false;
+    }
+    return true;
+  }
   function clipToConvexPoly(pts, poly){
     var n = poly.length;
     // Force CCW
@@ -12260,6 +12273,22 @@ function _renderRoofSheetPlanInner() {
 
   if (!isBigL) {
 
+  // Count reflex corners on the (CCW-forced) outline.  The robust
+  // coverage path below — boundary-walked faces, full-span strips,
+  // concave-face clipping, no phantom routing — is scoped to a simple
+  // single-reflex L-shape.  Plain (0-reflex) and multi-reflex (T/U/+)
+  // outlines keep the original strip logic untouched.
+  var _reflexCount = 0;
+  (function(){
+    var n = outline.length;
+    for (var i = 0; i < n; i++) {
+      var p0 = outline[(i-1+n)%n], p1 = outline[i], p2 = outline[(i+1)%n];
+      var cr = (p1[0]-p0[0])*(p2[1]-p1[1]) - (p1[1]-p0[1])*(p2[0]-p1[0]);
+      if (cr < -1) _reflexCount++;
+    }
+  })();
+  var _isLShape = (_reflexCount === 1);
+
   // ── Build faces ────────────────────────────────────────────────
   // For each gutter line, find the two adjacent inward boundaries
   // (hips / barges / valleys), trace them to their interior endpoints,
@@ -12277,6 +12306,34 @@ function _renderRoofSheetPlanInner() {
     });
     return matches;
   }
+  // Shortest path between two interior endpoints over the inner line
+  // network (hips / ridges / valleys / barges — never gutters).  Used so
+  // a long-side face whose two inward lines reach ridge points joined by
+  // an intermediate ridge+hip chain follows that real boundary instead
+  // of cutting a straight chord across it (which both leaves a gap below
+  // the chord and overlaps the neighbouring face).  Returns the list of
+  // INTERMEDIATE vertices (excluding both endpoints), or [] if directly
+  // connected / no path.
+  function _innerPath(from, to){
+    var segs = DRAW.lines.filter(function(l){
+      return l && l.pts && l.pts.length === 2 &&
+        (l.type === 'hip' || l.type === 'ridge' || l.type === 'valley' || l.type === 'barge');
+    });
+    var visited = [from], queue = [[from]];
+    while (queue.length) {
+      var pathv = queue.shift();
+      var node = pathv[pathv.length - 1];
+      if (ptEq(node, to)) return pathv.slice(1, -1);
+      segs.forEach(function(l){
+        var nxt = ptEq(l.pts[0], node) ? l.pts[1] : (ptEq(l.pts[1], node) ? l.pts[0] : null);
+        if (!nxt) return;
+        if (visited.some(function(v){return ptEq(v, nxt);})) return;
+        visited.push(nxt.slice());
+        queue.push(pathv.concat([nxt.slice()]));
+      });
+    }
+    return [];
+  }
   var faces = [];
   DRAW.lines.forEach(function(g){
     if (g.type !== 'gutter') return;
@@ -12292,7 +12349,8 @@ function _renderRoofSheetPlanInner() {
       poly = [a.slice(), sa.far, b.slice()];
     } else {
       faceType = 'long-side';
-      poly = [a.slice(), sa.far, sb.far, b.slice()];
+      var mids = _isLShape ? _innerPath(sa.far, sb.far) : [];
+      poly = [a.slice(), sa.far].concat(mids).concat([sb.far, b.slice()]);
     }
     // Force the face polygon to CCW so clipHalf works downstream.
     var fsa = 0;
@@ -12540,7 +12598,12 @@ function _renderRoofSheetPlanInner() {
   // face polygon are flagged for routing to a wing receiver face.
   var allStrips = [];
   faces.forEach(function(f){
-    var ext = _extendedDonor(f);  // null unless f is a phantom-extended donor
+    // For a single-reflex L the path sheets every face directly over its
+    // true (boundary-walked) polygon, so it skips the phantom-4-hip donor
+    // extension — that cross-valley rotation was the source of the wing
+    // double-sheeting overlap on wider wings.  Other shapes keep the
+    // original phantom behaviour.
+    var ext = _isLShape ? null : _extendedDonor(f);
     var aStart = ext ? ext.aStart : f.a;
     var tx     = ext ? ext.tx    : f.tx;
     var ty     = ext ? ext.ty    : f.ty;
@@ -12549,10 +12612,24 @@ function _renderRoofSheetPlanInner() {
     var gL     = ext ? ext.gL    : f.gL;
     var perpPx = ext ? ext.perpPx: f.perpPx;
     var clipPoly = ext ? ext.poly : f.poly;
-    var nStrips = Math.ceil(gL / coverPx);
-    for (var s = 0; s < nStrips; s++){
-      var s0 = Math.min(s * coverPx, gL);
-      var s1 = Math.min((s + 1) * coverPx, gL);
+    // Walk strips across the face's FULL projected span along the gutter
+    // tangent (not just the gutter length).  An L-face whose polygon
+    // extends past its gutter ends — e.g. a long-side that reaches down
+    // into a valley triangle below the reflex — would otherwise leave
+    // that triangle unsheeted.  Strip boundaries stay anchored to the
+    // coverPx grid at the gutter start so courses remain regular.
+    var tMin = 0, tMax = gL;
+    if (_isLShape) {
+      clipPoly.forEach(function(p){
+        var t = (p[0]-aStart[0])*tx + (p[1]-aStart[1])*ty;
+        if (t < tMin) tMin = t;
+        if (t > tMax) tMax = t;
+      });
+    }
+    var sLo = Math.floor(tMin / coverPx), sHi = Math.ceil(tMax / coverPx);
+    for (var s = sLo; s < sHi; s++){
+      var s0 = Math.max(s * coverPx, tMin);
+      var s1 = Math.min((s + 1) * coverPx, tMax);
       if (s1 - s0 < 0.5) continue;
       var stripPoly = [
         [aStart[0] + s0*tx, aStart[1] + s0*ty],
@@ -12560,7 +12637,14 @@ function _renderRoofSheetPlanInner() {
         [aStart[0] + s1*tx + (perpPx + 4)*nx, aStart[1] + s1*ty + (perpPx + 4)*ny],
         [aStart[0] + s0*tx + (perpPx + 4)*nx, aStart[1] + s0*ty + (perpPx + 4)*ny]
       ];
-      var clipped = clipToConvexPoly(stripPoly, clipPoly);
+      // Sutherland–Hodgman needs a CONVEX clip window.  For the common
+      // convex face (triangle / quad) clip the strip rect against the
+      // face (original behaviour).  For a CONCAVE face — a long-side that
+      // follows a bent ridge/hip boundary around an L — swap roles and
+      // clip the face against the (convex) strip rect instead.
+      var clipped = (_isLShape && !_isConvexPoly(clipPoly))
+        ? clipToConvexPoly(clipPoly, stripPoly)
+        : clipToConvexPoly(stripPoly, clipPoly);
       if (!clipped || clipped.length < 3) continue;
       var sCent = polyCentroid(clipped);
       // For non-phantom strips, require the centroid to be inside the
@@ -13614,7 +13698,12 @@ function _renderRoofSheetPlanInner() {
     // 8 horizontal sheets at y bands of coverPx covering y in [valleyEnd[1]-300, valleyEnd[1]]
     // (i.e. [250, 550] in test), x in [wx0, wingApex[0]] = [100, 250].
     // These COUNT toward order.
-    var wingLeftY0 = valleyEnd[1] - (wx1 - wx0);  // 250
+    // Start the wing side-face sheeting at the wing apex so the FULL
+    // wing ridge length is covered.  For a square wing (wing_h==wing_w)
+    // this equals valleyEnd[1]-(wx1-wx0); for a TALLER wing it extends
+    // upward to fill the wing's mid-section (which the donor cascade,
+    // tuned for square wings, would otherwise leave bare).
+    var wingLeftY0 = Math.min(valleyEnd[1] - (wx1 - wx0), wingApex[1]);
     var wingLeftY1 = valleyEnd[1];                 // 550
     var wingPerpPx = wingApex[0] - wx0;            // 150 (half wing width)
     y = wingLeftY0;
