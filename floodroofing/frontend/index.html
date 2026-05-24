@@ -935,20 +935,7 @@ select{
   </div>
 </div>
 
-<div class="card-hd"><span class="card-dot"></span>Upload roof sketch / plan</div>
-    <div class="notice" style="font-size:12px">
-      <strong>Unit rules:</strong> 4-digit numbers (e.g. 4150, 1200) are read as <strong>mm</strong>. 1-2 digit numbers (e.g. 15.7, 8.1) are read as <strong>m</strong>. The AI will copy your drawing exactly and redraw it as a clean plan view.
-    </div>
-    <div class="upload-zone" id="roofUZ" style="margin-top:.75rem">
-      <svg style="width:36px;height:36px;margin:0 auto 12px;display:block;opacity:.35" viewBox="0 0 36 36" fill="none"><rect x="4" y="4" width="28" height="28" rx="4" stroke="currentColor" stroke-width="1.8"/><path d="M18 11V25M11 18L18 11L25 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <div class="uz-title">Drop your roof sketch here</div>
-      <div class="uz-sub" style="margin-top:4px">JPG, PNG or PDF — Flood Roofing drawing sheet</div>
-      <input type="file" id="roofFile" accept="image/*,application/pdf" onchange="onRoofImg(event)">
-    </div>
-    <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="sketch"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">X Remove</button></div>
-    <div class="err" id="roofErr"></div>
-    <button class="ai-btn" id="analyseBtn" onclick="analyseRoof()" disabled><span id="analyseTxt">Upload sketch — AI will trace all lines</span></button>
-    <p style="font-size:11px;color:#999;text-align:center;margin-top:.5rem">AI traces all lines from your photo. After tracing: click any line to change its type &amp; measurement. Draw extra lines manually if needed.</p>
+<!-- Roof-sketch AI tracing removed — use the aerial imagery above, then draw lines on the canvas. -->
   </div>
 
   <!-- Results -->
@@ -981,7 +968,7 @@ select{
           <button onclick="autoGenerateRoof('dutch')" class="tool-btn" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:600">🏡 Dutch Gable</button>
           <button onclick="autoGenerateRoof('mono')" class="tool-btn" style="background:#d97706;color:#fff;border-color:#d97706;font-weight:600">📐 Mono-Pitch</button>
           <button onclick="clearRoofLines()" class="tool-btn" style="color:#dc2626;border-color:#dc2626;margin-left:4px">🗑 Clear lines</button>
-          <button onclick="snapOutlineToSquare()" class="tool-btn" style="background:#fff;color:#0a1628;border-color:#0a1628;font-weight:600" title="Force the outline to a true rectangle (best-fit). Use after a drag if the building drifted out of square.">📐 Snap Square</button>
+          <button onclick="snapOutlineToSquare()" class="tool-btn" style="background:#fff;color:#0a1628;border-color:#0a1628;font-weight:600" title="Square up every corner of your existing outline (makes all angles 90°). Edges may get longer or shorter — nudge any corner afterwards if needed.">📐 Snap Square</button>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <button onclick="rotateActiveRoof()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed;font-weight:600" title="Rotate the generated roof lines 90° around the outline centre. Useful for switching ridge direction on gable/dutch or slope direction on mono-pitch.">⟳ Rotate roof 90°</button>
@@ -997,17 +984,25 @@ select{
         <button onclick="setTool('select')" id="btn-move" onmouseenter="showTip('btn-move',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:grab">✋ Move</button>
         <button onclick="setTool('addmeas')" id="btn-select" onmouseenter="showTip('btn-select',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:pointer">☝️ Select</button>
         <button onclick="setTool('outline')" id="btn-outline" onmouseenter="showTip('btn-outline',event)" onmouseleave="hideTip()" class="tool-btn tool-dark">🏠 Building outline</button>
-        <button onclick="setTool('ridge')" id="btn-ridge" onmouseenter="showTip('btn-ridge',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#dc2626;border-color:#dc2626">— Ridge</button>
-        <button onclick="setTool('valley')" id="btn-valley" onmouseenter="showTip('btn-valley',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#f59e0b;border-color:#f59e0b">— Valley</button>
-        <button onclick="setTool('gutter')" id="btn-gutter" onmouseenter="showTip('btn-gutter',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed">— Gutter</button>
-        <button onclick="setTool('hip')" id="btn-hip" onmouseenter="showTip('btn-hip',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#059669;border-color:#059669">— Hip</button>
-        <button onclick="setTool('barge')" id="btn-barge" onmouseenter="showTip('btn-barge',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2">— Barge</button>
-        <button onclick="setTool('apron')" id="btn-apron" onmouseenter="showTip('btn-apron',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#e11d48;border-color:#e11d48">— Apron</button>
-        <button onclick="setTool('changepitch')" id="btn-changepitch" onmouseenter="showTip('btn-changepitch',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0ea5e9;border-color:#0ea5e9;font-weight:600">— Ch.Pitch</button>
-
-        <button onclick="setTool('penetration')" id="btn-penetration" onmouseenter="showTip('btn-penetration',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2">⬛ Penetration</button>
-        <button onclick="setTool('info')" id="btn-info" onmouseenter="showTip('btn-info',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#d97706;border-color:#d97706">✳ Add Info</button>
-        <button onclick="showMeasurementsPanel()" id="btn-measurements" onmouseenter="showTip('btn-measurements',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#059669;border-color:#059669;font-weight:600">📐 Measurements</button>
+        <!-- Roof lines + details collapsed into one menu to keep the toolbar tidy -->
+        <div id="rlDropWrap" style="position:relative;display:inline-block">
+          <button type="button" id="rlDropBtn" onclick="toggleRoofLinesMenu(event)" style="background:#0a1628;color:#fff;border:1px solid #0a1628;border-radius:6px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;line-height:1.2">
+            <span aria-hidden="true">➕</span><span class="rl-drop-label">Add Roof Lines or Details</span><span style="font-size:10px;opacity:.85">▾</span>
+          </button>
+          <div id="rlDropMenu" style="display:none;position:absolute;top:calc(100% + 5px);left:0;z-index:300;background:#fff;border:1px solid #d6dbe2;border-radius:10px;box-shadow:0 12px 32px rgba(10,22,40,.20);padding:7px;min-width:210px">
+            <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:2px 6px 6px">Roof lines</div>
+            <button onclick="setTool('ridge');closeRoofLinesMenu()" id="btn-ridge" onmouseenter="showTip('btn-ridge',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#dc2626;border-color:#dc2626;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">— Ridge</button>
+            <button onclick="setTool('valley');closeRoofLinesMenu()" id="btn-valley" onmouseenter="showTip('btn-valley',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#f59e0b;border-color:#f59e0b;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">— Valley</button>
+            <button onclick="setTool('gutter');closeRoofLinesMenu()" id="btn-gutter" onmouseenter="showTip('btn-gutter',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">— Gutter</button>
+            <button onclick="setTool('hip');closeRoofLinesMenu()" id="btn-hip" onmouseenter="showTip('btn-hip',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#059669;border-color:#059669;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">— Hip</button>
+            <button onclick="setTool('barge');closeRoofLinesMenu()" id="btn-barge" onmouseenter="showTip('btn-barge',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">— Barge</button>
+            <button onclick="setTool('apron');closeRoofLinesMenu()" id="btn-apron" onmouseenter="showTip('btn-apron',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#e11d48;border-color:#e11d48;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">— Apron</button>
+            <button onclick="setTool('changepitch');closeRoofLinesMenu()" id="btn-changepitch" onmouseenter="showTip('btn-changepitch',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0ea5e9;border-color:#0ea5e9;font-weight:600;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0">— Ch. Pitch</button>
+            <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:8px 6px 6px;border-top:1px solid #eef1f5;margin-top:6px">Details</div>
+            <button onclick="setTool('penetration');closeRoofLinesMenu()" id="btn-penetration" onmouseenter="showTip('btn-penetration',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">⬛ Penetration</button>
+            <button onclick="setTool('info');closeRoofLinesMenu()" id="btn-info" onmouseenter="showTip('btn-info',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#d97706;border-color:#d97706;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0">✳ Add Info</button>
+          </div>
+        </div>
 
 
         <button onclick="setTool('calibrate')" id="btn-calibrate" onmouseenter="showTip('btn-calibrate',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;font-weight:700;background:#f0f8fb;margin-left:auto">📏 Calibrate scale</button>
@@ -7401,6 +7396,9 @@ function setTool(t) {
   var _btnId = _btnMap[t] || ('btn-'+t);
   var btn = document.getElementById(_btnId);
   if(btn) btn.classList.add('active-tool');
+  // Reflect the active tool on the collapsed "Add Roof Lines or Details"
+  // button so the selection is visible without opening the menu.
+  syncRoofLinesBtn(t);
   updateStepUI();
   DRAW.selectedSection=-1; DRAW.selectedLine=-1; DRAW.selectedPen=-1;
   hidePropPanel();
@@ -7420,6 +7418,29 @@ function setTool(t) {
   if(t!=='select') { PAN.active=false; }
   redrawAll();
 }
+
+// ── "Add Roof Lines or Details" dropdown ──────────────────────────
+// The roof-line + detail tools live behind one black button to keep
+// the canvas toolbar tidy.  The button shows the active tool's name.
+var ROOF_LINE_TOOLS = {ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',apron:'Apron',changepitch:'Ch. Pitch',penetration:'Penetration',info:'Add Info'};
+function syncRoofLinesBtn(t){
+  var b=document.getElementById('rlDropBtn'); if(!b) return;
+  var lbl=b.querySelector('.rl-drop-label'); if(!lbl) return;
+  if(ROOF_LINE_TOOLS[t]){ b.classList.add('active-tool'); lbl.textContent=ROOF_LINE_TOOLS[t]; }
+  else { b.classList.remove('active-tool'); lbl.textContent='Add Roof Lines or Details'; }
+}
+function toggleRoofLinesMenu(e){
+  if(e){ e.stopPropagation(); }
+  var m=document.getElementById('rlDropMenu'); if(!m) return;
+  m.style.display = (m.style.display==='block') ? 'none' : 'block';
+}
+function closeRoofLinesMenu(){
+  var m=document.getElementById('rlDropMenu'); if(m) m.style.display='none';
+}
+document.addEventListener('click', function(e){
+  var w=document.getElementById('rlDropWrap');
+  if(w && !w.contains(e.target)) closeRoofLinesMenu();
+});
 
 function updateStepUI() {
   var info = STEP_INFO[DRAW.tool] || {icon:'✏️',title:'Draw',hint:'Click on canvas.',btn:'Done ↵'};
@@ -7610,55 +7631,69 @@ function computeSectionSheet(sec){
 // Then regenerate auto roof lines from the new rectangle so hips +
 // ridge land at 45° again.
 function snapOutlineToSquare(){
-  if (!DRAW.outline || DRAW.outline.length !== 4) {
-    var msg = 'Snap Square works on a 4-corner outline. Draw the outline first.';
-    try { alert(msg); } catch(e){}
+  if (!DRAW.outline || DRAW.outline.length < 4) {
+    try { alert('Snap Square needs an outline with at least 4 corners. Draw the outline first.'); } catch(e){}
     return;
   }
   saveSnapshot();
-  var pts = DRAW.outline;
+  // Square up the EXISTING outline in place: make every corner 90° by
+  // forcing each edge to run purely along the building's dominant axis
+  // (u = longest edge) or its perpendicular (v).  Corners are nudged to
+  // the average of the corners they share an edge-axis with, so the
+  // shape barely moves — edges just lengthen / shorten as needed.  Works
+  // for rectangles, L-shapes, T-shapes … any rectilinear outline.
+  var pts = DRAW.outline.map(function(p){ return [p[0], p[1]]; });
   var n = pts.length;
-  // Find longest edge — its direction is u.
-  var bestI = 0, bestL = 0;
+  // 1. Dominant orientation from the longest edge.
+  var bestI = 0, bestL = -1;
   for (var i = 0; i < n; i++) {
     var a = pts[i], b = pts[(i+1)%n];
     var dx = b[0]-a[0], dy = b[1]-a[1];
-    var L = Math.sqrt(dx*dx + dy*dy);
+    var L = dx*dx + dy*dy;
     if (L > bestL) { bestL = L; bestI = i; }
   }
-  var p1 = pts[bestI], p2 = pts[(bestI+1)%n];
-  var ax = p2[0]-p1[0], ay = p2[1]-p1[1];
-  var aL = Math.sqrt(ax*ax + ay*ay);
-  if (aL < 1) return;
-  var ux = ax/aL, uy = ay/aL;
-  var vx = -uy, vy = ux;
-  var origin = p1;
-  var minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
-  pts.forEach(function(p){
-    var dx2 = p[0]-origin[0], dy2 = p[1]-origin[1];
-    var pu = dx2*ux + dy2*uy;
-    var pv = dx2*vx + dy2*vy;
-    if (pu < minU) minU = pu; if (pu > maxU) maxU = pu;
-    if (pv < minV) minV = pv; if (pv > maxV) maxV = pv;
-  });
-  function toXY(pu, pv){
-    return [origin[0] + pu*ux + pv*vx, origin[1] + pu*uy + pv*vy];
+  var pa = pts[bestI], pb = pts[(bestI+1)%n];
+  var ex = pb[0]-pa[0], ey = pb[1]-pa[1];
+  var eL = Math.sqrt(ex*ex + ey*ey);
+  if (eL < 1) { redrawAll(); return; }
+  var ux = ex/eL, uy = ey/eL;   // along longest edge
+  var vx = -uy, vy = ux;        // perpendicular
+  // 2. Project corners into (u, v) about the first corner.
+  var ox = pts[0][0], oy = pts[0][1];
+  var U = new Array(n), V = new Array(n);
+  for (var i = 0; i < n; i++) {
+    var dx = pts[i][0]-ox, dy = pts[i][1]-oy;
+    U[i] = dx*ux + dy*uy;
+    V[i] = dx*vx + dy*vy;
   }
-  var rect = [toXY(minU,minV), toXY(maxU,minV), toXY(maxU,maxV), toXY(minU,maxV)];
-  // Greedy assign each original corner to its nearest rectangle corner.
-  var assigned = [false,false,false,false];
-  var newPts = new Array(4);
-  for (var k = 0; k < 4; k++) {
-    var bestJ = -1, bestD = Infinity;
-    for (var j = 0; j < 4; j++) {
-      if (assigned[j]) continue;
-      var ddx = pts[k][0]-rect[j][0], ddy = pts[k][1]-rect[j][1];
-      var d = Math.sqrt(ddx*ddx + ddy*ddy);
-      if (d < bestD) { bestD = d; bestJ = j; }
-    }
-    if (bestJ >= 0) { newPts[k] = rect[bestJ]; assigned[bestJ] = true; }
+  // 3. Group corners that should share a coordinate: an edge that runs
+  //    along u must have equal V at both ends; an edge along v must have
+  //    equal U.  Union-find builds those rails.
+  var uP = [], vP = [];
+  for (var i = 0; i < n; i++) { uP[i] = i; vP[i] = i; }
+  function find(p, x){ while (p[x] !== x) { p[x] = p[p[x]]; x = p[x]; } return x; }
+  function uni(p, a, b){ var ra = find(p,a), rb = find(p,b); if (ra !== rb) p[ra] = rb; }
+  for (var i = 0; i < n; i++) {
+    var j = (i+1)%n;
+    var du = Math.abs(U[j]-U[i]), dv = Math.abs(V[j]-V[i]);
+    if (du >= dv) uni(vP, i, j);   // edge along u → share V
+    else          uni(uP, i, j);   // edge along v → share U
+  }
+  // 4. Snap each rail to the average of its members (keeps corners put).
+  function snapRail(p, arr){
+    var sum = {}, cnt = {};
+    for (var i = 0; i < n; i++) { var r = find(p,i); sum[r] = (sum[r]||0)+arr[i]; cnt[r] = (cnt[r]||0)+1; }
+    for (var i = 0; i < n; i++) { var r = find(p,i); arr[i] = sum[r]/cnt[r]; }
+  }
+  snapRail(uP, U);
+  snapRail(vP, V);
+  // 5. Back to canvas coordinates, in place.
+  var newPts = new Array(n);
+  for (var i = 0; i < n; i++) {
+    newPts[i] = [ox + U[i]*ux + V[i]*vx, oy + U[i]*uy + V[i]*vy];
   }
   DRAW.outline = newPts;
+  // Keep auto roof lines + gutters following the squared outline.
   var roofType = (typeof _detectAutoRoofType === 'function') ? _detectAutoRoofType() : null;
   if (roofType) {
     try { regenerateAutoRoofLines(roofType); } catch(e){}
@@ -7666,6 +7701,7 @@ function snapOutlineToSquare(){
     try { autoPopulateGutters && autoPopulateGutters(); } catch(e){}
   }
   try { autoCalcLineMeasurements && autoCalcLineMeasurements(); } catch(e){}
+  try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
   try { syncToRoofData && syncToRoofData(); } catch(e){}
   redrawAll();
 }
