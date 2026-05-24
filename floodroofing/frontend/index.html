@@ -935,20 +935,7 @@ select{
   </div>
 </div>
 
-<div class="card-hd"><span class="card-dot"></span>Upload roof sketch / plan</div>
-    <div class="notice" style="font-size:12px">
-      <strong>Unit rules:</strong> 4-digit numbers (e.g. 4150, 1200) are read as <strong>mm</strong>. 1-2 digit numbers (e.g. 15.7, 8.1) are read as <strong>m</strong>. The AI will copy your drawing exactly and redraw it as a clean plan view.
-    </div>
-    <div class="upload-zone" id="roofUZ" style="margin-top:.75rem">
-      <svg style="width:36px;height:36px;margin:0 auto 12px;display:block;opacity:.35" viewBox="0 0 36 36" fill="none"><rect x="4" y="4" width="28" height="28" rx="4" stroke="currentColor" stroke-width="1.8"/><path d="M18 11V25M11 18L18 11L25 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <div class="uz-title">Drop your roof sketch here</div>
-      <div class="uz-sub" style="margin-top:4px">JPG, PNG or PDF — Flood Roofing drawing sheet</div>
-      <input type="file" id="roofFile" accept="image/*,application/pdf" onchange="onRoofImg(event)">
-    </div>
-    <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="sketch"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">X Remove</button></div>
-    <div class="err" id="roofErr"></div>
-    <button class="ai-btn" id="analyseBtn" onclick="analyseRoof()" disabled><span id="analyseTxt">Upload sketch — AI will trace all lines</span></button>
-    <p style="font-size:11px;color:#999;text-align:center;margin-top:.5rem">AI traces all lines from your photo. After tracing: click any line to change its type &amp; measurement. Draw extra lines manually if needed.</p>
+<!-- Roof-sketch AI tracing removed — use the aerial imagery above, then draw lines on the canvas. -->
   </div>
 
   <!-- Results -->
@@ -997,17 +984,25 @@ select{
         <button onclick="setTool('select')" id="btn-move" onmouseenter="showTip('btn-move',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:grab">✋ Move</button>
         <button onclick="setTool('addmeas')" id="btn-select" onmouseenter="showTip('btn-select',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:pointer">☝️ Select</button>
         <button onclick="setTool('outline')" id="btn-outline" onmouseenter="showTip('btn-outline',event)" onmouseleave="hideTip()" class="tool-btn tool-dark">🏠 Building outline</button>
-        <button onclick="setTool('ridge')" id="btn-ridge" onmouseenter="showTip('btn-ridge',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#dc2626;border-color:#dc2626">— Ridge</button>
-        <button onclick="setTool('valley')" id="btn-valley" onmouseenter="showTip('btn-valley',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#f59e0b;border-color:#f59e0b">— Valley</button>
-        <button onclick="setTool('gutter')" id="btn-gutter" onmouseenter="showTip('btn-gutter',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed">— Gutter</button>
-        <button onclick="setTool('hip')" id="btn-hip" onmouseenter="showTip('btn-hip',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#059669;border-color:#059669">— Hip</button>
-        <button onclick="setTool('barge')" id="btn-barge" onmouseenter="showTip('btn-barge',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2">— Barge</button>
-        <button onclick="setTool('apron')" id="btn-apron" onmouseenter="showTip('btn-apron',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#e11d48;border-color:#e11d48">— Apron</button>
-        <button onclick="setTool('changepitch')" id="btn-changepitch" onmouseenter="showTip('btn-changepitch',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0ea5e9;border-color:#0ea5e9;font-weight:600">— Ch.Pitch</button>
-
-        <button onclick="setTool('penetration')" id="btn-penetration" onmouseenter="showTip('btn-penetration',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2">⬛ Penetration</button>
-        <button onclick="setTool('info')" id="btn-info" onmouseenter="showTip('btn-info',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#d97706;border-color:#d97706">✳ Add Info</button>
-        <button onclick="showMeasurementsPanel()" id="btn-measurements" onmouseenter="showTip('btn-measurements',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#059669;border-color:#059669;font-weight:600">📐 Measurements</button>
+        <!-- Roof lines + details collapsed into one menu to keep the toolbar tidy -->
+        <div id="rlDropWrap" style="position:relative;display:inline-block">
+          <button type="button" id="rlDropBtn" onclick="toggleRoofLinesMenu(event)" style="background:#0a1628;color:#fff;border:1px solid #0a1628;border-radius:6px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;line-height:1.2">
+            <span aria-hidden="true">➕</span><span class="rl-drop-label">Add Roof Lines or Details</span><span style="font-size:10px;opacity:.85">▾</span>
+          </button>
+          <div id="rlDropMenu" style="display:none;position:absolute;top:calc(100% + 5px);left:0;z-index:300;background:#fff;border:1px solid #d6dbe2;border-radius:10px;box-shadow:0 12px 32px rgba(10,22,40,.20);padding:7px;min-width:210px">
+            <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:2px 6px 6px">Roof lines</div>
+            <button onclick="setTool('ridge');closeRoofLinesMenu()" id="btn-ridge" onmouseenter="showTip('btn-ridge',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#dc2626;border-color:#dc2626;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">— Ridge</button>
+            <button onclick="setTool('valley');closeRoofLinesMenu()" id="btn-valley" onmouseenter="showTip('btn-valley',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#f59e0b;border-color:#f59e0b;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">— Valley</button>
+            <button onclick="setTool('gutter');closeRoofLinesMenu()" id="btn-gutter" onmouseenter="showTip('btn-gutter',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">— Gutter</button>
+            <button onclick="setTool('hip');closeRoofLinesMenu()" id="btn-hip" onmouseenter="showTip('btn-hip',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#059669;border-color:#059669;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">— Hip</button>
+            <button onclick="setTool('barge');closeRoofLinesMenu()" id="btn-barge" onmouseenter="showTip('btn-barge',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">— Barge</button>
+            <button onclick="setTool('apron');closeRoofLinesMenu()" id="btn-apron" onmouseenter="showTip('btn-apron',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#e11d48;border-color:#e11d48;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">— Apron</button>
+            <button onclick="setTool('changepitch');closeRoofLinesMenu()" id="btn-changepitch" onmouseenter="showTip('btn-changepitch',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0ea5e9;border-color:#0ea5e9;font-weight:600;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0">— Ch. Pitch</button>
+            <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:8px 6px 6px;border-top:1px solid #eef1f5;margin-top:6px">Details</div>
+            <button onclick="setTool('penetration');closeRoofLinesMenu()" id="btn-penetration" onmouseenter="showTip('btn-penetration',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">⬛ Penetration</button>
+            <button onclick="setTool('info');closeRoofLinesMenu()" id="btn-info" onmouseenter="showTip('btn-info',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#d97706;border-color:#d97706;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0">✳ Add Info</button>
+          </div>
+        </div>
 
 
         <button onclick="setTool('calibrate')" id="btn-calibrate" onmouseenter="showTip('btn-calibrate',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;font-weight:700;background:#f0f8fb;margin-left:auto">📏 Calibrate scale</button>
@@ -7401,6 +7396,9 @@ function setTool(t) {
   var _btnId = _btnMap[t] || ('btn-'+t);
   var btn = document.getElementById(_btnId);
   if(btn) btn.classList.add('active-tool');
+  // Reflect the active tool on the collapsed "Add Roof Lines or Details"
+  // button so the selection is visible without opening the menu.
+  syncRoofLinesBtn(t);
   updateStepUI();
   DRAW.selectedSection=-1; DRAW.selectedLine=-1; DRAW.selectedPen=-1;
   hidePropPanel();
@@ -7420,6 +7418,29 @@ function setTool(t) {
   if(t!=='select') { PAN.active=false; }
   redrawAll();
 }
+
+// ── "Add Roof Lines or Details" dropdown ──────────────────────────
+// The roof-line + detail tools live behind one black button to keep
+// the canvas toolbar tidy.  The button shows the active tool's name.
+var ROOF_LINE_TOOLS = {ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',apron:'Apron',changepitch:'Ch. Pitch',penetration:'Penetration',info:'Add Info'};
+function syncRoofLinesBtn(t){
+  var b=document.getElementById('rlDropBtn'); if(!b) return;
+  var lbl=b.querySelector('.rl-drop-label'); if(!lbl) return;
+  if(ROOF_LINE_TOOLS[t]){ b.classList.add('active-tool'); lbl.textContent=ROOF_LINE_TOOLS[t]; }
+  else { b.classList.remove('active-tool'); lbl.textContent='Add Roof Lines or Details'; }
+}
+function toggleRoofLinesMenu(e){
+  if(e){ e.stopPropagation(); }
+  var m=document.getElementById('rlDropMenu'); if(!m) return;
+  m.style.display = (m.style.display==='block') ? 'none' : 'block';
+}
+function closeRoofLinesMenu(){
+  var m=document.getElementById('rlDropMenu'); if(m) m.style.display='none';
+}
+document.addEventListener('click', function(e){
+  var w=document.getElementById('rlDropWrap');
+  if(w && !w.contains(e.target)) closeRoofLinesMenu();
+});
 
 function updateStepUI() {
   var info = STEP_INFO[DRAW.tool] || {icon:'✏️',title:'Draw',hint:'Click on canvas.',btn:'Done ↵'};
