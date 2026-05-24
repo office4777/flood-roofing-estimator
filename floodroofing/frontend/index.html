@@ -968,7 +968,7 @@ select{
           <button onclick="autoGenerateRoof('dutch')" class="tool-btn" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:600">🏡 Dutch Gable</button>
           <button onclick="autoGenerateRoof('mono')" class="tool-btn" style="background:#d97706;color:#fff;border-color:#d97706;font-weight:600">📐 Mono-Pitch</button>
           <button onclick="clearRoofLines()" class="tool-btn" style="color:#dc2626;border-color:#dc2626;margin-left:4px">🗑 Clear lines</button>
-          <button onclick="snapOutlineToSquare()" class="tool-btn" style="background:#fff;color:#0a1628;border-color:#0a1628;font-weight:600" title="Force the outline to a true rectangle (best-fit). Use after a drag if the building drifted out of square.">📐 Snap Square</button>
+          <button onclick="snapOutlineToSquare()" class="tool-btn" style="background:#fff;color:#0a1628;border-color:#0a1628;font-weight:600" title="Square up every corner of your existing outline (makes all angles 90°). Edges may get longer or shorter — nudge any corner afterwards if needed.">📐 Snap Square</button>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <button onclick="rotateActiveRoof()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed;font-weight:600" title="Rotate the generated roof lines 90° around the outline centre. Useful for switching ridge direction on gable/dutch or slope direction on mono-pitch.">⟳ Rotate roof 90°</button>
@@ -7631,55 +7631,69 @@ function computeSectionSheet(sec){
 // Then regenerate auto roof lines from the new rectangle so hips +
 // ridge land at 45° again.
 function snapOutlineToSquare(){
-  if (!DRAW.outline || DRAW.outline.length !== 4) {
-    var msg = 'Snap Square works on a 4-corner outline. Draw the outline first.';
-    try { alert(msg); } catch(e){}
+  if (!DRAW.outline || DRAW.outline.length < 4) {
+    try { alert('Snap Square needs an outline with at least 4 corners. Draw the outline first.'); } catch(e){}
     return;
   }
   saveSnapshot();
-  var pts = DRAW.outline;
+  // Square up the EXISTING outline in place: make every corner 90° by
+  // forcing each edge to run purely along the building's dominant axis
+  // (u = longest edge) or its perpendicular (v).  Corners are nudged to
+  // the average of the corners they share an edge-axis with, so the
+  // shape barely moves — edges just lengthen / shorten as needed.  Works
+  // for rectangles, L-shapes, T-shapes … any rectilinear outline.
+  var pts = DRAW.outline.map(function(p){ return [p[0], p[1]]; });
   var n = pts.length;
-  // Find longest edge — its direction is u.
-  var bestI = 0, bestL = 0;
+  // 1. Dominant orientation from the longest edge.
+  var bestI = 0, bestL = -1;
   for (var i = 0; i < n; i++) {
     var a = pts[i], b = pts[(i+1)%n];
     var dx = b[0]-a[0], dy = b[1]-a[1];
-    var L = Math.sqrt(dx*dx + dy*dy);
+    var L = dx*dx + dy*dy;
     if (L > bestL) { bestL = L; bestI = i; }
   }
-  var p1 = pts[bestI], p2 = pts[(bestI+1)%n];
-  var ax = p2[0]-p1[0], ay = p2[1]-p1[1];
-  var aL = Math.sqrt(ax*ax + ay*ay);
-  if (aL < 1) return;
-  var ux = ax/aL, uy = ay/aL;
-  var vx = -uy, vy = ux;
-  var origin = p1;
-  var minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
-  pts.forEach(function(p){
-    var dx2 = p[0]-origin[0], dy2 = p[1]-origin[1];
-    var pu = dx2*ux + dy2*uy;
-    var pv = dx2*vx + dy2*vy;
-    if (pu < minU) minU = pu; if (pu > maxU) maxU = pu;
-    if (pv < minV) minV = pv; if (pv > maxV) maxV = pv;
-  });
-  function toXY(pu, pv){
-    return [origin[0] + pu*ux + pv*vx, origin[1] + pu*uy + pv*vy];
+  var pa = pts[bestI], pb = pts[(bestI+1)%n];
+  var ex = pb[0]-pa[0], ey = pb[1]-pa[1];
+  var eL = Math.sqrt(ex*ex + ey*ey);
+  if (eL < 1) { redrawAll(); return; }
+  var ux = ex/eL, uy = ey/eL;   // along longest edge
+  var vx = -uy, vy = ux;        // perpendicular
+  // 2. Project corners into (u, v) about the first corner.
+  var ox = pts[0][0], oy = pts[0][1];
+  var U = new Array(n), V = new Array(n);
+  for (var i = 0; i < n; i++) {
+    var dx = pts[i][0]-ox, dy = pts[i][1]-oy;
+    U[i] = dx*ux + dy*uy;
+    V[i] = dx*vx + dy*vy;
   }
-  var rect = [toXY(minU,minV), toXY(maxU,minV), toXY(maxU,maxV), toXY(minU,maxV)];
-  // Greedy assign each original corner to its nearest rectangle corner.
-  var assigned = [false,false,false,false];
-  var newPts = new Array(4);
-  for (var k = 0; k < 4; k++) {
-    var bestJ = -1, bestD = Infinity;
-    for (var j = 0; j < 4; j++) {
-      if (assigned[j]) continue;
-      var ddx = pts[k][0]-rect[j][0], ddy = pts[k][1]-rect[j][1];
-      var d = Math.sqrt(ddx*ddx + ddy*ddy);
-      if (d < bestD) { bestD = d; bestJ = j; }
-    }
-    if (bestJ >= 0) { newPts[k] = rect[bestJ]; assigned[bestJ] = true; }
+  // 3. Group corners that should share a coordinate: an edge that runs
+  //    along u must have equal V at both ends; an edge along v must have
+  //    equal U.  Union-find builds those rails.
+  var uP = [], vP = [];
+  for (var i = 0; i < n; i++) { uP[i] = i; vP[i] = i; }
+  function find(p, x){ while (p[x] !== x) { p[x] = p[p[x]]; x = p[x]; } return x; }
+  function uni(p, a, b){ var ra = find(p,a), rb = find(p,b); if (ra !== rb) p[ra] = rb; }
+  for (var i = 0; i < n; i++) {
+    var j = (i+1)%n;
+    var du = Math.abs(U[j]-U[i]), dv = Math.abs(V[j]-V[i]);
+    if (du >= dv) uni(vP, i, j);   // edge along u → share V
+    else          uni(uP, i, j);   // edge along v → share U
+  }
+  // 4. Snap each rail to the average of its members (keeps corners put).
+  function snapRail(p, arr){
+    var sum = {}, cnt = {};
+    for (var i = 0; i < n; i++) { var r = find(p,i); sum[r] = (sum[r]||0)+arr[i]; cnt[r] = (cnt[r]||0)+1; }
+    for (var i = 0; i < n; i++) { var r = find(p,i); arr[i] = sum[r]/cnt[r]; }
+  }
+  snapRail(uP, U);
+  snapRail(vP, V);
+  // 5. Back to canvas coordinates, in place.
+  var newPts = new Array(n);
+  for (var i = 0; i < n; i++) {
+    newPts[i] = [ox + U[i]*ux + V[i]*vx, oy + U[i]*uy + V[i]*vy];
   }
   DRAW.outline = newPts;
+  // Keep auto roof lines + gutters following the squared outline.
   var roofType = (typeof _detectAutoRoofType === 'function') ? _detectAutoRoofType() : null;
   if (roofType) {
     try { regenerateAutoRoofLines(roofType); } catch(e){}
@@ -7687,6 +7701,7 @@ function snapOutlineToSquare(){
     try { autoPopulateGutters && autoPopulateGutters(); } catch(e){}
   }
   try { autoCalcLineMeasurements && autoCalcLineMeasurements(); } catch(e){}
+  try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
   try { syncToRoofData && syncToRoofData(); } catch(e){}
   redrawAll();
 }
