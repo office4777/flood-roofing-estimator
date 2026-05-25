@@ -862,7 +862,19 @@ select{
 </div>
 
 <div class="nav">
-  <button class="nav-btn active" onclick="gotoTab('roof')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.3"/></svg>Map Roof</button>
+  <button class="nav-btn active" onclick="gotoTab('select')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5C2 3.67 2.67 3 3.5 3H6.5L8 4.5H12.5C13.33 4.5 14 5.17 14 6V12C14 12.83 13.33 13.5 12.5 13.5H3.5C2.67 13.5 2 12.83 2 12V4.5Z" stroke="currentColor" stroke-width="1.3"/></svg>Select Job</button>
+  <!-- Sidebar job chip: hidden until a job is loaded. Shows the Fergus
+       jobNo / local id and an autosave-status pill. Sits between Select
+       Job and Map Roof in the nav so the user always sees which job
+       they're editing without leaving the active tab. -->
+  <div id="sidebarJobChip" style="display:none;padding:7px 10px;margin:2px 0;background:var(--surface-2,#f5f5f3);border:1px solid var(--border);border-radius:8px;font-size:12px;line-height:1.3">
+    <div style="font-weight:700;color:#0a1628" id="sidebarJobChipLabel">Job #—</div>
+    <div id="sidebarJobChipAutosave" style="display:inline-flex;align-items:center;gap:5px;margin-top:4px;background:#eaf3de;border:1px solid #97c459;color:#27500a;border-radius:20px;padding:1px 8px;font-size:10px;font-weight:600">
+      <span style="width:5px;height:5px;border-radius:50%;background:#27500a"></span>
+      <span id="sidebarJobChipAutosaveText">Autosave on</span>
+    </div>
+  </div>
+  <button class="nav-btn" onclick="gotoTab('roof')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.3"/></svg>Map Roof</button>
   <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Materials &amp; Sheet Layout</button>
   <button class="nav-btn" onclick="gotoTab('scope')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8H11M5 5.5H11M5 10.5H8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Scope &amp; labour</button>
   <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
@@ -874,18 +886,8 @@ select{
 </aside>
 <main class="content">
 
-<!-- Persistent current-job indicator: visible from every tab so the user
-     never loses track of which job they're editing. Mirrors the in-tab
-     #currentJobLabel via setCurrentJobLabel(). Click "Change" to open the
-     existing select-job modal from anywhere. -->
-<div id="currentJobGlobalBar" style="display:flex;align-items:center;gap:10px;padding:7px 14px;margin-bottom:.75rem;background:#fff;border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text2)">
-  <span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:600">Current job</span>
-  <strong id="currentJobLabelGlobal" style="color:#0a1628;font-weight:600">— new (not yet saved)</strong>
-  <button onclick="openSelectJobModal()" style="margin-left:auto;padding:4px 10px;background:transparent;color:#0099cc;border:1px solid #0099cc;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">📂 Change</button>
-</div>
-
-<!-- TAB 1: ROOF MAP -->
-<div class="panel active" id="tab-roof">
+<!-- TAB 0: SELECT JOB -->
+<div class="panel active" id="tab-select">
   <div class="card" style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#f0f8fb,#e8f4fd);border:1.5px solid #b3d4f0">
     <div style="flex:1;min-width:0">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#0a1628;font-weight:700;margin-bottom:2px">Start here</div>
@@ -906,7 +908,15 @@ select{
   <button onclick="openSatelliteView()" title="Open satellite view" style="padding:6px 12px;background:#0a1628;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap">🛰 Satellite view</button>
 </div></div></div>
     <div class="f3"><div><label>Email</label><input type="email" id="jobEmail" placeholder="client@email.com"></div><div><label>Phone</label><input type="tel" id="jobPhone" placeholder="021 000 0000"></div><div><label>Date</label><input type="text" id="jobDate"></div></div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+      <button onclick="saveCurrentJob()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px">💾 Save job</button>
+      <button onclick="gotoTab('roof')" class="sec-btn" style="margin:0;width:auto;padding:9px 18px;background:#0099cc">Next: Map Roof →</button>
+    </div>
   </div>
+</div>
+
+<!-- TAB 1: ROOF MAP -->
+<div class="panel" id="tab-roof">
   <div class="card">
     <div class="card" style="margin-bottom:12px">
   <div class="card-hd"><span class="card-dot"></span>🛰️ Aerial imagery — find property</div>
@@ -2029,6 +2039,26 @@ select{
 <!-- TAB 8: SETTINGS -->
 <div class="panel" id="tab-settings">
 
+  <!-- Autosave -->
+  <div class="card">
+    <div class="card-hd"><span class="card-dot"></span>Autosave</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:.75rem">When autosave is on, every change you make to job details, the roof drawing, scope, materials, and quote fields is saved against the currently-open job. Reopening the job restores everything.</p>
+    <label style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);font-weight:500;margin-bottom:.5rem;cursor:pointer">
+      <input type="checkbox" id="autosaveToggle" checked onchange="toggleAutosave(this.checked)" style="width:18px;height:18px;margin:0;cursor:pointer">
+      Autosave changes to the current job
+    </label>
+    <div class="f2" style="margin-top:.5rem;max-width:420px">
+      <div>
+        <label>Save interval (seconds)</label>
+        <input type="number" id="autosaveInterval" value="2" min="1" max="60" onchange="setAutosaveInterval(this.value)">
+      </div>
+      <div style="display:flex;align-items:flex-end">
+        <button onclick="saveCurrentJob()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px">💾 Save now</button>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--text2);margin-top:.5rem">Autosave only fires while a job is open (the chip in the sidebar shows the job number).</p>
+  </div>
+
   <!-- Link Job Management System -->
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Link Job Management System</div>
@@ -2295,7 +2325,7 @@ function gotoTab(t) {
     t = 'quote';
   }
   // Order must match the rendered nav buttons.
-  var ids=['roof','materials','scope','quote','order','jobpack','jobs','settings'];
+  var ids=['select','roof','materials','scope','quote','order','jobpack','jobs','settings'];
   document.querySelectorAll('.nav-btn').forEach(function(b,i){b.classList.toggle('active',ids[i]===t);});
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
@@ -2654,8 +2684,124 @@ function setCurrentJobLabel(j){
   var text = (j && j.id) ? ((j.client_name || '(untitled)') + ' — ' + (j.site_address || '')) : '— new (not yet saved)';
   var el = document.getElementById('currentJobLabel'); if (el) el.textContent = text;
   var elTop = document.getElementById('currentJobLabelTop'); if (elTop) elTop.textContent = text;
-  var elGlobal = document.getElementById('currentJobLabelGlobal'); if (elGlobal) elGlobal.textContent = text;
+  if (typeof updateSidebarJobChip === 'function') updateSidebarJobChip(j);
 }
+
+// ── SIDEBAR JOB CHIP + AUTOSAVE ──────────────────────────────────
+// Small "Job #N · Autosave on" pill that lives in the sidebar nav
+// between the Select Job button and Map Roof. Visible whenever a job
+// is loaded (local id OR Fergus-linked). Autosave debounces calls to
+// the existing saveCurrentJob() backend round-trip.
+var AUTOSAVE = { on: true, intervalSec: 2, _timer: null, _saving: false };
+function _loadAutosavePrefs(){
+  try {
+    var p = JSON.parse(localStorage.getItem('fr_autosave_prefs') || '{}');
+    if (typeof p.on === 'boolean') AUTOSAVE.on = p.on;
+    if (typeof p.intervalSec === 'number' && p.intervalSec >= 1) AUTOSAVE.intervalSec = p.intervalSec;
+  } catch(e){}
+}
+function _saveAutosavePrefs(){
+  try { localStorage.setItem('fr_autosave_prefs', JSON.stringify({on:AUTOSAVE.on, intervalSec:AUTOSAVE.intervalSec})); } catch(e){}
+}
+function toggleAutosave(on){ AUTOSAVE.on = !!on; _saveAutosavePrefs(); updateSidebarJobChip(); }
+function setAutosaveInterval(v){
+  var n = parseInt(v,10); if (!n || n < 1) n = 2; if (n > 60) n = 60;
+  AUTOSAVE.intervalSec = n; _saveAutosavePrefs();
+}
+// Try to read a Fergus-friendly job number out of whatever shape the
+// caller has handed us. setCurrentJobLabel gets a row from /jobs (local
+// schema: client_name, site_address, id). useFergusJobInModal hands us
+// a _fergJobView (jobNo/jobNumber/displayNo/id). S.linkedJobId is the
+// fallback when only Fergus is linked. Always return something user-
+// recognisable so the chip never shows "Job #undefined".
+function _jobChipLabel(j){
+  if (j) {
+    if (j.displayNo) return 'Job #' + j.displayNo;
+    if (j.jobNo)     return 'Job #' + j.jobNo;
+    if (j.jobNumber) return 'Job #' + j.jobNumber;
+    if (j.id != null) return 'Job #' + j.id;
+  }
+  if (S.currentJobId)  return 'Job #' + S.currentJobId;
+  if (S.linkedJobId)   return 'Job #' + S.linkedJobId;
+  return '';
+}
+var _lastJobForChip = null;
+function updateSidebarJobChip(j){
+  // Allow callers (autosave toggle, save-in-flight indicator) to refresh
+  // the autosave pill without re-supplying the job by caching the last
+  // job we were given.
+  if (j !== undefined) _lastJobForChip = j;
+  var j2 = _lastJobForChip;
+  var chip = document.getElementById('sidebarJobChip');
+  var lbl  = document.getElementById('sidebarJobChipLabel');
+  var as   = document.getElementById('sidebarJobChipAutosave');
+  var asT  = document.getElementById('sidebarJobChipAutosaveText');
+  if (!chip || !lbl) return;
+  var label = _jobChipLabel(j2);
+  if (!label) { chip.style.display = 'none'; return; }
+  chip.style.display = 'block';
+  lbl.textContent = label;
+  if (as && asT) {
+    if (AUTOSAVE._saving) {
+      as.style.background = '#fef3c7'; as.style.borderColor = '#fcd34d'; as.style.color = '#92400e';
+      as.firstElementChild.style.background = '#92400e';
+      asT.textContent = 'Saving…';
+    } else if (AUTOSAVE.on) {
+      as.style.background = '#eaf3de'; as.style.borderColor = '#97c459'; as.style.color = '#27500a';
+      as.firstElementChild.style.background = '#27500a';
+      asT.textContent = 'Autosave on';
+    } else {
+      as.style.background = '#fcebeb'; as.style.borderColor = '#f09595'; as.style.color = '#791f1f';
+      as.firstElementChild.style.background = '#791f1f';
+      asT.textContent = 'Autosave off';
+    }
+  }
+}
+// Debounced trigger — fires on every input/change in the main content
+// area, but only saves if we have something to save against (either a
+// local job id or a Fergus link). Skips the chrome (sidebar, modals)
+// so opening the Select Job modal doesn't trigger a phantom save.
+function _scheduleAutosave(){
+  if (!AUTOSAVE.on) return;
+  if (!S.currentJobId && !S.linkedJobId) return;   // nothing to attach edits to yet
+  clearTimeout(AUTOSAVE._timer);
+  AUTOSAVE._timer = setTimeout(_runAutosave, (AUTOSAVE.intervalSec || 2) * 1000);
+}
+async function _runAutosave(){
+  if (!AUTOSAVE.on) return;
+  if (typeof saveCurrentJob !== 'function') return;
+  if (!S.currentJobId && !S.linkedJobId) return;
+  AUTOSAVE._saving = true; updateSidebarJobChip();
+  try { await saveCurrentJob(); } catch(e) { console.warn('autosave failed', e); }
+  AUTOSAVE._saving = false; updateSidebarJobChip();
+}
+document.addEventListener('input', function(e){
+  var t = e.target; if (!t) return;
+  // Only watch edits inside tab panels — ignore the sidebar chrome and
+  // any modals.
+  if (!t.closest || !t.closest('.panel')) return;
+  _scheduleAutosave();
+}, true);
+document.addEventListener('change', function(e){
+  var t = e.target; if (!t) return;
+  if (!t.closest || !t.closest('.panel')) return;
+  _scheduleAutosave();
+}, true);
+// Flush any pending save on tab away / unload.
+window.addEventListener('beforeunload', function(){
+  if (AUTOSAVE._timer) { clearTimeout(AUTOSAVE._timer); try { saveCurrentJob(); } catch(e){} }
+});
+_loadAutosavePrefs();
+// Initial paint — sidebar chip is hidden by default; this is a no-op
+// until a job is opened. Also sync the Settings controls to whatever
+// the prefs say.
+setTimeout(function(){
+  try { updateSidebarJobChip(); } catch(e){}
+  try {
+    var t = document.getElementById('autosaveToggle');   if (t) t.checked = AUTOSAVE.on;
+    var i = document.getElementById('autosaveInterval'); if (i) i.value = AUTOSAVE.intervalSec;
+  } catch(e){}
+}, 0);
 
 async function openSelectJobModal(){
   var ov = document.getElementById('selectJobOverlay');
@@ -6322,7 +6468,7 @@ function useFergusJobInModal(jobId){
   var label = ((j.customer||'(no client)')) + ' — ' + (j.address||'') + (j.jobNo ? '  (Fergus #'+j.jobNo+')' : '');
   var lt = document.getElementById('currentJobLabel');    if (lt) lt.textContent = label;
   var lb = document.getElementById('currentJobLabelTop'); if (lb) lb.textContent = label;
-  var lg = document.getElementById('currentJobLabelGlobal'); if (lg) lg.textContent = label;
+  if (typeof updateSidebarJobChip === 'function') updateSidebarJobChip(j);
   // Also reflect it on the Fergus side so the existing notice + push
   // flow recognises this as the linked job.
   var n = document.getElementById('fergSelNotice'); if (n) { n.style.display = ''; }
