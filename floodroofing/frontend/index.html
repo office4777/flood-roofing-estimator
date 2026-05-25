@@ -12577,7 +12577,21 @@ function _renderRoofSheetPlanInner() {
         return Math.hypot(nodes[b.v][0]-nodes[b.u][0], nodes[b.v][1]-nodes[b.u][1])
              - Math.hypot(nodes[a.v][0]-nodes[a.u][0], nodes[a.v][1]-nodes[a.u][1]);
       })[0];
-      var poly = f.map(function(h){ return nodes[h.u].slice(); });
+      var verts = f.map(function(h){ return nodes[h.u].slice(); });
+      var gi = f.indexOf(ge);
+      // Reorder to the standard face convention: gutter endpoints at the
+      // two ends of the poly, ridge/apex vertices in between (poly[1]/[2]
+      // are the apexes).  Rotate so the gutter edge leads, then fold the
+      // remainder back so it reads [a, …apexes…, b].  This lets the plain
+      // 4-hip corner→hip-end cascade match these faces by apex.
+      var rot = verts.slice(gi).concat(verts.slice(0, gi)); // [a, b, …rest]
+      var poly = [rot[0]].concat(rot.slice(1).reverse());   // [a, …rest…, b]
+      var fsa = 0;
+      for (var pi = 0; pi < poly.length; pi++){
+        var pp = poly[pi], qq = poly[(pi+1)%poly.length];
+        fsa += pp[0]*qq[1] - qq[0]*pp[1];
+      }
+      if (fsa < 0) poly = poly.reverse();
       var a = nodes[ge.u].slice(), b = nodes[ge.v].slice();
       var gdx = b[0]-a[0], gdy = b[1]-a[1], gL = vlen([gdx, gdy]);
       if (gL < 1) return;
