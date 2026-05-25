@@ -12292,6 +12292,14 @@ function _renderRoofSheetPlanInner() {
     }
   })();
   var _isLShape = (_reflexCount === 1);
+  // The robust direct-sheeting path (sheet each face over its true
+  // boundary-walked polygon: full projected span, concave-face clipping,
+  // no phantom-4-hip cross-valley routing) also handles the T topology
+  // (a central stem/wing flanked by two valleys → 2 reflex corners).
+  // Without full-span sheeting the stem faces — which reach UP past their
+  // gutter into the cap as a triangle bounded by the two valleys — would
+  // leave that triangle unsheeted.
+  var _directSheet = (_reflexCount === 1 || _reflexCount === 2);
 
   // ── Build faces ────────────────────────────────────────────────
   // For each gutter line, find the two adjacent inward boundaries
@@ -12353,7 +12361,7 @@ function _renderRoofSheetPlanInner() {
       poly = [a.slice(), sa.far, b.slice()];
     } else {
       faceType = 'long-side';
-      var mids = _isLShape ? _innerPath(sa.far, sb.far) : [];
+      var mids = _directSheet ? _innerPath(sa.far, sb.far) : [];
       poly = [a.slice(), sa.far].concat(mids).concat([sb.far, b.slice()]);
     }
     // Force the face polygon to CCW so clipHalf works downstream.
@@ -12607,7 +12615,7 @@ function _renderRoofSheetPlanInner() {
     // extension — that cross-valley rotation was the source of the wing
     // double-sheeting overlap on wider wings.  Other shapes keep the
     // original phantom behaviour.
-    var ext = _isLShape ? null : _extendedDonor(f);
+    var ext = _directSheet ? null : _extendedDonor(f);
     var aStart = ext ? ext.aStart : f.a;
     var tx     = ext ? ext.tx    : f.tx;
     var ty     = ext ? ext.ty    : f.ty;
@@ -12623,7 +12631,7 @@ function _renderRoofSheetPlanInner() {
     // that triangle unsheeted.  Strip boundaries stay anchored to the
     // coverPx grid at the gutter start so courses remain regular.
     var tMin = 0, tMax = gL;
-    if (_isLShape) {
+    if (_directSheet) {
       clipPoly.forEach(function(p){
         var t = (p[0]-aStart[0])*tx + (p[1]-aStart[1])*ty;
         if (t < tMin) tMin = t;
@@ -12646,7 +12654,7 @@ function _renderRoofSheetPlanInner() {
       // face (original behaviour).  For a CONCAVE face — a long-side that
       // follows a bent ridge/hip boundary around an L — swap roles and
       // clip the face against the (convex) strip rect instead.
-      var clipped = (_isLShape && !_isConvexPoly(clipPoly))
+      var clipped = (_directSheet && !_isConvexPoly(clipPoly))
         ? clipToConvexPoly(clipPoly, stripPoly)
         : clipToConvexPoly(stripPoly, clipPoly);
       if (!clipped || clipped.length < 3) continue;
