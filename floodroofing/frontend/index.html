@@ -12221,9 +12221,13 @@ function _renderRoofSheetPlanInner() {
       var _bgWingW = bigL.wing.x1 - bigL.wing.x0;
       var _bgWingH = bigL.wing.y1 - bigL.wing.y0;
       var _bgMainH = bigL.main.y1 - bigL.main.y0;
-      var _bgFitsHipEnd     = (_bgWingW <= _bgMainH / 2 + 1);
-      var _bgWingHasNHipEnd = (_bgWingW <= _bgWingH + 1);
-      if (!_bgFitsHipEnd || !_bgWingHasNHipEnd) {
+      // Cascade needs (a) a real N-S wing ridge apex within the wing
+      // depth (apex at wy0+wing_w/2 must sit north of the junction):
+      // wing_w ≤ 2·wing_h; and (b) wing sheets shorter than main sheets:
+      // wing_w < main_h.  (The wing may extend east of the main's W apex.)
+      var _bgWingHasApex = (_bgWingW <= 2 * _bgWingH + 1);
+      var _bgWingShorter = (_bgWingW <  _bgMainH);
+      if (!_bgWingHasApex || !_bgWingShorter) {
         isBigL = false;
       }
     } else {
@@ -13453,7 +13457,11 @@ function _renderRoofSheetPlanInner() {
     // wApex (the donor at index nDonors-1 either straddles or sits
     // east of wApex).  For canonical Big-L this gives 10; for wider
     // wings (or smaller mains) it scales up.
-    var nDonors = Math.max(1, Math.ceil((wApexX - mx0) / coverPxL));
+    // Cover columns out to the main's W apex AND across the full wing
+    // width (a wide wing extends east of the main's W apex; those extra
+    // columns fill the wing N hip-end east, fed by main-N sheets).
+    var nMainDonors = Math.max(1, Math.ceil((wApexX - mx0) / coverPxL));
+    var nDonors = Math.max(nMainDonors, Math.ceil((wx1 - mx0) / coverPxL));
     function _seqFromCounter(){ /* placeholder, seq is assigned later */ }
     var donorSeqs = [];  // donor index → seq number
     for (var di = 0; di < nDonors; di++) {
@@ -13463,36 +13471,40 @@ function _renderRoofSheetPlanInner() {
       var hasValley = (xMid > wx1 - (wx1 - wx0) / 2 - 0.5 + (wx1 - wx0)) ? false : (xMid >= valleyEnd[0] && xMid <= wx1);
       // Equivalent simpler check using the spec: x_mid ∈ [250, 400]
       hasValley = (xMid >= valleyEnd[0] && xMid <= wx1);
-      var fitsWing = (xMid < wx1);
+      // A column that STARTS within the wing contributes a wing N
+      // hip-end piece (clamped to wx1); a column fully east of the wing
+      // is a pure main-N column handled by the main-N strips east loop.
+      var fitsWing = (x0 < wx1 - 0.5);
       var donorColor = COL_ORANGE;
-      // Determine the north piece polygon in donor-face coordinates
-      // (i.e. positioned at its natural place on the main's N long-side).
-      var northPoly;
-      if (hasValley) {
-        // Bounded by valley line y = valleyA - x (slope -1, passes
-        // through reflex (refX, refY) and valleyEnd).
-        northPoly = [[x0, refY], [x1, refY], [x1, valleyA - x1], [x0, valleyA - x0]];
-      } else if (x1 <= wApexX) {
-        // Bounded by phantom NW hip line y = x + phantomHipB
-        // (slope 1 from (mx0, refY) up to wApex).
-        northPoly = [[x0, refY], [x1, refY], [x1, x1 + phantomHipB], [x0, x0 + phantomHipB]];
-      } else if (x0 < wApexX && x1 > wApexX) {
-        // Straddle apex: bounded by NW hip on left half, ridge on right.
-        northPoly = [[x0, refY], [x1, refY], [x1, midY], [wApexX, midY], [x0, x0 + phantomHipB]];
-      } else {
-        // Past apex: bounded by ridge y = midY.
-        northPoly = [[x0, refY], [x1, refY], [x1, midY], [x0, midY]];
-      }
-      // North piece final placement:
-      //   if fitsWing: translate north by (0, -refY)+(0, wy0) → from
-      //     y in [refY, refY+...] to y in [wy0, wy0+...].  In our
-      //     coordinates: dy = -300 (wy0 - refY = 100 - 400 = -300).
+      // Pure main-N column east of the wing AND east of where the main-N
+      // strips loop begins → skip (the east loop covers it; emitting here
+      // would double-cover).
+      if (!fitsWing && x0 >= mx0 + nMainDonors * coverPxL - 0.5) continue;
+      // North piece placement.
+      //  • fitsWing columns: the donor's slice of the WING N hip-end — a
+      //    clean vertical strip from the wing N gutter (wy0) down to the
+      //    bounding wing hip.  hipY(x) = wy0 + min(x-wx0, wx1-x): zero at
+      //    the wing's side edges, peaking at the wing apex.  This tiles
+      //    the N hip-end for ANY wing width (the old phantom-hip/valley
+      //    bound only matched a wing that fit inside the main's W hip-end).
+      //  • non-fitsWing columns (east of the wing): the north piece stays
+      //    on the main N face, bounded by the phantom NW hip / ridge.
       var northPlaced;
       if (fitsWing) {
-        var dy = wy0 - refY;  // -300
-        northPlaced = northPoly.map(function(p){return [p[0], p[1] + dy];});
+        var lx = Math.max(x0, wx0), rx = Math.min(x1, wx1);
+        var apX = wingApex[0], apY = wingApex[1];
+        var lyB = wy0 + Math.min(lx - wx0, wx1 - lx);
+        var ryB = wy0 + Math.min(rx - wx0, wx1 - rx);
+        if (lx < apX && rx > apX)
+          northPlaced = [[lx, wy0], [rx, wy0], [rx, ryB], [apX, apY], [lx, lyB]];
+        else
+          northPlaced = [[lx, wy0], [rx, wy0], [rx, ryB], [lx, lyB]];
+      } else if (x1 <= wApexX) {
+        northPlaced = [[x0, refY], [x1, refY], [x1, x1 + phantomHipB], [x0, x0 + phantomHipB]];
+      } else if (x0 < wApexX && x1 > wApexX) {
+        northPlaced = [[x0, refY], [x1, refY], [x1, midY], [wApexX, midY], [x0, x0 + phantomHipB]];
       } else {
-        northPlaced = northPoly;
+        northPlaced = [[x0, refY], [x1, refY], [x1, midY], [x0, midY]];
       }
       var nCent = polyCentroid(northPlaced);
       // The donor's PRIMARY (counted) piece is its largest piece — use
@@ -13508,8 +13520,9 @@ function _renderRoofSheetPlanInner() {
       };
       stripsDonors.push(donorPrimary);
       donorSeqs.push(donorPrimary);
-      // Middle piece (only when has_valley).
-      if (hasValley) {
+      // Middle piece (only when has_valley AND west of the main W apex,
+      // where the phantom NW hip line is defined).
+      if (hasValley && x1 <= wApexX + 0.5) {
         var midPoly = [[x0, valleyA - x0], [x1, valleyA - x1], [x1, x1 + phantomHipB], [x0, x0 + phantomHipB]];
         // Middle stays in chunk (no translation); but mid-piece is
         // in the area below wing & above ridge — that's the
@@ -13554,15 +13567,29 @@ function _renderRoofSheetPlanInner() {
     // ── Main N long-side strips east of D10 ──
     // From x = mx0 + 10*coverPx to eApex (and beyond to mx1, but those
     // are cut by the NE hip).
-    var nStartX = mx0 + nDonors * coverPxL;
+    // Where the main-N strips begin.  For a NARROW wing the donor columns
+    // near the W apex are non-fitsWing and cover the main N proper out to
+    // the cover-aligned column edge, so start there.  For a WIDE wing
+    // (wx1 east of the W apex) those columns feed the wing instead, so the
+    // main N proper is exposed right from the W apex — start exactly there.
+    var nStartX = (wx1 > wApexX + 0.5) ? wApexX : (mx0 + nMainDonors * coverPxL);
+    // Where the wing's E face dips below the wing/main junction (columns
+    // x ∈ [wingApex_x, wx1]) the main-N strip top follows the valley line
+    // y = valleyA - x rather than the main's N gutter (my0); the wing
+    // E-face sheets cover everything north of the valley there.
+    function _nTop(xx){
+      if (xx >= wingApex[0] - 0.5 && xx <= wx1 + 0.5) return Math.max(my0, valleyA - xx);
+      return my0;
+    }
     var x = nStartX;
     while (x < mx1 - 0.1) {
       var xa = x, xb = Math.min(x + coverPxL, mx1);
-      // North strip from y = my0 down to ridge (y = midY) if x in middle,
-      // or NE hip (y = -x + (mx1 + midY)) if x > eApex.
+      var ntA = _nTop(xa), ntB = _nTop(xb);
+      // North strip from its top (gutter or valley) down to ridge (midY)
+      // if x in middle, or NE hip (y = -x + (mx1 + midY)) if x > eApex.
       var poly;
       if (xb <= eApexX) {
-        poly = [[xa, my0], [xb, my0], [xb, midY], [xa, midY]];
+        poly = [[xa, ntA], [xb, ntB], [xb, midY], [xa, midY]];
       } else if (xa >= eApexX) {
         // East of E-apex, bounded by NE hip from (mx1, my0)→eApex.
         // Hip line: y = (mx1 + my0) - x   (slope -1, intercept mx1+my0)
@@ -13694,16 +13721,14 @@ function _renderRoofSheetPlanInner() {
       y += coverPxL;
     }
 
-    // ── Wing LEFT side (NEW short sheets, purple) ──
-    // 8 horizontal sheets at y bands of coverPx covering y in [valleyEnd[1]-300, valleyEnd[1]]
-    // (i.e. [250, 550] in test), x in [wx0, wingApex[0]] = [100, 250].
-    // These COUNT toward order.
-    // Start the wing side-face sheeting at the wing apex so the FULL
-    // wing ridge length is covered.  For a square wing (wing_h==wing_w)
-    // this equals valleyEnd[1]-(wx1-wx0); for a TALLER wing it extends
-    // upward to fill the wing's mid-section (which the donor cascade,
-    // tuned for square wings, would otherwise leave bare).
-    var wingLeftY0 = Math.min(valleyEnd[1] - (wx1 - wx0), wingApex[1]);
+    // ── Wing W face LOWER (NEW short sheets, purple) ──
+    // Horizontal sheets covering the W face from the wing apex level down
+    // to the valley end, x in [wx0, wingApex_x].  These COUNT toward the
+    // order.  The W face ABOVE the apex level (the NW-hip triangle) is the
+    // moved-blue offcut zone; the two meet exactly at wingApex[1], so the
+    // purple starts there for ANY wing height (a taller wing simply has
+    // more rows; the N hip-end above is filled by donor sheets).
+    var wingLeftY0 = wingApex[1];
     var wingLeftY1 = valleyEnd[1];                 // 550
     var wingPerpPx = wingApex[0] - wx0;            // 150 (half wing width)
     y = wingLeftY0;
@@ -13720,63 +13745,25 @@ function _renderRoofSheetPlanInner() {
       y += coverPxL;
     }
 
-    // ── Wing RIGHT side (NEW full sheets w/ valley cuts) ──
-    // 8 horizontal sheets at y bands of coverPx covering y in [250, 550],
-    // x in [wingApex[0], wx1] = [250, 400].
-    // For y bands fully in [250, 400]: full polygon.
-    // For y bands in [400, 550]: cut by valley (line from (400,400) to
-    // (250,550), slope -1, equation x = 800 - y).  Keep WEST portion.
-    y = wingLeftY0;
-    while (y < wingLeftY1 - 0.1) {
-      var ya = y, yb = Math.min(y + coverPxL, wingLeftY1);
-      var hasValleyCut = (yb > refY + 0.1);  // strip extends below refY = 400
-      var poly;
-      if (!hasValleyCut) {
-        poly = [[wingApex[0], ya], [wx1, ya], [wx1, yb], [wingApex[0], yb]];
-      } else if (ya >= refY) {
-        // Strip is fully below refY in cut region.
-        // Right edges follow valley: x = 800 - y.
-        var rA = valleyA - ya, rB = valleyA - yb;
-        poly = [[wingApex[0], ya], [rA, ya], [rB, yb], [wingApex[0], yb]];
-      } else {
-        // Straddle refY=400.  Top half full, bottom half cut.
-        var rB = valleyA - yb;
-        // (valleyA - refY) = refX = wx1 by construction, so [wx1, refY] is on the valley line.
-        poly = [[wingApex[0], ya], [wx1, ya], [wx1, refY], [rB, yb], [wingApex[0], yb]];
-      }
-      stripsWing.push({
-        face: faceWingE, color: COL_PURPLE,
-        poly: poly, centroid: polyCentroid(poly),
-        orderedLengthMm: orderedLengthMm(wingPerpPx * effectiveScale * pitchFactor),
-        pieceM: wingPerpPx * effectiveScale * pitchFactor,
-        isOffcut: false, isPhantom: false
-      });
-      // ── Wing N triangle offcut (east-of-valley piece, translated north) ──
-      if (hasValleyCut && ya < refY) {
-        // Straddle: only the part below refY is cut.  East-of-valley
-        // polygon = [(wx1, refY), (wx1, yb), (rB, yb)].
-        var ofcPoly = [[wx1, refY], [wx1, yb], [valleyA - yb, yb]];
-        // Translate by (0, -300).
-        var dy2 = wy0 - refY;  // -300
-        var ofcTrans = ofcPoly.map(function(p){return [p[0], p[1] + dy2];});
+    // ── Wing E face (NEW short sheets, purple) ──
+    // Tile the whole E face with horizontal sheets, each clipped to the
+    // convex E-face polygon.  Clipping handles the NE-hip upper triangle
+    // (above the wing apex), the rectangular body, and the valley cut on
+    // the lower-east — for ANY wing width.  Starts at the wing N gutter so
+    // the E-eave-top triangle is covered.
+    var _wingEPoly = faceWingE.poly;
+    y = wy0;
+    while (y < valleyEnd[1] - 0.1) {
+      var ya = y, yb = Math.min(y + coverPxL, valleyEnd[1]);
+      var band = [[wingApex[0], ya], [wx1, ya], [wx1, yb], [wingApex[0], yb]];
+      var clip = clipToConvexPoly(band, _wingEPoly);
+      if (clip && clip.length >= 3 && polyArea(clip) > 1) {
         stripsWing.push({
-          face: faceWingN, color: COL_PURPLE,
-          poly: ofcTrans, centroid: polyCentroid(ofcTrans),
+          face: faceWingE, color: COL_PURPLE,
+          poly: clip, centroid: polyCentroid(clip),
           orderedLengthMm: orderedLengthMm(wingPerpPx * effectiveScale * pitchFactor),
           pieceM: wingPerpPx * effectiveScale * pitchFactor,
-          isOffcut: true, isPhantom: false
-        });
-      } else if (hasValleyCut && ya >= refY) {
-        // Fully below refY: east-of-valley = [(rA, ya), (wx1, ya), (wx1, yb), (rB, yb)].
-        var ofcPoly = [[valleyA - ya, ya], [wx1, ya], [wx1, yb], [valleyA - yb, yb]];
-        var dy2 = wy0 - refY;
-        var ofcTrans = ofcPoly.map(function(p){return [p[0], p[1] + dy2];});
-        stripsWing.push({
-          face: faceWingN, color: COL_PURPLE,
-          poly: ofcTrans, centroid: polyCentroid(ofcTrans),
-          orderedLengthMm: orderedLengthMm(wingPerpPx * effectiveScale * pitchFactor),
-          pieceM: wingPerpPx * effectiveScale * pitchFactor,
-          isOffcut: true, isPhantom: false
+          isOffcut: false, isPhantom: false
         });
       }
       y += coverPxL;
