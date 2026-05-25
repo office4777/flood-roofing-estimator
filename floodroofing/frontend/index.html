@@ -12491,6 +12491,114 @@ function _renderRoofSheetPlanInner() {
   var _tCascade = !!(_tFaces && _tFaces.length);
   if (_tCascade) faces = _tFaces;
 
+  // ── Skeleton planar-subdivision faces (3+ reflex shapes) ──────────
+  // L (1 reflex) and T (2 reflex) have dedicated clean topologies above.
+  // For richer rectilinear outlines (double-wing, U, +, …) the gutter-
+  // walk face builder can't trace faces through the complex skeleton and
+  // produces overlapping/ballooning polygons.  Instead, treat the outline
+  // edges + skeleton arcs (hips/valleys/ridges) as a planar segment
+  // arrangement: split every segment at its intersections/T-junctions,
+  // then extract the bounded faces.  Each roof plane is one bounded face
+  // containing exactly one outline (gutter) edge — clean and non-
+  // overlapping for ANY rectilinear footprint.
+  function _buildSkeletonFaces(){
+    if (_reflexCount < 3) return null;
+    var TOL = 2.5;
+    var raw = [];
+    for (var i = 0; i < outline.length; i++)
+      raw.push({a: outline[i].slice(), b: outline[(i+1)%outline.length].slice(), g: true});
+    DRAW.lines.forEach(function(l){
+      if (l.type === 'gutter' || !l.pts || l.pts.length !== 2) return;
+      raw.push({a: l.pts[0].slice(), b: l.pts[1].slice(), g: false});
+    });
+    function onSeg(p, a, b){
+      var dx = b[0]-a[0], dy = b[1]-a[1], L2 = dx*dx+dy*dy;
+      if (L2 < 1) return null;
+      var t = ((p[0]-a[0])*dx + (p[1]-a[1])*dy) / L2;
+      if (t < -0.001 || t > 1.001) return null;
+      if (Math.hypot(a[0]+t*dx-p[0], a[1]+t*dy-p[1]) > TOL) return null;
+      return t;
+    }
+    function segInt(a, b, c, d){
+      var rx = b[0]-a[0], ry = b[1]-a[1], sx = d[0]-c[0], sy = d[1]-c[1];
+      var den = rx*sy - ry*sx; if (Math.abs(den) < 1e-6) return null;
+      var t = ((c[0]-a[0])*sy - (c[1]-a[1])*sx) / den;
+      var u = ((c[0]-a[0])*ry - (c[1]-a[1])*rx) / den;
+      if (t < 0.001 || t > 0.999 || u < 0.001 || u > 0.999) return null;
+      return [a[0]+t*rx, a[1]+t*ry];
+    }
+    var allPts = []; raw.forEach(function(s){ allPts.push(s.a, s.b); });
+    var pieces = [];
+    raw.forEach(function(s){
+      var ts = [0, 1];
+      allPts.forEach(function(p){ var t = onSeg(p, s.a, s.b); if (t != null && t > 0.001 && t < 0.999) ts.push(t); });
+      raw.forEach(function(o){ if (o === s) return; var ip = segInt(s.a, s.b, o.a, o.b);
+        if (ip){ var t = onSeg(ip, s.a, s.b); if (t != null && t > 0.001 && t < 0.999) ts.push(t); } });
+      ts.sort(function(a, b){ return a-b; });
+      for (var i = 0; i < ts.length-1; i++){
+        if (ts[i+1]-ts[i] < 0.005) continue;
+        pieces.push({
+          a: [s.a[0]+ts[i]*(s.b[0]-s.a[0]),   s.a[1]+ts[i]*(s.b[1]-s.a[1])],
+          b: [s.a[0]+ts[i+1]*(s.b[0]-s.a[0]), s.a[1]+ts[i+1]*(s.b[1]-s.a[1])],
+          g: s.g
+        });
+      }
+    });
+    var nodes = [];
+    function nid(p){ for (var i = 0; i < nodes.length; i++) if (Math.hypot(nodes[i][0]-p[0], nodes[i][1]-p[1]) < TOL) return i; nodes.push([p[0], p[1]]); return nodes.length-1; }
+    var seen = {}, H = [];
+    pieces.forEach(function(s){
+      var u = nid(s.a), v = nid(s.b); if (u === v) return;
+      [[u, v], [v, u]].forEach(function(e){
+        var k = e[0]+'_'+e[1]; if (seen[k]) return; seen[k] = 1;
+        H.push({u: e[0], v: e[1], gut: s.g, ang: Math.atan2(nodes[e[1]][1]-nodes[e[0]][1], nodes[e[1]][0]-nodes[e[0]][0])});
+      });
+    });
+    var outE = {}; H.forEach(function(h){ (outE[h.u] = outE[h.u] || []).push(h); });
+    Object.keys(outE).forEach(function(k){ outE[k].sort(function(a, b){ return a.ang-b.ang; }); });
+    function nextCW(h){ var lst = outE[h.v]; for (var i = 0; i < lst.length; i++) if (lst[i].v === h.u) return lst[(i-1+lst.length)%lst.length]; return null; }
+    var visited = {}, cycles = [];
+    H.forEach(function(h0){
+      if (visited[h0.u+'_'+h0.v]) return;
+      var face = [], h = h0, g = 0;
+      do { visited[h.u+'_'+h.v] = 1; face.push(h); h = nextCW(h); g++; }
+      while (h && !(h.u === h0.u && h.v === h0.v) && g < 500);
+      if (g < 500 && face.length >= 3) cycles.push(face);
+    });
+    function cyArea(f){ var s = 0; for (var i = 0; i < f.length; i++){ var a = nodes[f[i].u], b = nodes[f[(i+1)%f.length].u]; s += a[0]*b[1]-b[0]*a[1]; } return s/2; }
+    var built = [];
+    cycles.forEach(function(f){
+      var ar = cyArea(f);
+      if (ar < 50) return;                     // outer face (negative) + noise slivers
+      var gutEdges = f.filter(function(h){ return h.gut; });
+      if (!gutEdges.length) return;
+      // pick the longest gutter edge as the face's gutter
+      var ge = gutEdges.sort(function(a, b){
+        return Math.hypot(nodes[b.v][0]-nodes[b.u][0], nodes[b.v][1]-nodes[b.u][1])
+             - Math.hypot(nodes[a.v][0]-nodes[a.u][0], nodes[a.v][1]-nodes[a.u][1]);
+      })[0];
+      var poly = f.map(function(h){ return nodes[h.u].slice(); });
+      var a = nodes[ge.u].slice(), b = nodes[ge.v].slice();
+      var gdx = b[0]-a[0], gdy = b[1]-a[1], gL = vlen([gdx, gdy]);
+      if (gL < 1) return;
+      var cc = polyCentroid(poly);
+      var nx = -gdy/gL, ny = gdx/gL;
+      if (nx*(cc[0]-a[0]) + ny*(cc[1]-a[1]) < 0){ nx = -nx; ny = -ny; }
+      var perpPx = 0;
+      poly.forEach(function(pp){ var d = (pp[0]-a[0])*nx + (pp[1]-a[1])*ny; if (d > perpPx) perpPx = d; });
+      built.push({
+        poly: poly, type: (poly.length === 3 ? 'hip-end' : 'long-side'),
+        a: a, b: b, gL: gL, gAng: Math.atan2(gdy, gdx),
+        tx: gdx/gL, ty: gdy/gL, nx: nx, ny: ny, perpPx: perpPx,
+        planSheetM: perpPx*effectiveScale, sheetM: perpPx*effectiveScale*pitchFactor,
+        area: polyArea(poly), centroid: cc
+      });
+    });
+    return built.length ? built : null;
+  }
+  var _skelFaces = !_tCascade ? _buildSkeletonFaces() : null;
+  if (_skelFaces){ faces = _skelFaces; _directSheet = true; }
+
   if (!faces.length) {
     outEl.innerHTML = '<p style="color:var(--text2)">Could not detect any roof faces. Make sure hip/ridge lines connect to the gutter corners.</p>';
     return;
