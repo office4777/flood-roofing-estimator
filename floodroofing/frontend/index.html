@@ -13332,6 +13332,69 @@ function _renderRoofSheetPlanInner() {
     });
   });
 
+  // ── Telescoping west offcut chain ─────────────────────────────────
+  // On a stepped/telescoping main, the blue south slope's WEST donor sheets
+  // are cut and that one offcut set cascades WEST, filling the NORTH part of
+  // every west-facing step riser plus the ENTIRE outermost wing tip.  (The
+  // south parts of those risers stay orange/their wing colour; this only
+  // claims the north-side strips.)  Scoped to outlines with a parallel wing,
+  // so L/T/U/double-wing are untouched.
+  var _hasTelesc = faces.some(function(f){
+    if (f === mainA || f === mainB || f.type !== 'long-side') return false;
+    var horiz = Math.abs(f.a[1]-f.b[1]) < 4;
+    return (mainAxis === 'h') ? horiz : !horiz;
+  });
+  if (!_tCascade && mainRect && mainB && _hasTelesc) {
+    var _hm = (mainAxis === 'h');
+    var _axc = (mainRect.x0+mainRect.x1)/2, _ayc = (mainRect.y0+mainRect.y1)/2;
+    var westFaces = faces.filter(function(f){
+      if (f === mainA || f === mainB) return false;
+      var across = _hm ? Math.abs(f.a[0]-f.b[0]) < 4 : Math.abs(f.a[1]-f.b[1]) < 4;
+      if (!across) return false;
+      var gpos = _hm ? (f.a[0]+f.b[0])/2 : (f.a[1]+f.b[1])/2;
+      return _hm ? (gpos < _axc) : (gpos < _ayc);          // wing-side risers only
+    }).sort(function(a,b){
+      var ga = _hm ? (a.a[0]+a.b[0])/2 : (a.a[1]+a.b[1])/2;
+      var gb = _hm ? (b.a[0]+b.b[0])/2 : (b.a[1]+b.b[1])/2;
+      return ga - gb;                                       // outermost (tip) first
+    });
+    if (westFaces.length) {
+      var _tip = westFaces[0];
+      // One blue west offcut runs the full width of the west side, re-trimmed
+      // at each step — so ONE donor sheet feeds one strip on every step (its
+      // number repeats across the risers + tip).  Collect each west face's
+      // NORTH-side receiver strips (the whole outer tip; the north half of the
+      // inner risers), ordered north→south, then assign donor #k to the k-th
+      // such strip on EVERY face.  Donor count needed = the deepest face's row
+      // count, not the sum, so the set covers all steps.
+      var _perFace = westFaces.map(function(f){
+        var fc = f.centroid;
+        return allStrips.filter(function(s){
+          if (s.face !== f || s._offcutMatched) return false;
+          var north = _hm ? (s.centroid[1] < fc[1]) : (s.centroid[0] < fc[0]);
+          return (f === _tip) || north;
+        }).sort(function(a,b){ return _hm ? (a.centroid[1]-b.centroid[1]) : (a.centroid[0]-b.centroid[0]); });
+      });
+      var _seqB = function(s){ return (s.centroid[0]-mainB.a[0])*mainB.tx + (s.centroid[1]-mainB.a[1])*mainB.ty; };
+      var donorsW = allStrips.filter(function(s){
+        return s.face === mainB && s.rectArea && s.clipArea < s.rectArea - 1 && !s._offcutDest;
+      }).sort(function(a,b){ return _seqB(a) - _seqB(b); });
+      var _maxRows = _perFace.reduce(function(m,a){ return Math.max(m, a.length); }, 0);
+      for (var _k = 0; _k < _maxRows; _k++) {
+        var _donor = donorsW[_k] || donorsW[donorsW.length-1];
+        if (!_donor) break;
+        _perFace.forEach(function(ns){
+          var s = ns[_k];
+          if (!s) return;
+          s._offcutMatched = true;
+          s._offcutSource  = _donor;
+          s.color          = _donor.color;
+          if (!_donor._offcutDest) _donor._offcutDest = s;
+        });
+      }
+    }
+  }
+
   // ── T-shape: stem south hip-end built from blue cap-S offcuts ──
   // The stem sides are self-contained (their own purple sheets — the wing
   // cascade is skipped above), but the stem's south hip-end is built from
