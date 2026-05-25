@@ -13457,11 +13457,13 @@ function _renderRoofSheetPlanInner() {
     // wApex (the donor at index nDonors-1 either straddles or sits
     // east of wApex).  For canonical Big-L this gives 10; for wider
     // wings (or smaller mains) it scales up.
-    // Cover columns out to the main's W apex AND across the full wing
-    // width (a wide wing extends east of the main's W apex; those extra
-    // columns fill the wing N hip-end east, fed by main-N sheets).
+    // The donor cascade covers columns out to the main's W apex; it fills
+    // the wing N hip-end WEST of the apex and the main W hip-end reuse.
+    // The wing N hip-end EAST of the W apex is handled in the main-N strip
+    // loop, where each piece pairs (shares a seq) with the long main-N
+    // donor sheet whose offcut it is.
     var nMainDonors = Math.max(1, Math.ceil((wApexX - mx0) / coverPxL));
-    var nDonors = Math.max(nMainDonors, Math.ceil((wx1 - mx0) / coverPxL));
+    var nDonors = nMainDonors;
     function _seqFromCounter(){ /* placeholder, seq is assigned later */ }
     var donorSeqs = [];  // donor index → seq number
     for (var di = 0; di < nDonors; di++) {
@@ -13489,9 +13491,12 @@ function _renderRoofSheetPlanInner() {
       //    bound only matched a wing that fit inside the main's W hip-end).
       //  • non-fitsWing columns (east of the wing): the north piece stays
       //    on the main N face, bounded by the phantom NW hip / ridge.
+      // Donor wing pieces stop at the W apex; the wing N hip-end east of
+      // the apex is filled (and seq-paired) by the main-N strip loop.
       var northPlaced;
-      if (fitsWing) {
-        var lx = Math.max(x0, wx0), rx = Math.min(x1, wx1);
+      var _wingRx = Math.min(x1, wx1, wApexX);
+      if (fitsWing && _wingRx > Math.max(x0, wx0) + 0.5) {
+        var lx = Math.max(x0, wx0), rx = _wingRx;
         var apX = wingApex[0], apY = wingApex[1];
         var lyB = wy0 + Math.min(lx - wx0, wx1 - lx);
         var ryB = wy0 + Math.min(rx - wx0, wx1 - rx);
@@ -13582,6 +13587,7 @@ function _renderRoofSheetPlanInner() {
       return my0;
     }
     var x = nStartX;
+    var _epIdx = 0;  // pairs a main-N donor with the wing N hip-end offcut
     while (x < mx1 - 0.1) {
       var xa = x, xb = Math.min(x + coverPxL, mx1);
       var ntA = _nTop(xa), ntB = _nTop(xb);
@@ -13600,14 +13606,38 @@ function _renderRoofSheetPlanInner() {
         // Straddle E-apex
         poly = [[xa, my0], [xb, my0], [xb, (mx1 + my0) - xb], [eApexX, midY], [xa, midY]];
       }
-      // Clip to outline (mainly to ensure the strip is non-zero).
+      // Wing N hip-end offcut: the part of THIS main-N donor sheet that
+      // runs north past the junction into the wing (east of the W apex,
+      // bounded by the wing's NE hip).  It is the SAME physical sheet as
+      // the main-N strip, so it shares its seq.  Total length is exactly
+      // one main-N sheet (main part + wing offcut), so a long main donor
+      // leaves a short wing offcut and vice-versa.
+      var wofcLx = Math.max(xa, wApexX), wofcRx = Math.min(xb, wx1);
+      var wOfc = null, pairIdx = -1;
+      if (wofcRx > wofcLx + 0.5) {
+        wOfc = [[wofcLx, wy0], [wofcRx, wy0],
+                [wofcRx, wy0 + (wx1 - wofcRx)], [wofcLx, wy0 + (wx1 - wofcLx)]];
+        pairIdx = _epIdx++;
+      }
       if (polyArea(poly) > 1) {
-        stripsBase.push({
+        var mnStrip = {
           face: faceMainN, color: COL_ORANGE,
           poly: poly, centroid: polyCentroid(poly),
           orderedLengthMm: orderedLengthMm(faceMainN.sheetM),
           pieceM: faceMainN.sheetM,
           isOffcut: false, isPhantom: false
+        };
+        if (wOfc) mnStrip._eastPairIdx = pairIdx;
+        stripsBase.push(mnStrip);
+      }
+      if (wOfc && polyArea(wOfc) > 1) {
+        stripsDonors.push({
+          face: faceMainN, color: COL_ORANGE,
+          poly: wOfc, centroid: polyCentroid(wOfc),
+          orderedLengthMm: orderedLengthMm(faceMainN.sheetM),
+          pieceM: faceMainN.sheetM,
+          isOffcut: true, isPhantom: false,
+          _eastPairIdx: pairIdx
         });
       }
       x += coverPxL;
@@ -13829,6 +13859,7 @@ function _renderRoofSheetPlanInner() {
     var _firstSeColIdx = Math.floor((eApex[0] - mx0) / coverPxL) + 1;
     function _sheetKey(s) {
       if (s._donorIdx !== undefined) return 'D' + s._donorIdx;
+      if (s._eastPairIdx !== undefined && s._eastPairIdx >= 0) return 'EP' + s._eastPairIdx;
       var ft = s.face && s.face.type;
       var xs = s.poly.map(function(p){return p[0];});
       var ys = s.poly.map(function(p){return p[1];});
