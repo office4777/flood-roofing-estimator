@@ -13392,6 +13392,15 @@ function _renderRoofSheetPlanInner() {
           if (!_donor._offcutDest) _donor._offcutDest = s;
         });
       }
+      // Main's own west hip-end (the deepest/east-most west face): mirror the
+      // east hip-end — the orange NORTH slope's west offcuts fill its SOUTH
+      // half (the blue chain above already took its north half).
+      var _mainW = westFaces[westFaces.length-1];
+      if (_mainW && _mainW !== _tip && mainA) {
+        var _gmw = [(_mainW.a[0]+_mainW.b[0])/2, (_mainW.a[1]+_mainW.b[1])/2], _apexMW = null, _bdm = -1;
+        _mainW.poly.forEach(function(v){ var d = Math.hypot(v[0]-_gmw[0], v[1]-_gmw[1]); if (d > _bdm){ _bdm = d; _apexMW = v; } });
+        _pairCornerToHipEnd(mainA, _mainW, _apexMW);
+      }
     }
   }
 
