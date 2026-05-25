@@ -12704,22 +12704,48 @@ function _renderRoofSheetPlanInner() {
     });
     xs.sort(function(a,b){return a-b;});
     ys.sort(function(a,b){return a-b;});
-    var best = null, bestA = 0;
+    // How much of a rect edge is a REAL eave: sample points just OUTSIDE
+    // the edge; the fraction that lands outside the outline is its realness.
+    // Used to break area ties — a telescoping/stepped outline has a wide
+    // shallow rectangle equal in area to the true (deeper) main, but the
+    // shallow one's far long edge runs through the interior (it's a phantom
+    // eave), so the main, whose both long edges are real eaves, wins.
+    function edgeReal(horizontal, fixed, a, b){
+      var hits = 0, N = 7;
+      for (var t = 1; t <= N; t++) {
+        var f = a + (b-a)*t/(N+1);
+        var p1 = horizontal ? [f, fixed-3] : [fixed-3, f];
+        var p2 = horizontal ? [f, fixed+3] : [fixed+3, f];
+        if (!_ptInOutline(p1[0],p1[1]) || !_ptInOutline(p2[0],p2[1])) hits++;
+      }
+      return hits / N;
+    }
+    var best = null, bestA = 0, bestReal = -1;
     for (var i = 0; i < xs.length - 1; i++) {
       for (var j = i + 1; j < xs.length; j++) {
         for (var k = 0; k < ys.length - 1; k++) {
           for (var l = k + 1; l < ys.length; l++) {
             var x0 = xs[i], x1 = xs[j], y0 = ys[k], y1 = ys[l];
-            // All 4×4 inner sample points must be inside the outline.
+            // All inner sample points must be inside the outline.  Sample at
+            // 1/10 steps (not 1/5) so a narrow notch — e.g. a shallow wing
+            // step — isn't stepped over, which would wrongly accept a wide
+            // rectangle that actually pokes outside the outline.
             var ok = true;
-            for (var u = 1; u <= 4 && ok; u++) {
-              for (var v = 1; v <= 4 && ok; v++) {
-                if (!_ptInOutline(x0 + (x1-x0)*u/5, y0 + (y1-y0)*v/5)) ok = false;
+            for (var u = 1; u <= 9 && ok; u++) {
+              for (var v = 1; v <= 9 && ok; v++) {
+                if (!_ptInOutline(x0 + (x1-x0)*u/10, y0 + (y1-y0)*v/10)) ok = false;
               }
             }
             if (!ok) continue;
             var area = (x1-x0)*(y1-y0);
-            if (area > bestA) { bestA = area; best = {x0:x0,y0:y0,x1:x1,y1:y1}; }
+            // Realness of the two LONG edges (the donor-slope eaves).
+            var horiz = (x1-x0) >= (y1-y0);
+            var real = horiz
+              ? edgeReal(true, y0, x0, x1) + edgeReal(true, y1, x0, x1)
+              : edgeReal(false, x0, y0, y1) + edgeReal(false, x1, y0, y1);
+            if (area > bestA + 1 || (Math.abs(area-bestA) <= 1 && real > bestReal)) {
+              bestA = area; bestReal = real; best = {x0:x0,y0:y0,x1:x1,y1:y1};
+            }
           }
         }
       }
@@ -12800,6 +12826,19 @@ function _renderRoofSheetPlanInner() {
     });
     if (partner) f.color = partner.color;
   });
+  // Telescoping wings: south-facing slopes PARALLEL to the main (same gutter
+  // orientation) but stepped off it onto their own, shorter ridge.  Each is a
+  // separate wing whose sheets are a different length, so give each its own
+  // colour (purple, green, …) to make the lengths legible.  Perpendicular
+  // wings (L/T/U/double-wing) have gutters ACROSS the main axis and are left
+  // purple, so those shapes are unaffected.
+  var _wingPalette = [COL_PURPLE, COL_GREEN, '#0891b2', '#d97706'];
+  faces.filter(function(f){
+    if (f === mainA || f === mainB || f.type !== 'long-side') return false;
+    var horiz = Math.abs(f.a[1]-f.b[1]) < 4;
+    return (mainAxis === 'h') ? horiz : !horiz;
+  }).sort(function(a,b){ return b.gL - a.gL; })
+    .forEach(function(f, i){ f.color = _wingPalette[i % _wingPalette.length]; });
   }  // end of !_tCascade colour assignment
 
   // ── Phantom-4-hip extents ─────────────────────────────────────
