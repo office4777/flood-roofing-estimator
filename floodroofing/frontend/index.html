@@ -13399,11 +13399,18 @@ function _renderRoofSheetPlanInner() {
       // inner risers), ordered north→south, then assign donor #k to the k-th
       // such strip on EVERY face.  Donor count needed = the deepest face's row
       // count, not the sum, so the set covers all steps.
+      var _mainWf = westFaces[westFaces.length-1];
+      var _ridgeY = (mainRect.y0 + mainRect.y1)/2, _ridgeX = (mainRect.x0 + mainRect.x1)/2;
       var _perFace = westFaces.map(function(f){
         var fc = f.centroid;
+        // Split blue(north)/orange(south) at the section's RIDGE (apex) level,
+        // so each offcut set starts right at the apex.  The main-W riser's own
+        // centroid is skewed south by its tall exposed wall, so use the main
+        // ridge; the shallower risers' centroids already sit at their ridge.
+        var splitN = (f === _mainWf) ? (_hm ? _ridgeY : _ridgeX) : (_hm ? fc[1] : fc[0]);
         return allStrips.filter(function(s){
           if (s.face !== f || s._offcutMatched) return false;
-          var north = _hm ? (s.centroid[1] < fc[1]) : (s.centroid[0] < fc[0]);
+          var north = _hm ? (s.centroid[1] < splitN) : (s.centroid[0] < splitN);
           return (f === _tip) || north;
         }).sort(function(a,b){ return _hm ? (a.centroid[1]-b.centroid[1]) : (a.centroid[0]-b.centroid[0]); });
       });
