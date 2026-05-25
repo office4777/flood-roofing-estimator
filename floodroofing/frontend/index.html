@@ -874,6 +874,16 @@ select{
 </aside>
 <main class="content">
 
+<!-- Persistent current-job indicator: visible from every tab so the user
+     never loses track of which job they're editing. Mirrors the in-tab
+     #currentJobLabel via setCurrentJobLabel(). Click "Change" to open the
+     existing select-job modal from anywhere. -->
+<div id="currentJobGlobalBar" style="display:flex;align-items:center;gap:10px;padding:7px 14px;margin-bottom:.75rem;background:#fff;border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text2)">
+  <span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:600">Current job</span>
+  <strong id="currentJobLabelGlobal" style="color:#0a1628;font-weight:600">— new (not yet saved)</strong>
+  <button onclick="openSelectJobModal()" style="margin-left:auto;padding:4px 10px;background:transparent;color:#0099cc;border:1px solid #0099cc;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">📂 Change</button>
+</div>
+
 <!-- TAB 1: ROOF MAP -->
 <div class="panel active" id="tab-roof">
   <div class="card" style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#f0f8fb,#e8f4fd);border:1.5px solid #b3d4f0">
@@ -2644,6 +2654,7 @@ function setCurrentJobLabel(j){
   var text = (j && j.id) ? ((j.client_name || '(untitled)') + ' — ' + (j.site_address || '')) : '— new (not yet saved)';
   var el = document.getElementById('currentJobLabel'); if (el) el.textContent = text;
   var elTop = document.getElementById('currentJobLabelTop'); if (elTop) elTop.textContent = text;
+  var elGlobal = document.getElementById('currentJobLabelGlobal'); if (elGlobal) elGlobal.textContent = text;
 }
 
 async function openSelectJobModal(){
@@ -6311,6 +6322,7 @@ function useFergusJobInModal(jobId){
   var label = ((j.customer||'(no client)')) + ' — ' + (j.address||'') + (j.jobNo ? '  (Fergus #'+j.jobNo+')' : '');
   var lt = document.getElementById('currentJobLabel');    if (lt) lt.textContent = label;
   var lb = document.getElementById('currentJobLabelTop'); if (lb) lb.textContent = label;
+  var lg = document.getElementById('currentJobLabelGlobal'); if (lg) lg.textContent = label;
   // Also reflect it on the Fergus side so the existing notice + push
   // flow recognises this as the linked job.
   var n = document.getElementById('fergSelNotice'); if (n) { n.style.display = ''; }
