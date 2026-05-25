@@ -12469,7 +12469,7 @@ function _renderRoofSheetPlanInner() {
     descs.push({a:[cx0,cy0],b:[cx1,cy0],poly:[[cx0,cy0],[cx1,cy0],capEap,capWap],t:'long-side',c:OR}); // cap N
     descs.push({a:[cx0,cy0],b:[cx0,jy],poly:[[cx0,cy0],capWap,[cx0,jy]],t:'hip-end',c:OR});            // cap W hip
     descs.push({a:[cx1,cy0],b:[cx1,jy],poly:[[cx1,cy0],capEap,[cx1,jy]],t:'hip-end',c:OR});            // cap E hip
-    descs.push({a:[sx0,sy1],b:[sx1,sy1],poly:[[sx0,sy1],stemSap,[sx1,sy1]],t:'hip-end',c:BL});         // stem S hip (built from blue cap-S valley offcuts)
+    descs.push({a:[sx0,sy1],b:[sx1,sy1],poly:[[sx0,sy1],stemSap,[sx1,sy1]],t:'hip-end',c:PU});         // stem S hip (built from the two stem sides' own valley offcuts)
     if (sw < ch - 0.5){
       var V=[sxc, jy-sw/2];
       descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],V,ridgeN,capWap],t:'long-side',c:BL});
@@ -13084,47 +13084,53 @@ function _renderRoofSheetPlanInner() {
     });
   });
 
-  // ── T-shape: stem south hip-end built from blue cap-S offcuts ──
-  // The blue cap-S sheets that cross the stem opening get cut at the
-  // stem valley; per the roofer's SOP their cut-off ends drop down to
-  // form the stem's south hip-end (rather than ordering fresh sheets
-  // for it).  The hip-end's south eave is parallel to the cap eaves, so
-  // a blue sheet cut at the valley pairs with the hip-end strip at the
-  // same along-eave position.  We pair each hip-end strip with the
-  // nearest blue cap-S clipped donor strip over the stem span whose
-  // offcut isn't already claimed; the hip-end strip then inherits the
-  // donor's blue seq and drops out of the order count.
+  // ── T-shape: stem south hip-end built from the stem sides' own offcuts ──
+  // Each stem side is self-contained: it uses its own sheets, and the
+  // offcuts cut from its valley sheets fill its half of the stem's south
+  // hip-end.  The left stem side feeds the hip-end's left half, the right
+  // side feeds the right half (split by which stem side each hip-end
+  // strip sits closest to).  Donors are the side's clipped strips taken
+  // valley-end first (farthest from the hip apex = biggest offcut) and
+  // paired biggest-offcut-to-biggest-slot.  Receivers inherit the donor's
+  // (purple) seq and drop out of the order count.
   if (_tCascade && mainA) {
     // The cap hip-ends' apexes are ridge vertices shared with cap N
-    // (mainA); the stem hip-end's apex is not, so pick the hip-end
-    // whose apex is not a vertex of mainA's polygon.
+    // (mainA); the stem hip-end's apex is not, so pick the hip-end whose
+    // apex is not a vertex of mainA's polygon.
     var _stemHip = faces.filter(function(f){ return f.type === 'hip-end'; })
       .filter(function(f){
         return mainA.poly.every(function(v){ return !ptEq(v, f.poly[1]); });
       })[0];
     if (_stemHip) {
-      var _ax = mainA.tx, _ay = mainA.ty;
-      var _along = function(p){ return p[0]*_ax + p[1]*_ay; };
-      var _e0 = _along(_stemHip.poly[0]), _e2 = _along(_stemHip.poly[2]);
-      var _sLo = Math.min(_e0, _e2) - 2, _sHi = Math.max(_e0, _e2) + 2;
-      var _blueDonors = allStrips.filter(function(s){
-        return s.face && s.face.type === 'long-side' && s.face.color === COL_BLUE
-          && s.rectArea && s.clipArea < s.rectArea - 1
-          && !s._offcutDest
-          && _along(s.centroid) >= _sLo && _along(s.centroid) <= _sHi;
+      var _hipApex = _stemHip.poly[1];
+      var _dist = function(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]); };
+      var _stemSides = faces.filter(function(f){
+        return f !== _stemHip && f.type === 'long-side'
+          && f.poly.some(function(p){ return ptEq(p, _hipApex); });
       });
-      allStrips.filter(function(s){ return s.face === _stemHip; }).forEach(function(rs){
-        var rp = _along(rs.centroid), best = null, bd = Infinity;
-        _blueDonors.forEach(function(ds){
-          if (ds._offcutDest) return;
-          var d = Math.abs(_along(ds.centroid) - rp);
-          if (d < bd) { bd = d; best = ds; }
-        });
-        if (best) {
-          rs._offcutMatched = true;
-          rs._offcutSource  = best;
-          rs.color          = best.color;
-          best._offcutDest  = rs;
+      var _recvAll = allStrips.filter(function(s){ return s.face === _stemHip; });
+      _stemSides.forEach(function(side){
+        // valley donors: this side's OWN (same-colour) clipped sheets,
+        // farthest from the hip apex (i.e. nearest the valley) first.
+        // Restricting to the side's colour skips any foreign offcuts the
+        // generic routing may have dropped onto the face.
+        var donors = allStrips.filter(function(s){
+          return s.face === side && s.color === side.color
+            && s.rectArea && s.clipArea < s.rectArea - 1 && !s._offcutDest;
+        }).sort(function(a, b){ return _dist(b.centroid, _hipApex) - _dist(a.centroid, _hipApex); });
+        if (!donors.length) return;
+        // receivers: hip-end strips closest to THIS stem side (left vs right).
+        var recv = _recvAll.filter(function(r){
+          if (r._offcutMatched) return false;
+          var mine = _dist(r.centroid, side.centroid);
+          return _stemSides.every(function(o){ return o === side || mine <= _dist(r.centroid, o.centroid); });
+        }).sort(function(a, b){ return _dist(a.centroid, _hipApex) - _dist(b.centroid, _hipApex); });
+        var n = Math.min(donors.length, recv.length);
+        for (var i = 0; i < n; i++){
+          recv[i]._offcutMatched = true;
+          recv[i]._offcutSource  = donors[i];
+          recv[i].color          = donors[i].color;
+          donors[i]._offcutDest  = recv[i];
         }
       });
     }
@@ -13202,7 +13208,12 @@ function _renderRoofSheetPlanInner() {
     pair(donorsLower, lowerRecv);
     pair(donorsUpper, upperRecv);
   }
-  [mainA, mainB].forEach(function(longSide){
+  // The L-shape wing cascade routes a main long-side's corner offcuts
+  // onto an adjacent wing long-side.  For a T it would treat each stem
+  // side as a "wing" of the blue cap-S and dump blue offcuts onto it —
+  // but per the roofer's SOP each stem side is self-contained (its own
+  // sheets, its own valley offcuts feeding its own hip), so skip it.
+  if (!_tCascade) [mainA, mainB].forEach(function(longSide){
     if (!longSide || longSide.type !== 'long-side') return;
     var apexL = longSide.poly[1], apexR = longSide.poly[2];
     [apexL, apexR].forEach(function(apex){
