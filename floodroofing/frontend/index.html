@@ -12826,20 +12826,42 @@ function _renderRoofSheetPlanInner() {
     });
     if (partner) f.color = partner.color;
   });
-  // Telescoping wings: south-facing slopes PARALLEL to the main (same gutter
-  // orientation) but stepped off it onto their own, shorter ridge.  Each is a
-  // separate wing whose sheets are a different length, so give each its own
-  // colour (purple, green, …) to make the lengths legible.  Perpendicular
-  // wings (L/T/U/double-wing) have gutters ACROSS the main axis and are left
-  // purple, so those shapes are unaffected.
-  var _wingPalette = [COL_PURPLE, COL_GREEN, '#0891b2', '#d97706'];
-  faces.filter(function(f){
-    if (f === mainA || f === mainB || f.type !== 'long-side') return false;
+  }  // end of !_tCascade colour assignment
+
+  // ── Telescoping (stepped) main detection ──────────────────────────
+  // Distinguish a telescoping main (a flush-edged footprint that steps out in
+  // shallower sections to one side) from a perpendicular double-wing (whose
+  // wing slopes are also "parallel" to a square main's axis).  Requires BOTH:
+  //   (a) a MERGED long-side spanning the whole flush edge (one continuous
+  //       slope over the main + every wing), and
+  //   (b) at least one NON-main parallel long-side (a stepped wing slope).
+  var _bx0 = Infinity, _bx1 = -Infinity, _by0 = Infinity, _by1 = -Infinity;
+  outline.forEach(function(p){ _bx0=Math.min(_bx0,p[0]); _bx1=Math.max(_bx1,p[0]); _by0=Math.min(_by0,p[1]); _by1=Math.max(_by1,p[1]); });
+  var _fullSpan = (mainAxis === 'h') ? (_bx1-_bx0) : (_by1-_by0);
+  function _isParallel(f){
+    if (f.type !== 'long-side') return false;
     var horiz = Math.abs(f.a[1]-f.b[1]) < 4;
     return (mainAxis === 'h') ? horiz : !horiz;
-  }).sort(function(a,b){ return b.gL - a.gL; })
-    .forEach(function(f, i){ f.color = _wingPalette[i % _wingPalette.length]; });
-  }  // end of !_tCascade colour assignment
+  }
+  var _hasFullSpan = faces.some(function(f){
+    return _isParallel(f) && Math.hypot(f.a[0]-f.b[0], f.a[1]-f.b[1]) > _fullSpan * 0.92;
+  });
+  var _hasParallelWing = faces.some(function(f){
+    return f !== mainA && f !== mainB && _isParallel(f);
+  });
+  var _hasTelesc = !_tCascade && mainRect && _hasFullSpan && _hasParallelWing;
+
+  // Telescoping wings: south-facing slopes PARALLEL to the main but stepped
+  // onto their own shorter ridge.  Each is a separate wing whose sheets are a
+  // different length, so give each its own colour (purple, green, …) to make
+  // the lengths legible.  Only for true telescoping mains — perpendicular
+  // wings (L/T/U/double-wing) keep purple.
+  if (_hasTelesc) {
+    var _wingPalette = [COL_PURPLE, COL_GREEN, '#0891b2', '#d97706'];
+    faces.filter(function(f){ return f !== mainA && f !== mainB && _isParallel(f); })
+      .sort(function(a,b){ return b.gL - a.gL; })
+      .forEach(function(f, i){ f.color = _wingPalette[i % _wingPalette.length]; });
+  }
 
   // ── Phantom-4-hip extents ─────────────────────────────────────
   // For each of orange/blue, see if the gutter spans the whole main
@@ -13317,12 +13339,6 @@ function _renderRoofSheetPlanInner() {
       donorStrips[i]._offcutDest   = recvStrips[i];
     }
   }
-  // Telescoping (stepped) main?  It has wing slopes PARALLEL to the main axis.
-  var _hasTelesc = faces.some(function(f){
-    if (f === mainA || f === mainB || f.type !== 'long-side') return false;
-    var horiz = Math.abs(f.a[1]-f.b[1]) < 4;
-    return (mainAxis === 'h') ? horiz : !horiz;
-  });
   // North slope of a telescoping main varies in length by section: long over
   // the main, shorter over each wing.  Recolour its sheets by length BEFORE
   // any hip-end cascade — a north sheet matching a wing's uniform sheet size
