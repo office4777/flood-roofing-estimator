@@ -13084,6 +13084,27 @@ function _renderRoofSheetPlanInner() {
     });
   });
 
+  // ── T-shape: stem south hip-end fed by stem-side offcuts ──────
+  // The stem's south hip-end is not adjacent to mainA/mainB (the cap
+  // long-sides), so the 4-hip loop above skips it and it would order
+  // its own sheets.  Per the roofer's SOP, it should instead be built
+  // from the two stem side faces' diagonal (valley/hip) offcuts.  Pair
+  // it with each stem side face that meets it at its apex so the hip-end
+  // strips share the donor seq numbers and drop out of the order count.
+  if (_tCascade) {
+    faces.forEach(function(hipEnd){
+      if (hipEnd.type !== 'hip-end') return;
+      var apex = hipEnd.poly[1];
+      // skip the cap hip-ends already cascaded from cap N (mainA)
+      if (mainA && (ptEq(apex, mainA.poly[1]) || ptEq(apex, mainA.poly[2]))) return;
+      faces.forEach(function(side){
+        if (side === hipEnd || side.type !== 'long-side') return;
+        if (side.poly.some(function(p){ return ptEq(p, apex); }))
+          _pairCornerToHipEnd(side, hipEnd, apex);
+      });
+    });
+  }
+
   // ── L-shape corner-to-wing cascade ────────────────────────────
   // When one of mainA/mainB's apexes is shared with a LONG-SIDE face
   // (the wing's adjacent long-side) instead of a hip-end, the corner
