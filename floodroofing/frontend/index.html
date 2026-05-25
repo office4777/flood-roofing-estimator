@@ -13714,31 +13714,22 @@ function _renderRoofSheetPlanInner() {
     }
 
     // ── Wing W long-side UPPER half (moved-short-strips) ──
-    // The shorter W hip-end upper strips (y in [refY, valleyEnd[1]] =
-    // [400, 550]) are conceptually MOVED to the wing's NW area by
-    // translating dy = -300.  They land at y in [wy0, valleyEnd[1]-300] =
-    // [100, 250], with right edge along wing's NW hip x = y - wy0 + wx0
-    // (which is just x = y for our test case where wy0=wx0=100... actually
-    // wing NW hip runs from (wx0, wy0) to wingApex at slope 1: x = y).
+    // The shorter W hip-end upper strips (y in [refY, valleyEnd[1]]) are
+    // conceptually MOVED to the wing's NW area by translating dy =
+    // wy0 - refY.  Their right edge follows the wing's NW hip, which runs
+    // from (wx0, wy0) to wingApex at slope +1: x = wx0 + (y - wy0).  Left
+    // edge is the W eave (mx0 == wx0).  (The earlier code hardcoded x = y,
+    // valid only when wx0 == wy0 — i.e. the canonical test placement; that
+    // mis-placed the offcut for any other position, including rotated
+    // orientations where canonicalisation gives wx0 != wy0.)
     // Mark isOffcut (these reuse material from the longer strips above).
     y = refY;
     while (y < valleyEnd[1] - 0.1) {
       var ya = y, yb = Math.min(y + coverPxL, valleyEnd[1]);
-      var xEastA = ya - (refY - mx0);   // before translation
-      var xEastB = yb - (refY - mx0);
-      // Translate by dy = -300, so y' = y - 300.  In wing coords,
-      // wing's NW hip is y = x (from (wx0,wy0) to wingApex).  After
-      // translation, the strip's right edge x_east = y_new (since
-      // x_east_orig = y_orig - 300 and y_new = y_orig - 300).
-      var dy = wy0 - refY;  // -300
+      var dy = wy0 - refY;
       var ya2 = ya + dy, yb2 = yb + dy;
-      var poly = [[mx0, ya2], [xEastA + dy + 0, ya2], [xEastB + dy + 0, yb2], [mx0, yb2]];
-      // Actually xEastA + dy = ya - (refY - mx0) + (wy0 - refY)
-      //                       = ya - 2*refY + mx0 + wy0.  That's wrong.
-      // Recompute: spec says strip at y band [y, y+38] (where y in [100, 250])
-      // has polygon [(100, y), (y, y), (y+38, y+38), (100, y+38)].
-      // That means right edge x = y (the new y).  So translate properly:
-      poly = [[mx0, ya2], [ya2, ya2], [yb2, yb2], [mx0, yb2]];
+      var poly = [[mx0, ya2], [wx0 + (ya2 - wy0), ya2],
+                  [wx0 + (yb2 - wy0), yb2], [mx0, yb2]];
       if (polyArea(poly) > 1) {
         stripsBlueMv.push({
           face: faceWingW, color: COL_BLUE,
