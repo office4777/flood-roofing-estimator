@@ -477,6 +477,9 @@ select{
 }
 .chk-item:hover{border-color:var(--accent)}
 .chk-item.on{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.ms-opt:hover{border-color:var(--accent);background:var(--accent-soft)}
+.ms-opt.on{border-color:var(--ink);background:var(--ink);color:#fff}
+.ms-opt.on > div{color:#fff!important}
 .chk-dot{width:7px;height:7px;border-radius:50%;border:2px solid currentColor;flex-shrink:0;transition:all .15s}
 .chk-item.on .chk-dot{background:var(--accent);border-color:var(--accent)}
 
@@ -1321,11 +1324,46 @@ select{
 
 <!-- TAB 2: SCOPE & LABOUR -->
 <div class="panel" id="tab-scope">
+  <!-- MAIN SCOPE picker — defines the broad job type and pre-ticks
+       the relevant tasks below. Hidden until a job is opened, so the
+       user follows Select Job → Map Roof → Scope without picking a
+       master scope in mid-air. -->
   <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Scope of work</div>
-    <label style="margin-bottom:.5rem">Select all tasks:</label>
+    <div class="card-hd"><span class="card-dot"></span>Main scope
+      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Pick the job type — the scope of work fills in below</span>
+    </div>
+    <div id="mainScopeGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+      <div class="ms-opt" data-scope="reroof" onclick="setMainScope('reroof')" style="cursor:pointer;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff;transition:all .15s">
+        <div style="font-size:22px;margin-bottom:4px">🔁</div>
+        <div style="font-size:14px;font-weight:700;color:#0a1628">Re-Roof</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px">Strip existing + install new roof</div>
+      </div>
+      <div class="ms-opt" data-scope="newroof" onclick="setMainScope('newroof')" style="cursor:pointer;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff;transition:all .15s">
+        <div style="font-size:22px;margin-bottom:4px">🏗️</div>
+        <div style="font-size:14px;font-weight:700;color:#0a1628">New Roof</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px">Greenfield / new build — no strip</div>
+      </div>
+      <div class="ms-opt" data-scope="tile2cs" onclick="setMainScope('tile2cs')" style="cursor:pointer;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff;transition:all .15s">
+        <div style="font-size:22px;margin-bottom:4px">🧱</div>
+        <div style="font-size:14px;font-weight:700;color:#0a1628">Tile → Colorsteel</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px">Remove tiles, install purlins, then re-roof</div>
+      </div>
+      <div class="ms-opt" data-scope="gutters" onclick="setMainScope('gutters')" style="cursor:pointer;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff;transition:all .15s">
+        <div style="font-size:22px;margin-bottom:4px">🌧️</div>
+        <div style="font-size:14px;font-weight:700;color:#0a1628">Gutters only</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px">Gutters + downpipes + fascia</div>
+      </div>
+    </div>
+  </div>
+  <div class="card" id="scopeWorkCard" style="display:none">
+    <div class="card-hd"><span class="card-dot"></span>Scope of work
+      <span id="scopeWorkSubtitle" style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px"></span>
+    </div>
+    <label style="margin-bottom:.5rem">Defaults are pre-ticked — adjust as needed:</label>
     <div class="chk-grid" id="scopeGrid">
       <div class="chk-item" onclick="toggleChk(this)" data-h="6" data-item="Strip existing roofing"><span class="chk-dot"></span>Strip existing roofing</div>
+      <div class="chk-item" onclick="toggleChk(this)" data-h="6" data-item="Remove existing tiles"><span class="chk-dot"></span>Remove existing tiles</div>
+      <div class="chk-item" onclick="toggleChk(this)" data-h="5" data-item="Install new purlins"><span class="chk-dot"></span>Install new purlins</div>
       <div class="chk-item" onclick="toggleChk(this)" data-h="4" data-item="Install underlayment"><span class="chk-dot"></span>Install underlayment</div>
       <div class="chk-item" onclick="toggleChk(this)" data-h="8" data-item="Install new roof sheets"><span class="chk-dot"></span>Install roof sheets</div>
       <div class="chk-item" onclick="toggleChk(this)" data-h="3" data-item="Install ridges"><span class="chk-dot"></span>Install ridges</div>
@@ -2648,6 +2686,9 @@ function snapshotCurrentJob(){
   // S object (minus runtime flags), and the DRAW canvas state.
   var formIds = ['jobClient','jobAddr','jobEmail','jobPhone','jobDate'];
   var form = {}; formIds.forEach(function(id){var el=document.getElementById(id); if(el) form[id]=el.value;});
+  // Scope tab — capture the master-scope pick + which chk-items are on
+  var scopeItems = Array.from(document.querySelectorAll('#scopeGrid .chk-item.on'))
+    .map(function(el){ return el.getAttribute('data-item'); });
   return {
     form: form,
     state: { img64:S.img64, roofData:S.roofData, labour:S.labour, materials:S.materials,
@@ -2655,7 +2696,8 @@ function snapshotCurrentJob(){
              quote:S.quote },
     draw: { outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
             penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
-            scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step }
+            scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step },
+    scope: { mainScope: (typeof _currentMainScope !== 'undefined' ? _currentMainScope : null), items: scopeItems }
   };
 }
 function restoreFromJob(j){
@@ -2686,6 +2728,32 @@ function restoreFromJob(j){
     DRAW.step = snap.draw.step || 'outline';
     try { redrawAll(); } catch(e){}
     try { syncToRoofData(); } catch(e){}
+  }
+  // Scope tab — restore the master-scope pick and which chk-items were on
+  if (snap.scope) {
+    try {
+      if (snap.scope.mainScope && MAIN_SCOPE_PRESETS[snap.scope.mainScope]) {
+        // setMainScope ticks the default preset; immediately overwrite
+        // with the user's actual saved selection so any unticked
+        // defaults / extra ticks are preserved.
+        setMainScope(snap.scope.mainScope);
+        var wanted = {};
+        (snap.scope.items || []).forEach(function(it){ wanted[it] = true; });
+        document.querySelectorAll('#scopeGrid .chk-item').forEach(function(el){
+          el.classList.toggle('on', !!wanted[el.getAttribute('data-item')]);
+        });
+        try { calcLabour(); } catch(e){}
+      } else if (snap.scope.items && snap.scope.items.length) {
+        // Older saves without mainScope — just reveal the card and tick saved items
+        var card = document.getElementById('scopeWorkCard'); if (card) card.style.display = '';
+        var wanted2 = {};
+        snap.scope.items.forEach(function(it){ wanted2[it] = true; });
+        document.querySelectorAll('#scopeGrid .chk-item').forEach(function(el){
+          el.classList.toggle('on', !!wanted2[el.getAttribute('data-item')]);
+        });
+        try { calcLabour(); } catch(e){}
+      }
+    } catch(e) { console.warn('restore scope:', e); }
   }
   S.currentJobId = j.id;
   setCurrentJobLabel(j);
@@ -3718,6 +3786,62 @@ function renderSheetLayout(){
 
 // ── SCOPE ────────────────────────────────────────────────────────
 function toggleChk(el){el.classList.toggle('on');calcLabour();}
+
+// ── MAIN SCOPE PRESETS ───────────────────────────────────────────
+// Each preset is a list of scope items that should be ticked on by
+// default. Items not in the list are switched OFF so picking a new
+// master scope gives a clean baseline. Subtitle text is shown next
+// to the Scope of work card header so the user can see which preset
+// is active. Items match the data-item attributes on #scopeGrid.
+var MAIN_SCOPE_PRESETS = {
+  reroof: {
+    label: 'Re-Roof',
+    subtitle: 'Strip existing roof + install new',
+    items: ['Strip existing roofing','Install underlayment','Install new roof sheets','Install ridges','Install valleys','Install flashings','Install gutters','Install downpipes','Cleanup and disposal','Scaffold setup/removal']
+  },
+  newroof: {
+    label: 'New Roof',
+    subtitle: 'Greenfield install — no existing roof to strip',
+    items: ['Install underlayment','Install new roof sheets','Install ridges','Install valleys','Install flashings','Install gutters','Install downpipes','Fascia work','Cleanup and disposal','Scaffold setup/removal']
+  },
+  tile2cs: {
+    label: 'Tile → Colorsteel',
+    subtitle: 'Remove tiles, install new purlins, then re-roof',
+    items: ['Remove existing tiles','Install new purlins','Install underlayment','Install new roof sheets','Install ridges','Install valleys','Install flashings','Install gutters','Install downpipes','Cleanup and disposal','Scaffold setup/removal']
+  },
+  gutters: {
+    label: 'Gutters only',
+    subtitle: 'Gutters + downpipes + fascia',
+    items: ['Install gutters','Install downpipes','Fascia work','Cleanup and disposal']
+  }
+};
+var _currentMainScope = null;
+function setMainScope(key){
+  var preset = MAIN_SCOPE_PRESETS[key];
+  if (!preset) return;
+  _currentMainScope = key;
+  // Highlight the chosen chip
+  document.querySelectorAll('#mainScopeGrid .ms-opt').forEach(function(el){
+    el.classList.toggle('on', el.getAttribute('data-scope') === key);
+  });
+  // Reveal scope-of-work card + set subtitle
+  var card = document.getElementById('scopeWorkCard'); if (card) card.style.display = '';
+  var sub  = document.getElementById('scopeWorkSubtitle'); if (sub) sub.textContent = '— ' + preset.subtitle;
+  // Reset all chk-items, then tick the preset list
+  var wanted = {};
+  preset.items.forEach(function(it){ wanted[it] = true; });
+  document.querySelectorAll('#scopeGrid .chk-item').forEach(function(el){
+    el.classList.toggle('on', !!wanted[el.getAttribute('data-item')]);
+  });
+  try { calcLabour(); } catch(e){}
+  // Autosave: chk-item toggles don't fire input/change events, so nudge
+  // the engine by firing one on the worker-count field (a real input
+  // that the engine listens to).
+  try {
+    var nw = document.getElementById('nWorkers');
+    if (nw) nw.dispatchEvent(new Event('input', { bubbles: true }));
+  } catch(e){}
+}
 function calcLabour(){
   var sel=document.querySelectorAll('#scopeGrid .chk-item.on');
   if(!sel.length){document.getElementById('labourOut').style.display='none';return;}
