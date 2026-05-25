@@ -1365,6 +1365,17 @@ select{
       <p style="font-size:12px;color:var(--text2)">Draw your roof outline + gutter/hip/valley lines with measurements, then refresh to see the sheet cut plan.</p>
     </div>
   </div>
+
+  <!-- FLASHINGS BREAKDOWN — per-line list under the Roof Sheet Plan -->
+  <div class="card" id="flashingsBreakdownCard">
+    <div class="card-hd"><span class="card-dot"></span>Flashings — per line
+      <button onclick="renderFlashingsBreakdown()" style="margin-left:auto;padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
+    </div>
+    <div id="flashingsBreakdownOut">
+      <p style="font-size:12px;color:var(--text2)">Draw lines on the Map Roof tab with measurements — each one will appear here grouped by type.</p>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Sheet layout settings</div>
     <div class="f3">
@@ -10710,13 +10721,27 @@ function populateMaterialsFromLines() {
   }
   if(roofArea>0&&document.getElementById('scopeArea')) document.getElementById('scopeArea').value=roofArea.toFixed(1);
 
+  // Hip rafters share the same flashing as ridge cap — merge totals so
+  // the user sees one line item to order.
+  var ridgeHipTotal = (totals.ridge || 0) + (totals.hip || 0);
+
   // Build materials HTML
   var html='<div style="font-size:11px;font-weight:700;color:#0099cc;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #0099cc">From drawn measurements</div>';
+
+  // Ridge + Hip combined (ridge cap flashing covers both)
+  if (ridgeHipTotal > 0) {
+    var ridgeHipNote = (totals.ridge && totals.hip)
+      ? '<div style="font-size:10px;color:#666;margin-top:2px">'+totals.ridge.toFixed(2)+' m ridge + '+totals.hip.toFixed(2)+' m hip</div>'
+      : '';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-radius:8px;margin-bottom:6px;border-left:3px solid #dc2626">'+
+      '<div><span style="font-size:13px;font-weight:600">🔴 Ridge / Hip capping</span>'+ridgeHipNote+'</div>'+
+      '<span style="font-size:16px;font-weight:700;color:#dc2626">'+ridgeHipTotal.toFixed(2)+' lm</span></div>';
+  }
+
+  // Remaining flashing types (hip excluded — folded into ridge above)
   var types=[
-    {k:'ridge',label:'Ridge capping',color:'#dc2626',icon:'🔴',unit:'lm'},
     {k:'valley',label:'Valley iron',color:'#f59e0b',icon:'🟠',unit:'lm'},
     {k:'gutter',label:'Guttering',color:'#7c3aed',icon:'🟣',unit:'lm'},
-    {k:'hip',label:'Hip rafter',color:'#059669',icon:'🟢',unit:'lm'},
     {k:'barge',label:'Barge flashing',color:'#0891b2',icon:'🔵',unit:'lm'},
     {k:'apron',label:'Apron flashing',color:'#e11d48',icon:'🩷',unit:'lm'},
     {k:'changepitch',label:'Change of pitch flashing',color:'#0ea5e9',icon:'🔷',unit:'lm'},
@@ -10736,116 +10761,121 @@ function populateMaterialsFromLines() {
       '<span style="font-size:18px;font-weight:700;color:#2e7d32">'+roofArea.toFixed(1)+' m²</span></div>';
   }
 
-  // SHEET CUT LIST for each gutter / changepitch run
-  var gutterLines = DRAW.lines.filter(function(l){return (l.type==='gutter'||l.type==='changepitch')&&l.measM;});
-  if(gutterLines.length>0){
-    html+='<div style="font-size:11px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px;padding-top:12px;border-top:1px solid #e0e0db">📋 Sheet cut list per gutter run</div>';
-    function lineAngleDeg2(l){var dx=l.pts[1][0]-l.pts[0][0],dy=l.pts[1][1]-l.pts[0][1];return Math.atan2(dy,dx)*180/Math.PI;}
-    function angleDiff2(a,b){var d=Math.abs(a-b)%180;return d>90?180-d:d;}
-    function ptNear2(a,b,tol){return Math.abs(a[0]-b[0])<tol&&Math.abs(a[1]-b[1])<tol;}
+  // ── CONSUMABLES (Underlay, Screws, Rivets) ────────────────────
+  // Underlay: roof area × 1.2 (20% waste allowance) / roll size.
+  // Roll size persists per-browser; default 75 m²/roll.
+  var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
+  if (![50,75,100].includes(rollSize)) rollSize = 75;
+  if (roofArea > 0) {
+    var underlayM2 = roofArea * 1.2;
+    var rolls = Math.ceil(underlayM2 / rollSize);
+    html += '<div style="font-size:11px;font-weight:700;color:#0a1628;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px;padding-top:12px;border-top:1px solid #e0e0db">📦 Consumables</div>';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-radius:8px;margin-bottom:6px;border-left:3px solid #0a1628">'+
+      '<div><div style="font-size:13px;font-weight:600">📄 Underlay / paper</div>'+
+      '<div style="font-size:11px;color:#666;margin-top:2px">'+
+      '<select onchange="localStorage.setItem(\'fr_underlay_roll_size\',this.value);populateMaterialsFromLines();" style="font-size:11px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;margin-right:6px">'+
+      [50,75,100].map(function(sz){return '<option value="'+sz+'"'+(sz===rollSize?' selected':'')+'>'+sz+' m²/roll</option>';}).join('')+
+      '</select>'+
+      'needs '+underlayM2.toFixed(1)+' m² ('+roofArea.toFixed(1)+' × 1.2 waste)</div></div>'+
+      '<span style="font-size:16px;font-weight:700;color:#0a1628">'+rolls+' roll'+(rolls===1?'':'s')+'</span></div>';
 
-    gutterLines.forEach(function(l){
-      var gutterM=parseFloat(l.measM);
-      var sheetLen=parseFloat(l.sheetLengthM||0);
-      var gutterAngle=lineAngleDeg2(l);
-      var label=l.label||(gutterM.toFixed(2)+'m gutter');
+    // Screws: roof area × 8, rounded up to nearest 100. Default 65mm Unitites.
+    var screwsNeeded = roofArea * 8;
+    var screws = Math.ceil(screwsNeeded / 100) * 100;
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-radius:8px;margin-bottom:6px;border-left:3px solid #0a1628">'+
+      '<div><div style="font-size:13px;font-weight:600">🔩 Roofing screws (65mm Unitites)</div>'+
+      '<div style="font-size:11px;color:#666;margin-top:2px">'+roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(screwsNeeded)+' → rounded up to nearest 100</div></div>'+
+      '<span style="font-size:16px;font-weight:700;color:#0a1628">'+screws+'</span></div>';
+  }
 
-      // Nearest 0.5 sheet count (always round up)
-      var sheetsExact=gutterM/sheetWidthM;
-      var sheetsRounded=Math.round(sheetsExact*2)/2;
-      if(sheetsRounded<sheetsExact) sheetsRounded+=0.5;
-      var sheetsWhole=Math.ceil(sheetsRounded);
-
-      // Auto-estimate sheet length from parallel ridge if calibrated
-      var sheetLenSource='';
-      if(!sheetLen && DRAW.scaleMetresPerPx) {
-        var gMid=[(l.pts[0][0]+l.pts[1][0])/2,(l.pts[0][1]+l.pts[1][1])/2];
-        var minDist=Infinity;
-        DRAW.lines.forEach(function(r){
-          if(r.type!=='ridge'&&r.type!=='valley') return;
-          if(!r.measM) return;
-          if(angleDiff2(lineAngleDeg2(r),gutterAngle)<25){
-            var rMid=[(r.pts[0][0]+r.pts[1][0])/2,(r.pts[0][1]+r.pts[1][1])/2];
-            var d=Math.sqrt(Math.pow(gMid[0]-rMid[0],2)+Math.pow(gMid[1]-rMid[1],2));
-            if(d<minDist) minDist=d;
-          }
-        });
-        if(minDist<Infinity){
-          var planSheet = minDist*DRAW.scaleMetresPerPx;
-          // Sheet runs straight up the slope: actual length = plan run / cos θ
-          sheetLen = planSheet * (pitch>0 ? 1/Math.cos(pitch*Math.PI/180) : 1);
-          sheetLenSource=' (est)';
-        }
-      }
-
-      // Detect hip/valley at ends
-      var tol=20;
-      var leftHip=null,rightHip=null;
-      DRAW.lines.forEach(function(r){
-        if(r.type!=='hip'&&r.type!=='valley') return;
-        if(ptNear2(r.pts[0],l.pts[0],tol)||ptNear2(r.pts[1],l.pts[0],tol)) leftHip=r;
-        if(ptNear2(r.pts[0],l.pts[1],tol)||ptNear2(r.pts[1],l.pts[1],tol)) rightHip=r;
-      });
-      var hasAngleCut=leftHip||rightHip;
-
-      html+='<div style="background:#f5f0ff;border:1px solid #d8b4fe;border-radius:8px;padding:10px 12px;margin-bottom:8px">';
-      html+='<div style="font-weight:700;font-size:12px;color:#7c3aed;margin-bottom:6px">'+label+'</div>';
-      html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">';
-
-      html+='<div style="background:#fff;border:1px solid #d8b4fe;border-radius:6px;padding:6px 10px;flex:1;min-width:110px">';
-      html+='<div style="font-size:10px;color:#888;font-weight:600;margin-bottom:2px">SHEETS ACROSS</div>';
-      html+='<div style="font-size:18px;font-weight:700;color:#7c3aed">'+sheetsRounded+'</div>';
-      html+='<div style="font-size:10px;color:#999">'+gutterM.toFixed(2)+'m ÷ '+sheetWidthMm+'mm</div>';
-      html+='</div>';
-
-      if(sheetLen>0){
-        var cutLen=sheetLen+overlapM;
-        html+='<div style="background:#fff;border:1px solid #d8b4fe;border-radius:6px;padding:6px 10px;flex:1;min-width:110px">';
-        html+='<div style="font-size:10px;color:#888;font-weight:600;margin-bottom:2px">SHEET LENGTH'+sheetLenSource+'</div>';
-        html+='<div style="font-size:18px;font-weight:700;color:#7c3aed">'+cutLen.toFixed(2)+'m</div>';
-        html+='<div style="font-size:10px;color:#999">+'+Math.round(overlapM*1000)+'mm lap</div>';
-        html+='</div>';
-        html+='<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:6px 10px;flex:1;min-width:130px">';
-        html+='<div style="font-size:10px;color:#2e7d32;font-weight:600;margin-bottom:2px">SUMMARY</div>';
-        html+='<div style="font-size:13px;font-weight:700;color:#2e7d32">'+sheetsRounded+' sheets @ '+cutLen.toFixed(2)+'m</div>';
-        html+='</div>';
-      }
-      html+='</div>';
-
-      if(hasAngleCut&&sheetLen>0){
-        html+='<div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:6px;padding:8px;font-size:11px;color:#e65100;margin-top:4px">';
-        html+='<div style="font-weight:700;margin-bottom:4px">✂ Angle cuts — full sheets, offcut reused on opposite hip/valley</div>';
-        var svgW=260,svgH=60,sdH=42,ty=9,nS=Math.min(sheetsWhole,8),sw2=svgW/nS;
-        html+='<svg width="'+svgW+'" height="'+svgH+'" style="display:block;border-radius:4px;background:#fff;margin-bottom:4px">';
-        for(var s=0;s<nS;s++){
-          var x=s*sw2,isL=(leftHip&&s===0),isR=(rightHip&&s===nS-1);
-          if(isL){
-            html+='<polygon points="'+x+','+(ty+sdH)+' '+(x+sw2*0.35)+','+ty+' '+(x+sw2)+','+ty+' '+(x+sw2)+','+(ty+sdH)+'" fill="#93c5fd" stroke="#60a5fa" stroke-width="0.5"/>';
-            html+='<polygon points="'+x+','+ty+' '+(x+sw2*0.35)+','+ty+' '+x+','+(ty+sdH)+'" fill="#fb923c" stroke="#f97316" stroke-width="0.5"/>';
-          } else if(isR){
-            html+='<polygon points="'+x+','+ty+' '+(x+sw2*0.65)+','+ty+' '+(x+sw2)+','+(ty+sdH)+' '+x+','+(ty+sdH)+'" fill="#93c5fd" stroke="#60a5fa" stroke-width="0.5"/>';
-            html+='<polygon points="'+(x+sw2*0.65)+','+ty+' '+(x+sw2)+','+ty+' '+(x+sw2)+','+(ty+sdH)+'" fill="#fb923c" stroke="#f97316" stroke-width="0.5"/>';
-          } else {
-            html+='<rect x="'+x+'" y="'+ty+'" width="'+(sw2-1)+'" height="'+sdH+'" fill="#93c5fd" stroke="#60a5fa" stroke-width="0.5"/>';
-          }
-        }
-        html+='</svg>';
-        html+='<div style="display:flex;gap:8px;font-size:10px">';
-        html+='<span><span style="display:inline-block;width:9px;height:9px;background:#93c5fd;border-radius:1px;vertical-align:middle;margin-right:2px"></span>Used</span>';
-        html+='<span><span style="display:inline-block;width:9px;height:9px;background:#fb923c;border-radius:1px;vertical-align:middle;margin-right:2px"></span>Offcut → opposite hip</span>';
-        html+='</div>';
-        html+='</div>';
-      }
-      html+='</div>';
-    });
+  // Rivets: based on TOTAL flashing lm (ridge+hip+valley+barge+apron+
+  // changepitch). 100 up to 60lm, 200 up to 120lm, +100 per 60lm
+  // above that. No rivets if there are no flashings.
+  var totalFlashingLm = ridgeHipTotal + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0);
+  if (totalFlashingLm > 0) {
+    var rivets = Math.max(100, Math.ceil(totalFlashingLm / 60) * 100);
+    if (roofArea <= 0) {
+      html += '<div style="font-size:11px;font-weight:700;color:#0a1628;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px;padding-top:12px;border-top:1px solid #e0e0db">📦 Consumables</div>';
+    }
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-radius:8px;margin-bottom:6px;border-left:3px solid #0a1628">'+
+      '<div><div style="font-size:13px;font-weight:600">🪛 Rivets</div>'+
+      '<div style="font-size:11px;color:#666;margin-top:2px">'+totalFlashingLm.toFixed(1)+' lm of flashings total</div></div>'+
+      '<span style="font-size:16px;font-weight:700;color:#0a1628">'+rivets+'</span></div>';
   }
 
   // Update materials tab auto-section
   var matAutoEl=document.getElementById('matAutoFromLines');
   if(matAutoEl) matAutoEl.innerHTML=html;
 
+  // Refresh the per-line flashings breakdown card under the Roof
+  // Sheet Plan.
+  try { renderFlashingsBreakdown(); } catch(e) { console.warn('flashings breakdown:', e); }
+
   // Also update measTotals
   updateMeasTotals();
+}
+
+// Group every drawn line by type, then by rounded length, and render
+// "N @ Xm" entries so the user can see the exact cut list. Lines
+// without a measurement are surfaced separately so they aren't silently
+// hidden.
+function renderFlashingsBreakdown() {
+  var out = document.getElementById('flashingsBreakdownOut');
+  if (!out) return;
+  if (!window.DRAW || !DRAW.lines || !DRAW.lines.length) {
+    out.innerHTML = '<p style="font-size:12px;color:var(--text2);margin:0">Draw lines on the Map Roof tab with measurements — each one will appear here grouped by type.</p>';
+    return;
+  }
+  // Friendly group names + display order. Ridge + Hip share a group
+  // here too, to match the Ridge / Hip capping line above.
+  var groups = [
+    { key:'ridgeHip', label:'Ridges &amp; Hips',  match:function(l){return l.type==='ridge'||l.type==='hip';}, color:'#dc2626', icon:'🔴' },
+    { key:'valley',   label:'Valleys',            match:function(l){return l.type==='valley';},                color:'#f59e0b', icon:'🟠' },
+    { key:'gutter',   label:'Gutters',            match:function(l){return l.type==='gutter';},                color:'#7c3aed', icon:'🟣' },
+    { key:'barge',    label:'Barges',             match:function(l){return l.type==='barge';},                 color:'#0891b2', icon:'🔵' },
+    { key:'apron',    label:'Apron flashings',    match:function(l){return l.type==='apron';},                 color:'#e11d48', icon:'🩷' },
+    { key:'changepitch', label:'Change of pitch', match:function(l){return l.type==='changepitch';},           color:'#0ea5e9', icon:'🔷' },
+  ];
+  var html = '';
+  var anyRendered = false;
+  groups.forEach(function(g){
+    var lines = DRAW.lines.filter(g.match);
+    if (!lines.length) return;
+    // Bucket by length rounded to 0.1m so "4.02" and "4.03" collapse.
+    var buckets = {};
+    var unmeasured = 0;
+    lines.forEach(function(l){
+      var m = parseFloat(l.measM);
+      if (isNaN(m) || m <= 0) { unmeasured++; return; }
+      var key = m.toFixed(1);
+      buckets[key] = (buckets[key] || 0) + 1;
+    });
+    var lengths = Object.keys(buckets).map(parseFloat).sort(function(a,b){return b-a;});
+    if (!lengths.length && !unmeasured) return;
+    anyRendered = true;
+    var total = lengths.reduce(function(s,len){return s + len*buckets[len.toFixed(1)];}, 0);
+    html += '<div style="margin-bottom:12px;padding:10px 12px;background:#fafafa;border-left:3px solid '+g.color+';border-radius:8px">';
+    html += '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">'+
+      '<span style="font-size:13px;font-weight:700;color:'+g.color+'">'+g.icon+' '+g.label+'</span>'+
+      '<span style="font-size:11px;color:#666">'+lines.length+' line'+(lines.length===1?'':'s')+(total>0?' · '+total.toFixed(2)+' lm total':'')+'</span></div>';
+    if (lengths.length) {
+      html += '<div style="font-size:12px;color:#0a1628;line-height:1.8">'+
+        lengths.map(function(len){
+          var n = buckets[len.toFixed(1)];
+          return n + ' @ ' + len.toFixed(2) + 'm';
+        }).join('<span style="color:#bbb;margin:0 8px">·</span>')+
+      '</div>';
+    }
+    if (unmeasured) {
+      html += '<div style="font-size:11px;color:#a16207;margin-top:4px">⚠ '+unmeasured+' '+(unmeasured===1?'line':'lines')+' without a measurement</div>';
+    }
+    html += '</div>';
+  });
+  if (!anyRendered) {
+    out.innerHTML = '<p style="font-size:12px;color:var(--text2);margin:0">No flashing-type lines drawn yet (ridge, hip, valley, gutter, barge, apron, change of pitch).</p>';
+    return;
+  }
+  out.innerHTML = html;
 }
 
 
