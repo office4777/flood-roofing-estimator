@@ -1394,6 +1394,17 @@ select{
     <button class="sec-btn" onclick="populateMaterialsFromLines()" style="margin-top:.5rem">↻ Refresh from drawing</button>
   </div>
 
+  <!-- MATERIALS COST — auto-computed from the Price Book × drawn quantities -->
+  <div class="card" id="matCostCard">
+    <div class="card-hd"><span class="card-dot"></span>Materials cost (from Price Book)
+      <button onclick="renderMaterialsCostCard();try{resyncQuoteLines();}catch(e){}" style="margin-left:auto;padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh &amp; sync to Quote</button>
+    </div>
+    <p style="font-size:11px;color:var(--text2);margin:-8px 0 10px">Quantities come from your drawing; unit prices come from <strong>Settings → Price book</strong>. The total auto-fills the Materials line on the Quote.</p>
+    <div id="matCostBreakdown">
+      <p style="font-size:12px;color:var(--text2)">Awaiting price book — open <strong>Settings → Price book</strong> to set unit prices.</p>
+    </div>
+  </div>
+
   <!-- ROOF SHEET PLAN CARD -->
   <div class="card" id="roofSheetPlanCard">
     <div class="card-hd"><span class="card-dot"></span>Roof sheet plan — colour-coded cut layout
@@ -2197,6 +2208,7 @@ select{
     <div class="tab-row">
       <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Branding</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
+      <button class="tab-sm" onclick="switchSettingsSub('set-pricebook',this)">Price book</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers &amp; materials</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
     </div>
@@ -2251,6 +2263,81 @@ select{
         </div>
         <div id="qdSectionsList"></div>
         <div style="font-size:11px;color:var(--text2);margin-top:6px">Extra sections appended to the inspection report (e.g. health &amp; safety statement, council compliance notes).</div>
+      </div>
+    </div>
+
+    <!-- PRICE BOOK -->
+    <div class="sub-panel settings-sub" id="set-pricebook" style="margin-top:14px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Unit prices used to auto-cost the <strong>Materials &amp; Sheet Layout</strong> tab. The combined total becomes the <strong>Materials</strong> line on every Quote.</p>
+
+      <!-- Upload supplier price book -->
+      <div style="margin-bottom:18px;padding:14px;background:var(--surface-2);border-radius:10px;border:1px dashed var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <strong style="font-size:13px">📤 Upload supplier price book</strong>
+          <span style="font-size:11px;color:var(--text2)">CSV (immediate) or PDF (AI parse)</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="pbUploadFile" accept=".csv,.pdf,text/csv,application/pdf" onchange="handlePriceBookUpload(event)" style="flex:1;min-width:240px;font-size:12px">
+          <span id="pbUploadMsg" style="font-size:11px;color:var(--text2)"></span>
+        </div>
+        <p style="font-size:11px;color:var(--text2);margin-top:6px">CSV columns: <code>description, unit, price</code> (header row optional). Parsed rows go into <strong>Custom price-book items</strong> below.</p>
+      </div>
+
+      <!-- Roofing sheets — multi-variant -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong style="font-size:13px">Roofing sheets</strong>
+          <span style="font-size:11px;color:var(--text2)">— add a row per product variant</span>
+          <button type="button" onclick="addPriceBookSheet()" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add sheet variant</button>
+        </div>
+        <div id="pbSheetsList"></div>
+        <div style="margin-top:10px">
+          <label style="font-size:11px">Default product for this job</label>
+          <select id="pbDefaultSheet" style="max-width:340px"></select>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">The Materials tab cost uses this product's $/lm × total gutter length (sheets are ordered by gutter run × number of sheets across).</div>
+        </div>
+      </div>
+
+      <!-- Underlay per roll size -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="margin-bottom:8px"><strong style="font-size:13px">Underlay / paper</strong>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px">— $ per roll, by size</span></div>
+        <div class="f3">
+          <div><label>50 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay50" step="0.01" min="0" placeholder="0.00"></div></div>
+          <div><label>75 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay75" step="0.01" min="0" placeholder="0.00"></div></div>
+          <div><label>100 m²/roll</label><div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">$</span><input type="number" id="pbUnderlay100" step="0.01" min="0" placeholder="0.00"></div></div>
+        </div>
+      </div>
+
+      <!-- Per-LM flashings + per-each fixings -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="margin-bottom:8px"><strong style="font-size:13px">Flashings &amp; fixings</strong>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px">— default unit prices</span></div>
+        <div class="f3">
+          <div><label>Ridge / Hip cap ($/lm)</label><input type="number" id="pbRidgeLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Valley flashing ($/lm)</label><input type="number" id="pbValleyLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Gutter ($/lm)</label><input type="number" id="pbGutterLm" step="0.01" min="0" placeholder="0.00"></div>
+        </div>
+        <div class="f3" style="margin-top:6px">
+          <div><label>Barge flashing ($/lm)</label><input type="number" id="pbBargeLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Apron flashing ($/lm)</label><input type="number" id="pbApronLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div></div>
+        </div>
+        <div class="f3" style="margin-top:6px">
+          <div><label>65mm Unitites / screws ($/each)</label><input type="number" id="pbScrewsEach" step="0.001" min="0" placeholder="0.00"></div>
+          <div><label>Rivets ($/each)</label><input type="number" id="pbRivetsEach" step="0.001" min="0" placeholder="0.00"></div>
+          <div></div>
+        </div>
+      </div>
+
+      <!-- Custom extras -->
+      <div style="margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <strong style="font-size:13px">Custom price-book items</strong>
+          <span style="font-size:11px;color:var(--text2)">— special items beyond the auto-quantified list (skylights, dektites, vents, etc.)</span>
+          <button type="button" onclick="addPriceBookExtra()" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add item</button>
+        </div>
+        <div id="pbExtrasList"></div>
       </div>
     </div>
 
@@ -2493,7 +2580,29 @@ function defaultSettings(){
                 proposal_template: null },
     quote_defaults: { validity_days: 30, gst_rate: 15, terms: '',
                       options: [], sections: [] },
-    jms_keys: { fergus:'', servicem8:'', jobber:'', tradify:'' }
+    jms_keys: { fergus:'', servicem8:'', jobber:'', tradify:'' },
+    // Price book — default unit prices that the Materials tab uses
+    // to compute the materials cost automatically. Quantities come
+    // from the drawing (roof area + flashing totals + computed rolls/
+    // screws/rivets); price book × quantity = the Materials line on
+    // the Quote tab.
+    price_book: {
+      sheets: [
+        { product: '0.40g Colorsteel Maxam', unit: 'lm', price: 0 },
+        { product: '0.55g Colorsteel Maxam', unit: 'lm', price: 0 },
+        { product: '0.40g Zincalume',        unit: 'lm', price: 0 },
+        { product: '0.55g Zincalume',        unit: 'lm', price: 0 }
+      ],
+      underlay: { '50': 0, '75': 0, '100': 0 },   // $ per roll, keyed by m²/roll
+      ridge_lm:    0,    // $/lm — used for ridge + hip cap (they share flashing)
+      valley_lm:   0,    // $/lm
+      gutter_lm:   0,    // $/lm
+      barge_lm:    0,    // $/lm
+      apron_lm:    0,    // $/lm
+      screws_each: 0,    // $ per 65mm Unitite / roofing screw
+      rivets_each: 0,    // $ per rivet
+      extras: []         // [{desc, unit, qty, price}] — custom price-book items the user adds
+    }
   };
 }
 
@@ -2504,7 +2613,17 @@ async function loadSettings(){
     S.settings = {
       branding: Object.assign(d.branding, s.branding || {}),
       quote_defaults: Object.assign(d.quote_defaults, s.quote_defaults || {}),
-      jms_keys: Object.assign(d.jms_keys, s.jms_keys || {})
+      jms_keys: Object.assign(d.jms_keys, s.jms_keys || {}),
+      // price_book: deep-merge so existing keys keep defaults and the
+      // user's saved unit prices win. Underlay is an object keyed by
+      // roll size so it needs its own merge.
+      price_book: (function(){
+        var pb = Object.assign({}, d.price_book, s.price_book || {});
+        pb.underlay = Object.assign({}, d.price_book.underlay, (s.price_book && s.price_book.underlay) || {});
+        if (!Array.isArray(pb.sheets) || !pb.sheets.length) pb.sheets = d.price_book.sheets.slice();
+        if (!Array.isArray(pb.extras)) pb.extras = [];
+        return pb;
+      })()
     };
   } catch(e) {
     console.warn('settings load failed, using defaults:', e.message);
@@ -2526,6 +2645,7 @@ async function saveSettings(){
     S.settings.branding = saved.branding || S.settings.branding;
     S.settings.quote_defaults = saved.quote_defaults || S.settings.quote_defaults;
     S.settings.jms_keys = saved.jms_keys || S.settings.jms_keys;
+    if (saved.price_book) S.settings.price_book = saved.price_book;
     msg.textContent = '✓ Saved'; msg.style.color = '#15803d';
     applyBranding();
   } catch(e) {
@@ -2560,6 +2680,337 @@ function collectSettingsFromUI(){
   k.jobber     = (document.getElementById('intJobber')||{}).value || '';
   k.tradify    = (document.getElementById('intTradify')||{}).value || '';
   k.fergusMaterialsAccountId = (document.getElementById('intFergusMatAcct')||{}).value || '';
+  collectPriceBookFromUI();
+}
+
+// ── PRICE BOOK ───────────────────────────────────────────────────
+// Collect Price-book inputs back into S.settings.price_book.  Sheet
+// rows live inside #pbSheetsList (rendered by renderPriceBookSheets);
+// extras live inside #pbExtrasList.  The fixed-position fields
+// (underlay-per-roll, ridge/valley/gutter/screws/rivets) map 1:1 to
+// inputs by id.
+function _num(id){ var v = parseFloat((document.getElementById(id)||{}).value); return isNaN(v) ? 0 : v; }
+function collectPriceBookFromUI(){
+  if (!S.settings.price_book) S.settings.price_book = defaultSettings().price_book;
+  var pb = S.settings.price_book;
+  // Sheets — read back from rendered rows
+  pb.sheets = Array.from(document.querySelectorAll('#pbSheetsList > [data-pb-sheet]')).map(function(row){
+    return {
+      product: (row.querySelector('input[data-f="product"]')||{}).value || '',
+      unit:    (row.querySelector('input[data-f="unit"]')||{}).value || 'lm',
+      price:   parseFloat((row.querySelector('input[data-f="price"]')||{}).value) || 0
+    };
+  }).filter(function(r){ return r.product; });
+  if (!pb.sheets.length) pb.sheets = defaultSettings().price_book.sheets;
+  pb.defaultSheetProduct = (document.getElementById('pbDefaultSheet')||{}).value || '';
+  pb.underlay = {
+    '50':  _num('pbUnderlay50'),
+    '75':  _num('pbUnderlay75'),
+    '100': _num('pbUnderlay100')
+  };
+  pb.ridge_lm    = _num('pbRidgeLm');
+  pb.valley_lm   = _num('pbValleyLm');
+  pb.gutter_lm   = _num('pbGutterLm');
+  pb.barge_lm    = _num('pbBargeLm');
+  pb.apron_lm    = _num('pbApronLm');
+  pb.screws_each = _num('pbScrewsEach');
+  pb.rivets_each = _num('pbRivetsEach');
+  pb.extras = Array.from(document.querySelectorAll('#pbExtrasList > [data-pb-extra]')).map(function(row){
+    return {
+      desc:  (row.querySelector('input[data-f="desc"]')||{}).value || '',
+      unit:  (row.querySelector('input[data-f="unit"]')||{}).value || 'ea',
+      qty:   parseFloat((row.querySelector('input[data-f="qty"]')||{}).value) || 0,
+      price: parseFloat((row.querySelector('input[data-f="price"]')||{}).value) || 0
+    };
+  }).filter(function(r){ return r.desc; });
+}
+
+function renderPriceBookUI(){
+  if (!S.settings || !S.settings.price_book) return;
+  var pb = S.settings.price_book;
+  renderPriceBookSheets(pb.sheets || []);
+  refreshDefaultSheetPicker(pb.sheets || [], pb.defaultSheetProduct || '');
+  function setN(id, v){ var el=document.getElementById(id); if (el) el.value = (v == null || v === 0) ? '' : v; }
+  setN('pbUnderlay50',  (pb.underlay||{})['50']);
+  setN('pbUnderlay75',  (pb.underlay||{})['75']);
+  setN('pbUnderlay100', (pb.underlay||{})['100']);
+  setN('pbRidgeLm',    pb.ridge_lm);
+  setN('pbValleyLm',   pb.valley_lm);
+  setN('pbGutterLm',   pb.gutter_lm);
+  setN('pbBargeLm',    pb.barge_lm);
+  setN('pbApronLm',    pb.apron_lm);
+  setN('pbScrewsEach', pb.screws_each);
+  setN('pbRivetsEach', pb.rivets_each);
+  renderPriceBookExtras(pb.extras || []);
+}
+
+function renderPriceBookSheets(sheets){
+  var box = document.getElementById('pbSheetsList'); if (!box) return;
+  box.innerHTML = sheets.map(function(s){ return _pbSheetRowHtml(s); }).join('');
+}
+function _pbSheetRowHtml(s){
+  s = s || { product:'', unit:'lm', price:0 };
+  return '<div data-pb-sheet style="display:grid;grid-template-columns:2.2fr 0.8fr 0.8fr 30px;gap:6px;margin-bottom:6px;align-items:center">'+
+    '<input data-f="product" type="text" value="'+ esc(s.product) +'" placeholder="e.g. 0.40g Colorsteel Maxam" oninput="onPriceBookSheetChange()">'+
+    '<input data-f="unit"    type="text" value="'+ esc(s.unit||'lm') +'" placeholder="lm">'+
+    '<input data-f="price"   type="number" step="0.01" min="0" value="'+ (s.price || '') +'" placeholder="$/unit">'+
+    '<button type="button" onclick="this.parentNode.remove();onPriceBookSheetChange();" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button>'+
+  '</div>';
+}
+function addPriceBookSheet(){
+  var box = document.getElementById('pbSheetsList'); if (!box) return;
+  var wrap = document.createElement('div'); wrap.innerHTML = _pbSheetRowHtml({product:'', unit:'lm', price:0});
+  box.appendChild(wrap.firstChild);
+  onPriceBookSheetChange();
+}
+function onPriceBookSheetChange(){
+  // Refresh the "Default product for this job" dropdown when the user
+  // adds/edits/removes sheet rows so the picker always matches the
+  // current variant list.
+  var rows = Array.from(document.querySelectorAll('#pbSheetsList > [data-pb-sheet]'));
+  var products = rows.map(function(r){ return (r.querySelector('input[data-f="product"]')||{}).value || ''; }).filter(Boolean);
+  var current = (document.getElementById('pbDefaultSheet')||{}).value || '';
+  refreshDefaultSheetPicker(products.map(function(p){return {product:p};}), current);
+}
+function refreshDefaultSheetPicker(sheets, current){
+  var sel = document.getElementById('pbDefaultSheet'); if (!sel) return;
+  var opts = (sheets || []).map(function(s){
+    var p = s.product || '';
+    return '<option value="'+ esc(p) +'"'+ (p === current ? ' selected' : '') +'>'+ esc(p) +'</option>';
+  });
+  sel.innerHTML = '<option value="">— pick a default —</option>' + opts.join('');
+  if (current && !sheets.some(function(s){return s.product===current;})) {
+    // saved default no longer exists; surface it so user knows
+    var extra = '<option value="'+ esc(current) +'" selected>'+ esc(current) +' (not in list)</option>';
+    sel.innerHTML += extra;
+  }
+}
+
+function renderPriceBookExtras(extras){
+  var box = document.getElementById('pbExtrasList'); if (!box) return;
+  box.innerHTML = (extras || []).map(function(x){ return _pbExtraRowHtml(x); }).join('');
+}
+function _pbExtraRowHtml(x){
+  x = x || { desc:'', unit:'ea', qty:1, price:0 };
+  return '<div data-pb-extra style="display:grid;grid-template-columns:2.2fr 0.7fr 0.7fr 0.8fr 30px;gap:6px;margin-bottom:6px;align-items:center">'+
+    '<input data-f="desc"  type="text"   value="'+ esc(x.desc) +'" placeholder="e.g. Dektite #6">'+
+    '<input data-f="unit"  type="text"   value="'+ esc(x.unit||'ea') +'" placeholder="ea">'+
+    '<input data-f="qty"   type="number" step="0.01" min="0" value="'+ (x.qty || '') +'" placeholder="qty">'+
+    '<input data-f="price" type="number" step="0.01" min="0" value="'+ (x.price || '') +'" placeholder="$/unit">'+
+    '<button type="button" onclick="this.parentNode.remove()" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button>'+
+  '</div>';
+}
+function addPriceBookExtra(){
+  var box = document.getElementById('pbExtrasList'); if (!box) return;
+  var wrap = document.createElement('div'); wrap.innerHTML = _pbExtraRowHtml({desc:'', unit:'ea', qty:1, price:0});
+  box.appendChild(wrap.firstChild);
+}
+
+// CSV: description, unit, price (header row optional). PDF: placeholder
+// — leave the AI extraction to the existing claudeCall infrastructure
+// (out of scope here). Parsed rows are appended to the extras list so
+// the user can review/edit/save.
+function handlePriceBookUpload(e){
+  var f = e.target.files && e.target.files[0]; if (!f) return;
+  var msg = document.getElementById('pbUploadMsg');
+  var setMsg = function(t, ok){ if (msg) { msg.textContent = t; msg.style.color = ok ? '#15803d' : '#b91c1c'; } };
+  if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
+    setMsg('PDF parsing — AI extraction coming soon. Re-save as CSV for now.', false);
+    return;
+  }
+  var r = new FileReader();
+  r.onload = function(ev){
+    try {
+      var rows = _parseCsv(String(ev.target.result || ''));
+      if (!rows.length) { setMsg('No rows parsed.', false); return; }
+      // Detect + skip header row
+      var first = rows[0].map(function(c){return String(c).toLowerCase();});
+      var hasHeader = first.some(function(c){return /desc|name|item|product/.test(c);}) && first.some(function(c){return /price|cost|rate/.test(c);});
+      if (hasHeader) rows = rows.slice(1);
+      var added = 0;
+      rows.forEach(function(cells){
+        if (!cells.length) return;
+        var desc = String(cells[0] || '').trim();
+        var unit = String(cells[1] || 'ea').trim();
+        var price = parseFloat(String(cells[2] || '').replace(/[^\d.\-]/g, ''));
+        if (!desc || isNaN(price)) return;
+        var box = document.getElementById('pbExtrasList');
+        if (box) {
+          var wrap = document.createElement('div');
+          wrap.innerHTML = _pbExtraRowHtml({desc:desc, unit:unit||'ea', qty:1, price:price});
+          box.appendChild(wrap.firstChild);
+          added++;
+        }
+      });
+      setMsg('✓ Added ' + added + ' row' + (added===1?'':'s') + ' to Custom price-book items below. Click Save settings to keep them.', true);
+    } catch(err) { setMsg('Parse failed: ' + err.message, false); }
+    e.target.value = '';
+  };
+  r.readAsText(f);
+}
+function _parseCsv(text){
+  // Minimal RFC-4180-ish parser: handles quoted fields with embedded
+  // commas and "" escapes. Newlines split rows.
+  var rows = [], row = [], cur = '', q = false;
+  for (var i = 0; i < text.length; i++) {
+    var c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i+1] === '"') { cur += '"'; i++; } else { q = false; } }
+      else cur += c;
+    } else {
+      if (c === '"') q = true;
+      else if (c === ',') { row.push(cur); cur = ''; }
+      else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+      else if (c === '\r') { /* skip */ }
+      else cur += c;
+    }
+  }
+  if (cur || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter(function(r){ return r.length && r.some(function(c){ return String(c).trim(); }); });
+}
+
+// ── MATERIALS COST FROM PRICE BOOK ──────────────────────────────
+// Reads the live drawn quantities + the user's price book and returns
+// { total, breakdown:[{desc, qty, unit, price, lineTotal, note}] }.
+// Called from populateMaterialsFromLines so the Materials cost card
+// stays in sync with the drawing automatically.
+function computeMaterialsCost(){
+  var out = { total: 0, breakdown: [] };
+  if (!S.settings) return out;
+  var pb = S.settings.price_book || {};
+  if (!window.DRAW) return out;
+
+  var sheetWidthMm = parseFloat((document.getElementById('sheetWidth')||{}).value) || 762;
+  var sheetWidthM  = sheetWidthMm / 1000;
+  var overlapM     = (parseFloat((document.getElementById('overlapMm')||{}).value)||150)/1000;
+  var pitch        = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+  var pitchFactor  = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
+
+  // Totals from drawn lines (matches populateMaterialsFromLines)
+  var totals = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
+  (DRAW.lines || []).forEach(function(l){
+    if (l.measM && totals[l.type] !== undefined) totals[l.type] += parseFloat(l.measM);
+  });
+  var ridgeHip = (totals.ridge||0) + (totals.hip||0);
+
+  // Roof area
+  var roofArea = 0;
+  if (DRAW.scaleMetresPerPx && DRAW.outline && DRAW.outline.length >= 3) {
+    var planM2 = polyAreaPx(DRAW.outline) * DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx;
+    roofArea = planM2 * pitchFactor;
+  }
+
+  // Roofing sheets — priced per LM of gutter run with the active
+  // product's $/lm. Each gutter run gets sheets-across × sheet-length.
+  // Simpler estimate: sheets-across-totaled × averageSheetLengthM.
+  if (totals.gutter > 0) {
+    var defaultProduct = pb.defaultSheetProduct || (pb.sheets && pb.sheets[0] && pb.sheets[0].product);
+    var sheetRow = (pb.sheets || []).find(function(s){ return s.product === defaultProduct; }) || (pb.sheets && pb.sheets[0]) || null;
+    if (sheetRow && sheetRow.price > 0) {
+      // Approximate sheet length: roof area / total gutter length × pitchFactor (gives slope length per gutter LM)
+      var slopeLen = (roofArea > 0 && totals.gutter > 0) ? (roofArea / totals.gutter) : 0;
+      var cutLen = slopeLen + overlapM;
+      var sheetsAcross = totals.gutter / sheetWidthM;
+      var totalSheetLm = sheetsAcross * cutLen;
+      if (totalSheetLm > 0) {
+        var sheetsCost = totalSheetLm * sheetRow.price;
+        out.breakdown.push({
+          desc: 'Roofing sheets — ' + (sheetRow.product || 'sheet'),
+          qty: totalSheetLm, unit: 'lm', price: sheetRow.price, lineTotal: sheetsCost,
+          note: '≈ ' + Math.ceil(sheetsAcross) + ' sheets across × ' + cutLen.toFixed(2) + 'm cut'
+        });
+        out.total += sheetsCost;
+      }
+    }
+  }
+
+  // Underlay — uses the currently-selected roll size (same key the
+  // Materials tab uses).
+  if (roofArea > 0) {
+    var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
+    if (![50,75,100].includes(rollSize)) rollSize = 75;
+    var rollPrice = (pb.underlay && pb.underlay[String(rollSize)]) || 0;
+    var rolls = Math.ceil((roofArea * 1.2) / rollSize);
+    if (rollPrice > 0 && rolls > 0) {
+      var underlayCost = rolls * rollPrice;
+      out.breakdown.push({
+        desc: 'Underlay — ' + rollSize + ' m²/roll',
+        qty: rolls, unit: 'roll', price: rollPrice, lineTotal: underlayCost,
+        note: 'covers ' + (roofArea*1.2).toFixed(1) + ' m² (incl. 20% waste)'
+      });
+      out.total += underlayCost;
+    }
+  }
+
+  // Ridge / Hip cap, Valley, Gutter, Barge, Apron — straight $/lm.
+  function flashLine(label, lm, price){
+    if (!lm || !price) return;
+    var c = lm * price;
+    out.breakdown.push({ desc: label, qty: lm, unit: 'lm', price: price, lineTotal: c });
+    out.total += c;
+  }
+  flashLine('Ridge / Hip capping', ridgeHip,        pb.ridge_lm);
+  flashLine('Valley iron',         totals.valley,   pb.valley_lm);
+  flashLine('Gutter',              totals.gutter,   pb.gutter_lm);
+  flashLine('Barge flashing',      totals.barge,    pb.barge_lm);
+  flashLine('Apron flashing',      totals.apron,    pb.apron_lm);
+
+  // Screws — count = ceil(roofArea × 8 / 100) × 100
+  if (roofArea > 0 && pb.screws_each > 0) {
+    var screws = Math.ceil(roofArea * 8 / 100) * 100;
+    var screwsCost = screws * pb.screws_each;
+    out.breakdown.push({ desc: '65mm Unitites / screws', qty: screws, unit: 'each', price: pb.screws_each, lineTotal: screwsCost });
+    out.total += screwsCost;
+  }
+
+  // Rivets — same rule as the Consumables tile
+  var totalFlashingLm = ridgeHip + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0);
+  if (totalFlashingLm > 0 && pb.rivets_each > 0) {
+    var rivets = Math.max(100, Math.ceil(totalFlashingLm / 60) * 100);
+    var rivetsCost = rivets * pb.rivets_each;
+    out.breakdown.push({ desc: 'Rivets', qty: rivets, unit: 'each', price: pb.rivets_each, lineTotal: rivetsCost });
+    out.total += rivetsCost;
+  }
+
+  // Custom extras — each has its own qty so they're added in full
+  (pb.extras || []).forEach(function(x){
+    var q = parseFloat(x.qty) || 0, p = parseFloat(x.price) || 0;
+    if (q <= 0 || p <= 0) return;
+    var c = q * p;
+    out.breakdown.push({ desc: x.desc, qty: q, unit: x.unit || 'ea', price: p, lineTotal: c, custom: true });
+    out.total += c;
+  });
+
+  return out;
+}
+
+// Render the breakdown card on the Materials tab and stash the total
+// in S.materials so the Quote line item picks it up.
+function renderMaterialsCostCard(){
+  var box = document.getElementById('matCostBreakdown'); if (!box) return;
+  var pb = (S.settings && S.settings.price_book) || null;
+  if (!pb) { box.innerHTML = '<p style="font-size:12px;color:var(--text2)">Set unit prices in <strong>Settings → Price book</strong> to see the cost.</p>'; return; }
+  var r = computeMaterialsCost();
+  if (!r.breakdown.length) {
+    box.innerHTML = '<p style="font-size:12px;color:var(--text2)">No costable quantities yet — draw your roof lines on Map Roof, set prices in <strong>Settings → Price book</strong>.</p>';
+    return;
+  }
+  var html = '<table class="price-tbl" style="margin-bottom:8px"><thead><tr><th style="width:42%">Item</th><th style="width:18%">Qty</th><th style="width:8%">Unit</th><th style="width:14%">$/unit</th><th style="width:18%;text-align:right">Total</th></tr></thead><tbody>';
+  r.breakdown.forEach(function(row){
+    var qtyDisp = row.qty >= 100 ? Math.round(row.qty) : (row.qty || 0).toFixed(2);
+    html += '<tr><td>'+ esc(row.desc) + (row.note ? ' <span style="font-size:10px;color:var(--text2)">— '+esc(row.note)+'</span>' : '') + (row.custom ? ' <span style="font-size:9px;color:#7c3aed;text-transform:uppercase;letter-spacing:.05em">custom</span>' : '') +'</td>'+
+      '<td>'+ qtyDisp +'</td>'+
+      '<td>'+ esc(row.unit) +'</td>'+
+      '<td>$'+ (row.price || 0).toFixed(2) +'</td>'+
+      '<td style="text-align:right;font-weight:600">$'+ (row.lineTotal || 0).toFixed(2) +'</td></tr>';
+  });
+  html += '</tbody></table>'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
+      '<strong style="font-size:13px">Total materials (sets Quote → Materials line)</strong>'+
+      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+ r.total.toFixed(2) +'</span>'+
+    '</div>';
+  box.innerHTML = html;
+  S.materials = r.total;
 }
 
 function refreshSettingsUI(){
@@ -2575,6 +3026,7 @@ function refreshSettingsUI(){
   renderOptionsList(q.options || []);
   renderSectionsList(q.sections || []);
   set('intFergus', k.fergus); set('intServiceM8', k.servicem8); set('intJobber', k.jobber); set('intTradify', k.tradify); set('intFergusMatAcct', k.fergusMaterialsAccountId);
+  try { renderPriceBookUI(); } catch(e) { console.warn('price book render:', e); }
 }
 
 function renderOptionsList(list){
@@ -10934,6 +11386,12 @@ function populateMaterialsFromLines() {
   // Refresh the per-line flashings breakdown card under the Roof
   // Sheet Plan.
   try { renderFlashingsBreakdown(); } catch(e) { console.warn('flashings breakdown:', e); }
+
+  // Recompute materials cost from the Price Book and update S.materials
+  // so the Quote tab's Materials line item stays in sync. The user can
+  // manually click "Sync to Quote" on the card to push it through to
+  // an existing quote's line items.
+  try { renderMaterialsCostCard(); } catch(e) { console.warn('materials cost:', e); }
 
   // Also update measTotals
   updateMeasTotals();
