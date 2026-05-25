@@ -13261,7 +13261,7 @@ function _renderRoofSheetPlanInner() {
   // rotated 90° onto the hip-end).  We pair each hip-end strip with
   // a clipped long-side corner strip so they share a seq number and
   // no separate hip-end sheets get ordered.
-  function _pairCornerToHipEnd(longSide, hipEnd, apex) {
+  function _pairCornerToHipEnd(longSide, hipEnd, apex, donorColor) {
     if (!longSide || !hipEnd || !apex) return;
     function distToApex(p){return Math.hypot(p[0]-apex[0], p[1]-apex[1]);}
     var longApexL = longSide.poly[1], longApexR = longSide.poly[2];
@@ -13288,6 +13288,7 @@ function _renderRoofSheetPlanInner() {
     function distTo(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]); }
     var donorStrips = allStrips.filter(function(s){
       if (s.face !== longSide) return false;
+      if (donorColor && s.color !== donorColor) return false;
       if (!s.rectArea || s.clipArea >= s.rectArea - 1) return false;
       return distTo(s.centroid, sharedCorner) < distTo(s.centroid, farCorner);
     }).sort(function(a,b){return distToApex(b.centroid) - distToApex(a.centroid);});
@@ -13316,19 +13317,55 @@ function _renderRoofSheetPlanInner() {
       donorStrips[i]._offcutDest   = recvStrips[i];
     }
   }
+  // Telescoping (stepped) main?  It has wing slopes PARALLEL to the main axis.
+  var _hasTelesc = faces.some(function(f){
+    if (f === mainA || f === mainB || f.type !== 'long-side') return false;
+    var horiz = Math.abs(f.a[1]-f.b[1]) < 4;
+    return (mainAxis === 'h') ? horiz : !horiz;
+  });
+  // North slope of a telescoping main varies in length by section: long over
+  // the main, shorter over each wing.  Recolour its sheets by length BEFORE
+  // any hip-end cascade — a north sheet matching a wing's uniform sheet size
+  // becomes that wing's colour (purple/green); long main + ramp/transition
+  // sheets stay orange.  Doing it first means only the orange sheets feed the
+  // main's hip-ends (the wing-length sheets aren't main donors), so a main
+  // hip-end never sources an offcut from a recoloured wing sheet.
+  if (_hasTelesc && mainA) {
+    var _wingSheet0 = [];
+    faces.forEach(function(wf){
+      if (wf === mainA || wf === mainB || wf.type !== 'long-side') return;
+      var horiz = Math.abs(wf.a[1]-wf.b[1]) < 4;
+      if ((mainAxis === 'h') ? !horiz : horiz) return;        // parallel wings only
+      var areas = allStrips.filter(function(s){
+        return s.face === wf && s.rectArea && s.clipArea > s.rectArea - 1;
+      }).map(function(s){ return s.clipArea; }).sort(function(a,b){ return a-b; });
+      if (areas.length) _wingSheet0.push({ area: areas[Math.floor(areas.length/2)], color: wf.color });
+    });
+    allStrips.forEach(function(s){
+      if (s.face !== mainA || s._offcutMatched) return;
+      for (var _wj = 0; _wj < _wingSheet0.length; _wj++) {
+        if (Math.abs(s.clipArea - _wingSheet0[_wj].area) < _wingSheet0[_wj].area * 0.02) { s.color = _wingSheet0[_wj].color; break; }
+      }
+    });
+  }
   [mainA, mainB].forEach(function(longSide){
     // longSide is always mainA/mainB here.  On a SQUARE main it's a
     // triangular slope (hip-end type) rather than a 4-vertex long-side, so
     // don't require the long-side type — its poly[1] is still the apex.
     if (!longSide) return;
     var apexL = longSide.poly[1], apexR = longSide.poly[2];
+    // On a telescoping main, restrict the orange (north) donors to ORANGE
+    // sheets so the recoloured wing-length north sheets aren't pulled into a
+    // hip-end (which would orphan a purple/green sheet number onto an orange
+    // hip-end strip).
+    var _oc = (_hasTelesc && longSide === mainA) ? COL_ORANGE : null;
     faces.forEach(function(hipEnd){
       if (hipEnd.type !== 'hip-end') return;
       if (hipEnd === mainA || hipEnd === mainB) return;  // the mains are donors, not receivers
       // hip-end's apex (poly[1] after CCW) is the inland point where
       // the two hips converge.  Match it to the long-side's apex.
-      if (ptEq(hipEnd.poly[1], apexL))      _pairCornerToHipEnd(longSide, hipEnd, apexL);
-      else if (ptEq(hipEnd.poly[1], apexR)) _pairCornerToHipEnd(longSide, hipEnd, apexR);
+      if (ptEq(hipEnd.poly[1], apexL))      _pairCornerToHipEnd(longSide, hipEnd, apexL, _oc);
+      else if (ptEq(hipEnd.poly[1], apexR)) _pairCornerToHipEnd(longSide, hipEnd, apexR, _oc);
     });
   });
 
@@ -13337,13 +13374,8 @@ function _renderRoofSheetPlanInner() {
   // are cut and that one offcut set cascades WEST, filling the NORTH part of
   // every west-facing step riser plus the ENTIRE outermost wing tip.  (The
   // south parts of those risers stay orange/their wing colour; this only
-  // claims the north-side strips.)  Scoped to outlines with a parallel wing,
-  // so L/T/U/double-wing are untouched.
-  var _hasTelesc = faces.some(function(f){
-    if (f === mainA || f === mainB || f.type !== 'long-side') return false;
-    var horiz = Math.abs(f.a[1]-f.b[1]) < 4;
-    return (mainAxis === 'h') ? horiz : !horiz;
-  });
+  // claims the north-side strips.)  Scoped (via _hasTelesc) to outlines with a
+  // parallel wing, so L/T/U/double-wing are untouched.
   if (!_tCascade && mainRect && mainB && _hasTelesc) {
     var _hm = (mainAxis === 'h');
     var _axc = (mainRect.x0+mainRect.x1)/2, _ayc = (mainRect.y0+mainRect.y1)/2;
@@ -13394,12 +13426,14 @@ function _renderRoofSheetPlanInner() {
       }
       // Main's own west hip-end (the deepest/east-most west face): mirror the
       // east hip-end — the orange NORTH slope's west offcuts fill its SOUTH
-      // half (the blue chain above already took its north half).
+      // half (the blue chain above already took its north half).  Donors are
+      // restricted to ORANGE north sheets so the recoloured wing-length sheets
+      // aren't consumed here.
       var _mainW = westFaces[westFaces.length-1];
       if (_mainW && _mainW !== _tip && mainA) {
         var _gmw = [(_mainW.a[0]+_mainW.b[0])/2, (_mainW.a[1]+_mainW.b[1])/2], _apexMW = null, _bdm = -1;
         _mainW.poly.forEach(function(v){ var d = Math.hypot(v[0]-_gmw[0], v[1]-_gmw[1]); if (d > _bdm){ _bdm = d; _apexMW = v; } });
-        _pairCornerToHipEnd(mainA, _mainW, _apexMW);
+        _pairCornerToHipEnd(mainA, _mainW, _apexMW, COL_ORANGE);
       }
     }
   }
