@@ -12405,6 +12405,92 @@ function _renderRoofSheetPlanInner() {
     });
   });
 
+  // ── T-shape clean-face override ───────────────────────────────────
+  // A T (cap + central stem) yields a complex straight skeleton whose
+  // non-convex faces the strip clipper can't tile (large junction gaps
+  // at mid/wide stem widths).  Detect the T and REPLACE the skeleton
+  // faces with an imposed clean topology — cap 4-hip + stem hip + two
+  // valleys, all convex — so the direct-sheet tiler covers them cleanly
+  // for ANY stem size and orientation.
+  function _mkTFace(a, b, poly, faceType, color){
+    var p = [];
+    for (var i = 0; i < poly.length; i++){
+      var q = poly[i], pv = p[p.length-1];
+      if (!pv || Math.abs(pv[0]-q[0])>0.5 || Math.abs(pv[1]-q[1])>0.5) p.push([q[0],q[1]]);
+    }
+    if (p.length>2 && Math.abs(p[0][0]-p[p.length-1][0])<0.5 && Math.abs(p[0][1]-p[p.length-1][1])<0.5) p.pop();
+    var gdx=b[0]-a[0], gdy=b[1]-a[1], gL=Math.sqrt(gdx*gdx+gdy*gdy);
+    var nx=-gdy/gL, ny=gdx/gL, cc=polyCentroid(p);
+    if (nx*(cc[0]-a[0])+ny*(cc[1]-a[1])<0){ nx=-nx; ny=-ny; }
+    var perpPx=0; p.forEach(function(pp){var d=(pp[0]-a[0])*nx+(pp[1]-a[1])*ny; if(d>perpPx)perpPx=d;});
+    return { poly:p, type:faceType, a:[a[0],a[1]], b:[b[0],b[1]], gL:gL, gAng:Math.atan2(gdy,gdx),
+      tx:gdx/gL, ty:gdy/gL, nx:nx, ny:ny, perpPx:perpPx,
+      planSheetM:perpPx*effectiveScale, sheetM:perpPx*effectiveScale*pitchFactor,
+      area:polyArea(p), centroid:cc, color:color };
+  }
+  function _buildTFaces(ol){
+    if (!ol || ol.length !== 8) return null;
+    var n=8, reflex=[];
+    for (var i=0;i<n;i++){
+      var q0=ol[(i-1+n)%n],q1=ol[i],q2=ol[(i+1)%n];
+      var cr=(q1[0]-q0[0])*(q2[1]-q1[1])-(q1[1]-q0[1])*(q2[0]-q1[0]);
+      if (cr<-1) reflex.push(i);
+    }
+    if (reflex.length!==2) return null;
+    var rA=reflex[0], rB=reflex[1], dd=(rB-rA+n)%n, btw;
+    if (dd===3) btw=[(rA+1)%n,(rA+2)%n];
+    else if (n-dd===3) btw=[(rB+1)%n,(rB+2)%n];
+    else return null;
+    var R1=ol[rA],R2=ol[rB],T1=ol[btw[0]],T2=ol[btw[1]];
+    var jc=[(R1[0]+R2[0])/2,(R1[1]+R2[1])/2], sc=[(T1[0]+T2[0])/2,(T1[1]+T2[1])/2];
+    var sdir=[sc[0]-jc[0], sc[1]-jc[1]];
+    var nTurns = (Math.abs(sdir[1])>=Math.abs(sdir[0])) ? (sdir[1]>0?0:2) : (sdir[0]>0?1:3);
+    var mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity;
+    ol.forEach(function(p){mnx=Math.min(mnx,p[0]);mxx=Math.max(mxx,p[0]);mny=Math.min(mny,p[1]);mxy=Math.max(mxy,p[1]);});
+    var pvx=(mnx+mxx)/2, pvy=(mny+mxy)/2;
+    var rot = ol.map(function(p){return rotate90(p,pvx,pvy,nTurns);});
+    var creflex=[];
+    for (var i=0;i<n;i++){
+      var q0=rot[(i-1+n)%n],q1=rot[i],q2=rot[(i+1)%n];
+      var cr=(q1[0]-q0[0])*(q2[1]-q1[1])-(q1[1]-q0[1])*(q2[0]-q1[0]);
+      if (cr<-1) creflex.push(rot[i]);
+    }
+    if (creflex.length!==2) return null;
+    var cmnx=Infinity,cmxx=-Infinity,cmny=Infinity,cmxy=-Infinity;
+    rot.forEach(function(p){cmnx=Math.min(cmnx,p[0]);cmxx=Math.max(cmxx,p[0]);cmny=Math.min(cmny,p[1]);cmxy=Math.max(cmxy,p[1]);});
+    var jy=(creflex[0][1]+creflex[1][1])/2;
+    var cx0=cmnx, cx1=cmxx, cy0=cmny, sy1=cmxy;
+    var sx0=Math.min(creflex[0][0],creflex[1][0]), sx1=Math.max(creflex[0][0],creflex[1][0]);
+    if (!(sx0>cx0-0.5 && sx1<cx1+0.5 && jy>cy0+1 && sy1>jy+1 && Math.abs(creflex[0][1]-creflex[1][1])<2)) return null;
+    var ch=jy-cy0, sw=sx1-sx0, sxc=(sx0+sx1)/2, capMidY=(cy0+jy)/2;
+    var capWap=[cx0+ch/2,capMidY], capEap=[cx1-ch/2,capMidY];
+    var stemSap=[sxc, sy1-sw/2], ridgeN=[sxc,capMidY];
+    var OR=COL_ORANGE, BL=COL_BLUE, PU=COL_PURPLE, descs=[];
+    descs.push({a:[cx0,cy0],b:[cx1,cy0],poly:[[cx0,cy0],[cx1,cy0],capEap,capWap],t:'long-side',c:OR}); // cap N
+    descs.push({a:[cx0,cy0],b:[cx0,jy],poly:[[cx0,cy0],capWap,[cx0,jy]],t:'hip-end',c:OR});            // cap W hip
+    descs.push({a:[cx1,cy0],b:[cx1,jy],poly:[[cx1,cy0],capEap,[cx1,jy]],t:'hip-end',c:OR});            // cap E hip
+    descs.push({a:[sx0,sy1],b:[sx1,sy1],poly:[[sx0,sy1],stemSap,[sx1,sy1]],t:'hip-end',c:PU});         // stem S hip
+    if (sw < ch - 0.5){
+      var V=[sxc, jy-sw/2];
+      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],V,ridgeN,capWap],t:'long-side',c:BL});
+      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,ridgeN,V],t:'long-side',c:BL});
+      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],V,stemSap,[sx0,sy1]],t:'long-side',c:PU});
+      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,V],t:'long-side',c:PU});
+    } else {
+      var lH=[sx0+ch/2,capMidY], rH=[sx1-ch/2,capMidY];
+      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],lH,capWap],t:'long-side',c:BL});
+      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,rH],t:'long-side',c:BL});
+      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],lH,ridgeN,stemSap,[sx0,sy1]],t:'long-side',c:PU});
+      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,ridgeN,rH],t:'long-side',c:PU});
+    }
+    var inv=(4-nTurns)%4;
+    function rb(p){return rotate90(p,pvx,pvy,inv);}
+    return descs.map(function(d){return _mkTFace(rb(d.a),rb(d.b),d.poly.map(rb),d.t,d.c);});
+  }
+  var _tFaces = _buildTFaces(outline);
+  var _tCascade = !!(_tFaces && _tFaces.length);
+  if (_tCascade) faces = _tFaces;
+
   if (!faces.length) {
     outEl.innerHTML = '<p style="color:var(--text2)">Could not detect any roof faces. Make sure hip/ridge lines connect to the gutter corners.</p>';
     return;
@@ -12458,8 +12544,16 @@ function _renderRoofSheetPlanInner() {
   // Hip-end faces inherit the colour of whichever long-side they share
   // an apex with.  Anything else (wing faces) gets PURPLE.
   faces.sort(function(a, b){ return b.gL - a.gL; });
-  faces.forEach(function(f){ f.color = COL_PURPLE; });
   var mainA = null, mainB = null;  // orange, blue
+  if (_tCascade) {
+    // T faces already carry their imposed colours; pick the orange/blue
+    // long-sides as the nominal main pair for downstream sequencing.
+    faces.forEach(function(f){
+      if (f.type==='long-side' && f.color===COL_ORANGE && (!mainA || f.gL>mainA.gL)) mainA=f;
+      if (f.type==='long-side' && f.color===COL_BLUE && (!mainB || f.gL>mainB.gL)) mainB=f;
+    });
+  } else {
+  faces.forEach(function(f){ f.color = COL_PURPLE; });
   if (mainRect) {
     faces.forEach(function(f){
       if (f.type !== 'long-side') return;
@@ -12510,6 +12604,7 @@ function _renderRoofSheetPlanInner() {
     });
     if (partner) f.color = partner.color;
   });
+  }  // end of !_tCascade colour assignment
 
   // ── Phantom-4-hip extents ─────────────────────────────────────
   // For each of orange/blue, see if the gutter spans the whole main
@@ -12531,8 +12626,10 @@ function _renderRoofSheetPlanInner() {
     if (!phantoms.length) return null;
     return { phantoms: phantoms, full: [full0, full1], real: [t0, t1] };
   }
-  if (mainA) mainA.phantom = _phantomFor(mainA);
-  if (mainB) mainB.phantom = _phantomFor(mainB);
+  if (!_tCascade) {
+    if (mainA) mainA.phantom = _phantomFor(mainA);
+    if (mainB) mainB.phantom = _phantomFor(mainB);
+  }
 
   // Generic point-in-polygon (ray cast). Used to detect strips that
   // lie inside the donor's REAL face vs its phantom extension.
