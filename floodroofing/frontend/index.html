@@ -10977,6 +10977,75 @@ function buildHipValleyLines(outline) {
       }
     }
   }
+  // ── Trim wing ridge/valley overshoots so they end at the apex ─────
+  // The straight skeleton of a wing meeting a larger main roof can
+  // overshoot the conventional apex: the two wing valleys cross PAST
+  // their meeting point (spawning a spurious little hip-end beyond it),
+  // or a wing ridge runs straight through the valley apex out to the
+  // main's hip line.  Conventionally a wing's ridge and its two valleys
+  // all die at one apex, so pull those overshoots back.  Only fires on
+  // genuine overshoots (crossing valleys / a ridge dangling past a
+  // valley apex), so clean roofs are left untouched.
+  (function trimWingApexOvershoots(){
+    var TOL = 2.5, NEAR = 34;
+    function dd(a,b){ return Math.hypot(a[0]-b[0],a[1]-b[1]); }
+    function onOutline(p){ return outline.some(function(v){ return dd(v,p)<=TOL; }); }
+    function properX(s1,s2){
+      var p=s1.pts[0], r=[s1.pts[1][0]-p[0],s1.pts[1][1]-p[1]];
+      var q=s2.pts[0], s=[s2.pts[1][0]-q[0],s2.pts[1][1]-q[1]];
+      var rxs=r[0]*s[1]-r[1]*s[0]; if(Math.abs(rxs)<1e-9)return null;
+      var t=((q[0]-p[0])*s[1]-(q[1]-p[1])*s[0])/rxs;
+      var u=((q[0]-p[0])*r[1]-(q[1]-p[1])*r[0])/rxs;
+      if(t<0.05||t>0.95||u<0.05||u>0.95)return null;   // must be interior to both
+      return [p[0]+t*r[0],p[1]+t*r[1]];
+    }
+    // Step 1 — crossing valley pairs: trim both to the crossing point,
+    // drop the mini hip-end stranded beyond it, pull the wing ridge in.
+    var vys=result.filter(function(l){return l.type==='valley';});
+    for(var i=0;i<vys.length;i++)for(var j=i+1;j<vys.length;j++){
+      var P=properX(vys[i],vys[j]); if(!P)continue;
+      var olds=[];
+      [vys[i],vys[j]].forEach(function(v){
+        // keep the endpoint on the outline (the reflex wall corner); move
+        // the inland end to the crossing.
+        var k=(onOutline(v.pts[0])&&!onOutline(v.pts[1]))?1
+             :(onOutline(v.pts[1])&&!onOutline(v.pts[0]))?0
+             :(dd(v.pts[0],P)>dd(v.pts[1],P)?1:0);
+        olds.push(v.pts[k].slice());
+        v.pts[k]=P.slice();
+      });
+      // remove any hip whose endpoint sat at a trimmed-off valley end
+      for(var ri=result.length-1;ri>=0;ri--){
+        if(result[ri].type==='valley')continue;
+        if(olds.some(function(o){return dd(result[ri].pts[0],o)<=TOL||dd(result[ri].pts[1],o)<=TOL;}))
+          result.splice(ri,1);
+      }
+      // pull any ridge/hip end sitting just past the apex back onto it
+      result.forEach(function(l){
+        if(l.type==='valley')return;
+        [0,1].forEach(function(k){ if(dd(l.pts[k],P)>TOL&&dd(l.pts[k],P)<=NEAR) l.pts[k]=P.slice(); });
+      });
+    }
+    // Step 2 — ridge overshoot: a ridge running through a valley apex
+    // (where >=2 valleys meet) with a dangling end beyond it.
+    var apex=[], vv=result.filter(function(l){return l.type==='valley';});
+    for(var a=0;a<vv.length;a++)for(var b=a+1;b<vv.length;b++)
+      [0,1].forEach(function(x){ [0,1].forEach(function(y){
+        if(dd(vv[a].pts[x],vv[b].pts[y])<=TOL)apex.push(vv[a].pts[x].slice());
+      }); });
+    function degree(pt,self){ var c=0; result.forEach(function(l){ if(l===self)return; if(dd(l.pts[0],pt)<=TOL||dd(l.pts[1],pt)<=TOL)c++; }); return c; }
+    result.forEach(function(l){
+      if(l.type!=='ridge')return;
+      apex.forEach(function(V){
+        var p=l.pts[0],q=l.pts[1],rr=[q[0]-p[0],q[1]-p[1]],L2=rr[0]*rr[0]+rr[1]*rr[1];
+        if(L2<1)return;
+        var t=((V[0]-p[0])*rr[0]+(V[1]-p[1])*rr[1])/L2;
+        if(t<=0.05||t>=0.95)return;                       // V interior to the ridge
+        if(dd([p[0]+t*rr[0],p[1]+t*rr[1]],V)>TOL)return;  // V actually on the ridge
+        [0,1].forEach(function(k){ if(degree(l.pts[k],l)===0&&!onOutline(l.pts[k])) l.pts[k]=V.slice(); });
+      });
+    });
+  })();
   return result;
 }
 
@@ -12678,7 +12747,11 @@ function _renderRoofSheetPlanInner() {
   faces.forEach(function(f){ f.color = COL_PURPLE; });
   if (mainRect) {
     faces.forEach(function(f){
-      if (f.type !== 'long-side') return;
+      // A square main is a pyramid: its N/S slopes trace as TRIANGLES
+      // (hip-ends) rather than 4-vertex long-sides, but they are still the
+      // orange/blue main slopes.  Accept a hip-end whose gutter runs along
+      // the main rect's long edge as well as a long-side.
+      if (f.type !== 'long-side' && f.type !== 'hip-end') return;
       var a = f.a, b = f.b;
       if (mainAxis === 'h') {
         if (Math.abs(a[1]-b[1]) > 4) return;       // gutter not horizontal
@@ -12718,6 +12791,7 @@ function _renderRoofSheetPlanInner() {
   // share a hip with.
   faces.forEach(function(f){
     if (f.type !== 'hip-end') return;
+    if (f === mainA || f === mainB) return;   // mains keep their own colour
     var apex = f.poly[1];
     var partner = null;
     [mainA, mainB].forEach(function(m){
@@ -13195,10 +13269,14 @@ function _renderRoofSheetPlanInner() {
     }
   }
   [mainA, mainB].forEach(function(longSide){
-    if (!longSide || longSide.type !== 'long-side') return;
+    // longSide is always mainA/mainB here.  On a SQUARE main it's a
+    // triangular slope (hip-end type) rather than a 4-vertex long-side, so
+    // don't require the long-side type — its poly[1] is still the apex.
+    if (!longSide) return;
     var apexL = longSide.poly[1], apexR = longSide.poly[2];
     faces.forEach(function(hipEnd){
       if (hipEnd.type !== 'hip-end') return;
+      if (hipEnd === mainA || hipEnd === mainB) return;  // the mains are donors, not receivers
       // hip-end's apex (poly[1] after CCW) is the inland point where
       // the two hips converge.  Match it to the long-side's apex.
       if (ptEq(hipEnd.poly[1], apexL))      _pairCornerToHipEnd(longSide, hipEnd, apexL);
