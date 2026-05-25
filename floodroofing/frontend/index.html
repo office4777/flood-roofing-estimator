@@ -13525,13 +13525,16 @@ function _renderRoofSheetPlanInner() {
     var _wingHips = faces.filter(function(f){
       return f.type === 'hip-end' && f !== mainA && f !== mainB && !_sharesMain(f.poly[1]);
     });
+    var _wingFaceSet = new Set();
     _wingHips.forEach(function(hip){
       var apex = hip.poly[1];
-      // (1) wing side faces meeting at this hip's apex: valley→hip reuse.
+      // wing side faces meeting at this hip's apex: valley→hip reuse.
       var sides = faces.filter(function(f){
         return f.type === 'long-side' && f !== mainA && f !== mainB
           && f.poly.some(function(p){ return ptEq(p, apex); });
       });
+      _wingFaceSet.add(hip);
+      sides.forEach(function(s){ _wingFaceSet.add(s); });
       sides.forEach(function(side){
         var clipped = allStrips.filter(function(s){ return s.face === side && _dwClip(s); })
           .sort(function(a, b){ return _dwD(a.centroid, apex) - _dwD(b.centroid, apex); });
@@ -13546,7 +13549,51 @@ function _renderRoofSheetPlanInner() {
           donors[i]._offcutDest  = recv[i];
         }
       });
-      // (2) hip-end face ← nearest main long-side offcuts.
+    });
+
+    // ── West side: the main 4-hip's W hip-end, fragmented by the stems.
+    // Same offcut logic as the E hip-end — orange on the half nearer the
+    // orange long-side, blue nearer the blue one — except the donor sheets
+    // are cut where the wings interrupt them.  West-region faces are those
+    // that are neither a main long-side, the main E hip-end (already
+    // cascaded), nor any wing face.
+    if (mainB) {
+      var _isMainHip = function(f){ return f.type === 'hip-end' && _sharesMain(f.poly[1]); };
+      var westFaces = faces.filter(function(f){
+        return f !== mainA && f !== mainB && !_isMainHip(f) && !_wingFaceSet.has(f);
+      });
+      // mainA/mainB share the east ridge apex; their other apex is the west one.
+      var eApex = mainA.poly.filter(function(p){ return mainB.poly.some(function(q){ return ptEq(p, q); }); })[0];
+      var aW = (eApex && ptEq(mainA.poly[1], eApex)) ? mainA.poly[2] : mainA.poly[1];
+      var bW = (eApex && ptEq(mainB.poly[1], eApex)) ? mainB.poly[2] : mainB.poly[1];
+      var _perp = function(s, mn){ return Math.abs((s.centroid[0]-mn.a[0])*mn.ty - (s.centroid[1]-mn.a[1])*mn.tx); };
+      var recvA = [], recvB = [];
+      westFaces.forEach(function(face){
+        allStrips.filter(function(s){ return s.face === face && !s._offcutMatched; }).forEach(function(s){
+          (_perp(s, mainA) <= _perp(s, mainB) ? recvA : recvB).push(s);
+        });
+      });
+      [[recvA, mainA, aW], [recvB, mainB, bW]].forEach(function(pr){
+        var recv = pr[0], mn = pr[1], wApex = pr[2];
+        recv.sort(function(a, b){ return _dwD(a.centroid, wApex) - _dwD(b.centroid, wApex); });
+        var donors = allStrips.filter(function(s){ return s.face === mn && _dwClip(s) && !s._offcutDest; })
+          .sort(function(a, b){ return _dwD(a.centroid, wApex) - _dwD(b.centroid, wApex); });
+        var n = Math.min(recv.length, donors.length);
+        for (var i = 0; i < n; i++){
+          recv[i]._offcutMatched = true;
+          recv[i]._offcutSource  = donors[i];
+          recv[i].color          = mn.color;
+          donors[i]._offcutDest  = recv[i];
+        }
+      });
+    }
+
+    // ── Wing hip-end FACES ← whatever main offcuts remain.  The west
+    // region (closer to the main, shorter carry) claims donors first;
+    // the wing tips take the rest, falling back to fresh sheets only if
+    // the main's offcuts are exhausted.
+    _wingHips.forEach(function(hip){
+      var apex = hip.poly[1];
       var main = (mainB && _dwD(hip.centroid, mainB.centroid) < _dwD(hip.centroid, mainA.centroid)) ? mainB : mainA;
       var hipStrips = allStrips.filter(function(s){ return s.face === hip; })
         .sort(function(a, b){ return _dwD(a.centroid, apex) - _dwD(b.centroid, apex); });
