@@ -13494,6 +13494,60 @@ function _renderRoofSheetPlanInner() {
   }
   _pairPhantomToWing();
 
+  // ── Double-wing cascade (skeleton-face shapes) ────────────────────
+  // Each wing follows the T-stem logic:
+  //  • the wing's side faces use their OWN sheets; the offcuts cut from
+  //    their valley sheets (the end that meets the main) fill the hip-
+  //    adjacent area of the SAME side face (within-face reuse).
+  //  • the wing's hip-end FACE is cut from the main 4-hip sheets — its
+  //    strips are offcuts of the nearest main long-side, so they take the
+  //    main colour and drop out of the order count rather than ordering
+  //    fresh sheets.
+  if (_skelFaces && mainA) {
+    var _dwClip = function(s){ return s.rectArea && s.clipArea < s.rectArea - 1; };
+    var _dwD    = function(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]); };
+    var _mainPts = (mainA ? mainA.poly : []).concat(mainB ? mainB.poly : []);
+    var _sharesMain = function(pt){ return _mainPts.some(function(v){ return ptEq(v, pt); }); };
+    var _wingHips = faces.filter(function(f){
+      return f.type === 'hip-end' && f !== mainA && f !== mainB && !_sharesMain(f.poly[1]);
+    });
+    _wingHips.forEach(function(hip){
+      var apex = hip.poly[1];
+      // (1) wing side faces meeting at this hip's apex: valley→hip reuse.
+      var sides = faces.filter(function(f){
+        return f.type === 'long-side' && f !== mainA && f !== mainB
+          && f.poly.some(function(p){ return ptEq(p, apex); });
+      });
+      sides.forEach(function(side){
+        var clipped = allStrips.filter(function(s){ return s.face === side && _dwClip(s); })
+          .sort(function(a, b){ return _dwD(a.centroid, apex) - _dwD(b.centroid, apex); });
+        var half = Math.floor(clipped.length / 2);
+        if (half < 1) return;
+        var recv   = clipped.slice(0, half);                       // nearest hip = receivers
+        var donors = clipped.slice(clipped.length - half).reverse(); // farthest (valley) = donors, biggest first
+        for (var i = 0; i < half; i++){
+          if (recv[i] === donors[i] || recv[i]._offcutMatched || donors[i]._offcutDest) continue;
+          recv[i]._offcutMatched = true;
+          recv[i]._offcutSource  = donors[i];
+          donors[i]._offcutDest  = recv[i];
+        }
+      });
+      // (2) hip-end face ← nearest main long-side offcuts.
+      var main = (mainB && _dwD(hip.centroid, mainB.centroid) < _dwD(hip.centroid, mainA.centroid)) ? mainB : mainA;
+      var hipStrips = allStrips.filter(function(s){ return s.face === hip; })
+        .sort(function(a, b){ return _dwD(a.centroid, apex) - _dwD(b.centroid, apex); });
+      var mainDonors = allStrips.filter(function(s){ return s.face === main && _dwClip(s) && !s._offcutDest; })
+        .sort(function(a, b){ return _dwD(a.centroid, hip.centroid) - _dwD(b.centroid, hip.centroid); });
+      var m = Math.min(hipStrips.length, mainDonors.length);
+      for (var k = 0; k < m; k++){
+        hipStrips[k]._offcutMatched = true;
+        hipStrips[k]._offcutSource  = mainDonors[k];
+        hipStrips[k].color          = main.color;
+        mainDonors[k]._offcutDest   = hipStrips[k];
+      }
+    });
+  }
+
   // Sequence numbering — paired strips share a number; non-paired
   // strips get fresh numbers, walking left-to-right within colour.
   // Three passes: (1) plain non-offcut strips (donors), (2) offcut-
