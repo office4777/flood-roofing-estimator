@@ -13228,20 +13228,29 @@ function _renderRoofSheetPlanInner() {
     var longApexL = longSide.poly[1], longApexR = longSide.poly[2];
     var apexIsL = ptEq(apex, longApexL);
     var otherLongApex = apexIsL ? longApexR : longApexL;
-    // Donor strips: long-side strips whose rectangle is clipped by a
-    // hip (i.e. clipArea < rectArea) AND whose centroid is closer to
-    // this apex than to the long-side's other apex (corner zone).
-    // Donors sorted FURTHEST-from-apex first (so the corner-most sheet
-    // — which has the biggest hip-cut offcut — pairs with the largest
-    // hip-end slot near the apex).  Receivers sorted CLOSEST-to-apex
-    // first.  Pair index-by-index: donor[i] → recv[i] gives the
-    // "biggest-to-biggest, smallest-to-smallest" matching, so sheet N
-    // body + offcut N visually reassemble into one full sheet.
+    // Donor strips: long-side corner-zone strips clipped by a hip.  The
+    // corner zone is the half of the long-side nearest the gutter corner
+    // it SHARES with this hip-end — so the SE-corner sheets feed the E
+    // hip-end, the SW-corner sheets feed the W hip-end, etc.  On a
+    // rectangular main this equals "nearest this hip-end's ridge apex";
+    // on a SQUARE/pyramid main all four slopes meet at one centre apex, so
+    // keying off the apex sends BOTH hip-ends the same corner's sheets
+    // (they end up swapped).  Keying off the shared gutter corner keeps
+    // each hip-end fed by its own adjacent corner.  Donors sorted
+    // FURTHEST-from-apex first (corner-most sheet = biggest hip-cut offcut)
+    // and receivers CLOSEST-to-apex first, so sheet N body + offcut N
+    // reassemble into one full sheet.
+    var sharedCorner = null, farCorner = null;
+    [longSide.a, longSide.b].forEach(function(c){
+      if (ptEq(c, hipEnd.a) || ptEq(c, hipEnd.b)) sharedCorner = c.slice();
+      else farCorner = c.slice();
+    });
+    if (!sharedCorner || !farCorner) { sharedCorner = apex; farCorner = otherLongApex; }
+    function distTo(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]); }
     var donorStrips = allStrips.filter(function(s){
       if (s.face !== longSide) return false;
       if (!s.rectArea || s.clipArea >= s.rectArea - 1) return false;
-      return distToApex(s.centroid) <
-             Math.hypot(s.centroid[0]-otherLongApex[0], s.centroid[1]-otherLongApex[1]);
+      return distTo(s.centroid, sharedCorner) < distTo(s.centroid, farCorner);
     }).sort(function(a,b){return distToApex(b.centroid) - distToApex(a.centroid);});
     // Receiver strips: hip-end strips on the OPPOSITE side of the
     // (apex → gutter-mid) line from the long-side's gutter midpoint —
@@ -13660,19 +13669,19 @@ function _renderRoofSheetPlanInner() {
       // long-side and the S-half receivers with the ORANGE one.
       [[recvA, mainB, bW], [recvB, mainA, aW]].forEach(function(pr){
         var mn = pr[1], wApex = pr[2];
-        // Both receivers and donors walk corner→apex (FURTHEST-from-apex
-        // first).  Donor sheet 1 is the corner-most main strip (biggest
-        // hip-cut offcut); its offcut fills the corner-most hip-end slot.
-        // Pairing index-by-index makes offcut #k reuse donor sheet #k, so the
-        // body on the main slope and its offcut on the west hip reassemble
-        // into one full sheet — giving clean, monotonic 1..N numbering down
-        // the hip-end instead of a scattered set.
+        // The corner-most donor sheet has the BIGGEST hip-cut offcut, which
+        // fills the longest hip-end slot — the one nearest the apex (the
+        // mid-height of the hip-end), NOT the corner.  So pair the
+        // corner-most donor with the APEX-most receiver, exactly as the E
+        // hip-end (_pairCornerToHipEnd) does.  This mirrors the E hip-end's
+        // spin so the offcuts reassemble by pure rotation; sorting receivers
+        // corner-first instead would lay them flipped upside-down.
         var recv = pr[0];
-        recv.sort(function(a, b){ return _dwD(b.centroid, wApex) - _dwD(a.centroid, wApex); });
+        recv.sort(function(a, b){ return _dwD(a.centroid, wApex) - _dwD(b.centroid, wApex); });
         // Donors in sheet-number order: project onto mainA's along-gutter
         // axis — the SAME key the seq pass uses — so donor[i] is sheet i+1.
         // (Distance-to-apex isn't monotonic in sheet number because the apex
-        // sits mid-span.)  Corner-most receiver ← sheet 1, walking to apex.
+        // sits mid-span.)  Apex-most receiver ← sheet 1, walking to the corner.
         var _seqProj = function(s){ return (s.centroid[0]-mainA.a[0])*mainA.tx + (s.centroid[1]-mainA.a[1])*mainA.ty; };
         var donors = allStrips.filter(function(s){ return s.face === mn && _dwClip(s) && !s._offcutDest; })
           .sort(function(a, b){ return _seqProj(a) - _seqProj(b); });
