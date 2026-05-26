@@ -12554,8 +12554,25 @@ function _renderRoofSheetPlanInner() {
     }
     var inv=(4-nTurns)%4;
     function rb(p){return rotate90(p,pvx,pvy,inv);}
+    // Overlay lines built from the SAME imposed topology as the faces, so the
+    // diagram's ridge/hip/valley lines match the sheets (the straight-skeleton
+    // auto-lines are unreliable for a wide stem and stray outside the outline).
+    var _ln=[
+      {t:'ridge', a:capWap, b:capEap},          // cap ridge (E-W)
+      {t:'ridge', a:ridgeN, b:stemSap},         // stem ridge (down to stem hip apex)
+      {t:'hip', a:[cx0,cy0], b:capWap}, {t:'hip', a:[cx0,jy], b:capWap},
+      {t:'hip', a:[cx1,cy0], b:capEap}, {t:'hip', a:[cx1,jy], b:capEap},
+      {t:'hip', a:[sx0,sy1], b:stemSap}, {t:'hip', a:[sx1,sy1], b:stemSap}
+    ];
+    if (sw < ch - 0.5){
+      _ln.push({t:'valley', a:[sx0,jy], b:V}, {t:'valley', a:[sx1,jy], b:V});
+    } else {
+      _ln.push({t:'valley', a:[sx0,jy], b:lH}, {t:'valley', a:[sx1,jy], b:rH});
+    }
+    _tLines = _ln.map(function(L){ return {type:L.t, pts:[rb(L.a), rb(L.b)]}; });
     return descs.map(function(d){return _mkTFace(rb(d.a),rb(d.b),d.poly.map(rb),d.t,d.c);});
   }
+  var _tLines = null;
   var _tFaces = _buildTFaces(outline);
   var _tCascade = !!(_tFaces && _tFaces.length);
   if (_tCascade) faces = _tFaces;
@@ -13551,6 +13568,21 @@ function _renderRoofSheetPlanInner() {
         return mainA.poly.every(function(v){ return !ptEq(v, f.poly[1]); });
       })[0];
     if (_stemHip) {
+      // Donor arm = the one with LONGER sheets (L-shape rule): its hip-cut
+      // offcuts fill the shorter arm.  Compare the cap (mainA, orange) sheet
+      // length against the stem long-sides (purple).  Even / long-cap Ts keep
+      // the cap as donor (original behaviour); a long-stem T flips to the stem.
+      var _stemLS = faces.filter(function(f){ return f.type==='long-side' && f.color===COL_PURPLE; });
+      var _stemLen = _stemLS.reduce(function(m,f){ return Math.max(m, f.sheetM); }, 0);
+      if (_stemLen > mainA.sheetM + 0.01) {
+        // STEM is the donor 4-hip: its own long sheets are cut at the south hip
+        // and those offcuts fill it, instead of starving it with the cap's
+        // short sheets.  Feed each half of the hip from its adjacent stem
+        // long-side (gutter-corner matching, robust to orientation/mirror).
+        _stemLS.forEach(function(ls){
+          _pairCornerToHipEnd(ls, _stemHip, _stemHip.poly[1], COL_PURPLE);
+        });
+      } else {
       var _ax = mainA.tx, _ay = mainA.ty;
       var _along = function(p){ return p[0]*_ax + p[1]*_ay; };
       var _e0 = _along(_stemHip.poly[0]), _e2 = _along(_stemHip.poly[2]);
@@ -13575,6 +13607,7 @@ function _renderRoofSheetPlanInner() {
           best._offcutDest  = rs;
         }
       });
+      }
     }
   }
 
@@ -14906,7 +14939,7 @@ function _renderRoofSheetPlanInner() {
   });
   ctx.closePath();
   ctx.stroke();
-  DRAW.lines.forEach(function(l){
+  (_tLines || DRAW.lines).forEach(function(l){
     if (l.type === 'gutter' || l.type === 'barge') return;  // outline already drawn
     if (l.type === 'ridge')  { ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1.5; }
     else if (l.type === 'hip')  { ctx.strokeStyle = COL_GREEN; ctx.lineWidth = 1.2; }
