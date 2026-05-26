@@ -13810,6 +13810,9 @@ function _renderRoofSheetPlanInner() {
   // re-read it fresh).  `DRAW.lines` is rotated to canonical, the
   // layout function mutates it (removes bridge hip, adds ridge), and
   // then we rotate it back so it sits in original coordinate space.
+  // The original lines are saved in __origDrawLines and restored at the
+  // very end of this function, so the synthetic ridge/hip changes never
+  // persist onto the Map Roof canvas (they're internal to the cut plan).
   var __nTurnsCW = 0;     // quarter-turns CW applied to canonical
   var __pivot    = null;  // rotation pivot (bbox centre of original)
   var __origDrawLines = DRAW.lines;
@@ -16702,6 +16705,13 @@ function _renderRoofSheetPlanInner() {
   var dd = document.createElement('div');
   dd.innerHTML = legHtml;
   outEl.appendChild(dd);
+
+  // Restore the user's drawing.  The Big-L sheet-layout math above
+  // temporarily mutates DRAW.lines (removes the bridge hip, adds a
+  // ridge extension) purely to compute the cut plan + diagram overlay.
+  // That synthetic geometry must NOT leak back onto the Map Roof canvas,
+  // so put the original lines back now that the plan + diagram are built.
+  DRAW.lines = __origDrawLines;
 }
 
 </script>
