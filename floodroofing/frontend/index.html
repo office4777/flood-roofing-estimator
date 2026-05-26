@@ -13685,6 +13685,19 @@ function _renderRoofSheetPlanInner() {
       });
       }
     }
+    // The CAP is a 4-hip: fill each of its E/W hip-ends from BOTH adjacent
+    // long-sides' corner offcuts, exactly like a plain rectangle's hip-end —
+    // the cap-N slope (orange) supplies the half on its side, the cap-S stub
+    // (blue) the other half.  The general corner cascade above misses the cap
+    // because cap N is wound so its apexes sit at poly[2]/[3], not poly[1]/[2].
+    faces.forEach(function(h){
+      if (h.type !== 'hip-end' || h.color !== COL_ORANGE) return;
+      var apex = h.poly[1];
+      faces.forEach(function(ls){
+        if (ls.type === 'long-side' && ls.poly.some(function(v){ return ptEq(v, apex); }))
+          _pairCornerToHipEnd(ls, h, apex, ls.color);
+      });
+    });
   }
 
   // ── L-shape corner-to-wing cascade ────────────────────────────
