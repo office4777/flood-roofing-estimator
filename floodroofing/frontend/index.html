@@ -12861,6 +12861,12 @@ function _renderRoofSheetPlanInner() {
     var _gl = function(f){ return Math.hypot(f.a[0]-f.b[0], f.a[1]-f.b[1]); };
     _mergedMain  = (mainA && _gl(mainA) > _fullSpan*0.92) ? mainA : mainB;
     _steppedMain = (_mergedMain === mainA) ? mainB : mainA;
+    // Pin the canonical colour ROLES regardless of orientation: the merged
+    // (flush) slope is always orange (recoloured by section length below) and
+    // the stepped main is always blue (the west-chain offcut donor).  Without
+    // this a rotation/mirror would swap the two, flipping the chain colour and
+    // breaking the "orange = merged, blue = stepped" logic.
+    if (_mergedMain && _steppedMain) { _mergedMain.color = COL_ORANGE; _steppedMain.color = COL_BLUE; }
     var _mc  = [(mainRect.x0+mainRect.x1)/2, (mainRect.y0+mainRect.y1)/2];
     var _mgm = [(_mergedMain.a[0]+_mergedMain.b[0])/2, (_mergedMain.a[1]+_mergedMain.b[1])/2];
     var _dvx = _mgm[0]-_mc[0], _dvy = _mgm[1]-_mc[1], _dl = Math.hypot(_dvx,_dvy)||1;
