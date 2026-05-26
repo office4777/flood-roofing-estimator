@@ -879,7 +879,7 @@ select{
   </div>
   <button class="nav-btn" onclick="gotoTab('roof')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.3"/></svg>Map Roof</button>
   <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Materials &amp; Sheet Layout</button>
-  <button class="nav-btn" onclick="gotoTab('scope')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8H11M5 5.5H11M5 10.5H8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Scope &amp; labour</button>
+  <button class="nav-btn" onclick="gotoTab('scope')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8H11M5 5.5H11M5 10.5H8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Scope &amp; Pricing</button>
   <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <button class="nav-btn" onclick="gotoTab('order')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 3 L5 3 L5.7 5 L14 5 L13 11 L6 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="7" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/></svg>Order Material</button>
   <button class="nav-btn" onclick="gotoTab('jobpack')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3.5" width="11" height="10" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.5 H13.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 9.5 H10 M6 11.5 H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Job Pack</button>
@@ -1317,7 +1317,7 @@ select{
 
     <div style="display:flex;gap:.75rem;margin-bottom:1rem">
       <button class="sec-btn" style="margin:0" onclick="gotoTab('materials')">Next: sheet layout &amp; materials</button>
-      <button class="out-btn" style="margin:0" onclick="gotoTab('scope')">Scope &amp; labour</button>
+      <button class="out-btn" style="margin:0" onclick="gotoTab('scope')">Scope &amp; Pricing</button>
     </div>
   </div>
 </div>
@@ -1382,6 +1382,23 @@ select{
     <button class="sec-btn" onclick="calcLabour()">Calculate labour</button>
     <div class="result-box" id="labourOut"><div class="result-box-title">Labour breakdown</div><div id="labourRows"></div></div>
   </div>
+
+  <!-- MATERIAL PRICE — auto-quantified from the drawing × Price Book.
+       Each row has a variant dropdown (with a hint to add more options
+       in Price Settings) and an editable qty. The total auto-fills the
+       Materials line on the Quote. Flashings get a 1.2× wastage factor
+       on the auto-quantity. -->
+  <div class="card" id="materialPriceCard">
+    <div class="card-hd"><span class="card-dot"></span>Material Price
+      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Quantities auto-calc from your drawing — adjust any row manually</span>
+      <button onclick="openPriceSettings()" style="margin-left:auto;padding:5px 12px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">⚙ Price settings</button>
+      <button onclick="renderMaterialPriceTable();try{resyncQuoteLines();}catch(e){}" style="margin-left:6px;padding:5px 12px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh &amp; sync to Quote</button>
+    </div>
+    <p style="font-size:11px;color:var(--text2);margin:-8px 0 10px">Flashing quantities include a <strong>1.2× wastage allowance</strong>. Drop-down on each row lets you swap product variants (add more in <strong>Settings → Price book</strong>).</p>
+    <div id="materialPriceTableWrap">
+      <p style="font-size:12px;color:var(--text2)">Draw your roof on the Map Roof tab and set unit prices in Settings → Price book — this table will auto-populate.</p>
+    </div>
+  </div>
 </div>
 
 <!-- TAB 3: MATERIALS -->
@@ -1394,16 +1411,6 @@ select{
     <button class="sec-btn" onclick="populateMaterialsFromLines()" style="margin-top:.5rem">↻ Refresh from drawing</button>
   </div>
 
-  <!-- MATERIALS COST — auto-computed from the Price Book × drawn quantities -->
-  <div class="card" id="matCostCard">
-    <div class="card-hd"><span class="card-dot"></span>Materials cost (from Price Book)
-      <button onclick="renderMaterialsCostCard();try{resyncQuoteLines();}catch(e){}" style="margin-left:auto;padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh &amp; sync to Quote</button>
-    </div>
-    <p style="font-size:11px;color:var(--text2);margin:-8px 0 10px">Quantities come from your drawing; unit prices come from <strong>Settings → Price book</strong>. The total auto-fills the Materials line on the Quote.</p>
-    <div id="matCostBreakdown">
-      <p style="font-size:12px;color:var(--text2)">Awaiting price book — open <strong>Settings → Price book</strong> to set unit prices.</p>
-    </div>
-  </div>
 
   <!-- ROOF SHEET PLAN CARD -->
   <div class="card" id="roofSheetPlanCard">
@@ -1443,35 +1450,8 @@ select{
       <div id="sheetSummaryOut" style="margin-top:1rem;background:#f0f8fb;border-radius:var(--radius);padding:12px 16px;border-left:3px solid var(--fr-blue)"></div>
     </div>
   </div>
-  <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Price list</div>
-    <div class="tab-row">
-      <button class="tab-sm on" onclick="switchSubTab('mat','upload-mat',this)">Upload CSV / PDF</button>
-      <button class="tab-sm" onclick="switchSubTab('mat','manual-mat',this)">Manual entry</button>
-    </div>
-    <div class="sub-panel on" id="upload-mat">
-      <div class="upload-zone" style="padding:1.2rem">
-        <div class="uz-title" style="font-size:13px">Drop supplier price list</div>
-        <div class="uz-sub">CSV or PDF — AI extracts prices</div>
-        <input type="file" id="priceFile" accept=".csv,.pdf,text/csv" onchange="handlePriceFile(event)">
-      </div>
-      <div id="priceFileOut" style="display:none;margin-top:.75rem"><div id="priceXtract" style="font-size:12px"></div></div>
-    </div>
-    <div class="sub-panel" id="manual-mat">
-      <table class="price-tbl"><thead><tr><th style="width:34%">Item</th><th style="width:11%">Unit</th><th style="width:13%">$/unit</th><th style="width:13%">Qty</th><th style="width:13%">Total</th><th style="width:8%"></th></tr></thead>
-      <tbody id="matBody">
-        <tr><td><input type="text" value="Roofing sheets 0.40"></td><td><input type="text" value="sheet"></td><td><input type="number" value="18" class="pi" oninput="recalcMat()"></td><td><input type="number" placeholder="from layout" class="qi" oninput="recalcMat()"></td><td class="tc">-</td><td><button onclick="rmRow(this)" style="background:none;border:none;color:#999;cursor:pointer;font-size:15px;padding:0">x</button></td></tr>
-        <tr><td><input type="text" value="Underlayment/paper"></td><td><input type="text" value="m2"></td><td><input type="number" value="3.50" class="pi" oninput="recalcMat()"></td><td><input type="number" placeholder="auto" class="qi" oninput="recalcMat()"></td><td class="tc">-</td><td><button onclick="rmRow(this)" style="background:none;border:none;color:#999;cursor:pointer;font-size:15px;padding:0">x</button></td></tr>
-        <tr><td><input type="text" value="Ridge cap"></td><td><input type="text" value="lm"></td><td><input type="number" value="12" class="pi" oninput="recalcMat()"></td><td><input type="number" placeholder="qty" class="qi" oninput="recalcMat()"></td><td class="tc">-</td><td><button onclick="rmRow(this)" style="background:none;border:none;color:#999;cursor:pointer;font-size:15px;padding:0">x</button></td></tr>
-        <tr><td><input type="text" value="Valley iron"></td><td><input type="text" value="lm"></td><td><input type="number" value="8" class="pi" oninput="recalcMat()"></td><td><input type="number" placeholder="qty" class="qi" oninput="recalcMat()"></td><td class="tc">-</td><td><button onclick="rmRow(this)" style="background:none;border:none;color:#999;cursor:pointer;font-size:15px;padding:0">x</button></td></tr>
-        <tr><td><input type="text" value="Guttering"></td><td><input type="text" value="lm"></td><td><input type="number" value="22" class="pi" oninput="recalcMat()"></td><td><input type="number" placeholder="qty" class="qi" oninput="recalcMat()"></td><td class="tc">-</td><td><button onclick="rmRow(this)" style="background:none;border:none;color:#999;cursor:pointer;font-size:15px;padding:0">x</button></td></tr>
-        <tr><td><input type="text" value="Screws / fixings"></td><td><input type="text" value="box"></td><td><input type="number" value="45" class="pi" oninput="recalcMat()"></td><td><input type="number" placeholder="qty" class="qi" oninput="recalcMat()"></td><td class="tc">-</td><td><button onclick="rmRow(this)" style="background:none;border:none;color:#999;cursor:pointer;font-size:15px;padding:0">x</button></td></tr>
-        <tr><td><input type="text" value="65mm Unitites"></td><td><input type="text" value="bag"></td><td><input type="number" value="28" class="pi" oninput="recalcMat()"></td><td><input type="number" placeholder="qty" class="qi" oninput="recalcMat()"></td><td class="tc">-</td><td><button onclick="rmRow(this)" style="background:none;border:none;color:#999;cursor:pointer;font-size:15px;padding:0">x</button></td></tr>
-      </tbody></table>
-      <button class="add-link" onclick="addMatRow()">+ Add item</button>
-      <button class="sec-btn" onclick="recalcMat()">Calculate materials cost</button>
-      <div class="result-box" id="matOut"><div class="result-box-title">Materials breakdown</div><div id="matRows"></div></div>
-    </div>
+  <div class="card" style="padding:14px 16px;background:#f0f8fb;border:1px dashed #b3d9f0">
+    <div style="font-size:12px;color:var(--text2)">💡 Material pricing moved to <strong>Scope &amp; Pricing</strong> tab — quantities auto-populate from this drawing with editable overrides, dropdowns per item, and a jump to <strong>Settings → Price book</strong>.</div>
   </div>
 </div>
 
@@ -2467,6 +2447,7 @@ function gotoTab(t) {
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); }
   if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}}
+  if(t==='scope'){try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}}
   if(t==='order'){
     // Refresh dropdowns from settings, render the flashings list,
     // and prefill the job number from the current quote if blank.
@@ -2984,33 +2965,195 @@ function computeMaterialsCost(){
   return out;
 }
 
-// Render the breakdown card on the Materials tab and stash the total
-// in S.materials so the Quote line item picks it up.
-function renderMaterialsCostCard(){
-  var box = document.getElementById('matCostBreakdown'); if (!box) return;
-  var pb = (S.settings && S.settings.price_book) || null;
-  if (!pb) { box.innerHTML = '<p style="font-size:12px;color:var(--text2)">Set unit prices in <strong>Settings → Price book</strong> to see the cost.</p>'; return; }
-  var r = computeMaterialsCost();
-  if (!r.breakdown.length) {
-    box.innerHTML = '<p style="font-size:12px;color:var(--text2)">No costable quantities yet — draw your roof lines on Map Roof, set prices in <strong>Settings → Price book</strong>.</p>';
+// Legacy alias — the old card on the Materials tab is gone and the
+// new render lives in renderMaterialPriceTable. Kept so any cached
+// caller (e.g. saved code paths) still functions during the transition.
+function renderMaterialsCostCard(){ try { renderMaterialPriceTable(); } catch(e){} }
+
+// ── MATERIAL PRICE TABLE (Scope & Pricing tab) ───────────────────
+// Per-job overrides — user-edited qty / variant choices keyed by row
+// id ('sheets','underlay','ridge','valley','gutter','barge','apron',
+// 'screws','rivets', or 'extra:<idx>'). These reset on page reload;
+// extending snapshotCurrentJob to capture them would persist per job.
+var MATERIAL_OVERRIDES = {};
+function _resetMatOverride(key){ delete MATERIAL_OVERRIDES[key]; renderMaterialPriceTable(); try { resyncQuoteLines(); } catch(e){} }
+function _onMatOverride(key, field, value){
+  if (!MATERIAL_OVERRIDES[key]) MATERIAL_OVERRIDES[key] = {};
+  MATERIAL_OVERRIDES[key][field] = value;
+  renderMaterialPriceTable();
+  try { resyncQuoteLines(); } catch(e){}
+}
+function openPriceSettings(){
+  gotoTab('settings');
+  // Click the Price book sub-tab so the user lands directly in it
+  setTimeout(function(){
+    var btn = document.querySelector('button[onclick*="set-pricebook"]');
+    if (btn) btn.click();
+  }, 0);
+}
+
+// Builds the rows the Material Price table renders. Each row carries
+// its own qty (auto), $/unit, variant options, and a key so user
+// overrides can target it. Wastage factor of 1.2 is applied to
+// flashing qtys (ridge+hip / valley / gutter / barge / apron).
+function _buildMaterialPriceRows(){
+  var rows = [];
+  if (!S.settings || !S.settings.price_book || !window.DRAW) return rows;
+  var pb = S.settings.price_book;
+
+  var sheetWidthMm = parseFloat((document.getElementById('sheetWidth')||{}).value) || 762;
+  var sheetWidthM  = sheetWidthMm / 1000;
+  var overlapM     = (parseFloat((document.getElementById('overlapMm')||{}).value)||150)/1000;
+  var pitch        = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+  var pitchFactor  = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
+  var WASTE_FACTOR = 1.2;
+
+  var totals = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
+  (DRAW.lines || []).forEach(function(l){
+    if (l.measM && totals[l.type] !== undefined) totals[l.type] += parseFloat(l.measM);
+  });
+  var ridgeHip = (totals.ridge||0) + (totals.hip||0);
+
+  var roofArea = 0;
+  if (DRAW.scaleMetresPerPx && DRAW.outline && DRAW.outline.length >= 3) {
+    roofArea = polyAreaPx(DRAW.outline) * DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx * pitchFactor;
+  }
+
+  // Roofing sheets — variant dropdown comes from pb.sheets
+  if (totals.gutter > 0) {
+    var slopeLen = (roofArea > 0 && totals.gutter > 0) ? (roofArea / totals.gutter) : 0;
+    var cutLen   = slopeLen + overlapM;
+    var sheetsAcross = totals.gutter / sheetWidthM;
+    var autoQty  = sheetsAcross * cutLen;
+    var variants = (pb.sheets || []).map(function(s){ return { value:s.product, label:s.product, price:s.price||0, unit:s.unit||'lm' }; });
+    rows.push({ key:'sheets', label:'Roofing sheets', autoQty:autoQty, autoUnit:'lm',
+                variants:variants, defaultVariant: pb.defaultSheetProduct || (variants[0] && variants[0].value),
+                note:'≈ ' + Math.ceil(sheetsAcross) + ' across × ' + cutLen.toFixed(2) + 'm cut' });
+  }
+
+  // Underlay — variant = roll size; auto qty = ceil(roofArea * 1.2 / rollSize)
+  if (roofArea > 0) {
+    var pickedRoll = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
+    if (![50,75,100].includes(pickedRoll)) pickedRoll = 75;
+    var underlayVariants = [50,75,100].map(function(sz){
+      return { value:String(sz), label:sz+' m²/roll', price:(pb.underlay||{})[String(sz)]||0, unit:'roll' };
+    });
+    var rollSize = pickedRoll;
+    var rolls = Math.ceil((roofArea * 1.2) / rollSize);
+    rows.push({ key:'underlay', label:'Underlay / paper', autoQty:rolls, autoUnit:'roll',
+                variants:underlayVariants, defaultVariant:String(pickedRoll),
+                note:'covers ' + (roofArea*1.2).toFixed(1) + ' m² (incl. 20% waste)' });
+  }
+
+  // Flashings — single-variant rows. Wastage applied to auto qty.
+  function flashRow(key, label, qty, price){
+    if (!qty) return;
+    rows.push({ key:key, label:label, autoQty: qty * WASTE_FACTOR, autoUnit:'lm',
+                variants: [{ value:label, label:label, price:price||0, unit:'lm' }],
+                defaultVariant:label, note:'incl. 1.2× wastage', singleVariant:true });
+  }
+  flashRow('ridge',  'Ridge / Hip cap',  ridgeHip,        pb.ridge_lm);
+  flashRow('valley', 'Valley iron',      totals.valley,   pb.valley_lm);
+  flashRow('gutter', 'Gutter',           totals.gutter,   pb.gutter_lm);
+  flashRow('barge',  'Barge flashing',   totals.barge,    pb.barge_lm);
+  flashRow('apron',  'Apron flashing',   totals.apron,    pb.apron_lm);
+
+  // Screws
+  if (roofArea > 0 && (pb.screws_each || 0) >= 0) {
+    var screws = Math.ceil(roofArea * 8 / 100) * 100;
+    rows.push({ key:'screws', label:'65mm Unitites / screws', autoQty:screws, autoUnit:'each',
+                variants:[{ value:'65mm Unitites', label:'65mm Unitites', price:pb.screws_each||0, unit:'each' }],
+                defaultVariant:'65mm Unitites', note:'roofArea × 8, rounded up to 100', singleVariant:true });
+  }
+
+  // Rivets
+  var totalFlashingLm = ridgeHip + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0);
+  if (totalFlashingLm > 0) {
+    var rivets = Math.max(100, Math.ceil(totalFlashingLm / 60) * 100);
+    rows.push({ key:'rivets', label:'Rivets', autoQty:rivets, autoUnit:'each',
+                variants:[{ value:'Rivet', label:'Rivet', price:pb.rivets_each||0, unit:'each' }],
+                defaultVariant:'Rivet', note:totalFlashingLm.toFixed(1)+' lm flashings → '+rivets+' rivets', singleVariant:true });
+  }
+
+  // Custom extras — each price-book extra becomes its own row
+  (pb.extras || []).forEach(function(x, i){
+    rows.push({ key:'extra:'+i, label:x.desc, autoQty:parseFloat(x.qty)||0, autoUnit:x.unit||'ea',
+                variants:[{ value:x.desc, label:x.desc, price:parseFloat(x.price)||0, unit:x.unit||'ea' }],
+                defaultVariant:x.desc, isCustom:true, singleVariant:true });
+  });
+
+  return rows;
+}
+
+function renderMaterialPriceTable(){
+  var box = document.getElementById('materialPriceTableWrap'); if (!box) return;
+  if (!S.settings || !S.settings.price_book) {
+    box.innerHTML = '<p style="font-size:12px;color:var(--text2)">Set unit prices in <strong>Settings → Price book</strong> first.</p>';
     return;
   }
-  var html = '<table class="price-tbl" style="margin-bottom:8px"><thead><tr><th style="width:42%">Item</th><th style="width:18%">Qty</th><th style="width:8%">Unit</th><th style="width:14%">$/unit</th><th style="width:18%;text-align:right">Total</th></tr></thead><tbody>';
-  r.breakdown.forEach(function(row){
-    var qtyDisp = row.qty >= 100 ? Math.round(row.qty) : (row.qty || 0).toFixed(2);
-    html += '<tr><td>'+ esc(row.desc) + (row.note ? ' <span style="font-size:10px;color:var(--text2)">— '+esc(row.note)+'</span>' : '') + (row.custom ? ' <span style="font-size:9px;color:#7c3aed;text-transform:uppercase;letter-spacing:.05em">custom</span>' : '') +'</td>'+
-      '<td>'+ qtyDisp +'</td>'+
-      '<td>'+ esc(row.unit) +'</td>'+
-      '<td>$'+ (row.price || 0).toFixed(2) +'</td>'+
-      '<td style="text-align:right;font-weight:600">$'+ (row.lineTotal || 0).toFixed(2) +'</td></tr>';
+  var rows = _buildMaterialPriceRows();
+  if (!rows.length) {
+    box.innerHTML = '<p style="font-size:12px;color:var(--text2)">No quantifiable items yet — draw your roof on the Map Roof tab.</p>';
+    S.materials = 0;
+    return;
+  }
+
+  var html = '<table class="price-tbl" style="margin-bottom:8px;table-layout:fixed">'+
+    '<thead><tr>'+
+      '<th style="width:30%">Item</th>'+
+      '<th style="width:30%">Variant</th>'+
+      '<th style="width:14%">Qty</th>'+
+      '<th style="width:12%">$/unit</th>'+
+      '<th style="width:14%;text-align:right">Total</th>'+
+    '</tr></thead><tbody>';
+
+  var total = 0;
+  rows.forEach(function(r){
+    var ov = MATERIAL_OVERRIDES[r.key] || {};
+    var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
+    var picked = r.variants.find(function(v){return v.value===variantValue;}) || r.variants[0];
+    var qty   = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+    var price = picked ? picked.price : 0;
+    var unit  = picked ? picked.unit : r.autoUnit;
+    var lineTotal = (qty||0) * (price||0);
+    total += lineTotal;
+
+    var optsHtml = r.variants.map(function(v){
+      var sel = v.value===variantValue ? ' selected' : '';
+      return '<option value="'+esc(v.value)+'"'+sel+'>'+esc(v.label)+' — $'+(v.price||0).toFixed(2)+'/'+esc(v.unit)+'</option>';
+    }).join('');
+    // Append disabled hint option so the dropdown always tells the user where to add more
+    optsHtml += '<option disabled style="color:#999;font-style:italic">— Add Options In Price Settings —</option>';
+
+    var ovBadge = (ov.qty != null && ov.qty !== '') ? ' <span style="font-size:9px;color:#7c3aed;font-weight:700">OVERRIDE</span>' : '';
+    var resetBtn = (ov.qty != null && ov.qty !== '' || ov.variant != null) ? '<button onclick="_resetMatOverride(\''+r.key+'\')" title="Reset to auto" style="margin-left:4px;background:none;border:none;color:#7c3aed;cursor:pointer;font-size:11px">↻</button>' : '';
+    var custom   = r.isCustom ? ' <span style="font-size:9px;color:#0891b2;text-transform:uppercase;letter-spacing:.05em;font-weight:700">custom</span>' : '';
+
+    html += '<tr>'+
+      '<td>'+esc(r.label)+ custom +
+        (r.note ? '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(r.note)+'</div>' : '')+
+      '</td>'+
+      '<td>'+
+        '<select onchange="_onMatOverride(\''+r.key+'\',\'variant\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"'+(r.singleVariant?' disabled':'')+'>'+optsHtml+'</select>'+
+      '</td>'+
+      '<td>'+
+        '<div style="display:flex;align-items:center;gap:2px">'+
+        '<input type="number" step="0.01" min="0" value="'+(qty||0).toFixed(2)+'" data-qty-key="'+r.key+'" onchange="_onMatOverride(\''+r.key+'\',\'qty\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"/>'+
+        resetBtn +
+        '</div>'+
+        '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(unit)+ ovBadge +'</div>'+
+      '</td>'+
+      '<td>$'+(price||0).toFixed(2)+'</td>'+
+      '<td style="text-align:right;font-weight:600">$'+lineTotal.toFixed(2)+'</td>'+
+    '</tr>';
   });
   html += '</tbody></table>'+
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
-      '<strong style="font-size:13px">Total materials (sets Quote → Materials line)</strong>'+
-      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+ r.total.toFixed(2) +'</span>'+
+      '<strong style="font-size:13px">Total materials → Quote</strong>'+
+      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+total.toFixed(2)+'</span>'+
     '</div>';
   box.innerHTML = html;
-  S.materials = r.total;
+  S.materials = total;
 }
 
 function refreshSettingsUI(){
