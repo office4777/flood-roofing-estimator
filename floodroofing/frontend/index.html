@@ -1383,6 +1383,23 @@ select{
     <div class="result-box" id="labourOut"><div class="result-box-title">Labour breakdown</div><div id="labourRows"></div></div>
   </div>
 
+  <!-- DRAWING SUMMARY — mirrors the From-drawing measurements + per-line
+       flashings from the Materials tab so the user can cross-check
+       that the Material Price rows below line up with the drawn data. -->
+  <div class="card" id="drawingSummaryCard">
+    <div class="card-hd"><span class="card-dot"></span>Drawing summary (cross-check)
+      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Same data as the Materials tab — verify the line items below match</span>
+      <button onclick="populateMaterialsFromLines()" style="margin-left:auto;padding:4px 14px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh from drawing</button>
+    </div>
+    <div id="pricingDrawSummary" style="font-size:12px">
+      <p style="color:var(--text2);margin:0">Draw your roof on Map Roof first — totals will mirror here automatically.</p>
+    </div>
+    <div id="pricingFlashingsBreakdown" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:700;color:#0099cc;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Flashings — per line</div>
+      <p style="font-size:12px;color:var(--text2);margin:0">Per-line list appears here once you've added measurements.</p>
+    </div>
+  </div>
+
   <!-- MATERIAL PRICE — auto-quantified from the drawing × Price Book.
        Each row has a variant dropdown (with a hint to add more options
        in Price Settings) and an editable qty. The total auto-fills the
@@ -2189,6 +2206,7 @@ select{
       <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Branding</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-pricebook',this)">Price book</button>
+      <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers &amp; materials</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
     </div>
@@ -2321,6 +2339,31 @@ select{
       </div>
     </div>
 
+    <!-- LABOUR PRICING -->
+    <div class="sub-panel settings-sub" id="set-labour" style="margin-top:14px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Default hour budgets used by the editable <strong>Labour</strong> breakdown on the Scope &amp; Pricing tab. The user can still tweak hours per job; this just sets the starting numbers.</p>
+
+      <div class="f3" style="margin-bottom:14px">
+        <div><label>Default workers on site</label><input type="number" id="lpWorkers" min="1" max="20" placeholder="2"></div>
+        <div><label>Default rate ($/hr per worker)</label><input type="number" id="lpRate" min="1" step="0.5" placeholder="55"></div>
+        <div><label>Default complexity multiplier</label>
+          <select id="lpComplexity">
+            <option value="1">Standard ×1.0</option>
+            <option value="1.2">Moderate ×1.2</option>
+            <option value="1.5">Complex ×1.5</option>
+            <option value="2">Very complex ×2.0</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <strong style="font-size:13px">Default hours per scope item</strong>
+        <span style="font-size:11px;color:var(--text2)">— pre-multiplier; the Scope &amp; Pricing labour table multiplies by complexity</span>
+        <button type="button" onclick="addLabourItem()" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add item</button>
+      </div>
+      <div id="lpItemsList"></div>
+    </div>
+
     <!-- SUPPLIERS & MATERIALS -->
     <div class="sub-panel settings-sub" id="set-supl" style="margin-top:14px">
       <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Manage the lists that drive the dropdowns on the <strong>Order Material</strong> tab. Click <strong>Save settings</strong> at the top of this card to persist changes to your account.</p>
@@ -2447,7 +2490,10 @@ function gotoTab(t) {
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); }
   if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}}
-  if(t==='scope'){try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}}
+  if(t==='scope'){
+    try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
+    try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
+  }
   if(t==='order'){
     // Refresh dropdowns from settings, render the flashings list,
     // and prefill the job number from the current quote if blank.
@@ -2583,6 +2629,31 @@ function defaultSettings(){
       screws_each: 0,    // $ per 65mm Unitite / roofing screw
       rivets_each: 0,    // $ per rivet
       extras: []         // [{desc, unit, qty, price}] — custom price-book items the user adds
+    },
+    // Labour pricing — per-scope-item default hour budgets and the
+    // baseline crew + rate. Used by the editable labour table on the
+    // Scope & Pricing tab. Hours are pre-mult (the table multiplies
+    // by the complexity multiplier the user picks per-job).
+    labour_pricing: {
+      default_workers: 2,
+      default_rate: 55,
+      default_complexity: 1,
+      per_item_hours: {
+        'Strip existing roofing': 6,
+        'Remove existing tiles': 6,
+        'Install new purlins': 5,
+        'Install underlayment': 4,
+        'Install new roof sheets': 8,
+        'Install ridges': 3,
+        'Install valleys': 2,
+        'Install flashings': 3,
+        'Install gutters': 3,
+        'Install downpipes': 2,
+        'Fascia work': 2,
+        'Penetrations/skylights': 1.5,
+        'Cleanup and disposal': 1,
+        'Scaffold setup/removal': 2
+      }
     }
   };
 }
@@ -2604,6 +2675,13 @@ async function loadSettings(){
         if (!Array.isArray(pb.sheets) || !pb.sheets.length) pb.sheets = d.price_book.sheets.slice();
         if (!Array.isArray(pb.extras)) pb.extras = [];
         return pb;
+      })(),
+      // labour_pricing: same deep-merge pattern; per_item_hours is a
+      // dict, so saved entries overlay the defaults.
+      labour_pricing: (function(){
+        var lp = Object.assign({}, d.labour_pricing, s.labour_pricing || {});
+        lp.per_item_hours = Object.assign({}, d.labour_pricing.per_item_hours, (s.labour_pricing && s.labour_pricing.per_item_hours) || {});
+        return lp;
       })()
     };
   } catch(e) {
@@ -2627,6 +2705,7 @@ async function saveSettings(){
     S.settings.quote_defaults = saved.quote_defaults || S.settings.quote_defaults;
     S.settings.jms_keys = saved.jms_keys || S.settings.jms_keys;
     if (saved.price_book) S.settings.price_book = saved.price_book;
+    if (saved.labour_pricing) S.settings.labour_pricing = saved.labour_pricing;
     msg.textContent = '✓ Saved'; msg.style.color = '#15803d';
     applyBranding();
   } catch(e) {
@@ -2662,6 +2741,49 @@ function collectSettingsFromUI(){
   k.tradify    = (document.getElementById('intTradify')||{}).value || '';
   k.fergusMaterialsAccountId = (document.getElementById('intFergusMatAcct')||{}).value || '';
   collectPriceBookFromUI();
+  collectLabourPricingFromUI();
+}
+
+// ── LABOUR PRICING ───────────────────────────────────────────────
+function collectLabourPricingFromUI(){
+  if (!S.settings.labour_pricing) S.settings.labour_pricing = defaultSettings().labour_pricing;
+  var lp = S.settings.labour_pricing;
+  lp.default_workers    = parseInt((document.getElementById('lpWorkers')||{}).value, 10) || 2;
+  lp.default_rate       = parseFloat((document.getElementById('lpRate')||{}).value) || 55;
+  lp.default_complexity = parseFloat((document.getElementById('lpComplexity')||{}).value) || 1;
+  var dict = {};
+  Array.from(document.querySelectorAll('#lpItemsList > [data-lp-item]')).forEach(function(row){
+    var name  = (row.querySelector('input[data-f="name"]')||{}).value || '';
+    var hours = parseFloat((row.querySelector('input[data-f="hours"]')||{}).value) || 0;
+    if (name) dict[name] = hours;
+  });
+  lp.per_item_hours = dict;
+}
+function renderLabourPricingUI(){
+  if (!S.settings || !S.settings.labour_pricing) return;
+  var lp = S.settings.labour_pricing;
+  function setN(id,v){var el=document.getElementById(id); if(el) el.value=(v==null||v===0)?'':v;}
+  setN('lpWorkers',    lp.default_workers);
+  setN('lpRate',       lp.default_rate);
+  var sel = document.getElementById('lpComplexity'); if (sel) sel.value = String(lp.default_complexity || 1);
+  renderLabourItemsList(lp.per_item_hours || {});
+}
+function renderLabourItemsList(dict){
+  var box = document.getElementById('lpItemsList'); if (!box) return;
+  var keys = Object.keys(dict);
+  box.innerHTML = keys.map(function(k){ return _lpItemRowHtml(k, dict[k]); }).join('');
+}
+function _lpItemRowHtml(name, hours){
+  return '<div data-lp-item style="display:grid;grid-template-columns:2.2fr 0.8fr 30px;gap:6px;margin-bottom:6px;align-items:center">'+
+    '<input data-f="name"  type="text"   value="'+ esc(name||'') +'" placeholder="Scope item">'+
+    '<input data-f="hours" type="number" step="0.1" min="0" value="'+ (hours || '') +'" placeholder="hrs">'+
+    '<button type="button" onclick="this.parentNode.remove()" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button>'+
+  '</div>';
+}
+function addLabourItem(){
+  var box = document.getElementById('lpItemsList'); if (!box) return;
+  var wrap = document.createElement('div'); wrap.innerHTML = _lpItemRowHtml('', '');
+  box.appendChild(wrap.firstChild);
 }
 
 // ── PRICE BOOK ───────────────────────────────────────────────────
@@ -2976,10 +3098,25 @@ function renderMaterialsCostCard(){ try { renderMaterialPriceTable(); } catch(e)
 // 'screws','rivets', or 'extra:<idx>'). These reset on page reload;
 // extending snapshotCurrentJob to capture them would persist per job.
 var MATERIAL_OVERRIDES = {};
-function _resetMatOverride(key){ delete MATERIAL_OVERRIDES[key]; renderMaterialPriceTable(); try { resyncQuoteLines(); } catch(e){} }
+var MATERIAL_DELETED = {};
+function _resetMatOverride(key){
+  delete MATERIAL_OVERRIDES[key];
+  delete MATERIAL_DELETED[key];
+  renderMaterialPriceTable(); try { resyncQuoteLines(); } catch(e){}
+}
 function _onMatOverride(key, field, value){
   if (!MATERIAL_OVERRIDES[key]) MATERIAL_OVERRIDES[key] = {};
   MATERIAL_OVERRIDES[key][field] = value;
+  renderMaterialPriceTable();
+  try { resyncQuoteLines(); } catch(e){}
+}
+function _deleteMatRow(key){
+  MATERIAL_DELETED[key] = true;
+  renderMaterialPriceTable();
+  try { resyncQuoteLines(); } catch(e){}
+}
+function restoreDeletedMatRows(){
+  MATERIAL_DELETED = {};
   renderMaterialPriceTable();
   try { resyncQuoteLines(); } catch(e){}
 }
@@ -3098,17 +3235,24 @@ function renderMaterialPriceTable(){
     return;
   }
 
+  var deletedCount = 0;
+  var visibleRows = rows.filter(function(r){
+    if (MATERIAL_DELETED[r.key]) { deletedCount++; return false; }
+    return true;
+  });
+
   var html = '<table class="price-tbl" style="margin-bottom:8px;table-layout:fixed">'+
     '<thead><tr>'+
-      '<th style="width:30%">Item</th>'+
-      '<th style="width:30%">Variant</th>'+
+      '<th style="width:28%">Item</th>'+
+      '<th style="width:28%">Variant</th>'+
       '<th style="width:14%">Qty</th>'+
       '<th style="width:12%">$/unit</th>'+
       '<th style="width:14%;text-align:right">Total</th>'+
+      '<th style="width:4%"></th>'+
     '</tr></thead><tbody>';
 
   var total = 0;
-  rows.forEach(function(r){
+  visibleRows.forEach(function(r){
     var ov = MATERIAL_OVERRIDES[r.key] || {};
     var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
     var picked = r.variants.find(function(v){return v.value===variantValue;}) || r.variants[0];
@@ -3122,7 +3266,6 @@ function renderMaterialPriceTable(){
       var sel = v.value===variantValue ? ' selected' : '';
       return '<option value="'+esc(v.value)+'"'+sel+'>'+esc(v.label)+' — $'+(v.price||0).toFixed(2)+'/'+esc(v.unit)+'</option>';
     }).join('');
-    // Append disabled hint option so the dropdown always tells the user where to add more
     optsHtml += '<option disabled style="color:#999;font-style:italic">— Add Options In Price Settings —</option>';
 
     var ovBadge = (ov.qty != null && ov.qty !== '') ? ' <span style="font-size:9px;color:#7c3aed;font-weight:700">OVERRIDE</span>' : '';
@@ -3145,6 +3288,7 @@ function renderMaterialPriceTable(){
       '</td>'+
       '<td>$'+(price||0).toFixed(2)+'</td>'+
       '<td style="text-align:right;font-weight:600">$'+lineTotal.toFixed(2)+'</td>'+
+      '<td><button onclick="_deleteMatRow(\''+r.key+'\')" title="Delete this line" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button></td>'+
     '</tr>';
   });
   html += '</tbody></table>'+
@@ -3152,6 +3296,9 @@ function renderMaterialPriceTable(){
       '<strong style="font-size:13px">Total materials → Quote</strong>'+
       '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+total.toFixed(2)+'</span>'+
     '</div>';
+  if (deletedCount > 0) {
+    html += '<div style="margin-top:8px;font-size:11px;color:var(--text2)">'+deletedCount+' row'+(deletedCount===1?'':'s')+' deleted — <button onclick="restoreDeletedMatRows()" style="background:none;border:none;color:#0099cc;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">restore all</button></div>';
+  }
   box.innerHTML = html;
   S.materials = total;
 }
@@ -3170,6 +3317,7 @@ function refreshSettingsUI(){
   renderSectionsList(q.sections || []);
   set('intFergus', k.fergus); set('intServiceM8', k.servicem8); set('intJobber', k.jobber); set('intTradify', k.tradify); set('intFergusMatAcct', k.fergusMaterialsAccountId);
   try { renderPriceBookUI(); } catch(e) { console.warn('price book render:', e); }
+  try { renderLabourPricingUI(); } catch(e) { console.warn('labour pricing render:', e); }
 }
 
 function renderOptionsList(list){
@@ -4437,25 +4585,119 @@ function setMainScope(key){
     if (nw) nw.dispatchEvent(new Event('input', { bubbles: true }));
   } catch(e){}
 }
+// Per-job labour overrides — { itemName: hoursAfterMult } for any
+// scope row the user has manually edited, and CUSTOM_LABOUR_LINES for
+// rows the user added that aren't in the scope grid. Reset on page
+// load; could be persisted via snapshotCurrentJob later.
+var LABOUR_OVERRIDES = {};
+var LABOUR_DELETED = {};
+var CUSTOM_LABOUR_LINES = [];
+
+function _labourDefaultHoursFor(itemName, datasetH, area, mult){
+  // Settings → Labour pricing overrides the data-h baseline if set.
+  var perItem = (S.settings && S.settings.labour_pricing && S.settings.labour_pricing.per_item_hours) || {};
+  var h = (perItem[itemName] != null) ? parseFloat(perItem[itemName]) : (parseFloat(datasetH) || 2);
+  // Sheet install scales with roof area — same rule as the legacy calc.
+  if (area > 80 && itemName && itemName.toLowerCase().indexOf('sheets') >= 0) h = Math.round(area / 14);
+  return parseFloat((h * mult).toFixed(1));
+}
+
 function calcLabour(){
-  var sel=document.querySelectorAll('#scopeGrid .chk-item.on');
-  if(!sel.length){document.getElementById('labourOut').style.display='none';return;}
-  var workers=parseFloat(document.getElementById('nWorkers').value)||2;
-  var rate=parseFloat(document.getElementById('wRate').value)||55;
-  var mult=parseFloat(document.getElementById('cxMult').value)||1;
-  var area=parseFloat(document.getElementById('scopeArea').value)||0;
-  var rows='',total=0;
-  sel.forEach(function(el){
-    var h=parseFloat(el.dataset.h)||2;
-    if(area>80&&el.dataset.item&&el.dataset.item.includes('sheets')) h=Math.round(area/14);
-    h=parseFloat((h*mult).toFixed(1));total+=h;
-    rows+='<div class="r-row"><span>'+el.dataset.item+'</span><span>'+h+' hrs — $'+(h*rate).toFixed(2)+'</span></div>';
+  var out = document.getElementById('labourOut');
+  var box = document.getElementById('labourRows');
+  if (!out || !box) return;
+  var workers = parseFloat((document.getElementById('nWorkers')||{}).value) || 2;
+  var rate    = parseFloat((document.getElementById('wRate')||{}).value)    || 55;
+  var mult    = parseFloat((document.getElementById('cxMult')||{}).value)   || 1;
+  var area    = parseFloat((document.getElementById('scopeArea')||{}).value) || 0;
+
+  // Build the row list from ticked scope items, then append custom rows.
+  var rows = [];
+  document.querySelectorAll('#scopeGrid .chk-item.on').forEach(function(el){
+    var name = el.dataset.item;
+    if (LABOUR_DELETED[name]) return;
+    var auto = _labourDefaultHoursFor(name, el.dataset.h, area, mult);
+    var hours = (LABOUR_OVERRIDES[name] != null) ? parseFloat(LABOUR_OVERRIDES[name]) : auto;
+    rows.push({ key:name, item:name, hours:hours, auto:auto, custom:false });
   });
-  var tc=(total*rate*workers).toFixed(2);
-  rows+='<div class="r-row"><span>TOTAL ('+workers+' workers x '+total+' hrs)</span><span>$'+tc+'</span></div>';
-  document.getElementById('labourRows').innerHTML=rows;
-  document.getElementById('labourOut').style.display='block';
-  S.labour=parseFloat(tc);
+  CUSTOM_LABOUR_LINES.forEach(function(c, i){
+    rows.push({ key:'custom:'+i, item:c.item || '(unnamed)', hours:parseFloat(c.hours) || 0, auto:0, custom:true });
+  });
+
+  if (!rows.length) {
+    box.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:6px 0">Tick scope items above (or click <strong>+ Add labour line</strong>) to build the labour breakdown.</div>'+
+      '<div style="margin-top:6px"><button onclick="addCustomLabourLine()" class="add-link">+ Add labour line</button></div>';
+    out.style.display = 'block';
+    S.labour = 0;
+    return;
+  }
+
+  // Table layout: item | hrs | subtotal | ×
+  var totalHours = 0;
+  var html = '<table class="price-tbl" style="margin-bottom:6px;table-layout:fixed">'+
+    '<thead><tr><th style="width:50%">Item</th><th style="width:18%">Hours</th><th style="width:24%;text-align:right">Subtotal</th><th style="width:8%"></th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var subtotal = r.hours * rate * workers;
+    totalHours += r.hours;
+    var override = (LABOUR_OVERRIDES[r.key] != null) && !r.custom;
+    var resetBtn = override ? '<button onclick="_resetLabourOverride(\''+esc(r.key).replace(/'/g,"\\'")+'\')" title="Reset to auto" style="margin-left:4px;background:none;border:none;color:#7c3aed;cursor:pointer;font-size:11px">↻</button>' : '';
+    html += '<tr>'+
+      '<td>'+ (r.custom ? '<input type="text" value="'+esc(r.item)+'" onchange="_onCustomLabour('+parseInt(r.key.split(':')[1],10)+',\'item\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"/>' : esc(r.item)) +
+        (override ? ' <span style="font-size:9px;color:#7c3aed;font-weight:700">OVERRIDE</span>' : '') +
+      '</td>'+
+      '<td><div style="display:flex;align-items:center;gap:2px">'+
+        '<input type="number" step="0.1" min="0" value="'+r.hours.toFixed(1)+'" onchange="_onLabourHoursChange(\''+esc(r.key).replace(/'/g,"\\'")+'\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"/>'+
+        resetBtn +
+      '</div></td>'+
+      '<td style="text-align:right;font-weight:600">$'+subtotal.toFixed(2)+'</td>'+
+      '<td><button onclick="_deleteLabourRow(\''+esc(r.key).replace(/'/g,"\\'")+'\')" title="Delete this line" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button></td>'+
+    '</tr>';
+  });
+  var grandTotal = totalHours * rate * workers;
+  html += '</tbody></table>'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
+      '<strong style="font-size:13px">'+workers+' workers × '+totalHours.toFixed(1)+' hrs @ $'+rate+'/hr</strong>'+
+      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+grandTotal.toFixed(2)+'</span>'+
+    '</div>'+
+    '<div style="margin-top:8px"><button onclick="addCustomLabourLine()" class="add-link">+ Add labour line</button></div>';
+  box.innerHTML = html;
+  out.style.display = 'block';
+  S.labour = parseFloat(grandTotal.toFixed(2));
+}
+
+function _onLabourHoursChange(key, value){
+  if (key.indexOf('custom:') === 0) {
+    var idx = parseInt(key.split(':')[1], 10);
+    if (CUSTOM_LABOUR_LINES[idx]) CUSTOM_LABOUR_LINES[idx].hours = parseFloat(value) || 0;
+  } else {
+    LABOUR_OVERRIDES[key] = parseFloat(value) || 0;
+  }
+  calcLabour();
+  try { resyncQuoteLines(); } catch(e){}
+}
+function _onCustomLabour(idx, field, value){
+  if (CUSTOM_LABOUR_LINES[idx]) CUSTOM_LABOUR_LINES[idx][field] = value;
+  calcLabour();
+  try { resyncQuoteLines(); } catch(e){}
+}
+function _resetLabourOverride(key){
+  delete LABOUR_OVERRIDES[key];
+  calcLabour();
+  try { resyncQuoteLines(); } catch(e){}
+}
+function _deleteLabourRow(key){
+  if (key.indexOf('custom:') === 0) {
+    var idx = parseInt(key.split(':')[1], 10);
+    CUSTOM_LABOUR_LINES.splice(idx, 1);
+  } else {
+    LABOUR_DELETED[key] = true;
+  }
+  calcLabour();
+  try { resyncQuoteLines(); } catch(e){}
+}
+function addCustomLabourLine(){
+  CUSTOM_LABOUR_LINES.push({ item:'', hours:1 });
+  calcLabour();
 }
 
 // ── MATERIALS ────────────────────────────────────────────────────
@@ -11525,6 +11767,10 @@ function populateMaterialsFromLines() {
   // Update materials tab auto-section
   var matAutoEl=document.getElementById('matAutoFromLines');
   if(matAutoEl) matAutoEl.innerHTML=html;
+  // Mirror the same tiles onto the Pricing tab's cross-check card so
+  // the user can verify the Material Price rows match the drawing.
+  var mirrorEl=document.getElementById('pricingDrawSummary');
+  if(mirrorEl) mirrorEl.innerHTML=html;
 
   // Refresh the per-line flashings breakdown card under the Roof
   // Sheet Plan.
@@ -11598,9 +11844,22 @@ function renderFlashingsBreakdown() {
   });
   if (!anyRendered) {
     out.innerHTML = '<p style="font-size:12px;color:var(--text2);margin:0">No flashing-type lines drawn yet (ridge, hip, valley, gutter, barge, apron, change of pitch).</p>';
+    var emptyMirror = document.getElementById('pricingFlashingsBreakdown');
+    if (emptyMirror) {
+      emptyMirror.innerHTML =
+        '<div style="font-size:11px;font-weight:700;color:#0099cc;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Flashings — per line</div>'+
+        '<p style="font-size:12px;color:var(--text2);margin:0">No flashing-type lines drawn yet.</p>';
+    }
     return;
   }
   out.innerHTML = html;
+  // Mirror onto the Pricing tab cross-check card.
+  var mirror = document.getElementById('pricingFlashingsBreakdown');
+  if (mirror) {
+    mirror.innerHTML =
+      '<div style="font-size:11px;font-weight:700;color:#0099cc;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Flashings — per line</div>'+
+      html;
+  }
 }
 
 
