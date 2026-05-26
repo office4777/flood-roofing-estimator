@@ -13923,6 +13923,15 @@ function _renderRoofSheetPlanInner() {
   // L-shape wing).
   Object.keys(byColor).forEach(function(c){
     byColor[c].sort(function(a, b){
+      if (_hasTelesc && _uOf) {
+        // Rotation-invariant numbering: order along the wing-ward axis (u) and
+        // then toward the merged edge (v).  -u keeps #1 at the same physical
+        // end as the canonical layout, so a rotated/mirrored telescoping roof
+        // numbers identically to the un-rotated one.
+        var ua = _uOf(a.centroid), ub = _uOf(b.centroid);
+        if (Math.abs(ua-ub) > 1) return ub - ua;
+        return _vOf(b.centroid) - _vOf(a.centroid);
+      }
       if (mainA) {
         var pa = (a.centroid[0]-mainA.a[0])*mainA.tx +
                  (a.centroid[1]-mainA.a[1])*mainA.ty;
