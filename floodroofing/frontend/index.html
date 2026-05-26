@@ -966,7 +966,23 @@ select{
   </div>
 </div>
 
-<!-- Roof-sketch AI tracing removed — use the aerial imagery above, then draw lines on the canvas. -->
+  <!-- Upload your own roof image — drop in a sketch, builder's plan,
+       or an aerial screenshot you already have. Becomes the canvas
+       background instead of the satellite imagery above.
+       The onRoofImg handler reads the file, sets #roofPrevImg, and
+       toggles #roofUZ / #roofPrev. -->
+  <div class="card" style="margin-top:12px">
+    <div class="card-hd"><span class="card-dot"></span>Upload roof picture
+      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">— use your own sketch / aerial photo instead of the satellite view above</span>
+    </div>
+    <div class="upload-zone" id="roofUZ" style="margin-top:6px">
+      <svg style="width:32px;height:32px;margin:0 auto 8px;display:block;opacity:.4" viewBox="0 0 32 32" fill="none"><rect x="3" y="3" width="26" height="26" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M16 9V23M9 16L16 9L23 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="uz-title">Drop your roof sketch / aerial photo here</div>
+      <div class="uz-sub" style="margin-top:4px">JPG or PNG — sits behind the canvas as a tracing background</div>
+      <input type="file" id="roofFile" accept="image/*" onchange="onRoofImg(event)">
+    </div>
+    <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="uploaded roof"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">× Remove</button></div>
+  </div>
   </div>
 
   <!-- Results -->
@@ -7556,6 +7572,15 @@ function setSelectJobSource(src, btn){
   }
 }
 
+// Renders the Fergus list inside the Select Job modal. Mirrors
+// runFergSearch's pattern so the modal works for deep jobs the
+// preloader hasn't cached yet:
+//   1. Instant client-side filter on whatever's already in the cache
+//   2. Async server-side lookup via Fergus's filterJobNo / filterSearchText
+//      (both confirmed working by /jms/debug/fergus-find). Hits merge
+//      back into the cache so the next render finds them locally.
+var _sjFergSearchTimer = null;
+var _sjFergSearchSeq = 0;          // monotonic counter so stale searches lose
 function _renderSelectJobFergusList(){
   var box = document.getElementById('selectJobFergList'); if (!box) return;
   if (!S.fergConnected && !(S.fergJobsCache && S.fergJobsCache.length)) {
@@ -7565,19 +7590,32 @@ function _renderSelectJobFergusList(){
       '</div>';
     return;
   }
-  var q = ((document.getElementById('selectJobSearch')||{}).value || '').toLowerCase().trim();
+  var q = ((document.getElementById('selectJobSearch')||{}).value || '').trim();
   var all = S.fergJobsCache || [];
+  // Instant cache hit
   var matched = !q ? all.slice() : all.filter(function(j){
     return (typeof _fergMatches === 'function') ? _fergMatches(j, q)
-      : ((j.customer||'').toLowerCase().indexOf(q)>=0 || (j.address||'').toLowerCase().indexOf(q)>=0 || String(j.jobNo||'').indexOf(q)>=0);
+      : ((j.customer||'').toLowerCase().indexOf(q.toLowerCase())>=0 || (j.address||'').toLowerCase().indexOf(q.toLowerCase())>=0 || String(j.jobNo||'').indexOf(q)>=0);
   });
   if (typeof _fergRecencyComp === 'function') matched.sort(_fergRecencyComp);
-  matched = matched.slice(0, 80);
+  _paintSelectJobFergusList(box, matched.slice(0, 80), q, all.length, !!q);
+
+  // No query → done.
+  if (!q) return;
+  // Query → also fire the server-side lookup. Debounced so fast typing
+  // doesn't flood Fergus with requests. Each call bumps a sequence id;
+  // only the latest one's results are allowed to render.
+  clearTimeout(_sjFergSearchTimer);
+  var mySeq = ++_sjFergSearchSeq;
+  _sjFergSearchTimer = setTimeout(function(){
+    _serverSearchSelectJobFergus(q, mySeq);
+  }, 280);
+}
+function _paintSelectJobFergusList(box, matched, q, totalCached, isSearching){
   if (!matched.length) {
-    var loaded = all.length;
     box.innerHTML = '<div style="padding:1rem;color:var(--text2);font-size:13px;text-align:center">'+
-      (q ? 'No Fergus jobs match <strong>'+esc(q)+'</strong> in ' + loaded + ' cached jobs.'
-         : (loaded ? 'No jobs to show.' : 'Fergus cache empty — try typing a search; the cache builds in the background.'))+
+      (q ? 'No matches in '+totalCached+' cached jobs yet — checking Fergus directly…'
+         : (totalCached ? 'No jobs to show.' : 'Fergus cache empty — type a search and we\'ll ask Fergus directly.'))+
       '</div>';
     return;
   }
@@ -7588,7 +7626,43 @@ function _renderSelectJobFergusList(){
       '<strong>'+ esc(label) +'</strong>'+
       (sub ? '<div class="job-card-id">'+ esc(sub) +'</div>' : '')+
       '</div>';
-  }).join('');
+  }).join('') + (isSearching ? '<div style="padding:.5rem 0;text-align:center;font-size:11px;color:var(--text2)">…also checking Fergus directly for deeper jobs</div>' : '');
+}
+async function _serverSearchSelectJobFergus(q, seq){
+  var box = document.getElementById('selectJobFergList'); if (!box) return;
+  // Same endpoint pair runFergSearch uses — both confirmed working on
+  // the Flood Roofing tenant by the /jms/debug/fergus-find probe.
+  var proms = [
+    fergusCall('GET', '/jobs?pageSize=20&filterSearchText=' + encodeURIComponent(q))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ return d ? (d.value || d.jobs || d.data || []) : []; })
+      .catch(function(){ return []; })
+  ];
+  if (/^\d+$/.test(q)) {
+    proms.push(
+      fergusCall('GET', '/jobs?pageSize=20&filterJobNo=' + encodeURIComponent(q))
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){ return d ? (d.value || d.jobs || d.data || []) : []; })
+        .catch(function(){ return []; })
+    );
+  }
+  var batches = await Promise.all(proms);
+  // Stale-result guard: another keystroke fired after this one started
+  if (seq !== _sjFergSearchSeq) return;
+  var serverJobs = [].concat.apply([], batches).map(_fergJobView);
+  // Merge into cache so future opens of the modal find them locally
+  S.fergJobsCache = S.fergJobsCache || [];
+  var seen = {}; S.fergJobsCache.forEach(function(j){ seen[j.id] = 1; });
+  serverJobs.forEach(function(j){ if (!seen[j.id]) { seen[j.id] = 1; S.fergJobsCache.unshift(j); } });
+  // Re-filter combined cache + render. _fergMatches handles the
+  // displayNo / jobNo / customer / address fields.
+  var all = S.fergJobsCache || [];
+  var matched = all.filter(function(j){
+    return (typeof _fergMatches === 'function') ? _fergMatches(j, q)
+      : ((j.customer||'').toLowerCase().indexOf(q.toLowerCase())>=0 || (j.address||'').toLowerCase().indexOf(q.toLowerCase())>=0 || String(j.jobNo||'').indexOf(q)>=0);
+  });
+  if (typeof _fergRecencyComp === 'function') matched.sort(_fergRecencyComp);
+  _paintSelectJobFergusList(box, matched.slice(0, 80), q, all.length, false);
 }
 
 // Re-route searchbox input to the Fergus list when that tab is on.
