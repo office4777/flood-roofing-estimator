@@ -857,11 +857,7 @@ select{
     <div><span class="hdr-field">Region</span><span class="hdr-val">Whangarei, NZ</span></div>
     <div><span class="hdr-field">GST</span><span class="hdr-val">15%</span></div>
   </div>
-  <div class="hdr-right">
-    <span class="pill"><span class="pill-dot" style="background:#15803d"></span>AI Ready</span>
-    <span class="pill" id="fergChip" onclick="S.fergConnected=false;autoConnect();" style="cursor:pointer" title="Click to reconnect"><span class="pill-dot"></span>Fergus: connecting…</span>
-    <span class="pill" id="proxyChip"><span class="pill-dot"></span>Proxy: checking…</span>
-  </div>
+  <div class="hdr-right"></div>
 </div>
 
 <div class="nav">
@@ -2093,6 +2089,51 @@ select{
   </div>
 </div>
 
+<!-- JMS SETUP MODAL — opens when the user picks a JMS from the
+     "Link Job Management System" dropdown (or clicks Configure on the
+     Settings tab). Holds API key + connection + diagnostic buttons
+     that used to live inline in Settings. Provider-specific blocks
+     show/hide based on which provider is being configured. -->
+<div id="jmsSetupOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998" onclick="closeJMSSetup()"></div>
+<div id="jmsSetupModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:720px;max-width:95vw;max-height:88vh;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:9999;overflow:hidden;flex-direction:column">
+  <div style="padding:14px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">
+    <strong style="flex:1;font-size:14px">⚙ <span id="jmsSetupTitle">Configure connection</span></strong>
+    <button onclick="closeJMSSetup()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px">✕ Close</button>
+  </div>
+  <div style="padding:16px 20px;overflow-y:auto;flex:1">
+
+    <!-- Fergus setup block — visible when the active JMS is fergus -->
+    <div id="jmsSetupFergus">
+      <div style="margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:4px">Connection status</div>
+        <div id="proxyStatusBanner" class="proxy-status proxy-warn"><span class="proxy-dot"></span><span id="proxyStatusText">Checking proxy...</span></div>
+        <div class="warn-box" id="proxyInstructions" style="display:none"><strong>API connection issue.</strong></div>
+        <div class="notice" id="proxyOkMsg" style="display:none">Proxy running. Connecting to Fergus...</div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:4px">Fergus API key</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:.75rem">The Fergus PAT used for connections is read from <code>FERGUS_API_KEY</code> on the backend (Railway env var). The field below is informational only — changes here are <em>not</em> sent to Fergus.</p>
+        <div class="api-input-wrap"><input type="password" id="fergKey" placeholder="(read from Railway FERGUS_API_KEY)"><button class="api-toggle" onclick="toggleKeyVis()">show</button></div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button class="sec-btn" onclick="testFergus()" style="margin:0">Connect to Fergus</button>
+          <button onclick="diagnoseFergus()" style="padding:9px 16px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔍 Diagnose config</button>
+          <button onclick="probeFergus()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔬 Probe</button>
+          <button onclick="findJobProbe()" style="padding:9px 16px;background:#fff;color:#dc2626;border:1.5px solid #dc2626;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🩺 Find job #</button>
+          <button onclick="dumpFergCache()" style="padding:9px 16px;background:#fff;color:#059669;border:1.5px solid #059669;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">📦 Cache stats</button>
+          <button onclick="probeSalesAccounts()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">💰 Sales accounts</button>
+        </div>
+        <div id="fergDiag" style="display:none;margin-top:10px;padding:12px 14px;background:#f5f5f3;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.7;white-space:pre-wrap;color:#0a1628"></div>
+        <div class="err" id="fergErr"></div>
+        <div class="notice" id="fergOk" style="display:none">Connected to Fergus successfully.</div>
+      </div>
+    </div>
+
+    <!-- "None" placeholder if user opens Configure with no JMS picked -->
+    <div id="jmsSetupNone" style="display:none;padding:14px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text2)">No JMS picked. Choose one from the dropdown to configure its connection.</div>
+  </div>
+</div>
+
 <!-- TAB 8: SETTINGS -->
 <div class="panel" id="tab-settings">
 
@@ -2119,84 +2160,30 @@ select{
   <!-- Link Job Management System -->
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Link Job Management System</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Pick the platform you run jobs in. Selecting a system reveals its connection settings below. You can still push to a different system per-quote via the <strong>Push to JMS</strong> button on the Quote tab.</p>
-    <div style="max-width:340px">
-      <label>Job management system</label>
-      <select id="jmsSelect" onchange="setJMS(this.value)">
-        <option value="none">None — manual quoting only</option>
-        <option value="fergus" selected>Fergus</option>
-        <option value="tradify" disabled>Tradify (coming soon)</option>
-        <option value="servicem8" disabled>ServiceM8 (coming soon)</option>
-        <option value="jobber" disabled>Jobber (coming soon)</option>
-        <option value="aroflo" disabled>AroFlo (coming soon)</option>
-        <option value="simpro" disabled>simPRO (coming soon)</option>
-        <option value="workflowmax" disabled>WorkflowMax (coming soon)</option>
-      </select>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Pick the platform you run jobs in. Selecting a system opens its setup page where you enter API keys and test the connection. You can still push to a different system per-quote via the <strong>Push to JMS</strong> button on the Quote tab.</p>
+    <div style="display:flex;gap:8px;align-items:flex-end;max-width:520px;flex-wrap:wrap">
+      <div style="flex:1;min-width:240px">
+        <label>Job management system</label>
+        <select id="jmsSelect" onchange="setJMS(this.value)">
+          <option value="none">None — manual quoting only</option>
+          <option value="fergus" selected>Fergus</option>
+          <option value="tradify" disabled>Tradify (coming soon)</option>
+          <option value="servicem8" disabled>ServiceM8 (coming soon)</option>
+          <option value="jobber" disabled>Jobber (coming soon)</option>
+          <option value="aroflo" disabled>AroFlo (coming soon)</option>
+          <option value="simpro" disabled>simPRO (coming soon)</option>
+          <option value="workflowmax" disabled>WorkflowMax (coming soon)</option>
+        </select>
+      </div>
+      <button type="button" id="jmsConfigureBtn" onclick="openJMSSetup()" class="sec-btn" style="margin:0;width:auto;padding:11px 18px">⚙ Configure connection</button>
     </div>
+    <div id="jmsStatusLine" style="margin-top:10px;font-size:12px;color:var(--text2)"></div>
     <div id="jmsNoneMsg" style="display:none;margin-top:10px;padding:10px 14px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text2)">No JMS linked. Quotes will print/email locally only.</div>
   </div>
 
-  <!-- Fergus configuration (shown when JMS = fergus) -->
-  <div id="jms-fergus-content">
-    <div class="card">
-      <div class="card-hd"><span class="card-dot"></span>Fergus connection</div>
-      <div id="proxyStatusBanner" class="proxy-status proxy-warn"><span class="proxy-dot"></span><span id="proxyStatusText">Checking proxy...</span></div>
-      <div class="warn-box" id="proxyInstructions" style="display:none"><strong>API connection issue.</strong></div>
-      <div class="notice" id="proxyOkMsg" style="display:none">Proxy running. Connecting to Fergus...</div>
-    </div>
-    <div class="card">
-      <div class="card-hd"><span class="card-dot"></span>Fergus API key</div>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:.75rem">The Fergus PAT used for connections is read from <code>FERGUS_API_KEY</code> on the backend (Railway env var). The field below is informational only — changes here are <em>not</em> sent to Fergus.</p>
-      <div class="api-input-wrap"><input type="password" id="fergKey" placeholder="(read from Railway FERGUS_API_KEY)"><button class="api-toggle" onclick="toggleKeyVis()">show</button></div>
-      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        <button class="sec-btn" onclick="testFergus()" style="margin:0">Connect to Fergus</button>
-        <button onclick="diagnoseFergus()" style="padding:9px 16px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔍 Diagnose config</button>
-        <button onclick="probeFergus()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🔬 Probe Fergus (show raw response)</button>
-        <button onclick="findJobProbe()" style="padding:9px 16px;background:#fff;color:#dc2626;border:1.5px solid #dc2626;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">🩺 Find job # (probe all patterns)</button>
-        <button onclick="dumpFergCache()" style="padding:9px 16px;background:#fff;color:#059669;border:1.5px solid #059669;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">📦 Show cache stats</button>
-        <button onclick="probeSalesAccounts()" style="padding:9px 16px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">💰 Probe sales accounts</button>
-      </div>
-      <div id="fergDiag" style="display:none;margin-top:10px;padding:12px 14px;background:#f5f5f3;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.7;white-space:pre-wrap;color:#0a1628"></div>
-      <div class="err" id="fergErr"></div>
-      <div class="notice" id="fergOk" style="display:none">Connected to Fergus successfully.</div>
-    </div>
-    <div class="card" id="fergJobsCard" style="display:none">
-      <div class="card-hd"><span class="card-dot"></span>Link to Fergus job</div>
-      <div class="tab-row">
-        <button class="tab-sm on" onclick="switchSubTab('ferg','ferg-existing',this)">Select existing job</button>
-        <button class="tab-sm" onclick="switchSubTab('ferg','ferg-new',this)">Create new job</button>
-      </div>
-      <div class="sub-panel on" id="ferg-existing">
-        <label>Search jobs</label><input type="text" id="fergSearch" placeholder="Job # / client name / address — searches Fergus directly" oninput="onFergSearchInput()">
-        <div id="fergPreloadStatus" style="font-size:11px;color:var(--text2);margin-top:4px;min-height:14px"></div>
-        <div id="fergJobList"></div>
-        <details style="margin-top:10px">
-          <summary style="font-size:11px;color:var(--text2);cursor:pointer">Can't find your job? Load by Fergus internal ID</summary>
-          <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
-            <input type="text" id="fergDirectId" placeholder="e.g. 15576244 (from the Fergus URL when viewing the job)" style="flex:1;padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;margin:0">
-            <button onclick="loadFergusJobById()" style="padding:7px 14px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Load</button>
-          </div>
-          <div style="font-size:10px;color:var(--text2);margin-top:4px">In the Fergus web app, open the job. The number at the end of the URL (after <code>/jobs/</code>) is the internal id.</div>
-        </details>
-        <div class="notice" id="fergSelNotice" style="display:none">Job linked: <strong id="fergJobName"></strong></div>
-      </div>
-      <div class="sub-panel" id="ferg-new">
-        <div class="f2"><div><label>Client name</label><input type="text" id="fNewClient"></div><div><label>Site address</label><input type="text" id="fNewAddr"></div></div>
-        <div class="f2">
-          <div><label>Job type</label><select id="fNewType"><option>Residential roofing</option><option>Commercial roofing</option><option>Repairs and maintenance</option><option>New build roofing</option><option>Gutter and drainage</option></select></div>
-          <div><label>Priority</label><select id="fNewPriority"><option>Standard</option><option>Urgent</option><option>Low</option></select></div>
-        </div>
-        <button class="sec-btn" onclick="createFergJob()">Create job in Fergus</button>
-        <div class="notice" id="fNewOk" style="display:none">Job created! ID: <strong id="fNewJobId"></strong></div>
-      </div>
-    </div>
-    <div class="card" id="fergPushCard" style="display:none">
-      <div class="card-hd"><span class="card-dot"></span>Push to Fergus</div>
-      <button class="sec-btn" onclick="pushToFergus()">Push quote to Fergus</button>
-      <div class="notice" id="fergPushOk" style="display:none"><strong>Pushed to Fergus.</strong> Draft quote created.</div>
-      <div class="err" id="fergPushErr"></div>
-    </div>
-  </div>
+  <!-- Placeholder kept so legacy setJMS calls don't error; the actual
+       Fergus setup UI lives in #jmsSetupModal now. -->
+  <div id="jms-fergus-content" style="display:none"></div>
 
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Settings
@@ -2528,15 +2515,54 @@ function switchSubTab(grp,id,btn){
   btn.classList.add('on');
 }
 
-// Job Management System selector — drives visibility of provider-specific
-// config blocks within Settings and persists the choice locally so it
-// survives reloads. Only Fergus is wired up today; the rest are stubs.
+// Job Management System selector — picks a JMS, persists locally, and
+// opens the setup modal the first time the user picks a JMS that needs
+// configuration. Configure can be re-opened anytime via the Configure
+// button next to the dropdown.
 function setJMS(provider){
-  try { localStorage.setItem('fr_jms', provider || 'none'); } catch(e){}
-  var fergus = document.getElementById('jms-fergus-content');
-  var noneMsg = document.getElementById('jmsNoneMsg');
-  if (fergus)  fergus.style.display  = (provider === 'fergus') ? '' : 'none';
-  if (noneMsg) noneMsg.style.display = (provider === 'none')   ? '' : 'none';
+  provider = provider || 'none';
+  var prev = '';
+  try { prev = localStorage.getItem('fr_jms') || ''; localStorage.setItem('fr_jms', provider); } catch(e){}
+  var noneMsg  = document.getElementById('jmsNoneMsg');
+  var configBtn= document.getElementById('jmsConfigureBtn');
+  var status   = document.getElementById('jmsStatusLine');
+  if (noneMsg)  noneMsg.style.display  = (provider === 'none') ? '' : 'none';
+  if (configBtn) configBtn.style.display = (provider === 'none') ? 'none' : '';
+  if (status)   status.textContent = (provider === 'none') ? '' :
+    (provider === 'fergus' ? 'Fergus selected — click Configure to set up the connection and test it.' :
+    'Setup for this JMS is coming soon.');
+  // First time this provider is picked → auto-open the setup modal.
+  // Subsequent changes don't auto-open; user uses Configure button.
+  if (provider !== 'none' && provider !== prev) {
+    try { openJMSSetup(); } catch(e){ console.warn('jms setup open:', e); }
+  }
+}
+function openJMSSetup(){
+  var provider = (function(){ try { return localStorage.getItem('fr_jms'); } catch(e){ return null; } })() || 'none';
+  var title = document.getElementById('jmsSetupTitle');
+  var fergus = document.getElementById('jmsSetupFergus');
+  var none   = document.getElementById('jmsSetupNone');
+  if (title) title.textContent =
+    provider === 'fergus' ? 'Configure Fergus connection' :
+    provider === 'none'   ? 'Pick a job management system first' :
+    'Configure connection';
+  if (fergus) fergus.style.display = (provider === 'fergus') ? '' : 'none';
+  if (none)   none.style.display   = (provider === 'none')   ? '' : 'none';
+  var ov = document.getElementById('jmsSetupOverlay');
+  var md = document.getElementById('jmsSetupModal');
+  if (ov) ov.style.display = 'block';
+  if (md) md.style.display = 'flex';
+  // If Fergus is selected, kick the connection check on open so the
+  // status banner immediately reflects state.
+  if (provider === 'fergus') {
+    try { checkProxy(); } catch(e){}
+  }
+}
+function closeJMSSetup(){
+  var ov = document.getElementById('jmsSetupOverlay');
+  var md = document.getElementById('jmsSetupModal');
+  if (ov) ov.style.display = 'none';
+  if (md) md.style.display = 'none';
 }
 // Apply the saved JMS choice on load.
 (function(){
@@ -2544,7 +2570,15 @@ function setJMS(provider){
     var saved = (function(){ try { return localStorage.getItem('fr_jms'); } catch(e){ return null; } })() || 'fergus';
     var sel = document.getElementById('jmsSelect');
     if (sel) sel.value = saved;
-    setJMS(saved);
+    // Restore visibility without auto-opening modal on first load.
+    var noneMsg  = document.getElementById('jmsNoneMsg');
+    var configBtn= document.getElementById('jmsConfigureBtn');
+    var status   = document.getElementById('jmsStatusLine');
+    if (noneMsg)  noneMsg.style.display  = (saved === 'none') ? '' : 'none';
+    if (configBtn) configBtn.style.display = (saved === 'none') ? 'none' : '';
+    if (status)   status.textContent = (saved === 'none') ? '' :
+      (saved === 'fergus' ? 'Fergus selected — Configure to set up the connection.' :
+      'Setup for this JMS is coming soon.');
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _init);
   else _init();
@@ -8150,11 +8184,13 @@ async function testFergus(){
     var resp = await fergusCall('GET', '/jobs?pageSize=100&sortField=createdAt&sortOrder=desc');
     if (!resp.ok) throw new Error(resp.status);
     S.fergConnected = true;
-    document.getElementById('fergOk').style.display = 'block';
-    document.getElementById('fergJobsCard').style.display = 'block';
-    document.getElementById('fergPushCard').style.display = 'block';
-    document.getElementById('fergChip').style.cssText = 'background:rgba(59,109,17,.15);color:#27500a;border-color:rgba(59,109,17,.35)';
-    document.getElementById('fergChip').innerHTML = '<span class="pill-dot" style="background:#27500a"></span>Fergus: connected';
+    var _fOk = document.getElementById('fergOk'); if (_fOk) _fOk.style.display = 'block';
+    var _fJC = document.getElementById('fergJobsCard'); if (_fJC) _fJC.style.display = 'block';
+    var _fPC = document.getElementById('fergPushCard'); if (_fPC) _fPC.style.display = 'block';
+    // Header chip removed in the redesign — leave a null-guarded
+    // touch in case a future build re-adds it.
+    var _fc = document.getElementById('fergChip');
+    if (_fc) { _fc.style.cssText = 'background:rgba(59,109,17,.15);color:#27500a;border-color:rgba(59,109,17,.35)'; _fc.innerHTML = '<span class="pill-dot" style="background:#27500a"></span>Fergus: connected'; }
     var data = await resp.json();
     S.fergJobsCache = (data.value || data.jobs || data.data || []).map(_fergJobView);
     showFergJobsList();
