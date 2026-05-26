@@ -306,6 +306,19 @@ body{
   box-shadow:0 0 0 3px rgba(0,153,204,.12);
 }
 
+/* Tighter spacing for the Materials & Sheet Layout + Scope & Pricing tabs */
+#tab-materials .card,#tab-scope .card{padding:14px 16px;margin-bottom:10px}
+#tab-materials .card-hd,#tab-scope .card-hd{margin-bottom:10px}
+#tab-materials .f2,#tab-materials .f3,#tab-scope .f2,#tab-scope .f3{gap:10px}
+#tab-scope .chk-grid{gap:6px;margin-bottom:10px}
+#tab-scope .result-box{margin-top:.5rem;padding:12px 14px}
+#tab-scope .sec-btn{margin-top:.5rem}
+
+/* Floating line/section editor floats over the Map Roof canvas, so its
+   grids stack to fit the narrow panel instead of pushing it wider. */
+#propPanel .f2,#propPanel .f3{grid-template-columns:1fr;gap:8px}
+#propPanel label{margin-bottom:3px}
+
 /* ── Forms ──────────────────────────────────────────────────── */
 label{
   font-size:12px;
@@ -1104,7 +1117,7 @@ select{
   <span style="font-size:16px">💡</span>
   <span><strong>Best workflow:</strong> Upload photo → click <strong>Building outline</strong> → click each corner of the roof perimeter clockwise → press <strong>Enter</strong> to close → then draw internal lines (ridge, valley etc) on top.</span>
 </div>
-<div style="display:flex;gap:0;width:100%">
+<div style="display:flex;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
         <canvas id="roofCanvas" width="900" height="620"
           style="cursor:crosshair;display:block"
@@ -1245,8 +1258,11 @@ select{
       <div id="penPopupOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:999" onclick="cancelPenPopup()"></div>
 
       <!-- Properties panel - shows context-sensitive editor -->
-      <div id="propPanel" style="margin-top:.75rem;display:none;background:#f0f8fb;border-radius:10px;padding:14px;border-left:3px solid #0099cc">
-        <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:#0a1628" id="propTitle">Properties</div>
+      <div id="propPanel" style="display:none;position:absolute;top:12px;right:12px;z-index:60;width:248px;max-height:calc(100% - 24px);overflow-y:auto;background:#fff;border-radius:10px;padding:12px 14px;border:1px solid #cfe6f2;border-left:3px solid #0099cc;box-shadow:0 8px 28px rgba(0,0,0,.18)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-weight:600;font-size:13px;color:#0a1628;flex:1" id="propTitle">Properties</span>
+          <button onclick="DRAW.selectedLine=-1;DRAW.selectedSection=-1;DRAW.selectedPen=-1;hidePropPanel();redrawAll()" title="Close" style="background:none;border:none;font-size:18px;line-height:1;color:#94a3b8;cursor:pointer;padding:0 2px">×</button>
+        </div>
 
         <!-- Section editor -->
         <div id="sectionEditor" style="display:none">
@@ -1417,10 +1433,6 @@ select{
     </div>
     <div id="pricingDrawSummary" style="font-size:12px">
       <p style="color:var(--text2);margin:0">Draw your roof on Map Roof first — totals will mirror here automatically.</p>
-    </div>
-    <div id="pricingFlashingsBreakdown" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-      <div style="font-size:11px;font-weight:700;color:#0099cc;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Flashings — per line</div>
-      <p style="font-size:12px;color:var(--text2);margin:0">Per-line list appears here once you've added measurements.</p>
     </div>
   </div>
 
@@ -10918,22 +10930,6 @@ function redrawAll() {
     }
   }
 
-  // Legend bottom-right
-  var legItems=[
-    {c:'#1b5e20',label:'Building outline',lw:3},
-    {c:'#dc2626',label:'Ridge',lw:3},{c:'#f59e0b',label:'Valley',lw:2.5},
-    {c:'#7c3aed',label:'Gutter',lw:4},{c:'#059669',label:'Hip',lw:2.5},
-    {c:'#0891b2',label:'Barge',lw:2.5},{c:'#e11d48',label:'Apron flashing',lw:2.5},
-    {c:'#0ea5e9',label:'Change of pitch',lw:3},
-  ];
-  var legX=W-180,legY=H-legItems.length*16-10;
-  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillRect(legX-8,legY-14,176,legItems.length*16+18);
-  legItems.forEach(function(it,i){
-    ctx.strokeStyle=it.c; ctx.lineWidth=it.lw;
-    ctx.beginPath();ctx.moveTo(legX,legY+i*16);ctx.lineTo(legX+22,legY+i*16);ctx.stroke();
-    ctx.fillStyle='#333'; ctx.font='11px sans-serif'; ctx.textAlign='left';
-    ctx.fillText(it.label,legX+28,legY+i*16+4);
-  });
   ctx.restore(); // restore dpr scale transform
 }
 
