@@ -13400,12 +13400,13 @@ function _renderRoofSheetPlanInner() {
     // triangular slope (hip-end type) rather than a 4-vertex long-side, so
     // don't require the long-side type — its poly[1] is still the apex.
     if (!longSide) return;
+    // Telescoping MERGED slope: its full-span polygon carries the whole stepped
+    // ridge, so poly[1]/poly[2] aren't reliable apexes — they flip when the
+    // outline winding reverses (mirroring) and mis-match the hip-ends.  Feed it
+    // from the wing-ward chain below instead, which keys off gutter corners.
+    if (_hasTelesc && longSide === _merged) return;
     var apexL = longSide.poly[1], apexR = longSide.poly[2];
-    // On a telescoping main, restrict the orange (north) donors to ORANGE
-    // sheets so the recoloured wing-length north sheets aren't pulled into a
-    // hip-end (which would orphan a purple/green sheet number onto an orange
-    // hip-end strip).
-    var _oc = (_hasTelesc && longSide === _merged) ? _merged.color : null;
+    var _oc = null;
     faces.forEach(function(hipEnd){
       if (hipEnd.type !== 'hip-end') return;
       if (hipEnd === mainA || hipEnd === mainB) return;  // the mains are donors, not receivers
@@ -13476,9 +13477,34 @@ function _renderRoofSheetPlanInner() {
       var _mainW = westFaces[westFaces.length-1];
       var _apexMW = null;
       if (_mainW && _mainW !== _tip && _merged) {
-        var _gmw = [(_mainW.a[0]+_mainW.b[0])/2, (_mainW.a[1]+_mainW.b[1])/2], _bdm = -1;
-        _mainW.poly.forEach(function(v){ var d = Math.hypot(v[0]-_gmw[0], v[1]-_gmw[1]); if (d > _bdm){ _bdm = d; _apexMW = v; } });
+        // The main-W riser is a long-side with TWO ridge apexes; "furthest from
+        // gutter-mid" ties between them and flips under mirroring.  Pick the
+        // merged-side ridge apex (lowest _cy) deterministically so the feed is
+        // orientation-invariant.
+        var _bdm = Infinity;
+        _mainW.poly.forEach(function(v){
+          if (Math.hypot(v[0]-_mainW.a[0],v[1]-_mainW.a[1]) < 4 || Math.hypot(v[0]-_mainW.b[0],v[1]-_mainW.b[1]) < 4) return;
+          var cyv = _cy(v); if (cyv < _bdm){ _bdm = cyv; _apexMW = v; }
+        });
+        if (!_apexMW) {
+          var _gmw = [(_mainW.a[0]+_mainW.b[0])/2, (_mainW.a[1]+_mainW.b[1])/2], _bd = -1;
+          _mainW.poly.forEach(function(v){ var d = Math.hypot(v[0]-_gmw[0], v[1]-_gmw[1]); if (d > _bd){ _bd = d; _apexMW = v; } });
+        }
         _pairCornerToHipEnd(_merged, _mainW, _apexMW, _merged.color);
+      }
+      // The main's FAR hip-end (the hip on the side away from the wings): also
+      // fed by the merged slope's main-portion offcuts.  Excluded from the
+      // generic apex-match cascade (merged poly[1] is unreliable), so feed it
+      // here too — _pairCornerToHipEnd keys off the shared gutter corner, which
+      // is robust to rotation and mirroring.
+      var _farHip = faces.filter(function(f){
+        return f.type === 'hip-end' && f !== _tip && westFaces.indexOf(f) < 0;
+      }).sort(function(a,b){ return _cx(b.centroid) - _cx(a.centroid); })[0];
+      if (_farHip && _merged) {
+        // A hip-end triangle's apex is its inland convergence vertex = poly[1]
+        // (reliable for a 3-vertex face, unlike a furthest-from-gutter test
+        // which ties on an isosceles hip).
+        _pairCornerToHipEnd(_merged, _farHip, _farHip.poly[1], _merged.color);
       }
       // Inner risers (between the outer tip and the main-W): their stepped-side
       // strips are SECOND pieces re-cut at the valley.  Reuse the chain offcuts
@@ -13631,6 +13657,11 @@ function _renderRoofSheetPlanInner() {
   // sheets, its own valley offcuts feeding its own hip), so skip it.
   if (!_tCascade) [mainA, mainB].forEach(function(longSide){
     if (!longSide || longSide.type !== 'long-side') return;
+    // Telescoping merged slope: poly[1]/poly[2] aren't real apexes (they flip
+    // under mirroring), so they can spuriously match a wing long-side and dump
+    // the full-span slope's offcuts onto it.  Telescoping wings are fed by the
+    // wing-ward chain, so skip the merged slope in this L-shape cascade.
+    if (_hasTelesc && longSide === _merged) return;
     var apexL = longSide.poly[1], apexR = longSide.poly[2];
     [apexL, apexR].forEach(function(apex){
       // Skip if this apex already paired with a hip-end (4-hip cascade).
