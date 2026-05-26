@@ -13453,11 +13453,34 @@ function _renderRoofSheetPlanInner() {
       // restricted to ORANGE north sheets so the recoloured wing-length sheets
       // aren't consumed here.
       var _mainW = westFaces[westFaces.length-1];
+      var _apexMW = null;
       if (_mainW && _mainW !== _tip && mainA) {
-        var _gmw = [(_mainW.a[0]+_mainW.b[0])/2, (_mainW.a[1]+_mainW.b[1])/2], _apexMW = null, _bdm = -1;
+        var _gmw = [(_mainW.a[0]+_mainW.b[0])/2, (_mainW.a[1]+_mainW.b[1])/2], _bdm = -1;
         _mainW.poly.forEach(function(v){ var d = Math.hypot(v[0]-_gmw[0], v[1]-_gmw[1]); if (d > _bdm){ _bdm = d; _apexMW = v; } });
         _pairCornerToHipEnd(mainA, _mainW, _apexMW, COL_ORANGE);
       }
+      // Inner risers (between the outer tip and the main-W): their stepped-side
+      // strips are NOT fresh wing sheets — they're the SECOND pieces of offcuts
+      // re-cut at the valley.  Reuse the blue chain offcuts that pass across the
+      // valley (the 2nd/3rd chain donors) and the main-W's first orange offcut,
+      // so the strips read as blue #7,#6 and orange #1 rather than purple.
+      var _or1 = null;
+      if (_apexMW) {
+        var _mwOr = allStrips.filter(function(s){ return s.face===_mainW && s._offcutMatched && s.color===COL_ORANGE; })
+          .sort(function(a,b){ return Math.hypot(a.centroid[0]-_apexMW[0],a.centroid[1]-_apexMW[1]) - Math.hypot(b.centroid[0]-_apexMW[0],b.centroid[1]-_apexMW[1]); });
+        if (_mwOr.length) _or1 = _mwOr[0]._offcutSource;
+      }
+      var _innerSrc = [donorsW[1], donorsW[2], _or1].filter(Boolean);   // blue #7, blue #6, orange #1
+      if (_innerSrc.length) westFaces.forEach(function(rf){
+        if (rf === _tip || rf === _mainW) return;
+        allStrips.filter(function(s){ return s.face===rf && !s._offcutMatched; })
+          .sort(function(a,b){ return _hm ? (a.centroid[1]-b.centroid[1]) : (a.centroid[0]-b.centroid[0]); })  // valley→stepped
+          .forEach(function(s, i){
+            var src = _innerSrc[Math.min(i, _innerSrc.length-1)];
+            if (!src) return;
+            s._offcutMatched = true; s._offcutSource = src; s.color = src.color;
+          });
+      });
     }
   }
 
