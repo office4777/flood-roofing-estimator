@@ -10799,7 +10799,72 @@ function fitCanvasToWrap(){
 // ═══════════════════════════════════════════════════════════════════════
 //  STRAIGHT SKELETON  —  auto-generate hip & valley roof lines
 // ═══════════════════════════════════════════════════════════════════════
+// Clean ridge/hip/valley lines for a T (cap + central stem).  The general
+// straight-skeleton (buildHipValleyLines) produces unstable lines for a wide
+// stem — strays that fall outside the outline.  A T's topology is fully
+// determined by the cap rectangle + stem rectangle, so impose it directly:
+// cap 4-hip ridge, stem ridge down to its south hip, two valleys at the
+// junction.  Returns null if the outline isn't a clean T.  Shared by the main
+// diagram (buildHipValleyLines) and the sheet plan so both always agree.
+function buildTRoofLines(ol){
+  if (!ol || ol.length !== 8) return null;
+  function _r90(pt,cx,cy,nn){var dx=pt[0]-cx,dy=pt[1]-cy;for(var k=0;k<nn;k++){var nx=-dy,ny=dx;dx=nx;dy=ny;}return [cx+dx,cy+dy];}
+  var n=8, reflex=[];
+  for (var i=0;i<n;i++){
+    var q0=ol[(i-1+n)%n],q1=ol[i],q2=ol[(i+1)%n];
+    var cr=(q1[0]-q0[0])*(q2[1]-q1[1])-(q1[1]-q0[1])*(q2[0]-q1[0]);
+    if (cr<-1) reflex.push(i);
+  }
+  if (reflex.length!==2) return null;
+  var rA=reflex[0], rB=reflex[1], dd=(rB-rA+n)%n, btw;
+  if (dd===3) btw=[(rA+1)%n,(rA+2)%n];
+  else if (n-dd===3) btw=[(rB+1)%n,(rB+2)%n];
+  else return null;
+  var T1=ol[btw[0]],T2=ol[btw[1]],R1=ol[rA],R2=ol[rB];
+  var jc=[(R1[0]+R2[0])/2,(R1[1]+R2[1])/2], sc=[(T1[0]+T2[0])/2,(T1[1]+T2[1])/2];
+  var sdir=[sc[0]-jc[0], sc[1]-jc[1]];
+  var nTurns = (Math.abs(sdir[1])>=Math.abs(sdir[0])) ? (sdir[1]>0?0:2) : (sdir[0]>0?1:3);
+  var mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity;
+  ol.forEach(function(p){mnx=Math.min(mnx,p[0]);mxx=Math.max(mxx,p[0]);mny=Math.min(mny,p[1]);mxy=Math.max(mxy,p[1]);});
+  var pvx=(mnx+mxx)/2, pvy=(mny+mxy)/2;
+  var rot = ol.map(function(p){return _r90(p,pvx,pvy,nTurns);});
+  var creflex=[];
+  for (var i=0;i<n;i++){
+    var q0=rot[(i-1+n)%n],q1=rot[i],q2=rot[(i+1)%n];
+    var cr=(q1[0]-q0[0])*(q2[1]-q1[1])-(q1[1]-q0[1])*(q2[0]-q1[0]);
+    if (cr<-1) creflex.push(rot[i]);
+  }
+  if (creflex.length!==2) return null;
+  var cmnx=Infinity,cmxx=-Infinity,cmny=Infinity,cmxy=-Infinity;
+  rot.forEach(function(p){cmnx=Math.min(cmnx,p[0]);cmxx=Math.max(cmxx,p[0]);cmny=Math.min(cmny,p[1]);cmxy=Math.max(cmxy,p[1]);});
+  var jy=(creflex[0][1]+creflex[1][1])/2;
+  var cx0=cmnx, cx1=cmxx, cy0=cmny, sy1=cmxy;
+  var sx0=Math.min(creflex[0][0],creflex[1][0]), sx1=Math.max(creflex[0][0],creflex[1][0]);
+  if (!(sx0>cx0-0.5 && sx1<cx1+0.5 && jy>cy0+1 && sy1>jy+1 && Math.abs(creflex[0][1]-creflex[1][1])<2)) return null;
+  var ch=jy-cy0, sw=sx1-sx0, sxc=(sx0+sx1)/2, capMidY=(cy0+jy)/2;
+  var capWap=[cx0+ch/2,capMidY], capEap=[cx1-ch/2,capMidY];
+  var stemSap=[sxc, sy1-sw/2], ridgeN=[sxc,capMidY];
+  var ln=[
+    {t:'ridge', a:capWap, b:capEap},           // cap ridge (E-W)
+    {t:'ridge', a:ridgeN, b:stemSap},          // stem ridge → stem hip apex
+    {t:'hip', a:[cx0,cy0], b:capWap}, {t:'hip', a:[cx0,jy], b:capWap},
+    {t:'hip', a:[cx1,cy0], b:capEap}, {t:'hip', a:[cx1,jy], b:capEap},
+    {t:'hip', a:[sx0,sy1], b:stemSap}, {t:'hip', a:[sx1,sy1], b:stemSap}
+  ];
+  if (sw < ch - 0.5){
+    var V=[sxc, jy-sw/2];
+    ln.push({t:'valley', a:[sx0,jy], b:V}, {t:'valley', a:[sx1,jy], b:V});
+  } else {
+    var lH=[sx0+ch/2,capMidY], rH=[sx1-ch/2,capMidY];
+    ln.push({t:'valley', a:[sx0,jy], b:lH}, {t:'valley', a:[sx1,jy], b:rH});
+  }
+  var inv=(4-nTurns)%4;
+  return ln.map(function(L){ return {type:L.t, pts:[_r90(L.a,pvx,pvy,inv), _r90(L.b,pvx,pvy,inv)]}; });
+}
+
 function buildHipValleyLines(outline) {
+  var _tLn = buildTRoofLines(outline);
+  if (_tLn) return _tLn;            // clean imposed topology for T-shapes
   var result = [];
   var EPS = 1.5;
   function vlen(v){return Math.sqrt(v[0]*v[0]+v[1]*v[1]);}
@@ -12554,26 +12619,13 @@ function _renderRoofSheetPlanInner() {
     }
     var inv=(4-nTurns)%4;
     function rb(p){return rotate90(p,pvx,pvy,inv);}
-    // Overlay lines built from the SAME imposed topology as the faces, so the
-    // diagram's ridge/hip/valley lines match the sheets (the straight-skeleton
-    // auto-lines are unreliable for a wide stem and stray outside the outline).
-    var _ln=[
-      {t:'ridge', a:capWap, b:capEap},          // cap ridge (E-W)
-      {t:'ridge', a:ridgeN, b:stemSap},         // stem ridge (down to stem hip apex)
-      {t:'hip', a:[cx0,cy0], b:capWap}, {t:'hip', a:[cx0,jy], b:capWap},
-      {t:'hip', a:[cx1,cy0], b:capEap}, {t:'hip', a:[cx1,jy], b:capEap},
-      {t:'hip', a:[sx0,sy1], b:stemSap}, {t:'hip', a:[sx1,sy1], b:stemSap}
-    ];
-    if (sw < ch - 0.5){
-      _ln.push({t:'valley', a:[sx0,jy], b:V}, {t:'valley', a:[sx1,jy], b:V});
-    } else {
-      _ln.push({t:'valley', a:[sx0,jy], b:lH}, {t:'valley', a:[sx1,jy], b:rH});
-    }
-    _tLines = _ln.map(function(L){ return {type:L.t, pts:[rb(L.a), rb(L.b)]}; });
     return descs.map(function(d){return _mkTFace(rb(d.a),rb(d.b),d.poly.map(rb),d.t,d.c);});
   }
-  var _tLines = null;
   var _tFaces = _buildTFaces(outline);
+  // Overlay lines from the SAME imposed T topology as the faces (and as the
+  // main diagram via buildTRoofLines), so the sheet plan's ridge/hip/valley
+  // lines always match the sheets instead of the unstable skeleton auto-lines.
+  var _tLines = _tFaces ? buildTRoofLines(outline) : null;
   var _tCascade = !!(_tFaces && _tFaces.length);
   if (_tCascade) faces = _tFaces;
 
