@@ -696,8 +696,20 @@ select{
 #login-screen{background:var(--ink)!important}
 
 /* ── Print ─────────────────────────────────────────────────── */
+@page{size:A4;margin:12mm}
 @media print{
   body{background:#fff}
+  /* Each proposal page fills one A4 sheet exactly.
+     A4 = 210 × 297 mm; with 12 mm @page margin the usable area is
+     186 × 273 mm. .rp-body padding (38px) sits inside that area.
+     Force the height so background gradients + corner wedges land
+     on the right page. */
+  html.print-quote .report-preview .rp-page{
+    width:186mm; min-height:273mm; max-height:273mm; overflow:hidden;
+    box-sizing:border-box; margin:0!important;
+  }
+  /* Preview-only chrome that shouldn't reach paper. */
+  html.print-quote .report-preview{border:none!important;box-shadow:none!important;border-radius:0!important}
   .sidebar,.nav,.hdr,.sec-btn,.out-btn,.proxy-status,.upload-zone{display:none!important}
   .app{display:block!important}
   .content{padding:0!important}
@@ -1603,9 +1615,14 @@ select{
   <!-- Line items -->
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Line items
+      <label style="margin-left:14px;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:500;color:var(--text2);cursor:pointer">
+        <input type="checkbox" id="qShowLineItems" onchange="toggleShowLineItems(this.checked)" style="width:14px;height:14px;margin:0;cursor:pointer">
+        Show line items in printed quote
+      </label>
       <button onclick="addQuoteLine()" style="margin-left:auto;padding:5px 12px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">+ Add line</button>
       <button onclick="resyncQuoteLines()" style="margin-left:6px;padding:5px 12px;background:transparent;color:#0099cc;border:1px solid #0099cc;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Sync from scope &amp; materials</button>
     </div>
+    <p style="font-size:11px;color:var(--text2);margin:-8px 0 8px">Default off — only the combined Total / GST / Deposit prints on the Price page. Tick to also itemise the line items below the total.</p>
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:13px" id="qLineTable">
       <thead><tr style="background:var(--bg);text-align:left">
@@ -4852,6 +4869,11 @@ function defaultQuote(){
     terms: terms,
     gstRate: parseFloat(gst) || 15,
     lineItems: defaultQuoteLineItems(),
+    // When false, the printed proposal shows only the combined total
+    // (Subtotal / GST / Total / Deposit) on the Price page; line items
+    // are hidden. When true, an itemised table renders alongside the
+    // total. Default off — matches Flood Roofing's Fergus quote style.
+    showLineItemsInQuote: !!tpl.showLineItemsInQuote,
     // Multi-option proposal: selectable packages the client can choose
     // between, each with its own inclusions/scope, line items and
     // optional upgrades.  Empty by default — the legacy flat
@@ -4865,8 +4887,7 @@ function defaultQuote(){
       ? Object.assign({}, tpl.proposalSections)
       : { cover: true, about: true, condition: true,
           inclusions: true, colorsteel: true,
-          marley: true, ri_gutters: true,
-          scopework: true, terms: true, signature: true },
+          gutters: true, terms: true, signature: true },
     coverTitle: tpl.coverTitle || '',
     aboutText:  tpl.aboutText  || '',
     // Existing roof condition — a short prose block + bullet list of
@@ -4970,6 +4991,9 @@ function buildQuote(){
   set('qdGstRate',    String(S.quote.gstRate));
   set('qdCoverTitle', S.quote.coverTitle || '');
   set('qdAboutText',  S.quote.aboutText  || '');
+  // Sync the "Show line items in printed quote" checkbox to current state
+  var sliBox = document.getElementById('qShowLineItems');
+  if (sliBox) sliBox.checked = !!S.quote.showLineItemsInQuote;
   renderQuoteLines();
   renderProposalOptions();
   renderProposalSectionToggles();
@@ -5149,12 +5173,10 @@ function renderProposalSectionToggles(){
     ['cover',     'Cover page',                 'Hero + title + at-a-glance'],
     ['about',     'About us + team structure',  'Company profile + team roles'],
     ['condition', 'Existing roof condition',    'Condition summary + site photos'],
-    ['inclusions','Quote inclusions + pricing', 'Selectable options + itemised pricing'],
+    ['inclusions','Price page',                 'Scope, exclusions, options, total'],
     ['colorsteel','Colorsteel® range',          'MAXAM with Activate™ + standard colours'],
-    ['marley',    'Marley PVC spouting',        'Profiles + colour palette'],
-    ['ri_gutters','Continuous steel spouting',  'Profiles + Colorsteel colours'],
-    ['scopework', 'Scope of work + timeline',   'Phases, duration, estimated start'],
-    ['terms',     'Terms & conditions',         'Full NZ roofing T&Cs'],
+    ['gutters',   'Gutters',                    'Marley PVC + Colorsteel Box Gutter'],
+    ['terms',     'Terms & conditions',         'Flood Roofing T&Cs'],
     ['signature', 'Acceptance signature',       'Client signature page'],
   ];
   host.innerHTML = labels.map(function(p){
@@ -5175,6 +5197,14 @@ function toggleProposalSection(key, ev){
   if (!S.quote.proposalSections) S.quote.proposalSections = {};
   S.quote.proposalSections[key] = !(S.quote.proposalSections[key] !== false);
   renderProposalSectionToggles();
+  refreshQuoteProposal();
+}
+// Show / hide the itemised line-items table on the Price page of the
+// printed proposal. Off by default to match Flood Roofing's standard
+// Fergus-style quote (combined total only).
+function toggleShowLineItems(on){
+  if (!S.quote) S.quote = defaultQuote();
+  S.quote.showLineItemsInQuote = !!on;
   refreshQuoteProposal();
 }
 
@@ -5855,7 +5885,7 @@ function refreshQuoteProposal(){
   //   10. Acceptance / signature
   var partCover = '', partAbout = '', partCondition = '',
       partInclusions = '', partColorsteel = '',
-      partMarley = '', partRiGutters = '',
+      partMarley = '', partRiGutters = '', partGutters = '',
       partScopeWork = '', partTerms = '', partSignature = '';
 
   // ── Cover (editorial / capability-statement style) ──
@@ -6193,6 +6223,18 @@ function refreshQuoteProposal(){
             '</ul>'+
           '</div>'
         : '')+
+      // Exclusions — items NOT covered by this quote. Sourced from
+      // S.quote.exclusions[] (editable on the Quote tab template).
+      ((S.quote.exclusions||[]).length
+        ? '<div style="margin-top:14px;padding:12px 16px;background:#fff;border:1px solid var(--ed-line);border-left:3px solid var(--ed-warm,#c0794d)">'+
+            '<div class="ed-eyebrow" style="margin-bottom:6px;color:var(--ed-warm,#c0794d)">Exclusions — not covered by this quote</div>'+
+            '<ul style="margin:0;padding:0;list-style:none">'+
+              (S.quote.exclusions||[]).map(function(x){
+                return '<li style="display:flex;gap:8px;padding:3px 0;font-family:var(--ed-sans);font-size:11px;line-height:1.5;color:var(--ed-ink-2)"><span style="color:var(--ed-warm,#c0794d);flex-shrink:0;font-weight:700">×</span><span>'+esc2(x)+'</span></li>';
+              }).join('')+
+            '</ul>'+
+          '</div>'
+        : '')+
       // BIG combined total block — Subtotal / +GST / Total / Deposit.
       // Brand-ink panel with brand-blue accent for the headline total.
       '<div class="ed-keep" style="margin-top:20px;background:linear-gradient(135deg,var(--ed-ink) 0%,#0d2440 100%);color:#fff;padding:20px 24px;position:relative;overflow:hidden">'+
@@ -6215,7 +6257,34 @@ function refreshQuoteProposal(){
             '<div class="ed-serif" style="font-size:18px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedDep)+'</div>'+
           '</div>'+
         '</div>'+
-      '</div>';
+      '</div>'+
+      // Itemised line items — only printed when the user ticks "Show
+      // line items in printed quote" on the Quote tab. Default off,
+      // matching the Fergus quote style (combined total only).
+      (S.quote.showLineItemsInQuote && (S.quote.lineItems||[]).length
+        ? '<div style="margin-top:14px">'+
+            '<div class="ed-eyebrow" style="margin-bottom:6px">Itemised line items</div>'+
+            '<table style="width:100%;border-collapse:collapse;font-family:var(--ed-sans);font-size:11px">'+
+              '<thead><tr style="border-top:1px solid var(--ed-ink);border-bottom:1px solid var(--ed-ink)">'+
+                '<th style="padding:6px 4px;text-align:left;font-weight:500;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ed-text2)">Description</th>'+
+                '<th style="padding:6px 4px;text-align:right;width:50px;font-weight:500;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ed-text2)">Qty</th>'+
+                '<th style="padding:6px 4px;text-align:right;width:90px;font-weight:500;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ed-text2)">Unit</th>'+
+                '<th style="padding:6px 4px;text-align:right;width:100px;font-weight:500;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ed-text2)">Total</th>'+
+              '</tr></thead>'+
+              '<tbody>'+
+                (S.quote.lineItems||[]).map(function(li){
+                  var line = (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);
+                  return '<tr style="border-bottom:1px solid var(--ed-line)">'+
+                    '<td style="padding:6px 4px;color:var(--ed-ink-2)">'+esc2(li.desc||'—')+'</td>'+
+                    '<td style="padding:6px 4px;text-align:right;color:var(--ed-ink-2)">'+(li.qty||0)+'</td>'+
+                    '<td style="padding:6px 4px;text-align:right;color:var(--ed-ink-2)">'+fmtMoney(li.unit)+'</td>'+
+                    '<td style="padding:6px 4px;text-align:right;font-weight:600;color:var(--ed-ink)">'+fmtMoney(line)+'</td>'+
+                  '</tr>';
+                }).join('')+
+              '</tbody>'+
+            '</table>'+
+          '</div>'
+        : '');
   } else if (on('inclusions') && !opts.length) {
     // Legacy flat line-items table fallback
     var lb = (S.quote.lineItems||[]).map(function(li){
@@ -6407,6 +6476,53 @@ function refreshQuoteProposal(){
       '</div>';
   }
 
+  // ── Gutters (combined: Marley standard + Colorsteel Box upgrade on one page) ──
+  if (on('gutters')) {
+    partGutters =
+      edHeading('06','The spouting','Marley PVC &amp; Colorsteel options')+
+      '<div class="ed-body-lg" style="margin-bottom:18px;max-width:60em">Two gutter systems available. <span class="ed-serif" style="font-style:italic;font-size:15px">Marley Typhoon</span> PVC is our standard fit — UV-stabilised, light, won\'t corrode, won\'t dent in hail, backed by a 15-year manufacturer warranty. For larger roofs or extra peace of mind we recommend the upgrade to <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — rolled on-site in 0.55bmt steel, no factory joins, much higher flow capacity, fully colour-matched to the roof.</div>'+
+      // Two columns: Marley (standard) on the left, Colorsteel (upgrade) on the right
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;margin-bottom:18px">'+
+        // === MARLEY column ===
+        '<div style="border-top:2px solid var(--ed-ink);padding-top:12px;position:relative">'+
+          '<div style="position:absolute;top:-1px;right:0;background:var(--ed-accent);color:#fff;font-family:var(--ed-sans);font-size:9px;font-weight:600;letter-spacing:.16em;padding:3px 8px">STANDARD</div>'+
+          '<div class="ed-eyebrow" style="margin-bottom:6px">01 — Marley Typhoon® PVC</div>'+
+          '<div class="ed-serif" style="font-size:18px;color:var(--ed-ink);margin-bottom:8px;letter-spacing:-.005em">Marley Typhoon · high-flow half-round</div>'+
+          '<div class="ed-body" style="margin-bottom:12px">Standard install on every Flood Roofing job unless otherwise specified. 15-yr manufacturer warranty covers spouting, downpipes and fittings.</div>'+
+          // Profile mini-grid (2-col)
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'+
+            MARLEY_PROFILES.slice(0,4).map(function(p){
+              return '<div style="background:var(--ed-paper-2);padding:8px;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">'+gutterProfileSvg(p.key)+'</div>';
+            }).join('')+
+          '</div>'+
+          '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);line-height:1.5">Available in 12 colours matching the Colorsteel® palette. White and Black are stock; colours are made-to-order.</div>'+
+        '</div>'+
+        // === COLORSTEEL BOX GUTTER column ===
+        '<div style="border-top:2px solid var(--ed-accent);padding-top:12px;position:relative">'+
+          '<div style="position:absolute;top:-1px;right:0;background:var(--ed-warm,#c0794d);color:#fff;font-family:var(--ed-sans);font-size:9px;font-weight:600;letter-spacing:.16em;padding:3px 8px">RECOMMENDED UPGRADE</div>'+
+          '<div class="ed-eyebrow" style="margin-bottom:6px">02 — Colorsteel® 125mm Box Gutter</div>'+
+          '<div class="ed-serif" style="font-size:18px;color:var(--ed-ink);margin-bottom:8px;letter-spacing:-.005em">Continuous 0.55bmt steel · rolled on-site</div>'+
+          '<div class="ed-body" style="margin-bottom:12px">Rolled in one length — no factory joins. Higher flow capacity than any PVC. Coordinated finish in the same Colorsteel colour family as your roof. 15-yr paint film warranty.</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'+
+            STEEL_GUTTER_PROFILES.slice(0,4).map(function(p){
+              return '<div style="background:var(--ed-paper-2);padding:8px;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">'+gutterProfileSvg(p.key)+'</div>';
+            }).join('')+
+          '</div>'+
+          '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);line-height:1.5">Stiffer than PVC — long runs without intermediate brackets. AZ150 / AZ200 Galvalloy® substrate stands up to coastal salt.</div>'+
+        '</div>'+
+      '</div>'+
+      // Shared Colorsteel colour palette
+      '<div class="ed-eyebrow" style="margin-bottom:6px">Available colours · matched to your roof</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:5px">'+
+        MAXAM_COLOURS.slice(0,12).map(function(c){
+          var labelStyle = 'color:'+(needsLightLabel(c.hex)?'#fff':'#0a1628');
+          return '<div style="position:relative;background:'+c.hex+';height:46px;display:flex;align-items:flex-end;padding:4px 6px">'+
+            '<div style="font-family:var(--ed-sans);font-size:10px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.35)':'none')+'">'+esc2(c.name)+'</div>'+
+          '</div>';
+        }).join('')+
+      '</div>';
+  }
+
   // ── Summary (compact: option-tick list) ──
   if (on('summary')) {
     var sumOpts = opts.length ? opts : null;
@@ -6449,24 +6565,30 @@ function refreshQuoteProposal(){
     // payment, warranty, weather, site, variations, liability,
     // ownership and disputes.
     var customTerms = (S.quote.terms||'').trim();
+    // Flood Roofing's actual T&Cs (from their published doc) +
+    // recommended additions covering workmanship, variations, weather,
+    // hidden defects, insurance, H&S, cancellation, photos, disputes.
     var dflt = [
-      { h:'1. Quote validity',    b:'This quote is valid for 21 days from the date issued. After that date materials and labour rates may be re-quoted.' },
-      { h:'2. 100% price guarantee', b:'The price we quote is the price you pay. No hidden extras — and no separate scaffolding quote, because we do our own edge-protection scaffolding in-house.' },
-      { h:'3. Acceptance',        b:'The contract is formed when the client signs the acceptance page (or confirms in writing) AND the 50% deposit has cleared into our account. Verbal acceptance does not bind either party.' },
-      { h:'4. Materials &amp; products', b:'All materials are NZ-made unless explicitly noted. Colorsteel® MAXAM (with Activate™ Technology) carries NZ Steel\'s manufacturer warranty — up to 50 years against perforation in Mild environments (5km+ from breaking surf), reducing in Marine zones per NZ Steel\'s published exposure zones. Marley Typhoon spouting carries Marley\'s 15-year warranty. Manufacturer documentation handed over at sign-off.' },
-      { h:'5. Workmanship warranty', b:'We warrant the workmanship of the installed roof for 10 years from the date of practical completion. This covers fixing, lapping, flashing penetration of weather. It does not cover: damage by other trades, modifications by others, storm or impact damage, or normal wear of paint film (covered separately by manufacturer).' },
-      { h:'6. Payment terms',     b:'50% deposit invoice sent approximately 7 days before commencement of work — work is scheduled once the deposit clears. 50% final payment due within 7 days of practical completion. Invoices payable by the 20th of the month following invoice date. 2.5% per month interest applies to overdue balances. We reserve the right to suspend work for non-payment.' },
-      { h:'7. Variations &amp; provisional sums', b:'Any change to the agreed scope must be authorised in writing (email is fine). Variations are billed at quoted rates or current trade rates if not pre-quoted. Provisional Cost (PC) items — typically rotten battens or hidden flashings — are charged at cost + 15% on inspection during strip-out.' },
-      { h:'8. Hidden defects / latent conditions', b:'The quote is based on visible roof condition only. Concealed defects (rotten purlins, asbestos sheeting, structural sag, etc.) discovered during strip-out will be raised with the client immediately, priced, and treated as a variation.' },
-      { h:'9. Lead time &amp; programme', b:'Average lead time from acceptance to start is 5–8 weeks, scheduled first-in first-served. Outdoor work is weather-dependent — heavy rain or sustained high winds (40+ km/h) will halt work for safety. We catch the building up overnight if a strip is incomplete. Re-scheduled days do not attract additional cost unless the client cancels access.' },
-      { h:'10. Site access &amp; health and safety', b:'Client to provide reasonable site access, water and power. We follow WorkSafe / SiteSafe procedures including edge protection, harness anchors and exclusion zones. Children, pets and visitors must stay out of the active work zone. The client is responsible for moving valuable garden items / parked vehicles clear of the building line.' },
-      { h:'11. Insurance',        b:'We carry $2 million Public Liability + Contract Works insurance. Sub-trades engaged by us carry their own insurance. Client\'s building insurance must remain in force during the work.' },
-      { h:'12. Waste &amp; disposal', b:'All stripped roofing, underlay and packaging is removed from site and disposed of legally. Old metal is recycled where possible. Client may keep salvaged sheets on request, advised before strip-out.' },
-      { h:'13. Ownership of materials', b:'Title in materials remains with us until paid for in full. Materials installed before payment may be removed at our cost in the event of cancellation, subject to the Construction Contracts Act 2002.' },
-      { h:'14. Cancellation',     b:'Cancellation after deposit but before materials ordered: deposit refunded less a $250 admin fee. Cancellation after materials are ordered: client pays for all materials ordered + 10% restocking fee where applicable. Cancellation after work has commenced: client pays for all work done to date + materials.' },
-      { h:'15. Photographs',      b:'We typically take before/during/after photographs for our records. We may use anonymised photographs for marketing (website, social media). Tell us in writing if you don\'t want photos used externally.' },
-      { h:'16. Dispute resolution', b:'Any dispute will first be raised in writing and we will attempt to resolve it within 14 days. Unresolved disputes go to mediation under the Construction Contracts Act 2002. Disputes governed by New Zealand law, jurisdiction Whangarei District Court.' },
-      { h:'17. GST',              b:'All prices in this quote are exclusive of GST unless explicitly marked "incl. GST". 15% GST is added at invoice. We are GST-registered.' },
+      // ───── Flood Roofing core clauses (from the published T&Cs PDF)
+      { h:'1. Quote validity',    b:'This quote is valid for 60 days from the date quoted and is subject to Flood Roofing Limited\'s terms and conditions of sale. After that date materials and labour rates may be re-quoted.' },
+      { h:'2. Standard Colorsteel colours', b:'The quoted price is based on standard Colorsteel® colours. Non-standard colours selected after quoting may attract additional cost; we\'ll confirm any uplift in writing before ordering.' },
+      { h:'3. Colorsteel MAXAM warranty', b:'We install genuine Colorsteel® MAXAM as standard — NZ Steel\'s newest pre-painted roofing product. Perforation warranty by zone: 50 years Mild (5 km+ from breaking surf), 40 years Moderate (500–1,000 m), 30 years Severe (100–500 m), 20 years Very Severe (25–100 m). Full warranty info: https://www.colorsteel.co.nz/resources/warranty/' },
+      { h:'4. Title to materials', b:'All material supplied remains the property of Flood Roofing Limited until full payment has been received. Materials installed before payment may be removed at our cost in the event of cancellation, subject to the Construction Contracts Act 2002.' },
+      { h:'5. Removal of existing material', b:'All existing roofing material that Flood Roofing is removing has been quoted for disposal by Flood Roofing. If the client wishes to keep the existing material, an all-or-nothing rule applies — we either dispose of everything stripped, or the client takes the lot.' },
+      { h:'6. Deposit', b:'A 50% deposit of the total amount is required before materials are ordered. Work is scheduled once the deposit clears.' },
+      { h:'7. Final payment',     b:'Final payment is to be made no more than 7 days after the work has been completed. Failure to pay within that period results in interest of 2.5% per month on the outstanding balance. We reserve the right to suspend further work for non-payment.' },
+      { h:'8. GST',               b:'All prices in this quote are exclusive of GST unless explicitly marked "incl. GST". 15% GST is added at invoice. We are GST-registered (GST No. 120-543-997).' },
+      // ───── Recommended additions
+      { h:'9. Acceptance',        b:'The contract is formed when the client signs the acceptance page (or confirms in writing) AND the 50% deposit has cleared into our account. Verbal acceptance does not bind either party.' },
+      { h:'10. Workmanship warranty', b:'We warrant the workmanship of the installed roof for 10 years from the date of practical completion. This covers fixing, lapping, flashings and weatherproofing. It does not cover: damage by other trades, modifications by others, storm or impact damage, or normal wear of paint film (covered separately by NZ Steel\'s warranty).' },
+      { h:'11. Variations &amp; provisional sums', b:'Any change to the agreed scope must be authorised in writing (email is fine). Variations are billed at quoted rates or current trade rates if not pre-quoted. Provisional Cost (PC) items — typically rotten battens or hidden flashings — are charged at cost + 15% on inspection during strip-out.' },
+      { h:'12. Hidden defects / latent conditions', b:'The quote is based on visible roof condition only. Concealed defects (rotten purlins, asbestos sheeting, structural sag, etc.) discovered during strip-out will be raised with the client immediately, priced, and treated as a variation. Where asbestos is suspected, work will pause until a certified removalist has cleared the area at the client\'s cost.' },
+      { h:'13. Weather &amp; lead time', b:'Average lead time from acceptance to start is 4–6 weeks, scheduled first-in first-served. Outdoor work is weather-dependent — heavy rain or sustained high winds (40+ km/h) will halt work for safety. We catch the building up overnight if a strip is incomplete. Re-scheduled days do not attract additional cost unless the client cancels access.' },
+      { h:'14. Site access &amp; health and safety', b:'Client to provide reasonable site access, water and power. We follow WorkSafe NZ procedures including edge protection, harness anchors and exclusion zones. Children, pets and visitors must stay out of the active work zone. The client is responsible for moving valuable garden items and parked vehicles clear of the building line.' },
+      { h:'15. Insurance',        b:'We carry $2 million Public Liability and Contract Works insurance. Sub-trades engaged by us carry their own insurance. The client\'s building insurance must remain in force during the work.' },
+      { h:'16. Cancellation',     b:'Cancellation after deposit but before materials are ordered: deposit refunded less a $250 admin fee. Cancellation after materials are ordered: client pays for all materials ordered + 10% restocking fee where applicable. Cancellation after work has commenced: client pays for all work done to date + materials.' },
+      { h:'17. Photographs',      b:'We typically take before / during / after photographs of the work for our records. We may use anonymised photographs for marketing (website, social media). Tell us in writing if you would prefer photos not used externally.' },
+      { h:'18. Dispute resolution', b:'Any dispute will first be raised in writing and we will attempt to resolve it within 14 days. Unresolved disputes go to mediation under the Construction Contracts Act 2002. Disputes are governed by New Zealand law, with jurisdiction in the Whangarei District Court.' },
     ];
     var clauses = customTerms
       ? '<div class="ed-body" style="column-count:2;column-gap:24px;font-size:12px;line-height:1.6">'+
@@ -6547,15 +6669,13 @@ function refreshQuoteProposal(){
   html += rpPage(partInclusions);
   // Page 5 — Colorsteel product + standard colours
   html += rpPage(partColorsteel, 'background:linear-gradient(135deg,#fafbfc,#eef2f7)');
-  // Page 6 — Marley PVC spouting
-  html += rpPage(partMarley);
-  // Page 7 — Continuous steel spouting
-  html += rpPage(partRiGutters);
-  // Page 8 — Scope of work + timeline + start
-  html += rpPage(partScopeWork);
-  // Page 9 — Terms & conditions
+  // Page 6 — Gutters (combined Marley + Colorsteel Box on one page).
+  // partScopeWork (timeline + start date) is intentionally not assembled —
+  // the section is dropped from the proposal flow.
+  html += rpPage(partGutters);
+  // Page 7 — Terms & conditions
   html += rpPage(partTerms);
-  // Page 10 — Acceptance
+  // Page 8 — Acceptance
   html += rpPage(partSignature, 'background:linear-gradient(180deg,#fafbfc,#f1f5f9)');
 
   // ── Summary bar (always shown at the bottom) ──
@@ -6692,6 +6812,26 @@ function printQuote(){
     }, 500);
   }, 50);
 }
+// Ctrl/Cmd+P from the Quote tab should print the proposal only, not the
+// whole editing UI. Auto-add the print-quote class on beforeprint when
+// the Quote tab is active. (printQuote() handles the click-path; this
+// catches the keyboard / browser-menu path.)
+window.addEventListener('beforeprint', function(){
+  var ap = document.querySelector('.panel.active');
+  if (!ap || ap.id !== 'tab-quote') return;
+  if (document.documentElement.classList.contains('print-quote')) return;
+  document.documentElement.classList.add('print-quote');
+  document.documentElement.dataset.autoPrintQuote = '1';
+  var inc = document.getElementById('qIncludeReport');
+  if (inc && inc.checked) document.documentElement.classList.add('with-report');
+});
+window.addEventListener('afterprint', function(){
+  if (document.documentElement.dataset.autoPrintQuote === '1') {
+    document.documentElement.classList.remove('print-quote');
+    document.documentElement.classList.remove('with-report');
+    delete document.documentElement.dataset.autoPrintQuote;
+  }
+});
 
 // ══════════════════════════════════════════════════════════════════
 // ORDER MATERIAL — supplier order form, cut list, flashings, PDF
