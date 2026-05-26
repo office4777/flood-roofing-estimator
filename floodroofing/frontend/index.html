@@ -12287,7 +12287,83 @@ function fitCanvasToWrap(){
 // ═══════════════════════════════════════════════════════════════════════
 //  STRAIGHT SKELETON  —  auto-generate hip & valley roof lines
 // ═══════════════════════════════════════════════════════════════════════
+// Clean ridge/hip/valley lines for a T (cap + central stem).  The general
+// straight-skeleton (buildHipValleyLines) produces unstable lines for a wide
+// stem — strays that fall outside the outline.  A T's topology is fully
+// determined by the cap rectangle + stem rectangle, so impose it directly:
+// cap 4-hip ridge, stem ridge down to its south hip, two valleys at the
+// junction.  Returns null if the outline isn't a clean T.  Shared by the main
+// diagram (buildHipValleyLines) and the sheet plan so both always agree.
+function buildTRoofLines(ol){
+  if (!ol || ol.length !== 8) return null;
+  function _r90(pt,cx,cy,nn){var dx=pt[0]-cx,dy=pt[1]-cy;for(var k=0;k<nn;k++){var nx=-dy,ny=dx;dx=nx;dy=ny;}return [cx+dx,cy+dy];}
+  var n=8, reflex=[];
+  for (var i=0;i<n;i++){
+    var q0=ol[(i-1+n)%n],q1=ol[i],q2=ol[(i+1)%n];
+    var cr=(q1[0]-q0[0])*(q2[1]-q1[1])-(q1[1]-q0[1])*(q2[0]-q1[0]);
+    if (cr<-1) reflex.push(i);
+  }
+  if (reflex.length!==2) return null;
+  var rA=reflex[0], rB=reflex[1], dd=(rB-rA+n)%n, btw;
+  if (dd===3) btw=[(rA+1)%n,(rA+2)%n];
+  else if (n-dd===3) btw=[(rB+1)%n,(rB+2)%n];
+  else return null;
+  var T1=ol[btw[0]],T2=ol[btw[1]],R1=ol[rA],R2=ol[rB];
+  var jc=[(R1[0]+R2[0])/2,(R1[1]+R2[1])/2], sc=[(T1[0]+T2[0])/2,(T1[1]+T2[1])/2];
+  var sdir=[sc[0]-jc[0], sc[1]-jc[1]];
+  var nTurns = (Math.abs(sdir[1])>=Math.abs(sdir[0])) ? (sdir[1]>0?0:2) : (sdir[0]>0?1:3);
+  var mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity;
+  ol.forEach(function(p){mnx=Math.min(mnx,p[0]);mxx=Math.max(mxx,p[0]);mny=Math.min(mny,p[1]);mxy=Math.max(mxy,p[1]);});
+  var pvx=(mnx+mxx)/2, pvy=(mny+mxy)/2;
+  var rot = ol.map(function(p){return _r90(p,pvx,pvy,nTurns);});
+  var creflex=[];
+  for (var i=0;i<n;i++){
+    var q0=rot[(i-1+n)%n],q1=rot[i],q2=rot[(i+1)%n];
+    var cr=(q1[0]-q0[0])*(q2[1]-q1[1])-(q1[1]-q0[1])*(q2[0]-q1[0]);
+    if (cr<-1) creflex.push(rot[i]);
+  }
+  if (creflex.length!==2) return null;
+  var cmnx=Infinity,cmxx=-Infinity,cmny=Infinity,cmxy=-Infinity;
+  rot.forEach(function(p){cmnx=Math.min(cmnx,p[0]);cmxx=Math.max(cmxx,p[0]);cmny=Math.min(cmny,p[1]);cmxy=Math.max(cmxy,p[1]);});
+  var jy=(creflex[0][1]+creflex[1][1])/2;
+  var cx0=cmnx, cx1=cmxx, cy0=cmny, sy1=cmxy;
+  var sx0=Math.min(creflex[0][0],creflex[1][0]), sx1=Math.max(creflex[0][0],creflex[1][0]);
+  if (!(sx0>cx0-0.5 && sx1<cx1+0.5 && jy>cy0+1 && sy1>jy+1 && Math.abs(creflex[0][1]-creflex[1][1])<2)) return null;
+  var ch=jy-cy0, sw=sx1-sx0, sxc=(sx0+sx1)/2, capMidY=(cy0+jy)/2;
+  var capWap=[cx0+ch/2,capMidY], capEap=[cx1-ch/2,capMidY];
+  var stemSap=[sxc, sy1-sw/2], ridgeN=[sxc,capMidY];
+  var ln=[
+    {t:'hip', a:[cx0,cy0], b:capWap}, {t:'hip', a:[cx0,jy], b:capWap},
+    {t:'hip', a:[cx1,cy0], b:capEap}, {t:'hip', a:[cx1,jy], b:capEap},
+    {t:'hip', a:[sx0,sy1], b:stemSap}, {t:'hip', a:[sx1,sy1], b:stemSap}
+  ];
+  if (sw > ch + 0.5){
+    // Stem ridge HIGHER than the cap ridge: the cap's low ridge is split, and
+    // two small hips climb from its ends (W1/E1) up to T0, the north end of
+    // the high stem ridge.  Short valleys run from each junction corner to
+    // W1/E1 (the same points as the lower/even-stem case's valley tops).
+    var W1=[sx0+ch/2,capMidY], E1=[sx1-ch/2,capMidY], T0=[sxc, cy0+sw/2];
+    ln.push({t:'ridge', a:capWap, b:W1}, {t:'ridge', a:E1, b:capEap});
+    ln.push({t:'ridge', a:T0, b:stemSap});
+    ln.push({t:'hip', a:W1, b:T0}, {t:'hip', a:E1, b:T0});
+    ln.push({t:'valley', a:[sx0,jy], b:W1}, {t:'valley', a:[sx1,jy], b:E1});
+  } else {
+    // Stem ridge LOWER than / equal to the cap ridge: the stem ridge dies into
+    // the cap slope at a point V, with a valley from each junction corner up
+    // to it.  (At sw==ch, V == ridgeN and the two valleys meet the full cap
+    // ridge — the standard 4-way junction.)
+    var V=[sxc, jy-sw/2];
+    ln.push({t:'ridge', a:capWap, b:capEap});      // cap ridge (E-W), full
+    ln.push({t:'ridge', a:ridgeN, b:stemSap});     // stem ridge
+    ln.push({t:'valley', a:[sx0,jy], b:V}, {t:'valley', a:[sx1,jy], b:V});
+  }
+  var inv=(4-nTurns)%4;
+  return ln.map(function(L){ return {type:L.t, pts:[_r90(L.a,pvx,pvy,inv), _r90(L.b,pvx,pvy,inv)]}; });
+}
+
 function buildHipValleyLines(outline) {
+  var _tLn = buildTRoofLines(outline);
+  if (_tLn) return _tLn;            // clean imposed topology for T-shapes
   var result = [];
   var EPS = 1.5;
   function vlen(v){return Math.sqrt(v[0]*v[0]+v[1]*v[1]);}
@@ -12465,6 +12541,75 @@ function buildHipValleyLines(outline) {
       }
     }
   }
+  // ── Trim wing ridge/valley overshoots so they end at the apex ─────
+  // The straight skeleton of a wing meeting a larger main roof can
+  // overshoot the conventional apex: the two wing valleys cross PAST
+  // their meeting point (spawning a spurious little hip-end beyond it),
+  // or a wing ridge runs straight through the valley apex out to the
+  // main's hip line.  Conventionally a wing's ridge and its two valleys
+  // all die at one apex, so pull those overshoots back.  Only fires on
+  // genuine overshoots (crossing valleys / a ridge dangling past a
+  // valley apex), so clean roofs are left untouched.
+  (function trimWingApexOvershoots(){
+    var TOL = 2.5, NEAR = 34;
+    function dd(a,b){ return Math.hypot(a[0]-b[0],a[1]-b[1]); }
+    function onOutline(p){ return outline.some(function(v){ return dd(v,p)<=TOL; }); }
+    function properX(s1,s2){
+      var p=s1.pts[0], r=[s1.pts[1][0]-p[0],s1.pts[1][1]-p[1]];
+      var q=s2.pts[0], s=[s2.pts[1][0]-q[0],s2.pts[1][1]-q[1]];
+      var rxs=r[0]*s[1]-r[1]*s[0]; if(Math.abs(rxs)<1e-9)return null;
+      var t=((q[0]-p[0])*s[1]-(q[1]-p[1])*s[0])/rxs;
+      var u=((q[0]-p[0])*r[1]-(q[1]-p[1])*r[0])/rxs;
+      if(t<0.05||t>0.95||u<0.05||u>0.95)return null;   // must be interior to both
+      return [p[0]+t*r[0],p[1]+t*r[1]];
+    }
+    // Step 1 — crossing valley pairs: trim both to the crossing point,
+    // drop the mini hip-end stranded beyond it, pull the wing ridge in.
+    var vys=result.filter(function(l){return l.type==='valley';});
+    for(var i=0;i<vys.length;i++)for(var j=i+1;j<vys.length;j++){
+      var P=properX(vys[i],vys[j]); if(!P)continue;
+      var olds=[];
+      [vys[i],vys[j]].forEach(function(v){
+        // keep the endpoint on the outline (the reflex wall corner); move
+        // the inland end to the crossing.
+        var k=(onOutline(v.pts[0])&&!onOutline(v.pts[1]))?1
+             :(onOutline(v.pts[1])&&!onOutline(v.pts[0]))?0
+             :(dd(v.pts[0],P)>dd(v.pts[1],P)?1:0);
+        olds.push(v.pts[k].slice());
+        v.pts[k]=P.slice();
+      });
+      // remove any hip whose endpoint sat at a trimmed-off valley end
+      for(var ri=result.length-1;ri>=0;ri--){
+        if(result[ri].type==='valley')continue;
+        if(olds.some(function(o){return dd(result[ri].pts[0],o)<=TOL||dd(result[ri].pts[1],o)<=TOL;}))
+          result.splice(ri,1);
+      }
+      // pull any ridge/hip end sitting just past the apex back onto it
+      result.forEach(function(l){
+        if(l.type==='valley')return;
+        [0,1].forEach(function(k){ if(dd(l.pts[k],P)>TOL&&dd(l.pts[k],P)<=NEAR) l.pts[k]=P.slice(); });
+      });
+    }
+    // Step 2 — ridge overshoot: a ridge running through a valley apex
+    // (where >=2 valleys meet) with a dangling end beyond it.
+    var apex=[], vv=result.filter(function(l){return l.type==='valley';});
+    for(var a=0;a<vv.length;a++)for(var b=a+1;b<vv.length;b++)
+      [0,1].forEach(function(x){ [0,1].forEach(function(y){
+        if(dd(vv[a].pts[x],vv[b].pts[y])<=TOL)apex.push(vv[a].pts[x].slice());
+      }); });
+    function degree(pt,self){ var c=0; result.forEach(function(l){ if(l===self)return; if(dd(l.pts[0],pt)<=TOL||dd(l.pts[1],pt)<=TOL)c++; }); return c; }
+    result.forEach(function(l){
+      if(l.type!=='ridge')return;
+      apex.forEach(function(V){
+        var p=l.pts[0],q=l.pts[1],rr=[q[0]-p[0],q[1]-p[1]],L2=rr[0]*rr[0]+rr[1]*rr[1];
+        if(L2<1)return;
+        var t=((V[0]-p[0])*rr[0]+(V[1]-p[1])*rr[1])/L2;
+        if(t<=0.05||t>=0.95)return;                       // V interior to the ridge
+        if(dd([p[0]+t*rr[0],p[1]+t*rr[1]],V)>TOL)return;  // V actually on the ridge
+        [0,1].forEach(function(k){ if(degree(l.pts[k],l)===0&&!onOutline(l.pts[k])) l.pts[k]=V.slice(); });
+      });
+    });
+  })();
   return result;
 }
 
@@ -13957,27 +14102,161 @@ function _renderRoofSheetPlanInner() {
     descs.push({a:[cx0,cy0],b:[cx1,cy0],poly:[[cx0,cy0],[cx1,cy0],capEap,capWap],t:'long-side',c:OR}); // cap N
     descs.push({a:[cx0,cy0],b:[cx0,jy],poly:[[cx0,cy0],capWap,[cx0,jy]],t:'hip-end',c:OR});            // cap W hip
     descs.push({a:[cx1,cy0],b:[cx1,jy],poly:[[cx1,cy0],capEap,[cx1,jy]],t:'hip-end',c:OR});            // cap E hip
-    descs.push({a:[sx0,sy1],b:[sx1,sy1],poly:[[sx0,sy1],stemSap,[sx1,sy1]],t:'hip-end',c:BL});         // stem S hip (built from blue cap-S valley offcuts)
-    if (sw < ch - 0.5){
+    descs.push({a:[sx0,sy1],b:[sx1,sy1],poly:[[sx0,sy1],stemSap,[sx1,sy1]],t:'hip-end',c:BL});         // stem S hip
+    if (sw > ch + 0.5){
+      // Stem ridge HIGHER than the cap ridge → the stem is a phantom 4-hip: its
+      // long-sides are hip-cut at BOTH the south hip (stemSap) AND a north
+      // hip-end (the notch triangle W1-T0-E1 whose apex T0 is the high stem-
+      // ridge top).  cap N stays a plain trapezoid; the notch is its own hip-
+      // end, fed by the stem long-sides' north offcuts via the same L-shape
+      // corner cascade as the south hip.
+      var W1=[sx0+ch/2,capMidY], E1=[sx1-ch/2,capMidY], T0=[sxc,cy0+sw/2];
+      descs.push({a:W1,b:E1,poly:[W1,T0,E1],t:'hip-end',c:BL});                                        // stem N phantom hip-end
+      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],W1,capWap],t:'long-side',c:BL});        // cap S-W stub
+      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,E1],t:'long-side',c:BL});        // cap S-E stub
+      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],W1,T0,stemSap,[sx0,sy1]],t:'long-side',c:PU});  // stem W
+      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,T0,E1],t:'long-side',c:PU});  // stem E
+    } else {
+      // Stem ridge LOWER than / equal to the cap ridge (at sw==ch, V==ridgeN).
       var V=[sxc, jy-sw/2];
       descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],V,ridgeN,capWap],t:'long-side',c:BL});
       descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,ridgeN,V],t:'long-side',c:BL});
       descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],V,stemSap,[sx0,sy1]],t:'long-side',c:PU});
       descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,V],t:'long-side',c:PU});
-    } else {
-      var lH=[sx0+ch/2,capMidY], rH=[sx1-ch/2,capMidY];
-      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],lH,capWap],t:'long-side',c:BL});
-      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,rH],t:'long-side',c:BL});
-      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],lH,ridgeN,stemSap,[sx0,sy1]],t:'long-side',c:PU});
-      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,ridgeN,rH],t:'long-side',c:PU});
     }
     var inv=(4-nTurns)%4;
     function rb(p){return rotate90(p,pvx,pvy,inv);}
     return descs.map(function(d){return _mkTFace(rb(d.a),rb(d.b),d.poly.map(rb),d.t,d.c);});
   }
   var _tFaces = _buildTFaces(outline);
+  // Overlay lines from the SAME imposed T topology as the faces (and as the
+  // main diagram via buildTRoofLines), so the sheet plan's ridge/hip/valley
+  // lines always match the sheets instead of the unstable skeleton auto-lines.
+  var _tLines = _tFaces ? buildTRoofLines(outline) : null;
   var _tCascade = !!(_tFaces && _tFaces.length);
   if (_tCascade) faces = _tFaces;
+
+  // ── Skeleton planar-subdivision faces (3+ reflex shapes) ──────────
+  // L (1 reflex) and T (2 reflex) have dedicated clean topologies above.
+  // For richer rectilinear outlines (double-wing, U, +, …) the gutter-
+  // walk face builder can't trace faces through the complex skeleton and
+  // produces overlapping/ballooning polygons.  Instead, treat the outline
+  // edges + skeleton arcs (hips/valleys/ridges) as a planar segment
+  // arrangement: split every segment at its intersections/T-junctions,
+  // then extract the bounded faces.  Each roof plane is one bounded face
+  // containing exactly one outline (gutter) edge — clean and non-
+  // overlapping for ANY rectilinear footprint.
+  function _buildSkeletonFaces(){
+    if (_reflexCount < 3) return null;
+    var TOL = 2.5;
+    var raw = [];
+    for (var i = 0; i < outline.length; i++)
+      raw.push({a: outline[i].slice(), b: outline[(i+1)%outline.length].slice(), g: true});
+    DRAW.lines.forEach(function(l){
+      if (l.type === 'gutter' || !l.pts || l.pts.length !== 2) return;
+      raw.push({a: l.pts[0].slice(), b: l.pts[1].slice(), g: false});
+    });
+    function onSeg(p, a, b){
+      var dx = b[0]-a[0], dy = b[1]-a[1], L2 = dx*dx+dy*dy;
+      if (L2 < 1) return null;
+      var t = ((p[0]-a[0])*dx + (p[1]-a[1])*dy) / L2;
+      if (t < -0.001 || t > 1.001) return null;
+      if (Math.hypot(a[0]+t*dx-p[0], a[1]+t*dy-p[1]) > TOL) return null;
+      return t;
+    }
+    function segInt(a, b, c, d){
+      var rx = b[0]-a[0], ry = b[1]-a[1], sx = d[0]-c[0], sy = d[1]-c[1];
+      var den = rx*sy - ry*sx; if (Math.abs(den) < 1e-6) return null;
+      var t = ((c[0]-a[0])*sy - (c[1]-a[1])*sx) / den;
+      var u = ((c[0]-a[0])*ry - (c[1]-a[1])*rx) / den;
+      if (t < 0.001 || t > 0.999 || u < 0.001 || u > 0.999) return null;
+      return [a[0]+t*rx, a[1]+t*ry];
+    }
+    var allPts = []; raw.forEach(function(s){ allPts.push(s.a, s.b); });
+    var pieces = [];
+    raw.forEach(function(s){
+      var ts = [0, 1];
+      allPts.forEach(function(p){ var t = onSeg(p, s.a, s.b); if (t != null && t > 0.001 && t < 0.999) ts.push(t); });
+      raw.forEach(function(o){ if (o === s) return; var ip = segInt(s.a, s.b, o.a, o.b);
+        if (ip){ var t = onSeg(ip, s.a, s.b); if (t != null && t > 0.001 && t < 0.999) ts.push(t); } });
+      ts.sort(function(a, b){ return a-b; });
+      for (var i = 0; i < ts.length-1; i++){
+        if (ts[i+1]-ts[i] < 0.005) continue;
+        pieces.push({
+          a: [s.a[0]+ts[i]*(s.b[0]-s.a[0]),   s.a[1]+ts[i]*(s.b[1]-s.a[1])],
+          b: [s.a[0]+ts[i+1]*(s.b[0]-s.a[0]), s.a[1]+ts[i+1]*(s.b[1]-s.a[1])],
+          g: s.g
+        });
+      }
+    });
+    var nodes = [];
+    function nid(p){ for (var i = 0; i < nodes.length; i++) if (Math.hypot(nodes[i][0]-p[0], nodes[i][1]-p[1]) < TOL) return i; nodes.push([p[0], p[1]]); return nodes.length-1; }
+    var seen = {}, H = [];
+    pieces.forEach(function(s){
+      var u = nid(s.a), v = nid(s.b); if (u === v) return;
+      [[u, v], [v, u]].forEach(function(e){
+        var k = e[0]+'_'+e[1]; if (seen[k]) return; seen[k] = 1;
+        H.push({u: e[0], v: e[1], gut: s.g, ang: Math.atan2(nodes[e[1]][1]-nodes[e[0]][1], nodes[e[1]][0]-nodes[e[0]][0])});
+      });
+    });
+    var outE = {}; H.forEach(function(h){ (outE[h.u] = outE[h.u] || []).push(h); });
+    Object.keys(outE).forEach(function(k){ outE[k].sort(function(a, b){ return a.ang-b.ang; }); });
+    function nextCW(h){ var lst = outE[h.v]; for (var i = 0; i < lst.length; i++) if (lst[i].v === h.u) return lst[(i-1+lst.length)%lst.length]; return null; }
+    var visited = {}, cycles = [];
+    H.forEach(function(h0){
+      if (visited[h0.u+'_'+h0.v]) return;
+      var face = [], h = h0, g = 0;
+      do { visited[h.u+'_'+h.v] = 1; face.push(h); h = nextCW(h); g++; }
+      while (h && !(h.u === h0.u && h.v === h0.v) && g < 500);
+      if (g < 500 && face.length >= 3) cycles.push(face);
+    });
+    function cyArea(f){ var s = 0; for (var i = 0; i < f.length; i++){ var a = nodes[f[i].u], b = nodes[f[(i+1)%f.length].u]; s += a[0]*b[1]-b[0]*a[1]; } return s/2; }
+    var built = [];
+    cycles.forEach(function(f){
+      var ar = cyArea(f);
+      if (ar < 50) return;                     // outer face (negative) + noise slivers
+      var gutEdges = f.filter(function(h){ return h.gut; });
+      if (!gutEdges.length) return;
+      // pick the longest gutter edge as the face's gutter
+      var ge = gutEdges.sort(function(a, b){
+        return Math.hypot(nodes[b.v][0]-nodes[b.u][0], nodes[b.v][1]-nodes[b.u][1])
+             - Math.hypot(nodes[a.v][0]-nodes[a.u][0], nodes[a.v][1]-nodes[a.u][1]);
+      })[0];
+      var verts = f.map(function(h){ return nodes[h.u].slice(); });
+      var gi = f.indexOf(ge);
+      // Reorder to the standard face convention: gutter endpoints at the
+      // two ends of the poly, ridge/apex vertices in between (poly[1]/[2]
+      // are the apexes).  Rotate so the gutter edge leads, then fold the
+      // remainder back so it reads [a, …apexes…, b].  This lets the plain
+      // 4-hip corner→hip-end cascade match these faces by apex.
+      var rot = verts.slice(gi).concat(verts.slice(0, gi)); // [a, b, …rest]
+      var poly = [rot[0]].concat(rot.slice(1).reverse());   // [a, …rest…, b]
+      var fsa = 0;
+      for (var pi = 0; pi < poly.length; pi++){
+        var pp = poly[pi], qq = poly[(pi+1)%poly.length];
+        fsa += pp[0]*qq[1] - qq[0]*pp[1];
+      }
+      if (fsa < 0) poly = poly.reverse();
+      var a = nodes[ge.u].slice(), b = nodes[ge.v].slice();
+      var gdx = b[0]-a[0], gdy = b[1]-a[1], gL = vlen([gdx, gdy]);
+      if (gL < 1) return;
+      var cc = polyCentroid(poly);
+      var nx = -gdy/gL, ny = gdx/gL;
+      if (nx*(cc[0]-a[0]) + ny*(cc[1]-a[1]) < 0){ nx = -nx; ny = -ny; }
+      var perpPx = 0;
+      poly.forEach(function(pp){ var d = (pp[0]-a[0])*nx + (pp[1]-a[1])*ny; if (d > perpPx) perpPx = d; });
+      built.push({
+        poly: poly, type: (poly.length === 3 ? 'hip-end' : 'long-side'),
+        a: a, b: b, gL: gL, gAng: Math.atan2(gdy, gdx),
+        tx: gdx/gL, ty: gdy/gL, nx: nx, ny: ny, perpPx: perpPx,
+        planSheetM: perpPx*effectiveScale, sheetM: perpPx*effectiveScale*pitchFactor,
+        area: polyArea(poly), centroid: cc
+      });
+    });
+    return built.length ? built : null;
+  }
+  var _skelFaces = !_tCascade ? _buildSkeletonFaces() : null;
+  if (_skelFaces){ faces = _skelFaces; _directSheet = true; }
 
   if (!faces.length) {
     outEl.innerHTML = '<p style="color:var(--text2)">Could not detect any roof faces. Make sure hip/ridge lines connect to the gutter corners.</p>';
@@ -14001,22 +14280,48 @@ function _renderRoofSheetPlanInner() {
     });
     xs.sort(function(a,b){return a-b;});
     ys.sort(function(a,b){return a-b;});
-    var best = null, bestA = 0;
+    // How much of a rect edge is a REAL eave: sample points just OUTSIDE
+    // the edge; the fraction that lands outside the outline is its realness.
+    // Used to break area ties — a telescoping/stepped outline has a wide
+    // shallow rectangle equal in area to the true (deeper) main, but the
+    // shallow one's far long edge runs through the interior (it's a phantom
+    // eave), so the main, whose both long edges are real eaves, wins.
+    function edgeReal(horizontal, fixed, a, b){
+      var hits = 0, N = 7;
+      for (var t = 1; t <= N; t++) {
+        var f = a + (b-a)*t/(N+1);
+        var p1 = horizontal ? [f, fixed-3] : [fixed-3, f];
+        var p2 = horizontal ? [f, fixed+3] : [fixed+3, f];
+        if (!_ptInOutline(p1[0],p1[1]) || !_ptInOutline(p2[0],p2[1])) hits++;
+      }
+      return hits / N;
+    }
+    var best = null, bestA = 0, bestReal = -1;
     for (var i = 0; i < xs.length - 1; i++) {
       for (var j = i + 1; j < xs.length; j++) {
         for (var k = 0; k < ys.length - 1; k++) {
           for (var l = k + 1; l < ys.length; l++) {
             var x0 = xs[i], x1 = xs[j], y0 = ys[k], y1 = ys[l];
-            // All 4×4 inner sample points must be inside the outline.
+            // All inner sample points must be inside the outline.  Sample at
+            // 1/10 steps (not 1/5) so a narrow notch — e.g. a shallow wing
+            // step — isn't stepped over, which would wrongly accept a wide
+            // rectangle that actually pokes outside the outline.
             var ok = true;
-            for (var u = 1; u <= 4 && ok; u++) {
-              for (var v = 1; v <= 4 && ok; v++) {
-                if (!_ptInOutline(x0 + (x1-x0)*u/5, y0 + (y1-y0)*v/5)) ok = false;
+            for (var u = 1; u <= 9 && ok; u++) {
+              for (var v = 1; v <= 9 && ok; v++) {
+                if (!_ptInOutline(x0 + (x1-x0)*u/10, y0 + (y1-y0)*v/10)) ok = false;
               }
             }
             if (!ok) continue;
             var area = (x1-x0)*(y1-y0);
-            if (area > bestA) { bestA = area; best = {x0:x0,y0:y0,x1:x1,y1:y1}; }
+            // Realness of the two LONG edges (the donor-slope eaves).
+            var horiz = (x1-x0) >= (y1-y0);
+            var real = horiz
+              ? edgeReal(true, y0, x0, x1) + edgeReal(true, y1, x0, x1)
+              : edgeReal(false, x0, y0, y1) + edgeReal(false, x1, y0, y1);
+            if (area > bestA + 1 || (Math.abs(area-bestA) <= 1 && real > bestReal)) {
+              bestA = area; bestReal = real; best = {x0:x0,y0:y0,x1:x1,y1:y1};
+            }
           }
         }
       }
@@ -14044,7 +14349,11 @@ function _renderRoofSheetPlanInner() {
   faces.forEach(function(f){ f.color = COL_PURPLE; });
   if (mainRect) {
     faces.forEach(function(f){
-      if (f.type !== 'long-side') return;
+      // A square main is a pyramid: its N/S slopes trace as TRIANGLES
+      // (hip-ends) rather than 4-vertex long-sides, but they are still the
+      // orange/blue main slopes.  Accept a hip-end whose gutter runs along
+      // the main rect's long edge as well as a long-side.
+      if (f.type !== 'long-side' && f.type !== 'hip-end') return;
       var a = f.a, b = f.b;
       if (mainAxis === 'h') {
         if (Math.abs(a[1]-b[1]) > 4) return;       // gutter not horizontal
@@ -14084,6 +14393,7 @@ function _renderRoofSheetPlanInner() {
   // share a hip with.
   faces.forEach(function(f){
     if (f.type !== 'hip-end') return;
+    if (f === mainA || f === mainB) return;   // mains keep their own colour
     var apex = f.poly[1];
     var partner = null;
     [mainA, mainB].forEach(function(m){
@@ -14093,6 +14403,72 @@ function _renderRoofSheetPlanInner() {
     if (partner) f.color = partner.color;
   });
   }  // end of !_tCascade colour assignment
+
+  // ── Telescoping (stepped) main detection ──────────────────────────
+  // Distinguish a telescoping main (a flush-edged footprint that steps out in
+  // shallower sections to one side) from a perpendicular double-wing (whose
+  // wing slopes are also "parallel" to a square main's axis).  Requires BOTH:
+  //   (a) a MERGED long-side spanning the whole flush edge (one continuous
+  //       slope over the main + every wing), and
+  //   (b) at least one NON-main parallel long-side (a stepped wing slope).
+  var _bx0 = Infinity, _bx1 = -Infinity, _by0 = Infinity, _by1 = -Infinity;
+  outline.forEach(function(p){ _bx0=Math.min(_bx0,p[0]); _bx1=Math.max(_bx1,p[0]); _by0=Math.min(_by0,p[1]); _by1=Math.max(_by1,p[1]); });
+  var _fullSpan = (mainAxis === 'h') ? (_bx1-_bx0) : (_by1-_by0);
+  function _isParallel(f){
+    if (f.type !== 'long-side') return false;
+    var horiz = Math.abs(f.a[1]-f.b[1]) < 4;
+    return (mainAxis === 'h') ? horiz : !horiz;
+  }
+  var _hasFullSpan = faces.some(function(f){
+    return _isParallel(f) && Math.hypot(f.a[0]-f.b[0], f.a[1]-f.b[1]) > _fullSpan * 0.92;
+  });
+  var _hasParallelWing = faces.some(function(f){
+    return f !== mainA && f !== mainB && _isParallel(f);
+  });
+  var _hasTelesc = !_tCascade && mainRect && _hasFullSpan && _hasParallelWing;
+
+  // Telescoping wings: south-facing slopes PARALLEL to the main but stepped
+  // onto their own shorter ridge.  Each is a separate wing whose sheets are a
+  // different length, so give each its own colour (purple, green, …) to make
+  // the lengths legible.  Only for true telescoping mains — perpendicular
+  // wings (L/T/U/double-wing) keep purple.
+  if (_hasTelesc) {
+    var _wingPalette = [COL_PURPLE, COL_GREEN, '#0891b2', '#d97706'];
+    faces.filter(function(f){ return f !== mainA && f !== mainB && _isParallel(f); })
+      .sort(function(a,b){ return b.gL - a.gL; })
+      .forEach(function(f, i){ f.color = _wingPalette[i % _wingPalette.length]; });
+  }
+
+  // ── Canonical telescoping frame (orientation-invariant) ───────────
+  // The west offcut chain & the wing-length recolour below were written
+  // assuming the wings step toward LOW coordinates (west/north) and the
+  // full-span slope is mainA.  Both assumptions break under 180°/270°
+  // rotation or mirroring.  Derive an orientation-free frame instead:
+  //   _merged  = the full-span main slope (longest gutter; spans the wings)
+  //   _donorSlope = the opposite, main-only slope (feeds the west chain)
+  //   _cx(p)   = position along the main axis, increasing wings → main
+  //   _cy(p)   = position across the main axis, increasing merged → stepped
+  // so "wing-side" is always low _cx and the "merged half" is always low _cy.
+  var _axisH = (mainAxis === 'h');
+  var _merged = null, _donorSlope = null;
+  var _cx = null, _cy = null, _gmidCx = null;
+  if (_hasTelesc && mainA && mainB) {
+    _merged     = (mainA.gL >= mainB.gL) ? mainA : mainB;
+    _donorSlope = (_merged === mainA) ? mainB : mainA;
+    var _mc = [(mainRect.x0+mainRect.x1)/2, (mainRect.y0+mainRect.y1)/2];
+    var _mgMid = [(_merged.a[0]+_merged.b[0])/2, (_merged.a[1]+_merged.b[1])/2];
+    var _perpSign = _axisH ? (Math.sign(_mgMid[1]-_mc[1])||-1) : (Math.sign(_mgMid[0]-_mc[0])||-1);
+    var _wc = [0,0], _wn = 0;
+    faces.forEach(function(f){
+      if (f === mainA || f === mainB || !_isParallel(f)) return;
+      _wc[0]+=f.centroid[0]; _wc[1]+=f.centroid[1]; _wn++;
+    });
+    if (_wn){ _wc[0]/=_wn; _wc[1]/=_wn; }
+    var _wingSign = _axisH ? (Math.sign(_wc[0]-_mc[0])||-1) : (Math.sign(_wc[1]-_mc[1])||-1);
+    _cx = function(p){ var a = _axisH ? p[0] : p[1]; return _wingSign>0 ? -a : a; };  // wings = low _cx
+    _cy = function(p){ var b = _axisH ? p[1] : p[0]; return _perpSign>0 ? -b : b; };  // merged = low _cy
+    _gmidCx = function(f){ return _cx([(f.a[0]+f.b[0])/2, (f.a[1]+f.b[1])/2]); };
+  }
 
   // ── Phantom-4-hip extents ─────────────────────────────────────
   // For each of orange/blue, see if the gutter spans the whole main
@@ -14514,26 +14890,36 @@ function _renderRoofSheetPlanInner() {
   // rotated 90° onto the hip-end).  We pair each hip-end strip with
   // a clipped long-side corner strip so they share a seq number and
   // no separate hip-end sheets get ordered.
-  function _pairCornerToHipEnd(longSide, hipEnd, apex) {
+  function _pairCornerToHipEnd(longSide, hipEnd, apex, donorColor) {
     if (!longSide || !hipEnd || !apex) return;
     function distToApex(p){return Math.hypot(p[0]-apex[0], p[1]-apex[1]);}
     var longApexL = longSide.poly[1], longApexR = longSide.poly[2];
     var apexIsL = ptEq(apex, longApexL);
     var otherLongApex = apexIsL ? longApexR : longApexL;
-    // Donor strips: long-side strips whose rectangle is clipped by a
-    // hip (i.e. clipArea < rectArea) AND whose centroid is closer to
-    // this apex than to the long-side's other apex (corner zone).
-    // Donors sorted FURTHEST-from-apex first (so the corner-most sheet
-    // — which has the biggest hip-cut offcut — pairs with the largest
-    // hip-end slot near the apex).  Receivers sorted CLOSEST-to-apex
-    // first.  Pair index-by-index: donor[i] → recv[i] gives the
-    // "biggest-to-biggest, smallest-to-smallest" matching, so sheet N
-    // body + offcut N visually reassemble into one full sheet.
+    // Donor strips: long-side corner-zone strips clipped by a hip.  The
+    // corner zone is the half of the long-side nearest the gutter corner
+    // it SHARES with this hip-end — so the SE-corner sheets feed the E
+    // hip-end, the SW-corner sheets feed the W hip-end, etc.  On a
+    // rectangular main this equals "nearest this hip-end's ridge apex";
+    // on a SQUARE/pyramid main all four slopes meet at one centre apex, so
+    // keying off the apex sends BOTH hip-ends the same corner's sheets
+    // (they end up swapped).  Keying off the shared gutter corner keeps
+    // each hip-end fed by its own adjacent corner.  Donors sorted
+    // FURTHEST-from-apex first (corner-most sheet = biggest hip-cut offcut)
+    // and receivers CLOSEST-to-apex first, so sheet N body + offcut N
+    // reassemble into one full sheet.
+    var sharedCorner = null, farCorner = null;
+    [longSide.a, longSide.b].forEach(function(c){
+      if (ptEq(c, hipEnd.a) || ptEq(c, hipEnd.b)) sharedCorner = c.slice();
+      else farCorner = c.slice();
+    });
+    if (!sharedCorner || !farCorner) { sharedCorner = apex; farCorner = otherLongApex; }
+    function distTo(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]); }
     var donorStrips = allStrips.filter(function(s){
       if (s.face !== longSide) return false;
+      if (donorColor && s.color !== donorColor) return false;
       if (!s.rectArea || s.clipArea >= s.rectArea - 1) return false;
-      return distToApex(s.centroid) <
-             Math.hypot(s.centroid[0]-otherLongApex[0], s.centroid[1]-otherLongApex[1]);
+      return distTo(s.centroid, sharedCorner) < distTo(s.centroid, farCorner);
     }).sort(function(a,b){return distToApex(b.centroid) - distToApex(a.centroid);});
     // Receiver strips: hip-end strips on the OPPOSITE side of the
     // (apex → gutter-mid) line from the long-side's gutter midpoint —
@@ -14560,17 +14946,165 @@ function _renderRoofSheetPlanInner() {
       donorStrips[i]._offcutDest   = recvStrips[i];
     }
   }
+  // North slope of a telescoping main varies in length by section: long over
+  // the main, shorter over each wing.  Recolour its sheets by length BEFORE
+  // any hip-end cascade — a north sheet matching a wing's uniform sheet size
+  // becomes that wing's colour (purple/green); long main + ramp/transition
+  // sheets stay orange.  Doing it first means only the orange sheets feed the
+  // main's hip-ends (the wing-length sheets aren't main donors), so a main
+  // hip-end never sources an offcut from a recoloured wing sheet.
+  if (_hasTelesc && _merged) {
+    var _wingSheet0 = [];
+    faces.forEach(function(wf){
+      if (wf === mainA || wf === mainB || wf.type !== 'long-side') return;
+      var horiz = Math.abs(wf.a[1]-wf.b[1]) < 4;
+      if ((mainAxis === 'h') ? !horiz : horiz) return;        // parallel wings only
+      var areas = allStrips.filter(function(s){
+        return s.face === wf && s.rectArea && s.clipArea > s.rectArea - 1;
+      }).map(function(s){ return s.clipArea; }).sort(function(a,b){ return a-b; });
+      if (areas.length) _wingSheet0.push({ area: areas[Math.floor(areas.length/2)], color: wf.color });
+    });
+    allStrips.forEach(function(s){
+      if (s.face !== _merged || s._offcutMatched) return;
+      for (var _wj = 0; _wj < _wingSheet0.length; _wj++) {
+        if (Math.abs(s.clipArea - _wingSheet0[_wj].area) < _wingSheet0[_wj].area * 0.02) { s.color = _wingSheet0[_wj].color; break; }
+      }
+    });
+  }
   [mainA, mainB].forEach(function(longSide){
-    if (!longSide || longSide.type !== 'long-side') return;
+    // longSide is always mainA/mainB here.  On a SQUARE main it's a
+    // triangular slope (hip-end type) rather than a 4-vertex long-side, so
+    // don't require the long-side type — its poly[1] is still the apex.
+    if (!longSide) return;
+    // Telescoping MERGED slope: its full-span polygon carries the whole stepped
+    // ridge, so poly[1]/poly[2] aren't reliable apexes — they flip when the
+    // outline winding reverses (mirroring) and mis-match the hip-ends.  Feed it
+    // from the wing-ward chain below instead, which keys off gutter corners.
+    if (_hasTelesc && longSide === _merged) return;
     var apexL = longSide.poly[1], apexR = longSide.poly[2];
+    var _oc = null;
     faces.forEach(function(hipEnd){
       if (hipEnd.type !== 'hip-end') return;
+      if (hipEnd === mainA || hipEnd === mainB) return;  // the mains are donors, not receivers
       // hip-end's apex (poly[1] after CCW) is the inland point where
       // the two hips converge.  Match it to the long-side's apex.
-      if (ptEq(hipEnd.poly[1], apexL))      _pairCornerToHipEnd(longSide, hipEnd, apexL);
-      else if (ptEq(hipEnd.poly[1], apexR)) _pairCornerToHipEnd(longSide, hipEnd, apexR);
+      if (ptEq(hipEnd.poly[1], apexL))      _pairCornerToHipEnd(longSide, hipEnd, apexL, _oc);
+      else if (ptEq(hipEnd.poly[1], apexR)) _pairCornerToHipEnd(longSide, hipEnd, apexR, _oc);
     });
   });
+
+  // ── Telescoping wing-ward offcut chain ────────────────────────────
+  // On a stepped/telescoping main, the donor (main-only) slope's wing-ward
+  // sheets are cut and that one offcut set cascades toward the wing tip,
+  // filling the MERGED-side part of every step riser plus the ENTIRE outermost
+  // wing tip.  (The stepped-side parts of those risers stay the wing colour;
+  // this only claims the merged-side strips.)  Expressed in the canonical
+  // frame (_cx/_cy) so it works at any rotation/mirror.  Scoped (via
+  // _hasTelesc) to outlines with a parallel wing, so L/T/U/double-wing are
+  // untouched.
+  if (!_tCascade && mainRect && _donorSlope && _hasTelesc) {
+    var _mcCx = _cx(_mc);
+    var westFaces = faces.filter(function(f){
+      if (f === mainA || f === mainB) return false;
+      var across = _axisH ? Math.abs(f.a[0]-f.b[0]) < 4 : Math.abs(f.a[1]-f.b[1]) < 4;
+      if (!across) return false;
+      return _gmidCx(f) < _mcCx;                              // wing-side risers only (low _cx)
+    }).sort(function(a,b){ return _gmidCx(a) - _gmidCx(b); }); // outermost (tip) = lowest _cx, first
+    if (westFaces.length) {
+      var _tip = westFaces[0];
+      // One donor offcut runs the full wing-ward width, re-trimmed at each step
+      // — so ONE donor sheet feeds one strip on every step (its number repeats
+      // across the risers + tip).  Collect each face's MERGED-side receiver
+      // strips (the whole outer tip; the merged half of the inner risers),
+      // ordered merged→stepped, then assign donor #k to the k-th such strip on
+      // EVERY face.  Donor count = the deepest face's row count, not the sum.
+      var _mainWf = westFaces[westFaces.length-1];
+      var _perFace = westFaces.map(function(f){
+        // Split merged/stepped halves at the section RIDGE (apex) level so each
+        // offcut set starts at the apex.  The main-W riser's centroid is skewed
+        // by its tall exposed wall, so use the main ridge for it.
+        var splitCy = (f === _mainWf) ? _cy(_mc) : _cy(f.centroid);
+        return allStrips.filter(function(s){
+          if (s.face !== f || s._offcutMatched) return false;
+          var merged = _cy(s.centroid) < splitCy;             // merged-side half (low _cy)
+          return (f === _tip) || merged;
+        }).sort(function(a,b){ return _cy(a.centroid) - _cy(b.centroid); });  // merged → stepped
+      });
+      var donorsW = allStrips.filter(function(s){
+        return s.face === _donorSlope && s.rectArea && s.clipArea < s.rectArea - 1 && !s._offcutDest;
+      }).sort(function(a,b){ return _cx(b.centroid) - _cx(a.centroid); });   // away-from-wings donor first
+      var _maxRows = _perFace.reduce(function(m,a){ return Math.max(m, a.length); }, 0);
+      for (var _k = 0; _k < _maxRows; _k++) {
+        var _donor = donorsW[_k] || donorsW[donorsW.length-1];
+        if (!_donor) break;
+        _perFace.forEach(function(ns){
+          var s = ns[_k];
+          if (!s) return;
+          s._offcutMatched = true;
+          s._offcutSource  = _donor;
+          s.color          = _donor.color;
+          if (!_donor._offcutDest) _donor._offcutDest = s;
+        });
+      }
+      // Main's own wing-side hip-end (the deepest such face): the MERGED slope's
+      // wing-ward offcuts fill its stepped half (the chain above took its merged
+      // half).  Donors restricted to the merged slope's own colour so recoloured
+      // wing-length sheets aren't consumed here.
+      var _mainW = westFaces[westFaces.length-1];
+      var _apexMW = null;
+      if (_mainW && _mainW !== _tip && _merged) {
+        // The main-W riser is a long-side with TWO ridge apexes; "furthest from
+        // gutter-mid" ties between them and flips under mirroring.  Pick the
+        // merged-side ridge apex (lowest _cy) deterministically so the feed is
+        // orientation-invariant.
+        var _bdm = Infinity;
+        _mainW.poly.forEach(function(v){
+          if (Math.hypot(v[0]-_mainW.a[0],v[1]-_mainW.a[1]) < 4 || Math.hypot(v[0]-_mainW.b[0],v[1]-_mainW.b[1]) < 4) return;
+          var cyv = _cy(v); if (cyv < _bdm){ _bdm = cyv; _apexMW = v; }
+        });
+        if (!_apexMW) {
+          var _gmw = [(_mainW.a[0]+_mainW.b[0])/2, (_mainW.a[1]+_mainW.b[1])/2], _bd = -1;
+          _mainW.poly.forEach(function(v){ var d = Math.hypot(v[0]-_gmw[0], v[1]-_gmw[1]); if (d > _bd){ _bd = d; _apexMW = v; } });
+        }
+        _pairCornerToHipEnd(_merged, _mainW, _apexMW, _merged.color);
+      }
+      // The main's FAR hip-end (the hip on the side away from the wings): also
+      // fed by the merged slope's main-portion offcuts.  Excluded from the
+      // generic apex-match cascade (merged poly[1] is unreliable), so feed it
+      // here too — _pairCornerToHipEnd keys off the shared gutter corner, which
+      // is robust to rotation and mirroring.
+      var _farHip = faces.filter(function(f){
+        return f.type === 'hip-end' && f !== _tip && westFaces.indexOf(f) < 0;
+      }).sort(function(a,b){ return _cx(b.centroid) - _cx(a.centroid); })[0];
+      if (_farHip && _merged) {
+        // A hip-end triangle's apex is its inland convergence vertex = poly[1]
+        // (reliable for a 3-vertex face, unlike a furthest-from-gutter test
+        // which ties on an isosceles hip).
+        _pairCornerToHipEnd(_merged, _farHip, _farHip.poly[1], _merged.color);
+      }
+      // Inner risers (between the outer tip and the main-W): their stepped-side
+      // strips are SECOND pieces re-cut at the valley.  Reuse the chain offcuts
+      // that cross the valley (the 2nd/3rd chain donors) and the main-W's first
+      // merged-slope offcut, instead of fresh wing sheets.
+      var _or1 = null;
+      if (_apexMW && _merged) {
+        var _mwOr = allStrips.filter(function(s){ return s.face===_mainW && s._offcutMatched && s.color===_merged.color; })
+          .sort(function(a,b){ return Math.hypot(a.centroid[0]-_apexMW[0],a.centroid[1]-_apexMW[1]) - Math.hypot(b.centroid[0]-_apexMW[0],b.centroid[1]-_apexMW[1]); });
+        if (_mwOr.length) _or1 = _mwOr[0]._offcutSource;
+      }
+      var _innerSrc = [donorsW[1], donorsW[2], _or1].filter(Boolean);   // chain #7, chain #6, merged #1
+      if (_innerSrc.length) westFaces.forEach(function(rf){
+        if (rf === _tip || rf === _mainW) return;
+        allStrips.filter(function(s){ return s.face===rf && !s._offcutMatched; })
+          .sort(function(a,b){ return _cy(a.centroid) - _cy(b.centroid); })  // valley(merged) → stepped
+          .forEach(function(s, i){
+            var src = _innerSrc[Math.min(i, _innerSrc.length-1)];
+            if (!src) return;
+            s._offcutMatched = true; s._offcutSource = src; s.color = src.color;
+          });
+      });
+    }
+  }
 
   // ── T-shape: stem south hip-end built from blue cap-S offcuts ──
   // The stem sides are self-contained (their own purple sheets — the wing
@@ -14586,13 +15120,33 @@ function _renderRoofSheetPlanInner() {
   // order count.
   if (_tCascade && mainA) {
     // The cap hip-ends' apexes are ridge vertices shared with cap N
-    // (mainA); the stem hip-end's apex is not, so pick the hip-end whose
-    // apex is not a vertex of mainA's polygon.
-    var _stemHip = faces.filter(function(f){ return f.type === 'hip-end'; })
+    // (mainA); the stem hip-ends' apexes are not, so pick the hip-ends whose
+    // apex is not a vertex of mainA's polygon.  A long-stem T has TWO such
+    // hip-ends — the south hip and the north notch (phantom-4-hip top).
+    var _stemHips = faces.filter(function(f){ return f.type === 'hip-end'; })
       .filter(function(f){
         return mainA.poly.every(function(v){ return !ptEq(v, f.poly[1]); });
-      })[0];
-    if (_stemHip) {
+      });
+    if (_stemHips.length) {
+      // Donor arm = the one with LONGER sheets (L-shape rule): its hip-cut
+      // offcuts fill the shorter arm.  Compare the cap (mainA, orange) sheet
+      // length against the stem long-sides (purple).  Even / long-cap Ts keep
+      // the cap as donor (original behaviour); a long-stem T flips to the stem.
+      var _stemLS = faces.filter(function(f){ return f.type==='long-side' && f.color===COL_PURPLE; });
+      if (_stemHips.length >= 2) {
+        // Two stem hip-ends ⇒ wide-stem T (stem ridge higher than cap ridge):
+        // the STEM is the donor phantom 4-hip.  Its long sheets are hip-cut at
+        // BOTH the south hip and the north notch, and those offcuts fill each
+        // hip-end instead of starving them with the cap's short sheets.  Feed
+        // each half of every stem hip-end from its adjacent stem long-side
+        // (gutter-corner matching, robust to orientation/mirror).
+        _stemHips.forEach(function(hip){
+          _stemLS.forEach(function(ls){
+            _pairCornerToHipEnd(ls, hip, hip.poly[1], COL_PURPLE);
+          });
+        });
+      } else {
+      var _stemHip = _stemHips[0];
       var _ax = mainA.tx, _ay = mainA.ty;
       var _along = function(p){ return p[0]*_ax + p[1]*_ay; };
       var _e0 = _along(_stemHip.poly[0]), _e2 = _along(_stemHip.poly[2]);
@@ -14617,7 +15171,21 @@ function _renderRoofSheetPlanInner() {
           best._offcutDest  = rs;
         }
       });
+      }
     }
+    // The CAP is a 4-hip: fill each of its E/W hip-ends from BOTH adjacent
+    // long-sides' corner offcuts, exactly like a plain rectangle's hip-end —
+    // the cap-N slope (orange) supplies the half on its side, the cap-S stub
+    // (blue) the other half.  The general corner cascade above misses the cap
+    // because cap N is wound so its apexes sit at poly[2]/[3], not poly[1]/[2].
+    faces.forEach(function(h){
+      if (h.type !== 'hip-end' || h.color !== COL_ORANGE) return;
+      var apex = h.poly[1];
+      faces.forEach(function(ls){
+        if (ls.type === 'long-side' && ls.poly.some(function(v){ return ptEq(v, apex); }))
+          _pairCornerToHipEnd(ls, h, apex, ls.color);
+      });
+    });
   }
 
   // ── L-shape corner-to-wing cascade ────────────────────────────
@@ -14699,6 +15267,11 @@ function _renderRoofSheetPlanInner() {
   // sheets, its own valley offcuts feeding its own hip), so skip it.
   if (!_tCascade) [mainA, mainB].forEach(function(longSide){
     if (!longSide || longSide.type !== 'long-side') return;
+    // Telescoping merged slope: poly[1]/poly[2] aren't real apexes (they flip
+    // under mirroring), so they can spuriously match a wing long-side and dump
+    // the full-span slope's offcuts onto it.  Telescoping wings are fed by the
+    // wing-ward chain, so skip the merged slope in this L-shape cascade.
+    if (_hasTelesc && longSide === _merged) return;
     var apexL = longSide.poly[1], apexR = longSide.poly[2];
     [apexL, apexR].forEach(function(apex){
       // Skip if this apex already paired with a hip-end (4-hip cascade).
@@ -14873,6 +15446,134 @@ function _renderRoofSheetPlanInner() {
     }
   }
   _pairPhantomToWing();
+
+  // ── Double-wing cascade (skeleton-face shapes) ────────────────────
+  // Each wing follows the T-stem logic:
+  //  • the wing's side faces use their OWN sheets; the offcuts cut from
+  //    their valley sheets (the end that meets the main) fill the hip-
+  //    adjacent area of the SAME side face (within-face reuse).
+  //  • the wing's hip-end FACE is cut from the main 4-hip sheets — its
+  //    strips are offcuts of the nearest main long-side, so they take the
+  //    main colour and drop out of the order count rather than ordering
+  //    fresh sheets.
+  if (_skelFaces && mainA) {
+    var _dwClip = function(s){ return s.rectArea && s.clipArea < s.rectArea - 1; };
+    var _dwD    = function(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]); };
+    var _mainPts = (mainA ? mainA.poly : []).concat(mainB ? mainB.poly : []);
+    var _sharesMain = function(pt){ return _mainPts.some(function(v){ return ptEq(v, pt); }); };
+    var _wingHips = faces.filter(function(f){
+      return f.type === 'hip-end' && f !== mainA && f !== mainB && !_sharesMain(f.poly[1]);
+    });
+    var _wingFaceSet = new Set();
+    _wingHips.forEach(function(hip){
+      var apex = hip.poly[1];
+      // wing side faces meeting at this hip's apex: valley→hip reuse.
+      var sides = faces.filter(function(f){
+        return f.type === 'long-side' && f !== mainA && f !== mainB
+          && f.poly.some(function(p){ return ptEq(p, apex); });
+      });
+      _wingFaceSet.add(hip);
+      sides.forEach(function(s){ _wingFaceSet.add(s); });
+      sides.forEach(function(side){
+        var clipped = allStrips.filter(function(s){ return s.face === side && _dwClip(s); })
+          .sort(function(a, b){ return _dwD(a.centroid, apex) - _dwD(b.centroid, apex); });
+        var half = Math.floor(clipped.length / 2);
+        if (half < 1) return;
+        var recv   = clipped.slice(0, half);                       // nearest hip = receivers
+        var donors = clipped.slice(clipped.length - half).reverse(); // farthest (valley) = donors, biggest first
+        for (var i = 0; i < half; i++){
+          if (recv[i] === donors[i] || recv[i]._offcutMatched || donors[i]._offcutDest) continue;
+          recv[i]._offcutMatched = true;
+          recv[i]._offcutSource  = donors[i];
+          donors[i]._offcutDest  = recv[i];
+        }
+      });
+    });
+
+    // ── West side: the main 4-hip's W hip-end, fragmented by the stems.
+    // Same offcut logic as the E hip-end — orange on the half nearer the
+    // orange long-side, blue nearer the blue one — except the donor sheets
+    // are cut where the wings interrupt them.  West-region faces are those
+    // that are neither a main long-side, the main E hip-end (already
+    // cascaded), nor any wing face.
+    if (mainB) {
+      var _isMainHip = function(f){ return f.type === 'hip-end' && _sharesMain(f.poly[1]); };
+      var westFaces = faces.filter(function(f){
+        return f !== mainA && f !== mainB && !_isMainHip(f) && !_wingFaceSet.has(f);
+      });
+      // mainA/mainB share the east ridge apex; their other apex is the west one.
+      var eApex = mainA.poly.filter(function(p){ return mainB.poly.some(function(q){ return ptEq(p, q); }); })[0];
+      var aW = (eApex && ptEq(mainA.poly[1], eApex)) ? mainA.poly[2] : mainA.poly[1];
+      var bW = (eApex && ptEq(mainB.poly[1], eApex)) ? mainB.poly[2] : mainB.poly[1];
+      // Split receivers by nearest main gutter: north strips take BLUE
+      // offcuts, south strips take ORANGE (the corner piece rotates across
+      // the apex).
+      var _perp = function(s, mn){ return Math.abs((s.centroid[0]-mn.a[0])*mn.ty - (s.centroid[1]-mn.a[1])*mn.tx); };
+      var recvA = [], recvB = [];
+      westFaces.forEach(function(face){
+        allStrips.filter(function(s){ return s.face === face && !s._offcutMatched; }).forEach(function(s){
+          (_perp(s, mainA) <= _perp(s, mainB) ? recvA : recvB).push(s);
+        });
+      });
+      // Orange long-side offcuts land on the SOUTH half of the hip-end and
+      // blue on the NORTH half (the corner piece rotates across the apex),
+      // matching the E hip-end — so the N-half receivers pair with the BLUE
+      // long-side and the S-half receivers with the ORANGE one.
+      [[recvA, mainB, bW], [recvB, mainA, aW]].forEach(function(pr){
+        var mn = pr[1], wApex = pr[2];
+        // The corner-most donor sheet has the BIGGEST hip-cut offcut, which
+        // fills the longest hip-end slot — the one nearest the apex (the
+        // mid-height of the hip-end), NOT the corner.  So pair the
+        // corner-most donor with the APEX-most receiver, exactly as the E
+        // hip-end (_pairCornerToHipEnd) does.  This mirrors the E hip-end's
+        // spin so the offcuts reassemble by pure rotation; sorting receivers
+        // corner-first instead would lay them flipped upside-down.
+        var recv = pr[0];
+        recv.sort(function(a, b){ return _dwD(a.centroid, wApex) - _dwD(b.centroid, wApex); });
+        // Donors in sheet-number order: project onto mainA's along-gutter
+        // axis — the SAME key the seq pass uses — so donor[i] is sheet i+1.
+        // (Distance-to-apex isn't monotonic in sheet number because the apex
+        // sits mid-span.)  Apex-most receiver ← sheet 1, walking to the corner.
+        var _seqProj = function(s){ return (s.centroid[0]-mainA.a[0])*mainA.tx + (s.centroid[1]-mainA.a[1])*mainA.ty; };
+        var donors = allStrips.filter(function(s){ return s.face === mn && _dwClip(s) && !s._offcutDest; })
+          .sort(function(a, b){ return _seqProj(a) - _seqProj(b); });
+        var n = Math.min(recv.length, donors.length);
+        for (var i = 0; i < n; i++){
+          recv[i]._offcutMatched = true;
+          recv[i]._offcutSource  = donors[i];
+          recv[i].color          = mn.color;
+          donors[i]._offcutDest  = recv[i];
+        }
+      });
+
+      // ── Wing hip-end tips ← the main west-hip offcuts, cut AGAIN at the
+      // valley.  Each tip strip reuses a west-region offcut (itself a main
+      // offcut): the west sheet runs past the valley, is cut there, and the
+      // remainder covers the tip — so the tip takes that main sheet's colour
+      // and sequence number rather than ordering a fresh sheet.  Chaining to
+      // the originating main strip (not the intermediate west strip) keeps
+      // the single-pass seq inheritance order-independent.
+      var _westMatched = recvA.concat(recvB).filter(function(s){ return s._offcutMatched && s._offcutSource; });
+      _wingHips.forEach(function(hip){
+        var apex = hip.poly[1];
+        allStrips.filter(function(s){ return s.face === hip; })
+          .sort(function(a, b){ return _dwD(a.centroid, apex) - _dwD(b.centroid, apex); })
+          .forEach(function(s){
+            var best = null, bd = Infinity;
+            _westMatched.forEach(function(w){
+              if (w._tipUsed) return;
+              var d = _dwD(w.centroid, s.centroid);
+              if (d < bd){ bd = d; best = w; }
+            });
+            if (!best) return;
+            best._tipUsed     = true;
+            s._offcutMatched  = true;
+            s._offcutSource   = best._offcutSource;  // originating main sheet
+            s.color           = best.color;
+          });
+      });
+    }
+  }
 
   // Sequence numbering — paired strips share a number; non-paired
   // strips get fresh numbers, walking left-to-right within colour.
@@ -15728,6 +16429,99 @@ function _renderRoofSheetPlanInner() {
     outline = outline.map(_mirPt);
   }
 
+  // ── Big-L coverage completion (offcut fills) ──
+  // The hand-calibrated Big-L strip formulas assume a nominally
+  // proportioned wing; a short or wide wing leaves a small interior region
+  // near the wing/main junction untiled (a visible white sliver).  Now
+  // that strips are in final display space with seqs assigned, scan the L
+  // for any interior gap and fill it.  A donor sheet's full-length main-N
+  // primary and its offcut share a horizontal band here, so a gap is the
+  // missing offcut of the donor whose band it overlaps — give the fill
+  // that donor's seq / colour so it reads as the donor's reused offcut and
+  // adds nothing to the order.  A well-proportioned wing leaves no gap, so
+  // nothing is added there.
+  if (isBigL && allStrips && allStrips.length) {
+    var _cw = coverPxL;
+    var _oxs = outline.map(function(p){return p[0];}), _oys = outline.map(function(p){return p[1];});
+    var _bx0 = Math.min.apply(null, _oxs), _bx1 = Math.max.apply(null, _oxs);
+    var _by0 = Math.min.apply(null, _oys), _by1 = Math.max.apply(null, _oys);
+    function _inP(poly, x, y){
+      var c = false;
+      for (var i = 0, j = poly.length-1; i < poly.length; j = i++) {
+        var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+        if (((yi > y) !== (yj > y)) && (x < (xj-xi)*(y-yi)/(yj-yi) + xi)) c = !c;
+      }
+      return c;
+    }
+    function _openAt(x, y){
+      if (!_inP(outline, x, y)) return false;
+      for (var s = 0; s < allStrips.length; s++) {
+        var pl = allStrips[s].poly;
+        if (pl && pl.length >= 3 && _inP(pl, x, y)) return false;
+      }
+      return true;
+    }
+    var _step = 3, _minW = 6, _bandH = Math.max(6, _cw / 8);
+    // 1) per thin band, find uncovered x-runs at its mid-line
+    var _bands = [];
+    for (var _yb = _by0; _yb < _by1 - 0.1; _yb += _bandH) {
+      var _yT = _yb, _yB = Math.min(_yb + _bandH, _by1), _yM = (_yT + _yB) / 2, _runs = [], _rs = null;
+      for (var _x = _bx0; _x <= _bx1 + 0.001; _x += _step) {
+        var _op = (_x <= _bx1) && _openAt(_x, _yM);
+        if (_op && _rs === null) _rs = _x;
+        else if (!_op && _rs !== null) { if (_x - _step - _rs >= _minW) _runs.push([_rs, _x - _step]); _rs = null; }
+      }
+      _bands.push({ yT: _yT, yB: _yB, runs: _runs });
+    }
+    // 2) union vertically-adjacent overlapping runs into contiguous gaps
+    var _rl = [];
+    _bands.forEach(function(bd, bi){ bd.runs.forEach(function(r){
+      _rl.push({ bi: bi, a: r[0], b: r[1], yT: bd.yT, yB: bd.yB }); }); });
+    var _par = _rl.map(function(_, i){ return i; });
+    function _find2(i){ while (_par[i] !== i){ _par[i] = _par[_par[i]]; i = _par[i]; } return i; }
+    for (var _i = 0; _i < _rl.length; _i++) for (var _j = 0; _j < _rl.length; _j++) {
+      if (_rl[_j].bi === _rl[_i].bi + 1 && _rl[_i].a < _rl[_j].b && _rl[_j].a < _rl[_i].b)
+        _par[_find2(_i)] = _find2(_j);
+    }
+    var _comps = {};
+    _rl.forEach(function(r, i){ var c = _find2(i); (_comps[c] = _comps[c] || []).push(r); });
+    // 3) one offcut polygon per gap, hugging the bounding hip/valley lines
+    var _fills = [];
+    Object.keys(_comps).forEach(function(k){
+      var rs = _comps[k].sort(function(p, q){ return p.bi - q.bi; });
+      var lf = [], rt = [];
+      rs.forEach(function(r){ lf.push([r.a, r.yT], [r.a, r.yB]); rt.push([r.b, r.yT], [r.b, r.yB]); });
+      var poly = lf.concat(rt.reverse());
+      if (poly.length >= 3 && Math.abs(polyArea(poly)) > _minW * _minW)
+        _fills.push({ poly: poly, centroid: polyCentroid(poly), isOffcut: true, isPhantom: false, _gapFill: true });
+    });
+    // 4) attach each fill to the donor whose full-length primary shares its
+    //    band (the sheet it is physically cut from); else nearest sheet
+    _fills.forEach(function(g){
+      var gys = g.poly.map(function(p){ return p[1]; });
+      var gy0 = Math.min.apply(null, gys), gy1 = Math.max.apply(null, gys);
+      var best = null, bestOv = 0;
+      allStrips.forEach(function(s){
+        if (s._gapFill || s.isOffcut || s._donorIdx === undefined || !s.poly) return;
+        var sys = s.poly.map(function(p){ return p[1]; });
+        var ov = Math.min(gy1, Math.max.apply(null, sys)) - Math.max(gy0, Math.min.apply(null, sys));
+        if (ov > bestOv) { bestOv = ov; best = s; }
+      });
+      if (!best) {
+        var bd = Infinity;
+        allStrips.forEach(function(s){
+          if (s._gapFill) return;
+          var dx = s.centroid[0]-g.centroid[0], dy = s.centroid[1]-g.centroid[1], d = dx*dx + dy*dy;
+          if (d < bd) { bd = d; best = s; }
+        });
+      }
+      if (!best) return;
+      g.seq = best.seq; g.color = best.color; g.face = best.face;
+      g.orderedLengthMm = best.orderedLengthMm; g.pieceM = best.pieceM; g._sheetKey = best._sheetKey;
+      allStrips.push(g);
+    });
+  }
+
   // DEBUG hook — expose results to window for tests.
   window.__lastSheetPlan = { faces: faces, strips: allStrips, mainA: mainA, mainB: mainB };
 
@@ -15815,7 +16609,7 @@ function _renderRoofSheetPlanInner() {
   });
   ctx.closePath();
   ctx.stroke();
-  DRAW.lines.forEach(function(l){
+  (_tLines || DRAW.lines).forEach(function(l){
     if (l.type === 'gutter' || l.type === 'barge') return;  // outline already drawn
     if (l.type === 'ridge')  { ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1.5; }
     else if (l.type === 'hip')  { ctx.strokeStyle = COL_GREEN; ctx.lineWidth = 1.2; }
