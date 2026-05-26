@@ -12863,6 +12863,37 @@ function _renderRoofSheetPlanInner() {
       .forEach(function(f, i){ f.color = _wingPalette[i % _wingPalette.length]; });
   }
 
+  // ── Canonical telescoping frame (orientation-invariant) ───────────
+  // The west offcut chain & the wing-length recolour below were written
+  // assuming the wings step toward LOW coordinates (west/north) and the
+  // full-span slope is mainA.  Both assumptions break under 180°/270°
+  // rotation or mirroring.  Derive an orientation-free frame instead:
+  //   _merged  = the full-span main slope (longest gutter; spans the wings)
+  //   _donorSlope = the opposite, main-only slope (feeds the west chain)
+  //   _cx(p)   = position along the main axis, increasing wings → main
+  //   _cy(p)   = position across the main axis, increasing merged → stepped
+  // so "wing-side" is always low _cx and the "merged half" is always low _cy.
+  var _axisH = (mainAxis === 'h');
+  var _merged = null, _donorSlope = null;
+  var _cx = null, _cy = null, _gmidCx = null;
+  if (_hasTelesc && mainA && mainB) {
+    _merged     = (mainA.gL >= mainB.gL) ? mainA : mainB;
+    _donorSlope = (_merged === mainA) ? mainB : mainA;
+    var _mc = [(mainRect.x0+mainRect.x1)/2, (mainRect.y0+mainRect.y1)/2];
+    var _mgMid = [(_merged.a[0]+_merged.b[0])/2, (_merged.a[1]+_merged.b[1])/2];
+    var _perpSign = _axisH ? (Math.sign(_mgMid[1]-_mc[1])||-1) : (Math.sign(_mgMid[0]-_mc[0])||-1);
+    var _wc = [0,0], _wn = 0;
+    faces.forEach(function(f){
+      if (f === mainA || f === mainB || !_isParallel(f)) return;
+      _wc[0]+=f.centroid[0]; _wc[1]+=f.centroid[1]; _wn++;
+    });
+    if (_wn){ _wc[0]/=_wn; _wc[1]/=_wn; }
+    var _wingSign = _axisH ? (Math.sign(_wc[0]-_mc[0])||-1) : (Math.sign(_wc[1]-_mc[1])||-1);
+    _cx = function(p){ var a = _axisH ? p[0] : p[1]; return _wingSign>0 ? -a : a; };  // wings = low _cx
+    _cy = function(p){ var b = _axisH ? p[1] : p[0]; return _perpSign>0 ? -b : b; };  // merged = low _cy
+    _gmidCx = function(f){ return _cx([(f.a[0]+f.b[0])/2, (f.a[1]+f.b[1])/2]); };
+  }
+
   // ── Phantom-4-hip extents ─────────────────────────────────────
   // For each of orange/blue, see if the gutter spans the whole main
   // rect edge.  If not, record the missing interval(s) as phantom.
@@ -13346,7 +13377,7 @@ function _renderRoofSheetPlanInner() {
   // sheets stay orange.  Doing it first means only the orange sheets feed the
   // main's hip-ends (the wing-length sheets aren't main donors), so a main
   // hip-end never sources an offcut from a recoloured wing sheet.
-  if (_hasTelesc && mainA) {
+  if (_hasTelesc && _merged) {
     var _wingSheet0 = [];
     faces.forEach(function(wf){
       if (wf === mainA || wf === mainB || wf.type !== 'long-side') return;
@@ -13358,7 +13389,7 @@ function _renderRoofSheetPlanInner() {
       if (areas.length) _wingSheet0.push({ area: areas[Math.floor(areas.length/2)], color: wf.color });
     });
     allStrips.forEach(function(s){
-      if (s.face !== mainA || s._offcutMatched) return;
+      if (s.face !== _merged || s._offcutMatched) return;
       for (var _wj = 0; _wj < _wingSheet0.length; _wj++) {
         if (Math.abs(s.clipArea - _wingSheet0[_wj].area) < _wingSheet0[_wj].area * 0.02) { s.color = _wingSheet0[_wj].color; break; }
       }
@@ -13374,7 +13405,7 @@ function _renderRoofSheetPlanInner() {
     // sheets so the recoloured wing-length north sheets aren't pulled into a
     // hip-end (which would orphan a purple/green sheet number onto an orange
     // hip-end strip).
-    var _oc = (_hasTelesc && longSide === mainA) ? COL_ORANGE : null;
+    var _oc = (_hasTelesc && longSide === _merged) ? _merged.color : null;
     faces.forEach(function(hipEnd){
       if (hipEnd.type !== 'hip-end') return;
       if (hipEnd === mainA || hipEnd === mainB) return;  // the mains are donors, not receivers
@@ -13385,55 +13416,46 @@ function _renderRoofSheetPlanInner() {
     });
   });
 
-  // ── Telescoping west offcut chain ─────────────────────────────────
-  // On a stepped/telescoping main, the blue south slope's WEST donor sheets
-  // are cut and that one offcut set cascades WEST, filling the NORTH part of
-  // every west-facing step riser plus the ENTIRE outermost wing tip.  (The
-  // south parts of those risers stay orange/their wing colour; this only
-  // claims the north-side strips.)  Scoped (via _hasTelesc) to outlines with a
-  // parallel wing, so L/T/U/double-wing are untouched.
-  if (!_tCascade && mainRect && mainB && _hasTelesc) {
-    var _hm = (mainAxis === 'h');
-    var _axc = (mainRect.x0+mainRect.x1)/2, _ayc = (mainRect.y0+mainRect.y1)/2;
+  // ── Telescoping wing-ward offcut chain ────────────────────────────
+  // On a stepped/telescoping main, the donor (main-only) slope's wing-ward
+  // sheets are cut and that one offcut set cascades toward the wing tip,
+  // filling the MERGED-side part of every step riser plus the ENTIRE outermost
+  // wing tip.  (The stepped-side parts of those risers stay the wing colour;
+  // this only claims the merged-side strips.)  Expressed in the canonical
+  // frame (_cx/_cy) so it works at any rotation/mirror.  Scoped (via
+  // _hasTelesc) to outlines with a parallel wing, so L/T/U/double-wing are
+  // untouched.
+  if (!_tCascade && mainRect && _donorSlope && _hasTelesc) {
+    var _mcCx = _cx(_mc);
     var westFaces = faces.filter(function(f){
       if (f === mainA || f === mainB) return false;
-      var across = _hm ? Math.abs(f.a[0]-f.b[0]) < 4 : Math.abs(f.a[1]-f.b[1]) < 4;
+      var across = _axisH ? Math.abs(f.a[0]-f.b[0]) < 4 : Math.abs(f.a[1]-f.b[1]) < 4;
       if (!across) return false;
-      var gpos = _hm ? (f.a[0]+f.b[0])/2 : (f.a[1]+f.b[1])/2;
-      return _hm ? (gpos < _axc) : (gpos < _ayc);          // wing-side risers only
-    }).sort(function(a,b){
-      var ga = _hm ? (a.a[0]+a.b[0])/2 : (a.a[1]+a.b[1])/2;
-      var gb = _hm ? (b.a[0]+b.b[0])/2 : (b.a[1]+b.b[1])/2;
-      return ga - gb;                                       // outermost (tip) first
-    });
+      return _gmidCx(f) < _mcCx;                              // wing-side risers only (low _cx)
+    }).sort(function(a,b){ return _gmidCx(a) - _gmidCx(b); }); // outermost (tip) = lowest _cx, first
     if (westFaces.length) {
       var _tip = westFaces[0];
-      // One blue west offcut runs the full width of the west side, re-trimmed
-      // at each step — so ONE donor sheet feeds one strip on every step (its
-      // number repeats across the risers + tip).  Collect each west face's
-      // NORTH-side receiver strips (the whole outer tip; the north half of the
-      // inner risers), ordered north→south, then assign donor #k to the k-th
-      // such strip on EVERY face.  Donor count needed = the deepest face's row
-      // count, not the sum, so the set covers all steps.
+      // One donor offcut runs the full wing-ward width, re-trimmed at each step
+      // — so ONE donor sheet feeds one strip on every step (its number repeats
+      // across the risers + tip).  Collect each face's MERGED-side receiver
+      // strips (the whole outer tip; the merged half of the inner risers),
+      // ordered merged→stepped, then assign donor #k to the k-th such strip on
+      // EVERY face.  Donor count = the deepest face's row count, not the sum.
       var _mainWf = westFaces[westFaces.length-1];
-      var _ridgeY = (mainRect.y0 + mainRect.y1)/2, _ridgeX = (mainRect.x0 + mainRect.x1)/2;
       var _perFace = westFaces.map(function(f){
-        var fc = f.centroid;
-        // Split blue(north)/orange(south) at the section's RIDGE (apex) level,
-        // so each offcut set starts right at the apex.  The main-W riser's own
-        // centroid is skewed south by its tall exposed wall, so use the main
-        // ridge; the shallower risers' centroids already sit at their ridge.
-        var splitN = (f === _mainWf) ? (_hm ? _ridgeY : _ridgeX) : (_hm ? fc[1] : fc[0]);
+        // Split merged/stepped halves at the section RIDGE (apex) level so each
+        // offcut set starts at the apex.  The main-W riser's centroid is skewed
+        // by its tall exposed wall, so use the main ridge for it.
+        var splitCy = (f === _mainWf) ? _cy(_mc) : _cy(f.centroid);
         return allStrips.filter(function(s){
           if (s.face !== f || s._offcutMatched) return false;
-          var north = _hm ? (s.centroid[1] < splitN) : (s.centroid[0] < splitN);
-          return (f === _tip) || north;
-        }).sort(function(a,b){ return _hm ? (a.centroid[1]-b.centroid[1]) : (a.centroid[0]-b.centroid[0]); });
+          var merged = _cy(s.centroid) < splitCy;             // merged-side half (low _cy)
+          return (f === _tip) || merged;
+        }).sort(function(a,b){ return _cy(a.centroid) - _cy(b.centroid); });  // merged → stepped
       });
-      var _seqB = function(s){ return (s.centroid[0]-mainB.a[0])*mainB.tx + (s.centroid[1]-mainB.a[1])*mainB.ty; };
       var donorsW = allStrips.filter(function(s){
-        return s.face === mainB && s.rectArea && s.clipArea < s.rectArea - 1 && !s._offcutDest;
-      }).sort(function(a,b){ return _seqB(a) - _seqB(b); });
+        return s.face === _donorSlope && s.rectArea && s.clipArea < s.rectArea - 1 && !s._offcutDest;
+      }).sort(function(a,b){ return _cx(b.centroid) - _cx(a.centroid); });   // away-from-wings donor first
       var _maxRows = _perFace.reduce(function(m,a){ return Math.max(m, a.length); }, 0);
       for (var _k = 0; _k < _maxRows; _k++) {
         var _donor = donorsW[_k] || donorsW[donorsW.length-1];
@@ -13447,34 +13469,32 @@ function _renderRoofSheetPlanInner() {
           if (!_donor._offcutDest) _donor._offcutDest = s;
         });
       }
-      // Main's own west hip-end (the deepest/east-most west face): mirror the
-      // east hip-end — the orange NORTH slope's west offcuts fill its SOUTH
-      // half (the blue chain above already took its north half).  Donors are
-      // restricted to ORANGE north sheets so the recoloured wing-length sheets
-      // aren't consumed here.
+      // Main's own wing-side hip-end (the deepest such face): the MERGED slope's
+      // wing-ward offcuts fill its stepped half (the chain above took its merged
+      // half).  Donors restricted to the merged slope's own colour so recoloured
+      // wing-length sheets aren't consumed here.
       var _mainW = westFaces[westFaces.length-1];
       var _apexMW = null;
-      if (_mainW && _mainW !== _tip && mainA) {
+      if (_mainW && _mainW !== _tip && _merged) {
         var _gmw = [(_mainW.a[0]+_mainW.b[0])/2, (_mainW.a[1]+_mainW.b[1])/2], _bdm = -1;
         _mainW.poly.forEach(function(v){ var d = Math.hypot(v[0]-_gmw[0], v[1]-_gmw[1]); if (d > _bdm){ _bdm = d; _apexMW = v; } });
-        _pairCornerToHipEnd(mainA, _mainW, _apexMW, COL_ORANGE);
+        _pairCornerToHipEnd(_merged, _mainW, _apexMW, _merged.color);
       }
       // Inner risers (between the outer tip and the main-W): their stepped-side
-      // strips are NOT fresh wing sheets — they're the SECOND pieces of offcuts
-      // re-cut at the valley.  Reuse the blue chain offcuts that pass across the
-      // valley (the 2nd/3rd chain donors) and the main-W's first orange offcut,
-      // so the strips read as blue #7,#6 and orange #1 rather than purple.
+      // strips are SECOND pieces re-cut at the valley.  Reuse the chain offcuts
+      // that cross the valley (the 2nd/3rd chain donors) and the main-W's first
+      // merged-slope offcut, instead of fresh wing sheets.
       var _or1 = null;
-      if (_apexMW) {
-        var _mwOr = allStrips.filter(function(s){ return s.face===_mainW && s._offcutMatched && s.color===COL_ORANGE; })
+      if (_apexMW && _merged) {
+        var _mwOr = allStrips.filter(function(s){ return s.face===_mainW && s._offcutMatched && s.color===_merged.color; })
           .sort(function(a,b){ return Math.hypot(a.centroid[0]-_apexMW[0],a.centroid[1]-_apexMW[1]) - Math.hypot(b.centroid[0]-_apexMW[0],b.centroid[1]-_apexMW[1]); });
         if (_mwOr.length) _or1 = _mwOr[0]._offcutSource;
       }
-      var _innerSrc = [donorsW[1], donorsW[2], _or1].filter(Boolean);   // blue #7, blue #6, orange #1
+      var _innerSrc = [donorsW[1], donorsW[2], _or1].filter(Boolean);   // chain #7, chain #6, merged #1
       if (_innerSrc.length) westFaces.forEach(function(rf){
         if (rf === _tip || rf === _mainW) return;
         allStrips.filter(function(s){ return s.face===rf && !s._offcutMatched; })
-          .sort(function(a,b){ return _hm ? (a.centroid[1]-b.centroid[1]) : (a.centroid[0]-b.centroid[0]); })  // valley→stepped
+          .sort(function(a,b){ return _cy(a.centroid) - _cy(b.centroid); })  // valley(merged) → stepped
           .forEach(function(s, i){
             var src = _innerSrc[Math.min(i, _innerSrc.length-1)];
             if (!src) return;
