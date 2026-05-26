@@ -14696,6 +14696,80 @@ function _renderRoofSheetPlanInner() {
     // share a region (e.g. the wing N hip-end).
     allStrips = stripsBase.concat(stripsWing, stripsBlueMv, stripsDonors);
 
+    // ── Coverage completion (offcut fills) ──
+    // The strip formulas above are calibrated to a nominally proportioned
+    // wing; an unusually short or wide wing can leave a small INTERIOR
+    // region untiled (a visible white sliver near the wing/main junction).
+    // Scan the canonical L for any interior area the strips miss and fill
+    // it with offcut pieces.  Each fill later inherits the seq of the
+    // nearest sheet, so it reads as that sheet's reused offcut and adds
+    // nothing to the order.  A well-proportioned wing leaves no gap, so
+    // nothing is added there (this is a no-op for the calibrated case).
+    var _gapFills = [];
+    (function(){
+      var oxs = outline.map(function(p){return p[0];}), oys = outline.map(function(p){return p[1];});
+      var bx0 = Math.min.apply(null, oxs), bx1 = Math.max.apply(null, oxs);
+      var by0 = Math.min.apply(null, oys), by1 = Math.max.apply(null, oys);
+      function _inPoly(poly, x, y){
+        var c = false;
+        for (var i = 0, j = poly.length-1; i < poly.length; j = i++) {
+          var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+          if (((yi > y) !== (yj > y)) && (x < (xj-xi)*(y-yi)/(yj-yi) + xi)) c = !c;
+        }
+        return c;
+      }
+      function _open(x, y){
+        if (!_inPoly(outline, x, y)) return false;
+        for (var s = 0; s < allStrips.length; s++) {
+          var pl = allStrips[s].poly;
+          if (pl && pl.length >= 3 && _inPoly(pl, x, y)) return false;
+        }
+        return true;
+      }
+      var step = 3, minW = 6, bandH = Math.max(6, coverPxL / 8);
+      // 1) Per horizontal band, find the uncovered x-runs at its mid-line.
+      var bands = [];
+      for (var yb = by0; yb < by1 - 0.1; yb += bandH) {
+        var yTop = yb, yBot = Math.min(yb + bandH, by1), yM = (yTop + yBot) / 2;
+        var runs = [], runStart = null;
+        for (var x = bx0; x <= bx1 + 0.001; x += step) {
+          var open = (x <= bx1) && _open(x, yM);
+          if (open && runStart === null) runStart = x;
+          else if (!open && runStart !== null) {
+            if (x - step - runStart >= minW) runs.push([runStart, x - step]);
+            runStart = null;
+          }
+        }
+        bands.push({ yT: yTop, yB: yBot, runs: runs });
+      }
+      // 2) Flatten to a run list and union runs that overlap in x with a
+      //    run in the band directly below — merges a contiguous gap into
+      //    one connected component.
+      var rl = [];
+      bands.forEach(function(bd, bi){ bd.runs.forEach(function(r){
+        rl.push({ bi: bi, a: r[0], b: r[1], yT: bd.yT, yB: bd.yB }); }); });
+      var parent = rl.map(function(_, i){ return i; });
+      function _find(i){ while (parent[i] !== i){ parent[i] = parent[parent[i]]; i = parent[i]; } return i; }
+      for (var i = 0; i < rl.length; i++) for (var j = 0; j < rl.length; j++) {
+        if (rl[j].bi === rl[i].bi + 1 && rl[i].a < rl[j].b && rl[j].a < rl[i].b)
+          parent[_find(i)] = _find(j);
+      }
+      var comps = {};
+      rl.forEach(function(r, i){ var c = _find(i); (comps[c] = comps[c] || []).push(r); });
+      // 3) One offcut polygon per component: left edge top→bottom, right
+      //    edge bottom→top, so it hugs the bounding hip/valley lines.
+      Object.keys(comps).forEach(function(k){
+        var rs = comps[k].sort(function(p, q){ return p.bi - q.bi; });
+        var left = [], right = [];
+        rs.forEach(function(r){ left.push([r.a, r.yT], [r.a, r.yB]);
+                                right.push([r.b, r.yT], [r.b, r.yB]); });
+        var poly = left.concat(right.reverse());
+        if (poly.length >= 3 && Math.abs(polyArea(poly)) > minW * minW)
+          _gapFills.push({ poly: poly, centroid: polyCentroid(poly),
+                           isOffcut: true, isPhantom: false, _gapFill: true });
+      });
+    })();
+
     // ── Sequence numbering (sheet-identity based) ──
     // Each physical sheet gets one seq number, shared across all its
     // pieces.  Numbers are global 1..N in reading order (top-to-bottom,
@@ -14765,6 +14839,25 @@ function _renderRoofSheetPlanInner() {
       var k = _sheetKey(s);
       s._sheetKey = k;
       (_bySheet[k] = _bySheet[k] || []).push(s);
+    });
+    // Attach each coverage-completion fill to the nearest real sheet so it
+    // inherits that sheet's seq / colour / face — it reads as a reused
+    // offcut and adds nothing to the order.
+    _gapFills.forEach(function(g){
+      var best = null, bd = Infinity;
+      for (var i = 0; i < allStrips.length; i++) {
+        var s = allStrips[i];
+        if (s._gapFill) continue;
+        var dx = s.centroid[0]-g.centroid[0], dy = s.centroid[1]-g.centroid[1];
+        var d = dx*dx + dy*dy;
+        if (d < bd) { bd = d; best = s; }
+      }
+      if (!best) return;
+      g.color = best.color; g.face = best.face;
+      g.orderedLengthMm = best.orderedLengthMm; g.pieceM = best.pieceM;
+      g._sheetKey = best._sheetKey;
+      allStrips.push(g);
+      _bySheet[best._sheetKey].push(g);
     });
     var _sortedKeys = Object.keys(_bySheet).sort(function(a, b){
       var aR = _bySheet[a].find(function(s){return !s.isOffcut;}) || _bySheet[a][0];
