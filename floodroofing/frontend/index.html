@@ -8472,45 +8472,111 @@ async function preloadAllFergusJobs(){
   if (S._fergPreloading) return;
   S._fergPreloading = true;
   var PAGE_SIZE = 100;
-  var MAX_PAGES = 200;
+  var TARGET = 1000;     // Stop after caching this many jobs (covers
+                         // ~10 pages back from newest — enough to reach
+                         // jobs from this year on a busy Northland account).
+  var MAX_PAGES = 100;   // Safety stop (1000 jobs / 100 page-size = 10 pages
+                         // for a healthy API; up to 100 lets us re-run pages
+                         // that return fewer than PAGE_SIZE on the way).
   var statusEl = document.getElementById('fergPreloadStatus');
   function status(t){ if (statusEl) statusEl.textContent = t; }
+  // Renders progress + re-runs any active search so matches fade in as
+  // older jobs arrive.
+  function commitPage(jobs){
+    var seen = {}; (S.fergJobsCache||[]).forEach(function(j){ seen[j.id] = 1; });
+    var newCount = 0;
+    jobs.map(_fergJobView).forEach(function(j){
+      if (!seen[j.id]) { seen[j.id] = 1; S.fergJobsCache.push(j); newCount++; }
+    });
+    if (window._jmsState) _jmsState.jobsCache = S.fergJobsCache.slice();
+    if (!((document.getElementById('fergSearch')||{}).value || '').trim()) showFergJobsList();
+    else runFergSearch();
+    return newCount;
+  }
+  function readJobs(data){ return (data && (data.value || data.jobs || data.data)) || []; }
+  function readNextCursor(data){
+    if (!data) return null;
+    return data.nextCursor || data.next_cursor || data.cursor ||
+           (data.pagination && (data.pagination.nextCursor || data.pagination.next_cursor || data.pagination.cursor)) ||
+           (data.meta && (data.meta.nextCursor || data.meta.next_cursor || data.meta.cursor));
+  }
+  async function fetchJson(url){
+    try {
+      var r = await fergusCall('GET', url);
+      if (!r.ok) return null;
+      return await r.json();
+    } catch(e) { return null; }
+  }
   try {
-    // The first page was already fetched by testFergus, but we don't
-    // have the cursor from it — start fresh from cursor 0 so we have
-    // the cursor chain.
+    // ── PHASE 1: cursor pagination (documented Fergus V3) ──
     var cursor = '0';
     var pages = 0;
-    while (pages < MAX_PAGES) {
-      status('Caching all Fergus jobs… ' + (S.fergJobsCache||[]).length + ' loaded');
-      var url = '/jobs?pageSize=' + PAGE_SIZE + '&sortField=createdAt&sortOrder=desc&pageCursor=' + encodeURIComponent(cursor);
-      var resp;
-      try { resp = await fergusCall('GET', url); }
-      catch(e) { break; }
-      if (!resp.ok) break;
-      var data;
-      try { data = await resp.json(); } catch(e) { break; }
-      var jobs = (data.value || data.jobs || data.data || []);
-      var seen = {};
-      (S.fergJobsCache||[]).forEach(function(j){ seen[j.id] = 1; });
-      var newCount = 0;
-      jobs.map(_fergJobView).forEach(function(j){
-        if (!seen[j.id]) { seen[j.id] = 1; S.fergJobsCache.push(j); newCount++; }
-      });
-      if (window._jmsState) _jmsState.jobsCache = S.fergJobsCache.slice();
-      if (!((document.getElementById('fergSearch')||{}).value || '').trim()) showFergJobsList();
-      else runFergSearch();
-      // Fergus returns the next cursor in the response — accept any of
-      // the field names documented + a few common variants.
-      var nextCursor = data.nextCursor || data.next_cursor || data.cursor ||
-                       (data.pagination && (data.pagination.nextCursor || data.pagination.next_cursor || data.pagination.cursor));
-      // No more cursor, or no new jobs in this page → end of data.
-      if (!nextCursor || nextCursor === cursor || jobs.length < PAGE_SIZE || !newCount) break;
+    var cursorWorked = false;
+    while (pages < MAX_PAGES && (S.fergJobsCache||[]).length < TARGET) {
+      status('Caching Fergus jobs… ' + (S.fergJobsCache||[]).length + ' / ' + TARGET);
+      var d = await fetchJson('/jobs?pageSize=' + PAGE_SIZE + '&sortField=createdAt&sortOrder=desc&pageCursor=' + encodeURIComponent(cursor));
+      if (!d) break;
+      var jobs = readJobs(d);
+      var newCount = commitPage(jobs);
+      var nextCursor = readNextCursor(d);
+      // If Fergus didn't return a cursor on the first page, cursor
+      // pagination is broken on this tenant — abandon and try
+      // page-number fallback.
+      if (!nextCursor || nextCursor === cursor) {
+        if (pages > 0) cursorWorked = true;   // got at least 2 pages via cursor
+        break;
+      }
+      cursorWorked = true;
+      if (jobs.length < PAGE_SIZE || !newCount) break;
       cursor = String(nextCursor);
       pages++;
       await new Promise(function(r){ setTimeout(r, 60); });
     }
-    status('✓ All Fergus jobs cached: ' + (S.fergJobsCache||[]).length + ' total — type any jobNo to find it instantly.');
+
+    // ── PHASE 2: page-number fallback ──
+    // Walks ?page=2,3,4,… for tenants where pageCursor isn't honoured.
+    // Fergus's actual REST tenants seem to use 1-based page numbers, so
+    // page=1 is the same data we already grabbed. Start at page 2.
+    if (!cursorWorked && (S.fergJobsCache||[]).length < TARGET) {
+      var pageNo = 2;
+      while (pageNo <= MAX_PAGES && (S.fergJobsCache||[]).length < TARGET) {
+        status('Caching Fergus jobs (page ' + pageNo + ')… ' + (S.fergJobsCache||[]).length + ' / ' + TARGET);
+        var d2 = await fetchJson('/jobs?page=' + pageNo + '&pageSize=' + PAGE_SIZE + '&sortField=createdAt&sortOrder=desc');
+        var jobs2 = readJobs(d2);
+        if (!jobs2.length) break;
+        var newCount2 = commitPage(jobs2);
+        // If the page returned data but none of it was new, Fergus is
+        // ignoring the page param and re-serving page 1. Try offset/
+        // limit as a last resort.
+        if (newCount2 === 0) break;
+        if (jobs2.length < PAGE_SIZE) break;
+        pageNo++;
+        await new Promise(function(r){ setTimeout(r, 60); });
+      }
+    }
+
+    // ── PHASE 3: offset / limit fallback ──
+    // Some Fergus tenants honour offset+limit even when page+pageCursor
+    // both ignored. Walk until empty or target hit.
+    if ((S.fergJobsCache||[]).length < TARGET && (S.fergJobsCache||[]).length <= 100) {
+      var off = (S.fergJobsCache||[]).length;
+      var offSteps = 0;
+      while (offSteps < MAX_PAGES && (S.fergJobsCache||[]).length < TARGET) {
+        status('Caching Fergus jobs (offset ' + off + ')… ' + (S.fergJobsCache||[]).length + ' / ' + TARGET);
+        var d3 = await fetchJson('/jobs?offset=' + off + '&limit=' + PAGE_SIZE + '&sortField=createdAt&sortOrder=desc');
+        var jobs3 = readJobs(d3);
+        if (!jobs3.length) break;
+        var newCount3 = commitPage(jobs3);
+        if (newCount3 === 0) break;
+        if (jobs3.length < PAGE_SIZE) break;
+        off += jobs3.length;
+        offSteps++;
+        await new Promise(function(r){ setTimeout(r, 60); });
+      }
+    }
+
+    var total = (S.fergJobsCache||[]).length;
+    status('✓ ' + total + ' Fergus jobs cached — type any jobNo to find it instantly.');
     setTimeout(function(){ status(''); }, 10000);
   } finally {
     S._fergPreloading = false;
