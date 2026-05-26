@@ -10845,18 +10845,29 @@ function buildTRoofLines(ol){
   var capWap=[cx0+ch/2,capMidY], capEap=[cx1-ch/2,capMidY];
   var stemSap=[sxc, sy1-sw/2], ridgeN=[sxc,capMidY];
   var ln=[
-    {t:'ridge', a:capWap, b:capEap},           // cap ridge (E-W)
-    {t:'ridge', a:ridgeN, b:stemSap},          // stem ridge → stem hip apex
     {t:'hip', a:[cx0,cy0], b:capWap}, {t:'hip', a:[cx0,jy], b:capWap},
     {t:'hip', a:[cx1,cy0], b:capEap}, {t:'hip', a:[cx1,jy], b:capEap},
     {t:'hip', a:[sx0,sy1], b:stemSap}, {t:'hip', a:[sx1,sy1], b:stemSap}
   ];
-  if (sw < ch - 0.5){
-    var V=[sxc, jy-sw/2];
-    ln.push({t:'valley', a:[sx0,jy], b:V}, {t:'valley', a:[sx1,jy], b:V});
+  if (sw > ch + 0.5){
+    // Stem ridge HIGHER than the cap ridge: the cap's low ridge is split, and
+    // two small hips climb from its ends (W1/E1) up to T0, the north end of
+    // the high stem ridge.  Short valleys run from each junction corner to
+    // W1/E1 (the same points as the lower/even-stem case's valley tops).
+    var W1=[sx0+ch/2,capMidY], E1=[sx1-ch/2,capMidY], T0=[sxc, cy0+sw/2];
+    ln.push({t:'ridge', a:capWap, b:W1}, {t:'ridge', a:E1, b:capEap});
+    ln.push({t:'ridge', a:T0, b:stemSap});
+    ln.push({t:'hip', a:W1, b:T0}, {t:'hip', a:E1, b:T0});
+    ln.push({t:'valley', a:[sx0,jy], b:W1}, {t:'valley', a:[sx1,jy], b:E1});
   } else {
-    var lH=[sx0+ch/2,capMidY], rH=[sx1-ch/2,capMidY];
-    ln.push({t:'valley', a:[sx0,jy], b:lH}, {t:'valley', a:[sx1,jy], b:rH});
+    // Stem ridge LOWER than / equal to the cap ridge: the stem ridge dies into
+    // the cap slope at a point V, with a valley from each junction corner up
+    // to it.  (At sw==ch, V == ridgeN and the two valleys meet the full cap
+    // ridge — the standard 4-way junction.)
+    var V=[sxc, jy-sw/2];
+    ln.push({t:'ridge', a:capWap, b:capEap});      // cap ridge (E-W), full
+    ln.push({t:'ridge', a:ridgeN, b:stemSap});     // stem ridge
+    ln.push({t:'valley', a:[sx0,jy], b:V}, {t:'valley', a:[sx1,jy], b:V});
   }
   var inv=(4-nTurns)%4;
   return ln.map(function(L){ return {type:L.t, pts:[_r90(L.a,pvx,pvy,inv), _r90(L.b,pvx,pvy,inv)]}; });
@@ -12603,19 +12614,27 @@ function _renderRoofSheetPlanInner() {
     descs.push({a:[cx0,cy0],b:[cx1,cy0],poly:[[cx0,cy0],[cx1,cy0],capEap,capWap],t:'long-side',c:OR}); // cap N
     descs.push({a:[cx0,cy0],b:[cx0,jy],poly:[[cx0,cy0],capWap,[cx0,jy]],t:'hip-end',c:OR});            // cap W hip
     descs.push({a:[cx1,cy0],b:[cx1,jy],poly:[[cx1,cy0],capEap,[cx1,jy]],t:'hip-end',c:OR});            // cap E hip
-    descs.push({a:[sx0,sy1],b:[sx1,sy1],poly:[[sx0,sy1],stemSap,[sx1,sy1]],t:'hip-end',c:BL});         // stem S hip (built from blue cap-S valley offcuts)
-    if (sw < ch - 0.5){
+    descs.push({a:[sx0,sy1],b:[sx1,sy1],poly:[[sx0,sy1],stemSap,[sx1,sy1]],t:'hip-end',c:BL});         // stem S hip
+    if (sw > ch + 0.5){
+      // Stem ridge HIGHER than the cap ridge → the stem is a phantom 4-hip: its
+      // long-sides are hip-cut at BOTH the south hip (stemSap) AND a north
+      // hip-end (the notch triangle W1-T0-E1 whose apex T0 is the high stem-
+      // ridge top).  cap N stays a plain trapezoid; the notch is its own hip-
+      // end, fed by the stem long-sides' north offcuts via the same L-shape
+      // corner cascade as the south hip.
+      var W1=[sx0+ch/2,capMidY], E1=[sx1-ch/2,capMidY], T0=[sxc,cy0+sw/2];
+      descs.push({a:W1,b:E1,poly:[W1,T0,E1],t:'hip-end',c:BL});                                        // stem N phantom hip-end
+      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],W1,capWap],t:'long-side',c:BL});        // cap S-W stub
+      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,E1],t:'long-side',c:BL});        // cap S-E stub
+      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],W1,T0,stemSap,[sx0,sy1]],t:'long-side',c:PU});  // stem W
+      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,T0,E1],t:'long-side',c:PU});  // stem E
+    } else {
+      // Stem ridge LOWER than / equal to the cap ridge (at sw==ch, V==ridgeN).
       var V=[sxc, jy-sw/2];
       descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],V,ridgeN,capWap],t:'long-side',c:BL});
       descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,ridgeN,V],t:'long-side',c:BL});
       descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],V,stemSap,[sx0,sy1]],t:'long-side',c:PU});
       descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,V],t:'long-side',c:PU});
-    } else {
-      var lH=[sx0+ch/2,capMidY], rH=[sx1-ch/2,capMidY];
-      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],lH,capWap],t:'long-side',c:BL});
-      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,rH],t:'long-side',c:BL});
-      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],lH,ridgeN,stemSap,[sx0,sy1]],t:'long-side',c:PU});
-      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,ridgeN,rH],t:'long-side',c:PU});
     }
     var inv=(4-nTurns)%4;
     function rb(p){return rotate90(p,pvx,pvy,inv);}
@@ -13613,28 +13632,33 @@ function _renderRoofSheetPlanInner() {
   // order count.
   if (_tCascade && mainA) {
     // The cap hip-ends' apexes are ridge vertices shared with cap N
-    // (mainA); the stem hip-end's apex is not, so pick the hip-end whose
-    // apex is not a vertex of mainA's polygon.
-    var _stemHip = faces.filter(function(f){ return f.type === 'hip-end'; })
+    // (mainA); the stem hip-ends' apexes are not, so pick the hip-ends whose
+    // apex is not a vertex of mainA's polygon.  A long-stem T has TWO such
+    // hip-ends — the south hip and the north notch (phantom-4-hip top).
+    var _stemHips = faces.filter(function(f){ return f.type === 'hip-end'; })
       .filter(function(f){
         return mainA.poly.every(function(v){ return !ptEq(v, f.poly[1]); });
-      })[0];
-    if (_stemHip) {
+      });
+    if (_stemHips.length) {
       // Donor arm = the one with LONGER sheets (L-shape rule): its hip-cut
       // offcuts fill the shorter arm.  Compare the cap (mainA, orange) sheet
       // length against the stem long-sides (purple).  Even / long-cap Ts keep
       // the cap as donor (original behaviour); a long-stem T flips to the stem.
       var _stemLS = faces.filter(function(f){ return f.type==='long-side' && f.color===COL_PURPLE; });
-      var _stemLen = _stemLS.reduce(function(m,f){ return Math.max(m, f.sheetM); }, 0);
-      if (_stemLen > mainA.sheetM + 0.01) {
-        // STEM is the donor 4-hip: its own long sheets are cut at the south hip
-        // and those offcuts fill it, instead of starving it with the cap's
-        // short sheets.  Feed each half of the hip from its adjacent stem
-        // long-side (gutter-corner matching, robust to orientation/mirror).
-        _stemLS.forEach(function(ls){
-          _pairCornerToHipEnd(ls, _stemHip, _stemHip.poly[1], COL_PURPLE);
+      if (_stemHips.length >= 2) {
+        // Two stem hip-ends ⇒ wide-stem T (stem ridge higher than cap ridge):
+        // the STEM is the donor phantom 4-hip.  Its long sheets are hip-cut at
+        // BOTH the south hip and the north notch, and those offcuts fill each
+        // hip-end instead of starving them with the cap's short sheets.  Feed
+        // each half of every stem hip-end from its adjacent stem long-side
+        // (gutter-corner matching, robust to orientation/mirror).
+        _stemHips.forEach(function(hip){
+          _stemLS.forEach(function(ls){
+            _pairCornerToHipEnd(ls, hip, hip.poly[1], COL_PURPLE);
+          });
         });
       } else {
+      var _stemHip = _stemHips[0];
       var _ax = mainA.tx, _ay = mainA.ty;
       var _along = function(p){ return p[0]*_ax + p[1]*_ay; };
       var _e0 = _along(_stemHip.poly[0]), _e2 = _along(_stemHip.poly[2]);
