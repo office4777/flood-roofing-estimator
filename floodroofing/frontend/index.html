@@ -5308,10 +5308,10 @@ function recalcQuoteSelectedTotals(){
   setM('qpSelSub', sub); setM('qpSelGst', gst); setM('qpSelTot', tot); setM('qpSelDep', dep);
   setM('qpFooterTotal', tot); setM('qpTotal', tot);
   var qa = document.getElementById('qaTotal'); if (qa) qa.textContent = fmtMoney(tot);
-  // Per-option price chips.
-  S.quote.options.forEach(function(o){
-    setM('qpOptPrice-'+o.id, _optEffectiveTotal(o) * (1 + rate));
-  });
+  // Per-section breakdown (subtotal / GST / total).
+  var sect = function(id, s){ setM('qpOptSub-'+id, s); setM('qpOptGst-'+id, s*rate); setM('qpOptTot-'+id, s*(1+rate)); };
+  S.quote.options.forEach(function(o){ sect(o.id, _optEffectiveTotal(o)); });
+  sect('gutter', _gutterDelta());
   // Acceptance-summary total, if that page is showing.
   setM('qpAcceptTotal', tot);
   refreshAcceptSummary();
@@ -5346,11 +5346,19 @@ function setOptionGrade(id, upgradeId){
   o.selectedUpgrade = upgradeId || '';
   recalcQuoteSelectedTotals();
 }
-// Customer picks a gutter type.
+// Customer picks a gutter type (Option C on the price page).
 function setGutterChoice(choice){
   if (!S.quote) return;
   S.quote.gutterChoice = choice || 'none';
   recalcQuoteSelectedTotals();
+  // Reflect the included / not-included styling on the Option C row.
+  var root = document.getElementById('qpRoot');
+  var row = root && root.querySelector('.qp-opt-row[data-gutter]');
+  if (row) {
+    var on2 = (S.quote.gutterChoice !== 'none');
+    row.style.borderLeftColor = on2 ? 'var(--ed-accent)' : 'var(--ed-line)';
+    row.style.background = on2 ? 'var(--ed-paper-2)' : '#fff';
+  }
 }
 // Re-render the acceptance-page summary list (selected options + grades).
 function refreshAcceptSummary(){
@@ -5634,11 +5642,9 @@ function renderProposalSectionToggles(){
   var sec = (S.quote && S.quote.proposalSections) || {};
   var labels = [
     ['cover',     'Cover page',                 'Hero + title + at-a-glance'],
-    ['about',     'About us + team structure',  'Company profile + team roles'],
-    ['condition', 'Existing roof condition',    'Condition summary + site photos'],
-    ['inclusions','Price page',                 'Scope, exclusions, options, total'],
+    ['condition', 'Existing roof condition',    'Condition + team photo'],
+    ['inclusions','Price page',                 'Scope, options (incl. guttering), total'],
     ['colorsteel','Colorsteel® range',          'MAXAM with Activate™ + standard colours'],
-    ['gutters',   'Gutters',                    'Marley PVC + Colorsteel Box Gutter'],
     ['terms',     'Terms & conditions',         'Flood Roofing T&Cs'],
     ['signature', 'Acceptance signature',       'Client signature page'],
   ];
@@ -6502,7 +6508,7 @@ function refreshQuoteProposal(){
     };
     var detailItems = [['Roof type',cRoofType],['Pitch',cPitch],['Roofing material',cMaterial],['Approx. age',cAge]];
     partCondition =
-      edHeading('03','Inspection report','Existing roof condition')+
+      edHeading('02','Inspection report','Existing roof condition')+
       // Roof details strip
       '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:14px 0;margin-bottom:18px">'+
         detailItems.map(function(it){
@@ -6536,8 +6542,20 @@ function refreshQuoteProposal(){
             '<div class="ed-body" style="font-size:11.5px;line-height:1.55;color:var(--ed-ink-2)">'+esc2(cReco).split('\n').join('<br>')+'</div>'+
           '</div>'
         : '')+
-      '<div class="ed-eyebrow" style="margin-bottom:10px">Site photos</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">'+photoBoxes+'</div>';
+      // Real site photos (if any were uploaded) — no empty placeholders.
+      ((photos && photos.length)
+        ? '<div class="ed-eyebrow" style="margin-bottom:10px">Site photos</div>'+
+          '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">'+
+            photos.slice(0,6).map(function(pp){
+              return '<figure style="margin:0;aspect-ratio:4/3;background:#000;overflow:hidden;position:relative;border:1px solid var(--ed-ink)"><img src="'+esc2(pp.src)+'" style="width:100%;height:100%;object-fit:cover">'+(pp.caption?'<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:5px 8px;background:rgba(10,24,40,.82);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:11px">'+esc2(pp.caption)+'</figcaption>':'')+'</figure>';
+            }).join('')+
+          '</div>'
+        : '')+
+      // Team photo (relocated from the old About page) closes the page.
+      '<div style="margin:8px -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
+        '<img src="brand/team_lineup_ute.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/7;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
+        '<div style="position:absolute;left:0;right:0;bottom:0;padding:10px 36px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.8));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:13.5px;letter-spacing:.02em">The Flood Roofing crew · Northland</div>'+
+      '</div>';
   }
 
   // ── Scope of work + timeline + estimated start (full page) ──
@@ -6651,8 +6669,44 @@ function refreshQuoteProposal(){
     var combinedGst = combinedSub * _rate;
     var combinedTot = combinedSub + combinedGst;
     var combinedDep = combinedTot * 0.5;  // 50% deposit per Flood Roofing T&Cs
+    // Per-section price breakdown (subtotal / GST / total), live-updated.
+    var _priceFooter = function(id, sub){
+      var gst = sub*_rate, tot = sub+gst;
+      return '<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--ed-line);display:flex;justify-content:flex-end;gap:18px;align-items:baseline;flex-wrap:wrap">'+
+        '<span style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2)">Subtotal&nbsp;<b id="qpOptSub-'+id+'" style="color:var(--ed-ink);font-weight:600">'+fmtMoney(sub)+'</b></span>'+
+        '<span style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2)">+ GST '+S.quote.gstRate+'%&nbsp;<b id="qpOptGst-'+id+'" style="color:var(--ed-ink);font-weight:600">'+fmtMoney(gst)+'</b></span>'+
+        '<span style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2)">Total&nbsp;<b id="qpOptTot-'+id+'" class="ed-serif" style="color:var(--ed-accent);font-size:18px;font-weight:600">'+fmtMoney(tot)+'</b></span>'+
+      '</div>';
+    };
+    // Guttering as Option C (only when the office has set a gutter price).
+    var _gutterOptionC = function(){
+      var gp = S.quote.gutterPrices || {};
+      if (!(parseFloat(gp.marley) || parseFloat(gp.box))) return '';
+      var gc = S.quote.gutterChoice || 'none';
+      var on2 = (gc !== 'none');
+      var letterC = String.fromCharCode(65 + opts.length);
+      var gSub = on2 ? (parseFloat(gp[gc]) || 0) : 0;
+      return '<div class="qp-opt-row" data-gutter="1" style="display:block;margin-top:10px;padding:12px 14px;border:1px solid var(--ed-line);border-left:3px solid '+(on2?'var(--ed-accent)':'var(--ed-line)')+';background:'+(on2?'var(--ed-paper-2)':'#fff')+'">'+
+        '<div style="display:flex;align-items:flex-start;gap:12px">'+
+          '<div style="width:17px;flex-shrink:0"></div>'+
+          '<div style="flex:1;min-width:0">'+
+            '<div class="ed-serif" style="font-size:16px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em"><span style="color:var(--ed-accent);font-style:italic;margin-right:6px">'+letterC+'.</span>Guttering &amp; spouting <span style="font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);font-style:normal">— optional</span></div>'+
+            '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.45;color:var(--ed-ink-2)">Replace the spouting on this roof. Marley Typhoon® PVC is our standard fit; the Colorsteel® box gutter is a continuous, higher-capacity upgrade. Choose your profile:</div>'+
+            '<div onclick="event.stopPropagation()" style="margin-top:9px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+              '<span class="ed-eyebrow" style="color:var(--ed-text2)">Gutter type</span>'+
+              '<select onchange="setGutterChoice(this.value)" style="font-family:var(--ed-sans);font-size:11px;padding:5px 8px;border:1px solid var(--ed-line);border-radius:5px;background:#fff;color:var(--ed-ink);cursor:pointer">'+
+                '<option value="none"'+(gc==='none'?' selected':'')+'>Not included</option>'+
+                (parseFloat(gp.marley)?'<option value="marley"'+(gc==='marley'?' selected':'')+'>Marley Typhoon PVC</option>':'')+
+                (parseFloat(gp.box)?'<option value="box"'+(gc==='box'?' selected':'')+'>Colorsteel 125mm Box Gutter</option>':'')+
+              '</select>'+
+            '</div>'+
+            _priceFooter('gutter', gSub)+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    };
     partInclusions =
-      edHeading('04','Scope of work','The work &amp; the cost')+
+      edHeading('03','Scope of work','The work &amp; the cost')+
       ((S.quote.scope||'').trim()
         ? '<div class="ed-body" style="margin-top:-2px;margin-bottom:14px;font-size:11.5px;line-height:1.5;color:var(--ed-ink-2)">'+esc2(S.quote.scope).split('\n').join('<br>')+'</div>'
         : '')+
@@ -6661,7 +6715,7 @@ function refreshQuoteProposal(){
         opts.map(function(o, oi){
           var letter = String.fromCharCode(65+oi);
           var checked = (o.selected !== false);
-          var oIncl = _optEffectiveTotal(o) * (1 + _rate);
+          var oSub = _optEffectiveTotal(o);
           var ups = (o.upgrades||[]);
           var gradeSel = ups.length
             ? '<div onclick="event.stopPropagation()" style="margin-top:9px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
@@ -6675,14 +6729,11 @@ function refreshQuoteProposal(){
                 '</select>'+
               '</div>'
             : '';
-          return '<label class="qp-opt-row" style="display:block;margin-bottom:'+(oi===opts.length-1?'0':'10px')+';padding:12px 14px;border:1px solid var(--ed-line);border-left:3px solid '+(checked?'var(--ed-accent)':'var(--ed-line)')+';background:'+(checked?'var(--ed-paper-2)':'#fff')+';cursor:pointer">'+
+          return '<label class="qp-opt-row" style="display:block;margin-bottom:10px;padding:12px 14px;border:1px solid var(--ed-line);border-left:3px solid '+(checked?'var(--ed-accent)':'var(--ed-line)')+';background:'+(checked?'var(--ed-paper-2)':'#fff')+';cursor:pointer">'+
             '<div style="display:flex;align-items:flex-start;gap:12px">'+
               '<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleProposalOptionSel(\''+o.id+'\', this.checked)" style="width:17px;height:17px;margin:2px 0 0;flex-shrink:0;cursor:pointer;accent-color:var(--ed-accent)">'+
               '<div style="flex:1;min-width:0">'+
-                '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">'+
-                  '<div class="ed-serif" style="font-size:16px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em"><span style="color:var(--ed-accent);font-style:italic;margin-right:6px">'+letter+'.</span>'+esc2(o.title||'Option '+letter)+'</div>'+
-                  '<div id="qpOptPrice-'+esc2(o.id)+'" class="ed-serif" style="font-size:16px;font-weight:600;color:var(--ed-ink);white-space:nowrap">'+fmtMoney(oIncl)+'</div>'+
-                '</div>'+
+                '<div class="ed-serif" style="font-size:16px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em"><span style="color:var(--ed-accent);font-style:italic;margin-right:6px">'+letter+'.</span>'+esc2(o.title||'Option '+letter)+'</div>'+
                 (o.description ? '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.45;color:var(--ed-ink-2)">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
                 (o.inclusions && o.inclusions.length
                   ? '<ul style="margin:6px 0 0;padding:0;list-style:none">'+
@@ -6692,10 +6743,12 @@ function refreshQuoteProposal(){
                     '</ul>'
                   : '')+
                 gradeSel+
+                _priceFooter(o.id, oSub)+
               '</div>'+
             '</div>'+
           '</label>';
         }).join('')+
+        _gutterOptionC()+
       '</div>'+
       // Exclusions — items NOT covered by this quote. Sourced from
       // S.quote.exclusions[] (editable on the Quote tab template).
@@ -6795,7 +6848,7 @@ function refreshQuoteProposal(){
       }).join('')+
       '</div></div>' : '';
     partColorsteel =
-      edHeading('05','The material','Colorsteel® MAXAM &amp; alternatives')+
+      edHeading('04','The material','Colorsteel® MAXAM &amp; alternatives')+
       '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:start;margin-bottom:22px">'+
         '<div class="ed-body-lg">'+
           '<p style="margin:0 0 10px">Flood Roofing uses <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® MAXAM</span> as standard — NZ Steel\'s newest pre-painted roofing product, rolled and painted at Glenbrook from New Zealand iron sand. MAXAM is built on <span class="ed-serif" style="font-style:italic;font-size:15px">Activate™</span> technology, a patented aluminium-zinc-magnesium coating that meaningfully slows corrosion.</p>'+
@@ -7072,7 +7125,7 @@ function refreshQuoteProposal(){
             : '')+
         '</div>';
     partTerms =
-      edHeading('09','The fine print','Terms &amp; conditions')+
+      edHeading('05','The fine print','Terms &amp; conditions')+
       clauses +
       // Payment three-stage band — single horizontal row tucked at
       // the bottom of the T&Cs page.  Vertically compact so all the
@@ -7101,7 +7154,7 @@ function refreshQuoteProposal(){
     var accTot = accSub * (1+accRate);
     var acc = S.quote.accepted;
     partSignature =
-      edHeading('10','To accept','Acceptance &amp; signature')+
+      edHeading('06','To accept','Acceptance &amp; signature')+
       // ── Quote summary (selected options + grades + total) ──
       '<div style="margin-bottom:20px">'+
         '<div class="ed-eyebrow" style="margin-bottom:8px">Your quote'+(S.quote.client?' — '+esc2(S.quote.client):'')+'</div>'+
@@ -7171,21 +7224,18 @@ function refreshQuoteProposal(){
     // No cover page — header leads the first content page on its own.
     html += headerHtml;
   }
-  // Page 2 — About + team
-  html += rpPage(partAbout);
-  // Page 3 — Existing condition + site photos
+  // Page 2 — Existing condition + team photo (the About page was merged in)
   html += rpPage(partCondition);
-  // Page 4 — Quote inclusions + pricing
+  // Page 3 — Quote inclusions + pricing (options A/B + guttering option C)
   html += rpPage(partInclusions);
-  // Page 5 — Colorsteel product + standard colours
+  // Page 4 — Colorsteel product + standard colours
   html += rpPage(partColorsteel, 'background:linear-gradient(135deg,#fafbfc,#eef2f7)');
-  // Page 6 — Gutters (combined Marley + Colorsteel Box on one page).
-  // partScopeWork (timeline + start date) is intentionally not assembled —
-  // the section is dropped from the proposal flow.
-  html += rpPage(partGutters);
-  // Page 7 — Terms & conditions
+  // (Standalone Gutters page removed — guttering is now Option C on the
+  //  pricing page.  partAbout / partGutters / partScopeWork are no longer
+  //  assembled into the proposal flow.)
+  // Page 5 — Terms & conditions
   html += rpPage(partTerms);
-  // Page 8 — Acceptance
+  // Page 6 — Acceptance
   html += rpPage(partSignature, 'background:linear-gradient(180deg,#fafbfc,#f1f5f9)');
 
   // ── Summary bar (always shown at the bottom) ──
