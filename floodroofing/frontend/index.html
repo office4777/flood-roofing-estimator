@@ -736,11 +736,14 @@ select{
      Force the height so background gradients + corner wedges land
      on the right page. */
   html.print-quote .report-preview .rp-page{
-    width:186mm; min-height:273mm; max-height:273mm; overflow:hidden;
+    width:186mm; min-height:271mm; max-height:271mm; overflow:hidden;
     box-sizing:border-box; margin:0!important;
   }
-  /* Preview-only chrome that shouldn't reach paper. */
-  html.print-quote .report-preview{border:none!important;box-shadow:none!important;border-radius:0!important}
+  /* Preview-only chrome that shouldn't reach paper.  Zero the card +
+     preview padding/margin so the proposal starts flush at the top of
+     page 1 — otherwise the offset pushes the cover onto an empty page. */
+  html.print-quote .report-preview{border:none!important;box-shadow:none!important;border-radius:0!important;margin:0!important;padding:0!important}
+  html.print-quote #tab-quote .card.js-proposal-print{padding:0!important;margin:0!important;border:none!important;box-shadow:none!important}
   .sidebar,.nav,.hdr,.sec-btn,.out-btn,.proxy-status,.upload-zone{display:none!important}
   .app{display:block!important}
   .content{padding:0!important}
@@ -1698,6 +1701,28 @@ select{
     <label style="margin-top:8px">Terms &amp; warranty</label>
     <textarea id="qtTerms" rows="3" placeholder="10 year workmanship warranty. 50% deposit on acceptance. Balance on completion. Quote valid 30 days." oninput="onQuoteEdit()"></textarea>
   </div>
+
+  <!-- Existing roof condition (Inspection report page of the proposal) -->
+  <details class="card">
+    <summary class="card-hd"><span class="card-dot"></span>Existing roof condition<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:6px">— shown on the inspection-report page</span></summary>
+    <div class="qadv-body">
+      <p style="font-size:11px;color:var(--text2);margin:0 0 10px">Roof type &amp; pitch default to your Map Roof drawing if left blank.</p>
+      <div class="f2">
+        <div><label>Roof type</label><input type="text" id="qdCondRoofType" placeholder="e.g. Hip &amp; gable / Decromastic tile" oninput="onQuoteEdit()"></div>
+        <div><label>Roof pitch</label><input type="text" id="qdCondPitch" placeholder="e.g. 20°" oninput="onQuoteEdit()"></div>
+      </div>
+      <div class="f2" style="margin-top:8px">
+        <div><label>Roofing material</label><input type="text" id="qdCondMaterial" placeholder="e.g. Decromastic pressed-metal tile" oninput="onQuoteEdit()"></div>
+        <div><label>Approximate age</label><input type="text" id="qdCondAge" placeholder="e.g. 35+ years" oninput="onQuoteEdit()"></div>
+      </div>
+      <label style="margin-top:10px">Major issues <span style="color:var(--text3);font-weight:400">(one per line)</span></label>
+      <textarea id="qdCondMajor" rows="3" placeholder="Widespread surface corrosion&#10;Failed valley flashings causing leaks&#10;Cracked / displaced tiles" oninput="onQuoteEdit()"></textarea>
+      <label style="margin-top:8px">Minor issues <span style="color:var(--text3);font-weight:400">(one per line)</span></label>
+      <textarea id="qdCondMinor" rows="3" placeholder="Lichen / moss growth&#10;Loose ridge capping&#10;Blocked / sagging gutters" oninput="onQuoteEdit()"></textarea>
+      <label style="margin-top:8px">Recommendations</label>
+      <textarea id="qdCondReco" rows="3" placeholder="Full re-roof recommended over patch repairs given the age and extent of corrosion…" oninput="onQuoteEdit()"></textarea>
+    </div>
+  </details>
 
   <!-- Totals -->
   <div class="card">
@@ -4969,6 +4994,15 @@ function defaultQuote(){
     // observations that prints on its own page above the site photos.
     conditionSummary:     tpl.conditionSummary     || '',
     conditionObservations:tpl.conditionObservations? tpl.conditionObservations.slice() : [],
+    // Structured condition fields shown on the Existing-roof-condition page.
+    // Roof type / pitch fall back to the drawn roof data when left blank.
+    condRoofType: tpl.condRoofType || '',
+    condPitch:    tpl.condPitch    || '',
+    condMaterial: tpl.condMaterial || '',
+    condAge:      tpl.condAge      || '',
+    condMajor:    tpl.condMajor    || '',
+    condMinor:    tpl.condMinor    || '',
+    condReco:     tpl.condReco     || '',
     // Scope of work / timeline / estimated start date.
     startDate:  tpl.startDate || '',
     inclusions: tpl.inclusions ? tpl.inclusions.slice() : [],
@@ -5066,6 +5100,13 @@ function buildQuote(){
   set('qdGstRate',    String(S.quote.gstRate));
   set('qdCoverTitle', S.quote.coverTitle || '');
   set('qdAboutText',  S.quote.aboutText  || '');
+  set('qdCondRoofType', S.quote.condRoofType || '');
+  set('qdCondPitch',    S.quote.condPitch    || '');
+  set('qdCondMaterial', S.quote.condMaterial || '');
+  set('qdCondAge',      S.quote.condAge      || '');
+  set('qdCondMajor',    S.quote.condMajor    || '');
+  set('qdCondMinor',    S.quote.condMinor    || '');
+  set('qdCondReco',     S.quote.condReco     || '');
   // Sync the "Show line items in printed quote" checkbox to current state
   var sliBox = document.getElementById('qShowLineItems');
   if (sliBox) sliBox.checked = !!S.quote.showLineItemsInQuote;
@@ -5093,6 +5134,13 @@ function readQuoteFromInputs(){
   q.gstRate    = parseFloat(val('qdGstRate')) || 0;
   q.coverTitle = val('qdCoverTitle');
   q.aboutText  = val('qdAboutText');
+  q.condRoofType = val('qdCondRoofType');
+  q.condPitch    = val('qdCondPitch');
+  q.condMaterial = val('qdCondMaterial');
+  q.condAge      = val('qdCondAge');
+  q.condMajor    = val('qdCondMajor');
+  q.condMinor    = val('qdCondMinor');
+  q.condReco     = val('qdCondReco');
 }
 
 // ── Proposal-options editor ──────────────────────────────────────────
@@ -5960,7 +6008,11 @@ function refreshQuoteProposal(){
   // branding logo data-url, then to plain company text.
   var html = '';
   var brandLogo = 'brand/logo_square.png';
-  html += '<div class="rp-header" style="display:flex;align-items:center;justify-content:space-between;gap:18px">'+
+  // The letterhead header is built into its own string and placed INSIDE
+  // the cover page (below) so it shares the cover's single printed page
+  // rather than sitting above the full-height cover and pushing an empty
+  // overflow page.
+  var headerHtml = '<div class="rp-header" style="display:flex;align-items:center;justify-content:space-between;gap:18px">'+
     '<div style="display:flex;align-items:center;gap:14px">'+
       '<img src="'+esc2(brandLogo)+'" onerror="this.style.display=\'none\'" alt="" style="height:54px;width:54px;border-radius:6px;display:block;flex-shrink:0;object-fit:cover">'+
       '<div>'+
@@ -6123,28 +6175,63 @@ function refreshQuoteProposal(){
         '</div>';
       }
     }
+    // Structured condition fields — roof type / pitch fall back to the
+    // drawn roof data; issues + recommendations come from the Quote tab.
+    var _pretty = function(s){ return (s||'').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}); };
+    var cRoofType = S.quote.condRoofType || _pretty(d.roof_type) || '';
+    var cPitch    = S.quote.condPitch    || (d.pitch ? d.pitch + '°' : '');
+    var cMaterial = S.quote.condMaterial || '';
+    var cAge      = S.quote.condAge      || '';
+    var splitLines = function(t){ return (t||'').split('\n').map(function(s){return s.replace(/^[•\-\s]+/,'').trim();}).filter(Boolean); };
+    var cMajor = splitLines(S.quote.condMajor);
+    var cMinor = splitLines(S.quote.condMinor);
+    var cReco  = (S.quote.condReco || '').trim();
+    // Fall back to any legacy observations if no minor issues were entered.
+    var minorList = cMinor.length ? cMinor : (cMajor.length ? [] : condObs);
+    var issueList = function(arr, accent){
+      return '<ul style="margin:6px 0 0;padding:0;list-style:none">'+
+        arr.map(function(b){
+          return '<li style="display:flex;gap:8px;padding:3px 0;font-family:var(--ed-sans);font-size:11.5px;line-height:1.5;color:var(--ed-ink-2)">'+
+            '<span style="color:'+accent+';flex-shrink:0;font-weight:700">•</span><span>'+esc2(b)+'</span></li>';
+        }).join('')+
+      '</ul>';
+    };
+    var detailItems = [['Roof type',cRoofType],['Pitch',cPitch],['Roofing material',cMaterial],['Approx. age',cAge]];
     partCondition =
       edHeading('03','Inspection report','Existing roof condition')+
-      '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:28px;align-items:start;margin-bottom:20px">'+
-        '<div class="ed-body-lg">'+
-          (condSummary
-            ? condSummary.split('\n').map(function(p){return '<p style="margin:0 0 10px">'+esc2(p)+'</p>';}).join('')
-            : '<p style="margin:0;font-style:italic;color:var(--ed-text2)">A condition summary of the existing roof goes here — what we observed on-site, what\'s failing, and why a re-roof is being recommended. Edit "Condition summary" in the Quote tab to fill this in.</p>')+
-        '</div>'+
-        '<div>'+
-          (condObs.length
-            ? '<div class="ed-eyebrow" style="margin-bottom:10px">Observations</div>'+
-              '<div style="border-top:1px solid var(--ed-ink)">'+
-                condObs.map(function(o, i){
-                  return '<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--ed-line)">'+
-                    '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:14.5px;color:var(--ed-accent);flex-shrink:0;min-width:24px">0'+(i+1)+'</div>'+
-                    '<div class="ed-body" style="font-size:12px;line-height:1.55">'+esc2(o)+'</div>'+
-                  '</div>';
-                }).join('')+
-              '</div>'
-            : '')+
-        '</div>'+
+      // Roof details strip
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:14px 0;margin-bottom:18px">'+
+        detailItems.map(function(it){
+          return '<div>'+
+            '<div class="ed-eyebrow">'+esc2(it[0])+'</div>'+
+            '<div class="ed-serif" style="font-size:17px;color:var(--ed-ink);margin-top:5px;line-height:1.2;letter-spacing:-.005em">'+(it[1]?esc2(it[1]):'<span style="color:var(--ed-text2)">—</span>')+'</div>'+
+          '</div>';
+        }).join('')+
       '</div>'+
+      // Optional condition summary prose
+      (condSummary
+        ? '<div class="ed-body-lg" style="margin-bottom:18px">'+condSummary.split('\n').map(function(p){return '<p style="margin:0 0 10px">'+esc2(p)+'</p>';}).join('')+'</div>'
+        : '')+
+      // Major + minor issues, two columns
+      ((cMajor.length || minorList.length)
+        ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start;margin-bottom:18px">'+
+            '<div>'+
+              '<div class="ed-eyebrow" style="margin-bottom:6px;color:var(--ed-warm,#c0794d)">Major issues</div>'+
+              (cMajor.length ? issueList(cMajor,'var(--ed-warm,#c0794d)') : '<div class="ed-body" style="font-style:italic;color:var(--ed-text2);font-size:11.5px">None noted</div>')+
+            '</div>'+
+            '<div>'+
+              '<div class="ed-eyebrow" style="margin-bottom:6px">Minor issues</div>'+
+              (minorList.length ? issueList(minorList,'var(--ed-accent)') : '<div class="ed-body" style="font-style:italic;color:var(--ed-text2);font-size:11.5px">None noted</div>')+
+            '</div>'+
+          '</div>'
+        : '')+
+      // Recommendations
+      (cReco
+        ? '<div style="margin-bottom:18px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
+            '<div class="ed-eyebrow" style="margin-bottom:6px">Recommendations</div>'+
+            '<div class="ed-body" style="font-size:11.5px;line-height:1.55;color:var(--ed-ink-2)">'+esc2(cReco).split('\n').join('<br>')+'</div>'+
+          '</div>'
+        : '')+
       '<div class="ed-eyebrow" style="margin-bottom:10px">Site photos</div>'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">'+photoBoxes+'</div>';
   }
@@ -6775,9 +6862,14 @@ function refreshQuoteProposal(){
     if (!inner) return '';
     return '<div class="rp-body rp-page" style="'+(extraStyle||'')+'">'+inner+'</div>';
   }
-  // Page 1 — Cover (zero-padded so hero band sits flush to page edges)
+  // Page 1 — Cover (zero-padded so hero band sits flush to page edges).
+  // The letterhead header rides inside this page so the two share one
+  // printed sheet (no empty overflow page).
   if (partCover){
-    html += '<div class="rp-body rp-page" style="padding:0;background:#fff">'+partCover+'</div>';
+    html += '<div class="rp-body rp-page" style="padding:0;background:#fff">'+headerHtml+partCover+'</div>';
+  } else {
+    // No cover page — header leads the first content page on its own.
+    html += headerHtml;
   }
   // Page 2 — About + team
   html += rpPage(partAbout);
