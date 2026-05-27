@@ -641,8 +641,8 @@ select{
 .report-preview .ed-number{font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:54px;line-height:.9;color:var(--ed-accent);letter-spacing:-.02em}
 .report-preview .ed-eyebrow{font-family:var(--ed-sans);font-size:10.5px;letter-spacing:.26em;text-transform:uppercase;font-weight:600;color:var(--ed-accent)}
 .report-preview .ed-title{font-family:var(--ed-serif);font-weight:400;color:var(--ed-ink);letter-spacing:-.01em;line-height:1.1}
-.report-preview .ed-h1{font-size:36px}
-.report-preview .ed-h2{font-size:26px}
+.report-preview .ed-h1{font-size:42px}
+.report-preview .ed-h2{font-size:34px}
 .report-preview .ed-h3{font-size:19px}
 .report-preview .ed-rule{height:1px;background:var(--ed-line);border:0;margin:14px 0}
 .report-preview .ed-rule-dark{height:1px;background:var(--ed-ink);border:0;margin:14px 0}
@@ -727,18 +727,25 @@ select{
 #login-screen{background:var(--ink)!important}
 
 /* ── Print ─────────────────────────────────────────────────── */
-@page{size:A4;margin:12mm}
+@page{size:A4;margin:0}
 @media print{
   body{background:#fff}
+  .no-print{display:none!important}
   /* Each proposal page fills one A4 sheet exactly.
      A4 = 210 × 297 mm; with 12 mm @page margin the usable area is
      186 × 273 mm. .rp-body padding (38px) sits inside that area.
      Force the height so background gradients + corner wedges land
      on the right page. */
+  /* Full-bleed A4 — no @page margin, so the cream page background and
+     photo banners run edge-to-edge. rp-body keeps an inner text margin;
+     full-bleed images use negative margins to reach the sheet edge. */
   html.print-quote .report-preview .rp-page{
-    width:186mm; min-height:271mm; max-height:271mm; overflow:hidden;
+    width:210mm; min-height:297mm; max-height:297mm; overflow:hidden;
     box-sizing:border-box; margin:0!important;
   }
+  /* @page margin is now 0 globally — restore a sensible print margin for
+     the Order Material + Job Pack docs so their content isn't edge-to-edge. */
+  html.print-order .content,html.print-jobpack .content{padding:12mm!important}
   /* Preview-only chrome that shouldn't reach paper.  Zero the card +
      preview padding/margin so the proposal starts flush at the top of
      page 1 — otherwise the offset pushes the cover onto an empty page. */
@@ -1698,8 +1705,8 @@ select{
     <textarea id="qdScope" rows="3" placeholder="Strip existing iron, install new ColorSteel Endura, replace flashings, gutters and downpipes…" oninput="onQuoteEdit()"></textarea>
     <label style="margin-top:8px">Notes for client</label>
     <textarea id="qdNotes" rows="2" placeholder="Access, timing, special considerations…" oninput="onQuoteEdit()"></textarea>
-    <label style="margin-top:8px">Terms &amp; warranty</label>
-    <textarea id="qtTerms" rows="3" placeholder="10 year workmanship warranty. 50% deposit on acceptance. Balance on completion. Quote valid 30 days." oninput="onQuoteEdit()"></textarea>
+    <label style="margin-top:8px">Additional terms <span style="color:var(--text3);font-weight:400">(optional — appended after the standard T&amp;Cs on the proposal)</span></label>
+    <textarea id="qtTerms" rows="3" placeholder="Any job-specific terms to add — the full standard Flood Roofing T&Cs print automatically." oninput="onQuoteEdit()"></textarea>
   </div>
 
   <!-- Existing roof condition (Inspection report page of the proposal) -->
@@ -1721,6 +1728,18 @@ select{
       <textarea id="qdCondMinor" rows="3" placeholder="Lichen / moss growth&#10;Loose ridge capping&#10;Blocked / sagging gutters" oninput="onQuoteEdit()"></textarea>
       <label style="margin-top:8px">Recommendations</label>
       <textarea id="qdCondReco" rows="3" placeholder="Full re-roof recommended over patch repairs given the age and extent of corrosion…" oninput="onQuoteEdit()"></textarea>
+    </div>
+  </details>
+
+  <!-- Guttering options (price-adjusting dropdown on the proposal Gutters page) -->
+  <details class="card">
+    <summary class="card-hd"><span class="card-dot"></span>Guttering options<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:6px">— prices for the gutter-type dropdown</span></summary>
+    <div class="qadv-body">
+      <p style="font-size:11px;color:var(--text2);margin:0 0 10px">Enter the add-on price (ex-GST) for each gutter type. The customer picks one from a dropdown on the proposal's Gutters page and the total updates live. Leave at 0 to show the option without a price.</p>
+      <div class="f2">
+        <div><label>Marley Typhoon PVC — add ($ ex-GST)</label><input type="number" id="qdGutterMarley" step="0.01" min="0" placeholder="0.00" oninput="onQuoteEdit()"></div>
+        <div><label>Colorsteel 125mm Box Gutter — add ($ ex-GST)</label><input type="number" id="qdGutterBox" step="0.01" min="0" placeholder="0.00" oninput="onQuoteEdit()"></div>
+      </div>
     </div>
   </details>
 
@@ -4956,7 +4975,7 @@ function defaultQuote(){
   var scopeChips = Array.from(document.querySelectorAll('#scopeGrid .chk-item.on'))
                         .map(function(el){return el.dataset.item;});
   var scopeNotes = (document.getElementById('scopeNotes')||{}).value || '';
-  var terms = tpl.terms || qd.terms || '10-year workmanship warranty. 50% deposit on acceptance, balance on completion. Quote valid '+validityDays+'.';
+  var terms = tpl.terms || qd.terms || '';
   return {
     ref: 'FR-' + (Date.now().toString().slice(-5)),
     date: todayStr,
@@ -5003,6 +5022,12 @@ function defaultQuote(){
     condMajor:    tpl.condMajor    || '',
     condMinor:    tpl.condMinor    || '',
     condReco:     tpl.condReco     || '',
+    // Guttering selector on the Gutters page.  'none' = no gutter work;
+    // prices are ex-GST add-ons applied to the combined total.
+    gutterChoice: tpl.gutterChoice || 'none',
+    gutterPrices: tpl.gutterPrices ? Object.assign({}, tpl.gutterPrices) : { marley: 0, box: 0 },
+    // Digital acceptance record (set when the client clicks Accept Quote).
+    accepted: null,
     // Scope of work / timeline / estimated start date.
     startDate:  tpl.startDate || '',
     inclusions: tpl.inclusions ? tpl.inclusions.slice() : [],
@@ -5107,6 +5132,9 @@ function buildQuote(){
   set('qdCondMajor',    S.quote.condMajor    || '');
   set('qdCondMinor',    S.quote.condMinor    || '');
   set('qdCondReco',     S.quote.condReco     || '');
+  var _gp = S.quote.gutterPrices || {};
+  set('qdGutterMarley', _gp.marley ? String(_gp.marley) : '');
+  set('qdGutterBox',    _gp.box ? String(_gp.box) : '');
   // Sync the "Show line items in printed quote" checkbox to current state
   var sliBox = document.getElementById('qShowLineItems');
   if (sliBox) sliBox.checked = !!S.quote.showLineItemsInQuote;
@@ -5141,6 +5169,9 @@ function readQuoteFromInputs(){
   q.condMajor    = val('qdCondMajor');
   q.condMinor    = val('qdCondMinor');
   q.condReco     = val('qdCondReco');
+  if (!q.gutterPrices) q.gutterPrices = { marley: 0, box: 0 };
+  q.gutterPrices.marley = parseFloat(val('qdGutterMarley')) || 0;
+  q.gutterPrices.box    = parseFloat(val('qdGutterBox'))    || 0;
 }
 
 // ── Proposal-options editor ──────────────────────────────────────────
@@ -5225,24 +5256,51 @@ function _optTotal(o){
   });
   return sub;
 }
+// Price delta of the grade/spec the customer picked from an option's
+// upgrade list (0 = "Standard, as quoted").
+function _optUpgradeDelta(o){
+  if (!o || !o.selectedUpgrade) return 0;
+  var u = (o.upgrades||[]).find(function(x){ return x.id === o.selectedUpgrade; });
+  return u ? _optTotal(u) : 0;
+}
+// What an option actually costs with the selected grade applied.
+function _optEffectiveTotal(o){ return _optTotal(o) + _optUpgradeDelta(o); }
+// Selected guttering add-on (ex-GST), if any.
+function _gutterDelta(){
+  var g = S.quote && S.quote.gutterChoice;
+  if (!g || g === 'none') return 0;
+  return parseFloat((S.quote.gutterPrices||{})[g]) || 0;
+}
 
-// Client ticks a proposal-option package on the printed Price page.
-// We persist the selection on the option, then update the combined
-// total figures in place (no full re-render — keeps scroll + tick state).
-function toggleProposalOptionSel(id, checked){
+// Recompute the selected combined totals and update every figure on the
+// printed Price page in place (no full re-render — keeps scroll + state).
+function recalcQuoteSelectedTotals(){
   if (!S.quote || !S.quote.options) return;
-  var o = S.quote.options.find(function(x){ return x.id === id; });
-  if (!o) return;
-  o.selected = !!checked;
   var rate = (S.quote.gstRate || 0) / 100;
   var sub = S.quote.options.filter(function(x){ return x.selected !== false; })
-                           .reduce(function(s,x){ return s + _optTotal(x); }, 0);
+                           .reduce(function(s,x){ return s + _optEffectiveTotal(x); }, 0)
+            + _gutterDelta();
   var gst = sub * rate, tot = sub + gst, dep = tot * 0.5;
   var setM = function(eid, v){ var el = document.getElementById(eid); if (el) el.textContent = fmtMoney(v); };
   setM('qpSelSub', sub); setM('qpSelGst', gst); setM('qpSelTot', tot); setM('qpSelDep', dep);
   setM('qpFooterTotal', tot); setM('qpTotal', tot);
   var qa = document.getElementById('qaTotal'); if (qa) qa.textContent = fmtMoney(tot);
-  // Reflect the ticked/unticked styling on the row that owns this checkbox.
+  // Per-option price chips.
+  S.quote.options.forEach(function(o){
+    setM('qpOptPrice-'+o.id, _optEffectiveTotal(o) * (1 + rate));
+  });
+  // Acceptance-summary total, if that page is showing.
+  setM('qpAcceptTotal', tot);
+  refreshAcceptSummary();
+}
+
+// Client ticks a proposal-option package on the printed Price page.
+function toggleProposalOptionSel(id, checked){
+  if (!S.quote || !S.quote.options) return;
+  var o = S.quote.options.find(function(x){ return x.id === id; });
+  if (!o) return;
+  o.selected = !!checked;
+  recalcQuoteSelectedTotals();
   var root = document.getElementById('qpRoot');
   if (root) {
     var boxes = root.querySelectorAll('input[type=checkbox][onchange*="'+id+'"]');
@@ -5254,6 +5312,94 @@ function toggleProposalOptionSel(id, checked){
       }
     }
   }
+}
+// Customer picks a roofing-steel grade / spec for an option.
+function setOptionGrade(id, upgradeId){
+  if (!S.quote || !S.quote.options) return;
+  var o = S.quote.options.find(function(x){ return x.id === id; });
+  if (!o) return;
+  o.selectedUpgrade = upgradeId || '';
+  recalcQuoteSelectedTotals();
+}
+// Customer picks a gutter type.
+function setGutterChoice(choice){
+  if (!S.quote) return;
+  S.quote.gutterChoice = choice || 'none';
+  recalcQuoteSelectedTotals();
+}
+// Re-render the acceptance-page summary list (selected options + grades).
+function refreshAcceptSummary(){
+  var host = document.getElementById('qpAcceptSummary');
+  if (!host || typeof buildAcceptSummaryRows !== 'function') return;
+  host.innerHTML = buildAcceptSummaryRows();
+}
+// Build the acceptance-page summary rows: each selected option with its
+// chosen grade + price, plus any guttering add-on.
+function buildAcceptSummaryRows(){
+  if (!S.quote) return '';
+  var rate = (S.quote.gstRate||0)/100;
+  var opts = (S.quote.options||[]).filter(function(o){ return o.selected !== false; });
+  var rows = '';
+  if (opts.length){
+    rows = opts.map(function(o){
+      var grade = 'Standard';
+      if (o.selectedUpgrade){
+        var u = (o.upgrades||[]).find(function(x){ return x.id === o.selectedUpgrade; });
+        if (u) grade = u.title || 'Upgrade';
+      }
+      var incl = _optEffectiveTotal(o) * (1+rate);
+      return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
+        '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">'+esc2(o.title||'Option')+' <span style="color:var(--ed-text2)">— '+esc2(grade)+'</span></div>'+
+        '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+fmtMoney(incl)+'</div>'+
+      '</div>';
+    }).join('');
+  } else {
+    rows = '<div class="ed-body" style="font-size:12px;color:var(--ed-text2)">No options selected.</div>';
+  }
+  var gd = _gutterDelta();
+  if (gd){
+    var gName = S.quote.gutterChoice==='box' ? 'Colorsteel 125mm Box Gutter'
+              : S.quote.gutterChoice==='marley' ? 'Marley Typhoon PVC' : 'Guttering';
+    rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
+      '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">'+esc2(gName)+'</div>'+
+      '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+fmtMoney(gd*(1+rate))+'</div></div>';
+  }
+  return rows;
+}
+// Digital acceptance — records who accepted, when, the selected options +
+// grades and the total on the quote, then saves.  No email (the office
+// tracks acceptance in Fergus).
+function acceptQuoteDigitally(){
+  if (!S.quote) return;
+  var nameEl  = document.getElementById('qpAcceptName');
+  var termsEl = document.getElementById('qpAcceptTerms');
+  var name = (nameEl && nameEl.value.trim()) || (S.quote.client||'').trim();
+  if (!name){ alert('Please type your full name to accept the quote.'); if (nameEl) nameEl.focus(); return; }
+  if (termsEl && !termsEl.checked){ alert('Please tick the box to confirm you accept the quote and the terms & conditions.'); return; }
+  var rate = (S.quote.gstRate||0)/100;
+  var sel = (S.quote.options||[]).filter(function(o){ return o.selected !== false; });
+  var sub = sel.reduce(function(s,o){ return s + _optEffectiveTotal(o); }, 0) + _gutterDelta();
+  S.quote.accepted = {
+    name: name,
+    at: new Date().toISOString(),
+    total: sub * (1+rate),
+    gutter: S.quote.gutterChoice || 'none',
+    options: sel.map(function(o){
+      var g = 'Standard';
+      if (o.selectedUpgrade){ var u=(o.upgrades||[]).find(function(x){return x.id===o.selectedUpgrade;}); if (u) g=u.title||'Upgrade'; }
+      return { title: o.title||'Option', grade: g, total: _optEffectiveTotal(o)*(1+rate) };
+    })
+  };
+  try { if (typeof saveCurrentJob === 'function') saveCurrentJob(); } catch(e){}
+  refreshQuoteProposal();
+  alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
+}
+function unacceptQuote(){
+  if (!S.quote) return;
+  if (!confirm('Clear the digital acceptance on this quote?')) return;
+  S.quote.accepted = null;
+  try { if (typeof saveCurrentJob === 'function') saveCurrentJob(); } catch(e){}
+  refreshQuoteProposal();
 }
 
 function renderProposalOptions(){
@@ -6340,94 +6486,59 @@ function refreshQuoteProposal(){
     // tick-selectable extra; the combined total reflects only the
     // currently-selected options (default: all selected).
     opts.forEach(function(o){ if (o.selected === undefined) o.selected = true; });
+    var _rate = S.quote.gstRate/100;
     var combinedSub = opts.filter(function(o){ return o.selected !== false; })
-                          .reduce(function(s,o){ return s + _optTotal(o); }, 0);
-    var combinedGst = combinedSub * (S.quote.gstRate/100);
+                          .reduce(function(s,o){ return s + _optEffectiveTotal(o); }, 0)
+                      + _gutterDelta();
+    var combinedGst = combinedSub * _rate;
     var combinedTot = combinedSub + combinedGst;
     var combinedDep = combinedTot * 0.5;  // 50% deposit per Flood Roofing T&Cs
-    // Gather all upgrade / downgrade options across every scope into
-    // one list — group by title where they match so we don't repeat
-    // "Downgrade to Zinc-Aluminium" twice.
-    var upgGroups = {};
-    var upgOrder = [];
-    opts.forEach(function(o){
-      (o.upgrades||[]).forEach(function(u){
-        var key = (u.title || '').replace(/^as main house.*$/i, '').trim().toLowerCase();
-        if (!key) key = '_'+upgOrder.length;
-        if (!upgGroups[key]) {
-          upgGroups[key] = { title: u.title || '—', description: u.description || '', sub: 0 };
-          upgOrder.push(key);
-        }
-        upgGroups[key].sub += _optTotal(u);
-      });
-    });
     partInclusions =
-      // Top-right corner wedge — big roof close-up, top-left angled.
-      // Sized at 380 × 280; content below uses padding-right to clear.
-      '<div style="position:absolute;top:0;right:0;width:380px;height:280px;overflow:hidden;clip-path:polygon(0 0,100% 0,100% 100%,38% 100%);background:var(--ed-ink);box-shadow:0 10px 28px -14px rgba(10,24,40,.4);z-index:2">'+
-        '<img src="brand/roof_detail_corrugate.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:55% 50%">'+
-      '</div>'+
       edHeading('04','Scope of work','The work &amp; the cost')+
-      // Scope sections — listed in order, each one a title + intro +
-      // bulleted inclusions.  No individual pricing per section; only
-      // the combined total at the bottom of the page.  Top padding on
-      // the right leaves room for the corner wedge.
       ((S.quote.scope||'').trim()
-        ? '<div class="ed-body" style="padding-right:300px;margin-top:-2px;margin-bottom:14px;font-size:11.5px;line-height:1.5;color:var(--ed-ink-2)">'+esc2(S.quote.scope).split('\n').join('<br>')+'</div>'
+        ? '<div class="ed-body" style="margin-top:-2px;margin-bottom:14px;font-size:11.5px;line-height:1.5;color:var(--ed-ink-2)">'+esc2(S.quote.scope).split('\n').join('<br>')+'</div>'
         : '')+
-      (opts.length > 1
-        ? '<div class="ed-eyebrow" style="margin-bottom:8px">Select your option'+(opts.length>1?'(s)':'')+' — tick to include</div>'
-        : '')+
+      '<div class="ed-eyebrow" style="margin-bottom:8px">'+(opts.length>1?'Select your option(s) — tick to include, then choose the steel grade':'Your quote — choose the steel grade below')+'</div>'+
       '<div style="margin-top:-2px;margin-bottom:10px">'+
         opts.map(function(o, oi){
           var letter = String.fromCharCode(65+oi);
-          var clearWedge = (oi === 0);
           var checked = (o.selected !== false);
-          var oIncl = _optTotal(o) * (1 + S.quote.gstRate/100);
-          return '<label class="qp-opt-row" style="display:flex;align-items:flex-start;gap:12px;margin-bottom:'+(oi===opts.length-1?'0':'10px')+';padding:12px 14px;border:1px solid var(--ed-line);border-left:3px solid '+(checked?'var(--ed-accent)':'var(--ed-line)')+';background:'+(checked?'var(--ed-paper-2)':'#fff')+';cursor:pointer;'+(clearWedge?'padding-right:300px':'')+'">'+
-            '<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleProposalOptionSel(\''+o.id+'\', this.checked)" style="width:17px;height:17px;margin:2px 0 0;flex-shrink:0;cursor:pointer;accent-color:var(--ed-accent)">'+
-            '<div style="flex:1;min-width:0">'+
-              '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">'+
-                '<div class="ed-serif" style="font-size:16px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em"><span style="color:var(--ed-accent);font-style:italic;margin-right:6px">'+letter+'.</span>'+esc2(o.title||'Option '+letter)+'</div>'+
-                '<div class="ed-serif" style="font-size:16px;font-weight:600;color:var(--ed-ink);white-space:nowrap">'+fmtMoney(oIncl)+'</div>'+
-              '</div>'+
-              (o.description ? '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.45;color:var(--ed-ink-2)">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
-              (o.inclusions && o.inclusions.length
-                ? '<ul style="margin:6px 0 0;padding:0;list-style:none">'+
-                  o.inclusions.map(function(b){
-                    return '<li style="display:flex;gap:8px;padding:1px 0;font-family:var(--ed-sans);font-size:11px;line-height:1.45;color:var(--ed-ink-2)">'+
-                      '<span style="color:var(--ed-accent);flex-shrink:0;font-weight:700">•</span>'+
-                      '<span>'+esc2(b)+'</span>'+
-                    '</li>';
+          var oIncl = _optEffectiveTotal(o) * (1 + _rate);
+          var ups = (o.upgrades||[]);
+          var gradeSel = ups.length
+            ? '<div onclick="event.stopPropagation()" style="margin-top:9px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+                '<span class="ed-eyebrow" style="color:var(--ed-text2)">Roofing steel grade</span>'+
+                '<select onclick="event.stopPropagation()" onchange="setOptionGrade(\''+o.id+'\', this.value)" style="font-family:var(--ed-sans);font-size:11px;padding:5px 8px;border:1px solid var(--ed-line);border-radius:5px;background:#fff;color:var(--ed-ink);max-width:100%;cursor:pointer">'+
+                  '<option value=""'+(!o.selectedUpgrade?' selected':'')+'>Standard — as quoted</option>'+
+                  ups.map(function(u){
+                    var d=_optTotal(u), dIncl=d*(1+_rate), sign=d>=0?'+':'−';
+                    return '<option value="'+esc2(u.id)+'"'+(o.selectedUpgrade===u.id?' selected':'')+'>'+esc2(u.title||'Upgrade')+'  ('+sign+fmtMoney(Math.abs(dIncl))+')</option>';
                   }).join('')+
-                  '</ul>'
-                : '')+
+                '</select>'+
+              '</div>'
+            : '';
+          return '<label class="qp-opt-row" style="display:block;margin-bottom:'+(oi===opts.length-1?'0':'10px')+';padding:12px 14px;border:1px solid var(--ed-line);border-left:3px solid '+(checked?'var(--ed-accent)':'var(--ed-line)')+';background:'+(checked?'var(--ed-paper-2)':'#fff')+';cursor:pointer">'+
+            '<div style="display:flex;align-items:flex-start;gap:12px">'+
+              '<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleProposalOptionSel(\''+o.id+'\', this.checked)" style="width:17px;height:17px;margin:2px 0 0;flex-shrink:0;cursor:pointer;accent-color:var(--ed-accent)">'+
+              '<div style="flex:1;min-width:0">'+
+                '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">'+
+                  '<div class="ed-serif" style="font-size:16px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em"><span style="color:var(--ed-accent);font-style:italic;margin-right:6px">'+letter+'.</span>'+esc2(o.title||'Option '+letter)+'</div>'+
+                  '<div id="qpOptPrice-'+esc2(o.id)+'" class="ed-serif" style="font-size:16px;font-weight:600;color:var(--ed-ink);white-space:nowrap">'+fmtMoney(oIncl)+'</div>'+
+                '</div>'+
+                (o.description ? '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.45;color:var(--ed-ink-2)">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
+                (o.inclusions && o.inclusions.length
+                  ? '<ul style="margin:6px 0 0;padding:0;list-style:none">'+
+                    o.inclusions.map(function(b){
+                      return '<li style="display:flex;gap:8px;padding:1px 0;font-family:var(--ed-sans);font-size:11px;line-height:1.45;color:var(--ed-ink-2)"><span style="color:var(--ed-accent);flex-shrink:0;font-weight:700">•</span><span>'+esc2(b)+'</span></li>';
+                    }).join('')+
+                    '</ul>'
+                  : '')+
+                gradeSel+
+              '</div>'+
             '</div>'+
           '</label>';
         }).join('')+
       '</div>'+
-      // Combined upgrade / downgrade options
-      (upgOrder.length
-        ? '<div style="margin-top:14px;padding:14px 18px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
-            '<div class="ed-eyebrow" style="margin-bottom:8px">Upgrade / downgrade options</div>'+
-            '<ul style="margin:0;padding:0;list-style:none">'+
-            upgOrder.map(function(k){
-              var u = upgGroups[k];
-              var uTot = u.sub + u.sub * (S.quote.gstRate/100);
-              var isDown = uTot < 0;
-              var sign = isDown ? '−' : '+';
-              var color = isDown ? 'var(--ed-text2)' : 'var(--ed-warm)';
-              return '<li style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:5px 0;border-bottom:1px dotted var(--ed-line)">'+
-                '<div style="flex:1;min-width:0">'+
-                  '<div style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.4;color:var(--ed-ink)">'+esc2(u.title)+'</div>'+
-                  (u.description ? '<div class="ed-body" style="font-size:10.5px;margin-top:1px;line-height:1.45">'+esc2(u.description)+'</div>' : '')+
-                '</div>'+
-                '<div class="ed-serif" style="font-size:14px;font-weight:500;color:'+color+';white-space:nowrap">'+sign+fmtMoney(Math.abs(uTot))+'</div>'+
-              '</li>';
-            }).join('')+
-            '</ul>'+
-          '</div>'
-        : '')+
       // Exclusions — items NOT covered by this quote. Sourced from
       // S.quote.exclusions[] (editable on the Quote tab template).
       ((S.quote.exclusions||[]).length
@@ -6683,9 +6794,24 @@ function refreshQuoteProposal(){
 
   // ── Gutters (combined: Marley standard + Colorsteel Box upgrade on one page) ──
   if (on('gutters')) {
+    var _gp = S.quote.gutterPrices || {marley:0, box:0};
+    var _grate = S.quote.gstRate/100;
+    var _gMarleyIncl = (parseFloat(_gp.marley)||0)*(1+_grate);
+    var _gBoxIncl    = (parseFloat(_gp.box)||0)*(1+_grate);
+    var _gc = S.quote.gutterChoice || 'none';
     partGutters =
       edHeading('06','The spouting','Marley PVC &amp; Colorsteel options')+
-      '<div class="ed-body-lg" style="margin-bottom:18px;max-width:60em">Two gutter systems available. <span class="ed-serif" style="font-style:italic;font-size:15px">Marley Typhoon</span> PVC is our standard fit — UV-stabilised, light, won\'t corrode, won\'t dent in hail, backed by a 15-year manufacturer warranty. For larger roofs or extra peace of mind we recommend the upgrade to <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — rolled on-site in 0.55bmt steel, no factory joins, much higher flow capacity, fully colour-matched to the roof.</div>'+
+      '<div class="ed-body-lg" style="margin-bottom:14px;max-width:60em">Two gutter systems available. <span class="ed-serif" style="font-style:italic;font-size:15px">Marley Typhoon</span> PVC is our standard fit — UV-stabilised, light, won\'t corrode, won\'t dent in hail, backed by a 15-year manufacturer warranty. For larger roofs or extra peace of mind we recommend the upgrade to <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — rolled on-site in 0.55bmt steel, no factory joins, much higher flow capacity, fully colour-matched to the roof.</div>'+
+      // Gutter-type selector (price-adjusting) — updates the combined total.
+      '<div style="margin-bottom:18px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent);display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
+        '<span class="ed-eyebrow">Choose your gutter type</span>'+
+        '<select onchange="setGutterChoice(this.value)" style="font-family:var(--ed-sans);font-size:12px;padding:6px 10px;border:1px solid var(--ed-line);border-radius:5px;background:#fff;color:var(--ed-ink);cursor:pointer">'+
+          '<option value="none"'+(_gc==='none'?' selected':'')+'>No gutter work in this quote</option>'+
+          '<option value="marley"'+(_gc==='marley'?' selected':'')+'>Marley Typhoon PVC'+(_gMarleyIncl?'  (+'+fmtMoney(_gMarleyIncl)+')':'')+'</option>'+
+          '<option value="box"'+(_gc==='box'?' selected':'')+'>Colorsteel 125mm Box Gutter'+(_gBoxIncl?'  (+'+fmtMoney(_gBoxIncl)+')':'')+'</option>'+
+        '</select>'+
+        '<span class="ed-body" style="font-size:10.5px;color:var(--ed-text2)">Adds to the total on the price page</span>'+
+      '</div>'+
       // Two columns: Marley (standard) on the left, Colorsteel (upgrade) on the right
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;margin-bottom:18px">'+
         // === MARLEY column ===
@@ -6795,14 +6921,15 @@ function refreshQuoteProposal(){
       { h:'17. Photographs',      b:'We typically take before / during / after photographs of the work for our records. We may use anonymised photographs for marketing (website, social media). Tell us in writing if you would prefer photos not used externally.' },
       { h:'18. Dispute resolution', b:'Any dispute will first be raised in writing and we will attempt to resolve it within 14 days. Unresolved disputes go to mediation under the Construction Contracts Act 2002. Disputes are governed by New Zealand law, with jurisdiction in the Whangarei District Court.' },
     ];
-    var clauses = customTerms
-      ? '<div class="ed-body" style="column-count:2;column-gap:24px;font-size:12px;line-height:1.6">'+
-          esc2(customTerms).split('\n').join('<br>')+
-        '</div>'
-      : '<div style="column-count:2;column-gap:24px;font-family:var(--ed-sans);font-size:11px;line-height:1.55;color:var(--ed-ink-2)">'+
+    // Always render the full standard T&C set; any custom text in the
+    // Quote tab's "Additional terms" field is appended after it.
+    var clauses = '<div style="column-count:2;column-gap:24px;font-family:var(--ed-sans);font-size:11px;line-height:1.55;color:var(--ed-ink-2)">'+
           dflt.map(function(c){
             return '<div style="margin-bottom:9px;break-inside:avoid"><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em">'+c.h+'</div><div style="margin-top:3px">'+c.b+'</div></div>';
           }).join('')+
+          (customTerms
+            ? '<div style="margin-bottom:9px;break-inside:avoid"><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em">Additional terms for this job</div><div style="margin-top:3px">'+esc2(customTerms).split('\n').join('<br>')+'</div></div>'
+            : '')+
         '</div>';
     partTerms =
       edHeading('09','The fine print','Terms &amp; conditions')+
@@ -6828,22 +6955,55 @@ function refreshQuoteProposal(){
   // ── Signature (editorial closing page) ──
   if (on('signature')) {
     var dateLine = (S.quote.date || new Date().toLocaleDateString('en-NZ'));
+    var accRate = (S.quote.gstRate||0)/100;
+    var accSub = opts.filter(function(o){ return o.selected !== false; })
+                     .reduce(function(s,o){ return s + _optEffectiveTotal(o); }, 0) + _gutterDelta();
+    var accTot = accSub * (1+accRate);
+    var acc = S.quote.accepted;
     partSignature =
       edHeading('10','To accept','Acceptance &amp; signature')+
-      '<div style="max-width:54em;margin-bottom:30px">'+
-        '<p class="ed-body-lg" style="margin:0">I, <span class="ed-serif" style="font-style:italic;font-size:15px;color:var(--ed-ink)">'+esc2(S.quote.client||'—')+'</span>, accept the option(s) selected on page 4 and the terms set out in this proposal. Total payable will be confirmed in the variation invoice once option and upgrade selections are finalised.</p>'+
+      // ── Quote summary (selected options + grades + total) ──
+      '<div style="margin-bottom:20px">'+
+        '<div class="ed-eyebrow" style="margin-bottom:8px">Your quote'+(S.quote.client?' — '+esc2(S.quote.client):'')+'</div>'+
+        '<div id="qpAcceptSummary">'+buildAcceptSummaryRows()+'</div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:10px;padding-top:10px;border-top:2px solid var(--ed-ink)">'+
+          '<div class="ed-eyebrow">Total — incl. GST · 50% deposit '+fmtMoney(accTot*0.5)+'</div>'+
+          '<div id="qpAcceptTotal" class="ed-serif" style="font-size:28px;font-weight:600;color:var(--ed-accent);line-height:1">'+fmtMoney(accTot)+'</div>'+
+        '</div>'+
       '</div>'+
-      // Signature block — clean dashed rules, italic captions
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:24px">'+
-        '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-text2);margin-top:6px">Client signature</div></div>'+
-        '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-text2);margin-top:6px">Date <span style="font-style:normal">·</span> '+esc2(dateLine)+'</div></div>'+
-      '</div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:36px">'+
-        '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-text2);margin-top:6px">'+esc2(company||'Company')+' representative</div></div>'+
-        '<div><div style="border-bottom:1px solid var(--ed-ink);height:46px"></div><div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-text2);margin-top:6px">Date</div></div>'+
-      '</div>'+
+      (acc
+        ? // ── Already accepted ──
+          '<div class="ed-keep" style="margin-bottom:28px;padding:18px 20px;background:#0d2e1e;color:#fff;border-left:3px solid #34d399">'+
+            '<div class="ed-eyebrow" style="color:#6ee7b7">✓ Quote accepted</div>'+
+            '<div class="ed-serif" style="font-size:19px;margin-top:6px;color:#fff">Accepted by '+esc2(acc.name)+'</div>'+
+            '<div class="ed-body" style="font-size:11.5px;color:rgba(255,255,255,.82);margin-top:4px">'+esc2(new Date(acc.at).toLocaleString('en-NZ'))+' · '+fmtMoney(acc.total)+' incl. GST · terms &amp; conditions accepted</div>'+
+            '<button onclick="unacceptQuote()" class="no-print" style="margin-top:12px;padding:6px 12px;background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:6px;font-size:11px;cursor:pointer">Undo acceptance</button>'+
+          '</div>'
+        : // ── Two ways to accept ──
+          '<p class="ed-body-lg" style="max-width:54em;margin:0 0 16px">I, <span class="ed-serif" style="font-style:italic;font-size:15px;color:var(--ed-ink)">'+esc2(S.quote.client||'—')+'</span>, accept the option(s) and grade selections shown above and agree to the terms &amp; conditions set out in this proposal.</p>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:stretch;margin-bottom:22px">'+
+            // Option A — sign & return (prints)
+            '<div style="border:1px solid var(--ed-line);padding:16px 18px">'+
+              '<div class="ed-eyebrow" style="margin-bottom:14px">Option A · sign &amp; return</div>'+
+              '<div style="border-bottom:1px solid var(--ed-ink);height:42px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">Client signature</div>'+
+              '<div style="border-bottom:1px solid var(--ed-ink);height:42px;margin-top:18px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">Name &amp; date</div>'+
+            '</div>'+
+            // Option B — accept online (screen only)
+            '<div class="no-print" style="border:1.5px solid var(--ed-accent);padding:16px 18px;background:var(--ed-paper-2);display:flex;flex-direction:column">'+
+              '<div class="ed-eyebrow" style="margin-bottom:14px">Option B · accept online</div>'+
+              '<input type="text" id="qpAcceptName" placeholder="Type your full name" value="'+esc2(S.quote.client||'')+'" style="width:100%;font-family:var(--ed-sans);font-size:13px;padding:9px 11px;border:1px solid var(--ed-line);border-radius:6px;margin-bottom:10px;box-sizing:border-box">'+
+              '<label style="display:flex;gap:8px;align-items:flex-start;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);line-height:1.4;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="qpAcceptTerms" style="margin:2px 0 0;flex-shrink:0"> I accept this quote and the <strong>terms &amp; conditions</strong>.</label>'+
+              '<button onclick="acceptQuoteDigitally()" style="margin-top:auto;width:100%;padding:12px;background:var(--ed-accent);color:#fff;border:none;border-radius:6px;font-family:var(--ed-sans);font-size:14px;font-weight:700;cursor:pointer">✓ Accept quote</button>'+
+            '</div>'+
+          '</div>'+
+          // Company representative line (prints)
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-bottom:30px">'+
+            '<div><div style="border-bottom:1px solid var(--ed-ink);height:40px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">'+esc2(company||'Company')+' representative</div></div>'+
+            '<div><div style="border-bottom:1px solid var(--ed-ink);height:40px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">Date</div></div>'+
+          '</div>'
+      )+
       // Closing brand mark
-      '<div style="text-align:center;margin-top:24px">'+
+      '<div style="text-align:center;margin-top:8px">'+
         '<div style="display:inline-flex;align-items:center;gap:14px"><div style="width:30px;height:1px;background:var(--ed-ink)"></div><div class="ed-serif" style="font-style:italic;font-size:16px;color:var(--ed-ink)">Thank you for the opportunity.</div><div style="width:30px;height:1px;background:var(--ed-ink)"></div></div>'+
       '</div>'+
       // Full-bleed team closing banner — the Flood Roofing crew sees
