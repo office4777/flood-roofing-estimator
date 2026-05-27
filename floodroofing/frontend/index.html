@@ -6542,19 +6542,14 @@ function refreshQuoteProposal(){
             '<div class="ed-body" style="font-size:11.5px;line-height:1.55;color:var(--ed-ink-2)">'+esc2(cReco).split('\n').join('<br>')+'</div>'+
           '</div>'
         : '')+
-      // Real site photos (if any were uploaded) — no empty placeholders.
-      ((photos && photos.length)
-        ? '<div class="ed-eyebrow" style="margin-bottom:10px">Site photos</div>'+
-          '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">'+
-            photos.slice(0,6).map(function(pp){
-              return '<figure style="margin:0;aspect-ratio:4/3;background:#000;overflow:hidden;position:relative;border:1px solid var(--ed-ink)"><img src="'+esc2(pp.src)+'" style="width:100%;height:100%;object-fit:cover">'+(pp.caption?'<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:5px 8px;background:rgba(10,24,40,.82);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:11px">'+esc2(pp.caption)+'</figcaption>':'')+'</figure>';
-            }).join('')+
-          '</div>'
-        : '')+
-      // Team photo (relocated from the old About page) closes the page.
-      '<div style="margin:8px -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
-        '<img src="brand/team_lineup_ute.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/7;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
-        '<div style="position:absolute;left:0;right:0;bottom:0;padding:10px 36px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.8));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:13.5px;letter-spacing:.02em">The Flood Roofing crew · Northland</div>'+
+      // Six existing-roof photo spots — uploaded site photos fill them,
+      // empty ones show a dashed "Upload Site Photo" placeholder.
+      '<div class="ed-eyebrow" style="margin-bottom:10px">Existing roof photos</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">'+photoBoxes+'</div>'+
+      // Slim team-photo strip closes the page.
+      '<div style="margin:4px -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
+        '<img src="brand/team_lineup_ute.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/5;object-fit:cover;object-position:center 38%;filter:saturate(.98) contrast(1.04)">'+
+        '<div style="position:absolute;left:0;right:0;bottom:0;padding:8px 36px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.8));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:12.5px;letter-spacing:.02em">The Flood Roofing crew · Northland</div>'+
       '</div>';
   }
 
@@ -6669,13 +6664,20 @@ function refreshQuoteProposal(){
     var combinedGst = combinedSub * _rate;
     var combinedTot = combinedSub + combinedGst;
     var combinedDep = combinedTot * 0.5;  // 50% deposit per Flood Roofing T&Cs
-    // Per-section price breakdown (subtotal / GST / total), live-updated.
+    // Big per-section Total chip for the option's title row (incl. GST).
+    var _priceChip = function(id, sub){
+      return '<div style="text-align:right;white-space:nowrap;flex-shrink:0">'+
+        '<div id="qpOptTot-'+id+'" class="ed-serif" style="font-size:21px;font-weight:600;color:var(--ed-ink);line-height:1">'+fmtMoney(sub*(1+_rate))+'</div>'+
+        '<div style="font-family:var(--ed-sans);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2);margin-top:3px">incl. GST</div>'+
+      '</div>';
+    };
+    // Small subtotal / GST breakdown line under each section.
     var _priceFooter = function(id, sub){
-      var gst = sub*_rate, tot = sub+gst;
-      return '<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--ed-line);display:flex;justify-content:flex-end;gap:18px;align-items:baseline;flex-wrap:wrap">'+
-        '<span style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2)">Subtotal&nbsp;<b id="qpOptSub-'+id+'" style="color:var(--ed-ink);font-weight:600">'+fmtMoney(sub)+'</b></span>'+
-        '<span style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2)">+ GST '+S.quote.gstRate+'%&nbsp;<b id="qpOptGst-'+id+'" style="color:var(--ed-ink);font-weight:600">'+fmtMoney(gst)+'</b></span>'+
-        '<span style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2)">Total&nbsp;<b id="qpOptTot-'+id+'" class="ed-serif" style="color:var(--ed-accent);font-size:18px;font-weight:600">'+fmtMoney(tot)+'</b></span>'+
+      var gst = sub*_rate;
+      return '<div style="margin-top:10px;padding-top:7px;border-top:1px solid var(--ed-line);font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);text-align:right">'+
+        'Subtotal <b id="qpOptSub-'+id+'" style="color:var(--ed-ink-2);font-weight:600">'+fmtMoney(sub)+'</b>'+
+        '<span style="margin:0 8px;color:var(--ed-line)">|</span>'+
+        '+ GST '+S.quote.gstRate+'% <b id="qpOptGst-'+id+'" style="color:var(--ed-ink-2);font-weight:600">'+fmtMoney(gst)+'</b>'+
       '</div>';
     };
     // Guttering as Option C (only when the office has set a gutter price).
@@ -6690,7 +6692,10 @@ function refreshQuoteProposal(){
         '<div style="display:flex;align-items:flex-start;gap:12px">'+
           '<div style="width:17px;flex-shrink:0"></div>'+
           '<div style="flex:1;min-width:0">'+
-            '<div class="ed-serif" style="font-size:16px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em"><span style="color:var(--ed-accent);font-style:italic;margin-right:6px">'+letterC+'.</span>Guttering &amp; spouting <span style="font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);font-style:normal">— optional</span></div>'+
+            '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px">'+
+              '<div class="ed-serif" style="font-size:17px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em"><span style="color:var(--ed-accent);font-style:italic;margin-right:6px">'+letterC+'.</span>Guttering &amp; spouting <span style="font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);font-style:normal">— optional</span></div>'+
+              _priceChip('gutter', gSub)+
+            '</div>'+
             '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.45;color:var(--ed-ink-2)">Replace the spouting on this roof. Marley Typhoon® PVC is our standard fit; the Colorsteel® box gutter is a continuous, higher-capacity upgrade. Choose your profile:</div>'+
             '<div onclick="event.stopPropagation()" style="margin-top:9px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
               '<span class="ed-eyebrow" style="color:var(--ed-text2)">Gutter type</span>'+
@@ -6733,7 +6738,10 @@ function refreshQuoteProposal(){
             '<div style="display:flex;align-items:flex-start;gap:12px">'+
               '<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleProposalOptionSel(\''+o.id+'\', this.checked)" style="width:17px;height:17px;margin:2px 0 0;flex-shrink:0;cursor:pointer;accent-color:var(--ed-accent)">'+
               '<div style="flex:1;min-width:0">'+
-                '<div class="ed-serif" style="font-size:16px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em"><span style="color:var(--ed-accent);font-style:italic;margin-right:6px">'+letter+'.</span>'+esc2(o.title||'Option '+letter)+'</div>'+
+                '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px">'+
+                  '<div class="ed-serif" style="font-size:17px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em"><span style="color:var(--ed-accent);font-style:italic;margin-right:6px">'+letter+'.</span>'+esc2(o.title||'Option '+letter)+'</div>'+
+                  _priceChip(o.id, oSub)+
+                '</div>'+
                 (o.description ? '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.45;color:var(--ed-ink-2)">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
                 (o.inclusions && o.inclusions.length
                   ? '<ul style="margin:6px 0 0;padding:0;list-style:none">'+
