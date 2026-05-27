@@ -59,16 +59,20 @@ app.use(express.json({ limit: '25mb' }));
 // in a browser and it now returns JSON so we can confirm which build
 // of the backend is live without having to dig into a real route.
 const BUILD_SHA = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_SHA || 'unknown').slice(0, 7);
+// Feature flags so you can confirm from a browser which build is live.
+// `customerQuote` ships with the public /q/:token + /quote-activity routes.
+const FEATURES = { customerQuote: true };
 app.get('/', (req, res) => {
   res.json({
     service: 'flood-roofing-estimator-backend',
     status: 'ok',
     build: BUILD_SHA,
+    features: FEATURES,
     corsAllow: 'localhost + *.vercel.app (flood-roofing-estimator-*) + FRONTEND_URL',
     time: new Date().toISOString(),
   });
 });
-app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA }));
+app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features: FEATURES }));
 
 function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
