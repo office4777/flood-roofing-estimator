@@ -314,6 +314,24 @@ body{
 #tab-scope .result-box{margin-top:.5rem;padding:12px 14px}
 #tab-scope .sec-btn{margin-top:.5rem}
 
+/* Tighter, less-crowded Quote tab + collapsible advanced cards */
+#tab-quote .card{padding:14px 16px;margin-bottom:10px}
+#tab-quote .card-hd{margin-bottom:10px}
+#tab-quote .f2,#tab-quote .f3{gap:10px}
+#tab-quote textarea{min-height:auto}
+/* A collapsed <details> card: the summary acts as the card header. */
+#tab-quote details.card{padding:0}
+#tab-quote details.card > summary.card-hd{
+  list-style:none;cursor:pointer;padding:14px 16px;margin:0;user-select:none;
+}
+#tab-quote details.card[open] > summary.card-hd{border-bottom:1px solid var(--border);margin-bottom:0}
+#tab-quote details.card > summary.card-hd::-webkit-details-marker{display:none}
+#tab-quote details.card > summary.card-hd::after{
+  content:'▸';margin-left:auto;color:var(--text2);font-size:11px;transition:transform .15s;
+}
+#tab-quote details.card[open] > summary.card-hd::after{transform:rotate(90deg)}
+#tab-quote details.card > .qadv-body{padding:14px 16px}
+
 /* Floating line/section editor floats over the Map Roof canvas, so its
    grids stack to fit the narrow panel instead of pushing it wider. */
 #propPanel .f2,#propPanel .f3{grid-template-columns:1fr;gap:8px}
@@ -734,8 +752,13 @@ select{
   html.print-quote #tab-report{display:none!important}
   html.print-quote #tab-quote{display:block!important}
   html.print-quote .panel:not(#tab-quote){display:none!important}
-  html.print-quote #tab-quote > .card:not(:last-child){display:none!important}
-  html.print-quote #tab-quote > .card:last-child > .card-hd{display:none!important}
+  /* Print only the proposal preview — hide every other editing card.
+     Targeting the proposal card by class (not :last-child) keeps this
+     correct even when advanced cards are collapsed into <details> or
+     reordered. */
+  html.print-quote #tab-quote .card{display:none!important}
+  html.print-quote #tab-quote .card.js-proposal-print{display:block!important}
+  html.print-quote #tab-quote .card.js-proposal-print > .card-hd{display:none!important}
   /* When "Include inspection report" is on, also print the report
      after the quote with a clean page break between them. */
   html.print-quote.with-report #tab-report{display:block!important;page-break-before:always;break-before:page}
@@ -1703,37 +1726,43 @@ select{
   </div>
 
   <!-- Proposal section toggles -->
-  <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Proposal sections</div>
+  <details class="card">
+    <summary class="card-hd"><span class="card-dot"></span>Proposal sections<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:6px">— pages, cover title &amp; about us</span></summary>
+    <div class="qadv-body">
     <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Tick which sections to include in the printed/emailed proposal.</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px" id="qProposalSections">
       <!-- populated by renderProposalSectionToggles() -->
     </div>
     <label style="display:block;margin-top:14px"><span style="font-size:11px;color:var(--text2);margin-bottom:4px;display:block">Proposal cover title <span style="color:var(--text3);font-weight:400">(optional — defaults to "Roofing Proposal")</span></span><input type="text" id="qdCoverTitle" placeholder="e.g. Roof Replacement Proposal — Smith Residence" oninput="onQuoteEdit()"></label>
     <label style="display:block;margin-top:10px"><span style="font-size:11px;color:var(--text2);margin-bottom:4px;display:block">"About us" blurb <span style="color:var(--text3);font-weight:400">(used on the company-profile page — falls back to settings → branding)</span></span><textarea id="qdAboutText" rows="3" oninput="onQuoteEdit()" placeholder="Founded in 2016, Flood Roofing is a proud Northland-based roofing company…"></textarea></label>
-  </div>
+    </div>
+  </details>
 
   <!-- Stock / library photos — re-used across every proposal -->
-  <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Stock proposal photos
+  <details class="card">
+    <summary class="card-hd"><span class="card-dot"></span>Stock proposal photos
       <span style="margin-left:6px;font-size:11px;color:var(--text2);font-weight:400">— past Colorsteel jobs, hero shots, etc.  Saved across all proposals.</span>
-      <label style="margin-left:auto;padding:5px 12px;background:#0099cc;color:#fff;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">+ Add photos<input type="file" id="galleryInput" accept="image/*" multiple style="display:none" onchange="addGalleryPhotos(event)"></label>
-    </div>
+      <label onclick="event.stopPropagation()" style="margin-left:auto;padding:5px 12px;background:#0099cc;color:#fff;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">+ Add photos<input type="file" id="galleryInput" accept="image/*" multiple style="display:none" onchange="addGalleryPhotos(event)"></label>
+    </summary>
+    <div class="qadv-body">
     <div style="font-size:12px;color:var(--text2);margin-bottom:10px">These appear on the cover, About, and Colorsteel Maxam pages of <strong>every</strong> proposal — upload a handful of your best Colorsteel re-roof photos once and they're set.  Site-specific photos (uploaded under the inspection) appear on the Project details page only.</div>
     <div id="galleryGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px"></div>
-  </div>
+    </div>
+  </details>
 
   <!-- Proposal image slots — fixed-ratio positions in the proposal layout -->
-  <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Proposal image slots
+  <details class="card">
+    <summary class="card-hd"><span class="card-dot"></span>Proposal image slots
       <span style="margin-left:6px;font-size:11px;color:var(--text2);font-weight:400">— assign a photo to each fixed-ratio slot in the proposal.</span>
-    </div>
+    </summary>
+    <div class="qadv-body">
     <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Each slot has a locked aspect ratio so the proposal layout stays consistent. Click <strong>Choose</strong> to pick from <strong>Stock photos</strong>, this job's <strong>Photos</strong> tab, or <strong>Upload</strong> directly. Photos are auto-cropped centred to the slot. Leave a slot unset to fall back to the stock library in order.</div>
     <div id="slotGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px"></div>
-  </div>
+    </div>
+  </details>
 
   <!-- Full proposal preview (editable via the fields above) -->
-  <div class="card">
+  <div class="card js-proposal-print">
     <div class="card-hd"><span class="card-dot"></span>Full proposal preview
       <button onclick="refreshQuoteProposal()" style="margin-left:auto;padding:4px 10px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
     </div>
@@ -5131,6 +5160,36 @@ function _optTotal(o){
   return sub;
 }
 
+// Client ticks a proposal-option package on the printed Price page.
+// We persist the selection on the option, then update the combined
+// total figures in place (no full re-render — keeps scroll + tick state).
+function toggleProposalOptionSel(id, checked){
+  if (!S.quote || !S.quote.options) return;
+  var o = S.quote.options.find(function(x){ return x.id === id; });
+  if (!o) return;
+  o.selected = !!checked;
+  var rate = (S.quote.gstRate || 0) / 100;
+  var sub = S.quote.options.filter(function(x){ return x.selected !== false; })
+                           .reduce(function(s,x){ return s + _optTotal(x); }, 0);
+  var gst = sub * rate, tot = sub + gst, dep = tot * 0.5;
+  var setM = function(eid, v){ var el = document.getElementById(eid); if (el) el.textContent = fmtMoney(v); };
+  setM('qpSelSub', sub); setM('qpSelGst', gst); setM('qpSelTot', tot); setM('qpSelDep', dep);
+  setM('qpFooterTotal', tot); setM('qpTotal', tot);
+  var qa = document.getElementById('qaTotal'); if (qa) qa.textContent = fmtMoney(tot);
+  // Reflect the ticked/unticked styling on the row that owns this checkbox.
+  var root = document.getElementById('qpRoot');
+  if (root) {
+    var boxes = root.querySelectorAll('input[type=checkbox][onchange*="'+id+'"]');
+    if (boxes && boxes[0]) {
+      var row = boxes[0].closest('label.qp-opt-row');
+      if (row) {
+        row.style.borderLeftColor = checked ? 'var(--ed-accent)' : 'var(--ed-line)';
+        row.style.background      = checked ? 'var(--ed-paper-2)' : '#fff';
+      }
+    }
+  }
+}
+
 function renderProposalOptions(){
   var host = document.getElementById('qProposalOptions');
   if (!host) return;
@@ -5869,7 +5928,7 @@ function refreshQuoteProposal(){
   function optsSubtotal(){
     if (!opts.length) return sub0;
     var s = 0;
-    opts.forEach(function(o){ s += _optTotal(o); });
+    opts.forEach(function(o){ if (o.selected !== false) s += _optTotal(o); });
     return s;
   }
   function optsTotal(){
@@ -6167,10 +6226,12 @@ function refreshQuoteProposal(){
 
   // ── Quote inclusions + pricing (editorial page) ──
   if (on('inclusions') && opts.length) {
-    // Combined scope-of-work page.  All scope sections (Main House,
-    // Garage, …) listed by their bullet inclusions with NO individual
-    // pricing — one big combined subtotal / GST / total at the bottom.
-    var combinedSub = opts.reduce(function(s,o){ return s + _optTotal(o); }, 0);
+    // Combined scope-of-work + price page.  Each option/package is a
+    // tick-selectable extra; the combined total reflects only the
+    // currently-selected options (default: all selected).
+    opts.forEach(function(o){ if (o.selected === undefined) o.selected = true; });
+    var combinedSub = opts.filter(function(o){ return o.selected !== false; })
+                          .reduce(function(s,o){ return s + _optTotal(o); }, 0);
     var combinedGst = combinedSub * (S.quote.gstRate/100);
     var combinedTot = combinedSub + combinedGst;
     var combinedDep = combinedTot * 0.5;  // 50% deposit per Flood Roofing T&Cs
@@ -6201,32 +6262,38 @@ function refreshQuoteProposal(){
       // bulleted inclusions.  No individual pricing per section; only
       // the combined total at the bottom of the page.  Top padding on
       // the right leaves room for the corner wedge.
-      '<div style="padding-right:300px;margin-top:-6px;margin-bottom:10px">'+
+      ((S.quote.scope||'').trim()
+        ? '<div class="ed-body" style="padding-right:300px;margin-top:-2px;margin-bottom:14px;font-size:11.5px;line-height:1.5;color:var(--ed-ink-2)">'+esc2(S.quote.scope).split('\n').join('<br>')+'</div>'
+        : '')+
+      (opts.length > 1
+        ? '<div class="ed-eyebrow" style="margin-bottom:8px">Select your option'+(opts.length>1?'(s)':'')+' — tick to include</div>'
+        : '')+
+      '<div style="margin-top:-2px;margin-bottom:10px">'+
         opts.map(function(o, oi){
           var letter = String.fromCharCode(65+oi);
-          // First scope's body needs to clear the wedge; subsequent
-          // scopes can use the full width.
           var clearWedge = (oi === 0);
-          return '<div style="margin-bottom:'+(oi===opts.length-1?'4px':'18px')+';'+(clearWedge?'':'padding-right:0;margin-right:-300px')+'">'+
-            '<div style="display:flex;align-items:flex-start;gap:14px">'+
-              '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:30px;color:var(--ed-accent);line-height:.9;flex-shrink:0;width:38px">'+letter+'.</div>'+
-              '<div style="flex:1;min-width:0">'+
-                '<div class="ed-eyebrow">Scope '+letter+'</div>'+
-                '<div class="ed-serif" style="font-size:17px;color:var(--ed-ink);margin-top:4px;line-height:1.25;letter-spacing:-.005em">'+esc2(o.title||'Scope')+'</div>'+
-                (o.description ? '<div class="ed-body" style="margin-top:5px;font-size:11.5px;line-height:1.45;color:var(--ed-ink-2)">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
-                (o.inclusions && o.inclusions.length
-                  ? '<ul style="margin:8px 0 0;padding:0;list-style:none">'+
-                    o.inclusions.map(function(b){
-                      return '<li style="display:flex;gap:8px;padding:2px 0;font-family:var(--ed-sans);font-size:11.5px;line-height:1.5;color:var(--ed-ink-2)">'+
-                        '<span style="color:var(--ed-accent);flex-shrink:0;font-weight:700">•</span>'+
-                        '<span>'+esc2(b)+'</span>'+
-                      '</li>';
-                    }).join('')+
-                    '</ul>'
-                  : '')+
+          var checked = (o.selected !== false);
+          var oIncl = _optTotal(o) * (1 + S.quote.gstRate/100);
+          return '<label class="qp-opt-row" style="display:flex;align-items:flex-start;gap:12px;margin-bottom:'+(oi===opts.length-1?'0':'10px')+';padding:12px 14px;border:1px solid var(--ed-line);border-left:3px solid '+(checked?'var(--ed-accent)':'var(--ed-line)')+';background:'+(checked?'var(--ed-paper-2)':'#fff')+';cursor:pointer;'+(clearWedge?'padding-right:300px':'')+'">'+
+            '<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleProposalOptionSel(\''+o.id+'\', this.checked)" style="width:17px;height:17px;margin:2px 0 0;flex-shrink:0;cursor:pointer;accent-color:var(--ed-accent)">'+
+            '<div style="flex:1;min-width:0">'+
+              '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">'+
+                '<div class="ed-serif" style="font-size:16px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em"><span style="color:var(--ed-accent);font-style:italic;margin-right:6px">'+letter+'.</span>'+esc2(o.title||'Option '+letter)+'</div>'+
+                '<div class="ed-serif" style="font-size:16px;font-weight:600;color:var(--ed-ink);white-space:nowrap">'+fmtMoney(oIncl)+'</div>'+
               '</div>'+
+              (o.description ? '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.45;color:var(--ed-ink-2)">'+esc2(o.description).split('\n').join('<br>')+'</div>' : '')+
+              (o.inclusions && o.inclusions.length
+                ? '<ul style="margin:6px 0 0;padding:0;list-style:none">'+
+                  o.inclusions.map(function(b){
+                    return '<li style="display:flex;gap:8px;padding:1px 0;font-family:var(--ed-sans);font-size:11px;line-height:1.45;color:var(--ed-ink-2)">'+
+                      '<span style="color:var(--ed-accent);flex-shrink:0;font-weight:700">•</span>'+
+                      '<span>'+esc2(b)+'</span>'+
+                    '</li>';
+                  }).join('')+
+                  '</ul>'
+                : '')+
             '</div>'+
-          '</div>';
+          '</label>';
         }).join('')+
       '</div>'+
       // Combined upgrade / downgrade options
@@ -6270,19 +6337,19 @@ function refreshQuoteProposal(){
         '<div style="display:grid;grid-template-columns:1fr 1fr 1.4fr 1fr;gap:18px;align-items:flex-end">'+
           '<div>'+
             '<div class="ed-eyebrow" style="color:rgba(255,255,255,.65)">Subtotal</div>'+
-            '<div class="ed-serif" style="font-size:22px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedSub)+'</div>'+
+            '<div id="qpSelSub" class="ed-serif" style="font-size:22px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedSub)+'</div>'+
           '</div>'+
           '<div>'+
             '<div class="ed-eyebrow" style="color:rgba(255,255,255,.65)">+ GST '+S.quote.gstRate+'%</div>'+
-            '<div class="ed-serif" style="font-size:22px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedGst)+'</div>'+
+            '<div id="qpSelGst" class="ed-serif" style="font-size:22px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedGst)+'</div>'+
           '</div>'+
           '<div style="border-left:1px solid rgba(255,255,255,.18);padding-left:18px">'+
             '<div class="ed-eyebrow" style="color:var(--ed-accent)">Total — incl. GST</div>'+
-            '<div class="ed-serif" style="font-size:34px;color:var(--ed-accent);margin-top:4px;line-height:1;letter-spacing:-.01em;font-weight:500">'+fmtMoney(combinedTot)+'</div>'+
+            '<div id="qpSelTot" class="ed-serif" style="font-size:34px;color:var(--ed-accent);margin-top:4px;line-height:1;letter-spacing:-.01em;font-weight:500">'+fmtMoney(combinedTot)+'</div>'+
           '</div>'+
           '<div style="text-align:right">'+
             '<div class="ed-eyebrow" style="color:rgba(255,255,255,.65)">50% Deposit</div>'+
-            '<div class="ed-serif" style="font-size:18px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedDep)+'</div>'+
+            '<div id="qpSelDep" class="ed-serif" style="font-size:18px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedDep)+'</div>'+
           '</div>'+
         '</div>'+
       '</div>'+
@@ -6717,7 +6784,7 @@ function refreshQuoteProposal(){
   var footerText = [br.company_name, br.address, br.website].filter(Boolean).join('  ·  ') || 'Add your company in Settings → Branding';
   var footerHtml = '<div class="rp-pdf-footer" style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;margin-top:36px;border-top:1px solid var(--ed-line);font-family:var(--ed-sans);font-size:9.5px;color:var(--ed-text2);letter-spacing:.04em">'+
     '<span class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-ink)">'+esc2(footerText)+'</span>'+
-    '<span>Total <span class="ed-serif" style="font-style:italic;font-size:13px;color:var(--ed-ink);font-weight:500">'+fmtMoney(sumTot)+'</span>  ·  Generated '+esc2(new Date().toLocaleDateString('en-NZ'))+'</span>'+
+    '<span>Total <span id="qpFooterTotal" class="ed-serif" style="font-style:italic;font-size:13px;color:var(--ed-ink);font-weight:500">'+fmtMoney(sumTot)+'</span>  ·  Generated '+esc2(new Date().toLocaleDateString('en-NZ'))+'</span>'+
   '</div>';
   // Inject the footer just before the closing tag of the final rp-page.
   var lastClose = html.lastIndexOf('</div>');
