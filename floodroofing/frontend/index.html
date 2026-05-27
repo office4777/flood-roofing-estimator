@@ -2280,11 +2280,14 @@ select{
         <div><label>Tagline</label><input type="text" id="brTagline" placeholder="Northland's Roofing Specialists"></div>
       </div>
       <div class="f3">
-        <div><label>Phone</label><input type="tel" id="brPhone" placeholder="09 000 0000"></div>
+        <div><label>Phone</label><input type="tel" id="brPhone" placeholder="0800 4 FLOOD"></div>
         <div><label>Email</label><input type="email" id="brEmail" placeholder="office@floodroofing.co.nz"></div>
         <div><label>Website</label><input type="text" id="brWebsite" placeholder="floodroofing.co.nz"></div>
       </div>
-      <div><label>Business address</label><input type="text" id="brAddress" placeholder="Whangarei, Northland, NZ"></div>
+      <div class="f2">
+        <div><label>Business address</label><input type="text" id="brAddress" placeholder="494C Kerikeri Road, Kerikeri 0293"></div>
+        <div><label>GST number</label><input type="text" id="brGstNumber" placeholder="120 543 997"></div>
+      </div>
       <div class="f3" style="margin-top:8px">
         <div><label>Primary colour</label><input type="color" id="brPrimary" value="#0099cc" style="width:100%;height:38px;padding:2px"></div>
         <div><label>Dark / header</label><input type="color" id="brDark" value="#0a1628" style="width:100%;height:38px;padding:2px"></div>
@@ -2696,9 +2699,10 @@ async function api(method, path, body) {
 // — Settings —
 function defaultSettings(){
   return {
-    branding: { company_name:'', tagline:'',
-                phone:'', email:'', website:'',
-                address:'',
+    branding: { company_name:'Flood Roofing LTD', tagline:"Northland's Roofing Specialists",
+                phone:'0800 4 FLOOD', email:'office@floodroofing.co.nz', website:'floodroofing.co.nz',
+                address:'494C Kerikeri Road, Kerikeri 0293',
+                gst_number:'120 543 997',
                 primary_color:'#0099cc', dark_color:'#0a1628', accent_color:'#1a3a5c',
                 logo_data_url:'',
                 // Reusable "stock" photos for every proposal — past Colorsteel
@@ -2771,7 +2775,19 @@ async function loadSettings(){
     var s = await api('GET', '/settings');
     var d = defaultSettings();
     S.settings = {
-      branding: Object.assign(d.branding, s.branding || {}),
+      // Merge saved branding over the defaults, but DON'T let blank saved
+      // strings clobber the sensible defaults (company contact details,
+      // GST number) — so the proposal always shows real info even if the
+      // user saved settings before filling these in.
+      branding: (function(){
+        var sb = s.branding || {}, merged = Object.assign({}, d.branding);
+        Object.keys(sb).forEach(function(k){
+          var v = sb[k];
+          if (v === '' || v === null || v === undefined) return;
+          merged[k] = v;
+        });
+        return merged;
+      })(),
       quote_defaults: Object.assign(d.quote_defaults, s.quote_defaults || {}),
       jms_keys: Object.assign(d.jms_keys, s.jms_keys || {}),
       // price_book: deep-merge so existing keys keep defaults and the
@@ -2832,6 +2848,7 @@ function collectSettingsFromUI(){
   b.email        = (document.getElementById('brEmail')||{}).value || '';
   b.website      = (document.getElementById('brWebsite')||{}).value || '';
   b.address      = (document.getElementById('brAddress')||{}).value || '';
+  b.gst_number   = (document.getElementById('brGstNumber')||{}).value || '';
   b.primary_color= (document.getElementById('brPrimary')||{}).value || '#0099cc';
   b.dark_color   = (document.getElementById('brDark')||{}).value || '#0a1628';
   b.accent_color = (document.getElementById('brAccent')||{}).value || '#1a3a5c';
@@ -3417,6 +3434,7 @@ function refreshSettingsUI(){
   function set(id,v){var el=document.getElementById(id); if(el) el.value = v||'';}
   set('brCompanyName', b.company_name); set('brTagline', b.tagline);
   set('brPhone', b.phone); set('brEmail', b.email); set('brWebsite', b.website); set('brAddress', b.address);
+  set('brGstNumber', b.gst_number);
   set('brPrimary', b.primary_color||'#0099cc'); set('brDark', b.dark_color||'#0a1628'); set('brAccent', b.accent_color||'#1a3a5c');
   var lp = document.getElementById('brLogoPreview');
   if (b.logo_data_url) { lp.src = b.logo_data_url; lp.style.display = 'inline-block'; } else { lp.style.display = 'none'; }
@@ -5950,7 +5968,12 @@ function refreshQuoteProposal(){
         '<div class="rp-logo-name">'+esc2(company)+'</div>'+
         '<div class="rp-logo-tag">'+esc2(tagline)+'</div>'+
         '<div class="rp-logo-stripe"></div>'+
-        '<div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:6px;font-family:var(--ed-sans);letter-spacing:.02em">'+esc2(contactBits)+'</div>'+
+        '<div style="font-size:10.5px;color:rgba(255,255,255,.7);margin-top:8px;font-family:var(--ed-sans);letter-spacing:.02em;line-height:1.7">'+
+          (br.address ? esc2(br.address)+'<br>' : '')+
+          (br.phone ? 'Phone: '+esc2(br.phone)+'<br>' : '')+
+          (br.email ? 'Email: '+esc2(br.email)+'<br>' : '')+
+          (br.gst_number ? 'GST Number: '+esc2(br.gst_number) : '')+
+        '</div>'+
       '</div>'+
     '</div>'+
     '<div class="rp-hdr-right"><strong>'+esc2(S.quote.coverTitle || 'Roofing Quote & Proposal')+'</strong>'+esc2(S.quote.date || '')+'<br>Ref: '+esc2(S.quote.ref || 'FR-001')+'<br>Valid: '+esc2(S.quote.validUntil || '30 days')+'</div>'+
