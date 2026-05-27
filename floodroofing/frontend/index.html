@@ -2792,19 +2792,19 @@ function defaultSettings(){
     // the Quote tab.
     price_book: {
       sheets: [
-        { product: '0.40g Colorsteel Maxam', unit: 'lm', price: 26 },
-        { product: '0.55g Colorsteel Maxam', unit: 'lm', price: 0 },
-        { product: '0.40g Zincalume',        unit: 'lm', price: 0 },
-        { product: '0.55g Zincalume',        unit: 'lm', price: 0 }
+        { product: '0.40g Colorsteel Maxam', unit: 'm2', price: 26.84 },
+        { product: '0.55g Colorsteel Maxam', unit: 'm2', price: 0 },
+        { product: '0.40g Zincalume',        unit: 'm2', price: 0 },
+        { product: '0.55g Zincalume',        unit: 'm2', price: 0 }
       ],
-      underlay: { '50': 0, '75': 0, '100': 0 },   // $ per roll, keyed by m²/roll
-      ridge_lm:    0,    // $/lm — used for ridge + hip cap (they share flashing)
-      valley_lm:   0,    // $/lm
-      gutter_lm:   0,    // $/lm
+      underlay: { '50': 120, '75': 0, '100': 0 },   // $ per roll, keyed by m²/roll
+      ridge_lm:    20,   // $/lm — used for ridge + hip cap (they share flashing)
+      valley_lm:   15,   // $/lm
+      gutter_lm:   20,   // $/lm
       barge_lm:    0,    // $/lm
       apron_lm:    0,    // $/lm
-      screws_each: 0,    // $ per 65mm Unitite / roofing screw
-      rivets_each: 0,    // $ per rivet
+      screws_each: 0.35, // $ per 65mm Unitite / roofing screw ($35/100)
+      rivets_each: 0.15, // $ per rivet ($15/100)
       extras: []         // [{desc, unit, qty, price}] — custom price-book items the user adds
     },
     // Labour pricing — per-scope-item default hour budgets and the
@@ -3193,26 +3193,36 @@ function computeMaterialsCost(){
     roofArea = planM2 * pitchFactor;
   }
 
-  // Roofing sheets — priced per LM of gutter run with the active
-  // product's $/lm. Each gutter run gets sheets-across × sheet-length.
-  // Simpler estimate: sheets-across-totaled × averageSheetLengthM.
-  if (totals.gutter > 0) {
+  // Roofing sheets — per m² of roof area when the product is priced
+  // that way, otherwise per LM of sheet run.
+  {
     var defaultProduct = pb.defaultSheetProduct || (pb.sheets && pb.sheets[0] && pb.sheets[0].product);
     var sheetRow = (pb.sheets || []).find(function(s){ return s.product === defaultProduct; }) || (pb.sheets && pb.sheets[0]) || null;
     if (sheetRow && sheetRow.price > 0) {
-      // Approximate sheet length: roof area / total gutter length × pitchFactor (gives slope length per gutter LM)
-      var slopeLen = (roofArea > 0 && totals.gutter > 0) ? (roofArea / totals.gutter) : 0;
-      var cutLen = slopeLen + overlapM;
-      var sheetsAcross = totals.gutter / sheetWidthM;
-      var totalSheetLm = sheetsAcross * cutLen;
-      if (totalSheetLm > 0) {
-        var sheetsCost = totalSheetLm * sheetRow.price;
-        out.breakdown.push({
-          desc: 'Roofing sheets — ' + (sheetRow.product || 'sheet'),
-          qty: totalSheetLm, unit: 'lm', price: sheetRow.price, lineTotal: sheetsCost,
-          note: '≈ ' + Math.ceil(sheetsAcross) + ' sheets across × ' + cutLen.toFixed(2) + 'm cut'
-        });
-        out.total += sheetsCost;
+      if ((sheetRow.unit || 'lm') === 'm2') {
+        if (roofArea > 0) {
+          var areaCost = roofArea * sheetRow.price;
+          out.breakdown.push({
+            desc: 'Roofing sheets — ' + (sheetRow.product || 'sheet'),
+            qty: roofArea, unit: 'm²', price: sheetRow.price, lineTotal: areaCost,
+            note: 'roof area (incl. pitch) × $/m²'
+          });
+          out.total += areaCost;
+        }
+      } else if (totals.gutter > 0) {
+        var slopeLen = (roofArea > 0 && totals.gutter > 0) ? (roofArea / totals.gutter) : 0;
+        var cutLen = slopeLen + overlapM;
+        var sheetsAcross = totals.gutter / sheetWidthM;
+        var totalSheetLm = sheetsAcross * cutLen;
+        if (totalSheetLm > 0) {
+          var sheetsCost = totalSheetLm * sheetRow.price;
+          out.breakdown.push({
+            desc: 'Roofing sheets — ' + (sheetRow.product || 'sheet'),
+            qty: totalSheetLm, unit: 'lm', price: sheetRow.price, lineTotal: sheetsCost,
+            note: '≈ ' + Math.ceil(sheetsAcross) + ' sheets across × ' + cutLen.toFixed(2) + 'm cut'
+          });
+          out.total += sheetsCost;
+        }
       }
     }
   }
@@ -3346,16 +3356,29 @@ function _buildMaterialPriceRows(){
     roofArea = polyAreaPx(DRAW.outline) * DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx * pitchFactor;
   }
 
-  // Roofing sheets — variant dropdown comes from pb.sheets
-  if (totals.gutter > 0) {
-    var slopeLen = (roofArea > 0 && totals.gutter > 0) ? (roofArea / totals.gutter) : 0;
-    var cutLen   = slopeLen + overlapM;
-    var sheetsAcross = totals.gutter / sheetWidthM;
-    var autoQty  = sheetsAcross * cutLen;
+  // Roofing sheets — variant dropdown comes from pb.sheets.  When the
+  // default product is priced per m² we quantify by roof area; otherwise
+  // by linear metres of sheet run.
+  {
     var variants = (pb.sheets || []).map(function(s){ return { value:s.product, label:s.product, price:s.price||0, unit:s.unit||'lm' }; });
-    rows.push({ key:'sheets', label:'Roofing sheets', autoQty:autoQty, autoUnit:'lm',
-                variants:variants, defaultVariant: pb.defaultSheetProduct || (variants[0] && variants[0].value),
-                note:'≈ ' + Math.ceil(sheetsAcross) + ' across × ' + cutLen.toFixed(2) + 'm cut' });
+    var defVar = pb.defaultSheetProduct || (variants[0] && variants[0].value);
+    var defSheet = variants.filter(function(v){ return v.value === defVar; })[0] || variants[0];
+    var sheetUnit = (defSheet && defSheet.unit) || 'lm';
+    if (sheetUnit === 'm2') {
+      if (roofArea > 0) {
+        rows.push({ key:'sheets', label:'Roofing sheets', autoQty:roofArea, autoUnit:'m²',
+                    variants:variants, defaultVariant:defVar,
+                    note:'roof area (incl. pitch) × $/m²' });
+      }
+    } else if (totals.gutter > 0) {
+      var slopeLen = (roofArea > 0 && totals.gutter > 0) ? (roofArea / totals.gutter) : 0;
+      var cutLen   = slopeLen + overlapM;
+      var sheetsAcross = totals.gutter / sheetWidthM;
+      var autoQty  = sheetsAcross * cutLen;
+      rows.push({ key:'sheets', label:'Roofing sheets', autoQty:autoQty, autoUnit:'lm',
+                  variants:variants, defaultVariant:defVar,
+                  note:'≈ ' + Math.ceil(sheetsAcross) + ' across × ' + cutLen.toFixed(2) + 'm cut' });
+    }
   }
 
   // Underlay — variant = roll size; auto qty = ceil(roofArea * 1.2 / rollSize)
