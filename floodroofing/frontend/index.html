@@ -6055,21 +6055,16 @@ function edHeading(num, eyebrow, title, opts){
   // rp-body top padding — so the heading band must NOT pull up
   // with a negative top margin or it would overlap the banner.
   var topMargin = opts.afterBanner ? '0' : '-38px';
-  return '<div class="ed-heading-band" style="margin:'+topMargin+' -36px 22px;padding:24px 36px 22px;background:linear-gradient(135deg,var(--ed-ink) 0%,#0d2440 60%,#0b1c33 100%);color:#fff;position:relative;overflow:hidden">'+
-    // Top accent stripe — brand-blue
-    '<div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--ed-accent) 0%,#3ab8ee 50%,var(--ed-accent) 100%)"></div>'+
-    // Bottom accent stripe — slim brand-blue underscore
-    '<div style="position:absolute;bottom:0;left:0;right:0;height:1px;background:rgba(0,153,224,.4)"></div>'+
-    // Flood Roofing logo — white-on-transparent so it pops on the
-    // dark heading band.  Sits in the far right, vertically centred,
-    // sized 54px tall (≈148px wide at the 1072×392 white-fill aspect).
-    '<img src="brand/logo_wide_white.png" onerror="this.style.display=\'none\'" alt="" style="position:absolute;right:36px;top:50%;transform:translateY(-50%);height:54px;width:auto;opacity:.92;pointer-events:none">'+
-    '<div style="display:flex;align-items:flex-start;gap:22px;position:relative;padding-right:188px">'+
+  // Simplified band: a single solid brand-ink panel with one slim accent
+  // rule at the top — no gradients or double stripes.
+  return '<div class="ed-heading-band" style="margin:'+topMargin+' -36px 24px;padding:22px 36px;background:var(--ed-ink);color:#fff;position:relative;overflow:hidden">'+
+    '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--ed-accent)"></div>'+
+    '<img src="brand/logo_wide_white.png" onerror="this.style.display=\'none\'" alt="" style="position:absolute;right:36px;top:50%;transform:translateY(-50%);height:50px;width:auto;opacity:.9;pointer-events:none">'+
+    '<div style="display:flex;align-items:flex-start;gap:22px;position:relative;padding-right:180px">'+
       '<div class="ed-number" style="flex-shrink:0;width:80px;color:var(--ed-accent);font-size:48px;line-height:1">'+esc2(num)+'</div>'+
-      '<div style="flex:1;padding-top:4px">'+
+      '<div style="flex:1;padding-top:2px">'+
         (eyebrow ? '<div class="ed-eyebrow" style="color:var(--ed-accent)">'+esc2(eyebrow)+'</div>' : '')+
         '<div class="ed-title ed-h2" style="margin-top:4px;color:#fff;font-style:italic">'+title+'</div>'+
-        '<div style="height:2px;background:var(--ed-accent);width:64px;margin-top:12px"></div>'+
       '</div>'+
     '</div>'+
   '</div>';
@@ -6214,29 +6209,28 @@ function _initials(name){
 // profile actually looks like.  All drawn on a 100×60 viewBox so they
 // align nicely in a grid; profile name and short description sit
 // beneath each sketch in the renderer.
+// Accurate gutter cross-sections — each profile drawn to its true shape
+// against a faint fascia board, the way a manufacturer shows a profile.
 function gutterProfileSvg(key){
-  var stroke = '#0a1628';
-  var common = 'fill="none" stroke="'+stroke+'" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"';
-  var paths = {
-    // Marley / PVC profiles
-    stratus:    '<path d="M14 12 L14 44 L86 44 L86 12" '+common+'/>'+
-                '<path d="M14 12 L20 12 L20 18 L14 18" '+common+'/>'+
-                '<path d="M86 12 L80 12 L80 18 L86 18" '+common+'/>',
-    classic:    '<path d="M14 14 Q14 8 20 8 L80 8 Q86 8 86 14 L86 40 Q86 46 80 46 L20 46 Q14 46 14 40 Z" '+common+'/>',
-    typhoon:    '<path d="M14 10 L14 46 L86 46 L86 10 M14 10 L22 10 L22 18 L14 18 M86 10 L78 10 L78 18 L86 18 M14 46 L86 46" '+common+'/>'+
-                '<path d="M50 18 V40" '+common+' stroke-dasharray="2 3"/>',
-    magnum:     '<path d="M10 12 L10 48 L90 48 L90 12 L82 12 L82 20 L10 20 M10 12 L18 12 L18 20" '+common+'/>',
-    rp80:       '<path d="M22 14 L22 42 L78 42 L78 14 L72 14 L72 18 L22 18" '+common+'/>',
-    // Steel / Colorsteel profiles
-    quad:       '<path d="M14 14 L14 44 L86 44 L86 14 L78 14 L78 22 L14 22" '+common+'/>',
-    halfround:  '<path d="M14 16 A36 36 0 0 0 86 16 L78 16 A28 28 0 0 1 22 16 Z" '+common+'/>',
-    smoothline: '<path d="M14 12 L14 42 L86 42 L86 12 L80 12 L80 16 L14 16" '+common+'/>'+
-                '<path d="M80 12 Q86 12 86 18" '+common+'/>',
-    box:        '<path d="M14 12 L14 48 L86 48 L86 12 L80 12 L80 16 L14 16" '+common+'/>',
-    colonial:   '<path d="M14 18 L14 44 L86 44 L86 18 L80 18 L80 12 L74 12 L74 18 L26 18 L26 12 L20 12 L20 18 Z" '+common+'/>',
+  var ink = '#0a1628';
+  var common = 'fill="none" stroke="'+ink+'" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"';
+  // Five real shapes; named profiles map onto the closest one.
+  var shapes = {
+    round:  'M14 12 L20 12 M14 12 L14 22 A33 28 0 0 0 80 22 L80 12 L86 12',                  // half-round
+    quad:   'M14 9 L20 9 M14 9 L14 46 L84 46 L84 18 L76 18 L76 11',                          // square-front quad
+    box:    'M12 9 L20 9 M12 9 L12 50 L86 50 L86 14 L78 14 L78 9',                           // deep box gutter
+    ogee:   'M14 11 L20 11 M14 11 L14 44 L84 44 L84 23 C84 13 75 13 75 22 C75 28 69 28 69 21',// ogee / colonial
+    square: 'M14 11 L20 11 M14 11 L14 44 L84 44 L84 13 L78 13 L78 11'                        // square smoothline / stratus
   };
-  var svg = paths[key] || '<text x="50" y="35" text-anchor="middle" font-size="10" fill="'+stroke+'">'+esc2(key)+'</text>';
-  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" style="width:100%;height:auto;display:block">'+svg+'</svg>';
+  var map = {
+    typhoon:'round', halfround:'round', classic:'ogee', colonial:'ogee',
+    stratus:'square', stormcloud:'square', smoothline:'square', rp80:'square',
+    quad:'quad', box:'box', magnum:'box'
+  };
+  var d = shapes[map[key] || key] || shapes.quad;
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" style="width:100%;height:auto;display:block">'+
+    '<rect x="7" y="4" width="3" height="52" rx="1.5" fill="#cdd2d8"/>'+
+    '<path d="'+d+'" '+common+'/></svg>';
 }
 
 // Curated profile lists for the renderer.  Keeping these inline so
@@ -6976,46 +6970,28 @@ function refreshQuoteProposal(){
         '</select>'+
         '<span class="ed-body" style="font-size:10.5px;color:var(--ed-text2)">Adds to the total on the price page</span>'+
       '</div>'+
-      // Two columns: Marley (standard) on the left, Colorsteel (upgrade) on the right
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;margin-bottom:18px">'+
-        // === MARLEY column ===
-        '<div style="border-top:2px solid var(--ed-ink);padding-top:12px;position:relative">'+
-          '<div style="position:absolute;top:-1px;right:0;background:var(--ed-accent);color:#fff;font-family:var(--ed-sans);font-size:9px;font-weight:600;letter-spacing:.16em;padding:3px 8px">STANDARD</div>'+
-          '<div class="ed-eyebrow" style="margin-bottom:6px">01 — Marley Typhoon® PVC</div>'+
-          '<div class="ed-serif" style="font-size:18px;color:var(--ed-ink);margin-bottom:8px;letter-spacing:-.005em">Marley Typhoon · high-flow half-round</div>'+
-          '<div class="ed-body" style="margin-bottom:12px">Standard install on every Flood Roofing job unless otherwise specified. 15-yr manufacturer warranty covers spouting, downpipes and fittings.</div>'+
-          // Profile mini-grid (2-col)
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'+
-            MARLEY_PROFILES.slice(0,4).map(function(p){
-              return '<div style="background:var(--ed-paper-2);padding:8px;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">'+gutterProfileSvg(p.key)+'</div>';
-            }).join('')+
-          '</div>'+
-          '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);line-height:1.5">Available in 12 colours matching the Colorsteel® palette. White and Black are stock; colours are made-to-order.</div>'+
-        '</div>'+
-        // === COLORSTEEL BOX GUTTER column ===
-        '<div style="border-top:2px solid var(--ed-accent);padding-top:12px;position:relative">'+
-          '<div style="position:absolute;top:-1px;right:0;background:var(--ed-warm,#c0794d);color:#fff;font-family:var(--ed-sans);font-size:9px;font-weight:600;letter-spacing:.16em;padding:3px 8px">RECOMMENDED UPGRADE</div>'+
-          '<div class="ed-eyebrow" style="margin-bottom:6px">02 — Colorsteel® 125mm Box Gutter</div>'+
-          '<div class="ed-serif" style="font-size:18px;color:var(--ed-ink);margin-bottom:8px;letter-spacing:-.005em">Continuous 0.55bmt steel · rolled on-site</div>'+
-          '<div class="ed-body" style="margin-bottom:12px">Rolled in one length — no factory joins. Higher flow capacity than any PVC. Coordinated finish in the same Colorsteel colour family as your roof. 15-yr paint film warranty.</div>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'+
-            STEEL_GUTTER_PROFILES.slice(0,4).map(function(p){
-              return '<div style="background:var(--ed-paper-2);padding:8px;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">'+gutterProfileSvg(p.key)+'</div>';
-            }).join('')+
-          '</div>'+
-          '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);line-height:1.5">Stiffer than PVC — long runs without intermediate brackets. AZ150 / AZ200 Galvalloy® substrate stands up to coastal salt.</div>'+
-        '</div>'+
-      '</div>'+
-      // Shared Colorsteel colour palette
-      '<div class="ed-eyebrow" style="margin-bottom:6px">Available colours · matched to your roof</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:5px">'+
-        MAXAM_COLOURS.slice(0,12).map(function(c){
-          var labelStyle = 'color:'+(needsLightLabel(c.hex)?'#fff':'#0a1628');
-          return '<div style="position:relative;background:'+c.hex+';height:46px;display:flex;align-items:flex-end;padding:4px 6px">'+
-            '<div style="font-family:var(--ed-sans);font-size:10px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.35)':'none')+'">'+esc2(c.name)+'</div>'+
+      // Two clean option cards, one accurate profile cross-section each.
+      (function(){
+        function card(opts){
+          return '<div style="border:1px solid var(--ed-line);border-top:3px solid '+opts.accent+';padding:16px 18px;display:flex;gap:16px;align-items:center">'+
+            '<div style="flex-shrink:0;width:120px"><div style="background:var(--ed-paper-2);border:1px solid var(--ed-line);padding:12px">'+gutterProfileSvg(opts.profile)+'</div>'+
+              '<div class="ed-eyebrow" style="text-align:center;margin-top:6px;color:var(--ed-text2)">'+opts.profileLabel+'</div></div>'+
+            '<div style="flex:1;min-width:0">'+
+              '<div class="ed-eyebrow" style="color:'+opts.accent+';margin-bottom:4px">'+opts.tag+'</div>'+
+              '<div class="ed-serif" style="font-size:19px;color:var(--ed-ink);letter-spacing:-.005em;margin-bottom:6px">'+opts.title+'</div>'+
+              '<div class="ed-body" style="font-size:11.5px;line-height:1.5">'+opts.body+'</div>'+
+            '</div>'+
           '</div>';
-        }).join('')+
-      '</div>';
+        }
+        return '<div style="display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:4px">'+
+          card({ accent:'var(--ed-accent)', tag:'Standard fit', profile:'typhoon', profileLabel:'Half-round',
+                 title:'Marley Typhoon® PVC',
+                 body:'Our standard spouting — UV-stabilised, light, won\'t corrode or dent in hail. High-flow 145 × 90 mm half-round, 15-year manufacturer warranty on spouting, downpipes and fittings. Colour-matched to your roof.' })+
+          card({ accent:'var(--ed-warm,#c0794d)', tag:'Recommended upgrade', profile:'box', profileLabel:'Box gutter',
+                 title:'Colorsteel® 125mm Box Gutter',
+                 body:'Rolled on-site in one continuous length of 0.55 bmt steel — no factory joins, far higher flow capacity, stiff enough for long runs. AZ150/AZ200 Galvalloy® stands up to coastal salt; finished in your Colorsteel colour. 15-year paint-film warranty.' })+
+        '</div>';
+      })();
   }
 
   // ── Summary (compact: option-tick list) ──
