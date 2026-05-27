@@ -2848,59 +2848,73 @@ function defaultSettings(){
   };
 }
 
+function mergeSettings(s){
+  var d = defaultSettings();
+  return {
+    branding: (function(){
+      var sb = s.branding || {}, merged = Object.assign({}, d.branding);
+      Object.keys(sb).forEach(function(k){
+        var v = sb[k];
+        if (v === '' || v === null || v === undefined) return;
+        merged[k] = v;
+      });
+      return merged;
+    })(),
+    quote_defaults: Object.assign(d.quote_defaults, s.quote_defaults || {}),
+    jms_keys: Object.assign(d.jms_keys, s.jms_keys || {}),
+    price_book: (function(){
+      var pb = Object.assign({}, d.price_book, s.price_book || {});
+      pb.underlay = Object.assign({}, d.price_book.underlay, (s.price_book && s.price_book.underlay) || {});
+      if (!Array.isArray(pb.sheets) || !pb.sheets.length) pb.sheets = d.price_book.sheets.slice();
+      if (!Array.isArray(pb.extras)) pb.extras = [];
+      return pb;
+    })(),
+    labour_pricing: (function(){
+      var lp = Object.assign({}, d.labour_pricing, s.labour_pricing || {});
+      lp.per_item_hours = Object.assign({}, d.labour_pricing.per_item_hours, (s.labour_pricing && s.labour_pricing.per_item_hours) || {});
+      return lp;
+    })()
+  };
+}
+
 async function loadSettings(){
+  // 1. Try cloud first
   try {
     var s = await api('GET', '/settings');
-    var d = defaultSettings();
-    S.settings = {
-      // Merge saved branding over the defaults, but DON'T let blank saved
-      // strings clobber the sensible defaults (company contact details,
-      // GST number) — so the proposal always shows real info even if the
-      // user saved settings before filling these in.
-      branding: (function(){
-        var sb = s.branding || {}, merged = Object.assign({}, d.branding);
-        Object.keys(sb).forEach(function(k){
-          var v = sb[k];
-          if (v === '' || v === null || v === undefined) return;
-          merged[k] = v;
-        });
-        return merged;
-      })(),
-      quote_defaults: Object.assign(d.quote_defaults, s.quote_defaults || {}),
-      jms_keys: Object.assign(d.jms_keys, s.jms_keys || {}),
-      // price_book: deep-merge so existing keys keep defaults and the
-      // user's saved unit prices win. Underlay is an object keyed by
-      // roll size so it needs its own merge.
-      price_book: (function(){
-        var pb = Object.assign({}, d.price_book, s.price_book || {});
-        pb.underlay = Object.assign({}, d.price_book.underlay, (s.price_book && s.price_book.underlay) || {});
-        if (!Array.isArray(pb.sheets) || !pb.sheets.length) pb.sheets = d.price_book.sheets.slice();
-        if (!Array.isArray(pb.extras)) pb.extras = [];
-        return pb;
-      })(),
-      // labour_pricing: same deep-merge pattern; per_item_hours is a
-      // dict, so saved entries overlay the defaults.
-      labour_pricing: (function(){
-        var lp = Object.assign({}, d.labour_pricing, s.labour_pricing || {});
-        lp.per_item_hours = Object.assign({}, d.labour_pricing.per_item_hours, (s.labour_pricing && s.labour_pricing.per_item_hours) || {});
-        return lp;
-      })()
-    };
+    S.settings = mergeSettings(s);
+    // Mirror to localStorage so it survives cloud outages
+    try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e2){}
+    applyBranding();
+    return S.settings;
   } catch(e) {
-    console.warn('settings load failed, using defaults:', e.message);
-    S.settings = defaultSettings();
+    console.warn('settings cloud load failed:', e.message);
   }
+  // 2. Fall back to localStorage
+  try {
+    var local = JSON.parse(localStorage.getItem('fr_settings') || 'null');
+    if (local) {
+      S.settings = mergeSettings(local);
+      applyBranding();
+      return S.settings;
+    }
+  } catch(e2){}
+  // 3. Absolute fallback: built-in defaults
+  S.settings = defaultSettings();
   applyBranding();
   return S.settings;
 }
 
 async function saveSettings(){
-  // Read form values back into S.settings
   collectSettingsFromUI();
   var btn = document.getElementById('saveSettingsBtn');
   var msg = document.getElementById('saveSettingsMsg');
   if (btn) btn.disabled = true;
   msg.textContent = 'Saving…';
+
+  // Always save to localStorage immediately — this never fails
+  try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e2){}
+
+  // Then attempt cloud sync
   try {
     var saved = await api('PUT', '/settings', S.settings);
     S.settings.branding = saved.branding || S.settings.branding;
@@ -2908,13 +2922,18 @@ async function saveSettings(){
     S.settings.jms_keys = saved.jms_keys || S.settings.jms_keys;
     if (saved.price_book) S.settings.price_book = saved.price_book;
     if (saved.labour_pricing) S.settings.labour_pricing = saved.labour_pricing;
+    // Re-mirror merged result to localStorage
+    try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e2){}
     msg.textContent = '✓ Saved'; msg.style.color = '#15803d';
     applyBranding();
   } catch(e) {
-    msg.textContent = 'Save failed: ' + e.message; msg.style.color = '#b91c1c';
+    // localStorage save already succeeded — this is a cloud-only failure
+    msg.textContent = '✓ Saved locally (cloud unavailable — run database setup SQL to enable cloud backup)';
+    msg.style.color = '#b45309';
+    applyBranding();
   }
   if (btn) btn.disabled = false;
-  setTimeout(function(){msg.textContent='';msg.style.color='';}, 4000);
+  setTimeout(function(){msg.textContent='';msg.style.color='';}, 7000);
 }
 
 function collectSettingsFromUI(){
