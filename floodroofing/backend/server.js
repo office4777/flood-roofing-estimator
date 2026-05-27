@@ -194,12 +194,14 @@ app.get('/settings', requireAuth, async (req, res) => {
 });
 
 app.put('/settings', requireAuth, async (req, res) => {
-  const { branding, quote_defaults, jms_keys } = req.body;
+  const { branding, quote_defaults, jms_keys, price_book, labour_pricing } = req.body;
   const row = {
     user_id: req.user.id,
     branding: branding || {},
     quote_defaults: quote_defaults || {},
     jms_keys: jms_keys || {},
+    price_book: price_book || {},
+    labour_pricing: labour_pricing || {},
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await supabase.from('user_settings').upsert(row, { onConflict: 'user_id' }).select().single();
