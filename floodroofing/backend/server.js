@@ -203,6 +203,121 @@ app.put('/settings', requireAuth, async (req, res) => {
   res.json(data);
 });
 
+// ══════════════════════════════════════════════════════════════════
+// PUBLIC CUSTOMER QUOTE VIEW — token-based, no auth.  Lets a customer
+// open a shareable link, change the options/grades, and accept /
+// decline / query the quote.  All writes go back onto the owning job so
+// the office app sees the status + selections.  Uses the service-key
+// Supabase client so it can read/write across users without a JWT.
+// ══════════════════════════════════════════════════════════════════
+function _quoteOf(job){ return (((job||{}).draw_state||{}).state||{}).quote || null; }
+async function _findJobByToken(token){
+  if (!token) return null;
+  const { data, error } = await supabase.from('jobs')
+    .select('id, user_id, client_name, site_address, draw_state')
+    .eq('draw_state->state->quote->share->>token', token).limit(1);
+  if (error) throw new Error(error.message);
+  return (data && data[0]) || null;
+}
+async function _saveQuoteBack(job, quote){
+  const ds = job.draw_state || {};
+  ds.state = ds.state || {};
+  ds.state.quote = quote;
+  await supabase.from('jobs').update({ draw_state: ds, updated_at: new Date().toISOString() }).eq('id', job.id);
+}
+
+// Customer opens the quote.
+app.get('/q/:token', async (req, res) => {
+  try {
+    const job = await _findJobByToken(req.params.token);
+    const quote = _quoteOf(job);
+    if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
+    const { data: settings } = await supabase.from('user_settings').select('branding').eq('user_id', job.user_id).maybeSingle();
+    const share = quote.share || {};
+    share.openCount = (share.openCount || 0) + 1;
+    share.lastOpenedAt = new Date().toISOString();
+    if (!share.status || share.status === 'sent') share.status = 'opened';
+    if (!Array.isArray(share.events)) share.events = [];
+    // Only log a fresh "opened" event if the last one wasn't an open in the past 2 min.
+    const last = share.events[share.events.length - 1];
+    if (!last || last.type !== 'opened' || (Date.now() - new Date(last.at).getTime()) > 120000) {
+      share.events.push({ type: 'opened', at: share.lastOpenedAt });
+      if (share.events.length > 80) share.events = share.events.slice(-80);
+    }
+    quote.share = share;
+    await _saveQuoteBack(job, quote);
+    res.json({ quote: quote, branding: (settings && settings.branding) || {} });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Customer changes selections / accepts / declines / asks a question.
+app.post('/q/:token/event', async (req, res) => {
+  try {
+    const { type, selections, name, message, total, acceptedOptions } = req.body || {};
+    const job = await _findJobByToken(req.params.token);
+    const quote = _quoteOf(job);
+    if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
+    const share = quote.share || {};
+    if (!Array.isArray(share.events)) share.events = [];
+    const now = new Date().toISOString();
+    // Apply customer selections (only the safe, customer-controlled fields).
+    if (selections) {
+      if (Array.isArray(selections.options)) {
+        selections.options.forEach(function(sel){
+          const o = (quote.options || []).find(function(x){ return x.id === sel.id; });
+          if (o) { o.selected = sel.selected !== false; o.selectedUpgrade = sel.selectedUpgrade || ''; }
+        });
+      }
+      if (typeof selections.gutterChoice === 'string') quote.gutterChoice = selections.gutterChoice;
+    }
+    if (type === 'accepted') {
+      quote.accepted = { name: name || quote.client || 'Customer', at: now, total: total || 0, options: acceptedOptions || [], gutter: quote.gutterChoice || 'none' };
+      share.status = 'accepted'; share.acceptedAt = now;
+    } else if (type === 'declined') {
+      share.status = 'declined'; share.declinedAt = now;
+    } else if (type === 'queried') {
+      share.status = 'queried'; share.query = { message: String(message || '').slice(0, 2000), at: now };
+    } else if (type === 'opened') {
+      if (!share.status || share.status === 'sent') share.status = 'opened';
+    }
+    share.events.push({ type: type || 'update', at: now, message: message ? String(message).slice(0, 2000) : undefined });
+    if (share.events.length > 80) share.events = share.events.slice(-80);
+    quote.share = share;
+    await _saveQuoteBack(job, quote);
+    res.json({ ok: true, status: share.status });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Office home-screen feed: every job that has a shared quote, with its
+// current status + last activity.
+app.get('/quote-activity', requireAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('jobs')
+      .select('id, client_name, site_address, updated_at, draw_state')
+      .eq('user_id', req.user.id).order('updated_at', { ascending: false }).limit(120);
+    if (error) return res.status(500).json({ error: error.message });
+    const feed = (data || []).map(function(j){
+      const q = _quoteOf(j) || {};
+      const sh = q.share;
+      if (!sh || !sh.token) return null;
+      const lastEv = (sh.events && sh.events.length) ? sh.events[sh.events.length - 1] : null;
+      return {
+        jobId: j.id,
+        client: j.client_name || q.client || '—',
+        ref: q.ref || '',
+        status: sh.status || 'sent',
+        token: sh.token,
+        openCount: sh.openCount || 0,
+        lastOpenedAt: sh.lastOpenedAt || null,
+        query: sh.query || null,
+        accepted: q.accepted || null,
+        lastEventAt: lastEv ? lastEv.at : (sh.lastOpenedAt || null),
+      };
+    }).filter(Boolean);
+    res.json(feed);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 function httpsPost(host, path, headers, body) {
   return httpsRequest(host, path, 'POST', headers, body);
 }

@@ -867,6 +867,16 @@ select{
 <script>
 (function(){
   var BACKEND='https://flood-roofing-estimator-production.up.railway.app';
+  // Customer-facing shareable quote: ?q=<token> opens a read-only,
+  // interactive proposal with no office login.  bootCustomerView()
+  // (defined later) renders it once all scripts have loaded.
+  var _cq = new URLSearchParams(location.search).get('q');
+  if (_cq) {
+    window.__CUSTOMER_TOKEN = _cq;
+    var _lsc = document.getElementById('login-screen'); if (_lsc) _lsc.style.display='none';
+    var _apc = document.querySelector('.app'); if (_apc) _apc.style.display='none';
+    return;
+  }
   var tok=localStorage.getItem('fr_token');
   if(!tok){
     document.getElementById('login-screen').style.display='flex';
@@ -952,6 +962,14 @@ select{
     </div>
     <button onclick="newJob()" style="padding:10px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;box-shadow:0 2px 6px rgba(5,150,105,.25)">＋ New Job</button>
     <button onclick="openSelectJobModal()" style="padding:10px 18px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,153,204,.25)">📂 Select Job</button>
+  </div>
+  <!-- Quote activity feed — accepted / declined / opened / queried by customers via the shared link -->
+  <div class="card" id="quoteActivityCard" style="display:none">
+    <div class="card-hd"><span class="card-dot"></span>Quote activity
+      <span id="quoteActivityCount" style="margin-left:8px;font-size:11px;font-weight:600;color:var(--text2)"></span>
+      <button onclick="fetchQuoteActivity()" style="margin-left:auto;padding:4px 12px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
+    </div>
+    <div id="quoteActivityList"></div>
   </div>
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Job details</div>
@@ -1631,6 +1649,7 @@ select{
     <button onclick="emailQuote()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Email Quote</button>
     <button onclick="openJMSPushModal()" style="padding:8px 14px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📤 Push to JMS</button>
     <button onclick="printQuote()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
+    <button onclick="copyCustomerLink()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🔗 Customer link</button>
     <button onclick="saveAsDefaultTemplate()" title="Snapshot this proposal's cover title, about text, terms, inclusions and options as the default for every new quote" style="padding:8px 14px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⭐ Save as default template</button>
     <span id="qaMsg" style="font-size:12px;color:var(--text2);width:100%"></span>
   </div>
@@ -2596,6 +2615,7 @@ function gotoTab(t) {
   document.querySelectorAll('.nav-btn').forEach(function(b,i){b.classList.toggle('active',ids[i]===t);});
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
+  if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); }
   if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}}
   if(t==='scope'){
@@ -3924,8 +3944,10 @@ function newJob(){
 // Boot: load settings + apply branding once the user is logged in.
 (function bootJobsSettings(){
   function tryBoot(){
+    if (window.__CUSTOMER_TOKEN) return; // customer view — skip office boot
     if (!localStorage.getItem('fr_token')) { setTimeout(tryBoot, 1000); return; }
     loadSettings().catch(function(e){console.warn(e);});
+    try { fetchQuoteActivity(); } catch(e){}
   }
   if (document.readyState === 'complete' || document.readyState === 'interactive') tryBoot();
   else document.addEventListener('DOMContentLoaded', tryBoot);
@@ -5292,6 +5314,8 @@ function recalcQuoteSelectedTotals(){
   // Acceptance-summary total, if that page is showing.
   setM('qpAcceptTotal', tot);
   refreshAcceptSummary();
+  // In the customer-facing view, push the selection back to the office.
+  if (window.__CUSTOMER_MODE) _postCustomerUpdateDebounced();
 }
 
 // Client ticks a proposal-option package on the printed Price page.
@@ -5374,23 +5398,23 @@ function acceptQuoteDigitally(){
   var nameEl  = document.getElementById('qpAcceptName');
   var termsEl = document.getElementById('qpAcceptTerms');
   var name = (nameEl && nameEl.value.trim()) || (S.quote.client||'').trim();
-  if (!name){ alert('Please type your full name to accept the quote.'); if (nameEl) nameEl.focus(); return; }
-  if (termsEl && !termsEl.checked){ alert('Please tick the box to confirm you accept the quote and the terms & conditions.'); return; }
+  if (!name){ alert('Please type your full name to accept the quote.'); if (nameEl) { try{nameEl.scrollIntoView({block:'center'});}catch(e){} nameEl.focus(); } return; }
+  if (termsEl && !termsEl.checked){ alert('Please tick the box to confirm you accept the quote and the terms & conditions.'); try{termsEl.scrollIntoView({block:'center'});}catch(e){} return; }
   var rate = (S.quote.gstRate||0)/100;
   var sel = (S.quote.options||[]).filter(function(o){ return o.selected !== false; });
   var sub = sel.reduce(function(s,o){ return s + _optEffectiveTotal(o); }, 0) + _gutterDelta();
-  S.quote.accepted = {
-    name: name,
-    at: new Date().toISOString(),
-    total: sub * (1+rate),
-    gutter: S.quote.gutterChoice || 'none',
-    options: sel.map(function(o){
-      var g = 'Standard';
-      if (o.selectedUpgrade){ var u=(o.upgrades||[]).find(function(x){return x.id===o.selectedUpgrade;}); if (u) g=u.title||'Upgrade'; }
-      return { title: o.title||'Option', grade: g, total: _optEffectiveTotal(o)*(1+rate) };
-    })
-  };
-  try { if (typeof saveCurrentJob === 'function') saveCurrentJob(); } catch(e){}
+  var acceptedOptions = sel.map(function(o){
+    var g = 'Standard';
+    if (o.selectedUpgrade){ var u=(o.upgrades||[]).find(function(x){return x.id===o.selectedUpgrade;}); if (u) g=u.title||'Upgrade'; }
+    return { title: o.title||'Option', grade: g, total: _optEffectiveTotal(o)*(1+rate) };
+  });
+  S.quote.accepted = { name: name, at: new Date().toISOString(), total: sub * (1+rate), gutter: S.quote.gutterChoice || 'none', options: acceptedOptions };
+  if (window.__CUSTOMER_MODE) {
+    // Customer-facing view — write acceptance back to the office's job.
+    _postCustomerEvent('accepted', { name: name, total: S.quote.accepted.total, acceptedOptions: acceptedOptions });
+  } else {
+    try { if (typeof saveCurrentJob === 'function') saveCurrentJob(); } catch(e){}
+  }
   refreshQuoteProposal();
   alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
 }
@@ -5400,6 +5424,145 @@ function unacceptQuote(){
   S.quote.accepted = null;
   try { if (typeof saveCurrentJob === 'function') saveCurrentJob(); } catch(e){}
   refreshQuoteProposal();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SHAREABLE CUSTOMER QUOTE — office copies a link; the customer opens
+// it (?q=<token>) and can change options, then accept / decline / ask.
+// ══════════════════════════════════════════════════════════════════
+function _quoteShareToken(){
+  if (!S.quote) return null;
+  if (!S.quote.share) S.quote.share = {};
+  if (!S.quote.share.token) S.quote.share.token = 'q' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+  if (!S.quote.share.status) S.quote.share.status = 'sent';
+  return S.quote.share.token;
+}
+async function copyCustomerLink(){
+  if (!S.quote){ alert('Open or create a quote first.'); return; }
+  var token = _quoteShareToken();
+  // Make sure the job can save (saveCurrentJob needs a client name / address).
+  var jc = document.getElementById('jobClient'), ja = document.getElementById('jobAddr');
+  if (jc && !jc.value && S.quote.client) jc.value = S.quote.client;
+  if (ja && !ja.value && S.quote.addr)   ja.value = S.quote.addr;
+  var msg = document.getElementById('qaMsg');
+  if (msg) { msg.textContent = 'Saving & generating link…'; }
+  try { await saveCurrentJob(); } catch(e){}
+  var link = location.origin + location.pathname + '?q=' + token;
+  try { await navigator.clipboard.writeText(link); } catch(e){}
+  if (msg) { msg.textContent = 'Customer link copied — send it to the client. They can pick options and accept online.'; }
+  // prompt() guarantees the link is selectable even if the clipboard API is blocked.
+  window.prompt('Customer quote link (copied to clipboard):', link);
+}
+
+// Build the customer's current selection payload for write-back.
+function _customerSelections(){
+  return {
+    options: (S.quote.options||[]).map(function(o){ return { id:o.id, selected:o.selected!==false, selectedUpgrade:o.selectedUpgrade||'' }; }),
+    gutterChoice: S.quote.gutterChoice || 'none'
+  };
+}
+function _postCustomerEvent(type, extra){
+  if (!window.__CUSTOMER_TOKEN) return Promise.resolve();
+  var body = Object.assign({ type:type, selections:_customerSelections() }, extra||{});
+  return fetch(PROXY + '/q/' + encodeURIComponent(window.__CUSTOMER_TOKEN) + '/event',
+    { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).catch(function(){});
+}
+var _custUpdT;
+function _postCustomerUpdateDebounced(){
+  if (!window.__CUSTOMER_MODE) return;
+  clearTimeout(_custUpdT);
+  _custUpdT = setTimeout(function(){ _postCustomerEvent('update'); }, 700);
+}
+function customerDecline(){
+  if (S.quote && S.quote.accepted){ alert('You\'ve already accepted this quote.'); return; }
+  if (!confirm('Decline this quote? You can still contact us if you change your mind.')) return;
+  _postCustomerEvent('declined');
+  if (S.quote){ S.quote.share = S.quote.share || {}; S.quote.share.status = 'declined'; }
+  var bar = document.getElementById('custBar'); if (bar) bar.innerHTML = '<span style="font-size:13px">Thanks for letting us know — we\'ve recorded that you\'ve declined this quote.</span>';
+}
+function customerQuery(){
+  var m = window.prompt('What would you like to ask about this quote?');
+  if (!m) return;
+  _postCustomerEvent('queried', { message:m });
+  alert('Thanks — your question has been sent to Flood Roofing. We\'ll be in touch shortly.');
+}
+async function bootCustomerView(token){
+  try {
+    document.title = 'Your Roofing Proposal';
+    var r = await fetch(PROXY + '/q/' + encodeURIComponent(token));
+    if (!r.ok) throw new Error('not found');
+    var d = await r.json();
+    window.S = window.S || {};
+    S.quote = d.quote || {};
+    if (!S.quote.proposalSections) S.quote.proposalSections = {};
+    S.settings = S.settings || {};
+    var baseBrand = (typeof defaultSettings === 'function') ? defaultSettings().branding : {};
+    S.settings.branding = Object.assign({}, baseBrand, d.branding || {});
+    // Hide the office app + login (keep them in the DOM so office-only
+    // boot code doesn't crash), and rename the office #qpRoot so the
+    // customer view's #qpRoot is the one the renderer targets.
+    var officeRoot = document.getElementById('qpRoot'); if (officeRoot) officeRoot.id = 'qpRootOffice';
+    var ap = document.querySelector('.app'); if (ap) ap.style.display = 'none';
+    var ls = document.getElementById('login-screen'); if (ls) ls.style.display = 'none';
+    var host = document.createElement('div');
+    host.id = 'customerView';
+    host.style.cssText = 'position:fixed;inset:0;overflow-y:auto;background:#dfe3e8;z-index:100000;-webkit-overflow-scrolling:touch';
+    host.innerHTML =
+      '<div style="max-width:900px;margin:0 auto;padding:16px 10px 150px"><div class="report-preview" style="margin:0">'+
+        '<div id="qpRoot"></div></div></div>'+
+      '<div id="custBar" style="position:fixed;left:0;right:0;bottom:0;background:#0a1628;color:#fff;padding:11px 16px;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;box-shadow:0 -4px 16px rgba(0,0,0,.25);z-index:100001">'+
+        '<span style="font-size:12px;opacity:.8;margin-right:auto">Choose your options above, then:</span>'+
+        '<button onclick="customerQuery()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Ask a question</button>'+
+        '<button onclick="customerDecline()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Decline</button>'+
+        '<button onclick="acceptQuoteDigitally()" style="padding:10px 22px;background:#0099e0;border:none;color:#fff;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">✓ Accept quote</button>'+
+      '</div>';
+    document.body.appendChild(host);
+    window.__CUSTOMER_MODE = true;
+    refreshQuoteProposal();
+  } catch(e){
+    console.error('BOOTCUST_ERR', e && (e.stack||e.message));
+    document.body.innerHTML = '<div style="font-family:system-ui,-apple-system,sans-serif;max-width:480px;margin:90px auto;text-align:center;color:#33414f;padding:0 20px"><h2 style="font-weight:700">Quote unavailable</h2><p>Sorry, this quote link is no longer available. Please contact Flood Roofing on 0800 4 FLOOD.</p></div>';
+  }
+}
+
+// ── Office home-screen: customer quote activity feed ──
+async function fetchQuoteActivity(){
+  var card = document.getElementById('quoteActivityCard');
+  var list = document.getElementById('quoteActivityList');
+  var countEl = document.getElementById('quoteActivityCount');
+  if (!list) return;
+  try {
+    var feed = await api('GET', '/quote-activity');
+    if (!feed || !feed.length){ if (card) card.style.display='none'; return; }
+    feed.sort(function(a,b){ return new Date(b.lastEventAt||0) - new Date(a.lastEventAt||0); });
+    var STAT = {
+      accepted:['Accepted','#dcfce7','#15803d'], declined:['Declined','#fee2e2','#b91c1c'],
+      queried:['Question','#fef3c7','#92400e'], opened:['Opened','#dbeafe','#1d4ed8'],
+      sent:['Sent','#f1f5f9','#475569']
+    };
+    var actionable = feed.filter(function(f){ return f.status==='accepted'||f.status==='declined'||f.status==='queried'; }).length;
+    if (countEl) countEl.textContent = actionable ? ('· '+actionable+' need'+(actionable===1?'s':'')+' attention') : '';
+    list.innerHTML = feed.map(function(f){
+      var s = STAT[f.status] || STAT.sent;
+      var when = f.lastEventAt ? new Date(f.lastEventAt).toLocaleString('en-NZ',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      var extra = '';
+      if (f.status==='queried' && f.query) extra = '<div style="font-size:12px;color:#92400e;margin-top:3px">“'+esc2(f.query.message||'')+'”</div>';
+      else if (f.status==='accepted' && f.accepted) extra = '<div style="font-size:12px;color:#15803d;margin-top:3px">Accepted by '+esc2(f.accepted.name||'')+' · '+fmtMoney(f.accepted.total||0)+'</div>';
+      else if (f.status==='opened') extra = '<div style="font-size:11px;color:var(--text2);margin-top:3px">Viewed '+(f.openCount||1)+'×</div>';
+      return '<div onclick="openJob(\''+f.jobId+'\')" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer" onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'">'+
+        '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:20px;background:'+s[1]+';color:'+s[2]+';white-space:nowrap">'+s[0]+'</span>'+
+        '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#0a1628">'+esc2(f.client||'—')+(f.ref?' <span style="color:var(--text2);font-weight:400">· '+esc2(f.ref)+'</span>':'')+'</div>'+extra+'</div>'+
+        '<div style="font-size:11px;color:var(--text2);white-space:nowrap">'+esc2(when)+'</div>'+
+      '</div>';
+    }).join('');
+    if (card) card.style.display='';
+  } catch(e){ if (card) card.style.display='none'; }
+}
+
+// Kick off the customer view once all functions are defined.
+if (window.__CUSTOMER_TOKEN) {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ bootCustomerView(window.__CUSTOMER_TOKEN); });
+  else bootCustomerView(window.__CUSTOMER_TOKEN);
 }
 
 function renderProposalOptions(){
