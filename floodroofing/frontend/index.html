@@ -1467,24 +1467,24 @@ select{
       <div class="chk-item" onclick="toggleChk(this)" data-h="1" data-item="Cleanup and disposal"><span class="chk-dot"></span>Cleanup and disposal</div>
       <div class="chk-item" onclick="toggleChk(this)" data-h="2" data-item="Scaffold setup/removal"><span class="chk-dot"></span>Scaffold setup/removal</div>
     </div>
-    <div class="f2"><div><label>Workers on site</label><input type="number" id="nWorkers" value="2" min="1" max="20" onchange="calcLabour()"></div><div><label>Rate per worker ($/hr)</label><input type="number" id="wRate" value="55" min="1" onchange="calcLabour()"></div></div>
-    <div class="f2"><div><label>Roof area (m2) — auto-filled from analysis</label><input type="number" id="scopeArea" placeholder="From AI analysis" onchange="calcLabour()"></div><div><label>Complexity multiplier</label><select id="cxMult" onchange="calcLabour()"><option value="1">Standard x1.0</option><option value="1.2">Moderate x1.2</option><option value="1.5">Complex x1.5</option><option value="2">Very complex x2.0</option></select></div></div>
     <label>Notes</label><textarea id="scopeNotes" placeholder="Special instructions..."></textarea>
-    <button class="sec-btn" onclick="calcLabour()">Calculate labour</button>
-    <div class="result-box" id="labourOut"><div class="result-box-title">Labour breakdown</div><div id="labourRows"></div></div>
+    <!-- Legacy inputs (old labour model) kept hidden so existing code that
+         reads/writes them keeps working — labour is now the two-line table below. -->
+    <div style="display:none" aria-hidden="true">
+      <input type="number" id="nWorkers" value="2"><input type="number" id="wRate" value="55">
+      <input type="number" id="scopeArea"><select id="cxMult"><option value="1">1</option></select>
+      <div class="result-box" id="labourOut"><div id="labourRows"></div></div>
+    </div>
   </div>
 
-  <!-- DRAWING SUMMARY — mirrors the From-drawing measurements + per-line
-       flashings from the Materials tab so the user can cross-check
-       that the Material Price rows below line up with the drawn data. -->
-  <div class="card" id="drawingSummaryCard">
-    <div class="card-hd"><span class="card-dot"></span>Drawing summary (cross-check)
-      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Same data as the Materials tab — verify the line items below match</span>
-      <button onclick="populateMaterialsFromLines()" style="margin-left:auto;padding:4px 14px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh from drawing</button>
+  <!-- LABOUR — two charge-out lines (Lead Roofer + Apprentice) plus the
+       always-included scaffolding line.  Hours / cost-hr / charge-out-hr
+       are all editable; rolls up to a combined total. -->
+  <div class="card" id="labourCard">
+    <div class="card-hd"><span class="card-dot"></span>Labour &amp; scaffolding
+      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Set the hours; cost/hr is what you pay, price/hr is the charge-out rate</span>
     </div>
-    <div id="pricingDrawSummary" style="font-size:12px">
-      <p style="color:var(--text2);margin:0">Draw your roof on Map Roof first — totals will mirror here automatically.</p>
-    </div>
+    <div id="labourTableWrap"></div>
   </div>
 
   <!-- MATERIAL PRICE — auto-quantified from the drawing × Price Book.
@@ -1502,6 +1502,14 @@ select{
     <div id="materialPriceTableWrap">
       <p style="font-size:12px;color:var(--text2)">Draw your roof on the Map Roof tab and set unit prices in Settings → Price book — this table will auto-populate.</p>
     </div>
+  </div>
+
+  <!-- JOB PROFITABILITY — revenue vs cost, gross profit % and $/hr. -->
+  <div class="card" id="profitCard">
+    <div class="card-hd"><span class="card-dot"></span>Job profitability
+      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Revenue (charge-out) vs cost — refresh material price above to update</span>
+    </div>
+    <div id="profitWrap"></div>
   </div>
 </div>
 
@@ -2621,6 +2629,7 @@ function gotoTab(t) {
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
+    try{calcLabour();}catch(e){console.warn('labour:',e);}
   }
   if(t==='order'){
     // Refresh dropdowns from settings, render the flashings list,
@@ -2812,6 +2821,10 @@ function defaultSettings(){
     // Scope & Pricing tab. Hours are pre-mult (the table multiplies
     // by the complexity multiplier the user picks per-job).
     labour_pricing: {
+      // Two-line charge-out model (cost/hr = what you pay; price/hr = charge-out).
+      lead_cost: 45,  lead_price: 95,
+      app_cost:  25,  app_price:  65,
+      scaffold_price: 1500, scaffold_cost: 500,
       default_workers: 2,
       default_rate: 55,
       default_complexity: 1,
@@ -3514,6 +3527,7 @@ function renderMaterialPriceTable(){
   }
   box.innerHTML = html;
   S.materials = total;
+  try { renderProfitability(); } catch(e){}
 }
 
 function refreshSettingsUI(){
@@ -4818,67 +4832,119 @@ function _labourDefaultHoursFor(itemName, datasetH, area, mult){
   return parseFloat((h * mult).toFixed(1));
 }
 
-function calcLabour(){
-  var out = document.getElementById('labourOut');
-  var box = document.getElementById('labourRows');
-  if (!out || !box) return;
-  var workers = parseFloat((document.getElementById('nWorkers')||{}).value) || 2;
-  var rate    = parseFloat((document.getElementById('wRate')||{}).value)    || 55;
-  var mult    = parseFloat((document.getElementById('cxMult')||{}).value)   || 1;
-  var area    = parseFloat((document.getElementById('scopeArea')||{}).value) || 0;
-
-  // Build the row list from ticked scope items, then append custom rows.
-  var rows = [];
-  document.querySelectorAll('#scopeGrid .chk-item.on').forEach(function(el){
-    var name = el.dataset.item;
-    if (LABOUR_DELETED[name]) return;
-    var auto = _labourDefaultHoursFor(name, el.dataset.h, area, mult);
-    var hours = (LABOUR_OVERRIDES[name] != null) ? parseFloat(LABOUR_OVERRIDES[name]) : auto;
-    rows.push({ key:name, item:name, hours:hours, auto:auto, custom:false });
-  });
-  CUSTOM_LABOUR_LINES.forEach(function(c, i){
-    rows.push({ key:'custom:'+i, item:c.item || '(unnamed)', hours:parseFloat(c.hours) || 0, auto:0, custom:true });
-  });
-
-  if (!rows.length) {
-    box.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:6px 0">Tick scope items above (or click <strong>+ Add labour line</strong>) to build the labour breakdown.</div>'+
-      '<div style="margin-top:6px"><button onclick="addCustomLabourLine()" class="add-link">+ Add labour line</button></div>';
-    out.style.display = 'block';
-    S.labour = 0;
-    return;
+// ── Two-line labour + scaffolding model ──────────────────────────────
+// Pricing state lives on the quote so it saves with the job. Rates seed
+// from settings → labour_pricing on first use; everything is editable.
+function _pricingState(){
+  if (!S.quote) S.quote = (typeof defaultQuote === 'function') ? defaultQuote() : {};
+  var lp = (S.settings && S.settings.labour_pricing) || {};
+  var num = function(v, d){ return (v != null && v !== '') ? +v : d; };
+  if (!S.quote.labour) {
+    S.quote.labour = {
+      leadHrs: 0, leadCost: num(lp.lead_cost,45), leadPrice: num(lp.lead_price,95),
+      appHrs:  0, appCost:  num(lp.app_cost,25),  appPrice:  num(lp.app_price,65)
+    };
   }
-
-  // Table layout: item | hrs | subtotal | ×
-  var totalHours = 0;
-  var html = '<table class="price-tbl" style="margin-bottom:6px;table-layout:fixed">'+
-    '<thead><tr><th style="width:50%">Item</th><th style="width:18%">Hours</th><th style="width:24%;text-align:right">Subtotal</th><th style="width:8%"></th></tr></thead><tbody>';
-  rows.forEach(function(r){
-    var subtotal = r.hours * rate * workers;
-    totalHours += r.hours;
-    var override = (LABOUR_OVERRIDES[r.key] != null) && !r.custom;
-    var resetBtn = override ? '<button onclick="_resetLabourOverride(\''+esc(r.key).replace(/'/g,"\\'")+'\')" title="Reset to auto" style="margin-left:4px;background:none;border:none;color:#7c3aed;cursor:pointer;font-size:11px">↻</button>' : '';
-    html += '<tr>'+
-      '<td>'+ (r.custom ? '<input type="text" value="'+esc(r.item)+'" onchange="_onCustomLabour('+parseInt(r.key.split(':')[1],10)+',\'item\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"/>' : esc(r.item)) +
-        (override ? ' <span style="font-size:9px;color:#7c3aed;font-weight:700">OVERRIDE</span>' : '') +
-      '</td>'+
-      '<td><div style="display:flex;align-items:center;gap:2px">'+
-        '<input type="number" step="0.1" min="0" value="'+r.hours.toFixed(1)+'" onchange="_onLabourHoursChange(\''+esc(r.key).replace(/'/g,"\\'")+'\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"/>'+
-        resetBtn +
-      '</div></td>'+
-      '<td style="text-align:right;font-weight:600">$'+subtotal.toFixed(2)+'</td>'+
-      '<td><button onclick="_deleteLabourRow(\''+esc(r.key).replace(/'/g,"\\'")+'\')" title="Delete this line" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button></td>'+
+  if (!S.quote.scaffold) {
+    S.quote.scaffold = { price: num(lp.scaffold_price,1500), cost: num(lp.scaffold_cost,500) };
+  }
+  return { L: S.quote.labour, sc: S.quote.scaffold };
+}
+function updateLabour(field, val){
+  var p = _pricingState(); p.L[field] = parseFloat(val) || 0; calcLabour();
+}
+function updateScaffold(field, val){
+  var p = _pricingState(); p.sc[field] = parseFloat(val) || 0; calcLabour();
+}
+function calcLabour(){
+  var wrap = document.getElementById('labourTableWrap');
+  if (!wrap) return;
+  var st = _pricingState(); var L = st.L, sc = st.sc;
+  var f = function(v){ return parseFloat(v) || 0; };
+  function row(label, hrsKey, costKey, priceKey){
+    var hrs=f(L[hrsKey]), cost=f(L[costKey]), price=f(L[priceKey]);
+    return '<tr>'+
+      '<td style="font-weight:600">'+label+'</td>'+
+      '<td><input type="number" step="0.5" min="0" value="'+hrs+'" onchange="updateLabour(\''+hrsKey+'\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></td>'+
+      '<td><div style="display:flex;align-items:center;gap:2px"><span style="color:var(--text2);font-size:11px">$</span><input type="number" step="0.5" min="0" value="'+cost+'" onchange="updateLabour(\''+costKey+'\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></div></td>'+
+      '<td><div style="display:flex;align-items:center;gap:2px"><span style="color:var(--text2);font-size:11px">$</span><input type="number" step="0.5" min="0" value="'+price+'" onchange="updateLabour(\''+priceKey+'\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></div></td>'+
+      '<td style="text-align:right;font-weight:600">$'+(hrs*price).toFixed(2)+'</td>'+
     '</tr>';
-  });
-  var grandTotal = totalHours * rate * workers;
-  html += '</tbody></table>'+
-    '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
-      '<strong style="font-size:13px">'+workers+' workers × '+totalHours.toFixed(1)+' hrs @ $'+rate+'/hr</strong>'+
-      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+grandTotal.toFixed(2)+'</span>'+
+  }
+  var leadHrs=f(L.leadHrs), appHrs=f(L.appHrs);
+  var totalHrs = leadHrs + appHrs;
+  var totalPrice = leadHrs*f(L.leadPrice) + appHrs*f(L.appPrice);
+  var totalCost  = leadHrs*f(L.leadCost)  + appHrs*f(L.appCost);
+
+  var html = '<table class="price-tbl" style="table-layout:fixed;width:100%">'+
+    '<thead><tr>'+
+      '<th style="width:26%">Worker</th>'+
+      '<th style="width:16%">Hours</th>'+
+      '<th style="width:20%">Cost/hr</th>'+
+      '<th style="width:20%">Price/hr</th>'+
+      '<th style="width:18%;text-align:right">Total</th>'+
+    '</tr></thead><tbody>'+
+      row('Lead Roofer','leadHrs','leadCost','leadPrice')+
+      row('Apprentice','appHrs','appCost','appPrice')+
+    '</tbody></table>'+
+    // Combined labour total
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
+      '<strong style="font-size:13px">Combined labour · '+totalHrs.toFixed(1)+' hrs</strong>'+
+      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+totalPrice.toFixed(2)+'</span>'+
     '</div>'+
-    '<div style="margin-top:8px"><button onclick="addCustomLabourLine()" class="add-link">+ Add labour line</button></div>';
-  box.innerHTML = html;
-  out.style.display = 'block';
-  S.labour = parseFloat(grandTotal.toFixed(2));
+    // Scaffolding line (included in every quote)
+    '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">'+
+      '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:8px">🪜 Scaffolding <span style="font-weight:400;color:var(--text2)">— included in every quote</span></div>'+
+      '<div class="f2">'+
+        '<div><label>Scaffolding cost ($)</label><input type="number" step="1" min="0" value="'+f(sc.cost)+'" onchange="updateScaffold(\'cost\',this.value)"></div>'+
+        '<div><label>Scaffolding price ($)</label><input type="number" step="1" min="0" value="'+f(sc.price)+'" onchange="updateScaffold(\'price\',this.value)"></div>'+
+      '</div>'+
+    '</div>';
+  wrap.innerHTML = html;
+
+  // Roll up to the quote (price feeds the combined quote total; cost +
+  // hours feed the profitability panel).
+  S.labour = parseFloat(totalPrice.toFixed(2));
+  S.labourCost = parseFloat(totalCost.toFixed(2));
+  S.labourHours = parseFloat(totalHrs.toFixed(1));
+  renderProfitability();
+}
+// Job profitability dashboard.
+function renderProfitability(){
+  var wrap = document.getElementById('profitWrap');
+  if (!wrap) return;
+  var st = _pricingState(); var sc = st.sc;
+  var f = function(v){ return parseFloat(v) || 0; };
+  var labourPrice = f(S.labour), labourCost = f(S.labourCost), hrs = f(S.labourHours);
+  var mat = f(S.materials);
+  var scPrice = f(sc.price), scCost = f(sc.cost);
+  // Revenue (ex-GST charge-out) and our cost. Materials pass through at
+  // price-book cost, so GP comes from the labour + scaffold margin.
+  var revenue = labourPrice + mat + scPrice;
+  var cost    = labourCost  + mat + scCost;
+  var gp = revenue - cost;
+  var gpPct = revenue > 0 ? (gp / revenue * 100) : 0;
+  var gpHr  = hrs > 0 ? (gp / hrs) : 0;
+  function stat(label, val, sub, color){
+    return '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px">'+
+      '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:600">'+label+'</div>'+
+      '<div style="font-size:22px;font-weight:700;color:'+(color||'#0a1628')+';margin-top:4px;letter-spacing:-.01em">'+val+'</div>'+
+      (sub?'<div style="font-size:11px;color:var(--text2);margin-top:2px">'+sub+'</div>':'')+
+    '</div>';
+  }
+  var gpColor = gpPct >= 40 ? '#15803d' : (gpPct >= 25 ? '#b45309' : '#b91c1c');
+  wrap.innerHTML =
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">'+
+      stat('Job revenue', fmtMoney(revenue), 'ex GST · labour + materials + scaffold') +
+      stat('Material cost', fmtMoney(mat), 'from the price book') +
+      stat('GP %', gpPct.toFixed(1)+'%', 'gross profit ÷ revenue', gpColor) +
+      stat('GP / hr', fmtMoney(gpHr), hrs.toFixed(1)+' labour hrs', gpColor) +
+    '</div>'+
+    '<div style="margin-top:10px;font-size:12px;color:var(--text2);display:flex;gap:18px;flex-wrap:wrap">'+
+      '<span>Gross profit <strong style="color:#0a1628">'+fmtMoney(gp)+'</strong></span>'+
+      '<span>Total cost <strong style="color:#0a1628">'+fmtMoney(cost)+'</strong></span>'+
+      '<span>Labour (charge-out) <strong style="color:#0a1628">'+fmtMoney(labourPrice)+'</strong> · cost '+fmtMoney(labourCost)+'</span>'+
+    '</div>';
 }
 
 function _onLabourHoursChange(key, value){
@@ -5143,6 +5209,8 @@ function defaultQuoteLineItems(){
   var items = [];
   if (S.labour > 0)    items.push({desc:'Labour',    qty:1, unit:S.labour});
   if (S.materials > 0) items.push({desc:'Materials', qty:1, unit:S.materials});
+  var scP = (S.quote && S.quote.scaffold && parseFloat(S.quote.scaffold.price)) || 0;
+  if (scP > 0)         items.push({desc:'Scaffolding', qty:1, unit:scP});
   if (items.length === 0) items.push({desc:'', qty:1, unit:0});
   return items;
 }
