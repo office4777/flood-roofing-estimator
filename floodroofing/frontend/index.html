@@ -2927,8 +2927,9 @@ async function saveSettings(){
     msg.textContent = '✓ Saved'; msg.style.color = '#15803d';
     applyBranding();
   } catch(e) {
-    // localStorage save already succeeded — this is a cloud-only failure
-    msg.textContent = '✓ Saved locally (cloud unavailable — run database setup SQL to enable cloud backup)';
+    // localStorage save already succeeded — this is a cloud-only failure.
+    // Surface the real backend error so cloud-sync issues can be diagnosed.
+    msg.textContent = '✓ Saved locally — cloud sync failed: ' + (e && e.message ? e.message : 'unknown error');
     msg.style.color = '#b45309';
     applyBranding();
   }
