@@ -14497,20 +14497,22 @@ function _renderRoofSheetPlanInner() {
         isBigL = false;
       }
     }
-    // Proportions gate: the hand-designed cascade requires a small wing
-    // (a) with its own N hip-end (wing_w ≤ wing_h) and (b) that fits
-    // inside the main's W hip-end horizontally (wing_w ≤ main_h/2).
+    // Proportions gate: the cascade is parameterised so any wing DEPTH
+    // works — a short north wing simply yields a shorter wing ridge (fewer
+    // purple sheets) and its N hip-end apex clips against the main; the
+    // donor/offcut/valley cascade still tiles cleanly (verified across
+    // short → tall wings).  The only requirement kept is that the wing's
+    // sheets stay shorter than the main's (wing_w < main_h) so the wing is
+    // genuinely the smaller arm; an oversized wing falls to the generic
+    // path.  (We previously also required wing_w ≤ 2·wing_h — a real N-S
+    // ridge apex north of the junction — which wrongly rejected every
+    // short/shallow wing and dropped it onto the generic path that doesn't
+    // run the donor logic at all.)
     if (isBigL && bigL && bigL.orientation === 0 && bigL.wing && bigL.main) {
       var _bgWingW = bigL.wing.x1 - bigL.wing.x0;
-      var _bgWingH = bigL.wing.y1 - bigL.wing.y0;
       var _bgMainH = bigL.main.y1 - bigL.main.y0;
-      // Cascade needs (a) a real N-S wing ridge apex within the wing
-      // depth (apex at wy0+wing_w/2 must sit north of the junction):
-      // wing_w ≤ 2·wing_h; and (b) wing sheets shorter than main sheets:
-      // wing_w < main_h.  (The wing may extend east of the main's W apex.)
-      var _bgWingHasApex = (_bgWingW <= 2 * _bgWingH + 1);
       var _bgWingShorter = (_bgWingW <  _bgMainH);
-      if (!_bgWingHasApex || !_bgWingShorter) {
+      if (!_bgWingShorter) {
         isBigL = false;
       }
     } else {
