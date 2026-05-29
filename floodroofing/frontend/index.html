@@ -622,6 +622,9 @@ select{
 
 /* ── Report preview (printable proposal) ────────────────────── */
 .report-preview{background:#faf6f0;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-top:1rem;box-shadow:var(--shadow-sm);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+/* Global font normalisation — consistent Inter body across all pages */
+.report-preview .rp-body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12.5px;line-height:1.6;color:#1d2a3d}
+.report-preview .rp-body *{box-sizing:border-box}
 /* ── Editorial / capability-statement palette ───────────────────
    Warm cream paper, deep brand-blue-black ink, Flood Roofing
    electric-blue accent and terracotta warm-tone — channels the
@@ -703,6 +706,17 @@ select{
 .rp-page{border-top:1px solid var(--border)}
 .rp-header + .rp-page,.rp-page:first-child{border-top:none}
 @media print{.rp-page + .rp-page{page-break-before:always;break-before:page}}
+/* Screen: visually distinct A4 pages — heavier rule + subtle shadow lift */
+@media screen{
+  .report-preview .rp-page+.rp-page{border-top:10px solid #c8cfd9;box-shadow:0 -2px 0 0 #b4bbc8 inset}
+  .report-preview{background:#d0d5de;padding:0}
+  .report-preview .rp-page{box-shadow:0 2px 12px rgba(0,0,0,.14)}
+}
+/* Inline-edit zones in the rendered proposal */
+.qp-editable{cursor:text;border-radius:3px;transition:background .12s,outline .12s;outline:none}
+.qp-editable:hover{background:rgba(0,153,224,.07)!important;outline:1.5px dashed rgba(0,153,224,.4);outline-offset:2px}
+.qp-editable:focus{background:rgba(0,153,224,.05)!important;outline:2px solid rgba(0,153,224,.55);outline-offset:2px}
+[data-multiline].qp-editable{white-space:pre-wrap;display:block}
 .rp-cond-badge{display:inline-block;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:600}
 .cond-good{background:#eaf3de;color:#27500a}.cond-fair{background:#faeeda;color:#633806}.cond-poor{background:#fcebeb;color:#791f1f}
 
@@ -2624,7 +2638,7 @@ function gotoTab(t) {
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
-  if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); }
+  if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncLabourMaterials();}catch(e){} }
   if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
@@ -6094,6 +6108,26 @@ function resyncQuoteLines(){
   if (msg){ msg.textContent = '✓ Synced line items from labour ($'+S.labour.toFixed(2)+') + materials ($'+S.materials.toFixed(2)+')'; msg.style.color='#15803d'; setTimeout(function(){msg.textContent='';},3500); }
 }
 
+// Silently update Labour/Materials line items from current computed
+// values each time the Quote tab opens, without disturbing custom lines.
+function _autoSyncLabourMaterials(){
+  if (!S.quote) return;
+  if (!Array.isArray(S.quote.lineItems)) S.quote.lineItems = [];
+  var updated = false;
+  [['Labour', S.labour], ['Materials', S.materials]].forEach(function(pair){
+    var key = pair[0], val = pair[1];
+    if (!(val > 0)) return;
+    var li = S.quote.lineItems.find(function(x){ return x.desc === key; });
+    if (li) {
+      if (li.unit !== val) { li.unit = val; updated = true; }
+    } else {
+      S.quote.lineItems.unshift({ desc: key, qty: 1, unit: val });
+      updated = true;
+    }
+  });
+  if (updated) { renderQuoteLines(); recalcQuoteTotals(); refreshQuoteProposal(); }
+}
+
 function quoteSubtotal(){
   return (S.quote && S.quote.lineItems || []).reduce(function(s,li){return s + (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);}, 0);
 }
@@ -6384,10 +6418,50 @@ var STEEL_GUTTER_PROFILES = [
   { key:'colonial',   name:'Colonial Quad',       blurb:'Ogee-shouldered profile — period properties, character villas.' },
 ];
 
+// Wire up contenteditable zones in the rendered proposal so the user
+// can edit text in-context without opening the sidebar form fields.
+function _attachInlineEditors(){
+  var root = document.getElementById('qpRoot');
+  if (!root) return;
+  var inputMap = {
+    client:'qdClient', addr:'qdAddr', coverTitle:'qdCoverTitle',
+    aboutText:'qdAboutText',
+    condRoofType:'qdCondRoofType', condPitch:'qdCondPitch',
+    condMaterial:'qdCondMaterial', condAge:'qdCondAge',
+    condMajor:'qdCondMajor', condMinor:'qdCondMinor', condReco:'qdCondReco',
+    scope:'qdScope', notes:'qdNotes',
+  };
+  root.querySelectorAll('[data-qfield]').forEach(function(el){
+    // Single-line fields: swallow Enter key to keep them on one line
+    if (!el.dataset.multiline){
+      el.addEventListener('keydown', function(e){
+        if (e.key === 'Enter'){ e.preventDefault(); el.blur(); }
+      });
+    }
+    el.addEventListener('blur', function(){
+      var field = el.dataset.qfield;
+      var val = el.innerText || '';
+      // Trim trailing whitespace / blank lines the browser inserts
+      val = val.replace(/[\r\n]+$/, '').trim();
+      if (!S.quote) return;
+      S.quote[field] = val;
+      // Sync the corresponding sidebar input/textarea
+      var sid = inputMap[field];
+      if (sid){ var inp = document.getElementById(sid); if (inp) inp.value = val; }
+      recalcQuoteTotals();
+      // Deferred re-render so we don't interrupt the blur cycle
+      clearTimeout(window._qpReRenderTimer);
+      window._qpReRenderTimer = setTimeout(function(){ refreshQuoteProposal(); }, 80);
+    });
+  });
+}
+
 function refreshQuoteProposal(){
   if (!S.quote) return;
   var root = document.getElementById('qpRoot');
   if (!root) return;
+  // Don't re-render while the user is typing inside an inline-edit field
+  if (root.contains(document.activeElement) && document.activeElement.dataset && document.activeElement.dataset.qfield) return;
   var d = S.roofData || {};
   var br = (S.settings && S.settings.branding) || {};
   var company = br.company_name || 'FLOOD ROOFING';
@@ -6503,11 +6577,10 @@ function refreshQuoteProposal(){
       // Title plate on cream paper underneath the photo
       '<div style="padding:48px 48px 36px;background:var(--ed-paper)">'+
         '<div class="ed-eyebrow">A roofing proposal — Prepared for</div>'+
-        '<div class="ed-title ed-h1" style="margin-top:12px;font-size:42px"><span style="font-style:italic;font-weight:400;color:var(--ed-accent)">'+esc2(S.quote.client||'your project')+'</span></div>'+
-        '<div style="font-family:var(--ed-sans);font-size:13.5px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em">'+esc2(S.quote.addr || '—')+'</div>'+
+        '<div class="ed-title ed-h1" style="margin-top:12px;font-size:42px"><span class="qp-editable" contenteditable="true" data-qfield="client" spellcheck="false" style="font-style:italic;font-weight:400;color:var(--ed-accent)">'+esc2(S.quote.client||'your project')+'</span></div>'+
+        '<div class="qp-editable" contenteditable="true" data-qfield="addr" spellcheck="false" style="font-family:var(--ed-sans);font-size:13.5px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em">'+esc2(S.quote.addr || '—')+'</div>'+
         '<hr class="ed-rule" style="margin:28px 0 22px">'+
-        // Title (cover) — second line in serif
-        '<div class="ed-serif" style="font-size:22px;font-weight:400;line-height:1.3;color:var(--ed-ink);max-width:78%">'+esc2(S.quote.coverTitle || 'A re-roof, done with care.')+'</div>'+
+        '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="coverTitle" spellcheck="false" style="font-size:22px;font-weight:400;line-height:1.3;color:var(--ed-ink);max-width:78%">'+esc2(S.quote.coverTitle || 'A re-roof, done with care.')+'</div>'+
         // Meta footer — three columns, hairline divider
         '<div style="margin-top:36px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid var(--ed-line);padding-top:18px">'+
           '<div><div class="ed-eyebrow">Reference</div><div style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px">'+esc2(S.quote.ref || 'FR-001')+'</div></div>'+
@@ -6533,9 +6606,9 @@ function refreshQuoteProposal(){
       // Two-column: body text left, pull-quote right
       '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:28px;align-items:start;margin-bottom:22px">'+
         '<div>'+
-          (aboutText
-            ? '<div class="ed-body-lg">'+aboutText.split('\n').map(function(p){return '<p style="margin:0 0 10px">'+esc2(p)+'</p>';}).join('')+'</div>'
-            : '<div class="ed-body-lg" style="font-style:italic;color:var(--ed-text2)">Add your company story in the Quote tab under "About us blurb" — this paragraph appears on every proposal.</div>')+
+          '<div class="ed-body-lg qp-editable" contenteditable="true" data-qfield="aboutText" data-multiline="1" spellcheck="true" style="min-height:3em">'+
+            (aboutText ? esc2(aboutText) : '<span style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add your company story here — click to edit…</span>')+
+          '</div>'+
         '</div>'+
         '<div>'+
           edPullquote('100% price guarantee — the price we quote is the price you pay. No hidden extras, scaffolding included.', (br.company_name || 'FLOOD ROOFING').toUpperCase())+
@@ -6617,15 +6690,20 @@ function refreshQuoteProposal(){
         }).join('')+
       '</ul>';
     };
-    var detailItems = [['Roof type',cRoofType],['Pitch',cPitch],['Roofing material',cMaterial],['Approx. age',cAge]];
+    var detailItems = [
+      ['Roof type',     cRoofType, 'condRoofType'],
+      ['Pitch',         cPitch,    'condPitch'],
+      ['Roofing material',cMaterial,'condMaterial'],
+      ['Approx. age',   cAge,      'condAge'],
+    ];
     partCondition =
       edHeading('02','Inspection report','Existing roof condition')+
-      // Roof details strip
+      // Roof details strip — each value cell is inline-editable
       '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:14px 0;margin-bottom:18px">'+
         detailItems.map(function(it){
           return '<div>'+
             '<div class="ed-eyebrow">'+esc2(it[0])+'</div>'+
-            '<div class="ed-serif" style="font-size:17px;color:var(--ed-ink);margin-top:5px;line-height:1.2;letter-spacing:-.005em">'+(it[1]?esc2(it[1]):'<span style="color:var(--ed-text2)">—</span>')+'</div>'+
+            '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="'+it[2]+'" spellcheck="false" style="font-size:17px;color:var(--ed-ink);margin-top:5px;line-height:1.2;letter-spacing:-.005em;min-width:2em">'+(it[1]?esc2(it[1]):'<span style="color:var(--ed-text2);pointer-events:none">—</span>')+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
@@ -6633,26 +6711,30 @@ function refreshQuoteProposal(){
       (condSummary
         ? '<div class="ed-body-lg" style="margin-bottom:18px">'+condSummary.split('\n').map(function(p){return '<p style="margin:0 0 10px">'+esc2(p)+'</p>';}).join('')+'</div>'
         : '')+
-      // Major + minor issues, two columns
-      ((cMajor.length || minorList.length)
-        ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start;margin-bottom:18px">'+
-            '<div>'+
-              '<div class="ed-eyebrow" style="margin-bottom:6px;color:var(--ed-warm,#c0794d)">Major issues</div>'+
-              (cMajor.length ? issueList(cMajor,'var(--ed-warm,#c0794d)') : '<div class="ed-body" style="font-style:italic;color:var(--ed-text2);font-size:11.5px">None noted</div>')+
-            '</div>'+
-            '<div>'+
-              '<div class="ed-eyebrow" style="margin-bottom:6px">Minor issues</div>'+
-              (minorList.length ? issueList(minorList,'var(--ed-accent)') : '<div class="ed-body" style="font-style:italic;color:var(--ed-text2);font-size:11.5px">None noted</div>')+
-            '</div>'+
-          '</div>'
-        : '')+
-      // Recommendations
-      (cReco
-        ? '<div style="margin-bottom:18px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
-            '<div class="ed-eyebrow" style="margin-bottom:6px">Recommendations</div>'+
-            '<div class="ed-body" style="font-size:11.5px;line-height:1.55;color:var(--ed-ink-2)">'+esc2(cReco).split('\n').join('<br>')+'</div>'+
-          '</div>'
-        : '')+
+      // Major + minor issues — always shown with inline-editable text areas
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start;margin-bottom:18px">'+
+        '<div>'+
+          '<div class="ed-eyebrow" style="margin-bottom:6px;color:var(--ed-warm,#c0794d)">Major issues <span style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+          (cMajor.length ? issueList(cMajor,'var(--ed-warm,#c0794d)') : '')+
+          '<div class="qp-editable" contenteditable="true" data-qfield="condMajor" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.6;color:var(--ed-text2);font-style:italic;margin-top:'+(cMajor.length?'8':'0')+'px;min-height:1.5em">'+
+            (S.quote.condMajor ? esc2(S.quote.condMajor) : 'One issue per line…')+
+          '</div>'+
+        '</div>'+
+        '<div>'+
+          '<div class="ed-eyebrow" style="margin-bottom:6px">Minor issues <span style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+          (minorList.length ? issueList(minorList,'var(--ed-accent)') : '')+
+          '<div class="qp-editable" contenteditable="true" data-qfield="condMinor" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.6;color:var(--ed-text2);font-style:italic;margin-top:'+(minorList.length?'8':'0')+'px;min-height:1.5em">'+
+            (S.quote.condMinor ? esc2(S.quote.condMinor) : 'One issue per line…')+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+      // Recommendations — always shown with editable block
+      '<div style="margin-bottom:18px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
+        '<div class="ed-eyebrow" style="margin-bottom:6px">Recommendations <span style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+        '<div class="qp-editable" contenteditable="true" data-qfield="condReco" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.55;color:var(--ed-ink-2);min-height:1.5em">'+
+          (cReco ? esc2(cReco) : '<span style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add recommendations here…</span>')+
+        '</div>'+
+      '</div>'+
       // Six existing-roof photo spots — uploaded site photos fill them,
       // empty ones show a dashed "Upload Site Photo" placeholder.
       '<div class="ed-eyebrow" style="margin-bottom:10px">Existing roof photos</div>'+
@@ -6713,7 +6795,7 @@ function refreshQuoteProposal(){
           '</div>' : '')+
         '</div>'+
         '<div>'+
-          '<div class="ed-eyebrow" style="margin-bottom:8px">Scope summary</div>'+
+          '<div class="ed-eyebrow" style="margin-bottom:8px">Scope summary <span style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
           (scopeLines.length
             ? '<div>'+
                 scopeLines.map(function(l, i){
@@ -6723,7 +6805,10 @@ function refreshQuoteProposal(){
                   '</div>';
                 }).join('')+
               '</div>'
-            : '<div class="ed-body" style="font-style:italic;color:var(--ed-text2)">Tick scope chips on the Scope &amp; labour tab to fill this in.</div>')+
+            : '')+
+          '<div class="qp-editable" contenteditable="true" data-qfield="scope" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.7;color:var(--ed-text2);font-style:italic;margin-top:'+(scopeLines.length?'10':'0')+'px;min-height:1.5em">'+
+            (S.quote.scope ? esc2(S.quote.scope) : 'One scope item per line (or tick Scope chips)…')+
+          '</div>'+
         '</div>'+
       '</div>'+
       // Timeline — thin horizontal bars, sage accent, serif phase numbers
@@ -7375,6 +7460,7 @@ function refreshQuoteProposal(){
   if (lastClose !== -1) html = html.slice(0, lastClose) + footerHtml + html.slice(lastClose);
 
   root.innerHTML = html;
+  _attachInlineEditors();
 
   // Keep legacy hidden anchors in sync so other tabs reading qpTotal etc. still work.
   function setText(id, v){var el=document.getElementById(id); if(el) el.textContent = v;}
