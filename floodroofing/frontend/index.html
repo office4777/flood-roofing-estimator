@@ -728,6 +728,15 @@ select{
 .qp-editable:hover{background:rgba(0,153,224,.07)!important;outline:1.5px dashed rgba(0,153,224,.4);outline-offset:2px}
 .qp-editable:focus{background:rgba(0,153,224,.05)!important;outline:2px solid rgba(0,153,224,.55);outline-offset:2px}
 [data-multiline].qp-editable{white-space:pre-wrap;display:block}
+/* Quote tab order: action bar → live proposal (the editing surface) →
+   optional settings.  The proposal is edited in-place; settings cards sit
+   below.  (Print overrides #tab-quote to block, so order is screen-only.) */
+#tab-quote{display:flex;flex-direction:column}
+#tab-quote > .card,#tab-quote > details,#tab-quote > .q-extras-head{order:3}
+#tab-quote > .q-actionbar{order:1}
+#tab-quote > .js-proposal-print{order:2}
+.q-extras-head{margin:22px 2px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--text2);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.q-extras-head span{font-size:11px;font-weight:400;color:var(--text3)}
 .rp-cond-badge{display:inline-block;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:600}
 .cond-good{background:#eaf3de;color:#27500a}.cond-fair{background:#faeeda;color:#633806}.cond-poor{background:#fcebeb;color:#791f1f}
 
@@ -793,6 +802,7 @@ select{
      correct even when advanced cards are collapsed into <details> or
      reordered. */
   html.print-quote #tab-quote .card{display:none!important}
+  html.print-quote #tab-quote .q-extras-head{display:none!important}
   html.print-quote #tab-quote .card.js-proposal-print{display:block!important}
   html.print-quote #tab-quote .card.js-proposal-print > .card-hd{display:none!important}
 
@@ -1670,7 +1680,7 @@ select{
 <div class="panel" id="tab-quote">
 
   <!-- Action bar -->
-  <div class="card" style="display:flex;gap:8px;align-items:center;padding:12px 16px;flex-wrap:wrap">
+  <div class="card q-actionbar" style="display:flex;gap:8px;align-items:center;padding:12px 16px;flex-wrap:wrap">
     <div style="flex:1;min-width:0">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:700">Quote</div>
       <div style="font-size:13px;color:var(--text2)">Ref: <strong id="qaRef" style="color:#0a1628">FR-001</strong> &nbsp;·&nbsp; Total incl. GST: <strong id="qaTotal" style="color:#0a1628">$0.00</strong></div>
@@ -1683,6 +1693,10 @@ select{
     <button onclick="saveAsDefaultTemplate()" title="Snapshot this proposal's cover title, about text, terms, inclusions and options as the default for every new quote" style="padding:8px 14px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⭐ Save as default template</button>
     <span id="qaMsg" style="font-size:12px;color:var(--text2);width:100%"></span>
   </div>
+
+  <!-- Divider: everything below the live proposal is optional config.
+       The quote text itself is edited directly on the proposal above. -->
+  <div class="q-extras-head">Quote settings &amp; extras <span>— the quote text (client, scope, conditions, notes, terms, price) is edited directly on the proposal above. These are optional settings &amp; photos.</span></div>
 
   <!-- Quote inclusions: optional add-ons baked into the PDF/email when
        the quote goes out. Inspection report used to be its own nav tab;
@@ -1707,8 +1721,9 @@ select{
     </details>
   </div>
 
-  <!-- Quote details (editable) -->
-  <div class="card">
+  <!-- Quote details — hidden: edited inline on the proposal (cover meta).
+       Inputs kept in the DOM so save/load + inline-sync keep working. -->
+  <div class="card" style="display:none">
     <div class="card-hd"><span class="card-dot"></span>Quote details</div>
     <div class="f3">
       <div><label>Quote reference</label><input type="text" id="qdRef" placeholder="FR-001" oninput="onQuoteEdit()"></div>
@@ -1747,8 +1762,10 @@ select{
     </div>
   </div>
 
-  <!-- Scope, notes & terms -->
-  <div class="card">
+  <!-- Scope, notes & terms — hidden: edited inline on the proposal
+       (scope on the price page, notes on the price page, terms on the
+       T&Cs page). Inputs kept in the DOM for save/load + inline-sync. -->
+  <div class="card" style="display:none">
     <div class="card-hd"><span class="card-dot"></span>Scope, notes &amp; terms</div>
     <label>Scope of works</label>
     <textarea id="qdScope" rows="3" placeholder="Strip existing iron, install new ColorSteel Endura, replace flashings, gutters and downpipes…" oninput="onQuoteEdit()"></textarea>
@@ -1758,8 +1775,9 @@ select{
     <textarea id="qtTerms" rows="3" placeholder="Any job-specific terms to add — the full standard Flood Roofing T&Cs print automatically." oninput="onQuoteEdit()"></textarea>
   </div>
 
-  <!-- Existing roof condition (Inspection report page of the proposal) -->
-  <details class="card">
+  <!-- Existing roof condition — hidden: edited inline on the proposal's
+       condition page. Inputs kept in the DOM for save/load + inline-sync. -->
+  <details class="card" style="display:none">
     <summary class="card-hd"><span class="card-dot"></span>Existing roof condition<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:6px">— shown on the inspection-report page</span></summary>
     <div class="qadv-body">
       <p style="font-size:11px;color:var(--text2);margin:0 0 10px">Roof type &amp; pitch default to your Map Roof drawing if left blank.</p>
@@ -1854,9 +1872,11 @@ select{
     </div>
   </details>
 
-  <!-- Full proposal preview (editable via the fields above) -->
+  <!-- Full proposal preview — the live editing surface. Click any text
+       (client, scope, conditions, notes, terms, price fields) to edit it
+       directly; changes save into the quote and print exactly as shown. -->
   <div class="card js-proposal-print">
-    <div class="card-hd"><span class="card-dot"></span>Full proposal preview
+    <div class="card-hd"><span class="card-dot"></span>Proposal — click any text to edit
       <button onclick="refreshQuoteProposal()" style="margin-left:auto;padding:4px 10px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
     </div>
     <!-- The proposal preview is rendered into qpRoot by refreshQuoteProposal().
@@ -6502,12 +6522,13 @@ function _attachInlineEditors(){
   var root = document.getElementById('qpRoot');
   if (!root) return;
   var inputMap = {
-    client:'qdClient', addr:'qdAddr', coverTitle:'qdCoverTitle',
+    client:'qdClient', addr:'qdAddr', email:'qdEmail', coverTitle:'qdCoverTitle',
+    ref:'qdRef', date:'qdDate', validUntil:'qdValidUntil',
     aboutText:'qdAboutText',
     condRoofType:'qdCondRoofType', condPitch:'qdCondPitch',
     condMaterial:'qdCondMaterial', condAge:'qdCondAge',
     condMajor:'qdCondMajor', condMinor:'qdCondMinor', condReco:'qdCondReco',
-    scope:'qdScope', notes:'qdNotes',
+    scope:'qdScope', notes:'qdNotes', terms:'qtTerms',
   };
   root.querySelectorAll('[data-qfield]').forEach(function(el){
     // Single-line fields: swallow Enter key to keep them on one line
@@ -6516,6 +6537,18 @@ function _attachInlineEditors(){
         if (e.key === 'Enter'){ e.preventDefault(); el.blur(); }
       });
     }
+    // When the field is empty it shows placeholder / fallback text as its
+    // content — clear that on focus so the user types into a blank field
+    // (otherwise the first keystroke would append to the placeholder).
+    el.addEventListener('focus', function(){
+      var field = el.dataset.qfield;
+      var cur = S.quote ? (S.quote[field] || '') : '';
+      if (!String(cur).trim()){
+        el.textContent = '';
+        el.style.fontStyle = 'normal';
+        el.style.opacity = '1';
+      }
+    });
     el.addEventListener('blur', function(){
       var field = el.dataset.qfield;
       var val = el.innerText || '';
@@ -6657,13 +6690,14 @@ function refreshQuoteProposal(){
         '<div class="ed-eyebrow">A roofing proposal — Prepared for</div>'+
         '<div class="ed-title ed-h1" style="margin-top:12px;font-size:42px"><span class="qp-editable" contenteditable="true" data-qfield="client" spellcheck="false" style="font-style:italic;font-weight:400;color:var(--ed-accent)">'+esc2(S.quote.client||'your project')+'</span></div>'+
         '<div class="qp-editable" contenteditable="true" data-qfield="addr" spellcheck="false" style="font-family:var(--ed-sans);font-size:13.5px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em">'+esc2(S.quote.addr || '—')+'</div>'+
+        '<div class="qp-editable" contenteditable="true" data-qfield="email" spellcheck="false" style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-text2);margin-top:3px;letter-spacing:.02em">'+(S.quote.email ? esc2(S.quote.email) : '<span style="font-style:italic;opacity:.6;pointer-events:none">client@email.co.nz</span>')+'</div>'+
         '<hr class="ed-rule" style="margin:28px 0 22px">'+
         '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="coverTitle" spellcheck="false" style="font-size:22px;font-weight:400;line-height:1.3;color:var(--ed-ink);max-width:78%">'+esc2(S.quote.coverTitle || 'A re-roof, done with care.')+'</div>'+
         // Meta footer — three columns, hairline divider
         '<div style="margin-top:36px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid var(--ed-line);padding-top:18px">'+
-          '<div><div class="ed-eyebrow">Reference</div><div style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px">'+esc2(S.quote.ref || 'FR-001')+'</div></div>'+
-          '<div><div class="ed-eyebrow">Prepared</div><div style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px">'+esc2(S.quote.date || '')+'</div></div>'+
-          '<div><div class="ed-eyebrow">Valid</div><div style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px">'+esc2(S.quote.validUntil || '30 days')+'</div></div>'+
+          '<div><div class="ed-eyebrow">Reference</div><div class="qp-editable" contenteditable="true" data-qfield="ref" spellcheck="false" style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.ref || 'FR-001')+'</div></div>'+
+          '<div><div class="ed-eyebrow">Prepared</div><div class="qp-editable" contenteditable="true" data-qfield="date" spellcheck="false" style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.date || '')+'</div></div>'+
+          '<div><div class="ed-eyebrow">Valid</div><div class="qp-editable" contenteditable="true" data-qfield="validUntil" spellcheck="false" style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.validUntil || '30 days')+'</div></div>'+
         '</div>'+
       '</div>';
   }
@@ -7157,12 +7191,12 @@ function refreshQuoteProposal(){
         '</div>'+
       '</div>'+
       itemTable+
-      (S.quote.notes
-        ? '<div style="margin-top:22px;padding:14px 18px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
-            '<div class="ed-eyebrow" style="margin-bottom:6px">Notes</div>'+
-            '<div class="ed-body" style="font-size:11.5px;line-height:1.55;color:var(--ed-ink-2)">'+esc2(S.quote.notes).split('\n').join('<br>')+'</div>'+
-          '</div>'
-        : '');
+      '<div style="margin-top:22px;padding:14px 18px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
+        '<div class="ed-eyebrow" style="margin-bottom:6px">Notes <span style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+        '<div class="qp-editable" contenteditable="true" data-qfield="notes" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.55;color:var(--ed-ink-2);min-height:1.4em">'+
+          (S.quote.notes ? esc2(S.quote.notes) : '<span style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add notes for the client (access, timing, special considerations)…</span>')+
+        '</div>'+
+      '</div>';
   }
 
   // ── Colorsteel Maxam spotlight (compact) ──
@@ -7457,13 +7491,19 @@ function refreshQuoteProposal(){
           dflt.map(function(c){
             return '<div style="margin-bottom:9px;break-inside:avoid"><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em">'+c.h+'</div><div style="margin-top:3px">'+c.b+'</div></div>';
           }).join('')+
-          (customTerms
-            ? '<div style="margin-bottom:9px;break-inside:avoid"><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em">Additional terms for this job</div><div style="margin-top:3px">'+esc2(customTerms).split('\n').join('<br>')+'</div></div>'
-            : '')+
         '</div>';
+    // Editable "additional terms for this job" — kept OUT of the CSS
+    // column flow so inline editing behaves; appended below the clauses.
+    var addTerms =
+      '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--ed-line)">'+
+        '<div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em;margin-bottom:3px">Additional terms for this job <span style="font-family:var(--ed-sans);font-size:9px;font-style:normal;font-weight:400;color:var(--ed-text2);letter-spacing:.02em">— click to edit</span></div>'+
+        '<div class="qp-editable" contenteditable="true" data-qfield="terms" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11px;line-height:1.55;color:var(--ed-ink-2);min-height:1.3em">'+
+          (customTerms ? esc2(customTerms) : '<span style="font-style:italic;color:var(--ed-text2);pointer-events:none">Any job-specific terms to add (the standard T&amp;Cs above always apply)…</span>')+
+        '</div>'+
+      '</div>';
     partTerms =
       edHeading('05','The fine print','Terms &amp; conditions')+
-      clauses +
+      clauses + addTerms +
       // Payment three-stage band — single horizontal row tucked at
       // the bottom of the T&Cs page.  Vertically compact so all the
       // clauses + the schedule sit on one A4 sheet.
