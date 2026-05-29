@@ -706,11 +706,22 @@ select{
 .rp-page{border-top:1px solid var(--border)}
 .rp-header + .rp-page,.rp-page:first-child{border-top:none}
 @media print{.rp-page + .rp-page{page-break-before:always;break-before:page}}
-/* Screen: visually distinct A4 pages — heavier rule + subtle shadow lift */
+/* ── Screen: Microsoft-Word-style A4 page view ──────────────────
+   Each proposal page renders as a discrete A4 sheet (210 × 297 mm) on
+   a grey canvas with gaps between sheets — exactly what prints to PDF.
+   Forcing the A4 height + overflow:hidden makes the preview a true
+   WYSIWYG of the printed page. */
 @media screen{
-  .report-preview .rp-page+.rp-page{border-top:10px solid #c8cfd9;box-shadow:0 -2px 0 0 #b4bbc8 inset}
-  .report-preview{background:#d0d5de;padding:0}
-  .report-preview .rp-page{box-shadow:0 2px 12px rgba(0,0,0,.14)}
+  .report-preview{background:#9aa1ad;padding:26px 12px;overflow-x:auto;border:none;border-radius:10px}
+  .report-preview #qpRoot{display:flex;flex-direction:column;align-items:center;gap:26px}
+  .report-preview .rp-page{
+    width:210mm;min-height:297mm;max-height:297mm;overflow:hidden;
+    background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.28);
+    margin:0;border:none!important;border-top:none!important;box-sizing:border-box;
+    flex:0 0 auto;position:relative;
+  }
+  /* Bare header (only when no cover page) still reads as a sheet edge */
+  .report-preview > #qpRoot > .rp-header{width:210mm;box-sizing:border-box}
 }
 /* Inline-edit zones in the rendered proposal */
 .qp-editable{cursor:text;border-radius:3px;transition:background .12s,outline .12s;outline:none}
@@ -719,6 +730,7 @@ select{
 [data-multiline].qp-editable{white-space:pre-wrap;display:block}
 .rp-cond-badge{display:inline-block;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:600}
 .cond-good{background:#eaf3de;color:#27500a}.cond-fair{background:#faeeda;color:#633806}.cond-poor{background:#fcebeb;color:#791f1f}
+
 
 /* ── Tooltip ────────────────────────────────────────────────── */
 #appTooltip{
@@ -2634,7 +2646,7 @@ function gotoTab(t) {
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
-  if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncLabourMaterials();}catch(e){} }
+  if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
   if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
@@ -6108,17 +6120,50 @@ function removeQuoteLine(i){
   recalcQuoteTotals();
   refreshQuoteProposal();
 }
+// Pull the ticked "Scope of work" chips + notes from the Scope & Pricing
+// tab into the quote.  scopeChipsText() returns one bullet per task.
+function scopeChipsText(){
+  return Array.from(document.querySelectorAll('#scopeGrid .chk-item.on'))
+              .map(function(el){ return '• ' + el.dataset.item; })
+              .join('\n');
+}
 function resyncQuoteLines(){
   if (!S.quote) S.quote = defaultQuote();
   S.quote.lineItems = defaultQuoteLineItems();
-  // Also refresh scope from the chips so the proposal matches what's selected
-  var chips = Array.from(document.querySelectorAll('#scopeGrid .chk-item.on'))
-                   .map(function(el){return '• '+el.dataset.item;});
-  if (chips.length) S.quote.scope = chips.join('\n');
+  // Force-refresh scope, notes & terms from the Scope & Pricing tab so the
+  // proposal matches what's selected there (this is the manual button —
+  // it overwrites; the on-open auto-sync only fills blanks).
+  var chips = scopeChipsText();
+  if (chips) S.quote.scope = chips;
+  var sn = (document.getElementById('scopeNotes')||{}).value || '';
+  if (sn.trim()) S.quote.notes = sn;
+  var qd = (S.settings && S.settings.quote_defaults) || {};
+  if (!(S.quote.terms||'').trim() && qd.terms) S.quote.terms = qd.terms;
   renderQuoteLines();
   buildQuote();   // re-applies S.quote → inputs, then recalcs + redraws
   var msg = document.getElementById('qaMsg');
-  if (msg){ msg.textContent = '✓ Synced line items from labour ($'+S.labour.toFixed(2)+') + materials ($'+S.materials.toFixed(2)+')'; msg.style.color='#15803d'; setTimeout(function(){msg.textContent='';},3500); }
+  if (msg){ msg.textContent = '✓ Synced scope, notes & pricing from Scope & Pricing (labour $'+S.labour.toFixed(2)+' + materials $'+S.materials.toFixed(2)+')'; msg.style.color='#15803d'; setTimeout(function(){msg.textContent='';},3500); }
+}
+
+// Auto-fill the quote's Scope / Notes / Terms from the Scope & Pricing tab
+// when the Quote tab opens — but only fields that are still blank, so we
+// never clobber text the user has typed or inline-edited in the proposal.
+function _autoSyncFromScope(){
+  if (!S.quote) return;
+  var touched = false;
+  if (!(S.quote.scope||'').trim()){
+    var chips = scopeChipsText();
+    if (chips){ S.quote.scope = chips; var sc=document.getElementById('qdScope'); if(sc) sc.value=chips; touched=true; }
+  }
+  if (!(S.quote.notes||'').trim()){
+    var sn = (document.getElementById('scopeNotes')||{}).value || '';
+    if (sn.trim()){ S.quote.notes = sn; var nt=document.getElementById('qdNotes'); if(nt) nt.value=sn; touched=true; }
+  }
+  if (!(S.quote.terms||'').trim()){
+    var qd = (S.settings && S.settings.quote_defaults) || {};
+    if (qd.terms){ S.quote.terms = qd.terms; var tm=document.getElementById('qtTerms'); if(tm) tm.value=qd.terms; touched=true; }
+  }
+  if (touched) refreshQuoteProposal();
 }
 
 // Silently update Labour/Materials line items from current computed
