@@ -783,10 +783,6 @@ select{
   html.print-quote #tab-quote .card{display:none!important}
   html.print-quote #tab-quote .card.js-proposal-print{display:block!important}
   html.print-quote #tab-quote .card.js-proposal-print > .card-hd{display:none!important}
-  /* When "Include inspection report" is on, also print the report
-     after the quote with a clean page break between them. */
-  html.print-quote.with-report #tab-report{display:block!important;page-break-before:always;break-before:page}
-  html.print-quote.with-report .panel:not(#tab-quote):not(#tab-report){display:none!important}
 
   /* Order Material — print only the Order panel, suppress the
      in-page sketch toolbar buttons and the supplier select that don't
@@ -2759,6 +2755,14 @@ function toggleIncludeReport(ev){
   if (!cb || !lbl) return;
   cb.checked = !cb.checked;
   lbl.classList.toggle('on', cb.checked);
+  // The "inspection report" is the proposal's own Existing Roof Condition
+  // page — toggle that section rather than printing the legacy report.
+  if (S.quote){
+    if (!S.quote.proposalSections) S.quote.proposalSections = {};
+    S.quote.proposalSections.condition = cb.checked;
+    try { renderProposalSectionToggles(); } catch(e){}
+    try { refreshQuoteProposal(); } catch(e){}
+  }
 }
 function switchSettingsSub(id,btn){
   document.querySelectorAll('#tab-settings .settings-sub').forEach(function(p){p.classList.remove('on');});
@@ -5286,6 +5290,15 @@ function buildQuote(){
   // Sync the "Show line items in printed quote" checkbox to current state
   var sliBox = document.getElementById('qShowLineItems');
   if (sliBox) sliBox.checked = !!S.quote.showLineItemsInQuote;
+  // Sync the "Include inspection report" checkbox to the proposal's
+  // Existing-Roof-Condition section (the report is now a proposal page).
+  var incBox = document.getElementById('qIncludeReport');
+  var incLbl = document.getElementById('qIncludeReportLabel');
+  if (incBox){
+    var condOn = !S.quote.proposalSections || S.quote.proposalSections.condition !== false;
+    incBox.checked = condOn;
+    if (incLbl) incLbl.classList.toggle('on', condOn);
+  }
   renderQuoteLines();
   renderProposalOptions();
   renderProposalSectionToggles();
@@ -7017,19 +7030,74 @@ function refreshQuoteProposal(){
           '</div>'
         : '');
   } else if (on('inclusions') && !opts.length) {
-    // Legacy flat line-items table fallback
-    var lb = (S.quote.lineItems||[]).map(function(li){
-      var line = (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);
-      return '<tr style="border-bottom:1px solid #f0f0ee"><td style="padding:5px 4px">'+esc2(li.desc||'—')+'</td><td style="padding:5px 4px;text-align:right">'+(li.qty||0)+'</td><td style="padding:5px 4px;text-align:right">'+fmtMoney(li.unit)+'</td><td style="padding:5px 4px;text-align:right;font-weight:600">'+fmtMoney(line)+'</td></tr>';
-    }).join('');
+    // ── Page 03 — Your investment (editorial single-price layout) ──
+    // No multi-option packages defined, so we present one clean price:
+    // scope/inclusions on the left, a prominent price card on the right,
+    // and (optionally) an itemised breakdown below.
+    var _dep0 = tot0 * 0.5;  // 50% deposit per Flood Roofing T&Cs
+    var inclLines = (S.quote.scope || '').split('\n')
+      .map(function(s){ return s.replace(/^[•\-\s]+/, '').trim(); })
+      .filter(Boolean);
+    var inclList = inclLines.length
+      ? '<div>'+inclLines.map(function(l, i){
+          return '<div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
+            '<div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-accent);flex-shrink:0;min-width:22px">'+(i<9?'0':'')+(i+1)+'</div>'+
+            '<div class="ed-body" style="font-size:12px;line-height:1.5">'+esc2(l)+'</div>'+
+          '</div>';
+        }).join('')+'</div>'
+      : '<div class="ed-body" style="font-style:italic;color:var(--ed-text2);font-size:12px">Add a scope of works on the Quote tab — it lists here as the inclusions for this price.</div>';
+    // Optional itemised breakdown (only when "Show line items" is ticked)
+    var itemTable = S.quote.showLineItemsInQuote
+      ? '<div style="margin-top:22px">'+
+          '<div class="ed-eyebrow" style="margin-bottom:8px">Itemised breakdown</div>'+
+          '<table style="width:100%;border-collapse:collapse;font-family:var(--ed-sans);font-size:12px">'+
+            '<thead><tr style="border-top:1px solid var(--ed-ink);border-bottom:1px solid var(--ed-ink)">'+
+              '<th style="padding:7px 4px;text-align:left;font-weight:500;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ed-text2)">Description</th>'+
+              '<th style="padding:7px 4px;text-align:right;font-weight:500;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ed-text2);width:50px">Qty</th>'+
+              '<th style="padding:7px 4px;text-align:right;font-weight:500;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ed-text2);width:90px">Unit</th>'+
+              '<th style="padding:7px 4px;text-align:right;font-weight:500;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ed-text2);width:100px">Total</th>'+
+            '</tr></thead>'+
+            '<tbody>'+
+              (S.quote.lineItems||[]).map(function(li){
+                var line = (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);
+                return '<tr style="border-bottom:1px solid var(--ed-line)">'+
+                  '<td style="padding:7px 4px;color:var(--ed-ink-2)">'+esc2(li.desc||'—')+'</td>'+
+                  '<td style="padding:7px 4px;text-align:right;color:var(--ed-ink-2)">'+(li.qty||0)+'</td>'+
+                  '<td style="padding:7px 4px;text-align:right;color:var(--ed-ink-2)">'+fmtMoney(li.unit)+'</td>'+
+                  '<td style="padding:7px 4px;text-align:right;font-weight:600;color:var(--ed-ink)">'+fmtMoney(line)+'</td>'+
+                '</tr>';
+              }).join('')+
+            '</tbody>'+
+          '</table>'+
+        '</div>'
+      : '';
     partInclusions =
-      rpHeading('pencil','Quote inclusions &amp; pricing')+
-      '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr style="text-align:left;border-bottom:1px solid #ddd"><th style="padding:6px 4px">Description</th><th style="padding:6px 4px;text-align:right;width:60px">Qty</th><th style="padding:6px 4px;text-align:right;width:90px">Unit</th><th style="padding:6px 4px;text-align:right;width:90px">Total</th></tr></thead><tbody>'+lb+
-        '<tr style="border-top:2px solid #0a1628"><td colspan="3" style="padding:7px 4px;text-align:right;font-weight:700">Subtotal</td><td style="padding:7px 4px;text-align:right;font-weight:700">'+fmtMoney(sub0)+'</td></tr>'+
-        '<tr><td colspan="3" style="padding:5px 4px;text-align:right">GST '+S.quote.gstRate+'%</td><td style="padding:5px 4px;text-align:right">'+fmtMoney(gst0)+'</td></tr>'+
-        '<tr style="background:#f5f5f3"><td colspan="3" style="padding:8px 4px;text-align:right;font-weight:700">Total</td><td style="padding:8px 4px;text-align:right;font-weight:700;color:#059669">'+fmtMoney(tot0)+'</td></tr>'+
-      '</tbody></table>'+
-      (S.quote.notes ? '<div style="margin-top:10px">'+rpHeading('pencil','Notes')+'<div class="rp-text">'+S.quote.notes.split('\n').map(esc2).join('<br>')+'</div></div>' : '');
+      edHeading('03','Your investment','Quote inclusions &amp; pricing')+
+      '<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:30px;align-items:start">'+
+        // Left — what's included
+        '<div>'+
+          '<div class="ed-eyebrow" style="margin-bottom:8px">What\'s included</div>'+
+          inclList+
+        '</div>'+
+        // Right — price card (big total, subtotal, GST, deposit)
+        '<div style="background:var(--ed-ink);color:#fff;padding:24px 26px">'+
+          '<div class="ed-eyebrow" style="color:rgba(255,255,255,.6)">Total incl. GST</div>'+
+          '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:40px;line-height:1.05;color:#fff;margin-top:6px">'+fmtMoney(tot0)+'</div>'+
+          '<div style="margin-top:16px;border-top:1px solid rgba(255,255,255,.18);padding-top:12px;font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,.82)">'+
+            '<div style="display:flex;justify-content:space-between;padding:4px 0"><span>Subtotal</span><span>'+fmtMoney(sub0)+'</span></div>'+
+            '<div style="display:flex;justify-content:space-between;padding:4px 0"><span>GST '+S.quote.gstRate+'%</span><span>'+fmtMoney(gst0)+'</span></div>'+
+            '<div style="display:flex;justify-content:space-between;padding:8px 0 0;margin-top:6px;border-top:1px solid rgba(255,255,255,.18);font-weight:600;color:#fff"><span>50% deposit</span><span>'+fmtMoney(_dep0)+'</span></div>'+
+          '</div>'+
+          '<div style="font-family:var(--ed-sans);font-size:10.5px;color:rgba(255,255,255,.6);margin-top:14px;line-height:1.5">Deposit secures your spot in the schedule. Balance due within 7 days of completion.</div>'+
+        '</div>'+
+      '</div>'+
+      itemTable+
+      (S.quote.notes
+        ? '<div style="margin-top:22px;padding:14px 18px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
+            '<div class="ed-eyebrow" style="margin-bottom:6px">Notes</div>'+
+            '<div class="ed-body" style="font-size:11.5px;line-height:1.55;color:var(--ed-ink-2)">'+esc2(S.quote.notes).split('\n').join('<br>')+'</div>'+
+          '</div>'
+        : '');
   }
 
   // ── Colorsteel Maxam spotlight (compact) ──
@@ -7558,22 +7626,16 @@ function emailQuote(){
 }
 
 function printQuote(){
-  // Tag <html> so the print stylesheet hides everything except the
-  // proposal. If "Include inspection report" is ticked on the Quote
-  // tab, additionally tag with .with-report so the report panel prints
-  // after the quote (page-break controlled in the stylesheet).
-  var inc = document.getElementById('qIncludeReport');
-  var withReport = !!(inc && inc.checked);
-  if (withReport) {
-    try { refreshReport(); } catch(e){}
-  }
+  // Print the editorial proposal only (#qpRoot) — exactly what the
+  // Quote-tab preview shows.  The inspection report is the proposal's
+  // own "Existing roof condition" page, so the legacy #tab-report is
+  // never printed (it duplicated content and used a different total).
+  try { refreshQuoteProposal(); } catch(e){}
   document.documentElement.classList.add('print-quote');
-  if (withReport) document.documentElement.classList.add('with-report');
   setTimeout(function(){
     window.print();
     setTimeout(function(){
       document.documentElement.classList.remove('print-quote');
-      document.documentElement.classList.remove('with-report');
     }, 500);
   }, 50);
 }
@@ -7587,13 +7649,10 @@ window.addEventListener('beforeprint', function(){
   if (document.documentElement.classList.contains('print-quote')) return;
   document.documentElement.classList.add('print-quote');
   document.documentElement.dataset.autoPrintQuote = '1';
-  var inc = document.getElementById('qIncludeReport');
-  if (inc && inc.checked) document.documentElement.classList.add('with-report');
 });
 window.addEventListener('afterprint', function(){
   if (document.documentElement.dataset.autoPrintQuote === '1') {
     document.documentElement.classList.remove('print-quote');
-    document.documentElement.classList.remove('with-report');
     delete document.documentElement.dataset.autoPrintQuote;
   }
 });
