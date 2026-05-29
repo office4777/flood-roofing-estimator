@@ -6478,6 +6478,26 @@ var STEEL_GUTTER_PROFILES = [
 
 // Wire up contenteditable zones in the rendered proposal so the user
 // can edit text in-context without opening the sidebar form fields.
+// Scale the A4 page stack down to fit the available width (phones,
+// narrow windows) so each page still reads as a full sheet without
+// horizontal scrolling.  Uses CSS zoom so layout reflows (the grey
+// canvas hugs the scaled pages).  Never scales above 1:1.  Print
+// resets zoom to 1 via the before/afterprint handlers.
+function _fitProposalPages(){
+  var wrap = document.getElementById('quoteProposal');
+  var root = document.getElementById('qpRoot');
+  if (!wrap || !root) return;
+  if (document.documentElement.classList.contains('print-quote')) { root.style.zoom = 1; return; }
+  var A4px = 794;                       // 210mm @ 96dpi
+  var avail = wrap.clientWidth - 28;    // canvas side padding
+  var z = avail > 0 ? Math.min(1, avail / A4px) : 1;
+  root.style.zoom = z;
+}
+window.addEventListener('resize', function(){
+  clearTimeout(window._rpFitTimer);
+  window._rpFitTimer = setTimeout(function(){ try{ _fitProposalPages(); }catch(e){} }, 120);
+});
+
 function _attachInlineEditors(){
   var root = document.getElementById('qpRoot');
   if (!root) return;
@@ -7574,6 +7594,7 @@ function refreshQuoteProposal(){
 
   root.innerHTML = html;
   _attachInlineEditors();
+  _fitProposalPages();
 
   // Keep legacy hidden anchors in sync so other tabs reading qpTotal etc. still work.
   function setText(id, v){var el=document.getElementById(id); if(el) el.textContent = v;}
@@ -7677,10 +7698,12 @@ function printQuote(){
   // never printed (it duplicated content and used a different total).
   try { refreshQuoteProposal(); } catch(e){}
   document.documentElement.classList.add('print-quote');
+  var root = document.getElementById('qpRoot'); if (root) root.style.zoom = 1; // full A4 on paper
   setTimeout(function(){
     window.print();
     setTimeout(function(){
       document.documentElement.classList.remove('print-quote');
+      try { _fitProposalPages(); } catch(e){}   // restore screen fit
     }, 500);
   }, 50);
 }
@@ -7689,6 +7712,9 @@ function printQuote(){
 // the Quote tab is active. (printQuote() handles the click-path; this
 // catches the keyboard / browser-menu path.)
 window.addEventListener('beforeprint', function(){
+  // Always reset the preview zoom so the printed sheets are full A4,
+  // regardless of how the on-screen preview was scaled to fit.
+  var root = document.getElementById('qpRoot'); if (root) root.style.zoom = 1;
   var ap = document.querySelector('.panel.active');
   if (!ap || ap.id !== 'tab-quote') return;
   if (document.documentElement.classList.contains('print-quote')) return;
@@ -7700,6 +7726,7 @@ window.addEventListener('afterprint', function(){
     document.documentElement.classList.remove('print-quote');
     delete document.documentElement.dataset.autoPrintQuote;
   }
+  try { _fitProposalPages(); } catch(e){}   // restore screen fit
 });
 
 // ══════════════════════════════════════════════════════════════════
