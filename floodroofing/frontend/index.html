@@ -730,8 +730,9 @@ select{
 [data-multiline].qp-editable{white-space:pre-wrap;display:block}
 /* Quote tab order: action bar → live proposal (the editing surface) →
    optional settings.  The proposal is edited in-place; settings cards sit
-   below.  (Print overrides #tab-quote to block, so order is screen-only.) */
-#tab-quote{display:flex;flex-direction:column}
+   below.  Scoped to .active so the panel stays display:none on other
+   tabs (the .panel{display:none} rule alone wouldn't beat an #id rule). */
+#tab-quote.active{display:flex;flex-direction:column}
 #tab-quote > .card,#tab-quote > details,#tab-quote > .q-extras-head{order:3}
 #tab-quote > .q-actionbar{order:1}
 #tab-quote > .js-proposal-print{order:2}
