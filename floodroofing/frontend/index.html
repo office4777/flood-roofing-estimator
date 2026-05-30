@@ -669,19 +669,8 @@ select{
 .mat-btn-green{background:#059669;color:#fff}
 .mat-btn-blue{background:#0099cc;color:#fff}
 
-/* Print: 2-page PDF for the Materials tab.
-   Page 1 = roof map + sheet plan. Page 2 = cut lists + consumables.
-   Only the materials panel prints; everything else is hidden. */
-@media print {
-  html.print-materials .panel:not(#tab-materials){display:none!important}
-  html.print-materials #tab-materials{display:block!important}
-  html.print-materials #tab-materials .card{border:none;box-shadow:none;padding:8px 0;margin:0;background:transparent}
-  html.print-materials #tab-materials > .card.mat-actions,
-  html.print-materials #tab-materials > details{display:none!important}
-  html.print-materials .mat-print-page{break-after:page;page-break-after:always}
-  html.print-materials .mat-print-page:last-child{break-after:auto;page-break-after:auto}
-  @page{size:A4;margin:14mm}
-}
+/* Materials tab — print rules live below the main @media print block
+   so source order resolves any specificity ties in their favour. */
 
 /* ── Canvas wrapper ─────────────────────────────────────────── */
 .canvas-wrap{background:#fff;border-radius:var(--radius);padding:1rem;margin-bottom:1rem;border:1px solid var(--border);overflow:hidden}
@@ -913,6 +902,40 @@ select{
   html.print-jobpack #jobPackPreview > .card{border:none;box-shadow:none;padding:0;margin:0 0 0 0;page-break-after:always;break-after:page}
   html.print-jobpack #jobPackPreview > .card:last-child{page-break-after:auto;break-after:auto}
   html.print-jobpack #jobPackPreview img{max-width:100%;height:auto;border:none!important}
+}
+
+/* Materials tab — Save as PDF. Print rules deliberately placed AFTER
+   the main @media print block so they win source-order ties against
+   the default `.panel:not(#tab-report){display:none}` rule. Every
+   non-materials panel is hidden explicitly (including #tab-report, the
+   legacy proposal preview which would otherwise print as the default).
+   Page 1 ends after the Roof Sheet Plan card; page 2 starts with the
+   Materials cut list card. */
+@media print {
+  html.print-materials body{background:#fff}
+  html.print-materials .sidebar,
+  html.print-materials .hdr,
+  html.print-materials .nav,
+  html.print-materials .proxy-status,
+  html.print-materials .upload-zone{display:none!important}
+  html.print-materials .app{display:block!important}
+  html.print-materials .content{padding:0!important;max-width:none!important}
+  html.print-materials #tab-quote,
+  html.print-materials #tab-roof,
+  html.print-materials #tab-scope,
+  html.print-materials #tab-order,
+  html.print-materials #tab-jobpack,
+  html.print-materials #tab-jobs,
+  html.print-materials #tab-settings,
+  html.print-materials #tab-select,
+  html.print-materials #tab-report{display:none!important}
+  html.print-materials .panel:not(#tab-materials){display:none!important}
+  html.print-materials #tab-materials{display:block!important}
+  html.print-materials #tab-materials .card{border:none;box-shadow:none;padding:8px 0;margin:0 0 6px;background:transparent}
+  html.print-materials #tab-materials .mat-actions,
+  html.print-materials #tab-materials details{display:none!important}
+  html.print-materials #materialsCutListCard{page-break-before:always;break-before:page}
+  @page{size:A4;margin:14mm}
 }
 
 /* ── Mobile (collapse sidebar) ─────────────────────────────── */
@@ -13369,19 +13392,38 @@ function _matMsg(text, ok) {
 }
 
 // Browser print-to-PDF for the Materials tab. Print CSS hides everything
-// except #tab-materials and inserts a page-break between page 1
-// (roof map + sheet plan) and page 2 (cut lists + consumables).
+// except #tab-materials and inserts a page-break before the Materials
+// cut list card so page 1 = drawing summary + sheet plan, page 2 = cut
+// lists + consumables. Defensively strips any leftover print-* class
+// from a previous print run before adding our own.
 function saveMaterialsAsPdf() {
-  // Make sure latest data is rendered before printing
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
-  document.documentElement.classList.add('print-materials');
+  var html = document.documentElement;
+  ['print-quote','print-order','print-jobpack','print-report'].forEach(function(c){ html.classList.remove(c); });
+  html.classList.add('print-materials');
   setTimeout(function(){
     window.print();
-    setTimeout(function(){ document.documentElement.classList.remove('print-materials'); }, 400);
+    setTimeout(function(){ html.classList.remove('print-materials'); }, 400);
   }, 60);
   _matMsg('Opening print dialog — choose "Save as PDF"…');
 }
+
+// Ctrl/Cmd+P from the Materials tab should print the Materials cut list,
+// not the legacy report panel. Mirror the Quote-tab beforeprint pattern.
+window.addEventListener('beforeprint', function(){
+  var ap = document.querySelector('.panel.active');
+  if (!ap || ap.id !== 'tab-materials') return;
+  if (document.documentElement.classList.contains('print-materials')) return;
+  document.documentElement.classList.add('print-materials');
+  document.documentElement.dataset.autoPrintMaterials = '1';
+});
+window.addEventListener('afterprint', function(){
+  if (document.documentElement.dataset.autoPrintMaterials === '1') {
+    document.documentElement.classList.remove('print-materials');
+    delete document.documentElement.dataset.autoPrintMaterials;
+  }
+});
 
 // Stub for Phase 2 (real PDF + Fergus Files API upload).
 function pushMaterialsToFergus() {
