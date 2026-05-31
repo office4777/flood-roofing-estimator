@@ -485,14 +485,35 @@ app.post('/fergus-files/upload', requireAuth, requireSubscription, async (req, r
 
 // Diagnostic — shows what each candidate path returns to a GET (without
 // touching upload). Lets the user see which paths exist on their
-// tenant before we POST the real PDF.
+// tenant before we POST the real PDF. The probe list is intentionally
+// wider than the upload candidates (cheap GETs, lots of patterns) so
+// we can quickly map the tenant's actual surface area.
+const FERGUS_PROBE_CANDIDATES = [
+  '/jobs/{jobId}',
+  '/jobs/{jobId}/project_gallery',
+  '/jobs/{jobId}/photos',
+  '/jobs/{jobId}/files',
+  '/jobs/{jobId}/documents',
+  '/jobs/{jobId}/attachments',
+  '/jobs/{jobId}/gallery',
+  '/jobs/{jobId}/notes',
+  '/jobs/{jobId}/site_visits',
+  '/jobs/{jobId}/uploads',
+  '/v2/jobs/{jobId}',
+  '/v2/jobs/{jobId}/files',
+  '/v2/jobs/{jobId}/photos',
+  '/v2/jobs/{jobId}/attachments',
+  '/job/{jobId}',
+  '/job/{jobId}/files',
+];
+
 app.get('/fergus-files/probe', requireAuth, requireSubscription, async (req, res) => {
   if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
   const jobId = req.query.jobId;
   if (!jobId) return res.status(400).json({ error: 'jobId query param required' });
 
   const results = [];
-  for (const tpl of FERGUS_FILE_CANDIDATES) {
+  for (const tpl of FERGUS_PROBE_CANDIDATES) {
     const path = FERGUS_PREFIX + tpl.replace('{jobId}', encodeURIComponent(jobId));
     const url  = `https://${FERGUS_HOST}${path}`;
     try {
@@ -505,9 +526,17 @@ app.get('/fergus-files/probe', requireAuth, requireSubscription, async (req, res
       });
       const text = await r.text();
       let parsed = null; try { parsed = JSON.parse(text); } catch {}
-      results.push({ path: tpl, url, status: r.status, body: parsed || text.slice(0, 400) });
+      // Truncate body deeply so probe responses stay readable on a
+      // phone screen — full data is in the per-path GET if needed.
+      let bodyOut = parsed || text.slice(0, 200);
+      if (parsed && typeof parsed === 'object') {
+        bodyOut = Array.isArray(parsed)
+          ? { '_type': 'array', length: parsed.length, first: parsed[0] }
+          : { keys: Object.keys(parsed).slice(0, 20) };
+      }
+      results.push({ path: tpl, status: r.status, body: bodyOut });
     } catch (e) {
-      results.push({ path: tpl, url, error: e.message });
+      results.push({ path: tpl, error: e.message });
     }
   }
   res.json({ jobId, results });

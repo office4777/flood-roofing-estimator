@@ -1816,6 +1816,26 @@ select{
     <span id="matActionMsg" style="margin-left:auto;font-size:12px;color:var(--text2);align-self:center"></span>
   </div>
 
+  <!-- Fergus upload diagnostics — collapsed by default. When Push to
+       Fergus fails, the panel is opened automatically and populated
+       with each candidate path's HTTP status + response body so the
+       user can read what Fergus actually said without opening dev
+       tools (esp. on mobile). The Probe + Inspect Job buttons hit
+       /fergus-files/probe and /fergus/jobs/{id} so we can discover
+       the correct upload endpoint for the tenant. -->
+  <details class="card" id="matFergusDebug" style="margin-top:.5rem">
+    <summary class="card-hd" style="cursor:pointer"><span class="card-dot"></span>Fergus upload — diagnostics
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— tap when a push fails to see what each endpoint returned</span>
+    </summary>
+    <div style="padding:12px 0 4px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <button onclick="probeFergusFiles()" class="mat-btn mat-btn-dark" style="padding:8px 12px;font-size:12px">🔍 Probe endpoints</button>
+        <button onclick="inspectFergusJob()" class="mat-btn mat-btn-blue" style="padding:8px 12px;font-size:12px">🧾 Inspect linked job</button>
+      </div>
+      <div id="matFergusDebugOut" style="font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;background:#f8f9fa;border:1px solid var(--border);border-radius:6px;padding:10px;max-height:380px;overflow:auto;color:#0a1628">No diagnostics yet — push a PDF, run a probe, or inspect the job to populate.</div>
+    </div>
+  </details>
+
   <!-- Print-only pages — populated at print time by _matBuildPrintPages.
        Hidden on screen, shown by the print stylesheet. -->
   <div class="mat-print-page" id="matPrintPage1">
@@ -13867,10 +13887,12 @@ async function pushMaterialsToFergus() {
       }),
     });
     var data = await resp.json().catch(function(){ return {}; });
-    // Always log the full response so the user can see what Fergus
-    // actually said (path used + body) — useful when the upload reports
-    // success but the file doesn't appear in the Fergus UI.
+    // Always log + render the full response so the user can see what
+    // Fergus actually said (path used + body) — useful when the upload
+    // reports success but the file doesn't appear in the Fergus UI,
+    // and when the upload outright fails on mobile (no dev tools).
     console.log('Push to Fergus response:', data);
+    _matRenderFergusDebug('Last upload attempt', data);
     if (resp.ok && data.ok) {
       var via = data.used ? ' (via ' + data.used + ')' : '';
       _matMsg('✓ Downloaded ' + filename + ' · uploaded to Fergus job ' + S.linkedJobId + via, true);
@@ -13878,13 +13900,70 @@ async function pushMaterialsToFergus() {
       console.error('Fergus upload failed', data);
       var msg = 'PDF downloaded, but Fergus rejected the upload: ' + (data.error || resp.statusText || resp.status);
       if (data.status) msg += ' ('+data.status+')';
-      if (data.attempts) msg += ' — tried '+data.attempts.length+' endpoints (see console for details)';
+      if (data.attempts) msg += ' — see Diagnostics below for each path';
       else if (data.hint) msg += ' — ' + data.hint;
       _matMsg(msg, false);
+      var det = document.getElementById('matFergusDebug');
+      if (det) det.open = true;
     }
   } catch (e) {
     console.error(e);
     _matMsg('Push failed: ' + (e.message || e), false);
+  }
+}
+
+// ── FERGUS UPLOAD DIAGNOSTICS ───────────────────────────────
+// Mobile-friendly: render Fergus API responses directly on the page
+// (under the "Fergus upload — diagnostics" details card) so the user
+// can read them without dev tools.
+function _matRenderFergusDebug(label, payload) {
+  var out = document.getElementById('matFergusDebugOut');
+  if (!out) return;
+  var ts = new Date().toLocaleTimeString();
+  var head = '── ' + label + ' · ' + ts + ' ──\n';
+  var body;
+  try { body = JSON.stringify(payload, null, 2); }
+  catch(e) { body = String(payload); }
+  out.textContent = head + body;
+  var det = document.getElementById('matFergusDebug');
+  if (det) det.open = true;
+}
+
+// Hit /fergus-files/probe — GET each candidate path on the linked job
+// and render every status + body in the on-page diagnostics panel.
+async function probeFergusFiles() {
+  if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first.', false); return; }
+  _matMsg('Probing Fergus endpoints…');
+  try {
+    var token = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/fergus-files/probe?jobId=' + encodeURIComponent(String(S.linkedJobId)), {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    var data = await r.json().catch(function(){ return { error: 'non-JSON response', status: r.status }; });
+    _matRenderFergusDebug('Probe results for job ' + S.linkedJobId, data);
+    _matMsg('Probe done — see diagnostics below.', true);
+  } catch (e) {
+    _matMsg('Probe failed: ' + e.message, false);
+  }
+}
+
+// Fetch the linked job from Fergus and dump the response so we can
+// see which fields (id / displayNo / jobNo / _links / etc.) the API
+// exposes — gives us hints about the right file-upload endpoint.
+async function inspectFergusJob() {
+  if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first.', false); return; }
+  _matMsg('Fetching Fergus job ' + S.linkedJobId + '…');
+  try {
+    var token = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/fergus/jobs/' + encodeURIComponent(String(S.linkedJobId)), {
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    });
+    var text = await r.text();
+    var parsed = null; try { parsed = JSON.parse(text); } catch(e){}
+    _matRenderFergusDebug('Job ' + S.linkedJobId + ' (status ' + r.status + ')', parsed || text.slice(0, 2000));
+    _matMsg('Job details fetched — see diagnostics below.', true);
+  } catch (e) {
+    _matMsg('Job fetch failed: ' + e.message, false);
   }
 }
 
