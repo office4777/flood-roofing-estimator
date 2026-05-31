@@ -678,8 +678,11 @@ select{
 .mat-btn-blue{background:#0099cc;color:#fff}
 
 /* Hidden on screen; revealed by the print stylesheet when saving PDF.
-   Each .mat-print-page is one A4 sheet of content. */
+   Each .mat-print-page is one A4 sheet of content. The mp-capturing
+   variant is used by Push-to-Fergus: positions the page off-screen
+   but visible so html2canvas can paint it. */
 .mat-print-page{display:none}
+.mat-print-page.mp-capturing{display:block!important;position:fixed!important;left:-12000px;top:0;width:794px;background:#fff;padding:14mm;box-sizing:border-box;z-index:-1;font-family:Inter,system-ui,sans-serif;color:#0a1628}
 .mat-print-page .mp-header{display:flex;justify-content:space-between;gap:18px;align-items:flex-end;padding:0 0 8px;margin-bottom:12px;border-bottom:2px solid #0a1628}
 .mat-print-page .mp-header .left{font-size:18px;font-weight:700;color:#0a1628;letter-spacing:-.005em;line-height:1.2}
 .mat-print-page .mp-header .right{font-size:10.5px;color:#374151;text-align:right;line-height:1.5}
@@ -13752,9 +13755,113 @@ window.addEventListener('afterprint', function(){
   }
 });
 
-// Stub for Phase 2 (real PDF + Fergus Files API upload).
-function pushMaterialsToFergus() {
-  _matMsg('Fergus PDF upload coming next pass — for now use Save as PDF + attach manually.', false);
+// Lazy-load html2canvas + jsPDF from a CDN. Cached on window after the
+// first call so subsequent uploads don't re-fetch.
+function _loadScriptOnce(src) {
+  return new Promise(function(ok, fail){
+    if (document.querySelector('script[data-loaded-src="'+src+'"]')) return ok();
+    var s = document.createElement('script');
+    s.src = src; s.async = true;
+    s.onload  = function(){ s.setAttribute('data-loaded-src', src); ok(); };
+    s.onerror = function(){ fail(new Error('Failed to load ' + src)); };
+    document.head.appendChild(s);
+  });
+}
+function _loadPdfLibs() {
+  if (window.jspdf && window.html2canvas) return Promise.resolve();
+  return Promise.all([
+    window.jspdf      ? Promise.resolve() : _loadScriptOnce('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js'),
+    window.html2canvas? Promise.resolve() : _loadScriptOnce('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'),
+  ]);
+}
+
+// Build the actual PDF blob by snapshotting #matPrintPage1 + #matPrintPage2
+// off-screen and stacking the two canvases into a 2-page A4 jsPDF.
+async function _matBuildPdfBlob() {
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+  _matBuildPrintPages();
+  await _loadPdfLibs();
+
+  var pages = ['matPrintPage1', 'matPrintPage2']
+    .map(function(id){ return document.getElementById(id); })
+    .filter(Boolean);
+  pages.forEach(function(p){ p.classList.add('mp-capturing'); });
+  // Let layout settle before snapping.
+  await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+  var canvases = [];
+  try {
+    for (var i = 0; i < pages.length; i++) {
+      var canv = await window.html2canvas(pages[i], {
+        scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
+      });
+      canvases.push(canv);
+    }
+  } finally {
+    pages.forEach(function(p){ p.classList.remove('mp-capturing'); });
+  }
+
+  var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (!jsPDF) throw new Error('jsPDF failed to load');
+  var pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+  var pageW = 210, pageH = 297;
+  canvases.forEach(function(c, idx){
+    if (idx > 0) pdf.addPage();
+    var imgW = pageW;
+    var imgH = (c.height / c.width) * imgW;
+    if (imgH > pageH) imgH = pageH;
+    pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, imgW, imgH);
+  });
+  return pdf.output('blob');
+}
+
+// Push to Fergus: generate the 2-page PDF, base64-encode the blob, then
+// POST to the backend which re-encodes as multipart and forwards to the
+// Fergus files endpoint. Requires a linked Fergus job (Select Job tab).
+async function pushMaterialsToFergus() {
+  if (!window.S || !S.linkedJobId) {
+    _matMsg('Link a Fergus job first (Select Job → Fergus tab).', false);
+    return;
+  }
+  _matMsg('Building PDF…');
+  try {
+    var blob = await _matBuildPdfBlob();
+    var b64 = await new Promise(function(ok, fail){
+      var r = new FileReader();
+      r.onload = function(){ ok(String(r.result).split(',')[1]); };
+      r.onerror = function(){ fail(r.error || new Error('FileReader failed')); };
+      r.readAsDataURL(blob);
+    });
+    var client = ((document.getElementById('jobClient')||{}).value || 'Order').trim();
+    var jobNum = ((document.getElementById('matJobNumber')||{}).value || S.linkedJobId).trim();
+    var filename = ('Materials_Order_' + jobNum + '_' + client)
+      .replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
+    _matMsg('Uploading to Fergus job ' + S.linkedJobId + '…');
+    var token = localStorage.getItem('fr_token') || '';
+    var resp = await fetch(PROXY + '/fergus-files/upload', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
+      body: JSON.stringify({
+        jobId: String(S.linkedJobId),
+        filename: filename,
+        contentType: 'application/pdf',
+        base64: b64,
+      }),
+    });
+    var data = await resp.json().catch(function(){ return {}; });
+    if (resp.ok && data.ok) {
+      _matMsg('✓ Uploaded to Fergus job ' + S.linkedJobId + ' — ' + filename, true);
+    } else {
+      console.error('Fergus upload failed', data);
+      var msg = 'Fergus rejected: ' + (data.error || resp.statusText || resp.status);
+      if (data.status) msg += ' ('+data.status+')';
+      if (data.hint)   msg += ' — ' + data.hint;
+      _matMsg(msg, false);
+    }
+  } catch (e) {
+    console.error(e);
+    _matMsg('Push failed: ' + (e.message || e), false);
+  }
 }
 
 // Order Roof — emails the cut list + selectors to the supplier.

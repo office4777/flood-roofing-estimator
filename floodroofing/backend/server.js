@@ -383,9 +383,68 @@ app.all('/fergus/*', requireAuth, requireSubscription, async (req, res) => {
   }
 });
 
-// JMS configuration diagnostic. Returns just enough information for the
-// user to verify Railway env vars are loaded WITHOUT exposing the secret
-// (only the last 4 chars of the key + length, like Stripe's UI shows).
+// Fergus file uploads. The generic /fergus/* proxy above forwards JSON
+// bodies only — but file attachments need multipart/form-data, so this
+// route accepts the file as base64 JSON from the browser, decodes it,
+// and re-encodes as multipart on the way out to Fergus.
+//
+// Endpoint path is env-driven (FERGUS_FILES_PATH) because Fergus does
+// not publish their files API; defaults to `/jobs/{jobId}/files` which
+// follows the common REST pattern. If Fergus returns 404 or 422 set
+// FERGUS_FILES_PATH (and FERGUS_FILES_FIELD if needed) to the correct
+// values — the response body is surfaced verbatim so the error path is
+// debuggable.
+app.post('/fergus-files/upload', requireAuth, requireSubscription, async (req, res) => {
+  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const { jobId, filename, contentType, base64, fieldName } = req.body || {};
+  if (!jobId)    return res.status(400).json({ error: 'jobId required' });
+  if (!filename) return res.status(400).json({ error: 'filename required' });
+  if (!base64)   return res.status(400).json({ error: 'base64 required' });
+
+  let buf;
+  try { buf = Buffer.from(base64, 'base64'); }
+  catch (e) { return res.status(400).json({ error: 'Invalid base64' }); }
+  if (buf.length === 0) return res.status(400).json({ error: 'Empty file' });
+  if (buf.length > 25 * 1024 * 1024) return res.status(413).json({ error: 'File too large (max 25MB)' });
+
+  const pathTpl = process.env.FERGUS_FILES_PATH || '/jobs/{jobId}/files';
+  const upstream = FERGUS_PREFIX + pathTpl.replace('{jobId}', encodeURIComponent(jobId));
+  const url      = `https://${FERGUS_HOST}${upstream}`;
+  const field    = fieldName || process.env.FERGUS_FILES_FIELD || 'file';
+
+  try {
+    const form = new FormData();
+    form.append(field, new Blob([buf], { type: contentType || 'application/pdf' }), filename);
+    form.append('name', filename);
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+        'Accept':        'application/json',
+        // Content-Type is set by fetch with the multipart boundary.
+      },
+      body: form,
+    });
+    const text = await r.text();
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch {}
+    if (r.ok) {
+      return res.json({ ok: true, status: r.status, fergus: parsed || text.slice(0, 800), url });
+    }
+    res.status(r.status === 401 ? 502 : r.status).json({
+      ok: false,
+      error:  'Fergus rejected the upload',
+      status: r.status,
+      body:   parsed || text.slice(0, 1200),
+      url,
+      hint:   'If 404/422, set FERGUS_FILES_PATH (current: ' + pathTpl + ') / FERGUS_FILES_FIELD (current: ' + field + ') env vars to the correct values for your Fergus tenant.',
+    });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: e.message, url });
+  }
+});
+
+
 app.get('/jms/debug', requireAuth, (req, res) => {
   const k = process.env.FERGUS_API_KEY || '';
   res.json({
