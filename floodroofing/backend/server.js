@@ -383,9 +383,166 @@ app.all('/fergus/*', requireAuth, requireSubscription, async (req, res) => {
   }
 });
 
-// JMS configuration diagnostic. Returns just enough information for the
-// user to verify Railway env vars are loaded WITHOUT exposing the secret
-// (only the last 4 chars of the key + length, like Stripe's UI shows).
+// Fergus file uploads. The generic /fergus/* proxy above forwards JSON
+// bodies only — but file attachments need multipart/form-data, so this
+// route accepts the file as base64 JSON from the browser, decodes it,
+// and re-encodes as multipart on the way out to Fergus.
+//
+// Fergus does not publish public docs for files, so when
+// FERGUS_FILES_PATH is unset we try a list of candidate paths in order
+// (project_gallery first, since the UI surfaces uploads under that
+// section). A 2xx response is only treated as success when the body
+// looks like a created file resource (id / uuid / attachment_id /
+// data) — that avoids being fooled by GET-style list endpoints that
+// happen to return 200 on POST. Every attempt is reported back so the
+// caller can see exactly what Fergus said for each candidate.
+//
+// Once we know the right path, lock it in by setting FERGUS_FILES_PATH
+// (and FERGUS_FILES_FIELD if the multipart field name differs).
+const FERGUS_FILE_CANDIDATES = [
+  '/jobs/{jobId}/project_gallery',
+  '/jobs/{jobId}/photos',
+  '/jobs/{jobId}/files',
+  '/jobs/{jobId}/attachments',
+  '/jobs/{jobId}/documents',
+  '/jobs/{jobId}/gallery',
+];
+
+function _fergusLooksCreated(parsed) {
+  if (!parsed) return false;
+  if (parsed.id || parsed.uuid || parsed.file_id || parsed.attachment_id || parsed.gallery_id) return true;
+  if (parsed.success === true) return true;
+  if (parsed.data && (parsed.data.id || parsed.data.uuid)) return true;
+  return false;
+}
+
+async function _fergusUploadAttempt(pathTpl, jobId, buf, contentType, filename, field) {
+  const path = FERGUS_PREFIX + pathTpl.replace('{jobId}', encodeURIComponent(jobId));
+  const url  = `https://${FERGUS_HOST}${path}`;
+  try {
+    const form = new FormData();
+    form.append(field, new Blob([buf], { type: contentType || 'application/pdf' }), filename);
+    form.append('name', filename);
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+        'Accept':        'application/json',
+      },
+      body: form,
+    });
+    const text = await r.text();
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch {}
+    const looksCreated = r.ok && _fergusLooksCreated(parsed);
+    return {
+      path: pathTpl, url, status: r.status, ok: r.ok,
+      looksCreated, body: parsed || text.slice(0, 600),
+    };
+  } catch (e) {
+    return { path: pathTpl, url, error: e.message };
+  }
+}
+
+app.post('/fergus-files/upload', requireAuth, requireSubscription, async (req, res) => {
+  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const { jobId, filename, contentType, base64, fieldName } = req.body || {};
+  if (!jobId)    return res.status(400).json({ error: 'jobId required' });
+  if (!filename) return res.status(400).json({ error: 'filename required' });
+  if (!base64)   return res.status(400).json({ error: 'base64 required' });
+
+  let buf;
+  try { buf = Buffer.from(base64, 'base64'); }
+  catch (e) { return res.status(400).json({ error: 'Invalid base64' }); }
+  if (buf.length === 0) return res.status(400).json({ error: 'Empty file' });
+  if (buf.length > 25 * 1024 * 1024) return res.status(413).json({ error: 'File too large (max 25MB)' });
+
+  const field = fieldName || process.env.FERGUS_FILES_FIELD || 'file';
+  const candidates = process.env.FERGUS_FILES_PATH
+    ? [process.env.FERGUS_FILES_PATH]
+    : FERGUS_FILE_CANDIDATES;
+
+  const attempts = [];
+  for (const tpl of candidates) {
+    const a = await _fergusUploadAttempt(tpl, jobId, buf, contentType, filename, field);
+    attempts.push(a);
+    // Trust an env-pinned path even without the "looksCreated" heuristic
+    // (the user has told us this is the right one for their tenant).
+    const accept = process.env.FERGUS_FILES_PATH
+      ? a.ok
+      : a.looksCreated;
+    if (accept) {
+      return res.json({ ok: true, used: tpl, status: a.status, fergus: a.body, url: a.url, attempts });
+    }
+  }
+  res.status(502).json({
+    ok: false,
+    error: 'No Fergus endpoint accepted the upload as a created file',
+    attempts,
+    hint: 'Inspect each attempt.body. Once you see which path created a file, set FERGUS_FILES_PATH (and FERGUS_FILES_FIELD if the multipart field name differs) on Railway and the upload will go straight there.',
+  });
+});
+
+// Diagnostic — shows what each candidate path returns to a GET (without
+// touching upload). Lets the user see which paths exist on their
+// tenant before we POST the real PDF. The probe list is intentionally
+// wider than the upload candidates (cheap GETs, lots of patterns) so
+// we can quickly map the tenant's actual surface area.
+const FERGUS_PROBE_CANDIDATES = [
+  '/jobs/{jobId}',
+  '/jobs/{jobId}/project_gallery',
+  '/jobs/{jobId}/photos',
+  '/jobs/{jobId}/files',
+  '/jobs/{jobId}/documents',
+  '/jobs/{jobId}/attachments',
+  '/jobs/{jobId}/gallery',
+  '/jobs/{jobId}/notes',
+  '/jobs/{jobId}/site_visits',
+  '/jobs/{jobId}/uploads',
+  '/v2/jobs/{jobId}',
+  '/v2/jobs/{jobId}/files',
+  '/v2/jobs/{jobId}/photos',
+  '/v2/jobs/{jobId}/attachments',
+  '/job/{jobId}',
+  '/job/{jobId}/files',
+];
+
+app.get('/fergus-files/probe', requireAuth, requireSubscription, async (req, res) => {
+  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const jobId = req.query.jobId;
+  if (!jobId) return res.status(400).json({ error: 'jobId query param required' });
+
+  const results = [];
+  for (const tpl of FERGUS_PROBE_CANDIDATES) {
+    const path = FERGUS_PREFIX + tpl.replace('{jobId}', encodeURIComponent(jobId));
+    const url  = `https://${FERGUS_HOST}${path}`;
+    try {
+      const r = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+          'Accept':        'application/json',
+        },
+      });
+      const text = await r.text();
+      let parsed = null; try { parsed = JSON.parse(text); } catch {}
+      // Truncate body deeply so probe responses stay readable on a
+      // phone screen — full data is in the per-path GET if needed.
+      let bodyOut = parsed || text.slice(0, 200);
+      if (parsed && typeof parsed === 'object') {
+        bodyOut = Array.isArray(parsed)
+          ? { '_type': 'array', length: parsed.length, first: parsed[0] }
+          : { keys: Object.keys(parsed).slice(0, 20) };
+      }
+      results.push({ path: tpl, status: r.status, body: bodyOut });
+    } catch (e) {
+      results.push({ path: tpl, error: e.message });
+    }
+  }
+  res.json({ jobId, results });
+});
+
+
 app.get('/jms/debug', requireAuth, (req, res) => {
   const k = process.env.FERGUS_API_KEY || '';
   res.json({

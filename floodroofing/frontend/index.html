@@ -14,7 +14,7 @@
      printing offline). -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
 <style>
 /* ──────────────────────────────────────────────────────────────
    RoofMap — Minimal Scandi design system
@@ -611,6 +611,103 @@ select{
 .meas-tile-val{font-size:19px;font-weight:700;color:var(--text);letter-spacing:-.01em}
 .meas-tile-lbl{font-size:11px;color:var(--text2);margin-top:2px}
 
+/* ── Materials tab: 3-line summary + section cards ─────────── */
+.mat-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:4px 0 2px}
+.mat-summary-tile{background:#f8f9fa;border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;padding:14px 16px}
+.mat-summary-tile .lbl{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.mat-summary-tile .val{font-size:22px;font-weight:700;color:#0a1628;letter-spacing:-.01em;line-height:1.1}
+.mat-summary-tile .val small{font-size:13px;font-weight:500;color:var(--text2);margin-left:4px}
+
+/* Profile / grade / thickness / ridge / gutter selector pills */
+.mat-selectors{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;padding:4px 0 18px;border-bottom:1px solid var(--border);margin-bottom:18px}
+.mat-sel{display:flex;flex-direction:column;gap:4px}
+.mat-sel label{font-size:10.5px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin:0}
+.mat-sel select,.mat-sel input{margin:0;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:7px;background:#fff;color:#0a1628}
+.mat-sel select:focus,.mat-sel input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,153,224,.12)}
+
+/* Per-section materials block (sheets, ridge, each flashing, gutter) */
+.mat-section{margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+.mat-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.mat-section-hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.mat-section-hd .swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.mat-section-hd h3{font-size:14px;font-weight:700;color:#0a1628;margin:0;letter-spacing:-.005em}
+.mat-section-hd .meta{margin-left:auto;font-size:11px;color:var(--text2);font-weight:500}
+.mat-section-sub{font-size:11.5px;color:var(--text2);margin:-4px 0 10px;line-height:1.5}
+
+/* Flashing technical drawing strip (cross-section SVG) */
+.flash-dwg{display:flex;align-items:center;gap:14px;padding:10px 14px;background:#fafaf7;border:1px solid var(--border);border-radius:8px;margin-bottom:10px}
+.flash-dwg svg{flex-shrink:0;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:4px}
+.flash-dwg .desc{font-size:11.5px;color:var(--text2);line-height:1.5}
+.flash-dwg .desc strong{color:#0a1628;display:block;font-size:12px;margin-bottom:2px}
+
+/* Cut list table — used for sheets, ridge, every flashing, gutter */
+.cut-list{width:100%;border-collapse:collapse;font-size:12.5px}
+.cut-list thead th{text-align:left;padding:7px 10px;font-size:10.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;background:#f4f4ef;border-bottom:1px solid var(--border)}
+.cut-list thead th.r{text-align:right}
+.cut-list tbody td{padding:8px 10px;border-bottom:1px solid #ececec;color:#0a1628}
+.cut-list tbody td.r{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.cut-list tbody tr:last-child td{border-bottom:none}
+.cut-list tfoot td{padding:9px 10px;border-top:2px solid #0a1628;background:#f8f9fa;font-weight:700;font-size:12.5px;color:#0a1628}
+.cut-list tfoot td.r{text-align:right;font-variant-numeric:tabular-nums}
+.cut-list-empty{padding:14px 4px;font-size:12px;color:var(--text2);font-style:italic}
+
+/* Consumables grid (restyled) */
+.cons-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:4px}
+.cons-tile{background:#fff;border:1px solid var(--border);border-left:3px solid #0a1628;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.cons-tile .cons-hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cons-tile .cons-name{font-size:13px;font-weight:600;color:#0a1628;display:flex;align-items:center;gap:6px}
+.cons-tile .cons-qty{font-size:18px;font-weight:700;color:#0a1628;letter-spacing:-.01em}
+.cons-tile .cons-sub{font-size:11px;color:var(--text2);line-height:1.4}
+.cons-tile select{font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;margin:0;width:auto;background:#fff;color:#0a1628}
+
+/* Job & delivery card on Materials tab */
+.mat-order-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px;padding:6px 0 2px}
+.mat-readonly{padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:7px;background:#fafaf7;color:#0a1628;min-height:18px;line-height:1.3}
+.mat-seg{display:inline-flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;background:#fff}
+.mat-seg button{padding:8px 14px;font-size:12.5px;background:#fff;border:none;cursor:pointer;color:var(--text2);font-weight:600;border-right:1px solid var(--border)}
+.mat-seg button:last-child{border-right:none}
+.mat-seg button.on{background:#0099cc;color:#fff}
+
+/* Materials action bar (Save PDF / Push to Fergus / Order Roof) */
+.mat-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px 16px}
+.mat-btn{padding:10px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:transform .08s,box-shadow .12s}
+.mat-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.mat-btn:active{transform:translateY(0)}
+.mat-btn-dark{background:#0a1628;color:#fff}
+.mat-btn-green{background:#059669;color:#fff}
+.mat-btn-blue{background:#0099cc;color:#fff}
+.mat-btn-light{background:#f4f4ef;color:#0a1628;border:1px solid var(--border)}
+
+/* Hidden on screen; revealed by the print stylesheet when saving PDF.
+   Each .mat-print-page is one A4 sheet of content. The mp-capturing
+   variant is used by Push-to-Fergus: positions the page off-screen
+   but visible so html2canvas can paint it. */
+.mat-print-page{display:none}
+.mat-print-page.mp-capturing{display:block!important;position:fixed!important;left:-12000px;top:0;width:794px;background:#fff;padding:14mm;box-sizing:border-box;z-index:-1;font-family:Inter,system-ui,sans-serif;color:#0a1628}
+.mat-print-page .mp-header{display:flex;justify-content:space-between;gap:18px;align-items:flex-end;padding:0 0 8px;margin-bottom:12px;border-bottom:2px solid #0a1628}
+.mat-print-page .mp-header .left{font-size:18px;font-weight:700;color:#0a1628;letter-spacing:-.005em;line-height:1.2}
+.mat-print-page .mp-header .right{font-size:10.5px;color:#374151;text-align:right;line-height:1.5}
+.mat-print-page .mp-header .right strong{color:#0a1628}
+.mat-print-page .mp-h{font-size:13px;font-weight:700;color:#0a1628;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px;padding-bottom:3px;border-bottom:1px solid #d1d5db}
+.mat-print-page#matPrintPage1 #matPrintRoofMap img,
+.mat-print-page#matPrintPage1 #matPrintSheetPlan img,
+.mat-print-page#matPrintPage1 #matPrintSheetPlan canvas{display:block;max-width:100%;height:auto;border:1px solid #d1d5db;border-radius:4px;background:#fff}
+.mat-print-page .mp-spec-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 14px;font-size:11px;color:#0a1628;margin:8px 0 12px}
+.mat-print-page .mp-spec-grid .lbl{color:#6f6a60;font-weight:500}
+.mat-print-page .mp-spec-grid .val{font-weight:700}
+.mat-print-page .mp-cut{width:100%;border-collapse:collapse;font-size:10.5px;margin:4px 0 10px}
+.mat-print-page .mp-cut th{text-align:left;padding:4px 8px;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:#6f6a60;border-bottom:1px solid #d1d5db}
+.mat-print-page .mp-cut th.r,.mat-print-page .mp-cut td.r{text-align:right;font-variant-numeric:tabular-nums}
+.mat-print-page .mp-cut td{padding:3px 8px;border-bottom:1px solid #f0f0ee;color:#0a1628}
+.mat-print-page .mp-cut tfoot td{border-top:1.5px solid #0a1628;font-weight:700;background:#fafaf7}
+.mat-print-page .mp-cut .mp-sub{background:#f4f4ef;font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:#0a1628;padding:5px 8px}
+.mat-print-page .mp-cons{display:grid;grid-template-columns:repeat(4,1fr);gap:6px 14px;font-size:10.5px;color:#0a1628;margin:4px 0}
+.mat-print-page .mp-cons .cons-name{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:#6f6a60;font-weight:500}
+.mat-print-page .mp-cons .cons-val{font-size:14px;font-weight:700}
+
+/* Materials tab — print rules live below the main @media print block
+   so source order resolves any specificity ties in their favour. */
+
 /* ── Canvas wrapper ─────────────────────────────────────────── */
 .canvas-wrap{background:#fff;border-radius:var(--radius);padding:1rem;margin-bottom:1rem;border:1px solid var(--border);overflow:hidden}
 .canvas-wrap canvas{width:100%;height:auto;display:block}
@@ -630,15 +727,15 @@ select{
    electric-blue accent and terracotta warm-tone — channels the
    "designer-builder magazine" aesthetic while staying tied to the
    real Flood Roofing brand colours (cyan-blue + black).  Headlines
-   run on a serif display face (Playfair → Georgia fallback), body
-   on Inter. */
+   run on Inter throughout — clean sans-serif for body and headings,
+   hierarchy from weight + size. */
 .report-preview{
   --ed-paper:#faf6f0; --ed-paper-2:#f1ece2;
   --ed-ink:#0a1828; --ed-ink-2:#1d2a3d;
   --ed-accent:#0099e0; --ed-accent-deep:#006fb3; --ed-warm:#b86b4c;
   --ed-line:#d9d2c5; --ed-text2:#6f6a60;
-  --ed-serif:'Playfair Display','Cormorant Garamond',Georgia,'Times New Roman',serif;
-  --ed-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --ed-serif:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  --ed-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
 }
 .report-preview .ed-serif{font-family:var(--ed-serif)}
 .report-preview .ed-number{font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:54px;line-height:.9;color:var(--ed-accent);letter-spacing:-.02em}
@@ -730,8 +827,9 @@ select{
 [data-multiline].qp-editable{white-space:pre-wrap;display:block}
 /* Quote tab order: action bar → live proposal (the editing surface) →
    optional settings.  The proposal is edited in-place; settings cards sit
-   below.  (Print overrides #tab-quote to block, so order is screen-only.) */
-#tab-quote{display:flex;flex-direction:column}
+   below.  Scoped to .active so the panel stays display:none on other
+   tabs (the .panel{display:none} rule alone wouldn't beat an #id rule). */
+#tab-quote.active{display:flex;flex-direction:column}
 #tab-quote > .card,#tab-quote > details,#tab-quote > .q-extras-head{order:3}
 #tab-quote > .q-actionbar{order:1}
 #tab-quote > .js-proposal-print{order:2}
@@ -840,6 +938,41 @@ select{
   html.print-jobpack #jobPackPreview > .card{border:none;box-shadow:none;padding:0;margin:0 0 0 0;page-break-after:always;break-after:page}
   html.print-jobpack #jobPackPreview > .card:last-child{page-break-after:auto;break-after:auto}
   html.print-jobpack #jobPackPreview img{max-width:100%;height:auto;border:none!important}
+}
+
+/* Materials tab — Save as PDF. Two-page layout backed by dedicated
+   print-only divs (#matPrintPage1 + #matPrintPage2) that get populated
+   at print time. Every other panel + every on-screen Materials card is
+   hidden so only the curated print pages reach paper.
+   Placed AFTER the main @media print block so source order favours it. */
+@media print {
+  html.print-materials body{background:#fff}
+  html.print-materials .sidebar,
+  html.print-materials .hdr,
+  html.print-materials .nav,
+  html.print-materials .proxy-status,
+  html.print-materials .upload-zone{display:none!important}
+  html.print-materials .app{display:block!important}
+  html.print-materials .content{padding:0!important;max-width:none!important}
+  /* Hide every other tab panel by id — no reliance on :not() ties. */
+  html.print-materials #tab-quote,
+  html.print-materials #tab-roof,
+  html.print-materials #tab-scope,
+  html.print-materials #tab-order,
+  html.print-materials #tab-jobpack,
+  html.print-materials #tab-jobs,
+  html.print-materials #tab-settings,
+  html.print-materials #tab-select,
+  html.print-materials #tab-report{display:none!important}
+  html.print-materials .panel:not(#tab-materials){display:none!important}
+  html.print-materials #tab-materials{display:block!important}
+  /* Inside Materials, hide every on-screen child — only the print
+     pages render. */
+  html.print-materials #tab-materials > *{display:none!important}
+  html.print-materials #tab-materials > .mat-print-page{display:block!important;padding:0;margin:0;background:transparent;border:none;box-shadow:none}
+  html.print-materials #matPrintPage1{page-break-after:always;break-after:page}
+  html.print-materials #matPrintPage2{page-break-before:always;break-before:page}
+  @page{size:A4;margin:12mm}
 }
 
 /* ── Mobile (collapse sidebar) ─────────────────────────────── */
@@ -977,7 +1110,10 @@ select{
   <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Materials &amp; Sheet Layout</button>
   <button class="nav-btn" onclick="gotoTab('scope')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8H11M5 5.5H11M5 10.5H8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Scope &amp; Pricing</button>
   <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
-  <button class="nav-btn" onclick="gotoTab('order')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 3 L5 3 L5.7 5 L14 5 L13 11 L6 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="7" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/></svg>Order Material</button>
+  <!-- "Order Material" tab consolidated into Materials (action bar buttons:
+       Save PDF / Push to Fergus / Order Roof). Nav button hidden; panel
+       kept so legacy gotoTab('order') calls don't blow up. -->
+  <button class="nav-btn" onclick="gotoTab('order')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><path d="M2 3 L5 3 L5.7 5 L14 5 L13 11 L6 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="7" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/></svg>Order Material</button>
   <button class="nav-btn" onclick="gotoTab('jobpack')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3.5" width="11" height="10" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.5 H13.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 9.5 H10 M6 11.5 H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Job Pack</button>
   <button class="nav-btn" onclick="gotoTab('jobs')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
   <button class="nav-btn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
@@ -1547,56 +1683,208 @@ select{
 
 <!-- TAB 3: MATERIALS -->
 <div class="panel" id="tab-materials">
+  <!-- 1. Drawing measurements summary — 3 lines only.
+       (Detailed per-line breakdowns moved into the Materials section's
+       cut lists below.) -->
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>From your drawing measurements</div>
     <div id="matAutoFromLines" style="min-height:40px">
       <p style="font-size:12px;color:var(--text2)">Draw lines and add measurements on the Map Roof tab, then click Calibrate scale to populate this automatically.</p>
     </div>
-    <button class="sec-btn" onclick="populateMaterialsFromLines()" style="margin-top:.5rem">↻ Refresh from drawing</button>
+    <button class="sec-btn" onclick="populateMaterialsFromLines();renderMaterialsCutLists()" style="margin-top:.5rem">↻ Refresh from drawing</button>
   </div>
 
-
-  <!-- ROOF SHEET PLAN CARD -->
+  <!-- 2. Roof sheet plan (visual layout — unchanged). -->
   <div class="card" id="roofSheetPlanCard">
     <div class="card-hd"><span class="card-dot"></span>Roof sheet plan — colour-coded cut layout
-      <button onclick="renderRoofSheetPlan()" style="margin-left:auto;padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
+      <button onclick="renderRoofSheetPlan();renderMaterialsCutLists()" style="margin-left:auto;padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
     </div>
     <div id="roofSheetPlanOut">
       <p style="font-size:12px;color:var(--text2)">Draw your roof outline + gutter/hip/valley lines with measurements, then refresh to see the sheet cut plan.</p>
     </div>
   </div>
 
-  <!-- FLASHINGS BREAKDOWN — per-line list under the Roof Sheet Plan -->
-  <div class="card" id="flashingsBreakdownCard">
-    <div class="card-hd"><span class="card-dot"></span>Flashings — per line
-      <button onclick="renderFlashingsBreakdown()" style="margin-left:auto;padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
+  <!-- 3. MATERIALS — sheets + per-flashing cut lists with selectors. -->
+  <div class="card" id="materialsCutListCard">
+    <div class="card-hd"><span class="card-dot"></span>Materials
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— pick your profile / grade / thickness; cut lists update live from the drawing</span>
     </div>
-    <div id="flashingsBreakdownOut">
-      <p style="font-size:12px;color:var(--text2)">Draw lines on the Map Roof tab with measurements — each one will appear here grouped by type.</p>
+
+    <!-- Top-level selectors -->
+    <div class="mat-selectors">
+      <div class="mat-sel">
+        <label>Profile</label>
+        <select id="matProfile" onchange="renderMaterialsCutLists()">
+          <option value="Corrugate">Corrugate</option>
+          <option value="5-Rib">5-Rib</option>
+          <option value="Multidek">Multidek</option>
+        </select>
+      </div>
+      <div class="mat-sel">
+        <label>Steel grade</label>
+        <select id="matGrade" onchange="renderMaterialsCutLists()">
+          <option value="Colorsteel Maxam">Colorsteel Maxam</option>
+          <option value="Armorsteel ColorZen">Armorsteel ColorZen</option>
+          <option value="Zincalume">Zincalume</option>
+        </select>
+      </div>
+      <div class="mat-sel">
+        <label>Thickness</label>
+        <select id="matThickness" onchange="renderMaterialsCutLists()">
+          <option value="0.40g">0.40g</option>
+          <option value="0.55g">0.55g</option>
+        </select>
+      </div>
+      <div class="mat-sel">
+        <label>Roof colour</label>
+        <input type="text" id="matColour" placeholder="e.g. Ironsand" oninput="renderMaterialsCutLists()">
+      </div>
+      <div class="mat-sel">
+        <label>Ridge profile</label>
+        <select id="matRidgeType" onchange="renderMaterialsCutLists()">
+          <option value="standard">Standard ridge</option>
+          <option value="wide">Wide ridge</option>
+        </select>
+      </div>
+      <div class="mat-sel">
+        <label>Gutter</label>
+        <select id="matGutter" onchange="renderMaterialsCutLists()">
+          <option value="none">None — no gutter required</option>
+          <option value="colorsteel-box">Colorsteel 125mm Box Gutter</option>
+          <option value="zincalume-box">Zincalume 125mm Box Gutter</option>
+          <option value="marley-classic">Marley Classic (PVC)</option>
+          <option value="marley-typhoon">Marley Typhoon (PVC)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Cut lists rendered here by renderMaterialsCutLists() -->
+    <div id="matCutLists">
+      <p style="font-size:12px;color:var(--text2);padding:16px 0">Draw your roof + add line measurements on the Map Roof tab, then refresh — cut lists for sheets, ridge and each flashing type will appear here.</p>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Sheet layout settings</div>
-    <div class="f3">
-      <div><label>Sheet effective width (mm)</label><input type="number" id="sheetWidth" value="762" min="100" oninput="renderSheetLayout()"></div>
-      <div><label>End lap / overlap (mm)</label><input type="number" id="overlapMm" value="150" min="0" oninput="renderSheetLayout()"></div>
-      <div><label>Pitch (degrees)</label><input type="number" id="pitchDeg" value="15" min="1" max="60" oninput="renderSheetLayout()"></div>
+  <!-- 4. CONSUMABLES — restyled to match. -->
+  <div class="card" id="materialsConsumablesCard">
+    <div class="card-hd"><span class="card-dot"></span>Consumables
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— paper / screws / rivets / dektites</span>
     </div>
-    <div id="sheetSectionsWrap" style="margin-top:.25rem">
-      <p style="font-size:12px;color:var(--text2)">Upload and analyse a roof sketch first — sections will appear here automatically.</p>
-    </div>
-    <button class="sec-btn" style="margin-top:.75rem" onclick="renderSheetLayout()">Generate sheet layout diagram</button>
-    <div id="sheetLayoutOut" style="display:none;margin-top:1rem">
-      <div class="card-hd" style="margin-bottom:.5rem"><span class="card-dot"></span>Colour-coded sheet layout</div>
-      <div class="canvas-wrap"><canvas id="sheetCanvas" width="900" height="520"></canvas></div>
-      <div class="sheet-legend" id="sheetLegend"></div>
-      <div id="sheetSummaryOut" style="margin-top:1rem;background:#f0f8fb;border-radius:var(--radius);padding:12px 16px;border-left:3px solid var(--fr-blue)"></div>
+    <div id="matConsumables" class="cons-grid">
+      <p style="font-size:12px;color:var(--text2);grid-column:1/-1;padding:8px 0">Quantities calculated from roof area + total flashing run.</p>
     </div>
   </div>
-  <div class="card" style="padding:14px 16px;background:#f0f8fb;border:1px dashed #b3d9f0">
-    <div style="font-size:12px;color:var(--text2)">💡 Material pricing moved to <strong>Scope &amp; Pricing</strong> tab — quantities auto-populate from this drawing with editable overrides, dropdowns per item, and a jump to <strong>Settings → Price book</strong>.</div>
+
+  <!-- 5. JOB & DELIVERY — fed into the PDF header + the supplier email
+       so the order paperwork has the customer / site / delivery on it.
+       Customer + site address come from Select Job; Job # + delivery
+       are editable here. -->
+  <div class="card" id="materialsOrderInfo">
+    <div class="card-hd"><span class="card-dot"></span>Job &amp; delivery
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— prints on the order PDF + supplier email</span>
+    </div>
+    <div class="mat-order-grid">
+      <div class="mat-sel">
+        <label>Job number</label>
+        <input id="matJobNumber" type="text" placeholder="e.g. FR-1234" oninput="_matSyncJobNumber(this.value)">
+      </div>
+      <div class="mat-sel">
+        <label>Customer</label>
+        <div class="mat-readonly" id="matCustomerOut">—</div>
+      </div>
+      <div class="mat-sel" style="grid-column:1/-1">
+        <label>Site address</label>
+        <div class="mat-readonly" id="matSiteAddrOut">—</div>
+      </div>
+      <div class="mat-sel">
+        <label>Delivery</label>
+        <div class="mat-seg" id="matDeliveryToggle">
+          <button type="button" data-mode="site" onclick="setMatDelivery('site',this)" class="on">To site</button>
+          <button type="button" data-mode="yard" onclick="setMatDelivery('yard',this)">To yard</button>
+        </div>
+      </div>
+      <div class="mat-sel" id="matDeliveryAddrField">
+        <label>Delivery address <span style="color:var(--text2);font-weight:400">(if different)</span></label>
+        <input id="matDeliveryAddr" type="text" placeholder="Defaults to site address" oninput="_matSyncDeliveryAddr(this.value)">
+      </div>
+    </div>
   </div>
+
+  <!-- 6. ACTIONS — Save PDF / Push to Fergus / Open Fergus / Order Roof.
+       Push to Fergus tries the auto-upload (best-effort while Fergus's
+       PAT API is sparse on files); Open in Fergus is the reliable
+       fallback that opens the job gallery in a new tab so the user can
+       drop the just-downloaded PDF in. -->
+  <div class="card mat-actions">
+    <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark">📄 Save as PDF</button>
+    <button onclick="pushMaterialsToFergus()" class="mat-btn mat-btn-green">📤 Push to Fergus</button>
+    <button onclick="openFergusJob()" class="mat-btn mat-btn-light">📂 Open in Fergus</button>
+    <button onclick="orderRoofViaSupplier()" class="mat-btn mat-btn-blue">🛒 Order Roof</button>
+    <span id="matActionMsg" style="margin-left:auto;font-size:12px;color:var(--text2);align-self:center"></span>
+  </div>
+
+  <!-- Fergus upload diagnostics — collapsed by default. When Push to
+       Fergus fails, the panel is opened automatically and populated
+       with each candidate path's HTTP status + response body so the
+       user can read what Fergus actually said without opening dev
+       tools (esp. on mobile). The Probe + Inspect Job buttons hit
+       /fergus-files/probe and /fergus/jobs/{id} so we can discover
+       the correct upload endpoint for the tenant. -->
+  <details class="card" id="matFergusDebug" style="margin-top:.5rem">
+    <summary class="card-hd" style="cursor:pointer"><span class="card-dot"></span>Fergus upload — diagnostics
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— tap when a push fails to see what each endpoint returned</span>
+    </summary>
+    <div style="padding:12px 0 4px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <button onclick="probeFergusFiles()" class="mat-btn mat-btn-dark" style="padding:8px 12px;font-size:12px">🔍 Probe endpoints</button>
+        <button onclick="inspectFergusJob()" class="mat-btn mat-btn-blue" style="padding:8px 12px;font-size:12px">🧾 Inspect linked job</button>
+      </div>
+      <div id="matFergusDebugOut" style="font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;background:#f8f9fa;border:1px solid var(--border);border-radius:6px;padding:10px;max-height:380px;overflow:auto;color:#0a1628">No diagnostics yet — push a PDF, run a probe, or inspect the job to populate.</div>
+    </div>
+  </details>
+
+  <!-- Print-only pages — populated at print time by _matBuildPrintPages.
+       Hidden on screen, shown by the print stylesheet. -->
+  <div class="mat-print-page" id="matPrintPage1">
+    <div class="mp-header" id="matPrintHeader1"></div>
+    <h2 class="mp-h">Roof Map</h2>
+    <div id="matPrintRoofMap"></div>
+    <h2 class="mp-h">Sheet Layout</h2>
+    <div id="matPrintSheetPlan"></div>
+    <h2 class="mp-h">Roof Sheet Cut List</h2>
+    <div id="matPrintSheetCutList"></div>
+  </div>
+  <div class="mat-print-page" id="matPrintPage2">
+    <div class="mp-header" id="matPrintHeader2"></div>
+    <h2 class="mp-h">Material Order</h2>
+    <div id="matPrintOrderDetails"></div>
+  </div>
+
+  <!-- Hidden: sheet layout settings — inputs retained so renderRoofSheetPlan
+       + populateMaterialsFromLines keep working. Defaults are sensible
+       (sheet width 762mm, overlap 150mm, pitch 15°). Reveal via the
+       collapsed advanced details below. -->
+  <details class="card" style="margin-top:.5rem">
+    <summary class="card-hd" style="cursor:pointer"><span class="card-dot"></span>Sheet layout settings <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:6px">— advanced (sheet width, overlap, pitch)</span></summary>
+    <div style="padding:12px 0 0">
+      <div class="f3">
+        <div><label>Sheet effective width (mm)</label><input type="number" id="sheetWidth" value="762" min="100" oninput="renderSheetLayout()"></div>
+        <div><label>End lap / overlap (mm)</label><input type="number" id="overlapMm" value="150" min="0" oninput="renderSheetLayout()"></div>
+        <div><label>Pitch (degrees)</label><input type="number" id="pitchDeg" value="15" min="1" max="60" oninput="renderSheetLayout()"></div>
+      </div>
+      <div id="sheetSectionsWrap" style="margin-top:.25rem;display:none"></div>
+      <div id="sheetLayoutOut" style="display:none">
+        <div class="canvas-wrap"><canvas id="sheetCanvas" width="900" height="520"></canvas></div>
+        <div class="sheet-legend" id="sheetLegend"></div>
+        <div id="sheetSummaryOut"></div>
+      </div>
+    </div>
+  </details>
+
+  <!-- Legacy hidden node — the "Flashings — per line" card used to live
+       here. Its contents now appear inline as per-type cut lists in the
+       Materials section above. Kept as a hidden anchor so the legacy
+       renderFlashingsBreakdown() function still has somewhere to write. -->
+  <div id="flashingsBreakdownOut" style="display:none"></div>
 </div>
 
 <!-- TAB 4: INSPECTION REPORT -->
@@ -2667,7 +2955,7 @@ function gotoTab(t) {
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
-  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}}
+  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
@@ -4433,21 +4721,8 @@ function buildMeasTiles(d) {
       '</div>';
   }).join('');
 
-  // Face breakdown
-  if(d.faces&&d.faces.length){
-    html+='<div style="grid-column:1/-1;font-size:11px;font-weight:600;color:var(--text2);margin-top:.5rem;text-transform:uppercase;letter-spacing:.05em">Roof face breakdown:</div>';
-    d.faces.forEach(function(f){
-      var slopeM=f.slope_unit==='mm'?f.slope_value/1000:f.slope_value;
-      var widM=f.width_unit==='mm'?f.width_value/1000:f.width_value;
-      var sLabel=f.slope_unit==='mm'?f.slope_value+'mm':(slopeM?slopeM.toFixed(3)+'m':'');
-      var wLabel=f.width_unit==='mm'?f.width_value+'mm':(widM?widM.toFixed(2)+'m':'');
-      html+='<div class="meas-tile" style="min-width:140px">'+
-        '<div class="meas-tile-val" style="font-size:14px">'+(f.area_m2?f.area_m2.toFixed(1)+' m²':'--')+'</div>'+
-        '<div class="meas-tile-lbl">'+f.name+'</div>'+
-        '<div style="font-size:10px;color:#0099cc;margin-top:2px">'+sLabel+(wLabel?' × '+wLabel:'')+'</div>'+
-        '</div>';
-    });
-  }
+  // (Face breakdown removed — measurements are summarised in the
+  // 3-tile drawing summary; per-line detail is in the cut lists below.)
 
   // Raw dims
   var dims=d.all_dims||[];
@@ -12874,136 +13149,903 @@ function hideTip() {
 }
 
 // ── MATERIALS FROM LINES ─────────────────────────────────────────
-function populateMaterialsFromLines() {
+// Compute the drawing totals (roof area, per-line-type linear metres,
+// pitch). Pure — no DOM writes — so other renderers can reuse it.
+function _matDrawTotals() {
   var totals = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
-  var sheetWidthMm = parseFloat(document.getElementById('sheetWidth').value)||762;
-  var sheetWidthM = sheetWidthMm/1000;
-  var overlapM = (parseFloat(document.getElementById('overlapMm').value)||150)/1000;
-  var pitch = DRAW.calPitch || parseFloat(document.getElementById('pitchDeg').value)||0;
-  var pitchFactor = pitch>0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
-
-  DRAW.lines.forEach(function(l){
-    if(l.measM && totals[l.type]!==undefined) totals[l.type]+=parseFloat(l.measM);
+  var sw = document.getElementById('sheetWidth');
+  var ov = document.getElementById('overlapMm');
+  var pd = document.getElementById('pitchDeg');
+  var pitch = DRAW.calPitch || (pd ? parseFloat(pd.value)||0 : 0);
+  var pitchFactor = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
+  (DRAW.lines || []).forEach(function(l){
+    if (l.measM && totals[l.type] !== undefined) totals[l.type] += parseFloat(l.measM);
   });
-
-  // Roof area: outline polygon area (most accurate) or fallback
   var roofArea = 0;
-  if(DRAW.scaleMetresPerPx && DRAW.outline.length>=3) {
-    var planPx2b = polyAreaPx(DRAW.outline);
-    var planM2b = planPx2b * DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx;
-    roofArea = planM2b * pitchFactor;
+  if (DRAW.scaleMetresPerPx && DRAW.outline.length >= 3) {
+    var planPx2 = polyAreaPx(DRAW.outline);
+    var planM2  = planPx2 * DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx;
+    roofArea = planM2 * pitchFactor;
   } else {
-    DRAW.lines.forEach(function(l){
-      if((l.type==='gutter'||l.type==='changepitch')&&l.measM&&l.sheetLengthM){
-        roofArea += parseFloat(l.measM)*parseFloat(l.sheetLengthM)*pitchFactor;
+    (DRAW.lines || []).forEach(function(l){
+      if ((l.type==='gutter'||l.type==='changepitch') && l.measM && l.sheetLengthM) {
+        roofArea += parseFloat(l.measM) * parseFloat(l.sheetLengthM) * pitchFactor;
       }
     });
-    if(roofArea===0&&totals.gutter>0&&totals.valley>0) roofArea=totals.gutter*totals.valley*pitchFactor;
-  }
-  if(roofArea>0&&document.getElementById('scopeArea')) document.getElementById('scopeArea').value=roofArea.toFixed(1);
-
-  // Hip rafters share the same flashing as ridge cap — merge totals so
-  // the user sees one line item to order.
-  var ridgeHipTotal = (totals.ridge || 0) + (totals.hip || 0);
-
-  // Build materials HTML
-  var html='<div style="font-size:11px;font-weight:700;color:#0099cc;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #0099cc">From drawn measurements</div>';
-
-  // Ridge + Hip combined (ridge cap flashing covers both)
-  if (ridgeHipTotal > 0) {
-    var ridgeHipNote = (totals.ridge && totals.hip)
-      ? '<div style="font-size:10px;color:#666;margin-top:2px">'+totals.ridge.toFixed(2)+' m ridge + '+totals.hip.toFixed(2)+' m hip</div>'
-      : '';
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-radius:8px;margin-bottom:6px;border-left:3px solid #dc2626">'+
-      '<div><span style="font-size:13px;font-weight:600">🔴 Ridge / Hip capping</span>'+ridgeHipNote+'</div>'+
-      '<span style="font-size:16px;font-weight:700;color:#dc2626">'+ridgeHipTotal.toFixed(2)+' lm</span></div>';
-  }
-
-  // Remaining flashing types (hip excluded — folded into ridge above)
-  var types=[
-    {k:'valley',label:'Valley iron',color:'#f59e0b',icon:'🟠',unit:'lm'},
-    {k:'gutter',label:'Guttering',color:'#7c3aed',icon:'🟣',unit:'lm'},
-    {k:'barge',label:'Barge flashing',color:'#0891b2',icon:'🔵',unit:'lm'},
-    {k:'apron',label:'Apron flashing',color:'#e11d48',icon:'🩷',unit:'lm'},
-    {k:'changepitch',label:'Change of pitch flashing',color:'#0ea5e9',icon:'🔷',unit:'lm'},
-  ];
-  types.forEach(function(t){
-    if(totals[t.k]===0) return;
-    html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-radius:8px;margin-bottom:6px;border-left:3px solid '+t.color+'">'+
-      '<span style="font-size:13px;font-weight:600">'+t.icon+' '+t.label+'</span>'+
-      '<span style="font-size:16px;font-weight:700;color:'+t.color+'">'+totals[t.k].toFixed(2)+' '+t.unit+'</span></div>';
-  });
-  if(roofArea>0){
-    var planAreaShow = (DRAW.scaleMetresPerPx&&DRAW.outline.length>=3)
-      ? ' (plan: '+(polyAreaPx(DRAW.outline)*DRAW.scaleMetresPerPx*DRAW.scaleMetresPerPx).toFixed(1)+'m²)' : '';
-    html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-radius:8px;margin-bottom:6px;border-left:3px solid #2e7d32">'+
-      '<div><div style="font-size:13px;font-weight:600">🟩 Total roof area'+(pitch>0?' — '+pitch+'° pitch':'')+'</div>'+
-      '<div style="font-size:11px;color:#555;margin-top:2px">From outline polygon'+planAreaShow+'</div></div>'+
-      '<span style="font-size:18px;font-weight:700;color:#2e7d32">'+roofArea.toFixed(1)+' m²</span></div>';
-  }
-
-  // ── CONSUMABLES (Underlay, Screws, Rivets) ────────────────────
-  // Underlay: roof area × 1.2 (20% waste allowance) / roll size.
-  // Roll size persists per-browser; default 75 m²/roll.
-  var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
-  if (![50,75,100].includes(rollSize)) rollSize = 75;
-  if (roofArea > 0) {
-    var underlayM2 = roofArea * 1.2;
-    var rolls = Math.ceil(underlayM2 / rollSize);
-    html += '<div style="font-size:11px;font-weight:700;color:#0a1628;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px;padding-top:12px;border-top:1px solid #e0e0db">📦 Consumables</div>';
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-radius:8px;margin-bottom:6px;border-left:3px solid #0a1628">'+
-      '<div><div style="font-size:13px;font-weight:600">📄 Underlay / paper</div>'+
-      '<div style="font-size:11px;color:#666;margin-top:2px">'+
-      '<select onchange="localStorage.setItem(\'fr_underlay_roll_size\',this.value);populateMaterialsFromLines();" style="font-size:11px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;margin-right:6px">'+
-      [50,75,100].map(function(sz){return '<option value="'+sz+'"'+(sz===rollSize?' selected':'')+'>'+sz+' m²/roll</option>';}).join('')+
-      '</select>'+
-      'needs '+underlayM2.toFixed(1)+' m² ('+roofArea.toFixed(1)+' × 1.2 waste)</div></div>'+
-      '<span style="font-size:16px;font-weight:700;color:#0a1628">'+rolls+' roll'+(rolls===1?'':'s')+'</span></div>';
-
-    // Screws: roof area × 8, rounded up to nearest 100. Default 65mm Unitites.
-    var screwsNeeded = roofArea * 8;
-    var screws = Math.ceil(screwsNeeded / 100) * 100;
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-radius:8px;margin-bottom:6px;border-left:3px solid #0a1628">'+
-      '<div><div style="font-size:13px;font-weight:600">🔩 Roofing screws (65mm Unitites)</div>'+
-      '<div style="font-size:11px;color:#666;margin-top:2px">'+roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(screwsNeeded)+' → rounded up to nearest 100</div></div>'+
-      '<span style="font-size:16px;font-weight:700;color:#0a1628">'+screws+'</span></div>';
-  }
-
-  // Rivets: based on TOTAL flashing lm (ridge+hip+valley+barge+apron+
-  // changepitch). 100 up to 60lm, 200 up to 120lm, +100 per 60lm
-  // above that. No rivets if there are no flashings.
-  var totalFlashingLm = ridgeHipTotal + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0);
-  if (totalFlashingLm > 0) {
-    var rivets = Math.max(100, Math.ceil(totalFlashingLm / 60) * 100);
-    if (roofArea <= 0) {
-      html += '<div style="font-size:11px;font-weight:700;color:#0a1628;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px;padding-top:12px;border-top:1px solid #e0e0db">📦 Consumables</div>';
+    if (roofArea === 0 && totals.gutter > 0 && totals.valley > 0) {
+      roofArea = totals.gutter * totals.valley * pitchFactor;
     }
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-radius:8px;margin-bottom:6px;border-left:3px solid #0a1628">'+
-      '<div><div style="font-size:13px;font-weight:600">🪛 Rivets</div>'+
-      '<div style="font-size:11px;color:#666;margin-top:2px">'+totalFlashingLm.toFixed(1)+' lm of flashings total</div></div>'+
-      '<span style="font-size:16px;font-weight:700;color:#0a1628">'+rivets+'</span></div>';
+  }
+  var ridgeHip = (totals.ridge || 0) + (totals.hip || 0);
+  // "Flashings LM" = all non-gutter flashing types combined.
+  var flashingsLm = ridgeHip + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0);
+  return { totals: totals, ridgeHip: ridgeHip, flashingsLm: flashingsLm,
+           gutterLm: totals.gutter || 0, roofArea: roofArea, pitch: pitch };
+}
+
+// Render the "From your drawing measurements" card as a 3-tile summary:
+// Roof m² · Flashings LM (combined) · Gutter LM. Detailed per-line cut
+// lists live in the Materials section below.
+function populateMaterialsFromLines() {
+  var d = _matDrawTotals();
+  if (d.roofArea > 0 && document.getElementById('scopeArea')) {
+    document.getElementById('scopeArea').value = d.roofArea.toFixed(1);
+  }
+  function tile(lbl, val, unit){
+    return '<div class="mat-summary-tile">'+
+      '<div class="lbl">'+lbl+'</div>'+
+      '<div class="val">'+val+(unit?'<small>'+unit+'</small>':'')+'</div>'+
+    '</div>';
+  }
+  var html = '<div class="mat-summary">'+
+    tile('Roof area',     d.roofArea  > 0 ? d.roofArea.toFixed(1)  : '—', d.roofArea  > 0 ? 'm²' : '') +
+    tile('Flashings',     d.flashingsLm > 0 ? d.flashingsLm.toFixed(1) : '—', d.flashingsLm > 0 ? 'lm' : '') +
+    tile('Gutter',        d.gutterLm  > 0 ? d.gutterLm.toFixed(1)  : '—', d.gutterLm  > 0 ? 'lm' : '') +
+  '</div>';
+  if (d.roofArea === 0 && d.flashingsLm === 0 && d.gutterLm === 0) {
+    html += '<p style="font-size:11.5px;color:var(--text2);margin-top:10px">Draw your roof outline + flashing lines with measurements on the Map Roof tab — totals will populate here.</p>';
+  } else if (d.pitch > 0) {
+    html += '<p style="font-size:11px;color:var(--text2);margin-top:8px">Pitch: '+d.pitch+'° &nbsp;·&nbsp; Roof area is the actual sloped area (plan × pitch factor).</p>';
+  }
+  var el = document.getElementById('matAutoFromLines');
+  if (el) el.innerHTML = html;
+
+  // Refresh the per-line cut lists + consumables in the Materials section.
+  try { renderMaterialsCutLists(); } catch(e) { console.warn('cut lists:', e); }
+  try { renderFlashingsBreakdown(); } catch(e) {}
+  try { renderMaterialsCostCard(); } catch(e) {}
+  try { updateMeasTotals(); } catch(e) {}
+}
+
+// ════════════════════════════════════════════════════════════════════
+// MATERIALS SECTION — cut lists, flashing drawings, consumables.
+// Reads DRAW.lines + window._lastSheetCounts (from renderRoofSheetPlan)
+// and the top-level selectors (#matProfile, #matGrade, #matThickness,
+// #matRidgeType, #matGutter, #matColour). Re-rendered whenever a
+// selector changes or the drawing is refreshed.
+// ════════════════════════════════════════════════════════════════════
+
+// Flashing-type metadata: colour + waste rules + whether to show a
+// technical cross-section drawing. Hip and ridge are merged into a
+// single "ridge" cut list (+0.5m per piece, profile selectable).
+// Other flashings get +0.4m waste per piece by default.
+var _MAT_FLASHING_SPECS = [
+  { key:'ridgehip', label:'Ridge / Hip capping',   colour:'#dc2626', waste:0.5, drawing:'ridge'      },
+  { key:'barge',    label:'Barge flashing',         colour:'#0891b2', waste:0.4, drawing:'barge'      },
+  { key:'apron',    label:'Apron flashing',         colour:'#e11d48', waste:0.4, drawing:'apron'      },
+  { key:'changepitch', label:'Change-of-pitch flashing', colour:'#0ea5e9', waste:0.4, drawing:'changepitch' },
+  { key:'valley',   label:'Valley iron',            colour:'#f59e0b', waste:0.4, drawing:null         },
+];
+
+// Build the per-piece cut list for a flashing type.
+// Each drawn line of that type becomes one piece (line length + waste).
+// Returns { rows:[{qty, length, source}], totalLm }, grouped by length
+// so identical pieces collapse into "N @ Xm".
+function _matBuildCutList(type, waste) {
+  var pieces = [];
+  (DRAW.lines || []).forEach(function(l){
+    if (!l.measM) return;
+    var t = l.type;
+    // Merge hip + ridge into the "ridgehip" bucket.
+    if (type === 'ridgehip') {
+      if (t !== 'ridge' && t !== 'hip') return;
+    } else if (t !== type) {
+      return;
+    }
+    var len = parseFloat(l.measM) + (waste || 0);
+    // Round up to nearest 0.1m so the cut list reads cleanly.
+    len = Math.ceil(len * 10) / 10;
+    pieces.push(len);
+  });
+  // Group by identical length so "1 @ 6.4m, 1 @ 6.4m" becomes "2 @ 6.4m".
+  var bucket = {};
+  pieces.forEach(function(p){ bucket[p.toFixed(1)] = (bucket[p.toFixed(1)]||0) + 1; });
+  var rows = Object.keys(bucket).sort(function(a,b){ return parseFloat(b) - parseFloat(a); })
+    .map(function(k){ return { qty: bucket[k], length: parseFloat(k) }; });
+  var total = pieces.reduce(function(s,p){ return s+p; }, 0);
+  return { rows: rows, totalLm: total, pieceCount: pieces.length };
+}
+
+// Simple SVG cross-section profiles for the three flashings that
+// require a drawing. Pure SVG — scales cleanly at any zoom.
+function _matFlashingDrawing(kind) {
+  var W = 120, H = 60, s = 'stroke:#0a1628;stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round';
+  if (kind === 'barge') {
+    // Barge: short upturn at top + horizontal cover + long downturn over fascia
+    return '<svg viewBox="0 0 '+W+' '+H+'" width="120" height="60" xmlns="http://www.w3.org/2000/svg">'+
+      '<path d="M 15 18 L 22 18 L 22 32 L 95 32 L 95 50" style="'+s+'"/>'+
+      '<text x="22" y="14" font-family="Inter,sans-serif" font-size="7" fill="#6f6a60">25mm</text>'+
+      '<text x="50" y="42" font-family="Inter,sans-serif" font-size="7" fill="#6f6a60">cover</text>'+
+      '<text x="78" y="48" font-family="Inter,sans-serif" font-size="7" fill="#6f6a60">75mm</text>'+
+    '</svg>';
+  }
+  if (kind === 'apron') {
+    // Apron: vertical upstand against wall + horizontal cover onto roof
+    return '<svg viewBox="0 0 '+W+' '+H+'" width="120" height="60" xmlns="http://www.w3.org/2000/svg">'+
+      '<path d="M 25 8 L 25 38 L 100 38" style="'+s+'"/>'+
+      '<line x1="20" y1="8" x2="25" y2="8" style="'+s+'"/>'+
+      '<text x="9" y="25" font-family="Inter,sans-serif" font-size="7" fill="#6f6a60">150mm</text>'+
+      '<text x="9" y="33" font-family="Inter,sans-serif" font-size="7" fill="#6f6a60">upstand</text>'+
+      '<text x="55" y="48" font-family="Inter,sans-serif" font-size="7" fill="#6f6a60">100mm cover</text>'+
+    '</svg>';
+  }
+  if (kind === 'changepitch') {
+    // Change of pitch: two pitched legs meeting at a vertex
+    return '<svg viewBox="0 0 '+W+' '+H+'" width="120" height="60" xmlns="http://www.w3.org/2000/svg">'+
+      '<path d="M 18 14 L 60 32 L 102 50" style="'+s+'"/>'+
+      '<path d="M 18 14 L 60 32 L 102 14" style="stroke:#0a1628;stroke-width:1.6;fill:none;stroke-dasharray:2,2"/>'+
+      '<circle cx="60" cy="32" r="2.5" fill="#0099cc"/>'+
+      '<text x="6" y="11" font-family="Inter,sans-serif" font-size="7" fill="#6f6a60">upper pitch</text>'+
+      '<text x="62" y="56" font-family="Inter,sans-serif" font-size="7" fill="#6f6a60">lower pitch</text>'+
+    '</svg>';
+  }
+  if (kind === 'ridge') {
+    // Ridge capping cross-section: V-fold over the apex
+    return '<svg viewBox="0 0 '+W+' '+H+'" width="120" height="60" xmlns="http://www.w3.org/2000/svg">'+
+      '<path d="M 18 44 L 60 14 L 102 44" style="'+s+'"/>'+
+      '<line x1="60" y1="10" x2="60" y2="50" style="stroke:#94a3b8;stroke-width:.8;stroke-dasharray:3,2"/>'+
+      '<text x="20" y="55" font-family="Inter,sans-serif" font-size="7" fill="#6f6a60">200mm girth</text>'+
+    '</svg>';
+  }
+  return '';
+}
+
+// Render the full Materials section (cut lists + consumables).
+function renderMaterialsCutLists() {
+  var out = document.getElementById('matCutLists');
+  if (!out) return;
+  var d = _matDrawTotals();
+  var profile   = (document.getElementById('matProfile')   || {}).value || 'Corrugate';
+  var grade     = (document.getElementById('matGrade')     || {}).value || 'Colorsteel Maxam';
+  var thickness = (document.getElementById('matThickness') || {}).value || '0.40g';
+  var ridgeType = (document.getElementById('matRidgeType') || {}).value || 'standard';
+  var gutterChoice = (document.getElementById('matGutter') || {}).value || 'none';
+
+  var html = '';
+
+  // ── 1. Roof sheets ─────────────────────────────────────────
+  var sc = window._lastSheetCounts || null;
+  html += '<div class="mat-section">'+
+    '<div class="mat-section-hd">'+
+      '<span class="swatch" style="background:#0099cc"></span>'+
+      '<h3>Roof sheets</h3>'+
+      '<span class="meta">'+esc(profile)+' &nbsp;·&nbsp; '+esc(grade)+' &nbsp;·&nbsp; '+esc(thickness)+'</span>'+
+    '</div>';
+  if (sc && (sc.orangeLong || sc.blueLong || sc.purpleLong || sc.shortCount)) {
+    var longM = (sc.longLen || 7650) / 1000;
+    var shortM = (sc.shortLen || 3900) / 1000;
+    html += '<table class="cut-list"><thead><tr>'+
+      '<th>Description</th><th class="r">Qty</th><th class="r">Length</th>'+
+    '</tr></thead><tbody>';
+    var rows = [];
+    if (sc.orangeLong) rows.push({d:profile+' sheet — Group A (orange)', q:sc.orangeLong, l:longM});
+    if (sc.blueLong)   rows.push({d:profile+' sheet — Group B (blue)',   q:sc.blueLong,   l:longM});
+    if (sc.purpleLong) rows.push({d:profile+' sheet — Group C (purple)', q:sc.purpleLong, l:longM});
+    if (sc.shortCount) rows.push({d:profile+' sheet — short cut',         q:sc.shortCount, l:shortM});
+    var totalSheets = 0;
+    rows.forEach(function(r){
+      totalSheets += r.q;
+      html += '<tr><td>'+esc(r.d)+'</td><td class="r">'+r.q+'</td><td class="r">'+r.l.toFixed(2)+' m</td></tr>';
+    });
+    html += '</tbody><tfoot><tr><td>Total sheets</td><td class="r">'+totalSheets+'</td><td class="r">'+d.roofArea.toFixed(1)+' m²</td></tr></tfoot></table>';
+  } else {
+    html += '<div class="cut-list-empty">Generate the Roof Sheet Plan above to populate the sheet cut list.</div>';
+  }
+  html += '</div>';
+
+  // ── 2. Ridge / Hip capping (combined) ──────────────────────
+  var ridgeSpec = _MAT_FLASHING_SPECS[0]; // ridgehip
+  var ridgeCl = _matBuildCutList('ridgehip', ridgeSpec.waste);
+  html += '<div class="mat-section">'+
+    '<div class="mat-section-hd">'+
+      '<span class="swatch" style="background:'+ridgeSpec.colour+'"></span>'+
+      '<h3>Ridge / Hip capping</h3>'+
+      '<span class="meta">'+(ridgeType==='wide'?'Wide ridge':'Standard ridge')+' &nbsp;·&nbsp; '+esc(grade)+' &nbsp;·&nbsp; '+esc(thickness)+'</span>'+
+    '</div>'+
+    '<div class="mat-section-sub">Each ridge / hip line gets +'+ridgeSpec.waste.toFixed(1)+'m for end folds and over-laps; rounded up to the nearest 100mm.</div>';
+  html += '<div class="flash-dwg">'+_matFlashingDrawing('ridge')+
+    '<div class="desc"><strong>'+(ridgeType==='wide'?'Wide ridge profile':'Standard ridge profile')+'</strong>Apex cap, '+(ridgeType==='wide'?'~300mm':'200mm')+' girth, '+esc(grade)+' '+esc(thickness)+'.</div>'+
+  '</div>';
+  html += _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.');
+  html += '</div>';
+
+  // ── 3. Other flashings (barge, apron, change-of-pitch, valley) ──
+  _MAT_FLASHING_SPECS.slice(1).forEach(function(spec){
+    var cl = _matBuildCutList(spec.key, spec.waste);
+    if (cl.pieceCount === 0) return; // hide types with no drawn lines
+    html += '<div class="mat-section">'+
+      '<div class="mat-section-hd">'+
+        '<span class="swatch" style="background:'+spec.colour+'"></span>'+
+        '<h3>'+esc(spec.label)+'</h3>'+
+        '<span class="meta">'+esc(grade)+' &nbsp;·&nbsp; '+esc(thickness)+'</span>'+
+      '</div>'+
+      '<div class="mat-section-sub">+'+spec.waste.toFixed(1)+'m per piece for end folds &amp; over-laps.</div>';
+    if (spec.drawing) {
+      var desc;
+      if (spec.drawing === 'barge')       desc = 'L-fold over rake — 25mm upstand + 75mm gable cover.';
+      else if (spec.drawing === 'apron')  desc = '150mm wall upstand + 100mm roof cover; sealed at top edge.';
+      else                                desc = 'Two-pitch break where roof pitch changes; fold matches both pitches.';
+      html += '<div class="flash-dwg">'+_matFlashingDrawing(spec.drawing)+
+        '<div class="desc"><strong>'+esc(spec.label)+' profile</strong>'+desc+'</div>'+
+      '</div>';
+    }
+    html += _matCutListTable(cl, '');
+    html += '</div>';
+  });
+
+  // ── 4. Gutter ──────────────────────────────────────────────
+  var gutterLabel = {
+    'none':'No gutter required',
+    'colorsteel-box':'Colorsteel 125mm Box Gutter',
+    'zincalume-box':'Zincalume 125mm Box Gutter',
+    'marley-classic':'Marley Classic (PVC)',
+    'marley-typhoon':'Marley Typhoon (PVC)'
+  }[gutterChoice] || 'No gutter required';
+  html += '<div class="mat-section">'+
+    '<div class="mat-section-hd">'+
+      '<span class="swatch" style="background:#7c3aed"></span>'+
+      '<h3>Guttering</h3>'+
+      '<span class="meta">'+esc(gutterLabel)+'</span>'+
+    '</div>';
+  if (gutterChoice === 'none') {
+    html += '<div class="cut-list-empty">No gutter selected — pick a gutter type above to add it to the order.</div>';
+  } else {
+    var gCl = _matBuildCutList('gutter', 0);
+    if (gCl.pieceCount === 0) {
+      html += '<div class="cut-list-empty">Draw gutter lines on the Map Roof tab to populate this list.</div>';
+    } else {
+      html += _matCutListTable(gCl, '');
+    }
+  }
+  html += '</div>';
+
+  out.innerHTML = html;
+
+  // ── Consumables (paper / screws / rivets / dektites) ──────
+  _matRenderConsumables(d);
+}
+
+// Render one cut-list table from the bucketed pieces.
+function _matCutListTable(cl, emptyMsg) {
+  if (cl.pieceCount === 0) {
+    return '<div class="cut-list-empty">'+esc(emptyMsg || 'No pieces yet — add drawn line measurements.')+'</div>';
+  }
+  var html = '<table class="cut-list"><thead><tr>'+
+    '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th>'+
+  '</tr></thead><tbody>';
+  cl.rows.forEach(function(r, i){
+    html += '<tr><td>Piece '+(i+1)+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td></tr>';
+  });
+  html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td></tr></tfoot></table>';
+  return html;
+}
+
+// Consumables (restyled to match the Materials section).
+function _matRenderConsumables(d) {
+  var out = document.getElementById('matConsumables');
+  if (!out) return;
+  if (d.roofArea === 0 && d.flashingsLm === 0) {
+    out.innerHTML = '<p style="font-size:12px;color:var(--text2);grid-column:1/-1;padding:8px 0">Quantities will calculate from your roof area + total flashing run.</p>';
+    return;
+  }
+  var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
+  if ([50,75,100].indexOf(rollSize) < 0) rollSize = 75;
+
+  var tiles = [];
+  if (d.roofArea > 0) {
+    var underlayM2 = d.roofArea * 1.2;
+    var rolls = Math.ceil(underlayM2 / rollSize);
+    tiles.push({
+      icon:'📄', name:'Underlay / paper', qty: rolls + ' roll' + (rolls===1?'':'s'),
+      sub: underlayM2.toFixed(1)+' m² (incl. 20% waste) · roll size '+
+        '<select onchange="localStorage.setItem(\'fr_underlay_roll_size\',this.value);renderMaterialsCutLists()">'+
+        [50,75,100].map(function(sz){return '<option value="'+sz+'"'+(sz===rollSize?' selected':'')+'>'+sz+' m²</option>';}).join('')+
+        '</select>'
+    });
+    var screwsNeeded = d.roofArea * 8;
+    var screws = Math.ceil(screwsNeeded / 100) * 100;
+    tiles.push({
+      icon:'🔩', name:'Roofing screws', qty: screws.toLocaleString(),
+      sub:'65mm Unitites · '+d.roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(screwsNeeded)+', rounded to '+screws
+    });
+  }
+  if (d.flashingsLm > 0) {
+    var rivets = Math.max(100, Math.ceil(d.flashingsLm / 60) * 100);
+    tiles.push({
+      icon:'🪛', name:'Rivets', qty: rivets.toLocaleString(),
+      sub: d.flashingsLm.toFixed(1)+' lm of flashings · 100 / 60lm minimum'
+    });
+  }
+  // Dektites — defaults to 1 per pipe penetration; user can adjust on the order.
+  var dektites = parseInt(localStorage.getItem('fr_dektite_count') || '0', 10);
+  tiles.push({
+    icon:'🟫', name:'Dektites', qty: dektites,
+    sub:'Pipe penetrations · '+
+      '<input type="number" min="0" max="50" value="'+dektites+'" onchange="localStorage.setItem(\'fr_dektite_count\',this.value);renderMaterialsCutLists()" style="width:54px;padding:2px 5px;font-size:11px;border:1px solid var(--border);border-radius:4px;margin-left:4px"> typically'
+  });
+
+  out.innerHTML = tiles.map(function(t){
+    return '<div class="cons-tile">'+
+      '<div class="cons-hd">'+
+        '<span class="cons-name">'+t.icon+' '+esc(t.name)+'</span>'+
+        '<span class="cons-qty">'+t.qty+'</span>'+
+      '</div>'+
+      '<div class="cons-sub">'+t.sub+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+// ── ACTION HANDLERS ─────────────────────────────────────────
+
+function _matMsg(text, ok) {
+  var el = document.getElementById('matActionMsg');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = ok === false ? '#b91c1c' : (ok ? '#059669' : 'var(--text2)');
+  if (text) setTimeout(function(){ if (el.textContent === text) el.textContent = ''; }, 4500);
+}
+
+// Browser print-to-PDF for the Materials tab. Print CSS hides everything
+// except #tab-materials and inserts a page-break before the Materials
+// cut list card so page 1 = drawing summary + sheet plan, page 2 = cut
+// lists + consumables. Defensively strips any leftover print-* class
+// from a previous print run before adding our own.
+function saveMaterialsAsPdf() {
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+  try { _matBuildPrintPages(); } catch(e){ console.warn('print pages:', e); }
+  var html = document.documentElement;
+  ['print-quote','print-order','print-jobpack','print-report'].forEach(function(c){ html.classList.remove(c); });
+  html.classList.add('print-materials');
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){ html.classList.remove('print-materials'); }, 400);
+  }, 60);
+  _matMsg('Opening print dialog — choose "Save as PDF"…');
+}
+
+// ── JOB & DELIVERY (Materials tab) ──────────────────────────
+// Pulls customer + site address from Select Job (#jobClient / #jobAddr),
+// mirrors job # + delivery into the legacy order-tab fields so the
+// supplier email continues to work, persists choices in S.order.
+function populateMatJobInfo() {
+  var client = (document.getElementById('jobClient')||{}).value || '';
+  var addr   = (document.getElementById('jobAddr')  ||{}).value || '';
+  var jobNum = (document.getElementById('orderJobNumber')||{}).value
+            || (S && S.linkedJobId ? ('Fergus '+S.linkedJobId) : '');
+  var delAddr = (document.getElementById('orderDeliveryAddr')||{}).value || '';
+  var mode   = (S && S.order && S.order.deliveryMode) || 'site';
+  var cOut = document.getElementById('matCustomerOut');
+  if (cOut) cOut.textContent = client || '— set on Select Job tab';
+  var aOut = document.getElementById('matSiteAddrOut');
+  if (aOut) aOut.textContent = addr || '— set on Select Job tab';
+  var jnEl = document.getElementById('matJobNumber');
+  if (jnEl && !jnEl.value && jobNum) jnEl.value = jobNum;
+  var daEl = document.getElementById('matDeliveryAddr');
+  if (daEl && !daEl.value && delAddr) daEl.value = delAddr;
+  // Reflect the delivery toggle from S.order.
+  document.querySelectorAll('#matDeliveryToggle button').forEach(function(b){
+    b.classList.toggle('on', b.getAttribute('data-mode') === mode);
+  });
+  var daField = document.getElementById('matDeliveryAddrField');
+  if (daField) daField.style.visibility = (mode === 'site') ? 'visible' : 'hidden';
+}
+function setMatDelivery(mode, btn) {
+  if (!S) window.S = {}; if (!S.order) S.order = {};
+  S.order.deliveryMode = mode;
+  document.querySelectorAll('#matDeliveryToggle button').forEach(function(b){ b.classList.remove('on'); });
+  if (btn) btn.classList.add('on');
+  var daField = document.getElementById('matDeliveryAddrField');
+  if (daField) daField.style.visibility = (mode === 'site') ? 'visible' : 'hidden';
+  // Keep the legacy order-tab UI + S.order.deliveryMode in sync so
+  // emailOrderToSupplier (which reads from there) agrees.
+  if (typeof setDeliveryMode === 'function') {
+    var orderBtn = document.querySelector('#tab-order .tab-row .tab-sm[onclick*="\''+mode+'\'"]');
+    setDeliveryMode(mode, orderBtn);
+  }
+  // setDeliveryMode('yard') wipes #orderDeliveryAddr.value — re-sync
+  // from our field when switching back to 'site' so the supplier
+  // email still has the address.
+  if (mode === 'site') {
+    var ma = document.getElementById('matDeliveryAddr');
+    var oa = document.getElementById('orderDeliveryAddr');
+    if (ma && oa) oa.value = ma.value || '';
+  }
+}
+function _matSyncJobNumber(v) {
+  var el = document.getElementById('orderJobNumber'); if (el) el.value = v || '';
+}
+function _matSyncDeliveryAddr(v) {
+  var el = document.getElementById('orderDeliveryAddr'); if (el) el.value = v || '';
+}
+
+// ── PRINT-PAGE BUILDERS ─────────────────────────────────────
+// Populated right before window.print(). Page 1 is Roof Map + Sheet
+// Layout + Sheet Cut List; page 2 is the condensed material order
+// (customer/delivery header, every other cut list, consumables).
+
+function _matBuildPrintPages() {
+  populateMatJobInfo();
+  _matBuildPrintHeader();
+  _matCaptureCanvasToImg('roofCanvas', document.getElementById('matPrintRoofMap'), 'Roof map');
+  _matCloneSheetPlanForPrint(document.getElementById('matPrintSheetPlan'));
+  _matBuildPrintSheetCutList(document.getElementById('matPrintSheetCutList'));
+  _matBuildPrintOrderDetails(document.getElementById('matPrintOrderDetails'));
+}
+
+function _matJobHeaderHtml(includeDelivery) {
+  var client = (document.getElementById('jobClient')||{}).value || '—';
+  var addr   = (document.getElementById('jobAddr')  ||{}).value || '—';
+  var jobNum = (document.getElementById('matJobNumber')||{}).value || '—';
+  var date   = new Date().toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' });
+  var delMode = (S && S.order && S.order.deliveryMode) || 'site';
+  var delAddr = (document.getElementById('matDeliveryAddr')||{}).value || addr;
+  var deliveryLine = includeDelivery
+    ? '<div><strong>Delivery:</strong> '+ (delMode === 'site' ? 'To site — '+esc(delAddr) : 'To yard') +'</div>'
+    : '';
+  var brand = (S && S.settings && S.settings.branding && S.settings.branding.company_name) || 'Flood Roofing';
+  return '<div class="left">'+esc(client)+'<div style="font-size:10.5px;font-weight:500;color:#374151;margin-top:2px">'+esc(addr)+'</div></div>'+
+    '<div class="right">'+
+      '<div><strong>Job #:</strong> '+esc(jobNum)+'</div>'+
+      '<div><strong>Date:</strong> '+esc(date)+'</div>'+
+      deliveryLine +
+      '<div style="margin-top:4px;color:#6f6a60">'+esc(brand)+'</div>'+
+    '</div>';
+}
+
+function _matBuildPrintHeader() {
+  var h1 = document.getElementById('matPrintHeader1');
+  var h2 = document.getElementById('matPrintHeader2');
+  if (h1) h1.innerHTML = _matJobHeaderHtml(false);
+  if (h2) h2.innerHTML = _matJobHeaderHtml(true);
+}
+
+// Capture a single canvas to an <img> in `mount`. Mirrors the Job
+// Pack pattern — degrades gracefully if the canvas is tainted.
+function _matCaptureCanvasToImg(canvasId, mount, label) {
+  if (!mount) return;
+  var cv = document.getElementById(canvasId);
+  if (!cv) { mount.innerHTML = '<div style="color:#6f6a60;font-size:11px;padding:14px;font-style:italic">No '+label+' to capture — open Map Roof and draw your roof first.</div>'; return; }
+  try {
+    var url = cv.toDataURL('image/png');
+    mount.innerHTML = '<img src="'+url+'" alt="'+esc(label)+'">';
+  } catch(e) {
+    mount.innerHTML = '<div style="color:#b91c1c;font-size:11px;padding:14px">Could not capture '+esc(label)+' — map tiles may be cross-origin tainted.</div>';
+  }
+}
+
+// Clone the Roof Sheet Plan output (sheet plan canvas(es) + legend)
+// into the print mount, converting each <canvas> to an <img> so the
+// pixels actually print.
+function _matCloneSheetPlanForPrint(mount) {
+  if (!mount) return;
+  var src = document.getElementById('roofSheetPlanOut');
+  if (!src || !src.children.length) { mount.innerHTML = '<div style="color:#6f6a60;font-size:11px;padding:14px;font-style:italic">No sheet plan yet — click Refresh on the Roof Sheet Plan card.</div>'; return; }
+  mount.innerHTML = '';
+  Array.from(src.children).forEach(function(child){
+    var clone = child.cloneNode(true);
+    // Replace every canvas inside the clone with an img of the original.
+    var origCanvases = child.querySelectorAll ? child.querySelectorAll('canvas') : [];
+    var cloneCanvases = clone.querySelectorAll ? clone.querySelectorAll('canvas') : [];
+    if (child.tagName === 'CANVAS') {
+      try {
+        var img = document.createElement('img');
+        img.src = child.toDataURL('image/png');
+        mount.appendChild(img);
+        return;
+      } catch(e) {}
+    }
+    for (var i = 0; i < origCanvases.length; i++) {
+      try {
+        var im = document.createElement('img');
+        im.src = origCanvases[i].toDataURL('image/png');
+        im.style.cssText = 'max-width:100%;height:auto;display:block';
+        cloneCanvases[i].parentNode.replaceChild(im, cloneCanvases[i]);
+      } catch(e) {}
+    }
+    mount.appendChild(clone);
+  });
+}
+
+function _matBuildPrintSheetCutList(mount) {
+  if (!mount) return;
+  var sc = window._lastSheetCounts;
+  var profile   = (document.getElementById('matProfile')||{}).value || 'Corrugate';
+  var grade     = (document.getElementById('matGrade')||{}).value || 'Colorsteel Maxam';
+  var thickness = (document.getElementById('matThickness')||{}).value || '0.40g';
+  var colour    = (document.getElementById('matColour')||{}).value || '';
+  if (!sc || !(sc.orangeLong || sc.blueLong || sc.purpleLong || sc.shortCount)) {
+    mount.innerHTML = '<div style="color:#6f6a60;font-size:11px;padding:8px 0;font-style:italic">No sheet counts yet — generate the Roof Sheet Plan first.</div>';
+    return;
+  }
+  var spec = '<div class="mp-spec-grid">'+
+    '<div><div class="lbl">Profile</div><div class="val">'+esc(profile)+'</div></div>'+
+    '<div><div class="lbl">Steel grade</div><div class="val">'+esc(grade)+'</div></div>'+
+    '<div><div class="lbl">Thickness</div><div class="val">'+esc(thickness)+'</div></div>'+
+    '<div><div class="lbl">Colour</div><div class="val">'+esc(colour||'—')+'</div></div>'+
+  '</div>';
+  var longM = (sc.longLen || 7650) / 1000, shortM = (sc.shortLen || 3900) / 1000;
+  var rows = [];
+  if (sc.orangeLong) rows.push({d:profile+' sheet — Group A (orange)', q:sc.orangeLong, l:longM});
+  if (sc.blueLong)   rows.push({d:profile+' sheet — Group B (blue)',   q:sc.blueLong,   l:longM});
+  if (sc.purpleLong) rows.push({d:profile+' sheet — Group C (purple)', q:sc.purpleLong, l:longM});
+  if (sc.shortCount) rows.push({d:profile+' sheet — short cut',         q:sc.shortCount, l:shortM});
+  var total = rows.reduce(function(s,r){return s+r.q;}, 0);
+  var html = spec + '<table class="mp-cut"><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Length each</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    html += '<tr><td>'+esc(r.d)+'</td><td class="r">'+r.q+'</td><td class="r">'+r.l.toFixed(2)+' m</td></tr>';
+  });
+  html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+total+' sheets</td><td class="r"></td></tr></tfoot></table>';
+  mount.innerHTML = html;
+}
+
+function _matBuildPrintOrderDetails(mount) {
+  if (!mount) return;
+  var d = _matDrawTotals();
+  var profile   = (document.getElementById('matProfile')||{}).value || 'Corrugate';
+  var grade     = (document.getElementById('matGrade')||{}).value || 'Colorsteel Maxam';
+  var thickness = (document.getElementById('matThickness')||{}).value || '0.40g';
+  var colour    = (document.getElementById('matColour')||{}).value || '';
+  var ridgeType = (document.getElementById('matRidgeType')||{}).value || 'standard';
+  var gutterChoice = (document.getElementById('matGutter')||{}).value || 'none';
+  var gutterLabel = {
+    'none':'—',
+    'colorsteel-box':'Colorsteel 125mm Box',
+    'zincalume-box':'Zincalume 125mm Box',
+    'marley-classic':'Marley Classic (PVC)',
+    'marley-typhoon':'Marley Typhoon (PVC)'
+  }[gutterChoice] || '—';
+
+  // Top spec strip.
+  var html = '<div class="mp-spec-grid">'+
+    '<div><div class="lbl">Profile</div><div class="val">'+esc(profile)+'</div></div>'+
+    '<div><div class="lbl">Steel grade</div><div class="val">'+esc(grade)+'</div></div>'+
+    '<div><div class="lbl">Thickness</div><div class="val">'+esc(thickness)+'</div></div>'+
+    '<div><div class="lbl">Colour</div><div class="val">'+esc(colour||'—')+'</div></div>'+
+    '<div><div class="lbl">Pitch</div><div class="val">'+(d.pitch?d.pitch+'°':'—')+'</div></div>'+
+    '<div><div class="lbl">Ridge profile</div><div class="val">'+(ridgeType==='wide'?'Wide':'Standard')+'</div></div>'+
+    '<div><div class="lbl">Gutter</div><div class="val">'+esc(gutterLabel)+'</div></div>'+
+    '<div><div class="lbl">Roof area</div><div class="val">'+(d.roofArea>0?d.roofArea.toFixed(1)+' m²':'—')+'</div></div>'+
+  '</div>';
+
+  // One combined cut-list table, grouped by section.
+  html += '<table class="mp-cut">'+
+    '<thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Length each</th><th class="r">Total</th></tr></thead><tbody>';
+  function appendSection(label, cl) {
+    if (!cl || !cl.pieceCount) return;
+    html += '<tr><td colspan="4" class="mp-sub">'+esc(label)+'</td></tr>';
+    cl.rows.forEach(function(r, i){
+      html += '<tr><td>Piece '+(i+1)+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">'+(r.qty*r.length).toFixed(1)+' m</td></tr>';
+    });
+    html += '<tr><td style="font-weight:700">Subtotal</td><td class="r" style="font-weight:700">'+cl.pieceCount+'</td><td class="r"></td><td class="r" style="font-weight:700">'+cl.totalLm.toFixed(1)+' m</td></tr>';
+  }
+  appendSection('Ridge / Hip capping ('+(ridgeType==='wide'?'Wide':'Standard')+')', _matBuildCutList('ridgehip', 0.5));
+  appendSection('Barge flashing',         _matBuildCutList('barge',       0.4));
+  appendSection('Apron flashing',         _matBuildCutList('apron',       0.4));
+  appendSection('Change-of-pitch flashing', _matBuildCutList('changepitch', 0.4));
+  appendSection('Valley iron',            _matBuildCutList('valley',      0.4));
+  if (gutterChoice !== 'none') appendSection('Gutter — '+gutterLabel, _matBuildCutList('gutter', 0));
+  html += '</tbody></table>';
+
+  // Consumables strip.
+  var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
+  if ([50,75,100].indexOf(rollSize) < 0) rollSize = 75;
+  var rolls = d.roofArea > 0 ? Math.ceil(d.roofArea * 1.2 / rollSize) : 0;
+  var screws = d.roofArea > 0 ? Math.ceil(d.roofArea * 8 / 100) * 100 : 0;
+  var rivets = d.flashingsLm > 0 ? Math.max(100, Math.ceil(d.flashingsLm / 60) * 100) : 0;
+  var dektites = parseInt(localStorage.getItem('fr_dektite_count') || '0', 10);
+  html += '<h2 class="mp-h" style="margin-top:14px">Consumables</h2>'+
+    '<div class="mp-cons">'+
+      '<div><div class="cons-name">Underlay</div><div class="cons-val">'+rolls+' roll'+(rolls===1?'':'s')+'</div><div style="font-size:9.5px;color:#6f6a60">'+rollSize+' m² rolls</div></div>'+
+      '<div><div class="cons-name">Roofing screws</div><div class="cons-val">'+screws.toLocaleString()+'</div><div style="font-size:9.5px;color:#6f6a60">65mm Unitites</div></div>'+
+      '<div><div class="cons-name">Rivets</div><div class="cons-val">'+rivets.toLocaleString()+'</div><div style="font-size:9.5px;color:#6f6a60">across '+d.flashingsLm.toFixed(1)+' lm of flashing</div></div>'+
+      '<div><div class="cons-name">Dektites</div><div class="cons-val">'+dektites+'</div><div style="font-size:9.5px;color:#6f6a60">pipe penetrations</div></div>'+
+    '</div>';
+
+  mount.innerHTML = html;
+}
+
+// Ctrl/Cmd+P from the Materials tab should print the Materials cut list,
+// not the legacy report panel. Mirror the Quote-tab beforeprint pattern.
+window.addEventListener('beforeprint', function(){
+  var ap = document.querySelector('.panel.active');
+  if (!ap || ap.id !== 'tab-materials') return;
+  if (document.documentElement.classList.contains('print-materials')) return;
+  document.documentElement.classList.add('print-materials');
+  document.documentElement.dataset.autoPrintMaterials = '1';
+});
+window.addEventListener('afterprint', function(){
+  if (document.documentElement.dataset.autoPrintMaterials === '1') {
+    document.documentElement.classList.remove('print-materials');
+    delete document.documentElement.dataset.autoPrintMaterials;
+  }
+});
+
+// Lazy-load html2canvas + jsPDF from a CDN. Cached on window after the
+// first call so subsequent uploads don't re-fetch.
+function _loadScriptOnce(src) {
+  return new Promise(function(ok, fail){
+    if (document.querySelector('script[data-loaded-src="'+src+'"]')) return ok();
+    var s = document.createElement('script');
+    s.src = src; s.async = true;
+    s.onload  = function(){ s.setAttribute('data-loaded-src', src); ok(); };
+    s.onerror = function(){ fail(new Error('Failed to load ' + src)); };
+    document.head.appendChild(s);
+  });
+}
+function _loadPdfLibs() {
+  if (window.jspdf && window.html2canvas) return Promise.resolve();
+  return Promise.all([
+    window.jspdf      ? Promise.resolve() : _loadScriptOnce('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js'),
+    window.html2canvas? Promise.resolve() : _loadScriptOnce('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'),
+  ]);
+}
+
+// Build the actual PDF blob by snapshotting #matPrintPage1 + #matPrintPage2
+// off-screen and stacking the two canvases into a 2-page A4 jsPDF.
+async function _matBuildPdfBlob() {
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+  _matBuildPrintPages();
+  await _loadPdfLibs();
+
+  var pages = ['matPrintPage1', 'matPrintPage2']
+    .map(function(id){ return document.getElementById(id); })
+    .filter(Boolean);
+  pages.forEach(function(p){ p.classList.add('mp-capturing'); });
+  // Let layout settle before snapping.
+  await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+  var canvases = [];
+  try {
+    for (var i = 0; i < pages.length; i++) {
+      var canv = await window.html2canvas(pages[i], {
+        scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
+      });
+      canvases.push(canv);
+    }
+  } finally {
+    pages.forEach(function(p){ p.classList.remove('mp-capturing'); });
   }
 
-  // Update materials tab auto-section
-  var matAutoEl=document.getElementById('matAutoFromLines');
-  if(matAutoEl) matAutoEl.innerHTML=html;
-  // Mirror the same tiles onto the Pricing tab's cross-check card so
-  // the user can verify the Material Price rows match the drawing.
-  var mirrorEl=document.getElementById('pricingDrawSummary');
-  if(mirrorEl) mirrorEl.innerHTML=html;
+  var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (!jsPDF) throw new Error('jsPDF failed to load');
+  var pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+  var pageW = 210, pageH = 297;
+  canvases.forEach(function(c, idx){
+    if (idx > 0) pdf.addPage();
+    var imgW = pageW;
+    var imgH = (c.height / c.width) * imgW;
+    if (imgH > pageH) imgH = pageH;
+    pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, imgW, imgH);
+  });
+  return pdf.output('blob');
+}
 
-  // Refresh the per-line flashings breakdown card under the Roof
-  // Sheet Plan.
-  try { renderFlashingsBreakdown(); } catch(e) { console.warn('flashings breakdown:', e); }
+// Trigger a browser "save as" for a generated Blob — used so the user
+// always gets a local copy of the order PDF before we hand it off to
+// Fergus. Cleans up the temporary object URL after the download fires.
+function _matDownloadBlob(blob, filename) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+}
 
-  // Recompute materials cost from the Price Book and update S.materials
-  // so the Quote tab's Materials line item stays in sync. The user can
-  // manually click "Sync to Quote" on the card to push it through to
-  // an existing quote's line items.
-  try { renderMaterialsCostCard(); } catch(e) { console.warn('materials cost:', e); }
+// Push to Fergus: generate the 2-page PDF, save a local copy via the
+// browser, then base64-encode the blob and POST to the backend which
+// re-encodes as multipart and forwards to the Fergus files endpoint.
+// Requires a linked Fergus job (Select Job tab).
+async function pushMaterialsToFergus() {
+  if (!window.S || !S.linkedJobId) {
+    _matMsg('Link a Fergus job first (Select Job → Fergus tab).', false);
+    return;
+  }
+  _matMsg('Building PDF…');
+  try {
+    var blob = await _matBuildPdfBlob();
+    var client = ((document.getElementById('jobClient')||{}).value || 'Order').trim();
+    var jobNum = ((document.getElementById('matJobNumber')||{}).value || S.linkedJobId).trim();
+    var filename = ('Materials_Order_' + jobNum + '_' + client)
+      .replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
+    // 1. Save a local copy first so the user has the file even if Fergus
+    //    upload fails or the network drops.
+    _matDownloadBlob(blob, filename);
+    // 2. Base64-encode and ship to Fergus via our backend.
+    var b64 = await new Promise(function(ok, fail){
+      var r = new FileReader();
+      r.onload = function(){ ok(String(r.result).split(',')[1]); };
+      r.onerror = function(){ fail(r.error || new Error('FileReader failed')); };
+      r.readAsDataURL(blob);
+    });
+    _matMsg('Saved locally — uploading to Fergus job ' + S.linkedJobId + '…');
+    var token = localStorage.getItem('fr_token') || '';
+    var resp = await fetch(PROXY + '/fergus-files/upload', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
+      body: JSON.stringify({
+        jobId: String(S.linkedJobId),
+        filename: filename,
+        contentType: 'application/pdf',
+        base64: b64,
+      }),
+    });
+    var data = await resp.json().catch(function(){ return {}; });
+    // Always log + render the full response so the user can see what
+    // Fergus actually said (path used + body) — useful when the upload
+    // reports success but the file doesn't appear in the Fergus UI,
+    // and when the upload outright fails on mobile (no dev tools).
+    console.log('Push to Fergus response:', data);
+    _matRenderFergusDebug('Last upload attempt', data);
+    if (resp.ok && data.ok) {
+      var via = data.used ? ' (via ' + data.used + ')' : '';
+      _matMsg('✓ Downloaded ' + filename + ' · uploaded to Fergus job ' + S.linkedJobId + via, true);
+    } else {
+      console.error('Fergus upload failed', data);
+      // Fergus's public PAT API doesn't currently expose a file-upload
+      // endpoint on jobs (their hypermedia links don't include a files
+      // / gallery / attachments rel). Tell the user that, and steer
+      // them at the Open in Fergus button for the manual workflow.
+      _matMsg('PDF downloaded. Fergus API doesn\'t accept the upload — tap "Open in Fergus" to drop it into the gallery.', false);
+      var det = document.getElementById('matFergusDebug');
+      if (det) det.open = true;
+    }
+  } catch (e) {
+    console.error(e);
+    _matMsg('Push failed: ' + (e.message || e), false);
+  }
+}
 
-  // Also update measTotals
-  updateMeasTotals();
+// ── FERGUS UPLOAD DIAGNOSTICS ───────────────────────────────
+// Mobile-friendly: render Fergus API responses directly on the page
+// (under the "Fergus upload — diagnostics" details card) so the user
+// can read them without dev tools.
+function _matRenderFergusDebug(label, payload) {
+  var out = document.getElementById('matFergusDebugOut');
+  if (!out) return;
+  var ts = new Date().toLocaleTimeString();
+  var head = '── ' + label + ' · ' + ts + ' ──\n';
+  var body;
+  try { body = JSON.stringify(payload, null, 2); }
+  catch(e) { body = String(payload); }
+  out.textContent = head + body;
+  var det = document.getElementById('matFergusDebug');
+  if (det) det.open = true;
+}
+
+// Hit /fergus-files/probe — GET each candidate path on the linked job
+// and render every status + body in the on-page diagnostics panel.
+async function probeFergusFiles() {
+  if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first.', false); return; }
+  _matMsg('Probing Fergus endpoints…');
+  try {
+    var token = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/fergus-files/probe?jobId=' + encodeURIComponent(String(S.linkedJobId)), {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    var data = await r.json().catch(function(){ return { error: 'non-JSON response', status: r.status }; });
+    _matRenderFergusDebug('Probe results for job ' + S.linkedJobId, data);
+    _matMsg('Probe done — see diagnostics below.', true);
+  } catch (e) {
+    _matMsg('Probe failed: ' + e.message, false);
+  }
+}
+
+// Open the linked Fergus job's project_gallery in a new tab so the
+// user can drag-drop the just-downloaded PDF into it. The gallery URL
+// uses Fergus's short jobNo (e.g. 3045), not the internal id
+// (21317541) — we cache jobNo on S.linkedJobNo after the first lookup
+// so subsequent opens are instant.
+async function openFergusJob() {
+  if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first (Select Job → Fergus tab).', false); return; }
+  var jobNo = S.linkedJobNo;
+  if (!jobNo) {
+    _matMsg('Looking up Fergus job number…');
+    try {
+      var token = localStorage.getItem('fr_token') || '';
+      var r = await fetch(PROXY + '/fergus/jobs/' + encodeURIComponent(String(S.linkedJobId)), {
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      });
+      var d = await r.json();
+      // Fergus envelopes detail responses as { result, data: { jobNo, ... } }
+      jobNo = (d && d.data && (d.data.jobNo || d.data.displayNo)) || S.linkedJobId;
+      S.linkedJobNo = jobNo;
+    } catch(e) {
+      jobNo = S.linkedJobId;
+    }
+  }
+  var url = 'https://app.fergus.com/jobs/view/' + encodeURIComponent(jobNo) + '/project_gallery';
+  window.open(url, '_blank', 'noopener');
+  _matMsg('Opened Fergus job ' + jobNo + ' — drag the downloaded PDF into the gallery.', true);
+}
+
+// Fetch the linked job from Fergus and dump the response so we can
+// see which fields (id / displayNo / jobNo / _links / etc.) the API
+// exposes — gives us hints about the right file-upload endpoint.
+async function inspectFergusJob() {
+  if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first.', false); return; }
+  _matMsg('Fetching Fergus job ' + S.linkedJobId + '…');
+  try {
+    var token = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/fergus/jobs/' + encodeURIComponent(String(S.linkedJobId)), {
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    });
+    var text = await r.text();
+    var parsed = null; try { parsed = JSON.parse(text); } catch(e){}
+    // Cache the short jobNo (3045 vs internal id 21317541) so Open in
+    // Fergus can construct the right gallery URL without re-fetching.
+    if (parsed && parsed.data && (parsed.data.jobNo || parsed.data.displayNo)) {
+      S.linkedJobNo = parsed.data.jobNo || parsed.data.displayNo;
+    }
+    _matRenderFergusDebug('Job ' + S.linkedJobId + ' (status ' + r.status + ')', parsed || text.slice(0, 2000));
+    _matMsg('Job details fetched — see diagnostics below.', true);
+  } catch (e) {
+    _matMsg('Job fetch failed: ' + e.message, false);
+  }
+}
+
+// Order Roof — emails the cut list + selectors to the supplier.
+// Replaces the legacy Order Material tab flow with one Materials-tab call.
+function orderRoofViaSupplier() {
+  var d = _matDrawTotals();
+  var profile   = (document.getElementById('matProfile')   || {}).value || 'Corrugate';
+  var grade     = (document.getElementById('matGrade')     || {}).value || 'Colorsteel Maxam';
+  var thickness = (document.getElementById('matThickness') || {}).value || '0.40g';
+  var ridgeType = (document.getElementById('matRidgeType') || {}).value || 'standard';
+  var gutterChoice = (document.getElementById('matGutter') || {}).value || 'none';
+  var colour    = (document.getElementById('matColour')    || {}).value || '';
+
+  // Sync to the (hidden) legacy order-tab fields so emailOrderToSupplier
+  // works without modification + any existing supplier picker carries on.
+  function setIf(id, val){ var el = document.getElementById(id); if (el) el.value = val; }
+  setIf('orderColour',  colour);
+  setIf('orderPitch',   d.pitch || '');
+  setIf('orderProfile', profile);
+  setIf('orderProduct', grade + ' ' + thickness);
+  setIf('orderRidging', ridgeType);
+  setIf('orderGutter',  gutterChoice === 'none' ? '' : ({
+    'colorsteel-box':'Colorsteel 125mm Box',
+    'zincalume-box':'Zincalume 125mm Box',
+    'marley-classic':'Marley Classic',
+    'marley-typhoon':'Marley Typhoon'
+  }[gutterChoice] || ''));
+
+  // Prefer a supplier email already on file; otherwise prompt for one.
+  var emailEl = document.getElementById('orderSupplierEmail');
+  var email = emailEl ? (emailEl.value || '').trim() : '';
+  if (!email) {
+    email = (window.prompt('Send order to supplier email:') || '').trim();
+    if (!email) { _matMsg('Order cancelled — no supplier email.', false); return; }
+    if (emailEl) emailEl.value = email;
+  }
+  if (typeof emailOrderToSupplier === 'function') {
+    emailOrderToSupplier();
+    _matMsg('Email composed in your mail client.', true);
+  } else {
+    _matMsg('Order flow unavailable.', false);
+  }
 }
 
 // Group every drawn line by type, then by rounded length, and render
@@ -17580,18 +18622,9 @@ function _renderRoofSheetPlanInner() {
         '</span></div>';
     });
   }
-  legHtml += '</div>';
-  // Per-face breakdown (sheet length + face area)
-  legHtml += '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px;background:#fff;min-width:280px;font-size:12px;color:#374151">'+
-    '<div style="font-weight:800;font-size:13px;color:#0a1628;letter-spacing:.04em;margin-bottom:10px">FACE BREAKDOWN</div>';
-  faces.forEach(function(f, i){
-    var faceArea = (f.area * effectiveScale * effectiveScale * pitchFactor).toFixed(1);
-    var label = (f.type === 'hip-end' ? 'Hip-end' : 'Long-side') + ' · ' + f.sheetM.toFixed(2) + 'm sheets · ' + faceArea + ' m²';
-    legHtml += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
-      '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+f.color+'"></span>'+
-      '<span>'+ label +'</span></div>';
-  });
   legHtml += '</div></div>';
+  // (FACE BREAKDOWN panel removed — area + per-face detail is shown
+  // in the Materials section's cut lists below the sheet plan.)
 
   // Stash counts for the Order Material cut-list sync.
   var shortCount = 0, orangeLong = 0, blueLong = 0, purpleLong = 0;
