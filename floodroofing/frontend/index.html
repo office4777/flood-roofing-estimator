@@ -676,6 +676,7 @@ select{
 .mat-btn-dark{background:#0a1628;color:#fff}
 .mat-btn-green{background:#059669;color:#fff}
 .mat-btn-blue{background:#0099cc;color:#fff}
+.mat-btn-light{background:#f4f4ef;color:#0a1628;border:1px solid var(--border)}
 
 /* Hidden on screen; revealed by the print stylesheet when saving PDF.
    Each .mat-print-page is one A4 sheet of content. The mp-capturing
@@ -1808,10 +1809,15 @@ select{
     </div>
   </div>
 
-  <!-- 6. ACTIONS — Save PDF / Push to Fergus / Order Roof. -->
+  <!-- 6. ACTIONS — Save PDF / Push to Fergus / Open Fergus / Order Roof.
+       Push to Fergus tries the auto-upload (best-effort while Fergus's
+       PAT API is sparse on files); Open in Fergus is the reliable
+       fallback that opens the job gallery in a new tab so the user can
+       drop the just-downloaded PDF in. -->
   <div class="card mat-actions">
     <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark">📄 Save as PDF</button>
     <button onclick="pushMaterialsToFergus()" class="mat-btn mat-btn-green">📤 Push to Fergus</button>
+    <button onclick="openFergusJob()" class="mat-btn mat-btn-light">📂 Open in Fergus</button>
     <button onclick="orderRoofViaSupplier()" class="mat-btn mat-btn-blue">🛒 Order Roof</button>
     <span id="matActionMsg" style="margin-left:auto;font-size:12px;color:var(--text2);align-self:center"></span>
   </div>
@@ -13898,11 +13904,11 @@ async function pushMaterialsToFergus() {
       _matMsg('✓ Downloaded ' + filename + ' · uploaded to Fergus job ' + S.linkedJobId + via, true);
     } else {
       console.error('Fergus upload failed', data);
-      var msg = 'PDF downloaded, but Fergus rejected the upload: ' + (data.error || resp.statusText || resp.status);
-      if (data.status) msg += ' ('+data.status+')';
-      if (data.attempts) msg += ' — see Diagnostics below for each path';
-      else if (data.hint) msg += ' — ' + data.hint;
-      _matMsg(msg, false);
+      // Fergus's public PAT API doesn't currently expose a file-upload
+      // endpoint on jobs (their hypermedia links don't include a files
+      // / gallery / attachments rel). Tell the user that, and steer
+      // them at the Open in Fergus button for the manual workflow.
+      _matMsg('PDF downloaded. Fergus API doesn\'t accept the upload — tap "Open in Fergus" to drop it into the gallery.', false);
       var det = document.getElementById('matFergusDebug');
       if (det) det.open = true;
     }
@@ -13947,6 +13953,34 @@ async function probeFergusFiles() {
   }
 }
 
+// Open the linked Fergus job's project_gallery in a new tab so the
+// user can drag-drop the just-downloaded PDF into it. The gallery URL
+// uses Fergus's short jobNo (e.g. 3045), not the internal id
+// (21317541) — we cache jobNo on S.linkedJobNo after the first lookup
+// so subsequent opens are instant.
+async function openFergusJob() {
+  if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first (Select Job → Fergus tab).', false); return; }
+  var jobNo = S.linkedJobNo;
+  if (!jobNo) {
+    _matMsg('Looking up Fergus job number…');
+    try {
+      var token = localStorage.getItem('fr_token') || '';
+      var r = await fetch(PROXY + '/fergus/jobs/' + encodeURIComponent(String(S.linkedJobId)), {
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      });
+      var d = await r.json();
+      // Fergus envelopes detail responses as { result, data: { jobNo, ... } }
+      jobNo = (d && d.data && (d.data.jobNo || d.data.displayNo)) || S.linkedJobId;
+      S.linkedJobNo = jobNo;
+    } catch(e) {
+      jobNo = S.linkedJobId;
+    }
+  }
+  var url = 'https://app.fergus.com/jobs/view/' + encodeURIComponent(jobNo) + '/project_gallery';
+  window.open(url, '_blank', 'noopener');
+  _matMsg('Opened Fergus job ' + jobNo + ' — drag the downloaded PDF into the gallery.', true);
+}
+
 // Fetch the linked job from Fergus and dump the response so we can
 // see which fields (id / displayNo / jobNo / _links / etc.) the API
 // exposes — gives us hints about the right file-upload endpoint.
@@ -13960,6 +13994,11 @@ async function inspectFergusJob() {
     });
     var text = await r.text();
     var parsed = null; try { parsed = JSON.parse(text); } catch(e){}
+    // Cache the short jobNo (3045 vs internal id 21317541) so Open in
+    // Fergus can construct the right gallery URL without re-fetching.
+    if (parsed && parsed.data && (parsed.data.jobNo || parsed.data.displayNo)) {
+      S.linkedJobNo = parsed.data.jobNo || parsed.data.displayNo;
+    }
     _matRenderFergusDebug('Job ' + S.linkedJobId + ' (status ' + r.status + ')', parsed || text.slice(0, 2000));
     _matMsg('Job details fetched — see diagnostics below.', true);
   } catch (e) {
