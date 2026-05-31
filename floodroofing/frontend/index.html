@@ -13867,13 +13867,19 @@ async function pushMaterialsToFergus() {
       }),
     });
     var data = await resp.json().catch(function(){ return {}; });
+    // Always log the full response so the user can see what Fergus
+    // actually said (path used + body) — useful when the upload reports
+    // success but the file doesn't appear in the Fergus UI.
+    console.log('Push to Fergus response:', data);
     if (resp.ok && data.ok) {
-      _matMsg('✓ Downloaded ' + filename + ' and uploaded to Fergus job ' + S.linkedJobId, true);
+      var via = data.used ? ' (via ' + data.used + ')' : '';
+      _matMsg('✓ Downloaded ' + filename + ' · uploaded to Fergus job ' + S.linkedJobId + via, true);
     } else {
       console.error('Fergus upload failed', data);
       var msg = 'PDF downloaded, but Fergus rejected the upload: ' + (data.error || resp.statusText || resp.status);
       if (data.status) msg += ' ('+data.status+')';
-      if (data.hint)   msg += ' — ' + data.hint;
+      if (data.attempts) msg += ' — tried '+data.attempts.length+' endpoints (see console for details)';
+      else if (data.hint) msg += ' — ' + data.hint;
       _matMsg(msg, false);
     }
   } catch (e) {
