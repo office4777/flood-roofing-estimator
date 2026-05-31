@@ -14033,9 +14033,16 @@ async function inspectFergusJob() {
   }
 }
 
-// Order Roof — emails the cut list + selectors to the supplier.
-// Replaces the legacy Order Material tab flow with one Materials-tab call.
-function orderRoofViaSupplier() {
+// Order Roof — generates the 2-page PDF and ships it to the supplier
+// with the PDF actually attached (not just referenced). On mobile
+// browsers that support Web Share Level 2 (Android Chrome / Samsung
+// Browser / iOS Safari 16+) we use navigator.share with the file —
+// that opens the system share sheet so the user can pick Gmail/Mail/
+// WhatsApp and the PDF goes along as a real attachment. On desktop
+// or older browsers we fall back to downloading the PDF + opening a
+// pre-composed mailto so the user attaches the just-saved file
+// manually (a mailto: URL alone can't carry an attachment).
+async function orderRoofViaSupplier() {
   var d = _matDrawTotals();
   var profile   = (document.getElementById('matProfile')   || {}).value || 'Corrugate';
   var grade     = (document.getElementById('matGrade')     || {}).value || 'Colorsteel Maxam';
@@ -14044,8 +14051,8 @@ function orderRoofViaSupplier() {
   var gutterChoice = (document.getElementById('matGutter') || {}).value || 'none';
   var colour    = (document.getElementById('matColour')    || {}).value || '';
 
-  // Sync to the (hidden) legacy order-tab fields so emailOrderToSupplier
-  // works without modification + any existing supplier picker carries on.
+  // Sync to the (hidden) legacy order-tab fields so any other code
+  // path that reads them stays consistent.
   function setIf(id, val){ var el = document.getElementById(id); if (el) el.value = val; }
   setIf('orderColour',  colour);
   setIf('orderPitch',   d.pitch || '');
@@ -14059,20 +14066,81 @@ function orderRoofViaSupplier() {
     'marley-typhoon':'Marley Typhoon'
   }[gutterChoice] || ''));
 
-  // Prefer a supplier email already on file; otherwise prompt for one.
+  // Prefer the typed supplier email field, fall back to a saved
+  // supplier's email, prompt as last resort.
   var emailEl = document.getElementById('orderSupplierEmail');
   var email = emailEl ? (emailEl.value || '').trim() : '';
+  if (!email && typeof _ensureCatalog === 'function' && typeof _collectOrderFromUI === 'function') {
+    var o0 = _collectOrderFromUI();
+    var cat = _ensureCatalog();
+    var saved = (cat.suppliers || []).find(function(x){ return x.name === o0.supplierId; });
+    if (saved && saved.email) email = saved.email;
+  }
   if (!email) {
     email = (window.prompt('Send order to supplier email:') || '').trim();
     if (!email) { _matMsg('Order cancelled — no supplier email.', false); return; }
     if (emailEl) emailEl.value = email;
   }
-  if (typeof emailOrderToSupplier === 'function') {
-    emailOrderToSupplier();
-    _matMsg('Email composed in your mail client.', true);
-  } else {
-    _matMsg('Order flow unavailable.', false);
-  }
+
+  _matMsg('Building order PDF…');
+  var blob;
+  try { blob = await _matBuildPdfBlob(); }
+  catch (e) { _matMsg('PDF build failed: ' + (e.message || e), false); return; }
+
+  var client = ((document.getElementById('jobClient')||{}).value || 'Order').trim();
+  var jobNum = ((document.getElementById('matJobNumber')||{}).value || (window.S && S.linkedJobId) || '').toString().trim();
+  var filename = ('Materials_Order_' + (jobNum || client))
+    .replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
+
+  // Short email body — the PDF carries the full cut list, consumables,
+  // job/site/delivery details. Repeating them inline just clutters
+  // the message.
+  var brand = (window.S && S.settings && S.settings.branding) || {};
+  var deliveryMode = ((window.S && S.order && S.order.deliveryMode) || 'yard');
+  var deliveryAddr = (document.getElementById('matDeliveryAddr')||{}).value
+                  || (document.getElementById('jobAddr')||{}).value || '';
+  var siteAddr = (document.getElementById('jobAddr')||{}).value || '';
+  var subj = 'Material order — ' + (jobNum ? 'Job ' + jobNum + ' · ' : '') + (client || 'Roofing job');
+  var body = [
+    'Hi,',
+    '',
+    'Please find attached the material order for ' + (client || 'this job') + (jobNum ? ' (Job ' + jobNum + ')' : '') + '.',
+    siteAddr ? 'Site: ' + siteAddr : '',
+    'Delivery: ' + (deliveryMode === 'site' ? ('To site — ' + (deliveryAddr || '(address tbc)')) : 'To yard'),
+    '',
+    'Cheers,',
+    brand.company_name || 'Flood Roofing'
+  ].filter(Boolean).join('\n');
+
+  // Try Web Share API with the actual PDF file (mobile-native).
+  // canShare({files:[file]}) is the only reliable signal that the host
+  // will carry the file through to the picked app.
+  try {
+    var file = new File([blob], filename, { type: 'application/pdf' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          title: subj,
+          text:  body + '\n\nSend to: ' + email,
+          files: [file],
+        });
+        _matMsg('✓ Order sent — PDF attached to the share.', true);
+        return;
+      } catch (shareErr) {
+        if (shareErr && shareErr.name === 'AbortError') { _matMsg('Order share cancelled.', false); return; }
+        // any other share error → fall through to mailto fallback
+      }
+    }
+  } catch (e) { /* File ctor unavailable on very old browsers — fall through */ }
+
+  // Fallback: download the PDF locally + open a pre-composed mailto.
+  // The user attaches the just-saved file manually before sending.
+  _matDownloadBlob(blob, filename);
+  var href = 'mailto:' + encodeURIComponent(email) +
+             '?subject=' + encodeURIComponent(subj) +
+             '&body='    + encodeURIComponent(body + '\n\n[Attach ' + filename + ' before sending]');
+  window.location.href = href;
+  _matMsg('PDF downloaded — attach ' + filename + ' to the email before sending.', true);
 }
 
 // Group every drawn line by type, then by rounded length, and render
