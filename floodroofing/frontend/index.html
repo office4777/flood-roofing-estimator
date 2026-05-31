@@ -15549,15 +15549,20 @@ function _renderRoofSheetPlanInner() {
   // ordering increments. NZ corrugate is commonly 7650 (long) and
   // 3900 (short). The "long" group is whatever a face actually needs
   // rounded up to one of these; the "short" group is anything below
-  // the short threshold.
+  // SHORT_MM / LONG_MM are kept only as semantic thresholds for the
+  // legacy Order-Material cut-list sync + the _lastSheetCounts legacy
+  // fields (orangeLong / blueLong / shortCount). The legend + Materials
+  // cut-list source the real ordered lengths from the groups array so
+  // a 3.98m sheet is ordered as 4100mm, not bucketed up to 7650mm.
   var SHORT_MM = 3900;
   var LONG_MM  = 7650;
   function orderedLengthMm(sheetMetres) {
     var mm = Math.ceil(sheetMetres * 1000 + 50);  // +50mm trim
-    if (mm <= SHORT_MM) return SHORT_MM;
-    if (mm <= LONG_MM)  return LONG_MM;
-    // Round up to the next 300mm increment past long
-    return Math.ceil(mm / 300) * 300;
+    // Round up to the nearest 100mm — roofing iron is cut-to-order
+    // at the supplier so there's no benefit to forcing every sheet
+    // into a SHORT (3900mm) or LONG (7650mm) standard length. Min
+    // 1000mm to leave enough material for endlap.
+    return Math.max(1000, Math.ceil(mm / 100) * 100);
   }
 
   // ── Geometry helpers ───────────────────────────────────────────
@@ -18644,9 +18649,8 @@ function _renderRoofSheetPlanInner() {
     groupList.forEach(function(g){
       legHtml += '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">'+
         '<span style="font-size:24px;font-weight:800;color:'+g.color+'">'+g.count+'</span>'+
-        '<span style="font-size:12px;color:#6b7280">× '+
-        (g.orderedMm <= SHORT_MM ? 'SHORT @ '+SHORT_MM+'mm' : 'LONG @ '+g.orderedMm+'mm')+
-        '</span></div>';
+        '<span style="font-size:12px;color:#6b7280">× @ '+g.orderedMm+'mm ('+(g.orderedMm/1000).toFixed(2)+'m)</span>'+
+        '</div>';
     });
   }
   legHtml += '</div></div>';
