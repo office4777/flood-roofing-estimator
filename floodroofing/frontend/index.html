@@ -13324,6 +13324,11 @@ function renderMaterialsCutLists() {
   var html = '';
 
   // ── 1. Roof sheets ─────────────────────────────────────────
+  // Sourced from window._lastSheetCounts.groups so this table is a
+  // 1:1 mirror of the SHEETS TO ORDER panel rendered by the sheet plan
+  // above. Sheets are grouped by ordered LENGTH (not colour — colour
+  // is internal to the layout algorithm and isn't useful on a paper
+  // order). Offcuts are excluded upstream.
   var sc = window._lastSheetCounts || null;
   html += '<div class="mat-section">'+
     '<div class="mat-section-hd">'+
@@ -13331,23 +13336,32 @@ function renderMaterialsCutLists() {
       '<h3>Roof sheets</h3>'+
       '<span class="meta">'+esc(profile)+' &nbsp;·&nbsp; '+esc(grade)+' &nbsp;·&nbsp; '+esc(thickness)+'</span>'+
     '</div>';
-  if (sc && (sc.orangeLong || sc.blueLong || sc.purpleLong || sc.shortCount)) {
-    var longM = (sc.longLen || 7650) / 1000;
-    var shortM = (sc.shortLen || 3900) / 1000;
-    html += '<table class="cut-list"><thead><tr>'+
-      '<th>Description</th><th class="r">Qty</th><th class="r">Length</th>'+
-    '</tr></thead><tbody>';
-    var rows = [];
-    if (sc.orangeLong) rows.push({d:profile+' sheet — Group A (orange)', q:sc.orangeLong, l:longM});
-    if (sc.blueLong)   rows.push({d:profile+' sheet — Group B (blue)',   q:sc.blueLong,   l:longM});
-    if (sc.purpleLong) rows.push({d:profile+' sheet — Group C (purple)', q:sc.purpleLong, l:longM});
-    if (sc.shortCount) rows.push({d:profile+' sheet — short cut',         q:sc.shortCount, l:shortM});
-    var totalSheets = 0;
-    rows.forEach(function(r){
-      totalSheets += r.q;
-      html += '<tr><td>'+esc(r.d)+'</td><td class="r">'+r.q+'</td><td class="r">'+r.l.toFixed(2)+' m</td></tr>';
+  var sheetRows = [];
+  if (sc && sc.groups && sc.groups.length) {
+    var byLen = {};
+    sc.groups.forEach(function(g){
+      byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count;
     });
-    html += '</tbody><tfoot><tr><td>Total sheets</td><td class="r">'+totalSheets+'</td><td class="r">'+d.roofArea.toFixed(1)+' m²</td></tr></tfoot></table>';
+    sheetRows = Object.keys(byLen)
+      .map(function(k){ return { len: parseInt(k, 10), qty: byLen[k] }; })
+      .sort(function(a, b){ return b.len - a.len; });
+  } else if (sc) {
+    // Legacy shape — sum the colour-grouped longs into a single LONG line.
+    var longTotal = (sc.orangeLong || 0) + (sc.blueLong || 0) + (sc.purpleLong || 0);
+    if (longTotal)     sheetRows.push({ len: sc.longLen  || 7650, qty: longTotal });
+    if (sc.shortCount) sheetRows.push({ len: sc.shortLen || 3900, qty: sc.shortCount });
+  }
+  if (sheetRows.length) {
+    html += '<table class="cut-list"><thead><tr>'+
+      '<th>Description</th><th class="r">Qty</th><th class="r">Length each</th>'+
+    '</tr></thead><tbody>';
+    var totalSheets = 0;
+    sheetRows.forEach(function(r){
+      totalSheets += r.qty;
+      var lbl = esc(profile) + ' sheet @ ' + (r.len / 1000).toFixed(2) + 'm';
+      html += '<tr><td>'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+(r.len / 1000).toFixed(2)+' m</td></tr>';
+    });
+    html += '</tbody><tfoot><tr><td>Total sheets</td><td class="r">'+totalSheets+'</td><td class="r">'+d.roofArea.toFixed(1)+' m² roof</td></tr></tfoot></table>';
   } else {
     html += '<div class="cut-list-empty">Generate the Roof Sheet Plan above to populate the sheet cut list.</div>';
   }
@@ -13674,7 +13688,11 @@ function _matBuildPrintSheetCutList(mount) {
   var grade     = (document.getElementById('matGrade')||{}).value || 'Colorsteel Maxam';
   var thickness = (document.getElementById('matThickness')||{}).value || '0.40g';
   var colour    = (document.getElementById('matColour')||{}).value || '';
-  if (!sc || !(sc.orangeLong || sc.blueLong || sc.purpleLong || sc.shortCount)) {
+  var hasCounts = sc && (
+    (sc.groups && sc.groups.length) ||
+    sc.orangeLong || sc.blueLong || sc.purpleLong || sc.shortCount
+  );
+  if (!hasCounts) {
     mount.innerHTML = '<div style="color:#6f6a60;font-size:11px;padding:8px 0;font-style:italic">No sheet counts yet — generate the Roof Sheet Plan first.</div>';
     return;
   }
@@ -13684,16 +13702,25 @@ function _matBuildPrintSheetCutList(mount) {
     '<div><div class="lbl">Thickness</div><div class="val">'+esc(thickness)+'</div></div>'+
     '<div><div class="lbl">Colour</div><div class="val">'+esc(colour||'—')+'</div></div>'+
   '</div>';
-  var longM = (sc.longLen || 7650) / 1000, shortM = (sc.shortLen || 3900) / 1000;
+  // Build rows by ordered LENGTH so the PDF order reads the same way
+  // as the SHEETS TO ORDER panel and the on-screen cut list.
   var rows = [];
-  if (sc.orangeLong) rows.push({d:profile+' sheet — Group A (orange)', q:sc.orangeLong, l:longM});
-  if (sc.blueLong)   rows.push({d:profile+' sheet — Group B (blue)',   q:sc.blueLong,   l:longM});
-  if (sc.purpleLong) rows.push({d:profile+' sheet — Group C (purple)', q:sc.purpleLong, l:longM});
-  if (sc.shortCount) rows.push({d:profile+' sheet — short cut',         q:sc.shortCount, l:shortM});
-  var total = rows.reduce(function(s,r){return s+r.q;}, 0);
+  if (sc.groups && sc.groups.length) {
+    var byLen = {};
+    sc.groups.forEach(function(g){ byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count; });
+    rows = Object.keys(byLen)
+      .map(function(k){ return { len: parseInt(k, 10), qty: byLen[k] }; })
+      .sort(function(a, b){ return b.len - a.len; });
+  } else {
+    var longTotal = (sc.orangeLong || 0) + (sc.blueLong || 0) + (sc.purpleLong || 0);
+    if (longTotal)     rows.push({ len: sc.longLen  || 7650, qty: longTotal });
+    if (sc.shortCount) rows.push({ len: sc.shortLen || 3900, qty: sc.shortCount });
+  }
+  var total = rows.reduce(function(s,r){ return s+r.qty; }, 0);
   var html = spec + '<table class="mp-cut"><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Length each</th></tr></thead><tbody>';
   rows.forEach(function(r){
-    html += '<tr><td>'+esc(r.d)+'</td><td class="r">'+r.q+'</td><td class="r">'+r.l.toFixed(2)+' m</td></tr>';
+    var lbl = esc(profile) + ' sheet @ ' + (r.len / 1000).toFixed(2) + 'm';
+    html += '<tr><td>'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+(r.len / 1000).toFixed(2)+' m</td></tr>';
   });
   html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+total+' sheets</td><td class="r"></td></tr></tfoot></table>';
   mount.innerHTML = html;
@@ -18626,13 +18653,19 @@ function _renderRoofSheetPlanInner() {
   // (FACE BREAKDOWN panel removed — area + per-face detail is shown
   // in the Materials section's cut lists below the sheet plan.)
 
-  // Stash counts for the Order Material cut-list sync.
+  // Stash counts for the Materials cut-list + legacy Order Material
+  // sync.  Derived from the SAME `groups` map the SHEETS TO ORDER
+  // legend renders so the two can never drift (and so offcuts are
+  // excluded — offcuts come out of donor sheets and don't add to
+  // what we order).  Also exposes the per-length groups array
+  // verbatim so the Materials cut-list can show one row per (length,
+  // colour) group instead of collapsing everything into "LONG".
   var shortCount = 0, orangeLong = 0, blueLong = 0, purpleLong = 0;
-  allStrips.forEach(function(s){
-    if (s.orderedLengthMm <= SHORT_MM) shortCount++;
-    else if (s.color === COL_ORANGE) orangeLong++;
-    else if (s.color === COL_BLUE)   blueLong++;
-    else                              purpleLong++;
+  groupList.forEach(function(g){
+    if (g.orderedMm <= SHORT_MM) { shortCount += g.count; return; }
+    if (g.color === COL_ORANGE)  { orangeLong += g.count; return; }
+    if (g.color === COL_BLUE)    { blueLong   += g.count; return; }
+    purpleLong += g.count;
   });
   window._lastSheetCounts = {
     shortCount: shortCount,
@@ -18640,7 +18673,10 @@ function _renderRoofSheetPlanInner() {
     orangeLong: orangeLong,
     blueLong: blueLong,
     purpleLong: purpleLong,
-    longLen: LONG_MM
+    longLen: LONG_MM,
+    // Per (colour, length) groups straight from the legend — the
+    // Materials cut-list groups by length only and uses these.
+    groups: groupList.map(function(g){ return { color: g.color, orderedMm: g.orderedMm, count: g.count }; }),
   };
 
   outEl.innerHTML = '';
