@@ -13815,9 +13815,23 @@ async function _matBuildPdfBlob() {
   return pdf.output('blob');
 }
 
-// Push to Fergus: generate the 2-page PDF, base64-encode the blob, then
-// POST to the backend which re-encodes as multipart and forwards to the
-// Fergus files endpoint. Requires a linked Fergus job (Select Job tab).
+// Trigger a browser "save as" for a generated Blob — used so the user
+// always gets a local copy of the order PDF before we hand it off to
+// Fergus. Cleans up the temporary object URL after the download fires.
+function _matDownloadBlob(blob, filename) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+}
+
+// Push to Fergus: generate the 2-page PDF, save a local copy via the
+// browser, then base64-encode the blob and POST to the backend which
+// re-encodes as multipart and forwards to the Fergus files endpoint.
+// Requires a linked Fergus job (Select Job tab).
 async function pushMaterialsToFergus() {
   if (!window.S || !S.linkedJobId) {
     _matMsg('Link a Fergus job first (Select Job → Fergus tab).', false);
@@ -13826,17 +13840,21 @@ async function pushMaterialsToFergus() {
   _matMsg('Building PDF…');
   try {
     var blob = await _matBuildPdfBlob();
+    var client = ((document.getElementById('jobClient')||{}).value || 'Order').trim();
+    var jobNum = ((document.getElementById('matJobNumber')||{}).value || S.linkedJobId).trim();
+    var filename = ('Materials_Order_' + jobNum + '_' + client)
+      .replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
+    // 1. Save a local copy first so the user has the file even if Fergus
+    //    upload fails or the network drops.
+    _matDownloadBlob(blob, filename);
+    // 2. Base64-encode and ship to Fergus via our backend.
     var b64 = await new Promise(function(ok, fail){
       var r = new FileReader();
       r.onload = function(){ ok(String(r.result).split(',')[1]); };
       r.onerror = function(){ fail(r.error || new Error('FileReader failed')); };
       r.readAsDataURL(blob);
     });
-    var client = ((document.getElementById('jobClient')||{}).value || 'Order').trim();
-    var jobNum = ((document.getElementById('matJobNumber')||{}).value || S.linkedJobId).trim();
-    var filename = ('Materials_Order_' + jobNum + '_' + client)
-      .replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
-    _matMsg('Uploading to Fergus job ' + S.linkedJobId + '…');
+    _matMsg('Saved locally — uploading to Fergus job ' + S.linkedJobId + '…');
     var token = localStorage.getItem('fr_token') || '';
     var resp = await fetch(PROXY + '/fergus-files/upload', {
       method: 'POST',
@@ -13850,10 +13868,10 @@ async function pushMaterialsToFergus() {
     });
     var data = await resp.json().catch(function(){ return {}; });
     if (resp.ok && data.ok) {
-      _matMsg('✓ Uploaded to Fergus job ' + S.linkedJobId + ' — ' + filename, true);
+      _matMsg('✓ Downloaded ' + filename + ' and uploaded to Fergus job ' + S.linkedJobId, true);
     } else {
       console.error('Fergus upload failed', data);
-      var msg = 'Fergus rejected: ' + (data.error || resp.statusText || resp.status);
+      var msg = 'PDF downloaded, but Fergus rejected the upload: ' + (data.error || resp.statusText || resp.status);
       if (data.status) msg += ' ('+data.status+')';
       if (data.hint)   msg += ' — ' + data.hint;
       _matMsg(msg, false);
