@@ -2481,6 +2481,7 @@ select{
       <button onclick="setFlashTool('draw')" id="flashToolDraw" class="tool-btn active-tool">✏ Draw</button>
       <button onclick="setFlashTool('measure')" id="flashToolMeasure" class="tool-btn">📏 Add measurement</button>
       <button onclick="setFlashTool('paint')" id="flashToolPaint" class="tool-btn">🎨 Painted side</button>
+      <button onclick="setFlashTool('flashguard')" id="flashToolFlashguard" class="tool-btn">🛡 Flash guard</button>
       <button onclick="finishFlashPolyline()" class="tool-btn">↵ Finish</button>
       <button onclick="undoFlashSketch()" class="tool-btn" id="flashUndoBtn">↶ Undo</button>
       <button onclick="redoFlashSketch()" class="tool-btn" id="flashRedoBtn">↷ Redo</button>
@@ -8809,25 +8810,38 @@ function clearSavedFlashings(){
 // Materials tab adds $5/lm when it's set.
 var _flashSketchState = {
   idx:-1, mode:'order', tool:'draw',
-  polylines: [],         // [{ vertices:[[x,y],...], measurements:{ "0":mm, ... } }]
+  // Polyline: { vertices:[[x,y],...], measurements:{ "i":mm, ... },
+  //             measurementOffsets:{ "i":[dx,dy] } }
+  // measurementOffsets shift a label away from its auto centroid so
+  // the user can drag it clear of the polyline / other labels.
+  polylines: [],
   currentPolyline: null, // in-progress polyline (not yet committed)
-  paintedSide: null,     // { x, y, dirX, dirY } or null
-  flashGuards: false,
+  paintedSide: null,     // { x, y, dirX, dirY } — see _redrawFlashCanvas
+  flashGuard:  null,     // { x, y } — a draggable label saying "Flash guard"
+  flashGuards: false,    // boolean toggle (the +$5/lm pricing flag)
   history: [], future: [],
   mousePos: null,
+  // Drag state for moving labels (measurement / painted / flash-guard).
+  // Set on mousedown when the press lands on a label rect; consumed by
+  // the canvas mousemove + mouseup handlers.
+  dragInfo: null,
+  // Track the down position so we can tell click vs drag on mouseup.
+  pressStart: null,
 };
 
 function _snapshotFlashState(){
+  function clonePoly(p){
+    return {
+      vertices: p.vertices.map(function(v){return v.slice();}),
+      measurements: Object.assign({}, p.measurements),
+      measurementOffsets: Object.assign({}, p.measurementOffsets || {}),
+    };
+  }
   return {
-    polylines: _flashSketchState.polylines.map(function(p){
-      return { vertices: p.vertices.map(function(v){return v.slice();}),
-               measurements: Object.assign({}, p.measurements) };
-    }),
-    currentPolyline: _flashSketchState.currentPolyline ? {
-      vertices: _flashSketchState.currentPolyline.vertices.map(function(v){return v.slice();}),
-      measurements: Object.assign({}, _flashSketchState.currentPolyline.measurements)
-    } : null,
+    polylines: _flashSketchState.polylines.map(clonePoly),
+    currentPolyline: _flashSketchState.currentPolyline ? clonePoly(_flashSketchState.currentPolyline) : null,
     paintedSide: _flashSketchState.paintedSide ? Object.assign({}, _flashSketchState.paintedSide) : null,
+    flashGuard:  _flashSketchState.flashGuard  ? Object.assign({}, _flashSketchState.flashGuard)  : null,
     flashGuards: _flashSketchState.flashGuards,
   };
 }
@@ -8835,6 +8849,7 @@ function _restoreFlashState(snap){
   _flashSketchState.polylines = snap.polylines;
   _flashSketchState.currentPolyline = snap.currentPolyline;
   _flashSketchState.paintedSide = snap.paintedSide;
+  _flashSketchState.flashGuard  = snap.flashGuard  != null ? snap.flashGuard  : null;
   _flashSketchState.flashGuards = snap.flashGuards;
   var t = document.getElementById('flashGuardsToggle');
   if (t) t.checked = !!snap.flashGuards;
@@ -8872,10 +8887,13 @@ function _resetFlashState(){
   _flashSketchState.polylines = [];
   _flashSketchState.currentPolyline = null;
   _flashSketchState.paintedSide = null;
+  _flashSketchState.flashGuard  = null;
   _flashSketchState.flashGuards = false;
   _flashSketchState.history = [];
   _flashSketchState.future = [];
   _flashSketchState.mousePos = null;
+  _flashSketchState.dragInfo = null;
+  _flashSketchState.pressStart = null;
   var t = document.getElementById('flashGuardsToggle');
   if (t) t.checked = false;
   _refreshFlashUndoRedoBtns();
@@ -8906,14 +8924,18 @@ function _updateFlashStats(){
 }
 
 // Canvas redraw — wipes + paints everything from current state.
+// Populates _flashLabelRects so the mouse-down handler can hit-test
+// every label/marker and start a drag without recomputing geometry.
+var _flashLabelRects = [];
 function _redrawFlashCanvas(){
   var c = document.getElementById('flashCanvas'); if (!c) return;
   var ctx = c.getContext('2d');
   ctx.clearRect(0,0,c.width,c.height);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.font = '12px Inter, system-ui, sans-serif';
+  _flashLabelRects = [];
 
-  function drawOne(p, isCurrent){
+  function drawOne(p, isCurrent, polyRef){
     if (!p || !p.vertices.length) return;
     var v = p.vertices;
     if (v.length >= 2) {
@@ -8922,9 +8944,7 @@ function _redrawFlashCanvas(){
       for (var i = 1; i < v.length; i++) ctx.lineTo(v[i][0], v[i][1]);
       ctx.stroke();
     }
-    // Highlight only the in-progress polyline's last vertex (the
-    // "current" cursor anchor) so the user knows where the next click
-    // will draw from. No dots on completed corners.
+    // Highlight only the in-progress polyline's last vertex.
     if (isCurrent && v.length) {
       var lastV = v[v.length - 1];
       ctx.beginPath();
@@ -8932,7 +8952,9 @@ function _redrawFlashCanvas(){
       ctx.fillStyle = '#dc2626';
       ctx.fill();
     }
-    // Measurement labels
+    // Measurement labels — auto centre on segment perpendicular,
+    // plus any per-segment offset the user has dragged it to.
+    if (!p.measurementOffsets) p.measurementOffsets = {};
     for (var i = 0; i < v.length - 1; i++) {
       var mm = p.measurements[i];
       if (mm == null) continue;
@@ -8941,80 +8963,143 @@ function _redrawFlashCanvas(){
       var dx = b[0]-a[0], dy = b[1]-a[1];
       var len = Math.hypot(dx, dy) || 1;
       var ox = -dy/len * 18, oy = dx/len * 18;
-      var lx = mx + ox, ly = my + oy;
+      var off = p.measurementOffsets[i] || [0,0];
+      var lx = mx + ox + off[0], ly = my + oy + off[1];
       var txt = mm + ' mm';
       var tw = ctx.measureText(txt).width;
+      var rx = lx - tw/2 - 5, ry = ly - 10, rw = tw + 10, rh = 20;
       ctx.fillStyle = '#fff';
-      ctx.fillRect(lx - tw/2 - 5, ly - 10, tw + 10, 20);
+      ctx.fillRect(rx, ry, rw, rh);
       ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1;
-      ctx.strokeRect(lx - tw/2 - 5, ly - 10, tw + 10, 20);
+      ctx.strokeRect(rx, ry, rw, rh);
       ctx.fillStyle = '#dc2626';
       ctx.fillText(txt, lx - tw/2, ly + 5);
+      _flashLabelRects.push({
+        type: 'measurement', polyline: p, segmentIdx: i,
+        x: rx, y: ry, w: rw, h: rh,
+      });
     }
   }
   _flashSketchState.polylines.forEach(function(p){ drawOne(p, false); });
   if (_flashSketchState.currentPolyline) drawOne(_flashSketchState.currentPolyline, true);
 
-  // Rubber-band from last current vertex to mouse cursor (draw mode only)
+  // Rubber-band from last current vertex to mouse cursor (draw mode only).
   if (_flashSketchState.tool === 'draw' && _flashSketchState.currentPolyline
-      && _flashSketchState.currentPolyline.vertices.length && _flashSketchState.mousePos) {
+      && _flashSketchState.currentPolyline.vertices.length && _flashSketchState.mousePos
+      && !_flashSketchState.dragInfo) {
     var last = _flashSketchState.currentPolyline.vertices[_flashSketchState.currentPolyline.vertices.length - 1];
     ctx.setLineDash([4,4]); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(_flashSketchState.mousePos[0], _flashSketchState.mousePos[1]); ctx.stroke();
     ctx.setLineDash([]);
   }
 
-  // Painted-side indicator — floats the word "Painted" above the flashing
-  // with an arrow pointing TO the flashing (so the supplier reads
-  // label-then-arrow-then-side). ps.x/ps.y is the point ON the segment
-  // the arrow tip lands at; ps.dirX/dirY points AWAY from the polyline
-  // toward the painted side where the label floats.
+  // Painted-side indicator — same arrow + floating label as before;
+  // the LABEL position (ps.x + dirX*labelDist, ps.y + dirY*labelDist)
+  // is now also a hit-test target so the user can drag it.
   if (_flashSketchState.paintedSide) {
     var ps = _flashSketchState.paintedSide;
-    var labelDist = 46;            // label sits this far OFF the segment
-    var tipBackoff = 6;            // small gap so arrowhead doesn't kiss the line
+    var labelDist = 46, tipBackoff = 6;
     var labelX = ps.x + ps.dirX * labelDist;
     var labelY = ps.y + ps.dirY * labelDist;
     var tipX   = ps.x + ps.dirX * tipBackoff;
     var tipY   = ps.y + ps.dirY * tipBackoff;
     ctx.font = '12px Inter, system-ui, sans-serif';
-    var txt = 'Painted';
-    var tw  = ctx.measureText(txt).width;
-    var padX = 8, padY = 4, boxW = tw + padX*2, boxH = 18;
-    // Floating label box centred at (labelX, labelY)
+    var txt = 'Painted', tw = ctx.measureText(txt).width;
+    var boxW = tw + 16, boxH = 18;
     ctx.fillStyle = '#fff';
     ctx.fillRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
     ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 1.2;
     ctx.strokeRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
     ctx.fillStyle = '#16a34a';
     ctx.fillText(txt, labelX - tw/2, labelY + 4);
-    // Arrow shaft from the label box edge IN to the segment.
-    // Start the shaft at the edge of the label box on the segment-facing side.
     var shaftStartX = labelX - ps.dirX * (boxH/2 + 1);
     var shaftStartY = labelY - ps.dirY * (boxH/2 + 1);
     ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(shaftStartX, shaftStartY); ctx.lineTo(tipX, tipY); ctx.stroke();
-    // Arrowhead at the tip, pointing INTO the flashing (i.e. along dir).
-    var headSize = 7;
-    var inwardX = -ps.dirX, inwardY = -ps.dirY;
+    var headSize = 7, inwardX = -ps.dirX, inwardY = -ps.dirY;
     var perpX = -inwardY, perpY = inwardX;
     ctx.beginPath();
     ctx.moveTo(tipX, tipY);
     ctx.lineTo(tipX - inwardX*headSize + perpX*headSize*0.6, tipY - inwardY*headSize + perpY*headSize*0.6);
     ctx.lineTo(tipX - inwardX*headSize - perpX*headSize*0.6, tipY - inwardY*headSize - perpY*headSize*0.6);
     ctx.closePath(); ctx.fillStyle = '#16a34a'; ctx.fill();
+    _flashLabelRects.push({
+      type: 'paintedSide',
+      x: labelX - boxW/2, y: labelY - boxH/2, w: boxW, h: boxH,
+    });
+  }
+
+  // Flash guard label — free-floating, draggable anywhere on the
+  // canvas. Same visual treatment as the painted-side label but in a
+  // distinct orange so the supplier can tell them apart.
+  if (_flashSketchState.flashGuard) {
+    var fg = _flashSketchState.flashGuard;
+    ctx.font = '12px Inter, system-ui, sans-serif';
+    var fgTxt = 'Flash guard', fgTw = ctx.measureText(fgTxt).width;
+    var fgBoxW = fgTw + 16, fgBoxH = 18;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(fg.x - fgBoxW/2, fg.y - fgBoxH/2, fgBoxW, fgBoxH);
+    ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 1.2;
+    ctx.strokeRect(fg.x - fgBoxW/2, fg.y - fgBoxH/2, fgBoxW, fgBoxH);
+    ctx.fillStyle = '#ea580c';
+    ctx.fillText(fgTxt, fg.x - fgTw/2, fg.y + 4);
+    _flashLabelRects.push({
+      type: 'flashGuard',
+      x: fg.x - fgBoxW/2, y: fg.y - fgBoxH/2, w: fgBoxW, h: fgBoxH,
+    });
+  }
+}
+
+// Hit-test the cached label rects from the last redraw. Returns the
+// topmost label whose rect contains (px, py), or null.
+function _flashHitLabel(px, py){
+  for (var i = _flashLabelRects.length - 1; i >= 0; i--) {
+    var r = _flashLabelRects[i];
+    if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) return r;
+  }
+  return null;
+}
+// Reads the canonical "current position" for a draggable label so we
+// can drag-by-offset from where the user grabbed.
+function _flashLabelGetPos(hit){
+  if (hit.type === 'measurement') {
+    var off = hit.polyline.measurementOffsets && hit.polyline.measurementOffsets[hit.segmentIdx];
+    return { x: (off && off[0]) || 0, y: (off && off[1]) || 0 };
+  }
+  if (hit.type === 'paintedSide') {
+    var ps = _flashSketchState.paintedSide;
+    return { x: ps.x + ps.dirX * 46, y: ps.y + ps.dirY * 46 };
+  }
+  if (hit.type === 'flashGuard') {
+    return { x: _flashSketchState.flashGuard.x, y: _flashSketchState.flashGuard.y };
+  }
+  return { x: 0, y: 0 };
+}
+function _flashLabelSetPos(hit, nx, ny){
+  if (hit.type === 'measurement') {
+    if (!hit.polyline.measurementOffsets) hit.polyline.measurementOffsets = {};
+    hit.polyline.measurementOffsets[hit.segmentIdx] = [nx, ny];
+  } else if (hit.type === 'paintedSide') {
+    // Keep the arrow tip anchored where it was; move the label by
+    // updating ps.x/ps.y so x+dirX*46, y+dirY*46 lands at (nx, ny).
+    var ps = _flashSketchState.paintedSide;
+    ps.x = nx - ps.dirX * 46;
+    ps.y = ny - ps.dirY * 46;
+  } else if (hit.type === 'flashGuard') {
+    _flashSketchState.flashGuard.x = nx;
+    _flashSketchState.flashGuard.y = ny;
   }
 }
 
 // ── Tools ───────────────────────────────────────────────
 function setFlashTool(t){
   _flashSketchState.tool = t;
-  ['draw','measure','paint'].forEach(function(name){
+  ['draw','measure','paint','flashguard'].forEach(function(name){
     var btn = document.getElementById('flashTool' + name.charAt(0).toUpperCase() + name.slice(1));
     if (btn) btn.classList.toggle('active-tool', t === name);
   });
   var c = document.getElementById('flashCanvas');
-  if (c) c.style.cursor = (t === 'measure' || t === 'paint') ? 'pointer' : 'crosshair';
+  if (c) c.style.cursor = (t === 'measure' || t === 'paint' || t === 'flashguard') ? 'pointer' : 'crosshair';
   // Cancel any in-progress polyline when leaving draw mode so a measure
   // click doesn't end up adding a vertex back in draw mode.
   if (t !== 'draw' && _flashSketchState.currentPolyline) {
@@ -9130,6 +9215,12 @@ function _onFlashCanvasClick(p){
       if (clickOffset < 0) { perpX = -perpX; perpY = -perpY; }
       _flashSketchState.paintedSide = { x: mx, y: my, dirX: perpX, dirY: perpY };
     }
+    _redrawFlashCanvas();
+  } else if (_flashSketchState.tool === 'flashguard') {
+    // Drop the Flash guard label at the click position. From here it's
+    // free-floating — drag it anywhere on the canvas in any tool mode.
+    _pushFlashHistory();
+    _flashSketchState.flashGuard = { x: p.x, y: p.y };
     _redrawFlashCanvas();
   }
 }
@@ -9331,34 +9422,108 @@ function deleteFlashingLibraryEntry(idx) {
   _persistCatalogSilently();
   renderFlashingLibrary();
 }
-// Canvas drawing wires up once on DOM-ready. The new model uses CLICKS
-// (each click places a vertex) rather than freehand drag — see
-// _onFlashCanvasClick + _onFlashKey above for the actual semantics.
+// Canvas events. Mousedown checks for a label hit and, if found,
+// begins a drag — moves the label around until mouseup. Otherwise
+// the down/up pair is treated as a click and routed through the
+// tool's normal action (place vertex, place painted side, etc.).
+// Touch is wired the same way.
 (function(){
   function _init(){
     var c = document.getElementById('flashCanvas'); if (!c) return;
-    c.addEventListener('click', function(e){
+    c.addEventListener('mousedown', function(e){
       e.preventDefault();
-      _onFlashCanvasClick(_flashCanvasPt(e));
+      var p = _flashCanvasPt(e);
+      var hit = _flashHitLabel(p.x, p.y);
+      if (hit) {
+        _pushFlashHistory();   // snapshot so an undo restores the previous label position
+        var pos = _flashLabelGetPos(hit);
+        _flashSketchState.dragInfo = { hit: hit, mx: p.x, my: p.y, px: pos.x, py: pos.y, moved: false };
+        _flashSketchState.pressStart = null;
+      } else {
+        _flashSketchState.pressStart = p;
+      }
     });
     c.addEventListener('mousemove', function(e){
-      _onFlashCanvasMouseMove(_flashCanvasPt(e));
+      var p = _flashCanvasPt(e);
+      var di = _flashSketchState.dragInfo;
+      if (di) {
+        var nx = di.px + (p.x - di.mx);
+        var ny = di.py + (p.y - di.my);
+        _flashLabelSetPos(di.hit, nx, ny);
+        di.moved = true;
+        _redrawFlashCanvas();
+        return;
+      }
+      _onFlashCanvasMouseMove(p);
+    });
+    window.addEventListener('mouseup', function(e){
+      if (_flashSketchState.dragInfo) {
+        // Drop without moving — pop the history snapshot we pushed on
+        // mousedown so an accidental click-on-label doesn't count as
+        // an undoable action.
+        if (!_flashSketchState.dragInfo.moved) {
+          _flashSketchState.history.pop();
+          _refreshFlashUndoRedoBtns();
+        }
+        _flashSketchState.dragInfo = null;
+        _redrawFlashCanvas();
+        return;
+      }
+      var ps = _flashSketchState.pressStart;
+      if (ps) {
+        _flashSketchState.pressStart = null;
+        var p = _flashCanvasPt(e);
+        if (Math.hypot(p.x - ps.x, p.y - ps.y) < 5) {
+          _onFlashCanvasClick(ps);
+        }
+      }
     });
     c.addEventListener('mouseleave', function(){
       _flashSketchState.mousePos = null;
       if (_flashSketchState.tool === 'draw' && _flashSketchState.currentPolyline) _redrawFlashCanvas();
     });
-    // Touch: treat each touchend as a click at the start position.
-    var _touchStartPt = null;
+    // Touch mirrors mouse: down hit-tests, move drags or hovers, end commits.
     c.addEventListener('touchstart', function(e){
       e.preventDefault();
-      _touchStartPt = _flashCanvasPt(e);
-      _onFlashCanvasMouseMove(_touchStartPt);
+      var p = _flashCanvasPt(e);
+      var hit = _flashHitLabel(p.x, p.y);
+      if (hit) {
+        _pushFlashHistory();
+        var pos = _flashLabelGetPos(hit);
+        _flashSketchState.dragInfo = { hit: hit, mx: p.x, my: p.y, px: pos.x, py: pos.y, moved: false };
+        _flashSketchState.pressStart = null;
+      } else {
+        _flashSketchState.pressStart = p;
+        _onFlashCanvasMouseMove(p);
+      }
+    }, { passive: false });
+    c.addEventListener('touchmove', function(e){
+      e.preventDefault();
+      var p = _flashCanvasPt(e);
+      var di = _flashSketchState.dragInfo;
+      if (di) {
+        _flashLabelSetPos(di.hit, di.px + (p.x - di.mx), di.py + (p.y - di.my));
+        di.moved = true;
+        _redrawFlashCanvas();
+      } else {
+        _onFlashCanvasMouseMove(p);
+      }
     }, { passive: false });
     c.addEventListener('touchend', function(e){
       e.preventDefault();
-      if (_touchStartPt) _onFlashCanvasClick(_touchStartPt);
-      _touchStartPt = null;
+      if (_flashSketchState.dragInfo) {
+        if (!_flashSketchState.dragInfo.moved) {
+          _flashSketchState.history.pop();
+          _refreshFlashUndoRedoBtns();
+        }
+        _flashSketchState.dragInfo = null;
+        _redrawFlashCanvas();
+        return;
+      }
+      if (_flashSketchState.pressStart) {
+        _onFlashCanvasClick(_flashSketchState.pressStart);
+        _flashSketchState.pressStart = null;
+      }
     });
     window.addEventListener('keydown', _onFlashKey);
   }
