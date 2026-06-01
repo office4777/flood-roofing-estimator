@@ -14004,6 +14004,8 @@ function renderMaterialsCutLists() {
     meta: (ridgeType==='wide'?'Wide ridge':'Standard ridge') + ' · ' + grade + ' · ' + thickness + ' · +' + ridgeSpec.waste.toFixed(1) + 'm waste',
     flashingType: 'ridgehip',
     defaultDrawing: 'ridge',
+    cutList: ridgeCl,
+    tableEmptyMsg: 'No ridge or hip lines drawn yet.',
     table: _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.'),
   });
 
@@ -14017,6 +14019,7 @@ function renderMaterialsCutLists() {
       meta: grade + ' · ' + thickness + ' · +' + spec.waste.toFixed(1) + 'm waste',
       flashingType: spec.key,
       defaultDrawing: spec.drawing,   // null for valley → no drawing column
+      cutList: cl,
       table: _matCutListTable(cl, ''),
     });
   });
@@ -14057,21 +14060,124 @@ function renderMaterialsCutLists() {
 //   [swatch] Title · meta-line   [Saved-drawing picker dropdown]
 //   [thumb]  [cut list table — fills the rest of the row]
 // Reduces vertical space per section from ~250px to ~140px.
+// Flashing pricing tables — $/lm per (girth bucket, number of folds).
+// Source: supplier price book photos (Zincalume 0.55, Colorsteel Maxam
+// 0.55). The user marks up everything by 5% (FLASH_MARKUP); flash
+// guards add a flat $5/lm on top (FLASH_GUARDS_RATE). Rows are 50mm
+// girth buckets starting 1-50mm; columns are folds 1 through 8.
+var _FLASH_PRICE_TABLES = {
+  'Zincalume|0.55g': [
+    [2.91,4.68,6.44,8.21,9.98,11.75,13.51,15.28],
+    [4.06,5.82,7.59,9.36,11.12,12.89,14.66,16.42],
+    [5.20,6.97,8.73,10.50,12.27,14.03,15.80,17.57],
+    [6.34,8.11,9.88,11.64,13.41,15.18,16.94,18.71],
+    [7.49,9.25,11.02,12.79,14.55,16.32,18.09,19.86],
+    [8.63,10.40,12.17,13.93,15.70,17.47,19.23,21.00],
+    [9.78,11.54,13.31,15.08,16.84,18.61,20.38,22.14],
+    [10.92,12.69,14.45,16.22,17.99,19.75,21.52,23.29],
+    [12.06,13.83,15.60,17.36,19.13,20.90,22.67,24.43],
+    [13.21,14.97,16.74,18.51,20.28,22.04,23.81,25.58],
+    [14.35,16.12,17.89,19.65,21.42,23.19,24.95,26.72],
+    [15.50,17.26,19.03,20.80,22.56,24.33,26.10,27.86],
+    [16.64,18.41,20.17,21.94,23.71,25.47,27.24,29.01],
+    [17.78,19.55,21.32,23.08,24.85,26.62,28.39,30.15],
+    [18.93,20.70,22.46,24.23,26.00,27.76,29.53,31.30],
+    [20.07,21.84,23.61,25.37,27.14,28.91,30.67,32.44],
+    [21.22,22.98,24.75,26.52,28.28,30.05,31.82,33.58],
+    [22.36,24.13,25.89,27.66,29.43,31.19,32.96,34.73],
+    [23.50,25.27,27.04,28.81,30.57,32.34,34.11,35.87],
+    [24.65,26.42,28.18,29.95,31.72,33.48,35.25,37.02],
+    [25.79,27.56,29.33,31.09,32.86,34.63,36.39,38.16],
+    [26.94,28.70,30.47,32.24,34.00,35.77,37.54,39.31],
+    [28.08,29.85,31.61,33.38,35.15,36.92,38.68,40.45],
+    [29.22,30.99,32.76,34.53,36.29,38.06,39.83,41.59]
+  ],
+  'Colorsteel Maxam|0.55g': [
+    [3.57,5.34,7.11,8.88,10.64,12.41,14.18,15.95],
+    [5.37,7.14,8.91,10.67,12.44,14.21,15.98,17.75],
+    [7.17,8.93,10.70,12.47,14.24,16.01,17.78,19.55],
+    [8.96,10.73,12.50,14.27,16.04,17.81,19.58,21.35],
+    [10.76,12.53,14.30,16.07,17.84,19.61,21.38,23.15],
+    [12.56,14.33,16.10,17.87,19.64,21.41,23.18,24.95],
+    [14.36,16.13,17.90,19.67,21.44,23.21,24.98,26.75],
+    [16.16,17.93,19.70,21.47,23.24,25.01,26.77,28.54],
+    [17.96,19.73,21.50,23.27,25.04,26.80,28.57,30.34],
+    [19.76,21.53,23.30,25.07,26.83,28.60,30.37,32.14],
+    [21.56,23.33,25.10,26.86,28.63,30.40,32.17,33.94],
+    [23.36,25.13,26.89,28.66,30.43,32.20,33.97,35.74],
+    [25.16,26.92,28.69,30.46,32.23,34.00,35.77,37.54],
+    [26.95,28.72,30.49,32.26,34.03,35.80,37.57,39.34],
+    [28.75,30.52,32.29,34.06,35.83,37.60,39.37,41.14],
+    [30.55,32.32,34.09,35.86,37.63,39.40,41.17,42.94],
+    [32.35,34.12,35.89,37.66,39.43,41.20,42.97,44.73],
+    [34.15,35.92,37.69,39.46,41.23,43.00,44.76,46.53],
+    [35.95,37.72,39.49,41.26,43.02,44.79,46.56,48.33],
+    [37.75,39.52,41.29,43.05,44.82,46.59,48.36,50.13],
+    [39.55,41.32,43.08,44.85,46.62,48.39,50.16,51.93],
+    [41.35,43.11,44.88,46.65,48.42,50.19,51.96,53.73],
+    [43.14,44.91,46.68,48.45,50.22,51.99,53.76,55.53],
+    [44.94,46.71,48.48,50.25,52.02,53.79,55.56,57.33]
+  ]
+};
+var FLASH_MARKUP = 1.05;       // +5% on the supplier's table price
+var FLASH_GUARDS_RATE = 5;     // $5/lm extra when flash guards are spec'd
+
+// Returns $/lm for a flashing of (grade × thickness × girth × folds),
+// after the markup and any flash-guards surcharge. Returns null when
+// we don't have a price book for that grade+thickness combo.
+function flashPricePerLm(grade, thickness, girthMm, angleChanges, hasFlashGuards) {
+  if (!(girthMm > 0)) return null;
+  var table = _FLASH_PRICE_TABLES[grade + '|' + thickness];
+  if (!table) return null;
+  var folds = Math.max(1, Math.min(8, angleChanges || 1));
+  var row   = Math.max(0, Math.min(table.length - 1, Math.ceil(girthMm / 50) - 1));
+  var base  = table[row][folds - 1];
+  if (base == null) return null;
+  var p = base * FLASH_MARKUP;
+  if (hasFlashGuards) p += FLASH_GUARDS_RATE;
+  return p;
+}
+
+// Look up the saved flashing the user selected for this type in the
+// Materials tab (via the picker dropdown).
+function _matSelectedFlashingFor(flashingType) {
+  var savedName = localStorage.getItem('fr_mat_flash_pick_' + flashingType) || '';
+  if (!savedName || !window.S || !S.settings || !S.settings.materials_catalog) return null;
+  var lib = S.settings.materials_catalog.savedFlashings || [];
+  return lib.find(function(e){ return e.name === savedName; }) || null;
+}
+
 function _matCompactSection(opts) {
   var picker = opts.flashingType ? _matFlashingPickerHtml(opts.flashingType) : '';
   var thumbHtml = opts.defaultDrawing
     ? '<div class="mat-thumb">' + _matFlashingDrawingHtml(opts.flashingType, opts.defaultDrawing) + '</div>'
     : '';
+  // Pricing — only when a saved flashing is picked AND we have a
+  // price book row for the current grade × thickness.
+  var rate = null, ratePieces = '';
+  if (opts.flashingType) {
+    var saved = _matSelectedFlashingFor(opts.flashingType);
+    if (saved && saved.girthMm > 0 && saved.angleChanges != null) {
+      var grade     = (document.getElementById('matGrade')||{}).value || 'Colorsteel Maxam';
+      var thickness = (document.getElementById('matThickness')||{}).value || '0.40g';
+      rate = flashPricePerLm(grade, thickness, saved.girthMm, saved.angleChanges, saved.flashGuards);
+      if (rate != null) {
+        ratePieces = ' · ' + saved.girthMm + 'mm girth · ' + saved.angleChanges + ' fold' + (saved.angleChanges === 1 ? '' : 's') +
+                     (saved.flashGuards ? ' · w/flash guards' : '') +
+                     ' · <strong style="color:#059669">$' + rate.toFixed(2) + '/lm</strong>';
+      }
+    }
+  }
   return '<div class="mat-section mat-section-compact">'+
     '<div class="mat-section-hd">'+
       '<span class="swatch" style="background:'+opts.swatch+'"></span>'+
       '<h3>'+esc(opts.title)+'</h3>'+
-      '<span class="meta">'+esc(opts.meta||'')+'</span>'+
+      '<span class="meta">'+esc(opts.meta||'')+ratePieces+'</span>'+
       (picker ? '<span class="mat-picker-slot">'+picker+'</span>' : '')+
     '</div>'+
     '<div class="mat-section-body">'+
       thumbHtml +
-      '<div class="mat-section-table">'+opts.table+'</div>'+
+      '<div class="mat-section-table">'+(rate != null ? _matCutListTableWithCost(opts.cutList, opts.tableEmptyMsg||'', rate) : opts.table)+'</div>'+
     '</div>'+
   '</div>';
 }
@@ -14088,6 +14194,24 @@ function _matCutListTable(cl, emptyMsg) {
     html += '<tr><td>Piece '+(i+1)+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td></tr>';
   });
   html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td></tr></tfoot></table>';
+  return html;
+}
+
+// Same as _matCutListTable but adds a "Cost" column priced at rate $/lm.
+function _matCutListTableWithCost(cl, emptyMsg, rate) {
+  if (!cl || cl.pieceCount === 0) {
+    return '<div class="cut-list-empty">'+esc(emptyMsg || 'No pieces yet — add drawn line measurements.')+'</div>';
+  }
+  var html = '<table class="cut-list"><thead><tr>'+
+    '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th><th class="r">Cost</th>'+
+  '</tr></thead><tbody>';
+  var totalCost = 0;
+  cl.rows.forEach(function(r, i){
+    var lineCost = r.qty * r.length * rate;
+    totalCost += lineCost;
+    html += '<tr><td>Piece '+(i+1)+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">$'+lineCost.toFixed(2)+'</td></tr>';
+  });
+  html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td><td class="r" style="color:#059669">$'+totalCost.toFixed(2)+'</td></tr></tfoot></table>';
   return html;
 }
 
