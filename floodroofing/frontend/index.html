@@ -2473,16 +2473,26 @@ select{
         </select>
       </div>
     </div>
-    <div style="padding:14px 20px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap">
-      <button onclick="setFlashTool('pen')" id="flashToolPen" class="tool-btn active-tool">✏ Pen</button>
-      <button onclick="setFlashTool('eraser')" id="flashToolEraser" class="tool-btn">⌫ Eraser</button>
-      <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px">Stroke <input type="range" id="flashStroke" min="1" max="10" value="2" style="width:80px"></label>
-      <button onclick="clearFlashCanvas()" class="tool-btn" style="margin-left:auto">Clear</button>
-      <button onclick="saveFlashSketch()" class="sec-btn" style="margin:0;width:auto;padding:8px 18px">Save sketch</button>
+    <div style="padding:12px 20px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <button onclick="setFlashTool('draw')" id="flashToolDraw" class="tool-btn active-tool">✏ Draw</button>
+      <button onclick="setFlashTool('measure')" id="flashToolMeasure" class="tool-btn">📏 Add measurement</button>
+      <button onclick="setFlashTool('paint')" id="flashToolPaint" class="tool-btn">🎨 Painted side</button>
+      <button onclick="finishFlashPolyline()" class="tool-btn">↵ Finish</button>
+      <button onclick="undoFlashSketch()" class="tool-btn" id="flashUndoBtn">↶ Undo</button>
+      <button onclick="redoFlashSketch()" class="tool-btn" id="flashRedoBtn">↷ Redo</button>
+      <button onclick="clearFlashCanvas()" class="tool-btn">Clear</button>
+      <button onclick="saveFlashSketch()" class="sec-btn" style="margin:0 0 0 auto;width:auto;padding:8px 18px">Save sketch</button>
+    </div>
+    <div style="padding:8px 20px;background:#fafaf7;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--text2)">
+      <span id="flashStatsLine"><strong>Girth:</strong> 0 mm &nbsp;·&nbsp; <strong>Angle changes:</strong> 0</span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="flashGuardsToggle" onchange="_onFlashGuardsToggle()" style="margin:0;width:auto"> Flash guards (+$5/lm)
+      </label>
+      <span style="margin-left:auto;font-size:11px">Click to place corners · <strong>Finish</strong> or press Enter when done · <strong>Add measurement</strong> to label segments in mm · <strong>Painted side</strong> places a colour-arrow.</span>
     </div>
     <div style="padding:16px 20px;background:var(--surface-2)">
       <canvas id="flashCanvas" width="720" height="380" style="background:#fff;border:1px solid var(--border);border-radius:8px;width:100%;max-width:720px;display:block;touch-action:none;cursor:crosshair"></canvas>
-      <div style="font-size:11px;color:var(--text2);margin-top:8px">Draw the cross-section as you'd hand-sketch it on a job bag. Tap/drag to draw. Saves into the flashing as a thumbnail.</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:8px">Click to place corners, again for the next corner. Press Finish (or Enter) when done. Saves as a re-usable library entry.</div>
     </div>
   </div>
 </div>
@@ -8651,28 +8661,375 @@ function clearSavedFlashings(){
 // mode='order'   → editing the sketch on S.order.flashings[idx] (legacy)
 // mode='library' → editing a saved flashing in the library (Settings)
 //                  idx === -1 means new entry; idx >= 0 means edit existing
-var _flashSketchState = { idx:-1, tool:'pen', drawing:false, last:null, mode:'order' };
+//
+// Drawing model: each polyline is a sequence of clicked vertices with
+// optional per-segment measurements in mm. The user clicks to place
+// corners, then presses Finish (or Enter) to commit the polyline.
+// Multiple polylines per sketch are allowed. Undo/Redo step through
+// every state-changing action via the history/future stacks.
+// paintedSide stores one optional marker {x,y,dirX,dirY} per sketch —
+// the colour-arrow the supplier reads to know which side is painted.
+// flashGuards is a boolean flag stored on the saved entry; the
+// Materials tab adds $5/lm when it's set.
+var _flashSketchState = {
+  idx:-1, mode:'order', tool:'draw',
+  polylines: [],         // [{ vertices:[[x,y],...], measurements:{ "0":mm, ... } }]
+  currentPolyline: null, // in-progress polyline (not yet committed)
+  paintedSide: null,     // { x, y, dirX, dirY } or null
+  flashGuards: false,
+  history: [], future: [],
+  mousePos: null,
+};
+
+function _snapshotFlashState(){
+  return {
+    polylines: _flashSketchState.polylines.map(function(p){
+      return { vertices: p.vertices.map(function(v){return v.slice();}),
+               measurements: Object.assign({}, p.measurements) };
+    }),
+    currentPolyline: _flashSketchState.currentPolyline ? {
+      vertices: _flashSketchState.currentPolyline.vertices.map(function(v){return v.slice();}),
+      measurements: Object.assign({}, _flashSketchState.currentPolyline.measurements)
+    } : null,
+    paintedSide: _flashSketchState.paintedSide ? Object.assign({}, _flashSketchState.paintedSide) : null,
+    flashGuards: _flashSketchState.flashGuards,
+  };
+}
+function _restoreFlashState(snap){
+  _flashSketchState.polylines = snap.polylines;
+  _flashSketchState.currentPolyline = snap.currentPolyline;
+  _flashSketchState.paintedSide = snap.paintedSide;
+  _flashSketchState.flashGuards = snap.flashGuards;
+  var t = document.getElementById('flashGuardsToggle');
+  if (t) t.checked = !!snap.flashGuards;
+}
+function _pushFlashHistory(){
+  _flashSketchState.history.push(_snapshotFlashState());
+  if (_flashSketchState.history.length > 80) _flashSketchState.history.shift();
+  _flashSketchState.future = [];
+  _refreshFlashUndoRedoBtns();
+}
+function undoFlashSketch(){
+  if (!_flashSketchState.history.length) return;
+  _flashSketchState.future.push(_snapshotFlashState());
+  _restoreFlashState(_flashSketchState.history.pop());
+  _refreshFlashUndoRedoBtns();
+  _redrawFlashCanvas();
+  _updateFlashStats();
+}
+function redoFlashSketch(){
+  if (!_flashSketchState.future.length) return;
+  _flashSketchState.history.push(_snapshotFlashState());
+  _restoreFlashState(_flashSketchState.future.pop());
+  _refreshFlashUndoRedoBtns();
+  _redrawFlashCanvas();
+  _updateFlashStats();
+}
+function _refreshFlashUndoRedoBtns(){
+  var u = document.getElementById('flashUndoBtn');
+  var r = document.getElementById('flashRedoBtn');
+  if (u) u.style.opacity = _flashSketchState.history.length ? '1' : '0.4';
+  if (r) r.style.opacity = _flashSketchState.future.length  ? '1' : '0.4';
+}
+
+function _resetFlashState(){
+  _flashSketchState.polylines = [];
+  _flashSketchState.currentPolyline = null;
+  _flashSketchState.paintedSide = null;
+  _flashSketchState.flashGuards = false;
+  _flashSketchState.history = [];
+  _flashSketchState.future = [];
+  _flashSketchState.mousePos = null;
+  var t = document.getElementById('flashGuardsToggle');
+  if (t) t.checked = false;
+  _refreshFlashUndoRedoBtns();
+}
+
+function _allFlashPolylines(){
+  var arr = _flashSketchState.polylines.slice();
+  if (_flashSketchState.currentPolyline) arr.push(_flashSketchState.currentPolyline);
+  return arr;
+}
+
+function _computeFlashStats(){
+  var girth = 0, angleChanges = 0;
+  _allFlashPolylines().forEach(function(p){
+    Object.keys(p.measurements).forEach(function(k){
+      var mm = +p.measurements[k] || 0; girth += mm;
+    });
+    // Each interior vertex is an angle change (n vertices → n-2 corners).
+    if (p.vertices.length >= 3) angleChanges += (p.vertices.length - 2);
+  });
+  return { girth: girth, angleChanges: angleChanges };
+}
+function _updateFlashStats(){
+  var s = _computeFlashStats();
+  var el = document.getElementById('flashStatsLine');
+  if (!el) return;
+  el.innerHTML = '<strong>Girth:</strong> '+s.girth+' mm &nbsp;·&nbsp; <strong>Angle changes:</strong> '+s.angleChanges;
+}
+
+// Canvas redraw — wipes + paints everything from current state.
+function _redrawFlashCanvas(){
+  var c = document.getElementById('flashCanvas'); if (!c) return;
+  var ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.font = '12px Inter, system-ui, sans-serif';
+
+  function drawOne(p, isCurrent){
+    if (!p || !p.vertices.length) return;
+    var v = p.vertices;
+    if (v.length >= 2) {
+      ctx.lineWidth = 2; ctx.strokeStyle = '#0a1628';
+      ctx.beginPath(); ctx.moveTo(v[0][0], v[0][1]);
+      for (var i = 1; i < v.length; i++) ctx.lineTo(v[i][0], v[i][1]);
+      ctx.stroke();
+    }
+    // Vertex dots
+    v.forEach(function(pt, i){
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], 4, 0, 2*Math.PI);
+      ctx.fillStyle = (isCurrent && i === v.length - 1) ? '#dc2626' : '#0a1628';
+      ctx.fill();
+    });
+    // Measurement labels
+    for (var i = 0; i < v.length - 1; i++) {
+      var mm = p.measurements[i];
+      if (mm == null) continue;
+      var a = v[i], b = v[i+1];
+      var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+      var dx = b[0]-a[0], dy = b[1]-a[1];
+      var len = Math.hypot(dx, dy) || 1;
+      var ox = -dy/len * 18, oy = dx/len * 18;
+      var lx = mx + ox, ly = my + oy;
+      var txt = mm + ' mm';
+      var tw = ctx.measureText(txt).width;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(lx - tw/2 - 5, ly - 10, tw + 10, 20);
+      ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1;
+      ctx.strokeRect(lx - tw/2 - 5, ly - 10, tw + 10, 20);
+      ctx.fillStyle = '#dc2626';
+      ctx.fillText(txt, lx - tw/2, ly + 5);
+    }
+  }
+  _flashSketchState.polylines.forEach(function(p){ drawOne(p, false); });
+  if (_flashSketchState.currentPolyline) drawOne(_flashSketchState.currentPolyline, true);
+
+  // Rubber-band from last current vertex to mouse cursor (draw mode only)
+  if (_flashSketchState.tool === 'draw' && _flashSketchState.currentPolyline
+      && _flashSketchState.currentPolyline.vertices.length && _flashSketchState.mousePos) {
+    var last = _flashSketchState.currentPolyline.vertices[_flashSketchState.currentPolyline.vertices.length - 1];
+    ctx.setLineDash([4,4]); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(_flashSketchState.mousePos[0], _flashSketchState.mousePos[1]); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Colour arrow (painted side marker)
+  if (_flashSketchState.paintedSide) {
+    var ps = _flashSketchState.paintedSide;
+    ctx.strokeStyle = '#16a34a'; ctx.fillStyle = '#16a34a'; ctx.lineWidth = 2.5;
+    // Arrow shaft
+    var tipX = ps.x + ps.dirX * 32, tipY = ps.y + ps.dirY * 32;
+    ctx.beginPath(); ctx.moveTo(ps.x, ps.y); ctx.lineTo(tipX, tipY); ctx.stroke();
+    // Arrowhead
+    var perpX = -ps.dirY, perpY = ps.dirX;
+    var headSize = 7;
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - ps.dirX*headSize + perpX*headSize*0.7, tipY - ps.dirY*headSize + perpY*headSize*0.7);
+    ctx.lineTo(tipX - ps.dirX*headSize - perpX*headSize*0.7, tipY - ps.dirY*headSize - perpY*headSize*0.7);
+    ctx.closePath(); ctx.fill();
+    // Label
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(tipX + perpX*8 - 30, tipY + perpY*8 - 9, 60, 18);
+    ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 1;
+    ctx.strokeRect(tipX + perpX*8 - 30, tipY + perpY*8 - 9, 60, 18);
+    ctx.fillStyle = '#16a34a';
+    ctx.fillText('Painted', tipX + perpX*8 - 21, tipY + perpY*8 + 5);
+  }
+}
+
+// ── Tools ───────────────────────────────────────────────
+function setFlashTool(t){
+  _flashSketchState.tool = t;
+  ['draw','measure','paint'].forEach(function(name){
+    var btn = document.getElementById('flashTool' + name.charAt(0).toUpperCase() + name.slice(1));
+    if (btn) btn.classList.toggle('active-tool', t === name);
+  });
+  var c = document.getElementById('flashCanvas');
+  if (c) c.style.cursor = (t === 'measure' || t === 'paint') ? 'pointer' : 'crosshair';
+  // Cancel any in-progress polyline when leaving draw mode so a measure
+  // click doesn't end up adding a vertex back in draw mode.
+  if (t !== 'draw' && _flashSketchState.currentPolyline) {
+    finishFlashPolyline(true);
+  }
+}
+
+function finishFlashPolyline(silent){
+  var cur = _flashSketchState.currentPolyline;
+  if (!cur || cur.vertices.length < 2) {
+    _flashSketchState.currentPolyline = null;
+    _redrawFlashCanvas();
+    return;
+  }
+  _pushFlashHistory();
+  _flashSketchState.polylines.push(cur);
+  _flashSketchState.currentPolyline = null;
+  _redrawFlashCanvas();
+  _updateFlashStats();
+}
+
+function clearFlashCanvas(){
+  // Snapshot first so Undo can recover the cleared sketch.
+  _flashSketchState.history.push(_snapshotFlashState());
+  if (_flashSketchState.history.length > 80) _flashSketchState.history.shift();
+  _flashSketchState.future = [];
+  // Manual wipe (don't call _resetFlashState — that nukes the history too).
+  _flashSketchState.polylines = [];
+  _flashSketchState.currentPolyline = null;
+  _flashSketchState.paintedSide = null;
+  _flashSketchState.flashGuards = false;
+  _flashSketchState.mousePos = null;
+  var t = document.getElementById('flashGuardsToggle'); if (t) t.checked = false;
+  _redrawFlashCanvas();
+  _updateFlashStats();
+  _refreshFlashUndoRedoBtns();
+}
+
+function _onFlashGuardsToggle(){
+  _pushFlashHistory();
+  _flashSketchState.flashGuards = !!document.getElementById('flashGuardsToggle').checked;
+}
+
+// ── Coordinate helpers ─────────────────────────────────
+function _flashCanvasPt(e){
+  var c = document.getElementById('flashCanvas');
+  var r = c.getBoundingClientRect();
+  var sx = c.width / r.width, sy = c.height / r.height;
+  var t = (e.touches && e.touches[0]) || e;
+  return { x:(t.clientX - r.left)*sx, y:(t.clientY - r.top)*sy };
+}
+function _segDist(px, py, a, b){
+  var dx = b[0]-a[0], dy = b[1]-a[1];
+  var l2 = dx*dx + dy*dy;
+  if (l2 === 0) return Math.hypot(px-a[0], py-a[1]);
+  var t = Math.max(0, Math.min(1, ((px-a[0])*dx + (py-a[1])*dy) / l2));
+  var qx = a[0] + t*dx, qy = a[1] + t*dy;
+  return Math.hypot(px-qx, py-qy);
+}
+function _closestSegmentTo(px, py){
+  var best = null, bestD = Infinity;
+  _allFlashPolylines().forEach(function(p, pi){
+    for (var i = 0; i < p.vertices.length - 1; i++) {
+      var d = _segDist(px, py, p.vertices[i], p.vertices[i+1]);
+      if (d < bestD) { bestD = d; best = { polyline: p, segmentIdx: i, dist: d, a: p.vertices[i], b: p.vertices[i+1] }; }
+    }
+  });
+  return best;
+}
+
+// ── Click handler ──────────────────────────────────────
+function _onFlashCanvasClick(p){
+  if (_flashSketchState.tool === 'draw') {
+    _pushFlashHistory();
+    if (!_flashSketchState.currentPolyline) {
+      _flashSketchState.currentPolyline = { vertices: [[p.x, p.y]], measurements: {} };
+    } else {
+      _flashSketchState.currentPolyline.vertices.push([p.x, p.y]);
+    }
+    _redrawFlashCanvas();
+    _updateFlashStats();
+  } else if (_flashSketchState.tool === 'measure') {
+    var hit = _closestSegmentTo(p.x, p.y);
+    if (!hit || hit.dist > 18) return;
+    var cur = hit.polyline.measurements[hit.segmentIdx];
+    var val = window.prompt('Length of this segment (mm):', cur != null ? cur : '');
+    if (val == null) return;
+    val = String(val).trim();
+    _pushFlashHistory();
+    if (val === '') {
+      delete hit.polyline.measurements[hit.segmentIdx];
+    } else {
+      var num = parseFloat(val);
+      if (!isNaN(num) && num > 0) hit.polyline.measurements[hit.segmentIdx] = Math.round(num);
+    }
+    _redrawFlashCanvas();
+    _updateFlashStats();
+  } else if (_flashSketchState.tool === 'paint') {
+    // Place the painted-side arrow. Direction is perpendicular to the
+    // nearest segment, pointing AWAY from the polyline (toward the
+    // click side). If no segments, point up.
+    var hit = _closestSegmentTo(p.x, p.y);
+    _pushFlashHistory();
+    if (!hit) {
+      _flashSketchState.paintedSide = { x: p.x, y: p.y, dirX: 0, dirY: -1 };
+    } else {
+      var dx = hit.b[0]-hit.a[0], dy = hit.b[1]-hit.a[1];
+      var len = Math.hypot(dx, dy) || 1;
+      // Two possible perpendiculars; pick the one that points TOWARD the click.
+      var perpX = -dy/len, perpY = dx/len;
+      var mx = (hit.a[0]+hit.b[0])/2, my = (hit.a[1]+hit.b[1])/2;
+      var clickOffset = (p.x - mx) * perpX + (p.y - my) * perpY;
+      if (clickOffset < 0) { perpX = -perpX; perpY = -perpY; }
+      _flashSketchState.paintedSide = { x: mx, y: my, dirX: perpX, dirY: perpY };
+    }
+    _redrawFlashCanvas();
+  }
+}
+
+function _onFlashCanvasMouseMove(p){
+  _flashSketchState.mousePos = [p.x, p.y];
+  if (_flashSketchState.tool === 'draw' && _flashSketchState.currentPolyline) {
+    _redrawFlashCanvas();
+  }
+}
+
+function _onFlashKey(e){
+  if (document.getElementById('flashSketchModal').style.display !== 'flex') return;
+  // Don't capture Enter if the focus is on an input/select (let them
+  // submit/blur naturally; the modal Save button is separate).
+  var ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.tagName === 'TEXTAREA')) return;
+  if (e.key === 'Enter') { e.preventDefault(); finishFlashPolyline(); }
+  else if (e.key === 'Escape') {
+    if (_flashSketchState.currentPolyline) {
+      _pushFlashHistory();
+      _flashSketchState.currentPolyline = null;
+      _redrawFlashCanvas();
+      _updateFlashStats();
+    }
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    if (e.shiftKey) redoFlashSketch(); else undoFlashSketch();
+  }
+}
 function openFlashSketch(idx){
   _flashSketchState.idx = idx;
   _flashSketchState.mode = 'order';
   document.getElementById('flashMetaRow').style.display = 'none';
   document.getElementById('flashSketchTitle').textContent = 'Flashing #'+(idx+1);
-  var c = document.getElementById('flashCanvas');
-  var ctx = c.getContext('2d');
-  ctx.clearRect(0,0,c.width,c.height);
-  // Restore prior sketch if any
+  _resetFlashState();
+  // Restore prior polylines if any (preferred), else legacy raster sketch
   var f = S.order.flashings[idx];
-  if (f && f.sketch) {
-    var img = new Image(); img.onload = function(){ ctx.drawImage(img,0,0,c.width,c.height); }; img.src = f.sketch;
+  if (f && f.polylines && f.polylines.length) {
+    _flashSketchState.polylines = f.polylines.map(function(p){
+      return { vertices: p.vertices.map(function(v){return v.slice();}),
+               measurements: Object.assign({}, p.measurements||{}) };
+    });
+    _flashSketchState.paintedSide = f.paintedSide || null;
+    _flashSketchState.flashGuards = !!f.flashGuards;
+    var t = document.getElementById('flashGuardsToggle'); if (t) t.checked = !!f.flashGuards;
   }
-  _flashSketchState.tool = 'pen';
-  setFlashTool('pen');
+  setFlashTool('draw');
+  _redrawFlashCanvas();
+  _updateFlashStats();
   document.getElementById('flashSketchModal').style.display = 'flex';
 }
 
 // Open the sketch modal in LIBRARY mode — edits an entry on
 // S.settings.materials_catalog.savedFlashings. idx === -1 creates new.
-function openFlashEditModal(libIdx) {
+function openFlashEditModal(libIdx){
   _flashSketchState.idx  = libIdx;
   _flashSketchState.mode = 'library';
   var lib = _getSavedFlashings();
@@ -8682,30 +9039,37 @@ function openFlashEditModal(libIdx) {
   document.getElementById('flashMetaName').value    = entry ? (entry.name || '') : '';
   document.getElementById('flashMetaProfile').value = entry ? (entry.profile || 'any') : 'any';
   document.getElementById('flashMetaType').value    = entry ? (entry.flashingType || 'custom') : 'custom';
-  var c = document.getElementById('flashCanvas'), ctx = c.getContext('2d');
-  ctx.clearRect(0,0,c.width,c.height);
-  if (entry && entry.sketch) {
-    var img = new Image(); img.onload = function(){ ctx.drawImage(img,0,0,c.width,c.height); }; img.src = entry.sketch;
+  _resetFlashState();
+  if (entry && entry.polylines && entry.polylines.length) {
+    _flashSketchState.polylines = entry.polylines.map(function(p){
+      return { vertices: p.vertices.map(function(v){return v.slice();}),
+               measurements: Object.assign({}, p.measurements||{}) };
+    });
+    _flashSketchState.paintedSide = entry.paintedSide || null;
+    _flashSketchState.flashGuards = !!entry.flashGuards;
+    var t = document.getElementById('flashGuardsToggle'); if (t) t.checked = !!entry.flashGuards;
   }
-  _flashSketchState.tool = 'pen';
-  setFlashTool('pen');
+  setFlashTool('draw');
+  _redrawFlashCanvas();
+  _updateFlashStats();
   document.getElementById('flashSketchModal').style.display = 'flex';
 }
 
 function closeFlashSketch(){ document.getElementById('flashSketchModal').style.display = 'none'; }
-function setFlashTool(t){
-  _flashSketchState.tool = t;
-  document.getElementById('flashToolPen').classList.toggle('active-tool', t==='pen');
-  document.getElementById('flashToolEraser').classList.toggle('active-tool', t==='eraser');
-}
-function clearFlashCanvas(){
-  var c = document.getElementById('flashCanvas'); var ctx = c.getContext('2d');
-  ctx.clearRect(0,0,c.width,c.height);
-}
+
 function saveFlashSketch(){
   var c = document.getElementById('flashCanvas');
+  // Re-render WITHOUT the rubber-band before grabbing the data URL
+  _flashSketchState.mousePos = null;
+  _redrawFlashCanvas();
   var url = c.toDataURL('image/png');
-  // Library mode: write to S.settings.materials_catalog.savedFlashings
+  var stats = _computeFlashStats();
+  var polylinesSnapshot = _flashSketchState.polylines.map(function(p){
+    return { vertices: p.vertices.map(function(v){return v.slice();}),
+             measurements: Object.assign({}, p.measurements) };
+  });
+
+  // Library mode
   if (_flashSketchState.mode === 'library') {
     var name = (document.getElementById('flashMetaName').value || '').trim();
     if (!name) { alert('Give this flashing a name first.'); return; }
@@ -8714,31 +9078,41 @@ function saveFlashSketch(){
     var lib = _getSavedFlashings();
     var idx = _flashSketchState.idx;
     var entry = (idx >= 0) ? lib[idx] : null;
+    var payload = {
+      name: name, profile: profile, flashingType: flashingType,
+      sketch: url,
+      polylines: polylinesSnapshot,
+      paintedSide: _flashSketchState.paintedSide,
+      flashGuards: _flashSketchState.flashGuards,
+      girthMm: stats.girth,
+      angleChanges: stats.angleChanges,
+      // legacy compat fields so existing pickers still work
+      type: name, qty: 1, faces: [{label:'Face A',length:''},{label:'Face B',length:''}],
+      lineBreaks: '', notes: ''
+    };
     if (!entry) {
-      entry = { name: name, profile: profile, flashingType: flashingType, sketch: url,
-                type: name, qty: 1, faces: [{label:'Face A',length:''},{label:'Face B',length:''}],
-                lineBreaks: '', notes: '' };
-      // If a saved flashing with the same name+profile+type already
-      // exists, overwrite — saves the user from accidental duplicates.
       var dup = lib.findIndex(function(x){ return x.name===name && (x.profile||'any')===profile && (x.flashingType||'custom')===flashingType; });
-      if (dup >= 0) lib[dup] = entry; else lib.push(entry);
+      if (dup >= 0) lib[dup] = payload; else lib.push(payload);
     } else {
-      entry.name = name;
-      entry.profile = profile;
-      entry.flashingType = flashingType;
-      entry.sketch = url;
-      // keep legacy fields in sync so existing pickers still work
-      if (!entry.type) entry.type = name;
+      Object.assign(entry, payload);
     }
     _updateSavedFlashCount();
     _persistCatalogSilently();
     closeFlashSketch();
     try { renderFlashingLibrary(); } catch(e){}
+    try { if (typeof renderMaterialsCutLists === 'function') renderMaterialsCutLists(); } catch(e){}
     return;
   }
-  // Order mode (legacy): write to S.order.flashings[idx]
+  // Order mode (legacy)
   var idx = _flashSketchState.idx;
-  if (S.order.flashings[idx]) S.order.flashings[idx].sketch = url;
+  if (S.order.flashings[idx]) {
+    S.order.flashings[idx].sketch = url;
+    S.order.flashings[idx].polylines = polylinesSnapshot;
+    S.order.flashings[idx].paintedSide = _flashSketchState.paintedSide;
+    S.order.flashings[idx].flashGuards = _flashSketchState.flashGuards;
+    S.order.flashings[idx].girthMm = stats.girth;
+    S.order.flashings[idx].angleChanges = stats.angleChanges;
+  }
   closeFlashSketch();
   _renderFlashings();
 }
@@ -8801,37 +9175,36 @@ function deleteFlashingLibraryEntry(idx) {
   _persistCatalogSilently();
   renderFlashingLibrary();
 }
-// Canvas drawing wires up once on DOM-ready.
+// Canvas drawing wires up once on DOM-ready. The new model uses CLICKS
+// (each click places a vertex) rather than freehand drag — see
+// _onFlashCanvasClick + _onFlashKey above for the actual semantics.
 (function(){
   function _init(){
     var c = document.getElementById('flashCanvas'); if (!c) return;
-    var ctx = c.getContext('2d'); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    function _pt(e){
-      var r = c.getBoundingClientRect();
-      var sx = c.width / r.width, sy = c.height / r.height;
-      var t = (e.touches && e.touches[0]) || e;
-      return { x:(t.clientX - r.left)*sx, y:(t.clientY - r.top)*sy };
-    }
-    function _down(e){ e.preventDefault(); _flashSketchState.drawing = true; _flashSketchState.last = _pt(e); }
-    function _move(e){
-      if (!_flashSketchState.drawing) return; e.preventDefault();
-      var p = _pt(e);
-      var w = +document.getElementById('flashStroke').value || 2;
-      ctx.lineWidth = (_flashSketchState.tool === 'eraser') ? w*6 : w;
-      ctx.strokeStyle = (_flashSketchState.tool === 'eraser') ? '#fff' : '#0a1628';
-      ctx.beginPath();
-      ctx.moveTo(_flashSketchState.last.x, _flashSketchState.last.y);
-      ctx.lineTo(p.x, p.y);
-      ctx.stroke();
-      _flashSketchState.last = p;
-    }
-    function _up(){ _flashSketchState.drawing = false; }
-    c.addEventListener('mousedown', _down);
-    c.addEventListener('mousemove', _move);
-    window.addEventListener('mouseup', _up);
-    c.addEventListener('touchstart', _down, {passive:false});
-    c.addEventListener('touchmove',  _move, {passive:false});
-    c.addEventListener('touchend',   _up);
+    c.addEventListener('click', function(e){
+      e.preventDefault();
+      _onFlashCanvasClick(_flashCanvasPt(e));
+    });
+    c.addEventListener('mousemove', function(e){
+      _onFlashCanvasMouseMove(_flashCanvasPt(e));
+    });
+    c.addEventListener('mouseleave', function(){
+      _flashSketchState.mousePos = null;
+      if (_flashSketchState.tool === 'draw' && _flashSketchState.currentPolyline) _redrawFlashCanvas();
+    });
+    // Touch: treat each touchend as a click at the start position.
+    var _touchStartPt = null;
+    c.addEventListener('touchstart', function(e){
+      e.preventDefault();
+      _touchStartPt = _flashCanvasPt(e);
+      _onFlashCanvasMouseMove(_touchStartPt);
+    }, { passive: false });
+    c.addEventListener('touchend', function(e){
+      e.preventDefault();
+      if (_touchStartPt) _onFlashCanvasClick(_touchStartPt);
+      _touchStartPt = null;
+    });
+    window.addEventListener('keydown', _onFlashKey);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _init);
   else _init();
