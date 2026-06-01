@@ -14383,7 +14383,7 @@ function populateMaterialsFromLines() {
 // single "ridge" cut list (+0.5m per piece, profile selectable).
 // Other flashings get +0.4m waste per piece by default.
 var _MAT_FLASHING_SPECS = [
-  { key:'ridgehip', label:'Ridge / Hip capping',   colour:'#dc2626', waste:0.5, drawing:'ridge'      },
+  { key:'ridgehip', label:'Ridge / Hip capping',   colour:'#dc2626', waste:0.5, drawing:null         },
   { key:'barge',    label:'Barge flashing',         colour:'#0891b2', waste:0.4, drawing:'barge'      },
   { key:'apron',    label:'Apron flashing',         colour:'#e11d48', waste:0.4, drawing:'apron'      },
   { key:'changepitch', label:'Change-of-pitch flashing', colour:'#0ea5e9', waste:0.4, drawing:'changepitch' },
@@ -14585,7 +14585,7 @@ function renderMaterialsCutLists() {
     title: 'Ridge / Hip capping',
     meta: (ridgeType==='wide'?'Wide ridge':'Standard ridge') + ' · ' + grade + ' · ' + thickness + ' · +' + ridgeSpec.waste.toFixed(1) + 'm waste',
     flashingType: 'ridgehip',
-    defaultDrawing: 'ridge',
+    defaultDrawing: null,
     cutList: ridgeCl,
     tableEmptyMsg: 'No ridge or hip lines drawn yet.',
     table: _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.'),
@@ -15116,6 +15116,46 @@ function _matBuildPrintOrderDetails(mount) {
   appendSection('Valley iron',            _matBuildCutList('valley',      0.4));
   if (gutterChoice !== 'none') appendSection('Gutter — '+gutterLabel, _matBuildCutList('gutter', 0));
   html += '</tbody></table>';
+
+  // Flashing drawings — one tile per flashing type (skip ridge per the
+  // user's request: ridge gets no drawing picture). Each tile shows the
+  // user-picked saved drawing (or the built-in default SVG when none
+  // is picked) plus a "3 @ 4.2m, 1 @ 1.2m"-style summary of the cut
+  // list. 3 tiles per row; flex-wraps to as many rows as needed.
+  var drawingBlocks = [];
+  _MAT_FLASHING_SPECS.forEach(function(spec){
+    if (spec.key === 'ridgehip') return;     // ridge needs no drawing
+    var cl = _matBuildCutList(spec.key, spec.waste);
+    if (!cl.pieceCount) return;
+    var savedName = localStorage.getItem('fr_mat_flash_pick_' + spec.key) || '';
+    var saved = null;
+    if (savedName && window.S && S.settings && S.settings.materials_catalog) {
+      var lib = S.settings.materials_catalog.savedFlashings || [];
+      saved = lib.find(function(e){ return e.name === savedName; }) || null;
+    }
+    var imgHtml;
+    if (saved && saved.sketch) {
+      imgHtml = '<img src="'+saved.sketch+'" alt="'+esc(saved.name)+'" style="display:block;width:100%;height:84px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:4px">';
+    } else if (spec.drawing) {
+      imgHtml = '<div style="width:100%;height:84px;background:#fff;border:1px solid #e5e7eb;border-radius:4px;display:flex;align-items:center;justify-content:center;padding:6px;box-sizing:border-box">'+_matFlashingDrawing(spec.drawing)+'</div>';
+    } else {
+      imgHtml = '<div style="width:100%;height:84px;background:#fafaf7;border:1px solid #e5e7eb;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:9.5px;font-style:italic">No drawing</div>';
+    }
+    var rowsText = cl.rows.map(function(r){ return r.qty + ' @ ' + r.length.toFixed(1) + 'm'; }).join(', ');
+    drawingBlocks.push(
+      '<div style="break-inside:avoid">'+
+        imgHtml+
+        '<div style="font-size:10.5px;font-weight:700;color:#0a1628;margin-top:4px;text-align:center">'+esc(spec.label)+'</div>'+
+        '<div style="font-size:10px;color:#374151;text-align:center;margin-top:1px">'+esc(rowsText)+'</div>'+
+      '</div>'
+    );
+  });
+  if (drawingBlocks.length) {
+    html += '<h2 class="mp-h" style="margin-top:14px">Flashing drawings</h2>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px 12px;margin-top:6px">'+
+        drawingBlocks.join('')+
+      '</div>';
+  }
 
   // Consumables strip.
   var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
