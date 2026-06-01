@@ -11540,6 +11540,9 @@ function onCanvasClick(e) {
     return;
   }
   if(DRAW.tool==='select') {
+    // Click the calibration line to re-open the popup and update its
+    // measure without redrawing.
+    if (hitCalibrationLine(xy[0], xy[1])) { editCalibrate(); return; }
     var hitS = hitSection(xy[0],xy[1]);
     var hitL = hitLine(xy[0],xy[1]);
     var hitP = hitPen(xy[0],xy[1]);
@@ -13441,6 +13444,49 @@ function openCalPopupForDrawing() {
   document.getElementById('calScaleInfo').style.display = 'none';
   document.getElementById('calPopup').style.display = 'block';
   document.getElementById('calOverlay').style.display = 'block';
+}
+
+// Reopen the calibrate popup with the EXISTING measurement pre-filled,
+// so clicking the on-canvas calibration line lets the user just update
+// the metres without redrawing the line. Triggered by hitCalibrationLine
+// in onCanvasClick (select tool).
+function editCalibrate() {
+  if (!DRAW.calibratePts || !DRAW.calibratePixels) return;
+  // Reverse the original confirmCalibrate math: planM = scale × pixels,
+  // then unwind cos(pitch) if it was entered as a pitched (sheet)
+  // length, so the input shows whatever the user typed last time.
+  var existing = '';
+  if (DRAW.scaleMetresPerPx > 0) {
+    var planM   = DRAW.scaleMetresPerPx * DRAW.calibratePixels;
+    var measT   = DRAW.calMeasType || 'flat';
+    var pitch   = DRAW.calPitch || 0;
+    var realM   = (measT === 'pitched' && pitch > 0 && pitch < 80)
+      ? planM / Math.cos(pitch * Math.PI / 180)
+      : planM;
+    existing = realM.toFixed(3);
+  }
+  document.getElementById('calPixelInfo').textContent =
+    'Edit calibration — current line: ' + Math.round(DRAW.calibratePixels) +
+    ' pixels. Update the real-world length below.';
+  document.getElementById('calRealInput').value = existing;
+  document.getElementById('calPitchInput').value = DRAW.calPitch || '';
+  _restoreCalMeasType();
+  document.getElementById('calScaleInfo').style.display = 'none';
+  document.getElementById('calPopup').style.display = 'block';
+  document.getElementById('calOverlay').style.display = 'block';
+  setTimeout(function(){
+    var inp = document.getElementById('calRealInput');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 80);
+}
+
+// Hit-test the calibration line — same tolerance as hitLine. Returns
+// true if (x,y) lands on the calibrate segment.
+function hitCalibrationLine(x, y) {
+  if (!DRAW.calibratePts || DRAW.calibratePts.length < 2) return false;
+  var t = (typeof getImgTransform === 'function') ? getImgTransform() : null;
+  var thresh = Math.max(10, t ? 10/t.s : 10);
+  return distSeg(x, y, DRAW.calibratePts[0], DRAW.calibratePts[1]) < thresh;
 }
 
 function confirmCalibrate() {
@@ -15597,27 +15643,35 @@ function buildDutchGableRoofLines(outline) {
 
 // Mono pitch: no internal lines (single slope)
 function buildMonoPitchRoofLines(outline, rotation) {
-  // Find the longest edge — that's the default gutter.  `rotation` (in
-  // degrees) shifts which edge is selected, so the user can cycle
-  // the slope direction (each 90° step picks the next edge round the
-  // outline).  For a 4-sided rectangle one rotation step picks the
-  // adjacent edge; for L-shapes it picks the next outline edge in
-  // CCW order.
-  var n=outline.length,result=[];
-  var best=0,bestI=0;
-  for(var i=0;i<n;i++){
-    var a=outline[i],b=outline[(i+1)%n];
-    var l=Math.sqrt((b[0]-a[0])*(b[0]-a[0])+(b[1]-a[1])*(b[1]-a[1]));
-    if(l>best){best=l;bestI=i;}
+  // Mono pitch geometry on a rectangle (or any polygon):
+  //   • one edge = gutter (the LOW side)
+  //   • opposite parallel edge = barge BY DEFAULT (high side). A mono
+  //     pitch has NO ridge; the high side is either a barge (open
+  //     eave), an apron (against a wall), or a change-of-pitch
+  //     (against another roof). User can re-tag from the line editor.
+  //   • two perpendicular gable-end edges = barge (always)
+  // `rotation` shifts which outline edge becomes the gutter so the
+  // "Rotate roof 90°" button cycles the slope direction.
+  var n = outline.length, result = [];
+  var best = 0, bestI = 0;
+  for (var i = 0; i < n; i++) {
+    var a = outline[i], b = outline[(i+1)%n];
+    var l = Math.sqrt((b[0]-a[0])*(b[0]-a[0]) + (b[1]-a[1])*(b[1]-a[1]));
+    if (l > best) { best = l; bestI = i; }
   }
   var rotSteps = Math.round(((rotation||0) % 360) / 90) % n;
   if (rotSteps < 0) rotSteps += n;
   bestI = (bestI + rotSteps) % n;
-  // Gutter = (rotated) selected edge
-  result.push({type:'gutter',pts:[outline[bestI].slice(),outline[(bestI+1)%n].slice()]});
-  // Ridge on the opposite edge
-  var oppI=(bestI+Math.floor(n/2))%n;
-  result.push({type:'ridge',pts:[outline[oppI].slice(),outline[(oppI+1)%n].slice()]});
+  // Gutter on the chosen edge.
+  result.push({ type:'gutter', pts:[outline[bestI].slice(), outline[(bestI+1)%n].slice()] });
+  // Every other edge starts as a barge — the algorithm has no way to
+  // know whether the high side is an open eave / wall apron / pitch
+  // change without the user telling it. Barge is the safest default
+  // and lets all four sides participate in the flashing cut list.
+  for (var k = 1; k < n; k++) {
+    var idx = (bestI + k) % n;
+    result.push({ type:'barge', pts:[outline[idx].slice(), outline[(idx+1)%n].slice()] });
+  }
   return result;
 }
 
