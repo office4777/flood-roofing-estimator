@@ -1722,7 +1722,24 @@ select{
     </div>
   </div>
 
-  <!-- 3. MATERIALS — sheets + per-flashing cut lists with selectors. -->
+  <!-- 3. FLASHING LAYOUT — interactive cut-list assignment diagram.
+       Shows the active roof's outline + lines, auto-assigns letter
+       refs (A, B, C…) + length-with-wastage to every non-outline,
+       non-gutter line. Two-way synced with the cut lists below. -->
+  <div class="card" id="flashLayoutCard">
+    <div class="card-hd"><span class="card-dot"></span>Flashing layout
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— each line auto-labelled A / B / C with +0.4m wastage; click a line to edit</span>
+      <label style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none">
+        <input type="checkbox" id="flashLayoutIncludeGutters" onchange="renderFlashingLayout()" style="margin:0;width:auto"> Include gutter lines
+      </label>
+      <button onclick="renderFlashingLayout();renderMaterialsCutLists()" style="margin-left:10px;padding:4px 10px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
+    </div>
+    <div id="flashLayoutOut" style="position:relative">
+      <p style="font-size:12px;color:var(--text2)">Draw your roof outline + flashing lines on the Map Roof tab with measurements — this diagram will appear here.</p>
+    </div>
+  </div>
+
+  <!-- 4. MATERIALS — sheets + per-flashing cut lists with selectors. -->
   <div class="card" id="materialsCutListCard">
     <div class="card-hd"><span class="card-dot"></span>Materials
       <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— pick your profile / grade / thickness; cut lists update live from the drawing</span>
@@ -14394,30 +14411,252 @@ var _MAT_FLASHING_SPECS = [
 // Each drawn line of that type becomes one piece (line length + waste).
 // Returns { rows:[{qty, length, source}], totalLm }, grouped by length
 // so identical pieces collapse into "N @ Xm".
-function _matBuildCutList(type, waste) {
-  var pieces = [];
-  _matEachSelectedRoof(function(){
-    (DRAW.lines || []).forEach(function(l){
-      if (!l.measM) return;
-      var t = l.type;
-      // Merge hip + ridge into the "ridgehip" bucket.
-      if (type === 'ridgehip') {
-        if (t !== 'ridge' && t !== 'hip') return;
-      } else if (t !== type) {
-        return;
-      }
-      var len = parseFloat(l.measM) + (waste || 0);
-      // Round up to nearest 0.1m so the cut list reads cleanly.
-      len = Math.ceil(len * 10) / 10;
-      pieces.push(len);
+// ─── Flashing layout — interactive cut-list assignment diagram ───
+//
+// Each non-gutter line in the user's drawing (across all selected
+// roofs) gets a stable letter ref (A, B, C, …) plus an adjusted length
+// (drawn measurement + 0.4 m wastage, rounded up to the nearest 0.1 m).
+// User edits are persisted on DRAW.flashLayoutOverrides keyed by a
+// stable identifier; auto values are recomputed every render.
+//
+// The cut-list table (_matBuildCutList → _matCutListTable) reads
+// the same labels so anything the user changes here lights up in the
+// numeric cut list and in the printed PDF.
+
+// Identifier for a line that survives endpoint swaps + small drift.
+function _flashLineKey(line) {
+  if (!line || !line.pts || line.pts.length < 2) return '';
+  var a = line.pts[0], b = line.pts[1];
+  var sa = (a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])) ? a : b;
+  var sb = (sa === a) ? b : a;
+  return (line.type||'?') + '|' +
+    Math.round(sa[0]) + ',' + Math.round(sa[1]) + '|' +
+    Math.round(sb[0]) + ',' + Math.round(sb[1]);
+}
+
+// Adjusted length: drawn measure + 0.4 m wastage, rounded UP to 0.1 m.
+function _flashAutoLengthM(line) {
+  if (!line || !line.measM) return 0;
+  return Math.ceil((parseFloat(line.measM) + 0.4) * 10) / 10;
+}
+
+// Whether a line is eligible for letter labelling. Building outline
+// (no longer a drawn line type but kept as a guard) + gutters are
+// EXCLUDED unless the "Include gutter lines" tick is on.
+function _flashLineEligible(line, includeGutters) {
+  if (!line || !line.type) return false;
+  if (line.type === 'gutter') return !!includeGutters;
+  return line.type === 'ridge' || line.type === 'hip' || line.type === 'valley'
+      || line.type === 'barge' || line.type === 'apron' || line.type === 'changepitch';
+}
+
+// Walk every selected roof's lines, assign letters in order. Returns
+// a list of { roofIdx, line, key, letter, lengthM, color } records —
+// ordered by the same letter sequence the diagram + cut list show.
+var _FLASH_LINE_COLOURS = {
+  ridge:'#dc2626', valley:'#f59e0b', gutter:'#7c3aed',
+  hip:'#059669', barge:'#3b82f6', apron:'#e11d48', changepitch:'#0ea5e9'
+};
+function _flashCollectLabelled() {
+  var includeGutters = !!(document.getElementById('flashLayoutIncludeGutters')||{}).checked;
+  if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
+  var ovs = DRAW.flashLayoutOverrides;
+  var out = [];
+  // Auto-assign letters in encounter order. User overrides on the
+  // SAME line replace both the letter and the measurement.
+  var seenLetters = {};
+  // First pass: collect, applying overrides where present.
+  var roofs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs : null;
+  function processRoof(roofIdx, outline, lines) {
+    (lines || []).forEach(function(l){
+      if (!_flashLineEligible(l, includeGutters)) return;
+      var key = _flashLineKey(l);
+      if (!key) return;
+      var ov  = ovs[key] || {};
+      var letter = ov.letter || '';
+      var lengthM = ov.lengthM != null ? +ov.lengthM : _flashAutoLengthM(l);
+      out.push({
+        roofIdx: roofIdx, line: l, key: key,
+        letter: letter, lengthM: lengthM,
+        color: _FLASH_LINE_COLOURS[l.type] || '#475569',
+      });
     });
+  }
+  if (roofs) {
+    var selected = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
+    var savedActive = DRAW.activeRoofIdx;
+    if (typeof _syncCurrentToRoof === 'function') _syncCurrentToRoof();
+    roofs.forEach(function(r, idx){
+      if (selected && selected.indexOf(idx) < 0) return;
+      processRoof(idx, r.outline, r.lines);
+    });
+    if (typeof _loadRoofToCurrent === 'function' && savedActive >= 0 && savedActive < roofs.length) _loadRoofToCurrent(savedActive);
+  } else {
+    processRoof(-1, DRAW.outline, DRAW.lines);
+  }
+  // Second pass: fill blank letters with the next available A, B, C, …
+  function nextLetter(n){
+    var s = '';
+    do { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; } while (n >= 0);
+    return s;
+  }
+  var used = {};
+  out.forEach(function(o){ if (o.letter) used[o.letter] = true; });
+  var cursor = 0;
+  out.forEach(function(o){
+    if (o.letter) return;
+    while (used[nextLetter(cursor)]) cursor++;
+    o.letter = nextLetter(cursor);
+    used[o.letter] = true;
+    cursor++;
   });
-  // Group by identical length so "1 @ 6.4m, 1 @ 6.4m" becomes "2 @ 6.4m".
+  return out;
+}
+
+// Diagram renderer. Builds a clean per-line preview onto a canvas in
+// #flashLayoutOut. Labels are drawn in the line's own colour.
+function renderFlashingLayout(){
+  var out = document.getElementById('flashLayoutOut'); if (!out) return;
+  var labelled = _flashCollectLabelled();
+  // Compute bounding box across every selected roof's outline + the
+  // labelled lines so the diagram frames the full project.
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  function bumpPt(p){ if (p[0]<minX) minX=p[0]; if (p[0]>maxX) maxX=p[0]; if (p[1]<minY) minY=p[1]; if (p[1]>maxY) maxY=p[1]; }
+  function bumpOutline(o){ (o||[]).forEach(bumpPt); }
+  if (DRAW.roofs && DRAW.roofs.length) {
+    var sel = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
+    DRAW.roofs.forEach(function(r, i){ if (sel && sel.indexOf(i)<0) return; bumpOutline(r.outline); });
+  } else {
+    bumpOutline(DRAW.outline);
+  }
+  labelled.forEach(function(o){ bumpPt(o.line.pts[0]); bumpPt(o.line.pts[1]); });
+  if (!isFinite(minX) || maxX - minX < 1 || maxY - minY < 1) {
+    out.innerHTML = '<p style="font-size:12px;color:var(--text2)">Draw your roof outline + flashing lines on the Map Roof tab with measurements — this diagram will appear here.</p>';
+    return;
+  }
+  var pad = 40, w = maxX - minX, h = maxY - minY;
+  var targetW = 880;
+  var scale = (targetW - pad*2) / w;
+  var targetH = Math.max(280, h * scale + pad*2);
+  out.innerHTML = '<canvas id="flashLayoutCanvas" width="'+targetW+'" height="'+targetH+'" style="display:block;max-width:100%;height:auto;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer"></canvas>';
+  var canvas = document.getElementById('flashLayoutCanvas');
+  var ctx = canvas.getContext('2d');
+  function tx(p){ return [pad + (p[0] - minX) * scale, pad + (p[1] - minY) * scale]; }
+  // Stash for hit-test on click
+  canvas._labelled = labelled;
+  canvas._tx = tx;
+  // Background fill
+  ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Building outline(s)
+  ctx.lineWidth = 1.6; ctx.strokeStyle = '#94a3b8';
+  function drawOutline(o){
+    if (!o || o.length < 3) return;
+    ctx.beginPath();
+    o.forEach(function(p, i){ var t = tx(p); if (i === 0) ctx.moveTo(t[0], t[1]); else ctx.lineTo(t[0], t[1]); });
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(200,230,201,0.20)'; ctx.fill();
+    ctx.stroke();
+  }
+  if (DRAW.roofs && DRAW.roofs.length) {
+    var sel2 = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
+    DRAW.roofs.forEach(function(r, i){ if (sel2 && sel2.indexOf(i)<0) return; drawOutline(r.outline); });
+  } else {
+    drawOutline(DRAW.outline);
+  }
+  // Each labelled line + its letter:length label
+  ctx.font = '600 12.5px Inter, -apple-system, sans-serif';
+  ctx.textBaseline = 'middle';
+  labelled.forEach(function(o){
+    var a = tx(o.line.pts[0]), b = tx(o.line.pts[1]);
+    ctx.strokeStyle = o.color; ctx.lineWidth = 2.4;
+    ctx.setLineDash(o.line.type === 'valley' ? [6,3] : []);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    ctx.setLineDash([]);
+    // Label perpendicular to the line midpoint
+    var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+    var dx = b[0]-a[0], dy = b[1]-a[1];
+    var len = Math.hypot(dx, dy) || 1;
+    var ox = -dy/len * 18, oy = dx/len * 18;
+    var txt = o.letter + ': ' + o.lengthM.toFixed(1) + 'm';
+    var tw  = ctx.measureText(txt).width;
+    var lx  = mx + ox, ly = my + oy;
+    ctx.fillStyle = '#fff'; ctx.fillRect(lx - tw/2 - 5, ly - 9, tw + 10, 18);
+    ctx.strokeStyle = o.color; ctx.lineWidth = 1; ctx.strokeRect(lx - tw/2 - 5, ly - 9, tw + 10, 18);
+    ctx.fillStyle = o.color;
+    ctx.fillText(txt, lx - tw/2, ly + 1);
+  });
+  // Click hit-testing — pick the nearest line within 14px and prompt
+  // for letter / length edits.
+  canvas.onclick = function(ev){
+    var r = canvas.getBoundingClientRect();
+    var sx = canvas.width / r.width, sy = canvas.height / r.height;
+    var px = (ev.clientX - r.left) * sx, py = (ev.clientY - r.top) * sy;
+    var best = null, bestD = Infinity;
+    labelled.forEach(function(o){
+      var a = tx(o.line.pts[0]), b = tx(o.line.pts[1]);
+      var d = _flashLayoutSegDist(px, py, a, b);
+      if (d < bestD) { bestD = d; best = o; }
+    });
+    if (!best || bestD > 14) return;
+    var newLetter = window.prompt('Reference letter for this ' + best.line.type + ' line:', best.letter);
+    if (newLetter == null) return;
+    newLetter = String(newLetter).trim().toUpperCase();
+    var newLen = window.prompt('Length (m) — currently '+best.lengthM.toFixed(1)+' (drawn '+(best.line.measM||0)+' + 0.4m waste, rounded to 0.1m):', best.lengthM.toFixed(1));
+    if (newLen == null) return;
+    if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
+    var ov = DRAW.flashLayoutOverrides[best.key] || {};
+    if (newLetter) ov.letter = newLetter; else delete ov.letter;
+    var nlen = parseFloat(newLen);
+    if (!isNaN(nlen) && nlen > 0) ov.lengthM = nlen; else delete ov.lengthM;
+    DRAW.flashLayoutOverrides[best.key] = ov;
+    renderFlashingLayout();
+    try { renderMaterialsCutLists(); } catch(e){}
+  };
+}
+function _flashLayoutSegDist(px, py, a, b){
+  var dx = b[0]-a[0], dy = b[1]-a[1];
+  var l2 = dx*dx + dy*dy;
+  if (l2 === 0) return Math.hypot(px-a[0], py-a[1]);
+  var t = Math.max(0, Math.min(1, ((px-a[0])*dx + (py-a[1])*dy) / l2));
+  var qx = a[0] + t*dx, qy = a[1] + t*dy;
+  return Math.hypot(px-qx, py-qy);
+}
+
+function _matBuildCutList(type, waste) {
+  // Source rows from the Flashing layout labelled-line collection so
+  // the cut list inherits the letter refs + uniform +0.4 m wastage
+  // shown on the diagram. The `waste` arg is now ignored — auto length
+  // is always (measM + 0.4) ceil-100mm, with per-line overrides
+  // applied on DRAW.flashLayoutOverrides via the layout editor.
+  var labelled = (typeof _flashCollectLabelled === 'function') ? _flashCollectLabelled() : [];
+  var pieces = [];
+  labelled.forEach(function(o){
+    var t = o.line.type;
+    if (type === 'ridgehip') {
+      if (t !== 'ridge' && t !== 'hip') return;
+    } else if (t !== type) {
+      return;
+    }
+    pieces.push({ letter: o.letter, length: o.lengthM });
+  });
+  // Group identical (letter, length) into single rows. Pieces in the
+  // same letter group always carry the same length by construction
+  // (user-edited letters can break that — we collapse only when the
+  // lengths match too, otherwise each row keeps its letter visible).
   var bucket = {};
-  pieces.forEach(function(p){ bucket[p.toFixed(1)] = (bucket[p.toFixed(1)]||0) + 1; });
-  var rows = Object.keys(bucket).sort(function(a,b){ return parseFloat(b) - parseFloat(a); })
-    .map(function(k){ return { qty: bucket[k], length: parseFloat(k) }; });
-  var total = pieces.reduce(function(s,p){ return s+p; }, 0);
+  var order = [];
+  pieces.forEach(function(p){
+    var k = (p.letter || '_') + '|' + p.length.toFixed(1);
+    if (!bucket[k]) { bucket[k] = { letter: p.letter || '', length: p.length, qty: 0 }; order.push(k); }
+    bucket[k].qty++;
+  });
+  var rows = order.map(function(k){ return bucket[k]; });
+  rows.sort(function(a, b){
+    var la = a.letter || 'ZZ', lb = b.letter || 'ZZ';
+    if (la < lb) return -1; if (la > lb) return 1;
+    return b.length - a.length;
+  });
+  var total = pieces.reduce(function(s,p){ return s+p.length; }, 0);
   return { rows: rows, totalLm: total, pieceCount: pieces.length };
 }
 
@@ -14636,6 +14875,10 @@ function renderMaterialsCutLists() {
 
   // ── Consumables (paper / screws / rivets / dektites) ──────
   _matRenderConsumables(d);
+
+  // Keep the Flashing layout diagram in sync — same letter refs, same
+  // adjusted lengths, two-way edits.
+  try { renderFlashingLayout(); } catch(e){ console.warn('flashing layout:', e); }
 }
 
 // Compact section template — one row per flashing-type. Layout:
@@ -14773,7 +15016,8 @@ function _matCutListTable(cl, emptyMsg) {
     '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th>'+
   '</tr></thead><tbody>';
   cl.rows.forEach(function(r, i){
-    html += '<tr><td>Piece '+(i+1)+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td></tr>';
+    var lbl = r.letter ? r.letter : ('Piece '+(i+1));
+    html += '<tr><td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td></tr>';
   });
   html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td></tr></tfoot></table>';
   return html;
@@ -14791,7 +15035,8 @@ function _matCutListTableWithCost(cl, emptyMsg, rate) {
   cl.rows.forEach(function(r, i){
     var lineCost = r.qty * r.length * rate;
     totalCost += lineCost;
-    html += '<tr><td>Piece '+(i+1)+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">$'+lineCost.toFixed(2)+'</td></tr>';
+    var lbl = r.letter ? r.letter : ('Piece '+(i+1));
+    html += '<tr><td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">$'+lineCost.toFixed(2)+'</td></tr>';
   });
   html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td><td class="r" style="color:#059669">$'+totalCost.toFixed(2)+'</td></tr></tfoot></table>';
   return html;
@@ -15105,7 +15350,8 @@ function _matBuildPrintOrderDetails(mount) {
     if (!cl || !cl.pieceCount) return;
     html += '<tr><td colspan="4" class="mp-sub">'+esc(label)+'</td></tr>';
     cl.rows.forEach(function(r, i){
-      html += '<tr><td>Piece '+(i+1)+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">'+(r.qty*r.length).toFixed(1)+' m</td></tr>';
+      var lbl = r.letter ? r.letter : ('Piece '+(i+1));
+      html += '<tr><td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">'+(r.qty*r.length).toFixed(1)+' m</td></tr>';
     });
     html += '<tr><td style="font-weight:700">Subtotal</td><td class="r" style="font-weight:700">'+cl.pieceCount+'</td><td class="r"></td><td class="r" style="font-weight:700">'+cl.totalLm.toFixed(1)+' m</td></tr>';
   }
