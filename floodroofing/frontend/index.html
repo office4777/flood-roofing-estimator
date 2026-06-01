@@ -2429,6 +2429,36 @@ select{
       <div style="font-size:14px;font-weight:600">Sketch custom flashing — <span id="flashSketchTitle" style="color:var(--text2);font-weight:500">Flashing #1</span></div>
       <button onclick="closeFlashSketch()" style="margin-left:auto;background:none;border:none;font-size:20px;color:var(--text2);cursor:pointer;line-height:1">×</button>
     </div>
+    <!-- Meta row — only shown when editing a library entry (mode='library').
+         Captures name + profile + flashing-type so the Materials picker can
+         filter to the right ones for the selected roof profile. -->
+    <div id="flashMetaRow" style="display:none;padding:12px 20px 0;gap:10px;flex-wrap:wrap">
+      <div style="flex:2;min-width:200px">
+        <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Name</label>
+        <input type="text" id="flashMetaName" placeholder="e.g. Standard barge 25×75" style="margin:0">
+      </div>
+      <div style="flex:1;min-width:140px">
+        <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Profile</label>
+        <select id="flashMetaProfile" style="margin:0">
+          <option value="any">Any profile</option>
+          <option value="Corrugate">Corrugate</option>
+          <option value="5-Rib">5-Rib</option>
+          <option value="Multidek">Multidek</option>
+        </select>
+      </div>
+      <div style="flex:1;min-width:140px">
+        <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Flashing type</label>
+        <select id="flashMetaType" style="margin:0">
+          <option value="custom">Custom</option>
+          <option value="apron">Apron</option>
+          <option value="barge">Barge</option>
+          <option value="changepitch">Change-of-pitch</option>
+          <option value="valley">Valley</option>
+          <option value="ridgehip">Ridge / Hip</option>
+          <option value="gutter">Gutter</option>
+        </select>
+      </div>
+    </div>
     <div style="padding:14px 20px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap">
       <button onclick="setFlashTool('pen')" id="flashToolPen" class="tool-btn active-tool">✏ Pen</button>
       <button onclick="setFlashTool('eraser')" id="flashToolEraser" class="tool-btn">⌫ Eraser</button>
@@ -2670,6 +2700,7 @@ select{
       <button class="tab-sm" onclick="switchSettingsSub('set-pricebook',this)">Price book</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers &amp; materials</button>
+      <button class="tab-sm" onclick="switchSettingsSub('set-flashings',this)">Flashing library</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
     </div>
     <span id="saveSettingsMsg" style="font-size:12px;color:var(--text2);margin-left:8px"></span>
@@ -2884,6 +2915,39 @@ select{
       </div>
     </div>
 
+    <!-- FLASHING LIBRARY -->
+    <div class="sub-panel settings-sub" id="set-flashings" style="margin-top:14px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Saved flashing drawings — Materials &amp; Sheet Layout shows the matching ones for the selected roof profile. Each saved flashing is one cross-section sketch you can re-use across jobs.</p>
+      <!-- Filters + new button -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+        <div style="min-width:180px">
+          <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Filter — Profile</label>
+          <select id="flibFilterProfile" onchange="renderFlashingLibrary()" style="margin:0">
+            <option value="">All profiles</option>
+            <option value="Corrugate">Corrugate</option>
+            <option value="5-Rib">5-Rib</option>
+            <option value="Multidek">Multidek</option>
+            <option value="any">Any profile</option>
+          </select>
+        </div>
+        <div style="min-width:180px">
+          <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Filter — Type</label>
+          <select id="flibFilterType" onchange="renderFlashingLibrary()" style="margin:0">
+            <option value="">All types</option>
+            <option value="apron">Apron</option>
+            <option value="barge">Barge</option>
+            <option value="changepitch">Change-of-pitch</option>
+            <option value="valley">Valley</option>
+            <option value="ridgehip">Ridge / Hip</option>
+            <option value="gutter">Gutter</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <button type="button" onclick="openFlashEditModal(-1)" class="sec-btn" style="margin:0 0 0 auto;width:auto;padding:8px 18px;font-size:12px">+ New flashing</button>
+      </div>
+      <div id="flashLibraryGrid"></div>
+    </div>
+
     <!-- INTEGRATIONS -->
     <div class="sub-panel settings-sub" id="set-int" style="margin-top:14px">
       <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Enter API keys for the job-management systems you use. Keys are stored against your user account and never shared.</div>
@@ -3089,6 +3153,9 @@ function switchSettingsSub(id,btn){
   document.getElementById(id).classList.add('on');
   btn.closest('.tab-row').querySelectorAll('.tab-sm').forEach(function(b){b.classList.remove('on');});
   btn.classList.add('on');
+  if (id === 'set-flashings') {
+    try { renderFlashingLibrary(); } catch(e) { console.warn('library render:', e); }
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -8567,9 +8634,14 @@ function clearSavedFlashings(){
 }
 
 // — Flashing sketch canvas modal —
-var _flashSketchState = { idx:-1, tool:'pen', drawing:false, last:null };
+// mode='order'   → editing the sketch on S.order.flashings[idx] (legacy)
+// mode='library' → editing a saved flashing in the library (Settings)
+//                  idx === -1 means new entry; idx >= 0 means edit existing
+var _flashSketchState = { idx:-1, tool:'pen', drawing:false, last:null, mode:'order' };
 function openFlashSketch(idx){
   _flashSketchState.idx = idx;
+  _flashSketchState.mode = 'order';
+  document.getElementById('flashMetaRow').style.display = 'none';
   document.getElementById('flashSketchTitle').textContent = 'Flashing #'+(idx+1);
   var c = document.getElementById('flashCanvas');
   var ctx = c.getContext('2d');
@@ -8583,6 +8655,29 @@ function openFlashSketch(idx){
   setFlashTool('pen');
   document.getElementById('flashSketchModal').style.display = 'flex';
 }
+
+// Open the sketch modal in LIBRARY mode — edits an entry on
+// S.settings.materials_catalog.savedFlashings. idx === -1 creates new.
+function openFlashEditModal(libIdx) {
+  _flashSketchState.idx  = libIdx;
+  _flashSketchState.mode = 'library';
+  var lib = _getSavedFlashings();
+  var entry = (libIdx >= 0) ? lib[libIdx] : null;
+  document.getElementById('flashMetaRow').style.display = 'flex';
+  document.getElementById('flashSketchTitle').textContent = entry ? ('Editing — ' + (entry.name || 'Untitled')) : 'New flashing';
+  document.getElementById('flashMetaName').value    = entry ? (entry.name || '') : '';
+  document.getElementById('flashMetaProfile').value = entry ? (entry.profile || 'any') : 'any';
+  document.getElementById('flashMetaType').value    = entry ? (entry.flashingType || 'custom') : 'custom';
+  var c = document.getElementById('flashCanvas'), ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  if (entry && entry.sketch) {
+    var img = new Image(); img.onload = function(){ ctx.drawImage(img,0,0,c.width,c.height); }; img.src = entry.sketch;
+  }
+  _flashSketchState.tool = 'pen';
+  setFlashTool('pen');
+  document.getElementById('flashSketchModal').style.display = 'flex';
+}
+
 function closeFlashSketch(){ document.getElementById('flashSketchModal').style.display = 'none'; }
 function setFlashTool(t){
   _flashSketchState.tool = t;
@@ -8596,10 +8691,101 @@ function clearFlashCanvas(){
 function saveFlashSketch(){
   var c = document.getElementById('flashCanvas');
   var url = c.toDataURL('image/png');
+  // Library mode: write to S.settings.materials_catalog.savedFlashings
+  if (_flashSketchState.mode === 'library') {
+    var name = (document.getElementById('flashMetaName').value || '').trim();
+    if (!name) { alert('Give this flashing a name first.'); return; }
+    var profile      = document.getElementById('flashMetaProfile').value || 'any';
+    var flashingType = document.getElementById('flashMetaType').value || 'custom';
+    var lib = _getSavedFlashings();
+    var idx = _flashSketchState.idx;
+    var entry = (idx >= 0) ? lib[idx] : null;
+    if (!entry) {
+      entry = { name: name, profile: profile, flashingType: flashingType, sketch: url,
+                type: name, qty: 1, faces: [{label:'Face A',length:''},{label:'Face B',length:''}],
+                lineBreaks: '', notes: '' };
+      // If a saved flashing with the same name+profile+type already
+      // exists, overwrite — saves the user from accidental duplicates.
+      var dup = lib.findIndex(function(x){ return x.name===name && (x.profile||'any')===profile && (x.flashingType||'custom')===flashingType; });
+      if (dup >= 0) lib[dup] = entry; else lib.push(entry);
+    } else {
+      entry.name = name;
+      entry.profile = profile;
+      entry.flashingType = flashingType;
+      entry.sketch = url;
+      // keep legacy fields in sync so existing pickers still work
+      if (!entry.type) entry.type = name;
+    }
+    _updateSavedFlashCount();
+    _persistCatalogSilently();
+    closeFlashSketch();
+    try { renderFlashingLibrary(); } catch(e){}
+    return;
+  }
+  // Order mode (legacy): write to S.order.flashings[idx]
   var idx = _flashSketchState.idx;
   if (S.order.flashings[idx]) S.order.flashings[idx].sketch = url;
   closeFlashSketch();
   _renderFlashings();
+}
+
+// ── FLASHING LIBRARY (Settings) ──
+// Renders the grid of saved flashings, filtered by the Profile/Type
+// dropdowns. Each card has Edit + Delete buttons. The +New button at
+// the top of the panel calls openFlashEditModal(-1).
+function renderFlashingLibrary() {
+  var grid = document.getElementById('flashLibraryGrid'); if (!grid) return;
+  var lib = _getSavedFlashings();
+  var fpEl = document.getElementById('flibFilterProfile');
+  var ftEl = document.getElementById('flibFilterType');
+  var fProfile = fpEl ? fpEl.value : '';
+  var fType    = ftEl ? ftEl.value : '';
+  var rows = lib.map(function(e, i){ return {entry: e, idx: i}; }).filter(function(r){
+    if (fProfile && (r.entry.profile || 'any') !== fProfile) return false;
+    if (fType    && (r.entry.flashingType || 'custom') !== fType) return false;
+    return true;
+  });
+  if (!rows.length) {
+    grid.innerHTML = '<div style="text-align:center;padding:32px 16px;color:var(--text2);font-size:13px">'+
+      (lib.length === 0
+        ? 'No saved flashings yet. Click <strong>+ New flashing</strong> above to add one.'
+        : 'No flashings match the current filter.')+
+      '</div>';
+    return;
+  }
+  var typeLabels = { apron:'Apron', barge:'Barge', changepitch:'Change-of-pitch',
+                     valley:'Valley', ridgehip:'Ridge / Hip', gutter:'Gutter', custom:'Custom' };
+  grid.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">'+
+    rows.map(function(r){
+      var e = r.entry;
+      var thumb = e.sketch
+        ? '<img src="'+e.sketch+'" alt="" style="width:100%;height:110px;object-fit:contain;background:#fff;border-bottom:1px solid var(--border);display:block">'
+        : '<div style="width:100%;height:110px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);color:var(--text3);font-size:11px;border-bottom:1px solid var(--border)">No sketch</div>';
+      return '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">'+
+        thumb +
+        '<div style="padding:10px 12px">'+
+          '<div style="font-size:13px;font-weight:600;color:#0a1628;margin-bottom:4px">'+esc(e.name||'Untitled')+'</div>'+
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
+            '<span style="font-size:10px;background:#f4f4ef;color:#374151;padding:2px 7px;border-radius:10px;font-weight:600">'+esc(e.profile||'any')+'</span>'+
+            '<span style="font-size:10px;background:#e0f2fe;color:#075985;padding:2px 7px;border-radius:10px;font-weight:600">'+esc(typeLabels[e.flashingType] || 'Custom')+'</span>'+
+          '</div>'+
+          '<div style="display:flex;gap:6px">'+
+            '<button onclick="openFlashEditModal('+r.idx+')" class="tool-btn" style="flex:1;font-size:11px;padding:6px 8px">Edit</button>'+
+            '<button onclick="deleteFlashingLibraryEntry('+r.idx+')" class="tool-btn" style="font-size:11px;padding:6px 10px;color:#b91c1c">Delete</button>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    }).join('') + '</div>';
+}
+
+function deleteFlashingLibraryEntry(idx) {
+  var lib = _getSavedFlashings();
+  if (!lib[idx]) return;
+  if (!confirm('Delete "'+(lib[idx].name||'Untitled')+'" from your flashing library?')) return;
+  lib.splice(idx, 1);
+  _updateSavedFlashCount();
+  _persistCatalogSilently();
+  renderFlashingLibrary();
 }
 // Canvas drawing wires up once on DOM-ready.
 (function(){
