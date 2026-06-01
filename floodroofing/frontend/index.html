@@ -987,6 +987,28 @@ select{
   html.print-materials #matPrintPage1{page-break-after:always;break-after:page}
   html.print-materials #matPrintPage2{page-break-before:always;break-before:page}
   @page{size:A4;margin:12mm}
+
+  /* Scope & pricing — Save pricing as PDF prints only #tab-scope. */
+  html.print-scope body{background:#fff}
+  html.print-scope .sidebar,
+  html.print-scope .hdr,
+  html.print-scope .nav,
+  html.print-scope .proxy-status,
+  html.print-scope .upload-zone{display:none!important}
+  html.print-scope .app{display:block!important}
+  html.print-scope .content{padding:0!important;max-width:none!important}
+  html.print-scope #tab-quote,
+  html.print-scope #tab-roof,
+  html.print-scope #tab-materials,
+  html.print-scope #tab-order,
+  html.print-scope #tab-jobpack,
+  html.print-scope #tab-jobs,
+  html.print-scope #tab-settings,
+  html.print-scope #tab-select,
+  html.print-scope #tab-report{display:none!important}
+  html.print-scope .panel:not(#tab-scope){display:none!important}
+  html.print-scope #tab-scope{display:block!important}
+  html.print-scope #tab-scope .mat-actions{display:none!important}
 }
 
 /* ── Mobile (collapse sidebar) ─────────────────────────────── */
@@ -1128,7 +1150,10 @@ select{
        Save PDF / Push to Fergus / Order Roof). Nav button hidden; panel
        kept so legacy gotoTab('order') calls don't blow up. -->
   <button class="nav-btn" onclick="gotoTab('order')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><path d="M2 3 L5 3 L5.7 5 L14 5 L13 11 L6 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="7" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/></svg>Order Material</button>
-  <button class="nav-btn" onclick="gotoTab('jobpack')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3.5" width="11" height="10" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.5 H13.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 9.5 H10 M6 11.5 H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Job Pack</button>
+  <!-- "Send Job Pack" tab removed per the user's request. The panel
+       below stays in the DOM so any legacy gotoTab('jobpack') / refresh
+       hooks don't blow up; nav button is hidden so it can't be clicked. -->
+  <button class="nav-btn" onclick="gotoTab('jobpack')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3.5" width="11" height="10" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.5 H13.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 9.5 H10 M6 11.5 H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Job Pack</button>
   <button class="nav-btn" onclick="gotoTab('jobs')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
   <button class="nav-btn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
 </div>
@@ -1694,6 +1719,17 @@ select{
     </div>
     <div id="profitWrap"></div>
   </div>
+
+  <!-- ACTION BAR — same shape as the Materials tab. Save the pricing
+       page as a PDF, push it to the linked Fergus job, or pop the
+       quote tab open for the client-facing version. -->
+  <div class="card mat-actions">
+    <button onclick="saveScopePricingAsPdf()" class="mat-btn mat-btn-dark">📄 Save pricing as PDF</button>
+    <button onclick="pushScopePricingToFergus()" class="mat-btn mat-btn-green">📤 Push pricing to Fergus</button>
+    <button onclick="openFergusJob()" class="mat-btn mat-btn-light">📂 Open in Fergus</button>
+    <button onclick="gotoTab('quote')" class="mat-btn mat-btn-blue">📝 Open quote builder</button>
+    <span id="scopeActionMsg" style="margin-left:auto;font-size:12px;color:var(--text2);align-self:center"></span>
+  </div>
 </div>
 
 <!-- TAB 3: MATERIALS -->
@@ -1890,6 +1926,8 @@ select{
   </div>
   <div class="mat-print-page" id="matPrintPage2">
     <div class="mp-header" id="matPrintHeader2"></div>
+    <h2 class="mp-h">Flashing Layout</h2>
+    <div id="matPrintFlashingLayout"></div>
     <h2 class="mp-h">Material Order</h2>
     <div id="matPrintOrderDetails"></div>
   </div>
@@ -6706,26 +6744,51 @@ function _buildRoofOutlinePreview(roof, opts){
   });
   var w = maxX - minX, h = maxY - minY;
   if (w < 1 || h < 1) return null;
-  var pad = 30, targetW = opts.width || 520;
-  var scale = (targetW - pad*2) / w;
-  var targetH = Math.max(120, h * scale + pad*2 + 22);  // +22 for name strip
+  var targetW = opts.width || 520;
+  var artH = Math.max(120, (h / w) * targetW);
+  var targetH = artH + 22; // +22 for the name strip at the bottom
   var canvas = document.createElement('canvas');
   canvas.width = targetW; canvas.height = targetH;
   var ctx = canvas.getContext('2d');
+  // ── Background: photo crop (uploaded / satellite) when available,
+  //    else plain white. The cropped region wraps the outline with a
+  //    10% pad, then gets resized to match the canvas aspect by
+  //    expanding the shorter side (never squashing the photo — just
+  //    showing more of it on one axis), so the picture keeps its
+  //    natural proportions and the outline is centred + framed.
+  var photoImg = document.getElementById('roofPrevImg');
+  var hasPhoto = photoImg && photoImg.complete && photoImg.naturalWidth > 0;
+  var padImg = Math.max(w, h) * 0.10;
+  var sx0 = minX - padImg, sy0 = minY - padImg;
+  var sx1 = maxX + padImg, sy1 = maxY + padImg;
+  var sw = sx1 - sx0, sh = sy1 - sy0;
+  var dstAspect = targetW / artH, srcAspect = sw / sh;
+  if (srcAspect > dstAspect) {
+    var extraH = (sw / dstAspect) - sh;
+    sy0 -= extraH/2; sy1 += extraH/2; sh = sy1 - sy0;
+  } else {
+    var extraW = (sh * dstAspect) - sw;
+    sx0 -= extraW/2; sx1 += extraW/2; sw = sx1 - sx0;
+  }
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  function tx(p){ return [pad + (p[0] - minX) * scale, pad + (p[1] - minY) * scale]; }
-  // Outline fill + stroke
+  if (hasPhoto) {
+    try { ctx.drawImage(photoImg, sx0, sy0, sw, sh, 0, 0, targetW, artH); } catch(e){}
+  }
+  var scale = targetW / sw;
+  function tx(p){ return [(p[0] - sx0) * scale, (p[1] - sy0) * scale]; }
+  // Outline fill + stroke — softer fill when the photo is showing, so
+  // the roof underneath remains readable.
   ctx.beginPath();
   outline.forEach(function(p, i){
     var t = tx(p);
     if (i === 0) ctx.moveTo(t[0], t[1]); else ctx.lineTo(t[0], t[1]);
   });
   ctx.closePath();
-  ctx.fillStyle = 'rgba(200,230,201,0.5)';
+  ctx.fillStyle = hasPhoto ? 'rgba(200,230,201,0.20)' : 'rgba(200,230,201,0.50)';
   ctx.fill();
-  ctx.strokeStyle = '#1b5e20';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = hasPhoto ? '#0f5132' : '#1b5e20';
+  ctx.lineWidth = 2.4;
   ctx.stroke();
   // Roof lines by type — same colours as on the Map Roof tab, no labels.
   var styleByType = {
@@ -15112,6 +15175,85 @@ function _matMsg(text, ok) {
 // cut list card so page 1 = drawing summary + sheet plan, page 2 = cut
 // lists + consumables. Defensively strips any leftover print-* class
 // from a previous print run before adding our own.
+// ── Scope & Pricing action bar handlers ────────────────────────────
+// Mirror the Materials tab's Save PDF / Push to Fergus / Open in
+// Fergus / open-quote-builder flow, but capture #tab-scope as the
+// content for the PDF.
+function _scopeMsg(text, ok){
+  var el = document.getElementById('scopeActionMsg'); if (!el) return;
+  el.textContent = text;
+  el.style.color = ok === false ? '#b91c1c' : (ok ? '#059669' : 'var(--text2)');
+  if (text) setTimeout(function(){ if (el.textContent === text) el.textContent = ''; }, 5000);
+}
+function saveScopePricingAsPdf(){
+  try { renderMaterialPriceTable(); } catch(e){}
+  var html = document.documentElement;
+  ['print-quote','print-order','print-jobpack','print-report','print-materials'].forEach(function(c){ html.classList.remove(c); });
+  html.classList.add('print-scope');
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){ html.classList.remove('print-scope'); }, 400);
+  }, 60);
+  _scopeMsg('Opening print dialog — choose "Save as PDF"…');
+}
+async function pushScopePricingToFergus(){
+  if (!window.S || !S.linkedJobId) { _scopeMsg('Link a Fergus job first (Select Job → Fergus tab).', false); return; }
+  _scopeMsg('Building scope & pricing PDF…');
+  try {
+    await _loadPdfLibs();
+    var sec = document.getElementById('tab-scope');
+    if (!sec) { _scopeMsg('Scope tab not found.', false); return; }
+    // Capture off-screen at A4-ish width so the layout doesn't squish.
+    var prev = sec.getAttribute('style') || '';
+    sec.classList.add('active');
+    sec.style.cssText = 'display:block!important;position:fixed;left:-12000px;top:0;width:794px;background:#fff;padding:14mm;box-sizing:border-box;z-index:-1';
+    await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+    var canvas = await window.html2canvas(sec, { scale: 2, backgroundColor: '#fff', useCORS: true, logging: false });
+    sec.setAttribute('style', prev);
+    var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    var pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
+    var pageW = 210, pageH = 297;
+    var imgW = pageW;
+    var imgH = (canvas.height / canvas.width) * imgW;
+    // Split across pages if taller than A4
+    var imgData = canvas.toDataURL('image/jpeg', 0.92);
+    var y = 0, pageNum = 0;
+    while (y < imgH) {
+      if (pageNum > 0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, -y, imgW, imgH);
+      y += pageH; pageNum++;
+      if (pageNum > 8) break;
+    }
+    var blob = pdf.output('blob');
+    var b64 = await new Promise(function(ok,fail){
+      var r = new FileReader();
+      r.onload = function(){ ok(String(r.result).split(',')[1]); };
+      r.onerror = function(){ fail(r.error || new Error('FileReader failed')); };
+      r.readAsDataURL(blob);
+    });
+    var client = ((document.getElementById('jobClient')||{}).value || 'Pricing').trim();
+    var jobNum = (_fergusDisplayNo() || '').toString().trim();
+    var filename = ('Pricing_'+(jobNum||client)).replace(/[^A-Za-z0-9_.-]+/g,'_').slice(0,80)+'.pdf';
+    _matDownloadBlob(blob, filename);
+    _scopeMsg('Saved locally — uploading to Fergus job '+_fergusDisplayNo()+'…');
+    var token = localStorage.getItem('fr_token')||'';
+    var resp = await fetch(PROXY + '/fergus-files/upload', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body: JSON.stringify({ jobId:String(S.linkedJobId), filename:filename, contentType:'application/pdf', base64:b64 }),
+    });
+    var data = await resp.json().catch(function(){ return {}; });
+    if (resp.ok && data.ok) {
+      _scopeMsg('✓ Downloaded ' + filename + ' · uploaded to Fergus job ' + _fergusDisplayNo(), true);
+    } else {
+      _scopeMsg('PDF saved locally. Fergus rejected the upload — tap "Open in Fergus" to drop it into the gallery.', false);
+    }
+  } catch(e) {
+    console.error(e);
+    _scopeMsg('Push failed: '+(e.message||e), false);
+  }
+}
+
 function saveMaterialsAsPdf() {
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
@@ -15192,7 +15334,29 @@ function _matBuildPrintPages() {
   _matCaptureCanvasToImg('roofCanvas', document.getElementById('matPrintRoofMap'), 'Roof map');
   _matCloneSheetPlanForPrint(document.getElementById('matPrintSheetPlan'));
   _matBuildPrintSheetCutList(document.getElementById('matPrintSheetCutList'));
+  // Page 2 — flashing layout above the material order so the supplier
+  // sees the diagram + letter refs before the per-flashing summary tiles.
+  _matCaptureFlashingLayoutToImg(document.getElementById('matPrintFlashingLayout'));
   _matBuildPrintOrderDetails(document.getElementById('matPrintOrderDetails'));
+}
+
+// Captures the on-screen Flashing Layout canvas to an inline PNG so
+// the printed PDF carries the same letter-labelled diagram. Falls
+// back to a friendly message if the layout hasn't been rendered yet.
+function _matCaptureFlashingLayoutToImg(mount) {
+  if (!mount) return;
+  // Make sure the layout has been built at least once.
+  try { renderFlashingLayout(); } catch(e){}
+  var cv = document.getElementById('flashLayoutCanvas');
+  if (!cv) {
+    mount.innerHTML = '<div style="color:#6f6a60;font-size:11px;padding:14px;font-style:italic">No flashing layout — draw roof lines + measurements on the Map Roof tab.</div>';
+    return;
+  }
+  try {
+    mount.innerHTML = '<img src="'+cv.toDataURL('image/png')+'" alt="Flashing layout" style="display:block;width:100%;height:auto;border:1px solid #d1d5db;border-radius:4px;background:#fff">';
+  } catch(e) {
+    mount.innerHTML = '<div style="color:#b91c1c;font-size:11px;padding:14px">Could not capture flashing layout — try refreshing the Materials tab.</div>';
+  }
 }
 
 function _matJobHeaderHtml(includeDelivery) {
@@ -15343,8 +15507,44 @@ function _matBuildPrintOrderDetails(mount) {
     '<div><div class="lbl">Roof area</div><div class="val">'+(d.roofArea>0?d.roofArea.toFixed(1)+' m²':'—')+'</div></div>'+
   '</div>';
 
-  // One combined cut-list table, grouped by section.
-  html += '<table class="mp-cut">'+
+  // Roof Sheet Cut List repeats here at the top of the order so the
+  // supplier sees what to cut FIRST. Build the same rows-by-length
+  // breakdown that page 1 uses.
+  var sc = window._lastSheetCounts;
+  var hasSheetCounts = sc && (
+    (sc.groups && sc.groups.length) ||
+    sc.orangeLong || sc.blueLong || sc.purpleLong || sc.shortCount
+  );
+  if (hasSheetCounts) {
+    var sheetRows = [];
+    if (sc.groups && sc.groups.length) {
+      var byLen = {};
+      sc.groups.forEach(function(g){ byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count; });
+      sheetRows = Object.keys(byLen)
+        .map(function(k){ return { len: parseInt(k, 10), qty: byLen[k] }; })
+        .sort(function(a, b){ return b.len - a.len; });
+    } else {
+      var longTotal = (sc.orangeLong || 0) + (sc.blueLong || 0) + (sc.purpleLong || 0);
+      if (longTotal)     sheetRows.push({ len: sc.longLen  || 7650, qty: longTotal });
+      if (sc.shortCount) sheetRows.push({ len: sc.shortLen || 3900, qty: sc.shortCount });
+    }
+    var sheetTotal = sheetRows.reduce(function(s,r){ return s+r.qty; }, 0);
+    html += '<h2 class="mp-h" style="margin-top:14px">Roof Sheet Cut List</h2>'+
+      '<table class="mp-cut"><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Length each</th></tr></thead><tbody>';
+    sheetRows.forEach(function(r){
+      var lbl = esc(profile) + ' sheet @ ' + (r.len / 1000).toFixed(2) + 'm';
+      html += '<tr><td>'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+(r.len / 1000).toFixed(2)+' m</td></tr>';
+    });
+    html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+sheetTotal+' sheets</td><td class="r"></td></tr></tfoot></table>';
+  }
+
+  // Combined cut-list table. Per-flashing cut lists (barge / apron /
+  // change-of-pitch / valley) have been removed from this table — the
+  // supplier reads those from the per-drawing summaries below ("3 @
+  // 4.2m, 1 @ 1.2m"). Ridge / Hip capping + the chosen gutter stay
+  // in the table because they don't get a drawing tile.
+  html += '<h2 class="mp-h" style="margin-top:14px">Order summary</h2>'+
+    '<table class="mp-cut">'+
     '<thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Length each</th><th class="r">Total</th></tr></thead><tbody>';
   function appendSection(label, cl) {
     if (!cl || !cl.pieceCount) return;
@@ -15356,10 +15556,6 @@ function _matBuildPrintOrderDetails(mount) {
     html += '<tr><td style="font-weight:700">Subtotal</td><td class="r" style="font-weight:700">'+cl.pieceCount+'</td><td class="r"></td><td class="r" style="font-weight:700">'+cl.totalLm.toFixed(1)+' m</td></tr>';
   }
   appendSection('Ridge / Hip capping ('+(ridgeType==='wide'?'Wide':'Standard')+')', _matBuildCutList('ridgehip', 0.5));
-  appendSection('Barge flashing',         _matBuildCutList('barge',       0.4));
-  appendSection('Apron flashing',         _matBuildCutList('apron',       0.4));
-  appendSection('Change-of-pitch flashing', _matBuildCutList('changepitch', 0.4));
-  appendSection('Valley iron',            _matBuildCutList('valley',      0.4));
   if (gutterChoice !== 'none') appendSection('Gutter — '+gutterLabel, _matBuildCutList('gutter', 0));
   html += '</tbody></table>';
 
