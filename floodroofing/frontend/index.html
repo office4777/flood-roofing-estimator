@@ -8786,13 +8786,16 @@ function _redrawFlashCanvas(){
       for (var i = 1; i < v.length; i++) ctx.lineTo(v[i][0], v[i][1]);
       ctx.stroke();
     }
-    // Vertex dots
-    v.forEach(function(pt, i){
+    // Highlight only the in-progress polyline's last vertex (the
+    // "current" cursor anchor) so the user knows where the next click
+    // will draw from. No dots on completed corners.
+    if (isCurrent && v.length) {
+      var lastV = v[v.length - 1];
       ctx.beginPath();
-      ctx.arc(pt[0], pt[1], 4, 0, 2*Math.PI);
-      ctx.fillStyle = (isCurrent && i === v.length - 1) ? '#dc2626' : '#0a1628';
+      ctx.arc(lastV[0], lastV[1], 3.5, 0, 2*Math.PI);
+      ctx.fillStyle = '#dc2626';
       ctx.fill();
-    });
+    }
     // Measurement labels
     for (var i = 0; i < v.length - 1; i++) {
       var mm = p.measurements[i];
@@ -8825,28 +8828,45 @@ function _redrawFlashCanvas(){
     ctx.setLineDash([]);
   }
 
-  // Colour arrow (painted side marker)
+  // Painted-side indicator — floats the word "Painted" above the flashing
+  // with an arrow pointing TO the flashing (so the supplier reads
+  // label-then-arrow-then-side). ps.x/ps.y is the point ON the segment
+  // the arrow tip lands at; ps.dirX/dirY points AWAY from the polyline
+  // toward the painted side where the label floats.
   if (_flashSketchState.paintedSide) {
     var ps = _flashSketchState.paintedSide;
-    ctx.strokeStyle = '#16a34a'; ctx.fillStyle = '#16a34a'; ctx.lineWidth = 2.5;
-    // Arrow shaft
-    var tipX = ps.x + ps.dirX * 32, tipY = ps.y + ps.dirY * 32;
-    ctx.beginPath(); ctx.moveTo(ps.x, ps.y); ctx.lineTo(tipX, tipY); ctx.stroke();
-    // Arrowhead
-    var perpX = -ps.dirY, perpY = ps.dirX;
+    var labelDist = 46;            // label sits this far OFF the segment
+    var tipBackoff = 6;            // small gap so arrowhead doesn't kiss the line
+    var labelX = ps.x + ps.dirX * labelDist;
+    var labelY = ps.y + ps.dirY * labelDist;
+    var tipX   = ps.x + ps.dirX * tipBackoff;
+    var tipY   = ps.y + ps.dirY * tipBackoff;
+    ctx.font = '12px Inter, system-ui, sans-serif';
+    var txt = 'Painted';
+    var tw  = ctx.measureText(txt).width;
+    var padX = 8, padY = 4, boxW = tw + padX*2, boxH = 18;
+    // Floating label box centred at (labelX, labelY)
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
+    ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 1.2;
+    ctx.strokeRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
+    ctx.fillStyle = '#16a34a';
+    ctx.fillText(txt, labelX - tw/2, labelY + 4);
+    // Arrow shaft from the label box edge IN to the segment.
+    // Start the shaft at the edge of the label box on the segment-facing side.
+    var shaftStartX = labelX - ps.dirX * (boxH/2 + 1);
+    var shaftStartY = labelY - ps.dirY * (boxH/2 + 1);
+    ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(shaftStartX, shaftStartY); ctx.lineTo(tipX, tipY); ctx.stroke();
+    // Arrowhead at the tip, pointing INTO the flashing (i.e. along dir).
     var headSize = 7;
+    var inwardX = -ps.dirX, inwardY = -ps.dirY;
+    var perpX = -inwardY, perpY = inwardX;
     ctx.beginPath();
     ctx.moveTo(tipX, tipY);
-    ctx.lineTo(tipX - ps.dirX*headSize + perpX*headSize*0.7, tipY - ps.dirY*headSize + perpY*headSize*0.7);
-    ctx.lineTo(tipX - ps.dirX*headSize - perpX*headSize*0.7, tipY - ps.dirY*headSize - perpY*headSize*0.7);
-    ctx.closePath(); ctx.fill();
-    // Label
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(tipX + perpX*8 - 30, tipY + perpY*8 - 9, 60, 18);
-    ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 1;
-    ctx.strokeRect(tipX + perpX*8 - 30, tipY + perpY*8 - 9, 60, 18);
-    ctx.fillStyle = '#16a34a';
-    ctx.fillText('Painted', tipX + perpX*8 - 21, tipY + perpY*8 + 5);
+    ctx.lineTo(tipX - inwardX*headSize + perpX*headSize*0.6, tipY - inwardY*headSize + perpY*headSize*0.6);
+    ctx.lineTo(tipX - inwardX*headSize - perpX*headSize*0.6, tipY - inwardY*headSize - perpY*headSize*0.6);
+    ctx.closePath(); ctx.fillStyle = '#16a34a'; ctx.fill();
   }
 }
 
