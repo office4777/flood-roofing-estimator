@@ -626,13 +626,27 @@ select{
 .mat-sel select:focus,.mat-sel input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,153,224,.12)}
 
 /* Per-section materials block (sheets, ridge, each flashing, gutter) */
-.mat-section{margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+.mat-section{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)}
 .mat-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
-.mat-section-hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.mat-section-hd{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
 .mat-section-hd .swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0}
-.mat-section-hd h3{font-size:14px;font-weight:700;color:#0a1628;margin:0;letter-spacing:-.005em}
-.mat-section-hd .meta{margin-left:auto;font-size:11px;color:var(--text2);font-weight:500}
-.mat-section-sub{font-size:11.5px;color:var(--text2);margin:-4px 0 10px;line-height:1.5}
+.mat-section-hd h3{font-size:13.5px;font-weight:700;color:#0a1628;margin:0;letter-spacing:-.005em}
+.mat-section-hd .meta{font-size:11px;color:var(--text2);font-weight:500;flex:1;min-width:120px}
+.mat-section-hd .mat-picker-slot{display:inline-flex;align-items:center;flex-shrink:0;margin-left:auto}
+.mat-section-sub{font-size:11.5px;color:var(--text2);margin:-2px 0 8px;line-height:1.5}
+/* Compact body — drawing thumbnail + cut-list table side-by-side */
+.mat-section-compact .mat-section-body{display:flex;gap:12px;align-items:flex-start}
+.mat-section-compact .mat-thumb{flex:0 0 130px}
+.mat-section-compact .mat-thumb svg,
+.mat-section-compact .mat-thumb img{display:block;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:3px;width:130px;height:70px}
+.mat-section-compact .mat-section-table{flex:1;min-width:0}
+.mat-section-compact .cut-list thead th{padding:5px 8px}
+.mat-section-compact .cut-list tbody td{padding:5px 8px}
+.mat-section-compact .cut-list tfoot td{padding:6px 8px}
+@media(max-width:680px){
+  .mat-section-compact .mat-section-body{flex-direction:column}
+  .mat-section-compact .mat-thumb{flex:0 0 auto}
+}
 
 /* Flashing technical drawing strip (cross-section SVG) */
 .flash-dwg{display:flex;align-items:center;gap:14px;padding:10px 14px;background:#fafaf7;border:1px solid var(--border);border-radius:8px;margin-bottom:10px}
@@ -13452,6 +13466,61 @@ function _matBuildCutList(type, waste) {
   return { rows: rows, totalLm: total, pieceCount: pieces.length };
 }
 
+// Look up saved flashings matching the current roof profile + this
+// flashing type. Entries with profile='any' are always included.
+function _matSavedFlashingsFor(flashingType) {
+  if (!window.S || !S.settings || !S.settings.materials_catalog) return [];
+  var profile = (document.getElementById('matProfile')||{}).value || 'Corrugate';
+  var lib = S.settings.materials_catalog.savedFlashings || [];
+  return lib
+    .map(function(e, i){ return { entry: e, libIdx: i }; })
+    .filter(function(r){
+      var p = r.entry.profile || 'any';
+      var t = r.entry.flashingType || 'custom';
+      if (t !== flashingType) return false;
+      return p === 'any' || p === profile;
+    });
+}
+
+// Picker UI for the Materials section — dropdown of saved drawings
+// for this flashing type filtered to the current roof profile, plus
+// a "Manage library" link. Selection persists in localStorage keyed
+// by flashing type so the user's pick survives a refresh.
+function _matFlashingPickerHtml(flashingType) {
+  var matches = _matSavedFlashingsFor(flashingType);
+  var key = 'fr_mat_flash_pick_' + flashingType;
+  var savedName = localStorage.getItem(key) || '';
+  var options = '<option value="">Default drawing</option>';
+  matches.forEach(function(m){
+    var sel = (savedName && savedName === m.entry.name) ? ' selected' : '';
+    options += '<option value="'+esc(m.entry.name)+'"'+sel+'>'+esc(m.entry.name)+'</option>';
+  });
+  return '<select class="mat-flash-picker" data-flash-type="'+esc(flashingType)+'" onchange="_matOnPickFlashing(this)" style="margin:0;padding:5px 8px;font-size:11.5px;border:1px solid var(--border);border-radius:6px;background:#fff;color:#0a1628;max-width:240px">'+
+    options +
+  '</select>'+
+  (matches.length === 0
+    ? '<a onclick="gotoTab(\'settings\');setTimeout(function(){var b=document.querySelector(\'button[onclick*=\\\'set-flashings\\\']\');if(b)b.click();},200);" style="font-size:10.5px;color:var(--text2);cursor:pointer;text-decoration:underline;margin-left:8px">+ Add to library</a>'
+    : '<a onclick="gotoTab(\'settings\');setTimeout(function(){var b=document.querySelector(\'button[onclick*=\\\'set-flashings\\\']\');if(b)b.click();},200);" style="font-size:10.5px;color:var(--text2);cursor:pointer;text-decoration:underline;margin-left:8px">Manage</a>');
+}
+
+function _matOnPickFlashing(sel) {
+  var type = sel.getAttribute('data-flash-type');
+  localStorage.setItem('fr_mat_flash_pick_' + type, sel.value || '');
+  renderMaterialsCutLists();
+}
+
+// Returns either a saved-drawing <img> if the user picked one for
+// this flashing type, else falls back to the built-in SVG profile.
+function _matFlashingDrawingHtml(flashingType, defaultKind) {
+  var matches = _matSavedFlashingsFor(flashingType);
+  var savedName = localStorage.getItem('fr_mat_flash_pick_' + flashingType) || '';
+  var pick = savedName ? matches.find(function(m){ return m.entry.name === savedName; }) : null;
+  if (pick && pick.entry.sketch) {
+    return '<img src="'+pick.entry.sketch+'" alt="" style="width:130px;height:70px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:2px">';
+  }
+  return _matFlashingDrawing(defaultKind);
+}
+
 // Simple SVG cross-section profiles for the three flashings that
 // require a drawing. Pure SVG — scales cleanly at any zoom.
 function _matFlashingDrawing(kind) {
@@ -13556,41 +13625,27 @@ function renderMaterialsCutLists() {
   // ── 2. Ridge / Hip capping (combined) ──────────────────────
   var ridgeSpec = _MAT_FLASHING_SPECS[0]; // ridgehip
   var ridgeCl = _matBuildCutList('ridgehip', ridgeSpec.waste);
-  html += '<div class="mat-section">'+
-    '<div class="mat-section-hd">'+
-      '<span class="swatch" style="background:'+ridgeSpec.colour+'"></span>'+
-      '<h3>Ridge / Hip capping</h3>'+
-      '<span class="meta">'+(ridgeType==='wide'?'Wide ridge':'Standard ridge')+' &nbsp;·&nbsp; '+esc(grade)+' &nbsp;·&nbsp; '+esc(thickness)+'</span>'+
-    '</div>'+
-    '<div class="mat-section-sub">Each ridge / hip line gets +'+ridgeSpec.waste.toFixed(1)+'m for end folds and over-laps; rounded up to the nearest 100mm.</div>';
-  html += '<div class="flash-dwg">'+_matFlashingDrawing('ridge')+
-    '<div class="desc"><strong>'+(ridgeType==='wide'?'Wide ridge profile':'Standard ridge profile')+'</strong>Apex cap, '+(ridgeType==='wide'?'~300mm':'200mm')+' girth, '+esc(grade)+' '+esc(thickness)+'.</div>'+
-  '</div>';
-  html += _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.');
-  html += '</div>';
+  html += _matCompactSection({
+    swatch: ridgeSpec.colour,
+    title: 'Ridge / Hip capping',
+    meta: (ridgeType==='wide'?'Wide ridge':'Standard ridge') + ' · ' + grade + ' · ' + thickness + ' · +' + ridgeSpec.waste.toFixed(1) + 'm waste',
+    flashingType: 'ridgehip',
+    defaultDrawing: 'ridge',
+    table: _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.'),
+  });
 
   // ── 3. Other flashings (barge, apron, change-of-pitch, valley) ──
   _MAT_FLASHING_SPECS.slice(1).forEach(function(spec){
     var cl = _matBuildCutList(spec.key, spec.waste);
     if (cl.pieceCount === 0) return; // hide types with no drawn lines
-    html += '<div class="mat-section">'+
-      '<div class="mat-section-hd">'+
-        '<span class="swatch" style="background:'+spec.colour+'"></span>'+
-        '<h3>'+esc(spec.label)+'</h3>'+
-        '<span class="meta">'+esc(grade)+' &nbsp;·&nbsp; '+esc(thickness)+'</span>'+
-      '</div>'+
-      '<div class="mat-section-sub">+'+spec.waste.toFixed(1)+'m per piece for end folds &amp; over-laps.</div>';
-    if (spec.drawing) {
-      var desc;
-      if (spec.drawing === 'barge')       desc = 'L-fold over rake — 25mm upstand + 75mm gable cover.';
-      else if (spec.drawing === 'apron')  desc = '150mm wall upstand + 100mm roof cover; sealed at top edge.';
-      else                                desc = 'Two-pitch break where roof pitch changes; fold matches both pitches.';
-      html += '<div class="flash-dwg">'+_matFlashingDrawing(spec.drawing)+
-        '<div class="desc"><strong>'+esc(spec.label)+' profile</strong>'+desc+'</div>'+
-      '</div>';
-    }
-    html += _matCutListTable(cl, '');
-    html += '</div>';
+    html += _matCompactSection({
+      swatch: spec.colour,
+      title: spec.label,
+      meta: grade + ' · ' + thickness + ' · +' + spec.waste.toFixed(1) + 'm waste',
+      flashingType: spec.key,
+      defaultDrawing: spec.drawing,   // null for valley → no drawing column
+      table: _matCutListTable(cl, ''),
+    });
   });
 
   // ── 4. Gutter ──────────────────────────────────────────────
@@ -13623,6 +13678,29 @@ function renderMaterialsCutLists() {
 
   // ── Consumables (paper / screws / rivets / dektites) ──────
   _matRenderConsumables(d);
+}
+
+// Compact section template — one row per flashing-type. Layout:
+//   [swatch] Title · meta-line   [Saved-drawing picker dropdown]
+//   [thumb]  [cut list table — fills the rest of the row]
+// Reduces vertical space per section from ~250px to ~140px.
+function _matCompactSection(opts) {
+  var picker = opts.flashingType ? _matFlashingPickerHtml(opts.flashingType) : '';
+  var thumbHtml = opts.defaultDrawing
+    ? '<div class="mat-thumb">' + _matFlashingDrawingHtml(opts.flashingType, opts.defaultDrawing) + '</div>'
+    : '';
+  return '<div class="mat-section mat-section-compact">'+
+    '<div class="mat-section-hd">'+
+      '<span class="swatch" style="background:'+opts.swatch+'"></span>'+
+      '<h3>'+esc(opts.title)+'</h3>'+
+      '<span class="meta">'+esc(opts.meta||'')+'</span>'+
+      (picker ? '<span class="mat-picker-slot">'+picker+'</span>' : '')+
+    '</div>'+
+    '<div class="mat-section-body">'+
+      thumbHtml +
+      '<div class="mat-section-table">'+opts.table+'</div>'+
+    '</div>'+
+  '</div>';
 }
 
 // Render one cut-list table from the bucketed pieces.
