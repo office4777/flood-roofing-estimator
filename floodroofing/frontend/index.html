@@ -1699,9 +1699,12 @@ select{
 <div class="panel" id="tab-materials">
   <!-- 1. Drawing measurements summary — 3 lines only.
        (Detailed per-line breakdowns moved into the Materials section's
-       cut lists below.) -->
+       cut lists below.) Roof picker auto-populates when there are 2+
+       roofs and lets the user combine / isolate which ones the totals
+       (and cut lists) cover. -->
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>From your drawing measurements</div>
+    <div id="matRoofPicker" style="display:none;margin-bottom:10px"></div>
     <div id="matAutoFromLines" style="min-height:40px">
       <p style="font-size:12px;color:var(--text2)">Draw lines and add measurements on the Map Roof tab, then click Calibrate scale to populate this automatically.</p>
     </div>
@@ -12152,11 +12155,17 @@ function redrawAll() {
   var _t=getImgTransform();
   function dp(pt){var r=_t?imgToCanvas(pt,_t):pt;return [r[0],r[1]];} // draw-point helper
 
-  // ── Inactive-roof outlines (faded background) ────────────────────
-  // Show every other roof's outline + roof lines faintly so the user
-  // can see where they sit relative to the active roof.  The active
-  // roof itself is drawn solid below.
+  // ── Non-active roof outlines ─────────────────────────────────────
+  // Default: every other roof's outline + roof lines render faintly so
+  // the user can see where they sit relative to the active roof.
+  // "Show all" mode (DRAW.showAllRoofs): every non-active roof
+  // renders at FULL opacity + same line styling as the active one, with
+  // labels on every line that has a measurement. Lets the user see all
+  // their roofs side-by-side without flipping tabs.
   if (DRAW.roofs && DRAW.roofs.length > 1) {
+    var _showAll = !!DRAW.showAllRoofs;
+    var _styleFull = { ridge:'#dc2626', valley:'#f59e0b', gutter:'#7c3aed', hip:'#059669', barge:'#7c3aed', apron:'#e11d48', changepitch:'#0ea5e9' };
+    var _styleFade = { ridge:'rgba(220,38,38,0.40)', valley:'rgba(245,158,11,0.40)', gutter:'rgba(124,58,237,0.40)', hip:'rgba(5,150,105,0.40)', barge:'rgba(124,58,237,0.40)', apron:'rgba(225,29,72,0.40)', changepitch:'rgba(14,165,233,0.40)' };
     DRAW.roofs.forEach(function(r, ri){
       if (ri === DRAW.activeRoofIdx) return;
       if (!r || !r.outline || r.outline.length < 3) return;
@@ -12167,37 +12176,51 @@ function redrawAll() {
         if (i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
       });
       ctx.closePath();
-      ctx.fillStyle = 'rgba(180,180,180,0.10)';
+      ctx.fillStyle   = _showAll ? 'rgba(200,230,201,0.25)' : 'rgba(180,180,180,0.10)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(27,94,32,0.45)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = _showAll ? '#1b5e20' : 'rgba(27,94,32,0.45)';
+      ctx.lineWidth   = _showAll ? 1.5 : 1.5;
+      ctx.setLineDash(_showAll ? [] : [6, 4]);
       ctx.stroke();
-      // Inactive roof lines: very light
+      // Roof lines — full styling when showing all, faded otherwise.
       if (r.lines && r.lines.length) {
-        var styleByType = {ridge:'rgba(220,38,38,0.40)', valley:'rgba(245,158,11,0.40)', gutter:'rgba(124,58,237,0.40)', hip:'rgba(5,150,105,0.40)', barge:'rgba(124,58,237,0.40)', apron:'rgba(225,29,72,0.40)'};
+        var styleByType = _showAll ? _styleFull : _styleFade;
         r.lines.forEach(function(l){
           if (!l || !l.pts || l.pts.length < 2) return;
           ctx.beginPath();
           var a = dp(l.pts[0]), b = dp(l.pts[1]);
           ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
-          ctx.strokeStyle = styleByType[l.type] || 'rgba(100,116,139,0.35)';
-          ctx.lineWidth = 1.6;
+          ctx.strokeStyle = styleByType[l.type] || (_showAll ? '#64748b' : 'rgba(100,116,139,0.35)');
+          ctx.lineWidth   = _showAll ? 2 : 1.6;
           ctx.setLineDash(l.type === 'valley' ? [6, 3] : []);
           ctx.stroke();
+          // Measurement label on every line that has one (Show-all only).
+          if (_showAll && l.measM) {
+            ctx.setLineDash([]);
+            var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+            var dxL = b[0]-a[0], dyL = b[1]-a[1];
+            var lenL = Math.sqrt(dxL*dxL + dyL*dyL) || 1;
+            var oxL = -dyL/lenL * 12, oyL = dxL/lenL * 12;
+            var txtL = (+l.measM).toFixed(2) + 'm';
+            ctx.font = '600 11px Inter, -apple-system, sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+            ctx.strokeText(txtL, mx + oxL, my + oyL);
+            ctx.fillStyle = styleByType[l.type] || '#0a1628';
+            ctx.fillText(txtL, mx + oxL, my + oyL);
+          }
         });
       }
-      // Label the inactive roof with its name (centred).
+      // Label the roof with its name (centred).
       var cx = 0, cy = 0;
       r.outline.forEach(function(pt){ cx += pt[0]; cy += pt[1]; });
       cx /= r.outline.length; cy /= r.outline.length;
       var lp = dp([cx, cy]);
       ctx.setLineDash([]);
       ctx.font = 'bold 12px Inter, -apple-system, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(10,22,40,0.40)';
-      ctx.fillText(_nthName(ri + 1), lp[0], lp[1]);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = _showAll ? 'rgba(10,22,40,0.65)' : 'rgba(10,22,40,0.40)';
+      ctx.fillText(r.name || _nthName(ri + 1), lp[0], lp[1]);
       ctx.restore();
     });
   }
@@ -13842,10 +13865,41 @@ function hideTip() {
 // ── MATERIALS FROM LINES ─────────────────────────────────────────
 // Compute the drawing totals (roof area, per-line-type linear metres,
 // pitch). Pure — no DOM writes — so other renderers can reuse it.
-function _matDrawTotals() {
+// Which roof indices the Materials tab's summary + cut lists cover.
+// Default: every roof. Persisted in localStorage so an unchecked roof
+// stays out across refreshes.
+function _matSelectedRoofIndices() {
+  if (!DRAW.roofs || DRAW.roofs.length === 0) return [-1]; // sentinel for no-multi mode
+  var all = DRAW.roofs.map(function(_, i){ return i; });
+  var saved = localStorage.getItem('fr_mat_selected_roofs');
+  if (!saved) return all;
+  try {
+    var arr = JSON.parse(saved);
+    if (!Array.isArray(arr) || arr.length === 0) return all;
+    var filtered = arr.filter(function(i){ return i >= 0 && i < DRAW.roofs.length; });
+    return filtered.length ? filtered : all;
+  } catch(e) { return all; }
+}
+function _matSetSelectedRoofs(arr) {
+  localStorage.setItem('fr_mat_selected_roofs', JSON.stringify(arr));
+}
+// Iterate the user's selected roofs (or just the current roof if
+// there's no multi-roof archive yet). Loads each roof's snapshot into
+// DRAW so the existing single-roof primitives (_matDrawTotalsForCurrent,
+// _matBuildCutList) just work, then restores the active roof at the end.
+function _matEachSelectedRoof(fn) {
+  if (!DRAW.roofs || DRAW.roofs.length === 0) { fn(-1); return; }
+  var indices = _matSelectedRoofIndices();
+  var savedActive = DRAW.activeRoofIdx;
+  _syncCurrentToRoof();
+  indices.forEach(function(idx){ _loadRoofToCurrent(idx); fn(idx); });
+  if (savedActive >= 0 && savedActive < DRAW.roofs.length) _loadRoofToCurrent(savedActive);
+}
+
+// Per-roof primitive — reads the live DRAW state. Multi-roof callers
+// wrap this with _matEachSelectedRoof and aggregate the results.
+function _matDrawTotalsForCurrent() {
   var totals = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
-  var sw = document.getElementById('sheetWidth');
-  var ov = document.getElementById('overlapMm');
   var pd = document.getElementById('pitchDeg');
   var pitch = DRAW.calPitch || (pd ? parseFloat(pd.value)||0 : 0);
   var pitchFactor = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
@@ -13853,7 +13907,7 @@ function _matDrawTotals() {
     if (l.measM && totals[l.type] !== undefined) totals[l.type] += parseFloat(l.measM);
   });
   var roofArea = 0;
-  if (DRAW.scaleMetresPerPx && DRAW.outline.length >= 3) {
+  if (DRAW.scaleMetresPerPx && DRAW.outline && DRAW.outline.length >= 3) {
     var planPx2 = polyAreaPx(DRAW.outline);
     var planM2  = planPx2 * DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx;
     roofArea = planM2 * pitchFactor;
@@ -13868,10 +13922,68 @@ function _matDrawTotals() {
     }
   }
   var ridgeHip = (totals.ridge || 0) + (totals.hip || 0);
-  // "Flashings LM" = all non-gutter flashing types combined.
   var flashingsLm = ridgeHip + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0);
   return { totals: totals, ridgeHip: ridgeHip, flashingsLm: flashingsLm,
            gutterLm: totals.gutter || 0, roofArea: roofArea, pitch: pitch };
+}
+
+// Public: sums totals across every selected roof. Same shape as
+// _matDrawTotalsForCurrent so existing callers (populateMaterialsFromLines,
+// _matRenderConsumables, …) need zero changes.
+function _matDrawTotals() {
+  var sum = { totals: {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0},
+              ridgeHip: 0, flashingsLm: 0, gutterLm: 0, roofArea: 0, pitch: 0 };
+  var maxPitch = 0;
+  _matEachSelectedRoof(function(){
+    var d = _matDrawTotalsForCurrent();
+    Object.keys(d.totals).forEach(function(k){ sum.totals[k] += d.totals[k]||0; });
+    sum.ridgeHip    += d.ridgeHip;
+    sum.flashingsLm += d.flashingsLm;
+    sum.gutterLm    += d.gutterLm;
+    sum.roofArea    += d.roofArea;
+    if (d.pitch > maxPitch) maxPitch = d.pitch;
+  });
+  sum.pitch = maxPitch;
+  return sum;
+}
+
+// Render the roof-selection pill row above the summary tiles. Hidden
+// when only one roof exists (no need for a selector). Each pill is a
+// toggle; ticking/unticking re-renders summary + cut lists live.
+function _matRenderRoofPicker() {
+  var el = document.getElementById('matRoofPicker'); if (!el) return;
+  if (!DRAW.roofs || DRAW.roofs.length < 2) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  var selected = _matSelectedRoofIndices();
+  var selSet = {}; selected.forEach(function(i){ selSet[i] = true; });
+  var allOn = selected.length === DRAW.roofs.length;
+  function pill(label, isOn, onclick) {
+    var bg = isOn ? '#0099cc' : '#fff', fg = isOn ? '#fff' : '#0a1628', border = isOn ? '#0099cc' : 'var(--border)';
+    return '<button onclick="'+onclick+'" style="margin-right:6px;margin-bottom:4px;padding:5px 12px;font-size:11.5px;font-weight:600;background:'+bg+';color:'+fg+';border:1px solid '+border+';border-radius:14px;cursor:pointer">'+esc(label)+'</button>';
+  }
+  var html = '<span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-right:8px">Show:</span>';
+  html += pill('All roofs', allOn, '_matToggleAllRoofs()');
+  DRAW.roofs.forEach(function(r, i){
+    var lbl = r.name || ('Roof ' + (i+1));
+    html += pill(lbl, !!selSet[i], '_matToggleRoof('+i+')');
+  });
+  el.innerHTML = html;
+}
+function _matToggleRoof(i) {
+  var sel = _matSelectedRoofIndices();
+  var has = sel.indexOf(i) >= 0;
+  if (has) sel = sel.filter(function(x){ return x !== i; });
+  else sel.push(i);
+  if (sel.length === 0) sel = DRAW.roofs.map(function(_, k){ return k; }); // never empty
+  _matSetSelectedRoofs(sel);
+  populateMaterialsFromLines();
+  renderMaterialsCutLists();
+}
+function _matToggleAllRoofs() {
+  var all = DRAW.roofs.map(function(_, i){ return i; });
+  _matSetSelectedRoofs(all);
+  populateMaterialsFromLines();
+  renderMaterialsCutLists();
 }
 
 // Render the "From your drawing measurements" card as a 3-tile summary:
@@ -13900,6 +14012,10 @@ function populateMaterialsFromLines() {
   }
   var el = document.getElementById('matAutoFromLines');
   if (el) el.innerHTML = html;
+
+  // Surface the per-roof selection pills above the tiles when the user
+  // has 2+ roofs.
+  try { _matRenderRoofPicker(); } catch(e) { console.warn('roof picker:', e); }
 
   // Refresh the per-line cut lists + consumables in the Materials section.
   try { renderMaterialsCutLists(); } catch(e) { console.warn('cut lists:', e); }
@@ -13934,19 +14050,21 @@ var _MAT_FLASHING_SPECS = [
 // so identical pieces collapse into "N @ Xm".
 function _matBuildCutList(type, waste) {
   var pieces = [];
-  (DRAW.lines || []).forEach(function(l){
-    if (!l.measM) return;
-    var t = l.type;
-    // Merge hip + ridge into the "ridgehip" bucket.
-    if (type === 'ridgehip') {
-      if (t !== 'ridge' && t !== 'hip') return;
-    } else if (t !== type) {
-      return;
-    }
-    var len = parseFloat(l.measM) + (waste || 0);
-    // Round up to nearest 0.1m so the cut list reads cleanly.
-    len = Math.ceil(len * 10) / 10;
-    pieces.push(len);
+  _matEachSelectedRoof(function(){
+    (DRAW.lines || []).forEach(function(l){
+      if (!l.measM) return;
+      var t = l.type;
+      // Merge hip + ridge into the "ridgehip" bucket.
+      if (type === 'ridgehip') {
+        if (t !== 'ridge' && t !== 'hip') return;
+      } else if (t !== type) {
+        return;
+      }
+      var len = parseFloat(l.measM) + (waste || 0);
+      // Round up to nearest 0.1m so the cut list reads cleanly.
+      len = Math.ceil(len * 10) / 10;
+      pieces.push(len);
+    });
   });
   // Group by identical length so "1 @ 6.4m, 1 @ 6.4m" becomes "2 @ 6.4m".
   var bucket = {};
@@ -15871,7 +15989,28 @@ function renderRoofSwitcher(){
       '<button onclick="deleteRoof('+i+')" title="Delete '+label+'" style="font-size:13px;line-height:1;padding:4px 8px 4px 2px;border:none;background:transparent;cursor:pointer;color:'+(isActive?'rgba(255,255,255,.85)':'#94a3b8')+'">✕</button>'+
     '</span>';
   });
+  // "Show all" toggles the overview render: every roof's outline + lines
+  // + measurements visible at once, no single roof "active" for editing.
+  // Surfaces only when 2+ roofs exist (1 roof is trivially shown).
+  if (DRAW.roofs.length >= 2) {
+    var showingAll = !!DRAW.showAllRoofs;
+    var btnBg = showingAll ? '#0a1628' : '#fff';
+    var btnFg = showingAll ? '#fff' : '#0a1628';
+    html += '<button onclick="toggleShowAllRoofs()" title="Show every roof on the map at once" style="margin-left:6px;font-size:12px;padding:4px 10px;border:1px solid '+(showingAll?'#0a1628':'#cbd5e1')+';background:'+btnBg+';color:'+btnFg+';border-radius:6px;cursor:pointer;font-weight:600">'+
+      (showingAll ? '✓ Showing all' : 'Show all') +
+    '</button>';
+  }
   el.innerHTML = html;
+}
+
+// Show-all mode: render every roof's outline + drawn lines + sheet
+// measurements simultaneously instead of just the active one. While
+// on, no roof is "active for editing" — clicking a roof switches focus
+// to it and turns the overview back off.
+function toggleShowAllRoofs(){
+  DRAW.showAllRoofs = !DRAW.showAllRoofs;
+  renderRoofSwitcher();
+  redrawAll();
 }
 // Rotate the active roof type 90° CW.  Bumps DRAW.rotation and re-runs
 // autoGenerateRoof, which honours the rotation by virtually rotating
