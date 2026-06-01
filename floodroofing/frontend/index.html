@@ -11481,6 +11481,22 @@ function onCanvasMove(e) {
         DRAG_OUTLINE_VERT.idx, rawX, rawY, DRAG_OUTLINE_VERT.initialOutline
       );
     }
+    // One-shot diagnostic — fires once per drag so we can see WHY the
+    // stretch isn't applying on the second roof. Cleared on mouseup.
+    if (window.__cornerDragDbgFired !== DRAG_OUTLINE_VERT) {
+      window.__cornerDragDbgFired = DRAG_OUTLINE_VERT;
+      console.log('CORNER-DRAG dbg:', {
+        activeRoofIdx: DRAW.activeRoofIdx,
+        outlineLen: DRAW.outline.length,
+        initialOutlineLen: DRAG_OUTLINE_VERT.initialOutline ? DRAG_OUTLINE_VERT.initialOutline.length : 'none',
+        cornerIdx: DRAG_OUTLINE_VERT.idx,
+        shiftKey: e.shiftKey,
+        stretchRan: !!stretched,
+        stretchedLen: stretched ? stretched.length : 'n/a',
+        lengthMatch: stretched && (stretched.length === DRAW.outline.length),
+        outlineSample: DRAW.outline.map(function(p){ return [Math.round(p[0]), Math.round(p[1])]; }),
+      });
+    }
     var movedC;
     if (stretched && stretched.length === DRAW.outline.length) {
       for (var si = 0; si < stretched.length; si++) {
@@ -12502,9 +12518,17 @@ function redrawAll() {
       ctx.closePath(); ctx.fill();
     }
     // Pass 1 — collect every valid sheet dimension.
+    // Process not just ridges but also mono-pitch HIGH-SIDES (barge /
+    // apron / change-of-pitch lines that have a parallel gutter on one
+    // side — they're the ridge-equivalent on a mono-pitch face). The
+    // existing parallel-gutter + perp + in-outline filters keep the
+    // gable-end barges out (no parallel gutter on either side → no
+    // label drawn) so only the right ones surface.
     var _sheetDims = [];
-    DRAW.lines.forEach(function(rl){
-      if (!rl || rl.type !== 'ridge' || !rl.pts || rl.pts.length !== 2) return;
+    DRAW.lines.forEach(function(rl, ri){
+      if (!rl || !rl.pts || rl.pts.length !== 2) return;
+      var t = rl.type;
+      if (t !== 'ridge' && t !== 'barge' && t !== 'apron' && t !== 'changepitch') return;
       var ra = rl.pts[0], rb = rl.pts[1];
       var rdx = rb[0]-ra[0], rdy = rb[1]-ra[1];
       var rL  = Math.sqrt(rdx*rdx + rdy*rdy);
@@ -12537,12 +12561,25 @@ function redrawAll() {
         var endImgX = rmx + dx*bestPerp, endImgY = rmy + dy*bestPerp;       // foot on the gutter
         var lblImgX = rmx + dx*bestPerp*0.5, lblImgY = rmy + dy*bestPerp*0.5;
         if (!_pointInOutline(lblImgX, lblImgY)) return;
-        var sheetM = bestPerp * DRAW.scaleMetresPerPx * _pitchF;
+        var autoSheetM = bestPerp * DRAW.scaleMetresPerPx * _pitchF;
+        // User override: stored on DRAW.sheetOverrides keyed by a
+        // ridge+side identifier that survives endpoint swaps.
+        var key = _sheetDimKey(rl, dx, dy);
+        var ov  = (DRAW.sheetOverrides && DRAW.sheetOverrides[key]);
+        var sheetM = (ov != null && isFinite(ov) && ov > 0) ? ov : autoSheetM;
+        var isOverride = (ov != null && isFinite(ov) && ov > 0);
         var sR = dp([rmx, rmy]), sE = dp([endImgX, endImgY]), sL = dp([lblImgX, lblImgY]);
         var sdx = sE[0]-sR[0], sdy = sE[1]-sR[1];
         var sdl = Math.sqrt(sdx*sdx + sdy*sdy);
         if (sdl < 1) return;
-        _sheetDims.push({ lblX: sL[0], lblY: sL[1], ndx: sdx/sdl, ndy: sdy/sdl, sdl: sdl, label: sheetM.toFixed(2) + 'm' });
+        _sheetDims.push({
+          lblX: sL[0], lblY: sL[1],
+          lblImgX: lblImgX, lblImgY: lblImgY,
+          ndx: sdx/sdl, ndy: sdy/sdl, sdl: sdl,
+          label: sheetM.toFixed(2) + 'm',
+          key: key,
+          isOverride: isOverride,
+        });
       });
     });
     // Pass 2 — draw, scaling font + arrows to each dim's length relative
@@ -13433,6 +13470,21 @@ function showCalibratePopup(pixelDist) {
   document.getElementById('calPopup').style.display = 'block';
   document.getElementById('calOverlay').style.display = 'block';
   if(pixelDist) setTimeout(function(){ document.getElementById('calRealInput').focus(); }, 80);
+}
+
+// Stable identifier for a sheet-length dimension — survives endpoint
+// swaps + small jitter. Combines the canonical ridge endpoints (smaller
+// first) with the side direction in canonical perpendicular frame.
+function _sheetDimKey(ridge, perpX, perpY) {
+  if (!ridge || !ridge.pts || ridge.pts.length < 2) return '';
+  var a = ridge.pts[0], b = ridge.pts[1];
+  var sa = (a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])) ? a : b;
+  var sb = (sa === a) ? b : a;
+  var dx = sb[0] - sa[0], dy = sb[1] - sa[1];
+  var L  = Math.sqrt(dx*dx + dy*dy) || 1;
+  var canPerpX = -dy/L, canPerpY = dx/L;
+  var side = (perpX*canPerpX + perpY*canPerpY) > 0 ? 'A' : 'B';
+  return Math.round(sa[0])+','+Math.round(sa[1])+'_'+Math.round(sb[0])+','+Math.round(sb[1])+'_'+side;
 }
 
 function openCalPopupForDrawing() {
