@@ -1681,6 +1681,7 @@ select{
       <button onclick="renderMaterialPriceTable();try{resyncQuoteLines();}catch(e){}" style="margin-left:6px;padding:5px 12px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh &amp; sync to Quote</button>
     </div>
     <p style="font-size:11px;color:var(--text2);margin:-8px 0 10px">Flashing quantities include a <strong>1.2× wastage allowance</strong>. Drop-down on each row lets you swap product variants (add more in <strong>Settings → Price book</strong>).</p>
+    <div id="materialPriceRoofPicker" style="display:none;margin-bottom:10px"></div>
     <div id="materialPriceTableWrap">
       <p style="font-size:12px;color:var(--text2)">Draw your roof on the Map Roof tab and set unit prices in Settings → Price book — this table will auto-populate.</p>
     </div>
@@ -3001,7 +3002,7 @@ select{
 
 <script>
 var PROXY='https://flood-roofing-estimator-production.up.railway.app';
-var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],linkedJobId:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true,
+var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],linkedJobId:null,linkedJobNo:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true,
   quote:null /* {ref,date,validUntil,client,addr,email,scope,notes,terms,gstRate,lineItems:[{desc,qty,unit}]} — lazy-init in buildQuote */};
 var COLORS=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#ea580c','#65a30d'];
 var COLORS_BG=['#dbeafe','#d1fae5','#fef3c7','#fee2e2','#ede9fe','#cffafe','#ffedd5','#ecfccb'];
@@ -3806,19 +3807,30 @@ function _buildMaterialPriceRows(){
   var sheetWidthMm = parseFloat((document.getElementById('sheetWidth')||{}).value) || 762;
   var sheetWidthM  = sheetWidthMm / 1000;
   var overlapM     = (parseFloat((document.getElementById('overlapMm')||{}).value)||150)/1000;
-  var pitch        = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
-  var pitchFactor  = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
   var WASTE_FACTOR = 1.2;
-
-  var totals = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
-  (DRAW.lines || []).forEach(function(l){
-    if (l.measM && totals[l.type] !== undefined) totals[l.type] += parseFloat(l.measM);
-  });
-  var ridgeHip = (totals.ridge||0) + (totals.hip||0);
-
-  var roofArea = 0;
-  if (DRAW.scaleMetresPerPx && DRAW.outline && DRAW.outline.length >= 3) {
-    roofArea = polyAreaPx(DRAW.outline) * DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx * pitchFactor;
+  // Sum totals across every selected roof (Materials tab picker drives
+  // this). Falls through to current-roof-only when there's no multi-
+  // roof archive yet.
+  var d = (typeof _matDrawTotals === 'function') ? _matDrawTotals() : null;
+  var totals, ridgeHip, roofArea, pitch, pitchFactor;
+  if (d) {
+    totals      = Object.assign({}, d.totals);
+    ridgeHip    = d.ridgeHip;
+    roofArea    = d.roofArea;
+    pitch       = d.pitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+    pitchFactor = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
+  } else {
+    pitch        = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+    pitchFactor  = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
+    totals       = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
+    (DRAW.lines || []).forEach(function(l){
+      if (l.measM && totals[l.type] !== undefined) totals[l.type] += parseFloat(l.measM);
+    });
+    ridgeHip = (totals.ridge||0) + (totals.hip||0);
+    roofArea = 0;
+    if (DRAW.scaleMetresPerPx && DRAW.outline && DRAW.outline.length >= 3) {
+      roofArea = polyAreaPx(DRAW.outline) * DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx * pitchFactor;
+    }
   }
 
   // Roofing sheets — variant dropdown comes from pb.sheets.  When the
@@ -3906,6 +3918,10 @@ function renderMaterialPriceTable(){
     box.innerHTML = '<p style="font-size:12px;color:var(--text2)">Set unit prices in <strong>Settings → Price book</strong> first.</p>';
     return;
   }
+  // Per-roof selector — reuses the Materials tab picker so ticking a
+  // roof on one tab carries to the other. Rendered into the slot above
+  // the price table (only shows when there are 2+ roofs).
+  try { _matRenderRoofPickerInto && _matRenderRoofPickerInto('materialPriceRoofPicker'); } catch(e){}
   var rows = _buildMaterialPriceRows();
   if (!rows.length) {
     box.innerHTML = '<p style="font-size:12px;color:var(--text2)">No quantifiable items yet — draw your roof on the Map Roof tab.</p>';
@@ -4115,7 +4131,7 @@ function snapshotCurrentJob(){
   return {
     form: form,
     state: { img64:S.img64, roofData:S.roofData, labour:S.labour, materials:S.materials,
-             condition:S.condition, photos:S.photos, linkedJobId:S.linkedJobId, linkedJobName:S.linkedJobName,
+             condition:S.condition, photos:S.photos, linkedJobId:S.linkedJobId, linkedJobNo:S.linkedJobNo, linkedJobName:S.linkedJobName,
              quote:S.quote },
     draw: { outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
             penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
@@ -4224,8 +4240,17 @@ function _jobChipLabel(j){
     if (j.id != null) return 'Job #' + j.id;
   }
   if (S.currentJobId)  return 'Job #' + S.currentJobId;
+  if (S.linkedJobNo)   return 'Job #' + S.linkedJobNo;
   if (S.linkedJobId)   return 'Job #' + S.linkedJobId;
   return '';
+}
+// Human-readable Fergus job number (e.g. "3066") with a fallback to
+// the internal id when the display number isn't known. Use this for
+// any user-visible job reference; reserve S.linkedJobId for API
+// calls to Fergus's REST endpoints (those still need the internal id).
+function _fergusDisplayNo(){
+  if (!window.S) return '';
+  return S.linkedJobNo || S.linkedJobId || '';
 }
 var _lastJobForChip = null;
 function updateSidebarJobChip(j){
@@ -9579,6 +9604,7 @@ function useFergusJobInModal(jobId){
   // Mirror the existing Fergus-link state used by the rest of the app
   // so Push to JMS and friends keep working.
   S.linkedJobId   = j.id;
+  S.linkedJobNo   = j.jobNo || j.displayNo || j.id;   // human-readable job number for display
   S.linkedJobName = (j.customer || '') + ' — ' + (j.address || '');
   // Populate the Job Details fields on the Map Roof tab.
   var c = document.getElementById('jobClient'); if (c) c.value = j.customer || j.client || '';
@@ -9627,7 +9653,7 @@ function toggleJobPackInc(ev, el){
 function _formatJobPackCover(){
   var jobNum  = (document.getElementById('jobNum')||{}).value
               || (document.getElementById('orderJobNumber')||{}).value
-              || (S.linkedJobId ? ('Fergus '+S.linkedJobId) : '');
+              || (_fergusDisplayNo() ? ('Fergus '+_fergusDisplayNo()) : '');
   var client  = (document.getElementById('jobClient')||{}).value || '';
   var addr    = (document.getElementById('jobAddr')||{}).value   || '';
   var date    = (document.getElementById('jobDate')||{}).value   || new Date().toLocaleDateString();
@@ -10098,8 +10124,11 @@ async function pushQuoteToJMS(){
       window._lastFergusQuote = qData;
     } catch(e){}
     S.linkedJobId = jobId;
+    // pickedJobLabel often carries the display jobNo already; keep
+    // existing linkedJobNo if we have one, otherwise fall through to id.
+    if (!S.linkedJobNo) S.linkedJobNo = jobId;
     S.linkedJobName = (_jmsState.pickedJobLabel || quoteTitle);
-    say('✓ Pushed to Fergus job #'+jobId+' as a draft quote. Open Fergus to verify — line item details logged to browser console.', '#15803d');
+    say('✓ Pushed to Fergus job #'+(S.linkedJobNo || jobId)+' as a draft quote. Open Fergus to verify — line item details logged to browser console.', '#15803d');
     setTimeout(closeJMSPushModal, 2600);
   } catch(e){
     say('Push failed: ' + e.message, '#b91c1c');
@@ -10376,7 +10405,7 @@ function renderFergJobs(jobs){
       (j.customer ? ' · <strong>' + esc2(j.customer) + '</strong>' : '') +
       (j.address  ? ' · ' + esc2(j.address) : '');
     var displayName = (j.customer || j.title || 'Job') + (j.title && j.customer ? ' — ' + j.title : '');
-    return '<div class="job-card" onclick="selectFergJob(\'' + esc2(String(j.id)) + '\',\'' + esc2(displayName).replace(/\'/g,"\\\'") + '\',this)">' +
+    return '<div class="job-card" onclick="selectFergJob(\'' + esc2(String(j.id)) + '\',\'' + esc2(displayName).replace(/\'/g,"\\\'") + '\',this,\'' + esc2(String(j.displayNo || j.jobNo || j.id)) + '\')">' +
              '<div style="font-weight:600;font-size:13px">' + esc2(j.title || j.customer || 'Job') + '</div>' +
              '<div class="job-card-id">' + line2 + '</div>' +
            '</div>';
@@ -10417,8 +10446,9 @@ function _fergMatches(j, q){
       || (j.title    || '').toLowerCase().indexOf(qLow) >= 0
       || (j.address  || '').toLowerCase().indexOf(qLow) >= 0;
 }
-function selectFergJob(id, name, el){
+function selectFergJob(id, name, el, jobNo){
   S.linkedJobId = id;
+  S.linkedJobNo = jobNo || id;   // display number falls back to internal id if not passed
   S.linkedJobName = name;
   document.querySelectorAll('.job-card').forEach(function(c){ c.classList.remove('sel'); });
   el.classList.add('sel');
@@ -12654,70 +12684,95 @@ function redrawAll() {
       ctx.closePath(); ctx.fill();
     }
     // Pass 1 — collect every valid sheet dimension.
-    // Process not just ridges but also mono-pitch HIGH-SIDES (barge /
-    // apron / change-of-pitch lines that have a parallel gutter on one
-    // side — they're the ridge-equivalent on a mono-pitch face). The
-    // existing parallel-gutter + perp + in-outline filters keep the
-    // gable-end barges out (no parallel gutter on either side → no
-    // label drawn) so only the right ones surface.
-    var _sheetDims = [];
-    DRAW.lines.forEach(function(rl, ri){
-      if (!rl || !rl.pts || rl.pts.length !== 2) return;
-      var t = rl.type;
-      if (t !== 'ridge' && t !== 'barge' && t !== 'apron' && t !== 'changepitch') return;
-      var ra = rl.pts[0], rb = rl.pts[1];
-      var rdx = rb[0]-ra[0], rdy = rb[1]-ra[1];
-      var rL  = Math.sqrt(rdx*rdx + rdy*rdy);
-      if (rL < 8) return;
-      var rux = rdx/rL, ruy = rdy/rL;          // along the ridge
-      var ppx = -ruy, ppy = rux;               // perpendicular to the ridge
-      var rmx = (ra[0]+rb[0])/2, rmy = (ra[1]+rb[1])/2;
-      var rAng = Math.atan2(rdy, rdx);
-      [1, -1].forEach(function(sgn){
-        var dx = ppx*sgn, dy = ppy*sgn;        // outward slope normal
-        var bestPerp = Infinity, bestG = null;
-        _gutters.forEach(function(g){
-          var ga = g.pts[0], gb = g.pts[1];
-          var gdx = gb[0]-ga[0], gdy = gb[1]-ga[1];
-          var gL = Math.sqrt(gdx*gdx + gdy*gdy);
-          if (gL < 4) return;
-          var diff = Math.atan2(gdy, gdx) - rAng;
-          diff = diff - Math.round(diff/Math.PI)*Math.PI;   // mod pi
-          if (Math.abs(diff) > 0.25) return;                // not parallel
-          var gmx = (ga[0]+gb[0])/2, gmy = (ga[1]+gb[1])/2;
-          var perp = (gmx-rmx)*dx + (gmy-rmy)*dy;            // distance on this side
-          if (perp <= 4) return;
-          var g0 = (ga[0]-rmx)*rux + (ga[1]-rmy)*ruy;
-          var g1 = (gb[0]-rmx)*rux + (gb[1]-rmy)*ruy;
-          if (Math.max(g0,g1) < -0.55*rL || Math.min(g0,g1) > 0.55*rL) return;  // no span overlap
-          if (_crossesAnotherRoofLine([rmx,rmy], [gmx,gmy], rl)) return;
-          if (perp < bestPerp) { bestPerp = perp; bestG = g; }
-        });
-        if (!bestG || !isFinite(bestPerp)) return;
-        var endImgX = rmx + dx*bestPerp, endImgY = rmy + dy*bestPerp;       // foot on the gutter
-        var lblImgX = rmx + dx*bestPerp*0.5, lblImgY = rmy + dy*bestPerp*0.5;
-        if (!_pointInOutline(lblImgX, lblImgY)) return;
-        var autoSheetM = bestPerp * DRAW.scaleMetresPerPx * _pitchF;
-        // User override: stored on DRAW.sheetOverrides keyed by a
-        // ridge+side identifier that survives endpoint swaps.
-        var key = _sheetDimKey(rl, dx, dy);
-        var ov  = (DRAW.sheetOverrides && DRAW.sheetOverrides[key]);
-        var sheetM = (ov != null && isFinite(ov) && ov > 0) ? ov : autoSheetM;
-        var isOverride = (ov != null && isFinite(ov) && ov > 0);
-        var sR = dp([rmx, rmy]), sE = dp([endImgX, endImgY]), sL = dp([lblImgX, lblImgY]);
-        var sdx = sE[0]-sR[0], sdy = sE[1]-sR[1];
-        var sdl = Math.sqrt(sdx*sdx + sdy*sdy);
-        if (sdl < 1) return;
-        _sheetDims.push({
-          lblX: sL[0], lblY: sL[1],
-          lblImgX: lblImgX, lblImgY: lblImgY,
-          ndx: sdx/sdl, ndy: sdy/sdl, sdl: sdl,
-          label: sheetM.toFixed(2) + 'm',
-          key: key,
-          isOverride: isOverride,
+    // Processes not just ridges but also mono-pitch HIGH-SIDES (barge
+    // / apron / change-of-pitch lines that have a parallel gutter on
+    // one side — they're the ridge-equivalent on a mono-pitch face).
+    // When Show-all is on, also walks every non-active roof's lines
+    // + outline so all roofs' sheet-length dimensions render at once.
+    function _pointInPoly(px, py, poly){
+      var inside = false, j = poly.length - 1;
+      for (var i = 0; i < poly.length; i++){
+        var xi = poly[i][0], yi = poly[i][1];
+        var xj = poly[j][0], yj = poly[j][1];
+        if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi + 1e-9) + xi)) inside = !inside;
+        j = i;
+      }
+      return inside;
+    }
+    function _collectSheetDimsFor(outline, lines, sink){
+      if (!outline || outline.length < 3 || !lines || !lines.length) return;
+      var gutters = lines.filter(function(g){ return g && g.type === 'gutter' && g.pts && g.pts.length === 2; });
+      if (!gutters.length) return;
+      lines.forEach(function(rl){
+        if (!rl || !rl.pts || rl.pts.length !== 2) return;
+        var t = rl.type;
+        if (t !== 'ridge' && t !== 'barge' && t !== 'apron' && t !== 'changepitch') return;
+        var ra = rl.pts[0], rb = rl.pts[1];
+        var rdx = rb[0]-ra[0], rdy = rb[1]-ra[1];
+        var rL  = Math.sqrt(rdx*rdx + rdy*rdy);
+        if (rL < 8) return;
+        var rux = rdx/rL, ruy = rdy/rL;
+        var ppx = -ruy, ppy = rux;
+        var rmx = (ra[0]+rb[0])/2, rmy = (ra[1]+rb[1])/2;
+        var rAng = Math.atan2(rdy, rdx);
+        [1, -1].forEach(function(sgn){
+          var dx = ppx*sgn, dy = ppy*sgn;
+          var bestPerp = Infinity, bestG = null;
+          gutters.forEach(function(g){
+            var ga = g.pts[0], gb = g.pts[1];
+            var gdx = gb[0]-ga[0], gdy = gb[1]-ga[1];
+            var gL = Math.sqrt(gdx*gdx + gdy*gdy);
+            if (gL < 4) return;
+            var diff = Math.atan2(gdy, gdx) - rAng;
+            diff = diff - Math.round(diff/Math.PI)*Math.PI;
+            if (Math.abs(diff) > 0.25) return;
+            var gmx = (ga[0]+gb[0])/2, gmy = (ga[1]+gb[1])/2;
+            var perp = (gmx-rmx)*dx + (gmy-rmy)*dy;
+            if (perp <= 4) return;
+            var g0 = (ga[0]-rmx)*rux + (ga[1]-rmy)*ruy;
+            var g1 = (gb[0]-rmx)*rux + (gb[1]-rmy)*ruy;
+            if (Math.max(g0,g1) < -0.55*rL || Math.min(g0,g1) > 0.55*rL) return;
+            // Cross-line filter only valid against the current roof's
+            // own lines; harmless to skip it for non-active roofs.
+            if (lines === DRAW.lines && _crossesAnotherRoofLine([rmx,rmy], [gmx,gmy], rl)) return;
+            if (perp < bestPerp) { bestPerp = perp; bestG = g; }
+          });
+          if (!bestG || !isFinite(bestPerp)) return;
+          var endImgX = rmx + dx*bestPerp, endImgY = rmy + dy*bestPerp;
+          var lblImgX = rmx + dx*bestPerp*0.5, lblImgY = rmy + dy*bestPerp*0.5;
+          if (!_pointInPoly(lblImgX, lblImgY, outline)) return;
+          var autoSheetM = bestPerp * (DRAW.scaleMetresPerPx || 0) * _pitchF;
+          var key = _sheetDimKey(rl, dx, dy);
+          var ov  = (DRAW.sheetOverrides && DRAW.sheetOverrides[key]);
+          var sheetM = (ov != null && isFinite(ov) && ov > 0) ? ov : autoSheetM;
+          var isOverride = (ov != null && isFinite(ov) && ov > 0);
+          var sR = dp([rmx, rmy]), sE = dp([endImgX, endImgY]), sL = dp([lblImgX, lblImgY]);
+          var sdx = sE[0]-sR[0], sdy = sE[1]-sR[1];
+          var sdl = Math.sqrt(sdx*sdx + sdy*sdy);
+          if (sdl < 1) return;
+          sink.push({
+            lblX: sL[0], lblY: sL[1],
+            lblImgX: lblImgX, lblImgY: lblImgY,
+            ndx: sdx/sdl, ndy: sdy/sdl, sdl: sdl,
+            label: sheetM.toFixed(2) + 'm',
+            key: key,
+            isOverride: isOverride,
+          });
         });
       });
-    });
+    }
+    var _sheetDims = [];
+    // Active roof — same as before.
+    _collectSheetDimsFor(DRAW.outline, DRAW.lines, _sheetDims);
+    // Show-all: also collect from every non-active roof so their
+    // sheet-length labels are visible at the same time.
+    if (DRAW.showAllRoofs && DRAW.roofs && DRAW.roofs.length > 1) {
+      DRAW.roofs.forEach(function(r, ri){
+        if (ri === DRAW.activeRoofIdx) return;
+        if (!r || !r.outline || !r.lines) return;
+        _collectSheetDimsFor(r.outline, r.lines, _sheetDims);
+      });
+    }
     // Pass 2 — draw, scaling font + arrows to each dim's length relative
     // to the longest sheet so every label keeps the same size:length feel.
     var _maxSdl = 1;
@@ -14073,8 +14128,9 @@ function _matDrawTotals() {
 // Render the roof-selection pill row above the summary tiles. Hidden
 // when only one roof exists (no need for a selector). Each pill is a
 // toggle; ticking/unticking re-renders summary + cut lists live.
-function _matRenderRoofPicker() {
-  var el = document.getElementById('matRoofPicker'); if (!el) return;
+function _matRenderRoofPicker() { _matRenderRoofPickerInto('matRoofPicker'); }
+function _matRenderRoofPickerInto(elId) {
+  var el = document.getElementById(elId); if (!el) return;
   if (!DRAW.roofs || DRAW.roofs.length < 2) { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = 'block';
   var selected = _matSelectedRoofIndices();
@@ -14101,15 +14157,17 @@ function _matToggleRoof(i) {
   _matSetSelectedRoofs(sel);
   populateMaterialsFromLines();
   renderMaterialsCutLists();
+  try { renderMaterialPriceTable(); } catch(e){}
 }
 function _matToggleAllRoofs() {
   var all = DRAW.roofs.map(function(_, i){ return i; });
   _matSetSelectedRoofs(all);
   populateMaterialsFromLines();
   renderMaterialsCutLists();
+  try { renderMaterialPriceTable(); } catch(e){}
 }
 
-// Render the "From your drawing measurements" card as a 3-tile summary:
+// Render the "From your drawing measurements" card as a 3-tick summary:
 // Roof m² · Flashings LM (combined) · Gutter LM. Detailed per-line cut
 // lists live in the Materials section below.
 function populateMaterialsFromLines() {
@@ -14666,7 +14724,7 @@ function populateMatJobInfo() {
   var client = (document.getElementById('jobClient')||{}).value || '';
   var addr   = (document.getElementById('jobAddr')  ||{}).value || '';
   var jobNum = (document.getElementById('orderJobNumber')||{}).value
-            || (S && S.linkedJobId ? ('Fergus '+S.linkedJobId) : '');
+            || (_fergusDisplayNo() ? ('Fergus '+_fergusDisplayNo()) : '');
   var delAddr = (document.getElementById('orderDeliveryAddr')||{}).value || '';
   var mode   = (S && S.order && S.order.deliveryMode) || 'site';
   var cOut = document.getElementById('matCustomerOut');
@@ -15014,7 +15072,7 @@ async function pushMaterialsToFergus() {
   try {
     var blob = await _matBuildPdfBlob();
     var client = ((document.getElementById('jobClient')||{}).value || 'Order').trim();
-    var jobNum = ((document.getElementById('matJobNumber')||{}).value || S.linkedJobId).trim();
+    var jobNum = ((document.getElementById('matJobNumber')||{}).value || _fergusDisplayNo()).toString().trim();
     var filename = ('Materials_Order_' + jobNum + '_' + client)
       .replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
     // 1. Save a local copy first so the user has the file even if Fergus
@@ -15027,7 +15085,7 @@ async function pushMaterialsToFergus() {
       r.onerror = function(){ fail(r.error || new Error('FileReader failed')); };
       r.readAsDataURL(blob);
     });
-    _matMsg('Saved locally — uploading to Fergus job ' + S.linkedJobId + '…');
+    _matMsg('Saved locally — uploading to Fergus job ' + _fergusDisplayNo() + '…');
     var token = localStorage.getItem('fr_token') || '';
     var resp = await fetch(PROXY + '/fergus-files/upload', {
       method: 'POST',
@@ -15048,7 +15106,7 @@ async function pushMaterialsToFergus() {
     _matRenderFergusDebug('Last upload attempt', data);
     if (resp.ok && data.ok) {
       var via = data.used ? ' (via ' + data.used + ')' : '';
-      _matMsg('✓ Downloaded ' + filename + ' · uploaded to Fergus job ' + S.linkedJobId + via, true);
+      _matMsg('✓ Downloaded ' + filename + ' · uploaded to Fergus job ' + _fergusDisplayNo() + via, true);
     } else {
       console.error('Fergus upload failed', data);
       // Fergus's public PAT API doesn't currently expose a file-upload
@@ -15133,7 +15191,7 @@ async function openFergusJob() {
 // exposes — gives us hints about the right file-upload endpoint.
 async function inspectFergusJob() {
   if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first.', false); return; }
-  _matMsg('Fetching Fergus job ' + S.linkedJobId + '…');
+  _matMsg('Fetching Fergus job ' + _fergusDisplayNo() + '…');
   try {
     var token = localStorage.getItem('fr_token') || '';
     var r = await fetch(PROXY + '/fergus/jobs/' + encodeURIComponent(String(S.linkedJobId)), {
