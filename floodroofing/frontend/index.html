@@ -16571,7 +16571,10 @@ function renderRoofSheetPlan() {
     var savedActive = DRAW.activeRoofIdx;
     _syncCurrentToRoof();
     outEl.innerHTML = '';
-    var combined = {orangeLong:0, blueLong:0, purpleLong:0, shortCount:0, shortLen:0, longLen:0};
+    var combined = {orangeLong:0, blueLong:0, purpleLong:0, shortCount:0, shortLen:0, longLen:0, groups:[]};
+    // Combined groups map keyed by colour+orderedMm so identical
+    // (colour, length) entries from different roofs collapse cleanly.
+    var combinedGroups = {};
     DRAW.roofs.forEach(function(r, idx){
       _loadRoofToCurrent(idx);
       if (!r.outline || r.outline.length < 3) return;
@@ -16593,8 +16596,18 @@ function renderRoofSheetPlan() {
         combined.shortCount += c.shortCount || 0;
         combined.shortLen    = c.shortLen   || combined.shortLen;
         combined.longLen     = c.longLen    || combined.longLen;
+        // Merge per-(colour, length) groups so the Materials cut list
+        // can report ACTUAL ordered lengths (e.g. 36 × 4.40m + 10 ×
+        // 5.20m) instead of collapsing everything onto the legacy
+        // longLen default and showing 46 × 7.65m.
+        (c.groups || []).forEach(function(g){
+          var key = (g.color || '') + '|' + g.orderedMm;
+          if (!combinedGroups[key]) combinedGroups[key] = { color: g.color, orderedMm: g.orderedMm, count: 0 };
+          combinedGroups[key].count += g.count || 0;
+        });
       }
     });
+    combined.groups = Object.keys(combinedGroups).map(function(k){ return combinedGroups[k]; });
     window._lastSheetCounts = combined;
     _loadRoofToCurrent(savedActive);
     return;
