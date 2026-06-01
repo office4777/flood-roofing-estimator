@@ -6646,6 +6646,112 @@ function rpHeading(icon, label){
 // recognisable Flood Roofing brand block.  The number isn't escaped
 // (we control it) and the title may carry entities so it's inserted
 // verbatim.
+// Renders a clean roof-outline preview of one roof to a PNG data URL.
+// Same look as the Map Roof outline + drawn lines, but WITHOUT any
+// measurement labels, sheet-length arrows or the photo background —
+// just a colour-coded line diagram of the roof for the proposal's
+// Price page. Roof name is overlaid at the bottom.
+function _buildRoofOutlinePreview(roof, opts){
+  if (!roof || !roof.outline || roof.outline.length < 3) return null;
+  opts = opts || {};
+  var lines = roof.lines || [];
+  var outline = roof.outline;
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  outline.forEach(function(p){
+    if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+    if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+  });
+  var w = maxX - minX, h = maxY - minY;
+  if (w < 1 || h < 1) return null;
+  var pad = 30, targetW = opts.width || 520;
+  var scale = (targetW - pad*2) / w;
+  var targetH = Math.max(120, h * scale + pad*2 + 22);  // +22 for name strip
+  var canvas = document.createElement('canvas');
+  canvas.width = targetW; canvas.height = targetH;
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  function tx(p){ return [pad + (p[0] - minX) * scale, pad + (p[1] - minY) * scale]; }
+  // Outline fill + stroke
+  ctx.beginPath();
+  outline.forEach(function(p, i){
+    var t = tx(p);
+    if (i === 0) ctx.moveTo(t[0], t[1]); else ctx.lineTo(t[0], t[1]);
+  });
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(200,230,201,0.5)';
+  ctx.fill();
+  ctx.strokeStyle = '#1b5e20';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // Roof lines by type — same colours as on the Map Roof tab, no labels.
+  var styleByType = {
+    ridge:'#dc2626', valley:'#f59e0b', gutter:'#7c3aed',
+    hip:'#059669', barge:'#3b82f6', apron:'#e11d48', changepitch:'#0ea5e9'
+  };
+  lines.forEach(function(l){
+    if (!l || !l.pts || l.pts.length < 2) return;
+    var a = tx(l.pts[0]), b = tx(l.pts[1]);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+    ctx.strokeStyle = styleByType[l.type] || '#475569';
+    ctx.lineWidth = 2;
+    ctx.setLineDash(l.type === 'valley' ? [6, 3] : []);
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+  // Roof name strip — centred at the bottom on a light band.
+  var label = opts.name || roof.name || '';
+  if (label) {
+    ctx.fillStyle = '#f4f4ef';
+    ctx.fillRect(0, canvas.height - 22, canvas.width, 22);
+    ctx.font = 'bold 13px Inter, -apple-system, sans-serif';
+    ctx.fillStyle = '#0a1628';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, canvas.width / 2, canvas.height - 11);
+  }
+  try { return canvas.toDataURL('image/png'); } catch(e){ return null; }
+}
+
+// Builds the HTML block for the proposal's Price page — a row (or
+// grid) of every saved roof's outline preview, each labelled with its
+// name. Auto-handles single-roof + multi-roof. Pulls each roof's data
+// from DRAW.roofs[i] (or DRAW.outline / DRAW.lines if there's no
+// multi-roof archive yet) so it always shows whatever's currently on
+// the Map Roof tab. A 'Refresh from Map Roof' button sits above the
+// previews (hidden in print) so the user can re-capture after edits.
+function _buildRoofPreviewsHtml(){
+  var imgs = [];
+  if (DRAW.roofs && DRAW.roofs.length) {
+    // Use stored snapshots — active roof's live state is also synced
+    // to DRAW.roofs[activeRoofIdx] every time we render, so this is
+    // up to date.
+    try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+    DRAW.roofs.forEach(function(r, i){
+      var url = _buildRoofOutlinePreview(r, { name: r.name || ('Roof ' + (i+1)) });
+      if (url) imgs.push({ url: url, name: r.name || ('Roof ' + (i+1)) });
+    });
+  } else if (DRAW.outline && DRAW.outline.length >= 3) {
+    var url = _buildRoofOutlinePreview({ outline: DRAW.outline, lines: DRAW.lines || [] }, { name: 'Roof map' });
+    if (url) imgs.push({ url: url, name: 'Roof map' });
+  }
+  if (!imgs.length) return '';
+  var gridStyle = (imgs.length === 1)
+    ? 'display:block;text-align:center'
+    : 'display:grid;grid-template-columns:repeat('+Math.min(imgs.length, 2)+',1fr);gap:10px';
+  return '<div class="qp-roofmap" style="margin:6px 0 14px">'+
+    '<div class="ed-eyebrow no-print" style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'+
+      '<span>Roof map</span>'+
+      '<button type="button" onclick="refreshQuoteProposal()" style="margin-left:auto;padding:3px 9px;font-size:10px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;cursor:pointer;font-family:var(--ed-sans);color:var(--ed-ink-2);letter-spacing:.04em">↻ Refresh from Map Roof</button>'+
+    '</div>'+
+    '<div style="'+gridStyle+'">'+
+      imgs.map(function(im){
+        return '<img src="'+im.url+'" alt="'+esc2(im.name)+'" style="display:block;max-width:100%;height:auto;border:1px solid var(--ed-line);border-radius:4px;background:#fff">';
+      }).join('')+
+    '</div>'+
+  '</div>';
+}
+
 function edHeading(num, eyebrow, title, opts){
   opts = opts || {};
   // When a photo banner sits ABOVE this heading band on the same
@@ -7389,6 +7495,7 @@ function refreshQuoteProposal(){
     };
     partInclusions =
       edHeading('03','Scope of work','The work &amp; the cost')+
+      _buildRoofPreviewsHtml()+
       ((S.quote.scope||'').trim()
         ? '<div class="ed-body" style="margin-top:-2px;margin-bottom:14px;font-size:11.5px;line-height:1.5;color:var(--ed-ink-2)">'+esc2(S.quote.scope).split('\n').join('<br>')+'</div>'
         : '')+
@@ -7541,6 +7648,7 @@ function refreshQuoteProposal(){
       : '';
     partInclusions =
       edHeading('03','Your investment','Quote inclusions &amp; pricing')+
+      _buildRoofPreviewsHtml()+
       '<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:30px;align-items:start">'+
         // Left — what's included
         '<div>'+
