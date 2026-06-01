@@ -10901,6 +10901,20 @@ function snapOutlineToSquare(){
   var eL = Math.sqrt(ex*ex + ey*ey);
   if (eL < 1) { redrawAll(); return; }
   var ux = ex/eL, uy = ey/eL;   // along longest edge
+  // Snap the primary axis to TRUE horizontal/vertical when the longest
+  // edge is already within ~3° of one. Without this, an outline drawn
+  // along a photo that isn't perfectly oriented (e.g. the user clicked
+  // along the building's natural lines, which sat at +0.5° on the
+  // photo) would Snap Square into a rectangle-in-tilted-space — every
+  // angle now 90° but the whole outline still 0.5° off in image
+  // coords. Downstream geometry (sheet plan hip/ridge classifier,
+  // sheet-length dimension finder, …) is sensitive to that residual
+  // tilt and renders the cut layout as a malformed triangle instead
+  // of two parallel slope rectangles.
+  var ANGLE_SNAP_RAD = 3 * Math.PI / 180;
+  var snapTol = Math.sin(ANGLE_SNAP_RAD);
+  if (Math.abs(uy) <= snapTol)       { ux = ux >= 0 ? 1 : -1; uy = 0; }
+  else if (Math.abs(ux) <= snapTol)  { uy = uy >= 0 ? 1 : -1; ux = 0; }
   var vx = -uy, vy = ux;        // perpendicular
   // 2. Project corners into (u, v) about the first corner.
   var ox = pts[0][0], oy = pts[0][1];
