@@ -16150,10 +16150,24 @@ function _renderRoofSheetPlanInner() {
     var capWap=[cx0+ch/2,capMidY], capEap=[cx1-ch/2,capMidY];
     var stemSap=[sxc, sy1-sw/2], ridgeN=[sxc,capMidY];
     var OR=COL_ORANGE, BL=COL_BLUE, PU=COL_PURPLE, descs=[];
-    descs.push({a:[cx0,cy0],b:[cx1,cy0],poly:[[cx0,cy0],[cx1,cy0],capEap,capWap],t:'long-side',c:OR}); // cap N
-    descs.push({a:[cx0,cy0],b:[cx0,jy],poly:[[cx0,cy0],capWap,[cx0,jy]],t:'hip-end',c:OR});            // cap W hip
-    descs.push({a:[cx1,cy0],b:[cx1,jy],poly:[[cx1,cy0],capEap,[cx1,jy]],t:'hip-end',c:OR});            // cap E hip
-    descs.push({a:[sx0,sy1],b:[sx1,sy1],poly:[[sx0,sy1],stemSap,[sx1,sy1]],t:'hip-end',c:BL});         // stem S hip
+    // "Main" should be whichever rectangle has the LONGER per-piece sheet
+    // length running through it — that's where end-to-end long sheets get
+    // laid + the donor cascade lives. Cap sheets run ridge-to-eave a
+    // distance of ch/2; stem sheets run a distance of sw/2.
+    // Tie or cap longer → cap is main (orange/blue), stem is wing (purple).
+    // Stem strictly longer → stem is main (orange/blue), cap is wing (purple).
+    var _stemIsMain = sw > ch + 0.5;
+    var capLong = _stemIsMain ? PU : OR;     // cap N long-side colour
+    var capHip  = _stemIsMain ? PU : OR;     // cap W/E hip-end colour
+    var capStub = _stemIsMain ? PU : BL;     // cap S-W and S-E stub colour
+    var stemLong  = _stemIsMain ? OR : PU;   // stem long-side OR colour
+    var stemLongB = _stemIsMain ? BL : PU;   // stem long-side BL colour
+    var stemHipS  = _stemIsMain ? OR : BL;   // stem S hip-end
+    var stemHipN  = _stemIsMain ? BL : BL;   // stem N phantom hip (only present when sw > ch)
+    descs.push({a:[cx0,cy0],b:[cx1,cy0],poly:[[cx0,cy0],[cx1,cy0],capEap,capWap],t:'long-side',c:capLong}); // cap N
+    descs.push({a:[cx0,cy0],b:[cx0,jy],poly:[[cx0,cy0],capWap,[cx0,jy]],t:'hip-end',c:capHip});             // cap W hip
+    descs.push({a:[cx1,cy0],b:[cx1,jy],poly:[[cx1,cy0],capEap,[cx1,jy]],t:'hip-end',c:capHip});             // cap E hip
+    descs.push({a:[sx0,sy1],b:[sx1,sy1],poly:[[sx0,sy1],stemSap,[sx1,sy1]],t:'hip-end',c:stemHipS});        // stem S hip
     if (sw > ch + 0.5){
       // Stem ridge HIGHER than the cap ridge → the stem is a phantom 4-hip: its
       // long-sides are hip-cut at BOTH the south hip (stemSap) AND a north
@@ -16162,18 +16176,18 @@ function _renderRoofSheetPlanInner() {
       // end, fed by the stem long-sides' north offcuts via the same L-shape
       // corner cascade as the south hip.
       var W1=[sx0+ch/2,capMidY], E1=[sx1-ch/2,capMidY], T0=[sxc,cy0+sw/2];
-      descs.push({a:W1,b:E1,poly:[W1,T0,E1],t:'hip-end',c:BL});                                        // stem N phantom hip-end
-      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],W1,capWap],t:'long-side',c:BL});        // cap S-W stub
-      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,E1],t:'long-side',c:BL});        // cap S-E stub
-      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],W1,T0,stemSap,[sx0,sy1]],t:'long-side',c:PU});  // stem W
-      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,T0,E1],t:'long-side',c:PU});  // stem E
+      descs.push({a:W1,b:E1,poly:[W1,T0,E1],t:'hip-end',c:stemHipN});                                       // stem N phantom hip-end
+      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],W1,capWap],t:'long-side',c:capStub});        // cap S-W stub
+      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,E1],t:'long-side',c:capStub});        // cap S-E stub
+      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],W1,T0,stemSap,[sx0,sy1]],t:'long-side',c:stemLong});  // stem W
+      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,T0,E1],t:'long-side',c:stemLongB}); // stem E
     } else {
       // Stem ridge LOWER than / equal to the cap ridge (at sw==ch, V==ridgeN).
       var V=[sxc, jy-sw/2];
-      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],V,ridgeN,capWap],t:'long-side',c:BL});
-      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,ridgeN,V],t:'long-side',c:BL});
-      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],V,stemSap,[sx0,sy1]],t:'long-side',c:PU});
-      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,V],t:'long-side',c:PU});
+      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],V,ridgeN,capWap],t:'long-side',c:capStub});
+      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,ridgeN,V],t:'long-side',c:capStub});
+      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],V,stemSap,[sx0,sy1]],t:'long-side',c:stemLong});
+      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,V],t:'long-side',c:stemLongB});
     }
     var inv=(4-nTurns)%4;
     function rb(p){return rotate90(p,pvx,pvy,inv);}
@@ -16347,7 +16361,7 @@ function _renderRoofSheetPlanInner() {
       }
       return hits / N;
     }
-    var best = null, bestA = 0, bestReal = -1;
+    var best = null, bestA = 0, bestReal = -1, bestSL = 0;
     for (var i = 0; i < xs.length - 1; i++) {
       for (var j = i + 1; j < xs.length; j++) {
         for (var k = 0; k < ys.length - 1; k++) {
@@ -16370,8 +16384,20 @@ function _renderRoofSheetPlanInner() {
             var real = horiz
               ? edgeReal(true, y0, x0, x1) + edgeReal(true, y1, x0, x1)
               : edgeReal(false, x0, y0, y1) + edgeReal(false, x1, y0, y1);
-            if (area > bestA + 1 || (Math.abs(area-bestA) <= 1 && real > bestReal)) {
-              bestA = area; bestReal = real; best = {x0:x0,y0:y0,x1:x1,y1:y1};
+            // Per-piece sheet length = half the SHORTER side (ridge runs
+            // along the longer side, sheets run perpendicular). The
+            // rectangle with the longer per-piece sheet length is the
+            // one where "the long sheets" run end-to-end, which is the
+            // user's mental model for which rectangle should be MAIN.
+            // Ties broken by area, then by edge realness.
+            var sheetLen = Math.min(x1-x0, y1-y0) / 2;
+            var SLEPS = 2;  // px tolerance — sheet lengths within ~10cm tie
+            var better =
+              sheetLen > bestSL + SLEPS
+              || (Math.abs(sheetLen - bestSL) <= SLEPS && area > bestA + 1)
+              || (Math.abs(sheetLen - bestSL) <= SLEPS && Math.abs(area - bestA) <= 1 && real > bestReal);
+            if (better) {
+              bestSL = sheetLen; bestA = area; bestReal = real; best = {x0:x0,y0:y0,x1:x1,y1:y1};
             }
           }
         }
