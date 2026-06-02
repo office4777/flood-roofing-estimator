@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/fergus/[...path].js": { "maxDuration": 30 }
+    "api/fergus/[...path].js": { "maxDuration": 30 },
+    "api/xero/[...path].js": { "maxDuration": 30 }
   }
 }

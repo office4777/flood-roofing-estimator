@@ -1,8 +1,20 @@
 # Flood Roofing — Operations Hub
 
-A single-file internal dashboard (`FloodRoofing_Hub_v6.html`): schedule, to-dos,
-email triage, job board, back costing, quote pipeline, marketing/ROI, Xero P&L,
-invoicing, crew & leave. Open the file in a browser — no build step.
+Two single-file apps (open in a browser — no build step):
+
+- **`FloodRoofing_Hub_v6.html`** — the full desktop hub: schedule, to-dos, email
+  triage, job board, back costing, quotes, marketing/ROI, Xero P&L, invoicing,
+  crew & leave.
+- **`FloodRoofing_Financials.html`** — a lean **mobile** app: Dashboard, Forward
+  Workload, Back Costing, Xero P&L. Built for the phone.
+
+## Forward Workload (mobile app)
+
+Totals the **remaining labour hours** on Fergus **active/accepted** jobs
+(priced/quoted hours − actual labour booked, floored at 0), then converts that
+to working days using your crew: `days = remaining hours ÷ (teams × guys-per-team
+× hours-per-day)` (defaults 4 × 2 × 8 = 64 h/day). Teams/size/hours are editable
+in the app. Jobs with no priced hours in Fergus count as 0 and are flagged.
 
 ## Fergus on mobile (what changed in v6)
 

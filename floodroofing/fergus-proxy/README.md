@@ -60,10 +60,16 @@ Then tap **⟳ Sync Accepted Jobs**. It now works on your phone.
 
 ## Environment variables
 
-| Name             | Value                                                        |
-| ---------------- | ----------------------------------------------------------- |
-| `FERGUS_API_KEY` | Your Fergus Personal Access Token (`fergPAT_...`)            |
-| `PROXY_SECRET`   | Any long random string; the same value goes into the Hub    |
+| Name                 | Required | Value                                                       |
+| -------------------- | -------- | ----------------------------------------------------------- |
+| `FERGUS_API_KEY`     | yes      | Your Fergus Personal Access Token (`fergPAT_...`)           |
+| `PROXY_SECRET`       | yes      | Any long random string; the same value goes into the Hub    |
+| `XERO_CLIENT_ID`     | optional | Xero Custom Connection client id (for live P&L on mobile)   |
+| `XERO_CLIENT_SECRET` | optional | Xero Custom Connection client secret                        |
+
+The two `XERO_*` vars are only needed if you want **live** Xero P&L in the
+mobile Financials app. Without them the app shows a P&L derived from your
+back-costing data instead.
 
 ## Test it
 
