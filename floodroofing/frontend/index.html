@@ -1734,7 +1734,43 @@ select{
 
 <!-- TAB 3: MATERIALS -->
 <div class="panel" id="tab-materials">
-  <!-- 1. Drawing measurements summary — 3 lines only.
+  <!-- 1. JOB & DELIVERY — moved to the very top of the page so the
+       supplier-facing context (customer, site, delivery) reads first on
+       both the materials page and the printed PDF. Body is populated by
+       populateMatJobInfo() / setMatDelivery() — wiring unchanged from
+       its previous bottom-of-page location. -->
+  <div class="card" id="materialsOrderInfo">
+    <div class="card-hd"><span class="card-dot"></span>Job &amp; delivery
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— prints at the top of the order PDF + supplier email</span>
+    </div>
+    <div class="mat-order-grid">
+      <div class="mat-sel">
+        <label>Job number</label>
+        <input id="matJobNumber" type="text" placeholder="e.g. FR-1234" oninput="_matSyncJobNumber(this.value)">
+      </div>
+      <div class="mat-sel">
+        <label>Customer</label>
+        <div class="mat-readonly" id="matCustomerOut">—</div>
+      </div>
+      <div class="mat-sel" style="grid-column:1/-1">
+        <label>Site address</label>
+        <div class="mat-readonly" id="matSiteAddrOut">—</div>
+      </div>
+      <div class="mat-sel">
+        <label>Delivery</label>
+        <div class="mat-seg" id="matDeliveryToggle">
+          <button type="button" data-mode="site" onclick="setMatDelivery('site',this)" class="on">To site</button>
+          <button type="button" data-mode="yard" onclick="setMatDelivery('yard',this)">To yard</button>
+        </div>
+      </div>
+      <div class="mat-sel" id="matDeliveryAddrField">
+        <label>Delivery address <span style="color:var(--text2);font-weight:400">(if different)</span></label>
+        <input id="matDeliveryAddr" type="text" placeholder="Defaults to site address" oninput="_matSyncDeliveryAddr(this.value)">
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Drawing measurements summary — 3 lines only.
        (Detailed per-line breakdowns moved into the Materials section's
        cut lists below.) Roof picker auto-populates when there are 2+
        roofs and lets the user combine / isolate which ones the totals
@@ -1748,30 +1784,29 @@ select{
     <button class="sec-btn" onclick="populateMaterialsFromLines();renderMaterialsCutLists()" style="margin-top:.5rem">↻ Refresh from drawing</button>
   </div>
 
-  <!-- 2. Roof sheet plan (visual layout — unchanged). -->
+  <!-- 3. ROOF MAP — mirrors the Map Roof tab with flashing letter refs
+       overlaid next to each labelled line. Click a letter tag to edit
+       or delete the flashing entry; click a sheet length to edit. -->
+  <div class="card" id="matRoofMapCard">
+    <div class="card-hd"><span class="card-dot"></span>Roof map
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— measurements + flashing letter refs · click a tag to edit / delete</span>
+      <label style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none">
+        <input type="checkbox" id="flashLayoutIncludeGutters" onchange="renderMatRoofMap();renderMaterialsCutLists()" style="margin:0;width:auto"> Include gutters as letters
+      </label>
+      <button onclick="renderMatRoofMap();renderMaterialsCutLists()" style="margin-left:10px;padding:4px 10px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
+    </div>
+    <div id="matRoofMapOut" style="position:relative">
+      <p style="font-size:12px;color:var(--text2)">Draw your roof outline + flashing lines on the Map Roof tab with measurements — this map will appear here.</p>
+    </div>
+  </div>
+
+  <!-- 4. Roof sheet plan (visual layout — unchanged). -->
   <div class="card" id="roofSheetPlanCard">
     <div class="card-hd"><span class="card-dot"></span>Roof sheet plan — colour-coded cut layout
       <button onclick="renderRoofSheetPlan();renderMaterialsCutLists()" style="margin-left:auto;padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
     </div>
     <div id="roofSheetPlanOut">
       <p style="font-size:12px;color:var(--text2)">Draw your roof outline + gutter/hip/valley lines with measurements, then refresh to see the sheet cut plan.</p>
-    </div>
-  </div>
-
-  <!-- 3. FLASHING LAYOUT — interactive cut-list assignment diagram.
-       Shows the active roof's outline + lines, auto-assigns letter
-       refs (A, B, C…) + length-with-wastage to every non-outline,
-       non-gutter line. Two-way synced with the cut lists below. -->
-  <div class="card" id="flashLayoutCard">
-    <div class="card-hd"><span class="card-dot"></span>Flashing layout
-      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— each line auto-labelled A / B / C with +0.4m wastage; click a line to edit</span>
-      <label style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none">
-        <input type="checkbox" id="flashLayoutIncludeGutters" onchange="renderFlashingLayout()" style="margin:0;width:auto"> Include gutter lines
-      </label>
-      <button onclick="renderFlashingLayout();renderMaterialsCutLists()" style="margin-left:10px;padding:4px 10px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
-    </div>
-    <div id="flashLayoutOut" style="position:relative">
-      <p style="font-size:12px;color:var(--text2)">Draw your roof outline + flashing lines on the Map Roof tab with measurements — this diagram will appear here.</p>
     </div>
   </div>
 
@@ -1845,41 +1880,6 @@ select{
     </div>
   </div>
 
-  <!-- 5. JOB & DELIVERY — fed into the PDF header + the supplier email
-       so the order paperwork has the customer / site / delivery on it.
-       Customer + site address come from Select Job; Job # + delivery
-       are editable here. -->
-  <div class="card" id="materialsOrderInfo">
-    <div class="card-hd"><span class="card-dot"></span>Job &amp; delivery
-      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— prints on the order PDF + supplier email</span>
-    </div>
-    <div class="mat-order-grid">
-      <div class="mat-sel">
-        <label>Job number</label>
-        <input id="matJobNumber" type="text" placeholder="e.g. FR-1234" oninput="_matSyncJobNumber(this.value)">
-      </div>
-      <div class="mat-sel">
-        <label>Customer</label>
-        <div class="mat-readonly" id="matCustomerOut">—</div>
-      </div>
-      <div class="mat-sel" style="grid-column:1/-1">
-        <label>Site address</label>
-        <div class="mat-readonly" id="matSiteAddrOut">—</div>
-      </div>
-      <div class="mat-sel">
-        <label>Delivery</label>
-        <div class="mat-seg" id="matDeliveryToggle">
-          <button type="button" data-mode="site" onclick="setMatDelivery('site',this)" class="on">To site</button>
-          <button type="button" data-mode="yard" onclick="setMatDelivery('yard',this)">To yard</button>
-        </div>
-      </div>
-      <div class="mat-sel" id="matDeliveryAddrField">
-        <label>Delivery address <span style="color:var(--text2);font-weight:400">(if different)</span></label>
-        <input id="matDeliveryAddr" type="text" placeholder="Defaults to site address" oninput="_matSyncDeliveryAddr(this.value)">
-      </div>
-    </div>
-  </div>
-
   <!-- 6. ACTIONS — Save PDF / Push to Fergus / Open Fergus / Order Roof.
        Push to Fergus tries the auto-upload (best-effort while Fergus's
        PAT API is sparse on files); Open in Fergus is the reliable
@@ -1914,20 +1914,23 @@ select{
   </details>
 
   <!-- Print-only pages — populated at print time by _matBuildPrintPages.
-       Hidden on screen, shown by the print stylesheet. -->
+       Hidden on screen, shown by the print stylesheet. Page 1 leads with
+       Job & Delivery, then the drawing-measurements summary, then the
+       Roof Map, sheet layout + sheet cut list. -->
   <div class="mat-print-page" id="matPrintPage1">
     <div class="mp-header" id="matPrintHeader1"></div>
+    <div id="matPrintDrawTotals"></div>
     <h2 class="mp-h">Roof Map</h2>
     <div id="matPrintRoofMap"></div>
     <h2 class="mp-h">Sheet Layout</h2>
     <div id="matPrintSheetPlan"></div>
     <h2 class="mp-h">Roof Sheet Cut List</h2>
     <div id="matPrintSheetCutList"></div>
+    <h2 class="mp-h">Ridge / Hip Cut List</h2>
+    <div id="matPrintRidgeCutList"></div>
   </div>
   <div class="mat-print-page" id="matPrintPage2">
     <div class="mp-header" id="matPrintHeader2"></div>
-    <h2 class="mp-h">Flashing Layout</h2>
-    <div id="matPrintFlashingLayout"></div>
     <h2 class="mp-h">Material Order</h2>
     <div id="matPrintOrderDetails"></div>
   </div>
@@ -2534,7 +2537,9 @@ select{
     </div>
     <div style="padding:12px 20px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap">
       <button onclick="setFlashTool('draw')" id="flashToolDraw" class="tool-btn active-tool">✏ Draw</button>
+      <button onclick="setFlashTool('edit')" id="flashToolEdit" class="tool-btn">✥ Move / delete</button>
       <button onclick="setFlashTool('measure')" id="flashToolMeasure" class="tool-btn">📏 Add measurement</button>
+      <button onclick="setFlashTool('crush')" id="flashToolCrush" class="tool-btn">▽ Crush fold</button>
       <button onclick="setFlashTool('paint')" id="flashToolPaint" class="tool-btn">🎨 Painted side</button>
       <button onclick="setFlashTool('flashguard')" id="flashToolFlashguard" class="tool-btn">🛡 Flash guard</button>
       <button onclick="finishFlashPolyline()" class="tool-btn">↵ Finish</button>
@@ -2544,11 +2549,15 @@ select{
       <button onclick="saveFlashSketch()" class="sec-btn" style="margin:0 0 0 auto;width:auto;padding:8px 18px">Save sketch</button>
     </div>
     <div style="padding:8px 20px;background:#fafaf7;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--text2)">
-      <span id="flashStatsLine"><strong>Girth:</strong> 0 mm &nbsp;·&nbsp; <strong>Angle changes:</strong> 0</span>
+      <span id="flashStatsLine"><strong>Girth:</strong> 0 mm &nbsp;·&nbsp; <strong>Angle changes:</strong> 0 &nbsp;·&nbsp; <strong>Crush folds:</strong> 0</span>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
         <input type="checkbox" id="flashGuardsToggle" onchange="_onFlashGuardsToggle()" style="margin:0;width:auto"> Flash guards (+$5/lm)
       </label>
-      <span style="margin-left:auto;font-size:11px">Click to place corners · <strong>Finish</strong> or press Enter when done · <strong>Add measurement</strong> to label segments in mm · <strong>Painted side</strong> places a colour-arrow.</span>
+      <label style="display:flex;align-items:center;gap:6px">Text size
+        <input type="range" id="flashTextSize" min="10" max="22" step="1" value="14" oninput="_onFlashTextSize()" style="width:90px;margin:0">
+        <span id="flashTextSizeOut" style="font-variant-numeric:tabular-nums;color:var(--text)">14</span>px
+      </label>
+      <span style="margin-left:auto;font-size:11px">Click to place corners · <strong>Finish</strong> or press Enter when done · <strong>Move/delete</strong> drags vertices or removes a segment · <strong>Crush fold</strong> marks a vertex.</span>
     </div>
     <div style="padding:16px 20px;background:var(--surface-2)">
       <canvas id="flashCanvas" width="720" height="380" style="background:#fff;border:1px solid var(--border);border-radius:8px;width:100%;max-width:720px;display:block;touch-action:none;cursor:crosshair"></canvas>
@@ -3103,7 +3112,7 @@ function gotoTab(t) {
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
-  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}}
+  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
@@ -8722,6 +8731,101 @@ function _clearFlashingSketch(i){
 // background PUT /settings so the library survives reloads without
 // the user remembering to hit "Save settings".
 
+// Built-in flashing presets — ship with the program (not the user's
+// account) so a fresh login still has a usable starter set. Each entry
+// carries the same shape as a user-saved flashing so the library + the
+// Materials picker can treat them interchangeably. Built-ins are
+// flagged with isBuiltin:true so the UI hides destructive Edit/Delete
+// actions and instead offers Duplicate-then-edit.
+var _FLASH_BUILTIN_PRESETS = [
+  {
+    name:'Standard barge 25×75', flashingType:'barge', profile:'any', isBuiltin:true,
+    polylines:[{ vertices:[[180,160],[205,160],[205,205],[360,205],[360,265],[385,265]],
+                 measurements:{0:25, 1:75, 2:155, 3:75, 4:25} }],
+    girthMm:355, angleChanges:4
+  },
+  {
+    name:'Standard apron 150×100', flashingType:'apron', profile:'any', isBuiltin:true,
+    polylines:[{ vertices:[[215,135],[215,235],[365,235]],
+                 measurements:{0:150, 1:100} }],
+    girthMm:250, angleChanges:1
+  },
+  {
+    name:'Ridge cap 300mm (standard)', flashingType:'ridgehip', profile:'any', isBuiltin:true,
+    polylines:[{ vertices:[[200,240],[290,160],[380,240]],
+                 measurements:{0:150, 1:150} }],
+    girthMm:300, angleChanges:1
+  },
+  {
+    name:'Ridge cap 400mm (wide)', flashingType:'ridgehip', profile:'any', isBuiltin:true,
+    polylines:[{ vertices:[[180,250],[290,150],[400,250]],
+                 measurements:{0:200, 1:200} }],
+    girthMm:400, angleChanges:1
+  },
+  {
+    name:'Change of pitch', flashingType:'changepitch', profile:'any', isBuiltin:true,
+    polylines:[{ vertices:[[200,160],[290,220],[380,160]],
+                 measurements:{0:140, 1:140} }],
+    girthMm:280, angleChanges:1
+  },
+  {
+    name:'Standard valley 300mm', flashingType:'valley', profile:'any', isBuiltin:true,
+    polylines:[{ vertices:[[200,160],[290,250],[380,160]],
+                 measurements:{0:150, 1:150} }],
+    girthMm:300, angleChanges:1
+  },
+  {
+    name:'Box gutter 250×150', flashingType:'gutter', profile:'any', isBuiltin:true,
+    polylines:[{ vertices:[[190,150],[190,250],[360,250],[360,150]],
+                 measurements:{0:100, 1:170, 2:100} }],
+    girthMm:370, angleChanges:2
+  }
+];
+// Lazy-render each built-in to a PNG data URL so library tiles + picker
+// thumbnails reuse the same image path user-saves go through. Cached on
+// the preset object itself.
+function _ensureBuiltinSketch(p){
+  if (!p || p.sketch) return;
+  try {
+    var W = 540, H = 320;
+    var off = document.createElement('canvas'); off.width = W; off.height = H;
+    var ctx = off.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.font = '12px Inter, system-ui, sans-serif';
+    (p.polylines||[]).forEach(function(pl){
+      var v = pl.vertices || []; if (v.length < 2) return;
+      ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(v[0][0], v[0][1]);
+      for (var i=1;i<v.length;i++) ctx.lineTo(v[i][0], v[i][1]);
+      ctx.stroke();
+      // Measurement labels
+      for (var s=0; s<v.length-1; s++) {
+        var mm = pl.measurements && pl.measurements[s]; if (mm == null) continue;
+        var a = v[s], b = v[s+1];
+        var mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+        var dx=b[0]-a[0], dy=b[1]-a[1], L=Math.hypot(dx,dy)||1;
+        var ox=-dy/L*16, oy=dx/L*16;
+        var txt = mm + ' mm', tw = ctx.measureText(txt).width;
+        ctx.fillStyle = '#fff'; ctx.fillRect(mx+ox-tw/2-4, my+oy-9, tw+8, 18);
+        ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1; ctx.strokeRect(mx+ox-tw/2-4, my+oy-9, tw+8, 18);
+        ctx.fillStyle = '#dc2626'; ctx.fillText(txt, mx+ox-tw/2, my+oy+4);
+      }
+    });
+    p.sketch = off.toDataURL('image/png');
+  } catch(e){ /* swallow; tile just shows "No sketch" */ }
+}
+function _getBuiltinFlashings(){
+  _FLASH_BUILTIN_PRESETS.forEach(_ensureBuiltinSketch);
+  return _FLASH_BUILTIN_PRESETS;
+}
+// Returns built-ins + user-saved as a single array, in that order. Used
+// by the library grid and the Materials tab picker so a fresh-from-the-
+// box account already has options to choose from.
+function _getAllFlashings(){
+  return _getBuiltinFlashings().concat(_getSavedFlashings());
+}
+
 function _getSavedFlashings(){
   var cat = _ensureCatalog();
   if (!cat.savedFlashings) cat.savedFlashings = [];
@@ -8915,6 +9019,7 @@ function _snapshotFlashState(){
       vertices: p.vertices.map(function(v){return v.slice();}),
       measurements: Object.assign({}, p.measurements),
       measurementOffsets: Object.assign({}, p.measurementOffsets || {}),
+      crushFolds: Object.assign({}, p.crushFolds || {}),
     };
   }
   return {
@@ -8986,33 +9091,63 @@ function _allFlashPolylines(){
 }
 
 function _computeFlashStats(){
-  var girth = 0, angleChanges = 0;
+  var girth = 0, angleChanges = 0, crushFolds = 0;
   _allFlashPolylines().forEach(function(p){
     Object.keys(p.measurements).forEach(function(k){
       var mm = +p.measurements[k] || 0; girth += mm;
     });
     // Each interior vertex is an angle change (n vertices → n-2 corners).
     if (p.vertices.length >= 3) angleChanges += (p.vertices.length - 2);
+    if (p.crushFolds) {
+      Object.keys(p.crushFolds).forEach(function(k){ if (p.crushFolds[k]) crushFolds++; });
+    }
   });
-  return { girth: girth, angleChanges: angleChanges };
+  return { girth: girth, angleChanges: angleChanges, crushFolds: crushFolds };
 }
 function _updateFlashStats(){
   var s = _computeFlashStats();
   var el = document.getElementById('flashStatsLine');
   if (!el) return;
-  el.innerHTML = '<strong>Girth:</strong> '+s.girth+' mm &nbsp;·&nbsp; <strong>Angle changes:</strong> '+s.angleChanges;
+  el.innerHTML = '<strong>Girth:</strong> '+s.girth+' mm &nbsp;·&nbsp; <strong>Angle changes:</strong> '+s.angleChanges+' &nbsp;·&nbsp; <strong>Crush folds:</strong> '+s.crushFolds;
 }
 
 // Canvas redraw — wipes + paints everything from current state.
 // Populates _flashLabelRects so the mouse-down handler can hit-test
 // every label/marker and start a drag without recomputing geometry.
 var _flashLabelRects = [];
+// User-controlled text size for every label in the sketcher. Persists
+// in localStorage so the next session opens at the same size.
+function _flashTextPx(){
+  var s = parseInt(_flashSketchState.textPx || localStorage.getItem('fr_flash_text_px') || '14', 10);
+  if (!isFinite(s) || s < 9) s = 9;
+  if (s > 26) s = 26;
+  return s;
+}
+function _onFlashTextSize(){
+  var inp = document.getElementById('flashTextSize');
+  if (!inp) return;
+  var v = parseInt(inp.value, 10) || 14;
+  _flashSketchState.textPx = v;
+  try { localStorage.setItem('fr_flash_text_px', String(v)); } catch(e){}
+  var out = document.getElementById('flashTextSizeOut');
+  if (out) out.textContent = String(v);
+  _redrawFlashCanvas();
+}
+function _syncFlashTextSizeUi(){
+  var inp = document.getElementById('flashTextSize');
+  var out = document.getElementById('flashTextSizeOut');
+  var v = _flashTextPx();
+  if (inp) inp.value = String(v);
+  if (out) out.textContent = String(v);
+}
 function _redrawFlashCanvas(){
   var c = document.getElementById('flashCanvas'); if (!c) return;
   var ctx = c.getContext('2d');
   ctx.clearRect(0,0,c.width,c.height);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.font = '12px Inter, system-ui, sans-serif';
+  var fontPx = _flashTextPx();
+  var fontStr = fontPx + 'px Inter, system-ui, sans-serif';
+  ctx.font = fontStr;
   _flashLabelRects = [];
 
   function drawOne(p, isCurrent, polyRef){
@@ -9032,6 +9167,45 @@ function _redrawFlashCanvas(){
       ctx.fillStyle = '#dc2626';
       ctx.fill();
     }
+    // Edit tool — show small handles on every vertex so the user knows
+    // they're draggable.
+    if (_flashSketchState.tool === 'edit' && v.length) {
+      v.forEach(function(vp){
+        ctx.beginPath();
+        ctx.arc(vp[0], vp[1], 5, 0, 2*Math.PI);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+        ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+    }
+    // Crush-fold markers — small filled inverted triangle pointing into
+    // the corner, plus a small "C" badge when the text size is big
+    // enough for it to read clearly.
+    if (p.crushFolds) {
+      Object.keys(p.crushFolds).forEach(function(k){
+        if (!p.crushFolds[k]) return;
+        var idx = +k; if (!v[idx]) return;
+        var cx = v[idx][0], cy = v[idx][1];
+        var size = Math.max(8, fontPx * 0.7);
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - size);
+        ctx.lineTo(cx + size, cy + size * 0.4);
+        ctx.lineTo(cx - size, cy + size * 0.4);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(234,88,12,0.85)';
+        ctx.fill();
+        ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = 'bold ' + Math.max(8, fontPx-2) + 'px Inter, system-ui, sans-serif';
+        ctx.fillText('▽', cx, cy);
+        ctx.font = fontStr;
+        ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+        ctx.restore();
+      });
+    }
     // Measurement labels — auto centre on segment perpendicular,
     // plus any per-segment offset the user has dragged it to.
     if (!p.measurementOffsets) p.measurementOffsets = {};
@@ -9042,18 +9216,20 @@ function _redrawFlashCanvas(){
       var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
       var dx = b[0]-a[0], dy = b[1]-a[1];
       var len = Math.hypot(dx, dy) || 1;
-      var ox = -dy/len * 18, oy = dx/len * 18;
+      var perpOffset = Math.max(18, fontPx + 6);
+      var ox = -dy/len * perpOffset, oy = dx/len * perpOffset;
       var off = p.measurementOffsets[i] || [0,0];
       var lx = mx + ox + off[0], ly = my + oy + off[1];
       var txt = mm + ' mm';
       var tw = ctx.measureText(txt).width;
-      var rx = lx - tw/2 - 5, ry = ly - 10, rw = tw + 10, rh = 20;
+      var rw = tw + 12, rh = fontPx + 10;
+      var rx = lx - rw/2, ry = ly - rh/2;
       ctx.fillStyle = '#fff';
       ctx.fillRect(rx, ry, rw, rh);
       ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1;
       ctx.strokeRect(rx, ry, rw, rh);
       ctx.fillStyle = '#dc2626';
-      ctx.fillText(txt, lx - tw/2, ly + 5);
+      ctx.fillText(txt, lx - tw/2, ly + fontPx*0.35);
       _flashLabelRects.push({
         type: 'measurement', polyline: p, segmentIdx: i,
         x: rx, y: ry, w: rw, h: rh,
@@ -9083,9 +9259,9 @@ function _redrawFlashCanvas(){
     var labelY = ps.y + ps.dirY * labelDist;
     var tipX   = ps.x + ps.dirX * tipBackoff;
     var tipY   = ps.y + ps.dirY * tipBackoff;
-    ctx.font = '12px Inter, system-ui, sans-serif';
+    ctx.font = fontStr;
     var txt = 'Painted', tw = ctx.measureText(txt).width;
-    var boxW = tw + 16, boxH = 18;
+    var boxW = tw + 16, boxH = fontPx + 8;
     ctx.fillStyle = '#fff';
     ctx.fillRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
     ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 1.2;
@@ -9114,9 +9290,9 @@ function _redrawFlashCanvas(){
   // distinct orange so the supplier can tell them apart.
   if (_flashSketchState.flashGuard) {
     var fg = _flashSketchState.flashGuard;
-    ctx.font = '12px Inter, system-ui, sans-serif';
+    ctx.font = fontStr;
     var fgTxt = 'Flash guard', fgTw = ctx.measureText(fgTxt).width;
-    var fgBoxW = fgTw + 16, fgBoxH = 18;
+    var fgBoxW = fgTw + 16, fgBoxH = fontPx + 8;
     ctx.fillStyle = '#fff';
     ctx.fillRect(fg.x - fgBoxW/2, fg.y - fgBoxH/2, fgBoxW, fgBoxH);
     ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 1.2;
@@ -9174,12 +9350,14 @@ function _flashLabelSetPos(hit, nx, ny){
 // ── Tools ───────────────────────────────────────────────
 function setFlashTool(t){
   _flashSketchState.tool = t;
-  ['draw','measure','paint','flashguard'].forEach(function(name){
+  ['draw','edit','measure','crush','paint','flashguard'].forEach(function(name){
     var btn = document.getElementById('flashTool' + name.charAt(0).toUpperCase() + name.slice(1));
     if (btn) btn.classList.toggle('active-tool', t === name);
   });
   var c = document.getElementById('flashCanvas');
-  if (c) c.style.cursor = (t === 'measure' || t === 'paint' || t === 'flashguard') ? 'pointer' : 'crosshair';
+  if (c) c.style.cursor = (t === 'edit') ? 'move'
+    : (t === 'measure' || t === 'paint' || t === 'flashguard' || t === 'crush') ? 'pointer'
+    : 'crosshair';
   // Cancel any in-progress polyline when leaving draw mode so a measure
   // click doesn't end up adding a vertex back in draw mode.
   if (t !== 'draw' && _flashSketchState.currentPolyline) {
@@ -9249,6 +9427,19 @@ function _closestSegmentTo(px, py){
   });
   return best;
 }
+// Find the nearest vertex across every polyline. Returns {polyline,
+// vertexIdx, dist} or null if no polylines exist.
+function _closestVertexTo(px, py){
+  var best = null, bestD = Infinity;
+  _allFlashPolylines().forEach(function(p){
+    for (var i = 0; i < p.vertices.length; i++) {
+      var v = p.vertices[i];
+      var d = Math.hypot(px - v[0], py - v[1]);
+      if (d < bestD) { bestD = d; best = { polyline: p, vertexIdx: i, dist: d }; }
+    }
+  });
+  return best;
+}
 
 // ── Click handler ──────────────────────────────────────
 function _onFlashCanvasClick(p){
@@ -9302,7 +9493,94 @@ function _onFlashCanvasClick(p){
     _pushFlashHistory();
     _flashSketchState.flashGuard = { x: p.x, y: p.y };
     _redrawFlashCanvas();
+  } else if (_flashSketchState.tool === 'crush') {
+    // Crush fold marker — placed AT the nearest vertex. Each marker is
+    // a small filled triangle drawn over the corner, counted into the
+    // stats line + persisted on the polyline as crushFolds[i] = true.
+    var vhit = _closestVertexTo(p.x, p.y);
+    if (!vhit || vhit.dist > 22) return;
+    _pushFlashHistory();
+    if (!vhit.polyline.crushFolds) vhit.polyline.crushFolds = {};
+    var key = String(vhit.vertexIdx);
+    if (vhit.polyline.crushFolds[key]) delete vhit.polyline.crushFolds[key];
+    else vhit.polyline.crushFolds[key] = true;
+    _redrawFlashCanvas();
+    _updateFlashStats();
+  } else if (_flashSketchState.tool === 'edit') {
+    // Edit tool — click on a SEGMENT (not a vertex) to delete the
+    // segment. Vertex moves are handled in mousedown/mousemove. We
+    // ignore vertex clicks here because the press-start path would have
+    // initiated a drag instead of firing this click handler.
+    var vhit2 = _closestVertexTo(p.x, p.y);
+    if (vhit2 && vhit2.dist < 12) return;
+    var shit = _closestSegmentTo(p.x, p.y);
+    if (!shit || shit.dist > 16) return;
+    var polyVerts = shit.polyline.vertices;
+    var segIdx    = shit.segmentIdx;
+    if (!confirm('Delete this line segment? Adjacent segments stay; the polyline splits if the segment is in the middle.')) return;
+    _pushFlashHistory();
+    _deleteFlashSegment(shit.polyline, segIdx);
+    _redrawFlashCanvas();
+    _updateFlashStats();
   }
+}
+
+// Remove a segment from a polyline. If the segment is at either end,
+// drop the orphan vertex. If it sits in the middle, split the polyline
+// into two halves. Cleans up associated measurements + crush-folds so
+// they stay aligned with the new vertex indices.
+function _deleteFlashSegment(p, segIdx){
+  if (!p || segIdx < 0 || segIdx >= p.vertices.length - 1) return;
+  var v = p.vertices;
+  var meas = p.measurements || {};
+  var offs = p.measurementOffsets || {};
+  var crush = p.crushFolds || {};
+  // First vertex of the segment is segIdx; second is segIdx+1.
+  if (segIdx === 0) {
+    // Drop v[0], shift everything down by 1.
+    v.shift();
+    var nm={}, no={}, nc={};
+    Object.keys(meas).forEach(function(k){ var i=+k; if (i>0) nm[i-1] = meas[k]; });
+    Object.keys(offs).forEach(function(k){ var i=+k; if (i>0) no[i-1] = offs[k]; });
+    Object.keys(crush).forEach(function(k){ var i=+k; if (i>0) nc[i-1] = crush[k]; });
+    p.measurements = nm; p.measurementOffsets = no; p.crushFolds = nc;
+    if (v.length < 2) _removeFlashPolyline(p);
+    return;
+  }
+  if (segIdx === v.length - 2) {
+    // Drop the last vertex.
+    v.pop();
+    delete meas[segIdx];
+    delete offs[segIdx];
+    delete crush[String(segIdx+1)];
+    if (v.length < 2) _removeFlashPolyline(p);
+    return;
+  }
+  // Mid-segment split — turn this polyline into two.
+  var leftVerts  = v.slice(0, segIdx + 1);
+  var rightVerts = v.slice(segIdx + 1);
+  var leftM={}, leftO={}, leftC={};
+  Object.keys(meas).forEach(function(k){ var i=+k; if (i <  segIdx) leftM[i] = meas[k]; });
+  Object.keys(offs).forEach(function(k){ var i=+k; if (i <  segIdx) leftO[i] = offs[k]; });
+  Object.keys(crush).forEach(function(k){ var i=+k; if (i <= segIdx) leftC[i] = crush[k]; });
+  var rightM={}, rightO={}, rightC={};
+  Object.keys(meas).forEach(function(k){ var i=+k; if (i >  segIdx) rightM[i - segIdx - 1] = meas[k]; });
+  Object.keys(offs).forEach(function(k){ var i=+k; if (i >  segIdx) rightO[i - segIdx - 1] = offs[k]; });
+  Object.keys(crush).forEach(function(k){ var i=+k; if (i >  segIdx) rightC[i - segIdx - 1] = crush[k]; });
+  p.vertices = leftVerts;
+  p.measurements = leftM; p.measurementOffsets = leftO; p.crushFolds = leftC;
+  if (rightVerts.length >= 2) {
+    _flashSketchState.polylines.push({
+      vertices: rightVerts, measurements: rightM,
+      measurementOffsets: rightO, crushFolds: rightC
+    });
+  }
+  if (p.vertices.length < 2) _removeFlashPolyline(p);
+}
+function _removeFlashPolyline(p){
+  var i = _flashSketchState.polylines.indexOf(p);
+  if (i >= 0) _flashSketchState.polylines.splice(i, 1);
+  if (_flashSketchState.currentPolyline === p) _flashSketchState.currentPolyline = null;
 }
 
 function _onFlashCanvasMouseMove(p){
@@ -9342,13 +9620,17 @@ function openFlashSketch(idx){
   if (f && f.polylines && f.polylines.length) {
     _flashSketchState.polylines = f.polylines.map(function(p){
       return { vertices: p.vertices.map(function(v){return v.slice();}),
-               measurements: Object.assign({}, p.measurements||{}) };
+               measurements: Object.assign({}, p.measurements||{}),
+               measurementOffsets: Object.assign({}, p.measurementOffsets||{}),
+               crushFolds: Object.assign({}, p.crushFolds||{}) };
     });
     _flashSketchState.paintedSide = f.paintedSide || null;
+    _flashSketchState.flashGuard  = f.flashGuard  || null;
     _flashSketchState.flashGuards = !!f.flashGuards;
     var t = document.getElementById('flashGuardsToggle'); if (t) t.checked = !!f.flashGuards;
   }
   setFlashTool('draw');
+  _syncFlashTextSizeUi();
   _redrawFlashCanvas();
   _updateFlashStats();
   document.getElementById('flashSketchModal').style.display = 'flex';
@@ -9370,13 +9652,17 @@ function openFlashEditModal(libIdx){
   if (entry && entry.polylines && entry.polylines.length) {
     _flashSketchState.polylines = entry.polylines.map(function(p){
       return { vertices: p.vertices.map(function(v){return v.slice();}),
-               measurements: Object.assign({}, p.measurements||{}) };
+               measurements: Object.assign({}, p.measurements||{}),
+               measurementOffsets: Object.assign({}, p.measurementOffsets||{}),
+               crushFolds: Object.assign({}, p.crushFolds||{}) };
     });
     _flashSketchState.paintedSide = entry.paintedSide || null;
+    _flashSketchState.flashGuard  = entry.flashGuard  || null;
     _flashSketchState.flashGuards = !!entry.flashGuards;
     var t = document.getElementById('flashGuardsToggle'); if (t) t.checked = !!entry.flashGuards;
   }
   setFlashTool('draw');
+  _syncFlashTextSizeUi();
   _redrawFlashCanvas();
   _updateFlashStats();
   document.getElementById('flashSketchModal').style.display = 'flex';
@@ -9393,7 +9679,9 @@ function saveFlashSketch(){
   var stats = _computeFlashStats();
   var polylinesSnapshot = _flashSketchState.polylines.map(function(p){
     return { vertices: p.vertices.map(function(v){return v.slice();}),
-             measurements: Object.assign({}, p.measurements) };
+             measurements: Object.assign({}, p.measurements),
+             measurementOffsets: Object.assign({}, p.measurementOffsets || {}),
+             crushFolds: Object.assign({}, p.crushFolds || {}) };
   });
 
   // Library mode
@@ -9410,9 +9698,11 @@ function saveFlashSketch(){
       sketch: url,
       polylines: polylinesSnapshot,
       paintedSide: _flashSketchState.paintedSide,
+      flashGuard:  _flashSketchState.flashGuard,
       flashGuards: _flashSketchState.flashGuards,
       girthMm: stats.girth,
       angleChanges: stats.angleChanges,
+      crushFoldCount: stats.crushFolds,
       // legacy compat fields so existing pickers still work
       type: name, qty: 1, faces: [{label:'Face A',length:''},{label:'Face B',length:''}],
       lineBreaks: '', notes: ''
@@ -9450,21 +9740,25 @@ function saveFlashSketch(){
 // the top of the panel calls openFlashEditModal(-1).
 function renderFlashingLibrary() {
   var grid = document.getElementById('flashLibraryGrid'); if (!grid) return;
-  var lib = _getSavedFlashings();
+  var builtins = _getBuiltinFlashings();
+  var saved    = _getSavedFlashings();
+  // Build a combined view with origin flags so we can route Edit /
+  // Delete / Duplicate to the right backing store.
+  var combined = [];
+  builtins.forEach(function(e, i){ combined.push({ entry: e, isBuiltin: true,  srcIdx: i }); });
+  saved.forEach(   function(e, i){ combined.push({ entry: e, isBuiltin: false, srcIdx: i }); });
   var fpEl = document.getElementById('flibFilterProfile');
   var ftEl = document.getElementById('flibFilterType');
   var fProfile = fpEl ? fpEl.value : '';
   var fType    = ftEl ? ftEl.value : '';
-  var rows = lib.map(function(e, i){ return {entry: e, idx: i}; }).filter(function(r){
+  var rows = combined.filter(function(r){
     if (fProfile && (r.entry.profile || 'any') !== fProfile) return false;
     if (fType    && (r.entry.flashingType || 'custom') !== fType) return false;
     return true;
   });
   if (!rows.length) {
     grid.innerHTML = '<div style="text-align:center;padding:32px 16px;color:var(--text2);font-size:13px">'+
-      (lib.length === 0
-        ? 'No saved flashings yet. Click <strong>+ New flashing</strong> above to add one.'
-        : 'No flashings match the current filter.')+
+      'No flashings match the current filter.'+
       '</div>';
     return;
   }
@@ -9476,21 +9770,99 @@ function renderFlashingLibrary() {
       var thumb = e.sketch
         ? '<img src="'+e.sketch+'" alt="" style="width:100%;height:110px;object-fit:contain;background:#fff;border-bottom:1px solid var(--border);display:block">'
         : '<div style="width:100%;height:110px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);color:var(--text3);font-size:11px;border-bottom:1px solid var(--border)">No sketch</div>';
+      var originBadge = r.isBuiltin
+        ? '<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:10px;font-weight:600">Built-in</span>'
+        : '<span style="font-size:10px;background:#dcfce7;color:#166534;padding:2px 7px;border-radius:10px;font-weight:600">Saved</span>';
+      var dupCall = r.isBuiltin
+        ? 'duplicateBuiltinFlashing('+r.srcIdx+')'
+        : 'duplicateSavedFlashing('+r.srcIdx+')';
+      var actions;
+      if (r.isBuiltin) {
+        // Built-ins are read-only — Edit creates a duplicate first.
+        actions =
+          '<button onclick="duplicateBuiltinFlashing('+r.srcIdx+', true)" class="tool-btn" style="flex:1;font-size:11px;padding:6px 8px">Edit copy</button>'+
+          '<button onclick="duplicateBuiltinFlashing('+r.srcIdx+')" class="tool-btn" style="font-size:11px;padding:6px 10px">⧉ Duplicate</button>';
+      } else {
+        actions =
+          '<button onclick="openFlashEditModal('+r.srcIdx+')" class="tool-btn" style="flex:1;font-size:11px;padding:6px 8px">Edit</button>'+
+          '<button onclick="'+dupCall+'" class="tool-btn" style="font-size:11px;padding:6px 8px">⧉ Copy</button>'+
+          '<button onclick="deleteFlashingLibraryEntry('+r.srcIdx+')" class="tool-btn" style="font-size:11px;padding:6px 10px;color:#b91c1c">Delete</button>';
+      }
       return '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">'+
         thumb +
         '<div style="padding:10px 12px">'+
           '<div style="font-size:13px;font-weight:600;color:#0a1628;margin-bottom:4px">'+esc(e.name||'Untitled')+'</div>'+
           '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
+            originBadge +
             '<span style="font-size:10px;background:#f4f4ef;color:#374151;padding:2px 7px;border-radius:10px;font-weight:600">'+esc(e.profile||'any')+'</span>'+
             '<span style="font-size:10px;background:#e0f2fe;color:#075985;padding:2px 7px;border-radius:10px;font-weight:600">'+esc(typeLabels[e.flashingType] || 'Custom')+'</span>'+
           '</div>'+
-          '<div style="display:flex;gap:6px">'+
-            '<button onclick="openFlashEditModal('+r.idx+')" class="tool-btn" style="flex:1;font-size:11px;padding:6px 8px">Edit</button>'+
-            '<button onclick="deleteFlashingLibraryEntry('+r.idx+')" class="tool-btn" style="font-size:11px;padding:6px 10px;color:#b91c1c">Delete</button>'+
+          '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+            actions +
           '</div>'+
         '</div>'+
       '</div>';
     }).join('') + '</div>';
+}
+
+// Snapshot a flashing entry into the user's library under a NEW name
+// so the original (built-in or saved) is untouched. Returns the new
+// index in the user library, or -1 on failure.
+function _cloneFlashingIntoLibrary(src, suggestedName){
+  if (!src) return -1;
+  var lib = _getSavedFlashings();
+  var base = suggestedName || ((src.name || 'Untitled') + ' (copy)');
+  var name = base, n = 2;
+  while (lib.some(function(x){ return x.name === name; })) { name = base + ' ' + n; n++; }
+  var copy = {
+    name: name,
+    profile: src.profile || 'any',
+    flashingType: src.flashingType || 'custom',
+    sketch: src.sketch || '',
+    polylines: (src.polylines||[]).map(function(p){
+      return {
+        vertices: (p.vertices||[]).map(function(v){ return v.slice(); }),
+        measurements: Object.assign({}, p.measurements || {}),
+        measurementOffsets: Object.assign({}, p.measurementOffsets || {}),
+        crushFolds: Object.assign({}, p.crushFolds || {})
+      };
+    }),
+    paintedSide: src.paintedSide ? Object.assign({}, src.paintedSide) : null,
+    flashGuard: src.flashGuard ? Object.assign({}, src.flashGuard) : null,
+    flashGuards: !!src.flashGuards,
+    girthMm: src.girthMm || 0,
+    angleChanges: src.angleChanges || 0,
+    crushFoldCount: src.crushFoldCount || 0,
+    // legacy compat
+    type: src.type || src.name || '',
+    qty: src.qty || 1,
+    faces: (src.faces || []).map(function(f){ return Object.assign({}, f); }),
+    lineBreaks: src.lineBreaks || '', notes: src.notes || ''
+  };
+  lib.push(copy);
+  _updateSavedFlashCount();
+  _persistCatalogSilently();
+  return lib.length - 1;
+}
+
+// Duplicate a built-in into the user's library. When openAfter is true,
+// immediately open the new copy in the sketch editor so the user can
+// tweak it. Without openAfter the library grid just re-renders with the
+// fresh copy visible.
+function duplicateBuiltinFlashing(builtinIdx, openAfter){
+  var src = _getBuiltinFlashings()[builtinIdx]; if (!src) return;
+  var newIdx = _cloneFlashingIntoLibrary(src);
+  if (newIdx < 0) return;
+  renderFlashingLibrary();
+  if (openAfter) openFlashEditModal(newIdx);
+}
+// Duplicate a user-saved entry. Always lands in the user library.
+function duplicateSavedFlashing(savedIdx){
+  var src = _getSavedFlashings()[savedIdx]; if (!src) return;
+  var newIdx = _cloneFlashingIntoLibrary(src);
+  if (newIdx < 0) return;
+  renderFlashingLibrary();
+  openFlashEditModal(newIdx);
 }
 
 function deleteFlashingLibraryEntry(idx) {
@@ -9519,9 +9891,23 @@ function deleteFlashingLibraryEntry(idx) {
         var pos = _flashLabelGetPos(hit);
         _flashSketchState.dragInfo = { hit: hit, mx: p.x, my: p.y, px: pos.x, py: pos.y, moved: false };
         _flashSketchState.pressStart = null;
-      } else {
-        _flashSketchState.pressStart = p;
+        return;
       }
+      // Edit tool: grabbing near a vertex starts a vertex drag.
+      if (_flashSketchState.tool === 'edit') {
+        var vhit = _closestVertexTo(p.x, p.y);
+        if (vhit && vhit.dist < 14) {
+          _pushFlashHistory();
+          var v = vhit.polyline.vertices[vhit.vertexIdx];
+          _flashSketchState.dragInfo = {
+            hit: { type: 'vertex', polyline: vhit.polyline, vertexIdx: vhit.vertexIdx },
+            mx: p.x, my: p.y, px: v[0], py: v[1], moved: false
+          };
+          _flashSketchState.pressStart = null;
+          return;
+        }
+      }
+      _flashSketchState.pressStart = p;
     });
     c.addEventListener('mousemove', function(e){
       var p = _flashCanvasPt(e);
@@ -9529,7 +9915,11 @@ function deleteFlashingLibraryEntry(idx) {
       if (di) {
         var nx = di.px + (p.x - di.mx);
         var ny = di.py + (p.y - di.my);
-        _flashLabelSetPos(di.hit, nx, ny);
+        if (di.hit.type === 'vertex') {
+          di.hit.polyline.vertices[di.hit.vertexIdx] = [nx, ny];
+        } else {
+          _flashLabelSetPos(di.hit, nx, ny);
+        }
         di.moved = true;
         _redrawFlashCanvas();
         return;
@@ -9572,6 +9962,19 @@ function deleteFlashingLibraryEntry(idx) {
         var pos = _flashLabelGetPos(hit);
         _flashSketchState.dragInfo = { hit: hit, mx: p.x, my: p.y, px: pos.x, py: pos.y, moved: false };
         _flashSketchState.pressStart = null;
+      } else if (_flashSketchState.tool === 'edit') {
+        var vhit = _closestVertexTo(p.x, p.y);
+        if (vhit && vhit.dist < 20) {
+          _pushFlashHistory();
+          var v = vhit.polyline.vertices[vhit.vertexIdx];
+          _flashSketchState.dragInfo = {
+            hit: { type:'vertex', polyline: vhit.polyline, vertexIdx: vhit.vertexIdx },
+            mx: p.x, my: p.y, px: v[0], py: v[1], moved: false
+          };
+          _flashSketchState.pressStart = null;
+        } else {
+          _flashSketchState.pressStart = p;
+        }
       } else {
         _flashSketchState.pressStart = p;
         _onFlashCanvasMouseMove(p);
@@ -9582,7 +9985,9 @@ function deleteFlashingLibraryEntry(idx) {
       var p = _flashCanvasPt(e);
       var di = _flashSketchState.dragInfo;
       if (di) {
-        _flashLabelSetPos(di.hit, di.px + (p.x - di.mx), di.py + (p.y - di.my));
+        var nx = di.px + (p.x - di.mx), ny = di.py + (p.y - di.my);
+        if (di.hit.type === 'vertex') di.hit.polyline.vertices[di.hit.vertexIdx] = [nx, ny];
+        else _flashLabelSetPos(di.hit, nx, ny);
         di.moved = true;
         _redrawFlashCanvas();
       } else {
@@ -11950,6 +12355,11 @@ function onCanvasClick(e) {
     // Click the calibration line to re-open the popup and update its
     // measure without redrawing.
     if (hitCalibrationLine(xy[0], xy[1])) { editCalibrate(); return; }
+    // Click a flashing letter tag (A: 4.2m) or a sheet-length label
+    // before anything else — these labels sit on top of lines + faces
+    // so they need first-pick to avoid the underlying line selecting.
+    var hitFL = _roofCanvasHitLetterOrSheet(e);
+    if (hitFL) { return; }
     var hitS = hitSection(xy[0],xy[1]);
     var hitL = hitLine(xy[0],xy[1]);
     var hitP = hitPen(xy[0],xy[1]);
@@ -12443,6 +12853,10 @@ function redrawAll() {
   var dpr=window.devicePixelRatio||1;
   // Canvas resolution is dpr * CSS size; scale ctx so 1 unit = 1 CSS pixel
   var W=cv.width/dpr, H=cv.height/dpr;
+  // Reset click hit-data — populated as we draw flashing letter tags and
+  // sheet-length labels so the canvas click handler (and the mirrored
+  // Materials Roof Map) can edit/delete on tap.
+  window._roofCanvasHits = { letters: [], sheets: [] };
   ctx.save();
   ctx.scale(dpr,dpr);
   ctx.clearRect(0,0,W,H);
@@ -13033,6 +13447,14 @@ function redrawAll() {
       ctx.strokeText(d.label, d.lblX, d.lblY);
       ctx.fillStyle = '#0a1628';
       ctx.fillText(d.label, d.lblX, d.lblY);
+      // Stash hit box for click-to-edit sheet length. Width grows with the
+      // label text; height matches the font so tap area covers the label.
+      var hitTw = ctx.measureText(d.label).width;
+      window._roofCanvasHits.sheets.push({
+        x: d.lblX, y: d.lblY,
+        w: Math.max(hitTw + 14, 50), h: Math.max(fontPx + 8, 18),
+        key: d.key, label: d.label
+      });
       if (d.sdl < 26 * af) return;             // too short for arrows — label only
       ctx.lineCap = 'round';
       ctx.lineWidth = 1.4 * af;
@@ -13049,6 +13471,63 @@ function redrawAll() {
     });
     ctx.restore();
   }
+
+  // ── FLASHING LETTER OVERLAYS ─────────────────────────────────────
+  // Draw the auto-assigned letter+adjusted-length tag from
+  // _flashCollectLabelled for every labelled line. Tag sits perpendicular
+  // to the line midpoint offset 32px out so it stays clear of the
+  // existing measurement label. Stashes hit data so the canvas click
+  // handler + the mirrored Materials Roof Map can edit / delete.
+  try {
+    var _labelledLines = (typeof _flashCollectLabelled === 'function')
+      ? _flashCollectLabelled()
+      : [];
+    if (_labelledLines.length) {
+      ctx.save();
+      ctx.font = '700 11px Inter, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      _labelledLines.forEach(function(o){
+        if (!o.line || !o.line.pts || o.line.pts.length < 2) return;
+        // Only draw overlays for the ACTIVE roof's lines (or any
+        // visible roof in Show-all). Non-visible roofs' letters
+        // would land on the wrong canvas position.
+        var roofVisible = (o.roofIdx < 0)
+          || (o.roofIdx === DRAW.activeRoofIdx)
+          || (!!DRAW.showAllRoofs);
+        if (!roofVisible) return;
+        var a = dp(o.line.pts[0]), b = dp(o.line.pts[1]);
+        var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+        var dxL = b[0]-a[0], dyL = b[1]-a[1];
+        var L = Math.sqrt(dxL*dxL + dyL*dyL) || 1;
+        // Perpendicular offset 32px out. The measurement label sits on
+        // the +y midpoint area, so we pick the perpendicular that points
+        // AWAY from the measurement to keep them visually separated.
+        var ox = -dyL/L * 32, oy = dxL/L * 32;
+        // Bias toward the opposite side of the measurement label (which
+        // sits just below the midpoint at +Y) — flip if our offset is in
+        // the same +Y direction as the measurement.
+        if (o.line.measM && oy > 0) { ox = -ox; oy = -oy; }
+        var lx = mx + ox, ly = my + oy;
+        var txt = (o.letter || '?') + ': ' + o.lengthM.toFixed(1) + 'm';
+        var tw = ctx.measureText(txt).width;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(lx - tw/2 - 6, ly - 9, tw + 12, 18);
+        ctx.strokeStyle = o.color || '#0a1628';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(lx - tw/2 - 6, ly - 9, tw + 12, 18);
+        ctx.fillStyle = o.color || '#0a1628';
+        ctx.fillText(txt, lx, ly);
+        window._roofCanvasHits.letters.push({
+          x: lx, y: ly, w: tw + 12, h: 18,
+          line: o.line, key: o.key, roofIdx: o.roofIdx,
+          letter: o.letter, lengthM: o.lengthM,
+          type: o.line.type, color: o.color
+        });
+      });
+      ctx.restore();
+    }
+  } catch(e){ /* never let the overlay break the canvas */ }
 
   // Info items — numbered bright asterisks
   DRAW.infoItems.forEach(function(item){
@@ -14487,6 +14966,31 @@ var _MAT_FLASHING_SPECS = [
 // numeric cut list and in the printed PDF.
 
 // Identifier for a line that survives endpoint swaps + small drift.
+// Hit-test the click event against the stashed roof-canvas hits
+// (letter tags + sheet labels). Returns truthy if a hit was handled.
+function _roofCanvasHitLetterOrSheet(ev){
+  var cv = document.getElementById('roofCanvas'); if (!cv) return false;
+  var hits = window._roofCanvasHits || { letters: [], sheets: [] };
+  if (!hits.letters.length && !hits.sheets.length) return false;
+  var r  = cv.getBoundingClientRect();
+  var dpr = window.devicePixelRatio || 1;
+  // Click → CSS pixels (the same space hits are stored in after the
+  // ctx.scale(dpr,dpr) in redrawAll).
+  var cx = (ev.clientX - r.left) * (cv.width  / r.width)  / dpr;
+  var cy = (ev.clientY - r.top)  * (cv.height / r.height) / dpr;
+  function inBox(h){
+    return cx >= (h.x - h.w/2) && cx <= (h.x + h.w/2)
+        && cy >= (h.y - h.h/2) && cy <= (h.y + h.h/2);
+  }
+  for (var i = 0; i < hits.letters.length; i++) {
+    if (inBox(hits.letters[i])) { _flashEditPopup(hits.letters[i]); return true; }
+  }
+  for (var j = 0; j < hits.sheets.length; j++) {
+    if (inBox(hits.sheets[j])) { _sheetEditPopup(hits.sheets[j]); return true; }
+  }
+  return false;
+}
+
 function _flashLineKey(line) {
   if (!line || !line.pts || line.pts.length < 2) return '';
   var a = line.pts[0], b = line.pts[1];
@@ -14526,7 +15030,9 @@ function _flashCollectLabelled() {
   var ovs = DRAW.flashLayoutOverrides;
   var out = [];
   // Auto-assign letters in encounter order. User overrides on the
-  // SAME line replace both the letter and the measurement.
+  // SAME line replace both the letter and the measurement. An override
+  // can also mark a line as `hidden` to exclude it from the cut list +
+  // overlay (the "delete" action from the click popup).
   var seenLetters = {};
   // First pass: collect, applying overrides where present.
   var roofs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs : null;
@@ -14536,6 +15042,7 @@ function _flashCollectLabelled() {
       var key = _flashLineKey(l);
       if (!key) return;
       var ov  = ovs[key] || {};
+      if (ov.hidden) return;     // user deleted this entry
       var letter = ov.letter || '';
       var lengthM = ov.lengthM != null ? +ov.lengthM : _flashAutoLengthM(l);
       out.push({
@@ -14576,114 +15083,139 @@ function _flashCollectLabelled() {
   return out;
 }
 
-// Diagram renderer. Builds a clean per-line preview onto a canvas in
-// #flashLayoutOut. Labels are drawn in the line's own colour.
-function renderFlashingLayout(){
-  var out = document.getElementById('flashLayoutOut'); if (!out) return;
-  var labelled = _flashCollectLabelled();
-  // Compute bounding box across every selected roof's outline + the
-  // labelled lines so the diagram frames the full project.
-  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  function bumpPt(p){ if (p[0]<minX) minX=p[0]; if (p[0]>maxX) maxX=p[0]; if (p[1]<minY) minY=p[1]; if (p[1]>maxY) maxY=p[1]; }
-  function bumpOutline(o){ (o||[]).forEach(bumpPt); }
-  if (DRAW.roofs && DRAW.roofs.length) {
-    var sel = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
-    DRAW.roofs.forEach(function(r, i){ if (sel && sel.indexOf(i)<0) return; bumpOutline(r.outline); });
-  } else {
-    bumpOutline(DRAW.outline);
-  }
-  labelled.forEach(function(o){ bumpPt(o.line.pts[0]); bumpPt(o.line.pts[1]); });
-  if (!isFinite(minX) || maxX - minX < 1 || maxY - minY < 1) {
-    out.innerHTML = '<p style="font-size:12px;color:var(--text2)">Draw your roof outline + flashing lines on the Map Roof tab with measurements — this diagram will appear here.</p>';
+// Materials Roof Map — mirrors the live roofCanvas (which now carries
+// the flashing letter overlays + sheet-length labels) into a fresh
+// canvas at the top of the Materials tab. Click handler maps tap
+// coordinates back to roofCanvas-space and dispatches to the shared
+// edit popup for letter/length or sheet-length edits.
+function renderMatRoofMap(){
+  var out = document.getElementById('matRoofMapOut'); if (!out) return;
+  var src = document.getElementById('roofCanvas');
+  if (!src || !src.width || !src.height) {
+    out.innerHTML = '<p style="font-size:12px;color:var(--text2)">Draw your roof outline on the Map Roof tab — this map will appear here.</p>';
     return;
   }
-  var pad = 40, w = maxX - minX, h = maxY - minY;
-  var targetW = 880;
-  var scale = (targetW - pad*2) / w;
-  var targetH = Math.max(280, h * scale + pad*2);
-  out.innerHTML = '<canvas id="flashLayoutCanvas" width="'+targetW+'" height="'+targetH+'" style="display:block;max-width:100%;height:auto;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer"></canvas>';
-  var canvas = document.getElementById('flashLayoutCanvas');
+  // Force a fresh draw so overlays + hit data are up to date.
+  try { redrawAll(); } catch(e){}
+  var dpr = window.devicePixelRatio || 1;
+  // Source canvas pixel size = CSS size * DPR. Materials canvas keeps
+  // the same backing resolution so the mirror looks identical, but its
+  // displayed CSS width is capped to the card width.
+  var W = src.width, H = src.height;
+  out.innerHTML = '<canvas id="matRoofMapCanvas" width="'+W+'" height="'+H+'" style="display:block;width:100%;height:auto;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer"></canvas>';
+  var canvas = document.getElementById('matRoofMapCanvas');
   var ctx = canvas.getContext('2d');
-  function tx(p){ return [pad + (p[0] - minX) * scale, pad + (p[1] - minY) * scale]; }
-  // Stash for hit-test on click
-  canvas._labelled = labelled;
-  canvas._tx = tx;
-  // Background fill
-  ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-  // Building outline(s)
-  ctx.lineWidth = 1.6; ctx.strokeStyle = '#94a3b8';
-  function drawOutline(o){
-    if (!o || o.length < 3) return;
-    ctx.beginPath();
-    o.forEach(function(p, i){ var t = tx(p); if (i === 0) ctx.moveTo(t[0], t[1]); else ctx.lineTo(t[0], t[1]); });
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(200,230,201,0.20)'; ctx.fill();
-    ctx.stroke();
+  try { ctx.drawImage(src, 0, 0); } catch(e){
+    out.innerHTML = '<p style="font-size:12px;color:#b91c1c">Couldn\'t mirror the roof map — refresh the Map Roof tab and try again.</p>';
+    return;
   }
-  if (DRAW.roofs && DRAW.roofs.length) {
-    var sel2 = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
-    DRAW.roofs.forEach(function(r, i){ if (sel2 && sel2.indexOf(i)<0) return; drawOutline(r.outline); });
-  } else {
-    drawOutline(DRAW.outline);
-  }
-  // Each labelled line + its letter:length label
-  ctx.font = '600 12.5px Inter, -apple-system, sans-serif';
-  ctx.textBaseline = 'middle';
-  labelled.forEach(function(o){
-    var a = tx(o.line.pts[0]), b = tx(o.line.pts[1]);
-    ctx.strokeStyle = o.color; ctx.lineWidth = 2.4;
-    ctx.setLineDash(o.line.type === 'valley' ? [6,3] : []);
-    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
-    ctx.setLineDash([]);
-    // Label perpendicular to the line midpoint
-    var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
-    var dx = b[0]-a[0], dy = b[1]-a[1];
-    var len = Math.hypot(dx, dy) || 1;
-    var ox = -dy/len * 18, oy = dx/len * 18;
-    var txt = o.letter + ': ' + o.lengthM.toFixed(1) + 'm';
-    var tw  = ctx.measureText(txt).width;
-    var lx  = mx + ox, ly = my + oy;
-    ctx.fillStyle = '#fff'; ctx.fillRect(lx - tw/2 - 5, ly - 9, tw + 10, 18);
-    ctx.strokeStyle = o.color; ctx.lineWidth = 1; ctx.strokeRect(lx - tw/2 - 5, ly - 9, tw + 10, 18);
-    ctx.fillStyle = o.color;
-    ctx.fillText(txt, lx - tw/2, ly + 1);
-  });
-  // Click hit-testing — pick the nearest line within 14px and prompt
-  // for letter / length edits.
+  // The hit data was stashed by redrawAll() in CSS-pixel coords (the
+  // ctx.scale(dpr,dpr) inside redrawAll already accounts for DPR).
+  // We multiply by DPR to get canvas-backing pixels, then by the
+  // displayed-vs-backing ratio at click time.
+  var hits = window._roofCanvasHits || { letters: [], sheets: [] };
+  canvas._hits = hits;
+  canvas._dpr = dpr;
   canvas.onclick = function(ev){
     var r = canvas.getBoundingClientRect();
-    var sx = canvas.width / r.width, sy = canvas.height / r.height;
-    var px = (ev.clientX - r.left) * sx, py = (ev.clientY - r.top) * sy;
-    var best = null, bestD = Infinity;
-    labelled.forEach(function(o){
-      var a = tx(o.line.pts[0]), b = tx(o.line.pts[1]);
-      var d = _flashLayoutSegDist(px, py, a, b);
-      if (d < bestD) { bestD = d; best = o; }
-    });
-    if (!best || bestD > 14) return;
-    var newLetter = window.prompt('Reference letter for this ' + best.line.type + ' line:', best.letter);
-    if (newLetter == null) return;
-    newLetter = String(newLetter).trim().toUpperCase();
-    var newLen = window.prompt('Length (m) — currently '+best.lengthM.toFixed(1)+' (drawn '+(best.line.measM||0)+' + 0.4m waste, rounded to 0.1m):', best.lengthM.toFixed(1));
-    if (newLen == null) return;
-    if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
-    var ov = DRAW.flashLayoutOverrides[best.key] || {};
-    if (newLetter) ov.letter = newLetter; else delete ov.letter;
-    var nlen = parseFloat(newLen);
-    if (!isNaN(nlen) && nlen > 0) ov.lengthM = nlen; else delete ov.lengthM;
-    DRAW.flashLayoutOverrides[best.key] = ov;
-    renderFlashingLayout();
-    try { renderMaterialsCutLists(); } catch(e){}
+    // Click → canvas backing pixels
+    var bx = (ev.clientX - r.left) * (canvas.width / r.width);
+    var by = (ev.clientY - r.top)  * (canvas.height / r.height);
+    // The stashed coords are in CSS-pixel-after-scale-by-DPR space.
+    // Convert click to that same space.
+    var cx = bx / canvas._dpr;
+    var cy = by / canvas._dpr;
+    _matRoofMapHandleClick(cx, cy);
   };
 }
-function _flashLayoutSegDist(px, py, a, b){
-  var dx = b[0]-a[0], dy = b[1]-a[1];
-  var l2 = dx*dx + dy*dy;
-  if (l2 === 0) return Math.hypot(px-a[0], py-a[1]);
-  var t = Math.max(0, Math.min(1, ((px-a[0])*dx + (py-a[1])*dy) / l2));
-  var qx = a[0] + t*dx, qy = a[1] + t*dy;
-  return Math.hypot(px-qx, py-qy);
+
+// Hit-test against the stashed letter + sheet boxes (in CSS-pixel space
+// after the DPR scale). First letters, then sheets. Opens the unified
+// edit popup for whichever was hit.
+function _matRoofMapHandleClick(cx, cy){
+  var hits = window._roofCanvasHits || { letters: [], sheets: [] };
+  function inBox(h){
+    return cx >= (h.x - h.w/2) && cx <= (h.x + h.w/2)
+        && cy >= (h.y - h.h/2) && cy <= (h.y + h.h/2);
+  }
+  for (var i = 0; i < hits.letters.length; i++) {
+    if (inBox(hits.letters[i])) { _flashEditPopup(hits.letters[i]); return; }
+  }
+  for (var j = 0; j < hits.sheets.length; j++) {
+    if (inBox(hits.sheets[j])) { _sheetEditPopup(hits.sheets[j]); return; }
+  }
 }
+
+// Unified edit popup for a labelled flashing line. Lets the user change
+// the letter ref, the length (defaults to drawn measure + 0.4 m waste
+// rounded to 0.1 m), or delete the entry entirely. All edits persist to
+// DRAW.flashLayoutOverrides[key]. After save / delete, every visible
+// rendering refreshes: roofCanvas, Materials Roof Map, cut lists.
+function _flashEditPopup(hit){
+  if (!hit || !hit.key) return;
+  var typeName = (hit.type || 'flashing').replace(/^./, function(c){ return c.toUpperCase(); });
+  var msg = typeName + ' — letter ' + (hit.letter || '?') + ', length ' + hit.lengthM.toFixed(1) + 'm.\n\n' +
+    'Enter a new letter ref (blank = auto), or type "DELETE" to remove this entry.';
+  var newLetter = window.prompt(msg, hit.letter || '');
+  if (newLetter == null) return;
+  var clean = String(newLetter).trim();
+  if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
+  var ov = DRAW.flashLayoutOverrides[hit.key] || {};
+  if (clean.toUpperCase() === 'DELETE' || clean.toUpperCase() === 'X') {
+    ov.hidden = true;
+    DRAW.flashLayoutOverrides[hit.key] = ov;
+    _flashRefreshAfterEdit();
+    return;
+  }
+  delete ov.hidden;
+  if (clean) ov.letter = clean.toUpperCase(); else delete ov.letter;
+  var newLen = window.prompt(
+    'Length (m) — currently ' + hit.lengthM.toFixed(1) +
+    ' (drawn ' + (hit.line && hit.line.measM ? hit.line.measM : 0) +
+    ' + 0.4m waste, rounded to 0.1m). Blank = auto.',
+    hit.lengthM.toFixed(1)
+  );
+  if (newLen != null) {
+    var n = parseFloat(newLen);
+    if (!isNaN(n) && n > 0) ov.lengthM = n; else delete ov.lengthM;
+  }
+  DRAW.flashLayoutOverrides[hit.key] = ov;
+  _flashRefreshAfterEdit();
+}
+
+// Edit popup for a sheet-length label. The key encodes a (ridge,
+// perpendicular-side) pair; the value is a per-side length override in
+// metres, stashed on DRAW.sheetOverrides. Blank = revert to auto.
+function _sheetEditPopup(hit){
+  if (!hit || !hit.key) return;
+  var current = hit.label || '';
+  var promptMsg = 'Sheet length for this face is currently ' + current + '.\n\n' +
+    'Enter a new length in metres (blank = revert to auto-calculated).';
+  var newLen = window.prompt(promptMsg, current.replace(/m$/, ''));
+  if (newLen == null) return;
+  var clean = String(newLen).trim();
+  if (!DRAW.sheetOverrides) DRAW.sheetOverrides = {};
+  if (clean === '') {
+    delete DRAW.sheetOverrides[hit.key];
+  } else {
+    var n = parseFloat(clean);
+    if (!isNaN(n) && n > 0) DRAW.sheetOverrides[hit.key] = n;
+  }
+  try { redrawAll(); } catch(e){}
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderMatRoofMap(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+}
+
+// Refresh every surface that consumes flashing-layout overrides.
+function _flashRefreshAfterEdit(){
+  try { redrawAll(); } catch(e){}
+  try { renderMatRoofMap(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+}
+
+// Legacy alias — older code paths still call renderFlashingLayout().
+function renderFlashingLayout(){ return renderMatRoofMap(); }
 
 function _matBuildCutList(type, waste) {
   // Source rows from the Flashing layout labelled-line collection so
@@ -14720,16 +15252,17 @@ function _matBuildCutList(type, waste) {
     return b.length - a.length;
   });
   var total = pieces.reduce(function(s,p){ return s+p.length; }, 0);
-  return { rows: rows, totalLm: total, pieceCount: pieces.length };
+  return { rows: rows, totalLm: total, pieceCount: pieces.length, typeKey: type };
 }
 
 // Look up saved flashings matching the current roof profile + this
 // flashing type. Entries with profile='any' are always included.
+// Returns built-in presets + user-saved entries combined, with libIdx
+// pointing into _getAllFlashings() (built-ins first).
 function _matSavedFlashingsFor(flashingType) {
-  if (!window.S || !S.settings || !S.settings.materials_catalog) return [];
   var profile = (document.getElementById('matProfile')||{}).value || 'Corrugate';
-  var lib = S.settings.materials_catalog.savedFlashings || [];
-  return lib
+  var all = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
+  return all
     .map(function(e, i){ return { entry: e, libIdx: i }; })
     .filter(function(r){
       var p = r.entry.profile || 'any';
@@ -14939,9 +15472,10 @@ function renderMaterialsCutLists() {
   // ── Consumables (paper / screws / rivets / dektites) ──────
   _matRenderConsumables(d);
 
-  // Keep the Flashing layout diagram in sync — same letter refs, same
-  // adjusted lengths, two-way edits.
-  try { renderFlashingLayout(); } catch(e){ console.warn('flashing layout:', e); }
+  // Keep the Materials Roof Map in sync — letter overlays + sheet
+  // labels are sourced from the same flashLayoutOverrides, so the cut
+  // list ↔ map ↔ on-canvas overlay stay tied together.
+  try { renderMatRoofMap(); } catch(e){ console.warn('mat roof map:', e); }
 }
 
 // Compact section template — one row per flashing-type. Layout:
@@ -15070,19 +15604,30 @@ function _matCompactSection(opts) {
   '</div>';
 }
 
-// Render one cut-list table from the bucketed pieces.
+// Render one cut-list table from the bucketed pieces. Each row carries
+// a data-cl-row="type|letter|length" attribute so _matOnCutRowClick can
+// look up the matching labelled lines + open the edit popup. The Edit
+// button gives a hover affordance; clicking anywhere on the row also
+// triggers the popup.
 function _matCutListTable(cl, emptyMsg) {
   if (cl.pieceCount === 0) {
     return '<div class="cut-list-empty">'+esc(emptyMsg || 'No pieces yet — add drawn line measurements.')+'</div>';
   }
+  var typeKey = cl.typeKey || '';
   var html = '<table class="cut-list"><thead><tr>'+
-    '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th>'+
+    '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th><th class="r"></th>'+
   '</tr></thead><tbody>';
   cl.rows.forEach(function(r, i){
     var lbl = r.letter ? r.letter : ('Piece '+(i+1));
-    html += '<tr><td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td></tr>';
+    var dataKey = esc(typeKey + '|' + (r.letter || '') + '|' + r.length.toFixed(2));
+    html += '<tr style="cursor:pointer" data-cl-row="'+dataKey+'" onclick="_matOnCutRowClick(this)" title="Click to edit letter / length / delete">'+
+      '<td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td>'+
+      '<td class="r">'+r.qty+'</td>'+
+      '<td class="r">'+r.length.toFixed(1)+' m</td>'+
+      '<td class="r" style="color:#6f6a60;font-size:10.5px">Edit</td>'+
+    '</tr>';
   });
-  html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td></tr></tfoot></table>';
+  html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td><td class="r"></td></tr></tfoot></table>';
   return html;
 }
 
@@ -15091,18 +15636,92 @@ function _matCutListTableWithCost(cl, emptyMsg, rate) {
   if (!cl || cl.pieceCount === 0) {
     return '<div class="cut-list-empty">'+esc(emptyMsg || 'No pieces yet — add drawn line measurements.')+'</div>';
   }
+  var typeKey = cl.typeKey || '';
   var html = '<table class="cut-list"><thead><tr>'+
-    '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th><th class="r">Cost</th>'+
+    '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th><th class="r">Cost</th><th class="r"></th>'+
   '</tr></thead><tbody>';
   var totalCost = 0;
   cl.rows.forEach(function(r, i){
     var lineCost = r.qty * r.length * rate;
     totalCost += lineCost;
     var lbl = r.letter ? r.letter : ('Piece '+(i+1));
-    html += '<tr><td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">$'+lineCost.toFixed(2)+'</td></tr>';
+    var dataKey = esc(typeKey + '|' + (r.letter || '') + '|' + r.length.toFixed(2));
+    html += '<tr style="cursor:pointer" data-cl-row="'+dataKey+'" onclick="_matOnCutRowClick(this)" title="Click to edit letter / length / delete">'+
+      '<td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td>'+
+      '<td class="r">'+r.qty+'</td>'+
+      '<td class="r">'+r.length.toFixed(1)+' m</td>'+
+      '<td class="r">$'+lineCost.toFixed(2)+'</td>'+
+      '<td class="r" style="color:#6f6a60;font-size:10.5px">Edit</td>'+
+    '</tr>';
   });
-  html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td><td class="r" style="color:#059669">$'+totalCost.toFixed(2)+'</td></tr></tfoot></table>';
+  html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td><td class="r" style="color:#059669">$'+totalCost.toFixed(2)+'</td><td class="r"></td></tr></tfoot></table>';
   return html;
+}
+
+// Cut-list row → flashing edit popup. Resolves the row's (type, letter,
+// length) back to the matching labelled line(s) and opens the same
+// editor the Roof Map letter tag uses. If multiple lines share the row
+// (qty > 1) we edit them all at once — the user typically wants the
+// whole group to change together. "Delete" removes every matching line.
+function _matOnCutRowClick(rowEl){
+  if (!rowEl) return;
+  var key = rowEl.getAttribute('data-cl-row') || '';
+  var parts = key.split('|');
+  if (parts.length < 3) return;
+  var type = parts[0], letter = parts[1], lenStr = parts[2];
+  var lenNum = parseFloat(lenStr); if (!isFinite(lenNum)) lenNum = 0;
+  var labelled = (typeof _flashCollectLabelled === 'function') ? _flashCollectLabelled() : [];
+  var matches = labelled.filter(function(o){
+    if (!o.line || !o.line.type) return false;
+    var t = o.line.type;
+    if (type === 'ridgehip') { if (t !== 'ridge' && t !== 'hip') return false; }
+    else if (t !== type) return false;
+    var sameLetter = (letter || '') === (o.letter || '');
+    var sameLen = Math.abs(+o.lengthM - lenNum) < 0.05;
+    return sameLetter && sameLen;
+  });
+  if (!matches.length) return;
+  // Use the first match for the popup defaults — the user's choices
+  // apply to every matching line.
+  var hit = matches[0];
+  var typeName = (type === 'ridgehip' ? 'Ridge / Hip' : type).replace(/^./, function(c){ return c.toUpperCase(); });
+  var msg = typeName + ' — letter ' + (hit.letter || '?') + ', length ' + hit.lengthM.toFixed(1) + 'm';
+  if (matches.length > 1) msg += ' (' + matches.length + ' identical pieces will update together)';
+  msg += '.\n\nEnter a new letter ref (blank = auto), or type "DELETE" to remove every piece in this row.';
+  var newLetter = window.prompt(msg, hit.letter || '');
+  if (newLetter == null) return;
+  var clean = String(newLetter).trim();
+  if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
+  if (clean.toUpperCase() === 'DELETE' || clean.toUpperCase() === 'X') {
+    matches.forEach(function(m){
+      var ov = DRAW.flashLayoutOverrides[m.key] || {};
+      ov.hidden = true;
+      DRAW.flashLayoutOverrides[m.key] = ov;
+    });
+    _flashRefreshAfterEdit();
+    return;
+  }
+  // Letter update applies to every match.
+  matches.forEach(function(m){
+    var ov = DRAW.flashLayoutOverrides[m.key] || {};
+    delete ov.hidden;
+    if (clean) ov.letter = clean.toUpperCase(); else delete ov.letter;
+    DRAW.flashLayoutOverrides[m.key] = ov;
+  });
+  var newLen = window.prompt(
+    'Length (m) — currently ' + hit.lengthM.toFixed(1) +
+    ' (drawn + 0.4 m waste rounded to 0.1 m). Blank = auto.',
+    hit.lengthM.toFixed(1)
+  );
+  if (newLen != null) {
+    var n = parseFloat(newLen);
+    matches.forEach(function(m){
+      var ov = DRAW.flashLayoutOverrides[m.key] || {};
+      if (!isNaN(n) && n > 0) ov.lengthM = n; else delete ov.lengthM;
+      DRAW.flashLayoutOverrides[m.key] = ov;
+    });
+  }
+  _flashRefreshAfterEdit();
 }
 
 // Consumables (restyled to match the Materials section).
@@ -15331,32 +15950,65 @@ function _matSyncDeliveryAddr(v) {
 function _matBuildPrintPages() {
   populateMatJobInfo();
   _matBuildPrintHeader();
-  _matCaptureCanvasToImg('roofCanvas', document.getElementById('matPrintRoofMap'), 'Roof map');
+  // Project totals — area / flashings lm / gutter lm tiles. Sits at the
+  // very top of page 1 below the Job & Delivery header so the supplier
+  // gets the size of the job at a glance.
+  _matBuildPrintDrawTotals(document.getElementById('matPrintDrawTotals'));
+  // Make sure the Materials Roof Map (with flashing letter overlays) is
+  // built, then capture that — NOT the bare roofCanvas — so the printed
+  // page 1 carries the same A/B/C tags the supplier needs.
+  try { renderMatRoofMap(); } catch(e){}
+  _matCaptureCanvasToImg('matRoofMapCanvas', document.getElementById('matPrintRoofMap'), 'Roof map');
   _matCloneSheetPlanForPrint(document.getElementById('matPrintSheetPlan'));
   _matBuildPrintSheetCutList(document.getElementById('matPrintSheetCutList'));
-  // Page 2 — flashing layout above the material order so the supplier
-  // sees the diagram + letter refs before the per-flashing summary tiles.
-  _matCaptureFlashingLayoutToImg(document.getElementById('matPrintFlashingLayout'));
+  _matBuildPrintRidgeCutList(document.getElementById('matPrintRidgeCutList'));
   _matBuildPrintOrderDetails(document.getElementById('matPrintOrderDetails'));
 }
 
-// Captures the on-screen Flashing Layout canvas to an inline PNG so
-// the printed PDF carries the same letter-labelled diagram. Falls
-// back to a friendly message if the layout hasn't been rendered yet.
-function _matCaptureFlashingLayoutToImg(mount) {
+// Drawing-measurements tile strip — mirrors the "From your drawing
+// measurements" card on screen (roof area / flashings lm / gutter lm
+// plus pitch line). Pulls from _matDrawTotals which already aggregates
+// across the user's selected roofs.
+function _matBuildPrintDrawTotals(mount){
   if (!mount) return;
-  // Make sure the layout has been built at least once.
-  try { renderFlashingLayout(); } catch(e){}
-  var cv = document.getElementById('flashLayoutCanvas');
-  if (!cv) {
-    mount.innerHTML = '<div style="color:#6f6a60;font-size:11px;padding:14px;font-style:italic">No flashing layout — draw roof lines + measurements on the Map Roof tab.</div>';
+  var d = _matDrawTotals ? _matDrawTotals() : { roofArea:0, flashingsLm:0, gutterLm:0, pitch:0 };
+  var pitch = d.pitch ? (d.pitch + '°') : '—';
+  function tile(label, val, sub){
+    return '<div style="flex:1;min-width:120px;border:1px solid #d1d5db;border-radius:6px;padding:8px 10px;background:#fff">'+
+      '<div style="font-size:10px;color:#6f6a60;font-weight:700;letter-spacing:.05em;text-transform:uppercase">'+esc(label)+'</div>'+
+      '<div style="font-size:18px;font-weight:700;color:#0a1628;margin-top:1px">'+val+'</div>'+
+      (sub ? '<div style="font-size:10px;color:#6f6a60;margin-top:1px">'+sub+'</div>' : '')+
+    '</div>';
+  }
+  mount.innerHTML =
+    '<div style="display:flex;gap:8px;margin:6px 0 10px">'+
+      tile('Roof area', d.roofArea > 0 ? d.roofArea.toFixed(1) + ' m²' : '—', 'Pitch ' + pitch)+
+      tile('Flashings', d.flashingsLm > 0 ? d.flashingsLm.toFixed(1) + ' lm' : '—', '')+
+      tile('Gutter',    d.gutterLm    > 0 ? d.gutterLm.toFixed(1)    + ' lm' : '—', '')+
+    '</div>';
+}
+
+// Standalone Ridge / Hip cut list section. Rows show letter + qty +
+// length each, matching the on-screen cut list. Now lives outside the
+// PDF's "Order summary" table so the cut list is the prominent thing
+// the supplier reads, not a buried subtotal.
+function _matBuildPrintRidgeCutList(mount){
+  if (!mount) return;
+  var cl = _matBuildCutList('ridgehip', 0.5);
+  var ridgeType = (document.getElementById('matRidgeType')||{}).value || 'standard';
+  if (!cl.pieceCount) {
+    mount.innerHTML = '<div style="color:#6f6a60;font-size:11px;padding:6px 0;font-style:italic">No ridge or hip lines drawn yet.</div>';
     return;
   }
-  try {
-    mount.innerHTML = '<img src="'+cv.toDataURL('image/png')+'" alt="Flashing layout" style="display:block;width:100%;height:auto;border:1px solid #d1d5db;border-radius:4px;background:#fff">';
-  } catch(e) {
-    mount.innerHTML = '<div style="color:#b91c1c;font-size:11px;padding:14px">Could not capture flashing layout — try refreshing the Materials tab.</div>';
-  }
+  var html = '<div style="font-size:11px;color:#374151;margin:2px 0 6px">'+
+    '<strong>'+(ridgeType==='wide'?'Wide':'Standard')+'</strong> ridge profile · per-line cut list</div>'+
+    '<table class="mp-cut"><thead><tr><th>Piece</th><th class="r">Qty</th><th class="r">Length each</th><th class="r">Total</th></tr></thead><tbody>';
+  cl.rows.forEach(function(r, i){
+    var lbl = r.letter ? r.letter : ('Piece '+(i+1));
+    html += '<tr><td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">'+(r.qty*r.length).toFixed(1)+' m</td></tr>';
+  });
+  html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r"></td><td class="r">'+cl.totalLm.toFixed(1)+' m</td></tr></tfoot></table>';
+  mount.innerHTML = html;
 }
 
 function _matJobHeaderHtml(includeDelivery) {
@@ -15382,7 +16034,9 @@ function _matJobHeaderHtml(includeDelivery) {
 function _matBuildPrintHeader() {
   var h1 = document.getElementById('matPrintHeader1');
   var h2 = document.getElementById('matPrintHeader2');
-  if (h1) h1.innerHTML = _matJobHeaderHtml(false);
+  // Both pages now lead with the full Job & Delivery block — the user
+  // wants this AT THE VERY TOP of every page of the PDF.
+  if (h1) h1.innerHTML = _matJobHeaderHtml(true);
   if (h2) h2.innerHTML = _matJobHeaderHtml(true);
 }
 
@@ -15538,26 +16192,26 @@ function _matBuildPrintOrderDetails(mount) {
     html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+sheetTotal+' sheets</td><td class="r"></td></tr></tfoot></table>';
   }
 
-  // Combined cut-list table. Per-flashing cut lists (barge / apron /
-  // change-of-pitch / valley) have been removed from this table — the
-  // supplier reads those from the per-drawing summaries below ("3 @
-  // 4.2m, 1 @ 1.2m"). Ridge / Hip capping + the chosen gutter stay
-  // in the table because they don't get a drawing tile.
-  html += '<h2 class="mp-h" style="margin-top:14px">Order summary</h2>'+
-    '<table class="mp-cut">'+
-    '<thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Length each</th><th class="r">Total</th></tr></thead><tbody>';
-  function appendSection(label, cl) {
-    if (!cl || !cl.pieceCount) return;
-    html += '<tr><td colspan="4" class="mp-sub">'+esc(label)+'</td></tr>';
-    cl.rows.forEach(function(r, i){
-      var lbl = r.letter ? r.letter : ('Piece '+(i+1));
-      html += '<tr><td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">'+(r.qty*r.length).toFixed(1)+' m</td></tr>';
-    });
-    html += '<tr><td style="font-weight:700">Subtotal</td><td class="r" style="font-weight:700">'+cl.pieceCount+'</td><td class="r"></td><td class="r" style="font-weight:700">'+cl.totalLm.toFixed(1)+' m</td></tr>';
+  // Order summary table. Ridge / Hip moved to its own dedicated cut
+  // list section on page 1 (the user asked for ridges to read as a cut
+  // list, not a combined-lm subtotal). The per-flashing cut lists
+  // (barge / apron / change-of-pitch / valley) live below in the
+  // flashing drawings grid. Only the gutter row stays here.
+  if (gutterChoice !== 'none') {
+    html += '<h2 class="mp-h" style="margin-top:14px">Order summary</h2>'+
+      '<table class="mp-cut">'+
+      '<thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Length each</th><th class="r">Total</th></tr></thead><tbody>';
+    var gCl = _matBuildCutList('gutter', 0);
+    if (gCl && gCl.pieceCount) {
+      html += '<tr><td colspan="4" class="mp-sub">'+esc('Gutter — '+gutterLabel)+'</td></tr>';
+      gCl.rows.forEach(function(r, i){
+        var lbl = r.letter ? r.letter : ('Piece '+(i+1));
+        html += '<tr><td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">'+(r.qty*r.length).toFixed(1)+' m</td></tr>';
+      });
+      html += '<tr><td style="font-weight:700">Subtotal</td><td class="r" style="font-weight:700">'+gCl.pieceCount+'</td><td class="r"></td><td class="r" style="font-weight:700">'+gCl.totalLm.toFixed(1)+' m</td></tr>';
+    }
+    html += '</tbody></table>';
   }
-  appendSection('Ridge / Hip capping ('+(ridgeType==='wide'?'Wide':'Standard')+')', _matBuildCutList('ridgehip', 0.5));
-  if (gutterChoice !== 'none') appendSection('Gutter — '+gutterLabel, _matBuildCutList('gutter', 0));
-  html += '</tbody></table>';
 
   // Flashing drawings — one tile per flashing type (skip ridge per the
   // user's request: ridge gets no drawing picture). Each tile shows the
@@ -15571,8 +16225,8 @@ function _matBuildPrintOrderDetails(mount) {
     if (!cl.pieceCount) return;
     var savedName = localStorage.getItem('fr_mat_flash_pick_' + spec.key) || '';
     var saved = null;
-    if (savedName && window.S && S.settings && S.settings.materials_catalog) {
-      var lib = S.settings.materials_catalog.savedFlashings || [];
+    if (savedName) {
+      var lib = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
       saved = lib.find(function(e){ return e.name === savedName; }) || null;
     }
     var imgHtml;
@@ -15583,12 +16237,17 @@ function _matBuildPrintOrderDetails(mount) {
     } else {
       imgHtml = '<div style="width:100%;height:84px;background:#fafaf7;border:1px solid #e5e7eb;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:9.5px;font-style:italic">No drawing</div>';
     }
-    var rowsText = cl.rows.map(function(r){ return r.qty + ' @ ' + r.length.toFixed(1) + 'm'; }).join(', ');
+    // One measurement per row — supplier reads each cut on its own
+    // line ("1 @ 2.2m", line break, "3 @ 3.4m", etc) instead of a
+    // single comma-separated string.
+    var rowsHtml = cl.rows.map(function(r){
+      return '<div>'+esc(r.qty + ' @ ' + r.length.toFixed(1) + 'm')+'</div>';
+    }).join('');
     drawingBlocks.push(
       '<div style="break-inside:avoid">'+
         imgHtml+
         '<div style="font-size:10.5px;font-weight:700;color:#0a1628;margin-top:4px;text-align:center">'+esc(spec.label)+'</div>'+
-        '<div style="font-size:10px;color:#374151;text-align:center;margin-top:1px">'+esc(rowsText)+'</div>'+
+        '<div style="font-size:10px;color:#374151;text-align:center;margin-top:2px;line-height:1.45">'+rowsHtml+'</div>'+
       '</div>'
     );
   });
