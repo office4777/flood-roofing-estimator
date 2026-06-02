@@ -9178,31 +9178,57 @@ function _redrawFlashCanvas(){
         ctx.stroke();
       });
     }
-    // Crush-fold markers — small filled inverted triangle pointing into
-    // the corner, plus a small "C" badge when the text size is big
-    // enough for it to read clearly.
+    // Crush-fold markers — same treatment as the Painted side: a
+    // floating "Crush" label with an arrow pointing AT the selected
+    // angle/vertex. Direction is stored per-vertex on
+    // p.crushFolds[i] = { dirX, dirY }. Legacy `true` values are
+    // upgraded to a default outward direction on first render.
     if (p.crushFolds) {
       Object.keys(p.crushFolds).forEach(function(k){
-        if (!p.crushFolds[k]) return;
+        var cf = p.crushFolds[k];
+        if (!cf) return;
         var idx = +k; if (!v[idx]) return;
-        var cx = v[idx][0], cy = v[idx][1];
-        var size = Math.max(8, fontPx * 0.7);
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - size);
-        ctx.lineTo(cx + size, cy + size * 0.4);
-        ctx.lineTo(cx - size, cy + size * 0.4);
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(234,88,12,0.85)';
-        ctx.fill();
-        ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 1.2; ctx.stroke();
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.font = 'bold ' + Math.max(8, fontPx-2) + 'px Inter, system-ui, sans-serif';
-        ctx.fillText('▽', cx, cy);
+        if (cf === true) {
+          // Migrate legacy boolean → default direction (upward).
+          cf = { dirX: 0, dirY: -1 };
+          p.crushFolds[k] = cf;
+        }
+        var ax = v[idx][0], ay = v[idx][1];
+        var dirX = (typeof cf.dirX === 'number') ? cf.dirX : 0;
+        var dirY = (typeof cf.dirY === 'number') ? cf.dirY : -1;
+        var dl = Math.hypot(dirX, dirY) || 1;
+        dirX /= dl; dirY /= dl;
+        var labelDist = 46, tipBackoff = 6;
+        var labelX = ax + dirX * labelDist;
+        var labelY = ay + dirY * labelDist;
+        var tipX   = ax + dirX * tipBackoff;
+        var tipY   = ay + dirY * tipBackoff;
         ctx.font = fontStr;
-        ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
-        ctx.restore();
+        var txt = 'Crush', tw = ctx.measureText(txt).width;
+        var boxW = tw + 16, boxH = fontPx + 8;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
+        ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 1.2;
+        ctx.strokeRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
+        ctx.fillStyle = '#ea580c';
+        ctx.fillText(txt, labelX - tw/2, labelY + fontPx*0.35);
+        // Arrow shaft from label edge to the vertex tip
+        var shaftStartX = labelX - dirX * (boxH/2 + 1);
+        var shaftStartY = labelY - dirY * (boxH/2 + 1);
+        ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(shaftStartX, shaftStartY); ctx.lineTo(tipX, tipY); ctx.stroke();
+        // Arrowhead
+        var headSize = 7, inwardX = -dirX, inwardY = -dirY;
+        var perpX = -inwardY, perpY = inwardX;
+        ctx.beginPath();
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(tipX - inwardX*headSize + perpX*headSize*0.6, tipY - inwardY*headSize + perpY*headSize*0.6);
+        ctx.lineTo(tipX - inwardX*headSize - perpX*headSize*0.6, tipY - inwardY*headSize - perpY*headSize*0.6);
+        ctx.closePath(); ctx.fillStyle = '#ea580c'; ctx.fill();
+        _flashLabelRects.push({
+          type: 'crushFold', polyline: p, vertexIdx: idx,
+          x: labelX - boxW/2, y: labelY - boxH/2, w: boxW, h: boxH,
+        });
       });
     }
     // Measurement labels — auto centre on segment perpendicular,
@@ -9328,6 +9354,13 @@ function _flashLabelGetPos(hit){
   if (hit.type === 'flashGuard') {
     return { x: _flashSketchState.flashGuard.x, y: _flashSketchState.flashGuard.y };
   }
+  if (hit.type === 'crushFold') {
+    var v = hit.polyline.vertices[hit.vertexIdx];
+    var cf = hit.polyline.crushFolds[hit.vertexIdx];
+    var dx = (cf && typeof cf.dirX === 'number') ? cf.dirX : 0;
+    var dy = (cf && typeof cf.dirY === 'number') ? cf.dirY : -1;
+    return { x: v[0] + dx * 46, y: v[1] + dy * 46 };
+  }
   return { x: 0, y: 0 };
 }
 function _flashLabelSetPos(hit, nx, ny){
@@ -9343,6 +9376,16 @@ function _flashLabelSetPos(hit, nx, ny){
   } else if (hit.type === 'flashGuard') {
     _flashSketchState.flashGuard.x = nx;
     _flashSketchState.flashGuard.y = ny;
+  } else if (hit.type === 'crushFold') {
+    // The Crush arrow tip stays anchored on the vertex — dragging the
+    // label rotates the arrow around the vertex (same model as the
+    // Painted-side label).
+    var v = hit.polyline.vertices[hit.vertexIdx];
+    var dx = nx - v[0], dy = ny - v[1];
+    var L = Math.hypot(dx, dy) || 1;
+    var cf = hit.polyline.crushFolds[hit.vertexIdx] || {};
+    cf.dirX = dx / L; cf.dirY = dy / L;
+    hit.polyline.crushFolds[hit.vertexIdx] = cf;
   }
 }
 
@@ -9493,16 +9536,21 @@ function _onFlashCanvasClick(p){
     _flashSketchState.flashGuard = { x: p.x, y: p.y };
     _redrawFlashCanvas();
   } else if (_flashSketchState.tool === 'crush') {
-    // Crush fold marker — placed AT the nearest vertex. Each marker is
-    // a small filled triangle drawn over the corner, counted into the
-    // stats line + persisted on the polyline as crushFolds[i] = true.
+    // Crush fold marker — points at the selected vertex with a "Crush"
+    // label, same treatment as the Painted-side arrow. Direction is the
+    // outward bisector (away from the polyline interior). Clicking the
+    // same vertex again toggles it off; the label itself is draggable
+    // in any tool mode.
     var vhit = _closestVertexTo(p.x, p.y);
     if (!vhit || vhit.dist > 22) return;
     _pushFlashHistory();
     if (!vhit.polyline.crushFolds) vhit.polyline.crushFolds = {};
     var key = String(vhit.vertexIdx);
-    if (vhit.polyline.crushFolds[key]) delete vhit.polyline.crushFolds[key];
-    else vhit.polyline.crushFolds[key] = true;
+    if (vhit.polyline.crushFolds[key]) {
+      delete vhit.polyline.crushFolds[key];
+    } else {
+      vhit.polyline.crushFolds[key] = _crushFoldDefaultDir(vhit.polyline, vhit.vertexIdx);
+    }
     _redrawFlashCanvas();
     _updateFlashStats();
   } else if (_flashSketchState.tool === 'edit') {
@@ -9522,6 +9570,43 @@ function _onFlashCanvasClick(p){
     _redrawFlashCanvas();
     _updateFlashStats();
   }
+}
+
+// Compute an outward-pointing unit vector at vertex idx — used as the
+// default Crush label direction. Interior vertices use the OPPOSITE of
+// the corner bisector (so the label sits on the OUTSIDE of the fold);
+// end vertices use the perpendicular to their single adjacent segment.
+function _crushFoldDefaultDir(polyline, idx){
+  var v = polyline.vertices;
+  if (!v || !v[idx]) return { dirX: 0, dirY: -1 };
+  if (v.length === 1) return { dirX: 0, dirY: -1 };
+  var dirX = 0, dirY = -1;
+  if (idx === 0) {
+    var ndx = v[1][0] - v[0][0], ndy = v[1][1] - v[0][1];
+    var L = Math.hypot(ndx, ndy) || 1;
+    dirX = -ndy / L; dirY = ndx / L;
+  } else if (idx === v.length - 1) {
+    var ndx2 = v[idx][0] - v[idx-1][0], ndy2 = v[idx][1] - v[idx-1][1];
+    var L2 = Math.hypot(ndx2, ndy2) || 1;
+    dirX = -ndy2 / L2; dirY = ndx2 / L2;
+  } else {
+    var pa = v[idx-1], pb = v[idx], pc = v[idx+1];
+    var v1x = pa[0]-pb[0], v1y = pa[1]-pb[1];
+    var v2x = pc[0]-pb[0], v2y = pc[1]-pb[1];
+    var l1 = Math.hypot(v1x, v1y) || 1;
+    var l2 = Math.hypot(v2x, v2y) || 1;
+    v1x /= l1; v1y /= l1; v2x /= l2; v2y /= l2;
+    var bx = v1x + v2x, by = v1y + v2y;
+    var bl = Math.hypot(bx, by);
+    if (bl < 0.01) {
+      // Colinear — use perpendicular to first incoming segment.
+      dirX = -v1y; dirY = v1x;
+    } else {
+      // Outward = OPPOSITE of the interior bisector.
+      dirX = -bx / bl; dirY = -by / bl;
+    }
+  }
+  return { dirX: dirX, dirY: dirY };
 }
 
 // Remove a segment from a polyline. If the segment is at either end,
@@ -15677,27 +15762,35 @@ function _matCompactSection(opts) {
   '</div>';
 }
 
-// Render one cut-list table from the bucketed pieces. Each row carries
-// a data-cl-row="type|letter|length" attribute so _matOnCutRowClick can
-// look up the matching labelled lines + open the edit popup. The Edit
-// button gives a hover affordance; clicking anywhere on the row also
-// triggers the popup.
+// Render one cut-list table from the bucketed pieces. Letter + length
+// cells are inline-editable text inputs that look like plain cells
+// until focused; on blur or Enter the change writes through to
+// DRAW.flashLayoutOverrides for every matching line. A small × button
+// at the end of each row deletes the entry from the cut list (marks
+// every matching line as hidden in the overrides map). No popups.
 function _matCutListTable(cl, emptyMsg) {
   if (cl.pieceCount === 0) {
     return '<div class="cut-list-empty">'+esc(emptyMsg || 'No pieces yet — add drawn line measurements.')+'</div>';
   }
   var typeKey = cl.typeKey || '';
-  var html = '<table class="cut-list"><thead><tr>'+
+  var html = '<table class="cut-list cut-list-editable"><thead><tr>'+
     '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th><th class="r"></th>'+
   '</tr></thead><tbody>';
   cl.rows.forEach(function(r, i){
-    var lbl = r.letter ? r.letter : ('Piece '+(i+1));
-    var dataKey = esc(typeKey + '|' + (r.letter || '') + '|' + r.length.toFixed(2));
-    html += '<tr style="cursor:pointer" data-cl-row="'+dataKey+'" onclick="_matOnCutRowClick(this)" title="Click to edit letter / length / delete">'+
-      '<td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td>'+
+    var lbl = r.letter ? r.letter : '?';
+    var rowKey = esc(typeKey + '|' + (r.letter || '') + '|' + r.length.toFixed(2));
+    var letterInput = '<input class="cl-letter" data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" '+
+      'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLetter(this)" '+
+      'style="width:42px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:2px 4px;border-radius:4px;font-size:inherit">';
+    var lenInput = '<input class="cl-length" data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" '+
+      'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLength(this)" '+
+      'style="width:62px;border:1px solid transparent;background:transparent;text-align:right;padding:2px 4px;border-radius:4px;font-size:inherit">';
+    html += '<tr>'+
+      '<td>'+letterInput+'</td>'+
       '<td class="r">'+r.qty+'</td>'+
-      '<td class="r">'+r.length.toFixed(1)+' m</td>'+
-      '<td class="r" style="color:#6f6a60;font-size:10.5px">Edit</td>'+
+      '<td class="r">'+lenInput+' m</td>'+
+      '<td class="r"><button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Remove this piece from the cut list" '+
+        'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:2px 6px;line-height:1">×</button></td>'+
     '</tr>';
   });
   html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td><td class="r"></td></tr></tfoot></table>';
@@ -15710,25 +15803,104 @@ function _matCutListTableWithCost(cl, emptyMsg, rate) {
     return '<div class="cut-list-empty">'+esc(emptyMsg || 'No pieces yet — add drawn line measurements.')+'</div>';
   }
   var typeKey = cl.typeKey || '';
-  var html = '<table class="cut-list"><thead><tr>'+
+  var html = '<table class="cut-list cut-list-editable"><thead><tr>'+
     '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th><th class="r">Cost</th><th class="r"></th>'+
   '</tr></thead><tbody>';
   var totalCost = 0;
   cl.rows.forEach(function(r, i){
     var lineCost = r.qty * r.length * rate;
     totalCost += lineCost;
-    var lbl = r.letter ? r.letter : ('Piece '+(i+1));
-    var dataKey = esc(typeKey + '|' + (r.letter || '') + '|' + r.length.toFixed(2));
-    html += '<tr style="cursor:pointer" data-cl-row="'+dataKey+'" onclick="_matOnCutRowClick(this)" title="Click to edit letter / length / delete">'+
-      '<td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td>'+
+    var lbl = r.letter ? r.letter : '?';
+    var rowKey = esc(typeKey + '|' + (r.letter || '') + '|' + r.length.toFixed(2));
+    var letterInput = '<input class="cl-letter" data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" '+
+      'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLetter(this)" '+
+      'style="width:42px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:2px 4px;border-radius:4px;font-size:inherit">';
+    var lenInput = '<input class="cl-length" data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" '+
+      'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLength(this)" '+
+      'style="width:62px;border:1px solid transparent;background:transparent;text-align:right;padding:2px 4px;border-radius:4px;font-size:inherit">';
+    html += '<tr>'+
+      '<td>'+letterInput+'</td>'+
       '<td class="r">'+r.qty+'</td>'+
-      '<td class="r">'+r.length.toFixed(1)+' m</td>'+
+      '<td class="r">'+lenInput+' m</td>'+
       '<td class="r">$'+lineCost.toFixed(2)+'</td>'+
-      '<td class="r" style="color:#6f6a60;font-size:10.5px">Edit</td>'+
+      '<td class="r"><button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Remove this piece from the cut list" '+
+        'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:2px 6px;line-height:1">×</button></td>'+
     '</tr>';
   });
   html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td><td class="r" style="color:#059669">$'+totalCost.toFixed(2)+'</td><td class="r"></td></tr></tfoot></table>';
   return html;
+}
+
+// Walk every labelled line and pick out the ones matching a row key
+// (typeKey|letter|length). Used by every inline edit handler.
+function _matInlineMatchesFor(rowKey){
+  var parts = String(rowKey || '').split('|');
+  if (parts.length < 3) return [];
+  var type   = parts[0];
+  var letter = parts[1];
+  var lenNum = parseFloat(parts[2]);
+  if (!isFinite(lenNum)) lenNum = 0;
+  var labelled = (typeof _flashCollectLabelled === 'function') ? _flashCollectLabelled() : [];
+  return labelled.filter(function(o){
+    if (!o.line || !o.line.type) return false;
+    var t = o.line.type;
+    if (type === 'ridgehip') { if (t !== 'ridge' && t !== 'hip') return false; }
+    else if (t !== type) return false;
+    var sameLetter = (letter || '') === (o.letter || '');
+    var sameLen = Math.abs(+o.lengthM - lenNum) < 0.05;
+    return sameLetter && sameLen;
+  });
+}
+
+// Enter commits; Escape reverts. Tab keeps default behaviour so the
+// user can jump from Letter → Length → next row's Letter naturally.
+function _matInlineKey(ev, inp){
+  if (ev.key === 'Enter') { ev.preventDefault(); inp.blur(); }
+  else if (ev.key === 'Escape') { ev.preventDefault(); inp.value = inp.defaultValue; inp.blur(); }
+}
+
+function _matInlineSetLetter(inp){
+  var rowKey = inp.getAttribute('data-cl-row');
+  var raw = String(inp.value || '').trim();
+  var newLetter = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  var matches = _matInlineMatchesFor(rowKey);
+  if (!matches.length) return;
+  if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
+  matches.forEach(function(m){
+    var ov = DRAW.flashLayoutOverrides[m.key] || {};
+    delete ov.hidden;
+    if (newLetter) ov.letter = newLetter; else delete ov.letter;
+    DRAW.flashLayoutOverrides[m.key] = ov;
+  });
+  _flashRefreshAfterEdit();
+}
+
+function _matInlineSetLength(inp){
+  var rowKey = inp.getAttribute('data-cl-row');
+  var n = parseFloat(inp.value);
+  var matches = _matInlineMatchesFor(rowKey);
+  if (!matches.length) return;
+  if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
+  matches.forEach(function(m){
+    var ov = DRAW.flashLayoutOverrides[m.key] || {};
+    delete ov.hidden;
+    if (!isNaN(n) && n > 0) ov.lengthM = n; else delete ov.lengthM;
+    DRAW.flashLayoutOverrides[m.key] = ov;
+  });
+  _flashRefreshAfterEdit();
+}
+
+function _matInlineDelete(btn){
+  var rowKey = btn.getAttribute('data-cl-row');
+  var matches = _matInlineMatchesFor(rowKey);
+  if (!matches.length) return;
+  if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
+  matches.forEach(function(m){
+    var ov = DRAW.flashLayoutOverrides[m.key] || {};
+    ov.hidden = true;
+    DRAW.flashLayoutOverrides[m.key] = ov;
+  });
+  _flashRefreshAfterEdit();
 }
 
 // Cut-list row → flashing edit popup. Resolves the row's (type, letter,
