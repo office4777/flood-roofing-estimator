@@ -1,0 +1,7 @@
+{
+  "name": "fergus-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone read-only Fergus API proxy for the Flood Roofing Operations Hub",
+  "type": "module"
+}
