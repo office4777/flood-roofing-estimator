@@ -13743,7 +13743,12 @@ function redrawAll() {
           var lblImgX = rmx + dx*bestPerp*0.5, lblImgY = rmy + dy*bestPerp*0.5;
           if (!_pointInPoly(lblImgX, lblImgY, outline)) return;
           var autoSheetM = bestPerp * (DRAW.scaleMetresPerPx || 0) * _pitchF;
-          var key = _sheetDimKey(rl, dx, dy);
+          // Face-based key (gutter + into-face direction) is the one
+          // we use for overrides — _applySheetOverridesToFaces in the
+          // sheet plan reads the SAME key from each face directly,
+          // bypassing the brittle ridge-matching that the old
+          // _sheetDimKey scheme required.
+          var key = _faceOverrideKey(bestG, -dx, -dy);
           var ov  = (DRAW.sheetOverrides && DRAW.sheetOverrides[key]);
           var sheetM = (ov != null && isFinite(ov) && ov > 0) ? ov : autoSheetM;
           var isOverride = (ov != null && isFinite(ov) && ov > 0);
@@ -14681,32 +14686,38 @@ function showCalibratePopup(pixelDist) {
 // Stable identifier for a sheet-length dimension — survives endpoint
 // swaps + small jitter. Combines the canonical ridge endpoints (smaller
 // first) with the side direction in canonical perpendicular frame.
+// Face-based override key. Encodes the gutter line's canonical
+// endpoints + which side of the gutter the face sits on. Lets the
+// override survive any ridge-matching imprecision because every face
+// can compute the SAME key directly from its own a/b/nx/ny — no
+// "find nearest ridge" step required.
+function _faceOverrideKey(gutter, intoFaceX, intoFaceY) {
+  if (!gutter || !gutter.pts || gutter.pts.length < 2) return '';
+  var a = gutter.pts[0], b = gutter.pts[1];
+  var sa = (a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])) ? a : b;
+  var sb = (sa === a) ? b : a;
+  var dx = sb[0] - sa[0], dy = sb[1] - sa[1];
+  var L  = Math.sqrt(dx*dx + dy*dy) || 1;
+  var canPerpX = -dy/L, canPerpY = dx/L;
+  var side = (intoFaceX * canPerpX + intoFaceY * canPerpY) > 0 ? 'A' : 'B';
+  return 'g_' + Math.round(sa[0])+','+Math.round(sa[1])+'_'+Math.round(sb[0])+','+Math.round(sb[1])+'_'+side;
+}
+
 // Walk the sheet plan's face list and replace face.sheetM with any
 // matching DRAW.sheetOverrides[key] the user has typed in via the
-// click-to-edit sheet labels. For each face, find the closest ridge-
-// equivalent line on the FAR side of the gutter (gutter midpoint +
-// nx*perpPx, ny*perpPx) and compute the override key with the
-// opposite perp direction (face nx/ny points gutter→ridge; sheet
-// label's perp points ridge→gutter).
+// click-to-edit sheet labels. The override key is gutter-based
+// (_faceOverrideKey) so every face can compute its own key directly
+// without searching for a matching ridge — that "find nearest ridge"
+// step kept missing on skeleton-rebuilt faces.
 function _applySheetOverridesToFaces(faces){
   if (!faces || !faces.length) return;
   if (!DRAW.sheetOverrides) return;
-  if (!DRAW.lines || !DRAW.lines.length) return;
-  // Effective scale used by faces' planSheetM is in metres/pixel —
-  // when we override sheetM we keep planSheetM consistent by dividing
-  // out the pitch factor. perpPx stays untouched so the strip tiler
-  // still uses the geometric face shape.
-  var ridgeish = DRAW.lines.filter(function(l){
-    return l && l.pts && l.pts.length >= 2
-        && (l.type === 'ridge' || l.type === 'barge' || l.type === 'apron' || l.type === 'changepitch');
-  });
-  if (!ridgeish.length) return;
   faces.forEach(function(face){
     if (!face) return;
-    // Skeleton-rebuilt faces don't have a `gutter` reference, only
-    // `a` / `b` endpoints + perpendicular nx/ny + perpPx. Use those
-    // directly so every face — direct skeleton or pre-skeleton — can
-    // pick up a matching override.
+    // Get the face's gutter endpoints. Skeleton-rebuilt faces only
+    // carry a/b, regular faces also have a gutter line reference. The
+    // override key is computed straight from those endpoints + the
+    // face's inward perpendicular — no ridge search needed.
     var ga, gb;
     if (face.gutter && face.gutter.pts) {
       ga = face.gutter.pts[0]; gb = face.gutter.pts[1];
@@ -14715,23 +14726,7 @@ function _applySheetOverridesToFaces(faces){
     } else {
       return;
     }
-    var gMidX = (ga[0] + gb[0]) / 2;
-    var gMidY = (ga[1] + gb[1]) / 2;
-    var expX = gMidX + face.nx * face.perpPx;
-    var expY = gMidY + face.ny * face.perpPx;
-    var bestRidge = null, bestD = Infinity;
-    ridgeish.forEach(function(rl){
-      var mx = (rl.pts[0][0] + rl.pts[1][0]) / 2;
-      var my = (rl.pts[0][1] + rl.pts[1][1]) / 2;
-      var d = Math.hypot(mx - expX, my - expY);
-      if (d < bestD) { bestD = d; bestRidge = rl; }
-    });
-    // perpPx can be modest (e.g. 80–120 px for a 4 m face), so the
-    // match tolerance grows with perpPx — short faces with a hip end
-    // can leave the apex slightly off the ridge midpoint.
-    var matchTol = Math.max(60, face.perpPx * 0.35);
-    if (!bestRidge || bestD > matchTol) return;
-    var key = _sheetDimKey(bestRidge, -face.nx, -face.ny);
+    var key = _faceOverrideKey({ pts: [ga, gb] }, face.nx, face.ny);
     var ov  = DRAW.sheetOverrides[key];
     if (ov == null || !isFinite(ov) || ov <= 0) return;
     face.sheetM = +ov;
