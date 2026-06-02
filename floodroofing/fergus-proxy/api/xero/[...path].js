@@ -15,7 +15,8 @@
 // If the Xero vars are not set, this endpoint returns 501 and the app falls
 // back to a P&L derived from your back-costing data.
 
-const XERO_SCOPE = 'accounting.reports.profitandloss.read';
+// Xero scope for reading reports (P&L). Override with XERO_SCOPE if needed.
+const XERO_SCOPE = process.env.XERO_SCOPE || 'accounting.reports.read';
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
