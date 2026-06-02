@@ -2574,6 +2574,7 @@ select{
       <button onclick="undoFlashSketch()" class="tool-btn" id="flashUndoBtn">↶ Undo</button>
       <button onclick="redoFlashSketch()" class="tool-btn" id="flashRedoBtn">↷ Redo</button>
       <button onclick="clearFlashCanvas()" class="tool-btn">Clear</button>
+      <button onclick="exportFlashAsBuiltin()" class="tool-btn" title="Print a paste-ready code snippet for this sketch so it can be hard-coded into the program's built-in flashing library">⤓ Export as system default</button>
       <button onclick="saveFlashSketch()" class="sec-btn" style="margin:0 0 0 auto;width:auto;padding:8px 18px">Save sketch</button>
     </div>
     <div style="padding:8px 20px;background:#fafaf7;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--text2)">
@@ -9785,6 +9786,123 @@ function openFlashEditModal(libIdx){
 }
 
 function closeFlashSketch(){ document.getElementById('flashSketchModal').style.display = 'none'; }
+
+// Export the current sketch as a hard-coded built-in preset. Produces
+// a paste-ready JS snippet that the developer drops into the
+// _FLASH_BUILTIN_PRESETS array at the top of index.html. Once pasted
+// + deployed the new flashing ships as a system default — every user
+// sees it in the library and it survives any catalog wipe / re-login.
+function exportFlashAsBuiltin(){
+  var name = (document.getElementById('flashMetaName').value || '').trim();
+  if (!name) {
+    var defaultName = 'New system flashing';
+    name = window.prompt('Name this system-default flashing — this is what the user sees in the library:', defaultName);
+    if (!name) return;
+    name = name.trim(); if (!name) return;
+  }
+  var profile      = (document.getElementById('flashMetaProfile')||{}).value || 'any';
+  var flashingType = (document.getElementById('flashMetaType')||{}).value || 'custom';
+  var stats = _computeFlashStats();
+  // Snapshot polylines + every saved annotation. We round vertices to
+  // whole pixels so the resulting source diff is clean across re-
+  // exports; sub-pixel jitter would otherwise rewrite every entry on
+  // every export.
+  function r(n){ return Math.round(n); }
+  var polylines = _flashSketchState.polylines.map(function(p){
+    return {
+      vertices: p.vertices.map(function(v){ return [r(v[0]), r(v[1])]; }),
+      measurements: Object.assign({}, p.measurements || {}),
+      measurementOffsets: Object.assign({}, p.measurementOffsets || {}),
+      crushFolds: Object.assign({}, p.crushFolds || {})
+    };
+  });
+  var payload = {
+    name: name, flashingType: flashingType, profile: profile, isBuiltin: true,
+    polylines: polylines,
+    girthMm: stats.girth,
+    angleChanges: stats.angleChanges
+  };
+  if (stats.crushFolds) payload.crushFoldCount = stats.crushFolds;
+  if (_flashSketchState.paintedSide) {
+    var ps = _flashSketchState.paintedSide;
+    payload.paintedSide = { x: r(ps.x), y: r(ps.y), dirX: +ps.dirX.toFixed(3), dirY: +ps.dirY.toFixed(3) };
+  }
+  if (_flashSketchState.flashGuard) {
+    var fg = _flashSketchState.flashGuard;
+    payload.flashGuard = { x: r(fg.x), y: r(fg.y) };
+  }
+  if (_flashSketchState.flashGuards) payload.flashGuards = true;
+  // Pretty-print as JS — JSON.stringify gives us most of the way, then
+  // we collapse the per-polyline object onto fewer lines so the
+  // resulting diff is tight + readable in the source file.
+  var snippet = '  {\n' +
+    '    name:' + JSON.stringify(payload.name) + ', ' +
+    'flashingType:' + JSON.stringify(payload.flashingType) + ', ' +
+    'profile:' + JSON.stringify(payload.profile) + ', isBuiltin:true,\n' +
+    '    polylines:' + JSON.stringify(payload.polylines) + ',\n' +
+    '    girthMm:' + payload.girthMm + ', angleChanges:' + payload.angleChanges +
+    (payload.crushFoldCount ? ', crushFoldCount:' + payload.crushFoldCount : '') +
+    (payload.paintedSide ? ',\n    paintedSide:' + JSON.stringify(payload.paintedSide) : '') +
+    (payload.flashGuard  ? ',\n    flashGuard:'  + JSON.stringify(payload.flashGuard)  : '') +
+    (payload.flashGuards ? ',\n    flashGuards:true' : '') +
+    '\n  },';
+  _showFlashExportModal(name, snippet);
+}
+
+// Modal that surfaces the export snippet so the user (or developer)
+// can copy + paste it. Falls back to selectAll on the textarea when
+// the Clipboard API is blocked (e.g. cross-origin in an iframe).
+function _showFlashExportModal(name, snippet){
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(13,13,12,.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:24px';
+  overlay.innerHTML =
+    '<div style="background:#fff;border-radius:14px;max-width:760px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.3);padding:18px 20px">'+
+      '<div style="display:flex;align-items:center;margin-bottom:10px">'+
+        '<div style="font-size:14px;font-weight:700;color:#0a1628">Export "'+esc(name)+'" as a system default</div>'+
+        '<button id="_flashExportClose" style="margin-left:auto;background:none;border:none;font-size:20px;color:#6f6a60;cursor:pointer;line-height:1">×</button>'+
+      '</div>'+
+      '<div style="font-size:12px;color:#374151;margin-bottom:10px;line-height:1.55">'+
+        'Paste this snippet into the <code style="background:#f4f4ef;padding:2px 5px;border-radius:3px">_FLASH_BUILTIN_PRESETS</code> array in '+
+        '<code style="background:#f4f4ef;padding:2px 5px;border-radius:3px">floodroofing/frontend/index.html</code> '+
+        '(search for <code style="background:#f4f4ef;padding:2px 5px;border-radius:3px">_FLASH_BUILTIN_PRESETS = [</code> near line 8770). Save + deploy and the new flashing ships as a built-in for every user — won\'t disappear on refresh.'+
+      '</div>'+
+      '<textarea id="_flashExportText" readonly style="width:100%;height:230px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;padding:10px;border:1px solid #d1d5db;border-radius:6px;background:#f8f9fa;color:#0a1628;white-space:pre;resize:vertical;box-sizing:border-box"></textarea>'+
+      '<div style="display:flex;gap:8px;margin-top:12px">'+
+        '<button id="_flashExportCopy" class="sec-btn" style="margin:0;width:auto;padding:8px 18px">📋 Copy to clipboard</button>'+
+        '<button id="_flashExportSelect" class="tool-btn">Select all</button>'+
+        '<span id="_flashExportMsg" style="margin-left:auto;align-self:center;font-size:11px;color:var(--text2)"></span>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(overlay);
+  var ta  = overlay.querySelector('#_flashExportText');
+  ta.value = snippet;
+  function close(){ document.body.removeChild(overlay); }
+  overlay.querySelector('#_flashExportClose').onclick = close;
+  overlay.addEventListener('click', function(e){ if (e.target === overlay) close(); });
+  overlay.querySelector('#_flashExportSelect').onclick = function(){ ta.focus(); ta.select(); };
+  overlay.querySelector('#_flashExportCopy').onclick = function(){
+    var msg = overlay.querySelector('#_flashExportMsg');
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(snippet).then(function(){
+          msg.textContent = '✓ Copied to clipboard';
+          msg.style.color = '#059669';
+        }, function(){
+          ta.focus(); ta.select(); document.execCommand && document.execCommand('copy');
+          msg.textContent = '✓ Copied (fallback)';
+          msg.style.color = '#059669';
+        });
+      } else {
+        ta.focus(); ta.select(); document.execCommand && document.execCommand('copy');
+        msg.textContent = '✓ Copied';
+        msg.style.color = '#059669';
+      }
+    } catch(e){
+      msg.textContent = 'Copy blocked — use Select all then Ctrl+C';
+      msg.style.color = '#b91c1c';
+    }
+  };
+}
 
 function saveFlashSketch(){
   var c = document.getElementById('flashCanvas');
