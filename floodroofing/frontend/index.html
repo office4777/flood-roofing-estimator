@@ -13472,62 +13472,11 @@ function redrawAll() {
     ctx.restore();
   }
 
-  // ── FLASHING LETTER OVERLAYS ─────────────────────────────────────
-  // Draw the auto-assigned letter+adjusted-length tag from
-  // _flashCollectLabelled for every labelled line. Tag sits perpendicular
-  // to the line midpoint offset 32px out so it stays clear of the
-  // existing measurement label. Stashes hit data so the canvas click
-  // handler + the mirrored Materials Roof Map can edit / delete.
-  try {
-    var _labelledLines = (typeof _flashCollectLabelled === 'function')
-      ? _flashCollectLabelled()
-      : [];
-    if (_labelledLines.length) {
-      ctx.save();
-      ctx.font = '700 11px Inter, -apple-system, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      _labelledLines.forEach(function(o){
-        if (!o.line || !o.line.pts || o.line.pts.length < 2) return;
-        // Only draw overlays for the ACTIVE roof's lines (or any
-        // visible roof in Show-all). Non-visible roofs' letters
-        // would land on the wrong canvas position.
-        var roofVisible = (o.roofIdx < 0)
-          || (o.roofIdx === DRAW.activeRoofIdx)
-          || (!!DRAW.showAllRoofs);
-        if (!roofVisible) return;
-        var a = dp(o.line.pts[0]), b = dp(o.line.pts[1]);
-        var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
-        var dxL = b[0]-a[0], dyL = b[1]-a[1];
-        var L = Math.sqrt(dxL*dxL + dyL*dyL) || 1;
-        // Perpendicular offset 32px out. The measurement label sits on
-        // the +y midpoint area, so we pick the perpendicular that points
-        // AWAY from the measurement to keep them visually separated.
-        var ox = -dyL/L * 32, oy = dxL/L * 32;
-        // Bias toward the opposite side of the measurement label (which
-        // sits just below the midpoint at +Y) — flip if our offset is in
-        // the same +Y direction as the measurement.
-        if (o.line.measM && oy > 0) { ox = -ox; oy = -oy; }
-        var lx = mx + ox, ly = my + oy;
-        var txt = (o.letter || '?') + ': ' + o.lengthM.toFixed(1) + 'm';
-        var tw = ctx.measureText(txt).width;
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(lx - tw/2 - 6, ly - 9, tw + 12, 18);
-        ctx.strokeStyle = o.color || '#0a1628';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(lx - tw/2 - 6, ly - 9, tw + 12, 18);
-        ctx.fillStyle = o.color || '#0a1628';
-        ctx.fillText(txt, lx, ly);
-        window._roofCanvasHits.letters.push({
-          x: lx, y: ly, w: tw + 12, h: 18,
-          line: o.line, key: o.key, roofIdx: o.roofIdx,
-          letter: o.letter, lengthM: o.lengthM,
-          type: o.line.type, color: o.color
-        });
-      });
-      ctx.restore();
-    }
-  } catch(e){ /* never let the overlay break the canvas */ }
+  // Flashing letter overlays no longer render on the Map Roof canvas —
+  // they were covering the exact-measurement labels (e.g. "5.6m") and
+  // the user only wants to see them on the Materials tab Roof Map.
+  // The Materials renderer draws its own letter tags via
+  // _drawFlashLetterOverlaysOn() with deduplication + wider offset.
 
   // Info items — numbered bright asterisks
   DRAW.infoItems.forEach(function(item){
@@ -14966,24 +14915,21 @@ var _MAT_FLASHING_SPECS = [
 // numeric cut list and in the printed PDF.
 
 // Identifier for a line that survives endpoint swaps + small drift.
-// Hit-test the click event against the stashed roof-canvas hits
-// (letter tags + sheet labels). Returns truthy if a hit was handled.
+// Hit-test the click event against the stashed roof-canvas SHEET-
+// LENGTH labels (letter overlays are now only drawn on the Materials
+// Roof Map, so the Map Roof tab only needs sheet hit-testing).
+// Returns truthy if a hit was handled.
 function _roofCanvasHitLetterOrSheet(ev){
   var cv = document.getElementById('roofCanvas'); if (!cv) return false;
-  var hits = window._roofCanvasHits || { letters: [], sheets: [] };
-  if (!hits.letters.length && !hits.sheets.length) return false;
+  var hits = window._roofCanvasHits || { sheets: [] };
+  if (!hits.sheets || !hits.sheets.length) return false;
   var r  = cv.getBoundingClientRect();
   var dpr = window.devicePixelRatio || 1;
-  // Click → CSS pixels (the same space hits are stored in after the
-  // ctx.scale(dpr,dpr) in redrawAll).
   var cx = (ev.clientX - r.left) * (cv.width  / r.width)  / dpr;
   var cy = (ev.clientY - r.top)  * (cv.height / r.height) / dpr;
   function inBox(h){
     return cx >= (h.x - h.w/2) && cx <= (h.x + h.w/2)
         && cy >= (h.y - h.h/2) && cy <= (h.y + h.h/2);
-  }
-  for (var i = 0; i < hits.letters.length; i++) {
-    if (inBox(hits.letters[i])) { _flashEditPopup(hits.letters[i]); return true; }
   }
   for (var j = 0; j < hits.sheets.length; j++) {
     if (inBox(hits.sheets[j])) { _sheetEditPopup(hits.sheets[j]); return true; }
@@ -15073,6 +15019,31 @@ function _flashCollectLabelled() {
   } else {
     processRoof(-1, DRAW.outline, DRAW.lines);
   }
+  // Second pass: drop near-duplicate lines (same type with endpoints
+  // within ~6 image pixels of an earlier line). Two roofs that share
+  // an outer edge would otherwise label the same physical flashing
+  // twice (e.g. "G: 4.7m" + "C: 4.7m" stacked on the same barge).
+  var deduped = [];
+  out.forEach(function(o){
+    var a = o.line.pts[0], b = o.line.pts[1];
+    var dupKey = o.line.type + '|';
+    // Canonical endpoint order so swapped pts still match.
+    var sa, sb;
+    if (a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])) { sa = a; sb = b; }
+    else { sa = b; sb = a; }
+    var isDup = deduped.some(function(d){
+      if (d.line.type !== o.line.type) return false;
+      var da = d.line.pts[0], db = d.line.pts[1];
+      var dsa, dsb;
+      if (da[0] < db[0] || (da[0] === db[0] && da[1] < db[1])) { dsa = da; dsb = db; }
+      else { dsa = db; dsb = da; }
+      var d1 = Math.hypot(sa[0]-dsa[0], sa[1]-dsa[1]);
+      var d2 = Math.hypot(sb[0]-dsb[0], sb[1]-dsb[1]);
+      return d1 < 6 && d2 < 6;
+    });
+    if (!isDup) deduped.push(o);
+  });
+  out = deduped;
   // Second pass: fill blank letters with the next available A, B, C, …
   function nextLetter(n){
     var s = '';
@@ -15104,12 +15075,10 @@ function renderMatRoofMap(){
     out.innerHTML = '<p style="font-size:12px;color:var(--text2)">Draw your roof outline on the Map Roof tab — this map will appear here.</p>';
     return;
   }
-  // Force a fresh draw so overlays + hit data are up to date.
+  // Force a fresh draw so the source canvas is up to date with the
+  // current outline + lines + measurement labels.
   try { redrawAll(); } catch(e){}
   var dpr = window.devicePixelRatio || 1;
-  // Source canvas pixel size = CSS size * DPR. Materials canvas keeps
-  // the same backing resolution so the mirror looks identical, but its
-  // displayed CSS width is capped to the card width.
   var W = src.width, H = src.height;
   out.innerHTML = '<canvas id="matRoofMapCanvas" width="'+W+'" height="'+H+'" style="display:block;width:100%;height:auto;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer"></canvas>';
   var canvas = document.getElementById('matRoofMapCanvas');
@@ -15118,40 +15087,136 @@ function renderMatRoofMap(){
     out.innerHTML = '<p style="font-size:12px;color:#b91c1c">Couldn\'t mirror the roof map — refresh the Map Roof tab and try again.</p>';
     return;
   }
-  // The hit data was stashed by redrawAll() in CSS-pixel coords (the
-  // ctx.scale(dpr,dpr) inside redrawAll already accounts for DPR).
-  // We multiply by DPR to get canvas-backing pixels, then by the
-  // displayed-vs-backing ratio at click time.
-  var hits = window._roofCanvasHits || { letters: [], sheets: [] };
-  canvas._hits = hits;
+  // Letter tags ONLY appear on the Materials canvas — the user asked to
+  // keep the Map Roof tab clean. Draw them in CSS-pixel space (scaled by
+  // dpr to match how roofCanvas was rendered).
+  var letterHits = [];
+  try {
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    letterHits = _drawFlashLetterOverlaysOn(ctx, W / dpr, H / dpr);
+    ctx.restore();
+  } catch(e){ console.warn('letter overlay:', e); }
+  canvas._letterHits = letterHits;
+  canvas._sheetHits  = (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
   canvas._dpr = dpr;
   canvas.onclick = function(ev){
     var r = canvas.getBoundingClientRect();
-    // Click → canvas backing pixels
     var bx = (ev.clientX - r.left) * (canvas.width / r.width);
     var by = (ev.clientY - r.top)  * (canvas.height / r.height);
-    // The stashed coords are in CSS-pixel-after-scale-by-DPR space.
-    // Convert click to that same space.
     var cx = bx / canvas._dpr;
     var cy = by / canvas._dpr;
     _matRoofMapHandleClick(cx, cy);
   };
 }
 
-// Hit-test against the stashed letter + sheet boxes (in CSS-pixel space
-// after the DPR scale). First letters, then sheets. Opens the unified
-// edit popup for whichever was hit.
+// Draw flashing-letter tags onto a 2D context that's been transformed
+// to match roofCanvas's CSS-pixel coordinate system. Tags are laid OFF
+// to the side of each line (perpendicular offset 55–95 px depending on
+// crowding) so they stay clear of the measurement labels rendered on
+// the line. Returns the hit-test rectangles in CSS-pixel coords.
+function _drawFlashLetterOverlaysOn(ctx, cssW, cssH){
+  var hits = [];
+  if (typeof _flashCollectLabelled !== 'function') return hits;
+  var labelled = _flashCollectLabelled();
+  if (!labelled.length) return hits;
+  var _t = (typeof getImgTransform === 'function') ? getImgTransform() : null;
+  function dp(pt){ return _t ? imgToCanvas(pt, _t) : [pt[0], pt[1]]; }
+  ctx.save();
+  ctx.font = '700 12px Inter, -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // Greedy-placement: for each labelled line, try perpendicular offsets
+  // OUTWARD from the building centroid first (the "outside" of the
+  // line). If that lands on top of an earlier label, push out further.
+  // Compute a rough centroid of all visible outlines so we know which
+  // perpendicular direction is "outside".
+  var cenX = 0, cenY = 0, cn = 0;
+  function bumpOutline(o){ (o||[]).forEach(function(p){ var cp = dp(p); cenX += cp[0]; cenY += cp[1]; cn++; }); }
+  if (DRAW.roofs && DRAW.roofs.length) {
+    DRAW.roofs.forEach(function(r){ bumpOutline(r.outline); });
+  } else {
+    bumpOutline(DRAW.outline);
+  }
+  if (cn) { cenX /= cn; cenY /= cn; } else { cenX = cssW / 2; cenY = cssH / 2; }
+  labelled.forEach(function(o){
+    if (!o.line || !o.line.pts || o.line.pts.length < 2) return;
+    var a = dp(o.line.pts[0]), b = dp(o.line.pts[1]);
+    var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+    var dxL = b[0]-a[0], dyL = b[1]-a[1];
+    var L = Math.sqrt(dxL*dxL + dyL*dyL) || 1;
+    var nx = -dyL / L, ny = dxL / L;
+    // Pick the perpendicular pointing AWAY from the centroid (outside
+    // of the building) so the label sits on the open side of the line.
+    var toCenX = cenX - mx, toCenY = cenY - my;
+    if (nx * toCenX + ny * toCenY > 0) { nx = -nx; ny = -ny; }
+    var txt = (o.letter || '?') + ': ' + o.lengthM.toFixed(1) + 'm';
+    var tw = ctx.measureText(txt).width;
+    var boxW = tw + 14, boxH = 22;
+    // Try offsets from near the line out to ~110 px until we don't
+    // collide with any earlier label.  Step grows from 55 px in 18 px
+    // increments — that keeps the label close to its line on uncrowded
+    // canvases but pushes further when several labels stack up.
+    var placedLx = mx + nx * 60, placedLy = my + ny * 60;
+    for (var step = 0; step < 6; step++) {
+      var dist = 55 + step * 18;
+      var lx = mx + nx * dist, ly = my + ny * dist;
+      var overlaps = hits.some(function(h){
+        return Math.abs(h.x - lx) < (h.w/2 + boxW/2 + 4)
+            && Math.abs(h.y - ly) < (h.h/2 + boxH/2 + 4);
+      });
+      if (!overlaps) {
+        placedLx = lx; placedLy = ly;
+        break;
+      }
+      placedLx = lx; placedLy = ly;
+    }
+    // Leader line from the line midpoint to the placed tag so the user
+    // can tell which line the tag belongs to when it sits far out.
+    ctx.strokeStyle = o.color || '#0a1628';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(mx, my);
+    ctx.lineTo(placedLx, placedLy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Tag box + text
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(placedLx - boxW/2, placedLy - boxH/2, boxW, boxH);
+    ctx.strokeStyle = o.color || '#0a1628';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(placedLx - boxW/2, placedLy - boxH/2, boxW, boxH);
+    ctx.fillStyle = o.color || '#0a1628';
+    ctx.fillText(txt, placedLx, placedLy);
+    hits.push({
+      x: placedLx, y: placedLy, w: boxW, h: boxH,
+      line: o.line, key: o.key, roofIdx: o.roofIdx,
+      letter: o.letter, lengthM: o.lengthM,
+      type: o.line.type, color: o.color
+    });
+  });
+  ctx.restore();
+  return hits;
+}
+
+// Hit-test against the Materials canvas's stashed letter + sheet
+// boxes (CSS-pixel space). Letters come from the on-mat-canvas overlay
+// pass; sheets come from the global redrawAll stash. First letters,
+// then sheets — letters sit on top.
 function _matRoofMapHandleClick(cx, cy){
-  var hits = window._roofCanvasHits || { letters: [], sheets: [] };
+  var canvas = document.getElementById('matRoofMapCanvas');
+  var letterHits = (canvas && canvas._letterHits) || [];
+  var sheetHits  = (canvas && canvas._sheetHits)  || (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
   function inBox(h){
     return cx >= (h.x - h.w/2) && cx <= (h.x + h.w/2)
         && cy >= (h.y - h.h/2) && cy <= (h.y + h.h/2);
   }
-  for (var i = 0; i < hits.letters.length; i++) {
-    if (inBox(hits.letters[i])) { _flashEditPopup(hits.letters[i]); return; }
+  for (var i = 0; i < letterHits.length; i++) {
+    if (inBox(letterHits[i])) { _flashEditPopup(letterHits[i]); return; }
   }
-  for (var j = 0; j < hits.sheets.length; j++) {
-    if (inBox(hits.sheets[j])) { _sheetEditPopup(hits.sheets[j]); return; }
+  for (var j = 0; j < sheetHits.length; j++) {
+    if (inBox(sheetHits[j])) { _sheetEditPopup(sheetHits[j]); return; }
   }
 }
 
