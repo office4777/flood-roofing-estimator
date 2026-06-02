@@ -1556,9 +1556,13 @@ select{
                 <option value="valley">— Valley (orange)</option>
                 <option value="gutter">— Gutter (purple)</option>
                 <option value="hip">— Hip (green)</option>
-                <option value="barge">— Barge (blue)</option>
-                <option value="apron">— Apron flashing (pink)</option>
+                <option value="barge|side">— Side barge (blue)</option>
+                <option value="barge|head">— Head barge (sky)</option>
+                <option value="apron|side">— Side apron (pink)</option>
+                <option value="apron|head">— Head apron (rose)</option>
                 <option value="changepitch">— Change of pitch (sky)</option>
+                <option value="drip">— Drip edge (amber)</option>
+                <option value="custom">— Custom flashing (slate)</option>
               </select>
             </div>
             <div><label>Measurement (m)</label>
@@ -2525,11 +2529,14 @@ select{
         <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Flashing type</label>
         <select id="flashMetaType" style="margin:0">
           <option value="custom">Custom</option>
-          <option value="apron">Apron</option>
-          <option value="barge">Barge</option>
+          <option value="barge|side">Side barge</option>
+          <option value="barge|head">Head barge</option>
+          <option value="apron|side">Side apron</option>
+          <option value="apron|head">Head apron</option>
           <option value="changepitch">Change-of-pitch</option>
           <option value="valley">Valley</option>
           <option value="ridgehip">Ridge / Hip</option>
+          <option value="drip">Drip edge</option>
           <option value="gutter">Gutter</option>
         </select>
       </div>
@@ -3026,11 +3033,14 @@ select{
           <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Filter — Type</label>
           <select id="flibFilterType" onchange="renderFlashingLibrary()" style="margin:0">
             <option value="">All types</option>
-            <option value="apron">Apron</option>
-            <option value="barge">Barge</option>
+            <option value="barge|side">Side barge</option>
+            <option value="barge|head">Head barge</option>
+            <option value="apron|side">Side apron</option>
+            <option value="apron|head">Head apron</option>
             <option value="changepitch">Change-of-pitch</option>
             <option value="valley">Valley</option>
             <option value="ridgehip">Ridge / Hip</option>
+            <option value="drip">Drip edge</option>
             <option value="gutter">Gutter</option>
             <option value="custom">Custom</option>
           </select>
@@ -9846,8 +9856,12 @@ function renderFlashingLibrary() {
       '</div>';
     return;
   }
-  var typeLabels = { apron:'Apron', barge:'Barge', changepitch:'Change-of-pitch',
-                     valley:'Valley', ridgehip:'Ridge / Hip', gutter:'Gutter', custom:'Custom' };
+  var typeLabels = { 'apron':'Apron', 'barge':'Barge',
+                     'barge|side':'Side barge', 'barge|head':'Head barge',
+                     'apron|side':'Side apron', 'apron|head':'Head apron',
+                     'changepitch':'Change-of-pitch', 'valley':'Valley',
+                     'ridgehip':'Ridge / Hip', 'gutter':'Gutter',
+                     'drip':'Drip edge', 'custom':'Custom' };
   grid.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">'+
     rows.map(function(r){
       var e = r.entry;
@@ -9872,10 +9886,24 @@ function renderFlashingLibrary() {
           '<button onclick="'+dupCall+'" class="tool-btn" style="font-size:11px;padding:6px 8px">⧉ Copy</button>'+
           '<button onclick="deleteFlashingLibraryEntry('+r.srcIdx+')" class="tool-btn" style="font-size:11px;padding:6px 10px;color:#b91c1c">Delete</button>';
       }
+      // Built-in name is read-only; user-saved name is an inline input.
+      var nameField;
+      if (r.isBuiltin) {
+        nameField = '<div style="font-size:13px;font-weight:600;color:#0a1628;margin-bottom:4px">'+esc(e.name||'Untitled')+'</div>';
+      } else {
+        nameField = '<input type="text" value="'+esc(e.name||'Untitled')+'" '+
+          'onfocus="this.select()" '+
+          'onchange="_flashLibRenameSaved('+r.srcIdx+',this.value)" '+
+          'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
+          'style="width:100%;font-size:13px;font-weight:600;color:#0a1628;margin-bottom:4px;padding:4px 6px;border:1px solid transparent;border-radius:4px;background:transparent" '+
+          'title="Click to rename" '+
+          'onmouseover="this.style.border=\'1px solid var(--border)\'" '+
+          'onmouseout="if(document.activeElement!==this)this.style.border=\'1px solid transparent\'">';
+      }
       return '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">'+
         thumb +
         '<div style="padding:10px 12px">'+
-          '<div style="font-size:13px;font-weight:600;color:#0a1628;margin-bottom:4px">'+esc(e.name||'Untitled')+'</div>'+
+          nameField +
           '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
             originBadge +
             '<span style="font-size:10px;background:#f4f4ef;color:#374151;padding:2px 7px;border-radius:10px;font-weight:600">'+esc(e.profile||'any')+'</span>'+
@@ -9947,6 +9975,34 @@ function duplicateSavedFlashing(savedIdx){
   if (newIdx < 0) return;
   renderFlashingLibrary();
   openFlashEditModal(newIdx);
+}
+
+// Inline rename for a saved library entry. Triggered by the name
+// input on the library card. Trims whitespace; ignores empty names
+// (the input snaps back to its previous value on the next render).
+// Also keeps any Materials-tab picker selection in sync — the pick is
+// stored by NAME, so we rewrite the localStorage entries that pointed
+// at the OLD name to the new one.
+function _flashLibRenameSaved(savedIdx, newName){
+  var lib = _getSavedFlashings();
+  var entry = lib[savedIdx]; if (!entry) return;
+  var name = String(newName || '').trim();
+  if (!name || name === entry.name) { renderFlashingLibrary(); return; }
+  var oldName = entry.name || '';
+  entry.name = name;
+  // Keep the Materials tab's saved-drawing picker pointing at this
+  // entry across the rename. Picker selection is keyed by flashing
+  // type in localStorage; if any matches the old name, swap to the
+  // new one so the user's Materials choice survives.
+  try {
+    Object.keys(localStorage).forEach(function(k){
+      if (k.indexOf('fr_mat_flash_pick_') !== 0) return;
+      if (localStorage.getItem(k) === oldName) localStorage.setItem(k, name);
+    });
+  } catch(e){}
+  _persistCatalogSilently();
+  renderFlashingLibrary();
+  try { renderMaterialsCutLists(); } catch(e){}
 }
 
 function deleteFlashingLibraryEntry(idx) {
@@ -11468,8 +11524,8 @@ var DRAW = {
 var FACE_COLORS  = ['#c8e6c9','#bbdefb','#fff9c4','#fce4ec','#b2dfdb','#ffe0b2','#e1bee7','#f0f4c3'];
 var FACE_BORDERS = ['#2e7d32','#1565c0','#f57f17','#880e4f','#00695c','#bf360c','#4a148c','#827717'];
 
-var LINE_COLORS = {ridge:'#dc2626',valley:'#f59e0b',gutter:'#7c3aed',hip:'#059669',barge:'#0891b2',apron:'#e11d48',changepitch:'#0ea5e9',unknown:'#94a3b8'};
-var LINE_WIDTHS = {ridge:1.5,valley:1.5,gutter:2,hip:1.5,barge:1.5,apron:2,changepitch:2.5,unknown:1};
+var LINE_COLORS = {ridge:'#dc2626',valley:'#f59e0b',gutter:'#7c3aed',hip:'#059669',barge:'#0891b2',apron:'#e11d48',changepitch:'#0ea5e9',drip:'#f59e0b',custom:'#64748b',unknown:'#94a3b8'};
+var LINE_WIDTHS = {ridge:1.5,valley:1.5,gutter:2,hip:1.5,barge:1.5,apron:2,changepitch:2.5,drip:1.5,custom:1.5,unknown:1};
 
 var STEP_INFO = {
   select:       {icon:'☝️', title:'Select & edit', hint:'Click any line, section or penetration to select it. Right-click to delete or edit label. Drag to move (coming soon).', btn:'Done'},
@@ -12759,14 +12815,22 @@ function showSectionEditor(i) {
 
 function showLineEditor(i) {
   var l = DRAW.lines[i];
-  var typeLabels={ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',backtray:'Back-tray'};
-  showPropPanel('Edit: '+(typeLabels[l.type]||l.type));
+  var typeLabels={ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',apron:'Apron',changepitch:'Change of pitch',drip:'Drip edge',custom:'Custom flashing',backtray:'Back-tray'};
+  var subLabels={side:'Side ',head:'Head '};
+  var pretty = (l.subtype && subLabels[l.subtype] ? subLabels[l.subtype] : '') + (typeLabels[l.type] || l.type);
+  showPropPanel('Edit: '+pretty);
   document.getElementById('lineEditor').style.display='block';
   document.getElementById('editLineLabel').value=l.label||'';
   var _ll=document.getElementById('editLineLength'); if(_ll) _ll.value=l.lengthM||'';
-  // Set type selector
+  // Set type selector — barge and apron use compound type|subtype
+  // values so the dropdown can offer Side / Head variants. Default to
+  // 'side' when an existing un-subtyped barge/apron is opened.
   var ts=document.getElementById('editLineType');
-  if(ts) ts.value=l.type||'ridge';
+  if (ts) {
+    var dropVal = l.type || 'ridge';
+    if (dropVal === 'barge' || dropVal === 'apron') dropVal += '|' + (l.subtype || 'side');
+    ts.value = dropVal;
+  }
   // Set measurement
   var ml=document.getElementById('editLineMeasM');
   if(ml) ml.value=l.measM||'';
@@ -12800,7 +12864,16 @@ function updateLine() {
   var ts=document.getElementById('editLineType');
   var ml=document.getElementById('editLineMeasM');
   var oldType = l.type;
-  if(ts) l.type=ts.value;
+  if(ts) {
+    // Dropdown values may be compound ("barge|side", "apron|head"). The
+    // pipe carries the line subtype — used to split barges into Side /
+    // Head sections in the Materials cut list, same for aprons. Plain
+    // values stay as-is.
+    var raw = ts.value || '';
+    var pipe = raw.indexOf('|');
+    if (pipe >= 0) { l.type = raw.slice(0, pipe); l.subtype = raw.slice(pipe + 1); }
+    else { l.type = raw; delete l.subtype; }
+  }
   // If the user changed the line type AND we have a stored plan-view length
   // from calibration, recompute measM using the new type's slope factor.
   // Otherwise read the measurement from the input as the user's value.
@@ -12812,7 +12885,10 @@ function updateLine() {
     var mv=parseFloat(ml.value); l.measM=mv>0?mv:null;
   }
   l.label=document.getElementById('editLineLabel').value;
-  document.getElementById('propTitle').textContent='Edit: '+({ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge'}[l.type]||l.type);
+  var typeLabels = {ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',apron:'Apron',changepitch:'Change of pitch',drip:'Drip edge',custom:'Custom flashing'};
+  var subLabels = {side:'Side ',head:'Head '};
+  var pretty = (l.subtype && subLabels[l.subtype] ? subLabels[l.subtype] : '') + (typeLabels[l.type] || l.type);
+  document.getElementById('propTitle').textContent = 'Edit: ' + pretty;
   redrawAll(); syncToRoofData(); updateMeasTotals();
 }
 
@@ -13041,6 +13117,23 @@ function redrawAll() {
   var _t=getImgTransform();
   function dp(pt){var r=_t?imgToCanvas(pt,_t):pt;return [r[0],r[1]];} // draw-point helper
 
+  // Shared dedup of measurement labels — any line whose canonical
+  // type+endpoints key has already had its measurement drawn is
+  // skipped. Used by BOTH the show-all non-active roof pass below
+  // AND the active-roof DRAW.lines pass further down, so two
+  // co-located lines (e.g. auto-generated barge duplicates) only
+  // ever show one "4.25m" label.
+  var _drawnMeasKeys = {};
+  function _measKeyFor(line){
+    if (!line || !line.pts || line.pts.length < 2) return '';
+    var a = line.pts[0], b = line.pts[1];
+    var sa = (a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])) ? a : b;
+    var sb = (sa === a) ? b : a;
+    return (line.type||'?') + '|' +
+      Math.round(sa[0]) + ',' + Math.round(sa[1]) + '|' +
+      Math.round(sb[0]) + ',' + Math.round(sb[1]);
+  }
+
   // ── Non-active roof outlines ─────────────────────────────────────
   // Default: every other roof's outline + roof lines render faintly so
   // the user can see where they sit relative to the active roof.
@@ -13081,7 +13174,11 @@ function redrawAll() {
           ctx.setLineDash(l.type === 'valley' ? [6, 3] : []);
           ctx.stroke();
           // Measurement label on every line that has one (Show-all only).
-          if (_showAll && l.measM) {
+          // Skip if a co-located line has already drawn the same
+          // measurement at this midpoint.
+          var _shAllKey = _measKeyFor(l);
+          if (_showAll && l.measM && !_drawnMeasKeys[_shAllKey]) {
+            _drawnMeasKeys[_shAllKey] = true;
             ctx.setLineDash([]);
             var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
             var dxL = b[0]-a[0], dyL = b[1]-a[1];
@@ -13220,7 +13317,7 @@ function redrawAll() {
     if(s.pitch){ctx.fillStyle='#555';ctx.font='10px sans-serif';ctx.fillText(s.pitch+'°',cx,cy+50);}
   });
 
-  // Lines — always use the correct type colour, selection shown by width only
+  // Lines — always use the correct type colour, selection shown by width only.
   DRAW.lines.forEach(function(l,i){
     var c=LINE_COLORS[l.type]||'#333';
     var w=LINE_WIDTHS[l.type]||2;
@@ -13240,18 +13337,21 @@ function redrawAll() {
       ctx.strokeStyle=c; ctx.lineWidth=w+3; ctx.stroke();
     }
 
-
+    // Dedup measurement labels — if another co-located line of the
+    // same type has already drawn its tag, skip this one's so we don't
+    // stack "4.25m4.25m" on barges.
+    var _measKey = _measKeyFor(l);
+    var _measFirst = !_drawnMeasKeys[_measKey];
 
     // Label
-    if(l.label){
+    if(l.label && _measFirst){
       var mx=(lp0[0]+lp1[0])/2, my=(lp0[1]+lp1[1])/2;
       var tw=ctx.measureText(l.label).width+6;
       ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillRect(mx-tw/2,my-13,tw,15);
       ctx.fillStyle=c; ctx.font='bold 11px sans-serif'; ctx.textAlign='center';
       ctx.fillText(l.label,mx,my);
     }
-    // Draw measurement label if set (only if label not already shown)
-    if(l.measM && !l.label){
+    if(l.measM && !l.label && _measFirst){
       var mmx=(lp0[0]+lp1[0])/2, mmy=(lp0[1]+lp1[1])/2;
       var measStr=parseFloat(l.measM).toFixed(2)+'m';
       ctx.font='bold 10px sans-serif'; ctx.textAlign='center';
@@ -13260,6 +13360,7 @@ function redrawAll() {
       ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillRect(mmx-mtw/2,mty-11,mtw,13);
       ctx.fillStyle=c; ctx.fillText(measStr,mmx,mty);
     }
+    if (_measFirst) _drawnMeasKeys[_measKey] = true;
     // Sheet direction arrow on gutters only — valleys used to also
     // get an arrow but the user found it noisy on the canvas.
     if(l.type==='gutter'){
@@ -14423,6 +14524,55 @@ function showCalibratePopup(pixelDist) {
 // Stable identifier for a sheet-length dimension — survives endpoint
 // swaps + small jitter. Combines the canonical ridge endpoints (smaller
 // first) with the side direction in canonical perpendicular frame.
+// Walk the sheet plan's face list and replace face.sheetM with any
+// matching DRAW.sheetOverrides[key] the user has typed in via the
+// click-to-edit sheet labels. For each face, find the closest ridge-
+// equivalent line on the FAR side of the gutter (gutter midpoint +
+// nx*perpPx, ny*perpPx) and compute the override key with the
+// opposite perp direction (face nx/ny points gutter→ridge; sheet
+// label's perp points ridge→gutter).
+function _applySheetOverridesToFaces(faces){
+  if (!faces || !faces.length) return;
+  if (!DRAW.sheetOverrides) return;
+  if (!DRAW.lines || !DRAW.lines.length) return;
+  // Effective scale used by faces' planSheetM is in metres/pixel —
+  // when we override sheetM we keep planSheetM consistent by dividing
+  // out the pitch factor. perpPx stays untouched so the strip tiler
+  // still uses the geometric face shape.
+  var ridgeish = DRAW.lines.filter(function(l){
+    return l && l.pts && l.pts.length >= 2
+        && (l.type === 'ridge' || l.type === 'barge' || l.type === 'apron' || l.type === 'changepitch');
+  });
+  if (!ridgeish.length) return;
+  faces.forEach(function(face){
+    if (!face || !face.gutter || !face.gutter.pts) return;
+    var g = face.gutter;
+    var gMidX = (g.pts[0][0] + g.pts[1][0]) / 2;
+    var gMidY = (g.pts[0][1] + g.pts[1][1]) / 2;
+    var expX = gMidX + face.nx * face.perpPx;
+    var expY = gMidY + face.ny * face.perpPx;
+    var bestRidge = null, bestD = Infinity;
+    ridgeish.forEach(function(rl){
+      var mx = (rl.pts[0][0] + rl.pts[1][0]) / 2;
+      var my = (rl.pts[0][1] + rl.pts[1][1]) / 2;
+      var d = Math.hypot(mx - expX, my - expY);
+      if (d < bestD) { bestD = d; bestRidge = rl; }
+    });
+    if (!bestRidge || bestD > 50) return;
+    var key = _sheetDimKey(bestRidge, -face.nx, -face.ny);
+    var ov  = DRAW.sheetOverrides[key];
+    if (ov == null || !isFinite(ov) || ov <= 0) return;
+    face.sheetM = +ov;
+    // Keep planSheetM consistent so downstream code reading
+    // (planSheetM * pitchFactor) gets the same number.
+    var pitchF = (face.planSheetM > 0 && face.sheetM > 0)
+      ? (face.sheetM / face.planSheetM)
+      : 1;
+    if (pitchF > 0 && isFinite(pitchF)) face.planSheetM = face.sheetM / pitchF;
+    face._sheetOverride = true;
+  });
+}
+
 function _sheetDimKey(ridge, perpX, perpY) {
   if (!ridge || !ridge.pts || ridge.pts.length < 2) return '';
   var a = ridge.pts[0], b = ridge.pts[1];
@@ -14974,12 +15124,21 @@ function populateMaterialsFromLines() {
 // technical cross-section drawing. Hip and ridge are merged into a
 // single "ridge" cut list (+0.5m per piece, profile selectable).
 // Other flashings get +0.4m waste per piece by default.
+// Materials tab sections. `key` is also the typeKey used by
+// _matBuildCutList and the cut-list row→line resolver — pipe-encoded
+// `lineType|subtype` keys ('barge|side', 'apron|head', …) filter the
+// labelled lines by both type AND subtype so the same drawn barge
+// shows up in only ONE section.
 var _MAT_FLASHING_SPECS = [
-  { key:'ridgehip', label:'Ridge / Hip capping',   colour:'#dc2626', waste:0.5, drawing:null         },
-  { key:'barge',    label:'Barge flashing',         colour:'#0891b2', waste:0.4, drawing:'barge'      },
-  { key:'apron',    label:'Apron flashing',         colour:'#e11d48', waste:0.4, drawing:'apron'      },
-  { key:'changepitch', label:'Change-of-pitch flashing', colour:'#0ea5e9', waste:0.4, drawing:'changepitch' },
-  { key:'valley',   label:'Valley iron',            colour:'#f59e0b', waste:0.4, drawing:null         },
+  { key:'ridgehip',     label:'Ridge / Hip capping',     colour:'#dc2626', waste:0.5, drawing:null         },
+  { key:'barge|side',   label:'Side barge flashing',     colour:'#0891b2', waste:0.4, drawing:'barge'      },
+  { key:'barge|head',   label:'Head barge flashing',     colour:'#0ea5e9', waste:0.4, drawing:'barge'      },
+  { key:'apron|side',   label:'Side apron flashing',     colour:'#e11d48', waste:0.4, drawing:'apron'      },
+  { key:'apron|head',   label:'Head apron flashing',     colour:'#be185d', waste:0.4, drawing:'apron'      },
+  { key:'changepitch',  label:'Change-of-pitch flashing',colour:'#0ea5e9', waste:0.4, drawing:'changepitch'},
+  { key:'valley',       label:'Valley iron',             colour:'#f59e0b', waste:0.4, drawing:null         },
+  { key:'drip',         label:'Drip edge',               colour:'#f59e0b', waste:0.4, drawing:null         },
+  { key:'custom',       label:'Custom flashing',         colour:'#64748b', waste:0.4, drawing:null         },
 ];
 
 // Build the per-piece cut list for a flashing type.
@@ -15044,7 +15203,26 @@ function _flashLineEligible(line, includeGutters) {
   if (!line || !line.type) return false;
   if (line.type === 'gutter') return !!includeGutters;
   return line.type === 'ridge' || line.type === 'hip' || line.type === 'valley'
-      || line.type === 'barge' || line.type === 'apron' || line.type === 'changepitch';
+      || line.type === 'barge' || line.type === 'apron' || line.type === 'changepitch'
+      || line.type === 'drip'  || line.type === 'custom';
+}
+
+// True when a labelled line matches the Materials section identified
+// by `sectionKey`. The key encodes either a plain type ('valley',
+// 'drip', 'custom') or a compound type|subtype ('barge|side',
+// 'apron|head'). Lines without a subtype default to 'side' when the
+// section requests 'side' — keeps every legacy barge/apron flowing
+// into the Side section by default.
+function _matLineMatchesSection(line, sectionKey) {
+  if (!line || !line.type) return false;
+  if (sectionKey === 'ridgehip') return line.type === 'ridge' || line.type === 'hip';
+  var pipe = sectionKey.indexOf('|');
+  if (pipe < 0) return line.type === sectionKey;
+  var wantType = sectionKey.slice(0, pipe);
+  var wantSub  = sectionKey.slice(pipe + 1);
+  if (line.type !== wantType) return false;
+  var lineSub = line.subtype || 'side';   // un-subtyped barge/apron → side
+  return lineSub === wantSub;
 }
 
 // Walk every selected roof's lines, assign letters in order. Returns
@@ -15384,12 +15562,7 @@ function _matBuildCutList(type, waste) {
   var labelled = (typeof _flashCollectLabelled === 'function') ? _flashCollectLabelled() : [];
   var pieces = [];
   labelled.forEach(function(o){
-    var t = o.line.type;
-    if (type === 'ridgehip') {
-      if (t !== 'ridge' && t !== 'hip') return;
-    } else if (t !== type) {
-      return;
-    }
+    if (!_matLineMatchesSection(o.line, type)) return;
     pieces.push({ letter: o.letter, length: o.lengthM });
   });
   // Group identical (letter, length) into single rows. Pieces in the
@@ -15778,7 +15951,7 @@ function _matCutListTable(cl, emptyMsg) {
   '</tr></thead><tbody>';
   cl.rows.forEach(function(r, i){
     var lbl = r.letter ? r.letter : '?';
-    var rowKey = esc(typeKey + '|' + (r.letter || '') + '|' + r.length.toFixed(2));
+    var rowKey = esc(typeKey + '::' + (r.letter || '') + '::' + r.length.toFixed(2));
     var letterInput = '<input class="cl-letter" data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" '+
       'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLetter(this)" '+
       'style="width:42px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:2px 4px;border-radius:4px;font-size:inherit">';
@@ -15811,7 +15984,7 @@ function _matCutListTableWithCost(cl, emptyMsg, rate) {
     var lineCost = r.qty * r.length * rate;
     totalCost += lineCost;
     var lbl = r.letter ? r.letter : '?';
-    var rowKey = esc(typeKey + '|' + (r.letter || '') + '|' + r.length.toFixed(2));
+    var rowKey = esc(typeKey + '::' + (r.letter || '') + '::' + r.length.toFixed(2));
     var letterInput = '<input class="cl-letter" data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" '+
       'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLetter(this)" '+
       'style="width:42px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:2px 4px;border-radius:4px;font-size:inherit">';
@@ -15832,9 +16005,11 @@ function _matCutListTableWithCost(cl, emptyMsg, rate) {
 }
 
 // Walk every labelled line and pick out the ones matching a row key
-// (typeKey|letter|length). Used by every inline edit handler.
+// (typeKey::letter::length). `::` is used as the field separator
+// because the section typeKey itself may contain a pipe — e.g.
+// `barge|side` for the Side barge section.
 function _matInlineMatchesFor(rowKey){
-  var parts = String(rowKey || '').split('|');
+  var parts = String(rowKey || '').split('::');
   if (parts.length < 3) return [];
   var type   = parts[0];
   var letter = parts[1];
@@ -15842,10 +16017,7 @@ function _matInlineMatchesFor(rowKey){
   if (!isFinite(lenNum)) lenNum = 0;
   var labelled = (typeof _flashCollectLabelled === 'function') ? _flashCollectLabelled() : [];
   return labelled.filter(function(o){
-    if (!o.line || !o.line.type) return false;
-    var t = o.line.type;
-    if (type === 'ridgehip') { if (t !== 'ridge' && t !== 'hip') return false; }
-    else if (t !== type) return false;
+    if (!_matLineMatchesSection(o.line, type)) return false;
     var sameLetter = (letter || '') === (o.letter || '');
     var sameLen = Math.abs(+o.lengthM - lenNum) < 0.05;
     return sameLetter && sameLen;
@@ -19115,6 +19287,15 @@ function _renderRoofSheetPlanInner() {
     outEl.innerHTML = '<p style="color:var(--text2)">Could not detect any roof faces. Make sure hip/ridge lines connect to the gutter corners.</p>';
     return;
   }
+
+  // ── Apply manual sheet-length overrides ─────────────────────────
+  // The user can click any sheet-length label on the Roof Map and type
+  // a custom length — that's stored in DRAW.sheetOverrides keyed by
+  // _sheetDimKey(ridge, perp). Each face here gets matched to its
+  // closest ridge-equivalent line on the high side, and any matching
+  // override overwrites face.sheetM so the Sheets-To-Order panel and
+  // every downstream consumer reflects the manual length.
+  _applySheetOverridesToFaces(faces);
 
   // ── Main rectangle detection (for phantom-4-hip extension) ────
   // The "main rectangle" is the largest axis-aligned rectangle that
