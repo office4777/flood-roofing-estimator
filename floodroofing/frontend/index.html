@@ -14673,10 +14673,21 @@ function _applySheetOverridesToFaces(faces){
   });
   if (!ridgeish.length) return;
   faces.forEach(function(face){
-    if (!face || !face.gutter || !face.gutter.pts) return;
-    var g = face.gutter;
-    var gMidX = (g.pts[0][0] + g.pts[1][0]) / 2;
-    var gMidY = (g.pts[0][1] + g.pts[1][1]) / 2;
+    if (!face) return;
+    // Skeleton-rebuilt faces don't have a `gutter` reference, only
+    // `a` / `b` endpoints + perpendicular nx/ny + perpPx. Use those
+    // directly so every face — direct skeleton or pre-skeleton — can
+    // pick up a matching override.
+    var ga, gb;
+    if (face.gutter && face.gutter.pts) {
+      ga = face.gutter.pts[0]; gb = face.gutter.pts[1];
+    } else if (face.a && face.b) {
+      ga = face.a; gb = face.b;
+    } else {
+      return;
+    }
+    var gMidX = (ga[0] + gb[0]) / 2;
+    var gMidY = (ga[1] + gb[1]) / 2;
     var expX = gMidX + face.nx * face.perpPx;
     var expY = gMidY + face.ny * face.perpPx;
     var bestRidge = null, bestD = Infinity;
@@ -14686,7 +14697,11 @@ function _applySheetOverridesToFaces(faces){
       var d = Math.hypot(mx - expX, my - expY);
       if (d < bestD) { bestD = d; bestRidge = rl; }
     });
-    if (!bestRidge || bestD > 50) return;
+    // perpPx can be modest (e.g. 80–120 px for a 4 m face), so the
+    // match tolerance grows with perpPx — short faces with a hip end
+    // can leave the apex slightly off the ridge midpoint.
+    var matchTol = Math.max(60, face.perpPx * 0.35);
+    if (!bestRidge || bestD > matchTol) return;
     var key = _sheetDimKey(bestRidge, -face.nx, -face.ny);
     var ov  = DRAW.sheetOverrides[key];
     if (ov == null || !isFinite(ov) || ov <= 0) return;
@@ -15543,13 +15558,13 @@ function _drawFlashLetterOverlaysOn(ctx, cssW, cssH){
     var txt = (o.letter || '?') + ': ' + o.lengthM.toFixed(1) + 'm';
     var tw = ctx.measureText(txt).width;
     var boxW = tw + 14, boxH = 22;
-    // Try offsets from near the line out to ~110 px until we don't
-    // collide with any earlier label.  Step grows from 55 px in 18 px
-    // increments — that keeps the label close to its line on uncrowded
-    // canvases but pushes further when several labels stack up.
-    var placedLx = mx + nx * 60, placedLy = my + ny * 60;
+    // Push the tag well outside the building so it can't overlap the
+    // measurement labels drawn ON the lines (the "4.25m" tags from
+    // redrawAll). Start at 100 px out and grow in 22 px steps if a
+    // collision with an earlier letter tag forces us further.
+    var placedLx = mx + nx * 100, placedLy = my + ny * 100;
     for (var step = 0; step < 6; step++) {
-      var dist = 55 + step * 18;
+      var dist = 100 + step * 22;
       var lx = mx + nx * dist, ly = my + ny * dist;
       var overlaps = hits.some(function(h){
         return Math.abs(h.x - lx) < (h.w/2 + boxW/2 + 4)
