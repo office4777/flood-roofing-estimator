@@ -12607,6 +12607,11 @@ function onCanvasClick(e) {
     if(hitP>=0) { selectPen(hitP); return; }
     if(hitI>=0) { focusInfoItem(hitI); return; }
     if(hitL>=0) { selectLine(hitL); return; }
+    // Cross-roof line hit — auto-switch to the owning roof THEN
+    // select the line. Lets the user click any drawn line on the
+    // canvas regardless of which roof is "active".
+    var cross = hitLineAcrossRoofs(xy[0], xy[1]);
+    if (cross) { switchToRoof(cross.roofIdx); selectLine(cross.lineIdx); return; }
     if(hitS>=0) { selectSection(hitS); return; }
     DRAW.selectedSection=-1; DRAW.selectedLine=-1; DRAW.selectedPen=-1;
     hidePropPanel(); redrawAll(); return;
@@ -12850,6 +12855,30 @@ function hitLine(x,y) {
     if(priority[DRAW.lines[hits[h]].type]) return hits[h];
   }
   return hits[0];
+}
+
+// Walk every non-active roof's snapshot lines and return the closest
+// hit, if any. Used to make EVERY drawn line clickable across roofs —
+// when a non-active roof's line is hit, the caller switches focus to
+// that roof and selects the line locally.
+function hitLineAcrossRoofs(x, y){
+  if (!DRAW.roofs || DRAW.roofs.length < 2) return null;
+  var t = getImgTransform();
+  var thresh = t ? 8/t.s : 8;
+  thresh = Math.max(thresh, 8);
+  var best = null, bestD = Infinity;
+  for (var ri = 0; ri < DRAW.roofs.length; ri++) {
+    if (ri === DRAW.activeRoofIdx) continue;
+    var r = DRAW.roofs[ri];
+    if (!r || !r.lines) continue;
+    for (var li = 0; li < r.lines.length; li++) {
+      var ln = r.lines[li];
+      if (!ln || !ln.pts) continue;
+      var d = distSeg(x, y, ln.pts[0], ln.pts[1]);
+      if (d < thresh && d < bestD) { bestD = d; best = { roofIdx: ri, lineIdx: li }; }
+    }
+  }
+  return best;
 }
 function hitPen(x,y) {
   for(var i=0;i<DRAW.penetrations.length;i++){
@@ -15901,9 +15930,13 @@ function renderMaterialsCutLists() {
   });
 
   // ── 3. Other flashings (barge, apron, change-of-pitch, valley) ──
+  // Every section renders regardless of whether the user has drawn a
+  // matching line yet — keeps the new types (Head barge, Drip edge,
+  // Custom flashing, etc.) visible so the user can pre-pick a saved
+  // drawing for them before any lines exist. Empty cut lists fall
+  // through to _matCutListTable which renders an inline placeholder.
   _MAT_FLASHING_SPECS.slice(1).forEach(function(spec){
     var cl = _matBuildCutList(spec.key, spec.waste);
-    if (cl.pieceCount === 0) return; // hide types with no drawn lines
     html += _matCompactSection({
       swatch: spec.colour,
       title: spec.label,
@@ -15911,7 +15944,8 @@ function renderMaterialsCutLists() {
       flashingType: spec.key,
       defaultDrawing: spec.drawing,   // null for valley → no drawing column
       cutList: cl,
-      table: _matCutListTable(cl, ''),
+      tableEmptyMsg: 'No ' + spec.label.toLowerCase() + ' lines drawn yet — assign a barge / apron line to this section in the line editor, or draw a fresh one.',
+      table: _matCutListTable(cl, 'No ' + spec.label.toLowerCase() + ' lines drawn yet — assign a barge / apron line to this section in the line editor, or draw a fresh one.'),
     });
   });
 
@@ -18066,26 +18100,21 @@ function renderRoofSwitcher(){
   if (!el) return;
   if (DRAW.roofs.length === 0) { el.style.display = 'none'; return; }
   el.style.display = 'flex';
+  // Show-all is the only mode on the Map Roof canvas now — every roof
+  // renders at full opacity and every line is clickable across all
+  // roofs. The roof picker still highlights which roof is ACTIVE so
+  // newly drawn lines attach to it; the per-roof totals filter lives
+  // on the Materials + Pricing tabs.
+  DRAW.showAllRoofs = true;
   var html = '<div style="font-weight:600;font-size:12px;color:#475569;margin-right:6px">Roofs:</div>';
   DRAW.roofs.forEach(function(r, i){
     var isActive = (i === DRAW.activeRoofIdx);
     var label = _nthName(i + 1);
     html += '<span style="display:inline-flex;align-items:center;border:1px solid '+(isActive?'#0a1628':'#cbd5e1')+';border-radius:6px;overflow:hidden;'+(isActive?'background:#0a1628':'background:#fff')+'">'+
-      '<button onclick="switchToRoof('+i+')" title="Edit '+label+'" style="font-size:12px;padding:4px 10px;border:none;background:transparent;cursor:pointer;font-weight:'+(isActive?'700':'500')+';color:'+(isActive?'#fff':'#0a1628')+'">'+label+'</button>'+
+      '<button onclick="switchToRoof('+i+')" title="Set '+label+' as the active roof — new lines attach here" style="font-size:12px;padding:4px 10px;border:none;background:transparent;cursor:pointer;font-weight:'+(isActive?'700':'500')+';color:'+(isActive?'#fff':'#0a1628')+'">'+label+'</button>'+
       '<button onclick="deleteRoof('+i+')" title="Delete '+label+'" style="font-size:13px;line-height:1;padding:4px 8px 4px 2px;border:none;background:transparent;cursor:pointer;color:'+(isActive?'rgba(255,255,255,.85)':'#94a3b8')+'">✕</button>'+
     '</span>';
   });
-  // "Show all" toggles the overview render: every roof's outline + lines
-  // + measurements visible at once, no single roof "active" for editing.
-  // Surfaces only when 2+ roofs exist (1 roof is trivially shown).
-  if (DRAW.roofs.length >= 2) {
-    var showingAll = !!DRAW.showAllRoofs;
-    var btnBg = showingAll ? '#0a1628' : '#fff';
-    var btnFg = showingAll ? '#fff' : '#0a1628';
-    html += '<button onclick="toggleShowAllRoofs()" title="Show every roof on the map at once" style="margin-left:6px;font-size:12px;padding:4px 10px;border:1px solid '+(showingAll?'#0a1628':'#cbd5e1')+';background:'+btnBg+';color:'+btnFg+';border-radius:6px;cursor:pointer;font-weight:600">'+
-      (showingAll ? '✓ Showing all' : 'Show all') +
-    '</button>';
-  }
   el.innerHTML = html;
 }
 
