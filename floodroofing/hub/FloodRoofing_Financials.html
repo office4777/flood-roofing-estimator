@@ -94,6 +94,34 @@ table.tb tr:active td{background:#f4f7ff;}
 .nav-i .ic{font-size:1.25rem;display:block;line-height:1.2;margin-bottom:1px;filter:grayscale(1);opacity:.65;}
 .nav-i.on{color:var(--primary);}
 .nav-i.on .ic{filter:none;opacity:1;}
+
+/* metric grid (Rev/GP/Opex/NP) */
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.mb{background:#f7f9fc;border:1px solid var(--border);border-radius:11px;padding:10px 11px;}
+.mb .l{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+.mb .v{font-size:1.32rem;font-weight:800;margin:2px 0 0;letter-spacing:-.5px;}
+.mb .v.pos{color:var(--success);}.mb .v.neg{color:var(--danger);}
+.mb .s2{font-size:.62rem;color:var(--muted);}
+.mb.va{display:flex;align-items:baseline;justify-content:space-between;gap:6px;}
+.mb.va .pa{font-size:.92rem;font-weight:800;}
+.period-sub{font-size:.6rem;color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;}
+
+/* connect modal */
+#modal{display:none;position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.45);align-items:flex-end;}
+#modal.open{display:flex;}
+.sheet{background:#fff;width:100%;max-width:760px;margin:0 auto;border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:88vh;overflow-y:auto;}
+.sheet h3{font-size:1.05rem;margin-bottom:4px;}
+.sheet p{font-size:.76rem;color:var(--muted);margin-bottom:13px;line-height:1.5;}
+.fld{margin-bottom:12px;}
+.fld label{display:block;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:4px;}
+.fld input{width:100%;border:1px solid var(--border);border-radius:10px;padding:12px;font-size:.95rem;}
+#conn-status{font-size:.78rem;margin:4px 0 12px;min-height:18px;line-height:1.45;}
+#conn-status.ok{color:var(--success);}#conn-status.err{color:var(--danger);}#conn-status.busy{color:var(--muted);}
+
+/* toast */
+#toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:120;background:#1a3a5c;color:#fff;padding:11px 16px;border-radius:11px;font-size:.84rem;font-weight:600;max-width:90vw;box-shadow:0 4px 18px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .25s;text-align:center;line-height:1.4;}
+#toast.show{opacity:1;}
+#toast.err{background:#c0392b;}#toast.ok{background:#1f8b4c;}
 </style>
 </head>
 <body>
@@ -109,16 +137,29 @@ table.tb tr:active td{background:#f4f7ff;}
   <!-- ───────── DASHBOARD ───────── -->
   <div class="page active" id="page-dash">
     <div class="card" style="border-left:4px solid var(--accent);">
-      <div class="ct">Forward Workflow <span id="dash-fw-sync" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
+      <div class="ct">Forward Workflow <span id="dash-fw-sync" class="period-sub"></span></div>
       <div class="hero">
-        <div class="big" id="dash-fw-days">—</div>
-        <div class="unit">working days booked</div>
-        <div class="sub" id="dash-fw-sub">Tap “Sync Fergus” to load active jobs</div>
+        <div class="big" id="dash-fw-weeks">—</div>
+        <div class="unit">weeks of work booked</div>
+        <div class="sub" id="dash-fw-sub">Tap “Refresh” to load active jobs</div>
       </div>
     </div>
-    <div class="tiles" id="dash-tiles"></div>
-    <div class="card" style="margin-top:12px;">
-      <button class="btn btn-a" id="dash-sync-btn" onclick="syncWorkload()">⟳ Sync Fergus (workload + back costing)</button>
+
+    <div class="card">
+      <div class="ct">This Month <span id="lbl-this" class="period-sub"></span><span id="src-this" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="mg" id="met-this"></div>
+    </div>
+    <div class="card">
+      <div class="ct">Last Month <span id="lbl-last" class="period-sub"></span></div>
+      <div class="mg" id="met-last"></div>
+    </div>
+    <div class="card">
+      <div class="ct">3-Month Rolling Avg <span id="lbl-3mo" class="period-sub"></span></div>
+      <div class="mg" id="met-3mo"></div>
+    </div>
+
+    <div class="card">
+      <button class="btn btn-a" id="dash-sync-btn" onclick="refreshAll()">⟳ Refresh (Fergus + Xero)</button>
       <div class="note" id="dash-note"></div>
     </div>
   </div>
@@ -162,9 +203,25 @@ table.tb tr:active td{background:#f4f7ff;}
 
   <!-- ───────── BACK COSTING ───────── -->
   <div class="page" id="page-bc">
+    <div class="card">
+      <div class="ct">This Month <span id="bc-lbl-this" class="period-sub"></span></div>
+      <div class="mg" id="bc-met-this"></div>
+      <div class="mg" id="bc-pva-this" style="margin-top:9px;"></div>
+    </div>
+    <div class="card">
+      <div class="ct">Last Month <span id="bc-lbl-last" class="period-sub"></span></div>
+      <div class="mg" id="bc-met-last"></div>
+      <div class="mg" id="bc-pva-last" style="margin-top:9px;"></div>
+    </div>
+    <div class="card">
+      <div class="ct">3-Month Rolling Avg <span id="bc-lbl-3mo" class="period-sub"></span></div>
+      <div class="mg" id="bc-met-3mo"></div>
+      <div class="mg" id="bc-pva-3mo" style="margin-top:9px;"></div>
+    </div>
+
     <div class="tiles" id="bc-tiles"></div>
     <div class="card" style="margin-top:12px;">
-      <div class="ct">Back Costing <span id="bc-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
+      <div class="ct">All Back Costing <span id="bc-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
       <div class="row2" style="margin-bottom:9px;">
         <select class="sel" id="bc-year" onchange="renderBC()"></select>
         <select class="sel" id="bc-type" onchange="renderBC()"></select>
@@ -202,6 +259,20 @@ table.tb tr:active td{background:#f4f7ff;}
   <div class="nav-i" id="nav-pl" onclick="go('pl')"><span class="ic">💼</span>P&amp;L</div>
 </div>
 
+<!-- connect sheet -->
+<div id="modal" onclick="if(event.target===this)closeConnect()">
+  <div class="sheet">
+    <h3>🔌 Connect</h3>
+    <p>Paste your deployed <b>fergus-proxy</b> address and the <b>PROXY_SECRET</b> you set on it. This lets Fergus &amp; Xero work on your phone. Saved on this device only.</p>
+    <div class="fld"><label>Proxy URL</label><input id="in-proxy" type="url" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://fergus-proxy-xxxx.vercel.app"></div>
+    <div class="fld"><label>Proxy secret</label><input id="in-secret" type="text" autocomplete="off" autocapitalize="off" placeholder="the PROXY_SECRET you set"></div>
+    <div id="conn-status"></div>
+    <button class="btn btn-p" onclick="saveConnect()">Save &amp; test</button>
+    <button class="btn btn-o" style="margin-top:9px;" onclick="closeConnect()">Close</button>
+  </div>
+</div>
+<div id="toast"></div>
+
 <script>
 // ════════ EMBEDDED DATA (historical, shipped with the file) ════════
 const BC_DATA = [{"month": "Jul-2024", "job": "Rawhitiroa Maraee", "date": "2024-07-10", "job_type": "Repair & Paint", "p_lab": 1200.0, "a_lab": 1968.0, "p_mat": 4900.0, "a_mat": 4900.0, "sales": 23200.0, "gp": 16332.0, "gpm": 70.4, "h_actual": 24.0, "h_priced": 0, "lead_src": "Word of mouth"}, {"month": "Jul-2024", "job": "422 jordan rd", "date": "2024-07-10", "job_type": "Re-Roof & Gutter", "p_lab": 0, "a_lab": 2300.0, "p_mat": 7641.75, "a_mat": 7641.75, "sales": 23600.0, "gp": 13658.25, "gpm": 57.9, "h_actual": 40.0, "h_priced": 0, "lead_src": "on going customer"}, {"month": "Aug-2024", "job": "750 Rakauwahia Road", "date": "2024-08-05", "job_type": "Re-Roof & Gutter", "p_lab": 0, "a_lab": 4346.0, "p_mat": 9707.51, "a_mat": 9707.51, "sales": 27000.0, "gp": 12946.49, "gpm": 47.9, "h_actual": 52.0, "h_priced": 0, "lead_src": "on going customer"}, {"month": "Aug-2024", "job": "532a kapiro", "date": "2024-08-21", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 492.0, "p_mat": 1447.0, "a_mat": 1447.0, "sales": 3320.0, "gp": 1381.0, "gpm": 41.6, "h_actual": 6.0, "h_priced": 0, "lead_src": "Website/google"}, {"month": "Jul-2024", "job": "39 hillcrest", "date": "2024-07-04", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 3280.0, "p_mat": 17210.0, "a_mat": 17210.0, "sales": 32580.0, "gp": 12090.0, "gpm": 37.1, "h_actual": 48.0, "h_priced": 0, "lead_src": "Word of mouth"}, {"month": "Jul-2024", "job": "39 misson rd", "date": "2024-07-18", "job_type": "Repair & Paint", "p_lab": 0, "a_lab": 708.0, "p_mat": 1400.0, "a_mat": 1400.0, "sales": 4720.0, "gp": 2612.0, "gpm": 55.3, "h_actual": 8.0, "h_priced": 0, "lead_src": "Website/google"}, {"month": "Aug-2024", "job": "153 Purerua rd", "date": "2024-08-05", "job_type": "Repair & Paint", "p_lab": 0, "a_lab": 1968.0, "p_mat": 2600.0, "a_mat": 2600.0, "sales": 12200.0, "gp": 7632.0, "gpm": 62.6, "h_actual": 24.0, "h_priced": 0, "lead_src": "on going customer"}, {"month": "Aug-2024", "job": "432a stanners rd", "date": "2024-08-08", "job_type": "Repair & Paint", "p_lab": 0, "a_lab": 2132.0, "p_mat": 2300.0, "a_mat": 2300.0, "sales": 12600.0, "gp": 8168.0, "gpm": 64.8, "h_actual": 24.0, "h_priced": 0, "lead_src": "on going customer"}, {"month": "Aug-2024", "job": "32 johnson rd kawakawa", "date": "2024-08-15", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 690.0, "p_mat": 3350.0, "a_mat": 3350.0, "sales": 12200.0, "gp": 8160.0, "gpm": 0, "h_actual": 12.0, "h_priced": 0, "lead_src": "Website/google"}, {"month": "Aug-2024", "job": "Rawhitiroa Maraee", "date": "2024-08-20", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 1968.0, "p_mat": 4900.0, "a_mat": 4900.0, "sales": 23200.0, "gp": 16332.0, "gpm": 70.4, "h_actual": 24.0, "h_priced": 0, "lead_src": "Website/google"}, {"month": "Jul-2024", "job": "40 old valley rd", "date": "2024-07-08", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 1534.0, "p_mat": 6150.0, "a_mat": 6150.0, "sales": 12990.0, "gp": 5306.0, "gpm": 40.8, "h_actual": 20.0, "h_priced": 0, "lead_src": "Word of mouth"}, {"month": "Jun-2024", "job": "1061 pipiwai rd", "date": "2024-06-05", "job_type": "Pole Sheds", "p_lab": 0, "a_lab": 7360.0, "p_mat": 38830.0, "a_mat": 38830.0, "sales": 62300.0, "gp": 16110.0, "gpm": 0, "h_actual": 64.0, "h_priced": 0, "lead_src": "Word of mouth"}, {"month": "May-2024", "job": "Brian lewis shed", "date": "2024-05-04", "job_type": "Pole Sheds", "p_lab": 0, "a_lab": 5520.0, "p_mat": 16900.0, "a_mat": 16900.0, "sales": 35500.0, "gp": 13080.0, "gpm": 36.8, "h_actual": 48.0, "h_priced": 0, "lead_src": "Word of mouth"}, {"month": "Sep-2024", "job": "131 ness rd flat Re-roof", "date": "2024-09-05", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 802.5, "p_mat": 2050.0, "a_mat": 2050.0, "sales": 5500.0, "gp": 2647.5, "gpm": 48.1, "h_actual": 10.0, "h_priced": 0, "lead_src": "on going customer"}, {"month": "Sep-2024", "job": "66 broadway", "date": "2024-09-10", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 640.0, "p_mat": 1850.0, "a_mat": 1850.0, "sales": 7120.0, "gp": 4630.0, "gpm": 65.0, "h_actual": 11.0, "h_priced": 0, "lead_src": "Facebook"}, {"month": "Sep-2024", "job": "10 sydney st", "date": "2024-09-10", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 1650.0, "p_mat": 5900.0, "a_mat": 5900.0, "sales": 15800.0, "gp": 8250.0, "gpm": 52.2, "h_actual": 23.0, "h_priced": 0, "lead_src": "Website/google"}, {"month": "Sep-2024", "job": "1046 Broadwood", "date": "2024-09-13", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 5100.0, "p_mat": 12400.0, "a_mat": 12400.0, "sales": 31000.0, "gp": 13500.0, "gpm": 43.5, "h_actual": 45.5, "h_priced": 0, "lead_src": "Website/google"}, {"month": "Sep-2024", "job": "Rawhiti Elliot build", "date": "2024-09-25", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 1200.0, "p_mat": 3850.0, "a_mat": 3850.0, "sales": 9750.0, "gp": 4700.0, "gpm": 48.2, "h_actual": 16.0, "h_priced": 0, "lead_src": "Website/google"}, {"month": "Sep-2024", "job": "4693 sh12 Chicky", "date": "2024-09-29", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 5400.0, "p_mat": 14270.0, "a_mat": 14270.0, "sales": 37250.0, "gp": 17580.0, "gpm": 47.2, "h_actual": 53.25, "h_priced": 0, "lead_src": "Word of mouth"}, {"month": "Oct-2024", "job": "499 hautapu rd", "date": "2024-10-10", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 4950.0, "p_mat": 8500.0, "a_mat": 8500.0, "sales": 21050.0, "gp": 7600.0, "gpm": 36.1, "h_actual": 57.5, "h_priced": 0, "lead_src": ""}, {"month": "Oct-2024", "job": "10 Gammon Rd", "date": "2024-10-20", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 810.0, "p_mat": 1705.0, "a_mat": 1705.0, "sales": 4350.0, "gp": 1835.0, "gpm": 42.2, "h_actual": 9.5, "h_priced": 0, "lead_src": ""}, {"month": "Nov-2024", "job": "6 Oromahoe road", "date": "2024-11-06", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 1420.0, "p_mat": 5100.0, "a_mat": 5100.0, "sales": 10200.0, "gp": 3680.0, "gpm": 36.1, "h_actual": 26.0, "h_priced": 0, "lead_src": ""}, {"month": "Nov-2024", "job": "1465 Paponga Road", "date": "2024-11-19", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 1660.0, "p_mat": 4600.0, "a_mat": 4600.0, "sales": 15800.0, "gp": 9540.0, "gpm": 60.4, "h_actual": 20.5, "h_priced": 0, "lead_src": ""}, {"month": "Nov-2024", "job": "67 Ruapekapeka R", "date": "2024-11-10", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 3390.0, "p_mat": 5585.0, "a_mat": 5585.0, "sales": 15000.0, "gp": 6025.0, "gpm": 40.2, "h_actual": 40.0, "h_priced": 0, "lead_src": ""}, {"month": "Nov-2024", "job": "21 kendall rod", "date": "2024-11-20", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 4100.0, "p_mat": 17800.0, "a_mat": 17800.0, "sales": 41170.0, "gp": 19270.0, "gpm": 46.8, "h_actual": 51.0, "h_priced": 0, "lead_src": ""}, {"month": "Dec-2024", "job": "4 maning st", "date": "2024-12-05", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 3600.0, "p_mat": 9600.0, "a_mat": 9600.0, "sales": 20950.0, "gp": 7750.0, "gpm": 37.0, "h_actual": 36.0, "h_priced": 0, "lead_src": ""}, {"month": "Dec-2024", "job": "92 magnolia Roof", "date": "2024-12-05", "job_type": "New builds", "p_lab": 0, "a_lab": 1880.0, "p_mat": 15440.0, "a_mat": 15440.0, "sales": 22350.0, "gp": 5030.0, "gpm": 22.5, "h_actual": 18.0, "h_priced": 0, "lead_src": ""}, {"month": "Dec-2024", "job": "156 Te Ra Rd", "date": "2024-12-19", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 4400.0, "p_mat": 9000.0, "a_mat": 9000.0, "sales": 24450.0, "gp": 11050.0, "gpm": 45.2, "h_actual": 30.0, "h_priced": 0, "lead_src": ""}, {"month": "Dec-2024", "job": "23 the strand", "date": "2024-12-18", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 11025.0, "p_mat": 37075.0, "a_mat": 37075.0, "sales": 63100.0, "gp": 15000.0, "gpm": 23.8, "h_actual": 105.0, "h_priced": 0, "lead_src": ""}, {"month": "Dec-2024", "job": "47 Riverview", "date": "2024-12-18", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 5000.0, "p_mat": 8650.0, "a_mat": 8650.0, "sales": 30900.0, "gp": 17250.0, "gpm": 55.8, "h_actual": 55.0, "h_priced": 0, "lead_src": ""}, {"month": "Jan-2025", "job": "Kaye Quinn Opito", "date": "2025-01-10", "job_type": "Re-Roof's", "p_lab": 1500.0, "a_lab": 1700.0, "p_mat": 7000.0, "a_mat": 6900.0, "sales": 15400.0, "gp": 6800.0, "gpm": 44.2, "h_actual": 15.0, "h_priced": 12.0, "lead_src": ""}, {"month": "Dec-2024", "job": "155 purerua", "date": "2024-12-17", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 3600.0, "p_mat": 22760.0, "a_mat": 22760.0, "sales": 44500.0, "gp": 18140.0, "gpm": 40.8, "h_actual": 60.0, "h_priced": 0, "lead_src": ""}, {"month": "", "job": "Brett Job Cowshed", "date": "", "job_type": "Small or Part Replacements", "p_lab": 1400.0, "a_lab": 490.0, "p_mat": 4150.0, "a_mat": 3000.0, "sales": 9800.0, "gp": 6310.0, "gpm": 64.4, "h_actual": 7.0, "h_priced": 20.0, "lead_src": ""}, {"month": "Dec-2024", "job": "Rawhitora Marae", "date": "2024-12-17", "job_type": "Repair & Paint", "p_lab": 0, "a_lab": 1150.0, "p_mat": 700.0, "a_mat": 700.0, "sales": 4800.0, "gp": 2950.0, "gpm": 61.5, "h_actual": 4.0, "h_priced": 0, "lead_src": ""}, {"month": "Dec-2024", "job": "36 carrington", "date": "2024-12-18", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 12080.0, "p_mat": 7500.0, "a_mat": 7500.0, "sales": 25100.0, "gp": 5520.0, "gpm": 22.0, "h_actual": 30.0, "h_priced": 0, "lead_src": ""}, {"month": "Dec-2024", "job": "36 Car paint only", "date": "2024-12-18", "job_type": "Repair & Paint", "p_lab": 0, "a_lab": 10000.0, "p_mat": 5000.0, "a_mat": 5000.0, "sales": 22000.0, "gp": 7000.0, "gpm": 31.8, "h_actual": 7.0, "h_priced": 0, "lead_src": ""}, {"month": "Dec-2024", "job": "767 Raka house", "date": "2024-12-17", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 560.0, "p_mat": 2600.0, "a_mat": 2600.0, "sales": 10800.0, "gp": 7640.0, "gpm": 70.7, "h_actual": 8.0, "h_priced": 0, "lead_src": ""}, {"month": "Feb-2025", "job": "767 Raka Cowshed", "date": "2025-02-10", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 630.0, "p_mat": 3520.0, "a_mat": 3520.0, "sales": 7845.0, "gp": 3695.0, "gpm": 47.1, "h_actual": 6.0, "h_priced": 0, "lead_src": ""}, {"month": "", "job": "21 kend Gutter only", "date": "", "job_type": "Gutter", "p_lab": 0, "a_lab": 840.0, "p_mat": 2150.0, "a_mat": 2150.0, "sales": 5670.0, "gp": 2680.0, "gpm": 47.3, "h_actual": 12.0, "h_priced": 0, "lead_src": ""}, {"month": "Dec-2024", "job": "842 te ahu", "date": "2024-12-17", "job_type": "Re-Roof's", "p_lab": 9500.0, "a_lab": 10560.0, "p_mat": 15300.0, "a_mat": 15300.0, "sales": 39500.0, "gp": 13640.0, "gpm": 34.5, "h_actual": 56.0, "h_priced": 56.0, "lead_src": ""}, {"month": "Feb-2025", "job": "7206 SH1 Paul Shep", "date": "2025-02-25", "job_type": "Re-Roof's", "p_lab": 3925.0, "a_lab": 2650.0, "p_mat": 9000.0, "a_mat": 9600.0, "sales": 21700.0, "gp": 9450.0, "gpm": 43.5, "h_actual": 35.75, "h_priced": 44.0, "lead_src": ""}, {"month": "Jan-2025", "job": "7067 Sh1 Pakaraka", "date": "2025-01-13", "job_type": "Gutter", "p_lab": 0, "a_lab": 480.0, "p_mat": 995.0, "a_mat": 995.0, "sales": 2640.0, "gp": 1165.0, "gpm": 44.1, "h_actual": 4.0, "h_priced": 0, "lead_src": ""}, {"month": "Jan-2025", "job": "2361 sh10 Gutter", "date": "2025-01-13", "job_type": "Gutter", "p_lab": 0, "a_lab": 480.0, "p_mat": 500.0, "a_mat": 500.0, "sales": 2350.0, "gp": 1370.0, "gpm": 58.3, "h_actual": 4.0, "h_priced": 0, "lead_src": ""}, {"month": "Mar-2025", "job": "Kaikohe west", "date": "2025-03-01", "job_type": "Small or Part Replacements", "p_lab": 3500.0, "a_lab": 3850.0, "p_mat": 9000.0, "a_mat": 9000.0, "sales": 50250.0, "gp": 37400.0, "gpm": 74.4, "h_actual": 80.0, "h_priced": 0, "lead_src": ""}, {"month": "Mar-2025", "job": "Nadine 561 Wekaweka Road", "date": "2025-03-01", "job_type": "Re-Roof's", "p_lab": 2750.0, "a_lab": 4750.0, "p_mat": 13000.0, "a_mat": 14500.0, "sales": 35100.0, "gp": 15850.0, "gpm": 45.2, "h_actual": 132.25, "h_priced": 40.0, "lead_src": ""}, {"month": "Mar-2025", "job": "mihi cornelius", "date": "2025-03-01", "job_type": "Re-Roof's", "p_lab": 2300.0, "a_lab": 1600.0, "p_mat": 8700.0, "a_mat": 8700.0, "sales": 23300.0, "gp": 13000.0, "gpm": 55.8, "h_actual": 22.0, "h_priced": 35.0, "lead_src": ""}, {"month": "", "job": "334 Webb Road Helene bay", "date": "", "job_type": "Re-Roof's", "p_lab": 3325.0, "a_lab": 7150.0, "p_mat": 9500.0, "a_mat": 11600.0, "sales": 23500.0, "gp": 4750.0, "gpm": 20.2, "h_actual": 214.0, "h_priced": 0, "lead_src": ""}, {"month": "", "job": "163 Onekura", "date": "", "job_type": "Re-Roof & Gutter", "p_lab": 4750.0, "a_lab": 2100.0, "p_mat": 10600.0, "a_mat": 14065.0, "sales": 26880.0, "gp": 10715.0, "gpm": 39.9, "h_actual": 46.75, "h_priced": 100.0, "lead_src": ""}, {"month": "Apr-2025", "job": "People potential", "date": "2025-04-01", "job_type": "Re-Roof's", "p_lab": 2800.0, "a_lab": 2480.0, "p_mat": 12450.0, "a_mat": 12450.0, "sales": 26850.0, "gp": 11920.0, "gpm": 44.4, "h_actual": 31.5, "h_priced": 40.0, "lead_src": ""}, {"month": "Feb-2025", "job": "229 Picadily Rd", "date": "2025-02-10", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 2680.0, "p_mat": 7500.0, "a_mat": 7500.0, "sales": 21100.0, "gp": 10920.0, "gpm": 51.8, "h_actual": 34.5, "h_priced": 0, "lead_src": ""}, {"month": "Feb-2025", "job": "2 arthur taylor", "date": "2025-02-10", "job_type": "Gutter", "p_lab": 0, "a_lab": 280.0, "p_mat": 1300.0, "a_mat": 1300.0, "sales": 2430.0, "gp": 850.0, "gpm": 35.0, "h_actual": 4.0, "h_priced": 0, "lead_src": ""}, {"month": "Mar-2025", "job": "92 Magnolia Wall Cladding", "date": "2025-03-10", "job_type": "New builds", "p_lab": 7700.0, "a_lab": 6600.0, "p_mat": 16120.0, "a_mat": 16730.0, "sales": 31500.0, "gp": 8170.0, "gpm": 25.9, "h_actual": 80.0, "h_priced": 55.0, "lead_src": ""}, {"month": "", "job": "2 De Thierry Street", "date": "", "job_type": "Re-Roof & Gutter", "p_lab": 2310.0, "a_lab": 3280.0, "p_mat": 8855.0, "a_mat": 8530.0, "sales": 20560.0, "gp": 8750.0, "gpm": 42.6, "h_actual": 105.75, "h_priced": 66.0, "lead_src": ""}, {"month": "May-2025", "job": "16 Heke st", "date": "2025-05-05", "job_type": "Re-Roof's", "p_lab": 3150.0, "a_lab": 3450.0, "p_mat": 13500.0, "a_mat": 10350.0, "sales": 25680.0, "gp": 11880.0, "gpm": 46.3, "h_actual": 110.0, "h_priced": 90.0, "lead_src": ""}, {"month": "May-2025", "job": "7 Queen Street Kawakawa", "date": "2025-05-01", "job_type": "Re-Roof & Gutter", "p_lab": 0, "a_lab": 4240.0, "p_mat": 9960.0, "a_mat": 9960.0, "sales": 22350.0, "gp": 8150.0, "gpm": 36.5, "h_actual": 105.5, "h_priced": 0, "lead_src": ""}, {"month": "May-2025", "job": "58 School Road Paihia", "date": "2025-05-05", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 3540.0, "p_mat": 7600.0, "a_mat": 7600.0, "sales": 18850.0, "gp": 7710.0, "gpm": 40.9, "h_actual": 85.0, "h_priced": 0, "lead_src": ""}, {"month": "May-2025", "job": "2855 State Highway 1, Umawera", "date": "2025-05-05", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 500.0, "p_mat": 200.0, "a_mat": 200.0, "sales": 2850.0, "gp": 2150.0, "gpm": 75.4, "h_actual": 15.5, "h_priced": 0, "lead_src": ""}, {"month": "Jun-2025", "job": "25 The Strand, Russell", "date": "2025-06-01", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 1050.0, "p_mat": 1600.0, "a_mat": 1600.0, "sales": 5650.0, "gp": 3000.0, "gpm": 53.1, "h_actual": 30.0, "h_priced": 0, "lead_src": ""}, {"month": "Jun-2025", "job": "114 West Coast Road, Kohukohu", "date": "2025-06-01", "job_type": "Complex/multiple work", "p_lab": 0, "a_lab": 1530.0, "p_mat": 6920.0, "a_mat": 6920.0, "sales": 13100.0, "gp": 4650.0, "gpm": 35.5, "h_actual": 41.0, "h_priced": 0, "lead_src": ""}, {"month": "Jun-2025", "job": "6987 SH1, Pakaraka", "date": "2025-06-01", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 3100.0, "p_mat": 7350.0, "a_mat": 7350.0, "sales": 18150.0, "gp": 7700.0, "gpm": 42.4, "h_actual": 90.0, "h_priced": 0, "lead_src": ""}, {"month": "Jun-2025", "job": "911 Mataraua Road, Kaikohe", "date": "2025-06-01", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 145.0, "p_mat": 165.0, "a_mat": 165.0, "sales": 1850.0, "gp": 1540.0, "gpm": 83.2, "h_actual": 4.5, "h_priced": 0, "lead_src": ""}, {"month": "May-2025", "job": "42 Main Road, Moerewa", "date": "2025-05-01", "job_type": "Re-Roof's", "p_lab": 0, "a_lab": 2280.0, "p_mat": 8275.0, "a_mat": 8275.0, "sales": 19635.0, "gp": 9080.0, "gpm": 46.2, "h_actual": 66.0, "h_priced": 0, "lead_src": ""}, {"month": "Jun-2025", "job": "Shaun Banks", "date": "2025-06-10", "job_type": "New builds", "p_lab": 4200.0, "a_lab": 4500.0, "p_mat": 11800.0, "a_mat": 11800.0, "sales": 17200.0, "gp": 900.0, "gpm": 5.2, "h_actual": 123.0, "h_priced": 60.0, "lead_src": ""}, {"month": "Jun-2025", "job": "48 Kaka Road, Matawaia", "date": "2025-06-01", "job_type": "Gutter", "p_lab": 0, "a_lab": 960.0, "p_mat": 900.0, "a_mat": 900.0, "sales": 4350.0, "gp": 2490.0, "gpm": 57.2, "h_actual": 32.25, "h_priced": 0, "lead_src": ""}, {"month": "Jun-2025", "job": "91 Mangakahia Road, Kaikohe", "date": "2025-06-01", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 495.0, "p_mat": 2050.0, "a_mat": 2050.0, "sales": 7950.0, "gp": 5405.0, "gpm": 68.0, "h_actual": 18.0, "h_priced": 0, "lead_src": ""}, {"month": "Jun-2025", "job": "9 Meadow Lane, Pakaraka", "date": "2025-06-01", "job_type": "Complex/multiple work", "p_lab": 0, "a_lab": 2920.0, "p_mat": 7920.0, "a_mat": 7920.0, "sales": 22150.0, "gp": 11310.0, "gpm": 51.1, "h_actual": 88.75, "h_priced": 0, "lead_src": ""}, {"month": "Jun-2025", "job": "325 Hariru Road, Ohaeawai", "date": "2025-06-01", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 815.0, "p_mat": 2405.0, "a_mat": 2405.0, "sales": 8100.0, "gp": 4880.0, "gpm": 60.2, "h_actual": 22.75, "h_priced": 0, "lead_src": ""}, {"month": "Jun-2025", "job": "98 Forest Road, Okaihau", "date": "2025-06-22", "job_type": "Re-Roof & Gutter", "p_lab": 6545.0, "a_lab": 6970.0, "p_mat": 15750.0, "a_mat": 15745.0, "sales": 37575.0, "gp": 14860.0, "gpm": 39.5, "h_actual": 164.0, "h_priced": 154.0, "lead_src": ""}, {"month": "Jun-2025", "job": "50 Kemp Road", "date": "2025-06-21", "job_type": "Re-Roof & Gutter", "p_lab": 2555.0, "a_lab": 1900.0, "p_mat": 4629.0, "a_mat": 5965.0, "sales": 18895.0, "gp": 11030.0, "gpm": 58.4, "h_actual": 60.0, "h_priced": 73.0, "lead_src": ""}, {"month": "Jun-2025", "job": "517 Pokapu Road", "date": "2025-06-25", "job_type": "Re-Roof's", "p_lab": 2450.0, "a_lab": 3280.0, "p_mat": 8100.0, "a_mat": 6980.0, "sales": 18990.0, "gp": 8730.0, "gpm": 46.0, "h_actual": 100.0, "h_priced": 70.0, "lead_src": ""}, {"month": "Jun-2025", "job": "390 Lodore Road", "date": "2025-06-28", "job_type": "Re-Roof Zinc", "p_lab": 1700.0, "a_lab": 1700.0, "p_mat": 7990.0, "a_mat": 7550.0, "sales": 19085.0, "gp": 9835.0, "gpm": 51.5, "h_actual": 44.0, "h_priced": 66.0, "lead_src": ""}, {"month": "Jun-2025", "job": "26 fairway dr", "date": "2025-06-16", "job_type": "Re-Roof & Gutter", "p_lab": 1750.0, "a_lab": 2085.0, "p_mat": 7950.0, "a_mat": 6050.0, "sales": 17740.0, "gp": 9605.0, "gpm": 54.1, "h_actual": 55.0, "h_priced": 50.0, "lead_src": ""}, {"month": "Jun-2025", "job": "Pa Te Aroha Marae", "date": "2025-06-10", "job_type": "New builds", "p_lab": 2250.0, "a_lab": 2230.0, "p_mat": 15920.0, "a_mat": 15920.0, "sales": 28650.0, "gp": 10500.0, "gpm": 36.6, "h_actual": 80.0, "h_priced": 80.0, "lead_src": ""}, {"month": "Jun-2025", "job": "Bank Bar", "date": "2025-06-10", "job_type": "Complex/multiple work", "p_lab": 2100.0, "a_lab": 1600.0, "p_mat": 4700.0, "a_mat": 4700.0, "sales": 11214.0, "gp": 4914.0, "gpm": 43.8, "h_actual": 49.25, "h_priced": 61.5, "lead_src": ""}, {"month": "Jun-2025", "job": "11 tikorangi", "date": "2025-06-10", "job_type": "Re-Roof's", "p_lab": 2275.0, "a_lab": 2230.0, "p_mat": 5000.0, "a_mat": 6050.0, "sales": 15585.0, "gp": 7305.0, "gpm": 46.9, "h_actual": 68.25, "h_priced": 65.0, "lead_src": ""}, {"month": "Jun-2025", "job": "Landcorp dairy shed", "date": "2025-06-18", "job_type": "Complex/multiple work", "p_lab": 9205.0, "a_lab": 9205.0, "p_mat": 30255.0, "a_mat": 30255.0, "sales": 89250.0, "gp": 49790.0, "gpm": 55.8, "h_actual": 248.0, "h_priced": 230.0, "lead_src": ""}, {"month": "Jun-2025", "job": "804 omanaunu Chris", "date": "2025-06-27", "job_type": "Re-Roof's", "p_lab": 3500.0, "a_lab": 4500.0, "p_mat": 8910.0, "a_mat": 7400.0, "sales": 19800.0, "gp": 7900.0, "gpm": 39.9, "h_actual": 129.0, "h_priced": 100.0, "lead_src": ""}, {"month": "Jul-2025", "job": "1709 Ruapekapeka", "date": "2025-07-31", "job_type": "Re-Roof's", "p_lab": 3150.0, "a_lab": 4700.0, "p_mat": 8360.0, "a_mat": 10820.0, "sales": 20718.0, "gp": 5198.0, "gpm": 25.1, "h_actual": 150.0, "h_priced": 130.0, "lead_src": ""}, {"month": "N/A-N/A", "job": "Kohukohu 20%", "date": "N/A", "job_type": "11", "p_lab": 0, "a_lab": 0, "p_mat": 5808.15, "a_mat": 5808.15, "sales": 15770.0, "gp": 9961.85, "gpm": 63.2, "h_actual": 0, "h_priced": 40.0, "lead_src": ""}, {"month": "Jul-2025", "job": "946 matawaia", "date": "2025-07-31", "job_type": "Complex/multiple work", "p_lab": 8355.0, "a_lab": 9890.0, "p_mat": 16425.0, "a_mat": 16031.0, "sales": 43687.25, "gp": 17766.25, "gpm": 40.7, "h_actual": 280.0, "h_priced": 220.0, "lead_src": ""}, {"month": "Jul-2025", "job": "148 Broadway Kaikohe", "date": "2025-07-01", "job_type": "Re-Roof Zinc", "p_lab": 3080.0, "a_lab": 2047.0, "p_mat": 4100.0, "a_mat": 4866.63, "sales": 16002.0, "gp": 9088.37, "gpm": 56.8, "h_actual": 63.75, "h_priced": 88.0, "lead_src": ""}, {"month": "Jul-2025", "job": "Imms Rd", "date": "2025-07-20", "job_type": "Re-Roof Zinc", "p_lab": 1610.0, "a_lab": 1073.75, "p_mat": 5400.0, "a_mat": 4272.37, "sales": 12618.0, "gp": 7271.88, "gpm": 57.6, "h_actual": 35.25, "h_priced": 46.0, "lead_src": ""}, {"month": "Jul-2025", "job": "Northland Waste", "date": "2025-07-20", "job_type": "Gutter", "p_lab": 1072.0, "a_lab": 801.18, "p_mat": 722.0, "a_mat": 556.18, "sales": 2251.2, "gp": 893.84, "gpm": 39.7, "h_actual": 7.0, "h_priced": 10.0, "lead_src": ""}, {"month": "Jul-2025", "job": "The Warehouse 17 station Rd", "date": "2025-07-20", "job_type": "Small or Part Replacements", "p_lab": 490.0, "a_lab": 633.0, "p_mat": 510.0, "a_mat": 885.0, "sales": 4100.0, "gp": 2582.0, "gpm": 63.0, "h_actual": 19.5, "h_priced": 14.0, "lead_src": ""}, {"month": "Jul-2025", "job": "Kohukohu 80%", "date": "2025-07-20", "job_type": "Re-Roof & Gutter", "p_lab": 0, "a_lab": 8062.25, "p_mat": 20000.0, "a_mat": 20000.0, "sales": 63080.0, "gp": 35017.75, "gpm": 55.5, "h_actual": 245.25, "h_priced": 24.5, "lead_src": ""}, {"month": "Jul-2025", "job": "9 Orrs Road", "date": "2025-07-20", "job_type": "Small or Part Replacements", "p_lab": 0, "a_lab": 445.0, "p_mat": 1000.0, "a_mat": 1000.0, "sales": 3377.0, "gp": 1932.0, "gpm": 57.2, "h_actual": 13.5, "h_priced": 13.5, "lead_src": ""}, {"month": "Jul-2025", "job": "196 Rahiri Road, Horeke", "date": "2025-07-18", "job_type": "Small or Part Replacements", "p_lab": 700.0, "a_lab": 635.0, "p_mat": 1629.86, "a_mat": 1525.88, "sales": 4273.75, "gp": 2112.87, "gpm": 49.4, "h_actual": 20.0, "h_priced": 20.0, "lead_src": ""}, {"month": "Jul-2025", "job": "62 mangakahia", "date": "2025-07-31", "job_type": "Re-Roof & Gutter", "p_lab": 11960.0, "a_lab": 6330.0, "p_mat": 41090.0, "a_mat": 42037.0, "sales": 91731.0, "gp": 43364.0, "gpm": 47.3, "h_actual": 180.0, "h_priced": 220.0, "lead_src": ""}, {"month": "Jul-2025", "job": "24 williams Ave", "date": "2025-07-31", "job_type": "Re-Roof Zinc", "p_lab": 4620.0, "a_lab": 4550.0, "p_mat": 9940.0, "a_mat": 12000.0, "sales": 29120.0, "gp": 12570.0, "gpm": 43.2, "h_actual": 127.0, "h_priced": 132.0, "lead_src": ""}, {"month": "Jul-2025", "job": "561 Rakauwhahia Rd Regan ", "date": "2025-07-31", "job_type": "Complex/multiple work", "p_lab": 1590.0, "a_lab": 2450.0, "p_mat": 10450.0, "a_mat": 9450.0, "sales": 20485.0, "gp": 8585.0, "gpm": 41.9, "h_actual": 70.0, "h_priced": 45.0, "lead_src": ""}, {"month": "Jul-2025", "job": "41 gillies", "date": "2025-07-31", "job_type": "Re-Roof's", "p_lab": 3080.0, "a_lab": 3250.0, "p_mat": 8780.0, "a_mat": 11600.0, "sales": 22650.0, "gp": 7800.0, "gpm": 34.4, "h_actual": 91.0, "h_priced": 88.0, "lead_src": ""}, {"month": "Aug-2025", "job": "16d clifford st", "date": "2025-08-19", "job_type": "Re-Roof Zinc", "p_lab": 3850.0, "a_lab": 5788.0, "p_mat": 11265.0, "a_mat": 11662.0, "sales": 15180.0, "gp": -2270.0, "gpm": -15.0, "h_actual": 187.0, "h_priced": 110.0, "lead_src": ""}, {"month": "Aug-2025", "job": "657 Horeke Road, Okaihau", "date": "2025-08-22", "job_type": "Small or Part Replacements", "p_lab": 280.0, "a_lab": 280.0, "p_mat": 1882.4, "a_mat": 1882.0, "sales": 2951.12, "gp": 789.12, "gpm": 26.7, "h_actual": 18.5, "h_priced": 18.0, "lead_src": ""}, {"month": "Aug-2025", "job": "153 Onekura Road, Kerikeri", "date": "2025-08-29", "job_type": "Re-Roof Zinc", "p_lab": 2450.0, "a_lab": 3341.0, "p_mat": 6130.0, "a_mat": 5916.0, "sales": 14792.0, "gp": 5535.0, "gpm": 37.4, "h_actual": 116.9, "h_priced": 70.0, "lead_src": ""}, {"month": "Aug-2025", "job": "46 Reservoir Road, Kaikohe", "date": "2025-08-20", "job_type": "Re-Roof & Gutter", "p_lab": 5320.0, "a_lab": 5542.0, "p_mat": 13774.0, "a_mat": 21334.0, "sales": 32844.0, "gp": 5968.0, "gpm": 18.2, "h_actual": 182.0, "h_priced": 152.0, "lead_src": ""}, {"month": "Aug-2025", "job": "740 Matauri Bay Road", "date": "2025-08-27", "job_type": "Gutter", "p_lab": 140.0, "a_lab": 99.0, "p_mat": 60.0, "a_mat": 304.62, "sales": 420.0, "gp": 16.38, "gpm": 3.9, "h_actual": 3.0, "h_priced": 4.0, "lead_src": ""}, {"month": "Aug-2025", "job": "48 Pukepoto Road", "date": "2025-08-20", "job_type": "Re-Roof Zinc", "p_lab": 840.0, "a_lab": 1032.0, "p_mat": 1388.0, "a_mat": 1538.0, "sales": 4300.0, "gp": 1730.0, "gpm": 40.2, "h_actual": 39.0, "h_priced": 30.0, "lead_src": ""}, {"month": "Aug-2025", "job": "42 Selwyn Road, Paihia", "date": "2025-08-25", "job_type": "Re-Roof & Gutter", "p_lab": 8300.0, "a_lab": 6658.0, "p_mat": 21534.0, "a_mat": 30143.0, "sales": 48580.0, "gp": 11779.0, "gpm": 24.2, "h_actual": 213.0, "h_priced": 260.0, "lead_src": ""}, {"month": "Aug-2025", "job": "1273a Bulls Road", "date": "2025-08-27", "job_type": "Gutter", "p_lab": 700.0, "a_lab": 832.0, "p_mat": 2135.0, "a_mat": 2372.0, "sales": 5093.0, "gp": 1889.0, "gpm": 37.1, "h_actual": 27.0, "h_priced": 20.0, "lead_src": ""}, {"month": "Aug-2025", "job": "7 Sydney Street, Kaikohe", "date": "2025-08-18", "job_type": "Re-Roof & Gutter", "p_lab": 4480.0, "a_lab": 4011.75, "p_mat": 9982.0, "a_mat": 7541.86, "sales": 26510.44, "gp": 14956.83, "gpm": 56.4, "h_actual": 125.25, "h_priced": 128.0, "lead_src": ""}, {"month": "Aug-2025", "job": "10 Tikorangi Road, Kerikeri", "date": "2025-08-10", "job_type": "Small or Part Replacements", "p_lab": 280.0, "a_lab": 198.0, "p_mat": 566.0, "a_mat": 621.0, "sales": 1622.8, "gp": 803.8, "gpm": 49.5, "h_actual": 6.0, "h_priced": 8.0, "lead_src": ""}, {"month": "Aug-2025", "job": "494B Kerikeri Road, Kerikeri", "date": "2025-08-15", "job_type": "Small or Part Replacements", "p_lab": 70.0, "a_lab": 122.0, "p_mat": 100.0, "a_mat": 0.0, "sales": 680.0, "gp": 558.0, "gpm": 82.1, "h_actual": 5.0, "h_priced": 2.0, "lead_src": ""}, {"month": "Aug-2025", "job": "14 Hongi Street, Kaikohe", "date": "2025-08-11", "job_type": "Small or Part Replacements", "p_lab": 135.0, "a_lab": 130.75, "p_mat": 100.0, "a_mat": 80.21, "sales": 1250.0, "gp": 1039.04, "gpm": 83.1, "h_actual": 4.5, "h_priced": 4.0, "lead_src": ""}, {"month": "Aug-2025", "job": "9 Albert Street, Kawakawa", "date": "2025-08-12", "job_type": "Small or Part Replacements", "p_lab": 420.0, "a_lab": 198.75, "p_mat": 500.0, "a_mat": 260.3, "sales": 2484.0, "gp": 2024.95, "gpm": 81.5, "h_actual": 5.75, "h_priced": 8.0, "lead_src": ""}, {"month": "Aug-2025", "job": "11 Kerikeri Inlet Road, Kerikeri", "date": "2025-08-18", "job_type": "Re-Roof's", "p_lab": 2940.0, "a_lab": 2384.0, "p_mat": 7620.0, "a_mat": 8743.0, "sales": 20064.0, "gp": 8937.0, "gpm": 44.5, "h_actual": 73.75, "h_priced": 80.0, "lead_src": ""}, {"month": "Aug-2025", "job": "81 Jamseson Esplanade, Haruru", "date": "2025-08-12", "job_type": "Small or Part Replacements", "p_lab": 280.0, "a_lab": 243.75, "p_mat": 282.2, "a_mat": 142.51, "sales": 1686.6, "gp": 1300.34, "gpm": 77.1, "h_actual": 6.75, "h_priced": 8.0, "lead_src": ""}, {"month": "Aug-2025", "job": "239a Kerikeri Inlet Road, Kerikeri", "date": "2025-08-15", "job_type": "Small or Part Replacements", "p_lab": 770.0, "a_lab": 561.0, "p_mat": 2150.0, "a_mat": 523.28, "sales": 6716.0, "gp": 5631.72, "gpm": 83.9, "h_actual": 17.5, "h_priced": 22.0, "lead_src": ""}, {"month": "Aug-2025", "job": "3 Puia Rd Ngawha", "date": "2025-08-15", "job_type": "Small or Part Replacements", "p_lab": 280.0, "a_lab": 305.0, "p_mat": 533.6, "a_mat": 320.16, "sales": 1545.0, "gp": 919.84, "gpm": 59.5, "h_actual": 10.0, "h_priced": 8.0, "lead_src": ""}, {"month": "Aug-2025", "job": "75B Cottle Hill Drive, Kerikeri", "date": "2025-08-27", "job_type": "Quoted Price", "p_lab": 70.0, "a_lab": 66.0, "p_mat": 280.0, "a_mat": 0.0, "sales": 560.0, "gp": 494.0, "gpm": 88.2, "h_actual": 2.0, "h_priced": 2.0, "lead_src": ""}, {"month": "Aug-2025", "job": "13 Te Haumi Drive, Paihia", "date": "2025-08-27", "job_type": "Re-Roof's", "p_lab": 5300.0, "a_lab": 1888.0, "p_mat": 4680.0, "a_mat": 7310.0, "sales": 17212.0, "gp": 8014.0, "gpm": 46.6, "h_actual": 61.0, "h_priced": 80.0, "lead_src": ""}, {"month": "Aug-2025", "job": "23D Pa Road, Kerikeri", "date": "2025-08-25", "job_type": "Small or Part Replacements", "p_lab": 1400.0, "a_lab": 819.5, "p_mat": 2228.0, "a_mat": 1839.0, "sales": 10884.0, "gp": 8225.5, "gpm": 75.6, "h_actual": 24.0, "h_priced": 40.0, "lead_src": ""}, {"month": "Aug-2025", "job": "90b School Road, Paihia", "date": "2025-08-11", "job_type": "Re-Roof's", "p_lab": 2520.0, "a_lab": 1790.0, "p_mat": 10924.0, "a_mat": 1790.0, "sales": 20538.0, "gp": 16958.0, "gpm": 82.6, "h_actual": 51.0, "h_priced": 60.0, "lead_src": ""}, {"month": "Sep-2025", "job": "322 Horreke Road, Okaihau", "date": "2025-09-03", "job_type": "Pole Sheds", "p_lab": 3500.0, "a_lab": 2982.0, "p_mat": 7080.0, "a_mat": 14709.0, "sales": 20560.0, "gp": 2869.0, "gpm": 14.0, "h_actual": 94.25, "h_priced": 100.0, "lead_src": ""}, {"month": "Sep-2025", "job": "29 Reservior Road, Kaikohe", "date": "2025-09-22", "job_type": "Re-Roof's", "p_lab": 2450.0, "a_lab": 3174.0, "p_mat": 7616.4, "a_mat": 8952.0, "sales": 17978.2, "gp": 5852.2, "gpm": 32.6, "h_actual": 100.0, "h_priced": 80.0, "lead_src": ""}, {"month": "Sep-2025", "job": "135 Tokawhero Road, Awarua", "date": "2025-09-10", "job_type": "Re-Roof's", "p_lab": 1540.0, "a_lab": 787.0, "p_mat": 3220.0, "a_mat": 3693.0, "sales": 10400.0, "gp": 5920.0, "gpm": 56.9, "h_actual": 24.75, "h_priced": 30.0, "lead_src": ""}, {"month": "Sep-2025", "job": "5 De Merle Street, Kaikohe", "date": "2025-09-10", "job_type": "Re-Roof Zinc", "p_lab": 2100.0, "a_lab": 1593.0, "p_mat": 5554.0, "a_mat": 4802.0, "sales": 15359.6, "gp": 8964.6, "gpm": 58.4, "h_actual": 52.0, "h_priced": 60.0, "lead_src": ""}, {"month": "Sep-2025", "job": "203 Remuera Rd", "date": "2025-09-05", "job_type": "Small or Part Replacements", "p_lab": 770.0, "a_lab": 742.0, "p_mat": 1000.0, "a_mat": 524.0, "sales": 3717.0, "gp": 2451.0, "gpm": 65.9, "h_actual": 23.0, "h_priced": 22.0, "lead_src": ""}, {"month": "Sep-2025", "job": "101 Settlers Way Okaihau", "date": "2025-09-15", "job_type": "Re-Roof's", "p_lab": 3150.0, "a_lab": 2817.0, "p_mat": 8325.36, "a_mat": 7040.0, "sales": 21230.0, "gp": 11373.0, "gpm": 53.6, "h_actual": 109.0, "h_priced": 90.0, "lead_src": ""}, {"month": "Sep-2025", "job": "1608a State Highway 10, Kerikeri", "date": "2025-09-08", "job_type": "Re-Roof's", "p_lab": 1050.0, "a_lab": 413.0, "p_mat": 3520.0, "a_mat": 3117.0, "sales": 8911.5, "gp": 5381.5, "gpm": 60.4, "h_actual": 13.0, "h_priced": 20.0, "lead_src": ""}, {"month": "Sep-2025", "job": "680 Puketona Road, Haruru", "date": "2025-09-11", "job_type": "Small or Part Replacements", "p_lab": 280.0, "a_lab": 183.0, "p_mat": 422.0, "a_mat": 273.0, "sales": 1263.6, "gp": 807.6, "gpm": 63.9, "h_actual": 6.0, "h_priced": 8.0, "lead_src": ""}, {"month": "Sep-2025", "job": "170c Kerikeri Inlet Road, Kerikeri", "date": "2025-09-19", "job_type": "Small or Part Replacements", "p_lab": 350.0, "a_lab": 307.0, "p_mat": 530.32, "a_mat": 499.27, "sales": 1589.56, "gp": 783.29, "gpm": 49.3, "h_actual": 9.75, "h_priced": 10.0, "lead_src": ""}, {"month": "Sep-2025", "job": "4 Homested Rd", "date": "2025-09-16", "job_type": "Re-Roof & Gutter", "p_lab": 9600.0, "a_lab": 9077.0, "p_mat": 35916.0, "a_mat": 50591.0, "sales": 79155.43, "gp": 19487.43, "gpm": 24.6, "h_actual": 285.0, "h_priced": 201.0, "lead_src": ""}, {"month": "Sep-2025", "job": "32 Renwick Road, Otaua", "date": "2025-09-19", "job_type": "Re-Roof Zinc", "p_lab": 3150.0, "a_lab": 2326.0, "p_mat": 6692.0, "a_mat": 5425.0, "sales": 18260.86, "gp": 10509.86, "gpm": 57.6, "h_actual": 74.25, "h_priced": 90.0, "lead_src": ""}, {"month": "Sep-2025", "job": "69 Cookson Road", "date": "2025-09-19", "job_type": "Re-Roof's", "p_lab": 2240.0, "a_lab": 2223.0, "p_mat": 8563.4, "a_mat": 7576.0, "sales": 18075.25, "gp": 8276.25, "gpm": 45.8, "h_actual": 71.0, "h_priced": 64.0, "lead_src": ""}, {"month": "Sep-2025", "job": "530 Hautapu Road, Pakaraka", "date": "2025-09-18", "job_type": "Complex/multiple work", "p_lab": 700.0, "a_lab": 857.0, "p_mat": 2033.0, "a_mat": 1037.0, "sales": 6560.0, "gp": 4666.0, "gpm": 71.1, "h_actual": 27.0, "h_priced": 20.0, "lead_src": ""}, {"month": "Sep-2025", "job": "69 Cookson Road, Kawakawa", "date": "2025-09-19", "job_type": "Re-Roof's", "p_lab": 2240.0, "a_lab": 2223.0, "p_mat": 8563.0, "a_mat": 7576.0, "sales": 18075.0, "gp": 8276.0, "gpm": 45.8, "h_actual": 71.0, "h_priced": 64.0, "lead_src": ""}, {"month": "Oct-2025", "job": "24 Shepherd Road, Kerikeri", "date": "2025-10-02", "job_type": "Small or Part Replacements", "p_lab": 350.0, "a_lab": 488.0, "p_mat": 748.0, "a_mat": 707.0, "sales": 2098.0, "gp": 903.0, "gpm": 43.0, "h_actual": 16.0, "h_priced": 10.0, "lead_src": ""}, {"month": "Oct-2025", "job": "1709 Ruapekapeka Road", "date": "2025-10-14", "job_type": "Re-Roof's", "p_lab": 3150.0, "a_lab": 5155.0, "p_mat": 8360.0, "a_mat": 11340.0, "sales": 20718.0, "gp": 4223.0, "gpm": 20.4, "h_actual": 168.0, "h_priced": 90.0, "lead_src": ""}, {"month": "Oct-2025", "job": "9 Dickeson Street, Kaikohe", "date": "2025-10-23", "job_type": "Small or Part Replacements", "p_lab": 450.0, "a_lab": 1206.0, "p_mat": 856.0, "a_mat": 996.0, "sales": 2612.0, "gp": 410.0, "gpm": 15.7, "h_actual": 34.0, "h_priced": 14.0, "lead_src": ""}, {"month": "Oct-2025", "job": "124 Broadway Kaikohe", "date": "2025-10-15", "job_type": "Re-Roof's", "p_lab": 3150.0, "a_lab": 4453.01, "p_mat": 5311.2, "a_mat": 10748.21, "sales": 17768.52, "gp": 2567.3, "gpm": 14.4, "h_actual": 150.0, "h_priced": 90.0, "lead_src": ""}, {"month": "Oct-2025", "job": "2415b SH10, Waipapa", "date": "2025-10-06", "job_type": "Small or Part Replacements", "p_lab": 420.0, "a_lab": 419.0, "p_mat": 835.0, "a_mat": 544.0, "sales": 1995.08, "gp": 1032.08, "gpm": 51.7, "h_actual": 17.0, "h_priced": 12.0, "lead_src": ""}, {"month": "Oct-2025", "job": "552 Horeke Road, Okaihau", "date": "2025-10-17", "job_type": "Small or Part Replacements", "p_lab": 420.0, "a_lab": 605.0, "p_mat": 811.0, "a_mat": 446.0, "sales": 2134.3, "gp": 1083.3, "gpm": 50.8, "h_actual": 24.0, "h_priced": 12.0, "lead_src": ""}, {"month": "Oct-2025", "job": "180 Kerikeri Road, Kerikeri", "date": "2025-10-01", "job_type": "Small or Part Replacements", "p_lab": 3500.0, "a_lab": 4538.0, "p_mat": 12801.0, "a_mat": 11019.0, "sales": 25426.85, "gp": 9869.85, "gpm": 38.8, "h_actual": 147.0, "h_priced": 100.0, "lead_src": ""}, {"month": "Oct-2025", "job": "49 Hillcrest Road, Kaikohe", "date": "2025-10-24", "job_type": "Re-Roof's", "p_lab": 3920.0, "a_lab": 4369.0, "p_mat": 12731.24, "a_mat": 12663.0, "sales": 27958.69, "gp": 10926.69, "gpm": 39.1, "h_actual": 148.25, "h_priced": 112.0, "lead_src": ""}, {"month": "Oct-2025", "job": "7089 State Highway 1, Pakaraka", "date": "2025-10-02", "job_type": "Re-Roof's", "p_lab": 1120.0, "a_lab": 1073.0, "p_mat": 2319.0, "a_mat": 1679.0, "sales": 8478.61, "gp": 5726.61, "gpm": 67.5, "h_actual": 30.7, "h_priced": 32.0, "lead_src": ""}, {"month": "Oct-2025", "job": "124 Waiare Road Okaihau", "date": "2025-10-03", "job_type": "Gutter", "p_lab": 280.0, "a_lab": 351.0, "p_mat": 1000.0, "a_mat": 782.0, "sales": 2834.0, "gp": 1701.0, "gpm": 60.0, "h_actual": 9.7, "h_priced": 8.0, "lead_src": ""}, {"month": "Oct-2025", "job": "Pakaraka School", "date": "2025-10-03", "job_type": "Complex/multiple work", "p_lab": 3150.0, "a_lab": 2770.0, "p_mat": 15000.0, "a_mat": 9842.0, "sales": 47500.0, "gp": 34888.0, "gpm": 73.4, "h_actual": 94.7, "h_priced": 90.0, "lead_src": ""}, {"month": "Oct-2025", "job": "966 Te Ahu Ahu Road, Oromahoe", "date": "2025-10-15", "job_type": "Re-Roof Zinc", "p_lab": 1400.0, "a_lab": 1127.0, "p_mat": 6638.4, "a_mat": 6544.49, "sales": 15450.0, "gp": 7778.51, "gpm": 50.3, "h_actual": 37.5, "h_priced": 40.0, "lead_src": ""}, {"month": "Oct-2025", "job": "55c Cobham Road, Kerikeri", "date": "2025-10-08", "job_type": "Small or Part Replacements", "p_lab": 280.0, "a_lab": 118.0, "p_mat": 674.4, "a_mat": 683.0, "sales": 1633.72, "gp": 832.72, "gpm": 51.0, "h_actual": 3.75, "h_priced": 8.0, "lead_src": ""}, {"month": "Oct-2025", "job": "22 Cobham Road, Kerikeri", "date": "2025-10-21", "job_type": "Gutter", "p_lab": 350.0, "a_lab": 427.0, "p_mat": 820.0, "a_mat": 424.0, "sales": 2440.0, "gp": 1589.0, "gpm": 65.1, "h_actual": 14.0, "h_priced": 10.0, "lead_src": ""}, {"month": "Oct-2025", "job": "1 Snowden Ave, Moerewa", "date": "2025-10-10", "job_type": "Re-Roof Zinc", "p_lab": 2240.0, "a_lab": 2373.0, "p_mat": 6071.0, "a_mat": 4502.0, "sales": 15374.0, "gp": 8499.0, "gpm": 55.3, "h_actual": 64.0, "h_priced": 83.0, "lead_src": ""}, {"month": "Oct-2025", "job": "10 Te Kahu Street, Haruru", "date": "2025-10-24", "job_type": "Small or Part Replacements", "p_lab": 280.0, "a_lab": 197.0, "p_mat": 973.6, "a_mat": 894.0, "sales": 2757.92, "gp": 1666.92, "gpm": 60.4, "h_actual": 6.0, "h_priced": 8.0, "lead_src": ""}, {"month": "Oct-2025", "job": "7 Homested Road, Kerikeri", "date": "2025-10-22", "job_type": "Small or Part Replacements", "p_lab": 350.0, "a_lab": 381.0, "p_mat": 1481.0, "a_mat": 824.0, "sales": 3125.8, "gp": 1920.8, "gpm": 61.4, "h_actual": 12.0, "h_priced": 10.0, "lead_src": ""}, {"month": "Oct-2025", "job": "317c Puketona Road, Paihia", "date": "2025-10-23", "job_type": "Small or Part Replacements", "p_lab": 280.0, "a_lab": 303.0, "p_mat": 420.0, "a_mat": 208.0, "sales": 1500.0, "gp": 989.0, "gpm": 65.9, "h_actual": 8.75, "h_priced": 8.0, "lead_src": ""}, {"month": "Oct-2025", "job": "10 Tui Street, Kaikohe", "date": "2025-10-28", "job_type": "Re-Roof & Gutter", "p_lab": 2800.0, "a_lab": 2257.0, "p_mat": 11558.0, "a_mat": 8760.0, "sales": 22938.0, "gp": 11921.0, "gpm": 52.0, "h_actual": 67.5, "h_priced": 80.0, "lead_src": ""}, {"month": "Oct-2025", "job": "18 Settlers Way, Okaihau", "date": "2025-10-23", "job_type": "Re-Roof's", "p_lab": 840.0, "a_lab": 738.0, "p_mat": 5098.2, "a_mat": 3573.0, "sales": 10213.6, "gp": 5902.6, "gpm": 57.8, "h_actual": 24.75, "h_priced": 24.0, "lead_src": ""}, {"month": "Oct-2025", "job": "5874 Mangakahia Road, Awarua", "date": "2025-10-23", "job_type": "Re-Roof & Gutter", "p_lab": 1050.0, "a_lab": 1036.0, "p_mat": 1610.0, "a_mat": 1015.0, "sales": 5587.0, "gp": 3536.0, "gpm": 63.3, "h_actual": 32.5, "h_priced": 30.0, "lead_src": ""}, {"month": "Oct-2025", "job": "7 Massey Street , Moerewa", "date": "2025-10-24", "job_type": "Small or Part Replacements", "p_lab": 210.0, "a_lab": 122.0, "p_mat": 137.6, "a_mat": 94.0, "sales": 947.6, "gp": 731.6, "gpm": 77.2, "h_actual": 4.0, "h_priced": 6.0, "lead_src": ""}, {"month": "Nov-2025", "job": "9 Dickenson Street Kaikohe", "date": "2025-11-24", "job_type": "Small or Part Replacements", "p_lab": 490.0, "a_lab": 1206.0, "p_mat": 350.0, "a_mat": 905.0, "sales": 2030.0, "gp": -81.0, "gpm": -4.0, "h_actual": 34.0, "h_priced": 14.0, "lead_src": ""}, {"month": "Nov-2025", "job": "91 Mangakahia Road, Kaikohe", "date": "2025-11-14", "job_type": "Gutter", "p_lab": 700.0, "a_lab": 1744.0, "p_mat": 2066.0, "a_mat": 7620.0, "sales": 6085.2, "gp": -3278.8, "gpm": -53.9, "h_actual": 59.0, "h_priced": 20.0, "lead_src": ""}, {"month": "Nov-2025", "job": "34 Shepherd Road, Kerikeri", "date": "2025-11-04", "job_type": "Re-Roof's", "p_lab": 2450.0, "a_lab": 5290.5, "p_mat": 16354.36, "a_mat": 17822.93, "sales": 30592.08, "gp": 7478.65, "gpm": 24.4, "h_actual": 165.25, "h_priced": 100.0, "lead_src": ""}, {"month": "Nov-2025", "job": "10 Florance Ave, Russell", "date": "2025-11-17", "job_type": "Gutter", "p_lab": 700.0, "a_lab": 1323.0, "p_mat": 1590.0, "a_mat": 1474.0, "sales": 4090.0, "gp": 1293.0, "gpm": 31.6, "h_actual": 41.0, "h_priced": 20.0, "lead_src": ""}, {"month": "Nov-2025", "job": "11 Pine Tree Lane, Russell", "date": "2025-11-30", "job_type": "Re-Roof & Gutter", "p_lab": 3710.0, "a_lab": 5209.25, "p_mat": 17307.8, "a_mat": 18146.0, "sales": 31701.51, "gp": 8346.26, "gpm": 26.3, "h_actual": 175.0, "h_priced": 106.0, "lead_src": ""}, {"month": "Nov-2025", "job": "1549 Purerua Road, Te Tii", "date": "2025-11-19", "job_type": "Small or Part Replacements", "p_lab": 420.0, "a_lab": 812.0, "p_mat": 980.0, "a_mat": 1503.0, "sales": 2360.0, "gp": 45.0, "gpm": 1.9, "h_actual": 22.0, "h_priced": 12.0, "lead_src": ""}, {"month": "Nov-2025", "job": "14 Klinac Lane, Waipapa", "date": "2025-11-02", "job_type": "Re-Roof's", "p_lab": 770.0, "a_lab": 1018.0, "p_mat": 9482.0, "a_mat": 10875.0, "sales": 14227.5, "gp": 2334.5, "gpm": 16.4, "h_actual": 31.0, "h_priced": 22.0, "lead_src": ""}, {"month": "Nov-2025", "job": "34A Smith Deviation Road, Kohukohu", "date": "2025-11-27", "job_type": "Re-Roof's", "p_lab": 4200.0, "a_lab": 5000.0, "p_mat": 7813.2, "a_mat": 7307.0, "sales": 23426.0, "gp": 11119.0, "gpm": 47.5, "h_actual": 167.0, "h_priced": 120.0, "lead_src": ""}, {"month": "Nov-2025", "job": "146B Puketotara Road, Waipapa", "date": "2025-11-14", "job_type": "Re-Roof's", "p_lab": 1960.0, "a_lab": 729.0, "p_mat": 5651.0, "a_mat": 4241.0, "sales": 13699.8, "gp": 8729.8, "gpm": 63.7, "h_actual": 24.2, "h_priced": 56.0, "lead_src": ""}, {"month": "Nov-2025", "job": "771 McIntyres Road, Kawakawa", "date": "2025-11-02", "job_type": "Re-Roof & Gutter", "p_lab": 2730.0, "a_lab": 1950.0, "p_mat": 12100.04, "a_mat": 9040.0, "sales": 23028.94, "gp": 12038.94, "gpm": 52.3, "h_actual": 62.0, "h_priced": 78.0, "lead_src": ""}, {"month": "Nov-2025", "job": "109 Daroux Drive, Waipapa", "date": "2025-11-10", "job_type": "Re-Roof's", "p_lab": 4900.0, "a_lab": 5100.0, "p_mat": 11998.4, "a_mat": 0, "sales": 29365.8, "gp": 24265.8, "gpm": 82.6, "h_actual": 174.0, "h_priced": 140.0, "lead_src": ""}, {"month": "Nov-2025", "job": "5 Old Beach Road, Kohkohu", "date": "2025-11-28", "job_type": "Re-Roof's", "p_lab": 2380.0, "a_lab": 2056.0, "p_mat": 12430.0, "a_mat": 9071.0, "sales": 21610.0, "gp": 10483.0, "gpm": 48.5, "h_actual": 67.5, "h_priced": 68.0, "lead_src": ""}, {"month": "Nov-2025", "job": "935 Purerua Road, Kerikeri", "date": "2025-11-19", "job_type": "Small or Part Replacements", "p_lab": 210.0, "a_lab": 122.0, "p_mat": 557.0, "a_mat": 445.0, "sales": 1924.0, "gp": 1357.0, "gpm": 70.5, "h_actual": 4.0, "h_priced": 6.0, "lead_src": ""}, {"month": "Nov-2025", "job": "6517 Mangakahia Road, Kaikohe", "date": "2025-11-21", "job_type": "Re-Roof's", "p_lab": 2800.0, "a_lab": 2224.0, "p_mat": 16799.6, "a_mat": 10093.0, "sales": 28000.0, "gp": 15683.0, "gpm": 56.0, "h_actual": 69.0, "h_priced": 80.0, "lead_src": ""}, {"month": "Nov-2025", "job": "Landcorp Pump Shed", "date": "2025-11-07", "job_type": "Pole Sheds", "p_lab": 5000.0, "a_lab": 3091.75, "p_mat": 18288.8, "a_mat": 16895.68, "sales": 32919.6, "gp": 12932.17, "gpm": 39.3, "h_actual": 93.75, "h_priced": 93.75, "lead_src": ""}, {"month": "Nov-2025", "job": "15 Pearce Drive, Te Kamo", "date": "2025-11-25", "job_type": "Repair & Paint", "p_lab": 630.0, "a_lab": 363.0, "p_mat": 752.0, "a_mat": 124.0, "sales": 2212.6, "gp": 1725.6, "gpm": 78.0, "h_actual": 8.5, "h_priced": 19.0, "lead_src": ""}, {"month": "Nov-2025", "job": "205 Showground Road, Waimate North", "date": "2025-11-03", "job_type": "Small or Part Replacements", "p_lab": 280.0, "a_lab": 135.0, "p_mat": 785.6, "a_mat": 202.0, "sales": 2101.28, "gp": 1764.28, "gpm": 84.0, "h_actual": 4.0, "h_priced": 8.0, "lead_src": ""}, {"month": "Dec-2025", "job": "12 Leigh St Kaeo", "date": "2025-12-01", "job_type": "Re-Roof & Gutter", "p_lab": 3150.0, "a_lab": 7842.0, "p_mat": 17860.0, "a_mat": 26951.0, "sales": 31606.23, "gp": -3186.77, "gpm": -10.1, "h_actual": 235.0, "h_priced": 90.0, "lead_src": ""}, {"month": "Dec-2025", "job": "698A Puketona Road", "date": "2025-12-08", "job_type": "Small or Part Replacements", "p_lab": 210.0, "a_lab": 210.0, "p_mat": 100.0, "a_mat": 138.0, "sales": 478.0, "gp": 130.0, "gpm": 27.2, "h_actual": 6.0, "h_priced": 6.0, "lead_src": ""}, {"month": "Dec-2025", "job": "143 Broadway, Kaikohe", "date": "2025-12-01", "job_type": "Re-Roof's", "p_lab": 560.0, "a_lab": 1063.0, "p_mat": 3821.2, "a_mat": 3245.0, "sales": 7126.79, "gp": 2818.79, "gpm": 39.6, "h_actual": 35.0, "h_priced": 16.0, "lead_src": ""}, {"month": "Dec-2025", "job": "3 The Anchorage, Haruru", "date": "2025-12-16", "job_type": "Quoted Price", "p_lab": 300.0, "a_lab": 165.0, "p_mat": 300.0, "a_mat": 75.0, "sales": 600.0, "gp": 360.0, "gpm": 60.0, "h_actual": 5.0, "h_priced": 10.0, "lead_src": ""}, {"month": "Dec-2025", "job": "135 Omapere Road, Kerikeri", "date": "2025-12-09", "job_type": "Re-Roof's", "p_lab": 2450.0, "a_lab": 1862.0, "p_mat": 7176.0, "a_mat": 6885.0, "sales": 17374.25, "gp": 8627.25, "gpm": 49.7, "h_actual": 54.0, "h_priced": 70.0, "lead_src": ""}, {"month": "Dec-2025", "job": "8 Williams Avenue, Kaikohe", "date": "2025-12-16", "job_type": "Re-Roof & Gutter", "p_lab": 4900.0, "a_lab": 2754.0, "p_mat": 12696.8, "a_mat": 10625.0, "sales": 31904.75, "gp": 18525.75, "gpm": 58.1, "h_actual": 85.0, "h_priced": 140.0, "lead_src": ""}, {"month": "Dec-2025", "job": "377 Kerikeri Road", "date": "2025-12-16", "job_type": "Small or Part Replacements", "p_lab": 280.0, "a_lab": 264.0, "p_mat": 1133.0, "a_mat": 705.0, "sales": 2213.0, "gp": 1244.0, "gpm": 56.2, "h_actual": 8.0, "h_priced": 8.0, "lead_src": ""}, {"month": "Dec-2025", "job": "2801 Hariru Road, Ohaeawai", "date": "2025-12-15", "job_type": "Re-Roof's", "p_lab": 8400.0, "a_lab": 7942.0, "p_mat": 22191.0, "a_mat": 23245.0, "sales": 52799.6, "gp": 21612.6, "gpm": 40.9, "h_actual": 240.0, "h_priced": 240.0, "lead_src": ""}, {"month": "Dec-2025", "job": "698A Puketona Road", "date": "2025-12-08", "job_type": "Small or Part Replacements", "p_lab": 490.0, "a_lab": 338.0, "p_mat": 984.0, "a_mat": 203.0, "sales": 3475.0, "gp": 2934.0, "gpm": 84.4, "h_actual": 10.0, "h_priced": 14.0, "lead_src": ""}, {"month": "Dec-2025", "job": "812 Jordan Road, Kaikohe", "date": "2025-12-20", "job_type": "Re-Roof & Gutter", "p_lab": 3150.0, "a_lab": 1756.0, "p_mat": 8587.6, "a_mat": 9765.0, "sales": 24080.85, "gp": 12559.85, "gpm": 52.2, "h_actual": 57.0, "h_priced": 90.0, "lead_src": ""}, {"month": "Dec-2025", "job": "43 Mason Ave, Moerewa", "date": "2025-12-18", "job_type": "Small or Part Replacements", "p_lab": 980.0, "a_lab": 234.0, "p_mat": 3087.4, "a_mat": 1110.0, "sales": 7759.8, "gp": 6415.8, "gpm": 82.7, "h_actual": 6.5, "h_priced": 28.0, "lead_src": ""}, {"month": "Jan-2026", "job": "4155 State Highway 10, Kaeo", "date": "2026-01-19", "job_type": "Re-Roof & Gutter", "p_lab": 3080.0, "a_lab": 7042.0, "p_mat": 12582.0, "a_mat": 16685.0, "sales": 28974.7, "gp": 5247.7, "gpm": 18.1, "h_actual": 229.0, "h_priced": 88.0, "lead_src": ""}, {"month": "Jan-2026", "job": "15 Fairway Drive,Kerikeri", "date": "2026-01-23", "job_type": "Re-Roof's", "p_lab": 2450.0, "a_lab": 3203.0, "p_mat": 8426.8, "a_mat": 7701.0, "sales": 17876.8, "gp": 6972.8, "gpm": 39.0, "h_actual": 104.0, "h_priced": 84.0, "lead_src": ""}, {"month": "Jan-2026", "job": "405 Waiare Road, Okaihau", "date": "2026-01-09", "job_type": "Re-Roof's", "p_lab": 560.0, "a_lab": 823.0, "p_mat": 2324.6, "a_mat": 2005.0, "sales": 4484.6, "gp": 1656.6, "gpm": 36.9, "h_actual": 26.0, "h_priced": 16.0, "lead_src": ""}, {"month": "Jan-2026", "job": "22 Bisset Road, Kaikohe", "date": "2026-01-07", "job_type": "Gutter", "p_lab": 840.0, "a_lab": 1317.0, "p_mat": 1666.0, "a_mat": 1385.0, "sales": 5939.0, "gp": 3237.0, "gpm": 54.5, "h_actual": 40.0, "h_priced": 24.0, "lead_src": ""}, {"month": "Jan-2026", "job": "5960 Mangakahia Road, Awarua", "date": "2026-01-07", "job_type": "Re-Roof's", "p_lab": 2100.0, "a_lab": 1064.0, "p_mat": 7054.0, "a_mat": 6197.0, "sales": 15259.2, "gp": 7998.2, "gpm": 52.4, "h_actual": 35.0, "h_priced": 60.0, "lead_src": ""}, {"month": "Jan-2026", "job": "91 Cookson Road, Kawakawa", "date": "2026-01-28", "job_type": "Re-Roof's", "p_lab": 2100.0, "a_lab": 2200.0, "p_mat": 8997.0, "a_mat": 9097.0, "sales": 16944.54, "gp": 5647.54, "gpm": 33.3, "h_actual": 62.0, "h_priced": 60.0, "lead_src": ""}, {"month": "Jan-2026", "job": "105D Oromahoe Road, Opua", "date": "2026-01-30", "job_type": "Small or Part Replacements", "p_lab": 350.0, "a_lab": 540.0, "p_mat": 1389.6, "a_mat": 588.0, "sales": 3150.0, "gp": 2022.0, "gpm": 64.2, "h_actual": 14.0, "h_priced": 10.0, "lead_src": ""}, {"month": "Jan-2026", "job": "5 Rowsell Lane, Kerikeri", "date": "2026-01-30", "job_type": "Re-Roof's", "p_lab": 1400.0, "a_lab": 2700.0, "p_mat": 9446.8, "a_mat": 6175.0, "sales": 15846.8, "gp": 6971.8, "gpm": 44.0, "h_actual": 80.0, "h_priced": 40.0, "lead_src": ""}, {"month": "Jan-2026", "job": "553 Gammons Road, Awarua", "date": "2026-01-30", "job_type": "Small or Part Replacements", "p_lab": 700.0, "a_lab": 927.0, "p_mat": 1438.86, "a_mat": 956.0, "sales": 4958.38, "gp": 3075.38, "gpm": 62.0, "h_actual": 26.0, "h_priced": 20.0, "lead_src": ""}, {"month": "Feb-2026", "job": "5816 Mangakahia Road, Awarua", "date": "2026-02-04", "job_type": "Gutter", "p_lab": 910.0, "a_lab": 1371.0, "p_mat": 1827.0, "a_mat": 2954.0, "sales": 5611.05, "gp": 1286.05, "gpm": 22.9, "h_actual": 43.0, "h_priced": 26.0, "lead_src": ""}, {"month": "Feb-2026", "job": "54 Hautapu Road, Moerewa", "date": "2026-02-25", "job_type": "Pole Sheds", "p_lab": 0, "a_lab": 13072.15, "p_mat": 72228.27, "a_mat": 72286.33, "sales": 106347.82, "gp": 20989.34, "gpm": 19.7, "h_actual": 375.5, "h_priced": 320.0, "lead_src": ""}, {"month": "Feb-2026", "job": "18 Clifford Street, Kaikohe", "date": "2026-02-02", "job_type": "Re-Roof's", "p_lab": 2450.0, "a_lab": 1863.0, "p_mat": 6789.0, "a_mat": 6281.0, "sales": 16239.0, "gp": 8095.0, "gpm": 49.8, "h_actual": 62.0, "h_priced": 76.0, "lead_src": ""}, {"month": "Feb-2026", "job": "25 Whirinaki School Road, Whirinaki", "date": "2026-02-02", "job_type": "Re-Roof's", "p_lab": 2450.0, "a_lab": 2160.0, "p_mat": 10200.0, "a_mat": 6308.0, "sales": 20044.0, "gp": 11576.0, "gpm": 57.8, "h_actual": 61.0, "h_priced": 70.0, "lead_src": ""}, {"month": "Feb-2026", "job": "22b Waingaro Lane, Kerikeri", "date": "2026-02-05", "job_type": "Small or Part Replacements", "p_lab": 280.0, "a_lab": 200.0, "p_mat": 130.0, "a_mat": 98.0, "sales": 1530.0, "gp": 1232.0, "gpm": 80.5, "h_actual": 6.0, "h_priced": 8.0, "lead_src": ""}, {"month": "Feb-2026", "job": "c/847 Martin Road, Kaeo", "date": "2026-02-05", "job_type": "Small or Part Replacements", "p_lab": 420.0, "a_lab": 420.0, "p_mat": 704.0, "a_mat": 100.0, "sales": 2324.0, "gp": 1804.0, "gpm": 77.6, "h_actual": 12.0, "h_priced": 12.0, "lead_src": ""}, {"month": "Feb-2026", "job": "43 Mason Ave, Moerewa", "date": "2026-02-12", "job_type": "Re-Roof's", "p_lab": 3780.0, "a_lab": 2204.0, "p_mat": 9957.0, "a_mat": 7321.0, "sales": 17772.4, "gp": 8247.4, "gpm": 46.4, "h_actual": 60.0, "h_priced": 108.0, "lead_src": ""}, {"month": "Feb-2026", "job": "28 Okiato Road, Okiato", "date": "2026-02-17", "job_type": "Small or Part Replacements", "p_lab": 350.0, "a_lab": 170.0, "p_mat": 569.98, "a_mat": 191.0, "sales": 2138.53, "gp": 1777.53, "gpm": 83.1, "h_actual": 4.0, "h_priced": 10.0, "lead_src": ""}, {"month": "Feb-2026", "job": "389 Waipapa Road, Kerikeri", "date": "2026-02-05", "job_type": "Small or Part Replacements", "p_lab": 350.0, "a_lab": 210.0, "p_mat": 800.0, "a_mat": 399.0, "sales": 2350.0, "gp": 1741.0, "gpm": 74.1, "h_actual": 6.5, "h_priced": 10.0, "lead_src": ""}, {"month": "Feb-2026", "job": "233 Tipatipa Road, Kaeo", "date": "2026-02-27", "job_type": "Re-Roof's", "p_lab": 3850.0, "a_lab": 3695.0, "p_mat": 10928.8, "a_mat": 8817.0, "sales": 24678.8, "gp": 12166.8, "gpm": 49.3, "h_actual": 107.0, "h_priced": 110.0, "lead_src": ""}, {"month": "Mar-2026", "job": "17 Lanes Road, Russell", "date": "2026-03-20", "job_type": "New builds", "p_lab": 3150.0, "a_lab": 5760.0, "p_mat": 8661.0, "a_mat": 9404.0, "sales": 20811.0, "gp": 5647.0, "gpm": 27.1, "h_actual": 165.0, "h_priced": 90.0, "lead_src": ""}, {"month": "Mar-2026", "job": "86 Kerikeri Road, Kerikeri", "date": "2026-03-03", "job_type": "Re-Roof's", "p_lab": 840.0, "a_lab": 2000.0, "p_mat": 3229.6, "a_mat": 4916.0, "sales": 6792.4, "gp": -123.6, "gpm": -1.8, "h_actual": 59.0, "h_priced": 24.0, "lead_src": ""}, {"month": "Mar-2026", "job": "34 Onekura Road, Kerikeri", "date": "2026-03-19", "job_type": "Small or Part Replacements", "p_lab": 1400.0, "a_lab": 200.0, "p_mat": 322.0, "a_mat": 55.0, "sales": 0, "gp": -255.0, "gpm": 0, "h_actual": 2.0, "h_priced": 4.0, "lead_src": ""}, {"month": "Mar-2026", "job": "21 Peacock Garden Drive, Kerikeri", "date": "2026-03-06", "job_type": "Small or Part Replacements", "p_lab": 1120.0, "a_lab": 1783.0, "p_mat": 1912.0, "a_mat": 1054.0, "sales": 6232.0, "gp": 3395.0, "gpm": 54.5, "h_actual": 58.0, "h_priced": 32.0, "lead_src": ""}, {"month": "Mar-2026", "job": "175 Hupara Road, Pakaraka", "date": "2026-03-03", "job_type": "Small or Part Replacements", "p_lab": 490.0, "a_lab": 444.0, "p_mat": 1074.0, "a_mat": 673.0, "sales": 2964.0, "gp": 1847.0, "gpm": 62.3, "h_actual": 12.0, "h_priced": 14.0, "lead_src": ""}, {"month": "Mar-2026", "job": "53 Fairlie Crescent, Opononi", "date": "2026-03-02", "job_type": "Re-Roof's", "p_lab": 2450.0, "a_lab": 2820.0, "p_mat": 12022.8, "a_mat": 12025.0, "sales": 20772.8, "gp": 5927.8, "gpm": 28.5, "h_actual": 92.0, "h_priced": 70.0, "lead_src": ""}, {"month": "Mar-2026", "job": "923 Jordan Road, Taheke", "date": "2026-03-03", "job_type": "Re-Roof's", "p_lab": 2800.0, "a_lab": 2476.0, "p_mat": 9681.2, "a_mat": 7135.0, "sales": 23668.95, "gp": 14057.95, "gpm": 59.4, "h_actual": 80.0, "h_priced": 80.0, "lead_src": ""}, {"month": "Mar-2026", "job": "26 Tawa Street, Kaikohe", "date": "2026-03-03", "job_type": "Re-Roof's", "p_lab": 2450.0, "a_lab": 2573.0, "p_mat": 10021.2, "a_mat": 11159.0, "sales": 19471.2, "gp": 5739.2, "gpm": 29.5, "h_actual": 80.0, "h_priced": 70.0, "lead_src": ""}, {"month": "Mar-2026", "job": "Station Road, Kaikohe", "date": "2026-03-09", "job_type": "Quoted Price", "p_lab": 3150.0, "a_lab": 1479.0, "p_mat": 11398.32, "a_mat": 10095.0, "sales": 23098.32, "gp": 11524.32, "gpm": 49.9, "h_actual": 60.0, "h_priced": 90.0, "lead_src": ""}, {"month": "Mar-2026", "job": "91 Conifer Lane, Kerikeri ", "date": "2026-03-09", "job_type": "Small or Part Replacements", "p_lab": 1400.0, "a_lab": 528.0, "p_mat": 3080.0, "a_mat": 1277.0, "sales": 10294.0, "gp": 8489.0, "gpm": 82.5, "h_actual": 16.0, "h_priced": 40.0, "lead_src": ""}, {"month": "Mar-2026", "job": "38 Main Road, Moerewa", "date": "2026-03-25", "job_type": "Small or Part Replacements", "p_lab": 490.0, "a_lab": 145.0, "p_mat": 489.6, "a_mat": 360.0, "sales": 2489.6, "gp": 1984.6, "gpm": 79.7, "h_actual": 5.0, "h_priced": 14.0, "lead_src": ""}, {"month": "Mar-2026", "job": "73 Te Tapui Road, Matauri Bay", "date": "2026-03-19", "job_type": "Re-Roof & Gutter", "p_lab": 2450.0, "a_lab": 1666.0, "p_mat": 8415.6, "a_mat": 6107.0, "sales": 19617.6, "gp": 11844.6, "gpm": 60.4, "h_actual": 50.0, "h_priced": 60.0, "lead_src": ""}, {"month": "Apr-2026", "job": "436 Stanner Rd Half-Round Barn", "date": "2026-04-06", "job_type": "Pole Sheds", "p_lab": 2730.0, "a_lab": 2694.0, "p_mat": 5690.0, "a_mat": 8498.0, "sales": 17072.0, "gp": 5880.0, "gpm": 34.4, "h_actual": 70.0, "h_priced": 78.0, "lead_src": ""}, {"month": "Apr-2026", "job": "Okaihau Primary School", "date": "2026-04-07", "job_type": "Re-Roof's", "p_lab": 7000.0, "a_lab": 10806.0, "p_mat": 22616.14, "a_mat": 30357.08, "sales": 76000.0, "gp": 34836.92, "gpm": 45.8, "h_actual": 312.75, "h_priced": 200.0, "lead_src": ""}, {"month": "Apr-2026", "job": "40a Raihara Street, Kaikohe", "date": "2026-04-04", "job_type": "Re-Roof & Gutter", "p_lab": 3850.0, "a_lab": 2735.0, "p_mat": 10827.36, "a_mat": 11091.0, "sales": 26118.4, "gp": 12292.4, "gpm": 47.1, "h_actual": 93.0, "h_priced": 110.0, "lead_src": ""}, {"month": "Apr-2026", "job": "School Road, Paihia", "date": "2026-04-06", "job_type": "Re-Roof's", "p_lab": 4900.0, "a_lab": 6500.0, "p_mat": 20664.0, "a_mat": 28249.0, "sales": 42663.6, "gp": 7914.6, "gpm": 18.6, "h_actual": 190.0, "h_priced": 140.0, "lead_src": ""}, {"month": "Apr-2026", "job": "35 Gilbert Mair Rise, Russell", "date": "2026-04-14", "job_type": "Re-Roof's", "p_lab": 14250.0, "a_lab": 10467.0, "p_mat": 34254.0, "a_mat": 25160.0, "sales": 90440.0, "gp": 54813.0, "gpm": 60.6, "h_actual": 293.0, "h_priced": 450.0, "lead_src": ""}, {"month": "Apr-2026", "job": "29 Raihara Street, Kaikohe", "date": "2026-04-20", "job_type": "Re-Roof's", "p_lab": 2100.0, "a_lab": 2104.0, "p_mat": 6790.0, "a_mat": 5663.0, "sales": 14290.0, "gp": 6523.0, "gpm": 45.6, "h_actual": 65.0, "h_priced": 60.0, "lead_src": ""}, {"month": "Apr-2026", "job": "100 Settlers Way, Kaikohe", "date": "2026-04-07", "job_type": "Small or Part Replacements", "p_lab": 350.0, "a_lab": 268.0, "p_mat": 3681.8, "a_mat": 1236.0, "sales": 5181.8, "gp": 3677.8, "gpm": 71.0, "h_actual": 8.0, "h_priced": 10.0, "lead_src": ""}, {"month": "Apr-2026", "job": "567 Horeke Road, Okaihau", "date": "2026-04-13", "job_type": "Repair & Paint", "p_lab": 350.0, "a_lab": 494.0, "p_mat": 6386.7, "a_mat": 6239.0, "sales": 8553.1, "gp": 1820.1, "gpm": 21.3, "h_actual": 15.0, "h_priced": 10.0, "lead_src": ""}, {"month": "Apr-2026", "job": "186 Mill Road, Kawakawa", "date": "2026-04-15", "job_type": "Re-Roof's", "p_lab": 4550.0, "a_lab": 4107.0, "p_mat": 14672.4, "a_mat": 15773.0, "sales": 31024.4, "gp": 11144.4, "gpm": 35.9, "h_actual": 112.0, "h_priced": 130.0, "lead_src": ""}, {"month": "Feb-2026", "job": "718 Waiare Road, Okaihau", "date": "2026-02-02", "job_type": "Small or Part Replacements", "p_lab": 3000.0, "a_lab": 1836.0, "p_mat": 1185.0, "a_mat": 1185.0, "sales": 3150.0, "gp": 129.0, "gpm": 4.1, "h_actual": 30.0, "h_priced": 12.0, "lead_src": ""}];
@@ -230,7 +301,16 @@ let page='dash';
 let bcFergus=S.get('bcFergus',[]);           // back-costing rows synced from Fergus (shared w/ Hub)
 let fwJobs=S.get('fwJobs',[]);               // [{id,job,priced,actual,remaining,status}]
 let cfg=S.get('fwCfg',{teams:4,size:2,hrs:8});
+let xeroMonthly=S.get('xeroMonthly',{});     // { 'Mon-YYYY': {rev,gp,opex,np} } from Xero monthly P&L
 let xeroLive=false;
+
+// ════════ TOAST (mobile-safe feedback — never relies on alert/prompt) ════════
+let _toastT=null;
+function toast(msg,kind){
+  const t=document.getElementById('toast');if(!t)return;
+  t.className='show'+(kind?' '+kind:'');t.textContent=msg;
+  clearTimeout(_toastT);_toastT=setTimeout(()=>{t.className='';},kind==='err'?5200:3200);
+}
 
 // ════════ FERGUS / XERO CONNECTION (via hosted proxy — works on mobile) ════════
 const FERGUS_BASE='https://api.fergus.com';
@@ -281,19 +361,36 @@ function fergusErrMsg(err){
   if(/HTTP 403/.test(m))return 'Fergus said 403 — token/plan issue. Check the Fergus Open API access + token on the proxy.\n\n'+m;
   return 'Request failed.\n\n'+m;
 }
-function fergusProxySetup(){
-  const url=prompt('Proxy URL\n\nPaste your deployed fergus-proxy address (e.g. https://fergus-proxy-xxxx.vercel.app).\nBlank = clear.',fergusProxyUrl());
-  if(url===null)return;
-  const clean=url.trim().replace(/\/+$/,'');
-  S.set('fergus_proxy_url',clean);
-  if(clean){const sec=prompt('Proxy secret\n\nPaste the same PROXY_SECRET you set on the proxy.',fergusProxySecret());if(sec!==null)S.set('fergus_proxy_secret',sec.trim());}
-  else S.set('fergus_proxy_secret','');
+// ── In-page connect sheet (replaces prompt(), which mobile browsers can suppress) ──
+function fergusProxySetup(){openConnect();}
+function openConnect(){
+  document.getElementById('in-proxy').value=fergusProxyUrl();
+  document.getElementById('in-secret').value=fergusProxySecret();
+  const st=document.getElementById('conn-status');st.className='';st.textContent='';
+  document.getElementById('modal').classList.add('open');
+}
+function closeConnect(){document.getElementById('modal').classList.remove('open');}
+async function saveConnect(){
+  const url=(document.getElementById('in-proxy').value||'').trim().replace(/\/+$/,'');
+  const sec=(document.getElementById('in-secret').value||'').trim();
+  S.set('fergus_proxy_url',url);S.set('fergus_proxy_secret',sec);
   updatePill();
-  if(clean&&confirm('Saved. Sync from Fergus now?'))syncWorkload();
+  const st=document.getElementById('conn-status');
+  if(!url){st.className='';st.textContent='Cleared.';return;}
+  st.className='busy';st.textContent='Testing connection…';
+  try{
+    const me=await fergusApiFetch('/users/me');
+    const u=(me&&me.data)||me||{};
+    const who=u.fullName||u.name||[u.firstName,u.lastName].filter(Boolean).join(' ')||u.email||'connected';
+    st.className='ok';st.textContent='✅ Connected to Fergus as '+who+'. Refreshing…';
+    closeConnect();toast('Connected ✓',' ok');refreshAll();
+  }catch(err){
+    st.className='err';st.textContent='⚠ '+fergusErrMsg(err);
+  }
 }
 function updatePill(){
   const p=document.getElementById('fg-pill');
-  if(fergusProxyUrl()||fergusKey()){p.className='ok';p.textContent='Fergus ✓';}
+  if(fergusProxyUrl()||fergusKey()){p.className='ok';p.textContent='Connected ✓';}
   else{p.className='';p.textContent='Tap ⚙ to connect';}
 }
 
@@ -306,12 +403,19 @@ function extractHours(summary){
   const actual=num(lh.total)||num(lh.billable);
   return {priced,actual};
 }
+// Refresh everything the dashboard needs: Fergus workload + Xero monthly P&L.
+async function refreshAll(){
+  if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
+  await syncWorkload();
+  await syncXeroMonthly();   // best-effort; no-op/notice if Xero not set on proxy
+}
 async function syncWorkload(){
-  if(!fergusProxyUrl()&&!fergusKey()){alert(fergusErrMsg(new Error('NO_PROXY')));return;}
-  const btn=document.getElementById('dash-sync-btn');
+  if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
+  const btns=[document.getElementById('dash-sync-btn')];
+  const btn=btns[0];
   const setSync=t=>{['dash-fw-sync','work-sync'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=t;});};
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Syncing…';}
-  setSync('syncing…');
+  setSync('syncing…');toast('Syncing Fergus…');
   try{
     const active=await fergusFetchJobs('Active');
     const out=[];let i=0,noPriced=0;
@@ -334,14 +438,12 @@ async function syncWorkload(){
     try{await syncBackCosting(active);}catch(e){console.warn('bc sync',e.message);}
     setSync('updated '+new Date().toLocaleTimeString('en-NZ',{hour:'2-digit',minute:'2-digit'}));
     renderAll();
-    let msg=out.length+' active job'+(out.length!==1?'s':'')+' loaded.';
-    if(noPriced)msg+='\n\n⚠ '+noPriced+' have no priced hours in Fergus, so they count as 0 remaining — your real workload may be higher. Add quoted labour hours in Fergus for a true figure.';
-    alert('Workload synced ✅\n\n'+msg);
+    toast(out.length+' active job'+(out.length!==1?'s':'')+' loaded'+(noPriced?' · '+noPriced+' missing priced hrs':''),'ok');
   }catch(err){
     console.error(err);setSync('sync failed');
-    alert(fergusErrMsg(err));
+    toast(fergusErrMsg(err).split('\n')[0],'err');
   }finally{
-    if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync Fergus (workload + back costing)';}
+    if(btn){btn.disabled=false;btn.innerHTML='⟳ Refresh (Fergus + Xero)';}
   }
 }
 // Capacity model: each person does cfg.hrs/day; a team = cfg.size people; cfg.teams run in parallel.
@@ -382,6 +484,65 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','
 
 // ════════ BACK COSTING ════════
 function getAllBC(){return [...BC_DATA,...bcFergus];}
+
+// ════════ MONTHLY AGGREGATION + PERIOD HELPERS (shared by Dashboard & Back Costing) ════════
+// Aggregate back-costing rows by month → sales, gp, priced/actual hours & materials.
+function monthAgg(){
+  const m={};
+  getAllBC().forEach(r=>{const k=r.month;if(!k)return;
+    const o=m[k]||(m[k]={rev:0,gp:0,hP:0,hA:0,mP:0,mA:0,n:0});
+    o.rev+=num(r.sales);o.gp+=num(r.gp);o.hP+=num(r.h_priced);o.hA+=num(r.h_actual);o.mP+=num(r.p_mat);o.mA+=num(r.a_mat);o.n++;});
+  return m;
+}
+// Months that actually have data, oldest→newest. Combines back-costing + Xero months.
+function dataMonths(){
+  const s=new Set(Object.keys(monthAgg()));Object.keys(xeroMonthly).forEach(k=>s.add(k));
+  return [...s].sort((a,b)=>bcMonthNum(a)-bcMonthNum(b));
+}
+// Anchor This / Last / 3-mo to the latest month that has data (so the cards are
+// always populated, and self-correct to the true current month once live data lands).
+function periodMonths(){
+  const labs=dataMonths();const n=labs.length;
+  return {thisM:labs[n-1]||'',lastM:labs[n-2]||'',avg3:labs.slice(Math.max(0,n-3))};
+}
+// Back-costing figures for a month: Rev, GP from data; Opex/NP estimated (12% overhead).
+function bcFig(label){
+  const a=monthAgg()[label]||{rev:0,gp:0,hP:0,hA:0,mP:0,mA:0};
+  const opex=Math.round(a.rev*0.12);
+  return {rev:a.rev,gp:a.gp,opex,np:a.gp-opex,hP:a.hP,hA:a.hA,mP:a.mP,mA:a.mA,src:'est'};
+}
+// Xero figures for a month (real Rev/GP/Opex/NP) if pulled, else null.
+function xeroFig(label){const x=xeroMonthly[label];return x?{rev:num(x.rev),gp:num(x.gp),opex:num(x.opex),np:num(x.np),src:'xero'}:null;}
+function avgFig(labels,fn){
+  const fs=labels.map(fn).filter(Boolean);if(!fs.length)return null;
+  const k=key=>fs.reduce((s,f)=>s+num(f[key]),0)/fs.length;
+  return {rev:k('rev'),gp:k('gp'),opex:k('opex'),np:k('np'),hP:k('hP'),hA:k('hA'),mP:k('mP'),mA:k('mA'),src:fs[0].src};
+}
+// metric box + grid for Rev/GP/Opex/NP
+function mb(label,val,sub,cls){return '<div class="mb"><div class="l">'+label+'</div><div class="v'+(cls?' '+cls:'')+'">'+val+'</div><div class="s2">'+(sub||'')+'</div></div>';}
+function pct(part,whole){return whole>0?Math.round(part/whole*100)+'%':'';}
+function metGrid(f){
+  if(!f)return '<div class="empty" style="grid-column:1/-1;">No data</div>';
+  return mb('Revenue',fmtK(f.rev),'')+
+    mb('Gross Profit',fmtK(f.gp),pct(f.gp,f.rev)+' GPM',f.gp>=0?'pos':'neg')+
+    mb('Opex'+(f.src==='est'?' (est.)':''),fmtK(f.opex),pct(f.opex,f.rev))+
+    mb('Net Profit'+(f.src==='est'?' (est.)':''),fmtK(f.np),pct(f.np,f.rev)+' margin',f.np>=0?'pos':'neg');
+}
+// priced-vs-actual box (hours / materials)
+function pvaBox(label,priced,actual,unit){
+  const has=priced>0;const v=actual-priced;const over=v>0;
+  const fmtv=unit==='h'?(x=>fmtH(x)+'h'):(x=>fmtK(x));
+  const varTxt=has?((over?'+':'')+fmtv(v)+' '+(over?'over':'under')):'no priced';
+  return '<div class="mb"><div class="l">'+label+'</div>'+
+    '<div class="va" style="display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin:2px 0 0;">'+
+      '<span class="pa">'+(has?fmtv(priced):'—')+'</span><span class="mut" style="font-size:.8rem;">→</span><span class="pa">'+fmtv(actual)+'</span></div>'+
+    '<div class="s2 '+(has?(over?'neg':'pos'):'')+'">'+varTxt+'</div></div>';
+}
+function pvaGrid(f){
+  if(!f)return '';
+  return pvaBox('Hours — priced → actual',f.hP,f.hA,'h')+
+    pvaBox('Materials — priced → actual',f.mP,f.mA,'$');
+}
 // Build/refresh bcFergus rows from active jobs that are "finished enough" to back-cost.
 async function syncBackCosting(activeJobs){
   if(!activeJobs)return;
@@ -435,6 +596,19 @@ function fillBCFilters(){
 }
 function renderBC(){
   fillBCFilters();
+  // ── period cards (This / Last / 3-mo) from back-costing ──
+  const p=periodMonths();
+  const f3=avgFig(p.avg3,bcFig);
+  document.getElementById('bc-met-this').innerHTML=metGrid(p.thisM?bcFig(p.thisM):null);
+  document.getElementById('bc-met-last').innerHTML=metGrid(p.lastM?bcFig(p.lastM):null);
+  document.getElementById('bc-met-3mo').innerHTML=metGrid(f3);
+  document.getElementById('bc-pva-this').innerHTML=p.thisM?pvaGrid(bcFig(p.thisM)):'';
+  document.getElementById('bc-pva-last').innerHTML=p.lastM?pvaGrid(bcFig(p.lastM)):'';
+  document.getElementById('bc-pva-3mo').innerHTML=pvaGrid(f3);
+  document.getElementById('bc-lbl-this').textContent=p.thisM||'—';
+  document.getElementById('bc-lbl-last').textContent=p.lastM||'—';
+  document.getElementById('bc-lbl-3mo').textContent=p.avg3.length?(p.avg3[0]+' → '+p.avg3[p.avg3.length-1]):'—';
+
   const yr=document.getElementById('bc-year').value, ty=document.getElementById('bc-type').value, q=(document.getElementById('bc-search').value||'').toLowerCase();
   let rows=getAllBC().filter(r=>{
     if(yr!=='all'&&!(r.month||'').endsWith('-'+yr))return false;
@@ -478,24 +652,65 @@ function plRange(){
   const p2=n=>String(n).padStart(2,'0');const last=new Date(y,mi+1,0).getDate();
   return {from:y+'-'+p2(mi+1)+'-01',to:y+'-'+p2(mi+1)+'-'+p2(last),label};
 }
+// Convert a Xero report month-column header into a 'Mon-YYYY' key.
+function xeroMonthKey(v){
+  if(v==null||v==='')return '';
+  const d=new Date(v);if(!isNaN(d)&&/\d{4}/.test(String(v)))return FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();
+  const m=String(v).match(/([A-Za-z]{3,})\s*-?\s*('?\d{2,4})/);
+  if(m){const i=FG_MONTHS.findIndex(x=>x.toLowerCase()===m[1].slice(0,3).toLowerCase());let y=m[2].replace(/'/,'');if(y.length===2)y='20'+y;if(i>=0)return FG_MONTHS[i]+'-'+y;}
+  return '';
+}
+// Pull a 12-month P&L (one column per month) and store real Rev/GP/Opex/NP per month.
+async function syncXeroMonthly(){
+  const proxy=fergusProxyUrl();if(!proxy)return false;
+  const psec=fergusProxySecret();
+  try{
+    const to=td_str();
+    const res=await fetch(proxy+'/api/xero/Reports/ProfitAndLoss?periods=11&timeframe=MONTH&toDate='+to,{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
+    const txt=await res.text();
+    if(res.status===501){toast('Xero not set up on the proxy — using back-costing for P&L','err');return false;}
+    if(res.status===401){toast('Proxy secret rejected (401) — check ⚙','err');return false;}
+    if(!res.ok)throw new Error('HTTP '+res.status+': '+txt.slice(0,160));
+    const rep=(JSON.parse(txt).Reports||[])[0];if(!rep)throw new Error('No report');
+    const parsed=parseXeroMonthly(rep);
+    if(Object.keys(parsed).length){xeroMonthly=parsed;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',new Date().toLocaleString('en-NZ'));xeroLive=true;toast('Xero P&L updated ✓','ok');renderDash();renderPL();return true;}
+    toast('Xero returned no months','err');return false;
+  }catch(err){console.warn('xero monthly',err.message);toast('Xero pull failed: '+err.message.slice(0,60),'err');return false;}
+}
+function parseXeroMonthly(rep){
+  let months=[];
+  (rep.Rows||[]).forEach(sec=>{if(sec.RowType==='Header')months=(sec.Cells||[]).slice(1).map(c=>xeroMonthKey(c&&c.Value));});
+  const want={rev:/^(Total Income|Total Trading Income|Income)$/i,gp:/^Gross Profit$/i,opex:/^(Total Operating Expenses|Total Expenses|Operating Expenses)$/i,np:/^Net Profit$/i};
+  const out={};months.forEach(m=>{if(m)out[m]={rev:0,gp:0,opex:0,np:0};});
+  (rep.Rows||[]).forEach(sec=>{
+    const rows=sec.RowType==='Section'?(sec.Rows||[]):[sec];
+    rows.forEach(r=>{const c=r.Cells||[];const label=((c[0]&&c[0].Value)||'').trim();
+      for(const k in want){if(want[k].test(label)){for(let i=1;i<c.length;i++){const mk=months[i-1];if(!mk||!out[mk])continue;const v=xeroNum(c[i]&&c[i].Value);if(v!=null)out[mk][k]=v;}}}});
+  });
+  // drop empty months
+  Object.keys(out).forEach(m=>{const o=out[m];if(!o.rev&&!o.gp&&!o.opex&&!o.np)delete out[m];});
+  return out;
+}
 async function pullXeroPL(){
   const proxy=fergusProxyUrl();
-  if(!proxy){alert('Connect the proxy first (⚙), and set XERO_CLIENT_ID / XERO_CLIENT_SECRET on it for live P&L.');return;}
+  if(!proxy){openConnect();return;}
   const btn=document.getElementById('pl-pull-btn');const {from,to,label}=plRange();
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Pulling…';}
   try{
     const psec=fergusProxySecret();
     const res=await fetch(proxy+'/api/xero/Reports/ProfitAndLoss?fromDate='+from+'&toDate='+to,{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
     const txt=await res.text();
-    if(res.status===501){alert('Xero isn\'t set up on the proxy.\n\nAdd XERO_CLIENT_ID and XERO_CLIENT_SECRET to the proxy (Vercel env) and redeploy. For now the P&L below is from your back-costing data.');return;}
+    if(res.status===501){toast('Xero not set up on the proxy — showing back-costing P&L','err');return;}
     if(!res.ok)throw new Error('HTTP '+res.status+': '+txt.slice(0,200));
     const rep=(JSON.parse(txt).Reports||[])[0];if(!rep)throw new Error('No report returned.');
     xeroLive=true;
     renderXeroReport(rep,label);
+    // also refresh the 12-month set for the dashboard
+    syncXeroMonthly();
   }catch(err){
     console.error(err);
-    if(/HTTP 401/.test(err.message))alert('Proxy rejected the request (401) — check the secret in ⚙.');
-    else alert('Could not pull live P&L.\n\n'+err.message+'\n\nShowing back-costing P&L instead.');
+    if(/HTTP 401/.test(err.message))toast('Proxy secret rejected (401) — check ⚙','err');
+    else toast('Could not pull live P&L: '+err.message.slice(0,50),'err');
   }finally{if(btn){btn.disabled=false;btn.innerHTML='🔌 Pull live P&amp;L from Xero';}}
 }
 function renderXeroReport(rep,label){
@@ -509,6 +724,9 @@ function renderXeroReport(rep,label){
   });
   document.getElementById('pl-table').innerHTML=html;
   const inc=xeroFind(rep,/^Total Income$/)||xeroFind(rep,/^Income$/),gp=xeroFind(rep,/^Gross Profit$/),np=xeroFind(rep,/^Net Profit$/);
+  const opex=xeroFind(rep,/^Total Operating Expenses$/)||xeroFind(rep,/^Operating Expenses$/)||xeroFind(rep,/^Total Expenses$/);
+  // feed this month into the dashboard set
+  if(inc!=null||gp!=null){xeroMonthly[label]={rev:num(inc),gp:num(gp),opex:num(opex),np:num(np)};S.set('xeroMonthly',xeroMonthly);}
   document.getElementById('pl-tiles').innerHTML=
     tile('s','Revenue',fmtK(inc||0),label)+
     tile('a','Gross Profit',fmtK(gp||0),(inc&&gp?Math.round(gp/inc*100)+'% GPM':''))+
@@ -542,30 +760,35 @@ function renderPL(){
   document.getElementById('pl-note').textContent='Estimated from back-costing sales & GP (overheads assumed 12%). Connect Xero on the proxy for real actuals.';
 }
 
-// ════════ DASHBOARD ════════
-function ytd(){
-  // current calendar-year revenue/gp from MONTHLY_DATA
-  const y=new Date().getFullYear();let s=0,g=0;
-  MONTHLY_DATA.forEach(m=>{if((m.month||'').endsWith('-'+y)){s+=num(m.sales);g+=num(m.gp);}});
-  return {s,g};
-}
-function latestMonth(){return [...MONTHLY_DATA].sort((a,b)=>bcMonthNum(b.month)-bcMonthNum(a.month))[0]||{month:'',sales:0,gp:0};}
+// ════════ DASHBOARD ════════ (forward workflow in weeks + This/Last/3-mo from Xero P&L)
 function renderDash(){
-  const R=totalRemaining();const c=capacity();const days=R/c.perDay;
-  document.getElementById('dash-fw-days').textContent=fwJobs.length?(R>0?Math.round(days*10)/10:'0'):'—';
+  const R=totalRemaining();const c=capacity();const days=R/c.perDay, weeks=days/5;
+  document.getElementById('dash-fw-weeks').textContent=fwJobs.length?(R>0?(Math.round(weeks*10)/10):'0'):'—';
   document.getElementById('dash-fw-sub').textContent=fwJobs.length
-    ?('≈ '+(Math.round(days/5*10)/10)+' weeks · '+fmtH(R)+' h across '+fwJobs.length+' active jobs · '+c.teams+'×'+c.size+' crew')
-    :'Tap “Sync Fergus” to load active jobs';
+    ?('≈ '+(Math.round(days*10)/10)+' working days · '+fmtH(R)+' h across '+fwJobs.length+' active jobs · '+c.teams+'×'+c.size+' crew')
+    :'Tap “Refresh” to load active jobs';
   const last=S.get('fw_last_sync','');document.getElementById('dash-fw-sync').textContent=last?('· '+last):'';
-  const lm=latestMonth(),y=ytd();
-  document.getElementById('dash-tiles').innerHTML=
-    tile('a','Forward workload',(fwJobs.length?(Math.round(days*10)/10+' d'):'—'),(fwJobs.length?fmtH(R)+' h remaining':'not synced'))+
-    tile('','Active jobs',(fwJobs.length||'—'),(fwJobs.length?'from Fergus':'tap sync'))+
-    tile('s','Revenue '+(lm.month||''),fmtK(lm.sales),'latest month')+
-    tile('a','GP '+(lm.month||''),fmtK(lm.gp),(lm.sales>0?Math.round(lm.gp/lm.sales*100)+'% GPM':''))+
-    tile('w','YTD revenue',fmtK(y.s),new Date().getFullYear()+' to date')+
-    tile('s','YTD gross profit',fmtK(y.g),(y.s>0?Math.round(y.g/y.s*100)+'% GPM':''));
-  document.getElementById('dash-note').textContent=last?('Last Fergus sync: '+last):'Not synced yet — connect via ⚙ then sync.';
+
+  // Xero P&L period cards
+  const xm=Object.keys(xeroMonthly).filter(k=>k).sort((a,b)=>bcMonthNum(a)-bcMonthNum(b));
+  const thisM=xm[xm.length-1]||'', lastM=xm[xm.length-2]||'', avg3=xm.slice(Math.max(0,xm.length-3));
+  if(xm.length){
+    document.getElementById('met-this').innerHTML=metGrid(xeroFig(thisM));
+    document.getElementById('met-last').innerHTML=metGrid(lastM?xeroFig(lastM):null);
+    document.getElementById('met-3mo').innerHTML=metGrid(avgFig(avg3,xeroFig));
+    document.getElementById('lbl-this').textContent=thisM;
+    document.getElementById('lbl-last').textContent=lastM||'—';
+    document.getElementById('lbl-3mo').textContent=avg3.length?(avg3[0]+' → '+avg3[avg3.length-1]):'—';
+    document.getElementById('src-this').textContent='live · Xero';
+    document.getElementById('dash-note').textContent='P&L live from Xero ('+(S.get('xero_last_sync','')||'just now')+'). Fergus workload: '+(last||'not synced');
+  }else{
+    const msg='<div class="empty" style="grid-column:1/-1;">Connect Xero for live P&amp;L — tap ⚙, then Refresh.<br><span style="font-size:.8rem;">(Back-costing figures are on the 💹 Back Cost tab.)</span></div>';
+    document.getElementById('met-this').innerHTML=msg;
+    document.getElementById('met-last').innerHTML='';document.getElementById('met-3mo').innerHTML='';
+    document.getElementById('lbl-this').textContent='';document.getElementById('lbl-last').textContent='';document.getElementById('lbl-3mo').textContent='';
+    document.getElementById('src-this').textContent='not connected';
+    document.getElementById('dash-note').textContent=last?('Fergus workload synced '+last+'. Set XERO_CLIENT_ID/SECRET on the proxy + Refresh for live P&L.'):'Not connected — tap ⚙, then Refresh.';
+  }
 }
 
 // ════════ NAV ════════
