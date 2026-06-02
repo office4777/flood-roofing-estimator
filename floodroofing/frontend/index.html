@@ -706,6 +706,11 @@ select{
 .mat-print-page#matPrintPage1 #matPrintRoofMap img,
 .mat-print-page#matPrintPage1 #matPrintSheetPlan img,
 .mat-print-page#matPrintPage1 #matPrintSheetPlan canvas{display:block;max-width:100%;height:auto;border:1px solid #d1d5db;border-radius:4px;background:#fff}
+/* Sheet Layout: each per-roof block stays together. The plan image is
+   capped at a fraction of the A4 content area so 1- and 2-roof jobs
+   both fit in the budget allocated for the Sheet Layout section. */
+.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof{page-break-inside:avoid;break-inside:avoid;margin-bottom:6mm}
+.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof img{max-height:78mm;width:auto;max-width:100%;object-fit:contain}
 .mat-print-page .mp-spec-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 14px;font-size:11px;color:#0a1628;margin:8px 0 12px}
 .mat-print-page .mp-spec-grid .lbl{color:#6f6a60;font-weight:500}
 .mat-print-page .mp-spec-grid .val{font-weight:700}
@@ -1814,6 +1819,15 @@ select{
     </div>
   </div>
 
+  <!-- PDF print page break marker — everything ABOVE goes on PDF page
+       1 (Job header + draw totals + Roof Map + Sheet Layout). Cut lists
+       + flashing drawings + consumables print on page 2. -->
+  <div style="display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:var(--text2);font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase">
+    <div style="flex:1;border-top:1px dashed #cbd5e1"></div>
+    <span>PDF page 1 ends · page 2 starts ↓</span>
+    <div style="flex:1;border-top:1px dashed #cbd5e1"></div>
+  </div>
+
   <!-- 4. MATERIALS — sheets + per-flashing cut lists with selectors. -->
   <div class="card" id="materialsCutListCard">
     <div class="card-hd"><span class="card-dot"></span>Materials
@@ -1949,6 +1963,14 @@ select{
         <div><label>Sheet effective width (mm)</label><input type="number" id="sheetWidth" value="762" min="100" oninput="renderSheetLayout()"></div>
         <div><label>End lap / overlap (mm)</label><input type="number" id="overlapMm" value="150" min="0" oninput="renderSheetLayout()"></div>
         <div><label>Pitch (degrees)</label><input type="number" id="pitchDeg" value="15" min="1" max="60" oninput="renderSheetLayout()"></div>
+      </div>
+      <div class="f3" style="margin-top:8px">
+        <div><label>Gutter overhang (mm)
+          <span style="color:var(--text2);font-weight:400;font-size:11px">— added to every sheet, no rounding</span>
+        </label>
+          <input type="number" id="sheetOverhangMm" value="50" min="0" max="200"
+                 oninput="_setSheetOverhangMm(this.value)">
+        </div>
       </div>
       <div id="sheetSectionsWrap" style="margin-top:.25rem;display:none"></div>
       <div id="sheetLayoutOut" style="display:none">
@@ -3121,7 +3143,7 @@ function gotoTab(t) {
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
-  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}}
+  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
@@ -9983,6 +10005,26 @@ function duplicateSavedFlashing(savedIdx){
 // Also keeps any Materials-tab picker selection in sync — the pick is
 // stored by NAME, so we rewrite the localStorage entries that pointed
 // at the OLD name to the new one.
+// Gutter overhang input → localStorage. Sheet plan + sheets-to-order
+// both read from localStorage at render time, so changing this value
+// flows through to every downstream length calc.
+function _setSheetOverhangMm(v){
+  var n = parseFloat(v);
+  if (!isFinite(n) || n < 0) n = 50;
+  try { localStorage.setItem('fr_sheet_overhang_mm', String(n)); } catch(e){}
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+}
+// Sync the overhang input to whatever's in localStorage on first
+// open of the Materials tab — keeps the displayed value honest after
+// a reload.
+function _syncSheetOverhangUi(){
+  var inp = document.getElementById('sheetOverhangMm');
+  if (!inp) return;
+  var saved = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '50');
+  if (isFinite(saved) && saved >= 0) inp.value = saved;
+}
+
 function _flashLibRenameSaved(savedIdx, newName){
   var lib = _getSavedFlashings();
   var entry = lib[savedIdx]; if (!entry) return;
@@ -16480,7 +16522,29 @@ function _matCloneSheetPlanForPrint(mount) {
   var src = document.getElementById('roofSheetPlanOut');
   if (!src || !src.children.length) { mount.innerHTML = '<div style="color:#6f6a60;font-size:11px;padding:14px;font-style:italic">No sheet plan yet — click Refresh on the Roof Sheet Plan card.</div>'; return; }
   mount.innerHTML = '';
+  // Group children by per-roof block: each H2 (or H1) starts a new
+  // .mp-sheet-roof wrapper so page-break-inside:avoid keeps the roof's
+  // canvas + legend + sheets-to-order together. Single-roof plans
+  // collect everything into one wrapper.
+  var currentBlock = null;
+  function newBlock(){
+    currentBlock = document.createElement('div');
+    currentBlock.className = 'mp-sheet-roof';
+    mount.appendChild(currentBlock);
+  }
+  newBlock();
   Array.from(src.children).forEach(function(child){
+    // A roof header opens a fresh block. Both H2 and H1 are accepted
+    // since the multi-roof dispatcher uses H2 today but renderers may
+    // evolve.
+    var tag = (child.tagName || '').toUpperCase();
+    if (tag === 'H1' || tag === 'H2') {
+      // If the current block is empty (the initial wrapper for a
+      // single-roof plan), reuse it. Otherwise start a fresh one.
+      if (currentBlock && currentBlock.children.length > 0) newBlock();
+      currentBlock.appendChild(child.cloneNode(true));
+      return;
+    }
     var clone = child.cloneNode(true);
     // Replace every canvas inside the clone with an img of the original.
     var origCanvases = child.querySelectorAll ? child.querySelectorAll('canvas') : [];
@@ -16489,7 +16553,7 @@ function _matCloneSheetPlanForPrint(mount) {
       try {
         var img = document.createElement('img');
         img.src = child.toDataURL('image/png');
-        mount.appendChild(img);
+        currentBlock.appendChild(img);
         return;
       } catch(e) {}
     }
@@ -16501,7 +16565,7 @@ function _matCloneSheetPlanForPrint(mount) {
         cloneCanvases[i].parentNode.replaceChild(im, cloneCanvases[i]);
       } catch(e) {}
     }
-    mount.appendChild(clone);
+    currentBlock.appendChild(clone);
   });
 }
 
@@ -18585,12 +18649,14 @@ function _renderRoofSheetPlanInner() {
   var SHORT_MM = 3900;
   var LONG_MM  = 7650;
   function orderedLengthMm(sheetMetres) {
-    var mm = Math.ceil(sheetMetres * 1000 + 50);  // +50mm trim
-    // Round up to the nearest 100mm — roofing iron is cut-to-order
-    // at the supplier so there's no benefit to forcing every sheet
-    // into a SHORT (3900mm) or LONG (7650mm) standard length. Min
-    // 1000mm to leave enough material for endlap.
-    return Math.max(1000, Math.ceil(mm / 100) * 100);
+    // Sheets are ordered at the EXACT measured length plus a
+    // configurable gutter overhang (defaults to 50 mm; user can tune
+    // in Settings or via localStorage('fr_sheet_overhang_mm')). No
+    // round-up — the user explicitly asked for no padding, so a 5.15 m
+    // sheet now reads as 5.15 m + overhang, not 5.20 m.
+    var overhangMm = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '50');
+    if (!isFinite(overhangMm) || overhangMm < 0) overhangMm = 50;
+    return Math.max(1000, Math.round(sheetMetres * 1000 + overhangMm));
   }
 
   // ── Geometry helpers ───────────────────────────────────────────
