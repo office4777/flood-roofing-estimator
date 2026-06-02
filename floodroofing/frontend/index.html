@@ -12542,6 +12542,12 @@ function onCanvasMove(e) {
     });
     if (DRAG_OUTLINE_VERT.regenRoofType) {
       regenerateAutoRoofLines(DRAG_OUTLINE_VERT.regenRoofType);
+    } else {
+      // No detected roof type to regen — still clean up stale gutters
+      // and barges every frame so dragging an outline corner doesn't
+      // leave a trail of orphaned auto lines behind at the old edge
+      // positions.
+      try { autoPopulateGutters && autoPopulateGutters(); } catch(err){}
     }
     redrawAll();
     return;
@@ -12656,6 +12662,34 @@ function autoPopulateGutters(){
   if(DRAW.outline.length<2)return;
   var n=DRAW.outline.length,T=18;
   function pD(a,b){return Math.sqrt((a[0]-b[0])*(a[0]-b[0])+(a[1]-b[1])*(a[1]-b[1]));}
+  // Pre-build a list of (a,b) outline edges so the cleanup pass can
+  // test each existing gutter/barge against EVERY edge in one place.
+  var outlineEdges = [];
+  for (var ei = 0; ei < n; ei++) {
+    var ea = DRAW.outline[ei], eb = DRAW.outline[(ei + 1) % n];
+    if (pD(ea, eb) >= 5) outlineEdges.push([ea, eb]);
+  }
+  // Cleanup pass — drop any auto-positioned gutter or barge whose
+  // endpoints DON'T sit on a current outline edge. Without this,
+  // dragging a corner of the outline left the old gutters/barges
+  // behind at the previous edge positions, stacking parallel
+  // duplicates each time the outline moved. Lines carrying a manual
+  // measurement (l.measM set) are kept either way so user data is
+  // preserved across drags.
+  function alignedToOutline(line){
+    var p0 = line.pts[0], p1 = line.pts[1];
+    for (var k = 0; k < outlineEdges.length; k++) {
+      var a = outlineEdges[k][0], b = outlineEdges[k][1];
+      if ((pD(p0, a) < T && pD(p1, b) < T) ||
+          (pD(p0, b) < T && pD(p1, a) < T)) return true;
+    }
+    return false;
+  }
+  DRAW.lines = DRAW.lines.filter(function(l){
+    if (l.type !== 'gutter' && l.type !== 'barge') return true;
+    if (l.measM) return true;           // user-edited — keep
+    return alignedToOutline(l);
+  });
 
   // Add a gutter for every outline edge that doesn't already have one
   for(var i=0;i<n;i++){
