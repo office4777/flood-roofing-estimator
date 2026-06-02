@@ -15054,13 +15054,22 @@ function _flashCollectLabelled() {
   }
   if (roofs) {
     var selected = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
-    var savedActive = DRAW.activeRoofIdx;
-    if (typeof _syncCurrentToRoof === 'function') _syncCurrentToRoof();
+    // IMPORTANT: this function is called from inside redrawAll on every
+    // mouse move, so it MUST NOT mutate DRAW state. Specifically, the
+    // previous sync→iterate→load pattern called _loadRoofToCurrent at
+    // the end, which wipes DRAW.currentPts — i.e. erased the user's
+    // in-progress 2nd-roof outline on every mousemove. We now read
+    // r.outline/r.lines directly for every NON-active roof and use the
+    // live DRAW.outline/DRAW.lines for the active roof (those are the
+    // source of truth until the next snapshot).
     roofs.forEach(function(r, idx){
       if (selected && selected.indexOf(idx) < 0) return;
-      processRoof(idx, r.outline, r.lines);
+      if (idx === DRAW.activeRoofIdx) {
+        processRoof(idx, DRAW.outline, DRAW.lines);
+      } else {
+        processRoof(idx, r.outline, r.lines);
+      }
     });
-    if (typeof _loadRoofToCurrent === 'function' && savedActive >= 0 && savedActive < roofs.length) _loadRoofToCurrent(savedActive);
   } else {
     processRoof(-1, DRAW.outline, DRAW.lines);
   }
