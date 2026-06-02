@@ -1914,9 +1914,12 @@ select{
   </details>
 
   <!-- Print-only pages — populated at print time by _matBuildPrintPages.
-       Hidden on screen, shown by the print stylesheet. Page 1 leads with
-       Job & Delivery, then the drawing-measurements summary, then the
-       Roof Map, sheet layout + sheet cut list. -->
+       Hidden on screen, shown by the print stylesheet. Page 1 leads
+       with Job & Delivery, then the drawing-measurements summary, the
+       Roof Map and the Sheet Layout. The Roof Sheet Cut List + Ridge
+       Cut List both live inside Page 2's Material Order block so the
+       cut lists print ONCE alongside the order, not on a standalone
+       page. -->
   <div class="mat-print-page" id="matPrintPage1">
     <div class="mp-header" id="matPrintHeader1"></div>
     <div id="matPrintDrawTotals"></div>
@@ -1924,10 +1927,6 @@ select{
     <div id="matPrintRoofMap"></div>
     <h2 class="mp-h">Sheet Layout</h2>
     <div id="matPrintSheetPlan"></div>
-    <h2 class="mp-h">Roof Sheet Cut List</h2>
-    <div id="matPrintSheetCutList"></div>
-    <h2 class="mp-h">Ridge / Hip Cut List</h2>
-    <div id="matPrintRidgeCutList"></div>
   </div>
   <div class="mat-print-page" id="matPrintPage2">
     <div class="mp-header" id="matPrintHeader2"></div>
@@ -16034,8 +16033,9 @@ function _matBuildPrintPages() {
   try { renderMatRoofMap(); } catch(e){}
   _matCaptureCanvasToImg('matRoofMapCanvas', document.getElementById('matPrintRoofMap'), 'Roof map');
   _matCloneSheetPlanForPrint(document.getElementById('matPrintSheetPlan'));
-  _matBuildPrintSheetCutList(document.getElementById('matPrintSheetCutList'));
-  _matBuildPrintRidgeCutList(document.getElementById('matPrintRidgeCutList'));
+  // Sheet + ridge cut lists live INSIDE the Material Order page now —
+  // _matBuildPrintOrderDetails inlines both. The standalone page that
+  // used to repeat them has been removed.
   _matBuildPrintOrderDetails(document.getElementById('matPrintOrderDetails'));
 }
 
@@ -16266,11 +16266,27 @@ function _matBuildPrintOrderDetails(mount) {
     html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+sheetTotal+' sheets</td><td class="r"></td></tr></tfoot></table>';
   }
 
-  // Order summary table. Ridge / Hip moved to its own dedicated cut
-  // list section on page 1 (the user asked for ridges to read as a cut
-  // list, not a combined-lm subtotal). The per-flashing cut lists
-  // (barge / apron / change-of-pitch / valley) live below in the
-  // flashing drawings grid. Only the gutter row stays here.
+  // Ridge / Hip cut list — supplier reads it as a per-letter cut list
+  // right under the sheet cut list. Used to live on a standalone page,
+  // moved here so the cut lists stay alongside the Material Order.
+  var ridgeCl = _matBuildCutList('ridgehip', 0.5);
+  if (ridgeCl && ridgeCl.pieceCount) {
+    html += '<h2 class="mp-h" style="margin-top:14px">Ridge / Hip Cut List</h2>'+
+      '<div style="font-size:11px;color:#374151;margin:2px 0 6px">'+
+        '<strong>'+(ridgeType==='wide'?'Wide':'Standard')+'</strong> ridge profile · per-line cut list'+
+      '</div>'+
+      '<table class="mp-cut"><thead><tr><th>Piece</th><th class="r">Qty</th><th class="r">Length each</th><th class="r">Total</th></tr></thead><tbody>';
+    ridgeCl.rows.forEach(function(r, i){
+      var lbl = r.letter ? r.letter : ('Piece '+(i+1));
+      html += '<tr><td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">'+(r.qty*r.length).toFixed(1)+' m</td></tr>';
+    });
+    html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+ridgeCl.pieceCount+' pcs</td><td class="r"></td><td class="r">'+ridgeCl.totalLm.toFixed(1)+' m</td></tr></tfoot></table>';
+  }
+
+  // Order summary table — gutter only. Sheets + ridges have their own
+  // dedicated cut-list sections above. Per-flashing cut lists (barge /
+  // apron / change-of-pitch / valley) read from the flashing drawings
+  // grid below ("3 @ 4.2m, 1 @ 1.2m" under each tile).
   if (gutterChoice !== 'none') {
     html += '<h2 class="mp-h" style="margin-top:14px">Order summary</h2>'+
       '<table class="mp-cut">'+
