@@ -626,13 +626,27 @@ select{
 .mat-sel select:focus,.mat-sel input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,153,224,.12)}
 
 /* Per-section materials block (sheets, ridge, each flashing, gutter) */
-.mat-section{margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+.mat-section{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)}
 .mat-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
-.mat-section-hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.mat-section-hd{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
 .mat-section-hd .swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0}
-.mat-section-hd h3{font-size:14px;font-weight:700;color:#0a1628;margin:0;letter-spacing:-.005em}
-.mat-section-hd .meta{margin-left:auto;font-size:11px;color:var(--text2);font-weight:500}
-.mat-section-sub{font-size:11.5px;color:var(--text2);margin:-4px 0 10px;line-height:1.5}
+.mat-section-hd h3{font-size:13.5px;font-weight:700;color:#0a1628;margin:0;letter-spacing:-.005em}
+.mat-section-hd .meta{font-size:11px;color:var(--text2);font-weight:500;flex:1;min-width:120px}
+.mat-section-hd .mat-picker-slot{display:inline-flex;align-items:center;flex-shrink:0;margin-left:auto}
+.mat-section-sub{font-size:11.5px;color:var(--text2);margin:-2px 0 8px;line-height:1.5}
+/* Compact body — drawing thumbnail + cut-list table side-by-side */
+.mat-section-compact .mat-section-body{display:flex;gap:12px;align-items:flex-start}
+.mat-section-compact .mat-thumb{flex:0 0 130px}
+.mat-section-compact .mat-thumb svg,
+.mat-section-compact .mat-thumb img{display:block;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:3px;width:130px;height:70px}
+.mat-section-compact .mat-section-table{flex:1;min-width:0}
+.mat-section-compact .cut-list thead th{padding:5px 8px}
+.mat-section-compact .cut-list tbody td{padding:5px 8px}
+.mat-section-compact .cut-list tfoot td{padding:6px 8px}
+@media(max-width:680px){
+  .mat-section-compact .mat-section-body{flex-direction:column}
+  .mat-section-compact .mat-thumb{flex:0 0 auto}
+}
 
 /* Flashing technical drawing strip (cross-section SVG) */
 .flash-dwg{display:flex;align-items:center;gap:14px;padding:10px 14px;background:#fafaf7;border:1px solid var(--border);border-radius:8px;margin-bottom:10px}
@@ -973,6 +987,28 @@ select{
   html.print-materials #matPrintPage1{page-break-after:always;break-after:page}
   html.print-materials #matPrintPage2{page-break-before:always;break-before:page}
   @page{size:A4;margin:12mm}
+
+  /* Scope & pricing — Save pricing as PDF prints only #tab-scope. */
+  html.print-scope body{background:#fff}
+  html.print-scope .sidebar,
+  html.print-scope .hdr,
+  html.print-scope .nav,
+  html.print-scope .proxy-status,
+  html.print-scope .upload-zone{display:none!important}
+  html.print-scope .app{display:block!important}
+  html.print-scope .content{padding:0!important;max-width:none!important}
+  html.print-scope #tab-quote,
+  html.print-scope #tab-roof,
+  html.print-scope #tab-materials,
+  html.print-scope #tab-order,
+  html.print-scope #tab-jobpack,
+  html.print-scope #tab-jobs,
+  html.print-scope #tab-settings,
+  html.print-scope #tab-select,
+  html.print-scope #tab-report{display:none!important}
+  html.print-scope .panel:not(#tab-scope){display:none!important}
+  html.print-scope #tab-scope{display:block!important}
+  html.print-scope #tab-scope .mat-actions{display:none!important}
 }
 
 /* ── Mobile (collapse sidebar) ─────────────────────────────── */
@@ -1114,7 +1150,10 @@ select{
        Save PDF / Push to Fergus / Order Roof). Nav button hidden; panel
        kept so legacy gotoTab('order') calls don't blow up. -->
   <button class="nav-btn" onclick="gotoTab('order')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><path d="M2 3 L5 3 L5.7 5 L14 5 L13 11 L6 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="7" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="14" r="1.1" stroke="currentColor" stroke-width="1.3"/></svg>Order Material</button>
-  <button class="nav-btn" onclick="gotoTab('jobpack')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3.5" width="11" height="10" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.5 H13.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 9.5 H10 M6 11.5 H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Job Pack</button>
+  <!-- "Send Job Pack" tab removed per the user's request. The panel
+       below stays in the DOM so any legacy gotoTab('jobpack') / refresh
+       hooks don't blow up; nav button is hidden so it can't be clicked. -->
+  <button class="nav-btn" onclick="gotoTab('jobpack')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3.5" width="11" height="10" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.5 H13.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 9.5 H10 M6 11.5 H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Job Pack</button>
   <button class="nav-btn" onclick="gotoTab('jobs')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
   <button class="nav-btn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
 </div>
@@ -1667,6 +1706,7 @@ select{
       <button onclick="renderMaterialPriceTable();try{resyncQuoteLines();}catch(e){}" style="margin-left:6px;padding:5px 12px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh &amp; sync to Quote</button>
     </div>
     <p style="font-size:11px;color:var(--text2);margin:-8px 0 10px">Flashing quantities include a <strong>1.2× wastage allowance</strong>. Drop-down on each row lets you swap product variants (add more in <strong>Settings → Price book</strong>).</p>
+    <div id="materialPriceRoofPicker" style="display:none;margin-bottom:10px"></div>
     <div id="materialPriceTableWrap">
       <p style="font-size:12px;color:var(--text2)">Draw your roof on the Map Roof tab and set unit prices in Settings → Price book — this table will auto-populate.</p>
     </div>
@@ -1679,15 +1719,29 @@ select{
     </div>
     <div id="profitWrap"></div>
   </div>
+
+  <!-- ACTION BAR — same shape as the Materials tab. Save the pricing
+       page as a PDF, push it to the linked Fergus job, or pop the
+       quote tab open for the client-facing version. -->
+  <div class="card mat-actions">
+    <button onclick="saveScopePricingAsPdf()" class="mat-btn mat-btn-dark">📄 Save pricing as PDF</button>
+    <button onclick="pushScopePricingToFergus()" class="mat-btn mat-btn-green">📤 Push pricing to Fergus</button>
+    <button onclick="openFergusJob()" class="mat-btn mat-btn-light">📂 Open in Fergus</button>
+    <button onclick="gotoTab('quote')" class="mat-btn mat-btn-blue">📝 Open quote builder</button>
+    <span id="scopeActionMsg" style="margin-left:auto;font-size:12px;color:var(--text2);align-self:center"></span>
+  </div>
 </div>
 
 <!-- TAB 3: MATERIALS -->
 <div class="panel" id="tab-materials">
   <!-- 1. Drawing measurements summary — 3 lines only.
        (Detailed per-line breakdowns moved into the Materials section's
-       cut lists below.) -->
+       cut lists below.) Roof picker auto-populates when there are 2+
+       roofs and lets the user combine / isolate which ones the totals
+       (and cut lists) cover. -->
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>From your drawing measurements</div>
+    <div id="matRoofPicker" style="display:none;margin-bottom:10px"></div>
     <div id="matAutoFromLines" style="min-height:40px">
       <p style="font-size:12px;color:var(--text2)">Draw lines and add measurements on the Map Roof tab, then click Calibrate scale to populate this automatically.</p>
     </div>
@@ -1704,7 +1758,24 @@ select{
     </div>
   </div>
 
-  <!-- 3. MATERIALS — sheets + per-flashing cut lists with selectors. -->
+  <!-- 3. FLASHING LAYOUT — interactive cut-list assignment diagram.
+       Shows the active roof's outline + lines, auto-assigns letter
+       refs (A, B, C…) + length-with-wastage to every non-outline,
+       non-gutter line. Two-way synced with the cut lists below. -->
+  <div class="card" id="flashLayoutCard">
+    <div class="card-hd"><span class="card-dot"></span>Flashing layout
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— each line auto-labelled A / B / C with +0.4m wastage; click a line to edit</span>
+      <label style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none">
+        <input type="checkbox" id="flashLayoutIncludeGutters" onchange="renderFlashingLayout()" style="margin:0;width:auto"> Include gutter lines
+      </label>
+      <button onclick="renderFlashingLayout();renderMaterialsCutLists()" style="margin-left:10px;padding:4px 10px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
+    </div>
+    <div id="flashLayoutOut" style="position:relative">
+      <p style="font-size:12px;color:var(--text2)">Draw your roof outline + flashing lines on the Map Roof tab with measurements — this diagram will appear here.</p>
+    </div>
+  </div>
+
+  <!-- 4. MATERIALS — sheets + per-flashing cut lists with selectors. -->
   <div class="card" id="materialsCutListCard">
     <div class="card-hd"><span class="card-dot"></span>Materials
       <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— pick your profile / grade / thickness; cut lists update live from the drawing</span>
@@ -1855,6 +1926,8 @@ select{
   </div>
   <div class="mat-print-page" id="matPrintPage2">
     <div class="mp-header" id="matPrintHeader2"></div>
+    <h2 class="mp-h">Flashing Layout</h2>
+    <div id="matPrintFlashingLayout"></div>
     <h2 class="mp-h">Material Order</h2>
     <div id="matPrintOrderDetails"></div>
   </div>
@@ -2429,16 +2502,57 @@ select{
       <div style="font-size:14px;font-weight:600">Sketch custom flashing — <span id="flashSketchTitle" style="color:var(--text2);font-weight:500">Flashing #1</span></div>
       <button onclick="closeFlashSketch()" style="margin-left:auto;background:none;border:none;font-size:20px;color:var(--text2);cursor:pointer;line-height:1">×</button>
     </div>
-    <div style="padding:14px 20px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap">
-      <button onclick="setFlashTool('pen')" id="flashToolPen" class="tool-btn active-tool">✏ Pen</button>
-      <button onclick="setFlashTool('eraser')" id="flashToolEraser" class="tool-btn">⌫ Eraser</button>
-      <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px">Stroke <input type="range" id="flashStroke" min="1" max="10" value="2" style="width:80px"></label>
-      <button onclick="clearFlashCanvas()" class="tool-btn" style="margin-left:auto">Clear</button>
-      <button onclick="saveFlashSketch()" class="sec-btn" style="margin:0;width:auto;padding:8px 18px">Save sketch</button>
+    <!-- Meta row — only shown when editing a library entry (mode='library').
+         Captures name + profile + flashing-type so the Materials picker can
+         filter to the right ones for the selected roof profile. -->
+    <div id="flashMetaRow" style="display:none;padding:12px 20px 0;gap:10px;flex-wrap:wrap">
+      <div style="flex:2;min-width:200px">
+        <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Name</label>
+        <input type="text" id="flashMetaName" placeholder="e.g. Standard barge 25×75" style="margin:0">
+      </div>
+      <div style="flex:1;min-width:140px">
+        <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Profile</label>
+        <select id="flashMetaProfile" style="margin:0">
+          <option value="any">Any profile</option>
+          <option value="Corrugate">Corrugate</option>
+          <option value="5-Rib">5-Rib</option>
+          <option value="Multidek">Multidek</option>
+        </select>
+      </div>
+      <div style="flex:1;min-width:140px">
+        <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Flashing type</label>
+        <select id="flashMetaType" style="margin:0">
+          <option value="custom">Custom</option>
+          <option value="apron">Apron</option>
+          <option value="barge">Barge</option>
+          <option value="changepitch">Change-of-pitch</option>
+          <option value="valley">Valley</option>
+          <option value="ridgehip">Ridge / Hip</option>
+          <option value="gutter">Gutter</option>
+        </select>
+      </div>
+    </div>
+    <div style="padding:12px 20px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <button onclick="setFlashTool('draw')" id="flashToolDraw" class="tool-btn active-tool">✏ Draw</button>
+      <button onclick="setFlashTool('measure')" id="flashToolMeasure" class="tool-btn">📏 Add measurement</button>
+      <button onclick="setFlashTool('paint')" id="flashToolPaint" class="tool-btn">🎨 Painted side</button>
+      <button onclick="setFlashTool('flashguard')" id="flashToolFlashguard" class="tool-btn">🛡 Flash guard</button>
+      <button onclick="finishFlashPolyline()" class="tool-btn">↵ Finish</button>
+      <button onclick="undoFlashSketch()" class="tool-btn" id="flashUndoBtn">↶ Undo</button>
+      <button onclick="redoFlashSketch()" class="tool-btn" id="flashRedoBtn">↷ Redo</button>
+      <button onclick="clearFlashCanvas()" class="tool-btn">Clear</button>
+      <button onclick="saveFlashSketch()" class="sec-btn" style="margin:0 0 0 auto;width:auto;padding:8px 18px">Save sketch</button>
+    </div>
+    <div style="padding:8px 20px;background:#fafaf7;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--text2)">
+      <span id="flashStatsLine"><strong>Girth:</strong> 0 mm &nbsp;·&nbsp; <strong>Angle changes:</strong> 0</span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="flashGuardsToggle" onchange="_onFlashGuardsToggle()" style="margin:0;width:auto"> Flash guards (+$5/lm)
+      </label>
+      <span style="margin-left:auto;font-size:11px">Click to place corners · <strong>Finish</strong> or press Enter when done · <strong>Add measurement</strong> to label segments in mm · <strong>Painted side</strong> places a colour-arrow.</span>
     </div>
     <div style="padding:16px 20px;background:var(--surface-2)">
       <canvas id="flashCanvas" width="720" height="380" style="background:#fff;border:1px solid var(--border);border-radius:8px;width:100%;max-width:720px;display:block;touch-action:none;cursor:crosshair"></canvas>
-      <div style="font-size:11px;color:var(--text2);margin-top:8px">Draw the cross-section as you'd hand-sketch it on a job bag. Tap/drag to draw. Saves into the flashing as a thumbnail.</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:8px">Click to place corners, again for the next corner. Press Finish (or Enter) when done. Saves as a re-usable library entry.</div>
     </div>
   </div>
 </div>
@@ -2670,6 +2784,7 @@ select{
       <button class="tab-sm" onclick="switchSettingsSub('set-pricebook',this)">Price book</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers &amp; materials</button>
+      <button class="tab-sm" onclick="switchSettingsSub('set-flashings',this)">Flashing library</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
     </div>
     <span id="saveSettingsMsg" style="font-size:12px;color:var(--text2);margin-left:8px"></span>
@@ -2884,6 +2999,39 @@ select{
       </div>
     </div>
 
+    <!-- FLASHING LIBRARY -->
+    <div class="sub-panel settings-sub" id="set-flashings" style="margin-top:14px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Saved flashing drawings — Materials &amp; Sheet Layout shows the matching ones for the selected roof profile. Each saved flashing is one cross-section sketch you can re-use across jobs.</p>
+      <!-- Filters + new button -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+        <div style="min-width:180px">
+          <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Filter — Profile</label>
+          <select id="flibFilterProfile" onchange="renderFlashingLibrary()" style="margin:0">
+            <option value="">All profiles</option>
+            <option value="Corrugate">Corrugate</option>
+            <option value="5-Rib">5-Rib</option>
+            <option value="Multidek">Multidek</option>
+            <option value="any">Any profile</option>
+          </select>
+        </div>
+        <div style="min-width:180px">
+          <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Filter — Type</label>
+          <select id="flibFilterType" onchange="renderFlashingLibrary()" style="margin:0">
+            <option value="">All types</option>
+            <option value="apron">Apron</option>
+            <option value="barge">Barge</option>
+            <option value="changepitch">Change-of-pitch</option>
+            <option value="valley">Valley</option>
+            <option value="ridgehip">Ridge / Hip</option>
+            <option value="gutter">Gutter</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <button type="button" onclick="openFlashEditModal(-1)" class="sec-btn" style="margin:0 0 0 auto;width:auto;padding:8px 18px;font-size:12px">+ New flashing</button>
+      </div>
+      <div id="flashLibraryGrid"></div>
+    </div>
+
     <!-- INTEGRATIONS -->
     <div class="sub-panel settings-sub" id="set-int" style="margin-top:14px">
       <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Enter API keys for the job-management systems you use. Keys are stored against your user account and never shared.</div>
@@ -2910,7 +3058,7 @@ select{
 
 <script>
 var PROXY='https://flood-roofing-estimator-production.up.railway.app';
-var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],linkedJobId:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true,
+var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],linkedJobId:null,linkedJobNo:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true,
   quote:null /* {ref,date,validUntil,client,addr,email,scope,notes,terms,gstRate,lineItems:[{desc,qty,unit}]} — lazy-init in buildQuote */};
 var COLORS=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#ea580c','#65a30d'];
 var COLORS_BG=['#dbeafe','#d1fae5','#fef3c7','#fee2e2','#ede9fe','#cffafe','#ffedd5','#ecfccb'];
@@ -3089,6 +3237,9 @@ function switchSettingsSub(id,btn){
   document.getElementById(id).classList.add('on');
   btn.closest('.tab-row').querySelectorAll('.tab-sm').forEach(function(b){b.classList.remove('on');});
   btn.classList.add('on');
+  if (id === 'set-flashings') {
+    try { renderFlashingLibrary(); } catch(e) { console.warn('library render:', e); }
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -3712,19 +3863,30 @@ function _buildMaterialPriceRows(){
   var sheetWidthMm = parseFloat((document.getElementById('sheetWidth')||{}).value) || 762;
   var sheetWidthM  = sheetWidthMm / 1000;
   var overlapM     = (parseFloat((document.getElementById('overlapMm')||{}).value)||150)/1000;
-  var pitch        = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
-  var pitchFactor  = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
   var WASTE_FACTOR = 1.2;
-
-  var totals = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
-  (DRAW.lines || []).forEach(function(l){
-    if (l.measM && totals[l.type] !== undefined) totals[l.type] += parseFloat(l.measM);
-  });
-  var ridgeHip = (totals.ridge||0) + (totals.hip||0);
-
-  var roofArea = 0;
-  if (DRAW.scaleMetresPerPx && DRAW.outline && DRAW.outline.length >= 3) {
-    roofArea = polyAreaPx(DRAW.outline) * DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx * pitchFactor;
+  // Sum totals across every selected roof (Materials tab picker drives
+  // this). Falls through to current-roof-only when there's no multi-
+  // roof archive yet.
+  var d = (typeof _matDrawTotals === 'function') ? _matDrawTotals() : null;
+  var totals, ridgeHip, roofArea, pitch, pitchFactor;
+  if (d) {
+    totals      = Object.assign({}, d.totals);
+    ridgeHip    = d.ridgeHip;
+    roofArea    = d.roofArea;
+    pitch       = d.pitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+    pitchFactor = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
+  } else {
+    pitch        = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+    pitchFactor  = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
+    totals       = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
+    (DRAW.lines || []).forEach(function(l){
+      if (l.measM && totals[l.type] !== undefined) totals[l.type] += parseFloat(l.measM);
+    });
+    ridgeHip = (totals.ridge||0) + (totals.hip||0);
+    roofArea = 0;
+    if (DRAW.scaleMetresPerPx && DRAW.outline && DRAW.outline.length >= 3) {
+      roofArea = polyAreaPx(DRAW.outline) * DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx * pitchFactor;
+    }
   }
 
   // Roofing sheets — variant dropdown comes from pb.sheets.  When the
@@ -3812,6 +3974,10 @@ function renderMaterialPriceTable(){
     box.innerHTML = '<p style="font-size:12px;color:var(--text2)">Set unit prices in <strong>Settings → Price book</strong> first.</p>';
     return;
   }
+  // Per-roof selector — reuses the Materials tab picker so ticking a
+  // roof on one tab carries to the other. Rendered into the slot above
+  // the price table (only shows when there are 2+ roofs).
+  try { _matRenderRoofPickerInto && _matRenderRoofPickerInto('materialPriceRoofPicker'); } catch(e){}
   var rows = _buildMaterialPriceRows();
   if (!rows.length) {
     box.innerHTML = '<p style="font-size:12px;color:var(--text2)">No quantifiable items yet — draw your roof on the Map Roof tab.</p>';
@@ -4021,7 +4187,7 @@ function snapshotCurrentJob(){
   return {
     form: form,
     state: { img64:S.img64, roofData:S.roofData, labour:S.labour, materials:S.materials,
-             condition:S.condition, photos:S.photos, linkedJobId:S.linkedJobId, linkedJobName:S.linkedJobName,
+             condition:S.condition, photos:S.photos, linkedJobId:S.linkedJobId, linkedJobNo:S.linkedJobNo, linkedJobName:S.linkedJobName,
              quote:S.quote },
     draw: { outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
             penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
@@ -4130,8 +4296,17 @@ function _jobChipLabel(j){
     if (j.id != null) return 'Job #' + j.id;
   }
   if (S.currentJobId)  return 'Job #' + S.currentJobId;
+  if (S.linkedJobNo)   return 'Job #' + S.linkedJobNo;
   if (S.linkedJobId)   return 'Job #' + S.linkedJobId;
   return '';
+}
+// Human-readable Fergus job number (e.g. "3066") with a fallback to
+// the internal id when the display number isn't known. Use this for
+// any user-visible job reference; reserve S.linkedJobId for API
+// calls to Fergus's REST endpoints (those still need the internal id).
+function _fergusDisplayNo(){
+  if (!window.S) return '';
+  return S.linkedJobNo || S.linkedJobId || '';
 }
 var _lastJobForChip = null;
 function updateSidebarJobChip(j){
@@ -6552,6 +6727,137 @@ function rpHeading(icon, label){
 // recognisable Flood Roofing brand block.  The number isn't escaped
 // (we control it) and the title may carry entities so it's inserted
 // verbatim.
+// Renders a clean roof-outline preview of one roof to a PNG data URL.
+// Same look as the Map Roof outline + drawn lines, but WITHOUT any
+// measurement labels, sheet-length arrows or the photo background —
+// just a colour-coded line diagram of the roof for the proposal's
+// Price page. Roof name is overlaid at the bottom.
+function _buildRoofOutlinePreview(roof, opts){
+  if (!roof || !roof.outline || roof.outline.length < 3) return null;
+  opts = opts || {};
+  var lines = roof.lines || [];
+  var outline = roof.outline;
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  outline.forEach(function(p){
+    if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+    if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+  });
+  var w = maxX - minX, h = maxY - minY;
+  if (w < 1 || h < 1) return null;
+  var targetW = opts.width || 520;
+  var artH = Math.max(120, (h / w) * targetW);
+  var targetH = artH + 22; // +22 for the name strip at the bottom
+  var canvas = document.createElement('canvas');
+  canvas.width = targetW; canvas.height = targetH;
+  var ctx = canvas.getContext('2d');
+  // ── Background: photo crop (uploaded / satellite) when available,
+  //    else plain white. The cropped region wraps the outline with a
+  //    10% pad, then gets resized to match the canvas aspect by
+  //    expanding the shorter side (never squashing the photo — just
+  //    showing more of it on one axis), so the picture keeps its
+  //    natural proportions and the outline is centred + framed.
+  var photoImg = document.getElementById('roofPrevImg');
+  var hasPhoto = photoImg && photoImg.complete && photoImg.naturalWidth > 0;
+  var padImg = Math.max(w, h) * 0.10;
+  var sx0 = minX - padImg, sy0 = minY - padImg;
+  var sx1 = maxX + padImg, sy1 = maxY + padImg;
+  var sw = sx1 - sx0, sh = sy1 - sy0;
+  var dstAspect = targetW / artH, srcAspect = sw / sh;
+  if (srcAspect > dstAspect) {
+    var extraH = (sw / dstAspect) - sh;
+    sy0 -= extraH/2; sy1 += extraH/2; sh = sy1 - sy0;
+  } else {
+    var extraW = (sh * dstAspect) - sw;
+    sx0 -= extraW/2; sx1 += extraW/2; sw = sx1 - sx0;
+  }
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (hasPhoto) {
+    try { ctx.drawImage(photoImg, sx0, sy0, sw, sh, 0, 0, targetW, artH); } catch(e){}
+  }
+  var scale = targetW / sw;
+  function tx(p){ return [(p[0] - sx0) * scale, (p[1] - sy0) * scale]; }
+  // Outline fill + stroke — softer fill when the photo is showing, so
+  // the roof underneath remains readable.
+  ctx.beginPath();
+  outline.forEach(function(p, i){
+    var t = tx(p);
+    if (i === 0) ctx.moveTo(t[0], t[1]); else ctx.lineTo(t[0], t[1]);
+  });
+  ctx.closePath();
+  ctx.fillStyle = hasPhoto ? 'rgba(200,230,201,0.20)' : 'rgba(200,230,201,0.50)';
+  ctx.fill();
+  ctx.strokeStyle = hasPhoto ? '#0f5132' : '#1b5e20';
+  ctx.lineWidth = 2.4;
+  ctx.stroke();
+  // Roof lines by type — same colours as on the Map Roof tab, no labels.
+  var styleByType = {
+    ridge:'#dc2626', valley:'#f59e0b', gutter:'#7c3aed',
+    hip:'#059669', barge:'#3b82f6', apron:'#e11d48', changepitch:'#0ea5e9'
+  };
+  lines.forEach(function(l){
+    if (!l || !l.pts || l.pts.length < 2) return;
+    var a = tx(l.pts[0]), b = tx(l.pts[1]);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+    ctx.strokeStyle = styleByType[l.type] || '#475569';
+    ctx.lineWidth = 2;
+    ctx.setLineDash(l.type === 'valley' ? [6, 3] : []);
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+  // Roof name strip — centred at the bottom on a light band.
+  var label = opts.name || roof.name || '';
+  if (label) {
+    ctx.fillStyle = '#f4f4ef';
+    ctx.fillRect(0, canvas.height - 22, canvas.width, 22);
+    ctx.font = 'bold 13px Inter, -apple-system, sans-serif';
+    ctx.fillStyle = '#0a1628';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, canvas.width / 2, canvas.height - 11);
+  }
+  try { return canvas.toDataURL('image/png'); } catch(e){ return null; }
+}
+
+// Builds the HTML block for the proposal's Price page — a row (or
+// grid) of every saved roof's outline preview, each labelled with its
+// name. Auto-handles single-roof + multi-roof. Pulls each roof's data
+// from DRAW.roofs[i] (or DRAW.outline / DRAW.lines if there's no
+// multi-roof archive yet) so it always shows whatever's currently on
+// the Map Roof tab. A 'Refresh from Map Roof' button sits above the
+// previews (hidden in print) so the user can re-capture after edits.
+function _buildRoofPreviewsHtml(){
+  var imgs = [];
+  if (DRAW.roofs && DRAW.roofs.length) {
+    // Use stored snapshots — active roof's live state is also synced
+    // to DRAW.roofs[activeRoofIdx] every time we render, so this is
+    // up to date.
+    try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+    DRAW.roofs.forEach(function(r, i){
+      var url = _buildRoofOutlinePreview(r, { name: r.name || ('Roof ' + (i+1)) });
+      if (url) imgs.push({ url: url, name: r.name || ('Roof ' + (i+1)) });
+    });
+  } else if (DRAW.outline && DRAW.outline.length >= 3) {
+    var url = _buildRoofOutlinePreview({ outline: DRAW.outline, lines: DRAW.lines || [] }, { name: 'Roof map' });
+    if (url) imgs.push({ url: url, name: 'Roof map' });
+  }
+  if (!imgs.length) return '';
+  var gridStyle = (imgs.length === 1)
+    ? 'display:block;text-align:center'
+    : 'display:grid;grid-template-columns:repeat('+Math.min(imgs.length, 2)+',1fr);gap:10px';
+  return '<div class="qp-roofmap" style="margin:6px 0 14px">'+
+    '<div class="ed-eyebrow no-print" style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'+
+      '<span>Roof map</span>'+
+      '<button type="button" onclick="refreshQuoteProposal()" style="margin-left:auto;padding:3px 9px;font-size:10px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;cursor:pointer;font-family:var(--ed-sans);color:var(--ed-ink-2);letter-spacing:.04em">↻ Refresh from Map Roof</button>'+
+    '</div>'+
+    '<div style="'+gridStyle+'">'+
+      imgs.map(function(im){
+        return '<img src="'+im.url+'" alt="'+esc2(im.name)+'" style="display:block;max-width:100%;height:auto;border:1px solid var(--ed-line);border-radius:4px;background:#fff">';
+      }).join('')+
+    '</div>'+
+  '</div>';
+}
+
 function edHeading(num, eyebrow, title, opts){
   opts = opts || {};
   // When a photo banner sits ABOVE this heading band on the same
@@ -7295,6 +7601,7 @@ function refreshQuoteProposal(){
     };
     partInclusions =
       edHeading('03','Scope of work','The work &amp; the cost')+
+      _buildRoofPreviewsHtml()+
       ((S.quote.scope||'').trim()
         ? '<div class="ed-body" style="margin-top:-2px;margin-bottom:14px;font-size:11.5px;line-height:1.5;color:var(--ed-ink-2)">'+esc2(S.quote.scope).split('\n').join('<br>')+'</div>'
         : '')+
@@ -7447,6 +7754,7 @@ function refreshQuoteProposal(){
       : '';
     partInclusions =
       edHeading('03','Your investment','Quote inclusions &amp; pricing')+
+      _buildRoofPreviewsHtml()+
       '<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:30px;align-items:start">'+
         // Left — what's included
         '<div>'+
@@ -8567,71 +8875,737 @@ function clearSavedFlashings(){
 }
 
 // — Flashing sketch canvas modal —
-var _flashSketchState = { idx:-1, tool:'pen', drawing:false, last:null };
-function openFlashSketch(idx){
-  _flashSketchState.idx = idx;
-  document.getElementById('flashSketchTitle').textContent = 'Flashing #'+(idx+1);
-  var c = document.getElementById('flashCanvas');
+// mode='order'   → editing the sketch on S.order.flashings[idx] (legacy)
+// mode='library' → editing a saved flashing in the library (Settings)
+//                  idx === -1 means new entry; idx >= 0 means edit existing
+//
+// Drawing model: each polyline is a sequence of clicked vertices with
+// optional per-segment measurements in mm. The user clicks to place
+// corners, then presses Finish (or Enter) to commit the polyline.
+// Multiple polylines per sketch are allowed. Undo/Redo step through
+// every state-changing action via the history/future stacks.
+// paintedSide stores one optional marker {x,y,dirX,dirY} per sketch —
+// the colour-arrow the supplier reads to know which side is painted.
+// flashGuards is a boolean flag stored on the saved entry; the
+// Materials tab adds $5/lm when it's set.
+var _flashSketchState = {
+  idx:-1, mode:'order', tool:'draw',
+  // Polyline: { vertices:[[x,y],...], measurements:{ "i":mm, ... },
+  //             measurementOffsets:{ "i":[dx,dy] } }
+  // measurementOffsets shift a label away from its auto centroid so
+  // the user can drag it clear of the polyline / other labels.
+  polylines: [],
+  currentPolyline: null, // in-progress polyline (not yet committed)
+  paintedSide: null,     // { x, y, dirX, dirY } — see _redrawFlashCanvas
+  flashGuard:  null,     // { x, y } — a draggable label saying "Flash guard"
+  flashGuards: false,    // boolean toggle (the +$5/lm pricing flag)
+  history: [], future: [],
+  mousePos: null,
+  // Drag state for moving labels (measurement / painted / flash-guard).
+  // Set on mousedown when the press lands on a label rect; consumed by
+  // the canvas mousemove + mouseup handlers.
+  dragInfo: null,
+  // Track the down position so we can tell click vs drag on mouseup.
+  pressStart: null,
+};
+
+function _snapshotFlashState(){
+  function clonePoly(p){
+    return {
+      vertices: p.vertices.map(function(v){return v.slice();}),
+      measurements: Object.assign({}, p.measurements),
+      measurementOffsets: Object.assign({}, p.measurementOffsets || {}),
+    };
+  }
+  return {
+    polylines: _flashSketchState.polylines.map(clonePoly),
+    currentPolyline: _flashSketchState.currentPolyline ? clonePoly(_flashSketchState.currentPolyline) : null,
+    paintedSide: _flashSketchState.paintedSide ? Object.assign({}, _flashSketchState.paintedSide) : null,
+    flashGuard:  _flashSketchState.flashGuard  ? Object.assign({}, _flashSketchState.flashGuard)  : null,
+    flashGuards: _flashSketchState.flashGuards,
+  };
+}
+function _restoreFlashState(snap){
+  _flashSketchState.polylines = snap.polylines;
+  _flashSketchState.currentPolyline = snap.currentPolyline;
+  _flashSketchState.paintedSide = snap.paintedSide;
+  _flashSketchState.flashGuard  = snap.flashGuard  != null ? snap.flashGuard  : null;
+  _flashSketchState.flashGuards = snap.flashGuards;
+  var t = document.getElementById('flashGuardsToggle');
+  if (t) t.checked = !!snap.flashGuards;
+}
+function _pushFlashHistory(){
+  _flashSketchState.history.push(_snapshotFlashState());
+  if (_flashSketchState.history.length > 80) _flashSketchState.history.shift();
+  _flashSketchState.future = [];
+  _refreshFlashUndoRedoBtns();
+}
+function undoFlashSketch(){
+  if (!_flashSketchState.history.length) return;
+  _flashSketchState.future.push(_snapshotFlashState());
+  _restoreFlashState(_flashSketchState.history.pop());
+  _refreshFlashUndoRedoBtns();
+  _redrawFlashCanvas();
+  _updateFlashStats();
+}
+function redoFlashSketch(){
+  if (!_flashSketchState.future.length) return;
+  _flashSketchState.history.push(_snapshotFlashState());
+  _restoreFlashState(_flashSketchState.future.pop());
+  _refreshFlashUndoRedoBtns();
+  _redrawFlashCanvas();
+  _updateFlashStats();
+}
+function _refreshFlashUndoRedoBtns(){
+  var u = document.getElementById('flashUndoBtn');
+  var r = document.getElementById('flashRedoBtn');
+  if (u) u.style.opacity = _flashSketchState.history.length ? '1' : '0.4';
+  if (r) r.style.opacity = _flashSketchState.future.length  ? '1' : '0.4';
+}
+
+function _resetFlashState(){
+  _flashSketchState.polylines = [];
+  _flashSketchState.currentPolyline = null;
+  _flashSketchState.paintedSide = null;
+  _flashSketchState.flashGuard  = null;
+  _flashSketchState.flashGuards = false;
+  _flashSketchState.history = [];
+  _flashSketchState.future = [];
+  _flashSketchState.mousePos = null;
+  _flashSketchState.dragInfo = null;
+  _flashSketchState.pressStart = null;
+  var t = document.getElementById('flashGuardsToggle');
+  if (t) t.checked = false;
+  _refreshFlashUndoRedoBtns();
+}
+
+function _allFlashPolylines(){
+  var arr = _flashSketchState.polylines.slice();
+  if (_flashSketchState.currentPolyline) arr.push(_flashSketchState.currentPolyline);
+  return arr;
+}
+
+function _computeFlashStats(){
+  var girth = 0, angleChanges = 0;
+  _allFlashPolylines().forEach(function(p){
+    Object.keys(p.measurements).forEach(function(k){
+      var mm = +p.measurements[k] || 0; girth += mm;
+    });
+    // Each interior vertex is an angle change (n vertices → n-2 corners).
+    if (p.vertices.length >= 3) angleChanges += (p.vertices.length - 2);
+  });
+  return { girth: girth, angleChanges: angleChanges };
+}
+function _updateFlashStats(){
+  var s = _computeFlashStats();
+  var el = document.getElementById('flashStatsLine');
+  if (!el) return;
+  el.innerHTML = '<strong>Girth:</strong> '+s.girth+' mm &nbsp;·&nbsp; <strong>Angle changes:</strong> '+s.angleChanges;
+}
+
+// Canvas redraw — wipes + paints everything from current state.
+// Populates _flashLabelRects so the mouse-down handler can hit-test
+// every label/marker and start a drag without recomputing geometry.
+var _flashLabelRects = [];
+function _redrawFlashCanvas(){
+  var c = document.getElementById('flashCanvas'); if (!c) return;
   var ctx = c.getContext('2d');
   ctx.clearRect(0,0,c.width,c.height);
-  // Restore prior sketch if any
-  var f = S.order.flashings[idx];
-  if (f && f.sketch) {
-    var img = new Image(); img.onload = function(){ ctx.drawImage(img,0,0,c.width,c.height); }; img.src = f.sketch;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.font = '12px Inter, system-ui, sans-serif';
+  _flashLabelRects = [];
+
+  function drawOne(p, isCurrent, polyRef){
+    if (!p || !p.vertices.length) return;
+    var v = p.vertices;
+    if (v.length >= 2) {
+      ctx.lineWidth = 2; ctx.strokeStyle = '#0a1628';
+      ctx.beginPath(); ctx.moveTo(v[0][0], v[0][1]);
+      for (var i = 1; i < v.length; i++) ctx.lineTo(v[i][0], v[i][1]);
+      ctx.stroke();
+    }
+    // Highlight only the in-progress polyline's last vertex.
+    if (isCurrent && v.length) {
+      var lastV = v[v.length - 1];
+      ctx.beginPath();
+      ctx.arc(lastV[0], lastV[1], 3.5, 0, 2*Math.PI);
+      ctx.fillStyle = '#dc2626';
+      ctx.fill();
+    }
+    // Measurement labels — auto centre on segment perpendicular,
+    // plus any per-segment offset the user has dragged it to.
+    if (!p.measurementOffsets) p.measurementOffsets = {};
+    for (var i = 0; i < v.length - 1; i++) {
+      var mm = p.measurements[i];
+      if (mm == null) continue;
+      var a = v[i], b = v[i+1];
+      var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+      var dx = b[0]-a[0], dy = b[1]-a[1];
+      var len = Math.hypot(dx, dy) || 1;
+      var ox = -dy/len * 18, oy = dx/len * 18;
+      var off = p.measurementOffsets[i] || [0,0];
+      var lx = mx + ox + off[0], ly = my + oy + off[1];
+      var txt = mm + ' mm';
+      var tw = ctx.measureText(txt).width;
+      var rx = lx - tw/2 - 5, ry = ly - 10, rw = tw + 10, rh = 20;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(rx, ry, rw, rh);
+      ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1;
+      ctx.strokeRect(rx, ry, rw, rh);
+      ctx.fillStyle = '#dc2626';
+      ctx.fillText(txt, lx - tw/2, ly + 5);
+      _flashLabelRects.push({
+        type: 'measurement', polyline: p, segmentIdx: i,
+        x: rx, y: ry, w: rw, h: rh,
+      });
+    }
   }
-  _flashSketchState.tool = 'pen';
-  setFlashTool('pen');
-  document.getElementById('flashSketchModal').style.display = 'flex';
+  _flashSketchState.polylines.forEach(function(p){ drawOne(p, false); });
+  if (_flashSketchState.currentPolyline) drawOne(_flashSketchState.currentPolyline, true);
+
+  // Rubber-band from last current vertex to mouse cursor (draw mode only).
+  if (_flashSketchState.tool === 'draw' && _flashSketchState.currentPolyline
+      && _flashSketchState.currentPolyline.vertices.length && _flashSketchState.mousePos
+      && !_flashSketchState.dragInfo) {
+    var last = _flashSketchState.currentPolyline.vertices[_flashSketchState.currentPolyline.vertices.length - 1];
+    ctx.setLineDash([4,4]); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(_flashSketchState.mousePos[0], _flashSketchState.mousePos[1]); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Painted-side indicator — same arrow + floating label as before;
+  // the LABEL position (ps.x + dirX*labelDist, ps.y + dirY*labelDist)
+  // is now also a hit-test target so the user can drag it.
+  if (_flashSketchState.paintedSide) {
+    var ps = _flashSketchState.paintedSide;
+    var labelDist = 46, tipBackoff = 6;
+    var labelX = ps.x + ps.dirX * labelDist;
+    var labelY = ps.y + ps.dirY * labelDist;
+    var tipX   = ps.x + ps.dirX * tipBackoff;
+    var tipY   = ps.y + ps.dirY * tipBackoff;
+    ctx.font = '12px Inter, system-ui, sans-serif';
+    var txt = 'Painted', tw = ctx.measureText(txt).width;
+    var boxW = tw + 16, boxH = 18;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
+    ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 1.2;
+    ctx.strokeRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
+    ctx.fillStyle = '#16a34a';
+    ctx.fillText(txt, labelX - tw/2, labelY + 4);
+    var shaftStartX = labelX - ps.dirX * (boxH/2 + 1);
+    var shaftStartY = labelY - ps.dirY * (boxH/2 + 1);
+    ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(shaftStartX, shaftStartY); ctx.lineTo(tipX, tipY); ctx.stroke();
+    var headSize = 7, inwardX = -ps.dirX, inwardY = -ps.dirY;
+    var perpX = -inwardY, perpY = inwardX;
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - inwardX*headSize + perpX*headSize*0.6, tipY - inwardY*headSize + perpY*headSize*0.6);
+    ctx.lineTo(tipX - inwardX*headSize - perpX*headSize*0.6, tipY - inwardY*headSize - perpY*headSize*0.6);
+    ctx.closePath(); ctx.fillStyle = '#16a34a'; ctx.fill();
+    _flashLabelRects.push({
+      type: 'paintedSide',
+      x: labelX - boxW/2, y: labelY - boxH/2, w: boxW, h: boxH,
+    });
+  }
+
+  // Flash guard label — free-floating, draggable anywhere on the
+  // canvas. Same visual treatment as the painted-side label but in a
+  // distinct orange so the supplier can tell them apart.
+  if (_flashSketchState.flashGuard) {
+    var fg = _flashSketchState.flashGuard;
+    ctx.font = '12px Inter, system-ui, sans-serif';
+    var fgTxt = 'Flash guard', fgTw = ctx.measureText(fgTxt).width;
+    var fgBoxW = fgTw + 16, fgBoxH = 18;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(fg.x - fgBoxW/2, fg.y - fgBoxH/2, fgBoxW, fgBoxH);
+    ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 1.2;
+    ctx.strokeRect(fg.x - fgBoxW/2, fg.y - fgBoxH/2, fgBoxW, fgBoxH);
+    ctx.fillStyle = '#ea580c';
+    ctx.fillText(fgTxt, fg.x - fgTw/2, fg.y + 4);
+    _flashLabelRects.push({
+      type: 'flashGuard',
+      x: fg.x - fgBoxW/2, y: fg.y - fgBoxH/2, w: fgBoxW, h: fgBoxH,
+    });
+  }
 }
-function closeFlashSketch(){ document.getElementById('flashSketchModal').style.display = 'none'; }
+
+// Hit-test the cached label rects from the last redraw. Returns the
+// topmost label whose rect contains (px, py), or null.
+function _flashHitLabel(px, py){
+  for (var i = _flashLabelRects.length - 1; i >= 0; i--) {
+    var r = _flashLabelRects[i];
+    if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) return r;
+  }
+  return null;
+}
+// Reads the canonical "current position" for a draggable label so we
+// can drag-by-offset from where the user grabbed.
+function _flashLabelGetPos(hit){
+  if (hit.type === 'measurement') {
+    var off = hit.polyline.measurementOffsets && hit.polyline.measurementOffsets[hit.segmentIdx];
+    return { x: (off && off[0]) || 0, y: (off && off[1]) || 0 };
+  }
+  if (hit.type === 'paintedSide') {
+    var ps = _flashSketchState.paintedSide;
+    return { x: ps.x + ps.dirX * 46, y: ps.y + ps.dirY * 46 };
+  }
+  if (hit.type === 'flashGuard') {
+    return { x: _flashSketchState.flashGuard.x, y: _flashSketchState.flashGuard.y };
+  }
+  return { x: 0, y: 0 };
+}
+function _flashLabelSetPos(hit, nx, ny){
+  if (hit.type === 'measurement') {
+    if (!hit.polyline.measurementOffsets) hit.polyline.measurementOffsets = {};
+    hit.polyline.measurementOffsets[hit.segmentIdx] = [nx, ny];
+  } else if (hit.type === 'paintedSide') {
+    // Keep the arrow tip anchored where it was; move the label by
+    // updating ps.x/ps.y so x+dirX*46, y+dirY*46 lands at (nx, ny).
+    var ps = _flashSketchState.paintedSide;
+    ps.x = nx - ps.dirX * 46;
+    ps.y = ny - ps.dirY * 46;
+  } else if (hit.type === 'flashGuard') {
+    _flashSketchState.flashGuard.x = nx;
+    _flashSketchState.flashGuard.y = ny;
+  }
+}
+
+// ── Tools ───────────────────────────────────────────────
 function setFlashTool(t){
   _flashSketchState.tool = t;
-  document.getElementById('flashToolPen').classList.toggle('active-tool', t==='pen');
-  document.getElementById('flashToolEraser').classList.toggle('active-tool', t==='eraser');
+  ['draw','measure','paint','flashguard'].forEach(function(name){
+    var btn = document.getElementById('flashTool' + name.charAt(0).toUpperCase() + name.slice(1));
+    if (btn) btn.classList.toggle('active-tool', t === name);
+  });
+  var c = document.getElementById('flashCanvas');
+  if (c) c.style.cursor = (t === 'measure' || t === 'paint' || t === 'flashguard') ? 'pointer' : 'crosshair';
+  // Cancel any in-progress polyline when leaving draw mode so a measure
+  // click doesn't end up adding a vertex back in draw mode.
+  if (t !== 'draw' && _flashSketchState.currentPolyline) {
+    finishFlashPolyline(true);
+  }
 }
+
+function finishFlashPolyline(silent){
+  var cur = _flashSketchState.currentPolyline;
+  if (!cur || cur.vertices.length < 2) {
+    _flashSketchState.currentPolyline = null;
+    _redrawFlashCanvas();
+    return;
+  }
+  _pushFlashHistory();
+  _flashSketchState.polylines.push(cur);
+  _flashSketchState.currentPolyline = null;
+  _redrawFlashCanvas();
+  _updateFlashStats();
+}
+
 function clearFlashCanvas(){
-  var c = document.getElementById('flashCanvas'); var ctx = c.getContext('2d');
-  ctx.clearRect(0,0,c.width,c.height);
+  // Snapshot first so Undo can recover the cleared sketch.
+  _flashSketchState.history.push(_snapshotFlashState());
+  if (_flashSketchState.history.length > 80) _flashSketchState.history.shift();
+  _flashSketchState.future = [];
+  // Manual wipe (don't call _resetFlashState — that nukes the history too).
+  _flashSketchState.polylines = [];
+  _flashSketchState.currentPolyline = null;
+  _flashSketchState.paintedSide = null;
+  _flashSketchState.flashGuards = false;
+  _flashSketchState.mousePos = null;
+  var t = document.getElementById('flashGuardsToggle'); if (t) t.checked = false;
+  _redrawFlashCanvas();
+  _updateFlashStats();
+  _refreshFlashUndoRedoBtns();
 }
+
+function _onFlashGuardsToggle(){
+  _pushFlashHistory();
+  _flashSketchState.flashGuards = !!document.getElementById('flashGuardsToggle').checked;
+}
+
+// ── Coordinate helpers ─────────────────────────────────
+function _flashCanvasPt(e){
+  var c = document.getElementById('flashCanvas');
+  var r = c.getBoundingClientRect();
+  var sx = c.width / r.width, sy = c.height / r.height;
+  var t = (e.touches && e.touches[0]) || e;
+  return { x:(t.clientX - r.left)*sx, y:(t.clientY - r.top)*sy };
+}
+function _segDist(px, py, a, b){
+  var dx = b[0]-a[0], dy = b[1]-a[1];
+  var l2 = dx*dx + dy*dy;
+  if (l2 === 0) return Math.hypot(px-a[0], py-a[1]);
+  var t = Math.max(0, Math.min(1, ((px-a[0])*dx + (py-a[1])*dy) / l2));
+  var qx = a[0] + t*dx, qy = a[1] + t*dy;
+  return Math.hypot(px-qx, py-qy);
+}
+function _closestSegmentTo(px, py){
+  var best = null, bestD = Infinity;
+  _allFlashPolylines().forEach(function(p, pi){
+    for (var i = 0; i < p.vertices.length - 1; i++) {
+      var d = _segDist(px, py, p.vertices[i], p.vertices[i+1]);
+      if (d < bestD) { bestD = d; best = { polyline: p, segmentIdx: i, dist: d, a: p.vertices[i], b: p.vertices[i+1] }; }
+    }
+  });
+  return best;
+}
+
+// ── Click handler ──────────────────────────────────────
+function _onFlashCanvasClick(p){
+  if (_flashSketchState.tool === 'draw') {
+    _pushFlashHistory();
+    if (!_flashSketchState.currentPolyline) {
+      _flashSketchState.currentPolyline = { vertices: [[p.x, p.y]], measurements: {} };
+    } else {
+      _flashSketchState.currentPolyline.vertices.push([p.x, p.y]);
+    }
+    _redrawFlashCanvas();
+    _updateFlashStats();
+  } else if (_flashSketchState.tool === 'measure') {
+    var hit = _closestSegmentTo(p.x, p.y);
+    if (!hit || hit.dist > 18) return;
+    var cur = hit.polyline.measurements[hit.segmentIdx];
+    var val = window.prompt('Length of this segment (mm):', cur != null ? cur : '');
+    if (val == null) return;
+    val = String(val).trim();
+    _pushFlashHistory();
+    if (val === '') {
+      delete hit.polyline.measurements[hit.segmentIdx];
+    } else {
+      var num = parseFloat(val);
+      if (!isNaN(num) && num > 0) hit.polyline.measurements[hit.segmentIdx] = Math.round(num);
+    }
+    _redrawFlashCanvas();
+    _updateFlashStats();
+  } else if (_flashSketchState.tool === 'paint') {
+    // Place the painted-side arrow. Direction is perpendicular to the
+    // nearest segment, pointing AWAY from the polyline (toward the
+    // click side). If no segments, point up.
+    var hit = _closestSegmentTo(p.x, p.y);
+    _pushFlashHistory();
+    if (!hit) {
+      _flashSketchState.paintedSide = { x: p.x, y: p.y, dirX: 0, dirY: -1 };
+    } else {
+      var dx = hit.b[0]-hit.a[0], dy = hit.b[1]-hit.a[1];
+      var len = Math.hypot(dx, dy) || 1;
+      // Two possible perpendiculars; pick the one that points TOWARD the click.
+      var perpX = -dy/len, perpY = dx/len;
+      var mx = (hit.a[0]+hit.b[0])/2, my = (hit.a[1]+hit.b[1])/2;
+      var clickOffset = (p.x - mx) * perpX + (p.y - my) * perpY;
+      if (clickOffset < 0) { perpX = -perpX; perpY = -perpY; }
+      _flashSketchState.paintedSide = { x: mx, y: my, dirX: perpX, dirY: perpY };
+    }
+    _redrawFlashCanvas();
+  } else if (_flashSketchState.tool === 'flashguard') {
+    // Drop the Flash guard label at the click position. From here it's
+    // free-floating — drag it anywhere on the canvas in any tool mode.
+    _pushFlashHistory();
+    _flashSketchState.flashGuard = { x: p.x, y: p.y };
+    _redrawFlashCanvas();
+  }
+}
+
+function _onFlashCanvasMouseMove(p){
+  _flashSketchState.mousePos = [p.x, p.y];
+  if (_flashSketchState.tool === 'draw' && _flashSketchState.currentPolyline) {
+    _redrawFlashCanvas();
+  }
+}
+
+function _onFlashKey(e){
+  if (document.getElementById('flashSketchModal').style.display !== 'flex') return;
+  // Don't capture Enter if the focus is on an input/select (let them
+  // submit/blur naturally; the modal Save button is separate).
+  var ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.tagName === 'TEXTAREA')) return;
+  if (e.key === 'Enter') { e.preventDefault(); finishFlashPolyline(); }
+  else if (e.key === 'Escape') {
+    if (_flashSketchState.currentPolyline) {
+      _pushFlashHistory();
+      _flashSketchState.currentPolyline = null;
+      _redrawFlashCanvas();
+      _updateFlashStats();
+    }
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    if (e.shiftKey) redoFlashSketch(); else undoFlashSketch();
+  }
+}
+function openFlashSketch(idx){
+  _flashSketchState.idx = idx;
+  _flashSketchState.mode = 'order';
+  document.getElementById('flashMetaRow').style.display = 'none';
+  document.getElementById('flashSketchTitle').textContent = 'Flashing #'+(idx+1);
+  _resetFlashState();
+  // Restore prior polylines if any (preferred), else legacy raster sketch
+  var f = S.order.flashings[idx];
+  if (f && f.polylines && f.polylines.length) {
+    _flashSketchState.polylines = f.polylines.map(function(p){
+      return { vertices: p.vertices.map(function(v){return v.slice();}),
+               measurements: Object.assign({}, p.measurements||{}) };
+    });
+    _flashSketchState.paintedSide = f.paintedSide || null;
+    _flashSketchState.flashGuards = !!f.flashGuards;
+    var t = document.getElementById('flashGuardsToggle'); if (t) t.checked = !!f.flashGuards;
+  }
+  setFlashTool('draw');
+  _redrawFlashCanvas();
+  _updateFlashStats();
+  document.getElementById('flashSketchModal').style.display = 'flex';
+}
+
+// Open the sketch modal in LIBRARY mode — edits an entry on
+// S.settings.materials_catalog.savedFlashings. idx === -1 creates new.
+function openFlashEditModal(libIdx){
+  _flashSketchState.idx  = libIdx;
+  _flashSketchState.mode = 'library';
+  var lib = _getSavedFlashings();
+  var entry = (libIdx >= 0) ? lib[libIdx] : null;
+  document.getElementById('flashMetaRow').style.display = 'flex';
+  document.getElementById('flashSketchTitle').textContent = entry ? ('Editing — ' + (entry.name || 'Untitled')) : 'New flashing';
+  document.getElementById('flashMetaName').value    = entry ? (entry.name || '') : '';
+  document.getElementById('flashMetaProfile').value = entry ? (entry.profile || 'any') : 'any';
+  document.getElementById('flashMetaType').value    = entry ? (entry.flashingType || 'custom') : 'custom';
+  _resetFlashState();
+  if (entry && entry.polylines && entry.polylines.length) {
+    _flashSketchState.polylines = entry.polylines.map(function(p){
+      return { vertices: p.vertices.map(function(v){return v.slice();}),
+               measurements: Object.assign({}, p.measurements||{}) };
+    });
+    _flashSketchState.paintedSide = entry.paintedSide || null;
+    _flashSketchState.flashGuards = !!entry.flashGuards;
+    var t = document.getElementById('flashGuardsToggle'); if (t) t.checked = !!entry.flashGuards;
+  }
+  setFlashTool('draw');
+  _redrawFlashCanvas();
+  _updateFlashStats();
+  document.getElementById('flashSketchModal').style.display = 'flex';
+}
+
+function closeFlashSketch(){ document.getElementById('flashSketchModal').style.display = 'none'; }
+
 function saveFlashSketch(){
   var c = document.getElementById('flashCanvas');
+  // Re-render WITHOUT the rubber-band before grabbing the data URL
+  _flashSketchState.mousePos = null;
+  _redrawFlashCanvas();
   var url = c.toDataURL('image/png');
+  var stats = _computeFlashStats();
+  var polylinesSnapshot = _flashSketchState.polylines.map(function(p){
+    return { vertices: p.vertices.map(function(v){return v.slice();}),
+             measurements: Object.assign({}, p.measurements) };
+  });
+
+  // Library mode
+  if (_flashSketchState.mode === 'library') {
+    var name = (document.getElementById('flashMetaName').value || '').trim();
+    if (!name) { alert('Give this flashing a name first.'); return; }
+    var profile      = document.getElementById('flashMetaProfile').value || 'any';
+    var flashingType = document.getElementById('flashMetaType').value || 'custom';
+    var lib = _getSavedFlashings();
+    var idx = _flashSketchState.idx;
+    var entry = (idx >= 0) ? lib[idx] : null;
+    var payload = {
+      name: name, profile: profile, flashingType: flashingType,
+      sketch: url,
+      polylines: polylinesSnapshot,
+      paintedSide: _flashSketchState.paintedSide,
+      flashGuards: _flashSketchState.flashGuards,
+      girthMm: stats.girth,
+      angleChanges: stats.angleChanges,
+      // legacy compat fields so existing pickers still work
+      type: name, qty: 1, faces: [{label:'Face A',length:''},{label:'Face B',length:''}],
+      lineBreaks: '', notes: ''
+    };
+    if (!entry) {
+      var dup = lib.findIndex(function(x){ return x.name===name && (x.profile||'any')===profile && (x.flashingType||'custom')===flashingType; });
+      if (dup >= 0) lib[dup] = payload; else lib.push(payload);
+    } else {
+      Object.assign(entry, payload);
+    }
+    _updateSavedFlashCount();
+    _persistCatalogSilently();
+    closeFlashSketch();
+    try { renderFlashingLibrary(); } catch(e){}
+    try { if (typeof renderMaterialsCutLists === 'function') renderMaterialsCutLists(); } catch(e){}
+    return;
+  }
+  // Order mode (legacy)
   var idx = _flashSketchState.idx;
-  if (S.order.flashings[idx]) S.order.flashings[idx].sketch = url;
+  if (S.order.flashings[idx]) {
+    S.order.flashings[idx].sketch = url;
+    S.order.flashings[idx].polylines = polylinesSnapshot;
+    S.order.flashings[idx].paintedSide = _flashSketchState.paintedSide;
+    S.order.flashings[idx].flashGuards = _flashSketchState.flashGuards;
+    S.order.flashings[idx].girthMm = stats.girth;
+    S.order.flashings[idx].angleChanges = stats.angleChanges;
+  }
   closeFlashSketch();
   _renderFlashings();
 }
-// Canvas drawing wires up once on DOM-ready.
+
+// ── FLASHING LIBRARY (Settings) ──
+// Renders the grid of saved flashings, filtered by the Profile/Type
+// dropdowns. Each card has Edit + Delete buttons. The +New button at
+// the top of the panel calls openFlashEditModal(-1).
+function renderFlashingLibrary() {
+  var grid = document.getElementById('flashLibraryGrid'); if (!grid) return;
+  var lib = _getSavedFlashings();
+  var fpEl = document.getElementById('flibFilterProfile');
+  var ftEl = document.getElementById('flibFilterType');
+  var fProfile = fpEl ? fpEl.value : '';
+  var fType    = ftEl ? ftEl.value : '';
+  var rows = lib.map(function(e, i){ return {entry: e, idx: i}; }).filter(function(r){
+    if (fProfile && (r.entry.profile || 'any') !== fProfile) return false;
+    if (fType    && (r.entry.flashingType || 'custom') !== fType) return false;
+    return true;
+  });
+  if (!rows.length) {
+    grid.innerHTML = '<div style="text-align:center;padding:32px 16px;color:var(--text2);font-size:13px">'+
+      (lib.length === 0
+        ? 'No saved flashings yet. Click <strong>+ New flashing</strong> above to add one.'
+        : 'No flashings match the current filter.')+
+      '</div>';
+    return;
+  }
+  var typeLabels = { apron:'Apron', barge:'Barge', changepitch:'Change-of-pitch',
+                     valley:'Valley', ridgehip:'Ridge / Hip', gutter:'Gutter', custom:'Custom' };
+  grid.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">'+
+    rows.map(function(r){
+      var e = r.entry;
+      var thumb = e.sketch
+        ? '<img src="'+e.sketch+'" alt="" style="width:100%;height:110px;object-fit:contain;background:#fff;border-bottom:1px solid var(--border);display:block">'
+        : '<div style="width:100%;height:110px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);color:var(--text3);font-size:11px;border-bottom:1px solid var(--border)">No sketch</div>';
+      return '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">'+
+        thumb +
+        '<div style="padding:10px 12px">'+
+          '<div style="font-size:13px;font-weight:600;color:#0a1628;margin-bottom:4px">'+esc(e.name||'Untitled')+'</div>'+
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
+            '<span style="font-size:10px;background:#f4f4ef;color:#374151;padding:2px 7px;border-radius:10px;font-weight:600">'+esc(e.profile||'any')+'</span>'+
+            '<span style="font-size:10px;background:#e0f2fe;color:#075985;padding:2px 7px;border-radius:10px;font-weight:600">'+esc(typeLabels[e.flashingType] || 'Custom')+'</span>'+
+          '</div>'+
+          '<div style="display:flex;gap:6px">'+
+            '<button onclick="openFlashEditModal('+r.idx+')" class="tool-btn" style="flex:1;font-size:11px;padding:6px 8px">Edit</button>'+
+            '<button onclick="deleteFlashingLibraryEntry('+r.idx+')" class="tool-btn" style="font-size:11px;padding:6px 10px;color:#b91c1c">Delete</button>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    }).join('') + '</div>';
+}
+
+function deleteFlashingLibraryEntry(idx) {
+  var lib = _getSavedFlashings();
+  if (!lib[idx]) return;
+  if (!confirm('Delete "'+(lib[idx].name||'Untitled')+'" from your flashing library?')) return;
+  lib.splice(idx, 1);
+  _updateSavedFlashCount();
+  _persistCatalogSilently();
+  renderFlashingLibrary();
+}
+// Canvas events. Mousedown checks for a label hit and, if found,
+// begins a drag — moves the label around until mouseup. Otherwise
+// the down/up pair is treated as a click and routed through the
+// tool's normal action (place vertex, place painted side, etc.).
+// Touch is wired the same way.
 (function(){
   function _init(){
     var c = document.getElementById('flashCanvas'); if (!c) return;
-    var ctx = c.getContext('2d'); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    function _pt(e){
-      var r = c.getBoundingClientRect();
-      var sx = c.width / r.width, sy = c.height / r.height;
-      var t = (e.touches && e.touches[0]) || e;
-      return { x:(t.clientX - r.left)*sx, y:(t.clientY - r.top)*sy };
-    }
-    function _down(e){ e.preventDefault(); _flashSketchState.drawing = true; _flashSketchState.last = _pt(e); }
-    function _move(e){
-      if (!_flashSketchState.drawing) return; e.preventDefault();
-      var p = _pt(e);
-      var w = +document.getElementById('flashStroke').value || 2;
-      ctx.lineWidth = (_flashSketchState.tool === 'eraser') ? w*6 : w;
-      ctx.strokeStyle = (_flashSketchState.tool === 'eraser') ? '#fff' : '#0a1628';
-      ctx.beginPath();
-      ctx.moveTo(_flashSketchState.last.x, _flashSketchState.last.y);
-      ctx.lineTo(p.x, p.y);
-      ctx.stroke();
-      _flashSketchState.last = p;
-    }
-    function _up(){ _flashSketchState.drawing = false; }
-    c.addEventListener('mousedown', _down);
-    c.addEventListener('mousemove', _move);
-    window.addEventListener('mouseup', _up);
-    c.addEventListener('touchstart', _down, {passive:false});
-    c.addEventListener('touchmove',  _move, {passive:false});
-    c.addEventListener('touchend',   _up);
+    c.addEventListener('mousedown', function(e){
+      e.preventDefault();
+      var p = _flashCanvasPt(e);
+      var hit = _flashHitLabel(p.x, p.y);
+      if (hit) {
+        _pushFlashHistory();   // snapshot so an undo restores the previous label position
+        var pos = _flashLabelGetPos(hit);
+        _flashSketchState.dragInfo = { hit: hit, mx: p.x, my: p.y, px: pos.x, py: pos.y, moved: false };
+        _flashSketchState.pressStart = null;
+      } else {
+        _flashSketchState.pressStart = p;
+      }
+    });
+    c.addEventListener('mousemove', function(e){
+      var p = _flashCanvasPt(e);
+      var di = _flashSketchState.dragInfo;
+      if (di) {
+        var nx = di.px + (p.x - di.mx);
+        var ny = di.py + (p.y - di.my);
+        _flashLabelSetPos(di.hit, nx, ny);
+        di.moved = true;
+        _redrawFlashCanvas();
+        return;
+      }
+      _onFlashCanvasMouseMove(p);
+    });
+    window.addEventListener('mouseup', function(e){
+      if (_flashSketchState.dragInfo) {
+        // Drop without moving — pop the history snapshot we pushed on
+        // mousedown so an accidental click-on-label doesn't count as
+        // an undoable action.
+        if (!_flashSketchState.dragInfo.moved) {
+          _flashSketchState.history.pop();
+          _refreshFlashUndoRedoBtns();
+        }
+        _flashSketchState.dragInfo = null;
+        _redrawFlashCanvas();
+        return;
+      }
+      var ps = _flashSketchState.pressStart;
+      if (ps) {
+        _flashSketchState.pressStart = null;
+        var p = _flashCanvasPt(e);
+        if (Math.hypot(p.x - ps.x, p.y - ps.y) < 5) {
+          _onFlashCanvasClick(ps);
+        }
+      }
+    });
+    c.addEventListener('mouseleave', function(){
+      _flashSketchState.mousePos = null;
+      if (_flashSketchState.tool === 'draw' && _flashSketchState.currentPolyline) _redrawFlashCanvas();
+    });
+    // Touch mirrors mouse: down hit-tests, move drags or hovers, end commits.
+    c.addEventListener('touchstart', function(e){
+      e.preventDefault();
+      var p = _flashCanvasPt(e);
+      var hit = _flashHitLabel(p.x, p.y);
+      if (hit) {
+        _pushFlashHistory();
+        var pos = _flashLabelGetPos(hit);
+        _flashSketchState.dragInfo = { hit: hit, mx: p.x, my: p.y, px: pos.x, py: pos.y, moved: false };
+        _flashSketchState.pressStart = null;
+      } else {
+        _flashSketchState.pressStart = p;
+        _onFlashCanvasMouseMove(p);
+      }
+    }, { passive: false });
+    c.addEventListener('touchmove', function(e){
+      e.preventDefault();
+      var p = _flashCanvasPt(e);
+      var di = _flashSketchState.dragInfo;
+      if (di) {
+        _flashLabelSetPos(di.hit, di.px + (p.x - di.mx), di.py + (p.y - di.my));
+        di.moved = true;
+        _redrawFlashCanvas();
+      } else {
+        _onFlashCanvasMouseMove(p);
+      }
+    }, { passive: false });
+    c.addEventListener('touchend', function(e){
+      e.preventDefault();
+      if (_flashSketchState.dragInfo) {
+        if (!_flashSketchState.dragInfo.moved) {
+          _flashSketchState.history.pop();
+          _refreshFlashUndoRedoBtns();
+        }
+        _flashSketchState.dragInfo = null;
+        _redrawFlashCanvas();
+        return;
+      }
+      if (_flashSketchState.pressStart) {
+        _onFlashCanvasClick(_flashSketchState.pressStart);
+        _flashSketchState.pressStart = null;
+      }
+    });
+    window.addEventListener('keydown', _onFlashKey);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _init);
   else _init();
@@ -8875,6 +9849,7 @@ function useFergusJobInModal(jobId){
   // Mirror the existing Fergus-link state used by the rest of the app
   // so Push to JMS and friends keep working.
   S.linkedJobId   = j.id;
+  S.linkedJobNo   = j.jobNo || j.displayNo || j.id;   // human-readable job number for display
   S.linkedJobName = (j.customer || '') + ' — ' + (j.address || '');
   // Populate the Job Details fields on the Map Roof tab.
   var c = document.getElementById('jobClient'); if (c) c.value = j.customer || j.client || '';
@@ -8923,7 +9898,7 @@ function toggleJobPackInc(ev, el){
 function _formatJobPackCover(){
   var jobNum  = (document.getElementById('jobNum')||{}).value
               || (document.getElementById('orderJobNumber')||{}).value
-              || (S.linkedJobId ? ('Fergus '+S.linkedJobId) : '');
+              || (_fergusDisplayNo() ? ('Fergus '+_fergusDisplayNo()) : '');
   var client  = (document.getElementById('jobClient')||{}).value || '';
   var addr    = (document.getElementById('jobAddr')||{}).value   || '';
   var date    = (document.getElementById('jobDate')||{}).value   || new Date().toLocaleDateString();
@@ -9394,8 +10369,11 @@ async function pushQuoteToJMS(){
       window._lastFergusQuote = qData;
     } catch(e){}
     S.linkedJobId = jobId;
+    // pickedJobLabel often carries the display jobNo already; keep
+    // existing linkedJobNo if we have one, otherwise fall through to id.
+    if (!S.linkedJobNo) S.linkedJobNo = jobId;
     S.linkedJobName = (_jmsState.pickedJobLabel || quoteTitle);
-    say('✓ Pushed to Fergus job #'+jobId+' as a draft quote. Open Fergus to verify — line item details logged to browser console.', '#15803d');
+    say('✓ Pushed to Fergus job #'+(S.linkedJobNo || jobId)+' as a draft quote. Open Fergus to verify — line item details logged to browser console.', '#15803d');
     setTimeout(closeJMSPushModal, 2600);
   } catch(e){
     say('Push failed: ' + e.message, '#b91c1c');
@@ -9672,7 +10650,7 @@ function renderFergJobs(jobs){
       (j.customer ? ' · <strong>' + esc2(j.customer) + '</strong>' : '') +
       (j.address  ? ' · ' + esc2(j.address) : '');
     var displayName = (j.customer || j.title || 'Job') + (j.title && j.customer ? ' — ' + j.title : '');
-    return '<div class="job-card" onclick="selectFergJob(\'' + esc2(String(j.id)) + '\',\'' + esc2(displayName).replace(/\'/g,"\\\'") + '\',this)">' +
+    return '<div class="job-card" onclick="selectFergJob(\'' + esc2(String(j.id)) + '\',\'' + esc2(displayName).replace(/\'/g,"\\\'") + '\',this,\'' + esc2(String(j.displayNo || j.jobNo || j.id)) + '\')">' +
              '<div style="font-weight:600;font-size:13px">' + esc2(j.title || j.customer || 'Job') + '</div>' +
              '<div class="job-card-id">' + line2 + '</div>' +
            '</div>';
@@ -9713,8 +10691,9 @@ function _fergMatches(j, q){
       || (j.title    || '').toLowerCase().indexOf(qLow) >= 0
       || (j.address  || '').toLowerCase().indexOf(qLow) >= 0;
 }
-function selectFergJob(id, name, el){
+function selectFergJob(id, name, el, jobNo){
   S.linkedJobId = id;
+  S.linkedJobNo = jobNo || id;   // display number falls back to internal id if not passed
   S.linkedJobName = name;
   document.querySelectorAll('.job-card').forEach(function(c){ c.classList.remove('sel'); });
   el.classList.add('sel');
@@ -10145,6 +11124,13 @@ function _detectAutoRoofType(){
   });
   if (types.hip || types.valley) return 'hip';
   if (types.ridge) return 'gable';
+  // Mono pitches now auto-generate as gutter + 3 barges (no ridge),
+  // so type-counting can't tell them apart from a raw outline. Fall
+  // back to the user's explicit choice stored on DRAW.roofType — that
+  // gets the regen running during corner drags so old barges don't
+  // pile up at the previous outline positions.
+  if (DRAW.roofType === 'mono')  return 'mono';
+  if (DRAW.roofType === 'dutch') return 'dutch';
   return null;
 }
 
@@ -10165,7 +11151,7 @@ function regenerateAutoRoofLines(roofType){
     if      (roofType === 'hip')   lines = buildHipValleyLines(DRAW.outline);
     else if (roofType === 'gable') lines = (typeof buildGableRoofLines === 'function')      ? buildGableRoofLines(DRAW.outline)      : null;
     else if (roofType === 'dutch') lines = (typeof buildDutchGableRoofLines === 'function') ? buildDutchGableRoofLines(DRAW.outline) : null;
-    else if (roofType === 'mono')  lines = (typeof buildMonoPitchRoofLines === 'function')  ? buildMonoPitchRoofLines(DRAW.outline)  : null;
+    else if (roofType === 'mono')  lines = (typeof buildMonoPitchRoofLines === 'function')  ? buildMonoPitchRoofLines(DRAW.outline, DRAW.rotation || 0) : null;
     if (lines) lines.forEach(function(l){
       DRAW.lines.push({
         type: l.type, pts:[l.pts[0].slice(), l.pts[1].slice()],
@@ -10298,6 +11284,20 @@ function snapOutlineToSquare(){
   var eL = Math.sqrt(ex*ex + ey*ey);
   if (eL < 1) { redrawAll(); return; }
   var ux = ex/eL, uy = ey/eL;   // along longest edge
+  // Snap the primary axis to TRUE horizontal/vertical when the longest
+  // edge is already within ~3° of one. Without this, an outline drawn
+  // along a photo that isn't perfectly oriented (e.g. the user clicked
+  // along the building's natural lines, which sat at +0.5° on the
+  // photo) would Snap Square into a rectangle-in-tilted-space — every
+  // angle now 90° but the whole outline still 0.5° off in image
+  // coords. Downstream geometry (sheet plan hip/ridge classifier,
+  // sheet-length dimension finder, …) is sensitive to that residual
+  // tilt and renders the cut layout as a malformed triangle instead
+  // of two parallel slope rectangles.
+  var ANGLE_SNAP_RAD = 3 * Math.PI / 180;
+  var snapTol = Math.sin(ANGLE_SNAP_RAD);
+  if (Math.abs(uy) <= snapTol)       { ux = ux >= 0 ? 1 : -1; uy = 0; }
+  else if (Math.abs(ux) <= snapTol)  { uy = uy >= 0 ? 1 : -1; ux = 0; }
   var vx = -uy, vy = ux;        // perpendicular
   // 2. Project corners into (u, v) about the first corner.
   var ox = pts[0][0], oy = pts[0][1];
@@ -10947,6 +11947,9 @@ function onCanvasClick(e) {
     return;
   }
   if(DRAW.tool==='select') {
+    // Click the calibration line to re-open the popup and update its
+    // measure without redrawing.
+    if (hitCalibrationLine(xy[0], xy[1])) { editCalibrate(); return; }
     var hitS = hitSection(xy[0],xy[1]);
     var hitL = hitLine(xy[0],xy[1]);
     var hitP = hitPen(xy[0],xy[1]);
@@ -11540,11 +12543,17 @@ function redrawAll() {
   var _t=getImgTransform();
   function dp(pt){var r=_t?imgToCanvas(pt,_t):pt;return [r[0],r[1]];} // draw-point helper
 
-  // ── Inactive-roof outlines (faded background) ────────────────────
-  // Show every other roof's outline + roof lines faintly so the user
-  // can see where they sit relative to the active roof.  The active
-  // roof itself is drawn solid below.
+  // ── Non-active roof outlines ─────────────────────────────────────
+  // Default: every other roof's outline + roof lines render faintly so
+  // the user can see where they sit relative to the active roof.
+  // "Show all" mode (DRAW.showAllRoofs): every non-active roof
+  // renders at FULL opacity + same line styling as the active one, with
+  // labels on every line that has a measurement. Lets the user see all
+  // their roofs side-by-side without flipping tabs.
   if (DRAW.roofs && DRAW.roofs.length > 1) {
+    var _showAll = !!DRAW.showAllRoofs;
+    var _styleFull = { ridge:'#dc2626', valley:'#f59e0b', gutter:'#7c3aed', hip:'#059669', barge:'#7c3aed', apron:'#e11d48', changepitch:'#0ea5e9' };
+    var _styleFade = { ridge:'rgba(220,38,38,0.40)', valley:'rgba(245,158,11,0.40)', gutter:'rgba(124,58,237,0.40)', hip:'rgba(5,150,105,0.40)', barge:'rgba(124,58,237,0.40)', apron:'rgba(225,29,72,0.40)', changepitch:'rgba(14,165,233,0.40)' };
     DRAW.roofs.forEach(function(r, ri){
       if (ri === DRAW.activeRoofIdx) return;
       if (!r || !r.outline || r.outline.length < 3) return;
@@ -11555,37 +12564,51 @@ function redrawAll() {
         if (i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
       });
       ctx.closePath();
-      ctx.fillStyle = 'rgba(180,180,180,0.10)';
+      ctx.fillStyle   = _showAll ? 'rgba(200,230,201,0.25)' : 'rgba(180,180,180,0.10)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(27,94,32,0.45)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = _showAll ? '#1b5e20' : 'rgba(27,94,32,0.45)';
+      ctx.lineWidth   = _showAll ? 1.5 : 1.5;
+      ctx.setLineDash(_showAll ? [] : [6, 4]);
       ctx.stroke();
-      // Inactive roof lines: very light
+      // Roof lines — full styling when showing all, faded otherwise.
       if (r.lines && r.lines.length) {
-        var styleByType = {ridge:'rgba(220,38,38,0.40)', valley:'rgba(245,158,11,0.40)', gutter:'rgba(124,58,237,0.40)', hip:'rgba(5,150,105,0.40)', barge:'rgba(124,58,237,0.40)', apron:'rgba(225,29,72,0.40)'};
+        var styleByType = _showAll ? _styleFull : _styleFade;
         r.lines.forEach(function(l){
           if (!l || !l.pts || l.pts.length < 2) return;
           ctx.beginPath();
           var a = dp(l.pts[0]), b = dp(l.pts[1]);
           ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
-          ctx.strokeStyle = styleByType[l.type] || 'rgba(100,116,139,0.35)';
-          ctx.lineWidth = 1.6;
+          ctx.strokeStyle = styleByType[l.type] || (_showAll ? '#64748b' : 'rgba(100,116,139,0.35)');
+          ctx.lineWidth   = _showAll ? 2 : 1.6;
           ctx.setLineDash(l.type === 'valley' ? [6, 3] : []);
           ctx.stroke();
+          // Measurement label on every line that has one (Show-all only).
+          if (_showAll && l.measM) {
+            ctx.setLineDash([]);
+            var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+            var dxL = b[0]-a[0], dyL = b[1]-a[1];
+            var lenL = Math.sqrt(dxL*dxL + dyL*dyL) || 1;
+            var oxL = -dyL/lenL * 12, oyL = dxL/lenL * 12;
+            var txtL = (+l.measM).toFixed(2) + 'm';
+            ctx.font = '600 11px Inter, -apple-system, sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+            ctx.strokeText(txtL, mx + oxL, my + oyL);
+            ctx.fillStyle = styleByType[l.type] || '#0a1628';
+            ctx.fillText(txtL, mx + oxL, my + oyL);
+          }
         });
       }
-      // Label the inactive roof with its name (centred).
+      // Label the roof with its name (centred).
       var cx = 0, cy = 0;
       r.outline.forEach(function(pt){ cx += pt[0]; cy += pt[1]; });
       cx /= r.outline.length; cy /= r.outline.length;
       var lp = dp([cx, cy]);
       ctx.setLineDash([]);
       ctx.font = 'bold 12px Inter, -apple-system, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(10,22,40,0.40)';
-      ctx.fillText(_nthName(ri + 1), lp[0], lp[1]);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = _showAll ? 'rgba(10,22,40,0.65)' : 'rgba(10,22,40,0.40)';
+      ctx.fillText(r.name || _nthName(ri + 1), lp[0], lp[1]);
       ctx.restore();
     });
   }
@@ -11906,49 +12929,95 @@ function redrawAll() {
       ctx.closePath(); ctx.fill();
     }
     // Pass 1 — collect every valid sheet dimension.
-    var _sheetDims = [];
-    DRAW.lines.forEach(function(rl){
-      if (!rl || rl.type !== 'ridge' || !rl.pts || rl.pts.length !== 2) return;
-      var ra = rl.pts[0], rb = rl.pts[1];
-      var rdx = rb[0]-ra[0], rdy = rb[1]-ra[1];
-      var rL  = Math.sqrt(rdx*rdx + rdy*rdy);
-      if (rL < 8) return;
-      var rux = rdx/rL, ruy = rdy/rL;          // along the ridge
-      var ppx = -ruy, ppy = rux;               // perpendicular to the ridge
-      var rmx = (ra[0]+rb[0])/2, rmy = (ra[1]+rb[1])/2;
-      var rAng = Math.atan2(rdy, rdx);
-      [1, -1].forEach(function(sgn){
-        var dx = ppx*sgn, dy = ppy*sgn;        // outward slope normal
-        var bestPerp = Infinity, bestG = null;
-        _gutters.forEach(function(g){
-          var ga = g.pts[0], gb = g.pts[1];
-          var gdx = gb[0]-ga[0], gdy = gb[1]-ga[1];
-          var gL = Math.sqrt(gdx*gdx + gdy*gdy);
-          if (gL < 4) return;
-          var diff = Math.atan2(gdy, gdx) - rAng;
-          diff = diff - Math.round(diff/Math.PI)*Math.PI;   // mod pi
-          if (Math.abs(diff) > 0.25) return;                // not parallel
-          var gmx = (ga[0]+gb[0])/2, gmy = (ga[1]+gb[1])/2;
-          var perp = (gmx-rmx)*dx + (gmy-rmy)*dy;            // distance on this side
-          if (perp <= 4) return;
-          var g0 = (ga[0]-rmx)*rux + (ga[1]-rmy)*ruy;
-          var g1 = (gb[0]-rmx)*rux + (gb[1]-rmy)*ruy;
-          if (Math.max(g0,g1) < -0.55*rL || Math.min(g0,g1) > 0.55*rL) return;  // no span overlap
-          if (_crossesAnotherRoofLine([rmx,rmy], [gmx,gmy], rl)) return;
-          if (perp < bestPerp) { bestPerp = perp; bestG = g; }
+    // Processes not just ridges but also mono-pitch HIGH-SIDES (barge
+    // / apron / change-of-pitch lines that have a parallel gutter on
+    // one side — they're the ridge-equivalent on a mono-pitch face).
+    // When Show-all is on, also walks every non-active roof's lines
+    // + outline so all roofs' sheet-length dimensions render at once.
+    function _pointInPoly(px, py, poly){
+      var inside = false, j = poly.length - 1;
+      for (var i = 0; i < poly.length; i++){
+        var xi = poly[i][0], yi = poly[i][1];
+        var xj = poly[j][0], yj = poly[j][1];
+        if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi + 1e-9) + xi)) inside = !inside;
+        j = i;
+      }
+      return inside;
+    }
+    function _collectSheetDimsFor(outline, lines, sink){
+      if (!outline || outline.length < 3 || !lines || !lines.length) return;
+      var gutters = lines.filter(function(g){ return g && g.type === 'gutter' && g.pts && g.pts.length === 2; });
+      if (!gutters.length) return;
+      lines.forEach(function(rl){
+        if (!rl || !rl.pts || rl.pts.length !== 2) return;
+        var t = rl.type;
+        if (t !== 'ridge' && t !== 'barge' && t !== 'apron' && t !== 'changepitch') return;
+        var ra = rl.pts[0], rb = rl.pts[1];
+        var rdx = rb[0]-ra[0], rdy = rb[1]-ra[1];
+        var rL  = Math.sqrt(rdx*rdx + rdy*rdy);
+        if (rL < 8) return;
+        var rux = rdx/rL, ruy = rdy/rL;
+        var ppx = -ruy, ppy = rux;
+        var rmx = (ra[0]+rb[0])/2, rmy = (ra[1]+rb[1])/2;
+        var rAng = Math.atan2(rdy, rdx);
+        [1, -1].forEach(function(sgn){
+          var dx = ppx*sgn, dy = ppy*sgn;
+          var bestPerp = Infinity, bestG = null;
+          gutters.forEach(function(g){
+            var ga = g.pts[0], gb = g.pts[1];
+            var gdx = gb[0]-ga[0], gdy = gb[1]-ga[1];
+            var gL = Math.sqrt(gdx*gdx + gdy*gdy);
+            if (gL < 4) return;
+            var diff = Math.atan2(gdy, gdx) - rAng;
+            diff = diff - Math.round(diff/Math.PI)*Math.PI;
+            if (Math.abs(diff) > 0.25) return;
+            var gmx = (ga[0]+gb[0])/2, gmy = (ga[1]+gb[1])/2;
+            var perp = (gmx-rmx)*dx + (gmy-rmy)*dy;
+            if (perp <= 4) return;
+            var g0 = (ga[0]-rmx)*rux + (ga[1]-rmy)*ruy;
+            var g1 = (gb[0]-rmx)*rux + (gb[1]-rmy)*ruy;
+            if (Math.max(g0,g1) < -0.55*rL || Math.min(g0,g1) > 0.55*rL) return;
+            // Cross-line filter only valid against the current roof's
+            // own lines; harmless to skip it for non-active roofs.
+            if (lines === DRAW.lines && _crossesAnotherRoofLine([rmx,rmy], [gmx,gmy], rl)) return;
+            if (perp < bestPerp) { bestPerp = perp; bestG = g; }
+          });
+          if (!bestG || !isFinite(bestPerp)) return;
+          var endImgX = rmx + dx*bestPerp, endImgY = rmy + dy*bestPerp;
+          var lblImgX = rmx + dx*bestPerp*0.5, lblImgY = rmy + dy*bestPerp*0.5;
+          if (!_pointInPoly(lblImgX, lblImgY, outline)) return;
+          var autoSheetM = bestPerp * (DRAW.scaleMetresPerPx || 0) * _pitchF;
+          var key = _sheetDimKey(rl, dx, dy);
+          var ov  = (DRAW.sheetOverrides && DRAW.sheetOverrides[key]);
+          var sheetM = (ov != null && isFinite(ov) && ov > 0) ? ov : autoSheetM;
+          var isOverride = (ov != null && isFinite(ov) && ov > 0);
+          var sR = dp([rmx, rmy]), sE = dp([endImgX, endImgY]), sL = dp([lblImgX, lblImgY]);
+          var sdx = sE[0]-sR[0], sdy = sE[1]-sR[1];
+          var sdl = Math.sqrt(sdx*sdx + sdy*sdy);
+          if (sdl < 1) return;
+          sink.push({
+            lblX: sL[0], lblY: sL[1],
+            lblImgX: lblImgX, lblImgY: lblImgY,
+            ndx: sdx/sdl, ndy: sdy/sdl, sdl: sdl,
+            label: sheetM.toFixed(2) + 'm',
+            key: key,
+            isOverride: isOverride,
+          });
         });
-        if (!bestG || !isFinite(bestPerp)) return;
-        var endImgX = rmx + dx*bestPerp, endImgY = rmy + dy*bestPerp;       // foot on the gutter
-        var lblImgX = rmx + dx*bestPerp*0.5, lblImgY = rmy + dy*bestPerp*0.5;
-        if (!_pointInOutline(lblImgX, lblImgY)) return;
-        var sheetM = bestPerp * DRAW.scaleMetresPerPx * _pitchF;
-        var sR = dp([rmx, rmy]), sE = dp([endImgX, endImgY]), sL = dp([lblImgX, lblImgY]);
-        var sdx = sE[0]-sR[0], sdy = sE[1]-sR[1];
-        var sdl = Math.sqrt(sdx*sdx + sdy*sdy);
-        if (sdl < 1) return;
-        _sheetDims.push({ lblX: sL[0], lblY: sL[1], ndx: sdx/sdl, ndy: sdy/sdl, sdl: sdl, label: sheetM.toFixed(2) + 'm' });
       });
-    });
+    }
+    var _sheetDims = [];
+    // Active roof — same as before.
+    _collectSheetDimsFor(DRAW.outline, DRAW.lines, _sheetDims);
+    // Show-all: also collect from every non-active roof so their
+    // sheet-length labels are visible at the same time.
+    if (DRAW.showAllRoofs && DRAW.roofs && DRAW.roofs.length > 1) {
+      DRAW.roofs.forEach(function(r, ri){
+        if (ri === DRAW.activeRoofIdx) return;
+        if (!r || !r.outline || !r.lines) return;
+        _collectSheetDimsFor(r.outline, r.lines, _sheetDims);
+      });
+    }
     // Pass 2 — draw, scaling font + arrows to each dim's length relative
     // to the longest sheet so every label keeps the same size:length feel.
     var _maxSdl = 1;
@@ -12839,6 +13908,21 @@ function showCalibratePopup(pixelDist) {
   if(pixelDist) setTimeout(function(){ document.getElementById('calRealInput').focus(); }, 80);
 }
 
+// Stable identifier for a sheet-length dimension — survives endpoint
+// swaps + small jitter. Combines the canonical ridge endpoints (smaller
+// first) with the side direction in canonical perpendicular frame.
+function _sheetDimKey(ridge, perpX, perpY) {
+  if (!ridge || !ridge.pts || ridge.pts.length < 2) return '';
+  var a = ridge.pts[0], b = ridge.pts[1];
+  var sa = (a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])) ? a : b;
+  var sb = (sa === a) ? b : a;
+  var dx = sb[0] - sa[0], dy = sb[1] - sa[1];
+  var L  = Math.sqrt(dx*dx + dy*dy) || 1;
+  var canPerpX = -dy/L, canPerpY = dx/L;
+  var side = (perpX*canPerpX + perpY*canPerpY) > 0 ? 'A' : 'B';
+  return Math.round(sa[0])+','+Math.round(sa[1])+'_'+Math.round(sb[0])+','+Math.round(sb[1])+'_'+side;
+}
+
 function openCalPopupForDrawing() {
   // Show popup immediately when calibrate tool is selected, before line is drawn
   document.getElementById('calPixelInfo').textContent = 'Click two points on the photo that you know the real distance of (e.g. a wall edge, road width, property boundary).';
@@ -12848,6 +13932,53 @@ function openCalPopupForDrawing() {
   document.getElementById('calScaleInfo').style.display = 'none';
   document.getElementById('calPopup').style.display = 'block';
   document.getElementById('calOverlay').style.display = 'block';
+}
+
+// Reopen the calibrate popup with the EXISTING measurement pre-filled,
+// so clicking the on-canvas calibration line lets the user just update
+// the metres without redrawing the line. Triggered by hitCalibrationLine
+// in onCanvasClick (select tool).
+function editCalibrate() {
+  if (!DRAW.calibratePts || !DRAW.calibratePixels) return;
+  // Prefer the EXACT values the user typed at calibration time
+  // (saved on DRAW.calRealM / DRAW.calPitchAtCal). Falls back to a
+  // reverse-computed value for calibrations done before this fix
+  // landed — those records won't have calRealM set yet.
+  var existing = '';
+  var pitchVal = DRAW.calPitchAtCal != null ? DRAW.calPitchAtCal : (DRAW.calPitch || 0);
+  if (DRAW.calRealM != null && isFinite(DRAW.calRealM) && DRAW.calRealM > 0) {
+    existing = (+DRAW.calRealM).toFixed(3).replace(/\.?0+$/, '');
+  } else if (DRAW.scaleMetresPerPx > 0) {
+    var planM   = DRAW.scaleMetresPerPx * DRAW.calibratePixels;
+    var measT   = DRAW.calMeasType || 'flat';
+    var pitchUsed = pitchVal;
+    var realM   = (measT === 'pitched' && pitchUsed > 0 && pitchUsed < 80)
+      ? planM / Math.cos(pitchUsed * Math.PI / 180)
+      : planM;
+    existing = realM.toFixed(3);
+  }
+  document.getElementById('calPixelInfo').textContent =
+    'Edit calibration — current line: ' + Math.round(DRAW.calibratePixels) +
+    ' pixels. Update the real-world length below.';
+  document.getElementById('calRealInput').value = existing;
+  document.getElementById('calPitchInput').value = pitchVal || '';
+  _restoreCalMeasType();
+  document.getElementById('calScaleInfo').style.display = 'none';
+  document.getElementById('calPopup').style.display = 'block';
+  document.getElementById('calOverlay').style.display = 'block';
+  setTimeout(function(){
+    var inp = document.getElementById('calRealInput');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 80);
+}
+
+// Hit-test the calibration line — same tolerance as hitLine. Returns
+// true if (x,y) lands on the calibrate segment.
+function hitCalibrationLine(x, y) {
+  if (!DRAW.calibratePts || DRAW.calibratePts.length < 2) return false;
+  var t = (typeof getImgTransform === 'function') ? getImgTransform() : null;
+  var thresh = Math.max(10, t ? 10/t.s : 10);
+  return distSeg(x, y, DRAW.calibratePts[0], DRAW.calibratePts[1]) < thresh;
 }
 
 function confirmCalibrate() {
@@ -12869,6 +14000,12 @@ function confirmCalibrate() {
   DRAW.scaleMetresPerPx = planM / DRAW.calibratePixels;
   DRAW.calMeasType = measType;
   DRAW.calPitch = pitch;
+  // Save the EXACT values the user typed so editing the calibration
+  // later shows the original number instead of a reverse-computed one
+  // (which drifts whenever DRAW.calPitch is later overwritten by
+  // photo-analysis or any other auto-pitch source).
+  DRAW.calRealM       = realM;
+  DRAW.calPitchAtCal  = pitch;
   if(pitch>0) {
     var el=document.getElementById('pitchDeg'); if(el) el.value=pitch;
     var el2=document.getElementById('editPitch'); if(el2) el2.value=pitch;
@@ -13151,10 +14288,41 @@ function hideTip() {
 // ── MATERIALS FROM LINES ─────────────────────────────────────────
 // Compute the drawing totals (roof area, per-line-type linear metres,
 // pitch). Pure — no DOM writes — so other renderers can reuse it.
-function _matDrawTotals() {
+// Which roof indices the Materials tab's summary + cut lists cover.
+// Default: every roof. Persisted in localStorage so an unchecked roof
+// stays out across refreshes.
+function _matSelectedRoofIndices() {
+  if (!DRAW.roofs || DRAW.roofs.length === 0) return [-1]; // sentinel for no-multi mode
+  var all = DRAW.roofs.map(function(_, i){ return i; });
+  var saved = localStorage.getItem('fr_mat_selected_roofs');
+  if (!saved) return all;
+  try {
+    var arr = JSON.parse(saved);
+    if (!Array.isArray(arr) || arr.length === 0) return all;
+    var filtered = arr.filter(function(i){ return i >= 0 && i < DRAW.roofs.length; });
+    return filtered.length ? filtered : all;
+  } catch(e) { return all; }
+}
+function _matSetSelectedRoofs(arr) {
+  localStorage.setItem('fr_mat_selected_roofs', JSON.stringify(arr));
+}
+// Iterate the user's selected roofs (or just the current roof if
+// there's no multi-roof archive yet). Loads each roof's snapshot into
+// DRAW so the existing single-roof primitives (_matDrawTotalsForCurrent,
+// _matBuildCutList) just work, then restores the active roof at the end.
+function _matEachSelectedRoof(fn) {
+  if (!DRAW.roofs || DRAW.roofs.length === 0) { fn(-1); return; }
+  var indices = _matSelectedRoofIndices();
+  var savedActive = DRAW.activeRoofIdx;
+  _syncCurrentToRoof();
+  indices.forEach(function(idx){ _loadRoofToCurrent(idx); fn(idx); });
+  if (savedActive >= 0 && savedActive < DRAW.roofs.length) _loadRoofToCurrent(savedActive);
+}
+
+// Per-roof primitive — reads the live DRAW state. Multi-roof callers
+// wrap this with _matEachSelectedRoof and aggregate the results.
+function _matDrawTotalsForCurrent() {
   var totals = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
-  var sw = document.getElementById('sheetWidth');
-  var ov = document.getElementById('overlapMm');
   var pd = document.getElementById('pitchDeg');
   var pitch = DRAW.calPitch || (pd ? parseFloat(pd.value)||0 : 0);
   var pitchFactor = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
@@ -13162,7 +14330,7 @@ function _matDrawTotals() {
     if (l.measM && totals[l.type] !== undefined) totals[l.type] += parseFloat(l.measM);
   });
   var roofArea = 0;
-  if (DRAW.scaleMetresPerPx && DRAW.outline.length >= 3) {
+  if (DRAW.scaleMetresPerPx && DRAW.outline && DRAW.outline.length >= 3) {
     var planPx2 = polyAreaPx(DRAW.outline);
     var planM2  = planPx2 * DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx;
     roofArea = planM2 * pitchFactor;
@@ -13177,13 +14345,74 @@ function _matDrawTotals() {
     }
   }
   var ridgeHip = (totals.ridge || 0) + (totals.hip || 0);
-  // "Flashings LM" = all non-gutter flashing types combined.
   var flashingsLm = ridgeHip + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0);
   return { totals: totals, ridgeHip: ridgeHip, flashingsLm: flashingsLm,
            gutterLm: totals.gutter || 0, roofArea: roofArea, pitch: pitch };
 }
 
-// Render the "From your drawing measurements" card as a 3-tile summary:
+// Public: sums totals across every selected roof. Same shape as
+// _matDrawTotalsForCurrent so existing callers (populateMaterialsFromLines,
+// _matRenderConsumables, …) need zero changes.
+function _matDrawTotals() {
+  var sum = { totals: {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0},
+              ridgeHip: 0, flashingsLm: 0, gutterLm: 0, roofArea: 0, pitch: 0 };
+  var maxPitch = 0;
+  _matEachSelectedRoof(function(){
+    var d = _matDrawTotalsForCurrent();
+    Object.keys(d.totals).forEach(function(k){ sum.totals[k] += d.totals[k]||0; });
+    sum.ridgeHip    += d.ridgeHip;
+    sum.flashingsLm += d.flashingsLm;
+    sum.gutterLm    += d.gutterLm;
+    sum.roofArea    += d.roofArea;
+    if (d.pitch > maxPitch) maxPitch = d.pitch;
+  });
+  sum.pitch = maxPitch;
+  return sum;
+}
+
+// Render the roof-selection pill row above the summary tiles. Hidden
+// when only one roof exists (no need for a selector). Each pill is a
+// toggle; ticking/unticking re-renders summary + cut lists live.
+function _matRenderRoofPicker() { _matRenderRoofPickerInto('matRoofPicker'); }
+function _matRenderRoofPickerInto(elId) {
+  var el = document.getElementById(elId); if (!el) return;
+  if (!DRAW.roofs || DRAW.roofs.length < 2) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  var selected = _matSelectedRoofIndices();
+  var selSet = {}; selected.forEach(function(i){ selSet[i] = true; });
+  var allOn = selected.length === DRAW.roofs.length;
+  function pill(label, isOn, onclick) {
+    var bg = isOn ? '#0099cc' : '#fff', fg = isOn ? '#fff' : '#0a1628', border = isOn ? '#0099cc' : 'var(--border)';
+    return '<button onclick="'+onclick+'" style="margin-right:6px;margin-bottom:4px;padding:5px 12px;font-size:11.5px;font-weight:600;background:'+bg+';color:'+fg+';border:1px solid '+border+';border-radius:14px;cursor:pointer">'+esc(label)+'</button>';
+  }
+  var html = '<span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-right:8px">Show:</span>';
+  html += pill('All roofs', allOn, '_matToggleAllRoofs()');
+  DRAW.roofs.forEach(function(r, i){
+    var lbl = r.name || ('Roof ' + (i+1));
+    html += pill(lbl, !!selSet[i], '_matToggleRoof('+i+')');
+  });
+  el.innerHTML = html;
+}
+function _matToggleRoof(i) {
+  var sel = _matSelectedRoofIndices();
+  var has = sel.indexOf(i) >= 0;
+  if (has) sel = sel.filter(function(x){ return x !== i; });
+  else sel.push(i);
+  if (sel.length === 0) sel = DRAW.roofs.map(function(_, k){ return k; }); // never empty
+  _matSetSelectedRoofs(sel);
+  populateMaterialsFromLines();
+  renderMaterialsCutLists();
+  try { renderMaterialPriceTable(); } catch(e){}
+}
+function _matToggleAllRoofs() {
+  var all = DRAW.roofs.map(function(_, i){ return i; });
+  _matSetSelectedRoofs(all);
+  populateMaterialsFromLines();
+  renderMaterialsCutLists();
+  try { renderMaterialPriceTable(); } catch(e){}
+}
+
+// Render the "From your drawing measurements" card as a 3-tick summary:
 // Roof m² · Flashings LM (combined) · Gutter LM. Detailed per-line cut
 // lists live in the Materials section below.
 function populateMaterialsFromLines() {
@@ -13210,6 +14439,10 @@ function populateMaterialsFromLines() {
   var el = document.getElementById('matAutoFromLines');
   if (el) el.innerHTML = html;
 
+  // Surface the per-roof selection pills above the tiles when the user
+  // has 2+ roofs.
+  try { _matRenderRoofPicker(); } catch(e) { console.warn('roof picker:', e); }
+
   // Refresh the per-line cut lists + consumables in the Materials section.
   try { renderMaterialsCutLists(); } catch(e) { console.warn('cut lists:', e); }
   try { renderFlashingsBreakdown(); } catch(e) {}
@@ -13230,7 +14463,7 @@ function populateMaterialsFromLines() {
 // single "ridge" cut list (+0.5m per piece, profile selectable).
 // Other flashings get +0.4m waste per piece by default.
 var _MAT_FLASHING_SPECS = [
-  { key:'ridgehip', label:'Ridge / Hip capping',   colour:'#dc2626', waste:0.5, drawing:'ridge'      },
+  { key:'ridgehip', label:'Ridge / Hip capping',   colour:'#dc2626', waste:0.5, drawing:null         },
   { key:'barge',    label:'Barge flashing',         colour:'#0891b2', waste:0.4, drawing:'barge'      },
   { key:'apron',    label:'Apron flashing',         colour:'#e11d48', waste:0.4, drawing:'apron'      },
   { key:'changepitch', label:'Change-of-pitch flashing', colour:'#0ea5e9', waste:0.4, drawing:'changepitch' },
@@ -13241,29 +14474,308 @@ var _MAT_FLASHING_SPECS = [
 // Each drawn line of that type becomes one piece (line length + waste).
 // Returns { rows:[{qty, length, source}], totalLm }, grouped by length
 // so identical pieces collapse into "N @ Xm".
+// ─── Flashing layout — interactive cut-list assignment diagram ───
+//
+// Each non-gutter line in the user's drawing (across all selected
+// roofs) gets a stable letter ref (A, B, C, …) plus an adjusted length
+// (drawn measurement + 0.4 m wastage, rounded up to the nearest 0.1 m).
+// User edits are persisted on DRAW.flashLayoutOverrides keyed by a
+// stable identifier; auto values are recomputed every render.
+//
+// The cut-list table (_matBuildCutList → _matCutListTable) reads
+// the same labels so anything the user changes here lights up in the
+// numeric cut list and in the printed PDF.
+
+// Identifier for a line that survives endpoint swaps + small drift.
+function _flashLineKey(line) {
+  if (!line || !line.pts || line.pts.length < 2) return '';
+  var a = line.pts[0], b = line.pts[1];
+  var sa = (a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])) ? a : b;
+  var sb = (sa === a) ? b : a;
+  return (line.type||'?') + '|' +
+    Math.round(sa[0]) + ',' + Math.round(sa[1]) + '|' +
+    Math.round(sb[0]) + ',' + Math.round(sb[1]);
+}
+
+// Adjusted length: drawn measure + 0.4 m wastage, rounded UP to 0.1 m.
+function _flashAutoLengthM(line) {
+  if (!line || !line.measM) return 0;
+  return Math.ceil((parseFloat(line.measM) + 0.4) * 10) / 10;
+}
+
+// Whether a line is eligible for letter labelling. Building outline
+// (no longer a drawn line type but kept as a guard) + gutters are
+// EXCLUDED unless the "Include gutter lines" tick is on.
+function _flashLineEligible(line, includeGutters) {
+  if (!line || !line.type) return false;
+  if (line.type === 'gutter') return !!includeGutters;
+  return line.type === 'ridge' || line.type === 'hip' || line.type === 'valley'
+      || line.type === 'barge' || line.type === 'apron' || line.type === 'changepitch';
+}
+
+// Walk every selected roof's lines, assign letters in order. Returns
+// a list of { roofIdx, line, key, letter, lengthM, color } records —
+// ordered by the same letter sequence the diagram + cut list show.
+var _FLASH_LINE_COLOURS = {
+  ridge:'#dc2626', valley:'#f59e0b', gutter:'#7c3aed',
+  hip:'#059669', barge:'#3b82f6', apron:'#e11d48', changepitch:'#0ea5e9'
+};
+function _flashCollectLabelled() {
+  var includeGutters = !!(document.getElementById('flashLayoutIncludeGutters')||{}).checked;
+  if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
+  var ovs = DRAW.flashLayoutOverrides;
+  var out = [];
+  // Auto-assign letters in encounter order. User overrides on the
+  // SAME line replace both the letter and the measurement.
+  var seenLetters = {};
+  // First pass: collect, applying overrides where present.
+  var roofs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs : null;
+  function processRoof(roofIdx, outline, lines) {
+    (lines || []).forEach(function(l){
+      if (!_flashLineEligible(l, includeGutters)) return;
+      var key = _flashLineKey(l);
+      if (!key) return;
+      var ov  = ovs[key] || {};
+      var letter = ov.letter || '';
+      var lengthM = ov.lengthM != null ? +ov.lengthM : _flashAutoLengthM(l);
+      out.push({
+        roofIdx: roofIdx, line: l, key: key,
+        letter: letter, lengthM: lengthM,
+        color: _FLASH_LINE_COLOURS[l.type] || '#475569',
+      });
+    });
+  }
+  if (roofs) {
+    var selected = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
+    var savedActive = DRAW.activeRoofIdx;
+    if (typeof _syncCurrentToRoof === 'function') _syncCurrentToRoof();
+    roofs.forEach(function(r, idx){
+      if (selected && selected.indexOf(idx) < 0) return;
+      processRoof(idx, r.outline, r.lines);
+    });
+    if (typeof _loadRoofToCurrent === 'function' && savedActive >= 0 && savedActive < roofs.length) _loadRoofToCurrent(savedActive);
+  } else {
+    processRoof(-1, DRAW.outline, DRAW.lines);
+  }
+  // Second pass: fill blank letters with the next available A, B, C, …
+  function nextLetter(n){
+    var s = '';
+    do { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; } while (n >= 0);
+    return s;
+  }
+  var used = {};
+  out.forEach(function(o){ if (o.letter) used[o.letter] = true; });
+  var cursor = 0;
+  out.forEach(function(o){
+    if (o.letter) return;
+    while (used[nextLetter(cursor)]) cursor++;
+    o.letter = nextLetter(cursor);
+    used[o.letter] = true;
+    cursor++;
+  });
+  return out;
+}
+
+// Diagram renderer. Builds a clean per-line preview onto a canvas in
+// #flashLayoutOut. Labels are drawn in the line's own colour.
+function renderFlashingLayout(){
+  var out = document.getElementById('flashLayoutOut'); if (!out) return;
+  var labelled = _flashCollectLabelled();
+  // Compute bounding box across every selected roof's outline + the
+  // labelled lines so the diagram frames the full project.
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  function bumpPt(p){ if (p[0]<minX) minX=p[0]; if (p[0]>maxX) maxX=p[0]; if (p[1]<minY) minY=p[1]; if (p[1]>maxY) maxY=p[1]; }
+  function bumpOutline(o){ (o||[]).forEach(bumpPt); }
+  if (DRAW.roofs && DRAW.roofs.length) {
+    var sel = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
+    DRAW.roofs.forEach(function(r, i){ if (sel && sel.indexOf(i)<0) return; bumpOutline(r.outline); });
+  } else {
+    bumpOutline(DRAW.outline);
+  }
+  labelled.forEach(function(o){ bumpPt(o.line.pts[0]); bumpPt(o.line.pts[1]); });
+  if (!isFinite(minX) || maxX - minX < 1 || maxY - minY < 1) {
+    out.innerHTML = '<p style="font-size:12px;color:var(--text2)">Draw your roof outline + flashing lines on the Map Roof tab with measurements — this diagram will appear here.</p>';
+    return;
+  }
+  var pad = 40, w = maxX - minX, h = maxY - minY;
+  var targetW = 880;
+  var scale = (targetW - pad*2) / w;
+  var targetH = Math.max(280, h * scale + pad*2);
+  out.innerHTML = '<canvas id="flashLayoutCanvas" width="'+targetW+'" height="'+targetH+'" style="display:block;max-width:100%;height:auto;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer"></canvas>';
+  var canvas = document.getElementById('flashLayoutCanvas');
+  var ctx = canvas.getContext('2d');
+  function tx(p){ return [pad + (p[0] - minX) * scale, pad + (p[1] - minY) * scale]; }
+  // Stash for hit-test on click
+  canvas._labelled = labelled;
+  canvas._tx = tx;
+  // Background fill
+  ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Building outline(s)
+  ctx.lineWidth = 1.6; ctx.strokeStyle = '#94a3b8';
+  function drawOutline(o){
+    if (!o || o.length < 3) return;
+    ctx.beginPath();
+    o.forEach(function(p, i){ var t = tx(p); if (i === 0) ctx.moveTo(t[0], t[1]); else ctx.lineTo(t[0], t[1]); });
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(200,230,201,0.20)'; ctx.fill();
+    ctx.stroke();
+  }
+  if (DRAW.roofs && DRAW.roofs.length) {
+    var sel2 = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
+    DRAW.roofs.forEach(function(r, i){ if (sel2 && sel2.indexOf(i)<0) return; drawOutline(r.outline); });
+  } else {
+    drawOutline(DRAW.outline);
+  }
+  // Each labelled line + its letter:length label
+  ctx.font = '600 12.5px Inter, -apple-system, sans-serif';
+  ctx.textBaseline = 'middle';
+  labelled.forEach(function(o){
+    var a = tx(o.line.pts[0]), b = tx(o.line.pts[1]);
+    ctx.strokeStyle = o.color; ctx.lineWidth = 2.4;
+    ctx.setLineDash(o.line.type === 'valley' ? [6,3] : []);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    ctx.setLineDash([]);
+    // Label perpendicular to the line midpoint
+    var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+    var dx = b[0]-a[0], dy = b[1]-a[1];
+    var len = Math.hypot(dx, dy) || 1;
+    var ox = -dy/len * 18, oy = dx/len * 18;
+    var txt = o.letter + ': ' + o.lengthM.toFixed(1) + 'm';
+    var tw  = ctx.measureText(txt).width;
+    var lx  = mx + ox, ly = my + oy;
+    ctx.fillStyle = '#fff'; ctx.fillRect(lx - tw/2 - 5, ly - 9, tw + 10, 18);
+    ctx.strokeStyle = o.color; ctx.lineWidth = 1; ctx.strokeRect(lx - tw/2 - 5, ly - 9, tw + 10, 18);
+    ctx.fillStyle = o.color;
+    ctx.fillText(txt, lx - tw/2, ly + 1);
+  });
+  // Click hit-testing — pick the nearest line within 14px and prompt
+  // for letter / length edits.
+  canvas.onclick = function(ev){
+    var r = canvas.getBoundingClientRect();
+    var sx = canvas.width / r.width, sy = canvas.height / r.height;
+    var px = (ev.clientX - r.left) * sx, py = (ev.clientY - r.top) * sy;
+    var best = null, bestD = Infinity;
+    labelled.forEach(function(o){
+      var a = tx(o.line.pts[0]), b = tx(o.line.pts[1]);
+      var d = _flashLayoutSegDist(px, py, a, b);
+      if (d < bestD) { bestD = d; best = o; }
+    });
+    if (!best || bestD > 14) return;
+    var newLetter = window.prompt('Reference letter for this ' + best.line.type + ' line:', best.letter);
+    if (newLetter == null) return;
+    newLetter = String(newLetter).trim().toUpperCase();
+    var newLen = window.prompt('Length (m) — currently '+best.lengthM.toFixed(1)+' (drawn '+(best.line.measM||0)+' + 0.4m waste, rounded to 0.1m):', best.lengthM.toFixed(1));
+    if (newLen == null) return;
+    if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
+    var ov = DRAW.flashLayoutOverrides[best.key] || {};
+    if (newLetter) ov.letter = newLetter; else delete ov.letter;
+    var nlen = parseFloat(newLen);
+    if (!isNaN(nlen) && nlen > 0) ov.lengthM = nlen; else delete ov.lengthM;
+    DRAW.flashLayoutOverrides[best.key] = ov;
+    renderFlashingLayout();
+    try { renderMaterialsCutLists(); } catch(e){}
+  };
+}
+function _flashLayoutSegDist(px, py, a, b){
+  var dx = b[0]-a[0], dy = b[1]-a[1];
+  var l2 = dx*dx + dy*dy;
+  if (l2 === 0) return Math.hypot(px-a[0], py-a[1]);
+  var t = Math.max(0, Math.min(1, ((px-a[0])*dx + (py-a[1])*dy) / l2));
+  var qx = a[0] + t*dx, qy = a[1] + t*dy;
+  return Math.hypot(px-qx, py-qy);
+}
+
 function _matBuildCutList(type, waste) {
+  // Source rows from the Flashing layout labelled-line collection so
+  // the cut list inherits the letter refs + uniform +0.4 m wastage
+  // shown on the diagram. The `waste` arg is now ignored — auto length
+  // is always (measM + 0.4) ceil-100mm, with per-line overrides
+  // applied on DRAW.flashLayoutOverrides via the layout editor.
+  var labelled = (typeof _flashCollectLabelled === 'function') ? _flashCollectLabelled() : [];
   var pieces = [];
-  (DRAW.lines || []).forEach(function(l){
-    if (!l.measM) return;
-    var t = l.type;
-    // Merge hip + ridge into the "ridgehip" bucket.
+  labelled.forEach(function(o){
+    var t = o.line.type;
     if (type === 'ridgehip') {
       if (t !== 'ridge' && t !== 'hip') return;
     } else if (t !== type) {
       return;
     }
-    var len = parseFloat(l.measM) + (waste || 0);
-    // Round up to nearest 0.1m so the cut list reads cleanly.
-    len = Math.ceil(len * 10) / 10;
-    pieces.push(len);
+    pieces.push({ letter: o.letter, length: o.lengthM });
   });
-  // Group by identical length so "1 @ 6.4m, 1 @ 6.4m" becomes "2 @ 6.4m".
+  // Group identical (letter, length) into single rows. Pieces in the
+  // same letter group always carry the same length by construction
+  // (user-edited letters can break that — we collapse only when the
+  // lengths match too, otherwise each row keeps its letter visible).
   var bucket = {};
-  pieces.forEach(function(p){ bucket[p.toFixed(1)] = (bucket[p.toFixed(1)]||0) + 1; });
-  var rows = Object.keys(bucket).sort(function(a,b){ return parseFloat(b) - parseFloat(a); })
-    .map(function(k){ return { qty: bucket[k], length: parseFloat(k) }; });
-  var total = pieces.reduce(function(s,p){ return s+p; }, 0);
+  var order = [];
+  pieces.forEach(function(p){
+    var k = (p.letter || '_') + '|' + p.length.toFixed(1);
+    if (!bucket[k]) { bucket[k] = { letter: p.letter || '', length: p.length, qty: 0 }; order.push(k); }
+    bucket[k].qty++;
+  });
+  var rows = order.map(function(k){ return bucket[k]; });
+  rows.sort(function(a, b){
+    var la = a.letter || 'ZZ', lb = b.letter || 'ZZ';
+    if (la < lb) return -1; if (la > lb) return 1;
+    return b.length - a.length;
+  });
+  var total = pieces.reduce(function(s,p){ return s+p.length; }, 0);
   return { rows: rows, totalLm: total, pieceCount: pieces.length };
+}
+
+// Look up saved flashings matching the current roof profile + this
+// flashing type. Entries with profile='any' are always included.
+function _matSavedFlashingsFor(flashingType) {
+  if (!window.S || !S.settings || !S.settings.materials_catalog) return [];
+  var profile = (document.getElementById('matProfile')||{}).value || 'Corrugate';
+  var lib = S.settings.materials_catalog.savedFlashings || [];
+  return lib
+    .map(function(e, i){ return { entry: e, libIdx: i }; })
+    .filter(function(r){
+      var p = r.entry.profile || 'any';
+      var t = r.entry.flashingType || 'custom';
+      if (t !== flashingType) return false;
+      return p === 'any' || p === profile;
+    });
+}
+
+// Picker UI for the Materials section — dropdown of saved drawings
+// for this flashing type filtered to the current roof profile, plus
+// a "Manage library" link. Selection persists in localStorage keyed
+// by flashing type so the user's pick survives a refresh.
+function _matFlashingPickerHtml(flashingType) {
+  var matches = _matSavedFlashingsFor(flashingType);
+  var key = 'fr_mat_flash_pick_' + flashingType;
+  var savedName = localStorage.getItem(key) || '';
+  var options = '<option value="">Default drawing</option>';
+  matches.forEach(function(m){
+    var sel = (savedName && savedName === m.entry.name) ? ' selected' : '';
+    options += '<option value="'+esc(m.entry.name)+'"'+sel+'>'+esc(m.entry.name)+'</option>';
+  });
+  return '<select class="mat-flash-picker" data-flash-type="'+esc(flashingType)+'" onchange="_matOnPickFlashing(this)" style="margin:0;padding:5px 8px;font-size:11.5px;border:1px solid var(--border);border-radius:6px;background:#fff;color:#0a1628;max-width:240px">'+
+    options +
+  '</select>'+
+  (matches.length === 0
+    ? '<a onclick="gotoTab(\'settings\');setTimeout(function(){var b=document.querySelector(\'button[onclick*=\\\'set-flashings\\\']\');if(b)b.click();},200);" style="font-size:10.5px;color:var(--text2);cursor:pointer;text-decoration:underline;margin-left:8px">+ Add to library</a>'
+    : '<a onclick="gotoTab(\'settings\');setTimeout(function(){var b=document.querySelector(\'button[onclick*=\\\'set-flashings\\\']\');if(b)b.click();},200);" style="font-size:10.5px;color:var(--text2);cursor:pointer;text-decoration:underline;margin-left:8px">Manage</a>');
+}
+
+function _matOnPickFlashing(sel) {
+  var type = sel.getAttribute('data-flash-type');
+  localStorage.setItem('fr_mat_flash_pick_' + type, sel.value || '');
+  renderMaterialsCutLists();
+}
+
+// Returns either a saved-drawing <img> if the user picked one for
+// this flashing type, else falls back to the built-in SVG profile.
+function _matFlashingDrawingHtml(flashingType, defaultKind) {
+  var matches = _matSavedFlashingsFor(flashingType);
+  var savedName = localStorage.getItem('fr_mat_flash_pick_' + flashingType) || '';
+  var pick = savedName ? matches.find(function(m){ return m.entry.name === savedName; }) : null;
+  if (pick && pick.entry.sketch) {
+    return '<img src="'+pick.entry.sketch+'" alt="" style="width:130px;height:70px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:2px">';
+  }
+  return _matFlashingDrawing(defaultKind);
 }
 
 // Simple SVG cross-section profiles for the three flashings that
@@ -13324,6 +14836,11 @@ function renderMaterialsCutLists() {
   var html = '';
 
   // ── 1. Roof sheets ─────────────────────────────────────────
+  // Sourced from window._lastSheetCounts.groups so this table is a
+  // 1:1 mirror of the SHEETS TO ORDER panel rendered by the sheet plan
+  // above. Sheets are grouped by ordered LENGTH (not colour — colour
+  // is internal to the layout algorithm and isn't useful on a paper
+  // order). Offcuts are excluded upstream.
   var sc = window._lastSheetCounts || null;
   html += '<div class="mat-section">'+
     '<div class="mat-section-hd">'+
@@ -13331,23 +14848,32 @@ function renderMaterialsCutLists() {
       '<h3>Roof sheets</h3>'+
       '<span class="meta">'+esc(profile)+' &nbsp;·&nbsp; '+esc(grade)+' &nbsp;·&nbsp; '+esc(thickness)+'</span>'+
     '</div>';
-  if (sc && (sc.orangeLong || sc.blueLong || sc.purpleLong || sc.shortCount)) {
-    var longM = (sc.longLen || 7650) / 1000;
-    var shortM = (sc.shortLen || 3900) / 1000;
-    html += '<table class="cut-list"><thead><tr>'+
-      '<th>Description</th><th class="r">Qty</th><th class="r">Length</th>'+
-    '</tr></thead><tbody>';
-    var rows = [];
-    if (sc.orangeLong) rows.push({d:profile+' sheet — Group A (orange)', q:sc.orangeLong, l:longM});
-    if (sc.blueLong)   rows.push({d:profile+' sheet — Group B (blue)',   q:sc.blueLong,   l:longM});
-    if (sc.purpleLong) rows.push({d:profile+' sheet — Group C (purple)', q:sc.purpleLong, l:longM});
-    if (sc.shortCount) rows.push({d:profile+' sheet — short cut',         q:sc.shortCount, l:shortM});
-    var totalSheets = 0;
-    rows.forEach(function(r){
-      totalSheets += r.q;
-      html += '<tr><td>'+esc(r.d)+'</td><td class="r">'+r.q+'</td><td class="r">'+r.l.toFixed(2)+' m</td></tr>';
+  var sheetRows = [];
+  if (sc && sc.groups && sc.groups.length) {
+    var byLen = {};
+    sc.groups.forEach(function(g){
+      byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count;
     });
-    html += '</tbody><tfoot><tr><td>Total sheets</td><td class="r">'+totalSheets+'</td><td class="r">'+d.roofArea.toFixed(1)+' m²</td></tr></tfoot></table>';
+    sheetRows = Object.keys(byLen)
+      .map(function(k){ return { len: parseInt(k, 10), qty: byLen[k] }; })
+      .sort(function(a, b){ return b.len - a.len; });
+  } else if (sc) {
+    // Legacy shape — sum the colour-grouped longs into a single LONG line.
+    var longTotal = (sc.orangeLong || 0) + (sc.blueLong || 0) + (sc.purpleLong || 0);
+    if (longTotal)     sheetRows.push({ len: sc.longLen  || 7650, qty: longTotal });
+    if (sc.shortCount) sheetRows.push({ len: sc.shortLen || 3900, qty: sc.shortCount });
+  }
+  if (sheetRows.length) {
+    html += '<table class="cut-list"><thead><tr>'+
+      '<th>Description</th><th class="r">Qty</th><th class="r">Length each</th>'+
+    '</tr></thead><tbody>';
+    var totalSheets = 0;
+    sheetRows.forEach(function(r){
+      totalSheets += r.qty;
+      var lbl = esc(profile) + ' sheet @ ' + (r.len / 1000).toFixed(2) + 'm';
+      html += '<tr><td>'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+(r.len / 1000).toFixed(2)+' m</td></tr>';
+    });
+    html += '</tbody><tfoot><tr><td>Total sheets</td><td class="r">'+totalSheets+'</td><td class="r">'+d.roofArea.toFixed(1)+' m² roof</td></tr></tfoot></table>';
   } else {
     html += '<div class="cut-list-empty">Generate the Roof Sheet Plan above to populate the sheet cut list.</div>';
   }
@@ -13356,41 +14882,30 @@ function renderMaterialsCutLists() {
   // ── 2. Ridge / Hip capping (combined) ──────────────────────
   var ridgeSpec = _MAT_FLASHING_SPECS[0]; // ridgehip
   var ridgeCl = _matBuildCutList('ridgehip', ridgeSpec.waste);
-  html += '<div class="mat-section">'+
-    '<div class="mat-section-hd">'+
-      '<span class="swatch" style="background:'+ridgeSpec.colour+'"></span>'+
-      '<h3>Ridge / Hip capping</h3>'+
-      '<span class="meta">'+(ridgeType==='wide'?'Wide ridge':'Standard ridge')+' &nbsp;·&nbsp; '+esc(grade)+' &nbsp;·&nbsp; '+esc(thickness)+'</span>'+
-    '</div>'+
-    '<div class="mat-section-sub">Each ridge / hip line gets +'+ridgeSpec.waste.toFixed(1)+'m for end folds and over-laps; rounded up to the nearest 100mm.</div>';
-  html += '<div class="flash-dwg">'+_matFlashingDrawing('ridge')+
-    '<div class="desc"><strong>'+(ridgeType==='wide'?'Wide ridge profile':'Standard ridge profile')+'</strong>Apex cap, '+(ridgeType==='wide'?'~300mm':'200mm')+' girth, '+esc(grade)+' '+esc(thickness)+'.</div>'+
-  '</div>';
-  html += _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.');
-  html += '</div>';
+  html += _matCompactSection({
+    swatch: ridgeSpec.colour,
+    title: 'Ridge / Hip capping',
+    meta: (ridgeType==='wide'?'Wide ridge':'Standard ridge') + ' · ' + grade + ' · ' + thickness + ' · +' + ridgeSpec.waste.toFixed(1) + 'm waste',
+    flashingType: 'ridgehip',
+    defaultDrawing: null,
+    cutList: ridgeCl,
+    tableEmptyMsg: 'No ridge or hip lines drawn yet.',
+    table: _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.'),
+  });
 
   // ── 3. Other flashings (barge, apron, change-of-pitch, valley) ──
   _MAT_FLASHING_SPECS.slice(1).forEach(function(spec){
     var cl = _matBuildCutList(spec.key, spec.waste);
     if (cl.pieceCount === 0) return; // hide types with no drawn lines
-    html += '<div class="mat-section">'+
-      '<div class="mat-section-hd">'+
-        '<span class="swatch" style="background:'+spec.colour+'"></span>'+
-        '<h3>'+esc(spec.label)+'</h3>'+
-        '<span class="meta">'+esc(grade)+' &nbsp;·&nbsp; '+esc(thickness)+'</span>'+
-      '</div>'+
-      '<div class="mat-section-sub">+'+spec.waste.toFixed(1)+'m per piece for end folds &amp; over-laps.</div>';
-    if (spec.drawing) {
-      var desc;
-      if (spec.drawing === 'barge')       desc = 'L-fold over rake — 25mm upstand + 75mm gable cover.';
-      else if (spec.drawing === 'apron')  desc = '150mm wall upstand + 100mm roof cover; sealed at top edge.';
-      else                                desc = 'Two-pitch break where roof pitch changes; fold matches both pitches.';
-      html += '<div class="flash-dwg">'+_matFlashingDrawing(spec.drawing)+
-        '<div class="desc"><strong>'+esc(spec.label)+' profile</strong>'+desc+'</div>'+
-      '</div>';
-    }
-    html += _matCutListTable(cl, '');
-    html += '</div>';
+    html += _matCompactSection({
+      swatch: spec.colour,
+      title: spec.label,
+      meta: grade + ' · ' + thickness + ' · +' + spec.waste.toFixed(1) + 'm waste',
+      flashingType: spec.key,
+      defaultDrawing: spec.drawing,   // null for valley → no drawing column
+      cutList: cl,
+      table: _matCutListTable(cl, ''),
+    });
   });
 
   // ── 4. Gutter ──────────────────────────────────────────────
@@ -13423,6 +14938,136 @@ function renderMaterialsCutLists() {
 
   // ── Consumables (paper / screws / rivets / dektites) ──────
   _matRenderConsumables(d);
+
+  // Keep the Flashing layout diagram in sync — same letter refs, same
+  // adjusted lengths, two-way edits.
+  try { renderFlashingLayout(); } catch(e){ console.warn('flashing layout:', e); }
+}
+
+// Compact section template — one row per flashing-type. Layout:
+//   [swatch] Title · meta-line   [Saved-drawing picker dropdown]
+//   [thumb]  [cut list table — fills the rest of the row]
+// Reduces vertical space per section from ~250px to ~140px.
+// Flashing pricing tables — $/lm per (girth bucket, number of folds).
+// Source: supplier price book photos (Zincalume 0.55, Colorsteel Maxam
+// 0.55). The user marks up everything by 5% (FLASH_MARKUP); flash
+// guards add a flat $5/lm on top (FLASH_GUARDS_RATE). Rows are 50mm
+// girth buckets starting 1-50mm; columns are folds 1 through 8.
+var _FLASH_PRICE_TABLES = {
+  'Zincalume|0.55g': [
+    [2.91,4.68,6.44,8.21,9.98,11.75,13.51,15.28],
+    [4.06,5.82,7.59,9.36,11.12,12.89,14.66,16.42],
+    [5.20,6.97,8.73,10.50,12.27,14.03,15.80,17.57],
+    [6.34,8.11,9.88,11.64,13.41,15.18,16.94,18.71],
+    [7.49,9.25,11.02,12.79,14.55,16.32,18.09,19.86],
+    [8.63,10.40,12.17,13.93,15.70,17.47,19.23,21.00],
+    [9.78,11.54,13.31,15.08,16.84,18.61,20.38,22.14],
+    [10.92,12.69,14.45,16.22,17.99,19.75,21.52,23.29],
+    [12.06,13.83,15.60,17.36,19.13,20.90,22.67,24.43],
+    [13.21,14.97,16.74,18.51,20.28,22.04,23.81,25.58],
+    [14.35,16.12,17.89,19.65,21.42,23.19,24.95,26.72],
+    [15.50,17.26,19.03,20.80,22.56,24.33,26.10,27.86],
+    [16.64,18.41,20.17,21.94,23.71,25.47,27.24,29.01],
+    [17.78,19.55,21.32,23.08,24.85,26.62,28.39,30.15],
+    [18.93,20.70,22.46,24.23,26.00,27.76,29.53,31.30],
+    [20.07,21.84,23.61,25.37,27.14,28.91,30.67,32.44],
+    [21.22,22.98,24.75,26.52,28.28,30.05,31.82,33.58],
+    [22.36,24.13,25.89,27.66,29.43,31.19,32.96,34.73],
+    [23.50,25.27,27.04,28.81,30.57,32.34,34.11,35.87],
+    [24.65,26.42,28.18,29.95,31.72,33.48,35.25,37.02],
+    [25.79,27.56,29.33,31.09,32.86,34.63,36.39,38.16],
+    [26.94,28.70,30.47,32.24,34.00,35.77,37.54,39.31],
+    [28.08,29.85,31.61,33.38,35.15,36.92,38.68,40.45],
+    [29.22,30.99,32.76,34.53,36.29,38.06,39.83,41.59]
+  ],
+  'Colorsteel Maxam|0.55g': [
+    [3.57,5.34,7.11,8.88,10.64,12.41,14.18,15.95],
+    [5.37,7.14,8.91,10.67,12.44,14.21,15.98,17.75],
+    [7.17,8.93,10.70,12.47,14.24,16.01,17.78,19.55],
+    [8.96,10.73,12.50,14.27,16.04,17.81,19.58,21.35],
+    [10.76,12.53,14.30,16.07,17.84,19.61,21.38,23.15],
+    [12.56,14.33,16.10,17.87,19.64,21.41,23.18,24.95],
+    [14.36,16.13,17.90,19.67,21.44,23.21,24.98,26.75],
+    [16.16,17.93,19.70,21.47,23.24,25.01,26.77,28.54],
+    [17.96,19.73,21.50,23.27,25.04,26.80,28.57,30.34],
+    [19.76,21.53,23.30,25.07,26.83,28.60,30.37,32.14],
+    [21.56,23.33,25.10,26.86,28.63,30.40,32.17,33.94],
+    [23.36,25.13,26.89,28.66,30.43,32.20,33.97,35.74],
+    [25.16,26.92,28.69,30.46,32.23,34.00,35.77,37.54],
+    [26.95,28.72,30.49,32.26,34.03,35.80,37.57,39.34],
+    [28.75,30.52,32.29,34.06,35.83,37.60,39.37,41.14],
+    [30.55,32.32,34.09,35.86,37.63,39.40,41.17,42.94],
+    [32.35,34.12,35.89,37.66,39.43,41.20,42.97,44.73],
+    [34.15,35.92,37.69,39.46,41.23,43.00,44.76,46.53],
+    [35.95,37.72,39.49,41.26,43.02,44.79,46.56,48.33],
+    [37.75,39.52,41.29,43.05,44.82,46.59,48.36,50.13],
+    [39.55,41.32,43.08,44.85,46.62,48.39,50.16,51.93],
+    [41.35,43.11,44.88,46.65,48.42,50.19,51.96,53.73],
+    [43.14,44.91,46.68,48.45,50.22,51.99,53.76,55.53],
+    [44.94,46.71,48.48,50.25,52.02,53.79,55.56,57.33]
+  ]
+};
+var FLASH_MARKUP = 1.05;       // +5% on the supplier's table price
+var FLASH_GUARDS_RATE = 5;     // $5/lm extra when flash guards are spec'd
+
+// Returns $/lm for a flashing of (grade × thickness × girth × folds),
+// after the markup and any flash-guards surcharge. Returns null when
+// we don't have a price book for that grade+thickness combo.
+function flashPricePerLm(grade, thickness, girthMm, angleChanges, hasFlashGuards) {
+  if (!(girthMm > 0)) return null;
+  var table = _FLASH_PRICE_TABLES[grade + '|' + thickness];
+  if (!table) return null;
+  var folds = Math.max(1, Math.min(8, angleChanges || 1));
+  var row   = Math.max(0, Math.min(table.length - 1, Math.ceil(girthMm / 50) - 1));
+  var base  = table[row][folds - 1];
+  if (base == null) return null;
+  var p = base * FLASH_MARKUP;
+  if (hasFlashGuards) p += FLASH_GUARDS_RATE;
+  return p;
+}
+
+// Look up the saved flashing the user selected for this type in the
+// Materials tab (via the picker dropdown).
+function _matSelectedFlashingFor(flashingType) {
+  var savedName = localStorage.getItem('fr_mat_flash_pick_' + flashingType) || '';
+  if (!savedName || !window.S || !S.settings || !S.settings.materials_catalog) return null;
+  var lib = S.settings.materials_catalog.savedFlashings || [];
+  return lib.find(function(e){ return e.name === savedName; }) || null;
+}
+
+function _matCompactSection(opts) {
+  var picker = opts.flashingType ? _matFlashingPickerHtml(opts.flashingType) : '';
+  var thumbHtml = opts.defaultDrawing
+    ? '<div class="mat-thumb">' + _matFlashingDrawingHtml(opts.flashingType, opts.defaultDrawing) + '</div>'
+    : '';
+  // Pricing — only when a saved flashing is picked AND we have a
+  // price book row for the current grade × thickness.
+  var rate = null, ratePieces = '';
+  if (opts.flashingType) {
+    var saved = _matSelectedFlashingFor(opts.flashingType);
+    if (saved && saved.girthMm > 0 && saved.angleChanges != null) {
+      var grade     = (document.getElementById('matGrade')||{}).value || 'Colorsteel Maxam';
+      var thickness = (document.getElementById('matThickness')||{}).value || '0.40g';
+      rate = flashPricePerLm(grade, thickness, saved.girthMm, saved.angleChanges, saved.flashGuards);
+      if (rate != null) {
+        ratePieces = ' · ' + saved.girthMm + 'mm girth · ' + saved.angleChanges + ' fold' + (saved.angleChanges === 1 ? '' : 's') +
+                     (saved.flashGuards ? ' · w/flash guards' : '') +
+                     ' · <strong style="color:#059669">$' + rate.toFixed(2) + '/lm</strong>';
+      }
+    }
+  }
+  return '<div class="mat-section mat-section-compact">'+
+    '<div class="mat-section-hd">'+
+      '<span class="swatch" style="background:'+opts.swatch+'"></span>'+
+      '<h3>'+esc(opts.title)+'</h3>'+
+      '<span class="meta">'+esc(opts.meta||'')+ratePieces+'</span>'+
+      (picker ? '<span class="mat-picker-slot">'+picker+'</span>' : '')+
+    '</div>'+
+    '<div class="mat-section-body">'+
+      thumbHtml +
+      '<div class="mat-section-table">'+(rate != null ? _matCutListTableWithCost(opts.cutList, opts.tableEmptyMsg||'', rate) : opts.table)+'</div>'+
+    '</div>'+
+  '</div>';
 }
 
 // Render one cut-list table from the bucketed pieces.
@@ -13434,9 +15079,29 @@ function _matCutListTable(cl, emptyMsg) {
     '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th>'+
   '</tr></thead><tbody>';
   cl.rows.forEach(function(r, i){
-    html += '<tr><td>Piece '+(i+1)+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td></tr>';
+    var lbl = r.letter ? r.letter : ('Piece '+(i+1));
+    html += '<tr><td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td></tr>';
   });
   html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td></tr></tfoot></table>';
+  return html;
+}
+
+// Same as _matCutListTable but adds a "Cost" column priced at rate $/lm.
+function _matCutListTableWithCost(cl, emptyMsg, rate) {
+  if (!cl || cl.pieceCount === 0) {
+    return '<div class="cut-list-empty">'+esc(emptyMsg || 'No pieces yet — add drawn line measurements.')+'</div>';
+  }
+  var html = '<table class="cut-list"><thead><tr>'+
+    '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th><th class="r">Cost</th>'+
+  '</tr></thead><tbody>';
+  var totalCost = 0;
+  cl.rows.forEach(function(r, i){
+    var lineCost = r.qty * r.length * rate;
+    totalCost += lineCost;
+    var lbl = r.letter ? r.letter : ('Piece '+(i+1));
+    html += '<tr><td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">$'+lineCost.toFixed(2)+'</td></tr>';
+  });
+  html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td><td class="r" style="color:#059669">$'+totalCost.toFixed(2)+'</td></tr></tfoot></table>';
   return html;
 }
 
@@ -13510,6 +15175,85 @@ function _matMsg(text, ok) {
 // cut list card so page 1 = drawing summary + sheet plan, page 2 = cut
 // lists + consumables. Defensively strips any leftover print-* class
 // from a previous print run before adding our own.
+// ── Scope & Pricing action bar handlers ────────────────────────────
+// Mirror the Materials tab's Save PDF / Push to Fergus / Open in
+// Fergus / open-quote-builder flow, but capture #tab-scope as the
+// content for the PDF.
+function _scopeMsg(text, ok){
+  var el = document.getElementById('scopeActionMsg'); if (!el) return;
+  el.textContent = text;
+  el.style.color = ok === false ? '#b91c1c' : (ok ? '#059669' : 'var(--text2)');
+  if (text) setTimeout(function(){ if (el.textContent === text) el.textContent = ''; }, 5000);
+}
+function saveScopePricingAsPdf(){
+  try { renderMaterialPriceTable(); } catch(e){}
+  var html = document.documentElement;
+  ['print-quote','print-order','print-jobpack','print-report','print-materials'].forEach(function(c){ html.classList.remove(c); });
+  html.classList.add('print-scope');
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){ html.classList.remove('print-scope'); }, 400);
+  }, 60);
+  _scopeMsg('Opening print dialog — choose "Save as PDF"…');
+}
+async function pushScopePricingToFergus(){
+  if (!window.S || !S.linkedJobId) { _scopeMsg('Link a Fergus job first (Select Job → Fergus tab).', false); return; }
+  _scopeMsg('Building scope & pricing PDF…');
+  try {
+    await _loadPdfLibs();
+    var sec = document.getElementById('tab-scope');
+    if (!sec) { _scopeMsg('Scope tab not found.', false); return; }
+    // Capture off-screen at A4-ish width so the layout doesn't squish.
+    var prev = sec.getAttribute('style') || '';
+    sec.classList.add('active');
+    sec.style.cssText = 'display:block!important;position:fixed;left:-12000px;top:0;width:794px;background:#fff;padding:14mm;box-sizing:border-box;z-index:-1';
+    await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+    var canvas = await window.html2canvas(sec, { scale: 2, backgroundColor: '#fff', useCORS: true, logging: false });
+    sec.setAttribute('style', prev);
+    var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    var pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
+    var pageW = 210, pageH = 297;
+    var imgW = pageW;
+    var imgH = (canvas.height / canvas.width) * imgW;
+    // Split across pages if taller than A4
+    var imgData = canvas.toDataURL('image/jpeg', 0.92);
+    var y = 0, pageNum = 0;
+    while (y < imgH) {
+      if (pageNum > 0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, -y, imgW, imgH);
+      y += pageH; pageNum++;
+      if (pageNum > 8) break;
+    }
+    var blob = pdf.output('blob');
+    var b64 = await new Promise(function(ok,fail){
+      var r = new FileReader();
+      r.onload = function(){ ok(String(r.result).split(',')[1]); };
+      r.onerror = function(){ fail(r.error || new Error('FileReader failed')); };
+      r.readAsDataURL(blob);
+    });
+    var client = ((document.getElementById('jobClient')||{}).value || 'Pricing').trim();
+    var jobNum = (_fergusDisplayNo() || '').toString().trim();
+    var filename = ('Pricing_'+(jobNum||client)).replace(/[^A-Za-z0-9_.-]+/g,'_').slice(0,80)+'.pdf';
+    _matDownloadBlob(blob, filename);
+    _scopeMsg('Saved locally — uploading to Fergus job '+_fergusDisplayNo()+'…');
+    var token = localStorage.getItem('fr_token')||'';
+    var resp = await fetch(PROXY + '/fergus-files/upload', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body: JSON.stringify({ jobId:String(S.linkedJobId), filename:filename, contentType:'application/pdf', base64:b64 }),
+    });
+    var data = await resp.json().catch(function(){ return {}; });
+    if (resp.ok && data.ok) {
+      _scopeMsg('✓ Downloaded ' + filename + ' · uploaded to Fergus job ' + _fergusDisplayNo(), true);
+    } else {
+      _scopeMsg('PDF saved locally. Fergus rejected the upload — tap "Open in Fergus" to drop it into the gallery.', false);
+    }
+  } catch(e) {
+    console.error(e);
+    _scopeMsg('Push failed: '+(e.message||e), false);
+  }
+}
+
 function saveMaterialsAsPdf() {
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
@@ -13532,7 +15276,7 @@ function populateMatJobInfo() {
   var client = (document.getElementById('jobClient')||{}).value || '';
   var addr   = (document.getElementById('jobAddr')  ||{}).value || '';
   var jobNum = (document.getElementById('orderJobNumber')||{}).value
-            || (S && S.linkedJobId ? ('Fergus '+S.linkedJobId) : '');
+            || (_fergusDisplayNo() ? ('Fergus '+_fergusDisplayNo()) : '');
   var delAddr = (document.getElementById('orderDeliveryAddr')||{}).value || '';
   var mode   = (S && S.order && S.order.deliveryMode) || 'site';
   var cOut = document.getElementById('matCustomerOut');
@@ -13590,7 +15334,29 @@ function _matBuildPrintPages() {
   _matCaptureCanvasToImg('roofCanvas', document.getElementById('matPrintRoofMap'), 'Roof map');
   _matCloneSheetPlanForPrint(document.getElementById('matPrintSheetPlan'));
   _matBuildPrintSheetCutList(document.getElementById('matPrintSheetCutList'));
+  // Page 2 — flashing layout above the material order so the supplier
+  // sees the diagram + letter refs before the per-flashing summary tiles.
+  _matCaptureFlashingLayoutToImg(document.getElementById('matPrintFlashingLayout'));
   _matBuildPrintOrderDetails(document.getElementById('matPrintOrderDetails'));
+}
+
+// Captures the on-screen Flashing Layout canvas to an inline PNG so
+// the printed PDF carries the same letter-labelled diagram. Falls
+// back to a friendly message if the layout hasn't been rendered yet.
+function _matCaptureFlashingLayoutToImg(mount) {
+  if (!mount) return;
+  // Make sure the layout has been built at least once.
+  try { renderFlashingLayout(); } catch(e){}
+  var cv = document.getElementById('flashLayoutCanvas');
+  if (!cv) {
+    mount.innerHTML = '<div style="color:#6f6a60;font-size:11px;padding:14px;font-style:italic">No flashing layout — draw roof lines + measurements on the Map Roof tab.</div>';
+    return;
+  }
+  try {
+    mount.innerHTML = '<img src="'+cv.toDataURL('image/png')+'" alt="Flashing layout" style="display:block;width:100%;height:auto;border:1px solid #d1d5db;border-radius:4px;background:#fff">';
+  } catch(e) {
+    mount.innerHTML = '<div style="color:#b91c1c;font-size:11px;padding:14px">Could not capture flashing layout — try refreshing the Materials tab.</div>';
+  }
 }
 
 function _matJobHeaderHtml(includeDelivery) {
@@ -13674,7 +15440,11 @@ function _matBuildPrintSheetCutList(mount) {
   var grade     = (document.getElementById('matGrade')||{}).value || 'Colorsteel Maxam';
   var thickness = (document.getElementById('matThickness')||{}).value || '0.40g';
   var colour    = (document.getElementById('matColour')||{}).value || '';
-  if (!sc || !(sc.orangeLong || sc.blueLong || sc.purpleLong || sc.shortCount)) {
+  var hasCounts = sc && (
+    (sc.groups && sc.groups.length) ||
+    sc.orangeLong || sc.blueLong || sc.purpleLong || sc.shortCount
+  );
+  if (!hasCounts) {
     mount.innerHTML = '<div style="color:#6f6a60;font-size:11px;padding:8px 0;font-style:italic">No sheet counts yet — generate the Roof Sheet Plan first.</div>';
     return;
   }
@@ -13684,16 +15454,25 @@ function _matBuildPrintSheetCutList(mount) {
     '<div><div class="lbl">Thickness</div><div class="val">'+esc(thickness)+'</div></div>'+
     '<div><div class="lbl">Colour</div><div class="val">'+esc(colour||'—')+'</div></div>'+
   '</div>';
-  var longM = (sc.longLen || 7650) / 1000, shortM = (sc.shortLen || 3900) / 1000;
+  // Build rows by ordered LENGTH so the PDF order reads the same way
+  // as the SHEETS TO ORDER panel and the on-screen cut list.
   var rows = [];
-  if (sc.orangeLong) rows.push({d:profile+' sheet — Group A (orange)', q:sc.orangeLong, l:longM});
-  if (sc.blueLong)   rows.push({d:profile+' sheet — Group B (blue)',   q:sc.blueLong,   l:longM});
-  if (sc.purpleLong) rows.push({d:profile+' sheet — Group C (purple)', q:sc.purpleLong, l:longM});
-  if (sc.shortCount) rows.push({d:profile+' sheet — short cut',         q:sc.shortCount, l:shortM});
-  var total = rows.reduce(function(s,r){return s+r.q;}, 0);
+  if (sc.groups && sc.groups.length) {
+    var byLen = {};
+    sc.groups.forEach(function(g){ byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count; });
+    rows = Object.keys(byLen)
+      .map(function(k){ return { len: parseInt(k, 10), qty: byLen[k] }; })
+      .sort(function(a, b){ return b.len - a.len; });
+  } else {
+    var longTotal = (sc.orangeLong || 0) + (sc.blueLong || 0) + (sc.purpleLong || 0);
+    if (longTotal)     rows.push({ len: sc.longLen  || 7650, qty: longTotal });
+    if (sc.shortCount) rows.push({ len: sc.shortLen || 3900, qty: sc.shortCount });
+  }
+  var total = rows.reduce(function(s,r){ return s+r.qty; }, 0);
   var html = spec + '<table class="mp-cut"><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Length each</th></tr></thead><tbody>';
   rows.forEach(function(r){
-    html += '<tr><td>'+esc(r.d)+'</td><td class="r">'+r.q+'</td><td class="r">'+r.l.toFixed(2)+' m</td></tr>';
+    var lbl = esc(profile) + ' sheet @ ' + (r.len / 1000).toFixed(2) + 'm';
+    html += '<tr><td>'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+(r.len / 1000).toFixed(2)+' m</td></tr>';
   });
   html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+total+' sheets</td><td class="r"></td></tr></tfoot></table>';
   mount.innerHTML = html;
@@ -13728,24 +15507,97 @@ function _matBuildPrintOrderDetails(mount) {
     '<div><div class="lbl">Roof area</div><div class="val">'+(d.roofArea>0?d.roofArea.toFixed(1)+' m²':'—')+'</div></div>'+
   '</div>';
 
-  // One combined cut-list table, grouped by section.
-  html += '<table class="mp-cut">'+
+  // Roof Sheet Cut List repeats here at the top of the order so the
+  // supplier sees what to cut FIRST. Build the same rows-by-length
+  // breakdown that page 1 uses.
+  var sc = window._lastSheetCounts;
+  var hasSheetCounts = sc && (
+    (sc.groups && sc.groups.length) ||
+    sc.orangeLong || sc.blueLong || sc.purpleLong || sc.shortCount
+  );
+  if (hasSheetCounts) {
+    var sheetRows = [];
+    if (sc.groups && sc.groups.length) {
+      var byLen = {};
+      sc.groups.forEach(function(g){ byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count; });
+      sheetRows = Object.keys(byLen)
+        .map(function(k){ return { len: parseInt(k, 10), qty: byLen[k] }; })
+        .sort(function(a, b){ return b.len - a.len; });
+    } else {
+      var longTotal = (sc.orangeLong || 0) + (sc.blueLong || 0) + (sc.purpleLong || 0);
+      if (longTotal)     sheetRows.push({ len: sc.longLen  || 7650, qty: longTotal });
+      if (sc.shortCount) sheetRows.push({ len: sc.shortLen || 3900, qty: sc.shortCount });
+    }
+    var sheetTotal = sheetRows.reduce(function(s,r){ return s+r.qty; }, 0);
+    html += '<h2 class="mp-h" style="margin-top:14px">Roof Sheet Cut List</h2>'+
+      '<table class="mp-cut"><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Length each</th></tr></thead><tbody>';
+    sheetRows.forEach(function(r){
+      var lbl = esc(profile) + ' sheet @ ' + (r.len / 1000).toFixed(2) + 'm';
+      html += '<tr><td>'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+(r.len / 1000).toFixed(2)+' m</td></tr>';
+    });
+    html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+sheetTotal+' sheets</td><td class="r"></td></tr></tfoot></table>';
+  }
+
+  // Combined cut-list table. Per-flashing cut lists (barge / apron /
+  // change-of-pitch / valley) have been removed from this table — the
+  // supplier reads those from the per-drawing summaries below ("3 @
+  // 4.2m, 1 @ 1.2m"). Ridge / Hip capping + the chosen gutter stay
+  // in the table because they don't get a drawing tile.
+  html += '<h2 class="mp-h" style="margin-top:14px">Order summary</h2>'+
+    '<table class="mp-cut">'+
     '<thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Length each</th><th class="r">Total</th></tr></thead><tbody>';
   function appendSection(label, cl) {
     if (!cl || !cl.pieceCount) return;
     html += '<tr><td colspan="4" class="mp-sub">'+esc(label)+'</td></tr>';
     cl.rows.forEach(function(r, i){
-      html += '<tr><td>Piece '+(i+1)+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">'+(r.qty*r.length).toFixed(1)+' m</td></tr>';
+      var lbl = r.letter ? r.letter : ('Piece '+(i+1));
+      html += '<tr><td style="font-weight:600'+(r.letter?';color:#0a1628':'')+'">'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+r.length.toFixed(1)+' m</td><td class="r">'+(r.qty*r.length).toFixed(1)+' m</td></tr>';
     });
     html += '<tr><td style="font-weight:700">Subtotal</td><td class="r" style="font-weight:700">'+cl.pieceCount+'</td><td class="r"></td><td class="r" style="font-weight:700">'+cl.totalLm.toFixed(1)+' m</td></tr>';
   }
   appendSection('Ridge / Hip capping ('+(ridgeType==='wide'?'Wide':'Standard')+')', _matBuildCutList('ridgehip', 0.5));
-  appendSection('Barge flashing',         _matBuildCutList('barge',       0.4));
-  appendSection('Apron flashing',         _matBuildCutList('apron',       0.4));
-  appendSection('Change-of-pitch flashing', _matBuildCutList('changepitch', 0.4));
-  appendSection('Valley iron',            _matBuildCutList('valley',      0.4));
   if (gutterChoice !== 'none') appendSection('Gutter — '+gutterLabel, _matBuildCutList('gutter', 0));
   html += '</tbody></table>';
+
+  // Flashing drawings — one tile per flashing type (skip ridge per the
+  // user's request: ridge gets no drawing picture). Each tile shows the
+  // user-picked saved drawing (or the built-in default SVG when none
+  // is picked) plus a "3 @ 4.2m, 1 @ 1.2m"-style summary of the cut
+  // list. 3 tiles per row; flex-wraps to as many rows as needed.
+  var drawingBlocks = [];
+  _MAT_FLASHING_SPECS.forEach(function(spec){
+    if (spec.key === 'ridgehip') return;     // ridge needs no drawing
+    var cl = _matBuildCutList(spec.key, spec.waste);
+    if (!cl.pieceCount) return;
+    var savedName = localStorage.getItem('fr_mat_flash_pick_' + spec.key) || '';
+    var saved = null;
+    if (savedName && window.S && S.settings && S.settings.materials_catalog) {
+      var lib = S.settings.materials_catalog.savedFlashings || [];
+      saved = lib.find(function(e){ return e.name === savedName; }) || null;
+    }
+    var imgHtml;
+    if (saved && saved.sketch) {
+      imgHtml = '<img src="'+saved.sketch+'" alt="'+esc(saved.name)+'" style="display:block;width:100%;height:84px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:4px">';
+    } else if (spec.drawing) {
+      imgHtml = '<div style="width:100%;height:84px;background:#fff;border:1px solid #e5e7eb;border-radius:4px;display:flex;align-items:center;justify-content:center;padding:6px;box-sizing:border-box">'+_matFlashingDrawing(spec.drawing)+'</div>';
+    } else {
+      imgHtml = '<div style="width:100%;height:84px;background:#fafaf7;border:1px solid #e5e7eb;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:9.5px;font-style:italic">No drawing</div>';
+    }
+    var rowsText = cl.rows.map(function(r){ return r.qty + ' @ ' + r.length.toFixed(1) + 'm'; }).join(', ');
+    drawingBlocks.push(
+      '<div style="break-inside:avoid">'+
+        imgHtml+
+        '<div style="font-size:10.5px;font-weight:700;color:#0a1628;margin-top:4px;text-align:center">'+esc(spec.label)+'</div>'+
+        '<div style="font-size:10px;color:#374151;text-align:center;margin-top:1px">'+esc(rowsText)+'</div>'+
+      '</div>'
+    );
+  });
+  if (drawingBlocks.length) {
+    html += '<h2 class="mp-h" style="margin-top:14px">Flashing drawings</h2>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px 12px;margin-top:6px">'+
+        drawingBlocks.join('')+
+      '</div>';
+  }
 
   // Consumables strip.
   var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
@@ -13867,7 +15719,7 @@ async function pushMaterialsToFergus() {
   try {
     var blob = await _matBuildPdfBlob();
     var client = ((document.getElementById('jobClient')||{}).value || 'Order').trim();
-    var jobNum = ((document.getElementById('matJobNumber')||{}).value || S.linkedJobId).trim();
+    var jobNum = ((document.getElementById('matJobNumber')||{}).value || _fergusDisplayNo()).toString().trim();
     var filename = ('Materials_Order_' + jobNum + '_' + client)
       .replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
     // 1. Save a local copy first so the user has the file even if Fergus
@@ -13880,7 +15732,7 @@ async function pushMaterialsToFergus() {
       r.onerror = function(){ fail(r.error || new Error('FileReader failed')); };
       r.readAsDataURL(blob);
     });
-    _matMsg('Saved locally — uploading to Fergus job ' + S.linkedJobId + '…');
+    _matMsg('Saved locally — uploading to Fergus job ' + _fergusDisplayNo() + '…');
     var token = localStorage.getItem('fr_token') || '';
     var resp = await fetch(PROXY + '/fergus-files/upload', {
       method: 'POST',
@@ -13901,7 +15753,7 @@ async function pushMaterialsToFergus() {
     _matRenderFergusDebug('Last upload attempt', data);
     if (resp.ok && data.ok) {
       var via = data.used ? ' (via ' + data.used + ')' : '';
-      _matMsg('✓ Downloaded ' + filename + ' · uploaded to Fergus job ' + S.linkedJobId + via, true);
+      _matMsg('✓ Downloaded ' + filename + ' · uploaded to Fergus job ' + _fergusDisplayNo() + via, true);
     } else {
       console.error('Fergus upload failed', data);
       // Fergus's public PAT API doesn't currently expose a file-upload
@@ -13986,7 +15838,7 @@ async function openFergusJob() {
 // exposes — gives us hints about the right file-upload endpoint.
 async function inspectFergusJob() {
   if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first.', false); return; }
-  _matMsg('Fetching Fergus job ' + S.linkedJobId + '…');
+  _matMsg('Fetching Fergus job ' + _fergusDisplayNo() + '…');
   try {
     var token = localStorage.getItem('fr_token') || '';
     var r = await fetch(PROXY + '/fergus/jobs/' + encodeURIComponent(String(S.linkedJobId)), {
@@ -14006,9 +15858,16 @@ async function inspectFergusJob() {
   }
 }
 
-// Order Roof — emails the cut list + selectors to the supplier.
-// Replaces the legacy Order Material tab flow with one Materials-tab call.
-function orderRoofViaSupplier() {
+// Order Roof — generates the 2-page PDF and ships it to the supplier
+// with the PDF actually attached (not just referenced). On mobile
+// browsers that support Web Share Level 2 (Android Chrome / Samsung
+// Browser / iOS Safari 16+) we use navigator.share with the file —
+// that opens the system share sheet so the user can pick Gmail/Mail/
+// WhatsApp and the PDF goes along as a real attachment. On desktop
+// or older browsers we fall back to downloading the PDF + opening a
+// pre-composed mailto so the user attaches the just-saved file
+// manually (a mailto: URL alone can't carry an attachment).
+async function orderRoofViaSupplier() {
   var d = _matDrawTotals();
   var profile   = (document.getElementById('matProfile')   || {}).value || 'Corrugate';
   var grade     = (document.getElementById('matGrade')     || {}).value || 'Colorsteel Maxam';
@@ -14017,8 +15876,8 @@ function orderRoofViaSupplier() {
   var gutterChoice = (document.getElementById('matGutter') || {}).value || 'none';
   var colour    = (document.getElementById('matColour')    || {}).value || '';
 
-  // Sync to the (hidden) legacy order-tab fields so emailOrderToSupplier
-  // works without modification + any existing supplier picker carries on.
+  // Sync to the (hidden) legacy order-tab fields so any other code
+  // path that reads them stays consistent.
   function setIf(id, val){ var el = document.getElementById(id); if (el) el.value = val; }
   setIf('orderColour',  colour);
   setIf('orderPitch',   d.pitch || '');
@@ -14032,20 +15891,81 @@ function orderRoofViaSupplier() {
     'marley-typhoon':'Marley Typhoon'
   }[gutterChoice] || ''));
 
-  // Prefer a supplier email already on file; otherwise prompt for one.
+  // Prefer the typed supplier email field, fall back to a saved
+  // supplier's email, prompt as last resort.
   var emailEl = document.getElementById('orderSupplierEmail');
   var email = emailEl ? (emailEl.value || '').trim() : '';
+  if (!email && typeof _ensureCatalog === 'function' && typeof _collectOrderFromUI === 'function') {
+    var o0 = _collectOrderFromUI();
+    var cat = _ensureCatalog();
+    var saved = (cat.suppliers || []).find(function(x){ return x.name === o0.supplierId; });
+    if (saved && saved.email) email = saved.email;
+  }
   if (!email) {
     email = (window.prompt('Send order to supplier email:') || '').trim();
     if (!email) { _matMsg('Order cancelled — no supplier email.', false); return; }
     if (emailEl) emailEl.value = email;
   }
-  if (typeof emailOrderToSupplier === 'function') {
-    emailOrderToSupplier();
-    _matMsg('Email composed in your mail client.', true);
-  } else {
-    _matMsg('Order flow unavailable.', false);
-  }
+
+  _matMsg('Building order PDF…');
+  var blob;
+  try { blob = await _matBuildPdfBlob(); }
+  catch (e) { _matMsg('PDF build failed: ' + (e.message || e), false); return; }
+
+  var client = ((document.getElementById('jobClient')||{}).value || 'Order').trim();
+  var jobNum = ((document.getElementById('matJobNumber')||{}).value || (window.S && S.linkedJobId) || '').toString().trim();
+  var filename = ('Materials_Order_' + (jobNum || client))
+    .replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
+
+  // Short email body — the PDF carries the full cut list, consumables,
+  // job/site/delivery details. Repeating them inline just clutters
+  // the message.
+  var brand = (window.S && S.settings && S.settings.branding) || {};
+  var deliveryMode = ((window.S && S.order && S.order.deliveryMode) || 'yard');
+  var deliveryAddr = (document.getElementById('matDeliveryAddr')||{}).value
+                  || (document.getElementById('jobAddr')||{}).value || '';
+  var siteAddr = (document.getElementById('jobAddr')||{}).value || '';
+  var subj = 'Material order — ' + (jobNum ? 'Job ' + jobNum + ' · ' : '') + (client || 'Roofing job');
+  var body = [
+    'Hi,',
+    '',
+    'Please find attached the material order for ' + (client || 'this job') + (jobNum ? ' (Job ' + jobNum + ')' : '') + '.',
+    siteAddr ? 'Site: ' + siteAddr : '',
+    'Delivery: ' + (deliveryMode === 'site' ? ('To site — ' + (deliveryAddr || '(address tbc)')) : 'To yard'),
+    '',
+    'Cheers,',
+    brand.company_name || 'Flood Roofing'
+  ].filter(Boolean).join('\n');
+
+  // Try Web Share API with the actual PDF file (mobile-native).
+  // canShare({files:[file]}) is the only reliable signal that the host
+  // will carry the file through to the picked app.
+  try {
+    var file = new File([blob], filename, { type: 'application/pdf' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          title: subj,
+          text:  body + '\n\nSend to: ' + email,
+          files: [file],
+        });
+        _matMsg('✓ Order sent — PDF attached to the share.', true);
+        return;
+      } catch (shareErr) {
+        if (shareErr && shareErr.name === 'AbortError') { _matMsg('Order share cancelled.', false); return; }
+        // any other share error → fall through to mailto fallback
+      }
+    }
+  } catch (e) { /* File ctor unavailable on very old browsers — fall through */ }
+
+  // Fallback: download the PDF locally + open a pre-composed mailto.
+  // The user attaches the just-saved file manually before sending.
+  _matDownloadBlob(blob, filename);
+  var href = 'mailto:' + encodeURIComponent(email) +
+             '?subject=' + encodeURIComponent(subj) +
+             '&body='    + encodeURIComponent(body + '\n\n[Attach ' + filename + ' before sending]');
+  window.location.href = href;
+  _matMsg('PDF downloaded — attach ' + filename + ' to the email before sending.', true);
 }
 
 // Group every drawn line by type, then by rounded length, and render
@@ -14721,27 +16641,35 @@ function buildDutchGableRoofLines(outline) {
 
 // Mono pitch: no internal lines (single slope)
 function buildMonoPitchRoofLines(outline, rotation) {
-  // Find the longest edge — that's the default gutter.  `rotation` (in
-  // degrees) shifts which edge is selected, so the user can cycle
-  // the slope direction (each 90° step picks the next edge round the
-  // outline).  For a 4-sided rectangle one rotation step picks the
-  // adjacent edge; for L-shapes it picks the next outline edge in
-  // CCW order.
-  var n=outline.length,result=[];
-  var best=0,bestI=0;
-  for(var i=0;i<n;i++){
-    var a=outline[i],b=outline[(i+1)%n];
-    var l=Math.sqrt((b[0]-a[0])*(b[0]-a[0])+(b[1]-a[1])*(b[1]-a[1]));
-    if(l>best){best=l;bestI=i;}
+  // Mono pitch geometry on a rectangle (or any polygon):
+  //   • one edge = gutter (the LOW side)
+  //   • opposite parallel edge = barge BY DEFAULT (high side). A mono
+  //     pitch has NO ridge; the high side is either a barge (open
+  //     eave), an apron (against a wall), or a change-of-pitch
+  //     (against another roof). User can re-tag from the line editor.
+  //   • two perpendicular gable-end edges = barge (always)
+  // `rotation` shifts which outline edge becomes the gutter so the
+  // "Rotate roof 90°" button cycles the slope direction.
+  var n = outline.length, result = [];
+  var best = 0, bestI = 0;
+  for (var i = 0; i < n; i++) {
+    var a = outline[i], b = outline[(i+1)%n];
+    var l = Math.sqrt((b[0]-a[0])*(b[0]-a[0]) + (b[1]-a[1])*(b[1]-a[1]));
+    if (l > best) { best = l; bestI = i; }
   }
   var rotSteps = Math.round(((rotation||0) % 360) / 90) % n;
   if (rotSteps < 0) rotSteps += n;
   bestI = (bestI + rotSteps) % n;
-  // Gutter = (rotated) selected edge
-  result.push({type:'gutter',pts:[outline[bestI].slice(),outline[(bestI+1)%n].slice()]});
-  // Ridge on the opposite edge
-  var oppI=(bestI+Math.floor(n/2))%n;
-  result.push({type:'ridge',pts:[outline[oppI].slice(),outline[(oppI+1)%n].slice()]});
+  // Gutter on the chosen edge.
+  result.push({ type:'gutter', pts:[outline[bestI].slice(), outline[(bestI+1)%n].slice()] });
+  // Every other edge starts as a barge — the algorithm has no way to
+  // know whether the high side is an open eave / wall apron / pitch
+  // change without the user telling it. Barge is the safest default
+  // and lets all four sides participate in the flashing cut list.
+  for (var k = 1; k < n; k++) {
+    var idx = (bestI + k) % n;
+    result.push({ type:'barge', pts:[outline[idx].slice(), outline[(idx+1)%n].slice()] });
+  }
   return result;
 }
 
@@ -14889,7 +16817,28 @@ function renderRoofSwitcher(){
       '<button onclick="deleteRoof('+i+')" title="Delete '+label+'" style="font-size:13px;line-height:1;padding:4px 8px 4px 2px;border:none;background:transparent;cursor:pointer;color:'+(isActive?'rgba(255,255,255,.85)':'#94a3b8')+'">✕</button>'+
     '</span>';
   });
+  // "Show all" toggles the overview render: every roof's outline + lines
+  // + measurements visible at once, no single roof "active" for editing.
+  // Surfaces only when 2+ roofs exist (1 roof is trivially shown).
+  if (DRAW.roofs.length >= 2) {
+    var showingAll = !!DRAW.showAllRoofs;
+    var btnBg = showingAll ? '#0a1628' : '#fff';
+    var btnFg = showingAll ? '#fff' : '#0a1628';
+    html += '<button onclick="toggleShowAllRoofs()" title="Show every roof on the map at once" style="margin-left:6px;font-size:12px;padding:4px 10px;border:1px solid '+(showingAll?'#0a1628':'#cbd5e1')+';background:'+btnBg+';color:'+btnFg+';border-radius:6px;cursor:pointer;font-weight:600">'+
+      (showingAll ? '✓ Showing all' : 'Show all') +
+    '</button>';
+  }
   el.innerHTML = html;
+}
+
+// Show-all mode: render every roof's outline + drawn lines + sheet
+// measurements simultaneously instead of just the active one. While
+// on, no roof is "active for editing" — clicking a roof switches focus
+// to it and turns the overview back off.
+function toggleShowAllRoofs(){
+  DRAW.showAllRoofs = !DRAW.showAllRoofs;
+  renderRoofSwitcher();
+  redrawAll();
 }
 // Rotate the active roof type 90° CW.  Bumps DRAW.rotation and re-runs
 // autoGenerateRoof, which honours the rotation by virtually rotating
@@ -15435,7 +17384,10 @@ function renderRoofSheetPlan() {
     var savedActive = DRAW.activeRoofIdx;
     _syncCurrentToRoof();
     outEl.innerHTML = '';
-    var combined = {orangeLong:0, blueLong:0, purpleLong:0, shortCount:0, shortLen:0, longLen:0};
+    var combined = {orangeLong:0, blueLong:0, purpleLong:0, shortCount:0, shortLen:0, longLen:0, groups:[]};
+    // Combined groups map keyed by colour+orderedMm so identical
+    // (colour, length) entries from different roofs collapse cleanly.
+    var combinedGroups = {};
     DRAW.roofs.forEach(function(r, idx){
       _loadRoofToCurrent(idx);
       if (!r.outline || r.outline.length < 3) return;
@@ -15457,8 +17409,18 @@ function renderRoofSheetPlan() {
         combined.shortCount += c.shortCount || 0;
         combined.shortLen    = c.shortLen   || combined.shortLen;
         combined.longLen     = c.longLen    || combined.longLen;
+        // Merge per-(colour, length) groups so the Materials cut list
+        // can report ACTUAL ordered lengths (e.g. 36 × 4.40m + 10 ×
+        // 5.20m) instead of collapsing everything onto the legacy
+        // longLen default and showing 46 × 7.65m.
+        (c.groups || []).forEach(function(g){
+          var key = (g.color || '') + '|' + g.orderedMm;
+          if (!combinedGroups[key]) combinedGroups[key] = { color: g.color, orderedMm: g.orderedMm, count: 0 };
+          combinedGroups[key].count += g.count || 0;
+        });
       }
     });
+    combined.groups = Object.keys(combinedGroups).map(function(k){ return combinedGroups[k]; });
     window._lastSheetCounts = combined;
     _loadRoofToCurrent(savedActive);
     return;
@@ -15522,15 +17484,20 @@ function _renderRoofSheetPlanInner() {
   // ordering increments. NZ corrugate is commonly 7650 (long) and
   // 3900 (short). The "long" group is whatever a face actually needs
   // rounded up to one of these; the "short" group is anything below
-  // the short threshold.
+  // SHORT_MM / LONG_MM are kept only as semantic thresholds for the
+  // legacy Order-Material cut-list sync + the _lastSheetCounts legacy
+  // fields (orangeLong / blueLong / shortCount). The legend + Materials
+  // cut-list source the real ordered lengths from the groups array so
+  // a 3.98m sheet is ordered as 4100mm, not bucketed up to 7650mm.
   var SHORT_MM = 3900;
   var LONG_MM  = 7650;
   function orderedLengthMm(sheetMetres) {
     var mm = Math.ceil(sheetMetres * 1000 + 50);  // +50mm trim
-    if (mm <= SHORT_MM) return SHORT_MM;
-    if (mm <= LONG_MM)  return LONG_MM;
-    // Round up to the next 300mm increment past long
-    return Math.ceil(mm / 300) * 300;
+    // Round up to the nearest 100mm — roofing iron is cut-to-order
+    // at the supplier so there's no benefit to forcing every sheet
+    // into a SHORT (3900mm) or LONG (7650mm) standard length. Min
+    // 1000mm to leave enough material for endlap.
+    return Math.max(1000, Math.ceil(mm / 100) * 100);
   }
 
   // ── Geometry helpers ───────────────────────────────────────────
@@ -16050,10 +18017,24 @@ function _renderRoofSheetPlanInner() {
     var capWap=[cx0+ch/2,capMidY], capEap=[cx1-ch/2,capMidY];
     var stemSap=[sxc, sy1-sw/2], ridgeN=[sxc,capMidY];
     var OR=COL_ORANGE, BL=COL_BLUE, PU=COL_PURPLE, descs=[];
-    descs.push({a:[cx0,cy0],b:[cx1,cy0],poly:[[cx0,cy0],[cx1,cy0],capEap,capWap],t:'long-side',c:OR}); // cap N
-    descs.push({a:[cx0,cy0],b:[cx0,jy],poly:[[cx0,cy0],capWap,[cx0,jy]],t:'hip-end',c:OR});            // cap W hip
-    descs.push({a:[cx1,cy0],b:[cx1,jy],poly:[[cx1,cy0],capEap,[cx1,jy]],t:'hip-end',c:OR});            // cap E hip
-    descs.push({a:[sx0,sy1],b:[sx1,sy1],poly:[[sx0,sy1],stemSap,[sx1,sy1]],t:'hip-end',c:BL});         // stem S hip
+    // "Main" should be whichever rectangle has the LONGER per-piece sheet
+    // length running through it — that's where end-to-end long sheets get
+    // laid + the donor cascade lives. Cap sheets run ridge-to-eave a
+    // distance of ch/2; stem sheets run a distance of sw/2.
+    // Tie or cap longer → cap is main (orange/blue), stem is wing (purple).
+    // Stem strictly longer → stem is main (orange/blue), cap is wing (purple).
+    var _stemIsMain = sw > ch + 0.5;
+    var capLong = _stemIsMain ? PU : OR;     // cap N long-side colour
+    var capHip  = _stemIsMain ? PU : OR;     // cap W/E hip-end colour
+    var capStub = _stemIsMain ? PU : BL;     // cap S-W and S-E stub colour
+    var stemLong  = _stemIsMain ? OR : PU;   // stem long-side OR colour
+    var stemLongB = _stemIsMain ? BL : PU;   // stem long-side BL colour
+    var stemHipS  = _stemIsMain ? OR : BL;   // stem S hip-end
+    var stemHipN  = _stemIsMain ? BL : BL;   // stem N phantom hip (only present when sw > ch)
+    descs.push({a:[cx0,cy0],b:[cx1,cy0],poly:[[cx0,cy0],[cx1,cy0],capEap,capWap],t:'long-side',c:capLong}); // cap N
+    descs.push({a:[cx0,cy0],b:[cx0,jy],poly:[[cx0,cy0],capWap,[cx0,jy]],t:'hip-end',c:capHip});             // cap W hip
+    descs.push({a:[cx1,cy0],b:[cx1,jy],poly:[[cx1,cy0],capEap,[cx1,jy]],t:'hip-end',c:capHip});             // cap E hip
+    descs.push({a:[sx0,sy1],b:[sx1,sy1],poly:[[sx0,sy1],stemSap,[sx1,sy1]],t:'hip-end',c:stemHipS});        // stem S hip
     if (sw > ch + 0.5){
       // Stem ridge HIGHER than the cap ridge → the stem is a phantom 4-hip: its
       // long-sides are hip-cut at BOTH the south hip (stemSap) AND a north
@@ -16062,18 +18043,18 @@ function _renderRoofSheetPlanInner() {
       // end, fed by the stem long-sides' north offcuts via the same L-shape
       // corner cascade as the south hip.
       var W1=[sx0+ch/2,capMidY], E1=[sx1-ch/2,capMidY], T0=[sxc,cy0+sw/2];
-      descs.push({a:W1,b:E1,poly:[W1,T0,E1],t:'hip-end',c:BL});                                        // stem N phantom hip-end
-      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],W1,capWap],t:'long-side',c:BL});        // cap S-W stub
-      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,E1],t:'long-side',c:BL});        // cap S-E stub
-      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],W1,T0,stemSap,[sx0,sy1]],t:'long-side',c:PU});  // stem W
-      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,T0,E1],t:'long-side',c:PU});  // stem E
+      descs.push({a:W1,b:E1,poly:[W1,T0,E1],t:'hip-end',c:stemHipN});                                       // stem N phantom hip-end
+      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],W1,capWap],t:'long-side',c:capStub});        // cap S-W stub
+      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,E1],t:'long-side',c:capStub});        // cap S-E stub
+      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],W1,T0,stemSap,[sx0,sy1]],t:'long-side',c:stemLong});  // stem W
+      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,T0,E1],t:'long-side',c:stemLongB}); // stem E
     } else {
       // Stem ridge LOWER than / equal to the cap ridge (at sw==ch, V==ridgeN).
       var V=[sxc, jy-sw/2];
-      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],V,ridgeN,capWap],t:'long-side',c:BL});
-      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,ridgeN,V],t:'long-side',c:BL});
-      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],V,stemSap,[sx0,sy1]],t:'long-side',c:PU});
-      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,V],t:'long-side',c:PU});
+      descs.push({a:[cx0,jy],b:[sx0,jy],poly:[[cx0,jy],[sx0,jy],V,ridgeN,capWap],t:'long-side',c:capStub});
+      descs.push({a:[sx1,jy],b:[cx1,jy],poly:[[sx1,jy],[cx1,jy],capEap,ridgeN,V],t:'long-side',c:capStub});
+      descs.push({a:[sx0,jy],b:[sx0,sy1],poly:[[sx0,jy],V,stemSap,[sx0,sy1]],t:'long-side',c:stemLong});
+      descs.push({a:[sx1,jy],b:[sx1,sy1],poly:[[sx1,jy],[sx1,sy1],stemSap,V],t:'long-side',c:stemLongB});
     }
     var inv=(4-nTurns)%4;
     function rb(p){return rotate90(p,pvx,pvy,inv);}
@@ -16247,7 +18228,7 @@ function _renderRoofSheetPlanInner() {
       }
       return hits / N;
     }
-    var best = null, bestA = 0, bestReal = -1;
+    var best = null, bestA = 0, bestReal = -1, bestSL = 0;
     for (var i = 0; i < xs.length - 1; i++) {
       for (var j = i + 1; j < xs.length; j++) {
         for (var k = 0; k < ys.length - 1; k++) {
@@ -16270,8 +18251,20 @@ function _renderRoofSheetPlanInner() {
             var real = horiz
               ? edgeReal(true, y0, x0, x1) + edgeReal(true, y1, x0, x1)
               : edgeReal(false, x0, y0, y1) + edgeReal(false, x1, y0, y1);
-            if (area > bestA + 1 || (Math.abs(area-bestA) <= 1 && real > bestReal)) {
-              bestA = area; bestReal = real; best = {x0:x0,y0:y0,x1:x1,y1:y1};
+            // Per-piece sheet length = half the SHORTER side (ridge runs
+            // along the longer side, sheets run perpendicular). The
+            // rectangle with the longer per-piece sheet length is the
+            // one where "the long sheets" run end-to-end, which is the
+            // user's mental model for which rectangle should be MAIN.
+            // Ties broken by area, then by edge realness.
+            var sheetLen = Math.min(x1-x0, y1-y0) / 2;
+            var SLEPS = 2;  // px tolerance — sheet lengths within ~10cm tie
+            var better =
+              sheetLen > bestSL + SLEPS
+              || (Math.abs(sheetLen - bestSL) <= SLEPS && area > bestA + 1)
+              || (Math.abs(sheetLen - bestSL) <= SLEPS && Math.abs(area - bestA) <= 1 && real > bestReal);
+            if (better) {
+              bestSL = sheetLen; bestA = area; bestReal = real; best = {x0:x0,y0:y0,x1:x1,y1:y1};
             }
           }
         }
@@ -18617,22 +20610,27 @@ function _renderRoofSheetPlanInner() {
     groupList.forEach(function(g){
       legHtml += '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">'+
         '<span style="font-size:24px;font-weight:800;color:'+g.color+'">'+g.count+'</span>'+
-        '<span style="font-size:12px;color:#6b7280">× '+
-        (g.orderedMm <= SHORT_MM ? 'SHORT @ '+SHORT_MM+'mm' : 'LONG @ '+g.orderedMm+'mm')+
-        '</span></div>';
+        '<span style="font-size:12px;color:#6b7280">× @ '+g.orderedMm+'mm ('+(g.orderedMm/1000).toFixed(2)+'m)</span>'+
+        '</div>';
     });
   }
   legHtml += '</div></div>';
   // (FACE BREAKDOWN panel removed — area + per-face detail is shown
   // in the Materials section's cut lists below the sheet plan.)
 
-  // Stash counts for the Order Material cut-list sync.
+  // Stash counts for the Materials cut-list + legacy Order Material
+  // sync.  Derived from the SAME `groups` map the SHEETS TO ORDER
+  // legend renders so the two can never drift (and so offcuts are
+  // excluded — offcuts come out of donor sheets and don't add to
+  // what we order).  Also exposes the per-length groups array
+  // verbatim so the Materials cut-list can show one row per (length,
+  // colour) group instead of collapsing everything into "LONG".
   var shortCount = 0, orangeLong = 0, blueLong = 0, purpleLong = 0;
-  allStrips.forEach(function(s){
-    if (s.orderedLengthMm <= SHORT_MM) shortCount++;
-    else if (s.color === COL_ORANGE) orangeLong++;
-    else if (s.color === COL_BLUE)   blueLong++;
-    else                              purpleLong++;
+  groupList.forEach(function(g){
+    if (g.orderedMm <= SHORT_MM) { shortCount += g.count; return; }
+    if (g.color === COL_ORANGE)  { orangeLong += g.count; return; }
+    if (g.color === COL_BLUE)    { blueLong   += g.count; return; }
+    purpleLong += g.count;
   });
   window._lastSheetCounts = {
     shortCount: shortCount,
@@ -18640,7 +20638,10 @@ function _renderRoofSheetPlanInner() {
     orangeLong: orangeLong,
     blueLong: blueLong,
     purpleLong: purpleLong,
-    longLen: LONG_MM
+    longLen: LONG_MM,
+    // Per (colour, length) groups straight from the legend — the
+    // Materials cut-list groups by length only and uses these.
+    groups: groupList.map(function(g){ return { color: g.color, orderedMm: g.orderedMm, count: g.count }; }),
   };
 
   outEl.innerHTML = '';
