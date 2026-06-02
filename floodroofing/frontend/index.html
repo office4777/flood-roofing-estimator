@@ -2565,6 +2565,7 @@ select{
     </div>
     <div style="padding:12px 20px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap">
       <button onclick="setFlashTool('draw')" id="flashToolDraw" class="tool-btn active-tool">✏ Draw</button>
+      <button onclick="setFlashTool('squiggle')" id="flashToolSquiggle" class="tool-btn">〜 Squiggle</button>
       <button onclick="setFlashTool('edit')" id="flashToolEdit" class="tool-btn">✥ Move / delete</button>
       <button onclick="setFlashTool('measure')" id="flashToolMeasure" class="tool-btn">📏 Add measurement</button>
       <button onclick="setFlashTool('crush')" id="flashToolCrush" class="tool-btn">▽ Crush fold</button>
@@ -2583,7 +2584,7 @@ select{
         <input type="checkbox" id="flashGuardsToggle" onchange="_onFlashGuardsToggle()" style="margin:0;width:auto"> Flash guards (+$5/lm)
       </label>
       <label style="display:flex;align-items:center;gap:6px">Text size
-        <input type="range" id="flashTextSize" min="10" max="22" step="1" value="14" oninput="_onFlashTextSize()" style="width:90px;margin:0">
+        <input type="range" id="flashTextSize" min="10" max="42" step="1" value="14" oninput="_onFlashTextSize()" style="width:130px;margin:0">
         <span id="flashTextSizeOut" style="font-variant-numeric:tabular-nums;color:var(--text)">14</span>px
       </label>
       <span style="margin-left:auto;font-size:11px">Click to place corners · <strong>Finish</strong> or press Enter when done · <strong>Move/delete</strong> drags vertices or removes a segment · <strong>Crush fold</strong> marks a vertex.</span>
@@ -9128,6 +9129,9 @@ function _computeFlashStats(){
     Object.keys(p.measurements).forEach(function(k){
       var mm = +p.measurements[k] || 0; girth += mm;
     });
+    // Squiggle polylines are visual-only (used to indicate flash
+    // guards) — they don't carry folds for pricing purposes.
+    if (p.kind === 'squiggle') return;
     // Each interior vertex is an angle change (n vertices → n-2 corners).
     if (p.vertices.length >= 3) angleChanges += (p.vertices.length - 2);
     if (p.crushFolds) {
@@ -9135,6 +9139,66 @@ function _computeFlashStats(){
     }
   });
   return { girth: girth, angleChanges: angleChanges, crushFolds: crushFolds };
+}
+
+// Click-no-drag in edit mode on a label opens this prompt. Type a
+// number to set the label's font size, leave blank to DELETE the
+// label, cancel to leave it untouched.
+function _flashEditLabelPrompt(hit){
+  if (!hit) return;
+  function currentLabelFontPx(){
+    if (hit.type === 'measurement') {
+      return (hit.polyline.measurementFontPx && hit.polyline.measurementFontPx[hit.segmentIdx]) || _flashTextPx();
+    }
+    if (hit.type === 'paintedSide') {
+      return (_flashSketchState.paintedSide && _flashSketchState.paintedSide.fontPx) || _flashTextPx();
+    }
+    if (hit.type === 'flashGuard') {
+      return (_flashSketchState.flashGuard && _flashSketchState.flashGuard.fontPx) || _flashTextPx();
+    }
+    if (hit.type === 'crushFold') {
+      var cf = hit.polyline.crushFolds && hit.polyline.crushFolds[hit.vertexIdx];
+      return (cf && cf.fontPx) || _flashTextPx();
+    }
+    return _flashTextPx();
+  }
+  var typeName = {measurement:'measurement', paintedSide:'painted-side', flashGuard:'flash-guard', crushFold:'crush-fold'}[hit.type] || 'label';
+  var msg = 'Edit this ' + typeName + ' label.\n\n' +
+            'Font size in pixels (leave BLANK and press OK to delete the label, Cancel to keep it as-is):';
+  var current = currentLabelFontPx();
+  var answer = window.prompt(msg, String(current));
+  if (answer == null) return;                       // cancel — no change
+  var trimmed = String(answer).trim();
+  _pushFlashHistory();
+  if (trimmed === '') {
+    // Delete
+    if (hit.type === 'measurement') {
+      delete hit.polyline.measurements[hit.segmentIdx];
+      if (hit.polyline.measurementFontPx) delete hit.polyline.measurementFontPx[hit.segmentIdx];
+      if (hit.polyline.measurementOffsets) delete hit.polyline.measurementOffsets[hit.segmentIdx];
+    } else if (hit.type === 'paintedSide') {
+      _flashSketchState.paintedSide = null;
+    } else if (hit.type === 'flashGuard') {
+      _flashSketchState.flashGuard = null;
+    } else if (hit.type === 'crushFold') {
+      if (hit.polyline.crushFolds) delete hit.polyline.crushFolds[hit.vertexIdx];
+    }
+    return;
+  }
+  var n = parseInt(trimmed, 10);
+  if (!isFinite(n) || n < 8) return;                // garbage — leave it
+  if (n > 80) n = 80;
+  if (hit.type === 'measurement') {
+    if (!hit.polyline.measurementFontPx) hit.polyline.measurementFontPx = {};
+    hit.polyline.measurementFontPx[hit.segmentIdx] = n;
+  } else if (hit.type === 'paintedSide') {
+    if (_flashSketchState.paintedSide) _flashSketchState.paintedSide.fontPx = n;
+  } else if (hit.type === 'flashGuard') {
+    if (_flashSketchState.flashGuard) _flashSketchState.flashGuard.fontPx = n;
+  } else if (hit.type === 'crushFold') {
+    var cf2 = hit.polyline.crushFolds && hit.polyline.crushFolds[hit.vertexIdx];
+    if (cf2) cf2.fontPx = n;
+  }
 }
 function _updateFlashStats(){
   var s = _computeFlashStats();
@@ -9152,7 +9216,7 @@ var _flashLabelRects = [];
 function _flashTextPx(){
   var s = parseInt(_flashSketchState.textPx || localStorage.getItem('fr_flash_text_px') || '14', 10);
   if (!isFinite(s) || s < 9) s = 9;
-  if (s > 26) s = 26;
+  if (s > 48) s = 48;
   return s;
 }
 function _onFlashTextSize(){
@@ -9187,9 +9251,36 @@ function _redrawFlashCanvas(){
     var v = p.vertices;
     if (v.length >= 2) {
       ctx.lineWidth = 2; ctx.strokeStyle = '#0a1628';
-      ctx.beginPath(); ctx.moveTo(v[0][0], v[0][1]);
-      for (var i = 1; i < v.length; i++) ctx.lineTo(v[i][0], v[i][1]);
-      ctx.stroke();
+      if (p.kind === 'squiggle') {
+        // Sinusoidal wave between every consecutive pair of vertices.
+        // Amplitude + wavelength stay in pixel space so the squiggle
+        // looks consistent no matter the sketch zoom.
+        var amp = 5, freq = 14;
+        ctx.beginPath();
+        var startedQ = false;
+        for (var qi = 0; qi < v.length - 1; qi++) {
+          var sa = v[qi], sb = v[qi+1];
+          var qdx = sb[0]-sa[0], qdy = sb[1]-sa[1];
+          var qL = Math.sqrt(qdx*qdx + qdy*qdy);
+          if (qL < 1) continue;
+          var nx = -qdy/qL, ny = qdx/qL;
+          var steps = Math.max(12, Math.ceil(qL / 2));
+          for (var qs = 0; qs <= steps; qs++) {
+            var qt = qs / steps;
+            var px = sa[0] + qdx * qt;
+            var py = sa[1] + qdy * qt;
+            var wave = Math.sin((qt * qL) / freq * Math.PI * 2) * amp;
+            var wx = px + nx * wave, wy = py + ny * wave;
+            if (!startedQ) { ctx.moveTo(wx, wy); startedQ = true; }
+            else ctx.lineTo(wx, wy);
+          }
+        }
+        ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.moveTo(v[0][0], v[0][1]);
+        for (var i = 1; i < v.length; i++) ctx.lineTo(v[i][0], v[i][1]);
+        ctx.stroke();
+      }
     }
     // Highlight only the in-progress polyline's last vertex.
     if (isCurrent && v.length) {
@@ -9231,20 +9322,22 @@ function _redrawFlashCanvas(){
         var dirY = (typeof cf.dirY === 'number') ? cf.dirY : -1;
         var dl = Math.hypot(dirX, dirY) || 1;
         dirX /= dl; dirY /= dl;
-        var labelDist = 46, tipBackoff = 6;
+        var cfFontPx = +(cf.fontPx || fontPx);
+        if (!isFinite(cfFontPx) || cfFontPx < 8) cfFontPx = fontPx;
+        var labelDist = Math.max(46, cfFontPx + 30), tipBackoff = 6;
         var labelX = ax + dirX * labelDist;
         var labelY = ay + dirY * labelDist;
         var tipX   = ax + dirX * tipBackoff;
         var tipY   = ay + dirY * tipBackoff;
-        ctx.font = fontStr;
+        ctx.font = cfFontPx + 'px Inter, system-ui, sans-serif';
         var txt = 'Crush', tw = ctx.measureText(txt).width;
-        var boxW = tw + 16, boxH = fontPx + 8;
+        var boxW = tw + 16, boxH = cfFontPx + 8;
         ctx.fillStyle = '#fff';
         ctx.fillRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
         ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 1.2;
         ctx.strokeRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
         ctx.fillStyle = '#ea580c';
-        ctx.fillText(txt, labelX - tw/2, labelY + fontPx*0.35);
+        ctx.fillText(txt, labelX - tw/2, labelY + cfFontPx*0.35);
         // Arrow shaft from label edge to the vertex tip
         var shaftStartX = labelX - dirX * (boxH/2 + 1);
         var shaftStartY = labelY - dirY * (boxH/2 + 1);
@@ -9263,10 +9356,14 @@ function _redrawFlashCanvas(){
           x: labelX - boxW/2, y: labelY - boxH/2, w: boxW, h: boxH,
         });
       });
+      ctx.font = fontStr;
     }
     // Measurement labels — auto centre on segment perpendicular,
-    // plus any per-segment offset the user has dragged it to.
+    // plus any per-segment offset the user has dragged it to. The
+    // per-label fontPx override lets the user blow up an individual
+    // measurement without changing the global size.
     if (!p.measurementOffsets) p.measurementOffsets = {};
+    if (!p.measurementFontPx) p.measurementFontPx = {};
     for (var i = 0; i < v.length - 1; i++) {
       var mm = p.measurements[i];
       if (mm == null) continue;
@@ -9274,25 +9371,29 @@ function _redrawFlashCanvas(){
       var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
       var dx = b[0]-a[0], dy = b[1]-a[1];
       var len = Math.hypot(dx, dy) || 1;
-      var perpOffset = Math.max(18, fontPx + 6);
+      var localFontPx = +(p.measurementFontPx[i] || fontPx);
+      if (!isFinite(localFontPx) || localFontPx < 8) localFontPx = fontPx;
+      ctx.font = localFontPx + 'px Inter, system-ui, sans-serif';
+      var perpOffset = Math.max(18, localFontPx + 6);
       var ox = -dy/len * perpOffset, oy = dx/len * perpOffset;
       var off = p.measurementOffsets[i] || [0,0];
       var lx = mx + ox + off[0], ly = my + oy + off[1];
       var txt = mm + ' mm';
       var tw = ctx.measureText(txt).width;
-      var rw = tw + 12, rh = fontPx + 10;
+      var rw = tw + 12, rh = localFontPx + 10;
       var rx = lx - rw/2, ry = ly - rh/2;
       ctx.fillStyle = '#fff';
       ctx.fillRect(rx, ry, rw, rh);
       ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1;
       ctx.strokeRect(rx, ry, rw, rh);
       ctx.fillStyle = '#dc2626';
-      ctx.fillText(txt, lx - tw/2, ly + fontPx*0.35);
+      ctx.fillText(txt, lx - tw/2, ly + localFontPx*0.35);
       _flashLabelRects.push({
         type: 'measurement', polyline: p, segmentIdx: i,
         x: rx, y: ry, w: rw, h: rh,
       });
     }
+    ctx.font = fontStr;
   }
   _flashSketchState.polylines.forEach(function(p){ drawOne(p, false); });
   if (_flashSketchState.currentPolyline) drawOne(_flashSketchState.currentPolyline, true);
@@ -9312,20 +9413,22 @@ function _redrawFlashCanvas(){
   // is now also a hit-test target so the user can drag it.
   if (_flashSketchState.paintedSide) {
     var ps = _flashSketchState.paintedSide;
-    var labelDist = 46, tipBackoff = 6;
+    var psFontPx = +(ps.fontPx || fontPx);
+    if (!isFinite(psFontPx) || psFontPx < 8) psFontPx = fontPx;
+    ctx.font = psFontPx + 'px Inter, system-ui, sans-serif';
+    var labelDist = Math.max(46, psFontPx + 30), tipBackoff = 6;
     var labelX = ps.x + ps.dirX * labelDist;
     var labelY = ps.y + ps.dirY * labelDist;
     var tipX   = ps.x + ps.dirX * tipBackoff;
     var tipY   = ps.y + ps.dirY * tipBackoff;
-    ctx.font = fontStr;
     var txt = 'Painted', tw = ctx.measureText(txt).width;
-    var boxW = tw + 16, boxH = fontPx + 8;
+    var boxW = tw + 16, boxH = psFontPx + 8;
     ctx.fillStyle = '#fff';
     ctx.fillRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
     ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 1.2;
     ctx.strokeRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
     ctx.fillStyle = '#16a34a';
-    ctx.fillText(txt, labelX - tw/2, labelY + 4);
+    ctx.fillText(txt, labelX - tw/2, labelY + psFontPx*0.35);
     var shaftStartX = labelX - ps.dirX * (boxH/2 + 1);
     var shaftStartY = labelY - ps.dirY * (boxH/2 + 1);
     ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 2;
@@ -9341,6 +9444,7 @@ function _redrawFlashCanvas(){
       type: 'paintedSide',
       x: labelX - boxW/2, y: labelY - boxH/2, w: boxW, h: boxH,
     });
+    ctx.font = fontStr;
   }
 
   // Flash guard label — free-floating, draggable anywhere on the
@@ -9348,19 +9452,22 @@ function _redrawFlashCanvas(){
   // distinct orange so the supplier can tell them apart.
   if (_flashSketchState.flashGuard) {
     var fg = _flashSketchState.flashGuard;
-    ctx.font = fontStr;
+    var fgFontPx = +(fg.fontPx || fontPx);
+    if (!isFinite(fgFontPx) || fgFontPx < 8) fgFontPx = fontPx;
+    ctx.font = fgFontPx + 'px Inter, system-ui, sans-serif';
     var fgTxt = 'Flash guard', fgTw = ctx.measureText(fgTxt).width;
-    var fgBoxW = fgTw + 16, fgBoxH = fontPx + 8;
+    var fgBoxW = fgTw + 16, fgBoxH = fgFontPx + 8;
     ctx.fillStyle = '#fff';
     ctx.fillRect(fg.x - fgBoxW/2, fg.y - fgBoxH/2, fgBoxW, fgBoxH);
     ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 1.2;
     ctx.strokeRect(fg.x - fgBoxW/2, fg.y - fgBoxH/2, fgBoxW, fgBoxH);
     ctx.fillStyle = '#ea580c';
-    ctx.fillText(fgTxt, fg.x - fgTw/2, fg.y + 4);
+    ctx.fillText(fgTxt, fg.x - fgTw/2, fg.y + fgFontPx*0.35);
     _flashLabelRects.push({
       type: 'flashGuard',
       x: fg.x - fgBoxW/2, y: fg.y - fgBoxH/2, w: fgBoxW, h: fgBoxH,
     });
+    ctx.font = fontStr;
   }
 }
 
@@ -9425,7 +9532,7 @@ function _flashLabelSetPos(hit, nx, ny){
 // ── Tools ───────────────────────────────────────────────
 function setFlashTool(t){
   _flashSketchState.tool = t;
-  ['draw','edit','measure','crush','paint','flashguard'].forEach(function(name){
+  ['draw','squiggle','edit','measure','crush','paint','flashguard'].forEach(function(name){
     var btn = document.getElementById('flashTool' + name.charAt(0).toUpperCase() + name.slice(1));
     if (btn) btn.classList.toggle('active-tool', t === name);
   });
@@ -9433,9 +9540,10 @@ function setFlashTool(t){
   if (c) c.style.cursor = (t === 'edit') ? 'move'
     : (t === 'measure' || t === 'paint' || t === 'flashguard' || t === 'crush') ? 'pointer'
     : 'crosshair';
-  // Cancel any in-progress polyline when leaving draw mode so a measure
-  // click doesn't end up adding a vertex back in draw mode.
-  if (t !== 'draw' && _flashSketchState.currentPolyline) {
+  // Cancel any in-progress polyline when leaving a drawing tool so a
+  // measure click doesn't end up adding a vertex to the half-finished
+  // polyline.
+  if (t !== 'draw' && t !== 'squiggle' && _flashSketchState.currentPolyline) {
     finishFlashPolyline(true);
   }
 }
@@ -9524,6 +9632,23 @@ function _onFlashCanvasClick(p){
       _flashSketchState.currentPolyline = { vertices: [[p.x, p.y]], measurements: {} };
     } else {
       _flashSketchState.currentPolyline.vertices.push([p.x, p.y]);
+    }
+    _redrawFlashCanvas();
+    _updateFlashStats();
+  } else if (_flashSketchState.tool === 'squiggle') {
+    // Two-click squiggle line: first click anchors the start, second
+    // click drops the end and finishes the polyline. The result is
+    // marked `kind:'squiggle'` so renderer draws a sine wave between
+    // the two points and stats skip the angle-change count (squiggles
+    // are visual-only, used for flash-guard indicators).
+    _pushFlashHistory();
+    if (!_flashSketchState.currentPolyline) {
+      _flashSketchState.currentPolyline = { vertices: [[p.x, p.y]], measurements: {}, kind: 'squiggle' };
+    } else {
+      _flashSketchState.currentPolyline.vertices.push([p.x, p.y]);
+      if (_flashSketchState.currentPolyline.vertices.length >= 2) {
+        finishFlashPolyline();
+      }
     }
     _redrawFlashCanvas();
     _updateFlashStats();
@@ -10228,15 +10353,25 @@ function deleteFlashingLibraryEntry(idx) {
     });
     window.addEventListener('mouseup', function(e){
       if (_flashSketchState.dragInfo) {
+        var di = _flashSketchState.dragInfo;
         // Drop without moving — pop the history snapshot we pushed on
         // mousedown so an accidental click-on-label doesn't count as
         // an undoable action.
-        if (!_flashSketchState.dragInfo.moved) {
+        if (!di.moved) {
           _flashSketchState.history.pop();
           _refreshFlashUndoRedoBtns();
+          // In edit mode, a click-no-drag on a label opens the
+          // per-label font / delete prompt: type a number to set this
+          // label's text size, leave blank to delete it, cancel to do
+          // nothing. Vertex clicks (di.hit.type === 'vertex') stay
+          // silent so users can tap a corner without surprises.
+          if (_flashSketchState.tool === 'edit' && di.hit && di.hit.type !== 'vertex') {
+            _flashEditLabelPrompt(di.hit);
+          }
         }
         _flashSketchState.dragInfo = null;
         _redrawFlashCanvas();
+        _updateFlashStats();
         return;
       }
       var ps = _flashSketchState.pressStart;
@@ -10297,12 +10432,17 @@ function deleteFlashingLibraryEntry(idx) {
     c.addEventListener('touchend', function(e){
       e.preventDefault();
       if (_flashSketchState.dragInfo) {
-        if (!_flashSketchState.dragInfo.moved) {
+        var di2 = _flashSketchState.dragInfo;
+        if (!di2.moved) {
           _flashSketchState.history.pop();
           _refreshFlashUndoRedoBtns();
+          if (_flashSketchState.tool === 'edit' && di2.hit && di2.hit.type !== 'vertex') {
+            _flashEditLabelPrompt(di2.hit);
+          }
         }
         _flashSketchState.dragInfo = null;
         _redrawFlashCanvas();
+        _updateFlashStats();
         return;
       }
       if (_flashSketchState.pressStart) {
