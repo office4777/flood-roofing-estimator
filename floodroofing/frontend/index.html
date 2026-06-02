@@ -12433,7 +12433,59 @@ function getXY(e){
   }
   var best=null,bestD=MAGNET;
   allPts.forEach(function(p){var d=Math.sqrt((p[0]-ix)*(p[0]-ix)+(p[1]-iy)*(p[1]-iy));if(d<bestD){bestD=d;best=p;}});
-  return best?[best[0],best[1]]:[ix,iy];
+  var result = best?[best[0],best[1]]:[ix,iy];
+  // Rectangle / square snap — when placing the 3rd or later corner of
+  // an outline, lock perpendicular to the last edge if the cursor is
+  // within a generous 50° zone. Optionally snap the length to match
+  // the FIRST edge (within 14%) so quick squares complete cleanly.
+  // Runs as the FINAL step so it overrides the magnetic snap above —
+  // without that override, the magnet was pulling the cursor onto P1
+  // and breaking the perpendicular lock on close-but-not-perfect
+  // 3rd-corner clicks. Shift held bypasses the snap entirely.
+  if (!e.shiftKey && DRAW.tool === 'outline' && DRAW.currentPts.length >= 2) {
+    var sq = _outlineSquareSnap(_rawIx, _rawIy);
+    if (sq) { result = sq; }
+  }
+  return result;
+}
+
+// Lock an outline corner to be perpendicular to the LAST edge from
+// the most recently placed point. Returns the snapped coords, or null
+// when the cursor is too far off-perpendicular (>50°) or too close to
+// the anchor to make a meaningful snap. If the perpendicular distance
+// is close to the FIRST edge length (within 14%), it's pulled exactly
+// to that length so a near-square corner completes as a true square.
+function _outlineSquareSnap(rawX, rawY){
+  var pts = DRAW.currentPts;
+  if (!pts || pts.length < 2) return null;
+  var pPrev = pts[pts.length - 2];
+  var pLast = pts[pts.length - 1];
+  var ex = pLast[0] - pPrev[0], ey = pLast[1] - pPrev[1];
+  var edgeLen = Math.sqrt(ex*ex + ey*ey);
+  if (edgeLen < 4) return null;
+  var ux = ex / edgeLen,  uy = ey / edgeLen;
+  var perpX = -uy,        perpY = ux;
+  var dx = rawX - pLast[0], dy = rawY - pLast[1];
+  var cursorMag = Math.sqrt(dx*dx + dy*dy);
+  if (cursorMag < 4) return null;
+  var alongDist = dx * ux + dy * uy;
+  var perpDist  = dx * perpX + dy * perpY;
+  var perpAbs   = Math.abs(perpDist);
+  // 0 = perpendicular to last edge, π/2 = colinear with last edge.
+  var angleFromPerp = Math.atan2(Math.abs(alongDist), perpAbs);
+  if (angleFromPerp > 50 * Math.PI / 180) return null;
+  var sign = perpDist >= 0 ? 1 : -1;
+  var snapPerp = perpAbs;
+  // Square completion — if cursor is within 14% of the FIRST edge's
+  // length on the perpendicular axis, lock to the first edge length.
+  var firstEdgeLen = Math.sqrt(
+    (pts[1][0]-pts[0][0])*(pts[1][0]-pts[0][0]) +
+    (pts[1][1]-pts[0][1])*(pts[1][1]-pts[0][1])
+  );
+  if (firstEdgeLen > 4 && Math.abs(snapPerp - firstEdgeLen) < firstEdgeLen * 0.14) {
+    snapPerp = firstEdgeLen;
+  }
+  return [pLast[0] + perpX * sign * snapPerp, pLast[1] + perpY * sign * snapPerp];
 }
 
 function onCanvasMove(e) {
