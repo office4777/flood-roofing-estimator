@@ -8765,54 +8765,16 @@ function _clearFlashingSketch(i){
 // the user remembering to hit "Save settings".
 
 // Built-in flashing presets — ship with the program (not the user's
-// account) so a fresh login still has a usable starter set. Each entry
-// carries the same shape as a user-saved flashing so the library + the
-// Materials picker can treat them interchangeably. Built-ins are
+// account) so a fresh login starts with a usable set. Each entry
+// carries the same shape as a user-saved flashing so the library +
+// the Materials picker can treat them interchangeably. Built-ins are
 // flagged with isBuiltin:true so the UI hides destructive Edit/Delete
 // actions and instead offers Duplicate-then-edit.
+//
+// The default set has been cleared at the user's request — fill this
+// array yourself via Settings → Flashing library → Sketch → ⤓ Export
+// as system default (the modal hands back a paste-ready snippet).
 var _FLASH_BUILTIN_PRESETS = [
-  {
-    name:'Standard barge 25×75', flashingType:'barge', profile:'any', isBuiltin:true,
-    polylines:[{ vertices:[[180,160],[205,160],[205,205],[360,205],[360,265],[385,265]],
-                 measurements:{0:25, 1:75, 2:155, 3:75, 4:25} }],
-    girthMm:355, angleChanges:4
-  },
-  {
-    name:'Standard apron 150×100', flashingType:'apron', profile:'any', isBuiltin:true,
-    polylines:[{ vertices:[[215,135],[215,235],[365,235]],
-                 measurements:{0:150, 1:100} }],
-    girthMm:250, angleChanges:1
-  },
-  {
-    name:'Ridge cap 300mm (standard)', flashingType:'ridgehip', profile:'any', isBuiltin:true,
-    polylines:[{ vertices:[[200,240],[290,160],[380,240]],
-                 measurements:{0:150, 1:150} }],
-    girthMm:300, angleChanges:1
-  },
-  {
-    name:'Ridge cap 400mm (wide)', flashingType:'ridgehip', profile:'any', isBuiltin:true,
-    polylines:[{ vertices:[[180,250],[290,150],[400,250]],
-                 measurements:{0:200, 1:200} }],
-    girthMm:400, angleChanges:1
-  },
-  {
-    name:'Change of pitch', flashingType:'changepitch', profile:'any', isBuiltin:true,
-    polylines:[{ vertices:[[200,160],[290,220],[380,160]],
-                 measurements:{0:140, 1:140} }],
-    girthMm:280, angleChanges:1
-  },
-  {
-    name:'Standard valley 300mm', flashingType:'valley', profile:'any', isBuiltin:true,
-    polylines:[{ vertices:[[200,160],[290,250],[380,160]],
-                 measurements:{0:150, 1:150} }],
-    girthMm:300, angleChanges:1
-  },
-  {
-    name:'Box gutter 250×150', flashingType:'gutter', profile:'any', isBuiltin:true,
-    polylines:[{ vertices:[[190,150],[190,250],[360,250],[360,150]],
-                 measurements:{0:100, 1:170, 2:100} }],
-    girthMm:370, angleChanges:2
-  }
 ];
 // Lazy-render each built-in to a PNG data URL so library tiles + picker
 // thumbnails reuse the same image path user-saves go through. Cached on
