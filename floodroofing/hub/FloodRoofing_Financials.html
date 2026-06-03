@@ -263,7 +263,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     <div class="tiles" id="pl-tiles"></div>
     <div class="card" style="margin-top:12px;">
       <div class="ct">Profit &amp; Loss <span id="pl-src" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
-      <select class="sel" id="pl-period" onchange="renderPL()" style="margin-bottom:10px;"></select>
+      <select class="sel" id="pl-period" onchange="onPLPeriod()" style="margin-bottom:10px;"></select>
       <table class="pl" id="pl-table"></table>
       <button class="btn btn-o" style="margin-top:11px;" onclick="pullXeroPL()" id="pl-pull-btn">🔌 Pull live P&amp;L from Xero</button>
       <div class="note" id="pl-note">Live P&amp;L needs Xero connected on the proxy. Otherwise this is derived from your back-costing sales &amp; GP.</div>
@@ -335,6 +335,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     <p>Paste your deployed <b>fergus-proxy</b> address and the <b>PROXY_SECRET</b> you set on it. This lets Fergus &amp; Xero work on your phone. Saved on this device only.</p>
     <div class="fld"><label>Proxy URL</label><input id="in-proxy" type="url" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://fergus-proxy-xxxx.vercel.app"></div>
     <div class="fld"><label>Proxy secret</label><input id="in-secret" type="text" autocomplete="off" autocapitalize="off" placeholder="the PROXY_SECRET you set"></div>
+    <div class="fld"><label>On-site wages account(s) → move to COGS</label><input id="in-wagekw" type="text" autocomplete="off" autocapitalize="off" placeholder="wages"><div class="note" style="margin-top:5px;">Comma-separate keywords. Any Operating-Expenses line whose name contains one of these is treated as on-site labour and moved into Cost of Sales. Leave blank to keep wages in Opex.</div></div>
     <div id="conn-status"></div>
     <button class="btn btn-p" onclick="saveConnect()">Save &amp; test</button>
     <button class="btn btn-o" style="margin-top:9px;" onclick="closeConnect()">Close</button>
@@ -379,6 +380,7 @@ let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (r
 // actually produced the last-6-month average (4×2 = 8 on-tools). estCost/estWeeks normalise
 // the estimator (only ~6 weeks in the window). varOpex = opex that scales per on-tools head.
 let growthCfg=S.get('growthCfg',{teams:4,size:2,base:8,estCost:7500,estWeeks:6,varOpex:1200});
+let lastXeroRep=null,lastXeroLabel='';   // cached last full live report → re-render P&L tab without re-pulling (only sync pulls)
 
 // ════════ TOAST (mobile-safe feedback — never relies on alert/prompt) ════════
 let _toastT=null;
@@ -442,6 +444,7 @@ function fergusProxySetup(){openConnect();}
 function openConnect(){
   document.getElementById('in-proxy').value=fergusProxyUrl();
   document.getElementById('in-secret').value=fergusProxySecret();
+  document.getElementById('in-wagekw').value=S.get('wageKw','wages');
   const st=document.getElementById('conn-status');st.className='';st.textContent='';
   document.getElementById('modal').classList.add('open');
 }
@@ -450,6 +453,7 @@ async function saveConnect(){
   const url=(document.getElementById('in-proxy').value||'').trim().replace(/\/+$/,'');
   const sec=(document.getElementById('in-secret').value||'').trim();
   S.set('fergus_proxy_url',url);S.set('fergus_proxy_secret',sec);
+  S.set('wageKw',(document.getElementById('in-wagekw').value||'').trim());
   updatePill();
   const st=document.getElementById('conn-status');
   if(!url){st.className='';st.textContent='Cleared.';return;}
@@ -495,8 +499,11 @@ function isFinishedJob(job,summary){
 async function refreshAll(){
   if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
   await syncWorkload();
-  await syncXeroMonthly();   // best-effort; no-op/notice if Xero not set on proxy
+  await syncXeroMonthly();           // best-effort; no-op/notice if Xero not set on proxy
+  if(xeroLive)await pullXeroPL();     // refresh the detailed P&L view for the selected month
 }
+// Month dropdown: pull live only if we're already live (an explicit choice), else just re-render cached.
+function onPLPeriod(){ if(xeroLive)pullXeroPL(); else renderPL(); }
 async function syncWorkload(){
   if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
   const btns=[document.getElementById('dash-sync-btn')];
@@ -598,8 +605,11 @@ function periodMonths(){
 // Back-costing figures for a month: Rev, GP from data; Opex/NP estimated (12% overhead).
 function bcFig(label){
   const a=monthAgg()[label]||{rev:0,gp:0,hP:0,hA:0,mP:0,mA:0};
-  const opex=Math.round(a.rev*0.12);
-  return {rev:a.rev,gp:a.gp,opex,np:a.gp-opex,hP:a.hP,hA:a.hA,mP:a.mP,mA:a.mA,src:'est'};
+  // Use the month's REAL Xero opex (with on-site wages already moved to COGS) so NP = GP − Opex
+  // is accurate; fall back to a 12% estimate only when that month has no Xero data.
+  const xf=xeroFig(label);
+  const opex=xf?Math.round(num(xf.opex)):Math.round(a.rev*0.12);
+  return {rev:a.rev,gp:a.gp,opex,np:a.gp-opex,hP:a.hP,hA:a.hA,mP:a.mP,mA:a.mA,src:xf?'real':'est'};
 }
 // Xero figures for a month (real Rev/GP/Opex/NP) if pulled, else null.
 function xeroFig(label){const x=xeroMonthly[label];return x?{rev:num(x.rev),gp:num(x.gp),opex:num(x.opex),np:num(x.np),src:'xero'}:null;}
@@ -768,6 +778,27 @@ function xeroFindDeep(rep,re){
   walk(rep.Rows||[]);return f;
 }
 // Pull Rev/GP/Opex/NP out of one P&L report, with sensible fallbacks.
+// Sum the on-site wage line items inside Operating Expenses (matched by keyword), so they can
+// be reclassified from Opex into Cost of Sales. Returns {sum, names}.
+function xeroWages(rep){
+  const kw=(S.get('wageKw','wages')||'').toLowerCase();
+  const terms=kw.split(',').map(t=>t.trim()).filter(Boolean);
+  if(!terms.length)return {sum:0,names:[]};
+  let sum=0;const names=[];
+  (rep.Rows||[]).forEach(sec=>{
+    const title=((sec.Title)||'').toLowerCase();
+    if(!/expense|overhead/.test(title)||/cost of sales|cost of goods|income|revenue/.test(title))return;
+    const walk=rows=>(rows||[]).forEach(r=>{
+      if(r.RowType!=='SummaryRow'){
+        const c=r.Cells||[];const label=((c[0]&&c[0].Value)||'').trim();
+        if(label&&terms.some(t=>label.toLowerCase().includes(t))){const v=xeroNum(c[1]&&c[1].Value);if(v!=null){sum+=v;names.push(label);}}
+      }
+      if(r.Rows&&r.Rows.length)walk(r.Rows);
+    });
+    walk(sec.Rows||[]);
+  });
+  return {sum,names};
+}
 function xeroRepFig(rep){
   let rev=xeroFindDeep(rep,/^(Total Income|Total Trading Income|Total Operating Income|Total Sales|Total Revenue|Income)$/i);
   const cogs=xeroFindDeep(rep,/^(Total Cost of Sales|Total Cost of Goods Sold|Cost of Sales|Total Direct Costs)$/i);
@@ -778,7 +809,11 @@ function xeroRepFig(rep){
   if(rev==null&&gp!=null)rev=gp+(cogs||0);
   if(np==null&&gp!=null)np=gp-(opex||0);
   if(rev==null&&gp==null&&opex==null&&np==null)return null;
-  return {rev:num(rev),gp:num(gp),opex:num(opex),np:num(np),src:'xero'};
+  // Reclassify on-site wages out of Opex and into Cost of Sales — GP & Opex drop, NP unchanged.
+  const w=xeroWages(rep);let wages=w.sum;if(opex!=null)wages=Math.min(wages,opex);
+  let gpA=gp,opexA=opex;
+  if(wages>0){if(gp!=null)gpA=gp-wages;if(opex!=null)opexA=opex-wages;}
+  return {rev:num(rev),gp:num(gpA),opex:num(opexA),np:num(np),wages:num(wages),wageNames:w.names,src:'xero'};
 }
 // First/last day of a 'Mon-YYYY' month; cap the end at today for the current (partial) month.
 function monthRange(monthKey){
@@ -830,6 +865,7 @@ async function pullXeroPL(){
     if(!res.ok)throw new Error('HTTP '+res.status+': '+txt.slice(0,200));
     const rep=(JSON.parse(txt).Reports||[])[0];if(!rep)throw new Error('No report returned.');
     xeroLive=true;
+    lastXeroRep=rep;lastXeroLabel=label;   // cache so the tab can re-render without re-pulling
     renderXeroReport(rep,label);
   }catch(err){
     console.error(err);
@@ -850,17 +886,20 @@ function renderXeroReport(rep,label){
   const fig=xeroRepFig(rep)||{rev:0,gp:0,opex:0,np:0};
   const inc=fig.rev,gp=fig.gp,np=fig.np;
   // feed this month into the dashboard set (same logic as the per-month sync)
-  xeroMonthly[label]={rev:fig.rev,gp:fig.gp,opex:fig.opex,np:fig.np};S.set('xeroMonthly',xeroMonthly);
+  xeroMonthly[label]={rev:fig.rev,gp:fig.gp,opex:fig.opex,np:fig.np,wages:fig.wages};S.set('xeroMonthly',xeroMonthly);
   document.getElementById('pl-tiles').innerHTML=
     tile('s','Revenue',fmtK(inc||0),label)+
     tile('a','Gross Profit',fmtK(gp||0),(inc&&gp?Math.round(gp/inc*100)+'% GPM':''))+
     tile(np>0?'s':'d','Net Profit',fmtK(np||0),(inc&&np!=null?Math.round(np/inc*100)+'% margin':''))+
     tile('','Source','Xero','live ✓');
-  document.getElementById('pl-note').textContent='Live from Xero. Tap another month to refresh.';
+  document.getElementById('pl-note').innerHTML=(fig.wages>0
+    ?('On-site wages <b>'+fmtK(fig.wages)+'</b>/mo moved from Opex into COGS'+(fig.wageNames&&fig.wageNames.length?(' ('+esc(fig.wageNames.join(', '))+')'):'')+' — so the headline GP &amp; Opex above reflect that (NP is unchanged). The breakdown below is Xero’s native layout.<br>')
+    :'Set your on-site wages account in ⚙ to move it into COGS.<br>')
+    +'Live from Xero — only updates when you Sync/Pull.';
 }
 function renderPL(){
   fillPLPeriods();
-  if(xeroLive){pullXeroPL();return;}
+  if(xeroLive&&lastXeroRep){renderXeroReport(lastXeroRep,lastXeroLabel);return;}   // re-render cached live report — no network
   const sel=document.getElementById('pl-period').value;
   const m=MONTHLY_DATA.find(x=>x.month===sel)||{sales:0,gp:0};
   const sales=num(m.sales),gp=num(m.gp),cogs=sales-gp;
@@ -910,7 +949,7 @@ function renderDash(){
     document.getElementById('lbl-3mo').textContent=avg3[0]+' → '+avg3[2];
     ['src-this','src-last','src-3mo'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='⚡ Xero';});
     if(pill){pill.className='livepill on';pill.textContent='⚡ Live · Xero P&L';}
-    document.getElementById('dash-note').textContent='Live from Xero P&L ('+(S.get('xero_last_sync','')||'just now')+'). This Month is to-date (partial); 3-month average is the 3 complete months before now. Forward workflow is from Fergus ('+(last||'not synced')+').';
+    document.getElementById('dash-note').textContent='From Xero P&L — last synced '+(S.get('xero_last_sync','')||'just now')+' (updates only when you Refresh). On-site wages are counted in COGS, so GP/Opex reflect that. This Month is to-date (partial); 3-month average = the 3 complete months before now. Forward workflow is from Fergus ('+(last||'not synced')+').';
   }else{
     const msg='<div class="empty" style="grid-column:1/-1;">Connect Xero for live P&amp;L — tap ⚙, then Refresh.<br><span style="font-size:.8rem;">(Back-costing estimates are on the 💹 Back Cost tab.)</span></div>';
     document.getElementById('met-this').innerHTML=msg;
