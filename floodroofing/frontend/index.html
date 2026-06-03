@@ -1306,6 +1306,7 @@ select{
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin:0 .75rem .4rem;align-items:center">
         <button onclick="setTool('select')" id="btn-move" onmouseenter="showTip('btn-move',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:grab">✋ Move</button>
         <button onclick="setTool('addmeas')" id="btn-select" onmouseenter="showTip('btn-select',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:pointer">☝️ Select</button>
+        <button onclick="setTool('delete')" id="btn-delete" onmouseenter="showTip('btn-delete',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#b91c1c;border-color:#fca5a5;background:#fff5f5">🗑 Delete line</button>
         <button onclick="setTool('outline')" id="btn-outline" onmouseenter="showTip('btn-outline',event)" onmouseleave="hideTip()" class="tool-btn tool-dark">🏠 Building outline</button>
         <!-- Roof lines + details collapsed into one menu to keep the toolbar tidy -->
         <div id="rlDropWrap" style="position:relative;display:inline-block">
@@ -12174,7 +12175,7 @@ function setTool(t) {
   // Update cursor
   var cv=document.getElementById('roofCanvas');
   var wrap=document.getElementById('canvasWrap');
-  var cur=(t==='select')?'grab':(t==='addmeas')?'pointer':(t==='calibrate')?'crosshair':'crosshair';
+  var cur=(t==='select')?'grab':(t==='addmeas')?'pointer':(t==='delete')?'not-allowed':(t==='calibrate')?'crosshair':'crosshair';
   if(t==='addmeas') {
     // Totals panel no longer exists as a floating side window; just
     // refresh the values in the Roofing Measurements card below the
@@ -13154,6 +13155,29 @@ function onCanvasClick(e) {
   if(DRAW.tool==='addmeas') {
     var hitL2=hitLine(xy[0],xy[1]);
     if(hitL2>=0){ promptLineMeasurement(hitL2); return; }
+    return;
+  }
+  // Delete tool — click any line to remove it immediately, no
+  // confirmation popup, no prop-panel intermediate. Cross-roof lines
+  // route through hitLineAcrossRoofs so the user can delete lines
+  // on non-active roofs too.
+  if(DRAW.tool==='delete') {
+    var hitDL = hitLine(xy[0], xy[1]);
+    if (hitDL >= 0) {
+      saveSnapshot();
+      DRAW.lines.splice(hitDL, 1);
+      DRAW.selectedLine = -1;
+      syncToRoofData(); redrawAll(); updateMeasTotals();
+      return;
+    }
+    var crossD = (typeof hitLineAcrossRoofs === 'function') ? hitLineAcrossRoofs(xy[0], xy[1]) : null;
+    if (crossD) {
+      switchToRoof(crossD.roofIdx);
+      saveSnapshot();
+      DRAW.lines.splice(crossD.lineIdx, 1);
+      DRAW.selectedLine = -1;
+      syncToRoofData(); redrawAll(); updateMeasTotals();
+    }
     return;
   }
   if(DRAW.tool==='select') {
@@ -15644,6 +15668,7 @@ var _tipEl = null;
 var TOOLTIPS = {
   'btn-select':       'Select: click any line to edit its type, measurement or delete it. Prioritises lines drawn on top of the building outline.',
   'btn-move':         'Move: drag to pan the background photo around the canvas.',
+  'btn-delete':       'Delete line: click any drawn line on the canvas to remove it immediately. Click again on the next one — no confirmation, no popup. Use Undo (Ctrl/Cmd+Z) if you change your mind.',
   'btn-outline':      'Building outline: click corners around your building footprint. Press Enter to finish.',
   'btn-ridge':        'Ridge line: draw the peak line where two roof slopes meet at the top. Click two points.',
   'btn-valley':       'Valley line: draw where two slopes meet at a low point (V shape). Fine pixel precision.',
