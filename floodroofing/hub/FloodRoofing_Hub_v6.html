@@ -1805,7 +1805,7 @@ async function fergusApiFetch(path,key){
   const attempts=[];
   if(proxy){
     const psec=fergusProxySecret();
-    attempts.push(()=>fetch(proxy+'/api/fergus'+path,{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}}));  // hosted proxy → works on phone
+    attempts.push(()=>fetch(proxy+'/api/proxy?svc=fergus&path='+encodeURIComponent(path),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}}));  // hosted proxy → works on phone
   }
   attempts.push(
     ()=>fetch('http://localhost:8100'+path,{headers}),   // fergus_proxy.ps1 → request leaves from YOUR machine

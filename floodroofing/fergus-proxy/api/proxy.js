@@ -1,8 +1,14 @@
 // Standalone, read-only proxy for the Flood Roofing Operations Hub / Financials app.
 //
-// One top-level catch-all that forwards:
-//   /api/fergus/...  → https://api.fergus.com/...        (Bearer FERGUS_API_KEY)
-//   /api/xero/...    → https://api.xero.com/api.xro/2.0/...  (Xero custom connection)
+// Plain, statically-routed CommonJS function (no dynamic routes, no ESM) so it
+// resolves reliably on Vercel zero-config. The app calls:
+//
+//   /api/proxy?svc=fergus&path=<urlencoded "/jobs?pageSize=100&...">
+//   /api/proxy?svc=xero&path=<urlencoded "/Reports/ProfitAndLoss?fromDate=...">
+//
+// and this forwards to:
+//   fergus → https://api.fergus.com<path>            (Bearer FERGUS_API_KEY)
+//   xero   → https://api.xero.com/api.xro/2.0<path>  (Xero custom connection)
 //
 // Locked down: GET only, upstreams hard-pinned, every request needs X-Proxy-Secret.
 //
@@ -24,7 +30,7 @@ function setCors(res) {
 }
 
 async function passthrough(res, upstream, headers) {
-  const r = await fetch(upstream, { method: 'GET', headers });
+  const r = await fetch(upstream, { method: 'GET', headers: headers });
   const body = await r.text();
   res.status(r.status);
   res.setHeader('Content-Type', r.headers.get('content-type') || 'application/json');
@@ -56,7 +62,7 @@ async function xeroTenant(token) {
   return arr[0].tenantId;
 }
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Only GET is allowed.' });
@@ -67,15 +73,17 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Bad or missing X-Proxy-Secret.' });
   }
 
-  const url = req.url || '';   // e.g. /api/fergus/users/me?x=1
+  const q = req.query || {};
+  const svc = q.svc;
+  let path = q.path || '/';
+  if (Array.isArray(path)) path = path[0];
+  if (!path.startsWith('/')) path = '/' + path;
 
-  // ── Fergus ──
-  if (url.startsWith('/api/fergus')) {
+  if (svc === 'fergus') {
     const key = process.env.FERGUS_API_KEY;
     if (!key) return res.status(500).json({ error: 'FERGUS_API_KEY is not set.' });
-    const tail = url.replace(/^\/api\/fergus/, '') || '/';
     try {
-      return await passthrough(res, 'https://' + FERGUS_HOST + tail, {
+      return await passthrough(res, 'https://' + FERGUS_HOST + path, {
         'Authorization': 'Bearer ' + key, 'Accept': 'application/json',
       });
     } catch (e) {
@@ -83,15 +91,13 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── Xero ──
-  if (url.startsWith('/api/xero')) {
+  if (svc === 'xero') {
     const id = process.env.XERO_CLIENT_ID, secret = process.env.XERO_CLIENT_SECRET;
     if (!id || !secret) return res.status(501).json({ error: 'Xero not configured: set XERO_CLIENT_ID and XERO_CLIENT_SECRET.' });
-    const tail = url.replace(/^\/api\/xero/, '') || '/';
     try {
       const token = await xeroToken(id, secret);
       const tenant = await xeroTenant(token);
-      return await passthrough(res, 'https://api.xero.com/api.xro/2.0' + tail, {
+      return await passthrough(res, 'https://api.xero.com/api.xro/2.0' + path, {
         'Authorization': 'Bearer ' + token, 'Xero-tenant-id': tenant, 'Accept': 'application/json',
       });
     } catch (e) {
@@ -99,5 +105,5 @@ export default async function handler(req, res) {
     }
   }
 
-  return res.status(404).json({ error: 'Unknown path. Use /api/fergus/... or /api/xero/...' });
-}
+  return res.status(400).json({ error: 'Missing or unknown svc — use ?svc=fergus or ?svc=xero.' });
+};

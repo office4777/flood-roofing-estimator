@@ -325,7 +325,7 @@ async function fergusApiFetch(path){
   const attempts=[];
   if(proxy){
     const psec=fergusProxySecret();
-    attempts.push(()=>fetch(proxy+'/api/fergus'+path,{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}}));
+    attempts.push(()=>fetch(proxy+'/api/proxy?svc=fergus&path='+encodeURIComponent(path),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}}));
   }
   if(key){
     const h={'Authorization':'Bearer '+key,'Accept':'application/json'};
@@ -666,7 +666,7 @@ async function syncXeroMonthly(){
   const psec=fergusProxySecret();
   try{
     const to=td_str();
-    const res=await fetch(proxy+'/api/xero/Reports/ProfitAndLoss?periods=11&timeframe=MONTH&toDate='+to,{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
+    const res=await fetch(proxy+'/api/proxy?svc=xero&path='+encodeURIComponent('/Reports/ProfitAndLoss?periods=11&timeframe=MONTH&toDate='+to),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
     const txt=await res.text();
     if(res.status===501){toast('Xero not set up on the proxy — using back-costing for P&L','err');return false;}
     if(res.status===401){toast('Proxy secret rejected (401) — check ⚙','err');return false;}
@@ -698,7 +698,7 @@ async function pullXeroPL(){
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Pulling…';}
   try{
     const psec=fergusProxySecret();
-    const res=await fetch(proxy+'/api/xero/Reports/ProfitAndLoss?fromDate='+from+'&toDate='+to,{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
+    const res=await fetch(proxy+'/api/proxy?svc=xero&path='+encodeURIComponent('/Reports/ProfitAndLoss?fromDate='+from+'&toDate='+to),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
     const txt=await res.text();
     if(res.status===501){toast('Xero not set up on the proxy — showing back-costing P&L','err');return;}
     if(!res.ok)throw new Error('HTTP '+res.status+': '+txt.slice(0,200));
