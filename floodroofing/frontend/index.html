@@ -9443,16 +9443,24 @@ function _redrawFlashCanvas(){
       Object.keys(p.angleMarkers).forEach(function(k){
         var am = p.angleMarkers[k]; if (!am) return;
         var idx = +k; if (!v[idx]) return;
-        var ax = v[idx][0], ay = v[idx][1];
-        var dirX = (typeof am.dirX === 'number') ? am.dirX : 0;
-        var dirY = (typeof am.dirY === 'number') ? am.dirY : -1;
-        var dl = Math.hypot(dirX, dirY) || 1;
-        dirX /= dl; dirY /= dl;
         var amFontPx = +(am.fontPx || fontPx);
         if (!isFinite(amFontPx) || amFontPx < 8) amFontPx = fontPx;
-        var labelDist = Math.max(48, amFontPx + 32);
-        var labelX = ax + dirX * labelDist;
-        var labelY = ay + dirY * labelDist;
+        var labelX, labelY;
+        if (typeof am.x === 'number' && typeof am.y === 'number') {
+          // Modern free-floating marker — render exactly where the
+          // user last dragged it to.
+          labelX = am.x; labelY = am.y;
+        } else {
+          // Legacy {dirX, dirY} record from before the rotate-vs-move
+          // change — project once from the vertex outward.
+          var ax = v[idx][0], ay = v[idx][1];
+          var dirX = (typeof am.dirX === 'number') ? am.dirX : 0;
+          var dirY = (typeof am.dirY === 'number') ? am.dirY : -1;
+          var dl = Math.hypot(dirX, dirY) || 1;
+          var labelDist = Math.max(48, amFontPx + 32);
+          labelX = ax + (dirX / dl) * labelDist;
+          labelY = ay + (dirY / dl) * labelDist;
+        }
         ctx.font = amFontPx + 'px Inter, system-ui, sans-serif';
         var txt = '∠ angle';
         var tw = ctx.measureText(txt).width;
@@ -9614,8 +9622,15 @@ function _flashLabelGetPos(hit){
     return { x: v[0] + dx * 46, y: v[1] + dy * 46 };
   }
   if (hit.type === 'angleMarker') {
-    var v2 = hit.polyline.vertices[hit.vertexIdx];
     var am = hit.polyline.angleMarkers[hit.vertexIdx];
+    // Modern angle markers store an absolute (x, y) so the label
+    // moves freely like Flash guard. Fall back to the legacy
+    // {dirX, dirY} model for older saved entries that haven't been
+    // touched since the rotate-around-vertex behaviour was on.
+    if (am && typeof am.x === 'number' && typeof am.y === 'number') {
+      return { x: am.x, y: am.y };
+    }
+    var v2 = hit.polyline.vertices[hit.vertexIdx];
     var adx = (am && typeof am.dirX === 'number') ? am.dirX : 0;
     var ady = (am && typeof am.dirY === 'number') ? am.dirY : -1;
     return { x: v2[0] + adx * 48, y: v2[1] + ady * 48 };
@@ -9646,13 +9661,16 @@ function _flashLabelSetPos(hit, nx, ny){
     cf.dirX = dx / L; cf.dirY = dy / L;
     hit.polyline.crushFolds[hit.vertexIdx] = cf;
   } else if (hit.type === 'angleMarker') {
-    // Angle label rotates around its anchor vertex same as Crush /
-    // Painted side — wedge stays put.
-    var av = hit.polyline.vertices[hit.vertexIdx];
-    var adx = nx - av[0], ady = ny - av[1];
-    var aL = Math.hypot(adx, ady) || 1;
+    // Angle label moves freely — store the absolute position the
+    // user dragged it to, no vertex rotation. The vertex anchor is
+    // still kept on the polyline so we know which polyline owns the
+    // marker for serialisation / deletion, but it doesn't constrain
+    // the label position.
     var am = hit.polyline.angleMarkers[hit.vertexIdx] || {};
-    am.dirX = adx / aL; am.dirY = ady / aL;
+    am.x = nx; am.y = ny;
+    // Clear the legacy dirX/dirY so subsequent renders read the new
+    // absolute coords (mixing both would confuse the fall-back path).
+    delete am.dirX; delete am.dirY;
     hit.polyline.angleMarkers[hit.vertexIdx] = am;
   }
 }
@@ -9789,7 +9807,13 @@ function _onFlashCanvasClick(p){
       var defDir = (typeof _crushFoldDefaultDir === 'function')
         ? _crushFoldDefaultDir(vhit.polyline, vhit.vertexIdx)
         : { dirX: 0, dirY: -1 };
-      vhit.polyline.angleMarkers[key] = { deg: def, dirX: defDir.dirX, dirY: defDir.dirY };
+      // Drop the marker outside the bend so the initial position is
+      // readable. The user can drag it freely from there — no rotate-
+      // around-vertex behaviour, no snap.
+      var defDist = Math.max(54, _flashTextPx() + 32);
+      var defX = vhit.polyline.vertices[vhit.vertexIdx][0] + defDir.dirX * defDist;
+      var defY = vhit.polyline.vertices[vhit.vertexIdx][1] + defDir.dirY * defDist;
+      vhit.polyline.angleMarkers[key] = { x: defX, y: defY };
     }
     _redrawFlashCanvas();
     _updateFlashStats();
