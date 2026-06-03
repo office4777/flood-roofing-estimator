@@ -9188,16 +9188,16 @@ function _computeFlashStats(){
 // label, cancel to leave it untouched.
 function _flashEditLabelPrompt(hit){
   if (!hit) return;
-  // Angle markers have a value (degrees) instead of a font size, so
-  // they get a dedicated two-step prompt: first the degrees (blank =
-  // delete), then optionally the font size.
+  // Angle markers carry no degree value of their own — the value is
+  // set globally in the Materials tab "Default flashing angle" input,
+  // so the per-marker prompt only offers font size + delete.
   if (hit.type === 'angleMarker') {
     var am = hit.polyline.angleMarkers && hit.polyline.angleMarkers[hit.vertexIdx];
     if (!am) return;
-    var curDeg = (typeof am.deg === 'number' && isFinite(am.deg)) ? am.deg : _flashDefaultAngleDeg();
+    var curFP = am.fontPx || _flashTextPx();
     var ans = window.prompt(
-      'Angle in degrees (blank to DELETE this angle marker, Cancel to keep it as-is):',
-      String(curDeg)
+      'Font size for this ∠ angle label in pixels (leave BLANK to DELETE this marker, Cancel to keep it as-is):',
+      String(curFP)
     );
     if (ans == null) return;
     var trimmed1 = String(ans).trim();
@@ -9206,20 +9206,8 @@ function _flashEditLabelPrompt(hit){
       delete hit.polyline.angleMarkers[hit.vertexIdx];
       return;
     }
-    var degN = parseFloat(trimmed1);
-    if (isFinite(degN) && degN > 0 && degN < 180) {
-      am.deg = degN;
-    }
-    // Optional second prompt: font size for THIS angle marker
-    var ans2 = window.prompt('Font size for this angle label (leave blank to keep current):',
-                             String(am.fontPx || _flashTextPx()));
-    if (ans2 != null) {
-      var trimmed2 = String(ans2).trim();
-      if (trimmed2 !== '') {
-        var fpN = parseInt(trimmed2, 10);
-        if (isFinite(fpN) && fpN >= 8) am.fontPx = Math.min(80, fpN);
-      }
-    }
+    var fpN = parseInt(trimmed1, 10);
+    if (isFinite(fpN) && fpN >= 8) am.fontPx = Math.min(80, fpN);
     return;
   }
   function currentLabelFontPx(){
@@ -9360,37 +9348,15 @@ function _redrawFlashCanvas(){
     if (!p || !p.vertices.length) return;
     var v = p.vertices;
     if (v.length >= 2) {
+      // Same line style for every polyline — straight (click-to-place)
+      // and squiggle (freehand drag) both render as a normal stroke at
+      // 2 px. kind:'squiggle' only affects the stats pass (no angle-
+      // change count) and the input mode (mousedown + drag captures
+      // every cursor sample as a vertex).
       ctx.lineWidth = 2; ctx.strokeStyle = '#0a1628';
-      if (p.kind === 'squiggle') {
-        // Sinusoidal wave between every consecutive pair of vertices.
-        // Amplitude + wavelength stay in pixel space so the squiggle
-        // looks consistent no matter the sketch zoom.
-        var amp = 5, freq = 14;
-        ctx.beginPath();
-        var startedQ = false;
-        for (var qi = 0; qi < v.length - 1; qi++) {
-          var sa = v[qi], sb = v[qi+1];
-          var qdx = sb[0]-sa[0], qdy = sb[1]-sa[1];
-          var qL = Math.sqrt(qdx*qdx + qdy*qdy);
-          if (qL < 1) continue;
-          var nx = -qdy/qL, ny = qdx/qL;
-          var steps = Math.max(12, Math.ceil(qL / 2));
-          for (var qs = 0; qs <= steps; qs++) {
-            var qt = qs / steps;
-            var px = sa[0] + qdx * qt;
-            var py = sa[1] + qdy * qt;
-            var wave = Math.sin((qt * qL) / freq * Math.PI * 2) * amp;
-            var wx = px + nx * wave, wy = py + ny * wave;
-            if (!startedQ) { ctx.moveTo(wx, wy); startedQ = true; }
-            else ctx.lineTo(wx, wy);
-          }
-        }
-        ctx.stroke();
-      } else {
-        ctx.beginPath(); ctx.moveTo(v[0][0], v[0][1]);
-        for (var i = 1; i < v.length; i++) ctx.lineTo(v[i][0], v[i][1]);
-        ctx.stroke();
-      }
+      ctx.beginPath(); ctx.moveTo(v[0][0], v[0][1]);
+      for (var i = 1; i < v.length; i++) ctx.lineTo(v[i][0], v[i][1]);
+      ctx.stroke();
     }
     // Highlight only the in-progress polyline's last vertex.
     if (isCurrent && v.length) {
@@ -9525,10 +9491,13 @@ function _redrawFlashCanvas(){
           ctx.stroke();
           ctx.restore();
         }
-        // Label box "∠ 25°" — fall back to the default when value not set
-        var degVal = (typeof am.deg === 'number' && isFinite(am.deg)) ? am.deg : _flashDefaultAngleDeg();
+        // Label box "∠ angle" — the actual angle VALUE is set in the
+        // Materials tab "Default flashing angle" input (single custom
+        // input that applies to every marker), so the marker itself
+        // stays a plain symbol + word and never goes stale when the
+        // user retypes the angle.
         ctx.font = amFontPx + 'px Inter, system-ui, sans-serif';
-        var txt = '∠ ' + Math.round(degVal * 10) / 10 + '°';
+        var txt = '∠ angle';
         var tw = ctx.measureText(txt).width;
         var boxW = tw + 16, boxH = amFontPx + 8;
         ctx.fillStyle = '#fff';
