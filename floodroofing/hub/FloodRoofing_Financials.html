@@ -335,7 +335,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     <p>Paste your deployed <b>fergus-proxy</b> address and the <b>PROXY_SECRET</b> you set on it. This lets Fergus &amp; Xero work on your phone. Saved on this device only.</p>
     <div class="fld"><label>Proxy URL</label><input id="in-proxy" type="url" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://fergus-proxy-xxxx.vercel.app"></div>
     <div class="fld"><label>Proxy secret</label><input id="in-secret" type="text" autocomplete="off" autocapitalize="off" placeholder="the PROXY_SECRET you set"></div>
-    <div class="fld"><label>On-site wages account(s) → move to COGS</label><input id="in-wagekw" type="text" autocomplete="off" autocapitalize="off" placeholder="wages"><div class="note" style="margin-top:5px;">Comma-separate keywords. Any Operating-Expenses line whose name contains one of these is treated as on-site labour and moved into Cost of Sales. Leave blank to keep wages in Opex.</div></div>
+    <div class="fld"><label>On-site wages account(s) → move to COGS</label><input id="in-wagekw" type="text" autocomplete="off" autocapitalize="off" placeholder="wages"><div class="note" style="margin-top:5px;">Comma-separate keywords. Any Operating-Expenses line whose name contains one of these moves into Cost of Sales. Prefix a term with “-” to exclude it (e.g. <b>wages, -admin</b> moves wage accounts but keeps Admin Staff Wages in Opex). Blank = keep all wages in Opex.</div></div>
     <div id="conn-status"></div>
     <button class="btn btn-p" onclick="saveConnect()">Save &amp; test</button>
     <button class="btn btn-o" style="margin-top:9px;" onclick="closeConnect()">Close</button>
@@ -783,15 +783,17 @@ function xeroFindDeep(rep,re){
 function xeroWages(rep){
   const kw=(S.get('wageKw','wages')||'').toLowerCase();
   const terms=kw.split(',').map(t=>t.trim()).filter(Boolean);
-  if(!terms.length)return {sum:0,items:[]};
+  const inc=terms.filter(t=>!t.startsWith('-'));
+  const exc=terms.filter(t=>t.startsWith('-')).map(t=>t.slice(1).trim()).filter(Boolean);
+  if(!inc.length)return {sum:0,items:[]};
   let sum=0;const items=[];
   (rep.Rows||[]).forEach(sec=>{
     const title=((sec.Title)||'').toLowerCase();
     if(!/expense|overhead/.test(title)||/cost of sales|cost of goods|income|revenue/.test(title))return;
     const walk=rows=>(rows||[]).forEach(r=>{
       if(r.RowType!=='SummaryRow'){
-        const c=r.Cells||[];const label=((c[0]&&c[0].Value)||'').trim();
-        if(label&&terms.some(t=>label.toLowerCase().includes(t))){const v=xeroNum(c[1]&&c[1].Value);if(v!=null){sum+=v;items.push({name:label,val:v});}}
+        const c=r.Cells||[];const label=((c[0]&&c[0].Value)||'').trim();const L=label.toLowerCase();
+        if(label&&inc.some(t=>L.includes(t))&&!exc.some(t=>L.includes(t))){const v=xeroNum(c[1]&&c[1].Value);if(v!=null){sum+=v;items.push({name:label,val:v});}}
       }
       if(r.Rows&&r.Rows.length)walk(r.Rows);
     });
@@ -890,13 +892,14 @@ function renderXeroReport(rep,label){
     const items=[],sums=[];
     (sec.Rows||[]).forEach(r=>{(r.RowType==='SummaryRow'?sums:items).push(r);});
     if(title)html+='<tr class="sec"><td colspan="2">'+esc(title)+'</td></tr>';
+    // adjust Gross Profit (−wages) and the COGS/Opex totals (±wages) wherever they appear (row OR summary)
+    const adj=(name,n)=>{if(n==null||wages<=0)return n;const L=name.toLowerCase();if(/gross profit/.test(L))return n-wages;if(isCogs&&/total/.test(L))return n+wages;if(isOpex&&/total/.test(L))return n-wages;return n;};
     items.forEach(r=>{const c=r.Cells||[];const name=(c[0]&&c[0].Value)||'';
       if(isOpex&&wages>0&&wageSet.has(name.trim().toLowerCase()))return;   // moved out of Opex
-      html+=line(name,xeroNum(c[1]&&c[1].Value),false);});
+      html+=line(name,adj(name,xeroNum(c[1]&&c[1].Value)),false);});
     if(isCogs&&wages>0)wk.items.forEach(it=>{html+=line(it.name+' — on-site labour',it.val,false);});
-    sums.forEach(r=>{const c=r.Cells||[];const name=(c[0]&&c[0].Value)||'';let n=xeroNum(c[1]&&c[1].Value);
-      if(n!=null&&wages>0){if(isCogs&&/total/i.test(name))n+=wages;else if(isOpex&&/total/i.test(name))n-=wages;else if(/gross profit/i.test(name))n-=wages;}
-      html+=line(name,n,true);});
+    sums.forEach(r=>{const c=r.Cells||[];const name=(c[0]&&c[0].Value)||'';
+      html+=line(name,adj(name,xeroNum(c[1]&&c[1].Value)),true);});
   });
   document.getElementById('pl-table').innerHTML=html;
   const fig=xeroRepFig(rep)||{rev:0,gp:0,opex:0,np:0,wages:0};
