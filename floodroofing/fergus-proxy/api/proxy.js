@@ -101,6 +101,7 @@ module.exports = async (req, res) => {
         'Authorization': 'Bearer ' + token, 'Xero-tenant-id': tenant, 'Accept': 'application/json',
       });
     } catch (e) {
+      console.error('[xero] ' + String((e && e.stack) || e));
       return res.status(502).json({ error: 'Xero request failed.', detail: String(e && e.message || e) });
     }
   }
