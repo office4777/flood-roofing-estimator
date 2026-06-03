@@ -1324,6 +1324,7 @@ select{
             <button onclick="setTool('changepitch');closeRoofLinesMenu()" id="btn-changepitch" onmouseenter="showTip('btn-changepitch',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0ea5e9;border-color:#0ea5e9;font-weight:600;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0">— Ch. Pitch</button>
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:8px 6px 6px;border-top:1px solid #eef1f5;margin-top:6px">Details</div>
             <button onclick="setTool('penetration');closeRoofLinesMenu()" id="btn-penetration" onmouseenter="showTip('btn-penetration',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">⬛ Penetration</button>
+            <button onclick="setTool('boxedpen');closeRoofLinesMenu()" id="btn-boxedpen" onmouseenter="showTip('btn-boxedpen',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#475569;border-color:#475569;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">▭ Boxed Penetration</button>
             <button onclick="setTool('info');closeRoofLinesMenu()" id="btn-info" onmouseenter="showTip('btn-info',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#d97706;border-color:#d97706;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0">✳ Add Info</button>
           </div>
         </div>
@@ -13157,6 +13158,36 @@ function onCanvasClick(e) {
   // route through hitLineAcrossRoofs so the user can delete lines
   // on non-active roofs too.
   if(DRAW.tool==='delete') {
+    // Delete tool — click any drawn ITEM to remove it immediately:
+    // lines, info markers (✳ Add Info), penetrations, sections.
+    // Lines fall through to cross-roof lookup so the user can also
+    // pick lines off non-active roofs without switching first.
+    var hitDI = hitInfo(xy[0], xy[1]);
+    if (hitDI >= 0) {
+      saveSnapshot();
+      DRAW.infoItems.splice(hitDI, 1);
+      // Renumber remaining info items so the indices stay sequential.
+      DRAW.infoItems.forEach(function(it, idx){ it.num = idx + 1; });
+      try { renderInfoPanel && renderInfoPanel(); } catch(e){}
+      syncToRoofData(); redrawAll(); updateMeasTotals();
+      return;
+    }
+    var hitDP = hitPen(xy[0], xy[1]);
+    if (hitDP >= 0) {
+      saveSnapshot();
+      DRAW.penetrations.splice(hitDP, 1);
+      DRAW.selectedPen = -1;
+      syncToRoofData(); redrawAll(); updateMeasTotals();
+      return;
+    }
+    var hitDS = hitSection(xy[0], xy[1]);
+    if (hitDS >= 0) {
+      saveSnapshot();
+      DRAW.sections.splice(hitDS, 1);
+      DRAW.selectedSection = -1;
+      syncToRoofData(); redrawAll(); updateMeasTotals();
+      return;
+    }
     var hitDL = hitLine(xy[0], xy[1]);
     if (hitDL >= 0) {
       saveSnapshot();
@@ -13209,6 +13240,44 @@ function onCanvasClick(e) {
     if(hitL>=0) { selectLine(hitL); return; }
     var hitP = hitPen(xy[0],xy[1]);
     if(hitP>=0) { selectPen(hitP); return; }
+  }
+
+  // Boxed Penetration: two clicks define opposite corners of an
+  // axis-aligned box (the canvas snap path already squares it up
+  // because it's drawn perpendicular to the building edges).  On the
+  // second click we prompt for Width × Length in mm and store the
+  // box on DRAW.penetrations with kind:'box'.
+  if(DRAW.tool==='boxedpen') {
+    DRAW.currentPts.push(xy);
+    if (DRAW.currentPts.length >= 2) {
+      var a = DRAW.currentPts[0], b = DRAW.currentPts[1];
+      // Axis-align: keep horizontal span and vertical span as drawn.
+      var x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]);
+      var y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
+      DRAW.currentPts = [];
+      var ans = window.prompt('Boxed penetration size (mm) — width x length:', '350x850');
+      var w = '', L = '';
+      if (ans != null) {
+        var m = String(ans).match(/(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)/);
+        if (m) { w = m[1]; L = m[2]; }
+      }
+      saveSnapshot();
+      DRAW.penetrations.push({
+        type: 'penetration',
+        kind: 'box',
+        cx: (x0 + x1) / 2,
+        cy: (y0 + y1) / 2,
+        x0: x0, y0: y0, x1: x1, y1: y1,
+        widthMm: w, lengthMm: L,
+        sizeLabel: (w && L) ? (w + '×' + L + ' mm') : ''
+      });
+      syncToRoofData();
+      redrawAll();
+      updateMeasTotals();
+    } else {
+      redrawAll();
+    }
+    return;
   }
 
   // Penetration: single click places a dot
@@ -13467,6 +13536,14 @@ function hitLineAcrossRoofs(x, y){
 function hitPen(x,y) {
   for(var i=0;i<DRAW.penetrations.length;i++){
     var p=DRAW.penetrations[i];
+    if (p.kind === 'box' && p.x0 != null) {
+      // Hit anywhere inside the boxed outline counts (with a tiny
+      // outset so the borders are easy to grab).
+      var x0 = Math.min(p.x0, p.x1) - 4, x1 = Math.max(p.x0, p.x1) + 4;
+      var y0 = Math.min(p.y0, p.y1) - 4, y1 = Math.max(p.y0, p.y1) + 4;
+      if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return i;
+      continue;
+    }
     var d=Math.sqrt((p.cx-x)*(p.cx-x)+(p.cy-y)*(p.cy-y));
     if(d<18) return i;
   }
@@ -14340,13 +14417,26 @@ function redrawAll() {
           var sdx = sE[0]-sR[0], sdy = sE[1]-sR[1];
           var sdl = Math.sqrt(sdx*sdx + sdy*sdy);
           if (sdl < 1) return;
+          // Apply the group-level override too — if the user typed a
+          // new mm value in the cut list / Sheets-to-order panel, the
+          // ordered length for THIS face is remapped. Strip out the
+          // overhang to get the displayed metres back.
+          var displayedM = sheetM;
+          try {
+            if (DRAW.sheetGroupOverrides) {
+              var overhang = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '50') || 50;
+              var origMm = Math.max(1000, Math.round(sheetM * 1000 + overhang));
+              var ovMm = DRAW.sheetGroupOverrides[origMm];
+              if (ovMm != null && ovMm > 0) displayedM = (ovMm - overhang) / 1000;
+            }
+          } catch(e){}
           sink.push({
             lblX: sL[0], lblY: sL[1],
             lblImgX: lblImgX, lblImgY: lblImgY,
             ndx: sdx/sdl, ndy: sdy/sdl, sdl: sdl,
-            label: sheetM.toFixed(2) + 'm',
+            label: displayedM.toFixed(2) + 'm',
             key: key,
-            isOverride: isOverride,
+            isOverride: isOverride || (displayedM !== sheetM),
           });
         });
       });
@@ -14439,15 +14529,36 @@ function redrawAll() {
   // Penetrations — drawn as small dots with size label
   DRAW.penetrations.forEach(function(p,i){
     var isSelected=(i===DRAW.selectedPen);
+    if (p.kind === 'box' && p.x0 != null) {
+      // Boxed Penetration — render the outline rectangle + small
+      // "350×850 mm" label inside the box centre.
+      var a = dp([p.x0, p.y0]), b = dp([p.x1, p.y1]);
+      var rx = Math.min(a[0], b[0]), ry = Math.min(a[1], b[1]);
+      var rw = Math.abs(b[0]-a[0]), rh = Math.abs(b[1]-a[1]);
+      ctx.fillStyle = isSelected ? 'rgba(255,102,0,0.16)' : 'rgba(71,85,105,0.10)';
+      ctx.fillRect(rx, ry, rw, rh);
+      ctx.strokeStyle = isSelected ? '#ff6600' : '#475569';
+      ctx.lineWidth = isSelected ? 2 : 1.5;
+      ctx.strokeRect(rx, ry, rw, rh);
+      var label = (p.widthMm && p.lengthMm) ? (p.widthMm + '×' + p.lengthMm) : (p.sizeLabel || '');
+      if (label && rw > 16 && rh > 12) {
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        var tw = ctx.measureText(label).width;
+        var bx = rx + rw/2, by = ry + rh/2;
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillRect(bx - tw/2 - 3, by - 7, tw + 6, 13);
+        ctx.fillStyle = '#0a1628';
+        ctx.fillText(label, bx, by);
+      }
+      return;
+    }
+    // Point penetration — small filled circle + optional size label.
     var _pp=dp([p.cx,p.cy]); var cx=_pp[0], cy=_pp[1];
     var dotR=isSelected?8:5;
-
-    // Dot — small filled circle
     ctx.beginPath(); ctx.arc(cx,cy,dotR,0,Math.PI*2);
     ctx.fillStyle=isSelected?'#ff6600':'#374151'; ctx.fill();
     ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke();
-
-    // Small size label right next to dot — stays on drawing, very compact
     if(p.sizeLabel){
       ctx.fillStyle='#374151';
       ctx.font='9px sans-serif';
@@ -14479,6 +14590,21 @@ function redrawAll() {
       var p0=DRAW.currentPts[0];
       var pw=DRAW.mouseX-p0[0],ph=DRAW.mouseY-p0[1];
       ctx.fillStyle='rgba(55,65,81,0.3)'; ctx.fillRect(p0[0],p0[1],pw,ph);
+    }
+    // Boxed Penetration preview — axis-aligned dashed rectangle
+    // between the first click and the cursor.
+    if(DRAW.tool==='boxedpen' && DRAW.currentPts.length===1){
+      var bp0 = DRAW.currentPts[0];
+      var bp0c = dp(bp0);
+      var bmc = _t ? imgToCanvas([DRAW.mouseX, DRAW.mouseY], _t) : [DRAW.mouseX, DRAW.mouseY];
+      var brx = Math.min(bp0c[0], bmc[0]), bry = Math.min(bp0c[1], bmc[1]);
+      var brw = Math.abs(bmc[0]-bp0c[0]), brh = Math.abs(bmc[1]-bp0c[1]);
+      ctx.save();
+      ctx.fillStyle = 'rgba(71,85,105,0.16)';
+      ctx.fillRect(brx, bry, brw, brh);
+      ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.5; ctx.setLineDash([5,3]);
+      ctx.strokeRect(brx, bry, brw, brh);
+      ctx.restore();
     }
   }
 
@@ -15670,6 +15796,7 @@ var TOOLTIPS = {
   'btn-gutter':       'Gutter line: draw the bottom edge of the roof where gutters are installed.',
   'btn-hip':          'Hip line: draw the diagonal rafter at a hip end of the roof.',
   'btn-penetration':  'Penetration: click to place a dot marking a skylight, chimney, pipe or other opening.',
+  'btn-boxedpen':     'Boxed Penetration: click two corners (axis-snapped to a square box) to outline a skylight / chimney opening, then enter width × length in mm. The dimensions render inside the box (e.g. "350×850 mm").',
   'btn-info':         'Add Info: click to place a numbered note marker. Add details in the right-hand panel.',
   'btn-measurements': 'Measurements: open the calculator — enter your dimensions and get roof area, ridge lm, gutter lm and more.',
   'btn-barge':        'Barge line: draw the rake/barge edge of a gable roof. Auto-splits into two lengths where a ridge meets it.',
@@ -16291,10 +16418,65 @@ function _sheetEditPopup(hit){
     var n = parseFloat(clean);
     if (!isNaN(n) && n > 0) DRAW.sheetOverrides[hit.key] = n;
   }
+  // Also clear any group-level override keyed by the previous ordered
+  // length — the face-side override now wins and we don't want a
+  // stale group remap papering over it.
+  try {
+    if (DRAW.sheetGroupOverrides) {
+      var prevM = parseFloat(current.replace(/m$/, ''));
+      if (isFinite(prevM)) {
+        var overhang = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '50') || 50;
+        var prevMm = Math.round(prevM * 1000 + overhang);
+        delete DRAW.sheetGroupOverrides[prevMm];
+      }
+    }
+  } catch(e){}
   try { redrawAll(); } catch(e){}
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMatRoofMap(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
+}
+
+// Group-level override of ordered sheet length. Triggered by the
+// inline edit cells in the Materials "Roof sheets" cut list and the
+// Sheets-to-order panel. Key = the CURRENT ordered length (mm); value
+// = the new ordered length (mm) the user typed in. After build we
+// remap any group whose orderedMm matches and rebuild every consumer
+// (cut list, sheets-to-order, Roof Map sheet labels) so all three
+// stay in sync. Blank clears the override.
+function _setSheetGroupOverride(origMm, newValue){
+  if (!DRAW.sheetGroupOverrides) DRAW.sheetGroupOverrides = {};
+  origMm = parseInt(origMm, 10); if (!isFinite(origMm) || origMm <= 0) return;
+  var raw = String(newValue || '').trim();
+  if (raw === '') {
+    delete DRAW.sheetGroupOverrides[origMm];
+  } else {
+    // Accept metres (e.g. "5.2") or mm (e.g. "5200"). Anything < 50
+    // we treat as metres; otherwise as mm.
+    var n = parseFloat(raw);
+    if (!isFinite(n) || n <= 0) return;
+    var newMm = n < 50 ? Math.round(n * 1000) : Math.round(n);
+    if (newMm < 100) return;
+    DRAW.sheetGroupOverrides[origMm] = newMm;
+  }
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+  try { redrawAll(); } catch(e){}
+  try { renderMatRoofMap(); } catch(e){}
+}
+
+// Apply group overrides to a groups array — used wherever
+// _lastSheetCounts.groups is built and wherever a cut list / panel
+// reads it. Returns a NEW array with each group's orderedMm
+// potentially remapped to the user's override.
+function _applySheetGroupOverrides(groups){
+  if (!groups || !groups.length) return groups || [];
+  if (!DRAW.sheetGroupOverrides) return groups;
+  return groups.map(function(g){
+    var ov = DRAW.sheetGroupOverrides[g.orderedMm];
+    if (ov != null && ov > 0) return Object.assign({}, g, { orderedMm: ov, _origMm: g.orderedMm });
+    return g;
+  });
 }
 
 // Refresh every surface that consumes flashing-layout overrides.
@@ -16483,13 +16665,24 @@ function renderMaterialsCutLists() {
   }
   if (sheetRows.length) {
     html += '<table class="cut-list"><thead><tr>'+
-      '<th>Description</th><th class="r">Qty</th><th class="r">Length each</th>'+
+      '<th>Description</th><th class="r">Qty</th><th class="r">Length each <span style="font-weight:400;color:var(--text2);font-size:10px">— click to edit</span></th>'+
     '</tr></thead><tbody>';
     var totalSheets = 0;
     sheetRows.forEach(function(r){
       totalSheets += r.qty;
       var lbl = esc(profile) + ' sheet @ ' + (r.len / 1000).toFixed(2) + 'm';
-      html += '<tr><td>'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+(r.len / 1000).toFixed(2)+' m</td></tr>';
+      // Inline editable length cell — typing here flows through
+      // _setSheetGroupOverride which updates the Sheets-to-order
+      // panel + the Roof Map sheet labels at the same time.
+      var inp = '<input type="number" step="0.01" min="0.5" value="'+(r.len/1000).toFixed(2)+'" '+
+        'data-orig-mm="'+r.len+'" '+
+        'onfocus="this.select()" '+
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
+        'onchange="_setSheetGroupOverride(this.getAttribute(\'data-orig-mm\'), this.value)" '+
+        'style="width:60px;padding:1px 4px;border:1px solid transparent;background:transparent;font-family:inherit;font-size:inherit;text-align:right;color:#0a1628" '+
+        'onmouseover="this.style.border=\'1px solid var(--border)\';this.style.background=\'#fff\'" '+
+        'onmouseout="if(document.activeElement!==this){this.style.border=\'1px solid transparent\';this.style.background=\'transparent\';}">';
+      html += '<tr><td>'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+inp+' m</td></tr>';
     });
     html += '</tbody><tfoot><tr><td>Total sheets</td><td class="r">'+totalSheets+'</td><td class="r">'+d.roofArea.toFixed(1)+' m² roof</td></tr></tfoot></table>';
   } else {
@@ -22518,6 +22711,11 @@ function _renderRoofSheetPlanInner() {
     groups[key].count++;
   });
   var groupList = Object.keys(groups).map(function(k){ return groups[k]; });
+  // Apply user-typed group overrides BEFORE we sort + render.  Any
+  // edit on a Length cell — in this panel, in the Materials cut list,
+  // or via the Roof Map sheet label — flows through this single map
+  // and the cut lists + map all rebuild together.
+  groupList = _applySheetGroupOverrides(groupList);
   // Sort: orange first, then blue, then purple. Within colour, longer first.
   var colorOrder = {};
   colorOrder[COL_ORANGE] = 0; colorOrder[COL_BLUE] = 1; colorOrder[COL_PURPLE] = 2;
@@ -22527,15 +22725,25 @@ function _renderRoofSheetPlanInner() {
     return b.orderedMm - a.orderedMm;
   });
   var legHtml = '<div style="display:flex;gap:24px;align-items:flex-start;margin-top:14px;flex-wrap:wrap">';
-  legHtml += '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px;background:#fff;min-width:280px">';
-  legHtml += '<div style="font-weight:800;font-size:13px;color:#0a1628;letter-spacing:.04em;margin-bottom:10px">SHEETS TO ORDER</div>';
+  legHtml += '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px;background:#fff;min-width:300px">';
+  legHtml += '<div style="font-weight:800;font-size:13px;color:#0a1628;letter-spacing:.04em;margin-bottom:10px">SHEETS TO ORDER <span style="font-weight:500;color:#6b7280;font-size:10px;text-transform:none;letter-spacing:0">— click the mm value to change</span></div>';
   if (!groupList.length) {
     legHtml += '<div style="font-size:12px;color:#6b7280">No sheets — check that the outline has gutters and hips.</div>';
   } else {
     groupList.forEach(function(g){
-      legHtml += '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">'+
+      var inp = '<input type="number" min="100" step="50" value="'+g.orderedMm+'" '+
+        'data-orig-mm="'+g.orderedMm+'" '+
+        'onfocus="this.select()" '+
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
+        'onchange="_setSheetGroupOverride(this.getAttribute(\'data-orig-mm\'), this.value)" '+
+        'style="width:64px;padding:1px 4px;border:1px solid transparent;background:transparent;color:#6b7280;font-size:12px;font-family:inherit;text-align:right" '+
+        'onmouseover="this.style.border=\'1px solid #cbd5e1\';this.style.background=\'#fff\'" '+
+        'onmouseout="if(document.activeElement!==this){this.style.border=\'1px solid transparent\';this.style.background=\'transparent\';}">';
+      legHtml += '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:6px">'+
         '<span style="font-size:24px;font-weight:800;color:'+g.color+'">'+g.count+'</span>'+
-        '<span style="font-size:12px;color:#6b7280">× @ '+g.orderedMm+'mm ('+(g.orderedMm/1000).toFixed(2)+'m)</span>'+
+        '<span style="font-size:12px;color:#6b7280">× @ </span>'+
+        inp +
+        '<span style="font-size:12px;color:#6b7280">mm ('+(g.orderedMm/1000).toFixed(2)+'m)</span>'+
         '</div>';
     });
   }
