@@ -504,6 +504,13 @@ async function refreshAll(){
 }
 // Month dropdown: pull live only if we're already live (an explicit choice), else just re-render cached.
 function onPLPeriod(){ if(xeroLive)pullXeroPL(); else renderPL(); }
+// Auto-sync on open: refresh ONLY Xero (the dashboard P&L + the selected month's detail).
+// Fergus workload stays as last synced (it's saved on the device) until you tap Refresh.
+async function syncXeroOnly(){
+  if(!fergusProxyUrl())return;
+  await syncXeroMonthly();
+  if(xeroLive)await pullXeroPL();
+}
 async function syncWorkload(){
   if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
   const btns=[document.getElementById('dash-sync-btn')];
@@ -1104,9 +1111,9 @@ function init(){
   document.getElementById('g-varopex').value=growthCfg.varOpex;
   updatePill();
   renderAll();
-  // Auto-sync Fergus + Xero once on open (renders cached data first, then refreshes in the
-  // background). It's a one-shot on load — not the constant per-render pulling we removed.
-  if(fergusProxyUrl()||fergusKey())setTimeout(refreshAll,400);
+  // Auto-sync ONLY Xero on open (Fergus workload renders from its saved last-sync; refresh it
+  // manually with the Refresh button). Renders cached data first, then updates in the background.
+  if(fergusProxyUrl())setTimeout(syncXeroOnly,400);
 }
 init();
 </script>
