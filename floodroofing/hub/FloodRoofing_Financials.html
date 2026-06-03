@@ -403,6 +403,18 @@ function extractHours(summary){
   const actual=num(lh.total)||num(lh.billable);
   return {priced,actual};
 }
+// A job is "effectively complete" once it's been fully invoiced. On our 50% deposit +
+// 50%-on-completion model, two invoices raised ≈ 100% billed → the job is finished even
+// if nobody ticked "Completed" in Fergus (e.g. we beat the estimated hours). Such jobs are
+// dropped from the forward workload (their leftover hours aren't real backlog) and instead
+// flow into back-costing. Signal: ≥75% of the quoted amount invoiced — on a 50/50 job that
+// only happens once the second (completion) invoice is raised; a deposit-only job sits at 50%.
+function isFinishedJob(job,summary){
+  if((job.status||'')==='Completed')return true;
+  const s=summary||{}, qs=s.quoteSummary||{}, tb=s.totalBilled||{}, ca=s.chargeableAmount||{};
+  const billRef=num(qs.quotedAmount)>0?num(qs.quotedAmount):num(ca.total);
+  return billRef>0 && (num(tb.total)/billRef)>=0.75;
+}
 // Refresh everything the dashboard needs: Fergus workload + Xero monthly P&L.
 async function refreshAll(){
   if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
@@ -418,13 +430,14 @@ async function syncWorkload(){
   setSync('syncing…');toast('Syncing Fergus…');
   try{
     const active=await fergusFetchJobs('Active');
-    const out=[];let i=0,noPriced=0;
+    const out=[];let i=0,noPriced=0,excluded=0;
     for(const job of active){
       i++;setSync('checking '+i+'/'+active.length+'…');
       const id=job.id!=null?job.id:(job.jobId!=null?job.jobId:(job.jobNo||job.jobNumber));
       if(id==null)continue;
       let summary=null;
       try{summary=await fergusFetchFinancialSummary(id);}catch(e){console.warn('summary fail',id,e.message);continue;}
+      if(isFinishedJob(job,summary)){excluded++;continue;} // fully invoiced (2 invoices) = done → not backlog
       const {priced,actual}=extractHours(summary);
       if(priced<=0)noPriced++;
       const client=fergusName(job.customer)||fergusName(job.mainContact)||'Job '+(job.jobNo||job.jobNumber||id);
@@ -434,11 +447,12 @@ async function syncWorkload(){
     fwJobs=out;S.set('fwJobs',fwJobs);
     S.set('fw_last_sync',new Date().toLocaleString('en-NZ'));
     S.set('fw_no_priced',noPriced);
+    S.set('fw_excluded',excluded);
     // Also refresh back-costing rows (completed + effectively-finished active jobs)
     try{await syncBackCosting(active);}catch(e){console.warn('bc sync',e.message);}
     setSync('updated '+new Date().toLocaleTimeString('en-NZ',{hour:'2-digit',minute:'2-digit'}));
     renderAll();
-    toast(out.length+' active job'+(out.length!==1?'s':'')+' loaded'+(noPriced?' · '+noPriced+' missing priced hrs':''),'ok');
+    toast(out.length+' active job'+(out.length!==1?'s':'')+' loaded'+(excluded?' · '+excluded+' completed (fully invoiced) excluded':'')+(noPriced?' · '+noPriced+' missing priced hrs':''),'ok');
   }catch(err){
     console.error(err);setSync('sync failed');
     toast(fergusErrMsg(err).split('\n')[0],'err');
@@ -476,8 +490,8 @@ function renderWork(){
     const over=j.actual>j.priced&&j.priced>0;
     return '<tr><td>'+esc(j.job)+(j.priced<=0?' <span class="mut">⚠ no priced h</span>':'')+'</td><td>'+(j.priced>0?fmtH(j.priced):'—')+'</td><td>'+fmtH(j.actual)+(over?' <span class="neg">⚠</span>':'')+'</td><td class="'+(j.remaining>0?'pos':'')+'">'+fmtH(j.remaining)+'</td></tr>';
   }).join(''):'<tr><td colspan="4" class="empty">No active jobs synced yet. Tap “Sync”.</td></tr>';
-  const last=S.get('fw_last_sync','');
-  document.getElementById('work-note').innerHTML=(last?'Last sync: '+esc(last)+'. ':'')+(noPriced?('<br>⚠ '+noPriced+' active job(s) have no priced labour hours in Fergus — they count as 0, so the total may understate your real workload.'):'');
+  const last=S.get('fw_last_sync','');const excl=S.get('fw_excluded',0);
+  document.getElementById('work-note').innerHTML=(last?'Last sync: '+esc(last)+'. ':'')+(excl?('<br>✓ '+excl+' active job(s) excluded as completed — fully invoiced (50% deposit + 50% completion both raised). Their leftover hours aren\'t counted; they moved to back-costing.'):'')+(noPriced?('<br>⚠ '+noPriced+' active job(s) have no priced labour hours in Fergus — they count as 0, so the total may understate your real workload.'):'');
 }
 function brk(l,r){return '<div class="brk"><span class="mut">'+l+'</span><span>'+r+'</span></div>';}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -572,11 +586,7 @@ function upsertBC(job,summary){
   const p_lab=num(qs.labour),p_mat=num(qs.materials);
   const h_actual=num(lh.total)||num(lh.billable);
   const h_priced=num(qs.quotedHours);
-  const status=job.status||'';
-  const billRef=num(qs.quotedAmount)>0?num(qs.quotedAmount):num(ca.total);
-  const billedRatio=billRef>0?(num(tb.total)/billRef):(num(tb.total)>0?1:0);
-  const finished=(status==='Completed')||(h_actual>0&&billedRatio>=0.75);
-  if(!finished)return false;
+  if(!isFinishedJob(job,summary))return false;
   if(!sales&&!a_lab&&!a_mat&&!p_lab&&!p_mat&&!h_actual)return false;
   const gp=sales-cost;const gpm=sales>0?Math.round(gp/sales*1000)/10:0;
   const client=fergusName(job.customer)||fergusName(job.mainContact)||'Unknown';
@@ -763,10 +773,11 @@ function renderPL(){
 // ════════ DASHBOARD ════════ (forward workflow in weeks + This/Last/3-mo from Xero P&L)
 function renderDash(){
   const R=totalRemaining();const c=capacity();const days=R/c.perDay, weeks=days/5;
+  const excl=S.get('fw_excluded',0);
   document.getElementById('dash-fw-weeks').textContent=fwJobs.length?(R>0?(Math.round(weeks*10)/10):'0'):'—';
   document.getElementById('dash-fw-sub').textContent=fwJobs.length
-    ?('≈ '+(Math.round(days*10)/10)+' working days · '+fmtH(R)+' h across '+fwJobs.length+' active jobs · '+c.teams+'×'+c.size+' crew')
-    :'Tap “Refresh” to load active jobs';
+    ?('≈ '+(Math.round(days*10)/10)+' working days · '+fmtH(R)+' h across '+fwJobs.length+' active jobs'+(excl?' ('+excl+' completed excluded)':'')+' · '+c.teams+'×'+c.size+' crew')
+    :(excl?(excl+' job(s) fully invoiced & complete — no open backlog. Tap Refresh to recheck.'):'Tap “Refresh” to load active jobs');
   const last=S.get('fw_last_sync','');document.getElementById('dash-fw-sync').textContent=last?('· '+last):'';
 
   // Xero P&L period cards
