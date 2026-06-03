@@ -783,21 +783,21 @@ function xeroFindDeep(rep,re){
 function xeroWages(rep){
   const kw=(S.get('wageKw','wages')||'').toLowerCase();
   const terms=kw.split(',').map(t=>t.trim()).filter(Boolean);
-  if(!terms.length)return {sum:0,names:[]};
-  let sum=0;const names=[];
+  if(!terms.length)return {sum:0,items:[]};
+  let sum=0;const items=[];
   (rep.Rows||[]).forEach(sec=>{
     const title=((sec.Title)||'').toLowerCase();
     if(!/expense|overhead/.test(title)||/cost of sales|cost of goods|income|revenue/.test(title))return;
     const walk=rows=>(rows||[]).forEach(r=>{
       if(r.RowType!=='SummaryRow'){
         const c=r.Cells||[];const label=((c[0]&&c[0].Value)||'').trim();
-        if(label&&terms.some(t=>label.toLowerCase().includes(t))){const v=xeroNum(c[1]&&c[1].Value);if(v!=null){sum+=v;names.push(label);}}
+        if(label&&terms.some(t=>label.toLowerCase().includes(t))){const v=xeroNum(c[1]&&c[1].Value);if(v!=null){sum+=v;items.push({name:label,val:v});}}
       }
       if(r.Rows&&r.Rows.length)walk(r.Rows);
     });
     walk(sec.Rows||[]);
   });
-  return {sum,names};
+  return {sum,items};
 }
 function xeroRepFig(rep){
   let rev=xeroFindDeep(rep,/^(Total Income|Total Trading Income|Total Operating Income|Total Sales|Total Revenue|Income)$/i);
@@ -813,7 +813,7 @@ function xeroRepFig(rep){
   const w=xeroWages(rep);let wages=w.sum;if(opex!=null)wages=Math.min(wages,opex);
   let gpA=gp,opexA=opex;
   if(wages>0){if(gp!=null)gpA=gp-wages;if(opex!=null)opexA=opex-wages;}
-  return {rev:num(rev),gp:num(gpA),opex:num(opexA),np:num(np),wages:num(wages),wageNames:w.names,src:'xero'};
+  return {rev:num(rev),gp:num(gpA),opex:num(opexA),np:num(np),wages:num(wages),wageNames:w.items.map(i=>i.name),src:'xero'};
 }
 // First/last day of a 'Mon-YYYY' month; cap the end at today for the current (partial) month.
 function monthRange(monthKey){
@@ -875,15 +875,31 @@ async function pullXeroPL(){
 }
 function renderXeroReport(rep,label){
   document.getElementById('pl-src').textContent='· live from Xero ('+label+')';
+  // Rebuild the P&L with on-site wages physically moved from Operating Expenses into Cost of
+  // Sales: drop the wage line(s) from Opex, list them under COGS, and recompute the section
+  // totals + Gross Profit (Total COGS +wages, Total Opex −wages, GP −wages; NP unchanged).
+  const wk=xeroWages(rep);const wages=wk.sum;
+  const wageSet=new Set(wk.items.map(i=>i.name.trim().toLowerCase()));
+  const line=(name,n,sum)=>'<tr'+(sum?' class="sum"':'')+'><td'+(sum?'':' class="ind"')+'>'+esc(name)+'</td><td>'+(n!=null?fmt$(n):'')+'</td></tr>';
   let html='';
-  (rep.Rows||[]).forEach(row=>{
-    if(row.RowType==='Section'){
-      if(row.Title)html+='<tr class="sec"><td colspan="2">'+esc(row.Title)+'</td></tr>';
-      (row.Rows||[]).forEach(sub=>{const c=sub.Cells||[];const n=xeroNum(c[1]&&c[1].Value);const sum=sub.RowType==='SummaryRow';html+='<tr'+(sum?' class="sum"':'')+'><td'+(sum?'':' class="ind"')+'>'+esc(c[0]?c[0].Value:'')+'</td><td>'+(n!=null?fmt$(n):esc(c[1]?c[1].Value:''))+'</td></tr>';});
-    }
+  (rep.Rows||[]).forEach(sec=>{
+    if(sec.RowType!=='Section')return;
+    const title=sec.Title||'';const tl=title.toLowerCase();
+    const isOpex=/expense|overhead/.test(tl)&&!/cost of (sales|goods)/.test(tl);
+    const isCogs=/cost of (sales|goods)|direct cost/.test(tl);
+    const items=[],sums=[];
+    (sec.Rows||[]).forEach(r=>{(r.RowType==='SummaryRow'?sums:items).push(r);});
+    if(title)html+='<tr class="sec"><td colspan="2">'+esc(title)+'</td></tr>';
+    items.forEach(r=>{const c=r.Cells||[];const name=(c[0]&&c[0].Value)||'';
+      if(isOpex&&wages>0&&wageSet.has(name.trim().toLowerCase()))return;   // moved out of Opex
+      html+=line(name,xeroNum(c[1]&&c[1].Value),false);});
+    if(isCogs&&wages>0)wk.items.forEach(it=>{html+=line(it.name+' — on-site labour',it.val,false);});
+    sums.forEach(r=>{const c=r.Cells||[];const name=(c[0]&&c[0].Value)||'';let n=xeroNum(c[1]&&c[1].Value);
+      if(n!=null&&wages>0){if(isCogs&&/total/i.test(name))n+=wages;else if(isOpex&&/total/i.test(name))n-=wages;else if(/gross profit/i.test(name))n-=wages;}
+      html+=line(name,n,true);});
   });
   document.getElementById('pl-table').innerHTML=html;
-  const fig=xeroRepFig(rep)||{rev:0,gp:0,opex:0,np:0};
+  const fig=xeroRepFig(rep)||{rev:0,gp:0,opex:0,np:0,wages:0};
   const inc=fig.rev,gp=fig.gp,np=fig.np;
   // feed this month into the dashboard set (same logic as the per-month sync)
   xeroMonthly[label]={rev:fig.rev,gp:fig.gp,opex:fig.opex,np:fig.np,wages:fig.wages};S.set('xeroMonthly',xeroMonthly);
@@ -892,10 +908,10 @@ function renderXeroReport(rep,label){
     tile('a','Gross Profit',fmtK(gp||0),(inc&&gp?Math.round(gp/inc*100)+'% GPM':''))+
     tile(np>0?'s':'d','Net Profit',fmtK(np||0),(inc&&np!=null?Math.round(np/inc*100)+'% margin':''))+
     tile('','Source','Xero','live ✓');
-  document.getElementById('pl-note').innerHTML=(fig.wages>0
-    ?('On-site wages <b>'+fmtK(fig.wages)+'</b>/mo moved from Opex into COGS'+(fig.wageNames&&fig.wageNames.length?(' ('+esc(fig.wageNames.join(', '))+')'):'')+' — so the headline GP &amp; Opex above reflect that (NP is unchanged). The breakdown below is Xero’s native layout.<br>')
-    :'Set your on-site wages account in ⚙ to move it into COGS.<br>')
-    +'Live from Xero — only updates when you Sync/Pull.';
+  document.getElementById('pl-note').innerHTML=(wages>0
+    ?('On-site wages <b>'+fmtK(wages)+'</b>/mo moved from Opex into Cost of Sales: '+esc(wk.items.map(i=>i.name).join(', '))+'. Total COGS, Total Operating Expenses &amp; Gross Profit above reflect the move; Net Profit is unchanged.<br>')
+    :('No Operating-Expenses line matched “'+esc(S.get('wageKw','wages'))+'”. Set your on-site wages account name in ⚙.<br>'))
+    +'Live from Xero — updates only when you Sync/Pull.';
 }
 function renderPL(){
   fillPLPeriods();
