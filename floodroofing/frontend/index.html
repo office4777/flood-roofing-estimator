@@ -1353,7 +1353,7 @@ select{
           AI dimensions: <input type="checkbox" id="showDimLabels" checked onchange="redrawAll()"> show
         </label>
         <label style="display:flex;align-items:center;gap:5px;margin:0;font-weight:400">
-          Transparency: <input type="range" id="bgOpacity" min="0.1" max="1" step="0.1" value="0.35" style="width:80px;margin:0" oninput="redrawAll()">
+          Transparency: <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.35" style="width:90px;margin:0" oninput="redrawAll()">
         </label>
         <div style="display:flex;align-items:center;gap:4px;font-size:12px">
           Zoom: 
@@ -1972,7 +1972,7 @@ select{
         <div><label>Gutter overhang (mm)
           <span style="color:var(--text2);font-weight:400;font-size:11px">— added to every sheet, no rounding</span>
         </label>
-          <input type="number" id="sheetOverhangMm" value="50" min="0" max="200"
+          <input type="number" id="sheetOverhangMm" value="0" min="0" max="200"
                  oninput="_setSheetOverhangMm(this.value)">
         </div>
         <div><label>Default flashing angle (°)
@@ -10497,7 +10497,7 @@ function _setSheetOverhangMm(v){
 function _syncSheetOverhangUi(){
   var inp = document.getElementById('sheetOverhangMm');
   if (!inp) return;
-  var saved = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '50');
+  var saved = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '0');
   if (isFinite(saved) && saved >= 0) inp.value = saved;
 }
 
@@ -13860,7 +13860,12 @@ function redrawAll() {
   // Background sketch — drawn at correct aspect ratio, zoom+pan applied
   var showBgEl=document.getElementById('showBg');
   if(DRAW.bgImg&&showBgEl&&showBgEl.checked){
-    var op=parseFloat(document.getElementById('bgOpacity').value)||0.35;
+    // Allow opacity 0 (fully transparent) — slider now starts at 0,
+    // so parseFloat("0") needs to stay 0, not fall back to 0.35.
+    var _opRaw = document.getElementById('bgOpacity').value;
+    var op = (_opRaw === '' || _opRaw == null) ? 0.35 : parseFloat(_opRaw);
+    if (!isFinite(op)) op = 0.35;
+    if (op <= 0.001) return;  // fully invisible — skip the draw entirely
     var iw=DRAW.bgImg.naturalWidth, ih=DRAW.bgImg.naturalHeight;
     // fitScale: at zoom=1.0 image fits inside 900x600 with correct ratio
     var fitScale=Math.min(W/iw, H/ih);
@@ -14424,7 +14429,7 @@ function redrawAll() {
           var displayedM = sheetM;
           try {
             if (DRAW.sheetGroupOverrides) {
-              var overhang = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '50') || 50;
+              var overhang = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '0') || 0;
               var origMm = Math.max(1000, Math.round(sheetM * 1000 + overhang));
               var ovMm = DRAW.sheetGroupOverrides[origMm];
               if (ovMm != null && ovMm > 0) displayedM = (ovMm - overhang) / 1000;
@@ -14541,15 +14546,22 @@ function redrawAll() {
       ctx.lineWidth = isSelected ? 2 : 1.5;
       ctx.strokeRect(rx, ry, rw, rh);
       var label = (p.widthMm && p.lengthMm) ? (p.widthMm + '×' + p.lengthMm) : (p.sizeLabel || '');
-      if (label && rw > 16 && rh > 12) {
-        ctx.font = '10px sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        var tw = ctx.measureText(label).width;
-        var bx = rx + rw/2, by = ry + rh/2;
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.fillRect(bx - tw/2 - 3, by - 7, tw + 6, 13);
-        ctx.fillStyle = '#0a1628';
-        ctx.fillText(label, bx, by);
+      if (label && rw > 10 && rh > 8) {
+        // Scale the label so it fits inside the box with a small inset
+        // and never touches the sides. We start at a sensible cap and
+        // shrink until both width AND height fit.
+        var maxFont = Math.min(20, Math.floor(rh * 0.55));
+        var minFont = 6;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = isSelected ? '#ff6600' : '#0a1628';
+        var fpx = maxFont;
+        while (fpx >= minFont) {
+          ctx.font = fpx + 'px sans-serif';
+          if (ctx.measureText(label).width <= rw - 8 && fpx <= rh - 4) break;
+          fpx--;
+        }
+        ctx.fillText(label, rx + rw/2, ry + rh/2);
       }
       return;
     }
@@ -16425,7 +16437,7 @@ function _sheetEditPopup(hit){
     if (DRAW.sheetGroupOverrides) {
       var prevM = parseFloat(current.replace(/m$/, ''));
       if (isFinite(prevM)) {
-        var overhang = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '50') || 50;
+        var overhang = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '0') || 0;
         var prevMm = Math.round(prevM * 1000 + overhang);
         delete DRAW.sheetGroupOverrides[prevMm];
       }
@@ -19530,9 +19542,16 @@ function renderRoofSheetPlan() {
     combined.groups = Object.keys(combinedGroups).map(function(k){ return combinedGroups[k]; });
     window._lastSheetCounts = combined;
     _loadRoofToCurrent(savedActive);
+    // Re-render the Materials cut list now that fresh _lastSheetCounts
+    // is available — otherwise the "Roof sheets" section stays on its
+    // "Generate the Roof Sheet Plan above" placeholder from before
+    // the plan ran.
+    try { if (typeof renderMaterialsCutLists === 'function') renderMaterialsCutLists(); } catch(e){}
     return;
   }
   _renderRoofSheetPlanInner();
+  // Same trickle-down for the single-roof path.
+  try { if (typeof renderMaterialsCutLists === 'function') renderMaterialsCutLists(); } catch(e){}
 }
 
 function _renderRoofSheetPlanInner() {
@@ -19600,13 +19619,17 @@ function _renderRoofSheetPlanInner() {
   var LONG_MM  = 7650;
   function orderedLengthMm(sheetMetres) {
     // Sheets are ordered at the EXACT measured length plus a
-    // configurable gutter overhang (defaults to 50 mm; user can tune
-    // in Settings or via localStorage('fr_sheet_overhang_mm')). No
-    // round-up — the user explicitly asked for no padding, so a 5.15 m
-    // sheet now reads as 5.15 m + overhang, not 5.20 m.
-    var overhangMm = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '50');
-    if (!isFinite(overhangMm) || overhangMm < 0) overhangMm = 50;
-    return Math.max(1000, Math.round(sheetMetres * 1000 + overhangMm));
+    // Configurable gutter overhang — DEFAULTS TO 0 mm so the sheets
+    // to order match the Roof Map sheet labels exactly with no
+    // rounding and no padding (the user explicitly asked for this).
+    // Set fr_sheet_overhang_mm in the Sheet layout settings card if
+    // you want overhang added back.
+    var overhangMm = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '0');
+    if (!isFinite(overhangMm) || overhangMm < 0) overhangMm = 0;
+    var mm = Math.round(sheetMetres * 1000 + overhangMm);
+    // Don't enforce any minimum — let short sheets pass through at
+    // their measured length.
+    return mm;
   }
 
   // ── Geometry helpers ───────────────────────────────────────────
