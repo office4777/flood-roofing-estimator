@@ -1971,6 +1971,13 @@ select{
           <input type="number" id="sheetOverhangMm" value="50" min="0" max="200"
                  oninput="_setSheetOverhangMm(this.value)">
         </div>
+        <div><label>Default flashing angle (°)
+          <span style="color:var(--text2);font-weight:400;font-size:11px">— used when you drop a new ∠ angle marker; blank = use roof pitch</span>
+        </label>
+          <input type="number" id="matFlashAngleDefault" min="1" max="89" step="0.5"
+                 placeholder="Auto"
+                 oninput="_setFlashDefaultAngleDeg(this.value)">
+        </div>
       </div>
       <div id="sheetSectionsWrap" style="margin-top:.25rem;display:none"></div>
       <div id="sheetLayoutOut" style="display:none">
@@ -2565,7 +2572,8 @@ select{
     </div>
     <div style="padding:12px 20px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap">
       <button onclick="setFlashTool('draw')" id="flashToolDraw" class="tool-btn active-tool">✏ Draw</button>
-      <button onclick="setFlashTool('squiggle')" id="flashToolSquiggle" class="tool-btn">〜 Squiggle</button>
+      <button onclick="setFlashTool('squiggle')" id="flashToolSquiggle" class="tool-btn">〜 Squiggle (drag)</button>
+      <button onclick="setFlashTool('angle')" id="flashToolAngle" class="tool-btn">∠ Angle</button>
       <button onclick="setFlashTool('edit')" id="flashToolEdit" class="tool-btn">✥ Move / delete</button>
       <button onclick="setFlashTool('measure')" id="flashToolMeasure" class="tool-btn">📏 Add measurement</button>
       <button onclick="setFlashTool('crush')" id="flashToolCrush" class="tool-btn">▽ Crush fold</button>
@@ -3145,7 +3153,7 @@ function gotoTab(t) {
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
-  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}}
+  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
@@ -8771,10 +8779,39 @@ function _clearFlashingSketch(i){
 // flagged with isBuiltin:true so the UI hides destructive Edit/Delete
 // actions and instead offers Duplicate-then-edit.
 //
-// The default set has been cleared at the user's request — fill this
-// array yourself via Settings → Flashing library → Sketch → ⤓ Export
-// as system default (the modal hands back a paste-ready snippet).
+// Fill via Settings → Flashing library → Sketch → ⤓ Export as system
+// default (the modal hands back a paste-ready snippet) or by hand.
 var _FLASH_BUILTIN_PRESETS = [
+  {
+    name:"Finish Barge Corro", flashingType:"barge|side", profile:"Corrugate", isBuiltin:true,
+    polylines:[{"vertices":[[233,283],[214,294],[234,273],[230,61],[526,60],[547,82],[530,71]],"measurements":{"1":10,"2":100,"3":210,"4":15},"measurementOffsets":{"1":[-75.99999355740073,-32.95354104990662],"2":[-87.99999254014818,-1.9971843060549475],"3":[7.9999993218316945,-55.92116056953846],"4":[72.99999381171386,-36.947909662016485]},"crushFolds":{"1":{"dirX":-0.2214918988994379,"dirY":0.9751622114919761},"5":{"dirX":0.33696165784815896,"dirY":0.9415183700492626}}}],
+    girthMm:335, angleChanges:5, crushFoldCount:2,
+    paintedSide:{"x":199,"y":59,"dirX":-0.724,"dirY":-0.69}
+  },
+  {
+    name:"Starter Barge Corro", flashingType:"barge|side", profile:"Corrugate", isBuiltin:true,
+    polylines:[{"vertices":[[233,283],[214,294],[234,273],[230,61],[526,60],[547,82],[530,71]],"measurements":{"1":10,"2":100,"3":180,"4":15},"measurementOffsets":{"1":[-75.99999355740073,-32.95354104990662],"2":[-87.99999254014818,-1.9971843060549475],"3":[7.9999993218316945,-55.92116056953846],"4":[72.99999381171386,-36.947909662016485]},"crushFolds":{"1":{"dirX":-0.2214918988994379,"dirY":0.9751622114919761},"5":{"dirX":0.33696165784815896,"dirY":0.9415183700492626}}}],
+    girthMm:305, angleChanges:5, crushFoldCount:2,
+    paintedSide:{"x":199,"y":59,"dirX":-0.724,"dirY":-0.69}
+  },
+  {
+    name:"Starter Barge 5-Rib", flashingType:"barge|side", profile:"5-Rib", isBuiltin:true,
+    polylines:[{"vertices":[[233,283],[214,294],[234,273],[230,61],[526,60],[547,82],[530,71]],"measurements":{"1":10,"2":110,"3":265,"4":25},"measurementOffsets":{"1":[-75.99999355740073,-32.95354104990662],"2":[-87.99999254014818,-1.9971843060549475],"3":[7.9999993218316945,-55.92116056953846],"4":[72.99999381171386,-36.947909662016485]},"crushFolds":{"1":{"dirX":-0.2214918988994379,"dirY":0.9751622114919761},"5":{"dirX":0.33696165784815896,"dirY":0.9415183700492626}}}],
+    girthMm:410, angleChanges:5, crushFoldCount:2,
+    paintedSide:{"x":199,"y":59,"dirX":-0.724,"dirY":-0.69}
+  },
+  {
+    name:"Finish Barge 5-Rib", flashingType:"barge|side", profile:"5-Rib", isBuiltin:true,
+    polylines:[{"vertices":[[233,283],[214,294],[234,273],[230,61],[526,60],[547,82],[530,71]],"measurements":{"1":10,"2":110,"3":320,"4":25},"measurementOffsets":{"1":[-75.99999355740073,-32.95354104990662],"2":[-87.99999254014818,-1.9971843060549475],"3":[7.9999993218316945,-55.92116056953846],"4":[72.99999381171386,-36.947909662016485]},"crushFolds":{"1":{"dirX":-0.2214918988994379,"dirY":0.9751622114919761},"5":{"dirX":0.33696165784815896,"dirY":0.9415183700492626}}}],
+    girthMm:465, angleChanges:5, crushFoldCount:2,
+    paintedSide:{"x":199,"y":59,"dirX":-0.724,"dirY":-0.69}
+  },
+  {
+    name:"Standard Apron Corro", flashingType:"apron|side", profile:"Corrugate", isBuiltin:true,
+    polylines:[{"vertices":[[205,99],[202,88],[205,285],[554,284],[575,310],[561,301]],"measurements":{"1":100,"2":200,"3":15},"measurementOffsets":{"1":[88.99999245537714,-34.95072535596154],"2":[9.999999152289604,-54.92256841651101],"3":[72.99999381171381,-36.94790966201646]},"crushFolds":{"1":{"dirX":-0.14042513555714292,"dirY":-0.9900912994788704},"4":{"dirX":0.7447105245650062,"dirY":0.6673876194552258}}}],
+    girthMm:315, angleChanges:4, crushFoldCount:2,
+    paintedSide:{"x":439,"y":163,"dirX":-0.003,"dirY":-1}
+  }
 ];
 // Lazy-render each built-in to a PNG data URL so library tiles + picker
 // thumbnails reuse the same image path user-saves go through. Cached on
@@ -9014,7 +9051,10 @@ function _snapshotFlashState(){
       vertices: p.vertices.map(function(v){return v.slice();}),
       measurements: Object.assign({}, p.measurements),
       measurementOffsets: Object.assign({}, p.measurementOffsets || {}),
+      measurementFontPx: Object.assign({}, p.measurementFontPx || {}),
       crushFolds: Object.assign({}, p.crushFolds || {}),
+      angleMarkers: Object.assign({}, p.angleMarkers || {}),
+      kind: p.kind || null,
     };
   }
   return {
@@ -9108,6 +9148,40 @@ function _computeFlashStats(){
 // label, cancel to leave it untouched.
 function _flashEditLabelPrompt(hit){
   if (!hit) return;
+  // Angle markers have a value (degrees) instead of a font size, so
+  // they get a dedicated two-step prompt: first the degrees (blank =
+  // delete), then optionally the font size.
+  if (hit.type === 'angleMarker') {
+    var am = hit.polyline.angleMarkers && hit.polyline.angleMarkers[hit.vertexIdx];
+    if (!am) return;
+    var curDeg = (typeof am.deg === 'number' && isFinite(am.deg)) ? am.deg : _flashDefaultAngleDeg();
+    var ans = window.prompt(
+      'Angle in degrees (blank to DELETE this angle marker, Cancel to keep it as-is):',
+      String(curDeg)
+    );
+    if (ans == null) return;
+    var trimmed1 = String(ans).trim();
+    _pushFlashHistory();
+    if (trimmed1 === '') {
+      delete hit.polyline.angleMarkers[hit.vertexIdx];
+      return;
+    }
+    var degN = parseFloat(trimmed1);
+    if (isFinite(degN) && degN > 0 && degN < 180) {
+      am.deg = degN;
+    }
+    // Optional second prompt: font size for THIS angle marker
+    var ans2 = window.prompt('Font size for this angle label (leave blank to keep current):',
+                             String(am.fontPx || _flashTextPx()));
+    if (ans2 != null) {
+      var trimmed2 = String(ans2).trim();
+      if (trimmed2 !== '') {
+        var fpN = parseInt(trimmed2, 10);
+        if (isFinite(fpN) && fpN >= 8) am.fontPx = Math.min(80, fpN);
+      }
+    }
+    return;
+  }
   function currentLabelFontPx(){
     if (hit.type === 'measurement') {
       return (hit.polyline.measurementFontPx && hit.polyline.measurementFontPx[hit.segmentIdx]) || _flashTextPx();
@@ -9180,6 +9254,40 @@ function _flashTextPx(){
   if (!isFinite(s) || s < 9) s = 9;
   if (s > 48) s = 48;
   return s;
+}
+// Default angle (degrees) used when the user drops a new angle marker.
+// Priority: the Materials tab "Default flashing angle" override (saved
+// in localStorage), then the calibrated roof pitch on DRAW.calPitch,
+// then the legacy pitchDeg input, then a sensible 20° fallback.
+function _flashDefaultAngleDeg(){
+  var lsRaw = '';
+  try { lsRaw = localStorage.getItem('fr_flash_default_angle') || ''; } catch(e){}
+  var ls = parseFloat(lsRaw);
+  if (isFinite(ls) && ls > 0 && ls < 90) return ls;
+  if (typeof DRAW !== 'undefined' && DRAW && DRAW.calPitch > 0) return +DRAW.calPitch;
+  var pd = document.getElementById('pitchDeg');
+  if (pd) { var pv = parseFloat(pd.value); if (isFinite(pv) && pv > 0) return pv; }
+  return 20;
+}
+// Materials-tab handler — the user types into the default-angle box
+// and we persist + re-render the sketcher (any open angle markers
+// using the auto-default refresh).
+function _setFlashDefaultAngleDeg(v){
+  var n = parseFloat(v);
+  if (!isFinite(n) || n <= 0 || n >= 90) {
+    try { localStorage.removeItem('fr_flash_default_angle'); } catch(e){}
+  } else {
+    try { localStorage.setItem('fr_flash_default_angle', String(n)); } catch(e){}
+  }
+  try { _redrawFlashCanvas(); } catch(e){}
+}
+function _syncFlashDefaultAngleUi(){
+  var inp = document.getElementById('matFlashAngleDefault');
+  if (!inp) return;
+  inp.placeholder = 'Auto (' + _flashDefaultAngleDeg().toFixed(0) + '°)';
+  var saved = '';
+  try { saved = localStorage.getItem('fr_flash_default_angle') || ''; } catch(e){}
+  inp.value = saved || '';
 }
 function _onFlashTextSize(){
   var inp = document.getElementById('flashTextSize');
@@ -9315,6 +9423,86 @@ function _redrawFlashCanvas(){
         ctx.closePath(); ctx.fillStyle = '#ea580c'; ctx.fill();
         _flashLabelRects.push({
           type: 'crushFold', polyline: p, vertexIdx: idx,
+          x: labelX - boxW/2, y: labelY - boxH/2, w: boxW, h: boxH,
+        });
+      });
+      ctx.font = fontStr;
+    }
+    // Angle / pitch markers — small wedge icon + degree label parked
+    // outward from the chosen vertex, dragable + editable like every
+    // other label. Default value comes from _flashDefaultAngleDeg
+    // (Materials tab "Default flashing angle" or the calibrated
+    // roof pitch).
+    if (p.angleMarkers) {
+      Object.keys(p.angleMarkers).forEach(function(k){
+        var am = p.angleMarkers[k]; if (!am) return;
+        var idx = +k; if (!v[idx]) return;
+        var ax = v[idx][0], ay = v[idx][1];
+        var dirX = (typeof am.dirX === 'number') ? am.dirX : 0;
+        var dirY = (typeof am.dirY === 'number') ? am.dirY : -1;
+        var dl = Math.hypot(dirX, dirY) || 1;
+        dirX /= dl; dirY /= dl;
+        var amFontPx = +(am.fontPx || fontPx);
+        if (!isFinite(amFontPx) || amFontPx < 8) amFontPx = fontPx;
+        var labelDist = Math.max(48, amFontPx + 32);
+        var labelX = ax + dirX * labelDist;
+        var labelY = ay + dirY * labelDist;
+        // Draw the angle WEDGE at the vertex. Use the two adjacent
+        // segments to compute the interior angle's bounding rays so
+        // the wedge sits in the bend itself, not at a guessed offset.
+        var prevV = (idx > 0) ? v[idx-1] : null;
+        var nextV = (idx < v.length - 1) ? v[idx+1] : null;
+        var r0 = null, r1 = null;
+        if (prevV) { var pa = Math.atan2(prevV[1]-ay, prevV[0]-ax); r0 = pa; }
+        if (nextV) { var na = Math.atan2(nextV[1]-ay, nextV[0]-ax); r1 = na; }
+        if (r0 != null && r1 != null) {
+          var radius = Math.max(14, amFontPx * 0.9);
+          // Pick the shorter arc between r0 and r1 — that's the
+          // interior of the bend.
+          var d = r1 - r0;
+          while (d <=  -Math.PI) d += 2*Math.PI;
+          while (d >    Math.PI) d -= 2*Math.PI;
+          ctx.save();
+          ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(ax, ay, radius, r0, r0 + d, d < 0);
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(14,165,233,0.18)';
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.arc(ax, ay, radius, r0, r0 + d, d < 0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        } else {
+          // End vertex — draw a small angle glyph instead of a wedge.
+          ctx.save();
+          ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(ax - 10, ay + 6);
+          ctx.lineTo(ax,      ay - 8);
+          ctx.lineTo(ax + 10, ay + 6);
+          ctx.stroke();
+          ctx.restore();
+        }
+        // Label box "∠ 25°" — fall back to the default when value not set
+        var degVal = (typeof am.deg === 'number' && isFinite(am.deg)) ? am.deg : _flashDefaultAngleDeg();
+        ctx.font = amFontPx + 'px Inter, system-ui, sans-serif';
+        var txt = '∠ ' + Math.round(degVal * 10) / 10 + '°';
+        var tw = ctx.measureText(txt).width;
+        var boxW = tw + 16, boxH = amFontPx + 8;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
+        ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 1.2;
+        ctx.strokeRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
+        ctx.fillStyle = '#0ea5e9';
+        ctx.fillText(txt, labelX - tw/2, labelY + amFontPx * 0.35);
+        // Thin leader from label edge back to the vertex
+        ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+        ctx.beginPath(); ctx.moveTo(labelX - dirX * boxH/2, labelY - dirY * boxH/2); ctx.lineTo(ax, ay); ctx.stroke();
+        ctx.setLineDash([]);
+        _flashLabelRects.push({
+          type: 'angleMarker', polyline: p, vertexIdx: idx,
           x: labelX - boxW/2, y: labelY - boxH/2, w: boxW, h: boxH,
         });
       });
@@ -9463,6 +9651,13 @@ function _flashLabelGetPos(hit){
     var dy = (cf && typeof cf.dirY === 'number') ? cf.dirY : -1;
     return { x: v[0] + dx * 46, y: v[1] + dy * 46 };
   }
+  if (hit.type === 'angleMarker') {
+    var v2 = hit.polyline.vertices[hit.vertexIdx];
+    var am = hit.polyline.angleMarkers[hit.vertexIdx];
+    var adx = (am && typeof am.dirX === 'number') ? am.dirX : 0;
+    var ady = (am && typeof am.dirY === 'number') ? am.dirY : -1;
+    return { x: v2[0] + adx * 48, y: v2[1] + ady * 48 };
+  }
   return { x: 0, y: 0 };
 }
 function _flashLabelSetPos(hit, nx, ny){
@@ -9488,19 +9683,29 @@ function _flashLabelSetPos(hit, nx, ny){
     var cf = hit.polyline.crushFolds[hit.vertexIdx] || {};
     cf.dirX = dx / L; cf.dirY = dy / L;
     hit.polyline.crushFolds[hit.vertexIdx] = cf;
+  } else if (hit.type === 'angleMarker') {
+    // Angle label rotates around its anchor vertex same as Crush /
+    // Painted side — wedge stays put.
+    var av = hit.polyline.vertices[hit.vertexIdx];
+    var adx = nx - av[0], ady = ny - av[1];
+    var aL = Math.hypot(adx, ady) || 1;
+    var am = hit.polyline.angleMarkers[hit.vertexIdx] || {};
+    am.dirX = adx / aL; am.dirY = ady / aL;
+    hit.polyline.angleMarkers[hit.vertexIdx] = am;
   }
 }
 
 // ── Tools ───────────────────────────────────────────────
 function setFlashTool(t){
   _flashSketchState.tool = t;
-  ['draw','squiggle','edit','measure','crush','paint','flashguard'].forEach(function(name){
+  ['draw','squiggle','angle','edit','measure','crush','paint','flashguard'].forEach(function(name){
     var btn = document.getElementById('flashTool' + name.charAt(0).toUpperCase() + name.slice(1));
     if (btn) btn.classList.toggle('active-tool', t === name);
   });
   var c = document.getElementById('flashCanvas');
   if (c) c.style.cursor = (t === 'edit') ? 'move'
-    : (t === 'measure' || t === 'paint' || t === 'flashguard' || t === 'crush') ? 'pointer'
+    : (t === 'squiggle') ? 'crosshair'
+    : (t === 'measure' || t === 'paint' || t === 'flashguard' || t === 'crush' || t === 'angle') ? 'pointer'
     : 'crosshair';
   // Cancel any in-progress polyline when leaving a drawing tool so a
   // measure click doesn't end up adding a vertex to the half-finished
@@ -9597,20 +9802,23 @@ function _onFlashCanvasClick(p){
     }
     _redrawFlashCanvas();
     _updateFlashStats();
-  } else if (_flashSketchState.tool === 'squiggle') {
-    // Two-click squiggle line: first click anchors the start, second
-    // click drops the end and finishes the polyline. The result is
-    // marked `kind:'squiggle'` so renderer draws a sine wave between
-    // the two points and stats skip the angle-change count (squiggles
-    // are visual-only, used for flash-guard indicators).
+  } else if (_flashSketchState.tool === 'angle') {
+    // Angle indicator — placed at the nearest vertex of an existing
+    // polyline. Default angle is the roof pitch (DRAW.calPitch) or
+    // whatever the user has set as the "Default flashing angle" in
+    // the Materials tab. Renders as a small arc icon + degree label
+    // and is draggable + editable like every other label.
+    var vhit = _closestVertexTo(p.x, p.y);
+    if (!vhit || vhit.dist > 22) return;
     _pushFlashHistory();
-    if (!_flashSketchState.currentPolyline) {
-      _flashSketchState.currentPolyline = { vertices: [[p.x, p.y]], measurements: {}, kind: 'squiggle' };
+    if (!vhit.polyline.angleMarkers) vhit.polyline.angleMarkers = {};
+    var key = String(vhit.vertexIdx);
+    var def = _flashDefaultAngleDeg();
+    if (vhit.polyline.angleMarkers[key]) {
+      // Toggle off if already present (same UX as crush fold).
+      delete vhit.polyline.angleMarkers[key];
     } else {
-      _flashSketchState.currentPolyline.vertices.push([p.x, p.y]);
-      if (_flashSketchState.currentPolyline.vertices.length >= 2) {
-        finishFlashPolyline();
-      }
+      vhit.polyline.angleMarkers[key] = { deg: def, dirX: 0, dirY: -1 };
     }
     _redrawFlashCanvas();
     _updateFlashStats();
@@ -9826,7 +10034,10 @@ function openFlashSketch(idx){
       return { vertices: p.vertices.map(function(v){return v.slice();}),
                measurements: Object.assign({}, p.measurements||{}),
                measurementOffsets: Object.assign({}, p.measurementOffsets||{}),
-               crushFolds: Object.assign({}, p.crushFolds||{}) };
+               measurementFontPx: Object.assign({}, p.measurementFontPx||{}),
+               crushFolds: Object.assign({}, p.crushFolds||{}),
+               angleMarkers: Object.assign({}, p.angleMarkers||{}),
+               kind: p.kind || null };
     });
     _flashSketchState.paintedSide = f.paintedSide || null;
     _flashSketchState.flashGuard  = f.flashGuard  || null;
@@ -9858,7 +10069,10 @@ function openFlashEditModal(libIdx){
       return { vertices: p.vertices.map(function(v){return v.slice();}),
                measurements: Object.assign({}, p.measurements||{}),
                measurementOffsets: Object.assign({}, p.measurementOffsets||{}),
-               crushFolds: Object.assign({}, p.crushFolds||{}) };
+               measurementFontPx: Object.assign({}, p.measurementFontPx||{}),
+               crushFolds: Object.assign({}, p.crushFolds||{}),
+               angleMarkers: Object.assign({}, p.angleMarkers||{}),
+               kind: p.kind || null };
     });
     _flashSketchState.paintedSide = entry.paintedSide || null;
     _flashSketchState.flashGuard  = entry.flashGuard  || null;
@@ -9900,7 +10114,10 @@ function exportFlashAsBuiltin(){
       vertices: p.vertices.map(function(v){ return [r(v[0]), r(v[1])]; }),
       measurements: Object.assign({}, p.measurements || {}),
       measurementOffsets: Object.assign({}, p.measurementOffsets || {}),
-      crushFolds: Object.assign({}, p.crushFolds || {})
+      measurementFontPx: Object.assign({}, p.measurementFontPx || {}),
+      crushFolds: Object.assign({}, p.crushFolds || {}),
+      angleMarkers: Object.assign({}, p.angleMarkers || {}),
+      kind: p.kind || null
     };
   });
   var payload = {
@@ -10002,7 +10219,10 @@ function saveFlashSketch(){
     return { vertices: p.vertices.map(function(v){return v.slice();}),
              measurements: Object.assign({}, p.measurements),
              measurementOffsets: Object.assign({}, p.measurementOffsets || {}),
-             crushFolds: Object.assign({}, p.crushFolds || {}) };
+             measurementFontPx: Object.assign({}, p.measurementFontPx || {}),
+             crushFolds: Object.assign({}, p.crushFolds || {}),
+             angleMarkers: Object.assign({}, p.angleMarkers || {}),
+             kind: p.kind || null };
   });
 
   // Library mode
@@ -10163,7 +10383,10 @@ function _cloneFlashingIntoLibrary(src, suggestedName){
         vertices: (p.vertices||[]).map(function(v){ return v.slice(); }),
         measurements: Object.assign({}, p.measurements || {}),
         measurementOffsets: Object.assign({}, p.measurementOffsets || {}),
-        crushFolds: Object.assign({}, p.crushFolds || {})
+        measurementFontPx: Object.assign({}, p.measurementFontPx || {}),
+        crushFolds: Object.assign({}, p.crushFolds || {}),
+        angleMarkers: Object.assign({}, p.angleMarkers || {}),
+        kind: p.kind || null
       };
     }),
     paintedSide: src.paintedSide ? Object.assign({}, src.paintedSide) : null,
@@ -10294,6 +10517,15 @@ function deleteFlashingLibraryEntry(idx) {
           return;
         }
       }
+      // Squiggle tool: start a freehand stroke — mousemove appends
+      // points until mouseup commits the polyline as a kind:'squiggle'.
+      if (_flashSketchState.tool === 'squiggle') {
+        _pushFlashHistory();
+        _flashSketchState.freehand = { polyline: { vertices: [[p.x, p.y]], measurements: {}, kind: 'squiggle' } };
+        _flashSketchState.currentPolyline = _flashSketchState.freehand.polyline;
+        _flashSketchState.pressStart = null;
+        return;
+      }
       _flashSketchState.pressStart = p;
     });
     c.addEventListener('mousemove', function(e){
@@ -10309,6 +10541,18 @@ function deleteFlashingLibraryEntry(idx) {
         }
         di.moved = true;
         _redrawFlashCanvas();
+        return;
+      }
+      // Freehand squiggle in progress — append a point if the cursor
+      // moved more than ~2 px from the last one. Avoids spamming
+      // hundreds of near-identical vertices on a slow drag.
+      if (_flashSketchState.freehand) {
+        var verts = _flashSketchState.freehand.polyline.vertices;
+        var lastV = verts[verts.length - 1];
+        if (Math.hypot(p.x - lastV[0], p.y - lastV[1]) >= 2) {
+          verts.push([p.x, p.y]);
+          _redrawFlashCanvas();
+        }
         return;
       }
       _onFlashCanvasMouseMove(p);
@@ -10332,6 +10576,26 @@ function deleteFlashingLibraryEntry(idx) {
           }
         }
         _flashSketchState.dragInfo = null;
+        _redrawFlashCanvas();
+        _updateFlashStats();
+        return;
+      }
+      // Freehand squiggle — commit the polyline (or drop it if the
+      // user barely moved). Two vertices is the minimum to form a
+      // visible line.
+      if (_flashSketchState.freehand) {
+        var fh = _flashSketchState.freehand;
+        _flashSketchState.freehand = null;
+        var verts = fh.polyline.vertices;
+        if (verts.length >= 2) {
+          _flashSketchState.polylines.push(fh.polyline);
+        } else {
+          // Single-point squiggle — undo the history push so the user
+          // can't accidentally undo into an empty state.
+          _flashSketchState.history.pop();
+          _refreshFlashUndoRedoBtns();
+        }
+        _flashSketchState.currentPolyline = null;
         _redrawFlashCanvas();
         _updateFlashStats();
         return;
@@ -10372,6 +10636,11 @@ function deleteFlashingLibraryEntry(idx) {
         } else {
           _flashSketchState.pressStart = p;
         }
+      } else if (_flashSketchState.tool === 'squiggle') {
+        _pushFlashHistory();
+        _flashSketchState.freehand = { polyline: { vertices: [[p.x, p.y]], measurements: {}, kind: 'squiggle' } };
+        _flashSketchState.currentPolyline = _flashSketchState.freehand.polyline;
+        _flashSketchState.pressStart = null;
       } else {
         _flashSketchState.pressStart = p;
         _onFlashCanvasMouseMove(p);
@@ -10387,6 +10656,13 @@ function deleteFlashingLibraryEntry(idx) {
         else _flashLabelSetPos(di.hit, nx, ny);
         di.moved = true;
         _redrawFlashCanvas();
+      } else if (_flashSketchState.freehand) {
+        var fhverts = _flashSketchState.freehand.polyline.vertices;
+        var lastFv = fhverts[fhverts.length - 1];
+        if (Math.hypot(p.x - lastFv[0], p.y - lastFv[1]) >= 2) {
+          fhverts.push([p.x, p.y]);
+          _redrawFlashCanvas();
+        }
       } else {
         _onFlashCanvasMouseMove(p);
       }
@@ -10403,6 +10679,21 @@ function deleteFlashingLibraryEntry(idx) {
           }
         }
         _flashSketchState.dragInfo = null;
+        _redrawFlashCanvas();
+        _updateFlashStats();
+        return;
+      }
+      if (_flashSketchState.freehand) {
+        var fh2 = _flashSketchState.freehand;
+        _flashSketchState.freehand = null;
+        var fhv = fh2.polyline.vertices;
+        if (fhv.length >= 2) {
+          _flashSketchState.polylines.push(fh2.polyline);
+        } else {
+          _flashSketchState.history.pop();
+          _refreshFlashUndoRedoBtns();
+        }
+        _flashSketchState.currentPolyline = null;
         _redrawFlashCanvas();
         _updateFlashStats();
         return;
