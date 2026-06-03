@@ -303,6 +303,7 @@ let fwJobs=S.get('fwJobs',[]);               // [{id,job,priced,actual,remaining
 let cfg=S.get('fwCfg',{teams:4,size:2,hrs:8});
 let xeroMonthly=S.get('xeroMonthly',{});     // { 'Mon-YYYY': {rev,gp,opex,np} } from Xero monthly P&L
 let xeroLive=false;
+let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (render→pull→render loops)
 
 // ════════ TOAST (mobile-safe feedback — never relies on alert/prompt) ════════
 let _toastT=null;
@@ -683,7 +684,7 @@ async function syncXeroMonthly(){
     if(!res.ok)throw new Error('HTTP '+res.status+': '+txt.slice(0,160));
     const rep=(JSON.parse(txt).Reports||[])[0];if(!rep)throw new Error('No report');
     const parsed=parseXeroMonthly(rep);
-    if(Object.keys(parsed).length){xeroMonthly=parsed;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',new Date().toLocaleString('en-NZ'));xeroLive=true;toast('Xero P&L updated ✓','ok');renderDash();renderPL();return true;}
+    if(Object.keys(parsed).length){xeroMonthly=parsed;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',new Date().toLocaleString('en-NZ'));xeroLive=true;toast('Xero P&L updated ✓','ok');renderDash();return true;} // NB: do NOT call renderPL() here — renderPL can re-trigger pullXeroPL → infinite loop
     toast('Xero returned no months','err');return false;
   }catch(err){console.warn('xero monthly',err.message);toast('Xero pull failed: '+err.message.slice(0,60),'err');return false;}
 }
@@ -704,6 +705,8 @@ function parseXeroMonthly(rep){
 async function pullXeroPL(){
   const proxy=fergusProxyUrl();
   if(!proxy){openConnect();return;}
+  if(_xeroPulling)return;          // already pulling — don't stack another request
+  _xeroPulling=true;
   const btn=document.getElementById('pl-pull-btn');const {from,to,label}=plRange();
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Pulling…';}
   try{
@@ -721,7 +724,7 @@ async function pullXeroPL(){
     console.error(err);
     if(/HTTP 401/.test(err.message))toast('Proxy secret rejected (401) — check ⚙','err');
     else toast('Could not pull live P&L: '+err.message.slice(0,50),'err');
-  }finally{if(btn){btn.disabled=false;btn.innerHTML='🔌 Pull live P&amp;L from Xero';}}
+  }finally{_xeroPulling=false;if(btn){btn.disabled=false;btn.innerHTML='🔌 Pull live P&amp;L from Xero';}}
 }
 function renderXeroReport(rep,label){
   document.getElementById('pl-src').textContent='· live from Xero ('+label+')';
