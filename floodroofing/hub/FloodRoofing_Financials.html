@@ -7,7 +7,7 @@
 <title>Flood Roofing — Financials</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-:root{--primary:#4d8dff;--primary-2:#2f6df0;--accent:#ff6b35;--accent-2:#ff8a52;--success:#34d399;--warning:#fbbf24;--danger:#f87171;--bg:#0b0f16;--bg2:#0e131c;--card:#141b27;--card2:#1a2332;--elev:#212c3e;--text:#eaf0f8;--muted:#8b98ab;--border:#26303f;--glow:rgba(77,141,255,.22);}
+:root{--primary:#4d8dff;--primary-2:#2f6df0;--accent:#ff6b35;--accent-2:#ff8a52;--success:#34d399;--warning:#fbbf24;--danger:#f87171;--bg:#0b0f16;--bg2:#0e131c;--card:#141b27;--card2:#1a2332;--elev:#212c3e;--text:#eaf0f8;--muted:#aeb9c8;--border:#2b3647;--glow:rgba(77,141,255,.22);}
 html,body{overscroll-behavior-y:none;}
 body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--bg);background-image:radial-gradient(1100px 560px at 50% -8%,rgba(47,109,240,.16),transparent 62%),radial-gradient(900px 500px at 100% 0%,rgba(255,107,53,.07),transparent 55%);background-attachment:fixed;color:var(--text);padding-bottom:78px;font-size:15px;-webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased;}
 
@@ -104,11 +104,16 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 
 /* metric grid (Rev/GP/Opex/NP) */
 .mg{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.mb{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--border);border-radius:15px;padding:14px 15px;}
-.mb .l{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700;}
-.mb .v{font-size:1.5rem;font-weight:800;margin:5px 0 0;letter-spacing:-.6px;color:var(--text);}
+.mb{background:linear-gradient(180deg,var(--card2),var(--card));border:1.5px solid var(--border);border-radius:15px;padding:14px 15px;}
+.mb .l{font-size:.64rem;color:#cfd8e3;text-transform:uppercase;letter-spacing:.5px;font-weight:800;}
+.mb .v{font-size:1.55rem;font-weight:800;margin:5px 0 0;letter-spacing:-.6px;color:#fff;}
 .mb .v.pos{color:var(--success);}.mb .v.neg{color:var(--danger);}
-.mb .s2{font-size:.64rem;color:var(--muted);margin-top:2px;}
+.mb .s2{font-size:.66rem;color:#e6ecf4;margin-top:3px;font-weight:600;}
+/* per-metric colour identity: box outline + matching title */
+.mb.m-rev{border-color:#fbbf24;box-shadow:0 0 0 1px rgba(251,191,36,.18),0 8px 22px rgba(0,0,0,.25);}.mb.m-rev .l{color:#fbbf24;}
+.mb.m-gp{border-color:#2dd4bf;box-shadow:0 0 0 1px rgba(45,212,191,.18),0 8px 22px rgba(0,0,0,.25);}.mb.m-gp .l{color:#2dd4bf;}
+.mb.m-opex{border-color:#a78bfa;box-shadow:0 0 0 1px rgba(167,139,250,.18),0 8px 22px rgba(0,0,0,.25);}.mb.m-opex .l{color:#a78bfa;}
+.mb.m-np{border-color:#4d8dff;box-shadow:0 0 0 1px rgba(77,141,255,.18),0 8px 22px rgba(0,0,0,.25);}.mb.m-np .l{color:#4d8dff;}
 .mb .pa{font-size:1.02rem;font-weight:800;color:var(--text);}
 .mb.va{display:flex;align-items:baseline;justify-content:space-between;gap:6px;}
 .period-sub{font-size:.62rem;color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0;}
@@ -604,14 +609,15 @@ function avgFig(labels,fn){
   return {rev:k('rev'),gp:k('gp'),opex:k('opex'),np:k('np'),hP:k('hP'),hA:k('hA'),mP:k('mP'),mA:k('mA'),src:fs[0].src};
 }
 // metric box + grid for Rev/GP/Opex/NP
-function mb(label,val,sub,cls){return '<div class="mb"><div class="l">'+label+'</div><div class="v'+(cls?' '+cls:'')+'">'+val+'</div><div class="s2">'+(sub||'')+'</div></div>';}
+function mb(label,val,sub,cls,boxcls){return '<div class="mb'+(boxcls?' '+boxcls:'')+'"><div class="l">'+label+'</div><div class="v'+(cls?' '+cls:'')+'">'+val+'</div><div class="s2">'+(sub||'')+'</div></div>';}
 function pct(part,whole){return whole>0?Math.round(part/whole*100)+'%':'';}
 function metGrid(f){
   if(!f)return '<div class="empty" style="grid-column:1/-1;">No data</div>';
-  return mb('Revenue',fmtK(f.rev),'')+
-    mb('Gross Profit',fmtK(f.gp),pct(f.gp,f.rev)+' GPM',f.gp>=0?'pos':'neg')+
-    mb('Opex'+(f.src==='est'?' (est.)':''),fmtK(f.opex),pct(f.opex,f.rev))+
-    mb('Net Profit'+(f.src==='est'?' (est.)':''),fmtK(f.np),pct(f.np,f.rev)+' margin',f.np>=0?'pos':'neg');
+  const gpGood=f.rev>0&&(f.gp/f.rev)>=0.30;   // GP ≥30% = green, else red
+  return mb('Revenue',fmtK(f.rev),'','','m-rev')+
+    mb('Gross Profit',fmtK(f.gp),pct(f.gp,f.rev)+' GPM',gpGood?'pos':'neg','m-gp')+
+    mb('Opex'+(f.src==='est'?' (est.)':''),fmtK(f.opex),pct(f.opex,f.rev)+' of rev','','m-opex')+
+    mb('Net Profit'+(f.src==='est'?' (est.)':''),fmtK(f.np),pct(f.np,f.rev)+' margin',f.np>=0?'pos':'neg','m-np');
 }
 // priced-vs-actual box (hours / materials)
 function pvaBox(label,priced,actual,unit){
@@ -750,56 +756,64 @@ function xeroMonthKey(v){
   return '';
 }
 // Pull a 12-month P&L (one column per month) and store real Rev/GP/Opex/NP per month.
+// Robust single-report metric finder — walks nested rows, tolerant of label variants.
+function xeroFindDeep(rep,re){
+  let f=null;
+  const walk=rows=>(rows||[]).forEach(r=>{
+    if(f!=null)return;
+    const c=r.Cells||[];
+    if(c[0]&&re.test(((c[0].Value)||'').trim())){const v=xeroNum(c[1]&&c[1].Value);if(v!=null){f=v;return;}}
+    if(r.Rows&&r.Rows.length)walk(r.Rows);
+  });
+  walk(rep.Rows||[]);return f;
+}
+// Pull Rev/GP/Opex/NP out of one P&L report, with sensible fallbacks.
+function xeroRepFig(rep){
+  let rev=xeroFindDeep(rep,/^(Total Income|Total Trading Income|Total Operating Income|Total Sales|Total Revenue|Income)$/i);
+  const cogs=xeroFindDeep(rep,/^(Total Cost of Sales|Total Cost of Goods Sold|Cost of Sales|Total Direct Costs)$/i);
+  let gp=xeroFindDeep(rep,/^Gross Profit$/i);
+  const opex=xeroFindDeep(rep,/^(Total Operating Expenses|Total Expenses|Operating Expenses|Total Overheads|Overheads)$/i);
+  let np=xeroFindDeep(rep,/^(Net Profit|Net Profit\s*\/?\s*\(Loss\)|Profit for the period)$/i);
+  if(gp==null&&rev!=null)gp=rev-(cogs||0);
+  if(rev==null&&gp!=null)rev=gp+(cogs||0);
+  if(np==null&&gp!=null)np=gp-(opex||0);
+  if(rev==null&&gp==null&&opex==null&&np==null)return null;
+  return {rev:num(rev),gp:num(gp),opex:num(opex),np:num(np),src:'xero'};
+}
+// First/last day of a 'Mon-YYYY' month; cap the end at today for the current (partial) month.
+function monthRange(monthKey){
+  const [mon,yr]=monthKey.split('-');const mi=FG_MONTHS.indexOf(mon);const y=parseInt(yr);
+  const p2=n=>String(n).padStart(2,'0');const lastDay=new Date(y,mi+1,0).getDate();
+  let to=y+'-'+p2(mi+1)+'-'+p2(lastDay);const today=td_str();if(to>today)to=today;
+  return {from:y+'-'+p2(mi+1)+'-01',to};
+}
+async function fetchMonthFig(proxy,psec,monthKey){
+  const {from,to}=monthRange(monthKey);
+  const res=await fetch(proxy+'/api/proxy?svc=xero&path='+encodeURIComponent('/Reports/ProfitAndLoss?fromDate='+from+'&toDate='+to),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
+  const txt=await res.text();
+  if(res.status===501)throw new Error('NOXERO');
+  if(res.status===401)throw new Error('SECRET');
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  const rep=(JSON.parse(txt).Reports||[])[0];if(!rep)throw new Error('no report');
+  return xeroRepFig(rep);
+}
+// Build the dashboard/growth month set from reliable single-month pulls (current + last 6 complete).
+// (The multi-column monthly report mis-aligned some columns, so we pull each month on its own.)
 async function syncXeroMonthly(){
   const proxy=fergusProxyUrl();if(!proxy)return false;
   const psec=fergusProxySecret();
-  try{
-    const to=td_str();
-    const res=await fetch(proxy+'/api/proxy?svc=xero&path='+encodeURIComponent('/Reports/ProfitAndLoss?periods=11&timeframe=MONTH&toDate='+to),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
-    const txt=await res.text();
-    if(res.status===501){toast('Xero not set up on the proxy — using back-costing for P&L','err');return false;}
-    if(res.status===401){toast('Proxy secret rejected (401) — check ⚙','err');return false;}
-    if(!res.ok)throw new Error('HTTP '+res.status+': '+txt.slice(0,160));
-    const rep=(JSON.parse(txt).Reports||[])[0];if(!rep)throw new Error('No report');
-    const parsed=parseXeroMonthly(rep);
-    if(Object.keys(parsed).length){xeroMonthly=parsed;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',new Date().toLocaleString('en-NZ'));xeroLive=true;toast('Xero P&L updated ✓','ok');renderDash();return true;} // NB: do NOT call renderPL() here — renderPL can re-trigger pullXeroPL → infinite loop
-    toast('Xero returned no months','err');return false;
-  }catch(err){console.warn('xero monthly',err.message);toast('Xero pull failed: '+err.message.slice(0,60),'err');return false;}
-}
-function parseXeroMonthly(rep){
-  // Find the month-column header robustly: the row whose cells (after the first) yield the
-  // most valid 'Mon-YYYY' keys. (Don't rely solely on RowType==='Header' — layouts vary.)
-  let months=[],best=0;
-  (rep.Rows||[]).forEach(sec=>{
-    if(!sec.Cells)return;
-    const keys=sec.Cells.slice(1).map(c=>xeroMonthKey(c&&c.Value));
-    const valid=keys.filter(Boolean).length;
-    if(valid>best){best=valid;months=keys;}
-  });
-  if(!best)return {};
-  const want={
-    rev:/^(Total Income|Total Trading Income|Total Operating Income|Total Sales|Total Revenue|Income)$/i,
-    cogs:/^(Total Cost of Sales|Total Cost of Goods Sold|Cost of Sales|Total Direct Costs)$/i,
-    gp:/^Gross Profit$/i,
-    opex:/^(Total Operating Expenses|Total Expenses|Operating Expenses|Total Overheads|Overheads)$/i,
-    np:/^(Net Profit|Net Profit\s*\/?\s*\(Loss\)|Profit for the period)$/i
-  };
-  const out={};months.forEach(m=>{if(m)out[m]={rev:0,cogs:0,gp:0,opex:0,np:0};});
-  // Walk every row at any depth (sections nest rows inside rows).
-  const visit=rows=>(rows||[]).forEach(r=>{
-    if(r.Rows&&r.Rows.length)visit(r.Rows);
-    const c=r.Cells||[];const label=((c[0]&&c[0].Value)||'').trim();if(!label)return;
-    for(const k in want){if(want[k].test(label)){for(let i=1;i<c.length;i++){const mk=months[i-1];if(!mk||!out[mk])continue;const v=xeroNum(c[i]&&c[i].Value);if(v!=null)out[mk][k]=v;}}}
-  });
-  visit(rep.Rows||[]);
-  // Per-month fallbacks so a missing summary row never zeroes a real month.
-  Object.keys(out).forEach(m=>{const o=out[m];
-    if(!o.gp&&(o.rev||o.cogs))o.gp=o.rev-o.cogs;
-    if(!o.rev&&(o.gp||o.cogs))o.rev=o.gp+o.cogs;
-    if(!o.np&&(o.gp||o.opex))o.np=o.gp-o.opex;
-  });
-  Object.keys(out).forEach(m=>{const o=out[m];if(!o.rev&&!o.gp&&!o.opex&&!o.np)delete out[m];});
-  return out;
+  const keys=[];for(let i=0;i<=6;i++)keys.push(calMonthKey(-i));   // current(partial) + last 6 complete
+  const out=Object.assign({},xeroMonthly);
+  let ok=0,no=false,sec=false;
+  for(let i=0;i<keys.length;i++){
+    toast('Xero P&L… '+(i+1)+'/'+keys.length);
+    try{const f=await fetchMonthFig(proxy,psec,keys[i]);if(f){out[keys[i]]=f;ok++;}}
+    catch(e){if(e.message==='NOXERO')no=true;else if(e.message==='SECRET')sec=true;console.warn('xero',keys[i],e.message);}
+  }
+  if(no){toast('Xero not set up on the proxy — using back-costing','err');return false;}
+  if(sec){toast('Proxy secret rejected (401) — check ⚙','err');return false;}
+  if(ok){xeroMonthly=out;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',new Date().toLocaleString('en-NZ'));xeroLive=true;toast('Xero P&L updated ✓ ('+ok+' months)','ok');renderDash();renderGrowth();return true;}
+  toast('Xero returned no data','err');return false;
 }
 async function pullXeroPL(){
   const proxy=fergusProxyUrl();
@@ -817,8 +831,6 @@ async function pullXeroPL(){
     const rep=(JSON.parse(txt).Reports||[])[0];if(!rep)throw new Error('No report returned.');
     xeroLive=true;
     renderXeroReport(rep,label);
-    // also refresh the 12-month set for the dashboard
-    syncXeroMonthly();
   }catch(err){
     console.error(err);
     if(/HTTP 401/.test(err.message))toast('Proxy secret rejected (401) — check ⚙','err');
@@ -835,10 +847,10 @@ function renderXeroReport(rep,label){
     }
   });
   document.getElementById('pl-table').innerHTML=html;
-  const inc=xeroFind(rep,/^Total Income$/)||xeroFind(rep,/^Income$/),gp=xeroFind(rep,/^Gross Profit$/),np=xeroFind(rep,/^Net Profit$/);
-  const opex=xeroFind(rep,/^Total Operating Expenses$/)||xeroFind(rep,/^Operating Expenses$/)||xeroFind(rep,/^Total Expenses$/);
-  // feed this month into the dashboard set
-  if(inc!=null||gp!=null){xeroMonthly[label]={rev:num(inc),gp:num(gp),opex:num(opex),np:num(np)};S.set('xeroMonthly',xeroMonthly);}
+  const fig=xeroRepFig(rep)||{rev:0,gp:0,opex:0,np:0};
+  const inc=fig.rev,gp=fig.gp,np=fig.np;
+  // feed this month into the dashboard set (same logic as the per-month sync)
+  xeroMonthly[label]={rev:fig.rev,gp:fig.gp,opex:fig.opex,np:fig.np};S.set('xeroMonthly',xeroMonthly);
   document.getElementById('pl-tiles').innerHTML=
     tile('s','Revenue',fmtK(inc||0),label)+
     tile('a','Gross Profit',fmtK(gp||0),(inc&&gp?Math.round(gp/inc*100)+'% GPM':''))+
@@ -971,10 +983,10 @@ function renderGrowth(){
   document.getElementById('g-np-sub').textContent=s.tr+' on tools · '+Math.round(s.npm*100)+'% margin · '+fmtK(s.np*12)+'/yr';
   if(pillSrc)pillSrc.textContent=(m.avg.src==='xero'?'⚡ 6-mo Xero avg':'6-mo back-cost avg')+' · '+m.avg.from+'→'+m.avg.to;
   document.getElementById('g-proj').innerHTML=
-    mb('Revenue / mo',fmtK(s.rev),'')+
-    mb('Gross Profit',fmtK(s.gp),Math.round(s.gpm*100)+'% GPM',s.gp>=0?'pos':'neg')+
-    mb('Opex',fmtK(s.opex),Math.round(s.opexPct*100)+'% of rev')+
-    mb('Net Profit',fmtK(s.np),Math.round(s.npm*100)+'% margin',s.np>=0?'pos':'neg');
+    mb('Revenue / mo',fmtK(s.rev),'','','m-rev')+
+    mb('Gross Profit',fmtK(s.gp),Math.round(s.gpm*100)+'% GPM',s.gpm>=0.30?'pos':'neg','m-gp')+
+    mb('Opex',fmtK(s.opex),Math.round(s.opexPct*100)+'% of rev','','m-opex')+
+    mb('Net Profit',fmtK(s.np),Math.round(s.npm*100)+'% margin',s.np>=0?'pos':'neg','m-np');
   const dNp=s.np-b.np;
   document.getElementById('g-cmp').innerHTML='vs your current <b>'+m.base+' on tools</b> ('+fmtK(b.np)+'/mo NP, opex '+Math.round(b.opexPct*100)+'%): '+
     (dNp>=0?'<span class="pos">+'+fmtK(dNp)+'/mo</span>':'<span class="neg">'+fmtK(dNp)+'/mo</span>')+' → <b>'+(dNp>=0?'+':'')+fmtK(dNp*12)+'/yr</b>. '+
