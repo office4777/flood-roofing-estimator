@@ -47,7 +47,12 @@ async function xeroToken(id, secret) {
     body: 'grant_type=client_credentials&scope=' + encodeURIComponent(XERO_SCOPE),
   });
   const txt = await r.text();
-  if (!r.ok) throw new Error('token HTTP ' + r.status + ': ' + txt.slice(0, 200));
+  if (!r.ok) {
+    let code = ''; try { code = (JSON.parse(txt).error || '') + ''; } catch (_) {}
+    const e = new Error('token HTTP ' + r.status + ': ' + txt.slice(0, 200));
+    e.short = 'XEROTOKEN_' + r.status + '_' + (code || 'unknown');
+    throw e;
+  }
   return JSON.parse(txt).access_token;
 }
 
@@ -56,9 +61,13 @@ async function xeroTenant(token) {
     headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' },
   });
   const txt = await r.text();
-  if (!r.ok) throw new Error('connections HTTP ' + r.status + ': ' + txt.slice(0, 200));
+  if (!r.ok) {
+    const e = new Error('connections HTTP ' + r.status + ': ' + txt.slice(0, 200));
+    e.short = 'XEROCONN_' + r.status;
+    throw e;
+  }
   const arr = JSON.parse(txt);
-  if (!arr.length) throw new Error('No Xero organisation connected to this app yet.');
+  if (!arr.length) { const e = new Error('No Xero organisation connected to this app yet.'); e.short = 'XEROCONN_noorg'; throw e; }
   return arr[0].tenantId;
 }
 
@@ -101,7 +110,7 @@ module.exports = async (req, res) => {
         'Authorization': 'Bearer ' + token, 'Xero-tenant-id': tenant, 'Accept': 'application/json',
       });
     } catch (e) {
-      console.error('[xero] ' + String((e && e.stack) || e));
+      console.error((e && e.short) || ('[xero] ' + String((e && e.stack) || e)));
       return res.status(502).json({ error: 'Xero request failed.', detail: String(e && e.message || e) });
     }
   }
