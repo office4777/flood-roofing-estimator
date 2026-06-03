@@ -581,7 +581,8 @@ function renderWork(){
     return '<tr><td>'+esc(j.job)+(j.priced<=0?' <span class="mut">⚠ no priced h</span>':'')+'</td><td>'+(j.priced>0?fmtH(j.priced):'—')+'</td><td>'+fmtH(j.actual)+(over?' <span class="neg">⚠</span>':'')+'</td><td class="'+(j.remaining>0?'pos':'')+'">'+fmtH(j.remaining)+'</td></tr>';
   }).join(''):'<tr><td colspan="4" class="empty">No active jobs synced yet. Tap “Sync”.</td></tr>';
   const last=S.get('fw_last_sync','');const excl=S.get('fw_excluded',0);
-  document.getElementById('work-note').innerHTML=(last?'Last sync: '+esc(last)+'. ':'')+(excl?('<br>✓ '+excl+' active job(s) excluded as completed — fully invoiced (50% deposit + 50% completion both raised). Their leftover hours aren\'t counted; they moved to back-costing.'):'')+(noPriced?('<br>⚠ '+noPriced+' active job(s) have no priced labour hours in Fergus — they count as 0, so the total may understate your real workload.'):'');
+  const ws=document.getElementById('work-sync');if(ws)ws.textContent=last?('· Fergus synced '+last):'· not synced yet';
+  document.getElementById('work-note').innerHTML=(last?'Fergus last synced: '+esc(last)+'. ':'Fergus not synced yet — tap Sync. ')+(excl?('<br>✓ '+excl+' active job(s) excluded as completed — fully invoiced (50% deposit + 50% completion both raised). Their leftover hours aren\'t counted; they moved to back-costing.'):'')+(noPriced?('<br>⚠ '+noPriced+' active job(s) have no priced labour hours in Fergus — they count as 0, so the total may understate your real workload.'):'');
 }
 function brk(l,r){return '<div class="brk"><span class="mut">'+l+'</span><span>'+r+'</span></div>';}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -957,7 +958,7 @@ function renderDash(){
   document.getElementById('dash-fw-sub').textContent=fwJobs.length
     ?('≈ '+(Math.round(days*10)/10)+' working days · '+fmtH(R)+' h across '+fwJobs.length+' active jobs'+(excl?' ('+excl+' completed excluded)':'')+' · '+c.teams+'×'+c.size+' crew')
     :(excl?(excl+' job(s) fully invoiced & complete — no open backlog. Tap Refresh to recheck.'):'Tap “Refresh” to load active jobs');
-  const last=S.get('fw_last_sync','');document.getElementById('dash-fw-sync').textContent=last?('· '+last):'';
+  const last=S.get('fw_last_sync','');document.getElementById('dash-fw-sync').textContent=last?('· Fergus synced '+last):'· Fergus not synced yet';
 
   // Xero P&L period cards — anchored to the real calendar:
   //   This Month = current calendar month (partial), Last Month = last complete month,
