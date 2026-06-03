@@ -1562,6 +1562,8 @@ select{
                 <option value="gutter">— Gutter (purple)</option>
                 <option value="hip">— Hip (green)</option>
                 <option value="barge|side">— Side barge (blue)</option>
+                <option value="barge|starter">— Starter barge (blue)</option>
+                <option value="barge|finish">— Finish barge (blue)</option>
                 <option value="barge|head">— Head barge (sky)</option>
                 <option value="apron|side">— Side apron (pink)</option>
                 <option value="apron|head">— Head apron (rose)</option>
@@ -2559,6 +2561,8 @@ select{
         <select id="flashMetaType" style="margin:0">
           <option value="custom">Custom</option>
           <option value="barge|side">Side barge</option>
+          <option value="barge|starter">Starter barge</option>
+          <option value="barge|finish">Finish barge</option>
           <option value="barge|head">Head barge</option>
           <option value="apron|side">Side apron</option>
           <option value="apron|head">Head apron</option>
@@ -3066,6 +3070,8 @@ select{
           <select id="flibFilterType" onchange="renderFlashingLibrary()" style="margin:0">
             <option value="">All types</option>
             <option value="barge|side">Side barge</option>
+            <option value="barge|starter">Starter barge</option>
+            <option value="barge|finish">Finish barge</option>
             <option value="barge|head">Head barge</option>
             <option value="apron|side">Side apron</option>
             <option value="apron|head">Head apron</option>
@@ -8814,38 +8820,71 @@ var _FLASH_BUILTIN_PRESETS = [
   }
 ];
 // Lazy-render each built-in to a PNG data URL so library tiles + picker
-// thumbnails reuse the same image path user-saves go through. Cached on
-// the preset object itself.
+// thumbnails reuse the same image path user-saves go through. Rendered
+// via the real sketcher render path (loaded into _flashSketchState,
+// drawn to an offscreen canvas via _redrawFlashCanvas, restored) so
+// every annotation — painted side, crush folds, angle markers, flash
+// guard label, squiggle wave, measurement font overrides — shows up
+// exactly the way it does in the live editor.
 function _ensureBuiltinSketch(p){
   if (!p || p.sketch) return;
+  // Need the renderer + state to exist. Some early callers (e.g.
+  // _renderSavedFlashingsPicker during boot) run before the sketcher
+  // module is wired up — bail and try again next time the library
+  // re-renders.
+  if (typeof _redrawFlashCanvas !== 'function' || typeof _flashSketchState === 'undefined') return;
+  var W = 720, H = 380;
+  // Swap the live #flashCanvas for a temporary offscreen one so the
+  // shared renderer paints into it without disturbing whatever the
+  // user has open. Restore afterwards.
+  var origCanvas = document.getElementById('flashCanvas');
+  var off = document.createElement('canvas');
+  off.id = 'flashCanvas';
+  off.width = W; off.height = H;
+  // Save + clear current state.
+  var savedState = {
+    polylines: _flashSketchState.polylines,
+    currentPolyline: _flashSketchState.currentPolyline,
+    paintedSide: _flashSketchState.paintedSide,
+    flashGuard: _flashSketchState.flashGuard,
+    flashGuards: _flashSketchState.flashGuards,
+    mousePos: _flashSketchState.mousePos,
+    tool: _flashSketchState.tool
+  };
   try {
-    var W = 540, H = 320;
-    var off = document.createElement('canvas'); off.width = W; off.height = H;
-    var ctx = off.getContext('2d');
-    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.font = '12px Inter, system-ui, sans-serif';
-    (p.polylines||[]).forEach(function(pl){
-      var v = pl.vertices || []; if (v.length < 2) return;
-      ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(v[0][0], v[0][1]);
-      for (var i=1;i<v.length;i++) ctx.lineTo(v[i][0], v[i][1]);
-      ctx.stroke();
-      // Measurement labels
-      for (var s=0; s<v.length-1; s++) {
-        var mm = pl.measurements && pl.measurements[s]; if (mm == null) continue;
-        var a = v[s], b = v[s+1];
-        var mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
-        var dx=b[0]-a[0], dy=b[1]-a[1], L=Math.hypot(dx,dy)||1;
-        var ox=-dy/L*16, oy=dx/L*16;
-        var txt = mm + ' mm', tw = ctx.measureText(txt).width;
-        ctx.fillStyle = '#fff'; ctx.fillRect(mx+ox-tw/2-4, my+oy-9, tw+8, 18);
-        ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1; ctx.strokeRect(mx+ox-tw/2-4, my+oy-9, tw+8, 18);
-        ctx.fillStyle = '#dc2626'; ctx.fillText(txt, mx+ox-tw/2, my+oy+4);
-      }
+    if (origCanvas && origCanvas.parentNode) origCanvas.parentNode.replaceChild(off, origCanvas);
+    else document.body.appendChild(off);
+    _flashSketchState.polylines = (p.polylines || []).map(function(pl){
+      return {
+        vertices: (pl.vertices||[]).map(function(v){ return v.slice(); }),
+        measurements: Object.assign({}, pl.measurements || {}),
+        measurementOffsets: Object.assign({}, pl.measurementOffsets || {}),
+        measurementFontPx: Object.assign({}, pl.measurementFontPx || {}),
+        crushFolds: Object.assign({}, pl.crushFolds || {}),
+        angleMarkers: Object.assign({}, pl.angleMarkers || {}),
+        kind: pl.kind || null
+      };
     });
+    _flashSketchState.currentPolyline = null;
+    _flashSketchState.paintedSide = p.paintedSide ? Object.assign({}, p.paintedSide) : null;
+    _flashSketchState.flashGuard  = p.flashGuard  ? Object.assign({}, p.flashGuard)  : null;
+    _flashSketchState.flashGuards = !!p.flashGuards;
+    _flashSketchState.mousePos = null;
+    _flashSketchState.tool = 'draw';   // hides the edit-mode vertex handles
+    _redrawFlashCanvas();
     p.sketch = off.toDataURL('image/png');
-  } catch(e){ /* swallow; tile just shows "No sketch" */ }
+  } catch(e){ /* swallow; the tile just falls back to "No sketch" */ }
+  finally {
+    // Always restore — never leave the sketcher canvas missing.
+    if (off.parentNode) off.parentNode.replaceChild(origCanvas, off);
+    _flashSketchState.polylines = savedState.polylines;
+    _flashSketchState.currentPolyline = savedState.currentPolyline;
+    _flashSketchState.paintedSide = savedState.paintedSide;
+    _flashSketchState.flashGuard = savedState.flashGuard;
+    _flashSketchState.flashGuards = savedState.flashGuards;
+    _flashSketchState.mousePos = savedState.mousePos;
+    _flashSketchState.tool = savedState.tool;
+  }
 }
 function _getBuiltinFlashings(){
   _FLASH_BUILTIN_PRESETS.forEach(_ensureBuiltinSketch);
@@ -9803,13 +9842,17 @@ function _onFlashCanvasClick(p){
     _redrawFlashCanvas();
     _updateFlashStats();
   } else if (_flashSketchState.tool === 'angle') {
-    // Angle indicator — placed at the nearest vertex of an existing
-    // polyline. Default angle is the roof pitch (DRAW.calPitch) or
-    // whatever the user has set as the "Default flashing angle" in
-    // the Materials tab. Renders as a small arc icon + degree label
-    // and is draggable + editable like every other label.
+    // Angle indicator — anchors to the NEAREST vertex of any existing
+    // polyline. No distance threshold (the user gets feedback even if
+    // they click far from a corner — the marker still snaps onto the
+    // nearest vertex). Default angle comes from _flashDefaultAngleDeg
+    // (Materials tab override → roof pitch → 20° fallback). Toggles
+    // off if the same vertex is clicked twice.
     var vhit = _closestVertexTo(p.x, p.y);
-    if (!vhit || vhit.dist > 22) return;
+    if (!vhit) {
+      alert('Draw a flashing first — the angle marker anchors to a corner of an existing line.');
+      return;
+    }
     _pushFlashHistory();
     if (!vhit.polyline.angleMarkers) vhit.polyline.angleMarkers = {};
     var key = String(vhit.vertexIdx);
@@ -9818,7 +9861,12 @@ function _onFlashCanvasClick(p){
       // Toggle off if already present (same UX as crush fold).
       delete vhit.polyline.angleMarkers[key];
     } else {
-      vhit.polyline.angleMarkers[key] = { deg: def, dirX: 0, dirY: -1 };
+      // Default direction: opposite the corner bisector so the label
+      // sits OUTSIDE the polyline bend.
+      var defDir = (typeof _crushFoldDefaultDir === 'function')
+        ? _crushFoldDefaultDir(vhit.polyline, vhit.vertexIdx)
+        : { dirX: 0, dirY: -1 };
+      vhit.polyline.angleMarkers[key] = { deg: def, dirX: defDir.dirX, dirY: defDir.dirY };
     }
     _redrawFlashCanvas();
     _updateFlashStats();
@@ -10304,7 +10352,10 @@ function renderFlashingLibrary() {
     return;
   }
   var typeLabels = { 'apron':'Apron', 'barge':'Barge',
-                     'barge|side':'Side barge', 'barge|head':'Head barge',
+                     'barge|side':'Side barge',
+                     'barge|starter':'Starter barge',
+                     'barge|finish':'Finish barge',
+                     'barge|head':'Head barge',
                      'apron|side':'Side apron', 'apron|head':'Head apron',
                      'changepitch':'Change-of-pitch', 'valley':'Valley',
                      'ridgehip':'Ridge / Hip', 'gutter':'Gutter',
@@ -12251,10 +12302,13 @@ function regenerateAutoRoofLines(roofType){
     else if (roofType === 'dutch') lines = (typeof buildDutchGableRoofLines === 'function') ? buildDutchGableRoofLines(DRAW.outline) : null;
     else if (roofType === 'mono')  lines = (typeof buildMonoPitchRoofLines === 'function')  ? buildMonoPitchRoofLines(DRAW.outline, DRAW.rotation || 0) : null;
     if (lines) lines.forEach(function(l){
-      DRAW.lines.push({
+      var copy = {
         type: l.type, pts:[l.pts[0].slice(), l.pts[1].slice()],
         label:'', lengthM:'', measM:null, sheetLengthM:null, autoGenerated:true
-      });
+      };
+      // Carry the subtype through (e.g. gable starter / finish barges)
+      if (l.subtype) copy.subtype = l.subtype;
+      DRAW.lines.push(copy);
     });
   } catch(e){ console.warn('roof regen failed:', e); }
   try { autoPopulateGutters && autoPopulateGutters(); } catch(e){}
@@ -13484,7 +13538,7 @@ function showSectionEditor(i) {
 function showLineEditor(i) {
   var l = DRAW.lines[i];
   var typeLabels={ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',apron:'Apron',changepitch:'Change of pitch',drip:'Drip edge',custom:'Custom flashing',backtray:'Back-tray'};
-  var subLabels={side:'Side ',head:'Head '};
+  var subLabels={side:'Side ',head:'Head ',starter:'Starter ',finish:'Finish '};
   var pretty = (l.subtype && subLabels[l.subtype] ? subLabels[l.subtype] : '') + (typeLabels[l.type] || l.type);
   showPropPanel('Edit: '+pretty);
   document.getElementById('lineEditor').style.display='block';
@@ -13554,7 +13608,7 @@ function updateLine() {
   }
   l.label=document.getElementById('editLineLabel').value;
   var typeLabels = {ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',apron:'Apron',changepitch:'Change of pitch',drip:'Drip edge',custom:'Custom flashing'};
-  var subLabels = {side:'Side ',head:'Head '};
+  var subLabels = {side:'Side ',head:'Head ',starter:'Starter ',finish:'Finish '};
   var pretty = (l.subtype && subLabels[l.subtype] ? subLabels[l.subtype] : '') + (typeLabels[l.type] || l.type);
   document.getElementById('propTitle').textContent = 'Edit: ' + pretty;
   redrawAll(); syncToRoofData(); updateMeasTotals();
@@ -15810,6 +15864,8 @@ function populateMaterialsFromLines() {
 var _MAT_FLASHING_SPECS = [
   { key:'ridgehip',     label:'Ridge / Hip capping',     colour:'#dc2626', waste:0.5, drawing:null         },
   { key:'barge|side',   label:'Side barge flashing',     colour:'#0891b2', waste:0.4, drawing:'barge'      },
+  { key:'barge|starter',label:'Starter barge flashing',  colour:'#0d9488', waste:0.4, drawing:'barge'      },
+  { key:'barge|finish', label:'Finish barge flashing',   colour:'#7c3aed', waste:0.4, drawing:'barge'      },
   { key:'barge|head',   label:'Head barge flashing',     colour:'#0ea5e9', waste:0.4, drawing:'barge'      },
   { key:'apron|side',   label:'Side apron flashing',     colour:'#e11d48', waste:0.4, drawing:'apron'      },
   { key:'apron|head',   label:'Head apron flashing',     colour:'#be185d', waste:0.4, drawing:'apron'      },
@@ -18350,7 +18406,51 @@ function buildGableRoofLines(outline) {
   return valleys
     .concat(workHips.filter(function(h){return !h._remove;}))
     .concat(workRidges)
-    .concat(newBarges);
+    .concat(_tagGableBargesStarterFinish(newBarges));
+}
+
+// Auto-classify the rake barges of a straight gable as "starter" and
+// "finish". The supplier reads the starter as the FIRST sheet laid +
+// the finish as the LAST, so each gable end gets its own subtype.
+// Tie-break by gable centroid X: leftmost gable end = starter, the
+// other = finish. Two barges meeting at the same apex are treated as
+// one gable end (they share starter/finish together).
+function _tagGableBargesStarterFinish(barges){
+  if (!barges || !barges.length) return [];
+  function key(p){ return Math.round(p[0])+','+Math.round(p[1]); }
+  // Group barges by shared apex (the ridge tip).  Each rake-barge has
+  // one foot on the gutter corner + one tip at the ridge end; the tip
+  // is the one shared with the OTHER rake-barge on the same gable end.
+  var apexCount = {};
+  barges.forEach(function(b){
+    apexCount[key(b.pts[0])] = (apexCount[key(b.pts[0])]||0) + 1;
+    apexCount[key(b.pts[1])] = (apexCount[key(b.pts[1])]||0) + 1;
+  });
+  function apexOf(b){
+    if ((apexCount[key(b.pts[0])]||0) >= 2) return b.pts[0];
+    if ((apexCount[key(b.pts[1])]||0) >= 2) return b.pts[1];
+    return null;
+  }
+  // Bucket barges by apex (rounded), then assign starter / finish by
+  // x position of the apex — leftmost x ⇒ 'starter', rightmost ⇒
+  // 'finish'. Three or more gable ends keep the convention by index:
+  // sort by x then alternate (1st = starter, 2nd = finish, 3rd =
+  // starter, …).
+  var buckets = {};
+  barges.forEach(function(b){
+    var ap = apexOf(b); if (!ap) return;
+    var k = key(ap);
+    if (!buckets[k]) buckets[k] = { apex: ap, list: [] };
+    buckets[k].list.push(b);
+  });
+  var order = Object.keys(buckets).sort(function(a, c){
+    return buckets[a].apex[0] - buckets[c].apex[0];
+  });
+  order.forEach(function(k, i){
+    var sub = (i % 2 === 0) ? 'starter' : 'finish';
+    buckets[k].list.forEach(function(b){ b.subtype = sub; });
+  });
+  return barges;
 }
 
 // Dutch gable (a.k.a. gablet roof): hip below, small gable on top.
@@ -18503,7 +18603,9 @@ function autoGenerateRoof(type, rotation) {
     });
   }
   lines.forEach(function(l){
-    DRAW.lines.push({type:l.type,pts:[l.pts[0].slice(),l.pts[1].slice()],label:'',lengthM:'',measM:null,sheetLengthM:null,autoGenerated:true});
+    var _copy = {type:l.type,pts:[l.pts[0].slice(),l.pts[1].slice()],label:'',lengthM:'',measM:null,sheetLengthM:null,autoGenerated:true};
+    if (l.subtype) _copy.subtype = l.subtype;
+    DRAW.lines.push(_copy);
   });
   autoPopulateGutters();
   DRAW.roofType = type;
