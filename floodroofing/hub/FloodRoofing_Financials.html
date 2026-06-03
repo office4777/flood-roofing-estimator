@@ -265,6 +265,54 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     </div>
   </div>
 
+  <!-- ───────── GROWTH STRUCTURE ───────── -->
+  <div class="page" id="page-growth">
+    <div class="card" style="border-left:4px solid var(--success);">
+      <div class="ct">Projected Net Profit <span id="g-scn" class="period-sub"></span></div>
+      <div class="hero">
+        <div class="big" id="g-np">—</div>
+        <div class="unit">net profit / month</div>
+        <div class="sub" id="g-np-sub"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">Crew scenario <span id="g-tradies" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="cfg" style="grid-template-columns:1fr 1fr;">
+        <div><label>Teams</label><input type="number" id="g-teams" min="1" inputmode="numeric" oninput="saveGrowthCfg()"></div>
+        <div><label>Tradesmen / team</label><input type="number" id="g-size" min="1" inputmode="numeric" oninput="saveGrowthCfg()"></div>
+      </div>
+      <div class="chips" id="g-presets" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="ct">Projected monthly P&amp;L <span id="g-src" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="mg" id="g-proj"></div>
+      <div class="note" id="g-cmp"></div>
+    </div>
+
+    <div class="card">
+      <div class="ct">If you scale the crew</div>
+      <div class="tbl-wrap">
+        <table class="tb" id="g-tbl">
+          <thead><tr><th>Crew</th><th>On tools</th><th>Rev/mo</th><th>GP</th><th>Opex</th><th>Opex%</th><th>NP/mo</th><th>NP/yr</th></tr></thead>
+          <tbody id="g-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">Assumptions <span class="period-sub" style="margin-left:auto;">edit to recalc</span></div>
+      <div class="cfg" style="grid-template-columns:1fr 1fr;">
+        <div><label>Estimator $/mo</label><input type="number" id="g-estcost" min="0" inputmode="numeric" oninput="saveGrowthCfg()"></div>
+        <div><label>Est. weeks in role</label><input type="number" id="g-estweeks" min="0" inputmode="numeric" oninput="saveGrowthCfg()"></div>
+        <div><label>Variable opex $/head/mo</label><input type="number" id="g-varopex" min="0" inputmode="numeric" oninput="saveGrowthCfg()"></div>
+        <div><label>Baseline on-tools</label><input type="number" id="g-base" min="1" inputmode="numeric" oninput="saveGrowthCfg()"></div>
+      </div>
+      <div class="note" id="g-assume"></div>
+    </div>
+  </div>
+
 </div><!-- /app -->
 
 <div id="nav">
@@ -272,6 +320,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
   <div class="nav-i" id="nav-work" onclick="go('work')"><span class="ic">📅</span>Workload</div>
   <div class="nav-i" id="nav-bc" onclick="go('bc')"><span class="ic">💹</span>Back Cost</div>
   <div class="nav-i" id="nav-pl" onclick="go('pl')"><span class="ic">💼</span>P&amp;L</div>
+  <div class="nav-i" id="nav-growth" onclick="go('growth')"><span class="ic">📈</span>Growth</div>
 </div>
 
 <!-- connect sheet -->
@@ -308,6 +357,8 @@ function fmtH(n){return (Math.round((n||0)*10)/10).toLocaleString('en-NZ');}
 function td_str(){return new Date().toISOString().split('T')[0];}
 function bcMonthNum(m){const p=(m||'').split('-');const i=FG_MONTHS.indexOf(p[0]);return (parseInt(p[1])||0)*12+(i<0?0:i);}
 function fergusMonthLabel(dateStr){if(!dateStr)return '';const d=new Date(dateStr);if(isNaN(d))return '';return FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();}
+// 'Mon-YYYY' for the calendar month n away from now (0 = current/partial, -1 = last complete, …).
+function calMonthKey(n){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+(n||0));return FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();}
 function fergusName(x){if(!x)return '';if(typeof x==='string')return x;return x.customerFullName||x.name||x.fullName||[x.firstName,x.lastName].filter(Boolean).join(' ')||x.companyName||x.customerName||x.email||'';}
 function fergusAddr(x){if(!x)return '';if(typeof x==='string')return x;return [x.address1||x.addressLine1||x.line1||x.street||x.address,x.addressSuburb||x.suburb,x.addressCity||x.city||x.town].filter(Boolean).join(', ');}
 
@@ -319,6 +370,10 @@ let cfg=S.get('fwCfg',{teams:4,size:2,hrs:8});
 let xeroMonthly=S.get('xeroMonthly',{});     // { 'Mon-YYYY': {rev,gp,opex,np} } from Xero monthly P&L
 let xeroLive=false;
 let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (render→pull→render loops)
+// Growth Structure scenario planner. teams/size = the what-if crew; base = the crew that
+// actually produced the last-6-month average (4×2 = 8 on-tools). estCost/estWeeks normalise
+// the estimator (only ~6 weeks in the window). varOpex = opex that scales per on-tools head.
+let growthCfg=S.get('growthCfg',{teams:4,size:2,base:8,estCost:7500,estWeeks:6,varOpex:1200});
 
 // ════════ TOAST (mobile-safe feedback — never relies on alert/prompt) ════════
 let _toastT=null;
@@ -712,16 +767,37 @@ async function syncXeroMonthly(){
   }catch(err){console.warn('xero monthly',err.message);toast('Xero pull failed: '+err.message.slice(0,60),'err');return false;}
 }
 function parseXeroMonthly(rep){
-  let months=[];
-  (rep.Rows||[]).forEach(sec=>{if(sec.RowType==='Header')months=(sec.Cells||[]).slice(1).map(c=>xeroMonthKey(c&&c.Value));});
-  const want={rev:/^(Total Income|Total Trading Income|Income)$/i,gp:/^Gross Profit$/i,opex:/^(Total Operating Expenses|Total Expenses|Operating Expenses)$/i,np:/^Net Profit$/i};
-  const out={};months.forEach(m=>{if(m)out[m]={rev:0,gp:0,opex:0,np:0};});
+  // Find the month-column header robustly: the row whose cells (after the first) yield the
+  // most valid 'Mon-YYYY' keys. (Don't rely solely on RowType==='Header' — layouts vary.)
+  let months=[],best=0;
   (rep.Rows||[]).forEach(sec=>{
-    const rows=sec.RowType==='Section'?(sec.Rows||[]):[sec];
-    rows.forEach(r=>{const c=r.Cells||[];const label=((c[0]&&c[0].Value)||'').trim();
-      for(const k in want){if(want[k].test(label)){for(let i=1;i<c.length;i++){const mk=months[i-1];if(!mk||!out[mk])continue;const v=xeroNum(c[i]&&c[i].Value);if(v!=null)out[mk][k]=v;}}}});
+    if(!sec.Cells)return;
+    const keys=sec.Cells.slice(1).map(c=>xeroMonthKey(c&&c.Value));
+    const valid=keys.filter(Boolean).length;
+    if(valid>best){best=valid;months=keys;}
   });
-  // drop empty months
+  if(!best)return {};
+  const want={
+    rev:/^(Total Income|Total Trading Income|Total Operating Income|Total Sales|Total Revenue|Income)$/i,
+    cogs:/^(Total Cost of Sales|Total Cost of Goods Sold|Cost of Sales|Total Direct Costs)$/i,
+    gp:/^Gross Profit$/i,
+    opex:/^(Total Operating Expenses|Total Expenses|Operating Expenses|Total Overheads|Overheads)$/i,
+    np:/^(Net Profit|Net Profit\s*\/?\s*\(Loss\)|Profit for the period)$/i
+  };
+  const out={};months.forEach(m=>{if(m)out[m]={rev:0,cogs:0,gp:0,opex:0,np:0};});
+  // Walk every row at any depth (sections nest rows inside rows).
+  const visit=rows=>(rows||[]).forEach(r=>{
+    if(r.Rows&&r.Rows.length)visit(r.Rows);
+    const c=r.Cells||[];const label=((c[0]&&c[0].Value)||'').trim();if(!label)return;
+    for(const k in want){if(want[k].test(label)){for(let i=1;i<c.length;i++){const mk=months[i-1];if(!mk||!out[mk])continue;const v=xeroNum(c[i]&&c[i].Value);if(v!=null)out[mk][k]=v;}}}
+  });
+  visit(rep.Rows||[]);
+  // Per-month fallbacks so a missing summary row never zeroes a real month.
+  Object.keys(out).forEach(m=>{const o=out[m];
+    if(!o.gp&&(o.rev||o.cogs))o.gp=o.rev-o.cogs;
+    if(!o.rev&&(o.gp||o.cogs))o.rev=o.gp+o.cogs;
+    if(!o.np&&(o.gp||o.opex))o.np=o.gp-o.opex;
+  });
   Object.keys(out).forEach(m=>{const o=out[m];if(!o.rev&&!o.gp&&!o.opex&&!o.np)delete out[m];});
   return out;
 }
@@ -806,20 +882,23 @@ function renderDash(){
     :(excl?(excl+' job(s) fully invoiced & complete — no open backlog. Tap Refresh to recheck.'):'Tap “Refresh” to load active jobs');
   const last=S.get('fw_last_sync','');document.getElementById('dash-fw-sync').textContent=last?('· '+last):'';
 
-  // Xero P&L period cards
-  const xm=Object.keys(xeroMonthly).filter(k=>k).sort((a,b)=>bcMonthNum(a)-bcMonthNum(b));
-  const thisM=xm[xm.length-1]||'', lastM=xm[xm.length-2]||'', avg3=xm.slice(Math.max(0,xm.length-3));
+  // Xero P&L period cards — anchored to the real calendar:
+  //   This Month = current calendar month (partial), Last Month = last complete month,
+  //   3-Month Rolling = the 3 complete months before now (e.g. in June → Mar+Apr+May).
+  const xm=Object.keys(xeroMonthly).filter(k=>k);
+  const thisM=calMonthKey(0), lastM=calMonthKey(-1), avg3=[calMonthKey(-3),calMonthKey(-2),calMonthKey(-1)];
   const pill=document.getElementById('pl-live-pill');
   if(xm.length){
-    document.getElementById('met-this').innerHTML=metGrid(xeroFig(thisM));
-    document.getElementById('met-last').innerHTML=metGrid(lastM?xeroFig(lastM):null);
+    const fThis=xeroFig(thisM);
+    document.getElementById('met-this').innerHTML=metGrid(fThis);
+    document.getElementById('met-last').innerHTML=metGrid(xeroFig(lastM));
     document.getElementById('met-3mo').innerHTML=metGrid(avgFig(avg3,xeroFig));
-    document.getElementById('lbl-this').textContent=thisM;
-    document.getElementById('lbl-last').textContent=lastM||'—';
-    document.getElementById('lbl-3mo').textContent=avg3.length?(avg3[0]+' → '+avg3[avg3.length-1]):'—';
+    document.getElementById('lbl-this').textContent=thisM+(fThis?' · partial':'');
+    document.getElementById('lbl-last').textContent=lastM;
+    document.getElementById('lbl-3mo').textContent=avg3[0]+' → '+avg3[2];
     ['src-this','src-last','src-3mo'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='⚡ Xero';});
     if(pill){pill.className='livepill on';pill.textContent='⚡ Live · Xero P&L';}
-    document.getElementById('dash-note').textContent='These three cards are live from Xero P&L ('+(S.get('xero_last_sync','')||'just now')+'). Forward workflow is from Fergus ('+(last||'not synced')+').';
+    document.getElementById('dash-note').textContent='Live from Xero P&L ('+(S.get('xero_last_sync','')||'just now')+'). This Month is to-date (partial); 3-month average is the 3 complete months before now. Forward workflow is from Fergus ('+(last||'not synced')+').';
   }else{
     const msg='<div class="empty" style="grid-column:1/-1;">Connect Xero for live P&amp;L — tap ⚙, then Refresh.<br><span style="font-size:.8rem;">(Back-costing estimates are on the 💹 Back Cost tab.)</span></div>';
     document.getElementById('met-this').innerHTML=msg;
@@ -829,6 +908,86 @@ function renderDash(){
     if(pill){pill.className='livepill off';pill.textContent='Xero — not connected';}
     document.getElementById('dash-note').textContent=last?('Fergus workload synced '+last+'. Set XERO_CLIENT_ID/SECRET on the proxy + Refresh for live P&L.'):'Not connected — tap ⚙, then Refresh.';
   }
+}
+
+// ════════ GROWTH STRUCTURE ════════
+// Average the last 6 COMPLETE months of real P&L (Xero), else fall back to back-costing.
+function sixMonthAvg(){
+  const keys=[];for(let i=1;i<=6;i++)keys.push(calMonthKey(-i));
+  const fs=keys.map(k=>xeroFig(k)).filter(Boolean);
+  if(fs.length>=2){
+    const a=k=>fs.reduce((s,f)=>s+num(f[k]),0)/fs.length;
+    const rev=a('rev'),gp=a('gp'),opex=a('opex'),np=a('np');
+    return {rev,gp,opex,np,gpm:rev>0?gp/rev:0,src:'xero',n:fs.length,from:keys[keys.length-1],to:keys[0]};
+  }
+  const md=MONTHLY_DATA.slice(-6);
+  if(md.length){const rev=md.reduce((s,m)=>s+num(m.sales),0)/md.length,gp=md.reduce((s,m)=>s+num(m.gp),0)/md.length,opex=rev*0.12;
+    return {rev,gp,opex,np:gp-opex,gpm:rev>0?gp/rev:0,src:'est',n:md.length,from:md[0].month,to:md[md.length-1].month};}
+  return null;
+}
+// Scale the average to a scenario crew size. Revenue & GP scale with on-tools heads; opex
+// splits into fixed overhead (amortised over more crews) + a per-head variable cost.
+function growthModel(scTeams,scSize){
+  const avg=sixMonthAvg();if(!avg)return null;
+  const base=Math.max(1,num(growthCfg.base));
+  const estFrac=Math.min(1,Math.max(0,num(growthCfg.estWeeks)/26));   // share of the 26-wk window the estimator was present
+  const estAdj=num(growthCfg.estCost)*(1-estFrac);                    // top-up so the estimator counts full-time going forward
+  const baseOpex=avg.opex+estAdj;
+  const varPT=Math.max(0,num(growthCfg.varOpex));
+  let fixed=baseOpex-varPT*base;if(fixed<0)fixed=0;
+  const revPT=avg.rev/base;
+  const calc=tr=>{tr=Math.max(0,tr);const rev=revPT*tr,gp=rev*avg.gpm,opex=fixed+varPT*tr,np=gp-opex;
+    return {tr,rev,gp,opex,np,gpm:avg.gpm,opexPct:rev>0?opex/rev:0,npm:rev>0?np/rev:0};};
+  return {avg,base,fixed,varPT,revPT,estAdj,baseOpex,row:calc,baseRow:calc(base),scenario:calc(scTeams*scSize)};
+}
+function saveGrowthCfg(){
+  growthCfg={
+    teams:Math.max(1,num(document.getElementById('g-teams').value)||4),
+    size:Math.max(1,num(document.getElementById('g-size').value)||2),
+    base:Math.max(1,num(document.getElementById('g-base').value)||8),
+    estCost:Math.max(0,num(document.getElementById('g-estcost').value)),
+    estWeeks:Math.max(0,num(document.getElementById('g-estweeks').value)),
+    varOpex:Math.max(0,num(document.getElementById('g-varopex').value))
+  };
+  S.set('growthCfg',growthCfg);renderGrowth();
+}
+function gSetPreset(t,s){document.getElementById('g-teams').value=t;document.getElementById('g-size').value=s;saveGrowthCfg();}
+function renderGrowth(){
+  const tr=num(growthCfg.teams)*num(growthCfg.size);
+  document.getElementById('g-tradies').textContent=growthCfg.teams+' × '+growthCfg.size+' = '+tr+' on tools';
+  document.getElementById('g-presets').innerHTML=[[4,2],[4,3],[5,3],[6,3]].map(([t,s])=>'<span class="chip'+(t==num(growthCfg.teams)&&s==num(growthCfg.size)?' on':'')+'" onclick="gSetPreset('+t+','+s+')">'+t+'×'+s+' = '+(t*s)+'</span>').join('');
+  const m=growthModel(num(growthCfg.teams),num(growthCfg.size));
+  const pillSrc=document.getElementById('g-src');
+  if(!m){
+    document.getElementById('g-np').textContent='—';
+    document.getElementById('g-np-sub').textContent='Pull Xero P&L first — tap Refresh on the Dashboard.';
+    document.getElementById('g-proj').innerHTML='<div class="empty" style="grid-column:1/-1;">No P&amp;L data yet.</div>';
+    document.getElementById('g-body').innerHTML='<tr><td colspan="8" class="empty">No data.</td></tr>';
+    document.getElementById('g-cmp').textContent='';document.getElementById('g-assume').textContent='';
+    if(pillSrc)pillSrc.textContent='';return;
+  }
+  const s=m.scenario,b=m.baseRow;
+  document.getElementById('g-np').textContent=fmtK(s.np);
+  document.getElementById('g-np-sub').textContent=s.tr+' on tools · '+Math.round(s.npm*100)+'% margin · '+fmtK(s.np*12)+'/yr';
+  if(pillSrc)pillSrc.textContent=(m.avg.src==='xero'?'⚡ 6-mo Xero avg':'6-mo back-cost avg')+' · '+m.avg.from+'→'+m.avg.to;
+  document.getElementById('g-proj').innerHTML=
+    mb('Revenue / mo',fmtK(s.rev),'')+
+    mb('Gross Profit',fmtK(s.gp),Math.round(s.gpm*100)+'% GPM',s.gp>=0?'pos':'neg')+
+    mb('Opex',fmtK(s.opex),Math.round(s.opexPct*100)+'% of rev')+
+    mb('Net Profit',fmtK(s.np),Math.round(s.npm*100)+'% margin',s.np>=0?'pos':'neg');
+  const dNp=s.np-b.np;
+  document.getElementById('g-cmp').innerHTML='vs your current <b>'+m.base+' on tools</b> ('+fmtK(b.np)+'/mo NP, opex '+Math.round(b.opexPct*100)+'%): '+
+    (dNp>=0?'<span class="pos">+'+fmtK(dNp)+'/mo</span>':'<span class="neg">'+fmtK(dNp)+'/mo</span>')+' → <b>'+(dNp>=0?'+':'')+fmtK(dNp*12)+'/yr</b>. '+
+    'Opex falls to <b>'+Math.round(s.opexPct*100)+'%</b> of revenue as crews absorb the fixed overhead.';
+  const cfgs=[[4,2],[5,2],[6,2],[4,3],[5,3],[6,3],[7,3],[8,3],[num(growthCfg.teams),num(growthCfg.size)]];
+  const seen={};const rows=cfgs.filter(([t,sz])=>{const k=t+'x'+sz;if(seen[k]||t<1||sz<1)return false;seen[k]=1;return true;}).map(([t,sz])=>({t,sz,tr:t*sz})).sort((a,c)=>a.tr-c.tr||a.sz-c.sz);
+  document.getElementById('g-body').innerHTML=rows.map(r=>{const f=m.row(r.tr);const active=(r.t==num(growthCfg.teams)&&r.sz==num(growthCfg.size));
+    return '<tr'+(active?' class="tot"':'')+'><td>'+r.t+'×'+r.sz+'</td><td>'+r.tr+'</td><td>'+fmtK(f.rev)+'</td><td>'+fmtK(f.gp)+'</td><td>'+fmtK(f.opex)+'</td><td>'+Math.round(f.opexPct*100)+'%</td><td class="'+(f.np>=0?'pos':'neg')+'">'+fmtK(f.np)+'</td><td>'+fmtK(f.np*12)+'</td></tr>';}).join('');
+  document.getElementById('g-assume').innerHTML=
+    'Revenue scales at <b>'+fmtK(m.revPT)+'/tradesman/mo</b> (6-mo avg ÷ '+m.base+' on tools); GP held at <b>'+Math.round(m.avg.gpm*100)+'%</b>. '+
+    'Opex = fixed <b>'+fmtK(m.fixed)+'/mo</b> (office + ops managers, estimator, rent, software, admin) + <b>'+fmtK(m.varPT)+'/mo</b> per on-tools head (vehicle, fuel, phone, tools, PPE). '+
+    'Estimator normalised to full-time: +'+fmtK(m.estAdj)+'/mo added to the average (they were only ~'+growthCfg.estWeeks+' of 26 weeks in the window). '+
+    'More crews spread the fixed overhead → opex% drops while opex$ rises.';
 }
 
 // ════════ NAV ════════
@@ -841,13 +1000,38 @@ function go(p){
   window.scrollTo(0,0);
   renderAll();
 }
-function renderAll(){renderDash();renderWork();renderBC();renderPL();}
+function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();}
+
+// ════════ SWIPE NAV ════════ swipe left/right to move between tabs
+(function(){
+  const order=['dash','work','bc','pl','growth'];
+  let x0=null,y0=null;
+  document.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1){x0=null;return;}
+    const t=e.target;
+    if(t.closest&&t.closest('.tbl-wrap,.chips,input,select,textarea,#modal,#nav')){x0=null;return;}
+    x0=e.touches[0].clientX;y0=e.touches[0].clientY;
+  },{passive:true});
+  document.addEventListener('touchend',e=>{
+    if(x0==null)return;const t=e.changedTouches[0];const dx=t.clientX-x0,dy=t.clientY-y0;x0=null;
+    if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.4)return;   // mostly-horizontal, decisive swipe only
+    const i=order.indexOf(page);if(i<0)return;
+    const ni=dx<0?i+1:i-1;if(ni<0||ni>=order.length)return;
+    go(order[ni]);
+  },{passive:true});
+})();
 
 // ════════ INIT ════════
 function init(){
   document.getElementById('cfg-teams').value=cfg.teams;
   document.getElementById('cfg-size').value=cfg.size;
   document.getElementById('cfg-hrs').value=cfg.hrs;
+  document.getElementById('g-teams').value=growthCfg.teams;
+  document.getElementById('g-size').value=growthCfg.size;
+  document.getElementById('g-base').value=growthCfg.base;
+  document.getElementById('g-estcost').value=growthCfg.estCost;
+  document.getElementById('g-estweeks').value=growthCfg.estWeeks;
+  document.getElementById('g-varopex').value=growthCfg.varOpex;
   updatePill();
   renderAll();
 }
