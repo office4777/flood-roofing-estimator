@@ -9434,11 +9434,11 @@ function _redrawFlashCanvas(){
       });
       ctx.font = fontStr;
     }
-    // Angle / pitch markers — small wedge icon + degree label parked
-    // outward from the chosen vertex, dragable + editable like every
-    // other label. Default value comes from _flashDefaultAngleDeg
-    // (Materials tab "Default flashing angle" or the calibrated
-    // roof pitch).
+    // Angle / pitch markers — just a floating "∠ angle" label box.
+    // No wedge inside the bend, no dashed leader to the vertex. The
+    // marker still ANCHORS to a vertex (so it knows where to live
+    // when the polyline is dragged) but it renders identically to the
+    // Flash guard label: plain box, draggable to any spot.
     if (p.angleMarkers) {
       Object.keys(p.angleMarkers).forEach(function(k){
         var am = p.angleMarkers[k]; if (!am) return;
@@ -9453,49 +9453,6 @@ function _redrawFlashCanvas(){
         var labelDist = Math.max(48, amFontPx + 32);
         var labelX = ax + dirX * labelDist;
         var labelY = ay + dirY * labelDist;
-        // Draw the angle WEDGE at the vertex. Use the two adjacent
-        // segments to compute the interior angle's bounding rays so
-        // the wedge sits in the bend itself, not at a guessed offset.
-        var prevV = (idx > 0) ? v[idx-1] : null;
-        var nextV = (idx < v.length - 1) ? v[idx+1] : null;
-        var r0 = null, r1 = null;
-        if (prevV) { var pa = Math.atan2(prevV[1]-ay, prevV[0]-ax); r0 = pa; }
-        if (nextV) { var na = Math.atan2(nextV[1]-ay, nextV[0]-ax); r1 = na; }
-        if (r0 != null && r1 != null) {
-          var radius = Math.max(14, amFontPx * 0.9);
-          // Pick the shorter arc between r0 and r1 — that's the
-          // interior of the bend.
-          var d = r1 - r0;
-          while (d <=  -Math.PI) d += 2*Math.PI;
-          while (d >    Math.PI) d -= 2*Math.PI;
-          ctx.save();
-          ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(ax, ay, radius, r0, r0 + d, d < 0);
-          ctx.stroke();
-          ctx.fillStyle = 'rgba(14,165,233,0.18)';
-          ctx.beginPath();
-          ctx.moveTo(ax, ay);
-          ctx.arc(ax, ay, radius, r0, r0 + d, d < 0);
-          ctx.closePath();
-          ctx.fill();
-          ctx.restore();
-        } else {
-          // End vertex — draw a small angle glyph instead of a wedge.
-          ctx.save();
-          ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(ax - 10, ay + 6);
-          ctx.lineTo(ax,      ay - 8);
-          ctx.lineTo(ax + 10, ay + 6);
-          ctx.stroke();
-          ctx.restore();
-        }
-        // Label box "∠ angle" — the actual angle VALUE is set in the
-        // Materials tab "Default flashing angle" input (single custom
-        // input that applies to every marker), so the marker itself
-        // stays a plain symbol + word and never goes stale when the
-        // user retypes the angle.
         ctx.font = amFontPx + 'px Inter, system-ui, sans-serif';
         var txt = '∠ angle';
         var tw = ctx.measureText(txt).width;
@@ -9506,10 +9463,6 @@ function _redrawFlashCanvas(){
         ctx.strokeRect(labelX - boxW/2, labelY - boxH/2, boxW, boxH);
         ctx.fillStyle = '#0ea5e9';
         ctx.fillText(txt, labelX - tw/2, labelY + amFontPx * 0.35);
-        // Thin leader from label edge back to the vertex
-        ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
-        ctx.beginPath(); ctx.moveTo(labelX - dirX * boxH/2, labelY - dirY * boxH/2); ctx.lineTo(ax, ay); ctx.stroke();
-        ctx.setLineDash([]);
         _flashLabelRects.push({
           type: 'angleMarker', polyline: p, vertexIdx: idx,
           x: labelX - boxW/2, y: labelY - boxH/2, w: boxW, h: boxH,
