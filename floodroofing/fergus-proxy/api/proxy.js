@@ -20,7 +20,7 @@
 //   XERO_SCOPE          optional  — defaults to accounting.reports.read
 
 const FERGUS_HOST = 'api.fergus.com';
-const XERO_SCOPE = process.env.XERO_SCOPE || 'accounting.reports.read';
+const XERO_SCOPE = process.env.XERO_SCOPE || 'accounting.reports.profitandloss.read accounting.reports.balancesheet.read';
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
