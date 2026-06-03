@@ -1104,6 +1104,9 @@ function init(){
   document.getElementById('g-varopex').value=growthCfg.varOpex;
   updatePill();
   renderAll();
+  // Auto-sync Fergus + Xero once on open (renders cached data first, then refreshes in the
+  // background). It's a one-shot on load — not the constant per-render pulling we removed.
+  if(fergusProxyUrl()||fergusKey())setTimeout(refreshAll,400);
 }
 init();
 </script>
