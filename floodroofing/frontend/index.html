@@ -10550,10 +10550,13 @@ function _setMatRoofMapFontScale(v){
 // inject a <style> tag the print stylesheet inherits.
 var _MAT_PRINT_DESIGN_KEY = 'fr_print_design_v2';
 function _matPrintDesignDefaults(){
+  // Heights chosen so Roof Map + Sheet Layout fit stacked on a single
+  // A4 page (about 269mm of usable height between Job header + totals
+  // strip + page padding).
   return {
     twoUp: false,
-    roof:  { widthPct: 100, heightMm: 130, offX: 0, offY: 0, zoom: 1 },
-    sheet: { widthPct: 100, heightMm: 110, offX: 0, offY: 0, zoom: 1 }
+    roof:  { widthPct: 100, heightMm: 110, offX: 0, offY: 0, zoom: 1 },
+    sheet: { widthPct: 100, heightMm: 80,  offX: 0, offY: 0, zoom: 1 }
   };
 }
 function _matPrintDesign(){
@@ -10622,19 +10625,18 @@ function _matResetHiddenFlashings(){
   alert(n ? ('Restored ' + n + ' hidden flashing(s).') : 'No hidden flashings to restore.');
 }
 // Apply one part's design (widthPct / heightMm / offX / offY / zoom)
-// to a DOM box. Box layout: width comes from widthPct; height from
-// heightMm; child img/canvas is positioned via translate + scale.
+// to a DOM box. The BOX is the clip frame (overflow:hidden); the
+// IMG inside fits inside via object-fit:contain and carries the
+// translate + scale so it can be nudged + zoomed within the frame.
 function _matApplyDesignToBox(box, part){
   if (!box || !part) return;
   box.style.width  = part.widthPct + '%';
   box.style.height = part.heightMm + 'mm';
-  // The inner content layer carries the transform so the BOX edges
-  // remain a clean clip frame the user can see + drag.
-  var inner = box.querySelector('.mp-img-inner');
-  if (inner) {
-    inner.style.transform = 'translate(' + part.offX + 'px,' + part.offY + 'px) scale(' + part.zoom + ')';
-    inner.style.transformOrigin = 'center center';
-  }
+  box.style.overflow = 'hidden';
+  box.querySelectorAll('img').forEach(function(im){
+    im.style.transform = 'translate(' + part.offX + 'px,' + part.offY + 'px) scale(' + part.zoom + ')';
+    im.style.transformOrigin = 'center center';
+  });
 }
 // Inject a <style> tag so the ACTUAL print (window.print) carries the
 // same design as the on-screen preview.
@@ -10650,13 +10652,14 @@ function _matApplyPrintDesign(){
     if (tu) tu.classList.toggle('is-twoup', !!d.twoUp);
   }
   st.textContent =
-    // Roof Map image: width + max-height + transform
-    '.mat-print-page#matPrintPage1 #matPrintRoofMap{width:' + d.roof.widthPct + '%!important;height:' + d.roof.heightMm + 'mm!important;margin-left:auto!important;margin-right:auto!important;overflow:hidden!important}' +
-    '.mat-print-page#matPrintPage1 #matPrintRoofMap img{max-width:none!important;max-height:none!important;width:auto!important;height:100%!important;transform:translate(' + d.roof.offX + 'px,' + d.roof.offY + 'px) scale(' + d.roof.zoom + ')!important;transform-origin:center center!important}' +
-    // Sheet Plan: width + max-height applied to every per-roof block image
+    // Roof Map: fixed-mm clip frame with the img fit-contained inside,
+    // then transformed for the user's zoom + nudge.
+    '.mat-print-page#matPrintPage1 #matPrintRoofMap{width:' + d.roof.widthPct + '%!important;height:' + d.roof.heightMm + 'mm!important;margin-left:auto!important;margin-right:auto!important;overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important}' +
+    '.mat-print-page#matPrintPage1 #matPrintRoofMap img{max-width:100%!important;max-height:100%!important;width:auto!important;height:auto!important;object-fit:contain!important;transform:translate(' + d.roof.offX + 'px,' + d.roof.offY + 'px) scale(' + d.roof.zoom + ')!important;transform-origin:center center!important}' +
+    // Sheet Plan: same pattern, applied to each per-roof block.
     '.mat-print-page#matPrintPage1 #matPrintSheetPlan{width:' + d.sheet.widthPct + '%!important;margin-left:auto!important;margin-right:auto!important}' +
-    '.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof{height:' + d.sheet.heightMm + 'mm!important;overflow:hidden!important;justify-content:center!important}' +
-    '.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof img{max-height:none!important;height:auto!important;max-width:100%!important;transform:translate(' + d.sheet.offX + 'px,' + d.sheet.offY + 'px) scale(' + d.sheet.zoom + ')!important;transform-origin:center center!important}';
+    '.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof{height:' + d.sheet.heightMm + 'mm!important;overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important;background:transparent!important;border:none!important}' +
+    '.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof img{max-width:100%!important;max-height:100%!important;width:auto!important;height:auto!important;object-fit:contain!important;transform:translate(' + d.sheet.offX + 'px,' + d.sheet.offY + 'px) scale(' + d.sheet.zoom + ')!important;transform-origin:center center!important}';
 }
 // Slider strip for one print part. Each row is label + range + readout.
 function _matPrintPartControlsHtml(part, design){
@@ -10677,8 +10680,8 @@ function _matPrintPartControlsHtml(part, design){
   }).join('');
 }
 // Build the two print pages off-screen, then render each into the
-// designer as a large editable A4 sheet. Designer adds in-place image
-// frames the user can resize via sliders.
+// designer as an A4-true mm-sized sheet wrapped in a transform:scale
+// so all internal mm units stay consistent with what'll print.
 function _matRefreshPrintPreview(){
   var out = document.getElementById('matPrintPreviewOut'); if (!out) return;
   var card = document.getElementById('matPrintPreviewCard');
@@ -10688,7 +10691,6 @@ function _matRefreshPrintPreview(){
   } catch(e){ out.innerHTML = '<div style="color:#b91c1c;font-size:12px">Couldn\'t build preview: '+e.message+'</div>'; return; }
   _matApplyPrintDesign();
   var d = _matPrintDesign();
-  // Sync the two-up checkbox state.
   var tuChk = document.getElementById('matPrintTwoUp');
   if (tuChk) tuChk.checked = !!d.twoUp;
   out.innerHTML = '';
@@ -10696,30 +10698,42 @@ function _matRefreshPrintPreview(){
     .map(function(id){ return document.getElementById(id); })
     .filter(Boolean);
   if (!pages.length) { out.innerHTML = '<div style="color:#b91c1c;font-size:12px">No print pages found.</div>'; return; }
-  // A4 portrait = 210 × 297 mm. Render at 2.4 px/mm → 504 × 713 px
-  // (about 80% wider than the previous preview, so the user can
-  // actually see what they're cropping).
-  var MM = 2.4;
+  // Render each page at its TRUE A4 size in mm, then scale visually
+  // so it fits the designer. That way every mm-based size inside the
+  // page (heightMm, padding, etc.) is consistent — what the user sees
+  // is exactly what the PDF will print.
+  // Scale picked so a single page is ~470px wide on screen — fits two
+  // pages side by side in the designer if the user widens the panel,
+  // and one page comfortably with the slider strip beside it.
+  var SCALE = 0.6;
+  var pxPerMm = 96 / 25.4;            // CSS mm → px on standard 96dpi
+  var scaledW = 210 * pxPerMm * SCALE; // visual width of a scaled page
+  var scaledH = 297 * pxPerMm * SCALE; // visual height of a scaled page
   pages.forEach(function(p, i){
     var lbl = document.createElement('div');
     lbl.style.cssText = 'font-size:11px;font-weight:700;color:#475569;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;align-self:flex-start;padding-left:6px';
     lbl.textContent = 'Page ' + (i + 1) + ' — A4 portrait';
     out.appendChild(lbl);
+    // Outer wrapper reserves the visible-after-scale space; inner
+    // clone uses TRUE mm sizing and is scaled down via transform.
+    var wrap = document.createElement('div');
+    // flex-shrink:0 — the parent is a flex column with max-height set,
+    // so without this the wrap collapses below its set height.
+    wrap.style.cssText = 'position:relative;width:' + scaledW + 'px;height:' + scaledH + 'px;overflow:visible;flex:0 0 auto';
     var clone = p.cloneNode(true);
-    clone.style.cssText = 'display:block;background:#fff;width:' + (210 * MM) + 'px;min-height:' + (297 * MM) + 'px;padding:14mm;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;color:#0a1628;font-size:11px;box-shadow:0 4px 14px rgba(0,0,0,.22);border-radius:4px;margin:0';
-    // Page 1: wrap the Roof Map + Sheet Plan images with editable
-    // frames so the designer sliders have something to drive.
+    clone.style.cssText = 'display:block;background:#fff;width:210mm;height:297mm;padding:14mm;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;color:#0a1628;font-size:11px;box-shadow:0 4px 14px rgba(0,0,0,.22);border-radius:4px;margin:0;position:absolute;top:0;left:0;transform-origin:top left;transform:scale(' + SCALE + ')';
     if (i === 0) {
       var tu = clone.querySelector('.mp-twoup');
       if (tu) tu.classList.toggle('is-twoup', !!d.twoUp);
       _matWrapPreviewImage(clone, '#matPrintRoofMap',   'roof',  d.roof);
       _matWrapPreviewImage(clone, '#matPrintSheetPlan', 'sheet', d.sheet);
     }
-    out.appendChild(clone);
+    wrap.appendChild(clone);
+    out.appendChild(wrap);
     // Per-page control strip — only Page 1 has editable images today.
     if (i === 0) {
       var controls = document.createElement('div');
-      controls.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:14px;width:' + (210 * MM) + 'px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:10px 12px;box-sizing:border-box';
+      controls.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:14px;width:' + scaledW + 'px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:10px 12px;box-sizing:border-box;margin-top:4px;flex:0 0 auto'
       controls.innerHTML =
         '<div>' +
           '<div style="font-size:11px;font-weight:700;color:#0a1628;margin-bottom:6px">Roof Map</div>' +
@@ -10733,35 +10747,46 @@ function _matRefreshPrintPreview(){
     }
   });
 }
-// Wrap an image mount inside the cloned print page with an editable
-// frame: shows the box outline + a translate/scale-able inner layer.
+// Wrap an image mount inside the cloned print page so the designer
+// transform has something to drive. Frame stays put as a clip; the
+// img inside fits-contain and carries the translate + scale.
 function _matWrapPreviewImage(rootClone, selector, partKey, design){
   var src = rootClone.querySelector(selector);
   if (!src) return;
-  // Move the original content into an inner layer the design
-  // transform can drive without affecting the outer frame.
-  var inner = document.createElement('div');
-  inner.className = 'mp-img-inner';
-  inner.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;will-change:transform';
-  while (src.firstChild) inner.appendChild(src.firstChild);
-  // Make the img inside fill the inner box rather than the original
-  // max-height/contain that the print CSS gives it.
-  inner.querySelectorAll('img').forEach(function(im){
-    im.style.maxWidth = 'none';
-    im.style.maxHeight = 'none';
-    im.style.width = 'auto';
-    im.style.height = '100%';
-    im.style.display = 'block';
-  });
-  src.appendChild(inner);
   src.setAttribute('data-mp-part', partKey);
-  src.style.position = 'relative';
   src.style.outline = '2px dashed #3b82f6';
   src.style.outlineOffset = '0';
   src.style.background = '#fafafa';
   src.style.overflow = 'hidden';
-  src.style.display = 'block';
+  src.style.display = 'flex';
+  src.style.alignItems = 'center';
+  src.style.justifyContent = 'center';
+  src.style.position = 'relative';
   src.style.margin = '0 auto';
+  src.style.padding = '0';
+  // Sheet plan contains nested .mp-sheet-roof blocks; flatten those
+  // so the transform sees a single image stack instead of multiple
+  // separately-sized boxes.
+  src.querySelectorAll('.mp-sheet-roof').forEach(function(box){
+    box.style.padding = '0';
+    box.style.margin = '0';
+    box.style.border = 'none';
+    box.style.background = 'transparent';
+    box.style.height = '100%';
+    box.style.display = 'flex';
+    box.style.alignItems = 'center';
+    box.style.justifyContent = 'center';
+  });
+  src.querySelectorAll('img').forEach(function(im){
+    im.style.maxWidth = '100%';
+    im.style.maxHeight = '100%';
+    im.style.width = 'auto';
+    im.style.height = 'auto';
+    im.style.objectFit = 'contain';
+    im.style.display = 'block';
+    im.style.border = 'none';
+    im.style.background = 'transparent';
+  });
   _matApplyDesignToBox(src, design);
 }
 
@@ -16465,7 +16490,13 @@ function _flashCollectLabelled() {
       var key = _flashLineKey(l);
       if (!key) return;
       var ov  = ovs[key] || {};
-      if (ov.hidden) return;     // user deleted this entry
+      // Ridges + hips are structural elements every roof has — never
+      // exclude them from the cut list even if a stale `hidden` flag
+      // is sitting in flashLayoutOverrides (e.g. a previous DELETE on
+      // the popup carried across into a fresh draw). Other flashings
+      // (barge, apron, valley, custom) still honour `hidden`.
+      var isStructural = (l.type === 'ridge' || l.type === 'hip');
+      if (ov.hidden && !isStructural) return;
       var letter = ov.letter || '';
       var lengthM = ov.lengthM != null ? +ov.lengthM : _flashAutoLengthM(l);
       out.push({
