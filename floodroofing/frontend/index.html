@@ -10555,8 +10555,8 @@ function _matPrintDesignDefaults(){
   // strip + page padding).
   return {
     twoUp: false,
-    roof:  { widthPct: 100, heightMm: 110, offX: 0, offY: 0, zoom: 1 },
-    sheet: { widthPct: 100, heightMm: 80,  offX: 0, offY: 0, zoom: 1 }
+    roof:  { widthPct: 100, heightMm: 110, offX: 0, offY: 0, zoom: 1, rotate: 0 },
+    sheet: { widthPct: 100, heightMm: 80,  offX: 0, offY: 0, zoom: 1, rotate: 0 }
   };
 }
 function _matPrintDesign(){
@@ -10601,7 +10601,21 @@ function _matSetPrintField(part, field, v){
   if (out) out.textContent = (field === 'widthPct') ? (v + '%')
                           : (field === 'heightMm') ? (v + 'mm')
                           : (field === 'zoom')     ? (Number(v).toFixed(2) + '×')
+                          : (field === 'rotate')   ? (v + '°')
                           : (v + 'px');
+}
+// Step rotation 90° at a time — wraps to 0 after 270.
+function _matRotatePrintPart(part){
+  var d = _matPrintDesign();
+  if (!d[part]) return;
+  var next = ((+d[part].rotate || 0) + 90) % 360;
+  d[part].rotate = next;
+  _matSavePrintDesign(d);
+  document.querySelectorAll('[data-mp-part="'+part+'"]').forEach(function(box){
+    _matApplyDesignToBox(box, d[part]);
+  });
+  var out = document.getElementById('mp_' + part + '_rotate_out');
+  if (out) out.textContent = next + '°';
 }
 function _matResetPrintDesign(){
   try { localStorage.removeItem(_MAT_PRINT_DESIGN_KEY); } catch(e){}
@@ -10633,8 +10647,9 @@ function _matApplyDesignToBox(box, part){
   box.style.width  = part.widthPct + '%';
   box.style.height = part.heightMm + 'mm';
   box.style.overflow = 'hidden';
+  var rot = +part.rotate || 0;
   box.querySelectorAll('img').forEach(function(im){
-    im.style.transform = 'translate(' + part.offX + 'px,' + part.offY + 'px) scale(' + part.zoom + ')';
+    im.style.transform = 'translate(' + part.offX + 'px,' + part.offY + 'px) rotate(' + rot + 'deg) scale(' + part.zoom + ')';
     im.style.transformOrigin = 'center center';
   });
 }
@@ -10651,17 +10666,21 @@ function _matApplyPrintDesign(){
     var tu = p1.querySelector('.mp-twoup');
     if (tu) tu.classList.toggle('is-twoup', !!d.twoUp);
   }
+  var rRot = +d.roof.rotate || 0;
+  var sRot = +d.sheet.rotate || 0;
   st.textContent =
     // Roof Map: fixed-mm clip frame with the img fit-contained inside,
-    // then transformed for the user's zoom + nudge.
+    // then transformed for the user's zoom + nudge + rotation.
     '.mat-print-page#matPrintPage1 #matPrintRoofMap{width:' + d.roof.widthPct + '%!important;height:' + d.roof.heightMm + 'mm!important;margin-left:auto!important;margin-right:auto!important;overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important}' +
-    '.mat-print-page#matPrintPage1 #matPrintRoofMap img{max-width:100%!important;max-height:100%!important;width:auto!important;height:auto!important;object-fit:contain!important;transform:translate(' + d.roof.offX + 'px,' + d.roof.offY + 'px) scale(' + d.roof.zoom + ')!important;transform-origin:center center!important}' +
+    '.mat-print-page#matPrintPage1 #matPrintRoofMap img{max-width:100%!important;max-height:100%!important;width:auto!important;height:auto!important;object-fit:contain!important;transform:translate(' + d.roof.offX + 'px,' + d.roof.offY + 'px) rotate(' + rRot + 'deg) scale(' + d.roof.zoom + ')!important;transform-origin:center center!important}' +
     // Sheet Plan: same pattern, applied to each per-roof block.
     '.mat-print-page#matPrintPage1 #matPrintSheetPlan{width:' + d.sheet.widthPct + '%!important;margin-left:auto!important;margin-right:auto!important}' +
     '.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof{height:' + d.sheet.heightMm + 'mm!important;overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important;background:transparent!important;border:none!important}' +
-    '.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof img{max-width:100%!important;max-height:100%!important;width:auto!important;height:auto!important;object-fit:contain!important;transform:translate(' + d.sheet.offX + 'px,' + d.sheet.offY + 'px) scale(' + d.sheet.zoom + ')!important;transform-origin:center center!important}';
+    '.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof img{max-width:100%!important;max-height:100%!important;width:auto!important;height:auto!important;object-fit:contain!important;transform:translate(' + d.sheet.offX + 'px,' + d.sheet.offY + 'px) rotate(' + sRot + 'deg) scale(' + d.sheet.zoom + ')!important;transform-origin:center center!important}';
 }
 // Slider strip for one print part. Each row is label + range + readout.
+// Rotate gets its own button-driven row since 90° steps don't suit a
+// continuous slider.
 function _matPrintPartControlsHtml(part, design){
   var ranges = [
     ['widthPct', 'Width',  20, 100, 1, design.widthPct + '%'],
@@ -10670,7 +10689,7 @@ function _matPrintPartControlsHtml(part, design){
     ['offY',     'Y nudge',-200, 200, 1, design.offY + 'px'],
     ['zoom',     'Zoom',   0.3, 3, 0.05, Number(design.zoom).toFixed(2) + '×']
   ];
-  return ranges.map(function(r){
+  var sliders = ranges.map(function(r){
     return '<div style="display:grid;grid-template-columns:64px 1fr 56px;align-items:center;gap:6px;font-size:10.5px;color:#475569">'+
       '<span>'+r[1]+'</span>'+
       '<input type="range" min="'+r[2]+'" max="'+r[3]+'" step="'+r[4]+'" value="'+design[r[0]]+'"'+
@@ -10678,6 +10697,14 @@ function _matPrintPartControlsHtml(part, design){
       '<span id="mp_'+part+'_'+r[0]+'_out" style="font-variant-numeric:tabular-nums;color:#0a1628;text-align:right">'+r[5]+'</span>'+
     '</div>';
   }).join('');
+  var rot = +design.rotate || 0;
+  var rotateRow =
+    '<div style="display:grid;grid-template-columns:64px 1fr 56px;align-items:center;gap:6px;font-size:10.5px;color:#475569">'+
+      '<span>Rotate</span>'+
+      '<button type="button" onclick="_matRotatePrintPart(\''+part+'\')" style="padding:4px 8px;font-size:11px;background:#0a1628;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600">↻ +90°</button>'+
+      '<span id="mp_'+part+'_rotate_out" style="font-variant-numeric:tabular-nums;color:#0a1628;text-align:right">'+rot+'°</span>'+
+    '</div>';
+  return sliders + rotateRow;
 }
 // Build the two print pages off-screen, then render each into the
 // designer as an A4-true mm-sized sheet wrapped in a transform:scale
@@ -16944,18 +16971,58 @@ function _setSheetGroupOverride(origMm, newValue){
   try { redrawAll(); } catch(e){}
   try { renderMatRoofMap(); } catch(e){}
 }
+// Sheet QTY override — same pattern as _setSheetGroupOverride but
+// changes the count instead of the length. Keyed by the SAME
+// orig-mm anchor (the length BEFORE the length override is applied)
+// so the user can change qty + length together without one wiping
+// the other.
+function _setSheetGroupQtyOverride(origMm, newValue){
+  if (!DRAW.sheetGroupQtyOverrides) DRAW.sheetGroupQtyOverrides = {};
+  origMm = parseInt(origMm, 10); if (!isFinite(origMm) || origMm <= 0) return;
+  var raw = String(newValue || '').trim();
+  if (raw === '') {
+    delete DRAW.sheetGroupQtyOverrides[origMm];
+  } else {
+    var n = parseInt(raw, 10);
+    if (!isFinite(n) || n < 0) return;
+    DRAW.sheetGroupQtyOverrides[origMm] = n;
+  }
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+}
 
 // Apply group overrides to a groups array — used wherever
 // _lastSheetCounts.groups is built and wherever a cut list / panel
-// reads it. Returns a NEW array with each group's orderedMm
-// potentially remapped to the user's override.
+// reads it. Returns a NEW array with each group's orderedMm + count
+// potentially remapped to the user's overrides. We carry _origMm
+// through so the cut list inputs still anchor to the original
+// auto-computed length (otherwise editing the length once would lock
+// us out of further edits to the same group).
 function _applySheetGroupOverrides(groups){
   if (!groups || !groups.length) return groups || [];
-  if (!DRAW.sheetGroupOverrides) return groups;
+  var lenOvs = DRAW.sheetGroupOverrides || null;
+  var qtyOvs = DRAW.sheetGroupQtyOverrides || null;
+  if (!lenOvs && !qtyOvs) return groups;
+  // Qty overrides are a TOTAL across all groups sharing the same
+  // origMm — give the whole quota to the first group encountered and
+  // zero the rest so the cut-list sum stays correct.
+  var qtyApplied = {};
   return groups.map(function(g){
-    var ov = DRAW.sheetGroupOverrides[g.orderedMm];
-    if (ov != null && ov > 0) return Object.assign({}, g, { orderedMm: ov, _origMm: g.orderedMm });
-    return g;
+    var origMm = g.orderedMm;
+    var out = Object.assign({}, g);
+    if (lenOvs) {
+      var lov = lenOvs[origMm];
+      if (lov != null && lov > 0) { out.orderedMm = lov; out._origMm = origMm; }
+    }
+    if (qtyOvs) {
+      var qov = qtyOvs[origMm];
+      if (qov != null && qov >= 0) {
+        if (qtyApplied[origMm]) out.count = 0;
+        else { out.count = qov; qtyApplied[origMm] = true; }
+        out._origMm = origMm;
+      }
+    }
+    return out;
   });
 }
 
@@ -17160,24 +17227,40 @@ function renderMaterialsCutLists() {
   }
   if (sheetRows.length) {
     html += '<table class="cut-list"><thead><tr>'+
-      '<th>Description</th><th class="r">Qty</th><th class="r">Length each <span style="font-weight:400;color:var(--text2);font-size:10px">— click to edit</span></th>'+
+      '<th>Description</th><th class="r">Qty <span style="font-weight:400;color:var(--text2);font-size:10px">— click to edit</span></th><th class="r">Length each <span style="font-weight:400;color:var(--text2);font-size:10px">— click to edit</span></th>'+
     '</tr></thead><tbody>';
     var totalSheets = 0;
+    // Each cut-list row may aggregate counts from multiple colour groups
+    // at the same length. Anchor edits on the ORIGINAL pre-override mm
+    // so changing length once doesn't lock the input.
+    var lenAnchorByLen = {};
+    if (sc && sc.groups) sc.groups.forEach(function(g){ lenAnchorByLen[g.orderedMm] = g._origMm || g.orderedMm; });
     sheetRows.forEach(function(r){
       totalSheets += r.qty;
+      var anchorMm = lenAnchorByLen[r.len] || r.len;
       var lbl = esc(profile) + ' sheet @ ' + (r.len / 1000).toFixed(2) + 'm';
       // Inline editable length cell — typing here flows through
       // _setSheetGroupOverride which updates the Sheets-to-order
       // panel + the Roof Map sheet labels at the same time.
-      var inp = '<input type="number" step="0.01" min="0.5" value="'+(r.len/1000).toFixed(2)+'" '+
-        'data-orig-mm="'+r.len+'" '+
+      var lenInp = '<input type="number" step="0.01" min="0.5" value="'+(r.len/1000).toFixed(2)+'" '+
+        'data-orig-mm="'+anchorMm+'" '+
         'onfocus="this.select()" '+
         'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
         'onchange="_setSheetGroupOverride(this.getAttribute(\'data-orig-mm\'), this.value)" '+
         'style="width:60px;padding:1px 4px;border:1px solid transparent;background:transparent;font-family:inherit;font-size:inherit;text-align:right;color:#0a1628" '+
         'onmouseover="this.style.border=\'1px solid var(--border)\';this.style.background=\'#fff\'" '+
         'onmouseout="if(document.activeElement!==this){this.style.border=\'1px solid transparent\';this.style.background=\'transparent\';}">';
-      html += '<tr><td>'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+inp+' m</td></tr>';
+      // Inline editable qty cell — sets a total override across every
+      // group sharing this length (rare to have multiple).
+      var qtyInp = '<input type="number" step="1" min="0" value="'+r.qty+'" '+
+        'data-orig-mm="'+anchorMm+'" '+
+        'onfocus="this.select()" '+
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
+        'onchange="_setSheetGroupQtyOverride(this.getAttribute(\'data-orig-mm\'), this.value)" '+
+        'style="width:54px;padding:1px 4px;border:1px solid transparent;background:transparent;font-family:inherit;font-size:inherit;text-align:right;color:#0a1628;font-weight:600" '+
+        'onmouseover="this.style.border=\'1px solid var(--border)\';this.style.background=\'#fff\'" '+
+        'onmouseout="if(document.activeElement!==this){this.style.border=\'1px solid transparent\';this.style.background=\'transparent\';}">';
+      html += '<tr><td>'+lbl+'</td><td class="r">'+qtyInp+'</td><td class="r">'+lenInp+' m</td></tr>';
     });
     html += '</tbody><tfoot><tr><td>Total sheets</td><td class="r">'+totalSheets+'</td><td class="r">'+d.roofArea.toFixed(1)+' m² roof</td></tr></tfoot></table>';
   } else {
@@ -17587,55 +17670,163 @@ function _matOnCutRowClick(rowEl){
   _flashRefreshAfterEdit();
 }
 
+// ── Dektites storage (multi-size) ──────────────────────────────────
+// v2 format: [{qty, sizeMm}, ...]. Migrates from legacy fr_dektite_count
+// (single number) on first read so old saves stay visible.
+function _matDektitesGet(){
+  var raw = localStorage.getItem('fr_dektites_v2');
+  if (raw) {
+    try {
+      var arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return arr.filter(function(r){ return r && r.qty != null; });
+    } catch(e){}
+  }
+  // Legacy migration — single count becomes a single row with no size.
+  var legacy = parseInt(localStorage.getItem('fr_dektite_count') || '0', 10);
+  if (legacy > 0) return [{ qty: legacy, sizeMm: 0 }];
+  return [];
+}
+function _matDektitesSet(arr){
+  try { localStorage.setItem('fr_dektites_v2', JSON.stringify(arr || [])); } catch(e){}
+}
+function _matDektitesAdd(){
+  var list = _matDektitesGet();
+  list.push({ qty: 1, sizeMm: 0 });
+  _matDektitesSet(list);
+  _matRenderConsumables(_matDrawTotals());
+}
+function _matDektitesUpdate(idx, field, value){
+  var list = _matDektitesGet();
+  if (!list[idx]) return;
+  var n = parseInt(value, 10);
+  list[idx][field] = isFinite(n) && n >= 0 ? n : 0;
+  _matDektitesSet(list);
+  // Re-render consumables only — don't bounce the whole cut list.
+  _matRenderConsumables(_matDrawTotals());
+}
+function _matDektitesRemove(idx){
+  var list = _matDektitesGet();
+  list.splice(idx, 1);
+  _matDektitesSet(list);
+  _matRenderConsumables(_matDrawTotals());
+}
+function _matDektitesTotal(){
+  return _matDektitesGet().reduce(function(s,r){ return s + (parseInt(r.qty,10)||0); }, 0);
+}
+function _matDektitesSummary(){
+  var list = _matDektitesGet();
+  if (!list.length) return '—';
+  return list.map(function(r){
+    return (r.qty||0) + ' × ' + (r.sizeMm > 0 ? r.sizeMm + 'mm' : 'any size');
+  }).join(', ');
+}
+// Consumables override helpers — generic qty replacement keyed by
+// localStorage. Empty string clears the override (back to auto).
+function _matConsOverrideGet(key){
+  var raw = localStorage.getItem(key);
+  if (raw === null || raw === '') return null;
+  var n = parseInt(raw, 10);
+  return isFinite(n) && n >= 0 ? n : null;
+}
+function _matConsOverrideSet(key, v){
+  var raw = String(v == null ? '' : v).trim();
+  if (raw === '') localStorage.removeItem(key);
+  else {
+    var n = parseInt(raw, 10);
+    if (!isFinite(n) || n < 0) return;
+    localStorage.setItem(key, String(n));
+  }
+  _matRenderConsumables(_matDrawTotals());
+}
 // Consumables (restyled to match the Materials section).
 function _matRenderConsumables(d) {
   var out = document.getElementById('matConsumables');
   if (!out) return;
-  if (d.roofArea === 0 && d.flashingsLm === 0) {
-    out.innerHTML = '<p style="font-size:12px;color:var(--text2);grid-column:1/-1;padding:8px 0">Quantities will calculate from your roof area + total flashing run.</p>';
-    return;
-  }
+  d = d || _matDrawTotals();
   var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
   if ([50,75,100].indexOf(rollSize) < 0) rollSize = 75;
 
+  // Editable-qty input — single tile pattern: big number, click to
+  // type a different total. Reset link clears the override.
+  function qtyInput(key, value){
+    var ov = _matConsOverrideGet(key);
+    var v = ov != null ? ov : value;
+    return '<input type="number" min="0" step="1" value="'+v+'" '+
+      'onfocus="this.select()" '+
+      'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
+      'onchange="_matConsOverrideSet(\''+key+'\',this.value)" '+
+      'style="width:90px;padding:0 2px;border:1px solid transparent;background:transparent;color:#0a1628;font-family:inherit;font-size:inherit;font-weight:inherit;text-align:right" '+
+      'onmouseover="this.style.border=\'1px solid #cbd5e1\';this.style.background=\'#fff\'" '+
+      'onmouseout="if(document.activeElement!==this){this.style.border=\'1px solid transparent\';this.style.background=\'transparent\';}">';
+  }
+  function resetLink(key){
+    var ov = _matConsOverrideGet(key);
+    if (ov == null) return '';
+    return ' <a onclick="_matConsOverrideSet(\''+key+'\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>';
+  }
+
   var tiles = [];
-  if (d.roofArea > 0) {
-    var underlayM2 = d.roofArea * 1.2;
-    var rolls = Math.ceil(underlayM2 / rollSize);
-    tiles.push({
-      icon:'📄', name:'Underlay / paper', qty: rolls + ' roll' + (rolls===1?'':'s'),
-      sub: underlayM2.toFixed(1)+' m² (incl. 20% waste) · roll size '+
-        '<select onchange="localStorage.setItem(\'fr_underlay_roll_size\',this.value);renderMaterialsCutLists()">'+
-        [50,75,100].map(function(sz){return '<option value="'+sz+'"'+(sz===rollSize?' selected':'')+'>'+sz+' m²</option>';}).join('')+
-        '</select>'
-    });
-    var screwsNeeded = d.roofArea * 8;
-    var screws = Math.ceil(screwsNeeded / 100) * 100;
-    tiles.push({
-      icon:'🔩', name:'Roofing screws', qty: screws.toLocaleString(),
-      sub:'65mm Unitites · '+d.roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(screwsNeeded)+', rounded to '+screws
-    });
-  }
-  if (d.flashingsLm > 0) {
-    var rivets = Math.max(100, Math.ceil(d.flashingsLm / 60) * 100);
-    tiles.push({
-      icon:'🪛', name:'Rivets', qty: rivets.toLocaleString(),
-      sub: d.flashingsLm.toFixed(1)+' lm of flashings · 100 / 60lm minimum'
-    });
-  }
-  // Dektites — defaults to 1 per pipe penetration; user can adjust on the order.
-  var dektites = parseInt(localStorage.getItem('fr_dektite_count') || '0', 10);
+
+  // Underlay — auto = ceil(area * 1.2 / rollSize); user can type a
+  // different roll count.
+  var underlayM2 = d.roofArea * 1.2;
+  var rollsAuto = d.roofArea > 0 ? Math.ceil(underlayM2 / rollSize) : 0;
   tiles.push({
-    icon:'🟫', name:'Dektites', qty: dektites,
-    sub:'Pipe penetrations · '+
-      '<input type="number" min="0" max="50" value="'+dektites+'" onchange="localStorage.setItem(\'fr_dektite_count\',this.value);renderMaterialsCutLists()" style="width:54px;padding:2px 5px;font-size:11px;border:1px solid var(--border);border-radius:4px;margin-left:4px"> typically'
+    icon:'📄', name:'Underlay / paper',
+    qtyHtml: qtyInput('fr_underlay_rolls_override', rollsAuto) + ' rolls' + resetLink('fr_underlay_rolls_override'),
+    sub: underlayM2.toFixed(1)+' m² (incl. 20% waste) · roll size '+
+      '<select onchange="localStorage.setItem(\'fr_underlay_roll_size\',this.value);renderMaterialsCutLists()">'+
+      [50,75,100].map(function(sz){return '<option value="'+sz+'"'+(sz===rollSize?' selected':'')+'>'+sz+' m²</option>';}).join('')+
+      '</select> · auto: '+rollsAuto+' rolls'
+  });
+
+  // Roofing screws — auto = ceil(area * 8 / 100) * 100.
+  var screwsNeeded = d.roofArea * 8;
+  var screwsAuto = d.roofArea > 0 ? Math.ceil(screwsNeeded / 100) * 100 : 0;
+  tiles.push({
+    icon:'🔩', name:'Roofing screws',
+    qtyHtml: qtyInput('fr_screws_qty_override', screwsAuto) + resetLink('fr_screws_qty_override'),
+    sub:'65mm Unitites · '+d.roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(screwsNeeded)+', rounded to '+screwsAuto
+  });
+
+  // Rivets — auto = max(100, ceil(flashingsLm/60)*100).
+  var rivetsAuto = d.flashingsLm > 0 ? Math.max(100, Math.ceil(d.flashingsLm / 60) * 100) : 0;
+  tiles.push({
+    icon:'🪛', name:'Rivets',
+    qtyHtml: qtyInput('fr_rivets_qty_override', rivetsAuto) + resetLink('fr_rivets_qty_override'),
+    sub: d.flashingsLm.toFixed(1)+' lm of flashings · auto: '+rivetsAuto+' (100 / 60lm minimum)'
+  });
+
+  // Dektites — multi-size list. Each row is qty × sizeMm with a × to
+  // delete, plus a + Add size button. Total shown at the top.
+  var dkList = _matDektitesGet();
+  var dkTotal = _matDektitesTotal();
+  var dkRowsHtml = dkList.map(function(r, i){
+    return '<div style="display:flex;align-items:center;gap:5px;margin-top:4px;font-size:11px">'+
+      '<input type="number" min="0" step="1" value="'+(r.qty||0)+'" '+
+        'onchange="_matDektitesUpdate('+i+',\'qty\',this.value)" '+
+        'style="width:42px;padding:2px 4px;font-size:11px;border:1px solid var(--border);border-radius:4px;text-align:right">'+
+      '<span style="color:var(--text2)">×</span>'+
+      '<input type="number" min="0" step="5" placeholder="size mm" value="'+(r.sizeMm||'')+'" '+
+        'onchange="_matDektitesUpdate('+i+',\'sizeMm\',this.value)" '+
+        'style="width:62px;padding:2px 4px;font-size:11px;border:1px solid var(--border);border-radius:4px;text-align:right">'+
+      '<span style="color:var(--text2)">mm</span>'+
+      '<button type="button" onclick="_matDektitesRemove('+i+')" style="margin-left:auto;background:none;border:none;color:#b91c1c;cursor:pointer;padding:2px 4px;font-size:14px;line-height:1" title="Remove">×</button>'+
+    '</div>';
+  }).join('');
+  tiles.push({
+    icon:'🟫', name:'Dektites',
+    qtyHtml: dkTotal,
+    sub:'Pipe penetrations'+
+      (dkList.length ? dkRowsHtml : '<div style="font-size:11px;color:var(--text2);margin-top:4px;font-style:italic">No dektites added yet — click "+ Add size" to specify quantity at each size.</div>')+
+      '<button type="button" onclick="_matDektitesAdd()" style="margin-top:6px;padding:3px 10px;font-size:11px;background:#fff;border:1px solid var(--border);border-radius:5px;color:#0a1628;cursor:pointer;font-weight:600">+ Add size</button>'
   });
 
   out.innerHTML = tiles.map(function(t){
     return '<div class="cons-tile">'+
       '<div class="cons-hd">'+
         '<span class="cons-name">'+t.icon+' '+esc(t.name)+'</span>'+
-        '<span class="cons-qty">'+t.qty+'</span>'+
+        '<span class="cons-qty">'+t.qtyHtml+'</span>'+
       '</div>'+
       '<div class="cons-sub">'+t.sub+'</div>'+
     '</div>';
@@ -18217,19 +18408,32 @@ function _matBuildPrintOrderDetails(mount) {
       '</div>';
   }
 
-  // Consumables strip.
+  // Consumables strip — each qty honours the user's override from the
+  // on-screen tiles; falls back to the auto calc when no override.
   var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
   if ([50,75,100].indexOf(rollSize) < 0) rollSize = 75;
-  var rolls = d.roofArea > 0 ? Math.ceil(d.roofArea * 1.2 / rollSize) : 0;
-  var screws = d.roofArea > 0 ? Math.ceil(d.roofArea * 8 / 100) * 100 : 0;
-  var rivets = d.flashingsLm > 0 ? Math.max(100, Math.ceil(d.flashingsLm / 60) * 100) : 0;
-  var dektites = parseInt(localStorage.getItem('fr_dektite_count') || '0', 10);
+  var rollsAuto = d.roofArea > 0 ? Math.ceil(d.roofArea * 1.2 / rollSize) : 0;
+  var screwsAuto = d.roofArea > 0 ? Math.ceil(d.roofArea * 8 / 100) * 100 : 0;
+  var rivetsAuto = d.flashingsLm > 0 ? Math.max(100, Math.ceil(d.flashingsLm / 60) * 100) : 0;
+  var rollsOv  = _matConsOverrideGet('fr_underlay_rolls_override');
+  var screwsOv = _matConsOverrideGet('fr_screws_qty_override');
+  var rivetsOv = _matConsOverrideGet('fr_rivets_qty_override');
+  var rolls  = rollsOv  != null ? rollsOv  : rollsAuto;
+  var screws = screwsOv != null ? screwsOv : screwsAuto;
+  var rivets = rivetsOv != null ? rivetsOv : rivetsAuto;
+  // Dektites — multi-size list rendered as "N × Xmm" rows under the
+  // total. Falls back to the legacy single-count store for old saves.
+  var dkList = _matDektitesGet();
+  var dkTotal = _matDektitesTotal();
+  var dkBreakdown = dkList.length
+    ? dkList.map(function(r){ return (r.qty||0) + ' × ' + (r.sizeMm > 0 ? r.sizeMm + 'mm' : 'any'); }).join(', ')
+    : 'pipe penetrations';
   html += '<h2 class="mp-h" style="margin-top:14px">Consumables</h2>'+
     '<div class="mp-cons">'+
       '<div><div class="cons-name">Underlay</div><div class="cons-val">'+rolls+' roll'+(rolls===1?'':'s')+'</div><div style="font-size:9.5px;color:#6f6a60">'+rollSize+' m² rolls</div></div>'+
       '<div><div class="cons-name">Roofing screws</div><div class="cons-val">'+screws.toLocaleString()+'</div><div style="font-size:9.5px;color:#6f6a60">65mm Unitites</div></div>'+
       '<div><div class="cons-name">Rivets</div><div class="cons-val">'+rivets.toLocaleString()+'</div><div style="font-size:9.5px;color:#6f6a60">across '+d.flashingsLm.toFixed(1)+' lm of flashing</div></div>'+
-      '<div><div class="cons-name">Dektites</div><div class="cons-val">'+dektites+'</div><div style="font-size:9.5px;color:#6f6a60">pipe penetrations</div></div>'+
+      '<div><div class="cons-name">Dektites</div><div class="cons-val">'+dkTotal+'</div><div style="font-size:9.5px;color:#6f6a60">'+esc(dkBreakdown)+'</div></div>'+
     '</div>';
 
   mount.innerHTML = html;
@@ -23289,23 +23493,36 @@ function _renderRoofSheetPlanInner() {
   });
   var legHtml = '<div style="display:flex;gap:24px;align-items:flex-start;margin-top:14px;flex-wrap:wrap">';
   legHtml += '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px;background:#fff;min-width:300px">';
-  legHtml += '<div style="font-weight:800;font-size:13px;color:#0a1628;letter-spacing:.04em;margin-bottom:10px">SHEETS TO ORDER <span style="font-weight:500;color:#6b7280;font-size:10px;text-transform:none;letter-spacing:0">— click the mm value to change</span></div>';
+  legHtml += '<div style="font-weight:800;font-size:13px;color:#0a1628;letter-spacing:.04em;margin-bottom:10px">SHEETS TO ORDER <span style="font-weight:500;color:#6b7280;font-size:10px;text-transform:none;letter-spacing:0">— click the count or mm value to change</span></div>';
   if (!groupList.length) {
     legHtml += '<div style="font-size:12px;color:#6b7280">No sheets — check that the outline has gutters and hips.</div>';
   } else {
     groupList.forEach(function(g){
-      var inp = '<input type="number" min="100" step="50" value="'+g.orderedMm+'" '+
-        'data-orig-mm="'+g.orderedMm+'" '+
+      // Length input — anchor on the ORIGINAL pre-override length so
+      // edits cycle through the same key. _origMm is set by
+      // _applySheetGroupOverrides; falls back to orderedMm otherwise.
+      var anchorMm = g._origMm || g.orderedMm;
+      var lenInp = '<input type="number" min="100" step="50" value="'+g.orderedMm+'" '+
+        'data-orig-mm="'+anchorMm+'" '+
         'onfocus="this.select()" '+
         'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
         'onchange="_setSheetGroupOverride(this.getAttribute(\'data-orig-mm\'), this.value)" '+
         'style="width:64px;padding:1px 4px;border:1px solid transparent;background:transparent;color:#6b7280;font-size:12px;font-family:inherit;text-align:right" '+
         'onmouseover="this.style.border=\'1px solid #cbd5e1\';this.style.background=\'#fff\'" '+
         'onmouseout="if(document.activeElement!==this){this.style.border=\'1px solid transparent\';this.style.background=\'transparent\';}">';
+      // Count input — bigger, coloured to match the group swatch.
+      var qtyInp = '<input type="number" min="0" step="1" value="'+g.count+'" '+
+        'data-orig-mm="'+anchorMm+'" '+
+        'onfocus="this.select()" '+
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
+        'onchange="_setSheetGroupQtyOverride(this.getAttribute(\'data-orig-mm\'), this.value)" '+
+        'style="width:54px;padding:0 4px;border:1px solid transparent;background:transparent;color:'+g.color+';font-size:24px;font-weight:800;font-family:inherit;text-align:right" '+
+        'onmouseover="this.style.border=\'1px solid #cbd5e1\';this.style.background=\'#fff\'" '+
+        'onmouseout="if(document.activeElement!==this){this.style.border=\'1px solid transparent\';this.style.background=\'transparent\';}">';
       legHtml += '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:6px">'+
-        '<span style="font-size:24px;font-weight:800;color:'+g.color+'">'+g.count+'</span>'+
+        qtyInp +
         '<span style="font-size:12px;color:#6b7280">× @ </span>'+
-        inp +
+        lenInp +
         '<span style="font-size:12px;color:#6b7280">mm ('+(g.orderedMm/1000).toFixed(2)+'m)</span>'+
         '</div>';
     });
@@ -23336,8 +23553,10 @@ function _renderRoofSheetPlanInner() {
     purpleLong: purpleLong,
     longLen: LONG_MM,
     // Per (colour, length) groups straight from the legend — the
-    // Materials cut-list groups by length only and uses these.
-    groups: groupList.map(function(g){ return { color: g.color, orderedMm: g.orderedMm, count: g.count }; }),
+    // Materials cut-list groups by length only and uses these. We
+    // carry _origMm so the cut-list edit inputs anchor on the same
+    // key the legend uses (otherwise editing once locks the input).
+    groups: groupList.map(function(g){ return { color: g.color, orderedMm: g.orderedMm, count: g.count, _origMm: g._origMm }; }),
   };
 
   outEl.innerHTML = '';
