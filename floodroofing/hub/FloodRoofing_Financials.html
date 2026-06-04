@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#0b0f16">
+<meta name="theme-color" content="#000000">
 <title>Flood Roofing — Financials</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-:root{--primary:#4d8dff;--primary-2:#2f6df0;--accent:#ff6b35;--accent-2:#ff8a52;--success:#34d399;--warning:#fbbf24;--danger:#f87171;--bg:#0b0f16;--bg2:#0e131c;--card:#141b27;--card2:#1a2332;--elev:#212c3e;--text:#eaf0f8;--muted:#aeb9c8;--border:#2b3647;--glow:rgba(77,141,255,.22);}
+:root{--primary:#4d8dff;--primary-2:#2f6df0;--accent:#ff6b35;--accent-2:#ff8a52;--success:#34d399;--warning:#fbbf24;--danger:#f87171;--bg:#0b0f16;--bg2:#0e131c;--card:#141b27;--card2:#1a2332;--elev:#212c3e;--text:#eaf0f8;--muted:#aeb9c8;--border:#2b3647;--glow:rgba(77,141,255,.22);--bg:#000000;--bg2:#06090e;}
 html,body{overscroll-behavior-y:none;}
-body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--bg);background-image:radial-gradient(1100px 560px at 50% -8%,rgba(47,109,240,.16),transparent 62%),radial-gradient(900px 500px at 100% 0%,rgba(255,107,53,.07),transparent 55%);background-attachment:fixed;color:var(--text);padding-bottom:78px;font-size:15px;-webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased;}
+body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:#000;color:var(--text);padding-bottom:78px;font-size:15px;-webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased;}
 
 /* top bar */
 #top{position:sticky;top:0;z-index:40;background:linear-gradient(180deg,rgba(20,28,42,.92),rgba(12,17,26,.86));backdrop-filter:saturate(140%) blur(12px);-webkit-backdrop-filter:saturate(140%) blur(12px);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);box-shadow:0 6px 24px rgba(0,0,0,.45);}
@@ -26,10 +26,10 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--
 @keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
 .card{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--border);border-radius:20px;padding:20px;margin-bottom:16px;box-shadow:0 10px 30px rgba(0,0,0,.28);}
 /* period-coded card backgrounds — same colour for the same period across every tab */
-.card.per-this{background:linear-gradient(180deg,rgba(56,189,248,.13),var(--bg2));border-color:rgba(56,189,248,.38);}
-.card.per-last{background:linear-gradient(180deg,rgba(167,139,250,.13),var(--bg2));border-color:rgba(167,139,250,.40);}
-.card.per-3mo{background:linear-gradient(180deg,rgba(251,191,36,.12),var(--bg2));border-color:rgba(251,191,36,.38);}
-.card.per-week{background:linear-gradient(180deg,rgba(52,211,153,.12),var(--bg2));border-color:rgba(52,211,153,.38);}
+.card.per-this{background:linear-gradient(165deg,rgba(56,189,248,.30),rgba(56,189,248,.06) 60%,var(--bg2));border-color:rgba(56,189,248,.6);box-shadow:0 10px 30px rgba(56,189,248,.14);}
+.card.per-last{background:linear-gradient(165deg,rgba(167,139,250,.30),rgba(167,139,250,.06) 60%,var(--bg2));border-color:rgba(167,139,250,.6);box-shadow:0 10px 30px rgba(167,139,250,.14);}
+.card.per-3mo{background:linear-gradient(165deg,rgba(251,191,36,.26),rgba(251,191,36,.05) 60%,var(--bg2));border-color:rgba(251,191,36,.55);box-shadow:0 10px 30px rgba(251,191,36,.12);}
+.card.per-week{background:linear-gradient(165deg,rgba(52,211,153,.26),rgba(52,211,153,.05) 60%,var(--bg2));border-color:rgba(52,211,153,.55);box-shadow:0 10px 30px rgba(52,211,153,.12);}
 .card.per-this .ct,.card.per-last .ct,.card.per-3mo .ct,.card.per-week .ct{color:#fff;}
 .card.per-this .period-sub,.card.per-last .period-sub,.card.per-3mo .period-sub,.card.per-week .period-sub{color:#eef2f7;}
 .ct{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
