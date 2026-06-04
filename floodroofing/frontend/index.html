@@ -1801,10 +1801,15 @@ select{
        overlaid next to each labelled line. Click a letter tag to edit
        or delete the flashing entry; click a sheet length to edit. -->
   <div class="card" id="matRoofMapCard">
-    <div class="card-hd"><span class="card-dot"></span>Roof map
-      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— measurements + flashing letter refs · click a tag to edit / delete</span>
+    <div class="card-hd" style="flex-wrap:wrap"><span class="card-dot"></span>Roof map
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— click a tag to edit / delete · drag a measurement to nudge it</span>
       <label style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none">
         <input type="checkbox" id="flashLayoutIncludeGutters" onchange="renderMatRoofMap();renderMaterialsCutLists()" style="margin:0;width:auto"> Include gutters as letters
+      </label>
+      <label style="margin-left:10px;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2)">Text size
+        <input type="range" id="matRoofMapFontScale" min="0.7" max="3" step="0.1" value="1"
+               oninput="_setMatRoofMapFontScale(this.value)" style="width:90px;margin:0">
+        <span id="matRoofMapFontScaleOut" style="font-variant-numeric:tabular-nums;color:var(--text)">1.0</span>×
       </label>
       <button onclick="renderMatRoofMap();renderMaterialsCutLists()" style="margin-left:10px;padding:4px 10px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
     </div>
@@ -3161,7 +3166,7 @@ function gotoTab(t) {
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
-  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}}
+  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
@@ -10484,6 +10489,28 @@ function duplicateSavedFlashing(savedIdx){
 // Gutter overhang input → localStorage. Sheet plan + sheets-to-order
 // both read from localStorage at render time, so changing this value
 // flows through to every downstream length calc.
+// Materials Roof Map font scaler — multiplies the measurement label
+// font size in redrawAll. Persists in localStorage so the next
+// session opens at the same scale. Re-renders the live Map Roof
+// canvas + the Materials mirror so the change is immediate.
+function _setMatRoofMapFontScale(v){
+  var n = parseFloat(v);
+  if (!isFinite(n) || n < 0.5) n = 0.5;
+  if (n > 4) n = 4;
+  try { localStorage.setItem('fr_roofmap_font_scale', String(n)); } catch(e){}
+  var out = document.getElementById('matRoofMapFontScaleOut');
+  if (out) out.textContent = n.toFixed(1);
+  try { redrawAll(); } catch(e){}
+  try { renderMatRoofMap(); } catch(e){}
+}
+function _syncMatRoofMapFontScaleUi(){
+  var inp = document.getElementById('matRoofMapFontScale');
+  var out = document.getElementById('matRoofMapFontScaleOut');
+  var saved = parseFloat(localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
+  if (inp) inp.value = saved;
+  if (out) out.textContent = saved.toFixed(1);
+}
+
 function _setSheetOverhangMm(v){
   var n = parseFloat(v);
   if (!isFinite(n) || n < 0) n = 50;
@@ -13834,7 +13861,7 @@ function redrawAll() {
   // Reset click hit-data — populated as we draw flashing letter tags and
   // sheet-length labels so the canvas click handler (and the mirrored
   // Materials Roof Map) can edit/delete on tap.
-  window._roofCanvasHits = { letters: [], sheets: [] };
+  window._roofCanvasHits = { letters: [], sheets: [], measures: [] };
   ctx.save();
   ctx.scale(dpr,dpr);
   ctx.clearRect(0,0,W,H);
@@ -14177,11 +14204,38 @@ function redrawAll() {
     if(l.measM && !l.label && _measFirst){
       var mmx=(lp0[0]+lp1[0])/2, mmy=(lp0[1]+lp1[1])/2;
       var measStr=parseFloat(l.measM).toFixed(2)+'m';
-      ctx.font='bold 10px sans-serif'; ctx.textAlign='center';
+      // Per-line drag offset (set from the Materials Roof Map drag
+      // handler) shifts the label away from its auto centre so
+      // overlapping labels can be nudged clear without losing the
+      // anchor.
+      var _measOff = (DRAW.measLabelOffsets && DRAW.measLabelOffsets[_measKey]) || [0, 0];
+      // Font scaler — pulled from localStorage so the slider on the
+      // Materials Roof Map card affects BOTH the Map Roof canvas and
+      // the Materials mirror. Default 1.0×.
+      var _measScale = parseFloat(localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
+      if (_measScale < 0.5) _measScale = 0.5;
+      if (_measScale > 4)   _measScale = 4;
+      var measFontPx = Math.round(10 * _measScale);
+      ctx.font = 'bold ' + measFontPx + 'px sans-serif';
+      ctx.textAlign='center';
       var mtw=ctx.measureText(measStr).width+6;
       var mty=l.label?mmy+14:mmy+4;
-      ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillRect(mmx-mtw/2,mty-11,mtw,13);
-      ctx.fillStyle=c; ctx.fillText(measStr,mmx,mty);
+      var mlx = mmx + _measOff[0];
+      var mly = mty + _measOff[1];
+      var rh = measFontPx + 4;
+      ctx.fillStyle='rgba(255,255,255,0.6)';
+      ctx.fillRect(mlx-mtw/2, mly - measFontPx, mtw, rh);
+      ctx.fillStyle=c;
+      ctx.fillText(measStr, mlx, mly);
+      // Stash hit data for the Materials canvas drag handler. CSS-px
+      // coords (matches the way letter / sheet hits are stashed).
+      if (window._roofCanvasHits && window._roofCanvasHits.measures) {
+        window._roofCanvasHits.measures.push({
+          x: mlx, y: mly - measFontPx/2,
+          w: mtw + 6, h: rh + 4,
+          key: _measKey, line: l
+        });
+      }
     }
     if (_measFirst) _drawnMeasKeys[_measKey] = true;
     // Sheet direction arrow on gutters only — valleys used to also
@@ -16265,17 +16319,82 @@ function renderMatRoofMap(){
     letterHits = _drawFlashLetterOverlaysOn(ctx, W / dpr, H / dpr);
     ctx.restore();
   } catch(e){ console.warn('letter overlay:', e); }
-  canvas._letterHits = letterHits;
-  canvas._sheetHits  = (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
+  canvas._letterHits  = letterHits;
+  canvas._sheetHits   = (window._roofCanvasHits && window._roofCanvasHits.sheets)   || [];
+  canvas._measureHits = (window._roofCanvasHits && window._roofCanvasHits.measures) || [];
   canvas._dpr = dpr;
-  canvas.onclick = function(ev){
+
+  // Helper: convert a pointer event to the canvas's CSS-px space
+  // (same space the stashed hit rects use).
+  function _mxy(ev){
     var r = canvas.getBoundingClientRect();
     var bx = (ev.clientX - r.left) * (canvas.width / r.width);
     var by = (ev.clientY - r.top)  * (canvas.height / r.height);
-    var cx = bx / canvas._dpr;
-    var cy = by / canvas._dpr;
-    _matRoofMapHandleClick(cx, cy);
+    return [bx / canvas._dpr, by / canvas._dpr];
+  }
+  function _inBox(h, cx, cy){
+    return cx >= (h.x - h.w/2) && cx <= (h.x + h.w/2)
+        && cy >= (h.y - h.h/2) && cy <= (h.y + h.h/2);
+  }
+
+  // Mousedown: if it lands on a measurement label, start a drag.
+  // Window-level move / up listeners are wired ONCE in
+  // _matRoofMapSetupGlobalDrag() so re-renders don't accumulate
+  // listeners.
+  window._matRoofMapDrag = null;
+  canvas.addEventListener('mousedown', function(ev){
+    var p = _mxy(ev);
+    for (var i = 0; i < canvas._measureHits.length; i++) {
+      var h = canvas._measureHits[i];
+      if (_inBox(h, p[0], p[1])) {
+        ev.preventDefault();
+        if (!DRAW.measLabelOffsets) DRAW.measLabelOffsets = {};
+        var existing = DRAW.measLabelOffsets[h.key] || [0, 0];
+        window._matRoofMapDrag = {
+          canvas: canvas, dpr: dpr,
+          key: h.key,
+          startX: p[0], startY: p[1],
+          baseX: existing[0], baseY: existing[1],
+          moved: false
+        };
+        return;
+      }
+    }
+    window._matRoofMapDrag = null;
+  });
+
+  canvas.onclick = function(ev){
+    var d = window._matRoofMapDrag;
+    if (d && d.moved) { window._matRoofMapDrag = null; return; }
+    var p = _mxy(ev);
+    _matRoofMapHandleClick(p[0], p[1]);
   };
+  _matRoofMapSetupGlobalDrag();
+}
+
+// One-time wiring of the window-level mousemove / mouseup for the
+// Materials Roof Map drag — re-running renderMatRoofMap many times
+// shouldn't keep stacking listeners. window._matRoofMapDragWired
+// guards the setup.
+function _matRoofMapSetupGlobalDrag(){
+  if (window._matRoofMapDragWired) return;
+  window._matRoofMapDragWired = true;
+  window.addEventListener('mousemove', function(ev){
+    var d = window._matRoofMapDrag; if (!d || !d.canvas) return;
+    var r = d.canvas.getBoundingClientRect();
+    var bx = (ev.clientX - r.left) * (d.canvas.width / r.width);
+    var by = (ev.clientY - r.top)  * (d.canvas.height / r.height);
+    var cx = bx / d.dpr, cy = by / d.dpr;
+    var dx = cx - d.startX, dy = cy - d.startY;
+    if (Math.hypot(dx, dy) > 3) d.moved = true;
+    if (!DRAW.measLabelOffsets) DRAW.measLabelOffsets = {};
+    DRAW.measLabelOffsets[d.key] = [d.baseX + dx, d.baseY + dy];
+    try { redrawAll(); } catch(e){}
+    try { renderMatRoofMap(); } catch(e){}
+  });
+  window.addEventListener('mouseup', function(){
+    if (window._matRoofMapDrag) window._matRoofMapDrag = null;
+  });
 }
 
 // Draw flashing-letter tags onto a 2D context that's been transformed
