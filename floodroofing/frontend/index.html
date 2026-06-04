@@ -710,14 +710,15 @@ select{
    holds a fixed height; the image inside fits within both axes
    (object-fit:contain) so a portrait roof doesn't get squeezed to a
    thumbnail. */
-.mat-print-page#matPrintPage1 #matPrintRoofMap{height:100mm;display:flex;align-items:center;justify-content:center;background:#fafafa;border:1px solid #d1d5db;border-radius:4px;overflow:hidden}
+.mat-print-page#matPrintPage1 #matPrintRoofMap{display:flex;align-items:center;justify-content:center;background:#fafafa;border:1px solid #d1d5db;border-radius:4px;overflow:hidden}
 .mat-print-page#matPrintPage1 #matPrintRoofMap img{max-width:100%;max-height:100%;width:auto;height:auto;border:none;border-radius:0;background:transparent;display:block}
 .mat-print-page#matPrintPage1 #matPrintSheetPlan{overflow:hidden}
 .mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof{page-break-inside:avoid;break-inside:avoid;margin-bottom:4mm;display:flex;flex-direction:column;align-items:center;background:#fafafa;border:1px solid #d1d5db;border-radius:4px;padding:3mm}
-.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof img{max-height:60mm;max-width:100%;width:auto;height:auto;object-fit:contain;border:none;background:transparent;display:block;margin:0 auto}
-/* Two-up layout: Roof Map left, Sheet Layout right when there's
-   horizontal room. Falls back to stacked on narrow renders. */
-.mat-print-page#matPrintPage1 .mp-twoup{display:grid;grid-template-columns:1fr 1fr;gap:6mm;align-items:start;margin-top:4mm}
+.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof img{max-width:100%;width:auto;height:auto;object-fit:contain;border:none;background:transparent;display:block;margin:0 auto}
+/* Stacked layout by default — Roof Map full width, Sheet Layout
+   below. Override via _matSetPrintTwoUp(true) for side-by-side. */
+.mat-print-page#matPrintPage1 .mp-twoup{display:grid;grid-template-columns:1fr;gap:5mm;align-items:start;margin-top:4mm}
+.mat-print-page#matPrintPage1 .mp-twoup.is-twoup{grid-template-columns:1fr 1fr;gap:6mm}
 .mat-print-page#matPrintPage1 .mp-twoup .mp-h{margin-top:0}
 .mat-print-page .mp-spec-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 14px;font-size:11px;color:#0a1628;margin:8px 0 12px}
 .mat-print-page .mp-spec-grid .lbl{color:#6f6a60;font-weight:500}
@@ -1935,29 +1936,25 @@ select{
        tools (esp. on mobile). The Probe + Inspect Job buttons hit
        /fergus-files/probe and /fergus/jobs/{id} so we can discover
        the correct upload endpoint for the tenant. -->
-  <!-- Print preview — collapsed by default. Opens a scaled-down
-       view of the two A4 pages as they'll be saved to PDF, with a
-       roof-map height knob so the user can crop / rotate without
-       opening the actual print dialog. -->
+  <!-- Print designer — opens a per-page layout editor where the user
+       can resize, position and zoom each image (Roof Map + Sheet
+       Layout) on each printed page. Settings persist in localStorage
+       so the actual print uses the same crop / position. -->
   <details class="card" id="matPrintPreviewCard" style="margin-top:.5rem" onclick="setTimeout(_matRefreshPrintPreview,150)">
-    <summary class="card-hd" style="cursor:pointer"><span class="card-dot"></span>Print preview
-      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— click to expand · adjust the layout before saving the PDF</span>
+    <summary class="card-hd" style="cursor:pointer"><span class="card-dot"></span>Print designer
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— click to expand · adjust each page before saving the PDF</span>
     </summary>
     <div style="padding:14px 0 4px">
-      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:11.5px;color:var(--text2)">
-        <label style="display:flex;align-items:center;gap:6px">Roof map max height
-          <input type="range" id="matPrintRoofHt" min="40" max="160" step="5" value="100"
-                 oninput="_matSetPrintRoofHt(this.value)" style="width:120px;margin:0">
-          <span id="matPrintRoofHtOut" style="font-variant-numeric:tabular-nums;color:var(--text)">100</span>mm
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+        <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text2);cursor:pointer">
+          <input type="checkbox" id="matPrintTwoUp" onchange="_matSetPrintTwoUp(this.checked)" style="margin:0;width:auto"> Side-by-side layout (Roof Map + Sheet Layout)
         </label>
-        <label style="display:flex;align-items:center;gap:6px">Sheet layout max height
-          <input type="range" id="matPrintSheetHt" min="30" max="120" step="5" value="60"
-                 oninput="_matSetPrintSheetHt(this.value)" style="width:120px;margin:0">
-          <span id="matPrintSheetHtOut" style="font-variant-numeric:tabular-nums;color:var(--text)">60</span>mm
-        </label>
-        <button onclick="_matRefreshPrintPreview()" class="mat-btn mat-btn-dark" style="padding:6px 12px;font-size:12px;margin-left:auto">↻ Refresh preview</button>
+        <button onclick="_matResetPrintDesign()" class="mat-btn" style="padding:6px 12px;font-size:11.5px;background:#fff;border:1px solid var(--border);color:#0a1628">↺ Reset all positions</button>
+        <button onclick="_matResetHiddenFlashings()" class="mat-btn" style="padding:6px 12px;font-size:11.5px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b" title="Un-hide every flashing entry that was deleted from the cut list — fixes empty ridge / hip cut list">⟲ Reset hidden flashings</button>
+        <button onclick="_matRefreshPrintPreview()" class="mat-btn mat-btn-dark" style="padding:6px 12px;font-size:11.5px;margin-left:auto">↻ Rebuild preview</button>
       </div>
-      <div id="matPrintPreviewOut" style="background:#e2e8f0;padding:18px;border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:18px;overflow:auto;max-height:780px">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:10px;font-style:italic">Drag the dotted-blue handles in each image box to resize. Use the sliders for fine zoom + position. Each page mirrors what'll print to PDF.</div>
+      <div id="matPrintPreviewOut" style="background:#e2e8f0;padding:18px;border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:24px;overflow:auto;max-height:900px">
         <div style="font-size:12px;color:#475569;font-style:italic">Click Refresh to build the preview.</div>
       </div>
     </div>
@@ -10545,43 +10542,143 @@ function _setMatRoofMapFontScale(v){
   try { redrawAll(); } catch(e){}
   try { renderMatRoofMap(); } catch(e){}
 }
-// Print preview height knobs — write inline style overrides on the
-// print CSS rules so the live print pages also pick them up. Saved
-// in localStorage so the next print uses the same cap.
-function _matSetPrintRoofHt(v){
-  var n = parseInt(v, 10); if (!isFinite(n) || n < 30) n = 30; if (n > 200) n = 200;
-  try { localStorage.setItem('fr_print_roof_ht', String(n)); } catch(e){}
-  var out = document.getElementById('matPrintRoofHtOut'); if (out) out.textContent = n;
-  _matApplyPrintHeights();
+// ─── Print designer ─────────────────────────────────────────────────
+// Per-element layout state, persisted in localStorage. Each printable
+// image (roof map, sheet layout) is editable independently: width %,
+// height mm cap, x/y nudge, zoom scale + origin. The same numbers
+// drive both the on-screen preview and the actual print pages — we
+// inject a <style> tag the print stylesheet inherits.
+var _MAT_PRINT_DESIGN_KEY = 'fr_print_design_v2';
+function _matPrintDesignDefaults(){
+  return {
+    twoUp: false,
+    roof:  { widthPct: 100, heightMm: 130, offX: 0, offY: 0, zoom: 1 },
+    sheet: { widthPct: 100, heightMm: 110, offX: 0, offY: 0, zoom: 1 }
+  };
+}
+function _matPrintDesign(){
+  try {
+    var raw = localStorage.getItem(_MAT_PRINT_DESIGN_KEY);
+    if (raw) {
+      var d = JSON.parse(raw);
+      var def = _matPrintDesignDefaults();
+      // Merge with defaults so a missing field never crashes the
+      // designer after a schema bump.
+      ['roof','sheet'].forEach(function(k){
+        d[k] = Object.assign({}, def[k], d[k] || {});
+      });
+      if (typeof d.twoUp !== 'boolean') d.twoUp = false;
+      return d;
+    }
+  } catch(e){}
+  return _matPrintDesignDefaults();
+}
+function _matSavePrintDesign(d){
+  try { localStorage.setItem(_MAT_PRINT_DESIGN_KEY, JSON.stringify(d)); } catch(e){}
+  _matApplyPrintDesign();
+}
+function _matSetPrintTwoUp(on){
+  var d = _matPrintDesign();
+  d.twoUp = !!on;
+  _matSavePrintDesign(d);
   _matRefreshPrintPreview();
 }
-function _matSetPrintSheetHt(v){
-  var n = parseInt(v, 10); if (!isFinite(n) || n < 20) n = 20; if (n > 200) n = 200;
-  try { localStorage.setItem('fr_print_sheet_ht', String(n)); } catch(e){}
-  var out = document.getElementById('matPrintSheetHtOut'); if (out) out.textContent = n;
-  _matApplyPrintHeights();
+function _matSetPrintField(part, field, v){
+  var d = _matPrintDesign();
+  if (!d[part]) return;
+  d[part][field] = +v;
+  _matSavePrintDesign(d);
+  // Live-update the preview without a full rebuild — find the matching
+  // wrapper(s) and re-apply the transform / size.
+  document.querySelectorAll('[data-mp-part="'+part+'"]').forEach(function(box){
+    _matApplyDesignToBox(box, d[part]);
+  });
+  // Refresh slider readouts
+  var out = document.getElementById('mp_' + part + '_' + field + '_out');
+  if (out) out.textContent = (field === 'widthPct') ? (v + '%')
+                          : (field === 'heightMm') ? (v + 'mm')
+                          : (field === 'zoom')     ? (Number(v).toFixed(2) + '×')
+                          : (v + 'px');
+}
+function _matResetPrintDesign(){
+  try { localStorage.removeItem(_MAT_PRINT_DESIGN_KEY); } catch(e){}
+  _matApplyPrintDesign();
   _matRefreshPrintPreview();
 }
-// Inject / refresh a <style> tag that pins the max-heights to the
-// user's chosen values.  Inline on the print pages too so the preview
-// renders identically to the actual PDF.
-function _matApplyPrintHeights(){
-  var rh = parseInt(localStorage.getItem('fr_print_roof_ht')  || '100', 10);
-  var sh = parseInt(localStorage.getItem('fr_print_sheet_ht') || '60',  10);
-  var id = '__matPrintHeightsCss';
+// Clear every `hidden` flag on flashLayoutOverrides — fixes the
+// "Ridge cut list empty" case when the user has accidentally deleted
+// every ridge/hip via the click-popup × button.
+function _matResetHiddenFlashings(){
+  if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
+  var n = 0;
+  Object.keys(DRAW.flashLayoutOverrides).forEach(function(k){
+    var ov = DRAW.flashLayoutOverrides[k];
+    if (ov && ov.hidden) { delete ov.hidden; n++; }
+  });
+  try { redrawAll(); } catch(e){}
+  try { renderMatRoofMap(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+  try { _matRefreshPrintPreview(); } catch(e){}
+  alert(n ? ('Restored ' + n + ' hidden flashing(s).') : 'No hidden flashings to restore.');
+}
+// Apply one part's design (widthPct / heightMm / offX / offY / zoom)
+// to a DOM box. Box layout: width comes from widthPct; height from
+// heightMm; child img/canvas is positioned via translate + scale.
+function _matApplyDesignToBox(box, part){
+  if (!box || !part) return;
+  box.style.width  = part.widthPct + '%';
+  box.style.height = part.heightMm + 'mm';
+  // The inner content layer carries the transform so the BOX edges
+  // remain a clean clip frame the user can see + drag.
+  var inner = box.querySelector('.mp-img-inner');
+  if (inner) {
+    inner.style.transform = 'translate(' + part.offX + 'px,' + part.offY + 'px) scale(' + part.zoom + ')';
+    inner.style.transformOrigin = 'center center';
+  }
+}
+// Inject a <style> tag so the ACTUAL print (window.print) carries the
+// same design as the on-screen preview.
+function _matApplyPrintDesign(){
+  var d = _matPrintDesign();
+  var id = '__matPrintDesignCss';
   var st = document.getElementById(id);
-  if (!st) {
-    st = document.createElement('style');
-    st.id = id;
-    document.head.appendChild(st);
+  if (!st) { st = document.createElement('style'); st.id = id; document.head.appendChild(st); }
+  // Two-up class hook on the live print page.
+  var p1 = document.getElementById('matPrintPage1');
+  if (p1) {
+    var tu = p1.querySelector('.mp-twoup');
+    if (tu) tu.classList.toggle('is-twoup', !!d.twoUp);
   }
   st.textContent =
-    '.mat-print-page#matPrintPage1 #matPrintRoofMap img{max-height:'+rh+'mm!important}'+
-    '.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof img{max-height:'+sh+'mm!important}';
+    // Roof Map image: width + max-height + transform
+    '.mat-print-page#matPrintPage1 #matPrintRoofMap{width:' + d.roof.widthPct + '%!important;height:' + d.roof.heightMm + 'mm!important;margin-left:auto!important;margin-right:auto!important;overflow:hidden!important}' +
+    '.mat-print-page#matPrintPage1 #matPrintRoofMap img{max-width:none!important;max-height:none!important;width:auto!important;height:100%!important;transform:translate(' + d.roof.offX + 'px,' + d.roof.offY + 'px) scale(' + d.roof.zoom + ')!important;transform-origin:center center!important}' +
+    // Sheet Plan: width + max-height applied to every per-roof block image
+    '.mat-print-page#matPrintPage1 #matPrintSheetPlan{width:' + d.sheet.widthPct + '%!important;margin-left:auto!important;margin-right:auto!important}' +
+    '.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof{height:' + d.sheet.heightMm + 'mm!important;overflow:hidden!important;justify-content:center!important}' +
+    '.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof img{max-height:none!important;height:auto!important;max-width:100%!important;transform:translate(' + d.sheet.offX + 'px,' + d.sheet.offY + 'px) scale(' + d.sheet.zoom + ')!important;transform-origin:center center!important}';
 }
-// Build the two print pages off-screen, then clone them into the
-// preview panel at A4 scale-down so the user sees what the PDF will
-// look like and can adjust the heights live.
+// Slider strip for one print part. Each row is label + range + readout.
+function _matPrintPartControlsHtml(part, design){
+  var ranges = [
+    ['widthPct', 'Width',  20, 100, 1, design.widthPct + '%'],
+    ['heightMm', 'Height', 30, 200, 1, design.heightMm + 'mm'],
+    ['offX',     'X nudge',-200, 200, 1, design.offX + 'px'],
+    ['offY',     'Y nudge',-200, 200, 1, design.offY + 'px'],
+    ['zoom',     'Zoom',   0.3, 3, 0.05, Number(design.zoom).toFixed(2) + '×']
+  ];
+  return ranges.map(function(r){
+    return '<div style="display:grid;grid-template-columns:64px 1fr 56px;align-items:center;gap:6px;font-size:10.5px;color:#475569">'+
+      '<span>'+r[1]+'</span>'+
+      '<input type="range" min="'+r[2]+'" max="'+r[3]+'" step="'+r[4]+'" value="'+design[r[0]]+'"'+
+      ' oninput="_matSetPrintField(\''+part+'\',\''+r[0]+'\',this.value)" style="margin:0;width:100%">'+
+      '<span id="mp_'+part+'_'+r[0]+'_out" style="font-variant-numeric:tabular-nums;color:#0a1628;text-align:right">'+r[5]+'</span>'+
+    '</div>';
+  }).join('');
+}
+// Build the two print pages off-screen, then render each into the
+// designer as a large editable A4 sheet. Designer adds in-place image
+// frames the user can resize via sliders.
 function _matRefreshPrintPreview(){
   var out = document.getElementById('matPrintPreviewOut'); if (!out) return;
   var card = document.getElementById('matPrintPreviewCard');
@@ -10589,33 +10686,92 @@ function _matRefreshPrintPreview(){
   try {
     if (typeof _matBuildPrintPages === 'function') _matBuildPrintPages();
   } catch(e){ out.innerHTML = '<div style="color:#b91c1c;font-size:12px">Couldn\'t build preview: '+e.message+'</div>'; return; }
-  _matApplyPrintHeights();
+  _matApplyPrintDesign();
+  var d = _matPrintDesign();
+  // Sync the two-up checkbox state.
+  var tuChk = document.getElementById('matPrintTwoUp');
+  if (tuChk) tuChk.checked = !!d.twoUp;
   out.innerHTML = '';
   var pages = ['matPrintPage1', 'matPrintPage2']
     .map(function(id){ return document.getElementById(id); })
     .filter(Boolean);
   if (!pages.length) { out.innerHTML = '<div style="color:#b91c1c;font-size:12px">No print pages found.</div>'; return; }
+  // A4 portrait = 210 × 297 mm. Render at 2.4 px/mm → 504 × 713 px
+  // (about 80% wider than the previous preview, so the user can
+  // actually see what they're cropping).
+  var MM = 2.4;
   pages.forEach(function(p, i){
-    var clone = p.cloneNode(true);
-    // A4 = 210 × 297 mm.  Render at 2 px / mm so each page is
-    // 420 × 594 px in the preview (about 60% of A4 actual size).
-    clone.style.cssText = 'display:block;background:#fff;width:420px;min-height:594px;padding:14mm;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;color:#0a1628;font-size:11px;box-shadow:0 4px 12px rgba(0,0,0,.18);border-radius:4px;margin:0';
     var lbl = document.createElement('div');
     lbl.style.cssText = 'font-size:11px;font-weight:700;color:#475569;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;align-self:flex-start;padding-left:6px';
-    lbl.textContent = 'Page ' + (i + 1);
+    lbl.textContent = 'Page ' + (i + 1) + ' — A4 portrait';
     out.appendChild(lbl);
+    var clone = p.cloneNode(true);
+    clone.style.cssText = 'display:block;background:#fff;width:' + (210 * MM) + 'px;min-height:' + (297 * MM) + 'px;padding:14mm;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;color:#0a1628;font-size:11px;box-shadow:0 4px 14px rgba(0,0,0,.22);border-radius:4px;margin:0';
+    // Page 1: wrap the Roof Map + Sheet Plan images with editable
+    // frames so the designer sliders have something to drive.
+    if (i === 0) {
+      var tu = clone.querySelector('.mp-twoup');
+      if (tu) tu.classList.toggle('is-twoup', !!d.twoUp);
+      _matWrapPreviewImage(clone, '#matPrintRoofMap',   'roof',  d.roof);
+      _matWrapPreviewImage(clone, '#matPrintSheetPlan', 'sheet', d.sheet);
+    }
     out.appendChild(clone);
+    // Per-page control strip — only Page 1 has editable images today.
+    if (i === 0) {
+      var controls = document.createElement('div');
+      controls.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:14px;width:' + (210 * MM) + 'px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:10px 12px;box-sizing:border-box';
+      controls.innerHTML =
+        '<div>' +
+          '<div style="font-size:11px;font-weight:700;color:#0a1628;margin-bottom:6px">Roof Map</div>' +
+          _matPrintPartControlsHtml('roof', d.roof) +
+        '</div>' +
+        '<div>' +
+          '<div style="font-size:11px;font-weight:700;color:#0a1628;margin-bottom:6px">Sheet Layout</div>' +
+          _matPrintPartControlsHtml('sheet', d.sheet) +
+        '</div>';
+      out.appendChild(controls);
+    }
   });
+}
+// Wrap an image mount inside the cloned print page with an editable
+// frame: shows the box outline + a translate/scale-able inner layer.
+function _matWrapPreviewImage(rootClone, selector, partKey, design){
+  var src = rootClone.querySelector(selector);
+  if (!src) return;
+  // Move the original content into an inner layer the design
+  // transform can drive without affecting the outer frame.
+  var inner = document.createElement('div');
+  inner.className = 'mp-img-inner';
+  inner.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;will-change:transform';
+  while (src.firstChild) inner.appendChild(src.firstChild);
+  // Make the img inside fill the inner box rather than the original
+  // max-height/contain that the print CSS gives it.
+  inner.querySelectorAll('img').forEach(function(im){
+    im.style.maxWidth = 'none';
+    im.style.maxHeight = 'none';
+    im.style.width = 'auto';
+    im.style.height = '100%';
+    im.style.display = 'block';
+  });
+  src.appendChild(inner);
+  src.setAttribute('data-mp-part', partKey);
+  src.style.position = 'relative';
+  src.style.outline = '2px dashed #3b82f6';
+  src.style.outlineOffset = '0';
+  src.style.background = '#fafafa';
+  src.style.overflow = 'hidden';
+  src.style.display = 'block';
+  src.style.margin = '0 auto';
+  _matApplyDesignToBox(src, design);
 }
 
 function _syncPrintHeightUi(){
-  var rh = parseInt(localStorage.getItem('fr_print_roof_ht')  || '100', 10);
-  var sh = parseInt(localStorage.getItem('fr_print_sheet_ht') || '60',  10);
-  var ri = document.getElementById('matPrintRoofHt');   if (ri) ri.value = rh;
-  var ro = document.getElementById('matPrintRoofHtOut');if (ro) ro.textContent = rh;
-  var si = document.getElementById('matPrintSheetHt');  if (si) si.value = sh;
-  var so = document.getElementById('matPrintSheetHtOut');if (so) so.textContent = sh;
-  _matApplyPrintHeights();
+  // Schema-bump shim: apply the saved design's CSS and the two-up
+  // checkbox state when the user opens the Materials tab.
+  _matApplyPrintDesign();
+  var d = _matPrintDesign();
+  var tuChk = document.getElementById('matPrintTwoUp');
+  if (tuChk) tuChk.checked = !!d.twoUp;
 }
 
 function _syncMatRoofMapFontScaleUi(){
