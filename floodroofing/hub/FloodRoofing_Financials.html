@@ -356,12 +356,6 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <button class="btn btn-a" id="mkt-sync-btn" onclick="syncMarketing()">⟳ Sync marketing from Fergus</button>
       <div class="note" id="mkt-note"></div>
     </div>
-
-    <div class="card">
-      <div class="ct">Won / accepted stages</div>
-      <input class="sel" id="mkt-accept" oninput="saveMktCfg()" placeholder="won, accepted, active, scheduled, completed, invoiced">
-      <div class="note" id="mkt-stages" style="margin-top:9px;"></div>
-    </div>
   </div>
 
 </div><!-- /app -->
@@ -423,8 +417,7 @@ let cfg=S.get('fwCfg',{teams:4,size:2,hrs:8});
 let xeroMonthly=S.get('xeroMonthly',{});     // { 'Mon-YYYY': {rev,gp,opex,np,wages} } from Xero monthly P&L
 let xeroReports={};                          // { 'Mon-YYYY': full Xero report } cached in-memory for instant breakdown
 let plSelected='';                           // month currently shown in the P&L breakdown
-let mkt=S.get('mkt',null);                    // cached marketing scan: {rows:[{status,created,q,b}], statuses, scanned, ts}
-const MKT_ACCEPT_DEFAULT='won, accepted, active, in progress, scheduled, completed, invoiced, paid';
+let mkt=S.get('mkt',null);                    // cached marketing: {leads:[{createdAt}], quotes:[{total,quoteDate,sentAt,acceptedAt,isSent,isAccepted}], ts}
 let xeroLive=false;
 let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (render→pull→render loops)
 // Growth Structure scenario planner. teams/size = the what-if crew; base = the crew that
@@ -1155,74 +1148,88 @@ function renderGrowth(){
     'More crews spread the fixed overhead → opex% drops while opex$ rises.';
 }
 
-// ════════ MARKETING / SALES FUNNEL ════════
-// Enquiries = jobs created; Quotes sent = jobs with a quoted $; Accepted = won/active/etc
-// (matched by status keyword) or already billed. Scanned from recent Fergus jobs.
+// ════════ MARKETING / SALES FUNNEL ════════ (ported from the v6 hub — uses the real Fergus
+// /enquiries + /jobs/quotes endpoints, which carry isSent / isAccepted / acceptedAt / totals).
+function mondayMs(){const x=new Date();x.setHours(0,0,0,0);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);return x.getTime();}
+// Follow Fergus pagination (paging.links.next) up to maxPages.
+async function fergusPaginate(path,maxPages){
+  let all=[],url=path,pages=0;
+  while(url&&pages<maxPages){
+    const json=await fergusApiFetch(url);
+    all=all.concat(Array.isArray(json)?json:(json.data||json.jobs||json.results||[]));
+    let nx=json&&json.paging&&json.paging.links&&json.paging.links.next;
+    if(nx&&/^https?:\/\//.test(nx))nx=nx.replace(/^https?:\/\/[^/]+/,'');   // proxy needs a path, not a full URL
+    url=nx||null;pages++;
+  }
+  return all;
+}
 async function syncMarketing(){
   if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
   const btn=document.getElementById('mkt-sync-btn');
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Scanning…';}
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Syncing…';}
   try{
-    const jobs=await fergusFetchJobs();           // recent jobs, all statuses
-    const list=jobs.slice(0,120);
-    const rows=[],statuses={};let idx=0,done=0;
-    async function worker(){
-      while(idx<list.length){
-        const j=list[idx++];
-        const status=(j.status||'').trim();statuses[status]=(statuses[status]||0)+1;
-        const created=new Date(j.createdAt||j.dateCreated||j.lastModified||Date.now()).getTime();
-        const jid=j.id!=null?j.id:(j.jobId!=null?j.jobId:(j.jobNo||j.jobNumber));
-        let s=null;try{s=await fergusFetchFinancialSummary(jid);}catch(e){}
-        rows.push({status,created,q:num(s&&s.quoteSummary&&s.quoteSummary.quotedAmount),b:num(s&&s.totalBilled&&s.totalBilled.total)});
-        done++;if(done%5===0||done===list.length)toast('Marketing… '+done+'/'+list.length);
-      }
-    }
-    await Promise.all(Array.from({length:Math.min(4,list.length)},()=>worker()));
-    mkt={rows,statuses,scanned:list.length,ts:new Date().toLocaleString('en-NZ')};
-    S.set('mkt',mkt);renderMkt();toast('Marketing updated ✓','ok');
+    toast('Marketing: enquiries…');
+    const enq=await fergusPaginate('/enquiries?pageSize=100&sortField=createdAt&sortOrder=desc',6);
+    const enqJobIds=new Set();enq.forEach(e=>(e.jobIds||[]).forEach(id=>enqJobIds.add(String(id))));
+    toast('Marketing: jobs…');
+    const jobs=await fergusPaginate('/jobs?pageSize=100&sortField=createdAt&sortOrder=desc',5);
+    // Leads = web enquiries + jobs created directly in Fergus (not already counted via an enquiry)
+    const leads=enq.map(e=>({createdAt:e.createdAt}))
+      .concat(jobs.filter(j=>!enqJobIds.has(String(j.id))).map(j=>({createdAt:j.createdAt})));
+    toast('Marketing: quotes…');
+    const qs=await fergusPaginate('/jobs/quotes?pageSize=100&sortField=createdAt&sortOrder=desc',12);
+    const byJob={};
+    qs.forEach(q=>{
+      if(q.isDraft||q.voidedAt)return;   // ignore drafts & voided (accepted quotes show as superseded in Fergus)
+      const cur=byJob[q.jobId];let better;
+      if(!cur)better=true;else if(!!q.isAccepted!==!!cur.isAccepted)better=!!q.isAccepted;else better=(q.versionNumber||0)>(cur.versionNumber||0);
+      if(better)byJob[q.jobId]={total:(q.totals&&q.totals.total)||0,quoteDate:q.quoteDate,sentAt:q.publishedAt,acceptedAt:q.acceptedAt,isSent:!!q.isSent,isAccepted:!!q.isAccepted,versionNumber:q.versionNumber};
+    });
+    const quotes=Object.values(byJob);
+    mkt={leads,quotes,ts:new Date().toLocaleString('en-NZ'),nE:leads.length,nQ:quotes.length,nSent:quotes.filter(q=>q.isSent).length,nAcc:quotes.filter(q=>q.isAccepted).length};
+    S.set('mkt',mkt);renderMkt();
+    toast('Marketing ✓ '+leads.length+' leads · '+mkt.nSent+' sent · '+mkt.nAcc+' won','ok');
   }catch(err){console.error(err);toast(fergusErrMsg(err).split('\n')[0],'err');}
   finally{if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync marketing from Fergus';}}
 }
-function saveMktCfg(){S.set('mktAcceptKw',(document.getElementById('mkt-accept').value||'').trim());renderMkt();}
-// Recompute the funnel from cached rows using the current accepted-status keywords + today's date.
+// Bucket the funnel into this-week (since Monday) and this-month, by the right date for each stage.
 function mktAgg(){
-  const rows=(mkt&&mkt.rows)||[];
-  const acc=(S.get('mktAcceptKw',MKT_ACCEPT_DEFAULT)||'').toLowerCase().split(',').map(t=>t.trim()).filter(Boolean);
-  const now=Date.now(),wk=now-7*864e5,d=new Date(),ms=new Date(d.getFullYear(),d.getMonth(),1).getTime();
-  const mk=()=>({enq:0,quo:0,acc:0,acc$:0});const agg={wk:mk(),mo:mk(),all:mk()};
-  rows.forEach(r=>{const quoted=r.q>0;const accepted=(acc.some(t=>(r.status||'').toLowerCase().includes(t)))||r.b>0;const val=r.q||r.b;
-    const apply=o=>{o.enq++;if(quoted)o.quo++;if(accepted){o.acc++;o.acc$+=val;}};
-    apply(agg.all);if(r.created>=ms)apply(agg.mo);if(r.created>=wk)apply(agg.wk);});
-  return agg;
+  const mk=()=>({enq:0,sent:0,sentVal:0,acc:0,accVal:0});const a={wk:mk(),mo:mk()};
+  if(!mkt)return a;
+  const mon=mondayMs(),d=new Date(),ms=new Date(d.getFullYear(),d.getMonth(),1).getTime();
+  const T=ds=>{const x=new Date(ds);return isNaN(x)?null:x.getTime();};
+  (mkt.leads||[]).forEach(l=>{const t=T(l.createdAt);if(t==null)return;if(t>=ms)a.mo.enq++;if(t>=mon)a.wk.enq++;});
+  (mkt.quotes||[]).forEach(q=>{
+    const sd=T(q.sentAt||q.quoteDate);
+    if(q.isSent&&sd!=null){if(sd>=ms){a.mo.sent++;a.mo.sentVal+=q.total;}if(sd>=mon){a.wk.sent++;a.wk.sentVal+=q.total;}}
+    const ad=T(q.acceptedAt);
+    if(q.isAccepted&&ad!=null){if(ad>=ms){a.mo.acc++;a.mo.accVal+=q.total;}if(ad>=mon){a.wk.acc++;a.wk.accVal+=q.total;}}
+  });
+  return a;
 }
 function mktGrid(o){
-  const conv=o.quo>0?Math.round(o.acc/o.quo*100):0;
-  return mb('Enquiries',String(o.enq),'new jobs','','m-rev')+
-    mb('Quotes sent',String(o.quo),'with a $ quote','','m-opex')+
+  const conv=o.sent>0?Math.round(o.acc/o.sent*100):0;
+  return mb('Enquiries',String(o.enq),'new leads','','m-rev')+
+    mb('Quotes sent',String(o.sent),fmtK(o.sentVal)+' quoted','','m-opex')+
     mb('Accepted',String(o.acc),conv+'% of quotes',o.acc>0?'pos':'','m-gp')+
-    mb('$ Accepted',fmtK(o.acc$),'value won',o.acc$>0?'pos':'','m-np');
+    mb('$ Accepted',fmtK(o.accVal),'value won',o.accVal>0?'pos':'','m-np');
 }
 function renderMkt(){
-  const acEl=document.getElementById('mkt-accept');if(acEl&&!acEl.value)acEl.value=S.get('mktAcceptKw',MKT_ACCEPT_DEFAULT);
-  const d=new Date();document.getElementById('mkt-mo-lbl').textContent=FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();
-  if(!mkt||!mkt.rows||!mkt.rows.length){
+  const d=new Date();const lbl=document.getElementById('mkt-mo-lbl');if(lbl)lbl.textContent=FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();
+  if(!mkt||!mkt.quotes){
     document.getElementById('mkt-conv').textContent='—';
     document.getElementById('mkt-conv-sub').textContent='Tap “Sync marketing from Fergus”.';
     document.getElementById('mkt-week').innerHTML='<div class="empty" style="grid-column:1/-1;">No data yet.</div>';
-    document.getElementById('mkt-month').innerHTML='';
-    document.getElementById('mkt-ts').textContent='';document.getElementById('mkt-stages').textContent='';
-    document.getElementById('mkt-note').textContent='';return;
+    document.getElementById('mkt-month').innerHTML='';document.getElementById('mkt-ts').textContent='';document.getElementById('mkt-note').textContent='';return;
   }
   const a=mktAgg();
-  const conv=a.mo.quo>0?Math.round(a.mo.acc/a.mo.quo*100):0;
+  const conv=a.mo.sent>0?Math.round(a.mo.acc/a.mo.sent*100):0;
   document.getElementById('mkt-conv').textContent=conv+'%';
-  document.getElementById('mkt-conv-sub').textContent='this month: '+a.mo.acc+' of '+a.mo.quo+' quotes won · '+fmtK(a.mo.acc$)+' accepted';
+  document.getElementById('mkt-conv-sub').textContent='this month: '+a.mo.acc+' of '+a.mo.sent+' quotes won · '+fmtK(a.mo.accVal)+' accepted';
   document.getElementById('mkt-week').innerHTML=mktGrid(a.wk);
   document.getElementById('mkt-month').innerHTML=mktGrid(a.mo);
   document.getElementById('mkt-ts').textContent=mkt.ts?('· synced '+mkt.ts):'';
-  const st=Object.entries(mkt.statuses).sort((x,y)=>y[1]-x[1]).map(([k,v])=>esc(k||'(blank)')+' ('+v+')').join(' · ');
-  document.getElementById('mkt-stages').innerHTML='Fergus stages found (scanned '+mkt.scanned+' jobs): '+st+'.<br>Put your won/accepted stage names in the box above so “Accepted” counts correctly.';
-  document.getElementById('mkt-note').innerHTML='Conversion = accepted ÷ quotes sent. Counts are by job <b>created date</b> (this-week = last 7 days). Scans your '+mkt.scanned+' most-recent jobs — bump the limit if you do more than that a month.';
+  document.getElementById('mkt-note').innerHTML='From Fergus enquiries + quotes. Enquiries by created date · quotes by sent date · accepted by accepted date. This week = since Monday. Conversion = accepted ÷ quotes sent.'+(mkt.nQ!=null?(' (Scanned '+mkt.nE+' leads, '+mkt.nQ+' quotes.)'):'');
 }
 
 // ════════ NAV ════════
