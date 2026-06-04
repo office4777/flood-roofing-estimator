@@ -16343,10 +16343,30 @@ function renderMatRoofMap(){
   // Mousedown: if it lands on a measurement label, start a drag.
   // Window-level move / up listeners are wired ONCE in
   // _matRoofMapSetupGlobalDrag() so re-renders don't accumulate
-  // listeners.
-  window._matRoofMapDrag = null;
+  // listeners.  Do NOT reset window._matRoofMapDrag here — a render
+  // can fire mid-drag (mousemove calls renderMatRoofMap), and
+  // nulling the in-flight drag would drop the rest of the user's
+  // cursor motion (label appeared to barely move).
   canvas.addEventListener('mousedown', function(ev){
     var p = _mxy(ev);
+    // Letter tags drag from a separate offset map. Checked FIRST so
+    // letters that overlap a measurement still grab cleanly.
+    for (var li = 0; li < canvas._letterHits.length; li++) {
+      var lh = canvas._letterHits[li];
+      if (_inBox(lh, p[0], p[1])) {
+        ev.preventDefault();
+        if (!DRAW.flashLetterOffsets) DRAW.flashLetterOffsets = {};
+        var lExisting = DRAW.flashLetterOffsets[lh.key] || [0, 0];
+        window._matRoofMapDrag = {
+          canvas: canvas, dpr: dpr,
+          kind: 'letter', key: lh.key,
+          startX: p[0], startY: p[1],
+          baseX: lExisting[0], baseY: lExisting[1],
+          moved: false
+        };
+        return;
+      }
+    }
     for (var i = 0; i < canvas._measureHits.length; i++) {
       var h = canvas._measureHits[i];
       if (_inBox(h, p[0], p[1])) {
@@ -16355,7 +16375,7 @@ function renderMatRoofMap(){
         var existing = DRAW.measLabelOffsets[h.key] || [0, 0];
         window._matRoofMapDrag = {
           canvas: canvas, dpr: dpr,
-          key: h.key,
+          kind: 'measure', key: h.key,
           startX: p[0], startY: p[1],
           baseX: existing[0], baseY: existing[1],
           moved: false
@@ -16363,7 +16383,6 @@ function renderMatRoofMap(){
         return;
       }
     }
-    window._matRoofMapDrag = null;
   });
 
   canvas.onclick = function(ev){
@@ -16385,13 +16404,19 @@ function _matRoofMapSetupGlobalDrag(){
   window.addEventListener('mousemove', function(ev){
     var d = window._matRoofMapDrag; if (!d || !d.canvas) return;
     var r = d.canvas.getBoundingClientRect();
+    if (r.width <= 0) return;  // canvas detached / hidden
     var bx = (ev.clientX - r.left) * (d.canvas.width / r.width);
     var by = (ev.clientY - r.top)  * (d.canvas.height / r.height);
     var cx = bx / d.dpr, cy = by / d.dpr;
     var dx = cx - d.startX, dy = cy - d.startY;
     if (Math.hypot(dx, dy) > 3) d.moved = true;
-    if (!DRAW.measLabelOffsets) DRAW.measLabelOffsets = {};
-    DRAW.measLabelOffsets[d.key] = [d.baseX + dx, d.baseY + dy];
+    if (d.kind === 'letter') {
+      if (!DRAW.flashLetterOffsets) DRAW.flashLetterOffsets = {};
+      DRAW.flashLetterOffsets[d.key] = [d.baseX + dx, d.baseY + dy];
+    } else {
+      if (!DRAW.measLabelOffsets) DRAW.measLabelOffsets = {};
+      DRAW.measLabelOffsets[d.key] = [d.baseX + dx, d.baseY + dy];
+    }
     try { redrawAll(); } catch(e){}
     try { renderMatRoofMap(); } catch(e){}
   });
@@ -16461,6 +16486,12 @@ function _drawFlashLetterOverlaysOn(ctx, cssW, cssH){
       }
       placedLx = lx; placedLy = ly;
     }
+    // User-dragged offset on top of the auto placement so a letter
+    // can be nudged anywhere on the canvas without losing the leader
+    // anchor.
+    var _letterOff = (DRAW.flashLetterOffsets && DRAW.flashLetterOffsets[o.key]) || [0, 0];
+    placedLx += _letterOff[0];
+    placedLy += _letterOff[1];
     // Leader line from the line midpoint to the placed tag so the user
     // can tell which line the tag belongs to when it sits far out.
     ctx.strokeStyle = o.color || '#0a1628';
@@ -16646,7 +16677,22 @@ function _matBuildCutList(type, waste) {
   var pieces = [];
   labelled.forEach(function(o){
     if (!_matLineMatchesSection(o.line, type)) return;
-    pieces.push({ letter: o.letter, length: o.lengthM });
+    // Flashings over 8 m can't ship as a single sheet — split into
+    // multiple pieces with a 100 mm overlap distributed across them.
+    // Example: an 8.3 m run becomes 2 × 4.2 m  ((8.3 + 0.1) / 2).
+    // A 16 m run becomes 3 × 5.4 m  ((16 + 0.2) / 3 = 5.4).
+    var L = +o.lengthM;
+    if (L > 8 + 1e-6) {
+      var n = 2;
+      // Smallest n such that (L + 0.1*(n-1)) / n <= 8.
+      while ((L + 0.1 * (n - 1)) / n > 8 + 1e-6) n++;
+      var pieceLen = Math.ceil(((L + 0.1 * (n - 1)) / n) * 100) / 100;
+      for (var pp = 0; pp < n; pp++) {
+        pieces.push({ letter: o.letter, length: pieceLen, _split: n });
+      }
+    } else {
+      pieces.push({ letter: o.letter, length: L });
+    }
   });
   // Group identical (letter, length) into single rows. Pieces in the
   // same letter group always carry the same length by construction
