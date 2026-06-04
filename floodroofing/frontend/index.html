@@ -14193,42 +14193,36 @@ function redrawAll() {
     var _measKey = _measKeyFor(l);
     var _measFirst = !_drawnMeasKeys[_measKey];
 
-    // Label
-    if(l.label && _measFirst){
-      var mx=(lp0[0]+lp1[0])/2, my=(lp0[1]+lp1[1])/2;
-      var tw=ctx.measureText(l.label).width+6;
-      ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillRect(mx-tw/2,my-13,tw,15);
-      ctx.fillStyle=c; ctx.font='bold 11px sans-serif'; ctx.textAlign='center';
-      ctx.fillText(l.label,mx,my);
-    }
-    if(l.measM && !l.label && _measFirst){
-      var mmx=(lp0[0]+lp1[0])/2, mmy=(lp0[1]+lp1[1])/2;
-      var measStr=parseFloat(l.measM).toFixed(2)+'m';
-      // Per-line drag offset (set from the Materials Roof Map drag
-      // handler) shifts the label away from its auto centre so
-      // overlapping labels can be nudged clear without losing the
-      // anchor.
-      var _measOff = (DRAW.measLabelOffsets && DRAW.measLabelOffsets[_measKey]) || [0, 0];
-      // Font scaler — pulled from localStorage so the slider on the
-      // Materials Roof Map card affects BOTH the Map Roof canvas and
-      // the Materials mirror. Default 1.0×.
+    // Measurement / label render — unified. `calcLineMeasIfCalibrated`
+    // sets BOTH l.measM and l.label, so the visible tag is always the
+    // label text when available; otherwise we synthesise "X.XXm" from
+    // measM. Font size honours the Materials Roof Map text-size
+    // slider (fr_roofmap_font_scale) and the per-line drag offset
+    // (DRAW.measLabelOffsets[lineKey]) lets the user nudge the label
+    // away from its auto position on the Materials Roof Map.
+    if (_measFirst && (l.label || l.measM)) {
+      var labelStr = l.label || (parseFloat(l.measM).toFixed(2) + 'm');
+      var mmx = (lp0[0] + lp1[0]) / 2;
+      var mmy = (lp0[1] + lp1[1]) / 2;
       var _measScale = parseFloat(localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
       if (_measScale < 0.5) _measScale = 0.5;
       if (_measScale > 4)   _measScale = 4;
-      var measFontPx = Math.round(10 * _measScale);
+      var measFontPx = Math.round(11 * _measScale);
       ctx.font = 'bold ' + measFontPx + 'px sans-serif';
-      ctx.textAlign='center';
-      var mtw=ctx.measureText(measStr).width+6;
-      var mty=l.label?mmy+14:mmy+4;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      var mtw = ctx.measureText(labelStr).width + 6;
+      // Auto position: slightly below the line midpoint (matches the
+      // pre-scaler defaults so the layout doesn't shift on first load).
+      var mty = mmy + Math.max(2, Math.round(measFontPx * 0.35));
+      var _measOff = (DRAW.measLabelOffsets && DRAW.measLabelOffsets[_measKey]) || [0, 0];
       var mlx = mmx + _measOff[0];
       var mly = mty + _measOff[1];
-      var rh = measFontPx + 4;
-      ctx.fillStyle='rgba(255,255,255,0.6)';
-      ctx.fillRect(mlx-mtw/2, mly - measFontPx, mtw, rh);
-      ctx.fillStyle=c;
-      ctx.fillText(measStr, mlx, mly);
-      // Stash hit data for the Materials canvas drag handler. CSS-px
-      // coords (matches the way letter / sheet hits are stashed).
+      var rh  = measFontPx + 4;
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillRect(mlx - mtw/2, mly - measFontPx, mtw, rh);
+      ctx.fillStyle = c;
+      ctx.fillText(labelStr, mlx, mly);
       if (window._roofCanvasHits && window._roofCanvasHits.measures) {
         window._roofCanvasHits.measures.push({
           x: mlx, y: mly - measFontPx/2,
@@ -16323,6 +16317,15 @@ function renderMatRoofMap(){
   canvas._sheetHits   = (window._roofCanvasHits && window._roofCanvasHits.sheets)   || [];
   canvas._measureHits = (window._roofCanvasHits && window._roofCanvasHits.measures) || [];
   canvas._dpr = dpr;
+  // Mid-drag we keep replacing this canvas (each renderMatRoofMap
+  // rebuilds the DOM node), so re-point any in-flight drag at the
+  // fresh element AND copy the latest measure hits onto it. Without
+  // this the drag handler reads getBoundingClientRect() on a detached
+  // canvas and gets zeros.
+  if (window._matRoofMapDrag) {
+    window._matRoofMapDrag.canvas = canvas;
+    window._matRoofMapDrag.dpr    = dpr;
+  }
 
   // Helper: convert a pointer event to the canvas's CSS-px space
   // (same space the stashed hit rects use).
