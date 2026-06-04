@@ -428,6 +428,7 @@ function fergusAddr(x){if(!x)return '';if(typeof x==='string')return x;return [x
 // ════════ STATE ════════
 let page='dash';
 let bcFergus=S.get('bcFergus',[]);           // back-costing rows synced from Fergus (shared w/ Hub)
+let bcInvDates={};                            // {jobId: [non-void invoice dates, ascending]} for completion-date back-costing
 let fwJobs=S.get('fwJobs',[]);               // [{id,job,priced,actual,remaining,status}]
 let cfg=S.get('fwCfg',{teams:4,size:2,hrs:8});
 let xeroMonthly=S.get('xeroMonthly',{});     // { 'Mon-YYYY': {rev,gp,opex,np,wages} } from Xero monthly P&L
@@ -722,6 +723,22 @@ function gphrBox(f){
 async function syncBackCosting(activeJobs){
   if(!activeJobs)return;
   let changed=false;
+  // Invoice dates → back-cost each job to its 2nd (completion) invoice month, not lastModified/rework.
+  try{
+    const invs=await fergusPaginate('/jobs/invoices?pageSize=100&sortField=createdAt&sortOrder=desc',10);
+    const m={};
+    invs.forEach(iv=>{
+      if(iv.voidedAt||iv.isVoid||iv.voided||iv.isDraft)return;   // skip voided / draft
+      const jid=String(iv.jobId!=null?iv.jobId:(iv.job_id!=null?iv.job_id:iv.jobID));
+      const dt=iv.invoiceDate||iv.date||iv.issuedAt||iv.issuedDate||iv.publishedAt||iv.sentAt||iv.createdAt;
+      if(jid==='undefined'||jid==='null'||!dt)return;
+      (m[jid]||(m[jid]=[])).push(dt);
+    });
+    Object.keys(m).forEach(k=>m[k].sort((a,b)=>new Date(a)-new Date(b)));
+    bcInvDates=m;S.set('bc_inv_n',invs.length);
+    // retro-date already-stored rows to their completion-invoice month
+    bcFergus.forEach(r=>{const inv=bcInvDates[r._fergus_id];if(inv&&inv.length){const ds=inv.length>=2?inv[1]:inv[0];const d=new Date(ds);if(!isNaN(d)){const nd=d.toISOString().split('T')[0],nm=fergusMonthLabel(ds)||r.month;if(r.date!==nd||r.month!==nm){r.date=nd;r.month=nm;changed=true;}}}});
+  }catch(e){console.warn('bc invoices',e.message);}
   const completed=await fergusFetchJobs('Completed').catch(()=>[]);
   const seen={},jobs=[];
   completed.concat(activeJobs).forEach(j=>{const id=String(j.id!=null?j.id:j.jobId);if(!seen[id]){seen[id]=1;jobs.push(j);}});
@@ -735,6 +752,14 @@ async function syncBackCosting(activeJobs){
     if(upsertBC(job,summary))changed=true;
   }
   if(changed){S.set('bcFergus',bcFergus);}
+}
+// Back-cost a job to the month its COMPLETION invoice was raised — the 2nd non-void invoice
+// (50% deposit + 50% on completion). Avoids re-dating to a later rework / lastModified date.
+function bcDateFor(fid,job,s){
+  const inv=bcInvDates[String(fid)];
+  if(inv&&inv.length>=2)return inv[1];
+  if(inv&&inv.length>=1)return inv[0];
+  return (job&&(job.lastModified||(s&&s.lastUpdated)||job.createdAt))||'';
 }
 function upsertBC(job,summary){
   const fid=job.id!=null?job.id:(job.jobId!=null?job.jobId:(job.jobNo||job.jobNumber));
@@ -752,7 +777,7 @@ function upsertBC(job,summary){
   const gp=sales-cost;const gpm=sales>0?Math.round(gp/sales*1000)/10:0;
   const client=fergusName(job.customer)||fergusName(job.mainContact)||'Unknown';
   const site=fergusAddr(job.siteAddress);
-  const dateStr=job.lastModified||s.lastUpdated||job.createdAt||'';
+  const dateStr=bcDateFor(fid,job,s);
   const date=dateStr?new Date(dateStr).toISOString().split('T')[0]:td_str();
   const row={month:fergusMonthLabel(dateStr)||fergusMonthLabel(date),job:client+(site?(' — '+site):''),date,job_type:job.jobType||job.type||'Fergus',p_lab,a_lab,p_mat,a_mat,sales,gp,gpm,h_actual,h_priced,lead_src:'Fergus',_fergus:true,_fergus_id:String(fid),_lastModified:job.lastModified||''};
   const ix=bcFergus.findIndex(r=>r._fergus_id===String(fid));
@@ -788,7 +813,7 @@ function renderBC(){
     if(q&&!((r.job||'').toLowerCase().includes(q)))return false;
     return true;
   }).sort((a,b)=>bcMonthNum(b.month)-bcMonthNum(a.month));
-  document.getElementById('bc-count').textContent='· '+rows.length+' jobs';
+  document.getElementById('bc-count').textContent='· '+rows.length+' jobs'+(S.get('bc_inv_n',0)?' · dated by completion invoice':'');
   document.getElementById('bc-body').innerHTML=rows.length?rows.slice(0,400).map(r=>{
     const gp=num(r.gp),gpm=num(r.gpm);
     return '<tr><td>'+esc(r.month||'')+'</td><td>'+esc((r.job||'').slice(0,40))+(r._fergus?' <span class="mut">⚡</span>':'')+'</td><td>'+esc((r.job_type||'').replace('Re-Roof','RR'))+'</td><td>'+fmtK(r.sales)+'</td><td class="'+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td>'+(gpm?gpm+'%':'—')+'</td><td>'+(r.h_actual?fmtH(r.h_actual):'—')+'</td></tr>';
