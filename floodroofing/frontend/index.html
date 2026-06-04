@@ -706,11 +706,19 @@ select{
 .mat-print-page#matPrintPage1 #matPrintRoofMap img,
 .mat-print-page#matPrintPage1 #matPrintSheetPlan img,
 .mat-print-page#matPrintPage1 #matPrintSheetPlan canvas{display:block;max-width:100%;height:auto;border:1px solid #d1d5db;border-radius:4px;background:#fff}
-/* Sheet Layout: each per-roof block stays together. The plan image is
-   capped at a fraction of the A4 content area so 1- and 2-roof jobs
-   both fit in the budget allocated for the Sheet Layout section. */
-.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof{page-break-inside:avoid;break-inside:avoid;margin-bottom:6mm}
-.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof img{max-height:78mm;width:auto;max-width:100%;object-fit:contain}
+/* Roof Map + Sheet Layout fit on ONE A4 page together. The container
+   holds a fixed height; the image inside fits within both axes
+   (object-fit:contain) so a portrait roof doesn't get squeezed to a
+   thumbnail. */
+.mat-print-page#matPrintPage1 #matPrintRoofMap{height:100mm;display:flex;align-items:center;justify-content:center;background:#fafafa;border:1px solid #d1d5db;border-radius:4px;overflow:hidden}
+.mat-print-page#matPrintPage1 #matPrintRoofMap img{max-width:100%;max-height:100%;width:auto;height:auto;border:none;border-radius:0;background:transparent;display:block}
+.mat-print-page#matPrintPage1 #matPrintSheetPlan{overflow:hidden}
+.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof{page-break-inside:avoid;break-inside:avoid;margin-bottom:4mm;display:flex;flex-direction:column;align-items:center;background:#fafafa;border:1px solid #d1d5db;border-radius:4px;padding:3mm}
+.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof img{max-height:60mm;max-width:100%;width:auto;height:auto;object-fit:contain;border:none;background:transparent;display:block;margin:0 auto}
+/* Two-up layout: Roof Map left, Sheet Layout right when there's
+   horizontal room. Falls back to stacked on narrow renders. */
+.mat-print-page#matPrintPage1 .mp-twoup{display:grid;grid-template-columns:1fr 1fr;gap:6mm;align-items:start;margin-top:4mm}
+.mat-print-page#matPrintPage1 .mp-twoup .mp-h{margin-top:0}
 .mat-print-page .mp-spec-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 14px;font-size:11px;color:#0a1628;margin:8px 0 12px}
 .mat-print-page .mp-spec-grid .lbl{color:#6f6a60;font-weight:500}
 .mat-print-page .mp-spec-grid .val{font-weight:700}
@@ -1927,6 +1935,34 @@ select{
        tools (esp. on mobile). The Probe + Inspect Job buttons hit
        /fergus-files/probe and /fergus/jobs/{id} so we can discover
        the correct upload endpoint for the tenant. -->
+  <!-- Print preview — collapsed by default. Opens a scaled-down
+       view of the two A4 pages as they'll be saved to PDF, with a
+       roof-map height knob so the user can crop / rotate without
+       opening the actual print dialog. -->
+  <details class="card" id="matPrintPreviewCard" style="margin-top:.5rem" onclick="setTimeout(_matRefreshPrintPreview,150)">
+    <summary class="card-hd" style="cursor:pointer"><span class="card-dot"></span>Print preview
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— click to expand · adjust the layout before saving the PDF</span>
+    </summary>
+    <div style="padding:14px 0 4px">
+      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:11.5px;color:var(--text2)">
+        <label style="display:flex;align-items:center;gap:6px">Roof map max height
+          <input type="range" id="matPrintRoofHt" min="40" max="160" step="5" value="100"
+                 oninput="_matSetPrintRoofHt(this.value)" style="width:120px;margin:0">
+          <span id="matPrintRoofHtOut" style="font-variant-numeric:tabular-nums;color:var(--text)">100</span>mm
+        </label>
+        <label style="display:flex;align-items:center;gap:6px">Sheet layout max height
+          <input type="range" id="matPrintSheetHt" min="30" max="120" step="5" value="60"
+                 oninput="_matSetPrintSheetHt(this.value)" style="width:120px;margin:0">
+          <span id="matPrintSheetHtOut" style="font-variant-numeric:tabular-nums;color:var(--text)">60</span>mm
+        </label>
+        <button onclick="_matRefreshPrintPreview()" class="mat-btn mat-btn-dark" style="padding:6px 12px;font-size:12px;margin-left:auto">↻ Refresh preview</button>
+      </div>
+      <div id="matPrintPreviewOut" style="background:#e2e8f0;padding:18px;border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:18px;overflow:auto;max-height:780px">
+        <div style="font-size:12px;color:#475569;font-style:italic">Click Refresh to build the preview.</div>
+      </div>
+    </div>
+  </details>
+
   <details class="card" id="matFergusDebug" style="margin-top:.5rem">
     <summary class="card-hd" style="cursor:pointer"><span class="card-dot"></span>Fergus upload — diagnostics
       <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— tap when a push fails to see what each endpoint returned</span>
@@ -1950,10 +1986,16 @@ select{
   <div class="mat-print-page" id="matPrintPage1">
     <div class="mp-header" id="matPrintHeader1"></div>
     <div id="matPrintDrawTotals"></div>
-    <h2 class="mp-h">Roof Map</h2>
-    <div id="matPrintRoofMap"></div>
-    <h2 class="mp-h">Sheet Layout</h2>
-    <div id="matPrintSheetPlan"></div>
+    <div class="mp-twoup">
+      <div>
+        <h2 class="mp-h">Roof Map</h2>
+        <div id="matPrintRoofMap"></div>
+      </div>
+      <div>
+        <h2 class="mp-h">Sheet Layout</h2>
+        <div id="matPrintSheetPlan"></div>
+      </div>
+    </div>
   </div>
   <div class="mat-print-page" id="matPrintPage2">
     <div class="mp-header" id="matPrintHeader2"></div>
@@ -3166,7 +3208,7 @@ function gotoTab(t) {
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
-  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}}
+  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
@@ -10503,6 +10545,79 @@ function _setMatRoofMapFontScale(v){
   try { redrawAll(); } catch(e){}
   try { renderMatRoofMap(); } catch(e){}
 }
+// Print preview height knobs — write inline style overrides on the
+// print CSS rules so the live print pages also pick them up. Saved
+// in localStorage so the next print uses the same cap.
+function _matSetPrintRoofHt(v){
+  var n = parseInt(v, 10); if (!isFinite(n) || n < 30) n = 30; if (n > 200) n = 200;
+  try { localStorage.setItem('fr_print_roof_ht', String(n)); } catch(e){}
+  var out = document.getElementById('matPrintRoofHtOut'); if (out) out.textContent = n;
+  _matApplyPrintHeights();
+  _matRefreshPrintPreview();
+}
+function _matSetPrintSheetHt(v){
+  var n = parseInt(v, 10); if (!isFinite(n) || n < 20) n = 20; if (n > 200) n = 200;
+  try { localStorage.setItem('fr_print_sheet_ht', String(n)); } catch(e){}
+  var out = document.getElementById('matPrintSheetHtOut'); if (out) out.textContent = n;
+  _matApplyPrintHeights();
+  _matRefreshPrintPreview();
+}
+// Inject / refresh a <style> tag that pins the max-heights to the
+// user's chosen values.  Inline on the print pages too so the preview
+// renders identically to the actual PDF.
+function _matApplyPrintHeights(){
+  var rh = parseInt(localStorage.getItem('fr_print_roof_ht')  || '100', 10);
+  var sh = parseInt(localStorage.getItem('fr_print_sheet_ht') || '60',  10);
+  var id = '__matPrintHeightsCss';
+  var st = document.getElementById(id);
+  if (!st) {
+    st = document.createElement('style');
+    st.id = id;
+    document.head.appendChild(st);
+  }
+  st.textContent =
+    '.mat-print-page#matPrintPage1 #matPrintRoofMap img{max-height:'+rh+'mm!important}'+
+    '.mat-print-page#matPrintPage1 #matPrintSheetPlan .mp-sheet-roof img{max-height:'+sh+'mm!important}';
+}
+// Build the two print pages off-screen, then clone them into the
+// preview panel at A4 scale-down so the user sees what the PDF will
+// look like and can adjust the heights live.
+function _matRefreshPrintPreview(){
+  var out = document.getElementById('matPrintPreviewOut'); if (!out) return;
+  var card = document.getElementById('matPrintPreviewCard');
+  if (card && !card.open) return;  // collapsed — skip the work
+  try {
+    if (typeof _matBuildPrintPages === 'function') _matBuildPrintPages();
+  } catch(e){ out.innerHTML = '<div style="color:#b91c1c;font-size:12px">Couldn\'t build preview: '+e.message+'</div>'; return; }
+  _matApplyPrintHeights();
+  out.innerHTML = '';
+  var pages = ['matPrintPage1', 'matPrintPage2']
+    .map(function(id){ return document.getElementById(id); })
+    .filter(Boolean);
+  if (!pages.length) { out.innerHTML = '<div style="color:#b91c1c;font-size:12px">No print pages found.</div>'; return; }
+  pages.forEach(function(p, i){
+    var clone = p.cloneNode(true);
+    // A4 = 210 × 297 mm.  Render at 2 px / mm so each page is
+    // 420 × 594 px in the preview (about 60% of A4 actual size).
+    clone.style.cssText = 'display:block;background:#fff;width:420px;min-height:594px;padding:14mm;box-sizing:border-box;font-family:Inter,system-ui,sans-serif;color:#0a1628;font-size:11px;box-shadow:0 4px 12px rgba(0,0,0,.18);border-radius:4px;margin:0';
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:11px;font-weight:700;color:#475569;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;align-self:flex-start;padding-left:6px';
+    lbl.textContent = 'Page ' + (i + 1);
+    out.appendChild(lbl);
+    out.appendChild(clone);
+  });
+}
+
+function _syncPrintHeightUi(){
+  var rh = parseInt(localStorage.getItem('fr_print_roof_ht')  || '100', 10);
+  var sh = parseInt(localStorage.getItem('fr_print_sheet_ht') || '60',  10);
+  var ri = document.getElementById('matPrintRoofHt');   if (ri) ri.value = rh;
+  var ro = document.getElementById('matPrintRoofHtOut');if (ro) ro.textContent = rh;
+  var si = document.getElementById('matPrintSheetHt');  if (si) si.value = sh;
+  var so = document.getElementById('matPrintSheetHtOut');if (so) so.textContent = sh;
+  _matApplyPrintHeights();
+}
+
 function _syncMatRoofMapFontScaleUi(){
   var inp = document.getElementById('matRoofMapFontScale');
   var out = document.getElementById('matRoofMapFontScaleOut');
@@ -17609,11 +17724,68 @@ function _matCaptureCanvasToImg(canvasId, mount, label) {
   var cv = document.getElementById(canvasId);
   if (!cv) { mount.innerHTML = '<div style="color:#6f6a60;font-size:11px;padding:14px;font-style:italic">No '+label+' to capture — open Map Roof and draw your roof first.</div>'; return; }
   try {
-    var url = cv.toDataURL('image/png');
+    // Crop to the roof outline's bounding box (plus a 10% pad) so the
+    // PDF page doesn't carry a vast empty canvas around a small roof.
+    // Falls back to the full canvas if we can't compute an outline.
+    var url;
+    var cropped = (canvasId === 'matRoofMapCanvas' || canvasId === 'roofCanvas')
+      ? _matCropCanvasToOutline(cv)
+      : null;
+    if (cropped) {
+      url = cropped.toDataURL('image/png');
+    } else {
+      url = cv.toDataURL('image/png');
+    }
     mount.innerHTML = '<img src="'+url+'" alt="'+esc(label)+'">';
   } catch(e) {
     mount.innerHTML = '<div style="color:#b91c1c;font-size:11px;padding:14px">Could not capture '+esc(label)+' — map tiles may be cross-origin tainted.</div>';
   }
+}
+
+// Take the source canvas and produce a NEW canvas cropped to just the
+// area that contains the drawn roofs (outline bounds across every
+// roof, plus a 10% pad). Returns null if we can't figure out the
+// bounding box (no outline, no scale).
+function _matCropCanvasToOutline(src){
+  if (!src || !src.width || !src.height) return null;
+  if (typeof getImgTransform !== 'function') return null;
+  var t = getImgTransform();
+  var dpr = window.devicePixelRatio || 1;
+  function imgToBacking(pt){
+    var c = t ? imgToCanvas(pt, t) : pt;
+    return [c[0] * dpr, c[1] * dpr];
+  }
+  // Collect every outline point across every roof.
+  var pts = [];
+  function take(o){ (o || []).forEach(function(p){ pts.push(p); }); }
+  if (DRAW.roofs && DRAW.roofs.length) {
+    DRAW.roofs.forEach(function(r){
+      // Active roof reads from DRAW.outline (the live source).
+      if (DRAW.activeRoofIdx === DRAW.roofs.indexOf(r)) take(DRAW.outline);
+      else take(r.outline);
+    });
+  } else {
+    take(DRAW.outline);
+  }
+  if (!pts.length) return null;
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  pts.forEach(function(p){
+    var bp = imgToBacking(p);
+    if (bp[0] < minX) minX = bp[0]; if (bp[0] > maxX) maxX = bp[0];
+    if (bp[1] < minY) minY = bp[1]; if (bp[1] > maxY) maxY = bp[1];
+  });
+  if (!isFinite(minX) || maxX - minX < 4 || maxY - minY < 4) return null;
+  var w = maxX - minX, h = maxY - minY;
+  var padX = Math.max(20, w * 0.08), padY = Math.max(20, h * 0.08);
+  var sx = Math.max(0, Math.floor(minX - padX));
+  var sy = Math.max(0, Math.floor(minY - padY));
+  var sw = Math.min(src.width  - sx, Math.ceil(w + padX * 2));
+  var sh = Math.min(src.height - sy, Math.ceil(h + padY * 2));
+  if (sw <= 0 || sh <= 0) return null;
+  var off = document.createElement('canvas');
+  off.width = sw; off.height = sh;
+  off.getContext('2d').drawImage(src, sx, sy, sw, sh, 0, 0, sw, sh);
+  return off;
 }
 
 // Clone the Roof Sheet Plan output (sheet plan canvas(es) + legend)
