@@ -332,6 +332,38 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     </div>
   </div>
 
+  <!-- ───────── MARKETING ───────── -->
+  <div class="page" id="page-marketing">
+    <div class="card" style="border-left:4px solid var(--success);">
+      <div class="ct">Quote Conversion <span id="mkt-ts" class="period-sub"></span></div>
+      <div class="hero">
+        <div class="big" id="mkt-conv">—</div>
+        <div class="unit">accepted this month</div>
+        <div class="sub" id="mkt-conv-sub">Tap “Sync marketing from Fergus”.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">This Week <span class="period-sub" style="margin-left:auto;">last 7 days</span></div>
+      <div class="mg" id="mkt-week"></div>
+    </div>
+    <div class="card">
+      <div class="ct">This Month <span id="mkt-mo-lbl" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="mg" id="mkt-month"></div>
+    </div>
+
+    <div class="card">
+      <button class="btn btn-a" id="mkt-sync-btn" onclick="syncMarketing()">⟳ Sync marketing from Fergus</button>
+      <div class="note" id="mkt-note"></div>
+    </div>
+
+    <div class="card">
+      <div class="ct">Won / accepted stages</div>
+      <input class="sel" id="mkt-accept" oninput="saveMktCfg()" placeholder="won, accepted, active, scheduled, completed, invoiced">
+      <div class="note" id="mkt-stages" style="margin-top:9px;"></div>
+    </div>
+  </div>
+
 </div><!-- /app -->
 
 <div id="nav">
@@ -340,6 +372,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
   <div class="nav-i" id="nav-bc" onclick="go('bc')"><span class="ic">💹</span>Back Cost</div>
   <div class="nav-i" id="nav-pl" onclick="go('pl')"><span class="ic">💼</span>P&amp;L</div>
   <div class="nav-i" id="nav-growth" onclick="go('growth')"><span class="ic">📈</span>Growth</div>
+  <div class="nav-i" id="nav-marketing" onclick="go('marketing')"><span class="ic">📣</span>Mktg</div>
 </div>
 
 <!-- connect sheet -->
@@ -390,6 +423,8 @@ let cfg=S.get('fwCfg',{teams:4,size:2,hrs:8});
 let xeroMonthly=S.get('xeroMonthly',{});     // { 'Mon-YYYY': {rev,gp,opex,np,wages} } from Xero monthly P&L
 let xeroReports={};                          // { 'Mon-YYYY': full Xero report } cached in-memory for instant breakdown
 let plSelected='';                           // month currently shown in the P&L breakdown
+let mkt=S.get('mkt',null);                    // cached marketing scan: {rows:[{status,created,q,b}], statuses, scanned, ts}
+const MKT_ACCEPT_DEFAULT='won, accepted, active, in progress, scheduled, completed, invoiced, paid';
 let xeroLive=false;
 let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (render→pull→render loops)
 // Growth Structure scenario planner. teams/size = the what-if crew; base = the crew that
@@ -1120,6 +1155,76 @@ function renderGrowth(){
     'More crews spread the fixed overhead → opex% drops while opex$ rises.';
 }
 
+// ════════ MARKETING / SALES FUNNEL ════════
+// Enquiries = jobs created; Quotes sent = jobs with a quoted $; Accepted = won/active/etc
+// (matched by status keyword) or already billed. Scanned from recent Fergus jobs.
+async function syncMarketing(){
+  if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
+  const btn=document.getElementById('mkt-sync-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Scanning…';}
+  try{
+    const jobs=await fergusFetchJobs();           // recent jobs, all statuses
+    const list=jobs.slice(0,120);
+    const rows=[],statuses={};let idx=0,done=0;
+    async function worker(){
+      while(idx<list.length){
+        const j=list[idx++];
+        const status=(j.status||'').trim();statuses[status]=(statuses[status]||0)+1;
+        const created=new Date(j.createdAt||j.dateCreated||j.lastModified||Date.now()).getTime();
+        const jid=j.id!=null?j.id:(j.jobId!=null?j.jobId:(j.jobNo||j.jobNumber));
+        let s=null;try{s=await fergusFetchFinancialSummary(jid);}catch(e){}
+        rows.push({status,created,q:num(s&&s.quoteSummary&&s.quoteSummary.quotedAmount),b:num(s&&s.totalBilled&&s.totalBilled.total)});
+        done++;if(done%5===0||done===list.length)toast('Marketing… '+done+'/'+list.length);
+      }
+    }
+    await Promise.all(Array.from({length:Math.min(4,list.length)},()=>worker()));
+    mkt={rows,statuses,scanned:list.length,ts:new Date().toLocaleString('en-NZ')};
+    S.set('mkt',mkt);renderMkt();toast('Marketing updated ✓','ok');
+  }catch(err){console.error(err);toast(fergusErrMsg(err).split('\n')[0],'err');}
+  finally{if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync marketing from Fergus';}}
+}
+function saveMktCfg(){S.set('mktAcceptKw',(document.getElementById('mkt-accept').value||'').trim());renderMkt();}
+// Recompute the funnel from cached rows using the current accepted-status keywords + today's date.
+function mktAgg(){
+  const rows=(mkt&&mkt.rows)||[];
+  const acc=(S.get('mktAcceptKw',MKT_ACCEPT_DEFAULT)||'').toLowerCase().split(',').map(t=>t.trim()).filter(Boolean);
+  const now=Date.now(),wk=now-7*864e5,d=new Date(),ms=new Date(d.getFullYear(),d.getMonth(),1).getTime();
+  const mk=()=>({enq:0,quo:0,acc:0,acc$:0});const agg={wk:mk(),mo:mk(),all:mk()};
+  rows.forEach(r=>{const quoted=r.q>0;const accepted=(acc.some(t=>(r.status||'').toLowerCase().includes(t)))||r.b>0;const val=r.q||r.b;
+    const apply=o=>{o.enq++;if(quoted)o.quo++;if(accepted){o.acc++;o.acc$+=val;}};
+    apply(agg.all);if(r.created>=ms)apply(agg.mo);if(r.created>=wk)apply(agg.wk);});
+  return agg;
+}
+function mktGrid(o){
+  const conv=o.quo>0?Math.round(o.acc/o.quo*100):0;
+  return mb('Enquiries',String(o.enq),'new jobs','','m-rev')+
+    mb('Quotes sent',String(o.quo),'with a $ quote','','m-opex')+
+    mb('Accepted',String(o.acc),conv+'% of quotes',o.acc>0?'pos':'','m-gp')+
+    mb('$ Accepted',fmtK(o.acc$),'value won',o.acc$>0?'pos':'','m-np');
+}
+function renderMkt(){
+  const acEl=document.getElementById('mkt-accept');if(acEl&&!acEl.value)acEl.value=S.get('mktAcceptKw',MKT_ACCEPT_DEFAULT);
+  const d=new Date();document.getElementById('mkt-mo-lbl').textContent=FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();
+  if(!mkt||!mkt.rows||!mkt.rows.length){
+    document.getElementById('mkt-conv').textContent='—';
+    document.getElementById('mkt-conv-sub').textContent='Tap “Sync marketing from Fergus”.';
+    document.getElementById('mkt-week').innerHTML='<div class="empty" style="grid-column:1/-1;">No data yet.</div>';
+    document.getElementById('mkt-month').innerHTML='';
+    document.getElementById('mkt-ts').textContent='';document.getElementById('mkt-stages').textContent='';
+    document.getElementById('mkt-note').textContent='';return;
+  }
+  const a=mktAgg();
+  const conv=a.mo.quo>0?Math.round(a.mo.acc/a.mo.quo*100):0;
+  document.getElementById('mkt-conv').textContent=conv+'%';
+  document.getElementById('mkt-conv-sub').textContent='this month: '+a.mo.acc+' of '+a.mo.quo+' quotes won · '+fmtK(a.mo.acc$)+' accepted';
+  document.getElementById('mkt-week').innerHTML=mktGrid(a.wk);
+  document.getElementById('mkt-month').innerHTML=mktGrid(a.mo);
+  document.getElementById('mkt-ts').textContent=mkt.ts?('· synced '+mkt.ts):'';
+  const st=Object.entries(mkt.statuses).sort((x,y)=>y[1]-x[1]).map(([k,v])=>esc(k||'(blank)')+' ('+v+')').join(' · ');
+  document.getElementById('mkt-stages').innerHTML='Fergus stages found (scanned '+mkt.scanned+' jobs): '+st+'.<br>Put your won/accepted stage names in the box above so “Accepted” counts correctly.';
+  document.getElementById('mkt-note').innerHTML='Conversion = accepted ÷ quotes sent. Counts are by job <b>created date</b> (this-week = last 7 days). Scans your '+mkt.scanned+' most-recent jobs — bump the limit if you do more than that a month.';
+}
+
 // ════════ NAV ════════
 function go(p){
   page=p;
@@ -1130,11 +1235,11 @@ function go(p){
   window.scrollTo(0,0);
   renderAll();
 }
-function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();}
+function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();}
 
 // ════════ SWIPE NAV ════════ swipe left/right to move between tabs
 (function(){
-  const order=['dash','work','bc','pl','growth'];
+  const order=['dash','work','bc','pl','growth','marketing'];
   let x0=null,y0=null;
   document.addEventListener('touchstart',e=>{
     if(e.touches.length!==1){x0=null;return;}
