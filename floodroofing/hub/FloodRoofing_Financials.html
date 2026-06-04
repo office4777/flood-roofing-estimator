@@ -114,6 +114,16 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .mb.m-gp{border-color:#2dd4bf;box-shadow:0 0 0 1px rgba(45,212,191,.18),0 8px 22px rgba(0,0,0,.25);}.mb.m-gp .l{color:#2dd4bf;}
 .mb.m-opex{border-color:#a78bfa;box-shadow:0 0 0 1px rgba(167,139,250,.18),0 8px 22px rgba(0,0,0,.25);}.mb.m-opex .l{color:#a78bfa;}
 .mb.m-np{border-color:#4d8dff;box-shadow:0 0 0 1px rgba(77,141,255,.18),0 8px 22px rgba(0,0,0,.25);}.mb.m-np .l{color:#4d8dff;}
+/* 12-month P&L strip */
+.mstrip{display:flex;gap:11px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 2px 6px;scroll-snap-type:x proximity;}
+.mcard{flex:0 0 156px;scroll-snap-align:start;background:linear-gradient(180deg,var(--card2),var(--card));border:1.5px solid var(--border);border-radius:15px;padding:13px;cursor:pointer;transition:.15s;}
+.mcard.on{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary),0 8px 22px rgba(0,0,0,.35);}
+.mcard .mm{font-size:.74rem;font-weight:800;color:var(--text);margin-bottom:9px;letter-spacing:.2px;}
+.mcard .ml{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);}
+.mcard .ml:last-child{border-bottom:none;}
+.mcard .ml .k{color:var(--muted);font-weight:700;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;}
+.mcard .ml .v{font-weight:800;color:#fff;white-space:nowrap;font-size:.76rem;}
+.mcard .ml .v.pos{color:var(--success);}.mcard .ml .v.neg{color:var(--danger);}
 .mb .pa{font-size:1.02rem;font-weight:800;color:var(--text);}
 .mb.va{display:flex;align-items:baseline;justify-content:space-between;gap:6px;}
 .period-sub{font-size:.62rem;color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0;}
@@ -260,10 +270,14 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 
   <!-- ───────── XERO P&L ───────── -->
   <div class="page" id="page-pl">
+    <div class="card">
+      <div class="ct">Last 12 Months <span class="period-sub" style="margin-left:auto;">tap a month · swipe ↔</span></div>
+      <div class="mstrip" id="pl-strip"></div>
+    </div>
     <div class="tiles" id="pl-tiles"></div>
     <div class="card" style="margin-top:12px;">
-      <div class="ct">Profit &amp; Loss <span id="pl-src" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
-      <select class="sel" id="pl-period" onchange="onPLPeriod()" style="margin-bottom:10px;"></select>
+      <div class="ct">Monthly breakdown <span id="pl-src" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
+      <select class="sel" id="pl-period" onchange="selectMonth(this.value)" style="margin-bottom:10px;"></select>
       <table class="pl" id="pl-table"></table>
       <button class="btn btn-o" style="margin-top:11px;" onclick="pullXeroPL()" id="pl-pull-btn">🔌 Pull live P&amp;L from Xero</button>
       <div class="note" id="pl-note">Live P&amp;L needs Xero connected on the proxy. Otherwise this is derived from your back-costing sales &amp; GP.</div>
@@ -373,7 +387,9 @@ let page='dash';
 let bcFergus=S.get('bcFergus',[]);           // back-costing rows synced from Fergus (shared w/ Hub)
 let fwJobs=S.get('fwJobs',[]);               // [{id,job,priced,actual,remaining,status}]
 let cfg=S.get('fwCfg',{teams:4,size:2,hrs:8});
-let xeroMonthly=S.get('xeroMonthly',{});     // { 'Mon-YYYY': {rev,gp,opex,np} } from Xero monthly P&L
+let xeroMonthly=S.get('xeroMonthly',{});     // { 'Mon-YYYY': {rev,gp,opex,np,wages} } from Xero monthly P&L
+let xeroReports={};                          // { 'Mon-YYYY': full Xero report } cached in-memory for instant breakdown
+let plSelected='';                           // month currently shown in the P&L breakdown
 let xeroLive=false;
 let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (render→pull→render loops)
 // Growth Structure scenario planner. teams/size = the what-if crew; base = the crew that
@@ -499,8 +515,7 @@ function isFinishedJob(job,summary){
 async function refreshAll(){
   if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
   await syncWorkload();
-  await syncXeroMonthly();           // best-effort; no-op/notice if Xero not set on proxy
-  if(xeroLive)await pullXeroPL();     // refresh the detailed P&L view for the selected month
+  await syncXeroMonthly();           // best-effort; pulls 12 months + caches breakdowns
 }
 // Month dropdown: pull live only if we're already live (an explicit choice), else just re-render cached.
 function onPLPeriod(){ if(xeroLive)pullXeroPL(); else renderPL(); }
@@ -508,8 +523,7 @@ function onPLPeriod(){ if(xeroLive)pullXeroPL(); else renderPL(); }
 // Fergus workload stays as last synced (it's saved on the device) until you tap Refresh.
 async function syncXeroOnly(){
   if(!fergusProxyUrl())return;
-  await syncXeroMonthly();
-  if(xeroLive)await pullXeroPL();
+  await syncXeroMonthly();   // pulls 12 months + caches each breakdown
 }
 async function syncWorkload(){
   if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
@@ -832,7 +846,7 @@ function monthRange(monthKey){
   let to=y+'-'+p2(mi+1)+'-'+p2(lastDay);const today=td_str();if(to>today)to=today;
   return {from:y+'-'+p2(mi+1)+'-01',to};
 }
-async function fetchMonthFig(proxy,psec,monthKey){
+async function fetchMonthReport(proxy,psec,monthKey){
   const {from,to}=monthRange(monthKey);
   const res=await fetch(proxy+'/api/proxy?svc=xero&path='+encodeURIComponent('/Reports/ProfitAndLoss?fromDate='+from+'&toDate='+to),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
   const txt=await res.text();
@@ -840,24 +854,30 @@ async function fetchMonthFig(proxy,psec,monthKey){
   if(res.status===401)throw new Error('SECRET');
   if(!res.ok)throw new Error('HTTP '+res.status);
   const rep=(JSON.parse(txt).Reports||[])[0];if(!rep)throw new Error('no report');
-  return xeroRepFig(rep);
+  return rep;
 }
 // Build the dashboard/growth month set from reliable single-month pulls (current + last 6 complete).
 // (The multi-column monthly report mis-aligned some columns, so we pull each month on its own.)
 async function syncXeroMonthly(){
   const proxy=fergusProxyUrl();if(!proxy)return false;
   const psec=fergusProxySecret();
-  const keys=[];for(let i=0;i<=6;i++)keys.push(calMonthKey(-i));   // current(partial) + last 6 complete
+  const keys=[];for(let i=0;i<=11;i++)keys.push(calMonthKey(-i));   // current(partial) + last 11 = 12 months
   const out=Object.assign({},xeroMonthly);
-  let ok=0,no=false,sec=false;
-  for(let i=0;i<keys.length;i++){
-    toast('Xero P&L… '+(i+1)+'/'+keys.length);
-    try{const f=await fetchMonthFig(proxy,psec,keys[i]);if(f){out[keys[i]]=f;ok++;}}
-    catch(e){if(e.message==='NOXERO')no=true;else if(e.message==='SECRET')sec=true;console.warn('xero',keys[i],e.message);}
+  let ok=0,no=false,sec=false,done=0,idx=0;
+  async function worker(){
+    while(idx<keys.length){
+      const k=keys[idx++];
+      try{const rep=await fetchMonthReport(proxy,psec,k);const f=xeroRepFig(rep);if(f){out[k]=f;xeroReports[k]=rep;ok++;}}
+      catch(e){if(e.message==='NOXERO')no=true;else if(e.message==='SECRET')sec=true;console.warn('xero',k,e.message);}
+      done++;toast('Xero P&L… '+done+'/'+keys.length);
+    }
   }
+  await Promise.all(Array.from({length:Math.min(3,keys.length)},()=>worker()));   // 3 at a time
   if(no){toast('Xero not set up on the proxy — using back-costing','err');return false;}
   if(sec){toast('Proxy secret rejected (401) — check ⚙','err');return false;}
-  if(ok){xeroMonthly=out;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',new Date().toLocaleString('en-NZ'));xeroLive=true;toast('Xero P&L updated ✓ ('+ok+' months)','ok');renderDash();renderGrowth();return true;}
+  if(ok){xeroMonthly=out;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',new Date().toLocaleString('en-NZ'));xeroLive=true;
+    if(!plSelected||!xeroReports[plSelected])plSelected=xeroReports[calMonthKey(-1)]?calMonthKey(-1):keys.find(k=>xeroReports[k])||'';
+    toast('Xero P&L updated ✓ ('+ok+' months)','ok');renderDash();renderGrowth();renderPL();return true;}
   toast('Xero returned no data','err');return false;
 }
 async function pullXeroPL(){
@@ -875,8 +895,9 @@ async function pullXeroPL(){
     if(!res.ok)throw new Error('HTTP '+res.status+': '+txt.slice(0,200));
     const rep=(JSON.parse(txt).Reports||[])[0];if(!rep)throw new Error('No report returned.');
     xeroLive=true;
-    lastXeroRep=rep;lastXeroLabel=label;   // cache so the tab can re-render without re-pulling
-    renderXeroReport(rep,label);
+    lastXeroRep=rep;lastXeroLabel=label;xeroReports[label]=rep;plSelected=label;   // cache for instant re-render
+    const f=xeroRepFig(rep);if(f){xeroMonthly[label]={rev:f.rev,gp:f.gp,opex:f.opex,np:f.np,wages:f.wages};S.set('xeroMonthly',xeroMonthly);}
+    renderXeroReport(rep,label);renderPLStrip();
   }catch(err){
     console.error(err);
     if(/HTTP 401/.test(err.message))toast('Proxy secret rejected (401) — check ⚙','err');
@@ -924,8 +945,39 @@ function renderXeroReport(rep,label){
     :('No Operating-Expenses line matched “'+esc(S.get('wageKw','wages'))+'”. Set your on-site wages account name in ⚙.<br>'))
     +'Live from Xero — updates only when you Sync/Pull.';
 }
+// Horizontal 12-month strip: Rev / GP$+% / Opex$+% / NP$+% per month; tap a month to load its breakdown.
+function renderPLStrip(){
+  const host=document.getElementById('pl-strip');if(!host)return;
+  const months=[];for(let i=0;i<12;i++)months.push(calMonthKey(-i));   // newest → oldest
+  const avail=months.filter(k=>xeroMonthly[k]);
+  if(!avail.length){host.innerHTML='<div class="empty" style="padding:10px;">Pull Xero to see the 12-month strip.</div>';return;}
+  if(!plSelected||!xeroMonthly[plSelected])plSelected=xeroMonthly[calMonthKey(-1)]?calMonthKey(-1):avail[0];
+  const cur=calMonthKey(0);
+  host.innerHTML=avail.map(k=>{const f=xeroFig(k)||{rev:0,gp:0,opex:0,np:0};
+    const gpm=f.rev>0?f.gp/f.rev:0,opx=f.rev>0?f.opex/f.rev:0,npm=f.rev>0?f.np/f.rev:0;
+    const row=(lbl,val,cls)=>'<div class="ml"><span class="k">'+lbl+'</span><span class="v'+(cls?' '+cls:'')+'">'+val+'</span></div>';
+    return '<div class="mcard'+(k===plSelected?' on':'')+'" onclick="selectMonth(\''+k+'\')">'+
+      '<div class="mm">'+k+(k===cur?' · partial':'')+'</div>'+
+      row('Rev',fmtK(f.rev),'')+
+      row('GP',fmtK(f.gp)+' · '+Math.round(gpm*100)+'%',gpm>=0.30?'pos':'neg')+
+      row('Opex',fmtK(f.opex)+' · '+Math.round(opx*100)+'%','')+
+      row('NP',fmtK(f.np)+' · '+Math.round(npm*100)+'%',f.np>=0?'pos':'neg')+
+    '</div>';
+  }).join('');
+}
+function selectMonth(m){
+  plSelected=m;
+  const sel=document.getElementById('pl-period');
+  if(sel){if(![...sel.options].some(o=>o.value===m))sel.insertAdjacentHTML('afterbegin','<option>'+m+'</option>');sel.value=m;}
+  renderPLStrip();
+  if(xeroReports[m]){xeroLive=true;lastXeroRep=xeroReports[m];lastXeroLabel=m;renderXeroReport(xeroReports[m],m);}
+  else if(fergusProxyUrl())pullXeroPL();   // have totals but not the full report → fetch it
+  else renderPL();
+}
 function renderPL(){
   fillPLPeriods();
+  renderPLStrip();
+  if(plSelected&&xeroReports[plSelected]){xeroLive=true;lastXeroRep=xeroReports[plSelected];lastXeroLabel=plSelected;renderXeroReport(xeroReports[plSelected],plSelected);return;}
   if(xeroLive&&lastXeroRep){renderXeroReport(lastXeroRep,lastXeroLabel);return;}   // re-render cached live report — no network
   const sel=document.getElementById('pl-period').value;
   const m=MONTHLY_DATA.find(x=>x.month===sel)||{sales:0,gp:0};
@@ -1087,7 +1139,7 @@ function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowt
   document.addEventListener('touchstart',e=>{
     if(e.touches.length!==1){x0=null;return;}
     const t=e.target;
-    if(t.closest&&t.closest('.tbl-wrap,.chips,input,select,textarea,#modal,#nav')){x0=null;return;}
+    if(t.closest&&t.closest('.tbl-wrap,.chips,.mstrip,input,select,textarea,#modal,#nav')){x0=null;return;}
     x0=e.touches[0].clientX;y0=e.touches[0].clientY;
   },{passive:true});
   document.addEventListener('touchend',e=>{
