@@ -25,6 +25,13 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--
 .page{display:none;}.page.active{display:block;animation:fade .26s cubic-bezier(.2,.7,.2,1);}
 @keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
 .card{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--border);border-radius:20px;padding:20px;margin-bottom:16px;box-shadow:0 10px 30px rgba(0,0,0,.28);}
+/* period-coded card backgrounds — same colour for the same period across every tab */
+.card.per-this{background:linear-gradient(180deg,rgba(56,189,248,.13),var(--bg2));border-color:rgba(56,189,248,.38);}
+.card.per-last{background:linear-gradient(180deg,rgba(167,139,250,.13),var(--bg2));border-color:rgba(167,139,250,.40);}
+.card.per-3mo{background:linear-gradient(180deg,rgba(251,191,36,.12),var(--bg2));border-color:rgba(251,191,36,.38);}
+.card.per-week{background:linear-gradient(180deg,rgba(52,211,153,.12),var(--bg2));border-color:rgba(52,211,153,.38);}
+.card.per-this .ct,.card.per-last .ct,.card.per-3mo .ct,.card.per-week .ct{color:#fff;}
+.card.per-this .period-sub,.card.per-last .period-sub,.card.per-3mo .period-sub,.card.per-week .period-sub{color:#eef2f7;}
 .ct{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .mut{color:var(--muted);}
 
@@ -175,15 +182,15 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 
     <div class="sect"><span>Profit &amp; Loss</span><span class="livepill off" id="pl-live-pill">Xero — not connected</span></div>
 
-    <div class="card">
+    <div class="card per-this">
       <div class="ct">This Month <span id="lbl-this" class="period-sub"></span><span id="src-this" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="mg" id="met-this"></div>
     </div>
-    <div class="card">
+    <div class="card per-last">
       <div class="ct">Last Month <span id="lbl-last" class="period-sub"></span><span id="src-last" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="mg" id="met-last"></div>
     </div>
-    <div class="card">
+    <div class="card per-3mo">
       <div class="ct">3-Month Rolling Avg <span id="lbl-3mo" class="period-sub"></span><span id="src-3mo" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="mg" id="met-3mo"></div>
     </div>
@@ -237,17 +244,17 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="ct">12-Month History <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
       <div class="mstrip" id="bc-strip"></div>
     </div>
-    <div class="card">
+    <div class="card per-this">
       <div class="ct">This Month <span id="bc-lbl-this" class="period-sub"></span></div>
       <div class="mg" id="bc-met-this"></div>
       <div class="mg" id="bc-pva-this" style="margin-top:9px;"></div>
     </div>
-    <div class="card">
+    <div class="card per-last">
       <div class="ct">Last Month <span id="bc-lbl-last" class="period-sub"></span></div>
       <div class="mg" id="bc-met-last"></div>
       <div class="mg" id="bc-pva-last" style="margin-top:9px;"></div>
     </div>
-    <div class="card">
+    <div class="card per-3mo">
       <div class="ct">3-Month Rolling Avg <span id="bc-lbl-3mo" class="period-sub"></span></div>
       <div class="mg" id="bc-met-3mo"></div>
       <div class="mg" id="bc-pva-3mo" style="margin-top:9px;"></div>
@@ -347,11 +354,11 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       </div>
     </div>
 
-    <div class="card">
+    <div class="card per-week">
       <div class="ct">This Week <span class="period-sub" style="margin-left:auto;">last 7 days</span></div>
       <div class="mg" id="mkt-week"></div>
     </div>
-    <div class="card">
+    <div class="card per-this">
       <div class="ct">This Month <span id="mkt-mo-lbl" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="mg" id="mkt-month"></div>
     </div>
