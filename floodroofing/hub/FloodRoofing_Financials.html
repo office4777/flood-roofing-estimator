@@ -234,6 +234,10 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
   <!-- ───────── BACK COSTING ───────── -->
   <div class="page" id="page-bc">
     <div class="card">
+      <div class="ct">12-Month History <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
+      <div class="mstrip" id="bc-strip"></div>
+    </div>
+    <div class="card">
       <div class="ct">This Month <span id="bc-lbl-this" class="period-sub"></span></div>
       <div class="mg" id="bc-met-this"></div>
       <div class="mg" id="bc-pva-this" style="margin-top:9px;"></div>
@@ -350,6 +354,11 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     <div class="card">
       <div class="ct">This Month <span id="mkt-mo-lbl" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="mg" id="mkt-month"></div>
+    </div>
+
+    <div class="card">
+      <div class="ct">Monthly History <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
+      <div class="mstrip" id="mkt-strip"></div>
     </div>
 
     <div class="card">
@@ -751,6 +760,7 @@ function fillBCFilters(){
 }
 function renderBC(){
   fillBCFilters();
+  renderBCStrip();
   // ── period cards (This / Last / 3-mo) from back-costing ──
   const p=periodMonths();
   const f3=avgFig(p.avg3,bcFig);
@@ -1216,6 +1226,7 @@ function mktGrid(o){
 }
 function renderMkt(){
   const d=new Date();const lbl=document.getElementById('mkt-mo-lbl');if(lbl)lbl.textContent=FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();
+  renderMktStrip();
   if(!mkt||!mkt.quotes){
     document.getElementById('mkt-conv').textContent='—';
     document.getElementById('mkt-conv-sub').textContent='Tap “Sync marketing from Fergus”.';
@@ -1230,6 +1241,41 @@ function renderMkt(){
   document.getElementById('mkt-month').innerHTML=mktGrid(a.mo);
   document.getElementById('mkt-ts').textContent=mkt.ts?('· synced '+mkt.ts):'';
   document.getElementById('mkt-note').innerHTML='From Fergus enquiries + quotes. Enquiries by created date · quotes by sent date · accepted by accepted date. This week = since Monday. Conversion = accepted ÷ quotes sent.'+(mkt.nQ!=null?(' (Scanned '+mkt.nE+' leads, '+mkt.nQ+' quotes.)'):'');
+}
+
+// Back-costing 12-month history strip (Rev / GP$+% / Opex$+% / NP$+%).
+function renderBCStrip(){
+  const host=document.getElementById('bc-strip');if(!host)return;
+  const months=dataMonths().slice(-12).reverse();   // last 12 with data, newest first
+  if(!months.length){host.innerHTML='<div class="empty" style="padding:10px;">No back-costing data yet.</div>';return;}
+  const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
+  host.innerHTML=months.map(k=>{const f=bcFig(k);const gpm=f.rev>0?f.gp/f.rev:0,opx=f.rev>0?f.opex/f.rev:0,npm=f.rev>0?f.np/f.rev:0;
+    return '<div class="mcard"><div class="mm">'+esc(k)+'</div>'+
+      row('Rev',fmtK(f.rev),'')+
+      row('GP',fmtK(f.gp)+' · '+Math.round(gpm*100)+'%',gpm>=0.30?'pos':'neg')+
+      row('Opex',fmtK(f.opex)+' · '+Math.round(opx*100)+'%','')+
+      row('NP',fmtK(f.np)+' · '+Math.round(npm*100)+'%',f.np>=0?'pos':'neg')+'</div>';}).join('');
+}
+// Marketing monthly buckets (by enquiry/sent/accepted date) + history strip.
+function mktMonthly(){
+  const B={},b=k=>(B[k]||(B[k]={enq:0,sent:0,sentVal:0,acc:0,accVal:0}));
+  const mk=ds=>{const x=new Date(ds);return isNaN(x)?'':x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0');};
+  ((mkt&&mkt.leads)||[]).forEach(l=>{const k=mk(l.createdAt);if(k)b(k).enq++;});
+  ((mkt&&mkt.quotes)||[]).forEach(q=>{const sd=mk(q.sentAt||q.quoteDate);if(q.isSent&&sd){b(sd).sent++;b(sd).sentVal+=q.total;}const ad=mk(q.acceptedAt);if(q.isAccepted&&ad){b(ad).acc++;b(ad).accVal+=q.total;}});
+  return B;
+}
+function renderMktStrip(){
+  const host=document.getElementById('mkt-strip');if(!host)return;
+  const B=mktMonthly();const keys=Object.keys(B).sort().reverse().slice(0,18);   // newest first, up to 18 months
+  if(!keys.length){host.innerHTML='<div class="empty" style="padding:10px;">Sync to see monthly history.</div>';return;}
+  const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
+  host.innerHTML=keys.map(k=>{const o=B[k];const conv=o.sent>0?Math.round(o.acc/o.sent*100):0;
+    const lbl=FG_MONTHS[parseInt(k.split('-')[1])-1]+'-'+k.split('-')[0];
+    return '<div class="mcard"><div class="mm">'+lbl+'</div>'+
+      row('Enquiries',String(o.enq),'')+
+      row('Quotes',String(o.sent)+' · '+fmtK(o.sentVal),'')+
+      row('Accepted',String(o.acc)+' · '+conv+'%',o.acc>0?'pos':'')+
+      row('$ Won',fmtK(o.accVal),o.accVal>0?'pos':'')+'</div>';}).join('');
 }
 
 // ════════ NAV ════════
