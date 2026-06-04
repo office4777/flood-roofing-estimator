@@ -14648,8 +14648,11 @@ function redrawAll() {
   if(DRAW._hipIntersectSnap&&DRAW._hipIntersectSnap.active&&DRAW._hipIntersectSnap.pt){var _ipt=_t?imgToCanvas(DRAW._hipIntersectSnap.pt,_t):DRAW._hipIntersectSnap.pt;ctx.save();ctx.beginPath();ctx.arc(_ipt[0],_ipt[1],13,0,Math.PI*2);ctx.strokeStyle='#059669';ctx.lineWidth=2.5;ctx.stroke();ctx.beginPath();ctx.arc(_ipt[0],_ipt[1],4,0,Math.PI*2);ctx.fillStyle='#059669';ctx.fill();ctx.strokeStyle='#059669';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(_ipt[0]-18,_ipt[1]);ctx.lineTo(_ipt[0]+18,_ipt[1]);ctx.stroke();ctx.beginPath();ctx.moveTo(_ipt[0],_ipt[1]-18);ctx.lineTo(_ipt[0],_ipt[1]+18);ctx.stroke();ctx.fillStyle='rgba(5,150,105,0.93)';ctx.font='bold 10px sans-serif';var _cwM=ctx.measureText('✓ CENTRE MEET').width+10;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(_ipt[0]-_cwM/2,_ipt[1]+16,_cwM,17,3);else ctx.rect(_ipt[0]-_cwM/2,_ipt[1]+16,_cwM,17);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓ CENTRE MEET',_ipt[0],_ipt[1]+24);ctx.restore();}
   if((DRAW.tool==='hip'||DRAW.tool==='valley')&&DRAW.currentPts.length===1){var _spM=DRAW.currentPts[0],_epM=[DRAW.mouseX,DRAW.mouseY],_dlM=Math.sqrt((_epM[0]-_spM[0])*(_epM[0]-_spM[0])+(_epM[1]-_spM[1])*(_epM[1]-_spM[1]));if(_dlM>8){var _spCM=_t?imgToCanvas(_spM,_t):_spM,_epCM=_t?imgToCanvas(_epM,_t):_epM,_mCM=[(_spCM[0]+_epCM[0])/2,(_spCM[1]+_epCM[1])/2],_lbM=(DRAW.tool==='hip'?'Hip':'Valley')+' ✓ 45°';ctx.save();ctx.font='bold 11px sans-serif';var _lwM=ctx.measureText(_lbM).width+10;ctx.fillStyle='rgba(5,150,105,0.92)';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(_mCM[0]-_lwM/2,_mCM[1]-20,_lwM,18,4);else ctx.rect(_mCM[0]-_lwM/2,_mCM[1]-20,_lwM,18);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(_lbM,_mCM[0],_mCM[1]-11);ctx.restore();}}
 
-  // Draw calibration line if set
-  if(DRAW.calibratePts && DRAW.calibratePts.length===2) {
+  // Draw calibration line if set. Hidden when window._hideCalibrationOverlay
+  // is on — used by renderMatRoofMap so the Materials Roof Map preview
+  // doesn't carry the orange dashed "Scale ref" tag (it belongs on the
+  // Map Roof tab only).
+  if(DRAW.calibratePts && DRAW.calibratePts.length===2 && !window._hideCalibrationOverlay) {
     var cp0=dp(DRAW.calibratePts[0]), cp1=dp(DRAW.calibratePts[1]);
     ctx.save();
     ctx.beginPath(); ctx.moveTo(cp0[0],cp0[1]); ctx.lineTo(cp1[0],cp1[1]);
@@ -16231,7 +16234,12 @@ function renderMatRoofMap(){
     return;
   }
   // Force a fresh draw so the source canvas is up to date with the
-  // current outline + lines + measurement labels.
+  // current outline + lines + measurement labels. The calibration
+  // line / "Scale ref" tag is HIDDEN for this draw via the
+  // _hideCalibrationOverlay flag so the mirror doesn't carry it; we
+  // restore the flag + redraw once more so the live Map Roof canvas
+  // shows the calibration normally on the next paint.
+  window._hideCalibrationOverlay = true;
   try { redrawAll(); } catch(e){}
   var dpr = window.devicePixelRatio || 1;
   var W = src.width, H = src.height;
@@ -16239,9 +16247,14 @@ function renderMatRoofMap(){
   var canvas = document.getElementById('matRoofMapCanvas');
   var ctx = canvas.getContext('2d');
   try { ctx.drawImage(src, 0, 0); } catch(e){
+    window._hideCalibrationOverlay = false;
     out.innerHTML = '<p style="font-size:12px;color:#b91c1c">Couldn\'t mirror the roof map — refresh the Map Roof tab and try again.</p>';
     return;
   }
+  // Restore the Map Roof canvas so the user sees the calibration line
+  // back on the next paint of the live source.
+  window._hideCalibrationOverlay = false;
+  try { redrawAll(); } catch(e){}
   // Letter tags ONLY appear on the Materials canvas — the user asked to
   // keep the Map Roof tab clean. Draw them in CSS-pixel space (scaled by
   // dpr to match how roofCanvas was rendered).
