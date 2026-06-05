@@ -753,36 +753,29 @@ async function diagInvoices(){
   out.textContent=txt;
 }
 // Fetch a job's invoices (Fergus requires ?jobId=).
-async function fetchJobInvoices(jid){
-  // Fergus wants jobId as a PATH param (/jobs/invoices/{jobId}); fall back to ?jobId= just in case.
-  const tries=['/jobs/invoices/'+encodeURIComponent(jid),'/jobs/invoices?jobId='+encodeURIComponent(jid)];
-  for(const t of tries){
-    try{const j=await fergusApiFetch(t);const arr=Array.isArray(j)?j:(j.data||j.invoices||j.results||j.customerInvoices||[]);if(Array.isArray(arr))return arr;}
-    catch(e){}
+// Pull all PAID Xero AR invoices, mapped by Fergus job number (parsed from the Reference, which
+// looks like "…address… (#2852)"). Returns { '2852': [invoiceDateMs,…] } sorted asc, or null on failure.
+async function fetchXeroPaidInvoices(){
+  const proxy=fergusProxyUrl();if(!proxy)return null;
+  const psec=fergusProxySecret();
+  const map={};let page=1,got=false;
+  while(page<=12){
+    let res;
+    try{res=await fetch(proxyUrl('xero','/Invoices?where=Type=="ACCREC" AND Status=="PAID"&page='+page+'&order=Date DESC'),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});}
+    catch(e){return got?map:null;}
+    if(!res.ok)return got?map:null;
+    let inv=[];try{inv=(JSON.parse(await res.text()).Invoices)||[];}catch(e){inv=[];}
+    got=true;
+    inv.forEach(v=>{const m=String(v.Reference||'').match(/#\s*(\d+)/);if(!m)return;const d=new Date(v.DateString||v.Date);if(isNaN(d))return;(map[m[1]]||(map[m[1]]=[])).push(d.getTime());});
+    if(inv.length<100)break;
+    page++;toast('Xero invoices… '+((page-1)*100)+'+');
   }
-  return [];
+  Object.keys(map).forEach(k=>map[k].sort((a,b)=>a-b));
+  return map;
 }
-// Normalise a Fergus invoice → {created, t(ms), paid, void}. Field names matched defensively.
-function normInv(iv){
-  const st=String(iv.status||iv.invoiceStatus||iv.paymentStatus||'').toUpperCase();
-  const cd=iv.createdAt||iv.dateCreated||iv.created||iv.invoiceDate||iv.date||iv.issuedAt||iv.issuedDate||iv.dateIssued||iv.sentAt;
-  const payCount=Array.isArray(iv.payments)?iv.payments.length:num(iv.payments||iv.paymentCount||iv.numPayments||iv.paymentsCount);
-  const vd=!!iv.voidedAt||iv.isVoid===true||iv.voided===true||iv.isDraft===true||st.indexOf('VOID')>=0||st==='DELETED'||st==='DRAFT';
-  const paid=!vd&&(iv.isPaid===true||!!iv.paidAt||!!iv.datePaid||st.indexOf('PAID')>=0||num(iv.amountPaid)>0||num(iv.totalPaid)>0||payCount>0);
-  return {created:cd,t:cd?new Date(cd).getTime():0,paid:!!paid,void:!!vd};
-}
-// Build a back-costing row IF the job qualifies, dated to the most recent valid PAID invoice:
-//  • 2+ valid paid invoices  → include (even if not marked Completed)
-//  • exactly 1 valid paid invoice → include only if the job is marked Completed
-function buildBCRow(job,summary,invArr){
-  const fid=job.id!=null?job.id:(job.jobId!=null?job.jobId:(job.jobNo||job.jobNumber));
-  if(fid==null)return null;
-  const paid=(invArr||[]).map(normInv).filter(iv=>iv.paid&&!iv.void&&iv.t).sort((a,b)=>a.t-b.t);
-  const completed=(job.status||'')==='Completed';
-  let dateStr='';
-  if(paid.length>=2)dateStr=paid[paid.length-1].created;
-  else if(paid.length>=1&&completed)dateStr=paid[paid.length-1].created;
-  else return null;
+// Build a back-costing row from a Fergus financial summary, dated to a given invoice timestamp.
+function bcRowFrom(job,summary,dateMs){
+  const fid=job.id!=null?job.id:(job.jobId!=null?job.jobId:(job.jobNo||job.jobNumber));if(fid==null)return null;
   const s=summary||{};const ci=s.costsIncurred||{},tb=s.totalBilled||{},ca=s.chargeableAmount||{},qs=s.quoteSummary||{},lh=s.labourHours||{};
   const sales=num(tb.total)||num(ca.total)||num(qs.quotedAmount);
   const a_lab=num(ci.labour),a_mat=num(ci.materials);const cost=num(ci.total)||(a_lab+a_mat);
@@ -790,36 +783,44 @@ function buildBCRow(job,summary,invArr){
   const h_actual=num(lh.total)||num(lh.billable),h_priced=num(qs.quotedHours);
   const gp=sales-cost,gpm=sales>0?Math.round(gp/sales*1000)/10:0;
   const client=fergusName(job.customer)||fergusName(job.mainContact)||'Unknown';const site=fergusAddr(job.siteAddress);
-  const d=new Date(dateStr);const date=isNaN(d)?td_str():d.toISOString().split('T')[0];
-  return {month:fergusMonthLabel(dateStr)||fergusMonthLabel(date),job:client+(site?(' — '+site):''),date,job_type:job.jobType||job.type||'Fergus',p_lab,a_lab,p_mat,a_mat,sales,gp,gpm,h_actual,h_priced,lead_src:'Fergus',_fergus:true,_fergus_id:String(fid),_lastModified:job.lastModified||''};
+  const iso=new Date(dateMs).toISOString();
+  return {month:fergusMonthLabel(iso),job:client+(site?(' — '+site):''),date:iso.split('T')[0],job_type:job.jobType||job.type||'Fergus',p_lab,a_lab,p_mat,a_mat,sales,gp,gpm,h_actual,h_priced,lead_src:'Fergus',_fergus:true,_fergus_id:String(fid),_lastModified:job.lastModified||''};
 }
-// Rebuild ALL Fergus back-costing rows from scratch, dated by the last valid PAID invoice. De-duped.
+// Rebuild ALL Fergus back-costing rows, dated by the last PAID Xero invoice for each job:
+//  • 2+ paid invoices → include (even if not marked Completed)
+//  • exactly 1 paid invoice → include only if the job is marked Completed
 async function syncBackCosting(activeJobs){
   if(!activeJobs)return;
+  const paidByJob=await fetchXeroPaidInvoices();
+  if(!paidByJob){toast('Couldn’t read Xero invoices — back-costing unchanged. Check ⚙ Xero scope (accounting.invoices.read) + retry.','err');return;}
   let completed=[];
   try{completed=await fergusPaginate('/jobs?pageSize=100&sortField=lastModified&sortOrder=desc&filterJobStatus=Completed',3);}
   catch(e){completed=await fergusFetchJobs('Completed').catch(()=>[]);}
   const seen={},jobs=[];
   completed.concat(activeJobs).forEach(j=>{const id=String(j.id!=null?j.id:j.jobId);if(id&&id!=='null'&&id!=='undefined'&&!seen[id]){seen[id]=1;jobs.push(j);}});
-  const cap=Math.min(jobs.length,220);
-  const rebuilt=[];let idx=0,done=0,invTotal=0;
+  const rebuilt=[];let idx=0,done=0;
   const setP=t=>{['work-sync','dash-fw-sync'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=t;});};
   async function worker(){
-    while(idx<cap){
-      const job=jobs[idx++];const jid=job.id!=null?job.id:job.jobId;
-      let summary=null,invArr=[];
-      try{summary=await fergusFetchFinancialSummary(jid);}catch(e){}
-      try{invArr=await fetchJobInvoices(jid);invTotal+=(invArr||[]).length;}catch(e){}
-      const row=buildBCRow(job,summary,invArr);if(row)rebuilt.push(row);
-      done++;if(done%8===0)setP('back-costing '+done+'/'+cap+'…');
+    while(idx<jobs.length){
+      const job=jobs[idx++];
+      const jno=String(job.jobNo||job.jobNumber||'');
+      const paid=paidByJob[jno]||[];
+      const completedStatus=(job.status||'')==='Completed';
+      let dateMs=null;
+      if(paid.length>=2)dateMs=paid[paid.length-1];
+      else if(paid.length>=1&&completedStatus)dateMs=paid[paid.length-1];
+      if(dateMs==null){done++;continue;}
+      let summary=null;try{summary=await fergusFetchFinancialSummary(job.id!=null?job.id:job.jobId);}catch(e){}
+      const row=bcRowFrom(job,summary,dateMs);if(row)rebuilt.push(row);
+      done++;if(done%8===0)setP('back-costing '+done+'/'+jobs.length+'…');
     }
   }
   await Promise.all(Array.from({length:4},()=>worker()));
-  if(invTotal===0){toast('Couldn’t read Fergus invoices — back-costing left unchanged. Run the diagnostic.','err');return;}
   const m={};rebuilt.forEach(r=>{m[r._fergus_id]=r;});   // de-dupe by job id
   const arr=Object.values(m);
-  if(!arr.length){toast('No jobs matched the paid-invoice rule — back-costing left unchanged. Run the diagnostic.','err');return;}
-  bcFergus=arr;S.set('bcFergus',bcFergus);S.set('bc_inv_n',invTotal);
+  if(!arr.length){toast('No jobs matched a paid Xero invoice — back-costing unchanged.','err');return;}
+  bcFergus=arr;S.set('bcFergus',bcFergus);S.set('bc_inv_n',arr.length);
+  toast('Back-costing rebuilt ✓ '+arr.length+' jobs by paid-invoice date','ok');
 }
 // Back-cost a job to the month its COMPLETION invoice was raised — the 2nd non-void invoice
 // (50% deposit + 50% on completion). Avoids re-dating to a later rework / lastModified date.
