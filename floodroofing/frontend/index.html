@@ -931,6 +931,24 @@ select{
   html.print-quote #tab-quote .q-extras-head{display:none!important}
   html.print-quote #tab-quote .card.js-proposal-print{display:block!important}
   html.print-quote #tab-quote .card.js-proposal-print > .card-hd{display:none!important}
+  /* Editor chrome that shouldn't reach paper: "click to edit" hints,
+     empty-state captions, dashed photo-upload placeholders, slot
+     control buttons, contenteditable focus outlines. */
+  html.print-quote .qp-edit-hint,
+  html.print-quote .qp-placeholder,
+  html.print-quote .qp-cond-controls,
+  html.print-quote .qp-cond-empty,
+  html.print-quote .qp-cond-cap-empty,
+  html.print-quote .no-print{display:none!important}
+  html.print-quote .qp-editable{outline:none!important;border:none!important;background:transparent!important}
+  html.print-quote [contenteditable]{outline:none!important;caret-color:transparent}
+  /* Colour swatches mustn't split across pages — keep the whole grid
+     on one sheet so labels stay anchored to their colour boxes. */
+  html.print-quote .qp-swatch-grid,
+  html.print-quote .qp-keep-together{page-break-inside:avoid;break-inside:avoid}
+  /* Print colour adjustment — coloured swatches + dark backgrounds must
+     print at full saturation, not the browser's draft-toned defaults. */
+  html.print-quote *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 
   /* Order Material — print only the Order panel, suppress the
      in-page sketch toolbar buttons and the supplier select that don't
@@ -5654,6 +5672,173 @@ function addPhotos(e){Array.from(e.target.files).forEach(function(f){var r=new F
 function renderPhotos(){document.getElementById('photoGrid').innerHTML=S.photos.map(function(p,i){return '<div class="photo-thumb"><img src="'+p.src+'"><button class="photo-rm" onclick="removePhoto('+i+')">x</button><div class="photo-caption"><input type="text" placeholder="Caption..." value="'+p.caption+'" style="width:100%;margin:0;padding:3px 5px;font-size:11px" oninput="S.photos['+i+'].caption=this.value"></div></div>';}).join('');}
 function removePhoto(i){S.photos.splice(i,1);renderPhotos();}
 
+// ── Condition photos (Quote → Inspection page slots) ─────────────
+// Per-slot photo storage on S.quote.condPhotos. Each entry is
+// {src, caption, offX, offY, zoom}. Slot index is the position in
+// the 3×2 grid on the inspection-report page.
+var _qpCondPhotoTargetIdx = null;
+function _qpCondPhoto(idx){
+  if (!S.quote) return null;
+  if (!Array.isArray(S.quote.condPhotos)) S.quote.condPhotos = [];
+  return S.quote.condPhotos[idx] || null;
+}
+function _qpCondPhotoSet(idx, patch){
+  if (!S.quote) S.quote = defaultQuote();
+  if (!Array.isArray(S.quote.condPhotos)) S.quote.condPhotos = [];
+  var cur = S.quote.condPhotos[idx] || { offX:0, offY:0, zoom:1 };
+  S.quote.condPhotos[idx] = Object.assign({}, cur, patch);
+}
+function _qpCondPhotoClear(idx){
+  if (!S.quote || !Array.isArray(S.quote.condPhotos)) return;
+  S.quote.condPhotos[idx] = null;
+  _qpRerenderCondPhotos();
+}
+// Build the HTML for one slot. Empty slots show a clickable upload
+// surface; filled slots show the photo with the user's transform +
+// hover controls (zoom in/out + remove). Print CSS hides the
+// controls so only the image reaches paper.
+function _qpCondPhotoSlotHtml(idx, cp){
+  if (!cp || !cp.src) {
+    return '<div class="qp-cond-photo qp-cond-empty" data-cp-idx="'+idx+'" '+
+      'onclick="_qpCondPhotoPick('+idx+')" '+
+      'ondragover="event.preventDefault();this.style.borderColor=\'var(--ed-accent)\'" '+
+      'ondragleave="this.style.borderColor=\'var(--ed-line)\'" '+
+      'ondrop="_qpCondPhotoDrop(event,'+idx+')" '+
+      'style="aspect-ratio:4/3;background:var(--ed-paper-2);border:1px dashed var(--ed-line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--ed-text2);cursor:pointer;transition:border-color .15s">'+
+      '<svg viewBox="0 0 36 36" style="width:26px;height:26px;opacity:.32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="9" width="26" height="20" rx="2"/><circle cx="13" cy="16" r="2"/><path d="M5 24 L13 18 L20 24 L26 19 L31 23"/></svg>'+
+      '<div class="ed-serif" style="font-style:italic;font-size:13px;color:var(--ed-text2);opacity:.7">Upload Site Photo</div>'+
+    '</div>';
+  }
+  var ox = +cp.offX || 0, oy = +cp.offY || 0, zm = +cp.zoom || 1;
+  var captionHtml = cp.caption
+    ? '<figcaption class="qp-cond-cap" contenteditable="true" data-cp-idx="'+idx+'" '+
+        'onblur="_qpCondPhotoCaptionBlur(this)" '+
+        'style="position:absolute;bottom:0;left:0;right:0;padding:6px 10px;background:rgba(10,24,40,.82);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:11.5px;outline:none">'+esc2(cp.caption)+'</figcaption>'
+    : '<figcaption class="qp-cond-cap qp-cond-cap-empty no-print" contenteditable="true" data-cp-idx="'+idx+'" '+
+        'onblur="_qpCondPhotoCaptionBlur(this)" '+
+        'style="position:absolute;bottom:0;left:0;right:0;padding:4px 10px;background:rgba(10,24,40,.5);color:rgba(255,255,255,.5);font-family:var(--ed-serif);font-style:italic;font-size:10.5px;outline:none">Click to add caption…</figcaption>';
+  return '<figure class="qp-cond-photo qp-cond-filled" data-cp-idx="'+idx+'" '+
+    'onwheel="_qpCondPhotoWheel(event,'+idx+')" '+
+    'onmousedown="_qpCondPhotoDragStart(event,'+idx+')" '+
+    'style="margin:0;aspect-ratio:4/3;background:#000;overflow:hidden;position:relative;border:1px solid var(--ed-ink);cursor:grab;user-select:none">'+
+    '<img src="'+esc2(cp.src)+'" draggable="false" '+
+      'style="width:100%;height:100%;object-fit:cover;filter:saturate(.95);'+
+      'transform:translate('+ox+'px,'+oy+'px) scale('+zm+');transform-origin:center center;pointer-events:none">'+
+    captionHtml +
+    // Hover controls — hidden in print via .no-print
+    '<div class="qp-cond-controls no-print" style="position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .15s">'+
+      '<button type="button" onclick="event.stopPropagation();_qpCondPhotoZoom('+idx+',-0.1)" title="Zoom out" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(10,24,40,.78);color:#fff;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">−</button>'+
+      '<button type="button" onclick="event.stopPropagation();_qpCondPhotoZoom('+idx+',+0.1)" title="Zoom in" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(10,24,40,.78);color:#fff;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">+</button>'+
+      '<button type="button" onclick="event.stopPropagation();_qpCondPhotoReset('+idx+')" title="Reset position" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(10,24,40,.78);color:#fff;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center">↺</button>'+
+      '<button type="button" onclick="event.stopPropagation();_qpCondPhotoRemove('+idx+')" title="Remove photo" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(185,28,28,.85);color:#fff;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">×</button>'+
+    '</div>'+
+  '</figure>';
+}
+function _qpCondPhotoPick(idx){
+  _qpCondPhotoTargetIdx = idx;
+  var inp = document.getElementById('qpCondPhotoFileInput');
+  if (inp) { inp.value = ''; inp.click(); }
+}
+function _qpCondPhotoUpload(e){
+  var f = e.target.files && e.target.files[0];
+  if (!f || _qpCondPhotoTargetIdx == null) return;
+  var idx = _qpCondPhotoTargetIdx;
+  var r = new FileReader();
+  r.onload = function(ev){
+    _qpCondPhotoSet(idx, { src: ev.target.result, offX:0, offY:0, zoom:1 });
+    _qpRerenderCondPhotos();
+  };
+  r.readAsDataURL(f);
+}
+function _qpCondPhotoDrop(e, idx){
+  e.preventDefault();
+  var dt = e.dataTransfer;
+  if (!dt || !dt.files || !dt.files[0]) return;
+  var f = dt.files[0];
+  if (!f.type || f.type.indexOf('image/') !== 0) return;
+  var r = new FileReader();
+  r.onload = function(ev){
+    _qpCondPhotoSet(idx, { src: ev.target.result, offX:0, offY:0, zoom:1 });
+    _qpRerenderCondPhotos();
+  };
+  r.readAsDataURL(f);
+}
+function _qpCondPhotoRemove(idx){
+  if (!confirm('Remove this photo?')) return;
+  _qpCondPhotoClear(idx);
+}
+function _qpCondPhotoReset(idx){
+  _qpCondPhotoSet(idx, { offX:0, offY:0, zoom:1 });
+  _qpRerenderOneSlot(idx);
+}
+function _qpCondPhotoZoom(idx, delta){
+  var cp = _qpCondPhoto(idx); if (!cp) return;
+  var z = Math.max(0.3, Math.min(4, (+cp.zoom || 1) + delta));
+  _qpCondPhotoSet(idx, { zoom: z });
+  _qpApplySlotTransform(idx);
+}
+function _qpCondPhotoWheel(e, idx){
+  e.preventDefault();
+  var delta = e.deltaY > 0 ? -0.08 : 0.08;
+  _qpCondPhotoZoom(idx, delta);
+}
+function _qpCondPhotoDragStart(e, idx){
+  // Ignore clicks on controls / caption inputs.
+  if (e.target.closest('.qp-cond-controls, .qp-cond-cap, button')) return;
+  e.preventDefault();
+  var cp = _qpCondPhoto(idx); if (!cp) return;
+  var startX = e.clientX, startY = e.clientY;
+  var startOx = +cp.offX || 0, startOy = +cp.offY || 0;
+  var fig = e.currentTarget;
+  fig.style.cursor = 'grabbing';
+  function onMove(ev){
+    var dx = ev.clientX - startX, dy = ev.clientY - startY;
+    _qpCondPhotoSet(idx, { offX: startOx + dx, offY: startOy + dy });
+    _qpApplySlotTransform(idx);
+  }
+  function onUp(){
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    fig.style.cursor = 'grab';
+  }
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+function _qpCondPhotoCaptionBlur(el){
+  var idx = parseInt(el.getAttribute('data-cp-idx'), 10);
+  if (!isFinite(idx)) return;
+  var txt = (el.textContent || '').trim();
+  if (txt === 'Click to add caption…') txt = '';
+  _qpCondPhotoSet(idx, { caption: txt });
+}
+// Apply the user's transform to the IMG inside a slot WITHOUT
+// re-rendering the whole proposal — drag should feel snappy.
+function _qpApplySlotTransform(idx){
+  var fig = document.querySelector('.qp-cond-photo[data-cp-idx="'+idx+'"]');
+  if (!fig) return;
+  var img = fig.querySelector('img');
+  if (!img) return;
+  var cp = _qpCondPhoto(idx); if (!cp) return;
+  img.style.transform = 'translate('+(+cp.offX||0)+'px,'+(+cp.offY||0)+'px) scale('+(+cp.zoom||1)+')';
+}
+// Replace one slot's DOM (for clear / upload paths where the
+// empty↔filled markup differs).
+function _qpRerenderOneSlot(idx){
+  var old = document.querySelector('.qp-cond-photo[data-cp-idx="'+idx+'"]');
+  if (!old) { _qpRerenderCondPhotos(); return; }
+  var tmp = document.createElement('div');
+  tmp.innerHTML = _qpCondPhotoSlotHtml(idx, _qpCondPhoto(idx));
+  var fresh = tmp.firstChild;
+  old.parentNode.replaceChild(fresh, old);
+}
+// Full-tab rerender — used after upload / remove since the proposal
+// preview is the canonical render path.
+function _qpRerenderCondPhotos(){
+  try {
+    if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+  } catch(e){}
+}
+
 // ── REPORT ───────────────────────────────────────────────────────
 function refreshReport(){
   var d=S.roofData||{};
@@ -7402,7 +7587,7 @@ function refreshQuoteProposal(){
       '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:28px;align-items:start;margin-bottom:22px">'+
         '<div>'+
           '<div class="ed-body-lg qp-editable" contenteditable="true" data-qfield="aboutText" data-multiline="1" spellcheck="true" style="min-height:3em">'+
-            (aboutText ? esc2(aboutText) : '<span style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add your company story here — click to edit…</span>')+
+            (aboutText ? esc2(aboutText) : '<span class="qp-placeholder" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add your company story here — click to edit…</span>')+
           '</div>'+
         '</div>'+
         '<div>'+
@@ -7435,35 +7620,27 @@ function refreshQuoteProposal(){
   if (on('condition')) {
     var condSummary = S.quote.conditionSummary || '';
     var condObs = (S.quote.conditionObservations || []).filter(Boolean);
-    // Render six photo boxes (3×2), the same scheme used previously on
-    // the Project Details page — empty boxes show the dashed "Upload"
-    // placeholder so the surveyor can see which gaps remain.
+    // Six condition-photo slots — each one can be clicked to upload a
+    // photo, then panned (mouse drag) and zoomed (wheel) inside the
+    // 4:3 frame. Storage lives on S.quote.condPhotos so the slots are
+    // bound to THIS proposal, not the shared S.photos pool.
+    if (!S.quote.condPhotos) S.quote.condPhotos = [];
     var photoBoxes = '';
-    for (var ci = 0; ci < 6; ci++){
-      var pp = photos[ci];
-      if (pp && pp.src){
-        photoBoxes += '<div style="aspect-ratio:4/3;border-radius:6px;overflow:hidden;background:#000;border:1px solid var(--border);position:relative"><img src="'+esc2(pp.src)+'" style="width:100%;height:100%;object-fit:cover">'+(pp.caption?'<div style="position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.6);color:#fff;font-size:11px">'+esc2(pp.caption)+'</div>':'')+'</div>';
-      } else {
-        photoBoxes += '<div style="aspect-ratio:4/3;border-radius:6px;background:#fafbfc;border:1.5px dashed #cbd2dc;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#94a0b0">'+rpIcon('clipboard','#94a0b0',20)+'<div style="font-size:11.5px;font-weight:600">Upload site photo here</div></div>';
-      }
-    }
-    // Six site-photo slots laid out 3 × 2.  When the surveyor has
-    // uploaded job photos we use those (with their captions); empty
-    // slots show a faint "Upload Site Photo" placeholder ready for
-    // the user to drop a photo in.
-    photoBoxes = '';
     for (var ci2 = 0; ci2 < 6; ci2++){
-      var pp2 = photos[ci2];
-      if (pp2 && pp2.src){
-        photoBoxes += '<figure style="margin:0;aspect-ratio:4/3;background:#000;overflow:hidden;position:relative;border:1px solid var(--ed-ink)"><img src="'+esc2(pp2.src)+'" style="width:100%;height:100%;object-fit:cover;filter:saturate(.95)">'+(pp2.caption?'<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:6px 10px;background:rgba(10,24,40,.82);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:11.5px">'+esc2(pp2.caption)+'</figcaption>':'')+'</figure>';
-      } else {
-        photoBoxes += '<div style="aspect-ratio:4/3;background:var(--ed-paper-2);border:1px dashed var(--ed-line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--ed-text2)">'+
-          // Faint upload-icon glyph
-          '<svg viewBox="0 0 36 36" style="width:26px;height:26px;opacity:.32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="9" width="26" height="20" rx="2"/><circle cx="13" cy="16" r="2"/><path d="M5 24 L13 18 L20 24 L26 19 L31 23"/></svg>'+
-          '<div class="ed-serif" style="font-style:italic;font-size:13px;color:var(--ed-text2);opacity:.7">Upload Site Photo</div>'+
-        '</div>';
+      var cp = S.quote.condPhotos[ci2] || null;
+      // Pre-fill from S.photos uploaded under the inspection if this
+      // slot is empty and we haven't already imported a job photo into
+      // it — keeps backwards compatibility with the old behaviour.
+      if (!cp && photos[ci2] && photos[ci2].src) {
+        cp = { src: photos[ci2].src, caption: photos[ci2].caption || '', offX: 0, offY: 0, zoom: 1 };
       }
+      photoBoxes += _qpCondPhotoSlotHtml(ci2, cp);
     }
+    // Hidden file input — single one re-used by every slot via the
+    // hidden _qpCondPhotoTargetIdx pointer.  Lives at the end of the
+    // photo grid so it's part of the inspection page DOM.
+    photoBoxes += '<input type="file" accept="image/*" id="qpCondPhotoFileInput" '+
+      'onchange="_qpCondPhotoUpload(event)" style="display:none">';
     // Structured condition fields — roof type / pitch fall back to the
     // drawn roof data; issues + recommendations come from the Quote tab.
     var _pretty = function(s){ return (s||'').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}); };
@@ -7509,25 +7686,25 @@ function refreshQuoteProposal(){
       // Major + minor issues — always shown with inline-editable text areas
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start;margin-bottom:18px">'+
         '<div>'+
-          '<div class="ed-eyebrow" style="margin-bottom:6px;color:var(--ed-warm,#c0794d)">Major issues <span style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+          '<div class="ed-eyebrow" style="margin-bottom:6px;color:var(--ed-warm,#c0794d)">Major issues <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
           (cMajor.length ? issueList(cMajor,'var(--ed-warm,#c0794d)') : '')+
           '<div class="qp-editable" contenteditable="true" data-qfield="condMajor" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.6;color:var(--ed-text2);font-style:italic;margin-top:'+(cMajor.length?'8':'0')+'px;min-height:1.5em">'+
-            (S.quote.condMajor ? esc2(S.quote.condMajor) : 'One issue per line…')+
+            (S.quote.condMajor ? esc2(S.quote.condMajor) : '<span class="qp-placeholder">One issue per line…</span>')+
           '</div>'+
         '</div>'+
         '<div>'+
-          '<div class="ed-eyebrow" style="margin-bottom:6px">Minor issues <span style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+          '<div class="ed-eyebrow" style="margin-bottom:6px">Minor issues <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
           (minorList.length ? issueList(minorList,'var(--ed-accent)') : '')+
           '<div class="qp-editable" contenteditable="true" data-qfield="condMinor" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.6;color:var(--ed-text2);font-style:italic;margin-top:'+(minorList.length?'8':'0')+'px;min-height:1.5em">'+
-            (S.quote.condMinor ? esc2(S.quote.condMinor) : 'One issue per line…')+
+            (S.quote.condMinor ? esc2(S.quote.condMinor) : '<span class="qp-placeholder">One issue per line…</span>')+
           '</div>'+
         '</div>'+
       '</div>'+
       // Recommendations — always shown with editable block
       '<div style="margin-bottom:18px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
-        '<div class="ed-eyebrow" style="margin-bottom:6px">Recommendations <span style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+        '<div class="ed-eyebrow" style="margin-bottom:6px">Recommendations <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
         '<div class="qp-editable" contenteditable="true" data-qfield="condReco" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.55;color:var(--ed-ink-2);min-height:1.5em">'+
-          (cReco ? esc2(cReco) : '<span style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add recommendations here…</span>')+
+          (cReco ? esc2(cReco) : '<span class="qp-placeholder" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add recommendations here…</span>')+
         '</div>'+
       '</div>'+
       // Six existing-roof photo spots — uploaded site photos fill them,
@@ -7590,7 +7767,7 @@ function refreshQuoteProposal(){
           '</div>' : '')+
         '</div>'+
         '<div>'+
-          '<div class="ed-eyebrow" style="margin-bottom:8px">Scope summary <span style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+          '<div class="ed-eyebrow" style="margin-bottom:8px">Scope summary <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
           (scopeLines.length
             ? '<div>'+
                 scopeLines.map(function(l, i){
@@ -7877,7 +8054,7 @@ function refreshQuoteProposal(){
       '</div>'+
       itemTable+
       '<div style="margin-top:22px;padding:14px 18px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
-        '<div class="ed-eyebrow" style="margin-bottom:6px">Notes <span style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+        '<div class="ed-eyebrow" style="margin-bottom:6px">Notes <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
         '<div class="qp-editable" contenteditable="true" data-qfield="notes" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.55;color:var(--ed-ink-2);min-height:1.4em">'+
           (S.quote.notes ? esc2(S.quote.notes) : '<span style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add notes for the client (access, timing, special considerations)…</span>')+
         '</div>'+
@@ -7943,16 +8120,19 @@ function refreshQuoteProposal(){
           '</div>';
         }).join('')+
       '</div>'+
-      // Colour palette — editorial label
-      '<div class="ed-eyebrow" style="margin-bottom:8px">The colour range</div>'+
-      '<div class="ed-serif" style="font-size:16px;font-style:italic;margin-bottom:10px;color:var(--ed-ink)">Standard Colorsteel® palette</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">'+
-        MAXAM_COLOURS.map(function(c){
-          var labelStyle = 'color:'+(needsLightLabel(c.hex)?'#fff':'#0a1628');
-          return '<div style="position:relative;background:'+c.hex+';height:80px;display:flex;align-items:flex-end;padding:6px 8px">'+
-            '<div style="font-family:var(--ed-sans);font-size:11px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.4)':'none')+'">'+esc2(c.name)+'</div>'+
-          '</div>';
-        }).join('')+
+      // Colour palette — editorial label. qp-keep-together prevents
+      // a page break splitting the swatch boxes from their labels.
+      '<div class="qp-keep-together">'+
+        '<div class="ed-eyebrow" style="margin-bottom:8px">The colour range</div>'+
+        '<div class="ed-serif" style="font-size:16px;font-style:italic;margin-bottom:10px;color:var(--ed-ink)">Standard Colorsteel® palette</div>'+
+        '<div class="qp-swatch-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">'+
+          MAXAM_COLOURS.map(function(c){
+            var labelStyle = 'color:'+(needsLightLabel(c.hex)?'#fff':'#0a1628');
+            return '<div class="qp-keep-together" style="position:relative;background:'+c.hex+';height:80px;display:flex;align-items:flex-end;padding:6px 8px">'+
+              '<div style="font-family:var(--ed-sans);font-size:11px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.4)':'none')+'">'+esc2(c.name)+'</div>'+
+            '</div>';
+          }).join('')+
+        '</div>'+
       '</div>'+
       '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em;font-style:italic">Approximate colour rendering — final selection from NZ Steel\'s physical Colorsteel® chip card.</div>';
     // Colorsteel page intentionally has no corner photo — the
@@ -8181,7 +8361,7 @@ function refreshQuoteProposal(){
     // column flow so inline editing behaves; appended below the clauses.
     var addTerms =
       '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--ed-line)">'+
-        '<div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em;margin-bottom:3px">Additional terms for this job <span style="font-family:var(--ed-sans);font-size:9px;font-style:normal;font-weight:400;color:var(--ed-text2);letter-spacing:.02em">— click to edit</span></div>'+
+        '<div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em;margin-bottom:3px">Additional terms for this job <span class="qp-edit-hint" style="font-family:var(--ed-sans);font-size:9px;font-style:normal;font-weight:400;color:var(--ed-text2);letter-spacing:.02em">— click to edit</span></div>'+
         '<div class="qp-editable" contenteditable="true" data-qfield="terms" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11px;line-height:1.55;color:var(--ed-ink-2);min-height:1.3em">'+
           (customTerms ? esc2(customTerms) : '<span style="font-style:italic;color:var(--ed-text2);pointer-events:none">Any job-specific terms to add (the standard T&amp;Cs above always apply)…</span>')+
         '</div>'+
