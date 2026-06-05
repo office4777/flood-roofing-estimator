@@ -131,6 +131,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .mb.m-gp{background:linear-gradient(180deg,rgba(45,212,191,.24),rgba(45,212,191,.09));border-color:#2dd4bf;box-shadow:0 6px 18px rgba(0,0,0,.3);}.mb.m-gp .l{color:#5eead4;}
 .mb.m-opex{background:linear-gradient(180deg,rgba(167,139,250,.24),rgba(167,139,250,.09));border-color:#a78bfa;box-shadow:0 6px 18px rgba(0,0,0,.3);}.mb.m-opex .l{color:#c4b5fd;}
 .mb.m-np{background:linear-gradient(180deg,rgba(77,141,255,.24),rgba(77,141,255,.09));border-color:#4d8dff;box-shadow:0 6px 18px rgba(0,0,0,.3);}.mb.m-np .l{color:#93c5fd;}
+.mb.m-cogs{background:linear-gradient(180deg,rgba(251,146,60,.24),rgba(251,146,60,.09));border-color:#fb923c;box-shadow:0 6px 18px rgba(0,0,0,.3);}.mb.m-cogs .l{color:#fdba74;}
 /* 12-month P&L strip */
 .mstrip{display:flex;gap:11px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 2px 6px;scroll-snap-type:x proximity;}
 .mcard{flex:0 0 156px;scroll-snap-align:start;background:linear-gradient(180deg,var(--card2),var(--card));border:1.5px solid var(--border);border-radius:15px;padding:13px;cursor:pointer;transition:.15s;}
@@ -282,7 +283,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <input class="sel" id="bc-search" placeholder="🔍 Job or address…" oninput="renderBC()" style="margin-bottom:9px;">
       <div class="tbl-wrap">
         <table class="tb" id="bc-tbl">
-          <thead><tr><th>Month</th><th>Job</th><th>Type</th><th>Sales</th><th>GP</th><th>GPM</th><th>Act h</th></tr></thead>
+          <thead><tr><th>Month</th><th>Job</th><th>Type</th><th>Sales</th><th>COGS</th><th>GP</th><th>GPM</th><th>Act h</th></tr></thead>
           <tbody id="bc-body"></tbody>
           <tfoot id="bc-foot"></tfoot>
         </table>
@@ -715,10 +716,11 @@ function avgFig(labels,fn){
 // metric box + grid for Rev/GP/Opex/NP
 function mb(label,val,sub,cls,boxcls){return '<div class="mb'+(boxcls?' '+boxcls:'')+'"><div class="l">'+label+'</div><div class="v'+(cls?' '+cls:'')+'">'+val+'</div><div class="s2">'+(sub||'')+'</div></div>';}
 function pct(part,whole){return whole>0?Math.round(part/whole*100)+'%':'';}
-function metGrid(f){
+function metGrid(f,cogs){
   if(!f)return '<div class="empty" style="grid-column:1/-1;">No data</div>';
   const gpGood=f.rev>0&&(f.gp/f.rev)>=0.30;   // GP ≥30% = green, else red
   return mb('Revenue',fmtK(f.rev),'','','m-rev')+
+    (cogs?mb('Cost of Goods Sold',fmtK(f.rev-f.gp),pct(f.rev-f.gp,f.rev)+' of rev','','m-cogs'):'')+
     mb('Gross Profit',fmtK(f.gp),pct(f.gp,f.rev)+' GPM',gpGood?'pos':'neg','m-gp')+
     mb('Opex'+(f.src==='est'?' (est.)':''),fmtK(f.opex),pct(f.opex,f.rev)+' of rev','','m-opex')+
     mb('Net Profit'+(f.src==='est'?' (est.)':''),fmtK(f.np),pct(f.np,f.rev)+' margin',f.np>=0?'pos':'neg','m-np');
@@ -877,13 +879,13 @@ function renderBC(){
   renderBCStrip();
   // ── period cards (This / Last / 3-mo) from back-costing ──
   const p=periodMonths();
-  document.getElementById('bc-met-this').innerHTML=metGrid(p.thisM?bcFig(p.thisM):null);
-  document.getElementById('bc-met-last').innerHTML=metGrid(p.lastM?bcFig(p.lastM):null);
+  document.getElementById('bc-met-this').innerHTML=metGrid(p.thisM?bcFig(p.thisM):null,true);
+  document.getElementById('bc-met-last').innerHTML=metGrid(p.lastM?bcFig(p.lastM):null,true);
   document.getElementById('bc-pva-this').innerHTML=p.thisM?pvaGrid(bcFig(p.thisM)):'';
   document.getElementById('bc-pva-last').innerHTML=p.lastM?pvaGrid(bcFig(p.lastM)):'';
   document.getElementById('bc-lbl-this').textContent=p.thisM||'—';
   document.getElementById('bc-lbl-last').textContent=p.lastM||'—';
-  renderRollingStrip('roll-strip-bc',bcFig,dataMonths().slice(-12).reverse());
+  renderRollingStrip('roll-strip-bc',bcFig,dataMonths().slice(-12).reverse(),true);
 
   const yr=document.getElementById('bc-year').value, ty=document.getElementById('bc-type').value, q=(document.getElementById('bc-search').value||'').toLowerCase();
   let rows=getAllBC().filter(r=>{
@@ -895,10 +897,10 @@ function renderBC(){
   document.getElementById('bc-count').textContent='· '+rows.length+' jobs'+(S.get('bc_inv_n',0)?' · dated by completion invoice':'');
   document.getElementById('bc-body').innerHTML=rows.length?rows.slice(0,400).map(r=>{
     const gp=num(r.gp),gpm=num(r.gpm);
-    return '<tr><td>'+esc(r.month||'')+'</td><td>'+esc((r.job||'').slice(0,40))+(r._fergus?' <span class="mut">⚡</span>':'')+'</td><td>'+esc((r.job_type||'').replace('Re-Roof','RR'))+'</td><td>'+fmtK(r.sales)+'</td><td class="'+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td>'+(gpm?gpm+'%':'—')+'</td><td>'+(r.h_actual?fmtH(r.h_actual):'—')+'</td></tr>';
-  }).join(''):'<tr><td colspan="7" class="empty">No jobs match.</td></tr>';
+    return '<tr><td>'+esc(r.month||'')+'</td><td>'+esc((r.job||'').slice(0,40))+(r._fergus?' <span class="mut">⚡</span>':'')+'</td><td>'+esc((r.job_type||'').replace('Re-Roof','RR'))+'</td><td>'+fmtK(r.sales)+'</td><td>'+fmtK(num(r.sales)-gp)+'</td><td class="'+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td>'+(gpm?gpm+'%':'—')+'</td><td>'+(r.h_actual?fmtH(r.h_actual):'—')+'</td></tr>';
+  }).join(''):'<tr><td colspan="8" class="empty">No jobs match.</td></tr>';
   const tS=rows.reduce((s,r)=>s+num(r.sales),0),tG=rows.reduce((s,r)=>s+num(r.gp),0),tH=rows.reduce((s,r)=>s+num(r.h_actual),0);
-  document.getElementById('bc-foot').innerHTML='<tr class="tot"><td colspan="3">TOTAL ('+rows.length+')</td><td>'+fmtK(tS)+'</td><td>'+fmtK(tG)+'</td><td>'+(tS>0?Math.round(tG/tS*100)+'%':'—')+'</td><td>'+fmtH(tH)+'</td></tr>';
+  document.getElementById('bc-foot').innerHTML='<tr class="tot"><td colspan="3">TOTAL ('+rows.length+')</td><td>'+fmtK(tS)+'</td><td>'+fmtK(tS-tG)+'</td><td>'+fmtK(tG)+'</td><td>'+(tS>0?Math.round(tG/tS*100)+'%':'—')+'</td><td>'+fmtH(tH)+'</td></tr>';
   // tiles
   document.getElementById('bc-tiles').innerHTML=
     tile('s','Total Sales',fmtK(tS),rows.length+' jobs')+
@@ -1363,7 +1365,9 @@ function renderBCStrip(){
   host.innerHTML=months.map(k=>{const f=bcFig(k);const gpm=f.rev>0?f.gp/f.rev:0,opx=f.rev>0?f.opex/f.rev:0,npm=f.rev>0?f.np/f.rev:0;
     return '<div class="mcard"><div class="mm">'+esc(k)+'</div>'+
       row('Rev',fmtK(f.rev),'')+
+      row('COGS',fmtK(f.rev-f.gp),'')+
       row('GP',fmtK(f.gp)+' · '+Math.round(gpm*100)+'%',gpm>=0.30?'pos':'neg')+
+      row('GP/hr',f.hA>0?fmt$(f.gp/f.hA):'—',f.hA>0&&f.gp>=0?'pos':'')+
       row('Opex',fmtK(f.opex)+' · '+Math.round(opx*100)+'%','')+
       row('NP',fmtK(f.np)+' · '+Math.round(npm*100)+'%',f.np>=0?'pos':'neg')+'</div>';}).join('');
 }
@@ -1391,7 +1395,7 @@ function renderMktStrip(){
 
 // 3-month rolling, by month: each card = that month averaged with the two before it.
 function monthKeyMinus(label,n){const p=String(label).split('-');const mi=FG_MONTHS.indexOf(p[0]);const d=new Date(parseInt(p[1]),mi-n,1);return FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();}
-function renderRollingStrip(hostId,figFn,endingMonths){
+function renderRollingStrip(hostId,figFn,endingMonths,cogs){
   const host=document.getElementById(hostId);if(!host)return;
   const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
   const cards=endingMonths.map(M=>{
@@ -1401,6 +1405,7 @@ function renderRollingStrip(hostId,figFn,endingMonths){
     return '<div class="mcard"><div class="mm">'+esc(M)+'</div>'+
       '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">3-mo avg · '+esc(monthKeyMinus(M,2))+'→'+esc(M)+'</span></div>'+
       row('Rev',fmtK(f.rev),'')+
+      (cogs?row('COGS',fmtK(f.rev-f.gp),''):'')+
       row('GP',fmtK(f.gp)+' · '+Math.round(gpm*100)+'%',gpm>=0.30?'pos':'neg')+
       row('Opex',fmtK(f.opex)+' · '+Math.round(opx*100)+'%','')+
       row('NP',fmtK(f.np)+' · '+Math.round(npm*100)+'%',f.np>=0?'pos':'neg')+'</div>';
