@@ -191,8 +191,8 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="mg" id="met-last"></div>
     </div>
     <div class="card per-3mo">
-      <div class="ct">3-Month Rolling Avg <span id="lbl-3mo" class="period-sub"></span><span id="src-3mo" class="period-sub" style="margin-left:auto;"></span></div>
-      <div class="mg" id="met-3mo"></div>
+      <div class="ct">3-Month Rolling — by month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
+      <div class="mstrip" id="roll-strip-dash"></div>
     </div>
 
     <div class="card">
@@ -255,9 +255,8 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="mg" id="bc-pva-last" style="margin-top:9px;"></div>
     </div>
     <div class="card per-3mo">
-      <div class="ct">3-Month Rolling Avg <span id="bc-lbl-3mo" class="period-sub"></span></div>
-      <div class="mg" id="bc-met-3mo"></div>
-      <div class="mg" id="bc-pva-3mo" style="margin-top:9px;"></div>
+      <div class="ct">3-Month Rolling — by month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
+      <div class="mstrip" id="roll-strip-bc"></div>
     </div>
 
     <div class="tiles" id="bc-tiles"></div>
@@ -816,16 +815,13 @@ function renderBC(){
   renderBCStrip();
   // ── period cards (This / Last / 3-mo) from back-costing ──
   const p=periodMonths();
-  const f3=avgFig(p.avg3,bcFig);
   document.getElementById('bc-met-this').innerHTML=metGrid(p.thisM?bcFig(p.thisM):null);
   document.getElementById('bc-met-last').innerHTML=metGrid(p.lastM?bcFig(p.lastM):null);
-  document.getElementById('bc-met-3mo').innerHTML=metGrid(f3);
   document.getElementById('bc-pva-this').innerHTML=p.thisM?pvaGrid(bcFig(p.thisM)):'';
   document.getElementById('bc-pva-last').innerHTML=p.lastM?pvaGrid(bcFig(p.lastM)):'';
-  document.getElementById('bc-pva-3mo').innerHTML=pvaGrid(f3);
   document.getElementById('bc-lbl-this').textContent=p.thisM||'—';
   document.getElementById('bc-lbl-last').textContent=p.lastM||'—';
-  document.getElementById('bc-lbl-3mo').textContent=p.avg3.length?(p.avg3[0]+' → '+p.avg3[p.avg3.length-1]):'—';
+  renderRollingStrip('roll-strip-bc',bcFig,dataMonths().slice(-12).reverse());
 
   const yr=document.getElementById('bc-year').value, ty=document.getElementById('bc-type').value, q=(document.getElementById('bc-search').value||'').toLowerCase();
   let rows=getAllBC().filter(r=>{
@@ -1107,28 +1103,28 @@ function renderDash(){
   //   This Month = current calendar month (partial), Last Month = last complete month,
   //   3-Month Rolling = the 3 complete months before now (e.g. in June → Mar+Apr+May).
   const xm=Object.keys(xeroMonthly).filter(k=>k);
-  const thisM=calMonthKey(0), lastM=calMonthKey(-1), avg3=[calMonthKey(-3),calMonthKey(-2),calMonthKey(-1)];
+  const thisM=calMonthKey(0), lastM=calMonthKey(-1);
   const pill=document.getElementById('pl-live-pill');
   if(xm.length){
     const fThis=xeroFig(thisM);
     document.getElementById('met-this').innerHTML=metGrid(fThis);
     document.getElementById('met-last').innerHTML=metGrid(xeroFig(lastM));
-    document.getElementById('met-3mo').innerHTML=metGrid(avgFig(avg3,xeroFig));
     document.getElementById('lbl-this').textContent=thisM+(fThis?' · partial':'');
     document.getElementById('lbl-last').textContent=lastM;
-    document.getElementById('lbl-3mo').textContent=avg3[0]+' → '+avg3[2];
-    ['src-this','src-last','src-3mo'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='⚡ Xero';});
+    ['src-this','src-last'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='⚡ Xero';});
     if(pill){pill.className='livepill on';pill.textContent='⚡ Live · Xero P&L';}
-    document.getElementById('dash-note').textContent='From Xero P&L — last synced '+(S.get('xero_last_sync','')||'just now')+' (updates only when you Refresh). On-site wages are counted in COGS, so GP/Opex reflect that. This Month is to-date (partial); 3-month average = the 3 complete months before now. Forward workflow is from Fergus ('+(last||'not synced')+').';
+    document.getElementById('dash-note').textContent='From Xero P&L — last synced '+(S.get('xero_last_sync','')||'just now')+' (updates only when you Refresh). On-site wages are counted in COGS, so GP/Opex reflect that. This Month is to-date (partial); the 3-month rolling strip shows each month averaged with the two before it. Forward workflow is from Fergus ('+(last||'not synced')+').';
   }else{
     const msg='<div class="empty" style="grid-column:1/-1;">Connect Xero for live P&amp;L — tap ⚙, then Refresh.<br><span style="font-size:.8rem;">(Back-costing estimates are on the 💹 Back Cost tab.)</span></div>';
     document.getElementById('met-this').innerHTML=msg;
-    document.getElementById('met-last').innerHTML='';document.getElementById('met-3mo').innerHTML='';
-    document.getElementById('lbl-this').textContent='';document.getElementById('lbl-last').textContent='';document.getElementById('lbl-3mo').textContent='';
-    ['src-this','src-last','src-3mo'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='';});
+    document.getElementById('met-last').innerHTML='';
+    document.getElementById('lbl-this').textContent='';document.getElementById('lbl-last').textContent='';
+    ['src-this','src-last'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='';});
     if(pill){pill.className='livepill off';pill.textContent='Xero — not connected';}
     document.getElementById('dash-note').textContent=last?('Fergus workload synced '+last+'. Set XERO_CLIENT_ID/SECRET on the proxy + Refresh for live P&L.'):'Not connected — tap ⚙, then Refresh.';
   }
+  const endM=[];for(let i=1;i<=12;i++)endM.push(calMonthKey(-i));
+  renderRollingStrip('roll-strip-dash',xeroFig,endM);
 }
 
 // ════════ GROWTH STRUCTURE ════════
@@ -1329,6 +1325,25 @@ function renderMktStrip(){
       row('Quotes',String(o.sent)+' · '+fmtK(o.sentVal),'')+
       row('Accepted',String(o.acc)+' · '+conv+'%',o.acc>0?'pos':'')+
       row('$ Won',fmtK(o.accVal),o.accVal>0?'pos':'')+'</div>';}).join('');
+}
+
+// 3-month rolling, by month: each card = that month averaged with the two before it.
+function monthKeyMinus(label,n){const p=String(label).split('-');const mi=FG_MONTHS.indexOf(p[0]);const d=new Date(parseInt(p[1]),mi-n,1);return FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();}
+function renderRollingStrip(hostId,figFn,endingMonths){
+  const host=document.getElementById(hostId);if(!host)return;
+  const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
+  const cards=endingMonths.map(M=>{
+    const f=avgFig([M,monthKeyMinus(M,1),monthKeyMinus(M,2)],figFn);
+    if(!f)return '';
+    const gpm=f.rev>0?f.gp/f.rev:0,opx=f.rev>0?f.opex/f.rev:0,npm=f.rev>0?f.np/f.rev:0;
+    return '<div class="mcard"><div class="mm">'+esc(M)+'</div>'+
+      '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">3-mo avg · '+esc(monthKeyMinus(M,2))+'→'+esc(M)+'</span></div>'+
+      row('Rev',fmtK(f.rev),'')+
+      row('GP',fmtK(f.gp)+' · '+Math.round(gpm*100)+'%',gpm>=0.30?'pos':'neg')+
+      row('Opex',fmtK(f.opex)+' · '+Math.round(opx*100)+'%','')+
+      row('NP',fmtK(f.np)+' · '+Math.round(npm*100)+'%',f.np>=0?'pos':'neg')+'</div>';
+  }).filter(Boolean);
+  host.innerHTML=cards.length?cards.join(''):'<div class="empty" style="padding:10px;">No data yet.</div>';
 }
 
 // ════════ NAV ════════
