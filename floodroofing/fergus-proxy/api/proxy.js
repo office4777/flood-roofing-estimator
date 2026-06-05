@@ -76,6 +76,10 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Only GET is allowed.' });
 
+  // Harmless debug: echo back exactly what the function received (no secrets) so query handling
+  // can be verified. e.g. ?svc=fergus&path=/x&jobId=5&debug=echo
+  if ((req.query || {}).debug === 'echo') return res.status(200).json({ url: req.url, query: req.query || {} });
+
   const proxySecret = process.env.PROXY_SECRET;
   if (!proxySecret) return res.status(500).json({ error: 'Proxy not configured: PROXY_SECRET is not set.' });
   if ((req.headers['x-proxy-secret'] || '') !== proxySecret) {
