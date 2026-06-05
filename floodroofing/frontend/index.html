@@ -888,7 +888,14 @@ select{
 #login-screen{background:var(--ink)!important}
 
 /* ── Print ─────────────────────────────────────────────────── */
-@page{size:A4;margin:0}
+/* margin:0 on every page kind so the proposal, materials cut list,
+   scope, and job pack all reach the sheet edge.  Each per-print-mode
+   block adds its own internal padding instead — that way ONE
+   over-eager @page rule can't undo full-bleed for everyone else. */
+@page{size:A4 portrait;margin:0!important}
+@page :first{margin:0!important}
+@page :left{margin:0!important}
+@page :right{margin:0!important}
 @media print{
   body{background:#fff}
   .no-print{display:none!important}
@@ -1015,10 +1022,14 @@ select{
   /* Inside Materials, hide every on-screen child — only the print
      pages render. */
   html.print-materials #tab-materials > *{display:none!important}
-  html.print-materials #tab-materials > .mat-print-page{display:block!important;padding:0;margin:0;background:transparent;border:none;box-shadow:none}
+  /* Materials print used to rely on @page{margin:12mm} for its sheet
+     margin, but that @page rule beat the global margin:0 and gave
+     every OTHER print path (Quote, Scope, Job Pack…) a 12mm white
+     border too.  Now the margin lives inside .mat-print-page as
+     padding so @page can stay at margin:0 globally. */
+  html.print-materials #tab-materials > .mat-print-page{display:block!important;padding:12mm!important;margin:0;background:transparent;border:none;box-shadow:none;box-sizing:border-box}
   html.print-materials #matPrintPage1{page-break-after:always;break-after:page}
   html.print-materials #matPrintPage2{page-break-before:always;break-before:page}
-  @page{size:A4;margin:12mm}
 
   /* Scope & pricing — Save pricing as PDF prints only #tab-scope. */
   html.print-scope body{background:#fff}
@@ -8122,19 +8133,21 @@ function refreshQuoteProposal(){
       '</div>'+
       // Colour palette — editorial label. qp-keep-together prevents
       // a page break splitting the swatch boxes from their labels.
+      // Swatches are short (40px) so all 12 colours fit on the
+      // Colorsteel page alongside the intro + warranty + tier blocks.
       '<div class="qp-keep-together">'+
-        '<div class="ed-eyebrow" style="margin-bottom:8px">The colour range</div>'+
-        '<div class="ed-serif" style="font-size:16px;font-style:italic;margin-bottom:10px;color:var(--ed-ink)">Standard Colorsteel® palette</div>'+
-        '<div class="qp-swatch-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">'+
+        '<div class="ed-eyebrow" style="margin-bottom:5px">The colour range</div>'+
+        '<div class="ed-serif" style="font-size:15px;font-style:italic;margin-bottom:6px;color:var(--ed-ink)">Standard Colorsteel® palette</div>'+
+        '<div class="qp-swatch-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:5px">'+
           MAXAM_COLOURS.map(function(c){
             var labelStyle = 'color:'+(needsLightLabel(c.hex)?'#fff':'#0a1628');
-            return '<div class="qp-keep-together" style="position:relative;background:'+c.hex+';height:80px;display:flex;align-items:flex-end;padding:6px 8px">'+
-              '<div style="font-family:var(--ed-sans);font-size:11px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.4)':'none')+'">'+esc2(c.name)+'</div>'+
+            return '<div class="qp-keep-together" style="position:relative;background:'+c.hex+';height:40px;display:flex;align-items:flex-end;padding:3px 5px">'+
+              '<div style="font-family:var(--ed-sans);font-size:9.5px;font-weight:500;letter-spacing:.03em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.4)':'none')+';line-height:1.05">'+esc2(c.name)+'</div>'+
             '</div>';
           }).join('')+
         '</div>'+
-      '</div>'+
-      '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em;font-style:italic">Approximate colour rendering — final selection from NZ Steel\'s physical Colorsteel® chip card.</div>';
+        '<div style="font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);margin-top:5px;letter-spacing:.02em;font-style:italic">Approximate colour rendering — final selection from NZ Steel\'s physical Colorsteel® chip card.</div>'+
+      '</div>';
     // Colorsteel page intentionally has no corner photo — the
     // warranty table, three-tier strip and full palette fill the
     // page and the photo would crowd it.
