@@ -747,8 +747,9 @@ async function fetchJobInvoices(jid){
 function normInv(iv){
   const st=String(iv.status||iv.invoiceStatus||iv.paymentStatus||'').toUpperCase();
   const cd=iv.createdAt||iv.dateCreated||iv.created||iv.invoiceDate||iv.date||iv.issuedAt||iv.issuedDate||iv.dateIssued||iv.sentAt;
-  const paid=iv.isPaid===true||!!iv.paidAt||!!iv.datePaid||st==='PAID'||st==='PAID IN FULL'||num(iv.amountPaid)>0||num(iv.totalPaid)>0;
-  const vd=!!iv.voidedAt||iv.isVoid===true||iv.voided===true||iv.isDraft===true||st==='VOID'||st==='VOIDED'||st==='DELETED'||st==='DRAFT';
+  const payCount=Array.isArray(iv.payments)?iv.payments.length:num(iv.payments||iv.paymentCount||iv.numPayments||iv.paymentsCount);
+  const vd=!!iv.voidedAt||iv.isVoid===true||iv.voided===true||iv.isDraft===true||st.indexOf('VOID')>=0||st==='DELETED'||st==='DRAFT';
+  const paid=!vd&&(iv.isPaid===true||!!iv.paidAt||!!iv.datePaid||st.indexOf('PAID')>=0||num(iv.amountPaid)>0||num(iv.totalPaid)>0||payCount>0);
   return {created:cd,t:cd?new Date(cd).getTime():0,paid:!!paid,void:!!vd};
 }
 // Build a back-costing row IF the job qualifies, dated to the most recent valid PAID invoice:
