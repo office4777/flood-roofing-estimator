@@ -392,6 +392,46 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     </div>
   </div>
 
+  <!-- ───────── END CASH POSITION ───────── -->
+  <div class="page" id="page-cash">
+    <div class="card per-this" style="border-left:4px solid var(--accent);">
+      <div class="ct">Materials (02) End Position <span id="cash-ts" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="hero">
+        <div class="big" id="cash-end">—</div>
+        <div class="unit" id="cash-end-unit">if you closed the business today</div>
+        <div class="sub" id="cash-end-sub">Tap “Sync from Xero”.</div>
+      </div>
+    </div>
+
+    <div class="card per-this">
+      <div class="ct">Reconciliation <span class="period-sub" style="margin-left:auto;">what the 02 cash is committed to</span></div>
+      <div class="mg" id="cash-recon"></div>
+      <div class="note" id="cash-recon-note"></div>
+    </div>
+
+    <div class="card per-last">
+      <div class="ct">Deposits held (jobs in progress) <span class="period-sub" style="margin-left:auto;">refundable</span></div>
+      <div class="mg" id="cash-dep"></div>
+      <div class="note">A paid customer deposit with no matching final invoice = work not finished. If you closed, that money would be refunded. Estimated from Xero ACCREC invoices grouped by Fergus job number (a job with only one paid invoice is treated as a deposit only).</div>
+    </div>
+
+    <div class="card">
+      <div class="ct">Context <span class="period-sub" style="margin-left:auto;">other balances</span></div>
+      <div class="mg" id="cash-context"></div>
+    </div>
+
+    <div class="card">
+      <div class="ct">Xero accounts <span class="period-sub" style="margin-left:auto;">balance sheet</span></div>
+      <div class="fld" style="margin:4px 0 10px;"><label>Materials account name contains</label><input id="cash-matkw" type="text" autocomplete="off" autocapitalize="off" placeholder="material" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 02 Materials account on the Balance Sheet. Confirm the row tagged <b>Materials 02</b> below is the right account; if not, type a word unique to its name.</div></div>
+      <div class="tbl-wrap"><table class="tb" id="cash-accts"><thead><tr><th>Account</th><th style="text-align:right;">Balance</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <button class="btn btn-a" id="cash-sync-btn" onclick="syncCash()">⟳ Sync from Xero</button>
+      <div class="note" id="cash-note"></div>
+    </div>
+  </div>
+
 </div><!-- /app -->
 
 <div id="nav">
@@ -401,6 +441,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
   <div class="nav-i" id="nav-pl" onclick="go('pl')"><span class="ic">💼</span>P&amp;L</div>
   <div class="nav-i" id="nav-growth" onclick="go('growth')"><span class="ic">📈</span>Growth</div>
   <div class="nav-i" id="nav-marketing" onclick="go('marketing')"><span class="ic">📣</span>Mktg</div>
+  <div class="nav-i" id="nav-cash" onclick="go('cash')"><span class="ic">💰</span>Cash</div>
 </div>
 
 <!-- connect sheet -->
@@ -452,7 +493,8 @@ let cfg=S.get('fwCfg',{teams:4,size:2,hrs:8});
 let xeroMonthly=S.get('xeroMonthly',{});     // { 'Mon-YYYY': {rev,gp,opex,np,wages} } from Xero monthly P&L
 let xeroReports={};                          // { 'Mon-YYYY': full Xero report } cached in-memory for instant breakdown
 let plSelected='';                           // month currently shown in the P&L breakdown
-let mkt=S.get('mkt',null);                    // cached marketing: {leads:[{createdAt}], quotes:[{total,quoteDate,sentAt,acceptedAt,isSent,isAccepted}], ts}
+let mkt=S.get('mkt',null);
+let cash=S.get('cash',null);                  // {rows:[{name,val,section,summary}], refund, depCount, depTotal, jobs, depOk, ts} from Xero balance sheet + invoices                    // cached marketing: {leads:[{createdAt}], quotes:[{total,quoteDate,sentAt,acceptedAt,isSent,isAccepted}], ts}
 let xeroLive=false;
 let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (render→pull→render loops)
 // Growth Structure scenario planner. teams/size = the what-if crew; base = the crew that
@@ -1413,8 +1455,152 @@ function renderRollingStrip(hostId,figFn,endingMonths,cogs){
   host.innerHTML=cards.length?cards.join(''):'<div class="empty" style="padding:10px;">No data yet.</div>';
 }
 
+// ════════ END CASH POSITION ════════
+// Works out the standing of the Materials (02) account if the business closed today:
+// how much of that cash is already committed to supplier invoices (A/P) or owed back to
+// customers as refundable deposits (jobs paid-on-deposit but not yet finished). Because
+// materials are usually ordered up to ~3 months AFTER the 50% deposit lands, the 02 cash,
+// A/R and A/P never tie out — this tab reconciles them on one screen. All Xero, on Sync only.
+async function xeroGet(path){
+  const proxy=fergusProxyUrl();if(!proxy)throw new Error('NOPROXY');
+  const psec=fergusProxySecret();
+  const res=await fetch(proxyUrl('xero',path),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
+  const txt=await res.text();
+  if(res.status===501)throw new Error('NOXERO');
+  if(res.status===401)throw new Error('SECRET');
+  if(!res.ok)throw new Error('HTTP '+res.status+': '+txt.slice(0,140));
+  return JSON.parse(txt);
+}
+async function fetchBalanceSheet(){
+  const j=await xeroGet('/Reports/BalanceSheet');
+  const rep=(j.Reports||[])[0];if(!rep)throw new Error('no balance sheet returned');
+  return rep;
+}
+// Flatten a Xero Balance Sheet into leaf rows, each tagged with its nearest Section title.
+function bsRows(rep){
+  const out=[];
+  const walk=(rows,sec)=>{(rows||[]).forEach(r=>{
+    if(r.RowType==='Section'){walk(r.Rows,r.Title||sec);return;}
+    const c=r.Cells||[];
+    if((r.RowType==='Row'||r.RowType==='SummaryRow')&&c.length>=2){
+      const name=((c[0]&&c[0].Value)||'').trim();
+      const val=xeroNum(c[1]&&c[1].Value);
+      if(name)out.push({name,val:val==null?0:val,section:sec||'',summary:r.RowType==='SummaryRow'});
+    }
+  });};
+  walk(rep.Rows||[],'');
+  return out;
+}
+// Paid ACCREC invoices grouped by Fergus job number (parsed from the Reference "(#2852)"):
+// { '2852': {n, paid, total, last} }. A job with n===1 = deposit only → still in progress.
+async function fetchXeroDeposits(){
+  const proxy=fergusProxyUrl();if(!proxy)return null;
+  const psec=fergusProxySecret();
+  const byJob={};let page=1,got=false;
+  while(page<=12){
+    let res;
+    try{res=await fetch(proxyUrl('xero','/Invoices?where=Type=="ACCREC" AND Status=="PAID"&page='+page+'&order=Date DESC'),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});}
+    catch(e){return got?byJob:null;}
+    if(!res.ok)return got?byJob:null;
+    let inv=[];try{inv=(JSON.parse(await res.text()).Invoices)||[];}catch(e){inv=[];}
+    got=true;
+    inv.forEach(v=>{const m=String(v.Reference||'').match(/#\s*(\d+)/);if(!m)return;
+      const j=byJob[m[1]]||(byJob[m[1]]={n:0,paid:0,total:0,last:''});
+      j.n++;j.paid+=num(v.AmountPaid)||num(v.Total);j.total+=num(v.Total);
+      const dd=v.DateString||v.Date||'';if(dd>j.last)j.last=dd;});
+    if(inv.length<100)break;
+    page++;toast('Xero invoices… '+((page-1)*100)+'+');
+  }
+  return byJob;
+}
+async function syncCash(){
+  const proxy=fergusProxyUrl();if(!proxy){openConnect();return;}
+  const btn=document.getElementById('cash-sync-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Syncing…';}
+  const note=document.getElementById('cash-note');if(note)note.textContent='';
+  try{
+    toast('Reading Xero balance sheet…');
+    const rep=await fetchBalanceSheet();
+    const rows=bsRows(rep);
+    toast('Reading deposits…');
+    const byJob=await fetchXeroDeposits();
+    let refund=0,depCount=0,depTotal=0,jobs=0;
+    if(byJob){Object.keys(byJob).forEach(k=>{const j=byJob[k];jobs++;depTotal+=j.paid;if(j.n<=1){refund+=j.paid;depCount++;}});}
+    cash={rows,refund,depCount,depTotal,jobs,depOk:!!byJob,ts:new Date().toLocaleString('en-NZ')};
+    S.set('cash',cash);
+    toast('End cash position updated ✓','ok');
+    renderCash();
+  }catch(e){
+    const m=e.message==='NOXERO'?'Xero not set up on the proxy — add XERO_CLIENT_ID/SECRET.':e.message==='SECRET'?'Proxy secret rejected (401) — check ⚙.':e.message==='NOPROXY'?'Connect the proxy in ⚙ first.':e.message;
+    if(note)note.textContent='⚠ '+m;
+    toast('Cash sync failed: '+String(m).slice(0,50),'err');
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync from Xero';}
+  }
+}
+function saveCashCfg(){const v=(document.getElementById('cash-matkw').value||'').trim();S.set('cashMatKw',v);renderCash();}
+function renderCash(){
+  const kwInput=document.getElementById('cash-matkw');if(kwInput&&!kwInput.value)kwInput.value=S.get('cashMatKw','material');
+  const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
+  if(!cash||!cash.rows){
+    set('cash-end',null,'—');set('cash-end-sub',null,'Tap “Sync from Xero”.');
+    set('cash-recon','<div class="empty" style="grid-column:1/-1;">No data yet.</div>');
+    set('cash-dep','');set('cash-context','');set('cash-recon-note',null,'');set('cash-ts',null,'');
+    const tb=document.querySelector('#cash-accts tbody');if(tb)tb.innerHTML='';
+    return;
+  }
+  const rows=cash.rows;
+  const kw=(S.get('cashMatKw','material')||'').toLowerCase();
+  const find=re=>{let hit=null;rows.forEach(r=>{if(!r.summary&&re.test(r.name)&&hit==null)hit=r;});return hit;};
+  let mat=null;if(kw)rows.forEach(r=>{if(!r.summary&&r.name.toLowerCase().includes(kw)&&mat==null)mat=r;});
+  const ap=find(/accounts payable|trade payable|creditors/i);
+  const ar=find(/accounts receivable|trade receivable|debtors/i);
+  const sales=find(/sales/i);
+  const matVal=mat?mat.val:0;
+  const apVal=ap?Math.abs(ap.val):0;            // liability shown as an obligation (positive)
+  const refund=cash.depOk?cash.refund:0;
+  const end=matVal-apVal-refund;
+  // hero
+  set('cash-end',null,fmtK(end));
+  const big=document.getElementById('cash-end');if(big)big.style.color=end>=0?'var(--success)':'var(--danger)';
+  set('cash-end-unit',null,end>=0?'surplus left in Materials (02)':'shortfall — Materials (02) can’t cover it');
+  set('cash-end-sub',null,(mat?'02 = “'+mat.name+'”':'⚠ no Materials account matched — set the keyword below')+' · synced '+cash.ts);
+  set('cash-ts',null,cash.ts?('· '+cash.ts):'');
+  // reconciliation tiles
+  set('cash-recon',
+    mb('Materials (02) balance',fmtK(matVal),mat?esc(mat.name):'not matched','','m-rev')+
+    mb('Less: supplier invoices (A/P)','−'+fmtK(apVal),ap?esc(ap.name):'none found','','m-cogs')+
+    mb('Less: refundable deposits','−'+fmtK(refund),cash.depOk?(cash.depCount+' jobs in progress'):'deposits unavailable','','m-opex')+
+    mb('= End position',fmtK(end),end>=0?'surplus':'shortfall',end>=0?'pos':'neg','m-np'));
+  set('cash-recon-note',null,
+    'End position = Materials (02) balance − supplier invoices owed (A/P) − refundable customer deposits. '+
+    'Materials are usually ordered up to ~3 months after the 50% deposit lands, so part of the 02 cash is tomorrow’s supplier bills (not yet in Xero) and part is deposits you’d refund if a job stopped. '+
+    'Positive = the 02 account covers everything owed; negative = it’s short. '+
+    'Note: A/P here is every supplier invoice in Xero, not just materials — narrow it if needed. Deposit refunds estimate jobs with a single paid invoice as deposit-only.');
+  // deposits detail
+  set('cash-dep',
+    mb('Jobs in progress',cash.depOk?String(cash.depCount):'—','paid deposit · no final invoice','','m-rev')+
+    mb('Refundable estimate',fmtK(refund),'sum of those deposits',refund>0?'neg':'','m-opex')+
+    mb('All paid deposits',fmtK(cash.depTotal),cash.jobs+' jobs invoiced (paid)','')+
+    mb('Avg deposit / job',cash.depCount>0?fmtK(refund/cash.depCount):'—','of in-progress jobs',''));
+  // context tiles
+  set('cash-context',
+    mb('Accounts Receivable',fmtK(ar?ar.val:0),ar?esc(ar.name):'not found','','m-gp')+
+    mb('Accounts Payable',fmtK(apVal),ap?esc(ap.name):'not found','','m-cogs')+
+    mb('Sales (03) balance',fmtK(sales?sales.val:0),sales?esc(sales.name):'not found','','m-np')+
+    mb('AR − AP',fmtK((ar?ar.val:0)-apVal),'net owed to you',((ar?ar.val:0)-apVal)>=0?'pos':'neg'));
+  // full balance-sheet table (transparency — confirm the matched accounts)
+  const tagOf=r=>r===mat?'Materials 02':r===ap?'A/P':r===ar?'A/R':r===sales?'Sales 03':'';
+  const tb=document.querySelector('#cash-accts tbody');
+  if(tb)tb.innerHTML=rows.filter(r=>!r.summary).map(r=>{const t=tagOf(r);
+    return '<tr'+(t?' style="background:rgba(96,165,250,.14);"':'')+'>'+
+      '<td>'+esc(r.name)+(t?' <span style="color:var(--accent);font-weight:800;font-size:.62rem;">· '+t+'</span>':'')+
+      (r.section?'<div style="font-size:.6rem;color:var(--muted);opacity:.7;">'+esc(r.section)+'</div>':'')+'</td>'+
+      '<td style="text-align:right;">'+fmt$(r.val)+'</td></tr>';}).join('');
+}
+
 // ════════ NAV ════════
-const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales'};
+const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'End Cash Position'};
 function go(p,dir){
   page=p;
   document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
@@ -1427,12 +1613,12 @@ function go(p,dir){
   window.scrollTo(0,0);
   renderAll();
 }
-function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();}
+function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();renderCash();}
 
 // ════════ SWIPE NAV ════════ Facebook-style interactive pager — the page tracks your finger,
 // the neighbouring tab slides in beside it, and it snaps/commits on release.
 (function(){
-  const order=['dash','work','bc','pl','growth','marketing'];
+  const order=['dash','work','bc','pl','growth','marketing','cash'];
   const topEl=document.getElementById('top');
   const pageEl=p=>document.getElementById('page-'+p);
   let x0=0,y0=0,armed=false,horiz=false,cur=null,nxt=null,dir=0,W=360,finishing=false;
