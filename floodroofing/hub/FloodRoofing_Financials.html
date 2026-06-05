@@ -395,7 +395,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
   <!-- ───────── END CASH POSITION ───────── -->
   <div class="page" id="page-cash">
     <div class="card per-this" style="border-left:4px solid var(--accent);">
-      <div class="ct">Materials (02) End Position <span id="cash-ts" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="ct">Deposit Cash Position <span id="cash-ts" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="hero">
         <div class="big" id="cash-end">—</div>
         <div class="unit" id="cash-end-unit">if you closed the business today</div>
@@ -409,12 +409,6 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="note" id="cash-recon-note"></div>
     </div>
 
-    <div class="card per-last">
-      <div class="ct">Deposits held (jobs in progress) <span class="period-sub" style="margin-left:auto;">refundable</span></div>
-      <div class="mg" id="cash-dep"></div>
-      <div class="note">A paid customer deposit with no matching final invoice = work not finished. If you closed, that money would be refunded. Estimated from Xero ACCREC invoices grouped by Fergus job number (a job with only one paid invoice is treated as a deposit only).</div>
-    </div>
-
     <div class="card">
       <div class="ct">Context <span class="period-sub" style="margin-left:auto;">other balances</span></div>
       <div class="mg" id="cash-context"></div>
@@ -423,7 +417,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     <div class="card">
       <div class="ct">Xero accounts <span class="period-sub" style="margin-left:auto;">balance sheet</span></div>
       <div class="fld" style="margin:4px 0 10px;"><label>Materials account name contains</label><input id="cash-matkw" type="text" autocomplete="off" autocapitalize="off" placeholder="material" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 02 Materials account on the Balance Sheet. Confirm the row tagged <b>Materials 02</b> below is the right account; if not, type a word unique to its name.</div></div>
-      <div class="fld" style="margin:4px 0 10px;"><label>Deposits still in 03 — override ($, optional)</label><input id="cash-dep03" type="number" inputmode="decimal" autocomplete="off" placeholder="auto = in-progress deposits − 02 balance" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Cash from 50% deposits that has landed in Sales (03) but hasn’t been transferred to Materials (02) yet. Leave blank to auto-estimate.</div></div>
+      <div class="fld" style="margin:4px 0 10px;"><label>Sales account name contains</label><input id="cash-saleskw" type="text" autocomplete="off" autocapitalize="off" placeholder="sales" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 03 Sales account on the Balance Sheet — its live balance is deposits received but not yet transferred to 02. Confirm the row tagged <b>Sales 03</b> below.</div></div>
       <div class="tbl-wrap"><table class="tb" id="cash-accts"><thead><tr><th>Account</th><th style="text-align:right;">Balance</th></tr></thead><tbody></tbody></table></div>
     </div>
 
@@ -1523,11 +1517,7 @@ async function syncCash(){
     toast('Reading Xero balance sheet…');
     const rep=await fetchBalanceSheet();
     const rows=bsRows(rep);
-    toast('Reading deposits…');
-    const byJob=await fetchXeroDeposits();
-    let refund=0,depCount=0,depTotal=0,jobs=0;
-    if(byJob){Object.keys(byJob).forEach(k=>{const j=byJob[k];jobs++;depTotal+=j.paid;if(j.n<=1){refund+=j.paid;depCount++;}});}
-    cash={rows,refund,depCount,depTotal,jobs,depOk:!!byJob,ts:new Date().toLocaleString('en-NZ')};
+    cash={rows,ts:new Date().toLocaleString('en-NZ')};
     S.set('cash',cash);
     toast('End cash position updated ✓','ok');
     renderCash();
@@ -1539,72 +1529,63 @@ async function syncCash(){
     if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync from Xero';}
   }
 }
-function saveCashCfg(){const v=(document.getElementById('cash-matkw').value||'').trim();S.set('cashMatKw',v);const d=document.getElementById('cash-dep03');if(d)S.set('cashDep03',(d.value||'').trim());renderCash();}
+function saveCashCfg(){const v=(document.getElementById('cash-matkw').value||'').trim();S.set('cashMatKw',v);const s=document.getElementById('cash-saleskw');if(s)S.set('cashSalesKw',(s.value||'').trim());renderCash();}
 function renderCash(){
   const kwInput=document.getElementById('cash-matkw');if(kwInput&&!kwInput.value)kwInput.value=S.get('cashMatKw','material');
-  const d03Input=document.getElementById('cash-dep03');if(d03Input&&!d03Input.value)d03Input.value=S.get('cashDep03','');
+  const skInput=document.getElementById('cash-saleskw');if(skInput&&!skInput.value)skInput.value=S.get('cashSalesKw','sales');
   const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
   if(!cash||!cash.rows){
     set('cash-end',null,'—');set('cash-end-sub',null,'Tap “Sync from Xero”.');
     set('cash-recon','<div class="empty" style="grid-column:1/-1;">No data yet.</div>');
-    set('cash-dep','');set('cash-context','');set('cash-recon-note',null,'');set('cash-ts',null,'');
-    const tb=document.querySelector('#cash-accts tbody');if(tb)tb.innerHTML='';
+    set('cash-context','');set('cash-recon-note',null,'');set('cash-ts',null,'');
+    const tb0=document.querySelector('#cash-accts tbody');if(tb0)tb0.innerHTML='';
     return;
   }
   const rows=cash.rows;
-  const kw=(S.get('cashMatKw','material')||'').toLowerCase();
+  const matkw=(S.get('cashMatKw','material')||'').toLowerCase();
+  const salekw=(S.get('cashSalesKw','sales')||'').toLowerCase();
   const find=re=>{let hit=null;rows.forEach(r=>{if(!r.summary&&re.test(r.name)&&hit==null)hit=r;});return hit;};
-  let mat=null;if(kw)rows.forEach(r=>{if(!r.summary&&r.name.toLowerCase().includes(kw)&&mat==null)mat=r;});
+  const byKw=kw=>{let hit=null;if(kw)rows.forEach(r=>{if(!r.summary&&r.name.toLowerCase().includes(kw)&&hit==null)hit=r;});return hit;};
+  const mat=byKw(matkw);
+  const sales=byKw(salekw);
   const ap=find(/accounts payable|trade payable|creditors/i);
   const ar=find(/accounts receivable|trade receivable|debtors/i);
-  const sales=find(/sales/i);
   const matVal=mat?mat.val:0;
-  const apVal=ap?Math.abs(ap.val):0;            // liability shown as an obligation (positive)
-  const refund=cash.depOk?cash.refund:0;
-  // 50% deposits that have landed in Sales (03) but not yet been transferred to Materials (02).
-  // Override with the real figure in the config box, else estimate as in-progress deposits − 02 cash.
-  const ov=parseFloat(S.get('cashDep03',''));
-  const dep03=(!isNaN(ov))?ov:Math.max(0,refund-matVal);
-  const held=matVal+dep03;
-  const end=held-apVal-refund;
+  const salesVal=sales?sales.val:0;
+  const apVal=ap?Math.abs(ap.val):0;            // liability shown as a positive obligation
+  const arVal=ar?ar.val:0;
+  const held=matVal+salesVal;                   // deposit cash actually on hand (02 + 03)
+  const net=held-apVal;                         // left to refund customers after paying suppliers
   // hero
-  set('cash-end',null,fmtK(end));
-  const big=document.getElementById('cash-end');if(big)big.style.color=end>=0?'var(--success)':'var(--danger)';
-  set('cash-end-unit',null,end>=0?'surplus left in Materials (02)':'shortfall — Materials (02) can’t cover it');
+  set('cash-end',null,fmtK(net));
+  const big=document.getElementById('cash-end');if(big)big.style.color=net>=0?'var(--success)':'var(--danger)';
+  set('cash-end-unit',null,net>=0?'deposit cash left to refund customers':'shortfall — deposits already spent on suppliers');
   set('cash-end-sub',null,(mat?'02 = “'+mat.name+'”':'⚠ no Materials account matched — set the keyword below')+' · synced '+cash.ts);
   set('cash-ts',null,cash.ts?('· '+cash.ts):'');
-  // reconciliation tiles
+  // reconciliation — built only from real balance-sheet figures
   set('cash-recon',
     mb('Materials (02) balance',fmtK(matVal),mat?esc(mat.name):'not matched','','m-rev')+
-    mb('+ Deposits still in 03',fmtK(dep03),(!isNaN(ov)?'manual override':'est: in-prog deposits − 02'),'','m-gp')+
-    mb('= Deposit cash held',fmtK(held),'held in 02 + waiting in 03','','m-np')+
-    mb('− Refundable deposits','−'+fmtK(refund),cash.depOk?(cash.depCount+' jobs in progress'):'deposits unavailable','','m-opex')+
+    mb('+ Sales (03) balance',fmtK(salesVal),sales?esc(sales.name):'not matched','','m-gp')+
+    mb('= Deposit cash on hand',fmtK(held),'real cash in 02 + 03','','m-np')+
     mb('− Supplier invoices (A/P)','−'+fmtK(apVal),ap?esc(ap.name):'none found','','m-cogs')+
-    mb('= End position',fmtK(end),end>=0?'surplus':'shortfall',end>=0?'pos':'neg','m-np'));
+    mb('= Left to refund customers',fmtK(net),net>=0?'covers all supplier bills':'cannot cover supplier bills',net>=0?'pos':'neg','m-np'));
   set('cash-recon-note',null,
-    'End position = (Materials 02 balance + deposits still in Sales 03) − refundable customer deposits − supplier invoices owed (A/P). '+
-    'All revenue lands in Sales (03) first; the 50% deposit is then transferred to Materials (02), where it can sit up to ~3 months before materials are ordered and the supplier invoice arrives. '+
-    'So deposit cash is held partly in 02 and partly still in 03 — both are counted here. '+
-    'Positive = you hold enough to refund every in-progress deposit and pay supplier bills; negative = you’re short. '+
-    'Deposits-in-03 defaults to (in-progress deposits − 02 balance); set the real figure in the box below. A/P is every supplier invoice in Xero — narrow it if needed.');
-  // deposits detail
-  set('cash-dep',
-    mb('Jobs in progress',cash.depOk?String(cash.depCount):'—','paid deposit · no final invoice','','m-rev')+
-    mb('Refundable estimate',fmtK(refund),'sum of those deposits',refund>0?'neg':'','m-opex')+
-    mb('All paid deposits',fmtK(cash.depTotal),cash.jobs+' jobs invoiced (paid)','')+
-    mb('Avg deposit / job',cash.depCount>0?fmtK(refund/cash.depCount):'—','of in-progress jobs',''));
+    'Built from your live Xero account balances. Deposit cash on hand = the real balances of Materials (02) + Sales (03). '+
+    'Of that, supplier invoices already in Xero (A/P '+fmt$(apVal)+') must be paid; whatever is left is un-spent deposit money you’d refund to customers if you closed. '+
+    'Green = your deposit accounts cover every supplier invoice with cash to spare for refunds; red = you’ve already spent more deposit cash than you hold to pay suppliers. '+
+    'Heads-up: materials are usually ordered up to ~3 months after the deposit lands, so more supplier invoices will arrive and draw this down — it is NOT all free cash. A/P here is every supplier invoice in Xero, not only materials.');
   // context tiles
   set('cash-context',
-    mb('Accounts Receivable',fmtK(ar?ar.val:0),ar?esc(ar.name):'not found','','m-gp')+
+    mb('Accounts Receivable',fmtK(arVal),ar?esc(ar.name):'not found','','m-gp')+
     mb('Accounts Payable',fmtK(apVal),ap?esc(ap.name):'not found','','m-cogs')+
-    mb('Sales (03) balance',fmtK(sales?sales.val:0),sales?esc(sales.name):'not found','','m-np')+
-    mb('AR − AP',fmtK((ar?ar.val:0)-apVal),'net owed to you',((ar?ar.val:0)-apVal)>=0?'pos':'neg'));
+    mb('AR − AP',fmtK(arVal-apVal),'net owed to you',(arVal-apVal)>=0?'pos':'neg')+
+    mb('Cash + AR − AP',fmtK(held+arVal-apVal),'if all settled',(held+arVal-apVal)>=0?'pos':'neg','m-np'));
   // full balance-sheet table (transparency — confirm the matched accounts)
   const tagOf=r=>r===mat?'Materials 02':r===ap?'A/P':r===ar?'A/R':r===sales?'Sales 03':'';
   const tb=document.querySelector('#cash-accts tbody');
-  if(tb)tb.innerHTML=rows.filter(r=>!r.summary).map(r=>{const t=tagOf(r);
-    return '<tr'+(t?' style="background:rgba(96,165,250,.14);"':'')+'>'+
-      '<td>'+esc(r.name)+(t?' <span style="color:var(--accent);font-weight:800;font-size:.62rem;">· '+t+'</span>':'')+
+  if(tb)tb.innerHTML=rows.filter(r=>!r.summary).map(r=>{const tg=tagOf(r);
+    return '<tr'+(tg?' style="background:rgba(96,165,250,.14);"':'')+'>'+
+      '<td>'+esc(r.name)+(tg?' <span style="color:var(--accent);font-weight:800;font-size:.62rem;">· '+tg+'</span>':'')+
       (r.section?'<div style="font-size:.6rem;color:var(--muted);opacity:.7;">'+esc(r.section)+'</div>':'')+'</td>'+
       '<td style="text-align:right;">'+fmt$(r.val)+'</td></tr>';}).join('');
 }
