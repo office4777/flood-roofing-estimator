@@ -423,6 +423,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     <div class="card">
       <div class="ct">Xero accounts <span class="period-sub" style="margin-left:auto;">balance sheet</span></div>
       <div class="fld" style="margin:4px 0 10px;"><label>Materials account name contains</label><input id="cash-matkw" type="text" autocomplete="off" autocapitalize="off" placeholder="material" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 02 Materials account on the Balance Sheet. Confirm the row tagged <b>Materials 02</b> below is the right account; if not, type a word unique to its name.</div></div>
+      <div class="fld" style="margin:4px 0 10px;"><label>Deposits still in 03 — override ($, optional)</label><input id="cash-dep03" type="number" inputmode="decimal" autocomplete="off" placeholder="auto = in-progress deposits − 02 balance" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Cash from 50% deposits that has landed in Sales (03) but hasn’t been transferred to Materials (02) yet. Leave blank to auto-estimate.</div></div>
       <div class="tbl-wrap"><table class="tb" id="cash-accts"><thead><tr><th>Account</th><th style="text-align:right;">Balance</th></tr></thead><tbody></tbody></table></div>
     </div>
 
@@ -1538,9 +1539,10 @@ async function syncCash(){
     if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync from Xero';}
   }
 }
-function saveCashCfg(){const v=(document.getElementById('cash-matkw').value||'').trim();S.set('cashMatKw',v);renderCash();}
+function saveCashCfg(){const v=(document.getElementById('cash-matkw').value||'').trim();S.set('cashMatKw',v);const d=document.getElementById('cash-dep03');if(d)S.set('cashDep03',(d.value||'').trim());renderCash();}
 function renderCash(){
   const kwInput=document.getElementById('cash-matkw');if(kwInput&&!kwInput.value)kwInput.value=S.get('cashMatKw','material');
+  const d03Input=document.getElementById('cash-dep03');if(d03Input&&!d03Input.value)d03Input.value=S.get('cashDep03','');
   const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
   if(!cash||!cash.rows){
     set('cash-end',null,'—');set('cash-end-sub',null,'Tap “Sync from Xero”.');
@@ -1559,7 +1561,12 @@ function renderCash(){
   const matVal=mat?mat.val:0;
   const apVal=ap?Math.abs(ap.val):0;            // liability shown as an obligation (positive)
   const refund=cash.depOk?cash.refund:0;
-  const end=matVal-apVal-refund;
+  // 50% deposits that have landed in Sales (03) but not yet been transferred to Materials (02).
+  // Override with the real figure in the config box, else estimate as in-progress deposits − 02 cash.
+  const ov=parseFloat(S.get('cashDep03',''));
+  const dep03=(!isNaN(ov))?ov:Math.max(0,refund-matVal);
+  const held=matVal+dep03;
+  const end=held-apVal-refund;
   // hero
   set('cash-end',null,fmtK(end));
   const big=document.getElementById('cash-end');if(big)big.style.color=end>=0?'var(--success)':'var(--danger)';
@@ -1569,14 +1576,17 @@ function renderCash(){
   // reconciliation tiles
   set('cash-recon',
     mb('Materials (02) balance',fmtK(matVal),mat?esc(mat.name):'not matched','','m-rev')+
-    mb('Less: supplier invoices (A/P)','−'+fmtK(apVal),ap?esc(ap.name):'none found','','m-cogs')+
-    mb('Less: refundable deposits','−'+fmtK(refund),cash.depOk?(cash.depCount+' jobs in progress'):'deposits unavailable','','m-opex')+
+    mb('+ Deposits still in 03',fmtK(dep03),(!isNaN(ov)?'manual override':'est: in-prog deposits − 02'),'','m-gp')+
+    mb('= Deposit cash held',fmtK(held),'held in 02 + waiting in 03','','m-np')+
+    mb('− Refundable deposits','−'+fmtK(refund),cash.depOk?(cash.depCount+' jobs in progress'):'deposits unavailable','','m-opex')+
+    mb('− Supplier invoices (A/P)','−'+fmtK(apVal),ap?esc(ap.name):'none found','','m-cogs')+
     mb('= End position',fmtK(end),end>=0?'surplus':'shortfall',end>=0?'pos':'neg','m-np'));
   set('cash-recon-note',null,
-    'End position = Materials (02) balance − supplier invoices owed (A/P) − refundable customer deposits. '+
-    'Materials are usually ordered up to ~3 months after the 50% deposit lands, so part of the 02 cash is tomorrow’s supplier bills (not yet in Xero) and part is deposits you’d refund if a job stopped. '+
-    'Positive = the 02 account covers everything owed; negative = it’s short. '+
-    'Note: A/P here is every supplier invoice in Xero, not just materials — narrow it if needed. Deposit refunds estimate jobs with a single paid invoice as deposit-only.');
+    'End position = (Materials 02 balance + deposits still in Sales 03) − refundable customer deposits − supplier invoices owed (A/P). '+
+    'All revenue lands in Sales (03) first; the 50% deposit is then transferred to Materials (02), where it can sit up to ~3 months before materials are ordered and the supplier invoice arrives. '+
+    'So deposit cash is held partly in 02 and partly still in 03 — both are counted here. '+
+    'Positive = you hold enough to refund every in-progress deposit and pay supplier bills; negative = you’re short. '+
+    'Deposits-in-03 defaults to (in-progress deposits − 02 balance); set the real figure in the box below. A/P is every supplier invoice in Xero — narrow it if needed.');
   // deposits detail
   set('cash-dep',
     mb('Jobs in progress',cash.depOk?String(cash.depCount):'—','paid deposit · no final invoice','','m-rev')+
