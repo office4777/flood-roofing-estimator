@@ -87,6 +87,13 @@ module.exports = async (req, res) => {
   let path = q.path || '/';
   if (Array.isArray(path)) path = path[0];
   if (!path.startsWith('/')) path = '/' + path;
+  // Forward any extra query params (the upstream Fergus/Xero query string). They arrive as real
+  // params on the proxy URL so nothing is lost when the path itself is URL-encoded.
+  const extra = Object.keys(q).filter(k => k !== 'svc' && k !== 'path').map(k => {
+    const v = q[k];
+    return Array.isArray(v) ? v.map(x => encodeURIComponent(k) + '=' + encodeURIComponent(x)).join('&') : (encodeURIComponent(k) + '=' + encodeURIComponent(v));
+  }).join('&');
+  if (extra) path += (path.indexOf('?') >= 0 ? '&' : '?') + extra;
 
   if (svc === 'fergus') {
     const key = process.env.FERGUS_API_KEY;

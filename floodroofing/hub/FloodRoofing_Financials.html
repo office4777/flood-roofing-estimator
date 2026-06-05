@@ -462,13 +462,24 @@ function fergusProxyUrl(){return (S.get('fergus_proxy_url','')||FERGUS_PROXY_URL
 function fergusProxySecret(){return S.get('fergus_proxy_secret','')||'';}
 function fergusKey(){return S.get('fergus_key','')||'';}
 
+// Build a proxy URL, sending the upstream query string as REAL params (so it's never lost when
+// the path is URL-encoded). e.g. '/jobs/invoices?jobId=5' → ...&path=%2Fjobs%2Finvoices&jobId=5
+function proxyUrl(svc,fullPath){
+  const proxy=fergusProxyUrl();
+  const qi=fullPath.indexOf('?');
+  const p=qi>=0?fullPath.slice(0,qi):fullPath;
+  const extra=qi>=0?fullPath.slice(qi+1):'';
+  let u=proxy+'/api/proxy?svc='+svc+'&path='+encodeURIComponent(p);
+  if(extra)u+='&'+extra;
+  return u;
+}
 async function fergusApiFetch(path){
   const proxy=fergusProxyUrl();
   const key=fergusKey();
   const attempts=[];
   if(proxy){
     const psec=fergusProxySecret();
-    attempts.push(()=>fetch(proxy+'/api/proxy?svc=fergus&path='+encodeURIComponent(path),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}}));
+    attempts.push(()=>fetch(proxyUrl('fergus',path),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}}));
   }
   if(key){
     const h={'Authorization':'Bearer '+key,'Accept':'application/json'};
@@ -964,7 +975,7 @@ function monthRange(monthKey){
 }
 async function fetchMonthReport(proxy,psec,monthKey){
   const {from,to}=monthRange(monthKey);
-  const res=await fetch(proxy+'/api/proxy?svc=xero&path='+encodeURIComponent('/Reports/ProfitAndLoss?fromDate='+from+'&toDate='+to),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
+  const res=await fetch(proxyUrl('xero','/Reports/ProfitAndLoss?fromDate='+from+'&toDate='+to),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
   const txt=await res.text();
   if(res.status===501)throw new Error('NOXERO');
   if(res.status===401)throw new Error('SECRET');
@@ -1005,7 +1016,7 @@ async function pullXeroPL(){
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Pulling…';}
   try{
     const psec=fergusProxySecret();
-    const res=await fetch(proxy+'/api/proxy?svc=xero&path='+encodeURIComponent('/Reports/ProfitAndLoss?fromDate='+from+'&toDate='+to),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
+    const res=await fetch(proxyUrl('xero','/Reports/ProfitAndLoss?fromDate='+from+'&toDate='+to),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
     const txt=await res.text();
     if(res.status===501){toast('Xero not set up on the proxy — showing back-costing P&L','err');return;}
     if(!res.ok)throw new Error('HTTP '+res.status+': '+txt.slice(0,200));
