@@ -31,6 +31,8 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:#000;c
 .page{display:none;}.page.active{display:block;animation:pageInR .4s cubic-bezier(.22,.61,.36,1);}
 @keyframes pageInR{from{opacity:0;transform:translateX(30px);}to{opacity:1;transform:none;}}
 @keyframes pageInL{from{opacity:0;transform:translateX(-30px);}to{opacity:1;transform:none;}}
+.page.swiping{position:fixed;left:0;right:0;bottom:0;z-index:30;overflow:hidden;padding:18px 16px 0;background:var(--bg);}
+.page.snap{transition:transform .3s cubic-bezier(.22,.61,.36,1);}
 .card{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--border);border-radius:20px;padding:20px;margin-bottom:16px;box-shadow:0 10px 30px rgba(0,0,0,.28);}
 /* period-coded card backgrounds — same colour for the same period across every tab */
 .card.per-this{background:linear-gradient(160deg,rgba(56,189,248,.42),rgba(56,189,248,.18));border-color:rgba(56,189,248,.75);box-shadow:0 10px 30px rgba(56,189,248,.20);}
@@ -1412,7 +1414,7 @@ function go(p,dir){
   page=p;
   document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
   const pg=document.getElementById('page-'+p);
-  pg.style.animationName=(dir==='prev'?'pageInL':'pageInR');
+  pg.style.animationName=(dir==='none'?'none':(dir==='prev'?'pageInL':'pageInR'));
   pg.classList.add('active');
   document.querySelectorAll('.nav-i').forEach(e=>e.classList.remove('on'));
   document.getElementById('nav-'+p).classList.add('on');
@@ -1422,22 +1424,60 @@ function go(p,dir){
 }
 function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();}
 
-// ════════ SWIPE NAV ════════ swipe left/right to move between tabs
+// ════════ SWIPE NAV ════════ Facebook-style interactive pager — the page tracks your finger,
+// the neighbouring tab slides in beside it, and it snaps/commits on release.
 (function(){
   const order=['dash','work','bc','pl','growth','marketing'];
-  let x0=null,y0=null;
+  const topEl=document.getElementById('top');
+  const pageEl=p=>document.getElementById('page-'+p);
+  let x0=0,y0=0,armed=false,horiz=false,cur=null,nxt=null,dir=0,W=360,finishing=false;
   document.addEventListener('touchstart',e=>{
-    if(e.touches.length!==1){x0=null;return;}
+    if(finishing||e.touches.length!==1){armed=false;return;}
     const t=e.target;
-    if(t.closest&&t.closest('.tbl-wrap,.chips,.mstrip,input,select,textarea,#modal,#nav')){x0=null;return;}
+    if(t.closest&&t.closest('.mstrip,.chips,.tbl-wrap,input,select,textarea,#modal,#nav')){armed=false;return;}
     x0=e.touches[0].clientX;y0=e.touches[0].clientY;
+    armed=true;horiz=false;cur=null;nxt=null;dir=0;W=window.innerWidth||360;
   },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    if(!armed)return;
+    const t=e.touches[0],dx=t.clientX-x0,dy=t.clientY-y0;
+    if(!horiz){
+      if(Math.abs(dx)<10&&Math.abs(dy)<10)return;
+      if(Math.abs(dx)<=Math.abs(dy)*1.2){armed=false;return;}   // vertical intent → let it scroll
+      horiz=true;
+      const i=order.indexOf(page);dir=dx<0?1:-1;const ni=i+dir;
+      cur=pageEl(page);
+      nxt=(ni>=0&&ni<order.length)?pageEl(order[ni]):null;
+      const headH=topEl?topEl.offsetHeight:0;
+      if(nxt){nxt.classList.add('swiping');nxt.style.top=headH+'px';nxt.style.display='block';nxt.style.transform='translateX('+(dir>0?W:-W)+'px)';}
+    }
+    if(horiz){
+      if(e.cancelable)e.preventDefault();
+      const d=nxt?dx:dx*0.25;   // rubber-band at the ends
+      if(cur)cur.style.transform='translateX('+d+'px)';
+      if(nxt)nxt.style.transform='translateX('+((dir>0?W:-W)+d)+'px)';
+    }
+  },{passive:false});
   document.addEventListener('touchend',e=>{
-    if(x0==null)return;const t=e.changedTouches[0];const dx=t.clientX-x0,dy=t.clientY-y0;x0=null;
-    if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.4)return;   // mostly-horizontal, decisive swipe only
-    const i=order.indexOf(page);if(i<0)return;
-    const ni=dx<0?i+1:i-1;if(ni<0||ni>=order.length)return;
-    go(order[ni], ni>i?'next':'prev');
+    if(!horiz){armed=false;return;}
+    horiz=false;armed=false;finishing=true;
+    const dx=e.changedTouches[0].clientX-x0;
+    const commit=!!nxt && Math.abs(dx)>W*0.25;
+    const c=cur,n=nxt,d=dir,i=order.indexOf(page);
+    if(c)c.classList.add('snap'); if(n)n.classList.add('snap');
+    requestAnimationFrame(()=>{
+      if(commit){c.style.transform='translateX('+(d>0?-W:W)+'px)';n.style.transform='translateX(0)';}
+      else{if(c)c.style.transform='translateX(0)';if(n)n.style.transform='translateX('+(d>0?W:-W)+'px)';}
+    });
+    let cleaned=false;
+    const cleanup=()=>{
+      if(cleaned)return;cleaned=true;
+      if(commit&&n)go(order[i+d],'none');
+      [c,n].forEach(el=>{if(el){el.classList.remove('snap','swiping');el.style.transform='';el.style.top='';el.style.display='';}});
+      finishing=false;
+    };
+    (c||n||document.body).addEventListener('transitionend',cleanup,{once:true});
+    setTimeout(cleanup,380);
   },{passive:true});
 })();
 
