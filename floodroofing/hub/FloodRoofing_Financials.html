@@ -740,20 +740,23 @@ async function diagInvoices(){
   const out=document.getElementById('bc-diag');if(!out)return;out.textContent='Testing…';
   const r=bcFergus[0];const jid=r&&r._fergus_id;
   if(!jid){out.textContent='Sync Back Cost first (no job id yet).';return;}
-  let txt='diag v7 · job '+jid+'\n\n';
+  let txt='diag v8 · job '+jid+'\n\n';
+  let aqid='';
+  try{const jd0=await fergusApiFetch('/jobs/'+jid);const d=jd0.data||jd0;aqid=d.activeQuote&&d.activeQuote.id;}catch(e){}
   const cands=[
-    '/jobs/customer_invoices',
-    '/jobs/customer_invoices?jobId='+jid,
-    '/jobs/customer_invoices/'+jid,
-    '/jobs/invoices?jobId='+jid
+    '/jobs/'+jid+'/customer_invoices',
+    '/jobs/'+jid+'/invoicing',
+    '/jobs/'+jid+'/customerInvoices',
+    '/jobs/'+jid+'/phases'
   ];
+  if(aqid)cands.push('/jobs/'+jid+'/quotes/'+aqid);
   for(const c of cands){
     try{
       const j=await fergusApiFetch(c);
-      const arr=Array.isArray(j)?j:(j.data||j.invoices||j.results||j.customerInvoices||null);
-      const sample=Array.isArray(arr)?arr[0]:(arr||j);
-      txt+='✅ '+c+'\n   rows='+(Array.isArray(arr)?arr.length:'?')+' keys='+Object.keys(sample||{}).join(',')+'\n\n';
-    }catch(e){txt+='❌ '+c+'\n   '+String(e.message).slice(0,240)+'\n\n';}
+      const arr=Array.isArray(j)?j:(j.data||j.results||j.customerInvoices||j.invoices||j);
+      const s=Array.isArray(arr)?arr[0]:arr;
+      txt+='✅ '+c+'\n   rows='+(Array.isArray(arr)?arr.length:'obj')+' keys='+Object.keys(s||{}).join(',')+'\n\n';
+    }catch(e){txt+='❌ '+c+' → '+String(e.message).slice(0,80)+'\n\n';}
   }
   out.textContent=txt;
 }
