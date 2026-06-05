@@ -1365,7 +1365,7 @@ function renderBCStrip(){
   host.innerHTML=months.map(k=>{const f=bcFig(k);const gpm=f.rev>0?f.gp/f.rev:0,opx=f.rev>0?f.opex/f.rev:0,npm=f.rev>0?f.np/f.rev:0;
     return '<div class="mcard"><div class="mm">'+esc(k)+'</div>'+
       row('Rev',fmtK(f.rev),'')+
-      row('COGS',fmtK(f.rev-f.gp),'')+
+      row('COGS',fmtK(f.rev-f.gp)+' · '+Math.round((f.rev>0?(f.rev-f.gp)/f.rev:0)*100)+'%','')+
       row('GP',fmtK(f.gp)+' · '+Math.round(gpm*100)+'%',gpm>=0.30?'pos':'neg')+
       row('GP/hr',f.hA>0?fmt$(f.gp/f.hA):'—',f.hA>0&&f.gp>=0?'pos':'')+
       row('Opex',fmtK(f.opex)+' · '+Math.round(opx*100)+'%','')+
@@ -1405,7 +1405,7 @@ function renderRollingStrip(hostId,figFn,endingMonths,cogs){
     return '<div class="mcard"><div class="mm">'+esc(M)+'</div>'+
       '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">3-mo avg · '+esc(monthKeyMinus(M,2))+'→'+esc(M)+'</span></div>'+
       row('Rev',fmtK(f.rev),'')+
-      (cogs?row('COGS',fmtK(f.rev-f.gp),''):'')+
+      (cogs?row('COGS',fmtK(f.rev-f.gp)+' · '+Math.round((f.rev>0?(f.rev-f.gp)/f.rev:0)*100)+'%',''):'')+
       row('GP',fmtK(f.gp)+' · '+Math.round(gpm*100)+'%',gpm>=0.30?'pos':'neg')+
       row('Opex',fmtK(f.opex)+' · '+Math.round(opx*100)+'%','')+
       row('NP',fmtK(f.np)+' · '+Math.round(npm*100)+'%',f.np>=0?'pos':'neg')+'</div>';
