@@ -468,9 +468,8 @@ function proxyUrl(svc,fullPath){
   const proxy=fergusProxyUrl();
   const qi=fullPath.indexOf('?');
   const p=qi>=0?fullPath.slice(0,qi):fullPath;
-  const extra=qi>=0?fullPath.slice(qi+1):'';
   let u=proxy+'/api/proxy?svc='+svc+'&path='+encodeURIComponent(p);
-  if(extra)u+='&'+extra;
+  if(qi>=0)fullPath.slice(qi+1).split('&').forEach(pair=>{if(!pair)return;const eq=pair.indexOf('=');const k=eq>=0?pair.slice(0,eq):pair;const v=eq>=0?pair.slice(eq+1):'';u+='&'+encodeURIComponent(k)+'='+encodeURIComponent(v);});
   return u;
 }
 async function fergusApiFetch(path){
@@ -740,25 +739,17 @@ async function diagInvoices(){
   const out=document.getElementById('bc-diag');if(!out)return;out.textContent='Testing…';
   const r=bcFergus[0];const jid=r&&r._fergus_id;
   if(!jid){out.textContent='Sync Back Cost first (no job id yet).';return;}
-  let txt='diag v10 · job '+jid+'\n\n';
-  let pid='';
-  try{const j=await fergusApiFetch('/jobs/'+jid+'/phases');const ph=Array.isArray(j)?j:(j.data||j.results||[]);pid=ph[0]&&ph[0].id;}catch(e){}
-  txt+='phaseId='+pid+'\n\n';
-  const cands=[
-    '/jobs/'+jid+'/phases/'+pid,
-    '/jobs/'+jid+'/phases/'+pid+'/customer_invoices',
-    '/jobs/'+jid+'/phases/'+pid+'/invoices'
-  ];
-  for(const c of cands){
-    try{
-      const j=await fergusApiFetch(c);
-      const arr=Array.isArray(j)?j:(j.data||j.results||j.customerInvoices||j.invoices||j);
-      const s=Array.isArray(arr)?arr[0]:arr;
-      txt+='✅ '+c+'\n   rows='+(Array.isArray(arr)?arr.length:'obj')+' keys='+Object.keys(s||{}).join(',')+'\n';
-      if(s&&s.links)txt+='   links:'+JSON.stringify(s.links).slice(0,500)+'\n';
-      txt+='\n';
-    }catch(e){txt+='❌ '+c+' → '+String(e.message).slice(0,80)+'\n\n';}
-  }
+  let txt='diag XERO invoices\n\n';
+  const psec=fergusProxySecret();
+  try{
+    const res=await fetch(proxyUrl('xero','/Invoices?where=Type=="ACCREC"&page=1&order=Date DESC'),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});
+    const body=await res.text();
+    if(!res.ok){txt+='HTTP '+res.status+': '+body.slice(0,200);out.textContent=txt;return;}
+    const inv=(JSON.parse(body).Invoices)||[];
+    txt+=inv.length+' AR invoices (newest)\n\n';
+    inv.slice(0,3).forEach((v,i)=>{txt+='#'+(i+1)+' '+(v.InvoiceNumber||'')+'\n  Ref: '+(v.Reference||'')+'\n  Status: '+(v.Status||'')+'  Total: '+(v.Total||'')+'  Paid: '+(v.AmountPaid||'')+'\n  Date: '+(v.DateString||v.Date||'')+'  FullyPaidOn: '+(v.FullyPaidOnDate||'')+'\n  Contact: '+((v.Contact&&v.Contact.Name)||'')+'\n\n';});
+    txt+='keys: '+Object.keys(inv[0]||{}).join(',');
+  }catch(e){txt+='ERR: '+String(e.message).slice(0,160);}
   out.textContent=txt;
 }
 // Fetch a job's invoices (Fergus requires ?jobId=).
