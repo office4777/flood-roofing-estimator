@@ -76,28 +76,30 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Only GET is allowed.' });
 
-  // Harmless debug: echo back exactly what the function received (no secrets) so query handling
-  // can be verified. e.g. ?svc=fergus&path=/x&jobId=5&debug=echo
-  if ((req.query || {}).debug === 'echo') return res.status(200).json({ url: req.url, query: req.query || {} });
+  const q = req.query || {};
+  const svc = q.svc;
+  let path = q.path || '/';
+  if (Array.isArray(path)) path = path[0];
+  if (!path.startsWith('/')) path = '/' + path;
+  // Forward any extra query params (the upstream Fergus/Xero query string) as REAL params so
+  // nothing is lost when the path itself is URL-encoded. (svc/path/debug are proxy-only.)
+  const extra = Object.keys(q).filter(k => k !== 'svc' && k !== 'path' && k !== 'debug' && k !== '_vercel_share').map(k => {
+    const v = q[k];
+    return Array.isArray(v) ? v.map(x => encodeURIComponent(k) + '=' + encodeURIComponent(x)).join('&') : (encodeURIComponent(k) + '=' + encodeURIComponent(v));
+  }).join('&');
+  if (extra) path += (path.indexOf('?') >= 0 ? '&' : '?') + extra;
+
+  // Harmless debug (no secret): shows the exact upstream URL the proxy will call.
+  if (q.debug === 'echo') {
+    const host = svc === 'xero' ? 'api.xero.com/api.xro/2.0' : FERGUS_HOST;
+    return res.status(200).json({ query: q, builtPath: path, upstream: 'https://' + host + path });
+  }
 
   const proxySecret = process.env.PROXY_SECRET;
   if (!proxySecret) return res.status(500).json({ error: 'Proxy not configured: PROXY_SECRET is not set.' });
   if ((req.headers['x-proxy-secret'] || '') !== proxySecret) {
     return res.status(401).json({ error: 'Bad or missing X-Proxy-Secret.' });
   }
-
-  const q = req.query || {};
-  const svc = q.svc;
-  let path = q.path || '/';
-  if (Array.isArray(path)) path = path[0];
-  if (!path.startsWith('/')) path = '/' + path;
-  // Forward any extra query params (the upstream Fergus/Xero query string). They arrive as real
-  // params on the proxy URL so nothing is lost when the path itself is URL-encoded.
-  const extra = Object.keys(q).filter(k => k !== 'svc' && k !== 'path').map(k => {
-    const v = q[k];
-    return Array.isArray(v) ? v.map(x => encodeURIComponent(k) + '=' + encodeURIComponent(x)).join('&') : (encodeURIComponent(k) + '=' + encodeURIComponent(v));
-  }).join('&');
-  if (extra) path += (path.indexOf('?') >= 0 ? '&' : '?') + extra;
 
   if (svc === 'fergus') {
     const key = process.env.FERGUS_API_KEY;
