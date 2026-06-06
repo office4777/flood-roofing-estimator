@@ -653,32 +653,41 @@ async function syncWorkload(){
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Syncing…';}
   setSync('syncing…');toast('Syncing Fergus…');
   try{
-    const active=await fergusFetchJobs('Active');
-    const out=[],allJobs=[];let i=0,noPriced=0,excluded=0;
-    for(const job of active){
-      i++;setSync('checking '+i+'/'+active.length+'…');
-      const id=job.id!=null?job.id:(job.jobId!=null?job.jobId:(job.jobNo||job.jobNumber));
-      if(id==null)continue;
-      let summary=null;
-      try{summary=await fergusFetchFinancialSummary(id);}catch(e){console.warn('summary fail',id,e.message);continue;}
-      const _qs=(summary&&summary.quoteSummary)||{},_ci=(summary&&summary.costsIncurred)||{};
-      const _ca=(summary&&summary.chargeableAmount)||{},_tb=(summary&&summary.totalBilled)||{};
-      const pMat=num(_qs.materials);
-      let aMat=num(_ci.materials);
-      if(aMat<=0){const _tot=num(_ci.total),_lab=num(_ci.labour);if(_tot>_lab)aMat=_tot-_lab;}   // fallback: total − labour
-      const jChg=num(_ca.total),jBilled=num(_tb.total);
-      const sale=num(_qs.quotedAmount)||jChg;   // total job sale price (before GST)
-      const client=fergusName(job.customer)||fergusName(job.mainContact)||'Job '+(job.jobNo||job.jobNumber||id);
-      const site=fergusAddr(job.siteAddress);
-      const jobName=client+(site?(' — '+site):'');
-      const fin=isFinishedJob(job,summary);
-      // EVERY active job (incl. heavily-billed ones) feeds the materials-still-to-buy forecast
-      allJobs.push({id:String(id),jobNo:String(job.jobNo||job.jobNumber||''),job:jobName,pMat,aMat,sale,chg:jChg,billed:jBilled,status:job.status||'Active',fin});
-      if(fin){excluded++;continue;} // fully invoiced = done → not backlog (but still in the forecast above)
-      const {priced,actual}=extractHours(summary);
-      if(priced<=0)noPriced++;
-      out.push({id:String(id),job:jobName,priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,sale,chg:jChg,billed:jBilled,status:job.status||'Active'});
+    // Pull ALL active jobs (paginated). The old single-page fetch capped at 100, silently
+    // dropping every active job past the first 100 (sorted newest-first) — i.e. the quiet
+    // deposit-paid jobs waiting on materials. Process them with a few workers for speed.
+    let active;
+    try{active=await fergusPaginate('/jobs?pageSize=100&sortField=lastModified&sortOrder=desc&filterJobStatus=Active',12);}
+    catch(e){active=await fergusFetchJobs('Active');}
+    const out=[],allJobs=[];let noPriced=0,excluded=0,done=0,idx=0;const total=active.length;
+    async function jobWorker(){
+      while(idx<total){
+        const job=active[idx++];
+        done++;if(done%3===0||done===total)setSync('checking '+done+'/'+total+'…');
+        const id=job.id!=null?job.id:(job.jobId!=null?job.jobId:(job.jobNo||job.jobNumber));
+        if(id==null)continue;
+        let summary=null;
+        try{summary=await fergusFetchFinancialSummary(id);}catch(e){console.warn('summary fail',id,e.message);continue;}
+        const _qs=(summary&&summary.quoteSummary)||{},_ci=(summary&&summary.costsIncurred)||{};
+        const _ca=(summary&&summary.chargeableAmount)||{},_tb=(summary&&summary.totalBilled)||{};
+        const pMat=num(_qs.materials);
+        let aMat=num(_ci.materials);
+        if(aMat<=0){const _tot=num(_ci.total),_lab=num(_ci.labour);if(_tot>_lab)aMat=_tot-_lab;}   // fallback: total − labour
+        const jChg=num(_ca.total),jBilled=num(_tb.total);
+        const sale=num(_qs.quotedAmount)||jChg;   // total job sale price (before GST)
+        const client=fergusName(job.customer)||fergusName(job.mainContact)||'Job '+(job.jobNo||job.jobNumber||id);
+        const site=fergusAddr(job.siteAddress);
+        const jobName=client+(site?(' — '+site):'');
+        const fin=isFinishedJob(job,summary);
+        // EVERY active job (incl. heavily-billed ones) feeds the materials-still-to-buy forecast
+        allJobs.push({id:String(id),jobNo:String(job.jobNo||job.jobNumber||''),job:jobName,pMat,aMat,sale,chg:jChg,billed:jBilled,status:job.status||'Active',fin});
+        if(fin){excluded++;continue;} // fully invoiced = done → not backlog (but still in the forecast above)
+        const {priced,actual}=extractHours(summary);
+        if(priced<=0)noPriced++;
+        out.push({id:String(id),job:jobName,priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,sale,chg:jChg,billed:jBilled,status:job.status||'Active'});
+      }
     }
+    await Promise.all(Array.from({length:Math.min(4,total||1)},()=>jobWorker()));
     fwJobs=out;S.set('fwJobs',fwJobs);S.set('cashJobs',allJobs);
     S.set('fw_last_sync',new Date().toLocaleString('en-NZ'));
     S.set('fw_no_priced',noPriced);
