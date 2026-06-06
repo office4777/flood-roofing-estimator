@@ -666,8 +666,6 @@ async function syncWorkload(){
       const pMat=num(_qs.materials);
       let aMat=num(_ci.materials);
       if(aMat<=0){const _tot=num(_ci.total),_lab=num(_ci.labour);if(_tot>_lab)aMat=_tot-_lab;}   // fallback: total − labour
-      let phMat=0;try{phMat=await fergusPhaseMaterials(id);}catch(e){}   // materials costed/invoiced on the job's phases
-      if(phMat>aMat)aMat=phMat;
       const client=fergusName(job.customer)||fergusName(job.mainContact)||'Job '+(job.jobNo||job.jobNumber||id);
       const site=fergusAddr(job.siteAddress);
       out.push({id:String(id),job:client+(site?(' — '+site):''),priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,status:job.status||'Active'});
@@ -1560,8 +1558,8 @@ async function fergusPhaseMaterials(jobId){
   });
   return sum;
 }
-// Diagnostic: dump one active job's financialSummary + phases so we can see where Fergus keeps
-// the material actuals (the user can screenshot this).
+// Diagnostic: dump one active job's financialSummary.data + a phase detail, so we can see
+// exactly where Fergus keeps the material actuals (the user can screenshot this).
 async function diagJobMaterials(){
   const out=document.getElementById('cash-note');if(!out)return;
   out.textContent='Loading one active job…';
@@ -1569,19 +1567,21 @@ async function diagJobMaterials(){
     let jid=(fwJobs&&fwJobs[0]&&fwJobs[0].id)||null;
     if(!jid){const act=await fergusFetchJobs('Active');jid=act&&act[0]&&(act[0].id!=null?act[0].id:act[0].jobId);}
     if(!jid){out.textContent='No active job found — Refresh Fergus on the Dashboard first.';return;}
-    let sum={};try{sum=await fergusApiFetch('/jobs/'+encodeURIComponent(jid)+'/financialSummary');}catch(e){sum={error:String(e.message)};}
+    let raw={};try{raw=await fergusApiFetch('/jobs/'+encodeURIComponent(jid)+'/financialSummary');}catch(e){raw={error:String(e.message)};}
+    const d=(raw&&raw.data)||raw;
+    let txt='JOB '+jid+'\n\n= financialSummary.data =\n';
+    txt+='data keys: '+Object.keys(d||{}).join(', ')+'\n';
+    ['quoteSummary','costsIncurred','actualCosts','costs','totalBilled','chargeableAmount','labourHours','materials','margin'].forEach(k=>{if(d&&d[k]!==undefined)txt+=k+': '+JSON.stringify(d[k]).slice(0,260)+'\n';});
+    txt+='full data (trunc): '+JSON.stringify(d).slice(0,520)+'\n\n= phase detail =\n';
     let ph=null;try{ph=await fergusApiFetch('/jobs/'+encodeURIComponent(jid)+'/phases');}catch(e){ph={error:String(e.message)};}
-    const qs=(sum&&sum.quoteSummary)||{},ci=(sum&&sum.costsIncurred)||{};
-    let txt='JOB '+jid+'\n\n= financialSummary =\n';
-    txt+='summary keys: '+Object.keys(sum||{}).join(', ')+'\n';
-    txt+='quoteSummary: '+JSON.stringify(qs)+'\n';
-    txt+='costsIncurred: '+JSON.stringify(ci)+'\n\n= phases =\n';
-    const arr=Array.isArray(ph)?ph:(ph&&(ph.data||ph.phases||ph.results))||null;
-    txt+='type: '+(Array.isArray(ph)?('array['+ph.length+']'):typeof ph)+(arr&&!Array.isArray(ph)?(' (nested ['+arr.length+'])'):'')+'\n';
-    const p0=arr&&arr[0];
-    txt+='phase[0] keys: '+Object.keys(p0||{}).join(', ')+'\n';
-    txt+='phase[0]: '+JSON.stringify(p0).slice(0,900)+'\n\n';
-    txt+='phaseMaterials() = '+fmt$(await fergusPhaseMaterials(jid).catch(()=>0));
+    const arr=Array.isArray(ph)?ph:(ph&&(ph.data||ph.phases||ph.results))||[];
+    const pid=arr&&arr[0]&&(arr[0].id!=null?arr[0].id:arr[0].phaseId);
+    txt+='phase count: '+arr.length+' · first id: '+pid+'\n';
+    if(pid!=null){let pd={};try{pd=await fergusApiFetch('/jobs/'+encodeURIComponent(jid)+'/phases/'+encodeURIComponent(pid));}catch(e){pd={error:String(e.message)};}
+      const pdd=(pd&&pd.data)||pd;
+      txt+='phase keys: '+Object.keys(pdd||{}).join(', ')+'\n';
+      txt+='phase detail (trunc): '+JSON.stringify(pdd).slice(0,1100)+'\n';
+    }
     out.textContent=txt;
   }catch(e){out.textContent='diag error: '+String(e&&e.message||e);}
 }
