@@ -411,9 +411,10 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 
     <div class="card per-last">
       <div class="ct">Materials still to buy — live jobs <span id="cash-mat-src" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="fld" style="margin:2px 0 10px;"><label>Deposit / materials as % of sale price</label><input id="cash-deppct" type="number" inputmode="decimal" autocomplete="off" placeholder="50" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Each job’s material budget = this % of its sale price (the deposit that funds materials). Default 50%.</div></div>
       <div class="mg" id="cash-mat"></div>
-      <div class="tbl-wrap" style="margin-top:10px;"><table class="tb" id="cash-mat-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Priced</th><th style="text-align:right;">Bought</th><th style="text-align:right;">To buy</th></tr></thead><tbody></tbody></table></div>
-      <div class="note">From your active Fergus jobs (as of the last workload sync). “To buy” = priced materials − materials already costed against the job. Tap ⟳ Refresh on the Dashboard to update the jobs.</div>
+      <div class="tbl-wrap" style="margin-top:10px;"><table class="tb" id="cash-mat-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Budget</th><th style="text-align:right;">Bought</th><th style="text-align:right;">To buy</th></tr></thead><tbody></tbody></table></div>
+      <div class="note">“To buy” = (deposit % × sale price) − materials already bought, per job. A job whose materials are already bought to ~that % drops out — those are already in Xero A/P. From your active Fergus jobs (last workload Refresh).</div>
     </div>
 
     <div class="card">
@@ -668,9 +669,10 @@ async function syncWorkload(){
       let aMat=num(_ci.materials);
       if(aMat<=0){const _tot=num(_ci.total),_lab=num(_ci.labour);if(_tot>_lab)aMat=_tot-_lab;}   // fallback: total − labour
       const jChg=num(_ca.total),jBilled=num(_tb.total);
+      const sale=num(_qs.quotedAmount)||jChg;   // total job sale price (before GST)
       const client=fergusName(job.customer)||fergusName(job.mainContact)||'Job '+(job.jobNo||job.jobNumber||id);
       const site=fergusAddr(job.siteAddress);
-      out.push({id:String(id),job:client+(site?(' — '+site):''),priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,chg:jChg,billed:jBilled,status:job.status||'Active'});
+      out.push({id:String(id),job:client+(site?(' — '+site):''),priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,sale,chg:jChg,billed:jBilled,status:job.status||'Active'});
     }
     fwJobs=out;S.set('fwJobs',fwJobs);
     S.set('fw_last_sync',new Date().toLocaleString('en-NZ'));
@@ -1543,7 +1545,7 @@ async function syncCash(){
     if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync from Xero';}
   }
 }
-function saveCashCfg(){const v=(document.getElementById('cash-matkw').value||'').trim();S.set('cashMatKw',v);const s=document.getElementById('cash-saleskw');if(s)S.set('cashSalesKw',(s.value||'').trim());renderCash();}
+function saveCashCfg(){const v=(document.getElementById('cash-matkw').value||'').trim();S.set('cashMatKw',v);const s=document.getElementById('cash-saleskw');if(s)S.set('cashSalesKw',(s.value||'').trim());const d=document.getElementById('cash-deppct');if(d)S.set('cashDepPct',(d.value||'').trim());renderCash();}
 // Sum the material actuals recorded on a job's phases (supplier bills/costs attached to the
 // job). Tolerant of shape variations — walks the phases JSON and adds up any material cost.
 async function fergusPhaseMaterials(jobId){
@@ -1612,19 +1614,27 @@ function renderCash(){
   const arVal=ar?ar.val:0;
   const held=matVal+salesVal;
   const net=held-apVal;                          // left to refund customers (A/P-only view)
-  // materials still to buy on live jobs (from the last Fergus workload sync)
+  // Materials still to buy per live job, using the deposit model the business runs on:
+  //   budget = depositRatio × sale price  (the 50% deposit that funds that job's materials)
+  //   still-to-buy = max(0, budget − materials already bought)
+  // Materials already bought are sitting in Xero A/P, so they drop out of 'to buy' (no double count):
+  // a job whose materials are bought to ~the deposit % contributes ~0.
   const jobsAll=(fwJobs||[]).filter(j=>j.status!=='Completed');
-  const hasMat=jobsAll.some(j=>j.pMat!=null);
-  let toBuy=0,pricedMat=0,boughtMat=0;const matRows=[];
-  jobsAll.forEach(j=>{const p=num(j.pMat),a=num(j.aMat);const tb=Math.max(0,p-a);pricedMat+=p;boughtMat+=a;toBuy+=tb;if(p>0||a>0)matRows.push({job:j.job,p,a,tb});});
+  const hasMat=jobsAll.some(j=>j.sale!=null||j.pMat!=null);
+  const depPct=num(S.get('cashDepPct','50'))||50,depR=depPct/100;
+  let toBuy=0,budgetMat=0,boughtMat=0,excl=0,toCollect=0;const matRows=[];
+  jobsAll.forEach(j=>{
+    const sale=num(j.sale)||num(j.chg),a=num(j.aMat);
+    toCollect+=Math.max(0,num(j.chg)-num(j.billed));
+    if(sale<=0)return;
+    const budget=depR*sale,tb=Math.max(0,budget-a);
+    budgetMat+=budget;boughtMat+=a;toBuy+=tb;
+    if(tb>1)matRows.push({job:j.job,b:budget,a,tb});else excl++;
+  });
   matRows.sort((x,y)=>y.tb-x.tb);
-  // Actuals are reliable only if Fergus reports a meaningful amount of materials already costed.
-  // If not, 'to buy' would wrongly include materials already invoiced (already in A/P), so we fall
-  // back to the A/P-only view rather than show a bogus shortfall.
-  let toCollect=0;jobsAll.forEach(j=>{toCollect+=Math.max(0,num(j.chg)-num(j.billed));});   // final invoices still to raise on live jobs
-  const actualsOk=hasMat && boughtMat>0;
+  const actualsOk=hasMat && budgetMat>0;
   const coverage=held-apVal-toBuy;
-  const fundGap=held+toCollect-apVal-toBuy;   // working-capital view: also credit incoming final invoices
+  const fundGap=held+toCollect-apVal-toBuy;   // also credit incoming final invoices (working-capital view)
   // hero
   if(actualsOk){
     set('cash-end',null,fmtK(coverage));
@@ -1635,7 +1645,7 @@ function renderCash(){
     set('cash-end',null,fmtK(net));
     const b=document.getElementById('cash-end');if(b)b.style.color=net>=0?'var(--success)':'var(--danger)';
     set('cash-end-unit',null,net>=0?'deposit cash left to refund customers':'shortfall vs supplier invoices');
-    set('cash-end-sub',null,(hasMat?'⚠ material actuals not detected in Fergus — run “Diag job materials”':'⚠ Refresh Fergus on the Dashboard to forecast materials')+' · synced '+cash.ts);
+    set('cash-end-sub',null,'⚠ Refresh Fergus on the Dashboard to forecast materials · synced '+cash.ts);
   }
   set('cash-ts',null,cash.ts?('· '+cash.ts):'');
   // reconciliation waterfall
@@ -1644,14 +1654,13 @@ function renderCash(){
       mb('Materials (02) balance',fmtK(matVal),mat?esc(mat.name):'not matched','','m-rev')+
       mb('+ Sales (03) balance',fmtK(salesVal),sales?esc(sales.name):'not matched','','m-gp')+
       mb('= Deposit cash on hand',fmtK(held),'real cash in 02 + 03','','m-np')+
-      mb('− Supplier invoices (A/P)','−'+fmtK(apVal),'materials already invoiced','','m-cogs')+
-      mb('− Materials still to buy','−'+fmtK(toBuy),matRows.length+' live jobs · not yet invoiced','','m-cogs')+
+      mb('− Supplier invoices (A/P)','−'+fmtK(apVal),'materials already bought','','m-cogs')+
+      mb('− Materials still to buy','−'+fmtK(toBuy),matRows.length+' jobs · not yet ordered','','m-cogs')+
       mb('= Coverage',fmtK(coverage),coverage>=0?'fully funded':'short',coverage>=0?'pos':'neg','m-np'));
     set('cash-recon-note',null,
-      'Deposit cash on hand = real Materials (02) + Sales (03) balances. Against it: supplier invoices already in Xero (A/P '+fmt$(apVal)+' — materials already ordered/invoiced) plus materials still to buy that have NOT been invoiced yet (priced − already costed in Fergus, '+fmt$(toBuy)+'). '+
-      'These two don’t overlap: once a material is invoiced it leaves “to buy” and shows up in A/P. Coverage = deposit cash left once every material is paid. '+
-      'But materials are also funded by the final invoices still to raise on these jobs ('+fmt$(toCollect)+' still to collect), so a red Coverage is usually a timing / working-capital gap, not a loss. '+
-      'Counting that incoming cash, the funding position is '+fmt$(fundGap)+'.');
+      'Deposit cash on hand = real Materials (02) + Sales (03) balances. Materials still to buy is worked out per job as '+depPct+'% of the sale price (the deposit that funds materials) minus the materials already bought — so a job whose materials are already ordered to ~'+depPct+'% drops out, because those are sitting in A/P ('+fmt$(apVal)+'). '+
+      'A/P and “to buy” don’t overlap, so Coverage = deposit cash left once every remaining material is paid. '+
+      'Materials are also funded by the final invoices still to raise on these jobs ('+fmt$(toCollect)+' still to collect), so a red Coverage is usually a timing / working-capital gap, not a loss — counting that incoming cash the funding position is '+fmt$(fundGap)+'. ('+excl+' live jobs already covered.)');
   }else{
     set('cash-recon',
       mb('Materials (02) balance',fmtK(matVal),mat?esc(mat.name):'not matched','','m-rev')+
@@ -1660,20 +1669,20 @@ function renderCash(){
       mb('− Supplier invoices (A/P)','−'+fmtK(apVal),ap?esc(ap.name):'none found','','m-cogs')+
       mb('= Left to refund customers',fmtK(net),net>=0?'covers all supplier bills':'cannot cover supplier bills',net>=0?'pos':'neg','m-np'));
     set('cash-recon-note',null,
-      'Built from your live Xero balances only. The materials-still-to-buy forecast is hidden because Fergus returned little/no material actuals for the active jobs — without them, “to buy” would double-count materials already invoiced (already in A/P) and show a false shortfall. '+
-      'Run “Diag job materials” below and send the result so the actuals source can be wired in. Meanwhile: deposit cash − A/P = '+fmt$(net)+' is what’s left to refund customers if you stopped buying materials today. (A/P is every supplier, not only materials.)');
+      'Built from your live Xero balances only — Refresh Fergus on the Dashboard to add the materials-still-to-buy forecast. Meanwhile deposit cash − A/P = '+fmt$(net)+' is what’s left to refund customers. (A/P is every supplier, not only materials.)');
   }
   // materials forecast tiles + per-job table
   set('cash-mat-src',null,hasMat?(S.get('fw_last_sync','')?('Fergus · '+S.get('fw_last_sync','')):'Fergus'):'no Fergus data');
+  const dpEl=document.getElementById('cash-deppct');if(dpEl&&!dpEl.value)dpEl.value=depPct;
   if(!hasMat){set('cash-mat','<div class="empty" style="grid-column:1/-1;">Tap ⟳ Refresh on the Dashboard to pull active jobs and forecast materials.</div>');if(matTb)matTb.innerHTML='';}
   else{
     set('cash-mat',
-      mb('Materials still to buy',fmtK(toBuy),actualsOk?(matRows.length+' live jobs'):'⚠ actuals look incomplete',toBuy>0?'neg':'pos','m-cogs')+
-      mb('Already bought',fmtK(boughtMat),actualsOk?'costed against live jobs':'Fergus reported ~$0','','m-gp')+
-      mb('Priced materials (live)',fmtK(pricedMat),'total quoted on live jobs','','m-rev')+
-      mb('% bought',pricedMat>0?Math.round(boughtMat/pricedMat*100)+'%':'—','of priced materials',actualsOk?'pos':'neg','m-np'));
-    if(matTb)matTb.innerHTML=matRows.slice(0,60).map(r=>'<tr><td>'+esc(r.job)+'</td><td style="text-align:right;">'+fmt$(r.p)+'</td><td style="text-align:right;">'+fmt$(r.a)+'</td><td style="text-align:right;'+(r.tb>0?'color:var(--danger);font-weight:700;':'')+'">'+fmt$(r.tb)+'</td></tr>').join('')+
-      '<tr class="sum"><td>Total ('+matRows.length+')</td><td style="text-align:right;">'+fmt$(pricedMat)+'</td><td style="text-align:right;">'+fmt$(boughtMat)+'</td><td style="text-align:right;font-weight:800;">'+fmt$(toBuy)+'</td></tr>';
+      mb('Materials still to buy',fmtK(toBuy),matRows.length+' jobs need materials','neg','m-cogs')+
+      mb('Already bought / in A/P',fmtK(boughtMat),excl+' jobs fully covered','','m-gp')+
+      mb('Materials budget ('+depPct+'% sale)',fmtK(budgetMat),jobsAll.length+' live jobs','','m-rev')+
+      mb('% bought',budgetMat>0?Math.round(boughtMat/budgetMat*100)+'%':'—','of deposit-funded budget','','m-np'));
+    if(matTb)matTb.innerHTML=matRows.slice(0,60).map(r=>'<tr><td>'+esc(r.job)+'</td><td style="text-align:right;">'+fmt$(r.b)+'</td><td style="text-align:right;">'+fmt$(r.a)+'</td><td style="text-align:right;'+(r.tb>0?'color:var(--danger);font-weight:700;':'')+'">'+fmt$(r.tb)+'</td></tr>').join('')+
+      '<tr class="sum"><td>Total ('+matRows.length+' of '+jobsAll.length+')</td><td style="text-align:right;">'+fmt$(budgetMat)+'</td><td style="text-align:right;">'+fmt$(boughtMat)+'</td><td style="text-align:right;font-weight:800;">'+fmt$(toBuy)+'</td></tr>';
   }
   // context tiles
   set('cash-context',
