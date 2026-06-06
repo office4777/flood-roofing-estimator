@@ -663,12 +663,14 @@ async function syncWorkload(){
       const {priced,actual}=extractHours(summary);
       if(priced<=0)noPriced++;
       const _qs=(summary&&summary.quoteSummary)||{},_ci=(summary&&summary.costsIncurred)||{};
+      const _ca=(summary&&summary.chargeableAmount)||{},_tb=(summary&&summary.totalBilled)||{};
       const pMat=num(_qs.materials);
       let aMat=num(_ci.materials);
       if(aMat<=0){const _tot=num(_ci.total),_lab=num(_ci.labour);if(_tot>_lab)aMat=_tot-_lab;}   // fallback: total − labour
+      const jChg=num(_ca.total),jBilled=num(_tb.total);
       const client=fergusName(job.customer)||fergusName(job.mainContact)||'Job '+(job.jobNo||job.jobNumber||id);
       const site=fergusAddr(job.siteAddress);
-      out.push({id:String(id),job:client+(site?(' — '+site):''),priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,status:job.status||'Active'});
+      out.push({id:String(id),job:client+(site?(' — '+site):''),priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,chg:jChg,billed:jBilled,status:job.status||'Active'});
     }
     fwJobs=out;S.set('fwJobs',fwJobs);
     S.set('fw_last_sync',new Date().toLocaleString('en-NZ'));
@@ -1619,8 +1621,10 @@ function renderCash(){
   // Actuals are reliable only if Fergus reports a meaningful amount of materials already costed.
   // If not, 'to buy' would wrongly include materials already invoiced (already in A/P), so we fall
   // back to the A/P-only view rather than show a bogus shortfall.
-  const actualsOk=hasMat && pricedMat>0 && boughtMat>=pricedMat*0.05;
+  let toCollect=0;jobsAll.forEach(j=>{toCollect+=Math.max(0,num(j.chg)-num(j.billed));});   // final invoices still to raise on live jobs
+  const actualsOk=hasMat && boughtMat>0;
   const coverage=held-apVal-toBuy;
+  const fundGap=held+toCollect-apVal-toBuy;   // working-capital view: also credit incoming final invoices
   // hero
   if(actualsOk){
     set('cash-end',null,fmtK(coverage));
@@ -1645,7 +1649,9 @@ function renderCash(){
       mb('= Coverage',fmtK(coverage),coverage>=0?'fully funded':'short',coverage>=0?'pos':'neg','m-np'));
     set('cash-recon-note',null,
       'Deposit cash on hand = real Materials (02) + Sales (03) balances. Against it: supplier invoices already in Xero (A/P '+fmt$(apVal)+' — materials already ordered/invoiced) plus materials still to buy that have NOT been invoiced yet (priced − already costed in Fergus, '+fmt$(toBuy)+'). '+
-      'These two don’t overlap: once a material is invoiced it leaves “to buy” and shows up in A/P. Coverage = deposit cash left once every material is paid. Green = deposits fund all in-progress materials; red = you’ll need the final 50% invoices.');
+      'These two don’t overlap: once a material is invoiced it leaves “to buy” and shows up in A/P. Coverage = deposit cash left once every material is paid. '+
+      'But materials are also funded by the final invoices still to raise on these jobs ('+fmt$(toCollect)+' still to collect), so a red Coverage is usually a timing / working-capital gap, not a loss. '+
+      'Counting that incoming cash, the funding position is '+fmt$(fundGap)+'.');
   }else{
     set('cash-recon',
       mb('Materials (02) balance',fmtK(matVal),mat?esc(mat.name):'not matched','','m-rev')+
@@ -1671,10 +1677,10 @@ function renderCash(){
   }
   // context tiles
   set('cash-context',
-    mb('Left to refund now',fmtK(net),'deposit cash − A/P',net>=0?'pos':'neg','m-np')+
+    mb('Still to collect (live jobs)',fmtK(toCollect),'final invoices to raise','','m-gp')+
+    mb('Funding position',fmtK(fundGap),'deposit + to-collect − A/P − to-buy',fundGap>=0?'pos':'neg','m-np')+
     mb('Accounts Receivable',fmtK(arVal),ar?esc(ar.name):'not found','','m-gp')+
-    mb('Accounts Payable',fmtK(apVal),ap?esc(ap.name):'not found','','m-cogs')+
-    mb('Cash + AR − AP',fmtK(held+arVal-apVal),'if all settled',(held+arVal-apVal)>=0?'pos':'neg','m-np'));
+    mb('Accounts Payable',fmtK(apVal),ap?esc(ap.name):'not found','','m-cogs'));
   // full balance-sheet table (transparency)
   const tagOf=r=>r===mat?'Materials 02':r===ap?'A/P':r===ar?'A/R':r===sales?'Sales 03':'';
   const tb=document.querySelector('#cash-accts tbody');
