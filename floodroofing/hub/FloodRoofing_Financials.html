@@ -409,6 +409,13 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="note" id="cash-recon-note"></div>
     </div>
 
+    <div class="card per-last">
+      <div class="ct">Materials still to buy — live jobs <span id="cash-mat-src" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="mg" id="cash-mat"></div>
+      <div class="tbl-wrap" style="margin-top:10px;"><table class="tb" id="cash-mat-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Priced</th><th style="text-align:right;">Bought</th><th style="text-align:right;">To buy</th></tr></thead><tbody></tbody></table></div>
+      <div class="note">From your active Fergus jobs (as of the last workload sync). “To buy” = priced materials − materials already costed against the job. Tap ⟳ Refresh on the Dashboard to update the jobs.</div>
+    </div>
+
     <div class="card">
       <div class="ct">Context <span class="period-sub" style="margin-left:auto;">other balances</span></div>
       <div class="mg" id="cash-context"></div>
@@ -654,9 +661,11 @@ async function syncWorkload(){
       if(isFinishedJob(job,summary)){excluded++;continue;} // fully invoiced (2 invoices) = done → not backlog
       const {priced,actual}=extractHours(summary);
       if(priced<=0)noPriced++;
+      const _qs=(summary&&summary.quoteSummary)||{},_ci=(summary&&summary.costsIncurred)||{};
+      const pMat=num(_qs.materials),aMat=num(_ci.materials);
       const client=fergusName(job.customer)||fergusName(job.mainContact)||'Job '+(job.jobNo||job.jobNumber||id);
       const site=fergusAddr(job.siteAddress);
-      out.push({id:String(id),job:client+(site?(' — '+site):''),priced,actual,remaining:Math.max(0,priced-actual),status:job.status||'Active'});
+      out.push({id:String(id),job:client+(site?(' — '+site):''),priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,status:job.status||'Active'});
     }
     fwJobs=out;S.set('fwJobs',fwJobs);
     S.set('fw_last_sync',new Date().toLocaleString('en-NZ'));
@@ -1534,11 +1543,12 @@ function renderCash(){
   const kwInput=document.getElementById('cash-matkw');if(kwInput&&!kwInput.value)kwInput.value=S.get('cashMatKw','material');
   const skInput=document.getElementById('cash-saleskw');if(skInput&&!skInput.value)skInput.value=S.get('cashSalesKw','sales');
   const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
+  const matTb=document.querySelector('#cash-mat-tbl tbody');
   if(!cash||!cash.rows){
     set('cash-end',null,'—');set('cash-end-sub',null,'Tap “Sync from Xero”.');
     set('cash-recon','<div class="empty" style="grid-column:1/-1;">No data yet.</div>');
-    set('cash-context','');set('cash-recon-note',null,'');set('cash-ts',null,'');
-    const tb0=document.querySelector('#cash-accts tbody');if(tb0)tb0.innerHTML='';
+    set('cash-context','');set('cash-recon-note',null,'');set('cash-ts',null,'');set('cash-mat','');set('cash-mat-src',null,'');
+    if(matTb)matTb.innerHTML='';const tb0=document.querySelector('#cash-accts tbody');if(tb0)tb0.innerHTML='';
     return;
   }
   const rows=cash.rows;
@@ -1546,41 +1556,60 @@ function renderCash(){
   const salekw=(S.get('cashSalesKw','sales')||'').toLowerCase();
   const find=re=>{let hit=null;rows.forEach(r=>{if(!r.summary&&re.test(r.name)&&hit==null)hit=r;});return hit;};
   const byKw=kw=>{let hit=null;if(kw)rows.forEach(r=>{if(!r.summary&&r.name.toLowerCase().includes(kw)&&hit==null)hit=r;});return hit;};
-  const mat=byKw(matkw);
-  const sales=byKw(salekw);
+  const mat=byKw(matkw),sales=byKw(salekw);
   const ap=find(/accounts payable|trade payable|creditors/i);
   const ar=find(/accounts receivable|trade receivable|debtors/i);
-  const matVal=mat?mat.val:0;
-  const salesVal=sales?sales.val:0;
+  const matVal=mat?mat.val:0,salesVal=sales?sales.val:0;
   const apVal=ap?Math.abs(ap.val):0;            // liability shown as a positive obligation
   const arVal=ar?ar.val:0;
   const held=matVal+salesVal;                   // deposit cash actually on hand (02 + 03)
-  const net=held-apVal;                         // left to refund customers after paying suppliers
-  // hero
-  set('cash-end',null,fmtK(net));
-  const big=document.getElementById('cash-end');if(big)big.style.color=net>=0?'var(--success)':'var(--danger)';
-  set('cash-end-unit',null,net>=0?'deposit cash left to refund customers':'shortfall — deposits already spent on suppliers');
-  set('cash-end-sub',null,(mat?'02 = “'+mat.name+'”':'⚠ no Materials account matched — set the keyword below')+' · synced '+cash.ts);
+  const net=held-apVal;                         // left to refund customers (if no more materials bought)
+  // materials still to buy on live jobs (from the last Fergus workload sync)
+  const jobsAll=(fwJobs||[]).filter(j=>j.status!=='Completed');
+  const hasMat=jobsAll.some(j=>j.pMat!=null);
+  let toBuy=0,pricedMat=0,boughtMat=0;const matRows=[];
+  jobsAll.forEach(j=>{const p=num(j.pMat),a=num(j.aMat);const tb=Math.max(0,p-a);pricedMat+=p;boughtMat+=a;toBuy+=tb;if(p>0||a>0)matRows.push({job:j.job,p,a,tb});});
+  matRows.sort((x,y)=>y.tb-x.tb);
+  const coverage=held-apVal-toBuy;              // deposit cash left after ALL remaining materials
+  // hero = coverage (does the deposit cash cover every supplier bill + every material still to buy?)
+  set('cash-end',null,fmtK(coverage));
+  const big=document.getElementById('cash-end');if(big)big.style.color=coverage>=0?'var(--success)':'var(--danger)';
+  set('cash-end-unit',null,coverage>=0?'deposit cash left after all materials':'shortfall — deposits won’t cover the materials');
+  set('cash-end-sub',null,(hasMat?(fmtK(toBuy)+' of materials still to buy on '+matRows.length+' live jobs'):'⚠ Refresh Fergus on the Dashboard to forecast materials')+' · synced '+cash.ts);
   set('cash-ts',null,cash.ts?('· '+cash.ts):'');
-  // reconciliation — built only from real balance-sheet figures
+  // reconciliation waterfall (real Xero balances + Fergus materials forecast)
   set('cash-recon',
     mb('Materials (02) balance',fmtK(matVal),mat?esc(mat.name):'not matched','','m-rev')+
     mb('+ Sales (03) balance',fmtK(salesVal),sales?esc(sales.name):'not matched','','m-gp')+
     mb('= Deposit cash on hand',fmtK(held),'real cash in 02 + 03','','m-np')+
     mb('− Supplier invoices (A/P)','−'+fmtK(apVal),ap?esc(ap.name):'none found','','m-cogs')+
-    mb('= Left to refund customers',fmtK(net),net>=0?'covers all supplier bills':'cannot cover supplier bills',net>=0?'pos':'neg','m-np'));
+    mb('− Materials still to buy','−'+fmtK(toBuy),hasMat?(matRows.length+' live jobs'):'refresh Fergus','','m-cogs')+
+    mb('= Coverage',fmtK(coverage),coverage>=0?'fully funded':'short',coverage>=0?'pos':'neg','m-np'));
   set('cash-recon-note',null,
-    'Built from your live Xero account balances. Deposit cash on hand = the real balances of Materials (02) + Sales (03). '+
-    'Of that, supplier invoices already in Xero (A/P '+fmt$(apVal)+') must be paid; whatever is left is un-spent deposit money you’d refund to customers if you closed. '+
-    'Green = your deposit accounts cover every supplier invoice with cash to spare for refunds; red = you’ve already spent more deposit cash than you hold to pay suppliers. '+
-    'Heads-up: materials are usually ordered up to ~3 months after the deposit lands, so more supplier invoices will arrive and draw this down — it is NOT all free cash. A/P here is every supplier invoice in Xero, not only materials.');
+    'Built from live Xero balances + your active Fergus jobs. Deposit cash on hand = real balances of Materials (02) + Sales (03). '+
+    'Against it: supplier invoices already in Xero (A/P '+fmt$(apVal)+', materials already ordered) plus materials still to buy on live jobs (priced − already costed in Fergus '+fmt$(toBuy)+'). '+
+    'Coverage = what’s left of the deposit cash once every one of those materials is paid for. '+
+    'Green = your collected deposits fully fund the materials on all jobs in progress; red = they fall short and you’ll need the completion (final 50%) invoices to finish buying materials. '+
+    'Note: A/P is every supplier in Xero, not only materials; Fergus job figures are from the last workload Refresh.');
+  // materials forecast tiles + per-job table
+  set('cash-mat-src',null,hasMat?(S.get('fw_last_sync','')?('Fergus · '+S.get('fw_last_sync','')):'Fergus'):'no Fergus data');
+  if(!hasMat){set('cash-mat','<div class="empty" style="grid-column:1/-1;">Tap ⟳ Refresh on the Dashboard to pull active jobs and forecast materials.</div>');if(matTb)matTb.innerHTML='';}
+  else{
+    set('cash-mat',
+      mb('Materials still to buy',fmtK(toBuy),matRows.length+' live jobs',toBuy>0?'neg':'pos','m-cogs')+
+      mb('Covered by deposit cash',held-apVal>=toBuy?'Yes':'No','after A/P, '+fmtK(Math.max(0,net))+' spare',held-apVal>=toBuy?'pos':'neg','m-np')+
+      mb('Priced materials (live)',fmtK(pricedMat),'total quoted on live jobs','','m-rev')+
+      mb('Already bought',fmtK(boughtMat),'costed against live jobs','','m-gp'));
+    if(matTb)matTb.innerHTML=matRows.slice(0,60).map(r=>'<tr><td>'+esc(r.job)+'</td><td style="text-align:right;">'+fmt$(r.p)+'</td><td style="text-align:right;">'+fmt$(r.a)+'</td><td style="text-align:right;'+(r.tb>0?'color:var(--danger);font-weight:700;':'')+'">'+fmt$(r.tb)+'</td></tr>').join('')+
+      '<tr class="sum"><td>Total ('+matRows.length+')</td><td style="text-align:right;">'+fmt$(pricedMat)+'</td><td style="text-align:right;">'+fmt$(boughtMat)+'</td><td style="text-align:right;font-weight:800;">'+fmt$(toBuy)+'</td></tr>';
+  }
   // context tiles
   set('cash-context',
+    mb('Left to refund now',fmtK(net),'deposit cash − A/P',net>=0?'pos':'neg','m-np')+
     mb('Accounts Receivable',fmtK(arVal),ar?esc(ar.name):'not found','','m-gp')+
     mb('Accounts Payable',fmtK(apVal),ap?esc(ap.name):'not found','','m-cogs')+
-    mb('AR − AP',fmtK(arVal-apVal),'net owed to you',(arVal-apVal)>=0?'pos':'neg')+
     mb('Cash + AR − AP',fmtK(held+arVal-apVal),'if all settled',(held+arVal-apVal)>=0?'pos':'neg','m-np'));
-  // full balance-sheet table (transparency — confirm the matched accounts)
+  // full balance-sheet table (transparency)
   const tagOf=r=>r===mat?'Materials 02':r===ap?'A/P':r===ar?'A/R':r===sales?'Sales 03':'';
   const tb=document.querySelector('#cash-accts tbody');
   if(tb)tb.innerHTML=rows.filter(r=>!r.summary).map(r=>{const tg=tagOf(r);
