@@ -1575,11 +1575,20 @@ async function diagJobMaterials(){
   try{
     const q=(((document.getElementById('cash-diagjob')||{}).value)||'').trim().toLowerCase();
     const pool=(S.get('cashJobs',null)||fwJobs||[]);
-    let rec=null,jid=null;
-    if(q){rec=pool.find(j=>String(j.jobNo||'').toLowerCase()===q||String(j.jobNo||'').replace('#','')===q.replace('#','')||String(j.id)===q||(j.job||'').toLowerCase().includes(q))||null;if(rec)jid=rec.id;}
-    if(!jid){rec=pool[0]||null;jid=(rec&&rec.id)||null;}
-    if(!jid){const act=await fergusFetchJobs('Active');jid=act&&act[0]&&(act[0].id!=null?act[0].id:act[0].jobId);}
-    if(!jid){out.textContent='No matching job — Refresh Fergus on the Dashboard first, or check the name/number.';return;}
+    let rec=null,jid=null,foundStatus='',via='';
+    const matchRec=j=>String(j.jobNo||'').toLowerCase()===q||String(j.jobNo||'').replace('#','')===q.replace('#','')||String(j.id)===q||(j.job||'').toLowerCase().includes(q);
+    if(q){rec=pool.find(matchRec)||null;if(rec){jid=rec.id;foundStatus=rec.status||'';via='cashJobs (in forecast)';}}
+    // Not in the cached forecast set — search Fergus directly across recent jobs (any status).
+    if(q&&!jid){
+      out.textContent='Searching Fergus for “'+q+'”…';
+      let list=[];try{list=await fergusPaginate('/jobs?pageSize=100&sortField=lastModified&sortOrder=desc',4);}catch(e){}
+      const nm=j=>((fergusName(j.customer)||'')+' '+(fergusName(j.mainContact)||'')+' '+(fergusAddr(j.siteAddress)||'')+' '+(j.jobNo||j.jobNumber||'')).toLowerCase();
+      const hit=list.find(j=>nm(j).includes(q)||String(j.jobNo||j.jobNumber||'').replace('#','')===q.replace('#',''));
+      if(hit){jid=hit.id!=null?hit.id:hit.jobId;foundStatus=hit.status||'';via='Fergus search ('+list.length+' scanned)';rec={job:nm(hit).trim(),jobNo:hit.jobNo||hit.jobNumber,status:hit.status};}
+    }
+    if(!jid&&!q){rec=pool[0]||null;jid=(rec&&rec.id)||null;foundStatus=rec&&rec.status||'';via='first cached job';}
+    if(!jid){out.textContent='No job matched “'+q+'”. Try a different spelling, the job number, or Refresh Fergus first.';return;}
+    const inForecast=(S.get('cashJobs',[])||[]).some(j=>String(j.id)===String(jid)&&j.status!=='Completed');
     let raw={};try{raw=await fergusApiFetch('/jobs/'+encodeURIComponent(jid)+'/financialSummary');}catch(e){raw={error:String(e.message)};}
     const d=(raw&&raw.data)||raw;
     const qs=(d&&d.quoteSummary)||{},ci=(d&&d.costsIncurred)||{},ca=(d&&d.chargeableAmount)||{},tb=(d&&d.totalBilled)||{};
@@ -1587,14 +1596,16 @@ async function diagJobMaterials(){
     const sale=num(qs.quotedAmount)||num(ca.total);
     const bought=num(ci.materials);
     const budget=depPct/100*sale,toBuy=Math.max(0,budget-bought);
-    let txt='JOB '+(rec?((rec.jobNo||'')+' '+rec.job):jid)+'\n';
-    txt+=(rec?('in forecast: '+(rec.status!=='Completed'?'yes':'NO (Completed)')+(rec.fin?' · finished-filtered from backlog (still forecast)':'')+'\n'):'');
+    let txt='JOB '+(rec?((rec.jobNo||'')+' '+(rec.job||'')):jid)+'\n';
+    txt+='found via: '+(via||'—')+'\n';
+    txt+='Fergus status: '+(foundStatus||'?')+'\n';
+    txt+='in materials forecast: '+(inForecast?'YES':'NO')+(inForecast?'':' ← not in cashJobs (status not Active, or pre-update data — Refresh Fergus)')+'\n';
     txt+='\n= forecast calc =\n';
-    txt+='sale (quoted): '+fmt$(sale)+'\n';
+    txt+='sale (quoted, else chargeable): '+fmt$(sale)+'\n';
     txt+='budget ('+depPct+'% sale): '+fmt$(budget)+'\n';
     txt+='materials bought (costsIncurred.materials): '+fmt$(bought)+'\n';
     txt+='→ still to buy = max(0, budget − bought) = '+fmt$(toBuy)+'\n';
-    txt+=(toBuy<=1?'(excluded: materials already bought to ~'+depPct+'% — in A/P)\n':'');
+    txt+=(toBuy<=1?'(would be excluded: materials already ~'+depPct+'% bought)\n':'');
     txt+='\n= financialSummary.data =\n';
     txt+='quoteSummary: '+JSON.stringify(qs)+'\n';
     txt+='costsIncurred: '+JSON.stringify(ci)+'\n';
