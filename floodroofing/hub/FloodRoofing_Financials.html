@@ -1547,7 +1547,9 @@ async function syncCash(){
     toast('Reading Xero balance sheet…');
     const rep=await fetchBalanceSheet();
     const rows=bsRows(rep);
-    cash={rows,ts:new Date().toLocaleString('en-NZ')};
+    toast('Reading paid deposits…');
+    const paidByJob=await fetchXeroDeposits();
+    cash={rows,paidByJob:paidByJob||null,ts:new Date().toLocaleString('en-NZ')};
     S.set('cash',cash);
     toast('End cash position updated ✓','ok');
     renderCash();
@@ -1657,18 +1659,22 @@ function renderCash(){
   const jobsAll=(S.get('cashJobs',null)||fwJobs||[]).filter(j=>j.status!=='Completed');
   const hasMat=jobsAll.some(j=>j.sale!=null||j.pMat!=null);
   const depPct=num(S.get('cashDepPct','50'))||50,depR=depPct/100;
-  let toBuy=0,budgetMat=0,boughtMat=0,excl=0,doneCount=0,toCollect=0;const matRows=[];
+  const paidByJob=(cash.paidByJob)||null;
+  const havePaid=!!(paidByJob&&Object.keys(paidByJob).length);
+  const jobPaid=jno=>{const k=String(jno||'').replace(/[^0-9]/g,'');return (k&&paidByJob&&paidByJob[k])?num(paidByJob[k].paid):0;};
+  let toBuy=0,budgetMat=0,boughtMat=0,excl=0,doneCount=0,unpaidCount=0,toCollect=0;const matRows=[];
   const doneR=0.9;   // billed to ~100% of sale (two 50% invoices) = job done → materials paid or already in A/P
   jobsAll.forEach(j=>{
     const sale=num(j.sale)||num(j.chg),a=num(j.aMat),billed=num(j.billed);
-    if(sale>0&&billed>=doneR*sale){doneCount++;return;}   // fully invoiced → exclude from materials-to-buy
+    if(sale>0&&billed>=doneR*sale){doneCount++;return;}   // fully invoiced → done
+    if(havePaid&&jobPaid(j.jobNo)<=0){unpaidCount++;return;}   // deposit not actually paid in Xero → not funded → exclude
     toCollect+=Math.max(0,num(j.chg)-billed);
     if(sale<=0)return;
     const budget=depR*sale,tb=Math.max(0,budget-a);
     budgetMat+=budget;boughtMat+=a;toBuy+=tb;
     if(tb>1)matRows.push({job:j.job,b:budget,a,tb});else excl++;
   });
-  const openCount=jobsAll.length-doneCount;
+  const openCount=jobsAll.length-doneCount-unpaidCount;
   matRows.sort((x,y)=>y.tb-x.tb);
   const actualsOk=hasMat && budgetMat>0;
   const coverage=held-apVal-toBuy;
@@ -1698,6 +1704,7 @@ function renderCash(){
     set('cash-recon-note',null,
       'Deposit cash on hand = the Materials (02) balance plus any genuine deposits still waiting in the Sales (03) clearing account. (03 is swept into 02, so a near-zero or negative 03 is treated as $0 — it’s just in transit.) Materials still to buy is worked out per job as '+depPct+'% of the sale price (the deposit that funds materials) minus the materials already bought — so a job whose materials are already ordered to ~'+depPct+'% drops out, because those are sitting in A/P ('+fmt$(apVal)+'). '+
       'Jobs invoiced to ~100% of their sale price (two 50% invoices) are treated as done and dropped — their materials are already paid or in A/P ('+doneCount+' excluded). '+
+      'Only jobs whose deposit has actually been PAID in Xero are counted'+(havePaid?(' ('+unpaidCount+' excluded as deposit-unpaid)'):' — but Xero paid invoices couldn’t be read this sync, so that filter is OFF')+'. '+
       'A/P and “to buy” don’t overlap, so Coverage = deposit cash left once every remaining material is paid. '+
       'Materials are also funded by the final invoices still to raise on these jobs ('+fmt$(toCollect)+' still to collect), so a red Coverage is usually a timing / working-capital gap, not a loss — counting that incoming cash the funding position is '+fmt$(fundGap)+'. ('+excl+' live jobs already covered.)');
   }else{
@@ -1718,7 +1725,7 @@ function renderCash(){
     set('cash-mat',
       mb('Materials still to buy',fmtK(toBuy),matRows.length+' jobs need materials','neg','m-cogs')+
       mb('Already bought / done',fmtK(boughtMat),excl+' bought-out · '+doneCount+' fully billed','','m-gp')+
-      mb('Materials budget ('+depPct+'% sale)',fmtK(budgetMat),openCount+' open jobs · '+doneCount+' done','','m-rev')+
+      mb('Materials budget ('+depPct+'% sale)',fmtK(budgetMat),openCount+' funded · '+doneCount+' done · '+unpaidCount+' unpaid','','m-rev')+
       mb('% bought',budgetMat>0?Math.round(boughtMat/budgetMat*100)+'%':'—','of deposit-funded budget','','m-np'));
     if(matTb)matTb.innerHTML=matRows.slice(0,60).map(r=>'<tr><td>'+esc(r.job)+'</td><td style="text-align:right;">'+fmt$(r.b)+'</td><td style="text-align:right;">'+fmt$(r.a)+'</td><td style="text-align:right;'+(r.tb>0?'color:var(--danger);font-weight:700;':'')+'">'+fmt$(r.tb)+'</td></tr>').join('')+
       '<tr class="sum"><td>Total ('+matRows.length+' of '+jobsAll.length+')</td><td style="text-align:right;">'+fmt$(budgetMat)+'</td><td style="text-align:right;">'+fmt$(boughtMat)+'</td><td style="text-align:right;font-weight:800;">'+fmt$(toBuy)+'</td></tr>';
