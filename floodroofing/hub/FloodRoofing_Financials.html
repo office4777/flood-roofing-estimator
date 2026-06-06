@@ -431,7 +431,8 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 
     <div class="card">
       <button class="btn btn-a" id="cash-sync-btn" onclick="syncCash()">⟳ Sync from Xero</button>
-      <button class="btn btn-o" style="margin-top:9px;" onclick="diagJobMaterials()">🔍 Diag job materials (Fergus)</button>
+      <div class="fld" style="margin-top:9px;"><input id="cash-diagjob" type="text" autocomplete="off" autocapitalize="off" placeholder="job name or # to diagnose (optional)"></div>
+      <button class="btn btn-o" onclick="diagJobMaterials()">🔍 Diag job materials (Fergus)</button>
       <div class="note" id="cash-note" style="white-space:pre-wrap;"></div>
     </div>
   </div>
@@ -653,16 +654,13 @@ async function syncWorkload(){
   setSync('syncing…');toast('Syncing Fergus…');
   try{
     const active=await fergusFetchJobs('Active');
-    const out=[];let i=0,noPriced=0,excluded=0;
+    const out=[],allJobs=[];let i=0,noPriced=0,excluded=0;
     for(const job of active){
       i++;setSync('checking '+i+'/'+active.length+'…');
       const id=job.id!=null?job.id:(job.jobId!=null?job.jobId:(job.jobNo||job.jobNumber));
       if(id==null)continue;
       let summary=null;
       try{summary=await fergusFetchFinancialSummary(id);}catch(e){console.warn('summary fail',id,e.message);continue;}
-      if(isFinishedJob(job,summary)){excluded++;continue;} // fully invoiced (2 invoices) = done → not backlog
-      const {priced,actual}=extractHours(summary);
-      if(priced<=0)noPriced++;
       const _qs=(summary&&summary.quoteSummary)||{},_ci=(summary&&summary.costsIncurred)||{};
       const _ca=(summary&&summary.chargeableAmount)||{},_tb=(summary&&summary.totalBilled)||{};
       const pMat=num(_qs.materials);
@@ -672,9 +670,16 @@ async function syncWorkload(){
       const sale=num(_qs.quotedAmount)||jChg;   // total job sale price (before GST)
       const client=fergusName(job.customer)||fergusName(job.mainContact)||'Job '+(job.jobNo||job.jobNumber||id);
       const site=fergusAddr(job.siteAddress);
-      out.push({id:String(id),job:client+(site?(' — '+site):''),priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,sale,chg:jChg,billed:jBilled,status:job.status||'Active'});
+      const jobName=client+(site?(' — '+site):'');
+      const fin=isFinishedJob(job,summary);
+      // EVERY active job (incl. heavily-billed ones) feeds the materials-still-to-buy forecast
+      allJobs.push({id:String(id),jobNo:String(job.jobNo||job.jobNumber||''),job:jobName,pMat,aMat,sale,chg:jChg,billed:jBilled,status:job.status||'Active',fin});
+      if(fin){excluded++;continue;} // fully invoiced = done → not backlog (but still in the forecast above)
+      const {priced,actual}=extractHours(summary);
+      if(priced<=0)noPriced++;
+      out.push({id:String(id),job:jobName,priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,sale,chg:jChg,billed:jBilled,status:job.status||'Active'});
     }
-    fwJobs=out;S.set('fwJobs',fwJobs);
+    fwJobs=out;S.set('fwJobs',fwJobs);S.set('cashJobs',allJobs);
     S.set('fw_last_sync',new Date().toLocaleString('en-NZ'));
     S.set('fw_no_priced',noPriced);
     S.set('fw_excluded',excluded);
@@ -1566,26 +1571,35 @@ async function fergusPhaseMaterials(jobId){
 // exactly where Fergus keeps the material actuals (the user can screenshot this).
 async function diagJobMaterials(){
   const out=document.getElementById('cash-note');if(!out)return;
-  out.textContent='Loading one active job…';
+  out.textContent='Loading job…';
   try{
-    let jid=(fwJobs&&fwJobs[0]&&fwJobs[0].id)||null;
+    const q=(((document.getElementById('cash-diagjob')||{}).value)||'').trim().toLowerCase();
+    const pool=(S.get('cashJobs',null)||fwJobs||[]);
+    let rec=null,jid=null;
+    if(q){rec=pool.find(j=>String(j.jobNo||'').toLowerCase()===q||String(j.jobNo||'').replace('#','')===q.replace('#','')||String(j.id)===q||(j.job||'').toLowerCase().includes(q))||null;if(rec)jid=rec.id;}
+    if(!jid){rec=pool[0]||null;jid=(rec&&rec.id)||null;}
     if(!jid){const act=await fergusFetchJobs('Active');jid=act&&act[0]&&(act[0].id!=null?act[0].id:act[0].jobId);}
-    if(!jid){out.textContent='No active job found — Refresh Fergus on the Dashboard first.';return;}
+    if(!jid){out.textContent='No matching job — Refresh Fergus on the Dashboard first, or check the name/number.';return;}
     let raw={};try{raw=await fergusApiFetch('/jobs/'+encodeURIComponent(jid)+'/financialSummary');}catch(e){raw={error:String(e.message)};}
     const d=(raw&&raw.data)||raw;
-    let txt='JOB '+jid+'\n\n= financialSummary.data =\n';
-    txt+='data keys: '+Object.keys(d||{}).join(', ')+'\n';
-    ['quoteSummary','costsIncurred','actualCosts','costs','totalBilled','chargeableAmount','labourHours','materials','margin'].forEach(k=>{if(d&&d[k]!==undefined)txt+=k+': '+JSON.stringify(d[k]).slice(0,260)+'\n';});
-    txt+='full data (trunc): '+JSON.stringify(d).slice(0,520)+'\n\n= phase detail =\n';
-    let ph=null;try{ph=await fergusApiFetch('/jobs/'+encodeURIComponent(jid)+'/phases');}catch(e){ph={error:String(e.message)};}
-    const arr=Array.isArray(ph)?ph:(ph&&(ph.data||ph.phases||ph.results))||[];
-    const pid=arr&&arr[0]&&(arr[0].id!=null?arr[0].id:arr[0].phaseId);
-    txt+='phase count: '+arr.length+' · first id: '+pid+'\n';
-    if(pid!=null){let pd={};try{pd=await fergusApiFetch('/jobs/'+encodeURIComponent(jid)+'/phases/'+encodeURIComponent(pid));}catch(e){pd={error:String(e.message)};}
-      const pdd=(pd&&pd.data)||pd;
-      txt+='phase keys: '+Object.keys(pdd||{}).join(', ')+'\n';
-      txt+='phase detail (trunc): '+JSON.stringify(pdd).slice(0,1100)+'\n';
-    }
+    const qs=(d&&d.quoteSummary)||{},ci=(d&&d.costsIncurred)||{},ca=(d&&d.chargeableAmount)||{},tb=(d&&d.totalBilled)||{};
+    const depPct=num(S.get('cashDepPct','50'))||50;
+    const sale=num(qs.quotedAmount)||num(ca.total);
+    const bought=num(ci.materials);
+    const budget=depPct/100*sale,toBuy=Math.max(0,budget-bought);
+    let txt='JOB '+(rec?((rec.jobNo||'')+' '+rec.job):jid)+'\n';
+    txt+=(rec?('in forecast: '+(rec.status!=='Completed'?'yes':'NO (Completed)')+(rec.fin?' · finished-filtered from backlog (still forecast)':'')+'\n'):'');
+    txt+='\n= forecast calc =\n';
+    txt+='sale (quoted): '+fmt$(sale)+'\n';
+    txt+='budget ('+depPct+'% sale): '+fmt$(budget)+'\n';
+    txt+='materials bought (costsIncurred.materials): '+fmt$(bought)+'\n';
+    txt+='→ still to buy = max(0, budget − bought) = '+fmt$(toBuy)+'\n';
+    txt+=(toBuy<=1?'(excluded: materials already bought to ~'+depPct+'% — in A/P)\n':'');
+    txt+='\n= financialSummary.data =\n';
+    txt+='quoteSummary: '+JSON.stringify(qs)+'\n';
+    txt+='costsIncurred: '+JSON.stringify(ci)+'\n';
+    txt+='chargeableAmount: '+JSON.stringify(ca)+'\n';
+    txt+='totalBilled: '+JSON.stringify(tb)+'\n';
     out.textContent=txt;
   }catch(e){out.textContent='diag error: '+String(e&&e.message||e);}
 }
@@ -1620,7 +1634,7 @@ function renderCash(){
   //   still-to-buy = max(0, budget − materials already bought)
   // Materials already bought are sitting in Xero A/P, so they drop out of 'to buy' (no double count):
   // a job whose materials are bought to ~the deposit % contributes ~0.
-  const jobsAll=(fwJobs||[]).filter(j=>j.status!=='Completed');
+  const jobsAll=(S.get('cashJobs',null)||fwJobs||[]).filter(j=>j.status!=='Completed');
   const hasMat=jobsAll.some(j=>j.sale!=null||j.pMat!=null);
   const depPct=num(S.get('cashDepPct','50'))||50,depR=depPct/100;
   let toBuy=0,budgetMat=0,boughtMat=0,excl=0,toCollect=0;const matRows=[];
