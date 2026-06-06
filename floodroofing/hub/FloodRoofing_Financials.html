@@ -423,6 +423,12 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     </div>
 
     <div class="card">
+      <div class="ct">Accounts Payable — materials only <span class="period-sub" style="margin-left:auto;">remove overheads</span></div>
+      <div class="fld" style="margin:4px 0 10px;"><label>Materials / COGS account code(s)</label><input id="cash-apcodes" type="text" autocomplete="off" autocapitalize="off" placeholder="e.g. 310, 311" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Enter the Xero account code(s) your material/COGS supplier bills are coded to (Xero → Accounting → Chart of Accounts). Only A/P on these codes counts as a materials commitment — overheads (phone, fuel, subbies…) are removed. The table shows your unpaid bills grouped by code so you can pick the right ones.</div></div>
+      <div class="tbl-wrap"><table class="tb" id="cash-apcodes-tbl"><thead><tr><th>Code</th><th>e.g. supplier</th><th style="text-align:right;">Unpaid A/P</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="card">
       <div class="ct">Xero accounts <span class="period-sub" style="margin-left:auto;">balance sheet</span></div>
       <div class="fld" style="margin:4px 0 10px;"><label>Materials account name contains</label><input id="cash-matkw" type="text" autocomplete="off" autocapitalize="off" placeholder="material" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 02 Materials account on the Balance Sheet. Confirm the row tagged <b>Materials 02</b> below is the right account; if not, type a word unique to its name.</div></div>
       <div class="fld" style="margin:4px 0 10px;"><label>Sales account name contains</label><input id="cash-saleskw" type="text" autocomplete="off" autocapitalize="off" placeholder="sales" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 03 Sales account on the Balance Sheet — its live balance is deposits received but not yet transferred to 02. Confirm the row tagged <b>Sales 03</b> below.</div></div>
@@ -1538,6 +1544,33 @@ async function fetchXeroDeposits(){
   }
   return byJob;
 }
+// Unpaid supplier bills (ACCPAY AUTHORISED) grouped by the Xero account code each line is coded
+// to, so A/P can be split into materials/COGS vs overheads. Distributes each bill's unpaid
+// AmountDue across its line account codes. Returns { byCode:{code:{amt,eg}}, apTotal } or null.
+async function fetchXeroAPBills(){
+  const proxy=fergusProxyUrl();if(!proxy)return null;
+  const psec=fergusProxySecret();
+  const byCode={};let apTotal=0,page=1,got=false;
+  while(page<=15){
+    let res;
+    try{res=await fetch(proxyUrl('xero','/Invoices?where=Type=="ACCPAY" AND Status=="AUTHORISED"&page='+page+'&order=Date DESC'),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});}
+    catch(e){return got?{byCode,apTotal}:null;}
+    if(!res.ok)return got?{byCode,apTotal}:null;
+    let inv=[];try{inv=(JSON.parse(await res.text()).Invoices)||[];}catch(e){inv=[];}
+    got=true;
+    inv.forEach(v=>{
+      const due=num(v.AmountDue);if(due<=0)return;
+      apTotal+=due;
+      const lines=v.LineItems||[];const eg=(v.Contact&&v.Contact.Name)||'';
+      let lt=0;lines.forEach(l=>lt+=Math.abs(num(l.LineAmount)));
+      if(lt>0){lines.forEach(l=>{const c=String(l.AccountCode||'??');const share=due*(Math.abs(num(l.LineAmount))/lt);const b=byCode[c]||(byCode[c]={amt:0,eg:eg});b.amt+=share;if(!b.eg)b.eg=eg;});}
+      else{const b=byCode['??']||(byCode['??']={amt:0,eg:eg});b.amt+=due;}
+    });
+    if(inv.length<100)break;
+    page++;toast('Xero bills… '+((page-1)*100)+'+');
+  }
+  return {byCode,apTotal};
+}
 async function syncCash(){
   const proxy=fergusProxyUrl();if(!proxy){openConnect();return;}
   const btn=document.getElementById('cash-sync-btn');
@@ -1549,7 +1582,9 @@ async function syncCash(){
     const rows=bsRows(rep);
     toast('Reading paid deposits…');
     const paidByJob=await fetchXeroDeposits();
-    cash={rows,paidByJob:paidByJob||null,ts:new Date().toLocaleString('en-NZ')};
+    toast('Reading supplier bills…');
+    const apb=await fetchXeroAPBills();
+    cash={rows,paidByJob:paidByJob||null,apByCode:(apb&&apb.byCode)||null,apBillsTotal:(apb&&apb.apTotal)||0,ts:new Date().toLocaleString('en-NZ')};
     S.set('cash',cash);
     toast('End cash position updated ✓','ok');
     renderCash();
@@ -1561,7 +1596,7 @@ async function syncCash(){
     if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync from Xero';}
   }
 }
-function saveCashCfg(){const v=(document.getElementById('cash-matkw').value||'').trim();S.set('cashMatKw',v);const s=document.getElementById('cash-saleskw');if(s)S.set('cashSalesKw',(s.value||'').trim());const d=document.getElementById('cash-deppct');if(d)S.set('cashDepPct',(d.value||'').trim());renderCash();}
+function saveCashCfg(){const v=(document.getElementById('cash-matkw').value||'').trim();S.set('cashMatKw',v);const s=document.getElementById('cash-saleskw');if(s)S.set('cashSalesKw',(s.value||'').trim());const d=document.getElementById('cash-deppct');if(d)S.set('cashDepPct',(d.value||'').trim());const ac=document.getElementById('cash-apcodes');if(ac)S.set('cashApCodes',(ac.value||'').trim());renderCash();}
 // Sum the material actuals recorded on a job's phases (supplier bills/costs attached to the
 // job). Tolerant of shape variations — walks the phases JSON and adds up any material cost.
 async function fergusPhaseMaterials(jobId){
@@ -1646,7 +1681,14 @@ function renderCash(){
   const ap=find(/accounts payable|trade payable|creditors/i);
   const ar=find(/accounts receivable|trade receivable|debtors/i);
   const matVal=mat?mat.val:0,salesVal=sales?sales.val:0;
-  const apVal=ap?Math.abs(ap.val):0;
+  const apBS=ap?Math.abs(ap.val):0;            // balance-sheet A/P (all suppliers)
+  const apByCode=(cash.apByCode)||null;
+  const apCodes=(S.get('cashApCodes','')||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const apBillsTot=num(cash.apBillsTotal);
+  let apMaterials=null;
+  if(apByCode&&apCodes.length){apMaterials=0;apCodes.forEach(c=>{if(apByCode[c])apMaterials+=num(apByCode[c].amt);});}
+  const apSplit=(apMaterials!=null);
+  const apVal=apSplit?apMaterials:apBS;        // materials-only A/P when codes are set, else full A/P
   const arVal=ar?ar.val:0;
   const salesPos=Math.max(0,salesVal);   // 03 is a clearing account (~$0): count deposits waiting, never a negative
   const held=matVal+salesPos;
@@ -1698,13 +1740,14 @@ function renderCash(){
       mb('Materials (02) balance',fmtK(matVal),mat?esc(mat.name):'not matched','','m-rev')+
       mb('+ Deposits waiting in 03',fmtK(salesPos),salesVal<-1?('03 at '+fmtK(salesVal)+' · clearing → $0'):(sales?esc(sales.name):'not matched'),'','m-gp')+
       mb('= Deposit cash on hand',fmtK(held),'Materials 02 + 03 deposits','','m-np')+
-      mb('− Supplier invoices (A/P)','−'+fmtK(apVal),'materials already bought','','m-cogs')+
+      mb('− Supplier invoices (A/P)','−'+fmtK(apVal),apSplit?'materials suppliers only':'all suppliers · set codes below','','m-cogs')+
       mb('− Materials still to buy','−'+fmtK(toBuy),matRows.length+' jobs · not yet ordered','','m-cogs')+
       mb('= Coverage',fmtK(coverage),coverage>=0?'fully funded':'short',coverage>=0?'pos':'neg','m-np'));
     set('cash-recon-note',null,
       'Deposit cash on hand = the Materials (02) balance plus any genuine deposits still waiting in the Sales (03) clearing account. (03 is swept into 02, so a near-zero or negative 03 is treated as $0 — it’s just in transit.) Materials still to buy is worked out per job as '+depPct+'% of the sale price (the deposit that funds materials) minus the materials already bought — so a job whose materials are already ordered to ~'+depPct+'% drops out, because those are sitting in A/P ('+fmt$(apVal)+'). '+
       'Jobs invoiced to ~100% of their sale price (two 50% invoices) are treated as done and dropped — their materials are already paid or in A/P ('+doneCount+' excluded). '+
       'Only jobs whose deposit has actually been PAID in Xero are counted'+(havePaid?(' ('+unpaidCount+' excluded as deposit-unpaid)'):' — but Xero paid invoices couldn’t be read this sync, so that filter is OFF')+'. '+
+      (apSplit?('A/P here is materials/COGS suppliers only — '+fmt$(Math.max(0,apBillsTot-apMaterials))+' of overhead bills removed. '):'A/P here is every supplier — set your materials account code(s) below to remove overheads. ')+
       'A/P and “to buy” don’t overlap, so Coverage = deposit cash left once every remaining material is paid. '+
       'Materials are also funded by the final invoices still to raise on these jobs ('+fmt$(toCollect)+' still to collect), so a red Coverage is usually a timing / working-capital gap, not a loss — counting that incoming cash the funding position is '+fmt$(fundGap)+'. ('+excl+' live jobs already covered.)');
   }else{
@@ -1735,7 +1778,7 @@ function renderCash(){
     mb('Still to collect (live jobs)',fmtK(toCollect),'final invoices to raise','','m-gp')+
     mb('Funding position',fmtK(fundGap),'deposit + to-collect − A/P − to-buy',fundGap>=0?'pos':'neg','m-np')+
     mb('Accounts Receivable',fmtK(arVal),ar?esc(ar.name):'not found','','m-gp')+
-    mb('Accounts Payable',fmtK(apVal),ap?esc(ap.name):'not found','','m-cogs'));
+    mb('A/P — materials',fmtK(apVal),apSplit?('overheads −'+fmtK(Math.max(0,apBillsTot-apMaterials))+' removed'):'all suppliers · set codes','','m-cogs'));
   // full balance-sheet table (transparency)
   const tagOf=r=>r===mat?'Materials 02':r===ap?'A/P':r===ar?'A/R':r===sales?'Sales 03':'';
   const tb=document.querySelector('#cash-accts tbody');
@@ -1744,6 +1787,20 @@ function renderCash(){
       '<td>'+esc(r.name)+(tg?' <span style="color:var(--accent);font-weight:800;font-size:.62rem;">· '+tg+'</span>':'')+
       (r.section?'<div style="font-size:.6rem;color:var(--muted);opacity:.7;">'+esc(r.section)+'</div>':'')+'</td>'+
       '<td style="text-align:right;">'+fmt$(r.val)+'</td></tr>';}).join('');
+  // A/P split by account code — pick the materials codes
+  const acEl=document.getElementById('cash-apcodes');if(acEl&&!acEl.value)acEl.value=S.get('cashApCodes','');
+  const apTb=document.querySelector('#cash-apcodes-tbl tbody');
+  if(apTb){
+    if(!apByCode){apTb.innerHTML='<tr><td colspan="3" style="color:var(--muted);opacity:.7;">Sync from Xero to load supplier bills by code.</td></tr>';}
+    else{
+      const codesArr=Object.keys(apByCode).sort((x,y)=>num(apByCode[y].amt)-num(apByCode[x].amt));
+      const sel=new Set(apCodes);
+      apTb.innerHTML=codesArr.map(c=>{const o=apByCode[c];const on=sel.has(c);
+        return '<tr'+(on?' style="background:rgba(96,165,250,.14);"':'')+'><td>'+esc(c)+(on?' <span style="color:var(--accent);font-weight:800;font-size:.62rem;">· materials</span>':'')+'</td><td style="font-size:.7rem;">'+esc(o.eg||'')+'</td><td style="text-align:right;">'+fmt$(o.amt)+'</td></tr>';}).join('')+
+        '<tr class="sum"><td>Total A/P</td><td></td><td style="text-align:right;font-weight:800;">'+fmt$(apBillsTot)+'</td></tr>'+
+        (apSplit?('<tr class="sum"><td>Materials only</td><td></td><td style="text-align:right;font-weight:800;color:var(--success);">'+fmt$(apMaterials)+'</td></tr>'):'');
+    }
+  }
 }
 
 // ════════ NAV ════════
