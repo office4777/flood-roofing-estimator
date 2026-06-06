@@ -1612,7 +1612,8 @@ function renderCash(){
   const matVal=mat?mat.val:0,salesVal=sales?sales.val:0;
   const apVal=ap?Math.abs(ap.val):0;
   const arVal=ar?ar.val:0;
-  const held=matVal+salesVal;
+  const salesPos=Math.max(0,salesVal);   // 03 is a clearing account (~$0): count deposits waiting, never a negative
+  const held=matVal+salesPos;
   const net=held-apVal;                          // left to refund customers (A/P-only view)
   // Materials still to buy per live job, using the deposit model the business runs on:
   //   budget = depositRatio × sale price  (the 50% deposit that funds that job's materials)
@@ -1652,20 +1653,20 @@ function renderCash(){
   if(actualsOk){
     set('cash-recon',
       mb('Materials (02) balance',fmtK(matVal),mat?esc(mat.name):'not matched','','m-rev')+
-      mb('+ Sales (03) balance',fmtK(salesVal),sales?esc(sales.name):'not matched','','m-gp')+
-      mb('= Deposit cash on hand',fmtK(held),'real cash in 02 + 03','','m-np')+
+      mb('+ Deposits waiting in 03',fmtK(salesPos),salesVal<-1?('03 at '+fmtK(salesVal)+' · clearing → $0'):(sales?esc(sales.name):'not matched'),'','m-gp')+
+      mb('= Deposit cash on hand',fmtK(held),'Materials 02 + 03 deposits','','m-np')+
       mb('− Supplier invoices (A/P)','−'+fmtK(apVal),'materials already bought','','m-cogs')+
       mb('− Materials still to buy','−'+fmtK(toBuy),matRows.length+' jobs · not yet ordered','','m-cogs')+
       mb('= Coverage',fmtK(coverage),coverage>=0?'fully funded':'short',coverage>=0?'pos':'neg','m-np'));
     set('cash-recon-note',null,
-      'Deposit cash on hand = real Materials (02) + Sales (03) balances. Materials still to buy is worked out per job as '+depPct+'% of the sale price (the deposit that funds materials) minus the materials already bought — so a job whose materials are already ordered to ~'+depPct+'% drops out, because those are sitting in A/P ('+fmt$(apVal)+'). '+
+      'Deposit cash on hand = the Materials (02) balance plus any genuine deposits still waiting in the Sales (03) clearing account. (03 is swept into 02, so a near-zero or negative 03 is treated as $0 — it’s just in transit.) Materials still to buy is worked out per job as '+depPct+'% of the sale price (the deposit that funds materials) minus the materials already bought — so a job whose materials are already ordered to ~'+depPct+'% drops out, because those are sitting in A/P ('+fmt$(apVal)+'). '+
       'A/P and “to buy” don’t overlap, so Coverage = deposit cash left once every remaining material is paid. '+
       'Materials are also funded by the final invoices still to raise on these jobs ('+fmt$(toCollect)+' still to collect), so a red Coverage is usually a timing / working-capital gap, not a loss — counting that incoming cash the funding position is '+fmt$(fundGap)+'. ('+excl+' live jobs already covered.)');
   }else{
     set('cash-recon',
       mb('Materials (02) balance',fmtK(matVal),mat?esc(mat.name):'not matched','','m-rev')+
-      mb('+ Sales (03) balance',fmtK(salesVal),sales?esc(sales.name):'not matched','','m-gp')+
-      mb('= Deposit cash on hand',fmtK(held),'real cash in 02 + 03','','m-np')+
+      mb('+ Deposits waiting in 03',fmtK(salesPos),salesVal<-1?('03 at '+fmtK(salesVal)+' · clearing → $0'):(sales?esc(sales.name):'not matched'),'','m-gp')+
+      mb('= Deposit cash on hand',fmtK(held),'Materials 02 + 03 deposits','','m-np')+
       mb('− Supplier invoices (A/P)','−'+fmtK(apVal),ap?esc(ap.name):'none found','','m-cogs')+
       mb('= Left to refund customers',fmtK(net),net>=0?'covers all supplier bills':'cannot cover supplier bills',net>=0?'pos':'neg','m-np'));
     set('cash-recon-note',null,
