@@ -422,6 +422,13 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="mg" id="cash-context"></div>
     </div>
 
+    <div class="card per-week">
+      <div class="ct">Deposit check — materials bought <span class="period-sub" style="margin-left:auto;">money out, nothing in</span></div>
+      <div class="mg" id="cash-depchk"></div>
+      <div class="tbl-wrap" style="margin-top:10px;"><table class="tb" id="cash-depchk-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Materials</th><th style="text-align:right;">Invoiced</th><th>Deposit</th></tr></thead><tbody></tbody></table></div>
+      <div class="note">Jobs where materials have been bought (supplier cost on the Fergus job) but the customer deposit has NOT been invoiced — or was invoiced but not paid. That's cash out with nothing in. Fix: raise / chase the deposit. (From your active Fergus jobs.)</div>
+    </div>
+
     <div class="card">
       <div class="ct">Accounts Payable — materials only <span class="period-sub" style="margin-left:auto;">remove overheads</span></div>
       <div class="fld" style="margin:4px 0 10px;"><label>Materials / COGS account code(s)</label><input id="cash-apcodes" type="text" autocomplete="off" autocapitalize="off" placeholder="e.g. 310, 311" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Leave this blank and I’ll auto-pick your goods/COGS codes straight from your Xero Chart of Accounts (the accounts typed as “Direct Costs”). Or enter specific account code(s) to override. The table below shows unpaid A/P grouped by account — ✓ goods = counted as materials; overheads (phone, fuel, subbies…) are removed.</div></div>
@@ -1801,6 +1808,22 @@ function renderCash(){
     if(matTb)matTb.innerHTML=matRows.slice(0,60).map(r=>'<tr><td>'+esc(r.job)+'</td><td style="text-align:right;">'+fmt$(r.b)+'</td><td style="text-align:right;">'+fmt$(r.a)+'</td><td style="text-align:right;'+(r.tb>0?'color:var(--danger);font-weight:700;':'')+'">'+fmt$(r.tb)+'</td></tr>').join('')+
       '<tr class="sum"><td>Total ('+matRows.length+' of '+jobsAll.length+')</td><td style="text-align:right;">'+fmt$(budgetMat)+'</td><td style="text-align:right;">'+fmt$(boughtMat)+'</td><td style="text-align:right;font-weight:800;">'+fmt$(toBuy)+'</td></tr>';
   }
+  // Deposit check: materials bought but deposit not invoiced/paid (money out, nothing in)
+  const matJobs=jobsAll.filter(j=>num(j.aMat)>100);
+  const noDep=[],unpaidDep=[];let noDepMat=0,unpaidMat=0;
+  matJobs.forEach(j=>{const billed=num(j.billed),sale=num(j.sale)||num(j.chg),bought=num(j.aMat),paid=jobPaid(j.jobNo);
+    if(billed<Math.max(50,sale*0.02)){noDep.push({job:j.job,bought,billed});noDepMat+=bought;}
+    else if(havePaid&&paid<=0){unpaidDep.push({job:j.job,bought,billed});unpaidMat+=bought;}});
+  noDep.sort((a,b)=>b.bought-a.bought);unpaidDep.sort((a,b)=>b.bought-a.bought);
+  set('cash-depchk',
+    mb('No deposit invoiced',String(noDep.length),fmtK(noDepMat)+' materials out',noDep.length?'neg':'pos','m-cogs')+
+    mb('Invoiced, not paid',havePaid?String(unpaidDep.length):'—',havePaid?(fmtK(unpaidMat)+' materials out'):'sync Xero deposits',unpaidDep.length?'neg':'pos','m-opex')+
+    mb('Material $ at risk',fmtK(noDepMat+unpaidMat),'spent without cash in',(noDepMat+unpaidMat)>0?'neg':'pos','m-rev')+
+    mb('Jobs with materials',String(matJobs.length),'checked','','m-np'));
+  const dcTb=document.querySelector('#cash-depchk-tbl tbody');
+  if(dcTb){const mk=(r,tag,col)=>'<tr><td>'+esc(r.job)+'</td><td style="text-align:right;">'+fmt$(r.bought)+'</td><td style="text-align:right;">'+fmt$(r.billed)+'</td><td style="color:'+col+';font-weight:700;font-size:.7rem;">'+tag+'</td></tr>';
+    const rws=noDep.map(r=>mk(r,'not invoiced','var(--danger)')).concat(unpaidDep.map(r=>mk(r,'unpaid','#fb923c')));
+    dcTb.innerHTML=rws.length?rws.join(''):'<tr><td colspan="4" style="color:var(--success);">\u2713 Every job with materials has a deposit invoiced'+(havePaid?' &amp; paid':'')+'.</td></tr>';}
   // context tiles
   set('cash-context',
     mb('Still to collect (live jobs)',fmtK(toCollect),'final invoices to raise','','m-gp')+
