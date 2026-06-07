@@ -312,6 +312,12 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="mg" id="bc-matpct"></div>
       <div class="note" id="bc-matpct-note"></div>
     </div>
+    <div class="card">
+      <div class="ct">Materials accuracy — Xero vs jobs <span class="period-sub" style="margin-left:auto;">are all bills on jobs?</span></div>
+      <div class="mg" id="bc-recon"></div>
+      <button class="btn btn-o" style="margin-top:11px;" id="bc-recon-btn" onclick="checkMaterialsVsXero()">⟳ Check materials &amp; scaffolding vs Xero</button>
+      <div class="note" id="bc-recon-note">Compares your Xero supplier spend on materials/scaffolding against what’s recorded on back-costed jobs, so you can see if every bill is being put on a job.</div>
+    </div>
     <div class="card per-this">
       <div class="ct">This Month <span id="bc-lbl-this" class="period-sub"></span></div>
       <div class="mg" id="bc-met-this"></div>
@@ -1068,6 +1074,61 @@ function renderMatPct(){
     mb('Revenue (6 mo)',fmtK(rev),fmtK(matW)+' materials cost','','m-np');
   if(note)note.innerHTML='These are your last 6 months of back-costed jobs \u2014 jobs invoiced ~100% (deposit + final both raised) or marked Completed in Fergus. '+n+' such jobs ('+nW+' had materials recorded, '+noMat+' didn\u2019t \u2014 older jobs). Materials % = materials cost \u00F7 revenue across the '+nW+' jobs with materials = '+(pctW*100).toFixed(0)+'% (blended with the rest: '+(pctAll*100).toFixed(0)+'%). Labour is NOT included. Set your deposit \u2248 '+rec+'%. A completed job only appears here if its paid invoice carries the job number in its Xero reference, so the true count may be slightly higher.';
 }
+// ════════ MATERIALS ACCURACY CHECK (Xero supplier bills vs back-costing) ════════
+// Answers "are all my material & scaffolding invoices being put on the jobs?" by comparing total
+// Xero ACCPAY spend on materials/scaffolding (last 6 months) against the materials recorded on
+// back-costed jobs. A big gap = bills not assigned to jobs => back-costing understates materials.
+async function checkMaterialsVsXero(){
+  const btn=document.getElementById('bc-recon-btn');
+  const note=document.getElementById('bc-recon-note');
+  const host=document.getElementById('bc-recon');
+  if(!fergusProxyUrl()){if(note)note.textContent='Connect the proxy in ⚙ first.';return;}
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Checking…';}
+  if(note)note.textContent='';
+  try{
+    const psec=fergusProxySecret();
+    // chart of accounts → which codes are Cost of Goods (materials/scaffolding)
+    toast('Reading chart of accounts…');
+    const accts=await fetchXeroAccounts();
+    const cogs=new Set();
+    if(accts)Object.keys(accts).forEach(c=>{const a=accts[c];if(/DIRECTCOSTS/i.test(a.type||'')||/cost of (goods|sales)|material|scaffold|direct cost|purchase|freight|cartage/i.test(a.name||''))cogs.add(c);});
+    const SUP=['steel','colorsteel','colour steel','colorcote','roofing','iron','metalcraft','dimond','flashing','gutter','spouting','timber','itm','bunnings','mitre 10','placemaker','carters','nuralite','marley','hardie','insulation','purlin','fastener','fixing','cladding','fletcher','ullrich','aluminium','membrane','viking','stratco','scaffold','scaffolding','layher','allscaff','building supplies'];
+    const isMatSup=nm=>{const s=(nm||'').toLowerCase();return SUP.some(k=>s.includes(k));};
+    const cut=new Date();cut.setMonth(cut.getMonth()-6);
+    let page=1,total=0,matched=0,unmatched=0,stop=false;const byAcct={};
+    while(page<=25&&!stop){
+      toast('Reading Xero bills… p'+page);
+      let res;try{res=await fetch(proxyUrl('xero','/Invoices?where=Type=="ACCPAY"&order=Date DESC&page='+page),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});}catch(e){break;}
+      if(!res.ok){if(page===1){if(note)note.textContent='Xero bills request failed (HTTP '+res.status+').';}break;}
+      let inv=[];try{inv=(JSON.parse(await res.text()).Invoices)||[];}catch(e){inv=[];}
+      inv.forEach(v=>{
+        const d=new Date(v.DateString||v.Date);if(isNaN(d))return;if(d<cut){stop=true;return;}
+        const sup=(v.Contact&&v.Contact.Name)||'';const supMat=isMatSup(sup);
+        let billMat=0;
+        (v.LineItems||[]).forEach(l=>{const code=String(l.AccountCode||'');const amt=Math.abs(num(l.LineAmount));
+          const isMat=(cogs.size?cogs.has(code):false)||supMat;
+          if(isMat){billMat+=amt;const k=code||'?';const b=byAcct[k]||(byAcct[k]={amt:0,name:(accts&&accts[code]?accts[code].name:(sup||'code '+code))});b.amt+=amt;}});
+        if(billMat>0){total+=billMat;const m=String(v.Reference||'').match(/#\s*(\d+)/);if(m)matched+=billMat;else unmatched+=billMat;}
+      });
+      if(inv.length<100)break;page++;
+    }
+    // back-costing materials over the last 6 data-months
+    const months=new Set(dataMonths().slice(-6));
+    let bcMat=0;getAllBC().forEach(r=>{if(months.has(r.month))bcMat+=num(r.a_mat);});
+    const cov=total>0?bcMat/total:0;const gap=Math.max(0,total-bcMat);
+    if(host)host.innerHTML=
+      mb('Xero materials+scaff',fmtK(total),'supplier bills · 6 mo','','m-cogs')+
+      mb('On jobs (back-cost)',fmtK(bcMat),'materials recorded','','m-gp')+
+      mb('Coverage',(cov*100).toFixed(0)+'%','of Xero spend on jobs',cov>=0.9?'pos':'neg','m-np')+
+      mb('Gap (not on jobs)',fmtK(gap),gap>total*0.1?'⚠ bills missing':'looks complete',gap>total*0.1?'neg':'pos','m-rev');
+    const accLines=Object.keys(byAcct).sort((a,b)=>byAcct[b].amt-byAcct[a].amt).slice(0,8)
+      .map(c=>esc(byAcct[c].name)+': '+fmtK(byAcct[c].amt)).join(' · ');
+    if(note)note.innerHTML='Xero ACCPAY (supplier bills) coded to materials/scaffolding'+(accts?' (Direct-Costs accounts)':' (matched by supplier name)')+' over the last 6 months = '+fmt$(total)+'. Of that, '+fmt$(matched)+' had a job number in the bill reference, '+fmt$(unmatched)+' did not. Back-costing recorded '+fmt$(bcMat)+' of materials on jobs over the same period → '+(cov*100).toFixed(0)+'% coverage. '+(cov>=0.9?'Looks like materials are being put on jobs — back-costing is broadly accurate.':'A '+fmt$(gap)+' gap suggests some material/scaffolding bills aren’t assigned to Fergus jobs, so back-costing understates materials (and overstates GP).')+' <br>Accounts: '+(accLines||'—')+'. <br>Caveat: Xero bills are dated when entered and jobs are dated at completion, so a few months of growth can widen the gap even when everything is on jobs.';
+    toast('Materials check done','ok');
+  }catch(e){if(note)note.textContent='Check failed: '+String(e&&e.message||e).slice(0,80);}
+  finally{if(btn){btn.disabled=false;btn.innerHTML='⟳ Check materials &amp; scaffolding vs Xero';}}
+}
+
 function renderBC(){
   fillBCFilters();
   renderBCStrip();
