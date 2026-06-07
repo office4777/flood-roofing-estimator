@@ -461,6 +461,12 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       </div>
     </div>
 
+    <div class="card per-week">
+      <div class="ct">13-week projection <span class="period-sub" style="margin-left:auto;">weekly</span></div>
+      <div class="tbl-wrap"><table class="tb" id="cf-wk-tbl"><thead><tr><th>Week of</th><th style="text-align:right;">Opening</th><th style="text-align:right;">In</th><th style="text-align:right;">Out</th><th style="text-align:right;">Closing</th></tr></thead><tbody></tbody></table></div>
+      <div class="note">Weekly view of the same forecast — job finals land in their completion week; overheads + wages spread evenly (monthly ÷ 4.3).</div>
+    </div>
+
     <div class="card per-last">
       <div class="ct">6-month projection <span class="period-sub" style="margin-left:auto;">00 account</span></div>
       <div class="tbl-wrap"><table class="tb" id="cf-tbl"><thead><tr><th>Month</th><th style="text-align:right;">Opening</th><th style="text-align:right;">In</th><th style="text-align:right;">Out</th><th style="text-align:right;">Closing</th></tr></thead><tbody></tbody></table></div>
@@ -479,6 +485,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="fld" style="margin:2px 0 8px;"><label>New work won / month ($ sale, optional)</label><input id="cf-new" type="number" inputmode="decimal" autocomplete="off" placeholder="0" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Monthly OPEX + wages out (blank = 6-mo Xero avg)</label><input id="cf-out" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>00 (OPEX) account name contains</label><input id="cf-ookw" type="text" autocomplete="off" autocapitalize="off" placeholder="00" onchange="saveCfCfg()"></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>Actual 00 balance right now (override, optional)</label><input id="cf-bal" type="number" inputmode="decimal" autocomplete="off" placeholder="blank = use Xero balance sheet" onchange="saveCfCfg()"></div>
       <div class="note" id="cf-cfg-note"></div>
     </div>
   </div>
@@ -1910,13 +1917,14 @@ function saveCfCfg(){
   if(g('cf-new'))S.set('cfNew',(g('cf-new').value||'').trim());
   if(g('cf-out'))S.set('cfOut',(g('cf-out').value||'').trim());
   if(g('cf-ookw'))S.set('cfOoKw',(g('cf-ookw').value||'').trim());
+  if(g('cf-bal'))S.set('cfBal',(g('cf-bal').value||'').trim());
   renderCashflow();
 }
 function renderCashflow(){
   const cfg2=cfCfg();
   const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
   const pop=(id,v)=>{const e=document.getElementById(id);if(e&&!e.value&&v!==''&&v!=null)e.value=v;};
-  pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','2'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));
+  pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','2'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));pop('cf-bal',S.get('cfBal',''));
   // monthly outflow: 6-month avg of (opex + wages) from Xero, or a manual override
   let avgOut=0,nOut=0;for(let i=1;i<=6;i++){const x=xeroMonthly[calMonthKey(-i)];if(x){avgOut+=num(x.opex)+num(x.wages);nOut++;}}
   avgOut=nOut?avgOut/nOut:0;
@@ -1924,18 +1932,20 @@ function renderCashflow(){
   const outflow=outManual?parseFloat(cfg2.out):avgOut;
   // start balance: the 00 account from the balance sheet (synced on the Cash tab)
   let ooRow=null;if(cash&&cash.rows){const k=cfg2.kw.toLowerCase();cash.rows.forEach(r=>{if(!r.summary&&r.name.toLowerCase().includes(k)&&ooRow==null)ooRow=r;});}
-  const startBal=ooRow?num(ooRow.val):0;
+  const balOv=parseFloat(S.get('cfBal',''));const haveOv=!isNaN(balOv);
+  const startBal=haveOv?balOv:(ooRow?num(ooRow.val):0);
   // schedule active jobs by remaining hours against weekly capacity → finish month → inflow to 00
   const c=capacity();const weeklyCap=Math.max(1,c.perDay*5);
   const jobs=[...fwJobs].filter(j=>num(j.sale)>0);
   jobs.sort((a,b)=>Math.max(0,num(a.remaining))-Math.max(0,num(b.remaining)));
-  let cumH=0;const inByMonth={};const sched=[];
+  let cumH=0;const inByMonth={},inByWeek={};const sched=[];
   jobs.forEach(j=>{const rem=Math.max(0,num(j.remaining));cumH+=rem;
     const wks=cumH/weeklyCap+Math.max(0,num(cfg2.lag));
     const d=new Date(Date.now()+wks*7*86400000);
     const key=FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();
     const inflow=cfg2.oo/100*num(j.sale);
     inByMonth[key]=(inByMonth[key]||0)+inflow;
+    inByWeek[Math.floor(wks)]=(inByWeek[Math.floor(wks)]||0)+inflow;
     sched.push({job:j.job,key,inflow});});
   // 6-month projection (current month + next 5)
   const months=[];for(let i=0;i<6;i++)months.push(calMonthKey(i));
@@ -1943,20 +1953,28 @@ function renderCashflow(){
   const rows=months.map((k,idx)=>{const open=bal;const inflow=(inByMonth[k]||0)+(idx>=1?cfg2.oo/100*Math.max(0,num(cfg2.nw)):0);const close=open+inflow-outflow;bal=close;return {k,open,inflow,out:outflow,close};});
   const minR=rows.reduce((m,r)=>(r.close<m.close?r:m),rows[0]||{close:0,k:''});
   const neg=rows.find(r=>r.close<0);
+  // weekly projection (next 13 weeks): finals in their completion week, opex+wages spread evenly
+  const wOut=outflow*12/52;
+  let wbal=startBal;const wkRows=[];
+  for(let i=0;i<13;i++){const open=wbal;const inflow=(inByWeek[i]||0)+cfg2.oo/100*Math.max(0,num(cfg2.nw))*12/52;const close=open+inflow-wOut;wbal=close;wkRows.push({i,ds:new Date(Date.now()+i*7*86400000),open,inflow,out:wOut,close});}
+  const wneg=wkRows.find(r=>r.close<0);const wmin=wkRows.reduce((m,r)=>(r.close<m.close?r:m),wkRows[0]);
+  const wlab=d=>d.getDate()+' '+FG_MONTHS[d.getMonth()];
   const haveXero=xeroMonthly&&Object.keys(xeroMonthly).length>0;
   // hero
   if(!haveXero&&!outManual){set('cf-hero',null,'—');set('cf-hero-unit',null,'lowest projected 00 balance');set('cf-hero-sub',null,'Sync Xero (Cash or P&L tab) so it can read overheads + wages.');}
   else{
-    const headline=neg?neg.close:minR.close;
+    const headline=wneg?wneg.close:wmin.close;
     set('cf-hero',null,fmtK(headline));
     const hh=document.getElementById('cf-hero');if(hh)hh.style.color=headline>=0?'var(--success)':'var(--danger)';
-    set('cf-hero-unit',null,neg?('00 runs short in '+neg.k):('lowest 00 balance · '+(minR.k||'')));
-    set('cf-hero-sub',null,'Out '+fmtK(outflow)+'/mo ('+(outManual?'manual':nOut+'-mo avg')+') · '+jobs.length+' live jobs · '+cfg2.oo+'% of each job → 00');
+    set('cf-hero-unit',null,wneg?('00 runs short — wk of '+wlab(wneg.ds)):('lowest 00 balance · wk of '+wlab(wmin.ds)));
+    set('cf-hero-sub',null,'Out '+fmtK(outflow)+'/mo ('+(outManual?'manual':nOut+'-mo avg')+') · opening '+fmtK(startBal)+(haveOv?' (your figure)':' (Xero)')+' · '+cfg2.oo+'% → 00');
   }
   set('cf-ts',null,(S.get('fw_last_sync','')?('Fergus '+S.get('fw_last_sync','')):''));
   // projection table
   const tb=document.querySelector('#cf-tbl tbody');
   if(tb)tb.innerHTML=rows.map(r=>'<tr><td>'+esc(r.k)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+fmtK(r.inflow)+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.out)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
+  const wtb=document.querySelector('#cf-wk-tbl tbody');
+  if(wtb)wtb.innerHTML=wkRows.map(r=>'<tr><td>'+wlab(r.ds)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inflow?fmtK(r.inflow):'—')+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.out)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
   set('cf-note',null,'Projects your 00 (everyday / OPEX + wages) account. Opening = '+(ooRow?('“'+esc(ooRow.name)+'” '+fmtK(startBal)):'⚠ 00 account not matched — set the keyword in Settings (using $0)')+'. In = '+cfg2.oo+'% of each job’s sale (ex-GST) when it finishes, + '+Math.max(0,num(cfg2.lag))+'-week payment lag. Out = monthly overheads + wages. Materials (02) are excluded — your 60% deposits fund those. GST is excluded (it’s handled in 01).');
   set('cf-cfg-note',null,'Crew capacity '+c.teams+'×'+c.size+'×'+c.hrs+'h = '+fmtH(c.perDay)+'h/day (change it on the Workload tab). 6-month avg overheads + wages from Xero = '+fmtK(avgOut)+'/mo'+(nOut<6?(' (only '+nOut+' months of Xero data — sync more on the P&L tab)'):'')+'.');
   // job completion schedule
