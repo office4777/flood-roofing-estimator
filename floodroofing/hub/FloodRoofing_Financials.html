@@ -1062,11 +1062,11 @@ function renderMatPct(){
   const pctW=revW>0?matW/revW:0,pctAll=rev>0?mat/rev:0;
   const rec=Math.min(80,Math.max(5,Math.round((pctW||pctAll)*100/5)*5));
   host.innerHTML=
-    mb('Materials % of rev',(pctW*100).toFixed(0)+'%',nW+' jobs w/ materials','','m-cogs')+
+    mb('Materials % of rev',(pctW*100).toFixed(0)+'%','cost of goods \u00B7 '+nW+' jobs','','m-cogs')+
     mb('Recommended deposit',rec+'%','covers materials','pos','m-rev')+
-    mb('Revenue (6 mo)',fmtK(revW),nW+' completed jobs','','m-gp')+
-    mb('Materials cost (6 mo)',fmtK(matW),'cost of goods','','m-np');
-  if(note)note.innerHTML='Cost of goods = actual materials cost \u00F7 revenue, over your last 6 months of back-costed (completed / fully-invoiced) jobs that have materials recorded ('+nW+' jobs). '+(noMat?(noMat+' job(s) had no materials on them — older jobs — and are excluded so they don\u2019t drag the % down; blended with them it\u2019s '+(pctAll*100).toFixed(0)+'%. '):'')+'This is materials only (NOT labour), which is what your deposit funds. Set your deposit \u2248 '+rec+'% and price to suit.';
+    mb('Completed jobs (6 mo)',String(n),nW+' w/ materials \u00B7 '+noMat+' without','','m-gp')+
+    mb('Revenue (6 mo)',fmtK(rev),fmtK(matW)+' materials cost','','m-np');
+  if(note)note.innerHTML='These are your last 6 months of back-costed jobs \u2014 jobs invoiced ~100% (deposit + final both raised) or marked Completed in Fergus. '+n+' such jobs ('+nW+' had materials recorded, '+noMat+' didn\u2019t \u2014 older jobs). Materials % = materials cost \u00F7 revenue across the '+nW+' jobs with materials = '+(pctW*100).toFixed(0)+'% (blended with the rest: '+(pctAll*100).toFixed(0)+'%). Labour is NOT included. Set your deposit \u2248 '+rec+'%. A completed job only appears here if its paid invoice carries the job number in its Xero reference, so the true count may be slightly higher.';
 }
 function renderBC(){
   fillBCFilters();
