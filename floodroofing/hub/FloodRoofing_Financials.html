@@ -450,6 +450,39 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     </div>
   </div>
 
+  <!-- ───────── CASHFLOW FORECAST ───────── -->
+  <div class="page" id="page-cf">
+    <div class="card per-this" style="border-left:4px solid var(--accent);">
+      <div class="ct">00 (OPEX) Cashflow Forecast <span id="cf-ts" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="hero">
+        <div class="big" id="cf-hero">—</div>
+        <div class="unit" id="cf-hero-unit">lowest projected 00 balance</div>
+        <div class="sub" id="cf-hero-sub">Sync Xero + refresh Fergus, then this projects your everyday/wages account.</div>
+      </div>
+    </div>
+
+    <div class="card per-last">
+      <div class="ct">6-month projection <span class="period-sub" style="margin-left:auto;">00 account</span></div>
+      <div class="tbl-wrap"><table class="tb" id="cf-tbl"><thead><tr><th>Month</th><th style="text-align:right;">Opening</th><th style="text-align:right;">In</th><th style="text-align:right;">Out</th><th style="text-align:right;">Closing</th></tr></thead><tbody></tbody></table></div>
+      <div class="note" id="cf-note"></div>
+    </div>
+
+    <div class="card">
+      <div class="ct">Job completion schedule <span class="period-sub" style="margin-left:auto;">finals → 00</span></div>
+      <div class="tbl-wrap"><table class="tb" id="cf-jobs-tbl"><thead><tr><th>Job</th><th>Est finish</th><th style="text-align:right;">To 00</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <div class="ct">Settings</div>
+      <div class="fld" style="margin:2px 0 8px;"><label>Job money to 00 — % of sale (ex-GST)</label><input id="cf-oopct" type="number" inputmode="decimal" autocomplete="off" placeholder="40" onchange="saveCfCfg()"></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>Payment lag after a job finishes (weeks)</label><input id="cf-lag" type="number" inputmode="numeric" autocomplete="off" placeholder="2" onchange="saveCfCfg()"></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>New work won / month ($ sale, optional)</label><input id="cf-new" type="number" inputmode="decimal" autocomplete="off" placeholder="0" onchange="saveCfCfg()"></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>Monthly OPEX + wages out (blank = 6-mo Xero avg)</label><input id="cf-out" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>00 (OPEX) account name contains</label><input id="cf-ookw" type="text" autocomplete="off" autocapitalize="off" placeholder="00" onchange="saveCfCfg()"></div>
+      <div class="note" id="cf-cfg-note"></div>
+    </div>
+  </div>
+
 </div><!-- /app -->
 
 <div id="nav">
@@ -460,6 +493,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
   <div class="nav-i" id="nav-growth" onclick="go('growth')"><span class="ic">📈</span>Growth</div>
   <div class="nav-i" id="nav-marketing" onclick="go('marketing')"><span class="ic">📣</span>Mktg</div>
   <div class="nav-i" id="nav-cash" onclick="go('cash')"><span class="ic">💰</span>Cash</div>
+  <div class="nav-i" id="nav-cf" onclick="go('cf')"><span class="ic">💵</span>Flow</div>
 </div>
 
 <!-- connect sheet -->
@@ -1858,8 +1892,80 @@ function renderCash(){
     }
   }
 }
+// ════════ CASHFLOW FORECAST ════════
+// Projects the 00 (everyday/OPEX + wages) account forward 6 months.
+//  • Inflows  = the non-materials slice (default 40%) of each live job's sale (ex-GST), landing
+//               when the job finishes + a payment lag. Materials (60% deposit → 02) are left out
+//               because the new 60% deposits self-fund materials.
+//  • Outflows = monthly overheads + wages (6-month Xero average, or a manual figure).
+//  • Start    = the live 00 account balance from the balance sheet.
+// Job finish dates are scheduled from remaining Fergus hours against crew capacity (Workload tab).
+function cfCfg(){
+  return {oo:num(S.get('cfOoPct','40'))||40, lag:num(S.get('cfLag','2')), nw:num(S.get('cfNew','0')), out:S.get('cfOut',''), kw:(S.get('cfOoKw','00')||'00')};
+}
+function saveCfCfg(){
+  const g=id=>document.getElementById(id);
+  if(g('cf-oopct'))S.set('cfOoPct',(g('cf-oopct').value||'').trim());
+  if(g('cf-lag'))S.set('cfLag',(g('cf-lag').value||'').trim());
+  if(g('cf-new'))S.set('cfNew',(g('cf-new').value||'').trim());
+  if(g('cf-out'))S.set('cfOut',(g('cf-out').value||'').trim());
+  if(g('cf-ookw'))S.set('cfOoKw',(g('cf-ookw').value||'').trim());
+  renderCashflow();
+}
+function renderCashflow(){
+  const cfg2=cfCfg();
+  const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
+  const pop=(id,v)=>{const e=document.getElementById(id);if(e&&!e.value&&v!==''&&v!=null)e.value=v;};
+  pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','2'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));
+  // monthly outflow: 6-month avg of (opex + wages) from Xero, or a manual override
+  let avgOut=0,nOut=0;for(let i=1;i<=6;i++){const x=xeroMonthly[calMonthKey(-i)];if(x){avgOut+=num(x.opex)+num(x.wages);nOut++;}}
+  avgOut=nOut?avgOut/nOut:0;
+  const outManual=(cfg2.out!==''&&!isNaN(parseFloat(cfg2.out)));
+  const outflow=outManual?parseFloat(cfg2.out):avgOut;
+  // start balance: the 00 account from the balance sheet (synced on the Cash tab)
+  let ooRow=null;if(cash&&cash.rows){const k=cfg2.kw.toLowerCase();cash.rows.forEach(r=>{if(!r.summary&&r.name.toLowerCase().includes(k)&&ooRow==null)ooRow=r;});}
+  const startBal=ooRow?num(ooRow.val):0;
+  // schedule active jobs by remaining hours against weekly capacity → finish month → inflow to 00
+  const c=capacity();const weeklyCap=Math.max(1,c.perDay*5);
+  const jobs=[...fwJobs].filter(j=>num(j.sale)>0);
+  jobs.sort((a,b)=>Math.max(0,num(a.remaining))-Math.max(0,num(b.remaining)));
+  let cumH=0;const inByMonth={};const sched=[];
+  jobs.forEach(j=>{const rem=Math.max(0,num(j.remaining));cumH+=rem;
+    const wks=cumH/weeklyCap+Math.max(0,num(cfg2.lag));
+    const d=new Date(Date.now()+wks*7*86400000);
+    const key=FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();
+    const inflow=cfg2.oo/100*num(j.sale);
+    inByMonth[key]=(inByMonth[key]||0)+inflow;
+    sched.push({job:j.job,key,inflow});});
+  // 6-month projection (current month + next 5)
+  const months=[];for(let i=0;i<6;i++)months.push(calMonthKey(i));
+  let bal=startBal;
+  const rows=months.map((k,idx)=>{const open=bal;const inflow=(inByMonth[k]||0)+(idx>=1?cfg2.oo/100*Math.max(0,num(cfg2.nw)):0);const close=open+inflow-outflow;bal=close;return {k,open,inflow,out:outflow,close};});
+  const minR=rows.reduce((m,r)=>(r.close<m.close?r:m),rows[0]||{close:0,k:''});
+  const neg=rows.find(r=>r.close<0);
+  const haveXero=xeroMonthly&&Object.keys(xeroMonthly).length>0;
+  // hero
+  if(!haveXero&&!outManual){set('cf-hero',null,'—');set('cf-hero-unit',null,'lowest projected 00 balance');set('cf-hero-sub',null,'Sync Xero (Cash or P&L tab) so it can read overheads + wages.');}
+  else{
+    const headline=neg?neg.close:minR.close;
+    set('cf-hero',null,fmtK(headline));
+    const hh=document.getElementById('cf-hero');if(hh)hh.style.color=headline>=0?'var(--success)':'var(--danger)';
+    set('cf-hero-unit',null,neg?('00 runs short in '+neg.k):('lowest 00 balance · '+(minR.k||'')));
+    set('cf-hero-sub',null,'Out '+fmtK(outflow)+'/mo ('+(outManual?'manual':nOut+'-mo avg')+') · '+jobs.length+' live jobs · '+cfg2.oo+'% of each job → 00');
+  }
+  set('cf-ts',null,(S.get('fw_last_sync','')?('Fergus '+S.get('fw_last_sync','')):''));
+  // projection table
+  const tb=document.querySelector('#cf-tbl tbody');
+  if(tb)tb.innerHTML=rows.map(r=>'<tr><td>'+esc(r.k)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+fmtK(r.inflow)+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.out)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
+  set('cf-note',null,'Projects your 00 (everyday / OPEX + wages) account. Opening = '+(ooRow?('“'+esc(ooRow.name)+'” '+fmtK(startBal)):'⚠ 00 account not matched — set the keyword in Settings (using $0)')+'. In = '+cfg2.oo+'% of each job’s sale (ex-GST) when it finishes, + '+Math.max(0,num(cfg2.lag))+'-week payment lag. Out = monthly overheads + wages. Materials (02) are excluded — your 60% deposits fund those. GST is excluded (it’s handled in 01).');
+  set('cf-cfg-note',null,'Crew capacity '+c.teams+'×'+c.size+'×'+c.hrs+'h = '+fmtH(c.perDay)+'h/day (change it on the Workload tab). 6-month avg overheads + wages from Xero = '+fmtK(avgOut)+'/mo'+(nOut<6?(' (only '+nOut+' months of Xero data — sync more on the P&L tab)'):'')+'.');
+  // job completion schedule
+  const jt=document.querySelector('#cf-jobs-tbl tbody');
+  if(jt)jt.innerHTML=sched.length?sched.slice(0,40).map(s=>'<tr><td>'+esc(s.job)+'</td><td>'+esc(s.key)+'</td><td style="text-align:right;">'+fmtK(s.inflow)+'</td></tr>').join(''):'<tr><td colspan="3" class="empty">Refresh Fergus on the Dashboard to schedule jobs.</td></tr>';
+}
+
 // ════════ NAV ════════
-const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'End Cash Position'};
+const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'End Cash Position',cf:'Cashflow Forecast'};
 function go(p,dir){
   page=p;
   document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
@@ -1872,12 +1978,12 @@ function go(p,dir){
   window.scrollTo(0,0);
   renderAll();
 }
-function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();renderCash();}
+function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();renderCash();renderCashflow();}
 
 // ════════ SWIPE NAV ════════ Facebook-style interactive pager — the page tracks your finger,
 // the neighbouring tab slides in beside it, and it snaps/commits on release.
 (function(){
-  const order=['dash','work','bc','pl','growth','marketing','cash'];
+  const order=['dash','work','bc','pl','growth','marketing','cash','cf'];
   const topEl=document.getElementById('top');
   const pageEl=p=>document.getElementById('page-'+p);
   let x0=0,y0=0,armed=false,horiz=false,cur=null,nxt=null,dir=0,W=360,finishing=false;
