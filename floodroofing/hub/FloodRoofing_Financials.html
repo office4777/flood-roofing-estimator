@@ -317,7 +317,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="mg" id="bc-recon"></div>
       <button class="btn btn-o" style="margin-top:11px;" id="bc-recon-btn" onclick="checkMaterialsVsXero()">⟳ Check materials &amp; scaffolding vs Xero</button>
       <div class="note" id="bc-recon-note">Compares your Xero supplier spend on materials/scaffolding against what’s recorded on back-costed jobs, so you can see if every bill is being put on a job.</div>
-      <div class="ct" id="bc-recon-bills-h" style="margin-top:16px;display:none;">⚠ Material/scaffold bills with no job # in the reference</div>
+      <div class="ct" id="bc-recon-bills-h" style="margin-top:16px;display:none;">⚠ Material/scaffold bills with no recognisable job reference</div>
       <div class="tbl-wrap"><table class="tb" id="bc-recon-bills"><thead><tr><th>Supplier</th><th>Date</th><th>Ref</th><th style="text-align:right;">Amount</th></tr></thead><tbody></tbody></table></div>
       <div class="ct" id="bc-recon-jobs-h" style="margin-top:16px;display:none;">⚠ Completed jobs with no materials recorded</div>
       <div class="tbl-wrap"><table class="tb" id="bc-recon-jobs"><thead><tr><th>Job</th><th style="text-align:right;">Sale</th><th style="text-align:right;">Materials</th></tr></thead><tbody></tbody></table></div>
@@ -1099,6 +1099,9 @@ async function checkMaterialsVsXero(){
     const SUP=['steel','colorsteel','colour steel','colorcote','roofing','iron','metalcraft','dimond','flashing','gutter','spouting','timber','itm','bunnings','mitre 10','placemaker','carters','nuralite','marley','hardie','insulation','purlin','fastener','fixing','cladding','fletcher','ullrich','aluminium','membrane','viking','stratco','scaffold','scaffolding','layher','allscaff','building supplies'];
     const isMatSup=nm=>{const s=(nm||'').toLowerCase();return SUP.some(k=>s.includes(k));};
     const cut=new Date();cut.setMonth(cut.getMonth()-6);
+    const cjobs=S.get('cashJobs',[])||[];
+    const jobBlob=cjobs.map(j=>(j.job||'').toLowerCase()).join(' | ');
+    const refLinked=ref=>{const r=String(ref||'').toLowerCase().trim();if(!r)return false;if(/\b\d{3,5}[a-z]?\b/.test(r))return true;return r.split(/[^a-z0-9]+/).filter(w=>w.length>=4).some(w=>jobBlob.includes(w));};
     let page=1,total=0,matched=0,unmatched=0,stop=false;const byAcct={},unmatchedBills=[];
     while(page<=25&&!stop){
       toast('Reading Xero bills… p'+page);
@@ -1112,28 +1115,29 @@ async function checkMaterialsVsXero(){
         (v.LineItems||[]).forEach(l=>{const code=String(l.AccountCode||'');const amt=Math.abs(num(l.LineAmount));
           const isMat=(cogs.size?cogs.has(code):false)||supMat;
           if(isMat){billMat+=amt;const k=code||'?';const b=byAcct[k]||(byAcct[k]={amt:0,name:(accts&&accts[code]?accts[code].name:(sup||'code '+code))});b.amt+=amt;}});
-        if(billMat>0){total+=billMat;const m=String(v.Reference||'').match(/#\s*(\d+)/);if(m)matched+=billMat;else{unmatched+=billMat;unmatchedBills.push({sup,date:(v.DateString||v.Date||'').slice(0,10),amt:billMat,ref:v.Reference||''});}}
+        if(billMat>0){total+=billMat;if(refLinked(v.Reference)){matched+=billMat;}else{unmatched+=billMat;unmatchedBills.push({sup,date:(v.DateString||v.Date||'').slice(0,10),amt:billMat,ref:v.Reference||''});}}
       });
       if(inv.length<100)break;page++;
     }
     // back-costing materials over the last 6 data-months
     const months=new Set(dataMonths().slice(-6));
     let bcMat=0;getAllBC().forEach(r=>{if(months.has(r.month))bcMat+=num(r.a_mat);});
-    const cov=total>0?bcMat/total:0;const gap=Math.max(0,total-bcMat);
+    let activeMat=0;cjobs.forEach(j=>{activeMat+=num(j.aMat);});
+    const onJobs=bcMat+activeMat;const linkPct=total>0?matched/total:0;const cov=total>0?onJobs/total:0;
     if(host)host.innerHTML=
       mb('Xero materials+scaff',fmtK(total),'supplier bills · 6 mo','','m-cogs')+
-      mb('On jobs (back-cost)',fmtK(bcMat),'materials recorded','','m-gp')+
-      mb('Coverage',(cov*100).toFixed(0)+'%','of Xero spend on jobs',cov>=0.9?'pos':'neg','m-np')+
-      mb('Gap (not on jobs)',fmtK(gap),gap>total*0.1?'⚠ bills missing':'looks complete',gap>total*0.1?'neg':'pos','m-rev');
+      mb('Bills referencing a job',(linkPct*100).toFixed(0)+'%',fmtK(matched)+' of '+fmtK(total),linkPct>=0.9?'pos':'neg','m-np')+
+      mb('Materials on jobs',fmtK(onJobs),'active + completed','','m-gp')+
+      mb('No job reference',fmtK(unmatched),unmatchedBills.length+' bills to check',unmatched>total*0.1?'neg':'pos','m-rev');
     const accLines=Object.keys(byAcct).sort((a,b)=>byAcct[b].amt-byAcct[a].amt).slice(0,8)
       .map(c=>esc(byAcct[c].name)+': '+fmtK(byAcct[c].amt)).join(' · ');
-    if(note)note.innerHTML='Xero ACCPAY (supplier bills) coded to materials/scaffolding'+(accts?' (Direct-Costs accounts)':' (matched by supplier name)')+' over the last 6 months = '+fmt$(total)+'. Of that, '+fmt$(matched)+' had a job number in the bill reference, '+fmt$(unmatched)+' did not. Back-costing recorded '+fmt$(bcMat)+' of materials on jobs over the same period → '+(cov*100).toFixed(0)+'% coverage. '+(cov>=0.9?'Looks like materials are being put on jobs — back-costing is broadly accurate.':'A '+fmt$(gap)+' gap suggests some material/scaffolding bills aren’t assigned to Fergus jobs, so back-costing understates materials (and overstates GP).')+' <br>Accounts: '+(accLines||'—')+'. <br>Caveat: Xero bills are dated when entered and jobs are dated at completion, so a few months of growth can widen the gap even when everything is on jobs.';
+    if(note)note.innerHTML='Xero supplier bills coded to materials/scaffolding'+(accts?' (Direct-Costs accounts)':' (matched by supplier name)')+' over the last 6 months = '+fmt$(total)+'. '+(linkPct*100).toFixed(0)+'% ('+fmt$(matched)+') reference a job — by job number (e.g. 2809, 2706a) or address; '+fmt$(unmatched)+' ('+unmatchedBills.length+' bills) have no recognisable job reference. Materials recorded on Fergus jobs (active + completed) ≈ '+fmt$(onJobs)+'. <br>Accounts: '+(accLines||'—')+'. <br>Note: the bill→job link lives in Fergus, not always in the Xero reference — so a bill listed below may still be on a job (e.g. referenced by an address on a completed job). Treat the list as a checklist, not proof.';
     // drill-down: bills with no job #, and completed jobs with no materials
     const noJobs=[];getAllBC().forEach(r=>{if(!months.has(r.month))return;const s=num(r.sales),mm=num(r.a_mat);if(s>2000&&mm<Math.max(50,0.10*s))noJobs.push({job:r.job,s,mm});});
     noJobs.sort((a,b)=>b.s-a.s);
     const bt=document.querySelector('#bc-recon-bills tbody');const bh=document.getElementById('bc-recon-bills-h');
     if(bh)bh.style.display='';
-    if(bt)bt.innerHTML=unmatchedBills.length?unmatchedBills.sort((a,b)=>b.amt-a.amt).slice(0,80).map(b=>'<tr><td>'+esc(b.sup)+'</td><td>'+esc(b.date)+'</td><td style="font-size:.66rem;">'+esc(String(b.ref).slice(0,40))+'</td><td style="text-align:right;color:var(--danger);">'+fmt$(b.amt)+'</td></tr>').join(''):'<tr><td colspan="4" class="empty">None — every material/scaffold bill has a job # in its reference.</td></tr>';
+    if(bt)bt.innerHTML=unmatchedBills.length?unmatchedBills.sort((a,b)=>b.amt-a.amt).slice(0,80).map(b=>'<tr><td>'+esc(b.sup)+'</td><td>'+esc(b.date)+'</td><td style="font-size:.66rem;">'+esc(String(b.ref).slice(0,40))+'</td><td style="text-align:right;color:var(--danger);">'+fmt$(b.amt)+'</td></tr>').join(''):'<tr><td colspan="4" class="empty">None — every material/scaffold bill references a job.</td></tr>';
     const jt=document.querySelector('#bc-recon-jobs tbody');const jh=document.getElementById('bc-recon-jobs-h');
     if(jh)jh.style.display='';
     if(jt)jt.innerHTML=noJobs.length?noJobs.slice(0,80).map(j=>'<tr><td>'+esc(j.job)+'</td><td style="text-align:right;">'+fmt$(j.s)+'</td><td style="text-align:right;color:var(--danger);">'+fmt$(j.mm)+'</td></tr>').join(''):'<tr><td colspan="3" class="empty">None — every completed job has materials recorded.</td></tr>';
