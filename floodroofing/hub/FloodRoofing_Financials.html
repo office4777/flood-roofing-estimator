@@ -307,6 +307,11 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="ct">12-Month History <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
       <div class="mstrip" id="bc-strip"></div>
     </div>
+    <div class="card per-week">
+      <div class="ct">Materials cost % of revenue <span class="period-sub" style="margin-left:auto;">last 6 mo · cost of goods</span></div>
+      <div class="mg" id="bc-matpct"></div>
+      <div class="note" id="bc-matpct-note"></div>
+    </div>
     <div class="card per-this">
       <div class="ct">This Month <span id="bc-lbl-this" class="period-sub"></span></div>
       <div class="mg" id="bc-met-this"></div>
@@ -1044,9 +1049,29 @@ function fillBCFilters(){
   const ye=document.getElementById('bc-year');if(ye&&ye.options.length<=1){ye.innerHTML='<option value="all">All years</option>'+bcYears().map(y=>'<option>'+y+'</option>').join('');}
   const te=document.getElementById('bc-type');if(te&&te.options.length<=1){te.innerHTML='<option value="all">All types</option>'+bcTypes().map(t=>'<option>'+esc(t)+'</option>').join('');}
 }
+// Materials cost (cost of goods) as % of revenue over the last 6 months of back-costed
+// (completed / fully-invoiced) jobs. Excludes jobs with no materials recorded so old jobs
+// (pre supplier-invoices-on-jobs) don't drag the ratio down. Recommends a deposit %.
+function renderMatPct(){
+  const host=document.getElementById('bc-matpct');if(!host)return;
+  const note=document.getElementById('bc-matpct-note');
+  const months=new Set(dataMonths().slice(-6));
+  let rev=0,mat=0,n=0,revW=0,matW=0,nW=0,noMat=0;
+  getAllBC().forEach(r=>{if(!months.has(r.month))return;const s=num(r.sales),m=num(r.a_mat);if(s<=0)return;rev+=s;mat+=m;n++;if(m>0.01*s){revW+=s;matW+=m;nW++;}else noMat++;});
+  if(!n){host.innerHTML='<div class="empty" style="grid-column:1/-1;">Sync Fergus to analyse materials %.</div>';if(note)note.textContent='';return;}
+  const pctW=revW>0?matW/revW:0,pctAll=rev>0?mat/rev:0;
+  const rec=Math.min(80,Math.max(5,Math.round((pctW||pctAll)*100/5)*5));
+  host.innerHTML=
+    mb('Materials % of rev',(pctW*100).toFixed(0)+'%',nW+' jobs w/ materials','','m-cogs')+
+    mb('Recommended deposit',rec+'%','covers materials','pos','m-rev')+
+    mb('Revenue (6 mo)',fmtK(revW),nW+' completed jobs','','m-gp')+
+    mb('Materials cost (6 mo)',fmtK(matW),'cost of goods','','m-np');
+  if(note)note.innerHTML='Cost of goods = actual materials cost \u00F7 revenue, over your last 6 months of back-costed (completed / fully-invoiced) jobs that have materials recorded ('+nW+' jobs). '+(noMat?(noMat+' job(s) had no materials on them — older jobs — and are excluded so they don\u2019t drag the % down; blended with them it\u2019s '+(pctAll*100).toFixed(0)+'%. '):'')+'This is materials only (NOT labour), which is what your deposit funds. Set your deposit \u2248 '+rec+'% and price to suit.';
+}
 function renderBC(){
   fillBCFilters();
   renderBCStrip();
+  renderMatPct();
   // ── period cards (This / Last / 3-mo) from back-costing ──
   const p=periodMonths();
   document.getElementById('bc-met-this').innerHTML=metGrid(p.thisM?bcFig(p.thisM):null,true);
