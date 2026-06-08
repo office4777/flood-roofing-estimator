@@ -14318,11 +14318,28 @@ function redoLast() {
 }
 
 function clearAll() {
-  if(!confirm('Clear everything?')) return;
+  if(!confirm('Clear everything? (outline, lines, penetrations, calibration + all sheet/flashing overrides)')) return;
   DRAW.outline=[]; DRAW.sections=[]; DRAW.lines=[]; DRAW.penetrations=[];
   DRAW.currentPts=[]; DRAW.outlineDone=false;
   DRAW.selectedSection=-1; DRAW.selectedLine=-1; DRAW.selectedPen=-1;
+  // Reset calibration so the next session starts at a clean scale.
+  DRAW.calibratePts = null;
+  DRAW.calibratePixels = 0;
+  DRAW.scaleMetresPerPx = 0;
+  // Drop every per-line/per-sheet override too — leftover overrides
+  // from a previous job would silently apply to the new drawing.
+  DRAW.flashLayoutOverrides = {};
+  DRAW.sheetOverrides = {};
+  DRAW.sheetGroupOverrides = {};
+  DRAW.sheetGroupQtyOverrides = {};
+  DRAW.measLabelOffsets = {};
+  DRAW.flashLetterOffsets = {};
+  // Wipe any multi-roof snapshots so we don't restore stale geometry.
+  if (Array.isArray(DRAW.roofs)) DRAW.roofs = [];
+  DRAW.activeRoofIdx = -1;
   hidePropPanel(); setTool('outline'); redrawAll(); syncToRoofData();
+  try { renderMatRoofMap(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
 }
 
 // ── MAIN DRAW ────────────────────────────────────────────────────
