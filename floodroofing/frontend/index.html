@@ -13984,10 +13984,11 @@ function onCanvasClick(e) {
   // common case); a future "rotate" interaction can change ndx/ndy.
   // Sheet measure — two-click line. First click anchors the start
   // point, second click drops the end point and creates the manual
-  // sheet measure. The arrow direction (ndx, ndy) is derived from
-  // the drawn line, the label sits at the midpoint, and the half-
-  // length (sdl) matches half the click distance so the arrows fit
-  // the user's chosen span.
+  // sheet measure. The arrow direction is snapped to perpendicular
+  // to the nearest gutter line so the measure always reads cleanly
+  // across the roof slope, even if the user's two clicks weren't
+  // exactly perpendicular. Hold Shift while drawing to disable the
+  // perp-to-gutter snap and use the raw click direction instead.
   if(DRAW.tool==='sheetmeas') {
     DRAW.currentPts.push(xy);
     if (DRAW.currentPts.length < 2) { redrawAll(); return; }
@@ -13996,16 +13997,53 @@ function onCanvasClick(e) {
     var dxL = b[0]-a[0], dyL = b[1]-a[1];
     var len = Math.sqrt(dxL*dxL + dyL*dyL);
     if (len < 1) { redrawAll(); return; }   // degenerate; ignore
+    var mxL = (a[0]+b[0])/2, myL = (a[1]+b[1])/2;
+    var rawNx = dxL/len, rawNy = dyL/len;
+    var dirNx = rawNx, dirNy = rawNy;
+    // Snap perpendicular to the nearest gutter line (or any outline
+    // edge if there are no gutter lines yet) — unless Shift is held,
+    // in which case use the raw drawn direction.
+    if (!e.shiftKey) {
+      var gutters = (DRAW.lines || []).filter(function(g){ return g && g.type === 'gutter' && g.pts && g.pts.length === 2; });
+      var candidates = gutters.length ? gutters : (DRAW.outline && DRAW.outline.length >= 2 ? (function(){
+        var out = []; for (var oi = 0; oi < DRAW.outline.length; oi++){
+          var oa = DRAW.outline[oi], ob = DRAW.outline[(oi+1)%DRAW.outline.length];
+          out.push({ pts:[oa, ob] });
+        }
+        return out;
+      })() : []);
+      var bestG = null, bestD = Infinity;
+      candidates.forEach(function(g){
+        var ga = g.pts[0], gb = g.pts[1];
+        var gdx = gb[0]-ga[0], gdy = gb[1]-ga[1];
+        var glen2 = gdx*gdx + gdy*gdy; if (glen2 < 1) return;
+        // Perp distance from midpoint to the infinite line.
+        var t = ((mxL-ga[0])*gdx + (myL-ga[1])*gdy) / glen2;
+        var cx = ga[0] + t*gdx, cy = ga[1] + t*gdy;
+        var d = Math.hypot(mxL - cx, myL - cy);
+        if (d < bestD) { bestD = d; bestG = { dx: gdx, dy: gdy, glen: Math.sqrt(glen2) }; }
+      });
+      if (bestG) {
+        // Perpendicular unit vector to the gutter. Two possible
+        // perp directions — pick whichever matches the user's
+        // drawn direction (keeps the arrows pointing the way they
+        // sketched out).
+        var px = -bestG.dy / bestG.glen, py = bestG.dx / bestG.glen;
+        if (px*rawNx + py*rawNy < 0) { px = -px; py = -py; }
+        dirNx = px; dirNy = py;
+      }
+    }
     if (!Array.isArray(DRAW.manualSheetMeasures)) DRAW.manualSheetMeasures = [];
     var entered = window.prompt('Sheet length for this measure (m). Leave blank for 0.', '0');
     if (entered === null) { redrawAll(); return; }
     var mv = parseFloat(entered);
     if (!isFinite(mv) || mv < 0) mv = 0;
     DRAW.manualSheetMeasures.push({
-      x: (a[0]+b[0])/2, y: (a[1]+b[1])/2,   // label at midpoint
+      x: mxL, y: myL,
       lengthM: mv,
-      ndx: dxL/len, ndy: dyL/len,            // direction along the drawn line
-      sdl: len/2                             // half the line's IMAGE length
+      ndx: dirNx, ndy: dirNy,                 // perp-to-gutter (or raw with Shift)
+      sdl: len/2,                             // half the drawn line's IMAGE length
+      fullSize: true                          // render at full font size, no shrink
     });
     try { saveSnapshot(); } catch(e){}
     redrawAll();
@@ -15265,7 +15303,8 @@ function redrawAll() {
           label: (+m.lengthM || 0).toFixed(2) + 'm',
           key: 'manual:' + mi,
           isOverride: false,
-          manualIdx: mi
+          manualIdx: mi,
+          fullSize: m.fullSize !== false   // default true so legacy entries also render at full size
         });
       });
     }
@@ -15287,7 +15326,10 @@ function redrawAll() {
     var _shTextScale = parseFloat(localStorage.getItem('fr_sheet_text_scale') || '1') || 1;
     if (!isFinite(_shTextScale) || _shTextScale < 0.5) _shTextScale = 1;
     _sheetDims.forEach(function(d){
-      var ratio  = d.sdl / _maxSdl;                          // 0..1 (1 = longest sheet)
+      // Manual sheet measures (d.fullSize === true) always render at
+      // the longest-sheet font, so a small drawn span doesn't shrink
+      // the label below the auto-labelled sheets next to it.
+      var ratio  = d.fullSize ? 1 : (d.sdl / _maxSdl);       // 0..1 (1 = longest sheet)
       var fontPx = Math.max(7, 10 * ratio) * _shTextScale;    // user-multiplied size
       var af     = fontPx / 10;                              // arrow scale tracks the font
       ctx.font = '600 ' + fontPx.toFixed(1) + 'px Inter, -apple-system, sans-serif';
@@ -16953,13 +16995,13 @@ function _flashCollectLabelled() {
       var key = _flashLineKey(l);
       if (!key) return;
       var ov  = ovs[key] || {};
-      // Ridges + hips are structural elements every roof has — never
-      // exclude them from the cut list even if a stale `hidden` flag
-      // is sitting in flashLayoutOverrides (e.g. a previous DELETE on
-      // the popup carried across into a fresh draw). Other flashings
-      // (barge, apron, valley, custom) still honour `hidden`.
-      var isStructural = (l.type === 'ridge' || l.type === 'hip');
-      if (ov.hidden && !isStructural) return;
+      // Honour the `hidden` flag for every flashing type — including
+      // ridges + hips. The user explicitly asked to be able to delete
+      // any reference measure (letter+number tag) from the materials
+      // cut list, so the previous structural-immune carve-out is
+      // gone. Stale flags from a previous job are still wiped by
+      // Clear or by the Materials > "Reset hidden flashings" button.
+      if (ov.hidden) return;
       var letter = ov.letter || '';
       var lengthM = ov.lengthM != null ? +ov.lengthM : _flashAutoLengthM(l);
       out.push({
@@ -20206,7 +20248,11 @@ function _addAndSwitchToNewRoof(){
   renderRoofSwitcher();
 }
 function switchToRoof(idx){
-  if (idx === DRAW.activeRoofIdx) return;
+  // Picking a specific roof always turns the View-All overview off
+  // so the user sees only that roof's measures + new lines attach
+  // to it cleanly.
+  DRAW.showAllRoofs = false;
+  if (idx === DRAW.activeRoofIdx) { renderRoofSwitcher(); redrawAll(); return; }
   _syncCurrentToRoof();
   _loadRoofToCurrent(idx);
   var rtp = document.getElementById('roofTypePanel');
@@ -20246,21 +20292,24 @@ function renderRoofSwitcher(){
   if (!el) return;
   if (DRAW.roofs.length === 0) { el.style.display = 'none'; return; }
   el.style.display = 'flex';
-  // Show-all is the only mode on the Map Roof canvas now — every roof
-  // renders at full opacity and every line is clickable across all
-  // roofs. The roof picker still highlights which roof is ACTIVE so
-  // newly drawn lines attach to it; the per-roof totals filter lives
-  // on the Materials + Pricing tabs.
-  DRAW.showAllRoofs = true;
+  // When more than one roof exists the View-All button toggles
+  // whether the inactive roofs' outlines + measures are drawn on
+  // the canvas. While ON, "Roofs:" deactivates (no single roof is
+  // active for new-line attachment until the user picks one).
+  var showAll = !!DRAW.showAllRoofs;
   var html = '<div style="font-weight:600;font-size:12px;color:#475569;margin-right:6px">Roofs:</div>';
   DRAW.roofs.forEach(function(r, i){
-    var isActive = (i === DRAW.activeRoofIdx);
+    var isActive = !showAll && (i === DRAW.activeRoofIdx);
     var label = _nthName(i + 1);
     html += '<span style="display:inline-flex;align-items:center;border:1px solid '+(isActive?'#0a1628':'#cbd5e1')+';border-radius:6px;overflow:hidden;'+(isActive?'background:#0a1628':'background:#fff')+'">'+
       '<button onclick="switchToRoof('+i+')" title="Set '+label+' as the active roof — new lines attach here" style="font-size:12px;padding:4px 10px;border:none;background:transparent;cursor:pointer;font-weight:'+(isActive?'700':'500')+';color:'+(isActive?'#fff':'#0a1628')+'">'+label+'</button>'+
       '<button onclick="deleteRoof('+i+')" title="Delete '+label+'" style="font-size:13px;line-height:1;padding:4px 8px 4px 2px;border:none;background:transparent;cursor:pointer;color:'+(isActive?'rgba(255,255,255,.85)':'#94a3b8')+'">✕</button>'+
     '</span>';
   });
+  // View-All toggle — only useful when 2+ roofs are drawn.
+  if (DRAW.roofs.length > 1) {
+    html += '<button onclick="toggleShowAllRoofs()" title="Show every roof\'s outline, lines and measures on the canvas at once" style="margin-left:6px;font-size:12px;padding:4px 12px;border:1px solid '+(showAll?'#0a1628':'#cbd5e1')+';border-radius:6px;background:'+(showAll?'#0a1628':'#fff')+';color:'+(showAll?'#fff':'#0a1628')+';cursor:pointer;font-weight:'+(showAll?'700':'500')+'">'+ (showAll?'✓ Viewing all':'👁 View All') +'</button>';
+  }
   el.innerHTML = html;
 }
 
