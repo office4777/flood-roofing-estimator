@@ -10543,6 +10543,20 @@ function saveFlashSketch(){
     try { if (typeof renderMaterialsCutLists === 'function') renderMaterialsCutLists(); } catch(e){}
     return;
   }
+  // Materials-tab "+ Enter custom drawing" — saves the sketch as a
+  // row-only override on the cut-list table.  _matPendingCustomRow is
+  // set by _matOnPickRowDrawing right before openFlashSketch(-1).
+  if (_matPendingCustomRow) {
+    var pend = _matPendingCustomRow;
+    _matPendingCustomRow = null;
+    try {
+      localStorage.setItem('fr_mat_row_drawing_custom_' + pend.typeKey + '_' + pend.rowIdx, url);
+      localStorage.setItem(_matRowDrawingKey(pend.typeKey, pend.rowIdx), '__custom__');
+    } catch(e){}
+    closeFlashSketch();
+    try { renderMaterialsCutLists(); } catch(e){}
+    return;
+  }
   // Order mode (legacy)
   var idx = _flashSketchState.idx;
   if (S.order.flashings[idx]) {
@@ -17685,8 +17699,16 @@ function _matCutListTable(cl, emptyMsg) {
     return '<div class="cut-list-empty">'+esc(emptyMsg || 'No pieces yet — add drawn line measurements.')+'</div>';
   }
   var typeKey = cl.typeKey || '';
+  // Resolve all library entries for this flashing type so each row can
+  // pick which drawing represents that specific piece (e.g. the first
+  // barge is a starter, the second a finish — both with different
+  // sketches).
+  var libMatches = typeKey ? _matSavedFlashingsFor(typeKey) : [];
+  var hasLib = libMatches.length > 0;
   var html = '<table class="cut-list cut-list-editable"><thead><tr>'+
-    '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th><th class="r"></th>'+
+    '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th>'+
+    (hasLib ? '<th class="r">Drawing</th>' : '')+
+    '<th class="r"></th>'+
   '</tr></thead><tbody>';
   cl.rows.forEach(function(r, i){
     var lbl = r.letter ? r.letter : '?';
@@ -17697,17 +17719,91 @@ function _matCutListTable(cl, emptyMsg) {
     var lenInput = '<input class="cl-length" data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" '+
       'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLength(this)" '+
       'style="width:62px;border:1px solid transparent;background:transparent;text-align:right;padding:2px 4px;border-radius:4px;font-size:inherit">';
+    var drawingCell = hasLib ? '<td class="r">'+_matRowDrawingHtml(typeKey, i, libMatches)+'</td>' : '';
     html += '<tr>'+
       '<td>'+letterInput+'</td>'+
       '<td class="r">'+r.qty+'</td>'+
       '<td class="r">'+lenInput+' m</td>'+
+      drawingCell +
       '<td class="r"><button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Remove this piece from the cut list" '+
         'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:2px 6px;line-height:1">×</button></td>'+
     '</tr>';
   });
-  html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td><td class="r"></td></tr></tfoot></table>';
+  html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td>'+
+    (hasLib ? '<td class="r"></td>' : '')+
+    '<td class="r"></td></tr></tfoot></table>';
   return html;
 }
+// Per-row drawing pick — each piece can use a different library entry
+// for the supplier's flashing reference. Default is the first match
+// (so a section with one barge auto-picks the user's "Standard barge"
+// drawing). Pick persists in localStorage keyed by flashing type +
+// row index so the same row keeps its drawing across re-renders.
+function _matRowDrawingKey(typeKey, rowIdx){
+  return 'fr_mat_row_drawing_' + typeKey + '_' + rowIdx;
+}
+function _matRowDrawingGet(typeKey, rowIdx, libMatches){
+  var picked = localStorage.getItem(_matRowDrawingKey(typeKey, rowIdx));
+  if (picked === '__custom__') return { custom: true };
+  if (picked) {
+    var hit = libMatches.find(function(m){ return m.entry.name === picked; });
+    if (hit) return { entry: hit.entry };
+  }
+  // Default — first library match for this flashing type.
+  return libMatches[0] ? { entry: libMatches[0].entry } : null;
+}
+function _matRowDrawingHtml(typeKey, rowIdx, libMatches){
+  var sel = _matRowDrawingGet(typeKey, rowIdx, libMatches);
+  var thumbHtml = '';
+  if (sel && sel.entry && sel.entry.sketch) {
+    thumbHtml = '<img src="'+esc(sel.entry.sketch)+'" alt="" style="width:46px;height:26px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:4px;padding:1px;vertical-align:middle">';
+  } else if (sel && sel.custom) {
+    var custUrl = localStorage.getItem('fr_mat_row_drawing_custom_' + typeKey + '_' + rowIdx);
+    thumbHtml = custUrl
+      ? '<img src="'+esc(custUrl)+'" alt="" style="width:46px;height:26px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:4px;padding:1px;vertical-align:middle">'
+      : '<span style="font-size:10px;color:#475569;font-style:italic">Custom</span>';
+  } else {
+    thumbHtml = '<span style="font-size:10px;color:#94a3b8">—</span>';
+  }
+  var picked = localStorage.getItem(_matRowDrawingKey(typeKey, rowIdx)) || '';
+  var opts = '<option value="">Default (' + esc((libMatches[0] && libMatches[0].entry.name) || 'first') + ')</option>';
+  libMatches.forEach(function(m){
+    var s = (picked === m.entry.name) ? ' selected' : '';
+    opts += '<option value="'+esc(m.entry.name)+'"'+s+'>'+esc(m.entry.name)+'</option>';
+  });
+  opts += '<option value="__custom__"'+(picked === '__custom__' ? ' selected' : '')+'>+ Enter custom drawing…</option>';
+  return '<div style="display:inline-flex;align-items:center;gap:6px">'+
+    thumbHtml +
+    '<select data-row-typekey="'+esc(typeKey)+'" data-row-idx="'+rowIdx+'" '+
+      'onchange="_matOnPickRowDrawing(this)" '+
+      'style="margin:0;padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:5px;background:#fff;color:#0a1628;max-width:160px">'+
+      opts +
+    '</select>'+
+  '</div>';
+}
+function _matOnPickRowDrawing(sel){
+  var typeKey = sel.getAttribute('data-row-typekey');
+  var rowIdx  = parseInt(sel.getAttribute('data-row-idx'), 10);
+  var val = sel.value || '';
+  if (val === '__custom__') {
+    // Open the existing sketch modal — its save handler reads the
+    // pending row pointer and writes the data URL back to a row-only
+    // library entry called "Custom — <typeKey> #<rowIdx>".
+    _matPendingCustomRow = { typeKey: typeKey, rowIdx: rowIdx };
+    if (typeof openFlashSketch === 'function') {
+      // Idx -1 = ephemeral mode; saveFlashSketch detects the pending
+      // row pointer and persists the sketch as a row override.
+      openFlashSketch(-1);
+    }
+    return;
+  }
+  if (val) localStorage.setItem(_matRowDrawingKey(typeKey, rowIdx), val);
+  else      localStorage.removeItem(_matRowDrawingKey(typeKey, rowIdx));
+  renderMaterialsCutLists();
+}
+// Pointer set when the user picks "+ Enter custom drawing" so the
+// sketch modal's save handler knows where to write the result.
+var _matPendingCustomRow = null;
 
 // Same as _matCutListTable but adds a "Cost" column priced at rate $/lm.
 function _matCutListTableWithCost(cl, emptyMsg, rate) {
@@ -19634,19 +19730,23 @@ function _tagGableBargesStarterFinish(barges){
 // Dutch gable (a.k.a. gablet roof): hip below, small gable on top.
 // At each open ridge endpoint of the underlying hip skeleton (the two
 // "hip ends"), the two converging hips are pulled part-way back toward
-// their corners, and a short barge line is added between the new hip
-// endpoints. That barge is the base of the gablet wall in plan view —
-// the two physical rake barges of the gablet project onto this same
-// segment, so one line gives the correct linear-metre take-off. The
-// ridge endpoint then moves to the midpoint of the gablet base, which
-// extends the ridge outward versus the pure hip roof.
+// their corners (the "gablet base corners").  From the unchanged ridge
+// endpoint, two rake BARGES run laterally out to those gablet base
+// corners, and a HEAD APRON joins the two base corners across the
+// gablet base — this is where the gablet wall meets the lower hip
+// slope.  The ridge keeps its full length; only the hips shorten.
 //
 //   pure hip            dutch gable           pure gable
 //   ─────────           ─────────             ─────────
-//      ╲ ╱                ╲    ╱
-//       X      becomes    ┌──┐      becomes   no hips,
-//      ╱ ╲                ╲    ╱              full ridge
-//   ─────────           ─────────             ─────────
+//      ╲ ╱                R                   ─────────
+//       X      becomes    ╱ ╲      barges     no hips,
+//      ╱ ╲              c═══c      apron      full ridge
+//   ─────────           ╱   ╲                 ─────────
+//                      ─────────
+//
+// Where R = ridge endpoint (unchanged), c = gablet base corner (the
+// shortened hip end), the line c═══c is the head apron, and the two
+// R→c lines are the rake barges of the gablet wall.
 //
 // GABLET_FRAC controls how far each hip is pulled back: 0 leaves a pure
 // hip ridge, 1 collapses to a full gable. 0.5 produces a balanced Dutch
@@ -19665,6 +19765,7 @@ function buildDutchGableRoofLines(outline) {
   var workHips   = hips.map(function(h){return {type:'hip',  pts:[h.pts[0].slice(),h.pts[1].slice()]};});
   var workRidges = ridges.map(function(r){return {type:'ridge',pts:[r.pts[0].slice(),r.pts[1].slice()]};});
   var newBarges  = [];
+  var newAprons  = [];
 
   workRidges.forEach(function(r, ri){
     [0,1].forEach(function(endIdx){
@@ -19690,6 +19791,9 @@ function buildDutchGableRoofLines(outline) {
       });
       if (hasValley || otherRidge) return;
       // Pull each hip back toward its corner by GABLET_FRAC of its length.
+      // The new endpoint is the "gablet base corner".  The ORIGINAL
+      // ridge endpoint stays where it is — we add the rake barges
+      // running from R out to each gablet base corner.
       var newEnds = attached.map(function(a){
         var corner   = a.h.pts[1 - a.endIdx];
         var ridgeEnd = a.h.pts[a.endIdx];
@@ -19698,21 +19802,20 @@ function buildDutchGableRoofLines(outline) {
         a.h.pts[a.endIdx] = [nx, ny];
         return [nx, ny];
       });
-      // Gablet base — joins the two shortened hip endpoints.
-      newBarges.push({type:'barge', pts:[newEnds[0].slice(), newEnds[1].slice()]});
-      // Ridge endpoint moves to the midpoint of the gablet base; for a
-      // symmetric hip end this keeps the ridge collinear with the original.
-      r.pts[endIdx] = [
-        (newEnds[0][0] + newEnds[1][0]) / 2,
-        (newEnds[0][1] + newEnds[1][1]) / 2
-      ];
+      // Two rake barges: ridge endpoint → each gablet base corner.
+      newBarges.push({type:'barge', pts:[R.slice(), newEnds[0].slice()]});
+      newBarges.push({type:'barge', pts:[R.slice(), newEnds[1].slice()]});
+      // Head apron across the base of the gablet wall.
+      newAprons.push({type:'apron', subtype:'head', pts:[newEnds[0].slice(), newEnds[1].slice()]});
+      // Ridge endpoint stays put — do NOT collapse the ridge.
     });
   });
 
   return valleys
     .concat(workHips)
     .concat(workRidges)
-    .concat(newBarges);
+    .concat(newBarges)
+    .concat(newAprons);
 }
 
 // Mono pitch: no internal lines (single slope)
