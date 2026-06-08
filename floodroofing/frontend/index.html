@@ -1363,6 +1363,7 @@ select{
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:8px 6px 6px;border-top:1px solid #eef1f5;margin-top:6px">Details</div>
             <button onclick="setTool('penetration');closeRoofLinesMenu()" id="btn-penetration" onmouseenter="showTip('btn-penetration',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">⬛ Penetration</button>
             <button onclick="setTool('boxedpen');closeRoofLinesMenu()" id="btn-boxedpen" onmouseenter="showTip('btn-boxedpen',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#475569;border-color:#475569;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">▭ Boxed Penetration</button>
+            <button onclick="setTool('sheetmeas');closeRoofLinesMenu()" id="btn-sheetmeas" onmouseenter="showTip('btn-sheetmeas',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">📏 Sheet measure</button>
             <button onclick="setTool('info');closeRoofLinesMenu()" id="btn-info" onmouseenter="showTip('btn-info',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#d97706;border-color:#d97706;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0">✳ Add Info</button>
           </div>
         </div>
@@ -1473,15 +1474,10 @@ select{
             onkeydown="if(event.key==='Enter') confirmLineMeas()">
           <span style="font-size:14px;color:#555;font-weight:600">m</span>
         </div>
-        <div id="sheetLenRow" style="display:none;margin-bottom:12px;padding:10px;background:#f5f5f3;border-radius:8px">
-          <div style="font-size:11px;font-weight:600;color:#7c3aed;margin-bottom:6px">📏 Sheet length for this gutter run</div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input type="number" id="lineMeasSheetLen" placeholder="e.g. 5.1" step="0.01" min="0"
-              style="flex:1;font-size:14px;padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-family:inherit">
-            <span style="color:#555;font-weight:600">m</span>
-          </div>
-          <div style="font-size:10px;color:#888;margin-top:4px">Sheets run from ridge/barge down to this gutter</div>
-        </div>
+        <!-- The second "Sheet length" input was removed; a single
+             measurement is now used for display AND for the
+             Materials cut list.  Use the Sheet-measure tool to add
+             standalone sheet-run dimensions anywhere on the canvas. -->
         <div style="display:flex;gap:8px">
           <button onclick="confirmLineMeas()" style="flex:1;padding:10px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">Set ↵</button>
           <button onclick="clearLineMeas()" style="padding:10px 14px;background:#fff0f0;color:#dc2626;border:1px solid #f09595;border-radius:8px;cursor:pointer;font-size:13px">Clear</button>
@@ -13771,6 +13767,33 @@ function onCanvasClick(e) {
       syncToRoofData(); redrawAll(); updateMeasTotals();
       return;
     }
+    // Sheet measure (auto OR manual) under the cursor — clear it.
+    // Auto labels get a "-1" sentinel in DRAW.sheetOverrides so the
+    // collector hides them next render; manual ones drop out of
+    // DRAW.manualSheetMeasures entirely.
+    var hits = window._roofCanvasHits && window._roofCanvasHits.sheets;
+    if (hits && hits.length) {
+      // Translate hit bbox check (which lives in display space).
+      for (var hsi = 0; hsi < hits.length; hsi++) {
+        var sh = hits[hsi];
+        // The collector stores label x/y in canvas-display coords; we
+        // need to re-map the click. Use dp() inversely — easier to just
+        // re-derive via getXY: xy is in IMAGE coords, sh.x/y in display.
+        var disp = (typeof imgToCanvas === 'function' && getImgTransform()) ? imgToCanvas([xy[0], xy[1]], getImgTransform()) : [xy[0], xy[1]];
+        if (disp[0] >= sh.x - sh.w/2 && disp[0] <= sh.x + sh.w/2 &&
+            disp[1] >= sh.y - sh.h/2 && disp[1] <= sh.y + sh.h/2) {
+          saveSnapshot();
+          if (typeof sh.manualIdx === 'number' && Array.isArray(DRAW.manualSheetMeasures)) {
+            DRAW.manualSheetMeasures.splice(sh.manualIdx, 1);
+          } else if (sh.key) {
+            if (!DRAW.sheetOverrides) DRAW.sheetOverrides = {};
+            DRAW.sheetOverrides[sh.key] = -1;
+          }
+          redrawAll();
+          return;
+        }
+      }
+    }
     var hitDS = hitSection(xy[0], xy[1]);
     if (hitDS >= 0) {
       saveSnapshot();
@@ -13875,6 +13898,28 @@ function onCanvasClick(e) {
   if(DRAW.tool==='penetration') {
     DRAW.currentPts.push(xy);
     finishCurrent();
+    return;
+  }
+
+  // Sheet measure: single click drops a manual sheet-length dimension
+  // tag (with arrows on each side) at the cursor.  Default length 0m;
+  // user can click the label to edit, drag to move, or right-click /
+  // Delete tool to remove.  Direction defaults to horizontal (the
+  // common case); a future "rotate" interaction can change ndx/ndy.
+  if(DRAW.tool==='sheetmeas') {
+    if (!Array.isArray(DRAW.manualSheetMeasures)) DRAW.manualSheetMeasures = [];
+    var entered = window.prompt('Sheet length for this measure (m). Leave blank for 0.', '0');
+    if (entered === null) return;
+    var mv = parseFloat(entered);
+    if (!isFinite(mv) || mv < 0) mv = 0;
+    DRAW.manualSheetMeasures.push({
+      x: xy[0], y: xy[1],
+      lengthM: mv,
+      ndx: 1, ndy: 0,       // horizontal by default
+      sdl: 120              // half-length of the arrow span, in image px
+    });
+    try { saveSnapshot(); } catch(e){}
+    redrawAll();
     return;
   }
 
@@ -15075,6 +15120,9 @@ function redrawAll() {
           // _sheetDimKey scheme required.
           var key = _faceOverrideKey(bestG, -dx, -dy);
           var ov  = (DRAW.sheetOverrides && DRAW.sheetOverrides[key]);
+          // -1 sentinel = user typed DELETE in the edit popup; hide
+          // this auto sheet label entirely.
+          if (ov === -1) return;
           var sheetM = (ov != null && isFinite(ov) && ov > 0) ? ov : autoSheetM;
           var isOverride = (ov != null && isFinite(ov) && ov > 0);
           var sR = dp([rmx, rmy]), sE = dp([endImgX, endImgY]), sL = dp([lblImgX, lblImgY]);
@@ -15106,6 +15154,26 @@ function redrawAll() {
       });
     }
     var _sheetDims = [];
+    // Manual sheet measures placed via the Sheet measure tool — these
+    // render with the same arrow style as auto sheet labels but carry
+    // a `manualIdx` so click-to-edit / drag / delete dispatch to the
+    // right slot in DRAW.manualSheetMeasures.
+    if (Array.isArray(DRAW.manualSheetMeasures)) {
+      DRAW.manualSheetMeasures.forEach(function(m, mi){
+        if (!m) return;
+        var lblScreen = dp([m.x, m.y]);
+        _sheetDims.push({
+          lblX: lblScreen[0], lblY: lblScreen[1],
+          lblImgX: m.x, lblImgY: m.y,
+          ndx: m.ndx || 1, ndy: m.ndy || 0,
+          sdl: (m.sdl || 120) * ((typeof getImgTransform === 'function' && getImgTransform()) ? getImgTransform().s : 1),
+          label: (+m.lengthM || 0).toFixed(2) + 'm',
+          key: 'manual:' + mi,
+          isOverride: false,
+          manualIdx: mi
+        });
+      });
+    }
     // Active roof — same as before.
     _collectSheetDimsFor(DRAW.outline, DRAW.lines, _sheetDims);
     // Show-all: also collect from every non-active roof so their
@@ -15137,11 +15205,16 @@ function redrawAll() {
       // Stash hit box for click-to-edit sheet length. Width grows with the
       // label text; height matches the font so tap area covers the label.
       var hitTw = ctx.measureText(d.label).width;
-      window._roofCanvasHits.sheets.push({
+      var _hit = {
         x: d.lblX, y: d.lblY,
         w: Math.max(hitTw + 14, 50), h: Math.max(fontPx + 8, 18),
         key: d.key, label: d.label
-      });
+      };
+      // Only attach manualIdx when this dim is a manual sheet measure
+      // — auto labels keep `manualIdx in hit` false so the Delete tool
+      // can branch on it cleanly.
+      if (typeof d.manualIdx === 'number') _hit.manualIdx = d.manualIdx;
+      window._roofCanvasHits.sheets.push(_hit);
       if (d.sdl < 26 * af) return;             // too short for arrows — label only
       ctx.lineCap = 'round';
       ctx.lineWidth = 1.4 * af;
@@ -15722,13 +15795,6 @@ function promptLineMeasurement(i) {
   document.getElementById('lineMeasTitle').innerHTML = '<span style="color:'+col+'">■</span> Edit line &nbsp;' + typeSelHtml;
   document.getElementById('lineMeasSubtitle').textContent = splitInfo || 'Set type, measurement and label for this line.';
   document.getElementById('lineMeasInput').value = l.measM || '';
-  var slRow = document.getElementById('sheetLenRow');
-  var slInput = document.getElementById('lineMeasSheetLen');
-  if(slRow && slInput) {
-    var showSheet = (l.type==='gutter');
-    slRow.style.display = showSheet ? 'block' : 'none';
-    slInput.value = l.sheetLengthM || '';
-  }
   document.getElementById('lineMeasPopup').style.display = 'block';
   document.getElementById('lineMeasOverlay').style.display = 'block';
   setTimeout(function(){ document.getElementById('lineMeasInput').focus(); document.getElementById('lineMeasInput').select(); }, 80);
@@ -15852,32 +15918,16 @@ function confirmLineMeas() {
   if(typeEl && typeEl.value) l.type = typeEl.value;
   // Save measurement (optional - can just change type)
   if(!isNaN(val) && val > 0) l.measM = val;
-  var slInput = document.getElementById('lineMeasSheetLen');
-  if(l.type==='gutter' && slInput && parseFloat(slInput.value)>0) {
-    l.sheetLengthM = parseFloat(slInput.value);
-  }
+  // The popup's second "Sheet length for this gutter" input was
+  // removed — sheet runs are now placed independently via the Sheet
+  // measure tool, so a custom line measurement no longer drags the
+  // outline geometry around to fit (the previous _rescaleOutlineByLine
+  // call lived here and is now skipped).
 
   // Auto-fill connected valleys with same measurement
   if(l.type==='valley') {
     var conn = getConnectedValleys(_measLineIdx);
     conn.forEach(function(ci){ if(!DRAW.lines[ci].measM) DRAW.lines[ci].measM = val; });
-  }
-
-  // If the edited line is an outline edge AND we're calibrated, stretch
-  // the polygon so the pixel length matches the entered metres — keeps
-  // scaleMetresPerPx constant and lets the lines move to fit.
-  if (!isNaN(val) && val > 0 && DRAW.scaleMetresPerPx) {
-    var stretched = _rescaleOutlineByLine(_measLineIdx, val);
-    if (stretched) {
-      var roofType = (typeof _detectAutoRoofType === 'function') ? _detectAutoRoofType() : null;
-      if (roofType) {
-        try { regenerateAutoRoofLines(roofType); } catch(e){}
-      } else {
-        try { autoPopulateGutters && autoPopulateGutters(); } catch(e){}
-      }
-      try { autoCalcLineMeasurements && autoCalcLineMeasurements(); } catch(e){}
-      try { syncToRoofData && syncToRoofData(); } catch(e){}
-    }
   }
 
   closeLineMeasPopup();
@@ -16473,6 +16523,7 @@ var TOOLTIPS = {
   'btn-hip':          'Hip line: draw the diagonal rafter at a hip end of the roof.',
   'btn-penetration':  'Penetration: click to place a dot marking a skylight, chimney, pipe or other opening.',
   'btn-boxedpen':     'Boxed Penetration: click two corners (axis-snapped to a square box) to outline a skylight / chimney opening, then enter width × length in mm. The dimensions render inside the box (e.g. "350×850 mm").',
+  'btn-sheetmeas':    'Sheet measure: click anywhere on the canvas to drop a manual sheet-length tag (e.g. "4.50m") with arrows. Click the tag to edit the length or type DELETE to remove it; use the Delete tool to clear it from the canvas.',
   'btn-info':         'Add Info: click to place a numbered note marker. Add details in the right-hand panel.',
   'btn-measurements': 'Measurements: open the calculator — enter your dimensions and get roof area, ridge lm, gutter lm and more.',
   'btn-barge':        'Barge line: draw the rake/barge edge of a gable roof. Auto-splits into two lengths where a ridge meets it.',
@@ -17168,11 +17219,17 @@ function _matRoofMapHandleClick(cx, cy){
 function _flashEditPopup(hit){
   if (!hit || !hit.key) return;
   var typeName = (hit.type || 'flashing').replace(/^./, function(c){ return c.toUpperCase(); });
-  var msg = typeName + ' — letter ' + (hit.letter || '?') + ', length ' + hit.lengthM.toFixed(1) + 'm.\n\n' +
-    'Enter a new letter ref (blank = auto), or type "DELETE" to remove this entry.';
-  var newLetter = window.prompt(msg, hit.letter || '');
-  if (newLetter == null) return;
-  var clean = String(newLetter).trim();
+  // Single combined prompt — `letter:length` lets the user change both
+  // values in one shot, or just the letter, or just the length. The
+  // previous two-prompt sequence was annoying when you only needed to
+  // bump one of the two values.
+  var presetLetter = hit.letter || '';
+  var presetLength = (+hit.lengthM || 0).toFixed(1);
+  var msg = typeName + ' — currently ' + (presetLetter || '?') + ': ' + presetLength + 'm.\n\n' +
+    'Enter "letter:length" (e.g. "A:4.6") to change both, just a letter, just a number, or type DELETE to remove.';
+  var ans = window.prompt(msg, presetLetter + ':' + presetLength);
+  if (ans == null) return;
+  var clean = String(ans).trim();
   if (!DRAW.flashLayoutOverrides) DRAW.flashLayoutOverrides = {};
   var ov = DRAW.flashLayoutOverrides[hit.key] || {};
   if (clean.toUpperCase() === 'DELETE' || clean.toUpperCase() === 'X') {
@@ -17182,14 +17239,16 @@ function _flashEditPopup(hit){
     return;
   }
   delete ov.hidden;
-  if (clean) ov.letter = clean.toUpperCase(); else delete ov.letter;
-  var newLen = window.prompt(
-    'Length (m) — currently ' + hit.lengthM.toFixed(1) +
-    ' (drawn ' + (hit.line && hit.line.measM ? hit.line.measM : 0) +
-    ' + 0.4m waste, rounded to 0.1m). Blank = auto.',
-    hit.lengthM.toFixed(1)
-  );
-  if (newLen != null) {
+  // Split "letter:length" — either part can be blank to mean "leave
+  // alone" (letter:auto, length:auto).
+  var parts = clean.split(':');
+  var newLetter = (parts[0] || '').trim();
+  var newLen    = parts.length > 1 ? (parts[1] || '').trim() : '';
+  // Letter half: blank = revert to auto, non-blank = override.
+  if (newLetter === '') delete ov.letter;
+  else ov.letter = newLetter.toUpperCase();
+  // Length half: blank = revert to auto, number = override.
+  if (newLen !== '') {
     var n = parseFloat(newLen);
     if (!isNaN(n) && n > 0) ov.lengthM = n; else delete ov.lengthM;
   }
@@ -17203,13 +17262,40 @@ function _flashEditPopup(hit){
 function _sheetEditPopup(hit){
   if (!hit || !hit.key) return;
   var current = hit.label || '';
+  // Manual sheet measures (placed via the Sheet measure tool) live in
+  // DRAW.manualSheetMeasures — click to edit length, type DELETE to
+  // remove the whole tag.
+  if (typeof hit.manualIdx === 'number' && Array.isArray(DRAW.manualSheetMeasures)) {
+    var m = DRAW.manualSheetMeasures[hit.manualIdx];
+    if (!m) return;
+    var ans = window.prompt(
+      'Sheet measure currently ' + current + '.\n\n' +
+      'Enter a new length in metres, or type DELETE to remove this measure.',
+      (+m.lengthM || 0).toFixed(2)
+    );
+    if (ans == null) return;
+    var trimmed = String(ans).trim();
+    if (trimmed.toUpperCase() === 'DELETE' || trimmed.toUpperCase() === 'X') {
+      DRAW.manualSheetMeasures.splice(hit.manualIdx, 1);
+    } else {
+      var v = parseFloat(trimmed);
+      if (isFinite(v) && v >= 0) m.lengthM = v;
+    }
+    try { saveSnapshot(); } catch(e){}
+    try { redrawAll(); } catch(e){}
+    return;
+  }
   var promptMsg = 'Sheet length for this face is currently ' + current + '.\n\n' +
-    'Enter a new length in metres (blank = revert to auto-calculated).';
+    'Enter a new length in metres, type DELETE to hide this auto label, or leave blank to revert to auto.';
   var newLen = window.prompt(promptMsg, current.replace(/m$/, ''));
   if (newLen == null) return;
   var clean = String(newLen).trim();
   if (!DRAW.sheetOverrides) DRAW.sheetOverrides = {};
-  if (clean === '') {
+  if (clean.toUpperCase() === 'DELETE' || clean.toUpperCase() === 'X') {
+    // Sentinel value below 0 marks "hidden" — _collectSheetDimsFor
+    // checks for this and skips the label entirely.
+    DRAW.sheetOverrides[hit.key] = -1;
+  } else if (clean === '') {
     delete DRAW.sheetOverrides[hit.key];
   } else {
     var n = parseFloat(clean);
