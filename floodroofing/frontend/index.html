@@ -12818,6 +12818,11 @@ var IMG_OFFSET = { x: 0, y: 0 };
 var IMG_FINE_ROTATION = 0; // fine angle -45 to +45 degrees
 
 var DRAG_EP = null;
+// Sheet-label drag — populated in onCanvasMouseDown when the user
+// presses on a sheet hit box in Move mode. While set, mousemove
+// rewrites either DRAW.manualSheetMeasures[idx].(x,y) for a manual
+// measure, or DRAW.sheetLabelOffsets[key] for an auto label.
+var DRAG_SHEET = null;
 // Corner-drag state for the building outline. Set when the user
 // mouses down within OUTLINE_VERT_GRAB pixels of an outline vertex
 // while the Move/select tool is active. `idx` is the outline index;
@@ -13256,6 +13261,41 @@ function onCanvasMouseDown(e) {
       if(Math.sqrt(dx*dx+dy*dy)<THRESH){ DRAG_EP={lineIdx:DRAW.selectedLine,epIdx:ei}; return; }
     }
   }
+  // Sheet-label drag (Move tool only) — claim the mousedown if it
+  // landed on a stashed sheet hit box so the user can reposition the
+  // 4.35m / 0.00m tag. Mouseup uses SUPPRESS_NEXT_CLICK to make sure
+  // the trailing click doesn't also open the edit popup.
+  if (DRAW.tool === 'select' && window._roofCanvasHits && window._roofCanvasHits.sheets && window._roofCanvasHits.sheets.length){
+    var _scv = document.getElementById('roofCanvas');
+    var _srect = _scv.getBoundingClientRect();
+    var _sdpr = window.devicePixelRatio || 1;
+    var _scx = (e.clientX - _srect.left) * (_scv.width  / _srect.width)  / _sdpr;
+    var _scy = (e.clientY - _srect.top)  * (_scv.height / _srect.height) / _sdpr;
+    var _hits = window._roofCanvasHits.sheets;
+    for (var _shi = 0; _shi < _hits.length; _shi++){
+      var _sh = _hits[_shi];
+      if (_scx >= _sh.x - _sh.w/2 && _scx <= _sh.x + _sh.w/2 &&
+          _scy >= _sh.y - _sh.h/2 && _scy <= _sh.y + _sh.h/2){
+        // For an auto label we anchor on the override key + the
+        // current pixel offset; for a manual measure we anchor on
+        // its index and starting (x,y) in image space.
+        var _startXY = getXY(e);
+        if (typeof _sh.manualIdx === 'number' && Array.isArray(DRAW.manualSheetMeasures) && DRAW.manualSheetMeasures[_sh.manualIdx]){
+          var _m0 = DRAW.manualSheetMeasures[_sh.manualIdx];
+          DRAG_SHEET = { kind:'manual', idx:_sh.manualIdx, startMouseImg:_startXY, startX:_m0.x, startY:_m0.y, moved:false };
+        } else if (_sh.key) {
+          if (!DRAW.sheetLabelOffsets) DRAW.sheetLabelOffsets = {};
+          var _o0 = DRAW.sheetLabelOffsets[_sh.key] || [0, 0];
+          DRAG_SHEET = { kind:'auto', key:_sh.key, startMouseImg:_startXY, startOff:_o0.slice(), moved:false };
+        }
+        if (DRAG_SHEET){
+          _scv.style.cursor = 'grabbing';
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+  }
   // Corner-drag for the building outline (Move tool only). The
   // existing pan logic runs in the same tool, so we have to claim the
   // event first if the click landed on a vertex.
@@ -13314,6 +13354,17 @@ function onCanvasMouseDown(e) {
 
 function onCanvasMouseUp(e) {
   if(DRAG_EP) { saveSnapshot(); updateMeasTotals(); DRAG_EP=null; redrawAll(); return; }
+  if(DRAG_SHEET) {
+    // Suppress the click that's about to fire so it doesn't reopen
+    // the edit popup right after a drag.  A true tap (moved===false)
+    // falls through so the click handler still gets to run.
+    if (DRAG_SHEET.moved) { SUPPRESS_NEXT_CLICK = true; saveSnapshot(); }
+    DRAG_SHEET = null;
+    var _cv = document.getElementById('roofCanvas');
+    if (_cv) _cv.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    redrawAll();
+    return;
+  }
   if(DRAG_OUTLINE_VERT) {
     // Final regen so the committed state matches what the user sees.
     if (DRAG_OUTLINE_VERT.regenRoofType) {
@@ -13357,6 +13408,14 @@ document.addEventListener('mousemove', function(e) {
   redrawAll();
 });
 document.addEventListener('mouseup', function(e) {
+  if(DRAG_SHEET){
+    if (DRAG_SHEET.moved) { SUPPRESS_NEXT_CLICK = true; try { saveSnapshot(); } catch(err){} }
+    DRAG_SHEET = null;
+    var _cv2 = document.getElementById('roofCanvas');
+    if (_cv2) _cv2.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    try { redrawAll(); } catch(err){}
+    return;
+  }
   if(DRAG_OUTLINE_VERT){
     if (DRAG_OUTLINE_VERT.regenRoofType) {
       try { regenerateAutoRoofLines(DRAG_OUTLINE_VERT.regenRoofType); } catch(err){}
@@ -13644,6 +13703,23 @@ function onCanvasMove(e) {
   // Drag endpoint
   if(DRAG_EP) {
     DRAW.lines[DRAG_EP.lineIdx].pts[DRAG_EP.epIdx] = [xy[0],xy[1]];
+    redrawAll(); return;
+  }
+  // Drag sheet label — manual measures write through to (x, y);
+  // auto labels accumulate a per-key offset.  We mark `moved` so the
+  // trailing click handler can suppress the edit popup if the user
+  // was genuinely dragging vs. tapping.
+  if (DRAG_SHEET) {
+    var dxImg = xy[0] - DRAG_SHEET.startMouseImg[0];
+    var dyImg = xy[1] - DRAG_SHEET.startMouseImg[1];
+    if (Math.abs(dxImg) + Math.abs(dyImg) > 0.4) DRAG_SHEET.moved = true;
+    if (DRAG_SHEET.kind === 'manual'){
+      var mm = DRAW.manualSheetMeasures && DRAW.manualSheetMeasures[DRAG_SHEET.idx];
+      if (mm){ mm.x = DRAG_SHEET.startX + dxImg; mm.y = DRAG_SHEET.startY + dyImg; }
+    } else if (DRAG_SHEET.kind === 'auto'){
+      if (!DRAW.sheetLabelOffsets) DRAW.sheetLabelOffsets = {};
+      DRAW.sheetLabelOffsets[DRAG_SHEET.key] = [DRAG_SHEET.startOff[0] + dxImg, DRAG_SHEET.startOff[1] + dyImg];
+    }
     redrawAll(); return;
   }
   // Drag building-outline corner. getXY already disables the
@@ -15125,6 +15201,12 @@ function redrawAll() {
           if (ov === -1) return;
           var sheetM = (ov != null && isFinite(ov) && ov > 0) ? ov : autoSheetM;
           var isOverride = (ov != null && isFinite(ov) && ov > 0);
+          // Per-label offset (set when the user drags the label in
+          // Move mode) — applied to the label position before we
+          // convert to screen coords. Stored in IMAGE pixels so it
+          // stays anchored as the user zooms / pans.
+          var lblOff = (DRAW.sheetLabelOffsets && DRAW.sheetLabelOffsets[key]) || [0, 0];
+          lblImgX += lblOff[0]; lblImgY += lblOff[1];
           var sR = dp([rmx, rmy]), sE = dp([endImgX, endImgY]), sL = dp([lblImgX, lblImgY]);
           var sdx = sE[0]-sR[0], sdy = sE[1]-sR[1];
           var sdl = Math.sqrt(sdx*sdx + sdy*sdy);
