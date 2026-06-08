@@ -1949,6 +1949,46 @@ select{
     </div>
   </div>
 
+  <!-- 3b. FLASHINGS — gallery of flashing drawings selected for THIS job.
+       Each slot can be filled from the saved library OR drawn fresh in
+       the sketch modal. Three slots per row; a fourth starts a new row.
+       Stored on S.matFlashings so it rides along with the job save. -->
+  <div class="card" id="matFlashingsCard">
+    <div class="card-hd"><span class="card-dot"></span>Flashings
+      <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— pick the flashing drawings the supplier needs for this job</span>
+      <button onclick="_matFlashingsAdd()" style="margin-left:auto;padding:5px 12px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">+ Add Flashing</button>
+    </div>
+    <div id="matFlashingsGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:10px 0">
+      <p style="font-size:12px;color:var(--text2);grid-column:1/-1;padding:6px 0">No flashings added yet — click <strong>+ Add Flashing</strong> above to start.</p>
+    </div>
+  </div>
+
+  <!-- Saved-flashings picker modal — opens from a Flashings slot's
+       "Add From Saved" button. -->
+  <div id="matFlashingsPickerModal" style="display:none;position:fixed;inset:0;background:rgba(13,13,12,.55);z-index:9999;align-items:center;justify-content:center;padding:24px">
+    <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(840px,92vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <strong style="font-size:14px;color:#0a1628">Choose a saved flashing</strong>
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);margin-left:18px">Type
+          <select id="matFlashingsPickerTypeFilter" onchange="_matFlashingsPickerRender()" style="margin:0;padding:5px 8px;font-size:11.5px;border:1px solid var(--border);border-radius:6px;background:#fff;color:#0a1628">
+            <option value="">All</option>
+            <option value="ridgehip">Ridge / Hip</option>
+            <option value="barge|side">Side barge</option>
+            <option value="barge|head">Head barge</option>
+            <option value="apron|side">Side apron</option>
+            <option value="apron|head">Head apron</option>
+            <option value="valley">Valley</option>
+            <option value="changepitch">Change of pitch</option>
+            <option value="drip">Drip edge</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <button onclick="_matFlashingsPickerClose()" style="margin-left:auto;background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;line-height:1;padding:4px 8px">×</button>
+      </div>
+      <div id="matFlashingsPickerGrid" style="overflow-y:auto;flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:4px"></div>
+    </div>
+  </div>
+
   <!-- 4. CONSUMABLES — restyled to match. -->
   <div class="card" id="materialsConsumablesCard">
     <div class="card-hd"><span class="card-dot"></span>Consumables
@@ -3249,7 +3289,7 @@ function gotoTab(t) {
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
-  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}}
+  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
@@ -10572,6 +10612,21 @@ function saveFlashSketch(){
     try { renderMaterialsCutLists(); } catch(e){}
     return;
   }
+  // Materials-tab Flashings gallery "Add Custom" — fill the pending
+  // slot with the saved sketch.  Slot pointer is set by
+  // _matFlashingsCustomOpen right before openFlashSketch(-1).
+  if (typeof _matFlashingsCustomPending === 'number' && _matFlashingsCustomPending >= 0) {
+    var slotIdx = _matFlashingsCustomPending;
+    _matFlashingsCustomPending = -1;
+    var arr = (typeof _matFlashingsArr === 'function') ? _matFlashingsArr() : [];
+    if (arr[slotIdx]) {
+      arr[slotIdx] = { source: 'custom', sketch: url, name: 'Custom flashing #' + (slotIdx + 1) };
+    }
+    closeFlashSketch();
+    try { autosaveJob && autosaveJob(); } catch(e){}
+    try { renderMatFlashingsGrid && renderMatFlashingsGrid(); } catch(e){}
+    return;
+  }
   // Order mode (legacy)
   var idx = _flashSketchState.idx;
   if (S.order.flashings[idx]) {
@@ -17833,13 +17888,66 @@ function _matBuildCutList(type, waste) {
     bucket[k].qty++;
   });
   var rows = order.map(function(k){ return bucket[k]; });
+  // User-added "extra" pieces — stored on DRAW.matCutListExtras[type]
+  // as plain {letter, length, qty} entries. Appended AFTER the
+  // drawing-derived rows so they sort separately and don't get
+  // collapsed into the auto buckets. `_isExtra` is consumed by
+  // _matCutListTable to wire delete + edit handlers to the right
+  // backing slot.
+  if (DRAW.matCutListExtras && Array.isArray(DRAW.matCutListExtras[type])) {
+    DRAW.matCutListExtras[type].forEach(function(x, xi){
+      if (!x) return;
+      var L = +x.length || 0;
+      var qty = +x.qty || 0;
+      if (L <= 0 || qty <= 0) return;
+      rows.push({ letter: x.letter || '', length: L, qty: qty, _isExtra: true, _extraIdx: xi });
+    });
+  }
   rows.sort(function(a, b){
     var la = a.letter || 'ZZ', lb = b.letter || 'ZZ';
     if (la < lb) return -1; if (la > lb) return 1;
     return b.length - a.length;
   });
   var total = pieces.reduce(function(s,p){ return s+p.length; }, 0);
-  return { rows: rows, totalLm: total, pieceCount: pieces.length, typeKey: type };
+  if (DRAW.matCutListExtras && Array.isArray(DRAW.matCutListExtras[type])) {
+    DRAW.matCutListExtras[type].forEach(function(x){
+      if (!x) return;
+      var L = +x.length || 0, qty = +x.qty || 0;
+      if (L > 0 && qty > 0) total += L * qty;
+    });
+  }
+  var pieceCount = pieces.length;
+  if (DRAW.matCutListExtras && Array.isArray(DRAW.matCutListExtras[type])) {
+    DRAW.matCutListExtras[type].forEach(function(x){
+      if (x && (+x.qty || 0) > 0) pieceCount += +x.qty;
+    });
+  }
+  return { rows: rows, totalLm: total, pieceCount: pieceCount, typeKey: type };
+}
+// ── User-added cut-list rows ───────────────────────────────────
+// Stored on DRAW so they ride along with multi-roof snapshots; not
+// persisted to localStorage independently — they belong to THIS job.
+function _matExtrasAdd(typeKey){
+  if (!DRAW.matCutListExtras) DRAW.matCutListExtras = {};
+  if (!Array.isArray(DRAW.matCutListExtras[typeKey])) DRAW.matCutListExtras[typeKey] = [];
+  DRAW.matCutListExtras[typeKey].push({ letter: '', length: 1.0, qty: 1 });
+  try { saveSnapshot(); } catch(e){}
+  renderMaterialsCutLists();
+}
+function _matExtrasUpdate(typeKey, idx, field, value){
+  if (!DRAW.matCutListExtras || !Array.isArray(DRAW.matCutListExtras[typeKey])) return;
+  var x = DRAW.matCutListExtras[typeKey][idx]; if (!x) return;
+  if (field === 'letter') x.letter = String(value || '').toUpperCase().slice(0, 3);
+  else if (field === 'length') { var n = parseFloat(value); x.length = (isFinite(n) && n > 0) ? n : 0; }
+  else if (field === 'qty')    { var q = parseInt(value, 10); x.qty = (isFinite(q) && q >= 0) ? q : 0; }
+  try { saveSnapshot(); } catch(e){}
+  renderMaterialsCutLists();
+}
+function _matExtrasDelete(typeKey, idx){
+  if (!DRAW.matCutListExtras || !Array.isArray(DRAW.matCutListExtras[typeKey])) return;
+  DRAW.matCutListExtras[typeKey].splice(idx, 1);
+  try { saveSnapshot(); } catch(e){}
+  renderMaterialsCutLists();
 }
 
 // Look up saved flashings matching the current roof profile + this
@@ -18229,9 +18337,6 @@ function _matCompactSection(opts) {
 // at the end of each row deletes the entry from the cut list (marks
 // every matching line as hidden in the overrides map). No popups.
 function _matCutListTable(cl, emptyMsg) {
-  if (cl.pieceCount === 0) {
-    return '<div class="cut-list-empty">'+esc(emptyMsg || 'No pieces yet — add drawn line measurements.')+'</div>';
-  }
   var typeKey = cl.typeKey || '';
   // Resolve all library entries for this flashing type so each row can
   // pick which drawing represents that specific piece (e.g. the first
@@ -18239,6 +18344,15 @@ function _matCutListTable(cl, emptyMsg) {
   // sketches).
   var libMatches = typeKey ? _matSavedFlashingsFor(typeKey) : [];
   var hasLib = libMatches.length > 0;
+  // "+ Add row" lets the user add a piece that isn't tied to any drawn
+  // line (e.g. a leftover from a previous job, or a make-up piece the
+  // supplier needs alongside the auto-derived pieces). Always shown.
+  var addBtn = typeKey
+    ? '<button onclick="_matExtrasAdd(\''+typeKey+'\')" class="add-link" style="margin-top:8px;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#0a1628;background:transparent;border:1px dashed #94a3b8;border-radius:6px;padding:5px 12px;cursor:pointer">+ Add row</button>'
+    : '';
+  if (cl.pieceCount === 0) {
+    return '<div class="cut-list-empty">'+esc(emptyMsg || 'No pieces yet — add drawn line measurements.')+'</div>' + addBtn;
+  }
   var html = '<table class="cut-list cut-list-editable"><thead><tr>'+
     '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th>'+
     (hasLib ? '<th class="r">Drawing</th>' : '')+
@@ -18247,26 +18361,51 @@ function _matCutListTable(cl, emptyMsg) {
   cl.rows.forEach(function(r, i){
     var lbl = r.letter ? r.letter : '?';
     var rowKey = esc(typeKey + '::' + (r.letter || '') + '::' + r.length.toFixed(2));
-    var letterInput = '<input class="cl-letter" data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" '+
-      'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLetter(this)" '+
-      'style="width:42px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:2px 4px;border-radius:4px;font-size:inherit">';
-    var lenInput = '<input class="cl-length" data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" '+
-      'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLength(this)" '+
-      'style="width:62px;border:1px solid transparent;background:transparent;text-align:right;padding:2px 4px;border-radius:4px;font-size:inherit">';
+    // Extra rows (user-added) write through to DRAW.matCutListExtras
+    // and have their own delete handler; drawing-derived rows use the
+    // existing flashLayoutOverrides path via _matInline* helpers.
+    var isExtra = !!r._isExtra;
+    var extraIdx = r._extraIdx;
+    var letterInput, lenInput, qtyCell, deleteCell;
+    if (isExtra) {
+      letterInput = '<input class="cl-letter" type="text" maxlength="3" value="'+esc(lbl)+'" '+
+        'onfocus="this.select()" '+
+        'onchange="_matExtrasUpdate(\''+esc(typeKey)+'\','+extraIdx+',\'letter\',this.value)" '+
+        'style="width:42px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:2px 4px;border-radius:4px;font-size:inherit;font-style:italic">';
+      lenInput = '<input class="cl-length" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" '+
+        'onfocus="this.select()" '+
+        'onchange="_matExtrasUpdate(\''+esc(typeKey)+'\','+extraIdx+',\'length\',this.value)" '+
+        'style="width:62px;border:1px solid transparent;background:transparent;text-align:right;padding:2px 4px;border-radius:4px;font-size:inherit">';
+      qtyCell = '<input class="cl-qty" type="number" step="1" min="1" value="'+r.qty+'" '+
+        'onfocus="this.select()" '+
+        'onchange="_matExtrasUpdate(\''+esc(typeKey)+'\','+extraIdx+',\'qty\',this.value)" '+
+        'style="width:48px;border:1px solid transparent;background:transparent;text-align:right;padding:2px 4px;border-radius:4px;font-size:inherit">';
+      deleteCell = '<button onclick="_matExtrasDelete(\''+esc(typeKey)+'\','+extraIdx+')" title="Delete this added piece" '+
+        'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:2px 6px;line-height:1">×</button>';
+    } else {
+      letterInput = '<input class="cl-letter" data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" '+
+        'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLetter(this)" '+
+        'style="width:42px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:2px 4px;border-radius:4px;font-size:inherit">';
+      lenInput = '<input class="cl-length" data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" '+
+        'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLength(this)" '+
+        'style="width:62px;border:1px solid transparent;background:transparent;text-align:right;padding:2px 4px;border-radius:4px;font-size:inherit">';
+      qtyCell = r.qty;
+      deleteCell = '<button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Remove this piece from the cut list" '+
+        'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:2px 6px;line-height:1">×</button>';
+    }
     var drawingCell = hasLib ? '<td class="r">'+_matRowDrawingHtml(typeKey, i, libMatches)+'</td>' : '';
-    html += '<tr>'+
+    html += '<tr'+(isExtra?' style="background:#fffbeb"':'')+'>'+
       '<td>'+letterInput+'</td>'+
-      '<td class="r">'+r.qty+'</td>'+
+      '<td class="r">'+qtyCell+'</td>'+
       '<td class="r">'+lenInput+' m</td>'+
       drawingCell +
-      '<td class="r"><button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Remove this piece from the cut list" '+
-        'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:2px 6px;line-height:1">×</button></td>'+
+      '<td class="r">'+deleteCell+'</td>'+
     '</tr>';
   });
   html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td>'+
     (hasLib ? '<td class="r"></td>' : '')+
     '<td class="r"></td></tr></tfoot></table>';
-  return html;
+  return html + addBtn;
 }
 // Per-row drawing pick — each piece can use a different library entry
 // for the supplier's flashing reference. Default is the first match
@@ -18578,6 +18717,142 @@ function _matConsOverrideSet(key, v){
   }
   _matRenderConsumables(_matDrawTotals());
 }
+
+// ── Flashings gallery (Materials/Job Pack tab) ──────────────────
+// Slot model: each entry on S.matFlashings is one slot. A slot can be:
+//   - empty (no source picked yet)        → renders the "Add From
+//                                            Saved" / "Add Custom"
+//                                            chooser
+//   - sourced from a library entry        → { source:'library', name }
+//   - a custom sketch saved into the slot → { source:'custom',
+//                                              sketch, name }
+// Three slots per row via CSS grid.  The "+ Add Flashing" button
+// appends an empty slot to the end of the array; user picks the
+// source from inside that slot.
+function _matFlashingsArr(){
+  if (!S.matFlashings) S.matFlashings = [];
+  return S.matFlashings;
+}
+function _matFlashingsAdd(){
+  _matFlashingsArr().push({ source: null });
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderMatFlashingsGrid();
+}
+function _matFlashingsRemove(idx){
+  var arr = _matFlashingsArr();
+  if (idx < 0 || idx >= arr.length) return;
+  arr.splice(idx, 1);
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderMatFlashingsGrid();
+}
+function _matFlashingsRender(){
+  // Alias — both renderMatFlashingsGrid and _matFlashingsRender call
+  // through to the same renderer; the public name follows the
+  // renderMat* convention used elsewhere on the tab.
+  return renderMatFlashingsGrid();
+}
+function renderMatFlashingsGrid(){
+  var grid = document.getElementById('matFlashingsGrid'); if (!grid) return;
+  var arr = _matFlashingsArr();
+  if (!arr.length) {
+    grid.innerHTML = '<p style="font-size:12px;color:var(--text2);grid-column:1/-1;padding:6px 0">No flashings added yet — click <strong>+ Add Flashing</strong> above to start.</p>';
+    return;
+  }
+  grid.innerHTML = arr.map(function(slot, i){ return _matFlashingsSlotHtml(slot, i); }).join('');
+}
+function _matFlashingsSlotHtml(slot, idx){
+  var inner;
+  if (slot && slot.source === 'library') {
+    var lib = _getAllFlashings();
+    var entry = lib.find(function(e){ return e.name === slot.name; });
+    if (entry && entry.sketch) {
+      inner = '<img src="'+esc(entry.sketch)+'" alt="" style="width:100%;height:120px;object-fit:contain;background:#fff;border-radius:6px">' +
+        '<div style="font-size:11.5px;font-weight:600;color:#0a1628;margin-top:6px;line-height:1.25">'+esc(entry.name)+'</div>' +
+        '<div style="font-size:10px;color:var(--text2);margin-top:1px">'+esc(_matFlashingTypeLabel(entry.flashingType || 'custom'))+'</div>';
+    } else {
+      inner = '<div style="padding:18px 8px;font-size:11px;color:#b91c1c;font-style:italic">Saved entry "'+esc(slot.name)+'" was removed from the library.</div>';
+    }
+  } else if (slot && slot.source === 'custom' && slot.sketch) {
+    inner = '<img src="'+esc(slot.sketch)+'" alt="" style="width:100%;height:120px;object-fit:contain;background:#fff;border-radius:6px">' +
+      '<div style="font-size:11.5px;font-weight:600;color:#0a1628;margin-top:6px;line-height:1.25">'+esc(slot.name || 'Custom flashing')+'</div>' +
+      '<div style="font-size:10px;color:var(--text2);margin-top:1px">Custom drawing</div>';
+  } else {
+    // Empty slot — two action buttons inside the box.
+    inner = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:18px 6px;min-height:120px">' +
+      '<svg viewBox="0 0 24 24" style="width:30px;height:30px;opacity:.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>' +
+      '<button onclick="_matFlashingsPickerOpen('+idx+')" style="padding:6px 12px;font-size:11px;background:#0a1628;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;width:100%">Add From Saved</button>' +
+      '<button onclick="_matFlashingsCustomOpen('+idx+')" style="padding:6px 12px;font-size:11px;background:#fff;color:#0a1628;border:1px solid #cbd5e1;border-radius:6px;cursor:pointer;font-weight:600;width:100%">Add Custom</button>' +
+    '</div>';
+  }
+  return '<div style="position:relative;border:1px dashed #cbd5e1;border-radius:8px;padding:10px;background:#fafafa;display:flex;flex-direction:column">' +
+    '<button onclick="_matFlashingsRemove('+idx+')" title="Remove this slot" style="position:absolute;top:4px;right:4px;background:none;border:none;color:#94a3b8;font-size:14px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:4px">×</button>' +
+    inner +
+  '</div>';
+}
+function _matFlashingTypeLabel(type){
+  return {
+    'ridgehip':'Ridge / Hip','barge|side':'Side barge','barge|head':'Head barge',
+    'apron|side':'Side apron','apron|head':'Head apron','valley':'Valley',
+    'changepitch':'Change of pitch','drip':'Drip edge','custom':'Custom'
+  }[type] || (type || 'Flashing');
+}
+// Tracks which Flashings slot the picker / custom modal is filling
+// so the close handler can write back the chosen entry.
+var _matFlashingsPendingSlot = -1;
+function _matFlashingsPickerOpen(idx){
+  _matFlashingsPendingSlot = idx;
+  var modal = document.getElementById('matFlashingsPickerModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  var filter = document.getElementById('matFlashingsPickerTypeFilter');
+  if (filter) filter.value = '';   // default = all
+  _matFlashingsPickerRender();
+}
+function _matFlashingsPickerClose(){
+  _matFlashingsPendingSlot = -1;
+  var modal = document.getElementById('matFlashingsPickerModal');
+  if (modal) modal.style.display = 'none';
+}
+function _matFlashingsPickerRender(){
+  var grid = document.getElementById('matFlashingsPickerGrid'); if (!grid) return;
+  var filter = (document.getElementById('matFlashingsPickerTypeFilter')||{}).value || '';
+  var all = _getAllFlashings().filter(function(e){
+    if (!filter) return true;
+    return (e.flashingType || 'custom') === filter;
+  });
+  if (!all.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;padding:24px;text-align:center;font-size:12px;color:var(--text2)">No saved flashings match this filter — switch to "All" or add one in Settings → Flashing library.</div>';
+    return;
+  }
+  grid.innerHTML = all.map(function(entry, i){
+    var thumb = entry.sketch
+      ? '<img src="'+esc(entry.sketch)+'" alt="" style="width:100%;height:80px;object-fit:contain;background:#fafafa;border-radius:4px">'
+      : '<div style="width:100%;height:80px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#94a3b8">No sketch</div>';
+    return '<button onclick="_matFlashingsPickerChoose(\''+esc(entry.name).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')" '+
+      'style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:5px;font-family:inherit">'+
+      thumb +
+      '<div style="font-size:11.5px;font-weight:600;color:#0a1628;line-height:1.2">'+esc(entry.name)+'</div>'+
+      '<div style="font-size:10px;color:var(--text2)">'+esc(_matFlashingTypeLabel(entry.flashingType || 'custom'))+'</div>'+
+    '</button>';
+  }).join('');
+}
+function _matFlashingsPickerChoose(name){
+  if (_matFlashingsPendingSlot < 0) return;
+  var arr = _matFlashingsArr();
+  if (_matFlashingsPendingSlot >= arr.length) return;
+  arr[_matFlashingsPendingSlot] = { source: 'library', name: name };
+  _matFlashingsPickerClose();
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderMatFlashingsGrid();
+}
+// "Add Custom" — opens the existing flash sketch modal with the
+// pending pointer set so saveFlashSketch writes back into the slot.
+var _matFlashingsCustomPending = -1;
+function _matFlashingsCustomOpen(idx){
+  _matFlashingsCustomPending = idx;
+  if (typeof openFlashSketch === 'function') openFlashSketch(-1);
+}
+
 // Consumables (restyled to match the Materials section).
 function _matRenderConsumables(d) {
   var out = document.getElementById('matConsumables');
