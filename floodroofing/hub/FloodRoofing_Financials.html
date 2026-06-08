@@ -82,7 +82,7 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:#000;c
 /* table */
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -6px;border-radius:12px;}
 table.tb{width:100%;border-collapse:collapse;font-size:.76rem;}
-table.tb th{position:sticky;top:0;background:var(--elev);color:var(--muted);padding:10px 8px;text-align:right;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}
+table.tb th{position:sticky;top:0;z-index:3;background:var(--elev);color:var(--muted);padding:10px 8px;text-align:right;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}
 table.tb th:first-child,table.tb td:first-child{text-align:left;}
 table.tb td{padding:11px 8px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;color:var(--text);}
 table.tb tr:active td{background:rgba(77,141,255,.08);}
@@ -350,7 +350,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
         <select class="sel" id="bc-type" onchange="renderBC()"></select>
       </div>
       <input class="sel" id="bc-search" placeholder="🔍 Job or address…" oninput="renderBC()" style="margin-bottom:9px;">
-      <div class="tbl-wrap">
+      <div class="tbl-wrap" style="max-height:65vh;overflow:auto;">
         <table class="tb" id="bc-tbl">
           <thead><tr><th>Month</th><th>Job</th><th>Sales</th><th>COGS</th><th>GP</th><th>GPM</th><th>GP/Hr</th><th>NP</th><th>NP/Hr</th><th>Act h</th></tr></thead>
           <tbody id="bc-body"></tbody>
