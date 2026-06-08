@@ -328,6 +328,21 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     </div>
 
     <div class="tiles" id="bc-tiles"></div>
+    <div class="card">
+      <div class="ct">Overhead Recovery (for NP) <span class="period-sub" style="margin-left:auto;">$/billable hour</span></div>
+      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="bc-oh-rate" style="font-size:2.4rem;">—</div><div class="unit">overhead recovery rate / hour</div></div>
+      <div class="cfg">
+        <div><label>Monthly OPEX $</label><input id="bc-opex" type="number" inputmode="decimal" placeholder="auto" oninput="saveBcOh()"></div>
+        <div><label>Field staff</label><input id="bc-emp" type="number" inputmode="numeric" placeholder="auto" oninput="saveBcOh()"></div>
+        <div><label>Utilisation %</label><input id="bc-util" type="number" inputmode="numeric" placeholder="90" oninput="saveBcOh()"></div>
+        <div><label>Annual leave wks</label><input id="bc-al" type="number" inputmode="numeric" placeholder="4" oninput="saveBcOh()"></div>
+        <div><label>Sick days/yr</label><input id="bc-sick" type="number" inputmode="numeric" placeholder="10" oninput="saveBcOh()"></div>
+        <div><label>Public hols/yr</label><input id="bc-ph" type="number" inputmode="numeric" placeholder="12" oninput="saveBcOh()"></div>
+        <div><label>Weekly hours</label><input id="bc-wh" type="number" inputmode="numeric" placeholder="40" oninput="saveBcOh()"></div>
+        <div><label>Override $/hr</label><input id="bc-ohov" type="number" inputmode="decimal" placeholder="optional" oninput="saveBcOh()"></div>
+      </div>
+      <div class="note" id="bc-oh-note"></div>
+    </div>
     <div class="card" style="margin-top:12px;">
       <div class="ct">All Back Costing <span id="bc-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
       <div class="row2" style="margin-bottom:9px;">
@@ -335,7 +350,6 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
         <select class="sel" id="bc-type" onchange="renderBC()"></select>
       </div>
       <input class="sel" id="bc-search" placeholder="🔍 Job or address…" oninput="renderBC()" style="margin-bottom:9px;">
-      <div class="fld" style="margin-bottom:9px;"><label>Monthly OPEX for NP (blank = 6-mo Xero avg of overheads + wages)</label><input class="sel" id="bc-opex" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveBcOpex()"></div>
       <div class="tbl-wrap">
         <table class="tb" id="bc-tbl">
           <thead><tr><th>Month</th><th>Job</th><th>Sales</th><th>COGS</th><th>GP</th><th>GPM</th><th>GP/Hr</th><th>NP</th><th>NP/Hr</th><th>Act h</th></tr></thead>
@@ -1137,7 +1151,23 @@ async function checkMaterialsVsXero(){
   finally{if(btn){btn.disabled=false;btn.innerHTML='⟳ Check materials &amp; scaffolding vs Xero';}}
 }
 
-function saveBcOpex(){const e=document.getElementById('bc-opex');if(e)S.set('bcOpex',(e.value||'').trim());renderBC();}
+const OH_FIELDS=[['bc-opex','bcOpex'],['bc-emp','bcEmp'],['bc-util','bcUtil'],['bc-al','bcAL'],['bc-sick','bcSick'],['bc-ph','bcPH'],['bc-wh','bcWH'],['bc-ohov','bcOhOverride']];
+function saveBcOh(){OH_FIELDS.forEach(([id,k])=>{const e=document.getElementById(id);if(e)S.set(k,(e.value||'').trim());});renderBC();}
+// Overhead recovery rate per billable hour (per the Overhead Recovery Calculator):
+//   (Monthly OPEX × 12 ÷ field staff) ÷ (52 − weeks not working) ÷ (weekly hours × utilisation)
+function ohRate(){
+  const sg=(k,d)=>{const v=parseFloat(S.get(k,''));return isNaN(v)?d:v;};
+  let oxSum=0,oxN=0;dataMonths().slice(-6).forEach(k=>{const x=xeroMonthly[k];if(x){oxSum+=num(x.opex)+num(x.wages);oxN++;}});
+  const opexAuto=oxN?oxSum/oxN:0;
+  const opexSet=parseFloat(S.get('bcOpex',''));const opexIsAuto=isNaN(opexSet);const opex=opexIsAuto?opexAuto:opexSet;
+  const emp=Math.max(1,sg('bcEmp',(capacity().people||1)));
+  const al=sg('bcAL',4),sick=sg('bcSick',10),ph=sg('bcPH',12);
+  const util=Math.max(0.1,sg('bcUtil',90)/100),wh=Math.max(1,sg('bcWH',40));
+  const weeksOff=((sick+ph)/5)+al;const billWeeks=Math.max(1,52-weeksOff);const billHrs=Math.max(1,wh*util);
+  const calcRate=((opex*12)/emp)/billWeeks/billHrs;
+  const ov=parseFloat(S.get('bcOhOverride',''));const override=(!isNaN(ov)&&ov>0);
+  return {rate:override?ov:calcRate,override,opex,opexIsAuto,emp,al,sick,ph,util,wh,billWeeks,billHrs,calcRate};
+}
 function renderBC(){
   fillBCFilters();
   renderBCStrip();
@@ -1152,12 +1182,11 @@ function renderBC(){
   document.getElementById('bc-lbl-last').textContent=p.lastM||'—';
   renderRollingStrip('roll-strip-bc',bcFig,dataMonths().slice(-12).reverse(),true);
 
-  const oe=document.getElementById('bc-opex');if(oe&&!oe.value)oe.value=S.get('bcOpex','');
-  // overhead recovery rate ($/hr) for NP: monthly OPEX ÷ avg monthly on-site hours (last 6 data-months)
-  const bcMs=dataMonths().slice(-6);let oxSum=0,oxN=0,hrSum=0;const MA=monthAgg();
-  bcMs.forEach(k=>{const x=xeroMonthly[k];if(x){oxSum+=num(x.opex)+num(x.wages);oxN++;}const a=MA[k];if(a)hrSum+=num(a.hA);});
-  const ovOv=parseFloat(S.get('bcOpex',''));const monthlyOpex=!isNaN(ovOv)?ovOv:(oxN?oxSum/oxN:0);
-  const avgMonthHrs=bcMs.length?hrSum/bcMs.length:0;const ovRate=avgMonthHrs>0?monthlyOpex/avgMonthHrs:0;
+  OH_FIELDS.forEach(([id,k])=>{const e=document.getElementById(id);if(e&&!e.value&&S.get(k,''))e.value=S.get(k,'');});
+  const _oh=ohRate();const ovRate=_oh.rate;
+  const rEl=document.getElementById('bc-oh-rate');if(rEl)rEl.textContent=fmt$(ovRate)+'/h';
+  const ohN=document.getElementById('bc-oh-note');
+  if(ohN)ohN.innerHTML=_oh.override?('Manual override: '+fmt$(ovRate)+'/hr — clear the Override box to use the calculator.'):('OH rate = (Monthly OPEX × 12 ÷ field staff) ÷ billable weeks/yr ÷ billable hrs/week. Using OPEX '+fmtK(_oh.opex)+'/mo'+(_oh.opexIsAuto?' (6-mo Xero avg)':'')+' · '+_oh.emp+' staff · '+Math.round(_oh.util*100)+'% utilisation · '+_oh.billWeeks.toFixed(1)+' billable wks · '+Math.round(_oh.billHrs)+' hrs/wk → '+fmt$(_oh.calcRate)+'/hr. NP/hr = GP/hr − this rate.');
   const yr=document.getElementById('bc-year').value, ty=document.getElementById('bc-type').value, q=(document.getElementById('bc-search').value||'').toLowerCase();
   let rows=getAllBC().filter(r=>{
     if(yr!=='all'&&!(r.month||'').endsWith('-'+yr))return false;
