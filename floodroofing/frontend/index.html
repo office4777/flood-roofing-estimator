@@ -1842,7 +1842,20 @@ select{
   <div class="card" id="matRoofMapCard">
     <div class="card-hd" style="flex-wrap:wrap"><span class="card-dot"></span>Roof map
       <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— click a tag to edit / delete · drag a measurement to nudge it</span>
-      <label style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none">
+      <!-- View switcher: Detailed (current full canvas with measures,
+           letter tags, sheet labels) vs Basic (just outlines + lines,
+           each roof shaded with its name + area centred inside). -->
+      <span style="margin-left:auto;display:inline-flex;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;font-size:11px">
+        <button type="button" id="matMapViewDetailedBtn" onclick="_setMatMapView('detailed')" style="border:none;background:#0a1628;color:#fff;padding:4px 10px;font-weight:700;cursor:pointer;font-size:11px">Detailed</button>
+        <button type="button" id="matMapViewBasicBtn"    onclick="_setMatMapView('basic')"    style="border:none;background:#fff;color:#0a1628;padding:4px 10px;font-weight:500;cursor:pointer;font-size:11px;border-left:1px solid #cbd5e1">Basic</button>
+      </span>
+      <label style="margin-left:10px;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none" title="Show or hide the A: 4.6m letter tags on the Roof Map.">
+        <input type="checkbox" id="matShowFlashRefs" checked onchange="_setMatShowFlashRefs(this.checked)" style="margin:0;width:auto"> Flashing refs
+      </label>
+      <label style="margin-left:10px;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none" title="Show or hide the Roof sheet plan card below this map.">
+        <input type="checkbox" id="matShowSheetPlan" checked onchange="_setMatShowSheetPlan(this.checked)" style="margin:0;width:auto"> Sheet plan
+      </label>
+      <label style="margin-left:10px;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none">
         <input type="checkbox" id="flashLayoutIncludeGutters" onchange="renderMatRoofMap();renderMaterialsCutLists()" style="margin:0;width:auto"> Include gutters as letters
       </label>
       <label style="margin-left:10px;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2)">Text size
@@ -3236,7 +3249,7 @@ function gotoTab(t) {
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
-  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}}
+  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
@@ -10741,6 +10754,58 @@ function duplicateSavedFlashing(savedIdx){
 // font size in redrawAll. Persists in localStorage so the next
 // session opens at the same scale. Re-renders the live Map Roof
 // canvas + the Materials mirror so the change is immediate.
+// ── Materials Roof Map: view toggle, letter-tag toggle, sheet plan toggle ──
+// Each preference persists in localStorage so reopening the Materials tab
+// restores what the user had. renderMatRoofMap and a small CSS-class hook
+// on #roofSheetPlanCard read these values when rendering.
+function _matMapView(){ return localStorage.getItem('fr_mat_map_view') || 'detailed'; }
+function _matShowFlashRefs(){ return localStorage.getItem('fr_mat_show_flash_refs') !== '0'; }
+function _matShowSheetPlan(){ return localStorage.getItem('fr_mat_show_sheet_plan') !== '0'; }
+function _setMatMapView(v){
+  if (v !== 'detailed' && v !== 'basic') v = 'detailed';
+  try { localStorage.setItem('fr_mat_map_view', v); } catch(e){}
+  _syncMatMapToggles();
+  try { renderMatRoofMap(); } catch(e){}
+}
+function _setMatShowFlashRefs(on){
+  try { localStorage.setItem('fr_mat_show_flash_refs', on ? '1' : '0'); } catch(e){}
+  var chk = document.getElementById('matShowFlashRefs');
+  if (chk) chk.checked = !!on;
+  try { renderMatRoofMap(); } catch(e){}
+}
+function _setMatShowSheetPlan(on){
+  try { localStorage.setItem('fr_mat_show_sheet_plan', on ? '1' : '0'); } catch(e){}
+  var chk = document.getElementById('matShowSheetPlan');
+  if (chk) chk.checked = !!on;
+  var card = document.getElementById('roofSheetPlanCard');
+  if (card) card.style.display = on ? '' : 'none';
+}
+// Reflect saved prefs into the toggle / button UI. Called on Materials
+// tab open AND right after any setter so the segmented view buttons
+// always show the correct active state.
+function _syncMatMapToggles(){
+  var v = _matMapView();
+  var dBtn = document.getElementById('matMapViewDetailedBtn');
+  var bBtn = document.getElementById('matMapViewBasicBtn');
+  if (dBtn) {
+    var on = v === 'detailed';
+    dBtn.style.background = on ? '#0a1628' : '#fff';
+    dBtn.style.color      = on ? '#fff'    : '#0a1628';
+    dBtn.style.fontWeight = on ? '700'     : '500';
+  }
+  if (bBtn) {
+    var on2 = v === 'basic';
+    bBtn.style.background = on2 ? '#0a1628' : '#fff';
+    bBtn.style.color      = on2 ? '#fff'    : '#0a1628';
+    bBtn.style.fontWeight = on2 ? '700'     : '500';
+  }
+  var refsChk = document.getElementById('matShowFlashRefs');
+  if (refsChk) refsChk.checked = _matShowFlashRefs();
+  var spChk = document.getElementById('matShowSheetPlan');
+  if (spChk) spChk.checked = _matShowSheetPlan();
+  var spCard = document.getElementById('roofSheetPlanCard');
+  if (spCard) spCard.style.display = _matShowSheetPlan() ? '' : 'none';
+}
 function _setMatRoofMapFontScale(v){
   var n = parseFloat(v);
   if (!isFinite(n) || n < 0.5) n = 0.5;
@@ -17076,6 +17141,111 @@ function _flashCollectLabelled() {
   return out;
 }
 
+// Basic view of the Materials Roof Map — outlines + lines only, each
+// roof shaded a distinct colour with its name + area centred. No
+// measurements, no letter tags, no sheet labels. Pure SVG so it
+// scales cleanly at any zoom + drops into the PDF later if needed.
+function _renderMatRoofMapBasic(out){
+  var roofs = _matBasicCollectRoofs();
+  if (!roofs.length) {
+    out.innerHTML = '<p style="font-size:12px;color:var(--text2)">Draw your roof outline on the Map Roof tab — this map will appear here.</p>';
+    return;
+  }
+  // Compute the bounding box across every roof so the SVG view fits.
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  roofs.forEach(function(r){
+    r.outline.forEach(function(p){
+      if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+      if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+    });
+  });
+  var pad = Math.max(20, (maxX - minX) * 0.06, (maxY - minY) * 0.06);
+  minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+  var w = maxX - minX, h = maxY - minY;
+  // Palette — soft fill + saturated stroke, one per roof.
+  var palette = [
+    { fill:'#dbeafe', stroke:'#1d4ed8', text:'#1e3a8a' },
+    { fill:'#dcfce7', stroke:'#15803d', text:'#14532d' },
+    { fill:'#fef3c7', stroke:'#b45309', text:'#78350f' },
+    { fill:'#fce7f3', stroke:'#be185d', text:'#831843' },
+    { fill:'#ede9fe', stroke:'#6d28d9', text:'#4c1d95' },
+    { fill:'#fee2e2', stroke:'#b91c1c', text:'#7f1d1d' }
+  ];
+  // Line colours by type — same scheme as the Detailed canvas.
+  var lineColors = {
+    ridge:'#dc2626', valley:'#f59e0b', gutter:'#7c3aed',
+    hip:'#059669', barge:'#0891b2', apron:'#e11d48',
+    changepitch:'#0ea5e9', drip:'#f59e0b', custom:'#475569'
+  };
+  var fontSize = Math.max(11, Math.min(28, h / 22));
+  var subSize  = Math.max(9,  Math.min(18, h / 32));
+  var svg = '<svg viewBox="'+minX+' '+minY+' '+w+' '+h+'" preserveAspectRatio="xMidYMid meet" '+
+    'style="display:block;width:100%;height:auto;background:#fff;border:1px solid var(--border);border-radius:6px;font-family:Inter,-apple-system,sans-serif">';
+  roofs.forEach(function(r, ri){
+    var c = palette[ri % palette.length];
+    // Filled polygon
+    var pts = r.outline.map(function(p){ return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
+    svg += '<polygon points="'+pts+'" fill="'+c.fill+'" stroke="'+c.stroke+'" stroke-width="2.5"/>';
+    // Internal lines (ridge, hips, valleys, etc.) — thinner so they
+    // read as structure inside the shaded fill.
+    (r.lines || []).forEach(function(l){
+      if (!l || !l.pts || l.pts.length !== 2) return;
+      if (l.type === 'gutter') return;   // outline edges already drawn
+      var col = lineColors[l.type] || '#475569';
+      svg += '<line x1="'+l.pts[0][0].toFixed(1)+'" y1="'+l.pts[0][1].toFixed(1)+'" x2="'+l.pts[1][0].toFixed(1)+'" y2="'+l.pts[1][1].toFixed(1)+'" stroke="'+col+'" stroke-width="2" stroke-linecap="round"/>';
+    });
+    // Centroid (average of vertices) — good enough for a label anchor
+    // on convex / mildly concave outlines, which covers the realistic
+    // roof shapes.
+    var cx = 0, cy = 0;
+    r.outline.forEach(function(p){ cx += p[0]; cy += p[1]; });
+    cx /= r.outline.length; cy /= r.outline.length;
+    var areaTxt = r.areaM2 > 0 ? r.areaM2.toFixed(1) + ' m²' : '— m²';
+    svg += '<text x="'+cx.toFixed(1)+'" y="'+(cy - 2).toFixed(1)+'" text-anchor="middle" font-size="'+fontSize+'" font-weight="700" fill="'+c.text+'">'+esc(r.name)+'</text>';
+    svg += '<text x="'+cx.toFixed(1)+'" y="'+(cy + fontSize*0.95).toFixed(1)+'" text-anchor="middle" font-size="'+subSize+'" font-weight="500" fill="'+c.text+'">'+areaTxt+'</text>';
+  });
+  svg += '</svg>';
+  out.innerHTML = svg;
+}
+// Gather { name, outline, lines, areaM2 } for every drawn roof.
+// Handles BOTH multi-roof saves (DRAW.roofs[]) and the single-active-
+// roof fallback (DRAW.outline + DRAW.lines).
+function _matBasicCollectRoofs(){
+  var roofs = [];
+  function planArea(outline){
+    if (!outline || outline.length < 3) return 0;
+    if (typeof polyAreaPx !== 'function' || !DRAW.scaleMetresPerPx) return 0;
+    var areaPx = polyAreaPx(outline);
+    var sM = DRAW.scaleMetresPerPx;
+    var pitchF = 1;
+    var pitch = +DRAW.calPitch || 0;
+    if (pitch > 0 && pitch < 80) pitchF = 1 / Math.cos(pitch * Math.PI / 180);
+    return areaPx * sM * sM * pitchF;
+  }
+  if (DRAW.roofs && DRAW.roofs.length) {
+    DRAW.roofs.forEach(function(r, i){
+      var isActive = (i === DRAW.activeRoofIdx);
+      var outline = isActive ? DRAW.outline : (r.outline || []);
+      var lines   = isActive ? DRAW.lines   : (r.lines   || []);
+      if (!outline || outline.length < 3) return;
+      roofs.push({
+        name: r.name || _nthName(i + 1),
+        outline: outline,
+        lines: lines,
+        areaM2: planArea(outline)
+      });
+    });
+  } else if (DRAW.outline && DRAW.outline.length >= 3) {
+    roofs.push({
+      name: 'Roof 1',
+      outline: DRAW.outline,
+      lines: DRAW.lines || [],
+      areaM2: planArea(DRAW.outline)
+    });
+  }
+  return roofs;
+}
+
 // Materials Roof Map — mirrors the live roofCanvas (which now carries
 // the flashing letter overlays + sheet-length labels) into a fresh
 // canvas at the top of the Materials tab. Click handler maps tap
@@ -17083,6 +17253,9 @@ function _flashCollectLabelled() {
 // edit popup for letter/length or sheet-length edits.
 function renderMatRoofMap(){
   var out = document.getElementById('matRoofMapOut'); if (!out) return;
+  // Basic view branches off here — no canvas mirror, just outline
+  // polygons in their own SVG with name + area centred in each roof.
+  if (_matMapView() === 'basic') { _renderMatRoofMapBasic(out); return; }
   var src = document.getElementById('roofCanvas');
   if (!src || !src.width || !src.height) {
     out.innerHTML = '<p style="font-size:12px;color:var(--text2)">Draw your roof outline on the Map Roof tab — this map will appear here.</p>';
@@ -17112,14 +17285,17 @@ function renderMatRoofMap(){
   try { redrawAll(); } catch(e){}
   // Letter tags ONLY appear on the Materials canvas — the user asked to
   // keep the Map Roof tab clean. Draw them in CSS-pixel space (scaled by
-  // dpr to match how roofCanvas was rendered).
+  // dpr to match how roofCanvas was rendered).  The Flashing-refs
+  // toggle in the card header skips this whole pass when off.
   var letterHits = [];
-  try {
-    ctx.save();
-    ctx.scale(dpr, dpr);
-    letterHits = _drawFlashLetterOverlaysOn(ctx, W / dpr, H / dpr);
-    ctx.restore();
-  } catch(e){ console.warn('letter overlay:', e); }
+  if (_matShowFlashRefs()) {
+    try {
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      letterHits = _drawFlashLetterOverlaysOn(ctx, W / dpr, H / dpr);
+      ctx.restore();
+    } catch(e){ console.warn('letter overlay:', e); }
+  }
   canvas._letterHits  = letterHits;
   canvas._sheetHits   = (window._roofCanvasHits && window._roofCanvasHits.sheets)   || [];
   canvas._measureHits = (window._roofCanvasHits && window._roofCanvasHits.measures) || [];
