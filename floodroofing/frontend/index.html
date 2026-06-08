@@ -1435,7 +1435,8 @@ select{
           onmouseup="onCanvasMouseUp(event)"
           onclick="onCanvasClick(event)"
           ondblclick="onCanvasDblClick(event)"
-          oncontextmenu="onCanvasRightClick(event)">
+          oncontextmenu="onCanvasRightClick(event)"
+          onwheel="onCanvasWheel(event)">
         </canvas>
       </div>
       <!-- Context menu -->
@@ -3289,7 +3290,7 @@ function gotoTab(t) {
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
-  if(t==='materials'){try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}}
+  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
@@ -12943,6 +12944,11 @@ var DRAG_EP = null;
 // rewrites either DRAW.manualSheetMeasures[idx].(x,y) for a manual
 // measure, or DRAW.sheetLabelOffsets[key] for an auto label.
 var DRAG_SHEET = null;
+// Per-roof "view drag" — pure visual reposition for non-active
+// roofs.  Updates DRAW.roofs[idx].viewOffset without touching
+// outline / lines / measurements.  Starts when the user presses
+// inside the displayed polygon of a non-active roof in Move mode.
+var DRAG_ROOF_VIEW = null;
 // Corner-drag state for the building outline. Set when the user
 // mouses down within OUTLINE_VERT_GRAB pixels of an outline vertex
 // while the Move/select tool is active. `idx` is the outline index;
@@ -13381,6 +13387,39 @@ function onCanvasMouseDown(e) {
       if(Math.sqrt(dx*dx+dy*dy)<THRESH){ DRAG_EP={lineIdx:DRAW.selectedLine,epIdx:ei}; return; }
     }
   }
+  // Per-roof view drag (Move tool only) — for each non-active roof
+  // we cached r._displayedPoly in redrawAll. If the cursor (in image
+  // space) lands inside one, claim the mousedown and start a drag
+  // that only updates r.viewOffset. The transform is purely visual:
+  // outline / lines / measurements stay put in image coords.
+  if (DRAW.tool === 'select' && DRAW.roofs && DRAW.roofs.length > 1) {
+    var _hitXY = getXY(e);
+    function _pointInPoly(px, py, poly){
+      var inside = false, n = poly.length;
+      for (var k = 0, j = n - 1; k < n; j = k++) {
+        var xi = poly[k][0], yi = poly[k][1];
+        var xj = poly[j][0], yj = poly[j][1];
+        if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi + 1e-10) + xi)) inside = !inside;
+      }
+      return inside;
+    }
+    for (var _rri = DRAW.roofs.length - 1; _rri >= 0; _rri--) {
+      if (_rri === DRAW.activeRoofIdx) continue;
+      var _rrR = DRAW.roofs[_rri];
+      if (!_rrR || !_rrR._displayedPoly || _rrR._displayedPoly.length < 3) continue;
+      if (_pointInPoly(_hitXY[0], _hitXY[1], _rrR._displayedPoly)) {
+        DRAG_ROOF_VIEW = {
+          idx: _rri,
+          startMouseImg: _hitXY,
+          startOffset: (_rrR.viewOffset || [0, 0]).slice(),
+          moved: false
+        };
+        document.getElementById('roofCanvas').style.cursor = 'grabbing';
+        e.preventDefault();
+        return;
+      }
+    }
+  }
   // Sheet-label drag (Move tool only) — claim the mousedown if it
   // landed on a stashed sheet hit box so the user can reposition the
   // 4.35m / 0.00m tag. Mouseup uses SUPPRESS_NEXT_CLICK to make sure
@@ -13474,6 +13513,14 @@ function onCanvasMouseDown(e) {
 
 function onCanvasMouseUp(e) {
   if(DRAG_EP) { saveSnapshot(); updateMeasTotals(); DRAG_EP=null; redrawAll(); return; }
+  if(DRAG_ROOF_VIEW) {
+    if (DRAG_ROOF_VIEW.moved) { SUPPRESS_NEXT_CLICK = true; try { saveSnapshot(); } catch(err){} }
+    DRAG_ROOF_VIEW = null;
+    var _cv3 = document.getElementById('roofCanvas');
+    if (_cv3) _cv3.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    redrawAll();
+    return;
+  }
   if(DRAG_SHEET) {
     // Suppress the click that's about to fire so it doesn't reopen
     // the edit popup right after a drag.  A true tap (moved===false)
@@ -13528,6 +13575,14 @@ document.addEventListener('mousemove', function(e) {
   redrawAll();
 });
 document.addEventListener('mouseup', function(e) {
+  if(DRAG_ROOF_VIEW){
+    if (DRAG_ROOF_VIEW.moved) { SUPPRESS_NEXT_CLICK = true; try { saveSnapshot(); } catch(err){} }
+    DRAG_ROOF_VIEW = null;
+    var _cv4 = document.getElementById('roofCanvas');
+    if (_cv4) _cv4.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    try { redrawAll(); } catch(err){}
+    return;
+  }
   if(DRAG_SHEET){
     if (DRAG_SHEET.moved) { SUPPRESS_NEXT_CLICK = true; try { saveSnapshot(); } catch(err){} }
     DRAG_SHEET = null;
@@ -13829,6 +13884,17 @@ function onCanvasMove(e) {
   // auto labels accumulate a per-key offset.  We mark `moved` so the
   // trailing click handler can suppress the edit popup if the user
   // was genuinely dragging vs. tapping.
+  if (DRAG_ROOF_VIEW) {
+    var _rr = DRAW.roofs && DRAW.roofs[DRAG_ROOF_VIEW.idx];
+    if (_rr) {
+      var _dx = xy[0] - DRAG_ROOF_VIEW.startMouseImg[0];
+      var _dy = xy[1] - DRAG_ROOF_VIEW.startMouseImg[1];
+      if (Math.abs(_dx) + Math.abs(_dy) > 0.4) DRAG_ROOF_VIEW.moved = true;
+      _rr.viewOffset = [DRAG_ROOF_VIEW.startOffset[0] + _dx, DRAG_ROOF_VIEW.startOffset[1] + _dy];
+    }
+    redrawAll();
+    return;
+  }
   if (DRAG_SHEET) {
     var dxImg = xy[0] - DRAG_SHEET.startMouseImg[0];
     var dyImg = xy[1] - DRAG_SHEET.startMouseImg[1];
@@ -14876,10 +14942,24 @@ function redrawAll() {
     DRAW.roofs.forEach(function(r, ri){
       if (ri === DRAW.activeRoofIdx) return;
       if (!r || !r.outline || r.outline.length < 3) return;
+      // Per-roof view transform — pure visual reposition + zoom. Lives
+      // on r.viewOffset (image px) + r.viewZoom (scale, default 1).
+      // _viewXform(p) below applies the transform around the roof's
+      // OWN centroid so zooming feels anchored to the roof itself.
+      var _vOff = r.viewOffset || [0, 0];
+      var _vZ   = (typeof r.viewZoom === 'number' && r.viewZoom > 0) ? r.viewZoom : 1;
+      var _cxV = 0, _cyV = 0;
+      r.outline.forEach(function(pt){ _cxV += pt[0]; _cyV += pt[1]; });
+      _cxV /= r.outline.length; _cyV /= r.outline.length;
+      function _viewXform(pt){
+        return [ _cxV + (pt[0] - _cxV) * _vZ + _vOff[0],
+                 _cyV + (pt[1] - _cyV) * _vZ + _vOff[1] ];
+      }
+      function _dpv(pt){ return dp(_viewXform(pt)); }
       ctx.save();
       ctx.beginPath();
       r.outline.forEach(function(pt, i){
-        var p = dp(pt);
+        var p = _dpv(pt);
         if (i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
       });
       ctx.closePath();
@@ -14889,13 +14969,15 @@ function redrawAll() {
       ctx.lineWidth   = _showAll ? 1.5 : 1.5;
       ctx.setLineDash(_showAll ? [] : [6, 4]);
       ctx.stroke();
+      // Cache the displayed polygon so hit-test / drag can read it back.
+      r._displayedPoly = r.outline.map(function(pt){ return _viewXform(pt); });
       // Roof lines — full styling when showing all, faded otherwise.
       if (r.lines && r.lines.length) {
         var styleByType = _showAll ? _styleFull : _styleFade;
         r.lines.forEach(function(l){
           if (!l || !l.pts || l.pts.length < 2) return;
           ctx.beginPath();
-          var a = dp(l.pts[0]), b = dp(l.pts[1]);
+          var a = _dpv(l.pts[0]), b = _dpv(l.pts[1]);
           ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
           ctx.strokeStyle = styleByType[l.type] || (_showAll ? '#64748b' : 'rgba(100,116,139,0.35)');
           ctx.lineWidth   = _showAll ? 2 : 1.6;
@@ -14922,11 +15004,8 @@ function redrawAll() {
           }
         });
       }
-      // Label the roof with its name (centred).
-      var cx = 0, cy = 0;
-      r.outline.forEach(function(pt){ cx += pt[0]; cy += pt[1]; });
-      cx /= r.outline.length; cy /= r.outline.length;
-      var lp = dp([cx, cy]);
+      // Label the roof with its name (centred, in the TRANSFORMED space).
+      var lp = _dpv([_cxV, _cyV]);
       ctx.setLineDash([]);
       ctx.font = 'bold 12px Inter, -apple-system, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -20002,8 +20081,40 @@ function applyZoom() {
   redrawAll();
 }
 function onCanvasWheel(e) {
-  // Scroll wheel does NOT zoom — use + / - buttons instead
-  // Allow normal page scroll
+  // Default behaviour: scroll wheel does NOT zoom the canvas — the
+  // page keeps scrolling and the user uses the + / - buttons.
+  //
+  // BUT — when the cursor sits over a non-active roof's displayed
+  // polygon, the wheel scales THAT roof's view (viewZoom).  Keeps
+  // the underlying outline / lines / measurements untouched: pure
+  // visual reposition for the customer-facing roof map.
+  if (DRAW.tool !== 'select') return;
+  if (!DRAW.roofs || DRAW.roofs.length <= 1) return;
+  var xy = getXY(e);
+  // Same point-in-poly helper as the mousedown branch.
+  function _pip(px, py, poly){
+    var inside = false, n = poly.length;
+    for (var k = 0, j = n - 1; k < n; j = k++) {
+      var xi = poly[k][0], yi = poly[k][1];
+      var xj = poly[j][0], yj = poly[j][1];
+      if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi + 1e-10) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+  for (var ri = DRAW.roofs.length - 1; ri >= 0; ri--) {
+    if (ri === DRAW.activeRoofIdx) continue;
+    var r = DRAW.roofs[ri];
+    if (!r || !r._displayedPoly || r._displayedPoly.length < 3) continue;
+    if (_pip(xy[0], xy[1], r._displayedPoly)) {
+      e.preventDefault();
+      var z = (typeof r.viewZoom === 'number' && r.viewZoom > 0) ? r.viewZoom : 1;
+      var step = e.deltaY > 0 ? 0.92 : 1.08;
+      z = Math.max(0.25, Math.min(4, z * step));
+      r.viewZoom = z;
+      try { redrawAll(); } catch(err){}
+      return;
+    }
+  }
 }
 
 // ── RIGHT-CLICK CONTEXT MENU ──────────────────────────────────────
@@ -20792,6 +20903,11 @@ function _addAndSwitchToNewRoof(){
   var r = _newEmptyRoof();
   DRAW.roofs.push(r);
   _loadRoofToCurrent(DRAW.roofs.length - 1);
+  // Multi-roof default: as soon as the user has 2+ roofs we flip on
+  // View All so the Job Pack + Map Roof canvas show every roof's
+  // measures at once.  They can still click a single roof name in
+  // the switcher to drop back to single-roof mode for editing.
+  if (DRAW.roofs.length > 1) DRAW.showAllRoofs = true;
   renderRoofSwitcher();
 }
 function switchToRoof(idx){
