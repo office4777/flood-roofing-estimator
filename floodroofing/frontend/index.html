@@ -19730,23 +19730,26 @@ function _tagGableBargesStarterFinish(barges){
 // Dutch gable (a.k.a. gablet roof): hip below, small gable on top.
 // At each open ridge endpoint of the underlying hip skeleton (the two
 // "hip ends"), the two converging hips are pulled part-way back toward
-// their corners (the "gablet base corners").  From the unchanged ridge
-// endpoint, two rake BARGES run laterally out to those gablet base
-// corners, and a HEAD APRON joins the two base corners across the
-// gablet base — this is where the gablet wall meets the lower hip
-// slope.  The ridge keeps its full length; only the hips shorten.
+// their corners (the "gablet base corners"). The hip ridge then
+// EXTENDS to the midpoint of the gablet base — the rake barges of the
+// gablet are HORIZONTAL in plan view (they project onto the gablet
+// base line), so we lay down two half-barges from the new ridge
+// endpoint out to each gablet base corner, plus a single full-length
+// head apron from corner to corner (the apron sits over both barges).
 //
-//   pure hip            dutch gable           pure gable
-//   ─────────           ─────────             ─────────
-//      ╲ ╱                R                   ─────────
-//       X      becomes    ╱ ╲      barges     no hips,
-//      ╱ ╲              c═══c      apron      full ridge
-//   ─────────           ╱   ╲                 ─────────
-//                      ─────────
+//   pure hip              dutch gable
+//   ─────────             ┌─────────┐
+//      ╲ ╱                c═══R═══c    barge | apron | barge
+//       X      becomes    ╲       ╱    hip shortened
+//      ╱ ╲                ╱       ╲    hip shortened
+//   ─────────             c═══R═══c    barge | apron | barge
+//                         └─────────┘
 //
-// Where R = ridge endpoint (unchanged), c = gablet base corner (the
-// shortened hip end), the line c═══c is the head apron, and the two
-// R→c lines are the rake barges of the gablet wall.
+// Where R = (extended) ridge endpoint at the gablet-base midpoint,
+// c = gablet base corner (the shortened hip end). The c═══R portions
+// are barges (half the gablet base each), and the full c═══c span is
+// also covered by a head apron flashing — both materials are needed
+// on the same line so we emit both.
 //
 // GABLET_FRAC controls how far each hip is pulled back: 0 leaves a pure
 // hip ridge, 1 collapses to a full gable. 0.5 produces a balanced Dutch
@@ -19791,9 +19794,7 @@ function buildDutchGableRoofLines(outline) {
       });
       if (hasValley || otherRidge) return;
       // Pull each hip back toward its corner by GABLET_FRAC of its length.
-      // The new endpoint is the "gablet base corner".  The ORIGINAL
-      // ridge endpoint stays where it is — we add the rake barges
-      // running from R out to each gablet base corner.
+      // The new endpoint is the "gablet base corner".
       var newEnds = attached.map(function(a){
         var corner   = a.h.pts[1 - a.endIdx];
         var ridgeEnd = a.h.pts[a.endIdx];
@@ -19802,12 +19803,18 @@ function buildDutchGableRoofLines(outline) {
         a.h.pts[a.endIdx] = [nx, ny];
         return [nx, ny];
       });
-      // Two rake barges: ridge endpoint → each gablet base corner.
-      newBarges.push({type:'barge', pts:[R.slice(), newEnds[0].slice()]});
-      newBarges.push({type:'barge', pts:[R.slice(), newEnds[1].slice()]});
-      // Head apron across the base of the gablet wall.
+      // Extend the ridge to the midpoint of the gablet base — the
+      // rake barges of the gablet wall project HORIZONTALLY in plan
+      // view, so they line up exactly with the new ridge endpoint.
+      var midX = (newEnds[0][0] + newEnds[1][0]) / 2;
+      var midY = (newEnds[0][1] + newEnds[1][1]) / 2;
+      r.pts[endIdx] = [midX, midY];
+      // Two half-length rake barges, ridge-endpoint → each gablet base corner.
+      newBarges.push({type:'barge', pts:[[midX, midY], newEnds[0].slice()]});
+      newBarges.push({type:'barge', pts:[[midX, midY], newEnds[1].slice()]});
+      // One full-length head apron across the same gablet base — the
+      // apron + barges occupy the same line; both materials are needed.
       newAprons.push({type:'apron', subtype:'head', pts:[newEnds[0].slice(), newEnds[1].slice()]});
-      // Ridge endpoint stays put — do NOT collapse the ridge.
     });
   });
 
