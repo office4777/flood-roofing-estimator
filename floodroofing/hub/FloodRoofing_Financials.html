@@ -1157,7 +1157,7 @@ function saveBcOh(){OH_FIELDS.forEach(([id,k])=>{const e=document.getElementById
 //   (Monthly OPEX × 12 ÷ field staff) ÷ (52 − weeks not working) ÷ (weekly hours × utilisation)
 function ohRate(){
   const sg=(k,d)=>{const v=parseFloat(S.get(k,''));return isNaN(v)?d:v;};
-  let oxSum=0,oxN=0;dataMonths().slice(-6).forEach(k=>{const x=xeroMonthly[k];if(x){oxSum+=num(x.opex)+num(x.wages);oxN++;}});
+  let oxSum=0,oxN=0;dataMonths().slice(-6).forEach(k=>{const x=xeroMonthly[k];if(x){oxSum+=num(x.opex);oxN++;}});   // overheads only (on-site wages are already in job Labour/COGS)
   const opexAuto=oxN?oxSum/oxN:0;
   const opexSet=parseFloat(S.get('bcOpex',''));const opexIsAuto=isNaN(opexSet);const opex=opexIsAuto?opexAuto:opexSet;
   const emp=Math.max(1,sg('bcEmp',(capacity().people||1)));
@@ -1186,7 +1186,7 @@ function renderBC(){
   const _oh=ohRate();const ovRate=_oh.rate;
   const rEl=document.getElementById('bc-oh-rate');if(rEl)rEl.textContent=fmt$(ovRate)+'/h';
   const ohN=document.getElementById('bc-oh-note');
-  if(ohN)ohN.innerHTML=_oh.override?('Manual override: '+fmt$(ovRate)+'/hr — clear the Override box to use the calculator.'):('OH rate = (Monthly OPEX × 12 ÷ field staff) ÷ billable weeks/yr ÷ billable hrs/week. Using OPEX '+fmtK(_oh.opex)+'/mo'+(_oh.opexIsAuto?' (6-mo Xero avg)':'')+' · '+_oh.emp+' staff · '+Math.round(_oh.util*100)+'% utilisation · '+_oh.billWeeks.toFixed(1)+' billable wks · '+Math.round(_oh.billHrs)+' hrs/wk → '+fmt$(_oh.calcRate)+'/hr. NP/hr = GP/hr − this rate.');
+  if(ohN)ohN.innerHTML=_oh.override?('Manual override: '+fmt$(ovRate)+'/hr — clear the Override box to use the calculator.'):('OH rate = (Monthly OPEX × 12 ÷ field staff) ÷ billable weeks/yr ÷ billable hrs/week. Using OPEX '+fmtK(_oh.opex)+'/mo'+(_oh.opexIsAuto?' (6-mo Xero avg, overheads only — on-site wages excluded)':'')+' · '+_oh.emp+' staff · '+Math.round(_oh.util*100)+'% utilisation · '+_oh.billWeeks.toFixed(1)+' billable wks · '+Math.round(_oh.billHrs)+' hrs/wk → '+fmt$(_oh.calcRate)+'/hr. NP/hr = GP/hr − this rate.');
   const yr=document.getElementById('bc-year').value, ty=document.getElementById('bc-type').value, q=(document.getElementById('bc-search').value||'').toLowerCase();
   let rows=getAllBC().filter(r=>{
     if(yr!=='all'&&!(r.month||'').endsWith('-'+yr))return false;
