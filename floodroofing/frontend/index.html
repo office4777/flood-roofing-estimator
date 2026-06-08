@@ -306,7 +306,7 @@ body{
   box-shadow:0 0 0 3px rgba(0,153,204,.12);
 }
 
-/* Tighter spacing for the Materials & Sheet Layout + Scope & Pricing tabs */
+/* Tighter spacing for the Job Pack + Scope & Pricing tabs */
 #tab-materials .card,#tab-scope .card{padding:14px 16px;margin-bottom:10px}
 #tab-materials .card-hd,#tab-scope .card-hd{margin-bottom:10px}
 #tab-materials .f2,#tab-materials .f3,#tab-scope .f2,#tab-scope .f3{gap:10px}
@@ -1186,7 +1186,7 @@ select{
     </div>
   </div>
   <button class="nav-btn" onclick="gotoTab('roof')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.3"/></svg>Map Roof</button>
-  <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Materials &amp; Sheet Layout</button>
+  <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Job Pack</button>
   <button class="nav-btn" onclick="gotoTab('scope')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8H11M5 5.5H11M5 10.5H8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Scope &amp; Pricing</button>
   <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <!-- "Order Material" tab consolidated into Materials (action bar buttons:
@@ -2500,7 +2500,7 @@ select{
     <div class="card-hd"><span class="card-dot"></span>5. Cut list
       <button type="button" onclick="syncCutListFromSheet()" class="tool-btn" style="margin-left:auto;font-size:11px">↻ Sync from sheet layout</button>
     </div>
-    <p style="font-size:11px;color:var(--text2);margin:-4px 0 10px">Sheet count + length combos. Sync pulls the latest from the Materials &amp; Sheet Layout tab; edit freely after — your changes are kept.</p>
+    <p style="font-size:11px;color:var(--text2);margin:-4px 0 10px">Sheet count + length combos. Sync pulls the latest from the Job Pack tab; edit freely after — your changes are kept.</p>
     <table class="price-tbl" id="orderCutTable" style="margin-top:4px">
       <colgroup>
         <col style="width:50%"><col style="width:18%"><col style="width:22%"><col style="width:10%">
@@ -2986,7 +2986,7 @@ select{
 
     <!-- PRICE BOOK -->
     <div class="sub-panel settings-sub" id="set-pricebook" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Unit prices used to auto-cost the <strong>Materials &amp; Sheet Layout</strong> tab. The combined total becomes the <strong>Materials</strong> line on every Quote.</p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Unit prices used to auto-cost the <strong>Job Pack</strong> tab. The combined total becomes the <strong>Materials</strong> line on every Quote.</p>
 
       <!-- Upload supplier price book -->
       <div style="margin-bottom:18px;padding:14px;background:var(--surface-2);border-radius:10px;border:1px dashed var(--border)">
@@ -3141,7 +3141,7 @@ select{
 
     <!-- FLASHING LIBRARY -->
     <div class="sub-panel settings-sub" id="set-flashings" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Saved flashing drawings — Materials &amp; Sheet Layout shows the matching ones for the selected roof profile. Each saved flashing is one cross-section sketch you can re-use across jobs.</p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Saved flashing drawings — Job Pack shows the matching ones for the selected roof profile. Each saved flashing is one cross-section sketch you can re-use across jobs.</p>
       <!-- Filters + new button -->
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
         <div style="min-width:180px">
@@ -8898,7 +8898,7 @@ function syncCutListFromSheet(){
   var counts = window._lastSheetCounts;
   if (!counts) {
     var msg = document.getElementById('orderMsg');
-    if (msg) msg.textContent = 'Open Materials & Sheet Layout first so the sheet plan can compute.';
+    if (msg) msg.textContent = 'Open Job Pack first so the sheet plan can compute.';
     setTimeout(function(){ if (msg) msg.textContent=''; }, 4000);
     return;
   }
@@ -14694,18 +14694,22 @@ function redrawAll() {
   // "Drawing area" border
   ctx.strokeRect(2,2,W-4,H-4);
 
-  // Grid
+  // Grid — skipped when the Materials roof-map mirror asks for a
+  // clean white background (window._matRoofMapHideGrid).
   var snapEl=document.getElementById('snapGrid');
-  if(snapEl&&snapEl.checked){
+  if(snapEl&&snapEl.checked && !window._matRoofMapHideGrid){
     var g=parseInt(document.getElementById('gridSize').value)||20;
     ctx.strokeStyle='#e8e8e8'; ctx.lineWidth=0.5;
     for(var gx=0;gx<=W;gx+=g){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,H);ctx.stroke();}
     for(var gy=0;gy<=H;gy+=g){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();}
   }
 
-  // Background sketch — drawn at correct aspect ratio, zoom+pan applied
+  // Background sketch — drawn at correct aspect ratio, zoom+pan applied.
+  // Skipped when the Materials roof-map mirror is being captured for
+  // the Detailed view (window._matRoofMapHideBg) — that surface wants
+  // a fully white background for client / supplier handover.
   var showBgEl=document.getElementById('showBg');
-  if(DRAW.bgImg&&showBgEl&&showBgEl.checked){
+  if(DRAW.bgImg&&showBgEl&&showBgEl.checked && !window._matRoofMapHideBg){
     // Allow opacity 0 (fully transparent) — slider now starts at 0,
     // so parseFloat("0") needs to stay 0, not fall back to 0.35.
     var _opRaw = document.getElementById('bgOpacity').value;
@@ -17179,13 +17183,57 @@ function _renderMatRoofMapBasic(out){
   };
   var fontSize = Math.max(11, Math.min(28, h / 22));
   var subSize  = Math.max(9,  Math.min(18, h / 32));
+  // Optional background image overlay — Job Pack > Basic view is
+  // often shown to the customer, who wants to see WHICH roof is
+  // which against the real photo. The slider above the SVG (and
+  // localStorage value fr_mat_basic_bg_opacity, 0–100) controls how
+  // strongly the bg image bleeds through behind the polygons.
+  var hasBg = !!(DRAW.bgImg && DRAW.bgImg.naturalWidth && DRAW.bgImg.naturalHeight);
+  var bgOpRaw = parseInt(localStorage.getItem('fr_mat_basic_bg_opacity') || '0', 10);
+  if (!isFinite(bgOpRaw) || bgOpRaw < 0) bgOpRaw = 0;
+  if (bgOpRaw > 100) bgOpRaw = 100;
+  var bgOp = bgOpRaw / 100;
+  var controlsHtml = hasBg
+    ? '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px;color:var(--text2)">' +
+        '<span>Background photo:</span>' +
+        '<input type="range" id="matBasicBgOpacity" min="0" max="100" step="5" value="'+bgOpRaw+'" oninput="_setMatBasicBgOpacity(this.value)" style="width:140px;margin:0">' +
+        '<span id="matBasicBgOpacityOut" style="font-variant-numeric:tabular-nums;color:var(--text);min-width:32px">'+bgOpRaw+'%</span>' +
+      '</div>'
+    : '';
   var svg = '<svg viewBox="'+minX+' '+minY+' '+w+' '+h+'" preserveAspectRatio="xMidYMid meet" '+
     'style="display:block;width:100%;height:auto;background:#fff;border:1px solid var(--border);border-radius:6px;font-family:Inter,-apple-system,sans-serif">';
+  // 1. Background photo (if user wants it).  Embedded as a data URL
+  //    so the SVG is self-contained.  Position + size match the
+  //    bg image's IMAGE-space coords (outline pts share the same
+  //    space).  preserveAspectRatio omitted so the image isn't
+  //    distorted; the SVG container handles fit.
+  if (hasBg && bgOp > 0) {
+    var bgUrl = '';
+    try {
+      // Cached on DRAW.bgImg the first time so we don't re-encode
+      // on every render — re-encode would tank performance on big
+      // photos and the data URL never changes anyway.
+      if (!DRAW.bgImg._cachedDataUrl) {
+        var c = document.createElement('canvas');
+        c.width = DRAW.bgImg.naturalWidth;
+        c.height = DRAW.bgImg.naturalHeight;
+        c.getContext('2d').drawImage(DRAW.bgImg, 0, 0);
+        DRAW.bgImg._cachedDataUrl = c.toDataURL('image/jpeg', 0.85);
+      }
+      bgUrl = DRAW.bgImg._cachedDataUrl;
+    } catch(e){ bgUrl = ''; }
+    if (bgUrl) {
+      svg += '<image x="0" y="0" width="'+DRAW.bgImg.naturalWidth+'" height="'+DRAW.bgImg.naturalHeight+'" '+
+        'opacity="'+bgOp.toFixed(2)+'" preserveAspectRatio="none" '+
+        'href="'+bgUrl+'"/>';
+    }
+  }
   roofs.forEach(function(r, ri){
     var c = palette[ri % palette.length];
-    // Filled polygon
+    // Filled polygon — semi-transparent fill so the bg image still
+    // shows through when the photo is on.
     var pts = r.outline.map(function(p){ return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
-    svg += '<polygon points="'+pts+'" fill="'+c.fill+'" stroke="'+c.stroke+'" stroke-width="2.5"/>';
+    svg += '<polygon points="'+pts+'" fill="'+c.fill+'" fill-opacity="0.78" stroke="'+c.stroke+'" stroke-width="2.5"/>';
     // Internal lines (ridge, hips, valleys, etc.) — thinner so they
     // read as structure inside the shaded fill.
     (r.lines || []).forEach(function(l){
@@ -17201,11 +17249,23 @@ function _renderMatRoofMapBasic(out){
     r.outline.forEach(function(p){ cx += p[0]; cy += p[1]; });
     cx /= r.outline.length; cy /= r.outline.length;
     var areaTxt = r.areaM2 > 0 ? r.areaM2.toFixed(1) + ' m²' : '— m²';
-    svg += '<text x="'+cx.toFixed(1)+'" y="'+(cy - 2).toFixed(1)+'" text-anchor="middle" font-size="'+fontSize+'" font-weight="700" fill="'+c.text+'">'+esc(r.name)+'</text>';
-    svg += '<text x="'+cx.toFixed(1)+'" y="'+(cy + fontSize*0.95).toFixed(1)+'" text-anchor="middle" font-size="'+subSize+'" font-weight="500" fill="'+c.text+'">'+areaTxt+'</text>';
+    // White halo behind the text so it stays readable when the bg
+    // image bleeds through.
+    svg += '<text x="'+cx.toFixed(1)+'" y="'+(cy - 2).toFixed(1)+'" text-anchor="middle" font-size="'+fontSize+'" font-weight="700" stroke="#fff" stroke-width="4" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+esc(r.name)+'</text>';
+    svg += '<text x="'+cx.toFixed(1)+'" y="'+(cy + fontSize*0.95).toFixed(1)+'" text-anchor="middle" font-size="'+subSize+'" font-weight="500" stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+areaTxt+'</text>';
   });
   svg += '</svg>';
-  out.innerHTML = svg;
+  out.innerHTML = controlsHtml + svg;
+}
+function _setMatBasicBgOpacity(v){
+  var n = parseInt(v, 10);
+  if (!isFinite(n) || n < 0) n = 0;
+  if (n > 100) n = 100;
+  try { localStorage.setItem('fr_mat_basic_bg_opacity', String(n)); } catch(e){}
+  var oOut = document.getElementById('matBasicBgOpacityOut');
+  if (oOut) oOut.textContent = n + '%';
+  // Re-render the SVG so the new opacity takes effect.
+  try { renderMatRoofMap(); } catch(e){}
 }
 // Gather { name, outline, lines, areaM2 } for every drawn roof.
 // Handles BOTH multi-roof saves (DRAW.roofs[]) and the single-active-
@@ -17264,10 +17324,15 @@ function renderMatRoofMap(){
   // Force a fresh draw so the source canvas is up to date with the
   // current outline + lines + measurement labels. The calibration
   // line / "Scale ref" tag is HIDDEN for this draw via the
-  // _hideCalibrationOverlay flag so the mirror doesn't carry it; we
-  // restore the flag + redraw once more so the live Map Roof canvas
-  // shows the calibration normally on the next paint.
+  // _hideCalibrationOverlay flag so the mirror doesn't carry it;
+  // the BACKGROUND IMAGE + GRID are also suppressed via
+  // _matRoofMapHideBg / _matRoofMapHideGrid so the Detailed view
+  // hands over a clean white canvas to the supplier / customer. We
+  // restore every flag + redraw once more so the live Map Roof
+  // canvas shows everything back normally on the next paint.
   window._hideCalibrationOverlay = true;
+  window._matRoofMapHideBg = true;
+  window._matRoofMapHideGrid = true;
   try { redrawAll(); } catch(e){}
   var dpr = window.devicePixelRatio || 1;
   var W = src.width, H = src.height;
@@ -17276,12 +17341,16 @@ function renderMatRoofMap(){
   var ctx = canvas.getContext('2d');
   try { ctx.drawImage(src, 0, 0); } catch(e){
     window._hideCalibrationOverlay = false;
+    window._matRoofMapHideBg = false;
+    window._matRoofMapHideGrid = false;
     out.innerHTML = '<p style="font-size:12px;color:#b91c1c">Couldn\'t mirror the roof map — refresh the Map Roof tab and try again.</p>';
     return;
   }
-  // Restore the Map Roof canvas so the user sees the calibration line
-  // back on the next paint of the live source.
+  // Restore the Map Roof canvas so the user sees the calibration line,
+  // bg image + grid back on the next paint of the live source.
   window._hideCalibrationOverlay = false;
+  window._matRoofMapHideBg = false;
+  window._matRoofMapHideGrid = false;
   try { redrawAll(); } catch(e){}
   // Letter tags ONLY appear on the Materials canvas — the user asked to
   // keep the Map Roof tab clean. Draw them in CSS-pixel space (scaled by
