@@ -1378,8 +1378,8 @@ select{
 
       <!-- Snap to grid toggle -->
       <div style="display:flex;gap:10px;align-items:center;margin:0 .75rem .4rem;font-size:11px;color:var(--text2);flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:5px;margin:0;font-weight:400">
-          <input type="checkbox" id="snapGrid" checked> Snap to grid
+        <label style="display:flex;align-items:center;gap:5px;margin:0;font-weight:400" title="Hold Shift while clicking to drop a point with no snap at all.">
+          <input type="checkbox" id="snapGrid" checked> Snap to grid <span style="font-size:10px;color:var(--text2)">(hold Shift = no snap)</span>
         </label>
         <label style="display:flex;align-items:center;gap:5px;margin:0;font-weight:400">
           Grid size: <input type="number" id="gridSize" value="5" min="1" max="100" style="width:60px;margin:0;padding:3px 6px;font-size:12px"> px
@@ -13419,7 +13419,8 @@ function getXY(e){
   // Algorithm: for each outline edge the start corner sits on, compute the virtual ridge
   // position at half the perpendicular depth. Generate centre-meet candidates and show
   // the one that is (1) inside the outline polygon and (2) most confident (largest vrd).
-  if((DRAW.tool==='hip'||DRAW.tool==='valley')&&DRAW.currentPts.length===1){
+  // Shift held bypasses this entirely so the user can drop lines anywhere.
+  if((DRAW.tool==='hip'||DRAW.tool==='valley')&&DRAW.currentPts.length===1&&!e.shiftKey){
     var sp=DRAW.currentPts[0];
     var n_ol=DRAW.outline.length;
 
@@ -13579,8 +13580,12 @@ function getXY(e){
     outlinePts.forEach(function(p){allPts.push(p);});DRAW.sections.forEach(function(s){s.poly.forEach(function(p){allPts.push(p);});});
     linePts.forEach(function(p){allPts.push(p);});DRAW.currentPts.forEach(function(p){allPts.push(p);});
   }
+  // Magnet snap to existing vertices — also bypassed by Shift so the
+  // user can drop a line endpoint pixel-precise anywhere on the canvas.
   var best=null,bestD=MAGNET;
-  allPts.forEach(function(p){var d=Math.sqrt((p[0]-ix)*(p[0]-ix)+(p[1]-iy)*(p[1]-iy));if(d<bestD){bestD=d;best=p;}});
+  if (!e.shiftKey) {
+    allPts.forEach(function(p){var d=Math.sqrt((p[0]-ix)*(p[0]-ix)+(p[1]-iy)*(p[1]-iy));if(d<bestD){bestD=d;best=p;}});
+  }
   var result = best?[best[0],best[1]]:[ix,iy];
   // Rectangle / square snap — when placing the 3rd or later corner of
   // an outline, lock perpendicular to the last edge if the cursor is
