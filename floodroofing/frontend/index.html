@@ -20102,6 +20102,26 @@ function buildGableRoofLines(outline) {
   var hips    = skel.filter(function(l){return l.type==='hip';});
   var valleys = skel.filter(function(l){return l.type==='valley';});
   function ptDist(a,b){var dx=b[0]-a[0],dy=b[1]-a[1];return Math.sqrt(dx*dx+dy*dy);}
+  // Is point p within EDGE_TOL of any outline edge?  Used to reject
+  // "open hip ends" that are actually INTERIOR junctions on L / T /
+  // U shaped outlines — their hip feet land inside the building, so
+  // the midpoint of those feet is interior too and converting would
+  // place a gable barge floating in mid-air.
+  var EDGE_TOL = 3;
+  function pointOnAnyOutlineEdge(p){
+    var n = outline.length;
+    for (var i = 0; i < n; i++){
+      var a = outline[i], b = outline[(i+1)%n];
+      var dx = b[0]-a[0], dy = b[1]-a[1];
+      var len2 = dx*dx + dy*dy;
+      if (len2 < 1) continue;
+      var t = ((p[0]-a[0])*dx + (p[1]-a[1])*dy) / len2;
+      if (t < -0.01 || t > 1.01) continue;
+      var cx = a[0] + t*dx, cy = a[1] + t*dy;
+      if (Math.hypot(p[0]-cx, p[1]-cy) <= EDGE_TOL) return true;
+    }
+    return false;
+  }
 
   var workHips   = hips.map(function(h){return {type:'hip',  pts:[h.pts[0].slice(),h.pts[1].slice()], _remove:false};});
   var workRidges = ridges.map(function(r){return {type:'ridge',pts:[r.pts[0].slice(),r.pts[1].slice()]};});
@@ -20129,13 +20149,20 @@ function buildGableRoofLines(outline) {
         return ptDist(rr.pts[0], R) <= EP_TOL || ptDist(rr.pts[1], R) <= EP_TOL;
       });
       if (hasValley || otherRidge) return;
+      var c1 = attached[0].h.pts[1 - attached[0].endIdx];
+      var c2 = attached[1].h.pts[1 - attached[1].endIdx];
+      // Both hip FEET must sit on the outline AND their midpoint
+      // (the proposed new gable peak) must also sit on the outline.
+      // If either foot is an interior junction (L / T / U shapes
+      // where two sub-rectangles share an inner edge), we'd be
+      // adding a barge that floats inside the building. Skip it.
+      if (!pointOnAnyOutlineEdge(c1) || !pointOnAnyOutlineEdge(c2)) return;
+      var newEnd = [(c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2];
+      if (!pointOnAnyOutlineEdge(newEnd)) return;
       // Remove both hips, push the ridge end out to the building edge
       // (midpoint between the two hip-foot corners), and add rake
       // barges from each corner to that new ridge tip.
       attached.forEach(function(a){ a.h._remove = true; });
-      var c1 = attached[0].h.pts[1 - attached[0].endIdx];
-      var c2 = attached[1].h.pts[1 - attached[1].endIdx];
-      var newEnd = [(c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2];
       r.pts[endIdx] = newEnd;
       newBarges.push({type:'barge', pts:[c1.slice(), newEnd.slice()]});
       newBarges.push({type:'barge', pts:[c2.slice(), newEnd.slice()]});
