@@ -13982,17 +13982,30 @@ function onCanvasClick(e) {
   // user can click the label to edit, drag to move, or right-click /
   // Delete tool to remove.  Direction defaults to horizontal (the
   // common case); a future "rotate" interaction can change ndx/ndy.
+  // Sheet measure — two-click line. First click anchors the start
+  // point, second click drops the end point and creates the manual
+  // sheet measure. The arrow direction (ndx, ndy) is derived from
+  // the drawn line, the label sits at the midpoint, and the half-
+  // length (sdl) matches half the click distance so the arrows fit
+  // the user's chosen span.
   if(DRAW.tool==='sheetmeas') {
+    DRAW.currentPts.push(xy);
+    if (DRAW.currentPts.length < 2) { redrawAll(); return; }
+    var a = DRAW.currentPts[0], b = DRAW.currentPts[1];
+    DRAW.currentPts = [];
+    var dxL = b[0]-a[0], dyL = b[1]-a[1];
+    var len = Math.sqrt(dxL*dxL + dyL*dyL);
+    if (len < 1) { redrawAll(); return; }   // degenerate; ignore
     if (!Array.isArray(DRAW.manualSheetMeasures)) DRAW.manualSheetMeasures = [];
     var entered = window.prompt('Sheet length for this measure (m). Leave blank for 0.', '0');
-    if (entered === null) return;
+    if (entered === null) { redrawAll(); return; }
     var mv = parseFloat(entered);
     if (!isFinite(mv) || mv < 0) mv = 0;
     DRAW.manualSheetMeasures.push({
-      x: xy[0], y: xy[1],
+      x: (a[0]+b[0])/2, y: (a[1]+b[1])/2,   // label at midpoint
       lengthM: mv,
-      ndx: 1, ndy: 0,       // horizontal by default
-      sdl: 120              // half-length of the arrow span, in image px
+      ndx: dxL/len, ndy: dyL/len,            // direction along the drawn line
+      sdl: len/2                             // half the line's IMAGE length
     });
     try { saveSnapshot(); } catch(e){}
     redrawAll();
@@ -16605,7 +16618,7 @@ var TOOLTIPS = {
   'btn-hip':          'Hip line: draw the diagonal rafter at a hip end of the roof.',
   'btn-penetration':  'Penetration: click to place a dot marking a skylight, chimney, pipe or other opening.',
   'btn-boxedpen':     'Boxed Penetration: click two corners (axis-snapped to a square box) to outline a skylight / chimney opening, then enter width × length in mm. The dimensions render inside the box (e.g. "350×850 mm").',
-  'btn-sheetmeas':    'Sheet measure: click anywhere on the canvas to drop a manual sheet-length tag (e.g. "4.50m") with arrows. Click the tag to edit the length or type DELETE to remove it; use the Delete tool to clear it from the canvas.',
+  'btn-sheetmeas':    'Sheet measure: click TWO points to draw the sheet-length line — the arrows point along the line you drew. Enter the length when prompted (or leave blank for 0). Click the tag later to edit, drag it to move, type DELETE in the popup or use the 🗑 Delete tool to remove it.',
   'btn-info':         'Add Info: click to place a numbered note marker. Add details in the right-hand panel.',
   'btn-measurements': 'Measurements: open the calculator — enter your dimensions and get roof area, ridge lm, gutter lm and more.',
   'btn-barge':        'Barge line: draw the rake/barge edge of a gable roof. Auto-splits into two lengths where a ridge meets it.',
