@@ -733,6 +733,115 @@ select{
 .mat-print-page .mp-cons .cons-name{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:#6f6a60;font-weight:500}
 .mat-print-page .mp-cons .cons-val{font-size:14px;font-weight:700}
 
+/* ── Job Pack Designer ───────────────────────────────────────────
+   Replaces the old standalone cards on the Materials/Job Pack tab.
+   Every editable thing the user needs (cut lists, flashings,
+   consumables, the roof map, the sheet plan, the job header) lives
+   inside a page widget; pages can be added, deleted and reordered. */
+.jp-toolbar{
+  position:sticky; top:0; z-index:30;
+  display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+  background:#fff; border:1px solid var(--border); border-radius:10px;
+  padding:10px 14px; margin-bottom:14px;
+  box-shadow:0 4px 14px rgba(0,0,0,.06);
+}
+.jp-toolbar select, .jp-toolbar input[type=text]{
+  margin:0; padding:6px 8px; font-size:12px; border:1px solid var(--border);
+  border-radius:6px; background:#fff; color:#0a1628;
+}
+.jp-toolbar label{
+  display:flex; align-items:center; gap:5px; font-size:11px;
+  color:var(--text2); margin:0; font-weight:500;
+}
+.jp-pages{
+  display:flex; flex-direction:column; align-items:center;
+  gap:22px; padding:18px 0; background:#e2e8f0; border-radius:10px;
+}
+.jp-page{
+  position:relative;
+  width:210mm; min-height:297mm;
+  background:#fff;
+  box-shadow:0 6px 22px rgba(0,0,0,.18);
+  border:1px solid #cbd5e1; border-radius:4px;
+  padding:14mm;
+  box-sizing:border-box;
+  font-family:Inter,-apple-system,sans-serif;
+  color:#0a1628;
+  display:flex; flex-direction:column;
+}
+.jp-page-tools{
+  position:absolute; top:-32px; left:0; right:0;
+  display:flex; align-items:center; gap:8px;
+  font-size:11px; color:var(--text2);
+}
+.jp-page-tools .jp-page-label{
+  font-weight:700; color:#0a1628; font-size:12px;
+  letter-spacing:.04em; text-transform:uppercase;
+}
+.jp-page-tools select{
+  margin:0; padding:3px 8px; font-size:11px;
+  border:1px solid var(--border); border-radius:5px; background:#fff;
+}
+.jp-page-tools button{
+  padding:3px 8px; font-size:11px; border:1px solid var(--border);
+  border-radius:5px; background:#fff; cursor:pointer; color:#0a1628;
+}
+.jp-page-tools button.jp-danger{ color:#b91c1c; border-color:#fca5a5; }
+.jp-page-tools .spacer{ flex:1; }
+.jp-add-page-btn{
+  align-self:center;
+  padding:10px 22px; margin:6px 0 12px;
+  font-size:13px; font-weight:700;
+  background:#0a1628; color:#fff;
+  border:none; border-radius:8px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:8px;
+}
+.jp-add-page-btn:hover{ background:#1e293b; }
+/* Per-block content styling for each page type */
+.jp-block-title{
+  font-size:11px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; color:#0099cc;
+  border-bottom:1px solid #d1d5db; padding-bottom:4px; margin-bottom:10px;
+}
+.jp-page .jp-h{
+  font-size:13px; font-weight:700; color:#0a1628;
+  text-transform:uppercase; letter-spacing:.05em;
+  margin:10px 0 6px; padding-bottom:3px; border-bottom:1px solid #d1d5db;
+}
+.jp-page table.cut-list{ width:100%; }
+/* Hide the legacy standalone cards — kept in the DOM so existing
+   state hooks (renderers reading inputs, the PDF capture path) keep
+   working, but visually they're gone.  The Job Pack Designer above
+   is now the sole user-facing editing surface. */
+#tab-materials > .jp-legacy{ display:none!important; }
+/* Print: only #jpPages elements reach paper.  Each .jp-page is one A4
+   sheet so we just suppress everything else and let CSS page breaks
+   slot between them. */
+@media print {
+  html.print-jobpack body{ background:#fff; }
+  html.print-jobpack .sidebar,
+  html.print-jobpack .hdr,
+  html.print-jobpack .nav,
+  html.print-jobpack .proxy-status,
+  html.print-jobpack .upload-zone,
+  html.print-jobpack .jp-toolbar,
+  html.print-jobpack .jp-add-page-btn,
+  html.print-jobpack .jp-page-tools{ display:none!important; }
+  html.print-jobpack .app{ display:block!important; }
+  html.print-jobpack .content{ padding:0!important; max-width:none!important; }
+  html.print-jobpack #tab-materials{ display:block!important; }
+  html.print-jobpack .panel:not(#tab-materials){ display:none!important; }
+  html.print-jobpack .jp-pages{ background:#fff; padding:0; gap:0; }
+  html.print-jobpack .jp-page{
+    box-shadow:none; border:none; border-radius:0;
+    page-break-after:always; break-after:page;
+    margin:0;
+  }
+  html.print-jobpack .jp-page:last-child{
+    page-break-after:auto; break-after:auto;
+  }
+}
+
 /* Materials tab — print rules live below the main @media print block
    so source order resolves any specificity ties in their favour. */
 
@@ -1787,36 +1896,58 @@ select{
 
 <!-- TAB 3: MATERIALS -->
 <div class="panel" id="tab-materials">
-  <!-- 1. JOB & DELIVERY — moved to the very top of the page so the
-       supplier-facing context (customer, site, delivery) reads first on
-       both the materials page and the printed PDF. Body is populated by
-       populateMatJobInfo() / setMatDelivery() — wiring unchanged from
-       its previous bottom-of-page location. -->
-  <div class="card" id="materialsOrderInfo">
-    <div class="card-hd"><span class="card-dot"></span>Job &amp; delivery
+  <!-- ═══════════════════════════════════════════════════════════════
+       JOB PACK DESIGNER — the sole user-facing editing surface for
+       this tab.  Every editable thing (job header, roof map, sheet
+       plan, cut lists, flashings, consumables, notes) lives inside
+       a `.jp-page` widget; pages can be added, deleted, reordered
+       and switched between types.  Save PDF prints the .jp-page
+       elements directly.  All the OLD standalone cards below carry
+       the .jp-legacy class so the CSS hides them — they stay in the
+       DOM so the existing renderers + state hooks keep working.
+       ═════════════════════════════════════════════════════════════ -->
+  <div class="card jp-toolbar" id="jpToolbar">
+    <strong style="font-size:13px;color:#0a1628">Job Pack Designer</strong>
+    <span style="font-size:11px;color:var(--text2)">— click any field to edit · everything you change here lands in the PDF</span>
+    <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
+      <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark" style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
+      <button onclick="pushMaterialsToFergus()" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px">📤 Push to Fergus</button>
+      <button onclick="openFergusJob()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">📂 Open in Fergus</button>
+      <button onclick="orderRoofViaSupplier()" class="mat-btn mat-btn-blue" style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
+    </div>
+  </div>
+  <div class="jp-pages" id="jpPages"></div>
+  <button class="jp-add-page-btn" onclick="_jpAddPage()">+ Add Page</button>
+
+  <!-- 1. JOB & DELIVERY — kept (hidden via .jp-legacy) so the input
+       elements still live in the DOM for populateMatJobInfo /
+       _matSyncJobNumber.  The Job Pack Designer mirrors these
+       fields with editable copies inside each rendered page. -->
+  <div class="card jp-legacy" id="materialsOrderInfo">
+    <div class="card-hd jp-legacy"><span class="card-dot"></span>Job &amp; delivery
       <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— prints at the top of the order PDF + supplier email</span>
     </div>
-    <div class="mat-order-grid">
-      <div class="mat-sel">
+    <div class="mat-order-grid jp-legacy">
+      <div class="mat-sel jp-legacy">
         <label>Job number</label>
         <input id="matJobNumber" type="text" placeholder="e.g. FR-1234" oninput="_matSyncJobNumber(this.value)">
       </div>
-      <div class="mat-sel">
+      <div class="mat-sel jp-legacy">
         <label>Customer</label>
-        <div class="mat-readonly" id="matCustomerOut">—</div>
+        <div class="mat-readonly jp-legacy" id="matCustomerOut">—</div>
       </div>
-      <div class="mat-sel" style="grid-column:1/-1">
+      <div class="mat-sel jp-legacy" style="grid-column:1/-1">
         <label>Site address</label>
-        <div class="mat-readonly" id="matSiteAddrOut">—</div>
+        <div class="mat-readonly jp-legacy" id="matSiteAddrOut">—</div>
       </div>
-      <div class="mat-sel">
+      <div class="mat-sel jp-legacy">
         <label>Delivery</label>
-        <div class="mat-seg" id="matDeliveryToggle">
+        <div class="mat-seg jp-legacy" id="matDeliveryToggle">
           <button type="button" data-mode="site" onclick="setMatDelivery('site',this)" class="on">To site</button>
           <button type="button" data-mode="yard" onclick="setMatDelivery('yard',this)">To yard</button>
         </div>
       </div>
-      <div class="mat-sel" id="matDeliveryAddrField">
+      <div class="mat-sel jp-legacy" id="matDeliveryAddrField">
         <label>Delivery address <span style="color:var(--text2);font-weight:400">(if different)</span></label>
         <input id="matDeliveryAddr" type="text" placeholder="Defaults to site address" oninput="_matSyncDeliveryAddr(this.value)">
       </div>
@@ -1828,8 +1959,8 @@ select{
        cut lists below.) Roof picker auto-populates when there are 2+
        roofs and lets the user combine / isolate which ones the totals
        (and cut lists) cover. -->
-  <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>From your drawing measurements</div>
+  <div class="card jp-legacy">
+    <div class="card-hd jp-legacy"><span class="card-dot"></span>From your drawing measurements</div>
     <div id="matRoofPicker" style="display:none;margin-bottom:10px"></div>
     <div id="matAutoFromLines" style="min-height:40px">
       <p style="font-size:12px;color:var(--text2)">Draw lines and add measurements on the Map Roof tab, then click Calibrate scale to populate this automatically.</p>
@@ -1840,8 +1971,8 @@ select{
   <!-- 3. ROOF MAP — mirrors the Map Roof tab with flashing letter refs
        overlaid next to each labelled line. Click a letter tag to edit
        or delete the flashing entry; click a sheet length to edit. -->
-  <div class="card" id="matRoofMapCard">
-    <div class="card-hd" style="flex-wrap:wrap"><span class="card-dot"></span>Roof map
+  <div class="card jp-legacy" id="matRoofMapCard">
+    <div class="card-hd jp-legacy" style="flex-wrap:wrap"><span class="card-dot"></span>Roof map
       <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— click a tag to edit / delete · drag a measurement to nudge it</span>
       <!-- View switcher: Detailed (current full canvas with measures,
            letter tags, sheet labels) vs Basic (just outlines + lines,
@@ -1872,8 +2003,8 @@ select{
   </div>
 
   <!-- 4. Roof sheet plan (visual layout — unchanged). -->
-  <div class="card" id="roofSheetPlanCard">
-    <div class="card-hd"><span class="card-dot"></span>Roof sheet plan — colour-coded cut layout
+  <div class="card jp-legacy" id="roofSheetPlanCard">
+    <div class="card-hd jp-legacy"><span class="card-dot"></span>Roof sheet plan — colour-coded cut layout
       <button onclick="renderRoofSheetPlan();renderMaterialsCutLists()" style="margin-left:auto;padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
     </div>
     <div id="roofSheetPlanOut">
@@ -1891,14 +2022,14 @@ select{
   </div>
 
   <!-- 4. MATERIALS — sheets + per-flashing cut lists with selectors. -->
-  <div class="card" id="materialsCutListCard">
-    <div class="card-hd"><span class="card-dot"></span>Materials
+  <div class="card jp-legacy" id="materialsCutListCard">
+    <div class="card-hd jp-legacy"><span class="card-dot"></span>Materials
       <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— pick your profile / grade / thickness; cut lists update live from the drawing</span>
     </div>
 
     <!-- Top-level selectors -->
-    <div class="mat-selectors">
-      <div class="mat-sel">
+    <div class="mat-selectors jp-legacy">
+      <div class="mat-sel jp-legacy">
         <label>Profile</label>
         <select id="matProfile" onchange="renderMaterialsCutLists()">
           <option value="Corrugate">Corrugate</option>
@@ -1906,7 +2037,7 @@ select{
           <option value="Multidek">Multidek</option>
         </select>
       </div>
-      <div class="mat-sel">
+      <div class="mat-sel jp-legacy">
         <label>Steel grade</label>
         <select id="matGrade" onchange="renderMaterialsCutLists()">
           <option value="Colorsteel Maxam">Colorsteel Maxam</option>
@@ -1914,25 +2045,25 @@ select{
           <option value="Zincalume">Zincalume</option>
         </select>
       </div>
-      <div class="mat-sel">
+      <div class="mat-sel jp-legacy">
         <label>Thickness</label>
         <select id="matThickness" onchange="renderMaterialsCutLists()">
           <option value="0.40g">0.40g</option>
           <option value="0.55g">0.55g</option>
         </select>
       </div>
-      <div class="mat-sel">
+      <div class="mat-sel jp-legacy">
         <label>Roof colour</label>
         <input type="text" id="matColour" placeholder="e.g. Ironsand" oninput="renderMaterialsCutLists()">
       </div>
-      <div class="mat-sel">
+      <div class="mat-sel jp-legacy">
         <label>Ridge profile</label>
         <select id="matRidgeType" onchange="renderMaterialsCutLists()">
           <option value="standard">Standard ridge</option>
           <option value="wide">Wide ridge</option>
         </select>
       </div>
-      <div class="mat-sel">
+      <div class="mat-sel jp-legacy">
         <label>Gutter</label>
         <select id="matGutter" onchange="renderMaterialsCutLists()">
           <option value="none">None — no gutter required</option>
@@ -1954,8 +2085,8 @@ select{
        Each slot can be filled from the saved library OR drawn fresh in
        the sketch modal. Three slots per row; a fourth starts a new row.
        Stored on S.matFlashings so it rides along with the job save. -->
-  <div class="card" id="matFlashingsCard">
-    <div class="card-hd"><span class="card-dot"></span>Flashings
+  <div class="card jp-legacy" id="matFlashingsCard">
+    <div class="card-hd jp-legacy"><span class="card-dot"></span>Flashings
       <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— pick the flashing drawings the supplier needs for this job</span>
       <button onclick="_matFlashingsAdd()" style="margin-left:auto;padding:5px 12px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">+ Add Flashing</button>
     </div>
@@ -1991,8 +2122,8 @@ select{
   </div>
 
   <!-- 4. CONSUMABLES — restyled to match. -->
-  <div class="card" id="materialsConsumablesCard">
-    <div class="card-hd"><span class="card-dot"></span>Consumables
+  <div class="card jp-legacy" id="materialsConsumablesCard">
+    <div class="card-hd jp-legacy"><span class="card-dot"></span>Consumables
       <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— paper / screws / rivets / dektites</span>
     </div>
     <div id="matConsumables" class="cons-grid">
@@ -2005,7 +2136,7 @@ select{
        PAT API is sparse on files); Open in Fergus is the reliable
        fallback that opens the job gallery in a new tab so the user can
        drop the just-downloaded PDF in. -->
-  <div class="card mat-actions">
+  <div class="card mat-actions jp-legacy">
     <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark">📄 Save as PDF</button>
     <button onclick="pushMaterialsToFergus()" class="mat-btn mat-btn-green">📤 Push to Fergus</button>
     <button onclick="openFergusJob()" class="mat-btn mat-btn-light">📂 Open in Fergus</button>
@@ -2024,7 +2155,7 @@ select{
        can resize, position and zoom each image (Roof Map + Sheet
        Layout) on each printed page. Settings persist in localStorage
        so the actual print uses the same crop / position. -->
-  <details class="card" id="matPrintPreviewCard" style="margin-top:.5rem" onclick="setTimeout(_matRefreshPrintPreview,150)">
+  <details class="card jp-legacy" id="matPrintPreviewCard" style="margin-top:.5rem" onclick="setTimeout(_matRefreshPrintPreview,150)">
     <summary class="card-hd" style="cursor:pointer"><span class="card-dot"></span>Print designer
       <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— click to expand · adjust each page before saving the PDF</span>
     </summary>
@@ -2044,7 +2175,7 @@ select{
     </div>
   </details>
 
-  <details class="card" id="matFergusDebug" style="margin-top:.5rem">
+  <details class="card jp-legacy" id="matFergusDebug" style="margin-top:.5rem">
     <summary class="card-hd" style="cursor:pointer"><span class="card-dot"></span>Fergus upload — diagnostics
       <span style="margin-left:6px;font-size:11px;font-weight:400;color:var(--text2)">— tap when a push fails to see what each endpoint returned</span>
     </summary>
@@ -2064,10 +2195,10 @@ select{
        Cut List both live inside Page 2's Material Order block so the
        cut lists print ONCE alongside the order, not on a standalone
        page. -->
-  <div class="mat-print-page" id="matPrintPage1">
-    <div class="mp-header" id="matPrintHeader1"></div>
+  <div class="mat-print-page jp-legacy" id="matPrintPage1">
+    <div class="mp-header jp-legacy" id="matPrintHeader1"></div>
     <div id="matPrintDrawTotals"></div>
-    <div class="mp-twoup">
+    <div class="mp-twoup jp-legacy">
       <div>
         <h2 class="mp-h">Roof Map</h2>
         <div id="matPrintRoofMap"></div>
@@ -2078,8 +2209,8 @@ select{
       </div>
     </div>
   </div>
-  <div class="mat-print-page" id="matPrintPage2">
-    <div class="mp-header" id="matPrintHeader2"></div>
+  <div class="mat-print-page jp-legacy" id="matPrintPage2">
+    <div class="mp-header jp-legacy" id="matPrintHeader2"></div>
     <h2 class="mp-h">Material Order</h2>
     <div id="matPrintOrderDetails"></div>
   </div>
@@ -2088,15 +2219,15 @@ select{
        + populateMaterialsFromLines keep working. Defaults are sensible
        (sheet width 762mm, overlap 150mm, pitch 15°). Reveal via the
        collapsed advanced details below. -->
-  <details class="card" style="margin-top:.5rem">
+  <details class="card jp-legacy" style="margin-top:.5rem">
     <summary class="card-hd" style="cursor:pointer"><span class="card-dot"></span>Sheet layout settings <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:6px">— advanced (sheet width, overlap, pitch)</span></summary>
     <div style="padding:12px 0 0">
-      <div class="f3">
+      <div class="f3 jp-legacy">
         <div><label>Sheet effective width (mm)</label><input type="number" id="sheetWidth" value="762" min="100" oninput="renderSheetLayout()"></div>
         <div><label>End lap / overlap (mm)</label><input type="number" id="overlapMm" value="150" min="0" oninput="renderSheetLayout()"></div>
         <div><label>Pitch (degrees)</label><input type="number" id="pitchDeg" value="15" min="1" max="60" oninput="renderSheetLayout()"></div>
       </div>
-      <div class="f3" style="margin-top:8px">
+      <div class="f3 jp-legacy" style="margin-top:8px">
         <div><label>Gutter overhang (mm)
           <span style="color:var(--text2);font-weight:400;font-size:11px">— added to every sheet, no rounding</span>
         </label>
@@ -2113,8 +2244,8 @@ select{
       </div>
       <div id="sheetSectionsWrap" style="margin-top:.25rem;display:none"></div>
       <div id="sheetLayoutOut" style="display:none">
-        <div class="canvas-wrap"><canvas id="sheetCanvas" width="900" height="520"></canvas></div>
-        <div class="sheet-legend" id="sheetLegend"></div>
+        <div class="canvas-wrap jp-legacy"><canvas id="sheetCanvas" width="900" height="520"></canvas></div>
+        <div class="sheet-legend jp-legacy" id="sheetLegend"></div>
         <div id="sheetSummaryOut"></div>
       </div>
     </div>
@@ -3290,7 +3421,7 @@ function gotoTab(t) {
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
-  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}}
+  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
@@ -17445,6 +17576,303 @@ function _matBasicCollectRoofs(){
 // canvas at the top of the Materials tab. Click handler maps tap
 // coordinates back to roofCanvas-space and dispatches to the shared
 // edit popup for letter/length or sheet-length edits.
+// ═══════════════════════════════════════════════════════════════════
+// JOB PACK DESIGNER
+// Page-based editable surface that fully replaces the standalone
+// cards on the Job Pack tab. Each page is one A4 (210mm × 297mm) and
+// the user can change its "type" (header / roof map / sheet plan /
+// cut lists / flashings / consumables / notes), add new pages, delete,
+// reorder.  Save PDF prints these pages directly.
+// State lives on S.jobPack.pages = [{type, opts}]. opts is per-type
+// and survives reloads via the existing autosave bag.
+// ═══════════════════════════════════════════════════════════════════
+function _jpState(){
+  if (!S.jobPack) S.jobPack = {};
+  if (!Array.isArray(S.jobPack.pages) || !S.jobPack.pages.length) {
+    S.jobPack.pages = _jpDefaultPages();
+  }
+  return S.jobPack;
+}
+function _jpDefaultPages(){
+  return [
+    { type:'header'      },
+    { type:'roofmap',     opts:{ view:'detailed' } },
+    { type:'sheetplan'   },
+    { type:'cutlists'    },
+    { type:'flashings'   },
+    { type:'consumables' }
+  ];
+}
+function _jpPageTypes(){
+  return [
+    { value:'header',      label:'Job header' },
+    { value:'roofmap',     label:'Roof map' },
+    { value:'sheetplan',   label:'Sheet plan' },
+    { value:'cutlists',    label:'Cut lists' },
+    { value:'flashings',   label:'Flashings' },
+    { value:'consumables', label:'Consumables' },
+    { value:'notes',       label:'Notes / custom' }
+  ];
+}
+function renderJobPack(){
+  var mount = document.getElementById('jpPages'); if (!mount) return;
+  var state = _jpState();
+  mount.innerHTML = '';
+  state.pages.forEach(function(page, i){
+    var pageEl = document.createElement('div');
+    pageEl.className = 'jp-page';
+    pageEl.setAttribute('data-jp-idx', i);
+    // Per-page floating tools above the sheet.
+    var tools = document.createElement('div');
+    tools.className = 'jp-page-tools no-print';
+    tools.innerHTML =
+      '<span class="jp-page-label">Page ' + (i + 1) + '</span>' +
+      '<select onchange="_jpChangeType('+i+',this.value)" title="Change what this page contains">' +
+        _jpPageTypes().map(function(t){
+          return '<option value="'+t.value+'"'+(t.value===page.type?' selected':'')+'>'+esc(t.label)+'</option>';
+        }).join('') +
+      '</select>' +
+      '<button onclick="_jpMovePage('+i+',-1)" title="Move up"' + (i===0?' disabled':'') + '>↑</button>' +
+      '<button onclick="_jpMovePage('+i+',1)" title="Move down"' + (i===state.pages.length-1?' disabled':'') + '>↓</button>' +
+      '<button onclick="_jpAddPage('+i+')" title="Add a page after this one">+ Add page below</button>' +
+      '<div class="spacer"></div>' +
+      '<button class="jp-danger" onclick="_jpDeletePage('+i+')" title="Delete this page">🗑 Delete</button>';
+    pageEl.appendChild(tools);
+    // Content container — each renderer mounts into this.
+    var content = document.createElement('div');
+    content.className = 'jp-page-content';
+    content.style.cssText = 'flex:1;display:flex;flex-direction:column;min-height:0';
+    pageEl.appendChild(content);
+    mount.appendChild(pageEl);
+    // Mount content based on type.
+    try { _jpRenderBlock(content, page, i); }
+    catch(e){ content.innerHTML = '<p style="color:#b91c1c;font-size:12px">Couldn\'t render this block: '+esc(e.message)+'</p>'; }
+  });
+}
+function _jpAddPage(afterIdx){
+  var state = _jpState();
+  var page = { type:'notes' };
+  var insertAt = (typeof afterIdx === 'number' && afterIdx >= 0 && afterIdx < state.pages.length)
+    ? afterIdx + 1 : state.pages.length;
+  state.pages.splice(insertAt, 0, page);
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+function _jpDeletePage(idx){
+  var state = _jpState();
+  if (state.pages.length <= 1) { alert('Keep at least one page.'); return; }
+  if (!confirm('Delete page ' + (idx + 1) + '?')) return;
+  state.pages.splice(idx, 1);
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+function _jpMovePage(idx, dir){
+  var state = _jpState();
+  var j = idx + dir;
+  if (j < 0 || j >= state.pages.length) return;
+  var t = state.pages[idx]; state.pages[idx] = state.pages[j]; state.pages[j] = t;
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+function _jpChangeType(idx, newType){
+  var state = _jpState();
+  var p = state.pages[idx]; if (!p) return;
+  p.type = newType;
+  if (!p.opts) p.opts = {};
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+function _jpRenderBlock(content, page, idx){
+  switch (page.type){
+    case 'header':      return _jpRenderHeader(content, page, idx);
+    case 'roofmap':     return _jpRenderRoofMap(content, page, idx);
+    case 'sheetplan':   return _jpRenderSheetPlan(content, page, idx);
+    case 'cutlists':    return _jpRenderCutLists(content, page, idx);
+    case 'flashings':   return _jpRenderFlashings(content, page, idx);
+    case 'consumables': return _jpRenderConsumables(content, page, idx);
+    case 'notes':       return _jpRenderNotes(content, page, idx);
+  }
+  content.innerHTML = '<p style="color:var(--text2);font-size:12px;font-style:italic">Empty page — pick a type from the dropdown above.</p>';
+}
+
+// ── Block renderers ────────────────────────────────────────────────
+function _jpRenderHeader(content, page, idx){
+  var client = (document.getElementById('jobClient')||{}).value || '';
+  var addr   = (document.getElementById('jobAddr')  ||{}).value || '';
+  var jobNum = (document.getElementById('matJobNumber')||{}).value || '';
+  var date   = new Date().toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' });
+  var delMode = (S && S.order && S.order.deliveryMode) || 'site';
+  var delAddr = (document.getElementById('matDeliveryAddr')||{}).value || addr;
+  var brand = (S && S.settings && S.settings.branding && S.settings.branding.company_name) || 'Flood Roofing';
+  content.innerHTML =
+    '<div class="jp-block-title">Job header</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 18px;margin-bottom:10px">' +
+      _jpHeaderField('Client',     'jobClient',     client) +
+      _jpHeaderField('Job #',      'matJobNumber',  jobNum) +
+      _jpHeaderField('Site address','jobAddr',      addr, true) +
+      '<div><div style="font-size:10px;color:#6f6a60;letter-spacing:.05em;text-transform:uppercase;font-weight:600">Date</div>'+
+      '<div style="font-size:13px;margin-top:3px">'+esc(date)+'</div></div>' +
+      _jpHeaderField('Delivery to',  'matDeliveryAddr', delMode==='site'?delAddr:'To yard') +
+      '<div style="grid-column:1/-1;text-align:right;color:#6f6a60;font-size:11px">'+esc(brand)+'</div>' +
+    '</div>' +
+    '<div style="border-top:2px solid #0a1628;margin-top:6px"></div>';
+  // Live totals tile strip
+  var d = (typeof _matDrawTotals === 'function') ? _matDrawTotals() : { roofArea:0, flashingsLm:0, gutterLm:0, pitch:0 };
+  var pitch = d.pitch ? (d.pitch + '°') : '—';
+  function tile(label, val, sub){
+    return '<div style="flex:1;min-width:120px;border:1px solid #d1d5db;border-radius:6px;padding:8px 10px;background:#fff">'+
+      '<div style="font-size:10px;color:#6f6a60;font-weight:700;letter-spacing:.05em;text-transform:uppercase">'+esc(label)+'</div>'+
+      '<div style="font-size:18px;font-weight:700;color:#0a1628;margin-top:1px">'+val+'</div>'+
+      (sub ? '<div style="font-size:10px;color:#6f6a60;margin-top:1px">'+sub+'</div>' : '')+
+    '</div>';
+  }
+  content.insertAdjacentHTML('beforeend',
+    '<div style="display:flex;gap:8px;margin:10px 0 4px">'+
+      tile('Roof area', d.roofArea > 0 ? d.roofArea.toFixed(1) + ' m²' : '—', 'Pitch ' + pitch)+
+      tile('Flashings', d.flashingsLm > 0 ? d.flashingsLm.toFixed(1) + ' lm' : '—', '')+
+      tile('Gutter',    d.gutterLm    > 0 ? d.gutterLm.toFixed(1)    + ' lm' : '—', '')+
+    '</div>'
+  );
+}
+function _jpHeaderField(label, mirrorId, currentVal, full){
+  return '<div'+(full?' style="grid-column:1/-1"':'')+'>'+
+    '<div style="font-size:10px;color:#6f6a60;letter-spacing:.05em;text-transform:uppercase;font-weight:600">'+esc(label)+'</div>'+
+    '<input type="text" value="'+esc(currentVal||'')+'" placeholder="—" '+
+      'oninput="(document.getElementById(\''+mirrorId+'\')||{}).value=this.value;'+
+        'try{(document.getElementById(\''+mirrorId+'\')||{}).dispatchEvent(new Event(\'input\',{bubbles:true}));}catch(e){};'+
+        'try{autosaveJob&&autosaveJob();}catch(e){}" '+
+      'style="width:100%;font-size:13px;margin-top:3px;border:none;border-bottom:1px dashed #cbd5e1;background:transparent;padding:3px 0;outline:none;color:#0a1628;font-family:inherit">'+
+  '</div>';
+}
+function _jpRenderRoofMap(content, page, idx){
+  var view = (page.opts && page.opts.view) || 'detailed';
+  content.innerHTML =
+    '<div class="jp-block-title" style="display:flex;align-items:center;gap:8px">Roof map' +
+      '<span style="margin-left:auto;display:inline-flex;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;font-size:11px" class="no-print">' +
+        '<button type="button" onclick="_jpSetRoofMapView('+idx+',\'detailed\')" style="border:none;background:'+(view==='detailed'?'#0a1628':'#fff')+';color:'+(view==='detailed'?'#fff':'#0a1628')+';padding:3px 10px;cursor:pointer;font-size:11px;font-weight:'+(view==='detailed'?'700':'500')+'">Detailed</button>' +
+        '<button type="button" onclick="_jpSetRoofMapView('+idx+',\'basic\')"    style="border:none;background:'+(view==='basic'?'#0a1628':'#fff')   +';color:'+(view==='basic'   ?'#fff':'#0a1628')+';padding:3px 10px;cursor:pointer;font-size:11px;font-weight:'+(view==='basic'   ?'700':'500')+';border-left:1px solid #cbd5e1">Basic</button>' +
+      '</span>' +
+    '</div>' +
+    '<div class="jp-roofmap-out" style="flex:1;min-height:140mm;display:flex;align-items:center;justify-content:center;background:#fafafa;border:1px solid #d1d5db;border-radius:4px;overflow:hidden"></div>';
+  // Use the existing renderer.  The current renderMatRoofMap targets
+  // #matRoofMapOut, so we temporarily redirect by aliasing the element.
+  var out = content.querySelector('.jp-roofmap-out');
+  out.id = 'jpRoofMapOut_' + idx;
+  // Reuse renderMatRoofMap by temporarily moving its target id.
+  var realOut = document.getElementById('matRoofMapOut');
+  var oldView = _matMapView();
+  if (oldView !== view) {
+    try { localStorage.setItem('fr_mat_map_view', view); } catch(e){}
+  }
+  if (realOut) {
+    realOut.id = '__realMatRoofMapOut_swap';
+    out.id = 'matRoofMapOut';
+    try { renderMatRoofMap(); } catch(e){}
+    out.id = 'jpRoofMapOut_' + idx;
+    realOut.id = 'matRoofMapOut';
+  } else {
+    out.id = 'matRoofMapOut';
+    try { renderMatRoofMap(); } catch(e){}
+    out.id = 'jpRoofMapOut_' + idx;
+  }
+  if (oldView !== view) { try { localStorage.setItem('fr_mat_map_view', oldView); } catch(e){} }
+}
+function _jpSetRoofMapView(idx, view){
+  var p = _jpState().pages[idx]; if (!p) return;
+  if (!p.opts) p.opts = {};
+  p.opts.view = view;
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+function _jpRenderSheetPlan(content, page, idx){
+  content.innerHTML =
+    '<div class="jp-block-title">Sheet layout</div>' +
+    '<div id="jpSheetPlanOut_'+idx+'" style="flex:1;overflow:auto"></div>';
+  var out = content.querySelector('#jpSheetPlanOut_' + idx);
+  // Clone the live sheet plan output if present.
+  var live = document.getElementById('roofSheetPlanOut');
+  if (live && live.children.length) {
+    out.innerHTML = '';
+    Array.from(live.children).forEach(function(ch){
+      var clone = ch.cloneNode(true);
+      // Replace canvases with imgs so the clone prints.
+      var canvases = ch.querySelectorAll ? ch.querySelectorAll('canvas') : [];
+      var cloneCanvases = clone.querySelectorAll ? clone.querySelectorAll('canvas') : [];
+      if (ch.tagName === 'CANVAS') {
+        try { var img = document.createElement('img'); img.src = ch.toDataURL('image/png'); img.style.cssText='max-width:100%;height:auto;display:block'; out.appendChild(img); return; } catch(e){}
+      }
+      for (var ci = 0; ci < canvases.length; ci++) {
+        try { var im = document.createElement('img'); im.src = canvases[ci].toDataURL('image/png'); im.style.cssText='max-width:100%;height:auto;display:block'; cloneCanvases[ci].parentNode.replaceChild(im, cloneCanvases[ci]); } catch(e){}
+      }
+      out.appendChild(clone);
+    });
+  } else {
+    out.innerHTML = '<p style="font-size:12px;color:var(--text2);font-style:italic">Draw your roof and generate the sheet plan first.</p>';
+  }
+}
+function _jpRenderCutLists(content, page, idx){
+  content.innerHTML =
+    '<div class="jp-block-title">Cut lists</div>' +
+    '<div id="jpCutListsOut_'+idx+'" style="flex:1;overflow:auto"></div>';
+  // Temporarily redirect renderMaterialsCutLists' target to this page.
+  var live = document.getElementById('matCutLists');
+  var jpOut = content.querySelector('#jpCutListsOut_' + idx);
+  if (live && jpOut) {
+    live.id = '__realMatCutLists_swap';
+    jpOut.id = 'matCutLists';
+    try { renderMaterialsCutLists(); } catch(e){ console.warn(e); }
+    jpOut.id = 'jpCutListsOut_' + idx;
+    live.id = 'matCutLists';
+  }
+}
+function _jpRenderFlashings(content, page, idx){
+  content.innerHTML =
+    '<div class="jp-block-title">Flashings</div>' +
+    '<div id="jpFlashingsOut_'+idx+'" style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-content:start"></div>' +
+    '<div style="margin-top:10px"><button onclick="_matFlashingsAdd()" style="padding:6px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">+ Add Flashing</button></div>';
+  var live = document.getElementById('matFlashingsGrid');
+  var jpOut = content.querySelector('#jpFlashingsOut_' + idx);
+  if (live && jpOut) {
+    live.id = '__realMatFlashingsGrid_swap';
+    jpOut.id = 'matFlashingsGrid';
+    try { renderMatFlashingsGrid(); } catch(e){}
+    jpOut.id = 'jpFlashingsOut_' + idx;
+    live.id = 'matFlashingsGrid';
+  }
+}
+function _jpRenderConsumables(content, page, idx){
+  content.innerHTML =
+    '<div class="jp-block-title">Consumables</div>' +
+    '<div id="jpConsumablesOut_'+idx+'" class="cons-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"></div>';
+  var live = document.getElementById('matConsumables');
+  var jpOut = content.querySelector('#jpConsumablesOut_' + idx);
+  if (live && jpOut) {
+    live.id = '__realMatConsumables_swap';
+    jpOut.id = 'matConsumables';
+    try { _matRenderConsumables(_matDrawTotals()); } catch(e){}
+    jpOut.id = 'jpConsumablesOut_' + idx;
+    live.id = 'matConsumables';
+  }
+}
+function _jpRenderNotes(content, page, idx){
+  var noteKey = '__jp_note_' + idx;
+  if (!page.opts) page.opts = {};
+  var text = page.opts.text || '';
+  content.innerHTML =
+    '<div class="jp-block-title">Notes</div>' +
+    '<div contenteditable="true" data-jp-note="'+idx+'" '+
+      'oninput="_jpUpdateNote('+idx+',this.innerHTML)" '+
+      'style="flex:1;outline:none;border:1px dashed #cbd5e1;border-radius:6px;padding:12px 14px;font-size:12.5px;line-height:1.6;background:#fafafa;color:#0a1628;min-height:180mm">'+
+      (text || '<span style="color:#94a3b8;font-style:italic">Click to type — these notes print on this page.</span>') +
+    '</div>';
+}
+function _jpUpdateNote(idx, html){
+  var p = _jpState().pages[idx]; if (!p) return;
+  if (!p.opts) p.opts = {};
+  p.opts.text = html;
+  try { autosaveJob && autosaveJob(); } catch(e){}
+}
+
 function renderMatRoofMap(){
   var out = document.getElementById('matRoofMapOut'); if (!out) return;
   // Basic view branches off here — no canvas mirror, just outline
@@ -19124,13 +19552,18 @@ async function pushScopePricingToFergus(){
 function saveMaterialsAsPdf() {
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
-  try { _matBuildPrintPages(); } catch(e){ console.warn('print pages:', e); }
+  try { renderMatRoofMap(); } catch(e){}
+  try { renderMatFlashingsGrid(); } catch(e){}
+  try { renderJobPack(); } catch(e){}
   var html = document.documentElement;
-  ['print-quote','print-order','print-jobpack','print-report'].forEach(function(c){ html.classList.remove(c); });
-  html.classList.add('print-materials');
+  ['print-quote','print-order','print-materials','print-report'].forEach(function(c){ html.classList.remove(c); });
+  // Switch from the old #matPrintPage1/2 capture path to the new
+  // Job Pack Designer surface: the .jp-page elements ARE the print
+  // pages (sized 210mm × 297mm with page-break-after:always).
+  html.classList.add('print-jobpack');
   setTimeout(function(){
     window.print();
-    setTimeout(function(){ html.classList.remove('print-materials'); }, 400);
+    setTimeout(function(){ html.classList.remove('print-jobpack'); }, 400);
   }, 60);
   _matMsg('Opening print dialog — choose "Save as PDF"…');
 }
