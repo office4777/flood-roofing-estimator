@@ -17715,14 +17715,49 @@ function _jpState(){
   if (!S.jobPack) S.jobPack = {};
   if (!Array.isArray(S.jobPack.pages) || !S.jobPack.pages.length) {
     S.jobPack.pages = _jpDefaultPages();
+    S.jobPack.pagesVersion = 2;
+  }
+  // One-time migration v1 → v2: drop the standalone roofmap +
+  // sheetplan pages and pre-drop two movable map pictures on the
+  // header page so the user sees the same content but in the
+  // simpler layout described in the refactor.
+  if (!S.jobPack.pagesVersion || S.jobPack.pagesVersion < 2) {
+    var pages = S.jobPack.pages.slice();
+    // Find a header page to attach the default map images to
+    var headerIdx = pages.findIndex(function(p){ return p && p.type === 'header'; });
+    var headerImgs = [
+      { id:'mig_dt_'+Date.now(),    mapKey:'detailed', x: 20,  y:175, w:310, h:300 },
+      { id:'mig_bs_'+(Date.now()+1),mapKey:'basic',    x:355,  y:175, w:310, h:300 }
+    ];
+    if (headerIdx >= 0) {
+      if (!Array.isArray(pages[headerIdx].images)) pages[headerIdx].images = [];
+      pages[headerIdx].images = pages[headerIdx].images.concat(headerImgs);
+    } else {
+      pages.unshift({ type:'header', images: headerImgs });
+    }
+    // Drop fixed roofmap / sheetplan pages (now movable pictures).
+    pages = pages.filter(function(p){ return p && p.type !== 'roofmap' && p.type !== 'sheetplan'; });
+    S.jobPack.pages = pages;
+    S.jobPack.pagesVersion = 2;
   }
   return S.jobPack;
 }
 function _jpDefaultPages(){
+  // Page 1 ships with TWO default roof-map images pre-dropped as
+  // movable pictures (Detailed on the left, Basic on the right) so
+  // the user immediately sees a usable layout.  Subsequent pages
+  // cover the cut lists, flashings + consumables.  The old standalone
+  // Roof map + Sheet plan pages are gone — those maps now live on
+  // page 1 as draggable pictures the user can move, resize, or
+  // duplicate the same way they'd manage any image.
+  // A4 page CSS-pixel size at 96 dpi after 14mm padding ≈ 690 × 1014.
+  // Header strip eats ~110 px, leaving plenty of room below for two
+  // ~310 × 260 px maps side-by-side.
   return [
-    { type:'header'      },
-    { type:'roofmap',     opts:{ view:'detailed' } },
-    { type:'sheetplan'   },
+    { type:'header', images:[
+      { id:'def_dt_'+Date.now(),    mapKey:'detailed', x: 20,  y:175, w:310, h:300 },
+      { id:'def_bs_'+(Date.now()+1),mapKey:'basic',    x:355,  y:175, w:310, h:300 }
+    ] },
     { type:'cutlists'    },
     { type:'flashings'   },
     { type:'consumables' }
@@ -18145,35 +18180,53 @@ function _jpRenderHeader(content, page, idx){
   var delMode = (S && S.order && S.order.deliveryMode) || 'site';
   var delAddr = (document.getElementById('matDeliveryAddr')||{}).value || addr;
   var brand = (S && S.settings && S.settings.branding && S.settings.branding.company_name) || 'Flood Roofing';
-  content.innerHTML =
-    '<div class="jp-block-title">Job header</div>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 18px;margin-bottom:10px">' +
-      _jpHeaderField('Client',     'jobClient',     client) +
-      _jpHeaderField('Job #',      'matJobNumber',  jobNum) +
-      _jpHeaderField('Site address','jobAddr',      addr, true) +
-      '<div><div style="font-size:10px;color:#6f6a60;letter-spacing:.05em;text-transform:uppercase;font-weight:600">Date</div>'+
-      '<div style="font-size:13px;margin-top:3px">'+esc(date)+'</div></div>' +
-      _jpHeaderField('Delivery to',  'matDeliveryAddr', delMode==='site'?delAddr:'To yard') +
-      '<div style="grid-column:1/-1;text-align:right;color:#6f6a60;font-size:11px">'+esc(brand)+'</div>' +
-    '</div>' +
-    '<div style="border-top:2px solid #0a1628;margin-top:6px"></div>';
-  // Live totals tile strip
+  // Compact header strip — sits at the top of page 1 and frees up
+  // the rest of the page for the two roof-map pictures pre-dropped
+  // on it.  All fields stay inline-editable: typing here mirrors
+  // back into the hidden legacy inputs so populateMatJobInfo +
+  // autosave keep working.
   var d = (typeof _matDrawTotals === 'function') ? _matDrawTotals() : { roofArea:0, flashingsLm:0, gutterLm:0, pitch:0 };
   var pitch = d.pitch ? (d.pitch + '°') : '—';
-  function tile(label, val, sub){
-    return '<div style="flex:1;min-width:120px;border:1px solid #d1d5db;border-radius:6px;padding:8px 10px;background:#fff">'+
-      '<div style="font-size:10px;color:#6f6a60;font-weight:700;letter-spacing:.05em;text-transform:uppercase">'+esc(label)+'</div>'+
-      '<div style="font-size:18px;font-weight:700;color:#0a1628;margin-top:1px">'+val+'</div>'+
-      (sub ? '<div style="font-size:10px;color:#6f6a60;margin-top:1px">'+sub+'</div>' : '')+
-    '</div>';
+  function inlineField(mirrorId, val, ph){
+    return '<input type="text" value="'+esc(val||'')+'" placeholder="'+esc(ph||'—')+'" '+
+      'oninput="(document.getElementById(\''+mirrorId+'\')||{}).value=this.value;'+
+        'try{(document.getElementById(\''+mirrorId+'\')||{}).dispatchEvent(new Event(\'input\',{bubbles:true}));}catch(e){};'+
+        'try{autosaveJob&&autosaveJob();}catch(e){}" '+
+      'style="font:inherit;font-size:11px;font-weight:600;color:#0a1628;border:none;border-bottom:1px dashed #cbd5e1;background:transparent;padding:1px 2px;outline:none;width:100%">';
   }
-  content.insertAdjacentHTML('beforeend',
-    '<div style="display:flex;gap:8px;margin:10px 0 4px">'+
-      tile('Roof area', d.roofArea > 0 ? d.roofArea.toFixed(1) + ' m²' : '—', 'Pitch ' + pitch)+
-      tile('Flashings', d.flashingsLm > 0 ? d.flashingsLm.toFixed(1) + ' lm' : '—', '')+
-      tile('Gutter',    d.gutterLm    > 0 ? d.gutterLm.toFixed(1)    + ' lm' : '—', '')+
-    '</div>'
-  );
+  content.innerHTML =
+    '<div style="display:flex;align-items:flex-start;gap:16px;padding-bottom:6px;border-bottom:2px solid #0a1628">' +
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-family:Inter,sans-serif;font-size:16px;font-weight:700;color:#0a1628;letter-spacing:-.005em;line-height:1.1">'+
+          inlineField('jobClient', client, 'Client name') +
+        '</div>'+
+        '<div style="font-size:10.5px;color:#475569;margin-top:2px">'+
+          inlineField('jobAddr', addr, 'Site address') +
+        '</div>'+
+      '</div>'+
+      '<div style="text-align:right;font-size:10px;color:#374151;line-height:1.55;min-width:160px">'+
+        '<div><strong style="color:#0a1628">Job #:</strong> '+inlineField('matJobNumber', jobNum, '—')+'</div>'+
+        '<div><strong style="color:#0a1628">Date:</strong> '+esc(date)+'</div>'+
+        '<div><strong style="color:#0a1628">Delivery:</strong> '+(delMode==='site' ? inlineField('matDeliveryAddr', delAddr || addr, '—') : 'To yard')+'</div>'+
+        '<div style="margin-top:3px;color:#6f6a60">'+esc(brand)+'</div>'+
+      '</div>'+
+    '</div>' +
+    // Compact tile strip below the header — 3 small tiles, single row.
+    '<div style="display:flex;gap:6px;margin-top:6px;font-size:10px">'+
+      '<div style="flex:1;border:1px solid #d1d5db;border-radius:5px;padding:4px 7px;background:#fff">'+
+        '<div style="color:#6f6a60;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Roof area</div>'+
+        '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.roofArea > 0 ? d.roofArea.toFixed(1) + ' m²' : '—')+'</div>'+
+        '<div style="color:#6f6a60;font-size:9px">Pitch '+pitch+'</div>'+
+      '</div>'+
+      '<div style="flex:1;border:1px solid #d1d5db;border-radius:5px;padding:4px 7px;background:#fff">'+
+        '<div style="color:#6f6a60;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Flashings</div>'+
+        '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.flashingsLm > 0 ? d.flashingsLm.toFixed(1) + ' lm' : '—')+'</div>'+
+      '</div>'+
+      '<div style="flex:1;border:1px solid #d1d5db;border-radius:5px;padding:4px 7px;background:#fff">'+
+        '<div style="color:#6f6a60;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Gutter</div>'+
+        '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.gutterLm > 0 ? d.gutterLm.toFixed(1) + ' lm' : '—')+'</div>'+
+      '</div>'+
+    '</div>';
 }
 function _jpHeaderField(label, mirrorId, currentVal, full){
   return '<div'+(full?' style="grid-column:1/-1"':'')+'>'+
@@ -18252,19 +18305,194 @@ function _jpRenderSheetPlan(content, page, idx){
   }
 }
 function _jpRenderCutLists(content, page, idx){
-  content.innerHTML =
-    '<div class="jp-block-title">Cut lists</div>' +
-    '<div id="jpCutListsOut_'+idx+'" style="flex:1;overflow:auto"></div>';
-  // Temporarily redirect renderMaterialsCutLists' target to this page.
-  var live = document.getElementById('matCutLists');
-  var jpOut = content.querySelector('#jpCutListsOut_' + idx);
-  if (live && jpOut) {
-    live.id = '__realMatCutLists_swap';
-    jpOut.id = 'matCutLists';
-    try { renderMaterialsCutLists(); } catch(e){ console.warn(e); }
-    jpOut.id = 'jpCutListsOut_' + idx;
-    live.id = 'matCutLists';
+  // Page layout:
+  //   1. Roof sheets table (full width)
+  //   2. Ridge / Hip capping table (full width — usually one piece type)
+  //   3. Flashings GRID — 3 boxes per row, one per flashing type that
+  //      has pieces. Each box shows the user's default library drawing
+  //      on top + a compact cut list under it. The last cell is always
+  //      an "Add flashing" box with "Select From Favourites" and
+  //      "Enter Custom Flashing" actions.
+  //   4. Gutter section (full width)
+  var profile   = (document.getElementById('matProfile')   || {}).value || 'Corrugate';
+  var grade     = (document.getElementById('matGrade')     || {}).value || 'Colorsteel Maxam';
+  var thickness = (document.getElementById('matThickness') || {}).value || '0.40g';
+  var ridgeType = (document.getElementById('matRidgeType') || {}).value || 'standard';
+  var d = _matDrawTotals();
+  var sc = window._lastSheetCounts || null;
+  var html = '<div class="jp-block-title">Cut lists</div>';
+
+  // ── Roof sheets table ──
+  html += '<div style="margin-bottom:12px">'+
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="width:10px;height:10px;background:#0099cc;border-radius:2px"></span><strong style="font-size:12px;color:#0a1628">Roof sheets</strong>'+
+      '<span style="color:var(--text2);font-size:10.5px">— '+esc(profile)+' · '+esc(grade)+' · '+esc(thickness)+'</span>'+
+    '</div>';
+  var sheetRows = [];
+  if (sc && sc.groups && sc.groups.length) {
+    var byLen = {};
+    sc.groups.forEach(function(g){ byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count; });
+    sheetRows = Object.keys(byLen).map(function(k){ return { len: parseInt(k, 10), qty: byLen[k] }; }).sort(function(a,b){ return b.len - a.len; });
   }
+  if (sheetRows.length) {
+    html += '<table class="cut-list"><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Length each</th></tr></thead><tbody>';
+    var totalSheets = 0;
+    sheetRows.forEach(function(r){
+      totalSheets += r.qty;
+      html += '<tr><td>'+esc(profile)+' sheet @ '+(r.len/1000).toFixed(2)+'m</td><td class="r">'+r.qty+'</td><td class="r">'+(r.len/1000).toFixed(2)+' m</td></tr>';
+    });
+    html += '</tbody><tfoot><tr><td>Total sheets</td><td class="r">'+totalSheets+'</td><td class="r">'+d.roofArea.toFixed(1)+' m² roof</td></tr></tfoot></table>';
+  } else {
+    html += '<div class="cut-list-empty">Generate the Roof Sheet Plan on the Map Roof tab to populate.</div>';
+  }
+  html += '</div>';
+
+  // ── Ridge / Hip capping (full-width, single section) ──
+  var ridgeSpec = _MAT_FLASHING_SPECS[0];
+  var ridgeCl = _matBuildCutList('ridgehip', ridgeSpec.waste);
+  html += '<div style="margin-bottom:14px">'+
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="width:10px;height:10px;background:'+ridgeSpec.colour+';border-radius:2px"></span><strong style="font-size:12px;color:#0a1628">Ridge / Hip capping</strong>'+
+      '<span style="color:var(--text2);font-size:10.5px">— '+(ridgeType==='wide'?'Wide ridge':'Standard ridge')+' · '+esc(grade)+' · +'+ridgeSpec.waste.toFixed(1)+'m waste</span>'+
+    '</div>'+
+    _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.')+
+  '</div>';
+
+  // ── Flashings 3-per-row grid ──
+  // Collect every spec that has at least one piece, then any user-
+  // added flashings gallery entries (S.matFlashings) for "extra"
+  // types so adding via "Select From Favourites" / "Enter Custom"
+  // shows up here too.
+  var grid = '';
+  var typeBoxes = [];
+  _MAT_FLASHING_SPECS.slice(1).forEach(function(spec){
+    var cl = _matBuildCutList(spec.key, spec.waste);
+    if (cl.pieceCount === 0) return;
+    typeBoxes.push({ spec: spec, cl: cl, label: spec.label });
+  });
+  // Plus any gallery flashings the user added that aren't in the
+  // auto-derived list yet (those are usually special / one-off
+  // pieces).  Render them as label-only boxes — no cut list because
+  // they don't have an auto-collected piece count.
+  if (Array.isArray(S.matFlashings)) {
+    S.matFlashings.forEach(function(slot, si){
+      if (!slot) return;
+      typeBoxes.push({ slot: slot, slotIdx: si });
+    });
+  }
+  // Empty "Add" box always appears at the end.
+  typeBoxes.push({ add: true });
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px">';
+  typeBoxes.forEach(function(box, bi){
+    html += _jpRenderFlashingCell(box, bi);
+  });
+  html += '</div>';
+
+  // ── Guttering ──
+  var gutterChoice = (document.getElementById('matGutter') || {}).value || 'none';
+  var gutterLabel = {
+    'none':'No gutter required',
+    'colorsteel-box':'Colorsteel 125mm Box Gutter',
+    'zincalume-box':'Zincalume 125mm Box Gutter',
+    'marley-classic':'Marley Classic (PVC)',
+    'marley-typhoon':'Marley Typhoon (PVC)'
+  }[gutterChoice] || 'No gutter required';
+  html += '<div style="margin-bottom:6px">'+
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="width:10px;height:10px;background:#7c3aed;border-radius:2px"></span><strong style="font-size:12px;color:#0a1628">Guttering</strong>'+
+      '<span style="color:var(--text2);font-size:10.5px">— '+esc(gutterLabel)+'</span>'+
+    '</div>';
+  if (gutterChoice === 'none') html += '<div class="cut-list-empty">No gutter selected — pick a gutter type above to add it to the order.</div>';
+  else {
+    var gCl = _matBuildCutList('gutter', 0);
+    html += gCl.pieceCount === 0
+      ? '<div class="cut-list-empty">Draw gutter lines on the Map Roof tab to populate this list.</div>'
+      : _matCutListTable(gCl, '');
+  }
+  html += '</div>';
+
+  content.innerHTML = html;
+}
+// Render one cell of the 3-per-row Flashings grid on the Cut Lists
+// page.  Three shapes:
+//   - auto-derived flashing type (spec + cut list)
+//   - user-added gallery slot (library entry or custom sketch)
+//   - empty "Add" cell with "Select From Favourites" + "Enter Custom"
+function _jpRenderFlashingCell(box, bi){
+  if (box.add){
+    return '<div style="border:1px dashed #cbd5e1;border-radius:8px;padding:12px;background:#fafafa;display:flex;flex-direction:column;align-items:center;gap:8px;min-height:200px;justify-content:center">' +
+      '<svg viewBox="0 0 24 24" style="width:30px;height:30px;opacity:.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>'+
+      '<button onclick="_matFlashingsAddAndPick()" style="padding:6px 12px;font-size:11px;background:#0a1628;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;width:100%">Select From Favourites</button>'+
+      '<button onclick="_matFlashingsAddAndCustom()" style="padding:6px 12px;font-size:11px;background:#fff;color:#0a1628;border:1px solid #cbd5e1;border-radius:6px;cursor:pointer;font-weight:600;width:100%">Enter Custom Flashing</button>'+
+    '</div>';
+  }
+  if (box.slot){
+    var slot = box.slot, si = box.slotIdx;
+    var inner;
+    if (slot.source === 'library'){
+      var lib = _getAllFlashings();
+      var entry = lib.find(function(e){ return e.name === slot.name; });
+      if (entry && entry.sketch){
+        inner = '<img src="'+esc(entry.sketch)+'" style="width:100%;height:90px;object-fit:contain;background:#fff;border-radius:4px">'+
+          '<div style="font-size:11px;font-weight:600;color:#0a1628;margin-top:4px;text-align:center">'+esc(entry.name)+'</div>';
+      } else {
+        inner = '<div style="padding:18px;font-size:11px;color:#b91c1c;font-style:italic">Saved entry removed.</div>';
+      }
+    } else if (slot.source === 'custom' && slot.sketch){
+      inner = '<img src="'+esc(slot.sketch)+'" style="width:100%;height:90px;object-fit:contain;background:#fff;border-radius:4px">'+
+        '<div style="font-size:11px;font-weight:600;color:#0a1628;margin-top:4px;text-align:center">'+esc(slot.name || 'Custom')+'</div>';
+    } else {
+      inner = '<div style="padding:18px;color:var(--text2);font-style:italic;font-size:11px;text-align:center">Empty slot</div>';
+    }
+    return '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;background:#fff;position:relative;min-height:200px;display:flex;flex-direction:column">' +
+      '<button onclick="_matFlashingsRemove('+si+')" title="Remove" style="position:absolute;top:4px;right:4px;background:none;border:none;color:#94a3b8;font-size:14px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:4px">×</button>'+
+      inner +
+    '</div>';
+  }
+  // Auto-derived flashing type with cut list.
+  var spec = box.spec, cl = box.cl;
+  var libMatches = _matSavedFlashingsFor(spec.key);
+  var pick = libMatches[0];   // user's default for this type
+  var drawing = pick && pick.entry.sketch
+    ? '<img src="'+esc(pick.entry.sketch)+'" style="width:100%;height:90px;object-fit:contain;background:#fff;border-radius:4px">'
+    : '<div style="height:90px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:10px">No default drawing — add one in Settings</div>';
+  // Compact cut list table (no Drawing column to keep it tight).
+  var tableHtml = '<table class="cut-list cut-list-editable" style="margin-top:6px;font-size:10.5px"><thead><tr><th>Piece</th><th class="r">Qty</th><th class="r">Length each</th><th class="r"></th></tr></thead><tbody>';
+  cl.rows.forEach(function(r, i){
+    var lbl = r.letter ? r.letter : '?';
+    var rowKey = esc(spec.key + '::' + (r.letter || '') + '::' + r.length.toFixed(2));
+    var isExtra = !!r._isExtra, extraIdx = r._extraIdx;
+    var letterInput, lenInput, qtyCell, deleteCell;
+    if (isExtra){
+      letterInput = '<input class="cl-letter" type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'letter\',this.value)" style="width:32px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:1px 2px;border-radius:3px;font-size:inherit;font-style:italic">';
+      lenInput    = '<input class="cl-length" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'length\',this.value)" style="width:46px;border:1px solid transparent;background:transparent;text-align:right;padding:1px 2px;border-radius:3px;font-size:inherit">';
+      qtyCell     = '<input class="cl-qty" type="number" step="1" min="1" value="'+r.qty+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'qty\',this.value)" style="width:36px;border:1px solid transparent;background:transparent;text-align:right;padding:1px 2px;border-radius:3px;font-size:inherit">';
+      deleteCell  = '<button onclick="_matExtrasDelete(\''+esc(spec.key)+'\','+extraIdx+')" style="background:none;border:none;color:#b91c1c;font-size:12px;cursor:pointer;padding:1px 4px">×</button>';
+    } else {
+      letterInput = '<input class="cl-letter" data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matInlineSetLetter(this)" style="width:32px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:1px 2px;border-radius:3px;font-size:inherit">';
+      lenInput    = '<input class="cl-length" data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matInlineSetLength(this)" style="width:46px;border:1px solid transparent;background:transparent;text-align:right;padding:1px 2px;border-radius:3px;font-size:inherit">';
+      qtyCell     = r.qty;
+      deleteCell  = '<button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" style="background:none;border:none;color:#b91c1c;font-size:12px;cursor:pointer;padding:1px 4px">×</button>';
+    }
+    tableHtml += '<tr'+(isExtra?' style="background:#fffbeb"':'')+'><td>'+letterInput+'</td><td class="r">'+qtyCell+'</td><td class="r">'+lenInput+' m</td><td class="r">'+deleteCell+'</td></tr>';
+  });
+  tableHtml += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+'</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td><td></td></tr></tfoot></table>';
+  var addRowBtn = '<button onclick="_matExtrasAdd(\''+esc(spec.key)+'\')" style="margin-top:6px;font-size:10.5px;padding:3px 8px;background:transparent;border:1px dashed #94a3b8;border-radius:5px;color:#0a1628;cursor:pointer;font-weight:600">+ Add row</button>';
+  return '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;background:#fff;display:flex;flex-direction:column;min-height:200px">'+
+    '<div style="display:flex;align-items:center;gap:5px;margin-bottom:4px"><span style="width:8px;height:8px;background:'+spec.colour+';border-radius:2px"></span><strong style="font-size:11px;color:#0a1628;line-height:1.2">'+esc(spec.label)+'</strong></div>'+
+    drawing +
+    tableHtml +
+    addRowBtn +
+  '</div>';
+}
+// "Select From Favourites" → add a gallery slot and immediately open
+// the picker pointing at the new slot.
+function _matFlashingsAddAndPick(){
+  _matFlashingsAdd();
+  var arr = _matFlashingsArr();
+  _matFlashingsPickerOpen(arr.length - 1);
+}
+function _matFlashingsAddAndCustom(){
+  _matFlashingsAdd();
+  var arr = _matFlashingsArr();
+  _matFlashingsCustomOpen(arr.length - 1);
 }
 function _jpRenderFlashings(content, page, idx){
   content.innerHTML =
