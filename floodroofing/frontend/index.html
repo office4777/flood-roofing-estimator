@@ -17866,17 +17866,23 @@ function renderJpMapPanel(){
 }
 function _jpMapPanelItems(){
   var items = [];
-  // Whole-roof variants (no per-roof index)
-  items.push({ key:'detailed',  label:'Detailed map',  sub:'all roofs' });
-  items.push({ key:'basic',     label:'Basic map',     sub:'all roofs' });
-  items.push({ key:'sheetplan', label:'Sheet layout',  sub:'all roofs' });
-  // Per-roof variants — only when there's actually more than one roof.
-  if (DRAW.roofs && DRAW.roofs.length > 1) {
-    DRAW.roofs.forEach(function(r, i){
+  // Multi-roof: 3 maps per roof (Detailed, Basic, Sheet layout).
+  // Single roof: 3 maps total ("all roofs" variant).  The user
+  // explicitly asked NOT to mix combined + per-roof when there's
+  // more than one roof — every map in the panel should be tagged
+  // with the roof it belongs to.
+  var roofs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs : null;
+  if (roofs && roofs.length > 1) {
+    roofs.forEach(function(r, i){
       var name = r.name || _nthName(i + 1);
-      items.push({ key:'detailed:'+i, label:'Detailed map',  sub:name });
-      items.push({ key:'basic:'+i,    label:'Basic map',     sub:name });
+      items.push({ key:'detailed:'+i,  label:'Detailed map',  sub:name });
+      items.push({ key:'basic:'+i,     label:'Basic map',     sub:name });
+      items.push({ key:'sheetplan:'+i, label:'Sheet layout',  sub:name });
     });
+  } else {
+    items.push({ key:'detailed',  label:'Detailed map',  sub:'' });
+    items.push({ key:'basic',     label:'Basic map',     sub:'' });
+    items.push({ key:'sheetplan', label:'Sheet layout',  sub:'' });
   }
   return items;
 }
@@ -17890,37 +17896,68 @@ function _jpCaptureMap(mapKey, opts){
   try {
     if (kind === 'detailed') return _jpCaptureDetailed(roofIdx, opts);
     if (kind === 'basic')    return _jpCaptureBasic(roofIdx, opts);
-    if (kind === 'sheetplan')return _jpCaptureSheetPlan(opts);
+    if (kind === 'sheetplan')return _jpCaptureSheetPlan(opts, roofIdx);
   } catch(e){ return null; }
   return null;
+}
+// Parse the SHEETS TO ORDER legend inside a sheet-plan scope into a
+// [{color, count, orderedMm}] array. Reads the input elements that
+// hold the count + mm values and reads the colour from the <span>
+// the count input is styled with.
+function _jpExtractLegendFrom(scope){
+  if (!scope) return [];
+  var out = [];
+  scope.querySelectorAll('input[onchange*="_setSheetGroupQtyOverride"]').forEach(function(qtyInp){
+    var row = qtyInp.parentElement; if (!row) return;
+    var lenInp = row.querySelector('input[onchange*="_setSheetGroupOverride"]');
+    if (!lenInp) return;
+    var color = qtyInp.style.color || '#0a1628';
+    out.push({
+      color: color,
+      count: parseInt(qtyInp.value, 10) || 0,
+      orderedMm: parseInt(lenInp.value, 10) || 0
+    });
+  });
+  return out;
 }
 function _jpCaptureDetailed(roofIdx, opts){
   var src = document.getElementById('roofCanvas');
   if (!src || !src.width) return null;
-  // Honour the same flags renderMatRoofMap uses so the captured
-  // detailed map is the clean editorial version (no calibration
-  // line / grid / bg image).
+  // Snapshot every piece of DRAW state we mutate so any throw inside
+  // the capture body still gets cleanly restored on the way out.
+  // The user reported the canvas "changing" when switching to Job
+  // Pack — that was capture state leaking through here.  Now we
+  // ALSO restore showAllRoofs + force a final redraw with the
+  // original state so the live Map Roof canvas is exactly where the
+  // user left it.
   var prevHideCal = window._hideCalibrationOverlay;
   var prevHideBg  = window._matRoofMapHideBg;
   var prevHideGrid = window._matRoofMapHideGrid;
   var prevHideCanvasBg = window._matRoofMapHideCanvasBg;
   var prevActive = DRAW.activeRoofIdx;
-  var prevOutline = DRAW.outline;
-  var prevLines = DRAW.lines;
+  var prevShowAll = DRAW.showAllRoofs;
+  var prevOutline = (DRAW.outline || []).map(function(p){ return p.slice(); });
+  var prevLines = (DRAW.lines || []).map(function(l){
+    return Object.assign({}, l, { pts: l.pts ? l.pts.map(function(p){return p.slice();}) : [] });
+  });
   try {
     window._hideCalibrationOverlay = true;
     window._matRoofMapHideBg = true;
     window._matRoofMapHideGrid = true;
     window._matRoofMapHideCanvasBg = true;
-    // If a specific roof is requested, temporarily focus it as active.
+    // Per-roof capture: focus that roof as the SOLE active roof + turn
+    // off show-all so non-active roofs don't render alongside it.
     if (roofIdx >= 0 && DRAW.roofs && DRAW.roofs[roofIdx]) {
       var r = DRAW.roofs[roofIdx];
       DRAW.outline = (r.outline || []).map(function(p){ return p.slice(); });
-      DRAW.lines = (r.lines || []).map(function(l){ return Object.assign({}, l, { pts: l.pts.map(function(p){return p.slice();}) }); });
+      DRAW.lines = (r.lines || []).map(function(l){
+        return Object.assign({}, l, { pts: l.pts.map(function(p){return p.slice();}) });
+      });
+      DRAW.activeRoofIdx = roofIdx;
+      DRAW.showAllRoofs = false;
     }
     redrawAll();
-    var data = src.toDataURL('image/png');
-    return data;
+    return src.toDataURL('image/png');
   } finally {
     window._hideCalibrationOverlay = prevHideCal;
     window._matRoofMapHideBg = prevHideBg;
@@ -17929,6 +17966,7 @@ function _jpCaptureDetailed(roofIdx, opts){
     DRAW.outline = prevOutline;
     DRAW.lines = prevLines;
     DRAW.activeRoofIdx = prevActive;
+    DRAW.showAllRoofs = prevShowAll;
     try { redrawAll(); } catch(e){}
   }
 }
@@ -17959,16 +17997,60 @@ function _jpCaptureBasic(roofIdx, opts){
     document.body.removeChild(tmp);
   }
 }
-function _jpCaptureSheetPlan(opts){
-  // Sheet plan output lives in #roofSheetPlanOut; we'd rather snapshot
-  // its first canvas if present, else fall back to a generic message.
+function _jpCaptureSheetPlan(opts, roofIdx){
+  // Sheet plan lives in #roofSheetPlanOut as a <canvas> + a sibling
+  // legend block.  Build a composite canvas: the sheet-plan canvas on
+  // top, then a tally strip beneath that lists the SHEETS TO ORDER
+  // groups (count × @ mm) in their assigned colour.  That matches the
+  // pre-refactor capture that included the legend.
+  // For multi-roof jobs, per-roof captures target #__rrspSect_<i>
+  // which has its own canvas + legend.
   var src = document.getElementById('roofSheetPlanOut');
   if (!src) return null;
-  var cv = src.querySelector('canvas');
-  if (cv) {
-    try { return cv.toDataURL('image/png'); } catch(e){ return null; }
+  var scope = src;
+  if (typeof roofIdx === 'number' && roofIdx >= 0) {
+    var sec = document.getElementById('__rrspSect_' + roofIdx);
+    if (sec) scope = sec;
   }
-  return null;
+  var cv = scope.querySelector('canvas');
+  if (!cv) return null;
+  // Per-roof legend: parse the legend block inside the same scope to
+  // build a [{color, text}] strip.  Multi-roof groups via window
+  // ._lastSheetCounts are combined across roofs so we don't use them
+  // for the per-roof case.
+  var groups = (typeof roofIdx === 'number' && roofIdx >= 0)
+    ? _jpExtractLegendFrom(scope)
+    : ((window._lastSheetCounts && window._lastSheetCounts.groups) || []);
+  var pad = 12, rowH = 22, hdrH = 26;
+  var legendH = groups.length ? (hdrH + groups.length * rowH + pad * 2) : 0;
+  var W = cv.width, H = cv.height + legendH;
+  var off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  var ctx = off.getContext('2d');
+  // white bg
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  // sheet plan visual
+  try { ctx.drawImage(cv, 0, 0); } catch(e){ return null; }
+  // legend strip below
+  if (groups.length) {
+    var y0 = cv.height + pad;
+    ctx.fillStyle = '#0a1628';
+    ctx.font = '700 14px Inter, -apple-system, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('SHEETS TO ORDER', pad, y0);
+    ctx.font = '500 13px Inter, -apple-system, sans-serif';
+    groups.forEach(function(g, i){
+      var y = y0 + hdrH + i * rowH;
+      // colour swatch
+      ctx.fillStyle = g.color || '#0a1628';
+      ctx.fillRect(pad, y + 4, 14, 14);
+      // text
+      ctx.fillStyle = '#0a1628';
+      var text = g.count + ' × @ ' + g.orderedMm + 'mm (' + (g.orderedMm/1000).toFixed(2) + 'm)';
+      ctx.fillText(text, pad + 22, y + 2);
+    });
+  }
+  try { return off.toDataURL('image/png'); } catch(e){ return null; }
 }
 
 // ── Drag and drop ──────────────────────────────────────────────────
@@ -18585,40 +18667,92 @@ function _jpRenderFlashingCell(box, bi){
   }
   // Auto-derived flashing type with cut list.
   var spec = box.spec, cl = box.cl;
-  var libMatches = _matSavedFlashingsFor(spec.key);
-  var pick = libMatches[0];   // user's default for this type
+  // Resolve the default library drawing.  Many users save their
+  // barge / apron entries as the parent type (e.g. "Side barge"
+  // typed `barge|side`) instead of the sub-variant the cut list
+  // emits (`barge|starter`, `barge|finish`, `barge|head`).
+  // _jpResolveDefaultDrawing falls back to ANY entry whose type
+  // shares the same `barge` / `apron` prefix when the exact-type
+  // lookup comes up empty.
+  var pick = _jpResolveDefaultDrawing(spec.key);
   var drawing = pick && pick.entry.sketch
-    ? '<img src="'+esc(pick.entry.sketch)+'" style="width:100%;height:90px;object-fit:contain;background:#fff;border-radius:4px">'
-    : '<div style="height:90px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:10px">No default drawing — add one in Settings</div>';
-  // Compact cut list table (no Drawing column to keep it tight).
-  var tableHtml = '<table class="cut-list cut-list-editable" style="margin-top:6px;font-size:10.5px"><thead><tr><th>Piece</th><th class="r">Qty</th><th class="r">Length each</th><th class="r"></th></tr></thead><tbody>';
+    ? '<img src="'+esc(pick.entry.sketch)+'" style="width:100%;height:74px;object-fit:contain;background:#fff;border-radius:4px">'
+    : '<div style="height:48px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:10px;text-align:center;padding:4px">No default drawing<br>add one in Settings</div>';
+  // Compact cut list — single-line rows, smaller pad, no header row.
+  // Footer collapses to a single "N pcs · X.Xm" line.
+  var rowsHtml = '';
   cl.rows.forEach(function(r, i){
     var lbl = r.letter ? r.letter : '?';
     var rowKey = esc(spec.key + '::' + (r.letter || '') + '::' + r.length.toFixed(2));
     var isExtra = !!r._isExtra, extraIdx = r._extraIdx;
     var letterInput, lenInput, qtyCell, deleteCell;
     if (isExtra){
-      letterInput = '<input class="cl-letter" type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'letter\',this.value)" style="width:32px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:1px 2px;border-radius:3px;font-size:inherit;font-style:italic">';
-      lenInput    = '<input class="cl-length" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'length\',this.value)" style="width:46px;border:1px solid transparent;background:transparent;text-align:right;padding:1px 2px;border-radius:3px;font-size:inherit">';
-      qtyCell     = '<input class="cl-qty" type="number" step="1" min="1" value="'+r.qty+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'qty\',this.value)" style="width:36px;border:1px solid transparent;background:transparent;text-align:right;padding:1px 2px;border-radius:3px;font-size:inherit">';
-      deleteCell  = '<button onclick="_matExtrasDelete(\''+esc(spec.key)+'\','+extraIdx+')" style="background:none;border:none;color:#b91c1c;font-size:12px;cursor:pointer;padding:1px 4px">×</button>';
+      letterInput = '<input type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'letter\',this.value)" style="width:24px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;font-size:10px;font-style:italic">';
+      lenInput    = '<input type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'length\',this.value)" style="width:36px;border:none;background:transparent;text-align:right;padding:0;font-size:10px">';
+      qtyCell     = '<input type="number" step="1" min="1" value="'+r.qty+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'qty\',this.value)" style="width:24px;border:none;background:transparent;text-align:right;padding:0;font-size:10px">';
+      deleteCell  = '<button onclick="_matExtrasDelete(\''+esc(spec.key)+'\','+extraIdx+')" style="background:none;border:none;color:#b91c1c;font-size:10px;cursor:pointer;padding:0">×</button>';
     } else {
-      letterInput = '<input class="cl-letter" data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matInlineSetLetter(this)" style="width:32px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:1px 2px;border-radius:3px;font-size:inherit">';
-      lenInput    = '<input class="cl-length" data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matInlineSetLength(this)" style="width:46px;border:1px solid transparent;background:transparent;text-align:right;padding:1px 2px;border-radius:3px;font-size:inherit">';
-      qtyCell     = r.qty;
-      deleteCell  = '<button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" style="background:none;border:none;color:#b91c1c;font-size:12px;cursor:pointer;padding:1px 4px">×</button>';
+      letterInput = '<input data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matInlineSetLetter(this)" style="width:24px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;font-size:10px">';
+      lenInput    = '<input data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matInlineSetLength(this)" style="width:36px;border:none;background:transparent;text-align:right;padding:0;font-size:10px">';
+      qtyCell     = '<span style="font-size:10px">'+r.qty+'</span>';
+      deleteCell  = '<button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" style="background:none;border:none;color:#b91c1c;font-size:10px;cursor:pointer;padding:0">×</button>';
     }
-    tableHtml += '<tr'+(isExtra?' style="background:#fffbeb"':'')+'><td>'+letterInput+'</td><td class="r">'+qtyCell+'</td><td class="r">'+lenInput+' m</td><td class="r">'+deleteCell+'</td></tr>';
+    rowsHtml += '<div'+(isExtra?' style="background:#fffbeb;border-radius:3px"':'')+' style="display:grid;grid-template-columns:auto auto 1fr auto;gap:6px;align-items:center;padding:1px 4px;font-size:10px;line-height:1.4'+(isExtra?';background:#fffbeb;border-radius:3px':'')+'">'+
+      letterInput +
+      '<span style="color:#6f6a60">×'+qtyCell+'</span>'+
+      '<span style="text-align:right">'+lenInput+'<span style="color:#6f6a60">m</span></span>'+
+      deleteCell +
+    '</div>';
   });
-  tableHtml += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+'</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td><td></td></tr></tfoot></table>';
-  var addRowBtn = '<button onclick="_matExtrasAdd(\''+esc(spec.key)+'\')" style="margin-top:6px;font-size:10.5px;padding:3px 8px;background:transparent;border:1px dashed #94a3b8;border-radius:5px;color:#0a1628;cursor:pointer;font-weight:600">+ Add row</button>';
-  return '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;background:#fff;display:flex;flex-direction:column;min-height:200px">'+
-    '<div style="display:flex;align-items:center;gap:5px;margin-bottom:4px"><span style="width:8px;height:8px;background:'+spec.colour+';border-radius:2px"></span><strong style="font-size:11px;color:#0a1628;line-height:1.2">'+esc(spec.label)+'</strong></div>'+
+  var addRowBtn = '<button onclick="_matExtrasAdd(\''+esc(spec.key)+'\')" style="margin-top:4px;font-size:9.5px;padding:2px 6px;background:transparent;border:1px dashed #94a3b8;border-radius:4px;color:#475569;cursor:pointer;font-weight:600;align-self:flex-start">+ Add</button>';
+  return '<div style="border:1px solid #e5e7eb;border-radius:6px;padding:6px 8px;background:#fff;display:flex;flex-direction:column">'+
+    '<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px"><span style="width:7px;height:7px;background:'+spec.colour+';border-radius:2px"></span><strong style="font-size:10.5px;color:#0a1628;line-height:1.2">'+esc(spec.label)+'</strong></div>'+
     drawing +
-    tableHtml +
+    '<div style="margin-top:4px;border-top:1px solid #e5e7eb;padding-top:3px">'+rowsHtml+'</div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 4px;margin-top:2px;border-top:1px solid #e5e7eb;font-size:9.5px;color:#0a1628;font-weight:600"><span>Total '+cl.pieceCount+' pcs</span><span>'+cl.totalLm.toFixed(1)+' m</span></div>'+
     addRowBtn +
   '</div>';
 }
+// Default drawing lookup with prefix fallback.  E.g. `barge|starter`
+// → exact `barge|starter` match first, else any `barge|*`, else any
+// library entry that mentions the parent type.
+function _jpResolveDefaultDrawing(flashingType){
+  var direct = _matSavedFlashingsFor(flashingType);
+  if (direct && direct.length) return direct[0];
+  var bits = (flashingType || '').split('|');
+  var parent = bits[0], sub = bits[1] || '';
+  if (!parent) return null;
+  var profile = (document.getElementById('matProfile')||{}).value || 'Corrugate';
+  var all = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
+  // Pass 1 — same profile + prefix + name MATCHES the sub-type
+  // (e.g. flashing called "Starter Barge Corro" matches barge|starter).
+  if (sub) {
+    var hitNamed = all.find(function(e){
+      var t = (e.flashingType || 'custom') + '';
+      var p = e.profile || 'any';
+      var n = (e.name || '').toLowerCase();
+      return t.indexOf(parent) === 0 &&
+             (p === 'any' || p === profile) &&
+             n.indexOf(sub) >= 0;
+    });
+    if (hitNamed) return { entry: hitNamed };
+  }
+  // Pass 2 — same profile + any sibling sub-type (e.g. barge|side
+  // when looking for barge|starter).
+  var hit = all.find(function(e){
+    var t = (e.flashingType || 'custom') + '';
+    var p = e.profile || 'any';
+    return t.indexOf(parent + '|') === 0 && (p === 'any' || p === profile);
+  });
+  if (hit) return { entry: hit };
+  // Pass 3 — profile-agnostic prefix match (last resort).
+  hit = all.find(function(e){
+    var t = (e.flashingType || 'custom') + '';
+    return t.indexOf(parent + '|') === 0 || t === parent;
+  });
+  return hit ? { entry: hit } : null;
+}
+
 // "Select From Favourites" → add a gallery slot and immediately open
 // the picker pointing at the new slot.
 function _matFlashingsAddAndPick(){
