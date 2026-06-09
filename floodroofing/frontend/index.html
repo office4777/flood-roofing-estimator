@@ -745,14 +745,29 @@ select{
 }
 #jpMapPanel.is-open{ transform:translateX(0); }
 #jpMapPanelToggle{
-  position:absolute; left:-32px; top:14px;
-  width:32px; height:90px;
-  background:#0a1628; color:#fff; border:none;
-  border-radius:8px 0 0 8px;
+  position:absolute; left:-44px; top:14px;
+  width:44px; height:110px;
+  background:#0099cc; color:#fff; border:none;
+  border-radius:10px 0 0 10px;
   cursor:pointer; font-size:11px; font-weight:700;
-  letter-spacing:.05em; padding:6px 0;
-  display:flex; align-items:center; justify-content:center;
+  letter-spacing:.05em; padding:8px 0 10px;
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:space-between; gap:6px;
+  box-shadow:-3px 4px 12px rgba(0,153,204,.35);
+  transition:background .15s;
+}
+#jpMapPanelToggle:hover{ background:#0a1628; }
+#jpMapPanelToggle .jp-mp-arrow{
+  font-size:16px; line-height:1;
+  transition:transform .25s ease;
+  display:block;
+}
+#jpMapPanel.is-open #jpMapPanelToggle .jp-mp-arrow{
+  transform:rotate(180deg);  /* ◀ → ▶ when open */
+}
+#jpMapPanelToggle .jp-mp-text{
   writing-mode:vertical-rl; text-orientation:mixed;
+  font-weight:700;
 }
 #jpMapPanel .jp-map-hd{
   padding:12px 14px 8px; border-bottom:1px solid var(--border);
@@ -830,6 +845,28 @@ select{
 .jp-page-imgwrap .jp-img-tools button:hover{ background:#f1f5f9; }
 .jp-page-imgwrap .jp-img-tools button.jp-danger{ color:#b91c1c; }
 .jp-page-imgwrap .jp-img-tools button.jp-danger:hover{ background:#fee2e2; }
+/* Crop edges — only visible when the wrapper is in is-cropping mode. */
+.jp-page-imgwrap.is-cropping{ border:1px dashed #0099cc; }
+.jp-crop-edge{
+  position:absolute; background:rgba(0,153,204,.55);
+  z-index:9; display:none;
+}
+.jp-page-imgwrap.is-cropping .jp-crop-edge{ display:block; }
+.jp-crop-top{    top:0;    left:0; right:0; height:6px; cursor:ns-resize; }
+.jp-crop-bottom{ bottom:0; left:0; right:0; height:6px; cursor:ns-resize; }
+.jp-crop-left{   top:0; bottom:0; left:0;   width:6px;  cursor:ew-resize; }
+.jp-crop-right{  top:0; bottom:0; right:0;  width:6px;  cursor:ew-resize; }
+.jp-crop-done{
+  position:absolute; top:-32px; right:0;
+  display:flex; gap:4px; z-index:10;
+  background:#fff; border:1px solid #cbd5e1; border-radius:6px;
+  padding:3px 4px; box-shadow:0 4px 12px rgba(0,0,0,.12);
+}
+.jp-crop-done button{
+  background:none; border:none; cursor:pointer; padding:3px 8px;
+  font-size:11px; color:#0a1628; border-radius:4px; font-family:inherit;
+}
+.jp-crop-done button:hover{ background:#f1f5f9; }
 /* Pages need position:relative so image absolute coords anchor inside. */
 .jp-page{ position:relative; }
 /* Drop hint overlay shown when dragging onto an empty page */
@@ -2033,7 +2070,10 @@ select{
        layout + per-roof variants when multi-roof). Drag any thumbnail
        onto any .jp-page to drop it as a movable, resizable picture. -->
   <aside id="jpMapPanel" class="no-print">
-    <button id="jpMapPanelToggle" onclick="_jpToggleMapPanel()" title="Maps panel — drag any map onto a page">MAPS</button>
+    <button id="jpMapPanelToggle" onclick="_jpToggleMapPanel()" title="Maps panel — drag any map onto a page">
+      <span class="jp-mp-arrow">◀</span>
+      <span class="jp-mp-text">MAPS</span>
+    </button>
     <div class="jp-map-hd">
       <span>📂 Maps</span>
       <small style="margin-left:auto">drag onto a page</small>
@@ -15061,15 +15101,23 @@ function redrawAll() {
   ctx.save();
   ctx.scale(dpr,dpr);
   ctx.clearRect(0,0,W,H);
-  // Fill full canvas with a subtle grid pattern so drawing area is clear
-  ctx.fillStyle='#f0f2f5'; ctx.fillRect(0,0,W,H);
-  // Light cross-hatch to show it's a drawable area
-  ctx.strokeStyle='#e4e6ea'; ctx.lineWidth=0.5;
-  for(var gx2=0;gx2<=W;gx2+=40){ctx.beginPath();ctx.moveTo(gx2,0);ctx.lineTo(gx2,H);ctx.stroke();}
-  for(var gy2=0;gy2<=H;gy2+=40){ctx.beginPath();ctx.moveTo(0,gy2);ctx.lineTo(W,gy2);ctx.stroke();}
-  ctx.strokeStyle='rgba(0,153,204,0.08)'; ctx.lineWidth=1;
-  // "Drawing area" border
-  ctx.strokeRect(2,2,W-4,H-4);
+  // Fill full canvas with a subtle grid pattern so drawing area is clear.
+  // Captures into the Job Pack Designer (window._matRoofMapHideCanvasBg)
+  // skip this fill so the resulting PNG has a transparent background
+  // — the image then sits cleanly on the white page without a grey
+  // box around it.
+  if (!window._matRoofMapHideCanvasBg) {
+    ctx.fillStyle='#f0f2f5'; ctx.fillRect(0,0,W,H);
+  }
+  // Light cross-hatch + drawing-area border — also suppressed in the
+  // capture path so the resulting PNG has nothing but the roof art.
+  if (!window._matRoofMapHideCanvasBg) {
+    ctx.strokeStyle='#e4e6ea'; ctx.lineWidth=0.5;
+    for(var gx2=0;gx2<=W;gx2+=40){ctx.beginPath();ctx.moveTo(gx2,0);ctx.lineTo(gx2,H);ctx.stroke();}
+    for(var gy2=0;gy2<=H;gy2+=40){ctx.beginPath();ctx.moveTo(0,gy2);ctx.lineTo(W,gy2);ctx.stroke();}
+    ctx.strokeStyle='rgba(0,153,204,0.08)'; ctx.lineWidth=1;
+    ctx.strokeRect(2,2,W-4,H-4);
+  }
 
   // Grid — skipped when the Materials roof-map mirror asks for a
   // clean white background (window._matRoofMapHideGrid).
@@ -17855,6 +17903,7 @@ function _jpCaptureDetailed(roofIdx, opts){
   var prevHideCal = window._hideCalibrationOverlay;
   var prevHideBg  = window._matRoofMapHideBg;
   var prevHideGrid = window._matRoofMapHideGrid;
+  var prevHideCanvasBg = window._matRoofMapHideCanvasBg;
   var prevActive = DRAW.activeRoofIdx;
   var prevOutline = DRAW.outline;
   var prevLines = DRAW.lines;
@@ -17862,6 +17911,7 @@ function _jpCaptureDetailed(roofIdx, opts){
     window._hideCalibrationOverlay = true;
     window._matRoofMapHideBg = true;
     window._matRoofMapHideGrid = true;
+    window._matRoofMapHideCanvasBg = true;
     // If a specific roof is requested, temporarily focus it as active.
     if (roofIdx >= 0 && DRAW.roofs && DRAW.roofs[roofIdx]) {
       var r = DRAW.roofs[roofIdx];
@@ -17875,6 +17925,7 @@ function _jpCaptureDetailed(roofIdx, opts){
     window._hideCalibrationOverlay = prevHideCal;
     window._matRoofMapHideBg = prevHideBg;
     window._matRoofMapHideGrid = prevHideGrid;
+    window._matRoofMapHideCanvasBg = prevHideCanvasBg;
     DRAW.outline = prevOutline;
     DRAW.lines = prevLines;
     DRAW.activeRoofIdx = prevActive;
@@ -17986,14 +18037,20 @@ function _jpMountImagesOnPage(pageEl, page, pageIdx){
     wrap.style.top  = im.y + 'px';
     wrap.style.width  = im.w + 'px';
     wrap.style.height = im.h + 'px';
+    // Apply user crop (each side as % of original image) via clip-path.
+    var crop = im.crop || { top:0, right:0, bottom:0, left:0 };
+    var imgStyle = 'clip-path:inset('+(crop.top||0)+'% '+(crop.right||0)+'% '+(crop.bottom||0)+'% '+(crop.left||0)+'%)';
     wrap.innerHTML =
-      '<img src="'+esc(src)+'" draggable="false">' +
+      '<img src="'+esc(src)+'" draggable="false" style="'+imgStyle+'">' +
+      _jpCropEdgesHtml(im) +
       '<div class="jp-img-tools no-print">'+
+        '<button onclick="_jpToggleCrop('+pageIdx+',\''+im.id+'\')" title="Crop edges in">✂ Crop</button>'+
         '<button onclick="_jpEditImage('+pageIdx+',\''+im.id+'\')" title="Edit the underlying map on the Map Roof tab">✎ Edit</button>'+
         '<button onclick="_jpDuplicateImage('+pageIdx+',\''+im.id+'\')" title="Duplicate">⧉</button>'+
         '<button class="jp-danger" onclick="_jpDeleteImage('+pageIdx+',\''+im.id+'\')" title="Delete">🗑</button>'+
       '</div>' +
       '<div class="jp-img-handle no-print"></div>';
+    if (im._cropping) wrap.classList.add('is-cropping');
     wrap.addEventListener('mousedown', function(ev){ _jpImgMouseDown(ev, pageIdx, im.id); });
     pageEl.appendChild(wrap);
   });
@@ -18069,6 +18126,86 @@ function _jpDuplicateImage(pageIdx, imgId){
   try { autosaveJob && autosaveJob(); } catch(e){}
   renderJobPack();
 }
+// Crop edges — 4 draggable bars (top/right/bottom/left) overlaid on
+// the image when the user clicks ✂ Crop. Each bar drags inward to
+// percentage-crop that side; release commits.
+function _jpCropEdgesHtml(im){
+  if (!im._cropping) return '';
+  return '<div class="jp-crop-edge jp-crop-top"    data-side="top"    onmousedown="_jpCropEdgeDown(event,this)"></div>' +
+         '<div class="jp-crop-edge jp-crop-right"  data-side="right"  onmousedown="_jpCropEdgeDown(event,this)"></div>' +
+         '<div class="jp-crop-edge jp-crop-bottom" data-side="bottom" onmousedown="_jpCropEdgeDown(event,this)"></div>' +
+         '<div class="jp-crop-edge jp-crop-left"   data-side="left"   onmousedown="_jpCropEdgeDown(event,this)"></div>' +
+         '<div class="jp-crop-done no-print"><button onclick="_jpFinishCrop()">✓ Finish crop</button> <button onclick="_jpResetCrop()">↺ Reset</button></div>';
+}
+function _jpToggleCrop(pageIdx, imgId){
+  var page = _jpState().pages[pageIdx]; if (!page || !page.images) return;
+  // Turn cropping off on every other image first so only one shows
+  // crop handles at a time.
+  _jpState().pages.forEach(function(p){
+    if (p && p.images) p.images.forEach(function(x){ x._cropping = false; });
+  });
+  var im = page.images.find(function(x){ return x.id === imgId; });
+  if (!im) return;
+  im._cropping = true;
+  if (!im.crop) im.crop = { top:0, right:0, bottom:0, left:0 };
+  renderJobPack();
+}
+function _jpFinishCrop(){
+  _jpState().pages.forEach(function(p){
+    if (p && p.images) p.images.forEach(function(x){ x._cropping = false; });
+  });
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+function _jpResetCrop(){
+  var page = _jpState().pages.find(function(p){
+    return p && p.images && p.images.some(function(x){ return x._cropping; });
+  });
+  if (!page) return;
+  var im = page.images.find(function(x){ return x._cropping; });
+  if (!im) return;
+  im.crop = { top:0, right:0, bottom:0, left:0 };
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+var _JP_CROP_DRAG = null;
+function _jpCropEdgeDown(ev, el){
+  ev.preventDefault(); ev.stopPropagation();
+  var wrap = el.closest('.jp-page-imgwrap'); if (!wrap) return;
+  var imgId = wrap.getAttribute('data-img-id');
+  var pageIdx = parseInt(wrap.getAttribute('data-page'), 10);
+  var page = _jpState().pages[pageIdx]; if (!page || !page.images) return;
+  var im = page.images.find(function(x){ return x.id === imgId; });
+  if (!im || !im.crop) return;
+  var rect = wrap.getBoundingClientRect();
+  _JP_CROP_DRAG = {
+    im: im, wrap: wrap, side: el.getAttribute('data-side'),
+    rect: rect, startCrop: Object.assign({}, im.crop)
+  };
+  document.addEventListener('mousemove', _jpCropEdgeMove);
+  document.addEventListener('mouseup',   _jpCropEdgeUp);
+}
+function _jpCropEdgeMove(ev){
+  if (!_JP_CROP_DRAG) return;
+  var d = _JP_CROP_DRAG;
+  var W = d.rect.width, H = d.rect.height;
+  var im = d.im;
+  if (d.side === 'top'   ){ im.crop.top    = Math.max(0, Math.min(49, ((ev.clientY - d.rect.top) / H) * 100)); }
+  if (d.side === 'bottom'){ im.crop.bottom = Math.max(0, Math.min(49, ((d.rect.bottom - ev.clientY) / H) * 100)); }
+  if (d.side === 'left'  ){ im.crop.left   = Math.max(0, Math.min(49, ((ev.clientX - d.rect.left) / W) * 100)); }
+  if (d.side === 'right' ){ im.crop.right  = Math.max(0, Math.min(49, ((d.rect.right - ev.clientX) / W) * 100)); }
+  var img = d.wrap.querySelector('img');
+  if (img) img.style.clipPath = 'inset('+im.crop.top+'% '+im.crop.right+'% '+im.crop.bottom+'% '+im.crop.left+'%)';
+}
+function _jpCropEdgeUp(){
+  if (_JP_CROP_DRAG){
+    try { autosaveJob && autosaveJob(); } catch(e){}
+    _JP_CROP_DRAG = null;
+  }
+  document.removeEventListener('mousemove', _jpCropEdgeMove);
+  document.removeEventListener('mouseup',   _jpCropEdgeUp);
+}
+
 function _jpEditImage(pageIdx, imgId){
   // The Map Roof tab is the full editing canvas.  We park a return
   // marker so coming back refreshes the Job Pack and the dropped
