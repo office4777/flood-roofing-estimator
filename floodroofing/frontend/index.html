@@ -1226,26 +1226,12 @@ select{
   html.print-order #tab-order button{display:none!important}
   html.print-order #tab-order .card{box-shadow:none;border-color:#ddd}
 
-  /* Job Pack — bundle of roof map + sheet layout + cut list + order
-     onto distinct pages for the install crew. The preview block on
-     #tab-jobpack is the canonical layout; sections hidden by the
-     inclusion checkboxes (display:none on the data-jp-section) stay
-     hidden in print, so the user controls the contents from the
-     checklist. The inclusion-checklist card itself, the action bar
-     and the cover-card label all get suppressed. */
-  html.print-jobpack .panel:not(#tab-jobpack){display:none!important}
-  html.print-jobpack #tab-jobpack{display:block!important}
-  html.print-jobpack .sidebar{display:none!important}
-  html.print-jobpack .app{display:block!important}
-  html.print-jobpack .content{padding:0!important;max-width:none!important}
-  /* Hide the action bar (1st card) and the inclusion-checklist card
-     (2nd). The cover (data-jp-section=cover) onwards is the actual
-     printable pack. */
-  html.print-jobpack #tab-jobpack > .card:nth-child(1),
-  html.print-jobpack #tab-jobpack > .card:nth-child(2){display:none!important}
-  html.print-jobpack #jobPackPreview > .card{border:none;box-shadow:none;padding:0;margin:0 0 0 0;page-break-after:always;break-after:page}
-  html.print-jobpack #jobPackPreview > .card:last-child{page-break-after:auto;break-after:auto}
-  html.print-jobpack #jobPackPreview img{max-width:100%;height:auto;border:none!important}
+  /* Legacy #tab-jobpack rules are intentionally removed — the new Job
+     Pack Designer lives inside #tab-materials and is handled by the
+     first @media print block above (selectors targeting .jp-page).
+     Keeping a second block here that flips to #tab-jobpack would hide
+     #tab-materials and result in a blank print preview (the "Save as
+     PDF just keeps loading" bug). */
 }
 
 /* Materials tab — Save as PDF. Two-page layout backed by dedicated
@@ -17907,8 +17893,8 @@ function renderJpMapPanel(){
 }
 function _jpMapPanelItems(){
   var items = [];
-  // Multi-roof: 3 maps per roof (Detailed, Basic, Sheet layout).
-  // Single roof: 3 maps total ("all roofs" variant).  The user
+  // Multi-roof: 4 maps per roof (Detailed, Basic, Sheet layout, Flashing ref).
+  // Single roof: 4 maps total ("all roofs" variant).  The user
   // explicitly asked NOT to mix combined + per-roof when there's
   // more than one roof — every map in the panel should be tagged
   // with the roof it belongs to.
@@ -17916,14 +17902,16 @@ function _jpMapPanelItems(){
   if (roofs && roofs.length > 1) {
     roofs.forEach(function(r, i){
       var name = r.name || _nthName(i + 1);
-      items.push({ key:'detailed:'+i,  label:'Detailed map',  sub:name });
-      items.push({ key:'basic:'+i,     label:'Basic map',     sub:name });
-      items.push({ key:'sheetplan:'+i, label:'Sheet layout',  sub:name });
+      items.push({ key:'detailed:'+i,  label:'Detailed map',     sub:name });
+      items.push({ key:'basic:'+i,     label:'Basic map',        sub:name });
+      items.push({ key:'sheetplan:'+i, label:'Sheet layout',     sub:name });
+      items.push({ key:'flashref:'+i,  label:'Flashing ref map', sub:name });
     });
   } else {
-    items.push({ key:'detailed',  label:'Detailed map',  sub:'' });
-    items.push({ key:'basic',     label:'Basic map',     sub:'' });
-    items.push({ key:'sheetplan', label:'Sheet layout',  sub:'' });
+    items.push({ key:'detailed',  label:'Detailed map',     sub:'' });
+    items.push({ key:'basic',     label:'Basic map',        sub:'' });
+    items.push({ key:'sheetplan', label:'Sheet layout',     sub:'' });
+    items.push({ key:'flashref',  label:'Flashing ref map', sub:'' });
   }
   return items;
 }
@@ -17938,6 +17926,7 @@ function _jpCaptureMap(mapKey, opts){
     if (kind === 'detailed') return _jpCaptureDetailed(roofIdx, opts);
     if (kind === 'basic')    return _jpCaptureBasic(roofIdx, opts);
     if (kind === 'sheetplan')return _jpCaptureSheetPlan(opts, roofIdx);
+    if (kind === 'flashref') return _jpCaptureFlashRef(roofIdx, opts);
   } catch(e){ return null; }
   return null;
 }
@@ -18092,6 +18081,63 @@ function _jpCaptureSheetPlan(opts, roofIdx){
     });
   }
   try { return off.toDataURL('image/png'); } catch(e){ return null; }
+}
+// Flashing reference map — same clean-canvas capture as the Detailed
+// map but with the A/B/C letter overlays force-drawn on top regardless
+// of the user's Flashing-refs toggle.  The crew uses this map to look
+// up which letter on the cut list maps to which physical edge.
+function _jpCaptureFlashRef(roofIdx, opts){
+  var src = document.getElementById('roofCanvas');
+  if (!src || !src.width) return null;
+  var prevHideCal = window._hideCalibrationOverlay;
+  var prevHideBg  = window._matRoofMapHideBg;
+  var prevHideGrid = window._matRoofMapHideGrid;
+  var prevHideCanvasBg = window._matRoofMapHideCanvasBg;
+  var prevActive = DRAW.activeRoofIdx;
+  var prevShowAll = DRAW.showAllRoofs;
+  var prevOutline = (DRAW.outline || []).map(function(p){ return p.slice(); });
+  var prevLines = (DRAW.lines || []).map(function(l){
+    return Object.assign({}, l, { pts: l.pts ? l.pts.map(function(p){return p.slice();}) : [] });
+  });
+  try {
+    window._hideCalibrationOverlay = true;
+    window._matRoofMapHideBg = true;
+    window._matRoofMapHideGrid = true;
+    window._matRoofMapHideCanvasBg = true;
+    if (roofIdx >= 0 && DRAW.roofs && DRAW.roofs[roofIdx]) {
+      var r = DRAW.roofs[roofIdx];
+      DRAW.outline = (r.outline || []).map(function(p){ return p.slice(); });
+      DRAW.lines = (r.lines || []).map(function(l){
+        return Object.assign({}, l, { pts: l.pts.map(function(p){return p.slice();}) });
+      });
+      DRAW.activeRoofIdx = roofIdx;
+      DRAW.showAllRoofs = false;
+    }
+    redrawAll();
+    // Composite: roofCanvas pixels on the bottom, letter overlays on top.
+    var off = document.createElement('canvas');
+    off.width = src.width; off.height = src.height;
+    var octx = off.getContext('2d');
+    octx.drawImage(src, 0, 0);
+    try {
+      var dpr = window.devicePixelRatio || 1;
+      octx.save();
+      octx.scale(dpr, dpr);
+      _drawFlashLetterOverlaysOn(octx, src.width / dpr, src.height / dpr);
+      octx.restore();
+    } catch(e){ console.warn('flashref overlay:', e); }
+    return off.toDataURL('image/png');
+  } finally {
+    window._hideCalibrationOverlay = prevHideCal;
+    window._matRoofMapHideBg = prevHideBg;
+    window._matRoofMapHideGrid = prevHideGrid;
+    window._matRoofMapHideCanvasBg = prevHideCanvasBg;
+    DRAW.outline = prevOutline;
+    DRAW.lines = prevLines;
+    DRAW.activeRoofIdx = prevActive;
+    DRAW.showAllRoofs = prevShowAll;
+    try { redrawAll(); } catch(e){}
+  }
 }
 
 // ── Drag and drop ──────────────────────────────────────────────────
@@ -18566,14 +18612,15 @@ function _jpRenderSheetPlan(content, page, idx){
 }
 function _jpRenderCutLists(content, page, idx){
   // Page layout:
-  //   1. Roof sheets table (full width)
-  //   2. Ridge / Hip capping table (full width — usually one piece type)
-  //   3. Flashings GRID — 3 boxes per row, one per flashing type that
-  //      has pieces. Each box shows the user's default library drawing
-  //      on top + a compact cut list under it. The last cell is always
-  //      an "Add flashing" box with "Select From Favourites" and
-  //      "Enter Custom Flashing" actions.
-  //   4. Gutter section (full width)
+  //   1. Profile / grade / thickness / ridge / gutter selectors (mirror
+  //      the hidden inputs so the user can change spec without leaving
+  //      this page).
+  //   2. Roof sheets table — qty and length editable inline; add / delete
+  //      rows via DRAW.matSheetExtras + sheetGroupQtyOverrides flags.
+  //   3. Ridge / Hip capping table.
+  //   4. Letter-label toggle (matches the in-canvas Flashing refs flag).
+  //   5. Flashings GRID — 2 boxes per row with bigger drawings.
+  //   6. Gutter section.
   var profile   = (document.getElementById('matProfile')   || {}).value || 'Corrugate';
   var grade     = (document.getElementById('matGrade')     || {}).value || 'Colorsteel Maxam';
   var thickness = (document.getElementById('matThickness') || {}).value || '0.40g';
@@ -18582,28 +18629,46 @@ function _jpRenderCutLists(content, page, idx){
   var sc = window._lastSheetCounts || null;
   var html = '<div class="jp-block-title">Cut lists</div>';
 
-  // ── Roof sheets table ──
-  html += '<div style="margin-bottom:12px">'+
+  // ── Selector row (mirrors hidden inputs so the spec is editable here) ──
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">'+
+    _jpSpecSelect('Profile',     'matProfile',   ['Corrugate','5-Rib','Multidek']) +
+    _jpSpecSelect('Steel grade', 'matGrade',     ['Colorsteel Maxam','Armorsteel ColorZen','Zincalume']) +
+    _jpSpecSelect('Thickness',   'matThickness', ['0.40g','0.55g']) +
+    _jpSpecSelect('Ridge',       'matRidgeType', [['standard','Standard ridge'],['wide','Wide ridge']]) +
+    _jpSpecSelect('Gutter',      'matGutter',    [['none','None'],['colorsteel-box','Colorsteel 125mm'],['zincalume-box','Zincalume 125mm'],['marley-classic','Marley Classic'],['marley-typhoon','Marley Typhoon']]) +
+  '</div>';
+
+  // ── Roof sheets table (editable) ──
+  html += '<div style="margin-bottom:14px">'+
     '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="width:10px;height:10px;background:#0099cc;border-radius:2px"></span><strong style="font-size:12px;color:#0a1628">Roof sheets</strong>'+
       '<span style="color:var(--text2);font-size:10.5px">— '+esc(profile)+' · '+esc(grade)+' · '+esc(thickness)+'</span>'+
     '</div>';
-  var sheetRows = [];
-  if (sc && sc.groups && sc.groups.length) {
-    var byLen = {};
-    sc.groups.forEach(function(g){ byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count; });
-    sheetRows = Object.keys(byLen).map(function(k){ return { len: parseInt(k, 10), qty: byLen[k] }; }).sort(function(a,b){ return b.len - a.len; });
-  }
-  if (sheetRows.length) {
-    html += '<table class="cut-list"><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Length each</th></tr></thead><tbody>';
+  var sheetRows = _jpBuildSheetRows(sc);
+  if (sheetRows.length || (Array.isArray(DRAW.matSheetExtras) && DRAW.matSheetExtras.length)) {
+    html += '<table class="cut-list" style="margin-bottom:6px"><thead><tr><th>Description</th><th class="r" style="width:78px">Qty</th><th class="r" style="width:110px">Length each</th><th style="width:34px"></th></tr></thead><tbody>';
     var totalSheets = 0;
     sheetRows.forEach(function(r){
       totalSheets += r.qty;
-      html += '<tr><td>'+esc(profile)+' sheet @ '+(r.len/1000).toFixed(2)+'m</td><td class="r">'+r.qty+'</td><td class="r">'+(r.len/1000).toFixed(2)+' m</td></tr>';
+      var qtyIn = '<input type="number" min="0" step="1" value="'+r.qty+'" onfocus="this.select()" onchange="_jpSheetSetQty('+r.origLen+',this.value)" style="width:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px">';
+      var lenIn = '<input type="number" min="0.5" step="0.05" value="'+(r.len/1000).toFixed(2)+'" onfocus="this.select()" onchange="_jpSheetSetLen('+r.origLen+',this.value)" style="width:70px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px"><span style="color:#6f6a60;font-size:11px"> m</span>';
+      var delBtn = '<button onclick="_jpSheetHide('+r.origLen+')" title="Hide this row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700">×</button>';
+      html += '<tr><td>'+esc(profile)+' sheet</td><td class="r">'+qtyIn+'</td><td class="r">'+lenIn+'</td><td style="text-align:center">'+delBtn+'</td></tr>';
     });
-    html += '</tbody><tfoot><tr><td>Total sheets</td><td class="r">'+totalSheets+'</td><td class="r">'+d.roofArea.toFixed(1)+' m² roof</td></tr></tfoot></table>';
+    if (Array.isArray(DRAW.matSheetExtras)) {
+      DRAW.matSheetExtras.forEach(function(x, xi){
+        if (!x) return;
+        totalSheets += +x.qty || 0;
+        var qtyIn = '<input type="number" min="0" step="1" value="'+(x.qty||0)+'" onfocus="this.select()" onchange="_jpSheetExtraUpdate('+xi+',\'qty\',this.value)" style="width:60px;border:1px solid #fcd34d;border-radius:4px;background:#fffbeb;text-align:right;padding:3px 6px;font-size:12px">';
+        var lenIn = '<input type="number" min="0.5" step="0.05" value="'+(((x.lenMm||3000)/1000).toFixed(2))+'" onfocus="this.select()" onchange="_jpSheetExtraUpdate('+xi+',\'lenMm\',this.value)" style="width:70px;border:1px solid #fcd34d;border-radius:4px;background:#fffbeb;text-align:right;padding:3px 6px;font-size:12px"><span style="color:#6f6a60;font-size:11px"> m</span>';
+        var delBtn = '<button onclick="_jpSheetExtraDelete('+xi+')" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700">×</button>';
+        html += '<tr style="background:#fffbeb"><td>'+esc(profile)+' sheet <em style="color:#92400e;font-size:10px">(extra)</em></td><td class="r">'+qtyIn+'</td><td class="r">'+lenIn+'</td><td style="text-align:center">'+delBtn+'</td></tr>';
+      });
+    }
+    html += '</tbody><tfoot><tr><td>Total sheets</td><td class="r">'+totalSheets+'</td><td class="r">'+d.roofArea.toFixed(1)+' m² roof</td><td></td></tr></tfoot></table>';
   } else {
     html += '<div class="cut-list-empty">Generate the Roof Sheet Plan on the Map Roof tab to populate.</div>';
   }
+  html += '<button onclick="_jpSheetExtraAdd()" style="margin-top:4px;font-size:11px;padding:4px 10px;background:transparent;border:1px dashed #94a3b8;border-radius:5px;color:#475569;cursor:pointer;font-weight:600">+ Add row</button>';
   html += '</div>';
 
   // ── Ridge / Hip capping (full-width, single section) ──
@@ -18616,7 +18681,19 @@ function _jpRenderCutLists(content, page, idx){
     _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.')+
   '</div>';
 
-  // ── Flashings 3-per-row grid ──
+  // ── Letter labels toggle — controls the A/B/C reference letters on
+  // the roof map.  Hidden by default for jobs where the install crew
+  // doesn't need them. The flag lives in localStorage already; this
+  // toggle just exposes it in the Job Pack designer.
+  var refsOn = _matShowFlashRefs();
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px">'+
+    '<div style="font-size:11.5px;color:#475569"><strong style="color:#0a1628">Flashing reference letters</strong> — show A/B/C tags on the roof map &amp; cut list</div>'+
+    '<label style="display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:#0a1628;cursor:pointer">'+
+      '<input type="checkbox" '+(refsOn?'checked':'')+' onchange="_jpToggleFlashRefs(this.checked)" style="width:auto;margin:0"> '+(refsOn?'On':'Off')+
+    '</label>'+
+  '</div>';
+
+  // ── Flashings 2-per-row grid ──
   // Collect every spec that has at least one piece, then any user-
   // added flashings gallery entries (S.matFlashings) for "extra"
   // types so adding via "Select From Favourites" / "Enter Custom"
@@ -18640,7 +18717,9 @@ function _jpRenderCutLists(content, page, idx){
   }
   // Empty "Add" box always appears at the end.
   typeBoxes.push({ add: true });
-  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px">';
+  // 2 boxes per row so each drawing has more space — the user couldn't
+  // read the flashing diagrams at 3-per-row.
+  html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px">';
   typeBoxes.forEach(function(box, bi){
     html += _jpRenderFlashingCell(box, bi);
   });
@@ -18717,8 +18796,8 @@ function _jpRenderFlashingCell(box, bi){
   // lookup comes up empty.
   var pick = _jpResolveDefaultDrawing(spec.key);
   var drawing = pick && pick.entry.sketch
-    ? '<img src="'+esc(pick.entry.sketch)+'" style="width:100%;height:74px;object-fit:contain;background:#fff;border-radius:4px">'
-    : '<div style="height:48px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:10px;text-align:center;padding:4px">No default drawing<br>add one in Settings</div>';
+    ? '<img src="'+esc(pick.entry.sketch)+'" style="width:100%;height:140px;object-fit:contain;background:#fff;border-radius:4px">'
+    : '<div style="height:120px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;text-align:center;padding:8px">No default drawing<br>add one in Settings</div>';
   // Compact cut list — single-line rows, smaller pad, no header row.
   // Footer collapses to a single "N pcs · X.Xm" line.
   var rowsHtml = '';
@@ -18728,29 +18807,29 @@ function _jpRenderFlashingCell(box, bi){
     var isExtra = !!r._isExtra, extraIdx = r._extraIdx;
     var letterInput, lenInput, qtyCell, deleteCell;
     if (isExtra){
-      letterInput = '<input type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'letter\',this.value)" style="width:24px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;font-size:10px;font-style:italic">';
-      lenInput    = '<input type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'length\',this.value)" style="width:36px;border:none;background:transparent;text-align:right;padding:0;font-size:10px">';
-      qtyCell     = '<input type="number" step="1" min="1" value="'+r.qty+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'qty\',this.value)" style="width:24px;border:none;background:transparent;text-align:right;padding:0;font-size:10px">';
-      deleteCell  = '<button onclick="_matExtrasDelete(\''+esc(spec.key)+'\','+extraIdx+')" style="background:none;border:none;color:#b91c1c;font-size:10px;cursor:pointer;padding:0">×</button>';
+      letterInput = '<input type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'letter\',this.value)" style="width:32px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;font-size:12px;font-style:italic">';
+      lenInput    = '<input type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'length\',this.value)" style="width:46px;border:none;background:transparent;text-align:right;padding:0;font-size:12px">';
+      qtyCell     = '<input type="number" step="1" min="1" value="'+r.qty+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'qty\',this.value)" style="width:32px;border:none;background:transparent;text-align:right;padding:0;font-size:12px">';
+      deleteCell  = '<button onclick="_matExtrasDelete(\''+esc(spec.key)+'\','+extraIdx+')" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
     } else {
-      letterInput = '<input data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matInlineSetLetter(this)" style="width:24px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;font-size:10px">';
-      lenInput    = '<input data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matInlineSetLength(this)" style="width:36px;border:none;background:transparent;text-align:right;padding:0;font-size:10px">';
-      qtyCell     = '<span style="font-size:10px">'+r.qty+'</span>';
-      deleteCell  = '<button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" style="background:none;border:none;color:#b91c1c;font-size:10px;cursor:pointer;padding:0">×</button>';
+      letterInput = '<input data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matInlineSetLetter(this)" style="width:32px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;font-size:12px">';
+      lenInput    = '<input data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matInlineSetLength(this)" style="width:46px;border:none;background:transparent;text-align:right;padding:0;font-size:12px">';
+      qtyCell     = '<span style="font-size:12px">'+r.qty+'</span>';
+      deleteCell  = '<button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
     }
-    rowsHtml += '<div'+(isExtra?' style="background:#fffbeb;border-radius:3px"':'')+' style="display:grid;grid-template-columns:auto auto 1fr auto;gap:6px;align-items:center;padding:1px 4px;font-size:10px;line-height:1.4'+(isExtra?';background:#fffbeb;border-radius:3px':'')+'">'+
+    rowsHtml += '<div style="display:grid;grid-template-columns:auto auto 1fr auto;gap:8px;align-items:center;padding:3px 6px;font-size:12px;line-height:1.5'+(isExtra?';background:#fffbeb;border-radius:3px':'')+'">'+
       letterInput +
       '<span style="color:#6f6a60">×'+qtyCell+'</span>'+
       '<span style="text-align:right">'+lenInput+'<span style="color:#6f6a60">m</span></span>'+
       deleteCell +
     '</div>';
   });
-  var addRowBtn = '<button onclick="_matExtrasAdd(\''+esc(spec.key)+'\')" style="margin-top:4px;font-size:9.5px;padding:2px 6px;background:transparent;border:1px dashed #94a3b8;border-radius:4px;color:#475569;cursor:pointer;font-weight:600;align-self:flex-start">+ Add</button>';
-  return '<div style="border:1px solid #e5e7eb;border-radius:6px;padding:6px 8px;background:#fff;display:flex;flex-direction:column">'+
-    '<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px"><span style="width:7px;height:7px;background:'+spec.colour+';border-radius:2px"></span><strong style="font-size:10.5px;color:#0a1628;line-height:1.2">'+esc(spec.label)+'</strong></div>'+
+  var addRowBtn = '<button onclick="_matExtrasAdd(\''+esc(spec.key)+'\')" style="margin-top:6px;font-size:11px;padding:4px 10px;background:transparent;border:1px dashed #94a3b8;border-radius:5px;color:#475569;cursor:pointer;font-weight:600;align-self:flex-start">+ Add row</button>';
+  return '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;background:#fff;display:flex;flex-direction:column">'+
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="width:10px;height:10px;background:'+spec.colour+';border-radius:2px"></span><strong style="font-size:13px;color:#0a1628;line-height:1.2">'+esc(spec.label)+'</strong></div>'+
     drawing +
-    '<div style="margin-top:4px;border-top:1px solid #e5e7eb;padding-top:3px">'+rowsHtml+'</div>'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 4px;margin-top:2px;border-top:1px solid #e5e7eb;font-size:9.5px;color:#0a1628;font-weight:600"><span>Total '+cl.pieceCount+' pcs</span><span>'+cl.totalLm.toFixed(1)+' m</span></div>'+
+    '<div style="margin-top:6px;border-top:1px solid #e5e7eb;padding-top:4px">'+rowsHtml+'</div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 6px;margin-top:3px;border-top:1px solid #e5e7eb;font-size:11px;color:#0a1628;font-weight:600"><span>Total '+cl.pieceCount+' pcs</span><span>'+cl.totalLm.toFixed(1)+' m</span></div>'+
     addRowBtn +
   '</div>';
 }
@@ -18792,6 +18871,111 @@ function _jpResolveDefaultDrawing(flashingType){
     return t.indexOf(parent + '|') === 0 || t === parent;
   });
   return hit ? { entry: hit } : null;
+}
+
+// ── Cut-list page helpers ─────────────────────────────────────
+// Render a spec dropdown inline that mirrors a hidden <select> in the
+// legacy section.  Changing here writes back to the hidden input AND
+// fires its change event so the existing handlers (renderMaterialsCutLists,
+// renderMatRoofMap, …) run the same as if the legacy control was used.
+function _jpSpecSelect(label, hiddenId, options){
+  var el = document.getElementById(hiddenId);
+  var current = (el && el.value) || '';
+  var opts = options.map(function(o){
+    var v, t;
+    if (Array.isArray(o)) { v = o[0]; t = o[1]; } else { v = o; t = o; }
+    return '<option value="'+esc(v)+'"'+(v===current?' selected':'')+'>'+esc(t)+'</option>';
+  }).join('');
+  return '<label style="display:flex;flex-direction:column;gap:3px;font-size:10.5px;color:#475569;font-weight:600">'+
+    esc(label) +
+    '<select onchange="_jpSpecChange(\''+hiddenId+'\',this.value)" style="padding:5px 6px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;font-size:12px;color:#0a1628">'+opts+'</select>'+
+  '</label>';
+}
+function _jpSpecChange(hiddenId, value){
+  var el = document.getElementById(hiddenId);
+  if (!el) return;
+  el.value = value;
+  try { el.dispatchEvent(new Event('change', { bubbles:true })); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+  try { renderJobPack(); } catch(e){}
+}
+
+// ── Editable Roof Sheets rows ─────────────────────────────────
+// Auto-derived rows come from window._lastSheetCounts; per-mm overrides
+// for qty and ordered length ride on DRAW.sheetGroupQtyOverrides /
+// DRAW.sheetGroupOverrides (the existing sheet-plan editor already
+// honours them).  Hidden rows persist on DRAW.matSheetRowHidden.
+// User-added extras live on DRAW.matSheetExtras.
+function _jpBuildSheetRows(sc){
+  var rows = [];
+  if (!sc || !sc.groups || !sc.groups.length) return rows;
+  var byLen = {};
+  sc.groups.forEach(function(g){ byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count; });
+  var hidden = DRAW.matSheetRowHidden || {};
+  var qtyOv = DRAW.sheetGroupQtyOverrides || {};
+  var lenOv = DRAW.sheetGroupOverrides || {};
+  Object.keys(byLen).forEach(function(k){
+    var origLen = parseInt(k, 10);
+    if (hidden[origLen]) return;
+    var qty = (qtyOv[origLen] != null) ? +qtyOv[origLen] : byLen[k];
+    var len = (lenOv[origLen] != null) ? +lenOv[origLen] : origLen;
+    rows.push({ origLen: origLen, len: len, qty: qty });
+  });
+  rows.sort(function(a, b){ return b.len - a.len; });
+  return rows;
+}
+function _jpSheetSetQty(origLen, value){
+  var n = parseInt(value, 10);
+  if (!DRAW.sheetGroupQtyOverrides) DRAW.sheetGroupQtyOverrides = {};
+  if (!isFinite(n) || n < 0) n = 0;
+  DRAW.sheetGroupQtyOverrides[origLen] = n;
+  try { saveSnapshot(); } catch(e){}
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderJobPack(); } catch(e){}
+}
+function _jpSheetSetLen(origLen, valueM){
+  var f = parseFloat(valueM);
+  if (!DRAW.sheetGroupOverrides) DRAW.sheetGroupOverrides = {};
+  if (!isFinite(f) || f <= 0) { delete DRAW.sheetGroupOverrides[origLen]; }
+  else { DRAW.sheetGroupOverrides[origLen] = Math.round(f * 1000); }
+  try { saveSnapshot(); } catch(e){}
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { redrawAll(); } catch(e){}
+  try { renderJobPack(); } catch(e){}
+}
+function _jpSheetHide(origLen){
+  if (!DRAW.matSheetRowHidden) DRAW.matSheetRowHidden = {};
+  DRAW.matSheetRowHidden[origLen] = true;
+  try { saveSnapshot(); } catch(e){}
+  try { renderJobPack(); } catch(e){}
+}
+function _jpSheetExtraAdd(){
+  if (!Array.isArray(DRAW.matSheetExtras)) DRAW.matSheetExtras = [];
+  DRAW.matSheetExtras.push({ lenMm: 3000, qty: 1 });
+  try { saveSnapshot(); } catch(e){}
+  try { renderJobPack(); } catch(e){}
+}
+function _jpSheetExtraUpdate(idx, field, value){
+  if (!Array.isArray(DRAW.matSheetExtras)) return;
+  var x = DRAW.matSheetExtras[idx]; if (!x) return;
+  if (field === 'qty') { var q = parseInt(value, 10); x.qty = (isFinite(q) && q >= 0) ? q : 0; }
+  else if (field === 'lenMm') { var f = parseFloat(value); x.lenMm = (isFinite(f) && f > 0) ? Math.round(f * 1000) : 0; }
+  try { saveSnapshot(); } catch(e){}
+  try { renderJobPack(); } catch(e){}
+}
+function _jpSheetExtraDelete(idx){
+  if (!Array.isArray(DRAW.matSheetExtras)) return;
+  DRAW.matSheetExtras.splice(idx, 1);
+  try { saveSnapshot(); } catch(e){}
+  try { renderJobPack(); } catch(e){}
+}
+
+// Toggle the A/B/C letter overlays from the Job Pack designer — wraps
+// the existing _setMatShowFlashRefs so the materials-tab checkbox + the
+// roof-map redraw stay in sync.
+function _jpToggleFlashRefs(on){
+  try { _setMatShowFlashRefs(!!on); } catch(e){}
+  try { renderJobPack(); } catch(e){}
 }
 
 // "Select From Favourites" → add a gallery slot and immediately open
@@ -19332,6 +19516,9 @@ function _flashRefreshAfterEdit(){
   try { redrawAll(); } catch(e){}
   try { renderMatRoofMap(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
+  // Job Pack Designer is the primary editing surface now — refresh
+  // it so + Add row / × Delete / inline edits surface there too.
+  try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
 }
 
 // Legacy alias — older code paths still call renderFlashingLayout().
@@ -19421,6 +19608,7 @@ function _matExtrasAdd(typeKey){
   DRAW.matCutListExtras[typeKey].push({ letter: '', length: 1.0, qty: 1 });
   try { saveSnapshot(); } catch(e){}
   renderMaterialsCutLists();
+  try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
 }
 function _matExtrasUpdate(typeKey, idx, field, value){
   if (!DRAW.matCutListExtras || !Array.isArray(DRAW.matCutListExtras[typeKey])) return;
@@ -19430,12 +19618,14 @@ function _matExtrasUpdate(typeKey, idx, field, value){
   else if (field === 'qty')    { var q = parseInt(value, 10); x.qty = (isFinite(q) && q >= 0) ? q : 0; }
   try { saveSnapshot(); } catch(e){}
   renderMaterialsCutLists();
+  try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
 }
 function _matExtrasDelete(typeKey, idx){
   if (!DRAW.matCutListExtras || !Array.isArray(DRAW.matCutListExtras[typeKey])) return;
   DRAW.matCutListExtras[typeKey].splice(idx, 1);
   try { saveSnapshot(); } catch(e){}
   renderMaterialsCutLists();
+  try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
 }
 
 // Look up saved flashings matching the current roof profile + this
@@ -21048,18 +21238,27 @@ function _matBuildPrintOrderDetails(mount) {
 }
 
 // Ctrl/Cmd+P from the Materials tab should print the Materials cut list,
-// not the legacy report panel. Mirror the Quote-tab beforeprint pattern.
+// not the legacy report panel. Now uses the new Job Pack Designer
+// (print-jobpack class) — the legacy `print-materials` path is no
+// longer wired up because the .mat-print-page elements have been
+// replaced by the .jp-page surface inside #tab-materials.
+// Without this swap, browser-initiated Ctrl-P from the Job Pack tab
+// would auto-add `print-materials`, which would then hide the new
+// designer and surface the empty legacy print pages instead — that
+// was the "Save as PDF just keeps loading" bug the user reported.
 window.addEventListener('beforeprint', function(){
   var ap = document.querySelector('.panel.active');
   if (!ap || ap.id !== 'tab-materials') return;
-  if (document.documentElement.classList.contains('print-materials')) return;
-  document.documentElement.classList.add('print-materials');
-  document.documentElement.dataset.autoPrintMaterials = '1';
+  // If the user already requested a specific print mode, leave it alone.
+  var cl = document.documentElement.classList;
+  if (cl.contains('print-jobpack') || cl.contains('print-materials')) return;
+  cl.add('print-jobpack');
+  document.documentElement.dataset.autoPrintJobPack = '1';
 });
 window.addEventListener('afterprint', function(){
-  if (document.documentElement.dataset.autoPrintMaterials === '1') {
-    document.documentElement.classList.remove('print-materials');
-    delete document.documentElement.dataset.autoPrintMaterials;
+  if (document.documentElement.dataset.autoPrintJobPack === '1') {
+    document.documentElement.classList.remove('print-jobpack');
+    delete document.documentElement.dataset.autoPrintJobPack;
   }
 });
 
