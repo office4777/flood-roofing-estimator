@@ -17843,6 +17843,7 @@ function _jpPageTypes(){
     { value:'header',      label:'Job header' },
     { value:'roofmap',     label:'Roof map' },
     { value:'sheetplan',   label:'Sheet plan' },
+    { value:'cutprocess',  label:'Cut process (3-stage)' },
     { value:'cutlists',    label:'Cut lists' },
     { value:'flashings',   label:'Flashings' },
     { value:'consumables', label:'Consumables' },
@@ -18469,6 +18470,7 @@ function _jpRenderBlock(content, page, idx){
     case 'header':      return _jpRenderHeader(content, page, idx);
     case 'roofmap':     return _jpRenderRoofMap(content, page, idx);
     case 'sheetplan':   return _jpRenderSheetPlan(content, page, idx);
+    case 'cutprocess':  return _jpRenderCutProcess(content, page, idx);
     case 'cutlists':    return _jpRenderCutLists(content, page, idx);
     case 'flashings':   return _jpRenderFlashings(content, page, idx);
     case 'consumables': return _jpRenderConsumables(content, page, idx);
@@ -18610,6 +18612,229 @@ function _jpRenderSheetPlan(content, page, idx){
     out.innerHTML = '<p style="font-size:12px;color:var(--text2);font-style:italic">Draw your roof and generate the sheet plan first.</p>';
   }
 }
+// ── Cut process diagram (3-stage layout) ──────────────────────────
+// Reads the live sheet-plan stash (window.__lastSheetPlan) and re-
+// paints the same strips in three panels so the install crew can
+// follow how the wing is fed by main-4-hip donor sheets:
+//   Stage 1 — Main 4-hip only.  Wing strips dimmed to skeleton so
+//             the donor sheets the wing eats are clearly visible.
+//   Stage 2 — Donor → offcut arrows drawn from each donor's centroid
+//             to its matched offcut destination.
+//   Stage 3 — Finished layout, purple wing-pusher sheets highlighted
+//             with a thicker outline so the user can see how the
+//             purple band shifts the west wing face out from the
+//             main rectangle.
+function _jpRenderCutProcess(content, page, idx){
+  content.innerHTML =
+    '<div class="jp-block-title">Cut process</div>' +
+    '<div id="jpCutProcOut_'+idx+'" style="flex:1;display:flex;flex-direction:column;gap:12px;overflow:auto"></div>';
+  var out = content.querySelector('#jpCutProcOut_'+idx);
+  var plan = window.__lastSheetPlan;
+  if (!plan || !plan.strips || !plan.strips.length) {
+    out.innerHTML = '<p style="font-size:12px;color:var(--text2);font-style:italic;padding:14px">Generate the Roof Sheet Plan on the Map Roof tab to populate this diagram.</p>';
+    return;
+  }
+  var stages = [
+    { title:'1. Main 4-hip — donor sheets',           note:'Full sheets ordered for the main hipped rectangle.',                  mode:'donors-only' },
+    { title:'2. Wing cuts — donor → offcut arrows',   note:'Each numbered offcut on the wing is cut from the donor sheet with the same number on the main rectangle.', mode:'arrows' },
+    { title:'3. Finished layout — purple wing-push',  note:'Purple sheets push the western wing face out beyond the main rectangle’s footprint.', mode:'final' }
+  ];
+  stages.forEach(function(stg){
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;background:#fff';
+    wrap.innerHTML = '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px"><strong style="font-size:12.5px;color:#0a1628">'+esc(stg.title)+'</strong>'+
+      '<span style="color:var(--text2);font-size:10.5px">'+esc(stg.note)+'</span></div>';
+    var canvasWrap = document.createElement('div');
+    canvasWrap.style.cssText = 'width:100%;display:flex;justify-content:center';
+    wrap.appendChild(canvasWrap);
+    var cv = _jpDrawCutProcessStage(plan, stg.mode);
+    if (cv) canvasWrap.appendChild(cv);
+    out.appendChild(wrap);
+  });
+  // Donor → offcut summary table beneath the diagrams — pure list
+  // form of the same data so the crew can cross-reference at a glance.
+  var pairs = _jpCollectDonorPairs(plan);
+  if (pairs.length){
+    var tbl = document.createElement('div');
+    tbl.style.cssText = 'border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;background:#fff;margin-top:4px';
+    var rows = pairs.map(function(p){
+      return '<tr><td style="padding:3px 6px"><span style="display:inline-block;width:10px;height:10px;background:'+p.color+';border-radius:2px;vertical-align:middle"></span> <strong>'+p.donorSeq+'</strong></td>'+
+        '<td style="padding:3px 6px">'+esc(p.donorFace)+'</td>'+
+        '<td style="padding:3px 6px;text-align:center;color:#6f6a60">→</td>'+
+        '<td style="padding:3px 6px"><strong>'+p.offcutSeq+'</strong></td>'+
+        '<td style="padding:3px 6px">'+esc(p.offcutFace)+'</td></tr>';
+    }).join('');
+    tbl.innerHTML = '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:4px">Donor → offcut map</div>'+
+      '<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:#6f6a60;font-size:10px;text-transform:uppercase;letter-spacing:.04em"><th style="text-align:left;padding:3px 6px;border-bottom:1px solid #e5e7eb">Donor #</th><th style="text-align:left;padding:3px 6px;border-bottom:1px solid #e5e7eb">From face</th><th></th><th style="text-align:left;padding:3px 6px;border-bottom:1px solid #e5e7eb">Offcut #</th><th style="text-align:left;padding:3px 6px;border-bottom:1px solid #e5e7eb">On face</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    out.appendChild(tbl);
+  }
+}
+
+// Build a human-readable "from face → to face" pair list from the
+// stripped plan.  Looks at every donor strip that has _offcutDest
+// pointing at a real receiver and emits one row per pair.
+function _jpCollectDonorPairs(plan){
+  var pairs = [];
+  (plan.strips || []).forEach(function(s){
+    if (!s._offcutDest) return;
+    // Only emit a row when the destination has a different face — the
+    // pair is a CROSS-FACE handoff (the user's mental model).  Same-face
+    // pairings are just sheet sequencing, not "donor → offcut".
+    var dest = s._offcutDest;
+    if (!dest || dest.face === s.face) return;
+    pairs.push({
+      donorSeq:  s.seq,
+      offcutSeq: dest.seq,
+      donorFace: _jpFaceLabel(s.face, plan),
+      offcutFace:_jpFaceLabel(dest.face, plan),
+      color:     s.color
+    });
+  });
+  // Sort by donor seq then offcut face for legibility.
+  pairs.sort(function(a, b){ return (a.donorSeq - b.donorSeq) || (a.offcutSeq - b.offcutSeq); });
+  return pairs;
+}
+
+// Pretty-print a face's role for the user. Falls back to whatever
+// `face.label` carries.  mainA / mainB are tagged as the long-side
+// faces of the main 4-hip rectangle.
+function _jpFaceLabel(face, plan){
+  if (!face) return '—';
+  if (plan && face === plan.mainA) return 'Main 4-hip (south)';
+  if (plan && face === plan.mainB) return 'Main 4-hip (north)';
+  if (face.label) return face.label;
+  if (face.type)  return face.type;
+  return 'face';
+}
+
+// Render one of the three cut-process stages as a fresh canvas.
+function _jpDrawCutProcessStage(plan, mode){
+  var strips = plan.strips || [];
+  if (!strips.length) return null;
+  // Compute the same bounding box the live sheet plan uses so all
+  // three canvases line up vertically when stacked.
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  strips.forEach(function(s){
+    (s.poly || []).forEach(function(p){
+      if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+      if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+    });
+  });
+  if (!isFinite(minX)) return null;
+  var W = 760, H = 380, padX = 36, padY = 30;
+  var sc = Math.min((W - padX*2) / (maxX - minX || 1), (H - padY*2) / (maxY - minY || 1));
+  function toC(p){ return [(p[0]-minX)*sc + padX, (p[1]-minY)*sc + padY]; }
+  var cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  cv.style.cssText = 'width:100%;max-width:'+W+'px;border:1px solid #d1d5db;border-radius:6px;background:#fff;display:block';
+  var ctx = cv.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  // Decide visibility / styling per stage.
+  function stripStyle(s){
+    var isMain = (s.face === plan.mainA || s.face === plan.mainB);
+    var isPurple = (s.color && /a855f7|9333ea|7c3aed|purple/i.test(s.color));
+    if (mode === 'donors-only'){
+      if (!isMain) return { fill:'#f3f4f6', strokeAlpha:0.18, labelAlpha:0.25, hatch:false };
+      if (s.isOffcut) return { fill:'#f3f4f6', strokeAlpha:0.18, labelAlpha:0.25, hatch:false };
+      return { fill:s.color, strokeAlpha:0.18, labelAlpha:1, hatch:false };
+    }
+    if (mode === 'arrows'){
+      return { fill:s.color, strokeAlpha:0.18, labelAlpha:1, hatch:!!s.isOffcut };
+    }
+    // mode === 'final'
+    return { fill:s.color, strokeAlpha: isPurple ? 0.7 : 0.18, strokeColor: isPurple ? '#7c3aed' : 'rgba(0,0,0,0.18)', strokeWidth: isPurple ? 2.4 : 1, labelAlpha:1, hatch:!!s.isOffcut };
+  }
+  // Paint strips.
+  strips.forEach(function(s){
+    if (!s.poly || s.poly.length < 3) return;
+    var st = stripStyle(s);
+    ctx.save();
+    ctx.beginPath();
+    s.poly.forEach(function(p, i){
+      var cc = toC(p);
+      if (i === 0) ctx.moveTo(cc[0], cc[1]); else ctx.lineTo(cc[0], cc[1]);
+    });
+    ctx.closePath();
+    ctx.fillStyle = st.fill; ctx.fill();
+    if (st.hatch){
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 1.4;
+      var mnx = Infinity, mxx = -Infinity, mny = Infinity, mxy = -Infinity;
+      s.poly.forEach(function(p){ var cc = toC(p); if (cc[0]<mnx) mnx=cc[0]; if (cc[0]>mxx) mxx=cc[0]; if (cc[1]<mny) mny=cc[1]; if (cc[1]>mxy) mxy=cc[1]; });
+      for (var hx = mnx - (mxy-mny); hx < mxx; hx += 6){
+        ctx.beginPath();
+        ctx.moveTo(hx, mny);
+        ctx.lineTo(hx + (mxy - mny), mxy);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    // Outline.
+    ctx.beginPath();
+    s.poly.forEach(function(p, i){
+      var cc = toC(p);
+      if (i === 0) ctx.moveTo(cc[0], cc[1]); else ctx.lineTo(cc[0], cc[1]);
+    });
+    ctx.closePath();
+    ctx.strokeStyle = st.strokeColor || 'rgba(0,0,0,0.18)';
+    ctx.lineWidth = st.strokeWidth || 1;
+    ctx.globalAlpha = st.strokeAlpha;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  });
+  // Stage 2 — draw donor → offcut arrows.
+  if (mode === 'arrows'){
+    ctx.save();
+    strips.forEach(function(s){
+      if (!s._offcutDest) return;
+      var d = s._offcutDest;
+      if (!d || !d.centroid || !s.centroid) return;
+      if (d.face === s.face) return;
+      var a = toC(s.centroid), b = toC(d.centroid);
+      ctx.strokeStyle = 'rgba(15,23,42,0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      ctx.setLineDash([]);
+      // Arrow head at receiver.
+      var dx = b[0] - a[0], dy = b[1] - a[1];
+      var L = Math.sqrt(dx*dx + dy*dy) || 1;
+      var ux = dx / L, uy = dy / L;
+      var hx = b[0] - ux * 8, hy = b[1] - uy * 8;
+      var px = -uy * 4, py = ux * 4;
+      ctx.fillStyle = 'rgba(15,23,42,0.85)';
+      ctx.beginPath();
+      ctx.moveTo(b[0], b[1]);
+      ctx.lineTo(hx + px, hy + py);
+      ctx.lineTo(hx - px, hy - py);
+      ctx.closePath();
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+  // Strip number labels.
+  ctx.font = 'bold 10px Inter, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 2;
+  strips.forEach(function(s){
+    if (!s.centroid || s.seq == null) return;
+    var st = stripStyle(s);
+    var cc = toC(s.centroid);
+    var lbl = String(s.seq);
+    // Offcut suffix in arrows mode so the dual-role number reads
+    // "5←" instead of just "5".
+    if (mode === 'arrows' && s.isOffcut) lbl = s.seq + '↩';
+    ctx.globalAlpha = st.labelAlpha;
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillStyle = '#fbbf24';
+    ctx.strokeText(lbl, cc[0], cc[1]);
+    ctx.fillText(lbl, cc[0], cc[1]);
+    ctx.globalAlpha = 1;
+  });
+  return cv;
+}
+
 function _jpRenderCutLists(content, page, idx){
   // Page layout:
   //   1. Profile / grade / thickness / ridge / gutter selectors (mirror
@@ -18669,6 +18894,33 @@ function _jpRenderCutLists(content, page, idx){
     html += '<div class="cut-list-empty">Generate the Roof Sheet Plan on the Map Roof tab to populate.</div>';
   }
   html += '<button onclick="_jpSheetExtraAdd()" style="margin-top:4px;font-size:11px;padding:4px 10px;background:transparent;border:1px dashed #94a3b8;border-radius:5px;color:#475569;cursor:pointer;font-weight:600">+ Add row</button>';
+  // ── Sheet sources — donor → offcut traceability ──
+  // Pulls the same data the Cut process page uses so the install crew
+  // can see at a glance which ordered donor sheets feed which wing
+  // offcuts.  Only renders when there's at least one cross-face pair.
+  var donorPairs = (window.__lastSheetPlan) ? _jpCollectDonorPairs(window.__lastSheetPlan) : [];
+  if (donorPairs.length){
+    var byDonorFace = {};
+    donorPairs.forEach(function(p){
+      var k = p.donorFace + '|' + p.color;
+      if (!byDonorFace[k]) byDonorFace[k] = { donorFace: p.donorFace, color: p.color, items: [] };
+      byDonorFace[k].items.push(p);
+    });
+    var lines = Object.keys(byDonorFace).map(function(k){
+      var g = byDonorFace[k];
+      var nums = g.items.map(function(p){ return '<strong>#'+p.donorSeq+'</strong>→#'+p.offcutSeq; }).join(' · ');
+      return '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#475569;padding:2px 0">'+
+        '<span style="display:inline-block;width:9px;height:9px;background:'+g.color+';border-radius:2px"></span>'+
+        '<span style="color:#0a1628;font-weight:600">'+esc(g.donorFace)+'</span>'+
+        '<span style="color:#6f6a60">feeds</span>'+
+        '<span>'+nums+'</span>'+
+      '</div>';
+    }).join('');
+    html += '<div style="margin-top:8px;padding:8px 10px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px">'+
+      '<div style="font-size:10.5px;font-weight:700;color:#0a1628;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Sheet sources</div>'+
+      lines +
+    '</div>';
+  }
   html += '</div>';
 
   // ── Ridge / Hip capping (full-width, single section) ──
