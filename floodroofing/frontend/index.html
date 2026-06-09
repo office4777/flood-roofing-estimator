@@ -733,6 +733,115 @@ select{
 .mat-print-page .mp-cons .cons-name{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:#6f6a60;font-weight:500}
 .mat-print-page .mp-cons .cons-val{font-size:14px;font-weight:700}
 
+/* ── Job Pack: Maps side panel + drag-droppable images ─────────── */
+#jpMapPanel{
+  position:fixed; top:88px; right:0; bottom:24px;
+  width:240px; z-index:60;
+  background:#fff; border:1px solid var(--border); border-right:none;
+  border-radius:10px 0 0 10px;
+  box-shadow:-6px 8px 24px rgba(0,0,0,.12);
+  transform:translateX(220px); transition:transform .25s ease;
+  display:flex; flex-direction:column;
+}
+#jpMapPanel.is-open{ transform:translateX(0); }
+#jpMapPanelToggle{
+  position:absolute; left:-32px; top:14px;
+  width:32px; height:90px;
+  background:#0a1628; color:#fff; border:none;
+  border-radius:8px 0 0 8px;
+  cursor:pointer; font-size:11px; font-weight:700;
+  letter-spacing:.05em; padding:6px 0;
+  display:flex; align-items:center; justify-content:center;
+  writing-mode:vertical-rl; text-orientation:mixed;
+}
+#jpMapPanel .jp-map-hd{
+  padding:12px 14px 8px; border-bottom:1px solid var(--border);
+  font-size:13px; font-weight:700; color:#0a1628;
+  display:flex; align-items:center; gap:6px;
+}
+#jpMapPanel .jp-map-hd small{
+  font-size:10px; font-weight:500; color:var(--text2);
+  letter-spacing:0; text-transform:none;
+}
+#jpMapPanelList{
+  flex:1; overflow-y:auto; padding:8px 10px;
+  display:flex; flex-direction:column; gap:8px;
+}
+.jp-map-thumb{
+  border:1px solid #e5e7eb; border-radius:6px;
+  padding:6px; background:#fafafa; cursor:grab;
+  display:flex; flex-direction:column; gap:4px;
+  transition:border-color .12s;
+}
+.jp-map-thumb:hover{ border-color:#0099cc; background:#f0f9ff; }
+.jp-map-thumb:active{ cursor:grabbing; }
+.jp-map-thumb img, .jp-map-thumb canvas, .jp-map-thumb svg{
+  width:100%; height:84px; object-fit:contain;
+  background:#fff; border-radius:4px;
+  pointer-events:none; display:block;
+}
+.jp-map-thumb .jp-map-label{
+  font-size:10.5px; font-weight:600; color:#0a1628;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.jp-map-thumb .jp-map-label small{
+  font-size:9px; color:var(--text2); font-weight:500;
+}
+/* Drop zones on pages */
+.jp-page.jp-drop-active{
+  outline:2px dashed #0099cc; outline-offset:-4px;
+}
+/* Picture placed on a page — Word-style movable image */
+.jp-page-imgwrap{
+  position:absolute;
+  z-index:5;
+  border:1px solid transparent;
+  cursor:move;
+  user-select:none;
+}
+.jp-page-imgwrap.is-selected{
+  border:1px solid #0099cc;
+  box-shadow:0 0 0 1px #0099cc, 0 6px 18px rgba(0,153,204,.18);
+  z-index:7;
+}
+.jp-page-imgwrap img{
+  width:100%; height:100%; object-fit:contain;
+  pointer-events:none; display:block;
+}
+.jp-page-imgwrap .jp-img-handle{
+  position:absolute; right:-7px; bottom:-7px;
+  width:14px; height:14px; background:#0099cc;
+  border:2px solid #fff; border-radius:50%;
+  cursor:nwse-resize; display:none;
+}
+.jp-page-imgwrap.is-selected .jp-img-handle{ display:block; }
+.jp-page-imgwrap .jp-img-tools{
+  position:absolute; top:-32px; left:0;
+  display:none; gap:4px;
+  background:#fff; border:1px solid #cbd5e1; border-radius:6px;
+  padding:3px 4px; box-shadow:0 4px 12px rgba(0,0,0,.12);
+}
+.jp-page-imgwrap.is-selected .jp-img-tools{ display:flex; }
+.jp-page-imgwrap .jp-img-tools button{
+  background:none; border:none; cursor:pointer; padding:3px 8px;
+  font-size:11px; color:#0a1628; border-radius:4px;
+  font-family:inherit;
+}
+.jp-page-imgwrap .jp-img-tools button:hover{ background:#f1f5f9; }
+.jp-page-imgwrap .jp-img-tools button.jp-danger{ color:#b91c1c; }
+.jp-page-imgwrap .jp-img-tools button.jp-danger:hover{ background:#fee2e2; }
+/* Pages need position:relative so image absolute coords anchor inside. */
+.jp-page{ position:relative; }
+/* Drop hint overlay shown when dragging onto an empty page */
+.jp-page::after{
+  content:""; position:absolute; inset:8mm;
+  border:0; pointer-events:none; transition:border-color .15s;
+}
+.jp-page.jp-drop-active::after{
+  border:3px dashed #0099cc; border-radius:4px;
+  background:rgba(0,153,204,.06);
+}
+
 /* ── Job Pack Designer ───────────────────────────────────────────
    Replaces the old standalone cards on the Materials/Job Pack tab.
    Every editable thing the user needs (cut lists, flashings,
@@ -1918,6 +2027,21 @@ select{
   </div>
   <div class="jp-pages" id="jpPages"></div>
   <button class="jp-add-page-btn" onclick="_jpAddPage()">+ Add Page</button>
+
+  <!-- Maps side panel — slides in from the right edge. Holds thumbnails
+       of every available map (Detailed roof map, Basic roof map, Sheet
+       layout + per-roof variants when multi-roof). Drag any thumbnail
+       onto any .jp-page to drop it as a movable, resizable picture. -->
+  <aside id="jpMapPanel" class="no-print">
+    <button id="jpMapPanelToggle" onclick="_jpToggleMapPanel()" title="Maps panel — drag any map onto a page">MAPS</button>
+    <div class="jp-map-hd">
+      <span>📂 Maps</span>
+      <small style="margin-left:auto">drag onto a page</small>
+    </div>
+    <div id="jpMapPanelList">
+      <div style="padding:14px 4px;font-size:11px;color:var(--text2);font-style:italic">Open the Job Pack tab to populate maps.</div>
+    </div>
+  </aside>
 
   <!-- 1. JOB & DELIVERY — kept (hidden via .jp-legacy) so the input
        elements still live in the DOM for populateMatJobInfo /
@@ -3421,7 +3545,8 @@ function gotoTab(t) {
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
-  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}}
+  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpRestorePanelState();}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
+  if(t!=='materials'){var __mp=document.getElementById('jpMapPanel'); if(__mp)__mp.classList.remove('is-open');}
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
@@ -17614,6 +17739,310 @@ function _jpPageTypes(){
     { value:'notes',       label:'Notes / custom' }
   ];
 }
+// ── Maps side panel ────────────────────────────────────────────────
+// Toggle the slide-out panel that lists every available map as a
+// draggable thumbnail.
+function _jpToggleMapPanel(){
+  var p = document.getElementById('jpMapPanel'); if (!p) return;
+  var open = p.classList.toggle('is-open');
+  try { localStorage.setItem('fr_jp_map_panel_open', open ? '1' : '0'); } catch(e){}
+  if (open) renderJpMapPanel();
+}
+function _jpRestorePanelState(){
+  var p = document.getElementById('jpMapPanel'); if (!p) return;
+  var open = localStorage.getItem('fr_jp_map_panel_open') === '1';
+  p.classList.toggle('is-open', open);
+}
+// Build the thumbnail list. Each entry carries a key that identifies
+// which map to render at drop time — we DON'T snapshot the image into
+// the thumbnail's dataTransfer payload because the user might edit the
+// underlying drawing before dropping. Instead the drop handler
+// re-captures the map at drop time so the dropped image is always
+// current.
+function renderJpMapPanel(){
+  var list = document.getElementById('jpMapPanelList'); if (!list) return;
+  var items = _jpMapPanelItems();
+  if (!items.length) {
+    list.innerHTML = '<div style="padding:14px 4px;font-size:11px;color:var(--text2);font-style:italic">Draw your roof on the Map Roof tab — maps will populate here.</div>';
+    return;
+  }
+  list.innerHTML = items.map(function(it){
+    // Build a small preview right here so the panel reads visually.
+    var preview = _jpCaptureMap(it.key, { thumb: true });
+    var imgHtml = preview
+      ? '<img src="'+esc(preview)+'" alt="">'
+      : '<div style="width:100%;height:84px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#94a3b8">No preview</div>';
+    return '<div class="jp-map-thumb" draggable="true" '+
+      'data-map-key="'+esc(it.key)+'" '+
+      'ondragstart="_jpDragStart(event,\''+esc(it.key)+'\')" '+
+      'ondragend="_jpDragEnd(event)">' +
+      imgHtml +
+      '<div class="jp-map-label"><span>'+esc(it.label)+'</span><small>'+esc(it.sub||'')+'</small></div>' +
+    '</div>';
+  }).join('');
+}
+function _jpMapPanelItems(){
+  var items = [];
+  // Whole-roof variants (no per-roof index)
+  items.push({ key:'detailed',  label:'Detailed map',  sub:'all roofs' });
+  items.push({ key:'basic',     label:'Basic map',     sub:'all roofs' });
+  items.push({ key:'sheetplan', label:'Sheet layout',  sub:'all roofs' });
+  // Per-roof variants — only when there's actually more than one roof.
+  if (DRAW.roofs && DRAW.roofs.length > 1) {
+    DRAW.roofs.forEach(function(r, i){
+      var name = r.name || _nthName(i + 1);
+      items.push({ key:'detailed:'+i, label:'Detailed map',  sub:name });
+      items.push({ key:'basic:'+i,    label:'Basic map',     sub:name });
+    });
+  }
+  return items;
+}
+// Capture the named map as a PNG data URL. `thumb:true` => smaller
+// + cheaper (used for the side-panel previews).
+function _jpCaptureMap(mapKey, opts){
+  opts = opts || {};
+  var parts = mapKey.split(':');
+  var kind = parts[0];
+  var roofIdx = parts.length > 1 ? parseInt(parts[1], 10) : -1;
+  try {
+    if (kind === 'detailed') return _jpCaptureDetailed(roofIdx, opts);
+    if (kind === 'basic')    return _jpCaptureBasic(roofIdx, opts);
+    if (kind === 'sheetplan')return _jpCaptureSheetPlan(opts);
+  } catch(e){ return null; }
+  return null;
+}
+function _jpCaptureDetailed(roofIdx, opts){
+  var src = document.getElementById('roofCanvas');
+  if (!src || !src.width) return null;
+  // Honour the same flags renderMatRoofMap uses so the captured
+  // detailed map is the clean editorial version (no calibration
+  // line / grid / bg image).
+  var prevHideCal = window._hideCalibrationOverlay;
+  var prevHideBg  = window._matRoofMapHideBg;
+  var prevHideGrid = window._matRoofMapHideGrid;
+  var prevActive = DRAW.activeRoofIdx;
+  var prevOutline = DRAW.outline;
+  var prevLines = DRAW.lines;
+  try {
+    window._hideCalibrationOverlay = true;
+    window._matRoofMapHideBg = true;
+    window._matRoofMapHideGrid = true;
+    // If a specific roof is requested, temporarily focus it as active.
+    if (roofIdx >= 0 && DRAW.roofs && DRAW.roofs[roofIdx]) {
+      var r = DRAW.roofs[roofIdx];
+      DRAW.outline = (r.outline || []).map(function(p){ return p.slice(); });
+      DRAW.lines = (r.lines || []).map(function(l){ return Object.assign({}, l, { pts: l.pts.map(function(p){return p.slice();}) }); });
+    }
+    redrawAll();
+    var data = src.toDataURL('image/png');
+    return data;
+  } finally {
+    window._hideCalibrationOverlay = prevHideCal;
+    window._matRoofMapHideBg = prevHideBg;
+    window._matRoofMapHideGrid = prevHideGrid;
+    DRAW.outline = prevOutline;
+    DRAW.lines = prevLines;
+    DRAW.activeRoofIdx = prevActive;
+    try { redrawAll(); } catch(e){}
+  }
+}
+function _jpCaptureBasic(roofIdx, opts){
+  // Render the Basic SVG into a hidden div, then serialise it as a
+  // data: URL.  We re-use _renderMatRoofMapBasic by giving it a
+  // throw-away mount.
+  var tmp = document.createElement('div');
+  tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:600px';
+  document.body.appendChild(tmp);
+  try {
+    // If a specific roof is requested, temporarily limit the
+    // collector to that roof.
+    if (roofIdx >= 0 && DRAW.roofs && DRAW.roofs[roofIdx]) {
+      var allRoofs = DRAW.roofs;
+      DRAW.roofs = [allRoofs[roofIdx]];
+      try { _renderMatRoofMapBasic(tmp); }
+      finally { DRAW.roofs = allRoofs; }
+    } else {
+      _renderMatRoofMapBasic(tmp);
+    }
+    var svg = tmp.querySelector('svg');
+    if (!svg) return null;
+    // Serialise → encode → data URL
+    var xml = new XMLSerializer().serializeToString(svg);
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
+  } finally {
+    document.body.removeChild(tmp);
+  }
+}
+function _jpCaptureSheetPlan(opts){
+  // Sheet plan output lives in #roofSheetPlanOut; we'd rather snapshot
+  // its first canvas if present, else fall back to a generic message.
+  var src = document.getElementById('roofSheetPlanOut');
+  if (!src) return null;
+  var cv = src.querySelector('canvas');
+  if (cv) {
+    try { return cv.toDataURL('image/png'); } catch(e){ return null; }
+  }
+  return null;
+}
+
+// ── Drag and drop ──────────────────────────────────────────────────
+function _jpDragStart(ev, mapKey){
+  try {
+    ev.dataTransfer.setData('text/x-jp-map', mapKey);
+    ev.dataTransfer.effectAllowed = 'copy';
+  } catch(e){}
+  document.querySelectorAll('.jp-page').forEach(function(el){ el.classList.add('jp-drop-active'); });
+  // Some browsers need a sentinel for the drag image; the thumb's
+  // own image is fine as the default.
+}
+function _jpDragEnd(){
+  document.querySelectorAll('.jp-page').forEach(function(el){ el.classList.remove('jp-drop-active'); });
+}
+function _jpAllowDrop(ev){
+  if (!ev.dataTransfer || !Array.from(ev.dataTransfer.types).some(function(t){ return t === 'text/x-jp-map'; })) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'copy';
+}
+function _jpHandleDrop(ev, pageIdx){
+  var key = ev.dataTransfer ? ev.dataTransfer.getData('text/x-jp-map') : '';
+  if (!key) return;
+  ev.preventDefault();
+  document.querySelectorAll('.jp-page').forEach(function(el){ el.classList.remove('jp-drop-active'); });
+  var state = _jpState();
+  var page = state.pages[pageIdx]; if (!page) return;
+  if (!Array.isArray(page.images)) page.images = [];
+  // Compute drop position within the page (in mm because pages are
+  // 210mm × 297mm).  Cursor coords are in CSS pixels; the page has a
+  // CSS size of 210mm × 297mm so we divide by the live mm-to-px ratio.
+  var pageEl = ev.currentTarget;
+  var r = pageEl.getBoundingClientRect();
+  var x = ev.clientX - r.left;
+  var y = ev.clientY - r.top;
+  // Default size: 90mm × 65mm centred on the drop point.
+  var defW = 90 * (r.width / 210);   // 90mm in CSS px
+  var defH = 65 * (r.height / 297);  // 65mm
+  var img = {
+    id: 'img_' + Date.now() + '_' + Math.floor(Math.random() * 1e4),
+    mapKey: key,
+    x: Math.max(0, x - defW / 2),
+    y: Math.max(0, y - defH / 2),
+    w: defW,
+    h: defH
+  };
+  page.images.push(img);
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+
+// ── Image picture controls (per-page) ──────────────────────────────
+// After renderJobPack mounts each block, _jpMountImagesOnPage adds
+// any dropped images on top.  Each image is wrapped in an absolutely
+// positioned div with drag/resize/edit/delete handles.
+function _jpMountImagesOnPage(pageEl, page, pageIdx){
+  if (!page || !Array.isArray(page.images) || !page.images.length) return;
+  page.images.forEach(function(im, ii){
+    var src = _jpCaptureMap(im.mapKey, {});
+    if (!src) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'jp-page-imgwrap';
+    wrap.setAttribute('data-img-id', im.id);
+    wrap.setAttribute('data-page', pageIdx);
+    wrap.style.left = im.x + 'px';
+    wrap.style.top  = im.y + 'px';
+    wrap.style.width  = im.w + 'px';
+    wrap.style.height = im.h + 'px';
+    wrap.innerHTML =
+      '<img src="'+esc(src)+'" draggable="false">' +
+      '<div class="jp-img-tools no-print">'+
+        '<button onclick="_jpEditImage('+pageIdx+',\''+im.id+'\')" title="Edit the underlying map on the Map Roof tab">✎ Edit</button>'+
+        '<button onclick="_jpDuplicateImage('+pageIdx+',\''+im.id+'\')" title="Duplicate">⧉</button>'+
+        '<button class="jp-danger" onclick="_jpDeleteImage('+pageIdx+',\''+im.id+'\')" title="Delete">🗑</button>'+
+      '</div>' +
+      '<div class="jp-img-handle no-print"></div>';
+    wrap.addEventListener('mousedown', function(ev){ _jpImgMouseDown(ev, pageIdx, im.id); });
+    pageEl.appendChild(wrap);
+  });
+}
+var _JP_IMG_DRAG = null;
+function _jpImgMouseDown(ev, pageIdx, imgId){
+  // Ignore mousedown on buttons / handle (handle has its own dragger).
+  var t = ev.target;
+  if (t.tagName === 'BUTTON' || t.closest('.jp-img-tools')) return;
+  ev.preventDefault();
+  // Select first
+  document.querySelectorAll('.jp-page-imgwrap').forEach(function(w){ w.classList.remove('is-selected'); });
+  var wrap = ev.currentTarget;
+  wrap.classList.add('is-selected');
+  var isResize = t.classList.contains('jp-img-handle');
+  var page = _jpState().pages[pageIdx];
+  if (!page || !page.images) return;
+  var im = page.images.find(function(x){ return x.id === imgId; });
+  if (!im) return;
+  _JP_IMG_DRAG = {
+    pageIdx: pageIdx, imgId: imgId,
+    startX: ev.clientX, startY: ev.clientY,
+    startLeft: im.x, startTop: im.y,
+    startW: im.w, startH: im.h,
+    mode: isResize ? 'resize' : 'move',
+    wrap: wrap, moved: false
+  };
+  document.addEventListener('mousemove', _jpImgMouseMove);
+  document.addEventListener('mouseup',   _jpImgMouseUp);
+}
+function _jpImgMouseMove(ev){
+  if (!_JP_IMG_DRAG) return;
+  var d = _JP_IMG_DRAG;
+  var page = _jpState().pages[d.pageIdx]; if (!page) return;
+  var im = page.images.find(function(x){ return x.id === d.imgId; });
+  if (!im) return;
+  var dx = ev.clientX - d.startX, dy = ev.clientY - d.startY;
+  if (Math.abs(dx) + Math.abs(dy) > 1) d.moved = true;
+  if (d.mode === 'move'){
+    im.x = d.startLeft + dx;
+    im.y = d.startTop  + dy;
+    d.wrap.style.left = im.x + 'px';
+    d.wrap.style.top  = im.y + 'px';
+  } else {
+    im.w = Math.max(40, d.startW + dx);
+    im.h = Math.max(40, d.startH + dy);
+    d.wrap.style.width  = im.w + 'px';
+    d.wrap.style.height = im.h + 'px';
+  }
+}
+function _jpImgMouseUp(){
+  if (_JP_IMG_DRAG){
+    try { autosaveJob && autosaveJob(); } catch(e){}
+    _JP_IMG_DRAG = null;
+  }
+  document.removeEventListener('mousemove', _jpImgMouseMove);
+  document.removeEventListener('mouseup',   _jpImgMouseUp);
+}
+function _jpDeleteImage(pageIdx, imgId){
+  var page = _jpState().pages[pageIdx]; if (!page || !page.images) return;
+  page.images = page.images.filter(function(im){ return im.id !== imgId; });
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+function _jpDuplicateImage(pageIdx, imgId){
+  var page = _jpState().pages[pageIdx]; if (!page || !page.images) return;
+  var src = page.images.find(function(im){ return im.id === imgId; });
+  if (!src) return;
+  page.images.push(Object.assign({}, src, {
+    id: 'img_' + Date.now() + '_' + Math.floor(Math.random()*1e4),
+    x: src.x + 20, y: src.y + 20
+  }));
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+function _jpEditImage(pageIdx, imgId){
+  // The Map Roof tab is the full editing canvas.  We park a return
+  // marker so coming back refreshes the Job Pack and the dropped
+  // image reflects whatever edits the user made.
+  try { sessionStorage.setItem('fr_jp_edit_return', '1'); } catch(e){}
+  alert('Switching to Map Roof so you can edit the drawing. When you finish, click Job Pack in the sidebar to return — the picture will refresh automatically.');
+  if (typeof gotoTab === 'function') gotoTab('roof');
+}
+
 function renderJobPack(){
   var mount = document.getElementById('jpPages'); if (!mount) return;
   var state = _jpState();
@@ -17622,6 +18051,10 @@ function renderJobPack(){
     var pageEl = document.createElement('div');
     pageEl.className = 'jp-page';
     pageEl.setAttribute('data-jp-idx', i);
+    // Drop target for maps panel — accepts the text/x-jp-map payload.
+    pageEl.addEventListener('dragover', _jpAllowDrop);
+    pageEl.addEventListener('dragenter', _jpAllowDrop);
+    pageEl.addEventListener('drop', function(ev){ _jpHandleDrop(ev, i); });
     // Per-page floating tools above the sheet.
     var tools = document.createElement('div');
     tools.className = 'jp-page-tools no-print';
@@ -17647,7 +18080,15 @@ function renderJobPack(){
     // Mount content based on type.
     try { _jpRenderBlock(content, page, i); }
     catch(e){ content.innerHTML = '<p style="color:#b91c1c;font-size:12px">Couldn\'t render this block: '+esc(e.message)+'</p>'; }
+    // Then layer dropped-image pictures on top.
+    try { _jpMountImagesOnPage(pageEl, page, i); }
+    catch(e){ console.warn('image mount:', e); }
   });
+  // Click outside any picture clears selection.
+  mount.onclick = function(ev){
+    if (ev.target.closest('.jp-page-imgwrap')) return;
+    document.querySelectorAll('.jp-page-imgwrap.is-selected').forEach(function(w){ w.classList.remove('is-selected'); });
+  };
 }
 function _jpAddPage(afterIdx){
   var state = _jpState();
