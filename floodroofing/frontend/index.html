@@ -26343,17 +26343,106 @@ function _renderRoofSheetPlanInner() {
     ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
   });
 
-  // Strip numbers — small yellow numerals at each strip's centroid.
+  // ── Renumber so labels match the ordered-sheet count ───────────
+  // The Big-L / generic numbering can mint fresh seq numbers for
+  // unpaired offcut pieces (BW-narrow-*, BE-straddle-*, OE-*, etc.),
+  // so a job that orders only 20 orange sheets ends up showing labels
+  // like 36 / 57 on the map.  Re-number per colour so:
+  //   1. NON-offcut donors get dense seq 1..N (matches the cut list
+  //      count emitted from the legend below).
+  //   2. EVERY offcut adopts a donor's seq — preferred path is its
+  //      _offcutSource; fallback is the nearest non-offcut strip of
+  //      the same colour by centroid distance.  This guarantees the
+  //      blue offcuts visually share numbers with their blue donors.
+  (function _renumberByColor(){
+    var byCol = {};
+    allStrips.forEach(function(s){
+      if (!s.color) return;
+      (byCol[s.color] = byCol[s.color] || []).push(s);
+    });
+    Object.keys(byCol).forEach(function(c){
+      var donors = byCol[c].filter(function(s){ return !s.isOffcut; });
+      // Stable reading order (top-to-bottom, then left-to-right) so
+      // the numbering walks across the face the way the user does.
+      donors.sort(function(a, b){
+        var ay = a.centroid[1], by = b.centroid[1];
+        if (Math.abs(ay - by) > 1) return ay - by;
+        return a.centroid[0] - b.centroid[0];
+      });
+      donors.forEach(function(s, i){ s.seq = i + 1; });
+      // Offcuts share donor's seq.
+      byCol[c].forEach(function(s){
+        if (!s.isOffcut) return;
+        if (s._offcutSource && s._offcutSource.color === c && s._offcutSource.seq != null) {
+          s.seq = s._offcutSource.seq;
+          return;
+        }
+        if (s.cascadeParent && s.cascadeParent.seq != null) {
+          s.seq = s.cascadeParent.seq;
+          return;
+        }
+        // Last-resort fallback: pick the closest donor strip of the
+        // same colour.  This keeps the visible number inside the
+        // 1..N range even when the algorithm didn't link the pair.
+        var best = null, bestD = Infinity;
+        donors.forEach(function(d){
+          var dx = d.centroid[0] - s.centroid[0];
+          var dy = d.centroid[1] - s.centroid[1];
+          var dist = dx*dx + dy*dy;
+          if (dist < bestD) { bestD = dist; best = d; }
+        });
+        if (best) s.seq = best.seq;
+      });
+    });
+  })();
+
+  // Strip numbers — small yellow numerals at the BOTTOM of each
+  // strip, near the gutter end (but not on the gutter line itself —
+  // sitting on the line makes the digit unreadable).
   ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = 'rgba(0,0,0,0.6)';
   ctx.font = 'bold 10px Inter, sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.lineWidth = 2;
+  // Push the label this many CANVAS pixels in from the gutter edge.
+  var GUTTER_INSET_PX = 12;
   allStrips.forEach(function(s){
-    var cc = toC(s.centroid);
+    if (s.seq == null) return;
+    var labelImg = _stripLabelImgPos(s, GUTTER_INSET_PX / sc);
+    var cc = toC(labelImg || s.centroid);
     var lbl = String(s.seq);
     ctx.strokeText(lbl, cc[0], cc[1]);
     ctx.fillText(lbl, cc[0], cc[1]);
   });
+
+  // Find a point inside the strip polygon near its gutter-end edge,
+  // pushed inward by `inset` image-units so the digit doesn't sit on
+  // the gutter line.  Returns image-space (not canvas-space) coords.
+  function _stripLabelImgPos(s, inset){
+    var face = s.face;
+    if (!face || !face.a || !face.b || !s.poly || s.poly.length < 3) return null;
+    var ax = face.a[0], ay = face.a[1];
+    var bx = face.b[0], by = face.b[1];
+    var dx = bx - ax, dy = by - ay;
+    var L = Math.hypot(dx, dy) || 1;
+    // Unit perpendicular to the gutter.  Pick the orientation that
+    // points AWAY from the gutter (toward the strip body).
+    var nx = -dy / L, ny = dx / L;
+    var cx = s.centroid[0], cy = s.centroid[1];
+    var side = (cx - ax) * nx + (cy - ay) * ny;
+    if (side < 0) { nx = -nx; ny = -ny; }
+    // Signed distance of each vertex from the gutter line.
+    var verts = s.poly.map(function(p){
+      return { p: p, d: (p[0] - ax) * nx + (p[1] - ay) * ny };
+    });
+    verts.sort(function(a, b){ return a.d - b.d; });
+    // Midpoint of the two gutter-most vertices is the "gutter edge"
+    // midpoint of the strip.
+    var v1 = verts[0].p, v2 = verts[1].p;
+    var mx = (v1[0] + v2[0]) / 2;
+    var my = (v1[1] + v2[1]) / 2;
+    // Push inward (positive n direction) by the requested inset.
+    return [mx + nx * inset, my + ny * inset];
+  }
 
   // ── Legend ────────────────────────────────────────────────────
   // Group sheets by (colour, orderedLengthMm). Offcut-fed pieces
