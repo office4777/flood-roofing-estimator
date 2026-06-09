@@ -543,8 +543,8 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     </div>
 
     <div class="card">
-      <div class="ct">Job completion schedule <span class="period-sub" style="margin-left:auto;">finals → 00</span></div>
-      <div class="tbl-wrap"><table class="tb" id="cf-jobs-tbl"><thead><tr><th>Job</th><th>Est finish</th><th style="text-align:right;">To 00</th></tr></thead><tbody></tbody></table></div>
+      <div class="ct">Active jobs — hours, owing & finish <span class="period-sub" style="margin-left:auto;">edit “Done by”</span></div>
+      <div class="tbl-wrap" style="max-height:60vh;overflow:auto;"><table class="tb" id="cf-jobs-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Priced h</th><th style="text-align:right;">Actual h</th><th style="text-align:right;">Rem h</th><th style="text-align:right;">Owing</th><th>Done by</th></tr></thead><tbody></tbody></table></div>
     </div>
 
     <div class="card">
@@ -2102,6 +2102,7 @@ function saveCfCfg(){
   if(g('cf-bal'))S.set('cfBal',(g('cf-bal').value||'').trim());
   renderCashflow();
 }
+function setCfFinish(id,val){const o=S.get('cfFinishOv',{})||{};if(val)o[String(id)]=val;else delete o[String(id)];S.set('cfFinishOv',o);renderCashflow();}
 function renderCashflow(){
   const cfg2=cfCfg();
   const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
@@ -2118,17 +2119,21 @@ function renderCashflow(){
   const startBal=haveOv?balOv:(ooRow?num(ooRow.val):0);
   // schedule active jobs by remaining hours against weekly capacity → finish month → inflow to 00
   const c=capacity();const weeklyCap=Math.max(1,c.perDay*5);
-  const jobs=[...fwJobs].filter(j=>num(j.sale)>0);
+  const jobs=[...fwJobs];
   jobs.sort((a,b)=>Math.max(0,num(a.remaining))-Math.max(0,num(b.remaining)));
+  const finOv=S.get('cfFinishOv',{})||{};
   let cumH=0;const inByMonth={},inByWeek={};const sched=[];
   jobs.forEach(j=>{const rem=Math.max(0,num(j.remaining));cumH+=rem;
-    const wks=cumH/weeklyCap+Math.max(0,num(cfg2.lag));
-    const d=new Date(Date.now()+wks*7*86400000);
-    const key=FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();
+    const compDate=new Date(Date.now()+(cumH/weeklyCap)*7*86400000);   // capacity-based finish estimate
+    const finDate=finOv[j.id]?new Date(finOv[j.id]+'T00:00:00'):compDate;
+    const payDate=new Date(finDate.getTime()+Math.max(0,num(cfg2.lag))*7*86400000);
+    const key=FG_MONTHS[payDate.getMonth()]+'-'+payDate.getFullYear();
+    const wi=Math.floor((payDate.getTime()-Date.now())/(7*86400000));
     const inflow=cfg2.oo/100*num(j.sale);
     inByMonth[key]=(inByMonth[key]||0)+inflow;
-    inByWeek[Math.floor(wks)]=(inByWeek[Math.floor(wks)]||0)+inflow;
-    sched.push({job:j.job,key,inflow});});
+    if(wi>=0&&wi<13)inByWeek[wi]=(inByWeek[wi]||0)+inflow;else if(wi<0)inByWeek[0]=(inByWeek[0]||0)+inflow;
+    sched.push({id:String(j.id),job:j.job,priced:num(j.priced),actual:num(j.actual),rem,owing:Math.max(0,num(j.sale)-num(j.billed)),finDate,isOv:!!finOv[j.id],inflow});});
+  sched.sort((a,b)=>a.finDate-b.finDate);
   // 6-month projection (current month + next 5)
   const months=[];for(let i=0;i<6;i++)months.push(calMonthKey(i));
   let bal=startBal;
@@ -2161,7 +2166,8 @@ function renderCashflow(){
   set('cf-cfg-note',null,'Crew capacity '+c.teams+'×'+c.size+'×'+c.hrs+'h = '+fmtH(c.perDay)+'h/day (change it on the Workload tab). 6-month avg overheads + wages from Xero = '+fmtK(avgOut)+'/mo'+(nOut<6?(' (only '+nOut+' months of Xero data — sync more on the P&L tab)'):'')+'.');
   // job completion schedule
   const jt=document.querySelector('#cf-jobs-tbl tbody');
-  if(jt)jt.innerHTML=sched.length?sched.slice(0,40).map(s=>'<tr><td>'+esc(s.job)+'</td><td>'+esc(s.key)+'</td><td style="text-align:right;">'+fmtK(s.inflow)+'</td></tr>').join(''):'<tr><td colspan="3" class="empty">Refresh Fergus on the Dashboard to schedule jobs.</td></tr>';
+  if(jt)jt.innerHTML=sched.length?sched.map(s=>{const v=s.finDate.getFullYear()+'-'+String(s.finDate.getMonth()+1).padStart(2,'0')+'-'+String(s.finDate.getDate()).padStart(2,'0');
+    return '<tr><td>'+esc((s.job||'').slice(0,34))+'</td><td style="text-align:right;">'+(s.priced?fmtH(s.priced):'—')+'</td><td style="text-align:right;">'+(s.actual?fmtH(s.actual):'—')+'</td><td style="text-align:right;" class="'+(s.rem>0?'pos':'')+'">'+fmtH(s.rem)+'</td><td style="text-align:right;">'+fmtK(s.owing)+'</td><td><input type="date" value="'+v+'" onchange="setCfFinish(\''+esc(s.id)+'\',this.value)" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:5px 7px;font-size:.72rem;"'+(s.isOv?' title="you adjusted this"':'')+'></td></tr>';}).join(''):'<tr><td colspan="6" class="empty">Refresh Fergus on the Dashboard to load active jobs.</td></tr>';
 }
 
 // ════════ NAV ════════
