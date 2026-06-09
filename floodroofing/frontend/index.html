@@ -26350,10 +26350,18 @@ function _renderRoofSheetPlanInner() {
   // like 36 / 57 on the map.  Re-number per colour so:
   //   1. NON-offcut donors get dense seq 1..N (matches the cut list
   //      count emitted from the legend below).
-  //   2. EVERY offcut adopts a donor's seq — preferred path is its
-  //      _offcutSource; fallback is the nearest non-offcut strip of
-  //      the same colour by centroid distance.  This guarantees the
-  //      blue offcuts visually share numbers with their blue donors.
+  //   2. EVERY offcut adopts a donor's seq.  Source priority:
+  //        a. explicit `_offcutSource` set by the pairing algorithm
+  //        b. `cascadeParent` for telescoping pieces
+  //        c. LENGTH-BASED MATCH — every donor's offcut length is
+  //           (orderedLengthMm/1000 − donor.pieceM); pair longest
+  //           offcut to shortest donor piece, second-longest to
+  //           second-shortest, etc.  This implements the SOP rule
+  //           "long offcut comes from a short donor, short offcut
+  //           from a long donor — offcut + donor piece = full
+  //           sheet".
+  //        d. Last-resort: nearest non-offcut strip by centroid, so
+  //           we never leave an offcut unlabelled.
   (function _renumberByColor(){
     var byCol = {};
     allStrips.forEach(function(s){
@@ -26370,20 +26378,77 @@ function _renderRoofSheetPlanInner() {
         return a.centroid[0] - b.centroid[0];
       });
       donors.forEach(function(s, i){ s.seq = i + 1; });
-      // Offcuts share donor's seq.
+      // Clear any prior offcut seqs so the passes below assign fresh
+      // numbers via the donor-pairing rules (otherwise stale Big-L
+      // seqs from the sheet-key pass leak through unchanged).
+      byCol[c].forEach(function(s){ if (s.isOffcut) s.seq = null; });
+
+      // Offcuts: pass A — adopt an explicit donor link if present.
+      var unassigned = [];
       byCol[c].forEach(function(s){
         if (!s.isOffcut) return;
         if (s._offcutSource && s._offcutSource.color === c && s._offcutSource.seq != null) {
           s.seq = s._offcutSource.seq;
+          s._matchedBy = 'source';
           return;
         }
         if (s.cascadeParent && s.cascadeParent.seq != null) {
           s.seq = s.cascadeParent.seq;
+          s._matchedBy = 'cascade';
           return;
         }
-        // Last-resort fallback: pick the closest donor strip of the
-        // same colour.  This keeps the visible number inside the
-        // 1..N range even when the algorithm didn't link the pair.
+        unassigned.push(s);
+      });
+
+      // Offcuts: pass B — greedy length-based pairing.
+      // For each donor, compute the OFFCUT length it produces:
+      //   donor.offcutLen = full sheet length − donor.pieceM
+      // A donor that uses the full sheet (offcutLen ≈ 0) doesn't
+      // produce an offcut and is skipped.  Longest offcut goes to the
+      // donor with the shortest piece (= biggest offcut), so we sort
+      // offcuts DESCENDING by length and donors DESCENDING by
+      // offcutLen, then pair by index.  Track claimed donors so
+      // multiple visual strips of the SAME physical offcut can still
+      // share their donor's seq (we cap at total ordered offcut
+      // length per donor).
+      if (unassigned.length) {
+        var producers = donors.map(function(d){
+          var fullM = (d.orderedLengthMm || 0) / 1000;
+          var off = fullM - (d.pieceM || 0);
+          return { donor: d, offcutLen: off, used: 0 };
+        }).filter(function(p){ return p.offcutLen > 0.05; });
+        producers.sort(function(a, b){ return b.offcutLen - a.offcutLen; });
+        unassigned.sort(function(a, b){ return (b.pieceM || 0) - (a.pieceM || 0); });
+        // Greedy walk: for each unassigned offcut, find a producer
+        // whose REMAINING capacity (offcutLen − used) covers this
+        // piece. Walk producers in current order — once one is full,
+        // the next offcut moves to the next producer.
+        var pIdx = 0;
+        var TOLERANCE = 0.30;   // m — generous, matches Flood Roofing SOP overhang slack
+        unassigned.forEach(function(o){
+          var pieceM = o.pieceM || 0;
+          // Skip producers that can't fit even this piece (within
+          // tolerance) until we find one that can.
+          while (pIdx < producers.length) {
+            var p = producers[pIdx];
+            var remain = p.offcutLen - p.used;
+            if (remain >= pieceM - TOLERANCE) {
+              o.seq = p.donor.seq;
+              o._matchedBy = 'length';
+              p.used += pieceM;
+              // Producer is "full" once remaining < a half piece.
+              if (p.offcutLen - p.used < Math.max(0.2, pieceM * 0.5)) pIdx++;
+              return;
+            }
+            pIdx++;
+          }
+        });
+      }
+
+      // Offcuts: pass C — anything still missing falls back to the
+      // nearest donor.  Should be rare after passes A + B.
+      byCol[c].forEach(function(s){
+        if (!s.isOffcut || s.seq != null) return;
         var best = null, bestD = Infinity;
         donors.forEach(function(d){
           var dx = d.centroid[0] - s.centroid[0];
@@ -26391,7 +26456,7 @@ function _renderRoofSheetPlanInner() {
           var dist = dx*dx + dy*dy;
           if (dist < bestD) { bestD = dist; best = d; }
         });
-        if (best) s.seq = best.seq;
+        if (best) { s.seq = best.seq; s._matchedBy = 'nearest'; }
       });
     });
   })();
