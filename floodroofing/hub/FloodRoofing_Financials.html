@@ -530,6 +530,12 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       </div>
     </div>
 
+    <div class="card per-3mo">
+      <div class="ct">Whole-business cash — 13 weeks <span class="period-sub" style="margin-left:auto;">all accounts</span></div>
+      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cfw-low" style="font-size:2.4rem;">—</div><div class="unit" id="cfw-low-unit">lowest projected total cash</div></div>
+      <div class="tbl-wrap" style="max-height:46vh;overflow:auto;"><table class="tb" id="cfw-tbl"><thead><tr><th>Week of</th><th style="text-align:right;">Open</th><th style="text-align:right;">In</th><th style="text-align:right;">Mat</th><th style="text-align:right;">A/P</th><th style="text-align:right;">Wages+OH</th><th style="text-align:right;">Close</th></tr></thead><tbody></tbody></table></div>
+      <div class="note" id="cfw-note"></div>
+    </div>
     <div class="card per-week">
       <div class="ct">13-week projection <span class="period-sub" style="margin-left:auto;">weekly</span></div>
       <div class="tbl-wrap"><table class="tb" id="cf-wk-tbl"><thead><tr><th>Week of</th><th style="text-align:right;">Opening</th><th style="text-align:right;">In</th><th style="text-align:right;">Out</th><th style="text-align:right;">Closing</th></tr></thead><tbody></tbody></table></div>
@@ -554,6 +560,9 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="fld" style="margin:2px 0 8px;"><label>New work won / month ($ sale, optional)</label><input id="cf-new" type="number" inputmode="decimal" autocomplete="off" placeholder="0" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Monthly OPEX + wages out (blank = 6-mo Xero avg)</label><input id="cf-out" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>00 (OPEX) account name contains</label><input id="cf-ookw" type="text" autocomplete="off" autocapitalize="off" placeholder="00" onchange="saveCfCfg()"></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>Total cash now — all accounts (blank = sum Xero banks)</label><input id="cf-open" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>Materials bought N weeks before a job finishes</label><input id="cf-matlead" type="number" inputmode="numeric" autocomplete="off" placeholder="3" onchange="saveCfCfg()"></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>Supplier bills (A/P) paid over N weeks</label><input id="cf-apwk" type="number" inputmode="numeric" autocomplete="off" placeholder="4" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Actual 00 balance right now (override, optional)</label><input id="cf-bal" type="number" inputmode="decimal" autocomplete="off" placeholder="blank = use Xero balance sheet" onchange="saveCfCfg()"></div>
       <div class="note" id="cf-cfg-note"></div>
     </div>
@@ -1946,7 +1955,7 @@ function renderCash(){
   let apMaterials=null;
   if(apByCode&&apCodes.length){apMaterials=0;apCodes.forEach(c=>{if(apByCode[c])apMaterials+=num(apByCode[c].amt);});}
   const apSplit=(apMaterials!=null);
-  const apVal=apSplit?apMaterials:apBS;        // goods/COGS-only A/P when codes resolve, else full A/P
+  const apVal=apSplit?apMaterials:apBS;try{window.__apMat=apVal;}catch(e){}        // goods/COGS-only A/P when codes resolve, else full A/P
   const arVal=ar?ar.val:0;
   const salesPos=Math.max(0,salesVal);   // 03 is a clearing account (~$0): count deposits waiting, never a negative
   const held=matVal+salesPos;
@@ -2100,6 +2109,9 @@ function saveCfCfg(){
   if(g('cf-out'))S.set('cfOut',(g('cf-out').value||'').trim());
   if(g('cf-ookw'))S.set('cfOoKw',(g('cf-ookw').value||'').trim());
   if(g('cf-bal'))S.set('cfBal',(g('cf-bal').value||'').trim());
+  if(g('cf-open'))S.set('cfOpenCash',(g('cf-open').value||'').trim());
+  if(g('cf-matlead'))S.set('cfMatLead',(g('cf-matlead').value||'').trim());
+  if(g('cf-apwk'))S.set('cfApWeeks',(g('cf-apwk').value||'').trim());
   renderCashflow();
 }
 function setCfFinish(id,val){const o=S.get('cfFinishOv',{})||{};if(val)o[String(id)]=val;else delete o[String(id)];S.set('cfFinishOv',o);renderCashflow();}
@@ -2107,7 +2119,7 @@ function renderCashflow(){
   const cfg2=cfCfg();
   const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
   const pop=(id,v)=>{const e=document.getElementById(id);if(e&&!e.value&&v!==''&&v!=null)e.value=v;};
-  pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','2'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));pop('cf-bal',S.get('cfBal',''));
+  pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','2'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));pop('cf-bal',S.get('cfBal',''));pop('cf-open',S.get('cfOpenCash',''));pop('cf-matlead',S.get('cfMatLead',''));pop('cf-apwk',S.get('cfApWeeks',''));
   // monthly outflow: 6-month avg of (opex + wages) from Xero, or a manual override
   let avgOut=0,nOut=0;for(let i=1;i<=6;i++){const x=xeroMonthly[calMonthKey(-i)];if(x){avgOut+=num(x.opex)+num(x.wages);nOut++;}}
   avgOut=nOut?avgOut/nOut:0;
@@ -2132,7 +2144,7 @@ function renderCashflow(){
     const inflow=cfg2.oo/100*num(j.sale);
     inByMonth[key]=(inByMonth[key]||0)+inflow;
     if(wi>=0&&wi<13)inByWeek[wi]=(inByWeek[wi]||0)+inflow;else if(wi<0)inByWeek[0]=(inByWeek[0]||0)+inflow;
-    sched.push({id:String(j.id),job:j.job,priced:num(j.priced),actual:num(j.actual),rem,owing:Math.max(0,num(j.sale)-num(j.billed)),finDate,isOv:!!finOv[j.id],inflow});});
+    sched.push({id:String(j.id),job:j.job,priced:num(j.priced),actual:num(j.actual),rem,owing:Math.max(0,num(j.sale)-num(j.billed)),finDate,isOv:!!finOv[j.id],inflow,sale:num(j.sale),aMat:num(j.aMat)});});
   sched.sort((a,b)=>a.finDate-b.finDate);
   // 6-month projection (current month + next 5)
   const months=[];for(let i=0;i<6;i++)months.push(calMonthKey(i));
@@ -2168,6 +2180,29 @@ function renderCashflow(){
   const jt=document.querySelector('#cf-jobs-tbl tbody');
   if(jt)jt.innerHTML=sched.length?sched.map(s=>{const v=s.finDate.getFullYear()+'-'+String(s.finDate.getMonth()+1).padStart(2,'0')+'-'+String(s.finDate.getDate()).padStart(2,'0');
     return '<tr><td>'+esc((s.job||'').slice(0,34))+'</td><td style="text-align:right;">'+(s.priced?fmtH(s.priced):'—')+'</td><td style="text-align:right;">'+(s.actual?fmtH(s.actual):'—')+'</td><td style="text-align:right;" class="'+(s.rem>0?'pos':'')+'">'+fmtH(s.rem)+'</td><td style="text-align:right;">'+fmtK(s.owing)+'</td><td><input type="date" value="'+v+'" onchange="setCfFinish(\''+esc(s.id)+'\',this.value)" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:5px 7px;font-size:.72rem;"'+(s.isOv?' title="you adjusted this"':'')+'></td></tr>';}).join(''):'<tr><td colspan="6" class="empty">Refresh Fergus on the Dashboard to load active jobs.</td></tr>';
+  // ===== Whole-business consolidated 13-week cash forecast =====
+  const matPct=(num(S.get('cashDepPct','50'))||50)/100;
+  const matLead=Math.max(0,num(S.get('cfMatLead','3')));
+  const apWk=Math.max(1,num(S.get('cfApWeeks','4')));
+  let bankCash=0;if(cash&&cash.rows)cash.rows.forEach(r=>{if(!r.summary&&/bank/i.test(r.section||''))bankCash+=num(r.val);});
+  const openOv=parseFloat(S.get('cfOpenCash',''));const openCash=!isNaN(openOv)?openOv:bankCash;
+  const apMat=num(window.__apMat||0);const burnWk=outflow*12/52;
+  const fIn=[],mOut=[],apOut=[];for(let i=0;i<13;i++){fIn[i]=0;mOut[i]=0;apOut[i]=0;}
+  sched.forEach(s=>{const fw=Math.floor((s.finDate.getTime()+Math.max(0,num(cfg2.lag))*7*86400000-Date.now())/(7*86400000));
+    fIn[Math.max(0,Math.min(12,fw))]+=s.owing;
+    const stb=Math.max(0,matPct*num(s.sale)-num(s.aMat));mOut[Math.max(0,Math.min(12,fw-matLead))]+=stb;});
+  for(let i=0;i<apWk&&i<13;i++)apOut[i]+=apMat/apWk;
+  let wc=openCash;const wrows=[];
+  for(let i=0;i<13;i++){const open=wc;const close=open+fIn[i]-mOut[i]-apOut[i]-burnWk;wc=close;
+    wrows.push({ds:new Date(Date.now()+i*7*86400000),open,inn:fIn[i],mat:mOut[i],ap:apOut[i],burn:burnWk,close});}
+  const wlow=wrows.reduce((m,r)=>(r.close<m.close?r:m),wrows[0]);
+  const wlab2=d=>d.getDate()+' '+FG_MONTHS[d.getMonth()];
+  const lowEl=document.getElementById('cfw-low');if(lowEl){lowEl.textContent=fmtK(wlow.close);lowEl.style.color=wlow.close>=0?'var(--success)':'var(--danger)';}
+  const luEl=document.getElementById('cfw-low-unit');if(luEl)luEl.textContent=(wlow.close>=0?'lowest total cash · wk of ':'cash runs short · wk of ')+wlab2(wlow.ds);
+  const wtb2=document.querySelector('#cfw-tbl tbody');
+  if(wtb2)wtb2.innerHTML=wrows.map(r=>'<tr><td>'+wlab2(r.ds)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inn?fmtK(r.inn):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.mat?'-'+fmtK(r.mat):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.ap?'-'+fmtK(r.ap):'—')+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.burn)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
+  const cwn=document.getElementById('cfw-note');
+  if(cwn)cwn.innerHTML='Total business cash across all accounts. Opening '+fmtK(openCash)+(isNaN(openOv)?' (sum of your Xero bank accounts)':' (your figure)')+'. IN = the final still owing (sale − billed) as each job finishes (+ '+Math.max(0,num(cfg2.lag))+'wk pay lag). OUT = materials still to buy ('+(matPct*100).toFixed(0)+'% × sale − bought, ordered ~'+matLead+' wks before a job finishes) + supplier bills A/P '+fmtK(apMat)+' (spread over '+apWk+' wks) + wages & overheads '+fmtK(burnWk)+'/wk. Finance, drawings, GST and income tax are NOT included — add them into the monthly wages+overheads figure if you want them. Tune the job finish dates in the table above and the settings below.';
 }
 
 // ════════ NAV ════════
