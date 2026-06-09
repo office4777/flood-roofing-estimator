@@ -455,6 +455,11 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="mstrip" id="mkt-strip"></div>
     </div>
 
+    <div class="card per-3mo">
+      <div class="ct">3-Month Rolling — per month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
+      <div class="mstrip" id="mkt-roll-strip"></div>
+    </div>
+
     <div class="card">
       <button class="btn btn-a" id="mkt-sync-btn" onclick="syncMarketing()">⟳ Sync marketing from Fergus</button>
       <div class="note" id="mkt-note"></div>
@@ -1644,14 +1649,17 @@ function mktAgg(){
 }
 function mktGrid(o){
   const conv=o.sent>0?Math.round(o.acc/o.sent*100):0;
+  const avgQ=o.sent>0?o.sentVal/o.sent:0,avgW=o.acc>0?o.accVal/o.acc:0;
+  const valWin=o.sentVal>0?Math.round(o.accVal/o.sentVal*100):0;
   return mb('Enquiries',String(o.enq),'new leads','','m-rev')+
-    mb('Quotes sent',String(o.sent),fmtK(o.sentVal)+' quoted','','m-opex')+
-    mb('Accepted',String(o.acc),conv+'% of quotes',o.acc>0?'pos':'','m-gp')+
-    mb('$ Accepted',fmtK(o.accVal),'value won',o.accVal>0?'pos':'','m-np');
+    mb('Quotes sent',String(o.sent),fmtK(o.sentVal)+' · avg '+fmtK(avgQ),'','m-opex')+
+    mb('Accepted',String(o.acc),conv+'% won · '+valWin+'% by $',o.acc>0?'pos':'','m-gp')+
+    mb('Avg job won',o.acc>0?fmtK(avgW):'—',fmtK(o.accVal)+' won','','m-cogs')+
+    mb('$ Won',fmtK(o.accVal),o.acc>0?(o.acc+' jobs'):'value won',o.accVal>0?'pos':'','m-np');
 }
 function renderMkt(){
   const d=new Date();const lbl=document.getElementById('mkt-mo-lbl');if(lbl)lbl.textContent=FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();
-  renderMktStrip();
+  renderMktStrip();renderMktRoll();
   if(!mkt||!mkt.quotes){
     document.getElementById('mkt-conv').textContent='—';
     document.getElementById('mkt-conv-sub').textContent='Tap “Sync marketing from Fergus”.';
@@ -1691,6 +1699,29 @@ function mktMonthly(){
   ((mkt&&mkt.quotes)||[]).forEach(q=>{const sd=mk(q.sentAt||q.quoteDate);if(q.isSent&&sd){b(sd).sent++;b(sd).sentVal+=q.total;}const ad=mk(q.acceptedAt);if(q.isAccepted&&ad){b(ad).acc++;b(ad).accVal+=q.total;}});
   return B;
 }
+// 3-month rolling marketing trend — each card = that month + 2 prior, averaged per month.
+function renderMktRoll(){
+  const host=document.getElementById('mkt-roll-strip');if(!host)return;
+  const B=mktMonthly();const keys=Object.keys(B).sort();
+  if(!keys.length){host.innerHTML='<div class="empty" style="padding:10px;">Sync to see the rolling trend.</div>';return;}
+  const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
+  const cards=keys.slice(-12).reverse().map(end=>{
+    let [y,m]=end.split('-').map(Number);const ms=[end];
+    for(let i=1;i<=2;i++){let mm=m-i,yy=y;while(mm<1){mm+=12;yy--;}ms.push(yy+'-'+String(mm).padStart(2,'0'));}
+    const pres=ms.filter(k=>B[k]);if(!pres.length)return '';
+    const s=pres.reduce((a,k)=>{const o=B[k];a.enq+=o.enq;a.sent+=o.sent;a.sentVal+=o.sentVal;a.acc+=o.acc;a.accVal+=o.accVal;return a;},{enq:0,sent:0,sentVal:0,acc:0,accVal:0});
+    const n=pres.length,conv=s.sent>0?Math.round(s.acc/s.sent*100):0,avgW=s.acc>0?s.accVal/s.acc:0;
+    const lbl=FG_MONTHS[parseInt(end.split('-')[1])-1]+'-'+end.split('-')[0];
+    return '<div class="mcard"><div class="mm">'+lbl+'</div>'+
+      '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">3-mo avg / month</span></div>'+
+      row('Enquiries',(s.enq/n).toFixed(1),'')+
+      row('Quotes',(s.sent/n).toFixed(1)+' · '+fmtK(s.sentVal/n),'')+
+      row('Accepted',(s.acc/n).toFixed(1)+' · '+conv+'%',s.acc>0?'pos':'')+
+      row('$ Won',fmtK(s.accVal/n),s.accVal>0?'pos':'')+
+      row('Avg won',avgW?fmtK(avgW):'—','')+'</div>';
+  }).filter(Boolean);
+  host.innerHTML=cards.length?cards.join(''):'<div class="empty" style="padding:10px;">Not enough data yet.</div>';
+}
 function renderMktStrip(){
   const host=document.getElementById('mkt-strip');if(!host)return;
   const B=mktMonthly();const keys=Object.keys(B).sort().reverse().slice(0,18);   // newest first, up to 18 months
@@ -1702,7 +1733,8 @@ function renderMktStrip(){
       row('Enquiries',String(o.enq),'')+
       row('Quotes',String(o.sent)+' · '+fmtK(o.sentVal),'')+
       row('Accepted',String(o.acc)+' · '+conv+'%',o.acc>0?'pos':'')+
-      row('$ Won',fmtK(o.accVal),o.accVal>0?'pos':'')+'</div>';}).join('');
+      row('$ Won',fmtK(o.accVal),o.accVal>0?'pos':'')+
+      row('Avg won',o.acc>0?fmtK(o.accVal/o.acc):'—','')+'</div>';}).join('');
 }
 
 // 3-month rolling, by month: each card = that month averaged with the two before it.
