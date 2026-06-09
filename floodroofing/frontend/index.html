@@ -14152,6 +14152,47 @@ function _outlineSquareSnap(rawX, rawY){
   var perpAbs   = Math.abs(perpDist);
   // 0 = perpendicular to last edge, π/2 = colinear with last edge.
   var angleFromPerp = Math.atan2(Math.abs(alongDist), perpAbs);
+
+  // Closing-corner snap — when the user has 3+ corners already, we
+  // ALSO consider the constraint that the CLOSING edge (newPoint → P0)
+  // should be perpendicular to the very first edge (P0 → P1).
+  // That means the newPoint should sit on the line through P0
+  // perpendicular to the first edge.  We intersect that line with the
+  // line through pLast perpendicular to the last edge — if the cursor
+  // is anywhere near the resulting corner, snap to it.  This is the
+  // missing piece that made closing an L-shape (or any axis-aligned
+  // polygon back to start) hard to nail.
+  if (pts.length >= 3) {
+    var P0 = pts[0], P1 = pts[1];
+    var fx = P1[0] - P0[0], fy = P1[1] - P0[1];
+    var fLen = Math.sqrt(fx*fx + fy*fy);
+    if (fLen > 4) {
+      var fux = fx / fLen, fuy = fy / fLen;
+      var fperpX = -fuy, fperpY = fux;
+      // Solve { pLast + t·(perpX,perpY) = P0 + s·(fperpX,fperpY) }
+      // det = perpX*fperpY - perpY*fperpX
+      var det = perpX * fperpY - perpY * fperpX;
+      if (Math.abs(det) > 0.01) {
+        var rhsX = P0[0] - pLast[0];
+        var rhsY = P0[1] - pLast[1];
+        var t = (rhsX * fperpY - rhsY * fperpX) / det;
+        var ix = pLast[0] + t * perpX;
+        var iy = pLast[1] + t * perpY;
+        // How close is the cursor to that intersection?
+        var cdx = rawX - ix, cdy = rawY - iy;
+        var cursorToCand = Math.sqrt(cdx*cdx + cdy*cdy);
+        // Snap if within ~30% of the candidate's distance from pLast,
+        // OR within an absolute 60-image-pixel tolerance.  The 30%
+        // proportional gate keeps the snap usable on large outlines
+        // (where 60 px isn't generous), and the absolute tolerance
+        // makes the snap easy to trigger on small drawings.
+        var candDist = Math.sqrt((ix - pLast[0])*(ix - pLast[0]) + (iy - pLast[1])*(iy - pLast[1]));
+        if (cursorToCand < Math.max(60, candDist * 0.30)) {
+          return [ix, iy];
+        }
+      }
+    }
+  }
   if (angleFromPerp > 50 * Math.PI / 180) return null;
   var sign = perpDist >= 0 ? 1 : -1;
   var snapPerp = perpAbs;
