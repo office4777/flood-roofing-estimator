@@ -2234,10 +2234,14 @@ function renderCashflow(){
   const started=(fwJobs||[]).filter(j=>{const p=num(j.priced);if(p<=0)return false;const a=num(j.actual);return a/p>=0.10 && (num(j.sale)-num(j.billed))>0;})
     .map(j=>{const p=num(j.priced),a=num(j.actual);return {job:j.job,pct:p>0?a/p:0,actual:a,due:Math.max(0,num(j.sale)-num(j.billed))};}).sort((x,y)=>y.due-x.due);
   const dueTot=started.reduce((s,j)=>s+j.due,0);
+  const over50=started.filter(s=>s.pct>=0.50),mid=started.filter(s=>s.pct<0.50);
+  const t50=over50.reduce((s,j)=>s+j.due,0),tmid=mid.reduce((s,j)=>s+j.due,0);
   set('cf-due-total',null,fmtK(dueTot));
-  set('cf-due-sub',null,started.length?(started.length+' jobs ≥10% started · still to invoice/collect'):'Refresh Fergus to load active jobs');
+  set('cf-due-sub',null,started.length?('≥50%: '+fmtK(t50)+' ('+over50.length+') · 10–50%: '+fmtK(tmid)+' ('+mid.length+')'):'Refresh Fergus to load active jobs');
+  const dueRow=s=>'<tr><td>'+esc((s.job||'').slice(0,34))+'</td><td style="text-align:right;">'+Math.round(s.pct*100)+'%</td><td style="text-align:right;">'+fmtH(s.actual)+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(s.due)+'</td></tr>';
+  const dueSec=(lbl,n,tot)=>'<tr style="background:rgba(74,222,128,.13);"><td colspan="3" style="font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;padding:7px 8px;color:var(--text);">'+lbl+' · '+n+' jobs</td><td style="text-align:right;font-weight:800;padding:7px 8px;">'+fmtK(tot)+'</td></tr>';
   const dueTb=document.querySelector('#cf-due-tbl tbody');
-  if(dueTb)dueTb.innerHTML=started.length?started.map(s=>'<tr><td>'+esc((s.job||'').slice(0,34))+'</td><td style="text-align:right;">'+Math.round(s.pct*100)+'%</td><td style="text-align:right;">'+fmtH(s.actual)+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(s.due)+'</td></tr>').join('')+'<tr class="sum"><td>Total ('+started.length+')</td><td></td><td></td><td style="text-align:right;font-weight:800;">'+fmtK(dueTot)+'</td></tr>':'<tr><td colspan="4" class="empty">No started jobs with money owing — Refresh Fergus on the Dashboard.</td></tr>';
+  if(dueTb)dueTb.innerHTML=started.length?(dueSec('≥50% done',over50.length,t50)+over50.map(dueRow).join('')+dueSec('10–50% done',mid.length,tmid)+mid.map(dueRow).join('')+'<tr class="sum"><td>Combined total ('+started.length+')</td><td></td><td></td><td style="text-align:right;font-weight:800;">'+fmtK(dueTot)+'</td></tr>'):'<tr><td colspan="4" class="empty">No started jobs with money owing — Refresh Fergus on the Dashboard.</td></tr>';
   const notSt=(fwJobs||[]).filter(j=>{const p=num(j.priced),a=num(j.actual);return (num(j.sale)-num(j.billed))>0 && (p<=0 || a/p<0.10);})
     .map(j=>{const p=num(j.priced),a=num(j.actual);return {job:j.job,pct:p>0?a/p:0,actual:a,due:Math.max(0,num(j.sale)-num(j.billed))};}).sort((x,y)=>y.due-x.due);
   const notTot=notSt.reduce((s,j)=>s+j.due,0);
