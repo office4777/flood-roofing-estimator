@@ -234,6 +234,10 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 
   <!-- ───────── DASHBOARD ───────── -->
   <div class="page active" id="page-dash">
+    <div class="card per-this">
+      <div class="ct">Cash at a glance <span class="period-sub" style="margin-left:auto;">position + due in</span></div>
+      <div class="mg" id="dash-summary"></div>
+    </div>
     <div class="card" style="border-left:4px solid var(--accent);">
       <div class="ct">Forward Workflow <span id="dash-fw-sync" class="period-sub"></span></div>
       <div class="hero">
@@ -473,6 +477,10 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 
   <!-- ───────── END CASH POSITION ───────── -->
   <div class="page" id="page-cash">
+    <div class="card per-this">
+      <div class="ct">Cash at a glance <span class="period-sub" style="margin-left:auto;">position + due in</span></div>
+      <div class="mg" id="cash-summary"></div>
+    </div>
     <div class="card per-this" style="border-left:4px solid var(--accent);">
       <div class="ct">Deposit Cash Position <span id="cash-ts" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="hero">
@@ -2053,7 +2061,7 @@ function renderCash(){
   noDep.sort((a,b)=>b.bought-a.bought);unpaidDep.sort((a,b)=>b.bought-a.bought);
   const unreceivedDep=noDepMat+unpaidBilled;   // recoverable deposit cash (materials spent w/ no deposit in)
   const actualsOk=hasMat && budgetMat>0;
-  const coverage=held+unreceivedDep-apVal-toBuy;          // credit recoverable deposits
+  const coverage=held+unreceivedDep-apVal-toBuy;try{window.__coverage=coverage;}catch(e){}          // credit recoverable deposits
   const fundGap=held+toCollect+unreceivedDep-apVal-toBuy; // working-capital view (these are disjoint sets)
   // hero
   if(actualsOk){
@@ -2288,7 +2296,18 @@ function go(p,dir){
   window.scrollTo(0,0);
   renderAll();
 }
-function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();renderCash();renderCashflow();}
+// Shared 'cash at a glance' card (Cash tab + Dashboard): position + due-in buckets.
+function renderCashSummary(){
+  let t50=0,tmid=0,t0=0;
+  (fwJobs||[]).forEach(j=>{const p=num(j.priced),a=num(j.actual),due=Math.max(0,num(j.sale)-num(j.billed));if(due<=0)return;const pct=p>0?a/p:0;if(p>0&&pct>=0.50)t50+=due;else if(p>0&&pct>=0.10)tmid+=due;else t0+=due;});
+  const cov=window.__coverage;
+  const html=mb('Deposit cash position',(cov!=null?fmtK(cov):'—'),'held − owed',(cov!=null?(cov>=0?'pos':'neg'):''),'m-np')+
+    mb('Due in · 50–100%',fmtK(t50),'nearly done','pos','m-gp')+
+    mb('Due in · 10–50%',fmtK(tmid),'in progress','','m-rev')+
+    mb('Due in · 0–10%',fmtK(t0),'not started','','m-opex');
+  ['cash-summary','dash-summary'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=html;});
+}
+function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();renderCash();renderCashflow();renderCashSummary();}
 
 // ════════ SWIPE NAV ════════ Facebook-style interactive pager — the page tracks your finger,
 // the neighbouring tab slides in beside it, and it snaps/commits on release.
