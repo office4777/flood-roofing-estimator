@@ -481,13 +481,16 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
         <div class="sub" id="cash-end-sub">Tap “Sync from Xero”.</div>
       </div>
     </div>
-
     <div class="card per-this">
       <div class="ct">Reconciliation <span class="period-sub" style="margin-left:auto;">what the 02 cash is committed to</span></div>
       <div class="mg" id="cash-recon"></div>
       <div class="note" id="cash-recon-note"></div>
     </div>
-
+    <div class="card per-last">
+      <div class="ct">Due in — jobs already underway <span class="period-sub" style="margin-left:auto;">≥10% hrs done</span></div>
+      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cf-due-total" style="font-size:2.4rem;color:var(--success);">—</div><div class="unit" id="cf-due-sub">money to collect on started jobs</div></div>
+      <div class="tbl-wrap" style="max-height:50vh;overflow:auto;"><table class="tb" id="cf-due-tbl"><thead><tr><th>Job</th><th style="text-align:right;">% done</th><th style="text-align:right;">Act h</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
+    </div>
     <div class="card per-last">
       <div class="ct">Materials still to buy — live jobs <span id="cash-mat-src" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="fld" style="margin:2px 0 10px;"><label>Deposit / materials as % of sale price</label><input id="cash-deppct" type="number" inputmode="decimal" autocomplete="off" placeholder="50" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Each job’s material budget = this % of its sale price (the deposit that funds materials). Default 50%.</div></div>
@@ -495,55 +498,16 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="tbl-wrap" style="margin-top:10px;"><table class="tb" id="cash-mat-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Budget</th><th style="text-align:right;">Bought</th><th style="text-align:right;">To buy</th></tr></thead><tbody></tbody></table></div>
       <div class="note">“To buy” = (deposit % × sale price) − materials already bought, per job. Two ways a job drops out: it’s invoiced to ~100% of its sale price (two 50% invoices = done, materials paid or in A/P), or its materials are already bought to the deposit %. From your active Fergus jobs (last workload Refresh).</div>
     </div>
-
-    <div class="card">
-      <div class="ct">Context <span class="period-sub" style="margin-left:auto;">other balances</span></div>
-      <div class="mg" id="cash-context"></div>
-    </div>
-
     <div class="card per-week">
       <div class="ct">Deposit check — materials bought <span class="period-sub" style="margin-left:auto;">money out, nothing in</span></div>
       <div class="mg" id="cash-depchk"></div>
       <div class="tbl-wrap" style="margin-top:10px;"><table class="tb" id="cash-depchk-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Materials</th><th style="text-align:right;">Invoiced</th><th>Deposit</th></tr></thead><tbody></tbody></table></div>
       <div class="note">Jobs where materials have been bought (supplier cost on the Fergus job) but the customer deposit has NOT been invoiced — or was invoiced but not paid. That's cash out with nothing in. Fix: raise / chase the deposit. (From your active Fergus jobs.)</div>
     </div>
-
     <div class="card">
       <div class="ct">Accounts Payable — materials only <span class="period-sub" style="margin-left:auto;">remove overheads</span></div>
       <div class="fld" style="margin:4px 0 10px;"><label>Materials / COGS account code(s)</label><input id="cash-apcodes" type="text" autocomplete="off" autocapitalize="off" placeholder="e.g. 310, 311" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Leave this blank and I’ll auto-pick your goods/COGS codes straight from your Xero Chart of Accounts (the accounts typed as “Direct Costs”). Or enter specific account code(s) to override. The table below shows unpaid A/P grouped by account — ✓ goods = counted as materials; overheads (phone, fuel, subbies…) are removed.</div></div>
       <div class="tbl-wrap"><table class="tb" id="cash-apcodes-tbl"><thead><tr><th>Code</th><th>Account</th><th style="text-align:right;">Unpaid A/P</th></tr></thead><tbody></tbody></table></div>
-    </div>
-
-    <div class="card">
-      <div class="ct">Xero accounts <span class="period-sub" style="margin-left:auto;">balance sheet</span></div>
-      <div class="fld" style="margin:4px 0 10px;"><label>Materials account name contains</label><input id="cash-matkw" type="text" autocomplete="off" autocapitalize="off" placeholder="material" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 02 Materials account on the Balance Sheet. Confirm the row tagged <b>Materials 02</b> below is the right account; if not, type a word unique to its name.</div></div>
-      <div class="fld" style="margin:4px 0 10px;"><label>Sales account name contains</label><input id="cash-saleskw" type="text" autocomplete="off" autocapitalize="off" placeholder="sales" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 03 Sales account on the Balance Sheet — its live balance is deposits received but not yet transferred to 02. Confirm the row tagged <b>Sales 03</b> below.</div></div>
-      <div class="tbl-wrap"><table class="tb" id="cash-accts"><thead><tr><th>Account</th><th style="text-align:right;">Balance</th></tr></thead><tbody></tbody></table></div>
-    </div>
-
-    <div class="card">
-      <button class="btn btn-a" id="cash-sync-btn" onclick="syncCash()">⟳ Sync from Xero</button>
-      <div class="fld" style="margin-top:9px;"><input id="cash-diagjob" type="text" autocomplete="off" autocapitalize="off" placeholder="job name or # to diagnose (optional)"></div>
-      <button class="btn btn-o" onclick="diagJobMaterials()">🔍 Diag job materials (Fergus)</button>
-      <div class="note" id="cash-note" style="white-space:pre-wrap;"></div>
-    </div>
-  </div>
-
-  <!-- ───────── CASHFLOW FORECAST ───────── -->
-  <div class="page" id="page-cf">
-    <div class="card per-this" style="border-left:4px solid var(--accent);">
-      <div class="ct">00 (OPEX) Cashflow Forecast <span id="cf-ts" class="period-sub" style="margin-left:auto;"></span></div>
-      <div class="hero">
-        <div class="big" id="cf-hero">—</div>
-        <div class="unit" id="cf-hero-unit">lowest projected 00 balance</div>
-        <div class="sub" id="cf-hero-sub">Sync Xero + refresh Fergus, then this projects your everyday/wages account.</div>
-      </div>
-    </div>
-
-    <div class="card per-last">
-      <div class="ct">Due in — jobs already underway <span class="period-sub" style="margin-left:auto;">≥10% hrs done</span></div>
-      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cf-due-total" style="font-size:2.4rem;color:var(--success);">—</div><div class="unit" id="cf-due-sub">money to collect on started jobs</div></div>
-      <div class="tbl-wrap" style="max-height:50vh;overflow:auto;"><table class="tb" id="cf-due-tbl"><thead><tr><th>Job</th><th style="text-align:right;">% done</th><th style="text-align:right;">Act h</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
     </div>
     <div class="card per-3mo">
       <div class="ct">Whole-business cash — 13 weeks <span class="period-sub" style="margin-left:auto;">all accounts</span></div>
@@ -556,18 +520,25 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="tbl-wrap"><table class="tb" id="cf-wk-tbl"><thead><tr><th>Week of</th><th style="text-align:right;">Opening</th><th style="text-align:right;">In</th><th style="text-align:right;">Out</th><th style="text-align:right;">Closing</th></tr></thead><tbody></tbody></table></div>
       <div class="note">Weekly view of the same forecast — job finals land in their completion week; overheads + wages spread evenly (monthly ÷ 4.3).</div>
     </div>
-
     <div class="card per-last">
       <div class="ct">6-month projection <span class="period-sub" style="margin-left:auto;">00 account</span></div>
       <div class="tbl-wrap"><table class="tb" id="cf-tbl"><thead><tr><th>Month</th><th style="text-align:right;">Opening</th><th style="text-align:right;">In</th><th style="text-align:right;">Out</th><th style="text-align:right;">Closing</th></tr></thead><tbody></tbody></table></div>
       <div class="note" id="cf-note"></div>
     </div>
-
     <div class="card">
       <div class="ct">Active jobs — hours, owing & finish <span class="period-sub" style="margin-left:auto;">edit “Done by”</span></div>
       <div class="tbl-wrap" style="max-height:60vh;overflow:auto;"><table class="tb" id="cf-jobs-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Priced h</th><th style="text-align:right;">Actual h</th><th style="text-align:right;">Rem h</th><th style="text-align:right;">Owing</th><th>Done by</th></tr></thead><tbody></tbody></table></div>
     </div>
-
+    <div class="card">
+      <div class="ct">Context <span class="period-sub" style="margin-left:auto;">other balances</span></div>
+      <div class="mg" id="cash-context"></div>
+    </div>
+    <div class="card">
+      <div class="ct">Xero accounts <span class="period-sub" style="margin-left:auto;">balance sheet</span></div>
+      <div class="fld" style="margin:4px 0 10px;"><label>Materials account name contains</label><input id="cash-matkw" type="text" autocomplete="off" autocapitalize="off" placeholder="material" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 02 Materials account on the Balance Sheet. Confirm the row tagged <b>Materials 02</b> below is the right account; if not, type a word unique to its name.</div></div>
+      <div class="fld" style="margin:4px 0 10px;"><label>Sales account name contains</label><input id="cash-saleskw" type="text" autocomplete="off" autocapitalize="off" placeholder="sales" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 03 Sales account on the Balance Sheet — its live balance is deposits received but not yet transferred to 02. Confirm the row tagged <b>Sales 03</b> below.</div></div>
+      <div class="tbl-wrap"><table class="tb" id="cash-accts"><thead><tr><th>Account</th><th style="text-align:right;">Balance</th></tr></thead><tbody></tbody></table></div>
+    </div>
     <div class="card">
       <div class="ct">Settings</div>
       <div class="fld" style="margin:2px 0 8px;"><label>Job money to 00 — % of sale (ex-GST)</label><input id="cf-oopct" type="number" inputmode="decimal" autocomplete="off" placeholder="40" onchange="saveCfCfg()"></div>
@@ -581,7 +552,15 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="fld" style="margin:2px 0 8px;"><label>Actual 00 balance right now (override, optional)</label><input id="cf-bal" type="number" inputmode="decimal" autocomplete="off" placeholder="blank = use Xero balance sheet" onchange="saveCfCfg()"></div>
       <div class="note" id="cf-cfg-note"></div>
     </div>
+    <div class="card">
+      <button class="btn btn-a" id="cash-sync-btn" onclick="syncCash()">⟳ Sync from Xero</button>
+      <div class="fld" style="margin-top:9px;"><input id="cash-diagjob" type="text" autocomplete="off" autocapitalize="off" placeholder="job name or # to diagnose (optional)"></div>
+      <button class="btn btn-o" onclick="diagJobMaterials()">🔍 Diag job materials (Fergus)</button>
+      <div class="note" id="cash-note" style="white-space:pre-wrap;"></div>
+    </div>
   </div>
+
+  
 
 </div><!-- /app -->
 
@@ -593,7 +572,6 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
   <div class="nav-i" id="nav-growth" onclick="go('growth')"><span class="ic">📈</span>Growth</div>
   <div class="nav-i" id="nav-marketing" onclick="go('marketing')"><span class="ic">📣</span>Mktg</div>
   <div class="nav-i" id="nav-cash" onclick="go('cash')"><span class="ic">💰</span>Cash</div>
-  <div class="nav-i" id="nav-cf" onclick="go('cf')"><span class="ic">💵</span>Flow</div>
 </div>
 
 <!-- connect sheet -->
@@ -2138,7 +2116,7 @@ function renderCash(){
     dcTb.innerHTML=rws.length?rws.join(''):'<tr><td colspan="4" style="color:var(--success);">\u2713 Every job with materials has a deposit invoiced'+(havePaid?' &amp; paid':'')+'.</td></tr>';}
   // context tiles
   set('cash-context',
-    mb('Still to collect (live jobs)',fmtK(toCollect),'final invoices to raise','','m-gp')+
+    mb('Cash + AR − AP',fmtK(held+arVal-apVal),'if everything settled',(held+arVal-apVal)>=0?'pos':'neg','m-gp')+
     mb('Funding position',fmtK(fundGap),'deposit + to-collect + owed − A/P − to-buy',fundGap>=0?'pos':'neg','m-np')+
     mb('Accounts Receivable',fmtK(arVal),ar?esc(ar.name):'not found','','m-gp')+
     mb('A/P — materials',fmtK(apVal),apSplit?('overheads −'+fmtK(Math.max(0,apBillsTot-apMaterials))+' removed'):'all suppliers · set codes','','m-cogs'));
@@ -2289,7 +2267,7 @@ function renderCashflow(){
 }
 
 // ════════ NAV ════════
-const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'End Cash Position',cf:'Cashflow Forecast'};
+const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'Cash'};
 function go(p,dir){
   page=p;
   document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
@@ -2307,7 +2285,7 @@ function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowt
 // ════════ SWIPE NAV ════════ Facebook-style interactive pager — the page tracks your finger,
 // the neighbouring tab slides in beside it, and it snaps/commits on release.
 (function(){
-  const order=['dash','work','bc','pl','growth','marketing','cash','cf'];
+  const order=['dash','work','bc','pl','growth','marketing','cash'];
   const topEl=document.getElementById('top');
   const pageEl=p=>document.getElementById('page-'+p);
   let x0=0,y0=0,armed=false,horiz=false,cur=null,nxt=null,dir=0,W=360,finishing=false;
