@@ -540,6 +540,11 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       </div>
     </div>
 
+    <div class="card per-last">
+      <div class="ct">Due in — jobs already underway <span class="period-sub" style="margin-left:auto;">≥10% hrs done</span></div>
+      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cf-due-total" style="font-size:2.4rem;color:var(--success);">—</div><div class="unit" id="cf-due-sub">money to collect on started jobs</div></div>
+      <div class="tbl-wrap" style="max-height:50vh;overflow:auto;"><table class="tb" id="cf-due-tbl"><thead><tr><th>Job</th><th style="text-align:right;">% done</th><th style="text-align:right;">Act h</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
+    </div>
     <div class="card per-3mo">
       <div class="ct">Whole-business cash — 13 weeks <span class="period-sub" style="margin-left:auto;">all accounts</span></div>
       <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cfw-low" style="font-size:2.4rem;">—</div><div class="unit" id="cfw-low-unit">lowest projected total cash</div></div>
@@ -2250,6 +2255,14 @@ function renderCashflow(){
   const jt=document.querySelector('#cf-jobs-tbl tbody');
   if(jt)jt.innerHTML=sched.length?sched.map(s=>{const v=s.finDate.getFullYear()+'-'+String(s.finDate.getMonth()+1).padStart(2,'0')+'-'+String(s.finDate.getDate()).padStart(2,'0');
     return '<tr><td>'+esc((s.job||'').slice(0,34))+'</td><td style="text-align:right;">'+(s.priced?fmtH(s.priced):'—')+'</td><td style="text-align:right;">'+(s.actual?fmtH(s.actual):'—')+'</td><td style="text-align:right;" class="'+(s.rem>0?'pos':'')+'">'+fmtH(s.rem)+'</td><td style="text-align:right;">'+fmtK(s.owing)+'</td><td><input type="date" value="'+v+'" onchange="setCfFinish(\''+esc(s.id)+'\',this.value)" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:5px 7px;font-size:.72rem;"'+(s.isOv?' title="you adjusted this"':'')+'></td></tr>';}).join(''):'<tr><td colspan="6" class="empty">Refresh Fergus on the Dashboard to load active jobs.</td></tr>';
+  // ===== Due in: jobs that already have >=10% of their hours on them =====
+  const started=(fwJobs||[]).filter(j=>{const p=num(j.priced);if(p<=0)return false;const a=num(j.actual);return a/p>=0.10 && (num(j.sale)-num(j.billed))>0;})
+    .map(j=>{const p=num(j.priced),a=num(j.actual);return {job:j.job,pct:p>0?a/p:0,actual:a,due:Math.max(0,num(j.sale)-num(j.billed))};}).sort((x,y)=>y.due-x.due);
+  const dueTot=started.reduce((s,j)=>s+j.due,0);
+  set('cf-due-total',null,fmtK(dueTot));
+  set('cf-due-sub',null,started.length?(started.length+' jobs ≥10% started · still to invoice/collect'):'Refresh Fergus to load active jobs');
+  const dueTb=document.querySelector('#cf-due-tbl tbody');
+  if(dueTb)dueTb.innerHTML=started.length?started.map(s=>'<tr><td>'+esc((s.job||'').slice(0,34))+'</td><td style="text-align:right;">'+Math.round(s.pct*100)+'%</td><td style="text-align:right;">'+fmtH(s.actual)+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(s.due)+'</td></tr>').join('')+'<tr class="sum"><td>Total ('+started.length+')</td><td></td><td></td><td style="text-align:right;font-weight:800;">'+fmtK(dueTot)+'</td></tr>':'<tr><td colspan="4" class="empty">No started jobs with money owing — Refresh Fergus on the Dashboard.</td></tr>';
   // ===== Whole-business consolidated 13-week cash forecast =====
   const matPct=(num(S.get('cashDepPct','50'))||50)/100;
   const matLead=Math.max(0,num(S.get('cfMatLead','3')));
