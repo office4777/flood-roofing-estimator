@@ -25823,43 +25823,88 @@ function _renderRoofSheetPlanInner() {
     var wingLeftY0 = wingApex[1];
     var wingLeftY1 = valleyEnd[1];                 // 550
     var wingPerpPx = wingApex[0] - wx0;            // 150 (half wing width)
+    var _wingWDonors = [];
     y = wingLeftY0;
     while (y < wingLeftY1 - 0.1) {
       var ya = y, yb = Math.min(y + coverPxL, wingLeftY1);
       var poly = [[wx0, ya], [wingApex[0], ya], [wingApex[0], yb], [wx0, yb]];
-      stripsWing.push({
+      var wDonor = {
         face: faceWingW, color: COL_PURPLE,
         poly: poly, centroid: polyCentroid(poly),
         orderedLengthMm: orderedLengthMm(wingPerpPx * effectiveScale * pitchFactor),
         pieceM: wingPerpPx * effectiveScale * pitchFactor,
         isOffcut: false, isPhantom: false
-      });
+      };
+      stripsWing.push(wDonor);
+      _wingWDonors.push(wDonor);
       y += coverPxL;
     }
 
     // ── Wing E face (NEW short sheets, purple) ──
-    // Tile the whole E face with horizontal sheets, each clipped to the
-    // convex E-face polygon.  Clipping handles the NE-hip upper triangle
-    // (above the wing apex), the rectangular body, and the valley cut on
-    // the lower-east — for ANY wing width.  Starts at the wing N gutter so
-    // the E-eave-top triangle is covered.
+    // Mirror the W face: only the area between the wing apex level and
+    // the valley end gets NEW purple donor sheets — the NE hip-end
+    // triangle ABOVE the apex is OFFCUTS of those same donors (each
+    // ridge-row sheet gets cut at the valley; the cut piece is laid
+    // into the hip).  Without this match, the E face used to tile the
+    // entire span from wy0 down (~14 strips) while the W face had
+    // ~10, so the cut list over-ordered purple by the hip-end count
+    // (user: "ridge line worth of sheets, then some cut at the valley
+    // fill the hip").
     var _wingEPoly = faceWingE.poly;
-    y = wy0;
+    var _wingEDonors = [];
+    y = wingApex[1];
     while (y < valleyEnd[1] - 0.1) {
       var ya = y, yb = Math.min(y + coverPxL, valleyEnd[1]);
       var band = [[wingApex[0], ya], [wx1, ya], [wx1, yb], [wingApex[0], yb]];
       var clip = clipToConvexPoly(band, _wingEPoly);
       if (clip && clip.length >= 3 && polyArea(clip) > 1) {
-        stripsWing.push({
+        var donor = {
           face: faceWingE, color: COL_PURPLE,
           poly: clip, centroid: polyCentroid(clip),
           orderedLengthMm: orderedLengthMm(wingPerpPx * effectiveScale * pitchFactor),
           pieceM: wingPerpPx * effectiveScale * pitchFactor,
           isOffcut: false, isPhantom: false
-        });
+        };
+        stripsWing.push(donor);
+        _wingEDonors.push(donor);
       }
       y += coverPxL;
     }
+
+    // ── Wing NE hip-end (purple OFFCUTS of the E face donors) ──
+    // Each row in the wing E face's hip-end triangle is the OFFCUT of
+    // a sibling donor row below the apex.  Visually clip to the E face
+    // polygon; mark isOffcut=true and link _offcutSource to a donor so
+    // the renumber pass shares the donor's seq (and the legend doesn't
+    // double-count these as new orders).
+    if (_wingEDonors.length) {
+      var hipRow = 0;
+      y = wy0;
+      while (y < wingApex[1] - 0.1) {
+        var ya = y, yb = Math.min(y + coverPxL, wingApex[1]);
+        var band = [[wingApex[0], ya], [wx1, ya], [wx1, yb], [wingApex[0], yb]];
+        var clip = clipToConvexPoly(band, _wingEPoly);
+        if (clip && clip.length >= 3 && polyArea(clip) > 1) {
+          var donor = _wingEDonors[hipRow % _wingEDonors.length];
+          var offM = wingPerpPx * effectiveScale * pitchFactor; // physical offcut length ≈ donor length here
+          stripsWing.push({
+            face: faceWingE, color: COL_PURPLE,
+            poly: clip, centroid: polyCentroid(clip),
+            orderedLengthMm: donor.orderedLengthMm,
+            pieceM: offM,
+            isOffcut: true, isPhantom: false,
+            _offcutSource: donor
+          });
+          if (!donor._offcutDest) donor._offcutDest = clip;
+        }
+        hipRow++;
+        y += coverPxL;
+      }
+    }
+
+    // (The wing NW hip-end is already filled by stripsBlueMv — moved-
+    // blue offcuts from the main W hip-end donors.  Don't add another
+    // purple layer there or it would overlap and inflate the count.)
 
     // ── Main E hip-end (with swapped colors per spin-only rule) ──
     // Upper half (y < midY): BLUE offcuts; lower half (y >= midY): ORANGE
