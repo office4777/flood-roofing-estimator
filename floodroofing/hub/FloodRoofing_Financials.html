@@ -372,6 +372,11 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="ct">Last 12 Months <span class="period-sub" style="margin-left:auto;">tap a month · swipe ↔</span></div>
       <div class="mstrip" id="pl-strip"></div>
     </div>
+    <div class="card per-this">
+      <div class="ct">Where every $ goes <span id="pl-wf-lbl" class="period-sub" style="margin-left:auto;"></span></div>
+      <div id="pl-waterfall"></div>
+      <div class="note" id="pl-wf-note"></div>
+    </div>
     <div class="tiles" id="pl-tiles"></div>
     <div class="card" style="margin-top:12px;">
       <div class="ct">Monthly breakdown <span id="pl-src" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
@@ -594,6 +599,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     <div class="fld"><label>Proxy URL</label><input id="in-proxy" type="url" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://fergus-proxy-xxxx.vercel.app"></div>
     <div class="fld"><label>Proxy secret</label><input id="in-secret" type="text" autocomplete="off" autocapitalize="off" placeholder="the PROXY_SECRET you set"></div>
     <div class="fld"><label>On-site wages account(s) → move to COGS</label><input id="in-wagekw" type="text" autocomplete="off" autocapitalize="off" placeholder="wages"><div class="note" style="margin-top:5px;">Comma-separate keywords. Any Operating-Expenses line whose name contains one of these moves into Cost of Sales. Prefix a term with “-” to exclude it (e.g. <b>wages, -admin</b> moves wage accounts but keeps Admin Staff Wages in Opex). Blank = keep all wages in Opex.</div></div>
+    <div class="fld"><label>Exclude from overheads (e.g. income tax)</label><input id="in-opexexcl" type="text" autocomplete="off" autocapitalize="off" placeholder="income tax"><div class="note" style="margin-top:5px;">Operating-Expenses lines whose name contains these (comma-separated) are kept OUT of the overhead-recovery rate and the cashflow burn. Default: income tax (it sits in Operating Expenses in Xero but isn’t a real operating overhead).</div></div>
     <div id="conn-status"></div>
     <button class="btn btn-p" onclick="saveConnect()">Save &amp; test</button>
     <button class="btn btn-o" style="margin-top:9px;" onclick="closeConnect()">Close</button>
@@ -718,6 +724,7 @@ function openConnect(){
   document.getElementById('in-proxy').value=fergusProxyUrl();
   document.getElementById('in-secret').value=fergusProxySecret();
   document.getElementById('in-wagekw').value=S.get('wageKw','wages');
+  document.getElementById('in-opexexcl').value=S.get('opexExclKw','income tax');
   const st=document.getElementById('conn-status');st.className='';st.textContent='';
   document.getElementById('modal').classList.add('open');
 }
@@ -727,6 +734,7 @@ async function saveConnect(){
   const sec=(document.getElementById('in-secret').value||'').trim();
   S.set('fergus_proxy_url',url);S.set('fergus_proxy_secret',sec);
   S.set('wageKw',(document.getElementById('in-wagekw').value||'').trim());
+  S.set('opexExclKw',(document.getElementById('in-opexexcl').value||'').trim());
   updatePill();
   const st=document.getElementById('conn-status');
   if(!url){st.className='';st.textContent='Cleared.';return;}
@@ -1171,7 +1179,7 @@ function saveBcOh(){OH_FIELDS.forEach(([id,k])=>{const e=document.getElementById
 //   (Monthly OPEX × 12 ÷ field staff) ÷ (52 − weeks not working) ÷ (weekly hours × utilisation)
 function ohRate(){
   const sg=(k,d)=>{const v=parseFloat(S.get(k,''));return isNaN(v)?d:v;};
-  let oxSum=0,oxN=0;dataMonths().slice(-6).forEach(k=>{const x=xeroMonthly[k];if(x){oxSum+=num(x.opex);oxN++;}});   // overheads only (on-site wages are already in job Labour/COGS)
+  let oxSum=0,oxN=0;dataMonths().slice(-6).forEach(k=>{const x=xeroMonthly[k];if(x){oxSum+=num(x.overhead!=null?x.overhead:x.opex);oxN++;}});   // overheads only (excl income tax + on-site wages)
   const opexAuto=oxN?oxSum/oxN:0;
   const opexSet=parseFloat(S.get('bcOpex',''));const opexIsAuto=isNaN(opexSet);const opex=opexIsAuto?opexAuto:opexSet;
   const emp=Math.max(1,sg('bcEmp',(capacity().people||1)));
@@ -1291,6 +1299,14 @@ function xeroWages(rep){
   });
   return {sum,items};
 }
+// Sum leaf P&L lines inside sections matching sectRe whose name passes nameTest.
+function xeroSectionSum(rep,sectRe,nameTest){
+  let sum=0;
+  (rep.Rows||[]).forEach(sec=>{if(!sectRe.test((sec.Title)||''))return;
+    const walk=rows=>(rows||[]).forEach(r=>{if(r.RowType!=='SummaryRow'){const c=r.Cells||[];const nm=((c[0]&&c[0].Value)||'');if(nameTest(nm)){const v=xeroNum(c[1]&&c[1].Value);if(v!=null)sum+=v;}}if(r.Rows&&r.Rows.length)walk(r.Rows);});
+    walk(sec.Rows||[]);});
+  return sum;
+}
 function xeroRepFig(rep){
   let rev=xeroFindDeep(rep,/^(Total Income|Total Trading Income|Total Operating Income|Total Sales|Total Revenue|Income)$/i);
   const cogs=xeroFindDeep(rep,/^(Total Cost of Sales|Total Cost of Goods Sold|Cost of Sales|Total Direct Costs)$/i);
@@ -1305,7 +1321,14 @@ function xeroRepFig(rep){
   const w=xeroWages(rep);let wages=w.sum;if(opex!=null)wages=Math.min(wages,opex);
   let gpA=gp,opexA=opex;
   if(wages>0){if(gp!=null)gpA=gp-wages;if(opex!=null)opexA=opex-wages;}
-  return {rev:num(rev),gp:num(gpA),opex:num(opexA),np:num(np),wages:num(wages),wageNames:w.items.map(i=>i.name),src:'xero'};
+  // Overhead = operating expenses minus excluded lines (default income tax — it's not a real
+  // operating overhead). On-site wages live in Cost of Sales here, so capture them for the
+  // cashflow burn (the 00 account pays on-site wages + overheads).
+  const taxKws=(S.get('opexExclKw','income tax')||'').toLowerCase().split(',').map(s=>s.trim()).filter(Boolean);
+  const taxExcl=taxKws.length?xeroSectionSum(rep,/expense|overhead/i,nm=>{const L=(nm||'').toLowerCase();return taxKws.some(k=>L.includes(k));}):0;
+  const siteW=xeroSectionSum(rep,/cost of (sales|goods)|direct cost/i,nm=>/wage|salar/i.test(nm||''));
+  const overhead=Math.max(0,num(opexA)-num(taxExcl));
+  return {rev:num(rev),gp:num(gpA),opex:num(opexA),overhead:overhead,tax:num(taxExcl),siteWages:num(siteW),burn:Math.max(0,overhead+num(siteW)),np:num(np),wages:num(wages),wageNames:w.items.map(i=>i.name),src:'xero'};
 }
 // First/last day of a 'Mon-YYYY' month; cap the end at today for the current (partial) month.
 function monthRange(monthKey){
@@ -1364,7 +1387,7 @@ async function pullXeroPL(){
     const rep=(JSON.parse(txt).Reports||[])[0];if(!rep)throw new Error('No report returned.');
     xeroLive=true;
     lastXeroRep=rep;lastXeroLabel=label;xeroReports[label]=rep;plSelected=label;   // cache for instant re-render
-    const f=xeroRepFig(rep);if(f){xeroMonthly[label]={rev:f.rev,gp:f.gp,opex:f.opex,np:f.np,wages:f.wages};S.set('xeroMonthly',xeroMonthly);}
+    const f=xeroRepFig(rep);if(f){xeroMonthly[label]={rev:f.rev,gp:f.gp,opex:f.opex,np:f.np,wages:f.wages,overhead:f.overhead,siteWages:f.siteWages,burn:f.burn,tax:f.tax};S.set('xeroMonthly',xeroMonthly);}
     renderXeroReport(rep,label);renderPLStrip();
   }catch(err){
     console.error(err);
@@ -1442,9 +1465,24 @@ function selectMonth(m){
   else if(fergusProxyUrl())pullXeroPL();   // have totals but not the full report → fetch it
   else renderPL();
 }
+function renderWaterfall(){
+  const host=document.getElementById('pl-waterfall');if(!host)return;
+  const lblEl=document.getElementById('pl-wf-lbl'),noteEl=document.getElementById('pl-wf-note');
+  let key=(plSelected&&xeroMonthly[plSelected]&&num(xeroMonthly[plSelected].rev)>0)?plSelected:'';
+  if(!key){const ks=Object.keys(xeroMonthly).filter(k=>num(xeroMonthly[k].rev)>0);key=ks.length?ks[ks.length-1]:'';}
+  const f=key?xeroMonthly[key]:null;
+  if(!f||!num(f.rev)){host.innerHTML='<div class="empty" style="padding:10px;">Pull Xero (P&amp;L) to see where every $ goes.</div>';if(lblEl)lblEl.textContent='';if(noteEl)noteEl.textContent='';return;}
+  const rev=num(f.rev),gp=num(f.gp),sw=num(f.siteWages),oh=num(f.overhead!=null?f.overhead:f.opex),mat=Math.max(0,(rev-gp)-sw);
+  const opP=gp-oh;const pc=v=>rev>0?Math.round(v/rev*100):0;
+  const bar=(v,col)=>'<div style="height:7px;border-radius:5px;background:'+col+';width:'+Math.max(1.5,Math.min(100,rev>0?Math.abs(v)/rev*100:0))+'%;margin-top:5px;"></div>';
+  const r=(lbl,v,col,strong)=>'<div style="padding:9px 0;border-bottom:1px solid var(--border);"><div style="display:flex;justify-content:space-between;font-size:.84rem;'+(strong?'font-weight:800;':'')+'color:var(--text);"><span>'+lbl+'</span><span>'+fmtK(v)+' · '+pc(v)+'%</span></div>'+bar(v,col)+'</div>';
+  host.innerHTML=r('Revenue',rev,'var(--success)',true)+r('− Materials',mat,'#fb923c')+r('− On-site labour',sw,'#a78bfa')+r('= Gross Profit',gp,'var(--primary)',true)+r('− Overheads',oh,'#fbbf24')+r('= Operating Profit',opP,opP>=0?'var(--success)':'var(--danger)',true);
+  if(lblEl)lblEl.textContent=key;
+  if(noteEl)noteEl.innerHTML='Materials = Cost of Goods − on-site wages · Labour = on-site wages (in COGS) · Overheads exclude income tax. Operating Profit is before income tax. From your Xero P&L for '+esc(key)+'.';
+}
 function renderPL(){
   fillPLPeriods();
-  renderPLStrip();
+  renderPLStrip();renderWaterfall();
   if(plSelected&&xeroReports[plSelected]){xeroLive=true;lastXeroRep=xeroReports[plSelected];lastXeroLabel=plSelected;renderXeroReport(xeroReports[plSelected],plSelected);return;}
   if(xeroLive&&lastXeroRep){renderXeroReport(lastXeroRep,lastXeroLabel);return;}   // re-render cached live report — no network
   const sel=document.getElementById('pl-period').value;
@@ -2153,7 +2191,7 @@ function renderCashflow(){
   const pop=(id,v)=>{const e=document.getElementById(id);if(e&&!e.value&&v!==''&&v!=null)e.value=v;};
   pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','2'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));pop('cf-bal',S.get('cfBal',''));pop('cf-open',S.get('cfOpenCash',''));pop('cf-matlead',S.get('cfMatLead',''));pop('cf-apwk',S.get('cfApWeeks',''));
   // monthly outflow: 6-month avg of (opex + wages) from Xero, or a manual override
-  let avgOut=0,nOut=0;for(let i=1;i<=6;i++){const x=xeroMonthly[calMonthKey(-i)];if(x){avgOut+=num(x.opex)+num(x.wages);nOut++;}}
+  let avgOut=0,nOut=0;for(let i=1;i<=6;i++){const x=xeroMonthly[calMonthKey(-i)];if(x){avgOut+=(x.burn!=null?num(x.burn):(num(x.opex)+num(x.wages)));nOut++;}}
   avgOut=nOut?avgOut/nOut:0;
   const outManual=(cfg2.out!==''&&!isNaN(parseFloat(cfg2.out)));
   const outflow=outManual?parseFloat(cfg2.out):avgOut;
