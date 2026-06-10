@@ -492,17 +492,22 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="tbl-wrap" style="max-height:50vh;overflow:auto;"><table class="tb" id="cf-due-tbl"><thead><tr><th>Job</th><th style="text-align:right;">% done</th><th style="text-align:right;">Act h</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
     </div>
     <div class="card per-last">
+      <div class="ct">Due in — not started yet <span class="period-sub" style="margin-left:auto;">&lt;10% hrs done</span></div>
+      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cf-due2-total" style="font-size:2.4rem;color:var(--accent);">—</div><div class="unit" id="cf-due2-sub">to collect · work not started</div></div>
+      <div class="tbl-wrap" style="max-height:50vh;overflow:auto;"><table class="tb" id="cf-due2-tbl"><thead><tr><th>Job</th><th style="text-align:right;">% done</th><th style="text-align:right;">Act h</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card per-last">
       <div class="ct">Materials still to buy — live jobs <span id="cash-mat-src" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="fld" style="margin:2px 0 10px;"><label>Deposit / materials as % of sale price</label><input id="cash-deppct" type="number" inputmode="decimal" autocomplete="off" placeholder="50" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Each job’s material budget = this % of its sale price (the deposit that funds materials). Default 50%.</div></div>
       <div class="mg" id="cash-mat"></div>
       <div class="tbl-wrap" style="margin-top:10px;"><table class="tb" id="cash-mat-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Budget</th><th style="text-align:right;">Bought</th><th style="text-align:right;">To buy</th></tr></thead><tbody></tbody></table></div>
-      <div class="note">“To buy” = (deposit % × sale price) − materials already bought, per job. Two ways a job drops out: it’s invoiced to ~100% of its sale price (two 50% invoices = done, materials paid or in A/P), or its materials are already bought to the deposit %. From your active Fergus jobs (last workload Refresh).</div>
+      <div class="note">Per job: deposit % × sale − materials already bought. Done or fully-bought jobs drop out.</div>
     </div>
     <div class="card per-week">
       <div class="ct">Deposit check — materials bought <span class="period-sub" style="margin-left:auto;">money out, nothing in</span></div>
       <div class="mg" id="cash-depchk"></div>
       <div class="tbl-wrap" style="margin-top:10px;"><table class="tb" id="cash-depchk-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Materials</th><th style="text-align:right;">Invoiced</th><th>Deposit</th></tr></thead><tbody></tbody></table></div>
-      <div class="note">Jobs where materials have been bought (supplier cost on the Fergus job) but the customer deposit has NOT been invoiced — or was invoiced but not paid. That's cash out with nothing in. Fix: raise / chase the deposit. (From your active Fergus jobs.)</div>
+      <div class="note">Materials bought but deposit not invoiced/paid — cash out, nothing in. Chase it.</div>
     </div>
     <div class="card">
       <div class="ct">Accounts Payable — materials only <span class="period-sub" style="margin-left:auto;">remove overheads</span></div>
@@ -2073,14 +2078,7 @@ function renderCash(){
       mb('− Supplier invoices (A/P)','−'+fmtK(apVal),apSplit?(apAuto?('goods only · '+(accts?'Direct Costs':'by supplier')):'goods only'):'all suppliers','','m-cogs')+
       mb('− Materials still to buy','−'+fmtK(toBuy),matRows.length+' jobs · not yet ordered','','m-cogs')+
       mb('= Coverage',fmtK(coverage),coverage>=0?'fully funded':'short',coverage>=0?'pos':'neg','m-np'));
-    set('cash-recon-note',null,
-      'Deposit cash on hand = the Materials (02) balance plus any genuine deposits still waiting in the Sales (03) clearing account. (03 is swept into 02, so a near-zero or negative 03 is treated as $0 — it’s just in transit.) Materials still to buy is worked out per job as '+depPct+'% of the sale price (the deposit that funds materials) minus the materials already bought — so a job whose materials are already ordered to ~'+depPct+'% drops out, because those are sitting in A/P ('+fmt$(apVal)+'). '+
-      'Jobs invoiced to ~100% of their sale price (two 50% invoices) are treated as done and dropped — their materials are already paid or in A/P ('+doneCount+' excluded). '+
-      'Only jobs whose deposit has actually been PAID in Xero are counted'+(havePaid?(' ('+unpaidCount+' excluded as deposit-unpaid)'):' — but Xero paid invoices couldn’t be read this sync, so that filter is OFF')+'. '+
-      (apSplit?('A/P here is goods/COGS only ('+(apAuto?('auto, '+autoLbl+': '):'codes ')+apCodes.join(', ')+') — '+fmt$(Math.max(0,apBillsTot-apMaterials))+' of overhead bills removed. '):'A/P here is every supplier — couldn’t classify goods accounts, set codes below. ')+
-      'Deposits you’re owed but haven’t collected ('+fmt$(unreceivedDep)+' — materials spent on jobs not yet invoiced or unpaid) are added back into Coverage, since you can recover that by raising/chasing the deposit. '+
-      'A/P and “to buy” don’t overlap, so Coverage = deposit cash (plus recoverable deposits) left once every remaining material is paid. '+
-      'Materials are also funded by the final invoices still to raise on these jobs ('+fmt$(toCollect)+' still to collect), so a red Coverage is usually a timing / working-capital gap, not a loss — counting that incoming cash the funding position is '+fmt$(fundGap)+'. ('+excl+' live jobs already covered.)');
+    set('cash-recon-note',null,'Held deposit cash + recoverable − A/P − materials still to buy = Coverage. It ignores the finals you’ll still collect (see the forecast below), so a red number is usually timing, not a loss.');
   }else{
     set('cash-recon',
       mb('Materials (02) balance',fmtK(matVal),mat?esc(mat.name):'not matched','','m-rev')+
@@ -2088,8 +2086,7 @@ function renderCash(){
       mb('= Deposit cash on hand',fmtK(held),'Materials 02 + 03 deposits','','m-np')+
       mb('− Supplier invoices (A/P)','−'+fmtK(apVal),ap?esc(ap.name):'none found','','m-cogs')+
       mb('= Left to refund customers',fmtK(net),net>=0?'covers all supplier bills':'cannot cover supplier bills',net>=0?'pos':'neg','m-np'));
-    set('cash-recon-note',null,
-      'Built from your live Xero balances only — Refresh Fergus on the Dashboard to add the materials-still-to-buy forecast. Meanwhile deposit cash − A/P = '+fmt$(net)+' is what’s left to refund customers. (A/P is every supplier, not only materials.)');
+    set('cash-recon-note',null,'Live Xero balances only — Refresh Fergus to add the materials forecast. Deposit cash − A/P = '+fmt$(net)+'.');
   }
   // materials forecast tiles + per-job table
   set('cash-mat-src',null,hasMat?(S.get('fw_last_sync','')?('Fergus · '+S.get('fw_last_sync','')):'Fergus'):'no Fergus data');
@@ -2227,8 +2224,8 @@ function renderCashflow(){
   if(tb)tb.innerHTML=rows.map(r=>'<tr><td>'+esc(r.k)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+fmtK(r.inflow)+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.out)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
   const wtb=document.querySelector('#cf-wk-tbl tbody');
   if(wtb)wtb.innerHTML=wkRows.map(r=>'<tr><td>'+wlab(r.ds)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inflow?fmtK(r.inflow):'—')+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.out)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
-  set('cf-note',null,'Projects your 00 (everyday / OPEX + wages) account. Opening = '+(ooRow?('“'+esc(ooRow.name)+'” '+fmtK(startBal)):'⚠ 00 account not matched — set the keyword in Settings (using $0)')+'. In = '+cfg2.oo+'% of each job’s sale (ex-GST) when it finishes, + '+Math.max(0,num(cfg2.lag))+'-week payment lag. Out = monthly overheads + wages. Materials (02) are excluded — your 60% deposits fund those. GST is excluded (it’s handled in 01).');
-  set('cf-cfg-note',null,'Crew capacity '+c.teams+'×'+c.size+'×'+c.hrs+'h = '+fmtH(c.perDay)+'h/day (change it on the Workload tab). 6-month avg overheads + wages from Xero = '+fmtK(avgOut)+'/mo'+(nOut<6?(' (only '+nOut+' months of Xero data — sync more on the P&L tab)'):'')+'.');
+  set('cf-note',null,'00 (everyday) account: '+cfg2.oo+'% of each job in at completion · wages + overheads out. Opening '+(ooRow?fmtK(startBal):'$0 — set 00 keyword in Settings')+'.');
+  set('cf-cfg-note',null,'Crew '+c.teams+'×'+c.size+'×'+c.hrs+'h · overheads+wages '+fmtK(avgOut)+'/mo (Xero avg).');
   // job completion schedule
   const jt=document.querySelector('#cf-jobs-tbl tbody');
   if(jt)jt.innerHTML=sched.length?sched.map(s=>{const v=s.finDate.getFullYear()+'-'+String(s.finDate.getMonth()+1).padStart(2,'0')+'-'+String(s.finDate.getDate()).padStart(2,'0');
@@ -2241,6 +2238,13 @@ function renderCashflow(){
   set('cf-due-sub',null,started.length?(started.length+' jobs ≥10% started · still to invoice/collect'):'Refresh Fergus to load active jobs');
   const dueTb=document.querySelector('#cf-due-tbl tbody');
   if(dueTb)dueTb.innerHTML=started.length?started.map(s=>'<tr><td>'+esc((s.job||'').slice(0,34))+'</td><td style="text-align:right;">'+Math.round(s.pct*100)+'%</td><td style="text-align:right;">'+fmtH(s.actual)+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(s.due)+'</td></tr>').join('')+'<tr class="sum"><td>Total ('+started.length+')</td><td></td><td></td><td style="text-align:right;font-weight:800;">'+fmtK(dueTot)+'</td></tr>':'<tr><td colspan="4" class="empty">No started jobs with money owing — Refresh Fergus on the Dashboard.</td></tr>';
+  const notSt=(fwJobs||[]).filter(j=>{const p=num(j.priced),a=num(j.actual);return (num(j.sale)-num(j.billed))>0 && (p<=0 || a/p<0.10);})
+    .map(j=>{const p=num(j.priced),a=num(j.actual);return {job:j.job,pct:p>0?a/p:0,actual:a,due:Math.max(0,num(j.sale)-num(j.billed))};}).sort((x,y)=>y.due-x.due);
+  const notTot=notSt.reduce((s,j)=>s+j.due,0);
+  set('cf-due2-total',null,fmtK(notTot));
+  set('cf-due2-sub',null,notSt.length?(notSt.length+' jobs <10% started · less certain'):'none — every job is underway');
+  const d2Tb=document.querySelector('#cf-due2-tbl tbody');
+  if(d2Tb)d2Tb.innerHTML=notSt.length?notSt.map(s=>'<tr><td>'+esc((s.job||'').slice(0,34))+'</td><td style="text-align:right;">'+Math.round(s.pct*100)+'%</td><td style="text-align:right;">'+fmtH(s.actual)+'</td><td style="text-align:right;color:var(--accent);font-weight:700;">'+fmtK(s.due)+'</td></tr>').join('')+'<tr class="sum"><td>Total ('+notSt.length+')</td><td></td><td></td><td style="text-align:right;font-weight:800;">'+fmtK(notTot)+'</td></tr>':'<tr><td colspan="4" class="empty">—</td></tr>';
   // ===== Whole-business consolidated 13-week cash forecast =====
   const matPct=(num(S.get('cashDepPct','50'))||50)/100;
   const matLead=Math.max(0,num(S.get('cfMatLead','3')));
@@ -2263,7 +2267,7 @@ function renderCashflow(){
   const wtb2=document.querySelector('#cfw-tbl tbody');
   if(wtb2)wtb2.innerHTML=wrows.map(r=>'<tr><td>'+wlab2(r.ds)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inn?fmtK(r.inn):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.mat?'-'+fmtK(r.mat):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.ap?'-'+fmtK(r.ap):'—')+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.burn)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
   const cwn=document.getElementById('cfw-note');
-  if(cwn)cwn.innerHTML='Total business cash across all accounts. Opening '+fmtK(openCash)+(isNaN(openOv)?' (sum of your Xero bank accounts)':' (your figure)')+'. IN = the final still owing (sale − billed) as each job finishes (+ '+Math.max(0,num(cfg2.lag))+'wk pay lag). OUT = materials still to buy ('+(matPct*100).toFixed(0)+'% × sale − bought, ordered ~'+matLead+' wks before a job finishes) + supplier bills A/P '+fmtK(apMat)+' (spread over '+apWk+' wks) + wages & overheads '+fmtK(burnWk)+'/wk. Finance, drawings, GST and income tax are NOT included — add them into the monthly wages+overheads figure if you want them. Tune the job finish dates in the table above and the settings below.';
+  if(cwn)cwn.innerHTML='All accounts. In: finals as jobs finish. Out: materials, A/P ('+fmtK(apMat)+'), wages+overheads ('+fmtK(burnWk)+'/wk). Opening '+fmtK(openCash)+'. Excludes finance/tax.';
 }
 
 // ════════ NAV ════════
