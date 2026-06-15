@@ -348,6 +348,16 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="note" id="bc-oh-note"></div>
     </div>
     <div class="card" style="margin-top:12px;">
+      <div class="ct">Back-costing by job type <span class="period-sub" style="margin-left:auto;">grouped from job titles</span></div>
+      <div class="tbl-wrap" style="max-height:70vh;overflow:auto;">
+        <table class="tb" id="bc-type-tbl">
+          <thead><tr><th>Job</th><th>Sales</th><th>GP</th><th>GPM</th><th>NP</th><th>Act h</th></tr></thead>
+          <tbody id="bc-type-body"></tbody>
+        </table>
+      </div>
+      <div class="note">Grouped by keywords in the job title: Pole Sheds, Re-Roof's, Re-Roof &amp; Gutter, Gutter only. ⚡ = from Fergus. NP @ overhead rate. Re-sync Fergus to pull job titles for accurate grouping.</div>
+    </div>
+    <div class="card" style="margin-top:12px;">
       <div class="ct">All Back Costing <span id="bc-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
       <div class="row2" style="margin-bottom:9px;">
         <select class="sel" id="bc-year" onchange="renderBC()"></select>
@@ -1007,7 +1017,7 @@ function bcRowFrom(job,summary,dateMs){
   const gp=sales-cost,gpm=sales>0?Math.round(gp/sales*1000)/10:0;
   const client=fergusName(job.customer)||fergusName(job.mainContact)||'Unknown';const site=fergusAddr(job.siteAddress);
   const iso=new Date(dateMs).toISOString();
-  return {month:fergusMonthLabel(iso),job:client+(site?(' — '+site):''),date:iso.split('T')[0],job_type:job.jobType||job.type||'Fergus',p_lab,a_lab,p_mat,a_mat,sales,gp,gpm,h_actual,h_priced,lead_src:'Fergus',_fergus:true,_fergus_id:String(fid),_lastModified:job.lastModified||''};
+  return {month:fergusMonthLabel(iso),job:client+(site?(' — '+site):''),date:iso.split('T')[0],job_type:job.jobType||job.type||'Fergus',_title:(job.brief||job.title||job.jobDescription||job.description||job.summary||''),p_lab,a_lab,p_mat,a_mat,sales,gp,gpm,h_actual,h_priced,lead_src:'Fergus',_fergus:true,_fergus_id:String(fid),_lastModified:job.lastModified||''};
 }
 // Rebuild ALL Fergus back-costing rows, dated by the last PAID Xero invoice for each job:
 //  • 2+ paid invoices → include (even if not marked Completed)
@@ -1071,7 +1081,7 @@ function upsertBC(job,summary){
   const site=fergusAddr(job.siteAddress);
   const dateStr=bcDateFor(fid,job,s);
   const date=dateStr?new Date(dateStr).toISOString().split('T')[0]:td_str();
-  const row={month:fergusMonthLabel(dateStr)||fergusMonthLabel(date),job:client+(site?(' — '+site):''),date,job_type:job.jobType||job.type||'Fergus',p_lab,a_lab,p_mat,a_mat,sales,gp,gpm,h_actual,h_priced,lead_src:'Fergus',_fergus:true,_fergus_id:String(fid),_lastModified:job.lastModified||''};
+  const row={month:fergusMonthLabel(dateStr)||fergusMonthLabel(date),job:client+(site?(' — '+site):''),date,job_type:job.jobType||job.type||'Fergus',_title:(job.brief||job.title||job.jobDescription||job.description||job.summary||''),p_lab,a_lab,p_mat,a_mat,sales,gp,gpm,h_actual,h_priced,lead_src:'Fergus',_fergus:true,_fergus_id:String(fid),_lastModified:job.lastModified||''};
   const ix=bcFergus.findIndex(r=>r._fergus_id===String(fid));
   if(ix>=0)bcFergus[ix]=row;else bcFergus.push(row);
   return true;
@@ -1186,10 +1196,44 @@ function ohRate(){
   const ov=parseFloat(S.get('bcOhOverride',''));const override=(!isNaN(ov)&&ov>0);
   return {rate:override?ov:calcRate,override,opex,opexIsAuto,emp,al,sick,ph,util,wh,billWeeks,billHrs,calcRate};
 }
+// Classify a back-costing row into a job-type group by parsing its title/job string.
+function bcJobType(r){
+  const s=((r._title||'')+' '+(r.job||'')+' '+(r.job_type||'')).toLowerCase();
+  const pole=/pole\s*shed|pole\s*barn|poleshed|polebarn|\bshed\b|\bbarn\b|farm build/.test(s);
+  const roof=/re-?\s*roof|reroof|new roof|roof replace|roofing|recover roof/.test(s);
+  const gut=/gutter|spout|fascia|down\s*pipe|downpipe/.test(s);
+  if(pole)return 'Pole Sheds';
+  if(roof&&gut)return 'Re-Roof & Gutter';
+  if(roof)return "Re-Roof's";
+  if(gut)return 'Gutter only';
+  return 'Other';
+}
+function renderBCTypes(){
+  const body=document.getElementById('bc-type-body');if(!body)return;
+  const ovRate=ohRate().rate;
+  const groups={'Pole Sheds':[],"Re-Roof's":[],'Re-Roof & Gutter':[],'Gutter only':[],'Other':[]};
+  getAllBC().forEach(r=>{const g=bcJobType(r);(groups[g]||groups['Other']).push(r);});
+  const order=['Pole Sheds',"Re-Roof's",'Re-Roof & Gutter','Gutter only','Other'];
+  let html='',gS=0,gG=0,gH=0,gn=0;
+  order.forEach(name=>{
+    const list=groups[name];if(!list.length)return;
+    list.sort((a,b)=>num(b.sales)-num(a.sales));
+    let sS=0,sG=0,sH=0;
+    const rowsHtml=list.map(r=>{const sa=num(r.sales),gp=num(r.gp),h=num(r.h_actual);const np=gp-ovRate*h;sS+=sa;sG+=gp;sH+=h;
+      return '<tr><td>'+esc((r.job||'').slice(0,38))+(r._fergus?' <span class="mut">\u26A1</span>':'')+'</td><td>'+fmtK(sa)+'</td><td class="'+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td>'+(sa>0?Math.round(gp/sa*100)+'%':'\u2014')+'</td><td class="'+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td>'+(h?fmtH(h):'\u2014')+'</td></tr>';}).join('');
+    const sNP=sG-ovRate*sH;
+    html+='<tr style="background:rgba(80,140,255,.15);"><td style="font-weight:800;text-transform:uppercase;font-size:.62rem;letter-spacing:.4px;">'+esc(name)+' \u00B7 '+list.length+' jobs</td><td style="font-weight:800;">'+fmtK(sS)+'</td><td style="font-weight:800;">'+fmtK(sG)+'</td><td style="font-weight:800;">'+(sS>0?Math.round(sG/sS*100)+'%':'\u2014')+'</td><td style="font-weight:800;">'+fmtK(sNP)+'</td><td style="font-weight:800;">'+fmtH(sH)+'</td></tr>'+rowsHtml;
+    gS+=sS;gG+=sG;gH+=sH;gn+=list.length;
+  });
+  const gNP=gG-ovRate*gH;
+  html+='<tr class="tot"><td>TOTAL ('+gn+')</td><td>'+fmtK(gS)+'</td><td>'+fmtK(gG)+'</td><td>'+(gS>0?Math.round(gG/gS*100)+'%':'\u2014')+'</td><td>'+fmtK(gNP)+'</td><td>'+fmtH(gH)+'</td></tr>';
+  body.innerHTML=gn?html:'<tr><td colspan="6" class="empty">No back-costed jobs yet \u2014 Sync from Fergus.</td></tr>';
+}
 function renderBC(){
   fillBCFilters();
   renderBCStrip();
   renderMatPct();
+  renderBCTypes();
   // ── period cards (This / Last / 3-mo) from back-costing ──
   const p=periodMonths();
   document.getElementById('bc-met-this').innerHTML=metGrid(p.thisM?bcFig(p.thisM):null,true);
