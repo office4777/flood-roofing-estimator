@@ -643,10 +643,15 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
     }
   }
   // Fallback strategy — when every sibling path 404s but /jobs/{id}
-  // returns 200, this tenant exposes attachments INSIDE the job blob
-  // rather than via a dedicated listing endpoint. Fetch the job, unwrap
-  // the common envelopes Fergus uses (result, data), then walk the
-  // tree for any array whose first item looks file-shaped.
+  // returns 200, two scenarios are still in play:
+  //   A) the tenant exposes attachments INSIDE the job blob (walk for
+  //      a nested file-shaped array); or
+  //   B) the tenant routes file endpoints under a DIFFERENT id field
+  //      than the api id we got from the job-search response — common
+  //      on Fergus tenants where the web app's URL uses
+  //      /jobs/view/<short_id>/project_gallery while the api id is a
+  //      9-digit number. Extract every plausible id from the blob and
+  //      retry the candidate paths with each.
   try {
     const jobPath = FERGUS_PREFIX + '/jobs/' + encodeURIComponent(jobId);
     const jobUrl  = `https://${FERGUS_HOST}${jobPath}`;
@@ -671,6 +676,78 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
         if (job.value && typeof job.value === 'object')     { envs.push('value');  job = job.value; continue; }
         break;
       }
+      // (B) Retry the candidate paths with every alternative id we
+      // can find in the job blob. The Fergus web app uses
+      //   /jobs/view/<internal_id>/project_gallery
+      // for the gallery URL — that internal id is NOT the api id we
+      // already tried, so a fresh round of GETs with each plausible
+      // id often surfaces a real file array on tenants where the
+      // sibling endpoints expect the internal/route flavour.
+      const ID_HINT_KEYS = [
+        'internal_job_id','internal_id','route_id','web_id','display_id',
+        'job_no','job_number','jobNo','number','external_id',
+        'short_id','public_id','customer_id'
+      ];
+      const altIds = new Set();
+      function collectIds(node, depth){
+        if (depth > 3 || !node || typeof node !== 'object') return;
+        if (Array.isArray(node)){ node.slice(0, 30).forEach(v => collectIds(v, depth + 1)); return; }
+        for (const k of Object.keys(node)){
+          const lower = k.toLowerCase();
+          if (ID_HINT_KEYS.some(h => h === lower) && (typeof node[k] === 'string' || typeof node[k] === 'number')){
+            const v = String(node[k]).trim();
+            if (v && v !== String(jobId)) altIds.add(v);
+          }
+          if (typeof node[k] === 'object') collectIds(node[k], depth + 1);
+        }
+      }
+      collectIds(job, 0);
+      const altIdsArr = Array.from(altIds);
+      if (altIdsArr.length){
+        for (const altId of altIdsArr){
+          for (const tpl of candidates){
+            const path = FERGUS_PREFIX + tpl.replace('{jobId}', encodeURIComponent(altId));
+            const url  = `https://${FERGUS_HOST}${path}`;
+            try {
+              const ar = await fetch(url, {
+                method: 'GET',
+                headers: {
+                  'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+                  'Accept':        'application/json',
+                },
+              });
+              const atext = await ar.text();
+              let aparsed = null; try { aparsed = JSON.parse(atext); } catch {}
+              const asummary = aparsed && typeof aparsed === 'object'
+                ? (Array.isArray(aparsed)
+                    ? { type:'array', length: aparsed.length, firstKeys: aparsed[0] && typeof aparsed[0]==='object' ? Object.keys(aparsed[0]).slice(0,12) : null }
+                    : { type:'object', keys: Object.keys(aparsed).slice(0,15) })
+                : { type: typeof aparsed, sample: String(atext).slice(0,120) };
+              attempts.push({ path: tpl + ' [altId=' + altId + ']', status: ar.status, ok: ar.ok, summary: asummary });
+              if (!ar.ok || !aparsed) continue;
+              let arr2 = null;
+              if (Array.isArray(aparsed)) arr2 = aparsed;
+              else if (Array.isArray(aparsed.data)) arr2 = aparsed.data;
+              else if (Array.isArray(aparsed.files)) arr2 = aparsed.files;
+              else if (Array.isArray(aparsed.photos)) arr2 = aparsed.photos;
+              else if (Array.isArray(aparsed.attachments)) arr2 = aparsed.attachments;
+              else if (Array.isArray(aparsed.items)) arr2 = aparsed.items;
+              else if (Array.isArray(aparsed.records)) arr2 = aparsed.records;
+              else if (aparsed.value && Array.isArray(aparsed.value.data)) arr2 = aparsed.value.data;
+              else if (aparsed.result && Array.isArray(aparsed.result)) arr2 = aparsed.result;
+              else if (aparsed.result && Array.isArray(aparsed.result.files)) arr2 = aparsed.result.files;
+              else if (aparsed.result && Array.isArray(aparsed.result.data)) arr2 = aparsed.result.data;
+              if (!arr2) continue;
+              const files = arr2.map(_normaliseFergusFile).filter(Boolean);
+              if (!files.length) continue;
+              return res.json({ ok: true, used: tpl + ' (altId ' + altId + ')', count: files.length, files, attempts });
+            } catch (e) {
+              attempts.push({ path: tpl + ' [altId=' + altId + ']', error: e.message });
+            }
+          }
+        }
+      }
+
       // Recursive search — walk up to 4 levels deep looking for an
       // array of objects whose first item has file-like fields.
       const FILE_HINT_KEYS = ['url','public_url','download_url','file_url','signed_url','s3_url','original_url','path','name','filename','file_name','original_name','mime_type','content_type','thumbnail','thumb_url'];
@@ -710,7 +787,8 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
         type: 'object',
         envelopes: envs,
         topKeys: (typeof job === 'object' && job) ? Object.keys(job).slice(0, 40) : null,
-        scannedFor: 'embedded file array',
+        altIdsFound: altIdsArr,
+        scannedFor: 'embedded file array + alternative job ids',
         matchedPath: found[0] ? found[0].path : null,
         matchedLength: found[0] ? found[0].items.length : 0,
       };
