@@ -655,15 +655,24 @@ select{
 .flash-dwg .desc strong{color:#0a1628;display:block;font-size:12px;margin-bottom:2px}
 
 /* Cut list table — used for sheets, ridge, every flashing, gutter */
-.cut-list{width:100%;border-collapse:collapse;font-size:12.5px}
-.cut-list thead th{text-align:left;padding:7px 10px;font-size:10.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;background:#f4f4ef;border-bottom:1px solid var(--border)}
+.cut-list{width:100%;border-collapse:collapse;font-size:12px}
+.cut-list thead th{text-align:left;padding:5px 10px;font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;background:#f4f4ef;border-bottom:1px solid var(--border)}
 .cut-list thead th.r{text-align:right}
-.cut-list tbody td{padding:8px 10px;border-bottom:1px solid #ececec;color:#0a1628}
+.cut-list tbody td{padding:3px 10px;border-bottom:1px solid #f0f0ec;color:#0a1628;line-height:1.4}
 .cut-list tbody td.r{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .cut-list tbody tr:last-child td{border-bottom:none}
-.cut-list tfoot td{padding:9px 10px;border-top:2px solid #0a1628;background:#f8f9fa;font-weight:700;font-size:12.5px;color:#0a1628}
+.cut-list tfoot td{padding:5px 10px;border-top:1.5px solid #0a1628;background:#f8f9fa;font-weight:700;font-size:12px;color:#0a1628}
 .cut-list tfoot td.r{text-align:right;font-variant-numeric:tabular-nums}
-.cut-list-empty{padding:14px 4px;font-size:12px;color:var(--text2);font-style:italic}
+.cut-list-empty{padding:10px 4px;font-size:12px;color:var(--text2);font-style:italic}
+/* Inputs inside cut-list rows shouldn't add extra vertical real estate.
+   When letters are hidden the Piece column collapses to a width:0 td
+   so the row reads as a clean three-column "qty / length / delete". */
+.cut-list .cl-letter,
+.cut-list .cl-length,
+.cut-list .cl-qty{ padding:2px 4px!important; line-height:1.3!important; }
+.cut-list.cl-no-letters .cl-piece{ display:none; }
+.cut-list.cl-no-letters th.cl-piece-col,
+.cut-list.cl-no-letters td.cl-piece-col{ display:none; }
 
 /* Consumables grid (restyled) */
 .cons-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:4px}
@@ -890,6 +899,13 @@ select{
   background:#fff; border:1px solid var(--border); border-radius:10px;
   padding:10px 14px; margin-bottom:14px;
   box-shadow:0 4px 14px rgba(0,0,0,.06);
+}
+/* Bottom mirror — same actions, sticks to the page bottom so the user
+   doesn't have to scroll back up after editing a long Job Pack. */
+.jp-toolbar-bottom{
+  position:sticky; top:auto; bottom:0;
+  margin-top:14px; margin-bottom:0;
+  box-shadow:0 -4px 14px rgba(0,0,0,.06);
 }
 .jp-toolbar select, .jp-toolbar input[type=text]{
   margin:0; padding:6px 8px; font-size:12px; border:1px solid var(--border);
@@ -2083,6 +2099,21 @@ select{
   </div>
   <div class="jp-pages" id="jpPages"></div>
   <button class="jp-add-page-btn" onclick="_jpAddPage()">+ Add Page</button>
+
+  <!-- Bottom toolbar — same actions as the header toolbar, sticky so
+       the user can hit Save / Push / Open / Order without scrolling
+       back to the top of a long Job Pack. .no-print hides it from
+       the PDF capture. -->
+  <div class="card jp-toolbar jp-toolbar-bottom no-print" id="jpToolbarBottom">
+    <strong style="font-size:13px;color:#0a1628">Job Pack Designer</strong>
+    <span style="font-size:11px;color:var(--text2)">— actions, mirrored from the top bar</span>
+    <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
+      <button onclick="saveMaterialsAsPdf()"    class="mat-btn mat-btn-dark"  style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
+      <button onclick="pushMaterialsToFergus()" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px">📤 Push to Fergus</button>
+      <button onclick="openFergusJob()"         class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">📂 Open in Fergus</button>
+      <button onclick="orderRoofViaSupplier()"  class="mat-btn mat-btn-blue"  style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
+    </div>
+  </div>
 
   <!-- Maps side panel — slides in from the right edge. Holds thumbnails
        of every available map (Detailed roof map, Basic roof map, Sheet
@@ -19152,7 +19183,10 @@ function _jpRenderFlashingCell(box, bi){
     ? '<img src="'+esc(pick.entry.sketch)+'" style="width:100%;height:140px;object-fit:contain;background:#fff;border-radius:4px">'
     : '<div style="height:120px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;text-align:center;padding:8px">No default drawing<br>add one in Settings</div>';
   // Compact cut list — single-line rows, smaller pad, no header row.
-  // Footer collapses to a single "N pcs · X.Xm" line.
+  // Footer collapses to a single "N pcs · X.Xm" line.  When the
+  // flashing-refs toggle is off the per-row letter input collapses
+  // (display:none) so the row reads as just "× qty  length m  ×".
+  var rowsRefsOn = (typeof _matShowFlashRefs === 'function') ? _matShowFlashRefs() : true;
   var rowsHtml = '';
   cl.rows.forEach(function(r, i){
     var lbl = r.letter ? r.letter : '?';
@@ -19170,8 +19204,12 @@ function _jpRenderFlashingCell(box, bi){
       qtyCell     = '<span style="font-size:12px">'+r.qty+'</span>';
       deleteCell  = '<button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
     }
-    rowsHtml += '<div style="display:grid;grid-template-columns:auto auto 1fr auto;gap:8px;align-items:center;padding:3px 6px;font-size:12px;line-height:1.5'+(isExtra?';background:#fffbeb;border-radius:3px':'')+'">'+
-      letterInput +
+    var letterCell = rowsRefsOn
+      ? letterInput
+      : '<span style="display:none">'+letterInput+'</span>';
+    var gridCols   = rowsRefsOn ? 'auto auto 1fr auto' : 'auto 1fr auto';
+    rowsHtml += '<div style="display:grid;grid-template-columns:'+gridCols+';gap:8px;align-items:center;padding:2px 6px;font-size:12px;line-height:1.4'+(isExtra?';background:#fffbeb;border-radius:3px':'')+'">'+
+      letterCell +
       '<span style="color:#6f6a60">×'+qtyCell+'</span>'+
       '<span style="text-align:right">'+lenInput+'<span style="color:#6f6a60">m</span></span>'+
       deleteCell +
@@ -20384,8 +20422,13 @@ function _matCutListTable(cl, emptyMsg) {
   if (cl.pieceCount === 0) {
     return '<div class="cut-list-empty">'+esc(emptyMsg || 'No pieces yet — add drawn line measurements.')+'</div>' + addBtn;
   }
-  var html = '<table class="cut-list cut-list-editable"><thead><tr>'+
-    '<th>Piece</th><th class="r">Qty</th><th class="r">Length each</th>'+
+  // When the user has turned off A/B/C reference letters, drop the
+  // Piece column entirely so the cut list reads as a flat "qty /
+  // length / delete" — matches the Roof sheets table.
+  var refsOn = (typeof _matShowFlashRefs === 'function') ? _matShowFlashRefs() : true;
+  var tblClass = 'cut-list cut-list-editable' + (refsOn ? '' : ' cl-no-letters');
+  var html = '<table class="'+tblClass+'"><thead><tr>'+
+    '<th class="cl-piece-col">Piece</th><th class="r">Qty</th><th class="r">Length each</th>'+
     (hasLib ? '<th class="r">Drawing</th>' : '')+
     '<th class="r"></th>'+
   '</tr></thead><tbody>';
@@ -20426,16 +20469,26 @@ function _matCutListTable(cl, emptyMsg) {
     }
     var drawingCell = hasLib ? '<td class="r">'+_matRowDrawingHtml(typeKey, i, libMatches)+'</td>' : '';
     html += '<tr'+(isExtra?' style="background:#fffbeb"':'')+'>'+
-      '<td>'+letterInput+'</td>'+
+      '<td class="cl-piece-col">'+letterInput+'</td>'+
       '<td class="r">'+qtyCell+'</td>'+
       '<td class="r">'+lenInput+' m</td>'+
       drawingCell +
       '<td class="r">'+deleteCell+'</td>'+
     '</tr>';
   });
-  html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td>'+
+  html += '</tbody><tfoot><tr><td class="cl-piece-col">Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td>'+
     (hasLib ? '<td class="r"></td>' : '')+
     '<td class="r"></td></tr></tfoot></table>';
+  // When letters are hidden the Piece column is gone, so the Total
+  // label needs to live in the Qty cell instead.  Inject the label
+  // text just inside the qty footer cell via a small inline span only
+  // when refsOn === false — keeps the markup the same in both modes.
+  if (!refsOn) {
+    html = html.replace(
+      /<tfoot><tr><td class="cl-piece-col">Total<\/td><td class="r">/,
+      '<tfoot><tr><td class="cl-piece-col">Total</td><td class="r"><span style="float:left;color:var(--text2);font-weight:600">Total</span>'
+    );
+  }
   return html + addBtn;
 }
 // Per-row drawing pick — each piece can use a different library entry
