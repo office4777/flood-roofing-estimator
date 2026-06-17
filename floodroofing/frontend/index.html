@@ -751,6 +751,52 @@ select{
   padding:14px; display:flex; flex-direction:column;
   align-items:center; gap:8px; min-height:200px; justify-content:center;
 }
+/* Email-style cut list rows — replaces the old grid table with a
+   plain-text-y "qty @ length m" line that reads like the supplier
+   order email the user actually sends. Inputs are borderless until
+   hovered / focused so the row stays uncluttered. */
+.mat-list{ display:flex; flex-direction:column; gap:2px; padding:4px 0; }
+.mat-list-row{
+  display:flex; align-items:center; gap:6px;
+  padding:2px 6px; font-size:13px; color:#0a1628; line-height:1.5;
+  border-radius:4px;
+}
+.mat-list-row.is-extra{ background:#fffbeb; }
+.mat-list-letter{
+  display:inline-block; min-width:18px;
+  font-weight:700; color:#7c3aed; font-size:11px;
+  text-align:center;
+}
+.mat-list-row .mat-list-qty input,
+.mat-list-row .mat-list-len input{
+  font:inherit; color:inherit;
+  border:1px solid transparent; background:transparent;
+  border-radius:4px; padding:1px 4px;
+  text-align:right; font-variant-numeric:tabular-nums;
+}
+.mat-list-row .mat-list-qty input{ width:42px; font-weight:700; }
+.mat-list-row .mat-list-len input{ width:56px; font-weight:600; }
+.mat-list-row .mat-list-qty input:hover,
+.mat-list-row .mat-list-len input:hover,
+.mat-list-row .mat-list-qty input:focus,
+.mat-list-row .mat-list-len input:focus{
+  border-color:#cbd5e1; background:#fff; outline:none;
+}
+.mat-list-at{ color:#6f6a60; font-weight:500; }
+.mat-list-unit{ color:#6f6a60; margin-left:2px; }
+.mat-list-del{
+  margin-left:auto;
+  background:none; border:none; color:#b91c1c;
+  font-size:14px; cursor:pointer; padding:0 4px; font-weight:700;
+  opacity:0; transition:opacity .1s ease;
+}
+.mat-list-row:hover .mat-list-del{ opacity:1; }
+.mat-list-foot{
+  margin-top:4px; padding:3px 6px;
+  border-top:1px solid #e5e7eb;
+  font-size:11px; color:#475569; font-weight:600;
+  font-variant-numeric:tabular-nums;
+}
 
 /* Persistent job bar at the top of every tab — replaces the
    sidebar job chip so the user always sees the current job no
@@ -758,11 +804,22 @@ select{
    tab scrolls. */
 .global-job-bar{
   position:sticky; top:0; z-index:40;
-  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  display:flex; flex-direction:column; gap:6px;
   padding:8px 14px; margin-bottom:14px;
   background:#fff; border:1px solid var(--border); border-radius:10px;
   box-shadow:0 2px 10px rgba(10,22,40,.05);
 }
+.global-job-bar .gjb-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.global-job-bar .gjb-costs{
+  display:flex; gap:14px; flex-wrap:wrap;
+  padding-top:6px; border-top:1px dashed #e2e8f0;
+}
+.global-job-bar .gjb-cost{
+  display:inline-flex; align-items:baseline; gap:5px;
+  font-size:11px; color:var(--text2);
+}
+.global-job-bar .gjb-cost-lbl{ font-weight:600; text-transform:uppercase; letter-spacing:.04em; font-size:9.5px; color:#475569; }
+.global-job-bar .gjb-cost-val{ font-weight:700; color:#0a1628; font-size:12.5px; font-variant-numeric:tabular-nums; }
 .global-job-bar .gjb-label{ display:flex; flex-direction:column; min-width:0; flex:1; }
 .global-job-bar .gjb-eyebrow{ font-size:9.5px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.06em; }
 .global-job-bar .gjb-name{ font-size:13px; font-weight:700; color:#0a1628; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -1540,7 +1597,7 @@ select{
   </div>
   <button class="nav-btn" onclick="gotoTab('roof')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.3"/></svg>Map Roof</button>
   <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Job Pack</button>
-  <button class="nav-btn" onclick="gotoTab('scope')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8H11M5 5.5H11M5 10.5H8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Scope &amp; Pricing</button>
+  <button class="nav-btn" onclick="gotoTab('scope')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8H11M5 5.5H11M5 10.5H8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Pricing</button>
   <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <!-- "Order Material" tab consolidated into Materials (action bar buttons:
        Save PDF / Push to Fergus / Order Roof). Nav button hidden; panel
@@ -1562,20 +1619,30 @@ select{
      S.linkedJobId / S.linkedJobName + S.currentJobId. The chip used
      to live in the sidebar; moved here per the user's request. -->
 <div class="global-job-bar no-print" id="globalJobBar">
-  <div class="gjb-label">
-    <span class="gjb-eyebrow">Current job</span>
-    <span class="gjb-name" id="globalJobBarName">— new (not yet saved)</span>
+  <div class="gjb-row">
+    <div class="gjb-label">
+      <span class="gjb-eyebrow">Current job</span>
+      <span class="gjb-name" id="globalJobBarName">— new (not yet saved)</span>
+    </div>
+    <div class="gjb-actions">
+      <button type="button" id="globalJobBarSaveBtn" onclick="saveCurrentJob()" class="gjb-btn gjb-btn-primary" title="Save the job draft">
+        <svg viewBox="0 0 16 16" style="width:13px;height:13px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7l3 3v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M5 3v3h5V3M5 11h6"/></svg>
+        Save
+      </button>
+      <button type="button" onclick="openSelectJobModal()" class="gjb-btn gjb-btn-light" title="Pick a different job">
+        <svg viewBox="0 0 16 16" style="width:13px;height:13px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5a1 1 0 0 1 1-1h3.5L8 5.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg>
+        Change job
+      </button>
+      <span id="globalJobBarSaveMsg" class="gjb-savemsg"></span>
+    </div>
   </div>
-  <div class="gjb-actions">
-    <button type="button" id="globalJobBarSaveBtn" onclick="saveCurrentJob()" class="gjb-btn gjb-btn-primary" title="Save the job draft">
-      <svg viewBox="0 0 16 16" style="width:13px;height:13px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7l3 3v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M5 3v3h5V3M5 11h6"/></svg>
-      Save
-    </button>
-    <button type="button" onclick="openSelectJobModal()" class="gjb-btn gjb-btn-light" title="Pick a different job">
-      <svg viewBox="0 0 16 16" style="width:13px;height:13px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5a1 1 0 0 1 1-1h3.5L8 5.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg>
-      Change job
-    </button>
-    <span id="globalJobBarSaveMsg" class="gjb-savemsg"></span>
+  <!-- Cost / labour summary — updated live whenever the Pricing tab
+       recalculates totals. Hidden until a number is available. -->
+  <div class="gjb-costs" id="globalJobBarCosts">
+    <span class="gjb-cost"><span class="gjb-cost-lbl">Material</span><span class="gjb-cost-val" id="gjbMaterialCost">—</span></span>
+    <span class="gjb-cost"><span class="gjb-cost-lbl">Labour</span><span class="gjb-cost-val" id="gjbLabourDays">—</span></span>
+    <span class="gjb-cost" id="gjbGutterCostWrap" style="display:none"><span class="gjb-cost-lbl">Gutter</span><span class="gjb-cost-val" id="gjbGutterCost">—</span></span>
+    <span class="gjb-cost" id="gjbScaffoldCostWrap" style="display:none"><span class="gjb-cost-lbl">Scaffold</span><span class="gjb-cost-val" id="gjbScaffoldCost">—</span></span>
   </div>
 </div>
 
@@ -4706,6 +4773,7 @@ function renderMaterialPriceTable(){
   box.innerHTML = html;
   S.materials = total;
   try { renderProfitability(); } catch(e){}
+  try { updateGlobalJobBarCosts(); } catch(e){}
 }
 
 function refreshSettingsUI(){
@@ -4933,6 +5001,44 @@ function updateGlobalJobBar(j){
     label = '— new (not yet saved)';
   }
   name.textContent = label;
+  try { updateGlobalJobBarCosts(); } catch(e){}
+}
+
+// Cost summary row under the persistent job bar. Reads the same data
+// Pricing-tab totals do (S.materials, S.labour, S.labourHours,
+// S.quote.scaffold). Gutter cost is pulled out of the material line
+// items by key prefix so we only show it when there's actually one.
+function updateGlobalJobBarCosts(){
+  function $(id){ return document.getElementById(id); }
+  function fmt(n){ return '$' + (Math.round(+n||0)).toLocaleString(); }
+  var mat = +S.materials || 0;
+  var labourHours = +S.labourHours || 0;
+  var days = labourHours > 0 ? (labourHours / 8) : 0;
+  var scaffoldPrice = (S.quote && S.quote.scaffold && +S.quote.scaffold.price) || 0;
+  // Pull the gutter line(s) out of S.matPriceRows if available — set
+  // by _buildMaterialPriceRows() when the user picked a gutter type.
+  // Falls back to scanning S.quote line items keyed "gutter*".
+  var gutterTotal = 0;
+  try {
+    var rows = (typeof _buildMaterialPriceRows === 'function') ? _buildMaterialPriceRows() : [];
+    rows.forEach(function(r){
+      if (!r || !r.key) return;
+      if (String(r.key).toLowerCase().indexOf('gutter') >= 0){
+        var ov = (typeof MATERIAL_OVERRIDES === 'object' && MATERIAL_OVERRIDES[r.key]) || {};
+        var variant = (ov.variant != null) ? ov.variant : r.defaultVariant;
+        var picked = r.variants && r.variants.find(function(v){ return v.value === variant; });
+        var qty = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+        var price = picked ? picked.price : 0;
+        gutterTotal += (qty||0) * (price||0);
+      }
+    });
+  } catch(e){}
+  var matEl = $('gjbMaterialCost');     if (matEl) matEl.textContent = fmt(mat);
+  var dayEl = $('gjbLabourDays');       if (dayEl) dayEl.textContent = days > 0 ? days.toFixed(1) + ' days' : '—';
+  var gtEl  = $('gjbGutterCost');       if (gtEl)  gtEl.textContent  = fmt(gutterTotal);
+  var gtW   = $('gjbGutterCostWrap');   if (gtW)   gtW.style.display = gutterTotal > 0 ? '' : 'none';
+  var scEl  = $('gjbScaffoldCost');     if (scEl)  scEl.textContent  = fmt(scaffoldPrice);
+  var scW   = $('gjbScaffoldCostWrap'); if (scW)   scW.style.display = scaffoldPrice > 0 ? '' : 'none';
 }
 
 // ── SIDEBAR JOB CHIP + AUTOSAVE ──────────────────────────────────
@@ -4988,6 +5094,17 @@ function updateSidebarJobChip(j){
   // the autosave pill without re-supplying the job by caching the last
   // job we were given.
   if (j !== undefined) _lastJobForChip = j;
+  // Sidebar chip retired — the persistent #globalJobBar at the top
+  // of every tab carries the same info now. Function kept for the
+  // autosave wiring (it calls updateSidebarJobChip() before/after
+  // every save), but it no longer renders. Force the DOM hidden so
+  // the chip never sneaks back into view even if a stale layout
+  // assignment tries to flip the display flag.
+  var chip = document.getElementById('sidebarJobChip');
+  if (chip) chip.style.display = 'none';
+  return;
+}
+function _retiredUpdateSidebarJobChip(){
   var j2 = _lastJobForChip;
   var chip = document.getElementById('sidebarJobChip');
   var lbl  = document.getElementById('sidebarJobChipLabel');
@@ -6477,6 +6594,9 @@ function calcLabour(){
 // Job profitability dashboard.
 function renderProfitability(){
   var wrap = document.getElementById('profitWrap');
+  // Always nudge the persistent top job bar so the cost row stays
+  // in sync even when the profitability dashboard panel isn't open.
+  try { updateGlobalJobBarCosts(); } catch(e){}
   if (!wrap) return;
   var st = _pricingState(); var sc = st.sc;
   var f = function(v){ return parseFloat(v) || 0; };
@@ -19473,31 +19593,46 @@ function _jpRenderCutLists(content, page, idx){
     _jpSpecSelect('Gutter',      'matGutter',    [['none','None'],['colorsteel-box','Colorsteel 125mm'],['zincalume-box','Zincalume 125mm'],['marley-classic','Marley Classic'],['marley-typhoon','Marley Typhoon']]) +
   '</div>';
 
-  // ── Roof sheets table (editable) ──
+  // ── Roof sheets (email-style: "13 @ 6.21m") ──
   html += '<div class="mat-section">'+
     _matSectionHead('#0099cc', 'Roof sheets', esc(profile)+' · '+esc(grade)+' · '+esc(thickness));
   var sheetRows = _jpBuildSheetRows(sc);
   if (sheetRows.length || (Array.isArray(DRAW.matSheetExtras) && DRAW.matSheetExtras.length)) {
-    html += '<table class="cut-list" style="margin-bottom:6px"><thead><tr><th>Description</th><th class="r" style="width:78px">Qty</th><th class="r" style="width:110px">Length each</th><th style="width:34px"></th></tr></thead><tbody>';
     var totalSheets = 0;
+    var rowsHtml = '';
     sheetRows.forEach(function(r){
       totalSheets += r.qty;
-      var qtyIn = '<input type="number" min="0" step="1" value="'+r.qty+'" onfocus="this.select()" onchange="_jpSheetSetQty('+r.origLen+',this.value)" style="width:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px">';
-      var lenIn = '<input type="number" min="0.5" step="0.05" value="'+(r.len/1000).toFixed(2)+'" onfocus="this.select()" onchange="_jpSheetSetLen('+r.origLen+',this.value)" style="width:70px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px"><span style="color:#6f6a60;font-size:11px"> m</span>';
-      var delBtn = '<button onclick="_jpSheetHide('+r.origLen+')" title="Hide this row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700">×</button>';
-      html += '<tr><td>'+esc(profile)+' sheet</td><td class="r">'+qtyIn+'</td><td class="r">'+lenIn+'</td><td style="text-align:center">'+delBtn+'</td></tr>';
+      var qty = '<input type="number" min="0" step="1" value="'+r.qty+'" onfocus="this.select()" '+
+        'onchange="_jpSheetSetQty('+r.origLen+',this.value)">';
+      var lenInp = '<input type="number" min="0.5" step="0.05" value="'+(r.len/1000).toFixed(2)+'" onfocus="this.select()" '+
+        'onchange="_jpSheetSetLen('+r.origLen+',this.value)">';
+      var del = '<button class="mat-list-del" onclick="_jpSheetHide('+r.origLen+')" title="Hide row">×</button>';
+      rowsHtml += '<div class="mat-list-row">'+
+        '<span class="mat-list-qty">'+qty+'</span>'+
+        '<span class="mat-list-at">@</span>'+
+        '<span class="mat-list-len">'+lenInp+'<span class="mat-list-unit">m</span></span>'+
+        del +
+      '</div>';
     });
     if (Array.isArray(DRAW.matSheetExtras)) {
       DRAW.matSheetExtras.forEach(function(x, xi){
         if (!x) return;
         totalSheets += +x.qty || 0;
-        var qtyIn = '<input type="number" min="0" step="1" value="'+(x.qty||0)+'" onfocus="this.select()" onchange="_jpSheetExtraUpdate('+xi+',\'qty\',this.value)" style="width:60px;border:1px solid #fcd34d;border-radius:4px;background:#fffbeb;text-align:right;padding:3px 6px;font-size:12px">';
-        var lenIn = '<input type="number" min="0.5" step="0.05" value="'+(((x.lenMm||3000)/1000).toFixed(2))+'" onfocus="this.select()" onchange="_jpSheetExtraUpdate('+xi+',\'lenMm\',this.value)" style="width:70px;border:1px solid #fcd34d;border-radius:4px;background:#fffbeb;text-align:right;padding:3px 6px;font-size:12px"><span style="color:#6f6a60;font-size:11px"> m</span>';
-        var delBtn = '<button onclick="_jpSheetExtraDelete('+xi+')" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700">×</button>';
-        html += '<tr style="background:#fffbeb"><td>'+esc(profile)+' sheet <em style="color:#92400e;font-size:10px">(extra)</em></td><td class="r">'+qtyIn+'</td><td class="r">'+lenIn+'</td><td style="text-align:center">'+delBtn+'</td></tr>';
+        var qty = '<input type="number" min="0" step="1" value="'+(x.qty||0)+'" onfocus="this.select()" '+
+          'onchange="_jpSheetExtraUpdate('+xi+',\'qty\',this.value)">';
+        var lenInp = '<input type="number" min="0.5" step="0.05" value="'+(((x.lenMm||3000)/1000).toFixed(2))+'" onfocus="this.select()" '+
+          'onchange="_jpSheetExtraUpdate('+xi+',\'lenMm\',this.value)">';
+        var del = '<button class="mat-list-del" onclick="_jpSheetExtraDelete('+xi+')" title="Delete row">×</button>';
+        rowsHtml += '<div class="mat-list-row is-extra">'+
+          '<span class="mat-list-qty">'+qty+'</span>'+
+          '<span class="mat-list-at">@</span>'+
+          '<span class="mat-list-len">'+lenInp+'<span class="mat-list-unit">m</span></span>'+
+          del +
+        '</div>';
       });
     }
-    html += '</tbody><tfoot><tr><td>Total sheets</td><td class="r">'+totalSheets+'</td><td class="r">'+d.roofArea.toFixed(1)+' m² roof</td><td></td></tr></tfoot></table>';
+    html += '<div class="mat-list">'+rowsHtml+'</div>'+
+      '<div class="mat-list-foot">'+totalSheets+' sheets · '+d.roofArea.toFixed(1)+' m² roof</div>';
   } else {
     html += '<div class="cut-list-empty">Generate the Roof Sheet Plan on the Map Roof tab to populate.</div>';
   }
@@ -19517,46 +19652,7 @@ function _jpRenderCutLists(content, page, idx){
   // doesn't need them. The flag lives in localStorage already; this
   // toggle just exposes it in the Job Pack designer.
   var refsOn = _matShowFlashRefs();
-  html += '<div class="mat-toggle-row">'+
-    '<div class="mat-toggle-label"><strong>Flashing reference letters</strong> — show A/B/C tags on the roof map &amp; cut list</div>'+
-    '<label>'+
-      '<input type="checkbox" '+(refsOn?'checked':'')+' onchange="_jpToggleFlashRefs(this.checked)" style="width:auto;margin:0"> '+(refsOn?'On':'Off')+
-    '</label>'+
-  '</div>';
-
-  // ── Flashings 2-per-row grid ──
-  // Collect every spec that has at least one piece, then any user-
-  // added flashings gallery entries (S.matFlashings) for "extra"
-  // types so adding via "Select From Favourites" / "Enter Custom"
-  // shows up here too.
-  var grid = '';
-  var typeBoxes = [];
-  _MAT_FLASHING_SPECS.slice(1).forEach(function(spec){
-    var cl = _matBuildCutList(spec.key, spec.waste);
-    if (cl.pieceCount === 0) return;
-    typeBoxes.push({ spec: spec, cl: cl, label: spec.label });
-  });
-  // Plus any gallery flashings the user added that aren't in the
-  // auto-derived list yet (those are usually special / one-off
-  // pieces).  Render them as label-only boxes — no cut list because
-  // they don't have an auto-collected piece count.
-  if (Array.isArray(S.matFlashings)) {
-    S.matFlashings.forEach(function(slot, si){
-      if (!slot) return;
-      typeBoxes.push({ slot: slot, slotIdx: si });
-    });
-  }
-  // Empty "Add" box always appears at the end.
-  typeBoxes.push({ add: true });
-  // 2 boxes per row so each drawing has more space — the user couldn't
-  // read the flashing diagrams at 3-per-row.
-  html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px">';
-  typeBoxes.forEach(function(box, bi){
-    html += _jpRenderFlashingCell(box, bi);
-  });
-  html += '</div>';
-
-  // ── Guttering ──
+  // ── Guttering (sits with the cut lists at the top of the page) ──
   var gutterChoice = (document.getElementById('matGutter') || {}).value || 'none';
   var gutterLabel = {
     'none':'No gutter required',
@@ -19576,13 +19672,40 @@ function _jpRenderCutLists(content, page, idx){
   }
   html += '</div>';
 
-  // ── Consumables (now lives on the cut-list page so the install
-  //    crew has every count on one surface). Renders as a .cut-list
-  //    table so the visual matches Roof sheets / Ridge / Gutter
-  //    sections above. The standalone Consumables page type is gone
-  //    from new jobs (see _jpDefaultPages); existing jobs with one
-  //    still render via _jpRenderConsumables, untouched. */
+  // ── Consumables ──
   html += _jpRenderConsumablesSection(d);
+
+  // ── Letter-refs toggle + Flashings grid live at the BOTTOM of the
+  //    page now (user wants the simple cut lists / consumables first
+  //    so the page reads like the supplier order email).
+  html += '<div class="mat-toggle-row" style="margin-top:18px">'+
+    '<div class="mat-toggle-label"><strong>Flashing reference letters</strong> — show A/B/C tags on the roof map &amp; cut list</div>'+
+    '<label>'+
+      '<input type="checkbox" '+(refsOn?'checked':'')+' onchange="_jpToggleFlashRefs(this.checked)" style="width:auto;margin:0"> '+(refsOn?'On':'Off')+
+    '</label>'+
+  '</div>';
+  html += '<div class="mat-section">'+
+    _matSectionHead('#0891b2', 'Flashings', 'one card per type');
+  var typeBoxes = [];
+  _MAT_FLASHING_SPECS.slice(1).forEach(function(spec){
+    var cl = _matBuildCutList(spec.key, spec.waste);
+    if (cl.pieceCount === 0) return;
+    typeBoxes.push({ spec: spec, cl: cl, label: spec.label });
+  });
+  if (Array.isArray(S.matFlashings)) {
+    S.matFlashings.forEach(function(slot, si){
+      if (!slot) return;
+      typeBoxes.push({ slot: slot, slotIdx: si });
+    });
+  }
+  typeBoxes.push({ add: true });
+  // 2 boxes per row so each drawing has more space — the user couldn't
+  // read the flashing diagrams at 3-per-row.
+  html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">';
+  typeBoxes.forEach(function(box, bi){
+    html += _jpRenderFlashingCell(box, bi);
+  });
+  html += '</div></div>';
 
   content.innerHTML = html;
 }
@@ -19631,10 +19754,16 @@ function _jpRenderFlashingCell(box, bi){
   // _jpResolveDefaultDrawing falls back to ANY entry whose type
   // shares the same `barge` / `apron` prefix when the exact-type
   // lookup comes up empty.
-  var pick = _jpResolveDefaultDrawing(spec.key);
-  var drawing = pick && pick.entry.sketch
-    ? '<img src="'+esc(pick.entry.sketch)+'" style="width:100%;height:140px;object-fit:contain;background:#fff;border-radius:4px">'
-    : '<div style="height:120px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;text-align:center;padding:8px">No default drawing<br>add one in Settings</div>';
+  // Valley / drip / custom never have a drawing — spec.drawing is
+  // null for those types so we skip the slot entirely (the placeholder
+  // "No default drawing" tile is just noise).
+  var pick = spec.drawing ? _jpResolveDefaultDrawing(spec.key) : null;
+  var drawing = '';
+  if (spec.drawing) {
+    drawing = pick && pick.entry.sketch
+      ? '<img src="'+esc(pick.entry.sketch)+'" style="width:100%;height:140px;object-fit:contain;background:#fff;border-radius:4px">'
+      : '<div style="height:120px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;text-align:center;padding:8px">No default drawing<br>add one in Settings</div>';
+  }
   // Compact cut list — single-line rows, smaller pad, no header row.
   // Footer collapses to a single "N pcs · X.Xm" line.  When the
   // flashing-refs toggle is off the per-row letter input collapses
@@ -20955,90 +21084,50 @@ function _matCompactSection(opts) {
 // at the end of each row deletes the entry from the cut list (marks
 // every matching line as hidden in the overrides map). No popups.
 function _matCutListTable(cl, emptyMsg) {
+  // Email-style cut list — reads like the supplier order ("5 @ 5.5m"
+  // per line) instead of a full row+column table.  Each line is an
+  // inline qty / length / delete input, borderless until hovered, so
+  // the section looks plain on paper but stays fully editable.
   var typeKey = cl.typeKey || '';
-  // Resolve all library entries for this flashing type so each row can
-  // pick which drawing represents that specific piece (e.g. the first
-  // barge is a starter, the second a finish — both with different
-  // sketches).
-  var libMatches = typeKey ? _matSavedFlashingsFor(typeKey) : [];
-  var hasLib = libMatches.length > 0;
-  // "+ Add row" lets the user add a piece that isn't tied to any drawn
-  // line (e.g. a leftover from a previous job, or a make-up piece the
-  // supplier needs alongside the auto-derived pieces). Always shown.
+  var refsOn = (typeof _matShowFlashRefs === 'function') ? _matShowFlashRefs() : true;
   var addBtn = typeKey
-    ? '<button onclick="_matExtrasAdd(\''+typeKey+'\')" class="add-link" style="margin-top:8px;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#0a1628;background:transparent;border:1px dashed #94a3b8;border-radius:6px;padding:5px 12px;cursor:pointer">+ Add row</button>'
+    ? '<button class="mat-add-btn" onclick="_matExtrasAdd(\''+typeKey+'\')">+ Add row</button>'
     : '';
   if (cl.pieceCount === 0) {
     return '<div class="cut-list-empty">'+esc(emptyMsg || 'No pieces yet — add drawn line measurements.')+'</div>' + addBtn;
   }
-  // When the user has turned off A/B/C reference letters, drop the
-  // Piece column entirely so the cut list reads as a flat "qty /
-  // length / delete" — matches the Roof sheets table.
-  var refsOn = (typeof _matShowFlashRefs === 'function') ? _matShowFlashRefs() : true;
-  var tblClass = 'cut-list cut-list-editable' + (refsOn ? '' : ' cl-no-letters');
-  var html = '<table class="'+tblClass+'"><thead><tr>'+
-    '<th class="cl-piece-col">Piece</th><th class="r">Qty</th><th class="r">Length each</th>'+
-    (hasLib ? '<th class="r">Drawing</th>' : '')+
-    '<th class="r"></th>'+
-  '</tr></thead><tbody>';
-  cl.rows.forEach(function(r, i){
-    var lbl = r.letter ? r.letter : '?';
+  var rowsHtml = '';
+  cl.rows.forEach(function(r){
     var rowKey = esc(typeKey + '::' + (r.letter || '') + '::' + r.length.toFixed(2));
-    // Extra rows (user-added) write through to DRAW.matCutListExtras
-    // and have their own delete handler; drawing-derived rows use the
-    // existing flashLayoutOverrides path via _matInline* helpers.
     var isExtra = !!r._isExtra;
-    var extraIdx = r._extraIdx;
-    var letterInput, lenInput, qtyCell, deleteCell;
+    var letterHtml = (refsOn && r.letter)
+      ? '<span class="mat-list-letter">'+esc(r.letter)+'</span>'
+      : '';
+    var qtyHtml, lenHtml, delBtn;
     if (isExtra) {
-      letterInput = '<input class="cl-letter" type="text" maxlength="3" value="'+esc(lbl)+'" '+
-        'onfocus="this.select()" '+
-        'onchange="_matExtrasUpdate(\''+esc(typeKey)+'\','+extraIdx+',\'letter\',this.value)" '+
-        'style="width:42px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:2px 4px;border-radius:4px;font-size:inherit;font-style:italic">';
-      lenInput = '<input class="cl-length" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" '+
-        'onfocus="this.select()" '+
-        'onchange="_matExtrasUpdate(\''+esc(typeKey)+'\','+extraIdx+',\'length\',this.value)" '+
-        'style="width:62px;border:1px solid transparent;background:transparent;text-align:right;padding:2px 4px;border-radius:4px;font-size:inherit">';
-      qtyCell = '<input class="cl-qty" type="number" step="1" min="1" value="'+r.qty+'" '+
-        'onfocus="this.select()" '+
-        'onchange="_matExtrasUpdate(\''+esc(typeKey)+'\','+extraIdx+',\'qty\',this.value)" '+
-        'style="width:48px;border:1px solid transparent;background:transparent;text-align:right;padding:2px 4px;border-radius:4px;font-size:inherit">';
-      deleteCell = '<button onclick="_matExtrasDelete(\''+esc(typeKey)+'\','+extraIdx+')" title="Delete this added piece" '+
-        'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:2px 6px;line-height:1">×</button>';
+      var idx = r._extraIdx;
+      qtyHtml = '<input type="number" step="1" min="1" value="'+r.qty+'" onfocus="this.select()" '+
+        'onchange="_matExtrasUpdate(\''+esc(typeKey)+'\','+idx+',\'qty\',this.value)">';
+      lenHtml = '<input type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" '+
+        'onchange="_matExtrasUpdate(\''+esc(typeKey)+'\','+idx+',\'length\',this.value)">';
+      delBtn  = '<button class="mat-list-del" onclick="_matExtrasDelete(\''+esc(typeKey)+'\','+idx+')" title="Delete row">×</button>';
     } else {
-      letterInput = '<input class="cl-letter" data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" '+
-        'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLetter(this)" '+
-        'style="width:42px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:2px 4px;border-radius:4px;font-size:inherit">';
-      lenInput = '<input class="cl-length" data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" '+
-        'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLength(this)" '+
-        'style="width:62px;border:1px solid transparent;background:transparent;text-align:right;padding:2px 4px;border-radius:4px;font-size:inherit">';
-      qtyCell = r.qty;
-      deleteCell = '<button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Remove this piece from the cut list" '+
-        'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:2px 6px;line-height:1">×</button>';
+      qtyHtml = '<span style="font-weight:700;font-variant-numeric:tabular-nums">'+r.qty+'</span>';
+      lenHtml = '<input data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" '+
+        'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLength(this)">';
+      delBtn  = '<button class="mat-list-del" data-cl-row="'+rowKey+'" onclick="_matInlineDelete(this)" title="Delete row">×</button>';
     }
-    var drawingCell = hasLib ? '<td class="r">'+_matRowDrawingHtml(typeKey, i, libMatches)+'</td>' : '';
-    html += '<tr'+(isExtra?' style="background:#fffbeb"':'')+'>'+
-      '<td class="cl-piece-col">'+letterInput+'</td>'+
-      '<td class="r">'+qtyCell+'</td>'+
-      '<td class="r">'+lenInput+' m</td>'+
-      drawingCell +
-      '<td class="r">'+deleteCell+'</td>'+
-    '</tr>';
+    rowsHtml += '<div class="mat-list-row'+(isExtra?' is-extra':'')+'">'+
+      letterHtml +
+      '<span class="mat-list-qty">'+qtyHtml+'</span>'+
+      '<span class="mat-list-at">@</span>'+
+      '<span class="mat-list-len">'+lenHtml+'<span class="mat-list-unit">m</span></span>'+
+      delBtn +
+    '</div>';
   });
-  html += '</tbody><tfoot><tr><td class="cl-piece-col">Total</td><td class="r">'+cl.pieceCount+' pcs</td><td class="r">'+cl.totalLm.toFixed(1)+' m</td>'+
-    (hasLib ? '<td class="r"></td>' : '')+
-    '<td class="r"></td></tr></tfoot></table>';
-  // When letters are hidden the Piece column is gone, so the Total
-  // label needs to live in the Qty cell instead.  Inject the label
-  // text just inside the qty footer cell via a small inline span only
-  // when refsOn === false — keeps the markup the same in both modes.
-  if (!refsOn) {
-    html = html.replace(
-      /<tfoot><tr><td class="cl-piece-col">Total<\/td><td class="r">/,
-      '<tfoot><tr><td class="cl-piece-col">Total</td><td class="r"><span style="float:left;color:var(--text2);font-weight:600">Total</span>'
-    );
-  }
-  return html + addBtn;
+  return '<div class="mat-list">'+rowsHtml+'</div>'+
+    '<div class="mat-list-foot">'+cl.pieceCount+' pcs · '+cl.totalLm.toFixed(1)+' m total</div>'+
+    addBtn;
 }
 // Per-row drawing pick — each piece can use a different library entry
 // for the supplier's flashing reference. Default is the first match
