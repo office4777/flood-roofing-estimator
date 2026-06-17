@@ -481,6 +481,7 @@ select{
   background:var(--surface-2);
 }
 .upload-zone:hover{border-color:var(--accent);background:var(--accent-soft)}
+.upload-zone.is-dragover{border-color:#0099cc;background:#dcf2fb;outline:2px dashed #0099cc;outline-offset:-6px}
 .uz-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;letter-spacing:-.005em}
 .uz-sub{font-size:12px;color:var(--text2)}
 .upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
@@ -1546,9 +1547,11 @@ select{
     <div class="card-hd"><span class="card-dot"></span>Upload roof picture
       <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">— use your own sketch / aerial photo instead of the satellite view above</span>
     </div>
-    <div class="upload-zone" id="roofUZ" style="margin-top:6px;padding:14px 16px">
+    <div class="upload-zone" id="roofUZ"
+         ondragover="_roofUzDragOver(event)" ondragleave="_roofUzDragLeave(event)" ondrop="_roofUzDrop(event)"
+         style="margin-top:6px;padding:14px 16px">
       <div class="uz-title" style="margin-bottom:2px">Drop your roof sketch / aerial photo here</div>
-      <div class="uz-sub" style="margin-bottom:10px">JPG or PNG — sits behind the canvas as a tracing background</div>
+      <div class="uz-sub" style="margin-bottom:10px">JPG or PNG — drag straight from a Fergus tab, or use the buttons below</div>
       <!-- Hidden file input — Upload from PC button below triggers this. -->
       <input type="file" id="roofFile" accept="image/*" onchange="onRoofImg(event)" style="display:none">
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center">
@@ -5199,11 +5202,19 @@ async function openRoofFergusPicker(){
           // sibling-path scan or the job-blob walk — most Fergus tenants
           // hide the project gallery behind their web app's internal
           // API surface (auth via app session, not the Partner API key
-          // we have). Nothing the public API can do here without
-          // additional credentials / docs.
-          '<div style="margin-top:14px;padding:10px 12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px">'+
-            '<div style="font-size:11.5px;font-weight:700;color:#78350f;margin-bottom:4px">⚠ Heads-up — this may not be possible on this tenant</div>'+
-            '<div style="font-size:11px;color:#78350f">The Fergus Partner API on your tenant doesn\'t advertise a project-gallery endpoint, and the photos may live behind Fergus\'s internal web-app API (different auth from our Partner key). If the buttons below don\'t crack it, the cleanest fix is to ask Fergus support which Partner-API path exposes the Files & Photos section on your account — they\'ll either point you at one, or confirm it isn\'t exposed (in which case the "Upload from PC" flow stays the path forward).</div>'+
+          // we have).  Replace the API hunt with the practical workflow:
+          // jump straight to the Fergus gallery in a new tab, drag the
+          // photo into our app (drop zone now accepts file + URL drops).
+          '<div style="margin-top:14px;padding:12px 14px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px">'+
+            '<div style="font-size:11.5px;font-weight:700;color:#78350f;margin-bottom:4px">⚠ Fergus\'s public API doesn\'t expose this tenant\'s gallery</div>'+
+            '<div style="font-size:11px;color:#78350f;margin-bottom:8px">Your photos live behind Fergus\'s internal web-app API, which our Partner key can\'t reach. Here\'s the workflow that actually works:</div>'+
+            '<ol style="font-size:11px;color:#78350f;margin:0 0 10px 18px;padding:0;line-height:1.5">'+
+              '<li>Click <strong>Open gallery in Fergus</strong> below — opens the Files &amp; Photos page in a new tab.</li>'+
+              '<li>Drag any photo from that page straight onto the <strong>upload-zone</strong> on this page (the picker will close, the drop zone is ready). Or save it to your PC and use Upload from PC.</li>'+
+            '</ol>'+
+            '<button type="button" onclick="_jpRoofFergusOpenGallery(); closeRoofFergusPicker();" '+
+              'style="padding:7px 14px;background:#78350f;color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer">↗ Open gallery in Fergus</button>'+
+            '<div style="font-size:10.5px;color:#78350f;margin-top:6px">First time on each job we\'ll ask for the Fergus URL; after that the button jumps straight there.</div>'+
           '</div>'+
           '<div style="margin-top:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px">'+
             '<div style="font-size:11.5px;font-weight:700;color:#0a1628;margin-bottom:4px">Try a different Fergus job id</div>'+
@@ -5337,17 +5348,105 @@ async function _jpRoofFergusRetryAltUrl(){
   var m = raw.match(/jobs\/view\/(\d+)/i) || raw.match(/jobs\/(\d+)/i) || raw.match(/(\d+)/);
   if (!m || !m[1]) { alert('Couldn\'t find a job id in that URL.'); return; }
   var altId = m[1];
+  // Remember this mapping per api id — even if the alt-id retry
+  // doesn't surface photos via the API, we now know which web URL
+  // the user uses for THIS job's gallery and can offer a one-click
+  // "Open in Fergus" jump next time.
+  try {
+    var mapRaw = localStorage.getItem('fr_fergus_web_ids') || '{}';
+    var map = JSON.parse(mapRaw);
+    map[String(S.linkedJobId)] = altId;
+    localStorage.setItem('fr_fergus_web_ids', JSON.stringify(map));
+  } catch(e){}
   var saved = S.linkedJobId;
   S.linkedJobId = altId;
   try { await openRoofFergusPicker(); }
   finally {
-    // If the retry surfaced files the picker would have downloaded
-    // one (via _pickRoofFromFergus) and we keep altId on linkedJobId
-    // for the next call. If it didn't, restore so the rest of the
-    // app keeps using the API id.  The modal is still up either way.
     if (!(window._roofFergusFiles && window._roofFergusFiles.length)) {
       S.linkedJobId = saved;
     }
+  }
+}
+
+// Open the Fergus web app's gallery page for the current job in a
+// new tab.  Uses the saved webId mapping if we have one (from a
+// previous URL paste); otherwise prompts for the URL.  This is the
+// honest workflow when the Partner API doesn't expose project_gallery
+// on the tenant — user opens Fergus, drags the photo into our app.
+function _jpRoofFergusOpenGallery(){
+  if (!S || !S.linkedJobId) { alert('Pick a Fergus job first.'); return; }
+  var webId = null;
+  try {
+    var map = JSON.parse(localStorage.getItem('fr_fergus_web_ids') || '{}');
+    webId = map[String(S.linkedJobId)] || null;
+  } catch(e){}
+  if (!webId){
+    var ans = window.prompt(
+      'We need the Fergus web-app URL of this job\'s gallery so the next click can jump straight there.\n\n' +
+      'Open the job in app.fergus.com, click "Files & Photos", then copy the page URL and paste it here.',
+      'https://app.fergus.com/jobs/view/'
+    );
+    if (!ans) return;
+    var m = String(ans).match(/jobs\/view\/(\d+)/i) || String(ans).match(/jobs\/(\d+)/i);
+    if (!m || !m[1]) { alert('Couldn\'t find a job id in that URL.'); return; }
+    webId = m[1];
+    try {
+      var map2 = JSON.parse(localStorage.getItem('fr_fergus_web_ids') || '{}');
+      map2[String(S.linkedJobId)] = webId;
+      localStorage.setItem('fr_fergus_web_ids', JSON.stringify(map2));
+    } catch(e){}
+  }
+  var url = 'https://app.fergus.com/jobs/view/' + encodeURIComponent(webId) + '/project_gallery';
+  window.open(url, '_blank', 'noopener');
+}
+
+// ── Drag-and-drop into the roof upload zone ─────────────────────
+// Lets the user drag an image straight from a Fergus tab (or any
+// other browser source) onto the upload card. Reads the dropped
+// file via FileReader and pipes the data URL through the same
+// preview path the file picker uses.
+function _roofUzDragOver(ev){
+  ev.preventDefault();
+  var dt = ev.dataTransfer; if (dt) dt.dropEffect = 'copy';
+  var uz = document.getElementById('roofUZ');
+  if (uz) uz.classList.add('is-dragover');
+}
+function _roofUzDragLeave(ev){
+  var uz = document.getElementById('roofUZ');
+  if (uz) uz.classList.remove('is-dragover');
+}
+function _roofUzDrop(ev){
+  ev.preventDefault();
+  var uz = document.getElementById('roofUZ');
+  if (uz) uz.classList.remove('is-dragover');
+  var dt = ev.dataTransfer; if (!dt) return;
+  // Files first (drag from desktop / Fergus tab once downloaded).
+  var f = dt.files && dt.files[0];
+  if (f && f.type.startsWith('image/')){
+    var r = new FileReader();
+    r.onload = function(rev){ _setRoofImgFromDataUrl(String(rev.target.result)); };
+    r.readAsDataURL(f);
+    return;
+  }
+  // Direct image-URL drag (some browsers expose the photo's URL when
+  // dragged from an open tab). Fetch via the existing Fergus proxy
+  // when the host matches; otherwise let the browser load it directly
+  // through an <img>.crossOrigin=anonymous round trip.
+  var url = dt.getData('text/uri-list') || dt.getData('text/plain') || '';
+  if (url && /^https?:\/\//i.test(url)){
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function(){
+      var cv = document.createElement('canvas');
+      cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+      cv.getContext('2d').drawImage(img, 0, 0);
+      try { _setRoofImgFromDataUrl(cv.toDataURL('image/png')); }
+      catch(e){ alert('Couldn\'t read this image (cross-origin block). Try downloading it first, then drag the file in.'); }
+    };
+    img.onerror = function(){
+      alert('Couldn\'t load the dragged URL. Try downloading the image first, then drag the file in.');
+    };
+    img.src = url;
   }
 }
 
