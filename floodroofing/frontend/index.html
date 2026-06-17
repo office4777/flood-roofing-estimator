@@ -16491,11 +16491,26 @@ function redrawAll() {
       // can branch on it cleanly.
       if (typeof d.manualIdx === 'number') _hit.manualIdx = d.manualIdx;
       window._roofCanvasHits.sheets.push(_hit);
-      // Arrows from the label out to the gutter / ridge used to render
-      // here, but they sat on top of the digit (the head of the arrow
-      // landed where the number was) and made the measure unreadable.
-      // Drop them — the label alone is clear enough and click-hit
-      // detection still works via the rectangle pushed above.
+      // Arrows ON EITHER SIDE of the label pointing out to the gutter
+      // / ridge.  The tail starts `clearance + gap` away from the
+      // label centroid (clearance = half the digit's bounding box,
+      // gap = 4 af px) so the shaft never overlaps the digit, and the
+      // arrowhead points OUTWARD so the dimension line reads as a
+      // perpendicular extent.  Skipped when the dim is so short the
+      // arm would be < 5 af px.
+      if (d.sdl < 26 * af) return;             // too short for arrows — label only
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 1.4 * af;
+      ctx.strokeStyle = '#0a1628';
+      ctx.fillStyle   = '#0a1628';
+      var tw = ctx.measureText(d.label).width;
+      var clearance = Math.abs(d.ndx)*(tw/2) + Math.abs(d.ndy)*(fontPx/2);
+      var gap = 4 * af;
+      var arm = Math.min(16 * af, d.sdl/2 - (clearance + gap + 2));
+      if (arm >= 5 * af) {
+        _shArrow(d.lblX + d.ndx*(clearance+gap), d.lblY + d.ndy*(clearance+gap), d.lblX + d.ndx*(clearance+gap+arm), d.lblY + d.ndy*(clearance+gap+arm), af);
+        _shArrow(d.lblX - d.ndx*(clearance+gap), d.lblY - d.ndy*(clearance+gap), d.lblX - d.ndx*(clearance+gap+arm), d.lblY - d.ndy*(clearance+gap+arm), af);
+      }
     });
     ctx.restore();
   }
@@ -18467,6 +18482,18 @@ function _jpState(){
     S.jobPack.pages = pages;
     S.jobPack.pagesVersion = 2;
   }
+  // One-time migration v2 → v3: consumables now live INSIDE the cut
+  // lists page (_jpRenderConsumablesSection) so existing jobs with a
+  // standalone Consumables page drop it — otherwise the user would
+  // see the same content twice.  The 'consumables' page type stays
+  // available via the page-type dropdown for anyone who wants to
+  // re-insert it as a dedicated page.
+  if (!S.jobPack.pagesVersion || S.jobPack.pagesVersion < 3) {
+    S.jobPack.pages = (S.jobPack.pages || []).filter(function(p){
+      return p && p.type !== 'consumables';
+    });
+    S.jobPack.pagesVersion = 3;
+  }
   return S.jobPack;
 }
 function _jpDefaultPages(){
@@ -18486,8 +18513,12 @@ function _jpDefaultPages(){
       { id:'def_bs_'+(Date.now()+1),mapKey:'basic',    x:355,  y:175, w:310, h:300 }
     ] },
     { type:'cutlists'    },
-    { type:'flashings'   },
-    { type:'consumables' }
+    { type:'flashings'   }
+    // Consumables (underlay / screws / rivets / dektites) now ride
+    // along inside the Cut Lists page (see _jpRenderConsumablesSection)
+    // so the install crew has every count on one printable surface.
+    // The 'consumables' page type is still available via the page-type
+    // dropdown for jobs that prefer a dedicated page.
   ];
 }
 function _jpPageTypes(){
@@ -19545,6 +19576,14 @@ function _jpRenderCutLists(content, page, idx){
   }
   html += '</div>';
 
+  // ── Consumables (now lives on the cut-list page so the install
+  //    crew has every count on one surface). Renders as a .cut-list
+  //    table so the visual matches Roof sheets / Ridge / Gutter
+  //    sections above. The standalone Consumables page type is gone
+  //    from new jobs (see _jpDefaultPages); existing jobs with one
+  //    still render via _jpRenderConsumables, untouched. */
+  html += _jpRenderConsumablesSection(d);
+
   content.innerHTML = html;
 }
 // Render one cell of the 3-per-row Flashings grid on the Cut Lists
@@ -19683,6 +19722,90 @@ function _jpResolveDefaultDrawing(flashingType){
 // legacy section.  Changing here writes back to the hidden input AND
 // fires its change event so the existing handlers (renderMaterialsCutLists,
 // renderMatRoofMap, …) run the same as if the legacy control was used.
+// Render consumables (underlay / screws / rivets / dektites) as a
+// .cut-list table so they visually match Roof sheets / Ridge / etc.
+// All the same override mechanics — qty input writes through to
+// localStorage via _matConsOverrideSet, dektite per-size rows edit
+// _matDektitesGet directly. Empty input = back to auto-calculated.
+function _jpRenderConsumablesSection(d){
+  d = d || _matDrawTotals();
+  var rollSize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '75', 10);
+  if ([50, 75, 100].indexOf(rollSize) < 0) rollSize = 75;
+  function qtyIn(key, autoVal, width){
+    var ov = _matConsOverrideGet(key);
+    var v = ov != null ? ov : autoVal;
+    return '<input type="number" min="0" step="1" value="'+v+'" '+
+      'onfocus="this.select()" '+
+      'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
+      'onchange="_matConsOverrideSet(\''+key+'\',this.value);if(typeof renderJobPack===\'function\') renderJobPack();" '+
+      'style="width:'+(width||60)+'px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px">';
+  }
+  function resetLink(key){
+    if (_matConsOverrideGet(key) == null) return '';
+    return ' <a onclick="_matConsOverrideSet(\''+key+'\',\'\');if(typeof renderJobPack===\'function\') renderJobPack()" '+
+      'style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>';
+  }
+  var underlayM2 = d.roofArea * 1.2;
+  var rollsAuto = d.roofArea > 0 ? Math.ceil(underlayM2 / rollSize) : 0;
+  var screwsAuto = d.roofArea > 0 ? Math.ceil((d.roofArea * 8) / 100) * 100 : 0;
+  var rivetsAuto = d.flashingsLm > 0 ? Math.max(100, Math.ceil(d.flashingsLm / 60) * 100) : 0;
+  var rollSizeSelect = '<select onchange="localStorage.setItem(\'fr_underlay_roll_size\',this.value);if(typeof renderJobPack===\'function\') renderJobPack();" style="padding:1px 4px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:10.5px;color:#0a1628;margin:0 0 0 4px">'+
+    [50,75,100].map(function(sz){ return '<option value="'+sz+'"'+(sz===rollSize?' selected':'')+'>'+sz+' m² roll</option>'; }).join('')+
+  '</select>';
+
+  var rowsHtml =
+    '<tr><td>📄 <strong>Underlay / paper</strong>'+
+      '<div style="font-size:10.5px;color:var(--text2);margin-top:2px">'+underlayM2.toFixed(1)+' m² (incl. 20% waste)' + rollSizeSelect + ' · auto '+rollsAuto+'</div>'+
+    '</td>'+
+      '<td class="r">'+qtyIn('fr_underlay_rolls_override', rollsAuto)+'</td>'+
+      '<td class="r">rolls</td>'+
+      '<td class="r" style="white-space:nowrap">'+resetLink('fr_underlay_rolls_override')+'</td>'+
+    '</tr>'+
+    '<tr><td>🔩 <strong>Roofing screws</strong>'+
+      '<div style="font-size:10.5px;color:var(--text2);margin-top:2px">65mm Unitites · '+d.roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(d.roofArea * 8)+' · auto '+screwsAuto+'</div>'+
+    '</td>'+
+      '<td class="r">'+qtyIn('fr_screws_qty_override', screwsAuto, 80)+'</td>'+
+      '<td class="r">screws</td>'+
+      '<td class="r" style="white-space:nowrap">'+resetLink('fr_screws_qty_override')+'</td>'+
+    '</tr>'+
+    '<tr><td>🪛 <strong>Rivets</strong>'+
+      '<div style="font-size:10.5px;color:var(--text2);margin-top:2px">'+d.flashingsLm.toFixed(1)+' lm of flashings · auto '+rivetsAuto+' (100 / 60 lm minimum)</div>'+
+    '</td>'+
+      '<td class="r">'+qtyIn('fr_rivets_qty_override', rivetsAuto, 80)+'</td>'+
+      '<td class="r">rivets</td>'+
+      '<td class="r" style="white-space:nowrap">'+resetLink('fr_rivets_qty_override')+'</td>'+
+    '</tr>';
+
+  // Dektites — one row per size, with a × delete and a + Add row.
+  var dkList = _matDektitesGet();
+  if (dkList && dkList.length){
+    dkList.forEach(function(r, i){
+      rowsHtml += '<tr><td>🟫 <strong>Dektite</strong>'+
+        '<div style="font-size:10.5px;color:var(--text2);margin-top:2px">Pipe penetration</div>'+
+      '</td>'+
+        '<td class="r"><input type="number" min="0" step="1" value="'+(r.qty||0)+'" '+
+          'onchange="_matDektitesUpdate('+i+',\'qty\',this.value);if(typeof renderJobPack===\'function\') renderJobPack()" '+
+          'style="width:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px"></td>'+
+        '<td class="r"><input type="number" min="0" step="5" placeholder="size" value="'+(r.sizeMm||'')+'" '+
+          'onchange="_matDektitesUpdate('+i+',\'sizeMm\',this.value);if(typeof renderJobPack===\'function\') renderJobPack()" '+
+          'style="width:62px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px"> mm</td>'+
+        '<td class="r"><button onclick="_matDektitesRemove('+i+');if(typeof renderJobPack===\'function\') renderJobPack()" title="Delete row" '+
+          'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700;padding:0 4px">×</button></td>'+
+      '</tr>';
+    });
+  } else {
+    rowsHtml += '<tr><td colspan="4" style="color:var(--text2);font-style:italic;padding:6px 10px">No dektites — click <em>+ Add dektite size</em> below to add a pipe penetration size.</td></tr>';
+  }
+
+  return '<div class="mat-section">'+
+    _matSectionHead('#0a1628', 'Consumables', 'underlay · screws · rivets · dektites')+
+    '<table class="cut-list" style="margin-bottom:6px"><thead><tr>'+
+      '<th>Description</th><th class="r" style="width:90px">Qty</th><th class="r" style="width:80px">Unit</th><th class="r" style="width:64px"></th>'+
+    '</tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
+    '<button class="mat-add-btn" onclick="_matDektitesAdd();if(typeof renderJobPack===\'function\') renderJobPack()">+ Add dektite size</button>'+
+  '</div>';
+}
+
 // Shared section header for the Cut Lists / Flashings / Consumables
 // pages.  Renders the coloured dot + bold title + dim meta line so
 // every section on the materials surfaces reads identically (was
