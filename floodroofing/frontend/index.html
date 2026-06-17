@@ -1530,13 +1530,46 @@ select{
     <div class="card-hd"><span class="card-dot"></span>Upload roof picture
       <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">— use your own sketch / aerial photo instead of the satellite view above</span>
     </div>
-    <div class="upload-zone" id="roofUZ" style="margin-top:6px">
-      <svg style="width:32px;height:32px;margin:0 auto 8px;display:block;opacity:.4" viewBox="0 0 32 32" fill="none"><rect x="3" y="3" width="26" height="26" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M16 9V23M9 16L16 9L23 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <div class="uz-title">Drop your roof sketch / aerial photo here</div>
-      <div class="uz-sub" style="margin-top:4px">JPG or PNG — sits behind the canvas as a tracing background</div>
-      <input type="file" id="roofFile" accept="image/*" onchange="onRoofImg(event)">
+    <div class="upload-zone" id="roofUZ" style="margin-top:6px;padding:14px 16px">
+      <div class="uz-title" style="margin-bottom:2px">Drop your roof sketch / aerial photo here</div>
+      <div class="uz-sub" style="margin-bottom:10px">JPG or PNG — sits behind the canvas as a tracing background</div>
+      <!-- Hidden file input — Upload from PC button below triggers this. -->
+      <input type="file" id="roofFile" accept="image/*" onchange="onRoofImg(event)" style="display:none">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center">
+        <button type="button" onclick="document.getElementById('roofFile').click()"
+                style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
+          <svg viewBox="0 0 16 16" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4 6l4-4 4 4"/><path d="M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
+          Upload from PC
+        </button>
+        <button type="button" id="roofFergusPickBtn" onclick="openRoofFergusPicker()"
+                title="Pick a photo from the currently-linked Fergus job"
+                style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#fff;color:#0a1628;border:1px solid #0a1628;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
+          <svg viewBox="0 0 16 16" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 11l3.5-3.5 2 2 3-3L14 10"/><circle cx="6" cy="6.5" r="1"/></svg>
+          Select photo from Fergus
+        </button>
+      </div>
+      <div id="roofFergusHint" style="margin-top:6px;font-size:10.5px;color:var(--text2);text-align:center"></div>
     </div>
     <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="uploaded roof"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">× Remove</button></div>
+  </div>
+
+  <!-- Fergus photo picker modal — populated by openRoofFergusPicker() with
+       thumbnails of every image attached to the linked Fergus job. Clicking
+       a thumbnail downloads the file via the backend proxy and pipes it
+       straight into onRoofImg's data-URL path. -->
+  <div id="roofFergusModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(10,22,40,.55);align-items:center;justify-content:center;padding:24px" onclick="if(event.target===this) closeRoofFergusPicker()">
+    <div style="background:#fff;border-radius:10px;width:min(720px,100%);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 18px 48px rgba(0,0,0,.25)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e5e7eb">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#0a1628">Photos from Fergus job</div>
+          <div id="roofFergusModalSub" style="font-size:11px;color:var(--text2);margin-top:1px">—</div>
+        </div>
+        <button type="button" onclick="closeRoofFergusPicker()" style="background:none;border:none;font-size:18px;color:#6f6a60;cursor:pointer;padding:4px 8px">×</button>
+      </div>
+      <div id="roofFergusModalBody" style="padding:14px 18px;overflow:auto;flex:1;min-height:120px">
+        <div style="font-size:12px;color:var(--text2)">Loading…</div>
+      </div>
+    </div>
   </div>
   </div>
 
@@ -4988,6 +5021,7 @@ function newJob(){
     if (!localStorage.getItem('fr_token')) { setTimeout(tryBoot, 1000); return; }
     loadSettings().catch(function(e){console.warn(e);});
     try { fetchQuoteActivity(); } catch(e){}
+    try { _refreshRoofFergusBtn(); } catch(e){}
   }
   if (document.readyState === 'complete' || document.readyState === 'interactive') tryBoot();
   else document.addEventListener('DOMContentLoaded', tryBoot);
@@ -5015,6 +5049,134 @@ function clearRoofImg(){
   document.getElementById('analyseTxt').textContent='Upload a sketch to analyse';
   document.getElementById('roofFile').value='';
   document.getElementById('roofResults').style.display='none';
+  _refreshRoofFergusBtn();
+}
+
+// Push a data URL into the roof preview the same way onRoofImg does for
+// a file picker — used by the Fergus picker after it downloads a chosen
+// photo via the backend proxy.
+function _setRoofImgFromDataUrl(dataUrl){
+  var b64 = dataUrl.split(',')[1];
+  if (!b64) return;
+  S.img64 = b64;
+  var img = document.getElementById('roofPrevImg');
+  if (img) img.src = dataUrl;
+  var prev = document.getElementById('roofPrev'); if (prev) prev.style.display = 'block';
+  var uz   = document.getElementById('roofUZ');   if (uz)   uz.style.display   = 'none';
+  var ab   = document.getElementById('analyseBtn'); if (ab) ab.disabled = false;
+  var at   = document.getElementById('analyseTxt'); if (at) at.textContent = 'Analyse roof sketch with AI';
+}
+
+// Reflect whether the Fergus picker is usable: needs a linked Fergus job.
+// Called whenever the linked-job state could have changed (after picking a
+// job in the modal, after clearing the image, after a job-load).
+function _refreshRoofFergusBtn(){
+  var btn  = document.getElementById('roofFergusPickBtn');
+  var hint = document.getElementById('roofFergusHint');
+  var hasJob = !!(window.S && S.linkedJobId);
+  if (btn) {
+    btn.disabled = !hasJob;
+    btn.style.opacity   = hasJob ? '1'    : '0.55';
+    btn.style.cursor    = hasJob ? 'pointer' : 'not-allowed';
+  }
+  if (hint) {
+    hint.textContent = hasJob
+      ? 'Linked Fergus job ' + (S.linkedJobNo || S.linkedJobId) + ' — click "Select photo from Fergus" to pick a saved photo.'
+      : 'Link a Fergus job (Select Job → Fergus tab) to pull photos straight from there.';
+  }
+}
+
+// Open the Fergus photo picker. Fetches the file list for the currently
+// linked job from the backend proxy (which handles candidate-path probing
+// and the API key), then paints a thumbnail grid the user can pick from.
+async function openRoofFergusPicker(){
+  if (!window.S || !S.linkedJobId) {
+    alert('Pick a Fergus job first — Select Job tab → Fergus.');
+    return;
+  }
+  var modal = document.getElementById('roofFergusModal');
+  var body  = document.getElementById('roofFergusModalBody');
+  var sub   = document.getElementById('roofFergusModalSub');
+  modal.style.display = 'flex';
+  if (sub) sub.textContent = 'Job ' + (S.linkedJobNo || S.linkedJobId) + (S.linkedJobName ? ' · ' + S.linkedJobName : '');
+  body.innerHTML = '<div style="font-size:12px;color:var(--text2)">Loading photos from Fergus…</div>';
+  try {
+    var token = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/fergus-files/list?jobId=' + encodeURIComponent(S.linkedJobId), {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    var data = await r.json().catch(function(){ return {}; });
+    if (!r.ok || !data.ok) {
+      body.innerHTML = '<div style="font-size:12px;color:#b91c1c">Fergus didn\'t return any photos for this job.' +
+        (data.hint ? '<div style="margin-top:6px;color:var(--text2)">' + esc(data.hint) + '</div>' : '') + '</div>';
+      return;
+    }
+    var files = (data.files || []).filter(function(f){
+      var ct = (f.contentType || '').toLowerCase();
+      var nm = (f.name || '').toLowerCase();
+      // Keep anything that LOOKS like an image — content-type OR file extension.
+      if (ct && ct.startsWith('image/')) return true;
+      return /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i.test(nm);
+    });
+    if (!files.length) {
+      body.innerHTML = '<div style="font-size:12px;color:var(--text2)">No image attachments on this Fergus job. (Found ' + (data.files || []).length + ' non-image file(s).)</div>';
+      return;
+    }
+    body.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">' +
+      files.map(function(f, i){
+        var src = f.thumbnail || f.url || '';
+        return '<button type="button" onclick="_pickRoofFromFergus('+i+')" '+
+          'style="border:1px solid #e5e7eb;border-radius:6px;background:#fafafa;padding:6px;cursor:pointer;display:flex;flex-direction:column;gap:4px;text-align:left">' +
+          (src
+            ? '<img src="'+esc(src)+'" alt="" style="width:100%;height:96px;object-fit:cover;border-radius:4px;background:#fff" onerror="this.style.display=\'none\'">'
+            : '<div style="width:100%;height:96px;background:#e5e7eb;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px">no preview</div>'
+          ) +
+          '<div style="font-size:11px;font-weight:600;color:#0a1628;line-height:1.2;word-break:break-word">'+esc(f.name||'photo')+'</div>'+
+        '</button>';
+      }).join('') +
+    '</div>';
+    window._roofFergusFiles = files;
+  } catch (e) {
+    body.innerHTML = '<div style="font-size:12px;color:#b91c1c">Couldn\'t reach Fergus: ' + esc(e.message || String(e)) + '</div>';
+  }
+}
+
+function closeRoofFergusPicker(){
+  var m = document.getElementById('roofFergusModal');
+  if (m) m.style.display = 'none';
+}
+
+// Called when the user clicks a thumbnail in the picker. Streams the
+// chosen file through /fergus-files/download (so the API key stays on
+// the server) and pipes the result into the roof preview the same way
+// the file-picker path does.
+async function _pickRoofFromFergus(idx){
+  var files = window._roofFergusFiles || [];
+  var f = files[idx]; if (!f) return;
+  var body = document.getElementById('roofFergusModalBody');
+  if (body) body.innerHTML = '<div style="font-size:12px;color:var(--text2)">Downloading "'+esc(f.name||'photo')+'"…</div>';
+  try {
+    var token = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/fergus-files/download?url=' + encodeURIComponent(f.url), {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    if (!r.ok) {
+      var t = await r.text().catch(function(){ return ''; });
+      if (body) body.innerHTML = '<div style="font-size:12px;color:#b91c1c">Download failed ('+r.status+'): '+esc(t.slice(0,200))+'</div>';
+      return;
+    }
+    var blob = await r.blob();
+    var dataUrl = await new Promise(function(ok, fail){
+      var fr = new FileReader();
+      fr.onload  = function(){ ok(String(fr.result)); };
+      fr.onerror = function(){ fail(fr.error || new Error('FileReader failed')); };
+      fr.readAsDataURL(blob);
+    });
+    _setRoofImgFromDataUrl(dataUrl);
+    closeRoofFergusPicker();
+  } catch (e) {
+    if (body) body.innerHTML = '<div style="font-size:12px;color:#b91c1c">Couldn\'t download: '+esc(e.message||String(e))+'</div>';
+  }
 }
 
 // ── AI ANALYSIS ──────────────────────────────────────────────────
@@ -11992,6 +12154,10 @@ function useFergusJobInModal(jobId){
   // flow recognises this as the linked job.
   var n = document.getElementById('fergSelNotice'); if (n) { n.style.display = ''; }
   var nn = document.getElementById('fergJobName');  if (nn) nn.textContent = label;
+  // The "Select photo from Fergus" button on the Map Roof tab keys off
+  // S.linkedJobId — refresh its enabled state + hint text now that we
+  // have a linked job.
+  try { _refreshRoofFergusBtn(); } catch(e){}
   closeSelectJobModal();
 }
 

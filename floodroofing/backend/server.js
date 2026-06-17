@@ -542,6 +542,118 @@ app.get('/fergus-files/probe', requireAuth, requireSubscription, async (req, res
   res.json({ jobId, results });
 });
 
+// List the files / photos attached to a Fergus job so the frontend can
+// show them in a picker.  Walks the same candidate paths the upload
+// route knows about, accepts the first GET that returns an array (or a
+// payload containing one), normalises it into a uniform shape, and
+// passes the picked path back so subsequent /fergus-files/download
+// calls don't have to re-discover it.
+const FERGUS_LIST_CANDIDATES = [
+  '/jobs/{jobId}/project_gallery',
+  '/jobs/{jobId}/photos',
+  '/jobs/{jobId}/files',
+  '/jobs/{jobId}/attachments',
+  '/jobs/{jobId}/gallery',
+  '/jobs/{jobId}/documents',
+];
+
+function _normaliseFergusFile(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  // Cover the half-dozen field names Fergus uses across endpoints —
+  // the picker needs at minimum an id, a display name, a content-type
+  // hint and either a URL or a download path.
+  const id   = raw.id || raw.uuid || raw.file_id || raw.attachment_id || raw.gallery_id || null;
+  const name = raw.name || raw.filename || raw.title || raw.original_name || ('file-' + (id || ''));
+  const url  = raw.url || raw.public_url || raw.download_url || raw.path || raw.file_url || raw.original_url || null;
+  const thumb= raw.thumbnail || raw.thumb_url || raw.preview_url || raw.thumbnail_url || null;
+  const mime = raw.mime_type || raw.content_type || raw.contentType || raw.type || '';
+  return { id, name, url, thumbnail: thumb || url, contentType: mime };
+}
+
+app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res) => {
+  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const jobId = req.query.jobId;
+  if (!jobId) return res.status(400).json({ error: 'jobId query param required' });
+
+  // If the env has pinned a known-good list path, use it directly;
+  // otherwise walk the candidates and stop at the first array-shaped
+  // response with at least one item.
+  const candidates = process.env.FERGUS_FILES_PATH
+    ? [process.env.FERGUS_FILES_PATH, ...FERGUS_LIST_CANDIDATES]
+    : FERGUS_LIST_CANDIDATES;
+
+  const attempts = [];
+  for (const tpl of candidates) {
+    const path = FERGUS_PREFIX + tpl.replace('{jobId}', encodeURIComponent(jobId));
+    const url  = `https://${FERGUS_HOST}${path}`;
+    try {
+      const r = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+          'Accept':        'application/json',
+        },
+      });
+      const text = await r.text();
+      let parsed = null; try { parsed = JSON.parse(text); } catch {}
+      attempts.push({ path: tpl, status: r.status, ok: r.ok });
+      if (!r.ok || !parsed) continue;
+      // Find the array — Fergus wraps lists in several shapes (.data,
+      // .files, .photos, …) so peel one level of nesting if needed.
+      let arr = null;
+      if (Array.isArray(parsed)) arr = parsed;
+      else if (Array.isArray(parsed.data)) arr = parsed.data;
+      else if (Array.isArray(parsed.files)) arr = parsed.files;
+      else if (Array.isArray(parsed.photos)) arr = parsed.photos;
+      else if (Array.isArray(parsed.attachments)) arr = parsed.attachments;
+      else if (Array.isArray(parsed.items)) arr = parsed.items;
+      if (!arr) continue;
+      const files = arr.map(_normaliseFergusFile).filter(Boolean);
+      if (!files.length) continue;
+      return res.json({ ok: true, used: tpl, count: files.length, files, attempts });
+    } catch (e) {
+      attempts.push({ path: tpl, error: e.message });
+    }
+  }
+  res.json({ ok: false, files: [], attempts, hint: 'No candidate path returned a non-empty file array. Run /fergus-files/probe to see the raw shapes.' });
+});
+
+// Stream a single Fergus file back to the browser. The caller supplies
+// the URL (from /fergus-files/list); we re-fetch with the API key so
+// the bytes never expose the credential to the client. Used by the
+// "Select photo from Fergus" flow to grab the picked image and pipe
+// it into the roof-picture preview.
+app.get('/fergus-files/download', requireAuth, requireSubscription, async (req, res) => {
+  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: 'url query param required' });
+  // Only allow URLs whose host matches the configured Fergus host (or a
+  // sibling like cdn / media subdomain) so this proxy can't be turned
+  // into an open redirect / SSRF.
+  let parsed;
+  try { parsed = new URL(url); } catch { return res.status(400).json({ error: 'invalid url' }); }
+  const allowedHostSuffix = (FERGUS_HOST.replace(/^api\./, '')) || 'fergus.com';
+  if (!parsed.host.endsWith(allowedHostSuffix)) {
+    return res.status(403).json({ error: 'host not allowed', host: parsed.host, allowedSuffix: allowedHostSuffix });
+  }
+  try {
+    const r = await fetch(url, {
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY },
+    });
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      return res.status(r.status).json({ error: 'fergus returned ' + r.status, body: text.slice(0, 400) });
+    }
+    res.set('Content-Type', r.headers.get('content-type') || 'application/octet-stream');
+    const cd = r.headers.get('content-disposition');
+    if (cd) res.set('Content-Disposition', cd);
+    const buf = Buffer.from(await r.arrayBuffer());
+    res.send(buf);
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
 
 app.get('/jms/debug', requireAuth, (req, res) => {
   const k = process.env.FERGUS_API_KEY || '';
