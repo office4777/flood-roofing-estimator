@@ -15940,13 +15940,24 @@ function redrawAll() {
           var lblImgX = rmx + dx*bestPerp*0.5, lblImgY = rmy + dy*bestPerp*0.5;
           if (!_pointInPoly(lblImgX, lblImgY, outline)) return;
           var autoSheetM = bestPerp * (DRAW.scaleMetresPerPx || 0) * _pitchF;
-          // Face-based key (gutter + into-face direction) is the one
-          // we use for overrides — _applySheetOverridesToFaces in the
-          // sheet plan reads the SAME key from each face directly,
-          // bypassing the brittle ridge-matching that the old
-          // _sheetDimKey scheme required.
-          var key = _faceOverrideKey(bestG, -dx, -dy);
+          // Face-based key (gutter + into-face direction) PLUS the
+          // source ridge's midpoint hash, so two ridges that drop
+          // perpendicular onto the same gutter on the same face get
+          // INDEPENDENT override entries.  Without the ridge suffix
+          // editing one "4.50m" label would silently rewrite the
+          // other label on the same face (the user's bug report —
+          // "the two top sheet measures are copying each other").
+          // The applicator (_applySheetOverridesToFaces) walks every
+          // entry whose prefix matches the face key, so it still
+          // picks up the override even with the new suffix.
+          var ridgeMid = (rmx|0) + ',' + (rmy|0);
+          var faceKey = _faceOverrideKey(bestG, -dx, -dy);
+          var key = faceKey + '_r' + ridgeMid;
+          // Legacy override entries (pre-ridge-suffix) used the bare
+          // face key.  Honour them if the per-ridge key has nothing
+          // so existing jobs don't lose their tweaks on first load.
           var ov  = (DRAW.sheetOverrides && DRAW.sheetOverrides[key]);
+          if (ov == null && DRAW.sheetOverrides) ov = DRAW.sheetOverrides[faceKey];
           // -1 sentinel = user typed DELETE in the edit popup; hide
           // this auto sheet label entirely.
           if (ov === -1) return;
@@ -17000,7 +17011,24 @@ function _applySheetOverridesToFaces(faces){
       return;
     }
     var key = _faceOverrideKey({ pts: [ga, gb] }, face.nx, face.ny);
+    // Bare key first (legacy / single-ridge faces). If absent, scan
+    // for any per-ridge key sharing this face prefix — multiple
+    // ridges on the same face produce sibling entries like
+    //   <faceKey>_r123,456 and <faceKey>_r780,456
+    // and any of them is a valid override for the face's strip
+    // length.  Average them when there's more than one so two
+    // ridge-specific edits don't tug the face arbitrarily.
     var ov  = DRAW.sheetOverrides[key];
+    if (ov == null) {
+      var prefix = key + '_r';
+      var sum = 0, n = 0;
+      Object.keys(DRAW.sheetOverrides).forEach(function(k){
+        if (k.indexOf(prefix) !== 0) return;
+        var v = DRAW.sheetOverrides[k];
+        if (typeof v === 'number' && isFinite(v) && v > 0) { sum += v; n++; }
+      });
+      if (n) ov = sum / n;
+    }
     if (ov == null || !isFinite(ov) || ov <= 0) return;
     face.sheetM = +ov;
     // Keep planSheetM consistent so downstream code reading
