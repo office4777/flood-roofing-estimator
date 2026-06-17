@@ -684,6 +684,100 @@ select{
 .cons-tile .cons-sub{font-size:11px;color:var(--text2);line-height:1.4}
 .cons-tile select{font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;margin:0;width:auto;background:#fff;color:#0a1628}
 
+/* ── Materials Job-Pack shared visual language ─────────────────
+   Every section on the Cut Lists / Flashings / Consumables pages
+   was inline-styled with slightly different padding, dot size and
+   sub-text colour. Folded into these shared classes so the cut
+   lists, flashings cells, callouts, spec row and Add-row buttons
+   all read as one coherent design system. */
+.mat-section{ margin-bottom:14px; }
+.mat-section-head{ display:flex; align-items:center; gap:7px; margin-bottom:6px; flex-wrap:wrap; }
+.mat-section-head .mat-dot{ width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+.mat-section-head .mat-title{ font-size:12.5px; font-weight:700; color:#0a1628; }
+.mat-section-head .mat-meta{ font-size:10.5px; color:var(--text2); font-weight:500; }
+.mat-callout{
+  margin-top:8px; padding:10px 12px;
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px;
+  font-size:11.5px; color:#475569; line-height:1.45;
+}
+.mat-callout strong{ color:#0a1628; }
+.mat-callout .mat-callout-title{
+  font-size:10.5px; font-weight:700; color:#0a1628;
+  text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px;
+}
+.mat-spec-row{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:8px; margin-bottom:14px;
+  padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;
+}
+.mat-spec-row label{ display:flex; flex-direction:column; gap:3px; font-size:10.5px; color:#475569; font-weight:600; margin:0; }
+.mat-spec-row select{ padding:5px 6px; border:1px solid #cbd5e1; border-radius:5px; background:#fff; font-size:12px; color:#0a1628; margin:0; }
+.mat-add-btn{
+  margin-top:6px; font-size:11px; padding:5px 12px;
+  background:transparent; border:1px dashed #cbd5e1; border-radius:5px;
+  color:#475569; cursor:pointer; font-weight:600;
+}
+.mat-add-btn:hover{ background:#f8fafc; border-color:#94a3b8; color:#0a1628; }
+.mat-toggle-row{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:10px; flex-wrap:wrap;
+  margin-bottom:10px; padding:8px 12px;
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px;
+  font-size:11.5px;
+}
+.mat-toggle-row .mat-toggle-label{ color:#475569; }
+.mat-toggle-row .mat-toggle-label strong{ color:#0a1628; }
+.mat-toggle-row label{ display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; color:#0a1628; cursor:pointer; margin:0; }
+/* Flashing card on the cut-list grid — matched border / radius /
+   padding scale to the cut-list tables above so the page reads as a
+   single layered surface rather than a mash of dissimilar panels. */
+.mat-fl-card{
+  border:1px solid #e5e7eb; border-radius:8px;
+  padding:10px 12px; background:#fff;
+  display:flex; flex-direction:column;
+}
+.mat-fl-card .mat-fl-head{ display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+.mat-fl-card .mat-fl-head strong{ font-size:12.5px; font-weight:700; color:#0a1628; line-height:1.2; }
+.mat-fl-card .mat-fl-rows{ margin-top:6px; border-top:1px solid #e5e7eb; padding-top:4px; font-size:12px; line-height:1.4; }
+.mat-fl-card .mat-fl-row{ display:grid; gap:8px; align-items:center; padding:2px 4px; }
+.mat-fl-card .mat-fl-row.is-extra{ background:#fffbeb; border-radius:3px; }
+.mat-fl-card .mat-fl-foot{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:3px 4px; margin-top:3px; border-top:1px solid #e5e7eb;
+  font-size:11px; color:#0a1628; font-weight:600;
+}
+.mat-fl-empty{
+  border:1px dashed #cbd5e1; border-radius:8px; background:#fafafa;
+  padding:14px; display:flex; flex-direction:column;
+  align-items:center; gap:8px; min-height:200px; justify-content:center;
+}
+
+/* Persistent job bar at the top of every tab — replaces the
+   sidebar job chip so the user always sees the current job no
+   matter which tab they're on. Sticky so it stays put when the
+   tab scrolls. */
+.global-job-bar{
+  position:sticky; top:0; z-index:40;
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:8px 14px; margin-bottom:14px;
+  background:#fff; border:1px solid var(--border); border-radius:10px;
+  box-shadow:0 2px 10px rgba(10,22,40,.05);
+}
+.global-job-bar .gjb-label{ display:flex; flex-direction:column; min-width:0; flex:1; }
+.global-job-bar .gjb-eyebrow{ font-size:9.5px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.06em; }
+.global-job-bar .gjb-name{ font-size:13px; font-weight:700; color:#0a1628; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.global-job-bar .gjb-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.global-job-bar .gjb-btn{
+  display:inline-flex; align-items:center; gap:5px;
+  padding:6px 12px; font-size:12px; font-weight:600;
+  border-radius:6px; border:1px solid transparent; cursor:pointer;
+}
+.global-job-bar .gjb-btn-primary{ background:#0a1628; color:#fff; }
+.global-job-bar .gjb-btn-primary:hover{ background:#1e293b; }
+.global-job-bar .gjb-btn-light{ background:#fff; color:#0a1628; border-color:#cbd5e1; }
+.global-job-bar .gjb-btn-light:hover{ background:#f8fafc; border-color:#0a1628; }
+.global-job-bar .gjb-savemsg{ font-size:11px; color:var(--text2); min-height:14px; }
+
 /* Job & delivery card on Materials tab */
 .mat-order-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px;padding:6px 0 2px}
 .mat-readonly{padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:7px;background:#fafaf7;color:#0a1628;min-height:18px;line-height:1.3}
@@ -1436,12 +1530,13 @@ select{
        jobNo / local id and an autosave-status pill. Sits between Select
        Job and Map Roof in the nav so the user always sees which job
        they're editing without leaving the active tab. -->
-  <div id="sidebarJobChip" style="display:none;padding:7px 10px;margin:2px 0;background:var(--surface-2,#f5f5f3);border:1px solid var(--border);border-radius:8px;font-size:12px;line-height:1.3">
-    <div style="font-weight:700;color:#0a1628" id="sidebarJobChipLabel">Job #—</div>
-    <div id="sidebarJobChipAutosave" style="display:inline-flex;align-items:center;gap:5px;margin-top:4px;background:#eaf3de;border:1px solid #97c459;color:#27500a;border-radius:20px;padding:1px 8px;font-size:10px;font-weight:600">
-      <span style="width:5px;height:5px;border-radius:50%;background:#27500a"></span>
-      <span id="sidebarJobChipAutosaveText">Autosave on</span>
-    </div>
+  <!-- Sidebar job chip retired in favour of the persistent top-job-bar
+       at the top of every tab (#globalJobBar). DOM kept hidden so the
+       existing updateSidebarJobChip() / autosave wiring stays intact;
+       just no longer visible. -->
+  <div id="sidebarJobChip" style="display:none!important">
+    <div id="sidebarJobChipLabel"></div>
+    <div id="sidebarJobChipAutosave"><span id="sidebarJobChipAutosaveText"></span></div>
   </div>
   <button class="nav-btn" onclick="gotoTab('roof')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.3"/></svg>Map Roof</button>
   <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Job Pack</button>
@@ -1460,6 +1555,29 @@ select{
 </div>
 </aside>
 <main class="content">
+
+<!-- Persistent job bar — sits above every tab so the user always knows
+     which job is loaded and can save / switch without going back to
+     the Select Job screen. JS keeps the label in sync with
+     S.linkedJobId / S.linkedJobName + S.currentJobId. The chip used
+     to live in the sidebar; moved here per the user's request. -->
+<div class="global-job-bar no-print" id="globalJobBar">
+  <div class="gjb-label">
+    <span class="gjb-eyebrow">Current job</span>
+    <span class="gjb-name" id="globalJobBarName">— new (not yet saved)</span>
+  </div>
+  <div class="gjb-actions">
+    <button type="button" id="globalJobBarSaveBtn" onclick="saveCurrentJob()" class="gjb-btn gjb-btn-primary" title="Save the job draft">
+      <svg viewBox="0 0 16 16" style="width:13px;height:13px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7l3 3v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M5 3v3h5V3M5 11h6"/></svg>
+      Save
+    </button>
+    <button type="button" onclick="openSelectJobModal()" class="gjb-btn gjb-btn-light" title="Pick a different job">
+      <svg viewBox="0 0 16 16" style="width:13px;height:13px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5a1 1 0 0 1 1-1h3.5L8 5.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg>
+      Change job
+    </button>
+    <span id="globalJobBarSaveMsg" class="gjb-savemsg"></span>
+  </div>
+</div>
 
 <!-- TAB 0: SELECT JOB -->
 <div class="panel active" id="tab-select">
@@ -4795,6 +4913,26 @@ function setCurrentJobLabel(j){
   var el = document.getElementById('currentJobLabel'); if (el) el.textContent = text;
   var elTop = document.getElementById('currentJobLabelTop'); if (elTop) elTop.textContent = text;
   if (typeof updateSidebarJobChip === 'function') updateSidebarJobChip(j);
+  if (typeof updateGlobalJobBar === 'function') updateGlobalJobBar(j);
+}
+
+// Persistent job bar at the top of every tab. Mirrors setCurrentJobLabel
+// but prefers the Fergus-linked label when one's present (since that's
+// what the user picked + sees in the picker dialog).
+function updateGlobalJobBar(j){
+  var name = document.getElementById('globalJobBarName');
+  if (!name) return;
+  var label = null;
+  if (window.S && S.linkedJobNo) {
+    label = (S.linkedJobName ? S.linkedJobName + '  ·  ' : '') + 'Fergus #' + S.linkedJobNo;
+  } else if (j && j.id) {
+    label = (j.client_name || '(untitled)') + ' — ' + (j.site_address || '');
+  } else if (window.S && S.linkedJobId) {
+    label = 'Fergus job ' + S.linkedJobId;
+  } else {
+    label = '— new (not yet saved)';
+  }
+  name.textContent = label;
 }
 
 // ── SIDEBAR JOB CHIP + AUTOSAVE ──────────────────────────────────
@@ -5003,8 +5141,13 @@ async function saveCurrentJob(){
   var client = (document.getElementById('jobClient')||{}).value || '';
   var addr   = (document.getElementById('jobAddr')||{}).value || '';
   var msg = document.getElementById('saveJobMsg');
-  if (!client && !addr) { if (msg) { msg.textContent='Enter a client name or address first (Map Roof tab).'; msg.style.color='#b91c1c'; } return; }
-  if (msg) { msg.textContent='Saving…'; msg.style.color=''; }
+  var barMsg = document.getElementById('globalJobBarSaveMsg');
+  function set(text, color){
+    if (msg)    { msg.textContent = text; msg.style.color = color || ''; }
+    if (barMsg) { barMsg.textContent = text; barMsg.style.color = color || ''; }
+  }
+  if (!client && !addr) { set('Enter a client name or address first (Map Roof tab).', '#b91c1c'); return; }
+  set('Saving…', '');
   var body = { client_name: client, site_address: addr, draw_state: snapshotCurrentJob(), settings: {} };
   try {
     var saved;
@@ -5012,12 +5155,12 @@ async function saveCurrentJob(){
     else                saved = await api('POST', '/jobs', body);
     S.currentJobId = saved.id;
     setCurrentJobLabel(saved);
-    if (msg) { msg.textContent = '✓ Saved'; msg.style.color = '#15803d'; }
+    set('✓ Saved', '#15803d');
     refreshJobsList();
   } catch(e) {
-    if (msg) { msg.textContent = 'Save failed: ' + e.message; msg.style.color = '#b91c1c'; }
+    set('Save failed: ' + e.message, '#b91c1c');
   }
-  setTimeout(function(){if(msg){msg.textContent='';msg.style.color='';}}, 4000);
+  setTimeout(function(){ set('', ''); }, 4000);
 }
 
 async function openJob(id){
@@ -12429,6 +12572,7 @@ function useFergusJobInModal(jobId){
   // S.linkedJobId — refresh its enabled state + hint text now that we
   // have a linked job.
   try { _refreshRoofFergusBtn(); } catch(e){}
+  try { updateGlobalJobBar(null); } catch(e){}
   closeSelectJobModal();
 }
 
@@ -18128,13 +18272,28 @@ function _renderMatRoofMapBasic(out){
   if (!isFinite(bgOpRaw) || bgOpRaw < 0) bgOpRaw = 0;
   if (bgOpRaw > 100) bgOpRaw = 100;
   var bgOp = bgOpRaw / 100;
-  var controlsHtml = hasBg
-    ? '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px;color:var(--text2)">' +
-        '<span>Background photo:</span>' +
-        '<input type="range" id="matBasicBgOpacity" min="0" max="100" step="5" value="'+bgOpRaw+'" oninput="_setMatBasicBgOpacity(this.value)" style="width:140px;margin:0">' +
-        '<span id="matBasicBgOpacityOut" style="font-variant-numeric:tabular-nums;color:var(--text);min-width:32px">'+bgOpRaw+'%</span>' +
-      '</div>'
-    : '';
+  // Polygon fill transparency — separate from the bg photo slider so the
+  // user can tune both. 78% is the legacy default (so existing jobs
+  // look identical until the slider is touched). Persisted in
+  // localStorage under fr_mat_basic_poly_opacity (0..100).
+  var polyOpRaw = parseInt(localStorage.getItem('fr_mat_basic_poly_opacity') || '78', 10);
+  if (!isFinite(polyOpRaw) || polyOpRaw < 0) polyOpRaw = 78;
+  if (polyOpRaw > 100) polyOpRaw = 100;
+  var polyOp = polyOpRaw / 100;
+  var controlsHtml = '<div style="display:flex;align-items:center;gap:14px;margin-bottom:6px;font-size:11px;color:var(--text2);flex-wrap:wrap">' +
+    '<label style="display:flex;align-items:center;gap:6px;margin:0">' +
+      '<span>Roof transparency:</span>' +
+      '<input type="range" id="matBasicPolyOpacity" min="0" max="100" step="5" value="'+polyOpRaw+'" oninput="_setMatBasicPolyOpacity(this.value)" style="width:140px;margin:0">' +
+      '<span id="matBasicPolyOpacityOut" style="font-variant-numeric:tabular-nums;color:var(--text);min-width:32px">'+polyOpRaw+'%</span>' +
+    '</label>' +
+    (hasBg
+      ? '<label style="display:flex;align-items:center;gap:6px;margin:0">' +
+          '<span>Background photo:</span>' +
+          '<input type="range" id="matBasicBgOpacity" min="0" max="100" step="5" value="'+bgOpRaw+'" oninput="_setMatBasicBgOpacity(this.value)" style="width:140px;margin:0">' +
+          '<span id="matBasicBgOpacityOut" style="font-variant-numeric:tabular-nums;color:var(--text);min-width:32px">'+bgOpRaw+'%</span>' +
+        '</label>'
+      : '') +
+  '</div>';
   var svg = '<svg viewBox="'+minX+' '+minY+' '+w+' '+h+'" preserveAspectRatio="xMidYMid meet" '+
     'style="display:block;width:100%;height:auto;background:#fff;border:1px solid var(--border);border-radius:6px;font-family:Inter,-apple-system,sans-serif">';
   // 1. Background photo (if user wants it).  Embedded as a data URL
@@ -18171,7 +18330,7 @@ function _renderMatRoofMapBasic(out){
   roofs.forEach(function(r, ri){
     var c = palette[ri % palette.length];
     var pts = r.outline.map(function(p){ return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
-    svg += '<polygon points="'+pts+'" fill="'+c.fill+'" fill-opacity="0.78" stroke="'+c.stroke+'" stroke-width="2.5"/>';
+    svg += '<polygon points="'+pts+'" fill="'+c.fill+'" fill-opacity="'+polyOp.toFixed(2)+'" stroke="'+c.stroke+'" stroke-width="2.5"/>';
     (r.lines || []).forEach(function(l){
       if (!l || !l.pts || l.pts.length !== 2) return;
       if (l.type === 'gutter') return;
@@ -18198,6 +18357,22 @@ function _renderMatRoofMapBasic(out){
   });
   svg += '</svg>';
   out.innerHTML = controlsHtml + svg;
+}
+function _setMatBasicPolyOpacity(v){
+  var n = parseInt(v, 10);
+  if (!isFinite(n) || n < 0) n = 0;
+  if (n > 100) n = 100;
+  try { localStorage.setItem('fr_mat_basic_poly_opacity', String(n)); } catch(e){}
+  var oOut = document.getElementById('matBasicPolyOpacityOut');
+  if (oOut) oOut.textContent = n + '%';
+  try { renderMatRoofMap(); } catch(e){}
+  // Re-render the basic-map editor popup if it's open so the polygon
+  // updates live underneath the user's drag.
+  if (typeof window._jpBasicEditorRepaint === 'function') {
+    try { window._jpBasicEditorRepaint(); } catch(e){}
+  }
+  // And refresh Job Pack so any dropped basic-map picture re-captures.
+  try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
 }
 function _setMatBasicBgOpacity(v){
   var n = parseInt(v, 10);
@@ -19259,7 +19434,7 @@ function _jpRenderCutLists(content, page, idx){
   var html = '<div class="jp-block-title">Cut lists</div>';
 
   // ── Selector row (mirrors hidden inputs so the spec is editable here) ──
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">'+
+  html += '<div class="mat-spec-row">'+
     _jpSpecSelect('Profile',     'matProfile',   ['Corrugate','5-Rib','Multidek']) +
     _jpSpecSelect('Steel grade', 'matGrade',     ['Colorsteel Maxam','Armorsteel ColorZen','Zincalume']) +
     _jpSpecSelect('Thickness',   'matThickness', ['0.40g','0.55g']) +
@@ -19268,10 +19443,8 @@ function _jpRenderCutLists(content, page, idx){
   '</div>';
 
   // ── Roof sheets table (editable) ──
-  html += '<div style="margin-bottom:14px">'+
-    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="width:10px;height:10px;background:#0099cc;border-radius:2px"></span><strong style="font-size:12px;color:#0a1628">Roof sheets</strong>'+
-      '<span style="color:var(--text2);font-size:10.5px">— '+esc(profile)+' · '+esc(grade)+' · '+esc(thickness)+'</span>'+
-    '</div>';
+  html += '<div class="mat-section">'+
+    _matSectionHead('#0099cc', 'Roof sheets', esc(profile)+' · '+esc(grade)+' · '+esc(thickness));
   var sheetRows = _jpBuildSheetRows(sc);
   if (sheetRows.length || (Array.isArray(DRAW.matSheetExtras) && DRAW.matSheetExtras.length)) {
     html += '<table class="cut-list" style="margin-bottom:6px"><thead><tr><th>Description</th><th class="r" style="width:78px">Qty</th><th class="r" style="width:110px">Length each</th><th style="width:34px"></th></tr></thead><tbody>';
@@ -19297,16 +19470,14 @@ function _jpRenderCutLists(content, page, idx){
   } else {
     html += '<div class="cut-list-empty">Generate the Roof Sheet Plan on the Map Roof tab to populate.</div>';
   }
-  html += '<button onclick="_jpSheetExtraAdd()" style="margin-top:4px;font-size:11px;padding:4px 10px;background:transparent;border:1px dashed #94a3b8;border-radius:5px;color:#475569;cursor:pointer;font-weight:600">+ Add row</button>';
+  html += '<button class="mat-add-btn" onclick="_jpSheetExtraAdd()">+ Add row</button>';
   html += '</div>';
 
   // ── Ridge / Hip capping (full-width, single section) ──
   var ridgeSpec = _MAT_FLASHING_SPECS[0];
   var ridgeCl = _matBuildCutList('ridgehip', ridgeSpec.waste);
-  html += '<div style="margin-bottom:14px">'+
-    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="width:10px;height:10px;background:'+ridgeSpec.colour+';border-radius:2px"></span><strong style="font-size:12px;color:#0a1628">Ridge / Hip capping</strong>'+
-      '<span style="color:var(--text2);font-size:10.5px">— '+(ridgeType==='wide'?'Wide ridge':'Standard ridge')+' · '+esc(grade)+' · +'+ridgeSpec.waste.toFixed(1)+'m waste</span>'+
-    '</div>'+
+  html += '<div class="mat-section">'+
+    _matSectionHead(ridgeSpec.colour, 'Ridge / Hip capping', (ridgeType==='wide'?'Wide ridge':'Standard ridge')+' · '+esc(grade)+' · +'+ridgeSpec.waste.toFixed(1)+'m waste')+
     _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.')+
   '</div>';
 
@@ -19315,9 +19486,9 @@ function _jpRenderCutLists(content, page, idx){
   // doesn't need them. The flag lives in localStorage already; this
   // toggle just exposes it in the Job Pack designer.
   var refsOn = _matShowFlashRefs();
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px">'+
-    '<div style="font-size:11.5px;color:#475569"><strong style="color:#0a1628">Flashing reference letters</strong> — show A/B/C tags on the roof map &amp; cut list</div>'+
-    '<label style="display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:#0a1628;cursor:pointer">'+
+  html += '<div class="mat-toggle-row">'+
+    '<div class="mat-toggle-label"><strong>Flashing reference letters</strong> — show A/B/C tags on the roof map &amp; cut list</div>'+
+    '<label>'+
       '<input type="checkbox" '+(refsOn?'checked':'')+' onchange="_jpToggleFlashRefs(this.checked)" style="width:auto;margin:0"> '+(refsOn?'On':'Off')+
     '</label>'+
   '</div>';
@@ -19363,10 +19534,8 @@ function _jpRenderCutLists(content, page, idx){
     'marley-classic':'Marley Classic (PVC)',
     'marley-typhoon':'Marley Typhoon (PVC)'
   }[gutterChoice] || 'No gutter required';
-  html += '<div style="margin-bottom:6px">'+
-    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="width:10px;height:10px;background:#7c3aed;border-radius:2px"></span><strong style="font-size:12px;color:#0a1628">Guttering</strong>'+
-      '<span style="color:var(--text2);font-size:10.5px">— '+esc(gutterLabel)+'</span>'+
-    '</div>';
+  html += '<div class="mat-section">'+
+    _matSectionHead('#7c3aed', 'Guttering', esc(gutterLabel));
   if (gutterChoice === 'none') html += '<div class="cut-list-empty">No gutter selected — pick a gutter type above to add it to the order.</div>';
   else {
     var gCl = _matBuildCutList('gutter', 0);
@@ -19385,7 +19554,7 @@ function _jpRenderCutLists(content, page, idx){
 //   - empty "Add" cell with "Select From Favourites" + "Enter Custom"
 function _jpRenderFlashingCell(box, bi){
   if (box.add){
-    return '<div style="border:1px dashed #cbd5e1;border-radius:8px;padding:12px;background:#fafafa;display:flex;flex-direction:column;align-items:center;gap:8px;min-height:200px;justify-content:center">' +
+    return '<div class="mat-fl-empty">' +
       '<svg viewBox="0 0 24 24" style="width:30px;height:30px;opacity:.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>'+
       '<button onclick="_matFlashingsAddAndPick()" style="padding:6px 12px;font-size:11px;background:#0a1628;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;width:100%">Select From Favourites</button>'+
       '<button onclick="_matFlashingsAddAndCustom()" style="padding:6px 12px;font-size:11px;background:#fff;color:#0a1628;border:1px solid #cbd5e1;border-radius:6px;cursor:pointer;font-weight:600;width:100%">Enter Custom Flashing</button>'+
@@ -19409,7 +19578,7 @@ function _jpRenderFlashingCell(box, bi){
     } else {
       inner = '<div style="padding:18px;color:var(--text2);font-style:italic;font-size:11px;text-align:center">Empty slot</div>';
     }
-    return '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;background:#fff;position:relative;min-height:200px;display:flex;flex-direction:column">' +
+    return '<div class="mat-fl-card" style="position:relative;min-height:200px">' +
       '<button onclick="_matFlashingsRemove('+si+')" title="Remove" style="position:absolute;top:4px;right:4px;background:none;border:none;color:#94a3b8;font-size:14px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:4px">×</button>'+
       inner +
     '</div>';
@@ -19453,19 +19622,19 @@ function _jpRenderFlashingCell(box, bi){
       ? letterInput
       : '<span style="display:none">'+letterInput+'</span>';
     var gridCols   = rowsRefsOn ? 'auto auto 1fr auto' : 'auto 1fr auto';
-    rowsHtml += '<div style="display:grid;grid-template-columns:'+gridCols+';gap:8px;align-items:center;padding:2px 6px;font-size:12px;line-height:1.4'+(isExtra?';background:#fffbeb;border-radius:3px':'')+'">'+
+    rowsHtml += '<div class="mat-fl-row'+(isExtra?' is-extra':'')+'" style="grid-template-columns:'+gridCols+'">'+
       letterCell +
       '<span style="color:#6f6a60">×'+qtyCell+'</span>'+
       '<span style="text-align:right">'+lenInput+'<span style="color:#6f6a60">m</span></span>'+
       deleteCell +
     '</div>';
   });
-  var addRowBtn = '<button onclick="_matExtrasAdd(\''+esc(spec.key)+'\')" style="margin-top:6px;font-size:11px;padding:4px 10px;background:transparent;border:1px dashed #94a3b8;border-radius:5px;color:#475569;cursor:pointer;font-weight:600;align-self:flex-start">+ Add row</button>';
-  return '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;background:#fff;display:flex;flex-direction:column">'+
-    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="width:10px;height:10px;background:'+spec.colour+';border-radius:2px"></span><strong style="font-size:13px;color:#0a1628;line-height:1.2">'+esc(spec.label)+'</strong></div>'+
+  var addRowBtn = '<button class="mat-add-btn" onclick="_matExtrasAdd(\''+esc(spec.key)+'\')" style="align-self:flex-start">+ Add row</button>';
+  return '<div class="mat-fl-card">'+
+    '<div class="mat-fl-head"><span class="mat-dot" style="background:'+spec.colour+'"></span><strong>'+esc(spec.label)+'</strong></div>'+
     drawing +
-    '<div style="margin-top:6px;border-top:1px solid #e5e7eb;padding-top:4px">'+rowsHtml+'</div>'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 6px;margin-top:3px;border-top:1px solid #e5e7eb;font-size:11px;color:#0a1628;font-weight:600"><span>Total '+cl.pieceCount+' pcs</span><span>'+cl.totalLm.toFixed(1)+' m</span></div>'+
+    '<div class="mat-fl-rows">'+rowsHtml+'</div>'+
+    '<div class="mat-fl-foot"><span>Total '+cl.pieceCount+' pcs</span><span>'+cl.totalLm.toFixed(1)+' m</span></div>'+
     addRowBtn +
   '</div>';
 }
@@ -19514,6 +19683,18 @@ function _jpResolveDefaultDrawing(flashingType){
 // legacy section.  Changing here writes back to the hidden input AND
 // fires its change event so the existing handlers (renderMaterialsCutLists,
 // renderMatRoofMap, …) run the same as if the legacy control was used.
+// Shared section header for the Cut Lists / Flashings / Consumables
+// pages.  Renders the coloured dot + bold title + dim meta line so
+// every section on the materials surfaces reads identically (was
+// duplicated as inline-styled HTML in four separate places).
+function _matSectionHead(colour, title, meta){
+  return '<div class="mat-section-head">'+
+    '<span class="mat-dot" style="background:'+colour+'"></span>'+
+    '<span class="mat-title">'+esc(title)+'</span>'+
+    (meta ? '<span class="mat-meta">— '+meta+'</span>' : '')+
+  '</div>';
+}
+
 function _jpSpecSelect(label, hiddenId, options){
   var el = document.getElementById(hiddenId);
   var current = (el && el.value) || '';
