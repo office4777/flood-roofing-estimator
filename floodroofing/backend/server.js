@@ -793,6 +793,89 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
         matchedLength: found[0] ? found[0].items.length : 0,
       };
       attempts.push({ path: 'job-blob-scan', status: r.status, ok: r.ok, summary });
+
+      // (C) Last-ditch sub-resource scan. The job blob's `links`
+      // section + nested resources expose related entities:
+      // customer, site, active quote, phases. Some Fergus tenants
+      // surface attachments at /customers/{id}/files, /sites/{id}/
+      // photos, /jobs/{id}/quotes/{qid}/files etc.  Try a curated
+      // set of these against the ids we just collected.
+      const subResources = [];
+      if (job && job.customer && job.customer.id) {
+        const cid = String(job.customer.id);
+        subResources.push({ kind:'customer', id:cid, paths:[
+          '/customers/{id}/files', '/customers/{id}/photos',
+          '/customers/{id}/attachments', '/customers/{id}/documents',
+        ] });
+      }
+      if (job && job.siteAddress && job.siteAddress.id) {
+        const sid = String(job.siteAddress.id);
+        subResources.push({ kind:'site', id:sid, paths:[
+          '/sites/{id}/files', '/sites/{id}/photos',
+          '/sites/{id}/attachments', '/sites/{id}/gallery',
+        ] });
+      }
+      if (job && job.activeQuote && job.activeQuote.id) {
+        const qid = String(job.activeQuote.id);
+        subResources.push({ kind:'quote', id:qid, paths:[
+          '/jobs/' + jobId + '/quotes/{id}/files',
+          '/jobs/' + jobId + '/quotes/{id}/photos',
+          '/jobs/' + jobId + '/quotes/{id}/attachments',
+          '/quotes/{id}/files', '/quotes/{id}/photos',
+        ] });
+      }
+      // Phases is a list — try the bare endpoint just in case it
+      // returns something useful (some tenants stash uploads under
+      // phase items).
+      subResources.push({ kind:'phases', id:jobId, paths:[
+        '/jobs/{id}/phases'
+      ] });
+      for (const sub of subResources) {
+        for (const tpl of sub.paths) {
+          const path = FERGUS_PREFIX + tpl.replace('{id}', encodeURIComponent(sub.id));
+          const url  = `https://${FERGUS_HOST}${path}`;
+          try {
+            const sr = await fetch(url, {
+              method: 'GET',
+              headers: {
+                'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+                'Accept':        'application/json',
+              },
+            });
+            const stext = await sr.text();
+            let sparsed = null; try { sparsed = JSON.parse(stext); } catch {}
+            const ssummary = sparsed && typeof sparsed === 'object'
+              ? (Array.isArray(sparsed)
+                  ? { type:'array', length: sparsed.length, firstKeys: sparsed[0] && typeof sparsed[0]==='object' ? Object.keys(sparsed[0]).slice(0,12) : null }
+                  : { type:'object', keys: Object.keys(sparsed).slice(0,15) })
+              : { type: typeof sparsed, sample: String(stext).slice(0,120) };
+            attempts.push({ path: tpl + ' [' + sub.kind + '=' + sub.id + ']', status: sr.status, ok: sr.ok, summary: ssummary });
+            if (!sr.ok || !sparsed) continue;
+            // Walk the sub-resource response for a file-shaped array.
+            const subFound = [];
+            (function subWalk(node, path, depth){
+              if (depth > 3 || !node || typeof node !== 'object') return;
+              if (Array.isArray(node)){
+                if (node.length && looksLikeFile(node[0])){ subFound.push({ path, items: node }); return; }
+                if (node.length <= 30) node.forEach((v, i) => subWalk(v, path + '[' + i + ']', depth + 1));
+                return;
+              }
+              for (const k of Object.keys(node)){
+                subWalk(node[k], path ? path + '.' + k : k, depth + 1);
+                if (subFound.length) return;
+              }
+            })(sparsed.data || sparsed.result || sparsed, '', 0);
+            if (subFound.length){
+              const files = subFound[0].items.map(_normaliseFergusFile).filter(Boolean);
+              if (files.length){
+                return res.json({ ok: true, used: tpl + ' (' + sub.kind + ' ' + sub.id + ')', count: files.length, files, attempts });
+              }
+            }
+          } catch (e) {
+            attempts.push({ path: tpl + ' [' + sub.kind + '=' + sub.id + ']', error: e.message });
+          }
+        }
+      }
       if (found.length){
         const files = found[0].items.map(_normaliseFergusFile).filter(Boolean);
         if (files.length){

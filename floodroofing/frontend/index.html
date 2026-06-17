@@ -5195,7 +5195,17 @@ async function openRoofFergusPicker(){
           // via the existing /fergus/* proxy and dump it into a textarea
           // so we can read the actual shape and pin the right path on
           // the next iteration without another round-trip.
-          '<div style="margin-top:14px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px">'+
+          // Honest note when no photo endpoint surfaced in either the
+          // sibling-path scan or the job-blob walk — most Fergus tenants
+          // hide the project gallery behind their web app's internal
+          // API surface (auth via app session, not the Partner API key
+          // we have). Nothing the public API can do here without
+          // additional credentials / docs.
+          '<div style="margin-top:14px;padding:10px 12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px">'+
+            '<div style="font-size:11.5px;font-weight:700;color:#78350f;margin-bottom:4px">⚠ Heads-up — this may not be possible on this tenant</div>'+
+            '<div style="font-size:11px;color:#78350f">The Fergus Partner API on your tenant doesn\'t advertise a project-gallery endpoint, and the photos may live behind Fergus\'s internal web-app API (different auth from our Partner key). If the buttons below don\'t crack it, the cleanest fix is to ask Fergus support which Partner-API path exposes the Files & Photos section on your account — they\'ll either point you at one, or confirm it isn\'t exposed (in which case the "Upload from PC" flow stays the path forward).</div>'+
+          '</div>'+
+          '<div style="margin-top:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px">'+
             '<div style="font-size:11.5px;font-weight:700;color:#0a1628;margin-bottom:4px">Try a different Fergus job id</div>'+
             '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">If you can see the photos in Fergus, copy that page\'s URL (e.g. <code>app.fergus.com/jobs/view/<strong>2942</strong>/project_gallery</code>) and paste it here. We\'ll pull the photo list using that id instead of the api id we\'re currently sending.</div>'+
             '<div style="display:flex;gap:6px">'+
