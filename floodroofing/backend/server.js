@@ -642,7 +642,92 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
       attempts.push({ path: tpl, error: e.message });
     }
   }
-  res.json({ ok: false, files: [], attempts, hint: 'No candidate path returned a non-empty file array. Each attempt above shows the response status + body shape so we can pick the right one.' });
+  // Fallback strategy — when every sibling path 404s but /jobs/{id}
+  // returns 200, this tenant exposes attachments INSIDE the job blob
+  // rather than via a dedicated listing endpoint. Fetch the job, unwrap
+  // the common envelopes Fergus uses (result, data), then walk the
+  // tree for any array whose first item looks file-shaped.
+  try {
+    const jobPath = FERGUS_PREFIX + '/jobs/' + encodeURIComponent(jobId);
+    const jobUrl  = `https://${FERGUS_HOST}${jobPath}`;
+    const r = await fetch(jobUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+        'Accept':        'application/json',
+      },
+    });
+    const text = await r.text();
+    let parsed = null; try { parsed = JSON.parse(text); } catch {}
+    if (parsed && r.ok) {
+      // Unwrap nested envelopes — Fergus returns {result, data}, but
+      // either field can carry the actual job depending on tenant.
+      let job = parsed;
+      const envs = [];
+      for (let depth = 0; depth < 4; depth++) {
+        if (!job || typeof job !== 'object' || Array.isArray(job)) break;
+        if (job.data && typeof job.data === 'object')       { envs.push('data');   job = job.data; continue; }
+        if (job.result && typeof job.result === 'object')   { envs.push('result'); job = job.result; continue; }
+        if (job.value && typeof job.value === 'object')     { envs.push('value');  job = job.value; continue; }
+        break;
+      }
+      // Recursive search — walk up to 4 levels deep looking for an
+      // array of objects whose first item has file-like fields.
+      const FILE_HINT_KEYS = ['url','public_url','download_url','file_url','signed_url','s3_url','original_url','path','name','filename','file_name','original_name','mime_type','content_type','thumbnail','thumb_url'];
+      function looksLikeFile(o){
+        if (!o || typeof o !== 'object' || Array.isArray(o)) return false;
+        const keys = Object.keys(o);
+        return FILE_HINT_KEYS.some(k => keys.includes(k));
+      }
+      const found = [];   // { path, items }
+      function walk(node, path, depth){
+        if (depth > 4 || !node || typeof node !== 'object') return;
+        if (Array.isArray(node)){
+          if (node.length && looksLikeFile(node[0])){ found.push({ path, items: node }); return; }
+          // Don't descend into giant arrays of non-files (line items,
+          // notes, etc.) — they balloon the search space.
+          if (node.length <= 30) node.forEach((v, i) => walk(v, path + '[' + i + ']', depth + 1));
+          return;
+        }
+        // Prefer obvious file-bucket keys first so the right array
+        // wins even when sibling arrays exist.
+        const HINT_KEY_ORDER = ['attachments','files','photos','documents','gallery','project_gallery','job_files','job_photos','uploads','images','media'];
+        const keys = Object.keys(node).sort((a,b) => {
+          const ai = HINT_KEY_ORDER.indexOf(a.toLowerCase());
+          const bi = HINT_KEY_ORDER.indexOf(b.toLowerCase());
+          if (ai >= 0 && bi < 0) return -1;
+          if (bi >= 0 && ai < 0) return  1;
+          if (ai >= 0 && bi >= 0) return ai - bi;
+          return 0;
+        });
+        for (const k of keys){
+          walk(node[k], path ? path + '.' + k : k, depth + 1);
+          if (found.length) return;   // first match wins
+        }
+      }
+      walk(job, '', 0);
+      const summary = {
+        type: 'object',
+        envelopes: envs,
+        topKeys: (typeof job === 'object' && job) ? Object.keys(job).slice(0, 40) : null,
+        scannedFor: 'embedded file array',
+        matchedPath: found[0] ? found[0].path : null,
+        matchedLength: found[0] ? found[0].items.length : 0,
+      };
+      attempts.push({ path: 'job-blob-scan', status: r.status, ok: r.ok, summary });
+      if (found.length){
+        const files = found[0].items.map(_normaliseFergusFile).filter(Boolean);
+        if (files.length){
+          return res.json({ ok: true, used: 'job-blob:' + found[0].path, count: files.length, files, attempts });
+        }
+      }
+    } else {
+      attempts.push({ path: 'job-blob-scan', status: r.status, ok: r.ok, summary: { type: typeof parsed, sample: String(text).slice(0,120) } });
+    }
+  } catch (e) {
+    attempts.push({ path: 'job-blob-scan', error: e.message });
+  }
+  res.json({ ok: false, files: [], attempts, hint: 'No candidate path or job-blob scan returned a file array. Each attempt above shows the response status + body shape so we can pick the right one.' });
 });
 
 // Stream a single Fergus file back to the browser. The caller supplies
