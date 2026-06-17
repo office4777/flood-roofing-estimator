@@ -16347,19 +16347,11 @@ function redrawAll() {
       // can branch on it cleanly.
       if (typeof d.manualIdx === 'number') _hit.manualIdx = d.manualIdx;
       window._roofCanvasHits.sheets.push(_hit);
-      if (d.sdl < 26 * af) return;             // too short for arrows — label only
-      ctx.lineCap = 'round';
-      ctx.lineWidth = 1.4 * af;
-      ctx.strokeStyle = '#0a1628';
-      ctx.fillStyle   = '#0a1628';
-      var tw = ctx.measureText(d.label).width;
-      var clearance = Math.abs(d.ndx)*(tw/2) + Math.abs(d.ndy)*(fontPx/2);
-      var gap = 4 * af;
-      var arm = Math.min(16 * af, d.sdl/2 - (clearance + gap + 2));
-      if (arm >= 5 * af) {
-        _shArrow(d.lblX + d.ndx*(clearance+gap), d.lblY + d.ndy*(clearance+gap), d.lblX + d.ndx*(clearance+gap+arm), d.lblY + d.ndy*(clearance+gap+arm), af);
-        _shArrow(d.lblX - d.ndx*(clearance+gap), d.lblY - d.ndy*(clearance+gap), d.lblX - d.ndx*(clearance+gap+arm), d.lblY - d.ndy*(clearance+gap+arm), af);
-      }
+      // Arrows from the label out to the gutter / ridge used to render
+      // here, but they sat on top of the digit (the head of the arrow
+      // landed where the number was) and made the measure unreadable.
+      // Drop them — the label alone is clear enough and click-hit
+      // detection still works via the rectangle pushed above.
     });
     ctx.restore();
   }
