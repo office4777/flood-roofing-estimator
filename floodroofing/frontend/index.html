@@ -17859,31 +17859,38 @@ function _renderMatRoofMapBasic(out){
         'href="'+bgUrl+'"/>';
     }
   }
+  // Per-roof label overrides — populated by the Edit Basic Map popup.
+  // Shape: DRAW.basicLabelOverrides[ri] = { dx, dy, nameScale, subScale }.
+  // Untouched roofs render exactly as before (default centroid + auto
+  // font size derived from the bounding-box height).
+  var overrides = DRAW.basicLabelOverrides || {};
   roofs.forEach(function(r, ri){
     var c = palette[ri % palette.length];
-    // Filled polygon — semi-transparent fill so the bg image still
-    // shows through when the photo is on.
     var pts = r.outline.map(function(p){ return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
     svg += '<polygon points="'+pts+'" fill="'+c.fill+'" fill-opacity="0.78" stroke="'+c.stroke+'" stroke-width="2.5"/>';
-    // Internal lines (ridge, hips, valleys, etc.) — thinner so they
-    // read as structure inside the shaded fill.
     (r.lines || []).forEach(function(l){
       if (!l || !l.pts || l.pts.length !== 2) return;
-      if (l.type === 'gutter') return;   // outline edges already drawn
+      if (l.type === 'gutter') return;
       var col = lineColors[l.type] || '#475569';
       svg += '<line x1="'+l.pts[0][0].toFixed(1)+'" y1="'+l.pts[0][1].toFixed(1)+'" x2="'+l.pts[1][0].toFixed(1)+'" y2="'+l.pts[1][1].toFixed(1)+'" stroke="'+col+'" stroke-width="2" stroke-linecap="round"/>';
     });
-    // Centroid (average of vertices) — good enough for a label anchor
-    // on convex / mildly concave outlines, which covers the realistic
-    // roof shapes.
     var cx = 0, cy = 0;
     r.outline.forEach(function(p){ cx += p[0]; cy += p[1]; });
     cx /= r.outline.length; cy /= r.outline.length;
     var areaTxt = r.areaM2 > 0 ? r.areaM2.toFixed(1) + ' m²' : '— m²';
-    // White halo behind the text so it stays readable when the bg
-    // image bleeds through.
-    svg += '<text x="'+cx.toFixed(1)+'" y="'+(cy - 2).toFixed(1)+'" text-anchor="middle" font-size="'+fontSize+'" font-weight="700" stroke="#fff" stroke-width="4" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+esc(r.name)+'</text>';
-    svg += '<text x="'+cx.toFixed(1)+'" y="'+(cy + fontSize*0.95).toFixed(1)+'" text-anchor="middle" font-size="'+subSize+'" font-weight="500" stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+areaTxt+'</text>';
+    // Apply override (drag + per-text font scale).
+    var ov = overrides[ri] || {};
+    var ovDx = +ov.dx || 0, ovDy = +ov.dy || 0;
+    var nameScale = (+ov.nameScale > 0) ? +ov.nameScale : 1;
+    var subScale  = (+ov.subScale  > 0) ? +ov.subScale  : 1;
+    var nFs = fontSize * nameScale;
+    var sFs = subSize  * subScale;
+    var lx = cx + ovDx;
+    var ly = cy + ovDy;
+    svg += '<g data-basic-label="'+ri+'">'+
+      '<text x="'+lx.toFixed(1)+'" y="'+(ly - 2).toFixed(1)+'" text-anchor="middle" font-size="'+nFs+'" font-weight="700" stroke="#fff" stroke-width="4" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+esc(r.name)+'</text>'+
+      '<text x="'+lx.toFixed(1)+'" y="'+(ly + nFs*0.95).toFixed(1)+'" text-anchor="middle" font-size="'+sFs+'" font-weight="500" stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+areaTxt+'</text>'+
+    '</g>';
   });
   svg += '</svg>';
   out.innerHTML = controlsHtml + svg;
@@ -18542,12 +18549,164 @@ function _jpCropEdgeUp(){
 }
 
 function _jpEditImage(pageIdx, imgId){
-  // The Map Roof tab is the full editing canvas.  We park a return
-  // marker so coming back refreshes the Job Pack and the dropped
-  // image reflects whatever edits the user made.
+  // Find the dropped image — different map kinds get different editors.
+  var page = _jpState().pages[pageIdx];
+  var im = page && page.images && page.images.find(function(x){ return x.id === imgId; });
+  // Basic roof map = small, label-driven view that the user almost
+  // always wants to tweak inline (move "Main Roof", grow the m²
+  // text…). Open a dedicated popup instead of jumping to Map Roof.
+  if (im && im.mapKey && im.mapKey.indexOf('basic') === 0) {
+    return _jpEditBasicMap(pageIdx, imgId);
+  }
+  // Detailed / sheet-plan / flashref still want the full canvas.
   try { sessionStorage.setItem('fr_jp_edit_return', '1'); } catch(e){}
   alert('Switching to Map Roof so you can edit the drawing. When you finish, click Job Pack in the sidebar to return — the picture will refresh automatically.');
   if (typeof gotoTab === 'function') gotoTab('roof');
+}
+
+// ── Basic-map label editor ────────────────────────────────────────
+// Opens a modal showing the Basic roof map at large size.  The user
+// drags any roof's name+area group to reposition it, and tunes two
+// per-roof sliders ("Label size" / "Area size") to scale the text up
+// or down.  Save commits to DRAW.basicLabelOverrides so renderJobPack
+// re-captures the SVG with the same edits; Cancel reverts every
+// change made inside the popup.
+function _jpEditBasicMap(pageIdx, imgId){
+  // Snapshot the existing overrides so Cancel can undo anything we
+  // mutate inside the popup.
+  var snapshot = JSON.parse(JSON.stringify(DRAW.basicLabelOverrides || {}));
+  if (!DRAW.basicLabelOverrides) DRAW.basicLabelOverrides = {};
+  // Mount the modal.  Built fresh each open so the SVG always reflects
+  // the latest roof set / outline.
+  var existing = document.getElementById('jpBasicEditorModal');
+  if (existing) existing.remove();
+  var modal = document.createElement('div');
+  modal.id = 'jpBasicEditorModal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(10,22,40,.55);display:flex;align-items:center;justify-content:center;padding:24px';
+  modal.innerHTML =
+    '<div style="background:#fff;border-radius:10px;width:min(960px,100%);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 18px 48px rgba(0,0,0,.3)">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid #e5e7eb">'+
+        '<div>'+
+          '<div style="font-size:13px;font-weight:700;color:#0a1628">Edit basic map labels</div>'+
+          '<div style="font-size:11px;color:var(--text2);margin-top:1px">Drag a label to move it · use the sliders to resize</div>'+
+        '</div>'+
+        '<div style="display:flex;gap:8px">'+
+          '<button type="button" id="jpBasicEditorCancel" style="padding:7px 14px;background:#fff;color:#0a1628;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Cancel</button>'+
+          '<button type="button" id="jpBasicEditorSave" style="padding:7px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Save</button>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:14px;padding:14px 18px;overflow:auto;flex:1;min-height:0">'+
+        '<div id="jpBasicEditorCanvas" style="flex:1;min-width:0;display:flex;align-items:center;justify-content:center;background:#fafafa;border:1px solid #e5e7eb;border-radius:6px;padding:8px"></div>'+
+        '<div id="jpBasicEditorSliders" style="width:230px;flex:0 0 230px;display:flex;flex-direction:column;gap:10px;font-size:12px;color:#0a1628"></div>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(modal);
+  // Render the SVG into the canvas pane.
+  function repaint(){
+    var paneEl = document.getElementById('jpBasicEditorCanvas');
+    if (!paneEl) return;
+    _renderMatRoofMapBasic(paneEl);
+    // _renderMatRoofMapBasic emits a bg-opacity controls bar at the top
+    // when a bg image exists; suppress it in the editor for clarity.
+    var ctrl = paneEl.querySelector('input[type="range"]');
+    if (ctrl) {
+      var bar = ctrl.closest('div');
+      if (bar) bar.style.display = 'none';
+    }
+    // Wire each label group up for dragging.
+    paneEl.querySelectorAll('g[data-basic-label]').forEach(function(g){
+      g.style.cursor = 'move';
+      g.addEventListener('mousedown', _jpBasicEditorLabelDown);
+    });
+  }
+  // Build slider rows — one per roof — using the SAME indexing the
+  // renderer uses (i.e. order in _matBasicCollectRoofs).
+  var roofs = _matBasicCollectRoofs();
+  var sliders = document.getElementById('jpBasicEditorSliders');
+  sliders.innerHTML = roofs.map(function(r, ri){
+    var ov = DRAW.basicLabelOverrides[ri] || {};
+    var nameScale = (+ov.nameScale > 0) ? +ov.nameScale : 1;
+    var subScale  = (+ov.subScale  > 0) ? +ov.subScale  : 1;
+    return '<div style="border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px">'+
+      '<div style="font-weight:700;color:#0a1628;margin-bottom:6px;font-size:12px">'+esc(r.name || ('Roof '+(ri+1)))+'</div>'+
+      '<label style="display:flex;flex-direction:column;gap:3px;margin-bottom:6px">'+
+        '<span style="font-size:10.5px;color:#475569;display:flex;justify-content:space-between"><span>Label size</span><span id="jpBELblOut'+ri+'" style="font-variant-numeric:tabular-nums">'+nameScale.toFixed(2)+'×</span></span>'+
+        '<input type="range" min="0.5" max="3" step="0.05" value="'+nameScale+'" oninput="_jpBasicEditorSetScale('+ri+',\'nameScale\',this.value)" style="width:100%">'+
+      '</label>'+
+      '<label style="display:flex;flex-direction:column;gap:3px">'+
+        '<span style="font-size:10.5px;color:#475569;display:flex;justify-content:space-between"><span>Area size</span><span id="jpBESubOut'+ri+'" style="font-variant-numeric:tabular-nums">'+subScale.toFixed(2)+'×</span></span>'+
+        '<input type="range" min="0.5" max="3" step="0.05" value="'+subScale+'" oninput="_jpBasicEditorSetScale('+ri+',\'subScale\',this.value)" style="width:100%">'+
+      '</label>'+
+    '</div>';
+  }).join('');
+  repaint();
+  window._jpBasicEditorRepaint = repaint;
+  // Cancel reverts overrides; Save commits + refreshes the Job Pack.
+  document.getElementById('jpBasicEditorCancel').addEventListener('click', function(){
+    DRAW.basicLabelOverrides = snapshot;
+    modal.remove();
+  });
+  document.getElementById('jpBasicEditorSave').addEventListener('click', function(){
+    try { saveSnapshot && saveSnapshot(); } catch(e){}
+    modal.remove();
+    try { renderJobPack(); } catch(e){}
+    try { renderMatRoofMap(); } catch(e){}
+  });
+}
+
+// Slider handler — kept on `window` so the inline oninput in the
+// dynamically-mounted modal can find it.
+function _jpBasicEditorSetScale(roofIdx, field, value){
+  if (!DRAW.basicLabelOverrides) DRAW.basicLabelOverrides = {};
+  if (!DRAW.basicLabelOverrides[roofIdx]) DRAW.basicLabelOverrides[roofIdx] = {};
+  var f = parseFloat(value);
+  if (!isFinite(f) || f <= 0) f = 1;
+  DRAW.basicLabelOverrides[roofIdx][field] = f;
+  var outEl = document.getElementById(field === 'nameScale' ? 'jpBELblOut'+roofIdx : 'jpBESubOut'+roofIdx);
+  if (outEl) outEl.textContent = f.toFixed(2) + '×';
+  if (typeof window._jpBasicEditorRepaint === 'function') window._jpBasicEditorRepaint();
+}
+
+// Label drag — SVG units are roof-image coords (same as the outline).
+// Convert the mouse delta from CSS pixels to SVG units via the SVG's
+// CTM so the label stays under the cursor at any zoom.
+var _JP_BASIC_LABEL_DRAG = null;
+function _jpBasicEditorLabelDown(ev){
+  ev.preventDefault();
+  var g = ev.currentTarget;
+  var roofIdx = parseInt(g.getAttribute('data-basic-label'), 10);
+  if (!isFinite(roofIdx)) return;
+  var svg = g.ownerSVGElement;
+  if (!svg) return;
+  var ctm = svg.getScreenCTM();
+  if (!ctm) return;
+  // Pixels-per-unit derived from the CTM scale (uniform for our maps).
+  var pxPerUnitX = Math.hypot(ctm.a, ctm.b);
+  var pxPerUnitY = Math.hypot(ctm.c, ctm.d);
+  if (!DRAW.basicLabelOverrides) DRAW.basicLabelOverrides = {};
+  if (!DRAW.basicLabelOverrides[roofIdx]) DRAW.basicLabelOverrides[roofIdx] = {};
+  var ov = DRAW.basicLabelOverrides[roofIdx];
+  _JP_BASIC_LABEL_DRAG = {
+    roofIdx: roofIdx,
+    startMx: ev.clientX, startMy: ev.clientY,
+    startDx: +ov.dx || 0, startDy: +ov.dy || 0,
+    pxPerUnitX: pxPerUnitX || 1, pxPerUnitY: pxPerUnitY || 1
+  };
+  document.addEventListener('mousemove', _jpBasicEditorLabelMove);
+  document.addEventListener('mouseup',   _jpBasicEditorLabelUp);
+}
+function _jpBasicEditorLabelMove(ev){
+  var d = _JP_BASIC_LABEL_DRAG; if (!d) return;
+  var dx = (ev.clientX - d.startMx) / d.pxPerUnitX;
+  var dy = (ev.clientY - d.startMy) / d.pxPerUnitY;
+  DRAW.basicLabelOverrides[d.roofIdx].dx = d.startDx + dx;
+  DRAW.basicLabelOverrides[d.roofIdx].dy = d.startDy + dy;
+  if (typeof window._jpBasicEditorRepaint === 'function') window._jpBasicEditorRepaint();
+}
+function _jpBasicEditorLabelUp(){
+  _JP_BASIC_LABEL_DRAG = null;
+  document.removeEventListener('mousemove', _jpBasicEditorLabelMove);
+  document.removeEventListener('mouseup',   _jpBasicEditorLabelUp);
 }
 
 function renderJobPack(){
