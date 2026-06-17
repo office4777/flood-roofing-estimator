@@ -5191,6 +5191,24 @@ async function openRoofFergusPicker(){
             ? '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px"><thead><tr><th style="text-align:left;padding:4px 8px;background:#f4f4ef;color:#6f6a60;font-size:10px;text-transform:uppercase;letter-spacing:.04em">Path</th><th style="text-align:right;padding:4px 8px;background:#f4f4ef;color:#6f6a60;font-size:10px;text-transform:uppercase;letter-spacing:.04em">HTTP</th><th style="text-align:left;padding:4px 8px;background:#f4f4ef;color:#6f6a60;font-size:10px;text-transform:uppercase;letter-spacing:.04em">Body shape</th></tr></thead><tbody>'+rows+'</tbody></table>'
             : '<div style="font-size:12px;color:#b91c1c">Probe returned no results — the backend deploy may still be in progress.</div>'
           ) +
+          // One-click escape hatch: pull the full /jobs/{jobId} payload
+          // via the existing /fergus/* proxy and dump it into a textarea
+          // so we can read the actual shape and pin the right path on
+          // the next iteration without another round-trip.
+          '<div style="margin-top:14px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px">'+
+            '<div style="font-size:11.5px;font-weight:700;color:#0a1628;margin-bottom:4px">Try a different Fergus job id</div>'+
+            '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">If you can see the photos in Fergus, copy that page\'s URL (e.g. <code>app.fergus.com/jobs/view/<strong>2942</strong>/project_gallery</code>) and paste it here. We\'ll pull the photo list using that id instead of the api id we\'re currently sending.</div>'+
+            '<div style="display:flex;gap:6px">'+
+              '<input id="roofFergusAltUrl" type="text" placeholder="https://app.fergus.com/jobs/view/2942/project_gallery" style="flex:1;padding:6px 10px;border:1px solid #cbd5e1;border-radius:5px;font-size:11.5px">'+
+              '<button type="button" onclick="_jpRoofFergusRetryAltUrl()" style="padding:6px 12px;background:#0a1628;color:#fff;border:none;border-radius:5px;font-size:11.5px;font-weight:600;cursor:pointer">Retry</button>'+
+            '</div>'+
+          '</div>' +
+          '<div style="margin-top:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px">'+
+            '<div style="font-size:11.5px;font-weight:700;color:#0a1628;margin-bottom:4px">Need to see the raw job blob</div>'+
+            '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">/jobs/{jobId} returns 200 above — that response holds the photos somewhere inside. Click the button to dump the raw JSON, then copy it (Ctrl/Cmd-A → Ctrl/Cmd-C) and paste it back to me.</div>'+
+            '<button type="button" onclick="_jpRoofFergusDumpJob()" style="padding:6px 12px;background:#fff;color:#0a1628;border:1px solid #0a1628;border-radius:5px;font-size:11.5px;font-weight:600;cursor:pointer">Fetch raw job blob</button>'+
+            '<div id="roofFergusRawDump" style="margin-top:8px"></div>'+
+          '</div>' +
           listRows;
       } catch(probeErr) {
         body.innerHTML += '<div style="font-size:11.5px;color:#b91c1c;margin-top:8px">Probe failed: '+esc(probeErr.message || String(probeErr))+'</div>';
@@ -5262,6 +5280,64 @@ async function _pickRoofFromFergus(idx){
     closeRoofFergusPicker();
   } catch (e) {
     if (body) body.innerHTML = '<div style="font-size:12px;color:#b91c1c">Couldn\'t download: '+esc(e.message||String(e))+'</div>';
+  }
+}
+
+// ── Fergus picker diagnostic helpers ─────────────────────────────
+// Pull the raw /jobs/{id} blob via the generic /fergus/* proxy and
+// dump it into a textarea the user can copy.  Lets us see the actual
+// shape of the response — the photo array's nested key is almost
+// certainly in there but our walker hasn't recognised the field name.
+async function _jpRoofFergusDumpJob(){
+  var out = document.getElementById('roofFergusRawDump');
+  if (!out) return;
+  if (!S || !S.linkedJobId) { out.innerHTML = '<div style="font-size:11.5px;color:#b91c1c">No linked Fergus job.</div>'; return; }
+  out.innerHTML = '<div style="font-size:11.5px;color:var(--text2)">Fetching /jobs/' + esc(S.linkedJobId) + '…</div>';
+  try {
+    var token = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/fergus/jobs/' + encodeURIComponent(S.linkedJobId), {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    var text = await r.text();
+    var parsed = null; try { parsed = JSON.parse(text); } catch(_){}
+    var pretty = parsed ? JSON.stringify(parsed, null, 2) : text;
+    out.innerHTML =
+      '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">HTTP <strong style="color:'+ (r.ok ? '#15803d':'#b91c1c') +'">'+ r.status +'</strong> · ' + (pretty.length.toLocaleString()) + ' bytes — click the textarea then Ctrl/Cmd-A · Ctrl/Cmd-C to copy.</div>' +
+      '<textarea readonly style="width:100%;height:180px;font-family:monospace;font-size:10.5px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;color:#0a1628">'+esc(pretty)+'</textarea>';
+  } catch (e) {
+    out.innerHTML = '<div style="font-size:11.5px;color:#b91c1c">Couldn\'t fetch: '+esc(e.message||String(e))+'</div>';
+  }
+}
+
+// Take a Fergus web URL like
+//   https://app.fergus.com/jobs/view/2942/project_gallery
+// extract the short id (2942), and retry the picker with that id
+// instead of the API id we got from the job-search response.  Many
+// Fergus tenants route their files endpoints behind this short
+// "internal_job_id" rather than the long api primary key — so this
+// is the most reliable short-circuit when the user can see the
+// gallery in the web app but the API isn't finding it.
+async function _jpRoofFergusRetryAltUrl(){
+  var inp = document.getElementById('roofFergusAltUrl');
+  if (!inp) return;
+  var raw = String(inp.value || '').trim();
+  if (!raw) { alert('Paste the Fergus URL of the page that shows the photos.'); return; }
+  // Pull the first run of digits that follow "/jobs/view/" or just
+  // any digit run after "jobs/" — covers most Fergus URL flavours.
+  var m = raw.match(/jobs\/view\/(\d+)/i) || raw.match(/jobs\/(\d+)/i) || raw.match(/(\d+)/);
+  if (!m || !m[1]) { alert('Couldn\'t find a job id in that URL.'); return; }
+  var altId = m[1];
+  var saved = S.linkedJobId;
+  S.linkedJobId = altId;
+  try { await openRoofFergusPicker(); }
+  finally {
+    // If the retry surfaced files the picker would have downloaded
+    // one (via _pickRoofFromFergus) and we keep altId on linkedJobId
+    // for the next call. If it didn't, restore so the rest of the
+    // app keeps using the API id.  The modal is still up either way.
+    if (!(window._roofFergusFiles && window._roofFergusFiles.length)) {
+      S.linkedJobId = saved;
+    }
   }
 }
 
