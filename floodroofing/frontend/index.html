@@ -13516,6 +13516,19 @@ function prefillFergus(){document.getElementById('fNewClient').value=document.ge
 
 
 // ── DRAWING ENGINE ───────────────────────────────────────────────
+// Cut-sheet inset (m): every sheet length the calibration derives gets
+// trimmed by this many metres so the displayed measure matches what
+// the crew actually cuts.  ~10 mm tolerance at the eave + ~30 mm
+// tucked under the ridge cap = 40 mm total.  Applied once at the
+// canonical helper below; the canvas labels, the sheet plan, the cut
+// list and the wing strips all derive their sheet length through that
+// helper so the reduction stays uniform across the app.
+var SHEET_LENGTH_INSET_M = 0.040;
+function _calibratedSheetM(rawM){
+  var n = +rawM;
+  if (!isFinite(n) || n <= 0) return 0;
+  return Math.max(0, n - SHEET_LENGTH_INSET_M);
+}
 var DRAW = {
   tool: 'outline',
   outline: [],
@@ -16210,7 +16223,7 @@ function redrawAll() {
           var endImgX = rmx + dx*bestPerp, endImgY = rmy + dy*bestPerp;
           var lblImgX = rmx + dx*bestPerp*0.5, lblImgY = rmy + dy*bestPerp*0.5;
           if (!_pointInPoly(lblImgX, lblImgY, outline)) return;
-          var autoSheetM = bestPerp * (DRAW.scaleMetresPerPx || 0) * _pitchF;
+          var autoSheetM = _calibratedSheetM(bestPerp * (DRAW.scaleMetresPerPx || 0) * _pitchF);
           // Face-based key (gutter + into-face direction) PLUS the
           // source ridge's midpoint hash, so two ridges that drop
           // perpendicular onto the same gutter on the same face get
@@ -24367,7 +24380,7 @@ function _renderRoofSheetPlanInner() {
       nx: nx, ny: ny,            // inward perpendicular unit
       perpPx: perpPx,
       planSheetM:  perpPx * effectiveScale,
-      sheetM:      perpPx * effectiveScale * pitchFactor,
+      sheetM:      _calibratedSheetM(perpPx * effectiveScale * pitchFactor),
       area: polyArea(poly),
       centroid: cc
     });
@@ -24393,7 +24406,7 @@ function _renderRoofSheetPlanInner() {
     var perpPx=0; p.forEach(function(pp){var d=(pp[0]-a[0])*nx+(pp[1]-a[1])*ny; if(d>perpPx)perpPx=d;});
     return { poly:p, type:faceType, a:[a[0],a[1]], b:[b[0],b[1]], gL:gL, gAng:Math.atan2(gdy,gdx),
       tx:gdx/gL, ty:gdy/gL, nx:nx, ny:ny, perpPx:perpPx,
-      planSheetM:perpPx*effectiveScale, sheetM:perpPx*effectiveScale*pitchFactor,
+      planSheetM:perpPx*effectiveScale, sheetM:_calibratedSheetM(perpPx*effectiveScale*pitchFactor),
       area:polyArea(p), centroid:cc, color:color };
   }
   function _buildTFaces(ol){
@@ -24598,7 +24611,7 @@ function _renderRoofSheetPlanInner() {
         poly: poly, type: (poly.length === 3 ? 'hip-end' : 'long-side'),
         a: a, b: b, gL: gL, gAng: Math.atan2(gdy, gdx),
         tx: gdx/gL, ty: gdy/gL, nx: nx, ny: ny, perpPx: perpPx,
-        planSheetM: perpPx*effectiveScale, sheetM: perpPx*effectiveScale*pitchFactor,
+        planSheetM: perpPx*effectiveScale, sheetM: _calibratedSheetM(perpPx*effectiveScale*pitchFactor),
         area: polyArea(poly), centroid: cc
       });
     });
@@ -25006,7 +25019,7 @@ function _renderRoofSheetPlanInner() {
         var d = (p[0]-aStart[0])*nx + (p[1]-aStart[1])*ny;
         if (d > maxDeep) maxDeep = d;
       });
-      var stripPieceM = maxDeep * effectiveScale * pitchFactor;
+      var stripPieceM = _calibratedSheetM(maxDeep * effectiveScale * pitchFactor);
       // Strip's "would-be" full rectangle (before face-poly clipping).
       // If clipped area is materially smaller than the rectangle, the
       // strip has an offcut cut at a hip — i.e. it's a corner donor.
@@ -26091,7 +26104,7 @@ function _renderRoofSheetPlanInner() {
         tx: tx, ty: ty, nx: nx, ny: ny,
         perpPx: perpPx,
         planSheetM: perpPx * effectiveScale,
-        sheetM:     perpPx * effectiveScale * pitchFactor,
+        sheetM:     _calibratedSheetM(perpPx * effectiveScale * pitchFactor),
         area: polyArea(poly),
         centroid: cent,
         color: color
@@ -26108,7 +26121,7 @@ function _renderRoofSheetPlanInner() {
         nx: -gdy/gL, ny: gdx/gL,
         perpPx: perpPx,
         planSheetM: perpPx * effectiveScale,
-        sheetM:     perpPx * effectiveScale * pitchFactor,
+        sheetM:     _calibratedSheetM(perpPx * effectiveScale * pitchFactor),
         area: polyArea(poly),
         centroid: polyCentroid(poly),
         color: color
@@ -26477,8 +26490,8 @@ function _renderRoofSheetPlanInner() {
       var wDonor = {
         face: faceWingW, color: COL_PURPLE,
         poly: poly, centroid: polyCentroid(poly),
-        orderedLengthMm: orderedLengthMm(wingPerpPx * effectiveScale * pitchFactor),
-        pieceM: wingPerpPx * effectiveScale * pitchFactor,
+        orderedLengthMm: orderedLengthMm(_calibratedSheetM(wingPerpPx * effectiveScale * pitchFactor)),
+        pieceM: _calibratedSheetM(wingPerpPx * effectiveScale * pitchFactor),
         isOffcut: false, isPhantom: false
       };
       stripsWing.push(wDonor);
@@ -26507,8 +26520,8 @@ function _renderRoofSheetPlanInner() {
         var donor = {
           face: faceWingE, color: COL_PURPLE,
           poly: clip, centroid: polyCentroid(clip),
-          orderedLengthMm: orderedLengthMm(wingPerpPx * effectiveScale * pitchFactor),
-          pieceM: wingPerpPx * effectiveScale * pitchFactor,
+          orderedLengthMm: orderedLengthMm(_calibratedSheetM(wingPerpPx * effectiveScale * pitchFactor)),
+          pieceM: _calibratedSheetM(wingPerpPx * effectiveScale * pitchFactor),
           isOffcut: false, isPhantom: false
         };
         stripsWing.push(donor);
