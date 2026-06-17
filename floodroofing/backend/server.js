@@ -548,6 +548,11 @@ app.get('/fergus-files/probe', requireAuth, requireSubscription, async (req, res
 // payload containing one), normalises it into a uniform shape, and
 // passes the picked path back so subsequent /fergus-files/download
 // calls don't have to re-discover it.
+// Walk a wide net of candidate paths. Fergus does not publish a stable
+// public files API and the right surface varies per tenant. We include
+// v2 variants and the "job_files" path that Fergus's own UI labels
+// "Files & Photos".  Order matters — we accept the FIRST array-shaped
+// response that has at least one item.
 const FERGUS_LIST_CANDIDATES = [
   '/jobs/{jobId}/project_gallery',
   '/jobs/{jobId}/photos',
@@ -555,6 +560,16 @@ const FERGUS_LIST_CANDIDATES = [
   '/jobs/{jobId}/attachments',
   '/jobs/{jobId}/gallery',
   '/jobs/{jobId}/documents',
+  '/jobs/{jobId}/job_files',
+  '/jobs/{jobId}/job_photos',
+  '/jobs/{jobId}/uploads',
+  '/v2/jobs/{jobId}/files',
+  '/v2/jobs/{jobId}/photos',
+  '/v2/jobs/{jobId}/attachments',
+  '/v2/jobs/{jobId}/gallery',
+  '/v2/jobs/{jobId}/job_files',
+  '/job/{jobId}/files',
+  '/job/{jobId}/photos',
 ];
 
 function _normaliseFergusFile(raw) {
@@ -563,10 +578,10 @@ function _normaliseFergusFile(raw) {
   // the picker needs at minimum an id, a display name, a content-type
   // hint and either a URL or a download path.
   const id   = raw.id || raw.uuid || raw.file_id || raw.attachment_id || raw.gallery_id || null;
-  const name = raw.name || raw.filename || raw.title || raw.original_name || ('file-' + (id || ''));
-  const url  = raw.url || raw.public_url || raw.download_url || raw.path || raw.file_url || raw.original_url || null;
-  const thumb= raw.thumbnail || raw.thumb_url || raw.preview_url || raw.thumbnail_url || null;
-  const mime = raw.mime_type || raw.content_type || raw.contentType || raw.type || '';
+  const name = raw.name || raw.filename || raw.title || raw.original_name || raw.file_name || raw.display_name || ('file-' + (id || ''));
+  const url  = raw.url || raw.public_url || raw.download_url || raw.path || raw.file_url || raw.original_url || raw.signed_url || raw.s3_url || raw.cdn_url || null;
+  const thumb= raw.thumbnail || raw.thumb_url || raw.preview_url || raw.thumbnail_url || raw.thumb || null;
+  const mime = raw.mime_type || raw.content_type || raw.contentType || raw.type || raw.file_type || '';
   return { id, name, url, thumbnail: thumb || url, contentType: mime };
 }
 
@@ -596,7 +611,15 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
       });
       const text = await r.text();
       let parsed = null; try { parsed = JSON.parse(text); } catch {}
-      attempts.push({ path: tpl, status: r.status, ok: r.ok });
+      // Always stash a short shape summary so the picker can show the
+      // user exactly why no files came back — keys present, array
+      // length, status code.
+      const summary = parsed && typeof parsed === 'object'
+        ? (Array.isArray(parsed)
+            ? { type:'array', length: parsed.length, firstKeys: parsed[0] && typeof parsed[0]==='object' ? Object.keys(parsed[0]).slice(0,12) : null }
+            : { type:'object', keys: Object.keys(parsed).slice(0,15) })
+        : { type: typeof parsed, sample: String(text).slice(0,120) };
+      attempts.push({ path: tpl, status: r.status, ok: r.ok, summary });
       if (!r.ok || !parsed) continue;
       // Find the array — Fergus wraps lists in several shapes (.data,
       // .files, .photos, …) so peel one level of nesting if needed.
@@ -607,6 +630,10 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
       else if (Array.isArray(parsed.photos)) arr = parsed.photos;
       else if (Array.isArray(parsed.attachments)) arr = parsed.attachments;
       else if (Array.isArray(parsed.items)) arr = parsed.items;
+      else if (Array.isArray(parsed.records)) arr = parsed.records;
+      else if (parsed.value && Array.isArray(parsed.value.data)) arr = parsed.value.data;
+      else if (parsed.result && Array.isArray(parsed.result)) arr = parsed.result;
+      else if (parsed.result && Array.isArray(parsed.result.files)) arr = parsed.result.files;
       if (!arr) continue;
       const files = arr.map(_normaliseFergusFile).filter(Boolean);
       if (!files.length) continue;
@@ -615,7 +642,7 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
       attempts.push({ path: tpl, error: e.message });
     }
   }
-  res.json({ ok: false, files: [], attempts, hint: 'No candidate path returned a non-empty file array. Run /fergus-files/probe to see the raw shapes.' });
+  res.json({ ok: false, files: [], attempts, hint: 'No candidate path returned a non-empty file array. Each attempt above shows the response status + body shape so we can pick the right one.' });
 });
 
 // Stream a single Fergus file back to the browser. The caller supplies

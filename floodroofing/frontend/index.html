@@ -5138,8 +5138,34 @@ async function openRoofFergusPicker(){
     });
     var data = await r.json().catch(function(){ return {}; });
     if (!r.ok || !data.ok) {
-      body.innerHTML = '<div style="font-size:12px;color:#b91c1c">Fergus didn\'t return any photos for this job.' +
-        (data.hint ? '<div style="margin-top:6px;color:var(--text2)">' + esc(data.hint) + '</div>' : '') + '</div>';
+      // Surface the per-candidate probe summary so we can see which path
+      // Fergus actually exposes for this tenant.  Hits with status 200
+      // + an object response are the strongest hint: their `keys` will
+      // include the array field we need to add to the parser.
+      var diagRows = (data.attempts || []).map(function(a){
+        var status = a.status != null ? a.status : (a.error ? 'ERR' : '?');
+        var statusColor = (a.status >= 200 && a.status < 300) ? '#15803d'
+                       : (a.status >= 400 ? '#b91c1c' : '#6f6a60');
+        var shape = '';
+        if (a.summary) {
+          if (a.summary.type === 'array') shape = 'array, length=' + a.summary.length + (a.summary.firstKeys ? ' · first item keys: ['+a.summary.firstKeys.join(', ')+']' : '');
+          else if (a.summary.type === 'object') shape = 'object, keys: [' + (a.summary.keys||[]).join(', ') + ']';
+          else shape = a.summary.type + (a.summary.sample ? ' · ' + a.summary.sample : '');
+        } else if (a.error) {
+          shape = 'fetch error: ' + a.error;
+        }
+        return '<tr>'+
+          '<td style="padding:3px 8px;font-family:monospace;font-size:10.5px;color:#0a1628">'+esc(a.path||'?')+'</td>'+
+          '<td style="padding:3px 8px;font-weight:700;color:'+statusColor+';text-align:right;font-variant-numeric:tabular-nums">'+esc(String(status))+'</td>'+
+          '<td style="padding:3px 8px;font-family:monospace;font-size:10.5px;color:#475569">'+esc(shape)+'</td>'+
+        '</tr>';
+      }).join('');
+      body.innerHTML = '<div style="font-size:12px;color:#b91c1c;margin-bottom:8px">Fergus didn\'t return any photos for this job.</div>' +
+        (data.hint ? '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">'+esc(data.hint)+'</div>' : '') +
+        (diagRows ? '<details open style="margin-top:8px"><summary style="cursor:pointer;font-size:11.5px;color:#0a1628;font-weight:600">Endpoint discovery — '+(data.attempts||[]).length+' paths tried</summary>'+
+          '<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:11px"><thead><tr><th style="text-align:left;padding:4px 8px;background:#f4f4ef;color:#6f6a60;font-size:10px;text-transform:uppercase;letter-spacing:.04em">Path</th><th style="text-align:right;padding:4px 8px;background:#f4f4ef;color:#6f6a60;font-size:10px;text-transform:uppercase;letter-spacing:.04em">HTTP</th><th style="text-align:left;padding:4px 8px;background:#f4f4ef;color:#6f6a60;font-size:10px;text-transform:uppercase;letter-spacing:.04em">Body shape</th></tr></thead><tbody>' + diagRows + '</tbody></table>'+
+          '<div style="font-size:11px;color:var(--text2);margin-top:6px">Look for a row with a <strong>2xx status</strong> whose body is an <strong>array</strong>, or an object whose <strong>keys</strong> include something like <code>data</code> / <code>files</code> / <code>items</code>. Send me that row and I\'ll pin it as the canonical path.</div>'+
+        '</details>' : '');
       return;
     }
     var files = (data.files || []).filter(function(f){
