@@ -7174,6 +7174,30 @@ function setGutterChoice(choice){
     row.style.background = on2 ? 'var(--ed-paper-2)' : '#fff';
   }
 }
+// ── Customer-facing options page setters (steel grade / thickness /
+//     gutter type / bracket).  Each writes to S.quote.proposalOptions
+//     then re-renders the proposal so the picked card highlights and
+//     the "Current selection" summary updates live.  Customer + office
+//     paths both call these — when a customer is viewing the shared
+//     link the change also fires _scheduleCustomerWrite so their pick
+//     posts back to the backend write-through endpoint.
+function _setProposalOption(field, value){
+  if (!S.quote) return;
+  if (!S.quote.proposalOptions) S.quote.proposalOptions = {};
+  S.quote.proposalOptions[field] = value;
+  try { refreshQuoteProposal(); } catch(e){}
+  if (typeof _scheduleCustomerWrite === 'function') {
+    try { _scheduleCustomerWrite(); } catch(e){}
+  }
+  if (typeof autosaveJob === 'function') {
+    try { autosaveJob(); } catch(e){}
+  }
+}
+function _setProposalOption_grade(v){     _setProposalOption('steelGrade', v); }
+function _setProposalOption_thickness(v){ _setProposalOption('steelThickness', v); }
+function _setProposalOption_gutter(v){    _setProposalOption('gutterType', v); }
+function _setProposalOption_bracket(v){   _setProposalOption('gutterBracket', v); }
+
 // Re-render the acceptance-page summary list (selected options + grades).
 function refreshAcceptSummary(){
   var host = document.getElementById('qpAcceptSummary');
@@ -7263,13 +7287,43 @@ function _quoteShareToken(){
 async function copyCustomerLink(){
   if (!S.quote){ alert('Open or create a quote first.'); return; }
   var token = _quoteShareToken();
-  // Make sure the job can save (saveCurrentJob needs a client name / address).
+  if (!token){ alert('Could not generate a share token — try reopening the quote.'); return; }
+  // saveCurrentJob bails out unless a client name OR address is filled in.
+  // Auto-populate from the quote so the office user doesn't have to retype.
   var jc = document.getElementById('jobClient'), ja = document.getElementById('jobAddr');
   if (jc && !jc.value && S.quote.client) jc.value = S.quote.client;
   if (ja && !ja.value && S.quote.addr)   ja.value = S.quote.addr;
+  if ((!jc || !jc.value) && (!ja || !ja.value)){
+    alert('Add a client name or site address (Map Roof tab) before sharing — the customer view needs a job record to attach to.');
+    return;
+  }
   var msg = document.getElementById('qaMsg');
-  if (msg) { msg.textContent = 'Saving & generating link…'; }
-  try { await saveCurrentJob(); } catch(e){}
+  if (msg) { msg.textContent = 'Saving & generating link…'; msg.style.color = ''; }
+  // Capture save errors instead of swallowing them — a silent save failure
+  // is what produces a "valid-looking" link that the backend can't resolve.
+  var saveErr = null;
+  try { await saveCurrentJob(); } catch(e){ saveErr = e; }
+  if (!S.currentJobId){
+    if (msg) { msg.textContent = 'Save failed — link not generated.' + (saveErr ? ' ('+saveErr.message+')':''); msg.style.color = '#b91c1c'; }
+    alert('Couldn\'t save the job, so the customer link won\'t resolve. Check your connection and try again.');
+    return;
+  }
+  // Verify the token is reachable through the public endpoint before
+  // handing it to the user.  Supabase has eventual-consistency between
+  // primary writes and follower reads, so retry a couple of times.
+  if (msg) { msg.textContent = 'Verifying link…'; }
+  var verified = false;
+  for (var i = 0; i < 4 && !verified; i++){
+    try {
+      var r = await fetch(PROXY + '/q/' + encodeURIComponent(token), { cache:'no-store' });
+      if (r.ok) { verified = true; break; }
+    } catch(e){}
+    await new Promise(function(res){ setTimeout(res, 400 * (i+1)); });
+  }
+  if (!verified){
+    if (msg) { msg.textContent = 'Saved, but the customer link isn\'t resolving yet — wait a moment and try again.'; msg.style.color = '#b45309'; }
+    if (!confirm('The link saved, but didn\'t verify on the server yet.\n\nCopy it anyway? (You may need to wait a few seconds before sending.)')) return;
+  }
   // Tack the human-friendly job number onto the URL so the customer
   // tab's title can read "Flood Roofing Quote #3080" instead of the
   // bare token, and so the office-shared link looks intentional rather
@@ -7279,7 +7333,7 @@ async function copyCustomerLink(){
   var link = location.origin + location.pathname + '?q=' + token;
   if (jobNo) link += '&j=' + encodeURIComponent(String(jobNo).replace(/[^A-Za-z0-9\-]/g,''));
   try { await navigator.clipboard.writeText(link); } catch(e){}
-  if (msg) { msg.textContent = 'Customer link copied — send it to the client.'; }
+  if (msg) { msg.textContent = verified ? '✓ Customer link copied — send it to the client.' : 'Link copied (unverified) — give it a moment before sending.'; msg.style.color = verified ? '#15803d' : '#b45309'; }
   var prettyName = jobNo ? ('Flood Roofing Quote #' + jobNo) : 'Customer quote link';
   // prompt() guarantees the link is selectable even if the clipboard API is blocked.
   window.prompt(prettyName + ' — copied to clipboard:', link);
@@ -7329,8 +7383,20 @@ async function bootCustomerView(token){
     document.title = urlJobNo
       ? ('Flood Roofing Quote #' + urlJobNo)
       : 'Your Roofing Proposal';
-    var r = await fetch(PROXY + '/q/' + encodeURIComponent(token));
-    if (!r.ok) throw new Error('not found');
+    // The customer often opens the link a heartbeat after the office
+    // copied it, before Supabase's read replica has caught up. Retry a
+    // few times on 404 so the eventual-consistency window doesn't show
+    // a scary "Quote unavailable" page for a perfectly valid token.
+    var r, attempts = 0, lastStatus = 0;
+    while (attempts < 5){
+      r = await fetch(PROXY + '/q/' + encodeURIComponent(token), { cache:'no-store' });
+      lastStatus = r.status;
+      if (r.ok) break;
+      if (r.status !== 404) break; // 500 / network are real errors — bail
+      attempts++;
+      await new Promise(function(res){ setTimeout(res, 600 * attempts); });
+    }
+    if (!r || !r.ok) throw new Error('not found:' + lastStatus);
     var d = await r.json();
     window.S = window.S || {};
     S.quote = d.quote || {};
@@ -8528,7 +8594,8 @@ function refreshQuoteProposal(){
   //   9.  Terms & conditions
   //   10. Acceptance / signature
   var partCover = '', partAbout = '', partCondition = '',
-      partInclusions = '', partColorsteel = '',
+      partInclusions = '', partOptionsSelections = '',
+      partColorsteel = '',
       partMarley = '', partRiGutters = '', partGutters = '',
       partScopeWork = '', partTerms = '', partSignature = '';
 
@@ -8678,6 +8745,13 @@ function refreshQuoteProposal(){
     ];
     partCondition =
       edHeading('02','Inspection report','Existing roof condition')+
+      // Roof map preview — moved here from page 3 (Scope of work)
+      // per the user's request so the install crew sees the drawn
+      // outline up-front alongside the rest of the inspection report,
+      // and the pricing page has room for the included/excluded
+      // panels.  _buildRoofPreviewsHtml self-hides when no roof has
+      // been drawn yet, so jobs without a map don't show empty chrome.
+      _buildRoofPreviewsHtml()+
       // Roof details strip — each value cell is inline-editable
       '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:14px 0;margin-bottom:18px">'+
         detailItems.map(function(it){
@@ -8888,7 +8962,12 @@ function refreshQuoteProposal(){
     };
     partInclusions =
       edHeading('03','Scope of work','The work &amp; the cost')+
-      _buildRoofPreviewsHtml()+
+      // Roof previews USED to render here too — they now live at the
+      // top of page 2 (Inspection report / Existing roof condition)
+      // so the pricing page has full vertical real-estate for the
+      // What's included / What's NOT included panels and the
+      // sub-section subtotals.  Leaving this comment as a breadcrumb
+      // for future "why is the map on page 2?" archaeology.
       ((S.quote.scope||'').trim()
         ? '<div class="ed-body" style="margin-top:-2px;margin-bottom:14px;font-size:11.5px;line-height:1.5;color:var(--ed-ink-2)">'+esc2(S.quote.scope).split('\n').join('<br>')+'</div>'
         : '')+
@@ -9082,7 +9161,8 @@ function refreshQuoteProposal(){
       : '';
     partInclusions =
       edHeading('03','Your investment','Quote inclusions &amp; pricing')+
-      _buildRoofPreviewsHtml()+
+      // Roof map preview lives on page 2 (Inspection report) — this
+      // page is for the price card + what's included / not included.
       '<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:30px;align-items:start">'+
         // Left — what's included
         '<div>'+
@@ -9129,8 +9209,89 @@ function refreshQuoteProposal(){
         return '<figure style="margin:0;aspect-ratio:4/3;background:#000;position:relative;overflow:hidden;border:1px solid var(--ed-ink)"><img src="'+esc2(s.src)+'" style="width:100%;height:100%;object-fit:cover;filter:saturate(.95)">'+(s.cap?'<figcaption style="position:absolute;bottom:0;left:0;right:0;padding:5px 8px;background:rgba(26,26,26,.78);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:11px">'+esc2(s.cap)+'</figcaption>':'')+'</figure>';
       }).join('')+
       '</div></div>' : '';
+    // ── Customer-selectable options page ────────────────────────
+    // New page (slots in between pricing + Colorsteel marketing): lets
+    // the customer pick steel grade, thickness and gutter (with
+    // internal vs external brackets). Selections live on
+    // S.quote.proposalOptions and ride along with the quote save +
+    // share token so the office sees what the customer picked.
+    if (on('options')) {
+      var pOpts = (S.quote.proposalOptions = S.quote.proposalOptions || {});
+      var GRADES = [
+        { id:'maxam',     label:'Colorsteel® MAXAM',     desc:'NZ Steel\'s newest, with the Activate™ aluminium-zinc-magnesium coating. Best corrosion resistance available.',
+          warranty:'<strong>Up to 50 yrs perforation</strong> in mild zones (>5km from breaking surf); 30/15/5 yr stepped warranty as exposure rises.' },
+        { id:'colorzen',  label:'Armorsteel ColorZen',   desc:'Solid mid-tier prepainted steel — proven coating, broad colour range.',
+          warranty:'<strong>30 yr warranty</strong> in mild and very-mild environments (manufacturer specs).' },
+        { id:'colourcote',label:'ColorCote®',            desc:'Pacific Coilcoaters\' premium prepainted steel — excellent finish, comparable to MAXAM.',
+          warranty:'<strong>Up to 30 yr</strong> perforation warranty, zone-dependent.' },
+        { id:'zincalume', label:'Zincalume® (unpainted)',desc:'Natural silver Al/Zn alloy — workhorse industrial finish, lowest price point.',
+          warranty:'<strong>20 yr non-perforation</strong> warranty (NZ Steel).' }
+      ];
+      var THICKS = [
+        { id:'40', label:'0.40 gauge', desc:'Standard residential thickness — used on the bulk of NZ re-roofs.' },
+        { id:'55', label:'0.55 gauge', desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }
+      ];
+      var GUTTERS = [
+        { id:'none',          label:'No new gutter',                desc:'Existing gutter stays as-is.' },
+        { id:'box125',        label:'125mm Colorsteel Box Gutter',  desc:'Roll-formed 125mm Colorsteel box gutter — matches the new roof for a clean finish.' },
+        { id:'marley_typhoon',label:'Marley Typhoon (PVC)',         desc:'Higher-capacity PVC profile — handles heavy downpours; UV-stabilised.' },
+        { id:'marley_classic',label:'Marley Classic (PVC)',         desc:'Classic half-round PVC profile — clean look, easy maintenance.' }
+      ];
+      var BRACKETS = [
+        { id:'external', label:'External brackets', desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' },
+        { id:'internal', label:'Internal brackets', desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below.' }
+      ];
+      function selCard(group, items, current, onclickFn){
+        return items.map(function(it){
+          var picked = current === it.id;
+          return '<button type="button" class="qp-opt-pick no-print" data-group="'+esc2(group)+'" data-value="'+esc2(it.id)+'" '+
+            'onclick="'+onclickFn+'(\''+esc2(it.id)+'\')" style="width:100%;text-align:left;padding:12px 14px;margin:0 0 8px;border:1px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';'+
+            'border-left:3px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';background:'+(picked?'var(--ed-paper-2)':'#fff')+';cursor:pointer;'+
+            'border-radius:0;font-family:inherit;color:inherit">'+
+            '<div style="display:flex;align-items:flex-start;gap:10px">'+
+              '<div style="width:16px;height:16px;border-radius:50%;border:2px solid '+(picked?'var(--ed-accent)':'#cbd5e1')+';background:'+(picked?'var(--ed-accent)':'#fff')+';flex-shrink:0;margin-top:2px"></div>'+
+              '<div style="flex:1;min-width:0">'+
+                '<div class="ed-serif" style="font-size:15px;font-style:italic;color:var(--ed-ink);line-height:1.2">'+esc2(it.label)+'</div>'+
+                (it.desc ? '<div class="ed-body" style="font-size:11px;color:var(--ed-ink-2);margin-top:3px;line-height:1.45">'+esc2(it.desc)+'</div>' : '')+
+                (it.warranty ? '<div style="font-size:10.5px;color:var(--ed-text2);margin-top:5px;line-height:1.5">'+it.warranty+'</div>' : '')+
+              '</div>'+
+            '</div>'+
+          '</button>';
+        }).join('');
+      }
+      partOptionsSelections =
+        edHeading('04','Choose your options','Steel grade, thickness &amp; gutter')+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:18px">'+
+          '<div>'+
+            '<div class="ed-eyebrow" style="margin-bottom:8px">Steel grade <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— tap a card</span></div>'+
+            selCard('steelGrade', GRADES, pOpts.steelGrade || 'maxam', '_setProposalOption_grade')+
+          '</div>'+
+          '<div>'+
+            '<div class="ed-eyebrow" style="margin-bottom:8px">Steel thickness</div>'+
+            selCard('steelThickness', THICKS, pOpts.steelThickness || '40', '_setProposalOption_thickness')+
+            '<div class="ed-eyebrow" style="margin:18px 0 8px">Guttering</div>'+
+            selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter')+
+            (pOpts.gutterType && pOpts.gutterType !== 'none'
+              ? '<div class="ed-eyebrow" style="margin:14px 0 8px">Gutter brackets</div>'+
+                selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'external', '_setProposalOption_bracket')
+              : '')+
+          '</div>'+
+        '</div>'+
+        // Summary chip showing the current picks — prints clearly even
+        // when the radio "card" buttons drop to flat text on paper.
+        '<div style="margin-top:18px;padding:14px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent);font-family:var(--ed-sans);font-size:12px;line-height:1.65;color:var(--ed-ink-2)">'+
+          '<strong style="color:var(--ed-ink)">Current selection</strong> · '+
+          esc2((GRADES.find(function(g){return g.id===(pOpts.steelGrade||'maxam');})||{}).label||'—') + ' · '+
+          esc2((THICKS.find(function(t){return t.id===(pOpts.steelThickness||'40');})||{}).label||'—') + ' · '+
+          esc2((GUTTERS.find(function(g){return g.id===(pOpts.gutterType||'none');})||{}).label||'—')+
+          (pOpts.gutterType && pOpts.gutterType !== 'none'
+            ? ' · ' + esc2((BRACKETS.find(function(b){return b.id===(pOpts.gutterBracket||'external');})||{}).label||'—')
+            : '')+
+        '</div>';
+    }
+
     partColorsteel =
-      edHeading('04','The material','Colorsteel® MAXAM &amp; alternatives')+
+      edHeading('05','The material','Colorsteel® MAXAM &amp; alternatives')+
       '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:start;margin-bottom:22px">'+
         '<div class="ed-body-lg">'+
           '<p style="margin:0 0 10px">Flood Roofing uses <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® MAXAM</span> as standard — NZ Steel\'s newest pre-painted roofing product, rolled and painted at Glenbrook from New Zealand iron sand. MAXAM is built on <span class="ed-serif" style="font-style:italic;font-size:15px">Activate™</span> technology, a patented aluminium-zinc-magnesium coating that meaningfully slows corrosion.</p>'+
@@ -9418,7 +9579,7 @@ function refreshQuoteProposal(){
         '</div>'+
       '</div>';
     partTerms =
-      edHeading('05','The fine print','Terms &amp; conditions')+
+      edHeading('06','The fine print','Terms &amp; conditions')+
       clauses + addTerms +
       // Payment three-stage band — single horizontal row tucked at
       // the bottom of the T&Cs page.  Vertically compact so all the
@@ -9447,7 +9608,7 @@ function refreshQuoteProposal(){
     var accTot = accSub * (1+accRate);
     var acc = S.quote.accepted;
     partSignature =
-      edHeading('06','To accept','Acceptance &amp; signature')+
+      edHeading('07','To accept','Acceptance &amp; signature')+
       // ── Quote summary (selected options + grades + total) ──
       '<div style="margin-bottom:20px">'+
         '<div class="ed-eyebrow" style="margin-bottom:8px">Your quote'+(S.quote.client?' — '+esc2(S.quote.client):'')+'</div>'+
@@ -9554,6 +9715,11 @@ function refreshQuoteProposal(){
   html += rpPage(partCondition);
   // Page 3 — Quote inclusions + pricing (options A/B + guttering option C)
   html += rpPage(partInclusions);
+  // Page 4 — Customer-selectable options (steel grade / thickness /
+  // gutter type + bracket). Inserted between Pricing and Colorsteel
+  // marketing per the user's brief; if the 'options' section is
+  // toggled off the variable is empty and rpPage emits nothing.
+  html += rpPage(partOptionsSelections);
   // Page 4 — Colorsteel product + standard colours
   html += rpPage(partColorsteel, 'background:linear-gradient(135deg,#fafbfc,#eef2f7)');
   // (Standalone Gutters page removed — guttering is now Option C on the
