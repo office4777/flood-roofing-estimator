@@ -18420,8 +18420,8 @@ function _jpState(){
     // Find a header page to attach the default map images to
     var headerIdx = pages.findIndex(function(p){ return p && p.type === 'header'; });
     var headerImgs = [
-      { id:'mig_dt_'+Date.now(),    mapKey:'detailed', x: 20,  y:175, w:310, h:300 },
-      { id:'mig_bs_'+(Date.now()+1),mapKey:'basic',    x:355,  y:175, w:310, h:300 }
+      { id:'mig_dt_'+Date.now(),    mapKey:'detailed', x: 20,  y:280, w:310, h:300 },
+      { id:'mig_bs_'+(Date.now()+1),mapKey:'basic',    x:355,  y:280, w:310, h:300 }
     ];
     if (headerIdx >= 0) {
       if (!Array.isArray(pages[headerIdx].images)) pages[headerIdx].images = [];
@@ -18446,6 +18446,20 @@ function _jpState(){
     });
     S.jobPack.pagesVersion = 3;
   }
+  // v3 → v4: the default maps were dropped at y:175 — that pre-dated
+  // the Roof area / Flashings / Gutter tile strip on the header page.
+  // The strip occupies ~y:209..266 now, so a y:175 image sits on top
+  // and prints with the tiles hidden under it.  Push any image still
+  // anchored above the tiles down to y:280 so both surfaces show.
+  if (!S.jobPack.pagesVersion || S.jobPack.pagesVersion < 4) {
+    (S.jobPack.pages || []).forEach(function(p){
+      if (!p || p.type !== 'header' || !Array.isArray(p.images)) return;
+      p.images.forEach(function(im){
+        if (im && typeof im.y === 'number' && im.y < 230) im.y = 280;
+      });
+    });
+    S.jobPack.pagesVersion = 4;
+  }
   return S.jobPack;
 }
 function _jpDefaultPages(){
@@ -18461,8 +18475,8 @@ function _jpDefaultPages(){
   // ~310 × 260 px maps side-by-side.
   return [
     { type:'header', images:[
-      { id:'def_dt_'+Date.now(),    mapKey:'detailed', x: 20,  y:175, w:310, h:300 },
-      { id:'def_bs_'+(Date.now()+1),mapKey:'basic',    x:355,  y:175, w:310, h:300 }
+      { id:'def_dt_'+Date.now(),    mapKey:'detailed', x: 20,  y:280, w:310, h:300 },
+      { id:'def_bs_'+(Date.now()+1),mapKey:'basic',    x:355,  y:280, w:310, h:300 }
     ] },
     { type:'cutlists'    },
     { type:'flashings'   }
@@ -19304,22 +19318,27 @@ function _jpRenderHeader(content, page, idx){
         '<div style="margin-top:3px;color:#6f6a60">'+esc(brand)+'</div>'+
       '</div>'+
     '</div>' +
-    // Compact tile strip below the header — 3 small tiles, single row.
-    '<div style="display:flex;gap:6px;margin-top:6px;font-size:10px">'+
-      '<div style="flex:1;border:1px solid #d1d5db;border-radius:5px;padding:4px 7px;background:#fff">'+
-        '<div style="color:#6f6a60;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Roof area</div>'+
+    // Compact tile strip below the header — 3 tiles in a real
+    // <table> with border-collapse so Chrome's PDF print engine
+    // doesn't drop them (it silently elides flex children + has
+    // quirks with CSS-table on some print paths).  print-color-
+    // adjust forces the background through on browsers that strip
+    // light fills.
+    '<div style="margin-top:8px;font-size:10px"><table style="width:100%;border-spacing:6px 0;border-collapse:separate;-webkit-print-color-adjust:exact;print-color-adjust:exact"><tbody><tr>'+
+      '<td style="width:33.3%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+        '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Roof area</div>'+
         '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.roofArea > 0 ? d.roofArea.toFixed(1) + ' m²' : '—')+'</div>'+
         '<div style="color:#6f6a60;font-size:9px">Pitch '+pitch+'</div>'+
-      '</div>'+
-      '<div style="flex:1;border:1px solid #d1d5db;border-radius:5px;padding:4px 7px;background:#fff">'+
-        '<div style="color:#6f6a60;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Flashings</div>'+
+      '</td>'+
+      '<td style="width:33.3%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+        '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Flashings</div>'+
         '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.flashingsLm > 0 ? d.flashingsLm.toFixed(1) + ' lm' : '—')+'</div>'+
-      '</div>'+
-      '<div style="flex:1;border:1px solid #d1d5db;border-radius:5px;padding:4px 7px;background:#fff">'+
-        '<div style="color:#6f6a60;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Gutter</div>'+
+      '</td>'+
+      '<td style="width:33.3%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+        '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Gutter</div>'+
         '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.gutterLm > 0 ? d.gutterLm.toFixed(1) + ' lm' : '—')+'</div>'+
-      '</div>'+
-    '</div>';
+      '</td>'+
+    '</tr></tbody></table></div>';
 }
 function _jpHeaderField(label, mirrorId, currentVal, full){
   return '<div'+(full?' style="grid-column:1/-1"':'')+'>'+
