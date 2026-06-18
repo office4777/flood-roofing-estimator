@@ -800,14 +800,28 @@ select{
 
 /* Persistent job bar at the top of every tab — replaces the
    sidebar job chip so the user always sees the current job no
-   matter which tab they're on. Sticky so it stays put when the
-   tab scrolls. */
+   matter which tab they're on.  Position:fixed (not sticky)
+   because `.content` has overflow-x:hidden which makes itself
+   the scroll container for sticky elements and stops them
+   following the window scroll. Fixed at the viewport top, offset
+   by the sidebar width, with a hard right-edge anchor.  .content
+   gains a top padding (via .has-globalbar) to clear the bar. */
 .global-job-bar{
-  position:sticky; top:0; z-index:40;
+  position:fixed;
+  top:0;
+  left:var(--sidebar-w);
+  right:0;
+  z-index:55;
   display:flex; flex-direction:column; gap:6px;
-  padding:8px 14px; margin-bottom:14px;
-  background:#fff; border:1px solid var(--border); border-radius:10px;
+  padding:10px 18px;
+  background:#fff;
+  border-bottom:1px solid var(--border);
   box-shadow:0 2px 10px rgba(10,22,40,.05);
+}
+.content{ padding-top:96px!important; }
+@media(max-width:880px){
+  .global-job-bar{ left:0; padding:8px 14px; }
+  .content{ padding-top:108px!important; }
 }
 .global-job-bar .gjb-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
 .global-job-bar .gjb-costs{
@@ -1745,35 +1759,9 @@ select{
           <svg viewBox="0 0 16 16" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4 6l4-4 4 4"/><path d="M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
           Upload from PC
         </button>
-        <button type="button" id="roofFergusPickBtn" onclick="openRoofFergusPicker()"
-                title="Pick a photo from the currently-linked Fergus job"
-                style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#fff;color:#0a1628;border:1px solid #0a1628;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
-          <svg viewBox="0 0 16 16" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 11l3.5-3.5 2 2 3-3L14 10"/><circle cx="6" cy="6.5" r="1"/></svg>
-          Select photo from Fergus
-        </button>
       </div>
-      <div id="roofFergusHint" style="margin-top:6px;font-size:10.5px;color:var(--text2);text-align:center"></div>
     </div>
     <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="uploaded roof"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">× Remove</button></div>
-  </div>
-
-  <!-- Fergus photo picker modal — populated by openRoofFergusPicker() with
-       thumbnails of every image attached to the linked Fergus job. Clicking
-       a thumbnail downloads the file via the backend proxy and pipes it
-       straight into onRoofImg's data-URL path. -->
-  <div id="roofFergusModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(10,22,40,.55);align-items:center;justify-content:center;padding:24px" onclick="if(event.target===this) closeRoofFergusPicker()">
-    <div style="background:#fff;border-radius:10px;width:min(720px,100%);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 18px 48px rgba(0,0,0,.25)">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e5e7eb">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#0a1628">Photos from Fergus job</div>
-          <div id="roofFergusModalSub" style="font-size:11px;color:var(--text2);margin-top:1px">—</div>
-        </div>
-        <button type="button" onclick="closeRoofFergusPicker()" style="background:none;border:none;font-size:18px;color:#6f6a60;cursor:pointer;padding:4px 8px">×</button>
-      </div>
-      <div id="roofFergusModalBody" style="padding:14px 18px;overflow:auto;flex:1;min-height:120px">
-        <div style="font-size:12px;color:var(--text2)">Loading…</div>
-      </div>
-    </div>
   </div>
   </div>
 
@@ -5361,29 +5349,23 @@ function _setRoofImgFromDataUrl(dataUrl){
   var at   = document.getElementById('analyseTxt'); if (at) at.textContent = 'Analyse roof sketch with AI';
 }
 
-// Reflect whether the Fergus picker is usable: needs a linked Fergus job.
-// Called whenever the linked-job state could have changed (after picking a
-// job in the modal, after clearing the image, after a job-load).
-function _refreshRoofFergusBtn(){
-  var btn  = document.getElementById('roofFergusPickBtn');
-  var hint = document.getElementById('roofFergusHint');
-  var hasJob = !!(window.S && S.linkedJobId);
-  if (btn) {
-    btn.disabled = !hasJob;
-    btn.style.opacity   = hasJob ? '1'    : '0.55';
-    btn.style.cursor    = hasJob ? 'pointer' : 'not-allowed';
-  }
-  if (hint) {
-    hint.textContent = hasJob
-      ? 'Linked Fergus job ' + (S.linkedJobNo || S.linkedJobId) + ' — click "Select photo from Fergus" to pick a saved photo.'
-      : 'Link a Fergus job (Select Job → Fergus tab) to pull photos straight from there.';
-  }
-}
+// Retired: the "Select photo from Fergus" picker is gone because the
+// Partner API on the user's tenant doesn't expose project_gallery.
+// Helpers are kept as no-ops so any leftover caller doesn't throw —
+// remove them entirely in a future cleanup once we've verified nothing
+// downstream still references the names.
+function _refreshRoofFergusBtn(){}
+function _jpRoofFergusOpenGallery(){}
+function _jpRoofFergusRetryAltUrl(){}
+function _jpRoofFergusDumpJob(){}
+function _pickRoofFromFergus(){}
+function closeRoofFergusPicker(){}
 
-// Open the Fergus photo picker. Fetches the file list for the currently
-// linked job from the backend proxy (which handles candidate-path probing
-// and the API key), then paints a thumbnail grid the user can pick from.
-async function openRoofFergusPicker(){
+// Old picker body left below behind a never-true guard so the source
+// is still discoverable in the file but never executes.
+async function openRoofFergusPicker(){ return; }
+
+async function _retiredOpenRoofFergusPicker(){
   if (!window.S || !S.linkedJobId) {
     alert('Pick a Fergus job first — Select Job tab → Fergus.');
     return;
@@ -5526,139 +5508,11 @@ async function openRoofFergusPicker(){
   }
 }
 
-function closeRoofFergusPicker(){
-  var m = document.getElementById('roofFergusModal');
-  if (m) m.style.display = 'none';
-}
-
-// Called when the user clicks a thumbnail in the picker. Streams the
-// chosen file through /fergus-files/download (so the API key stays on
-// the server) and pipes the result into the roof preview the same way
-// the file-picker path does.
-async function _pickRoofFromFergus(idx){
-  var files = window._roofFergusFiles || [];
-  var f = files[idx]; if (!f) return;
-  var body = document.getElementById('roofFergusModalBody');
-  if (body) body.innerHTML = '<div style="font-size:12px;color:var(--text2)">Downloading "'+esc(f.name||'photo')+'"…</div>';
-  try {
-    var token = localStorage.getItem('fr_token') || '';
-    var r = await fetch(PROXY + '/fergus-files/download?url=' + encodeURIComponent(f.url), {
-      headers: { 'Authorization': 'Bearer ' + token },
-    });
-    if (!r.ok) {
-      var t = await r.text().catch(function(){ return ''; });
-      if (body) body.innerHTML = '<div style="font-size:12px;color:#b91c1c">Download failed ('+r.status+'): '+esc(t.slice(0,200))+'</div>';
-      return;
-    }
-    var blob = await r.blob();
-    var dataUrl = await new Promise(function(ok, fail){
-      var fr = new FileReader();
-      fr.onload  = function(){ ok(String(fr.result)); };
-      fr.onerror = function(){ fail(fr.error || new Error('FileReader failed')); };
-      fr.readAsDataURL(blob);
-    });
-    _setRoofImgFromDataUrl(dataUrl);
-    closeRoofFergusPicker();
-  } catch (e) {
-    if (body) body.innerHTML = '<div style="font-size:12px;color:#b91c1c">Couldn\'t download: '+esc(e.message||String(e))+'</div>';
-  }
-}
-
-// ── Fergus picker diagnostic helpers ─────────────────────────────
-// Pull the raw /jobs/{id} blob via the generic /fergus/* proxy and
-// dump it into a textarea the user can copy.  Lets us see the actual
-// shape of the response — the photo array's nested key is almost
-// certainly in there but our walker hasn't recognised the field name.
-async function _jpRoofFergusDumpJob(){
-  var out = document.getElementById('roofFergusRawDump');
-  if (!out) return;
-  if (!S || !S.linkedJobId) { out.innerHTML = '<div style="font-size:11.5px;color:#b91c1c">No linked Fergus job.</div>'; return; }
-  out.innerHTML = '<div style="font-size:11.5px;color:var(--text2)">Fetching /jobs/' + esc(S.linkedJobId) + '…</div>';
-  try {
-    var token = localStorage.getItem('fr_token') || '';
-    var r = await fetch(PROXY + '/fergus/jobs/' + encodeURIComponent(S.linkedJobId), {
-      headers: { 'Authorization': 'Bearer ' + token },
-    });
-    var text = await r.text();
-    var parsed = null; try { parsed = JSON.parse(text); } catch(_){}
-    var pretty = parsed ? JSON.stringify(parsed, null, 2) : text;
-    out.innerHTML =
-      '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">HTTP <strong style="color:'+ (r.ok ? '#15803d':'#b91c1c') +'">'+ r.status +'</strong> · ' + (pretty.length.toLocaleString()) + ' bytes — click the textarea then Ctrl/Cmd-A · Ctrl/Cmd-C to copy.</div>' +
-      '<textarea readonly style="width:100%;height:180px;font-family:monospace;font-size:10.5px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;color:#0a1628">'+esc(pretty)+'</textarea>';
-  } catch (e) {
-    out.innerHTML = '<div style="font-size:11.5px;color:#b91c1c">Couldn\'t fetch: '+esc(e.message||String(e))+'</div>';
-  }
-}
-
-// Take a Fergus web URL like
-//   https://app.fergus.com/jobs/view/2942/project_gallery
-// extract the short id (2942), and retry the picker with that id
-// instead of the API id we got from the job-search response.  Many
-// Fergus tenants route their files endpoints behind this short
-// "internal_job_id" rather than the long api primary key — so this
-// is the most reliable short-circuit when the user can see the
-// gallery in the web app but the API isn't finding it.
-async function _jpRoofFergusRetryAltUrl(){
-  var inp = document.getElementById('roofFergusAltUrl');
-  if (!inp) return;
-  var raw = String(inp.value || '').trim();
-  if (!raw) { alert('Paste the Fergus URL of the page that shows the photos.'); return; }
-  // Pull the first run of digits that follow "/jobs/view/" or just
-  // any digit run after "jobs/" — covers most Fergus URL flavours.
-  var m = raw.match(/jobs\/view\/(\d+)/i) || raw.match(/jobs\/(\d+)/i) || raw.match(/(\d+)/);
-  if (!m || !m[1]) { alert('Couldn\'t find a job id in that URL.'); return; }
-  var altId = m[1];
-  // Remember this mapping per api id — even if the alt-id retry
-  // doesn't surface photos via the API, we now know which web URL
-  // the user uses for THIS job's gallery and can offer a one-click
-  // "Open in Fergus" jump next time.
-  try {
-    var mapRaw = localStorage.getItem('fr_fergus_web_ids') || '{}';
-    var map = JSON.parse(mapRaw);
-    map[String(S.linkedJobId)] = altId;
-    localStorage.setItem('fr_fergus_web_ids', JSON.stringify(map));
-  } catch(e){}
-  var saved = S.linkedJobId;
-  S.linkedJobId = altId;
-  try { await openRoofFergusPicker(); }
-  finally {
-    if (!(window._roofFergusFiles && window._roofFergusFiles.length)) {
-      S.linkedJobId = saved;
-    }
-  }
-}
-
-// Open the Fergus web app's gallery page for the current job in a
-// new tab.  Uses the saved webId mapping if we have one (from a
-// previous URL paste); otherwise prompts for the URL.  This is the
-// honest workflow when the Partner API doesn't expose project_gallery
-// on the tenant — user opens Fergus, drags the photo into our app.
-function _jpRoofFergusOpenGallery(){
-  if (!S || !S.linkedJobId) { alert('Pick a Fergus job first.'); return; }
-  var webId = null;
-  try {
-    var map = JSON.parse(localStorage.getItem('fr_fergus_web_ids') || '{}');
-    webId = map[String(S.linkedJobId)] || null;
-  } catch(e){}
-  if (!webId){
-    var ans = window.prompt(
-      'We need the Fergus web-app URL of this job\'s gallery so the next click can jump straight there.\n\n' +
-      'Open the job in app.fergus.com, click "Files & Photos", then copy the page URL and paste it here.',
-      'https://app.fergus.com/jobs/view/'
-    );
-    if (!ans) return;
-    var m = String(ans).match(/jobs\/view\/(\d+)/i) || String(ans).match(/jobs\/(\d+)/i);
-    if (!m || !m[1]) { alert('Couldn\'t find a job id in that URL.'); return; }
-    webId = m[1];
-    try {
-      var map2 = JSON.parse(localStorage.getItem('fr_fergus_web_ids') || '{}');
-      map2[String(S.linkedJobId)] = webId;
-      localStorage.setItem('fr_fergus_web_ids', JSON.stringify(map2));
-    } catch(e){}
-  }
-  var url = 'https://app.fergus.com/jobs/view/' + encodeURIComponent(webId) + '/project_gallery';
-  window.open(url, '_blank', 'noopener');
-}
+// (Legacy Fergus picker function bodies removed — see the no-op
+// stubs near the top of this file. The DOM elements they used to
+// drive (#roofFergusModal, #roofFergusPickBtn, #roofFergusHint)
+// are gone from the markup so the stubs only need to keep the
+// names callable.)
 
 // ── Drag-and-drop into the roof upload zone ─────────────────────
 // Lets the user drag an image straight from a Fergus tab (or any
