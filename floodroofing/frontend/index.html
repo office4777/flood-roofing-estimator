@@ -1159,11 +1159,22 @@ select{
   html.print-jobpack .content{ padding:0!important; max-width:none!important; }
   html.print-jobpack #tab-materials{ display:block!important; }
   html.print-jobpack .panel:not(#tab-materials){ display:none!important; }
-  html.print-jobpack .jp-pages{ background:#fff; padding:0; gap:0; }
+  html.print-jobpack .jp-pages{ background:#fff; padding:0; gap:0; margin:0; }
+  /* The .content's 12mm print padding (defined below) adds 24mm of
+     extra vertical + horizontal frame around an already-A4-sized
+     .jp-page, so every page would overflow onto a SECOND physical
+     sheet (4 jp-pages → 8 printed sheets).  Cancel it inside the
+     job-pack body so each .jp-page maps 1:1 onto an A4 sheet. */
+  html.print-jobpack .content{ padding:0!important; }
+  html.print-jobpack #tab-materials{ padding:0!important; margin:0!important; }
   html.print-jobpack .jp-page{
     box-shadow:none; border:none; border-radius:0;
     page-break-after:always; break-after:page;
+    page-break-inside:avoid; break-inside:avoid;
     margin:0;
+    width:210mm; max-width:210mm;
+    height:297mm; min-height:297mm; max-height:297mm;
+    overflow:hidden;
   }
   html.print-jobpack .jp-page:last-child{
     page-break-after:auto; break-after:auto;
@@ -1356,8 +1367,10 @@ select{
     box-sizing:border-box; margin:0!important;
   }
   /* @page margin is now 0 globally — restore a sensible print margin for
-     the Order Material + Job Pack docs so their content isn't edge-to-edge. */
-  html.print-order .content,html.print-jobpack .content{padding:12mm!important}
+     the Order Material doc so its content isn't edge-to-edge.  Job Pack
+     handles its own A4 page sizing inside .jp-page (with built-in 14mm
+     internal padding), so don't double-pad .content for it. */
+  html.print-order .content{padding:12mm!important}
   /* Preview-only chrome that shouldn't reach paper.  Zero the card +
      preview padding/margin so the proposal starts flush at the top of
      page 1 — otherwise the offset pushes the cover onto an empty page. */
@@ -2409,10 +2422,9 @@ select{
     </div>
   </div>
 
-  <!-- PDF print page break marker — everything ABOVE goes on PDF page
-       1 (Job header + draw totals + Roof Map + Sheet Layout). Cut lists
-       + flashing drawings + consumables print on page 2. -->
-  <div style="display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:var(--text2);font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase">
+  <!-- Legacy print-flow page break marker — superseded by the Job Pack
+       Designer above, which is now the single source of page layout. -->
+  <div class="jp-legacy no-print" style="display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:var(--text2);font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase">
     <div style="flex:1;border-top:1px dashed #cbd5e1"></div>
     <span>PDF page 1 ends · page 2 starts ↓</span>
     <div style="flex:1;border-top:1px dashed #cbd5e1"></div>
