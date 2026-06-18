@@ -16089,35 +16089,10 @@ function redrawAll() {
       }
     }
     if (_measFirst) _drawnMeasKeys[_measKey] = true;
-    // Sheet direction arrow on gutters only — valleys used to also
-    // get an arrow but the user found it noisy on the canvas.
-    if(l.type==='gutter'){
-      // Arrow points FROM midpoint of line INWARD (perpendicular, toward roof centre)
-      var amx=(lp0[0]+lp1[0])/2, amy=(lp0[1]+lp1[1])/2;
-      // Line direction
-      var ldx=lp1[0]-lp0[0], ldy=lp1[1]-lp0[1];
-      var llen=Math.sqrt(ldx*ldx+ldy*ldy)||1;
-      // Perpendicular (90° rotated) - pointing "up" into roof
-      var px=-ldy/llen, py=ldx/llen;
-      // Arrow length in canvas px
-      var alen=18;
-      // Small arrow pointing in perpendicular direction
-      ctx.strokeStyle=c; ctx.lineWidth=1.5;
-      ctx.beginPath();
-      ctx.moveTo(amx+px*4, amy+py*4);
-      ctx.lineTo(amx+px*alen, amy+py*alen);
-      ctx.stroke();
-      // Arrowhead
-      var hsize=5;
-      var hx=amx+px*alen, hy=amy+py*alen;
-      var hpx=ldx/llen, hpy=ldy/llen;
-      ctx.beginPath();
-      ctx.moveTo(hx,hy);
-      ctx.lineTo(hx-px*hsize+hpx*hsize/2, hy-py*hsize+hpy*hsize/2);
-      ctx.moveTo(hx,hy);
-      ctx.lineTo(hx-px*hsize-hpx*hsize/2, hy-py*hsize-hpy*hsize/2);
-      ctx.stroke();
-    }
+    // Gutter perpendicular-direction arrow removed — the arrow shaft
+    // ran THROUGH the digit and made the gutter measure unreadable
+    // (user's screenshot). The line colour + direction alone make
+    // the gutter obvious; we don't need an extra inward arrow.
   });
 
   // Sheet-length label per ridge-bearing OUTER gutter. We deliberately
