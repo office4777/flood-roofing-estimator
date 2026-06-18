@@ -14010,7 +14010,7 @@ var DRAW = {
   bgImg: null,
   outlineDone: false,
   step: 'outline',
-  zoom: 0.6,
+  zoom: 1.0,
   panX: 0, panY: 0,
   undoStack: [],        // redo/undo snapshots
   redoStack: [],
@@ -22929,7 +22929,7 @@ function resetZoom() {
   DRAW.zoom = 1.0;
   IMG_OFFSET.x = 0;
   IMG_OFFSET.y = 0;
-  document.getElementById('zoomLabel').textContent = '60%';
+  document.getElementById('zoomLabel').textContent = '100%';
   redrawAll();
 }
 function applyZoom() {
