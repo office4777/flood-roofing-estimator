@@ -2615,7 +2615,8 @@ select{
       <div class="f3 jp-legacy">
         <div><label>Sheet effective width (mm)</label><input type="number" id="sheetWidth" value="762" min="100" oninput="renderSheetLayout()"></div>
         <div><label>End lap / overlap (mm)</label><input type="number" id="overlapMm" value="150" min="0" oninput="renderSheetLayout()"></div>
-        <div><label>Pitch (degrees)</label><input type="number" id="pitchDeg" value="15" min="1" max="60" oninput="renderSheetLayout()"></div>
+        <div><label>Pitch (degrees)</label><input type="number" id="pitchDeg" value="15" min="1" max="60"
+              oninput="DRAW.calPitch=parseFloat(this.value)||0;try{autoCalcLineMeasurements()}catch(e){};try{renderSheetLayout()}catch(e){};try{redrawAll()}catch(e){};try{renderRoofSheetPlan()}catch(e){}"></div>
       </div>
       <div class="f3 jp-legacy" style="margin-top:8px">
         <div><label>Gutter overhang (mm)
@@ -17551,12 +17552,14 @@ function confirmCalibrate() {
   }
   document.getElementById('calScaleInfo').style.display = 'block';
   var _typeNote = (measType === 'pitched')
-    ? ' (treated as <strong>sheet length</strong> — reduced by cos('+pitch+'°) for plan scale)'
-    : '';
+    ? ' (treated as <strong>sheet length / rafter</strong> — divided by cos('+pitch+'°) gives '+(realM).toFixed(2)+'m along-pitch for the same line)'
+    : (pitch > 0 && pitch < 80
+        ? ' (flat plan — sheet length / rafter for the same line would be '+(realM/Math.cos(pitch*Math.PI/180)).toFixed(2)+'m along-pitch)'
+        : '');
   document.getElementById('calScaleInfo').innerHTML =
-    '<strong>✓ Scale set:</strong> 1 pixel = ' + (DRAW.scaleMetresPerPx * 1000).toFixed(3) + ' mm of plan'+
+    '<strong>✓ Scale set:</strong> 1 pixel = ' + (DRAW.scaleMetresPerPx * 1000).toFixed(3) + ' mm of plan' +
     (pitch>0?' | Pitch: '+pitch+'°':'') + _typeNote +
-    '. All line measurements auto-calculated.';
+    '. Sheet, hip and valley measures are along the roof pitch; gutter/ridge measures are flat plan.';
   DRAW.scaleLabel = '1px='+(DRAW.scaleMetresPerPx*1000).toFixed(2)+'mm | ref:'+realM+'m '+measType+(pitch>0?' | '+pitch+'°':'');
   autoCalcLineMeasurements();
   updateMeasTotals();
