@@ -27180,13 +27180,20 @@ function _renderRoofSheetPlanInner() {
     var wingLeftY1 = valleyEnd[1];                 // 550
     var wingPerpPx = wingApex[0] - wx0;            // 150 (half wing width)
     var _wingWDonors = [];
+    var _wingWPoly = faceWingW.poly;
     y = wingLeftY0;
     while (y < wingLeftY1 - 0.1) {
       var ya = y, yb = Math.min(y + coverPxL, wingLeftY1);
-      var poly = [[wx0, ya], [wingApex[0], ya], [wingApex[0], yb], [wx0, yb]];
+      // Clip the raw strip rectangle to the face polygon — without this,
+      // strips at the top + bottom of the wing extend through the hip
+      // line and the valley line into the adjacent main faces.  Wing E
+      // (below) already clips this way; the W path was missing it.
+      var band = [[wx0, ya], [wingApex[0], ya], [wingApex[0], yb], [wx0, yb]];
+      var clip = clipToConvexPoly(band, _wingWPoly);
+      if (!clip || clip.length < 3 || polyArea(clip) <= 1) { y += coverPxL; continue; }
       var wDonor = {
         face: faceWingW, color: COL_PURPLE,
-        poly: poly, centroid: polyCentroid(poly),
+        poly: clip, centroid: polyCentroid(clip),
         orderedLengthMm: orderedLengthMm(_calibratedSheetM(wingPerpPx * effectiveScale * pitchFactor)),
         pieceM: _calibratedSheetM(wingPerpPx * effectiveScale * pitchFactor),
         isOffcut: false, isPhantom: false
