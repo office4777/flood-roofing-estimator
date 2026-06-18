@@ -27617,7 +27617,18 @@ function _renderRoofSheetPlanInner() {
         });
       }
       if (!best) return;
+      // Mark the gap-fill as an offcut and store an explicit pointer to
+      // its donor strip so the colour-renumbering pass below
+      // (_renumberByColor → "pass A") can re-inherit the donor's seq
+      // AFTER the per-colour renumber has reshuffled donor numbers.
+      // Without this, the gap-fill was stuck with a stale seq from the
+      // moment of creation — at the wing-to-main boundary every gap-fill
+      // happened to be geographically nearest to donor sheet 7, so the
+      // whole row of triangular offcuts came out labelled "7" instead of
+      // each tracking the real sheet it was cut from.
       g.seq = best.seq; g.color = best.color; g.face = best.face;
+      g.isOffcut = true;
+      g._offcutSource = best;
       g.orderedLengthMm = best.orderedLengthMm; g.pieceM = best.pieceM; g._sheetKey = best._sheetKey;
       allStrips.push(g);
     });
