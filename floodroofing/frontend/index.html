@@ -1179,6 +1179,84 @@ select{
   html.print-jobpack .jp-page:last-child{
     page-break-after:auto; break-after:auto;
   }
+
+  /* ── Order-form simplification ─────────────────────────────────
+     The Job Pack designer is editable on screen — select boxes,
+     +Add row buttons, ×Delete buttons, inline qty/length inputs,
+     flashing-ref toggles, image crop tools.  None of that belongs
+     on the printed order form, which should read like the email
+     the user sends to the supplier.  Strip the chrome so only
+     spec names, qty @ length rows, drawings and totals reach
+     paper. */
+  html.print-jobpack button,
+  html.print-jobpack .mat-add-btn,
+  html.print-jobpack .mat-list-del,
+  html.print-jobpack .mat-toggle-row,
+  html.print-jobpack .mat-fl-empty,
+  html.print-jobpack .jp-page-tools,
+  html.print-jobpack .jp-img-tools,
+  html.print-jobpack .jp-img-handle,
+  html.print-jobpack .jp-crop-edge,
+  html.print-jobpack .qp-edit-hint,
+  html.print-jobpack .cut-list-empty,
+  html.print-jobpack .no-print{ display:none!important; }
+  /* When a section has no rows AND we hide the empty-state hint, the
+     whole section becomes useless chrome — collapse the heading row
+     too so the printed page reads "real content only".  Implemented as
+     a JS pass at print time (see beforeprint hook); this CSS rule
+     marks them visually disabled if the JS hook hasn't run yet. */
+  html.print-jobpack .mat-section.is-empty-section{ display:none!important; }
+
+  /* Spec-row chrome (background panel) flattens to plain "Label: Value"
+     pairs across the top of each page, so it reads like a stamped
+     order header instead of a form. */
+  html.print-jobpack .mat-spec-row{
+    background:transparent!important; border:none!important;
+    padding:0 0 6px 0!important;
+    border-bottom:1px solid #d1d5db!important;
+    margin-bottom:10px!important;
+    display:flex!important; flex-wrap:wrap!important;
+    grid-template-columns:none!important;
+    gap:6px 22px!important;
+  }
+  html.print-jobpack .mat-spec-row label{
+    flex:0 0 auto!important;
+    flex-direction:row!important; align-items:baseline!important;
+    gap:6px!important;
+  }
+  /* Selects + numeric inputs render as plain text — borderless,
+     transparent, no native widget chrome. */
+  html.print-jobpack select,
+  html.print-jobpack input[type="number"],
+  html.print-jobpack input[type="text"]{
+    appearance:none!important; -webkit-appearance:none!important;
+    -moz-appearance:none!important;
+    background:transparent!important; background-image:none!important;
+    border:none!important; border-bottom:none!important;
+    box-shadow:none!important; outline:none!important;
+    padding:0!important; margin:0!important;
+    font:inherit!important; color:#0a1628!important;
+    font-weight:600!important;
+    width:auto!important; min-width:0!important;
+    text-align:left!important;
+  }
+  html.print-jobpack input[type="checkbox"]{ display:none!important; }
+  html.print-jobpack .mat-list-row .mat-list-qty input{
+    width:auto!important; text-align:right!important;
+    font-weight:700!important;
+  }
+  html.print-jobpack .mat-list-row .mat-list-len input{
+    width:auto!important; text-align:right!important;
+  }
+  /* No row-hover bg on the cut list — print is static. */
+  html.print-jobpack .mat-list-row{ background:transparent!important; }
+  html.print-jobpack .mat-list-row.is-extra{ background:transparent!important; }
+  /* The contenteditable dashed underlines on the header fields look
+     like form scaffolding on paper — drop them so the client name
+     and address read as plain typeset text. */
+  html.print-jobpack .jp-page input[type="text"]{
+    border-bottom:none!important;
+  }
 }
 
 /* Materials tab — print rules live below the main @media print block
@@ -20134,7 +20212,7 @@ function _jpRenderConsumablesSection(d){
       '</tr>';
     });
   } else {
-    rowsHtml += '<tr><td colspan="4" style="color:var(--text2);font-style:italic;padding:6px 10px">No dektites — click <em>+ Add dektite size</em> below to add a pipe penetration size.</td></tr>';
+    rowsHtml += '<tr class="no-print"><td colspan="4" style="color:var(--text2);font-style:italic;padding:6px 10px">No dektites — click <em>+ Add dektite size</em> below to add a pipe penetration size.</td></tr>';
   }
 
   return '<div class="mat-section">'+
@@ -21688,7 +21766,7 @@ function renderMatFlashingsGrid(){
   var grid = document.getElementById('matFlashingsGrid'); if (!grid) return;
   var arr = _matFlashingsArr();
   if (!arr.length) {
-    grid.innerHTML = '<p style="font-size:12px;color:var(--text2);grid-column:1/-1;padding:6px 0">No flashings added yet — click <strong>+ Add Flashing</strong> above to start.</p>';
+    grid.innerHTML = '<p class="no-print" style="font-size:12px;color:var(--text2);grid-column:1/-1;padding:6px 0">No flashings added yet — click <strong>+ Add Flashing</strong> above to start.</p>';
     return;
   }
   grid.innerHTML = arr.map(function(slot, i){ return _matFlashingsSlotHtml(slot, i); }).join('');
@@ -22515,6 +22593,29 @@ window.addEventListener('afterprint', function(){
     document.documentElement.classList.remove('print-jobpack');
     delete document.documentElement.dataset.autoPrintJobPack;
   }
+  // Drop the is-empty-section flag so on-screen sections still show
+  // their empty-state hints once the user closes the print dialog.
+  document.querySelectorAll('.mat-section.is-empty-section')
+    .forEach(function(s){ s.classList.remove('is-empty-section'); });
+});
+
+// Walk every cut-list / consumables section on beforeprint and flag
+// the ones that have NO real rows (only an empty-state hint, which the
+// print CSS hides).  Without this the printed page shows an
+// orange-bullet "Roof sheets" header followed by nothing — noise on
+// what's supposed to be a clean supplier order form.
+window.addEventListener('beforeprint', function(){
+  if (!document.documentElement.classList.contains('print-jobpack')) return;
+  document.querySelectorAll('.mat-section').forEach(function(sec){
+    // A section "has content" if it carries at least one cut-list row,
+    // mat-list-row, table body row, or rendered flashing card.
+    var hasRows =
+      sec.querySelector('.mat-list-row') ||
+      sec.querySelector('.mat-fl-card') ||
+      sec.querySelector('table.cut-list tbody tr:not(.no-print)') ||
+      sec.querySelector('.mat-list-foot');
+    if (!hasRows) sec.classList.add('is-empty-section');
+  });
 });
 
 // Lazy-load html2canvas + jsPDF from a CDN. Cached on window after the
