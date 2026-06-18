@@ -1296,7 +1296,14 @@ select{
    tabs (the .panel{display:none} rule alone wouldn't beat an #id rule). */
 #tab-quote.active{display:flex;flex-direction:column}
 #tab-quote > .card,#tab-quote > details,#tab-quote > .q-extras-head{order:3}
-#tab-quote > .q-actionbar{order:1}
+#tab-quote > .q-actionbar{
+  order:1;
+  position:sticky;
+  top:96px;            /* clear the global #globalJobBar pinned at top */
+  z-index:35;
+  background:#fff;
+  box-shadow:0 4px 14px rgba(10,22,40,.06);
+}
 #tab-quote > .js-proposal-print{order:2}
 .q-extras-head{margin:22px 2px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--text2);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .q-extras-head span{font-size:11px;font-weight:400;color:var(--text3)}
@@ -7263,11 +7270,19 @@ async function copyCustomerLink(){
   var msg = document.getElementById('qaMsg');
   if (msg) { msg.textContent = 'Saving & generating link…'; }
   try { await saveCurrentJob(); } catch(e){}
+  // Tack the human-friendly job number onto the URL so the customer
+  // tab's title can read "Flood Roofing Quote #3080" instead of the
+  // bare token, and so the office-shared link looks intentional rather
+  // than like a random hash.  &j is harmless when missing — the backend
+  // still keys the lookup off the `q` token.
+  var jobNo = (window.S && (S.linkedJobNo || (S.quote && S.quote.ref))) || '';
   var link = location.origin + location.pathname + '?q=' + token;
+  if (jobNo) link += '&j=' + encodeURIComponent(String(jobNo).replace(/[^A-Za-z0-9\-]/g,''));
   try { await navigator.clipboard.writeText(link); } catch(e){}
-  if (msg) { msg.textContent = 'Customer link copied — send it to the client. They can pick options and accept online.'; }
+  if (msg) { msg.textContent = 'Customer link copied — send it to the client.'; }
+  var prettyName = jobNo ? ('Flood Roofing Quote #' + jobNo) : 'Customer quote link';
   // prompt() guarantees the link is selectable even if the clipboard API is blocked.
-  window.prompt('Customer quote link (copied to clipboard):', link);
+  window.prompt(prettyName + ' — copied to clipboard:', link);
 }
 
 // Build the customer's current selection payload for write-back.
@@ -7304,7 +7319,16 @@ function customerQuery(){
 }
 async function bootCustomerView(token){
   try {
-    document.title = 'Your Roofing Proposal';
+    // Read the optional &j=<jobNo> the office side tacks on copyCustomerLink
+    // so the browser tab reads "Flood Roofing Quote #<n>" instead of the
+    // generic placeholder while the proposal is fetching.
+    var urlJobNo = '';
+    try {
+      urlJobNo = (new URLSearchParams(location.search).get('j') || '').replace(/[^A-Za-z0-9\-]/g,'');
+    } catch(e){}
+    document.title = urlJobNo
+      ? ('Flood Roofing Quote #' + urlJobNo)
+      : 'Your Roofing Proposal';
     var r = await fetch(PROXY + '/q/' + encodeURIComponent(token));
     if (!r.ok) throw new Error('not found');
     var d = await r.json();
@@ -7334,10 +7358,30 @@ async function bootCustomerView(token){
       '</div>';
     document.body.appendChild(host);
     window.__CUSTOMER_MODE = true;
+    // Now that the proposal data is loaded, prefer the saved quote ref
+    // for the title (matches what the customer sees in the proposal
+    // header), falling back to the url ?j= and finally the generic name.
+    var refForTitle = (S.quote && (S.quote.ref || S.quote.jobNo)) || urlJobNo || '';
+    document.title = refForTitle
+      ? ('Flood Roofing Quote #' + String(refForTitle).replace(/^FR-?/i,''))
+      : 'Your Roofing Proposal';
     refreshQuoteProposal();
   } catch(e){
     console.error('BOOTCUST_ERR', e && (e.stack||e.message));
-    document.body.innerHTML = '<div style="font-family:system-ui,-apple-system,sans-serif;max-width:480px;margin:90px auto;text-align:center;color:#33414f;padding:0 20px"><h2 style="font-weight:700">Quote unavailable</h2><p>Sorry, this quote link is no longer available. Please contact Flood Roofing on 0800 4 FLOOD.</p></div>';
+    document.body.innerHTML =
+      '<div style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:60px auto;color:#33414f;padding:0 24px">'+
+        '<div style="text-align:center;font-size:13px;color:#6b7280;letter-spacing:.04em;text-transform:uppercase;font-weight:700;margin-bottom:18px">Flood Roofing LTD</div>'+
+        '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:32px 28px;text-align:center;box-shadow:0 10px 30px rgba(10,22,40,.06)">'+
+          '<div style="font-size:38px;line-height:1;margin-bottom:14px">📄</div>'+
+          '<h2 style="font-weight:800;font-size:20px;margin:0 0 8px;color:#0a1628">We can\'t find that quote</h2>'+
+          '<p style="font-size:14px;line-height:1.55;margin:6px 0 18px;color:#475569">The link looks correct but the quote is no longer published — it may have been replaced with a newer version, or the office withdrew it.</p>'+
+          '<div style="font-size:13px;color:#0a1628;background:#f1f5f9;border-radius:8px;padding:12px 14px;margin-top:14px;text-align:left;line-height:1.7">'+
+            '<strong>Next step:</strong> give us a quick call and we\'ll send you a fresh link.'+
+            '<br>📞 <a href="tel:08004FLOOD" style="color:#0099cc;font-weight:700;text-decoration:none">0800 4 FLOOD</a>'+
+            '<br>✉ <a href="mailto:office@floodroofing.co.nz" style="color:#0099cc;font-weight:700;text-decoration:none">office@floodroofing.co.nz</a>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
   }
 }
 
@@ -7736,29 +7780,87 @@ function onQuoteEdit(){
   refreshQuoteProposal();
 }
 
+// Line-item sections — every quote splits into a Re-Roof bucket and a
+// Scaffolding bucket so the proposal can show a sub-total per section
+// plus a grand total.  Stored on each line item as `section: 'reroof'`
+// or `'scaffold'`.  Defaulting blanks to 'reroof' keeps existing
+// quotes unaffected on load.
+var QUOTE_LINE_SECTIONS = [
+  { key:'reroof',   label:'Re-Roof' },
+  { key:'scaffold', label:'Scaffolding' }
+];
+function _lineSection(li){ return (li && li.section) || 'reroof'; }
+
 function renderQuoteLines(){
   var body = document.getElementById('qLineBody'); if (!body) return;
-  var rows = S.quote.lineItems.map(function(li, i){
+  // Render rows grouped by section so editors edit in context. A small
+  // section dropdown on each row lets the user move a line between
+  // Re-Roof and Scaffolding without manually re-typing.
+  var grouped = {};
+  QUOTE_LINE_SECTIONS.forEach(function(s){ grouped[s.key] = []; });
+  S.quote.lineItems.forEach(function(li, i){
+    var s = _lineSection(li);
+    if (!grouped[s]) grouped[s] = [];
+    grouped[s].push({ li: li, idx: i });
+  });
+  function sectionRow(label, subtotal){
+    return '<tr style="background:#f8fafc"><td colspan="3" style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:#0a1628">'+esc2(label)+'</td>'+
+      '<td style="padding:8px 10px;text-align:right;font-weight:700;color:#0a1628">'+fmtMoney(subtotal)+'</td>'+
+      '<td></td></tr>';
+  }
+  function lineRow(li, i){
     var line = (parseFloat(li.qty)||0) * (parseFloat(li.unit)||0);
+    var section = _lineSection(li);
+    var sectionSel = '<select onchange="updateQuoteLine('+i+',\'section\',this.value)" '+
+      'style="padding:4px 6px;font-size:11px;border:1px solid var(--border);border-radius:5px;background:#fff;color:#0a1628;margin-right:6px">'+
+      QUOTE_LINE_SECTIONS.map(function(s){ return '<option value="'+s.key+'"'+(s.key===section?' selected':'')+'>'+esc2(s.label)+'</option>'; }).join('')+
+    '</select>';
     return '<tr style="border-top:1px solid var(--border)">'+
-      '<td style="padding:4px"><input type="text" value="'+esc2(li.desc||'')+'" oninput="updateQuoteLine('+i+',\'desc\',this.value)" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:6px;margin:0"></td>'+
+      '<td style="padding:4px"><div style="display:flex;align-items:center">'+sectionSel+'<input type="text" value="'+esc2(li.desc||'')+'" oninput="updateQuoteLine('+i+',\'desc\',this.value)" style="flex:1;padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:6px;margin:0"></div></td>'+
       '<td style="padding:4px"><input type="number" value="'+(li.qty!=null?li.qty:1)+'" step="0.01" min="0" oninput="updateQuoteLine('+i+',\'qty\',this.value)" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:6px;margin:0"></td>'+
       '<td style="padding:4px"><input type="number" value="'+(li.unit!=null?li.unit:0)+'" step="0.01" min="0" oninput="updateQuoteLine('+i+',\'unit\',this.value)" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:6px;margin:0"></td>'+
       '<td id="qLineTot-'+i+'" style="padding:4px 10px;text-align:right;font-weight:600">'+fmtMoney(line)+'</td>'+
       '<td style="padding:4px"><button onclick="removeQuoteLine('+i+')" style="background:transparent;border:none;color:#b91c1c;cursor:pointer;font-size:14px;padding:4px 6px" title="Remove line">×</button></td>'+
     '</tr>';
-  }).join('');
-  body.innerHTML = rows;
+  }
+  var html = '';
+  QUOTE_LINE_SECTIONS.forEach(function(s){
+    var rows = grouped[s.key];
+    if (!rows.length) return;
+    var subtotal = rows.reduce(function(acc, r){ return acc + (parseFloat(r.li.qty)||0)*(parseFloat(r.li.unit)||0); }, 0);
+    html += sectionRow(s.label + ' — subtotal', subtotal);
+    rows.forEach(function(r){ html += lineRow(r.li, r.idx); });
+  });
+  body.innerHTML = html;
+}
+
+// Compute totals per section + grand total — used by the proposal
+// preview to mirror the same grouping the editor surface shows.
+function quoteLineSectionTotals(){
+  var totals = { grand:0 };
+  QUOTE_LINE_SECTIONS.forEach(function(s){ totals[s.key] = 0; });
+  (S.quote && S.quote.lineItems || []).forEach(function(li){
+    var line = (parseFloat(li.qty)||0) * (parseFloat(li.unit)||0);
+    var sec = _lineSection(li);
+    if (totals[sec] == null) totals[sec] = 0;
+    totals[sec] += line;
+    totals.grand += line;
+  });
+  return totals;
 }
 
 // Update one line item without rebuilding the whole table (avoids focus loss).
 function updateQuoteLine(i, key, val){
   if (!S.quote || !S.quote.lineItems[i]) return;
-  if (key === 'desc') S.quote.lineItems[i].desc = val;
-  else                S.quote.lineItems[i][key] = parseFloat(val) || 0;
+  if (key === 'desc')         S.quote.lineItems[i].desc = val;
+  else if (key === 'section') S.quote.lineItems[i].section = String(val||'reroof');
+  else                        S.quote.lineItems[i][key] = parseFloat(val) || 0;
   var li = S.quote.lineItems[i];
   var cell = document.getElementById('qLineTot-' + i);
   if (cell) cell.textContent = fmtMoney((parseFloat(li.qty)||0)*(parseFloat(li.unit)||0));
+  // Section change repaints the editor so the row migrates to its new
+  // sub-section bucket and the subtotals update.
+  if (key === 'section') renderQuoteLines();
   recalcQuoteTotals();
   refreshQuoteProposal();
 }
@@ -8386,11 +8488,17 @@ function refreshQuoteProposal(){
   // the cover page (below) so it shares the cover's single printed page
   // rather than sitting above the full-height cover and pushing an empty
   // overflow page.
+  // Single brand mark — prefer the user-uploaded logo (br.logo_data_url)
+  // when set, otherwise fall back to the static brand/logo_square.png.
+  // The previous version rendered BOTH side-by-side, producing the
+  // double-logo the user flagged.
+  var brandMarkHtml = br.logo_data_url
+    ? '<img src="'+esc2(br.logo_data_url)+'" alt="logo" style="height:54px;max-width:180px;display:block;flex-shrink:0;object-fit:contain;background:rgba(255,255,255,.08);padding:4px;border-radius:6px">'
+    : '<img src="'+esc2(brandLogo)+'" onerror="this.style.display=\'none\'" alt="" style="height:54px;width:54px;border-radius:6px;display:block;flex-shrink:0;object-fit:cover">';
   var headerHtml = '<div class="rp-header" style="display:flex;align-items:center;justify-content:space-between;gap:18px">'+
     '<div style="display:flex;align-items:center;gap:14px">'+
-      '<img src="'+esc2(brandLogo)+'" onerror="this.style.display=\'none\'" alt="" style="height:54px;width:54px;border-radius:6px;display:block;flex-shrink:0;object-fit:cover">'+
+      brandMarkHtml +
       '<div>'+
-        (br.logo_data_url ? '<img src="'+esc2(br.logo_data_url)+'" alt="logo" style="max-height:36px;max-width:180px;display:block;margin-bottom:6px">' : '')+
         '<div class="rp-logo-name">'+esc2(company)+'</div>'+
         '<div class="rp-logo-tag">'+esc2(tagline)+'</div>'+
         '<div class="rp-logo-stripe"></div>'+
@@ -8827,18 +8935,59 @@ function refreshQuoteProposal(){
         }).join('')+
         _gutterOptionC()+
       '</div>'+
-      // Exclusions — items NOT covered by this quote. Sourced from
-      // S.quote.exclusions[] (editable on the Quote tab template).
-      ((S.quote.exclusions||[]).length
-        ? '<div style="margin-top:14px;padding:12px 16px;background:#fff;border:1px solid var(--ed-line);border-left:3px solid var(--ed-warm,#c0794d)">'+
-            '<div class="ed-eyebrow" style="margin-bottom:6px;color:var(--ed-warm,#c0794d)">Exclusions — not covered by this quote</div>'+
-            '<ul style="margin:0;padding:0;list-style:none">'+
-              (S.quote.exclusions||[]).map(function(x){
-                return '<li style="display:flex;gap:8px;padding:3px 0;font-family:var(--ed-sans);font-size:11px;line-height:1.5;color:var(--ed-ink-2)"><span style="color:var(--ed-warm,#c0794d);flex-shrink:0;font-weight:700">×</span><span>'+esc2(x)+'</span></li>';
-              }).join('')+
-            '</ul>'+
+      // What's included / What's NOT included — twin panels on the
+      // pricing page. The included list mirrors S.quote.inclusionsTop
+      // (a project-wide list separate from per-option bullets), the
+      // not-included list maps S.quote.exclusions[] (previously
+      // surfaced as "Exclusions").  Both stay hidden when empty so the
+      // page doesn't pad with empty chrome.
+      ((S.quote.inclusionsTop||[]).length || (S.quote.exclusions||[]).length
+        ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">'+
+            ((S.quote.inclusionsTop||[]).length
+              ? '<div style="padding:12px 16px;background:#fff;border:1px solid var(--ed-line);border-left:3px solid var(--ed-accent,#0099cc)">'+
+                  '<div class="ed-eyebrow" style="margin-bottom:6px;color:var(--ed-accent,#0099cc)">What\'s included</div>'+
+                  '<ul style="margin:0;padding:0;list-style:none">'+
+                    (S.quote.inclusionsTop||[]).map(function(x){
+                      return '<li style="display:flex;gap:8px;padding:3px 0;font-family:var(--ed-sans);font-size:11px;line-height:1.5;color:var(--ed-ink-2)"><span style="color:var(--ed-accent,#0099cc);flex-shrink:0;font-weight:700">✓</span><span>'+esc2(x)+'</span></li>';
+                    }).join('')+
+                  '</ul>'+
+                '</div>'
+              : '<div></div>')+
+            ((S.quote.exclusions||[]).length
+              ? '<div style="padding:12px 16px;background:#fff;border:1px solid var(--ed-line);border-left:3px solid var(--ed-warm,#c0794d)">'+
+                  '<div class="ed-eyebrow" style="margin-bottom:6px;color:var(--ed-warm,#c0794d)">What\'s NOT included</div>'+
+                  '<ul style="margin:0;padding:0;list-style:none">'+
+                    (S.quote.exclusions||[]).map(function(x){
+                      return '<li style="display:flex;gap:8px;padding:3px 0;font-family:var(--ed-sans);font-size:11px;line-height:1.5;color:var(--ed-ink-2)"><span style="color:var(--ed-warm,#c0794d);flex-shrink:0;font-weight:700">×</span><span>'+esc2(x)+'</span></li>';
+                    }).join('')+
+                  '</ul>'+
+                '</div>'
+              : '<div></div>')+
           '</div>'
         : '')+
+      // Per-section subtotals + grand total beneath the inclusions.
+      // Drawn from quoteLineSectionTotals so the proposal mirrors the
+      // editor surface exactly.
+      (function(){
+        try {
+          var totals = quoteLineSectionTotals();
+          if (!totals.grand) return '';
+          var rows = QUOTE_LINE_SECTIONS.map(function(s){
+            var amt = totals[s.key] || 0;
+            if (!amt) return '';
+            return '<tr><td style="padding:5px 10px;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2)">'+esc2(s.label)+'</td>'+
+              '<td style="padding:5px 10px;text-align:right;font-family:var(--ed-sans);font-size:11.5px;font-weight:600;color:var(--ed-ink)">'+fmtMoney(amt)+'</td></tr>';
+          }).join('');
+          if (!rows) return '';
+          return '<div style="margin-top:14px;padding:8px 0;border:1px solid var(--ed-line);background:#fff">'+
+            '<div class="ed-eyebrow" style="padding:0 14px 6px;color:var(--ed-text2)">Quote sub-totals</div>'+
+            '<table style="width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums">'+rows+
+              '<tr style="border-top:2px solid var(--ed-ink)"><td style="padding:7px 10px;font-family:var(--ed-sans);font-size:12.5px;font-weight:700;color:var(--ed-ink)">Grand total (ex GST)</td>'+
+              '<td style="padding:7px 10px;text-align:right;font-family:var(--ed-sans);font-size:13px;font-weight:800;color:var(--ed-ink)">'+fmtMoney(totals.grand)+'</td></tr>'+
+            '</table>'+
+          '</div>';
+        } catch(e){ return ''; }
+      })()+
       // BIG combined total block — Subtotal / +GST / Total / Deposit.
       // Brand-ink panel with brand-blue accent for the headline total.
       '<div class="ed-keep" style="margin-top:20px;background:linear-gradient(135deg,var(--ed-ink) 0%,#0d2440 100%);color:#fff;padding:20px 24px;position:relative;overflow:hidden">'+
@@ -9354,16 +9503,49 @@ function refreshQuoteProposal(){
       '</div>';
   }
 
+  // Trust-logo strip — Licensed Building Practitioner, Sitewise Gold,
+  // Colorsteel Authorised — rides at the bottom of every proposal page
+  // (and prominently on the cover) so the customer immediately sees the
+  // credentials. PNG paths live under /brand/; missing files self-hide
+  // via onerror so they don't break the layout.
+  var trustLogosHtml =
+    '<div class="rp-trust-strip" style="display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap;margin-top:14px">'+
+      '<img src="brand/lbp.png" alt="Licensed Building Practitioner" onerror="this.style.display=\'none\'" style="height:42px;width:auto;object-fit:contain">'+
+      '<img src="brand/sitewise_gold.png" alt="Sitewise Gold 2025/26" onerror="this.style.display=\'none\'" style="height:36px;width:auto;object-fit:contain">'+
+      '<img src="brand/colorsteel.png" alt="Colorsteel" onerror="this.style.display=\'none\'" style="height:30px;width:auto;object-fit:contain">'+
+    '</div>';
+  var pageFooterHtml =
+    '<div class="rp-page-footer no-screen-only" style="margin-top:auto;padding-top:14px;border-top:1px solid var(--ed-line);display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:10px;color:var(--ed-text2)">'+
+      '<div style="flex:1;display:flex;gap:14px;align-items:center;opacity:.85">'+
+        '<img src="brand/lbp.png" alt="" onerror="this.style.display=\'none\'" style="height:26px;width:auto;object-fit:contain">'+
+        '<img src="brand/sitewise_gold.png" alt="" onerror="this.style.display=\'none\'" style="height:22px;width:auto;object-fit:contain">'+
+        '<img src="brand/colorsteel.png" alt="" onerror="this.style.display=\'none\'" style="height:18px;width:auto;object-fit:contain">'+
+      '</div>'+
+      '<div style="text-align:right;font-family:var(--ed-sans);letter-spacing:.04em">'+
+        esc2(company) + ' · '+ esc2(S.quote.ref || 'FR-001')+
+      '</div>'+
+    '</div>';
   // ── Assemble: 10 physical .rp-page divs, one per section ──
   function rpPage(inner, extraStyle){
     if (!inner) return '';
-    return '<div class="rp-body rp-page" style="'+(extraStyle||'')+'">'+inner+'</div>';
+    return '<div class="rp-body rp-page" style="display:flex;flex-direction:column;'+(extraStyle||'')+'">'+
+      '<div class="rp-page-content" style="flex:1">'+inner+'</div>'+
+      pageFooterHtml +
+    '</div>';
   }
   // Page 1 — Cover (zero-padded so hero band sits flush to page edges).
   // The letterhead header rides inside this page so the two share one
   // printed sheet (no empty overflow page).
   if (partCover){
-    html += '<div class="rp-body rp-page" style="padding:0;background:#fff">'+headerHtml+partCover+'</div>';
+    html += '<div class="rp-body rp-page" style="padding:0;background:#fff;display:flex;flex-direction:column">'+
+      headerHtml+
+      '<div style="flex:1">'+partCover+'</div>'+
+      // Trust strip + small footer credit centred under the cover hero.
+      '<div style="padding:18px 36px 24px;background:#fff;border-top:1px solid var(--ed-line)">'+
+        trustLogosHtml +
+        '<div style="text-align:center;font-size:10px;color:var(--ed-text2);margin-top:8px;letter-spacing:.04em;font-family:var(--ed-sans)">Licensed Building Practitioner · Sitewise Gold 2025/26 · Colorsteel Authorised</div>'+
+      '</div>'+
+    '</div>';
   } else {
     // No cover page — header leads the first content page on its own.
     html += headerHtml;
