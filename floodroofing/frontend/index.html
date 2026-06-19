@@ -23520,6 +23520,122 @@ function buildHipValleyLines(outline) {
 // (interior junctions, T-joints, valley meets) are left untouched —
 // those are the L's inner corners and must keep their hips / valleys.
 function buildGableRoofLines(outline) {
+  // ── Rectilinear "straight gable" mode ─────────────────────────────
+  // The user-facing intent of the Straight Gable button is: one ridge
+  // running through the long axis of the building with rake barges
+  // on every gable-end edge and gutters on every long edge, even
+  // when the building has a stepped / notched outline (step-out
+  // wings, return walls, verandah cut-outs).  Sheets in each "column"
+  // of the building then get their own length from the column's
+  // gutter→ridge distance.
+  //
+  // Implementation:
+  //   1. Detect bounding-box dominant axis (longer side ⇒ ridge axis).
+  //   2. Place ONE ridge along the midline of the bounding box,
+  //      clipped to the polygon interior so insets / re-entrant
+  //      corners don't have a floating ridge segment in empty air.
+  //   3. Classify each outline edge by orientation:
+  //        • parallel to the ridge → gutter
+  //        • perpendicular to ridge → barge (rake / gable end)
+  //      Diagonal edges fall back to their dominant component.
+  //
+  // Non-rectilinear outlines (lots of true diagonals) still work
+  // because the orientation classifier uses dx vs dy; if a future
+  // shape really needs the old skeleton-converter fallback, we can
+  // gate on outline regularity, but every Straight Gable case we've
+  // seen in practice is rectilinear.
+  if (!outline || outline.length < 3) return [];
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  outline.forEach(function(p){
+    if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+    if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+  });
+  var bbW = maxX - minX, bbH = maxY - minY;
+  var horiz = bbW >= bbH;
+  var midY = (minY + maxY) / 2, midX = (minX + maxX) / 2;
+  // Perturb the midline off any outline vertex so polygon-line
+  // crossings don't sit on a degenerate tangent (an L-shape whose
+  // notch top lies exactly at midY).  A sub-pixel shift is enough
+  // to land midline cleanly inside or outside every edge.
+  var EPS_MID = 0.01;
+  var bumps = 0;
+  while (bumps < 50 && outline.some(function(p){
+    return horiz ? Math.abs(p[1] - midY) < EPS_MID : Math.abs(p[0] - midX) < EPS_MID;
+  })){
+    if (horiz) midY += EPS_MID; else midX += EPS_MID;
+    bumps++;
+  }
+  var result = [];
+
+  // Clip the midline ridge to the polygon interior.  For an axis-
+  // aligned ridge we sweep the ridge as a line; intersect it with
+  // every outline edge, sort the crossings along the sweep axis,
+  // then pair consecutive crossings whose midpoint sits inside the
+  // polygon.  Each surviving pair becomes one ridge segment.
+  function _ptInPoly(x, y){
+    var n = outline.length, inside = false;
+    for (var i = 0, j = n - 1; i < n; j = i++){
+      var xi = outline[i][0], yi = outline[i][1];
+      var xj = outline[j][0], yj = outline[j][1];
+      var hit = ((yi > y) !== (yj > y)) &&
+                (x < (xj - xi) * (y - yi) / (yj - yi + 1e-9) + xi);
+      if (hit) inside = !inside;
+    }
+    return inside;
+  }
+  var ridgeCrossings = [];
+  for (var i = 0; i < outline.length; i++){
+    var a = outline[i], b = outline[(i+1) % outline.length];
+    if (horiz){
+      // Ridge at y = midY. Edge a→b crosses if (a.y - midY)*(b.y - midY) < 0
+      if ((a[1] - midY) * (b[1] - midY) < 0){
+        var t = (midY - a[1]) / (b[1] - a[1]);
+        ridgeCrossings.push(a[0] + t * (b[0] - a[0]));
+      }
+    } else {
+      if ((a[0] - midX) * (b[0] - midX) < 0){
+        var t = (midX - a[0]) / (b[0] - a[0]);
+        ridgeCrossings.push(a[1] + t * (b[1] - a[1]));
+      }
+    }
+  }
+  ridgeCrossings.sort(function(p, q){ return p - q; });
+  // Pair consecutive crossings — each "inside" pair is a ridge segment.
+  for (var k = 0; k + 1 < ridgeCrossings.length; k += 2){
+    var s0 = ridgeCrossings[k], s1 = ridgeCrossings[k + 1];
+    if (Math.abs(s1 - s0) < 1) continue;
+    // Confirm the midpoint is inside (alternating crossings can flip
+    // if the polygon is non-simple — guard so we don't draw a ridge
+    // through a notch).
+    var midPt = horiz ? [(s0 + s1) / 2, midY] : [midX, (s0 + s1) / 2];
+    if (!_ptInPoly(midPt[0], midPt[1])) continue;
+    var seg = horiz
+      ? [[s0, midY], [s1, midY]]
+      : [[midX, s0], [midX, s1]];
+    result.push({ type: 'ridge', pts: seg });
+  }
+
+  // Classify each outline edge by orientation.
+  var newBarges = [];
+  for (var i = 0; i < outline.length; i++){
+    var a = outline[i], b = outline[(i+1) % outline.length];
+    var dx = Math.abs(b[0] - a[0]), dy = Math.abs(b[1] - a[1]);
+    var edgeIsParallel = horiz ? (dx >= dy) : (dy >= dx);
+    if (edgeIsParallel){
+      // Parallel to ridge → gutter (the autoPopulateGutters pass
+      // also generates these from the outline, but stamping them
+      // here keeps the build self-contained for tests).
+      result.push({ type: 'gutter', pts: [a.slice(), b.slice()] });
+    } else {
+      // Perpendicular to ridge → rake barge (gable end edge).
+      newBarges.push({ type: 'barge', pts: [a.slice(), b.slice()] });
+    }
+  }
+  // Tag rake barges as starter/finish by their x position (existing
+  // helper) so cut-list grouping picks them up.
+  return result.concat(_tagGableBargesStarterFinish(newBarges));
+}
+function buildGableRoofLines_legacy(outline) {
   var EP_TOL = 2.5;
   var skel = buildHipValleyLines(outline);
   var ridges  = skel.filter(function(l){return l.type==='ridge';});
