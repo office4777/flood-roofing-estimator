@@ -219,6 +219,25 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .cash-detail{display:none;}
 #cmodal-body .cash-detail{display:block;margin-bottom:12px;}
 .cash-hidden{display:none;}
+.calwrap{overflow:auto;max-height:64vh;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;border:1px solid var(--border);border-radius:12px;background:var(--card2);position:relative;}
+.cal-row{display:flex;align-items:stretch;width:max-content;}
+.cal-row.cal-head{position:sticky;top:0;z-index:4;}
+.cal-job{position:sticky;left:0;z-index:3;width:108px;min-width:108px;max-width:108px;background:var(--card);border-right:2px solid var(--border);border-bottom:1px solid var(--border);padding:6px 8px;display:flex;flex-direction:column;justify-content:center;box-shadow:3px 0 6px rgba(0,0,0,.18);}
+.cal-head .cal-job{z-index:5;background:var(--elev);}
+.cal-jn-h{font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);}
+.cal-jn{font-size:.68rem;font-weight:700;color:var(--text);line-height:1.15;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.cal-js{font-size:.58rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cal-d{width:var(--dayw,30px);min-width:var(--dayw,30px);border-right:1px solid var(--border);border-bottom:1px solid var(--border);box-sizing:border-box;}
+.cal-h{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:3px 0 4px;background:var(--elev);}
+.cal-h .cal-mo{font-size:.52rem;font-weight:800;color:var(--accent);height:11px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;}
+.cal-h .cal-wd{font-size:.54rem;opacity:.55;color:var(--text);}
+.cal-h .cal-dy{font-size:.66rem;font-weight:700;color:var(--text);}
+.cal-box{cursor:pointer;display:flex;align-items:center;justify-content:center;min-height:42px;font-size:.85rem;font-weight:800;color:var(--success);transition:background .1s;}
+.cal-box:active{background:var(--glow);}
+.cal-wknd{background:rgba(127,127,127,.07);}
+.cal-today{box-shadow:inset 0 0 0 2px var(--primary);}
+.cal-sel{background:rgba(74,222,128,.30);}
+.cal-dot{color:var(--muted);opacity:.5;font-size:.8rem;}
 /* ===== DESKTOP ===== */
 @media (min-width:900px){
   #app{max-width:1320px;padding:26px 40px 30px;}
@@ -583,8 +602,9 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="note" id="cf-note"></div>
     </div>
     <div class="card">
-      <div class="ct">Active jobs — hours, owing & finish <span class="period-sub" style="margin-left:auto;">edit “Done by”</span></div>
-      <div class="tbl-wrap" style="max-height:60vh;overflow:auto;"><table class="tb" id="cf-jobs-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Priced h</th><th style="text-align:right;">Actual h</th><th style="text-align:right;">Rem h</th><th style="text-align:right;">Owing</th><th>Done by</th></tr></thead><tbody></tbody></table></div>
+      <div class="ct">Active jobs — expected payment date <span class="period-sub" style="margin-left:auto;">tap a day · scroll →</span></div>
+      <div id="cf-cal"></div>
+      <div class="note">Tap the day you expect each job’s final invoice to be <b>paid</b> — that’s when the cash lands in the forecasts. The faint • is my estimate (finish + payment lag). Scroll sideways for up to 6 months; the job stays pinned on the left. Tap the same day again to clear.</div>
     </div>
     <div class="card cash-detail" data-cdetail="owed">
       <div class="ct">Context <span class="period-sub" style="margin-left:auto;">other balances</span></div>
@@ -2300,6 +2320,37 @@ function saveCfCfg(){
   renderCashflow();
 }
 function setCfFinish(id,val){const o=S.get('cfFinishOv',{})||{};if(val)o[String(id)]=val;else delete o[String(id)];S.set('cfFinishOv',o);renderCashflow();}
+// 6-month horizontal day calendar for picking each job's expected final-payment day.
+// Job is pinned on the left; ~2 weeks fit at a time; tap a day to set/clear the expected
+// payment date (stored as the cfFinishOv override and used directly as the inflow date).
+function renderCfCalendar(sched,finOv){
+  const host=document.getElementById('cf-cal');if(!host)return;
+  finOv=finOv||(S.get('cfFinishOv',{})||{});
+  const p2=n=>String(n).padStart(2,'0');
+  const ymd=d=>d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+  const start=new Date();start.setHours(0,0,0,0);const todayY=ymd(start);
+  const N=183,days=[];for(let i=0;i<N;i++)days.push(new Date(start.getTime()+i*86400000));
+  const WD=['S','M','T','W','T','F','S'];
+  let head='<div class="cal-row cal-head"><div class="cal-job cal-jn-h">Job · owing</div>';
+  days.forEach((d,i)=>{const mo=(d.getDate()===1||i===0)?FG_MONTHS[d.getMonth()]:'';const wknd=(d.getDay()===0||d.getDay()===6)?' cal-wknd':'';const td=ymd(d)===todayY?' cal-today':'';
+    head+='<div class="cal-d cal-h'+wknd+td+'"><div class="cal-mo">'+mo+'</div><div class="cal-wd">'+WD[d.getDay()]+'</div><div class="cal-dy">'+d.getDate()+'</div></div>';});
+  head+='</div>';
+  const rows=(sched&&sched.length)?sched.map(s=>{
+    const sel=finOv[String(s.id)]||'';
+    const auto=(!s.isOv&&s.payDate)?ymd(s.payDate):'';
+    let r='<div class="cal-row"><div class="cal-job"><div class="cal-jn">'+esc((s.job||'').slice(0,46))+'</div><div class="cal-js">'+fmtK(s.owing)+(s.rem>0?(' · '+fmtH(s.rem)+'h'):'')+'</div></div>';
+    days.forEach(d=>{const k=ymd(d);const wknd=(d.getDay()===0||d.getDay()===6)?' cal-wknd':'';const td=k===todayY?' cal-today':'';
+      const isSel=k===sel;const isAuto=!isSel&&k===auto;
+      r+='<div class="cal-d cal-box'+wknd+td+(isSel?' cal-sel':'')+'" onclick="pickPayDay(\''+esc(String(s.id))+'\',\''+k+'\')">'+(isSel?'✓':(isAuto?'<span class="cal-dot">•</span>':''))+'</div>';});
+    return r+'</div>';
+  }).join(''):'<div class="cal-row"><div class="cal-job"><div class="cal-jn">No active jobs — Refresh Fergus.</div></div></div>';
+  const eff=Math.min((window.innerWidth||375)-34,1280);const dayw=Math.max(16,Math.floor((eff-108)/14));
+  host.innerHTML='<div id="cf-cal-scroll" class="calwrap" style="--dayw:'+dayw+'px;">'+head+rows+'</div>';
+  const sc=document.getElementById('cf-cal-scroll');
+  if(sc){sc.scrollLeft=window.__calScroll||0;sc.addEventListener('scroll',()=>{window.__calScroll=sc.scrollLeft;},{passive:true});}
+  if(!window.__calResize){window.__calResize=true;window.addEventListener('resize',()=>{const s2=document.getElementById('cf-cal-scroll');if(!s2)return;const e2=Math.min((window.innerWidth||375)-34,1280);s2.style.setProperty('--dayw',Math.max(16,Math.floor((e2-108)/14))+'px');});}
+}
+function pickPayDay(id,d){const o=S.get('cfFinishOv',{})||{};if(o[String(id)]===d)delete o[String(id)];else o[String(id)]=d;S.set('cfFinishOv',o);const sc=document.getElementById('cf-cal-scroll');if(sc)window.__calScroll=sc.scrollLeft;renderCashflow();}
 function renderCashflow(){
   const cfg2=cfCfg();
   const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
@@ -2322,14 +2373,15 @@ function renderCashflow(){
   let cumH=0;const inByMonth={},inByWeek={};const sched=[];
   jobs.forEach(j=>{const rem=Math.max(0,num(j.remaining));cumH+=rem;
     const compDate=new Date(Date.now()+(cumH/weeklyCap)*7*86400000);   // capacity-based finish estimate
-    const finDate=finOv[j.id]?new Date(finOv[j.id]+'T00:00:00'):compDate;
-    const payDate=new Date(finDate.getTime()+Math.max(0,num(cfg2.lag))*7*86400000);
+    const picked=finOv[j.id]?new Date(finOv[j.id]+'T00:00:00'):null;
+    const finDate=picked||compDate;
+    const payDate=picked?picked:new Date(finDate.getTime()+Math.max(0,num(cfg2.lag))*7*86400000);
     const key=FG_MONTHS[payDate.getMonth()]+'-'+payDate.getFullYear();
     const wi=Math.floor((payDate.getTime()-Date.now())/(7*86400000));
     const inflow=cfg2.oo/100*num(j.sale);
     inByMonth[key]=(inByMonth[key]||0)+inflow;
     if(wi>=0&&wi<13)inByWeek[wi]=(inByWeek[wi]||0)+inflow;else if(wi<0)inByWeek[0]=(inByWeek[0]||0)+inflow;
-    sched.push({id:String(j.id),job:j.job,priced:num(j.priced),actual:num(j.actual),rem,owing:Math.max(0,num(j.sale)-num(j.billed)),finDate,isOv:!!finOv[j.id],inflow,sale:num(j.sale),aMat:num(j.aMat)});});
+    sched.push({id:String(j.id),job:j.job,priced:num(j.priced),actual:num(j.actual),rem,owing:Math.max(0,num(j.sale)-num(j.billed)),finDate,payDate,isOv:!!finOv[j.id],inflow,sale:num(j.sale),aMat:num(j.aMat)});});
   sched.sort((a,b)=>a.finDate-b.finDate);
   // 6-month projection (current month + next 5)
   const months=[];for(let i=0;i<6;i++)months.push(calMonthKey(i));
@@ -2362,9 +2414,7 @@ function renderCashflow(){
   set('cf-note',null,'00 (everyday) account: '+cfg2.oo+'% of each job in at completion · wages + overheads out. Opening '+(ooRow?fmtK(startBal):'$0 — set 00 keyword in Settings')+'.');
   set('cf-cfg-note',null,'Crew '+c.teams+'×'+c.size+'×'+c.hrs+'h · overheads+wages '+fmtK(avgOut)+'/mo (Xero avg).');
   // job completion schedule
-  const jt=document.querySelector('#cf-jobs-tbl tbody');
-  if(jt)jt.innerHTML=sched.length?sched.map(s=>{const v=s.finDate.getFullYear()+'-'+String(s.finDate.getMonth()+1).padStart(2,'0')+'-'+String(s.finDate.getDate()).padStart(2,'0');
-    return '<tr><td>'+esc((s.job||'').slice(0,34))+'</td><td style="text-align:right;">'+(s.priced?fmtH(s.priced):'—')+'</td><td style="text-align:right;">'+(s.actual?fmtH(s.actual):'—')+'</td><td style="text-align:right;" class="'+(s.rem>0?'pos':'')+'">'+fmtH(s.rem)+'</td><td style="text-align:right;">'+fmtK(s.owing)+'</td><td><input type="date" value="'+v+'" onchange="setCfFinish(\''+esc(s.id)+'\',this.value)" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:5px 7px;font-size:.72rem;"'+(s.isOv?' title="you adjusted this"':'')+'></td></tr>';}).join(''):'<tr><td colspan="6" class="empty">Refresh Fergus on the Dashboard to load active jobs.</td></tr>';
+  renderCfCalendar(sched,finOv);
   // ===== Due in: jobs that already have >=10% of their hours on them =====
   const started=(fwJobs||[]).filter(j=>{const p=num(j.priced);if(p<=0)return false;const a=num(j.actual);return a/p>=0.10 && (num(j.sale)-num(j.billed))>0;})
     .map(j=>{const p=num(j.priced),a=num(j.actual);return {job:j.job,pct:p>0?a/p:0,actual:a,due:Math.max(0,num(j.sale)-num(j.billed))};}).sort((x,y)=>y.due-x.due);
