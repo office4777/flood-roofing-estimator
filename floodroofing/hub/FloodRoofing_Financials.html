@@ -518,6 +518,12 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="tbl-wrap" style="max-height:50vh;overflow:auto;"><table class="tb" id="cf-due2-tbl"><thead><tr><th>Job</th><th style="text-align:right;">% done</th><th style="text-align:right;">Act h</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
     </div>
     <div class="card per-last">
+      <div class="ct">Xero AR — invoiced, awaiting payment <span class="period-sub" style="margin-left:auto;">issued · not paid</span></div>
+      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cash-ar-total" style="font-size:2.4rem;color:var(--success);">—</div><div class="unit" id="cash-ar-sub">outstanding customer invoices</div></div>
+      <div class="tbl-wrap" style="max-height:50vh;overflow:auto;"><table class="tb" id="cash-ar-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Inv %</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
+      <div class="note">Each row = a Fergus job with an issued Xero invoice still unpaid. Inv % = invoiced ÷ job total (Fergus). Due in = unpaid balance.</div>
+    </div>
+    <div class="card per-last">
       <div class="ct">Materials still to buy — live jobs <span id="cash-mat-src" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="fld" style="margin:2px 0 10px;"><label>Deposit / materials as % of sale price</label><input id="cash-deppct" type="number" inputmode="decimal" autocomplete="off" placeholder="50" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Each job’s material budget = this % of its sale price (the deposit that funds materials). Default 50%.</div></div>
       <div class="mg" id="cash-mat"></div>
@@ -1904,6 +1910,27 @@ async function fetchXeroDeposits(){
   }
   return byJob;
 }
+// Outstanding (issued, unpaid) ACCREC invoices grouped by Fergus job number from the Reference
+// ("(#2852)"): { '2852': {due,total,n,last,name} }. due = unpaid AmountDue, total = invoiced Total.
+async function fetchXeroAR(){
+  const proxy=fergusProxyUrl();if(!proxy)return null;
+  const psec=fergusProxySecret();
+  const byJob={};let page=1,got=false;
+  while(page<=12){
+    let res;
+    try{res=await fetch(proxyUrl('xero','/Invoices?where=Type=="ACCREC" AND Status=="AUTHORISED"&page='+page+'&order=Date DESC'),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});}
+    catch(e){return got?byJob:null;}
+    if(!res.ok)return got?byJob:null;
+    let inv=[];try{inv=(JSON.parse(await res.text()).Invoices)||[];}catch(e){inv=[];}
+    got=true;
+    inv.forEach(v=>{const due=num(v.AmountDue);if(due<=0)return;const m=String(v.Reference||'').match(/#\s*(\d+)/);const key=m?m[1]:('x'+(v.InvoiceNumber||v.InvoiceID||Math.random()));
+      const j=byJob[key]||(byJob[key]={due:0,total:0,n:0,last:'',name:(v.Contact&&v.Contact.Name)||'',hasRef:!!m});
+      j.due+=due;j.total+=num(v.Total);j.n++;const dd=v.DateString||v.Date||'';if(dd>j.last)j.last=dd;});
+    if(inv.length<100)break;
+    page++;toast('Xero AR… '+((page-1)*100)+'+');
+  }
+  return byJob;
+}
 // Unpaid supplier bills (ACCPAY AUTHORISED) grouped by the Xero account code each line is coded
 // to, so A/P can be split into materials/COGS vs overheads. Distributes each bill's unpaid
 // AmountDue across its line account codes. Returns { byCode:{code:{amt,eg}}, apTotal } or null.
@@ -1959,11 +1986,13 @@ async function syncCash(){
     const rows=bsRows(rep);
     toast('Reading paid deposits…');
     const paidByJob=await fetchXeroDeposits();
+    toast('Reading outstanding invoices…');
+    const arByJob=await fetchXeroAR();
     toast('Reading supplier bills…');
     const apb=await fetchXeroAPBills();
     toast('Reading chart of accounts…');
     const accts=await fetchXeroAccounts();
-    cash={rows,paidByJob:paidByJob||null,apByCode:(apb&&apb.byCode)||null,apBillsTotal:(apb&&apb.apTotal)||0,accounts:accts||null,ts:new Date().toLocaleString('en-NZ')};
+    cash={rows,paidByJob:paidByJob||null,arByJob:arByJob||null,apByCode:(apb&&apb.byCode)||null,apBillsTotal:(apb&&apb.apTotal)||0,accounts:accts||null,ts:new Date().toLocaleString('en-NZ')};
     S.set('cash',cash);
     toast('End cash position updated ✓','ok');
     renderCash();
@@ -2174,6 +2203,24 @@ function renderCash(){
   if(dcTb){const mk=(r,tag,col)=>'<tr><td>'+esc(r.job)+'</td><td style="text-align:right;">'+fmt$(r.bought)+'</td><td style="text-align:right;">'+fmt$(r.billed)+'</td><td style="color:'+col+';font-weight:700;font-size:.7rem;">'+tag+'</td></tr>';
     const rws=noDep.map(r=>mk(r,'not invoiced','var(--danger)')).concat(unpaidDep.map(r=>mk(r,'unpaid','#fb923c')));
     dcTb.innerHTML=rws.length?rws.join(''):'<tr><td colspan="4" style="color:var(--success);">\u2713 Every job with materials has a deposit invoiced'+(havePaid?' &amp; paid':'')+'.</td></tr>';}
+  // ===== Xero AR by job: invoices issued but awaiting payment =====
+  const arByJob=(cash.arByJob)||null;
+  const arTb=document.querySelector('#cash-ar-tbl tbody');
+  if(arTb){
+    if(!arByJob){
+      set('cash-ar-total',null,'—');set('cash-ar-sub',null,'Sync from Xero to load outstanding invoices');
+      arTb.innerHTML='<tr><td colspan="3" class="empty">Sync from Xero to load issued-but-unpaid invoices.</td></tr>';
+    }else{
+      const allCJ=S.get('cashJobs',[])||[];const byNo={};allCJ.forEach(j=>{const k=String(j.jobNo||'').replace(/[^0-9]/g,'');if(k)byNo[k]=j;});
+      const arList=Object.keys(arByJob).map(k=>{const a=arByJob[k];const nk=String(k).replace(/[^0-9]/g,'');const fj=byNo[nk];
+        const sale=fj?(num(fj.sale)||num(fj.chg)):0;const billed=fj?num(fj.billed):0;
+        return {job:fj?fj.job:(a.name||('Job '+k)),invPct:sale>0?Math.round(billed/sale*100):null,due:num(a.due),matched:!!fj};}).filter(r=>r.due>0).sort((x,y)=>y.due-x.due);
+      const arTot=arList.reduce((s,r)=>s+r.due,0);
+      set('cash-ar-total',null,fmtK(arTot));
+      set('cash-ar-sub',null,arList.length?(arList.length+' invoices issued · awaiting payment'):'No outstanding invoices');
+      arTb.innerHTML=arList.length?arList.map(r=>'<tr><td>'+esc((r.job||'').slice(0,40))+(r.matched?'':' <span class="mut">· no job#</span>')+'</td><td style="text-align:right;">'+(r.invPct!=null?r.invPct+'%':'—')+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(r.due)+'</td></tr>').join('')+'<tr class="sum"><td>Total ('+arList.length+')</td><td></td><td style="text-align:right;font-weight:800;">'+fmtK(arTot)+'</td></tr>':'<tr><td colspan="3" class="empty">No outstanding invoices — all paid 🎉</td></tr>';
+    }
+  }
   // context tiles
   set('cash-context',
     mb('Cash + AR − AP',fmtK(held+arVal-apVal),'if everything settled',(held+arVal-apVal)>=0?'pos':'neg','m-gp')+
