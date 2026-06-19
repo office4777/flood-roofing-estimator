@@ -409,6 +409,12 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <button class="btn btn-o" style="margin-top:11px;" onclick="syncWorkload()">⟳ Sync from Fergus</button>
     </div>
     <div class="card">
+      <div class="ct">Excel ↔ Fergus check <span class="period-sub" style="margin-left:auto;">are the pulled numbers right?</span></div>
+      <button class="btn btn-o" onclick="compareBcSources()">⚖ Compare Excel vs Fergus (overlapping jobs)</button>
+      <div id="bc-cmp-sum" class="note" style="margin-top:8px;">Excel is the source of truth. This matches each Excel job to its live Fergus row (by address) and shows where the pulled Sales / GP / Hours differ. Sync from Fergus first.</div>
+      <div class="tbl-wrap" style="max-height:62vh;overflow:auto;margin-top:8px;"><table class="tb" id="bc-cmp-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Sales E→F</th><th style="text-align:right;">GP E→F</th><th style="text-align:right;">Hrs E→F</th></tr></thead><tbody id="bc-cmp"></tbody></table></div>
+    </div>
+    <div class="card">
       <div class="ct">Invoice dating diagnostic</div>
       <button class="btn btn-o" onclick="diagInvoices()">🔧 Test Fergus invoice endpoints</button>
       <pre id="bc-diag" class="note" style="white-space:pre-wrap;word-break:break-word;margin-top:10px;max-height:340px;overflow:auto;"></pre>
@@ -1298,6 +1304,41 @@ function renderBCTypes(){
   const gNP=gG-ovRate*gH;
   html+='<tr class="tot"><td colspan="2">TOTAL ('+gn+')</td><td>'+fmtK(gS)+'</td><td>'+fmtK(gG)+'</td><td>'+(gS>0?Math.round(gG/gS*100)+'%':'—')+'</td><td>'+fmtK(gNP)+'</td><td>'+fmtH(gPH)+'</td><td>'+fmtH(gH)+'</td></tr>';
   body.innerHTML=gn?html:'<tr><td colspan="8" class="empty">No back-costed jobs yet — Sync from Fergus.</td></tr>';
+}
+// ===== Excel (source of truth) vs Fergus pull — verify the app is pulling correct numbers =====
+function bcNorm(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
+function bcToks(s){return bcNorm(s).split(' ').filter(Boolean);}
+function bcCmpCell(e,f,money){
+  const fmt=money?fmtK:(x=>fmtH(x)+'h');const d=f-e;const pct=e!==0?Math.abs(d/e*100):(f!==0?100:0);
+  const col=pct<=2?'var(--success)':pct<=10?'#fb923c':'var(--danger)';
+  return '<td style="text-align:right;"><div>'+fmt(e)+' → '+fmt(f)+'</div><div style="font-size:.6rem;color:'+col+';">Δ '+(d>=0?'+':'')+fmt(d)+(e!==0?' ('+(d>=0?'+':'')+Math.round(d/e*100)+'%)':'')+'</div></td>';
+}
+function compareBcSources(){
+  const body=document.getElementById('bc-cmp'),sum=document.getElementById('bc-cmp-sum');if(!body)return;
+  const fer=bcFergus||[];
+  if(!fer.length){body.innerHTML='<tr><td colspan="4" class="empty">No Fergus rows yet — tap ‘Sync from Fergus’ first.</td></tr>';if(sum)sum.textContent='No Fergus data cached. Sync from Fergus, then run this again.';return;}
+  const ferTok=fer.map(fg=>({fg,set:new Set(bcToks(fg.job))}));
+  const out=[];let matched=0;
+  (BC_DATA||[]).forEach(ex=>{
+    const et=bcToks(ex.job);const enums=et.filter(x=>/^\d+$/.test(x));if(!enums.length)return;
+    let best=null,bestScore=0;
+    ferTok.forEach(o=>{let sc=0;et.forEach(x=>{if(o.set.has(x))sc+=(/^\d+$/.test(x)?3:1);});if(sc>bestScore){bestScore=sc;best=o;}});
+    if(!best||bestScore<4)return;
+    const numOk=enums.some(n=>best.set.has(n));if(!numOk)return;
+    matched++;const fg=best.fg;
+    out.push({job:ex.job,exS:num(ex.sales),fgS:num(fg.sales),exG:num(ex.gp),fgG:num(fg.gp),exH:num(ex.h_actual),fgH:num(fg.h_actual),dG:num(fg.gp)-num(ex.gp)});
+  });
+  out.sort((a,b)=>Math.abs(b.dG)-Math.abs(a.dG));
+  body.innerHTML=out.length?out.map(r=>'<tr><td>'+esc(r.job.slice(0,30))+'</td>'+bcCmpCell(r.exS,r.fgS,true)+bcCmpCell(r.exG,r.fgG,true)+bcCmpCell(r.exH,r.fgH,false)+'</tr>').join(''):'<tr><td colspan="4" class="empty">No overlapping jobs found between Excel and the Fergus pull (matched by street address).</td></tr>';
+  if(sum){
+    if(!out.length){sum.textContent='Matched 0 jobs — the Excel history and the current Fergus pull may not overlap (Excel is older completed jobs; Fergus pulls recent ones).';}
+    else{
+      const offGP=out.filter(r=>Math.abs(r.dG)>500).length;
+      const rs=out.filter(r=>r.exS>0).map(r=>r.fgS/r.exS).sort((a,b)=>a-b);const medR=rs.length?rs[Math.floor(rs.length/2)]:1;
+      const gst=Math.abs(medR-1.15)<0.03?' — ⚠ Fergus sales look ~15% high vs Excel, i.e. GST-inclusive (Excel is ex-GST).':'';
+      sum.innerHTML='Matched '+matched+' of '+BC_DATA.length+' Excel jobs by address · '+offGP+' off by &gt;$500 GP · median Fergus/Excel sales ratio '+medR.toFixed(2)+gst+'<br>Excel GP = sales − labour − materials. If Fergus GP reads lower, the app is using Fergus’s total cost (which can include subbies/disbursements/dump fees) — say the word and I’ll switch the Fergus calc to labour+materials only to match Excel exactly.';
+    }
+  }
 }
 function renderBC(){
   fillBCFilters();
