@@ -2382,7 +2382,7 @@ function renderCashflow(){
     inByMonth[key]=(inByMonth[key]||0)+inflow;
     if(wi>=0&&wi<13)inByWeek[wi]=(inByWeek[wi]||0)+inflow;else if(wi<0)inByWeek[0]=(inByWeek[0]||0)+inflow;
     sched.push({id:String(j.id),job:j.job,priced:num(j.priced),actual:num(j.actual),rem,owing:Math.max(0,num(j.sale)-num(j.billed)),finDate,payDate,isOv:!!finOv[j.id],inflow,sale:num(j.sale),aMat:num(j.aMat)});});
-  sched.sort((a,b)=>a.finDate-b.finDate);
+  // keep the capacity-finish order — stable, so rows don't jump when a payment date is picked
   // 6-month projection (current month + next 5)
   const months=[];for(let i=0;i<6;i++)months.push(calMonthKey(i));
   let bal=startBal;
@@ -2520,8 +2520,9 @@ function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowt
   let x0=0,y0=0,armed=false,horiz=false,cur=null,nxt=null,dir=0,W=360,finishing=false;
   document.addEventListener('touchstart',e=>{
     if(finishing||e.touches.length!==1){armed=false;return;}
+    if(page==='cash'){armed=false;return;}   // Cash tab: no tab-swipe — it clashes with the payment calendar's side-scroll
     const t=e.target;
-    if(t.closest&&t.closest('.mstrip,.chips,.tbl-wrap,input,select,textarea,#modal,#nav')){armed=false;return;}
+    if(t.closest&&t.closest('.mstrip,.chips,.tbl-wrap,.calwrap,input,select,textarea,#modal,#nav')){armed=false;return;}
     x0=e.touches[0].clientX;y0=e.touches[0].clientY;
     armed=true;horiz=false;cur=null;nxt=null;dir=0;W=window.innerWidth||360;
   },{passive:true});
