@@ -206,6 +206,19 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 
 .src-f{font-size:.6rem;font-weight:700;color:#fbbf24;white-space:nowrap;}
 .src-x{font-size:.6rem;font-weight:700;color:var(--muted);white-space:nowrap;}
+.mb-tap{cursor:pointer;position:relative;transition:transform .1s ease;}
+.mb-tap:active{transform:scale(.97);}
+.mb-tap .mb-go{float:right;opacity:.45;font-weight:800;font-size:1rem;line-height:1;}
+.cmodal{display:none;position:fixed;inset:0;z-index:95;background:rgba(4,7,12,.74);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.cmodal.open{display:block;animation:fade .2s ease;}
+.cmodal-card{max-width:820px;margin:0 auto;min-height:100%;padding:10px 14px 70px;}
+.cmodal-head{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 2px 10px;margin-bottom:4px;background:linear-gradient(180deg,var(--bg) 72%,transparent);}
+.cmodal-head span{font-size:1.08rem;font-weight:800;color:var(--text);}
+.cmodal-x{background:var(--elev);border:1px solid var(--border);color:var(--text);border-radius:22px;padding:9px 17px;font-size:.82rem;font-weight:700;cursor:pointer;white-space:nowrap;}
+.cmodal-x:active{transform:scale(.96);}
+.cash-detail{display:none;}
+#cmodal-body .cash-detail{display:block;margin-bottom:12px;}
+.cash-hidden{display:none;}
 /* ===== DESKTOP ===== */
 @media (min-width:900px){
   #app{max-width:1320px;padding:26px 40px 30px;}
@@ -494,7 +507,14 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="ct">Cash at a glance <span class="period-sub" style="margin-left:auto;">position + due in</span></div>
       <div class="mg" id="cash-summary"></div>
     </div>
-    <div class="card per-this" style="border-left:4px solid var(--accent);">
+    <div id="cash-stash" class="cash-hidden"></div>
+    <div id="cash-modal" class="cmodal" onclick="if(event.target===this)closeCashDetail();">
+      <div class="cmodal-card">
+        <div class="cmodal-head"><span id="cmodal-title"></span><button class="cmodal-x" onclick="closeCashDetail()">✕ Close</button></div>
+        <div id="cmodal-body"></div>
+      </div>
+    </div>
+    <div class="card per-this cash-detail" data-cdetail="deposit" style="border-left:4px solid var(--accent);">
       <div class="ct">Deposit Cash Position <span id="cash-ts" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="hero">
         <div class="big" id="cash-end">—</div>
@@ -502,41 +522,46 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
         <div class="sub" id="cash-end-sub">Tap “Sync from Xero”.</div>
       </div>
     </div>
-    <div class="card per-this">
+    <div class="card per-this cash-detail" data-cdetail="deposit">
       <div class="ct">Reconciliation <span class="period-sub" style="margin-left:auto;">what the 02 cash is committed to</span></div>
       <div class="mg" id="cash-recon"></div>
       <div class="note" id="cash-recon-note"></div>
     </div>
-    <div class="card per-last">
-      <div class="ct">Due in — jobs already underway <span class="period-sub" style="margin-left:auto;">≥10% hrs done</span></div>
-      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cf-due-total" style="font-size:2.4rem;color:var(--success);">—</div><div class="unit" id="cf-due-sub">money to collect on started jobs</div></div>
-      <div class="tbl-wrap" style="max-height:50vh;overflow:auto;"><table class="tb" id="cf-due-tbl"><thead><tr><th>Job</th><th style="text-align:right;">% done</th><th style="text-align:right;">Act h</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
+    <div class="card per-last cash-detail" data-cdetail="due50">
+      <div class="ct">Due in — 50–100% done <span class="period-sub" style="margin-left:auto;">nearly finished</span></div>
+      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cf-due-total" style="font-size:2.4rem;color:var(--success);">—</div><div class="unit" id="cf-due-sub">money to collect</div></div>
+      <div class="tbl-wrap" style="max-height:62vh;overflow:auto;"><table class="tb" id="cf-due-tbl"><thead><tr><th>Job</th><th style="text-align:right;">% done</th><th style="text-align:right;">Act h</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
     </div>
-    <div class="card per-last">
+    <div class="card per-last cash-detail" data-cdetail="due10">
+      <div class="ct">Due in — 10–50% done <span class="period-sub" style="margin-left:auto;">in progress</span></div>
+      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cf-duemid-total" style="font-size:2.4rem;color:var(--success);">—</div><div class="unit" id="cf-duemid-sub">money to collect</div></div>
+      <div class="tbl-wrap" style="max-height:62vh;overflow:auto;"><table class="tb" id="cf-duemid-tbl"><thead><tr><th>Job</th><th style="text-align:right;">% done</th><th style="text-align:right;">Act h</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card per-last cash-detail" data-cdetail="due0">
       <div class="ct">Due in — not started yet <span class="period-sub" style="margin-left:auto;">&lt;10% hrs done</span></div>
       <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cf-due2-total" style="font-size:2.4rem;color:var(--accent);">—</div><div class="unit" id="cf-due2-sub">to collect · work not started</div></div>
-      <div class="tbl-wrap" style="max-height:50vh;overflow:auto;"><table class="tb" id="cf-due2-tbl"><thead><tr><th>Job</th><th style="text-align:right;">% done</th><th style="text-align:right;">Act h</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
+      <div class="tbl-wrap" style="max-height:62vh;overflow:auto;"><table class="tb" id="cf-due2-tbl"><thead><tr><th>Job</th><th style="text-align:right;">% done</th><th style="text-align:right;">Act h</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
     </div>
-    <div class="card per-last">
+    <div class="card per-last cash-detail" data-cdetail="ar">
       <div class="ct">Xero AR — invoiced, awaiting payment <span class="period-sub" style="margin-left:auto;">issued · not paid</span></div>
       <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cash-ar-total" style="font-size:2.4rem;color:var(--success);">—</div><div class="unit" id="cash-ar-sub">outstanding customer invoices</div></div>
       <div class="tbl-wrap" style="max-height:50vh;overflow:auto;"><table class="tb" id="cash-ar-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Inv %</th><th style="text-align:right;">Due in</th></tr></thead><tbody></tbody></table></div>
       <div class="note">Each row = a Fergus job with an issued Xero invoice still unpaid. Inv % = invoiced ÷ job total (Fergus). Due in = unpaid balance.</div>
     </div>
-    <div class="card per-last">
+    <div class="card per-last cash-detail" data-cdetail="deposit">
       <div class="ct">Materials still to buy — live jobs <span id="cash-mat-src" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="fld" style="margin:2px 0 10px;"><label>Deposit / materials as % of sale price</label><input id="cash-deppct" type="number" inputmode="decimal" autocomplete="off" placeholder="50" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Each job’s material budget = this % of its sale price (the deposit that funds materials). Default 50%.</div></div>
       <div class="mg" id="cash-mat"></div>
       <div class="tbl-wrap" style="margin-top:10px;"><table class="tb" id="cash-mat-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Budget</th><th style="text-align:right;">Bought</th><th style="text-align:right;">To buy</th></tr></thead><tbody></tbody></table></div>
       <div class="note">Per job: deposit % × sale − materials already bought. Done or fully-bought jobs drop out.</div>
     </div>
-    <div class="card per-week">
+    <div class="card per-week cash-detail" data-cdetail="deposit">
       <div class="ct">Deposit check — materials bought <span class="period-sub" style="margin-left:auto;">money out, nothing in</span></div>
       <div class="mg" id="cash-depchk"></div>
       <div class="tbl-wrap" style="margin-top:10px;"><table class="tb" id="cash-depchk-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Materials</th><th style="text-align:right;">Invoiced</th><th>Deposit</th></tr></thead><tbody></tbody></table></div>
       <div class="note">Materials bought but deposit not invoiced/paid — cash out, nothing in. Chase it.</div>
     </div>
-    <div class="card">
+    <div class="card cash-detail" data-cdetail="deposit">
       <div class="ct">Accounts Payable — materials only <span class="period-sub" style="margin-left:auto;">remove overheads</span></div>
       <div class="fld" style="margin:4px 0 10px;"><label>Materials / COGS account code(s)</label><input id="cash-apcodes" type="text" autocomplete="off" autocapitalize="off" placeholder="e.g. 310, 311" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Leave this blank and I’ll auto-pick your goods/COGS codes straight from your Xero Chart of Accounts (the accounts typed as “Direct Costs”). Or enter specific account code(s) to override. The table below shows unpaid A/P grouped by account — ✓ goods = counted as materials; overheads (phone, fuel, subbies…) are removed.</div></div>
       <div class="tbl-wrap"><table class="tb" id="cash-apcodes-tbl"><thead><tr><th>Code</th><th>Account</th><th style="text-align:right;">Unpaid A/P</th></tr></thead><tbody></tbody></table></div>
@@ -561,11 +586,11 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="ct">Active jobs — hours, owing & finish <span class="period-sub" style="margin-left:auto;">edit “Done by”</span></div>
       <div class="tbl-wrap" style="max-height:60vh;overflow:auto;"><table class="tb" id="cf-jobs-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Priced h</th><th style="text-align:right;">Actual h</th><th style="text-align:right;">Rem h</th><th style="text-align:right;">Owing</th><th>Done by</th></tr></thead><tbody></tbody></table></div>
     </div>
-    <div class="card">
+    <div class="card cash-detail" data-cdetail="owed">
       <div class="ct">Context <span class="period-sub" style="margin-left:auto;">other balances</span></div>
       <div class="mg" id="cash-context"></div>
     </div>
-    <div class="card">
+    <div class="card cash-detail" data-cdetail="deposit">
       <div class="ct">Xero accounts <span class="period-sub" style="margin-left:auto;">balance sheet</span></div>
       <div class="fld" style="margin:4px 0 10px;"><label>Materials account name contains</label><input id="cash-matkw" type="text" autocomplete="off" autocapitalize="off" placeholder="material" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 02 Materials account on the Balance Sheet. Confirm the row tagged <b>Materials 02</b> below is the right account; if not, type a word unique to its name.</div></div>
       <div class="fld" style="margin:4px 0 10px;"><label>Sales account name contains</label><input id="cash-saleskw" type="text" autocomplete="off" autocapitalize="off" placeholder="sales" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 03 Sales account on the Balance Sheet — its live balance is deposits received but not yet transferred to 02. Confirm the row tagged <b>Sales 03</b> below.</div></div>
@@ -2346,12 +2371,16 @@ function renderCashflow(){
   const dueTot=started.reduce((s,j)=>s+j.due,0);
   const over50=started.filter(s=>s.pct>=0.50),mid=started.filter(s=>s.pct<0.50);
   const t50=over50.reduce((s,j)=>s+j.due,0),tmid=mid.reduce((s,j)=>s+j.due,0);
-  set('cf-due-total',null,fmtK(dueTot));
-  set('cf-due-sub',null,started.length?('≥50%: '+fmtK(t50)+' ('+over50.length+') · 10–50%: '+fmtK(tmid)+' ('+mid.length+')'):'Refresh Fergus to load active jobs');
   const dueRow=s=>'<tr><td>'+esc((s.job||'').slice(0,34))+'</td><td style="text-align:right;">'+Math.round(s.pct*100)+'%</td><td style="text-align:right;">'+fmtH(s.actual)+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(s.due)+'</td></tr>';
-  const dueSec=(lbl,n,tot)=>'<tr style="background:rgba(74,222,128,.13);"><td colspan="3" style="font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;padding:7px 8px;color:var(--text);">'+lbl+' · '+n+' jobs</td><td style="text-align:right;font-weight:800;padding:7px 8px;">'+fmtK(tot)+'</td></tr>';
+  const dueSum=(n,tot)=>'<tr class="sum"><td>Total ('+n+')</td><td></td><td></td><td style="text-align:right;font-weight:800;">'+fmtK(tot)+'</td></tr>';
+  set('cf-due-total',null,fmtK(t50));
+  set('cf-due-sub',null,over50.length?(over50.length+' jobs ≥50% done · still to collect'):'No jobs ≥50% done with money owing');
   const dueTb=document.querySelector('#cf-due-tbl tbody');
-  if(dueTb)dueTb.innerHTML=started.length?(dueSec('≥50% done',over50.length,t50)+over50.map(dueRow).join('')+dueSec('10–50% done',mid.length,tmid)+mid.map(dueRow).join('')+'<tr class="sum"><td>Combined total ('+started.length+')</td><td></td><td></td><td style="text-align:right;font-weight:800;">'+fmtK(dueTot)+'</td></tr>'):'<tr><td colspan="4" class="empty">No started jobs with money owing — Refresh Fergus on the Dashboard.</td></tr>';
+  if(dueTb)dueTb.innerHTML=over50.length?(over50.map(dueRow).join('')+dueSum(over50.length,t50)):'<tr><td colspan="4" class="empty">No jobs ≥50% done with money owing — Refresh Fergus.</td></tr>';
+  set('cf-duemid-total',null,fmtK(tmid));
+  set('cf-duemid-sub',null,mid.length?(mid.length+' jobs 10–50% done · still to collect'):'No jobs 10–50% done with money owing');
+  const midTb=document.querySelector('#cf-duemid-tbl tbody');
+  if(midTb)midTb.innerHTML=mid.length?(mid.map(dueRow).join('')+dueSum(mid.length,tmid)):'<tr><td colspan="4" class="empty">No jobs 10–50% done with money owing — Refresh Fergus.</td></tr>';
   const notSt=(fwJobs||[]).filter(j=>{const p=num(j.priced),a=num(j.actual);return (num(j.sale)-num(j.billed))>0 && (p<=0 || a/p<0.10);})
     .map(j=>{const p=num(j.priced),a=num(j.actual);return {job:j.job,pct:p>0?a/p:0,actual:a,due:Math.max(0,num(j.sale)-num(j.billed))};}).sort((x,y)=>y.due-x.due);
   const notTot=notSt.reduce((s,j)=>s+j.due,0);
@@ -2387,6 +2416,7 @@ function renderCashflow(){
 // ════════ NAV ════════
 const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'Cash'};
 function go(p,dir){
+  try{closeCashDetail();}catch(e){}
   page=p;
   document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
   const pg=document.getElementById('page-'+p);
@@ -2398,18 +2428,35 @@ function go(p,dir){
   window.scrollTo(0,0);
   renderAll();
 }
+// Tap-through popups for the 'Cash at a glance' tiles. Detail cards live hidden in the page;
+// opening a tile moves the matching card(s) into the modal, close returns them to the stash.
+const CASH_DETAIL_TITLES={deposit:'Deposit cash position',owed:'Total owed to you',due50:'Due in · 50–100% done',due10:'Due in · 10–50% done',due0:'Due in · not started',ar:'Xero AR — invoiced, unpaid'};
+function openCashDetail(key){
+  const m=document.getElementById('cash-modal'),body=document.getElementById('cmodal-body'),stash=document.getElementById('cash-stash');
+  if(!m||!body||!stash)return;
+  Array.from(body.children).forEach(n=>{if(n.classList&&n.classList.contains('cash-detail'))stash.appendChild(n);});
+  document.querySelectorAll('.cash-detail[data-cdetail="'+key+'"]').forEach(n=>body.appendChild(n));
+  const tt=document.getElementById('cmodal-title');if(tt)tt.textContent=CASH_DETAIL_TITLES[key]||'';
+  m.classList.add('open');document.body.style.overflow='hidden';m.scrollTop=0;
+}
+function closeCashDetail(){
+  const m=document.getElementById('cash-modal'),body=document.getElementById('cmodal-body'),stash=document.getElementById('cash-stash');
+  if(body&&stash)Array.from(body.children).forEach(n=>{if(n.classList&&n.classList.contains('cash-detail'))stash.appendChild(n);});
+  if(m)m.classList.remove('open');document.body.style.overflow='';
+}
 // Shared 'cash at a glance' card (Cash tab + Dashboard): position + due-in buckets.
 function renderCashSummary(){
   let t50=0,tmid=0,t0=0;
   (fwJobs||[]).forEach(j=>{const p=num(j.priced),a=num(j.actual),due=Math.max(0,num(j.sale)-num(j.billed));if(due<=0)return;const pct=p>0?a/p:0;if(p>0&&pct>=0.50)t50+=due;else if(p>0&&pct>=0.10)tmid+=due;else t0+=due;});
   const cov=window.__coverage;
   const dueTot=t50+tmid+t0;const ar=window.__arVal;const owed=dueTot+(ar!=null?ar:0);
-  const html=mb('Deposit cash position',(cov!=null?fmtK(cov):'—'),'held − owed',(cov!=null?(cov>=0?'pos':'neg'):''),'m-np')+
-    mb('Total owed to you',fmtK(owed),'due in '+fmtK(dueTot)+(ar!=null?(' + AR '+fmtK(ar)):' · AR: sync Xero'),'pos','m-gp')+
-    mb('Due in · 50–100%',fmtK(t50),'nearly done','','m-gp')+
-    mb('Due in · 10–50%',fmtK(tmid),'in progress','','m-rev')+
-    mb('Due in · 0–10%',fmtK(t0),'not started','','m-opex')+
-    mb('Xero AR · invoiced',(ar!=null?fmtK(ar):'—'),(ar!=null?'issued · awaiting payment':'sync Xero'),'','m-cogs');
+  const tap=(label,val,sub,cls,boxcls,key)=>'<div class="mb mb-tap '+boxcls+'" onclick="openCashDetail(\''+key+'\')"><div class="l">'+label+'<span class="mb-go">\u203A</span></div><div class="v'+(cls?' '+cls:'')+'">'+val+'</div><div class="s2">'+(sub||'')+'</div></div>';
+  const html=tap('Deposit cash position',(cov!=null?fmtK(cov):'—'),'held − owed',(cov!=null?(cov>=0?'pos':'neg'):''),'m-np','deposit')+
+    tap('Total owed to you',fmtK(owed),'due in '+fmtK(dueTot)+(ar!=null?(' + AR '+fmtK(ar)):' · AR: sync Xero'),'pos','m-gp','owed')+
+    tap('Due in · 50–100%',fmtK(t50),'nearly done','','m-gp','due50')+
+    tap('Due in · 10–50%',fmtK(tmid),'in progress','','m-rev','due10')+
+    tap('Due in · 0–10%',fmtK(t0),'not started','','m-opex','due0')+
+    tap('Xero AR · invoiced',(ar!=null?fmtK(ar):'—'),(ar!=null?'issued · awaiting payment':'sync Xero'),'','m-cogs','ar');
   ['cash-summary','dash-summary'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=html;});
 }
 function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();renderCash();renderCashflow();renderCashSummary();}
