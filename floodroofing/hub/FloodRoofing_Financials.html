@@ -513,6 +513,14 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="ct">3-Month Rolling — per month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
       <div class="mstrip" id="mkt-roll-strip"></div>
     </div>
+    <div class="card">
+      <div class="ct">Weekly History — last 12 weeks <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
+      <div class="mstrip" id="mkt-wk-strip"></div>
+    </div>
+    <div class="card per-3mo">
+      <div class="ct">3-Week Rolling — per week <span class="period-sub" style="margin-left:auto;">last 26 wks · swipe ↔</span></div>
+      <div class="mstrip" id="mkt-wk-roll"></div>
+    </div>
 
     <div class="card">
       <button class="btn btn-a" id="mkt-sync-btn" onclick="syncMarketing()">⟳ Sync marketing from Fergus</button>
@@ -1799,7 +1807,7 @@ function mktGrid(o){
 }
 function renderMkt(){
   const d=new Date();const lbl=document.getElementById('mkt-mo-lbl');if(lbl)lbl.textContent=FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();
-  renderMktStrip();renderMktRoll();
+  renderMktStrip();renderMktRoll();renderMktWeekStrip();renderMktWeekRoll();
   if(!mkt||!mkt.quotes){
     document.getElementById('mkt-conv').textContent='—';
     document.getElementById('mkt-conv-sub').textContent='Tap “Sync marketing from Fergus”.';
@@ -1875,6 +1883,52 @@ function renderMktStrip(){
       row('Accepted',String(o.acc)+' · '+conv+'%',o.acc>0?'pos':'')+
       row('$ Won',fmtK(o.accVal),o.accVal>0?'pos':'')+
       row('Avg won',o.acc>0?fmtK(o.accVal/o.acc):'—','')+'</div>';}).join('');
+}
+
+// Marketing weekly buckets (week = Mon–Sun), keyed by that week's Monday date (YYYY-MM-DD).
+function mktWeekly(){
+  const B={},b=k=>(B[k]||(B[k]={enq:0,sent:0,sentVal:0,acc:0,accVal:0}));
+  const p2=n=>String(n).padStart(2,'0');
+  const wk=ds=>{const x=new Date(ds);if(isNaN(x))return '';x.setHours(0,0,0,0);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);return x.getFullYear()+'-'+p2(x.getMonth()+1)+'-'+p2(x.getDate());};
+  ((mkt&&mkt.leads)||[]).forEach(l=>{const k=wk(l.createdAt);if(k)b(k).enq++;});
+  ((mkt&&mkt.quotes)||[]).forEach(q=>{const sd=wk(q.sentAt||q.quoteDate);if(q.isSent&&sd){b(sd).sent++;b(sd).sentVal+=q.total;}const ad=wk(q.acceptedAt);if(q.isAccepted&&ad){b(ad).acc++;b(ad).accVal+=q.total;}});
+  return B;
+}
+// The Monday keys for the last n weeks, newest first.
+function lastWeekKeys(n){const p2=x=>String(x).padStart(2,'0');const x=new Date();x.setHours(0,0,0,0);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);const out=[];for(let i=0;i<n;i++){const d=new Date(x.getTime()-i*7*86400000);out.push(d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()));}return out;}
+function wkLabel(k){const p=k.split('-').map(Number);const d=new Date(p[0],p[1]-1,p[2]);return d.getDate()+' '+FG_MONTHS[d.getMonth()];}
+const MKT_WK0={enq:0,sent:0,sentVal:0,acc:0,accVal:0};
+// Weekly history — last 12 weeks (newest first).
+function renderMktWeekStrip(){
+  const host=document.getElementById('mkt-wk-strip');if(!host)return;
+  if(!mkt||!mkt.quotes){host.innerHTML='<div class="empty" style="padding:10px;">Sync to see weekly history.</div>';return;}
+  const B=mktWeekly();const keys=lastWeekKeys(12);
+  const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
+  host.innerHTML=keys.map(k=>{const o=B[k]||MKT_WK0;const conv=o.sent>0?Math.round(o.acc/o.sent*100):0;
+    return '<div class="mcard"><div class="mm">wk '+wkLabel(k)+'</div>'+
+      row('Enquiries',String(o.enq),'')+
+      row('Quotes',String(o.sent)+' · '+fmtK(o.sentVal),'')+
+      row('Accepted',String(o.acc)+' · '+conv+'%',o.acc>0?'pos':'')+
+      row('$ Won',fmtK(o.accVal),o.accVal>0?'pos':'')+
+      row('Avg won',o.acc>0?fmtK(o.accVal/o.acc):'—','')+'</div>';}).join('');
+}
+// 3-week rolling average per week — last 26 weeks (each card = that week + 2 prior, ÷ 3).
+function renderMktWeekRoll(){
+  const host=document.getElementById('mkt-wk-roll');if(!host)return;
+  if(!mkt||!mkt.quotes){host.innerHTML='<div class="empty" style="padding:10px;">Sync to see the rolling trend.</div>';return;}
+  const B=mktWeekly();const keys=lastWeekKeys(26);const p2=x=>String(x).padStart(2,'0');
+  const row=(l,v,c)=>'<div class="ml"><span class="k">'+l+'</span><span class="v'+(c?' '+c:'')+'">'+v+'</span></div>';
+  host.innerHTML=keys.map(end=>{const ed=new Date(end+'T00:00:00');
+    const ws=[0,1,2].map(i=>{const d=new Date(ed.getTime()-i*7*86400000);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());});
+    const s=ws.reduce((a,k)=>{const o=B[k]||MKT_WK0;a.enq+=o.enq;a.sent+=o.sent;a.sentVal+=o.sentVal;a.acc+=o.acc;a.accVal+=o.accVal;return a;},{enq:0,sent:0,sentVal:0,acc:0,accVal:0});
+    const n=3,conv=s.sent>0?Math.round(s.acc/s.sent*100):0,avgW=s.acc>0?s.accVal/s.acc:0;
+    return '<div class="mcard"><div class="mm">wk '+wkLabel(end)+'</div>'+
+      '<div class="ml" style="border:none;padding:0 0 3px;"><span class="k" style="font-size:.54rem;letter-spacing:.2px;">3-wk avg / week</span></div>'+
+      row('Enquiries',(s.enq/n).toFixed(1),'')+
+      row('Quotes',(s.sent/n).toFixed(1)+' · '+fmtK(s.sentVal/n),'')+
+      row('Accepted',(s.acc/n).toFixed(1)+' · '+conv+'%',s.acc>0?'pos':'')+
+      row('$ Won',fmtK(s.accVal/n),s.accVal>0?'pos':'')+
+      row('Avg won',avgW?fmtK(avgW):'—','')+'</div>';}).join('');
 }
 
 // 3-month rolling, by month: each card = that month averaged with the two before it.
