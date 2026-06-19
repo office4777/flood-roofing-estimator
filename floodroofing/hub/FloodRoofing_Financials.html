@@ -2361,7 +2361,8 @@ function renderCashSummary(){
     mb('Total owed to you',fmtK(owed),'due in '+fmtK(dueTot)+(ar!=null?(' + AR '+fmtK(ar)):' · AR: sync Xero'),'pos','m-gp')+
     mb('Due in · 50–100%',fmtK(t50),'nearly done','','m-gp')+
     mb('Due in · 10–50%',fmtK(tmid),'in progress','','m-rev')+
-    mb('Due in · 0–10%',fmtK(t0),'not started','','m-opex');
+    mb('Due in · 0–10%',fmtK(t0),'not started','','m-opex')+
+    mb('Xero AR · invoiced',(ar!=null?fmtK(ar):'—'),(ar!=null?'issued · awaiting payment':'sync Xero'),'','m-cogs');
   ['cash-summary','dash-summary'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=html;});
 }
 function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();renderCash();renderCashflow();renderCashSummary();}
