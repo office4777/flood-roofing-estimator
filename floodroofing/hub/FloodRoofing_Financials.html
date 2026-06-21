@@ -615,6 +615,7 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     </div>
     <div class="card per-week">
       <div class="ct">13-week projection <span class="period-sub" style="margin-left:auto;">weekly</span></div>
+      <div class="fld" style="margin:2px 0 10px;"><label>Weekly outgoings — wages + overheads + loans (blank = Xero avg)</label><input id="cf-wkout" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"><div class="note" id="cf-wkout-note" style="margin-top:5px;"></div></div>
       <div class="tbl-wrap"><table class="tb" id="cf-wk-tbl"><thead><tr><th>Week of</th><th style="text-align:right;">Opening</th><th style="text-align:right;">In</th><th style="text-align:right;">Out</th><th style="text-align:right;">Closing</th></tr></thead><tbody></tbody></table></div>
       <div class="note">Weekly view of the same forecast — job finals land in their completion week; overheads + wages spread evenly (monthly ÷ 4.3).</div>
     </div>
@@ -724,7 +725,8 @@ let xeroMonthly=S.get('xeroMonthly',{});     // { 'Mon-YYYY': {rev,gp,opex,np,wa
 let xeroReports={};                          // { 'Mon-YYYY': full Xero report } cached in-memory for instant breakdown
 let plSelected='';                           // month currently shown in the P&L breakdown
 let mkt=S.get('mkt',null);
-let cash=S.get('cash',null);let bank=S.get('bank',null);   /* live Akahu bank feed: {accounts,tx,ts} */                  // {rows:[{name,val,section,summary}], refund, depCount, depTotal, jobs, depOk, ts} from Xero balance sheet + invoices                    // cached marketing: {leads:[{createdAt}], quotes:[{total,quoteDate,sentAt,acceptedAt,isSent,isAccepted}], ts}
+let cash=S.get('cash',null);let bank=S.get('bank',null);   /* live Akahu bank feed: {accounts,tx,ts} */
+try{if(S.get('cfWkOutSeed','')!=='1'){if(!S.get('cfWkOut',''))S.set('cfWkOut','28700');S.set('cfWkOutSeed','1');}}catch(e){}  /* seed weekly outgoings from May bank statement (wages+OH+loans); editable */                  // {rows:[{name,val,section,summary}], refund, depCount, depTotal, jobs, depOk, ts} from Xero balance sheet + invoices                    // cached marketing: {leads:[{createdAt}], quotes:[{total,quoteDate,sentAt,acceptedAt,isSent,isAccepted}], ts}
 let xeroLive=false;
 let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (render→pull→render loops)
 // Growth Structure scenario planner. teams/size = the what-if crew; base = the crew that
@@ -2420,6 +2422,7 @@ function saveCfCfg(){
   if(g('cf-open'))S.set('cfOpenCash',(g('cf-open').value||'').trim());
   if(g('cf-matlead'))S.set('cfMatLead',(g('cf-matlead').value||'').trim());
   if(g('cf-apwk'))S.set('cfApWeeks',(g('cf-apwk').value||'').trim());
+  if(g('cf-wkout'))S.set('cfWkOut',(g('cf-wkout').value||'').trim());
   renderCashflow();
 }
 function setCfFinish(id,val){const o=S.get('cfFinishOv',{})||{};if(val)o[String(id)]=val;else delete o[String(id)];S.set('cfFinishOv',o);renderCashflow();}
@@ -2458,12 +2461,16 @@ function renderCashflow(){
   const cfg2=cfCfg();
   const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
   const pop=(id,v)=>{const e=document.getElementById(id);if(e&&!e.value&&v!==''&&v!=null)e.value=v;};
-  pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','2'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));pop('cf-bal',S.get('cfBal',''));pop('cf-open',S.get('cfOpenCash',''));pop('cf-matlead',S.get('cfMatLead',''));pop('cf-apwk',S.get('cfApWeeks',''));
+  pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','2'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));pop('cf-bal',S.get('cfBal',''));pop('cf-open',S.get('cfOpenCash',''));pop('cf-matlead',S.get('cfMatLead',''));pop('cf-apwk',S.get('cfApWeeks',''));pop('cf-wkout',S.get('cfWkOut',''));
   // monthly outflow: 6-month avg of (opex + wages) from Xero, or a manual override
   let avgOut=0,nOut=0;for(let i=1;i<=6;i++){const x=xeroMonthly[calMonthKey(-i)];if(x){avgOut+=(x.burn!=null?num(x.burn):(num(x.opex)+num(x.wages)));nOut++;}}
   avgOut=nOut?avgOut/nOut:0;
   const outManual=(cfg2.out!==''&&!isNaN(parseFloat(cfg2.out)));
-  const outflow=outManual?parseFloat(cfg2.out):avgOut;
+  // Weekly outgoings override (wages + overheads + loan repayments). Highest priority — drives both
+  // the weekly and monthly views so they stay consistent. Includes loan principal, which Xero's
+  // P&L-based opex+wages average leaves out.
+  const _wk=S.get('cfWkOut','');const wkOutManual=(_wk!==''&&!isNaN(parseFloat(_wk)));const wkOutVal=wkOutManual?parseFloat(_wk):0;
+  const outflow=wkOutManual?(wkOutVal*52/12):(outManual?parseFloat(cfg2.out):avgOut);
   // start balance: the 00 account from the balance sheet (synced on the Cash tab)
   let ooRow=null;if(cash&&cash.rows){const k=cfg2.kw.toLowerCase();cash.rows.forEach(r=>{if(!r.summary&&r.name.toLowerCase().includes(k)&&ooRow==null)ooRow=r;});}
   const balOv=parseFloat(S.get('cfBal',''));const haveOv=!isNaN(balOv);
@@ -2493,7 +2500,7 @@ function renderCashflow(){
   const minR=rows.reduce((m,r)=>(r.close<m.close?r:m),rows[0]||{close:0,k:''});
   const neg=rows.find(r=>r.close<0);
   // weekly projection (next 13 weeks): finals in their completion week, opex+wages spread evenly
-  const wOut=outflow*12/52;
+  const wOut=wkOutManual?wkOutVal:outflow*12/52;
   let wbal=startBal;const wkRows=[];
   for(let i=0;i<13;i++){const open=wbal;const inflow=(inByWeek[i]||0)+cfg2.oo/100*Math.max(0,num(cfg2.nw))*12/52;const close=open+inflow-wOut;wbal=close;wkRows.push({i,ds:new Date(Date.now()+i*7*86400000),open,inflow,out:wOut,close});}
   const wneg=wkRows.find(r=>r.close<0);const wmin=wkRows.reduce((m,r)=>(r.close<m.close?r:m),wkRows[0]);
@@ -2506,7 +2513,7 @@ function renderCashflow(){
     set('cf-hero',null,fmtK(headline));
     const hh=document.getElementById('cf-hero');if(hh)hh.style.color=headline>=0?'var(--success)':'var(--danger)';
     set('cf-hero-unit',null,wneg?('00 runs short — wk of '+wlab(wneg.ds)):('lowest 00 balance · wk of '+wlab(wmin.ds)));
-    set('cf-hero-sub',null,'Out '+fmtK(outflow)+'/mo ('+(outManual?'manual':nOut+'-mo avg')+') · opening '+fmtK(startBal)+(haveOv?' (your figure)':' (Xero)')+' · '+cfg2.oo+'% → 00');
+    set('cf-hero-sub',null,'Out '+fmtK(wOut)+'/wk ('+(wkOutManual?'your weekly figure':(outManual?'manual':nOut+'-mo Xero avg'))+') · opening '+fmtK(startBal)+(haveOv?' (your figure)':' (Xero)')+' · '+cfg2.oo+'% → 00');
   }
   set('cf-ts',null,(S.get('fw_last_sync','')?('Fergus '+S.get('fw_last_sync','')):''));
   // projection table
@@ -2515,6 +2522,7 @@ function renderCashflow(){
   const wtb=document.querySelector('#cf-wk-tbl tbody');
   if(wtb)wtb.innerHTML=wkRows.map(r=>'<tr><td>'+wlab(r.ds)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inflow?fmtK(r.inflow):'—')+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.out)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
   set('cf-note',null,'00 (everyday) account: '+cfg2.oo+'% of each job in at completion · wages + overheads out. Opening '+(ooRow?fmtK(startBal):'$0 — set 00 keyword in Settings')+'.');
+  set('cf-wkout-note',null,(wkOutManual?('Using your figure: '+fmtK(wkOutVal)+'/week out (= '+fmtK(wkOutVal*52/12)+'/mo, incl. loans).'):('Using Xero avg '+fmtK(wOut)+'/week (excludes loan repayments). Enter a weekly figure to include loans + real overheads.'))+' May statement basis: wages ~$20.6k/wk + overheads + loan repayments = ~$28.7k/week.');
   set('cf-cfg-note',null,'Crew '+c.teams+'×'+c.size+'×'+c.hrs+'h · overheads+wages '+fmtK(avgOut)+'/mo (Xero avg).');
   // job completion schedule
   renderCfCalendar(sched,finOv);
