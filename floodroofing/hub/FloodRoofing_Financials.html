@@ -238,6 +238,12 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .cal-today{box-shadow:inset 0 0 0 2px var(--primary);}
 .cal-sel{background:rgba(74,222,128,.30);}
 .cal-dot{color:var(--muted);opacity:.5;font-size:.8rem;}
+details.cfold{margin-top:8px;border-top:1px solid var(--border);padding-top:8px;}
+summary.cfsum{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;font-size:.72rem;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;padding:2px 0;}
+summary.cfsum::-webkit-details-marker{display:none;}
+summary.cfsum::before{content:'\25B8';font-size:.85rem;}
+details.cfold[open]>summary.cfsum::before{content:'\25BE';}
+summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500;}
 /* ===== DESKTOP ===== */
 @media (min-width:900px){
   #app{max-width:1320px;padding:26px 40px 30px;}
@@ -610,14 +616,18 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
     <div class="card per-3mo">
       <div class="ct">Whole-business cash — 13 weeks <span class="period-sub" style="margin-left:auto;">all accounts</span></div>
       <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cfw-low" style="font-size:2.4rem;">—</div><div class="unit" id="cfw-low-unit">lowest projected total cash</div></div>
+      <details class="cfold"><summary class="cfsum">Weekly breakdown <span class="period-sub">tap to show</span></summary>
       <div class="tbl-wrap" style="max-height:46vh;overflow:auto;"><table class="tb" id="cfw-tbl"><thead><tr><th>Week of</th><th style="text-align:right;">Open</th><th style="text-align:right;">In</th><th style="text-align:right;">Mat</th><th style="text-align:right;">A/P</th><th style="text-align:right;">Wages+OH</th><th style="text-align:right;">Close</th></tr></thead><tbody></tbody></table></div>
+      </details>
       <div class="note" id="cfw-note"></div>
     </div>
     <div class="card per-week">
       <div class="ct">13-week projection <span class="period-sub" style="margin-left:auto;">weekly</span></div>
       <div class="fld" style="margin:2px 0 10px;"><label>Weekly outgoings — wages + overheads + loans (blank = Xero avg)</label><input id="cf-wkout" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"><div class="note" id="cf-wkout-note" style="margin-top:5px;"></div></div>
+      <details class="cfold"><summary class="cfsum">Weekly table <span class="period-sub">tap to show</span></summary>
       <div class="tbl-wrap"><table class="tb" id="cf-wk-tbl"><thead><tr><th>Week of</th><th style="text-align:right;">Opening</th><th style="text-align:right;">In</th><th style="text-align:right;">Out</th><th style="text-align:right;">Closing</th></tr></thead><tbody></tbody></table></div>
       <div class="note">Weekly view of the same forecast — job finals land in their completion week; overheads + wages spread evenly (monthly ÷ 4.3).</div>
+      </details>
     </div>
     <div class="card per-last">
       <div class="ct">6-month projection <span class="period-sub" style="margin-left:auto;">00 account</span></div>
@@ -726,7 +736,7 @@ let xeroReports={};                          // { 'Mon-YYYY': full Xero report }
 let plSelected='';                           // month currently shown in the P&L breakdown
 let mkt=S.get('mkt',null);
 let cash=S.get('cash',null);let bank=S.get('bank',null);   /* live Akahu bank feed: {accounts,tx,ts} */
-try{if(S.get('cfWkOutSeed','')!=='1'){if(!S.get('cfWkOut',''))S.set('cfWkOut','28700');S.set('cfWkOutSeed','1');}}catch(e){}  /* seed weekly outgoings from May bank statement (wages+OH+loans); editable */                  // {rows:[{name,val,section,summary}], refund, depCount, depTotal, jobs, depOk, ts} from Xero balance sheet + invoices                    // cached marketing: {leads:[{createdAt}], quotes:[{total,quoteDate,sentAt,acceptedAt,isSent,isAccepted}], ts}
+try{if(S.get('cfWkOutSeed','')!=='2'){S.set('cfWkOut','32400');S.set('cfWkOutSeed','2');}}catch(e){}  /* seed weekly outgoings = 6-mo avg (Dec25-May26) wages+OH+loans, internal transfers excluded; editable */                  // {rows:[{name,val,section,summary}], refund, depCount, depTotal, jobs, depOk, ts} from Xero balance sheet + invoices                    // cached marketing: {leads:[{createdAt}], quotes:[{total,quoteDate,sentAt,acceptedAt,isSent,isAccepted}], ts}
 let xeroLive=false;
 let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (render→pull→render loops)
 // Growth Structure scenario planner. teams/size = the what-if crew; base = the crew that
@@ -2522,7 +2532,7 @@ function renderCashflow(){
   const wtb=document.querySelector('#cf-wk-tbl tbody');
   if(wtb)wtb.innerHTML=wkRows.map(r=>'<tr><td>'+wlab(r.ds)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inflow?fmtK(r.inflow):'—')+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.out)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
   set('cf-note',null,'00 (everyday) account: '+cfg2.oo+'% of each job in at completion · wages + overheads out. Opening '+(ooRow?fmtK(startBal):'$0 — set 00 keyword in Settings')+'.');
-  set('cf-wkout-note',null,(wkOutManual?('Using your figure: '+fmtK(wkOutVal)+'/week out (= '+fmtK(wkOutVal*52/12)+'/mo, incl. loans).'):('Using Xero avg '+fmtK(wOut)+'/week (excludes loan repayments). Enter a weekly figure to include loans + real overheads.'))+' May statement basis: wages ~$20.6k/wk + overheads + loan repayments = ~$28.7k/week.');
+  set('cf-wkout-note',null,(wkOutManual?('Using your figure: '+fmtK(wkOutVal)+'/week out (= '+fmtK(wkOutVal*52/12)+'/mo, incl. loans).'):('Using Xero avg '+fmtK(wOut)+'/week (excludes loan repayments). Enter a weekly figure to include loans + real overheads.'))+' 6-mo avg (Dec\u2013May): wages ~$19.1k/wk + overheads + loans, internal transfers removed = ~$32.4k/week.');
   set('cf-cfg-note',null,'Crew '+c.teams+'×'+c.size+'×'+c.hrs+'h · overheads+wages '+fmtK(avgOut)+'/mo (Xero avg).');
   // job completion schedule
   renderCfCalendar(sched,finOv);
