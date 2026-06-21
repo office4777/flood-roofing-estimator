@@ -18,6 +18,8 @@
 //   XERO_CLIENT_ID      optional  — Xero custom connection client id (live P&L)
 //   XERO_CLIENT_SECRET  optional  — Xero custom connection client secret
 //   XERO_SCOPE          optional  — defaults to accounting.reports.read
+//   AKAHU_APP_TOKEN     optional  — Akahu app id token (app_token_...) for live bank feed
+//   AKAHU_USER_TOKEN    optional  — Akahu user access token (user_token_...) for the linked bank
 
 const FERGUS_HOST = 'api.fergus.com';
 const XERO_SCOPE = process.env.XERO_SCOPE || 'accounting.reports.profitandloss.read accounting.reports.balancesheet.read accounting.invoices.read accounting.settings.read accounting.banktransactions.read accounting.payments.read';
@@ -128,5 +130,17 @@ module.exports = async (req, res) => {
     }
   }
 
-  return res.status(400).json({ error: 'Missing or unknown svc — use ?svc=fergus or ?svc=xero.' });
+  if (svc === 'akahu') {
+    const appTok = process.env.AKAHU_APP_TOKEN, userTok = process.env.AKAHU_USER_TOKEN;
+    if (!appTok || !userTok) return res.status(501).json({ error: 'Akahu not configured: set AKAHU_APP_TOKEN and AKAHU_USER_TOKEN.' });
+    try {
+      return await passthrough(res, 'https://api.akahu.io' + path, {
+        'X-Akahu-Id': appTok, 'Authorization': 'Bearer ' + userTok, 'Accept': 'application/json',
+      });
+    } catch (e) {
+      return res.status(502).json({ error: 'Could not reach Akahu.', detail: String(e && e.message || e) });
+    }
+  }
+
+  return res.status(400).json({ error: 'Missing or unknown svc — use ?svc=fergus, ?svc=xero or ?svc=akahu.' });
 };

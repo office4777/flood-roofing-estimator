@@ -599,6 +599,14 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
       <div class="fld" style="margin:4px 0 10px;"><label>Materials / COGS account code(s)</label><input id="cash-apcodes" type="text" autocomplete="off" autocapitalize="off" placeholder="e.g. 310, 311" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Leave this blank and I’ll auto-pick your goods/COGS codes straight from your Xero Chart of Accounts (the accounts typed as “Direct Costs”). Or enter specific account code(s) to override. The table below shows unpaid A/P grouped by account — ✓ goods = counted as materials; overheads (phone, fuel, subbies…) are removed.</div></div>
       <div class="tbl-wrap"><table class="tb" id="cash-apcodes-tbl"><thead><tr><th>Code</th><th>Account</th><th style="text-align:right;">Unpaid A/P</th></tr></thead><tbody></tbody></table></div>
     </div>
+    <div class="card" style="border-left:4px solid var(--success);">
+      <div class="ct">Bank — live <span id="bank-ts" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="bank-total" style="font-size:2.4rem;">—</div><div class="unit" id="bank-sub">connect a live bank feed (Akahu)</div></div>
+      <div class="mg" id="bank-accts"></div>
+      <div class="tbl-wrap" style="max-height:46vh;overflow:auto;margin-top:10px;"><table class="tb" id="bank-tx-tbl"><thead><tr><th>Date</th><th>Description</th><th style="text-align:right;">Amount</th></tr></thead><tbody></tbody></table></div>
+      <button class="btn btn-o" id="bank-sync-btn" style="margin-top:11px;" onclick="syncBank()">⟳ Sync live bank (Akahu)</button>
+      <div class="note" id="bank-note">Live balances + recent transactions from Akahu (via the proxy). Add AKAHU_APP_TOKEN + AKAHU_USER_TOKEN to the proxy to switch it on; until then this stays dormant. The total feeds “Total cash now” in the forecast.</div>
+    </div>
     <div class="card per-3mo">
       <div class="ct">Whole-business cash — 13 weeks <span class="period-sub" style="margin-left:auto;">all accounts</span></div>
       <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cfw-low" style="font-size:2.4rem;">—</div><div class="unit" id="cfw-low-unit">lowest projected total cash</div></div>
@@ -716,7 +724,7 @@ let xeroMonthly=S.get('xeroMonthly',{});     // { 'Mon-YYYY': {rev,gp,opex,np,wa
 let xeroReports={};                          // { 'Mon-YYYY': full Xero report } cached in-memory for instant breakdown
 let plSelected='';                           // month currently shown in the P&L breakdown
 let mkt=S.get('mkt',null);
-let cash=S.get('cash',null);                  // {rows:[{name,val,section,summary}], refund, depCount, depTotal, jobs, depOk, ts} from Xero balance sheet + invoices                    // cached marketing: {leads:[{createdAt}], quotes:[{total,quoteDate,sentAt,acceptedAt,isSent,isAccepted}], ts}
+let cash=S.get('cash',null);let bank=S.get('bank',null);   /* live Akahu bank feed: {accounts,tx,ts} */                  // {rows:[{name,val,section,summary}], refund, depCount, depTotal, jobs, depOk, ts} from Xero balance sheet + invoices                    // cached marketing: {leads:[{createdAt}], quotes:[{total,quoteDate,sentAt,acceptedAt,isSent,isAccepted}], ts}
 let xeroLive=false;
 let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (render→pull→render loops)
 // Growth Structure scenario planner. teams/size = the what-if crew; base = the crew that
@@ -2538,7 +2546,7 @@ function renderCashflow(){
   const matLead=Math.max(0,num(S.get('cfMatLead','3')));
   const apWk=Math.max(1,num(S.get('cfApWeeks','4')));
   let bankCash=0;if(cash&&cash.rows)cash.rows.forEach(r=>{if(!r.summary&&/bank/i.test(r.section||''))bankCash+=num(r.val);});
-  const openOv=parseFloat(S.get('cfOpenCash',''));const openCash=!isNaN(openOv)?openOv:bankCash;
+  const openOv=parseFloat(S.get('cfOpenCash',''));const liveBank=(window.__bankTotal!=null)?window.__bankTotal:null;const openCash=!isNaN(openOv)?openOv:(liveBank!=null?liveBank:bankCash);
   const apMat=num(window.__apMat||0);const burnWk=outflow*12/52;
   const fIn=[],mOut=[],apOut=[];for(let i=0;i<13;i++){fIn[i]=0;mOut[i]=0;apOut[i]=0;}
   sched.forEach(s=>{const fw=Math.floor((s.finDate.getTime()+Math.max(0,num(cfg2.lag))*7*86400000-Date.now())/(7*86400000));
@@ -2604,7 +2612,39 @@ function renderCashSummary(){
     tap('Xero AR · invoiced',(ar!=null?fmtK(ar):'—'),(ar!=null?'issued · awaiting payment':'sync Xero'),'','m-cogs','ar');
   ['cash-summary','dash-summary'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=html;});
 }
-function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();renderCash();renderCashflow();renderCashSummary();}
+// ===== Live bank feed (Akahu) — read-only balances + recent transactions via the proxy =====
+async function syncBank(){
+  const proxy=fergusProxyUrl();if(!proxy){openConnect();return;}
+  const psec=fergusProxySecret();const btn=document.getElementById('bank-sync-btn');const note=document.getElementById('bank-note');
+  const hdr={'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})};
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Syncing…';}
+  try{
+    toast('Reading live bank…');
+    const aRes=await fetch(proxyUrl('akahu','/v1/accounts'),{headers:hdr});
+    if(aRes.status===501){if(note)note.textContent='Akahu isn’t set up on the proxy yet — add AKAHU_APP_TOKEN + AKAHU_USER_TOKEN, then sync again.';toast('Akahu not configured on the proxy','err');return;}
+    if(!aRes.ok)throw new Error('accounts HTTP '+aRes.status);
+    const aj=JSON.parse(await aRes.text());const accounts=(aj&&(aj.items||aj.accounts))||[];
+    let tx=[];try{const tRes=await fetch(proxyUrl('akahu','/v1/transactions'),{headers:hdr});if(tRes.ok){const tj=JSON.parse(await tRes.text());tx=(tj&&tj.items)||[];}}catch(e){}
+    bank={accounts,tx,ts:new Date().toLocaleString('en-NZ')};S.set('bank',bank);
+    renderBank();renderCashflow();
+    toast('Live bank updated ✓ '+accounts.length+' accounts','ok');
+  }catch(e){if(note)note.textContent='⚠ '+String(e&&e.message||e);toast('Bank sync failed','err');}
+  finally{if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync live bank (Akahu)';}}
+}
+function renderBank(){
+  const host=document.getElementById('bank-accts');if(!host)return;
+  const tt=document.getElementById('bank-total'),sb=document.getElementById('bank-sub'),ts=document.getElementById('bank-ts');
+  const txb=document.querySelector('#bank-tx-tbl tbody');
+  if(!bank||!bank.accounts||!bank.accounts.length){window.__bankTotal=null;host.innerHTML='';if(tt)tt.textContent='—';if(sb)sb.textContent='connect a live bank feed (Akahu)';if(ts)ts.textContent='';if(txb)txb.innerHTML='';return;}
+  const accts=bank.accounts;let total=0;accts.forEach(a=>{total+=num(a.balance&&a.balance.current);});
+  window.__bankTotal=total;
+  if(tt){tt.textContent=fmtK(total);tt.style.color=total>=0?'var(--success)':'var(--danger)';}
+  if(sb)sb.textContent=accts.length+' account'+(accts.length!==1?'s':'')+' · live balance';
+  if(ts)ts.textContent=bank.ts?('· '+bank.ts):'';
+  host.innerHTML=accts.map(a=>mb(esc(a.name||(a.connection&&a.connection.name)||'Account'),fmtK(num(a.balance&&a.balance.current)),esc(a.formatted_account||(a.balance&&a.balance.available!=null?('avail '+fmtK(num(a.balance.available))):'')),'','m-np')).join('');
+  if(txb){const tx=(bank.tx||[]).slice(0,40);txb.innerHTML=tx.length?tx.map(x=>{const amt=num(x.amount);return '<tr><td>'+esc(String(x.date||'').slice(0,10))+'</td><td>'+esc(String(x.description||'').slice(0,38))+'</td><td style="text-align:right;color:'+(amt>=0?'var(--success)':'var(--danger)')+';">'+(amt>=0?'+':'')+fmtK(amt)+'</td></tr>';}).join(''):'<tr><td colspan="3" class="empty">No recent transactions.</td></tr>';}
+}
+function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();renderCash();renderBank();renderCashflow();renderCashSummary();}
 
 // ════════ SWIPE NAV ════════ Facebook-style interactive pager — the page tracks your finger,
 // the neighbouring tab slides in beside it, and it snaps/commits on release.
