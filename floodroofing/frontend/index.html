@@ -3911,6 +3911,23 @@ function gotoTab(t) {
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
   if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpRestorePanelState();}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
   if(t!=='materials'){var __mp=document.getElementById('jpMapPanel'); if(__mp)__mp.classList.remove('is-open');}
+  if(t==='roof'){
+    // Auto-fly the satellite map to the job's saved site address on
+    // tab entry, but only the FIRST time per address (so a manual
+    // pan/zoom by the user isn't trampled on every tab switch).
+    try {
+      var jobAddrEl = document.getElementById('jobAddr');
+      var aerialAddrEl = document.getElementById('aerialAddressInput');
+      var addr = jobAddrEl && jobAddrEl.value && jobAddrEl.value.trim();
+      if (addr && aerialAddrEl && window._aerialLoadedAddr !== addr) {
+        aerialAddrEl.value = addr;
+        window._aerialLoadedAddr = addr;
+        // Defer one tick so the panel is visible (Leaflet needs real
+        // pixel dimensions before initialising the map).
+        setTimeout(function(){ try { searchAerialAddress(); } catch(e){} }, 100);
+      }
+    } catch(e){}
+  }
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
     try{renderMaterialPriceTable();}catch(e){console.warn('material price:',e);}
@@ -5371,6 +5388,9 @@ async function openJob(id){
     var j = await api('GET', '/jobs/' + id);
     restoreFromJob(j);
     refreshJobsList();
+    // Forget the last satellite address so opening this job re-flies
+    // the map to its site address on the next Map Roof entry.
+    window._aerialLoadedAddr = null;
     gotoTab('roof');
   } catch(e) { alert('Could not open job: ' + e.message); }
 }
@@ -5390,6 +5410,7 @@ function newJob(){
   ['jobClient','jobAddr','jobEmail','jobPhone'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
   try { clearAll && clearAll(); } catch(e){}
   S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[];
+  window._aerialLoadedAddr = null;
   setCurrentJobLabel(null);
   gotoTab('roof');
 }
