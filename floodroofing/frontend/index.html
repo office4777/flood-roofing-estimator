@@ -16305,10 +16305,20 @@ function imgToCanvas(pt, t) {
 
 function getImgTransform() {
   var cv=document.getElementById('roofCanvas');
-  if(!cv||!DRAW.bgImg) return null;
+  if(!cv) return null;
   var dpr=window.devicePixelRatio||1;
   // Use CSS pixels (same coordinate space as redrawAll and mouse events)
   var W=cv.width/dpr, H=cv.height/dpr;
+  if (!DRAW.bgImg) {
+    // No background image yet — treat image space == canvas space so
+    // the user can still pan + zoom while drawing (e.g. positioning a
+    // garage roof offset from the main outline). Zoom anchors on the
+    // canvas centre, then IMG_OFFSET pans on top.
+    var z = (typeof DRAW.zoom === 'number' && DRAW.zoom > 0) ? DRAW.zoom : 1;
+    var ixN = (W/2) * (1 - z) + IMG_OFFSET.x;
+    var iyN = (H/2) * (1 - z) + IMG_OFFSET.y;
+    return { ix: ixN, iy: iyN, s: z };
+  }
   var iw=DRAW.bgImg.naturalWidth, ih=DRAW.bgImg.naturalHeight;
   var fitScale=Math.min(W/iw, H/ih);
   var s=fitScale*DRAW.zoom;
@@ -23632,13 +23642,29 @@ function onCanvasWheel(e) {
   // Default behaviour: scroll wheel does NOT zoom the canvas — the
   // page keeps scrolling and the user uses the + / - buttons.
   //
-  // BUT — when the cursor sits over a non-active roof's displayed
-  // polygon, the wheel scales THAT roof's view (viewZoom).  Keeps
-  // the underlying outline / lines / measurements untouched: pure
-  // visual reposition for the customer-facing roof map.
-  if (DRAW.tool !== 'select') return;
-  if (!DRAW.roofs || DRAW.roofs.length <= 1) return;
-  var xy = getXY(e);
+  // Exceptions (in priority order):
+  //   1. Cursor over a non-active roof's displayed polygon → scales
+  //      THAT roof's view (viewZoom). Pure visual reposition for the
+  //      customer-facing roof map; underlying geometry stays put.
+  //   2. No background image — the wheel becomes a global zoom so the
+  //      user can size their drawing while sketching a roof from
+  //      scratch (e.g. a garage offset from the main outline).
+  if (DRAW.tool !== 'select') {
+    // Allow global wheel-zoom without bg image even outside select
+    // tool — the user is most often in a drawing tool when there's no
+    // bg, and needing to switch to Move just to zoom is annoying.
+    if (!DRAW.bgImg) {
+      e.preventDefault();
+      var stepG = e.deltaY > 0 ? -0.1 : 0.1;
+      DRAW.zoom = Math.max(0.1, Math.min(5, (DRAW.zoom || 1) + stepG));
+      try {
+        var zl = document.getElementById('zoomLabel');
+        if (zl) zl.textContent = Math.round(DRAW.zoom * 100) + '%';
+      } catch(err){}
+      try { redrawAll(); } catch(err){}
+    }
+    return;
+  }
   // Same point-in-poly helper as the mousedown branch.
   function _pip(px, py, poly){
     var inside = false, n = poly.length;
@@ -23649,19 +23675,34 @@ function onCanvasWheel(e) {
     }
     return inside;
   }
-  for (var ri = DRAW.roofs.length - 1; ri >= 0; ri--) {
-    if (ri === DRAW.activeRoofIdx) continue;
-    var r = DRAW.roofs[ri];
-    if (!r || !r._displayedPoly || r._displayedPoly.length < 3) continue;
-    if (_pip(xy[0], xy[1], r._displayedPoly)) {
-      e.preventDefault();
-      var z = (typeof r.viewZoom === 'number' && r.viewZoom > 0) ? r.viewZoom : 1;
-      var step = e.deltaY > 0 ? 0.92 : 1.08;
-      z = Math.max(0.25, Math.min(4, z * step));
-      r.viewZoom = z;
-      try { redrawAll(); } catch(err){}
-      return;
+  if (DRAW.roofs && DRAW.roofs.length > 1) {
+    var xy = getXY(e);
+    for (var ri = DRAW.roofs.length - 1; ri >= 0; ri--) {
+      if (ri === DRAW.activeRoofIdx) continue;
+      var r = DRAW.roofs[ri];
+      if (!r || !r._displayedPoly || r._displayedPoly.length < 3) continue;
+      if (_pip(xy[0], xy[1], r._displayedPoly)) {
+        e.preventDefault();
+        var z = (typeof r.viewZoom === 'number' && r.viewZoom > 0) ? r.viewZoom : 1;
+        var step = e.deltaY > 0 ? 0.92 : 1.08;
+        z = Math.max(0.25, Math.min(4, z * step));
+        r.viewZoom = z;
+        try { redrawAll(); } catch(err){}
+        return;
+      }
     }
+  }
+  // No secondary-roof hit. If there's no bg image, fall through to
+  // global wheel zoom so empty-canvas users can still zoom.
+  if (!DRAW.bgImg) {
+    e.preventDefault();
+    var stepN = e.deltaY > 0 ? -0.1 : 0.1;
+    DRAW.zoom = Math.max(0.1, Math.min(5, (DRAW.zoom || 1) + stepN));
+    try {
+      var zlN = document.getElementById('zoomLabel');
+      if (zlN) zlN.textContent = Math.round(DRAW.zoom * 100) + '%';
+    } catch(err){}
+    try { redrawAll(); } catch(err){}
   }
 }
 
