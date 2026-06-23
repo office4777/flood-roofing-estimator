@@ -16354,7 +16354,16 @@ function redrawAll() {
             var lenL = Math.sqrt(dxL*dxL + dyL*dyL) || 1;
             var oxL = -dyL/lenL * 12, oyL = dxL/lenL * 12;
             var txtL = (+l.measM).toFixed(2) + 'm';
-            ctx.font = '600 11px Inter, -apple-system, sans-serif';
+            // Honour the same fr_roofmap_font_scale slider the active
+            // roof uses — without this the secondary roofs' labels
+            // stay locked at 11 px while the active roof's labels grow,
+            // and the user sees mismatched sizes (e.g. main roof at
+            // 14 px next to a wing roof's gutter measures at 11 px).
+            var _shAllScale = parseFloat(localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
+            if (_shAllScale < 0.5) _shAllScale = 0.5;
+            if (_shAllScale > 4)   _shAllScale = 4;
+            var _shAllPx = Math.round(11 * _shAllScale);
+            ctx.font = '600 ' + _shAllPx + 'px Inter, -apple-system, sans-serif';
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.92)';
             ctx.strokeText(txtL, mx + oxL, my + oyL);
@@ -19493,10 +19502,77 @@ function _jpEditImage(pageIdx, imgId){
   if (im && im.mapKey && im.mapKey.indexOf('basic') === 0) {
     return _jpEditBasicMap(pageIdx, imgId);
   }
-  // Detailed / sheet-plan / flashref still want the full canvas.
-  try { sessionStorage.setItem('fr_jp_edit_return', '1'); } catch(e){}
-  alert('Switching to Map Roof so you can edit the drawing. When you finish, click Job Pack in the sidebar to return — the picture will refresh automatically.');
-  if (typeof gotoTab === 'function') gotoTab('roof');
+  // Detailed / sheet-plan / flashref maps: most-asked tweak is "make
+  // these labels bigger". Open a compact popup with the line + sheet
+  // font sliders so the user can adjust without leaving Job Pack.
+  // Existing "switch to Map Roof for full editing" path is still
+  // reachable via the secondary button at the bottom.
+  return _jpEditDetailedMap(pageIdx, imgId);
+}
+
+// Detailed-map quick editor: two font sliders + a re-capture button.
+// Mutates the same localStorage keys the Materials tab toolbar writes
+// to, so the sliders here and the sliders on Map Roof stay in sync.
+function _jpEditDetailedMap(pageIdx, imgId){
+  var existing = document.getElementById('jpDetailedEditorModal');
+  if (existing) existing.remove();
+  var lineScale  = parseFloat(localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
+  var sheetScale = parseFloat(localStorage.getItem('fr_sheet_text_scale')   || '1') || 1;
+  var modal = document.createElement('div');
+  modal.id = 'jpDetailedEditorModal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(10,22,40,.55);display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,-apple-system,sans-serif';
+  function row(label, slug, val, min, max, step){
+    return '<div style="margin-bottom:14px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">'+
+        '<label for="jpDet_'+slug+'" style="font-size:12px;font-weight:700;color:#0a1628">'+label+'</label>'+
+        '<span id="jpDet_'+slug+'_out" style="font-size:12px;color:#475569;font-variant-numeric:tabular-nums">'+(+val).toFixed(1)+'×</span>'+
+      '</div>'+
+      '<input type="range" id="jpDet_'+slug+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'" style="width:100%">'+
+    '</div>';
+  }
+  modal.innerHTML =
+    '<div style="background:#fff;border-radius:10px;width:min(440px,100%);padding:18px 20px;box-shadow:0 18px 48px rgba(0,0,0,.3)">'+
+      '<div style="font-size:14px;font-weight:700;color:#0a1628;margin-bottom:4px">Edit roof map labels</div>'+
+      '<div style="font-size:11.5px;color:#475569;margin-bottom:14px">Adjust the two label sizes — the picture below refreshes when you close this dialog.</div>'+
+      row('Line measurements (gutter, ridge, hip, valley, barge)', 'line',  lineScale,  0.5, 4, 0.1)+
+      row('Sheet measurements (perpendicular ridge→gutter arrows)', 'sheet', sheetScale, 0.5, 4, 0.1)+
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'+
+        '<button id="jpDet_full" style="background:transparent;border:1px solid #cbd5e1;color:#0a1628;font-size:12px;padding:6px 12px;border-radius:6px;cursor:pointer;font-family:inherit">↗ Full Map Roof editor</button>'+
+        '<button id="jpDet_done" style="background:#0a1628;border:none;color:#fff;font-size:12px;padding:6px 16px;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit">Done</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(modal);
+  function bind(slug, fn){
+    var inp = document.getElementById('jpDet_'+slug);
+    var out = document.getElementById('jpDet_'+slug+'_out');
+    inp.addEventListener('input', function(){
+      out.textContent = (+inp.value).toFixed(1) + '×';
+      fn(inp.value);
+    });
+  }
+  bind('line',  function(v){ try { _setMatRoofMapFontScale(v); } catch(e){} });
+  bind('sheet', function(v){ try { _setSheetTextScale(v); }     catch(e){} });
+  document.getElementById('jpDet_done').onclick = function(){
+    modal.remove();
+    // Re-capture the dropped image so the Job Pack reflects the new
+    // font sizes. renderJobPack walks images + asks for fresh src.
+    try { renderJobPack(); } catch(e){}
+    // Keep the Materials tab toolbar's slider readouts in sync.
+    try { _syncMatRoofMapFontScaleUi(); } catch(e){}
+    try { _syncSheetTextScaleUi(); } catch(e){}
+  };
+  document.getElementById('jpDet_full').onclick = function(){
+    modal.remove();
+    try { sessionStorage.setItem('fr_jp_edit_return', '1'); } catch(e){}
+    if (typeof gotoTab === 'function') gotoTab('roof');
+  };
+  // Click-outside or Escape dismisses.
+  modal.addEventListener('click', function(ev){ if (ev.target === modal) document.getElementById('jpDet_done').click(); });
+  document.addEventListener('keydown', function _esc(ev){
+    if (ev.key !== 'Escape') return;
+    document.removeEventListener('keydown', _esc);
+    var btn = document.getElementById('jpDet_done'); if (btn) btn.click();
+  });
 }
 
 // ── Basic-map label editor ────────────────────────────────────────
