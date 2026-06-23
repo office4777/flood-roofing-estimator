@@ -20417,11 +20417,11 @@ function _jpRenderCutLists(content, page, idx){
   html += '<button class="mat-add-btn" onclick="_jpSheetExtraAdd()">+ Add row</button>';
   html += '</div>';
 
-  // ── Ridge / Hip capping (full-width, single section) ──
+  // ── Ridging (ridge + hip capping) ──
   var ridgeSpec = _MAT_FLASHING_SPECS[0];
   var ridgeCl = _matBuildCutList('ridgehip', ridgeSpec.waste);
   html += '<div class="mat-section">'+
-    _matSectionHead(ridgeSpec.colour, 'Ridge / Hip capping', (ridgeType==='wide'?'Wide ridge':'Standard ridge')+' · '+esc(grade)+' · +'+ridgeSpec.waste.toFixed(1)+'m waste')+
+    _matSectionHead(ridgeSpec.colour, 'Ridging', (ridgeType==='wide'?'Wide ridge':'Standard ridge')+' · '+esc(grade)+' · +'+ridgeSpec.waste.toFixed(1)+'m waste')+
     _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.')+
   '</div>';
 
@@ -20440,7 +20440,7 @@ function _jpRenderCutLists(content, page, idx){
     'marley-typhoon':'Marley Typhoon (PVC)'
   }[gutterChoice] || 'No gutter required';
   html += '<div class="mat-section">'+
-    _matSectionHead('#7c3aed', 'Guttering', esc(gutterLabel));
+    _matSectionHead('#7c3aed', 'Gutters (Gutter, Brackets and Droppers)', esc(gutterLabel));
   if (gutterChoice === 'none') html += '<div class="cut-list-empty">No gutter selected — pick a gutter type above to add it to the order.</div>';
   else {
     var gCl = _matBuildCutList('gutter', 0);
@@ -20660,57 +20660,73 @@ function _jpRenderConsumablesSection(d){
     [50,75,100].map(function(sz){ return '<option value="'+sz+'"'+(sz===rollSize?' selected':'')+'>'+sz+' m² roll</option>'; }).join('')+
   '</select>';
 
-  var rowsHtml =
-    '<tr><td>📄 <strong>Underlay / paper</strong>'+
-      '<div style="font-size:10.5px;color:var(--text2);margin-top:2px">'+underlayM2.toFixed(1)+' m² (incl. 20% waste)' + rollSizeSelect + ' · auto '+rollsAuto+'</div>'+
-    '</td>'+
-      '<td class="r">'+qtyIn('fr_underlay_rolls_override', rollsAuto)+'</td>'+
-      '<td class="r">rolls</td>'+
-      '<td class="r" style="white-space:nowrap">'+resetLink('fr_underlay_rolls_override')+'</td>'+
-    '</tr>'+
-    '<tr><td>🔩 <strong>Roofing screws</strong>'+
-      '<div style="font-size:10.5px;color:var(--text2);margin-top:2px">65mm Unitites · '+d.roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(d.roofArea * 8)+' · auto '+screwsAuto+'</div>'+
-    '</td>'+
-      '<td class="r">'+qtyIn('fr_screws_qty_override', screwsAuto, 80)+'</td>'+
-      '<td class="r">screws</td>'+
-      '<td class="r" style="white-space:nowrap">'+resetLink('fr_screws_qty_override')+'</td>'+
-    '</tr>'+
-    '<tr><td>🪛 <strong>Rivets</strong>'+
-      '<div style="font-size:10.5px;color:var(--text2);margin-top:2px">'+d.flashingsLm.toFixed(1)+' lm of flashings · auto '+rivetsAuto+' (100 / 60 lm minimum)</div>'+
-    '</td>'+
-      '<td class="r">'+qtyIn('fr_rivets_qty_override', rivetsAuto, 80)+'</td>'+
-      '<td class="r">rivets</td>'+
-      '<td class="r" style="white-space:nowrap">'+resetLink('fr_rivets_qty_override')+'</td>'+
-    '</tr>';
-
-  // Dektites — one row per size, with a × delete and a + Add row.
-  var dkList = _matDektitesGet();
-  if (dkList && dkList.length){
-    dkList.forEach(function(r, i){
-      rowsHtml += '<tr><td>🟫 <strong>Dektite</strong>'+
-        '<div style="font-size:10.5px;color:var(--text2);margin-top:2px">Pipe penetration</div>'+
-      '</td>'+
-        '<td class="r"><input type="number" min="0" step="1" value="'+(r.qty||0)+'" '+
-          'onchange="_matDektitesUpdate('+i+',\'qty\',this.value);if(typeof renderJobPack===\'function\') renderJobPack()" '+
-          'style="width:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px"></td>'+
-        '<td class="r"><input type="number" min="0" step="5" placeholder="size" value="'+(r.sizeMm||'')+'" '+
-          'onchange="_matDektitesUpdate('+i+',\'sizeMm\',this.value);if(typeof renderJobPack===\'function\') renderJobPack()" '+
-          'style="width:62px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px"> mm</td>'+
-        '<td class="r"><button onclick="_matDektitesRemove('+i+');if(typeof renderJobPack===\'function\') renderJobPack()" title="Delete row" '+
-          'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700;padding:0 4px">×</button></td>'+
-      '</tr>';
-    });
-  } else {
-    rowsHtml += '<tr class="no-print"><td colspan="4" style="color:var(--text2);font-style:italic;padding:6px 10px">No dektites — click <em>+ Add dektite size</em> below to add a pipe penetration size.</td></tr>';
+  // Per-banner row helper — the same shape used in the live Materials
+  // tab so the Job Pack and the tab match visually.
+  function consRow(label, qtyHtml, unit, subHtml, resetHtml){
+    return '<div class="cons-row">'+
+      '<div class="cons-row-label">'+label+'</div>'+
+      '<div class="cons-row-qty">'+qtyHtml+' '+unit+(resetHtml||'')+'</div>'+
+      '<div class="cons-row-sub">'+subHtml+'</div>'+
+    '</div>';
   }
 
-  return '<div class="mat-section">'+
-    _matSectionHead('#0a1628', 'Consumables', 'underlay · screws · rivets · dektites')+
-    '<table class="cut-list" style="margin-bottom:6px"><thead><tr>'+
-      '<th>Description</th><th class="r" style="width:90px">Qty</th><th class="r" style="width:80px">Unit</th><th class="r" style="width:64px"></th>'+
-    '</tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
-    '<button class="mat-add-btn" onclick="_matDektitesAdd();if(typeof renderJobPack===\'function\') renderJobPack()">+ Add dektite size</button>'+
+  // ── Underlay ──
+  var underlayBanner = '<div class="mat-section">'+
+    _matSectionHead('#10b981', 'Underlay', 'Roof paper / breather wrap')+
+    '<div class="cons-body">'+
+      consRow('📄 Underlay / paper',
+        qtyIn('fr_underlay_rolls_override', rollsAuto), 'rolls',
+        underlayM2.toFixed(1)+' m² (incl. 20% waste)' + rollSizeSelect + ' · auto '+rollsAuto,
+        resetLink('fr_underlay_rolls_override'))+
+    '</div>'+
   '</div>';
+
+  // ── Screws & Rivets ──
+  var srBanner = '<div class="mat-section">'+
+    _matSectionHead('#0a1628', 'Screws & Rivets', 'Fasteners for sheets &amp; flashings')+
+    '<div class="cons-body">'+
+      consRow('🔩 Roofing screws',
+        qtyIn('fr_screws_qty_override', screwsAuto, 80), 'screws',
+        '65mm Unitites · '+d.roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(d.roofArea * 8)+' · auto '+screwsAuto,
+        resetLink('fr_screws_qty_override'))+
+      consRow('🪛 Rivets',
+        qtyIn('fr_rivets_qty_override', rivetsAuto, 80), 'rivets',
+        d.flashingsLm.toFixed(1)+' lm of flashings · auto '+rivetsAuto+' (100 / 60 lm minimum)',
+        resetLink('fr_rivets_qty_override'))+
+    '</div>'+
+  '</div>';
+
+  // ── Dektites ──
+  var dkList = _matDektitesGet();
+  var dkRowsHtml = '';
+  if (dkList && dkList.length){
+    dkList.forEach(function(r, i){
+      dkRowsHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 4px;border-bottom:1px dashed #e5e7eb;font-size:12px">'+
+        '🟫 <strong style="min-width:90px">Dektite</strong>'+
+        '<input type="number" min="0" step="1" value="'+(r.qty||0)+'" '+
+          'onchange="_matDektitesUpdate('+i+',\'qty\',this.value);if(typeof renderJobPack===\'function\') renderJobPack()" '+
+          'style="width:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px">'+
+        '<span style="color:var(--text2)">×</span>'+
+        '<input type="number" min="0" step="5" placeholder="size" value="'+(r.sizeMm||'')+'" '+
+          'onchange="_matDektitesUpdate('+i+',\'sizeMm\',this.value);if(typeof renderJobPack===\'function\') renderJobPack()" '+
+          'style="width:62px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px">'+
+        '<span style="color:var(--text2)">mm</span>'+
+        '<button onclick="_matDektitesRemove('+i+');if(typeof renderJobPack===\'function\') renderJobPack()" title="Delete row" '+
+          'style="margin-left:auto;background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700;padding:0 4px">×</button>'+
+      '</div>';
+    });
+  } else {
+    dkRowsHtml = '<div style="color:var(--text2);font-style:italic;padding:6px 4px;font-size:11px">No dektites — click <em>+ Add dektite size</em> below to add a pipe penetration size.</div>';
+  }
+  var dkBanner = '<div class="mat-section">'+
+    _matSectionHead('#a16207', 'Dektites', 'Pipe penetration boots')+
+    '<div class="cons-body">'+
+      dkRowsHtml+
+      '<button class="mat-add-btn" onclick="_matDektitesAdd();if(typeof renderJobPack===\'function\') renderJobPack()" style="margin-top:6px">+ Add dektite size</button>'+
+    '</div>'+
+  '</div>';
+
+  return underlayBanner + srBanner + dkBanner;
 }
 
 // Shared section header for the Cut Lists / Flashings / Consumables
@@ -20718,10 +20734,13 @@ function _jpRenderConsumablesSection(d){
 // every section on the materials surfaces reads identically (was
 // duplicated as inline-styled HTML in four separate places).
 function _matSectionHead(colour, title, meta){
-  return '<div class="mat-section-head">'+
-    '<span class="mat-dot" style="background:'+colour+'"></span>'+
-    '<span class="mat-title">'+esc(title)+'</span>'+
-    (meta ? '<span class="mat-meta">— '+meta+'</span>' : '')+
+  // Emit the same shaded full-width banner as renderMaterialsCutLists
+  // so the Job Pack Designer cut-lists page matches the live Materials
+  // tab visually. Uses .mat-section-hd / .swatch / h3 / .meta.
+  return '<div class="mat-section-hd">'+
+    '<span class="swatch" style="background:'+colour+'"></span>'+
+    '<h3>'+esc(title)+'</h3>'+
+    (meta ? '<span class="meta">'+meta+'</span>' : '')+
   '</div>';
 }
 
