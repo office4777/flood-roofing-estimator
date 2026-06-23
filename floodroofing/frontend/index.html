@@ -629,9 +629,18 @@ select{
 /* Per-section materials block (sheets, ridge, each flashing, gutter) */
 .mat-section{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)}
 .mat-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
-.mat-section-hd{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
-.mat-section-hd .swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0}
-.mat-section-hd h3{font-size:13.5px;font-weight:700;color:#0a1628;margin:0;letter-spacing:-.005em}
+.mat-section-hd{
+  display:flex;align-items:center;gap:10px;
+  margin:0 0 10px;
+  padding:9px 14px;
+  background:linear-gradient(180deg,#f1f5f9 0%,#e2e8f0 100%);
+  border-left:4px solid #0a1628;
+  border-radius:6px;
+  flex-wrap:wrap;width:100%;box-sizing:border-box;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;
+}
+.mat-section-hd .swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.15)}
+.mat-section-hd h3{font-size:13.5px;font-weight:800;color:#0a1628;margin:0;letter-spacing:.4px;text-transform:uppercase}
 .mat-section-hd .meta{font-size:11px;color:var(--text2);font-weight:500;flex:1;min-width:120px}
 .mat-section-hd .mat-picker-slot{display:inline-flex;align-items:center;flex-shrink:0;margin-left:auto}
 .mat-section-sub{font-size:11.5px;color:var(--text2);margin:-2px 0 8px;line-height:1.5}
@@ -683,6 +692,19 @@ select{
 .cons-tile .cons-qty{font-size:18px;font-weight:700;color:#0a1628;letter-spacing:-.01em}
 .cons-tile .cons-sub{font-size:11px;color:var(--text2);line-height:1.4}
 .cons-tile select{font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;margin:0;width:auto;background:#fff;color:#0a1628}
+/* Consumables — banner-style stack (Underlay / Screws & Rivets / Dektites) */
+.cons-stack{display:block;margin-top:4px}
+.cons-body{padding:0}
+.cons-row{display:grid;grid-template-columns:minmax(150px,1.2fr) minmax(120px,0.9fr) minmax(180px,2fr);gap:10px;align-items:center;padding:8px 4px;border-bottom:1px dashed #e5e7eb}
+.cons-row:last-child{border-bottom:none}
+.cons-row-label{font-size:12.5px;font-weight:600;color:#0a1628;display:flex;align-items:center;gap:6px}
+.cons-row-qty{font-size:14px;font-weight:700;color:#0a1628;letter-spacing:-.01em}
+.cons-row-sub{font-size:11px;color:var(--text2);line-height:1.4}
+.cons-row select{font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;margin:0;width:auto;background:#fff;color:#0a1628}
+@media(max-width:680px){
+  .cons-row{grid-template-columns:1fr;gap:4px}
+  .cons-row-qty{font-size:16px}
+}
 
 /* ── Materials Job-Pack shared visual language ─────────────────
    Every section on the Cut Lists / Flashings / Consumables pages
@@ -13155,11 +13177,19 @@ function downloadJobPack(){
   refreshJobPack();
   // Tag <html> so the print stylesheet shows only #tab-jobpack and
   // splits sections onto fresh pages.
-  document.documentElement.classList.add('print-jobpack');
-  setTimeout(function(){
-    window.print();
-    setTimeout(function(){ document.documentElement.classList.remove('print-jobpack'); }, 600);
-  }, 80);
+  var htmlEl = document.documentElement;
+  htmlEl.classList.add('print-jobpack');
+  // Same image-decode wait as saveMaterialsAsPdf — without it the
+  // print engine snapshots the page before the captured canvas
+  // images have finished painting, dropping the roof diagram.
+  _jpWaitForImages(document.getElementById('tab-jobpack'), function(){
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        window.print();
+        setTimeout(function(){ htmlEl.classList.remove('print-jobpack'); }, 600);
+      });
+    });
+  });
 }
 
 function emailJobPack(){
@@ -20674,7 +20704,7 @@ function _jpRenderFlashings(content, page, idx){
 function _jpRenderConsumables(content, page, idx){
   content.innerHTML =
     '<div class="jp-block-title">Consumables</div>' +
-    '<div id="jpConsumablesOut_'+idx+'" class="cons-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"></div>';
+    '<div id="jpConsumablesOut_'+idx+'" class="cons-stack"></div>';
   var live = document.getElementById('matConsumables');
   var jpOut = content.querySelector('#jpConsumablesOut_' + idx);
   if (live && jpOut) {
@@ -21478,12 +21508,12 @@ function renderMaterialsCutLists() {
   }
   html += '</div>';
 
-  // ── 2. Ridge / Hip capping (combined) ──────────────────────
+  // ── 2. Ridging (ridge + hip capping) ───────────────────────
   var ridgeSpec = _MAT_FLASHING_SPECS[0]; // ridgehip
   var ridgeCl = _matBuildCutList('ridgehip', ridgeSpec.waste);
   html += _matCompactSection({
     swatch: ridgeSpec.colour,
-    title: 'Ridge / Hip capping',
+    title: 'Ridging',
     meta: (ridgeType==='wide'?'Wide ridge':'Standard ridge') + ' · ' + grade + ' · ' + thickness + ' · +' + ridgeSpec.waste.toFixed(1) + 'm waste',
     flashingType: 'ridgehip',
     defaultDrawing: null,
@@ -21492,26 +21522,7 @@ function renderMaterialsCutLists() {
     table: _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.'),
   });
 
-  // ── 3. Other flashings (barge, apron, change-of-pitch, valley) ──
-  // Only render sections that have at least one matching drawn line on
-  // the Roof Map. Empty sections used to render with a placeholder so
-  // the user could pre-pick a saved drawing, but they cluttered the
-  // tab — the user explicitly asked to hide types they aren't using.
-  _MAT_FLASHING_SPECS.slice(1).forEach(function(spec){
-    var cl = _matBuildCutList(spec.key, spec.waste);
-    if (cl.pieceCount === 0) return;
-    html += _matCompactSection({
-      swatch: spec.colour,
-      title: spec.label,
-      meta: grade + ' · ' + thickness + ' · +' + spec.waste.toFixed(1) + 'm waste',
-      flashingType: spec.key,
-      defaultDrawing: spec.drawing,   // null for valley → no drawing column
-      cutList: cl,
-      table: _matCutListTable(cl, ''),
-    });
-  });
-
-  // ── 4. Gutter ──────────────────────────────────────────────
+  // ── 3. Gutters (Gutter, Brackets and Droppers) ─────────────
   var gutterLabel = {
     'none':'No gutter required',
     'colorsteel-box':'Colorsteel 125mm Box Gutter',
@@ -21522,7 +21533,7 @@ function renderMaterialsCutLists() {
   html += '<div class="mat-section">'+
     '<div class="mat-section-hd">'+
       '<span class="swatch" style="background:#7c3aed"></span>'+
-      '<h3>Guttering</h3>'+
+      '<h3>Gutters (Gutter, Brackets and Droppers)</h3>'+
       '<span class="meta">'+esc(gutterLabel)+'</span>'+
     '</div>';
   if (gutterChoice === 'none') {
@@ -21536,6 +21547,32 @@ function renderMaterialsCutLists() {
     }
   }
   html += '</div>';
+
+  // ── 4. Flashings (barge, apron, change-of-pitch, valley) ──
+  // Only render rows for flashing types with at least one drawn line.
+  // All rows live under a single shaded "Flashings" banner.
+  var flashRowsHtml = '';
+  _MAT_FLASHING_SPECS.slice(1).forEach(function(spec){
+    var cl = _matBuildCutList(spec.key, spec.waste);
+    if (cl.pieceCount === 0) return;
+    flashRowsHtml += _matCompactSection({
+      swatch: spec.colour,
+      title: spec.label,
+      meta: grade + ' · ' + thickness + ' · +' + spec.waste.toFixed(1) + 'm waste',
+      flashingType: spec.key,
+      defaultDrawing: spec.drawing,
+      cutList: cl,
+      table: _matCutListTable(cl, ''),
+    });
+  });
+  html += '<div class="mat-section">'+
+    '<div class="mat-section-hd">'+
+      '<span class="swatch" style="background:#ef4444"></span>'+
+      '<h3>Flashings</h3>'+
+      '<span class="meta">Barge, apron, change-of-pitch &amp; valley flashings</span>'+
+    '</div>'+
+    (flashRowsHtml || '<div class="cut-list-empty">No barge, apron, change-of-pitch or valley lines drawn yet.</div>')+
+  '</div>';
 
   out.innerHTML = html;
 
@@ -22199,40 +22236,55 @@ function _matRenderConsumables(d) {
     return ' <a onclick="_matConsOverrideSet(\''+key+'\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>';
   }
 
-  var tiles = [];
+  // Render rows as full-width shaded banner sections (Underlay / Screws &
+  // Rivets / Dektites) — same visual language as the cut-list sections.
+  function consRow(label, qtyHtml, subHtml){
+    return '<div class="cons-row">'+
+      '<div class="cons-row-label">'+label+'</div>'+
+      '<div class="cons-row-qty">'+qtyHtml+'</div>'+
+      '<div class="cons-row-sub">'+subHtml+'</div>'+
+    '</div>';
+  }
+  function consSection(swatch, title, meta, bodyHtml){
+    return '<div class="mat-section">'+
+      '<div class="mat-section-hd">'+
+        '<span class="swatch" style="background:'+swatch+'"></span>'+
+        '<h3>'+esc(title)+'</h3>'+
+        '<span class="meta">'+meta+'</span>'+
+      '</div>'+
+      '<div class="cons-body">'+bodyHtml+'</div>'+
+    '</div>';
+  }
 
-  // Underlay — auto = ceil(area * 1.2 / rollSize); user can type a
-  // different roll count.
+  var html = '';
+
+  // Underlay
   var underlayM2 = d.roofArea * 1.2;
   var rollsAuto = d.roofArea > 0 ? Math.ceil(underlayM2 / rollSize) : 0;
-  tiles.push({
-    icon:'📄', name:'Underlay / paper',
-    qtyHtml: qtyInput('fr_underlay_rolls_override', rollsAuto) + ' rolls' + resetLink('fr_underlay_rolls_override'),
-    sub: underlayM2.toFixed(1)+' m² (incl. 20% waste) · roll size '+
-      '<select onchange="localStorage.setItem(\'fr_underlay_roll_size\',this.value);renderMaterialsCutLists()">'+
-      [50,75,100].map(function(sz){return '<option value="'+sz+'"'+(sz===rollSize?' selected':'')+'>'+sz+' m²</option>';}).join('')+
-      '</select> · auto: '+rollsAuto+' rolls'
-  });
+  var underlaySub = underlayM2.toFixed(1)+' m² (incl. 20% waste) · roll size '+
+    '<select onchange="localStorage.setItem(\'fr_underlay_roll_size\',this.value);renderMaterialsCutLists()">'+
+    [50,75,100].map(function(sz){return '<option value="'+sz+'"'+(sz===rollSize?' selected':'')+'>'+sz+' m²</option>';}).join('')+
+    '</select> · auto: '+rollsAuto+' rolls';
+  html += consSection('#10b981', 'Underlay', 'Roof paper / breather wrap',
+    consRow('📄 Underlay / paper',
+      qtyInput('fr_underlay_rolls_override', rollsAuto) + ' rolls' + resetLink('fr_underlay_rolls_override'),
+      underlaySub)
+  );
 
-  // Roofing screws — auto = ceil(area * 8 / 100) * 100.
+  // Screws & Rivets — combined banner with two rows
   var screwsNeeded = d.roofArea * 8;
   var screwsAuto = d.roofArea > 0 ? Math.ceil(screwsNeeded / 100) * 100 : 0;
-  tiles.push({
-    icon:'🔩', name:'Roofing screws',
-    qtyHtml: qtyInput('fr_screws_qty_override', screwsAuto) + resetLink('fr_screws_qty_override'),
-    sub:'65mm Unitites · '+d.roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(screwsNeeded)+', rounded to '+screwsAuto
-  });
-
-  // Rivets — auto = max(100, ceil(flashingsLm/60)*100).
   var rivetsAuto = d.flashingsLm > 0 ? Math.max(100, Math.ceil(d.flashingsLm / 60) * 100) : 0;
-  tiles.push({
-    icon:'🪛', name:'Rivets',
-    qtyHtml: qtyInput('fr_rivets_qty_override', rivetsAuto) + resetLink('fr_rivets_qty_override'),
-    sub: d.flashingsLm.toFixed(1)+' lm of flashings · auto: '+rivetsAuto+' (100 / 60lm minimum)'
-  });
+  var srBody =
+    consRow('🔩 Roofing screws',
+      qtyInput('fr_screws_qty_override', screwsAuto) + ' screws' + resetLink('fr_screws_qty_override'),
+      '65mm Unitites · '+d.roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(screwsNeeded)+', rounded to '+screwsAuto) +
+    consRow('🪛 Rivets',
+      qtyInput('fr_rivets_qty_override', rivetsAuto) + ' rivets' + resetLink('fr_rivets_qty_override'),
+      d.flashingsLm.toFixed(1)+' lm of flashings · auto: '+rivetsAuto+' (100 / 60lm minimum)');
+  html += consSection('#0a1628', 'Screws & Rivets', 'Fasteners for sheets &amp; flashings', srBody);
 
-  // Dektites — multi-size list. Each row is qty × sizeMm with a × to
-  // delete, plus a + Add size button. Total shown at the top.
+  // Dektites — banner with editable size list
   var dkList = _matDektitesGet();
   var dkTotal = _matDektitesTotal();
   var dkRowsHtml = dkList.map(function(r, i){
@@ -22248,23 +22300,19 @@ function _matRenderConsumables(d) {
       '<button type="button" onclick="_matDektitesRemove('+i+')" style="margin-left:auto;background:none;border:none;color:#b91c1c;cursor:pointer;padding:2px 4px;font-size:14px;line-height:1" title="Remove">×</button>'+
     '</div>';
   }).join('');
-  tiles.push({
-    icon:'🟫', name:'Dektites',
-    qtyHtml: dkTotal,
-    sub:'Pipe penetrations'+
+  var dkBody = consRow('🟫 Dektites',
+    dkTotal + ' total',
+    'Pipe penetrations'+
       (dkList.length ? dkRowsHtml : '<div style="font-size:11px;color:var(--text2);margin-top:4px;font-style:italic">No dektites added yet — click "+ Add size" to specify quantity at each size.</div>')+
       '<button type="button" onclick="_matDektitesAdd()" style="margin-top:6px;padding:3px 10px;font-size:11px;background:#fff;border:1px solid var(--border);border-radius:5px;color:#0a1628;cursor:pointer;font-weight:600">+ Add size</button>'
-  });
+  );
+  html += consSection('#a16207', 'Dektites', 'Pipe penetration boots', dkBody);
 
-  out.innerHTML = tiles.map(function(t){
-    return '<div class="cons-tile">'+
-      '<div class="cons-hd">'+
-        '<span class="cons-name">'+t.icon+' '+esc(t.name)+'</span>'+
-        '<span class="cons-qty">'+t.qtyHtml+'</span>'+
-      '</div>'+
-      '<div class="cons-sub">'+t.sub+'</div>'+
-    '</div>';
-  }).join('');
+  out.innerHTML = html;
+  // Switch the container off the grid layout so banner sections stack
+  // full-width like the cut-list sections above.
+  out.classList.remove('cons-grid');
+  out.classList.add('cons-stack');
 }
 
 // ── ACTION HANDLERS ─────────────────────────────────────────
@@ -22373,11 +22421,52 @@ function saveMaterialsAsPdf() {
   // Job Pack Designer surface: the .jp-page elements ARE the print
   // pages (sized 210mm × 297mm with page-break-after:always).
   html.classList.add('print-jobpack');
-  setTimeout(function(){
-    window.print();
-    setTimeout(function(){ html.classList.remove('print-jobpack'); }, 400);
-  }, 60);
+  // Wait for the freshly-mounted Job Pack images (roof map / sheet
+  // plan data URLs) to finish decoding before window.print() — with
+  // only a 60ms delay the print engine was snapshotting the page
+  // while the image slots were still blank, so the printed PDF
+  // dropped the roof diagram that the designer clearly showed.
+  _jpWaitForImages(document.getElementById('jpPages'), function(){
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        window.print();
+        setTimeout(function(){ html.classList.remove('print-jobpack'); }, 400);
+      });
+    });
+  });
   _matMsg('Opening print dialog — choose "Save as PDF"…');
+}
+
+// Wait for every <img> inside `root` to finish decoding so the
+// browser's print engine doesn't capture half-painted image slots.
+// Falls back after 2000ms so a stuck image never blocks the print.
+function _jpWaitForImages(root, cb) {
+  if (!root) { cb && cb(); return; }
+  var imgs = Array.prototype.slice.call(root.querySelectorAll('img'));
+  if (!imgs.length) { cb && cb(); return; }
+  var pending = imgs.length;
+  var fired = false;
+  function done(){
+    if (fired) return;
+    if (--pending > 0) return;
+    fired = true;
+    clearTimeout(safety);
+    cb && cb();
+  }
+  var safety = setTimeout(function(){
+    if (fired) return;
+    fired = true;
+    cb && cb();
+  }, 2000);
+  imgs.forEach(function(im){
+    if (im.complete && im.naturalWidth > 0) { done(); return; }
+    if (typeof im.decode === 'function') {
+      im.decode().then(done, done);
+      return;
+    }
+    im.addEventListener('load',  done, { once:true });
+    im.addEventListener('error', done, { once:true });
+  });
 }
 
 // ── JOB & DELIVERY (Materials tab) ──────────────────────────
