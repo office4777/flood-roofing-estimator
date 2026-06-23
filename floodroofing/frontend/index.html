@@ -22601,23 +22601,104 @@ async function pushScopePricingToFergus(){
   }
 }
 
-function saveMaterialsAsPdf() {
+// Save the Job Pack as a PDF — captures each .jp-page off-screen with
+// html2canvas and stitches them into a jsPDF blob, then triggers a
+// download. This bypasses the browser's print engine entirely, which
+// previously dropped the roof-diagram image overlays in the printed
+// output even after the image-decode wait was in place.
+async function saveMaterialsAsPdf() {
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
   try { renderMatRoofMap(); } catch(e){}
   try { renderMatFlashingsGrid(); } catch(e){}
   try { renderJobPack(); } catch(e){}
+
+  _matMsg('Building PDF…');
+
+  try {
+    await _loadPdfLibs();
+  } catch(err) {
+    console.warn('PDF libs failed to load, falling back to window.print():', err);
+    return _legacyPrintFlow();
+  }
+
+  var html2canvas = window.html2canvas;
+  var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (!html2canvas || !jsPDF) {
+    return _legacyPrintFlow();
+  }
+
+  var pages = Array.prototype.slice.call(document.querySelectorAll('#jpPages .jp-page'));
+  if (!pages.length) { _matMsg('No Job Pack pages to render.', false); return; }
+
+  // Add print-jobpack so editor chrome (delete buttons, drag handles,
+  // toolbars) is hidden from the captures. html2canvas honours @media
+  // print rules only when wrapped in print-mode emulation — easier to
+  // just lean on the .print-jobpack class rules outside the media query.
+  var htmlEl = document.documentElement;
+  ['print-quote','print-order','print-materials','print-report'].forEach(function(c){ htmlEl.classList.remove(c); });
+  htmlEl.classList.add('print-jobpack');
+
+  // Wait for any dynamic images (roof-map data URLs) to fully decode
+  // before we hand the page off to html2canvas. Without this we have
+  // seen empty image overlays land in the PDF.
+  await new Promise(function(resolve){
+    _jpWaitForImages(document.getElementById('jpPages'), resolve);
+  });
+  // Give layout one more frame to settle now that the print-jobpack
+  // rules are in effect — some sections collapse via the empty-state
+  // pass and we don't want stale heights baked into the capture.
+  await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+
+  var pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
+  var pageW = 210, pageH = 297;
+
+  try {
+    for (var i = 0; i < pages.length; i++) {
+      var pageEl = pages[i];
+      _matMsg('Rendering page ' + (i+1) + ' of ' + pages.length + '…');
+      var canvas = await html2canvas(pageEl, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false,
+        // Match what the user sees in the Designer — the jp-page is
+        // 210mm × min-height 297mm; html2canvas uses the rendered
+        // CSS box so we don't need to override width/height here.
+      });
+      if (i > 0) pdf.addPage();
+      var imgData = canvas.toDataURL('image/jpeg', 0.92);
+      // Map the capture onto a full A4 page. The aspect ratio of the
+      // capture matches A4 (jp-page is 210×297mm) so we don't have to
+      // letterbox.
+      pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH, undefined, 'FAST');
+    }
+  } catch(err) {
+    console.error('PDF render failed:', err);
+    htmlEl.classList.remove('print-jobpack');
+    _matMsg('PDF render failed — falling back to print dialog', false);
+    return _legacyPrintFlow();
+  }
+
+  htmlEl.classList.remove('print-jobpack');
+
+  // Trigger download with a sensible filename.
+  var client = ((document.getElementById('jobClient')||{}).value || 'job').replace(/[\\/:*?"<>|]/g,'').trim() || 'job';
+  var jobNumRaw = (document.getElementById('matJobNumber')||{}).value || '';
+  var jobNum = jobNumRaw.replace(/[\\/:*?"<>|]/g,'').trim();
+  var filename = 'Job Pack - ' + client + (jobNum ? ' (' + jobNum + ')' : '') + '.pdf';
+  pdf.save(filename);
+
+  _matMsg('✓ PDF saved: ' + filename, true);
+}
+
+// Fallback: the old browser-print path. Kept around so users on
+// blocked-CDN environments (jsPDF/html2canvas fail to load) can still
+// reach the system print dialog and pick "Save as PDF" manually.
+function _legacyPrintFlow() {
   var html = document.documentElement;
   ['print-quote','print-order','print-materials','print-report'].forEach(function(c){ html.classList.remove(c); });
-  // Switch from the old #matPrintPage1/2 capture path to the new
-  // Job Pack Designer surface: the .jp-page elements ARE the print
-  // pages (sized 210mm × 297mm with page-break-after:always).
   html.classList.add('print-jobpack');
-  // Wait for the freshly-mounted Job Pack images (roof map / sheet
-  // plan data URLs) to finish decoding before window.print() — with
-  // only a 60ms delay the print engine was snapshotting the page
-  // while the image slots were still blank, so the printed PDF
-  // dropped the roof diagram that the designer clearly showed.
   _jpWaitForImages(document.getElementById('jpPages'), function(){
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){
