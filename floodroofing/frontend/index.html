@@ -15764,7 +15764,13 @@ function finishCurrent() {
   if(t==='info' && pts.length>=1) {
     var icx=pts[0][0], icy=pts[0][1];
     var num=DRAW.infoItems.length+1;
-    DRAW.infoItems.push({cx:icx,cy:icy,note:'',num:num});
+    DRAW.infoItems.push({
+      cx:icx, cy:icy, note:'', num:num,
+      boxX: icx + 60, boxY: icy - 30,
+      boxW: 220, boxH: 90,
+      fontPx: 14,
+      _id: 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2,6)
+    });
     DRAW.currentPts=[];
     saveSnapshot();
     renderInfoPanel();
@@ -16939,6 +16945,29 @@ function redrawAll() {
   // The Materials renderer draws its own letter tags via
   // _drawFlashLetterOverlaysOn() with deduplication + wider offset.
 
+  // Info items — leader line from star to attached text box.
+  // Drawn before the star so the line tucks under the amber dot.
+  DRAW.infoItems.forEach(function(item){
+    if (typeof _ensureInfoDefaults === 'function') _ensureInfoDefaults(item);
+    if (item.boxX == null) return;
+    var sp = dp([item.cx, item.cy]);
+    var bp = dp([item.boxX, item.boxY]);
+    var s = _t ? _t.s : 1;
+    var bw = (item.boxW || 0) * s, bh = (item.boxH || 0) * s;
+    // Closest point on the box border to the star center.
+    var ax = Math.max(bp[0], Math.min(bp[0]+bw, sp[0]));
+    var ay = Math.max(bp[1], Math.min(bp[1]+bh, sp[1]));
+    ctx.save();
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5,3]);
+    ctx.beginPath();
+    ctx.moveTo(sp[0], sp[1]);
+    ctx.lineTo(ax, ay);
+    ctx.stroke();
+    ctx.restore();
+  });
+
   // Info items — numbered bright asterisks
   DRAW.infoItems.forEach(function(item){
     var _ip=dp([item.cx,item.cy]); var cx=_ip[0], cy=_ip[1];
@@ -17118,6 +17147,7 @@ function redrawAll() {
   }
 
   ctx.restore(); // restore dpr scale transform
+  try { syncInfoOverlays(); } catch(e){}
 }
 
 function calcSectionArea(s) {
@@ -18192,6 +18222,187 @@ function deleteInfoItem(i) {
   renderInfoPanel();
   redrawAll();
   syncToRoofData();
+}
+
+// ── INFO TEXT-BOX OVERLAYS (canvas annotations) ──────────────────
+// Each info item gets a draggable / resizable text box overlay
+// positioned on top of the canvas. A dashed leader line is drawn
+// from the amber star to the closest edge of the box.
+function _ensureInfoDefaults(item) {
+  if (!item) return;
+  if (item.boxX == null) {
+    item.boxX = item.cx + 60;
+    item.boxY = item.cy - 30;
+  }
+  if (item.boxW == null) item.boxW = 220;
+  if (item.boxH == null) item.boxH = 90;
+  if (item.fontPx == null) item.fontPx = 14;
+  if (!item._id) {
+    item._id = 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  }
+}
+
+function syncInfoOverlays() {
+  var wrap = document.getElementById('canvasWrap');
+  var cv = document.getElementById('roofCanvas');
+  if (!wrap || !cv) return;
+  var container = document.getElementById('infoOverlays');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'infoOverlays';
+    container.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:5';
+    wrap.appendChild(container);
+  }
+  // Canvas-internal CSS px → on-screen CSS px (canvas is stretched
+  // by CSS width:100%, while getImgTransform uses cv.width/dpr).
+  var dpr = window.devicePixelRatio || 1;
+  var internalW = cv.width / dpr;
+  var screenScale = (cv.clientWidth > 0 && internalW > 0) ? (cv.clientWidth / internalW) : 1;
+  var t = getImgTransform();
+  var s = t ? t.s : 1;
+
+  var present = {};
+  DRAW.infoItems.forEach(function(item){
+    _ensureInfoDefaults(item);
+    present[item._id] = true;
+    var elId = 'infoOverlay_' + item._id;
+    var el = document.getElementById(elId);
+    if (!el) {
+      el = _buildInfoOverlay(item);
+      container.appendChild(el);
+    }
+    _positionInfoOverlay(el, item, t, screenScale);
+  });
+  // Drop overlays for deleted items
+  var kids = Array.prototype.slice.call(container.children);
+  for (var k = 0; k < kids.length; k++) {
+    var c = kids[k];
+    var matchId = (c.id || '').replace('infoOverlay_', '');
+    if (!present[matchId]) c.parentNode.removeChild(c);
+  }
+}
+
+function _buildInfoOverlay(item) {
+  var box = document.createElement('div');
+  box.id = 'infoOverlay_' + item._id;
+  box.style.cssText = 'position:absolute;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.18);pointer-events:auto;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;user-select:text';
+
+  var header = document.createElement('div');
+  header.className = 'info-ov-header';
+  header.style.cssText = 'background:#f59e0b;color:#fff;display:flex;align-items:center;gap:4px;padding:2px 6px;cursor:move;font-weight:bold;flex:0 0 auto;font-size:11px;line-height:1.2;user-select:none';
+
+  var badge = document.createElement('span');
+  badge.className = 'info-ov-badge';
+  badge.textContent = String(item.num || '');
+  badge.style.cssText = 'background:#fff;color:#f59e0b;border-radius:50%;width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0';
+  header.appendChild(badge);
+
+  var label = document.createElement('span');
+  label.textContent = 'drag • corner resizes & scales font';
+  label.style.cssText = 'flex:1;font-size:10px;opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+  header.appendChild(label);
+
+  var del = document.createElement('button');
+  del.textContent = '×';
+  del.title = 'Delete';
+  del.style.cssText = 'background:none;border:none;color:#fff;cursor:pointer;font-size:14px;padding:0 4px;line-height:1';
+  del.onclick = function(ev){
+    ev.stopPropagation();
+    var idx = DRAW.infoItems.indexOf(item);
+    if (idx >= 0) deleteInfoItem(idx);
+  };
+  header.appendChild(del);
+  box.appendChild(header);
+
+  var ta = document.createElement('textarea');
+  ta.className = 'info-ov-text';
+  ta.placeholder = 'Type info here…';
+  ta.style.cssText = 'flex:1;border:none;outline:none;resize:none;background:transparent;padding:4px 6px;font-family:inherit;color:#451a03;width:100%;box-sizing:border-box;overflow:auto;line-height:1.3';
+  ta.value = item.note || '';
+  ta.oninput = function(){ item.note = ta.value; };
+  ta.onmousedown = function(ev){ ev.stopPropagation(); };
+  box.appendChild(ta);
+
+  var rs = document.createElement('div');
+  rs.className = 'info-ov-resize';
+  rs.title = 'Drag to resize (also scales text)';
+  rs.style.cssText = 'position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 45%,#f59e0b 45%,#f59e0b 100%)';
+  box.appendChild(rs);
+
+  header.addEventListener('mousedown', function(ev){ _startInfoOverlayDrag(ev, item, 'move'); });
+  rs.addEventListener('mousedown', function(ev){ _startInfoOverlayDrag(ev, item, 'resize'); });
+  return box;
+}
+
+function _positionInfoOverlay(el, item, t, screenScale) {
+  var s = t ? t.s : 1;
+  var pBox = t ? imgToCanvas([item.boxX, item.boxY], t) : [item.boxX, item.boxY];
+  var screenS = screenScale || 1;
+  el.style.left = (pBox[0] * screenS) + 'px';
+  el.style.top = (pBox[1] * screenS) + 'px';
+  el.style.width = (item.boxW * s * screenS) + 'px';
+  el.style.height = (item.boxH * s * screenS) + 'px';
+  var badge = el.querySelector('.info-ov-badge');
+  if (badge) badge.textContent = String(item.num || '');
+  var ta = el.querySelector('.info-ov-text');
+  if (ta) {
+    if (document.activeElement !== ta) ta.value = item.note || '';
+    ta.style.fontSize = Math.max(6, item.fontPx * s * screenS) + 'px';
+  }
+}
+
+var _infoOvDrag = null;
+function _startInfoOverlayDrag(ev, item, mode) {
+  if (ev.button !== undefined && ev.button !== 0) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  var cv = document.getElementById('roofCanvas');
+  var dpr = window.devicePixelRatio || 1;
+  var internalW = cv ? cv.width / dpr : 1;
+  var screenS = (cv && cv.clientWidth > 0 && internalW > 0) ? (cv.clientWidth / internalW) : 1;
+  var t = getImgTransform();
+  var s = t ? t.s : 1;
+  _infoOvDrag = {
+    item: item, mode: mode,
+    sx: ev.clientX, sy: ev.clientY,
+    boxX0: item.boxX, boxY0: item.boxY,
+    boxW0: item.boxW, boxH0: item.boxH,
+    font0: item.fontPx,
+    perImg: s * screenS // screen px per image px
+  };
+  document.addEventListener('mousemove', _infoOverlayMove);
+  document.addEventListener('mouseup', _infoOverlayUp);
+}
+
+function _infoOverlayMove(ev) {
+  if (!_infoOvDrag) return;
+  var d = _infoOvDrag;
+  if (DRAW.infoItems.indexOf(d.item) < 0) { _infoOverlayUp(); return; }
+  var dx = (ev.clientX - d.sx) / d.perImg;
+  var dy = (ev.clientY - d.sy) / d.perImg;
+  if (d.mode === 'move') {
+    d.item.boxX = d.boxX0 + dx;
+    d.item.boxY = d.boxY0 + dy;
+  } else {
+    var newW = Math.max(40, d.boxW0 + dx);
+    var newH = Math.max(24, d.boxH0 + dy);
+    // Word-style: font scales with the box height.
+    var scale = newH / d.boxH0;
+    d.item.boxW = newW;
+    d.item.boxH = newH;
+    d.item.fontPx = Math.max(4, d.font0 * scale);
+  }
+  redrawAll();
+}
+
+function _infoOverlayUp() {
+  document.removeEventListener('mousemove', _infoOverlayMove);
+  document.removeEventListener('mouseup', _infoOverlayUp);
+  if (_infoOvDrag) {
+    try { saveSnapshot(); } catch(e){}
+    try { syncToRoofData(); } catch(e){}
+    _infoOvDrag = null;
+  }
 }
 
 // ── IMAGE ROTATION ───────────────────────────────────────────────
