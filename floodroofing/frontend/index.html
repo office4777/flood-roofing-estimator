@@ -14296,6 +14296,10 @@ var DRAG_ROOF_VIEW = null;
 // etc.) that share the vertex's position at drag-start so they
 // follow the corner instead of detaching from it.
 var DRAG_OUTLINE_VERT = null;
+// Info-star drag state — set when the user grabs an amber Add-Info
+// star marker. Drag updates item.cx/.cy directly; mouseup commits the
+// snapshot captured on grab so undo can put the star back.
+var DRAG_INFO_STAR = null;
 // Smaller of: hit-test radius for grabbing a corner (~14 canvas px).
 var OUTLINE_VERT_GRAB = 14;
 // Set true on corner-drag mouseup so the subsequent click event
@@ -14716,6 +14720,35 @@ function _stretchQuadOutline(cornerIdx, cursorX, cursorY, initialOutline){
 }
 
 function onCanvasMouseDown(e) {
+  // Info star drag — let the user nudge the amber star in Move
+  // (select) and Info tools. Skipped in Delete (so a tap still
+  // deletes the star) and in the line-drawing tools (so the click
+  // can drop a vertex). The text box stays put; the leader line
+  // re-routes automatically on redraw.
+  if (DRAW.tool === 'select' || DRAW.tool === 'info') {
+    var _starXY = getXY(e);
+    var _starHit = (typeof hitInfo === 'function') ? hitInfo(_starXY[0], _starXY[1]) : -1;
+    if (_starHit >= 0 && DRAW.infoItems[_starHit]) {
+      var _starIt = DRAW.infoItems[_starHit];
+      DRAG_INFO_STAR = {
+        idx: _starHit,
+        item: _starIt,
+        startCx: _starIt.cx,
+        startCy: _starIt.cy,
+        startMouse: _starXY,
+        moved: false,
+        // In Info tool a click would otherwise place a NEW star at
+        // the same spot — flag the trailing click for suppression
+        // even if the user doesn't actually drag.
+        forceSuppress: DRAW.tool === 'info',
+        preSnap: _captureSnapState()
+      };
+      var _scvStar = document.getElementById('roofCanvas');
+      if (_scvStar) _scvStar.style.cursor = 'grabbing';
+      e.preventDefault();
+      return;
+    }
+  }
   // Endpoint drag for addmeas/select tool
   if(DRAW.tool==='addmeas' && DRAW.selectedLine>=0) {
     var xy2 = getXY(e);
@@ -14724,7 +14757,10 @@ function onCanvasMouseDown(e) {
     var THRESH = t ? 12/t.s : 12;
     for(var ei=0; ei<2; ei++){
       var ep=l.pts[ei], dx=ep[0]-xy2[0], dy=ep[1]-xy2[1];
-      if(Math.sqrt(dx*dx+dy*dy)<THRESH){ DRAG_EP={lineIdx:DRAW.selectedLine,epIdx:ei}; return; }
+      if(Math.sqrt(dx*dx+dy*dy)<THRESH){
+        DRAG_EP = { lineIdx:DRAW.selectedLine, epIdx:ei, preSnap:_captureSnapState(), moved:false };
+        return;
+      }
     }
   }
   // Per-roof view drag (Move tool only) — for each non-active roof
@@ -14752,7 +14788,8 @@ function onCanvasMouseDown(e) {
           idx: _rri,
           startMouseImg: _hitXY,
           startOffset: (_rrR.viewOffset || [0, 0]).slice(),
-          moved: false
+          moved: false,
+          preSnap: _captureSnapState()
         };
         document.getElementById('roofCanvas').style.cursor = 'grabbing';
         e.preventDefault();
@@ -14781,11 +14818,11 @@ function onCanvasMouseDown(e) {
         var _startXY = getXY(e);
         if (typeof _sh.manualIdx === 'number' && Array.isArray(DRAW.manualSheetMeasures) && DRAW.manualSheetMeasures[_sh.manualIdx]){
           var _m0 = DRAW.manualSheetMeasures[_sh.manualIdx];
-          DRAG_SHEET = { kind:'manual', idx:_sh.manualIdx, startMouseImg:_startXY, startX:_m0.x, startY:_m0.y, moved:false };
+          DRAG_SHEET = { kind:'manual', idx:_sh.manualIdx, startMouseImg:_startXY, startX:_m0.x, startY:_m0.y, moved:false, preSnap:_captureSnapState() };
         } else if (_sh.key) {
           if (!DRAW.sheetLabelOffsets) DRAW.sheetLabelOffsets = {};
           var _o0 = DRAW.sheetLabelOffsets[_sh.key] || [0, 0];
-          DRAG_SHEET = { kind:'auto', key:_sh.key, startMouseImg:_startXY, startOff:_o0.slice(), moved:false };
+          DRAG_SHEET = { kind:'auto', key:_sh.key, startMouseImg:_startXY, startOff:_o0.slice(), moved:false, preSnap:_captureSnapState() };
         }
         if (DRAG_SHEET){
           _scv.style.cursor = 'grabbing';
@@ -14831,7 +14868,12 @@ function onCanvasMouseDown(e) {
           // Snapshot the whole outline at drag-start so the stretch
           // math always references the ORIGINAL AB / AD axes
           // (otherwise the basis drifts as we keep moving).
-          initialOutline: DRAW.outline.map(function(p){ return p.slice(); })
+          initialOutline: DRAW.outline.map(function(p){ return p.slice(); }),
+          moved: false,
+          // Full DRAW snapshot captured at drag-start so undo restores
+          // the pre-drag outline + every connected line. Pushed onto
+          // undoStack at mouseup only if the corner actually moved.
+          preSnap: _captureSnapState()
         };
         document.getElementById('roofCanvas').style.cursor = 'grabbing';
         e.preventDefault();
@@ -14852,9 +14894,30 @@ function onCanvasMouseDown(e) {
 }
 
 function onCanvasMouseUp(e) {
-  if(DRAG_EP) { saveSnapshot(); updateMeasTotals(); DRAG_EP=null; redrawAll(); return; }
+  // Star-drag end — commit the pre-drag snapshot so undo restores
+  // the star to its original position.
+  if (DRAG_INFO_STAR) {
+    if (DRAG_INFO_STAR.moved) {
+      SUPPRESS_NEXT_CLICK = true;
+      _pushSnap(DRAG_INFO_STAR.preSnap);
+      try { syncToRoofData && syncToRoofData(); } catch(err){}
+    } else if (DRAG_INFO_STAR.forceSuppress) {
+      // Info tool: even a no-move tap-on-star should NOT drop a new
+      // star on top of the existing one.
+      SUPPRESS_NEXT_CLICK = true;
+    }
+    DRAG_INFO_STAR = null;
+    var _cv5 = document.getElementById('roofCanvas');
+    if (_cv5) _cv5.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    redrawAll();
+    return;
+  }
+  if(DRAG_EP) {
+    if (DRAG_EP.moved && DRAG_EP.preSnap) _pushSnap(DRAG_EP.preSnap);
+    updateMeasTotals(); DRAG_EP=null; redrawAll(); return;
+  }
   if(DRAG_ROOF_VIEW) {
-    if (DRAG_ROOF_VIEW.moved) { SUPPRESS_NEXT_CLICK = true; try { saveSnapshot(); } catch(err){} }
+    if (DRAG_ROOF_VIEW.moved) { SUPPRESS_NEXT_CLICK = true; _pushSnap(DRAG_ROOF_VIEW.preSnap); }
     DRAG_ROOF_VIEW = null;
     var _cv3 = document.getElementById('roofCanvas');
     if (_cv3) _cv3.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
@@ -14865,7 +14928,7 @@ function onCanvasMouseUp(e) {
     // Suppress the click that's about to fire so it doesn't reopen
     // the edit popup right after a drag.  A true tap (moved===false)
     // falls through so the click handler still gets to run.
-    if (DRAG_SHEET.moved) { SUPPRESS_NEXT_CLICK = true; saveSnapshot(); }
+    if (DRAG_SHEET.moved) { SUPPRESS_NEXT_CLICK = true; _pushSnap(DRAG_SHEET.preSnap); }
     DRAG_SHEET = null;
     var _cv = document.getElementById('roofCanvas');
     if (_cv) _cv.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
@@ -14879,7 +14942,7 @@ function onCanvasMouseUp(e) {
     } else {
       try { autoPopulateGutters && autoPopulateGutters(); } catch(err){}
     }
-    saveSnapshot();
+    if (DRAG_OUTLINE_VERT.moved) _pushSnap(DRAG_OUTLINE_VERT.preSnap);
     try { syncToRoofData && syncToRoofData(); } catch(err){}
     // Clear any selected line — the regen rebuilt DRAW.lines so the
     // previously-selected entry no longer exists (or worse, the
@@ -14915,8 +14978,22 @@ document.addEventListener('mousemove', function(e) {
   redrawAll();
 });
 document.addEventListener('mouseup', function(e) {
+  if (DRAG_INFO_STAR) {
+    if (DRAG_INFO_STAR.moved) {
+      SUPPRESS_NEXT_CLICK = true;
+      _pushSnap(DRAG_INFO_STAR.preSnap);
+      try { syncToRoofData && syncToRoofData(); } catch(err){}
+    } else if (DRAG_INFO_STAR.forceSuppress) {
+      SUPPRESS_NEXT_CLICK = true;
+    }
+    DRAG_INFO_STAR = null;
+    var _cvS = document.getElementById('roofCanvas');
+    if (_cvS) _cvS.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    try { redrawAll(); } catch(err){}
+    return;
+  }
   if(DRAG_ROOF_VIEW){
-    if (DRAG_ROOF_VIEW.moved) { SUPPRESS_NEXT_CLICK = true; try { saveSnapshot(); } catch(err){} }
+    if (DRAG_ROOF_VIEW.moved) { SUPPRESS_NEXT_CLICK = true; _pushSnap(DRAG_ROOF_VIEW.preSnap); }
     DRAG_ROOF_VIEW = null;
     var _cv4 = document.getElementById('roofCanvas');
     if (_cv4) _cv4.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
@@ -14924,7 +15001,7 @@ document.addEventListener('mouseup', function(e) {
     return;
   }
   if(DRAG_SHEET){
-    if (DRAG_SHEET.moved) { SUPPRESS_NEXT_CLICK = true; try { saveSnapshot(); } catch(err){} }
+    if (DRAG_SHEET.moved) { SUPPRESS_NEXT_CLICK = true; _pushSnap(DRAG_SHEET.preSnap); }
     DRAG_SHEET = null;
     var _cv2 = document.getElementById('roofCanvas');
     if (_cv2) _cv2.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
@@ -14937,7 +15014,7 @@ document.addEventListener('mouseup', function(e) {
     } else {
       try { autoPopulateGutters && autoPopulateGutters(); } catch(err){}
     }
-    try { saveSnapshot(); } catch(err){}
+    if (DRAG_OUTLINE_VERT.moved) _pushSnap(DRAG_OUTLINE_VERT.preSnap);
     try { syncToRoofData && syncToRoofData(); } catch(err){}
     DRAW.selectedLine = -1;
     DRAW.selectedSection = -1;
@@ -15256,9 +15333,24 @@ function onCanvasMove(e) {
   if(PAN.active) return;
   var xy = getXY(e);
   DRAW.mouseX=xy[0]; DRAW.mouseY=xy[1];
+  // Drag info star — move the amber marker; leader line re-routes
+  // automatically because the redraw recomputes it from cx/cy.
+  if (DRAG_INFO_STAR) {
+    var _isIt = DRAG_INFO_STAR.item;
+    if (_isIt) {
+      var _isDx = xy[0] - DRAG_INFO_STAR.startMouse[0];
+      var _isDy = xy[1] - DRAG_INFO_STAR.startMouse[1];
+      if (Math.abs(_isDx) + Math.abs(_isDy) > 0.4) DRAG_INFO_STAR.moved = true;
+      _isIt.cx = DRAG_INFO_STAR.startCx + _isDx;
+      _isIt.cy = DRAG_INFO_STAR.startCy + _isDy;
+    }
+    redrawAll();
+    return;
+  }
   // Drag endpoint
   if(DRAG_EP) {
     DRAW.lines[DRAG_EP.lineIdx].pts[DRAG_EP.epIdx] = [xy[0],xy[1]];
+    DRAG_EP.moved = true;
     redrawAll(); return;
   }
   // Drag sheet label — manual measures write through to (x, y);
@@ -15294,6 +15386,7 @@ function onCanvasMove(e) {
   // corner snap on top, also bypassed by Shift, so the user can
   // freely take the building out of square.
   if(DRAG_OUTLINE_VERT) {
+    DRAG_OUTLINE_VERT.moved = true;
     // Use RAW cursor image coordinates here (bypass getXY's grid-
     // snap + magnet-to-nearby-corner snap), so the dragged corner
     // moves at the mouse's natural pixel precision. Without this,
@@ -16072,43 +16165,91 @@ function updateOutline() {
   syncToRoofData();
 }
 
+// Snapshot every piece of DRAW state that the user can change with an
+// action — so undo can put the world back exactly as it was before
+// that action. JSON-stringify gives us a cheap deep clone.
+function _captureSnapState() {
+  return JSON.stringify({
+    outline: DRAW.outline,
+    sections: DRAW.sections,
+    lines: DRAW.lines,
+    penetrations: DRAW.penetrations,
+    outlineDone: DRAW.outlineDone,
+    infoItems: DRAW.infoItems,
+    dimLabels: DRAW.dimLabels,
+    sheetGroupOverrides: DRAW.sheetGroupOverrides || {},
+    sheetGroupQtyOverrides: DRAW.sheetGroupQtyOverrides || {},
+    sheetLabelOffsets: DRAW.sheetLabelOffsets || {},
+    manualSheetMeasures: DRAW.manualSheetMeasures || [],
+    sheetOverrides: DRAW.sheetOverrides || {},
+    matSheetExtras: DRAW.matSheetExtras || [],
+    matSheetRowHidden: DRAW.matSheetRowHidden || {},
+    matCutListExtras: DRAW.matCutListExtras || {},
+    scaleMetresPerPx: DRAW.scaleMetresPerPx
+  });
+}
+function _applySnapState(snapStr) {
+  var s = JSON.parse(snapStr);
+  DRAW.outline = s.outline || [];
+  DRAW.sections = s.sections || [];
+  DRAW.lines = s.lines || [];
+  DRAW.penetrations = s.penetrations || [];
+  DRAW.outlineDone = !!s.outlineDone;
+  DRAW.infoItems = s.infoItems || [];
+  DRAW.dimLabels = s.dimLabels || [];
+  DRAW.sheetGroupOverrides = s.sheetGroupOverrides || {};
+  DRAW.sheetGroupQtyOverrides = s.sheetGroupQtyOverrides || {};
+  DRAW.sheetLabelOffsets = s.sheetLabelOffsets || {};
+  DRAW.manualSheetMeasures = s.manualSheetMeasures || [];
+  DRAW.sheetOverrides = s.sheetOverrides || {};
+  DRAW.matSheetExtras = s.matSheetExtras || [];
+  DRAW.matSheetRowHidden = s.matSheetRowHidden || {};
+  DRAW.matCutListExtras = s.matCutListExtras || {};
+  if (s.scaleMetresPerPx != null) DRAW.scaleMetresPerPx = s.scaleMetresPerPx;
+}
+// Push a pre-captured snapshot string onto the undo stack. Used by
+// drag handlers that capture state at drag-start and only commit it
+// at drag-end if the user actually moved.
+function _pushSnap(snapStr) {
+  if (!snapStr) return;
+  DRAW.undoStack.push(snapStr);
+  DRAW.redoStack = [];
+  if (DRAW.undoStack.length > 50) DRAW.undoStack.shift();
+}
+// IMPORTANT: call saveSnapshot BEFORE mutating state. Undo restores
+// the most recent entry on the undo stack, so that entry must capture
+// the world AS IT WAS before the user's action — not after.
 function saveSnapshot() {
-  DRAW.undoStack.push(JSON.stringify({
-    outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
-    penetrations:DRAW.penetrations, outlineDone:DRAW.outlineDone
-  }));
-  DRAW.redoStack=[]; // clear redo on new action
-  if(DRAW.undoStack.length>50) DRAW.undoStack.shift();
+  _pushSnap(_captureSnapState());
 }
 
 function undoLast() {
   if(DRAW.currentPts.length>0) { DRAW.currentPts.pop(); redrawAll(); return; }
   if(DRAW.undoStack.length===0) return;
-  // Save current state to redo
-  DRAW.redoStack.push(JSON.stringify({
-    outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
-    penetrations:DRAW.penetrations, outlineDone:DRAW.outlineDone
-  }));
-  var snap=JSON.parse(DRAW.undoStack.pop());
-  DRAW.outline=snap.outline; DRAW.sections=snap.sections;
-  DRAW.lines=snap.lines; DRAW.penetrations=snap.penetrations;
-  DRAW.outlineDone=snap.outlineDone;
+  DRAW.redoStack.push(_captureSnapState());
+  _applySnapState(DRAW.undoStack.pop());
   DRAW.selectedSection=-1; DRAW.selectedLine=-1; DRAW.selectedPen=-1;
-  hidePropPanel(); redrawAll(); syncToRoofData();
+  try { hidePropPanel(); } catch(e){}
+  try { renderInfoPanel && renderInfoPanel(); } catch(e){}
+  try { renderRoofSheetPlan && renderRoofSheetPlan(); } catch(e){}
+  try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
+  redrawAll();
+  try { syncToRoofData(); } catch(e){}
+  try { updateMeasTotals && updateMeasTotals(); } catch(e){}
 }
 
 function redoLast() {
   if(DRAW.redoStack.length===0) return;
-  DRAW.undoStack.push(JSON.stringify({
-    outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
-    penetrations:DRAW.penetrations, outlineDone:DRAW.outlineDone
-  }));
-  var snap=JSON.parse(DRAW.redoStack.pop());
-  DRAW.outline=snap.outline; DRAW.sections=snap.sections;
-  DRAW.lines=snap.lines; DRAW.penetrations=snap.penetrations;
-  DRAW.outlineDone=snap.outlineDone;
+  DRAW.undoStack.push(_captureSnapState());
+  _applySnapState(DRAW.redoStack.pop());
   DRAW.selectedSection=-1; DRAW.selectedLine=-1; DRAW.selectedPen=-1;
-  hidePropPanel(); redrawAll(); syncToRoofData();
+  try { hidePropPanel(); } catch(e){}
+  try { renderInfoPanel && renderInfoPanel(); } catch(e){}
+  try { renderRoofSheetPlan && renderRoofSheetPlan(); } catch(e){}
+  try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
+  redrawAll();
+  try { syncToRoofData(); } catch(e){}
+  try { updateMeasTotals && updateMeasTotals(); } catch(e){}
 }
 
 function clearAll() {
@@ -17579,6 +17720,7 @@ function deleteLineFromMeas() {
 
 function clearLineMeas() {
   if(_measLineIdx < 0) return;
+  saveSnapshot();
   DRAW.lines[_measLineIdx].measM = '';
   closeLineMeasPopup();
   redrawAll(); updateMeasTotals();
@@ -17674,6 +17816,9 @@ function confirmLineMeas() {
   if(_measLineIdx < 0) return;
   var val = parseFloat(document.getElementById('lineMeasInput').value);
   var l = DRAW.lines[_measLineIdx];
+  // Snapshot BEFORE mutating so undo can restore the previous type
+  // + measurement. (Was snapshotted after, which made undo a no-op.)
+  saveSnapshot();
   // Save type
   var typeEl = document.getElementById('lineMeasTypeSelect');
   if(typeEl && typeEl.value) l.type = typeEl.value;
@@ -17692,7 +17837,6 @@ function confirmLineMeas() {
   }
 
   closeLineMeasPopup();
-  saveSnapshot();
   redrawAll();
   updateMeasTotals();
 }
@@ -18398,7 +18542,11 @@ function _startInfoOverlayDrag(ev, item, mode) {
     boxX0: item.boxX, boxY0: item.boxY,
     boxW0: item.boxW, boxH0: item.boxH,
     font0: item.fontPx,
-    perImg: s * screenS // screen px per image px
+    perImg: s * screenS, // screen px per image px
+    moved: false,
+    // Pre-action snapshot so undo restores the box position / size /
+    // font BEFORE this drag. Only pushed on mouseup if user moved.
+    preSnap: _captureSnapState()
   };
   document.addEventListener('mousemove', _infoOverlayMove);
   document.addEventListener('mouseup', _infoOverlayUp);
@@ -18410,6 +18558,7 @@ function _infoOverlayMove(ev) {
   if (DRAW.infoItems.indexOf(d.item) < 0) { _infoOverlayUp(); return; }
   var dx = (ev.clientX - d.sx) / d.perImg;
   var dy = (ev.clientY - d.sy) / d.perImg;
+  if (Math.abs(dx) + Math.abs(dy) > 0.4) d.moved = true;
   if (d.mode === 'move') {
     d.item.boxX = d.boxX0 + dx;
     d.item.boxY = d.boxY0 + dy;
@@ -18429,8 +18578,10 @@ function _infoOverlayUp() {
   document.removeEventListener('mousemove', _infoOverlayMove);
   document.removeEventListener('mouseup', _infoOverlayUp);
   if (_infoOvDrag) {
-    try { saveSnapshot(); } catch(e){}
-    try { syncToRoofData(); } catch(e){}
+    if (_infoOvDrag.moved) {
+      try { _pushSnap(_infoOvDrag.preSnap); } catch(e){}
+      try { syncToRoofData(); } catch(e){}
+    }
     _infoOvDrag = null;
   }
 }
@@ -21136,17 +21287,23 @@ function _setSheetGroupOverride(origMm, newValue){
   if (!DRAW.sheetGroupOverrides) DRAW.sheetGroupOverrides = {};
   origMm = parseInt(origMm, 10); if (!isFinite(origMm) || origMm <= 0) return;
   var raw = String(newValue || '').trim();
+  // Compute what the new override would be so we can skip the snapshot
+  // when nothing's actually changing (typing the same number twice).
+  var prev = DRAW.sheetGroupOverrides[origMm];
+  var nextVal;
   if (raw === '') {
-    delete DRAW.sheetGroupOverrides[origMm];
+    nextVal = undefined;
   } else {
-    // Accept metres (e.g. "5.2") or mm (e.g. "5200"). Anything < 50
-    // we treat as metres; otherwise as mm.
     var n = parseFloat(raw);
     if (!isFinite(n) || n <= 0) return;
     var newMm = n < 50 ? Math.round(n * 1000) : Math.round(n);
     if (newMm < 100) return;
-    DRAW.sheetGroupOverrides[origMm] = newMm;
+    nextVal = newMm;
   }
+  if (prev === nextVal) return;
+  saveSnapshot();
+  if (nextVal === undefined) delete DRAW.sheetGroupOverrides[origMm];
+  else DRAW.sheetGroupOverrides[origMm] = nextVal;
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
   try { redrawAll(); } catch(e){}
@@ -21161,13 +21318,19 @@ function _setSheetGroupQtyOverride(origMm, newValue){
   if (!DRAW.sheetGroupQtyOverrides) DRAW.sheetGroupQtyOverrides = {};
   origMm = parseInt(origMm, 10); if (!isFinite(origMm) || origMm <= 0) return;
   var raw = String(newValue || '').trim();
+  var prev = DRAW.sheetGroupQtyOverrides[origMm];
+  var nextVal;
   if (raw === '') {
-    delete DRAW.sheetGroupQtyOverrides[origMm];
+    nextVal = undefined;
   } else {
     var n = parseInt(raw, 10);
     if (!isFinite(n) || n < 0) return;
-    DRAW.sheetGroupQtyOverrides[origMm] = n;
+    nextVal = n;
   }
+  if (prev === nextVal) return;
+  saveSnapshot();
+  if (nextVal === undefined) delete DRAW.sheetGroupQtyOverrides[origMm];
+  else DRAW.sheetGroupQtyOverrides[origMm] = nextVal;
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
 }
