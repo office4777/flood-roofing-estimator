@@ -542,6 +542,391 @@ app.get('/fergus-files/probe', requireAuth, requireSubscription, async (req, res
   res.json({ jobId, results });
 });
 
+// List the files / photos attached to a Fergus job so the frontend can
+// show them in a picker.  Walks the same candidate paths the upload
+// route knows about, accepts the first GET that returns an array (or a
+// payload containing one), normalises it into a uniform shape, and
+// passes the picked path back so subsequent /fergus-files/download
+// calls don't have to re-discover it.
+// Walk a wide net of candidate paths. Fergus does not publish a stable
+// public files API and the right surface varies per tenant. We include
+// v2 variants and the "job_files" path that Fergus's own UI labels
+// "Files & Photos".  Order matters — we accept the FIRST array-shaped
+// response that has at least one item.
+const FERGUS_LIST_CANDIDATES = [
+  '/jobs/{jobId}/project_gallery',
+  '/jobs/{jobId}/photos',
+  '/jobs/{jobId}/files',
+  '/jobs/{jobId}/attachments',
+  '/jobs/{jobId}/gallery',
+  '/jobs/{jobId}/documents',
+  '/jobs/{jobId}/job_files',
+  '/jobs/{jobId}/job_photos',
+  '/jobs/{jobId}/uploads',
+  '/v2/jobs/{jobId}/files',
+  '/v2/jobs/{jobId}/photos',
+  '/v2/jobs/{jobId}/attachments',
+  '/v2/jobs/{jobId}/gallery',
+  '/v2/jobs/{jobId}/job_files',
+  '/job/{jobId}/files',
+  '/job/{jobId}/photos',
+];
+
+function _normaliseFergusFile(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  // Cover the half-dozen field names Fergus uses across endpoints —
+  // the picker needs at minimum an id, a display name, a content-type
+  // hint and either a URL or a download path.
+  const id   = raw.id || raw.uuid || raw.file_id || raw.attachment_id || raw.gallery_id || null;
+  const name = raw.name || raw.filename || raw.title || raw.original_name || raw.file_name || raw.display_name || ('file-' + (id || ''));
+  const url  = raw.url || raw.public_url || raw.download_url || raw.path || raw.file_url || raw.original_url || raw.signed_url || raw.s3_url || raw.cdn_url || null;
+  const thumb= raw.thumbnail || raw.thumb_url || raw.preview_url || raw.thumbnail_url || raw.thumb || null;
+  const mime = raw.mime_type || raw.content_type || raw.contentType || raw.type || raw.file_type || '';
+  return { id, name, url, thumbnail: thumb || url, contentType: mime };
+}
+
+app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res) => {
+  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const jobId = req.query.jobId;
+  if (!jobId) return res.status(400).json({ error: 'jobId query param required' });
+
+  // If the env has pinned a known-good list path, use it directly;
+  // otherwise walk the candidates and stop at the first array-shaped
+  // response with at least one item.
+  const candidates = process.env.FERGUS_FILES_PATH
+    ? [process.env.FERGUS_FILES_PATH, ...FERGUS_LIST_CANDIDATES]
+    : FERGUS_LIST_CANDIDATES;
+
+  const attempts = [];
+  for (const tpl of candidates) {
+    const path = FERGUS_PREFIX + tpl.replace('{jobId}', encodeURIComponent(jobId));
+    const url  = `https://${FERGUS_HOST}${path}`;
+    try {
+      const r = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+          'Accept':        'application/json',
+        },
+      });
+      const text = await r.text();
+      let parsed = null; try { parsed = JSON.parse(text); } catch {}
+      // Always stash a short shape summary so the picker can show the
+      // user exactly why no files came back — keys present, array
+      // length, status code.
+      const summary = parsed && typeof parsed === 'object'
+        ? (Array.isArray(parsed)
+            ? { type:'array', length: parsed.length, firstKeys: parsed[0] && typeof parsed[0]==='object' ? Object.keys(parsed[0]).slice(0,12) : null }
+            : { type:'object', keys: Object.keys(parsed).slice(0,15) })
+        : { type: typeof parsed, sample: String(text).slice(0,120) };
+      attempts.push({ path: tpl, status: r.status, ok: r.ok, summary });
+      if (!r.ok || !parsed) continue;
+      // Find the array — Fergus wraps lists in several shapes (.data,
+      // .files, .photos, …) so peel one level of nesting if needed.
+      let arr = null;
+      if (Array.isArray(parsed)) arr = parsed;
+      else if (Array.isArray(parsed.data)) arr = parsed.data;
+      else if (Array.isArray(parsed.files)) arr = parsed.files;
+      else if (Array.isArray(parsed.photos)) arr = parsed.photos;
+      else if (Array.isArray(parsed.attachments)) arr = parsed.attachments;
+      else if (Array.isArray(parsed.items)) arr = parsed.items;
+      else if (Array.isArray(parsed.records)) arr = parsed.records;
+      else if (parsed.value && Array.isArray(parsed.value.data)) arr = parsed.value.data;
+      else if (parsed.result && Array.isArray(parsed.result)) arr = parsed.result;
+      else if (parsed.result && Array.isArray(parsed.result.files)) arr = parsed.result.files;
+      if (!arr) continue;
+      const files = arr.map(_normaliseFergusFile).filter(Boolean);
+      if (!files.length) continue;
+      return res.json({ ok: true, used: tpl, count: files.length, files, attempts });
+    } catch (e) {
+      attempts.push({ path: tpl, error: e.message });
+    }
+  }
+  // Fallback strategy — when every sibling path 404s but /jobs/{id}
+  // returns 200, two scenarios are still in play:
+  //   A) the tenant exposes attachments INSIDE the job blob (walk for
+  //      a nested file-shaped array); or
+  //   B) the tenant routes file endpoints under a DIFFERENT id field
+  //      than the api id we got from the job-search response — common
+  //      on Fergus tenants where the web app's URL uses
+  //      /jobs/view/<short_id>/project_gallery while the api id is a
+  //      9-digit number. Extract every plausible id from the blob and
+  //      retry the candidate paths with each.
+  try {
+    const jobPath = FERGUS_PREFIX + '/jobs/' + encodeURIComponent(jobId);
+    const jobUrl  = `https://${FERGUS_HOST}${jobPath}`;
+    const r = await fetch(jobUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+        'Accept':        'application/json',
+      },
+    });
+    const text = await r.text();
+    let parsed = null; try { parsed = JSON.parse(text); } catch {}
+    if (parsed && r.ok) {
+      // Unwrap nested envelopes — Fergus returns {result, data}, but
+      // either field can carry the actual job depending on tenant.
+      let job = parsed;
+      const envs = [];
+      for (let depth = 0; depth < 4; depth++) {
+        if (!job || typeof job !== 'object' || Array.isArray(job)) break;
+        if (job.data && typeof job.data === 'object')       { envs.push('data');   job = job.data; continue; }
+        if (job.result && typeof job.result === 'object')   { envs.push('result'); job = job.result; continue; }
+        if (job.value && typeof job.value === 'object')     { envs.push('value');  job = job.value; continue; }
+        break;
+      }
+      // (B) Retry the candidate paths with every alternative id we
+      // can find in the job blob. The Fergus web app uses
+      //   /jobs/view/<internal_id>/project_gallery
+      // for the gallery URL — that internal id is NOT the api id we
+      // already tried, so a fresh round of GETs with each plausible
+      // id often surfaces a real file array on tenants where the
+      // sibling endpoints expect the internal/route flavour.
+      const ID_HINT_KEYS = [
+        'internal_job_id','internal_id','route_id','web_id','display_id',
+        'job_no','job_number','jobNo','number','external_id',
+        'short_id','public_id','customer_id'
+      ];
+      const altIds = new Set();
+      function collectIds(node, depth){
+        if (depth > 3 || !node || typeof node !== 'object') return;
+        if (Array.isArray(node)){ node.slice(0, 30).forEach(v => collectIds(v, depth + 1)); return; }
+        for (const k of Object.keys(node)){
+          const lower = k.toLowerCase();
+          if (ID_HINT_KEYS.some(h => h === lower) && (typeof node[k] === 'string' || typeof node[k] === 'number')){
+            const v = String(node[k]).trim();
+            if (v && v !== String(jobId)) altIds.add(v);
+          }
+          if (typeof node[k] === 'object') collectIds(node[k], depth + 1);
+        }
+      }
+      collectIds(job, 0);
+      const altIdsArr = Array.from(altIds);
+      if (altIdsArr.length){
+        for (const altId of altIdsArr){
+          for (const tpl of candidates){
+            const path = FERGUS_PREFIX + tpl.replace('{jobId}', encodeURIComponent(altId));
+            const url  = `https://${FERGUS_HOST}${path}`;
+            try {
+              const ar = await fetch(url, {
+                method: 'GET',
+                headers: {
+                  'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+                  'Accept':        'application/json',
+                },
+              });
+              const atext = await ar.text();
+              let aparsed = null; try { aparsed = JSON.parse(atext); } catch {}
+              const asummary = aparsed && typeof aparsed === 'object'
+                ? (Array.isArray(aparsed)
+                    ? { type:'array', length: aparsed.length, firstKeys: aparsed[0] && typeof aparsed[0]==='object' ? Object.keys(aparsed[0]).slice(0,12) : null }
+                    : { type:'object', keys: Object.keys(aparsed).slice(0,15) })
+                : { type: typeof aparsed, sample: String(atext).slice(0,120) };
+              attempts.push({ path: tpl + ' [altId=' + altId + ']', status: ar.status, ok: ar.ok, summary: asummary });
+              if (!ar.ok || !aparsed) continue;
+              let arr2 = null;
+              if (Array.isArray(aparsed)) arr2 = aparsed;
+              else if (Array.isArray(aparsed.data)) arr2 = aparsed.data;
+              else if (Array.isArray(aparsed.files)) arr2 = aparsed.files;
+              else if (Array.isArray(aparsed.photos)) arr2 = aparsed.photos;
+              else if (Array.isArray(aparsed.attachments)) arr2 = aparsed.attachments;
+              else if (Array.isArray(aparsed.items)) arr2 = aparsed.items;
+              else if (Array.isArray(aparsed.records)) arr2 = aparsed.records;
+              else if (aparsed.value && Array.isArray(aparsed.value.data)) arr2 = aparsed.value.data;
+              else if (aparsed.result && Array.isArray(aparsed.result)) arr2 = aparsed.result;
+              else if (aparsed.result && Array.isArray(aparsed.result.files)) arr2 = aparsed.result.files;
+              else if (aparsed.result && Array.isArray(aparsed.result.data)) arr2 = aparsed.result.data;
+              if (!arr2) continue;
+              const files = arr2.map(_normaliseFergusFile).filter(Boolean);
+              if (!files.length) continue;
+              return res.json({ ok: true, used: tpl + ' (altId ' + altId + ')', count: files.length, files, attempts });
+            } catch (e) {
+              attempts.push({ path: tpl + ' [altId=' + altId + ']', error: e.message });
+            }
+          }
+        }
+      }
+
+      // Recursive search — walk up to 4 levels deep looking for an
+      // array of objects whose first item has file-like fields.
+      const FILE_HINT_KEYS = ['url','public_url','download_url','file_url','signed_url','s3_url','original_url','path','name','filename','file_name','original_name','mime_type','content_type','thumbnail','thumb_url'];
+      function looksLikeFile(o){
+        if (!o || typeof o !== 'object' || Array.isArray(o)) return false;
+        const keys = Object.keys(o);
+        return FILE_HINT_KEYS.some(k => keys.includes(k));
+      }
+      const found = [];   // { path, items }
+      function walk(node, path, depth){
+        if (depth > 4 || !node || typeof node !== 'object') return;
+        if (Array.isArray(node)){
+          if (node.length && looksLikeFile(node[0])){ found.push({ path, items: node }); return; }
+          // Don't descend into giant arrays of non-files (line items,
+          // notes, etc.) — they balloon the search space.
+          if (node.length <= 30) node.forEach((v, i) => walk(v, path + '[' + i + ']', depth + 1));
+          return;
+        }
+        // Prefer obvious file-bucket keys first so the right array
+        // wins even when sibling arrays exist.
+        const HINT_KEY_ORDER = ['attachments','files','photos','documents','gallery','project_gallery','job_files','job_photos','uploads','images','media'];
+        const keys = Object.keys(node).sort((a,b) => {
+          const ai = HINT_KEY_ORDER.indexOf(a.toLowerCase());
+          const bi = HINT_KEY_ORDER.indexOf(b.toLowerCase());
+          if (ai >= 0 && bi < 0) return -1;
+          if (bi >= 0 && ai < 0) return  1;
+          if (ai >= 0 && bi >= 0) return ai - bi;
+          return 0;
+        });
+        for (const k of keys){
+          walk(node[k], path ? path + '.' + k : k, depth + 1);
+          if (found.length) return;   // first match wins
+        }
+      }
+      walk(job, '', 0);
+      const summary = {
+        type: 'object',
+        envelopes: envs,
+        topKeys: (typeof job === 'object' && job) ? Object.keys(job).slice(0, 40) : null,
+        altIdsFound: altIdsArr,
+        scannedFor: 'embedded file array + alternative job ids',
+        matchedPath: found[0] ? found[0].path : null,
+        matchedLength: found[0] ? found[0].items.length : 0,
+      };
+      attempts.push({ path: 'job-blob-scan', status: r.status, ok: r.ok, summary });
+
+      // (C) Last-ditch sub-resource scan. The job blob's `links`
+      // section + nested resources expose related entities:
+      // customer, site, active quote, phases. Some Fergus tenants
+      // surface attachments at /customers/{id}/files, /sites/{id}/
+      // photos, /jobs/{id}/quotes/{qid}/files etc.  Try a curated
+      // set of these against the ids we just collected.
+      const subResources = [];
+      if (job && job.customer && job.customer.id) {
+        const cid = String(job.customer.id);
+        subResources.push({ kind:'customer', id:cid, paths:[
+          '/customers/{id}/files', '/customers/{id}/photos',
+          '/customers/{id}/attachments', '/customers/{id}/documents',
+        ] });
+      }
+      if (job && job.siteAddress && job.siteAddress.id) {
+        const sid = String(job.siteAddress.id);
+        subResources.push({ kind:'site', id:sid, paths:[
+          '/sites/{id}/files', '/sites/{id}/photos',
+          '/sites/{id}/attachments', '/sites/{id}/gallery',
+        ] });
+      }
+      if (job && job.activeQuote && job.activeQuote.id) {
+        const qid = String(job.activeQuote.id);
+        subResources.push({ kind:'quote', id:qid, paths:[
+          '/jobs/' + jobId + '/quotes/{id}/files',
+          '/jobs/' + jobId + '/quotes/{id}/photos',
+          '/jobs/' + jobId + '/quotes/{id}/attachments',
+          '/quotes/{id}/files', '/quotes/{id}/photos',
+        ] });
+      }
+      // Phases is a list — try the bare endpoint just in case it
+      // returns something useful (some tenants stash uploads under
+      // phase items).
+      subResources.push({ kind:'phases', id:jobId, paths:[
+        '/jobs/{id}/phases'
+      ] });
+      for (const sub of subResources) {
+        for (const tpl of sub.paths) {
+          const path = FERGUS_PREFIX + tpl.replace('{id}', encodeURIComponent(sub.id));
+          const url  = `https://${FERGUS_HOST}${path}`;
+          try {
+            const sr = await fetch(url, {
+              method: 'GET',
+              headers: {
+                'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+                'Accept':        'application/json',
+              },
+            });
+            const stext = await sr.text();
+            let sparsed = null; try { sparsed = JSON.parse(stext); } catch {}
+            const ssummary = sparsed && typeof sparsed === 'object'
+              ? (Array.isArray(sparsed)
+                  ? { type:'array', length: sparsed.length, firstKeys: sparsed[0] && typeof sparsed[0]==='object' ? Object.keys(sparsed[0]).slice(0,12) : null }
+                  : { type:'object', keys: Object.keys(sparsed).slice(0,15) })
+              : { type: typeof sparsed, sample: String(stext).slice(0,120) };
+            attempts.push({ path: tpl + ' [' + sub.kind + '=' + sub.id + ']', status: sr.status, ok: sr.ok, summary: ssummary });
+            if (!sr.ok || !sparsed) continue;
+            // Walk the sub-resource response for a file-shaped array.
+            const subFound = [];
+            (function subWalk(node, path, depth){
+              if (depth > 3 || !node || typeof node !== 'object') return;
+              if (Array.isArray(node)){
+                if (node.length && looksLikeFile(node[0])){ subFound.push({ path, items: node }); return; }
+                if (node.length <= 30) node.forEach((v, i) => subWalk(v, path + '[' + i + ']', depth + 1));
+                return;
+              }
+              for (const k of Object.keys(node)){
+                subWalk(node[k], path ? path + '.' + k : k, depth + 1);
+                if (subFound.length) return;
+              }
+            })(sparsed.data || sparsed.result || sparsed, '', 0);
+            if (subFound.length){
+              const files = subFound[0].items.map(_normaliseFergusFile).filter(Boolean);
+              if (files.length){
+                return res.json({ ok: true, used: tpl + ' (' + sub.kind + ' ' + sub.id + ')', count: files.length, files, attempts });
+              }
+            }
+          } catch (e) {
+            attempts.push({ path: tpl + ' [' + sub.kind + '=' + sub.id + ']', error: e.message });
+          }
+        }
+      }
+      if (found.length){
+        const files = found[0].items.map(_normaliseFergusFile).filter(Boolean);
+        if (files.length){
+          return res.json({ ok: true, used: 'job-blob:' + found[0].path, count: files.length, files, attempts });
+        }
+      }
+    } else {
+      attempts.push({ path: 'job-blob-scan', status: r.status, ok: r.ok, summary: { type: typeof parsed, sample: String(text).slice(0,120) } });
+    }
+  } catch (e) {
+    attempts.push({ path: 'job-blob-scan', error: e.message });
+  }
+  res.json({ ok: false, files: [], attempts, hint: 'No candidate path or job-blob scan returned a file array. Each attempt above shows the response status + body shape so we can pick the right one.' });
+});
+
+// Stream a single Fergus file back to the browser. The caller supplies
+// the URL (from /fergus-files/list); we re-fetch with the API key so
+// the bytes never expose the credential to the client. Used by the
+// "Select photo from Fergus" flow to grab the picked image and pipe
+// it into the roof-picture preview.
+app.get('/fergus-files/download', requireAuth, requireSubscription, async (req, res) => {
+  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: 'url query param required' });
+  // Only allow URLs whose host matches the configured Fergus host (or a
+  // sibling like cdn / media subdomain) so this proxy can't be turned
+  // into an open redirect / SSRF.
+  let parsed;
+  try { parsed = new URL(url); } catch { return res.status(400).json({ error: 'invalid url' }); }
+  const allowedHostSuffix = (FERGUS_HOST.replace(/^api\./, '')) || 'fergus.com';
+  if (!parsed.host.endsWith(allowedHostSuffix)) {
+    return res.status(403).json({ error: 'host not allowed', host: parsed.host, allowedSuffix: allowedHostSuffix });
+  }
+  try {
+    const r = await fetch(url, {
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY },
+    });
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      return res.status(r.status).json({ error: 'fergus returned ' + r.status, body: text.slice(0, 400) });
+    }
+    res.set('Content-Type', r.headers.get('content-type') || 'application/octet-stream');
+    const cd = r.headers.get('content-disposition');
+    if (cd) res.set('Content-Disposition', cd);
+    const buf = Buffer.from(await r.arrayBuffer());
+    res.send(buf);
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
 
 app.get('/jms/debug', requireAuth, (req, res) => {
   const k = process.env.FERGUS_API_KEY || '';
