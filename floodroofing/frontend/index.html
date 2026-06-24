@@ -23949,7 +23949,16 @@ function buildGableRoofLines(outline) {
   });
   var bbW = maxX - minX, bbH = maxY - minY;
   var horiz = bbW >= bbH;
-  var midY = (minY + maxY) / 2, midX = (minX + maxX) / 2;
+  // Ridge can slide along the gable barge — DRAW.gableRidgeOffset is
+  // a signed fraction (-1..+1) of the half-bay.  0 = centred between
+  // the two gutters; +0.5 pushes the ridge halfway toward the higher
+  // gutter (one bay gets longer sheets, the other shorter).  Clamped
+  // to keep at least 10% bay on each side so neither face collapses.
+  var ridgeOff = (window.DRAW && typeof DRAW.gableRidgeOffset === 'number')
+    ? Math.max(-0.9, Math.min(0.9, DRAW.gableRidgeOffset))
+    : 0;
+  var midY = (minY + maxY) / 2 + (ridgeOff * bbH * 0.5);
+  var midX = (minX + maxX) / 2 + (ridgeOff * bbW * 0.5);
   // Perturb the midline off any outline vertex so polygon-line
   // crossings don't sit on a degenerate tangent (an L-shape whose
   // notch top lies exactly at midY).  A sub-pixel shift is enough
@@ -24013,7 +24022,20 @@ function buildGableRoofLines(outline) {
   }
 
   // Classify each outline edge by orientation.
+  // Optional override: DRAW.gableEnds is an array of outline-edge
+  // indices the user has marked as TRUE gable ends.  When set, ONLY
+  // those perpendicular edges emit a rake barge; the remaining
+  // perpendicular edges fall through to hip-end treatment (the
+  // strip generator infers a hip face from the gutter+ridge corner
+  // when no barge stamps it as a rake).  An empty / undefined
+  // gableEnds keeps the historical auto-classify behaviour.
+  var manualEnds = (window.DRAW && Array.isArray(DRAW.gableEnds) && DRAW.gableEnds.length)
+    ? new Set(DRAW.gableEnds) : null;
   var newBarges = [];
+  // Track which edges turned into hip-ends so the strip engine can
+  // find them without re-deriving orientation (consumed downstream
+  // via DRAW.gableHipEndEdges).
+  var hipEndEdges = [];
   for (var i = 0; i < outline.length; i++){
     var a = outline[i], b = outline[(i+1) % outline.length];
     var dx = Math.abs(b[0] - a[0]), dy = Math.abs(b[1] - a[1]);
@@ -24024,10 +24046,37 @@ function buildGableRoofLines(outline) {
       // here keeps the build self-contained for tests).
       result.push({ type: 'gutter', pts: [a.slice(), b.slice()] });
     } else {
-      // Perpendicular to ridge → rake barge (gable end edge).
-      newBarges.push({ type: 'barge', pts: [a.slice(), b.slice()] });
+      // Perpendicular to ridge — either a rake barge (gable end) or
+      // a hip end, depending on the user's gableEnds override.
+      if (!manualEnds || manualEnds.has(i)){
+        // SPLIT the barge at the ridge crossing.  Two half-barges
+        // (gutter→ridge_tip + ridge_tip→other_gutter) let the
+        // downstream face-walker stop at the ridge endpoint, so the
+        // two faces (north/south slopes) get distinct perpPx and
+        // therefore distinct sheet lengths.  When the ridge is
+        // off-centre (DRAW.gableRidgeOffset != 0) this is what
+        // makes the longer / shorter sheets per face actually fall
+        // out of the strip engine.
+        var crossesRidge = horiz
+          ? (Math.min(a[1], b[1]) < midY && Math.max(a[1], b[1]) > midY)
+          : (Math.min(a[0], b[0]) < midX && Math.max(a[0], b[0]) > midX);
+        if (crossesRidge){
+          var rTipX = horiz ? a[0] : midX;
+          var rTipY = horiz ? midY : a[1];
+          newBarges.push({ type: 'barge', pts: [a.slice(), [rTipX, rTipY]] });
+          newBarges.push({ type: 'barge', pts: [[rTipX, rTipY], b.slice()] });
+        } else {
+          newBarges.push({ type: 'barge', pts: [a.slice(), b.slice()] });
+        }
+      } else {
+        hipEndEdges.push(i);
+        // No barge stamp.  The strip engine sees the gutter–ridge
+        // corner with no barge and renders a hip-end face on this
+        // edge, just like it does on an L-shape's reflex corner.
+      }
     }
   }
+  if (window.DRAW) { DRAW.gableHipEndEdges = hipEndEdges; }
   // Tag rake barges as starter/finish by their x position (existing
   // helper) so cut-list grouping picks them up.
   return result.concat(_tagGableBargesStarterFinish(newBarges));
