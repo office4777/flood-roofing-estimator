@@ -25050,16 +25050,9 @@ function renderRoofSheetPlan() {
     combined.groups = Object.keys(combinedGroups).map(function(k){ return combinedGroups[k]; });
     window._lastSheetCounts = combined;
     _loadRoofToCurrent(savedActive);
-    // Re-render the Materials cut list now that fresh _lastSheetCounts
-    // is available — otherwise the "Roof sheets" section stays on its
-    // "Generate the Roof Sheet Plan above" placeholder from before
-    // the plan ran.
-    try { if (typeof renderMaterialsCutLists === 'function') renderMaterialsCutLists(); } catch(e){}
     return;
   }
   _renderRoofSheetPlanInner();
-  // Same trickle-down for the single-roof path.
-  try { if (typeof renderMaterialsCutLists === 'function') renderMaterialsCutLists(); } catch(e){}
 }
 
 function _renderRoofSheetPlanInner() {
@@ -25126,18 +25119,12 @@ function _renderRoofSheetPlanInner() {
   var SHORT_MM = 3900;
   var LONG_MM  = 7650;
   function orderedLengthMm(sheetMetres) {
-    // Sheets are ordered at the EXACT measured length plus a
-    // Configurable gutter overhang — DEFAULTS TO 0 mm so the sheets
-    // to order match the Roof Map sheet labels exactly with no
-    // rounding and no padding (the user explicitly asked for this).
-    // Set fr_sheet_overhang_mm in the Sheet layout settings card if
-    // you want overhang added back.
-    var overhangMm = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '0');
-    if (!isFinite(overhangMm) || overhangMm < 0) overhangMm = 0;
-    var mm = Math.round(sheetMetres * 1000 + overhangMm);
-    // Don't enforce any minimum — let short sheets pass through at
-    // their measured length.
-    return mm;
+    var mm = Math.ceil(sheetMetres * 1000 + 50);  // +50mm trim
+    // Round up to the nearest 100mm — roofing iron is cut-to-order
+    // at the supplier so there's no benefit to forcing every sheet
+    // into a SHORT (3900mm) or LONG (7650mm) standard length. Min
+    // 1000mm to leave enough material for endlap.
+    return Math.max(1000, Math.ceil(mm / 100) * 100);
   }
 
   // ── Geometry helpers ───────────────────────────────────────────
@@ -25590,7 +25577,7 @@ function _renderRoofSheetPlanInner() {
       nx: nx, ny: ny,            // inward perpendicular unit
       perpPx: perpPx,
       planSheetM:  perpPx * effectiveScale,
-      sheetM:      _calibratedSheetM(perpPx * effectiveScale * pitchFactor),
+      sheetM:      perpPx * effectiveScale * pitchFactor,
       area: polyArea(poly),
       centroid: cc
     });
@@ -25616,7 +25603,7 @@ function _renderRoofSheetPlanInner() {
     var perpPx=0; p.forEach(function(pp){var d=(pp[0]-a[0])*nx+(pp[1]-a[1])*ny; if(d>perpPx)perpPx=d;});
     return { poly:p, type:faceType, a:[a[0],a[1]], b:[b[0],b[1]], gL:gL, gAng:Math.atan2(gdy,gdx),
       tx:gdx/gL, ty:gdy/gL, nx:nx, ny:ny, perpPx:perpPx,
-      planSheetM:perpPx*effectiveScale, sheetM:_calibratedSheetM(perpPx*effectiveScale*pitchFactor),
+      planSheetM:perpPx*effectiveScale, sheetM:perpPx*effectiveScale*pitchFactor,
       area:polyArea(p), centroid:cc, color:color };
   }
   function _buildTFaces(ol){
@@ -25821,7 +25808,7 @@ function _renderRoofSheetPlanInner() {
         poly: poly, type: (poly.length === 3 ? 'hip-end' : 'long-side'),
         a: a, b: b, gL: gL, gAng: Math.atan2(gdy, gdx),
         tx: gdx/gL, ty: gdy/gL, nx: nx, ny: ny, perpPx: perpPx,
-        planSheetM: perpPx*effectiveScale, sheetM: _calibratedSheetM(perpPx*effectiveScale*pitchFactor),
+        planSheetM: perpPx*effectiveScale, sheetM: perpPx*effectiveScale*pitchFactor,
         area: polyArea(poly), centroid: cc
       });
     });
@@ -25834,15 +25821,6 @@ function _renderRoofSheetPlanInner() {
     outEl.innerHTML = '<p style="color:var(--text2)">Could not detect any roof faces. Make sure hip/ridge lines connect to the gutter corners.</p>';
     return;
   }
-
-  // ── Apply manual sheet-length overrides ─────────────────────────
-  // The user can click any sheet-length label on the Roof Map and type
-  // a custom length — that's stored in DRAW.sheetOverrides keyed by
-  // _sheetDimKey(ridge, perp). Each face here gets matched to its
-  // closest ridge-equivalent line on the high side, and any matching
-  // override overwrites face.sheetM so the Sheets-To-Order panel and
-  // every downstream consumer reflects the manual length.
-  _applySheetOverridesToFaces(faces);
 
   // ── Main rectangle detection (for phantom-4-hip extension) ────
   // The "main rectangle" is the largest axis-aligned rectangle that
@@ -26229,7 +26207,7 @@ function _renderRoofSheetPlanInner() {
         var d = (p[0]-aStart[0])*nx + (p[1]-aStart[1])*ny;
         if (d > maxDeep) maxDeep = d;
       });
-      var stripPieceM = _calibratedSheetM(maxDeep * effectiveScale * pitchFactor);
+      var stripPieceM = maxDeep * effectiveScale * pitchFactor;
       // Strip's "would-be" full rectangle (before face-poly clipping).
       // If clipped area is materially smaller than the rectangle, the
       // strip has an offcut cut at a hip — i.e. it's a corner donor.
@@ -27314,7 +27292,7 @@ function _renderRoofSheetPlanInner() {
         tx: tx, ty: ty, nx: nx, ny: ny,
         perpPx: perpPx,
         planSheetM: perpPx * effectiveScale,
-        sheetM:     _calibratedSheetM(perpPx * effectiveScale * pitchFactor),
+        sheetM:     perpPx * effectiveScale * pitchFactor,
         area: polyArea(poly),
         centroid: cent,
         color: color
@@ -27331,7 +27309,7 @@ function _renderRoofSheetPlanInner() {
         nx: -gdy/gL, ny: gdx/gL,
         perpPx: perpPx,
         planSheetM: perpPx * effectiveScale,
-        sheetM:     _calibratedSheetM(perpPx * effectiveScale * pitchFactor),
+        sheetM:     perpPx * effectiveScale * pitchFactor,
         area: polyArea(poly),
         centroid: polyCentroid(poly),
         color: color
@@ -27692,71 +27670,43 @@ function _renderRoofSheetPlanInner() {
     var wingLeftY0 = wingApex[1];
     var wingLeftY1 = valleyEnd[1];                 // 550
     var wingPerpPx = wingApex[0] - wx0;            // 150 (half wing width)
-    var _wingWDonors = [];
-    var _wingWPoly = faceWingW.poly;
     y = wingLeftY0;
     while (y < wingLeftY1 - 0.1) {
       var ya = y, yb = Math.min(y + coverPxL, wingLeftY1);
-      // Clip the raw strip rectangle to the face polygon — without this,
-      // strips at the top + bottom of the wing extend through the hip
-      // line and the valley line into the adjacent main faces.  Wing E
-      // (below) already clips this way; the W path was missing it.
-      var band = [[wx0, ya], [wingApex[0], ya], [wingApex[0], yb], [wx0, yb]];
-      var clip = clipToConvexPoly(band, _wingWPoly);
-      if (!clip || clip.length < 3 || polyArea(clip) <= 1) { y += coverPxL; continue; }
-      var wDonor = {
+      var poly = [[wx0, ya], [wingApex[0], ya], [wingApex[0], yb], [wx0, yb]];
+      stripsWing.push({
         face: faceWingW, color: COL_PURPLE,
-        poly: clip, centroid: polyCentroid(clip),
-        orderedLengthMm: orderedLengthMm(_calibratedSheetM(wingPerpPx * effectiveScale * pitchFactor)),
-        pieceM: _calibratedSheetM(wingPerpPx * effectiveScale * pitchFactor),
+        poly: poly, centroid: polyCentroid(poly),
+        orderedLengthMm: orderedLengthMm(wingPerpPx * effectiveScale * pitchFactor),
+        pieceM: wingPerpPx * effectiveScale * pitchFactor,
         isOffcut: false, isPhantom: false
-      };
-      stripsWing.push(wDonor);
-      _wingWDonors.push(wDonor);
+      });
       y += coverPxL;
     }
 
     // ── Wing E face (NEW short sheets, purple) ──
-    // Mirror the W face: only the area between the wing apex level and
-    // the valley end gets NEW purple donor sheets — the NE hip-end
-    // triangle ABOVE the apex is OFFCUTS of those same donors (each
-    // ridge-row sheet gets cut at the valley; the cut piece is laid
-    // into the hip).  Without this match, the E face used to tile the
-    // entire span from wy0 down (~14 strips) while the W face had
-    // ~10, so the cut list over-ordered purple by the hip-end count
-    // (user: "ridge line worth of sheets, then some cut at the valley
-    // fill the hip").
+    // Tile the whole E face with horizontal sheets, each clipped to the
+    // convex E-face polygon.  Clipping handles the NE-hip upper triangle
+    // (above the wing apex), the rectangular body, and the valley cut on
+    // the lower-east — for ANY wing width.  Starts at the wing N gutter so
+    // the E-eave-top triangle is covered.
     var _wingEPoly = faceWingE.poly;
-    var _wingEDonors = [];
-    y = wingApex[1];
+    y = wy0;
     while (y < valleyEnd[1] - 0.1) {
       var ya = y, yb = Math.min(y + coverPxL, valleyEnd[1]);
       var band = [[wingApex[0], ya], [wx1, ya], [wx1, yb], [wingApex[0], yb]];
       var clip = clipToConvexPoly(band, _wingEPoly);
       if (clip && clip.length >= 3 && polyArea(clip) > 1) {
-        var donor = {
+        stripsWing.push({
           face: faceWingE, color: COL_PURPLE,
           poly: clip, centroid: polyCentroid(clip),
-          orderedLengthMm: orderedLengthMm(_calibratedSheetM(wingPerpPx * effectiveScale * pitchFactor)),
-          pieceM: _calibratedSheetM(wingPerpPx * effectiveScale * pitchFactor),
+          orderedLengthMm: orderedLengthMm(wingPerpPx * effectiveScale * pitchFactor),
+          pieceM: wingPerpPx * effectiveScale * pitchFactor,
           isOffcut: false, isPhantom: false
-        };
-        stripsWing.push(donor);
-        _wingEDonors.push(donor);
+        });
       }
       y += coverPxL;
     }
-
-    // The wing NE hip-end (above the apex) is intentionally NOT tiled
-    // with purple — the donor cascade (stripsDonors) places main-N
-    // orange / blue offcut pieces there, and a purple layer would
-    // either over-count in the legend or double-label every cell.
-    // We just skip it; the cascade overlay supplies all coverage and
-    // labelling in that region.
-
-    // (The wing NW hip-end is already filled by stripsBlueMv — moved-
-    // blue offcuts from the main W hip-end donors.  Don't add another
-    // purple layer there or it would overlap and inflate the count.)
 
     // ── Main E hip-end (with swapped colors per spin-only rule) ──
     // Upper half (y < midY): BLUE offcuts; lower half (y >= midY): ORANGE
@@ -28137,18 +28087,7 @@ function _renderRoofSheetPlanInner() {
         });
       }
       if (!best) return;
-      // Mark the gap-fill as an offcut and store an explicit pointer to
-      // its donor strip so the colour-renumbering pass below
-      // (_renumberByColor → "pass A") can re-inherit the donor's seq
-      // AFTER the per-colour renumber has reshuffled donor numbers.
-      // Without this, the gap-fill was stuck with a stale seq from the
-      // moment of creation — at the wing-to-main boundary every gap-fill
-      // happened to be geographically nearest to donor sheet 7, so the
-      // whole row of triangular offcuts came out labelled "7" instead of
-      // each tracking the real sheet it was cut from.
       g.seq = best.seq; g.color = best.color; g.face = best.face;
-      g.isOffcut = true;
-      g._offcutSource = best;
       g.orderedLengthMm = best.orderedLengthMm; g.pieceM = best.pieceM; g._sheetKey = best._sheetKey;
       allStrips.push(g);
     });
@@ -28251,171 +28190,17 @@ function _renderRoofSheetPlanInner() {
     ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
   });
 
-  // ── Renumber so labels match the ordered-sheet count ───────────
-  // The Big-L / generic numbering can mint fresh seq numbers for
-  // unpaired offcut pieces (BW-narrow-*, BE-straddle-*, OE-*, etc.),
-  // so a job that orders only 20 orange sheets ends up showing labels
-  // like 36 / 57 on the map.  Re-number per colour so:
-  //   1. NON-offcut donors get dense seq 1..N (matches the cut list
-  //      count emitted from the legend below).
-  //   2. EVERY offcut adopts a donor's seq.  Source priority:
-  //        a. explicit `_offcutSource` set by the pairing algorithm
-  //        b. `cascadeParent` for telescoping pieces
-  //        c. LENGTH-BASED MATCH — every donor's offcut length is
-  //           (orderedLengthMm/1000 − donor.pieceM); pair longest
-  //           offcut to shortest donor piece, second-longest to
-  //           second-shortest, etc.  This implements the SOP rule
-  //           "long offcut comes from a short donor, short offcut
-  //           from a long donor — offcut + donor piece = full
-  //           sheet".
-  //        d. Last-resort: nearest non-offcut strip by centroid, so
-  //           we never leave an offcut unlabelled.
-  (function _renumberByColor(){
-    var byCol = {};
-    allStrips.forEach(function(s){
-      if (!s.color) return;
-      (byCol[s.color] = byCol[s.color] || []).push(s);
-    });
-    Object.keys(byCol).forEach(function(c){
-      var donors = byCol[c].filter(function(s){ return !s.isOffcut; });
-      // Stable reading order (top-to-bottom, then left-to-right) so
-      // the numbering walks across the face the way the user does.
-      donors.sort(function(a, b){
-        var ay = a.centroid[1], by = b.centroid[1];
-        if (Math.abs(ay - by) > 1) return ay - by;
-        return a.centroid[0] - b.centroid[0];
-      });
-      donors.forEach(function(s, i){ s.seq = i + 1; });
-      // Clear any prior offcut seqs so the passes below assign fresh
-      // numbers via the donor-pairing rules (otherwise stale Big-L
-      // seqs from the sheet-key pass leak through unchanged).
-      byCol[c].forEach(function(s){ if (s.isOffcut) s.seq = null; });
-
-      // Offcuts: pass A — adopt an explicit donor link if present.
-      var unassigned = [];
-      byCol[c].forEach(function(s){
-        if (!s.isOffcut) return;
-        if (s._offcutSource && s._offcutSource.color === c && s._offcutSource.seq != null) {
-          s.seq = s._offcutSource.seq;
-          s._matchedBy = 'source';
-          return;
-        }
-        if (s.cascadeParent && s.cascadeParent.seq != null) {
-          s.seq = s.cascadeParent.seq;
-          s._matchedBy = 'cascade';
-          return;
-        }
-        unassigned.push(s);
-      });
-
-      // Offcuts: pass B — greedy length-based pairing.
-      // For each donor, compute the OFFCUT length it produces:
-      //   donor.offcutLen = full sheet length − donor.pieceM
-      // A donor that uses the full sheet (offcutLen ≈ 0) doesn't
-      // produce an offcut and is skipped.  Longest offcut goes to the
-      // donor with the shortest piece (= biggest offcut), so we sort
-      // offcuts DESCENDING by length and donors DESCENDING by
-      // offcutLen, then pair by index.  Track claimed donors so
-      // multiple visual strips of the SAME physical offcut can still
-      // share their donor's seq (we cap at total ordered offcut
-      // length per donor).
-      if (unassigned.length) {
-        var producers = donors.map(function(d){
-          var fullM = (d.orderedLengthMm || 0) / 1000;
-          var off = fullM - (d.pieceM || 0);
-          return { donor: d, offcutLen: off, used: 0 };
-        }).filter(function(p){ return p.offcutLen > 0.05; });
-        producers.sort(function(a, b){ return b.offcutLen - a.offcutLen; });
-        unassigned.sort(function(a, b){ return (b.pieceM || 0) - (a.pieceM || 0); });
-        // Greedy walk: for each unassigned offcut, find a producer
-        // whose REMAINING capacity (offcutLen − used) covers this
-        // piece. Walk producers in current order — once one is full,
-        // the next offcut moves to the next producer.
-        var pIdx = 0;
-        var TOLERANCE = 0.30;   // m — generous, matches Flood Roofing SOP overhang slack
-        unassigned.forEach(function(o){
-          var pieceM = o.pieceM || 0;
-          // Skip producers that can't fit even this piece (within
-          // tolerance) until we find one that can.
-          while (pIdx < producers.length) {
-            var p = producers[pIdx];
-            var remain = p.offcutLen - p.used;
-            if (remain >= pieceM - TOLERANCE) {
-              o.seq = p.donor.seq;
-              o._matchedBy = 'length';
-              p.used += pieceM;
-              // Producer is "full" once remaining < a half piece.
-              if (p.offcutLen - p.used < Math.max(0.2, pieceM * 0.5)) pIdx++;
-              return;
-            }
-            pIdx++;
-          }
-        });
-      }
-
-      // Offcuts: pass C — anything still missing falls back to the
-      // nearest donor.  Should be rare after passes A + B.
-      byCol[c].forEach(function(s){
-        if (!s.isOffcut || s.seq != null) return;
-        var best = null, bestD = Infinity;
-        donors.forEach(function(d){
-          var dx = d.centroid[0] - s.centroid[0];
-          var dy = d.centroid[1] - s.centroid[1];
-          var dist = dx*dx + dy*dy;
-          if (dist < bestD) { bestD = dist; best = d; }
-        });
-        if (best) { s.seq = best.seq; s._matchedBy = 'nearest'; }
-      });
-    });
-  })();
-
-  // Strip numbers — small yellow numerals at the BOTTOM of each
-  // strip, near the gutter end (but not on the gutter line itself —
-  // sitting on the line makes the digit unreadable).
+  // Strip numbers — small yellow numerals at each strip's centroid.
   ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = 'rgba(0,0,0,0.6)';
   ctx.font = 'bold 10px Inter, sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.lineWidth = 2;
-  // Push the label this many CANVAS pixels in from the gutter edge.
-  var GUTTER_INSET_PX = 12;
   allStrips.forEach(function(s){
-    if (s.seq == null) return;
-    var labelImg = _stripLabelImgPos(s, GUTTER_INSET_PX / sc);
-    var cc = toC(labelImg || s.centroid);
+    var cc = toC(s.centroid);
     var lbl = String(s.seq);
     ctx.strokeText(lbl, cc[0], cc[1]);
     ctx.fillText(lbl, cc[0], cc[1]);
   });
-
-  // Find a point inside the strip polygon near its gutter-end edge,
-  // pushed inward by `inset` image-units so the digit doesn't sit on
-  // the gutter line.  Returns image-space (not canvas-space) coords.
-  function _stripLabelImgPos(s, inset){
-    var face = s.face;
-    if (!face || !face.a || !face.b || !s.poly || s.poly.length < 3) return null;
-    var ax = face.a[0], ay = face.a[1];
-    var bx = face.b[0], by = face.b[1];
-    var dx = bx - ax, dy = by - ay;
-    var L = Math.hypot(dx, dy) || 1;
-    // Unit perpendicular to the gutter.  Pick the orientation that
-    // points AWAY from the gutter (toward the strip body).
-    var nx = -dy / L, ny = dx / L;
-    var cx = s.centroid[0], cy = s.centroid[1];
-    var side = (cx - ax) * nx + (cy - ay) * ny;
-    if (side < 0) { nx = -nx; ny = -ny; }
-    // Signed distance of each vertex from the gutter line.
-    var verts = s.poly.map(function(p){
-      return { p: p, d: (p[0] - ax) * nx + (p[1] - ay) * ny };
-    });
-    verts.sort(function(a, b){ return a.d - b.d; });
-    // Midpoint of the two gutter-most vertices is the "gutter edge"
-    // midpoint of the strip.
-    var v1 = verts[0].p, v2 = verts[1].p;
-    var mx = (v1[0] + v2[0]) / 2;
-    var my = (v1[1] + v2[1]) / 2;
-    // Push inward (positive n direction) by the requested inset.
-    return [mx + nx * inset, my + ny * inset];
-  }
 
   // ── Legend ────────────────────────────────────────────────────
   // Group sheets by (colour, orderedLengthMm). Offcut-fed pieces
@@ -28435,11 +28220,6 @@ function _renderRoofSheetPlanInner() {
     groups[key].count++;
   });
   var groupList = Object.keys(groups).map(function(k){ return groups[k]; });
-  // Apply user-typed group overrides BEFORE we sort + render.  Any
-  // edit on a Length cell — in this panel, in the Materials cut list,
-  // or via the Roof Map sheet label — flows through this single map
-  // and the cut lists + map all rebuild together.
-  groupList = _applySheetGroupOverrides(groupList);
   // Sort: orange first, then blue, then purple. Within colour, longer first.
   var colorOrder = {};
   colorOrder[COL_ORANGE] = 0; colorOrder[COL_BLUE] = 1; colorOrder[COL_PURPLE] = 2;
@@ -28449,38 +28229,15 @@ function _renderRoofSheetPlanInner() {
     return b.orderedMm - a.orderedMm;
   });
   var legHtml = '<div style="display:flex;gap:24px;align-items:flex-start;margin-top:14px;flex-wrap:wrap">';
-  legHtml += '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px;background:#fff;min-width:300px">';
-  legHtml += '<div style="font-weight:800;font-size:13px;color:#0a1628;letter-spacing:.04em;margin-bottom:10px">SHEETS TO ORDER <span style="font-weight:500;color:#6b7280;font-size:10px;text-transform:none;letter-spacing:0">— click the count or mm value to change</span></div>';
+  legHtml += '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px;background:#fff;min-width:280px">';
+  legHtml += '<div style="font-weight:800;font-size:13px;color:#0a1628;letter-spacing:.04em;margin-bottom:10px">SHEETS TO ORDER</div>';
   if (!groupList.length) {
     legHtml += '<div style="font-size:12px;color:#6b7280">No sheets — check that the outline has gutters and hips.</div>';
   } else {
     groupList.forEach(function(g){
-      // Length input — anchor on the ORIGINAL pre-override length so
-      // edits cycle through the same key. _origMm is set by
-      // _applySheetGroupOverrides; falls back to orderedMm otherwise.
-      var anchorMm = g._origMm || g.orderedMm;
-      var lenInp = '<input type="number" min="100" step="50" value="'+g.orderedMm+'" '+
-        'data-orig-mm="'+anchorMm+'" '+
-        'onfocus="this.select()" '+
-        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
-        'onchange="_setSheetGroupOverride(this.getAttribute(\'data-orig-mm\'), this.value)" '+
-        'style="width:64px;padding:1px 4px;border:1px solid transparent;background:transparent;color:#6b7280;font-size:12px;font-family:inherit;text-align:right" '+
-        'onmouseover="this.style.border=\'1px solid #cbd5e1\';this.style.background=\'#fff\'" '+
-        'onmouseout="if(document.activeElement!==this){this.style.border=\'1px solid transparent\';this.style.background=\'transparent\';}">';
-      // Count input — bigger, coloured to match the group swatch.
-      var qtyInp = '<input type="number" min="0" step="1" value="'+g.count+'" '+
-        'data-orig-mm="'+anchorMm+'" '+
-        'onfocus="this.select()" '+
-        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
-        'onchange="_setSheetGroupQtyOverride(this.getAttribute(\'data-orig-mm\'), this.value)" '+
-        'style="width:54px;padding:0 4px;border:1px solid transparent;background:transparent;color:'+g.color+';font-size:24px;font-weight:800;font-family:inherit;text-align:right" '+
-        'onmouseover="this.style.border=\'1px solid #cbd5e1\';this.style.background=\'#fff\'" '+
-        'onmouseout="if(document.activeElement!==this){this.style.border=\'1px solid transparent\';this.style.background=\'transparent\';}">';
-      legHtml += '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:6px">'+
-        qtyInp +
-        '<span style="font-size:12px;color:#6b7280">× @ </span>'+
-        lenInp +
-        '<span style="font-size:12px;color:#6b7280">mm ('+(g.orderedMm/1000).toFixed(2)+'m)</span>'+
+      legHtml += '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">'+
+        '<span style="font-size:24px;font-weight:800;color:'+g.color+'">'+g.count+'</span>'+
+        '<span style="font-size:12px;color:#6b7280">× @ '+g.orderedMm+'mm ('+(g.orderedMm/1000).toFixed(2)+'m)</span>'+
         '</div>';
     });
   }
@@ -28510,10 +28267,8 @@ function _renderRoofSheetPlanInner() {
     purpleLong: purpleLong,
     longLen: LONG_MM,
     // Per (colour, length) groups straight from the legend — the
-    // Materials cut-list groups by length only and uses these. We
-    // carry _origMm so the cut-list edit inputs anchor on the same
-    // key the legend uses (otherwise editing once locks the input).
-    groups: groupList.map(function(g){ return { color: g.color, orderedMm: g.orderedMm, count: g.count, _origMm: g._origMm }; }),
+    // Materials cut-list groups by length only and uses these.
+    groups: groupList.map(function(g){ return { color: g.color, orderedMm: g.orderedMm, count: g.count }; }),
   };
 
   outEl.innerHTML = '';
