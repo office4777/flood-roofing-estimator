@@ -1164,6 +1164,63 @@ select{
    working, but visually they're gone.  The Job Pack Designer above
    is now the sole user-facing editing surface. */
 #tab-materials > .jp-legacy{ display:none!important; }
+/* ── PDF EXPORT ───────────────────────────────────────────────
+   html.pdf-rendering is applied during the html2canvas snapshots
+   used by saveMaterialsAsPdf. html2canvas does NOT trigger
+   @media print so the existing print-jobpack rules below don't
+   reach the captures. Mirror the chrome-stripping ones here as
+   always-on selectors so the PDF carries only "real" content —
+   no Profile/Grade selector row, no "+ Add row" buttons, no
+   per-row × delete buttons, no empty-state placeholders, no
+   inline sub-text explanations. */
+html.pdf-rendering .no-print,
+html.pdf-rendering .jp-page-tools,
+html.pdf-rendering .jp-img-tools,
+html.pdf-rendering .jp-img-handle,
+html.pdf-rendering .jp-crop-edge,
+html.pdf-rendering .qp-edit-hint,
+html.pdf-rendering .cut-list-empty,
+html.pdf-rendering .mat-add-btn,
+html.pdf-rendering .mat-list-del,
+html.pdf-rendering .mat-toggle-row,
+html.pdf-rendering .mat-fl-empty,
+html.pdf-rendering .mat-spec-row,
+html.pdf-rendering .cons-row-sub,
+html.pdf-rendering .pdf-hide,
+html.pdf-rendering .mat-section.is-empty-section{
+  display:none!important;
+}
+/* Inputs flatten to plain text so number / qty cells read as
+   typeset values instead of form controls. */
+html.pdf-rendering .jp-page input[type="number"],
+html.pdf-rendering .jp-page input[type="text"]{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  -moz-appearance:none!important;
+  border:none!important;
+  background:transparent!important;
+  padding:0!important;
+  margin:0!important;
+  color:#0a1628!important;
+  font:inherit!important;
+  font-weight:700!important;
+  width:auto!important;
+  min-width:0!important;
+  outline:none!important;
+}
+html.pdf-rendering .jp-page select{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  -moz-appearance:none!important;
+  border:none!important;
+  background:transparent!important;
+  background-image:none!important;
+  padding:0!important;
+  color:#0a1628!important;
+  font:inherit!important;
+  width:auto!important;
+}
+html.pdf-rendering .jp-page input[type="checkbox"]{ display:none!important; }
 /* Print: only #jpPages elements reach paper.  Each .jp-page is one A4
    sheet so we just suppress everything else and let CSS page breaks
    slot between them. */
@@ -20440,25 +20497,25 @@ function _jpRenderCutLists(content, page, idx){
   // doesn't need them. The flag lives in localStorage already; this
   // toggle just exposes it in the Job Pack designer.
   var refsOn = _matShowFlashRefs();
-  // ── Guttering (sits with the cut lists at the top of the page) ──
+  // ── Gutters (Gutter, Brackets and Droppers) ─────────────────
+  // Skip the whole section when no gutter is picked — the user
+  // explicitly asked not to print "No gutter required" on the PDF.
   var gutterChoice = (document.getElementById('matGutter') || {}).value || 'none';
-  var gutterLabel = {
-    'none':'No gutter required',
-    'colorsteel-box':'Colorsteel 125mm Box Gutter',
-    'zincalume-box':'Zincalume 125mm Box Gutter',
-    'marley-classic':'Marley Classic (PVC)',
-    'marley-typhoon':'Marley Typhoon (PVC)'
-  }[gutterChoice] || 'No gutter required';
-  html += '<div class="mat-section">'+
-    _matSectionHead('#7c3aed', 'Gutters (Gutter, Brackets and Droppers)', esc(gutterLabel));
-  if (gutterChoice === 'none') html += '<div class="cut-list-empty">No gutter selected — pick a gutter type above to add it to the order.</div>';
-  else {
+  if (gutterChoice !== 'none') {
+    var gutterLabel = {
+      'colorsteel-box':'Colorsteel 125mm Box Gutter',
+      'zincalume-box':'Zincalume 125mm Box Gutter',
+      'marley-classic':'Marley Classic (PVC)',
+      'marley-typhoon':'Marley Typhoon (PVC)'
+    }[gutterChoice] || gutterChoice;
+    html += '<div class="mat-section">'+
+      _matSectionHead('#7c3aed', 'Gutters (Gutter, Brackets and Droppers)', esc(gutterLabel));
     var gCl = _matBuildCutList('gutter', 0);
     html += gCl.pieceCount === 0
       ? '<div class="cut-list-empty">Draw gutter lines on the Map Roof tab to populate this list.</div>'
       : _matCutListTable(gCl, '');
+    html += '</div>';
   }
-  html += '</div>';
 
   // ── Consumables ──
   html += _jpRenderConsumablesSection(d);
@@ -20708,8 +20765,11 @@ function _jpRenderConsumablesSection(d){
 
   // ── Dektites ──
   var dkList = _matDektitesGet();
-  var dkRowsHtml = '';
-  if (dkList && dkList.length){
+  var dkBanner = '';
+  // Only emit the Dektites banner when the user has actually added
+  // at least one size — an empty section is just noise on the PDF.
+  if (dkList && dkList.length) {
+    var dkRowsHtml = '';
     dkList.forEach(function(r, i){
       dkRowsHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 4px;border-bottom:1px dashed #e5e7eb;font-size:12px">'+
         '🟫 <strong style="min-width:90px">Dektite</strong>'+
@@ -20721,20 +20781,28 @@ function _jpRenderConsumablesSection(d){
           'onchange="_matDektitesUpdate('+i+',\'sizeMm\',this.value);if(typeof renderJobPack===\'function\') renderJobPack()" '+
           'style="width:62px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px">'+
         '<span style="color:var(--text2)">mm</span>'+
-        '<button onclick="_matDektitesRemove('+i+');if(typeof renderJobPack===\'function\') renderJobPack()" title="Delete row" '+
+        '<button class="mat-list-del" onclick="_matDektitesRemove('+i+');if(typeof renderJobPack===\'function\') renderJobPack()" title="Delete row" '+
           'style="margin-left:auto;background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700;padding:0 4px">×</button>'+
       '</div>';
     });
+    dkBanner = '<div class="mat-section">'+
+      _matSectionHead('#a16207', 'Dektites', 'Pipe penetration boots')+
+      '<div class="cons-body">'+
+        dkRowsHtml+
+        '<button class="mat-add-btn" onclick="_matDektitesAdd();if(typeof renderJobPack===\'function\') renderJobPack()" style="margin-top:6px">+ Add dektite size</button>'+
+      '</div>'+
+    '</div>';
   } else {
-    dkRowsHtml = '<div style="color:var(--text2);font-style:italic;padding:6px 4px;font-size:11px">No dektites — click <em>+ Add dektite size</em> below to add a pipe penetration size.</div>';
+    // Live editor still wants the "+ Add dektite size" affordance, but
+    // it lives behind .pdf-hide so the PDF capture drops it.
+    dkBanner = '<div class="mat-section pdf-hide">'+
+      _matSectionHead('#a16207', 'Dektites', 'Pipe penetration boots')+
+      '<div class="cons-body">'+
+        '<div style="color:var(--text2);font-style:italic;padding:6px 4px;font-size:11px">No dektites — click <em>+ Add dektite size</em> below to add a pipe penetration size.</div>'+
+        '<button class="mat-add-btn" onclick="_matDektitesAdd();if(typeof renderJobPack===\'function\') renderJobPack()" style="margin-top:6px">+ Add dektite size</button>'+
+      '</div>'+
+    '</div>';
   }
-  var dkBanner = '<div class="mat-section">'+
-    _matSectionHead('#a16207', 'Dektites', 'Pipe penetration boots')+
-    '<div class="cons-body">'+
-      dkRowsHtml+
-      '<button class="mat-add-btn" onclick="_matDektitesAdd();if(typeof renderJobPack===\'function\') renderJobPack()" style="margin-top:6px">+ Add dektite size</button>'+
-    '</div>'+
-  '</div>';
 
   return underlayBanner + srBanner + dkBanner;
 }
@@ -22638,6 +22706,11 @@ async function saveMaterialsAsPdf() {
   var htmlEl = document.documentElement;
   ['print-quote','print-order','print-materials','print-report'].forEach(function(c){ htmlEl.classList.remove(c); });
   htmlEl.classList.add('print-jobpack');
+  // pdf-rendering = always-on chrome-stripping rules that html2canvas
+  // can see (it doesn't trigger @media print). Hides the spec-row
+  // selectors, + Add row buttons, per-row × buttons, empty-state
+  // placeholders, sub-text explanations, etc.
+  htmlEl.classList.add('pdf-rendering');
 
   // Wait for any dynamic images (roof-map data URLs) to fully decode
   // before we hand the page off to html2canvas. Without this we have
@@ -22662,25 +22735,32 @@ async function saveMaterialsAsPdf() {
         backgroundColor: '#ffffff',
         useCORS: true,
         logging: false,
-        // Match what the user sees in the Designer — the jp-page is
-        // 210mm × min-height 297mm; html2canvas uses the rendered
-        // CSS box so we don't need to override width/height here.
       });
       if (i > 0) pdf.addPage();
       var imgData = canvas.toDataURL('image/jpeg', 0.92);
-      // Map the capture onto a full A4 page. The aspect ratio of the
-      // capture matches A4 (jp-page is 210×297mm) so we don't have to
-      // letterbox.
-      pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH, undefined, 'FAST');
+      // Preserve aspect ratio: map the capture onto a FULL-WIDTH A4
+      // page (210mm). If the captured content is taller than A4
+      // (cut-list / flashings pages frequently overflow), split it
+      // across multiple A4 pages instead of stretching one — the
+      // earlier "force into one A4" path read as stretched & blurry.
+      var imgH = (canvas.height / canvas.width) * pageW;
+      var consumed = 0;
+      while (consumed < imgH - 0.5) {
+        if (consumed > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, -consumed, pageW, imgH, undefined, 'FAST');
+        consumed += pageH;
+      }
     }
   } catch(err) {
     console.error('PDF render failed:', err);
     htmlEl.classList.remove('print-jobpack');
+    htmlEl.classList.remove('pdf-rendering');
     _matMsg('PDF render failed — falling back to print dialog', false);
     return _legacyPrintFlow();
   }
 
   htmlEl.classList.remove('print-jobpack');
+  htmlEl.classList.remove('pdf-rendering');
 
   // Trigger download with a sensible filename.
   var client = ((document.getElementById('jobClient')||{}).value || 'job').replace(/[\\/:*?"<>|]/g,'').trim() || 'job';
