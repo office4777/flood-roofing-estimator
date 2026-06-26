@@ -1231,17 +1231,30 @@ async function msTimeProbe(){
   let txt='';
   const tryUrl=async(label,url)=>{try{const j=await fergusApiFetch(url);const a=arrOf(j);const pg=j&&j.paging?JSON.stringify(j.paging).slice(0,180):'(no paging key)';txt+=label+': '+a.length+' rows · dates '+span(a)+' · firstId '+first(a)+'\n   paging='+pg+'\n';return {a,j};}catch(e){txt+=label+': ERR '+String(e.message).slice(0,40)+'\n';return null;}};
   out.textContent=txt='Probing…\n';
-  const r1=await tryUrl('pageSize=200',           '/timeEntries?pageSize=200');out.textContent=txt;
-  const r2=await tryUrl('pageSize=200&page=2',     '/timeEntries?pageSize=200&page=2');out.textContent=txt;
-  await tryUrl('page=2 (no size)',                 '/timeEntries?page=2');out.textContent=txt;
-  await tryUrl('dateFrom/dateTo',                  '/timeEntries?pageSize=200&dateFrom=2024-06-01&dateTo=2026-12-31');out.textContent=txt;
-  await tryUrl('from/to',                          '/timeEntries?pageSize=200&from=2024-06-01&to=2026-12-31');out.textContent=txt;
-  await tryUrl('startDate/endDate',                '/timeEntries?pageSize=200&startDate=2024-06-01&endDate=2026-12-31');out.textContent=txt;
-  await tryUrl('dateEnteredFrom',                  '/timeEntries?pageSize=200&dateEnteredFrom=2024-06-01&dateEnteredTo=2026-12-31');out.textContent=txt;
-  // follow a next-link if present
-  let nx=r1&&r1.j&&r1.j.paging&&r1.j.paging.links&&r1.j.paging.links.next;
-  if(nx){if(/^https?:\/\//.test(nx))nx=nx.replace(/^https?:\/\/[^/]+/,'');await tryUrl('paging.next',nx);out.textContent=txt;}
-  txt+='\npage2 same as page1? '+(r1&&r2&&first(r1.a)===first(r2.a)?'YES (page param ignored)':'no (paging works)')+'\n';
+  // A) Does following the cursor next-link walk back through history? Start newest-first, follow next.
+  txt+='— cursor walk (follow paging.next) —\n';out.textContent=txt;
+  let url='/timeEntries?pageSize=10&sortOrder=desc',hops=0,total=0,seen=new Set(),loOverall=null,hiOverall=null;
+  while(url&&hops<40){
+    hops++;let j=null;try{j=await fergusApiFetch(url);}catch(e){txt+='hop '+hops+' ERR '+String(e.message).slice(0,30)+'\n';break;}
+    const a=arrOf(j);let fresh=0;a.forEach(e=>{const id=e.timeEntryId;if(id!=null&&seen.has(id))return;if(id!=null)seen.add(id);fresh++;const t=Date.parse(String(e.startTime||e.dateEntered||'').replace(' ','T'));if(!isNaN(t)){if(loOverall==null||t<loOverall)loOverall=t;if(hiOverall==null||t>hiOverall)hiOverall=t;}});
+    total+=fresh;
+    let nx=j&&j.paging&&j.paging.links&&j.paging.links.next;if(nx&&/^https?:\/\//.test(nx))nx=nx.replace(/^https?:\/\/[^/]+/,'');
+    if(hops<=3||hops%10===0)txt+='hop '+hops+': +'+fresh+' (tot '+total+') '+span(a)+(nx?'':' [no next]')+'\n';
+    out.textContent=txt;
+    if(!fresh||!nx)break;url=nx;
+  }
+  const dd=t=>t==null?'?':new Date(t).toISOString().slice(0,10);
+  txt+='cursor walked '+hops+' hops · '+total+' unique entries · oldest '+dd(loOverall)+' newest '+dd(hiOverall)+'\n\n';
+  out.textContent=txt;
+  // B) date-filter params built on the API's own field name (sortField=timeEntryDate)
+  txt+='— date-filter params —\n';out.textContent=txt;
+  const F='2026-01-01',T='2026-12-31';
+  await tryUrl('timeEntryDateFrom/To',  '/timeEntries?timeEntryDateFrom='+F+'&timeEntryDateTo='+T);out.textContent=txt;
+  await tryUrl('timeEntryDateStart/End','/timeEntries?timeEntryDateStart='+F+'&timeEntryDateEnd='+T);out.textContent=txt;
+  await tryUrl('min/maxTimeEntryDate',  '/timeEntries?minTimeEntryDate='+F+'&maxTimeEntryDate='+T);out.textContent=txt;
+  await tryUrl('fromDate/toDate',       '/timeEntries?fromDate='+F+'&toDate='+T);out.textContent=txt;
+  await tryUrl('dateFrom ISO',          '/timeEntries?dateFrom='+F+'T00:00:00Z&dateTo='+T+'T00:00:00Z');out.textContent=txt;
+  await tryUrl('jobId (real filter?)',  '/timeEntries?jobId=19987040&pageSize=10');out.textContent=txt;
   out.textContent=txt;
 }
 
