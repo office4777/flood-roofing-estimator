@@ -27,6 +27,15 @@ full contract while costs are only what's booked so far (GP looks high until the
 job finishes). Quote-sent / to-price / archived jobs are excluded (no actuals to
 back-cost). Tap **⟳ Sync jobs from Fergus** to refresh.
 
+Figures come from each job's Fergus **Financial Summary** (the
+`/jobs/{id}/financialSummary` endpoint — the same data as the "Financial
+Summary" tab in Fergus): revenue = Billable/Priced Amount, material = Current
+Material Costs, labour = Current Labour Costs, hours = Logged/Incurred Hours,
+GP = revenue − total current costs. The extractor is shape-tolerant (handles
+lump-sum quotes and nested `{value}` fields), and a job whose summary fails to
+load is tagged "No data" (with a one-time retry on sync) rather than shown as
+$0. The card's **🔍 Debug a job** box dumps the raw figures for any job number.
+
 ## Sync progress bar
 
 A thin 0–100% progress bar lives in the header on **every** page. It appears

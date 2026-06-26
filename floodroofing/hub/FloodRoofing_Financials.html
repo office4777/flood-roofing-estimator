@@ -128,6 +128,14 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .ms-tag{display:inline-block;font-size:.54rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:2px 7px;border-radius:999px;vertical-align:middle;margin-left:4px;}
 .ms-tag.done{background:rgba(74,222,128,.16);color:var(--success);}
 .ms-tag.wip{background:rgba(251,191,36,.16);color:var(--warning);}
+.ms-tag.nodata{background:rgba(255,107,107,.16);color:var(--danger);}
+.ms-dbg{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;}
+.ms-dbg summary{font-size:.72rem;font-weight:700;color:var(--muted);cursor:pointer;}
+.ms-dbg-row{display:flex;gap:8px;margin-top:10px;}
+.ms-dbg-row input{flex:1;background:var(--card2);border:1px solid var(--border);border-radius:11px;padding:11px 12px;color:var(--text);font-size:.85rem;}
+.ms-dbg-btn{width:auto;padding:11px 16px;}
+.ms-dbg-out{white-space:pre-wrap;word-break:break-word;font-size:.66rem;line-height:1.5;color:var(--text);background:var(--card2);border:1px solid var(--border);border-radius:11px;padding:11px;margin-top:10px;max-height:340px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;}
+.ms-dbg-out:empty{display:none;}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;}
 @keyframes sp{to{transform:rotate(360deg);}}
 
@@ -377,6 +385,13 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div id="ms-total"></div>
       <button class="btn btn-a" style="margin-top:16px;" onclick="syncWorkload()">⟳ Sync jobs from Fergus</button>
       <div class="note" id="ms-note"></div>
+      <details class="ms-dbg"><summary>🔍 Debug a job's Fergus figures</summary>
+        <div class="ms-dbg-row">
+          <input id="ms-debug-job" inputmode="text" placeholder="Job # or name, e.g. 3059">
+          <button class="btn btn-o ms-dbg-btn" onclick="msDebugJob()">Check</button>
+        </div>
+        <pre id="ms-debug-out" class="ms-dbg-out"></pre>
+      </details>
     </div>
 
     <div class="card">
@@ -1057,7 +1072,7 @@ function renderModspace(){
   jobs.sort((a,b)=>(a._inProgress?1:0)-(b._inProgress?1:0)||num(b.sales)-num(a.sales));
   const pc=(part,whole)=>whole>0?(Math.round(part/whole*1000)/10)+'%':'—';
   const setT=(id,h)=>{const e=document.getElementById(id);if(e)e.innerHTML=h;};
-  let nProg=0;
+  let nProg=0,nNo=0;
 
   // ── individual back costing, one card per job ──
   setT('ms-count',jobs.length?('· '+jobs.length+' job'+(jobs.length!==1?'s':'')):'');
@@ -1065,7 +1080,8 @@ function renderModspace(){
     const rev=num(r.sales),mat=num(r.a_mat),lab=num(r.a_lab),gp=num(r.gp),h=num(r.h_actual);
     const gpm=rev>0?gp/rev*100:0, gphr=h>0?gp/h:0, cls=gp>=0?'pos':'neg';
     const wip=!!r._inProgress;if(wip)nProg++;
-    const tag=wip?'<span class="ms-tag wip">In progress</span>':'<span class="ms-tag done">Completed</span>';
+    const nd=!!r._noData;if(nd)nNo++;
+    const tag=nd?'<span class="ms-tag nodata">No data</span>':(wip?'<span class="ms-tag wip">In progress</span>':'<span class="ms-tag done">Completed</span>');
     return '<div class="ms-job'+(wip?' wip':'')+'">'+
       '<div class="ms-jn">'+esc(r.job)+' '+tag+'</div>'+
       '<div class="ms-bar"><div class="ms-fill" style="width:'+Math.max(0,Math.min(100,gpm))+'%"></div></div>'+
@@ -1094,7 +1110,53 @@ function renderModspace(){
   document.getElementById('ms-note').innerHTML=
     'Every Active + Completed job whose customer/site mentions “ModSpace”. '+
     'Percentages are share of revenue; GP/hr = gross profit ÷ actual labour hours.'+
-    (nProg?('<br>⚠ '+nProg+' job(s) still <b>in progress</b> — revenue is the full contract but costs are only what\'s booked so far, so their GP will look high until finished.'):'');
+    (nProg?('<br>⚠ '+nProg+' job(s) still <b>in progress</b> — revenue is the full contract but costs are only what\'s booked so far, so their GP will look high until finished.'):'')+
+    (nNo?('<br>⚠ '+nNo+' job(s) — Fergus didn\'t return a financial summary (tap Sync again, or use the debug box below).'):'');
+}
+// Debug: dump the raw Fergus financialSummary for one job + what the hub extracts from it, so a
+// mismatch (e.g. costs under a different field) is visible. Shows every non-zero number Fergus sent.
+async function msDebugJob(){
+  const out=document.getElementById('ms-debug-out');if(!out)return;
+  const q=(((document.getElementById('ms-debug-job')||{}).value)||'').trim().toLowerCase();
+  if(!q){out.textContent='Type a job number (e.g. 3059) or part of the name, then tap Check.';return;}
+  if(!fergusProxyUrl()&&!fergusKey()){out.textContent='Connect Fergus first (tap ⚙ top-right).';return;}
+  out.textContent='Looking up “'+q+'”…';
+  try{
+    let jid=null,label='',status='';
+    const pool=(S.get('cashJobs',null)||fwJobs||[]).concat(msBC||[]);
+    const norm=x=>String(x==null?'':x).replace('#','').toLowerCase();
+    const rec=pool.find(j=>norm(j.jobNo)===norm(q)||String(j.id||j._fergus_id)===q||(j.job||'').toLowerCase().includes(q));
+    if(rec){jid=rec.id||rec._fergus_id;label=rec.job||'';status=rec.status||rec._status||'';}
+    if(jid==null){
+      out.textContent='Searching Fergus for “'+q+'”…';
+      let list=[];try{list=await fergusPaginate('/jobs?pageSize=100&sortField=lastModified&sortOrder=desc',5);}catch(e){}
+      const nm=j=>((fergusName(j.customer)||'')+' '+(fergusName(j.mainContact)||'')+' '+(fergusAddr(j.siteAddress)||'')+' '+(j.jobNo||j.jobNumber||'')).toLowerCase();
+      const hit=list.find(j=>nm(j).includes(q)||norm(j.jobNo||j.jobNumber)===norm(q));
+      if(hit){jid=hit.id!=null?hit.id:hit.jobId;label=nm(hit).trim();status=hit.status||'';}
+    }
+    if(jid==null){out.textContent='No job matched “'+q+'”. Try the exact job number, or tap Sync first.';return;}
+    let raw={};try{raw=await fergusApiFetch('/jobs/'+encodeURIComponent(jid)+'/financialSummary');}catch(e){raw={_error:String(e.message)};}
+    const d=(raw&&raw.data)||raw;
+    const f=fsFig(d);
+    const flat=[];
+    (function walk(o,path){
+      if(o==null||typeof o==='boolean')return;
+      if(typeof o==='number'){if(o!==0)flat.push(path+' = '+o);return;}
+      if(typeof o==='string'){const n=parseFloat(o);if(!isNaN(n)&&n!==0&&/^[-\s$]*[\d.,]+$/.test(o.trim()))flat.push(path+' = '+o);return;}
+      if(typeof o==='object')Object.keys(o).forEach(k=>walk(o[k],path?path+'.'+k:k));
+    })(d,'');
+    let txt='JOB '+(label||('#'+jid))+(status?(' ['+status+']'):'')+'\n';
+    txt+='\n— what the hub extracted —\n';
+    txt+='Revenue (priced): '+fmt$(f.rev)+'\n';
+    txt+='Material cost:    '+fmt$(f.mat)+'\n';
+    txt+='Labour cost:      '+fmt$(f.lab)+'\n';
+    txt+='Total cost:       '+fmt$(f.cost)+'\n';
+    txt+='GP:               '+fmt$(f.rev-f.cost)+'\n';
+    txt+='Actual hours:     '+(Math.round(f.hours*10)/10)+'\n';
+    txt+='\n— every non-zero number Fergus returned —\n';
+    txt+=(flat.length?flat.join('\n'):'(none — the summary came back EMPTY for this job)');
+    out.textContent=txt;
+  }catch(e){out.textContent='debug error: '+String(e&&e.message||e);}
 }
 
 // ════════ BACK COSTING ════════
@@ -1211,14 +1273,54 @@ async function fetchXeroPaidInvoices(){
   Object.keys(map).forEach(k=>map[k].sort((a,b)=>a-b));
   return map;
 }
+// Pull a number out of a Fergus value that may be a number, a numeric string, or a wrapper
+// object like {value|amount|total|incTax|exTax|...}. Fergus mixes these shapes across endpoints,
+// so plain num() on a nested object returns NaN→0 and silently drops real figures.
+function fnum(o){
+  if(o==null)return 0;
+  if(typeof o==='number')return isNaN(o)?0:o;
+  if(typeof o==='string')return num(o);
+  if(typeof o==='object'){
+    const k=['value','amount','total','incTax','inc_gst','incGst','exTax','ex_gst','exGst','cost'];
+    for(let i=0;i<k.length;i++){if(o[k[i]]!=null)return fnum(o[k[i]]);}
+  }
+  return 0;
+}
+function fpick(obj){for(let i=1;i<arguments.length;i++){const k=arguments[i];if(obj&&obj[k]!=null)return obj[k];}return undefined;}
+// Map a Fergus financialSummary into the figures we back-cost with — tolerant of field-name and
+// shape variations: priced lump-sum jobs (priced labour/materials = 0 but a quoted total exists),
+// current-vs-billable cost buckets, and logged-vs-billable hours. Returns 0s for an empty summary.
+function fsFig(summary){
+  const s=summary||{};
+  const ci=s.costsIncurred||s.currentCosts||s.spentCosts||s.costs||{};
+  const qs=s.quoteSummary||s.priced||s.quote||{};
+  const ca=s.chargeableAmount||s.billable||s.chargeable||{};
+  const tb=s.totalBilled||s.invoiced||s.totalInvoiced||{};
+  const lh=s.labourHours||s.hours||{};
+  // Revenue = the priced / billable contract value (NOT what's invoiced yet, so active jobs count).
+  const rev=fnum(fpick(qs,'quotedAmount','priced','billablePriced','pricedAmount','total','amount'))
+         || fnum(fpick(ca,'total','priced','billable','amount'))
+         || fnum(fpick(s,'billablePricedAmount','pricedAmount','totalPriced','billablePricedAmount'))
+         || fnum(fpick(tb,'total'));
+  // Actual costs to date (Fergus: "Current Labour/Material Costs").
+  const lab=fnum(fpick(ci,'labour','labor','labourCost','currentLabour','labourCurrent'))
+         || fnum(fpick(s,'currentLabourCosts','labourCosts'));
+  const mat=fnum(fpick(ci,'materials','material','materialCost','currentMaterials','materialsCurrent'))
+         || fnum(fpick(s,'currentMaterialCosts','materialCosts'));
+  let cost=fnum(fpick(ci,'total','totalCost','currentCosts','spent','totalCurrentCosts'));
+  if(cost<=0)cost=lab+mat;
+  // Actual hours worked (Fergus: "Logged / Incurred Hours").
+  const hours=fnum(fpick(lh,'total','logged','loggedHours','incurred','incurredHours','actual','billable'))
+         || fnum(fpick(s,'loggedHours','incurredHours'));
+  return {rev,lab,mat,cost,hours,
+    p_lab:fnum(fpick(qs,'labour','labourPriced')),p_mat:fnum(fpick(qs,'materials','materialsPriced')),
+    h_priced:fnum(fpick(qs,'quotedHours','pricedHours','hours'))};
+}
 // Build a back-costing row from a Fergus financial summary, dated to a given invoice timestamp.
 function bcRowFrom(job,summary,dateMs){
   const fid=job.id!=null?job.id:(job.jobId!=null?job.jobId:(job.jobNo||job.jobNumber));if(fid==null)return null;
-  const s=summary||{};const ci=s.costsIncurred||{},tb=s.totalBilled||{},ca=s.chargeableAmount||{},qs=s.quoteSummary||{},lh=s.labourHours||{};
-  const sales=num(tb.total)||num(ca.total)||num(qs.quotedAmount);
-  const a_lab=num(ci.labour),a_mat=num(ci.materials);const cost=num(ci.total)||(a_lab+a_mat);
-  const p_lab=num(qs.labour),p_mat=num(qs.materials);
-  const h_actual=num(lh.total)||num(lh.billable),h_priced=num(qs.quotedHours);
+  const f=fsFig(summary);
+  const sales=f.rev,a_lab=f.lab,a_mat=f.mat,cost=f.cost,p_lab=f.p_lab,p_mat=f.p_mat,h_actual=f.hours,h_priced=f.h_priced;
   const gp=sales-cost,gpm=sales>0?Math.round(gp/sales*1000)/10:0;
   const client=fergusName(job.customer)||fergusName(job.mainContact)||'Unknown';const site=fergusAddr(job.siteAddress);
   const iso=new Date(dateMs).toISOString();
@@ -1246,7 +1348,9 @@ async function syncBackCosting(activeJobs,onProg){
       const jno=String(job.jobNo||job.jobNumber||'');
       const paid=paidByJob[jno]||[];
       const completedStatus=(job.status||'')==='Completed';
-      let summary=null;try{summary=await fergusFetchFinancialSummary(job.id!=null?job.id:job.jobId);}catch(e){}
+      let summary=null;
+      try{summary=await fergusFetchFinancialSummary(job.id!=null?job.id:job.jobId);}
+      catch(e){try{summary=await fergusFetchFinancialSummary(job.id!=null?job.id:job.jobId);}catch(e2){}}  // one retry
       const fs=summary||{};const tb=fs.totalBilled||{},ca=fs.chargeableAmount||{},qs=fs.quoteSummary||{};
       const billed=num(tb.total),value=num(ca.total)||num(qs.quotedAmount)||billed;
       const invPct=value>0?billed/value:0;const heavy=billed>0&&invPct>=0.80;  // ≥80% invoiced → treat as finished
@@ -1258,7 +1362,7 @@ async function syncBackCosting(activeJobs,onProg){
       if(isModspace(_client)||isModspace(_site)||isModspace(_brief)){
         const dms=paid.length?paid[paid.length-1]:(job.lastModified?Date.parse(job.lastModified):Date.now());
         const mr=bcRowFrom(job,summary,dms||Date.now());
-        if(mr){mr._status=job.status||'';mr._inProgress=!(completedStatus||heavy||paid.length>=2);msRebuilt.push(mr);}
+        if(mr){mr._status=job.status||'';mr._inProgress=!(completedStatus||heavy||paid.length>=2);mr._noData=!summary;msRebuilt.push(mr);}
       }
       let dateMs=null;
       if(paid.length>=2)dateMs=paid[paid.length-1];
