@@ -136,6 +136,14 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .ms-dbg-btn{width:auto;padding:11px 16px;}
 .ms-dbg-out{white-space:pre-wrap;word-break:break-word;font-size:.66rem;line-height:1.5;color:var(--text);background:var(--card2);border:1px solid var(--border);border-radius:11px;padding:11px;margin-top:10px;max-height:340px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;}
 .ms-dbg-out:empty{display:none;}
+.lr-head{display:flex;align-items:center;gap:10px;margin-top:4px;}
+.lr-name{flex:1;text-align:center;font-size:1.35rem;font-weight:800;color:var(--text);letter-spacing:-.3px;}
+.lr-nav{flex:0 0 auto;width:42px;height:42px;border-radius:50%;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:1.4rem;font-weight:700;line-height:1;cursor:pointer;}
+.lr-nav:active{background:var(--elev);}
+.lr-dots{display:flex;justify-content:center;gap:7px;margin:10px 0 2px;}
+.lr-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:.18s;cursor:pointer;}
+.lr-dot.on{background:var(--accent);width:22px;border-radius:5px;}
+.lr-tag{display:inline-block;font-size:.55rem;font-weight:800;letter-spacing:.3px;padding:1px 6px;border-radius:999px;background:rgba(77,141,255,.18);color:var(--primary);vertical-align:middle;}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;}
 @keyframes sp{to{transform:rotate(360deg);}}
 
@@ -438,11 +446,34 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="ct">Back-costing by job type <span class="period-sub" style="margin-left:auto;">grouped from job titles</span></div>
       <div class="tbl-wrap" style="max-height:70vh;overflow:auto;">
         <table class="tb" id="bc-type-tbl">
-          <thead><tr><th>Job</th><th>Src</th><th>Sales</th><th>GP</th><th>GPM</th><th>NP</th><th>Pr h</th><th>Act h</th></tr></thead>
+          <thead><tr><th>Date</th><th>Job</th><th>Src</th><th>Sales</th><th>GP</th><th>GPM</th><th>NP</th><th>Pr h</th><th>Act h</th></tr></thead>
           <tbody id="bc-type-body"></tbody>
         </table>
       </div>
       <div class="note">Grouped by keywords in the job title: Pole Sheds, Re-Roof's, Re-Roof &amp; Gutter, Gutter only. ⚡ = from Fergus. NP @ overhead rate. Re-sync Fergus to pull job titles for accurate grouping.</div>
+    </div>
+    <div class="card" id="lr-card" style="margin-top:12px;">
+      <div class="ct">Performance by Lead Roofer <span id="lr-sub" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="lr-head lr-swipe">
+        <button class="lr-nav" onclick="lrStep(-1)" aria-label="Previous roofer">‹</button>
+        <div class="lr-name" id="lr-name">—</div>
+        <button class="lr-nav" onclick="lrStep(1)" aria-label="Next roofer">›</button>
+      </div>
+      <div class="lr-dots" id="lr-dots"></div>
+      <div class="hero lr-swipe" style="padding:10px 0 4px;">
+        <div class="big" id="lr-gphr">—</div>
+        <div class="unit">GP / hr — latest month</div>
+        <div class="sub" id="lr-gphr-sub"></div>
+      </div>
+      <div id="lr-brk" class="lr-swipe"></div>
+      <div class="ct" style="margin:18px 0 10px;">By month <span class="period-sub" style="margin-left:auto;">most recent first</span></div>
+      <div class="tbl-wrap" style="max-height:48vh;overflow:auto;">
+        <table class="tb" id="lr-tbl">
+          <thead><tr><th>Month</th><th>Jobs</th><th>Revenue</th><th>GP</th><th>GPM</th><th>GP/hr</th><th>3-mo GP/hr</th></tr></thead>
+          <tbody id="lr-body"></tbody>
+        </table>
+      </div>
+      <div class="note" id="lr-note"></div>
     </div>
     <div class="card" style="margin-top:12px;">
       <div class="ct">All Back Costing <span id="bc-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
@@ -450,6 +481,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
         <select class="sel" id="bc-year" onchange="renderBC()"></select>
         <select class="sel" id="bc-type" onchange="renderBC()"></select>
       </div>
+      <select class="sel" id="bc-lead" onchange="renderBC()" style="margin-bottom:9px;"></select>
       <input class="sel" id="bc-search" placeholder="🔍 Job or address…" oninput="renderBC()" style="margin-bottom:9px;">
       <div class="tbl-wrap" style="max-height:65vh;overflow:auto;">
         <table class="tb" id="bc-tbl">
@@ -1155,6 +1187,18 @@ async function msDebugJob(){
     txt+='Actual hours:     '+(Math.round(f.hours*10)/10)+'\n';
     txt+='\n— every non-zero number Fergus returned —\n';
     txt+=(flat.length?flat.join('\n'):'(none — the summary came back EMPTY for this job)');
+    // ── lead roofer (who logged the most hours) ──
+    txt+='\n\n— lead roofer (logged hours) —\n';
+    out.textContent=txt+'looking up time entries…';
+    let rawT=null,epUsed='';
+    for(const ep of _timeEndpoints(jid)){try{const j=await fergusApiFetch(ep);if(j&&(Array.isArray(j)?j.length:(j.data?(j.data.length||Object.keys(j.data).length):Object.keys(j).length))){rawT=j;epUsed=ep;break;}}catch(e){}}
+    if(!rawT){try{rawT=await fergusApiFetch('/jobs/'+encodeURIComponent(jid)+'/phases');epUsed='/jobs/'+jid+'/phases (fallback)';}catch(e){}}
+    txt+='endpoint: '+(epUsed||'none worked — no time data found')+'\n';
+    const allUsers={};if(rawT)walkRooferHours(rawT,(u,h)=>{allUsers[u]=(allUsers[u]||0)+h;});
+    const matched={};Object.keys(allUsers).forEach(u=>{const k=matchRoofer(u);if(k)matched[k]=(matched[k]||0)+allUsers[u];});
+    txt+='all names found: '+(Object.keys(allUsers).length?JSON.stringify(Object.fromEntries(Object.entries(allUsers).map(([k,v])=>[k,Math.round(v*10)/10]))):'(none)')+'\n';
+    txt+='matched to roofers: '+(Object.keys(matched).length?JSON.stringify(Object.fromEntries(Object.entries(matched).map(([k,v])=>[k,Math.round(v*10)/10]))):'(none)')+'\n';
+    txt+='→ lead: '+(leadFromHours(matched)||'—');
     out.textContent=txt;
   }catch(e){out.textContent='debug error: '+String(e&&e.message||e);}
 }
@@ -1333,6 +1377,7 @@ function bcRowFrom(job,summary,dateMs){
 // Dated by the last paid invoice; if none paid yet, by the job's last-modified date.
 async function syncBackCosting(activeJobs,onProg){
   if(!activeJobs)return;
+  resetRooferDiscovery();
   const paidByJob=await fetchXeroPaidInvoices();
   if(!paidByJob){toast('Couldn’t read Xero invoices — back-costing unchanged. Check ⚙ Xero scope (accounting.invoices.read) + retry.','err');return;}
   let completed=[];
@@ -1359,17 +1404,19 @@ async function syncBackCosting(activeJobs,onProg){
       const _client=fergusName(job.customer)||fergusName(job.mainContact)||'';
       const _site=fergusAddr(job.siteAddress);
       const _brief=job.brief||job.title||job.jobDescription||job.description||'';
+      // Lead roofer = who logged the most hours (fetched once per job, only when it yields a row).
+      let _rh=null;const ensureLead=async()=>{if(_rh===null){try{_rh=await fergusJobRooferHours(job.id!=null?job.id:job.jobId);}catch(e){_rh={};}}return _rh;};
       if(isModspace(_client)||isModspace(_site)||isModspace(_brief)){
         const dms=paid.length?paid[paid.length-1]:(job.lastModified?Date.parse(job.lastModified):Date.now());
         const mr=bcRowFrom(job,summary,dms||Date.now());
-        if(mr){mr._status=job.status||'';mr._inProgress=!(completedStatus||heavy||paid.length>=2);mr._noData=!summary;msRebuilt.push(mr);}
+        if(mr){mr._status=job.status||'';mr._inProgress=!(completedStatus||heavy||paid.length>=2);mr._noData=!summary;const rh=await ensureLead();mr.lead=leadFromHours(rh)||'';mr._rooferHrs=rh;msRebuilt.push(mr);}
       }
       let dateMs=null;
       if(paid.length>=2)dateMs=paid[paid.length-1];
       else if(paid.length>=1&&(completedStatus||heavy))dateMs=paid[paid.length-1];
       else if(completedStatus||heavy){const lm=job.lastModified?Date.parse(job.lastModified):NaN;dateMs=!isNaN(lm)?lm:Date.now();}
       if(dateMs==null){done++;continue;}
-      const row=bcRowFrom(job,summary,dateMs);if(row)rebuilt.push(row);
+      const row=bcRowFrom(job,summary,dateMs);if(row){const rh=await ensureLead();row.lead=leadFromHours(rh)||'';row._rooferHrs=rh;rebuilt.push(row);}
       done++;if(done%8===0){setP('back-costing '+done+'/'+jobs.length+'…');if(onProg)onProg(done/(jobs.length||1));}
     }
   }
@@ -1418,6 +1465,7 @@ function bcTypes(){const ts=new Set();getAllBC().forEach(r=>{if(r.job_type)ts.ad
 function fillBCFilters(){
   const ye=document.getElementById('bc-year');if(ye&&ye.options.length<=1){ye.innerHTML='<option value="all">All years</option>'+bcYears().map(y=>'<option>'+y+'</option>').join('');}
   const te=document.getElementById('bc-type');if(te&&te.options.length<=1){te.innerHTML='<option value="all">All types</option>'+bcTypes().map(t=>'<option>'+esc(t)+'</option>').join('');}
+  const le=document.getElementById('bc-lead');if(le&&!le.options.length){le.innerHTML='<option value="all">All lead roofers</option>'+LEAD_ROOFERS.map(r=>'<option>'+esc(r)+'</option>').join('')+'<option value="__none">Unassigned</option>';}
 }
 // Materials cost (cost of goods) as % of revenue over the last 6 months of back-costed
 // (completed / fully-invoiced) jobs. Excludes jobs with no materials recorded so old jobs
@@ -1537,6 +1585,83 @@ function bcJobType(r){
 }
 // Where a back-costing row came from: live Fergus sync vs the original Excel import.
 function bcSrc(r){return r._fergus?'<span class="src-f">⚡ Fergus</span>':'<span class="src-x">📄 Excel</span>';}
+// Sortable timestamp + short display for a back-costing row (prefers the real date, falls back to month).
+function bcDateNum(r){
+  const ds=r&&r.date;if(ds){const t=Date.parse(ds);if(!isNaN(t))return t;}
+  const m=(r&&r.month)||'';const p=m.split('-');const mi=FG_MONTHS.indexOf(p[0]);const y=parseInt(p[1])||0;
+  return (y&&mi>=0)?Date.parse(y+'-'+String(mi+1).padStart(2,'0')+'-15T00:00:00'):0;
+}
+function bcDateDisp(r){
+  const ds=r&&r.date;
+  if(ds&&/^\d{4}-\d{2}-\d{2}/.test(ds)){const a=ds.slice(0,10).split('-');const mo=FG_MONTHS[parseInt(a[1])-1]||a[1];return a[2]+' '+mo+' '+a[0].slice(2);}
+  return (r&&r.month)||'—';
+}
+
+// ════════ LEAD ROOFERS ════════
+// A job's lead roofer = whoever logged the most hours on it (others may help a little).
+const LEAD_ROOFERS=['Nick','Ethan','Axel','Justin','Jacob'];
+const ROOFER_ALIASES={Nick:['nicholas','nick','nik'],Ethan:['ethan'],Axel:['axel','axl'],Justin:['justin'],Jacob:['jacob','jake']};
+function matchRoofer(name){
+  const s=' '+String(name||'').toLowerCase().replace(/[^a-z]+/g,' ').trim()+' ';
+  for(const k of LEAD_ROOFERS){if(ROOFER_ALIASES[k].some(a=>s.includes(' '+a+' ')))return k;}   // whole-word
+  for(const k of LEAD_ROOFERS){if(ROOFER_ALIASES[k].some(a=>s.includes(a)))return k;}            // loose fallback
+  return null;
+}
+function leadFromHours(map){let best=null,bh=0;Object.keys(map||{}).forEach(k=>{if(map[k]>bh){bh=map[k];best=k;}});return best;}
+// Pull hours off a time/labour entry — hours, else minutes, else a duration in minutes/seconds.
+function entryHours(o){
+  let h=fnum(fpick(o,'hours','hrs','durationHours','totalHours','loggedHours','quantity','qty'));
+  if(h>0&&h<1000)return h;
+  const min=fnum(fpick(o,'minutes','durationMinutes','timeInMinutes','mins','duration_mins'));
+  if(min>0)return min/60;
+  const dur=fnum(fpick(o,'duration','durationSeconds','seconds','timeInSeconds'));
+  if(dur>=600)return dur/3600;     // big number → seconds
+  if(dur>0)return dur/60;          // small → minutes
+  return h||0;
+}
+// Pull a person's name off a time/labour entry across the shapes Fergus might use.
+function entryUser(o){
+  const flat=fpick(o,'userName','user_name','employeeName','employee_name','staffName','staff_name','fullName','full_name','createdByName','workerName');
+  if(flat)return flat;
+  const sub=o&&(o.user||o.employee||o.staff||o.worker||o.createdBy||o.person);
+  if(sub&&typeof sub==='object'){return sub.name||sub.fullName||sub.displayName||(((sub.firstName||sub.first_name||'')+' '+(sub.lastName||sub.last_name||'')).trim())||'';}
+  if(typeof sub==='string')return sub;
+  const fn=o&&(o.firstName||o.first_name),ln=o&&(o.lastName||o.last_name);
+  if(fn||ln)return ((fn||'')+' '+(ln||'')).trim();
+  return '';
+}
+// Walk a time/labour/phases payload and emit (userName, hours) for every entry we can recognise.
+function walkRooferHours(data,emit){
+  (function w(o){
+    if(!o||typeof o!=='object')return;
+    if(Array.isArray(o)){o.forEach(w);return;}
+    const u=entryUser(o),h=entryHours(o);
+    if(u&&h>0)emit(u,h);
+    for(const k in o){const v=o[k];if(v&&typeof v==='object')w(v);}
+  })(data);
+}
+let _timeEp,_timeMiss=0,_rooferTries=0,_rooferHits=0,_rooferGaveUp=false;   // time-endpoint discovery state (reset per sync)
+function resetRooferDiscovery(){_timeEp=undefined;_timeMiss=0;_rooferTries=0;_rooferHits=0;_rooferGaveUp=false;}
+function _timeEndpoints(id){const e=encodeURIComponent(id);return [
+  '/jobs/'+e+'/timeEntries','/jobs/'+e+'/time_entries','/jobs/'+e+'/timesheets',
+  '/jobs/'+e+'/labour','/jobs/'+e+'/labourEntries','/jobs/'+e+'/time'];}
+async function fergusJobRooferHours(jobId){
+  const out={};if(_rooferGaveUp)return out;   // no per-person hours available this sync → stop hammering
+  const get=async p=>{try{return await fergusApiFetch(p);}catch(e){return null;}};
+  const nonEmpty=j=>j&&(Array.isArray(j)?j.length:(j.data?(j.data.length||Object.keys(j.data).length):Object.keys(j).length));
+  let data=null;
+  const eps=_timeEndpoints(jobId);
+  if(_timeEp){data=await get(eps[_timeEp]);}
+  if(!data&&_timeEp!==''){
+    for(let i=0;i<eps.length;i++){const j=await get(eps[i]);if(nonEmpty(j)){data=j;_timeEp=i;break;}}
+    if(!data){_timeMiss++;if(_timeMiss>=6)_timeEp='';}   // stop probing time endpoints after 6 dry jobs
+  }
+  if(!data){data=await get('/jobs/'+encodeURIComponent(jobId)+'/phases');}   // fallback: labour lines on phases
+  if(data)walkRooferHours(data,(u,h)=>{const k=matchRoofer(u);if(k)out[k]=(out[k]||0)+h;});
+  _rooferTries++;if(Object.keys(out).length)_rooferHits++;
+  if(_rooferTries>=10&&_rooferHits===0)_rooferGaveUp=true;   // no roofer hours anywhere after 10 jobs → give up for this sync
+  return out;
+}
 function renderBCTypes(){
   const body=document.getElementById('bc-type-body');if(!body)return;
   const ovRate=ohRate().rate;
@@ -1546,18 +1671,74 @@ function renderBCTypes(){
   let html='',gS=0,gG=0,gH=0,gPH=0,gn=0;
   order.forEach(name=>{
     const list=groups[name];if(!list.length)return;
-    list.sort((a,b)=>num(b.sales)-num(a.sales));
+    list.sort((a,b)=>bcDateNum(b)-bcDateNum(a));   // most recent first
     let sS=0,sG=0,sH=0,sPH=0;
     const rowsHtml=list.map(r=>{const sa=num(r.sales),gp=num(r.gp),h=num(r.h_actual),ph=num(r.h_priced);const np=gp-ovRate*h;sS+=sa;sG+=gp;sH+=h;sPH+=ph;
-      return '<tr><td>'+esc((r.job||'').slice(0,38))+'</td><td>'+bcSrc(r)+'</td><td>'+fmtK(sa)+'</td><td class="'+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td>'+(sa>0?Math.round(gp/sa*100)+'%':'—')+'</td><td class="'+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td>'+(ph?fmtH(ph):'—')+'</td><td>'+(h?fmtH(h):'—')+'</td></tr>';}).join('');
+      return '<tr><td class="mut" style="white-space:nowrap;">'+esc(bcDateDisp(r))+'</td><td>'+esc((r.job||'').slice(0,38))+'</td><td>'+bcSrc(r)+'</td><td>'+fmtK(sa)+'</td><td class="'+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td>'+(sa>0?Math.round(gp/sa*100)+'%':'—')+'</td><td class="'+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td>'+(ph?fmtH(ph):'—')+'</td><td>'+(h?fmtH(h):'—')+'</td></tr>';}).join('');
     const sNP=sG-ovRate*sH;
-    html+='<tr style="background:rgba(80,140,255,.15);"><td colspan="2" style="font-weight:800;text-transform:uppercase;font-size:.62rem;letter-spacing:.4px;">'+esc(name)+' · '+list.length+' jobs</td><td style="font-weight:800;">'+fmtK(sS)+'</td><td style="font-weight:800;">'+fmtK(sG)+'</td><td style="font-weight:800;">'+(sS>0?Math.round(sG/sS*100)+'%':'—')+'</td><td style="font-weight:800;">'+fmtK(sNP)+'</td><td style="font-weight:800;">'+fmtH(sPH)+'</td><td style="font-weight:800;">'+fmtH(sH)+'</td></tr>'+rowsHtml;
+    html+='<tr style="background:rgba(80,140,255,.15);"><td colspan="3" style="font-weight:800;text-transform:uppercase;font-size:.62rem;letter-spacing:.4px;">'+esc(name)+' · '+list.length+' jobs</td><td style="font-weight:800;">'+fmtK(sS)+'</td><td style="font-weight:800;">'+fmtK(sG)+'</td><td style="font-weight:800;">'+(sS>0?Math.round(sG/sS*100)+'%':'—')+'</td><td style="font-weight:800;">'+fmtK(sNP)+'</td><td style="font-weight:800;">'+fmtH(sPH)+'</td><td style="font-weight:800;">'+fmtH(sH)+'</td></tr>'+rowsHtml;
     gS+=sS;gG+=sG;gH+=sH;gPH+=sPH;gn+=list.length;
   });
   const gNP=gG-ovRate*gH;
-  html+='<tr class="tot"><td colspan="2">TOTAL ('+gn+')</td><td>'+fmtK(gS)+'</td><td>'+fmtK(gG)+'</td><td>'+(gS>0?Math.round(gG/gS*100)+'%':'—')+'</td><td>'+fmtK(gNP)+'</td><td>'+fmtH(gPH)+'</td><td>'+fmtH(gH)+'</td></tr>';
-  body.innerHTML=gn?html:'<tr><td colspan="8" class="empty">No back-costed jobs yet — Sync from Fergus.</td></tr>';
+  html+='<tr class="tot"><td colspan="3">TOTAL ('+gn+')</td><td>'+fmtK(gS)+'</td><td>'+fmtK(gG)+'</td><td>'+(gS>0?Math.round(gG/gS*100)+'%':'—')+'</td><td>'+fmtK(gNP)+'</td><td>'+fmtH(gPH)+'</td><td>'+fmtH(gH)+'</td></tr>';
+  body.innerHTML=gn?html:'<tr><td colspan="9" class="empty">No back-costed jobs yet — Sync from Fergus.</td></tr>';
 }
+// ════════ PERFORMANCE BY LEAD ROOFER ════════
+// Aggregate back-costing rows → { roofer: { month: {rev,gp,h,n} } } (only rows with a known lead).
+function leadMonthAgg(){
+  const m={};
+  getAllBC().forEach(r=>{const lead=r.lead;if(!lead)return;const mo=r.month;if(!mo)return;
+    const rm=m[lead]||(m[lead]={});const o=rm[mo]||(rm[mo]={rev:0,gp:0,h:0,n:0});
+    o.rev+=num(r.sales);o.gp+=num(r.gp);o.h+=num(r.h_actual);o.n++;});
+  return m;
+}
+function leadRoofersWithData(){const a=leadMonthAgg();return LEAD_ROOFERS.filter(k=>a[k]&&Object.keys(a[k]).length);}
+let lrIdx=0;
+function lrStep(d){const list=leadRoofersWithData();if(!list.length)return;lrIdx=((lrIdx+d)%list.length+list.length)%list.length;renderLeadRoofer();}
+function lrPick(i){lrIdx=i;renderLeadRoofer();}
+function renderLeadRoofer(){
+  const card=document.getElementById('lr-card');if(!card)return;
+  const agg=leadMonthAgg();const list=leadRoofersWithData();
+  const set=(id,h,t)=>{const e=document.getElementById(id);if(!e)return;if(t!=null)e.textContent=t;else e.innerHTML=h;};
+  if(!list.length){
+    set('lr-name',null,'No data yet');set('lr-sub',null,'');set('lr-gphr',null,'—');set('lr-gphr-sub',null,'Sync from Fergus to assign jobs by logged hours');
+    set('lr-brk','');set('lr-dots','');document.getElementById('lr-body').innerHTML='<tr><td colspan="7" class="empty">No jobs assigned to a lead roofer yet. Tap Sync — jobs are assigned to whoever logged the most hours.</td></tr>';
+    set('lr-note',null,'Lead roofers: '+LEAD_ROOFERS.join(', ')+'.');return;
+  }
+  if(lrIdx>=list.length)lrIdx=0;
+  const roofer=list[lrIdx];const months=Object.keys(agg[roofer]).sort((a,b)=>bcMonthNum(b)-bcMonthNum(a));   // newest first
+  set('lr-name',null,roofer);
+  set('lr-sub',null,(lrIdx+1)+' / '+list.length+' · swipe ↔');
+  // dots
+  set('lr-dots',list.map((k,i)=>'<div class="lr-dot'+(i===lrIdx?' on':'')+'" onclick="lrPick('+i+')" title="'+esc(k)+'"></div>').join(''));
+  // rolling 3-month GP/hr ending at month index j (j newest..older): sum of gp/h over months[j..j+2]
+  const roll3=(j)=>{let g=0,h=0;for(let k=j;k<Math.min(j+3,months.length);k++){const o=agg[roofer][months[k]];g+=o.gp;h+=o.h;}return h>0?g/h:null;};
+  // hero = latest month
+  const lm=agg[roofer][months[0]];const lgphr=lm.h>0?lm.gp/lm.h:null;const r3=roll3(0);
+  set('lr-gphr',null,lgphr!=null?fmt$(lgphr):'—');
+  set('lr-gphr-sub',null,months[0]+(r3!=null?(' · rolling 3-mo '+fmt$(r3)+'/hr'):''));
+  set('lr-brk',
+    brk('Latest month','<b>'+esc(months[0])+'</b> <span class="mut">'+lm.n+' job'+(lm.n!==1?'s':'')+'</span>')+
+    brk('Revenue','<b>'+fmt$(lm.rev)+'</b>')+
+    brk('Gross profit','<b class="'+(lm.gp>=0?'pos':'neg')+'">'+fmt$(lm.gp)+'</b> <span class="mut">'+(lm.rev>0?Math.round(lm.gp/lm.rev*100)+'%':'—')+'</span>')+
+    brk('GP / hr','<b>'+(lgphr!=null?fmt$(lgphr):'—')+'</b>')+
+    brk('Rolling 3-mo GP / hr','<b>'+(r3!=null?fmt$(r3):'—')+'</b> <span class="mut">last 3 months</span>'));
+  // per-month table (newest first) with each month's rolling-3-mo GP/hr
+  document.getElementById('lr-body').innerHTML=months.map((mo,j)=>{
+    const o=agg[roofer][mo];const gphr=o.h>0?o.gp/o.h:null;const rr=roll3(j);
+    return '<tr><td>'+esc(mo)+'</td><td>'+o.n+'</td><td>'+fmtK(o.rev)+'</td><td class="'+(o.gp>=0?'pos':'neg')+'">'+fmtK(o.gp)+'</td><td>'+(o.rev>0?Math.round(o.gp/o.rev*100)+'%':'—')+'</td><td>'+(gphr!=null?fmt$(gphr):'—')+'</td><td>'+(rr!=null?fmt$(rr):'—')+'</td></tr>';
+  }).join('');
+  // all-time line
+  const tot=months.reduce((a,mo)=>{const o=agg[roofer][mo];a.rev+=o.rev;a.gp+=o.gp;a.h+=o.h;a.n+=o.n;return a;},{rev:0,gp:0,h:0,n:0});
+  set('lr-note',null,roofer+' all-time: '+tot.n+' jobs · '+fmt$(tot.rev)+' revenue · '+(tot.rev>0?Math.round(tot.gp/tot.rev*100):0)+'% GP · '+(tot.h>0?fmt$(tot.gp/tot.h):'—')+'/hr. Lead = whoever logged the most hours on a job.');
+}
+// Swipe left/right on the card to change roofer (the global tab-swipe ignores .lr-swipe).
+(function(){
+  let x0=null,y0=null;
+  document.addEventListener('touchstart',e=>{const t=e.target;if(t.closest&&t.closest('.lr-swipe')){x0=e.touches[0].clientX;y0=e.touches[0].clientY;}else x0=null;},{passive:true});
+  document.addEventListener('touchend',e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0,dy=e.changedTouches[0].clientY-y0;x0=null;if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.4)lrStep(dx<0?1:-1);},{passive:true});
+})();
+
 // ===== Excel (source of truth) vs Fergus pull — verify the app is pulling correct numbers =====
 function bcNorm(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
 function bcToks(s){return bcNorm(s).split(' ').filter(Boolean);}
@@ -1598,6 +1779,7 @@ function renderBC(){
   renderBCStrip();
   renderMatPct();
   renderBCTypes();
+  renderLeadRoofer();
   // ── period cards (This / Last / 3-mo) from back-costing ──
   const p=periodMonths();
   document.getElementById('bc-met-this').innerHTML=metGrid(p.thisM?bcFig(p.thisM):null,true);
@@ -1614,18 +1796,20 @@ function renderBC(){
   const ohN=document.getElementById('bc-oh-note');
   if(ohN)ohN.innerHTML=_oh.override?('Manual override: '+fmt$(ovRate)+'/hr — clear the Override box to use the calculator.'):('OH rate = (Monthly OPEX × 12 ÷ field staff) ÷ billable weeks/yr ÷ billable hrs/week. Using OPEX '+fmtK(_oh.opex)+'/mo'+(_oh.opexIsAuto?' (6-mo Xero avg, overheads only — on-site wages excluded)':'')+' · '+_oh.emp+' staff · '+Math.round(_oh.util*100)+'% utilisation · '+_oh.billWeeks.toFixed(1)+' billable wks · '+Math.round(_oh.billHrs)+' hrs/wk → '+fmt$(_oh.calcRate)+'/hr. NP/hr = GP/hr − this rate.');
   const yr=document.getElementById('bc-year').value, ty=document.getElementById('bc-type').value, q=(document.getElementById('bc-search').value||'').toLowerCase();
+  const ldEl=document.getElementById('bc-lead');const ld=ldEl?ldEl.value:'all';
   let rows=getAllBC().filter(r=>{
     if(yr!=='all'&&!(r.month||'').endsWith('-'+yr))return false;
     if(ty!=='all'&&r.job_type!==ty)return false;
+    if(ld!=='all'&&(ld==='__none'?!!r.lead:r.lead!==ld))return false;
     if(q&&!((r.job||'').toLowerCase().includes(q)))return false;
     return true;
-  }).sort((a,b)=>bcMonthNum(b.month)-bcMonthNum(a.month));
+  }).sort((a,b)=>bcDateNum(b)-bcDateNum(a));
   document.getElementById('bc-count').textContent='· '+rows.length+' jobs'+(S.get('bc_inv_n',0)?' · dated by completion invoice':'')+' · NP @ '+fmt$(ovRate)+'/h overhead';
   document.getElementById('bc-body').innerHTML=rows.length?rows.slice(0,400).map(r=>{
     const gp=num(r.gp),gpm=num(r.gpm),h=num(r.h_actual),hP=num(r.h_priced);
     const gphr=h>0?gp/h:null;const np=gp-ovRate*h;const nphr=h>0?(gp/h-ovRate):null;
     const rs=nphr==null?'':(nphr>=50?' style="background:rgba(74,222,128,.16);"':nphr>=5?' style="background:rgba(251,146,60,.18);"':' style="background:rgba(255,107,107,.16);"');
-    return '<tr'+rs+'><td>'+esc(r.month||'')+'</td><td>'+esc((r.job||'').slice(0,40))+'</td><td>'+bcSrc(r)+'</td><td>'+fmtK(r.sales)+'</td><td>'+fmtK(num(r.sales)-gp)+'</td><td class="'+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td>'+(gpm?gpm+'%':'—')+'</td><td>'+(gphr!=null?fmt$(gphr):'—')+'</td><td class="'+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td>'+(nphr!=null?fmt$(nphr):'—')+'</td><td>'+(hP?fmtH(hP):'—')+'</td><td>'+(h?fmtH(h):'—')+'</td></tr>';
+    return '<tr'+rs+'><td>'+esc(r.month||'')+'</td><td>'+esc((r.job||'').slice(0,40))+(r.lead?' <span class="lr-tag">'+esc(r.lead)+'</span>':'')+'</td><td>'+bcSrc(r)+'</td><td>'+fmtK(r.sales)+'</td><td>'+fmtK(num(r.sales)-gp)+'</td><td class="'+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td>'+(gpm?gpm+'%':'—')+'</td><td>'+(gphr!=null?fmt$(gphr):'—')+'</td><td class="'+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td>'+(nphr!=null?fmt$(nphr):'—')+'</td><td>'+(hP?fmtH(hP):'—')+'</td><td>'+(h?fmtH(h):'—')+'</td></tr>';
   }).join(''):'<tr><td colspan="12" class="empty">No jobs match.</td></tr>';
   const tS=rows.reduce((s,r)=>s+num(r.sales),0),tG=rows.reduce((s,r)=>s+num(r.gp),0),tH=rows.reduce((s,r)=>s+num(r.h_actual),0),tPH=rows.reduce((s,r)=>s+num(r.h_priced),0);
   const tNP=tG-ovRate*tH;
@@ -2912,7 +3096,7 @@ function renderAll(){renderDash();renderWork();renderModspace();renderBC();rende
     if(finishing||e.touches.length!==1){armed=false;return;}
     if(page==='cash'){armed=false;return;}   // Cash tab: no tab-swipe — it clashes with the payment calendar's side-scroll
     const t=e.target;
-    if(t.closest&&t.closest('.mstrip,.chips,.tbl-wrap,.calwrap,input,select,textarea,#modal,#nav')){armed=false;return;}
+    if(t.closest&&t.closest('.mstrip,.chips,.tbl-wrap,.calwrap,.lr-swipe,input,select,textarea,#modal,#nav')){armed=false;return;}
     x0=e.touches[0].clientX;y0=e.touches[0].clientY;
     armed=true;horiz=false;cur=null;nxt=null;dir=0;W=window.innerWidth||360;
   },{passive:true});

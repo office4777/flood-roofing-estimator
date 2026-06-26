@@ -6,7 +6,34 @@ Two single-file apps (open in a browser — no build step):
   triage, job board, back costing, quotes, marketing/ROI, Xero P&L, invoicing,
   crew & leave.
 - **`FloodRoofing_Financials.html`** — a lean **mobile** app: Dashboard, Forward
-  Workload, Back Costing (incl. ModSpace), Xero P&L. Built for the phone.
+  Workload, Back Costing (incl. ModSpace + Lead Roofer performance), Xero P&L.
+  Built for the phone.
+
+## Back Costing — by job type
+
+The "Back-costing by job type" card (Pole Sheds, Re-Roof's, Re-Roof & Gutter,
+Gutter only, Other) now shows a **Date** column for every job and lists each
+group **most-recent first**.
+
+## Performance by Lead Roofer (mobile app)
+
+A card in the Back Costing tab that rolls up back-costing by lead roofer. **Swipe
+left/right** (or use the ‹ › arrows / dots) to move between roofers
+(Nick, Ethan, Axel, Justin, Jacob). For the selected roofer it shows the latest
+month's combined **revenue, GP $ & %, GP/hr**, a **rolling 3-month GP/hr**, and a
+per-month table (newest first) with each month's GP/hr and its trailing
+3-month GP/hr.
+
+**How a job's lead roofer is decided:** whoever **logged the most hours** on the
+job (others may help a little). On each Fergus sync the app reads each job's time
+entries (with a fallback to the job's phase/labour lines), matches the logged
+names to your roofers, and assigns the job to the top one. Jobs are tagged with
+their lead roofer in the "All Back Costing" list, which also has a **lead-roofer
+dropdown** to filter to one roofer (or "Unassigned").
+
+If roofer figures don't appear, open **🔍 Debug a job** in the ModSpace card,
+enter a job number, and tap Check — it prints which time endpoint worked, the
+names + hours it found, and the matched roofers, so the mapping can be confirmed.
 
 ## ModSpace back costing (mobile app)
 
