@@ -1403,6 +1403,7 @@ async function syncBackCosting(activeJobs,onProg){
   completed.concat(activeJobs).forEach(j=>{const id=String(j.id!=null?j.id:j.jobId);if(id&&id!=='null'&&id!=='undefined'&&!seen[id]){seen[id]=1;jobs.push(j);}});
   const rebuilt=[],msRebuilt=[];let idx=0,done=0;
   const setP=t=>{['work-sync','dash-fw-sync'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=t;});};
+  setP('loading time entries…');try{await buildTimeMap();}catch(e){console.warn('time map',e.message);}   // who logged hours on each job
   async function worker(){
     while(idx<jobs.length){
       const job=jobs[idx++];
@@ -1420,19 +1421,19 @@ async function syncBackCosting(activeJobs,onProg){
       const _client=fergusName(job.customer)||fergusName(job.mainContact)||'';
       const _site=fergusAddr(job.siteAddress);
       const _brief=job.brief||job.title||job.jobDescription||job.description||'';
-      // Lead roofer = who logged the most hours (fetched once per job, only when it yields a row).
-      let _rh=null;const ensureLead=async()=>{if(_rh===null){try{_rh=await fergusJobRooferHours(job.id!=null?job.id:job.jobId);}catch(e){_rh={};}}return _rh;};
+      // Lead roofer = who logged the most hours on this job (from the bulk time map built above).
+      const _rh=rooferHoursFor(job.id!=null?job.id:job.jobId);const _lead=leadFromHours(_rh)||'';
       if(isModspace(_client)||isModspace(_site)||isModspace(_brief)){
         const dms=paid.length?paid[paid.length-1]:(job.lastModified?Date.parse(job.lastModified):Date.now());
         const mr=bcRowFrom(job,summary,dms||Date.now());
-        if(mr){mr._status=job.status||'';mr._inProgress=!(completedStatus||heavy||paid.length>=2);mr._noData=!summary;const rh=await ensureLead();mr.lead=leadFromHours(rh)||'';mr._rooferHrs=rh;msRebuilt.push(mr);}
+        if(mr){mr._status=job.status||'';mr._inProgress=!(completedStatus||heavy||paid.length>=2);mr._noData=!summary;mr.lead=_lead;mr._rooferHrs=_rh;msRebuilt.push(mr);}
       }
       let dateMs=null;
       if(paid.length>=2)dateMs=paid[paid.length-1];
       else if(paid.length>=1&&(completedStatus||heavy))dateMs=paid[paid.length-1];
       else if(completedStatus||heavy){const lm=job.lastModified?Date.parse(job.lastModified):NaN;dateMs=!isNaN(lm)?lm:Date.now();}
       if(dateMs==null){done++;continue;}
-      const row=bcRowFrom(job,summary,dateMs);if(row){const rh=await ensureLead();row.lead=leadFromHours(rh)||'';row._rooferHrs=rh;rebuilt.push(row);}
+      const row=bcRowFrom(job,summary,dateMs);if(row){row.lead=_lead;row._rooferHrs=_rh;rebuilt.push(row);}
       done++;if(done%8===0){setP('back-costing '+done+'/'+jobs.length+'…');if(onProg)onProg(done/(jobs.length||1));}
     }
   }
@@ -1626,9 +1627,11 @@ function matchRoofer(name){
 function leadFromHours(map){let best=null,bh=0;Object.keys(map||{}).forEach(k=>{if(map[k]>bh){bh=map[k];best=k;}});return best;}
 // Pull hours off a time/labour entry — hours, else minutes, else a duration in minutes/seconds.
 function entryHours(o){
-  let h=fnum(fpick(o,'hours','hrs','durationHours','totalHours','loggedHours','quantity','qty'));
+  let h=fnum(fpick(o,'paidDuration','hours','hrs','durationHours','totalHours','loggedHours'));
   if(h>0&&h<1000)return h;
-  const min=fnum(fpick(o,'minutes','durationMinutes','timeInMinutes','mins','duration_mins'));
+  const st=o&&(o.startTime||o.start),en=o&&(o.endTime||o.end);   // Fergus time entries: "2026-06-15 07:00"
+  if(st&&en){const a=Date.parse(String(st).replace(' ','T')),b=Date.parse(String(en).replace(' ','T'));if(!isNaN(a)&&!isNaN(b)&&b>a){const d=(b-a)/3600000;if(d>0&&d<24)return d;}}
+  const min=fnum(fpick(o,'minutes','durationMinutes','timeInMinutes','mins'));
   if(min>0)return min/60;
   const dur=fnum(fpick(o,'duration','durationSeconds','seconds','timeInSeconds'));
   if(dur>=600)return dur/3600;     // big number → seconds
@@ -1656,28 +1659,27 @@ function walkRooferHours(data,emit){
     for(const k in o){const v=o[k];if(v&&typeof v==='object')w(v);}
   })(data);
 }
-let _timeEp,_timeMiss=0,_rooferTries=0,_rooferHits=0,_rooferGaveUp=false;   // time-endpoint discovery state (reset per sync)
-function resetRooferDiscovery(){_timeEp=undefined;_timeMiss=0;_rooferTries=0;_rooferHits=0;_rooferGaveUp=false;}
-function _timeEndpoints(id){const e=encodeURIComponent(id);return [
-  '/timeEntries?jobId='+e,                       // ← the one Fergus actually serves
-  '/jobs/'+e+'/timeEntries','/jobs/'+e+'/time_entries','/jobs/'+e+'/timesheets'];}
-async function fergusJobRooferHours(jobId){
-  const out={};if(_rooferGaveUp)return out;   // no per-person hours available this sync → stop hammering
-  const get=async p=>{try{return await fergusApiFetch(p);}catch(e){return null;}};
-  const nonEmpty=j=>j&&(Array.isArray(j)?j.length:(j.data?(j.data.length||Object.keys(j.data).length):Object.keys(j).length));
-  let data=null;
-  const eps=_timeEndpoints(jobId);
-  if(_timeEp){data=await get(eps[_timeEp]);}
-  if(!data&&_timeEp!==''){
-    for(let i=0;i<eps.length;i++){const j=await get(eps[i]);if(nonEmpty(j)){data=j;_timeEp=i;break;}}
-    if(!data){_timeMiss++;if(_timeMiss>=6)_timeEp='';}   // stop probing time endpoints after 6 dry jobs
-  }
-  if(!data){data=await get('/jobs/'+encodeURIComponent(jobId)+'/phases');}   // fallback: labour lines on phases
-  if(data)walkRooferHours(data,(u,h)=>{const k=matchRoofer(u);if(k)out[k]=(out[k]||0)+h;});
-  _rooferTries++;if(Object.keys(out).length)_rooferHits++;
-  if(_rooferTries>=10&&_rooferHits===0)_rooferGaveUp=true;   // no roofer hours anywhere after 10 jobs → give up for this sync
-  return out;
+// Fergus serves /timeEntries but IGNORES ?jobId= (it returns a global slice). So we pull ALL time
+// entries once, then group them by each entry's own jobId → { jobId: { roofer: hours } }.
+let _timeMap=null;
+function resetRooferDiscovery(){_timeMap=null;}
+async function buildTimeMap(onProg){
+  const map={};let n=0,kept=0;
+  let entries=[];
+  const since=new Date(Date.now()-820*86400000).toISOString().slice(0,10);   // ~27 months back (harmless if Fergus ignores it)
+  try{entries=await fergusPaginate('/timeEntries?pageSize=200&dateFrom='+since,150);}
+  catch(e){try{entries=await fergusPaginate('/timeEntries?pageSize=100',150);}catch(e2){console.warn('timeEntries',e2.message);}}
+  entries.forEach(e=>{
+    n++;const jid=e&&(e.jobId!=null?e.jobId:(e.job_id!=null?e.job_id:null));if(jid==null)return;   // toolbox/breakfast etc. have null jobId
+    const roofer=matchRoofer(entryUser(e));if(!roofer)return;
+    const h=entryHours(e);if(h<=0)return;
+    const k=String(jid);(map[k]||(map[k]={}))[roofer]=(map[k][roofer]||0)+h;kept++;
+  });
+  _timeMap=map;S.set('msTimeMap',{entries:n,kept,jobs:Object.keys(map).length});
+  if(onProg)onProg(1);
+  return map;
 }
+function rooferHoursFor(jobId){return (_timeMap&&_timeMap[String(jobId)])||{};}
 function renderBCTypes(){
   const body=document.getElementById('bc-type-body');if(!body)return;
   const ovRate=ohRate().rate;

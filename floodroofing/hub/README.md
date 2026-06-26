@@ -34,11 +34,13 @@ per-month table (newest first) with each month's GP/hr and its trailing
 3-month GP/hr.
 
 **How a job's lead roofer is decided:** whoever **logged the most hours** on the
-job (others may help a little). On each Fergus sync the app reads each job's time
-entries (with a fallback to the job's phase/labour lines), matches the logged
-names to your roofers, and assigns the job to the top one. Jobs are tagged with
-their lead roofer in the "All Back Costing" list, which also has a **lead-roofer
-dropdown** to filter to one roofer (or "Unassigned").
+job (others may help a little). On each Fergus sync the app pulls all time
+entries from `/timeEntries` (Fergus ignores per-job filtering, so they're fetched
+in bulk and grouped by each entry's own `jobId`), totals each person's hours per
+job (using `paidDuration`, or start→end time), matches the logged names to your
+roofers, and assigns the job to the top one. Jobs are tagged with their lead
+roofer in the "All Back Costing" list, which also has a **lead-roofer dropdown**
+to filter to one roofer (or "Unassigned").
 
 If roofer figures don't appear, open **🔍 Debug a job** in the ModSpace card,
 enter a job number, and tap Check — it prints which time endpoint worked, the
