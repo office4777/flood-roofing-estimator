@@ -124,6 +124,10 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .ms-st{display:flex;flex-direction:column;gap:2px;}
 .ms-stl{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);}
 .ms-stv{font-size:.9rem;font-weight:700;color:var(--text);}
+.ms-job.wip{border-style:dashed;}
+.ms-tag{display:inline-block;font-size:.54rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:2px 7px;border-radius:999px;vertical-align:middle;margin-left:4px;}
+.ms-tag.done{background:rgba(74,222,128,.16);color:var(--success);}
+.ms-tag.wip{background:rgba(251,191,36,.16);color:var(--warning);}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;}
 @keyframes sp{to{transform:rotate(360deg);}}
 
@@ -755,6 +759,7 @@ function fergusAddr(x){if(!x)return '';if(typeof x==='string')return x;return [x
 // ════════ STATE ════════
 let page='dash';
 let bcFergus=S.get('bcFergus',[]);           // back-costing rows synced from Fergus (shared w/ Hub)
+let msBC=S.get('msBC',[]);                    // ModSpace back-costing rows (Active + Completed, every status of work)
 let bcInvDates={};                            // {jobId: [non-void invoice dates, ascending]} for completion-date back-costing
 let fwJobs=S.get('fwJobs',[]);               // [{id,job,priced,actual,remaining,status}]
 let cfg=S.get('fwCfg',{teams:4,size:2,hrs:8});
@@ -1043,20 +1048,26 @@ function msStat(l,v){return '<div class="ms-st"><span class="ms-stl">'+l+'</span
 // Lives in the Back Costing tab: per-job back costing for every ModSpace job, then one combined
 // total. Revenue, material $/%, labour $/%, GP $/%, GP/hr — drawn from the back-costing rows.
 function renderModspace(){
+  // Prefer the dedicated ModSpace rows (every Active + Completed job). Fall back to the finished
+  // back-costing rows until a fresh sync populates msBC.
+  let src=(msBC&&msBC.length)?msBC:getAllBC().filter(r=>isModspace(r.job)||isModspace(r._title));
   const seen={},jobs=[];
-  getAllBC().filter(r=>isModspace(r.job)||isModspace(r._title)).forEach(r=>{
-    const k=r._fergus_id||r.job;if(!seen[k]){seen[k]=1;jobs.push(r);}});
-  jobs.sort((a,b)=>num(b.sales)-num(a.sales));
+  src.forEach(r=>{const k=r._fergus_id||r.job;if(!seen[k]){seen[k]=1;jobs.push(r);}});
+  // Completed first, then in-progress; each block sorted by revenue.
+  jobs.sort((a,b)=>(a._inProgress?1:0)-(b._inProgress?1:0)||num(b.sales)-num(a.sales));
   const pc=(part,whole)=>whole>0?(Math.round(part/whole*1000)/10)+'%':'—';
   const setT=(id,h)=>{const e=document.getElementById(id);if(e)e.innerHTML=h;};
+  let nProg=0;
 
   // ── individual back costing, one card per job ──
   setT('ms-count',jobs.length?('· '+jobs.length+' job'+(jobs.length!==1?'s':'')):'');
   document.getElementById('ms-jobs').innerHTML=jobs.length?jobs.map(r=>{
     const rev=num(r.sales),mat=num(r.a_mat),lab=num(r.a_lab),gp=num(r.gp),h=num(r.h_actual);
     const gpm=rev>0?gp/rev*100:0, gphr=h>0?gp/h:0, cls=gp>=0?'pos':'neg';
-    return '<div class="ms-job">'+
-      '<div class="ms-jn">'+esc(r.job)+'</div>'+
+    const wip=!!r._inProgress;if(wip)nProg++;
+    const tag=wip?'<span class="ms-tag wip">In progress</span>':'<span class="ms-tag done">Completed</span>';
+    return '<div class="ms-job'+(wip?' wip':'')+'">'+
+      '<div class="ms-jn">'+esc(r.job)+' '+tag+'</div>'+
       '<div class="ms-bar"><div class="ms-fill" style="width:'+Math.max(0,Math.min(100,gpm))+'%"></div></div>'+
       '<div class="ms-stats">'+
         msStat('Revenue',fmtK(rev))+
@@ -1066,7 +1077,7 @@ function renderModspace(){
         msStat('GP / hr',h>0?fmt$(gphr):'—')+
         msStat('Actual hrs',h>0?fmtH(h)+' h':'—')+
       '</div></div>';
-  }).join(''):'<div class="empty">No ModSpace back-costing yet. Tap “Sync”, or check the job/customer name contains “ModSpace”.</div>';
+  }).join(''):'<div class="empty">No ModSpace jobs yet. Tap “Sync”, or check the job/customer name contains “ModSpace”.</div>';
 
   // ── combined back costing across all ModSpace jobs ──
   const T=jobs.reduce((a,r)=>{a.rev+=num(r.sales);a.mat+=num(r.a_mat);a.lab+=num(r.a_lab);a.gp+=num(r.gp);a.h+=num(r.h_actual);return a;},{rev:0,mat:0,lab:0,gp:0,h:0});
@@ -1081,8 +1092,9 @@ function renderModspace(){
   const last=S.get('fw_last_sync','');
   setT('ms-sync',last?('· synced '+last):'');
   document.getElementById('ms-note').innerHTML=
-    'Back costing for every job whose customer or site mentions “ModSpace” (completed, paid, or ≥80% invoiced). '+
-    'Percentages are share of revenue; GP/hr = gross profit ÷ actual labour hours.';
+    'Every Active + Completed job whose customer/site mentions “ModSpace”. '+
+    'Percentages are share of revenue; GP/hr = gross profit ÷ actual labour hours.'+
+    (nProg?('<br>⚠ '+nProg+' job(s) still <b>in progress</b> — revenue is the full contract but costs are only what\'s booked so far, so their GP will look high until finished.'):'');
 }
 
 // ════════ BACK COSTING ════════
@@ -1226,7 +1238,7 @@ async function syncBackCosting(activeJobs,onProg){
   catch(e){completed=await fergusFetchJobs('Completed').catch(()=>[]);}
   const seen={},jobs=[];
   completed.concat(activeJobs).forEach(j=>{const id=String(j.id!=null?j.id:j.jobId);if(id&&id!=='null'&&id!=='undefined'&&!seen[id]){seen[id]=1;jobs.push(j);}});
-  const rebuilt=[];let idx=0,done=0;
+  const rebuilt=[],msRebuilt=[];let idx=0,done=0;
   const setP=t=>{['work-sync','dash-fw-sync'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=t;});};
   async function worker(){
     while(idx<jobs.length){
@@ -1238,6 +1250,16 @@ async function syncBackCosting(activeJobs,onProg){
       const fs=summary||{};const tb=fs.totalBilled||{},ca=fs.chargeableAmount||{},qs=fs.quoteSummary||{};
       const billed=num(tb.total),value=num(ca.total)||num(qs.quotedAmount)||billed;
       const invPct=value>0?billed/value:0;const heavy=billed>0&&invPct>=0.80;  // ≥80% invoiced → treat as finished
+      // ModSpace back costing: capture EVERY ModSpace job (Active or Completed), regardless of the
+      // finished gate, so in-progress jobs still show. Dated by last paid invoice → lastModified → now.
+      const _client=fergusName(job.customer)||fergusName(job.mainContact)||'';
+      const _site=fergusAddr(job.siteAddress);
+      const _brief=job.brief||job.title||job.jobDescription||job.description||'';
+      if(isModspace(_client)||isModspace(_site)||isModspace(_brief)){
+        const dms=paid.length?paid[paid.length-1]:(job.lastModified?Date.parse(job.lastModified):Date.now());
+        const mr=bcRowFrom(job,summary,dms||Date.now());
+        if(mr){mr._status=job.status||'';mr._inProgress=!(completedStatus||heavy||paid.length>=2);msRebuilt.push(mr);}
+      }
       let dateMs=null;
       if(paid.length>=2)dateMs=paid[paid.length-1];
       else if(paid.length>=1&&(completedStatus||heavy))dateMs=paid[paid.length-1];
@@ -1248,11 +1270,13 @@ async function syncBackCosting(activeJobs,onProg){
     }
   }
   await Promise.all(Array.from({length:4},()=>worker()));
+  const mm={};msRebuilt.forEach(r=>{mm[r._fergus_id]=r;});   // de-dupe ModSpace by job id
+  msBC=Object.values(mm);S.set('msBC',msBC);
   const m={};rebuilt.forEach(r=>{m[r._fergus_id]=r;});   // de-dupe by job id
   const arr=Object.values(m);
-  if(!arr.length){toast('No jobs matched a paid Xero invoice — back-costing unchanged.','err');return;}
+  if(!arr.length){toast('No jobs matched a paid Xero invoice — back-costing unchanged.','err');renderModspace();return;}
   bcFergus=arr;S.set('bcFergus',bcFergus);S.set('bc_inv_n',arr.length);
-  toast('Back-costing rebuilt ✓ '+arr.length+' jobs (completed, paid, or ≥80% invoiced)','ok');
+  toast('Back-costing rebuilt ✓ '+arr.length+' jobs (completed, paid, or ≥80% invoiced) · '+msBC.length+' ModSpace','ok');
 }
 // Back-cost a job to the month its COMPLETION invoice was raised — the 2nd non-void invoice
 // (50% deposit + 50% on completion). Avoids re-dating to a later rework / lastModified date.

@@ -14,14 +14,18 @@ A card at the top of the **Back Costing** tab, scoped to ModSpace jobs only. It
 filters the back-costing rows down to the jobs whose customer/site name (or
 brief) mentions ModSpace (`modspace` / `mod space` / `mod-space`) and shows:
 
-- **Each job** — one card per ModSpace job (sorted by biggest revenue), with a
-  GP-margin bar and: revenue, material cost ($ and % of revenue), labour cost
+- **Each job** — one card per ModSpace job (completed jobs first, then in-progress;
+  each sorted by revenue), with a GP-margin bar, a status chip (Completed /
+  In progress) and: revenue, material cost ($ and % of revenue), labour cost
   ($ and %), gross profit ($ and %), GP/hr, and actual hours.
 - **All combined** — one total across every ModSpace job: revenue, material
   cost ($/%), labour cost ($/%), gross profit ($/%) and GP/hour.
 
-Same rule as the rest of Back Costing — a job is included once it's completed,
-paid, or ≥80% invoiced. Tap **⟳ Sync jobs from Fergus** to refresh.
+Includes **every Active + Completed** ModSpace job (not just finished ones), so
+in-progress jobs show too — flagged "In progress" because their revenue is the
+full contract while costs are only what's booked so far (GP looks high until the
+job finishes). Quote-sent / to-price / archived jobs are excluded (no actuals to
+back-cost). Tap **⟳ Sync jobs from Fergus** to refresh.
 
 ## Sync progress bar
 
