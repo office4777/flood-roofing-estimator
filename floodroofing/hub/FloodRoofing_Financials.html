@@ -108,6 +108,16 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 
 .note{font-size:.72rem;color:var(--muted);line-height:1.6;margin-top:12px;}
 .empty{text-align:center;color:var(--muted);padding:28px 12px;font-size:.88rem;}
+.ms-job{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;}
+.ms-job:last-child{margin-bottom:0;}
+.ms-jn{font-size:.92rem;font-weight:700;color:var(--text);line-height:1.35;margin-bottom:10px;}
+.ms-bar{height:7px;border-radius:6px;background:var(--elev);overflow:hidden;margin-bottom:12px;}
+.ms-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--accent-2),var(--accent));}
+.ms-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 8px;}
+@media(max-width:430px){.ms-stats{grid-template-columns:repeat(2,1fr);}}
+.ms-st{display:flex;flex-direction:column;gap:2px;}
+.ms-stl{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);}
+.ms-stv{font-size:.9rem;font-weight:700;color:var(--text);}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;}
 @keyframes sp{to{transform:rotate(360deg);}}
 
@@ -343,6 +353,33 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
         </table>
       </div>
       <div class="note" id="work-note"></div>
+    </div>
+  </div>
+
+  <!-- ───────── MODSPACE BACKLOG ───────── -->
+  <div class="page" id="page-modspace">
+    <div class="card" style="border-left:4px solid var(--accent);">
+      <div class="ct">ModSpace backlog — all jobs <span id="ms-sync" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
+      <div class="hero">
+        <div class="big" id="ms-days">—</div>
+        <div class="unit">working days of ModSpace work</div>
+        <div class="sub" id="ms-sub"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">All ModSpace jobs together</div>
+      <div id="ms-brk"></div>
+    </div>
+
+    <div class="card">
+      <button class="btn btn-a" onclick="syncWorkload()">⟳ Sync active jobs from Fergus</button>
+    </div>
+
+    <div class="card">
+      <div class="ct">Each ModSpace job <span id="ms-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
+      <div id="ms-jobs"><div class="empty">No active jobs synced yet. Tap “Sync”.</div></div>
+      <div class="note" id="ms-note"></div>
     </div>
   </div>
 
@@ -677,6 +714,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
 <div id="nav">
   <div class="nav-i on" id="nav-dash" onclick="go('dash')"><span class="ic">📊</span>Dashboard</div>
   <div class="nav-i" id="nav-work" onclick="go('work')"><span class="ic">📅</span>Workload</div>
+  <div class="nav-i" id="nav-modspace" onclick="go('modspace')"><span class="ic">🏗️</span>ModSpace</div>
   <div class="nav-i" id="nav-bc" onclick="go('bc')"><span class="ic">💹</span>Back Cost</div>
   <div class="nav-i" id="nav-pl" onclick="go('pl')"><span class="ic">💼</span>P&amp;L</div>
   <div class="nav-i" id="nav-growth" onclick="go('growth')"><span class="ic">📈</span>Growth</div>
@@ -979,6 +1017,69 @@ function renderWork(){
 }
 function brk(l,r){return '<div class="brk"><span class="mut">'+l+'</span><span>'+r+'</span></div>';}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+// ════════ MODSPACE BACKLOG ════════
+// A ModSpace job is any Fergus job whose customer/site name mentions ModSpace.
+const MS_KEYS=['modspace','mod space','mod-space'];
+function isModspace(name){const s=String(name||'').toLowerCase();return MS_KEYS.some(k=>s.includes(k));}
+function msStat(l,v){return '<div class="ms-st"><span class="ms-stl">'+l+'</span><span class="ms-stv">'+v+'</span></div>';}
+// Per-job backlog cards + a single combined summary across every active ModSpace job.
+function renderModspace(){
+  const jobs=fwJobs.filter(j=>isModspace(j.job));
+  const c=capacity();
+  const R=jobs.reduce((s,j)=>s+Math.max(0,num(j.remaining)),0);
+  const days=R/c.perDay, weeks=days/5;
+  const sale=jobs.reduce((s,j)=>s+num(j.sale),0);
+  const billed=jobs.reduce((s,j)=>s+num(j.billed),0);
+  const owing=jobs.reduce((s,j)=>s+Math.max(0,num(j.sale)-num(j.billed)),0);
+  const matBuy=jobs.reduce((s,j)=>s+Math.max(0,num(j.pMat)-num(j.aMat)),0);
+  const allMs=(S.get('cashJobs',[])||[]).filter(j=>isModspace(j.job));
+  const doneMs=allMs.filter(j=>j.fin);
+
+  const setT=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
+  setT('ms-days',R>0?(Math.round(days*10)/10):(jobs.length?'0':'—'));
+  setT('ms-sub',jobs.length?('≈ '+(Math.round(weeks*10)/10)+' weeks · '+fmtH(R)+' man-hours across '+jobs.length+' job'+(jobs.length!==1?'s':'')):'No active ModSpace jobs in the backlog');
+
+  document.getElementById('ms-brk').innerHTML=
+    brk('ModSpace jobs in backlog','<b>'+jobs.length+'</b>')+
+    brk('Remaining man-hours','<b>'+fmtH(R)+' h</b>')+
+    brk('Forward workload','<b>'+(Math.round(days*10)/10)+' working days</b> <span class="mut">('+c.teams+'×'+c.size+' crew)</span>')+
+    brk('Per team','<b>'+(Math.round(days*10)/10)+' days</b> <span class="mut">each (parallel)</span>')+
+    brk('Contract value','<b>'+fmt$(sale)+'</b>')+
+    brk('Invoiced so far','<b>'+fmt$(billed)+'</b> <span class="mut">'+pct(billed,sale)+'</span>')+
+    brk('Still to invoice','<b>'+fmt$(owing)+'</b>')+
+    brk('Materials still to buy','<b>'+fmt$(matBuy)+'</b>');
+
+  const rows=[...jobs].sort((a,b)=>b.remaining-a.remaining);
+  setT('ms-count',rows.length?('· '+rows.length+' job'+(rows.length!==1?'s':'')):'');
+  document.getElementById('ms-jobs').innerHTML=rows.length?rows.map(j=>{
+    const jSale=num(j.sale),jBilled=num(j.billed),jOwe=Math.max(0,jSale-jBilled);
+    const jDays=Math.round(j.remaining/c.perDay*10)/10;
+    const donePct=jSale>0?Math.min(100,Math.round(jBilled/jSale*100)):0;
+    const mat=Math.max(0,num(j.pMat)-num(j.aMat));
+    const over=j.actual>j.priced&&j.priced>0;
+    return '<div class="ms-job">'+
+      '<div class="ms-jn">'+esc(j.job)+'</div>'+
+      '<div class="ms-bar"><div class="ms-fill" style="width:'+donePct+'%"></div></div>'+
+      '<div class="ms-stats">'+
+        msStat('Backlog',fmtH(j.remaining)+' h')+
+        msStat('≈ Days',jDays)+
+        msStat('Priced',j.priced>0?fmtH(j.priced)+' h':'⚠ —')+
+        msStat('Actual',fmtH(j.actual)+(over?' ⚠':''))+
+        msStat('Value',fmtK(jSale))+
+        msStat('Invoiced',fmtK(jBilled)+(jSale>0?' · '+donePct+'%':''))+
+        msStat('To invoice',fmtK(jOwe))+
+        msStat('Mats to buy',fmtK(mat))+
+      '</div></div>';
+  }).join(''):'<div class="empty">No active ModSpace jobs found. Tap “Sync active jobs”, or check the job/customer name contains “ModSpace”.</div>';
+
+  const last=S.get('fw_last_sync','');
+  setT('ms-sync',last?('· synced '+last):'· not synced yet');
+  document.getElementById('ms-note').innerHTML=
+    'Shows every <b>active</b> Fergus job whose customer or site contains “ModSpace”. '+
+    'Backlog = priced labour hours − hours already booked (floored at 0); days use your crew on the Workload tab.'+
+    (doneMs.length?('<br>✓ '+doneMs.length+' ModSpace job(s) are fully invoiced (done) and excluded from the backlog.'):'');
+}
 
 // ════════ BACK COSTING ════════
 function getAllBC(){return [...BC_DATA,...bcFergus];}
@@ -2585,7 +2686,7 @@ function renderCashflow(){
 }
 
 // ════════ NAV ════════
-const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'Cash'};
+const PAGE_TITLES={dash:'Dashboard',work:'Workload',modspace:'ModSpace Backlog',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'Cash'};
 function go(p,dir){
   try{closeCashDetail();}catch(e){}
   page=p;
@@ -2662,12 +2763,12 @@ function renderBank(){
   host.innerHTML=accts.map(a=>mb(esc(a.name||(a.connection&&a.connection.name)||'Account'),fmtK(num(a.balance&&a.balance.current)),esc(a.formatted_account||(a.balance&&a.balance.available!=null?('avail '+fmtK(num(a.balance.available))):'')),'','m-np')).join('');
   if(txb){const tx=(bank.tx||[]).slice(0,40);txb.innerHTML=tx.length?tx.map(x=>{const amt=num(x.amount);return '<tr><td>'+esc(String(x.date||'').slice(0,10))+'</td><td>'+esc(String(x.description||'').slice(0,38))+'</td><td style="text-align:right;color:'+(amt>=0?'var(--success)':'var(--danger)')+';">'+(amt>=0?'+':'')+fmtK(amt)+'</td></tr>';}).join(''):'<tr><td colspan="3" class="empty">No recent transactions.</td></tr>';}
 }
-function renderAll(){renderDash();renderWork();renderBC();renderPL();renderGrowth();renderMkt();renderCash();renderBank();renderCashflow();renderCashSummary();}
+function renderAll(){renderDash();renderWork();renderModspace();renderBC();renderPL();renderGrowth();renderMkt();renderCash();renderBank();renderCashflow();renderCashSummary();}
 
 // ════════ SWIPE NAV ════════ Facebook-style interactive pager — the page tracks your finger,
 // the neighbouring tab slides in beside it, and it snaps/commits on release.
 (function(){
-  const order=['dash','work','bc','pl','growth','marketing','cash'];
+  const order=['dash','work','modspace','bc','pl','growth','marketing','cash'];
   const topEl=document.getElementById('top');
   const pageEl=p=>document.getElementById('page-'+p);
   let x0=0,y0=0,armed=false,horiz=false,cur=null,nxt=null,dir=0,W=360,finishing=false;

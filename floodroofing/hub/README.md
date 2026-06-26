@@ -6,7 +6,25 @@ Two single-file apps (open in a browser — no build step):
   triage, job board, back costing, quotes, marketing/ROI, Xero P&L, invoicing,
   crew & leave.
 - **`FloodRoofing_Financials.html`** — a lean **mobile** app: Dashboard, Forward
-  Workload, Back Costing, Xero P&L. Built for the phone.
+  Workload, ModSpace Backlog, Back Costing, Xero P&L. Built for the phone.
+
+## ModSpace Backlog (mobile app)
+
+A ModSpace-only view of the backlog. It filters the synced **active** Fergus
+jobs down to the ones whose customer or site name mentions ModSpace
+(`modspace` / `mod space` / `mod-space`) and shows:
+
+- **All together** — one combined summary: number of ModSpace jobs in the
+  backlog, total remaining man-hours, the forward workload in working days (same
+  crew capacity as the Workload tab), total contract value, invoiced-so-far,
+  still-to-invoice, and materials still to buy.
+- **Each job** — a card per job (sorted by biggest backlog first) with a
+  progress bar (invoiced %), its backlog hours, ≈ days, priced/actual hours,
+  contract value, invoiced, still to invoice, and materials still to buy.
+
+Fully-invoiced ModSpace jobs are treated as done and excluded from the backlog
+(noted at the bottom), same rule as the Workload tab. Data comes from the same
+Fergus sync — tap **⟳ Sync active jobs** here or on the Workload tab.
 
 ## Forward Workload (mobile app)
 
