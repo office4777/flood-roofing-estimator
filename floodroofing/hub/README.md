@@ -64,8 +64,14 @@ per job (`paidDuration`, or start→end time), matches names to your roofers, an
 assigns the job to the top roofer. Jobs are tagged with their lead in the "All
 Back Costing" list, which also has a **lead-roofer dropdown** filter.
 
-Note: a job only gets a lead if it has time entries logged in Fergus — jobs from
-before you started using Fergus time tracking won't be attributed.
+**Important limitation:** Fergus's public API (`/timeEntries`) only exposes
+roughly the **last week** of time entries and ignores job/date filters — the full
+per-job labour history shown in the Fergus web UI isn't reachable through the
+read-only token. So auto-assignment only covers jobs worked in the last few days.
+For everything else, set the lead manually: in **All Back Costing**, each job row
+has a small **lead-roofer dropdown** under the job name. Manual picks are saved on
+the device (`leadOverride`) and override the auto value; the Performance by Lead
+Roofer card and the lead filter use the effective lead (manual if set, else auto).
 
 If roofer figures don't appear, open **🔍 Debug a job** in the ModSpace card,
 enter a job number, and tap Check — it prints which time endpoint worked, the

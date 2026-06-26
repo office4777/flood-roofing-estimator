@@ -144,6 +144,8 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .lr-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:.18s;cursor:pointer;}
 .lr-dot.on{background:var(--accent);width:22px;border-radius:5px;}
 .lr-tag{display:inline-block;font-size:.55rem;font-weight:800;letter-spacing:.3px;padding:1px 6px;border-radius:999px;background:rgba(77,141,255,.18);color:var(--primary);vertical-align:middle;}
+.lr-sel{margin-top:3px;font-size:.62rem;font-weight:700;padding:2px 4px;border-radius:7px;background:var(--card2);color:var(--muted);border:1px solid var(--border);max-width:108px;}
+.lr-sel.set{background:rgba(77,141,255,.16);color:var(--primary);border-color:var(--primary);}
 .acc{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--border);border-radius:20px;margin-bottom:12px;box-shadow:0 10px 30px rgba(0,0,0,.28);overflow:hidden;}
 .acc>summary{list-style:none;cursor:pointer;padding:17px 20px;font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);display:flex;align-items:center;gap:8px;}
 .acc>summary::-webkit-details-marker{display:none;}
@@ -1677,6 +1679,19 @@ function matchRoofer(name){
   return null;
 }
 function leadFromHours(map){let best=null,bh=0;Object.keys(map||{}).forEach(k=>{if(map[k]>bh){bh=map[k];best=k;}});return best;}
+// Manual lead-roofer overrides (Fergus's public API only exposes ~the last week of time entries,
+// so historical jobs can't be auto-assigned — you set them here). Keyed by job id / job name.
+let leadOverride=S.get('leadOverride',{});
+function leadKey(r){return String(r._fergus_id||r.job||'');}
+function effLead(r){const k=leadKey(r);return (k in leadOverride)?leadOverride[k]:(r.lead||'');}
+function setLead(sel,kEnc){const id=decodeURIComponent(kEnc);leadOverride[id]=sel.value;S.set('leadOverride',leadOverride);renderLeadRoofer();}
+function leadSelect(r){
+  const k=leadKey(r),kEnc=encodeURIComponent(k),cur=effLead(r),auto=r.lead||'';
+  let h='<select class="lr-sel'+(cur?' set':'')+'" onclick="event.stopPropagation()" onchange="setLead(this,\''+kEnc+'\')">';
+  h+='<option value="">— lead'+(auto&&!(k in leadOverride)?' (auto)':'')+'</option>';
+  LEAD_ROOFERS.forEach(rk=>{h+='<option'+(rk===cur?' selected':'')+'>'+rk+(rk===auto?' ✓':'')+'</option>';});
+  h+='</select>';return h;
+}
 // Pull hours off a time/labour entry — hours, else minutes, else a duration in minutes/seconds.
 function entryHours(o){
   let h=fnum(fpick(o,'paidDuration','hours','hrs','durationHours','totalHours','loggedHours'));
@@ -1777,7 +1792,7 @@ function renderBCTypes(){
 // Aggregate back-costing rows → { roofer: { month: {rev,gp,h,n} } } (only rows with a known lead).
 function leadMonthAgg(){
   const m={};
-  getAllBC().forEach(r=>{const lead=r.lead;if(!lead)return;const mo=r.month;if(!mo)return;
+  getAllBC().forEach(r=>{const lead=effLead(r);if(!lead)return;const mo=r.month;if(!mo)return;
     const rm=m[lead]||(m[lead]={});const o=rm[mo]||(rm[mo]={rev:0,gp:0,h:0,n:0});
     // GP/hr divides job GP by the TOTAL hours logged on the job (everyone, any month), not just the lead's.
     o.rev+=num(r.sales);o.gp+=num(r.gp);o.h+=(num(r._loggedHrs)||num(r.h_actual));o.n++;});
@@ -1793,7 +1808,7 @@ function renderLeadRoofer(){
   const set=(id,h,t)=>{const e=document.getElementById(id);if(!e)return;if(t!=null)e.textContent=t;else e.innerHTML=h;};
   if(!list.length){
     set('lr-name',null,'No data yet');set('lr-sub',null,'');set('lr-gphr',null,'—');set('lr-gphr-sub',null,'Sync from Fergus to assign jobs by logged hours');
-    set('lr-brk','');set('lr-dots','');document.getElementById('lr-body').innerHTML='<tr><td colspan="7" class="empty">No jobs assigned to a lead roofer yet. Tap Sync — jobs are assigned to whoever logged the most hours.</td></tr>';
+    set('lr-brk','');set('lr-dots','');document.getElementById('lr-body').innerHTML='<tr><td colspan="7" class="empty">No jobs assigned to a lead roofer yet. Set each job\'s lead with the dropdown under its name in “All Back Costing” (recent jobs auto-fill from logged hours).</td></tr>';
     set('lr-note',null,'Lead roofers: '+LEAD_ROOFERS.join(', ')+'.');return;
   }
   if(lrIdx>=list.length)lrIdx=0;
@@ -1822,7 +1837,7 @@ function renderLeadRoofer(){
   // all-time line
   const tot=months.reduce((a,mo)=>{const o=agg[roofer][mo];a.rev+=o.rev;a.gp+=o.gp;a.h+=o.h;a.n+=o.n;return a;},{rev:0,gp:0,h:0,n:0});
   const tm=S.get('msTimeMap',null);
-  set('lr-note',null,roofer+' all-time: '+tot.n+' jobs · '+fmt$(tot.rev)+' revenue · '+(tot.rev>0?Math.round(tot.gp/tot.rev*100):0)+'% GP · '+(tot.h>0?fmt$(tot.gp/tot.h):'—')+'/hr. GP/hr = job GP ÷ total hours logged on the job by everyone.'+(tm?(' ('+tm.entries+' time entries across '+tm.jobs+' jobs synced)'):''));
+  set('lr-note',null,roofer+' all-time: '+tot.n+' jobs · '+fmt$(tot.rev)+' revenue · '+(tot.rev>0?Math.round(tot.gp/tot.rev*100):0)+'% GP · '+(tot.h>0?fmt$(tot.gp/tot.h):'—')+'/hr. GP/hr = job GP ÷ total hours logged on the job. Set/change a job\'s lead with the dropdown under its name in “All Back Costing”.'+(tm?(' (Fergus only exposes ~the last week of time entries — '+tm.entries+' synced — so older jobs are assigned manually.)'):''));
 }
 // Swipe left/right on the card to change roofer (the global tab-swipe ignores .lr-swipe).
 (function(){
@@ -1892,7 +1907,7 @@ function renderBC(){
   let rows=getAllBC().filter(r=>{
     if(yr!=='all'&&!(r.month||'').endsWith('-'+yr))return false;
     if(ty!=='all'&&r.job_type!==ty)return false;
-    if(ld!=='all'&&(ld==='__none'?!!r.lead:r.lead!==ld))return false;
+    if(ld!=='all'&&(ld==='__none'?!!effLead(r):effLead(r)!==ld))return false;
     if(q&&!((r.job||'').toLowerCase().includes(q)))return false;
     return true;
   }).sort((a,b)=>bcDateNum(b)-bcDateNum(a));
@@ -1901,7 +1916,7 @@ function renderBC(){
     const gp=num(r.gp),gpm=num(r.gpm),h=num(r.h_actual),hP=num(r.h_priced);
     const gphr=h>0?gp/h:null;const np=gp-ovRate*h;const nphr=h>0?(gp/h-ovRate):null;
     const rs=' style="background:'+(np>=0?'rgba(74,222,128,.16)':'rgba(255,107,107,.16)')+';"';   // green if NP positive, red if negative
-    return '<tr'+rs+'><td>'+esc(r.month||'')+'</td><td>'+esc((r.job||'').slice(0,40))+(r.lead?' <span class="lr-tag">'+esc(r.lead)+'</span>':'')+'</td><td>'+bcSrc(r)+'</td><td>'+fmtK(r.sales)+'</td><td>'+fmtK(num(r.sales)-gp)+'</td><td class="'+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td>'+(gpm?gpm+'%':'—')+'</td><td>'+(gphr!=null?fmt$(gphr):'—')+'</td><td class="'+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td>'+(nphr!=null?fmt$(nphr):'—')+'</td><td>'+(hP?fmtH(hP):'—')+'</td><td>'+(h?fmtH(h):'—')+'</td></tr>';
+    return '<tr'+rs+'><td>'+esc(r.month||'')+'</td><td>'+esc((r.job||'').slice(0,40))+'<br>'+leadSelect(r)+'</td><td>'+bcSrc(r)+'</td><td>'+fmtK(r.sales)+'</td><td>'+fmtK(num(r.sales)-gp)+'</td><td class="'+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td>'+(gpm?gpm+'%':'—')+'</td><td>'+(gphr!=null?fmt$(gphr):'—')+'</td><td class="'+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td>'+(nphr!=null?fmt$(nphr):'—')+'</td><td>'+(hP?fmtH(hP):'—')+'</td><td>'+(h?fmtH(h):'—')+'</td></tr>';
   }).join(''):'<tr><td colspan="12" class="empty">No jobs match.</td></tr>';
   const tS=rows.reduce((s,r)=>s+num(r.sales),0),tG=rows.reduce((s,r)=>s+num(r.gp),0),tH=rows.reduce((s,r)=>s+num(r.h_actual),0),tPH=rows.reduce((s,r)=>s+num(r.h_priced),0);
   const tNP=tG-ovRate*tH;
