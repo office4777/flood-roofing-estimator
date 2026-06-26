@@ -1187,18 +1187,29 @@ async function msDebugJob(){
     txt+='Actual hours:     '+(Math.round(f.hours*10)/10)+'\n';
     txt+='\n— every non-zero number Fergus returned —\n';
     txt+=(flat.length?flat.join('\n'):'(none — the summary came back EMPTY for this job)');
-    // ── lead roofer (who logged the most hours) ──
-    txt+='\n\n— lead roofer (logged hours) —\n';
-    out.textContent=txt+'looking up time entries…';
-    let rawT=null,epUsed='';
-    for(const ep of _timeEndpoints(jid)){try{const j=await fergusApiFetch(ep);if(j&&(Array.isArray(j)?j.length:(j.data?(j.data.length||Object.keys(j.data).length):Object.keys(j).length))){rawT=j;epUsed=ep;break;}}catch(e){}}
-    if(!rawT){try{rawT=await fergusApiFetch('/jobs/'+encodeURIComponent(jid)+'/phases');epUsed='/jobs/'+jid+'/phases (fallback)';}catch(e){}}
-    txt+='endpoint: '+(epUsed||'none worked — no time data found')+'\n';
-    const allUsers={};if(rawT)walkRooferHours(rawT,(u,h)=>{allUsers[u]=(allUsers[u]||0)+h;});
-    const matched={};Object.keys(allUsers).forEach(u=>{const k=matchRoofer(u);if(k)matched[k]=(matched[k]||0)+allUsers[u];});
-    txt+='all names found: '+(Object.keys(allUsers).length?JSON.stringify(Object.fromEntries(Object.entries(allUsers).map(([k,v])=>[k,Math.round(v*10)/10]))):'(none)')+'\n';
-    txt+='matched to roofers: '+(Object.keys(matched).length?JSON.stringify(Object.fromEntries(Object.entries(matched).map(([k,v])=>[k,Math.round(v*10)/10]))):'(none)')+'\n';
-    txt+='→ lead: '+(leadFromHours(matched)||'—');
+    // ── lead roofer probe: find where Fergus keeps per-person time on a job ──
+    txt+='\n\n— lead roofer probe (time/labour data) —\n';
+    out.textContent=txt+'probing endpoints…';
+    const probes=_timeEndpoints(jid).concat(['/jobs/'+encodeURIComponent(jid)+'/phases','/jobs/'+encodeURIComponent(jid)]);
+    const shape=j=>j==null?'null':(Array.isArray(j)?('array['+j.length+']'):(j.data?('data:'+(Array.isArray(j.data)?('array['+j.data.length+']'):('{'+Object.keys(j.data).slice(0,8).join(',')+'}'))):('{'+Object.keys(j).slice(0,10).join(',')+'}')));
+    let found=null;
+    for(const p of probes){
+      const tag=p.replace('/jobs/'+encodeURIComponent(jid),'…').replace('/jobs/'+jid,'…');
+      let j=null;try{j=await fergusApiFetch(p);}catch(e){txt+=tag+' → '+String(e.message).slice(0,32)+'\n';out.textContent=txt;continue;}
+      txt+=tag+' → OK '+shape(j)+'\n';out.textContent=txt;
+      if(!found){const u={};walkRooferHours(j,(n,h)=>{u[n]=(u[n]||0)+h;});if(Object.keys(u).length)found={p:tag,j,u};}
+    }
+    if(found){
+      const matched={};Object.keys(found.u).forEach(n=>{const k=matchRoofer(n);if(k)matched[k]=(matched[k]||0)+found.u[n];});
+      const rnd=o=>JSON.stringify(Object.fromEntries(Object.entries(o).map(([k,v])=>[k,Math.round(v*10)/10])));
+      txt+='\nnames+hours from '+found.p+':\n'+rnd(found.u)+'\n';
+      txt+='matched to roofers: '+(Object.keys(matched).length?rnd(matched):'(none — name spellings differ?)')+'\n';
+      txt+='→ lead: '+(leadFromHours(matched)||'—');
+    }else{
+      txt+='\nNo endpoint yielded user+hours pairs. Raw sample of the richest response below — paste this to me:\n';
+      let best=null;for(const p of probes){try{const j=await fergusApiFetch(p);if(j&&(best==null||JSON.stringify(j).length>JSON.stringify(best.j).length))best={p,j};}catch(e){}}
+      txt+=best?(best.p+':\n'+JSON.stringify(best.j).slice(0,1500)):'(every endpoint failed)';
+    }
     out.textContent=txt;
   }catch(e){out.textContent='debug error: '+String(e&&e.message||e);}
 }
@@ -1341,11 +1352,14 @@ function fsFig(summary){
   const ca=s.chargeableAmount||s.billable||s.chargeable||{};
   const tb=s.totalBilled||s.invoiced||s.totalInvoiced||{};
   const lh=s.labourHours||s.hours||{};
-  // Revenue = the priced / billable contract value (NOT what's invoiced yet, so active jobs count).
-  const rev=fnum(fpick(qs,'quotedAmount','priced','billablePriced','pricedAmount','total','amount'))
+  // Revenue = the GREATER of the priced/quoted amount and the claimed/invoiced amount. Extras that
+  // were invoiced but never quoted (claimed > priced) lift revenue; un-invoiced jobs use the price.
+  const priced=fnum(fpick(qs,'quotedAmount','priced','billablePriced','pricedAmount','total','amount'))
          || fnum(fpick(ca,'total','priced','billable','amount'))
-         || fnum(fpick(s,'billablePricedAmount','pricedAmount','totalPriced','billablePricedAmount'))
-         || fnum(fpick(tb,'total'));
+         || fnum(fpick(s,'billablePricedAmount','pricedAmount','totalPriced'));
+  const claimed=fnum(fpick(tb,'total','invoicedBillable','invoiced','claimed','totalClaimed'))
+         || fnum(fpick(s,'invoicedBillable','totalClaimed','totalInvoiced','invoicedBillableAmount'));
+  const rev=Math.max(priced,claimed)||priced||claimed;
   // Actual costs to date (Fergus: "Current Labour/Material Costs").
   const lab=fnum(fpick(ci,'labour','labor','labourCost','currentLabour','labourCurrent'))
          || fnum(fpick(s,'currentLabourCosts','labourCosts'));
@@ -1808,7 +1822,7 @@ function renderBC(){
   document.getElementById('bc-body').innerHTML=rows.length?rows.slice(0,400).map(r=>{
     const gp=num(r.gp),gpm=num(r.gpm),h=num(r.h_actual),hP=num(r.h_priced);
     const gphr=h>0?gp/h:null;const np=gp-ovRate*h;const nphr=h>0?(gp/h-ovRate):null;
-    const rs=nphr==null?'':(nphr>=50?' style="background:rgba(74,222,128,.16);"':nphr>=5?' style="background:rgba(251,146,60,.18);"':' style="background:rgba(255,107,107,.16);"');
+    const rs=' style="background:'+(np>=0?'rgba(74,222,128,.16)':'rgba(255,107,107,.16)')+';"';   // green if NP positive, red if negative
     return '<tr'+rs+'><td>'+esc(r.month||'')+'</td><td>'+esc((r.job||'').slice(0,40))+(r.lead?' <span class="lr-tag">'+esc(r.lead)+'</span>':'')+'</td><td>'+bcSrc(r)+'</td><td>'+fmtK(r.sales)+'</td><td>'+fmtK(num(r.sales)-gp)+'</td><td class="'+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td>'+(gpm?gpm+'%':'—')+'</td><td>'+(gphr!=null?fmt$(gphr):'—')+'</td><td class="'+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td>'+(nphr!=null?fmt$(nphr):'—')+'</td><td>'+(hP?fmtH(hP):'—')+'</td><td>'+(h?fmtH(h):'—')+'</td></tr>';
   }).join(''):'<tr><td colspan="12" class="empty">No jobs match.</td></tr>';
   const tS=rows.reduce((s,r)=>s+num(r.sales),0),tG=rows.reduce((s,r)=>s+num(r.gp),0),tH=rows.reduce((s,r)=>s+num(r.h_actual),0),tPH=rows.reduce((s,r)=>s+num(r.h_priced),0);

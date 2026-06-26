@@ -9,6 +9,15 @@ Two single-file apps (open in a browser — no build step):
   Workload, Back Costing (incl. ModSpace + Lead Roofer performance), Xero P&L.
   Built for the phone.
 
+## Back Costing — revenue rule & colours
+
+- **Revenue** for every job = the **greater of the priced/quoted amount and the
+  claimed/invoiced amount**. So jobs with invoiced extras that were never quoted
+  (claimed > priced) show the higher claimed figure as revenue; un-invoiced jobs
+  fall back to the price.
+- **Row colours** in the All Back Costing list are by **net profit**: green when
+  NP is positive, red when NP is negative.
+
 ## Back Costing — by job type
 
 The "Back-costing by job type" card (Pole Sheds, Re-Roof's, Re-Roof & Gutter,
