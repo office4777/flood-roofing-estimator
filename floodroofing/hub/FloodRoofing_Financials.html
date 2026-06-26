@@ -1197,7 +1197,26 @@ async function msDebugJob(){
     txt+='total hours logged on this job (everyone): '+(Math.round(tot*10)/10)+'\n';
     txt+='lead-roofer hours on this job: '+(Object.keys(rh).length?rnd(rh):'(no lead roofer logged time on it)')+'\n';
     txt+='→ lead: '+(leadFromHours(rh)||'—')+'\n';
-    const tm=S.get('msTimeMap',null);if(tm)txt+='(synced '+tm.entries+' time entries across '+tm.jobs+' jobs · pageSize '+tm.ps+')';
+    const tm=S.get('msTimeMap',null);if(tm)txt+='(synced '+tm.entries+' time entries across '+tm.jobs+' jobs · pageSize '+tm.ps+')\n';
+    // ── per-job labour from the phase detail (the Labour tab data — NOT windowed like /timeEntries) ──
+    txt+='\n— per-job phase/labour probe —\n';out.textContent=txt;
+    const J='/jobs/'+encodeURIComponent(jid);
+    let phs=[];try{phs=_teArr(await fergusApiFetch(J+'/phases'));}catch(e){txt+='/phases ERR '+String(e.message).slice(0,30)+'\n';}
+    txt+='phases: '+phs.length+'\n';out.textContent=txt;
+    for(const ph of phs.slice(0,3)){
+      const pid=ph&&(ph.id!=null?ph.id:(ph.phaseId!=null?ph.phaseId:''));
+      const self=(ph.links&&ph.links.length&&(ph.links.find(l=>l.rel==='self')||ph.links[0]).href)||(J+'/phases/'+encodeURIComponent(pid));
+      const cands=[self,self+'/labour',self+'/timeEntries',self+'/time',J+'/phases/'+encodeURIComponent(pid)+'/labour','/timeEntries?jobPhaseId='+encodeURIComponent(pid)];
+      const tried=new Set();
+      for(const c of cands){
+        if(tried.has(c))continue;tried.add(c);
+        let j=null;try{j=await fergusApiFetch(c);}catch(e){txt+=c.replace(J,'…')+' → '+String(e.message).slice(0,22)+'\n';out.textContent=txt;continue;}
+        const u={};walkRooferHours(j,(n,h)=>{u[n]=(u[n]||0)+h;});
+        const keys=Object.keys((j&&j.data)?(Array.isArray(j.data)?(j.data[0]||{}):j.data):j||{}).slice(0,9).join(',');
+        txt+=c.replace(J,'…')+' → OK {'+keys+'} users:'+JSON.stringify(u)+'\n';out.textContent=txt;
+        if(Object.keys(u).length){txt+='   ↑ HAS PER-PERSON HOURS. raw: '+JSON.stringify(j).slice(0,1400)+'\n';out.textContent=txt;}
+      }
+    }
     out.textContent=txt;
   }catch(e){out.textContent='debug error: '+String(e&&e.message||e);}
 }
