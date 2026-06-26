@@ -42,6 +42,12 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:#000;c
 .card.per-this .ct,.card.per-last .ct,.card.per-3mo .ct,.card.per-week .ct{color:#fff;}
 .card.per-this .period-sub,.card.per-last .period-sub,.card.per-3mo .period-sub,.card.per-week .period-sub{color:#eef2f7;}
 #page-title{font-size:1.2rem;font-weight:800;color:#fff;letter-spacing:-.3px;margin:0 2px;}
+#sync-bar{display:none;margin:2px 2px 0;}
+#sync-bar.on{display:block;animation:syncIn .2s ease;}
+@keyframes syncIn{from{opacity:0;transform:translateY(-3px);}to{opacity:1;transform:none;}}
+.sync-track{height:6px;border-radius:6px;background:var(--elev);overflow:hidden;}
+#sync-fill{height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,var(--primary),var(--accent));box-shadow:0 0 10px var(--glow);transition:width .3s ease;}
+#sync-label{font-size:.58rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-top:4px;}
 .ct{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .mut{color:var(--muted);}
 
@@ -279,6 +285,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
   <button class="tb-btn" onclick="fergusProxySetup()" title="Connect Fergus/Xero">⚙</button>
   </div>
   <div id="page-title">Dashboard</div>
+  <div id="sync-bar"><div class="sync-track"><div id="sync-fill"></div></div><div id="sync-label"></div></div>
 </div>
 
 <div id="app">
@@ -356,35 +363,18 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     </div>
   </div>
 
-  <!-- ───────── MODSPACE BACKLOG ───────── -->
-  <div class="page" id="page-modspace">
-    <div class="card" style="border-left:4px solid var(--accent);">
-      <div class="ct">ModSpace backlog — all jobs <span id="ms-sync" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
-      <div class="hero">
-        <div class="big" id="ms-days">—</div>
-        <div class="unit">working days of ModSpace work</div>
-        <div class="sub" id="ms-sub"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="ct">All ModSpace jobs together</div>
-      <div id="ms-brk"></div>
-    </div>
-
-    <div class="card">
-      <button class="btn btn-a" onclick="syncWorkload()">⟳ Sync active jobs from Fergus</button>
-    </div>
-
-    <div class="card">
-      <div class="ct">Each ModSpace job <span id="ms-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
-      <div id="ms-jobs"><div class="empty">No active jobs synced yet. Tap “Sync”.</div></div>
-      <div class="note" id="ms-note"></div>
-    </div>
-  </div>
-
   <!-- ───────── BACK COSTING ───────── -->
   <div class="page" id="page-bc">
+    <!-- ModSpace back costing (lives inside Back Costing) -->
+    <div class="card" style="border-left:4px solid var(--accent);">
+      <div class="ct">ModSpace back costing <span id="ms-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;margin-left:auto;"></span></div>
+      <div id="ms-jobs"><div class="empty">No ModSpace jobs synced yet. Tap “Sync”.</div></div>
+      <div class="ct" style="margin:20px 0 10px;">All ModSpace jobs combined <span id="ms-sync" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;margin-left:auto;"></span></div>
+      <div id="ms-total"></div>
+      <button class="btn btn-a" style="margin-top:16px;" onclick="syncWorkload()">⟳ Sync jobs from Fergus</button>
+      <div class="note" id="ms-note"></div>
+    </div>
+
     <div class="card">
       <div class="ct">12-Month History <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
       <div class="mstrip" id="bc-strip"></div>
@@ -714,7 +704,6 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
 <div id="nav">
   <div class="nav-i on" id="nav-dash" onclick="go('dash')"><span class="ic">📊</span>Dashboard</div>
   <div class="nav-i" id="nav-work" onclick="go('work')"><span class="ic">📅</span>Workload</div>
-  <div class="nav-i" id="nav-modspace" onclick="go('modspace')"><span class="ic">🏗️</span>ModSpace</div>
   <div class="nav-i" id="nav-bc" onclick="go('bc')"><span class="ic">💹</span>Back Cost</div>
   <div class="nav-i" id="nav-pl" onclick="go('pl')"><span class="ic">💼</span>P&amp;L</div>
   <div class="nav-i" id="nav-growth" onclick="go('growth')"><span class="ic">📈</span>Growth</div>
@@ -908,11 +897,32 @@ function isFinishedJob(job,summary){
   const billRef=num(qs.quotedAmount)>0?num(qs.quotedAmount):num(ca.total);
   return billRef>0 && (num(tb.total)/billRef)>=0.75;
 }
+// ── Global sync progress bar (header, every page) ──
+// syncProgress(pct, label) shows/updates the bar; syncProgressDone() fills to 100% then hides.
+let _syncHideT=null;
+function syncProgress(pct,label){
+  const bar=document.getElementById('sync-bar'),fill=document.getElementById('sync-fill'),lbl=document.getElementById('sync-label');
+  if(!bar)return;
+  if(_syncHideT){clearTimeout(_syncHideT);_syncHideT=null;}
+  bar.classList.add('on');
+  if(pct!=null&&fill)fill.style.width=Math.max(0,Math.min(100,pct))+'%';
+  if(label!=null&&lbl)lbl.textContent=label;
+}
+function syncProgressDone(label){
+  const fill=document.getElementById('sync-fill'),lbl=document.getElementById('sync-label');
+  if(fill)fill.style.width='100%';
+  if(lbl&&label)lbl.textContent=label;
+  if(_syncHideT)clearTimeout(_syncHideT);
+  _syncHideT=setTimeout(()=>{const bar=document.getElementById('sync-bar');if(bar)bar.classList.remove('on');if(fill)fill.style.width='0';},1000);
+}
 // Refresh everything the dashboard needs: Fergus workload + Xero monthly P&L.
+// Fergus drives 0–65% of the bar, Xero 65–100%.
 async function refreshAll(){
   if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
-  await syncWorkload();
-  await syncXeroMonthly();           // best-effort; pulls 12 months + caches breakdowns
+  syncProgress(1,'Starting sync…');
+  await syncWorkload({lo:0,hi:65});
+  await syncXeroMonthly({lo:65,hi:100});
+  syncProgressDone('Synced ✓');
 }
 // Month dropdown: pull live only if we're already live (an explicit choice), else just re-render cached.
 function onPLPeriod(){ if(xeroLive)pullXeroPL(); else renderPL(); }
@@ -920,15 +930,17 @@ function onPLPeriod(){ if(xeroLive)pullXeroPL(); else renderPL(); }
 // Fergus workload stays as last synced (it's saved on the device) until you tap Refresh.
 async function syncXeroOnly(){
   if(!fergusProxyUrl())return;
-  await syncXeroMonthly();   // pulls 12 months + caches each breakdown
+  await syncXeroMonthly();   // pulls 12 months + caches each breakdown (shows its own progress bar)
 }
-async function syncWorkload(){
+async function syncWorkload(band){
   if(!fergusProxyUrl()&&!fergusKey()){openConnect();return;}
+  const standalone=!band;band=band||{lo:0,hi:100};
+  const prog=(frac,lbl)=>syncProgress(band.lo+(band.hi-band.lo)*Math.max(0,Math.min(1,frac)),lbl);
   const btns=[document.getElementById('dash-sync-btn')];
   const btn=btns[0];
   const setSync=t=>{['dash-fw-sync','work-sync'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=t;});};
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Syncing…';}
-  setSync('syncing…');toast('Syncing Fergus…');
+  setSync('syncing…');toast('Syncing Fergus…');prog(0.02,'Loading Fergus jobs…');
   try{
     // Pull ALL active jobs (paginated). The old single-page fetch capped at 100, silently
     // dropping every active job past the first 100 (sorted newest-first) — i.e. the quiet
@@ -937,10 +949,11 @@ async function syncWorkload(){
     try{active=await fergusPaginate('/jobs?pageSize=100&sortField=lastModified&sortOrder=desc&filterJobStatus=Active',12);}
     catch(e){active=await fergusFetchJobs('Active');}
     const out=[],allJobs=[];let noPriced=0,excluded=0,done=0,idx=0;const total=active.length;
+    prog(0.06,'Reading '+total+' active jobs…');
     async function jobWorker(){
       while(idx<total){
         const job=active[idx++];
-        done++;if(done%3===0||done===total)setSync('checking '+done+'/'+total+'…');
+        done++;if(done%3===0||done===total){setSync('checking '+done+'/'+total+'…');prog(0.06+0.44*(done/(total||1)),'Fergus jobs '+done+'/'+total);}
         const id=job.id!=null?job.id:(job.jobId!=null?job.jobId:(job.jobNo||job.jobNumber));
         if(id==null)continue;
         let summary=null;
@@ -969,13 +982,17 @@ async function syncWorkload(){
     S.set('fw_last_sync',new Date().toLocaleString('en-NZ'));
     S.set('fw_no_priced',noPriced);
     S.set('fw_excluded',excluded);
+    prog(0.52,'Back costing jobs…');
     // Also refresh back-costing rows (completed + effectively-finished active jobs)
-    try{await syncBackCosting(active);}catch(e){console.warn('bc sync',e.message);}
+    try{await syncBackCosting(active,frac=>prog(0.52+0.46*frac,'Back costing…'));}catch(e){console.warn('bc sync',e.message);}
+    prog(1,'Fergus done');
     setSync('updated '+new Date().toLocaleTimeString('en-NZ',{hour:'2-digit',minute:'2-digit'}));
     renderAll();
+    if(standalone)syncProgressDone('Fergus synced ✓');
     toast(out.length+' active job'+(out.length!==1?'s':'')+' loaded'+(excluded?' · '+excluded+' completed (fully invoiced) excluded':'')+(noPriced?' · '+noPriced+' missing priced hrs':''),'ok');
   }catch(err){
     console.error(err);setSync('sync failed');
+    if(standalone)syncProgressDone('Sync failed');
     toast(fergusErrMsg(err).split('\n')[0],'err');
   }finally{
     if(btn){btn.disabled=false;btn.innerHTML='⟳ Refresh (Fergus + Xero)';}
@@ -1018,67 +1035,54 @@ function renderWork(){
 function brk(l,r){return '<div class="brk"><span class="mut">'+l+'</span><span>'+r+'</span></div>';}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
-// ════════ MODSPACE BACKLOG ════════
-// A ModSpace job is any Fergus job whose customer/site name mentions ModSpace.
+// ════════ MODSPACE BACK COSTING ════════
+// A ModSpace job is any Fergus job whose customer/site name (or brief) mentions ModSpace.
 const MS_KEYS=['modspace','mod space','mod-space'];
 function isModspace(name){const s=String(name||'').toLowerCase();return MS_KEYS.some(k=>s.includes(k));}
 function msStat(l,v){return '<div class="ms-st"><span class="ms-stl">'+l+'</span><span class="ms-stv">'+v+'</span></div>';}
-// Per-job backlog cards + a single combined summary across every active ModSpace job.
+// Lives in the Back Costing tab: per-job back costing for every ModSpace job, then one combined
+// total. Revenue, material $/%, labour $/%, GP $/%, GP/hr — drawn from the back-costing rows.
 function renderModspace(){
-  const jobs=fwJobs.filter(j=>isModspace(j.job));
-  const c=capacity();
-  const R=jobs.reduce((s,j)=>s+Math.max(0,num(j.remaining)),0);
-  const days=R/c.perDay, weeks=days/5;
-  const sale=jobs.reduce((s,j)=>s+num(j.sale),0);
-  const billed=jobs.reduce((s,j)=>s+num(j.billed),0);
-  const owing=jobs.reduce((s,j)=>s+Math.max(0,num(j.sale)-num(j.billed)),0);
-  const matBuy=jobs.reduce((s,j)=>s+Math.max(0,num(j.pMat)-num(j.aMat)),0);
-  const allMs=(S.get('cashJobs',[])||[]).filter(j=>isModspace(j.job));
-  const doneMs=allMs.filter(j=>j.fin);
+  const seen={},jobs=[];
+  getAllBC().filter(r=>isModspace(r.job)||isModspace(r._title)).forEach(r=>{
+    const k=r._fergus_id||r.job;if(!seen[k]){seen[k]=1;jobs.push(r);}});
+  jobs.sort((a,b)=>num(b.sales)-num(a.sales));
+  const pc=(part,whole)=>whole>0?(Math.round(part/whole*1000)/10)+'%':'—';
+  const setT=(id,h)=>{const e=document.getElementById(id);if(e)e.innerHTML=h;};
 
-  const setT=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
-  setT('ms-days',R>0?(Math.round(days*10)/10):(jobs.length?'0':'—'));
-  setT('ms-sub',jobs.length?('≈ '+(Math.round(weeks*10)/10)+' weeks · '+fmtH(R)+' man-hours across '+jobs.length+' job'+(jobs.length!==1?'s':'')):'No active ModSpace jobs in the backlog');
-
-  document.getElementById('ms-brk').innerHTML=
-    brk('ModSpace jobs in backlog','<b>'+jobs.length+'</b>')+
-    brk('Remaining man-hours','<b>'+fmtH(R)+' h</b>')+
-    brk('Forward workload','<b>'+(Math.round(days*10)/10)+' working days</b> <span class="mut">('+c.teams+'×'+c.size+' crew)</span>')+
-    brk('Per team','<b>'+(Math.round(days*10)/10)+' days</b> <span class="mut">each (parallel)</span>')+
-    brk('Contract value','<b>'+fmt$(sale)+'</b>')+
-    brk('Invoiced so far','<b>'+fmt$(billed)+'</b> <span class="mut">'+pct(billed,sale)+'</span>')+
-    brk('Still to invoice','<b>'+fmt$(owing)+'</b>')+
-    brk('Materials still to buy','<b>'+fmt$(matBuy)+'</b>');
-
-  const rows=[...jobs].sort((a,b)=>b.remaining-a.remaining);
-  setT('ms-count',rows.length?('· '+rows.length+' job'+(rows.length!==1?'s':'')):'');
-  document.getElementById('ms-jobs').innerHTML=rows.length?rows.map(j=>{
-    const jSale=num(j.sale),jBilled=num(j.billed),jOwe=Math.max(0,jSale-jBilled);
-    const jDays=Math.round(j.remaining/c.perDay*10)/10;
-    const donePct=jSale>0?Math.min(100,Math.round(jBilled/jSale*100)):0;
-    const mat=Math.max(0,num(j.pMat)-num(j.aMat));
-    const over=j.actual>j.priced&&j.priced>0;
+  // ── individual back costing, one card per job ──
+  setT('ms-count',jobs.length?('· '+jobs.length+' job'+(jobs.length!==1?'s':'')):'');
+  document.getElementById('ms-jobs').innerHTML=jobs.length?jobs.map(r=>{
+    const rev=num(r.sales),mat=num(r.a_mat),lab=num(r.a_lab),gp=num(r.gp),h=num(r.h_actual);
+    const gpm=rev>0?gp/rev*100:0, gphr=h>0?gp/h:0, cls=gp>=0?'pos':'neg';
     return '<div class="ms-job">'+
-      '<div class="ms-jn">'+esc(j.job)+'</div>'+
-      '<div class="ms-bar"><div class="ms-fill" style="width:'+donePct+'%"></div></div>'+
+      '<div class="ms-jn">'+esc(r.job)+'</div>'+
+      '<div class="ms-bar"><div class="ms-fill" style="width:'+Math.max(0,Math.min(100,gpm))+'%"></div></div>'+
       '<div class="ms-stats">'+
-        msStat('Backlog',fmtH(j.remaining)+' h')+
-        msStat('≈ Days',jDays)+
-        msStat('Priced',j.priced>0?fmtH(j.priced)+' h':'⚠ —')+
-        msStat('Actual',fmtH(j.actual)+(over?' ⚠':''))+
-        msStat('Value',fmtK(jSale))+
-        msStat('Invoiced',fmtK(jBilled)+(jSale>0?' · '+donePct+'%':''))+
-        msStat('To invoice',fmtK(jOwe))+
-        msStat('Mats to buy',fmtK(mat))+
+        msStat('Revenue',fmtK(rev))+
+        msStat('Material',fmtK(mat)+' · '+pc(mat,rev))+
+        msStat('Labour',fmtK(lab)+' · '+pc(lab,rev))+
+        msStat('GP','<span class="'+cls+'">'+fmtK(gp)+' · '+pc(gp,rev)+'</span>')+
+        msStat('GP / hr',h>0?fmt$(gphr):'—')+
+        msStat('Actual hrs',h>0?fmtH(h)+' h':'—')+
       '</div></div>';
-  }).join(''):'<div class="empty">No active ModSpace jobs found. Tap “Sync active jobs”, or check the job/customer name contains “ModSpace”.</div>';
+  }).join(''):'<div class="empty">No ModSpace back-costing yet. Tap “Sync”, or check the job/customer name contains “ModSpace”.</div>';
+
+  // ── combined back costing across all ModSpace jobs ──
+  const T=jobs.reduce((a,r)=>{a.rev+=num(r.sales);a.mat+=num(r.a_mat);a.lab+=num(r.a_lab);a.gp+=num(r.gp);a.h+=num(r.h_actual);return a;},{rev:0,mat:0,lab:0,gp:0,h:0});
+  const tcls=T.gp>=0?'pos':'neg';
+  setT('ms-total',
+    brk('Revenue','<b>'+fmt$(T.rev)+'</b>')+
+    brk('Material cost','<b>'+fmt$(T.mat)+'</b> <span class="mut">'+pc(T.mat,T.rev)+'</span>')+
+    brk('Labour cost','<b>'+fmt$(T.lab)+'</b> <span class="mut">'+pc(T.lab,T.rev)+'</span>')+
+    brk('Gross profit','<b class="'+tcls+'">'+fmt$(T.gp)+'</b> <span class="mut">'+pc(T.gp,T.rev)+'</span>')+
+    brk('GP / hour','<b>'+(T.h>0?fmt$(T.gp/T.h):'—')+'</b> <span class="mut">'+(T.h>0?(fmtH(T.h)+' h'):'')+'</span>'));
 
   const last=S.get('fw_last_sync','');
-  setT('ms-sync',last?('· synced '+last):'· not synced yet');
+  setT('ms-sync',last?('· synced '+last):'');
   document.getElementById('ms-note').innerHTML=
-    'Shows every <b>active</b> Fergus job whose customer or site contains “ModSpace”. '+
-    'Backlog = priced labour hours − hours already booked (floored at 0); days use your crew on the Workload tab.'+
-    (doneMs.length?('<br>✓ '+doneMs.length+' ModSpace job(s) are fully invoiced (done) and excluded from the backlog.'):'');
+    'Back costing for every job whose customer or site mentions “ModSpace” (completed, paid, or ≥80% invoiced). '+
+    'Percentages are share of revenue; GP/hr = gross profit ÷ actual labour hours.';
 }
 
 // ════════ BACK COSTING ════════
@@ -1213,7 +1217,7 @@ function bcRowFrom(job,summary,dateMs){
 //  • marked Completed in Fergus, OR
 //  • ≥80% of its value has already been invoiced (deposit + progress claims) — even if still Active.
 // Dated by the last paid invoice; if none paid yet, by the job's last-modified date.
-async function syncBackCosting(activeJobs){
+async function syncBackCosting(activeJobs,onProg){
   if(!activeJobs)return;
   const paidByJob=await fetchXeroPaidInvoices();
   if(!paidByJob){toast('Couldn’t read Xero invoices — back-costing unchanged. Check ⚙ Xero scope (accounting.invoices.read) + retry.','err');return;}
@@ -1240,7 +1244,7 @@ async function syncBackCosting(activeJobs){
       else if(completedStatus||heavy){const lm=job.lastModified?Date.parse(job.lastModified):NaN;dateMs=!isNaN(lm)?lm:Date.now();}
       if(dateMs==null){done++;continue;}
       const row=bcRowFrom(job,summary,dateMs);if(row)rebuilt.push(row);
-      done++;if(done%8===0)setP('back-costing '+done+'/'+jobs.length+'…');
+      done++;if(done%8===0){setP('back-costing '+done+'/'+jobs.length+'…');if(onProg)onProg(done/(jobs.length||1));}
     }
   }
   await Promise.all(Array.from({length:4},()=>worker()));
@@ -1621,21 +1625,25 @@ async function fetchMonthReport(proxy,psec,monthKey){
 }
 // Build the dashboard/growth month set from reliable single-month pulls (current + last 6 complete).
 // (The multi-column monthly report mis-aligned some columns, so we pull each month on its own.)
-async function syncXeroMonthly(){
+async function syncXeroMonthly(band){
   const proxy=fergusProxyUrl();if(!proxy)return false;
+  const standalone=!band;band=band||{lo:0,hi:100};
+  const prog=(frac,lbl)=>syncProgress(band.lo+(band.hi-band.lo)*Math.max(0,Math.min(1,frac)),lbl);
   const psec=fergusProxySecret();
   const keys=[];for(let i=0;i<=11;i++)keys.push(calMonthKey(-i));   // current(partial) + last 11 = 12 months
   const out=Object.assign({},xeroMonthly);
   let ok=0,no=false,sec=false,done=0,idx=0;
+  prog(0.04,'Loading Xero P&L…');
   async function worker(){
     while(idx<keys.length){
       const k=keys[idx++];
       try{const rep=await fetchMonthReport(proxy,psec,k);const f=xeroRepFig(rep);if(f){out[k]=f;xeroReports[k]=rep;ok++;}}
       catch(e){if(e.message==='NOXERO')no=true;else if(e.message==='SECRET')sec=true;console.warn('xero',k,e.message);}
-      done++;toast('Xero P&L… '+done+'/'+keys.length);
+      done++;toast('Xero P&L… '+done+'/'+keys.length);prog(0.04+0.96*(done/keys.length),'Xero P&L '+done+'/'+keys.length);
     }
   }
   await Promise.all(Array.from({length:Math.min(3,keys.length)},()=>worker()));   // 3 at a time
+  if(standalone)syncProgressDone(ok?'Xero synced ✓':'Xero');
   if(no){toast('Xero not set up on the proxy — using back-costing','err');return false;}
   if(sec){toast('Proxy secret rejected (401) — check ⚙','err');return false;}
   if(ok){xeroMonthly=out;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',new Date().toLocaleString('en-NZ'));xeroLive=true;
@@ -2686,7 +2694,7 @@ function renderCashflow(){
 }
 
 // ════════ NAV ════════
-const PAGE_TITLES={dash:'Dashboard',work:'Workload',modspace:'ModSpace Backlog',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'Cash'};
+const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'Cash'};
 function go(p,dir){
   try{closeCashDetail();}catch(e){}
   page=p;
@@ -2768,7 +2776,7 @@ function renderAll(){renderDash();renderWork();renderModspace();renderBC();rende
 // ════════ SWIPE NAV ════════ Facebook-style interactive pager — the page tracks your finger,
 // the neighbouring tab slides in beside it, and it snaps/commits on release.
 (function(){
-  const order=['dash','work','modspace','bc','pl','growth','marketing','cash'];
+  const order=['dash','work','bc','pl','growth','marketing','cash'];
   const topEl=document.getElementById('top');
   const pageEl=p=>document.getElementById('page-'+p);
   let x0=0,y0=0,armed=false,horiz=false,cur=null,nxt=null,dir=0,W=360,finishing=false;

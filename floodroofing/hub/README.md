@@ -6,25 +6,30 @@ Two single-file apps (open in a browser — no build step):
   triage, job board, back costing, quotes, marketing/ROI, Xero P&L, invoicing,
   crew & leave.
 - **`FloodRoofing_Financials.html`** — a lean **mobile** app: Dashboard, Forward
-  Workload, ModSpace Backlog, Back Costing, Xero P&L. Built for the phone.
+  Workload, Back Costing (incl. ModSpace), Xero P&L. Built for the phone.
 
-## ModSpace Backlog (mobile app)
+## ModSpace back costing (mobile app)
 
-A ModSpace-only view of the backlog. It filters the synced **active** Fergus
-jobs down to the ones whose customer or site name mentions ModSpace
-(`modspace` / `mod space` / `mod-space`) and shows:
+A card at the top of the **Back Costing** tab, scoped to ModSpace jobs only. It
+filters the back-costing rows down to the jobs whose customer/site name (or
+brief) mentions ModSpace (`modspace` / `mod space` / `mod-space`) and shows:
 
-- **All together** — one combined summary: number of ModSpace jobs in the
-  backlog, total remaining man-hours, the forward workload in working days (same
-  crew capacity as the Workload tab), total contract value, invoiced-so-far,
-  still-to-invoice, and materials still to buy.
-- **Each job** — a card per job (sorted by biggest backlog first) with a
-  progress bar (invoiced %), its backlog hours, ≈ days, priced/actual hours,
-  contract value, invoiced, still to invoice, and materials still to buy.
+- **Each job** — one card per ModSpace job (sorted by biggest revenue), with a
+  GP-margin bar and: revenue, material cost ($ and % of revenue), labour cost
+  ($ and %), gross profit ($ and %), GP/hr, and actual hours.
+- **All combined** — one total across every ModSpace job: revenue, material
+  cost ($/%), labour cost ($/%), gross profit ($/%) and GP/hour.
 
-Fully-invoiced ModSpace jobs are treated as done and excluded from the backlog
-(noted at the bottom), same rule as the Workload tab. Data comes from the same
-Fergus sync — tap **⟳ Sync active jobs** here or on the Workload tab.
+Same rule as the rest of Back Costing — a job is included once it's completed,
+paid, or ≥80% invoiced. Tap **⟳ Sync jobs from Fergus** to refresh.
+
+## Sync progress bar
+
+A thin 0–100% progress bar lives in the header on **every** page. It appears
+whenever a Fergus/Xero sync runs (Refresh, or any "Sync" button) and shows the
+live phase + count (e.g. "Fergus jobs 21/50", "Xero P&L 8/12"), filling to 100%
+and fading out when the sync finishes. A full Refresh splits the bar 0–65% for
+Fergus and 65–100% for Xero.
 
 ## Forward Workload (mobile app)
 
