@@ -33,6 +33,16 @@ month's combined **revenue, GP $ & %, GP/hr**, a **rolling 3-month GP/hr**, and 
 per-month table (newest first) with each month's GP/hr and its trailing
 3-month GP/hr.
 
+**GP/hr** = a job's GP divided by the **total hours logged on that job by
+everyone** (not just the lead's hours, and regardless of which month they were
+entered) — summed across the roofer's jobs in the month.
+
+The Back Costing tab is laid out as an accordion: **Performance by Lead Roofer**
+and **All Back Costing** are open at the top; everything else (ModSpace, 12-Month
+History, Materials %, This/Last Month, 3-Month Rolling, Overhead Recovery,
+by-job-type, Excel↔Fergus, Invoice diagnostic) is a collapsed card you tap to
+expand.
+
 **How a job's lead roofer is decided:** whoever **logged the most hours** on the
 job (others may help a little). On each Fergus sync the app pulls all time
 entries from `/timeEntries` (Fergus ignores per-job filtering, so they're fetched

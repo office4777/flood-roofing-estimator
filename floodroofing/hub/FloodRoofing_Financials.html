@@ -144,6 +144,15 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .lr-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:.18s;cursor:pointer;}
 .lr-dot.on{background:var(--accent);width:22px;border-radius:5px;}
 .lr-tag{display:inline-block;font-size:.55rem;font-weight:800;letter-spacing:.3px;padding:1px 6px;border-radius:999px;background:rgba(77,141,255,.18);color:var(--primary);vertical-align:middle;}
+.acc{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--border);border-radius:20px;margin-bottom:12px;box-shadow:0 10px 30px rgba(0,0,0,.28);overflow:hidden;}
+.acc>summary{list-style:none;cursor:pointer;padding:17px 20px;font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);display:flex;align-items:center;gap:8px;}
+.acc>summary::-webkit-details-marker{display:none;}
+.acc>summary::after{content:"▸";margin-left:auto;font-size:.95rem;color:var(--muted);transition:transform .2s;}
+.acc[open]>summary{color:var(--text);border-bottom:1px solid var(--border);}
+.acc[open]>summary::after{transform:rotate(90deg);}
+.acc>summary:active{background:rgba(255,255,255,.04);}
+.acc>.acc-body{padding:16px 20px 20px;}
+.acc>summary .period-sub,.acc>summary .mut{margin-left:6px;}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;}
 @keyframes sp{to{transform:rotate(360deg);}}
 
@@ -385,74 +394,8 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
 
   <!-- ───────── BACK COSTING ───────── -->
   <div class="page" id="page-bc">
-    <!-- ModSpace back costing (lives inside Back Costing) -->
-    <div class="card" style="border-left:4px solid var(--accent);">
-      <div class="ct">ModSpace back costing <span id="ms-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;margin-left:auto;"></span></div>
-      <div id="ms-jobs"><div class="empty">No ModSpace jobs synced yet. Tap “Sync”.</div></div>
-      <div class="ct" style="margin:20px 0 10px;">All ModSpace jobs combined <span id="ms-sync" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;margin-left:auto;"></span></div>
-      <div id="ms-total"></div>
-      <button class="btn btn-a" style="margin-top:16px;" onclick="syncWorkload()">⟳ Sync jobs from Fergus</button>
-      <div class="note" id="ms-note"></div>
-      <details class="ms-dbg"><summary>🔍 Debug a job's Fergus figures</summary>
-        <div class="ms-dbg-row">
-          <input id="ms-debug-job" inputmode="text" placeholder="Job # or name, e.g. 3059">
-          <button class="btn btn-o ms-dbg-btn" onclick="msDebugJob()">Check</button>
-        </div>
-        <pre id="ms-debug-out" class="ms-dbg-out"></pre>
-      </details>
-    </div>
-
-    <div class="card">
-      <div class="ct">12-Month History <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
-      <div class="mstrip" id="bc-strip"></div>
-    </div>
-    <div class="card per-week">
-      <div class="ct">Materials cost % of revenue <span class="period-sub" style="margin-left:auto;">last 6 mo · cost of goods</span></div>
-      <div class="mg" id="bc-matpct"></div>
-      <div class="note" id="bc-matpct-note"></div>
-    </div>
-    <div class="card per-this">
-      <div class="ct">This Month <span id="bc-lbl-this" class="period-sub"></span></div>
-      <div class="mg" id="bc-met-this"></div>
-      <div class="mg" id="bc-pva-this" style="margin-top:9px;"></div>
-    </div>
-    <div class="card per-last">
-      <div class="ct">Last Month <span id="bc-lbl-last" class="period-sub"></span></div>
-      <div class="mg" id="bc-met-last"></div>
-      <div class="mg" id="bc-pva-last" style="margin-top:9px;"></div>
-    </div>
-    <div class="card per-3mo">
-      <div class="ct">3-Month Rolling — by month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
-      <div class="mstrip" id="roll-strip-bc"></div>
-    </div>
-
-    <div class="tiles" id="bc-tiles"></div>
-    <div class="card">
-      <div class="ct">Overhead Recovery (for NP) <span class="period-sub" style="margin-left:auto;">$/billable hour</span></div>
-      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="bc-oh-rate" style="font-size:2.4rem;">—</div><div class="unit">overhead recovery rate / hour</div></div>
-      <div class="cfg">
-        <div><label>Monthly OPEX $</label><input id="bc-opex" type="number" inputmode="decimal" placeholder="auto" oninput="saveBcOh()"></div>
-        <div><label>Field staff</label><input id="bc-emp" type="number" inputmode="numeric" placeholder="auto" oninput="saveBcOh()"></div>
-        <div><label>Utilisation %</label><input id="bc-util" type="number" inputmode="numeric" placeholder="90" oninput="saveBcOh()"></div>
-        <div><label>Annual leave wks</label><input id="bc-al" type="number" inputmode="numeric" placeholder="4" oninput="saveBcOh()"></div>
-        <div><label>Sick days/yr</label><input id="bc-sick" type="number" inputmode="numeric" placeholder="10" oninput="saveBcOh()"></div>
-        <div><label>Public hols/yr</label><input id="bc-ph" type="number" inputmode="numeric" placeholder="12" oninput="saveBcOh()"></div>
-        <div><label>Weekly hours</label><input id="bc-wh" type="number" inputmode="numeric" placeholder="40" oninput="saveBcOh()"></div>
-        <div><label>Override $/hr</label><input id="bc-ohov" type="number" inputmode="decimal" placeholder="optional" oninput="saveBcOh()"></div>
-      </div>
-      <div class="note" id="bc-oh-note"></div>
-    </div>
-    <div class="card" style="margin-top:12px;">
-      <div class="ct">Back-costing by job type <span class="period-sub" style="margin-left:auto;">grouped from job titles</span></div>
-      <div class="tbl-wrap" style="max-height:70vh;overflow:auto;">
-        <table class="tb" id="bc-type-tbl">
-          <thead><tr><th>Date</th><th>Job</th><th>Src</th><th>Sales</th><th>GP</th><th>GPM</th><th>NP</th><th>Pr h</th><th>Act h</th></tr></thead>
-          <tbody id="bc-type-body"></tbody>
-        </table>
-      </div>
-      <div class="note">Grouped by keywords in the job title: Pole Sheds, Re-Roof's, Re-Roof &amp; Gutter, Gutter only. ⚡ = from Fergus. NP @ overhead rate. Re-sync Fergus to pull job titles for accurate grouping.</div>
-    </div>
-    <div class="card" id="lr-card" style="margin-top:12px;">
+    <!-- OPEN at top: Performance by Lead Roofer + All Back Costing -->
+    <div class="card" id="lr-card">
       <div class="ct">Performance by Lead Roofer <span id="lr-sub" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="lr-head lr-swipe">
         <button class="lr-nav" onclick="lrStep(-1)" aria-label="Previous roofer">‹</button>
@@ -475,7 +418,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       </div>
       <div class="note" id="lr-note"></div>
     </div>
-    <div class="card" style="margin-top:12px;">
+    <div class="card">
       <div class="ct">All Back Costing <span id="bc-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
       <div class="row2" style="margin-bottom:9px;">
         <select class="sel" id="bc-year" onchange="renderBC()"></select>
@@ -490,19 +433,76 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
           <tfoot id="bc-foot"></tfoot>
         </table>
       </div>
+      <div class="tiles" id="bc-tiles" style="margin-top:11px;"></div>
       <button class="btn btn-o" style="margin-top:11px;" onclick="syncWorkload()">⟳ Sync from Fergus</button>
     </div>
-    <div class="card">
-      <div class="ct">Excel ↔ Fergus check <span class="period-sub" style="margin-left:auto;">are the pulled numbers right?</span></div>
+
+    <!-- Everything else: collapsed accordions -->
+    <details class="acc"><summary>ModSpace back costing <span id="ms-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></summary><div class="acc-body">
+      <div id="ms-jobs"><div class="empty">No ModSpace jobs synced yet. Tap “Sync”.</div></div>
+      <div class="ct" style="margin:20px 0 10px;">All ModSpace jobs combined <span id="ms-sync" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;margin-left:auto;"></span></div>
+      <div id="ms-total"></div>
+      <button class="btn btn-a" style="margin-top:16px;" onclick="syncWorkload()">⟳ Sync jobs from Fergus</button>
+      <div class="note" id="ms-note"></div>
+      <details class="ms-dbg"><summary>🔍 Debug a job's Fergus figures</summary>
+        <div class="ms-dbg-row">
+          <input id="ms-debug-job" inputmode="text" placeholder="Job # or name, e.g. 3059">
+          <button class="btn btn-o ms-dbg-btn" onclick="msDebugJob()">Check</button>
+        </div>
+        <pre id="ms-debug-out" class="ms-dbg-out"></pre>
+      </details>
+    </div></details>
+
+    <details class="acc"><summary>12-Month History</summary><div class="acc-body">
+      <div class="mstrip" id="bc-strip"></div>
+    </div></details>
+    <details class="acc"><summary>Materials cost % of revenue</summary><div class="acc-body">
+      <div class="mg" id="bc-matpct"></div>
+      <div class="note" id="bc-matpct-note"></div>
+    </div></details>
+    <details class="acc"><summary>This Month <span id="bc-lbl-this" class="period-sub"></span></summary><div class="acc-body">
+      <div class="mg" id="bc-met-this"></div>
+      <div class="mg" id="bc-pva-this" style="margin-top:9px;"></div>
+    </div></details>
+    <details class="acc"><summary>Last Month <span id="bc-lbl-last" class="period-sub"></span></summary><div class="acc-body">
+      <div class="mg" id="bc-met-last"></div>
+      <div class="mg" id="bc-pva-last" style="margin-top:9px;"></div>
+    </div></details>
+    <details class="acc"><summary>3-Month Rolling — by month</summary><div class="acc-body">
+      <div class="mstrip" id="roll-strip-bc"></div>
+    </div></details>
+    <details class="acc"><summary>Overhead Recovery (for NP) <span class="period-sub">$/billable hour</span></summary><div class="acc-body">
+      <div class="hero" style="padding:4px 0 8px;"><div class="big" id="bc-oh-rate" style="font-size:2.4rem;">—</div><div class="unit">overhead recovery rate / hour</div></div>
+      <div class="cfg">
+        <div><label>Monthly OPEX $</label><input id="bc-opex" type="number" inputmode="decimal" placeholder="auto" oninput="saveBcOh()"></div>
+        <div><label>Field staff</label><input id="bc-emp" type="number" inputmode="numeric" placeholder="auto" oninput="saveBcOh()"></div>
+        <div><label>Utilisation %</label><input id="bc-util" type="number" inputmode="numeric" placeholder="90" oninput="saveBcOh()"></div>
+        <div><label>Annual leave wks</label><input id="bc-al" type="number" inputmode="numeric" placeholder="4" oninput="saveBcOh()"></div>
+        <div><label>Sick days/yr</label><input id="bc-sick" type="number" inputmode="numeric" placeholder="10" oninput="saveBcOh()"></div>
+        <div><label>Public hols/yr</label><input id="bc-ph" type="number" inputmode="numeric" placeholder="12" oninput="saveBcOh()"></div>
+        <div><label>Weekly hours</label><input id="bc-wh" type="number" inputmode="numeric" placeholder="40" oninput="saveBcOh()"></div>
+        <div><label>Override $/hr</label><input id="bc-ohov" type="number" inputmode="decimal" placeholder="optional" oninput="saveBcOh()"></div>
+      </div>
+      <div class="note" id="bc-oh-note"></div>
+    </div></details>
+    <details class="acc"><summary>Back-costing by job type <span class="period-sub">grouped from job titles</span></summary><div class="acc-body">
+      <div class="tbl-wrap" style="max-height:70vh;overflow:auto;">
+        <table class="tb" id="bc-type-tbl">
+          <thead><tr><th>Date</th><th>Job</th><th>Src</th><th>Sales</th><th>GP</th><th>GPM</th><th>NP</th><th>Pr h</th><th>Act h</th></tr></thead>
+          <tbody id="bc-type-body"></tbody>
+        </table>
+      </div>
+      <div class="note">Grouped by keywords in the job title: Pole Sheds, Re-Roof's, Re-Roof &amp; Gutter, Gutter only. ⚡ = from Fergus. NP @ overhead rate. Re-sync Fergus to pull job titles for accurate grouping.</div>
+    </div></details>
+    <details class="acc"><summary>Excel ↔ Fergus check</summary><div class="acc-body">
       <button class="btn btn-o" onclick="compareBcSources()">⚖ Compare Excel vs Fergus (overlapping jobs)</button>
       <div id="bc-cmp-sum" class="note" style="margin-top:8px;">Excel is the source of truth. This matches each Excel job to its live Fergus row (by address) and shows where the pulled Sales / GP / Hours differ. Sync from Fergus first.</div>
       <div class="tbl-wrap" style="max-height:62vh;overflow:auto;margin-top:8px;"><table class="tb" id="bc-cmp-tbl"><thead><tr><th>Job</th><th style="text-align:right;">Sales E→F</th><th style="text-align:right;">GP E→F</th><th style="text-align:right;">Hrs E→F</th></tr></thead><tbody id="bc-cmp"></tbody></table></div>
-    </div>
-    <div class="card">
-      <div class="ct">Invoice dating diagnostic</div>
+    </div></details>
+    <details class="acc"><summary>Invoice dating diagnostic</summary><div class="acc-body">
       <button class="btn btn-o" onclick="diagInvoices()">🔧 Test Fergus invoice endpoints</button>
       <pre id="bc-diag" class="note" style="white-space:pre-wrap;word-break:break-word;margin-top:10px;max-height:340px;overflow:auto;"></pre>
-    </div>
+    </div></details>
   </div>
 
   <!-- ───────── XERO P&L ───────── -->
@@ -1422,18 +1422,19 @@ async function syncBackCosting(activeJobs,onProg){
       const _site=fergusAddr(job.siteAddress);
       const _brief=job.brief||job.title||job.jobDescription||job.description||'';
       // Lead roofer = who logged the most hours on this job (from the bulk time map built above).
-      const _rh=rooferHoursFor(job.id!=null?job.id:job.jobId);const _lead=leadFromHours(_rh)||'';
+      const _jid=job.id!=null?job.id:job.jobId;
+      const _rh=rooferHoursFor(_jid);const _lead=leadFromHours(_rh)||'';const _logged=loggedHrsFor(_jid);
       if(isModspace(_client)||isModspace(_site)||isModspace(_brief)){
         const dms=paid.length?paid[paid.length-1]:(job.lastModified?Date.parse(job.lastModified):Date.now());
         const mr=bcRowFrom(job,summary,dms||Date.now());
-        if(mr){mr._status=job.status||'';mr._inProgress=!(completedStatus||heavy||paid.length>=2);mr._noData=!summary;mr.lead=_lead;mr._rooferHrs=_rh;msRebuilt.push(mr);}
+        if(mr){mr._status=job.status||'';mr._inProgress=!(completedStatus||heavy||paid.length>=2);mr._noData=!summary;mr.lead=_lead;mr._rooferHrs=_rh;mr._loggedHrs=_logged;msRebuilt.push(mr);}
       }
       let dateMs=null;
       if(paid.length>=2)dateMs=paid[paid.length-1];
       else if(paid.length>=1&&(completedStatus||heavy))dateMs=paid[paid.length-1];
       else if(completedStatus||heavy){const lm=job.lastModified?Date.parse(job.lastModified):NaN;dateMs=!isNaN(lm)?lm:Date.now();}
       if(dateMs==null){done++;continue;}
-      const row=bcRowFrom(job,summary,dateMs);if(row){row.lead=_lead;row._rooferHrs=_rh;rebuilt.push(row);}
+      const row=bcRowFrom(job,summary,dateMs);if(row){row.lead=_lead;row._rooferHrs=_rh;row._loggedHrs=_logged;rebuilt.push(row);}
       done++;if(done%8===0){setP('back-costing '+done+'/'+jobs.length+'…');if(onProg)onProg(done/(jobs.length||1));}
     }
   }
@@ -1660,26 +1661,45 @@ function walkRooferHours(data,emit){
   })(data);
 }
 // Fergus serves /timeEntries but IGNORES ?jobId= (it returns a global slice). So we pull ALL time
-// entries once, then group them by each entry's own jobId → { jobId: { roofer: hours } }.
-let _timeMap=null;
-function resetRooferDiscovery(){_timeMap=null;}
+// entries once and group by each entry's own jobId → roofer hours { jobId:{roofer:h} } AND the
+// TOTAL logged hours per job across everyone { jobId: hours } (GP/hr divides by this total).
+let _timeMap=null,_jobLoggedHrs=null;
+function resetRooferDiscovery(){_timeMap=null;_jobLoggedHrs=null;}
 async function buildTimeMap(onProg){
-  const map={};let n=0,kept=0;
-  let entries=[];
-  const since=new Date(Date.now()-820*86400000).toISOString().slice(0,10);   // ~27 months back (harmless if Fergus ignores it)
-  try{entries=await fergusPaginate('/timeEntries?pageSize=200&dateFrom='+since,150);}
-  catch(e){try{entries=await fergusPaginate('/timeEntries?pageSize=100',150);}catch(e2){console.warn('timeEntries',e2.message);}}
-  entries.forEach(e=>{
-    n++;const jid=e&&(e.jobId!=null?e.jobId:(e.job_id!=null?e.job_id:null));if(jid==null)return;   // toolbox/breakfast etc. have null jobId
-    const roofer=matchRoofer(entryUser(e));if(!roofer)return;
-    const h=entryHours(e);if(h<=0)return;
-    const k=String(jid);(map[k]||(map[k]={}))[roofer]=(map[k][roofer]||0)+h;kept++;
-  });
-  _timeMap=map;S.set('msTimeMap',{entries:n,kept,jobs:Object.keys(map).length});
+  const map={},jobHrs={};const seen=new Set();let n=0,pages=0,firstLen=null;
+  let url='/timeEntries?pageSize=200';   // follow cursor next-links if present, else fall back to ?page=
+  while(url&&pages<400){
+    pages++;if(onProg&&pages%5===0)onProg(Math.min(0.95,pages/120));
+    let j=null;try{j=await fergusApiFetch(url);}catch(e){break;}
+    const arr=Array.isArray(j)?j:((j&&(j.data||j.results||j.timeEntries))||[]);
+    if(!arr.length)break;
+    if(firstLen===null)firstLen=arr.length;
+    let fresh=0;
+    arr.forEach(e=>{
+      const eid=e&&(e.timeEntryId!=null?e.timeEntryId:(e.id!=null?e.id:null));
+      if(eid!=null){if(seen.has(eid))return;seen.add(eid);}
+      fresh++;n++;
+      const jid=e&&(e.jobId!=null?e.jobId:(e.job_id!=null?e.job_id:null));if(jid==null)return;  // toolbox/breakfast = no job
+      const h=entryHours(e);if(h<=0)return;
+      const k=String(jid);jobHrs[k]=(jobHrs[k]||0)+h;                                    // total logged hours, ALL workers
+      const roofer=matchRoofer(entryUser(e));if(roofer)(map[k]||(map[k]={}))[roofer]=(map[k][roofer]||0)+h;
+    });
+    if(fresh===0)break;                       // nothing new → paging not advancing, stop (avoids loops)
+    let nx=j&&j.paging&&j.paging.links&&j.paging.links.next;                              // cursor pagination?
+    if(nx&&/^https?:\/\//.test(nx))nx=nx.replace(/^https?:\/\/[^/]+/,'');
+    if(nx){url=nx;}
+    else{                                      // no next link → bump ?page= (some Fergus lists page this way)
+      if(arr.length<firstLen)break;            // short page = last
+      const m=url.match(/[?&]page=(\d+)/);
+      url=m?url.replace(/([?&]page=)\d+/,'$1'+(parseInt(m[1])+1)):url+'&page=2';
+    }
+  }
+  _timeMap=map;_jobLoggedHrs=jobHrs;S.set('msTimeMap',{entries:n,jobs:Object.keys(jobHrs).length});
   if(onProg)onProg(1);
   return map;
 }
 function rooferHoursFor(jobId){return (_timeMap&&_timeMap[String(jobId)])||{};}
+function loggedHrsFor(jobId){return (_jobLoggedHrs&&_jobLoggedHrs[String(jobId)])||0;}
 function renderBCTypes(){
   const body=document.getElementById('bc-type-body');if(!body)return;
   const ovRate=ohRate().rate;
@@ -1707,7 +1727,8 @@ function leadMonthAgg(){
   const m={};
   getAllBC().forEach(r=>{const lead=r.lead;if(!lead)return;const mo=r.month;if(!mo)return;
     const rm=m[lead]||(m[lead]={});const o=rm[mo]||(rm[mo]={rev:0,gp:0,h:0,n:0});
-    o.rev+=num(r.sales);o.gp+=num(r.gp);o.h+=num(r.h_actual);o.n++;});
+    // GP/hr divides job GP by the TOTAL hours logged on the job (everyone, any month), not just the lead's.
+    o.rev+=num(r.sales);o.gp+=num(r.gp);o.h+=(num(r._loggedHrs)||num(r.h_actual));o.n++;});
   return m;
 }
 function leadRoofersWithData(){const a=leadMonthAgg();return LEAD_ROOFERS.filter(k=>a[k]&&Object.keys(a[k]).length);}
@@ -1748,7 +1769,8 @@ function renderLeadRoofer(){
   }).join('');
   // all-time line
   const tot=months.reduce((a,mo)=>{const o=agg[roofer][mo];a.rev+=o.rev;a.gp+=o.gp;a.h+=o.h;a.n+=o.n;return a;},{rev:0,gp:0,h:0,n:0});
-  set('lr-note',null,roofer+' all-time: '+tot.n+' jobs · '+fmt$(tot.rev)+' revenue · '+(tot.rev>0?Math.round(tot.gp/tot.rev*100):0)+'% GP · '+(tot.h>0?fmt$(tot.gp/tot.h):'—')+'/hr. Lead = whoever logged the most hours on a job.');
+  const tm=S.get('msTimeMap',null);
+  set('lr-note',null,roofer+' all-time: '+tot.n+' jobs · '+fmt$(tot.rev)+' revenue · '+(tot.rev>0?Math.round(tot.gp/tot.rev*100):0)+'% GP · '+(tot.h>0?fmt$(tot.gp/tot.h):'—')+'/hr. GP/hr = job GP ÷ total hours logged on the job by everyone.'+(tm?(' ('+tm.entries+' time entries across '+tm.jobs+' jobs synced)'):''));
 }
 // Swipe left/right on the card to change roofer (the global tab-swipe ignores .lr-swipe).
 (function(){
