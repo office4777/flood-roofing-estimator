@@ -1194,12 +1194,12 @@ async function msDebugJob(){
     const probes=[E+'/timeEntries',E+'/time_entries',E+'/timesheets',E+'/timesheet',E+'/time',E+'/timeRecords',E+'/labour',E+'/labourEntries',E+'/worklog',E+'/work_log',E+'/activities',E+'/activity',E+'/schedule',E+'/scheduledEvents',E+'/events',E+'/sites',E+'/users',E+'/staff',E+'/phases',
       '/timeEntries?jobId='+encodeURIComponent(jid),'/time_entries?job_id='+encodeURIComponent(jid),'/timesheets?jobId='+encodeURIComponent(jid)];
     const shape=j=>j==null?'null':(Array.isArray(j)?('array['+j.length+']'):(j.data?('data:'+(Array.isArray(j.data)?('array['+j.data.length+']'):('{'+Object.keys(j.data).slice(0,8).join(',')+'}'))):('{'+Object.keys(j).slice(0,10).join(',')+'}')));
-    let found=null,phasesJ=null;
+    let found=null,rich=null;
     for(const p of probes){
       const tag=p.replace(E,'…');
       let j=null;try{j=await fergusApiFetch(p);}catch(e){txt+=tag+' → '+String(e.message).slice(0,28)+'\n';out.textContent=txt;continue;}
       txt+=tag+' → OK '+shape(j)+'\n';out.textContent=txt;
-      if(p.endsWith('/phases'))phasesJ=j;
+      const len=JSON.stringify(j).length;if(!rich||len>rich.len)rich={tag,j,len};
       if(!found){const u={};walkRooferHours(j,(n,h)=>{u[n]=(u[n]||0)+h;});if(Object.keys(u).length)found={p:tag,j,u};}
     }
     if(found){
@@ -1209,8 +1209,8 @@ async function msDebugJob(){
       txt+='matched to roofers: '+(Object.keys(matched).length?rnd(matched):'(none — name spellings differ?)')+'\n';
       txt+='→ lead: '+(leadFromHours(matched)||'—');
     }else{
-      txt+='\nNo endpoint yielded user+hours pairs. FULL phases JSON below — paste this to me:\n';
-      txt+=(phasesJ!=null?JSON.stringify(phasesJ):'(phases endpoint returned nothing)');
+      txt+='\nNo user+hours recognised. RICHEST response ('+(rich?rich.tag:'—')+') below — paste this to me:\n';
+      txt+=(rich?JSON.stringify(rich.j).slice(0,2200):'(every endpoint failed)');
     }
     out.textContent=txt;
   }catch(e){out.textContent='debug error: '+String(e&&e.message||e);}
@@ -1659,8 +1659,8 @@ function walkRooferHours(data,emit){
 let _timeEp,_timeMiss=0,_rooferTries=0,_rooferHits=0,_rooferGaveUp=false;   // time-endpoint discovery state (reset per sync)
 function resetRooferDiscovery(){_timeEp=undefined;_timeMiss=0;_rooferTries=0;_rooferHits=0;_rooferGaveUp=false;}
 function _timeEndpoints(id){const e=encodeURIComponent(id);return [
-  '/jobs/'+e+'/timeEntries','/jobs/'+e+'/time_entries','/jobs/'+e+'/timesheets',
-  '/jobs/'+e+'/labour','/jobs/'+e+'/labourEntries','/jobs/'+e+'/time'];}
+  '/timeEntries?jobId='+e,                       // ← the one Fergus actually serves
+  '/jobs/'+e+'/timeEntries','/jobs/'+e+'/time_entries','/jobs/'+e+'/timesheets'];}
 async function fergusJobRooferHours(jobId){
   const out={};if(_rooferGaveUp)return out;   // no per-person hours available this sync → stop hammering
   const get=async p=>{try{return await fergusApiFetch(p);}catch(e){return null;}};
