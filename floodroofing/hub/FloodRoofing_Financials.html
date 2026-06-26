@@ -1188,31 +1188,16 @@ async function msDebugJob(){
     txt+='Actual hours:     '+(Math.round(f.hours*10)/10)+'\n';
     txt+='\n— every non-zero number Fergus returned —\n';
     txt+=(flat.length?flat.join('\n'):'(none — the summary came back EMPTY for this job)');
-    // ── lead roofer probe: find where Fergus keeps per-person time on a job ──
-    txt+='\n\n— lead roofer probe (time/labour data) —\n';
-    out.textContent=txt+'probing endpoints…';
-    const E='/jobs/'+encodeURIComponent(jid);
-    const probes=[E+'/timeEntries',E+'/time_entries',E+'/timesheets',E+'/timesheet',E+'/time',E+'/timeRecords',E+'/labour',E+'/labourEntries',E+'/worklog',E+'/work_log',E+'/activities',E+'/activity',E+'/schedule',E+'/scheduledEvents',E+'/events',E+'/sites',E+'/users',E+'/staff',E+'/phases',
-      '/timeEntries?jobId='+encodeURIComponent(jid),'/time_entries?job_id='+encodeURIComponent(jid),'/timesheets?jobId='+encodeURIComponent(jid)];
-    const shape=j=>j==null?'null':(Array.isArray(j)?('array['+j.length+']'):(j.data?('data:'+(Array.isArray(j.data)?('array['+j.data.length+']'):('{'+Object.keys(j.data).slice(0,8).join(',')+'}'))):('{'+Object.keys(j).slice(0,10).join(',')+'}')));
-    let found=null,rich=null;
-    for(const p of probes){
-      const tag=p.replace(E,'…');
-      let j=null;try{j=await fergusApiFetch(p);}catch(e){txt+=tag+' → '+String(e.message).slice(0,28)+'\n';out.textContent=txt;continue;}
-      txt+=tag+' → OK '+shape(j)+'\n';out.textContent=txt;
-      const len=JSON.stringify(j).length;if(!rich||len>rich.len)rich={tag,j,len};
-      if(!found){const u={};walkRooferHours(j,(n,h)=>{u[n]=(u[n]||0)+h;});if(Object.keys(u).length)found={p:tag,j,u};}
-    }
-    if(found){
-      const matched={};Object.keys(found.u).forEach(n=>{const k=matchRoofer(n);if(k)matched[k]=(matched[k]||0)+found.u[n];});
-      const rnd=o=>JSON.stringify(Object.fromEntries(Object.entries(o).map(([k,v])=>[k,Math.round(v*10)/10])));
-      txt+='\nnames+hours from '+found.p+':\n'+rnd(found.u)+'\n';
-      txt+='matched to roofers: '+(Object.keys(matched).length?rnd(matched):'(none — name spellings differ?)')+'\n';
-      txt+='→ lead: '+(leadFromHours(matched)||'—');
-    }else{
-      txt+='\nNo user+hours recognised. RICHEST response ('+(rich?rich.tag:'—')+') below — paste this to me:\n';
-      txt+=(rich?JSON.stringify(rich.j).slice(0,2200):'(every endpoint failed)');
-    }
+    // ── lead roofer for THIS job (from the bulk time map, grouped by jobId) ──
+    txt+='\n\n— lead roofer (time entries grouped by job) —\n';
+    out.textContent=txt+'building time map (pulling all time entries)…';
+    if(!_timeMap)await buildTimeMap();
+    const rh=rooferHoursFor(jid),tot=loggedHrsFor(jid);
+    const rnd=o=>JSON.stringify(Object.fromEntries(Object.entries(o).map(([k,v])=>[k,Math.round(v*10)/10])));
+    txt+='total hours logged on this job (everyone): '+(Math.round(tot*10)/10)+'\n';
+    txt+='lead-roofer hours on this job: '+(Object.keys(rh).length?rnd(rh):'(no lead roofer logged time on it)')+'\n';
+    txt+='→ lead: '+(leadFromHours(rh)||'—')+'\n';
+    const tm=S.get('msTimeMap',null);if(tm)txt+='(synced '+tm.entries+' time entries across '+tm.jobs+' jobs · pageSize '+tm.ps+')';
     out.textContent=txt;
   }catch(e){out.textContent='debug error: '+String(e&&e.message||e);}
 }
@@ -1699,36 +1684,37 @@ function walkRooferHours(data,emit){
 // TOTAL logged hours per job across everyone { jobId: hours } (GP/hr divides by this total).
 let _timeMap=null,_jobLoggedHrs=null;
 function resetRooferDiscovery(){_timeMap=null;_jobLoggedHrs=null;}
+function _teArr(j){return Array.isArray(j)?j:((j&&(j.data||j.results||j.timeEntries))||[]);}
+function _ingestEntry(e,map,jobHrs,seen){
+  const eid=e&&(e.timeEntryId!=null?e.timeEntryId:(e.id!=null?e.id:null));
+  if(eid!=null){if(seen.has(eid))return false;seen.add(eid);}
+  const jid=e&&(e.jobId!=null?e.jobId:(e.job_id!=null?e.job_id:null));if(jid==null)return true;  // toolbox/breakfast = no job
+  const h=entryHours(e);if(h<=0)return true;
+  const k=String(jid);jobHrs[k]=(jobHrs[k]||0)+h;                                    // total logged hours, ALL workers
+  const roofer=matchRoofer(entryUser(e));if(roofer)(map[k]||(map[k]={}))[roofer]=(map[k][roofer]||0)+h;
+  return true;
+}
 async function buildTimeMap(onProg){
-  const map={},jobHrs={};const seen=new Set();let n=0,pages=0,firstLen=null;
-  let url='/timeEntries?pageSize=200';   // follow cursor next-links if present, else fall back to ?page=
-  while(url&&pages<400){
-    pages++;if(onProg&&pages%5===0)onProg(Math.min(0.95,pages/120));
-    let j=null;try{j=await fergusApiFetch(url);}catch(e){break;}
-    const arr=Array.isArray(j)?j:((j&&(j.data||j.results||j.timeEntries))||[]);
-    if(!arr.length)break;
-    if(firstLen===null)firstLen=arr.length;
-    let fresh=0;
-    arr.forEach(e=>{
-      const eid=e&&(e.timeEntryId!=null?e.timeEntryId:(e.id!=null?e.id:null));
-      if(eid!=null){if(seen.has(eid))return;seen.add(eid);}
-      fresh++;n++;
-      const jid=e&&(e.jobId!=null?e.jobId:(e.job_id!=null?e.job_id:null));if(jid==null)return;  // toolbox/breakfast = no job
-      const h=entryHours(e);if(h<=0)return;
-      const k=String(jid);jobHrs[k]=(jobHrs[k]||0)+h;                                    // total logged hours, ALL workers
-      const roofer=matchRoofer(entryUser(e));if(roofer)(map[k]||(map[k]={}))[roofer]=(map[k][roofer]||0)+h;
+  const map={},jobHrs={};const seen=new Set();let n=0;
+  // Fergus caps pageSize (200 → 400). Find the biggest it accepts, then page through ALL entries
+  // with ?page= in parallel batches (sortField=timeEntryDate). Group by each entry's own jobId.
+  let ps=10;for(const c of [100,50,25]){try{await fergusApiFetch('/timeEntries?pageSize='+c+'&page=1');ps=c;break;}catch(e){}}
+  const BATCH=6;let page=1,stop=false,guard=0;
+  while(!stop&&guard<200){
+    guard++;
+    const nums=[];for(let i=0;i<BATCH;i++)nums.push(page+i);
+    const res=await Promise.all(nums.map(p=>fergusApiFetch('/timeEntries?pageSize='+ps+'&page='+p).then(_teArr).catch(()=>null)));
+    let anyFresh=false,anyEmpty=false;
+    res.forEach(arr=>{
+      if(arr==null)return;
+      if(!arr.length){anyEmpty=true;return;}
+      arr.forEach(e=>{n++;if(_ingestEntry(e,map,jobHrs,seen))anyFresh=true;});
     });
-    if(fresh===0)break;                       // nothing new → paging not advancing, stop (avoids loops)
-    let nx=j&&j.paging&&j.paging.links&&j.paging.links.next;                              // cursor pagination?
-    if(nx&&/^https?:\/\//.test(nx))nx=nx.replace(/^https?:\/\/[^/]+/,'');
-    if(nx){url=nx;}
-    else{                                      // no next link → bump ?page= (some Fergus lists page this way)
-      if(arr.length<firstLen)break;            // short page = last
-      const m=url.match(/[?&]page=(\d+)/);
-      url=m?url.replace(/([?&]page=)\d+/,'$1'+(parseInt(m[1])+1)):url+'&page=2';
-    }
+    if(onProg)onProg(Math.min(0.95,guard/40));
+    if(anyEmpty||!anyFresh)stop=true;   // reached the end (an empty page) or no new entries (paging exhausted/looping)
+    page+=BATCH;
   }
-  _timeMap=map;_jobLoggedHrs=jobHrs;S.set('msTimeMap',{entries:n,jobs:Object.keys(jobHrs).length});
+  _timeMap=map;_jobLoggedHrs=jobHrs;S.set('msTimeMap',{entries:seen.size,jobs:Object.keys(jobHrs).length,ps});
   if(onProg)onProg(1);
   return map;
 }
