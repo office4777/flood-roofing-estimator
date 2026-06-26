@@ -321,10 +321,6 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
 
   <!-- ───────── DASHBOARD ───────── -->
   <div class="page active" id="page-dash">
-    <div class="card per-this">
-      <div class="ct">Cash at a glance <span class="period-sub" style="margin-left:auto;">position + due in</span></div>
-      <div class="mg" id="dash-summary"></div>
-    </div>
     <div class="card" style="border-left:4px solid var(--accent);">
       <div class="ct">Forward Workflow <span id="dash-fw-sync" class="period-sub"></span></div>
       <div class="hero">
@@ -333,6 +329,10 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
         <div class="sub" id="dash-fw-sub">Tap “Refresh” to load active jobs</div>
       </div>
     </div>
+    <div class="card per-this">
+      <div class="ct">Cash at a glance <span class="period-sub" style="margin-left:auto;">position + due in</span></div>
+      <div class="mg" id="dash-summary"></div>
+    </div>
 
     <div class="sect"><span>Profit &amp; Loss</span><span class="livepill off" id="pl-live-pill">Xero — not connected</span></div>
 
@@ -340,13 +340,13 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="ct">This Month <span id="lbl-this" class="period-sub"></span><span id="src-this" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="mg" id="met-this"></div>
     </div>
-    <div class="card per-last">
-      <div class="ct">Last Month <span id="lbl-last" class="period-sub"></span><span id="src-last" class="period-sub" style="margin-left:auto;"></span></div>
-      <div class="mg" id="met-last"></div>
-    </div>
     <div class="card per-3mo">
       <div class="ct">3-Month Rolling — by month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
       <div class="mstrip" id="roll-strip-dash"></div>
+    </div>
+    <div class="card per-last acc-card">
+      <div class="ct">Last Month <span id="lbl-last" class="period-sub"></span><span id="src-last" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="mg" id="met-last"></div>
     </div>
 
     <div class="card">
@@ -576,7 +576,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
 
   <!-- ───────── MARKETING ───────── -->
   <div class="page" id="page-marketing">
-    <div class="card" style="border-left:4px solid var(--success);">
+    <div class="card acc-card" style="border-left:4px solid var(--success);">
       <div class="ct">Quote Conversion <span id="mkt-ts" class="period-sub"></span></div>
       <div class="hero">
         <div class="big" id="mkt-conv">—</div>
@@ -585,7 +585,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       </div>
     </div>
 
-    <div class="card per-week">
+    <div class="card per-week acc-card">
       <div class="ct">This Week <span class="period-sub" style="margin-left:auto;">last 7 days</span></div>
       <div class="mg" id="mkt-week"></div>
     </div>
@@ -594,20 +594,20 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="mg" id="mkt-month"></div>
     </div>
 
-    <div class="card">
+    <div class="card acc-card">
       <div class="ct">Monthly History <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
       <div class="mstrip" id="mkt-strip"></div>
     </div>
 
-    <div class="card per-3mo">
+    <div class="card per-3mo acc-card">
       <div class="ct">3-Month Rolling — per month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
       <div class="mstrip" id="mkt-roll-strip"></div>
     </div>
-    <div class="card">
+    <div class="card acc-card">
       <div class="ct">Weekly History — last 12 weeks <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
       <div class="mstrip" id="mkt-wk-strip"></div>
     </div>
-    <div class="card per-3mo">
+    <div class="card per-3mo acc-card">
       <div class="ct">3-Week Rolling — per week <span class="period-sub" style="margin-left:auto;">last 26 wks · swipe ↔</span></div>
       <div class="mstrip" id="mkt-wk-roll"></div>
     </div>
@@ -683,7 +683,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="fld" style="margin:4px 0 10px;"><label>Materials / COGS account code(s)</label><input id="cash-apcodes" type="text" autocomplete="off" autocapitalize="off" placeholder="e.g. 310, 311" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Leave this blank and I’ll auto-pick your goods/COGS codes straight from your Xero Chart of Accounts (the accounts typed as “Direct Costs”). Or enter specific account code(s) to override. The table below shows unpaid A/P grouped by account — ✓ goods = counted as materials; overheads (phone, fuel, subbies…) are removed.</div></div>
       <div class="tbl-wrap"><table class="tb" id="cash-apcodes-tbl"><thead><tr><th>Code</th><th>Account</th><th style="text-align:right;">Unpaid A/P</th></tr></thead><tbody></tbody></table></div>
     </div>
-    <div class="card" style="border-left:4px solid var(--success);">
+    <div class="card acc-card" style="border-left:4px solid var(--success);">
       <div class="ct">Bank — live <span id="bank-ts" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="hero" style="padding:4px 0 8px;"><div class="big" id="bank-total" style="font-size:2.4rem;">—</div><div class="unit" id="bank-sub">connect a live bank feed (Akahu)</div></div>
       <div class="mg" id="bank-accts"></div>
@@ -691,7 +691,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <button class="btn btn-o" id="bank-sync-btn" style="margin-top:11px;" onclick="syncBank()">⟳ Sync live bank (Akahu)</button>
       <div class="note" id="bank-note">Live balances + recent transactions from Akahu (via the proxy). Add AKAHU_APP_TOKEN + AKAHU_USER_TOKEN to the proxy to switch it on; until then this stays dormant. The total feeds “Total cash now” in the forecast.</div>
     </div>
-    <div class="card per-3mo">
+    <div class="card per-3mo acc-card">
       <div class="ct">Whole-business cash — 13 weeks <span class="period-sub" style="margin-left:auto;">all accounts</span></div>
       <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cfw-low" style="font-size:2.4rem;">—</div><div class="unit" id="cfw-low-unit">lowest projected total cash</div></div>
       <details class="cfold"><summary class="cfsum">Weekly breakdown <span class="period-sub">tap to show</span></summary>
@@ -699,7 +699,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       </details>
       <div class="note" id="cfw-note"></div>
     </div>
-    <div class="card per-week">
+    <div class="card per-week acc-card">
       <div class="ct">13-week projection <span class="period-sub" style="margin-left:auto;">weekly</span></div>
       <div class="fld" style="margin:2px 0 10px;"><label>Weekly outgoings — wages + overheads + loans (blank = Xero avg)</label><input id="cf-wkout" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"><div class="note" id="cf-wkout-note" style="margin-top:5px;"></div></div>
       <details class="cfold"><summary class="cfsum">Weekly table <span class="period-sub">tap to show</span></summary>
@@ -707,12 +707,12 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="note">Weekly view of the same forecast — job finals land in their completion week; overheads + wages spread evenly (monthly ÷ 4.3).</div>
       </details>
     </div>
-    <div class="card per-last">
+    <div class="card per-last acc-card">
       <div class="ct">6-month projection <span class="period-sub" style="margin-left:auto;">00 account</span></div>
       <div class="tbl-wrap"><table class="tb" id="cf-tbl"><thead><tr><th>Month</th><th style="text-align:right;">Opening</th><th style="text-align:right;">In</th><th style="text-align:right;">Out</th><th style="text-align:right;">Closing</th></tr></thead><tbody></tbody></table></div>
       <div class="note" id="cf-note"></div>
     </div>
-    <div class="card">
+    <div class="card acc-card">
       <div class="ct">Active jobs — expected payment date <span class="period-sub" style="margin-left:auto;">tap a day · scroll →</span></div>
       <div id="cf-cal"></div>
       <div class="note">Tap the day you expect each job’s final invoice to be <b>paid</b> — that’s when the cash lands in the forecasts. The faint • is my estimate (finish + payment lag). Scroll sideways for up to 6 months; the job stays pinned on the left. Tap the same day again to clear.</div>
@@ -727,7 +727,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="fld" style="margin:4px 0 10px;"><label>Sales account name contains</label><input id="cash-saleskw" type="text" autocomplete="off" autocapitalize="off" placeholder="sales" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Used to find your 03 Sales account on the Balance Sheet — its live balance is deposits received but not yet transferred to 02. Confirm the row tagged <b>Sales 03</b> below.</div></div>
       <div class="tbl-wrap"><table class="tb" id="cash-accts"><thead><tr><th>Account</th><th style="text-align:right;">Balance</th></tr></thead><tbody></tbody></table></div>
     </div>
-    <div class="card">
+    <div class="card acc-card">
       <div class="ct">Settings</div>
       <div class="fld" style="margin:2px 0 8px;"><label>Job money to 00 — % of sale (ex-GST)</label><input id="cf-oopct" type="number" inputmode="decimal" autocomplete="off" placeholder="40" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Payment lag after a job finishes (weeks)</label><input id="cf-lag" type="number" inputmode="numeric" autocomplete="off" placeholder="2" onchange="saveCfCfg()"></div>
@@ -1258,14 +1258,23 @@ function avgFig(labels,fn){
 // metric box + grid for Rev/GP/Opex/NP
 function mb(label,val,sub,cls,boxcls){return '<div class="mb'+(boxcls?' '+boxcls:'')+'"><div class="l">'+label+'</div><div class="v'+(cls?' '+cls:'')+'">'+val+'</div><div class="s2">'+(sub||'')+'</div></div>';}
 function pct(part,whole){return whole>0?Math.round(part/whole*100)+'%':'';}
-function metGrid(f,cogs){
+// % change vs last month, coloured (goodUp: is "up" good? rev/gp/np yes, costs no).
+function deltaTxt(cur,prev,goodUp){
+  if(prev==null||!isFinite(prev)||Math.abs(prev)<1)return '';
+  const d=Math.round((cur-prev)/Math.abs(prev)*100);
+  if(d===0)return '<span class="mut" style="font-size:.62rem;display:block;margin-top:2px;">→ 0% vs last mo</span>';
+  const up=d>0,good=goodUp?up:!up;
+  return '<span class="'+(good?'pos':'neg')+'" style="font-size:.62rem;display:block;margin-top:2px;">'+(up?'▲':'▼')+Math.abs(d)+'% vs last mo</span>';
+}
+function metGrid(f,cogs,prev){
   if(!f)return '<div class="empty" style="grid-column:1/-1;">No data</div>';
   const gpGood=f.rev>0&&(f.gp/f.rev)>=0.30;   // GP ≥30% = green, else red
-  return mb('Revenue',fmtK(f.rev),'','','m-rev')+
-    (cogs?mb('Materials',fmtK(num(f.mat)),pct(num(f.mat),f.rev)+' of rev','','m-cogs')+mb('Labour',fmtK(num(f.lab)),pct(num(f.lab),f.rev)+' of rev','','m-cogs'):'')+
-    mb('Gross Profit',fmtK(f.gp),pct(f.gp,f.rev)+' GPM',gpGood?'pos':'neg','m-gp')+
-    mb('Opex'+(f.src==='est'?' (est.)':''),fmtK(f.opex),pct(f.opex,f.rev)+' of rev','','m-opex')+
-    mb('Net Profit'+(f.src==='est'?' (est.)':''),fmtK(f.np),pct(f.np,f.rev)+' margin',f.np>=0?'pos':'neg','m-np');
+  const D=(cur,pv,goodUp)=>prev?deltaTxt(cur,pv,goodUp):'';
+  return mb('Revenue',fmtK(f.rev),''+D(f.rev,prev&&prev.rev,true),'','m-rev')+
+    (cogs?mb('Materials',fmtK(num(f.mat)),pct(num(f.mat),f.rev)+' of rev'+D(num(f.mat),prev&&num(prev.mat),false),'','m-cogs')+mb('Labour',fmtK(num(f.lab)),pct(num(f.lab),f.rev)+' of rev'+D(num(f.lab),prev&&num(prev.lab),false),'','m-cogs'):'')+
+    mb('Gross Profit',fmtK(f.gp),pct(f.gp,f.rev)+' GPM'+D(f.gp,prev&&prev.gp,true),gpGood?'pos':'neg','m-gp')+
+    mb('Opex'+(f.src==='est'?' (est.)':''),fmtK(f.opex),pct(f.opex,f.rev)+' of rev'+D(f.opex,prev&&prev.opex,false),'','m-opex')+
+    mb('Net Profit'+(f.src==='est'?' (est.)':''),fmtK(f.np),pct(f.np,f.rev)+' margin'+D(f.np,prev&&prev.np,true),f.np>=0?'pos':'neg','m-np');
 }
 // priced-vs-actual box (hours / materials)
 function pvaBox(label,priced,actual,unit){
@@ -1822,7 +1831,7 @@ function renderBC(){
   renderLeadRoofer();
   // ── period cards (This / Last / 3-mo) from back-costing ──
   const p=periodMonths();
-  document.getElementById('bc-met-this').innerHTML=metGrid(p.thisM?bcFig(p.thisM):null,true);
+  document.getElementById('bc-met-this').innerHTML=metGrid(p.thisM?bcFig(p.thisM):null,true,p.lastM?bcFig(p.lastM):null);
   document.getElementById('bc-met-last').innerHTML=metGrid(p.lastM?bcFig(p.lastM):null,true);
   document.getElementById('bc-pva-this').innerHTML=p.thisM?pvaGrid(bcFig(p.thisM)):'';
   document.getElementById('bc-pva-last').innerHTML=p.lastM?pvaGrid(bcFig(p.lastM)):'';
@@ -2158,7 +2167,7 @@ function renderDash(){
   const pill=document.getElementById('pl-live-pill');
   if(xm.length){
     const fThis=xeroFig(thisM);
-    document.getElementById('met-this').innerHTML=metGrid(fThis);
+    document.getElementById('met-this').innerHTML=metGrid(fThis,false,xeroFig(lastM));
     document.getElementById('met-last').innerHTML=metGrid(xeroFig(lastM));
     document.getElementById('lbl-this').textContent=thisM+(fThis?' · partial':'');
     document.getElementById('lbl-last').textContent=lastM;
@@ -2323,8 +2332,9 @@ function mktGrid(o){
   const valWin=o.sentVal>0?Math.round(o.accVal/o.sentVal*100):0;
   return mb('Enquiries',String(o.enq),'new leads','','m-rev')+
     mb('Quotes sent',String(o.sent),fmtK(o.sentVal)+' · avg '+fmtK(avgQ),'','m-opex')+
-    mb('Accepted',String(o.acc),conv+'% won · '+valWin+'% by $',o.acc>0?'pos':'','m-gp')+
-    mb('Avg job won',o.acc>0?fmtK(avgW):'—',fmtK(o.accVal)+' won','','m-cogs')+
+    mb('Accepted',String(o.acc),fmtK(o.accVal)+' won',o.acc>0?'pos':'','m-cogs')+
+    mb('Conversion',conv+'%',o.acc+' of '+o.sent+' quotes · '+valWin+'% by $',conv>=40?'pos':(conv>0?'':'neg'),'m-gp')+
+    mb('Avg job won',o.acc>0?fmtK(avgW):'—',o.acc+' jobs won','','m-np')+
     mb('$ Won',fmtK(o.accVal),o.acc>0?(o.acc+' jobs'):'value won',o.accVal>0?'pos':'','m-np');
 }
 function renderMkt(){
@@ -3190,6 +3200,21 @@ function applyTheme(t){
   const b=document.getElementById('theme-btn');if(b)b.textContent=th==='light'?'☀️':'🌙';
 }
 function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')==='light'?'light':'dark';applyTheme(cur==='light'?'dark':'light');}
+// Wrap every .card.acc-card into a collapsed <details class="acc"> (title taken from its .ct),
+// so secondary cards become tap-to-expand dropdowns. Open cards just don't get the acc-card class.
+function applyAccordions(){
+  document.querySelectorAll('.card.acc-card').forEach(card=>{
+    if(card.dataset.acc)return;card.dataset.acc='1';
+    const ct=card.querySelector(':scope > .ct');
+    const det=document.createElement('details');det.className='acc';
+    const sum=document.createElement('summary');sum.innerHTML=ct?ct.innerHTML:'(section)';
+    sum.querySelectorAll('span').forEach(s=>{if(s.style&&s.style.marginLeft==='auto')s.style.marginLeft='8px';});
+    const body=document.createElement('div');body.className='acc-body';
+    Array.from(card.childNodes).forEach(n=>{if(n===ct)return;body.appendChild(n);});
+    det.appendChild(sum);det.appendChild(body);
+    card.replaceWith(det);
+  });
+}
 function init(){
   applyTheme();
   document.getElementById('cfg-teams').value=cfg.teams;
@@ -3203,6 +3228,7 @@ function init(){
   document.getElementById('g-varopex').value=growthCfg.varOpex;
   updatePill();
   renderAll();
+  applyAccordions();
   // Auto-sync ONLY Xero on open (Fergus workload renders from its saved last-sync; refresh it
   // manually with the Refresh button). Renders cached data first, then updates in the background.
   if(fergusProxyUrl())setTimeout(syncXeroOnly,400);

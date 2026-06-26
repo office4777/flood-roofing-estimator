@@ -37,11 +37,22 @@ per-month table (newest first) with each month's GP/hr and its trailing
 everyone** (not just the lead's hours, and regardless of which month they were
 entered) — summed across the roofer's jobs in the month.
 
-The Back Costing tab is laid out as an accordion: **Performance by Lead Roofer**
-and **All Back Costing** are open at the top; everything else (ModSpace, 12-Month
-History, Materials %, This/Last Month, 3-Month Rolling, Overhead Recovery,
-by-job-type, Excel↔Fergus, Invoice diagnostic) is a collapsed card you tap to
-expand.
+## Accordion layout (all tabs)
+
+Every tab uses tap-to-expand accordion cards; the most-used card on each tab
+stays open at the top:
+
+- **Dashboard** — order is Forward Workflow → Cash at a glance → This Month →
+  3-Month Rolling (all open); Last Month is collapsed. Each metric in **This
+  Month** shows its **% change vs last month** (green/red, ▲/▼).
+- **Back Costing** — Performance by Lead Roofer and All Back Costing open at the
+  top; everything else collapsed. This Month also shows % vs last month.
+- **Marketing** — This Month open (now includes a **Conversion** box: accepted ÷
+  quotes sent); Quote Conversion, This Week and all the history strips collapsed.
+- **Cash** — Cash at a glance open; Bank, the 13-week/6-month projections, the
+  payment calendar and Settings collapsed.
+
+Any card tagged `acc-card` is auto-wrapped into a `<details>` dropdown at load.
 
 **How a job's lead roofer is decided:** whoever **logged the most hours** on the
 job (others may help a little). On each Fergus sync the app pulls all time
