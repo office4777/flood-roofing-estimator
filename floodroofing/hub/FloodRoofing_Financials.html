@@ -449,6 +449,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
           <input id="ms-debug-job" inputmode="text" placeholder="Job # or name, e.g. 3059">
           <button class="btn btn-o ms-dbg-btn" onclick="msDebugJob()">Check</button>
         </div>
+        <button class="btn btn-o" style="margin-top:8px;" onclick="msTimeProbe()">🕑 Time-entries coverage probe</button>
         <pre id="ms-debug-out" class="ms-dbg-out"></pre>
       </details>
     </div></details>
@@ -1214,6 +1215,30 @@ async function msDebugJob(){
     }
     out.textContent=txt;
   }catch(e){out.textContent='debug error: '+String(e&&e.message||e);}
+}
+// Probe how to pull the FULL time-entry history: which paging + date params Fergus honours.
+async function msTimeProbe(){
+  const out=document.getElementById('ms-debug-out');if(!out)return;
+  if(!fergusProxyUrl()&&!fergusKey()){out.textContent='Connect Fergus first (⚙).';return;}
+  out.textContent='Probing /timeEntries…';
+  const arrOf=j=>Array.isArray(j)?j:((j&&(j.data||j.results||j.timeEntries))||[]);
+  const span=a=>{let lo=null,hi=null;a.forEach(e=>{const t=Date.parse(String(e.startTime||e.dateEntered||'').replace(' ','T'));if(!isNaN(t)){if(lo==null||t<lo)lo=t;if(hi==null||t>hi)hi=t;}});const d=t=>t==null?'?':new Date(t).toISOString().slice(0,10);return d(lo)+' → '+d(hi);};
+  const first=a=>a.length?(a[0].timeEntryId!=null?a[0].timeEntryId:a[0].id):'—';
+  let txt='';
+  const tryUrl=async(label,url)=>{try{const j=await fergusApiFetch(url);const a=arrOf(j);const pg=j&&j.paging?JSON.stringify(j.paging).slice(0,180):'(no paging key)';txt+=label+': '+a.length+' rows · dates '+span(a)+' · firstId '+first(a)+'\n   paging='+pg+'\n';return {a,j};}catch(e){txt+=label+': ERR '+String(e.message).slice(0,40)+'\n';return null;}};
+  out.textContent=txt='Probing…\n';
+  const r1=await tryUrl('pageSize=200',           '/timeEntries?pageSize=200');out.textContent=txt;
+  const r2=await tryUrl('pageSize=200&page=2',     '/timeEntries?pageSize=200&page=2');out.textContent=txt;
+  await tryUrl('page=2 (no size)',                 '/timeEntries?page=2');out.textContent=txt;
+  await tryUrl('dateFrom/dateTo',                  '/timeEntries?pageSize=200&dateFrom=2024-06-01&dateTo=2026-12-31');out.textContent=txt;
+  await tryUrl('from/to',                          '/timeEntries?pageSize=200&from=2024-06-01&to=2026-12-31');out.textContent=txt;
+  await tryUrl('startDate/endDate',                '/timeEntries?pageSize=200&startDate=2024-06-01&endDate=2026-12-31');out.textContent=txt;
+  await tryUrl('dateEnteredFrom',                  '/timeEntries?pageSize=200&dateEnteredFrom=2024-06-01&dateEnteredTo=2026-12-31');out.textContent=txt;
+  // follow a next-link if present
+  let nx=r1&&r1.j&&r1.j.paging&&r1.j.paging.links&&r1.j.paging.links.next;
+  if(nx){if(/^https?:\/\//.test(nx))nx=nx.replace(/^https?:\/\/[^/]+/,'');await tryUrl('paging.next',nx);out.textContent=txt;}
+  txt+='\npage2 same as page1? '+(r1&&r2&&first(r1.a)===first(r2.a)?'YES (page param ignored)':'no (paging works)')+'\n';
+  out.textContent=txt;
 }
 
 // ════════ BACK COSTING ════════
