@@ -1190,13 +1190,16 @@ async function msDebugJob(){
     // ── lead roofer probe: find where Fergus keeps per-person time on a job ──
     txt+='\n\n— lead roofer probe (time/labour data) —\n';
     out.textContent=txt+'probing endpoints…';
-    const probes=_timeEndpoints(jid).concat(['/jobs/'+encodeURIComponent(jid)+'/phases','/jobs/'+encodeURIComponent(jid)]);
+    const E='/jobs/'+encodeURIComponent(jid);
+    const probes=[E+'/timeEntries',E+'/time_entries',E+'/timesheets',E+'/timesheet',E+'/time',E+'/timeRecords',E+'/labour',E+'/labourEntries',E+'/worklog',E+'/work_log',E+'/activities',E+'/activity',E+'/schedule',E+'/scheduledEvents',E+'/events',E+'/sites',E+'/users',E+'/staff',E+'/phases',
+      '/timeEntries?jobId='+encodeURIComponent(jid),'/time_entries?job_id='+encodeURIComponent(jid),'/timesheets?jobId='+encodeURIComponent(jid)];
     const shape=j=>j==null?'null':(Array.isArray(j)?('array['+j.length+']'):(j.data?('data:'+(Array.isArray(j.data)?('array['+j.data.length+']'):('{'+Object.keys(j.data).slice(0,8).join(',')+'}'))):('{'+Object.keys(j).slice(0,10).join(',')+'}')));
-    let found=null;
+    let found=null,phasesJ=null;
     for(const p of probes){
-      const tag=p.replace('/jobs/'+encodeURIComponent(jid),'…').replace('/jobs/'+jid,'…');
-      let j=null;try{j=await fergusApiFetch(p);}catch(e){txt+=tag+' → '+String(e.message).slice(0,32)+'\n';out.textContent=txt;continue;}
+      const tag=p.replace(E,'…');
+      let j=null;try{j=await fergusApiFetch(p);}catch(e){txt+=tag+' → '+String(e.message).slice(0,28)+'\n';out.textContent=txt;continue;}
       txt+=tag+' → OK '+shape(j)+'\n';out.textContent=txt;
+      if(p.endsWith('/phases'))phasesJ=j;
       if(!found){const u={};walkRooferHours(j,(n,h)=>{u[n]=(u[n]||0)+h;});if(Object.keys(u).length)found={p:tag,j,u};}
     }
     if(found){
@@ -1206,9 +1209,8 @@ async function msDebugJob(){
       txt+='matched to roofers: '+(Object.keys(matched).length?rnd(matched):'(none — name spellings differ?)')+'\n';
       txt+='→ lead: '+(leadFromHours(matched)||'—');
     }else{
-      txt+='\nNo endpoint yielded user+hours pairs. Raw sample of the richest response below — paste this to me:\n';
-      let best=null;for(const p of probes){try{const j=await fergusApiFetch(p);if(j&&(best==null||JSON.stringify(j).length>JSON.stringify(best.j).length))best={p,j};}catch(e){}}
-      txt+=best?(best.p+':\n'+JSON.stringify(best.j).slice(0,1500)):'(every endpoint failed)';
+      txt+='\nNo endpoint yielded user+hours pairs. FULL phases JSON below — paste this to me:\n';
+      txt+=(phasesJ!=null?JSON.stringify(phasesJ):'(phases endpoint returned nothing)');
     }
     out.textContent=txt;
   }catch(e){out.textContent='debug error: '+String(e&&e.message||e);}
