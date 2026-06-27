@@ -2386,9 +2386,15 @@ function growthModel(scTeams,scSize){
   let revPT,gpm,basis;
   if(prod){revPT=monthlyHrs*prod.revPerHr;gpm=prod.gpm;basis='bc';}
   else {revPT=avg.rev/base;gpm=avg.gpm;basis='xero';}
-  const calc=tr=>{tr=Math.max(0,tr);const rev=revPT*tr,gp=rev*gpm,opex=fixed+varPT*tr,np=gp-opex;
-    return {tr,rev,gp,opex,np,gpm,hrs:monthlyHrs*tr,opexPct:rev>0?opex/rev:0,npm:rev>0?np/rev:0};};
-  return {avg,prod,monthlyHrs,oh,base,fixed,varPT,revPT,gpm,estAdj,baseOpex,basis,row:calc,baseRow:calc(base),scenario:calc(scTeams*scSize)};
+  // Crew earning weight: each team = 1 lead roofer (does 65% of a 2-man crew's earning) + apprentices
+  // (35%). Normalised so a 2-man crew = 2.0 earning-heads (lead 1.30, apprentice 0.70) → matches the
+  // back-costing baseline (mostly 2-man). Bigger crews add apprentices worth 0.70 of a head each.
+  const LEAD_W=2*0.65, APP_W=2*0.35;
+  const effHeads=(t,s)=>Math.max(0,t)*(LEAD_W+APP_W*Math.max(0,s-1));
+  const calc=(raw,eff)=>{raw=Math.max(0,raw);eff=Math.max(0,eff);const rev=revPT*eff,gp=rev*gpm,opex=fixed+varPT*raw,np=gp-opex;
+    return {tr:raw,eff,rev,gp,opex,np,gpm,hrs:monthlyHrs*raw,opexPct:rev>0?opex/rev:0,npm:rev>0?np/rev:0};};
+  const rowTS=(t,s)=>calc(t*s,effHeads(t,s));
+  return {avg,prod,monthlyHrs,oh,base,fixed,varPT,revPT,gpm,estAdj,baseOpex,basis,LEAD_W,APP_W,leadRev:revPT*LEAD_W,appRev:revPT*APP_W,row:rowTS,baseRow:calc(base,base),scenario:rowTS(scTeams,scSize)};
 }
 function saveGrowthCfg(){
   growthCfg={
@@ -2405,7 +2411,7 @@ function gSetPreset(t,s){document.getElementById('g-teams').value=t;document.get
 function renderGrowth(){
   const tr=num(growthCfg.teams)*num(growthCfg.size);
   document.getElementById('g-tradies').textContent=growthCfg.teams+' × '+growthCfg.size+' = '+tr+' on tools';
-  document.getElementById('g-presets').innerHTML=[[4,2],[4,3],[5,3],[6,3]].map(([t,s])=>'<span class="chip'+(t==num(growthCfg.teams)&&s==num(growthCfg.size)?' on':'')+'" onclick="gSetPreset('+t+','+s+')">'+t+'×'+s+' = '+(t*s)+'</span>').join('');
+  document.getElementById('g-presets').innerHTML=[[4,2],[5,2],[6,2],[7,2],[5,3],[6,3]].map(([t,s])=>'<span class="chip'+(t==num(growthCfg.teams)&&s==num(growthCfg.size)?' on':'')+'" onclick="gSetPreset('+t+','+s+')">'+t+'×'+s+' = '+(t*s)+'</span>').join('');
   const m=growthModel(num(growthCfg.teams),num(growthCfg.size));
   const pillSrc=document.getElementById('g-src');
   if(!m){
@@ -2429,14 +2435,15 @@ function renderGrowth(){
   document.getElementById('g-cmp').innerHTML='vs your current <b>'+m.base+' on tools</b> ('+fmtK(b.np)+'/mo NP, opex '+Math.round(b.opexPct*100)+'%): '+
     (dNp>=0?'<span class="pos">+'+fmtK(dNp)+'/mo</span>':'<span class="neg">'+fmtK(dNp)+'/mo</span>')+' → <b>'+(dNp>=0?'+':'')+fmtK(dNp*12)+'/yr</b>. '+
     'Opex falls to <b>'+Math.round(s.opexPct*100)+'%</b> of revenue as crews absorb the fixed overhead.';
-  const cfgs=[[4,2],[5,2],[6,2],[4,3],[5,3],[6,3],[7,3],[8,3],[num(growthCfg.teams),num(growthCfg.size)]];
+  const cfgs=[[4,2],[5,2],[6,2],[7,2],[4,3],[5,3],[6,3],[7,3],[8,3],[num(growthCfg.teams),num(growthCfg.size)]];
   const seen={};const rows=cfgs.filter(([t,sz])=>{const k=t+'x'+sz;if(seen[k]||t<1||sz<1)return false;seen[k]=1;return true;}).map(([t,sz])=>({t,sz,tr:t*sz})).sort((a,c)=>a.tr-c.tr||a.sz-c.sz);
-  document.getElementById('g-body').innerHTML=rows.map(r=>{const f=m.row(r.tr);const active=(r.t==num(growthCfg.teams)&&r.sz==num(growthCfg.size));
+  document.getElementById('g-body').innerHTML=rows.map(r=>{const f=m.row(r.t,r.sz);const active=(r.t==num(growthCfg.teams)&&r.sz==num(growthCfg.size));
     return '<tr'+(active?' class="tot"':'')+'><td>'+r.t+'×'+r.sz+'</td><td>'+r.tr+'</td><td>'+Math.round(f.hrs)+'</td><td>'+fmtK(f.rev)+'</td><td>'+fmtK(f.gp)+'</td><td>'+fmtK(f.opex)+'</td><td>'+Math.round(f.opexPct*100)+'%</td><td class="'+(f.np>=0?'pos':'neg')+'">'+fmtK(f.np)+'</td><td>'+fmtK(f.np*12)+'</td></tr>';}).join('');
   document.getElementById('g-assume').innerHTML=
     (m.basis==='bc'
       ?('Based on <b>real back-costing</b>: the guys actually got through <b>'+fmt$(m.prod.revPerHr)+'/hr</b> revenue and <b>'+fmt$(m.prod.gpPerHr)+'/hr</b> GP across '+m.prod.n+' jobs ('+m.prod.from+'→'+m.prod.to+', '+fmtH(m.prod.hrs)+' on-tools hrs). '+
-        'Each on-tools head bills ~<b>'+Math.round(m.monthlyHrs)+' hrs/mo</b> ('+m.oh.billWeeks.toFixed(0)+' wks × '+Math.round(m.oh.billHrs)+' h/wk ÷ 12) → <b>'+fmtK(m.revPT)+'/head/mo</b> revenue. GP held at <b>'+Math.round(m.gpm*100)+'%</b>. ')
+        'Each on-tools head bills ~<b>'+Math.round(m.monthlyHrs)+' hrs/mo</b> ('+m.oh.billWeeks.toFixed(0)+' wks × '+Math.round(m.oh.billHrs)+' h/wk ÷ 12). '+
+        'Crew earnings split <b>65/35</b>: a <b>lead roofer ≈ '+fmtK(m.leadRev)+'/mo</b>, an <b>apprentice ≈ '+fmtK(m.appRev)+'/mo</b> — so each team is 1 lead + apprentices, and a 3rd hand adds ~'+fmtK(m.appRev)+'/mo (not a full head). GP held at <b>'+Math.round(m.gpm*100)+'%</b>. ')
       :('Revenue scales at <b>'+fmtK(m.revPT)+'/tradesman/mo</b> (6-mo Xero avg ÷ '+m.base+' on tools); GP held at <b>'+Math.round(m.gpm*100)+'%</b>. '))+
     'Opex = fixed <b>'+fmtK(m.fixed)+'/mo</b> (office + ops managers, estimator, rent, software, admin) + <b>'+fmtK(m.varPT)+'/mo</b> per on-tools head (vehicle, fuel, phone, tools, PPE). '+
     'Estimator normalised to full-time: +'+fmtK(m.estAdj)+'/mo. '+

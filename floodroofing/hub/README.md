@@ -49,6 +49,12 @@ per-head variable (NP = GP − Opex). The "If you scale the crew" table adds an
 **Hrs/mo** column so you can see the *work* throughput, not just the money. Falls
 back to the 6-month Xero average only if there's no back-costing yet.
 
+Crew earnings are **weighted by role**: each team = 1 **lead roofer (65%)** +
+apprentices **(35%)**, normalised so a 2-man crew = 2.0 earning-heads (lead 1.30,
+apprentice 0.70). So a 3rd hand adds ~0.70 of a head's revenue, not a full one.
+Presets and the scale table cover the common 2-man crews (4×2, 5×2, 6×2, 7×2) as
+well as 3-man.
+
 ## Workload — tick done + editable remaining hours
 
 The Per-active-job table on the Workload tab has:
