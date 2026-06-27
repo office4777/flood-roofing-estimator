@@ -37,6 +37,18 @@ per-month table (newest first) with each month's GP/hr and its trailing
 everyone** (not just the lead's hours, and regardless of which month they were
 entered) — summed across the roofer's jobs in the month.
 
+## Workload — tick done + editable remaining hours
+
+The Per-active-job table on the Workload tab has:
+- A **✓ tickbox** per job — tick it to mark the job done; its hours drop out of the
+  forward-workload total (and the Dashboard's). Done jobs sink to the bottom,
+  greyed out.
+- An **editable Remain h** field — defaults to priced − actual, but you can type
+  the real remaining hours if the pricing was off (more or less left to do). The
+  total and working-days use your edited value.
+
+Both are saved on the device (`fwDone`, `fwRemOverride`) and survive re-syncs.
+
 ## P&L Trend line graph
 
 The P&L tab opens with a **12-month line graph**. Two toggles:

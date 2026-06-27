@@ -154,6 +154,12 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .acc[open]>summary::after{transform:rotate(90deg);}
 .acc>summary:active{background:rgba(255,255,255,.04);}
 .acc>.acc-body{padding:16px 20px 20px;}
+.wk-chk{width:20px;height:20px;accent-color:var(--success);cursor:pointer;}
+.wk-rem{width:62px;font-size:.82rem;font-weight:700;padding:5px 6px;border-radius:8px;background:var(--card2);color:var(--text);border:1px solid var(--border);text-align:right;}
+.wk-rem.edited{border-color:var(--primary);color:var(--primary);background:rgba(77,141,255,.12);}
+.wk-rem:disabled{opacity:.4;}
+tr.wk-done td{opacity:.5;}
+tr.wk-done td:nth-child(2){text-decoration:line-through;}
 .auto-hint{font-size:.6rem;font-weight:700;color:var(--primary);margin-top:4px;letter-spacing:.2px;}
 .auto-hint:empty{display:none;}
 .leg-row{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:10px;justify-content:center;}
@@ -391,8 +397,8 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="ct">Per active job <span id="work-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></div>
       <div class="tbl-wrap">
         <table class="tb" id="work-tbl">
-          <thead><tr><th>Job</th><th>Priced h</th><th>Actual h</th><th>Remain h</th></tr></thead>
-          <tbody id="work-body"><tr><td colspan="4" class="empty">No active jobs synced yet.</td></tr></tbody>
+          <thead><tr><th>✓</th><th>Job</th><th>Priced</th><th>Actual</th><th>Remain h</th></tr></thead>
+          <tbody id="work-body"><tr><td colspan="5" class="empty">No active jobs synced yet.</td></tr></tbody>
         </table>
       </div>
       <div class="note" id="work-note"></div>
@@ -1075,7 +1081,13 @@ function capacity(){
   const teams=Math.max(1,num(cfg.teams)),size=Math.max(1,num(cfg.size)),hrs=Math.max(1,num(cfg.hrs));
   return {teams,size,hrs,people:teams*size,perDay:teams*size*hrs,perTeamDay:size*hrs};
 }
-function totalRemaining(){return fwJobs.reduce((s,j)=>s+Math.max(0,num(j.remaining)),0);}
+// Manual workload edits: jobs ticked "done" (excluded), and per-job remaining-hour overrides.
+let fwDone=S.get('fwDone',{}), fwRemOv=S.get('fwRemOverride',{});
+function remVal(j){const o=fwRemOv[j.id];return (o!=null&&o!=='')?Math.max(0,num(o)):Math.max(0,num(j.remaining));}  // editable value; defaults priced−actual
+function effRem(j){return fwDone[j.id]?0:remVal(j);}                                                                // counts toward the total (0 if ticked done)
+function toggleWkDone(id,on){if(on)fwDone[id]=1;else delete fwDone[id];S.set('fwDone',fwDone);renderWork();renderDash();}
+function setWkRem(id,v){if(v===''||v==null)delete fwRemOv[id];else fwRemOv[id]=Math.max(0,num(v));S.set('fwRemOverride',fwRemOv);renderWork();renderDash();}
+function totalRemaining(){return fwJobs.reduce((s,j)=>s+effRem(j),0);}
 function saveCfg(){
   cfg={teams:num(document.getElementById('cfg-teams').value)||4,size:num(document.getElementById('cfg-size').value)||2,hrs:num(document.getElementById('cfg-hrs').value)||8};
   S.set('fwCfg',cfg);renderWork();renderDash();
@@ -1093,16 +1105,25 @@ function renderWork(){
     brk('Forward workload','<b>'+(Math.round(days*10)/10)+' working days</b>')+
     brk('Per team','<b>'+(c.teams>0?Math.round(days*10)/10:0)+' days</b> <span class="mut">each (parallel)</span>')+
     brk('As man-days (1 person)','<b>'+(Math.round(R/c.hrs*10)/10)+' days</b>');
-  // table
-  const rows=[...fwJobs].sort((a,b)=>b.remaining-a.remaining);
-  document.getElementById('work-count').textContent=rows.length?('· '+rows.length+' jobs'):'';
+  // table — done jobs sink to the bottom, otherwise by remaining hrs
+  const rows=[...fwJobs].sort((a,b)=>(fwDone[a.id]?1:0)-(fwDone[b.id]?1:0)||effRem(b)-effRem(a));
+  const nDone=fwJobs.filter(j=>fwDone[j.id]).length, nEdit=fwJobs.filter(j=>fwRemOv[j.id]!=null&&fwRemOv[j.id]!=='').length;
+  document.getElementById('work-count').textContent=rows.length?('· '+(rows.length-nDone)+' active'+(nDone?' · '+nDone+' done':'')):'';
   document.getElementById('work-body').innerHTML=rows.length?rows.map(j=>{
-    const over=j.actual>j.priced&&j.priced>0;
-    return '<tr><td>'+esc(j.job)+(j.priced<=0?' <span class="mut">⚠ no priced h</span>':'')+'</td><td>'+(j.priced>0?fmtH(j.priced):'—')+'</td><td>'+fmtH(j.actual)+(over?' <span class="neg">⚠</span>':'')+'</td><td class="'+(j.remaining>0?'pos':'')+'">'+fmtH(j.remaining)+'</td></tr>';
-  }).join(''):'<tr><td colspan="4" class="empty">No active jobs synced yet. Tap “Sync”.</td></tr>';
+    const over=j.actual>j.priced&&j.priced>0;const done=!!fwDone[j.id];const edited=fwRemOv[j.id]!=null&&fwRemOv[j.id]!=='';
+    return '<tr class="'+(done?'wk-done':'')+'">'+
+      '<td style="text-align:center;"><input type="checkbox" class="wk-chk"'+(done?' checked':'')+' onchange="toggleWkDone(\''+esc(j.id)+'\',this.checked)"></td>'+
+      '<td>'+esc(j.job)+(j.priced<=0?' <span class="mut">⚠ no priced h</span>':'')+'</td>'+
+      '<td>'+(j.priced>0?fmtH(j.priced):'—')+'</td>'+
+      '<td>'+fmtH(j.actual)+(over?' <span class="neg">⚠</span>':'')+'</td>'+
+      '<td><input type="number" inputmode="decimal" class="wk-rem'+(edited?' edited':'')+'" value="'+remVal(j)+'" onchange="setWkRem(\''+esc(j.id)+'\',this.value)"'+(done?' disabled':'')+'></td></tr>';
+  }).join(''):'<tr><td colspan="5" class="empty">No active jobs synced yet. Tap “Sync”.</td></tr>';
   const last=S.get('fw_last_sync','');const excl=S.get('fw_excluded',0);
   const ws=document.getElementById('work-sync');if(ws)ws.textContent=last?('· Fergus synced '+last):'· not synced yet';
-  document.getElementById('work-note').innerHTML=(last?'Fergus last synced: '+esc(last)+'. ':'Fergus not synced yet — tap Sync. ')+(excl?('<br>✓ '+excl+' active job(s) excluded as completed — fully invoiced (50% deposit + 50% completion both raised). Their leftover hours aren\'t counted; they moved to back-costing.'):'')+(noPriced?('<br>⚠ '+noPriced+' active job(s) have no priced labour hours in Fergus — they count as 0, so the total may understate your real workload.'):'');
+  document.getElementById('work-note').innerHTML=(last?'Fergus last synced: '+esc(last)+'. ':'Fergus not synced yet — tap Sync. ')+
+    'Tick ✓ to mark a job done (drops it from the total). Remain h defaults to priced − actual; edit it if the pricing was off. Manual edits survive re-syncs.'+
+    (nDone?('<br>✓ '+nDone+' job(s) you ticked done are excluded.'):'')+(nEdit?(' ✏ '+nEdit+' job(s) have edited remaining hours.'):'')+
+    (excl?('<br>✓ '+excl+' active job(s) auto-excluded as completed — fully invoiced (deposit + completion). Moved to back-costing.'):'')+(noPriced?('<br>⚠ '+noPriced+' active job(s) have no priced labour hours in Fergus — they count as 0 unless you edit Remain h.'):'');
 }
 function brk(l,r){return '<div class="brk"><span class="mut">'+l+'</span><span>'+r+'</span></div>';}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -2267,7 +2288,7 @@ function renderDash(){
   const excl=S.get('fw_excluded',0);
   document.getElementById('dash-fw-weeks').textContent=fwJobs.length?(R>0?(Math.round(weeks*10)/10):'0'):'—';
   document.getElementById('dash-fw-sub').textContent=fwJobs.length
-    ?('≈ '+(Math.round(days*10)/10)+' working days · '+fmtH(R)+' h across '+fwJobs.length+' active jobs'+(excl?' ('+excl+' completed excluded)':'')+' · '+c.teams+'×'+c.size+' crew')
+    ?('≈ '+(Math.round(days*10)/10)+' working days · '+fmtH(R)+' h across '+fwJobs.filter(j=>!fwDone[j.id]).length+' active jobs'+(excl?' ('+excl+' completed excluded)':'')+' · '+c.teams+'×'+c.size+' crew')
     :(excl?(excl+' job(s) fully invoiced & complete — no open backlog. Tap Refresh to recheck.'):'Tap “Refresh” to load active jobs');
   const last=S.get('fw_last_sync','');document.getElementById('dash-fw-sync').textContent=last?('· Fergus synced '+last):'· Fergus not synced yet';
 
