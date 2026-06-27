@@ -55,7 +55,10 @@ The P&L tab opens with a **12-month line graph**. Two toggles:
 - **$ trend** (Revenue / Gross profit / Net profit) or **% margins** (GP% / Opex% / NP%).
 - **Monthly** or **3-mo rolling avg** (each point smoothed by the trailing 3 months).
 
-Drawn as inline SVG from the Xero monthly P&L (no libraries).
+It has a bold **$0 / 0% baseline**, **every month labelled** along the bottom with
+faint vertical gridlines, and you can **swipe ↔ (or ‹ ›)** to step back a year at a
+time, up to **5 years** (months with no Xero data show as gaps). Drawn as inline
+SVG from the Xero monthly P&L (no libraries).
 
 ## Overhead Recovery — auto values shown
 

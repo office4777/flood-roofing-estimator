@@ -165,6 +165,8 @@ tr.wk-done td:nth-child(2){text-decoration:line-through;}
 .leg-row{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:10px;justify-content:center;}
 .leg-row .leg{display:inline-flex;align-items:center;gap:5px;font-size:.7rem;font-weight:700;color:var(--muted);}
 .leg-row .leg i{width:14px;height:3px;border-radius:2px;display:inline-block;}
+.pl-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 2px;}
+.pl-nav #pl-trend-win{font-size:.72rem;font-weight:700;min-width:150px;text-align:center;}
 .acc>summary .period-sub,.acc>summary .mut{margin-left:6px;}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;}
 @keyframes sp{to{transform:rotate(360deg);}}
@@ -522,16 +524,17 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
   <!-- ───────── XERO P&L ───────── -->
   <div class="page" id="page-pl">
     <div class="card">
-      <div class="ct">P&amp;L Trend <span class="period-sub" style="margin-left:auto;">12-month line graph</span></div>
+      <div class="ct">P&amp;L Trend <span id="pl-trend-range" class="period-sub" style="margin-left:auto;">12-month line graph</span></div>
       <div class="chips" id="pl-trend-chips">
         <span class="chip on" id="plm-d" onclick="setPlTrend('metric','$')">$ trend</span>
         <span class="chip" id="plm-p" onclick="setPlTrend('metric','%')">% margins</span>
         <span class="chip on" id="pls-m" onclick="setPlTrend('smooth','m')">Monthly</span>
         <span class="chip" id="pls-r" onclick="setPlTrend('smooth','r')">3-mo rolling avg</span>
       </div>
-      <div id="pl-chart"></div>
+      <div class="pl-nav"><button class="lr-nav" onclick="plTrendStep(12)" aria-label="Older">‹</button><span id="pl-trend-win" class="mut"></span><button class="lr-nav" id="pl-nav-newer" onclick="plTrendStep(-12)" aria-label="Newer">›</button></div>
+      <div id="pl-chart" class="pl-swipe"></div>
       <div class="leg-row" id="pl-chart-leg"></div>
-      <div class="note">Each point = one month (last 12). “3-mo rolling avg” smooths each point with the trailing 3 months. From your Xero P&amp;L.</div>
+      <div class="note">Each point = one month. Swipe ↔ (or ‹ ›) to step a year at a time, back up to 5 years. “3-mo rolling avg” smooths each point with the trailing 3 months. From your Xero P&amp;L.</div>
     </div>
     <div class="card">
       <div class="ct">Last 12 Months <span class="period-sub" style="margin-left:auto;">tap a month · swipe ↔</span></div>
@@ -1883,6 +1886,12 @@ function renderLeadRoofer(){
   document.addEventListener('touchstart',e=>{const t=e.target;if(t.closest&&t.closest('.lr-swipe')){x0=e.touches[0].clientX;y0=e.touches[0].clientY;}else x0=null;},{passive:true});
   document.addEventListener('touchend',e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0,dy=e.changedTouches[0].clientY-y0;x0=null;if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.4)lrStep(dx<0?1:-1);},{passive:true});
 })();
+// Swipe the P&L trend chart left/right to step a year (swipe right = older, left = newer).
+(function(){
+  let x0=null,y0=null;
+  document.addEventListener('touchstart',e=>{const t=e.target;if(t.closest&&t.closest('.pl-swipe')){x0=e.touches[0].clientX;y0=e.touches[0].clientY;}else x0=null;},{passive:true});
+  document.addEventListener('touchend',e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0,dy=e.changedTouches[0].clientY-y0;x0=null;if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.4)plTrendStep(dx>0?12:-12);},{passive:true});
+})();
 
 // ===== Excel (source of truth) vs Fergus pull — verify the app is pulling correct numbers =====
 function bcNorm(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
@@ -2220,36 +2229,51 @@ function renderWaterfall(){
   if(noteEl)noteEl.innerHTML='Materials = Cost of Goods − on-site wages · Labour = on-site wages (in COGS) · Overheads exclude income tax. Operating Profit is before income tax. From your Xero P&L for '+esc(key)+'.';
 }
 // ── P&L trend line graph (12-month, $ or %, monthly or 3-mo rolling) ──
-let plTrend={metric:'$',smooth:'m'};
+let plTrend={metric:'$',smooth:'m'},plTrendOffset=0;   // offset in months back from the latest 12-month window
 function setPlTrend(k,v){plTrend[k]=v;renderPLTrend();}
-function rollAvg(a,n){return a.map((_,i)=>{let s=0,c=0;for(let j=Math.max(0,i-n+1);j<=i;j++){s+=a[j];c++;}return c?s/c:0;});}
+function plTrendStep(d){plTrendOffset=Math.max(0,Math.min(48,plTrendOffset+d));renderPLTrend();}   // 0..48 → up to 5 years back
+function rollAvg(a,n){return a.map((v,i)=>{if(v==null)return null;let s=0,c=0;for(let j=Math.max(0,i-n+1);j<=i;j++){if(a[j]!=null){s+=a[j];c++;}}return c?s/c:null;});}
 function svgLine(months,series,isPct){
-  const W=340,H=190,pl=40,pr=12,pt=12,pb=24,iw=W-pl-pr,ih=H-pt-pb,n=months.length;
-  let mn=Infinity,mx=-Infinity;series.forEach(s=>s.vals.forEach(v=>{if(v<mn)mn=v;if(v>mx)mx=v;}));
-  mn=Math.min(mn,0);if(mx===mn)mx=mn+1;const pad=(mx-mn)*0.08;mx+=pad;
+  const W=360,H=212,pl=42,pr=12,pt=14,pb=42,iw=W-pl-pr,ih=H-pt-pb,n=months.length;
+  let mn=Infinity,mx=-Infinity;series.forEach(s=>s.vals.forEach(v=>{if(v==null)return;if(v<mn)mn=v;if(v>mx)mx=v;}));
+  if(mn===Infinity){mn=0;mx=1;}
+  mn=Math.min(mn,0);mx=Math.max(mx,0);if(mx===mn)mx=mn+1;const pad=(mx-mn)*0.08;mx+=pad;if(mn<0)mn-=pad*0.5;
   const x=i=>pl+(n<=1?iw/2:iw*i/(n-1)), y=v=>pt+ih-((v-mn)/(mx-mn))*ih;
   const fy=v=>isPct?(Math.round(v)+'%'):fmtK(v);
-  let g='';for(let t=0;t<=4;t++){const v=mn+(mx-mn)*t/4,yy=y(v);g+='<line x1="'+pl+'" y1="'+yy.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yy.toFixed(1)+'" stroke="var(--border)" stroke-width="1" opacity=".6"/><text x="'+(pl-5)+'" y="'+(yy+3).toFixed(1)+'" text-anchor="end" font-size="8.5" fill="var(--muted)">'+fy(v)+'</text>';}
-  let xl='';[0,Math.floor((n-1)/2),n-1].forEach(i=>{if(i>=0&&months[i])xl+='<text x="'+x(i).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="8.5" fill="var(--muted)">'+esc(months[i].split('-')[0])+'</text>';});
-  let p='';series.forEach(s=>{const pts=s.vals.map((v,i)=>x(i).toFixed(1)+','+y(v).toFixed(1)).join(' ');p+='<polyline points="'+pts+'" fill="none" stroke="'+s.color+'" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>';s.vals.forEach((v,i)=>{p+='<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="2.1" fill="'+s.color+'"/>';});});
-  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;">'+g+xl+p+'</svg>';
+  let g='';for(let t=0;t<=4;t++){const v=mn+(mx-mn)*t/4,yy=y(v);g+='<line x1="'+pl+'" y1="'+yy.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yy.toFixed(1)+'" stroke="var(--border)" stroke-width="1" opacity=".45"/><text x="'+(pl-5)+'" y="'+(yy+3).toFixed(1)+'" text-anchor="end" font-size="8.5" fill="var(--muted)">'+fy(v)+'</text>';}
+  // bold $0 / 0% baseline when the range crosses zero
+  let zero='';if(mn<0&&mx>0){const yz=y(0);zero='<line x1="'+pl+'" y1="'+yz.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yz.toFixed(1)+'" stroke="var(--text)" stroke-width="1.5" opacity=".75"/><text x="'+(W-pr-1)+'" y="'+(yz-3).toFixed(1)+'" text-anchor="end" font-size="8" font-weight="700" fill="var(--text)" opacity=".8">'+(isPct?'0%':'$0')+'</text>';}
+  // faint vertical line + month/year label for EVERY month
+  let vx='';months.forEach((m,i)=>{const xx=x(i),pa=(m||'').split('-');vx+='<line x1="'+xx.toFixed(1)+'" y1="'+pt+'" x2="'+xx.toFixed(1)+'" y2="'+(pt+ih).toFixed(1)+'" stroke="var(--border)" stroke-width="1" opacity=".16"/>'+
+    '<text x="'+xx.toFixed(1)+'" y="'+(pt+ih+13)+'" text-anchor="middle" font-size="7.5" fill="var(--muted)">'+esc(pa[0]||'')+'</text>'+
+    '<text x="'+xx.toFixed(1)+'" y="'+(pt+ih+22)+'" text-anchor="middle" font-size="6.5" fill="var(--muted)" opacity=".65">’'+esc((pa[1]||'').slice(2))+'</text>';});
+  // segmented polylines (break at gaps) + points
+  let p='';series.forEach(s=>{let seg=[];const flush=()=>{if(seg.length>1)p+='<polyline points="'+seg.join(' ')+'" fill="none" stroke="'+s.color+'" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>';seg=[];};
+    s.vals.forEach((v,i)=>{if(v==null)flush();else seg.push(x(i).toFixed(1)+','+y(v).toFixed(1));});flush();
+    s.vals.forEach((v,i)=>{if(v!=null)p+='<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="2" fill="'+s.color+'"/>';});});
+  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;">'+g+zero+vx+p+'</svg>';
 }
 function renderPLTrend(){
   const host=document.getElementById('pl-chart');if(!host)return;
   const setChip=(id,on)=>{const e=document.getElementById(id);if(e)e.classList.toggle('on',on);};
   setChip('plm-d',plTrend.metric==='$');setChip('plm-p',plTrend.metric==='%');
   setChip('pls-m',plTrend.smooth==='m');setChip('pls-r',plTrend.smooth==='r');
-  const ks=[];for(let i=11;i>=0;i--){const k=calMonthKey(-i);if(xeroMonthly[k])ks.push(k);}   // oldest→newest, with data
+  const ks=[];for(let i=11;i>=0;i--)ks.push(calMonthKey(-(plTrendOffset+i)));   // 12-month window oldest→newest
+  const figs=ks.map(k=>xeroMonthly[k]?(xeroFig(k)||null):null);
+  const have=figs.filter(Boolean).length;
   const leg=document.getElementById('pl-chart-leg');
-  if(ks.length<2){host.innerHTML='<div class="empty">Pull Xero P&amp;L — need at least 2 months for a trend line.</div>';if(leg)leg.innerHTML='';return;}
-  const figs=ks.map(k=>xeroFig(k)||{rev:0,gp:0,opex:0,np:0});
+  const rg=document.getElementById('pl-trend-range');if(rg)rg.textContent=ks[0]+' → '+ks[11];
+  const win=document.getElementById('pl-trend-win');if(win)win.textContent=ks[0]+' – '+ks[11]+(plTrendOffset?(' · '+(plTrendOffset/12)+'y back'):' · latest');
+  const nb=document.getElementById('pl-nav-newer');if(nb)nb.style.opacity=plTrendOffset?'1':'.3';
+  if(have<1){host.innerHTML='<div class="empty">No Xero P&amp;L for '+ks[0]+' – '+ks[11]+'. Older months fill in as you sync each month (Xero pulls the last 12).</div>';if(leg)leg.innerHTML='';return;}
+  const val=(f,g)=>f?g(f):null;
   let series=plTrend.metric==='$'
-    ?[{label:'Revenue',color:'#4d8dff',vals:figs.map(f=>num(f.rev))},
-      {label:'Gross profit',color:'#4ade80',vals:figs.map(f=>num(f.gp))},
-      {label:'Net profit',color:'#ff8a52',vals:figs.map(f=>num(f.np))}]
-    :[{label:'GP %',color:'#4ade80',vals:figs.map(f=>num(f.rev)>0?num(f.gp)/num(f.rev)*100:0)},
-      {label:'Opex %',color:'#fbbf24',vals:figs.map(f=>num(f.rev)>0?num(f.opex)/num(f.rev)*100:0)},
-      {label:'NP %',color:'#ff8a52',vals:figs.map(f=>num(f.rev)>0?num(f.np)/num(f.rev)*100:0)}];
+    ?[{label:'Revenue',color:'#4d8dff',vals:figs.map(f=>val(f,x=>num(x.rev)))},
+      {label:'Gross profit',color:'#4ade80',vals:figs.map(f=>val(f,x=>num(x.gp)))},
+      {label:'Net profit',color:'#ff8a52',vals:figs.map(f=>val(f,x=>num(x.np)))}]
+    :[{label:'GP %',color:'#4ade80',vals:figs.map(f=>val(f,x=>num(x.rev)>0?num(x.gp)/num(x.rev)*100:0))},
+      {label:'Opex %',color:'#fbbf24',vals:figs.map(f=>val(f,x=>num(x.rev)>0?num(x.opex)/num(x.rev)*100:0))},
+      {label:'NP %',color:'#ff8a52',vals:figs.map(f=>val(f,x=>num(x.rev)>0?num(x.np)/num(x.rev)*100:0))}];
   if(plTrend.smooth==='r')series.forEach(s=>s.vals=rollAvg(s.vals,3));
   host.innerHTML=svgLine(ks,series,plTrend.metric==='%');
   if(leg)leg.innerHTML=series.map(s=>'<span class="leg"><i style="background:'+s.color+'"></i>'+s.label+'</span>').join('');
@@ -3279,7 +3303,7 @@ function renderAll(){renderDash();renderWork();renderModspace();renderBC();rende
     if(finishing||e.touches.length!==1){armed=false;return;}
     if(page==='cash'){armed=false;return;}   // Cash tab: no tab-swipe — it clashes with the payment calendar's side-scroll
     const t=e.target;
-    if(t.closest&&t.closest('.mstrip,.chips,.tbl-wrap,.calwrap,.lr-swipe,input,select,textarea,#modal,#nav')){armed=false;return;}
+    if(t.closest&&t.closest('.mstrip,.chips,.tbl-wrap,.calwrap,.lr-swipe,.pl-swipe,input,select,textarea,#modal,#nav')){armed=false;return;}
     x0=e.touches[0].clientX;y0=e.touches[0].clientY;
     armed=true;horiz=false;cur=null;nxt=null;dir=0;W=window.innerWidth||360;
   },{passive:true});
