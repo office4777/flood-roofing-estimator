@@ -585,7 +585,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="ct">If you scale the crew</div>
       <div class="tbl-wrap">
         <table class="tb" id="g-tbl">
-          <thead><tr><th>Crew</th><th>On tools</th><th>Rev/mo</th><th>GP</th><th>Opex</th><th>Opex%</th><th>NP/mo</th><th>NP/yr</th></tr></thead>
+          <thead><tr><th>Crew</th><th>On tools</th><th>Hrs/mo</th><th>Rev/mo</th><th>GP</th><th>Opex</th><th>Opex%</th><th>NP/mo</th><th>NP/yr</th></tr></thead>
           <tbody id="g-body"></tbody>
         </table>
       </div>
@@ -2359,20 +2359,36 @@ function sixMonthAvg(){
     return {rev,gp,opex,np:gp-opex,gpm:rev>0?gp/rev:0,src:'est',n:md.length,from:md[0].month,to:md[md.length-1].month};}
   return null;
 }
-// Scale the average to a scenario crew size. Revenue & GP scale with on-tools heads; opex
-// splits into fixed overhead (amortised over more crews) + a per-head variable cost.
+// Real productivity from back-costing: revenue & GP per ACTUAL on-tools labour hour, over the
+// last 12 data months. This is what the guys actually got through per hour worked.
+function bcProd(){
+  const set=new Set(dataMonths().slice(-12));
+  let rev=0,gp=0,hrs=0,n=0;
+  getAllBC().forEach(r=>{if(!set.has(r.month))return;const h=num(r.h_actual);if(h<=0)return;rev+=num(r.sales);gp+=num(r.gp);hrs+=h;n++;});
+  if(hrs<=0||n<3)return null;
+  const ms=[...set];
+  return {rev,gp,hrs,n,revPerHr:rev/hrs,gpPerHr:gp/hrs,gpm:rev>0?gp/rev:0,from:ms[0]||'',to:ms[ms.length-1]||''};
+}
+// Scale to a scenario crew size. Revenue/GP come from real back-costing productivity (per-hour)
+// × each on-tools head's billable hours per month; opex = fixed overhead + per-head variable cost.
 function growthModel(scTeams,scSize){
-  const avg=sixMonthAvg();if(!avg)return null;
+  const prod=bcProd(), avg=sixMonthAvg();
+  if(!prod&&!avg)return null;
+  const oh=ohRate();
+  const monthlyHrs=Math.max(1,oh.billWeeks*oh.billHrs/12);            // billable hrs/mo per on-tools head
   const base=Math.max(1,num(growthCfg.base));
   const estFrac=Math.min(1,Math.max(0,num(growthCfg.estWeeks)/26));   // share of the 26-wk window the estimator was present
   const estAdj=num(growthCfg.estCost)*(1-estFrac);                    // top-up so the estimator counts full-time going forward
-  const baseOpex=avg.opex+estAdj;
+  const baseOpex=(avg?num(avg.opex):0)+estAdj;
   const varPT=Math.max(0,num(growthCfg.varOpex));
   let fixed=baseOpex-varPT*base;if(fixed<0)fixed=0;
-  const revPT=avg.rev/base;
-  const calc=tr=>{tr=Math.max(0,tr);const rev=revPT*tr,gp=rev*avg.gpm,opex=fixed+varPT*tr,np=gp-opex;
-    return {tr,rev,gp,opex,np,gpm:avg.gpm,opexPct:rev>0?opex/rev:0,npm:rev>0?np/rev:0};};
-  return {avg,base,fixed,varPT,revPT,estAdj,baseOpex,row:calc,baseRow:calc(base),scenario:calc(scTeams*scSize)};
+  // PREFER back-costing productivity (capacity × $/hr); fall back to Xero rev ÷ assumed heads.
+  let revPT,gpm,basis;
+  if(prod){revPT=monthlyHrs*prod.revPerHr;gpm=prod.gpm;basis='bc';}
+  else {revPT=avg.rev/base;gpm=avg.gpm;basis='xero';}
+  const calc=tr=>{tr=Math.max(0,tr);const rev=revPT*tr,gp=rev*gpm,opex=fixed+varPT*tr,np=gp-opex;
+    return {tr,rev,gp,opex,np,gpm,hrs:monthlyHrs*tr,opexPct:rev>0?opex/rev:0,npm:rev>0?np/rev:0};};
+  return {avg,prod,monthlyHrs,oh,base,fixed,varPT,revPT,gpm,estAdj,baseOpex,basis,row:calc,baseRow:calc(base),scenario:calc(scTeams*scSize)};
 }
 function saveGrowthCfg(){
   growthCfg={
@@ -2394,16 +2410,16 @@ function renderGrowth(){
   const pillSrc=document.getElementById('g-src');
   if(!m){
     document.getElementById('g-np').textContent='—';
-    document.getElementById('g-np-sub').textContent='Pull Xero P&L first — tap Refresh on the Dashboard.';
+    document.getElementById('g-np-sub').textContent='No back-costing or P&L data yet — Sync from Fergus on the Back Costing tab.';
     document.getElementById('g-proj').innerHTML='<div class="empty" style="grid-column:1/-1;">No P&amp;L data yet.</div>';
-    document.getElementById('g-body').innerHTML='<tr><td colspan="8" class="empty">No data.</td></tr>';
+    document.getElementById('g-body').innerHTML='<tr><td colspan="9" class="empty">No data.</td></tr>';
     document.getElementById('g-cmp').textContent='';document.getElementById('g-assume').textContent='';
     if(pillSrc)pillSrc.textContent='';return;
   }
   const s=m.scenario,b=m.baseRow;
   document.getElementById('g-np').textContent=fmtK(s.np);
-  document.getElementById('g-np-sub').textContent=s.tr+' on tools · '+Math.round(s.npm*100)+'% margin · '+fmtK(s.np*12)+'/yr';
-  if(pillSrc)pillSrc.textContent=(m.avg.src==='xero'?'⚡ 6-mo Xero avg':'6-mo back-cost avg')+' · '+m.avg.from+'→'+m.avg.to;
+  document.getElementById('g-np-sub').textContent=s.tr+' on tools · '+Math.round(s.hrs)+' billable hrs/mo · '+Math.round(s.npm*100)+'% margin · '+fmtK(s.np*12)+'/yr';
+  if(pillSrc)pillSrc.textContent=(m.basis==='bc'?('⚡ back-costing · '+m.prod.from+'→'+m.prod.to):('Xero avg · '+m.avg.from+'→'+m.avg.to));
   document.getElementById('g-proj').innerHTML=
     mb('Revenue / mo',fmtK(s.rev),'','','m-rev')+
     mb('Gross Profit',fmtK(s.gp),Math.round(s.gpm*100)+'% GPM',s.gpm>=0.30?'pos':'neg','m-gp')+
@@ -2416,12 +2432,15 @@ function renderGrowth(){
   const cfgs=[[4,2],[5,2],[6,2],[4,3],[5,3],[6,3],[7,3],[8,3],[num(growthCfg.teams),num(growthCfg.size)]];
   const seen={};const rows=cfgs.filter(([t,sz])=>{const k=t+'x'+sz;if(seen[k]||t<1||sz<1)return false;seen[k]=1;return true;}).map(([t,sz])=>({t,sz,tr:t*sz})).sort((a,c)=>a.tr-c.tr||a.sz-c.sz);
   document.getElementById('g-body').innerHTML=rows.map(r=>{const f=m.row(r.tr);const active=(r.t==num(growthCfg.teams)&&r.sz==num(growthCfg.size));
-    return '<tr'+(active?' class="tot"':'')+'><td>'+r.t+'×'+r.sz+'</td><td>'+r.tr+'</td><td>'+fmtK(f.rev)+'</td><td>'+fmtK(f.gp)+'</td><td>'+fmtK(f.opex)+'</td><td>'+Math.round(f.opexPct*100)+'%</td><td class="'+(f.np>=0?'pos':'neg')+'">'+fmtK(f.np)+'</td><td>'+fmtK(f.np*12)+'</td></tr>';}).join('');
+    return '<tr'+(active?' class="tot"':'')+'><td>'+r.t+'×'+r.sz+'</td><td>'+r.tr+'</td><td>'+Math.round(f.hrs)+'</td><td>'+fmtK(f.rev)+'</td><td>'+fmtK(f.gp)+'</td><td>'+fmtK(f.opex)+'</td><td>'+Math.round(f.opexPct*100)+'%</td><td class="'+(f.np>=0?'pos':'neg')+'">'+fmtK(f.np)+'</td><td>'+fmtK(f.np*12)+'</td></tr>';}).join('');
   document.getElementById('g-assume').innerHTML=
-    'Revenue scales at <b>'+fmtK(m.revPT)+'/tradesman/mo</b> (6-mo avg ÷ '+m.base+' on tools); GP held at <b>'+Math.round(m.avg.gpm*100)+'%</b>. '+
+    (m.basis==='bc'
+      ?('Based on <b>real back-costing</b>: the guys actually got through <b>'+fmt$(m.prod.revPerHr)+'/hr</b> revenue and <b>'+fmt$(m.prod.gpPerHr)+'/hr</b> GP across '+m.prod.n+' jobs ('+m.prod.from+'→'+m.prod.to+', '+fmtH(m.prod.hrs)+' on-tools hrs). '+
+        'Each on-tools head bills ~<b>'+Math.round(m.monthlyHrs)+' hrs/mo</b> ('+m.oh.billWeeks.toFixed(0)+' wks × '+Math.round(m.oh.billHrs)+' h/wk ÷ 12) → <b>'+fmtK(m.revPT)+'/head/mo</b> revenue. GP held at <b>'+Math.round(m.gpm*100)+'%</b>. ')
+      :('Revenue scales at <b>'+fmtK(m.revPT)+'/tradesman/mo</b> (6-mo Xero avg ÷ '+m.base+' on tools); GP held at <b>'+Math.round(m.gpm*100)+'%</b>. '))+
     'Opex = fixed <b>'+fmtK(m.fixed)+'/mo</b> (office + ops managers, estimator, rent, software, admin) + <b>'+fmtK(m.varPT)+'/mo</b> per on-tools head (vehicle, fuel, phone, tools, PPE). '+
-    'Estimator normalised to full-time: +'+fmtK(m.estAdj)+'/mo added to the average (they were only ~'+growthCfg.estWeeks+' of 26 weeks in the window). '+
-    'More crews spread the fixed overhead → opex% drops while opex$ rises.';
+    'Estimator normalised to full-time: +'+fmtK(m.estAdj)+'/mo. '+
+    'More crews spread the fixed overhead → opex% drops while opex$ rises. Edit billable hrs/utilisation in Back Costing → Overhead Recovery.';
 }
 
 // ════════ MARKETING / SALES FUNNEL ════════ (ported from the v6 hub — uses the real Fergus

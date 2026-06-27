@@ -37,6 +37,18 @@ per-month table (newest first) with each month's GP/hr and its trailing
 everyone** (not just the lead's hours, and regardless of which month they were
 entered) — summed across the roofer's jobs in the month.
 
+## Growth — projection from real back-costing productivity
+
+The Growth tab's projected monthly P&L is now built from **actual back-costing**:
+it works out how much the on-tools crew really get through per hour —
+**revenue/hr and GP/hr** from the last 12 months of back-costed jobs (sales & GP
+÷ actual labour hours) — then multiplies by each head's **billable hours per
+month** (from the Overhead Recovery utilisation). So Revenue = on-tools heads ×
+billable hrs/mo × real $/hr, GP at the real margin, and Opex = fixed overhead +
+per-head variable (NP = GP − Opex). The "If you scale the crew" table adds an
+**Hrs/mo** column so you can see the *work* throughput, not just the money. Falls
+back to the 6-month Xero average only if there's no back-costing yet.
+
 ## Workload — tick done + editable remaining hours
 
 The Per-active-job table on the Workload tab has:
