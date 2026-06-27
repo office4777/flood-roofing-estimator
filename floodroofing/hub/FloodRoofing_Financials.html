@@ -154,6 +154,11 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .acc[open]>summary::after{transform:rotate(90deg);}
 .acc>summary:active{background:rgba(255,255,255,.04);}
 .acc>.acc-body{padding:16px 20px 20px;}
+.auto-hint{font-size:.6rem;font-weight:700;color:var(--primary);margin-top:4px;letter-spacing:.2px;}
+.auto-hint:empty{display:none;}
+.leg-row{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:10px;justify-content:center;}
+.leg-row .leg{display:inline-flex;align-items:center;gap:5px;font-size:.7rem;font-weight:700;color:var(--muted);}
+.leg-row .leg i{width:14px;height:3px;border-radius:2px;display:inline-block;}
 .acc>summary .period-sub,.acc>summary .mut{margin-left:6px;}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;}
 @keyframes sp{to{transform:rotate(360deg);}}
@@ -477,8 +482,8 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     <details class="acc"><summary>Overhead Recovery (for NP) <span class="period-sub">$/billable hour</span></summary><div class="acc-body">
       <div class="hero" style="padding:4px 0 8px;"><div class="big" id="bc-oh-rate" style="font-size:2.4rem;">—</div><div class="unit">overhead recovery rate / hour</div></div>
       <div class="cfg">
-        <div><label>Monthly OPEX $</label><input id="bc-opex" type="number" inputmode="decimal" placeholder="auto" oninput="saveBcOh()"></div>
-        <div><label>Field staff</label><input id="bc-emp" type="number" inputmode="numeric" placeholder="auto" oninput="saveBcOh()"></div>
+        <div><label>Monthly OPEX $</label><input id="bc-opex" type="number" inputmode="decimal" placeholder="auto" oninput="saveBcOh()"><div class="auto-hint" id="bc-opex-auto"></div></div>
+        <div><label>Field staff</label><input id="bc-emp" type="number" inputmode="numeric" placeholder="auto" oninput="saveBcOh()"><div class="auto-hint" id="bc-emp-auto"></div></div>
         <div><label>Utilisation %</label><input id="bc-util" type="number" inputmode="numeric" placeholder="90" oninput="saveBcOh()"></div>
         <div><label>Annual leave wks</label><input id="bc-al" type="number" inputmode="numeric" placeholder="4" oninput="saveBcOh()"></div>
         <div><label>Sick days/yr</label><input id="bc-sick" type="number" inputmode="numeric" placeholder="10" oninput="saveBcOh()"></div>
@@ -510,6 +515,18 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
 
   <!-- ───────── XERO P&L ───────── -->
   <div class="page" id="page-pl">
+    <div class="card">
+      <div class="ct">P&amp;L Trend <span class="period-sub" style="margin-left:auto;">12-month line graph</span></div>
+      <div class="chips" id="pl-trend-chips">
+        <span class="chip on" id="plm-d" onclick="setPlTrend('metric','$')">$ trend</span>
+        <span class="chip" id="plm-p" onclick="setPlTrend('metric','%')">% margins</span>
+        <span class="chip on" id="pls-m" onclick="setPlTrend('smooth','m')">Monthly</span>
+        <span class="chip" id="pls-r" onclick="setPlTrend('smooth','r')">3-mo rolling avg</span>
+      </div>
+      <div id="pl-chart"></div>
+      <div class="leg-row" id="pl-chart-leg"></div>
+      <div class="note">Each point = one month (last 12). “3-mo rolling avg” smooths each point with the trailing 3 months. From your Xero P&amp;L.</div>
+    </div>
     <div class="card">
       <div class="ct">Last 12 Months <span class="period-sub" style="margin-left:auto;">tap a month · swipe ↔</span></div>
       <div class="mstrip" id="pl-strip"></div>
@@ -1901,6 +1918,8 @@ function renderBC(){
   const _oh=ohRate();const ovRate=_oh.rate;
   const rEl=document.getElementById('bc-oh-rate');if(rEl)rEl.textContent=fmt$(ovRate)+'/h';
   const ohN=document.getElementById('bc-oh-note');
+  {const oa=document.getElementById('bc-opex-auto');if(oa)oa.textContent=_oh.opexIsAuto?('auto = '+fmtK(_oh.opex)+'/mo · 6-mo Xero avg'):'';
+   const ea=document.getElementById('bc-emp-auto');if(ea)ea.textContent=(isNaN(parseFloat(S.get('bcEmp',''))))?('auto = '+_oh.emp+' · from crew'):'';}
   if(ohN)ohN.innerHTML=_oh.override?('Manual override: '+fmt$(ovRate)+'/hr — clear the Override box to use the calculator.'):('OH rate = (Monthly OPEX × 12 ÷ field staff) ÷ billable weeks/yr ÷ billable hrs/week. Using OPEX '+fmtK(_oh.opex)+'/mo'+(_oh.opexIsAuto?' (6-mo Xero avg, overheads only — on-site wages excluded)':'')+' · '+_oh.emp+' staff · '+Math.round(_oh.util*100)+'% utilisation · '+_oh.billWeeks.toFixed(1)+' billable wks · '+Math.round(_oh.billHrs)+' hrs/wk → '+fmt$(_oh.calcRate)+'/hr. NP/hr = GP/hr − this rate.');
   const yr=document.getElementById('bc-year').value, ty=document.getElementById('bc-type').value, q=(document.getElementById('bc-search').value||'').toLowerCase();
   const ldEl=document.getElementById('bc-lead');const ld=ldEl?ldEl.value:'all';
@@ -2179,9 +2198,44 @@ function renderWaterfall(){
   if(lblEl)lblEl.textContent=key;
   if(noteEl)noteEl.innerHTML='Materials = Cost of Goods − on-site wages · Labour = on-site wages (in COGS) · Overheads exclude income tax. Operating Profit is before income tax. From your Xero P&L for '+esc(key)+'.';
 }
+// ── P&L trend line graph (12-month, $ or %, monthly or 3-mo rolling) ──
+let plTrend={metric:'$',smooth:'m'};
+function setPlTrend(k,v){plTrend[k]=v;renderPLTrend();}
+function rollAvg(a,n){return a.map((_,i)=>{let s=0,c=0;for(let j=Math.max(0,i-n+1);j<=i;j++){s+=a[j];c++;}return c?s/c:0;});}
+function svgLine(months,series,isPct){
+  const W=340,H=190,pl=40,pr=12,pt=12,pb=24,iw=W-pl-pr,ih=H-pt-pb,n=months.length;
+  let mn=Infinity,mx=-Infinity;series.forEach(s=>s.vals.forEach(v=>{if(v<mn)mn=v;if(v>mx)mx=v;}));
+  mn=Math.min(mn,0);if(mx===mn)mx=mn+1;const pad=(mx-mn)*0.08;mx+=pad;
+  const x=i=>pl+(n<=1?iw/2:iw*i/(n-1)), y=v=>pt+ih-((v-mn)/(mx-mn))*ih;
+  const fy=v=>isPct?(Math.round(v)+'%'):fmtK(v);
+  let g='';for(let t=0;t<=4;t++){const v=mn+(mx-mn)*t/4,yy=y(v);g+='<line x1="'+pl+'" y1="'+yy.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yy.toFixed(1)+'" stroke="var(--border)" stroke-width="1" opacity=".6"/><text x="'+(pl-5)+'" y="'+(yy+3).toFixed(1)+'" text-anchor="end" font-size="8.5" fill="var(--muted)">'+fy(v)+'</text>';}
+  let xl='';[0,Math.floor((n-1)/2),n-1].forEach(i=>{if(i>=0&&months[i])xl+='<text x="'+x(i).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="8.5" fill="var(--muted)">'+esc(months[i].split('-')[0])+'</text>';});
+  let p='';series.forEach(s=>{const pts=s.vals.map((v,i)=>x(i).toFixed(1)+','+y(v).toFixed(1)).join(' ');p+='<polyline points="'+pts+'" fill="none" stroke="'+s.color+'" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>';s.vals.forEach((v,i)=>{p+='<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="2.1" fill="'+s.color+'"/>';});});
+  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;">'+g+xl+p+'</svg>';
+}
+function renderPLTrend(){
+  const host=document.getElementById('pl-chart');if(!host)return;
+  const setChip=(id,on)=>{const e=document.getElementById(id);if(e)e.classList.toggle('on',on);};
+  setChip('plm-d',plTrend.metric==='$');setChip('plm-p',plTrend.metric==='%');
+  setChip('pls-m',plTrend.smooth==='m');setChip('pls-r',plTrend.smooth==='r');
+  const ks=[];for(let i=11;i>=0;i--){const k=calMonthKey(-i);if(xeroMonthly[k])ks.push(k);}   // oldest→newest, with data
+  const leg=document.getElementById('pl-chart-leg');
+  if(ks.length<2){host.innerHTML='<div class="empty">Pull Xero P&amp;L — need at least 2 months for a trend line.</div>';if(leg)leg.innerHTML='';return;}
+  const figs=ks.map(k=>xeroFig(k)||{rev:0,gp:0,opex:0,np:0});
+  let series=plTrend.metric==='$'
+    ?[{label:'Revenue',color:'#4d8dff',vals:figs.map(f=>num(f.rev))},
+      {label:'Gross profit',color:'#4ade80',vals:figs.map(f=>num(f.gp))},
+      {label:'Net profit',color:'#ff8a52',vals:figs.map(f=>num(f.np))}]
+    :[{label:'GP %',color:'#4ade80',vals:figs.map(f=>num(f.rev)>0?num(f.gp)/num(f.rev)*100:0)},
+      {label:'Opex %',color:'#fbbf24',vals:figs.map(f=>num(f.rev)>0?num(f.opex)/num(f.rev)*100:0)},
+      {label:'NP %',color:'#ff8a52',vals:figs.map(f=>num(f.rev)>0?num(f.np)/num(f.rev)*100:0)}];
+  if(plTrend.smooth==='r')series.forEach(s=>s.vals=rollAvg(s.vals,3));
+  host.innerHTML=svgLine(ks,series,plTrend.metric==='%');
+  if(leg)leg.innerHTML=series.map(s=>'<span class="leg"><i style="background:'+s.color+'"></i>'+s.label+'</span>').join('');
+}
 function renderPL(){
   fillPLPeriods();
-  renderPLStrip();renderWaterfall();
+  renderPLStrip();renderWaterfall();renderPLTrend();
   if(plSelected&&xeroReports[plSelected]){xeroLive=true;lastXeroRep=xeroReports[plSelected];lastXeroLabel=plSelected;renderXeroReport(xeroReports[plSelected],plSelected);return;}
   if(xeroLive&&lastXeroRep){renderXeroReport(lastXeroRep,lastXeroLabel);return;}   // re-render cached live report — no network
   const sel=document.getElementById('pl-period').value;

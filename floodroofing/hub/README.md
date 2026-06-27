@@ -37,6 +37,20 @@ per-month table (newest first) with each month's GP/hr and its trailing
 everyone** (not just the lead's hours, and regardless of which month they were
 entered) — summed across the roofer's jobs in the month.
 
+## P&L Trend line graph
+
+The P&L tab opens with a **12-month line graph**. Two toggles:
+- **$ trend** (Revenue / Gross profit / Net profit) or **% margins** (GP% / Opex% / NP%).
+- **Monthly** or **3-mo rolling avg** (each point smoothed by the trailing 3 months).
+
+Drawn as inline SVG from the Xero monthly P&L (no libraries).
+
+## Overhead Recovery — auto values shown
+
+The Monthly OPEX and Field-staff inputs default to "auto"; the resolved auto
+value now shows beneath each (e.g. "auto = $74.3k/mo · 6-mo Xero avg", "auto = 8
+· from crew") so you can see exactly what the rate is calculated from.
+
 ## Accordion layout (all tabs)
 
 Every tab uses tap-to-expand accordion cards; the most-used card on each tab
