@@ -382,6 +382,16 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     </div>
 
     <div class="card">
+      <div class="ct">Forward workload trend <span class="period-sub" style="margin-left:auto;">start of each month</span></div>
+      <div class="chips">
+        <span class="chip on" id="wks-m" onclick="setWkTrend('smooth','m')">Monthly</span>
+        <span class="chip" id="wks-r" onclick="setWkTrend('smooth','r')">3-mo rolling avg</span>
+      </div>
+      <div id="wk-chart"></div>
+      <div class="leg-row" id="wk-chart-leg"></div>
+      <div class="note">Backlog man-hours captured at the <b>start of each month</b> (the first time the app is opened that month). History builds from now on.</div>
+    </div>
+    <div class="card">
       <div class="ct">Your crew</div>
       <div class="cfg">
         <div><label>Teams</label><input type="number" id="cfg-teams" min="1" inputmode="numeric" oninput="saveCfg()"></div>
@@ -450,6 +460,19 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       </div>
       <div class="tiles" id="bc-tiles" style="margin-top:11px;"></div>
       <button class="btn btn-o" style="margin-top:11px;" onclick="syncWorkload()">⟳ Sync from Fergus</button>
+    </div>
+
+    <div class="card">
+      <div class="ct">Monthly trend <span id="bct-range" class="period-sub" style="margin-left:auto;">12-month</span></div>
+      <div class="chips">
+        <span class="chip on" id="bctm-h" onclick="setBcTrend('metric','hrs')">Labour hours</span>
+        <span class="chip" id="bctm-g" onclick="setBcTrend('metric','gphr')">Avg GP / hr</span>
+        <span class="chip on" id="bcts-m" onclick="setBcTrend('smooth','m')">Monthly</span>
+        <span class="chip" id="bcts-r" onclick="setBcTrend('smooth','r')">3-mo rolling avg</span>
+      </div>
+      <div id="bct-chart"></div>
+      <div class="leg-row" id="bct-chart-leg"></div>
+      <div class="note">Hours worked &amp; <b>avg GP/hr</b> (month GP ÷ month hours) per month. A job counts in the month <b>≥60% of its hours</b> were worked (from time entries), else its invoice month. <span id="bct-note"></span></div>
     </div>
 
     <!-- Everything else: collapsed accordions -->
@@ -1063,6 +1086,7 @@ async function syncWorkload(band){
     S.set('fw_last_sync',new Date().toLocaleString('en-NZ'));
     S.set('fw_no_priced',noPriced);
     S.set('fw_excluded',excluded);
+    recordFwSnapshot();
     prog(0.52,'Back costing jobs…');
     // Also refresh back-costing rows (completed + effectively-finished active jobs)
     try{await syncBackCosting(active,frac=>prog(0.52+0.46*frac,'Back costing…'));}catch(e){console.warn('bc sync',e.message);}
@@ -1091,11 +1115,36 @@ function effRem(j){return fwDone[j.id]?0:remVal(j);}                            
 function toggleWkDone(id,on){if(on)fwDone[id]=1;else delete fwDone[id];S.set('fwDone',fwDone);renderWork();renderDash();}
 function setWkRem(id,v){if(v===''||v==null)delete fwRemOv[id];else fwRemOv[id]=Math.max(0,num(v));S.set('fwRemOverride',fwRemOv);renderWork();renderDash();}
 function totalRemaining(){return fwJobs.reduce((s,j)=>s+effRem(j),0);}
+// Record the forward workload once at the start of each month (first app open that month).
+function recordFwSnapshot(){
+  if(!fwJobs||!fwJobs.length)return;
+  const cur=calMonthKey(0),hist=S.get('fwHist',{});
+  if(cur in hist)return;
+  const c=capacity(),h=Math.max(0,totalRemaining());
+  hist[cur]={h:Math.round(h),d:c.perDay>0?Math.round(h/c.perDay*10)/10:0};
+  S.set('fwHist',hist);
+}
+let wkTrend={smooth:'m'};
+function setWkTrend(k,v){wkTrend[k]=v;renderWorkTrend();}
+function renderWorkTrend(){
+  const host=document.getElementById('wk-chart');if(!host)return;
+  const setChip=(id,on)=>{const e=document.getElementById(id);if(e)e.classList.toggle('on',on);};
+  setChip('wks-m',wkTrend.smooth==='m');setChip('wks-r',wkTrend.smooth==='r');
+  const hist=S.get('fwHist',{});const ks=[];for(let i=11;i>=0;i--)ks.push(calMonthKey(-i));
+  const vals=ks.map(k=>hist[k]?num(hist[k].h):null);
+  const leg=document.getElementById('wk-chart-leg');
+  if(vals.filter(v=>v!=null).length<1){host.innerHTML='<div class="empty">No monthly snapshots yet — the forward workload is captured at the start of each month, so the trend builds up from now.</div>';if(leg)leg.innerHTML='';return;}
+  let series=[{label:'Backlog man-hours',color:'#ff6b35',vals}];
+  if(wkTrend.smooth==='r')series.forEach(s=>s.vals=rollAvg(s.vals,3));
+  host.innerHTML=svgLine(ks,series,'h');
+  if(leg)leg.innerHTML=series.map(s=>'<span class="leg"><i style="background:'+s.color+'"></i>'+s.label+'</span>').join('');
+}
 function saveCfg(){
   cfg={teams:num(document.getElementById('cfg-teams').value)||4,size:num(document.getElementById('cfg-size').value)||2,hrs:num(document.getElementById('cfg-hrs').value)||8};
   S.set('fwCfg',cfg);renderWork();renderDash();
 }
 function renderWork(){
+  renderWorkTrend();
   const R=totalRemaining();const c=capacity();
   const days=R/c.perDay, weeks=days/5;
   document.getElementById('work-days').textContent=R>0?(Math.round(days*10)/10):'0';
@@ -1775,8 +1824,11 @@ function walkRooferHours(data,emit){
 // entries once and group by each entry's own jobId → roofer hours { jobId:{roofer:h} } AND the
 // TOTAL logged hours per job across everyone { jobId: hours } (GP/hr divides by this total).
 let _timeMap=null,_jobLoggedHrs=null;
+let _jobMonthHrs=S.get('jobMonthHrs',{});        // {jobId:{month:hours}} accumulated across syncs (for the ≥60% work-month rule)
+let _jmSeen=new Set(S.get('jobMonthSeen',[]));    // timeEntryIds already counted into _jobMonthHrs (cross-sync dedup)
 function resetRooferDiscovery(){_timeMap=null;_jobLoggedHrs=null;}
 function _teArr(j){return Array.isArray(j)?j:((j&&(j.data||j.results||j.timeEntries))||[]);}
+function teMonth(e){const t=String((e&&(e.startTime||e.dateEntered))||'').replace(' ','T');const d=new Date(t);return isNaN(d)?'':(FG_MONTHS[d.getMonth()]+'-'+d.getFullYear());}
 function _ingestEntry(e,map,jobHrs,seen){
   const eid=e&&(e.timeEntryId!=null?e.timeEntryId:(e.id!=null?e.id:null));
   if(eid!=null){if(seen.has(eid))return false;seen.add(eid);}
@@ -1784,6 +1836,8 @@ function _ingestEntry(e,map,jobHrs,seen){
   const h=entryHours(e);if(h<=0)return true;
   const k=String(jid);jobHrs[k]=(jobHrs[k]||0)+h;                                    // total logged hours, ALL workers
   const roofer=matchRoofer(entryUser(e));if(roofer)(map[k]||(map[k]={}))[roofer]=(map[k][roofer]||0)+h;
+  // accumulate per-job-month hours (deduped across syncs) so a job can be attributed to its dominant work-month
+  if(eid!=null&&!_jmSeen.has(eid)){_jmSeen.add(eid);const mo=teMonth(e);if(mo){const jm=_jobMonthHrs[k]||(_jobMonthHrs[k]={});jm[mo]=(jm[mo]||0)+h;}}
   return true;
 }
 async function buildTimeMap(onProg){
@@ -1807,11 +1861,38 @@ async function buildTimeMap(onProg){
     page+=BATCH;
   }
   _timeMap=map;_jobLoggedHrs=jobHrs;S.set('msTimeMap',{entries:seen.size,jobs:Object.keys(jobHrs).length,ps});
+  S.set('jobMonthHrs',_jobMonthHrs);S.set('jobMonthSeen',[..._jmSeen].slice(-9000));   // recent entries only re-appear, so capping is safe
   if(onProg)onProg(1);
   return map;
 }
 function rooferHoursFor(jobId){return (_timeMap&&_timeMap[String(jobId)])||{};}
 function loggedHrsFor(jobId){return (_jobLoggedHrs&&_jobLoggedHrs[String(jobId)])||0;}
+// The month a job belongs to for trend purposes: where ≥60% of its hours were worked (from time
+// entries), else its back-costing (invoice) month.
+function bcWorkMonth(r){
+  const mh=_jobMonthHrs&&_jobMonthHrs[String(r._fergus_id)];
+  if(mh){const vals=Object.values(mh),tot=vals.reduce((s,v)=>s+v,0);if(tot>0){let best=null,bh=0;for(const mo in mh)if(mh[mo]>bh){bh=mh[mo];best=mo;}if(best&&bh/tot>=0.6)return best;}}
+  return r.month;
+}
+// Per-month labour hours + GP (job counted whole in its dominant work-month) for the BC trend.
+function bcMonthHrsGP(){const m={};getAllBC().forEach(r=>{const mo=bcWorkMonth(r);if(!mo)return;const o=m[mo]||(m[mo]={hrs:0,gp:0,n:0});o.hrs+=num(r.h_actual);o.gp+=num(r.gp);o.n++;});return m;}
+let bcTrend={metric:'hrs',smooth:'m'};
+function setBcTrend(k,v){bcTrend[k]=v;renderBcTrend();}
+function renderBcTrend(){
+  const host=document.getElementById('bct-chart');if(!host)return;
+  const setChip=(id,on)=>{const e=document.getElementById(id);if(e)e.classList.toggle('on',on);};
+  setChip('bctm-h',bcTrend.metric==='hrs');setChip('bctm-g',bcTrend.metric==='gphr');setChip('bcts-m',bcTrend.smooth==='m');setChip('bcts-r',bcTrend.smooth==='r');
+  const agg=bcMonthHrsGP();const ks=[];for(let i=11;i>=0;i--)ks.push(calMonthKey(-i));
+  const isG=bcTrend.metric==='gphr';
+  const vals=ks.map(k=>{const o=agg[k];if(!o||(!o.hrs&&!o.gp))return null;return isG?(o.hrs>0?o.gp/o.hrs:null):o.hrs;});
+  const leg=document.getElementById('bct-chart-leg');
+  if(vals.filter(v=>v!=null).length<1){host.innerHTML='<div class="empty">No back-costing yet — Sync from Fergus.</div>';if(leg)leg.innerHTML='';return;}
+  let series=[{label:isG?'Avg GP / hr':'Labour hours',color:isG?'#4ade80':'#4d8dff',vals}];
+  if(bcTrend.smooth==='r')series.forEach(s=>s.vals=rollAvg(s.vals,3));
+  host.innerHTML=svgLine(ks,series,isG?'$':'h');
+  if(leg)leg.innerHTML=series.map(s=>'<span class="leg"><i style="background:'+s.color+'"></i>'+s.label+'</span>').join('');
+  const nb=document.getElementById('bct-note');if(nb){const n=getAllBC().filter(r=>_jobMonthHrs&&_jobMonthHrs[String(r._fergus_id)]).length;nb.textContent=n?(n+' job(s) attributed by logged-hours month so far; others use their invoice month until time data accrues.'):'(Fergus only exposes recent time entries, so jobs currently use their invoice month — the 60% rule refines as months accrue.)';}
+}
 function renderBCTypes(){
   const body=document.getElementById('bc-type-body');if(!body)return;
   const ovRate=ohRate().rate;
@@ -1934,6 +2015,7 @@ function compareBcSources(){
 }
 function renderBC(){
   fillBCFilters();
+  renderBcTrend();
   renderBCStrip();
   renderMatPct();
   renderBCTypes();
@@ -2237,16 +2319,18 @@ let plTrend={metric:'$',smooth:'m'},plTrendOffset=0;   // offset in months back 
 function setPlTrend(k,v){plTrend[k]=v;renderPLTrend();}
 function plTrendStep(d){plTrendOffset=Math.max(0,Math.min(48,plTrendOffset+d));renderPLTrend();}   // 0..48 → up to 5 years back
 function rollAvg(a,n){return a.map((v,i)=>{if(v==null)return null;let s=0,c=0;for(let j=Math.max(0,i-n+1);j<=i;j++){if(a[j]!=null){s+=a[j];c++;}}return c?s/c:null;});}
-function svgLine(months,series,isPct){
+function svgLine(months,series,mode){
+  mode=mode||'$';   // '$' | '%' | 'h'
+  const fmtMode=v=>mode==='%'?(Math.round(v)+'%'):mode==='h'?(fmtH(v)+'h'):fmtK(v);
   const W=360,H=212,pl=42,pr=12,pt=14,pb=42,iw=W-pl-pr,ih=H-pt-pb,n=months.length;
   let mn=Infinity,mx=-Infinity;series.forEach(s=>s.vals.forEach(v=>{if(v==null)return;if(v<mn)mn=v;if(v>mx)mx=v;}));
   if(mn===Infinity){mn=0;mx=1;}
   mn=Math.min(mn,0);mx=Math.max(mx,0);if(mx===mn)mx=mn+1;const pad=(mx-mn)*0.08;mx+=pad;if(mn<0)mn-=pad*0.5;
   const x=i=>pl+(n<=1?iw/2:iw*i/(n-1)), y=v=>pt+ih-((v-mn)/(mx-mn))*ih;
-  const fy=v=>isPct?(Math.round(v)+'%'):fmtK(v);
+  const fy=v=>fmtMode(v);
   let g='';for(let t=0;t<=4;t++){const v=mn+(mx-mn)*t/4,yy=y(v);g+='<line x1="'+pl+'" y1="'+yy.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yy.toFixed(1)+'" stroke="var(--border)" stroke-width="1" opacity=".45"/><text x="'+(pl-5)+'" y="'+(yy+3).toFixed(1)+'" text-anchor="end" font-size="8.5" fill="var(--muted)">'+fy(v)+'</text>';}
-  // bold $0 / 0% baseline when the range crosses zero
-  let zero='';if(mn<0&&mx>0){const yz=y(0);zero='<line x1="'+pl+'" y1="'+yz.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yz.toFixed(1)+'" stroke="var(--text)" stroke-width="1.5" opacity=".75"/><text x="'+(W-pr-1)+'" y="'+(yz-3).toFixed(1)+'" text-anchor="end" font-size="8" font-weight="700" fill="var(--text)" opacity=".8">'+(isPct?'0%':'$0')+'</text>';}
+  // bold zero baseline when the range crosses zero
+  let zero='';if(mn<0&&mx>0){const yz=y(0);zero='<line x1="'+pl+'" y1="'+yz.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yz.toFixed(1)+'" stroke="var(--text)" stroke-width="1.5" opacity=".75"/><text x="'+(W-pr-1)+'" y="'+(yz-3).toFixed(1)+'" text-anchor="end" font-size="8" font-weight="700" fill="var(--text)" opacity=".8">'+(mode==='%'?'0%':mode==='h'?'0h':'$0')+'</text>';}
   // faint vertical line + month/year label for EVERY month
   let vx='';months.forEach((m,i)=>{const xx=x(i),pa=(m||'').split('-');vx+='<line x1="'+xx.toFixed(1)+'" y1="'+pt+'" x2="'+xx.toFixed(1)+'" y2="'+(pt+ih).toFixed(1)+'" stroke="var(--border)" stroke-width="1" opacity=".16"/>'+
     '<text x="'+xx.toFixed(1)+'" y="'+(pt+ih+13)+'" text-anchor="middle" font-size="7.5" fill="var(--muted)">'+esc(pa[0]||'')+'</text>'+
@@ -2279,7 +2363,7 @@ function renderPLTrend(){
       {label:'Opex %',color:'#fbbf24',vals:figs.map(f=>val(f,x=>num(x.rev)>0?num(x.opex)/num(x.rev)*100:0))},
       {label:'NP %',color:'#ff8a52',vals:figs.map(f=>val(f,x=>num(x.rev)>0?num(x.np)/num(x.rev)*100:0))}];
   if(plTrend.smooth==='r')series.forEach(s=>s.vals=rollAvg(s.vals,3));
-  host.innerHTML=svgLine(ks,series,plTrend.metric==='%');
+  host.innerHTML=svgLine(ks,series,plTrend.metric==='%'?'%':'$');
   if(leg)leg.innerHTML=series.map(s=>'<span class="leg"><i style="background:'+s.color+'"></i>'+s.label+'</span>').join('');
 }
 function renderPL(){
@@ -3414,6 +3498,7 @@ function init(){
   document.getElementById('g-estweeks').value=growthCfg.estWeeks;
   document.getElementById('g-varopex').value=growthCfg.varOpex;
   updatePill();
+  recordFwSnapshot();
   renderAll();
   applyAccordions();
   // Auto-sync ONLY Xero on open (Fergus workload renders from its saved last-sync; refresh it

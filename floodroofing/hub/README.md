@@ -55,6 +55,19 @@ apprentice 0.70). So a 3rd hand adds ~0.70 of a head's revenue, not a full one.
 Presets and the scale table cover the common 2-man crews (4×2, 5×2, 6×2, 7×2) as
 well as 3-man.
 
+## Trend graphs (Workload + Back Costing)
+
+Two more P&L-style line graphs (12 months, with a **3-mo rolling avg** toggle):
+
+- **Workload → Forward workload trend** — backlog man-hours captured at the
+  **start of each month** (the first time the app opens that month). History
+  accrues from now on.
+- **Back Costing → Monthly trend** — toggle **Labour hours** or **Avg GP/hr**
+  (month GP ÷ month hours) per month. A job is counted in the month **≥60% of its
+  hours were worked** (from time entries), not its invoice month — falling back to
+  the invoice month for jobs without time-entry data yet (Fergus only exposes
+  recent time entries, so this refines as months accrue).
+
 ## Workload — tick done + editable remaining hours
 
 The Per-active-job table on the Workload tab has:
