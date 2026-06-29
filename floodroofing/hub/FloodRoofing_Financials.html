@@ -547,17 +547,18 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
   <!-- ───────── XERO P&L ───────── -->
   <div class="page" id="page-pl">
     <div class="card">
-      <div class="ct">P&amp;L Trend <span id="pl-trend-range" class="period-sub" style="margin-left:auto;">12-month line graph</span></div>
+      <div class="ct">P&amp;L Trend <span id="pl-trend-range" class="period-sub" style="margin-left:auto;">9-month · swipe ↔</span></div>
       <div class="chips" id="pl-trend-chips">
         <span class="chip on" id="plm-d" onclick="setPlTrend('metric','$')">$ trend</span>
         <span class="chip" id="plm-p" onclick="setPlTrend('metric','%')">% margins</span>
         <span class="chip on" id="pls-m" onclick="setPlTrend('smooth','m')">Monthly</span>
         <span class="chip" id="pls-r" onclick="setPlTrend('smooth','r')">3-mo rolling avg</span>
       </div>
-      <div class="pl-nav"><button class="lr-nav" onclick="plTrendStep(12)" aria-label="Older">‹</button><span id="pl-trend-win" class="mut"></span><button class="lr-nav" id="pl-nav-newer" onclick="plTrendStep(-12)" aria-label="Newer">›</button></div>
+      <div class="pl-nav"><button class="lr-nav" onclick="plTrendStep(1)" aria-label="Older">‹</button><span id="pl-trend-win" class="mut"></span><button class="lr-nav" id="pl-nav-newer" onclick="plTrendStep(-1)" aria-label="Newer">›</button></div>
       <div id="pl-chart" class="pl-swipe"></div>
       <div class="leg-row" id="pl-chart-leg"></div>
-      <div class="note">Each point = one month. Swipe ↔ (or ‹ ›) to step a year at a time, back up to 5 years. “3-mo rolling avg” smooths each point with the trailing 3 months. From your Xero P&amp;L.</div>
+      <button class="btn btn-o" id="pl-hist-btn" style="margin-top:11px;" onclick="syncXeroHistory()">⤓ Load full history (2018+)</button>
+      <div class="note">9 months at a time — swipe ↔ to scroll back through the years (or ‹ › to nudge a month). “3-mo rolling avg” smooths each point with the trailing 3 months. Tap <b>Load full history</b> once to backfill every month from 2018 (cached after).</div>
     </div>
     <div class="card">
       <div class="ct">Last 12 Months <span class="period-sub" style="margin-left:auto;">tap a month · swipe ↔</span></div>
@@ -1975,7 +1976,7 @@ function renderLeadRoofer(){
 (function(){
   let x0=null,y0=null;
   document.addEventListener('touchstart',e=>{const t=e.target;if(t.closest&&t.closest('.pl-swipe')){x0=e.touches[0].clientX;y0=e.touches[0].clientY;}else x0=null;},{passive:true});
-  document.addEventListener('touchend',e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0,dy=e.changedTouches[0].clientY-y0;x0=null;if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.4)plTrendStep(dx>0?12:-12);},{passive:true});
+  document.addEventListener('touchend',e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0,dy=e.changedTouches[0].clientY-y0;x0=null;if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.4)plTrendStep(dx>0?3:-3);},{passive:true});
 })();
 
 // ===== Excel (source of truth) vs Fergus pull — verify the app is pulling correct numbers =====
@@ -2205,6 +2206,31 @@ async function syncXeroMonthly(band){
     toast('Xero P&L updated ✓ ('+ok+' months)','ok');renderDash();renderGrowth();renderPL();return true;}
   toast('Xero returned no data','err');return false;
 }
+// One-time deep backfill: pull every month from Jan-2018 to now that isn't cached yet (plus refresh
+// the last 3). Cached in xeroMonthly, so it's incremental — slow first run, fast after.
+async function syncXeroHistory(){
+  const proxy=fergusProxyUrl();if(!proxy){openConnect();return;}
+  const psec=fergusProxySecret();
+  const now=new Date();const startN=(now.getFullYear()-2018)*12+now.getMonth();   // months back to Jan-2018
+  const allKeys=[];for(let i=startN;i>=0;i--)allKeys.push(calMonthKey(-i));        // oldest→newest
+  const need=allKeys.filter((k,i)=>!xeroMonthly[k]||i>=allKeys.length-3);
+  if(!need.length){toast('Xero history already loaded ✓','ok');return;}
+  const btn=document.getElementById('pl-hist-btn');const orig=btn?btn.innerHTML:'';if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Loading history…';}
+  syncProgress(1,'Loading Xero history…');
+  const out=Object.assign({},xeroMonthly);let ok=0,no=false,sec=false,done=0,idx=0;
+  async function worker(){while(idx<need.length){const k=need[idx++];
+    try{const rep=await fetchMonthReport(proxy,psec,k);const f=xeroRepFig(rep);if(f){out[k]=f;xeroReports[k]=rep;ok++;}}
+    catch(e){if(e.message==='NOXERO')no=true;else if(e.message==='SECRET')sec=true;}
+    done++;syncProgress(done/need.length*100,'Xero history '+done+'/'+need.length);}}
+  await Promise.all(Array.from({length:3},()=>worker()));
+  if(ok){xeroMonthly=out;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',new Date().toLocaleString('en-NZ'));xeroLive=true;}
+  syncProgressDone(ok?('History loaded ✓ '+ok+' mo'):'No history');
+  if(btn){btn.disabled=false;btn.innerHTML=orig;}
+  if(no)toast('Xero not set up on the proxy — can\'t load history','err');
+  else if(sec)toast('Proxy secret rejected (401) — check ⚙','err');
+  else toast('Xero history: '+ok+' month(s) loaded ✓',ok?'ok':'err');
+  renderPL();renderBC();renderGrowth();
+}
 async function pullXeroPL(){
   const proxy=fergusProxyUrl();
   if(!proxy){openConnect();return;}
@@ -2314,10 +2340,11 @@ function renderWaterfall(){
   if(lblEl)lblEl.textContent=key;
   if(noteEl)noteEl.innerHTML='Materials = Cost of Goods − on-site wages · Labour = on-site wages (in COGS) · Overheads exclude income tax. Operating Profit is before income tax. From your Xero P&L for '+esc(key)+'.';
 }
-// ── P&L trend line graph (12-month, $ or %, monthly or 3-mo rolling) ──
-let plTrend={metric:'$',smooth:'m'},plTrendOffset=0;   // offset in months back from the latest 12-month window
+// ── P&L trend line graph (9-month window, $ or %, monthly or 3-mo rolling) ──
+const PL_WIN=9;
+let plTrend={metric:'$',smooth:'m'},plTrendOffset=0;   // months back from the latest 9-month window
 function setPlTrend(k,v){plTrend[k]=v;renderPLTrend();}
-function plTrendStep(d){plTrendOffset=Math.max(0,Math.min(48,plTrendOffset+d));renderPLTrend();}   // 0..48 → up to 5 years back
+function plTrendStep(d){plTrendOffset=Math.max(0,Math.min(120,plTrendOffset+d));renderPLTrend();}   // 0..120 → back to ~2016
 function rollAvg(a,n){return a.map((v,i)=>{if(v==null)return null;let s=0,c=0;for(let j=Math.max(0,i-n+1);j<=i;j++){if(a[j]!=null){s+=a[j];c++;}}return c?s/c:null;});}
 function svgLine(months,series,mode){
   mode=mode||'$';   // '$' | '%' | 'h'
@@ -2346,14 +2373,15 @@ function renderPLTrend(){
   const setChip=(id,on)=>{const e=document.getElementById(id);if(e)e.classList.toggle('on',on);};
   setChip('plm-d',plTrend.metric==='$');setChip('plm-p',plTrend.metric==='%');
   setChip('pls-m',plTrend.smooth==='m');setChip('pls-r',plTrend.smooth==='r');
-  const ks=[];for(let i=11;i>=0;i--)ks.push(calMonthKey(-(plTrendOffset+i)));   // 12-month window oldest→newest
+  const ks=[];for(let i=PL_WIN-1;i>=0;i--)ks.push(calMonthKey(-(plTrendOffset+i)));   // 9-month window oldest→newest
+  const last=ks.length-1;
   const figs=ks.map(k=>xeroMonthly[k]?(xeroFig(k)||null):null);
   const have=figs.filter(Boolean).length;
   const leg=document.getElementById('pl-chart-leg');
-  const rg=document.getElementById('pl-trend-range');if(rg)rg.textContent=ks[0]+' → '+ks[11];
-  const win=document.getElementById('pl-trend-win');if(win)win.textContent=ks[0]+' – '+ks[11]+(plTrendOffset?(' · '+(plTrendOffset/12)+'y back'):' · latest');
+  const rg=document.getElementById('pl-trend-range');if(rg)rg.textContent=ks[0]+' → '+ks[last];
+  const win=document.getElementById('pl-trend-win');if(win)win.textContent=ks[0]+' – '+ks[last]+(plTrendOffset?(' · '+plTrendOffset+'mo back'):' · latest');
   const nb=document.getElementById('pl-nav-newer');if(nb)nb.style.opacity=plTrendOffset?'1':'.3';
-  if(have<1){host.innerHTML='<div class="empty">No Xero P&amp;L for '+ks[0]+' – '+ks[11]+'. Older months fill in as you sync each month (Xero pulls the last 12).</div>';if(leg)leg.innerHTML='';return;}
+  if(have<1){host.innerHTML='<div class="empty">No Xero P&amp;L for '+ks[0]+' – '+ks[last]+'. Tap “Load full history (2018+)” to backfill older months.</div>';if(leg)leg.innerHTML='';return;}
   const val=(f,g)=>f?g(f):null;
   let series=plTrend.metric==='$'
     ?[{label:'Revenue',color:'#4d8dff',vals:figs.map(f=>val(f,x=>num(x.rev)))},
