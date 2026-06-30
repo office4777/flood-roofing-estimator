@@ -2445,6 +2445,7 @@ html.pdf-rendering .jp-page input[type="checkbox"]{ display:none!important; }
     <span style="font-size:11px;color:var(--text2)">— click any field to edit · everything you change here lands in the PDF</span>
     <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
       <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark" style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
+      <button onclick="printJobPack()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
       <button onclick="pushMaterialsToFergus()" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px">📤 Push to Fergus</button>
       <button onclick="openFergusJob()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">📂 Open in Fergus</button>
       <button onclick="orderRoofViaSupplier()" class="mat-btn mat-btn-blue" style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
@@ -2462,6 +2463,7 @@ html.pdf-rendering .jp-page input[type="checkbox"]{ display:none!important; }
     <span style="font-size:11px;color:var(--text2)">— actions, mirrored from the top bar</span>
     <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
       <button onclick="saveMaterialsAsPdf()"    class="mat-btn mat-btn-dark"  style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
+      <button onclick="printJobPack()"          class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
       <button onclick="pushMaterialsToFergus()" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px">📤 Push to Fergus</button>
       <button onclick="openFergusJob()"         class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">📂 Open in Fergus</button>
       <button onclick="orderRoofViaSupplier()"  class="mat-btn mat-btn-blue"  style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
@@ -2704,6 +2706,7 @@ html.pdf-rendering .jp-page input[type="checkbox"]{ display:none!important; }
        drop the just-downloaded PDF in. -->
   <div class="card mat-actions jp-legacy">
     <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark">📄 Save as PDF</button>
+    <button onclick="printJobPack()" class="mat-btn mat-btn-light">🖨 Print</button>
     <button onclick="pushMaterialsToFergus()" class="mat-btn mat-btn-green">📤 Push to Fergus</button>
     <button onclick="openFergusJob()" class="mat-btn mat-btn-light">📂 Open in Fergus</button>
     <button onclick="orderRoofViaSupplier()" class="mat-btn mat-btn-blue">🛒 Order Roof</button>
@@ -22669,58 +22672,43 @@ async function pushScopePricingToFergus(){
   }
 }
 
-// Save the Job Pack as a PDF — captures each .jp-page off-screen with
-// html2canvas and stitches them into a jsPDF blob, then triggers a
-// download. This bypasses the browser's print engine entirely, which
-// previously dropped the roof-diagram image overlays in the printed
-// output even after the image-decode wait was in place.
-async function saveMaterialsAsPdf() {
+// Build the Job Pack PDF by capturing each .jp-page off-screen with
+// html2canvas and stitching them into a jsPDF blob. Returns the jsPDF
+// instance, or null when something failed (in which case the caller
+// will fall back to the legacy window.print() flow). This is the
+// shared backbone for both Save as PDF (download) and Print (open
+// the system print dialog on the same generated PDF) — keeping the
+// pipeline in one place means both buttons always produce identical
+// output.
+async function _buildJobPackPdf() {
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
   try { renderMatRoofMap(); } catch(e){}
   try { renderMatFlashingsGrid(); } catch(e){}
   try { renderJobPack(); } catch(e){}
 
-  _matMsg('Building PDF…');
-
   try {
     await _loadPdfLibs();
   } catch(err) {
-    console.warn('PDF libs failed to load, falling back to window.print():', err);
-    return _legacyPrintFlow();
+    console.warn('PDF libs failed to load:', err);
+    return null;
   }
 
   var html2canvas = window.html2canvas;
   var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-  if (!html2canvas || !jsPDF) {
-    return _legacyPrintFlow();
-  }
+  if (!html2canvas || !jsPDF) return null;
 
   var pages = Array.prototype.slice.call(document.querySelectorAll('#jpPages .jp-page'));
-  if (!pages.length) { _matMsg('No Job Pack pages to render.', false); return; }
+  if (!pages.length) { _matMsg('No Job Pack pages to render.', false); return null; }
 
-  // Add print-jobpack so editor chrome (delete buttons, drag handles,
-  // toolbars) is hidden from the captures. html2canvas honours @media
-  // print rules only when wrapped in print-mode emulation — easier to
-  // just lean on the .print-jobpack class rules outside the media query.
   var htmlEl = document.documentElement;
   ['print-quote','print-order','print-materials','print-report'].forEach(function(c){ htmlEl.classList.remove(c); });
   htmlEl.classList.add('print-jobpack');
-  // pdf-rendering = always-on chrome-stripping rules that html2canvas
-  // can see (it doesn't trigger @media print). Hides the spec-row
-  // selectors, + Add row buttons, per-row × buttons, empty-state
-  // placeholders, sub-text explanations, etc.
   htmlEl.classList.add('pdf-rendering');
 
-  // Wait for any dynamic images (roof-map data URLs) to fully decode
-  // before we hand the page off to html2canvas. Without this we have
-  // seen empty image overlays land in the PDF.
   await new Promise(function(resolve){
     _jpWaitForImages(document.getElementById('jpPages'), resolve);
   });
-  // Give layout one more frame to settle now that the print-jobpack
-  // rules are in effect — some sections collapse via the empty-state
-  // pass and we don't want stale heights baked into the capture.
   await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
 
   var pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
@@ -22739,10 +22727,9 @@ async function saveMaterialsAsPdf() {
       if (i > 0) pdf.addPage();
       var imgData = canvas.toDataURL('image/jpeg', 0.92);
       // Preserve aspect ratio: map the capture onto a FULL-WIDTH A4
-      // page (210mm). If the captured content is taller than A4
-      // (cut-list / flashings pages frequently overflow), split it
-      // across multiple A4 pages instead of stretching one — the
-      // earlier "force into one A4" path read as stretched & blurry.
+      // page (210mm). If the captured content is taller than A4 it
+      // splits across multiple A4 pages by re-adding the image at a
+      // negative y-offset on each subsequent page — no stretching.
       var imgH = (canvas.height / canvas.width) * pageW;
       var consumed = 0;
       while (consumed < imgH - 0.5) {
@@ -22755,12 +22742,22 @@ async function saveMaterialsAsPdf() {
     console.error('PDF render failed:', err);
     htmlEl.classList.remove('print-jobpack');
     htmlEl.classList.remove('pdf-rendering');
-    _matMsg('PDF render failed — falling back to print dialog', false);
-    return _legacyPrintFlow();
+    return null;
   }
 
   htmlEl.classList.remove('print-jobpack');
   htmlEl.classList.remove('pdf-rendering');
+  return pdf;
+}
+
+// Save as PDF — download the generated PDF to the user's machine.
+async function saveMaterialsAsPdf() {
+  _matMsg('Building PDF…');
+  var pdf = await _buildJobPackPdf();
+  if (!pdf) {
+    _matMsg('PDF build failed — falling back to print dialog', false);
+    return _legacyPrintFlow();
+  }
 
   // Trigger download with a sensible filename.
   var client = ((document.getElementById('jobClient')||{}).value || 'job').replace(/[\\/:*?"<>|]/g,'').trim() || 'job';
@@ -22770,6 +22767,39 @@ async function saveMaterialsAsPdf() {
   pdf.save(filename);
 
   _matMsg('✓ PDF saved: ' + filename, true);
+}
+
+// Print — build the same PDF that Save as PDF would produce, then
+// open it in a new tab with autoPrint() armed so the system print
+// dialog appears for the user to send to a physical printer (or
+// re-select Save as PDF if they want a downloaded copy).
+async function printJobPack() {
+  _matMsg('Building PDF for print…');
+  var pdf = await _buildJobPackPdf();
+  if (!pdf) {
+    _matMsg('PDF build failed — opening browser print instead', false);
+    return _legacyPrintFlow();
+  }
+  try { pdf.autoPrint(); } catch(e){ /* older jsPDF without autoPrint */ }
+  var blobUrl;
+  try {
+    blobUrl = pdf.output('bloburl');
+  } catch(e) {
+    console.warn('blob URL failed, trying datauristring fallback:', e);
+    var win0 = window.open();
+    if (!win0) { _matMsg('Pop-up blocked — allow pop-ups to print', false); return; }
+    try {
+      win0.document.write('<iframe src="' + pdf.output('datauristring') + '" style="border:none;width:100%;height:100vh"></iframe>');
+      win0.document.close();
+    } catch(e2) { console.error(e2); }
+    return;
+  }
+  var win = window.open(blobUrl, '_blank');
+  if (!win) {
+    _matMsg('Pop-up blocked — allow pop-ups so the print dialog can open.', false);
+    return;
+  }
+  _matMsg('✓ Print dialog opening in a new tab…', true);
 }
 
 // Fallback: the old browser-print path. Kept around so users on
