@@ -102,7 +102,10 @@ PROPS.forEach((pr, pi) => {
       const cb = document.getElementById('matShowSheetPlan'); if (cb && !cb.checked) cb.checked = true;
       window.renderRoofSheetPlan && window.renderRoofSheetPlan();
       const all = window.__lastAllStrips || [];
-      const bySeq = {}; all.forEach(s => { if (s.seq != null) (bySeq[s.seq] = bySeq[s.seq] || []).push(s); });
+      // Count unique PHYSICAL sheets = colour + seq (seq now restarts
+      // per colour, so seq alone would collapse same-numbered sheets
+      // of different colours).
+      const bySeq = {}; all.forEach(s => { if (s.seq != null) { const k = s.color + '#' + s.seq; (bySeq[k] = bySeq[k] || []).push(s); } });
       const strips = all.map(s => s.poly).filter(Boolean);
       const inPoly = (x,y,p)=>{let ins=false;for(let i=0,j=p.length-1;i<p.length;j=i++){const xi=p[i][0],yi=p[i][1],xj=p[j][0],yj=p[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi+1e-10)+xi))ins=!ins;}return ins;};
       const xs=outline.map(p=>p[0]),ys=outline.map(p=>p[1]);

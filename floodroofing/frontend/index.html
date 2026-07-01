@@ -27868,20 +27868,47 @@ function _renderRoofSheetPlanInner() {
       }
       return s.color + '-' + Math.round(s.centroid[0]) + '-' + Math.round(s.centroid[1]);
     }
-    var _bySheet = {};
-    allStrips.forEach(function(s){
-      var k = _sheetKey(s);
-      s._sheetKey = k;
-      (_bySheet[k] = _bySheet[k] || []).push(s);
-    });
-    var _sortedKeys = Object.keys(_bySheet).sort(function(a, b){
-      var aR = _bySheet[a].find(function(s){return !s.isOffcut;}) || _bySheet[a][0];
-      var bR = _bySheet[b].find(function(s){return !s.isOffcut;}) || _bySheet[b][0];
-      return aR.centroid[1] - bR.centroid[1] || aR.centroid[0] - bR.centroid[0];
-    });
-    _sortedKeys.forEach(function(k, i){
-      _bySheet[k].forEach(function(s){ s.seq = i + 1; });
-    });
+    // Number sheets 1..N PER COLOUR (not a single global 1..total run
+    // interleaved across colours).  Each physical sheet = one _sheetKey
+    // group.  Within a colour, DONOR sheets are numbered first in
+    // spatial order (top-to-bottom, then left-to-right), and any
+    // offcut-only sheets follow — so every colour reads Blue 1..N,
+    // Orange 1..N, and the donor run is never broken by an offcut's
+    // number.  Function-scoped so the two post-rotation re-number
+    // blocks below reuse it.
+    function _numberSheetsByColour(strips){
+      var groups = {};
+      strips.forEach(function(s){
+        var k = s._sheetKey;
+        if (k == null) return;
+        (groups[k] = groups[k] || []).push(s);
+      });
+      var meta = Object.keys(groups).map(function(k){
+        var g = groups[k];
+        var donor = g.find(function(s){ return !s.isOffcut; });
+        var rep = donor || g[0];
+        return {
+          g: g,
+          colour: rep.color,
+          offcutOnly: !donor,
+          cx: rep.centroid ? rep.centroid[0] : 0,
+          cy: rep.centroid ? rep.centroid[1] : 0,
+        };
+      });
+      var byCol = {};
+      meta.forEach(function(m){ (byCol[m.colour] = byCol[m.colour] || []).push(m); });
+      Object.keys(byCol).forEach(function(col){
+        byCol[col].sort(function(a, b){
+          if (a.offcutOnly !== b.offcutOnly) return a.offcutOnly ? 1 : -1;  // donors first
+          return a.cy - b.cy || a.cx - b.cx;                                // then top→bottom, left→right
+        });
+        byCol[col].forEach(function(m, i){
+          m.g.forEach(function(s){ s.seq = i + 1; });
+        });
+      });
+    }
+    allStrips.forEach(function(s){ s._sheetKey = _sheetKey(s); });
+    _numberSheetsByColour(allStrips);
   }  // end of isBigL branch
 
   // ── Re-insert hip-end apex into strips that cut it off ───────────
@@ -27962,23 +27989,9 @@ function _renderRoofSheetPlanInner() {
         if (s.poly)     s.poly     = s.poly.map(_rotPt);
         if (s.centroid) s.centroid = _rotPt(s.centroid);
       });
-      // Re-assign sequence numbers in original-space using the same
-      // sheet-identity grouping computed in canonical space.  Each
-      // strip's _sheetKey survives rotation (it's just a string key);
-      // we re-sort sheets by their (now-rotated) representative
-      // centroid and re-assign global seq.
-      var _bySheet2 = {};
-      allStrips.forEach(function(s){
-        (_bySheet2[s._sheetKey] = _bySheet2[s._sheetKey] || []).push(s);
-      });
-      var _sortedKeys2 = Object.keys(_bySheet2).sort(function(a, b){
-        var aR = _bySheet2[a].find(function(s){return !s.isOffcut;}) || _bySheet2[a][0];
-        var bR = _bySheet2[b].find(function(s){return !s.isOffcut;}) || _bySheet2[b][0];
-        return aR.centroid[1] - bR.centroid[1] || aR.centroid[0] - bR.centroid[0];
-      });
-      _sortedKeys2.forEach(function(k, i){
-        _bySheet2[k].forEach(function(s){ s.seq = i + 1; });
-      });
+      // Re-number in original space (the _sheetKey survives rotation)
+      // using the same per-colour, donors-first scheme as canonical.
+      _numberSheetsByColour(allStrips);
     }
     // Un-rotate DRAW.lines back to original space.  The Big-L code
     // mutated DRAW.lines (in canonical space).  We rotate ALL lines
@@ -28024,20 +28037,9 @@ function _renderRoofSheetPlanInner() {
         if (s.poly)     s.poly     = s.poly.map(_mirPt);
         if (s.centroid) s.centroid = _mirPt(s.centroid);
       });
-      // Re-assign sequence numbers in original-space using the same
-      // sheet-identity grouping.
-      var _bySheet3 = {};
-      allStrips.forEach(function(s){
-        (_bySheet3[s._sheetKey] = _bySheet3[s._sheetKey] || []).push(s);
-      });
-      var _sortedKeys3 = Object.keys(_bySheet3).sort(function(a, b){
-        var aR = _bySheet3[a].find(function(s){return !s.isOffcut;}) || _bySheet3[a][0];
-        var bR = _bySheet3[b].find(function(s){return !s.isOffcut;}) || _bySheet3[b][0];
-        return aR.centroid[1] - bR.centroid[1] || aR.centroid[0] - bR.centroid[0];
-      });
-      _sortedKeys3.forEach(function(k, i){
-        _bySheet3[k].forEach(function(s){ s.seq = i + 1; });
-      });
+      // Re-number in mirrored original space using the same per-colour,
+      // donors-first scheme.
+      _numberSheetsByColour(allStrips);
     }
     DRAW.lines = DRAW.lines.map(function(l){
       if (!l || !l.pts) return l;
