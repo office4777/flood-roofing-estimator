@@ -2515,7 +2515,14 @@ select{
   <!-- 4. Roof sheet plan (visual layout — unchanged). -->
   <div class="card jp-legacy" id="roofSheetPlanCard">
     <div class="card-hd jp-legacy"><span class="card-dot"></span>Roof sheet plan — colour-coded cut layout
-      <button onclick="renderRoofSheetPlan();renderMaterialsCutLists()" style="margin-left:auto;padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button id="sheetPlanEditBtn" onclick="toggleSheetPlanEdit()" style="padding:4px 12px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;color:#0a1628">🔧 Edit sheets</button>
+        <button id="sheetPlanRestoreBtn" onclick="restoreAllSheets()" style="display:none;padding:4px 12px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;color:#0a1628">↺ Restore all</button>
+        <button onclick="renderRoofSheetPlan();renderMaterialsCutLists()" style="padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
+      </div>
+    </div>
+    <div id="sheetPlanEditHint" style="display:none;font-size:11px;color:#92400e;background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;padding:6px 10px;margin:0 8px 8px;line-height:1.4">
+      🔧 <strong>Edit mode:</strong> click any coloured sheet to remove it from the order. Deleted sheets stay outlined so you can see where they were. Click again to restore. Undo (Ctrl+Z) also reverts deletions.
     </div>
     <div id="roofSheetPlanOut">
       <p style="font-size:12px;color:var(--text2)">Draw your roof outline + gutter/hip/valley lines with measurements, then refresh to see the sheet cut plan.</p>
@@ -5038,7 +5045,8 @@ function snapshotCurrentJob(){
              quote:S.quote },
     draw: { outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
             penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
-            scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step },
+            scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step,
+            sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[] },
     scope: { mainScope: (typeof _currentMainScope !== 'undefined' ? _currentMainScope : null), items: scopeItems }
   };
 }
@@ -5068,6 +5076,7 @@ function restoreFromJob(j){
     DRAW.scaleMetresPerPx = snap.draw.scaleMetresPerPx || 0;
     DRAW.outlineDone = !!snap.draw.outlineDone;
     DRAW.step = snap.draw.step || 'outline';
+    DRAW.sheetPlanDeletedIds = snap.draw.sheetPlanDeletedIds || [];
     try { redrawAll(); } catch(e){}
     try { syncToRoofData(); } catch(e){}
   }
@@ -14155,6 +14164,7 @@ var DRAW = {
   panX: 0, panY: 0,
   undoStack: [],        // redo/undo snapshots
   redoStack: [],
+  sheetPlanDeletedIds: [],  // Phase-1 customisable sheet plan: user-removed sheet IDs
   dimLabels: [],        // [{text, x, y}] — AI-extracted dimension labels placed on canvas
   infoItems: [],        // [{cx, cy, note, num}] — numbered asterisk annotations
   hoveredLine: -1,      // line index hovered in addmeas mode
@@ -16075,7 +16085,8 @@ function updateOutline() {
 function saveSnapshot() {
   DRAW.undoStack.push(JSON.stringify({
     outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
-    penetrations:DRAW.penetrations, outlineDone:DRAW.outlineDone
+    penetrations:DRAW.penetrations, outlineDone:DRAW.outlineDone,
+    sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[]
   }));
   DRAW.redoStack=[]; // clear redo on new action
   if(DRAW.undoStack.length>50) DRAW.undoStack.shift();
@@ -16087,28 +16098,35 @@ function undoLast() {
   // Save current state to redo
   DRAW.redoStack.push(JSON.stringify({
     outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
-    penetrations:DRAW.penetrations, outlineDone:DRAW.outlineDone
+    penetrations:DRAW.penetrations, outlineDone:DRAW.outlineDone,
+    sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[]
   }));
   var snap=JSON.parse(DRAW.undoStack.pop());
   DRAW.outline=snap.outline; DRAW.sections=snap.sections;
   DRAW.lines=snap.lines; DRAW.penetrations=snap.penetrations;
   DRAW.outlineDone=snap.outlineDone;
+  if(snap.sheetPlanDeletedIds!==undefined) DRAW.sheetPlanDeletedIds=snap.sheetPlanDeletedIds;
   DRAW.selectedSection=-1; DRAW.selectedLine=-1; DRAW.selectedPen=-1;
   hidePropPanel(); redrawAll(); syncToRoofData();
+  // Keep the sheet plan + downstream views in step with an undone deletion.
+  try { renderRoofSheetPlan(); renderMaterialsCutLists(); } catch(e){}
 }
 
 function redoLast() {
   if(DRAW.redoStack.length===0) return;
   DRAW.undoStack.push(JSON.stringify({
     outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
-    penetrations:DRAW.penetrations, outlineDone:DRAW.outlineDone
+    penetrations:DRAW.penetrations, outlineDone:DRAW.outlineDone,
+    sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[]
   }));
   var snap=JSON.parse(DRAW.redoStack.pop());
   DRAW.outline=snap.outline; DRAW.sections=snap.sections;
   DRAW.lines=snap.lines; DRAW.penetrations=snap.penetrations;
   DRAW.outlineDone=snap.outlineDone;
+  if(snap.sheetPlanDeletedIds!==undefined) DRAW.sheetPlanDeletedIds=snap.sheetPlanDeletedIds;
   DRAW.selectedSection=-1; DRAW.selectedLine=-1; DRAW.selectedPen=-1;
   hidePropPanel(); redrawAll(); syncToRoofData();
+  try { renderRoofSheetPlan(); renderMaterialsCutLists(); } catch(e){}
 }
 
 function clearAll() {
@@ -25051,6 +25069,88 @@ document.addEventListener('mousedown',function(e){
 </body>
 <script>
 // Multi-roof dispatcher: when several roofs are drawn, iterate each and
+// ── Customisable sheet plan — Phase 1: click-to-delete sheets ──────
+// A stable per-sheet ID (centroid + ordered length + colour) survives
+// re-renders because the strip layout is deterministic for a given
+// outline+lines geometry.  Deleting a sheet stores its ID in
+// DRAW.sheetPlanDeletedIds; the renderer then skips its fill + label +
+// order count but keeps a dashed grey outline ("always show the sheet
+// lines").  Deleting a donor cascades to its paired offcut.
+function _sheetStripId(s){
+  var c = s.centroid || (s.poly && s.poly[0]) || [0, 0];
+  return Math.round(c[0]) + '_' + Math.round(c[1]) + '_' +
+    (s.orderedLengthMm || 0) + '_' + (s.color || '').replace('#','');
+}
+// Toggle Edit mode on the sheet plan card.
+function toggleSheetPlanEdit(){
+  window._sheetPlanEditMode = !window._sheetPlanEditMode;
+  var btn = document.getElementById('sheetPlanEditBtn');
+  var restore = document.getElementById('sheetPlanRestoreBtn');
+  var hint = document.getElementById('sheetPlanEditHint');
+  if (window._sheetPlanEditMode) {
+    if (btn) { btn.style.background = '#fef3c7'; btn.style.borderColor = '#fbbf24'; btn.textContent = '✓ Done editing'; }
+    if (restore) restore.style.display = '';
+    if (hint) hint.style.display = 'block';
+  } else {
+    if (btn) { btn.style.background = '#fff'; btn.style.borderColor = '#cbd5e1'; btn.textContent = '🔧 Edit sheets'; }
+    if (restore) restore.style.display = 'none';
+    if (hint) hint.style.display = 'none';
+  }
+  var canvas = document.querySelector('#roofSheetPlanOut canvas');
+  if (canvas) canvas.style.cursor = window._sheetPlanEditMode ? 'crosshair' : 'default';
+}
+// Restore every user-deleted strip.
+function restoreAllSheets(){
+  if (!DRAW.sheetPlanDeletedIds || !DRAW.sheetPlanDeletedIds.length) return;
+  saveSnapshot();
+  DRAW.sheetPlanDeletedIds = [];
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+  try { renderMatRoofMap(); } catch(e){}
+}
+// Ray-cast point-in-polygon on canvas-space coordinates.
+function _spPointInPoly(x, y, poly){
+  var inside = false;
+  for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    var xi = poly[i][0], yi = poly[i][1];
+    var xj = poly[j][0], yj = poly[j][1];
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi + 1e-10) + xi)) inside = !inside;
+  }
+  return inside;
+}
+// Click handler mounted on the sheet plan canvas.  In Edit mode a
+// click toggles the hit strip's ID in DRAW.sheetPlanDeletedIds and
+// re-renders everything downstream so the cut list + roof map update
+// in step with the removal.
+function _onSheetPlanCanvasClick(ev){
+  if (!window._sheetPlanEditMode) return;
+  var canvas = ev.currentTarget;
+  var strips = canvas._sheetPlanStrips;
+  var t = canvas._sheetPlanTransform;
+  if (!strips || !t) return;
+  var rect = canvas.getBoundingClientRect();
+  var cx = (ev.clientX - rect.left) * (canvas.width / rect.width);
+  var cy = (ev.clientY - rect.top)  * (canvas.height / rect.height);
+  function toC(p){ return [(p[0]-t.minX)*t.sc + t.padX, (p[1]-t.minY)*t.sc + t.padY]; }
+  var hit = null;
+  for (var i = 0; i < strips.length; i++) {
+    var s = strips[i];
+    if (!s.poly || s.poly.length < 3) continue;
+    var cpoly = s.poly.map(toC);
+    if (_spPointInPoly(cx, cy, cpoly)) { hit = s; break; }
+  }
+  if (!hit) return;
+  if (!Array.isArray(DRAW.sheetPlanDeletedIds)) DRAW.sheetPlanDeletedIds = [];
+  var id = hit._id || _sheetStripId(hit);
+  var idx = DRAW.sheetPlanDeletedIds.indexOf(id);
+  saveSnapshot();
+  if (idx >= 0) DRAW.sheetPlanDeletedIds.splice(idx, 1);
+  else          DRAW.sheetPlanDeletedIds.push(id);
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+  try { renderMatRoofMap(); } catch(e){}
+}
+
 // render its sheet plan into a labelled section.  Single-roof or
 // pre-multi-roof code paths go straight to the inner renderer.
 function renderRoofSheetPlan() {
@@ -28174,6 +28274,18 @@ function _renderRoofSheetPlanInner() {
   var ctx = cv.getContext('2d');
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
 
+  // ── User-deleted sheets (Phase 1 customisable sheet plan) ────────
+  // Stamp a stable ID on every strip and flag the ones the user
+  // removed.  Deleted donors cascade to their paired offcut so the
+  // hatched sibling disappears too.
+  var deletedSet = {};
+  (DRAW.sheetPlanDeletedIds || []).forEach(function(id){ deletedSet[id] = true; });
+  allStrips.forEach(function(s){ s._id = _sheetStripId(s); s._deleted = !!deletedSet[s._id]; });
+  allStrips.forEach(function(s){
+    if (s._deleted) return;
+    if (s.isOffcut && s._offcutSource && s._offcutSource._deleted) s._deleted = true;
+  });
+
   // Draw faces' background polygons (very faint) so empty areas read
   // as the face.
   faces.forEach(function(f){
@@ -28192,6 +28304,25 @@ function _renderRoofSheetPlanInner() {
   // see at a glance "this piece comes from the matching numbered
   // sheet on the donor face".
   allStrips.forEach(function(s){
+    if (s._deleted) {
+      // Deleted sheet — dashed grey outline only (no fill / hatch /
+      // label) so the roofer still sees where the sheet grid runs.
+      ctx.save();
+      ctx.beginPath();
+      s.poly.forEach(function(p, i){
+        var cc = toC(p);
+        if (i === 0) ctx.moveTo(cc[0], cc[1]);
+        else         ctx.lineTo(cc[0], cc[1]);
+      });
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+      return;
+    }
     ctx.save();
     ctx.beginPath();
     s.poly.forEach(function(p, i){
@@ -28259,6 +28390,7 @@ function _renderRoofSheetPlanInner() {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.lineWidth = 2;
   allStrips.forEach(function(s){
+    if (s._deleted) return;  // deleted strips carry no number badge
     var cc = toC(s.centroid);
     var lbl = String(s.seq);
     ctx.strokeText(lbl, cc[0], cc[1]);
@@ -28277,6 +28409,7 @@ function _renderRoofSheetPlanInner() {
   } catch(e){}
   var groups = {};
   allStrips.forEach(function(s){
+    if (s._deleted) return;  // user-deleted sheets drop out of the order count
     if (s.isOffcut) return;
     var key = s.color + ':' + s.orderedLengthMm;
     if (!groups[key]) groups[key] = { color: s.color, orderedMm: s.orderedLengthMm, count: 0 };
@@ -28335,6 +28468,13 @@ function _renderRoofSheetPlanInner() {
   };
 
   outEl.innerHTML = '';
+  // Wire up click-to-delete: stash the strips + image→canvas transform
+  // on the element and mount the click handler.  Cursor shows the edit
+  // affordance while Edit mode is on.
+  cv._sheetPlanStrips = allStrips;
+  cv._sheetPlanTransform = { minX: minX, minY: minY, sc: sc, padX: padX, padY: padY };
+  cv.addEventListener('click', _onSheetPlanCanvasClick);
+  if (window._sheetPlanEditMode) cv.style.cursor = 'crosshair';
   outEl.appendChild(cv);
   var dd = document.createElement('div');
   dd.innerHTML = legHtml;
