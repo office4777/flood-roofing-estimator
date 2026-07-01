@@ -27895,12 +27895,24 @@ function _renderRoofSheetPlanInner() {
           cy: rep.centroid ? rep.centroid[1] : 0,
         };
       });
+      // Auto-pick the primary reading axis from the roof's overall
+      // shape: a WIDE roof reads left→right (numbers march across the
+      // long axis), a TALL roof reads top→bottom.  Measured from the
+      // spread of every sheet's representative centroid.
+      var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      meta.forEach(function(m){
+        if (m.cx < minX) minX = m.cx; if (m.cx > maxX) maxX = m.cx;
+        if (m.cy < minY) minY = m.cy; if (m.cy > maxY) maxY = m.cy;
+      });
+      var wide = (maxX - minX) >= (maxY - minY);   // wider than tall → read across
       var byCol = {};
       meta.forEach(function(m){ (byCol[m.colour] = byCol[m.colour] || []).push(m); });
       Object.keys(byCol).forEach(function(col){
         byCol[col].sort(function(a, b){
           if (a.offcutOnly !== b.offcutOnly) return a.offcutOnly ? 1 : -1;  // donors first
-          return a.cy - b.cy || a.cx - b.cx;                                // then top→bottom, left→right
+          // Wide roof → left→right then top→bottom; tall roof → the flip.
+          return wide ? (a.cx - b.cx || a.cy - b.cy)
+                      : (a.cy - b.cy || a.cx - b.cx);
         });
         byCol[col].forEach(function(m, i){
           m.g.forEach(function(s){ s.seq = i + 1; });
