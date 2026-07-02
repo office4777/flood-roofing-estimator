@@ -1,0 +1,41 @@
+name: Sheet-layout tests
+
+# Gate the sheet-plan engine: every push / PR that touches the frontend
+# or the CI harness re-runs the L-shape sweep + sanity shapes and fails
+# if coverage isn't clean or the anchor sheet counts drift. This is the
+# automated backstop for the engine regression that slipped through when
+# two branches diverged.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'floodroofing/frontend/**'
+      - 'floodroofing/docs/ci_sheet_tests.js'
+      - 'package.json'
+      - '.github/workflows/sheet-tests.yml'
+  pull_request:
+    paths:
+      - 'floodroofing/frontend/**'
+      - 'floodroofing/docs/ci_sheet_tests.js'
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+jobs:
+  sheets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run sheet-layout test suite
+        run: npm run test:sheets
