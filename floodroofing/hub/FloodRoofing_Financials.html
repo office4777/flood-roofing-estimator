@@ -278,6 +278,23 @@ tr.wk-done td:nth-child(2){text-decoration:line-through;}
 .cmodal-x:active{transform:scale(.96);}
 .cash-detail{display:none;}
 #cmodal-body .cash-detail{display:block;margin-bottom:12px;}
+/* Inside the popup, drop the bright colour wash for a solid high-contrast card
+   (the wash + white text is what made the deposit popup hard to read). Keep a
+   coloured left-border + tinted title so each card still reads at a glance. */
+#cmodal-body .card.per-this,#cmodal-body .card.per-last,#cmodal-body .card.per-3mo,#cmodal-body .card.per-week{background:linear-gradient(180deg,var(--card),var(--bg2));box-shadow:0 8px 26px rgba(0,0,0,.45);}
+#cmodal-body .card.per-this{border-left:4px solid #38bdf8;}
+#cmodal-body .card.per-last{border-left:4px solid #a78bfa;}
+#cmodal-body .card.per-3mo{border-left:4px solid #fbbf24;}
+#cmodal-body .card.per-week{border-left:4px solid #34d399;}
+#cmodal-body .card.per-this .ct{color:#7dd3fc;}
+#cmodal-body .card.per-last .ct{color:#c4b5fd;}
+#cmodal-body .card.per-3mo .ct{color:#fcd34d;}
+#cmodal-body .card.per-week .ct{color:#6ee7b7;}
+#cmodal-body .card.per-this .period-sub,#cmodal-body .card.per-last .period-sub,#cmodal-body .card.per-3mo .period-sub,#cmodal-body .card.per-week .period-sub{color:var(--muted);}
+[data-theme="light"] #cmodal-body .card.per-this .ct{color:#0369a1;}
+[data-theme="light"] #cmodal-body .card.per-last .ct{color:#6d28d9;}
+[data-theme="light"] #cmodal-body .card.per-3mo .ct{color:#b45309;}
+[data-theme="light"] #cmodal-body .card.per-week .ct{color:#047857;}
 .cash-hidden{display:none;}
 .calwrap{overflow:auto;max-height:64vh;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;border:1px solid var(--border);border-radius:12px;background:var(--card2);position:relative;}
 .cal-row{display:flex;align-items:stretch;width:max-content;}
