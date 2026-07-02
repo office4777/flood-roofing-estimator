@@ -1,1 +1,22 @@
 .claude/
+
+# ── Generated artifacts (regenerate from the scripts in floodroofing/docs) ──
+# Test-render outputs and sample PDFs are products of the _test_*.js /
+# _export_*.js generators — keep the generators in git, not their output.
+floodroofing/docs/*.pdf
+floodroofing/docs/*_test_*.png
+floodroofing/docs/*_grid*.png
+floodroofing/docs/*_render*.png
+floodroofing/docs/proposal_modern_*.png
+floodroofing/docs/lshape_verification_grid.png
+floodroofing/docs/perfect_L_*.png
+floodroofing/docs/perfect_L_*.svg
+floodroofing/docs/bigL_*.png
+floodroofing/docs/*_dump.json
+
+# Local preview snapshots
+.preview/
+
+# Node
+node_modules/
+npm-debug.log*
