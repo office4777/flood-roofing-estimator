@@ -20080,6 +20080,39 @@ function _jpExtractLegendFrom(scope){
   });
   return out;
 }
+// Crop a canvas to its drawn content (non-white bounding box) + pad.
+// The roof canvas is mostly empty space around the drawing; cropping
+// first means the Job Pack picture's aspect ratio IS the roof's, so
+// the auto-fit below can blow it up to fill the page without dead
+// margins.  Samples every 2nd pixel — a ~1MP canvas scans in a few ms.
+function _cropCanvasToContent(srcCanvas, padPx){
+  try {
+    var W = srcCanvas.width, H = srcCanvas.height;
+    var data = srcCanvas.getContext('2d').getImageData(0, 0, W, H).data;
+    var minX = W, minY = H, maxX = -1, maxY = -1;
+    for (var y = 0; y < H; y += 2){
+      var row = y * W * 4;
+      for (var x = 0; x < W; x += 2){
+        var i = row + x * 4;
+        if (data[i+3] > 10 && !(data[i] > 246 && data[i+1] > 246 && data[i+2] > 246)){
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0 || maxX - minX < 40 || maxY - minY < 40) return null;
+    var pad = padPx || 24;
+    minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+    maxX = Math.min(W - 1, maxX + pad); maxY = Math.min(H - 1, maxY + pad);
+    var c = document.createElement('canvas');
+    c.width = maxX - minX + 1; c.height = maxY - minY + 1;
+    var cx = c.getContext('2d');
+    cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+    cx.drawImage(srcCanvas, minX, minY, c.width, c.height, 0, 0, c.width, c.height);
+    return c.toDataURL('image/png');
+  } catch(e){ return null; }
+}
+
 function _jpCaptureDetailed(roofIdx, opts){
   var src = document.getElementById('roofCanvas');
   if (!src || !src.width) return null;
@@ -20117,7 +20150,7 @@ function _jpCaptureDetailed(roofIdx, opts){
       DRAW.showAllRoofs = false;
     }
     redrawAll();
-    return src.toDataURL('image/png');
+    return _cropCanvasToContent(src, 30) || src.toDataURL('image/png');
   } finally {
     window._hideCalibrationOverlay = prevHideCal;
     window._matRoofMapHideBg = prevHideBg;
@@ -20352,6 +20385,31 @@ function _jpMountImagesOnPage(pageEl, page, pageIdx){
     if (im._cropping) wrap.classList.add('is-cropping');
     wrap.addEventListener('mousedown', function(ev){ _jpImgMouseDown(ev, pageIdx, im.id); });
     pageEl.appendChild(wrap);
+    // Auto-fit the app-shipped default map to the page: as big as the
+    // space below the header allows, aspect ratio preserved, centred,
+    // with a safety margin so nothing runs off the printed page.  The
+    // moment the user drags or resizes it (userSized), we stop fitting
+    // and their layout sticks.
+    if (/^(def|mig)_/.test(im.id || '') && !im.userSized) {
+      var probe = new Image();
+      probe.onload = function(){
+        if (!probe.naturalWidth || !probe.naturalHeight || !wrap.isConnected) return;
+        var pageW = pageEl.clientWidth || 690, pageH = pageEl.clientHeight || 1014;
+        var margin = 16;
+        var availW = pageW - 2 * margin;
+        var availH = pageH - im.y - margin;
+        if (availW < 60 || availH < 60) return;
+        var sc = Math.min(availW / probe.naturalWidth, availH / probe.naturalHeight);
+        var w = Math.floor(probe.naturalWidth * sc), h = Math.floor(probe.naturalHeight * sc);
+        if (Math.abs(w - im.w) < 3 && Math.abs(h - im.h) < 3) return;
+        im.w = w; im.h = h;
+        im.x = Math.max(margin, Math.round((pageW - w) / 2));
+        wrap.style.left = im.x + 'px';
+        wrap.style.width = w + 'px';
+        wrap.style.height = h + 'px';
+      };
+      probe.src = src;
+    }
   });
 }
 var _JP_IMG_DRAG = null;
@@ -20402,6 +20460,15 @@ function _jpImgMouseMove(ev){
 }
 function _jpImgMouseUp(){
   if (_JP_IMG_DRAG){
+    // A real drag/resize means the user owns this layout — the default
+    // auto-fit must stop overriding it on future renders.
+    if (_JP_IMG_DRAG.moved){
+      try {
+        var _pg = _jpState().pages[_JP_IMG_DRAG.pageIdx];
+        var _im = _pg && _pg.images && _pg.images.find(function(x){ return x.id === _JP_IMG_DRAG.imgId; });
+        if (_im) _im.userSized = true;
+      } catch(e){}
+    }
     try { autosaveJob && autosaveJob(); } catch(e){}
     _JP_IMG_DRAG = null;
   }
