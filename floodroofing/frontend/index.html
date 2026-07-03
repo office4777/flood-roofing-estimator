@@ -17383,8 +17383,10 @@ function redrawAll() {
     ctx.fillText(DRAW.scaleMetresPerPx>0?'Scale ref':'Calibrating...',cmx,cmy);
     ctx.restore();
   }
-  // Scale bar bottom-left
-  if(DRAW.scaleMetresPerPx>0){
+  // Scale bar bottom-left. Suppressed during the Job Pack capture
+  // (same signal as the grid + canvas background) so the exported roof-
+  // map picture shows only the roof, matching the on-screen Map Roof.
+  if(DRAW.scaleMetresPerPx>0 && !window._matRoofMapHideCanvasBg){
     var barM=10, barPx=Math.round(barM/DRAW.scaleMetresPerPx);
     if(barPx>10&&barPx<W*0.45){
       var sbX=10,sbY=H-22;
@@ -19402,23 +19404,44 @@ function _jpState(){
     });
     S.jobPack.pagesVersion = 4;
   }
+  // v4 → v5: the header used to ship TWO small side-by-side default map
+  // pictures (Detailed + Basic, ~310px wide). Replace the still-
+  // untouched app-generated defaults (ids starting def_/mig_, small
+  // width) with a SINGLE large Detailed map so the roof reads at
+  // roughly the same size as the on-screen Map Roof canvas. User-added
+  // maps (img_* ids) and any default the user manually resized are
+  // left exactly as they are.
+  if (!S.jobPack.pagesVersion || S.jobPack.pagesVersion < 5) {
+    (S.jobPack.pages || []).forEach(function(p){
+      if (!p || p.type !== 'header' || !Array.isArray(p.images)) return;
+      var isSmallDefault = function(im){
+        return im && /^(def|mig)_/.test(im.id || '') &&
+          (im.mapKey === 'detailed' || im.mapKey === 'basic') &&
+          typeof im.w === 'number' && im.w <= 360;
+      };
+      var hadSmallDefault = p.images.some(isSmallDefault);
+      if (!hadSmallDefault) return;
+      // Strip the small defaults, keep everything the user added.
+      p.images = p.images.filter(function(im){ return !isSmallDefault(im); });
+      // Drop one large Detailed map in their place.
+      p.images.push({ id:'def_dt_'+Date.now(), mapKey:'detailed', x:10, y:285, w:670, h:470 });
+    });
+    S.jobPack.pagesVersion = 5;
+  }
   return S.jobPack;
 }
 function _jpDefaultPages(){
-  // Page 1 ships with TWO default roof-map images pre-dropped as
-  // movable pictures (Detailed on the left, Basic on the right) so
-  // the user immediately sees a usable layout.  Subsequent pages
-  // cover the cut lists, flashings + consumables.  The old standalone
-  // Roof map + Sheet plan pages are gone — those maps now live on
-  // page 1 as draggable pictures the user can move, resize, or
-  // duplicate the same way they'd manage any image.
+  // Page 1 ships with ONE large Detailed roof-map picture pre-dropped
+  // so the map reads at roughly the same size as the on-screen Map Roof
+  // canvas — big and legible, spanning almost the full page width. The
+  // user can drag / resize it or add more maps (Basic, Sheet layout,
+  // Flashing ref) from the maps side-panel if they want.
   // A4 page CSS-pixel size at 96 dpi after 14mm padding ≈ 690 × 1014.
-  // Header strip eats ~110 px, leaving plenty of room below for two
-  // ~310 × 260 px maps side-by-side.
+  // Header strip (client + tile row) eats ~y:0..270, leaving the rest
+  // of the page for the map.
   return [
     { type:'header', images:[
-      { id:'def_dt_'+Date.now(),    mapKey:'detailed', x: 20,  y:280, w:310, h:300 },
-      { id:'def_bs_'+(Date.now()+1),mapKey:'basic',    x:355,  y:280, w:310, h:300 }
+      { id:'def_dt_'+Date.now(), mapKey:'detailed', x: 10, y:285, w:670, h:470 }
     ] },
     { type:'cutlists'    },
     { type:'flashings'   }
