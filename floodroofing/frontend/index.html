@@ -642,6 +642,7 @@ select{
 .mat-section-hd .swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.15)}
 .mat-section-hd h3{font-size:13.5px;font-weight:800;color:#0a1628;margin:0;letter-spacing:.4px;text-transform:uppercase}
 .mat-section-hd .meta{font-size:11px;color:var(--text2);font-weight:500;flex:1;min-width:120px}
+.mat-section-hd .hd-total{margin-left:auto;flex-shrink:0;font-size:11.5px;font-weight:800;color:#0a1628;white-space:nowrap;font-variant-numeric:tabular-nums}
 .mat-section-hd .mat-picker-slot{display:inline-flex;align-items:center;flex-shrink:0;margin-left:auto}
 .mat-section-sub{font-size:11.5px;color:var(--text2);margin:-2px 0 8px;line-height:1.5}
 /* Compact body — drawing thumbnail + cut-list table side-by-side */
@@ -20479,8 +20480,10 @@ function _jpRenderCutLists(content, page, idx){
   '</div>';
 
   // ── Roof sheets (email-style: "13 @ 6.21m") ──
-  html += '<div class="mat-section">'+
-    _matSectionHead('#0099cc', 'Roof sheets', esc(profile)+' · '+esc(grade)+' · '+esc(thickness));
+  // The banner is emitted AFTER the rows are built so the section
+  // total can ride on its far right (the old foot line under the rows
+  // made the section read messy).
+  html += '<div class="mat-section">';
   var sheetRows = _jpBuildSheetRows(sc);
   if (sheetRows.length || (Array.isArray(DRAW.matSheetExtras) && DRAW.matSheetExtras.length)) {
     var totalSheets = 0;
@@ -20516,10 +20519,12 @@ function _jpRenderCutLists(content, page, idx){
         '</div>';
       });
     }
-    html += '<div class="mat-list">'+rowsHtml+'</div>'+
-      '<div class="mat-list-foot">'+totalSheets+' sheets · '+d.roofArea.toFixed(1)+' m² roof</div>';
+    html += _matSectionHead('#0099cc', 'Roof sheets', esc(profile)+' · '+esc(grade)+' · '+esc(thickness),
+        totalSheets+' sheets · '+d.roofArea.toFixed(1)+' m² roof')+
+      '<div class="mat-list">'+rowsHtml+'</div>';
   } else {
-    html += '<div class="cut-list-empty">Generate the Roof Sheet Plan on the Map Roof tab to populate.</div>';
+    html += _matSectionHead('#0099cc', 'Roof sheets', esc(profile)+' · '+esc(grade)+' · '+esc(thickness))+
+      '<div class="cut-list-empty">Generate the Roof Sheet Plan on the Map Roof tab to populate.</div>';
   }
   html += '<button class="mat-add-btn" onclick="_jpSheetExtraAdd()">+ Add row</button>';
   html += '</div>';
@@ -20528,8 +20533,9 @@ function _jpRenderCutLists(content, page, idx){
   var ridgeSpec = _MAT_FLASHING_SPECS[0];
   var ridgeCl = _matBuildCutList('ridgehip', ridgeSpec.waste);
   html += '<div class="mat-section">'+
-    _matSectionHead(ridgeSpec.colour, 'Ridging', (ridgeType==='wide'?'Wide ridge':'Standard ridge')+' · '+esc(grade)+' · +'+ridgeSpec.waste.toFixed(1)+'m waste')+
-    _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.')+
+    _matSectionHead(ridgeSpec.colour, 'Ridging', (ridgeType==='wide'?'Wide ridge':'Standard ridge')+' · '+esc(grade)+' · +'+ridgeSpec.waste.toFixed(1)+'m waste',
+      ridgeCl.pieceCount ? ridgeCl.pieceCount+' pcs · '+ridgeCl.totalLm.toFixed(1)+' m' : '')+
+    _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.', true)+
   '</div>';
 
   // ── Letter labels toggle — controls the A/B/C reference letters on
@@ -20548,12 +20554,13 @@ function _jpRenderCutLists(content, page, idx){
       'marley-classic':'Marley Classic (PVC)',
       'marley-typhoon':'Marley Typhoon (PVC)'
     }[gutterChoice] || gutterChoice;
-    html += '<div class="mat-section">'+
-      _matSectionHead('#7c3aed', 'Gutters (Gutter, Brackets and Droppers)', esc(gutterLabel));
     var gCl = _matBuildCutList('gutter', 0);
+    html += '<div class="mat-section">'+
+      _matSectionHead('#7c3aed', 'Gutters (Gutter, Brackets and Droppers)', esc(gutterLabel),
+        gCl.pieceCount ? gCl.pieceCount+' pcs · '+gCl.totalLm.toFixed(1)+' m' : '');
     html += gCl.pieceCount === 0
       ? '<div class="cut-list-empty">Draw gutter lines on the Map Roof tab to populate this list.</div>'
-      : _matCutListTable(gCl, '');
+      : _matCutListTable(gCl, '', true);
     html += '</div>';
   }
 
@@ -20684,10 +20691,10 @@ function _jpRenderFlashingCell(box, bi){
   });
   var addRowBtn = '<button class="mat-add-btn" onclick="_matExtrasAdd(\''+esc(spec.key)+'\')" style="align-self:flex-start">+ Add row</button>';
   return '<div class="mat-fl-card">'+
-    '<div class="mat-fl-head"><span class="mat-dot" style="background:'+spec.colour+'"></span><strong>'+esc(spec.label)+'</strong></div>'+
+    '<div class="mat-fl-head"><span class="mat-dot" style="background:'+spec.colour+'"></span><strong>'+esc(spec.label)+'</strong>'+
+      '<span style="margin-left:auto;flex-shrink:0;font-size:11px;font-weight:800;color:#0a1628;font-variant-numeric:tabular-nums;white-space:nowrap">'+cl.pieceCount+' pcs · '+cl.totalLm.toFixed(1)+' m</span></div>'+
     drawing +
     '<div class="mat-fl-rows">'+rowsHtml+'</div>'+
-    '<div class="mat-fl-foot"><span>Total '+cl.pieceCount+' pcs</span><span>'+cl.totalLm.toFixed(1)+' m</span></div>'+
     addRowBtn +
   '</div>';
 }
@@ -20851,14 +20858,18 @@ function _jpRenderConsumablesSection(d){
 // pages.  Renders the coloured dot + bold title + dim meta line so
 // every section on the materials surfaces reads identically (was
 // duplicated as inline-styled HTML in four separate places).
-function _matSectionHead(colour, title, meta){
+function _matSectionHead(colour, title, meta, total){
   // Emit the same shaded full-width banner as renderMaterialsCutLists
   // so the Job Pack Designer cut-lists page matches the live Materials
   // tab visually. Uses .mat-section-hd / .swatch / h3 / .meta.
+  // `total` (optional) rides on the far right of the banner — the
+  // section's item total lives here instead of a foot line under the
+  // rows, so the section ends cleanly at its last row.
   return '<div class="mat-section-hd">'+
     '<span class="swatch" style="background:'+colour+'"></span>'+
     '<h3>'+esc(title)+'</h3>'+
     (meta ? '<span class="meta">'+meta+'</span>' : '')+
+    (total ? '<span class="hd-total">'+total+'</span>' : '')+
   '</div>';
 }
 
@@ -22017,11 +22028,13 @@ function _matCompactSection(opts) {
 // DRAW.flashLayoutOverrides for every matching line. A small × button
 // at the end of each row deletes the entry from the cut list (marks
 // every matching line as hidden in the overrides map). No popups.
-function _matCutListTable(cl, emptyMsg) {
+function _matCutListTable(cl, emptyMsg, noFoot) {
   // Email-style cut list — reads like the supplier order ("5 @ 5.5m"
   // per line) instead of a full row+column table.  Each line is an
   // inline qty / length / delete input, borderless until hovered, so
   // the section looks plain on paper but stays fully editable.
+  // noFoot: the caller shows the section total on the banner's far
+  // right instead, so skip the foot line under the rows.
   var typeKey = cl.typeKey || '';
   var refsOn = (typeof _matShowFlashRefs === 'function') ? _matShowFlashRefs() : true;
   var addBtn = typeKey
@@ -22060,7 +22073,7 @@ function _matCutListTable(cl, emptyMsg) {
     '</div>';
   });
   return '<div class="mat-list">'+rowsHtml+'</div>'+
-    '<div class="mat-list-foot">'+cl.pieceCount+' pcs · '+cl.totalLm.toFixed(1)+' m total</div>'+
+    (noFoot ? '' : '<div class="mat-list-foot">'+cl.pieceCount+' pcs · '+cl.totalLm.toFixed(1)+' m total</div>')+
     addBtn;
 }
 // Per-row drawing pick — each piece can use a different library entry
