@@ -1686,7 +1686,7 @@ html.pdf-rendering .jp-page input[type="checkbox"]{ display:none!important; }
     function onGoogleMapsLoaded() {
       googleMapsReady = true;
       initAddressAutocomplete();
-      console.log('Google Maps loaded');
+
     }
   </script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
@@ -6157,7 +6157,7 @@ function drawAILines(result) {
       DRAW.lines.push({type:'unknown',pts:[oa,ob],label:'',measM:null,lengthM:'',sheetLengthM:null});
       validLines++;
     }
-    console.log('Outline mode: drew',validLines,'perimeter lines');
+
     saveSnapshot(); redrawAll(); updateMeasTotals();
     return;
   }
@@ -6213,7 +6213,7 @@ function drawAILines(result) {
     if(result.outline && result.outline.length>=3) DRAW.outline=result.outline.map(pct);
   }
 
-  console.log('AI lines applied:', validLines);
+
   saveSnapshot();
   redrawAll();
   updateMeasTotals();
@@ -12379,7 +12379,11 @@ function saveFlashSketch(){
     try {
       localStorage.setItem('fr_mat_row_drawing_custom_' + pend.typeKey + '_' + pend.rowIdx, url);
       localStorage.setItem(_matRowDrawingKey(pend.typeKey, pend.rowIdx), '__custom__');
-    } catch(e){}
+    } catch(e){
+      // Quota exceeded — the sketch would silently revert to the default
+      // drawing on reload, which reads as "my custom flashing vanished".
+      alert('Couldn\'t store the custom drawing (browser storage is full).\nDelete some older custom drawings and try again.');
+    }
     closeFlashSketch();
     try { renderMaterialsCutLists(); } catch(e){}
     return;
@@ -13996,7 +14000,7 @@ async function pushQuoteToJMS(){
     // body shape is. Logged to the console for debugging.
     try {
       var qData = await qResp.json();
-      console.log('[Fergus quote pushed]', qData);
+      
       window._lastFergusQuote = qData;
     } catch(e){}
     S.linkedJobId = jobId;
@@ -22124,6 +22128,12 @@ function _matFlashingDrawing(kind) {
 function renderMaterialsCutLists() {
   var out = document.getElementById('matCutLists');
   if (!out) return;
+  // This legacy card is CSS-hidden (.jp-legacy) — its sibling inputs
+  // (profile/grade/gutter selects) are still live state read by the
+  // Job Pack renderers, but painting the big cut-list table into a
+  // hidden card on every material tweak is pure wasted work.  Only
+  // render when it's actually visible (legacy print flow shows it).
+  if (out.offsetParent === null && !document.documentElement.classList.contains('print-materials')) return;
   var d = _matDrawTotals();
   var profile   = (document.getElementById('matProfile')   || {}).value || 'Corrugate';
   var grade     = (document.getElementById('matGrade')     || {}).value || 'Colorsteel Maxam';
@@ -25826,7 +25836,19 @@ document.addEventListener('mousedown',function(e){
   function initMap() {
     var md = document.getElementById('aerialLeafletMap2');
     if (!md || window._aerialMap) return;
-    if (typeof mapboxgl === 'undefined') { setTimeout(initMap, 200); return; }
+    if (typeof mapboxgl === 'undefined') {
+      // The Mapbox script loads from its CDN — offline it never arrives.
+      // Cap the retries and say so instead of spinning forever.
+      window._mapboxWaits = (window._mapboxWaits || 0) + 1;
+      if (window._mapboxWaits > 100) {   // ~20s
+        if (md && !md.dataset.offlineNote) {
+          md.dataset.offlineNote = '1';
+          md.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;font-size:13px;text-align:center;padding:20px">Satellite map unavailable — no internet connection.<br>Drawing and measuring still work without it.</div>';
+        }
+        return;
+      }
+      setTimeout(initMap, 200); return;
+    }
     mapboxgl.accessToken = T;
     var map = new mapboxgl['Map']({container:md, style:'mapbox://styles/mapbox/satellite-streets-v12', center:[174.3166,-35.7275], zoom:13, maxZoom:22});
     map.addControl(new mapboxgl.NavigationControl(), 'top-left');
