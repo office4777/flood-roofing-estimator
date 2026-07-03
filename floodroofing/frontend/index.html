@@ -7312,6 +7312,61 @@ function _gutterDelta(){
   return parseFloat((S.quote.gutterPrices||{})[g]) || 0;
 }
 
+// ── "Selections" page pricing (page 4) ──────────────────────────
+// The customer-facing Selections page lets the client change steel
+// grade / thickness / gutter / brackets from the quoted standard spec
+// (MAXAM · 0.40 gauge · no new gutter · external brackets).  Each
+// non-default pick is listed under the base quote price with its
+// add-on.  Gutter adds come from Settings → Quote defaults (ex-GST);
+// grade / thickness / bracket changes show as "Included" until a
+// price is configured for them.
+function _qpSelectionChanges(){
+  var q = S.quote || {};
+  var p = q.proposalOptions || {};
+  var gp = q.gutterPrices || {};
+  var out = [];
+  var gradeNames = { colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume® (unpainted)' };
+  if (p.steelGrade && p.steelGrade !== 'maxam')
+    out.push({ label: (gradeNames[p.steelGrade] || p.steelGrade) + ' steel', delta: 0 });
+  if (p.steelThickness && p.steelThickness !== '40')
+    out.push({ label: '0.55 gauge steel', delta: 0 });
+  if (p.gutterType !== undefined) {
+    // Page-4 pick is canonical once made (including an explicit
+    // "none") — it overrides the legacy Option-C gutter choice so the
+    // add-on can never double-count.
+    var gmap = {
+      box125:         { name: '125mm Colorsteel Box Gutter', key: 'box' },
+      marley_typhoon: { name: 'Marley Typhoon (PVC)',        key: 'marley' },
+      marley_classic: { name: 'Marley Classic (PVC)',        key: 'marley' }
+    };
+    var gm = gmap[p.gutterType];
+    if (gm) {
+      out.push({ label: gm.name, delta: parseFloat(gp[gm.key]) || 0 });
+      if (p.gutterBracket === 'internal')
+        out.push({ label: 'Internal gutter brackets', delta: 0 });
+    }
+  } else if (_gutterDelta()) {
+    // Legacy Option-C gutter pick (quotes made before the Selections page).
+    out.push({
+      label: q.gutterChoice === 'box' ? '125mm Colorsteel Box Gutter'
+           : q.gutterChoice === 'marley' ? 'Marley Typhoon (PVC)' : 'Guttering',
+      delta: _gutterDelta()
+    });
+  }
+  return out;
+}
+function _qpSelectionDeltaSum(){
+  return _qpSelectionChanges().reduce(function(s, c){ return s + c.delta; }, 0);
+}
+// Base quote scope (ex-GST): the selected options' total when the
+// quote uses the options model, else the plain scope subtotal — the
+// same figure the pricing page's card shows.
+function _qpBaseSub(){
+  var opts = ((S.quote && S.quote.options) || []).filter(function(o){ return o.selected !== false; });
+  if (opts.length) return opts.reduce(function(s, o){ return s + _optEffectiveTotal(o); }, 0);
+  return (typeof quoteSubtotal === 'function') ? quoteSubtotal() : 0;
+}
+
 // Recompute the selected combined totals and update every figure on the
 // printed Price page in place (no full re-render — keeps scroll + state).
 function recalcQuoteSelectedTotals(){
@@ -7319,7 +7374,7 @@ function recalcQuoteSelectedTotals(){
   var rate = (S.quote.gstRate || 0) / 100;
   var sub = S.quote.options.filter(function(x){ return x.selected !== false; })
                            .reduce(function(s,x){ return s + _optEffectiveTotal(x); }, 0)
-            + _gutterDelta();
+            + _qpSelectionDeltaSum();   // Selections-page add-ons (incl. legacy gutter fallback)
   var gst = sub * rate, tot = sub + gst, dep = tot * 0.5;
   var setM = function(eid, v){ var el = document.getElementById(eid); if (el) el.textContent = fmtMoney(v); };
   setM('qpSelSub', sub); setM('qpSelGst', gst); setM('qpSelTot', tot); setM('qpSelDep', dep);
@@ -7428,16 +7483,20 @@ function buildAcceptSummaryRows(){
       '</div>';
     }).join('');
   } else {
-    rows = '<div class="ed-body" style="font-size:12px;color:var(--ed-text2)">No options selected.</div>';
+    // Option-less quote — the base scope is the quote itself.
+    rows = '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
+      '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">Main scope of work</div>'+
+      '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+fmtMoney(_qpBaseSub()*(1+rate))+'</div>'+
+    '</div>';
   }
-  var gd = _gutterDelta();
-  if (gd){
-    var gName = S.quote.gutterChoice==='box' ? 'Colorsteel 125mm Box Gutter'
-              : S.quote.gutterChoice==='marley' ? 'Marley Typhoon PVC' : 'Guttering';
+  // Selections-page changes (steel / gutter / brackets) — the same
+  // unified list as page 4, including the legacy Option-C gutter
+  // fallback, so nothing is listed or charged twice.
+  _qpSelectionChanges().forEach(function(c){
     rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
-      '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">'+esc2(gName)+'</div>'+
-      '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+fmtMoney(gd*(1+rate))+'</div></div>';
-  }
+      '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">'+esc2(c.label)+'</div>'+
+      '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+(c.delta ? '+'+fmtMoney(c.delta*(1+rate)) : 'Included')+'</div></div>';
+  });
   return rows;
 }
 // Digital acceptance — records who accepted, when, the selected options +
@@ -7452,7 +7511,9 @@ function acceptQuoteDigitally(){
   if (termsEl && !termsEl.checked){ alert('Please tick the box to confirm you accept the quote and the terms & conditions.'); try{termsEl.scrollIntoView({block:'center'});}catch(e){} return; }
   var rate = (S.quote.gstRate||0)/100;
   var sel = (S.quote.options||[]).filter(function(o){ return o.selected !== false; });
-  var sub = sel.reduce(function(s,o){ return s + _optEffectiveTotal(o); }, 0) + _gutterDelta();
+  // Same maths as the Selections page's "New total" + the acceptance
+  // page display, so the recorded figure matches what the client saw.
+  var sub = _qpBaseSub() + _qpSelectionDeltaSum();
   var acceptedOptions = sel.map(function(o){
     var g = 'Standard';
     if (o.selectedUpgrade){ var u=(o.upgrades||[]).find(function(x){return x.id===o.selectedUpgrade;}); if (u) g=u.title||'Upgrade'; }
@@ -8384,7 +8445,10 @@ function _buildRoofOutlinePreview(roof, opts){
 // multi-roof archive yet) so it always shows whatever's currently on
 // the Map Roof tab. A 'Refresh from Map Roof' button sits above the
 // previews (hidden in print) so the user can re-capture after edits.
-function _buildRoofPreviewsHtml(){
+function _buildRoofPreviewsHtml(opts){
+  // opts.small: compact fixed-height box (page 3 — Main scope of work)
+  // instead of the full-width map block.
+  opts = opts || {};
   var imgs = [];
   if (DRAW.roofs && DRAW.roofs.length) {
     // Use stored snapshots — active roof's live state is also synced
@@ -8400,6 +8464,21 @@ function _buildRoofPreviewsHtml(){
     if (url) imgs.push({ url: url, name: 'Roof map' });
   }
   if (!imgs.length) return '';
+  if (opts.small) {
+    // Compact fixed box — capped height, centred, bordered; sits
+    // beside/below the price card without dominating the page.
+    return '<div class="qp-roofmap" style="margin-top:14px;border:1px solid var(--ed-line);background:#fff;padding:10px 12px">'+
+      '<div class="ed-eyebrow" style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'+
+        '<span>Roof map</span>'+
+        '<button type="button" class="no-print" onclick="refreshQuoteProposal()" style="margin-left:auto;padding:2px 8px;font-size:9.5px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;cursor:pointer;font-family:var(--ed-sans);color:var(--ed-ink-2);letter-spacing:.04em">↻ Refresh</button>'+
+      '</div>'+
+      '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">'+
+        imgs.map(function(im){
+          return '<img src="'+im.url+'" alt="'+esc2(im.name)+'" style="display:block;max-width:100%;max-height:170px;width:auto;height:auto;background:#fff">';
+        }).join('')+
+      '</div>'+
+    '</div>';
+  }
   var gridStyle = (imgs.length === 1)
     ? 'display:block;text-align:center'
     : 'display:grid;grid-template-columns:repeat('+Math.min(imgs.length, 2)+',1fr);gap:10px';
@@ -8948,13 +9027,9 @@ function refreshQuoteProposal(){
     ];
     partCondition =
       edHeading('02','Inspection report','Existing roof condition')+
-      // Roof map preview — moved here from page 3 (Scope of work)
-      // per the user's request so the install crew sees the drawn
-      // outline up-front alongside the rest of the inspection report,
-      // and the pricing page has room for the included/excluded
-      // panels.  _buildRoofPreviewsHtml self-hides when no roof has
-      // been drawn yet, so jobs without a map don't show empty chrome.
-      _buildRoofPreviewsHtml()+
+      // (The roof map lives on page 3 — Main scope of work — as a
+      // compact fixed box beside the price card, per the user's
+      // request; this page keeps its room for the condition photos.)
       // Roof details strip — each value cell is inline-editable
       '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:14px 0;margin-bottom:18px">'+
         detailItems.map(function(it){
@@ -9164,7 +9239,8 @@ function refreshQuoteProposal(){
       '</div>';
     };
     partInclusions =
-      edHeading('03','Scope of work','The work &amp; the cost')+
+      edHeading('03','Scope of work','Main scope of work')+
+      _buildRoofPreviewsHtml({ small: true })+
       // Roof previews USED to render here too — they now live at the
       // top of page 2 (Inspection report / Existing roof condition)
       // so the pricing page has full vertical real-estate for the
@@ -9363,16 +9439,18 @@ function refreshQuoteProposal(){
         '</div>'
       : '';
     partInclusions =
-      edHeading('03','Your investment','Quote inclusions &amp; pricing')+
-      // Roof map preview lives on page 2 (Inspection report) — this
-      // page is for the price card + what's included / not included.
+      edHeading('03','Your investment','Main scope of work')+
+      // The roof map rides in the right column as a compact fixed box
+      // under the price card (moved off page 2 per the user's request).
       '<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:30px;align-items:start">'+
         // Left — what's included
         '<div>'+
           '<div class="ed-eyebrow" style="margin-bottom:8px">What\'s included</div>'+
           inclList+
         '</div>'+
-        // Right — price card (big total, subtotal, GST, deposit)
+        // Right — price card (big total, subtotal, GST, deposit) +
+        // compact roof map box.
+        '<div>'+
         '<div style="background:var(--ed-ink);color:#fff;padding:24px 26px">'+
           '<div class="ed-eyebrow" style="color:rgba(255,255,255,.6)">Total incl. GST</div>'+
           '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:40px;line-height:1.05;color:#fff;margin-top:6px">'+fmtMoney(tot0)+'</div>'+
@@ -9382,6 +9460,8 @@ function refreshQuoteProposal(){
             '<div style="display:flex;justify-content:space-between;padding:8px 0 0;margin-top:6px;border-top:1px solid rgba(255,255,255,.18);font-weight:600;color:#fff"><span>50% deposit</span><span>'+fmtMoney(_dep0)+'</span></div>'+
           '</div>'+
           '<div style="font-family:var(--ed-sans);font-size:10.5px;color:rgba(255,255,255,.6);margin-top:14px;line-height:1.5">Deposit secures your spot in the schedule. Balance due within 7 days of completion.</div>'+
+        '</div>'+
+        _buildRoofPreviewsHtml({ small: true })+
         '</div>'+
       '</div>'+
       itemTable+
@@ -9462,8 +9542,33 @@ function refreshQuoteProposal(){
           '</button>';
         }).join('');
       }
+      // Pricing summary for the picks: base quote scope, each
+      // non-default selection with its add-on, and the new total.
+      var _selRate = (S.quote.gstRate||0)/100;
+      var _selBaseTot = _qpBaseSub() * (1+_selRate);
+      var _selChanges = _qpSelectionChanges();
+      var _selNewTot = (_qpBaseSub() + _qpSelectionDeltaSum()) * (1+_selRate);
+      var _selRow = function(label, value, opts2){
+        opts2 = opts2 || {};
+        return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 14px;'+
+          (opts2.top ? 'border-top:2px solid var(--ed-ink);' : 'border-top:1px solid var(--ed-line);')+
+          (opts2.strong ? 'background:var(--ed-paper-2);' : '')+'">'+
+          '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink'+(opts2.strong?'':'-2')+');'+(opts2.strong?'font-weight:700;':'')+'">'+label+'</div>'+
+          '<div class="ed-serif" style="font-size:'+(opts2.strong?'16px':'13px')+';font-weight:600;white-space:nowrap;color:'+(opts2.strong?'var(--ed-accent)':'var(--ed-ink)')+'">'+value+'</div>'+
+        '</div>';
+      };
+      var _selPricing =
+        '<div style="margin-top:14px;border:1px solid var(--ed-line);border-top:none">'+
+          _selRow('<strong style="color:var(--ed-ink)">Base quote — main scope of work</strong> <span style="color:var(--ed-text2)">(incl. GST)</span>', fmtMoney(_selBaseTot), { top: true })+
+          (_selChanges.length
+            ? _selChanges.map(function(c){
+                return _selRow('&#8627; '+esc2(c.label), c.delta ? '+'+fmtMoney(c.delta*(1+_selRate)) : 'Included');
+              }).join('')
+            : _selRow('<span style="font-style:italic;color:var(--ed-text2)">Standard selections — no price change</span>', ''))+
+          _selRow('New total <span style="font-weight:400;color:var(--ed-text2)">(incl. GST)</span>', fmtMoney(_selNewTot), { strong: true })+
+        '</div>';
       partOptionsSelections =
-        edHeading('04','Choose your options','Steel grade, thickness &amp; gutter')+
+        edHeading('04','Choose your options','Selections')+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:18px">'+
           '<div>'+
             '<div class="ed-eyebrow" style="margin-bottom:8px">Steel grade <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— tap a card</span></div>'+
@@ -9490,7 +9595,8 @@ function refreshQuoteProposal(){
           (pOpts.gutterType && pOpts.gutterType !== 'none'
             ? ' · ' + esc2((BRACKETS.find(function(b){return b.id===(pOpts.gutterBracket||'external');})||{}).label||'—')
             : '')+
-        '</div>';
+        '</div>'+
+        _selPricing;
     }
 
     partColorsteel =
@@ -9806,8 +9912,9 @@ function refreshQuoteProposal(){
   if (on('signature')) {
     var dateLine = (S.quote.date || new Date().toLocaleDateString('en-NZ'));
     var accRate = (S.quote.gstRate||0)/100;
-    var accSub = opts.filter(function(o){ return o.selected !== false; })
-                     .reduce(function(s,o){ return s + _optEffectiveTotal(o); }, 0) + _gutterDelta();
+    // Base scope + the Selections-page add-ons — the SAME maths as the
+    // "New total" on page 4, so the two figures always match.
+    var accSub = _qpBaseSub() + _qpSelectionDeltaSum();
     var accTot = accSub * (1+accRate);
     var acc = S.quote.accepted;
     partSignature =
