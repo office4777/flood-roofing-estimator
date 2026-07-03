@@ -12784,6 +12784,17 @@ function _setSheetTextScale(v){
   try { redrawAll(); } catch(e){}
   try { renderMatRoofMap(); } catch(e){}
 }
+// One-time reset (runs at load): the base label size is now
+// auto-proportioned to the drawing, so any old saved multiplier (tuned
+// to compensate the fixed 10px base on one specific map) would
+// double-apply.  Everyone starts at 1.0× under the new sizing; the
+// slider is a fine-tune from there.
+try {
+  if (!localStorage.getItem('fr_sheet_text_scale_v2')) {
+    localStorage.setItem('fr_sheet_text_scale', '1');
+    localStorage.setItem('fr_sheet_text_scale_v2', '1');
+  }
+} catch(e){}
 function _syncSheetTextScaleUi(){
   var saved = parseFloat(localStorage.getItem('fr_sheet_text_scale') || '1') || 1;
   if (!isFinite(saved) || saved < 0.5) saved = 1;
@@ -17657,12 +17668,20 @@ function redrawAll() {
     _sheetDims.forEach(function(d){ if (d.sdl > _maxSdl) _maxSdl = d.sdl; });
     var _shTextScale = parseFloat(localStorage.getItem('fr_sheet_text_scale') || '1') || 1;
     if (!isFinite(_shTextScale) || _shTextScale < 0.5) _shTextScale = 1;
+    // Auto base size, proportionate to THIS drawing: maps differ wildly
+    // in pixels-per-metre (photo-calibrated ones span thousands of px,
+    // hand-drawn ones a few hundred), so a fixed 10px base meant the
+    // user re-tuning the Sheet-text slider per job (4.0× on one map,
+    // 1.4× on the next).  Keying the base off the longest sheet span
+    // makes 1.0× look right everywhere; the slider stays as a personal
+    // fine-tune on top.
+    var _shAutoBase = Math.min(44, Math.max(8, _maxSdl * 0.13));
     _sheetDims.forEach(function(d){
       // Manual sheet measures (d.fullSize === true) always render at
       // the longest-sheet font, so a small drawn span doesn't shrink
       // the label below the auto-labelled sheets next to it.
       var ratio  = d.fullSize ? 1 : (d.sdl / _maxSdl);       // 0..1 (1 = longest sheet)
-      var fontPx = Math.max(7, 10 * ratio) * _shTextScale;    // user-multiplied size
+      var fontPx = Math.max(7, _shAutoBase * ratio) * _shTextScale;    // user-multiplied size
       var af     = fontPx / 10;                              // arrow scale tracks the font
       ctx.font = '600 ' + fontPx.toFixed(1) + 'px Inter, -apple-system, sans-serif';
       ctx.lineJoin = 'round';
