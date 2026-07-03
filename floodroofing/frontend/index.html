@@ -12714,7 +12714,10 @@ function duplicateSavedFlashing(savedIdx){
 // restores what the user had. renderMatRoofMap and a small CSS-class hook
 // on #roofSheetPlanCard read these values when rendering.
 function _matMapView(){ return localStorage.getItem('fr_mat_map_view') || 'detailed'; }
-function _matShowFlashRefs(){ return localStorage.getItem('fr_mat_show_flash_refs') !== '0'; }
+// Flashing reference letters are OFF by default now (revised brief) —
+// the tick brings them back.  An explicit earlier '1'/'0' choice is
+// preserved; only the never-touched default flips.
+function _matShowFlashRefs(){ return localStorage.getItem('fr_mat_show_flash_refs') === '1'; }
 function _matShowSheetPlan(){ return localStorage.getItem('fr_mat_show_sheet_plan') !== '0'; }
 function _setMatMapView(v){
   if (v !== 'detailed' && v !== 'basic') v = 'detailed';
@@ -20948,7 +20951,14 @@ function _jpRenderHeader(content, page, idx){
       '<div style="text-align:right;font-size:10px;color:#374151;line-height:1.55;min-width:160px">'+
         '<div><strong style="color:#0a1628">Job #:</strong> '+inlineField('matJobNumber', jobNum, '—')+'</div>'+
         '<div><strong style="color:#0a1628">Date:</strong> '+esc(date)+'</div>'+
-        '<div><strong style="color:#0a1628">Delivery:</strong> '+(delMode==='site' ? inlineField('matDeliveryAddr', delAddr || addr, '—') : 'To yard')+'</div>'+
+        // Two tickable delivery options — glyph boxes (not real
+        // checkboxes) so the ticked state prints on the PDF, where
+        // checkbox inputs are stripped.
+        '<div><strong style="color:#0a1628">Delivery:</strong> '+
+          '<span onclick="setMatDelivery(\'yard\');renderJobPack()" title="Deliver to yard" style="cursor:pointer;margin-left:6px;white-space:nowrap;'+(delMode!=='site'?'font-weight:700;color:#0a1628':'color:#6f6a60')+'">'+(delMode!=='site'?'☑':'☐')+' Deliver to yard</span>'+
+          '<span onclick="setMatDelivery(\'site\');renderJobPack()" title="Deliver to site" style="cursor:pointer;margin-left:10px;white-space:nowrap;'+(delMode==='site'?'font-weight:700;color:#0a1628':'color:#6f6a60')+'">'+(delMode==='site'?'☑':'☐')+' Deliver to site</span>'+
+          (delMode==='site' ? '<span style="margin-left:8px">'+inlineField('matDeliveryAddr', delAddr || addr, '—')+'</span>' : '')+
+        '</div>'+
         '<div style="margin-top:3px;color:#6f6a60">'+esc(brand)+'</div>'+
       '</div>'+
     '</div>' +
@@ -21036,6 +21046,31 @@ function _matGutterPieces(){
 function _matGutterPref(key, val){
   try { localStorage.setItem(key, String(val == null ? '' : val)); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
+}
+// Manual extra gutter rows ({qty, len} in metres) — counted into the
+// banner total and the dropper/bracket autos like drawn runs.
+function _matGutterExtrasGet(){
+  try {
+    var a = JSON.parse(localStorage.getItem('fr_gutter_extras') || 'null');
+    return Array.isArray(a) ? a : [];
+  } catch(e){ return []; }
+}
+function _matGutterExtrasSet(a){
+  try { localStorage.setItem('fr_gutter_extras', JSON.stringify(a)); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _matGutterExtraAdd(){
+  var a = _matGutterExtrasGet(); a.push({ qty: 1, len: 3.0 }); _matGutterExtrasSet(a);
+}
+function _matGutterExtraUpdate(i, field, val){
+  var a = _matGutterExtrasGet(); if (!a[i]) return;
+  var n = parseFloat(val);
+  if (field === 'qty') a[i].qty = Math.max(0, parseInt(val, 10) || 0);
+  else a[i].len = (isFinite(n) && n > 0) ? n : a[i].len;
+  _matGutterExtrasSet(a);
+}
+function _matGutterExtraRemove(i){
+  var a = _matGutterExtrasGet(); a.splice(i, 1); _matGutterExtrasSet(a);
 }
 function _matGutterTypeSet(v){
   var sel = document.getElementById('matGutter');
@@ -21216,6 +21251,12 @@ function _jpRenderCutLists(content, page, idx){
   ];
   var gutterChoice = (document.getElementById('matGutter') || {}).value || 'none';
   var gPieces = _matGutterPieces();
+  // Manual extra rows expand into pieces so the banner total and the
+  // dropper/bracket autos treat them exactly like drawn runs.
+  var gExtras = _matGutterExtrasGet();
+  gExtras.forEach(function(x){
+    for (var xi = 0; xi < (x.qty || 0); xi++) gPieces.push({ lengthM: +x.len || 0, _extra: true });
+  });
   var gTotalLm = gPieces.reduce(function(s, p){ return s + p.lengthM; }, 0);
   var _gInclRaw = localStorage.getItem('fr_jp_gutter_include');
   var gutterIncluded = _gInclRaw != null
@@ -21243,12 +21284,14 @@ function _jpRenderCutLists(content, page, idx){
       GUTTER_TYPES.map(function(t){ return '<option value="'+t[0]+'"'+(t[0]===gutterChoice?' selected':'')+'>'+esc(t[1])+'</option>'; }).join('')+
     '</select>';
     html += '<div class="cons-row"><div class="cons-row-label">Gutter type</div><div class="cons-row-qty" style="font-weight:400">'+gTypeSel+'</div><div class="cons-row-sub"></div></div>';
-    // Gutter runs, grouped by length like the ridging list.
-    if (!gPieces.length) {
-      html += '<div class="cut-list-empty">Draw gutter lines on the Map Roof tab to populate this list.</div>';
-    } else {
+    // Gutter runs, grouped by length like the ridging list (drawn runs
+    // only — manual extras get their own editable rows below).
+    var gDrawn = gPieces.filter(function(p){ return !p._extra; });
+    if (!gDrawn.length && !gExtras.length) {
+      html += '<div class="cut-list-empty">Draw gutter lines on the Map Roof tab to populate this list, or add rows below.</div>';
+    } else if (gDrawn.length) {
       var gBuckets = {}, gOrder = [];
-      gPieces.forEach(function(p){
+      gDrawn.forEach(function(p){
         var k = p.lengthM.toFixed(1);
         if (!gBuckets[k]) { gBuckets[k] = 0; gOrder.push(k); }
         gBuckets[k]++;
@@ -21261,6 +21304,20 @@ function _jpRenderCutLists(content, page, idx){
         '</div>';
       }).join('')+'</div>';
     }
+    // Manual extra rows — editable qty @ length with a delete.
+    if (gExtras.length) {
+      html += '<div class="mat-list">'+gExtras.map(function(x, xi){
+        return '<div class="mat-list-row is-extra">'+
+          '<span class="mat-list-qty"><input type="number" min="0" step="1" value="'+(x.qty||0)+'" onfocus="this.select()" '+
+            'onchange="_matGutterExtraUpdate('+xi+',\'qty\',this.value)"></span>'+
+          '<span class="mat-list-at">@</span>'+
+          '<span class="mat-list-len"><input type="number" min="0.1" step="0.1" value="'+(+x.len||0).toFixed(1)+'" onfocus="this.select()" '+
+            'onchange="_matGutterExtraUpdate('+xi+',\'len\',this.value)"><span class="mat-list-unit">m</span></span>'+
+          '<button class="mat-list-del" onclick="_matGutterExtraRemove('+xi+')" title="Delete row">×</button>'+
+        '</div>';
+      }).join('')+'</div>';
+    }
+    html += '<button class="mat-add-btn" onclick="_matGutterExtraAdd()">+ Add row</button>';
     // Droppers — size select (80mm default) + qty (auto: one per run).
     var dropSize = localStorage.getItem('fr_gutter_dropper_size') || '80';
     var dropQtyRaw = localStorage.getItem('fr_gutter_dropper_qty');
@@ -21278,13 +21335,13 @@ function _jpRenderCutLists(content, page, idx){
       '</div>'+
       '<div class="cons-row-sub">auto '+dropAuto+' — one per gutter run</div></div>';
     // Brackets — internal/external + qty (auto: 800mm spacing + 1 per run).
-    var brType = localStorage.getItem('fr_gutter_bracket_type') || 'external';
+    var brType = localStorage.getItem('fr_gutter_bracket_type') || 'internal';
     var brQtyRaw = localStorage.getItem('fr_gutter_bracket_qty');
     var brAuto = gPieces.reduce(function(s, p){ return s + Math.ceil(p.lengthM / 0.8) + 1; }, 0);
     var brQty = (brQtyRaw != null && brQtyRaw !== '') ? parseInt(brQtyRaw, 10) || 0 : brAuto;
     var brSel = '<select onchange="_matGutterPref(\'fr_gutter_bracket_type\',this.value)" '+
       'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0">'+
-      [['external','External'],['internal','Internal']].map(function(t){ return '<option value="'+t[0]+'"'+(t[0]===brType?' selected':'')+'>'+t[1]+'</option>'; }).join('')+
+      [['internal','Internal'],['external','External']].map(function(t){ return '<option value="'+t[0]+'"'+(t[0]===brType?' selected':'')+'>'+t[1]+'</option>'; }).join('')+
     '</select>';
     html += '<div class="cons-row"><div class="cons-row-label">Brackets</div>'+
       '<div class="cons-row-qty"><input type="number" min="0" step="1" value="'+brQty+'" onfocus="this.select()" '+
@@ -21307,7 +21364,9 @@ function _jpRenderCutLists(content, page, idx){
   //    page now (user wants the simple cut lists / consumables first
   //    so the page reads like the supplier order email).
   html += '<div class="mat-toggle-row" style="margin-top:18px">'+
-    '<div class="mat-toggle-label"><strong>Flashing reference letters</strong> — show A/B/C tags on the roof map &amp; cut list</div>'+
+    '<div class="mat-toggle-label"><strong>Flashing reference letters</strong>'+
+      '<div style="font-weight:400;font-size:11px;color:var(--text2);margin-top:2px">Ticking this shows the A/B/C flashing reference letters on the roof map, and against each ridging / flashing cut-list row.</div>'+
+    '</div>'+
     '<label>'+
       '<input type="checkbox" '+(refsOn?'checked':'')+' onchange="_jpToggleFlashRefs(this.checked)" style="width:auto;margin:0"> '+(refsOn?'On':'Off')+
     '</label>'+
