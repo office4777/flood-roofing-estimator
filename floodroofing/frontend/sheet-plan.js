@@ -2935,22 +2935,35 @@ function _renderRoofSheetPlanInner() {
           cy: rep.centroid ? rep.centroid[1] : 0,
         };
       });
-      // Auto-pick the primary reading axis from the roof's overall
-      // shape: a WIDE roof reads left→right (numbers march across the
-      // long axis), a TALL roof reads top→bottom.  Measured from the
-      // spread of every sheet's representative centroid.
-      var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      meta.forEach(function(m){
-        if (m.cx < minX) minX = m.cx; if (m.cx > maxX) maxX = m.cx;
-        if (m.cy < minY) minY = m.cy; if (m.cy > maxY) maxY = m.cy;
-      });
-      var wide = (maxX - minX) >= (maxY - minY);   // wider than tall → read across
+      // Pick the primary reading axis PER COLOUR from the spread of that
+      // colour's own DONOR sheets: a colour whose donors stack vertically
+      // (e.g. the blue/orange main long-sides, whose sheets run in
+      // horizontal rows down a vertical eave) reads top→bottom; a colour
+      // whose donors march across a horizontal eave reads left→right.
+      // Doing this per colour — rather than one global wide/tall flag —
+      // stops a colour's numbers from folding around a hip apex: a
+      // triangular west face has donor centroids whose x climbs toward the
+      // apex and falls away again, so a global left→right sort interleaves
+      // the top and bottom rows (1,3,5,…,6,4,2).  Reading each such colour
+      // down its own tall axis restores a clean 1..N top-to-bottom run.
       var byCol = {};
       meta.forEach(function(m){ (byCol[m.colour] = byCol[m.colour] || []).push(m); });
       Object.keys(byCol).forEach(function(col){
+        var dMinX = Infinity, dMaxX = -Infinity, dMinY = Infinity, dMaxY = -Infinity;
+        byCol[col].forEach(function(m){
+          if (m.offcutOnly) return;            // orient off the donor run only
+          if (m.cx < dMinX) dMinX = m.cx; if (m.cx > dMaxX) dMaxX = m.cx;
+          if (m.cy < dMinY) dMinY = m.cy; if (m.cy > dMaxY) dMaxY = m.cy;
+        });
+        // Fall back to the full set if a colour is offcut-only.
+        if (dMinX === Infinity) byCol[col].forEach(function(m){
+          if (m.cx < dMinX) dMinX = m.cx; if (m.cx > dMaxX) dMaxX = m.cx;
+          if (m.cy < dMinY) dMinY = m.cy; if (m.cy > dMaxY) dMaxY = m.cy;
+        });
+        var wide = (dMaxX - dMinX) > (dMaxY - dMinY);   // wider than tall → read across
         byCol[col].sort(function(a, b){
           if (a.offcutOnly !== b.offcutOnly) return a.offcutOnly ? 1 : -1;  // donors first
-          // Wide roof → left→right then top→bottom; tall roof → the flip.
+          // Wide colour → left→right then top→bottom; tall colour → the flip.
           return wide ? (a.cx - b.cx || a.cy - b.cy)
                       : (a.cy - b.cy || a.cx - b.cx);
         });
