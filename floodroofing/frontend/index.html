@@ -2008,6 +2008,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
           <button onclick="autoGenerateRoof('hip')" class="tool-btn" style="background:#0099cc;color:#fff;border-color:#0099cc;font-weight:600">🔺 Hip &amp; Valley</button>
           <button onclick="autoGenerateRoof('gable')" class="tool-btn" style="background:#059669;color:#fff;border-color:#059669;font-weight:600">🏠 Straight Gable</button>
+          <button onclick="autoGenerateRoof('gable-hv')" class="tool-btn" style="background:#047857;color:#fff;border-color:#047857;font-weight:600" title="Gable ends with a hip + valley at the L corner (instead of running longer sheets through it)">🏠 Gable — hip+valley corner</button>
           <button onclick="autoGenerateRoof('dutch')" class="tool-btn" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:600">🏡 Dutch Gable</button>
           <button onclick="autoGenerateRoof('mono')" class="tool-btn" style="background:#d97706;color:#fff;border-color:#d97706;font-weight:600">📐 Mono-Pitch</button>
           <button onclick="clearRoofLines()" class="tool-btn" style="color:#dc2626;border-color:#dc2626;margin-left:4px">🗑 Clear lines</button>
@@ -25770,6 +25771,12 @@ function autoGenerateRoof(type, rotation) {
   var rotSteps = Math.round(rot / 90) % 4;
   if(type==='hip')        lines=buildHipValleyLines(DRAW.outline);
   else if(type==='gable') lines=buildGableRoofLines(DRAW.outline);
+  // Hip+valley-corner gable: hip/valley skeleton with the OUTER hip
+  // ends converted to rake barges — the L corner keeps its hip +
+  // valley junction while the ends are true gables.  (The Straight
+  // Gable instead runs one through-ridge and longer sheets across the
+  // corner.)
+  else if(type==='gable-hv') lines=buildGableRoofLines_legacy(DRAW.outline);
   else if(type==='dutch') lines=buildDutchGableRoofLines(DRAW.outline);
   else if(type==='mono')  lines=buildMonoPitchRoofLines(DRAW.outline, rot);
   if (rotSteps && type !== 'mono') {

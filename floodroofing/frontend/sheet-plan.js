@@ -453,11 +453,19 @@ function _renderRoofSheetPlanInner() {
   // Mirror state:
   var __mirrored      = false;
   var __mirrorPivotX  = null;
+  // GABLE roofs must NOT enter the Big-L hip cascade: it's a
+  // hand-designed HIP+VALLEY layout that rebuilds its own ridge/hip
+  // lines from the outline, so a straight-gable L (or a hip+valley-
+  // corner gable with rake barges) was silently rendered as a hip roof
+  // — the drawn barges and the ridge-slide offset were ignored.  Any
+  // barge line in the drawing marks the roof as a gable → generic
+  // face-walker engine.
+  var __hasBarge = (DRAW.lines || []).some(function(l){ return l && l.type === 'barge'; });
   // Try Big-L; if the proportions gate fails, retry with a horizontal
   // mirror of the input outline + DRAW.lines.
   var bigL = null;
   var isBigL = false;
-  for (var __attempt = 0; __attempt < 2; __attempt++) {
+  for (var __attempt = 0; __attempt < 2 && !__hasBarge; __attempt++) {
     bigL = _detectBigL(outline);
     isBigL = !!bigL;
     __nTurnsCW = 0;
@@ -3086,6 +3094,142 @@ function _renderRoofSheetPlanInner() {
     allStrips.forEach(function(s){ s._sheetKey = _sheetKey(s); });
     _numberSheetsByColour(allStrips);
   }  // end of isBigL branch
+
+  // ── STRAIGHT-GABLE branch (column tiling) ─────────────────────────
+  // A straight gable — one through-ridge on the long axis, rake barges
+  // on the perpendicular edges, no hips or valleys — needs per-COLUMN
+  // sheet lengths: on an L / stepped outline each column's sheet runs
+  // from ITS local gutter to the ridge ("longer sheets make the
+  // corner").  The generic face-walker instead cut chord faces across
+  // the notch, leaving 5–16% gaps.  Rebuild faces + strips here by
+  // tiling cover-width columns against the rectilinear outline on each
+  // side of the ridge.  Honors the drawn (possibly offset) ridge, so
+  // DRAW.gableRidgeOffset produces genuinely longer/shorter faces.
+  var __gblRidges = (DRAW.lines || []).filter(function(l){ return l && l.type === 'ridge' && l.pts && l.pts.length === 2; });
+  var __gblIsStraight = !isBigL && __hasBarge && __gblRidges.length &&
+    !(DRAW.lines || []).some(function(l){ return l && (l.type === 'valley' || l.type === 'hip'); }) &&
+    (function(){
+      // All ridge segments colinear on one axis?
+      var horizR = Math.abs(__gblRidges[0].pts[1][1] - __gblRidges[0].pts[0][1]) < 2;
+      var coord = horizR ? __gblRidges[0].pts[0][1] : __gblRidges[0].pts[0][0];
+      return __gblRidges.every(function(r){
+        return horizR
+          ? (Math.abs(r.pts[0][1] - coord) < 2 && Math.abs(r.pts[1][1] - coord) < 2)
+          : (Math.abs(r.pts[0][0] - coord) < 2 && Math.abs(r.pts[1][0] - coord) < 2);
+      });
+    })();
+  if (__gblIsStraight) {
+    var gHoriz = Math.abs(__gblRidges[0].pts[1][1] - __gblRidges[0].pts[0][1]) < 2;
+    var ridgeC = gHoriz ? __gblRidges[0].pts[0][1] : __gblRidges[0].pts[0][0];
+    // Work in u/v space: u along the ridge, v across it — transpose a
+    // vertical-ridge outline so one tiler serves both axes.
+    function _toUV(p){ return gHoriz ? [p[0], p[1]] : [p[1], p[0]]; }
+    function _fromUV(p){ return gHoriz ? [p[0], p[1]] : [p[1], p[0]]; }
+    var uvOutline = outline.map(_toUV);
+    // Scanline: at ridge-axis position u, the outline's v-intervals.
+    function _vIntervalsAt(u){
+      var vs = [];
+      for (var i = 0; i < uvOutline.length; i++) {
+        var a = uvOutline[i], b = uvOutline[(i + 1) % uvOutline.length];
+        if ((a[0] - u) * (b[0] - u) < 0) {
+          var t = (u - a[0]) / (b[0] - a[0]);
+          vs.push(a[1] + t * (b[1] - a[1]));
+        }
+      }
+      vs.sort(function(p, q){ return p - q; });
+      var iv = [];
+      for (var k2 = 0; k2 + 1 < vs.length; k2 += 2) iv.push([vs[k2], vs[k2 + 1]]);
+      return iv;
+    }
+    var uAll = uvOutline.map(function(p){ return p[0]; });
+    var uMin = Math.min.apply(null, uAll), uMax = Math.max.apply(null, uAll);
+    // Slab edges: outline u-coords (columns crossing a step split there
+    // so each part gets its own local gutter length).
+    var slabEdges = [];
+    uAll.forEach(function(u){ if (!slabEdges.some(function(e){ return Math.abs(e - u) < 0.5; })) slabEdges.push(u); });
+    slabEdges.sort(function(p, q){ return p - q; });
+    var GBL_TOP = '#f97316', GBL_BOT = '#2563eb';   // orange above ridge, blue below
+    // Two synthetic faces (whole region each side of the ridge) for the
+    // canvas backdrop + legend grouping.  Clip the outline against the
+    // ridge half-plane (half-plane = convex, Sutherland–Hodgman works).
+    function _clipHalf(poly, keepBelow){
+      var outp = [];
+      for (var i = 0; i < poly.length; i++) {
+        var a = poly[i], b = poly[(i + 1) % poly.length];
+        var ain = keepBelow ? a[1] >= ridgeC : a[1] <= ridgeC;
+        var bin = keepBelow ? b[1] >= ridgeC : b[1] <= ridgeC;
+        if (ain) outp.push(a.slice());
+        if (ain !== bin) {
+          var t = (ridgeC - a[1]) / (b[1] - a[1]);
+          outp.push([a[0] + t * (b[0] - a[0]), ridgeC]);
+        }
+      }
+      return outp;
+    }
+    function _mkGableFace(color, keepBelow){
+      var uvPoly = _clipHalf(uvOutline, keepBelow);
+      var poly = uvPoly.map(_fromUV);
+      var vs = uvPoly.map(function(p){ return p[1]; });
+      var depth = vs.length ? (Math.max.apply(null, vs) - Math.min.apply(null, vs)) : 0;
+      return {
+        poly: poly, type: 'long-side',
+        a: poly[0] || [0, 0], b: poly[1] || [0, 0], gL: 1,
+        tx: gHoriz ? 1 : 0, ty: gHoriz ? 0 : 1,
+        nx: 0, ny: 0, perpPx: depth,
+        planSheetM: depth * effectiveScale,
+        sheetM: depth * effectiveScale * pitchFactor,
+        area: Math.abs(polyArea(poly)), centroid: polyCentroid(poly),
+        color: color
+      };
+    }
+    var gFaceTop = _mkGableFace(GBL_TOP, false);
+    var gFaceBot = _mkGableFace(GBL_BOT, true);
+    faces = [gFaceTop, gFaceBot];
+    mainA = gFaceTop; mainB = gFaceBot;
+    allStrips = [];
+    // Column tiling per side.  Columns march from uMin in cover-width
+    // steps; a column overlapping a slab edge is split there.
+    [[gFaceTop, false], [gFaceBot, true]].forEach(function(side){
+      var face = side[0], below = side[1];
+      for (var cu = uMin; cu < uMax - 0.1; cu += coverPx) {
+        var cu1 = Math.min(cu + coverPx, uMax);
+        // Sub-ranges at slab boundaries inside [cu, cu1].
+        var cuts = [cu];
+        slabEdges.forEach(function(e){ if (e > cu + 0.25 && e < cu1 - 0.25) cuts.push(e); });
+        cuts.push(cu1);
+        cuts.sort(function(p, q){ return p - q; });
+        for (var s = 0; s + 1 < cuts.length; s++) {
+          var u0 = cuts[s], u1 = cuts[s + 1];
+          if (u1 - u0 < 0.5) continue;
+          _vIntervalsAt((u0 + u1) / 2).forEach(function(iv){
+            // Clip the interval to this side of the ridge.
+            var v0 = below ? Math.max(iv[0], ridgeC) : iv[0];
+            var v1 = below ? iv[1] : Math.min(iv[1], ridgeC);
+            if (v1 - v0 < 1) return;
+            var uvPoly = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+            var poly = uvPoly.map(_fromUV);
+            var lenPx = v1 - v0;
+            allStrips.push({
+              face: face, color: face.color,
+              poly: poly, centroid: polyCentroid(poly),
+              orderedLengthMm: orderedLengthMm(lenPx * effectiveScale * pitchFactor),
+              pieceM: lenPx * effectiveScale * pitchFactor,
+              isOffcut: false, isPhantom: false
+            });
+          });
+        }
+      }
+    });
+    // Number 1..N per colour, reading along the ridge then across.
+    var __gblByCol = {};
+    allStrips.forEach(function(s){ (__gblByCol[s.color] = __gblByCol[s.color] || []).push(s); });
+    Object.keys(__gblByCol).forEach(function(colr){
+      __gblByCol[colr].sort(function(p, q){
+        var pu = _toUV(p.centroid), qu = _toUV(q.centroid);
+        return pu[0] - qu[0] || pu[1] - qu[1];
+      }).forEach(function(s, i){ s.seq = i + 1; });
+    });
+  }
 
   // ── Re-insert hip-end apex into strips that cut it off ───────────
   // Sutherland–Hodgman clipping a strip rectangle against a triangular
