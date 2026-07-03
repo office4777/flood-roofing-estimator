@@ -45,7 +45,12 @@ PROPS.forEach(([name, p]) => ORI.forEach((o, k) =>
 CASES.push({ label: 'L Square wing MIRROR', type: 'hip', outline: orient(L(...PROPS[0][1]), 0, true) });
 CASES.push({ label: 'L Wide-wing MIRROR',   type: 'hip', outline: orient(L(...PROPS[1][1]), 0, true) });
 // Sanity anchors with a hard expected physical sheet count.
-CASES.push({ label: 'Canonical Big-L (count=70)', type: 'hip', outline: L(300,300,900,700), expectSheets: 70, checkPerColour: true });
+// Canonical Big-L physical-sheet anchor.  68 (was 70): the SOP
+// complement-pairing pass merges the wing's valley-cut pieces into the
+// wing-hip donor sheets they're physically cut from (one sheet = gutter
+// piece + valley offcut), so two purple positions stopped being
+// separately-ordered sheets.
+CASES.push({ label: 'Canonical Big-L (count=68)', type: 'hip', outline: L(300,300,900,700), expectSheets: 68, checkPerColour: true });
 CASES.push({ label: 'T-shape',                     type: 'hip', outline: T(900,260,300,460) });
 CASES.push({ label: 'Simple hip 900x600',          type: 'hip', outline: RECT(900,600) });
 

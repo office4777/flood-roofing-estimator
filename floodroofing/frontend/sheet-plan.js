@@ -2856,6 +2856,7 @@ function _renderRoofSheetPlanInner() {
     var _wingApexY = wy0 + (wx1 - wx0) / 2;
     var _firstSeColIdx = Math.floor((eApex[0] - mx0) / coverPxL) + 1;
     function _sheetKey(s) {
+      if (s._forceKey) return s._forceKey;
       if (s._donorIdx !== undefined) return 'D' + s._donorIdx;
       if (s._eastPairIdx !== undefined && s._eastPairIdx >= 0) return 'EP' + s._eastPairIdx;
       var ft = s.face && s.face.type;
@@ -2972,6 +2973,116 @@ function _renderRoofSheetPlanInner() {
         });
       });
     }
+    // ── SOP complement pairing (proportion-independent) ──────────
+    // The arithmetic _sheetKey formulas above pair a hip/valley offcut
+    // with its donor via row/column indices whose constants (the "8",
+    // "4", _firstSeColIdx bounds) are calibrated to the canonical
+    // Big-L proportions.  At other proportions the indices drift, so
+    // offcuts orphan (fresh trailing numbers) or bind to the wrong
+    // donor (e.g. the south-face offcuts pairing mid-face donors
+    // instead of the southern hip corner's).
+    //
+    // Re-derive the pairing from the physics instead: a donor sheet is
+    // ordered at FULL length; the hip/valley cut splits it into the
+    // laid piece and an offcut, so pieceLen + offcutLen ≈ fullLen.
+    // Within a colour and building side, match each receiver strip to
+    // the unclaimed clipped donor whose piece length complements it.
+    // A receiver as long as a full sheet complements nothing — it
+    // physically needs its own sheet, so it converts to a standalone
+    // ordered donor.  Construction-exact pairings (_donorIdx /
+    // _eastPairIdx cascades) are already physical and stay untouched.
+    // Paired strips share a generated key via _forceKey (checked first
+    // in _sheetKey), which also neutralises stale arithmetic matches.
+    (function _complementPair(){
+      var cp = coverPxL;
+      var fullOf = {};
+      fullOf[COL_ORANGE] = mainH / 2;
+      fullOf[COL_BLUE]   = mainH / 2;
+      fullOf[COL_PURPLE] = (wx1 - wx0) / 2;
+      function lenOf(s){ return Math.abs(polyArea(s.poly)) / cp; }
+      function bboxOf(s){
+        var xs = s.poly.map(function(p){return p[0];});
+        return { x0: Math.min.apply(null, xs), x1: Math.max.apply(null, xs) };
+      }
+      var cpCounter = 0;
+      [COL_BLUE, COL_ORANGE, COL_PURPLE].forEach(function(colr){
+        var full = fullOf[colr];
+        var pool = allStrips.filter(function(s){
+          return s.color === colr && !s._gapFill &&
+                 s._donorIdx === undefined &&
+                 !(s._eastPairIdx !== undefined && s._eastPairIdx >= 0);
+        });
+        var donors = [], recvs = [];
+        pool.forEach(function(s){
+          var L = lenOf(s);
+          if (colr === COL_PURPLE) {
+            // Only the wing E face is split by the wing hip + valley:
+            // the piece that keeps the gutter edge (xMax at wx1) is the
+            // laid donor; a piece that lost its gutter end is the
+            // valley-side offcut position awaiting the donor's offcut.
+            if (s.face !== faceWingE) return;
+            if (L >= full - cp/2) return;              // full column — own sheet
+            if (bboxOf(s).x1 >= wx1 - 1) donors.push({ s: s, len: L });
+            else                         recvs.push({ s: s, len: L });
+          } else if (!s.isOffcut) {
+            if (L < full - cp/2) donors.push({ s: s, len: L });
+          } else {
+            recvs.push({ s: s, len: L });
+          }
+        });
+        // Building side keeps a west-corner offcut from complementing an
+        // east-corner donor of coincidentally-matching size.  Purple's
+        // wing E face is one family.
+        var midX = (mx0 + mx1) / 2;
+        function famOf(e){
+          if (colr === COL_PURPLE) return 'P';
+          return (e.s.centroid[0] < midX) ? 'W' : 'E';
+        }
+        var byFam = {};
+        donors.forEach(function(d){ (byFam[famOf(d)] = byFam[famOf(d)] || { d: [], r: [] }).d.push(d); });
+        recvs.forEach(function(r){ (byFam[famOf(r)] = byFam[famOf(r)] || { d: [], r: [] }).r.push(r); });
+        Object.keys(byFam).forEach(function(fam){
+          var F = byFam[fam];
+          // Globally best complements first: enumerate every viable
+          // (receiver, donor) pair and accept in ascending error order.
+          // Greedy-by-size steals scarce complements (a near-full
+          // receiver grabs the most-clipped donor another receiver
+          // matches better), so match by fit, not by processing order.
+          var cand = [];
+          F.r.forEach(function(r, ri){
+            F.d.forEach(function(d, di){
+              var err = Math.abs(r.len + d.len - full);
+              if (err < cp * 0.75) cand.push({ ri: ri, di: di, err: err });
+            });
+          });
+          cand.sort(function(a, b){ return a.err - b.err; });
+          cand.forEach(function(c){
+            var r = F.r[c.ri], d = F.d[c.di];
+            if (r.paired || d.claimed) return;
+            r.paired = true; d.claimed = true;
+            var key = 'CP-' + colr + '-' + (cpCounter++);
+            d.s._forceKey = key;
+            r.s._forceKey = key;
+            r.s.isOffcut  = true;      // purple valley pieces flip to offcut
+          });
+          F.r.forEach(function(r){
+            if (r.paired) return;
+            if (r.len >= full - cp * 0.75) {
+              // Near-full and unclaimed — physically its own sheet.
+              r.s.isOffcut = false;
+              r.s._forceKey = 'SA-' + colr + '-' + (cpCounter++);
+            } else {
+              // No complement — keep it an offcut but with a unique key
+              // so it can't merge with an unrelated donor.  (For purple
+              // this also demotes an unpaired valley sliver from a
+              // numbered donor to a trailing offcut position.)
+              r.s.isOffcut = true;
+              r.s._forceKey = 'ORPH-' + colr + '-' + (cpCounter++);
+            }
+          });
+        });
+      });
+    })();
     allStrips.forEach(function(s){ s._sheetKey = _sheetKey(s); });
     _numberSheetsByColour(allStrips);
   }  // end of isBigL branch
