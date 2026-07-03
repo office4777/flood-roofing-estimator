@@ -1222,6 +1222,27 @@ html.pdf-rendering .jp-page select{
   width:auto!important;
 }
 html.pdf-rendering .jp-page input[type="checkbox"]{ display:none!important; }
+/* Chrome keeps the number-input spin button INSIDE the box even when
+   the input is flattened — it eats ~half of a value-fitted width and
+   clips the last digit.  Kill it outright for capture + print. */
+html.pdf-rendering .jp-page input[type="number"]::-webkit-inner-spin-button,
+html.pdf-rendering .jp-page input[type="number"]::-webkit-outer-spin-button,
+html.print-jobpack .jp-page input[type="number"]::-webkit-inner-spin-button,
+html.print-jobpack .jp-page input[type="number"]::-webkit-outer-spin-button{
+  -webkit-appearance:none!important; appearance:none!important;
+  display:none!important; margin:0!important;
+}
+/* Compact cut-list typography on paper: tighter leading, no row gaps,
+   and consumable rows collapse from the 3-column screen grid (whose
+   third column is hidden in PDF) to a simple label + value line — the
+   screen grid left the quantity floating mid-page with the unit
+   wrapped underneath it. */
+html.pdf-rendering .mat-list{ gap:0!important; padding:2px 0!important; }
+html.pdf-rendering .mat-list-row{ padding:0 6px!important; line-height:1.3!important; }
+html.pdf-rendering .cons-row{ display:flex!important; gap:10px!important; padding:3px 4px!important; align-items:baseline!important; }
+html.pdf-rendering .cons-row-qty{ white-space:nowrap!important; }
+html.pdf-rendering .mat-section{ margin-bottom:10px!important; }
+html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6px!important; }
 /* Print: only #jpPages elements reach paper.  Each .jp-page is one A4
    sheet so we just suppress everything else and let CSS page breaks
    slot between them. */
@@ -1321,12 +1342,15 @@ html.pdf-rendering .jp-page input[type="checkbox"]{ display:none!important; }
     text-align:left!important;
   }
   html.print-jobpack input[type="checkbox"]{ display:none!important; }
+  /* ch-widths, not auto: width:auto on an <input> means the default
+     ~20-character box, which spread "14 @ ......... 1.50 m" across the
+     page in the fallback print flow. */
   html.print-jobpack .mat-list-row .mat-list-qty input{
-    width:auto!important; text-align:right!important;
+    width:3.5ch!important; text-align:right!important;
     font-weight:700!important;
   }
   html.print-jobpack .mat-list-row .mat-list-len input{
-    width:auto!important; text-align:right!important;
+    width:6ch!important; text-align:right!important;
   }
   /* No row-hover bg on the cut list — print is static. */
   html.print-jobpack .mat-list-row{ background:transparent!important; }
@@ -23237,6 +23261,33 @@ async function _buildJobPackPdf() {
   htmlEl.classList.add('print-jobpack');
   htmlEl.classList.add('pdf-rendering');
 
+  // Size every flattened input to its VALUE.  The pdf-rendering CSS
+  // sets width:auto on inputs, which for an <input> means the browser
+  // default ~20-character box — qty/length values ended up floating in
+  // huge phantom boxes ("14 @ ......... 1.50 m") and unit labels
+  // wrapped onto their own lines.  Inline ch-widths (restored after
+  // capture) make each value hug its text like typeset copy.
+  var _fitInputs = [];
+  // Hidden span mirror: measures each value with the real layout engine
+  // (canvas measureText mis-parses compound font stacks and ignores the
+  // tabular-nums these cells use, so it under-measured and clipped).
+  var _fitSpan = document.createElement('span');
+  _fitSpan.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:pre';
+  document.body.appendChild(_fitSpan);
+  Array.prototype.forEach.call(document.querySelectorAll('#jpPages .jp-page input[type="number"], #jpPages .jp-page input[type="text"]'), function(el){
+    _fitInputs.push([el, el.style.width]);
+    var v = String(el.value == null ? '' : el.value);
+    var cs = getComputedStyle(el);
+    _fitSpan.style.fontFamily = cs.fontFamily;
+    _fitSpan.style.fontSize = cs.fontSize;
+    _fitSpan.style.fontWeight = cs.fontWeight;
+    _fitSpan.style.letterSpacing = cs.letterSpacing;
+    _fitSpan.style.fontVariantNumeric = cs.fontVariantNumeric;
+    _fitSpan.textContent = v || ' ';
+    el.style.setProperty('width', (_fitSpan.offsetWidth + 5) + 'px', 'important');
+  });
+  _fitSpan.remove();
+
   await new Promise(function(resolve){
     _jpWaitForImages(document.getElementById('jpPages'), resolve);
   });
@@ -23273,11 +23324,13 @@ async function _buildJobPackPdf() {
     console.error('PDF render failed:', err);
     htmlEl.classList.remove('print-jobpack');
     htmlEl.classList.remove('pdf-rendering');
+    _fitInputs.forEach(function(p){ p[0].style.width = p[1]; });
     return null;
   }
 
   htmlEl.classList.remove('print-jobpack');
   htmlEl.classList.remove('pdf-rendering');
+  _fitInputs.forEach(function(p){ p[0].style.width = p[1]; });
   return pdf;
 }
 
