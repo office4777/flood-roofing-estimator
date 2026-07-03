@@ -5138,8 +5138,15 @@ function restoreFromJob(j){
     DRAW.outlineDone = !!snap.draw.outlineDone;
     DRAW.step = snap.draw.step || 'outline';
     DRAW.sheetPlanDeletedIds = snap.draw.sheetPlanDeletedIds || [];
-    try { redrawAll(); } catch(e){}
-    try { syncToRoofData(); } catch(e){}
+    // A render/sync failure here used to be swallowed — the user saw a
+    // blank canvas and assumed the drawing was gone.  Say what happened
+    // (the data is still in the job; it's the render that failed).
+    var _restoreErr = null;
+    try { redrawAll(); } catch(e){ _restoreErr = e; console.error('restore redraw failed', e); }
+    try { syncToRoofData(); } catch(e){ if (!_restoreErr) _restoreErr = e; console.error('restore sync failed', e); }
+    if (_restoreErr) {
+      try { _setSaveStatus('⚠ This job loaded but its drawing failed to render (' + _restoreErr.message + ') — the data is intact; try re-opening it.', '#b91c1c', true); } catch(e){}
+    }
   }
   // Scope tab — restore the master-scope pick and which chk-items were on
   if (snap.scope) {
@@ -5169,6 +5176,9 @@ function restoreFromJob(j){
   }
   S.currentJobId = j.id;
   setCurrentJobLabel(j);
+  // Freshly-opened job = clean state for the dirty tracker, so
+  // switching away again without edits doesn't trigger a save.
+  try { DRAFTS._lastSnapJson = JSON.stringify(snapshotCurrentJob()); } catch(e){}
 }
 
 function setCurrentJobLabel(j){
@@ -5331,6 +5341,10 @@ function _retiredUpdateSidebarJobChip(){
 // local job id or a Fergus link). Skips the chrome (sidebar, modals)
 // so opening the Select Job modal doesn't trigger a phantom save.
 function _scheduleAutosave(){
+  // The local draft is written on EVERY edit — even for a brand-new
+  // job with no id yet, and even with autosave off — so nothing typed
+  // or drawn can be lost to a dead connection or an accidental close.
+  try { _scheduleDraftWrite(); } catch(e){}
   if (!AUTOSAVE.on) return;
   if (!S.currentJobId && !S.linkedJobId) return;   // nothing to attach edits to yet
   clearTimeout(AUTOSAVE._timer);
@@ -5341,7 +5355,13 @@ async function _runAutosave(){
   if (typeof saveCurrentJob !== 'function') return;
   if (!S.currentJobId && !S.linkedJobId) return;
   AUTOSAVE._saving = true; updateSidebarJobChip();
-  try { await saveCurrentJob(); } catch(e) { console.warn('autosave failed', e); }
+  try { await saveCurrentJob(); }
+  catch(e) {
+    console.warn('autosave failed', e);
+    // Autosave failures used to be console-only — the office thought
+    // work was saving when it wasn't.  Show it, and keep it shown.
+    try { _setSaveStatus('⚠ Autosave failed — a local draft is kept on this computer', '#b91c1c', true); } catch(e2){}
+  }
   AUTOSAVE._saving = false; updateSidebarJobChip();
 }
 document.addEventListener('input', function(e){
@@ -5371,6 +5391,209 @@ setTimeout(function(){
     var i = document.getElementById('autosaveInterval'); if (i) i.value = AUTOSAVE.intervalSec;
   } catch(e){}
 }, 0);
+
+// ══════════════════════════════════════════════════════════════════
+// LOCAL DRAFT SAFETY NET — jobs save ONLY to the backend, so a dead
+// connection used to mean unsavable (and on refresh, lost) work.  Every
+// edit now also writes a full snapshot into IndexedDB on this computer.
+// A draft is deleted the moment a backend save succeeds, so any draft
+// that exists = work the server hasn't got; on the next app start we
+// offer to restore it.  beforeunload additionally writes a compact
+// (no-photos) copy to localStorage, since IndexedDB writes may not
+// complete during unload.
+// ══════════════════════════════════════════════════════════════════
+var DRAFTS = { _db: null, _timer: null, _lastSnapJson: null };
+function _draftDb(){
+  return new Promise(function(ok, fail){
+    if (DRAFTS._db) return ok(DRAFTS._db);
+    if (!window.indexedDB) return fail(new Error('no indexedDB'));
+    var rq = indexedDB.open('fr_drafts', 1);
+    rq.onupgradeneeded = function(){ rq.result.createObjectStore('drafts', { keyPath: 'key' }); };
+    rq.onsuccess = function(){ DRAFTS._db = rq.result; ok(DRAFTS._db); };
+    rq.onerror = function(){ fail(rq.error || new Error('indexedDB open failed')); };
+  });
+}
+function _draftKey(){
+  return S.currentJobId ? String(S.currentJobId) : (S.linkedJobId ? 'ferg_' + S.linkedJobId : '__new__');
+}
+// Only draft when there's actually something worth keeping — stops a
+// junk "__new__" draft appearing every time the app is merely opened.
+function _snapHasSubstance(snap){
+  try {
+    return !!((snap.draw && snap.draw.outline && snap.draw.outline.length > 2) ||
+              (snap.form && (snap.form.jobClient || snap.form.jobAddr)) ||
+              (snap.state && snap.state.quote && (snap.state.quote.client || (snap.state.quote.lineItems || []).length)));
+  } catch(e){ return false; }
+}
+function _writeLocalDraftNow(){
+  return new Promise(function(ok){
+    var snap;
+    try { snap = snapshotCurrentJob(); } catch(e){ return ok(false); }
+    if (!_snapHasSubstance(snap)) return ok(false);
+    var rec = {
+      key: _draftKey(), at: new Date().toISOString(),
+      client: (snap.form && snap.form.jobClient) || '',
+      addr:   (snap.form && snap.form.jobAddr) || '',
+      snap: snap,
+    };
+    _draftDb().then(function(db){
+      var tx = db.transaction('drafts', 'readwrite');
+      tx.objectStore('drafts').put(rec);
+      tx.oncomplete = function(){ ok(true); };
+      tx.onerror = function(){ ok(false); };
+    }).catch(function(){ ok(false); });
+  });
+}
+function _deleteLocalDraft(key){
+  return _draftDb().then(function(db){
+    return new Promise(function(ok){
+      var tx = db.transaction('drafts', 'readwrite');
+      tx.objectStore('drafts').delete(key);
+      tx.oncomplete = function(){ ok(); }; tx.onerror = function(){ ok(); };
+    });
+  }).catch(function(){});
+}
+function _listLocalDrafts(){
+  return _draftDb().then(function(db){
+    return new Promise(function(ok){
+      var out = [];
+      var tx = db.transaction('drafts', 'readonly');
+      var cur = tx.objectStore('drafts').openCursor();
+      cur.onsuccess = function(){
+        var c = cur.result;
+        if (c) { out.push(c.value); c.continue(); } else ok(out);
+      };
+      cur.onerror = function(){ ok(out); };
+    });
+  }).catch(function(){ return []; });
+}
+function _scheduleDraftWrite(){
+  clearTimeout(DRAFTS._timer);
+  DRAFTS._timer = setTimeout(function(){ _writeLocalDraftNow(); }, 1500);
+}
+// A draft that reached the backend is no longer needed.
+function _draftMarkSynced(){
+  try {
+    DRAFTS._lastSnapJson = JSON.stringify(snapshotCurrentJob());
+  } catch(e){ DRAFTS._lastSnapJson = null; }
+  _deleteLocalDraft(_draftKey());
+  if (S.currentJobId) _deleteLocalDraft('__new__');   // just-created job's pre-save draft
+  try { localStorage.removeItem('fr_unload_draft'); } catch(e){}
+}
+function _isJobDirty(){
+  try {
+    var snap = snapshotCurrentJob();
+    if (!_snapHasSubstance(snap)) return false;
+    return JSON.stringify(snap) !== DRAFTS._lastSnapJson;
+  } catch(e){ return false; }
+}
+// Called before openJob/newJob replaces the in-memory state: push a
+// backend save when we can, and always leave a local draft when we
+// can't, so switching jobs can never silently discard work.
+async function _saveBeforeSwitch(){
+  try {
+    if (!_isJobDirty()) return;
+    if ((S.currentJobId || S.linkedJobId) && typeof saveCurrentJob === 'function') {
+      try { await saveCurrentJob(); } catch(e){}
+      if (!_isJobDirty()) return;              // backend save landed
+    }
+    await _writeLocalDraftNow();               // couldn't save — keep a draft
+  } catch(e){}
+}
+// Compact unload fallback (no image/photos — those live in the IDB
+// draft written on the edit debounce; this one just has to survive a
+// synchronous unload).
+window.addEventListener('beforeunload', function(){
+  try {
+    if (!_isJobDirty()) return;
+    _writeLocalDraftNow();                     // may or may not complete
+    var snap = snapshotCurrentJob();
+    var slim = JSON.parse(JSON.stringify({ form: snap.form, draw: snap.draw, scope: snap.scope,
+      state: Object.assign({}, snap.state, { img64: null, photos: [] }) }));
+    if (slim.state.quote && Array.isArray(slim.state.quote.condPhotos)) slim.state.quote = Object.assign({}, slim.state.quote, { condPhotos: [] });
+    var rec = JSON.stringify({ key: _draftKey(), at: new Date().toISOString(),
+      client: (snap.form && snap.form.jobClient) || '', addr: (snap.form && snap.form.jobAddr) || '', snap: slim });
+    if (rec.length < 3.5 * 1024 * 1024) localStorage.setItem('fr_unload_draft', rec);
+  } catch(e){}
+});
+// Startup: any surviving draft = work the backend never got.  Offer it.
+function _checkDraftsOnBoot(){
+  var unload = null;
+  try { unload = JSON.parse(localStorage.getItem('fr_unload_draft') || 'null'); } catch(e){}
+  _listLocalDrafts().then(function(drafts){
+    if (unload) {
+      var match = drafts.find(function(d){ return d.key === unload.key; });
+      if (!match || new Date(unload.at) > new Date(match.at)) {
+        drafts = drafts.filter(function(d){ return d.key !== unload.key; });
+        drafts.push(unload);
+      }
+    }
+    if (!drafts.length) return;
+    drafts.sort(function(a, b){ return new Date(b.at) - new Date(a.at); });
+    var d = drafts[0];
+    var when = new Date(d.at).toLocaleString('en-NZ', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    var who = d.client || d.addr || (d.key === '__new__' ? 'an unsaved job' : 'job ' + d.key);
+    var bar = document.createElement('div');
+    bar.id = 'draftRestoreBar';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;background:#fef3c7;border-bottom:2px solid #f59e0b;color:#78350f;padding:10px 16px;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap';
+    bar.innerHTML = '<span>⚠ Unsaved work found for <strong>' + esc(who) + '</strong> (' + esc(when) + ') — it never reached the server.</span>' +
+      '<button id="draftRestoreBtn" style="padding:5px 14px;background:#b45309;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer">Restore it</button>' +
+      '<button id="draftDismissBtn" style="padding:5px 14px;background:transparent;border:1px solid #b45309;color:#78350f;border-radius:6px;cursor:pointer">Discard</button>' +
+      (drafts.length > 1 ? '<span style="opacity:.7">(+' + (drafts.length - 1) + ' older draft' + (drafts.length > 2 ? 's' : '') + ' kept)</span>' : '');
+    document.body.appendChild(bar);
+    document.getElementById('draftRestoreBtn').onclick = function(){
+      try {
+        restoreFromJob({ id: (d.key !== '__new__' && d.key.indexOf('ferg_') !== 0) ? d.key : null,
+                         client_name: d.client, site_address: d.addr, draw_state: d.snap });
+        gotoTab('roof');
+        _setSaveStatus('Draft restored — hit Save to send it to the server.', '#b45309', true);
+      } catch(e){ alert('Could not restore the draft: ' + e.message); }
+      bar.remove();
+    };
+    document.getElementById('draftDismissBtn').onclick = function(){
+      if (!confirm('Discard this unsaved draft permanently?')) return;
+      _deleteLocalDraft(d.key);
+      try { localStorage.removeItem('fr_unload_draft'); } catch(e){}
+      bar.remove();
+    };
+  });
+}
+setTimeout(function(){ try { if (!window.__CUSTOMER_TOKEN) _checkDraftsOnBoot(); } catch(e){} }, 1200);
+
+// Persistent save-status text in the global job bar: success shows a
+// timestamped "✓ Saved", failure STAYS red until the next attempt
+// (the old 4-second auto-clear meant failures were easy to miss).
+function _setSaveStatus(text, color, sticky){
+  var msg = document.getElementById('saveJobMsg');
+  var barMsg = document.getElementById('globalJobBarSaveMsg');
+  [msg, barMsg].forEach(function(el){
+    if (!el) return;
+    el.textContent = text; el.style.color = color || '';
+    el.dataset.sticky = sticky ? '1' : '';
+  });
+}
+
+// Downscale a photo before it's stored on the job — full-resolution
+// phone photos (5-12 MB each) are what pushed saves past the backend's
+// 25 MB cap.  ~1600px JPEG is plenty for the proposal/inspection pages.
+function _downscalePhoto(dataUrl, cb){
+  try {
+    if (!/^data:image\//i.test(dataUrl)) return cb(dataUrl);
+    var img = new Image();
+    img.onload = function(){
+      var maxDim = 1600, w = img.width, h = img.height;
+      if (Math.max(w, h) <= maxDim && dataUrl.length < 900 * 1024) return cb(dataUrl);
+      var sc = Math.min(1, maxDim / Math.max(w, h));
+      var c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(w * sc)); c.height = Math.max(1, Math.round(h * sc));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      var out = c.toDataURL('image/jpeg', 0.82);
+      cb(out.length < dataUrl.length ? out : dataUrl);
+    };
+    img.onerror = function(){ cb(dataUrl); };
+    img.src = dataUrl;
+  } catch(e){ cb(dataUrl); }
+}
 
 async function openSelectJobModal(){
   var ov = document.getElementById('selectJobOverlay');
@@ -5461,22 +5684,41 @@ async function saveCurrentJob(){
   if (!client && !addr) { set('Enter a client name or address first (Map Roof tab).', '#b91c1c'); return; }
   set('Saving…', '');
   var body = { client_name: client, site_address: addr, draw_state: snapshotCurrentJob(), settings: {} };
+  // The backend rejects bodies over 25 MB with an opaque 413 — catch it
+  // here with a message the office can act on (it's always the photos).
+  var _size = 0;
+  try { _size = JSON.stringify(body).length; } catch(e){}
+  if (_size > 20 * 1024 * 1024) {
+    set('⚠ Save too large (' + Math.round(_size / 1024 / 1024) + ' MB) — remove some photos. A local draft is kept.', '#b91c1c');
+    try { _writeLocalDraftNow(); } catch(e2){}
+    return;
+  }
   try {
     var saved;
     if (S.currentJobId) saved = await api('PUT', '/jobs/' + S.currentJobId, body);
     else                saved = await api('POST', '/jobs', body);
     S.currentJobId = saved.id;
     setCurrentJobLabel(saved);
-    set('✓ Saved', '#15803d');
+    // Persistent, timestamped — replaces the old 4-second flash so the
+    // office can always see when the job last reached the server.
+    set('✓ Saved ' + new Date().toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' }), '#15803d');
+    try { _draftMarkSynced(); } catch(e2){}
     refreshJobsList();
   } catch(e) {
-    set('Save failed: ' + e.message, '#b91c1c');
+    // Failure message STAYS until the next save attempt (the old code
+    // cleared it after 4 seconds — easy to miss entirely).  No rethrow:
+    // onclick callers have no handler, and every caller that cares
+    // checks S.currentJobId / _isJobDirty() instead.
+    set('⚠ Save failed: ' + e.message + ' — a local draft is kept on this computer.', '#b91c1c');
+    try { _writeLocalDraftNow(); } catch(e2){}
   }
-  setTimeout(function(){ set('', ''); }, 4000);
 }
 
 async function openJob(id){
   try {
+    // Never let opening a job silently discard un-pushed edits to the
+    // one that's already open: save it (or at least draft it) first.
+    try { await _saveBeforeSwitch(); } catch(e){}
     var j = await api('GET', '/jobs/' + id);
     restoreFromJob(j);
     refreshJobsList();
@@ -5496,8 +5738,9 @@ async function deleteJob(id){
   } catch(e) { alert('Delete failed: ' + e.message); }
 }
 
-function newJob(){
-  if (!confirm('Start a new job? Unsaved changes will be lost.')) return;
+async function newJob(){
+  if (!confirm('Start a new job? The current one is saved (or kept as a local draft) first.')) return;
+  try { await _saveBeforeSwitch(); } catch(e){}
   S.currentJobId = null;
   ['jobClient','jobAddr','jobEmail','jobPhone'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
   try { clearAll && clearAll(); } catch(e){}
@@ -6778,7 +7021,7 @@ async function handlePriceFile(e){
 
 // ── INSPECTION ───────────────────────────────────────────────────
 function selectCond(el,c){document.querySelectorAll('.cond-opt').forEach(function(x){x.className='cond-opt';});el.classList.add('sel-'+c);S.condition=c;}
-function addPhotos(e){Array.from(e.target.files).forEach(function(f){var r=new FileReader();r.onload=function(ev){S.photos.push({src:ev.target.result,caption:''});renderPhotos();};r.readAsDataURL(f);});document.getElementById('photoInput').value='';}
+function addPhotos(e){Array.from(e.target.files).forEach(function(f){var r=new FileReader();r.onload=function(ev){_downscalePhoto(ev.target.result,function(src){S.photos.push({src:src,caption:''});renderPhotos();});};r.readAsDataURL(f);});document.getElementById('photoInput').value='';}
 function renderPhotos(){document.getElementById('photoGrid').innerHTML=S.photos.map(function(p,i){return '<div class="photo-thumb"><img src="'+p.src+'"><button class="photo-rm" onclick="removePhoto('+i+')">x</button><div class="photo-caption"><input type="text" placeholder="Caption..." value="'+p.caption+'" style="width:100%;margin:0;padding:3px 5px;font-size:11px" oninput="S.photos['+i+'].caption=this.value"></div></div>';}).join('');}
 function removePhoto(i){S.photos.splice(i,1);renderPhotos();}
 
@@ -6855,8 +7098,10 @@ function _qpCondPhotoUpload(e){
   var idx = _qpCondPhotoTargetIdx;
   var r = new FileReader();
   r.onload = function(ev){
-    _qpCondPhotoSet(idx, { src: ev.target.result, offX:0, offY:0, zoom:1 });
-    _qpRerenderCondPhotos();
+    _downscalePhoto(ev.target.result, function(src){
+      _qpCondPhotoSet(idx, { src: src, offX:0, offY:0, zoom:1 });
+      _qpRerenderCondPhotos();
+    });
   };
   r.readAsDataURL(f);
 }
@@ -6868,8 +7113,10 @@ function _qpCondPhotoDrop(e, idx){
   if (!f.type || f.type.indexOf('image/') !== 0) return;
   var r = new FileReader();
   r.onload = function(ev){
-    _qpCondPhotoSet(idx, { src: ev.target.result, offX:0, offY:0, zoom:1 });
-    _qpRerenderCondPhotos();
+    _downscalePhoto(ev.target.result, function(src){
+      _qpCondPhotoSet(idx, { src: src, offX:0, offY:0, zoom:1 });
+      _qpRerenderCondPhotos();
+    });
   };
   r.readAsDataURL(f);
 }
@@ -7521,11 +7768,22 @@ function acceptQuoteDigitally(){
   });
   S.quote.accepted = { name: name, at: new Date().toISOString(), total: sub * (1+rate), gutter: S.quote.gutterChoice || 'none', options: acceptedOptions };
   if (window.__CUSTOMER_MODE) {
-    // Customer-facing view — write acceptance back to the office's job.
-    _postCustomerEvent('accepted', { name: name, total: S.quote.accepted.total, acceptedOptions: acceptedOptions });
-  } else {
-    try { if (typeof saveCurrentJob === 'function') saveCurrentJob(); } catch(e){}
+    // Customer-facing view — the acceptance MUST reach the office
+    // before we congratulate the customer; a swallowed failure here
+    // meant "accepted" quotes the office never heard about.
+    _postCustomerEvent('accepted', { name: name, total: S.quote.accepted.total, acceptedOptions: acceptedOptions }).then(function(r){
+      if (!r.ok) {
+        S.quote.accepted = null;
+        refreshQuoteProposal();
+        alert('Sorry — your acceptance didn\'t reach Flood Roofing (connection problem).\n\nPlease try again in a moment, or reply to the email / phone 0800 4 FLOOD so we can record it for you.');
+        return;
+      }
+      refreshQuoteProposal();
+      alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
+    });
+    return;
   }
+  try { if (typeof saveCurrentJob === 'function') saveCurrentJob(); } catch(e){}
   refreshQuoteProposal();
   alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
 }
@@ -7620,10 +7878,15 @@ function _customerSelections(){
   };
 }
 function _postCustomerEvent(type, extra){
-  if (!window.__CUSTOMER_TOKEN) return Promise.resolve();
+  if (!window.__CUSTOMER_TOKEN) return Promise.resolve({ ok: true });
   var body = Object.assign({ type:type, selections:_customerSelections() }, extra||{});
+  // Resolves { ok: false } instead of swallowing failures — accept /
+  // decline / query MUST tell the customer when their action didn't
+  // reach the office (previously they got a success message anyway).
   return fetch(PROXY + '/q/' + encodeURIComponent(window.__CUSTOMER_TOKEN) + '/event',
-    { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).catch(function(){});
+    { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
+    .then(function(r){ return { ok: r.ok }; })
+    .catch(function(){ return { ok: false }; });
 }
 var _custUpdT;
 function _postCustomerUpdateDebounced(){
@@ -7634,15 +7897,19 @@ function _postCustomerUpdateDebounced(){
 function customerDecline(){
   if (S.quote && S.quote.accepted){ alert('You\'ve already accepted this quote.'); return; }
   if (!confirm('Decline this quote? You can still contact us if you change your mind.')) return;
-  _postCustomerEvent('declined');
-  if (S.quote){ S.quote.share = S.quote.share || {}; S.quote.share.status = 'declined'; }
-  var bar = document.getElementById('custBar'); if (bar) bar.innerHTML = '<span style="font-size:13px">Thanks for letting us know — we\'ve recorded that you\'ve declined this quote.</span>';
+  _postCustomerEvent('declined').then(function(r){
+    if (!r.ok){ alert('Sorry — that didn\'t reach Flood Roofing (connection problem). Please try again or reply to the email instead.'); return; }
+    if (S.quote){ S.quote.share = S.quote.share || {}; S.quote.share.status = 'declined'; }
+    var bar = document.getElementById('custBar'); if (bar) bar.innerHTML = '<span style="font-size:13px">Thanks for letting us know — we\'ve recorded that you\'ve declined this quote.</span>';
+  });
 }
 function customerQuery(){
   var m = window.prompt('What would you like to ask about this quote?');
   if (!m) return;
-  _postCustomerEvent('queried', { message:m });
-  alert('Thanks — your question has been sent to Flood Roofing. We\'ll be in touch shortly.');
+  _postCustomerEvent('queried', { message:m }).then(function(r){
+    if (!r.ok){ alert('Sorry — your question didn\'t reach Flood Roofing (connection problem). Please try again or reply to the email instead.'); return; }
+    alert('Thanks — your question has been sent to Flood Roofing. We\'ll be in touch shortly.');
+  });
 }
 async function bootCustomerView(token){
   try {
@@ -7883,14 +8150,16 @@ function addGalleryPhotos(ev){
   files.forEach(function(f){
     var r = new FileReader();
     r.onload = function(e){
-      arr.push({src: e.target.result, caption: ''});
-      pending--;
-      if (pending === 0) {
-        renderGallery();
-        renderSlotGrid();
-        refreshQuoteProposal();
-        try { saveSettings && saveSettings(); } catch(e){}
-      }
+      _downscalePhoto(e.target.result, function(src){
+        arr.push({src: src, caption: ''});
+        pending--;
+        if (pending === 0) {
+          renderGallery();
+          renderSlotGrid();
+          refreshQuoteProposal();
+          try { saveSettings && saveSettings(); } catch(e){}
+        }
+      });
     };
     r.readAsDataURL(f);
   });
