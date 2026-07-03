@@ -20959,16 +20959,19 @@ function _jpRenderHeader(content, page, idx){
     // adjust forces the background through on browsers that strip
     // light fills.
     '<div style="margin-top:8px;font-size:10px"><table style="width:100%;border-spacing:6px 0;border-collapse:separate;-webkit-print-color-adjust:exact;print-color-adjust:exact"><tbody><tr>'+
-      '<td style="width:33.3%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+      '<td style="width:25%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
         '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Roof area</div>'+
         '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.roofArea > 0 ? d.roofArea.toFixed(1) + ' m²' : '—')+'</div>'+
-        '<div style="color:#6f6a60;font-size:9px">Pitch '+pitch+'</div>'+
       '</td>'+
-      '<td style="width:33.3%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+      '<td style="width:25%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+        '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Roof pitch</div>'+
+        '<div style="font-size:13px;font-weight:700;color:#0a1628">'+pitch+'</div>'+
+      '</td>'+
+      '<td style="width:25%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
         '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Flashings</div>'+
         '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.flashingsLm > 0 ? d.flashingsLm.toFixed(1) + ' lm' : '—')+'</div>'+
       '</td>'+
-      '<td style="width:33.3%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+      '<td style="width:25%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
         '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Gutter</div>'+
         '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.gutterLm > 0 ? d.gutterLm.toFixed(1) + ' lm' : '—')+'</div>'+
       '</td>'+
@@ -20983,6 +20986,10 @@ function _jpHeaderField(label, mirrorId, currentVal, full){
         'try{autosaveJob&&autosaveJob();}catch(e){}" '+
       'style="width:100%;font-size:13px;margin-top:3px;border:none;border-bottom:1px dashed #cbd5e1;background:transparent;padding:3px 0;outline:none;color:#0a1628;font-family:inherit">'+
   '</div>';
+}
+function _jpToggleGutterInclude(on){
+  try { localStorage.setItem('fr_jp_gutter_include', on ? '1' : '0'); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
 }
 function _jpRenderRoofMap(content, page, idx){
   var view = (page.opts && page.opts.view) || 'detailed';
@@ -21143,25 +21150,40 @@ function _jpRenderCutLists(content, page, idx){
   // toggle just exposes it in the Job Pack designer.
   var refsOn = _matShowFlashRefs();
   // ── Gutters (Gutter, Brackets and Droppers) ─────────────────
-  // Skip the whole section when no gutter is picked — the user
-  // explicitly asked not to print "No gutter required" on the PDF.
+  // The section ALWAYS renders now (revised brief), with an
+  // include-in-PDF tick on its banner: ticked shows the gutter cut
+  // list; unticked prints a clear "No Gutter required" so the crew
+  // knows it was considered, not forgotten.
   var gutterChoice = (document.getElementById('matGutter') || {}).value || 'none';
-  if (gutterChoice !== 'none') {
-    var gutterLabel = {
-      'colorsteel-box':'Colorsteel 125mm Box Gutter',
-      'zincalume-box':'Zincalume 125mm Box Gutter',
-      'marley-classic':'Marley Classic (PVC)',
-      'marley-typhoon':'Marley Typhoon (PVC)'
-    }[gutterChoice] || gutterChoice;
-    var gCl = _matBuildCutList('gutter', 0);
-    html += '<div class="mat-section">'+
-      _matSectionHead('#7c3aed', 'Gutters (Gutter, Brackets and Droppers)', esc(gutterLabel),
-        gCl.pieceCount ? gCl.pieceCount+' pcs · '+gCl.totalLm.toFixed(1)+' m' : '');
+  var gutterLabel = {
+    'colorsteel-box':'Colorsteel 125mm Box Gutter',
+    'zincalume-box':'Zincalume 125mm Box Gutter',
+    'marley-classic':'Marley Classic (PVC)',
+    'marley-typhoon':'Marley Typhoon (PVC)'
+  }[gutterChoice] || (gutterChoice !== 'none' ? gutterChoice : 'Gutter');
+  var gCl = _matBuildCutList('gutter', 0);
+  var _gInclRaw = localStorage.getItem('fr_jp_gutter_include');
+  var gutterIncluded = _gInclRaw != null
+    ? _gInclRaw === '1'
+    : (gutterChoice !== 'none' || gCl.pieceCount > 0);   // sensible default until first tick
+  var gutterTick =
+    '<label class="no-print pdf-hide" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#475569;cursor:pointer;margin-left:12px">'+
+      '<input type="checkbox" '+(gutterIncluded?'checked':'')+' onchange="_jpToggleGutterInclude(this.checked)" style="width:auto;margin:0"> Include in PDF'+
+    '</label>';
+  html += '<div class="mat-section">'+
+    _matSectionHead('#7c3aed', 'Gutters (Gutter, Brackets and Droppers)',
+      gutterIncluded ? esc(gutterLabel) : '',
+      (gutterIncluded && gCl.pieceCount ? gCl.pieceCount+' pcs · '+gCl.totalLm.toFixed(1)+' m' : '') + gutterTick);
+  if (gutterIncluded) {
     html += gCl.pieceCount === 0
       ? '<div class="cut-list-empty">Draw gutter lines on the Map Roof tab to populate this list.</div>'
       : _matCutListTable(gCl, '', true);
-    html += '</div>';
+  } else {
+    // .mat-list-row keeps the print empty-section heuristic happy so
+    // this line actually reaches the PDF.
+    html += '<div class="mat-list-row" style="font-weight:800;font-size:13px;color:#0a1628;padding:4px 6px">No Gutter required</div>';
   }
+  html += '</div>';
 
   // ── Consumables ──
   html += _jpRenderConsumablesSection(d);
