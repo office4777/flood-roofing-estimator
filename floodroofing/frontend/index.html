@@ -1236,6 +1236,16 @@ html.print-jobpack .jp-page input[type="number"]::-webkit-outer-spin-button{
   -webkit-appearance:none!important; appearance:none!important;
   display:none!important; margin:0!important;
 }
+/* Flattened inputs/selects must share the surrounding text's baseline
+   — their own line box sat a few px lower, so lengths looked dropped
+   ("A 1 @" up, "6.2 m" down) and units looked superscripted. */
+html.pdf-rendering .jp-page input[type="number"],
+html.pdf-rendering .jp-page input[type="text"],
+html.pdf-rendering .jp-page select{
+  height:auto!important;
+  line-height:inherit!important;
+  vertical-align:baseline!important;
+}
 /* Compact cut-list typography on paper: tighter leading, no row gaps,
    and consumable rows collapse from the 3-column screen grid (whose
    third column is hidden in PDF) to a simple label + value line — the
@@ -21340,7 +21350,7 @@ function _jpRenderConsumablesSection(d){
   }
   function resetLink(key){
     if (_matConsOverrideGet(key) == null) return '';
-    return ' <a onclick="_matConsOverrideSet(\''+key+'\',\'\');if(typeof renderJobPack===\'function\') renderJobPack()" '+
+    return ' <a class="pdf-hide" onclick="_matConsOverrideSet(\''+key+'\',\'\');if(typeof renderJobPack===\'function\') renderJobPack()" '+
       'style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>';
   }
   var underlayM2 = d.roofArea * 1.2;
@@ -21369,7 +21379,7 @@ function _jpRenderConsumablesSection(d){
       'onchange="_matTypedLineUpdate(\''+storeKey+'\','+getFnName+','+i+',\'qty\',this.value)" '+
       'style="width:64px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:2px 6px;font-size:12px;margin:0">';
     var resetHtml = line.qty != null
-      ? ' <a onclick="_matTypedLineUpdate(\''+storeKey+'\','+getFnName+','+i+',\'qty\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>'
+      ? ' <a class="pdf-hide" onclick="_matTypedLineUpdate(\''+storeKey+'\','+getFnName+','+i+',\'qty\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>'
       : '';
     var del = i > 0
       ? '<button class="mat-list-del" onclick="_matTypedLineRemove(\''+storeKey+'\','+getFnName+','+i+')" title="Delete line" '+
@@ -23164,7 +23174,7 @@ function _matRenderConsumables(d) {
   function resetLink(key){
     var ov = _matConsOverrideGet(key);
     if (ov == null) return '';
-    return ' <a onclick="_matConsOverrideSet(\''+key+'\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>';
+    return ' <a class="pdf-hide" onclick="_matConsOverrideSet(\''+key+'\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>';
   }
 
   // Render rows as full-width shaded banner sections (Underlay / Screws &
@@ -23387,17 +23397,28 @@ async function _buildJobPackPdf() {
   var _fitSpan = document.createElement('span');
   _fitSpan.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:pre';
   document.body.appendChild(_fitSpan);
-  Array.prototype.forEach.call(document.querySelectorAll('#jpPages .jp-page input[type="number"], #jpPages .jp-page input[type="text"]'), function(el){
-    _fitInputs.push([el, el.style.width]);
-    var v = String(el.value == null ? '' : el.value);
+  function _fitMeasure(el, text){
     var cs = getComputedStyle(el);
     _fitSpan.style.fontFamily = cs.fontFamily;
     _fitSpan.style.fontSize = cs.fontSize;
     _fitSpan.style.fontWeight = cs.fontWeight;
     _fitSpan.style.letterSpacing = cs.letterSpacing;
     _fitSpan.style.fontVariantNumeric = cs.fontVariantNumeric;
-    _fitSpan.textContent = v || ' ';
-    el.style.setProperty('width', (_fitSpan.offsetWidth + 5) + 'px', 'important');
+    _fitSpan.textContent = text || ' ';
+    return _fitSpan.offsetWidth;
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#jpPages .jp-page input[type="number"], #jpPages .jp-page input[type="text"]'), function(el){
+    _fitInputs.push([el, el.style.width]);
+    el.style.setProperty('width', (_fitMeasure(el, String(el.value == null ? '' : el.value)) + 5) + 'px', 'important');
+  });
+  // Selects too: width:auto on a flattened <select> sizes to the
+  // LONGEST option, not the picked one — a short pick like
+  // "65mm Unitites" was sitting in a box sized for "…profile washers
+  // pre-assembled" and shoving its quantity to the far right.
+  Array.prototype.forEach.call(document.querySelectorAll('#jpPages .jp-page select'), function(el){
+    _fitInputs.push([el, el.style.width]);
+    var label = (el.selectedIndex >= 0 && el.options[el.selectedIndex]) ? el.options[el.selectedIndex].text : '';
+    el.style.setProperty('width', (_fitMeasure(el, label) + 8) + 'px', 'important');
   });
   _fitSpan.remove();
 
