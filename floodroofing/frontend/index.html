@@ -20991,6 +20991,60 @@ function _jpToggleGutterInclude(on){
   try { localStorage.setItem('fr_jp_gutter_include', on ? '1' : '0'); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
 }
+// Gutter runs straight from the drawing.  The lettered-flashing walk
+// deliberately excludes gutter lines unless the layout's
+// "Include gutter lines" tick is on, so _matBuildCutList('gutter')
+// came back empty even with 55 lm of drawn gutter — collect them
+// directly instead (same roof walk + shared-edge dedupe, no letters,
+// raw measured length with no flashing +0.4 allowance).
+function _matGutterPieces(){
+  var out = [];
+  var ovs = DRAW.flashLayoutOverrides || {};
+  function proc(lines){
+    (lines || []).forEach(function(l){
+      if (!l || l.type !== 'gutter' || !l.pts || l.pts.length !== 2) return;
+      var key = (typeof _flashLineKey === 'function') ? _flashLineKey(l) : null;
+      var ov = (key && ovs[key]) || {};
+      if (ov.hidden) return;
+      var L = ov.lengthM != null ? +ov.lengthM : Math.ceil((parseFloat(l.measM || 0)) * 10) / 10;
+      if (!(L > 0)) return;
+      out.push({ line: l, lengthM: L });
+    });
+  }
+  var roofs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs : null;
+  if (roofs) {
+    var selected = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
+    roofs.forEach(function(r, idx){
+      if (selected && selected.indexOf(idx) < 0) return;
+      proc(idx === DRAW.activeRoofIdx ? DRAW.lines : (r && r.lines));
+    });
+  } else proc(DRAW.lines);
+  // Shared-edge dedupe (two roofs on one eave = one physical gutter).
+  var ded = [];
+  out.forEach(function(o){
+    var a = o.line.pts[0], b = o.line.pts[1], sa, sb;
+    if (a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])) { sa = a; sb = b; } else { sa = b; sb = a; }
+    var dup = ded.some(function(d){
+      var da = d.line.pts[0], db = d.line.pts[1], dsa, dsb;
+      if (da[0] < db[0] || (da[0] === db[0] && da[1] < db[1])) { dsa = da; dsb = db; } else { dsa = db; dsb = da; }
+      return Math.hypot(sa[0]-dsa[0], sa[1]-dsa[1]) < 6 && Math.hypot(sb[0]-dsb[0], sb[1]-dsb[1]) < 6;
+    });
+    if (!dup) ded.push(o);
+  });
+  return ded;
+}
+function _matGutterPref(key, val){
+  try { localStorage.setItem(key, String(val == null ? '' : val)); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _matGutterTypeSet(v){
+  var sel = document.getElementById('matGutter');
+  if (sel) {
+    sel.value = v;
+    try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
+  }
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
 function _jpRenderRoofMap(content, page, idx){
   var view = (page.opts && page.opts.view) || 'detailed';
   content.innerHTML =
@@ -21154,30 +21208,91 @@ function _jpRenderCutLists(content, page, idx){
   // include-in-PDF tick on its banner: ticked shows the gutter cut
   // list; unticked prints a clear "No Gutter required" so the crew
   // knows it was considered, not forgotten.
+  var GUTTER_TYPES = [
+    ['colorsteel-box', 'Colorsteel 125mm Box Gutter'],
+    ['zincalume-box',  'Zincalume 125mm Box Gutter'],
+    ['marley-classic', 'Marley Classic (PVC)'],
+    ['marley-typhoon', 'Marley Typhoon (PVC)'],
+  ];
   var gutterChoice = (document.getElementById('matGutter') || {}).value || 'none';
-  var gutterLabel = {
-    'colorsteel-box':'Colorsteel 125mm Box Gutter',
-    'zincalume-box':'Zincalume 125mm Box Gutter',
-    'marley-classic':'Marley Classic (PVC)',
-    'marley-typhoon':'Marley Typhoon (PVC)'
-  }[gutterChoice] || (gutterChoice !== 'none' ? gutterChoice : 'Gutter');
-  var gCl = _matBuildCutList('gutter', 0);
+  var gPieces = _matGutterPieces();
+  var gTotalLm = gPieces.reduce(function(s, p){ return s + p.lengthM; }, 0);
   var _gInclRaw = localStorage.getItem('fr_jp_gutter_include');
   var gutterIncluded = _gInclRaw != null
     ? _gInclRaw === '1'
-    : (gutterChoice !== 'none' || gCl.pieceCount > 0);   // sensible default until first tick
+    : (gutterChoice !== 'none' || gPieces.length > 0);   // sensible default until first tick
+  // Default to 125mm Box Gutter the moment the section is included —
+  // the spec-bar select follows so pricing/order stay in step.
+  if (gutterIncluded && gutterChoice === 'none') {
+    var _gSel = document.getElementById('matGutter');
+    if (_gSel) { _gSel.value = 'colorsteel-box'; gutterChoice = 'colorsteel-box'; }
+  }
   var gutterTick =
     '<label class="no-print pdf-hide" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#475569;cursor:pointer;margin-left:12px">'+
       '<input type="checkbox" '+(gutterIncluded?'checked':'')+' onchange="_jpToggleGutterInclude(this.checked)" style="width:auto;margin:0"> Include in PDF'+
     '</label>';
+  var gutterLabel = (GUTTER_TYPES.find(function(t){ return t[0] === gutterChoice; }) || [0, 'Gutter'])[1];
   html += '<div class="mat-section">'+
     _matSectionHead('#7c3aed', 'Gutters (Gutter, Brackets and Droppers)',
       gutterIncluded ? esc(gutterLabel) : '',
-      (gutterIncluded && gCl.pieceCount ? gCl.pieceCount+' pcs · '+gCl.totalLm.toFixed(1)+' m' : '') + gutterTick);
+      (gutterIncluded && gPieces.length ? gPieces.length+' pcs · '+gTotalLm.toFixed(1)+' m' : '') + gutterTick);
   if (gutterIncluded) {
-    html += gCl.pieceCount === 0
-      ? '<div class="cut-list-empty">Draw gutter lines on the Map Roof tab to populate this list.</div>'
-      : _matCutListTable(gCl, '', true);
+    // Gutter type picker (mirrors the spec-bar select).
+    var gTypeSel = '<select onchange="_matGutterTypeSet(this.value)" '+
+      'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0;max-width:100%">'+
+      GUTTER_TYPES.map(function(t){ return '<option value="'+t[0]+'"'+(t[0]===gutterChoice?' selected':'')+'>'+esc(t[1])+'</option>'; }).join('')+
+    '</select>';
+    html += '<div class="cons-row"><div class="cons-row-label">Gutter type</div><div class="cons-row-qty" style="font-weight:400">'+gTypeSel+'</div><div class="cons-row-sub"></div></div>';
+    // Gutter runs, grouped by length like the ridging list.
+    if (!gPieces.length) {
+      html += '<div class="cut-list-empty">Draw gutter lines on the Map Roof tab to populate this list.</div>';
+    } else {
+      var gBuckets = {}, gOrder = [];
+      gPieces.forEach(function(p){
+        var k = p.lengthM.toFixed(1);
+        if (!gBuckets[k]) { gBuckets[k] = 0; gOrder.push(k); }
+        gBuckets[k]++;
+      });
+      html += '<div class="mat-list">'+gOrder.map(function(k){
+        return '<div class="mat-list-row">'+
+          '<span class="mat-list-qty" style="font-weight:700;text-align:right;min-width:42px">'+gBuckets[k]+'</span>'+
+          '<span class="mat-list-at">@</span>'+
+          '<span class="mat-list-len" style="font-weight:600">'+k+'<span class="mat-list-unit">m</span></span>'+
+        '</div>';
+      }).join('')+'</div>';
+    }
+    // Droppers — size select (80mm default) + qty (auto: one per run).
+    var dropSize = localStorage.getItem('fr_gutter_dropper_size') || '80';
+    var dropQtyRaw = localStorage.getItem('fr_gutter_dropper_qty');
+    var dropAuto = gPieces.length;
+    var dropQty = (dropQtyRaw != null && dropQtyRaw !== '') ? parseInt(dropQtyRaw, 10) || 0 : dropAuto;
+    var dropSel = '<select onchange="_matGutterPref(\'fr_gutter_dropper_size\',this.value)" '+
+      'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0">'+
+      ['65','80','100'].map(function(s){ return '<option value="'+s+'"'+(s===dropSize?' selected':'')+'>'+s+'mm</option>'; }).join('')+
+    '</select>';
+    html += '<div class="cons-row"><div class="cons-row-label">Droppers</div>'+
+      '<div class="cons-row-qty"><input type="number" min="0" step="1" value="'+dropQty+'" onfocus="this.select()" '+
+        'onchange="_matGutterPref(\'fr_gutter_dropper_qty\',this.value)" '+
+        'style="width:56px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:2px 6px;font-size:12px;margin:0"> × '+dropSel+
+        ((dropQtyRaw != null && dropQtyRaw !== '') ? ' <a class="pdf-hide" onclick="_matGutterPref(\'fr_gutter_dropper_qty\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>' : '')+
+      '</div>'+
+      '<div class="cons-row-sub">auto '+dropAuto+' — one per gutter run</div></div>';
+    // Brackets — internal/external + qty (auto: 800mm spacing + 1 per run).
+    var brType = localStorage.getItem('fr_gutter_bracket_type') || 'external';
+    var brQtyRaw = localStorage.getItem('fr_gutter_bracket_qty');
+    var brAuto = gPieces.reduce(function(s, p){ return s + Math.ceil(p.lengthM / 0.8) + 1; }, 0);
+    var brQty = (brQtyRaw != null && brQtyRaw !== '') ? parseInt(brQtyRaw, 10) || 0 : brAuto;
+    var brSel = '<select onchange="_matGutterPref(\'fr_gutter_bracket_type\',this.value)" '+
+      'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0">'+
+      [['external','External'],['internal','Internal']].map(function(t){ return '<option value="'+t[0]+'"'+(t[0]===brType?' selected':'')+'>'+t[1]+'</option>'; }).join('')+
+    '</select>';
+    html += '<div class="cons-row"><div class="cons-row-label">Brackets</div>'+
+      '<div class="cons-row-qty"><input type="number" min="0" step="1" value="'+brQty+'" onfocus="this.select()" '+
+        'onchange="_matGutterPref(\'fr_gutter_bracket_qty\',this.value)" '+
+        'style="width:56px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:2px 6px;font-size:12px;margin:0"> × '+brSel+
+        ((brQtyRaw != null && brQtyRaw !== '') ? ' <a class="pdf-hide" onclick="_matGutterPref(\'fr_gutter_bracket_qty\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>' : '')+
+      '</div>'+
+      '<div class="cons-row-sub">auto '+brAuto+' — 800mm spacing + 1 per run</div></div>';
   } else {
     // .mat-list-row keeps the print empty-section heuristic happy so
     // this line actually reaches the PDF.
