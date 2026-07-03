@@ -641,7 +641,7 @@ select{
 }
 .mat-section-hd .swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.15)}
 .mat-section-hd h3{font-size:13.5px;font-weight:800;color:#0a1628;margin:0;letter-spacing:.4px;text-transform:uppercase}
-.mat-section-hd .meta{font-size:11px;color:var(--text2);font-weight:500;flex:1;min-width:120px}
+.mat-section-hd .meta{font-size:12.5px;color:#334155;font-weight:600;flex:1;min-width:120px}
 .mat-section-hd .hd-total{margin-left:auto;flex-shrink:0;font-size:11.5px;font-weight:800;color:#0a1628;white-space:nowrap;font-variant-numeric:tabular-nums}
 .mat-section-hd .mat-picker-slot{display:inline-flex;align-items:center;flex-shrink:0;margin-left:auto}
 .mat-section-sub{font-size:11.5px;color:var(--text2);margin:-2px 0 8px;line-height:1.5}
@@ -700,7 +700,7 @@ select{
 .cons-row input,.cons-row select{margin:0}
 .cons-row:last-child{border-bottom:none}
 .cons-row-label{font-size:12.5px;font-weight:600;color:#0a1628;display:flex;align-items:center;gap:6px}
-.cons-row-qty{font-size:14px;font-weight:700;color:#0a1628;letter-spacing:-.01em}
+.cons-row-qty{font-size:14px;font-weight:700;color:#0a1628;letter-spacing:-.01em;white-space:nowrap}
 .cons-row-sub{font-size:11px;color:var(--text2);line-height:1.4}
 .cons-row select{font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;margin:0;width:auto;background:#fff;color:#0a1628}
 @media(max-width:680px){
@@ -21249,6 +21249,80 @@ function _jpResolveDefaultDrawing(flashingType){
 // Render consumables (underlay / screws / rivets / dektites) as a
 // .cut-list table so they visually match Roof sheets / Ridge / etc.
 // All the same override mechanics — qty input writes through to
+// ── Multi-line screws / underlay (typed rows) ────────────────────
+// Each section is a list of {type, qty} rows: the office picks a
+// product per line and can add more lines (e.g. 65mm Unitites for the
+// sheets + 25mm Timberteks for the flashings).  qty === null means
+// "auto" — the line uses the drawing-derived quantity.  Same
+// add/update/remove shape as the Dektites rows.
+var SCREW_TYPES = [
+  '65mm Unitites',
+  '25mm Timberteks',
+  '25mm Unitites',
+  '65mm Unitites + profile washers pre-assembled',
+];
+var UNDERLAY_TYPES = [
+  { name: 'Synthetic 50m²',           m2: 50 },
+  { name: 'Synthetic wide roll 75m²', m2: 75 },
+  { name: 'Galv safety mesh',         m2: 50 },
+  { name: 'Covertek 407 50m²',        m2: 50 },
+];
+function _matTypedLinesGet(key, seed){
+  try {
+    var a = JSON.parse(localStorage.getItem(key) || 'null');
+    if (Array.isArray(a) && a.length) return a;
+  } catch(e){}
+  return seed();
+}
+function _matTypedLinesSet(key, arr){
+  try { localStorage.setItem(key, JSON.stringify(arr)); } catch(e){}
+}
+function _matScrewLinesGet(){
+  return _matTypedLinesGet('fr_screw_lines', function(){
+    // Migrate the old single-value override so an existing job keeps
+    // its edited quantity.
+    var legacy = _matConsOverrideGet('fr_screws_qty_override');
+    return [{ type: SCREW_TYPES[0], qty: (legacy != null ? legacy : null) }];
+  });
+}
+function _matUnderlayLinesGet(){
+  return _matTypedLinesGet('fr_underlay_lines', function(){
+    var legacy = _matConsOverrideGet('fr_underlay_rolls_override');
+    var legacySize = parseInt(localStorage.getItem('fr_underlay_roll_size') || '50', 10);
+    var t = (legacySize === 75) ? UNDERLAY_TYPES[1].name : UNDERLAY_TYPES[0].name;
+    return [{ type: t, qty: (legacy != null ? legacy : null) }];
+  });
+}
+function _matTypedLineUpdate(key, getFn, i, field, val){
+  var a = getFn();
+  if (!a[i]) return;
+  if (field === 'qty') {
+    var raw = String(val == null ? '' : val).trim();
+    a[i].qty = raw === '' ? null : Math.max(0, parseInt(raw, 10) || 0);
+  } else {
+    a[i][field] = String(val || '');
+  }
+  _matTypedLinesSet(key, a);
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _matTypedLineAdd(key, getFn, defType, defQty){
+  var a = getFn();
+  a.push({ type: defType, qty: defQty });
+  _matTypedLinesSet(key, a);
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _matTypedLineRemove(key, getFn, i){
+  var a = getFn();
+  a.splice(i, 1);
+  if (!a.length) a.push({ type: (key === 'fr_screw_lines' ? SCREW_TYPES[0] : UNDERLAY_TYPES[0].name), qty: null });
+  _matTypedLinesSet(key, a);
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _matUnderlayM2For(typeName){
+  var t = UNDERLAY_TYPES.find(function(u){ return u.name === typeName; });
+  return (t && t.m2) || 50;
+}
+
 // localStorage via _matConsOverrideSet, dektite per-size rows edit
 // _matDektitesGet directly. Empty input = back to auto-calculated.
 function _jpRenderConsumablesSection(d){
@@ -21270,12 +21344,8 @@ function _jpRenderConsumablesSection(d){
       'style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>';
   }
   var underlayM2 = d.roofArea * 1.2;
-  var rollsAuto = d.roofArea > 0 ? Math.ceil(underlayM2 / rollSize) : 0;
   var screwsAuto = d.roofArea > 0 ? Math.ceil((d.roofArea * 8) / 100) * 100 : 0;
   var rivetsAuto = d.flashingsLm > 0 ? Math.max(100, Math.ceil(d.flashingsLm / 60) * 100) : 0;
-  var rollSizeSelect = '<select onchange="localStorage.setItem(\'fr_underlay_roll_size\',this.value);if(typeof renderJobPack===\'function\') renderJobPack();" style="padding:1px 4px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:10.5px;color:#0a1628;margin:0 0 0 4px">'+
-    [50,75,100].map(function(sz){ return '<option value="'+sz+'"'+(sz===rollSize?' selected':'')+'>'+sz+' m² roll</option>'; }).join('')+
-  '</select>';
 
   // Per-banner row helper — the same shape used in the live Materials
   // tab so the Job Pack and the tab match visually.
@@ -21286,30 +21356,69 @@ function _jpRenderConsumablesSection(d){
       '<div class="cons-row-sub">'+subHtml+'</div>'+
     '</div>';
   }
+  // Typed multi-line row: product dropdown + qty + note, with delete on
+  // every line after the first and an auto-reset link on edited lines.
+  function typedRow(storeKey, getFnName, i, line, types, qtyAuto, unit, subHtml){
+    var typeSel = '<select onchange="_matTypedLineUpdate(\''+storeKey+'\','+getFnName+','+i+',\'type\',this.value)" '+
+      'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0;max-width:100%">'+
+      types.map(function(t){ return '<option value="'+esc(t)+'"'+(t===line.type?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+
+    '</select>';
+    var v = line.qty != null ? line.qty : qtyAuto;
+    var qty = '<input type="number" min="0" step="1" value="'+v+'" onfocus="this.select()" '+
+      'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
+      'onchange="_matTypedLineUpdate(\''+storeKey+'\','+getFnName+','+i+',\'qty\',this.value)" '+
+      'style="width:64px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:2px 6px;font-size:12px;margin:0">';
+    var resetHtml = line.qty != null
+      ? ' <a onclick="_matTypedLineUpdate(\''+storeKey+'\','+getFnName+','+i+',\'qty\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>'
+      : '';
+    var del = i > 0
+      ? '<button class="mat-list-del" onclick="_matTypedLineRemove(\''+storeKey+'\','+getFnName+','+i+')" title="Delete line" '+
+          'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700;padding:0 4px;opacity:1">×</button>'
+      : '';
+    return '<div class="cons-row">'+
+      '<div class="cons-row-label">'+typeSel+'</div>'+
+      '<div class="cons-row-qty">'+qty+' '+unit+resetHtml+del+'</div>'+
+      '<div class="cons-row-sub">'+(subHtml||'')+'</div>'+
+    '</div>';
+  }
 
-  // ── Underlay ──
+  // ── Underlay — one line per product type, + Add line ──
+  var underlayLines = _matUnderlayLinesGet();
+  var underlayRows = underlayLines.map(function(line, i){
+    var perRoll = _matUnderlayM2For(line.type);
+    var auto = d.roofArea > 0 ? Math.ceil(underlayM2 / perRoll) : 0;
+    var sub = (i === 0)
+      ? underlayM2.toFixed(1)+' m² (incl. 20% waste) · auto '+auto+' @ '+perRoll+' m²/roll'
+      : '';
+    return typedRow('fr_underlay_lines', '_matUnderlayLinesGet', i, line,
+      UNDERLAY_TYPES.map(function(u){ return u.name; }), auto, 'rolls', sub);
+  }).join('');
   var underlayBanner = '<div class="mat-section">'+
     _matSectionHead('#10b981', 'Underlay', 'Roof paper / breather wrap')+
     '<div class="cons-body">'+
-      consRow('📄 Underlay / paper',
-        qtyIn('fr_underlay_rolls_override', rollsAuto), 'rolls',
-        underlayM2.toFixed(1)+' m² (incl. 20% waste)' + rollSizeSelect + ' · auto '+rollsAuto,
-        resetLink('fr_underlay_rolls_override'))+
+      underlayRows+
+      '<button class="mat-add-btn" onclick="_matTypedLineAdd(\'fr_underlay_lines\',_matUnderlayLinesGet,\''+esc(UNDERLAY_TYPES[0].name)+'\',1)" style="margin-top:4px">+ Add underlay line</button>'+
     '</div>'+
   '</div>';
 
-  // ── Screws & Rivets ──
+  // ── Screws & Rivets — screw lines are typed + addable ──
+  var screwLines = _matScrewLinesGet();
+  var screwRows = screwLines.map(function(line, i){
+    var sub = (i === 0)
+      ? d.roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(d.roofArea * 8)+' · auto '+screwsAuto
+      : '';
+    return typedRow('fr_screw_lines', '_matScrewLinesGet', i, line,
+      SCREW_TYPES, screwsAuto, 'screws', sub);
+  }).join('');
   var srBanner = '<div class="mat-section">'+
     _matSectionHead('#0a1628', 'Screws & Rivets', 'Fasteners for sheets &amp; flashings')+
     '<div class="cons-body">'+
-      consRow('🔩 Roofing screws',
-        qtyIn('fr_screws_qty_override', screwsAuto, 80), 'screws',
-        '65mm Unitites · '+d.roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(d.roofArea * 8)+' · auto '+screwsAuto,
-        resetLink('fr_screws_qty_override'))+
+      screwRows+
       consRow('🪛 Rivets',
         qtyIn('fr_rivets_qty_override', rivetsAuto, 80), 'rivets',
         d.flashingsLm.toFixed(1)+' lm of flashings · auto '+rivetsAuto+' (100 / 60 lm minimum)',
         resetLink('fr_rivets_qty_override'))+
+      '<button class="mat-add-btn" onclick="_matTypedLineAdd(\'fr_screw_lines\',_matScrewLinesGet,\''+esc(SCREW_TYPES[1])+'\',100)" style="margin-top:4px">+ Add screw line</button>'+
     '</div>'+
   '</div>';
 
