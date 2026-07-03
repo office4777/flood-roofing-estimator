@@ -7544,7 +7544,16 @@ function unacceptQuote(){
 function _quoteShareToken(){
   if (!S.quote) return null;
   if (!S.quote.share) S.quote.share = {};
-  if (!S.quote.share.token) S.quote.share.token = 'q' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+  if (!S.quote.share.token) {
+    // Crypto-random token (~93 bits) — the link is the only credential
+    // guarding the customer quote, so Math.random()'s guessable ~40
+    // bits weren't enough.  Existing tokens keep working (only new
+    // shares mint a token).
+    var _tokBytes = new Uint8Array(18);
+    if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(_tokBytes);
+    else for (var _ti = 0; _ti < _tokBytes.length; _ti++) _tokBytes[_ti] = Math.floor(Math.random() * 256);
+    S.quote.share.token = 'q' + Array.prototype.map.call(_tokBytes, function(x){ return (x % 36).toString(36); }).join('');
+  }
   if (!S.quote.share.status) S.quote.share.status = 'sent';
   return S.quote.share.token;
 }

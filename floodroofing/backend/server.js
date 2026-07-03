@@ -2,11 +2,40 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const https = require('https');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 3456;
+
+// Auth signing secret. NEVER fall back to a hardcoded string — a known
+// default would let anyone forge a token for any user_id and read/write
+// every job. If the env var is missing we generate a random per-boot
+// secret instead: existing sessions just have to log in again after a
+// restart, which beats forgeable tokens.
+const JWT_SECRET = process.env.JWT_SECRET || (function () {
+  console.error('WARNING: JWT_SECRET is not set — using a random per-boot secret. ' +
+    'Set JWT_SECRET on Railway so logins survive restarts.');
+  return crypto.randomBytes(32).toString('hex');
+})();
+
+// Tiny in-memory rate limiter for the PUBLIC quote routes (they have no
+// auth by design — the token IS the credential — so cap how fast anyone
+// can hammer them per IP+route).  Single-process is fine on Railway.
+const _rateBuckets = new Map();
+function rateLimit(maxPerWindow, windowMs) {
+  return function (req, res, next) {
+    const key = req.ip + '|' + req.route.path;
+    const now = Date.now();
+    let b = _rateBuckets.get(key);
+    if (!b || now - b.start > windowMs) { b = { start: now, n: 0 }; _rateBuckets.set(key, b); }
+    b.n++;
+    if (_rateBuckets.size > 5000) _rateBuckets.clear();   // memory backstop
+    if (b.n > maxPerWindow) return res.status(429).json({ error: 'Too many requests — slow down.' });
+    next();
+  };
+}
 
 // Supabase - uses SUPABASE_ANON_KEY (set on Railway)
 const supabase = createClient(
@@ -78,7 +107,7 @@ function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'No token' });
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+    req.user = jwt.verify(token, JWT_SECRET);
     next();
   } catch {
     res.status(401).json({ error: 'Invalid token' });
@@ -109,12 +138,20 @@ async function requireSubscription(req, res, next) {
   }
 }
 
-app.get('/health', (req, res) => {
-  res.json({ ok: true, supabase: process.env.SUPABASE_URL ? 'OK' : 'NOT SET' });
-});
-
 app.post('/auth/register', async (req, res) => {
   const { email, password, name, company } = req.body;
+  // Self-registration is invite-gated: with it open, a stranger could
+  // mint a trial account and spend the owner's Anthropic / Fergus keys
+  // through the authenticated proxies.  Set REGISTRATION_INVITE_CODE on
+  // Railway and share it when onboarding someone; set
+  // OPEN_REGISTRATION=true to deliberately restore open signup.
+  if (process.env.OPEN_REGISTRATION !== 'true') {
+    const invite = (req.body || {}).invite || '';
+    const expected = process.env.REGISTRATION_INVITE_CODE || '';
+    if (!expected || invite !== expected) {
+      return res.status(403).json({ error: 'Registration is invite-only — contact Flood Roofing for access.' });
+    }
+  }
   try {
     const { data, error } = await supabase.auth.admin.createUser({ email, password, email_confirm: true });
     if (error) return res.status(400).json({ error: error.message });
@@ -123,7 +160,7 @@ app.post('/auth/register', async (req, res) => {
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 14);
     await supabase.from('subscriptions').insert({ user_id: userId, status: 'trialing', trial_ends_at: trialEnd.toISOString() });
-    const token = jwt.sign({ id: userId, email }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '30d' });
+    const token = jwt.sign({ id: userId, email }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: userId, email, name, company } });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -138,7 +175,7 @@ app.post('/auth/login', async (req, res) => {
     const userId = data.user.id;
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
     const { data: sub } = await supabase.from('subscriptions').select('*').eq('user_id', userId).single();
-    const token = jwt.sign({ id: userId, email }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '30d' });
+    const token = jwt.sign({ id: userId, email }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { ...profile }, subscription: sub });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -232,8 +269,9 @@ async function _saveQuoteBack(job, quote){
   await supabase.from('jobs').update({ draw_state: ds, updated_at: new Date().toISOString() }).eq('id', job.id);
 }
 
-// Customer opens the quote.
-app.get('/q/:token', async (req, res) => {
+// Customer opens the quote.  Rate-limited: the token is the only
+// credential, so cap per-IP guessing speed.
+app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
   try {
     const job = await _findJobByToken(req.params.token);
     const quote = _quoteOf(job);
@@ -257,9 +295,28 @@ app.get('/q/:token', async (req, res) => {
 });
 
 // Customer changes selections / accepts / declines / asks a question.
-app.post('/q/:token/event', async (req, res) => {
+// Everything in the body is UNTRUSTED (anyone holding the link can call
+// this): whitelist the event type, clamp every string, force numeric
+// fields to numbers, and cap array sizes before it touches the job.
+app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
   try {
-    const { type, selections, name, message, total, acceptedOptions } = req.body || {};
+    let { type, selections, name, message, total, acceptedOptions } = req.body || {};
+    const ALLOWED_TYPES = ['accepted', 'declined', 'queried', 'opened', 'update'];
+    if (type != null && ALLOWED_TYPES.indexOf(String(type)) < 0) {
+      return res.status(400).json({ error: 'Unknown event type' });
+    }
+    name = String(name || '').slice(0, 120);
+    total = Number(total);
+    if (!isFinite(total) || total < 0 || total > 10000000) total = 0;
+    if (!Array.isArray(acceptedOptions)) acceptedOptions = [];
+    acceptedOptions = acceptedOptions.slice(0, 20).map(function (o) {
+      o = o || {};
+      return {
+        title: String(o.title || '').slice(0, 200),
+        grade: String(o.grade || '').slice(0, 200),
+        total: isFinite(Number(o.total)) ? Number(o.total) : 0,
+      };
+    });
     const job = await _findJobByToken(req.params.token);
     const quote = _quoteOf(job);
     if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
@@ -269,12 +326,13 @@ app.post('/q/:token/event', async (req, res) => {
     // Apply customer selections (only the safe, customer-controlled fields).
     if (selections) {
       if (Array.isArray(selections.options)) {
-        selections.options.forEach(function(sel){
+        selections.options.slice(0, 20).forEach(function(sel){
+          sel = sel || {};
           const o = (quote.options || []).find(function(x){ return x.id === sel.id; });
-          if (o) { o.selected = sel.selected !== false; o.selectedUpgrade = sel.selectedUpgrade || ''; }
+          if (o) { o.selected = sel.selected !== false; o.selectedUpgrade = String(sel.selectedUpgrade || '').slice(0, 80); }
         });
       }
-      if (typeof selections.gutterChoice === 'string') quote.gutterChoice = selections.gutterChoice;
+      if (['none', 'box', 'marley'].indexOf(selections.gutterChoice) >= 0) quote.gutterChoice = selections.gutterChoice;
     }
     if (type === 'accepted') {
       quote.accepted = { name: name || quote.client || 'Customer', at: now, total: total || 0, options: acceptedOptions || [], gutter: quote.gutterChoice || 'none' };
@@ -930,12 +988,12 @@ app.get('/fergus-files/download', requireAuth, requireSubscription, async (req, 
 
 app.get('/jms/debug', requireAuth, (req, res) => {
   const k = process.env.FERGUS_API_KEY || '';
+  // No key material in the response (length/tail were dropped) — the
+  // setup UI only needs to know whether a key is present + looks right.
   res.json({
     fergus: {
       key_set: !!k,
       key_format_ok: k.startsWith('fergPAT_'),
-      key_length: k.length,
-      key_tail: k ? k.slice(-4) : null,
       host: FERGUS_HOST,
       path_prefix: FERGUS_PREFIX,
       computed_test_url: `https://${FERGUS_HOST}${FERGUS_PREFIX}/jobs?page=1&per_page=1`,
