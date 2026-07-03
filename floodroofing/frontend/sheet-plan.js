@@ -3231,6 +3231,221 @@ function _renderRoofSheetPlanInner() {
     });
   }
 
+  // ── HIP+VALLEY-CORNER GABLE branch (single-reflex L) ─────────────
+  // The roofer's SOP for this roof is simple: every face's sheets lay
+  // from THEIR eave/gutter (donors), the hip and the valley are
+  // parallel 45° cuts, and the only sheet-less regions — the
+  // valley-side wedges with no eave of their own — are filled by the
+  // offcuts of the hip-cut donors ("donor valley goes to hip offcut
+  // and vice versa": the cut angle matches because valley ∥ hip).
+  // The generic face-walker instead produced zig-zag numbering and
+  // overlapping cascade pieces at the corner.  Rebuild here: four
+  // convex faces tiled with gutter-anchored strips + complement-paired
+  // receivers in the wedges.
+  var __hvIsGable = !isBigL && !__gblIsStraight && __hasBarge &&
+    (DRAW.lines || []).some(function(l){ return l && l.type === 'valley'; }) &&
+    (DRAW.lines || []).some(function(l){ return l && l.type === 'hip'; }) &&
+    outline.length === 6;
+  if (__hvIsGable) (function(){
+    // Canonicalize: wing top-left, flush west (rotate; mirror if the
+    // chirality is flipped).  All outputs are transformed back.
+    var det = _detectBigL(outline);
+    if (!det) return;
+    var nT = det.orientation, pv = det.pivot.slice();
+    var can = outline.map(function(p){ return rotate90(p, pv[0], pv[1], nT); });
+    var det2 = _detectBigL(can);
+    if (!det2 || det2.orientation !== 0) return;
+    var wing = det2.wing, main = det2.main;
+    var mirrored = false, mirX = 0;
+    if (Math.abs(wing.x0 - main.x0) > 2) {
+      // Wing flush EAST → mirror to canonical chirality.
+      mirX = (main.x0 + main.x1) / 2;
+      can = can.map(function(p){ return [2 * mirX - p[0], p[1]]; });
+      mirrored = true;
+      var det3 = _detectBigL(can);
+      if (!det3 || det3.orientation !== 0) return;
+      wing = det3.wing; main = det3.main;
+      if (Math.abs(wing.x0 - main.x0) > 2) return;
+    }
+    var wx0 = wing.x0, wx1 = wing.x1, wy0 = wing.y0;
+    var mx0 = main.x0, mx1 = main.x1, refY = main.y0, my1 = main.y1;
+    var refX = wx1;
+    var wrx = (wx0 + wx1) / 2;                    // wing ridge x
+    var mry = (refY + my1) / 2;                   // main ridge y
+    // 45° skeleton junctions (matches buildGableRoofLines_legacy).
+    // Regime 1 (narrow wing): the valley reaches the wing ridge above
+    // the main ridge; regime 2 (wide wing): it lands on the main ridge
+    // first and the hip connector runs the other way.
+    var fy, mex;
+    var vFootY = refY + (refX - wrx);             // valley y at x=wrx
+    if (vFootY <= mry + 0.5) { fy = vFootY; mex = wrx + (mry - fy); }
+    else { mex = refX - (mry - refY); fy = my1 - (wrx - mx0); }
+    // Faces (NOT all convex — F_W has a reflex vertex at the valley
+    // foot in regime 1, so bands are clipped face-against-band below).
+    // _fullFor(clip): the STOCK length a piece is cut from.  Rows on
+    // the west plane that reach past the wing ridge into the main
+    // section are ordered at main depth, not wing depth (regime 1);
+    // mirrored logic for the south face in regime 2.
+    var F_W = { color: COL_GREEN, gutter: 'W', poly: (fy < mry)
+      ? [[mx0, wy0], [wrx, wy0], [wrx, fy], [mex, mry], [mx0, my1]]
+      : [[mx0, wy0], [wrx, wy0], [wrx, fy], [mx0, my1]],
+      fullFor: (fy < mry) ? function(clip){
+        var mxx = Math.max.apply(null, clip.map(function(p){ return p[0]; }));
+        var myy = Math.min.apply(null, clip.map(function(p){ return p[1]; }));
+        // Rows at/below the valley foot are on the main run — cut
+        // from main-depth stock even when the piece is short (hip-end
+        // slivers near the south eave).
+        return (myy > fy - 2 || mxx > wrx + 2) ? (mex - mx0) : (wrx - mx0);
+      } : null };
+    var F_WE = { color: COL_PURPLE, gutter: 'E', poly: (fy < mry)
+      ? [[wrx, wy0], [refX, wy0], [refX, refY], [wrx, fy]]
+      : [[wrx, wy0], [refX, wy0], [refX, refY], [mex, mry], [wrx, fy]] };
+    var F_MN = { color: COL_ORANGE, gutter: 'N', poly: (fy < mry)
+      ? [[refX, refY], [mx1, refY], [mx1, mry], [mex, mry], [wrx, fy]]
+      : [[refX, refY], [mx1, refY], [mx1, mry], [mex, mry]] };
+    var F_MS = { color: COL_BLUE, gutter: 'S', poly: (fy < mry)
+      ? [[mx0, my1], [mex, mry], [mx1, mry], [mx1, my1]]
+      : [[mx0, my1], [wrx, fy], [mex, mry], [mx1, mry], [mx1, my1]],
+      fullFor: (fy < mry) ? null : function(clip){
+        var mnx = Math.min.apply(null, clip.map(function(p){ return p[0]; }));
+        return (mnx < mex - 2) ? (my1 - fy) : (my1 - mry);
+      } };
+    var hvFaces = [F_MN, F_MS, F_W, F_WE];
+    // Face records + strips.
+    function _mkFace(f){
+      var poly = f.poly.map(function(p){ return p.slice(); });
+      var xs = poly.map(function(p){ return p[0]; }), ys = poly.map(function(p){ return p[1]; });
+      var vert = (f.gutter === 'W' || f.gutter === 'E');    // rows ↔ vertical eave
+      var depth = vert ? (f.gutter === 'W' ? wrx - mx0 : refX - wrx)
+                       : (my1 - refY) / 2;
+      return {
+        poly: poly, type: 'long-side',
+        a: poly[0], b: poly[1], gL: 1,
+        tx: vert ? 0 : 1, ty: vert ? 1 : 0, nx: 0, ny: 0,
+        perpPx: depth,
+        planSheetM: depth * effectiveScale,
+        sheetM: depth * effectiveScale * pitchFactor,
+        area: Math.abs(polyArea(poly)), centroid: polyCentroid(poly),
+        color: f.color, _gutter: f.gutter, _fullFor: f.fullFor || null
+      };
+    }
+    var hvFaceRecs = hvFaces.map(_mkFace);
+    var hvStrips = [];
+    hvFaceRecs.forEach(function(fr){
+      var xs = fr.poly.map(function(p){ return p[0]; }), ys = fr.poly.map(function(p){ return p[1]; });
+      var bx0 = Math.min.apply(null, xs), bx1 = Math.max.apply(null, xs);
+      var by0 = Math.min.apply(null, ys), by1 = Math.max.apply(null, ys);
+      var vert = (fr._gutter === 'W' || fr._gutter === 'E');   // rows
+      var u0 = vert ? by0 : bx0, u1 = vert ? by1 : bx1;
+      for (var u = u0; u < u1 - 0.5; u += coverPx) {
+        var uu = Math.min(u + coverPx, u1);
+        var band = vert
+          ? [[bx0, u], [bx1, u], [bx1, uu], [bx0, uu]]
+          : [[u, by0], [uu, by0], [uu, by1], [u, by1]];
+        // Subject = face poly (may be CONCAVE), clip = band rect
+        // (always convex) — clipToConvexPoly requires the SECOND arg
+        // convex, so the arguments must be this way round.
+        var clip = clipToConvexPoly(fr.poly, band);
+        if (!clip || clip.length < 3 || Math.abs(polyArea(clip)) < coverPx) continue;
+        // Gutter contact: does the clipped piece reach the face's eave?
+        var touches = clip.some(function(p){
+          if (fr._gutter === 'W') return Math.abs(p[0] - mx0) < 1;
+          if (fr._gutter === 'E') return Math.abs(p[0] - refX) < 1;
+          if (fr._gutter === 'N') return Math.abs(p[1] - refY) < 1;
+          return Math.abs(p[1] - my1) < 1;
+        });
+        var cxs = clip.map(function(p){ return p[0]; }), cys = clip.map(function(p){ return p[1]; });
+        var lenPx = vert ? (Math.max.apply(null, cxs) - Math.min.apply(null, cxs))
+                         : (Math.max.apply(null, cys) - Math.min.apply(null, cys));
+        var fullPx = fr._fullFor ? fr._fullFor(clip) : fr.perpPx;
+        var clipped = lenPx < fullPx - coverPx / 2;
+        // SOP: the row faces (W/E gutter) are the DONOR side; every
+        // hip/valley-clipped piece on the column faces (N/S) is an
+        // offcut of a row donor — same convention the approved Big-L
+        // layout uses (north/south clipped columns = west-donor
+        // offcuts).  Valley-wedge pieces with no eave contact are
+        // receivers on any face.
+        var isRecv = !touches || (!vert && clipped);
+        hvStrips.push({
+          face: fr, color: fr.color,
+          poly: clip, centroid: polyCentroid(clip),
+          orderedLengthMm: orderedLengthMm(lenPx * effectiveScale * pitchFactor),
+          pieceM: lenPx * effectiveScale * pitchFactor,
+          isOffcut: isRecv, isPhantom: false,
+          _hvLen: lenPx, _hvFull: fullPx, _hvClipped: clipped,
+          _hvAxis: vert ? 1 : 0
+        });
+      }
+    });
+    // Complement pairing: receivers take the number + colour of the
+    // clipped donor whose offcut fits (donor piece + receiver piece ≈
+    // one full sheet — "donor valley goes to hip offcut and vice
+    // versa").  Match by length error with a distance tiebreak so
+    // offcuts pair with donors at the SAME corner when lengths tie.
+    var hvDonors = hvStrips.filter(function(s){ return !s.isOffcut && s._hvClipped; });
+    function _hvMatch(recvs){
+      var pairs = [];
+      recvs.forEach(function(r, ri){
+        hvDonors.forEach(function(d, di){
+          var err = Math.abs(r._hvLen + d._hvLen - d._hvFull);
+          if (err >= coverPx * 1.2) return;
+          var dist = Math.hypot(r.centroid[0] - d.centroid[0], r.centroid[1] - d.centroid[1]);
+          pairs.push({ ri: ri, di: di, score: err + dist * 0.02 });
+        });
+      });
+      pairs.sort(function(a, b){ return a.score - b.score; });
+      pairs.forEach(function(pr){
+        var r = recvs[pr.ri], d = hvDonors[pr.di];
+        if (r._hvSrc || d._hvClaimed) return;
+        r._hvSrc = d; d._hvClaimed = true;
+        r.color = d.color;
+        // The donor sheet is ordered at FULL length — the receiver's
+        // piece is cut from the same sheet.
+        d.orderedLengthMm = orderedLengthMm(d._hvFull * effectiveScale * pitchFactor);
+      });
+    }
+    // Pass 1: valley-wedge pieces on the ROW faces claim their
+    // same-corner hip-cut donors first (the stated SOP: "donor hip →
+    // valley offcut and vice versa").  Pass 2: clipped column pieces.
+    _hvMatch(hvStrips.filter(function(s){ return s.isOffcut && s._hvAxis === 1; }));
+    _hvMatch(hvStrips.filter(function(s){ return s.isOffcut && s._hvAxis === 0 && !s._hvSrc; }));
+    // Unpaired receivers are separately-ordered sheets after all:
+    // solid colour, counted in the order list, numbered with their
+    // face's own sequence.
+    hvStrips.forEach(function(s){ if (s.isOffcut && !s._hvSrc) s.isOffcut = false; });
+    // Numbering: donors 1..N per colour ALONG THE EAVE (rows top→
+    // bottom, columns left→right); paired receivers inherit their
+    // donor's seq.
+    var hvByCol = {};
+    hvStrips.forEach(function(s){ if (!s.isOffcut) (hvByCol[s.color] = hvByCol[s.color] || []).push(s); });
+    Object.keys(hvByCol).forEach(function(colr){
+      hvByCol[colr].sort(function(p, q){
+        var ax = p._hvAxis;
+        return p.centroid[ax] - q.centroid[ax] || p.centroid[1 - ax] - q.centroid[1 - ax];
+      }).forEach(function(s, i){ s.seq = i + 1; });
+    });
+    hvStrips.forEach(function(s){
+      if (s.isOffcut && s._hvSrc) s.seq = s._hvSrc.seq;
+    });
+    // Un-canonicalize back to display space.
+    function _unmap(p){
+      var q = mirrored ? [2 * mirX - p[0], p[1]] : p.slice();
+      return nT ? rotate90(q, pv[0], pv[1], (4 - nT) % 4) : q;
+    }
+    hvFaceRecs.forEach(function(f){
+      f.poly = f.poly.map(_unmap);
+      f.a = f.poly[0]; f.b = f.poly[1];
+      f.centroid = polyCentroid(f.poly);
+    });
+    hvStrips.forEach(function(s){
+      s.poly = s.poly.map(_unmap);
+      s.centroid = polyCentroid(s.poly);
+    });
+    faces = hvFaceRecs;
+    mainA = hvFaceRecs[0]; mainB = hvFaceRecs[1];
+    allStrips = hvStrips;
+  })();
+
   // ── Re-insert hip-end apex into strips that cut it off ───────────
   // Sutherland–Hodgman clipping a strip rectangle against a triangular
   // hip-end face produces a polygon whose far edge is a CHORD from
