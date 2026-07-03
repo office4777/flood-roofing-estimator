@@ -3044,6 +3044,13 @@ html.pdf-rendering .jp-page input[type="checkbox"]{ display:none!important; }
         <div><label>Marley Typhoon PVC — add ($ ex-GST)</label><input type="number" id="qdGutterMarley" step="0.01" min="0" placeholder="0.00" oninput="onQuoteEdit()"></div>
         <div><label>Colorsteel 125mm Box Gutter — add ($ ex-GST)</label><input type="number" id="qdGutterBox" step="0.01" min="0" placeholder="0.00" oninput="onQuoteEdit()"></div>
       </div>
+      <p style="font-size:11px;color:var(--text2);margin:12px 0 10px"><strong>Steel &amp; thickness add-ons</strong> — price change when the customer picks a different steel grade or 0.55 gauge on the proposal's Selections page. Positive = costs more, negative = cheaper (e.g. Zincalume). Leave at 0 to show the pick as "Included".</p>
+      <div class="f2">
+        <div><label>Armorsteel ColorZen — add ($ ex-GST)</label><input type="number" id="qdPriceColorzen" step="0.01" placeholder="0.00" oninput="onQuoteEdit()"></div>
+        <div><label>ColorCote® — add ($ ex-GST)</label><input type="number" id="qdPriceColourcote" step="0.01" placeholder="0.00" oninput="onQuoteEdit()"></div>
+        <div><label>Zincalume® — add ($ ex-GST)</label><input type="number" id="qdPriceZincalume" step="0.01" placeholder="0.00" oninput="onQuoteEdit()"></div>
+        <div><label>0.55 gauge — add ($ ex-GST)</label><input type="number" id="qdPrice55" step="0.01" placeholder="0.00" oninput="onQuoteEdit()"></div>
+      </div>
     </div>
   </details>
 
@@ -5650,24 +5657,89 @@ async function refreshJobsList(){
   var box = document.getElementById('jobsList'); if (!box) return;
   box.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:var(--text2);font-size:13px">Loading…</div>';
   try {
-    var jobs = await api('GET', '/jobs');
+    // Quote-activity feed rides along (best-effort) so each row can
+    // show where its quote is at: sent / viewed / question / accepted.
+    var jobs, activity = [];
+    var results = await Promise.all([
+      api('GET', '/jobs'),
+      api('GET', '/quote-activity').catch(function(){ return []; })
+    ]);
+    jobs = results[0]; activity = results[1] || [];
+    var actById = {};
+    activity.forEach(function(a){ if (a && a.jobId) actById[a.jobId] = a; });
+    window._jobsCache = { jobs: jobs || [], actById: actById };
     if (!jobs.length) { box.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:var(--text2);font-size:13px">No saved jobs yet. Fill in client + address on the Map Roof tab, then click Save.</div>'; return; }
-    box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
-      '<thead><tr style="background:var(--bg);text-align:left"><th style="padding:8px 10px">Client</th><th style="padding:8px 10px">Address</th><th style="padding:8px 10px">Updated</th><th style="padding:8px 10px;width:1%"></th></tr></thead><tbody>'+
-      jobs.map(function(j){
-        var when = j.updated_at ? new Date(j.updated_at).toLocaleDateString('en-NZ',{day:'2-digit',month:'short',year:'numeric'}) : '';
-        var sel = (j.id===S.currentJobId)?'background:var(--fr-light)':'';
-        return '<tr style="border-top:1px solid var(--border);'+sel+'">'+
-          '<td style="padding:8px 10px;font-weight:600">'+ esc(j.client_name||'(untitled)') +'</td>'+
-          '<td style="padding:8px 10px;color:var(--text2)">'+ esc(j.site_address||'—') +'</td>'+
-          '<td style="padding:8px 10px;color:var(--text2)">'+ when +'</td>'+
-          '<td style="padding:8px 10px;white-space:nowrap"><button onclick="openJob(\''+j.id+'\')" class="tool-btn" style="font-size:11px">Open</button> '+
-          '<button onclick="deleteJob(\''+j.id+'\')" class="tool-btn" style="font-size:11px;color:#b91c1c">Delete</button></td>'+
-        '</tr>';
-      }).join('') + '</tbody></table>';
+    box.innerHTML =
+      '<input id="jobsSearch" type="text" placeholder="Search client or address…" oninput="_renderJobsTable(this.value)" '+
+        'style="width:100%;max-width:340px;margin-bottom:10px;padding:8px 12px;font-size:13px">'+
+      '<div id="jobsTableWrap"></div>';
+    _renderJobsTable('');
   } catch(e) {
     box.innerHTML = '<div style="padding:1rem;color:#b91c1c;font-size:13px">Failed to load jobs: '+ esc(e.message) +'</div>';
   }
+}
+function _jobQuoteChip(a){
+  if (!a) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  var m = {
+    sent:     ['Quote sent',   '#e0f2fe', '#0369a1'],
+    opened:   ['Viewed',       '#fef9c3', '#a16207'],
+    queried:  ['❓ Question',   '#ffedd5', '#c2410c'],
+    accepted: ['✓ Accepted',   '#dcfce7', '#15803d'],
+    declined: ['✗ Declined',   '#fee2e2', '#b91c1c'],
+  }[a.status] || ['Quote sent', '#e0f2fe', '#0369a1'];
+  var extra = (a.status === 'opened' && a.lastOpenedAt)
+    ? ' · ' + new Date(a.lastOpenedAt).toLocaleDateString('en-NZ', { day: '2-digit', month: 'short' })
+    : (a.openCount > 1 ? ' ×' + a.openCount : '');
+  return '<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;background:'+m[1]+';color:'+m[2]+';white-space:nowrap">'+m[0]+esc(extra)+'</span>';
+}
+function _renderJobsTable(filter){
+  var wrap = document.getElementById('jobsTableWrap'); if (!wrap || !window._jobsCache) return;
+  var f = String(filter || '').trim().toLowerCase();
+  var jobs = window._jobsCache.jobs.filter(function(j){
+    if (!f) return true;
+    return ((j.client_name || '') + ' ' + (j.site_address || '')).toLowerCase().indexOf(f) >= 0;
+  });
+  if (!jobs.length) { wrap.innerHTML = '<div style="padding:1rem;color:var(--text2);font-size:13px">No jobs match "'+esc(filter)+'".</div>'; return; }
+  wrap.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    '<thead><tr style="background:var(--bg);text-align:left"><th style="padding:8px 10px">Client</th><th style="padding:8px 10px">Address</th><th style="padding:8px 10px">Quote</th><th style="padding:8px 10px">Updated</th><th style="padding:8px 10px;width:1%"></th></tr></thead><tbody>'+
+    jobs.map(function(j){
+      var when = j.updated_at ? new Date(j.updated_at).toLocaleDateString('en-NZ',{day:'2-digit',month:'short',year:'numeric'}) : '';
+      var sel = (j.id===S.currentJobId)?'background:var(--fr-light)':'';
+      return '<tr style="border-top:1px solid var(--border);'+sel+'">'+
+        '<td style="padding:8px 10px;font-weight:600">'+ esc(j.client_name||'(untitled)') +'</td>'+
+        '<td style="padding:8px 10px;color:var(--text2)">'+ esc(j.site_address||'—') +'</td>'+
+        '<td style="padding:8px 10px">'+ _jobQuoteChip(window._jobsCache.actById[j.id]) +'</td>'+
+        '<td style="padding:8px 10px;color:var(--text2)">'+ when +'</td>'+
+        '<td style="padding:8px 10px;white-space:nowrap"><button onclick="openJob(\''+j.id+'\')" class="tool-btn" style="font-size:11px">Open</button> '+
+        '<button onclick="duplicateJob(\''+j.id+'\')" class="tool-btn" style="font-size:11px">Duplicate</button> '+
+        '<button onclick="deleteJob(\''+j.id+'\')" class="tool-btn" style="font-size:11px;color:#b91c1c">Delete</button></td>'+
+      '</tr>';
+    }).join('') + '</tbody></table>';
+}
+// Copy an existing job as the starting point for a similar one — the
+// drawing, scope, materials and quote come across; the share link,
+// acceptance record and quote ref are reset so the copy is a fresh
+// quote rather than an alias of the original.
+async function duplicateJob(id){
+  try {
+    var j = await api('GET', '/jobs/' + id);
+    var ds = j.draw_state || {};
+    try {
+      var q = ds.state && ds.state.quote;
+      if (q) {
+        q.share = null; q.accepted = null;
+        if (q.ref) q.ref = q.ref + '-B';
+      }
+      if (ds.form) ds.form.jobClient = (j.client_name || '(untitled)') + ' (copy)';
+    } catch(e){}
+    var saved = await api('POST', '/jobs', {
+      client_name: (j.client_name || '(untitled)') + ' (copy)',
+      site_address: j.site_address || '',
+      draw_state: ds, settings: {}
+    });
+    await openJob(saved.id);
+    refreshJobsList();
+  } catch(e) { alert('Could not duplicate job: ' + e.message); }
 }
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
@@ -7302,6 +7374,9 @@ function defaultQuote(){
     // prices are ex-GST add-ons applied to the combined total.
     gutterChoice: tpl.gutterChoice || 'none',
     gutterPrices: tpl.gutterPrices ? Object.assign({}, tpl.gutterPrices) : { marley: 0, box: 0 },
+    // Ex-GST add-ons for the Selections page's steel-grade / thickness
+    // picks (may be negative — e.g. Zincalume is cheaper than MAXAM).
+    selectionPrices: tpl.selectionPrices ? Object.assign({}, tpl.selectionPrices) : { colorzen: 0, colourcote: 0, zincalume: 0, gauge55: 0 },
     // Digital acceptance record (set when the client clicks Accept Quote).
     accepted: null,
     // Scope of work / timeline / estimated start date.
@@ -7413,6 +7488,11 @@ function buildQuote(){
   var _gp = S.quote.gutterPrices || {};
   set('qdGutterMarley', _gp.marley ? String(_gp.marley) : '');
   set('qdGutterBox',    _gp.box ? String(_gp.box) : '');
+  var _sp = S.quote.selectionPrices || {};
+  set('qdPriceColorzen',   _sp.colorzen   ? String(_sp.colorzen)   : '');
+  set('qdPriceColourcote', _sp.colourcote ? String(_sp.colourcote) : '');
+  set('qdPriceZincalume',  _sp.zincalume  ? String(_sp.zincalume)  : '');
+  set('qdPrice55',         _sp.gauge55    ? String(_sp.gauge55)    : '');
   // Sync the "Show line items in printed quote" checkbox to current state
   var sliBox = document.getElementById('qShowLineItems');
   if (sliBox) sliBox.checked = !!S.quote.showLineItemsInQuote;
@@ -7459,6 +7539,11 @@ function readQuoteFromInputs(){
   if (!q.gutterPrices) q.gutterPrices = { marley: 0, box: 0 };
   q.gutterPrices.marley = parseFloat(val('qdGutterMarley')) || 0;
   q.gutterPrices.box    = parseFloat(val('qdGutterBox'))    || 0;
+  if (!q.selectionPrices) q.selectionPrices = { colorzen: 0, colourcote: 0, zincalume: 0, gauge55: 0 };
+  q.selectionPrices.colorzen   = parseFloat(val('qdPriceColorzen'))   || 0;
+  q.selectionPrices.colourcote = parseFloat(val('qdPriceColourcote')) || 0;
+  q.selectionPrices.zincalume  = parseFloat(val('qdPriceZincalume'))  || 0;
+  q.selectionPrices.gauge55    = parseFloat(val('qdPrice55'))         || 0;
 }
 
 // ── Proposal-options editor ──────────────────────────────────────────
@@ -7573,10 +7658,11 @@ function _qpSelectionChanges(){
   var gp = q.gutterPrices || {};
   var out = [];
   var gradeNames = { colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume® (unpainted)' };
+  var sp = q.selectionPrices || {};
   if (p.steelGrade && p.steelGrade !== 'maxam')
-    out.push({ label: (gradeNames[p.steelGrade] || p.steelGrade) + ' steel', delta: 0 });
+    out.push({ label: (gradeNames[p.steelGrade] || p.steelGrade) + ' steel', delta: parseFloat(sp[p.steelGrade]) || 0 });
   if (p.steelThickness && p.steelThickness !== '40')
-    out.push({ label: '0.55 gauge steel', delta: 0 });
+    out.push({ label: '0.55 gauge steel', delta: parseFloat(sp.gauge55) || 0 });
   if (p.gutterType !== undefined) {
     // Page-4 pick is canonical once made (including an explicit
     // "none") — it overrides the legacy Option-C gutter choice so the
@@ -7742,7 +7828,7 @@ function buildAcceptSummaryRows(){
   _qpSelectionChanges().forEach(function(c){
     rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
       '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">'+esc2(c.label)+'</div>'+
-      '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+(c.delta ? '+'+fmtMoney(c.delta*(1+rate)) : 'Included')+'</div></div>';
+      '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+(c.delta ? (c.delta > 0 ? '+' : '−')+fmtMoney(Math.abs(c.delta)*(1+rate)) : 'Included')+'</div></div>';
   });
   return rows;
 }
@@ -9840,7 +9926,7 @@ function refreshQuoteProposal(){
           _selRow('<strong style="color:var(--ed-ink)">Base quote — main scope of work</strong> <span style="color:var(--ed-text2)">(incl. GST)</span>', fmtMoney(_selBaseTot), { top: true })+
           (_selChanges.length
             ? _selChanges.map(function(c){
-                return _selRow('&#8627; '+esc2(c.label), c.delta ? '+'+fmtMoney(c.delta*(1+_selRate)) : 'Included');
+                return _selRow('&#8627; '+esc2(c.label), c.delta ? (c.delta > 0 ? '+' : '−')+fmtMoney(Math.abs(c.delta)*(1+_selRate)) : 'Included');
               }).join('')
             : _selRow('<span style="font-style:italic;color:var(--ed-text2)">Standard selections — no price change</span>', ''))+
           _selRow('New total <span style="font-weight:400;color:var(--ed-text2)">(incl. GST)</span>', fmtMoney(_selNewTot), { strong: true })+
