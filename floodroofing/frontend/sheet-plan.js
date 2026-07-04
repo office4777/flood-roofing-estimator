@@ -3484,10 +3484,18 @@ function _renderRoofSheetPlanInner() {
         // …vs cut at all (has SOME offcut to give — near-full donors'
         // small offcuts still serve the small slots by the corner).
         var hasOffcut = lenPx < fullPx - 2;
+        // Angle-cut: the piece has a diagonal (hip/valley) edge —
+        // only such pieces can come from an offcut, since ordered
+        // sheets are full-length SQUARE-END only.  Detect by the area
+        // missing from the piece's bounding rectangle.
+        var angleCut = (lenPx * (uu - u) - Math.abs(polyArea(clip))) > coverPx * coverPx * 0.05;
         // Receivers per face role — see recvMode above.  A 'never'
-        // face's clipped pieces are the full-stock DONOR sheets.
+        // face's clipped pieces are the full-stock DONOR sheets.  On
+        // 'clipped' faces EVERY angle-cut piece (even a near-full one
+        // with just a corner nick) is a receiver candidate — a big
+        // enough offcut saves ordering that whole sheet.
         var isRecv = fr._recvMode === 'noEave'  ? !touches
-                   : fr._recvMode === 'clipped' ? clipped
+                   : fr._recvMode === 'clipped' ? angleCut
                    : false;
         // Pairing-group tag (same-tag pairs are penalised in the
         // matcher).  On the regime-1 main-north face, columns left of
@@ -3516,32 +3524,37 @@ function _renderRoofSheetPlanInner() {
     // offcuts pair with donors at the SAME corner when lengths tie.
     var hvDonors = hvStrips.filter(function(s){ return !s.isOffcut && s._hvClipped; });
     function _hvMatch(recvs){
-      var pairs = [];
-      recvs.forEach(function(r, ri){
-        hvDonors.forEach(function(d, di){
-          // The donor's offcut must COVER the slot (a short offcut
-          // can't be stretched); small negative slack absorbs the
-          // banding-grid measurement skew.  No upper cap — reusing a
-          // generous offcut still saves ordering a sheet.
-          var waste = (d._hvFull - d._hvLen) - r._hvLen;
-          if (waste < -coverPx * 0.6) return;
-          var dist = Math.hypot(r.centroid[0] - d.centroid[0], r.centroid[1] - d.centroid[1]);
-          // Corner cross-rule: the donor cut at the valley serves the
-          // hip-side position and vice versa — a same-line pairing is
-          // penalised so the cross pairing wins ties.
-          var same = (r._hvTag && d._hvTag && r._hvTag === d._hvTag) ? coverPx * 2 : 0;
-          pairs.push({ ri: ri, di: di, score: (waste >= 0 ? waste : -waste * 1.5) + dist * 0.02 + same });
+      // MAX-COVERAGE assignment: ordered sheets are full-length
+      // square-end only, so every slot covered by an offcut is one
+      // whole sheet NOT ordered — coverage count beats trim waste.
+      // Biggest slot first, each taking the SMALLEST offcut that can
+      // still COVER it (a short offcut can't be stretched; small
+      // negative slack absorbs banding-grid measurement skew).
+      // Pass 0 honours the corner cross-rule tags (donor cut at the
+      // valley serves the hip-side position and vice versa); pass 1
+      // covers whatever's left with any remaining offcut.
+      recvs.sort(function(a, b){ return b._hvLen - a._hvLen; });
+      [0, 1].forEach(function(pass){
+        recvs.forEach(function(r){
+          if (r._hvSrc) return;
+          var best = null, bestKey = Infinity;
+          hvDonors.forEach(function(d){
+            if (d._hvClaimed) return;
+            var same = r._hvTag && d._hvTag && r._hvTag === d._hvTag;
+            if (pass === 0 && same) return;
+            var off = d._hvFull - d._hvLen;
+            if (off < r._hvLen - coverPx * 0.6) return;
+            var dist = Math.hypot(r.centroid[0] - d.centroid[0], r.centroid[1] - d.centroid[1]);
+            var key = off * 10 + dist * 0.02;
+            if (key < bestKey) { bestKey = key; best = d; }
+          });
+          if (!best) return;
+          r._hvSrc = best; best._hvClaimed = true;
+          r.color = best.color;
+          // The donor sheet is ordered at FULL length — the
+          // receiver's piece is cut from the same sheet.
+          best.orderedLengthMm = orderedLengthMm(best._hvFull * effectiveScale * pitchFactor);
         });
-      });
-      pairs.sort(function(a, b){ return a.score - b.score; });
-      pairs.forEach(function(pr){
-        var r = recvs[pr.ri], d = hvDonors[pr.di];
-        if (r._hvSrc || d._hvClaimed) return;
-        r._hvSrc = d; d._hvClaimed = true;
-        r.color = d.color;
-        // The donor sheet is ordered at FULL length — the receiver's
-        // piece is cut from the same sheet.
-        d.orderedLengthMm = orderedLengthMm(d._hvFull * effectiveScale * pitchFactor);
       });
     }
     // Pass 1: valley-wedge pieces on the ROW faces claim their
