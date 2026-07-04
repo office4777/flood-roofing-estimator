@@ -3252,88 +3252,126 @@ function _renderRoofSheetPlanInner() {
     (DRAW.lines || []).some(function(l){ return l && l.type === 'hip'; }) &&
     outline.length === 6;
   if (__hvIsGable) (function(){
-    // Canonicalize: wing top-left, flush west (rotate; mirror if the
-    // chirality is flipped).  All outputs are transformed back.
-    var det = _detectBigL(outline);
-    if (!det) return;
-    var nT = det.orientation, pv = det.pivot.slice();
-    var can = outline.map(function(p){ return rotate90(p, pv[0], pv[1], nT); });
-    var det2 = _detectBigL(can);
-    if (!det2 || det2.orientation !== 0) return;
-    var wing = det2.wing, main = det2.main;
-    var mirrored = false, mirX = 0;
-    if (Math.abs(wing.x0 - main.x0) > 2) {
-      // Wing flush EAST → mirror to canonical chirality.
-      mirX = (main.x0 + main.x1) / 2;
-      can = can.map(function(p){ return [2 * mirX - p[0], p[1]]; });
-      mirrored = true;
-      var det3 = _detectBigL(can);
-      if (!det3 || det3.orientation !== 0) return;
-      wing = det3.wing; main = det3.main;
-      if (Math.abs(wing.x0 - main.x0) > 2) return;
+    // Canonical frame: wing top-left flush west, main below.  An L
+    // outline reaches this frame under one of 8 axis transforms
+    // (4 rotations × optional mirror).  A reflex-corner classifier
+    // cannot tell a mirrored L from a rotated one, so instead of
+    // classifying we TRY each transform and keep the first whose
+    // transformed LINES satisfy every invariant of the model; a drawn
+    // variant that fits no frame falls through to the generic engine.
+    // The drawn hip / valley / ridge lines are authoritative — the
+    // faces are built between them; they are never re-derived (or
+    // visually moved).
+    var reflex = null;
+    for (var ri = 0; ri < outline.length; ri++) {
+      var rA = outline[(ri + outline.length - 1) % outline.length];
+      var rB = outline[ri], rC = outline[(ri + 1) % outline.length];
+      var rCr = (rB[0]-rA[0])*(rC[1]-rB[1]) - (rB[1]-rA[1])*(rC[0]-rB[0]);
+      if (rCr < -1) { if (reflex) return; reflex = rB; }
     }
-    var wx0 = wing.x0, wx1 = wing.x1, wy0 = wing.y0;
-    var mx0 = main.x0, mx1 = main.x1, my1 = main.y1;
-    // The DRAWN lines are authoritative — the sheet plan follows the
-    // hip / valley / ridge lines exactly as drawn and NEVER re-derives
-    // (or visually moves) them.  Transform them into canonical space,
-    // read the junctions off them, and build the faces between them.
+    if (!reflex) return;
+    var xsO = outline.map(function(p){ return p[0]; });
+    var ysO = outline.map(function(p){ return p[1]; });
+    var pv = [(Math.min.apply(null, xsO) + Math.max.apply(null, xsO)) / 2,
+              (Math.min.apply(null, ysO) + Math.max.apply(null, ysO)) / 2];
+    var mirX = pv[0];
+    var nT = 0, mirrored = false;
     function _canPt(p){
       var q = rotate90(p, pv[0], pv[1], nT);
       return mirrored ? [2 * mirX - q[0], q[1]] : q;
     }
-    var wingR = null, mainR = null, valleysL = [], hipsL = [];
-    (DRAW.lines || []).forEach(function(l){
-      if (!l || !l.pts || l.pts.length < 2) return;
-      var a = _canPt(l.pts[0]), b = _canPt(l.pts[1]);
-      if (l.type === 'ridge') {
-        if (Math.abs(a[0] - b[0]) < 2.5)      wingR = { a: a, b: b };
-        else if (Math.abs(a[1] - b[1]) < 2.5) mainR = { a: a, b: b };
-      }
-      else if (l.type === 'valley') valleysL.push({ a: a, b: b });
-      else if (l.type === 'hip')    hipsL.push({ a: a, b: b });
-    });
-    if (!wingR || !mainR || valleysL.length !== 1 || !hipsL.length) return;
-    var wrx = (wingR.a[0] + wingR.b[0]) / 2;               // wing ridge x
-    var mry = (mainR.a[1] + mainR.b[1]) / 2;               // main ridge y
-    var Jw  = [wrx, Math.max(wingR.a[1], wingR.b[1])];     // wing ridge foot
-    var vv  = valleysL[0];
     function _near(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]) < 3; }
-    // Regime 2 (wide wing): the valley lands ON the main ridge; the
-    // main ridge dies into the wing.  Regime 1 (narrow wing): the
-    // valley meets the wing ridge foot ABOVE the main ridge; the main
-    // ridge runs barge to barge and the wing tees into the main's
-    // north slope.  The boundary shape (wing half-width = main
-    // half-depth, valley landing exactly on the ridge end) is regime 2
-    // with the two junction points coincident.
-    var vOnRidge = Math.abs(vv.a[1] - mry) < 2.5 ? vv.a
-                 : Math.abs(vv.b[1] - mry) < 2.5 ? vv.b : null;
-    var regime2 = !!vOnRidge;
-    var V0, Jm, hipMain = null, hipCorner = null;
-    if (regime2) {
-      Jm = vOnRidge;
-      V0 = _near(vv.a, Jm) ? vv.b : vv.a;
-      // hipCorner: wing-ridge foot → outline corner; a second hip
-      // (wing-ridge foot → main-ridge end) may exist but the face
-      // corners Jw / Jm already pin it.
-      hipsL.forEach(function(h){
-        var farEnd = _near(h.a, Jw) ? h.b : (_near(h.b, Jw) ? h.a : null);
-        if (farEnd && !_near(farEnd, Jm)) hipCorner = farEnd;
-      });
-      if (!hipCorner) hipCorner = [mx0, my1];
-    } else {
-      V0 = _near(vv.a, Jw) ? vv.b : (_near(vv.b, Jw) ? vv.a : null);
-      if (!V0) return;
-      hipsL.forEach(function(h){
-        var farEnd = _near(h.a, Jw) ? h.b : (_near(h.b, Jw) ? h.a : null);
-        if (farEnd) hipMain = farEnd;
-      });
-      // The hip must run to the end wall level with the inner corner
-      // (the hip+valley-corner gable skeleton).  An old-style skeleton
-      // (hip descending to the far corner) is NOT this roof — leave it
-      // to the generic engine rather than move the drawn lines.
-      if (!hipMain || Math.abs(hipMain[1] - V0[1]) > coverPx) return;
+    function _pip(pt, poly){
+      var ins = false;
+      for (var i2 = 0, j2 = poly.length - 1; i2 < poly.length; j2 = i2++) {
+        var xi = poly[i2][0], yi = poly[i2][1], xj = poly[j2][0], yj = poly[j2][1];
+        if (((yi > pt[1]) !== (yj > pt[1])) &&
+            (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi + 1e-10) + xi)) ins = !ins;
+      }
+      return ins;
     }
+    function _tryFrame(){
+      var can = outline.map(_canPt);
+      var cxs = can.map(function(p){ return p[0]; });
+      var cys = can.map(function(p){ return p[1]; });
+      var bx0 = Math.min.apply(null, cxs), bx1 = Math.max.apply(null, cxs);
+      var by0 = Math.min.apply(null, cys), by1 = Math.max.apply(null, cys);
+      var R = _canPt(reflex);
+      if (R[0] <= bx0 + 2 || R[0] >= bx1 - 2 || R[1] <= by0 + 2 || R[1] >= by1 - 2) return null;
+      // The notch must be the TOP-RIGHT region (wing left of it, main
+      // below it) — its midpoint lies OUTSIDE the outline.
+      if (_pip([(R[0] + bx1) / 2, (by0 + R[1]) / 2], can)) return null;
+      var wingR = null, mainR = null, valleysL = [], hipsL = [];
+      (DRAW.lines || []).forEach(function(l){
+        if (!l || !l.pts || l.pts.length < 2) return;
+        var a = _canPt(l.pts[0]), b = _canPt(l.pts[1]);
+        if (l.type === 'ridge') {
+          if (Math.abs(a[0] - b[0]) < 2.5)      wingR = { a: a, b: b };
+          else if (Math.abs(a[1] - b[1]) < 2.5) mainR = { a: a, b: b };
+        }
+        else if (l.type === 'valley') valleysL.push({ a: a, b: b });
+        else if (l.type === 'hip')    hipsL.push({ a: a, b: b });
+      });
+      if (!wingR || !mainR || valleysL.length !== 1 || !hipsL.length) return null;
+      var wrx = (wingR.a[0] + wingR.b[0]) / 2;             // wing ridge x
+      var mry = (mainR.a[1] + mainR.b[1]) / 2;             // main ridge y
+      var Jw  = [wrx, Math.max(wingR.a[1], wingR.b[1])];   // wing ridge foot
+      // The wing ridge lives inside the wing box and its foot sits
+      // at/above the main ridge.
+      if (wrx <= bx0 + 2 || wrx >= R[0] - 2) return null;
+      if (Jw[1] > mry + 2.5) return null;
+      var vv = valleysL[0];
+      // Regime 2 (wide wing): the valley lands ON the main ridge; the
+      // main ridge dies into the wing.  Regime 1 (narrow wing): the
+      // valley meets the wing ridge foot ABOVE the main ridge; the
+      // main ridge runs barge to barge and the wing tees into the
+      // main's north slope.  The boundary shape (wing half-width =
+      // main half-depth, valley landing exactly on the ridge end) is
+      // regime 2 with the two junction points coincident.
+      var vOnRidge = Math.abs(vv.a[1] - mry) < 2.5 ? vv.a
+                   : Math.abs(vv.b[1] - mry) < 2.5 ? vv.b : null;
+      var regime2 = !!vOnRidge;
+      var V0, Jm = null, hipMain = null, hipCorner = null;
+      if (regime2) {
+        Jm = vOnRidge;
+        V0 = _near(vv.a, Jm) ? vv.b : vv.a;
+        // hipCorner: wing-ridge foot → outline corner; a second hip
+        // (wing-ridge foot → main-ridge end) may exist but the face
+        // corners Jw / Jm already pin it.
+        hipsL.forEach(function(h){
+          var farEnd = _near(h.a, Jw) ? h.b : (_near(h.b, Jw) ? h.a : null);
+          if (farEnd && !_near(farEnd, Jm)) hipCorner = farEnd;
+        });
+        if (!hipCorner) return null;
+      } else {
+        V0 = _near(vv.a, Jw) ? vv.b : (_near(vv.b, Jw) ? vv.a : null);
+        if (!V0) return null;
+        hipsL.forEach(function(h){
+          var farEnd = _near(h.a, Jw) ? h.b : (_near(h.b, Jw) ? h.a : null);
+          if (farEnd) hipMain = farEnd;
+        });
+        // The hip must run to the end wall level with the inner
+        // corner (the hip+valley-corner gable skeleton).  An
+        // old-style skeleton (hip descending to the far corner) is
+        // NOT this roof — leave it to the generic engine rather than
+        // move the drawn lines.
+        if (!hipMain || Math.abs(hipMain[1] - V0[1]) > coverPx) return null;
+      }
+      // The valley starts at the inner eave corner (the reflex).
+      if (!_near(V0, R)) return null;
+      return { bx0: bx0, bx1: bx1, by0: by0, by1: by1,
+               wrx: wrx, mry: mry, Jw: Jw, Jm: Jm, V0: V0,
+               hipMain: hipMain, hipCorner: hipCorner, regime2: regime2 };
+    }
+    var G = null;
+    for (var tf = 0; tf < 8 && !G; tf++) {
+      nT = tf % 4; mirrored = tf >= 4;
+      G = _tryFrame();
+    }
+    if (!G) return;
+    var wy0 = G.by0, mx0 = G.bx0, mx1 = G.bx1, my1 = G.by1;
+    var wrx = G.wrx, mry = G.mry, Jw = G.Jw, Jm = G.Jm, V0 = G.V0;
+    var hipMain = G.hipMain, hipCorner = G.hipCorner, regime2 = G.regime2;
     var refX = V0[0], refY = V0[1];
     var fy = Jw[1], mex = regime2 ? Jm[0] : mx0;
     // Faces between the drawn lines (F_MN in regime 1 has a reflex

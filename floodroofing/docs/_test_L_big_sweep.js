@@ -58,10 +58,14 @@ PROPS.forEach(([name, p]) => ORI.forEach((o, k) =>
   CASES.push({ label: `GABLE-SLIDE L User job ${off>0?'+':''}${off}`, mode: 'gable', ridgeOff: off,
                outline: L(385,140,580,270), coverage: true, slideCheck: true, diagram: true });
 });
-// 4) HIP+VALLEY-CORNER GABLES (legacy skeleton builder, invoked directly).
-PROPS.forEach(([name, p]) => ['N','E'].forEach((o, k) =>
+// 4) HIP+VALLEY-CORNER GABLES — full orientation matrix + mirrored
+//    chirality (wing flush the other way round).
+PROPS.forEach(([name, p]) => ORI.forEach((o, k) =>
   CASES.push({ label: `GABLE-HV L ${name} ${o}`, mode: 'gable-hv', outline: orient(L(...p), k, false), coverage: true,
                diagram: o === 'N' })));
+[PROPS[0], PROPS[3], PROPS[5]].forEach(([name, p]) =>
+  CASES.push({ label: `GABLE-HV L ${name} MIRROR`, mode: 'gable-hv', outline: orient(L(...p), 0, true), coverage: true,
+               diagram: true }));
 
 (async () => {
   const browser = await chromium.launch();
