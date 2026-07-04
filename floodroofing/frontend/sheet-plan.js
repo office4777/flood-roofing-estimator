@@ -3353,7 +3353,7 @@ function _renderRoofSheetPlanInner() {
       F_WE = { color: COL_PURPLE, gutter: 'E', recvMode: 'noEave', cutTag: 'V',
                poly: [[wrx, wy0], [refX, wy0], V0, Jw] };
       F_MN = { color: COL_ORANGE, gutter: 'N', recvMode: 'never',
-               tagByX: true,
+               tagByX: true, anchorU: refX,
                poly: [hipMain, Jw, V0, [mx1, refY], [mx1, mry], [mx0, mry]] };
       F_MS = { color: COL_BLUE, gutter: 'S', recvMode: 'never',
                poly: [[mx0, mry], [mx1, mry], [mx1, my1], [mx0, my1]] };
@@ -3371,6 +3371,7 @@ function _renderRoofSheetPlanInner() {
       F_WE = { color: COL_PURPLE, gutter: 'E', recvMode: 'noEave', cutTag: 'S',
                poly: [[wrx, wy0], [refX, wy0], V0, Jm, Jw] };
       F_MN = { color: COL_ORANGE, gutter: 'N', recvMode: 'clipped', cutTag: 'W',
+               anchorU: refX,
                poly: [V0, [mx1, refY], [mx1, mry], Jm] };
       F_MS = { color: COL_BLUE, gutter: 'S', recvMode: 'never', donorTag: 'S',
                poly: [hipCorner, Jw, Jm, [mx1, mry], [mx1, my1]],
@@ -3401,7 +3402,7 @@ function _renderRoofSheetPlanInner() {
         area: Math.abs(polyArea(poly)), centroid: polyCentroid(poly),
         color: f.color, _gutter: f.gutter, _fullFor: f.fullFor || null,
         _recvMode: f.recvMode, _cutTag: f.cutTag || null, _tagByX: !!f.tagByX,
-        _donorTag: f.donorTag || null
+        _donorTag: f.donorTag || null, _anchorU: (f.anchorU != null) ? f.anchorU : null
       };
     }
     var hvFaceRecs = hvFaces.map(_mkFace);
@@ -3412,6 +3413,13 @@ function _renderRoofSheetPlanInner() {
       var by0 = Math.min.apply(null, ys), by1 = Math.max.apply(null, ys);
       var vert = (fr._gutter === 'W' || fr._gutter === 'E');   // rows
       var u0 = vert ? by0 : bx0, u1 = vert ? by1 : bx1;
+      // Grid anchor: start the sheet run at the inner eave corner
+      // (where the valley begins) so the corner pieces mirror the
+      // donor pieces across the valley EXACTLY — every donor offcut
+      // then covers its slot with zero waste and no orphan slivers.
+      if (fr._anchorU != null && fr._anchorU > u0 + 0.5) {
+        u0 = fr._anchorU - Math.ceil((fr._anchorU - u0) / coverPx - 1e-6) * coverPx;
+      }
       for (var u = u0; u < u1 - 0.5; u += coverPx) {
         var uu = Math.min(u + coverPx, u1);
         var band = vert
