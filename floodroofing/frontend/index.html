@@ -5140,7 +5140,11 @@ function applyBranding(){
 function snapshotCurrentJob(){
   // Capture all in-memory state needed to fully restore a job: form fields,
   // S object (minus runtime flags), and the DRAW canvas state.
-  var formIds = ['jobClient','jobAddr','jobEmail','jobPhone','jobDate'];
+  // Includes the materials spec (profile / grade / thickness / COLOUR /
+  // ridge / gutter) — these are per-job choices that must survive a
+  // save + reopen, not per-computer preferences.
+  var formIds = ['jobClient','jobAddr','jobEmail','jobPhone','jobDate',
+                 'matProfile','matGrade','matThickness','matColour','matRidgeType','matGutter'];
   var form = {}; formIds.forEach(function(id){var el=document.getElementById(id); if(el) form[id]=el.value;});
   // Scope tab — capture the master-scope pick + which chk-items are on
   var scopeItems = Array.from(document.querySelectorAll('#scopeGrid .chk-item.on'))
@@ -21161,6 +21165,7 @@ function _jpRenderCutLists(content, page, idx){
   var profile   = (document.getElementById('matProfile')   || {}).value || 'Corrugate';
   var grade     = (document.getElementById('matGrade')     || {}).value || 'Colorsteel Maxam';
   var thickness = (document.getElementById('matThickness') || {}).value || '0.40g';
+  var colour    = (document.getElementById('matColour')    || {}).value || '';
   var ridgeType = (document.getElementById('matRidgeType') || {}).value || 'standard';
   var d = _matDrawTotals();
   var sc = window._lastSheetCounts || null;
@@ -21171,6 +21176,7 @@ function _jpRenderCutLists(content, page, idx){
     _jpSpecSelect('Profile',     'matProfile',   ['Corrugate','5-Rib','Multidek']) +
     _jpSpecSelect('Steel grade', 'matGrade',     ['Colorsteel Maxam','Armorsteel ColorZen','Zincalume']) +
     _jpSpecSelect('Thickness',   'matThickness', ['0.40g','0.55g']) +
+    _jpSpecColour() +
     _jpSpecSelect('Ridge',       'matRidgeType', [['standard','Standard ridge'],['wide','Wide ridge']]) +
     _jpSpecSelect('Gutter',      'matGutter',    [['none','None'],['colorsteel-box','Colorsteel 125mm'],['zincalume-box','Zincalume 125mm'],['marley-classic','Marley Classic'],['marley-typhoon','Marley Typhoon']]) +
   '</div>';
@@ -21215,7 +21221,8 @@ function _jpRenderCutLists(content, page, idx){
         '</div>';
       });
     }
-    html += _matSectionHead('#0099cc', 'Roof sheets', esc(profile)+' · '+esc(grade)+' · '+esc(thickness),
+    html += _matSectionHead('#0099cc', 'Roof sheets',
+        esc(profile)+' · '+esc(grade)+' · '+esc(thickness)+(colour ? ' · '+esc(colour) : ''),
         totalSheets+' sheets · '+d.roofArea.toFixed(1)+' m² roof')+
       '<div class="mat-list">'+rowsHtml+'</div>';
   } else {
@@ -21798,6 +21805,34 @@ function _jpSpecChange(hiddenId, value){
   try { el.dispatchEvent(new Event('change', { bubbles:true })); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
   try { renderJobPack(); } catch(e){}
+}
+// Roof colour picker: the standard Colorsteel palette + whatever
+// custom name is already on the job + a free-text "Custom…" escape.
+// Mirrors the (hidden) legacy #matColour input the supplier-order and
+// print paths already read.
+var JP_COLOURS = ['Ebony','Ironsand','Grey Friars','Karaka','Slate','Windsor Grey',
+  'Thunder Grey','Gull Grey','Sandstone Grey','Titania','FlaxPod','Lichen',
+  'Permanent Green','Scoria','Pioneer Red','Desert Sand','Smooth Cream','Cloud'];
+function _jpSpecColour(){
+  var cur = (document.getElementById('matColour')||{}).value || '';
+  var list = JP_COLOURS.slice();
+  if (cur && list.indexOf(cur) === -1) list.unshift(cur);
+  var opts = '<option value=""'+(cur ? '' : ' selected')+'>— Select —</option>';
+  list.forEach(function(c){
+    opts += '<option value="'+esc(c)+'"'+(c===cur?' selected':'')+'>'+esc(c)+'</option>';
+  });
+  opts += '<option value="__custom">Custom…</option>';
+  return '<label style="display:flex;flex-direction:column;gap:3px;font-size:10.5px;color:#475569;font-weight:600">'+
+    'Colour' +
+    '<select onchange="_jpSpecColourChange(this)" style="padding:5px 6px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;font-size:12px;color:#0a1628">'+opts+'</select>'+
+  '</label>';
+}
+function _jpSpecColourChange(sel){
+  var v = sel.value;
+  if (v === '__custom') {
+    v = prompt('Colour name:', (document.getElementById('matColour')||{}).value || '') || '';
+  }
+  _jpSpecChange('matColour', v);
 }
 
 // ── Editable Roof Sheets rows ─────────────────────────────────
