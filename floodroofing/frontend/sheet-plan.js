@@ -3296,10 +3296,13 @@ function _renderRoofSheetPlanInner() {
     function _near(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]) < 3; }
     // Regime 2 (wide wing): the valley lands ON the main ridge; the
     // main ridge dies into the wing.  Regime 1 (narrow wing): the
-    // valley meets the wing ridge foot; the main ridge runs barge to
-    // barge and the wing tees into the main's north slope.
-    var vOnRidge = (Math.abs(vv.a[1] - mry) < 2.5 && Math.abs(vv.a[0] - wrx) > 2.5) ? vv.a
-                 : (Math.abs(vv.b[1] - mry) < 2.5 && Math.abs(vv.b[0] - wrx) > 2.5) ? vv.b : null;
+    // valley meets the wing ridge foot ABOVE the main ridge; the main
+    // ridge runs barge to barge and the wing tees into the main's
+    // north slope.  The boundary shape (wing half-width = main
+    // half-depth, valley landing exactly on the ridge end) is regime 2
+    // with the two junction points coincident.
+    var vOnRidge = Math.abs(vv.a[1] - mry) < 2.5 ? vv.a
+                 : Math.abs(vv.b[1] - mry) < 2.5 ? vv.b : null;
     var regime2 = !!vOnRidge;
     var V0, Jm, hipMain = null, hipCorner = null;
     if (regime2) {
@@ -3350,13 +3353,21 @@ function _renderRoofSheetPlanInner() {
       F_MS = { color: COL_BLUE, gutter: 'S', recvMode: 'never',
                poly: [[mx0, mry], [mx1, mry], [mx1, my1], [mx0, my1]] };
     } else {
-      F_W  = { color: COL_GREEN, gutter: 'W', recvMode: 'noEave',
+      // Regime 2: the two LONG-GUTTER faces (west rows, south columns)
+      // carry full-length donor sheets cut at the hips; the offcut set
+      // from the WEST donors fills the north side of the valley (the
+      // wing wedge) and the offcut set from the SOUTH donors fills the
+      // east side of the valley (the clipped north-face columns).
+      // Tags keep the two sets apart: same-tag pairs are penalised, so
+      // purple ('S') avoids south donors and orange ('W') avoids west
+      // donors.
+      F_W  = { color: COL_GREEN, gutter: 'W', recvMode: 'noEave', donorTag: 'W',
                poly: [[mx0, wy0], [wrx, wy0], Jw, hipCorner] };
-      F_WE = { color: COL_PURPLE, gutter: 'E', recvMode: 'noEave',
+      F_WE = { color: COL_PURPLE, gutter: 'E', recvMode: 'noEave', cutTag: 'S',
                poly: [[wrx, wy0], [refX, wy0], V0, Jm, Jw] };
-      F_MN = { color: COL_ORANGE, gutter: 'N', recvMode: 'clipped',
+      F_MN = { color: COL_ORANGE, gutter: 'N', recvMode: 'clipped', cutTag: 'W',
                poly: [V0, [mx1, refY], [mx1, mry], Jm] };
-      F_MS = { color: COL_BLUE, gutter: 'S', recvMode: 'clipped',
+      F_MS = { color: COL_BLUE, gutter: 'S', recvMode: 'never', donorTag: 'S',
                poly: [hipCorner, Jw, Jm, [mx1, mry], [mx1, my1]],
                // Columns west of the main-ridge end run past the ridge
                // line up to the hips — they're cut from longer stock.
@@ -3384,7 +3395,8 @@ function _renderRoofSheetPlanInner() {
         sheetM: depth * effectiveScale * pitchFactor,
         area: Math.abs(polyArea(poly)), centroid: polyCentroid(poly),
         color: f.color, _gutter: f.gutter, _fullFor: f.fullFor || null,
-        _recvMode: f.recvMode, _cutTag: f.cutTag || null, _tagByX: !!f.tagByX
+        _recvMode: f.recvMode, _cutTag: f.cutTag || null, _tagByX: !!f.tagByX,
+        _donorTag: f.donorTag || null
       };
     }
     var hvFaceRecs = hvFaces.map(_mkFace);
@@ -3422,13 +3434,15 @@ function _renderRoofSheetPlanInner() {
         var isRecv = fr._recvMode === 'noEave'  ? !touches
                    : fr._recvMode === 'clipped' ? clipped
                    : false;
-        // Corner cross-rule tag: which line cut this piece.  On the
-        // regime-1 main-north face, columns left of the wing ridge are
-        // hip-cut, right of it valley-cut.
+        // Pairing-group tag (same-tag pairs are penalised in the
+        // matcher).  On the regime-1 main-north face, columns left of
+        // the wing ridge are hip-cut, right of it valley-cut; regime-2
+        // faces carry fixed donor/receiver groups instead.
         var tag = isRecv ? (fr._cutTag || null)
-                : (clipped && fr._tagByX)
+                : !clipped ? null
+                : fr._tagByX
                   ? ((clip.reduce(function(s2, p){ return s2 + p[0]; }, 0) / clip.length) < wrx ? 'H' : 'V')
-                  : null;
+                  : (fr._donorTag || null);
         hvStrips.push({
           face: fr, color: fr.color,
           poly: clip, centroid: polyCentroid(clip),
