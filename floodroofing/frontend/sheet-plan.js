@@ -3268,56 +3268,113 @@ function _renderRoofSheetPlanInner() {
       if (Math.abs(wing.x0 - main.x0) > 2) return;
     }
     var wx0 = wing.x0, wx1 = wing.x1, wy0 = wing.y0;
-    var mx0 = main.x0, mx1 = main.x1, refY = main.y0, my1 = main.y1;
-    var refX = wx1;
-    var wrx = (wx0 + wx1) / 2;                    // wing ridge x
-    var mry = (refY + my1) / 2;                   // main ridge y
-    // 45° skeleton junctions (matches buildGableRoofLines_legacy).
-    // Regime 1 (narrow wing): the valley reaches the wing ridge above
-    // the main ridge; regime 2 (wide wing): it lands on the main ridge
-    // first and the hip connector runs the other way.
-    var fy, mex;
-    var vFootY = refY + (refX - wrx);             // valley y at x=wrx
-    if (vFootY <= mry + 0.5) { fy = vFootY; mex = wrx + (mry - fy); }
-    else { mex = refX - (mry - refY); fy = my1 - (wrx - mx0); }
-    // Faces (NOT all convex — F_W has a reflex vertex at the valley
-    // foot in regime 1, so bands are clipped face-against-band below).
-    // _fullFor(clip): the STOCK length a piece is cut from.  Rows on
-    // the west plane that reach past the wing ridge into the main
-    // section are ordered at main depth, not wing depth (regime 1);
-    // mirrored logic for the south face in regime 2.
-    var F_W = { color: COL_GREEN, gutter: 'W', poly: (fy < mry)
-      ? [[mx0, wy0], [wrx, wy0], [wrx, fy], [mex, mry], [mx0, my1]]
-      : [[mx0, wy0], [wrx, wy0], [wrx, fy], [mx0, my1]],
-      fullFor: (fy < mry) ? function(clip){
-        var mxx = Math.max.apply(null, clip.map(function(p){ return p[0]; }));
-        var myy = Math.min.apply(null, clip.map(function(p){ return p[1]; }));
-        // Rows at/below the valley foot are on the main run — cut
-        // from main-depth stock even when the piece is short (hip-end
-        // slivers near the south eave).
-        return (myy > fy - 2 || mxx > wrx + 2) ? (mex - mx0) : (wrx - mx0);
-      } : null };
-    var F_WE = { color: COL_PURPLE, gutter: 'E', poly: (fy < mry)
-      ? [[wrx, wy0], [refX, wy0], [refX, refY], [wrx, fy]]
-      : [[wrx, wy0], [refX, wy0], [refX, refY], [mex, mry], [wrx, fy]] };
-    var F_MN = { color: COL_ORANGE, gutter: 'N', poly: (fy < mry)
-      ? [[refX, refY], [mx1, refY], [mx1, mry], [mex, mry], [wrx, fy]]
-      : [[refX, refY], [mx1, refY], [mx1, mry], [mex, mry]] };
-    var F_MS = { color: COL_BLUE, gutter: 'S', poly: (fy < mry)
-      ? [[mx0, my1], [mex, mry], [mx1, mry], [mx1, my1]]
-      : [[mx0, my1], [wrx, fy], [mex, mry], [mx1, mry], [mx1, my1]],
-      fullFor: (fy < mry) ? null : function(clip){
-        var mnx = Math.min.apply(null, clip.map(function(p){ return p[0]; }));
-        return (mnx < mex - 2) ? (my1 - fy) : (my1 - mry);
-      } };
+    var mx0 = main.x0, mx1 = main.x1, my1 = main.y1;
+    // The DRAWN lines are authoritative — the sheet plan follows the
+    // hip / valley / ridge lines exactly as drawn and NEVER re-derives
+    // (or visually moves) them.  Transform them into canonical space,
+    // read the junctions off them, and build the faces between them.
+    function _canPt(p){
+      var q = rotate90(p, pv[0], pv[1], nT);
+      return mirrored ? [2 * mirX - q[0], q[1]] : q;
+    }
+    var wingR = null, mainR = null, valleysL = [], hipsL = [];
+    (DRAW.lines || []).forEach(function(l){
+      if (!l || !l.pts || l.pts.length < 2) return;
+      var a = _canPt(l.pts[0]), b = _canPt(l.pts[1]);
+      if (l.type === 'ridge') {
+        if (Math.abs(a[0] - b[0]) < 2.5)      wingR = { a: a, b: b };
+        else if (Math.abs(a[1] - b[1]) < 2.5) mainR = { a: a, b: b };
+      }
+      else if (l.type === 'valley') valleysL.push({ a: a, b: b });
+      else if (l.type === 'hip')    hipsL.push({ a: a, b: b });
+    });
+    if (!wingR || !mainR || valleysL.length !== 1 || !hipsL.length) return;
+    var wrx = (wingR.a[0] + wingR.b[0]) / 2;               // wing ridge x
+    var mry = (mainR.a[1] + mainR.b[1]) / 2;               // main ridge y
+    var Jw  = [wrx, Math.max(wingR.a[1], wingR.b[1])];     // wing ridge foot
+    var vv  = valleysL[0];
+    function _near(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]) < 3; }
+    // Regime 2 (wide wing): the valley lands ON the main ridge; the
+    // main ridge dies into the wing.  Regime 1 (narrow wing): the
+    // valley meets the wing ridge foot; the main ridge runs barge to
+    // barge and the wing tees into the main's north slope.
+    var vOnRidge = (Math.abs(vv.a[1] - mry) < 2.5 && Math.abs(vv.a[0] - wrx) > 2.5) ? vv.a
+                 : (Math.abs(vv.b[1] - mry) < 2.5 && Math.abs(vv.b[0] - wrx) > 2.5) ? vv.b : null;
+    var regime2 = !!vOnRidge;
+    var V0, Jm, hipMain = null, hipCorner = null;
+    if (regime2) {
+      Jm = vOnRidge;
+      V0 = _near(vv.a, Jm) ? vv.b : vv.a;
+      // hipCorner: wing-ridge foot → outline corner; a second hip
+      // (wing-ridge foot → main-ridge end) may exist but the face
+      // corners Jw / Jm already pin it.
+      hipsL.forEach(function(h){
+        var farEnd = _near(h.a, Jw) ? h.b : (_near(h.b, Jw) ? h.a : null);
+        if (farEnd && !_near(farEnd, Jm)) hipCorner = farEnd;
+      });
+      if (!hipCorner) hipCorner = [mx0, my1];
+    } else {
+      V0 = _near(vv.a, Jw) ? vv.b : (_near(vv.b, Jw) ? vv.a : null);
+      if (!V0) return;
+      hipsL.forEach(function(h){
+        var farEnd = _near(h.a, Jw) ? h.b : (_near(h.b, Jw) ? h.a : null);
+        if (farEnd) hipMain = farEnd;
+      });
+      // The hip must run to the end wall level with the inner corner
+      // (the hip+valley-corner gable skeleton).  An old-style skeleton
+      // (hip descending to the far corner) is NOT this roof — leave it
+      // to the generic engine rather than move the drawn lines.
+      if (!hipMain || Math.abs(hipMain[1] - V0[1]) > coverPx) return;
+    }
+    var refX = V0[0], refY = V0[1];
+    var fy = Jw[1], mex = regime2 ? Jm[0] : mx0;
+    // Faces between the drawn lines (F_MN in regime 1 has a reflex
+    // vertex at the wing-ridge foot, so bands are clipped
+    // face-against-band below).
+    // recvMode: which pieces on this face are offcut RECEIVERS —
+    //   'noEave'  : pieces that never reach the face's gutter
+    //   'clipped' : pieces cut short of full stock
+    //   'never'   : this face only donates (its clipped pieces are the
+    //               full-stock donor sheets the offcuts are cut from)
+    // cutTag ('H'/'V') drives the corner cross-rule: a donor cut at
+    // the VALLEY fills a HIP-side offcut position and vice versa.
+    var F_W, F_WE, F_MN, F_MS;
+    if (!regime2) {
+      F_W  = { color: COL_GREEN, gutter: 'W', recvMode: 'noEave', cutTag: 'H',
+               poly: [[mx0, wy0], [wrx, wy0], Jw, hipMain] };
+      F_WE = { color: COL_PURPLE, gutter: 'E', recvMode: 'noEave', cutTag: 'V',
+               poly: [[wrx, wy0], [refX, wy0], V0, Jw] };
+      F_MN = { color: COL_ORANGE, gutter: 'N', recvMode: 'never',
+               tagByX: true,
+               poly: [hipMain, Jw, V0, [mx1, refY], [mx1, mry], [mx0, mry]] };
+      F_MS = { color: COL_BLUE, gutter: 'S', recvMode: 'never',
+               poly: [[mx0, mry], [mx1, mry], [mx1, my1], [mx0, my1]] };
+    } else {
+      F_W  = { color: COL_GREEN, gutter: 'W', recvMode: 'noEave',
+               poly: [[mx0, wy0], [wrx, wy0], Jw, hipCorner] };
+      F_WE = { color: COL_PURPLE, gutter: 'E', recvMode: 'noEave',
+               poly: [[wrx, wy0], [refX, wy0], V0, Jm, Jw] };
+      F_MN = { color: COL_ORANGE, gutter: 'N', recvMode: 'clipped',
+               poly: [V0, [mx1, refY], [mx1, mry], Jm] };
+      F_MS = { color: COL_BLUE, gutter: 'S', recvMode: 'clipped',
+               poly: [hipCorner, Jw, Jm, [mx1, mry], [mx1, my1]],
+               // Columns west of the main-ridge end run past the ridge
+               // line up to the hips — they're cut from longer stock.
+               fullFor: function(clip){
+                 var mnx = Math.min.apply(null, clip.map(function(p){ return p[0]; }));
+                 return (mnx < mex - 2) ? (my1 - fy) : (my1 - mry);
+               } };
+    }
     var hvFaces = [F_MN, F_MS, F_W, F_WE];
     // Face records + strips.
     function _mkFace(f){
       var poly = f.poly.map(function(p){ return p.slice(); });
       var xs = poly.map(function(p){ return p[0]; }), ys = poly.map(function(p){ return p[1]; });
       var vert = (f.gutter === 'W' || f.gutter === 'E');    // rows ↔ vertical eave
-      var depth = vert ? (f.gutter === 'W' ? wrx - mx0 : refX - wrx)
-                       : (my1 - refY) / 2;
+      var depth = f.gutter === 'W' ? wrx - mx0
+                : f.gutter === 'E' ? refX - wrx
+                : f.gutter === 'N' ? mry - refY
+                :                    my1 - mry;
       return {
         poly: poly, type: 'long-side',
         a: poly[0], b: poly[1], gL: 1,
@@ -3326,7 +3383,8 @@ function _renderRoofSheetPlanInner() {
         planSheetM: depth * effectiveScale,
         sheetM: depth * effectiveScale * pitchFactor,
         area: Math.abs(polyArea(poly)), centroid: polyCentroid(poly),
-        color: f.color, _gutter: f.gutter, _fullFor: f.fullFor || null
+        color: f.color, _gutter: f.gutter, _fullFor: f.fullFor || null,
+        _recvMode: f.recvMode, _cutTag: f.cutTag || null, _tagByX: !!f.tagByX
       };
     }
     var hvFaceRecs = hvFaces.map(_mkFace);
@@ -3359,13 +3417,18 @@ function _renderRoofSheetPlanInner() {
                          : (Math.max.apply(null, cys) - Math.min.apply(null, cys));
         var fullPx = fr._fullFor ? fr._fullFor(clip) : fr.perpPx;
         var clipped = lenPx < fullPx - coverPx / 2;
-        // SOP: the row faces (W/E gutter) are the DONOR side; every
-        // hip/valley-clipped piece on the column faces (N/S) is an
-        // offcut of a row donor — same convention the approved Big-L
-        // layout uses (north/south clipped columns = west-donor
-        // offcuts).  Valley-wedge pieces with no eave contact are
-        // receivers on any face.
-        var isRecv = !touches || (!vert && clipped);
+        // Receivers per face role — see recvMode above.  A 'never'
+        // face's clipped pieces are the full-stock DONOR sheets.
+        var isRecv = fr._recvMode === 'noEave'  ? !touches
+                   : fr._recvMode === 'clipped' ? clipped
+                   : false;
+        // Corner cross-rule tag: which line cut this piece.  On the
+        // regime-1 main-north face, columns left of the wing ridge are
+        // hip-cut, right of it valley-cut.
+        var tag = isRecv ? (fr._cutTag || null)
+                : (clipped && fr._tagByX)
+                  ? ((clip.reduce(function(s2, p){ return s2 + p[0]; }, 0) / clip.length) < wrx ? 'H' : 'V')
+                  : null;
         hvStrips.push({
           face: fr, color: fr.color,
           poly: clip, centroid: polyCentroid(clip),
@@ -3373,7 +3436,7 @@ function _renderRoofSheetPlanInner() {
           pieceM: lenPx * effectiveScale * pitchFactor,
           isOffcut: isRecv, isPhantom: false,
           _hvLen: lenPx, _hvFull: fullPx, _hvClipped: clipped,
-          _hvAxis: vert ? 1 : 0
+          _hvAxis: vert ? 1 : 0, _hvTag: tag
         });
       }
     });
@@ -3390,7 +3453,11 @@ function _renderRoofSheetPlanInner() {
           var err = Math.abs(r._hvLen + d._hvLen - d._hvFull);
           if (err >= coverPx * 1.2) return;
           var dist = Math.hypot(r.centroid[0] - d.centroid[0], r.centroid[1] - d.centroid[1]);
-          pairs.push({ ri: ri, di: di, score: err + dist * 0.02 });
+          // Corner cross-rule: the donor cut at the valley serves the
+          // hip-side position and vice versa — a same-line pairing is
+          // penalised so the cross pairing wins ties.
+          var same = (r._hvTag && d._hvTag && r._hvTag === d._hvTag) ? coverPx * 2 : 0;
+          pairs.push({ ri: ri, di: di, score: err + dist * 0.02 + same });
         });
       });
       pairs.sort(function(a, b){ return a.score - b.score; });

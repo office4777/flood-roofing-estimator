@@ -25570,6 +25570,92 @@ function buildGableRoofLines_legacy(outline) {
     });
   });
 
+  // ── L-elbow: hip+valley corner for a GABLE main run ──────────────
+  // The hip skeleton ends the main ridge at an apex with TWO hips:
+  // one to the outline corner, one (the connector) to the wing-ridge/
+  // valley junction J.  On the gable roof the main ridge instead runs
+  // out to a barge on the end wall and the wing tees into the main
+  // slope: keep the valley, swap the two hips for ONE hip from J to
+  // the end-wall point level with the inner eave corner, and add the
+  // gable-end rake barges.  (When the wing is wider than the main run
+  // is deep, the junction sits ON the main ridge — a valley touches
+  // the apex — and the skeleton is already correct, so we skip.)
+  workRidges.forEach(function(r, ri){
+    [0,1].forEach(function(endIdx){
+      var R = r.pts[endIdx];
+      var attached = [];
+      workHips.forEach(function(h){
+        if (h._remove) return;
+        if      (ptDist(h.pts[0], R) <= EP_TOL) attached.push({h:h, endIdx:0});
+        else if (ptDist(h.pts[1], R) <= EP_TOL) attached.push({h:h, endIdx:1});
+      });
+      if (attached.length !== 2) return;
+      var hasValleyAtR = valleys.some(function(v){
+        return ptDist(v.pts[0], R) <= EP_TOL || ptDist(v.pts[1], R) <= EP_TOL;
+      });
+      var otherRidgeAtR = workRidges.some(function(rr, rri){
+        if (rri === ri) return false;
+        return ptDist(rr.pts[0], R) <= EP_TOL || ptDist(rr.pts[1], R) <= EP_TOL;
+      });
+      if (hasValleyAtR || otherRidgeAtR) return;
+      var outFoot = null, jFoot = null;
+      attached.forEach(function(a){
+        var f = a.h.pts[1 - a.endIdx];
+        if (pointOnAnyOutlineEdge(f)) outFoot = f; else jFoot = f;
+      });
+      if (!outFoot || !jFoot) return;      // plain open hip end (handled above)
+      // jFoot must really be the wing junction: a valley AND the wing
+      // ridge both terminate there.
+      var vAtJ = null;
+      valleys.forEach(function(v){
+        if      (ptDist(v.pts[0], jFoot) <= EP_TOL) vAtJ = v.pts[1];
+        else if (ptDist(v.pts[1], jFoot) <= EP_TOL) vAtJ = v.pts[0];
+      });
+      var wingRidgeAtJ = workRidges.some(function(rr, rri){
+        if (rri === ri) return false;
+        return ptDist(rr.pts[0], jFoot) <= EP_TOL || ptDist(rr.pts[1], jFoot) <= EP_TOL;
+      });
+      if (!vAtJ || !wingRidgeAtJ) return;
+      // Extend the main ridge out to the end wall.
+      var other = r.pts[1 - endIdx];
+      var ux = R[0] - other[0], uy = R[1] - other[1];
+      var ul = Math.hypot(ux, uy); if (ul < 1) return;
+      ux /= ul; uy /= ul;
+      var best = null, n2 = outline.length;
+      for (var i2 = 0; i2 < n2; i2++){
+        var a3 = outline[i2], b3 = outline[(i2+1)%n2];
+        var ex = b3[0]-a3[0], ey = b3[1]-a3[1];
+        var den = ux*ey - uy*ex;
+        if (Math.abs(den) < 1e-9) continue;
+        var t = ((a3[0]-R[0])*ey - (a3[1]-R[1])*ex) / den;
+        var s = ((a3[0]-R[0])*uy - (a3[1]-R[1])*ux) / den;
+        if (t < 1 || s < -0.01 || s > 1.01) continue;
+        if (!best || t < best.t) best = { t: t, a: a3, b: b3 };
+      }
+      if (!best) return;
+      var E = [R[0] + ux*best.t, R[1] + uy*best.t];
+      // Only a REAL gable end: the ridge must run past the inner
+      // corner to the end wall (apex and end wall on opposite sides
+      // of the corner along the ridge axis).  A wide wing's ridge
+      // apex sits on the SAME side — extending it would push the
+      // ridge through the main roof onto its eave; there the hip
+      // skeleton is already the correct roof, so leave it alone.
+      var ax = Math.abs(ux) > Math.abs(uy) ? 0 : 1;
+      if ((R[ax] - vAtJ[ax]) * (E[ax] - vAtJ[ax]) >= 0) return;
+      // The hip foot: the inner eave corner projected onto the end wall.
+      var ex2 = best.b[0]-best.a[0], ey2 = best.b[1]-best.a[1];
+      var l2 = ex2*ex2 + ey2*ey2; if (l2 < 1) return;
+      var tp = ((vAtJ[0]-best.a[0])*ex2 + (vAtJ[1]-best.a[1])*ey2) / l2;
+      tp = Math.max(0, Math.min(1, tp));
+      var H0 = [best.a[0] + tp*ex2, best.a[1] + tp*ey2];
+      attached.forEach(function(a){ a.h._remove = true; });
+      r.pts[endIdx] = E;
+      workHips.push({ type:'hip', pts:[jFoot.slice(), H0], _remove:false });
+      newBarges.push({type:'barge', pts:[H0.slice(), E.slice()]});
+      newBarges.push({type:'barge', pts:[outFoot.slice(), E.slice()]});
+    });
+  });
+
   return valleys
     .concat(workHips.filter(function(h){return !h._remove;}))
     .concat(workRidges)
