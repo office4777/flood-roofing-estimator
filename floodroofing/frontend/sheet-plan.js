@@ -3209,9 +3209,14 @@ function _renderRoofSheetPlanInner() {
             var uvPoly = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
             var poly = uvPoly.map(_fromUV);
             var lenPx = v1 - v0;
+            // Number a fixed distance off the LOCAL gutter (v1 below
+            // the ridge, v0 above) so the labels rank up straight
+            // instead of waving with each column's length.
+            var lblO = Math.min(coverPx * 0.7, lenPx / 2);
             allStrips.push({
               face: face, color: face.color,
               poly: poly, centroid: polyCentroid(poly),
+              labelAt: _fromUV([(u0 + u1) / 2, below ? v1 - lblO : v0 + lblO]),
               orderedLengthMm: orderedLengthMm(lenPx * effectiveScale * pitchFactor),
               pieceM: lenPx * effectiveScale * pitchFactor,
               isOffcut: false, isPhantom: false
@@ -3428,7 +3433,11 @@ function _renderRoofSheetPlanInner() {
         var lenPx = vert ? (Math.max.apply(null, cxs) - Math.min.apply(null, cxs))
                          : (Math.max.apply(null, cys) - Math.min.apply(null, cys));
         var fullPx = fr._fullFor ? fr._fullFor(clip) : fr.perpPx;
+        // Meaningfully short of full stock (wants an offcut)…
         var clipped = lenPx < fullPx - coverPx / 2;
+        // …vs cut at all (has SOME offcut to give — near-full donors'
+        // small offcuts still serve the small slots by the corner).
+        var hasOffcut = lenPx < fullPx - 2;
         // Receivers per face role — see recvMode above.  A 'never'
         // face's clipped pieces are the full-stock DONOR sheets.
         var isRecv = fr._recvMode === 'noEave'  ? !touches
@@ -3449,8 +3458,8 @@ function _renderRoofSheetPlanInner() {
           orderedLengthMm: orderedLengthMm(lenPx * effectiveScale * pitchFactor),
           pieceM: lenPx * effectiveScale * pitchFactor,
           isOffcut: isRecv, isPhantom: false,
-          _hvLen: lenPx, _hvFull: fullPx, _hvClipped: clipped,
-          _hvAxis: vert ? 1 : 0, _hvTag: tag
+          _hvLen: lenPx, _hvFull: fullPx, _hvClipped: hasOffcut,
+          _hvAxis: vert ? 1 : 0, _hvTag: tag, _hvTouch: touches
         });
       }
     });
@@ -3464,14 +3473,18 @@ function _renderRoofSheetPlanInner() {
       var pairs = [];
       recvs.forEach(function(r, ri){
         hvDonors.forEach(function(d, di){
-          var err = Math.abs(r._hvLen + d._hvLen - d._hvFull);
-          if (err >= coverPx * 1.2) return;
+          // The donor's offcut must COVER the slot (a short offcut
+          // can't be stretched); small negative slack absorbs the
+          // banding-grid measurement skew.  No upper cap — reusing a
+          // generous offcut still saves ordering a sheet.
+          var waste = (d._hvFull - d._hvLen) - r._hvLen;
+          if (waste < -coverPx * 0.6) return;
           var dist = Math.hypot(r.centroid[0] - d.centroid[0], r.centroid[1] - d.centroid[1]);
           // Corner cross-rule: the donor cut at the valley serves the
           // hip-side position and vice versa — a same-line pairing is
           // penalised so the cross pairing wins ties.
           var same = (r._hvTag && d._hvTag && r._hvTag === d._hvTag) ? coverPx * 2 : 0;
-          pairs.push({ ri: ri, di: di, score: err + dist * 0.02 + same });
+          pairs.push({ ri: ri, di: di, score: (waste >= 0 ? waste : -waste * 1.5) + dist * 0.02 + same });
         });
       });
       pairs.sort(function(a, b){ return a.score - b.score; });
@@ -3508,6 +3521,24 @@ function _renderRoofSheetPlanInner() {
     hvStrips.forEach(function(s){
       if (s.isOffcut && s._hvSrc) s.seq = s._hvSrc.seq;
     });
+    // Number anchors: a fixed distance off the face's gutter line
+    // (or off the ridge for corner columns that hang from it), so the
+    // labels form a straight rank instead of waving with each piece's
+    // length.  Offcut receivers keep their centroid.
+    hvFaceRecs.forEach(function(fr){
+      var own = hvStrips.filter(function(s){ return s.face === fr && !s.isOffcut; });
+      if (!own.length) return;
+      var allEave = own.every(function(s){ return s._hvTouch; });
+      var off = coverPx * 0.7;
+      own.forEach(function(s){
+        var o = Math.min(off, s._hvLen * 0.5);
+        var c = s.centroid;
+        if      (fr._gutter === 'W') s.labelAt = [mx0 + o, c[1]];
+        else if (fr._gutter === 'E') s.labelAt = [refX - o, c[1]];
+        else if (fr._gutter === 'N') s.labelAt = allEave ? [c[0], refY + o] : [c[0], mry - o];
+        else                         s.labelAt = allEave ? [c[0], my1 - o] : [c[0], mry + o];
+      });
+    });
     // Un-canonicalize back to display space.
     function _unmap(p){
       var q = mirrored ? [2 * mirX - p[0], p[1]] : p.slice();
@@ -3521,6 +3552,7 @@ function _renderRoofSheetPlanInner() {
     hvStrips.forEach(function(s){
       s.poly = s.poly.map(_unmap);
       s.centroid = polyCentroid(s.poly);
+      if (s.labelAt) s.labelAt = _unmap(s.labelAt);
     });
     faces = hvFaceRecs;
     mainA = hvFaceRecs[0]; mainB = hvFaceRecs[1];
@@ -3895,7 +3927,7 @@ function _renderRoofSheetPlanInner() {
   ctx.lineWidth = 2;
   allStrips.forEach(function(s){
     if (s._deleted) return;  // deleted strips carry no number badge
-    var cc = toC(s.centroid);
+    var cc = toC(s.labelAt || s.centroid);
     var lbl = String(s.seq);
     ctx.strokeText(lbl, cc[0], cc[1]);
     ctx.fillText(lbl, cc[0], cc[1]);
