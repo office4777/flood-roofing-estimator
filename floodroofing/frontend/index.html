@@ -1599,7 +1599,12 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   html.print-quote .qp-cond-controls,
   html.print-quote .qp-cond-empty,
   html.print-quote .qp-cond-cap-empty,
+  html.print-quote .qp-ph,
   html.print-quote .no-print{display:none!important}
+  /* The live customer link is a finished document too — no editor
+     placeholders or edit hints there either. */
+  html.customer-view .qp-ph,
+  html.customer-view .qp-edit-hint{display:none!important}
   html.print-quote .qp-editable{outline:none!important;border:none!important;background:transparent!important}
   html.print-quote [contenteditable]{outline:none!important;caret-color:transparent}
   /* Colour swatches mustn't split across pages — keep the whole grid
@@ -7477,7 +7482,7 @@ function defaultProposalOption(name){
       'Strip and cart away the existing roof and underlay',
       'Inspect and replace any rotten or damaged battens (POA per LM)',
       'Install Thermakraft Covertek 405 underlay',
-      'Supply & install 0.55bmt Colorsteel Maxam corrugate (or selected profile)',
+      'Supply & install 0.40bmt Colorsteel Maxam corrugate (or selected profile / gauge)',
       'Supply & install all associated apron, ridge, barge, valley and pipe flashings',
       'Supply & install seamless Colonial Quad spouting with downpipes',
       'Final site clean and waste disposal',
@@ -7533,6 +7538,15 @@ function buildQuote(){
   Object.keys(def).forEach(function(k){
     if (S.quote[k] === undefined || S.quote[k] === null) S.quote[k] = def[k];
   });
+  // Migrate the retired Option-C gutter pick into the canonical
+  // Selections-page state so old quotes keep their gutter (and its
+  // price) with ONE source of truth.
+  if (S.quote.gutterChoice && S.quote.gutterChoice !== 'none' &&
+      (!S.quote.proposalOptions || S.quote.proposalOptions.gutterType === undefined)) {
+    if (!S.quote.proposalOptions) S.quote.proposalOptions = {};
+    S.quote.proposalOptions.gutterType =
+      S.quote.gutterChoice === 'box' ? 'box125' : 'marley_typhoon';
+  }
   if (!Array.isArray(S.quote.lineItems) || !S.quote.lineItems.length) {
     S.quote.lineItems = defaultQuoteLineItems();
   }
@@ -7771,16 +7785,30 @@ function _qpBaseSub(){
   if (opts.length) return opts.reduce(function(s, o){ return s + _optEffectiveTotal(o); }, 0);
   return (typeof quoteSubtotal === 'function') ? quoteSubtotal() : 0;
 }
+// ── THE quote totals — single source of truth ────────────────────
+// Every figure on every proposal page (price card, Selections
+// breakdown, acceptance total, footer, action bar, email) comes from
+// this one calculation: selected options (or line-item base) PLUS the
+// customer's Selections-page picks, then GST and the 50% deposit.
+// One engine = the printed pages can never disagree with each other.
+function _quoteMoney(){
+  var rate = ((S.quote && S.quote.gstRate) || 0) / 100;
+  var base = _qpBaseSub();
+  var deltas = _qpSelectionDeltaSum();
+  var sub = base + deltas;
+  var gst = sub * rate;
+  var tot = sub + gst;
+  return { rate: rate, baseSub: base, deltaSum: deltas,
+           sub: sub, gst: gst, tot: tot, dep: tot * 0.5,
+           baseTot: base * (1 + rate) };
+}
 
 // Recompute the selected combined totals and update every figure on the
 // printed Price page in place (no full re-render — keeps scroll + state).
 function recalcQuoteSelectedTotals(){
   if (!S.quote || !S.quote.options) return;
-  var rate = (S.quote.gstRate || 0) / 100;
-  var sub = S.quote.options.filter(function(x){ return x.selected !== false; })
-                           .reduce(function(s,x){ return s + _optEffectiveTotal(x); }, 0)
-            + _qpSelectionDeltaSum();   // Selections-page add-ons (incl. legacy gutter fallback)
-  var gst = sub * rate, tot = sub + gst, dep = tot * 0.5;
+  var M = _quoteMoney();
+  var rate = M.rate, sub = M.sub, gst = M.gst, tot = M.tot, dep = M.dep;
   var setM = function(eid, v){ var el = document.getElementById(eid); if (el) el.textContent = fmtMoney(v); };
   setM('qpSelSub', sub); setM('qpSelGst', gst); setM('qpSelTot', tot); setM('qpSelDep', dep);
   setM('qpFooterTotal', tot); setM('qpTotal', tot);
@@ -7973,10 +8001,16 @@ function _quoteShareToken(){
   if (!S.quote.share.status) S.quote.share.status = 'sent';
   return S.quote.share.token;
 }
-async function copyCustomerLink(){
-  if (!S.quote){ alert('Open or create a quote first.'); return; }
+// Save the job, mint/verify the share token, and return the live
+// customer-quote URL.  Shared by "Customer link" and "Email Quote" —
+// the LINK is the quote the customer receives (they make their
+// selections and accept online; it's not just a PDF).
+// Returns { link, verified } or null (message already shown).
+async function _ensureCustomerLink(msg, opts){
+  opts = opts || {};
+  if (!S.quote){ alert('Open or create a quote first.'); return null; }
   var token = _quoteShareToken();
-  if (!token){ alert('Could not generate a share token — try reopening the quote.'); return; }
+  if (!token){ alert('Could not generate a share token — try reopening the quote.'); return null; }
   // saveCurrentJob bails out unless a client name OR address is filled in.
   // Auto-populate from the quote so the office user doesn't have to retype.
   var jc = document.getElementById('jobClient'), ja = document.getElementById('jobAddr');
@@ -7984,9 +8018,8 @@ async function copyCustomerLink(){
   if (ja && !ja.value && S.quote.addr)   ja.value = S.quote.addr;
   if ((!jc || !jc.value) && (!ja || !ja.value)){
     alert('Add a client name or site address (Map Roof tab) before sharing — the customer view needs a job record to attach to.');
-    return;
+    return null;
   }
-  var msg = document.getElementById('qaMsg');
   if (msg) { msg.textContent = 'Saving & generating link…'; msg.style.color = ''; }
   // Capture save errors instead of swallowing them — a silent save failure
   // is what produces a "valid-looking" link that the backend can't resolve.
@@ -7995,7 +8028,7 @@ async function copyCustomerLink(){
   if (!S.currentJobId){
     if (msg) { msg.textContent = 'Save failed — link not generated.' + (saveErr ? ' ('+saveErr.message+')':''); msg.style.color = '#b91c1c'; }
     alert('Couldn\'t save the job, so the customer link won\'t resolve. Check your connection and try again.');
-    return;
+    return null;
   }
   // Verify the token is reachable through the public endpoint before
   // handing it to the user.  Supabase has eventual-consistency between
@@ -8009,9 +8042,9 @@ async function copyCustomerLink(){
     } catch(e){}
     await new Promise(function(res){ setTimeout(res, 400 * (i+1)); });
   }
-  if (!verified){
+  if (!verified && !opts.quiet){
     if (msg) { msg.textContent = 'Saved, but the customer link isn\'t resolving yet — wait a moment and try again.'; msg.style.color = '#b45309'; }
-    if (!confirm('The link saved, but didn\'t verify on the server yet.\n\nCopy it anyway? (You may need to wait a few seconds before sending.)')) return;
+    if (!confirm('The link saved, but didn\'t verify on the server yet.\n\nUse it anyway? (You may need to wait a few seconds before sending.)')) return null;
   }
   // Tack the human-friendly job number onto the URL so the customer
   // tab's title can read "Flood Roofing Quote #3080" instead of the
@@ -8021,11 +8054,17 @@ async function copyCustomerLink(){
   var jobNo = (window.S && (S.linkedJobNo || (S.quote && S.quote.ref))) || '';
   var link = location.origin + location.pathname + '?q=' + token;
   if (jobNo) link += '&j=' + encodeURIComponent(String(jobNo).replace(/[^A-Za-z0-9\-]/g,''));
-  try { await navigator.clipboard.writeText(link); } catch(e){}
-  if (msg) { msg.textContent = verified ? '✓ Customer link copied — send it to the client.' : 'Link copied (unverified) — give it a moment before sending.'; msg.style.color = verified ? '#15803d' : '#b45309'; }
-  var prettyName = jobNo ? ('Flood Roofing Quote #' + jobNo) : 'Customer quote link';
+  return { link: link, verified: verified, jobNo: jobNo };
+}
+async function copyCustomerLink(){
+  var msg = document.getElementById('qaMsg');
+  var got = await _ensureCustomerLink(msg);
+  if (!got) return;
+  try { await navigator.clipboard.writeText(got.link); } catch(e){}
+  if (msg) { msg.textContent = got.verified ? '✓ Customer link copied — send it to the client.' : 'Link copied (unverified) — give it a moment before sending.'; msg.style.color = got.verified ? '#15803d' : '#b45309'; }
+  var prettyName = got.jobNo ? ('Flood Roofing Quote #' + got.jobNo) : 'Customer quote link';
   // prompt() guarantees the link is selectable even if the clipboard API is blocked.
-  window.prompt(prettyName + ' — copied to clipboard:', link);
+  window.prompt(prettyName + ' — copied to clipboard:', got.link);
 }
 
 // Build the customer's current selection payload for write-back.
@@ -8122,6 +8161,7 @@ async function bootCustomerView(token){
       '</div>';
     document.body.appendChild(host);
     window.__CUSTOMER_MODE = true;
+    document.documentElement.classList.add('customer-view');
     // Now that the proposal data is loaded, prefer the saved quote ref
     // for the title (matches what the customer sees in the proposal
     // header), falling back to the url ?j= and finally the generic name.
@@ -8721,7 +8761,10 @@ function recalcQuoteTotals(){
   var s1=document.getElementById('qSumSub');   if(s1) s1.textContent = fmtMoney(sub);
   var s2=document.getElementById('qSumGst');   if(s2) s2.textContent = fmtMoney(gst);
   var s3=document.getElementById('qSumTotal'); if(s3) s3.textContent = fmtMoney(tot);
-  var ta=document.getElementById('qaTotal');   if(ta) ta.textContent = fmtMoney(tot);
+  // Action bar shows THE quote total (base + customer selections)
+  // from the single totals engine; the card above keeps the line-item
+  // base breakdown.
+  var ta=document.getElementById('qaTotal');   if(ta) ta.textContent = fmtMoney(_quoteMoney().tot);
   var rr=document.getElementById('qaRef');     if(rr) rr.textContent = (S.quote && S.quote.ref) || 'FR-001';
 }
 
@@ -9244,9 +9287,13 @@ function refreshQuoteProposal(){
   //             Show on Project details only.
   var gallery = (_galleryArr() || []).filter(function(p){return p && p.src;});
   var photos  = (S.photos||[]).filter(function(p){return p && p.src;}).slice(0, 8);
-  var sub0 = quoteSubtotal();
-  var gst0 = sub0 * (S.quote.gstRate/100);
-  var tot0 = sub0 + gst0;
+  // Single-source totals: page 3's price card, the footer and every
+  // other figure share _quoteMoney() so no page can print a stale
+  // total after the customer changes a selection.
+  var _QM = _quoteMoney();
+  var sub0 = _QM.sub;
+  var gst0 = _QM.gst;
+  var tot0 = _QM.tot;
 
   // Pre-compute combined totals across all options (every option's primary
   // line items contribute; upgrades shown but not auto-included until the
@@ -9410,7 +9457,15 @@ function refreshQuoteProposal(){
   }
 
   // ── Existing roof condition report (full page) ──
-  if (on('condition')) {
+  // The inspection page only prints when it has CONTENT (or the office
+  // explicitly ticked the section on) — an all-dashes page looked
+  // unfinished on customer PDFs.
+  var _condHasContent = !!(((S.quote.condMajor||'')+(S.quote.condMinor||'')+(S.quote.condReco||'')+
+      (S.quote.condMaterial||'')+(S.quote.condAge||'')+(S.quote.conditionSummary||'')).trim() ||
+      (S.quote.conditionObservations||[]).filter(Boolean).length ||
+      (S.quote.condPhotos||[]).filter(Boolean).length ||
+      (S.photos||[]).filter(function(pp){return pp && pp.src;}).length);
+  if (on('condition') && (_condHasContent || sec.condition === true)) {
     var condSummary = S.quote.conditionSummary || '';
     var condObs = (S.quote.conditionObservations || []).filter(Boolean);
     // Six condition-photo slots — each one can be clicked to upload a
@@ -9437,8 +9492,9 @@ function refreshQuoteProposal(){
     // Structured condition fields — roof type / pitch fall back to the
     // drawn roof data; issues + recommendations come from the Quote tab.
     var _pretty = function(s){ return (s||'').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}); };
-    var cRoofType = S.quote.condRoofType || _pretty(d.roof_type) || '';
-    var cPitch    = S.quote.condPitch    || (d.pitch ? d.pitch + '°' : '');
+    var _roofTypeNames = { 'hip':'Hip roof', 'gable':'Gable roof', 'gable-hv':'Gable (hip & valley corner)', 'dutch':'Dutch gable', 'mono':'Mono-pitch' };
+    var cRoofType = S.quote.condRoofType || _pretty(d.roof_type) || _roofTypeNames[DRAW.roofType] || '';
+    var cPitch    = S.quote.condPitch    || (d.pitch ? d.pitch + '°' : (DRAW.calPitch ? DRAW.calPitch + '°' : ''));
     var cMaterial = S.quote.condMaterial || '';
     var cAge      = S.quote.condAge      || '';
     var splitLines = function(t){ return (t||'').split('\n').map(function(s){return s.replace(/^[•\-\s]+/,'').trim();}).filter(Boolean); };
@@ -9624,7 +9680,7 @@ function refreshQuoteProposal(){
     var _rate = S.quote.gstRate/100;
     var combinedSub = opts.filter(function(o){ return o.selected !== false; })
                           .reduce(function(s,o){ return s + _optEffectiveTotal(o); }, 0)
-                      + _gutterDelta();
+                      + _qpSelectionDeltaSum();
     var combinedGst = combinedSub * _rate;
     var combinedTot = combinedSub + combinedGst;
     var combinedDep = combinedTot * 0.5;  // 50% deposit per Flood Roofing T&Cs
@@ -9644,8 +9700,12 @@ function refreshQuoteProposal(){
         '+ GST '+S.quote.gstRate+'% <b id="qpOptGst-'+id+'" style="color:var(--ed-ink-2);font-weight:600">'+fmtMoney(gst)+'</b>'+
       '</div>';
     };
-    // Guttering as Option C (only when the office has set a gutter price).
+    // Guttering used to render as Option C with its own dropdown here.
+    // RETIRED: the Selections page (04) is now the ONLY gutter picker
+    // — two live controls kept two separate states and could print a
+    // "No new gutter" banner next to a gutter charge.
     var _gutterOptionC = function(){
+      return '';
       var gp = S.quote.gutterPrices || {};
       if (!(parseFloat(gp.marley) || parseFloat(gp.box))) return '';
       var gc = S.quote.gutterChoice || 'none';
@@ -9848,7 +9908,7 @@ function refreshQuoteProposal(){
             '<div class="ed-body" style="font-size:12px;line-height:1.5">'+esc2(l)+'</div>'+
           '</div>';
         }).join('')+'</div>'
-      : '<div class="ed-body" style="font-style:italic;color:var(--ed-text2);font-size:12px">Add a scope of works on the Quote tab — it lists here as the inclusions for this price.</div>';
+      : '<div class="ed-body qp-ph" style="font-style:italic;color:var(--ed-text2);font-size:12px">Add a scope of works on the Quote tab — it lists here as the inclusions for this price.</div>';
     // Optional itemised breakdown (only when "Show line items" is ticked)
     var itemTable = S.quote.showLineItemsInQuote
       ? '<div style="margin-top:22px">'+
@@ -9881,7 +9941,7 @@ function refreshQuoteProposal(){
       '<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:30px;align-items:start">'+
         // Left — what's included
         '<div>'+
-          '<div class="ed-eyebrow" style="margin-bottom:8px">What\'s included</div>'+
+          '<div class="ed-eyebrow'+(inclLines.length?'':' qp-ph')+'" style="margin-bottom:8px">What\'s included</div>'+
           inclList+
         '</div>'+
         // Right — price card (big total, subtotal, GST, deposit) +
@@ -9901,10 +9961,10 @@ function refreshQuoteProposal(){
         '</div>'+
       '</div>'+
       itemTable+
-      '<div style="margin-top:22px;padding:14px 18px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
+      '<div class="'+((S.quote.notes||'').trim() ? '' : 'qp-ph ')+'" style="margin-top:22px;padding:14px 18px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
         '<div class="ed-eyebrow" style="margin-bottom:6px">Notes <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
         '<div class="qp-editable" contenteditable="true" data-qfield="notes" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.55;color:var(--ed-ink-2);min-height:1.4em">'+
-          (S.quote.notes ? esc2(S.quote.notes) : '<span style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add notes for the client (access, timing, special considerations)…</span>')+
+          (S.quote.notes ? esc2(S.quote.notes) : '<span class="qp-ph" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add notes for the client (access, timing, special considerations)…</span>')+
         '</div>'+
       '</div>';
   }
@@ -9963,7 +10023,10 @@ function refreshQuoteProposal(){
       function selCard(group, items, current, onclickFn){
         return items.map(function(it){
           var picked = current === it.id;
-          return '<button type="button" class="qp-opt-pick no-print" data-group="'+esc2(group)+'" data-value="'+esc2(it.id)+'" '+
+          // NOTE: cards PRINT (static, picked one highlighted) — only
+          // the tap hint is no-print.  On the live customer link the
+          // same cards stay clickable.
+          return '<button type="button" class="qp-opt-pick" data-group="'+esc2(group)+'" data-value="'+esc2(it.id)+'" '+
             'onclick="'+onclickFn+'(\''+esc2(it.id)+'\')" style="width:100%;text-align:left;padding:12px 14px;margin:0 0 8px;border:1px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';'+
             'border-left:3px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';background:'+(picked?'var(--ed-paper-2)':'#fff')+';cursor:pointer;'+
             'border-radius:0;font-family:inherit;color:inherit">'+
@@ -10206,15 +10269,11 @@ function refreshQuoteProposal(){
     partGutters =
       edHeading('06','The spouting','Marley PVC &amp; Colorsteel options')+
       '<div class="ed-body-lg" style="margin-bottom:14px;max-width:60em">Two gutter systems available. <span class="ed-serif" style="font-style:italic;font-size:15px">Marley Typhoon</span> PVC is our standard fit — UV-stabilised, light, won\'t corrode, won\'t dent in hail, backed by a 15-year manufacturer warranty. For larger roofs or extra peace of mind we recommend the upgrade to <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — rolled on-site in 0.55bmt steel, no factory joins, much higher flow capacity, fully colour-matched to the roof.</div>'+
-      // Gutter-type selector (price-adjusting) — updates the combined total.
-      '<div style="margin-bottom:18px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent);display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
-        '<span class="ed-eyebrow">Choose your gutter type</span>'+
-        '<select onchange="setGutterChoice(this.value)" style="font-family:var(--ed-sans);font-size:12px;padding:6px 10px;border:1px solid var(--ed-line);border-radius:5px;background:#fff;color:var(--ed-ink);cursor:pointer">'+
-          '<option value="none"'+(_gc==='none'?' selected':'')+'>No gutter work in this quote</option>'+
-          '<option value="marley"'+(_gc==='marley'?' selected':'')+'>Marley Typhoon PVC'+(_gMarleyIncl?'  (+'+fmtMoney(_gMarleyIncl)+')':'')+'</option>'+
-          '<option value="box"'+(_gc==='box'?' selected':'')+'>Colorsteel 125mm Box Gutter'+(_gBoxIncl?'  (+'+fmtMoney(_gBoxIncl)+')':'')+'</option>'+
-        '</select>'+
-        '<span class="ed-body" style="font-size:10.5px;color:var(--ed-text2)">Adds to the total on the price page</span>'+
+      // The gutter PICKER lives on the Selections page (04) only — one
+      // control, one state, one price.  This page stays informational.
+      '<div style="margin-bottom:18px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
+        '<span class="ed-eyebrow">Choosing your gutter</span> '+
+        '<span class="ed-body" style="font-size:11.5px;color:var(--ed-ink-2)">Pick your gutter type on the <em>Selections</em> page — the add-on price and new total update there'+((_gMarleyIncl||_gBoxIncl)?' (Marley Typhoon '+(_gMarleyIncl?'+'+fmtMoney(_gMarleyIncl):'included')+' · Colorsteel Box '+(_gBoxIncl?'+'+fmtMoney(_gBoxIncl):'included')+')':'')+'.</span>'+
       '</div>'+
       // Two clean option cards, one accurate profile cross-section each.
       (function(){
@@ -10479,9 +10538,9 @@ function refreshQuoteProposal(){
   html += rpPage(partSignature, 'background:linear-gradient(180deg,#fafbfc,#f1f5f9)');
 
   // ── Summary bar (always shown at the bottom) ──
-  var sumSub = opts.length ? optsSubtotal() : sub0;
-  var sumGst = sumSub * (S.quote.gstRate/100);
-  var sumTot = sumSub + sumGst;
+  var sumSub = _QM.sub;
+  var sumGst = _QM.gst;
+  var sumTot = _QM.tot;
   // Compact one-line footer — appended INSIDE the last rendered
   // .rp-page so it can't spill onto its own page in print/PDF.  The
   // legacy dark "all options" summary bar has been replaced by the
@@ -10554,43 +10613,37 @@ async function saveQuote(){
   setTimeout(function(){ if(msg){msg.textContent='';msg.style.color='';} }, 4000);
 }
 
-function emailQuote(){
+async function emailQuote(){
+  // The email carries the LIVE ONLINE QUOTE LINK — the customer opens
+  // it in their browser, makes their steel / thickness / gutter
+  // selections (the total updates live), and accepts online.  The PDF
+  // is a print artefact; the link IS the quote.
   readQuoteFromInputs();
   var q = S.quote || {};
-  var sub = quoteSubtotal();
-  var gst = sub * (q.gstRate/100);
-  var tot = sub + gst;
+  var msg = document.getElementById('qaMsg');
   var br = (S.settings && S.settings.branding) || {};
   var company = br.company_name || 'Flood Roofing';
-  var subject = 'Roofing quote ' + (q.ref || '') + ' — ' + (q.client || 'Client');
-  var lines = (q.lineItems||[]).map(function(li){
-    var line = (parseFloat(li.qty)||0)*(parseFloat(li.unit)||0);
-    return '  ' + (li.desc||'—') + '   ' + (li.qty||0) + ' × ' + fmtMoney(li.unit) + '  =  ' + fmtMoney(line);
-  }).join('\n');
+  var got = await _ensureCustomerLink(msg);
+  if (!got) return;
+  var M = _quoteMoney();
+  var subject = 'Your roofing quote ' + (q.ref ? q.ref + ' ' : '') + '— ' + company;
   var body =
-    'Hi ' + (q.client||'') + ',\n\n' +
-    'Please find our roofing quote below.\n\n' +
-    'Quote ref: ' + (q.ref||'') + '\n' +
-    'Date:      ' + (q.date||'') + '\n' +
-    'Valid:     ' + (q.validUntil||'') + '\n' +
-    'Site:      ' + (q.addr||'') + '\n\n' +
-    'SCOPE OF WORKS\n' + (q.scope||'—') + '\n\n' +
-    'ITEMISED PRICING\n' + lines + '\n\n' +
-    '  Subtotal:  ' + fmtMoney(sub) + '\n' +
-    '  GST '+q.gstRate+'%:  ' + fmtMoney(gst) + '\n' +
-    '  Total:     ' + fmtMoney(tot) + '\n\n' +
-    (q.notes ? 'NOTES\n' + q.notes + '\n\n' : '') +
-    'TERMS & WARRANTY\n' + (q.terms||'—') + '\n\n' +
+    'Hi ' + (q.client || '') + ',\n\n' +
+    'Thanks for the opportunity to quote your roof at ' + (q.addr || 'your property') + '.\n\n' +
+    'VIEW YOUR QUOTE ONLINE\n' +
+    got.link + '\n\n' +
+    'The link opens your full proposal. You can choose your steel grade, ' +
+    'thickness, guttering and colour right on the page — the price updates ' +
+    'as you pick — and accept online when you\'re ready.\n\n' +
+    'Total (as quoted, incl. GST): ' + fmtMoney(M.tot) + '\n' +
+    (q.validUntil ? 'Quote valid: ' + q.validUntil + '\n' : '') +
+    '\nAny questions, just reply to this email or give us a call.\n\n' +
     'Kind regards,\n' + company + '\n' +
     (br.phone ? br.phone + '\n' : '') +
     (br.email ? br.email + '\n' : '') +
     (br.website || '');
   var href = 'mailto:' + encodeURIComponent(q.email||'') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-  // mailto: has size limits in some clients (~2KB) — warn if exceeded
-  if (href.length > 1900) {
-    var msg = document.getElementById('qaMsg');
-    if (msg){ msg.textContent = 'Quote is long — your mail client may truncate. Tip: Print to PDF and attach instead.'; msg.style.color='#92400e'; setTimeout(function(){msg.textContent='';msg.style.color='';},6000); }
-  }
+  if (msg) { msg.textContent = '✓ Link ready — opening your email client…'; msg.style.color = '#15803d'; }
   window.location.href = href;
 }
 
