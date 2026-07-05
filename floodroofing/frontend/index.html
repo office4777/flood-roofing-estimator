@@ -2023,6 +2023,16 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
           <button onclick="rotateActiveRoof()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed;font-weight:600" title="Rotate the generated roof lines 90° around the outline centre. Useful for switching ridge direction on gable/dutch or slope direction on mono-pitch.">⟳ Rotate roof 90°</button>
           <span style="font-size:10px;color:#64748b">Use this to flip the ridge direction on gable/dutch, or the slope direction on mono-pitch.</span>
         </div>
+        <!-- Straight-gable ridge slide: drag toward one gutter when the
+             sheets on one side of the roof run longer than the other. -->
+        <div id="gableRidgeSlideRow" style="display:none;margin-top:8px;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;font-weight:600;color:#334155">Slide ridge:</span>
+          <input type="range" id="gableRidgeSlider" min="-0.9" max="0.9" step="0.05" value="0"
+                 oninput="setGableRidgeOffset(this.value, false)" onchange="setGableRidgeOffset(this.value, true)"
+                 style="width:200px;margin:0">
+          <span id="gableRidgeSlideVal" style="font-size:11px;color:#64748b;min-width:130px">centred</span>
+          <button onclick="var s=document.getElementById('gableRidgeSlider'); if(s)s.value=0; setGableRidgeOffset(0, true)" class="tool-btn" style="font-size:10px;padding:2px 8px">Centre</button>
+        </div>
         <!-- Roof switcher (shown when >= 1 roof exists) -->
         <div id="roofSwitcher" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #b3d4f0;gap:4px;flex-wrap:wrap;align-items:center"></div>
         <div style="font-size:10px;color:#94a3b8;margin-top:6px">💡 Hold <kbd style="background:#eee;border:1px solid #ccc;border-radius:3px;padding:0 3px">Shift</kbd> while dragging a corner to disable the rectangle-stretch (lets you make diagonal / non-square roofs) &nbsp;|&nbsp; Right-click any line to delete</div>
@@ -5162,7 +5172,9 @@ function snapshotCurrentJob(){
     draw: { outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
             penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
             scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step,
-            sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[] },
+            sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[],
+            roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
+            gableRidgeOffset:DRAW.gableRidgeOffset||0 },
     scope: { mainScope: (typeof _currentMainScope !== 'undefined' ? _currentMainScope : null), items: scopeItems }
   };
 }
@@ -5193,6 +5205,10 @@ function restoreFromJob(j){
     DRAW.outlineDone = !!snap.draw.outlineDone;
     DRAW.step = snap.draw.step || 'outline';
     DRAW.sheetPlanDeletedIds = snap.draw.sheetPlanDeletedIds || [];
+    DRAW.roofType = snap.draw.roofType || DRAW.roofType || '';
+    DRAW.rotation = snap.draw.rotation || 0;
+    DRAW.gableRidgeOffset = snap.draw.gableRidgeOffset || 0;
+    try { _syncGableRidgeUI(); } catch(e){}
     // A render/sync failure here used to be swallowed — the user saw a
     // blank canvas and assumed the drawing was gone.  Say what happened
     // (the data is still in the job; it's the render that failed).
@@ -25568,7 +25584,7 @@ function buildHipValleyLines(outline) {
 // Ridge endpoints with anything other than exactly 2 hips attached
 // (interior junctions, T-joints, valley meets) are left untouched —
 // those are the L's inner corners and must keep their hips / valleys.
-function buildGableRoofLines(outline) {
+function buildGableRoofLines(outline, flipAxis) {
   // ── Rectilinear "straight gable" mode ─────────────────────────────
   // The user-facing intent of the Straight Gable button is: one ridge
   // running through the long axis of the building with rake barges
@@ -25601,6 +25617,10 @@ function buildGableRoofLines(outline) {
   });
   var bbW = maxX - minX, bbH = maxY - minY;
   var horiz = bbW >= bbH;
+  // "Rotate roof 90°" on a gable REGENERATES with the ridge on the
+  // other axis (rotating the drawn lines geometrically only works on
+  // a square — on a rectangle the ridge pokes out past the walls).
+  if (flipAxis) horiz = !horiz;
   // Ridge can slide along the gable barge — DRAW.gableRidgeOffset is
   // a signed fraction (-1..+1) of the half-bay.  0 = centred between
   // the two gutters; +0.5 pushes the ridge halfway toward the higher
@@ -26132,7 +26152,7 @@ function autoGenerateRoof(type, rotation) {
   var rot = ((rotation || 0) % 360 + 360) % 360;
   var rotSteps = Math.round(rot / 90) % 4;
   if(type==='hip')        lines=buildHipValleyLines(DRAW.outline);
-  else if(type==='gable') lines=buildGableRoofLines(DRAW.outline);
+  else if(type==='gable') lines=buildGableRoofLines(DRAW.outline, rotSteps % 2 === 1);
   // Hip+valley-corner gable: hip/valley skeleton with the OUTER hip
   // ends converted to rake barges — the L corner keeps its hip +
   // valley junction while the ends are true gables.  (The Straight
@@ -26141,7 +26161,7 @@ function autoGenerateRoof(type, rotation) {
   else if(type==='gable-hv') lines=buildGableRoofLines_legacy(DRAW.outline);
   else if(type==='dutch') lines=buildDutchGableRoofLines(DRAW.outline);
   else if(type==='mono')  lines=buildMonoPitchRoofLines(DRAW.outline, rot);
-  if (rotSteps && type !== 'mono') {
+  if (rotSteps && type !== 'mono' && type !== 'gable') {
     var cx = 0, cy = 0;
     DRAW.outline.forEach(function(p){ cx += p[0]; cy += p[1]; });
     cx /= DRAW.outline.length; cy /= DRAW.outline.length;
@@ -26162,6 +26182,7 @@ function autoGenerateRoof(type, rotation) {
   autoPopulateGutters();
   DRAW.roofType = type;
   DRAW.rotation = rot;
+  try { _syncGableRidgeUI(); } catch(e){}
   _syncCurrentToRoof();
   saveSnapshot();
   syncToRoofData();
@@ -26186,7 +26207,7 @@ function clearRoofLines() {
 // DRAW.outline as before; the model is additive.
 DRAW.roofs = DRAW.roofs || [];
 DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
-var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','outlineDone','roofType','calPitch','rotation'];
+var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','outlineDone','roofType','calPitch','rotation','gableRidgeOffset'];
 function _newEmptyRoof(name){
   return {
     name: name || ('Roof ' + (DRAW.roofs.length + 1)),
@@ -26308,6 +26329,31 @@ function rotateActiveRoof(){
   if (!DRAW.roofType) return;  // Nothing to rotate yet — pick a roof type first.
   var next = (((DRAW.rotation || 0) + 90) % 360 + 360) % 360;
   autoGenerateRoof(DRAW.roofType, next);
+}
+// ── Straight-gable ridge slide ────────────────────────────────────
+// The slider moves the ridge toward one gutter (a signed fraction of
+// the half-span) and regenerates the gable so one face gets longer
+// sheets and the other shorter.  oninput just previews the label;
+// onchange (release) regenerates so undo isn't spammed per tick.
+function setGableRidgeOffset(v, regen){
+  DRAW.gableRidgeOffset = Math.max(-0.9, Math.min(0.9, parseFloat(v) || 0));
+  var lbl = document.getElementById('gableRidgeSlideVal');
+  if (lbl) lbl.textContent = DRAW.gableRidgeOffset === 0 ? 'centred'
+    : Math.round(Math.abs(DRAW.gableRidgeOffset) * 100) + '% ' + (DRAW.gableRidgeOffset > 0 ? 'toward far gutter' : 'toward near gutter');
+  if (regen && DRAW.roofType === 'gable') autoGenerateRoof('gable', DRAW.rotation);
+}
+// Show the slider only when the active roof is a straight gable, and
+// keep its knob in sync with the stored offset (job load / roof switch).
+function _syncGableRidgeUI(){
+  var row = document.getElementById('gableRidgeSlideRow');
+  if (!row) return;
+  var isGable = DRAW.roofType === 'gable';
+  row.style.display = isGable ? 'flex' : 'none';
+  var sl = document.getElementById('gableRidgeSlider');
+  if (sl) sl.value = DRAW.gableRidgeOffset || 0;
+  var lbl = document.getElementById('gableRidgeSlideVal');
+  if (lbl) lbl.textContent = !DRAW.gableRidgeOffset ? 'centred'
+    : Math.round(Math.abs(DRAW.gableRidgeOffset) * 100) + '% ' + (DRAW.gableRidgeOffset > 0 ? 'toward far gutter' : 'toward near gutter');
 }
 
 
