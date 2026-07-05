@@ -66,6 +66,18 @@ PROPS.forEach(([name, p]) => ORI.forEach((o, k) =>
 [PROPS[0], PROPS[3], PROPS[5]].forEach(([name, p]) =>
   CASES.push({ label: `GABLE-HV L ${name} MIRROR`, mode: 'gable-hv', outline: orient(L(...p), 0, true), coverage: true,
                diagram: true }));
+// 5) T-SHAPES — wing teeing into the main run (a valley EACH side of
+//    the wing): hip+valley-corner gable across the orientation matrix,
+//    plus straight-gable and hip sanity (the barge dispatch gate must
+//    not disturb the imposed T hip cascade).
+const Tg = (wx, ww, wh, mw, mh) =>
+  [[ox+wx,oy],[ox+wx+ww,oy],[ox+wx+ww,oy+wh],[ox+mw,oy+wh],[ox+mw,oy+wh+mh],[ox,oy+wh+mh],[ox,oy+wh],[ox+wx,oy+wh]];
+[['T centered', Tg(300,300,300,900,600)], ['T offset', Tg(150,260,340,900,560)]].forEach(([name, ol]) =>
+  ORI.forEach((o, k) =>
+    CASES.push({ label: `GABLE-HV ${name} ${o}`, mode: 'gable-hv', outline: orient(ol, k, false), coverage: true,
+                 diagram: o === 'N' })));
+CASES.push({ label: 'GABLE-LONG T centered N', mode: 'gable', outline: Tg(300,300,300,900,600), coverage: true, diagram: true });
+CASES.push({ label: 'HIP T centered N', mode: 'hip', outline: Tg(300,300,300,900,600), coverage: true, diagram: true });
 
 (async () => {
   const browser = await chromium.launch();

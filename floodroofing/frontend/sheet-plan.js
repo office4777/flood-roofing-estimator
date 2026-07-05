@@ -784,7 +784,11 @@ function _renderRoofSheetPlanInner() {
     function rb(p){return rotate90(p,pvx,pvy,inv);}
     return descs.map(function(d){return _mkTFace(rb(d.a),rb(d.b),d.poly.map(rb),d.t,d.c);});
   }
-  var _tFaces = _buildTFaces(outline);
+  // Any barge line marks the roof as a GABLE — the imposed T hip
+  // topology (and its hip/valley overlay lines) must not hijack it;
+  // the straight-gable / hip+valley-corner branches handle it from
+  // the drawn lines instead.
+  var _tFaces = __hasBarge ? null : _buildTFaces(outline);
   // Overlay lines from the SAME imposed T topology as the faces (and as the
   // main diagram via buildTRoofLines), so the sheet plan's ridge/hip/valley
   // lines always match the sheets instead of the unstable skeleton auto-lines.
@@ -3249,8 +3253,9 @@ function _renderRoofSheetPlanInner() {
   // receivers in the wedges.
   var __hvIsGable = !isBigL && !__gblIsStraight && __hasBarge &&
     (DRAW.lines || []).some(function(l){ return l && l.type === 'valley'; }) &&
-    (DRAW.lines || []).some(function(l){ return l && l.type === 'hip'; }) &&
-    outline.length === 6;
+    ((outline.length === 6 &&
+      (DRAW.lines || []).some(function(l){ return l && l.type === 'hip'; })) ||
+     outline.length === 8);
   if (__hvIsGable) (function(){
     // Canonical frame: wing top-left flush west, main below.  An L
     // outline reaches this frame under one of 8 axis transforms
@@ -3262,14 +3267,19 @@ function _renderRoofSheetPlanInner() {
     // The drawn hip / valley / ridge lines are authoritative — the
     // faces are built between them; they are never re-derived (or
     // visually moved).
-    var reflex = null;
+    // One reflex corner = an L; two = a T (wing teeing into the main
+    // run's slope with a valley EACH side of it).
+    var reflexes = [];
     for (var ri = 0; ri < outline.length; ri++) {
       var rA = outline[(ri + outline.length - 1) % outline.length];
       var rB = outline[ri], rC = outline[(ri + 1) % outline.length];
       var rCr = (rB[0]-rA[0])*(rC[1]-rB[1]) - (rB[1]-rA[1])*(rC[0]-rB[0]);
-      if (rCr < -1) { if (reflex) return; reflex = rB; }
+      if (rCr < -1) reflexes.push(rB);
     }
-    if (!reflex) return;
+    var tee = reflexes.length === 2;
+    if (!tee && reflexes.length !== 1) return;
+    if (tee ? outline.length !== 8 : outline.length !== 6) return;
+    var reflex = reflexes[0];
     var xsO = outline.map(function(p){ return p[0]; });
     var ysO = outline.map(function(p){ return p[1]; });
     var pv = [(Math.min.apply(null, xsO) + Math.max.apply(null, xsO)) / 2,
@@ -3296,11 +3306,6 @@ function _renderRoofSheetPlanInner() {
       var cys = can.map(function(p){ return p[1]; });
       var bx0 = Math.min.apply(null, cxs), bx1 = Math.max.apply(null, cxs);
       var by0 = Math.min.apply(null, cys), by1 = Math.max.apply(null, cys);
-      var R = _canPt(reflex);
-      if (R[0] <= bx0 + 2 || R[0] >= bx1 - 2 || R[1] <= by0 + 2 || R[1] >= by1 - 2) return null;
-      // The notch must be the TOP-RIGHT region (wing left of it, main
-      // below it) — its midpoint lies OUTSIDE the outline.
-      if (_pip([(R[0] + bx1) / 2, (by0 + R[1]) / 2], can)) return null;
       var wingR = null, mainR = null, valleysL = [], hipsL = [];
       (DRAW.lines || []).forEach(function(l){
         if (!l || !l.pts || l.pts.length < 2) return;
@@ -3312,14 +3317,47 @@ function _renderRoofSheetPlanInner() {
         else if (l.type === 'valley') valleysL.push({ a: a, b: b });
         else if (l.type === 'hip')    hipsL.push({ a: a, b: b });
       });
-      if (!wingR || !mainR || valleysL.length !== 1 || !hipsL.length) return null;
+      if (!wingR || !mainR) return null;
       var wrx = (wingR.a[0] + wingR.b[0]) / 2;             // wing ridge x
       var mry = (mainR.a[1] + mainR.b[1]) / 2;             // main ridge y
       var Jw  = [wrx, Math.max(wingR.a[1], wingR.b[1])];   // wing ridge foot
-      // The wing ridge lives inside the wing box and its foot sits
-      // at/above the main ridge.
+      if (Jw[1] > mry + 2.5) return null;                  // foot at/above ridge
+      if (tee) {
+        // T: TWO inner corners at the same eave level, a valley from
+        // each down to the shared wing-ridge foot, notches OUTSIDE the
+        // wing on both sides.
+        if (valleysL.length !== 2) return null;
+        var Ra = _canPt(reflexes[0]), Rb = _canPt(reflexes[1]);
+        if (Math.abs(Ra[1] - Rb[1]) > 3) return null;
+        var Vw = Ra[0] < Rb[0] ? Ra : Rb, Ve = Ra[0] < Rb[0] ? Rb : Ra;
+        if (Vw[0] <= bx0 + 2 || Ve[0] >= bx1 - 2) return null;
+        if (Vw[1] <= by0 + 2 || Vw[1] >= by1 - 2) return null;
+        if (_pip([(bx0 + Vw[0]) / 2, (by0 + Vw[1]) / 2], can)) return null;
+        if (_pip([(Ve[0] + bx1) / 2, (by0 + Ve[1]) / 2], can)) return null;
+        if (wrx <= Vw[0] + 2 || wrx >= Ve[0] - 2) return null;
+        if (Jw[1] <= Vw[1] + 2) return null;               // junction below the eave line
+        // Each valley: one end at the junction, the other at its own
+        // inner corner.
+        var okW = false, okE = false;
+        valleysL.forEach(function(v){
+          var farEnd = _near(v.a, Jw) ? v.b : (_near(v.b, Jw) ? v.a : null);
+          if (!farEnd) return;
+          if (_near(farEnd, Vw)) okW = true;
+          if (_near(farEnd, Ve)) okE = true;
+        });
+        if (!okW || !okE) return null;
+        return { bx0: bx0, bx1: bx1, by0: by0, by1: by1,
+                 wrx: wrx, mry: mry, Jw: Jw, tee: true,
+                 V0w: Vw, V0e: Ve };
+      }
+      if (valleysL.length !== 1 || !hipsL.length) return null;
+      var R = _canPt(reflex);
+      if (R[0] <= bx0 + 2 || R[0] >= bx1 - 2 || R[1] <= by0 + 2 || R[1] >= by1 - 2) return null;
+      // The notch must be the TOP-RIGHT region (wing left of it, main
+      // below it) — its midpoint lies OUTSIDE the outline.
+      if (_pip([(R[0] + bx1) / 2, (by0 + R[1]) / 2], can)) return null;
+      // The wing ridge lives inside the wing box.
       if (wrx <= bx0 + 2 || wrx >= R[0] - 2) return null;
-      if (Jw[1] > mry + 2.5) return null;
       var vv = valleysL[0];
       // Regime 2 (wide wing): the valley lands ON the main ridge; the
       // main ridge dies into the wing.  Regime 1 (narrow wing): the
@@ -3370,7 +3408,8 @@ function _renderRoofSheetPlanInner() {
     }
     if (!G) return;
     var wy0 = G.by0, mx0 = G.bx0, mx1 = G.bx1, my1 = G.by1;
-    var wrx = G.wrx, mry = G.mry, Jw = G.Jw, Jm = G.Jm, V0 = G.V0;
+    var wrx = G.wrx, mry = G.mry, Jw = G.Jw, Jm = G.Jm;
+    var V0 = G.tee ? G.V0e : G.V0;
     var hipMain = G.hipMain, hipCorner = G.hipCorner, regime2 = G.regime2;
     var refX = V0[0], refY = V0[1];
     var fy = Jw[1], mex = regime2 ? Jm[0] : mx0;
@@ -3391,15 +3430,40 @@ function _renderRoofSheetPlanInner() {
     // row face and a column face (90°).  famSplit: family varies
     // along the face (split at the junction x).
     var F_W, F_WE, F_MN, F_MS;
-    if (!regime2) {
+    if (G.tee) {
+      // T: the wing tees into the main slope with a valley EACH side.
+      // Both wing faces' wedges are receivers; the main-north columns
+      // are the donors (cut at valley-west, family B, left of the
+      // wing ridge; at valley-east, family A, right of it) — the
+      // family cross-rule sends each donor's offcut to the OPPOSITE
+      // side's wedge, and the main south face is all full sheets.
+      var V0w = G.V0w;
       F_W  = { color: COL_GREEN, gutter: 'W', recvMode: 'noEave', fam: 'B',
-               poly: [[mx0, wy0], [wrx, wy0], Jw, hipMain] };
+               eaveAt: V0w[0], depth: wrx - V0w[0],
+               poly: [[V0w[0], wy0], [wrx, wy0], Jw, V0w] };
       F_WE = { color: COL_PURPLE, gutter: 'E', recvMode: 'noEave', fam: 'A',
+               eaveAt: refX, depth: refX - wrx,
                poly: [[wrx, wy0], [refX, wy0], V0, Jw] };
       F_MN = { color: COL_ORANGE, gutter: 'N', recvMode: 'never',
                famSplit: { x: wrx, left: 'B', right: 'A' }, anchorU: refX,
+               eaveAt: refY, depth: mry - refY,
+               poly: [[mx0, refY], V0w, Jw, V0, [mx1, refY], [mx1, mry], [mx0, mry]] };
+      F_MS = { color: COL_BLUE, gutter: 'S', recvMode: 'never',
+               eaveAt: my1, depth: my1 - mry,
+               poly: [[mx0, mry], [mx1, mry], [mx1, my1], [mx0, my1]] };
+    } else if (!regime2) {
+      F_W  = { color: COL_GREEN, gutter: 'W', recvMode: 'noEave', fam: 'B',
+               eaveAt: mx0, depth: wrx - mx0,
+               poly: [[mx0, wy0], [wrx, wy0], Jw, hipMain] };
+      F_WE = { color: COL_PURPLE, gutter: 'E', recvMode: 'noEave', fam: 'A',
+               eaveAt: refX, depth: refX - wrx,
+               poly: [[wrx, wy0], [refX, wy0], V0, Jw] };
+      F_MN = { color: COL_ORANGE, gutter: 'N', recvMode: 'never',
+               famSplit: { x: wrx, left: 'B', right: 'A' }, anchorU: refX,
+               eaveAt: refY, depth: mry - refY,
                poly: [hipMain, Jw, V0, [mx1, refY], [mx1, mry], [mx0, mry]] };
       F_MS = { color: COL_BLUE, gutter: 'S', recvMode: 'never',
+               eaveAt: my1, depth: my1 - mry,
                poly: [[mx0, mry], [mx1, mry], [mx1, my1], [mx0, my1]] };
     } else {
       // Regime 2: the two LONG-GUTTER faces (west rows, south columns)
@@ -3409,14 +3473,17 @@ function _renderRoofSheetPlanInner() {
       // fill the east side of the valley (the clipped north-face
       // columns) — the family rule enforces exactly that.
       F_W  = { color: COL_GREEN, gutter: 'W', recvMode: 'noEave', fam: 'A',
+               eaveAt: mx0, depth: wrx - mx0,
                poly: [[mx0, wy0], [wrx, wy0], Jw, hipCorner] };
       F_WE = { color: COL_PURPLE, gutter: 'E', recvMode: 'noEave', fam: 'A',
+               eaveAt: refX, depth: refX - wrx,
                poly: [[wrx, wy0], [refX, wy0], V0, Jm, Jw] };
       F_MN = { color: COL_ORANGE, gutter: 'N', recvMode: 'clipped', fam: 'A',
-               anchorU: refX,
+               anchorU: refX, eaveAt: refY, depth: mry - refY,
                poly: [V0, [mx1, refY], [mx1, mry], Jm] };
       F_MS = { color: COL_BLUE, gutter: 'S', recvMode: 'never',
                famSplit: { x: Jw[0], left: 'A', right: 'B' },
+               eaveAt: my1, depth: my1 - mry,
                poly: [hipCorner, Jw, Jm, [mx1, mry], [mx1, my1]],
                // Columns west of the main-ridge end run past the ridge
                // line up to the hips — they're cut from longer stock.
@@ -3431,10 +3498,7 @@ function _renderRoofSheetPlanInner() {
       var poly = f.poly.map(function(p){ return p.slice(); });
       var xs = poly.map(function(p){ return p[0]; }), ys = poly.map(function(p){ return p[1]; });
       var vert = (f.gutter === 'W' || f.gutter === 'E');    // rows ↔ vertical eave
-      var depth = f.gutter === 'W' ? wrx - mx0
-                : f.gutter === 'E' ? refX - wrx
-                : f.gutter === 'N' ? mry - refY
-                :                    my1 - mry;
+      var depth = f.depth;
       return {
         poly: poly, type: 'long-side',
         a: poly[0], b: poly[1], gL: 1,
@@ -3445,7 +3509,7 @@ function _renderRoofSheetPlanInner() {
         area: Math.abs(polyArea(poly)), centroid: polyCentroid(poly),
         color: f.color, _gutter: f.gutter, _fullFor: f.fullFor || null,
         _recvMode: f.recvMode, _fam: f.fam || null, _famSplit: f.famSplit || null,
-        _anchorU: (f.anchorU != null) ? f.anchorU : null
+        _anchorU: (f.anchorU != null) ? f.anchorU : null, _eaveAt: f.eaveAt
       };
     }
     var hvFaceRecs = hvFaces.map(_mkFace);
@@ -3475,10 +3539,8 @@ function _renderRoofSheetPlanInner() {
         if (!clip || clip.length < 3 || Math.abs(polyArea(clip)) < coverPx) continue;
         // Gutter contact: does the clipped piece reach the face's eave?
         var touches = clip.some(function(p){
-          if (fr._gutter === 'W') return Math.abs(p[0] - mx0) < 1;
-          if (fr._gutter === 'E') return Math.abs(p[0] - refX) < 1;
-          if (fr._gutter === 'N') return Math.abs(p[1] - refY) < 1;
-          return Math.abs(p[1] - my1) < 1;
+          var v = (fr._gutter === 'W' || fr._gutter === 'E') ? p[0] : p[1];
+          return Math.abs(v - fr._eaveAt) < 1;
         });
         var cxs = clip.map(function(p){ return p[0]; }), cys = clip.map(function(p){ return p[1]; });
         var lenPx = vert ? (Math.max.apply(null, cxs) - Math.min.apply(null, cxs))
@@ -3603,10 +3665,10 @@ function _renderRoofSheetPlanInner() {
       own.forEach(function(s){
         var o = Math.min(off, s._hvLen * 0.5);
         var c = s.centroid;
-        if      (fr._gutter === 'W') s.labelAt = [mx0 + o, c[1]];
-        else if (fr._gutter === 'E') s.labelAt = [refX - o, c[1]];
-        else if (fr._gutter === 'N') s.labelAt = allEave ? [c[0], refY + o] : [c[0], mry - o];
-        else                         s.labelAt = allEave ? [c[0], my1 - o] : [c[0], mry + o];
+        if      (fr._gutter === 'W') s.labelAt = [fr._eaveAt + o, c[1]];
+        else if (fr._gutter === 'E') s.labelAt = [fr._eaveAt - o, c[1]];
+        else if (fr._gutter === 'N') s.labelAt = allEave ? [c[0], fr._eaveAt + o] : [c[0], mry - o];
+        else                         s.labelAt = allEave ? [c[0], fr._eaveAt - o] : [c[0], mry + o];
       });
     });
     // Un-canonicalize back to display space.
