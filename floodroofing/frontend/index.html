@@ -2030,6 +2030,11 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
           <input type="range" id="gableRidgeSlider" min="-0.9" max="0.9" step="0.05" value="0"
                  oninput="setGableRidgeOffset(this.value, false)" onchange="setGableRidgeOffset(this.value, true)"
                  style="width:200px;margin:0">
+          <input type="number" id="gableRidgeNum" min="-90" max="90" step="1" value="0"
+                 onchange="setGableRidgeOffset((parseFloat(this.value)||0)/100, true)"
+                 title="Exact slide as a percent of the half-span: negative = toward the near gutter, positive = toward the far gutter"
+                 style="width:62px;margin:0;padding:3px 6px;font-size:11px">
+          <span style="font-size:11px;color:#64748b">%</span>
           <span id="gableRidgeSlideVal" style="font-size:11px;color:#64748b;min-width:130px">centred</span>
           <button onclick="var s=document.getElementById('gableRidgeSlider'); if(s)s.value=0; setGableRidgeOffset(0, true)" class="tool-btn" style="font-size:10px;padding:2px 8px">Centre</button>
         </div>
@@ -15033,6 +15038,7 @@ function _detectAutoRoofType(){
   if (DRAW.roofType === 'dutch') return 'dutch';
   if (DRAW.roofType === 'mono')  return 'mono';
   if (DRAW.roofType === 'gable') return 'gable';
+  if (DRAW.roofType === 'gable-hv') return 'gable-hv';
   if (DRAW.roofType === 'hip')   return 'hip';
   // No stored type — fall back to counting auto-generated lines.
   if (types.hip || types.valley) return 'hip';
@@ -15055,7 +15061,12 @@ function regenerateAutoRoofLines(roofType){
   try {
     var lines = null;
     if      (roofType === 'hip')   lines = buildHipValleyLines(DRAW.outline);
-    else if (roofType === 'gable') lines = (typeof buildGableRoofLines === 'function')      ? buildGableRoofLines(DRAW.outline)      : null;
+    // Straight gable keeps its ROTATED axis across corner drags — a
+    // regen without the flip snapped the ridge back to the long axis.
+    else if (roofType === 'gable') lines = (typeof buildGableRoofLines === 'function')
+      ? buildGableRoofLines(DRAW.outline, (Math.round((DRAW.rotation || 0) / 90) % 2) === 1) : null;
+    else if (roofType === 'gable-hv') lines = (typeof buildGableRoofLines_legacy === 'function')
+      ? buildGableRoofLines_legacy(DRAW.outline) : null;
     else if (roofType === 'dutch') lines = (typeof buildDutchGableRoofLines === 'function') ? buildDutchGableRoofLines(DRAW.outline) : null;
     else if (roofType === 'mono')  lines = (typeof buildMonoPitchRoofLines === 'function')  ? buildMonoPitchRoofLines(DRAW.outline, DRAW.rotation || 0) : null;
     if (lines) lines.forEach(function(l){
@@ -26422,6 +26433,10 @@ function setGableRidgeOffset(v, regen){
   var lbl = document.getElementById('gableRidgeSlideVal');
   if (lbl) lbl.textContent = DRAW.gableRidgeOffset === 0 ? 'centred'
     : Math.round(Math.abs(DRAW.gableRidgeOffset) * 100) + '% ' + (DRAW.gableRidgeOffset > 0 ? 'toward far gutter' : 'toward near gutter');
+  var num = document.getElementById('gableRidgeNum');
+  if (num) num.value = Math.round(DRAW.gableRidgeOffset * 100);
+  var sl2 = document.getElementById('gableRidgeSlider');
+  if (sl2) sl2.value = DRAW.gableRidgeOffset;
   if (regen && DRAW.roofType === 'gable') autoGenerateRoof('gable', DRAW.rotation);
 }
 // Show the slider only when the active roof is a straight gable, and
@@ -26433,6 +26448,8 @@ function _syncGableRidgeUI(){
   row.style.display = isGable ? 'flex' : 'none';
   var sl = document.getElementById('gableRidgeSlider');
   if (sl) sl.value = DRAW.gableRidgeOffset || 0;
+  var num = document.getElementById('gableRidgeNum');
+  if (num) num.value = Math.round((DRAW.gableRidgeOffset || 0) * 100);
   var lbl = document.getElementById('gableRidgeSlideVal');
   if (lbl) lbl.textContent = !DRAW.gableRidgeOffset ? 'centred'
     : Math.round(Math.abs(DRAW.gableRidgeOffset) * 100) + '% ' + (DRAW.gableRidgeOffset > 0 ? 'toward far gutter' : 'toward near gutter');
