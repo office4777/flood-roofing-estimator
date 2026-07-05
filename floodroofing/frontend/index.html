@@ -16407,16 +16407,47 @@ function autoPopulateGutters(){
     return alignedToOutline(l);
   });
 
-  // Add a gutter for every outline edge that doesn't already have one
+  // Add gutters for the parts of each outline edge not already
+  // covered by a gutter or barge.  COVERAGE-based, not whole-edge
+  // matching: the roof builders emit rake barges as HALF-edges (split
+  // at the ridge apex), and the old exact-endpoints test missed them —
+  // it laid a second full gutter over the barged edge, which the
+  // ridge-split pass below then converted into DUPLICATE barges
+  // (double metres on the barge cut list) while the eave portion of a
+  // partly-barged edge lost its gutter entirely.
   for(var i=0;i<n;i++){
     var a=DRAW.outline[i],b=DRAW.outline[(i+1)%n];
     var edgeLen=pD(a,b);if(edgeLen<5)continue;
-    var already=DRAW.lines.some(function(l){
-      if(l.type!=='gutter'&&l.type!=='barge')return false;
-      return(pD(l.pts[0],a)<T&&pD(l.pts[1],b)<T)||(pD(l.pts[0],b)<T&&pD(l.pts[1],a)<T);
+    var ux=(b[0]-a[0])/edgeLen, uy=(b[1]-a[1])/edgeLen;
+    // Collect covered intervals along the edge from collinear lines.
+    var covered=[];
+    DRAW.lines.forEach(function(l){
+      if(l.type!=='gutter'&&l.type!=='barge')return;
+      var t0=null,t1=null,ok=true;
+      [l.pts[0],l.pts[1]].forEach(function(p,pi){
+        var t=(p[0]-a[0])*ux+(p[1]-a[1])*uy;                 // along edge
+        var px=a[0]+t*ux, py=a[1]+t*uy;
+        if(pD(p,[px,py])>=T){ ok=false; return; }            // off the edge line
+        if(pi===0)t0=t;else t1=t;
+      });
+      if(!ok)return;
+      var lo=Math.max(0,Math.min(t0,t1)), hi=Math.min(edgeLen,Math.max(t0,t1));
+      if(hi-lo>T)covered.push([lo,hi]);
     });
-    if(already)continue;
-    DRAW.lines.push({type:'gutter',pts:[a.slice(),b.slice()],label:'',lengthM:'',measM:null,sheetLengthM:null});
+    covered.sort(function(p,q){return p[0]-q[0];});
+    // Walk the merged coverage; gutter each uncovered gap.
+    var pos=0;
+    function addGap(g0,g1){
+      if(g1-g0<=T*1.5)return;
+      DRAW.lines.push({type:'gutter',
+        pts:[[a[0]+ux*g0,a[1]+uy*g0],[a[0]+ux*g1,a[1]+uy*g1]],
+        label:'',lengthM:'',measM:null,sheetLengthM:null});
+    }
+    covered.forEach(function(iv){
+      if(iv[0]>pos)addGap(pos,iv[0]);
+      pos=Math.max(pos,iv[1]);
+    });
+    if(pos<edgeLen)addGap(pos,edgeLen);
   }
 
   // Measure all lines (gutters, ridges, valleys, hips, etc.)
