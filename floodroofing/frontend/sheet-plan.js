@@ -3536,7 +3536,9 @@ function _renderRoofSheetPlanInner() {
         // (always convex) — clipToConvexPoly requires the SECOND arg
         // convex, so the arguments must be this way round.
         var clip = clipToConvexPoly(fr.poly, band);
-        if (!clip || clip.length < 3 || Math.abs(polyArea(clip)) < coverPx) continue;
+        if (!clip || clip.length < 3) continue;
+        var clipArea = Math.abs(polyArea(clip));
+        if (clipArea < coverPx) continue;
         // Gutter contact: does the clipped piece reach the face's eave?
         var touches = clip.some(function(p){
           var v = (fr._gutter === 'W' || fr._gutter === 'E') ? p[0] : p[1];
@@ -3546,16 +3548,20 @@ function _renderRoofSheetPlanInner() {
         var lenPx = vert ? (Math.max.apply(null, cxs) - Math.min.apply(null, cxs))
                          : (Math.max.apply(null, cys) - Math.min.apply(null, cys));
         var fullPx = fr._fullFor ? fr._fullFor(clip) : fr.perpPx;
-        // Meaningfully short of full stock (wants an offcut)…
-        var clipped = lenPx < fullPx - coverPx / 2;
-        // …vs cut at all (has SOME offcut to give — near-full donors'
-        // small offcuts still serve the small slots by the corner).
-        var hasOffcut = lenPx < fullPx - 2;
         // Angle-cut: the piece has a diagonal (hip/valley) edge —
         // only such pieces can come from an offcut, since ordered
         // sheets are full-length SQUARE-END only.  Detect by the area
         // missing from the piece's bounding rectangle.
-        var angleCut = (lenPx * (uu - u) - Math.abs(polyArea(clip))) > coverPx * coverPx * 0.05;
+        var angleCut = (lenPx * (uu - u) - clipArea) > coverPx * coverPx * 0.05;
+        // A 45°-cut piece one cover wide is a TRAPEZOID: lenPx is its
+        // LONG edge (the bbox), _hvShort its short edge (recovered
+        // from the area) — both are needed to test true offcut
+        // coverage edge-for-edge.
+        var shortLen = Math.max(0, 2 * clipArea / Math.max(1, uu - u) - lenPx);
+        // Cut at all = has an offcut to give.  Judge by the SHORT
+        // edge: a corner-crossing donor measures full stock at its
+        // outer edge but its diagonal still frees a real offcut.
+        var hasOffcut = shortLen < fullPx - 2;
         // Receivers per face role — see recvMode above.  A 'never'
         // face's clipped pieces are the full-stock DONOR sheets.  On
         // 'clipped' faces EVERY angle-cut piece (even a near-full one
@@ -3580,7 +3586,7 @@ function _renderRoofSheetPlanInner() {
           orderedLengthMm: orderedLengthMm(lenPx * effectiveScale * pitchFactor),
           pieceM: lenPx * effectiveScale * pitchFactor,
           isOffcut: isRecv, isPhantom: false,
-          _hvLen: lenPx, _hvFull: fullPx, _hvClipped: hasOffcut,
+          _hvLen: lenPx, _hvShort: shortLen, _hvFull: fullPx, _hvClipped: hasOffcut,
           _hvAxis: vert ? 1 : 0, _hvFam: fam, _hvTouch: touches
         });
       }
@@ -3599,11 +3605,12 @@ function _renderRoofSheetPlanInner() {
       // must land on the slot's cut line under a legal plan rotation
       // — same diagonal family for same-direction sheets (0°/180°),
       // OPPOSITE family when the sheet turns 90° between a row face
-      // and a column face.  Then biggest slot first, preferring
-      // same-direction donors (the natural mirror across the cut
-      // line), taking the smallest offcut that FULLY covers the slot,
-      // falling back to slack-covered ones (bbox skew: both measured
-      // at the long edge, so slack pairs still truly cover).
+      // and a column face.  Coverage is tested edge-for-edge on the
+      // TRAPEZOIDS (a 45°-cut cover-width piece has a long and a
+      // short edge): the offcut's long edge must cover the slot's
+      // long edge AND its short edge the slot's short edge.  Biggest
+      // slot first, preferring same-direction donors (the natural
+      // mirror across the cut line), least waste wins.
       recvs.sort(function(a, b){ return b._hvLen - a._hvLen; });
       [0, 1].forEach(function(pass){
         recvs.forEach(function(r){
@@ -3614,11 +3621,12 @@ function _renderRoofSheetPlanInner() {
             var sameAxis = d._hvAxis === r._hvAxis;
             if (pass === 0 && !sameAxis) return;
             if (sameAxis ? (d._hvFam !== r._hvFam) : (d._hvFam === r._hvFam)) return;
-            var off = d._hvFull - d._hvLen;
-            var waste = off - r._hvLen;
-            if (waste < -coverPx * 0.6) return;
+            var offLong  = d._hvFull - d._hvShort;
+            var offShort = d._hvFull - d._hvLen;
+            if (offLong < r._hvLen - 3 || offShort < r._hvShort - 3) return;
+            var waste = Math.max(0, offLong - r._hvLen);
             var dist = Math.hypot(r.centroid[0] - d.centroid[0], r.centroid[1] - d.centroid[1]);
-            var key = (waste >= 0 ? waste : 1e6 - waste) * 10 + dist * 0.02;
+            var key = waste * 10 + dist * 0.02;
             if (key < bestKey) { bestKey = key; best = d; }
           });
           if (!best) return;
