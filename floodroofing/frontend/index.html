@@ -21532,6 +21532,7 @@ function _jpRenderCutLists(content, page, idx){
   html += '</div></div>';
 
   content.innerHTML = html;
+  _jpCropFlashImgs(content);
 }
 // Render one cell of the 3-per-row Flashings grid on the Cut Lists
 // page.  Three shapes:
@@ -21553,13 +21554,13 @@ function _jpRenderFlashingCell(box, bi){
       var lib = _getAllFlashings();
       var entry = lib.find(function(e){ return e.name === slot.name; });
       if (entry && entry.sketch){
-        inner = '<img src="'+esc(entry.sketch)+'" style="width:100%;height:90px;object-fit:contain;background:#fff;border-radius:4px">'+
+        inner = _jpFlashImgHtml(entry.sketch, 'slot:'+(slot.name||si), 190)+
           '<div style="font-size:11px;font-weight:600;color:#0a1628;margin-top:4px;text-align:center">'+esc(entry.name)+'</div>';
       } else {
         inner = '<div style="padding:18px;font-size:11px;color:#b91c1c;font-style:italic">Saved entry removed.</div>';
       }
     } else if (slot.source === 'custom' && slot.sketch){
-      inner = '<img src="'+esc(slot.sketch)+'" style="width:100%;height:90px;object-fit:contain;background:#fff;border-radius:4px">'+
+      inner = _jpFlashImgHtml(slot.sketch, 'slot:'+(slot.name||si), 190)+
         '<div style="font-size:11px;font-weight:600;color:#0a1628;margin-top:4px;text-align:center">'+esc(slot.name || 'Custom')+'</div>';
     } else {
       inner = '<div style="padding:18px;color:var(--text2);font-style:italic;font-size:11px;text-align:center">Empty slot</div>';
@@ -21585,7 +21586,7 @@ function _jpRenderFlashingCell(box, bi){
   var drawing = '';
   if (spec.drawing) {
     drawing = pick && pick.entry.sketch
-      ? '<img src="'+esc(pick.entry.sketch)+'" style="width:100%;height:140px;object-fit:contain;background:#fff;border-radius:4px">'
+      ? _jpFlashImgHtml(pick.entry.sketch, 'auto:'+spec.key, 230)
       : '<div style="height:120px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;text-align:center;padding:8px">No default drawing<br>add one in Settings</div>';
   }
   // Compact cut list — single-line rows, smaller pad, no header row.
@@ -23495,6 +23496,86 @@ function _matFlashingsRender(){
   // renderMat* convention used elsewhere on the tab.
   return renderMatFlashingsGrid();
 }
+
+// ── Flashing drawing boxes: fill the card + per-box zoom ─────────
+// The saved sketches carry big empty margins from the sketch canvas,
+// so at a fixed box height the profile + measurement tags rendered
+// tiny.  Every flashing drawing now goes through one image box that
+// (a) AUTO-CROPS the sketch to its inked content so it fills the box,
+// and (b) carries a small zoom slider (screen-only) so the user can
+// scale the drawing in/out of the box by hand.  The zoom persists
+// per box (localStorage) and prints/PDFs at whatever is set.
+function _jpFlashZoomMap(){ try { return JSON.parse(localStorage.getItem('fr_jp_flzoom')||'{}'); } catch(e){ return {}; } }
+function _jpFlashZoomGet(key){ var v = parseFloat(_jpFlashZoomMap()[key]); return (v >= 0.4 && v <= 3) ? v : 1; }
+function _jpFlashZoomSet(key, v){ var m = _jpFlashZoomMap(); m[key] = v; try { localStorage.setItem('fr_jp_flzoom', JSON.stringify(m)); } catch(e){} }
+function _jpFlashImgHtml(src, key, h){
+  var z = _jpFlashZoomGet(key);
+  return '<div class="jp-fl-imgbox" style="height:'+h+'px;overflow:hidden;background:#fff;border-radius:4px;display:flex;align-items:center;justify-content:center">'+
+      '<img src="'+esc(src)+'" data-flcrop="1" style="width:100%;height:100%;object-fit:contain;transform:scale('+z+');transform-origin:center center">'+
+    '</div>'+
+    '<div class="no-print pdf-hide" style="display:flex;align-items:center;gap:6px;margin-top:3px">'+
+      '<span style="font-size:9.5px;color:#94a3b8">zoom</span>'+
+      '<input type="range" min="0.4" max="3" step="0.05" value="'+z+'" oninput="_jpFlashZoomLive(this)" onchange="_jpFlashZoomCommit(this)" data-flkey="'+esc(key)+'" style="flex:1;margin:0;height:14px">'+
+      '<span style="font-size:9.5px;color:#94a3b8;min-width:26px;text-align:right">'+z.toFixed(2).replace(/\.?0+$/,'')+'x</span>'+
+    '</div>';
+}
+function _jpFlashZoomLive(inp){
+  var row = inp.parentElement;
+  var box = row && row.previousElementSibling;
+  var img = box && box.querySelector && box.querySelector('img');
+  if (img) img.style.transform = 'scale('+inp.value+')';
+  var val = row && row.querySelector('span:last-child');
+  if (val) val.textContent = parseFloat(inp.value).toFixed(2).replace(/\.?0+$/,'') + 'x';
+}
+function _jpFlashZoomCommit(inp){ _jpFlashZoomSet(inp.dataset.flkey, parseFloat(inp.value) || 1); }
+// Crop each mounted sketch to its content (cache by a cheap src key
+// so re-renders don't re-scan the same image).
+var _jpFlCropCache = {};
+function _jpCropFlashImgs(root){
+  if (!root) return;
+  Array.prototype.forEach.call(root.querySelectorAll('img[data-flcrop]'), function(img){
+    img.removeAttribute('data-flcrop');
+    var src = img.getAttribute('src') || '';
+    if (!/^data:image/.test(src)) return;
+    var ck = src.length + ':' + src.slice(64, 128);
+    if (_jpFlCropCache[ck]) { img.src = _jpFlCropCache[ck]; return; }
+    var probe = new Image();
+    probe.onload = function(){
+      try {
+        var w = probe.naturalWidth, h = probe.naturalHeight;
+        if (!w || !h) return;
+        var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        var cx = cv.getContext('2d'); cx.drawImage(probe, 0, 0);
+        var d = cx.getImageData(0, 0, w, h).data;
+        var minX = w, minY = h, maxX = -1, maxY = -1;
+        for (var y = 0; y < h; y += 2){
+          for (var x = 0; x < w; x += 2){
+            var i = (y * w + x) * 4;
+            // inked = not transparent and not near-white
+            if (d[i+3] > 20 && !(d[i] > 245 && d[i+1] > 245 && d[i+2] > 245)){
+              if (x < minX) minX = x; if (x > maxX) maxX = x;
+              if (y < minY) minY = y; if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX <= minX || maxY <= minY) return;
+        var pad = 12;
+        minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+        maxX = Math.min(w - 1, maxX + pad); maxY = Math.min(h - 1, maxY + pad);
+        var cw = maxX - minX + 1, chh = maxY - minY + 1;
+        // Skip when the sketch already fills the frame (>80% both ways).
+        if (cw > w * 0.8 && chh > h * 0.8) { _jpFlCropCache[ck] = src; return; }
+        var out = document.createElement('canvas'); out.width = cw; out.height = chh;
+        out.getContext('2d').drawImage(probe, minX, minY, cw, chh, 0, 0, cw, chh);
+        var cropped = out.toDataURL('image/png');
+        _jpFlCropCache[ck] = cropped;
+        img.src = cropped;
+      } catch(e){}
+    };
+    probe.src = src;
+  });
+}
+
 function renderMatFlashingsGrid(){
   var grid = document.getElementById('matFlashingsGrid'); if (!grid) return;
   var arr = _matFlashingsArr();
@@ -23503,6 +23584,7 @@ function renderMatFlashingsGrid(){
     return;
   }
   grid.innerHTML = arr.map(function(slot, i){ return _matFlashingsSlotHtml(slot, i); }).join('');
+  _jpCropFlashImgs(grid);
 }
 function _matFlashingsSlotHtml(slot, idx){
   var inner;
@@ -23510,14 +23592,14 @@ function _matFlashingsSlotHtml(slot, idx){
     var lib = _getAllFlashings();
     var entry = lib.find(function(e){ return e.name === slot.name; });
     if (entry && entry.sketch) {
-      inner = '<img src="'+esc(entry.sketch)+'" alt="" style="width:100%;height:120px;object-fit:contain;background:#fff;border-radius:6px">' +
+      inner = _jpFlashImgHtml(entry.sketch, 'gal:'+(slot.name||idx), 210) +
         '<div style="font-size:11.5px;font-weight:600;color:#0a1628;margin-top:6px;line-height:1.25">'+esc(entry.name)+'</div>' +
         '<div style="font-size:10px;color:var(--text2);margin-top:1px">'+esc(_matFlashingTypeLabel(entry.flashingType || 'custom'))+'</div>';
     } else {
       inner = '<div style="padding:18px 8px;font-size:11px;color:#b91c1c;font-style:italic">Saved entry "'+esc(slot.name)+'" was removed from the library.</div>';
     }
   } else if (slot && slot.source === 'custom' && slot.sketch) {
-    inner = '<img src="'+esc(slot.sketch)+'" alt="" style="width:100%;height:120px;object-fit:contain;background:#fff;border-radius:6px">' +
+    inner = _jpFlashImgHtml(slot.sketch, 'gal:'+(slot.name||idx), 210) +
       '<div style="font-size:11.5px;font-weight:600;color:#0a1628;margin-top:6px;line-height:1.25">'+esc(slot.name || 'Custom flashing')+'</div>' +
       '<div style="font-size:10px;color:var(--text2);margin-top:1px">Custom drawing</div>';
   } else {
