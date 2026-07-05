@@ -5878,6 +5878,35 @@ async function newJob(){
   else document.addEventListener('DOMContentLoaded', tryBoot);
 })();
 
+// ── Deep links: ?job=<id>&tab=<tab> ─────────────────────────────
+// The Job Pack PDF carries an "Open this job in RoofMap" button so
+// the office can jump from the PDF (e.g. attached in Fergus) straight
+// back to that job's Job Pack page to make changes before ordering.
+// Waits for the office login token, so following the link in a fresh
+// browser shows the login screen first and then lands on the job.
+(function _deepLinkBoot(){
+  if (window.__CUSTOMER_TOKEN) return;
+  var jobId = null, tab = 'jobpack';
+  try {
+    var qs = new URLSearchParams(location.search);
+    jobId = qs.get('job');
+    tab = qs.get('tab') || 'jobpack';
+  } catch(e){ return; }
+  if (!jobId) return;
+  var tries = 0;
+  function go(){
+    if (!localStorage.getItem('fr_token')) {
+      if (++tries < 600) setTimeout(go, 1000);   // keep waiting for login
+      return;
+    }
+    Promise.resolve(openJob(jobId)).then(function(){
+      try { gotoTab(tab); } catch(e){}
+    }).catch(function(e){ console.warn('Deep link failed:', e); });
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') setTimeout(go, 400);
+  else document.addEventListener('DOMContentLoaded', function(){ setTimeout(go, 400); });
+})();
+
 // ── ROOF IMAGE ───────────────────────────────────────────────────
 function onRoofImg(e){
   var f=e.target.files[0];if(!f)return;
@@ -23668,6 +23697,15 @@ async function pushScopePricingToFergus(){
   }
 }
 
+// Absolute app URL that reopens THIS job on its Job Pack tab — the
+// deep link behind the PDF's "Open this job in RoofMap" button.
+function _jobDeepLink(){
+  if (!S.currentJobId) return null;
+  if (!/^https?:$/.test(location.protocol)) return null;   // dev / file runs
+  return location.origin + location.pathname +
+    '?job=' + encodeURIComponent(S.currentJobId) + '&tab=jobpack';
+}
+
 // Build the Job Pack PDF by capturing each .jp-page off-screen with
 // html2canvas and stitching them into a jsPDF blob. Returns the jsPDF
 // instance, or null when something failed (in which case the caller
@@ -23677,6 +23715,15 @@ async function pushScopePricingToFergus(){
 // pipeline in one place means both buttons always produce identical
 // output.
 async function _buildJobPackPdf() {
+  // Save first so the PDF's "Open this job in RoofMap" button points
+  // at the exact state being sent out (and a never-saved job gets an
+  // id to link to).  Best-effort: an unsaved/offline job just skips
+  // the button.
+  try {
+    if (typeof _isJobDirty === 'function' && (!S.currentJobId || _isJobDirty())) {
+      await saveCurrentJob();
+    }
+  } catch(e){}
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
   try { renderMatRoofMap(); } catch(e){}
@@ -23783,6 +23830,28 @@ async function _buildJobPackPdf() {
   htmlEl.classList.remove('print-jobpack');
   htmlEl.classList.remove('pdf-rendering');
   _fitInputs.forEach(function(p){ p[0].style.width = p[1]; });
+
+  // "Open this job in RoofMap" — a real PDF link annotation stamped
+  // on page 1, so the office can jump from the PDF (e.g. attached in
+  // Fergus) straight back to this job's Job Pack page to make
+  // changes before ordering.
+  try {
+    var jobUrl = _jobDeepLink();
+    if (jobUrl) {
+      pdf.setPage(1);
+      var lkLabel = 'Open this job in RoofMap';
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9);
+      var lkW = pdf.getTextWidth(lkLabel) + 9;
+      var lkX = pageW - lkW - 8, lkY = 287.5, lkH = 6.5;
+      pdf.setFillColor(37, 99, 235);
+      pdf.roundedRect(lkX, lkY, lkW, lkH, 1.6, 1.6, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text(lkLabel, lkX + 4.5, lkY + 4.4);
+      pdf.link(lkX, lkY, lkW, lkH, { url: jobUrl });
+      pdf.setTextColor(0, 0, 0);
+    }
+  } catch(e){ console.warn('Job link stamp failed:', e); }
   return pdf;
 }
 
