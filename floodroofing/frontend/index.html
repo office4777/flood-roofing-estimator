@@ -1255,6 +1255,13 @@ html.pdf-rendering .jp-page select{
    wrapped underneath it. */
 html.pdf-rendering .mat-list{ gap:0!important; padding:2px 0!important; }
 html.pdf-rendering .mat-list-row{ padding:0 6px!important; line-height:1.3!important; }
+/* Pin the qty / length cells to a fixed right-aligned column on paper so
+   the "N @ L m" lines up across every cut-list section (roof sheets,
+   ridging, gutter) — editable inputs and static drawn rows alike. */
+html.pdf-rendering .jp-page .mat-list-row .mat-list-qty{ display:inline-block!important; min-width:38px!important; text-align:right!important; }
+html.pdf-rendering .jp-page .mat-list-row .mat-list-len{ display:inline-block!important; min-width:46px!important; text-align:left!important; }
+html.pdf-rendering .jp-page .mat-list-row .mat-list-qty input{ width:34px!important; text-align:right!important; }
+html.pdf-rendering .jp-page .mat-list-row .mat-list-len input{ width:40px!important; text-align:left!important; }
 html.pdf-rendering .cons-row{ display:flex!important; gap:10px!important; padding:3px 4px!important; align-items:baseline!important; }
 html.pdf-rendering .cons-row-qty{ white-space:nowrap!important; }
 html.pdf-rendering .mat-section{ margin-bottom:10px!important; }
@@ -21546,28 +21553,27 @@ function _jpRenderCutLists(content, page, idx){
       '<input type="checkbox" '+(refsOn?'checked':'')+' onchange="_jpToggleFlashRefs(this.checked)" style="width:auto;margin:0"> '+(refsOn?'On':'Off')+
     '</label>'+
   '</div>';
-  html += '<div class="mat-section">'+
-    _matSectionHead('#0891b2', 'Flashings', 'one card per type');
+  // Auto-derived flashing TYPE cards only (the roof-derived cut lists).
+  // User-added favourites / custom flashings are shown on the dedicated
+  // Flashings page — repeating them here printed every added flashing
+  // TWICE in the pack.  The "+ add" cell also lives on that page now.
   var typeBoxes = [];
   _MAT_FLASHING_SPECS.slice(1).forEach(function(spec){
     var cl = _matBuildCutList(spec.key, spec.waste);
     if (cl.pieceCount === 0) return;
     typeBoxes.push({ spec: spec, cl: cl, label: spec.label });
   });
-  if (Array.isArray(S.matFlashings)) {
-    S.matFlashings.forEach(function(slot, si){
-      if (!slot) return;
-      typeBoxes.push({ slot: slot, slotIdx: si });
+  if (typeBoxes.length) {
+    html += '<div class="mat-section">'+
+      _matSectionHead('#0891b2', 'Flashings', 'one card per type');
+    // 2 boxes per row so each drawing has more space — the user couldn't
+    // read the flashing diagrams at 3-per-row.
+    html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">';
+    typeBoxes.forEach(function(box, bi){
+      html += _jpRenderFlashingCell(box, bi);
     });
+    html += '</div></div>';
   }
-  typeBoxes.push({ add: true });
-  // 2 boxes per row so each drawing has more space — the user couldn't
-  // read the flashing diagrams at 3-per-row.
-  html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">';
-  typeBoxes.forEach(function(box, bi){
-    html += _jpRenderFlashingCell(box, bi);
-  });
-  html += '</div></div>';
 
   content.innerHTML = html;
   _jpCropFlashImgs(content);
@@ -24108,6 +24114,11 @@ async function _buildJobPackPdf() {
     return _fitSpan.offsetWidth;
   }
   Array.prototype.forEach.call(document.querySelectorAll('#jpPages .jp-page input[type="number"], #jpPages .jp-page input[type="text"]'), function(el){
+    // Cut-list qty / length cells keep their fixed CSS column width so
+    // every "N @ L m" row lines up (value-fitting each one made the
+    // columns ragged and pushed the static gutter rows out of line with
+    // the editable sheet rows).  The pdf-rendering CSS pins their width.
+    if (el.closest && el.closest('.mat-list-qty, .mat-list-len')) return;
     _fitInputs.push([el, el.style.width]);
     el.style.setProperty('width', (_fitMeasure(el, String(el.value == null ? '' : el.value)) + 5) + 'px', 'important');
   });
