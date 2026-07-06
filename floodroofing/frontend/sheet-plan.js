@@ -923,6 +923,13 @@ function _renderRoofSheetPlanInner() {
     return;
   }
 
+  // Apply the per-face sheet-length overrides the user typed on the
+  // canvas (DRAW.sheetOverrides) BEFORE counting, so the sheet counts,
+  // the "Sheets to order" legend and the Job Pack cut list all reflect
+  // the manual lengths — not just the on-canvas labels.  (The applicator
+  // lives in index.html and was previously never called.)
+  try { if (typeof _applySheetOverridesToFaces === 'function') _applySheetOverridesToFaces(faces); } catch(e){}
+
   // ── Main rectangle detection (for phantom-4-hip extension) ────
   // The "main rectangle" is the largest axis-aligned rectangle that
   // fits inside the outline.  For an L / T shape this is the main body

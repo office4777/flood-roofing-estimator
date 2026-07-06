@@ -22731,6 +22731,9 @@ function _sheetEditPopup(hit){
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMatRoofMap(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
+  // Refresh the Job Pack too — its ROOF SHEETS cut list reads the same
+  // sheet counts, so the manual length has to flow through here as well.
+  try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
 }
 
 // Group-level override of ordered sheet length. Triggered by the
