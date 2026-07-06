@@ -24311,6 +24311,15 @@ async function _buildJobPackPdf() {
   });
   await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
 
+  // html2canvas (1.4.1) shaves content off the TOP of a captured element
+  // when the window is scrolled at capture time — exactly what happens
+  // when the user scrolls through the pages then hits Save as PDF.
+  // Capture from a consistent, unscrolled origin and restore the scroll
+  // afterwards.
+  var _jpSavedScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+  window.scrollTo(0, 0);
+  await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+
   var pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
   var pageW = 210, pageH = 297;
 
@@ -24323,6 +24332,10 @@ async function _buildJobPackPdf() {
         backgroundColor: '#ffffff',
         useCORS: true,
         logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: document.documentElement.scrollWidth,
+        windowHeight: document.documentElement.scrollHeight,
       });
       if (i > 0) pdf.addPage();
       // Preserve aspect ratio: map the capture onto FULL-WIDTH A4
@@ -24378,12 +24391,14 @@ async function _buildJobPackPdf() {
     htmlEl.classList.remove('print-jobpack');
     htmlEl.classList.remove('pdf-rendering');
     _fitInputs.forEach(function(p){ p[0].style.width = p[1]; });
+    try { window.scrollTo(0, _jpSavedScrollY); } catch(e){}
     return null;
   }
 
   htmlEl.classList.remove('print-jobpack');
   htmlEl.classList.remove('pdf-rendering');
   _fitInputs.forEach(function(p){ p[0].style.width = p[1]; });
+  try { window.scrollTo(0, _jpSavedScrollY); } catch(e){}
 
   // "Open this job in RoofMap" — a real PDF link annotation stamped
   // on page 1, so the office can jump from the PDF (e.g. attached in
@@ -25145,6 +25160,9 @@ async function _matBuildPdfBlob() {
     for (var i = 0; i < pages.length; i++) {
       var canv = await window.html2canvas(pages[i], {
         scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
+        scrollX: 0, scrollY: 0,
+        windowWidth: document.documentElement.scrollWidth,
+        windowHeight: document.documentElement.scrollHeight,
       });
       canvases.push(canv);
     }
