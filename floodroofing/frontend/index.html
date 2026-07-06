@@ -1956,7 +1956,16 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 
 <!-- TAB 1: ROOF MAP -->
 <div class="panel" id="tab-roof">
-  <div class="card">
+  <div class="card" id="roofBgCard">
+    <!-- Collapsible "set roof image" step — auto-collapses once an image
+         is chosen so the drawing canvas isn't buried two screens down.
+         _toggleRoofBg / _collapseRoofBg / _expandRoofBg drive it. -->
+    <div id="roofBgBar" onclick="_toggleRoofBg()" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:2px;user-select:none">
+      <span style="font-weight:700;font-size:13px;color:#0a1628">📍 Roof image <span style="font-weight:400;color:var(--text2);font-size:11px">— find aerial or upload a photo</span></span>
+      <span id="roofBgDone" style="display:none;font-size:11px;font-weight:600;color:#059669">✓ image set · click to change</span>
+      <span id="roofBgChevron" style="margin-left:auto;font-size:12px;color:#94a3b8">▾</span>
+    </div>
+    <div id="roofBgBody" style="margin-top:10px">
     <div class="card" style="margin-bottom:12px">
   <div class="card-hd"><span class="card-dot"></span>🛰️ Aerial imagery — find property</div>
   <div style="padding:12px">
@@ -1986,7 +1995,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
     </div>
     <div id="aerialHint" style="font-size:12px;color:#888;margin-top:4px">Enter a NZ address, then <strong>zoom in until individual rooftops are clearly visible</strong> before clicking "Use this view".</div>
     <div id="aerialMapWrap" style="margin-top:10px;border-radius:8px;border:1px solid #ddd;display:block;overflow:visible">
-      <div id="aerialLeafletMap2" style="width:100%;height:calc(100vh - 220px);min-height:500px;background:#e8e8e8;border-radius:8px 8px 0 0"></div>
+      <div id="aerialLeafletMap2" style="width:100%;height:440px;min-height:340px;background:#e8e8e8;border-radius:8px 8px 0 0"></div>
       <div style="background:#f5f5f3;padding:8px 12px;border-top:1px solid #ddd;border-radius:0 0 8px 8px;display:flex;justify-content:flex-end">
         <button onclick="useAerialView()" style="padding:8px 20px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">📸 Use this view</button>
       </div>
@@ -2020,6 +2029,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
     </div>
     <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="uploaded roof"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">× Remove</button></div>
   </div>
+    </div><!-- end roofBgBody -->
   </div>
 
   <!-- Results -->
@@ -2116,48 +2126,60 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
         </div>
       </div>
 
-      <!-- Snap to grid toggle -->
-      <div style="display:flex;gap:10px;align-items:center;margin:0 .75rem .4rem;font-size:11px;color:var(--text2);flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:5px;margin:0;font-weight:400" title="Hold Shift while clicking to drop a point with no snap at all.">
-          <input type="checkbox" id="snapGrid" checked> Snap to grid <span style="font-size:10px;color:var(--text2)">(hold Shift = no snap)</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:5px;margin:0;font-weight:400">
-          Grid size: <input type="number" id="gridSize" value="5" min="1" max="100" style="width:60px;margin:0;padding:3px 6px;font-size:12px"> px
-        </label>
-        <label style="display:flex;align-items:center;gap:5px;margin:0;font-weight:400">
-          Background image: <input type="checkbox" id="showBg" checked onchange="redrawAll()"> show
-        </label>
-        <label style="display:flex;align-items:center;gap:5px;margin:0;font-weight:400">
-          AI dimensions: <input type="checkbox" id="showDimLabels" checked onchange="redrawAll()"> show
-        </label>
-        <label style="display:flex;align-items:center;gap:5px;margin:0;font-weight:400">
-          Transparency: <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.35" style="width:90px;margin:0" oninput="redrawAll()">
-        </label>
-        <label style="display:flex;align-items:center;gap:5px;margin:0;font-weight:400" title="Multiplier applied ONLY to the on-canvas sheet-length labels (e.g. 4.35m) — does not affect line measurements or letter tags.">
-          Sheet text:
-          <input type="range" id="sheetTextScale" min="0.7" max="4" step="0.1" value="1" style="width:90px;margin:0" oninput="_setSheetTextScale(this.value)">
-          <span id="sheetTextScaleOut" style="font-variant-numeric:tabular-nums;color:var(--text)">1.0</span>×
-        </label>
-        <div style="display:flex;align-items:center;gap:4px;font-size:12px">
-          Zoom: 
+      <!-- Compact view bar: Zoom stays out; every other display setting
+           (grid, background, AI dims, transparency, sheet-text, photo
+           rotate) moves into the ⚙ View popover so the workspace isn't
+           buried under a strip of sliders. -->
+      <div style="display:flex;gap:12px;align-items:center;margin:0 .75rem .4rem;font-size:12px;color:var(--text2);flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:4px">
+          Zoom:
           <button onclick="adjustZoom(-0.1)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">−</button>
           <span id="zoomLabel" style="min-width:36px;text-align:center">100%</span>
           <button onclick="adjustZoom(0.1)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">+</button>
           <button onclick="resetZoom()" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">Fit</button>
         </div>
-        <div style="display:flex;align-items:center;gap:4px;font-size:12px">
-          Rotate:
-          <button onclick="rotateImage(-90)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:13px" title="Rotate 90° left">↺</button>
-          <button onclick="rotateImage(90)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:13px" title="Rotate 90° right">↻</button>
-          <input type="range" id="fineRotate" min="-45" max="45" step="0.5" value="0"
-            style="width:80px;margin:0;cursor:pointer"
-            oninput="IMG_FINE_ROTATION=parseFloat(this.value);document.getElementById('fineRotateVal').textContent=(this.value>0?'+':'')+parseFloat(this.value).toFixed(1)+'°';redrawAll()"
-            onmousedown="DRAW.showAlignGrid=true;redrawAll()"
-            onmouseup="DRAW.showAlignGrid=false;redrawAll()"
-            ontouchstart="DRAW.showAlignGrid=true;redrawAll()"
-            ontouchend="DRAW.showAlignGrid=false;redrawAll()">
-          <span id="fineRotateVal" style="min-width:36px;font-size:11px;color:#666">0.0°</span>
-          <button onclick="document.getElementById('fineRotate').value=0;IMG_FINE_ROTATION=0;document.getElementById('fineRotateVal').textContent='0.0°';redrawAll()" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:11px">Reset</button>
+        <div id="viewMenuWrap" style="position:relative;display:inline-block">
+          <button type="button" id="viewMenuBtn" onclick="toggleViewMenu(event)" style="border:1px solid #cbd5e1;background:#fff;color:#0a1628;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+            <span aria-hidden="true">⚙</span><span>View</span><span style="font-size:10px;opacity:.7">▾</span>
+          </button>
+          <div id="viewMenu" style="display:none;position:absolute;top:calc(100% + 5px);left:0;z-index:300;background:#fff;border:1px solid #d6dbe2;border-radius:10px;box-shadow:0 12px 32px rgba(10,22,40,.20);padding:12px 14px;min-width:250px;font-size:12px;color:#334155;font-weight:400">
+            <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Canvas view</div>
+            <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px" title="Hold Shift while clicking to drop a point with no snap at all.">
+              <input type="checkbox" id="snapGrid" checked> Snap to grid <span style="font-size:10px;color:#94a3b8">(Shift = off)</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px">
+              Grid size <input type="number" id="gridSize" value="5" min="1" max="100" style="width:56px;margin:0;padding:3px 6px;font-size:12px"> px
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px">
+              <input type="checkbox" id="showBg" checked onchange="redrawAll()"> Show background image
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px">
+              <input type="checkbox" id="showDimLabels" checked onchange="redrawAll()"> Show AI dimensions
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px">
+              Transparency <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.35" style="flex:1;margin:0" oninput="redrawAll()">
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;margin:0" title="Multiplier applied ONLY to the on-canvas sheet-length labels (e.g. 4.35m) — does not affect line measurements or letter tags.">
+              Sheet text
+              <input type="range" id="sheetTextScale" min="0.7" max="4" step="0.1" value="1" style="flex:1;margin:0" oninput="_setSheetTextScale(this.value)">
+              <span id="sheetTextScaleOut" style="font-variant-numeric:tabular-nums;color:#0a1628;min-width:24px;text-align:right">1.0</span>×
+            </label>
+            <div style="border-top:1px solid #eef1f5;margin:11px 0 9px"></div>
+            <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Rotate photo</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <button onclick="rotateImage(-90)" style="padding:2px 9px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:13px" title="Rotate 90° left">↺</button>
+              <button onclick="rotateImage(90)" style="padding:2px 9px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:13px" title="Rotate 90° right">↻</button>
+              <input type="range" id="fineRotate" min="-45" max="45" step="0.5" value="0"
+                style="flex:1;min-width:90px;margin:0;cursor:pointer"
+                oninput="IMG_FINE_ROTATION=parseFloat(this.value);document.getElementById('fineRotateVal').textContent=(this.value>0?'+':'')+parseFloat(this.value).toFixed(1)+'°';redrawAll()"
+                onmousedown="DRAW.showAlignGrid=true;redrawAll()"
+                onmouseup="DRAW.showAlignGrid=false;redrawAll()"
+                ontouchstart="DRAW.showAlignGrid=true;redrawAll()"
+                ontouchend="DRAW.showAlignGrid=false;redrawAll()">
+              <span id="fineRotateVal" style="min-width:36px;font-size:11px;color:#666">0.0°</span>
+              <button onclick="document.getElementById('fineRotate').value=0;IMG_FINE_ROTATION=0;document.getElementById('fineRotateVal').textContent='0.0°';redrawAll()" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:11px">Reset</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -5980,6 +6002,7 @@ function onRoofImg(e){
     document.getElementById('roofUZ').style.display='none';
     document.getElementById('analyseBtn').disabled=false;
     document.getElementById('analyseTxt').textContent='Analyse roof sketch with AI';
+    try { _collapseRoofBg(); } catch(e){}
   };
   r.readAsDataURL(f);
 }
@@ -5993,6 +6016,26 @@ function clearRoofImg(){
   document.getElementById('roofResults').style.display='none';
   _refreshRoofFergusBtn();
 }
+// ── "Roof image" step collapse ────────────────────────────────────
+// The aerial finder + upload cards only matter until an image is on the
+// canvas, then they just push the drawing surface down. Collapse them
+// once an image is set (leaving a thin "change" bar), expand on demand.
+function _setRoofBg(open){
+  var body = document.getElementById('roofBgBody');
+  var chev = document.getElementById('roofBgChevron');
+  var done = document.getElementById('roofBgDone');
+  if (!body) return;
+  body.style.display = open ? 'block' : 'none';
+  if (chev) chev.style.transform = open ? '' : 'rotate(-90deg)';
+  if (done) done.style.display = open ? 'none' : 'inline';
+}
+function _toggleRoofBg(){
+  var body = document.getElementById('roofBgBody');
+  if (!body) return;
+  _setRoofBg(body.style.display === 'none');
+}
+function _collapseRoofBg(){ _setRoofBg(false); }
+function _expandRoofBg(){ _setRoofBg(true); }
 
 // Push a data URL into the roof preview the same way onRoofImg does for
 // a file picker — used by the Fergus picker after it downloads a chosen
@@ -14991,6 +15034,21 @@ function closeRoofLinesMenu(){
 document.addEventListener('click', function(e){
   var w=document.getElementById('rlDropWrap');
   if(w && !w.contains(e.target)) closeRoofLinesMenu();
+});
+// ⚙ View popover — holds the canvas display settings that used to sprawl
+// across the toolbar (grid, background, AI dims, transparency, sheet
+// text, photo rotate). Same open/close pattern as the roof-lines menu.
+function toggleViewMenu(e){
+  if(e){ e.stopPropagation(); }
+  var m=document.getElementById('viewMenu'); if(!m) return;
+  m.style.display = (m.style.display==='block') ? 'none' : 'block';
+}
+function closeViewMenu(){
+  var m=document.getElementById('viewMenu'); if(m) m.style.display='none';
+}
+document.addEventListener('click', function(e){
+  var w=document.getElementById('viewMenuWrap');
+  if(w && !w.contains(e.target)) closeViewMenu();
 });
 
 function updateStepUI() {
@@ -26888,6 +26946,7 @@ function captureFromMapbox(lat, lon, zoom) {
 
         URL.revokeObjectURL(blobUrl);
         redrawAll();
+        try { _collapseRoofBg(); } catch(e){}
         if (hint) hint.innerHTML = '<span style="color:#059669">✅ Aerial image loaded (' + metersPerPx.toFixed(3) + 'm/px). Draw your building outline on top.</span>';
       };
       img.onerror = function() {
