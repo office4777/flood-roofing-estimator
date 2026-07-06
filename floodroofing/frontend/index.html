@@ -21560,25 +21560,47 @@ function _jpRenderFlashingCell(box, bi){
   }
   if (box.slot){
     var slot = box.slot, si = box.slotIdx;
-    var inner;
+    var inner, slotTitle = '';
     if (slot.source === 'library'){
       var lib = _getAllFlashings();
       var entry = lib.find(function(e){ return e.name === slot.name; });
       if (entry && entry.sketch){
-        inner = _jpFlashImgHtml(entry.sketch, 'slot:'+(slot.name||si), 190)+
-          '<div style="font-size:11px;font-weight:600;color:#0a1628;margin-top:4px;text-align:center">'+esc(entry.name)+'</div>';
+        inner = _jpFlashImgHtml(entry.sketch, 'slot:'+(slot.name||si), 190);
+        slotTitle = entry.name;
       } else {
         inner = '<div style="padding:18px;font-size:11px;color:#b91c1c;font-style:italic">Saved entry removed.</div>';
       }
     } else if (slot.source === 'custom' && slot.sketch){
-      inner = _jpFlashImgHtml(slot.sketch, 'slot:'+(slot.name||si), 190)+
-        '<div style="font-size:11px;font-weight:600;color:#0a1628;margin-top:4px;text-align:center">'+esc(slot.name || 'Custom')+'</div>';
+      inner = _jpFlashImgHtml(slot.sketch, 'slot:'+(slot.name||si), 190);
+      slotTitle = slot.name || 'Custom';
     } else {
       inner = '<div style="padding:18px;color:var(--text2);font-style:italic;font-size:11px;text-align:center">Empty slot</div>';
     }
-    return '<div class="mat-fl-card" style="position:relative;min-height:200px">' +
-      '<button onclick="_matFlashingsRemove('+si+')" title="Remove" style="position:absolute;top:4px;right:4px;background:none;border:none;color:#94a3b8;font-size:14px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:4px">×</button>'+
+    // Cut-list rows (qty × length) — same reading as the auto cards,
+    // so an added flashing carries its order quantities onto the PDF.
+    var sRows = Array.isArray(slot.rows) ? slot.rows : [];
+    var sPcs = 0, sLm = 0, sRowsHtml = '';
+    sRows.forEach(function(r, ri){
+      var q = parseFloat(r.qty) || 0, ln = parseFloat(r.len) || 0;
+      sPcs += q; sLm += q * ln;
+      sRowsHtml += '<div class="mat-list-row">'+
+        '<span class="mat-list-qty"><input type="number" min="0" step="1" value="'+q+'" onfocus="this.select()" '+
+          'onchange="_matFlSlotRowUpdate('+si+','+ri+',\'qty\',this.value)"></span>'+
+        '<span class="mat-list-at">@</span>'+
+        '<span class="mat-list-len"><input type="number" min="0" step="0.05" value="'+ln.toFixed(2)+'" onfocus="this.select()" '+
+          'onchange="_matFlSlotRowUpdate('+si+','+ri+',\'len\',this.value)"><span class="mat-list-unit">m</span></span>'+
+        '<button class="mat-list-del" onclick="_matFlSlotRowRemove('+si+','+ri+')" title="Delete row">×</button>'+
+      '</div>';
+    });
+    var slotHead = '<div class="mat-fl-head" style="padding-right:22px"><strong>'+esc(slotTitle || 'Flashing')+'</strong>'+
+      '<span style="margin-left:auto;flex-shrink:0;font-size:11px;font-weight:800;color:#0a1628;font-variant-numeric:tabular-nums;white-space:nowrap">'+
+        (sPcs ? sPcs + ' pcs · ' + sLm.toFixed(1) + ' m' : '')+'</span></div>';
+    return '<div class="mat-fl-card" style="position:relative">' +
+      '<button class="no-print pdf-hide" onclick="_matFlashingsRemove('+si+')" title="Remove this flashing" style="position:absolute;top:4px;right:4px;background:none;border:none;color:#94a3b8;font-size:14px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:4px;z-index:2">×</button>'+
+      slotHead +
       inner +
+      '<div class="mat-fl-rows">'+sRowsHtml+'</div>'+
+      '<button class="mat-add-btn no-print pdf-hide" onclick="_matFlSlotRowAdd('+si+')" style="margin-top:6px">+ Add row</button>'+
     '</div>';
   }
   // Auto-derived flashing type with cut list.
@@ -21864,15 +21886,18 @@ function _jpRenderConsumablesSection(d){
   '</div>';
 
   // ── Dektites ──
-  var dkList = _matDektitesGet();
+  var dkList = _matDektitesSynced();
   var dkBanner = '';
   // Only emit the Dektites banner when the user has actually added
   // at least one size — an empty section is just noise on the PDF.
-  if (dkList && dkList.length) {
+  var dkVisible = (dkList || []).some(function(r){ return r && !r.suppressed; });
+  if (dkVisible) {
     var dkRowsHtml = '';
     dkList.forEach(function(r, i){
+      if (!r || r.suppressed) return;
       dkRowsHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 4px;border-bottom:1px dashed #e5e7eb;font-size:12px">'+
         '🟫 <strong style="min-width:90px">Dektite</strong>'+
+        (r.auto ? '<span class="no-print pdf-hide" title="Auto from the drawn penetrations — edit qty/size to take over" style="font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#0ea5e9;border:1px solid #bae6fd;border-radius:4px;padding:1px 5px">auto</span>' : '')+
         '<input type="number" min="0" step="1" value="'+(r.qty||0)+'" '+
           'onchange="_matDektitesUpdate('+i+',\'qty\',this.value);if(typeof renderJobPack===\'function\') renderJobPack()" '+
           'style="width:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px">'+
@@ -23408,12 +23433,57 @@ function _matOnCutRowClick(rowEl){
 // ── Dektites storage (multi-size) ──────────────────────────────────
 // v2 format: [{qty, sizeMm}, ...]. Migrates from legacy fr_dektite_count
 // (single number) on first read so old saves stay visible.
+// Auto-populate dektites from the DRAWN penetrations: one row per
+// pipe size (qty = how many penetrations of that size, across every
+// roof on the job).  Auto rows track the drawing until the user edits
+// them (edit clears the auto flag so the override sticks); sizes with
+// no remaining penetrations drop their auto row again.  Manual '+ Add
+// dektite size' rows are never touched.
+function _matDektitePenSizes(){
+  var counts = {};
+  function addPens(pens){
+    (pens || []).forEach(function(pn){
+      if (!pn) return;
+      var m = String(pn.sizeLabel || '').match(/(\d+)/);
+      if (!m) return;
+      var sz = parseInt(m[1], 10);
+      if (!(sz > 0)) return;
+      counts[sz] = (counts[sz] || 0) + 1;
+    });
+  }
+  addPens(DRAW.penetrations);
+  (DRAW.roofs || []).forEach(function(r, i){
+    if (i !== DRAW.activeRoofIdx) addPens(r && r.penetrations);
+  });
+  return counts;
+}
+function _matDektitesSynced(){
+  var list = _matDektitesGet();
+  var counts = _matDektitePenSizes();
+  var changed = false;
+  Object.keys(counts).forEach(function(k){
+    var sz = parseInt(k, 10);
+    var row = list.find(function(r){ return (parseInt(r.sizeMm, 10) || 0) === sz; });
+    if (row) {
+      if (row.auto && (parseInt(row.qty, 10) || 0) !== counts[k]) { row.qty = counts[k]; changed = true; }
+    } else {
+      list.push({ qty: counts[k], sizeMm: sz, auto: true });
+      changed = true;
+    }
+  });
+  for (var i = list.length - 1; i >= 0; i--){
+    var r2 = list[i];
+    if (r2 && (r2.auto || r2.suppressed) && !counts[String(parseInt(r2.sizeMm, 10) || 0)]) { list.splice(i, 1); changed = true; }
+  }
+  if (changed) _matDektitesSet(list);
+  return list;
+}
 function _matDektitesGet(){
   var raw = localStorage.getItem('fr_dektites_v2');
   if (raw) {
     try {
       var arr = JSON.parse(raw);
-      if (Array.isArray(arr)) return arr.filter(function(r){ return r && r.qty != null; });
+      if (Array.isArray(arr)) return arr.filter(function(r){ return r && (r.qty != null || r.suppressed); });
     } catch(e){}
   }
   // Legacy migration — single count becomes a single row with no size.
@@ -23435,13 +23505,21 @@ function _matDektitesUpdate(idx, field, value){
   if (!list[idx]) return;
   var n = parseInt(value, 10);
   list[idx][field] = isFinite(n) && n >= 0 ? n : 0;
+  delete list[idx].auto;   // user override — stop tracking the drawing
   _matDektitesSet(list);
   // Re-render consumables only — don't bounce the whole cut list.
   _matRenderConsumables(_matDrawTotals());
 }
 function _matDektitesRemove(idx){
   var list = _matDektitesGet();
-  list.splice(idx, 1);
+  var row = list[idx];
+  if (row && row.auto) {
+    // Auto row: remember the size is unwanted so the penetration sync
+    // doesn't immediately re-add it.
+    list[idx] = { sizeMm: parseInt(row.sizeMm, 10) || 0, suppressed: true };
+  } else {
+    list.splice(idx, 1);
+  }
   _matDektitesSet(list);
   _matRenderConsumables(_matDrawTotals());
 }
@@ -23489,17 +23567,51 @@ function _matFlashingsArr(){
   if (!S.matFlashings) S.matFlashings = [];
   return S.matFlashings;
 }
+// After any slot change, refresh BOTH surfaces that show the slots:
+// the Flashings-page gallery AND the Job Pack cut-list cards (the
+// delete X on a cut-list card previously only re-rendered the
+// gallery, so the card appeared un-deletable).
+function _matFlashingsRefreshAll(){
+  renderMatFlashingsGrid();
+  try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
+  try { renderJobPack && renderJobPack(); } catch(e){}
+}
 function _matFlashingsAdd(){
   _matFlashingsArr().push({ source: null });
   try { autosaveJob && autosaveJob(); } catch(e){}
-  renderMatFlashingsGrid();
+  _matFlashingsRefreshAll();
 }
 function _matFlashingsRemove(idx){
   var arr = _matFlashingsArr();
   if (idx < 0 || idx >= arr.length) return;
   arr.splice(idx, 1);
   try { autosaveJob && autosaveJob(); } catch(e){}
-  renderMatFlashingsGrid();
+  _matFlashingsRefreshAll();
+}
+// ── Slot flashing cut-list rows (qty × length) ────────────────────
+function _matFlSlotRows(slot){
+  if (!Array.isArray(slot.rows)) slot.rows = [];
+  return slot.rows;
+}
+function _matFlSlotRowAdd(si){
+  var arr = _matFlashingsArr(); var slot = arr[si]; if (!slot) return;
+  _matFlSlotRows(slot).push({ qty: 1, len: 0 });
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  _matFlashingsRefreshAll();
+}
+function _matFlSlotRowUpdate(si, ri, field, value){
+  var arr = _matFlashingsArr(); var slot = arr[si]; if (!slot) return;
+  var rows = _matFlSlotRows(slot); if (!rows[ri]) return;
+  var n = parseFloat(value);
+  rows[ri][field] = isFinite(n) && n >= 0 ? n : 0;
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  _matFlashingsRefreshAll();
+}
+function _matFlSlotRowRemove(si, ri){
+  var arr = _matFlashingsArr(); var slot = arr[si]; if (!slot) return;
+  _matFlSlotRows(slot).splice(ri, 1);
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  _matFlashingsRefreshAll();
 }
 function _matFlashingsRender(){
   // Alias — both renderMatFlashingsGrid and _matFlashingsRender call
@@ -23677,10 +23789,10 @@ function _matFlashingsPickerChoose(name){
   if (_matFlashingsPendingSlot < 0) return;
   var arr = _matFlashingsArr();
   if (_matFlashingsPendingSlot >= arr.length) return;
-  arr[_matFlashingsPendingSlot] = { source: 'library', name: name };
+  arr[_matFlashingsPendingSlot] = { source: 'library', name: name, rows: [{ qty: 1, len: 0 }] };
   _matFlashingsPickerClose();
   try { autosaveJob && autosaveJob(); } catch(e){}
-  renderMatFlashingsGrid();
+  _matFlashingsRefreshAll();
 }
 // "Add Custom" — opens the existing flash sketch modal with the
 // pending pointer set so saveFlashSketch writes back into the slot.
@@ -23766,7 +23878,7 @@ function _matRenderConsumables(d) {
   html += consSection('#0a1628', 'Screws & Rivets', 'Fasteners for sheets &amp; flashings', srBody);
 
   // Dektites — banner with editable size list
-  var dkList = _matDektitesGet();
+  var dkList = ((typeof _matDektitesSynced==='function') ? _matDektitesSynced() : _matDektitesGet()).filter(function(r){ return r && !r.suppressed; });
   var dkTotal = _matDektitesTotal();
   var dkRowsHtml = dkList.map(function(r, i){
     return '<div style="display:flex;align-items:center;gap:5px;margin-top:4px;font-size:11px">'+
@@ -23999,17 +24111,45 @@ async function _buildJobPackPdf() {
         logging: false,
       });
       if (i > 0) pdf.addPage();
-      var imgData = canvas.toDataURL('image/jpeg', 0.92);
-      // Preserve aspect ratio: map the capture onto a FULL-WIDTH A4
-      // page (210mm). If the captured content is taller than A4 it
-      // splits across multiple A4 pages by re-adding the image at a
-      // negative y-offset on each subsequent page — no stretching.
-      var imgH = (canvas.height / canvas.width) * pageW;
-      var consumed = 0;
-      while (consumed < imgH - 0.5) {
-        if (consumed > 0) pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, -consumed, pageW, imgH, undefined, 'FAST');
-        consumed += pageH;
+      // Preserve aspect ratio: map the capture onto FULL-WIDTH A4
+      // pages (210mm).  When the captured content is taller than A4
+      // it splits across pages — and each cut SEEKS the nearest
+      // mostly-white row (up to ~28mm above the hard A4 boundary) so
+      // the page break never slices through a flashing card, drawing
+      // or table row.  Each slice renders via its own sub-canvas.
+      var pxPerMm = canvas.width / pageW;
+      var hardStep = Math.floor(pageH * pxPerMm);
+      var cctx = canvas.getContext('2d', { willReadFrequently: true });
+      function _rowInk(y){
+        if (y <= 0 || y >= canvas.height) return 0;
+        var d = cctx.getImageData(0, y, canvas.width, 1).data;
+        var ink = 0;
+        for (var x = 0; x < canvas.width * 4; x += 16){   // every 4th px
+          if (!(d[x] > 246 && d[x+1] > 246 && d[x+2] > 246)) ink++;
+        }
+        return ink;
+      }
+      var sliceTop = 0;
+      while (sliceTop < canvas.height - 2) {
+        var cutY = Math.min(canvas.height, sliceTop + hardStep);
+        if (cutY < canvas.height - 2) {
+          // Look upward for a clean (white) row to cut on.
+          var searchUp = Math.floor(28 * pxPerMm);
+          var bestY = cutY, bestInk = Infinity;
+          for (var sy = cutY; sy > cutY - searchUp && sy > sliceTop + hardStep * 0.55; sy -= 3){
+            var ink = _rowInk(sy);
+            if (ink === 0) { bestY = sy; bestInk = 0; break; }
+            if (ink < bestInk) { bestInk = ink; bestY = sy; }
+          }
+          cutY = bestY;
+        }
+        var sliceH = cutY - sliceTop;
+        var sc = document.createElement('canvas');
+        sc.width = canvas.width; sc.height = sliceH;
+        sc.getContext('2d').drawImage(canvas, 0, sliceTop, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+        if (sliceTop > 0) pdf.addPage();
+        pdf.addImage(sc.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pageW, sliceH / pxPerMm, undefined, 'FAST');
+        sliceTop = cutY;
       }
     }
   } catch(err) {
@@ -24681,7 +24821,7 @@ function _matBuildPrintOrderDetails(mount) {
   var rivets = rivetsOv != null ? rivetsOv : rivetsAuto;
   // Dektites — multi-size list rendered as "N × Xmm" rows under the
   // total. Falls back to the legacy single-count store for old saves.
-  var dkList = _matDektitesGet();
+  var dkList = ((typeof _matDektitesSynced==='function') ? _matDektitesSynced() : _matDektitesGet()).filter(function(r){ return r && !r.suppressed; });
   var dkTotal = _matDektitesTotal();
   var dkBreakdown = dkList.length
     ? dkList.map(function(r){ return (r.qty||0) + ' × ' + (r.sizeMm > 0 ? r.sizeMm + 'mm' : 'any'); }).join(', ')
