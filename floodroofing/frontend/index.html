@@ -16571,6 +16571,10 @@ function onCanvasClick(e) {
     });
     try { saveSnapshot(); } catch(e){}
     redrawAll();
+    // A freshly-placed measure sitting over a roof plane should flow into
+    // the ROOF SHEETS cut list straight away (see _applyManualMeasuresToFaces).
+    try { renderRoofSheetPlan(); } catch(e){}
+    try { renderJobPack(); } catch(e){}
     return;
   }
 
@@ -19012,6 +19016,51 @@ function _applySheetOverridesToFaces(faces){
       : 1;
     if (pitchF > 0 && isFinite(pitchF)) face.planSheetM = face.sheetM / pitchF;
     face._sheetOverride = true;
+  });
+}
+
+// Forward sync for the black-arrow "Sheet measure" annotations the user
+// draws on the canvas (DRAW.manualSheetMeasures).  Each measure states the
+// real sheet length for the roof plane it sits on, so the ROOF SHEETS cut
+// list must follow it.  We find the sheet-plan face whose polygon contains
+// the measure's anchor point and stamp that face's sheetM — exactly like
+// _applySheetOverridesToFaces does for the auto labels.
+//
+// Deliberately conservative: only applies when the anchor is STRICTLY
+// inside a face polygon (no fuzzy nearest-face fallback that could yank the
+// wrong plane's count), and it is a no-op when there are no manual measures
+// — so roofs without any drawn measures (and the CI fixtures) are unchanged.
+function _applyManualMeasuresToFaces(faces){
+  if (!faces || !faces.length) return;
+  if (!Array.isArray(DRAW.manualSheetMeasures) || !DRAW.manualSheetMeasures.length) return;
+  function ptInPoly(px, py, poly){
+    if (!poly || poly.length < 3) return false;
+    var inside = false;
+    for (var i = 0, j = poly.length - 1; i < poly.length; j = i++){
+      var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+      var hit = ((yi > py) !== (yj > py)) &&
+                (px < (xj - xi) * (py - yi) / ((yj - yi) || 1e-9) + xi);
+      if (hit) inside = !inside;
+    }
+    return inside;
+  }
+  DRAW.manualSheetMeasures.forEach(function(m){
+    if (!m || !(+m.lengthM > 0)) return;
+    var ax = +m.x, ay = +m.y;
+    if (!isFinite(ax) || !isFinite(ay)) return;
+    var target = null;
+    for (var i = 0; i < faces.length; i++){
+      var f = faces[i];
+      if (f && f.poly && ptInPoly(ax, ay, f.poly)) { target = f; break; }
+    }
+    if (!target) return;
+    target.sheetM = +m.lengthM;
+    var pitchF = (target.planSheetM > 0 && target.sheetM > 0)
+      ? (target.sheetM / target.planSheetM)
+      : 1;
+    if (pitchF > 0 && isFinite(pitchF)) target.planSheetM = target.sheetM / pitchF;
+    target._sheetOverride = true;
+    target._manualMeasure = true;
   });
 }
 
@@ -22272,6 +22321,25 @@ function _jpSheetSetLen(origLen, valueM){
   if (!DRAW.sheetGroupOverrides) DRAW.sheetGroupOverrides = {};
   if (!isFinite(f) || f <= 0) { delete DRAW.sheetGroupOverrides[origLen]; }
   else { DRAW.sheetGroupOverrides[origLen] = Math.round(f * 1000); }
+  // Reverse sync ("…and vice versa"): a cut-list row can come from a
+  // black-arrow Sheet measure drawn on the canvas.  When the user retypes
+  // the ordered length here, push it back onto any manual measure that
+  // feeds this same ordered length so the on-canvas number tracks the cut
+  // list.  Ordered length = plane length + overhang, so back out the
+  // overhang to get the metres the arrow shows.
+  if (isFinite(f) && f > 0 && Array.isArray(DRAW.manualSheetMeasures) && DRAW.manualSheetMeasures.length){
+    try {
+      var overhang = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '0') || 0;
+      var newDisplayedM = (Math.round(f * 1000) - overhang) / 1000;
+      if (newDisplayedM > 0){
+        DRAW.manualSheetMeasures.forEach(function(m){
+          if (!m || !(+m.lengthM > 0)) return;
+          var mOrderedMm = Math.round((+m.lengthM) * 1000 + overhang);
+          if (Math.abs(mOrderedMm - origLen) <= 1) m.lengthM = newDisplayedM;
+        });
+      }
+    } catch(e){}
+  }
   try { saveSnapshot(); } catch(e){}
   try { renderRoofSheetPlan(); } catch(e){}
   try { redrawAll(); } catch(e){}
@@ -22726,6 +22794,11 @@ function _sheetEditPopup(hit){
     }
     try { saveSnapshot(); } catch(e){}
     try { redrawAll(); } catch(e){}
+    // Re-tile + rebuild the cut list so the ROOF SHEETS list follows the
+    // edited (or deleted) black-arrow measure — _applyManualMeasuresToFaces
+    // stamps the plane this measure sits on.
+    try { renderRoofSheetPlan(); } catch(e){}
+    try { renderJobPack(); } catch(e){}
     return;
   }
   var promptMsg = 'Sheet length for this face is currently ' + current + '.\n\n' +
