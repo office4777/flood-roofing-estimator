@@ -929,9 +929,10 @@ function _renderRoofSheetPlanInner() {
   // the manual lengths — not just the on-canvas labels.  (The applicator
   // lives in index.html and was previously never called.)
   try { if (typeof _applySheetOverridesToFaces === 'function') _applySheetOverridesToFaces(faces); } catch(e){}
-  // Same idea for the free-standing black-arrow "Sheet measure" annotations
-  // (DRAW.manualSheetMeasures): a measure drawn over a roof plane sets that
-  // plane's sheet length, so the cut list follows the on-canvas number.
+  // Free-standing black-arrow "Sheet measure" annotations
+  // (DRAW.manualSheetMeasures): build a DISPLAY-ONLY length map so the cut
+  // list follows the on-canvas number WITHOUT changing the sheet count or
+  // re-tiling the layout diagram (it doesn't touch face.sheetM).
   try { if (typeof _applyManualMeasuresToFaces === 'function') _applyManualMeasuresToFaces(faces); } catch(e){}
 
   // ── Main rectangle detection (for phantom-4-hip extension) ────

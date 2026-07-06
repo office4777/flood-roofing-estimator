@@ -19019,18 +19019,30 @@ function _applySheetOverridesToFaces(faces){
   });
 }
 
+// Ordered-length bucket for a sheet — MUST match sheet-plan.js's
+// orderedLengthMm() so the map below keys on the same group as the cut
+// list (ceil to nearest 100mm with a 50mm trim, min 1000mm).
+function _sheetOrderedLenMm(sheetMetres){
+  var mm = Math.ceil(sheetMetres * 1000 + 50);
+  return Math.max(1000, Math.ceil(mm / 100) * 100);
+}
+
 // Forward sync for the black-arrow "Sheet measure" annotations the user
-// draws on the canvas (DRAW.manualSheetMeasures).  Each measure states the
-// real sheet length for the roof plane it sits on, so the ROOF SHEETS cut
-// list must follow it.  We find the sheet-plan face whose polygon contains
-// the measure's anchor point and stamp that face's sheetM — exactly like
-// _applySheetOverridesToFaces does for the auto labels.
+// draws on the canvas (DRAW.manualSheetMeasures).
 //
-// Deliberately conservative: only applies when the anchor is STRICTLY
-// inside a face polygon (no fuzzy nearest-face fallback that could yank the
-// wrong plane's count), and it is a no-op when there are no manual measures
-// — so roofs without any drawn measures (and the CI fixtures) are unchanged.
+// IMPORTANT: this must NOT change the sheet COUNT or the sheet-layout
+// DIAGRAM — only the length shown in the ROOF SHEETS cut list.  So instead
+// of re-tiling (stamping face.sheetM, which would change how many sheets
+// fit and redraw the plan) it builds a DISPLAY-ONLY length map:
+//   window._manualSheetLenMap[geometricOrderedMm] = { mm: shownMm, idxs:[…] }
+// The cut-list builder (_jpBuildSheetRows) reads it to relabel that group's
+// length; tiling, the legend and the on-canvas auto labels are untouched.
+//
+// A measure maps to the face whose polygon STRICTLY contains its anchor;
+// that face's own geometric ordered length is the group key.  No-op when
+// there are no measures, so existing jobs and the sheet CI are unchanged.
 function _applyManualMeasuresToFaces(faces){
+  window._manualSheetLenMap = {};
   if (!faces || !faces.length) return;
   if (!Array.isArray(DRAW.manualSheetMeasures) || !DRAW.manualSheetMeasures.length) return;
   function ptInPoly(px, py, poly){
@@ -19044,7 +19056,8 @@ function _applyManualMeasuresToFaces(faces){
     }
     return inside;
   }
-  DRAW.manualSheetMeasures.forEach(function(m){
+  var map = window._manualSheetLenMap;
+  DRAW.manualSheetMeasures.forEach(function(m, mi){
     if (!m || !(+m.lengthM > 0)) return;
     var ax = +m.x, ay = +m.y;
     if (!isFinite(ax) || !isFinite(ay)) return;
@@ -19053,14 +19066,13 @@ function _applyManualMeasuresToFaces(faces){
       var f = faces[i];
       if (f && f.poly && ptInPoly(ax, ay, f.poly)) { target = f; break; }
     }
-    if (!target) return;
-    target.sheetM = +m.lengthM;
-    var pitchF = (target.planSheetM > 0 && target.sheetM > 0)
-      ? (target.sheetM / target.planSheetM)
-      : 1;
-    if (pitchF > 0 && isFinite(pitchF)) target.planSheetM = target.sheetM / pitchF;
-    target._sheetOverride = true;
-    target._manualMeasure = true;
+    if (!target || !(target.sheetM > 0)) return;
+    var groupMm = _sheetOrderedLenMm(target.sheetM);         // the cut-list group this plane lands in
+    var shownMm = Math.round((+m.lengthM) * 1000);           // show the arrow's number verbatim
+    if (shownMm <= 0) return;
+    if (!map[groupMm]) map[groupMm] = { mm: shownMm, idxs: [] };
+    else map[groupMm].mm = shownMm;                          // last measure on this group wins
+    map[groupMm].idxs.push(mi);
   });
 }
 
@@ -22297,11 +22309,18 @@ function _jpBuildSheetRows(sc){
   var hidden = DRAW.matSheetRowHidden || {};
   var qtyOv = DRAW.sheetGroupQtyOverrides || {};
   var lenOv = DRAW.sheetGroupOverrides || {};
+  // Display-only length from a black-arrow Sheet measure sitting on this
+  // plane (built by _applyManualMeasuresToFaces).  It only relabels the
+  // length — the qty/count still comes from the tiler — and it wins over a
+  // stale group override so the on-canvas number is authoritative.
+  var manualMap = window._manualSheetLenMap || {};
   Object.keys(byLen).forEach(function(k){
     var origLen = parseInt(k, 10);
     if (hidden[origLen]) return;
     var qty = (qtyOv[origLen] != null) ? +qtyOv[origLen] : byLen[k];
-    var len = (lenOv[origLen] != null) ? +lenOv[origLen] : origLen;
+    var len = (manualMap[origLen] != null) ? +manualMap[origLen].mm
+            : (lenOv[origLen] != null) ? +lenOv[origLen]
+            : origLen;
     rows.push({ origLen: origLen, len: len, qty: qty });
   });
   rows.sort(function(a, b){ return b.len - a.len; });
@@ -22321,21 +22340,18 @@ function _jpSheetSetLen(origLen, valueM){
   if (!DRAW.sheetGroupOverrides) DRAW.sheetGroupOverrides = {};
   if (!isFinite(f) || f <= 0) { delete DRAW.sheetGroupOverrides[origLen]; }
   else { DRAW.sheetGroupOverrides[origLen] = Math.round(f * 1000); }
-  // Reverse sync ("…and vice versa"): a cut-list row can come from a
-  // black-arrow Sheet measure drawn on the canvas.  When the user retypes
-  // the ordered length here, push it back onto any manual measure that
-  // feeds this same ordered length so the on-canvas number tracks the cut
-  // list.  Ordered length = plane length + overhang, so back out the
-  // overhang to get the metres the arrow shows.
+  // Reverse sync ("…and vice versa"): if this cut-list row is fed by one or
+  // more black-arrow Sheet measures, push the retyped length straight back
+  // onto those measures so the on-canvas number tracks the cut list.  The
+  // display map records exactly which measures land on this group.
   if (isFinite(f) && f > 0 && Array.isArray(DRAW.manualSheetMeasures) && DRAW.manualSheetMeasures.length){
     try {
-      var overhang = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '0') || 0;
-      var newDisplayedM = (Math.round(f * 1000) - overhang) / 1000;
-      if (newDisplayedM > 0){
-        DRAW.manualSheetMeasures.forEach(function(m){
-          if (!m || !(+m.lengthM > 0)) return;
-          var mOrderedMm = Math.round((+m.lengthM) * 1000 + overhang);
-          if (Math.abs(mOrderedMm - origLen) <= 1) m.lengthM = newDisplayedM;
+      var mm = window._manualSheetLenMap && window._manualSheetLenMap[origLen];
+      if (mm && Array.isArray(mm.idxs)){
+        var newM = Math.round(f * 1000) / 1000;
+        mm.idxs.forEach(function(mi){
+          var m = DRAW.manualSheetMeasures[mi];
+          if (m && +m.lengthM > 0) m.lengthM = newM;
         });
       }
     } catch(e){}
