@@ -714,13 +714,16 @@ select{
    and its quantity, and every small × sits on one shared vertical axis. */
 .gu-row{display:flex;align-items:center;padding:3px 4px;border-bottom:1px dashed #e5e7eb;font-size:12.5px;color:#0a1628}
 .gu-row:last-child{border-bottom:none}
-.gu-row .gu-name{flex:0 0 96px;font-weight:600}
-.gu-row .gu-qty{flex:0 0 40px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
-.gu-row .gu-qty input{width:100%;text-align:right;border:1px solid transparent;background:transparent;font:inherit;font-weight:700;padding:1px 2px;margin:0;border-radius:4px}
+.gu-row .gu-name{flex:0 0 150px;min-width:0;font-weight:600}
+.gu-row .gu-name select,.gu-row .gu-name>input{width:100%;max-width:100%;box-sizing:border-box}
+.gu-row .gu-qty{flex:0 0 50px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.gu-row .gu-qty input{width:100%;text-align:right;border:1px solid transparent;background:transparent;font:inherit;font-weight:700;padding:1px 2px;margin:0;border-radius:4px;box-sizing:border-box}
 .gu-row .gu-qty input:hover,.gu-row .gu-qty input:focus{border-color:#cbd5e1;background:#fff;outline:none}
-.gu-row .gu-x{flex:0 0 18px;text-align:center;color:#6f6a60;font-size:11px}
-.gu-row .gu-spec{flex:0 0 auto}
-.gu-row .gu-sub{flex:1 1 auto;text-align:right;font-size:10.5px;color:var(--text2)}
+.gu-row .gu-x{flex:0 0 16px;text-align:center;color:#6f6a60;font-size:11px}
+.gu-row .gu-spec{flex:0 0 auto;margin-left:6px;font-weight:700;white-space:nowrap}
+.gu-row .gu-spec select,.gu-row .gu-spec input{font-weight:400}
+.gu-row .gu-sub{flex:1 1 auto;text-align:right;font-size:10.5px;color:var(--text2);margin-left:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gu-row .gu-del{flex:0 0 auto;margin-left:4px}
 
 /* ── Materials Job-Pack shared visual language ─────────────────
    Every section on the Cut Lists / Flashings / Consumables pages
@@ -21867,11 +21870,12 @@ function _jpRenderConsumablesSection(d){
   function qtyIn(key, autoVal, width){
     var ov = _matConsOverrideGet(key);
     var v = ov != null ? ov : autoVal;
+    // Width comes from the .gu-qty column, so the quantity lines up with
+    // every other consumable / gutter row — no inline width here.
     return '<input type="number" min="0" step="1" value="'+v+'" '+
       'onfocus="this.select()" '+
       'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
-      'onchange="_matConsOverrideSet(\''+key+'\',this.value);if(typeof renderJobPack===\'function\') renderJobPack();" '+
-      'style="width:'+(width||60)+'px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:2px 6px;font-size:12px;margin:0">';
+      'onchange="_matConsOverrideSet(\''+key+'\',this.value);if(typeof renderJobPack===\'function\') renderJobPack();">';
   }
   function resetLink(key){
     if (_matConsOverrideGet(key) == null) return '';
@@ -21882,38 +21886,43 @@ function _jpRenderConsumablesSection(d){
   var screwsAuto = d.roofArea > 0 ? Math.ceil((d.roofArea * 8) / 100) * 100 : 0;
   var rivetsAuto = d.flashingsLm > 0 ? Math.max(100, Math.ceil(d.flashingsLm / 60) * 100) : 0;
 
-  // Per-banner row helper — the same shape used in the live Materials
-  // tab so the Job Pack and the tab match visually.
+  // Per-banner row helper — unified aligned columns (name · qty · × ·
+  // spec/unit · hint) shared with the gutter Droppers / Brackets rows so
+  // every consumable row lines up in the same columns on screen and PDF.
   function consRow(label, qtyHtml, unit, subHtml, resetHtml){
-    return '<div class="cons-row">'+
-      '<div class="cons-row-label">'+label+'</div>'+
-      '<div class="cons-row-qty">'+qtyHtml+' '+unit+(resetHtml||'')+'</div>'+
-      '<div class="cons-row-sub">'+subHtml+'</div>'+
+    return '<div class="gu-row">'+
+      '<span class="gu-name">'+label+'</span>'+
+      '<span class="gu-qty">'+qtyHtml+'</span>'+
+      '<span class="gu-x"></span>'+
+      '<span class="gu-spec">'+unit+(resetHtml||'')+'</span>'+
+      '<span class="gu-sub pdf-hide">'+subHtml+'</span>'+
     '</div>';
   }
-  // Typed multi-line row: product dropdown + qty + note, with delete on
+  // Typed multi-line row: product dropdown + qty + unit, with delete on
   // every line after the first and an auto-reset link on edited lines.
   function typedRow(storeKey, getFnName, i, line, types, qtyAuto, unit, subHtml){
     var typeSel = '<select onchange="_matTypedLineUpdate(\''+storeKey+'\','+getFnName+','+i+',\'type\',this.value)" '+
-      'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0;max-width:100%">'+
+      'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0">'+
       types.map(function(t){ return '<option value="'+esc(t)+'"'+(t===line.type?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+
     '</select>';
     var v = line.qty != null ? line.qty : qtyAuto;
     var qty = '<input type="number" min="0" step="1" value="'+v+'" onfocus="this.select()" '+
       'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
-      'onchange="_matTypedLineUpdate(\''+storeKey+'\','+getFnName+','+i+',\'qty\',this.value)" '+
-      'style="width:64px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:2px 6px;font-size:12px;margin:0">';
+      'onchange="_matTypedLineUpdate(\''+storeKey+'\','+getFnName+','+i+',\'qty\',this.value)">';
     var resetHtml = line.qty != null
       ? ' <a class="pdf-hide" onclick="_matTypedLineUpdate(\''+storeKey+'\','+getFnName+','+i+',\'qty\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>'
       : '';
     var del = i > 0
-      ? '<button class="mat-list-del" onclick="_matTypedLineRemove(\''+storeKey+'\','+getFnName+','+i+')" title="Delete line" '+
+      ? '<button class="mat-list-del gu-del" onclick="_matTypedLineRemove(\''+storeKey+'\','+getFnName+','+i+')" title="Delete line" '+
           'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700;padding:0 4px;opacity:1">×</button>'
       : '';
-    return '<div class="cons-row">'+
-      '<div class="cons-row-label">'+typeSel+'</div>'+
-      '<div class="cons-row-qty">'+qty+' '+unit+resetHtml+del+'</div>'+
-      '<div class="cons-row-sub">'+(subHtml||'')+'</div>'+
+    return '<div class="gu-row">'+
+      '<span class="gu-name">'+typeSel+'</span>'+
+      '<span class="gu-qty">'+qty+'</span>'+
+      '<span class="gu-x"></span>'+
+      '<span class="gu-spec">'+unit+resetHtml+'</span>'+
+      '<span class="gu-sub pdf-hide">'+(subHtml||'')+'</span>'+
+      del +
     '</div>';
   }
 
@@ -21967,19 +21976,19 @@ function _jpRenderConsumablesSection(d){
     var dkRowsHtml = '';
     dkList.forEach(function(r, i){
       if (!r || r.suppressed) return;
-      dkRowsHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 4px;border-bottom:1px dashed #e5e7eb;font-size:12px">'+
-        '<strong style="min-width:90px">Dektite</strong>'+
-        (r.auto ? '<span class="no-print pdf-hide" title="Auto from the drawn penetrations — edit qty/size to take over" style="font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#0ea5e9;border:1px solid #bae6fd;border-radius:4px;padding:1px 5px">auto</span>' : '')+
-        '<input type="number" min="0" step="1" value="'+(r.qty||0)+'" '+
-          'onchange="_matDektitesUpdate('+i+',\'qty\',this.value);if(typeof renderJobPack===\'function\') renderJobPack()" '+
-          'style="width:60px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px">'+
-        '<span style="color:var(--text2)">×</span>'+
-        '<input type="number" min="0" step="5" placeholder="size" value="'+(r.sizeMm||'')+'" '+
+      dkRowsHtml += '<div class="gu-row">'+
+        '<span class="gu-name">Dektite'+
+          (r.auto ? ' <span class="no-print pdf-hide" title="Auto from the drawn penetrations — edit qty/size to take over" style="font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#0ea5e9;border:1px solid #bae6fd;border-radius:4px;padding:1px 5px">auto</span>' : '')+
+        '</span>'+
+        '<span class="gu-qty"><input type="number" min="0" step="1" value="'+(r.qty||0)+'" '+
+          'onchange="_matDektitesUpdate('+i+',\'qty\',this.value);if(typeof renderJobPack===\'function\') renderJobPack()"></span>'+
+        '<span class="gu-x">×</span>'+
+        '<span class="gu-spec"><input type="number" min="0" step="5" placeholder="size" value="'+(r.sizeMm||'')+'" '+
           'onchange="_matDektitesUpdate('+i+',\'sizeMm\',this.value);if(typeof renderJobPack===\'function\') renderJobPack()" '+
-          'style="width:62px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:3px 6px;font-size:12px">'+
-        '<span style="color:var(--text2)">mm</span>'+
-        '<button class="mat-list-del" onclick="_matDektitesRemove('+i+');if(typeof renderJobPack===\'function\') renderJobPack()" title="Delete row" '+
-          'style="margin-left:auto;background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700;padding:0 4px">×</button>'+
+          'style="width:52px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;text-align:right;padding:2px 4px;font-size:12px;margin:0"> mm</span>'+
+        '<span class="gu-sub pdf-hide"></span>'+
+        '<button class="mat-list-del gu-del" onclick="_matDektitesRemove('+i+');if(typeof renderJobPack===\'function\') renderJobPack()" title="Delete row" '+
+          'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700;padding:0 4px">×</button>'+
       '</div>';
     });
     dkBanner = '<div class="mat-section">'+
