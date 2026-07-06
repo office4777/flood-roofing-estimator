@@ -803,8 +803,13 @@ select{
   margin:0;
   text-align:right; font-variant-numeric:tabular-nums;
 }
-.mat-list-row .mat-list-qty input{ width:42px; font-weight:700; }
-.mat-list-row .mat-list-len input{ width:56px; font-weight:600; }
+/* Shared fixed columns so every cut-list section — roof sheets, ridging
+   and gutter — lines its "N @ L m" rows up in the same qty / @ / length
+   columns, whether a cell is an editable <input> or static drawn text. */
+.mat-list-row .mat-list-qty{ flex-shrink:0; min-width:30px; text-align:right; font-weight:700; font-variant-numeric:tabular-nums; }
+.mat-list-row .mat-list-len{ flex-shrink:0; min-width:56px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums; }
+.mat-list-row .mat-list-qty input{ width:28px; font-weight:700; text-align:right; }
+.mat-list-row .mat-list-len input{ width:44px; font-weight:600; text-align:right; }
 .mat-list-row .mat-list-qty input:hover,
 .mat-list-row .mat-list-len input:hover,
 .mat-list-row .mat-list-qty input:focus,
@@ -1255,13 +1260,12 @@ html.pdf-rendering .jp-page select{
    wrapped underneath it. */
 html.pdf-rendering .mat-list{ gap:0!important; padding:2px 0!important; }
 html.pdf-rendering .mat-list-row{ padding:0 6px!important; line-height:1.3!important; }
-/* Pin the qty / length cells to a fixed right-aligned column on paper so
-   the "N @ L m" lines up across every cut-list section (roof sheets,
-   ridging, gutter) — editable inputs and static drawn rows alike. */
-html.pdf-rendering .jp-page .mat-list-row .mat-list-qty{ display:inline-block!important; min-width:38px!important; text-align:right!important; }
-html.pdf-rendering .jp-page .mat-list-row .mat-list-len{ display:inline-block!important; min-width:46px!important; text-align:left!important; }
-html.pdf-rendering .jp-page .mat-list-row .mat-list-qty input{ width:34px!important; text-align:right!important; }
-html.pdf-rendering .jp-page .mat-list-row .mat-list-len input{ width:40px!important; text-align:left!important; }
+/* On paper the input-flatten rule above resets widths to auto; re-pin the
+   cut-list qty / length inputs to the shared column widths so the "N @ L
+   m" rows stay aligned across every section (the fixed .mat-list-qty /
+   .mat-list-len column widths come from the base CSS and apply here too). */
+html.pdf-rendering .jp-page .mat-list-row .mat-list-qty input{ width:28px!important; text-align:right!important; }
+html.pdf-rendering .jp-page .mat-list-row .mat-list-len input{ width:44px!important; text-align:right!important; }
 html.pdf-rendering .cons-row{ display:flex!important; gap:10px!important; padding:3px 4px!important; align-items:baseline!important; }
 html.pdf-rendering .cons-row-qty{ white-space:nowrap!important; }
 html.pdf-rendering .mat-section{ margin-bottom:10px!important; }
@@ -20120,6 +20124,17 @@ function _jpState(){
     });
     S.jobPack.pagesVersion = 5;
   }
+  // v5 → v6: flashings now print inside the Cut Lists page ("Flashings —
+  // one card per type"), so a standalone Flashings page repeated every
+  // added flashing twice.  Drop the dedicated Flashings page — same
+  // treatment the Consumables page got in v3.  The 'flashings' page type
+  // stays in the dropdown for anyone who wants to re-insert it.
+  if (!S.jobPack.pagesVersion || S.jobPack.pagesVersion < 6) {
+    S.jobPack.pages = (S.jobPack.pages || []).filter(function(p){
+      return p && p.type !== 'flashings';
+    });
+    S.jobPack.pagesVersion = 6;
+  }
   return S.jobPack;
 }
 function _jpDefaultPages(){
@@ -20135,13 +20150,14 @@ function _jpDefaultPages(){
     { type:'header', images:[
       { id:'def_dt_'+Date.now(), mapKey:'detailed', x: 10, y:285, w:670, h:470 }
     ] },
-    { type:'cutlists'    },
-    { type:'flashings'   }
-    // Consumables (underlay / screws / rivets / dektites) now ride
-    // along inside the Cut Lists page (see _jpRenderConsumablesSection)
-    // so the install crew has every count on one printable surface.
-    // The 'consumables' page type is still available via the page-type
-    // dropdown for jobs that prefer a dedicated page.
+    { type:'cutlists'    }
+    // Flashings ride along inside the Cut Lists page ("Flashings — one
+    // card per type", see _jpRenderCutLists) so they aren't printed
+    // twice; and consumables (underlay / screws / rivets / dektites)
+    // ride there too (see _jpRenderConsumablesSection) so the install
+    // crew has every count on one printable surface.  Both the
+    // 'flashings' and 'consumables' page types stay available via the
+    // page-type dropdown for jobs that prefer a dedicated page.
   ];
 }
 function _jpPageTypes(){
@@ -21480,9 +21496,9 @@ function _jpRenderCutLists(content, page, idx){
       });
       html += '<div class="mat-list">'+gOrder.map(function(k){
         return '<div class="mat-list-row">'+
-          '<span class="mat-list-qty" style="font-weight:700;text-align:right;min-width:42px">'+gBuckets[k]+'</span>'+
+          '<span class="mat-list-qty">'+gBuckets[k]+'</span>'+
           '<span class="mat-list-at">@</span>'+
-          '<span class="mat-list-len" style="font-weight:600">'+k+'<span class="mat-list-unit">m</span></span>'+
+          '<span class="mat-list-len">'+k+'<span class="mat-list-unit">m</span></span>'+
         '</div>';
       }).join('')+'</div>';
     }
