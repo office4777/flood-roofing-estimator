@@ -782,8 +782,12 @@ select{
 }
 .mat-fl-card .mat-fl-head{ display:flex; align-items:center; gap:6px; margin-bottom:6px; }
 .mat-fl-card .mat-fl-head strong{ font-size:12.5px; font-weight:700; color:#0a1628; line-height:1.2; }
-.mat-fl-card .mat-fl-rows{ margin-top:6px; border-top:1px solid #e5e7eb; padding-top:4px; font-size:12px; line-height:1.4; }
+/* line-height 1.55 (was 1.4): the per-face length inputs ("4.7", "6.2")
+   are Inter <input>s that clip overflow — a 1.4 line shaved the bottom of
+   the digits.  The looser line keeps each measure fully legible. */
+.mat-fl-card .mat-fl-rows{ margin-top:6px; border-top:1px solid #e5e7eb; padding-top:4px; font-size:12px; line-height:1.55; }
 .mat-fl-card .mat-fl-row{ display:grid; gap:8px; align-items:center; padding:2px 4px; }
+.mat-fl-card .mat-fl-row input{ line-height:1.55; }
 .mat-fl-card .mat-fl-row.is-extra{ background:#fffbeb; border-radius:3px; }
 .mat-fl-card .mat-fl-foot{
   display:flex; justify-content:space-between; align-items:center;
@@ -802,7 +806,11 @@ select{
 .mat-list{ display:flex; flex-direction:column; gap:0; padding:2px 0; }
 .mat-list-row{
   display:flex; align-items:center; gap:6px;
-  padding:1px 6px; font-size:13px; color:#0a1628; line-height:1.35;
+  /* line-height 1.55 (was 1.35): Inter's glyph box is taller than a 1.35
+     line, and an <input> clips overflow — at the old value the bottom of
+     the bold length/qty digits ("11.70", "4.50") was shaved off inside
+     the cells.  The looser line gives every digit full vertical room. */
+  padding:1px 6px; font-size:13px; color:#0a1628; line-height:1.55;
   border-radius:4px;
 }
 .mat-list-row.is-extra{ background:#fffbeb; }
@@ -819,6 +827,9 @@ select{
   /* margin:0 matters: the global input rule adds margin-bottom:12px,
      which was silently doubling every cut-list row's height. */
   margin:0;
+  /* Force the taller line-height even though font:inherit pulls it in —
+     belt-and-suspenders so the digits are never clipped at the bottom. */
+  line-height:1.55;
   text-align:right; font-variant-numeric:tabular-nums;
 }
 /* Shared fixed columns so every cut-list section — roof sheets, ridging
@@ -1287,7 +1298,9 @@ html.pdf-rendering .jp-page select{
    screen grid left the quantity floating mid-page with the unit
    wrapped underneath it. */
 html.pdf-rendering .mat-list{ gap:0!important; padding:2px 0!important; }
-html.pdf-rendering .mat-list-row{ padding:0 6px!important; line-height:1.3!important; }
+/* line-height 1.5 (was 1.3): the inputs inherit this leading (rule above),
+   and 1.3 clipped the bottom of the Inter digits on paper too. */
+html.pdf-rendering .mat-list-row{ padding:0 6px!important; line-height:1.5!important; }
 /* On paper the input-flatten rule above resets widths to auto; re-pin the
    cut-list qty / length inputs to the shared column widths so the "N @ L
    m" rows stay aligned across every section (the fixed .mat-list-qty /
@@ -21255,19 +21268,30 @@ function _jpRenderHeader(content, page, idx){
   var _gutterChoice = (document.getElementById('matGutter')||{}).value || 'none';
   var gutterOn = _gInclRaw != null ? _gInclRaw === '1' : (_gutterChoice !== 'none' || d.gutterLm > 0);
   function inlineField(mirrorId, val, ph){
+    // line-height:1.6 is critical: font:inherit drags in the wrapper's
+    // tight line-height (the client-name wrapper is 1.1), which html2canvas
+    // then uses to position the input text — clipping the TOP of the client
+    // name and address in the exported PDF ("key info cut off at the top").
+    // A comfortable line-height gives the glyphs full room in the capture.
     return '<input type="text" value="'+esc(val||'')+'" placeholder="'+esc(ph||'—')+'" '+
       'oninput="(document.getElementById(\''+mirrorId+'\')||{}).value=this.value;'+
         'try{(document.getElementById(\''+mirrorId+'\')||{}).dispatchEvent(new Event(\'input\',{bubbles:true}));}catch(e){};'+
         'try{autosaveJob&&autosaveJob();}catch(e){}" '+
-      'style="font:inherit;font-size:11px;font-weight:600;color:#0a1628;border:none;border-bottom:1px dashed #cbd5e1;background:transparent;padding:1px 2px;outline:none;width:100%">';
+      'style="font:inherit;font-size:11px;line-height:1.6;font-weight:600;color:#0a1628;border:none;border-bottom:1px dashed #cbd5e1;background:transparent;padding:1px 2px;outline:none;width:100%">';
   }
   content.innerHTML =
     // padding-top gives the job info a guaranteed px-based top margin on
     // top of the page's 14mm padding, so nothing at the top is shaved off
     // when the page is rasterised into the PDF.
-    '<div style="display:flex;align-items:flex-start;gap:16px;padding-top:6px;padding-bottom:6px;border-bottom:2px solid #0a1628">' +
+    // line-height:1.5 on the header row (and 1.5 on the client-name wrapper
+    // below, was 1.1) is what actually stops the PDF shaving the top of the
+    // job info: during capture the pdf-rendering CSS forces the flattened
+    // <input>s to line-height:inherit, so they take the client name /
+    // address text right up to their ancestors' leading — a tight 1.1
+    // clipped the top of "Jim Harrison" and the bottom of the address.
+    '<div style="display:flex;align-items:flex-start;gap:16px;line-height:1.5;padding-top:6px;padding-bottom:6px;border-bottom:2px solid #0a1628">' +
       '<div style="flex:1;min-width:0">'+
-        '<div style="font-family:Inter,sans-serif;font-size:16px;font-weight:700;color:#0a1628;letter-spacing:-.005em;line-height:1.1">'+
+        '<div style="font-family:Inter,sans-serif;font-size:16px;font-weight:700;color:#0a1628;letter-spacing:-.005em;line-height:1.5">'+
           inlineField('jobClient', client, 'Client name') +
         '</div>'+
         '<div style="font-size:10.5px;color:#475569;margin-top:2px">'+
