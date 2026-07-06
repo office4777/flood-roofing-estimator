@@ -21076,6 +21076,10 @@ function _jpRenderHeader(content, page, idx){
   // autosave keep working.
   var d = (typeof _matDrawTotals === 'function') ? _matDrawTotals() : { roofArea:0, flashingsLm:0, gutterLm:0, pitch:0 };
   var pitch = d.pitch ? (d.pitch + '°') : '—';
+  var colour = (document.getElementById('matColour')||{}).value || '';
+  // A red cross means "nothing selected / required" so the crew reads
+  // it as a deliberate zero rather than a value that failed to load.
+  var redCross = '<span style="color:#dc2626;font-weight:800">✗</span>';
   function inlineField(mirrorId, val, ph){
     return '<input type="text" value="'+esc(val||'')+'" placeholder="'+esc(ph||'—')+'" '+
       'oninput="(document.getElementById(\''+mirrorId+'\')||{}).value=this.value;'+
@@ -21093,7 +21097,11 @@ function _jpRenderHeader(content, page, idx){
           inlineField('jobAddr', addr, 'Site address') +
         '</div>'+
       '</div>'+
-      '<div style="text-align:right;font-size:10px;color:#374151;line-height:1.55;min-width:160px">'+
+      // Capped width + margin-left:auto keep this block hard against the
+      // right edge without ever growing past ~46% of the page — a long
+      // delivery address used to push the column wide and clip off the
+      // right edge of the printed page.  Everything wraps inside it now.
+      '<div style="text-align:right;font-size:10px;color:#374151;line-height:1.55;min-width:150px;max-width:46%;margin-left:auto;overflow-wrap:anywhere">'+
         '<div><strong style="color:#0a1628">Job #:</strong> '+inlineField('matJobNumber', jobNum, '—')+'</div>'+
         '<div><strong style="color:#0a1628">Date:</strong> '+esc(date)+'</div>'+
         // Two tickable delivery options — glyph boxes (not real
@@ -21102,7 +21110,9 @@ function _jpRenderHeader(content, page, idx){
         '<div><strong style="color:#0a1628">Delivery:</strong> '+
           '<span onclick="setMatDelivery(\'yard\');renderJobPack()" title="Deliver to yard" style="cursor:pointer;margin-left:6px;white-space:nowrap;'+(delMode!=='site'?'font-weight:700;color:#0a1628':'color:#6f6a60')+'">'+(delMode!=='site'?'☑':'☐')+' Deliver to yard</span>'+
           '<span onclick="setMatDelivery(\'site\');renderJobPack()" title="Deliver to site" style="cursor:pointer;margin-left:10px;white-space:nowrap;'+(delMode==='site'?'font-weight:700;color:#0a1628':'color:#6f6a60')+'">'+(delMode==='site'?'☑':'☐')+' Deliver to site</span>'+
-          (delMode==='site' ? '<span style="margin-left:8px">'+inlineField('matDeliveryAddr', delAddr || addr, '—')+'</span>' : '')+
+          // Site address on its own wrapping line so a long "…(requires
+          // roof lift)" note never runs off the page.
+          (delMode==='site' ? '<div style="margin-top:1px;white-space:normal;overflow-wrap:anywhere">'+inlineField('matDeliveryAddr', delAddr || addr, '—')+'</div>' : '')+
         '</div>'+
         '<div style="margin-top:3px;color:#6f6a60">'+esc(brand)+'</div>'+
       '</div>'+
@@ -21113,22 +21123,30 @@ function _jpRenderHeader(content, page, idx){
     // quirks with CSS-table on some print paths).  print-color-
     // adjust forces the background through on browsers that strip
     // light fills.
-    '<div style="margin-top:8px;font-size:10px"><table style="width:100%;border-spacing:6px 0;border-collapse:separate;-webkit-print-color-adjust:exact;print-color-adjust:exact"><tbody><tr>'+
-      '<td style="width:25%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+    // table-layout:fixed spreads the tiles into exactly equal columns
+    // that always sum to 100% — before this, five auto-width cells plus
+    // border-spacing overran the table and the last (Gutter) tile clipped
+    // off the right edge in the PDF.
+    '<div style="margin-top:8px;font-size:10px"><table style="width:100%;table-layout:fixed;border-spacing:5px 0;border-collapse:separate;-webkit-print-color-adjust:exact;print-color-adjust:exact"><tbody><tr>'+
+      '<td style="border:1.4px solid #9ca3af;border-radius:5px;padding:6px 8px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
         '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Roof area</div>'+
         '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.roofArea > 0 ? d.roofArea.toFixed(1) + ' m²' : '—')+'</div>'+
       '</td>'+
-      '<td style="width:25%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+      '<td style="border:1.4px solid #9ca3af;border-radius:5px;padding:6px 8px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
         '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Roof pitch</div>'+
         '<div style="font-size:13px;font-weight:700;color:#0a1628">'+pitch+'</div>'+
       '</td>'+
-      '<td style="width:25%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+      '<td style="border:1.4px solid #9ca3af;border-radius:5px;padding:6px 8px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+        '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Colour</div>'+
+        '<div style="font-size:13px;font-weight:700;color:#0a1628;overflow-wrap:anywhere">'+(colour ? esc(colour) : '—')+'</div>'+
+      '</td>'+
+      '<td style="border:1.4px solid #9ca3af;border-radius:5px;padding:6px 8px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
         '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Flashings</div>'+
         '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.flashingsLm > 0 ? d.flashingsLm.toFixed(1) + ' lm' : '—')+'</div>'+
       '</td>'+
-      '<td style="width:25%;border:1.4px solid #9ca3af;border-radius:5px;padding:6px 10px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+      '<td style="border:1.4px solid #9ca3af;border-radius:5px;padding:6px 8px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
         '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Gutter</div>'+
-        '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.gutterLm > 0 ? d.gutterLm.toFixed(1) + ' lm' : '—')+'</div>'+
+        '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.gutterLm > 0 ? d.gutterLm.toFixed(1) + ' lm' : redCross)+'</div>'+
       '</td>'+
     '</tr></tbody></table></div>';
 }
@@ -23633,7 +23651,7 @@ function _jpFlashZoomGet(key){ var v = parseFloat(_jpFlashZoomMap()[key]); retur
 function _jpFlashZoomSet(key, v){ var m = _jpFlashZoomMap(); m[key] = v; try { localStorage.setItem('fr_jp_flzoom', JSON.stringify(m)); } catch(e){} }
 function _jpFlashImgHtml(src, key, h){
   var z = _jpFlashZoomGet(key);
-  return '<div class="jp-fl-imgbox" style="height:'+h+'px;overflow:hidden;background:#fff;border-radius:4px;display:flex;align-items:center;justify-content:center">'+
+  return '<div class="jp-fl-imgbox" style="height:'+h+'px;overflow:hidden;background:#fff;border-radius:4px;display:flex;align-items:center;justify-content:center;padding:10px">'+
       '<img src="'+esc(src)+'" data-flcrop="1" style="width:100%;height:100%;object-fit:contain;transform:scale('+z+');transform-origin:center center">'+
     '</div>'+
     '<div class="no-print pdf-hide" style="display:flex;align-items:center;gap:6px;margin-top:3px">'+
@@ -23682,7 +23700,10 @@ function _jpCropFlashImgs(root){
           }
         }
         if (maxX <= minX || maxY <= minY) return;
-        var pad = 12;
+        // Generous margin so the outermost dimension labels ("15 mm",
+        // "Crush", "Painted") never touch the frame and clip when the
+        // card is zoomed in.
+        var pad = 22;
         minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
         maxX = Math.min(w - 1, maxX + pad); maxY = Math.min(h - 1, maxY + pad);
         var cw = maxX - minX + 1, chh = maxY - minY + 1;
@@ -24133,8 +24154,15 @@ async function _buildJobPackPdf() {
       while (sliceTop < canvas.height - 2) {
         var cutY = Math.min(canvas.height, sliceTop + hardStep);
         if (cutY < canvas.height - 2) {
-          // Look upward for a clean (white) row to cut on.
-          var searchUp = Math.floor(28 * pxPerMm);
+          // Look upward for a clean (white) row to cut on.  Search all
+          // the way down to the 55%-of-page floor (below) — a flashing
+          // card can be ~70-90mm tall, so the old 28mm window couldn't
+          // reach the white gutter ABOVE a card straddling the A4
+          // boundary and sliced straight through it.  A full-width white
+          // row only occurs BETWEEN card rows (the other grid column is
+          // inked at any y inside a card), so backtracking to it pushes
+          // the whole straddling card onto the next page.
+          var searchUp = Math.floor(hardStep * 0.45);
           var bestY = cutY, bestInk = Infinity;
           for (var sy = cutY; sy > cutY - searchUp && sy > sliceTop + hardStep * 0.55; sy -= 3){
             var ink = _rowInk(sy);
