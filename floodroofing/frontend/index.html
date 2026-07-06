@@ -21082,6 +21082,13 @@ function _jpRenderHeader(content, page, idx){
   // A red cross means "nothing selected / required" so the crew reads
   // it as a deliberate zero rather than a value that failed to load.
   var redCross = '<span style="color:#dc2626;font-weight:800">✗</span>';
+  // Gutter presence must track whether a gutter is ON THE JOB, not
+  // whether metres have been measured yet — a gutter can be selected /
+  // "Include in PDF"-ticked before any gutter lines are drawn (0 lm).
+  // Mirror the cut-list page's gutterIncluded rule so the two agree.
+  var _gInclRaw = (function(){ try { return localStorage.getItem('fr_jp_gutter_include'); } catch(e){ return null; } })();
+  var _gutterChoice = (document.getElementById('matGutter')||{}).value || 'none';
+  var gutterOn = _gInclRaw != null ? _gInclRaw === '1' : (_gutterChoice !== 'none' || d.gutterLm > 0);
   function inlineField(mirrorId, val, ph){
     return '<input type="text" value="'+esc(val||'')+'" placeholder="'+esc(ph||'—')+'" '+
       'oninput="(document.getElementById(\''+mirrorId+'\')||{}).value=this.value;'+
@@ -21148,7 +21155,7 @@ function _jpRenderHeader(content, page, idx){
       '</td>'+
       '<td style="border:1.4px solid #9ca3af;border-radius:5px;padding:6px 8px;background:#fafafa;vertical-align:top;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
         '<div style="color:#475569;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:9px">Gutter</div>'+
-        '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(d.gutterLm > 0 ? d.gutterLm.toFixed(1) + ' lm' : redCross)+'</div>'+
+        '<div style="font-size:13px;font-weight:700;color:#0a1628">'+(gutterOn ? (d.gutterLm > 0 ? d.gutterLm.toFixed(1) + ' lm' : '—') : redCross)+'</div>'+
       '</td>'+
     '</tr></tbody></table></div>';
 }
