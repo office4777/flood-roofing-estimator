@@ -630,19 +630,20 @@ select{
 .mat-section{margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
 .mat-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
 .mat-section-hd{
-  display:flex;align-items:center;gap:10px;
+  display:flex;align-items:baseline;gap:10px;
   margin:0 0 8px;
-  padding:6px 12px;
-  background:linear-gradient(180deg,#f1f5f9 0%,#e2e8f0 100%);
-  border-left:4px solid #0a1628;
-  border-radius:6px;
+  padding:0 0 5px 0;
+  background:none;
+  border-bottom:1.5px solid #0a1628;
+  border-radius:0;
   flex-wrap:wrap;width:100%;box-sizing:border-box;
-  -webkit-print-color-adjust:exact;print-color-adjust:exact;
 }
-.mat-section-hd .swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.15)}
-.mat-section-hd h3{font-size:13.5px;font-weight:800;color:#0a1628;margin:0;letter-spacing:.4px;text-transform:uppercase}
-.mat-section-hd .meta{font-size:12.5px;color:#334155;font-weight:600;flex:1;min-width:120px}
-.mat-section-hd .hd-total{margin-left:auto;flex-shrink:0;font-size:11.5px;font-weight:800;color:#0a1628;white-space:nowrap;font-variant-numeric:tabular-nums}
+/* Rainbow per-section swatches read as toy-like on a supplier order —
+   drop them for a clean, letterhead-style ruled heading. */
+.mat-section-hd .swatch{display:none}
+.mat-section-hd h3{font-size:12px;font-weight:700;color:#0a1628;margin:0;letter-spacing:1.1px;text-transform:uppercase}
+.mat-section-hd .meta{font-size:12px;color:#64748b;font-weight:500;flex:1;min-width:120px}
+.mat-section-hd .hd-total{margin-left:auto;flex-shrink:0;font-size:11.5px;font-weight:700;color:#0a1628;white-space:nowrap;font-variant-numeric:tabular-nums}
 .mat-section-hd .mat-picker-slot{display:inline-flex;align-items:center;flex-shrink:0;margin-left:auto}
 .mat-section-sub{font-size:11.5px;color:var(--text2);margin:-2px 0 8px;line-height:1.5}
 /* Compact body — drawing thumbnail + cut-list table side-by-side */
@@ -1154,9 +1155,9 @@ select{
 .jp-add-page-btn:hover{ background:#1e293b; }
 /* Per-block content styling for each page type */
 .jp-block-title{
-  font-size:11px; font-weight:700; letter-spacing:.06em;
-  text-transform:uppercase; color:#0099cc;
-  border-bottom:1px solid #d1d5db; padding-bottom:4px; margin-bottom:10px;
+  font-size:11px; font-weight:700; letter-spacing:.14em;
+  text-transform:uppercase; color:#0a1628;
+  border-bottom:2px solid #0a1628; padding-bottom:5px; margin-bottom:12px;
 }
 .jp-page .jp-h{
   font-size:13px; font-weight:700; color:#0a1628;
@@ -21895,7 +21896,7 @@ function _jpRenderConsumablesSection(d){
     _matSectionHead('#0a1628', 'Screws & Rivets', 'Fasteners for sheets &amp; flashings')+
     '<div class="cons-body">'+
       screwRows+
-      consRow('🪛 Rivets',
+      consRow('Rivets',
         qtyIn('fr_rivets_qty_override', rivetsAuto, 80), 'rivets',
         d.flashingsLm.toFixed(1)+' lm of flashings · auto '+rivetsAuto+' (100 / 60 lm minimum)',
         resetLink('fr_rivets_qty_override'))+
@@ -21914,7 +21915,7 @@ function _jpRenderConsumablesSection(d){
     dkList.forEach(function(r, i){
       if (!r || r.suppressed) return;
       dkRowsHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 4px;border-bottom:1px dashed #e5e7eb;font-size:12px">'+
-        '🟫 <strong style="min-width:90px">Dektite</strong>'+
+        '<strong style="min-width:90px">Dektite</strong>'+
         (r.auto ? '<span class="no-print pdf-hide" title="Auto from the drawn penetrations — edit qty/size to take over" style="font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#0ea5e9;border:1px solid #bae6fd;border-radius:4px;padding:1px 5px">auto</span>' : '')+
         '<input type="number" min="0" step="1" value="'+(r.qty||0)+'" '+
           'onchange="_matDektitesUpdate('+i+',\'qty\',this.value);if(typeof renderJobPack===\'function\') renderJobPack()" '+
@@ -23880,7 +23881,7 @@ function _matRenderConsumables(d) {
     [50,75,100].map(function(sz){return '<option value="'+sz+'"'+(sz===rollSize?' selected':'')+'>'+sz+' m²</option>';}).join('')+
     '</select> · auto: '+rollsAuto+' rolls';
   html += consSection('#10b981', 'Underlay', 'Roof paper / breather wrap',
-    consRow('📄 Underlay / paper',
+    consRow('Underlay / paper',
       qtyInput('fr_underlay_rolls_override', rollsAuto) + ' rolls' + resetLink('fr_underlay_rolls_override'),
       underlaySub)
   );
@@ -23890,10 +23891,10 @@ function _matRenderConsumables(d) {
   var screwsAuto = d.roofArea > 0 ? Math.ceil(screwsNeeded / 100) * 100 : 0;
   var rivetsAuto = d.flashingsLm > 0 ? Math.max(100, Math.ceil(d.flashingsLm / 60) * 100) : 0;
   var srBody =
-    consRow('🔩 Roofing screws',
+    consRow('Roofing screws',
       qtyInput('fr_screws_qty_override', screwsAuto) + ' screws' + resetLink('fr_screws_qty_override'),
       '65mm Unitites · '+d.roofArea.toFixed(1)+' m² × 8 = '+Math.ceil(screwsNeeded)+', rounded to '+screwsAuto) +
-    consRow('🪛 Rivets',
+    consRow('Rivets',
       qtyInput('fr_rivets_qty_override', rivetsAuto) + ' rivets' + resetLink('fr_rivets_qty_override'),
       d.flashingsLm.toFixed(1)+' lm of flashings · auto: '+rivetsAuto+' (100 / 60lm minimum)');
   html += consSection('#0a1628', 'Screws & Rivets', 'Fasteners for sheets &amp; flashings', srBody);
@@ -23914,7 +23915,7 @@ function _matRenderConsumables(d) {
       '<button type="button" onclick="_matDektitesRemove('+i+')" style="margin-left:auto;background:none;border:none;color:#b91c1c;cursor:pointer;padding:2px 4px;font-size:14px;line-height:1" title="Remove">×</button>'+
     '</div>';
   }).join('');
-  var dkBody = consRow('🟫 Dektites',
+  var dkBody = consRow('Dektites',
     dkTotal + ' total',
     'Pipe penetrations'+
       (dkList.length ? dkRowsHtml : '<div style="font-size:11px;color:var(--text2);margin-top:4px;font-style:italic">No dektites added yet — click "+ Add size" to specify quantity at each size.</div>')+
