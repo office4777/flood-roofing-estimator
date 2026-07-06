@@ -2091,9 +2091,11 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 
       <!-- Toolbar -->
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin:0 .75rem .4rem;align-items:center">
-        <button onclick="setTool('select')" id="btn-move" onmouseenter="showTip('btn-move',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:grab">✋ Move</button>
-        <button onclick="setTool('addmeas')" id="btn-select" onmouseenter="showTip('btn-select',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:pointer">☝️ Select</button>
-        <button onclick="setTool('delete')" id="btn-delete" onmouseenter="showTip('btn-delete',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#b91c1c;border-color:#fca5a5;background:#fff5f5">🗑 Delete line</button>
+        <button onclick="setTool('select')" id="btn-move" onmouseenter="showTip('btn-move',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:grab">✋ Move / Edit</button>
+        <button onclick="setTool('addmeas')" id="btn-select" onmouseenter="showTip('btn-select',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:pointer">📐 Measure</button>
+        <!-- 'Delete line' tool removed — right-click a line, or use the
+             line editor's Delete button. The setTool('delete') path is
+             kept in JS but no longer clutters the toolbar. -->
         <button onclick="setTool('outline')" id="btn-outline" onmouseenter="showTip('btn-outline',event)" onmouseleave="hideTip()" class="tool-btn tool-dark">🏠 Building outline</button>
         <!-- Roof lines + details collapsed into one menu to keep the toolbar tidy -->
         <div id="rlDropWrap" style="position:relative;display:inline-block">
