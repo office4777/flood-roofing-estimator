@@ -135,7 +135,10 @@ body{
   max-width:1240px;
   margin:0 auto;
   padding:28px 32px 80px;
-  overflow-x:hidden;
+  /* clip (not hidden): keeps wide content from spilling sideways WITHOUT
+     turning .content into a scroll container — which is what silently
+     broke position:sticky for the Job Pack / Quote action bars. */
+  overflow-x:clip;
   position:relative;
 }
 
@@ -1123,19 +1126,15 @@ select{
    consumables, the roof map, the sheet plan, the job header) lives
    inside a page widget; pages can be added, deleted and reordered. */
 .jp-toolbar{
-  position:sticky; top:0; z-index:30;
+  position:sticky; top:96px; z-index:40;   /* clear the fixed global job bar */
   display:flex; flex-wrap:wrap; gap:10px; align-items:center;
   background:#fff; border:1px solid var(--border); border-radius:10px;
   padding:10px 14px; margin-bottom:14px;
   box-shadow:0 4px 14px rgba(0,0,0,.06);
 }
-/* Bottom mirror — same actions, sticks to the page bottom so the user
-   doesn't have to scroll back up after editing a long Job Pack. */
-.jp-toolbar-bottom{
-  position:sticky; top:auto; bottom:0;
-  margin-top:14px; margin-bottom:0;
-  box-shadow:0 -4px 14px rgba(0,0,0,.06);
-}
+@media(max-width:880px){ .jp-toolbar{ top:108px; } }
+/* Bottom mirror is redundant now the top bar stays pinned on scroll. */
+.jp-toolbar-bottom{ display:none; }
 .jp-toolbar select, .jp-toolbar input[type=text]{
   margin:0; padding:6px 8px; font-size:12px; border:1px solid var(--border);
   border-radius:6px; background:#fff; color:#0a1628;
@@ -2582,6 +2581,32 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   </div>
   <div class="jp-pages" id="jpPages"></div>
   <button class="jp-add-page-btn" onclick="_jpAddPage()">+ Add Page</button>
+
+  <!-- Order-roof supplier email modal — opened by the Order Roof button.
+       Pre-fills a supplier email (Gmail compose or default mail app) and
+       downloads the order PDF to attach. -->
+  <div id="orderEmailOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:2999" onclick="_closeOrderEmail()"></div>
+  <div id="orderEmailModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:440px;max-width:94vw;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:3000;overflow:hidden">
+    <div style="background:#0a1628;color:#fff;padding:14px 20px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:17px">🛒</span><span style="font-weight:700;font-size:15px">Order roof — email supplier</span>
+      <button onclick="_closeOrderEmail()" style="margin-left:auto;background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
+    </div>
+    <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+      <label style="font-size:12px;font-weight:600;color:#334155">Supplier
+        <select id="orderEmailSupplier" onchange="_orderEmailSupplierChange()" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;background:#fff"></select>
+      </label>
+      <div id="orderEmailSupTo" style="font-size:11px;color:#64748b;margin-top:-8px"></div>
+      <label style="font-size:12px;font-weight:600;color:#334155">Delivery date
+        <input type="date" id="orderEmailDate" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">
+      </label>
+      <div style="font-size:12.5px;color:#334155"><strong>Deliver to:</strong> <span id="orderEmailDeliverTo">—</span></div>
+      <div style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:8px;padding:9px 11px;line-height:1.5">The order PDF downloads when you open the email — drag it into the message to attach it. A copy is CC'd to <strong id="orderEmailCc"></strong>.</div>
+      <div style="display:flex;gap:8px;margin-top:2px">
+        <button onclick="_orderEmailOpen('gmail')" style="flex:1;padding:11px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">✉ Open in Gmail</button>
+        <button onclick="_orderEmailOpen('mailto')" style="padding:11px 14px;background:#fff;color:#0a1628;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer;font-size:13px" title="Open your computer's default mail app instead">Default mail</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Bottom toolbar — same actions as the header toolbar, sticky so
        the user can hit Save / Push / Open / Order without scrolling
@@ -10860,16 +10885,17 @@ function renderSupplierList(){
     function esc(v){ return String(v||'').replace(/"/g,'&quot;'); }
     return '<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:#fff" data-row="supplier">'+
       '<div class="f2"><div><label>Company</label><input type="text" data-field="name" value="'+esc(s.name)+'" placeholder="e.g. Roofing Industries"></div>'+
-      '<div><label>Contact email</label><input type="email" data-field="email" value="'+esc(s.email)+'" placeholder="orders@supplier.co.nz"></div></div>'+
-      '<div class="f2"><div><label>Phone</label><input type="tel" data-field="phone" value="'+esc(s.phone)+'" placeholder="09 000 0000"></div>'+
-      '<div><label>Yard / pickup address</label><input type="text" data-field="yard_addr" value="'+esc(s.yard_addr)+'" placeholder="Yard / depot address"></div></div>'+
-      '<div style="display:flex;justify-content:flex-end"><button type="button" onclick="this.closest(\'[data-row=supplier]\').remove()" class="tool-btn" style="font-size:11px;color:#b91c1c">Remove</button></div>'+
+      '<div><label>Contact first name</label><input type="text" data-field="contact" value="'+esc(s.contact)+'" placeholder="e.g. Steve"></div></div>'+
+      '<div class="f2"><div><label>Contact email</label><input type="email" data-field="email" value="'+esc(s.email)+'" placeholder="orders@supplier.co.nz"></div>'+
+      '<div><label>Phone</label><input type="tel" data-field="phone" value="'+esc(s.phone)+'" placeholder="09 000 0000"></div></div>'+
+      '<div><label>Yard / pickup address</label><input type="text" data-field="yard_addr" value="'+esc(s.yard_addr)+'" placeholder="Yard / depot address"></div>'+
+      '<div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" onclick="this.closest(\'[data-row=supplier]\').remove()" class="tool-btn" style="font-size:11px;color:#b91c1c">Remove</button></div>'+
       '</div>';
   }).join('');
 }
 function addSupplier(){
-  var list = collectListEditor('supplierList', ['name','email','phone','yard_addr']);
-  list.push({ name:'', email:'', phone:'', yard_addr:'' });
+  var list = collectListEditor('supplierList', ['name','email','phone','yard_addr','contact']);
+  list.push({ name:'', email:'', phone:'', yard_addr:'', contact:'' });
   _ensureCatalog().suppliers = list;
   renderSupplierList();
 }
@@ -10925,7 +10951,7 @@ function addCatalogItem(key){
   collectSettingsFromUI = function(){
     _origCollect();
     var cat = _ensureCatalog();
-    cat.suppliers = collectListEditor('supplierList', ['name','email','phone','yard_addr']);
+    cat.suppliers = collectListEditor('supplierList', ['name','email','phone','yard_addr','contact']);
     cat.products  = collectListEditor('catalogProducts', ['name']);
     cat.underlays = collectListEditor('catalogUnderlays', ['name']);
     cat.screws    = collectListEditor('catalogScrews', ['name']);
@@ -25311,7 +25337,105 @@ async function inspectFergusJob() {
 // or older browsers we fall back to downloading the PDF + opening a
 // pre-composed mailto so the user attaches the just-saved file
 // manually (a mailto: URL alone can't carry an attachment).
-async function orderRoofViaSupplier() {
+// ── Order roof → pre-filled supplier email ────────────────────────
+// Opens a small modal to pick the saved supplier + a delivery date,
+// then pops a pre-composed email (Gmail compose window, or the default
+// mail app) addressed to the supplier and CC'd to the user's own email,
+// and downloads the order PDF so it can be attached.
+function orderRoofViaSupplier(){ _openOrderEmail(); }
+
+function _orderEmailSuppliers(){
+  var cat = (typeof _ensureCatalog === 'function') ? _ensureCatalog() : { suppliers: [] };
+  return (cat.suppliers || []).filter(function(s){ return s && (s.name || s.email); });
+}
+function _openOrderEmail(){
+  var sups = _orderEmailSuppliers();
+  var sel = document.getElementById('orderEmailSupplier');
+  if (sel){
+    sel.innerHTML = sups.length
+      ? sups.map(function(s, i){ return '<option value="'+i+'">'+esc(s.name || s.email || ('Supplier '+(i+1)))+'</option>'; }).join('')
+      : '<option value="-1">No suppliers yet — add one in Settings → Suppliers &amp; materials</option>';
+  }
+  var delMode = ((window.S && S.order && S.order.deliveryMode) || 'site');
+  var siteAddr = (document.getElementById('matDeliveryAddr')||{}).value
+              || (document.getElementById('jobAddr')||{}).value || '';
+  var dt = document.getElementById('orderEmailDeliverTo');
+  if (dt) dt.textContent = (delMode === 'site') ? ('site — ' + (siteAddr || 'address tbc')) : 'the yard';
+  var cc = (window.S && S.settings && S.settings.branding && S.settings.branding.email) || '';
+  var ccEl = document.getElementById('orderEmailCc');
+  if (ccEl) ccEl.textContent = cc || '(set your email in Settings → Branding)';
+  _orderEmailSupplierChange();
+  var ov = document.getElementById('orderEmailOverlay'); if (ov) ov.style.display = 'block';
+  var md = document.getElementById('orderEmailModal');   if (md) md.style.display = 'block';
+}
+function _closeOrderEmail(){
+  var ov = document.getElementById('orderEmailOverlay'); if (ov) ov.style.display = 'none';
+  var md = document.getElementById('orderEmailModal');   if (md) md.style.display = 'none';
+}
+function _orderEmailSupplierChange(){
+  var sups = _orderEmailSuppliers();
+  var sel = document.getElementById('orderEmailSupplier');
+  var idx = sel ? parseInt(sel.value, 10) : -1;
+  var s = (idx >= 0) ? sups[idx] : null;
+  var el = document.getElementById('orderEmailSupTo');
+  if (el) el.textContent = s ? ((s.contact ? s.contact + ' · ' : '') + (s.email || 'no email on file')) : '';
+}
+function _fmtOrderDate(iso){
+  if (!iso) return '';
+  try { return new Date(iso + 'T00:00:00').toLocaleDateString('en-NZ', { weekday:'short', day:'numeric', month:'short' }); }
+  catch(e){ return iso; }
+}
+async function _orderEmailOpen(mode){
+  var sups = _orderEmailSuppliers();
+  var sel = document.getElementById('orderEmailSupplier');
+  var idx = sel ? parseInt(sel.value, 10) : -1;
+  var s = (idx >= 0) ? sups[idx] : null;
+  if (!s || !s.email){ _matMsg('Pick a supplier that has an email (Settings → Suppliers & materials).', false); return; }
+  var dateEl = document.getElementById('orderEmailDate');
+  var dateStr = _fmtOrderDate(dateEl && dateEl.value);
+  if (!dateStr && !confirm('No delivery date entered — send the order without one?')) return;
+
+  var jobNum = ((document.getElementById('matJobNumber')||{}).value || (window.S && S.linkedJobId) || '').toString().trim();
+  var delMode = ((window.S && S.order && S.order.deliveryMode) || 'site');
+  var siteAddr = (document.getElementById('matDeliveryAddr')||{}).value
+              || (document.getElementById('jobAddr')||{}).value || '';
+  var deliverTo = (delMode === 'site') ? (siteAddr || 'site (address tbc)') : 'the yard';
+  var brand = (window.S && S.settings && S.settings.branding) || {};
+  var cc = brand.email || '';
+  var first = (s.contact || '').trim();
+  var subject = 'Order #' + (jobNum || '');
+  var body = 'Hi ' + (first || 'there') + ',\n\n' +
+    'Please find the attached order for job #' + (jobNum || '(tbc)') + '.\n' +
+    'Please deliver to ' + deliverTo + (dateStr ? ' on ' + dateStr : '') + '.\n\n' +
+    'Thanks,\n' + (brand.company_name || 'Flood Roofing');
+
+  _matMsg('Building order PDF…');
+  var blob;
+  try { blob = await _matBuildPdfBlob(); }
+  catch (e){ _matMsg('PDF build failed: ' + (e.message || e), false); return; }
+  var client = ((document.getElementById('jobClient')||{}).value || 'Order').trim();
+  var filename = ('Order_' + (jobNum || client)).replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
+  _matDownloadBlob(blob, filename);
+
+  var bodyWithNote = body + '\n\n[Attach ' + filename + ' — just downloaded to your device]';
+  if (mode === 'gmail'){
+    var g = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(s.email) +
+      (cc ? '&cc=' + encodeURIComponent(cc) : '') +
+      '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(bodyWithNote);
+    window.open(g, '_blank');
+  } else {
+    var m = 'mailto:' + encodeURIComponent(s.email) + '?' +
+      (cc ? 'cc=' + encodeURIComponent(cc) + '&' : '') +
+      'subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(bodyWithNote);
+    window.location.href = m;
+  }
+  _closeOrderEmail();
+  _matMsg('✓ Order PDF downloaded (' + filename + ') — attach it in the email, then send.', true);
+}
+
+// Legacy Web-Share / mailto order flow — superseded by _openOrderEmail
+// above, kept (uncalled) for reference.
+async function _orderRoofLegacyUnused() {
   var d = _matDrawTotals();
   var profile   = (document.getElementById('matProfile')   || {}).value || 'Corrugate';
   var grade     = (document.getElementById('matGrade')     || {}).value || 'Colorsteel Maxam';
