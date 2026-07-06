@@ -630,13 +630,14 @@ select{
 .mat-section{margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
 .mat-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
 .mat-section-hd{
-  display:flex;align-items:baseline;gap:10px;
+  display:flex;align-items:center;gap:10px;
   margin:0 0 8px;
-  padding:0 0 5px 0;
-  background:none;
-  border-bottom:1.5px solid #0a1628;
-  border-radius:0;
+  padding:6px 12px;
+  background:#e9edf2;              /* flat solid shade — no gradient */
+  border-left:3px solid #0a1628;   /* single charcoal accent bar */
+  border-radius:4px;
   flex-wrap:wrap;width:100%;box-sizing:border-box;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;
 }
 /* Rainbow per-section swatches read as toy-like on a supplier order —
    drop them for a clean, letterhead-style ruled heading. */
