@@ -2438,8 +2438,14 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 
   </div><!-- end roofResults -->
 
-  <!-- Measurement tiles like Roofbuddy -->
-  <div class="card">
+  <!-- Measurement tiles like Roofbuddy.
+       Hidden per request — the Map Roof tab no longer shows the "Roofing
+       measurements" panel.  The inner grids (measTotalsGrid, measGrid,
+       m2Estimate, measUnknownWarn) stay in the DOM because calcFromDrawing()
+       and the redraw paths write to them unconditionally (and the numbers
+       still feed the Job Pack / materials); display:none just takes the
+       whole card off the tab. -->
+  <div class="card" id="roofMeasCard" style="display:none">
       <div class="card-hd"><span class="card-dot"></span>Roofing measurements</div>
       <!-- Warning + totals + sheet length, relocated here from the old
            floating side panel so they don't pop over the canvas. -->
