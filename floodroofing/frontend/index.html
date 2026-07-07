@@ -21377,17 +21377,19 @@ function _jpRenderHeader(content, page, idx){
   var _gInclRaw = (function(){ try { return localStorage.getItem('fr_jp_gutter_include'); } catch(e){ return null; } })();
   var _gutterChoice = (document.getElementById('matGutter')||{}).value || 'none';
   var gutterOn = _gInclRaw != null ? _gInclRaw === '1' : (_gutterChoice !== 'none' || d.gutterLm > 0);
-  function inlineField(mirrorId, val, ph){
+  function inlineField(mirrorId, val, ph, sizePx){
     // line-height:1.6 is critical: font:inherit drags in the wrapper's
     // tight line-height (the client-name wrapper is 1.1), which html2canvas
     // then uses to position the input text — clipping the TOP of the client
     // name and address in the exported PDF ("key info cut off at the top").
     // A comfortable line-height gives the glyphs full room in the capture.
+    // sizePx sets the on-screen size; keep it matching the wrapper's
+    // font-size so the flattened PDF text (font:inherit) is the same size.
     return '<input type="text" value="'+esc(val||'')+'" placeholder="'+esc(ph||'—')+'" '+
       'oninput="(document.getElementById(\''+mirrorId+'\')||{}).value=this.value;'+
         'try{(document.getElementById(\''+mirrorId+'\')||{}).dispatchEvent(new Event(\'input\',{bubbles:true}));}catch(e){};'+
         'try{autosaveJob&&autosaveJob();}catch(e){}" '+
-      'style="font:inherit;font-size:11px;line-height:1.6;font-weight:600;color:#0a1628;border:none;border-bottom:1px dashed #cbd5e1;background:transparent;padding:1px 2px;outline:none;width:100%">';
+      'style="font:inherit;font-size:'+(sizePx||12)+'px;line-height:1.6;font-weight:600;color:#0a1628;border:none;border-bottom:1px dashed #cbd5e1;background:transparent;padding:1px 2px;outline:none;width:100%">';
   }
   content.innerHTML =
     // padding-top gives the job info a guaranteed px-based top margin on
@@ -21401,19 +21403,23 @@ function _jpRenderHeader(content, page, idx){
     // clipped the top of "Jim Harrison" and the bottom of the address.
     '<div style="display:flex;align-items:flex-start;gap:16px;line-height:1.5;padding-top:6px;padding-bottom:6px;border-bottom:2px solid #0a1628">' +
       '<div style="flex:1;min-width:0">'+
-        '<div style="font-family:Inter,sans-serif;font-size:16px;font-weight:700;color:#0a1628;letter-spacing:-.005em;line-height:1.5">'+
-          inlineField('jobClient', client, 'Client name') +
+        '<div style="font-family:Inter,sans-serif;font-size:17px;font-weight:700;color:#0a1628;letter-spacing:-.005em;line-height:1.5">'+
+          inlineField('jobClient', client, 'Client name', 17) +
         '</div>'+
-        '<div style="font-size:10.5px;color:#475569;margin-top:2px">'+
-          inlineField('jobAddr', addr, 'Site address') +
+        // 13px (was 10.5) — the site address is key info the crew reads
+        // off the printed page, so it gets body-copy size.
+        '<div style="font-size:13px;color:#475569;margin-top:2px">'+
+          inlineField('jobAddr', addr, 'Site address', 13) +
         '</div>'+
       '</div>'+
       // Capped width + margin-left:auto keep this block hard against the
       // right edge without ever growing past ~46% of the page — a long
       // delivery address used to push the column wide and clip off the
       // right edge of the printed page.  Everything wraps inside it now.
-      '<div style="text-align:right;font-size:10px;color:#374151;line-height:1.55;min-width:150px;max-width:46%;margin-left:auto;overflow-wrap:anywhere">'+
-        '<div><strong style="color:#0a1628">Job #:</strong> '+inlineField('matJobNumber', jobNum, '—')+'</div>'+
+      // 12px (was 10) — Job # / Date / Delivery are what the yard and the
+      // driver read; small print here caused squinting on paper.
+      '<div style="text-align:right;font-size:12px;color:#374151;line-height:1.55;min-width:150px;max-width:46%;margin-left:auto;overflow-wrap:anywhere">'+
+        '<div><strong style="color:#0a1628">Job #:</strong> '+inlineField('matJobNumber', jobNum, '—', 12)+'</div>'+
         '<div><strong style="color:#0a1628">Date:</strong> '+esc(date)+'</div>'+
         // Two tickable delivery options — glyph boxes (not real
         // checkboxes) so the ticked state prints on the PDF, where
@@ -21423,7 +21429,7 @@ function _jpRenderHeader(content, page, idx){
           '<span onclick="setMatDelivery(\'site\');renderJobPack()" title="Deliver to site" style="cursor:pointer;margin-left:10px;white-space:nowrap;'+(delMode==='site'?'font-weight:700;color:#0a1628':'color:#6f6a60')+'">'+(delMode==='site'?'☑':'☐')+' Deliver to site</span>'+
           // Site address on its own wrapping line so a long "…(requires
           // roof lift)" note never runs off the page.
-          (delMode==='site' ? '<div style="margin-top:1px;white-space:normal;overflow-wrap:anywhere">'+inlineField('matDeliveryAddr', delAddr || addr, '—')+'</div>' : '')+
+          (delMode==='site' ? '<div style="margin-top:1px;white-space:normal;overflow-wrap:anywhere">'+inlineField('matDeliveryAddr', delAddr || addr, '—', 12)+'</div>' : '')+
         '</div>'+
         '<div style="margin-top:3px;color:#6f6a60">'+esc(brand)+'</div>'+
       '</div>'+
