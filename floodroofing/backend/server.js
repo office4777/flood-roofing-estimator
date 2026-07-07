@@ -98,18 +98,47 @@ const BUILD_SHA = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_SHA || 
 // Until SMTP_USER + SMTP_PASS are set, /email/send-order answers 503
 // EMAIL_NOT_CONFIGURED and the frontend falls back to Gmail compose.
 const EMAIL_ENABLED = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
-let _mailTransport = null;
-function mailTransport() {
-  if (_mailTransport) return _mailTransport;
+function _buildSmtpTransport(port, secure) {
   const nodemailer = require('nodemailer');
-  const port = parseInt(process.env.SMTP_PORT || '465', 10);
-  _mailTransport = nodemailer.createTransport({
+  return nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: port,
-    secure: port === 465,
+    secure: secure,
+    requireTLS: !secure,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    // family:4 forces IPv4 — some container platforms (Railway included)
+    // have broken or unroutable IPv6 egress, which makes an SMTP
+    // connection to Gmail hang until it times out ("Connection timeout")
+    // even though the credentials and network are otherwise fine.
+    family: 4,
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 8000,
   });
-  return _mailTransport;
+}
+let _cachedTransport = null;   // { transporter, portUsed }
+// Finds a working SMTP route to the mail provider instead of trusting a
+// single hardcoded port. Gmail accepts mail on both 465 (implicit TLS)
+// and 587 (STARTTLS); a platform that blocks or mishandles one often
+// allows the other, so trying both (with the configured SMTP_PORT tried
+// first) resolves the "correct credentials, still times out" case
+// without the user needing to guess at a port number in Railway.
+async function _resolveMailTransport(forceRefresh) {
+  if (_cachedTransport && !forceRefresh) return _cachedTransport;
+  const configuredPort = parseInt(process.env.SMTP_PORT || '465', 10);
+  const candidates = [{ port: configuredPort, secure: configuredPort === 465 }];
+  if (configuredPort !== 587) candidates.push({ port: 587, secure: false });
+  if (configuredPort !== 465) candidates.push({ port: 465, secure: true });
+  let lastErr = null;
+  for (const c of candidates) {
+    const t = _buildSmtpTransport(c.port, c.secure);
+    try {
+      await t.verify();
+      _cachedTransport = { transporter: t, portUsed: c.port };
+      return _cachedTransport;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('No SMTP transport could connect');
 }
 
 // Feature flags so you can confirm from a browser which build is live.
@@ -1229,10 +1258,15 @@ app.get('/email/debug', requireAuth, rateLimit(20, 60000), async (req, res) => {
     }));
   }
   try {
-    await mailTransport().verify();
-    res.json(Object.assign({}, info, { verify: true }));
+    const resolved = await _resolveMailTransport(true);   // fresh probe, ignore cache
+    res.json(Object.assign({}, info, { verify: true, portUsed: resolved.portUsed }));
   } catch (e) {
-    res.json(Object.assign({}, info, { verify: false, verifyError: e.message }));
+    res.json(Object.assign({}, info, {
+      verify: false,
+      verifyError: e.message + ' (tried port ' + (process.env.SMTP_PORT || '465') +
+        ' and its ' + (parseInt(process.env.SMTP_PORT || '465', 10) === 465 ? '587' : '465') +
+        ' fallback — both failed, which points at the hosting platform blocking outbound SMTP entirely rather than a credentials problem)',
+    }));
   }
 });
 
@@ -1263,7 +1297,8 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
       });
     }
     const from = process.env.SMTP_FROM || process.env.SMTP_USER;
-    const info = await mailTransport().sendMail({
+    const resolved = await _resolveMailTransport();
+    const info = await resolved.transporter.sendMail({
       from, to, cc: cc || undefined,
       subject: String(subject).slice(0, 300),
       text: String(text || ''),
