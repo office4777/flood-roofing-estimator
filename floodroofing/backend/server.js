@@ -115,17 +115,38 @@ function mailTransport() {
 // Feature flags so you can confirm from a browser which build is live.
 // `customerQuote` ships with the public /q/:token + /quote-activity routes.
 const FEATURES = { customerQuote: true, orderEmail: EMAIL_ENABLED };
+// Railway auto-injects these (non-secret) identifiers into every
+// service's environment. Surfacing them lets anyone confirm — from a
+// plain browser hit on the public URL, no auth, no dashboard digging —
+// that the service they're editing Variables on in the Railway UI is
+// the SAME one actually answering that URL. Used to debug a case where
+// SMTP_USER/SMTP_PASS were confirmed present in the dashboard's Variables
+// tab, on a deployment confirmed fresh, yet the running process still
+// reported them unset — pointing at a project/environment/service
+// mismatch rather than a stale-deploy problem.
+function _railwayIdentity(){
+  return {
+    projectId:  process.env.RAILWAY_PROJECT_ID || null,
+    projectName:process.env.RAILWAY_PROJECT_NAME || null,
+    environment:process.env.RAILWAY_ENVIRONMENT_NAME || null,
+    serviceId:  process.env.RAILWAY_SERVICE_ID || null,
+    serviceName:process.env.RAILWAY_SERVICE_NAME || null,
+    publicDomain: process.env.RAILWAY_PUBLIC_DOMAIN || null,
+    deploymentId: process.env.RAILWAY_DEPLOYMENT_ID || null,
+  };
+}
 app.get('/', (req, res) => {
   res.json({
     service: 'flood-roofing-estimator-backend',
     status: 'ok',
     build: BUILD_SHA,
     features: FEATURES,
+    railway: _railwayIdentity(),
     corsAllow: 'localhost + *.vercel.app (flood-roofing-estimator-*) + FRONTEND_URL',
     time: new Date().toISOString(),
   });
 });
-app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features: FEATURES }));
+app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features: FEATURES, railway: _railwayIdentity() }));
 
 function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
