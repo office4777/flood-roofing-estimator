@@ -115,9 +115,21 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const RESEND_ENABLED = !!RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || '';
 const EMAIL_ENABLED = RESEND_ENABLED || !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+// Checks the API key is genuinely valid WITHOUT requiring "Full access"
+// scope. GET /domains needs that elevated scope, so a key deliberately
+// restricted to "Sending access" (the more secure, recommended choice —
+// it can send mail but can't read/manage your domains or other data)
+// 401s on this call with name:"restricted_api_key". That specific error
+// means the key IS valid, just scoped down — treat it as success, not a
+// failure, and only ANY OTHER error (invalid/missing/revoked key, or a
+// network problem) counts as a real "not working" result.
 async function _resendVerifyKey() {
   const r = await httpsRequest('api.resend.com', '/domains', 'GET', { Authorization: 'Bearer ' + RESEND_API_KEY }, null);
-  if (r.status >= 200 && r.status < 300) return true;
+  if (r.status >= 200 && r.status < 300) return { ok: true, note: null };
+  let parsed = null; try { parsed = JSON.parse(r.body); } catch (e) {}
+  if (r.status === 401 && parsed && parsed.name === 'restricted_api_key') {
+    return { ok: true, note: 'Key is scoped to "Sending access" only (can\'t list domains, which is fine — that\'s the more secure setting).' };
+  }
   throw new Error('Resend API responded ' + r.status + ': ' + (r.body || '').slice(0, 200));
 }
 async function _resendSendMail({ to, cc, subject, text, attachment }) {
@@ -1299,9 +1311,9 @@ app.get('/email/debug', requireAuth, rateLimit(20, 60000), async (req, res) => {
   }
   try {
     if (RESEND_ENABLED) {
-      await _resendVerifyKey();
+      const keyCheck = await _resendVerifyKey();
       if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="Flood Roofing <office@floodroofing.co.nz>".');
-      res.json(Object.assign({}, info, { verify: true }));
+      res.json(Object.assign({}, info, { verify: true, note: keyCheck.note }));
     } else {
       const resolved = await _resolveMailTransport(true);   // fresh probe, ignore cache
       res.json(Object.assign({}, info, { verify: true, portUsed: resolved.portUsed }));
