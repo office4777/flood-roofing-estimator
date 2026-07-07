@@ -24585,6 +24585,25 @@ async function _buildJobPackPdf() {
   _fitInputs.forEach(function(p){ p[0].style.width = p[1]; });
   try { window.scrollTo(0, _jpSavedScrollY); } catch(e){}
 
+  // Page numbers — "Page N of M" centred in the bottom margin of every
+  // sheet.  Stamped AFTER the whole build because the count must be the
+  // FINAL PDF's: a designer page taller than A4 slices onto extra sheets,
+  // so "2 pages" in the designer routinely prints as 3.  jsPDF knows the
+  // real total only once every slice has been added.
+  try {
+    var _pnTotal = (typeof pdf.getNumberOfPages === 'function')
+      ? pdf.getNumberOfPages()
+      : pdf.internal.getNumberOfPages();
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(130, 130, 130);
+    for (var _pn = 1; _pn <= _pnTotal; _pn++){
+      pdf.setPage(_pn);
+      pdf.text('Page ' + _pn + ' of ' + _pnTotal, pageW / 2, pageH - 4.5, { align: 'center' });
+    }
+    pdf.setTextColor(0, 0, 0);
+  } catch(e){ console.warn('Page number stamp failed:', e); }
+
   // "Open this job in RoofMap" — a real PDF link annotation stamped
   // on page 1, so the office can jump from the PDF (e.g. attached in
   // Fergus) straight back to this job's Job Pack page to make
