@@ -380,12 +380,16 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
 // current status + last activity.
 app.get('/quote-activity', requireAuth, async (req, res) => {
   try {
+    // Select ONLY the quote subtree.  draw_state holds the full drawing —
+    // often megabytes of aerial-image data URLs — and pulling 120 whole
+    // rows on every poll blew the request (the office console filled with
+    // /quote-activity 500s).  The JSON-path select fetches kilobytes.
     const { data, error } = await supabase.from('jobs')
-      .select('id, client_name, site_address, updated_at, draw_state')
+      .select('id, client_name, site_address, updated_at, quote:draw_state->state->quote')
       .eq('user_id', req.user.id).order('updated_at', { ascending: false }).limit(120);
     if (error) return res.status(500).json({ error: error.message });
     const feed = (data || []).map(function(j){
-      const q = _quoteOf(j) || {};
+      const q = j.quote || {};
       const sh = q.share;
       if (!sh || !sh.token) return null;
       const lastEv = (sh.events && sh.events.length) ? sh.events[sh.events.length - 1] : null;

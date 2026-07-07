@@ -2629,6 +2629,11 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
         <textarea id="orderEmailBody" rows="9" oninput="window._orderEmailDirty=true" style="width:100%;margin-top:4px;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;font-family:inherit;line-height:1.5;resize:vertical;min-height:158px;box-sizing:border-box;color:#0a1628;margin-bottom:0"></textarea>
       </label>
       <div style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:8px;padding:9px 11px;line-height:1.5"><strong>Send email now</strong> sends it for you — the order PDF is attached automatically and a copy is CC'd to <strong id="orderEmailCc"></strong>. The Gmail / default-mail options open a draft instead (the PDF downloads for you to drag in).</div>
+      <!-- In-modal status — progress + errors show HERE, inside the
+           dialog.  The page-level _matMsg toast sits BEHIND the modal
+           overlay, so send failures were invisible ("the button does
+           nothing"). -->
+      <div id="orderEmailStatus" style="display:none;font-size:12px;line-height:1.5;border-radius:8px;padding:9px 11px"></div>
       <button id="orderEmailSendBtn" onclick="_orderEmailSendNow()" style="width:100%;padding:12px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;margin-top:2px">📤 Send email now — PDF attached</button>
       <div style="display:flex;gap:8px">
         <button onclick="_orderEmailOpen('gmail')" style="flex:1;padding:9px;background:#fff;color:#0a1628;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer;font-size:12.5px">✉ Open in Gmail instead</button>
@@ -25649,6 +25654,7 @@ function _openOrderEmail(){
   if (ccEl) ccEl.textContent = cc || '(set your email in Settings → Branding)';
   // Fresh open = fresh template; edits only stick while the modal is up.
   window._orderEmailDirty = false;
+  try { _orderEmailStatus(''); } catch(e){}
   _orderEmailSupplierChange();
   _orderEmailRefreshBody(true);
   var ov = document.getElementById('orderEmailOverlay'); if (ov) ov.style.display = 'block';
@@ -25749,17 +25755,19 @@ async function _orderEmailOpen(mode){
       if (popup) { try { popup.document.write('<title>Opening Gmail…</title><p style="font-family:sans-serif;color:#334155;padding:24px">Building the order PDF, then opening Gmail…</p>'); } catch(e){} }
     }
     _matMsg('Building order PDF…');
+    _orderEmailStatus('Building the order PDF…');
     var blob;
     try { blob = await _matBuildPdfBlob(); }
-    catch (e){ if (popup) try{popup.close();}catch(e2){} _matMsg('PDF build failed: ' + (e.message || e), false); return; }
+    catch (e){ if (popup) try{popup.close();}catch(e2){} _orderEmailStatus('PDF build failed: ' + (e.message || e), 'err'); _matMsg('PDF build failed: ' + (e.message || e), false); return; }
     _matDownloadBlob(blob, o.filename);
+    _orderEmailStatus('');
 
     if (mode === 'gmail'){
       var g = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(o.supplier.email) +
         (o.cc ? '&cc=' + encodeURIComponent(o.cc) : '') +
         '&su=' + encodeURIComponent(o.subject) + '&body=' + encodeURIComponent(o.body);
       if (popup && !popup.closed) popup.location.href = g;
-      else if (!window.open(g, '_blank')) { _matMsg('Pop-up blocked — allow pop-ups for this site, or use Send email now.', false); return; }
+      else if (!window.open(g, '_blank')) { _orderEmailStatus('Pop-up blocked — allow pop-ups for this site, or use Send email now.', 'err'); _matMsg('Pop-up blocked — allow pop-ups for this site, or use Send email now.', false); return; }
     } else {
       var m = 'mailto:' + encodeURIComponent(o.supplier.email) + '?' +
         (o.cc ? 'cc=' + encodeURIComponent(o.cc) + '&' : '') +
@@ -25773,6 +25781,19 @@ async function _orderEmailOpen(mode){
     _matMsg('Could not open the email: ' + (err.message || err), false);
   }
 }
+// Status line INSIDE the order modal — the page-level _matMsg toast sits
+// behind the modal overlay, so progress / errors written there were
+// invisible while the dialog was open.
+function _orderEmailStatus(text, kind){
+  var el = document.getElementById('orderEmailStatus');
+  if (!el) return;
+  if (!text){ el.style.display = 'none'; el.textContent = ''; return; }
+  el.style.display = 'block';
+  el.textContent = text;
+  el.style.background = kind === 'err' ? '#fef2f2' : kind === 'ok' ? '#ecfdf5' : '#f1f5f9';
+  el.style.color      = kind === 'err' ? '#b91c1c' : kind === 'ok' ? '#047857' : '#334155';
+  el.style.border     = '1px solid ' + (kind === 'err' ? '#fecaca' : kind === 'ok' ? '#a7f3d0' : '#e2e8f0');
+}
 // In-app send: builds the order PDF, then the BACKEND emails it to the
 // supplier with the PDF attached and the office CC'd — no Gmail tab, no
 // manual attaching.  Needs SMTP configured on the server (Railway env);
@@ -25783,8 +25804,10 @@ async function _orderEmailSendNow(){
     var o = _orderEmailGather();
     if (!o) return;
     if (btn){ btn.disabled = true; btn.textContent = 'Building order PDF…'; }
+    _orderEmailStatus('Building the order PDF…');
     var blob = await _matBuildPdfBlob();
     if (btn) btn.textContent = 'Sending…';
+    _orderEmailStatus('Sending to ' + o.supplier.email + '…');
     var base64 = await new Promise(function(resolve, reject){
       var fr = new FileReader();
       fr.onload = function(){ resolve(String(fr.result).split(',')[1] || ''); };
@@ -25798,14 +25821,17 @@ async function _orderEmailSendNow(){
       text: o.body,
       attachment: { filename: o.filename, base64: base64 }
     });
-    _closeOrderEmail();
+    _orderEmailStatus('✓ Sent to ' + o.supplier.email + (o.cc ? ' — copy CC’d to ' + o.cc : ''), 'ok');
     _matMsg('✓ Order emailed to ' + o.supplier.email + (o.cc ? ' — copy CC’d to ' + o.cc : '') + '.', true);
+    setTimeout(function(){ _closeOrderEmail(); _orderEmailStatus(''); }, 1600);
   } catch(err) {
     var msg = String(err && err.message || err);
     if (msg.indexOf('EMAIL_NOT_CONFIGURED') !== -1 || msg.indexOf('503') !== -1) {
-      _matMsg('In-app sending isn’t set up on the server yet (needs SMTP details on Railway) — use "Open in Gmail instead" below for now.', false);
+      _orderEmailStatus('In-app sending isn’t set up on the server yet — it needs the SMTP details (Gmail App Password) added on Railway. Use "Open in Gmail instead" below for now.', 'err');
+    } else if (msg.indexOf('404') !== -1) {
+      _orderEmailStatus('The server hasn’t picked up the new email feature yet (Railway needs to redeploy the backend). Use "Open in Gmail instead" below for now.', 'err');
     } else {
-      _matMsg('Send failed: ' + msg.slice(0, 180), false);
+      _orderEmailStatus('Send failed: ' + msg.slice(0, 220), 'err');
     }
   } finally {
     if (btn){ btn.disabled = false; btn.textContent = '📤 Send email now — PDF attached'; }
