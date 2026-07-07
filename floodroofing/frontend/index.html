@@ -1215,6 +1215,13 @@ select{
    working, but visually they're gone.  The Job Pack Designer above
    is now the sole user-facing editing surface. */
 #tab-materials > .jp-legacy{ display:none!important; }
+/* …EXCEPT while the order-PDF capture is running.  The hide rule above
+   (ID selector) outranked .mat-print-page.mp-capturing's display:block,
+   so the print pages stayed 0×0 during capture — html2canvas returned an
+   empty canvas and jsPDF threw "Invalid argument passed to jsPDF.scale"
+   (the Order Roof PDF/email had been silently broken since the designer
+   replaced the legacy cards). */
+#tab-materials > .jp-legacy.mp-capturing{ display:block!important; }
 /* ── PDF EXPORT ───────────────────────────────────────────────
    html.pdf-rendering is applied during the html2canvas snapshots
    used by saveMaterialsAsPdf. html2canvas does NOT trigger
@@ -25439,12 +25446,19 @@ async function _matBuildPdfBlob() {
 
   var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
   if (!jsPDF) throw new Error('jsPDF failed to load');
+  // A hidden/empty page captures as a 0×0 canvas, and feeding that to
+  // addImage throws jsPDF's cryptic "Invalid argument passed to
+  // jsPDF.scale". Skip empty captures and fail with a readable message
+  // if nothing rendered at all.
+  var usable = canvases.filter(function(c){ return c && c.width > 0 && c.height > 0; });
+  if (!usable.length) throw new Error('Order pages rendered empty — reload the app and try again');
   var pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
   var pageW = 210, pageH = 297;
-  canvases.forEach(function(c, idx){
+  usable.forEach(function(c, idx){
     if (idx > 0) pdf.addPage();
     var imgW = pageW;
     var imgH = (c.height / c.width) * imgW;
+    if (!isFinite(imgH) || imgH <= 0) imgH = pageH;
     if (imgH > pageH) imgH = pageH;
     pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, imgW, imgH);
   });
