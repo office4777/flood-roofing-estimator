@@ -492,6 +492,12 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="note">Hours worked &amp; <b>avg GP/hr</b> (month GP ÷ month hours) per month. A job counts in the month <b>≥60% of its hours</b> were worked (from time entries), else its invoice month. <span id="bct-note"></span></div>
     </div>
 
+    <div class="card">
+      <div class="ct">Average job value <span class="period-sub" style="margin-left:auto;">back-costing</span></div>
+      <div id="bc-avgjob"></div>
+      <div class="note">Revenue ÷ <b>number of jobs</b> each month, from back-costing. One job = one row (the greater of priced or claimed), so a 50% deposit + 50% final <b>don't</b> count as two. A job lands in the month ≥60% of its hours were worked (else its invoice month).</div>
+    </div>
+
     <!-- Everything else: collapsed accordions -->
     <details class="acc"><summary>ModSpace back costing <span id="ms-count" class="mut" style="font-weight:500;text-transform:none;letter-spacing:0;"></span></summary><div class="acc-body">
       <div id="ms-jobs"><div class="empty">No ModSpace jobs synced yet. Tap “Sync”.</div></div>
@@ -580,6 +586,11 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     <div class="card">
       <div class="ct">Last 12 Months <span class="period-sub" style="margin-left:auto;">tap a month · swipe ↔</span></div>
       <div class="mstrip" id="pl-strip"></div>
+    </div>
+    <div class="card">
+      <div class="ct">Average job value <span class="period-sub" style="margin-left:auto;">from P&amp;L</span></div>
+      <div id="pl-avgjob"></div>
+      <div class="note">P&amp;L <b>revenue ÷ number of jobs</b> that month. The job count comes from Fergus back-costing — <b>not</b> the invoice count, because ~90% of jobs bill a 50% deposit + a 50% final (two invoices, one job). Only months with both a Xero figure and a job count show; sync Fergus + pull Xero history to fill more.</div>
     </div>
     <div class="card per-this">
       <div class="ct">Where every $ goes <span id="pl-wf-lbl" class="period-sub" style="margin-left:auto;"></span></div>
@@ -1893,7 +1904,36 @@ function bcWorkMonth(r){
   return r.month;
 }
 // Per-month labour hours + GP (job counted whole in its dominant work-month) for the BC trend.
-function bcMonthHrsGP(){const m={};getAllBC().forEach(r=>{const mo=bcWorkMonth(r);if(!mo)return;const o=m[mo]||(m[mo]={hrs:0,gp:0,n:0});o.hrs+=num(r.h_actual);o.gp+=num(r.gp);o.n++;});return m;}
+function bcMonthHrsGP(){const m={};getAllBC().forEach(r=>{const mo=bcWorkMonth(r);if(!mo)return;const o=m[mo]||(m[mo]={hrs:0,gp:0,rev:0,n:0});o.hrs+=num(r.h_actual);o.gp+=num(r.gp);o.rev+=num(r.sales);o.n++;});return m;}
+// Average job value per month, from back-costing revenue ÷ number of jobs in that
+// month (one back-costing row = one job, so deposit + final invoices don't double-count).
+function renderBcAvgJob(){
+  const host=document.getElementById('bc-avgjob');if(!host)return;
+  const agg=bcMonthHrsGP();
+  const ks=[];for(let i=0;i<24;i++){const k=calMonthKey(-i);if(agg[k]&&agg[k].n)ks.push(k);}   // newest→oldest, months with jobs
+  if(!ks.length){host.innerHTML='<div class="empty">No back-costing yet — Sync from Fergus.</div>';return;}
+  let tRev=0,tN=0;
+  const rows=ks.map(k=>{const o=agg[k];tRev+=o.rev;tN+=o.n;const avg=o.n?o.rev/o.n:0;
+    return '<tr><td>'+esc(k)+'</td><td>'+o.n+'</td><td>'+fmt$(o.rev)+'</td><td>'+fmt$(Math.round(avg))+'</td></tr>';}).join('');
+  const oAvg=tN?tRev/tN:0;
+  host.innerHTML='<div class="tbl-wrap" style="max-height:52vh;overflow:auto;"><table class="tb"><thead><tr><th>Month</th><th style="text-align:right;">Jobs</th><th style="text-align:right;">Revenue</th><th style="text-align:right;">Avg / job</th></tr></thead><tbody>'+rows+
+    '<tr class="tot"><td>All</td><td>'+tN+'</td><td>'+fmt$(tRev)+'</td><td>'+fmt$(Math.round(oAvg))+'</td></tr></tbody></table></div>';
+}
+// Average job value per month from the Xero P&L: P&L revenue ÷ number of jobs
+// (job count from Fergus back-costing — NOT invoice count, since ~90% of jobs bill
+// a 50% deposit + 50% final, which would double the count).
+function renderPlAvgJob(){
+  const host=document.getElementById('pl-avgjob');if(!host)return;
+  const agg=bcMonthHrsGP();
+  const ks=[];for(let i=0;i<24;i++){const k=calMonthKey(-i);const f=xeroFig(k),o=agg[k];if(f&&num(f.rev)>0&&o&&o.n)ks.push(k);}
+  if(!ks.length){host.innerHTML='<div class="empty">Needs both a Xero P&amp;L figure and Fergus job count for the month — Pull Xero + Sync Fergus.</div>';return;}
+  let tRev=0,tN=0;
+  const rows=ks.map(k=>{const f=xeroFig(k),o=agg[k],rev=num(f.rev);tRev+=rev;tN+=o.n;const avg=o.n?rev/o.n:0;
+    return '<tr><td>'+esc(k)+'</td><td>'+o.n+'</td><td>'+fmt$(rev)+'</td><td>'+fmt$(Math.round(avg))+'</td></tr>';}).join('');
+  const oAvg=tN?tRev/tN:0;
+  host.innerHTML='<div class="tbl-wrap" style="max-height:52vh;overflow:auto;"><table class="tb"><thead><tr><th>Month</th><th style="text-align:right;">Jobs</th><th style="text-align:right;">P&amp;L revenue</th><th style="text-align:right;">Avg / job</th></tr></thead><tbody>'+rows+
+    '<tr class="tot"><td>All</td><td>'+tN+'</td><td>'+fmt$(tRev)+'</td><td>'+fmt$(Math.round(oAvg))+'</td></tr></tbody></table></div>';
+}
 let bcTrend={metric:'hrs',smooth:'m'};
 function setBcTrend(k,v){bcTrend[k]=v;renderBcTrend();}
 function renderBcTrend(){
@@ -2034,6 +2074,7 @@ function compareBcSources(){
 function renderBC(){
   fillBCFilters();
   renderBcTrend();
+  renderBcAvgJob();
   renderBCStrip();
   renderMatPct();
   renderBCTypes();
@@ -2413,7 +2454,7 @@ function renderPLTrend(){
 }
 function renderPL(){
   fillPLPeriods();
-  renderPLStrip();renderWaterfall();renderPLTrend();
+  renderPLStrip();renderWaterfall();renderPLTrend();renderPlAvgJob();
   if(plSelected&&xeroReports[plSelected]){xeroLive=true;lastXeroRep=xeroReports[plSelected];lastXeroLabel=plSelected;renderXeroReport(xeroReports[plSelected],plSelected);return;}
   if(xeroLive&&lastXeroRep){renderXeroReport(lastXeroRep,lastXeroLabel);return;}   // re-render cached live report — no network
   const sel=document.getElementById('pl-period').value;

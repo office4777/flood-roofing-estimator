@@ -55,6 +55,22 @@ apprentice 0.70). So a 3rd hand adds ~0.70 of a head's revenue, not a full one.
 Presets and the scale table cover the common 2-man crews (4×2, 5×2, 6×2, 7×2) as
 well as 3-man.
 
+## Average job value per month
+
+Two cards work out the **average value of a job** each month, and both count
+**jobs, not invoices** — because ~90% of jobs bill a 50% deposit + a 50% final,
+counting invoices would double the job count.
+
+- **Back Costing → Average job value** — back-costing **revenue ÷ number of jobs**
+  per month. One back-costing row = one job (revenue = the greater of priced or
+  claimed), and a job lands in the month ≥60% of its hours were worked (else its
+  invoice month). Shows Month · Jobs · Revenue · Avg/job, newest first, with an
+  all-time average.
+- **P&L → Average job value** — the Xero **P&L revenue ÷ number of jobs** that
+  month. The job count comes from Fergus back-costing (not the invoice count).
+  Only months that have both a Xero P&L figure and a job count appear, so pull
+  Xero history + sync Fergus to fill more months.
+
 ## Trend graphs (Workload + Back Costing)
 
 Two more P&L-style line graphs (12 months, with a **3-mo rolling avg** toggle):
