@@ -8070,21 +8070,30 @@ function buildAcceptSummaryRows(){
         '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+fmtMoney(incl)+'</div>'+
       '</div>';
     }).join('');
-  } else {
-    // Option-less quote — the base scope is the quote itself.
-    rows = '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
-      '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">Main scope of work</div>'+
-      '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+fmtMoney(_qpBaseSub()*(1+rate))+'</div>'+
-    '</div>';
   }
+  // "Original quote" subtotal line closes the base section — the price
+  // as quoted BEFORE the customer's Selections-page picks, so the
+  // acceptance page reads: original quote → selection changes → total.
+  // On an option-less quote this line IS the base (no separate
+  // "Main scope of work" row — the two figures were identical and the
+  // duplication read like a mistake).
+  var baseTot = _qpBaseSub() * (1+rate);
+  rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
+    '<div style="font-family:var(--ed-sans);font-size:12px;font-weight:700;color:var(--ed-ink)">Original quote'+(opts.length?'':' — main scope of work')+' <span style="font-weight:400;color:var(--ed-text2)">(incl. GST)</span></div>'+
+    '<div class="ed-serif" style="font-size:14px;font-weight:700;white-space:nowrap">'+fmtMoney(baseTot)+'</div>'+
+  '</div>';
   // Selections-page changes (steel / gutter / brackets) — the same
   // unified list as page 4, including the legacy Option-C gutter
   // fallback, so nothing is listed or charged twice.
-  _qpSelectionChanges().forEach(function(c){
-    rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
-      '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">'+esc2(c.label)+'</div>'+
-      '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+(c.delta ? (c.delta > 0 ? '+' : '−')+fmtMoney(Math.abs(c.delta)*(1+rate)) : 'Included')+'</div></div>';
-  });
+  var changes = _qpSelectionChanges();
+  if (changes.length){
+    rows += '<div class="ed-eyebrow" style="margin:12px 0 2px">Your selection changes</div>';
+    changes.forEach(function(c){
+      rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
+        '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">&#8627; '+esc2(c.label)+'</div>'+
+        '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap;color:'+(c.delta < 0 ? '#1a7f4e' : 'var(--ed-ink)')+'">'+(c.delta ? (c.delta > 0 ? '+' : '−')+fmtMoney(Math.abs(c.delta)*(1+rate)) : 'Included')+'</div></div>';
+    });
+  }
   return rows;
 }
 // Digital acceptance — records who accepted, when, the selected options +
@@ -9717,12 +9726,9 @@ function refreshQuoteProposal(){
       // Six existing-roof photo spots — uploaded site photos fill them,
       // empty ones show a dashed "Upload Site Photo" placeholder.
       '<div class="ed-eyebrow" style="margin-bottom:10px">Existing roof photos</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">'+photoBoxes+'</div>'+
-      // Slim team-photo strip closes the page.
-      '<div style="margin:4px -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
-        '<img src="brand/team_lineup_ute.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/5;object-fit:cover;object-position:center 38%;filter:saturate(.98) contrast(1.04)">'+
-        '<div style="position:absolute;left:0;right:0;bottom:0;padding:8px 36px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.8));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:12.5px;letter-spacing:.02em">The Flood Roofing crew · Northland</div>'+
-      '</div>';
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">'+photoBoxes+'</div>';
+      // (Team-photo strip moved to the bottom of page 3 — Main scope of
+      // work — per request; this page ends on the site photos.)
   }
 
   // ── Scope of work + timeline + estimated start (full page) ──
@@ -10121,6 +10127,12 @@ function refreshQuoteProposal(){
         '<div class="qp-editable" contenteditable="true" data-qfield="notes" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.55;color:var(--ed-ink-2);min-height:1.4em">'+
           (S.quote.notes ? esc2(S.quote.notes) : '<span class="qp-ph" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add notes for the client (access, timing, special considerations)…</span>')+
         '</div>'+
+      '</div>'+
+      // Slim team-photo strip closes the page (moved here from the
+      // inspection page per request).
+      '<div style="margin:22px -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
+        '<img src="brand/team_lineup_ute.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/5;object-fit:cover;object-position:center 38%;filter:saturate(.98) contrast(1.04)">'+
+        '<div style="position:absolute;left:0;right:0;bottom:0;padding:8px 36px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.8));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:12.5px;letter-spacing:.02em">The Flood Roofing crew · Northland</div>'+
       '</div>';
   }
 
@@ -10151,30 +10163,46 @@ function refreshQuoteProposal(){
     // share token so the office sees what the customer picked.
     if (on('options')) {
       var pOpts = (S.quote.proposalOptions = S.quote.proposalOptions || {});
+      // Ex-GST add-on prices from the quote (Settings → Quote defaults).
+      // Each card shows ITS OWN price incl. GST so the customer can see
+      // how a pick moves the total before they tap it.
+      var _selRate = (S.quote.gstRate||0)/100;
+      var _spP = S.quote.selectionPrices || {};
+      var _gpP = S.quote.gutterPrices || {};
+      var _dIncl = function(exGst){ return (parseFloat(exGst)||0) * (1+_selRate); };
       var GRADES = [
-        { id:'maxam',     label:'Colorsteel® MAXAM',     desc:'NZ Steel\'s newest, with the Activate™ aluminium-zinc-magnesium coating. Best corrosion resistance available.',
+        { id:'maxam',     label:'Colorsteel® MAXAM',     isDefault:true, delta:0, desc:'NZ Steel\'s newest, with the Activate™ aluminium-zinc-magnesium coating. Best corrosion resistance available.',
           warranty:'<strong>Up to 50 yrs perforation</strong> in mild zones (>5km from breaking surf); 30/15/5 yr stepped warranty as exposure rises.' },
-        { id:'colorzen',  label:'Armorsteel ColorZen',   desc:'Solid mid-tier prepainted steel — proven coating, broad colour range.',
+        { id:'colorzen',  label:'Armorsteel ColorZen',   delta:_dIncl(_spP.colorzen), desc:'Solid mid-tier prepainted steel — proven coating, broad colour range.',
           warranty:'<strong>30 yr warranty</strong> in mild and very-mild environments (manufacturer specs).' },
-        { id:'colourcote',label:'ColorCote®',            desc:'Pacific Coilcoaters\' premium prepainted steel — excellent finish, comparable to MAXAM.',
+        { id:'colourcote',label:'ColorCote®',            delta:_dIncl(_spP.colourcote), desc:'Pacific Coilcoaters\' premium prepainted steel — excellent finish, comparable to MAXAM.',
           warranty:'<strong>Up to 30 yr</strong> perforation warranty, zone-dependent.' },
-        { id:'zincalume', label:'Zincalume® (unpainted)',desc:'Natural silver Al/Zn alloy — workhorse industrial finish, lowest price point.',
+        { id:'zincalume', label:'Zincalume® (unpainted)',delta:_dIncl(_spP.zincalume), desc:'Natural silver Al/Zn alloy — workhorse industrial finish, lowest price point.',
           warranty:'<strong>20 yr non-perforation</strong> warranty (NZ Steel).' }
       ];
       var THICKS = [
-        { id:'40', label:'0.40 gauge', desc:'Standard residential thickness — used on the bulk of NZ re-roofs.' },
-        { id:'55', label:'0.55 gauge', desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }
+        { id:'40', label:'0.40 gauge', isDefault:true, delta:0, desc:'Standard residential thickness — used on the bulk of NZ re-roofs.' },
+        { id:'55', label:'0.55 gauge', delta:_dIncl(_spP.gauge55), desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }
       ];
       var GUTTERS = [
-        { id:'none',          label:'No new gutter',                desc:'Existing gutter stays as-is.' },
-        { id:'box125',        label:'125mm Colorsteel Box Gutter',  desc:'Roll-formed 125mm Colorsteel box gutter — matches the new roof for a clean finish.' },
-        { id:'marley_typhoon',label:'Marley Typhoon (PVC)',         desc:'Higher-capacity PVC profile — handles heavy downpours; UV-stabilised.' },
-        { id:'marley_classic',label:'Marley Classic (PVC)',         desc:'Classic half-round PVC profile — clean look, easy maintenance.' }
+        { id:'none',          label:'No new gutter',                isDefault:true, delta:0, desc:'Existing gutter stays as-is.' },
+        { id:'box125',        label:'125mm Colorsteel Box Gutter',  delta:_dIncl(_gpP.box), desc:'Roll-formed 125mm Colorsteel box gutter — matches the new roof for a clean finish.' },
+        { id:'marley_typhoon',label:'Marley Typhoon (PVC)',         delta:_dIncl(_gpP.marley), desc:'Higher-capacity PVC profile — handles heavy downpours; UV-stabilised.' },
+        { id:'marley_classic',label:'Marley Classic (PVC)',         delta:_dIncl(_gpP.marley), desc:'Classic half-round PVC profile — clean look, easy maintenance.' }
       ];
       var BRACKETS = [
-        { id:'external', label:'External brackets', desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' },
-        { id:'internal', label:'Internal brackets', desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below.' }
+        { id:'external', label:'External brackets', isDefault:true, delta:0, desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' },
+        { id:'internal', label:'Internal brackets', delta:0, desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below.' }
       ];
+      // Price tag for a card: what picking it does to the total.
+      // Default pick = "Standard · included"; a configured add-on shows
+      // +$X / −$X incl. GST; an unpriced non-default shows "Included".
+      var _selPriceTag = function(it){
+        if (it.isDefault) return '<span style="color:var(--ed-text2);font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600">Standard · included</span>';
+        if (it.delta > 0.005)  return '<span style="color:var(--ed-ink);font-weight:700">+'+fmtMoney(it.delta)+'</span>';
+        if (it.delta < -0.005) return '<span style="color:#1a7f4e;font-weight:700">−'+fmtMoney(Math.abs(it.delta))+'</span>';
+        return '<span style="color:var(--ed-text2);font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600">Included</span>';
+      };
       function selCard(group, items, current, onclickFn){
         return items.map(function(it){
           var picked = current === it.id;
@@ -10188,7 +10216,13 @@ function refreshQuoteProposal(){
             '<div style="display:flex;align-items:flex-start;gap:10px">'+
               '<div style="width:16px;height:16px;border-radius:50%;border:2px solid '+(picked?'var(--ed-accent)':'#cbd5e1')+';background:'+(picked?'var(--ed-accent)':'#fff')+';flex-shrink:0;margin-top:2px"></div>'+
               '<div style="flex:1;min-width:0">'+
-                '<div class="ed-serif" style="font-size:15px;font-style:italic;color:var(--ed-ink);line-height:1.2">'+esc2(it.label)+'</div>'+
+                // Title row — option name left, ITS price right, so the
+                // customer sees what each pick does to the total without
+                // hunting for the summary table.
+                '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">'+
+                  '<div class="ed-serif" style="font-size:15px;font-style:italic;color:var(--ed-ink);line-height:1.2">'+esc2(it.label)+'</div>'+
+                  '<div class="ed-serif" style="font-size:13px;white-space:nowrap;flex-shrink:0">'+_selPriceTag(it)+'</div>'+
+                '</div>'+
                 (it.desc ? '<div class="ed-body" style="font-size:11px;color:var(--ed-ink-2);margin-top:3px;line-height:1.45">'+esc2(it.desc)+'</div>' : '')+
                 (it.warranty ? '<div style="font-size:10.5px;color:var(--ed-text2);margin-top:5px;line-height:1.5">'+it.warranty+'</div>' : '')+
               '</div>'+
@@ -10198,7 +10232,7 @@ function refreshQuoteProposal(){
       }
       // Pricing summary for the picks: base quote scope, each
       // non-default selection with its add-on, and the new total.
-      var _selRate = (S.quote.gstRate||0)/100;
+      // (_selRate is declared with the card prices above.)
       var _selBaseTot = _qpBaseSub() * (1+_selRate);
       var _selChanges = _qpSelectionChanges();
       var _selNewTot = (_qpBaseSub() + _qpSelectionDeltaSum()) * (1+_selRate);
@@ -10212,8 +10246,8 @@ function refreshQuoteProposal(){
         '</div>';
       };
       var _selPricing =
-        '<div style="margin-top:14px;border:1px solid var(--ed-line);border-top:none">'+
-          _selRow('<strong style="color:var(--ed-ink)">Base quote — main scope of work</strong> <span style="color:var(--ed-text2)">(incl. GST)</span>', fmtMoney(_selBaseTot), { top: true })+
+        '<div style="border:1px solid var(--ed-line);border-left:none;border-top:none">'+
+          _selRow('<strong style="color:var(--ed-ink)">Original quote — main scope of work</strong> <span style="color:var(--ed-text2)">(incl. GST)</span>', fmtMoney(_selBaseTot), { top: true })+
           (_selChanges.length
             ? _selChanges.map(function(c){
                 return _selRow('&#8627; '+esc2(c.label), c.delta ? (c.delta > 0 ? '+' : '−')+fmtMoney(Math.abs(c.delta)*(1+_selRate)) : 'Included');
@@ -10221,11 +10255,24 @@ function refreshQuoteProposal(){
             : _selRow('<span style="font-style:italic;color:var(--ed-text2)">Standard selections — no price change</span>', ''))+
           _selRow('New total <span style="font-weight:400;color:var(--ed-text2)">(incl. GST)</span>', fmtMoney(_selNewTot), { strong: true })+
         '</div>';
+      // One combined price panel replaces the old separate "Current
+      // selection" chip + detached pricing strip (the two blocks read as
+      // disconnected and made the page feel busy).  Flow inside the
+      // panel: current picks → base quote → each change → new total.
+      var _selSummaryLine =
+        esc2((GRADES.find(function(g){return g.id===(pOpts.steelGrade||'maxam');})||{}).label||'—') + ' · '+
+        esc2((THICKS.find(function(t){return t.id===(pOpts.steelThickness||'40');})||{}).label||'—') + ' · '+
+        esc2((GUTTERS.find(function(g){return g.id===(pOpts.gutterType||'none');})||{}).label||'—')+
+        (pOpts.gutterType && pOpts.gutterType !== 'none'
+          ? ' · ' + esc2((BRACKETS.find(function(b){return b.id===(pOpts.gutterBracket||'external');})||{}).label||'—')
+          : '');
       partOptionsSelections =
         edHeading('04','Choose your options','Selections')+
+        // One-line "how this works" so the page explains itself.
+        '<div class="ed-body" style="margin:-6px 0 16px;font-size:12px;color:var(--ed-ink-2);line-height:1.5">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is in the panel below.</div>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:18px">'+
           '<div>'+
-            '<div class="ed-eyebrow" style="margin-bottom:8px">Steel grade <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— tap a card</span></div>'+
+            '<div class="ed-eyebrow" style="margin-bottom:8px">Steel grade</div>'+
             selCard('steelGrade', GRADES, pOpts.steelGrade || 'maxam', '_setProposalOption_grade')+
           '</div>'+
           '<div>'+
@@ -10239,18 +10286,13 @@ function refreshQuoteProposal(){
               : '')+
           '</div>'+
         '</div>'+
-        // Summary chip showing the current picks — prints clearly even
-        // when the radio "card" buttons drop to flat text on paper.
-        '<div style="margin-top:18px;padding:14px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent);font-family:var(--ed-sans);font-size:12px;line-height:1.65;color:var(--ed-ink-2)">'+
-          '<strong style="color:var(--ed-ink)">Current selection</strong> · '+
-          esc2((GRADES.find(function(g){return g.id===(pOpts.steelGrade||'maxam');})||{}).label||'—') + ' · '+
-          esc2((THICKS.find(function(t){return t.id===(pOpts.steelThickness||'40');})||{}).label||'—') + ' · '+
-          esc2((GUTTERS.find(function(g){return g.id===(pOpts.gutterType||'none');})||{}).label||'—')+
-          (pOpts.gutterType && pOpts.gutterType !== 'none'
-            ? ' · ' + esc2((BRACKETS.find(function(b){return b.id===(pOpts.gutterBracket||'external');})||{}).label||'—')
-            : '')+
-        '</div>'+
-        _selPricing;
+        '<div style="margin-top:18px;border-left:3px solid var(--ed-accent)">'+
+          '<div style="padding:12px 16px 10px;background:var(--ed-paper-2)">'+
+            '<div class="ed-eyebrow" style="margin-bottom:4px">Your selection &amp; price</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:12px;line-height:1.6;color:var(--ed-ink-2)">'+_selSummaryLine+'</div>'+
+          '</div>'+
+          _selPricing+
+        '</div>';
     }
 
     partColorsteel =
