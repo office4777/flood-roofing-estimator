@@ -13946,9 +13946,10 @@ function toggleJobPackInc(ev, el){
 }
 
 function _formatJobPackCover(){
+  // Job # is just the number — no "Fergus" prefix (per request).
   var jobNum  = (document.getElementById('jobNum')||{}).value
               || (document.getElementById('orderJobNumber')||{}).value
-              || (_fergusDisplayNo() ? ('Fergus '+_fergusDisplayNo()) : '');
+              || (_fergusDisplayNo() ? String(_fergusDisplayNo()) : '');
   var client  = (document.getElementById('jobClient')||{}).value || '';
   var addr    = (document.getElementById('jobAddr')||{}).value   || '';
   var date    = (document.getElementById('jobDate')||{}).value   || new Date().toLocaleDateString();
@@ -24472,6 +24473,38 @@ async function _buildJobPackPdf() {
   });
   await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
 
+  // html2canvas (1.4.1) mispositions the text INSIDE <input> boxes — it
+  // kept shaving the top of the client address / Job # (and previously
+  // the cut-list digits) no matter how the inputs were styled.  Sidestep
+  // its input renderer entirely: swap every text/number input for a
+  // real <span> carrying the same computed font/colour/width, capture,
+  // then restore.  Spans rasterise pixel-perfect.
+  var _jpSwapped = [];
+  Array.prototype.forEach.call(document.querySelectorAll('#jpPages .jp-page input[type="text"], #jpPages .jp-page input[type="number"]'), function(inp){
+    var cs = getComputedStyle(inp);
+    if (cs.display === 'none') return;
+    var span = document.createElement('span');
+    span.textContent = (inp.value != null && inp.value !== '') ? inp.value : (inp.placeholder || '');
+    span.style.cssText =
+      'display:inline-block;box-sizing:border-box;white-space:pre;overflow:visible;'+
+      'font:'+cs.font+';color:'+cs.color+';letter-spacing:'+cs.letterSpacing+';'+
+      'font-variant-numeric:'+cs.fontVariantNumeric+';text-align:'+cs.textAlign+';'+
+      'width:'+cs.width+';padding:'+cs.padding+';vertical-align:baseline;';
+    inp.parentNode.insertBefore(span, inp);
+    inp.style.setProperty('display', 'none', 'important');
+    _jpSwapped.push([inp, span]);
+  });
+  function _jpUnswap(){
+    _jpSwapped.forEach(function(pair){
+      try {
+        pair[1].remove();
+        pair[0].style.removeProperty('display');
+      } catch(e){}
+    });
+    _jpSwapped = [];
+  }
+  await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+
   // html2canvas (1.4.1) shaves content off the TOP of a captured element
   // when the window is scrolled at capture time — exactly what happens
   // when the user scrolls through the pages then hits Save as PDF.
@@ -24549,6 +24582,7 @@ async function _buildJobPackPdf() {
     }
   } catch(err) {
     console.error('PDF render failed:', err);
+    _jpUnswap();
     htmlEl.classList.remove('print-jobpack');
     htmlEl.classList.remove('pdf-rendering');
     _fitInputs.forEach(function(p){ p[0].style.width = p[1]; });
@@ -24556,6 +24590,7 @@ async function _buildJobPackPdf() {
     return null;
   }
 
+  _jpUnswap();
   htmlEl.classList.remove('print-jobpack');
   htmlEl.classList.remove('pdf-rendering');
   _fitInputs.forEach(function(p){ p[0].style.width = p[1]; });
@@ -24743,8 +24778,9 @@ function _jpWaitForImages(root, cb) {
 function populateMatJobInfo() {
   var client = (document.getElementById('jobClient')||{}).value || '';
   var addr   = (document.getElementById('jobAddr')  ||{}).value || '';
+  // Job # is just the number — no "Fergus" prefix (per request).
   var jobNum = (document.getElementById('orderJobNumber')||{}).value
-            || (_fergusDisplayNo() ? ('Fergus '+_fergusDisplayNo()) : '');
+            || (_fergusDisplayNo() ? String(_fergusDisplayNo()) : '');
   var delAddr = (document.getElementById('orderDeliveryAddr')||{}).value || '';
   var mode   = (S && S.order && S.order.deliveryMode) || 'site';
   var cOut = document.getElementById('matCustomerOut');
@@ -24753,6 +24789,9 @@ function populateMatJobInfo() {
   if (aOut) aOut.textContent = addr || '— set on Select Job tab';
   var jnEl = document.getElementById('matJobNumber');
   if (jnEl && !jnEl.value && jobNum) jnEl.value = jobNum;
+  // Jobs saved before the prefix was dropped carry "Fergus 2231" in the
+  // field — strip the word so only the number shows everywhere.
+  if (jnEl && /^fergus\s+/i.test(jnEl.value)) jnEl.value = jnEl.value.replace(/^fergus\s+/i, '');
   var daEl = document.getElementById('matDeliveryAddr');
   if (daEl && !daEl.value && delAddr) daEl.value = delAddr;
   // Reflect the delivery toggle from S.order.
