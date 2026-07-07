@@ -4315,6 +4315,40 @@ function closeJMSSetup(){
   else _init();
 })();
 
+// ── Update watcher ─────────────────────────────────────────────────
+// A RoofMap tab left open never picks up a new deploy — fixes were going
+// live while the open tab kept running hours-old code, which read as
+// "still broken". Poll the server's ETag for this page every few minutes
+// and, when a new deploy is detected, show a banner with a Reload button
+// (never auto-reload — the user may have unsaved edits mid-flight).
+(function(){
+  if (location.protocol === 'file:') return;   // local dev / test harnesses
+  var baseline = null;
+  async function check(){
+    try {
+      var r = await fetch(location.pathname || '/', { method:'HEAD', cache:'no-store' });
+      if (!r.ok) return;
+      var tag = r.headers.get('etag') || r.headers.get('last-modified') || '';
+      if (!tag) return;
+      if (baseline == null) { baseline = tag; return; }
+      if (tag !== baseline) _showUpdateBanner();
+    } catch(e){}
+  }
+  function _showUpdateBanner(){
+    if (document.getElementById('frUpdateBanner')) return;
+    var b = document.createElement('div');
+    b.id = 'frUpdateBanner';
+    b.className = 'no-print';
+    b.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99999;background:#0a1628;color:#fff;padding:12px 18px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.35);font-size:13px;display:flex;gap:12px;align-items:center;font-family:Inter,-apple-system,sans-serif';
+    b.innerHTML = '<span>🔄 RoofMap has been updated — reload to get the latest fixes.</span>'+
+      '<button onclick="try{saveCurrentJob&&saveCurrentJob()}catch(e){};setTimeout(function(){location.reload(true);},300)" style="background:#0099cc;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap">Save &amp; reload</button>'+
+      '<button onclick="this.parentNode.remove()" title="Dismiss" style="background:transparent;color:rgba(255,255,255,.7);border:none;cursor:pointer;font-size:15px;padding:2px 4px">✕</button>';
+    document.body.appendChild(b);
+  }
+  check();                          // capture the running version's tag
+  setInterval(check, 4 * 60 * 1000); // then re-check every 4 minutes
+})();
+
 // "Include inspection report" toggle on the Quote tab. The hidden
 // <input type=checkbox id=qIncludeReport> is the source of truth; the
 // visible label uses the existing .chk-item styling so it matches the
