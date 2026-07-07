@@ -88,9 +88,33 @@ app.use(express.json({ limit: '25mb' }));
 // in a browser and it now returns JSON so we can confirm which build
 // of the backend is live without having to dig into a real route.
 const BUILD_SHA = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_SHA || 'unknown').slice(0, 7);
+// ── Outbound email (order emails with the PDF attached) ────────────
+// Configured with SMTP env vars on Railway.  For a Gmail / Google
+// Workspace mailbox (e.g. office@floodroofing.co.nz):
+//   SMTP_HOST=smtp.gmail.com   SMTP_PORT=465
+//   SMTP_USER=office@floodroofing.co.nz
+//   SMTP_PASS=<16-char Google App Password>   (myaccount.google.com/apppasswords)
+//   SMTP_FROM="Flood Roofing <office@floodroofing.co.nz>"   (optional)
+// Until SMTP_USER + SMTP_PASS are set, /email/send-order answers 503
+// EMAIL_NOT_CONFIGURED and the frontend falls back to Gmail compose.
+const EMAIL_ENABLED = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+let _mailTransport = null;
+function mailTransport() {
+  if (_mailTransport) return _mailTransport;
+  const nodemailer = require('nodemailer');
+  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  _mailTransport = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: port,
+    secure: port === 465,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  });
+  return _mailTransport;
+}
+
 // Feature flags so you can confirm from a browser which build is live.
 // `customerQuote` ships with the public /q/:token + /quote-activity routes.
-const FEATURES = { customerQuote: true };
+const FEATURES = { customerQuote: true, orderEmail: EMAIL_ENABLED };
 app.get('/', (req, res) => {
   res.json({
     service: 'flood-roofing-estimator-backend',
@@ -1156,6 +1180,46 @@ app.get('/jms/debug/fergus-find', requireAuth, async (req, res) => {
     }
   }));
   res.json({ query: q, probes: out });
+});
+
+// Send an order email with the PDF attached, straight from the app —
+// no Gmail tab, no manual attaching.  CC goes to the office mailbox so
+// the sender always gets their copy.
+app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res) => {
+  if (!EMAIL_ENABLED) {
+    return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
+  }
+  try {
+    const { to, cc, subject, text, attachment } = req.body || {};
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!to || !emailRe.test(String(to))) return res.status(400).json({ error: 'Valid "to" address required' });
+    if (cc && !emailRe.test(String(cc)))  return res.status(400).json({ error: 'CC address is not a valid email' });
+    if (!subject || !String(subject).trim()) return res.status(400).json({ error: 'Subject required' });
+    const attachments = [];
+    if (attachment && attachment.base64) {
+      // ~25MB JSON body cap upstream; belt-and-braces cap the decoded
+      // attachment at 15MB so one request can't balloon memory.
+      if (String(attachment.base64).length > 20 * 1024 * 1024) {
+        return res.status(413).json({ error: 'Attachment too large' });
+      }
+      attachments.push({
+        filename: String(attachment.filename || 'order.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100),
+        content: Buffer.from(attachment.base64, 'base64'),
+        contentType: 'application/pdf',
+      });
+    }
+    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+    const info = await mailTransport().sendMail({
+      from, to, cc: cc || undefined,
+      subject: String(subject).slice(0, 300),
+      text: String(text || ''),
+      attachments,
+    });
+    res.json({ ok: true, id: info.messageId || null });
+  } catch (e) {
+    console.error('send-order email failed:', e.message);
+    res.status(502).json({ error: 'Email send failed: ' + e.message });
+  }
 });
 
 app.get('/proxy-image', async (req, res) => {

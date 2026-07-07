@@ -2628,10 +2628,11 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
       <label style="font-size:12px;font-weight:600;color:#334155">Message <span style="font-weight:400;color:#64748b">— this is what gets sent, edit as needed</span>
         <textarea id="orderEmailBody" rows="9" oninput="window._orderEmailDirty=true" style="width:100%;margin-top:4px;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;font-family:inherit;line-height:1.5;resize:vertical;min-height:158px;box-sizing:border-box;color:#0a1628;margin-bottom:0"></textarea>
       </label>
-      <div style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:8px;padding:9px 11px;line-height:1.5">The order PDF downloads when you open the email — drag it into the message to attach it. A copy is CC'd to <strong id="orderEmailCc"></strong>.</div>
-      <div style="display:flex;gap:8px;margin-top:2px">
-        <button onclick="_orderEmailOpen('gmail')" style="flex:1;padding:11px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">✉ Open in Gmail</button>
-        <button onclick="_orderEmailOpen('mailto')" style="padding:11px 14px;background:#fff;color:#0a1628;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer;font-size:13px" title="Open your computer's default mail app instead">Default mail</button>
+      <div style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:8px;padding:9px 11px;line-height:1.5"><strong>Send email now</strong> sends it for you — the order PDF is attached automatically and a copy is CC'd to <strong id="orderEmailCc"></strong>. The Gmail / default-mail options open a draft instead (the PDF downloads for you to drag in).</div>
+      <button id="orderEmailSendBtn" onclick="_orderEmailSendNow()" style="width:100%;padding:12px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;margin-top:2px">📤 Send email now — PDF attached</button>
+      <div style="display:flex;gap:8px">
+        <button onclick="_orderEmailOpen('gmail')" style="flex:1;padding:9px;background:#fff;color:#0a1628;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer;font-size:12.5px">✉ Open in Gmail instead</button>
+        <button onclick="_orderEmailOpen('mailto')" style="padding:9px 14px;background:#fff;color:#0a1628;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer;font-size:12.5px" title="Open your computer's default mail app instead">Default mail</button>
       </div>
     </div>
   </div>
@@ -22331,10 +22332,12 @@ function _jpBuildSheetRows(sc){
   // paths whose group keys don't always derive from the matched face, so
   // some arrows never landed (e.g. 11.90m arrow vs a stubborn 11.70 row).
   // Match by VALUE instead: each measure claims the row whose geometric
-  // ordered length is nearest to it (greedy, one row per measure, within
-  // a 25% / 1.2m sanity window).  No geometry, no cross-render state —
-  // rebuilt right here every render, so it works on every roof shape and
-  // wins over a stale group override (the on-canvas number is the truth).
+  // ordered length is nearest to it (greedy, one row per measure) and the
+  // arrow's number is copied onto that row VERBATIM.  UNCONDITIONAL — no
+  // distance cap, no fallback maths: if arrows exist they ARE the cut-list
+  // lengths ("never work out the cut list's sheet length any other way").
+  // No geometry, no cross-render state — rebuilt right here every render,
+  // so it works on every roof shape and wins over stale typed overrides.
   // The map also records which measures feed which row so retyping the
   // row's length in the cut list pushes back onto the arrows (_jpSheetSetLen).
   var manualMap = {};
@@ -22354,7 +22357,6 @@ function _jpBuildSheetRows(sc){
       var mUsed = {}, rUsed = {};
       pairs.forEach(function(p){
         if (mUsed[p.m.mi] || rUsed[p.r.origLen]) return;
-        if (p.d > Math.max(1200, p.r.origLen * 0.25)) return;   // sanity window
         mUsed[p.m.mi] = 1; rUsed[p.r.origLen] = 1;
         p.r.len = p.m.mm;
         if (!manualMap[p.r.origLen]) manualMap[p.r.origLen] = { mm: p.m.mm, idxs: [] };
@@ -25157,11 +25159,20 @@ function _matBuildPrintOrderDetails(mount) {
   if (hasSheetCounts) {
     var sheetRows = [];
     if (sc.groups && sc.groups.length) {
-      var byLen = {};
-      sc.groups.forEach(function(g){ byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count; });
-      sheetRows = Object.keys(byLen)
-        .map(function(k){ return { len: parseInt(k, 10), qty: byLen[k] }; })
-        .sort(function(a, b){ return b.len - a.len; });
+      // SAME rows as the Job Pack cut list — _jpBuildSheetRows is the one
+      // source of truth (black-arrow measures, typed length/qty overrides,
+      // hidden rows).  This page used to rebuild raw geometric rows from
+      // sc.groups, so the supplier's order PDF disagreed with the Job Pack
+      // the user had corrected ("cut list STILL doesn't match my canvas").
+      sheetRows = _jpBuildSheetRows(sc)
+        .map(function(r){ return { len: r.len, qty: r.qty }; });
+      // User-added extra rows print too — they're part of the order.
+      if (Array.isArray(DRAW.matSheetExtras)) {
+        DRAW.matSheetExtras.forEach(function(x){
+          if (x && +x.qty > 0 && +x.lenMm > 0) sheetRows.push({ len: +x.lenMm, qty: +x.qty });
+        });
+      }
+      sheetRows.sort(function(a, b){ return b.len - a.len; });
     } else {
       var longTotal = (sc.orangeLong || 0) + (sc.blueLong || 0) + (sc.purpleLong || 0);
       if (longTotal)     sheetRows.push({ len: sc.longLen  || 7650, qty: longTotal });
@@ -25663,48 +25674,108 @@ function _fmtOrderDate(iso){
   try { return new Date(iso + 'T00:00:00').toLocaleDateString('en-NZ', { weekday:'short', day:'numeric', month:'short' }); }
   catch(e){ return iso; }
 }
-async function _orderEmailOpen(mode){
+// Collect + validate everything the order email needs from the modal.
+// Returns null (after showing a message) when something is missing.
+function _orderEmailGather(){
   var sups = _orderEmailSuppliers();
   var sel = document.getElementById('orderEmailSupplier');
   var idx = sel ? parseInt(sel.value, 10) : -1;
   var s = (idx >= 0) ? sups[idx] : null;
-  if (!s || !s.email){ _matMsg('Pick a supplier that has an email (Settings → Suppliers & materials).', false); return; }
+  if (!s || !s.email){ _matMsg('Pick a supplier that has an email (Settings → Suppliers & materials).', false); return null; }
   var dateEl = document.getElementById('orderEmailDate');
   var dateStr = _fmtOrderDate(dateEl && dateEl.value);
-  if (!dateStr && !confirm('No delivery date entered — send the order without one?')) return;
-
+  if (!dateStr && !confirm('No delivery date entered — send the order without one?')) return null;
   var jobNum = ((document.getElementById('matJobNumber')||{}).value || (window.S && S.linkedJobId) || '').toString().trim();
   var brand = (window.S && S.settings && S.settings.branding) || {};
-  var cc = brand.email || '';
   // Send EXACTLY what the modal shows — the Subject and Message fields are
   // the email (prefilled from the template, possibly edited by the user).
   var defs = _orderEmailDefaults();
   var subjEl = document.getElementById('orderEmailSubject');
   var bodyEl = document.getElementById('orderEmailBody');
-  var subject = (subjEl && subjEl.value.trim()) || defs.subject;
-  var body    = (bodyEl && bodyEl.value) || defs.body;
-
-  _matMsg('Building order PDF…');
-  var blob;
-  try { blob = await _matBuildPdfBlob(); }
-  catch (e){ _matMsg('PDF build failed: ' + (e.message || e), false); return; }
   var client = ((document.getElementById('jobClient')||{}).value || 'Order').trim();
-  var filename = ('Order_' + (jobNum || client)).replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
-  _matDownloadBlob(blob, filename);
+  return {
+    supplier: s,
+    cc: brand.email || '',
+    subject: (subjEl && subjEl.value.trim()) || defs.subject,
+    body: (bodyEl && bodyEl.value) || defs.body,
+    filename: ('Order_' + (jobNum || client)).replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf'
+  };
+}
+async function _orderEmailOpen(mode){
+  try {
+    var o = _orderEmailGather();
+    if (!o) return;
+    // Open the tab NOW, synchronously inside the click, and point it at the
+    // compose URL after the PDF is built.  window.open AFTER an await has
+    // lost the user-activation, so pop-up blockers silently ate the Gmail
+    // tab — "I click Open in Gmail and nothing at all happens".
+    var popup = null;
+    if (mode === 'gmail'){
+      popup = window.open('', '_blank');
+      if (popup) { try { popup.document.write('<title>Opening Gmail…</title><p style="font-family:sans-serif;color:#334155;padding:24px">Building the order PDF, then opening Gmail…</p>'); } catch(e){} }
+    }
+    _matMsg('Building order PDF…');
+    var blob;
+    try { blob = await _matBuildPdfBlob(); }
+    catch (e){ if (popup) try{popup.close();}catch(e2){} _matMsg('PDF build failed: ' + (e.message || e), false); return; }
+    _matDownloadBlob(blob, o.filename);
 
-  if (mode === 'gmail'){
-    var g = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(s.email) +
-      (cc ? '&cc=' + encodeURIComponent(cc) : '') +
-      '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-    window.open(g, '_blank');
-  } else {
-    var m = 'mailto:' + encodeURIComponent(s.email) + '?' +
-      (cc ? 'cc=' + encodeURIComponent(cc) + '&' : '') +
-      'subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-    window.location.href = m;
+    if (mode === 'gmail'){
+      var g = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(o.supplier.email) +
+        (o.cc ? '&cc=' + encodeURIComponent(o.cc) : '') +
+        '&su=' + encodeURIComponent(o.subject) + '&body=' + encodeURIComponent(o.body);
+      if (popup && !popup.closed) popup.location.href = g;
+      else if (!window.open(g, '_blank')) { _matMsg('Pop-up blocked — allow pop-ups for this site, or use Send email now.', false); return; }
+    } else {
+      var m = 'mailto:' + encodeURIComponent(o.supplier.email) + '?' +
+        (o.cc ? 'cc=' + encodeURIComponent(o.cc) + '&' : '') +
+        'subject=' + encodeURIComponent(o.subject) + '&body=' + encodeURIComponent(o.body);
+      window.location.href = m;
+    }
+    _closeOrderEmail();
+    _matMsg('✓ Order PDF downloaded (' + o.filename + ') — attach it in the email, then send.', true);
+  } catch(err) {
+    console.error('order email open failed:', err);
+    _matMsg('Could not open the email: ' + (err.message || err), false);
   }
-  _closeOrderEmail();
-  _matMsg('✓ Order PDF downloaded (' + filename + ') — attach it in the email, then send.', true);
+}
+// In-app send: builds the order PDF, then the BACKEND emails it to the
+// supplier with the PDF attached and the office CC'd — no Gmail tab, no
+// manual attaching.  Needs SMTP configured on the server (Railway env);
+// until then it reports how to set it up and the compose buttons still work.
+async function _orderEmailSendNow(){
+  var btn = document.getElementById('orderEmailSendBtn');
+  try {
+    var o = _orderEmailGather();
+    if (!o) return;
+    if (btn){ btn.disabled = true; btn.textContent = 'Building order PDF…'; }
+    var blob = await _matBuildPdfBlob();
+    if (btn) btn.textContent = 'Sending…';
+    var base64 = await new Promise(function(resolve, reject){
+      var fr = new FileReader();
+      fr.onload = function(){ resolve(String(fr.result).split(',')[1] || ''); };
+      fr.onerror = function(){ reject(new Error('Could not read the PDF')); };
+      fr.readAsDataURL(blob);
+    });
+    await api('POST', '/email/send-order', {
+      to: o.supplier.email,
+      cc: o.cc || undefined,
+      subject: o.subject,
+      text: o.body,
+      attachment: { filename: o.filename, base64: base64 }
+    });
+    _closeOrderEmail();
+    _matMsg('✓ Order emailed to ' + o.supplier.email + (o.cc ? ' — copy CC’d to ' + o.cc : '') + '.', true);
+  } catch(err) {
+    var msg = String(err && err.message || err);
+    if (msg.indexOf('EMAIL_NOT_CONFIGURED') !== -1 || msg.indexOf('503') !== -1) {
+      _matMsg('In-app sending isn’t set up on the server yet (needs SMTP details on Railway) — use "Open in Gmail instead" below for now.', false);
+    } else {
+      _matMsg('Send failed: ' + msg.slice(0, 180), false);
+    }
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = '📤 Send email now — PDF attached'; }
+  }
 }
 
 // Legacy Web-Share / mailto order flow — superseded by _openOrderEmail
