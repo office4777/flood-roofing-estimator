@@ -89,15 +89,52 @@ app.use(express.json({ limit: '25mb' }));
 // of the backend is live without having to dig into a real route.
 const BUILD_SHA = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_SHA || 'unknown').slice(0, 7);
 // ── Outbound email (order emails with the PDF attached) ────────────
-// Configured with SMTP env vars on Railway.  For a Gmail / Google
-// Workspace mailbox (e.g. office@floodroofing.co.nz):
-//   SMTP_HOST=smtp.gmail.com   SMTP_PORT=465
-//   SMTP_USER=office@floodroofing.co.nz
-//   SMTP_PASS=<16-char Google App Password>   (myaccount.google.com/apppasswords)
-//   SMTP_FROM="Flood Roofing <office@floodroofing.co.nz>"   (optional)
-// Until SMTP_USER + SMTP_PASS are set, /email/send-order answers 503
+// TWO delivery methods, tried in this order:
+//
+//  1. Resend (RESEND_API_KEY) — an HTTP API over HTTPS (port 443), which
+//     is essentially never blocked by a hosting platform's egress rules.
+//     Preferred whenever it's configured.  Sign up at resend.com, grab
+//     an API key, and set EMAIL_FROM to an address on a domain you've
+//     verified there (Resend → Domains) — an unverified domain can only
+//     send to the account's own signup address, not real suppliers.
+//       RESEND_API_KEY=re_xxx
+//       EMAIL_FROM="Flood Roofing <office@floodroofing.co.nz>"
+//
+//  2. Raw SMTP (SMTP_USER/SMTP_PASS) — kept as a fallback for hosts that
+//     don't restrict outbound SMTP.  Some platforms (Railway included,
+//     confirmed by /email/debug's "Connection timeout" on every port)
+//     block raw SMTP outright, in which case only Resend will work.
+//       SMTP_HOST=smtp.gmail.com   SMTP_PORT=465
+//       SMTP_USER=office@floodroofing.co.nz
+//       SMTP_PASS=<16-char Google App Password>
+//       SMTP_FROM="Flood Roofing <office@floodroofing.co.nz>"
+//
+// Until one of these is fully configured, /email/send-order answers 503
 // EMAIL_NOT_CONFIGURED and the frontend falls back to Gmail compose.
-const EMAIL_ENABLED = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const RESEND_ENABLED = !!RESEND_API_KEY;
+const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || '';
+const EMAIL_ENABLED = RESEND_ENABLED || !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+async function _resendVerifyKey() {
+  const r = await httpsRequest('api.resend.com', '/domains', 'GET', { Authorization: 'Bearer ' + RESEND_API_KEY }, null);
+  if (r.status >= 200 && r.status < 300) return true;
+  throw new Error('Resend API responded ' + r.status + ': ' + (r.body || '').slice(0, 200));
+}
+async function _resendSendMail({ to, cc, subject, text, attachment }) {
+  if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="Flood Roofing <office@floodroofing.co.nz>" (once that domain is verified in Resend → Domains).');
+  const payload = { from: EMAIL_FROM, to: [to], subject, text };
+  if (cc) payload.cc = [cc];
+  if (attachment && attachment.base64) {
+    payload.attachments = [{ filename: attachment.filename || 'order.pdf', content: attachment.base64 }];
+  }
+  const r = await httpsRequest('api.resend.com', '/emails', 'POST',
+    { Authorization: 'Bearer ' + RESEND_API_KEY, 'Content-Type': 'application/json' }, payload);
+  if (r.status >= 200 && r.status < 300) {
+    let id = null; try { id = JSON.parse(r.body).id; } catch (e) {}
+    return { messageId: id };
+  }
+  throw new Error('Resend send failed (' + r.status + '): ' + (r.body || '').slice(0, 300));
+}
 function _buildSmtpTransport(port, secure) {
   const nodemailer = require('nodemailer');
   return nodemailer.createTransport({
@@ -1242,31 +1279,39 @@ app.get('/jms/debug/fergus-find', requireAuth, async (req, res) => {
 // actual SMTP login succeed?) instead of everyone guessing from a
 // variables screenshot that might predate the last redeploy.
 app.get('/email/debug', requireAuth, rateLimit(20, 60000), async (req, res) => {
+  const method = RESEND_ENABLED ? 'resend' : 'smtp';
   const info = {
+    method,
+    emailFrom: EMAIL_FROM || null,
+    resendApiKeySet: RESEND_ENABLED,
     smtpUserSet: !!process.env.SMTP_USER,
     smtpPassSet: !!process.env.SMTP_PASS,
     smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com (default)',
     smtpPort: process.env.SMTP_PORT || '465 (default)',
-    smtpFrom: process.env.SMTP_FROM || process.env.SMTP_USER || null,
     emailEnabled: EMAIL_ENABLED,
     buildDeployedAt: BUILD_SHA,
   };
   if (!EMAIL_ENABLED) {
     return res.json(Object.assign({}, info, {
       verify: null,
-      verifyError: 'SMTP_USER and/or SMTP_PASS are NOT set on this running server. If you already added them in Railway → Variables, the service likely hasn’t redeployed since — add a throwaway variable to force a restart, or use Redeploy on the latest deployment.',
+      verifyError: 'Neither RESEND_API_KEY nor SMTP_USER/SMTP_PASS are set on this running server. If you already added one in Railway → Variables, the service likely hasn’t redeployed since — add a throwaway variable to force a restart, or use Redeploy on the latest deployment. (Resend is recommended: it sends over HTTPS, which container platforms essentially never block, unlike raw SMTP.)',
     }));
   }
   try {
-    const resolved = await _resolveMailTransport(true);   // fresh probe, ignore cache
-    res.json(Object.assign({}, info, { verify: true, portUsed: resolved.portUsed }));
+    if (RESEND_ENABLED) {
+      await _resendVerifyKey();
+      if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="Flood Roofing <office@floodroofing.co.nz>".');
+      res.json(Object.assign({}, info, { verify: true }));
+    } else {
+      const resolved = await _resolveMailTransport(true);   // fresh probe, ignore cache
+      res.json(Object.assign({}, info, { verify: true, portUsed: resolved.portUsed }));
+    }
   } catch (e) {
-    res.json(Object.assign({}, info, {
-      verify: false,
-      verifyError: e.message + ' (tried port ' + (process.env.SMTP_PORT || '465') +
-        ' and its ' + (parseInt(process.env.SMTP_PORT || '465', 10) === 465 ? '587' : '465') +
-        ' fallback — both failed, which points at the hosting platform blocking outbound SMTP entirely rather than a credentials problem)',
-    }));
+    const extra = RESEND_ENABLED ? '' :
+      ' (tried port ' + (process.env.SMTP_PORT || '465') +
+      ' and its ' + (parseInt(process.env.SMTP_PORT || '465', 10) === 465 ? '587' : '465') +
+      ' fallback — both failed, which points at the hosting platform blocking outbound SMTP entirely. Set RESEND_API_KEY instead — it sends over HTTPS, which is essentially never blocked.)';
+    res.json(Object.assign({}, info, { verify: false, verifyError: e.message + extra }));
   }
 });
 
@@ -1283,27 +1328,30 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
     if (!to || !emailRe.test(String(to))) return res.status(400).json({ error: 'Valid "to" address required' });
     if (cc && !emailRe.test(String(cc)))  return res.status(400).json({ error: 'CC address is not a valid email' });
     if (!subject || !String(subject).trim()) return res.status(400).json({ error: 'Subject required' });
-    const attachments = [];
     if (attachment && attachment.base64) {
       // ~25MB JSON body cap upstream; belt-and-braces cap the decoded
       // attachment at 15MB so one request can't balloon memory.
       if (String(attachment.base64).length > 20 * 1024 * 1024) {
         return res.status(413).json({ error: 'Attachment too large' });
       }
-      attachments.push({
-        filename: String(attachment.filename || 'order.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100),
-        content: Buffer.from(attachment.base64, 'base64'),
-        contentType: 'application/pdf',
+      attachment.filename = String(attachment.filename || 'order.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
+    }
+    var info;
+    if (RESEND_ENABLED) {
+      info = await _resendSendMail({ to, cc, subject: String(subject).slice(0, 300), text: String(text || ''), attachment });
+    } else {
+      const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+      const attachments = (attachment && attachment.base64)
+        ? [{ filename: attachment.filename, content: Buffer.from(attachment.base64, 'base64'), contentType: 'application/pdf' }]
+        : [];
+      const resolved = await _resolveMailTransport();
+      info = await resolved.transporter.sendMail({
+        from, to, cc: cc || undefined,
+        subject: String(subject).slice(0, 300),
+        text: String(text || ''),
+        attachments,
       });
     }
-    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
-    const resolved = await _resolveMailTransport();
-    const info = await resolved.transporter.sendMail({
-      from, to, cc: cc || undefined,
-      subject: String(subject).slice(0, 300),
-      text: String(text || ''),
-      attachments,
-    });
     res.json({ ok: true, id: info.messageId || null });
   } catch (e) {
     console.error('send-order email failed:', e.message);

@@ -25906,14 +25906,20 @@ async function _orderEmailTestSmtp(){
   try {
     var r = await api('GET', '/email/debug');
     var lines = [];
-    lines.push('Host: ' + r.smtpHost + ':' + r.smtpPort);
-    lines.push('SMTP_USER set: ' + (r.smtpUserSet ? 'yes' : 'NO'));
-    lines.push('SMTP_PASS set: ' + (r.smtpPassSet ? 'yes' : 'NO'));
+    if (r.method === 'resend') {
+      lines.push('Method: Resend (HTTPS API)');
+      lines.push('RESEND_API_KEY set: ' + (r.resendApiKeySet ? 'yes' : 'NO'));
+      lines.push('EMAIL_FROM: ' + (r.emailFrom || 'NOT SET'));
+    } else {
+      lines.push('Method: raw SMTP — Host: ' + r.smtpHost + ':' + r.smtpPort);
+      lines.push('SMTP_USER set: ' + (r.smtpUserSet ? 'yes' : 'NO'));
+      lines.push('SMTP_PASS set: ' + (r.smtpPassSet ? 'yes' : 'NO'));
+    }
     if (r.verify === true) {
-      lines.push('✓ Logged in to the mail server successfully (via port ' + r.portUsed + ') — sending should work.');
+      lines.push('✓ ' + (r.method === 'resend' ? 'Resend API key verified' : 'Logged in to the mail server (via port ' + r.portUsed + ')') + ' — sending should work.');
       _orderEmailStatus(lines.join('  ·  '), 'ok');
     } else if (r.verify === false) {
-      lines.push('✗ Login FAILED: ' + r.verifyError);
+      lines.push('✗ FAILED: ' + r.verifyError);
       _orderEmailStatus(lines.join('\n'), 'err');
     } else {
       lines.push(r.verifyError || 'Not configured.');
