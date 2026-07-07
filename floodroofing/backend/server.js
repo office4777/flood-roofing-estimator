@@ -1186,6 +1186,35 @@ app.get('/jms/debug/fergus-find', requireAuth, async (req, res) => {
   res.json({ query: q, probes: out });
 });
 
+// Diagnostic route so a "not configured" report can be resolved without
+// anyone needing shell/dashboard access to Railway: it tells you exactly
+// what THIS RUNNING PROCESS sees (env vars set? which host/port? does an
+// actual SMTP login succeed?) instead of everyone guessing from a
+// variables screenshot that might predate the last redeploy.
+app.get('/email/debug', requireAuth, rateLimit(20, 60000), async (req, res) => {
+  const info = {
+    smtpUserSet: !!process.env.SMTP_USER,
+    smtpPassSet: !!process.env.SMTP_PASS,
+    smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com (default)',
+    smtpPort: process.env.SMTP_PORT || '465 (default)',
+    smtpFrom: process.env.SMTP_FROM || process.env.SMTP_USER || null,
+    emailEnabled: EMAIL_ENABLED,
+    buildDeployedAt: BUILD_SHA,
+  };
+  if (!EMAIL_ENABLED) {
+    return res.json(Object.assign({}, info, {
+      verify: null,
+      verifyError: 'SMTP_USER and/or SMTP_PASS are NOT set on this running server. If you already added them in Railway → Variables, the service likely hasn’t redeployed since — add a throwaway variable to force a restart, or use Redeploy on the latest deployment.',
+    }));
+  }
+  try {
+    await mailTransport().verify();
+    res.json(Object.assign({}, info, { verify: true }));
+  } catch (e) {
+    res.json(Object.assign({}, info, { verify: false, verifyError: e.message }));
+  }
+});
+
 // Send an order email with the PDF attached, straight from the app —
 // no Gmail tab, no manual attaching.  CC goes to the office mailbox so
 // the sender always gets their copy.
