@@ -19062,62 +19062,11 @@ function _applySheetOverridesToFaces(faces){
   });
 }
 
-// Ordered-length bucket for a sheet — MUST match sheet-plan.js's
-// orderedLengthMm() so the map below keys on the same group as the cut
-// list (ceil to nearest 100mm with a 50mm trim, min 1000mm).
-function _sheetOrderedLenMm(sheetMetres){
-  var mm = Math.ceil(sheetMetres * 1000 + 50);
-  return Math.max(1000, Math.ceil(mm / 100) * 100);
-}
-
-// Forward sync for the black-arrow "Sheet measure" annotations the user
-// draws on the canvas (DRAW.manualSheetMeasures).
-//
-// IMPORTANT: this must NOT change the sheet COUNT or the sheet-layout
-// DIAGRAM — only the length shown in the ROOF SHEETS cut list.  So instead
-// of re-tiling (stamping face.sheetM, which would change how many sheets
-// fit and redraw the plan) it builds a DISPLAY-ONLY length map:
-//   window._manualSheetLenMap[geometricOrderedMm] = { mm: shownMm, idxs:[…] }
-// The cut-list builder (_jpBuildSheetRows) reads it to relabel that group's
-// length; tiling, the legend and the on-canvas auto labels are untouched.
-//
-// A measure maps to the face whose polygon STRICTLY contains its anchor;
-// that face's own geometric ordered length is the group key.  No-op when
-// there are no measures, so existing jobs and the sheet CI are unchanged.
-function _applyManualMeasuresToFaces(faces){
-  window._manualSheetLenMap = {};
-  if (!faces || !faces.length) return;
-  if (!Array.isArray(DRAW.manualSheetMeasures) || !DRAW.manualSheetMeasures.length) return;
-  function ptInPoly(px, py, poly){
-    if (!poly || poly.length < 3) return false;
-    var inside = false;
-    for (var i = 0, j = poly.length - 1; i < poly.length; j = i++){
-      var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
-      var hit = ((yi > py) !== (yj > py)) &&
-                (px < (xj - xi) * (py - yi) / ((yj - yi) || 1e-9) + xi);
-      if (hit) inside = !inside;
-    }
-    return inside;
-  }
-  var map = window._manualSheetLenMap;
-  DRAW.manualSheetMeasures.forEach(function(m, mi){
-    if (!m || !(+m.lengthM > 0)) return;
-    var ax = +m.x, ay = +m.y;
-    if (!isFinite(ax) || !isFinite(ay)) return;
-    var target = null;
-    for (var i = 0; i < faces.length; i++){
-      var f = faces[i];
-      if (f && f.poly && ptInPoly(ax, ay, f.poly)) { target = f; break; }
-    }
-    if (!target || !(target.sheetM > 0)) return;
-    var groupMm = _sheetOrderedLenMm(target.sheetM);         // the cut-list group this plane lands in
-    var shownMm = Math.round((+m.lengthM) * 1000);           // show the arrow's number verbatim
-    if (shownMm <= 0) return;
-    if (!map[groupMm]) map[groupMm] = { mm: shownMm, idxs: [] };
-    else map[groupMm].mm = shownMm;                          // last measure on this group wins
-    map[groupMm].idxs.push(mi);
-  });
-}
+// (The manual Sheet-measure → cut-list sync lives in _jpBuildSheetRows:
+// each black-arrow measure claims the cut-list row with the nearest
+// geometric length.  An earlier geometric point-in-polygon applicator
+// lived here but the tiler's multiple counting paths made its group keys
+// unreliable — value matching at row-build time replaced it.)
 
 function _sheetDimKey(ridge, perpX, perpY) {
   if (!ridge || !ridge.pts || ridge.pts.length < 2) return '';
@@ -22358,20 +22307,54 @@ function _jpBuildSheetRows(sc){
   var hidden = DRAW.matSheetRowHidden || {};
   var qtyOv = DRAW.sheetGroupQtyOverrides || {};
   var lenOv = DRAW.sheetGroupOverrides || {};
-  // Display-only length from a black-arrow Sheet measure sitting on this
-  // plane (built by _applyManualMeasuresToFaces).  It only relabels the
-  // length — the qty/count still comes from the tiler — and it wins over a
-  // stale group override so the on-canvas number is authoritative.
-  var manualMap = window._manualSheetLenMap || {};
   Object.keys(byLen).forEach(function(k){
     var origLen = parseInt(k, 10);
     if (hidden[origLen]) return;
     var qty = (qtyOv[origLen] != null) ? +qtyOv[origLen] : byLen[k];
-    var len = (manualMap[origLen] != null) ? +manualMap[origLen].mm
-            : (lenOv[origLen] != null) ? +lenOv[origLen]
-            : origLen;
+    var len = (lenOv[origLen] != null) ? +lenOv[origLen] : origLen;
     rows.push({ origLen: origLen, len: len, qty: qty });
   });
+  // ── Black-arrow Sheet measures drive the displayed lengths ──
+  // The user draws a Sheet-measure arrow on a roof plane and types the
+  // real sheet length; the cut list MUST show that number.  Earlier
+  // attempts matched measure → plane geometrically (point-in-polygon
+  // against the tiler's face list) but the tiler has several counting
+  // paths whose group keys don't always derive from the matched face, so
+  // some arrows never landed (e.g. 11.90m arrow vs a stubborn 11.70 row).
+  // Match by VALUE instead: each measure claims the row whose geometric
+  // ordered length is nearest to it (greedy, one row per measure, within
+  // a 25% / 1.2m sanity window).  No geometry, no cross-render state —
+  // rebuilt right here every render, so it works on every roof shape and
+  // wins over a stale group override (the on-canvas number is the truth).
+  // The map also records which measures feed which row so retyping the
+  // row's length in the cut list pushes back onto the arrows (_jpSheetSetLen).
+  var manualMap = {};
+  try {
+    var ms = [];
+    (DRAW.manualSheetMeasures || []).forEach(function(m, mi){
+      if (m && +m.lengthM > 0) ms.push({ mi: mi, mm: Math.round(+m.lengthM * 1000) });
+    });
+    if (ms.length && rows.length){
+      var pairs = [];
+      ms.forEach(function(m){
+        rows.forEach(function(r){
+          pairs.push({ m: m, r: r, d: Math.abs(m.mm - r.origLen) });
+        });
+      });
+      pairs.sort(function(a, b){ return a.d - b.d; });
+      var mUsed = {}, rUsed = {};
+      pairs.forEach(function(p){
+        if (mUsed[p.m.mi] || rUsed[p.r.origLen]) return;
+        if (p.d > Math.max(1200, p.r.origLen * 0.25)) return;   // sanity window
+        mUsed[p.m.mi] = 1; rUsed[p.r.origLen] = 1;
+        p.r.len = p.m.mm;
+        if (!manualMap[p.r.origLen]) manualMap[p.r.origLen] = { mm: p.m.mm, idxs: [] };
+        manualMap[p.r.origLen].mm = p.m.mm;
+        manualMap[p.r.origLen].idxs.push(p.m.mi);
+      });
+    }
+  } catch(e){}
+  window._manualSheetLenMap = manualMap;
   rows.sort(function(a, b){ return b.len - a.len; });
   return rows;
 }

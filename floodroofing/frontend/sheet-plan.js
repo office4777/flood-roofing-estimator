@@ -929,11 +929,8 @@ function _renderRoofSheetPlanInner() {
   // the manual lengths — not just the on-canvas labels.  (The applicator
   // lives in index.html and was previously never called.)
   try { if (typeof _applySheetOverridesToFaces === 'function') _applySheetOverridesToFaces(faces); } catch(e){}
-  // Free-standing black-arrow "Sheet measure" annotations
-  // (DRAW.manualSheetMeasures): build a DISPLAY-ONLY length map so the cut
-  // list follows the on-canvas number WITHOUT changing the sheet count or
-  // re-tiling the layout diagram (it doesn't touch face.sheetM).
-  try { if (typeof _applyManualMeasuresToFaces === 'function') _applyManualMeasuresToFaces(faces); } catch(e){}
+  // (Black-arrow Sheet measures sync with the cut list by value inside
+  // _jpBuildSheetRows in index.html — no engine hook needed.)
 
   // ── Main rectangle detection (for phantom-4-hip extension) ────
   // The "main rectangle" is the largest axis-aligned rectangle that
