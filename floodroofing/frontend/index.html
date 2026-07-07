@@ -2622,6 +2622,16 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
         <select id="orderEmailSupplier" onchange="_orderEmailSupplierChange()" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;background:#fff"></select>
       </label>
       <div id="orderEmailSupTo" style="font-size:11px;color:#64748b;margin-top:-8px"></div>
+      <!-- Custom one-off recipient — shown when "Custom email…" is picked
+           in the supplier dropdown (or when no suppliers are saved). -->
+      <div id="orderEmailCustomWrap" style="display:none;flex-direction:column;gap:8px;margin-top:-4px">
+        <label style="font-size:12px;font-weight:600;color:#334155">Send to (email)
+          <input type="email" id="orderEmailCustomTo" placeholder="orders@supplier.co.nz" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:0">
+        </label>
+        <label style="font-size:12px;font-weight:600;color:#334155">Contact first name <span style="font-weight:400;color:#64748b">— used in the greeting</span>
+          <input type="text" id="orderEmailCustomName" placeholder="e.g. Dave" oninput="_orderEmailRefreshBody()" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:0">
+        </label>
+      </div>
       <label style="font-size:12px;font-weight:600;color:#334155">Delivery date
         <input type="date" id="orderEmailDate" onchange="_orderEmailRefreshBody()" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">
       </label>
@@ -25654,9 +25664,14 @@ function _openOrderEmail(){
   var sups = _orderEmailSuppliers();
   var sel = document.getElementById('orderEmailSupplier');
   if (sel){
-    sel.innerHTML = sups.length
-      ? sups.map(function(s, i){ return '<option value="'+i+'">'+esc(s.name || s.email || ('Supplier '+(i+1)))+'</option>'; }).join('')
-      : '<option value="-1">No suppliers yet — add one in Settings → Suppliers &amp; materials</option>';
+    // Saved suppliers plus an always-available "Custom email…" pick — a
+    // one-off address (new supplier, a rep's direct email) shouldn't
+    // require a trip to Settings first.  With no suppliers saved, Custom
+    // is the default so ordering still works.
+    sel.innerHTML =
+      sups.map(function(s, i){ return '<option value="'+i+'">'+esc(s.name || s.email || ('Supplier '+(i+1)))+'</option>'; }).join('') +
+      '<option value="custom">✎ Custom email…</option>';
+    if (!sups.length) sel.value = 'custom';
   }
   var delMode = ((window.S && S.order && S.order.deliveryMode) || 'site');
   var siteAddr = (document.getElementById('matDeliveryAddr')||{}).value
@@ -25682,8 +25697,12 @@ function _openOrderEmail(){
 function _orderEmailDefaults(){
   var sups = _orderEmailSuppliers();
   var sel = document.getElementById('orderEmailSupplier');
-  var idx = sel ? parseInt(sel.value, 10) : -1;
+  var idx = (sel && !_orderEmailIsCustom()) ? parseInt(sel.value, 10) : -1;
   var s = (idx >= 0) ? sups[idx] : null;
+  // Custom recipient: greeting name comes from the typed contact field.
+  if (_orderEmailIsCustom()) {
+    s = { contact: ((document.getElementById('orderEmailCustomName')||{}).value || '').trim() };
+  }
   var jobNum = ((document.getElementById('matJobNumber')||{}).value || (window.S && S.linkedJobId) || '').toString().trim();
   var delMode = ((window.S && S.order && S.order.deliveryMode) || 'site');
   var siteAddr = (document.getElementById('matDeliveryAddr')||{}).value
@@ -25713,13 +25732,20 @@ function _closeOrderEmail(){
   var ov = document.getElementById('orderEmailOverlay'); if (ov) ov.style.display = 'none';
   var md = document.getElementById('orderEmailModal');   if (md) md.style.display = 'none';
 }
+function _orderEmailIsCustom(){
+  var sel = document.getElementById('orderEmailSupplier');
+  return !!sel && sel.value === 'custom';
+}
 function _orderEmailSupplierChange(){
   var sups = _orderEmailSuppliers();
   var sel = document.getElementById('orderEmailSupplier');
-  var idx = sel ? parseInt(sel.value, 10) : -1;
+  var custom = _orderEmailIsCustom();
+  var wrap = document.getElementById('orderEmailCustomWrap');
+  if (wrap) wrap.style.display = custom ? 'flex' : 'none';
+  var idx = (sel && !custom) ? parseInt(sel.value, 10) : -1;
   var s = (idx >= 0) ? sups[idx] : null;
   var el = document.getElementById('orderEmailSupTo');
-  if (el) el.textContent = s ? ((s.contact ? s.contact + ' · ' : '') + (s.email || 'no email on file')) : '';
+  if (el) el.textContent = custom ? '' : (s ? ((s.contact ? s.contact + ' · ' : '') + (s.email || 'no email on file')) : '');
   // New supplier = new contact first name in the greeting.
   _orderEmailRefreshBody();
 }
@@ -25733,9 +25759,22 @@ function _fmtOrderDate(iso){
 function _orderEmailGather(){
   var sups = _orderEmailSuppliers();
   var sel = document.getElementById('orderEmailSupplier');
-  var idx = sel ? parseInt(sel.value, 10) : -1;
-  var s = (idx >= 0) ? sups[idx] : null;
-  if (!s || !s.email){ _matMsg('Pick a supplier that has an email (Settings → Suppliers & materials).', false); return null; }
+  var s = null;
+  if (_orderEmailIsCustom()) {
+    // One-off recipient typed straight into the modal.
+    var cTo = ((document.getElementById('orderEmailCustomTo')||{}).value || '').trim();
+    var cName = ((document.getElementById('orderEmailCustomName')||{}).value || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cTo)){
+      _orderEmailStatus('Enter a valid email address in "Send to (email)".', 'err');
+      var toEl = document.getElementById('orderEmailCustomTo'); if (toEl) toEl.focus();
+      return null;
+    }
+    s = { name: cTo, contact: cName, email: cTo };
+  } else {
+    var idx = sel ? parseInt(sel.value, 10) : -1;
+    s = (idx >= 0) ? sups[idx] : null;
+  }
+  if (!s || !s.email){ _orderEmailStatus('Pick a supplier with an email, or choose "✎ Custom email…" and type one.', 'err'); return null; }
   var dateEl = document.getElementById('orderEmailDate');
   var dateStr = _fmtOrderDate(dateEl && dateEl.value);
   if (!dateStr && !confirm('No delivery date entered — send the order without one?')) return null;
