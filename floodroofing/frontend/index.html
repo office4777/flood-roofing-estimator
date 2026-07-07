@@ -2616,9 +2616,18 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
       </label>
       <div id="orderEmailSupTo" style="font-size:11px;color:#64748b;margin-top:-8px"></div>
       <label style="font-size:12px;font-weight:600;color:#334155">Delivery date
-        <input type="date" id="orderEmailDate" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">
+        <input type="date" id="orderEmailDate" onchange="_orderEmailRefreshBody()" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">
       </label>
       <div style="font-size:12.5px;color:#334155"><strong>Deliver to:</strong> <span id="orderEmailDeliverTo">—</span></div>
+      <!-- The exact email that will be sent — subject + body, both
+           editable.  The body re-prefills from the template when the
+           supplier / date changes, but never over a user edit. -->
+      <label style="font-size:12px;font-weight:600;color:#334155">Subject
+        <input type="text" id="orderEmailSubject" oninput="window._orderEmailDirty=true" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;box-sizing:border-box">
+      </label>
+      <label style="font-size:12px;font-weight:600;color:#334155">Message <span style="font-weight:400;color:#64748b">— this is what gets sent, edit as needed</span>
+        <textarea id="orderEmailBody" rows="9" oninput="window._orderEmailDirty=true" style="width:100%;margin-top:4px;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;font-family:inherit;line-height:1.5;resize:vertical;min-height:158px;box-sizing:border-box;color:#0a1628;margin-bottom:0"></textarea>
+      </label>
       <div style="font-size:11px;color:#64748b;background:#f1f5f9;border-radius:8px;padding:9px 11px;line-height:1.5">The order PDF downloads when you open the email — drag it into the message to attach it. A copy is CC'd to <strong id="orderEmailCc"></strong>.</div>
       <div style="display:flex;gap:8px;margin-top:2px">
         <button onclick="_orderEmailOpen('gmail')" style="flex:1;padding:11px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">✉ Open in Gmail</button>
@@ -25593,9 +25602,47 @@ function _openOrderEmail(){
   var cc = (window.S && S.settings && S.settings.branding && S.settings.branding.email) || '';
   var ccEl = document.getElementById('orderEmailCc');
   if (ccEl) ccEl.textContent = cc || '(set your email in Settings → Branding)';
+  // Fresh open = fresh template; edits only stick while the modal is up.
+  window._orderEmailDirty = false;
   _orderEmailSupplierChange();
+  _orderEmailRefreshBody(true);
   var ov = document.getElementById('orderEmailOverlay'); if (ov) ov.style.display = 'block';
   var md = document.getElementById('orderEmailModal');   if (md) md.style.display = 'block';
+}
+// The default subject + message for the order email, built from the
+// current modal picks (supplier contact first name, job #, delivery
+// destination and date).  This is the template the user specified:
+//   "Hi <first name>, please find the attached order for job #<ref>,
+//    please deliver to <yard/site address> on <date>."
+function _orderEmailDefaults(){
+  var sups = _orderEmailSuppliers();
+  var sel = document.getElementById('orderEmailSupplier');
+  var idx = sel ? parseInt(sel.value, 10) : -1;
+  var s = (idx >= 0) ? sups[idx] : null;
+  var jobNum = ((document.getElementById('matJobNumber')||{}).value || (window.S && S.linkedJobId) || '').toString().trim();
+  var delMode = ((window.S && S.order && S.order.deliveryMode) || 'site');
+  var siteAddr = (document.getElementById('matDeliveryAddr')||{}).value
+              || (document.getElementById('jobAddr')||{}).value || '';
+  var deliverTo = (delMode === 'site') ? (siteAddr || 'site (address tbc)') : 'the yard';
+  var brand = (window.S && S.settings && S.settings.branding) || {};
+  var first = (s && s.contact || '').trim();
+  var dateStr = _fmtOrderDate((document.getElementById('orderEmailDate')||{}).value);
+  return {
+    subject: 'Order #' + (jobNum || ''),
+    body: 'Hi ' + (first || 'there') + ',\n\n' +
+      'Please find the attached order for job #' + (jobNum || '(tbc)') + '.\n' +
+      'Please deliver to ' + deliverTo + (dateStr ? ' on ' + dateStr : '') + '.\n\n' +
+      'Thanks,\n' + (brand.company_name || 'Flood Roofing')
+  };
+}
+// Re-prefill the visible subject + message from the template — called on
+// open (forced) and whenever the supplier or date changes.  Never
+// overwrites text the user has edited (window._orderEmailDirty).
+function _orderEmailRefreshBody(force){
+  if (window._orderEmailDirty && !force) return;
+  var d = _orderEmailDefaults();
+  var su = document.getElementById('orderEmailSubject'); if (su) su.value = d.subject;
+  var bo = document.getElementById('orderEmailBody');    if (bo) bo.value = d.body;
 }
 function _closeOrderEmail(){
   var ov = document.getElementById('orderEmailOverlay'); if (ov) ov.style.display = 'none';
@@ -25608,6 +25655,8 @@ function _orderEmailSupplierChange(){
   var s = (idx >= 0) ? sups[idx] : null;
   var el = document.getElementById('orderEmailSupTo');
   if (el) el.textContent = s ? ((s.contact ? s.contact + ' · ' : '') + (s.email || 'no email on file')) : '';
+  // New supplier = new contact first name in the greeting.
+  _orderEmailRefreshBody();
 }
 function _fmtOrderDate(iso){
   if (!iso) return '';
@@ -25625,18 +25674,15 @@ async function _orderEmailOpen(mode){
   if (!dateStr && !confirm('No delivery date entered — send the order without one?')) return;
 
   var jobNum = ((document.getElementById('matJobNumber')||{}).value || (window.S && S.linkedJobId) || '').toString().trim();
-  var delMode = ((window.S && S.order && S.order.deliveryMode) || 'site');
-  var siteAddr = (document.getElementById('matDeliveryAddr')||{}).value
-              || (document.getElementById('jobAddr')||{}).value || '';
-  var deliverTo = (delMode === 'site') ? (siteAddr || 'site (address tbc)') : 'the yard';
   var brand = (window.S && S.settings && S.settings.branding) || {};
   var cc = brand.email || '';
-  var first = (s.contact || '').trim();
-  var subject = 'Order #' + (jobNum || '');
-  var body = 'Hi ' + (first || 'there') + ',\n\n' +
-    'Please find the attached order for job #' + (jobNum || '(tbc)') + '.\n' +
-    'Please deliver to ' + deliverTo + (dateStr ? ' on ' + dateStr : '') + '.\n\n' +
-    'Thanks,\n' + (brand.company_name || 'Flood Roofing');
+  // Send EXACTLY what the modal shows — the Subject and Message fields are
+  // the email (prefilled from the template, possibly edited by the user).
+  var defs = _orderEmailDefaults();
+  var subjEl = document.getElementById('orderEmailSubject');
+  var bodyEl = document.getElementById('orderEmailBody');
+  var subject = (subjEl && subjEl.value.trim()) || defs.subject;
+  var body    = (bodyEl && bodyEl.value) || defs.body;
 
   _matMsg('Building order PDF…');
   var blob;
@@ -25646,16 +25692,15 @@ async function _orderEmailOpen(mode){
   var filename = ('Order_' + (jobNum || client)).replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
   _matDownloadBlob(blob, filename);
 
-  var bodyWithNote = body + '\n\n[Attach ' + filename + ' — just downloaded to your device]';
   if (mode === 'gmail'){
     var g = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(s.email) +
       (cc ? '&cc=' + encodeURIComponent(cc) : '') +
-      '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(bodyWithNote);
+      '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
     window.open(g, '_blank');
   } else {
     var m = 'mailto:' + encodeURIComponent(s.email) + '?' +
       (cc ? 'cc=' + encodeURIComponent(cc) + '&' : '') +
-      'subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(bodyWithNote);
+      'subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
     window.location.href = m;
   }
   _closeOrderEmail();
