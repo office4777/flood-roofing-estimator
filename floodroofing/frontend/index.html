@@ -2602,6 +2602,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
       <button onclick="printJobPack()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
       <button onclick="pushJobPackToFergus()" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
       <button onclick="openFergusJob()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">📂 Open in Fergus</button>
+      <button onclick="diagnoseFergusUpload()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px" title="Test every Fergus upload endpoint and show what each one returns">🔍 Diagnose Fergus</button>
       <button onclick="orderRoofViaSupplier()" class="mat-btn mat-btn-blue" style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
     </div>
   </div>
@@ -2676,6 +2677,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
       <button onclick="printJobPack()"          class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
       <button onclick="pushJobPackToFergus()" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
       <button onclick="openFergusJob()"         class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">📂 Open in Fergus</button>
+      <button onclick="diagnoseFergusUpload()"  class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px" title="Test every Fergus upload endpoint and show what each one returns">🔍 Diagnose Fergus</button>
       <button onclick="orderRoofViaSupplier()"  class="mat-btn mat-btn-blue"  style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
     </div>
   </div>
@@ -25571,7 +25573,53 @@ function _matRenderFergusDebug(label, payload) {
   catch(e) { body = String(payload); }
   out.textContent = head + body;
   var det = document.getElementById('matFergusDebug');
-  if (det) det.open = true;
+  if (det) {
+    det.open = true;
+    // The panel is a .jp-legacy card hidden by `#tab-materials > .jp-legacy
+    // {display:none!important}`. Force it visible so the results are readable
+    // (inline !important wins over the author stylesheet's !important).
+    det.style.setProperty('display', 'block', 'important');
+    try { det.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e){}
+  }
+}
+
+// One-tap Fergus upload diagnosis, reachable from the visible toolbar.
+// Runs the GET probe AND a real POST upload of the Job Pack PDF, then dumps
+// Fergus's status + response body for every candidate path into the (now
+// visible) diagnostics panel — so we can see whether ANY endpoint accepts
+// the file, or whether Fergus's API simply has no upload path.
+async function diagnoseFergusUpload() {
+  if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first (Select Job → Fergus tab).', false); return; }
+  _matMsg('Running Fergus upload diagnostics…');
+  var token = localStorage.getItem('fr_token') || '';
+  var report = {};
+  try {
+    var pr = await fetch(PROXY + '/fergus-files/probe?jobId=' + encodeURIComponent(String(S.linkedJobId)), {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    report.getProbe = await pr.json().catch(function(){ return { status: pr.status, error: 'non-JSON response' }; });
+  } catch(e) { report.getProbe = { error: e.message }; }
+  try {
+    var pdf = await _buildJobPackPdf();
+    var blob = pdf ? pdf.output('blob') : null;
+    if (!blob) { report.postUpload = { error: 'Job Pack PDF build failed' }; }
+    else {
+      var b64 = await new Promise(function(ok, fail){
+        var r = new FileReader();
+        r.onload = function(){ ok(String(r.result).split(',')[1]); };
+        r.onerror = function(){ fail(r.error || new Error('FileReader failed')); };
+        r.readAsDataURL(blob);
+      });
+      var up = await fetch(PROXY + '/fergus-files/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ jobId: String(S.linkedJobId), filename: 'RoofMap-diagnostic.pdf', contentType: 'application/pdf', base64: b64 }),
+      });
+      report.postUpload = await up.json().catch(function(){ return { status: up.status, error: 'non-JSON response' }; });
+    }
+  } catch(e) { report.postUpload = { error: e.message }; }
+  _matRenderFergusDebug('Fergus upload diagnostics · job ' + S.linkedJobId, report);
+  _matMsg('Diagnostics done — screenshot the panel below and send it over.', true);
 }
 
 // Hit /fergus-files/probe — GET each candidate path on the linked job
