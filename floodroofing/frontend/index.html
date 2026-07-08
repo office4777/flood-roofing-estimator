@@ -4065,6 +4065,20 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
         </div>
       </div>
 
+      <div style="margin:6px 0 14px;padding-top:12px;border-top:1px solid var(--border)">
+        <strong style="font-size:13px">Default charge-out rates &amp; scaffolding</strong>
+        <span style="font-size:11px;color:var(--text2);display:block;margin-top:2px">Starting numbers for the Labour table on a new quote — cost/hr is what you pay, price/hr is the charge-out rate. Editable per job.</span>
+        <div class="f2" style="margin-top:10px">
+          <div><label>Lead Roofer — cost ($/hr)</label><input type="number" id="lpLeadCost" min="0" step="0.5" placeholder="45"></div>
+          <div><label>Lead Roofer — price/hr ($)</label><input type="number" id="lpLeadPrice" min="0" step="0.5" placeholder="200"></div>
+          <div><label>Apprentice — cost ($/hr)</label><input type="number" id="lpAppCost" min="0" step="0.5" placeholder="25"></div>
+          <div><label>Apprentice — price/hr ($)</label><input type="number" id="lpAppPrice" min="0" step="0.5" placeholder="90"></div>
+          <div><label>Scaffolding — default cost ($)</label><input type="number" id="lpScaffoldCost" min="0" step="1" placeholder="2000"></div>
+          <div><label>Scaffolding — default price ($)</label><input type="number" id="lpScaffoldPrice" min="0" step="1" placeholder="2500"></div>
+          <div><label>Platform scaffolding uplift (%)</label><input type="number" id="lpScaffoldPlatformPct" min="0" step="1" placeholder="25"></div>
+        </div>
+      </div>
+
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <strong style="font-size:13px">Default hours per scope item</strong>
         <span style="font-size:11px;color:var(--text2)">— pre-multiplier; the Scope &amp; Pricing labour table multiplies by complexity</span>
@@ -4498,9 +4512,11 @@ function defaultSettings(){
     // by the complexity multiplier the user picks per-job).
     labour_pricing: {
       // Two-line charge-out model (cost/hr = what you pay; price/hr = charge-out).
-      lead_cost: 45,  lead_price: 95,
-      app_cost:  25,  app_price:  65,
-      scaffold_price: 1500, scaffold_cost: 500,
+      lead_cost: 45,  lead_price: 200,
+      app_cost:  25,  app_price:  90,
+      scaffold_price: 2500, scaffold_cost: 2000,
+      // Platform scaffolding costs more than edge protection — uplift %.
+      scaffold_platform_pct: 25,
       default_workers: 2,
       default_rate: 55,
       default_complexity: 1,
@@ -4650,6 +4666,15 @@ function collectLabourPricingFromUI(){
   lp.default_workers    = parseInt((document.getElementById('lpWorkers')||{}).value, 10) || 2;
   lp.default_rate       = parseFloat((document.getElementById('lpRate')||{}).value) || 55;
   lp.default_complexity = parseFloat((document.getElementById('lpComplexity')||{}).value) || 1;
+  // Default charge-out rates + scaffolding (fall back to the seeded defaults).
+  var numOr = function(id, d){ var v = parseFloat((document.getElementById(id)||{}).value); return isFinite(v) ? v : d; };
+  lp.lead_cost   = numOr('lpLeadCost', 45);
+  lp.lead_price  = numOr('lpLeadPrice', 200);
+  lp.app_cost    = numOr('lpAppCost', 25);
+  lp.app_price   = numOr('lpAppPrice', 90);
+  lp.scaffold_cost  = numOr('lpScaffoldCost', 2000);
+  lp.scaffold_price = numOr('lpScaffoldPrice', 2500);
+  lp.scaffold_platform_pct = numOr('lpScaffoldPlatformPct', 25);
   var dict = {};
   Array.from(document.querySelectorAll('#lpItemsList > [data-lp-item]')).forEach(function(row){
     var name  = (row.querySelector('input[data-f="name"]')||{}).value || '';
@@ -4665,6 +4690,13 @@ function renderLabourPricingUI(){
   setN('lpWorkers',    lp.default_workers);
   setN('lpRate',       lp.default_rate);
   var sel = document.getElementById('lpComplexity'); if (sel) sel.value = String(lp.default_complexity || 1);
+  setN('lpLeadCost',   lp.lead_cost);
+  setN('lpLeadPrice',  lp.lead_price);
+  setN('lpAppCost',    lp.app_cost);
+  setN('lpAppPrice',   lp.app_price);
+  setN('lpScaffoldCost',  lp.scaffold_cost);
+  setN('lpScaffoldPrice', lp.scaffold_price);
+  setN('lpScaffoldPlatformPct', lp.scaffold_platform_pct);
   renderLabourItemsList(lp.per_item_hours || {});
 }
 function renderLabourItemsList(dict){
@@ -5502,7 +5534,7 @@ function updateGlobalJobBarCosts(){
   var mat = +S.materials || 0;
   var labourHours = +S.labourHours || 0;
   var days = labourHours > 0 ? (labourHours / 8) : 0;
-  var scaffoldPrice = (S.quote && S.quote.scaffold && +S.quote.scaffold.price) || 0;
+  var scaffoldPrice = (S.quote && S.quote.scaffold) ? _scaffoldEff(S.quote.scaffold).price : 0;
   // Pull the gutter line(s) out of S.matPriceRows if available — set
   // by _buildMaterialPriceRows() when the user picked a gutter type.
   // Falls back to scanning S.quote line items keyed "gutter*".
@@ -7229,14 +7261,39 @@ function _pricingState(){
   var num = function(v, d){ return (v != null && v !== '') ? +v : d; };
   if (!S.quote.labour) {
     S.quote.labour = {
-      leadHrs: 0, leadCost: num(lp.lead_cost,45), leadPrice: num(lp.lead_price,95),
-      appHrs:  0, appCost:  num(lp.app_cost,25),  appPrice:  num(lp.app_price,65)
+      leadHrs: 0, leadCost: num(lp.lead_cost,45), leadPrice: num(lp.lead_price,200),
+      appHrs:  0, appCost:  num(lp.app_cost,25),  appPrice:  num(lp.app_price,90)
     };
   }
   if (!S.quote.scaffold) {
-    S.quote.scaffold = { price: num(lp.scaffold_price,1500), cost: num(lp.scaffold_cost,500) };
+    S.quote.scaffold = { price: num(lp.scaffold_price,2500), cost: num(lp.scaffold_cost,2000), type: 'edge' };
   }
+  // Legacy quotes predate the scaffolding-type toggle — default to edge protection.
+  if (!S.quote.scaffold.type) S.quote.scaffold.type = 'edge';
   return { L: S.quote.labour, sc: S.quote.scaffold };
+}
+// Platform scaffolding uplift (%). Adjustable in Settings → Labour.
+function _scaffoldPlatformPct(){
+  var lp = (S.settings && S.settings.labour_pricing) || {};
+  var v = parseFloat(lp.scaffold_platform_pct);
+  return isFinite(v) ? v : 25;
+}
+// Effective scaffold cost/price after the Platform (+25%) uplift. The stored
+// cost/price are the base Edge-Protection figures; Platform multiplies both.
+function _scaffoldEff(sc){
+  sc = sc || (S.quote && S.quote.scaffold) || {};
+  var mult = (sc.type === 'platform') ? (1 + _scaffoldPlatformPct() / 100) : 1;
+  return {
+    cost:  (parseFloat(sc.cost)  || 0) * mult,
+    price: (parseFloat(sc.price) || 0) * mult,
+    mult:  mult,
+  };
+}
+function updateScaffoldType(val){
+  var p = _pricingState();
+  p.sc.type = (val === 'platform') ? 'platform' : 'edge';
+  calcLabour();
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
 }
 function updateLabour(field, val){
   var p = _pricingState(); p.L[field] = parseFloat(val) || 0; calcLabour();
@@ -7281,13 +7338,26 @@ function calcLabour(){
       '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+totalPrice.toFixed(2)+'</span>'+
     '</div>'+
     // Scaffolding line (included in every quote)
-    '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">'+
+    (function(){
+      var pct = _scaffoldPlatformPct();
+      var eff = _scaffoldEff(sc);
+      var isPlat = sc.type === 'platform';
+      return '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">'+
       '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:8px">🪜 Scaffolding <span style="font-weight:400;color:var(--text2)">— included in every quote</span></div>'+
+      '<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--text2);margin-bottom:4px">Scaffolding type</label>'+
+        '<select onchange="updateScaffoldType(this.value)" style="width:100%;font-size:12px;padding:6px 8px">'+
+          '<option value="edge"'+(isPlat?'':' selected')+'>Edge-Protection (standard)</option>'+
+          '<option value="platform"'+(isPlat?' selected':'')+'>Platform Scaffolding (+'+pct+'%)</option>'+
+        '</select></div>'+
       '<div class="f2">'+
         '<div><label>Scaffolding cost ($)</label><input type="number" step="1" min="0" value="'+f(sc.cost)+'" onchange="updateScaffold(\'cost\',this.value)"></div>'+
         '<div><label>Scaffolding price ($)</label><input type="number" step="1" min="0" value="'+f(sc.price)+'" onchange="updateScaffold(\'price\',this.value)"></div>'+
       '</div>'+
+      (isPlat
+        ? '<div style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 10px">Platform +'+pct+'% → charged <strong>$'+eff.price.toFixed(2)+'</strong> <span style="color:var(--text2)">(cost $'+eff.cost.toFixed(2)+')</span></div>'
+        : '')+
     '</div>';
+    })();
   wrap.innerHTML = html;
 
   // Roll up to the quote (price feeds the combined quote total; cost +
@@ -7308,7 +7378,7 @@ function renderProfitability(){
   var f = function(v){ return parseFloat(v) || 0; };
   var labourPrice = f(S.labour), labourCost = f(S.labourCost), hrs = f(S.labourHours);
   var mat = f(S.materials);
-  var scPrice = f(sc.price), scCost = f(sc.cost);
+  var scEff = _scaffoldEff(sc); var scPrice = scEff.price, scCost = scEff.cost;
   // Revenue (ex-GST charge-out) and our cost. Materials pass through at
   // price-book cost, so GP comes from the labour + scaffold margin.
   var revenue = labourPrice + mat + scPrice;
@@ -7774,8 +7844,8 @@ function defaultQuoteLineItems(){
   var items = [];
   if (S.labour > 0)    items.push({desc:'Labour',    qty:1, unit:S.labour});
   if (S.materials > 0) items.push({desc:'Materials', qty:1, unit:S.materials});
-  var scP = (S.quote && S.quote.scaffold && parseFloat(S.quote.scaffold.price)) || 0;
-  if (scP > 0)         items.push({desc:'Scaffolding', qty:1, unit:scP});
+  var scP = (S.quote && S.quote.scaffold) ? _scaffoldEff(S.quote.scaffold).price : 0;
+  if (scP > 0)         items.push({desc: (S.quote.scaffold.type === 'platform' ? 'Scaffolding (platform)' : 'Scaffolding'), qty:1, unit:scP});
   if (items.length === 0) items.push({desc:'', qty:1, unit:0});
   return items;
 }
@@ -7853,6 +7923,8 @@ function readQuoteFromInputs(){
   var q = S.quote || (S.quote = defaultQuote());
   function val(id){var el=document.getElementById(id); return el ? el.value : '';}
   q.ref        = val('qdRef');
+  // A linked Fergus job always dictates the reference.
+  try { _applyFergusRefToQuote(); } catch(e){}
   q.date       = val('qdDate');
   q.validUntil = val('qdValidUntil');
   q.client     = val('qdClient');
@@ -9023,6 +9095,7 @@ function recalcQuoteTotals(){
   // from the single totals engine; the card above keeps the line-item
   // base breakdown.
   var ta=document.getElementById('qaTotal');   if(ta) ta.textContent = fmtMoney(_quoteMoney().tot);
+  try { _applyFergusRefToQuote(); } catch(e){}
   var rr=document.getElementById('qaRef');     if(rr) rr.textContent = (S.quote && S.quote.ref) || 'FR-001';
 }
 
@@ -9522,12 +9595,21 @@ function _attachInlineEditors(){
   });
 }
 
+// The quote reference always tracks the linked Fergus job number — when a
+// job is linked its job# IS the reference (overrides any typed ref), so the
+// quote, proposal, email subject and PDF filename all carry the Fergus #.
+function _applyFergusRefToQuote(){
+  if (!window.S || !S.quote) return;
+  var jn = S.linkedJobNo;
+  if (jn != null && String(jn).trim() !== '') S.quote.ref = String(jn).trim();
+}
 function refreshQuoteProposal(){
   if (!S.quote) return;
   var root = document.getElementById('qpRoot');
   if (!root) return;
   // Don't re-render while the user is typing inside an inline-edit field
   if (root.contains(document.activeElement) && document.activeElement.dataset && document.activeElement.dataset.qfield) return;
+  _applyFergusRefToQuote();
   var d = S.roofData || {};
   var br = (S.settings && S.settings.branding) || {};
   var company = br.company_name || 'FLOOD ROOFING';
