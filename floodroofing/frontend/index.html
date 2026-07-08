@@ -25623,10 +25623,25 @@ async function diagnoseFergusUpload() {
         body: JSON.stringify({ jobId: String(S.linkedJobId), filename: 'RoofMap-diagnostic.pdf', contentType: 'application/pdf', base64: b64 }),
       });
       report.postUpload = await up.json().catch(function(){ return { status: up.status, error: 'non-JSON response' }; });
+      // Clean up after ourselves: the diagnostic PDF was only a proof-of-life
+      // upload, so delete it from the Fergus job via DELETE /attachments/{id}
+      // (through the generic /fergus/* proxy) — no litter on the real job.
+      var newId = report.postUpload && report.postUpload.fergus && report.postUpload.fergus.data && report.postUpload.fergus.data.id;
+      if (newId) {
+        try {
+          var del = await fetch(PROXY + '/fergus/attachments/' + encodeURIComponent(newId), {
+            method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token },
+          });
+          report.cleanupDeletedTestFile = { id: newId, status: del.status, ok: del.ok };
+        } catch(e) { report.cleanupDeletedTestFile = { id: newId, error: e.message }; }
+      }
     }
   } catch(e) { report.postUpload = { error: e.message }; }
   _matRenderFergusDebug('Fergus upload diagnostics · job ' + S.linkedJobId, report);
-  _matMsg('Diagnostics done — screenshot the panel below and send it over.', true);
+  var uploadOk = report.postUpload && report.postUpload.ok;
+  _matMsg(uploadOk
+    ? '✓ Upload works — a test PDF was uploaded to the Fergus job and then removed. Push to Fergus is now one-click.'
+    : 'Diagnostics done — screenshot the panel below and send it over.', !!uploadOk || true);
 }
 
 // Hit /fergus-files/probe — GET each candidate path on the linked job

@@ -729,21 +729,19 @@ app.post('/fergus-files/upload', requireAuth, requireSubscription, async (req, r
   const field = fieldName || process.env.FERGUS_FILES_FIELD || 'file';
   const attempts = [];
 
-  // Primary: POST /attachments with the job as the entity.
+  // Primary: POST /attachments with the job as the entity. Fergus's enum is
+  // lowercase — confirmed live: "entityType must be one of: customer, job,
+  // site, enquiry, works_order" (uppercase 'JOB' 400s, 'job' returns 201).
+  // Pin 'job' so every upload succeeds on the first try; the env var can
+  // override if a different entity type is ever targeted.
   const entityTypes = process.env.FERGUS_ATTACH_ENTITY_TYPE
     ? [process.env.FERGUS_ATTACH_ENTITY_TYPE]
-    : ['JOB', 'job', 'Job'];
+    : ['job'];
   for (const et of entityTypes) {
     const a = await _fergusAttachmentAttempt(et, jobId, buf, contentType, filename, field);
     attempts.push(a);
     if (a.ok && a.looksCreated) {
       return res.json({ ok: true, used: '/attachments', entityType: et, status: a.status, fergus: a.body, url: a.url, attempts });
-    }
-    // A 4xx that isn't 404 means the endpoint EXISTS but rejected this
-    // entityType/field — no point trying more casings blindly if it's a
-    // validation error naming the real problem; surface it.
-    if (a.status && a.status !== 404 && a.status >= 400 && a.status < 500 && a.body && a.body.message) {
-      // keep trying other casings, but this body is the useful clue
     }
   }
 
