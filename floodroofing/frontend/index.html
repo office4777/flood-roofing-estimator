@@ -10335,9 +10335,11 @@ function refreshQuoteProposal(){
       // empty ones show a dashed "Upload Site Photo" placeholder.
       '<div class="ed-eyebrow" style="margin-bottom:10px">Existing roof photos</div>'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">'+photoBoxes+'</div>'+
-      // No uploaded site photos → fill the page with the aerial roof view so
-      // the inspection page isn't mostly whitespace.
-      ((S.photos && S.photos.length) ? '' : _aerialRoofBlock());
+      // No uploaded site photos → fill the page with the aerial view, or the
+      // roof-map plan diagram when there's no aerial, so the inspection page
+      // isn't mostly whitespace.
+      ((S.photos && S.photos.length) ? '' : (_aerialRoofBlock() ||
+        (function(){ var m = _buildRoofPreviewsHtml({ basic: true }); return m ? ('<div class="ed-eyebrow" style="margin:6px 0 8px">Existing roof — plan view</div>' + m) : ''; })()));
   }
 
   // ── Scope of work + timeline + estimated start (full page) ──
