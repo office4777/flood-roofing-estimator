@@ -10617,7 +10617,7 @@ function refreshQuoteProposal(){
       '<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:30px;align-items:start">'+
         // Left — what's included
         '<div>'+
-          '<div class="ed-eyebrow'+(inclLines.length?'':' qp-ph')+'" style="margin-bottom:8px">What\'s included</div>'+
+          '<div class="ed-eyebrow'+(_scopeRaw.trim()?'':' qp-ph')+'" style="margin-bottom:8px">What\'s included</div>'+
           inclList+
         '</div>'+
         // Right — price card (big total, subtotal, GST, deposit) +
