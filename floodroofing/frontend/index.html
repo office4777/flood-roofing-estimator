@@ -986,6 +986,41 @@ select{
 .mat-print-page .mp-cons .cons-val{font-size:14px;font-weight:700}
 
 /* ── Job Pack: Maps side panel + drag-droppable images ─────────── */
+/* Pricing slide-out (Quote tab) — mirrors the maps panel but much wider so
+   the whole Scope & Pricing surface fits. Hidden by default; gotoTab shows
+   it (display:flex) only on the Quote tab, and it slides in on .is-open. */
+#quotePricingPanel{
+  position:fixed; top:70px; right:0; bottom:16px;
+  width:min(860px,94vw); z-index:70;
+  background:#fff; border:1px solid var(--border); border-right:none;
+  border-radius:12px 0 0 12px; box-shadow:-8px 10px 34px rgba(0,0,0,.18);
+  transform:translateX(100%); transition:transform .28s ease;
+  display:none; flex-direction:column;
+}
+#quotePricingPanel.is-open{ transform:translateX(0); }
+#quotePricingPanelToggle{
+  position:absolute; left:-46px; top:16px; width:46px; height:140px;
+  background:#0099cc; color:#fff; border:none; border-radius:10px 0 0 10px;
+  cursor:pointer; font-size:11px; font-weight:700; letter-spacing:.05em;
+  padding:8px 0 10px; display:flex; flex-direction:column; align-items:center;
+  justify-content:space-between; gap:6px; box-shadow:-3px 4px 12px rgba(0,153,204,.35);
+  transition:background .15s;
+}
+#quotePricingPanelToggle:hover{ background:#0a1628; }
+#quotePricingPanelToggle .qpx-arrow{ font-size:16px; line-height:1; transition:transform .28s ease; display:block; }
+#quotePricingPanel.is-open #quotePricingPanelToggle .qpx-arrow{ transform:rotate(180deg); }
+#quotePricingPanelToggle .qpx-text{ writing-mode:vertical-rl; text-orientation:mixed; font-weight:700; }
+#quotePricingPanel .qpx-hd{
+  padding:12px 16px; border-bottom:1px solid var(--border);
+  font-size:14px; font-weight:700; color:#0a1628; display:flex; align-items:center; gap:8px;
+}
+#quotePricingHost{ flex:1; overflow-y:auto; padding:8px 16px 18px; background:#f7f8fa; }
+/* The moved-in panel is no longer a nav tab, so force it visible inside. */
+#quotePricingPanel #tab-scope{ display:block!important; }
+/* Keep the pricing PDF/print flow working even though #tab-scope now lives
+   inside the fixed slide-out — neutralise the panel chrome while printing. */
+html.print-scope #quotePricingPanel{ position:static!important; transform:none!important; width:auto!important; box-shadow:none!important; border:none!important; display:block!important; }
+html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .qpx-hd{ display:none!important; }
 #jpMapPanel{
   position:fixed; top:88px; right:0; bottom:24px;
   width:240px; z-index:60;
@@ -1896,7 +1931,6 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   </div>
   <button class="nav-btn" onclick="gotoTab('roof')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.3"/></svg>Map Roof</button>
   <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Job Pack</button>
-  <button class="nav-btn" onclick="gotoTab('scope')"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8H11M5 5.5H11M5 10.5H8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Pricing</button>
   <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <!-- "Order Material" tab consolidated into Materials (action bar buttons:
        Save PDF / Push to Fergus / Order Roof). Nav button hidden; panel
@@ -2465,7 +2499,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 
     <div style="display:flex;gap:.75rem;margin-bottom:1rem">
       <button class="sec-btn" style="margin:0" onclick="gotoTab('materials')">Next: sheet layout &amp; materials</button>
-      <button class="out-btn" style="margin:0" onclick="gotoTab('scope')">Scope &amp; Pricing</button>
+      <button class="out-btn" style="margin:0" onclick="_openPricingPanel()">Scope &amp; Pricing</button>
     </div>
   </div>
 </div>
@@ -2581,6 +2615,21 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
     <span id="scopeActionMsg" style="margin-left:auto;font-size:12px;color:var(--text2);align-self:center"></span>
   </div>
 </div>
+
+<!-- Pricing slide-out — the Scope & Pricing panel (#tab-scope) is moved in
+     here by JS and revealed only on the Quote tab. Wider than the Job Pack
+     maps panel so the full labour/material/scaffold tables fit. -->
+<aside id="quotePricingPanel" class="no-print">
+  <button id="quotePricingPanelToggle" onclick="_togglePricingPanel()" title="Pricing — labour, materials & scaffolding">
+    <span class="qpx-arrow">◀</span>
+    <span class="qpx-text">PRICING</span>
+  </button>
+  <div class="qpx-hd"><span>💰 Pricing</span>
+    <small style="margin-left:auto;font-size:10px;font-weight:500;color:var(--text2)">labour · materials · scaffold</small>
+    <button onclick="_closePricingPanel()" title="Close" style="margin-left:10px;background:none;border:none;color:var(--text2);font-size:16px;cursor:pointer;line-height:1">✕</button>
+  </div>
+  <div id="quotePricingHost"></div>
+</aside>
 
 <!-- TAB 3: MATERIALS -->
 <div class="panel" id="tab-materials">
@@ -4245,7 +4294,10 @@ function gotoTab(t) {
     t = 'quote';
   }
   // Order must match the rendered nav buttons.
-  var ids=['select','roof','materials','scope','quote','order','jobpack','jobs','settings'];
+  // 'scope' (Pricing) is no longer a nav tab — it lives in a slide-out on
+  // the Quote tab (see _openPricingPanel). Keep it OUT of this index-aligned
+  // list so the remaining nav buttons stay matched to their ids.
+  var ids=['select','roof','materials','quote','order','jobpack','jobs','settings'];
   document.querySelectorAll('.nav-btn').forEach(function(b,i){b.classList.toggle('active',ids[i]===t);});
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
@@ -4254,6 +4306,13 @@ function gotoTab(t) {
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
   if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpRestorePanelState();}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
   if(t!=='materials'){var __mp=document.getElementById('jpMapPanel'); if(__mp)__mp.classList.remove('is-open');}
+  // Pricing slide-out is available only on the Quote tab.
+  (function(){
+    var _pp=document.getElementById('quotePricingPanel');
+    if(!_pp) return;
+    if(t==='quote'){ _pp.style.display='flex'; try{_pricingPanelInit();}catch(e){} }
+    else { _pp.style.display='none'; _pp.classList.remove('is-open'); }
+  })();
   if(t==='roof'){
     // Auto-fly the satellite map to the job's saved site address on
     // tab entry, but only the FIRST time per address (so a manual
@@ -20676,6 +20735,38 @@ function _jpPageTypes(){
     { value:'notes',       label:'Notes / custom' }
   ];
 }
+// ── Pricing slide-out (Quote tab) ──────────────────────────────────
+// The Scope & Pricing panel (#tab-scope) used to be its own nav tab. It now
+// lives inside a wide slide-out on the Quote tab. Move the element into the
+// panel host once (keeping all its ids/inputs/state), and open/close the
+// slide-out. Opening runs the same init the old 'scope' tab did.
+function _pricingPanelInit(){
+  var host = document.getElementById('quotePricingHost');
+  var sc = document.getElementById('tab-scope');
+  if (host && sc && sc.parentNode !== host) host.appendChild(sc);
+}
+function _openPricingPanel(){
+  // The panel only exists on the Quote tab — switch there first if needed.
+  try {
+    var ap = document.querySelector('.panel.active');
+    if (!ap || ap.id !== 'tab-quote') { if (typeof gotoTab === 'function') gotoTab('quote'); }
+  } catch(e){}
+  _pricingPanelInit();
+  try { populateMaterialsFromLines(); } catch(e){ console.warn('pricing populate:', e); }
+  try { renderMaterialPriceTable(); } catch(e){ console.warn('pricing material price:', e); }
+  try { calcLabour(); } catch(e){ console.warn('pricing labour:', e); }
+  var p = document.getElementById('quotePricingPanel');
+  if (p){ p.style.display = 'flex'; p.classList.add('is-open'); }
+}
+function _closePricingPanel(){
+  var p = document.getElementById('quotePricingPanel'); if (p) p.classList.remove('is-open');
+}
+function _togglePricingPanel(){
+  var p = document.getElementById('quotePricingPanel'); if (!p) return;
+  if (p.classList.contains('is-open')) _closePricingPanel();
+  else _openPricingPanel();
+}
+
 // ── Maps side panel ────────────────────────────────────────────────
 // Toggle the slide-out panel that lists every available map as a
 // draggable thumbnail.
