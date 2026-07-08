@@ -7281,6 +7281,71 @@ var MAIN_SCOPE_PRESETS = {
     items: ['Install gutters','Install downpipes','Fascia work','Cleanup and disposal']
   }
 };
+// Default scope-of-work descriptions inserted into the quote (page 3 —
+// "What's included") when a job type is picked. Lines ending in ":" or
+// starting a section (Scope of Work / Warranty) render as headings; the rest
+// render as numbered inclusions. The user can edit the text inline afterwards.
+var MAIN_SCOPE_DESCRIPTIONS = {
+  reroof: `Scope of Work – Re-Roof
+
+This quotation includes the following work:
+
+Install edge protection/scaffolding as required for safe access.
+Remove and dispose of the existing roof sheeting.
+Inspect roof framing and replace any rotten or damaged purlins found during the re-roof (within reason).
+Supply and install premium synthetic roof underlay.
+Supply and install new COLORSTEEL® Maxam® long-run roofing (0.40 BMT Corrugate profile unless otherwise specified).
+Supply and install all associated flashings, ridging, barges, apron flashings and closures required for a complete roof.
+Replace all roofing screws with new colour-matched Class 4 fasteners.
+Leave the roof and work area clean and tidy upon completion.
+Remove all roofing waste from site.
+
+Warranty
+
+Manufacturer's warranty on roofing materials (subject to product and environmental conditions).
+Flood Roofing workmanship warranty in accordance with our standard terms and conditions.`,
+  newroof: `Scope of Work – New Roof
+
+This quotation includes the following work:
+
+Install edge protection/scaffolding as required for safe access.
+Supply and install premium synthetic roof underlay.
+Supply and install new COLORSTEEL® Maxam® long-run roofing (0.40 BMT Corrugate profile unless otherwise specified).
+Supply and install all associated flashings, ridging, barges, apron flashings and closures required for a complete roof.
+Fix all roofing with new colour-matched Class 4 fasteners.
+Leave the roof and work area clean and tidy upon completion.
+Remove all roofing waste from site.
+
+Warranty
+
+Manufacturer's warranty on roofing materials (subject to product and environmental conditions).
+Flood Roofing workmanship warranty in accordance with our standard terms and conditions.`,
+  tile2cs: `Scope of Work – Tile to Colorsteel Conversion
+
+This quotation includes the following work:
+
+Install edge protection/scaffolding as required for safe access.
+Remove and dispose of the existing concrete/clay roof tiles.
+Inspect roof framing and install new timber purlins/battens to suit long-run roofing.
+Supply and install premium synthetic roof underlay.
+Supply and install new COLORSTEEL® Maxam® long-run roofing (0.40 BMT Corrugate profile unless otherwise specified).
+Supply and install all associated flashings, ridging, barges, apron flashings and closures required for a complete roof.
+Fix all roofing with new colour-matched Class 4 fasteners.
+Leave the roof and work area clean and tidy upon completion.
+Remove all roofing waste from site.
+
+Warranty
+
+Manufacturer's warranty on roofing materials (subject to product and environmental conditions).
+Flood Roofing workmanship warranty in accordance with our standard terms and conditions.`
+};
+// Is the current quote scope still an auto-inserted default (blank or matches
+// one of the presets)? Then it's safe to swap when the job type changes.
+function _scopeIsAutoDefault(){
+  var cur = ((S.quote && S.quote.scope) || '').trim();
+  if (!cur) return true;
+  return Object.keys(MAIN_SCOPE_DESCRIPTIONS).some(function(k){ return MAIN_SCOPE_DESCRIPTIONS[k].trim() === cur; });
+}
 var _currentMainScope = null;
 function setMainScope(key){
   var preset = MAIN_SCOPE_PRESETS[key];
@@ -7299,6 +7364,16 @@ function setMainScope(key){
   document.querySelectorAll('#scopeGrid .chk-item').forEach(function(el){
     el.classList.toggle('on', !!wanted[el.getAttribute('data-item')]);
   });
+  // Insert the default scope-of-work description for this job type — but only
+  // over a blank scope or a still-default one, so a user's edits are kept.
+  try {
+    var desc = MAIN_SCOPE_DESCRIPTIONS[key];
+    if (desc && S.quote && _scopeIsAutoDefault()){
+      S.quote.scope = desc;
+      var scEl = document.getElementById('qdScope'); if (scEl) scEl.value = desc;
+      try { refreshQuoteProposal(); } catch(e){}
+    }
+  } catch(e){}
   try { calcLabour(); } catch(e){}
   // Autosave: chk-item toggles don't fire input/change events, so nudge
   // the engine by firing one on the worker-count field (a real input
@@ -9278,8 +9353,11 @@ function _autoSyncFromScope(){
   if (!S.quote) return;
   var touched = false;
   if (!(S.quote.scope||'').trim()){
-    var chips = scopeChipsText();
-    if (chips){ S.quote.scope = chips; var sc=document.getElementById('qdScope'); if(sc) sc.value=chips; touched=true; }
+    // Prefer the rich default scope-of-work description for the job type;
+    // fall back to the ticked scope chips if no description is defined.
+    var _sk = _currentMainScope || 'reroof';
+    var _desc = MAIN_SCOPE_DESCRIPTIONS[_sk] || scopeChipsText();
+    if (_desc){ S.quote.scope = _desc; var sc=document.getElementById('qdScope'); if(sc) sc.value=_desc; touched=true; }
   }
   if (!(S.quote.notes||'').trim()){
     var sn = (document.getElementById('scopeNotes')||{}).value || '';
@@ -10480,17 +10558,33 @@ function refreshQuoteProposal(){
     // scope/inclusions on the left, a prominent price card on the right,
     // and (optionally) an itemised breakdown below.
     var _dep0 = tot0 * 0.5;  // 50% deposit per Flood Roofing T&Cs
-    var inclLines = (S.quote.scope || '').split('\n')
-      .map(function(s){ return s.replace(/^[•\-\s]+/, '').trim(); })
-      .filter(Boolean);
-    var inclList = inclLines.length
-      ? '<div>'+inclLines.map(function(l, i){
-          return '<div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
-            '<div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-accent);flex-shrink:0;min-width:22px">'+(i<9?'0':'')+(i+1)+'</div>'+
+    // Structure-aware scope render: blank lines add spacing, "heading" lines
+    // (Scope of Work…, Warranty, or a line ending in ":") render as
+    // subheadings and restart the counter; everything else is a numbered
+    // inclusion. Lets a full pasted scope (with a Warranty section) read well.
+    var _scopeRaw = (S.quote.scope || '');
+    var inclList;
+    if (_scopeRaw.trim()){
+      var _n = 0, _parts = [];
+      _scopeRaw.split('\n').forEach(function(raw){
+        var l = raw.replace(/^[•\-\s]+/, '').trim();
+        if (!l){ _parts.push('<div style="height:9px"></div>'); return; }
+        var isHead = /:$/.test(l) || /^(scope of work|warranty|inclusions|exclusions|this quotation)/i.test(l);
+        if (isHead){
+          _n = 0;
+          _parts.push('<div class="ed-eyebrow" style="margin:14px 0 6px;color:var(--ed-ink)">'+esc2(l)+'</div>');
+        } else {
+          _n++;
+          _parts.push('<div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
+            '<div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-accent);flex-shrink:0;min-width:22px">'+(_n<10?'0':'')+_n+'</div>'+
             '<div class="ed-body" style="font-size:12px;line-height:1.5">'+esc2(l)+'</div>'+
-          '</div>';
-        }).join('')+'</div>'
-      : '<div class="ed-body qp-ph" style="font-style:italic;color:var(--ed-text2);font-size:12px">Add a scope of works on the Quote tab — it lists here as the inclusions for this price.</div>';
+          '</div>');
+        }
+      });
+      inclList = '<div>'+_parts.join('')+'</div>';
+    } else {
+      inclList = '<div class="ed-body qp-ph" style="font-style:italic;color:var(--ed-text2);font-size:12px">Add a scope of works on the Quote tab — it lists here as the inclusions for this price.</div>';
+    }
     // Optional itemised breakdown (only when "Show line items" is ticked)
     var itemTable = S.quote.showLineItemsInQuote
       ? '<div style="margin-top:22px">'+
