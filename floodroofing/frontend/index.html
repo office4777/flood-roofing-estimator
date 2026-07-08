@@ -11303,10 +11303,17 @@ function addCatalogItem(key){
 // without rewriting them (monkey-patch style so we don't fight merges
 // against the existing settings code).
 (function(){
+  // Baked-in default suppliers (Roofing Industries is the main default —
+  // flagged so the Order Roof email pre-selects it).
+  var DEFAULT_SUPPLIERS = [
+    { name:'Roofing Industries', contact:'Steve',   email:'steveg@roof.co.nz',              phone:'', yard_addr:'', default:true },
+    { name:'Freeman Roofing',    contact:'Team',     email:'whangarei@freemanroofing.co.nz', phone:'', yard_addr:'' },
+    { name:'Armorsteel',         contact:'Phyllis',  email:'phyllis@armorsteel.co.nz',       phone:'', yard_addr:'' }
+  ];
   var _origDefaults = defaultSettings;
   defaultSettings = function(){
     var d = _origDefaults();
-    d.materials_catalog = { suppliers:[], products:[], underlays:[], screws:[], flashings:[], savedFlashings:[] };
+    d.materials_catalog = { suppliers: DEFAULT_SUPPLIERS.map(function(s){ return Object.assign({}, s); }), products:[], underlays:[], screws:[], flashings:[], savedFlashings:[] };
     return d;
   };
   var _origLoad = loadSettings;
@@ -26160,7 +26167,12 @@ function _openOrderEmail(){
     sel.innerHTML =
       sups.map(function(s, i){ return '<option value="'+i+'">'+esc(s.name || s.email || ('Supplier '+(i+1)))+'</option>'; }).join('') +
       '<option value="custom">✎ Custom email…</option>';
-    if (!sups.length) sel.value = 'custom';
+    if (!sups.length) { sel.value = 'custom'; }
+    else {
+      // Pre-select the flagged main default supplier (falls back to first).
+      var di = sups.findIndex(function(s){ return s && s.default; });
+      sel.value = String(di >= 0 ? di : 0);
+    }
   }
   var delMode = ((window.S && S.order && S.order.deliveryMode) || 'site');
   var siteAddr = (document.getElementById('matDeliveryAddr')||{}).value
