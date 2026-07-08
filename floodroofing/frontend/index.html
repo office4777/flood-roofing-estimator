@@ -8051,6 +8051,43 @@ function _gutterDelta(){
   return parseFloat((S.quote.gutterPrices||{})[g]) || 0;
 }
 
+// ── Hard-coded Selections-page pricing (all deltas ex-GST) ─────────
+//  Steel grade   = % of the base (Maxam 0.40g) material cost.
+//  0.55 gauge    = +22% of the base material cost (any grade).
+//  Guttering     = a $/lineal-metre rate × the measured gutter-line length.
+// The base material cost + gutter lm are stashed on the quote when it's
+// built office-side (see refreshQuoteProposal) so the customer-facing
+// share link prices identically without the roof drawing.
+var SEL_GRADE_PCT   = { maxam: 0, colorzen: -0.138, colourcote: 0, zincalume: -0.327 };
+var SEL_GAUGE55_PCT = 0.22;
+var SEL_GUTTER_RATE_PER_LM = { box125: 70, marley_typhoon: 80, marley_classic: 72 }; // $/lm ex-GST
+function _selMaterialBase(){
+  var q = (window.S && S.quote) || {};
+  var b = parseFloat(q.materialBase);
+  if (isFinite(b) && b > 0) return b;
+  return (window.S && parseFloat(S.materials)) || 0;
+}
+function _selGutterLm(){
+  var q = (window.S && S.quote) || {};
+  var lm = parseFloat(q.gutterLm);
+  if (isFinite(lm) && lm > 0) return lm;
+  try {
+    if (typeof _matDrawTotals === 'function'){ var t = _matDrawTotals(); if (t && parseFloat(t.gutterLm) > 0) return parseFloat(t.gutterLm); }
+  } catch(e){}
+  return 0;
+}
+function _selGradeDelta(gradeId){
+  var pct = SEL_GRADE_PCT[gradeId];
+  if (pct == null) return 0;
+  return pct * _selMaterialBase();
+}
+function _selGauge55Delta(){ return SEL_GAUGE55_PCT * _selMaterialBase(); }
+function _selGutterDelta(gutterId){
+  var rate = SEL_GUTTER_RATE_PER_LM[gutterId];
+  if (!rate) return 0;
+  return rate * _selGutterLm();
+}
+
 // ── "Selections" page pricing (page 4) ──────────────────────────
 // The customer-facing Selections page lets the client change steel
 // grade / thickness / gutter / brackets from the quoted standard spec
@@ -8065,11 +8102,10 @@ function _qpSelectionChanges(){
   var gp = q.gutterPrices || {};
   var out = [];
   var gradeNames = { colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume® (unpainted)' };
-  var sp = q.selectionPrices || {};
   if (p.steelGrade && p.steelGrade !== 'maxam')
-    out.push({ label: (gradeNames[p.steelGrade] || p.steelGrade) + ' steel', delta: parseFloat(sp[p.steelGrade]) || 0 });
+    out.push({ label: (gradeNames[p.steelGrade] || p.steelGrade) + ' steel', delta: _selGradeDelta(p.steelGrade) });
   if (p.steelThickness && p.steelThickness !== '40')
-    out.push({ label: '0.55 gauge steel', delta: parseFloat(sp.gauge55) || 0 });
+    out.push({ label: '0.55 gauge steel', delta: _selGauge55Delta() });
   if (p.gutterType !== undefined) {
     // Page-4 pick is canonical once made (including an explicit
     // "none") — it overrides the legacy Option-C gutter choice so the
@@ -8081,7 +8117,7 @@ function _qpSelectionChanges(){
     };
     var gm = gmap[p.gutterType];
     if (gm) {
-      out.push({ label: gm.name, delta: parseFloat(gp[gm.key]) || 0 });
+      out.push({ label: gm.name, delta: _selGutterDelta(p.gutterType) });
       if (p.gutterBracket === 'internal')
         out.push({ label: 'Internal gutter brackets', delta: 0 });
     }
@@ -9610,6 +9646,16 @@ function refreshQuoteProposal(){
   // Don't re-render while the user is typing inside an inline-edit field
   if (root.contains(document.activeElement) && document.activeElement.dataset && document.activeElement.dataset.qfield) return;
   _applyFergusRefToQuote();
+  // Stash the material-cost base + gutter-line length onto the quote so the
+  // hard-coded Selections pricing (grade %, +22% gauge, $/lm gutter) also
+  // works on the customer share link, where the roof drawing isn't present.
+  // Only write office-side (never overwrite good values with a customer-view 0).
+  if (!window.__CUSTOMER_MODE) {
+    if (parseFloat(S.materials) > 0) S.quote.materialBase = parseFloat(S.materials);
+    try {
+      if (typeof _matDrawTotals === 'function'){ var _t = _matDrawTotals(); if (_t && parseFloat(_t.gutterLm) > 0) S.quote.gutterLm = parseFloat(_t.gutterLm); }
+    } catch(e){}
+  }
   var d = S.roofData || {};
   var br = (S.settings && S.settings.branding) || {};
   var company = br.company_name || 'FLOOD ROOFING';
@@ -10349,22 +10395,22 @@ function refreshQuoteProposal(){
       var GRADES = [
         { id:'maxam',     label:'Colorsteel® MAXAM',     isDefault:true, delta:0, desc:'NZ Steel\'s newest, with the Activate™ aluminium-zinc-magnesium coating. Best corrosion resistance available.',
           warranty:'<strong>Up to 50 yrs perforation</strong> in mild zones (>5km from breaking surf); 30/15/5 yr stepped warranty as exposure rises.' },
-        { id:'colorzen',  label:'Armorsteel ColorZen',   delta:_dIncl(_spP.colorzen), desc:'Solid mid-tier prepainted steel — proven coating, broad colour range.',
+        { id:'colorzen',  label:'Armorsteel ColorZen',   delta:_dIncl(_selGradeDelta('colorzen')), desc:'Solid mid-tier prepainted steel — proven coating, broad colour range.',
           warranty:'<strong>30 yr warranty</strong> in mild and very-mild environments (manufacturer specs).' },
-        { id:'colourcote',label:'ColorCote®',            delta:_dIncl(_spP.colourcote), desc:'Pacific Coilcoaters\' premium prepainted steel — excellent finish, comparable to MAXAM.',
+        { id:'colourcote',label:'ColorCote®',            delta:_dIncl(_selGradeDelta('colourcote')), desc:'Pacific Coilcoaters\' premium prepainted steel — excellent finish, comparable to MAXAM.',
           warranty:'<strong>Up to 30 yr</strong> perforation warranty, zone-dependent.' },
-        { id:'zincalume', label:'Zincalume® (unpainted)',delta:_dIncl(_spP.zincalume), desc:'Natural silver Al/Zn alloy — workhorse industrial finish, lowest price point.',
+        { id:'zincalume', label:'Zincalume® (unpainted)',delta:_dIncl(_selGradeDelta('zincalume')), desc:'Natural silver Al/Zn alloy — workhorse industrial finish, lowest price point.',
           warranty:'<strong>20 yr non-perforation</strong> warranty (NZ Steel).' }
       ];
       var THICKS = [
         { id:'40', label:'0.40 gauge', isDefault:true, delta:0, desc:'Standard residential thickness — used on the bulk of NZ re-roofs.' },
-        { id:'55', label:'0.55 gauge', delta:_dIncl(_spP.gauge55), desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }
+        { id:'55', label:'0.55 gauge', delta:_dIncl(_selGauge55Delta()), desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }
       ];
       var GUTTERS = [
         { id:'none',          label:'No new gutter',                isDefault:true, delta:0, desc:'Existing gutter stays as-is.' },
-        { id:'box125',        label:'125mm Colorsteel Box Gutter',  delta:_dIncl(_gpP.box), desc:'Roll-formed 125mm Colorsteel box gutter — matches the new roof for a clean finish.' },
-        { id:'marley_typhoon',label:'Marley Typhoon (PVC)',         delta:_dIncl(_gpP.marley), desc:'Higher-capacity PVC profile — handles heavy downpours; UV-stabilised.' },
-        { id:'marley_classic',label:'Marley Classic (PVC)',         delta:_dIncl(_gpP.marley), desc:'Classic half-round PVC profile — clean look, easy maintenance.' }
+        { id:'box125',        label:'125mm Colorsteel Box Gutter',  delta:_dIncl(_selGutterDelta('box125')), desc:'Roll-formed 125mm Colorsteel box gutter — matches the new roof for a clean finish.' },
+        { id:'marley_typhoon',label:'Marley Typhoon (PVC)',         delta:_dIncl(_selGutterDelta('marley_typhoon')), desc:'Higher-capacity PVC profile — handles heavy downpours; UV-stabilised.' },
+        { id:'marley_classic',label:'Marley Classic (PVC)',         delta:_dIncl(_selGutterDelta('marley_classic')), desc:'Classic half-round PVC profile — clean look, easy maintenance.' }
       ];
       var BRACKETS = [
         { id:'external', label:'External brackets', isDefault:true, delta:0, desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' },
@@ -10386,21 +10432,21 @@ function refreshQuoteProposal(){
           // the tap hint is no-print.  On the live customer link the
           // same cards stay clickable.
           return '<button type="button" class="qp-opt-pick" data-group="'+esc2(group)+'" data-value="'+esc2(it.id)+'" '+
-            'onclick="'+onclickFn+'(\''+esc2(it.id)+'\')" style="width:100%;text-align:left;padding:12px 14px;margin:0 0 8px;border:1px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';'+
+            'onclick="'+onclickFn+'(\''+esc2(it.id)+'\')" style="width:100%;text-align:left;padding:8px 12px;margin:0 0 6px;border:1px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';'+
             'border-left:3px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';background:'+(picked?'var(--ed-paper-2)':'#fff')+';cursor:pointer;'+
             'border-radius:0;font-family:inherit;color:inherit">'+
-            '<div style="display:flex;align-items:flex-start;gap:10px">'+
-              '<div style="width:16px;height:16px;border-radius:50%;border:2px solid '+(picked?'var(--ed-accent)':'#cbd5e1')+';background:'+(picked?'var(--ed-accent)':'#fff')+';flex-shrink:0;margin-top:2px"></div>'+
+            '<div style="display:flex;align-items:flex-start;gap:9px">'+
+              '<div style="width:15px;height:15px;border-radius:50%;border:2px solid '+(picked?'var(--ed-accent)':'#cbd5e1')+';background:'+(picked?'var(--ed-accent)':'#fff')+';flex-shrink:0;margin-top:2px"></div>'+
               '<div style="flex:1;min-width:0">'+
                 // Title row — option name left, ITS price right, so the
                 // customer sees what each pick does to the total without
                 // hunting for the summary table.
                 '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">'+
-                  '<div class="ed-serif" style="font-size:15px;font-style:italic;color:var(--ed-ink);line-height:1.2">'+esc2(it.label)+'</div>'+
+                  '<div class="ed-serif" style="font-size:14px;font-style:italic;color:var(--ed-ink);line-height:1.2">'+esc2(it.label)+'</div>'+
                   '<div class="ed-serif" style="font-size:13px;white-space:nowrap;flex-shrink:0">'+_selPriceTag(it)+'</div>'+
                 '</div>'+
-                (it.desc ? '<div class="ed-body" style="font-size:11px;color:var(--ed-ink-2);margin-top:3px;line-height:1.45">'+esc2(it.desc)+'</div>' : '')+
-                (it.warranty ? '<div style="font-size:10.5px;color:var(--ed-text2);margin-top:5px;line-height:1.5">'+it.warranty+'</div>' : '')+
+                (it.desc ? '<div class="ed-body" style="font-size:10.5px;color:var(--ed-ink-2);margin-top:2px;line-height:1.35">'+esc2(it.desc)+'</div>' : '')+
+                (it.warranty ? '<div style="font-size:10px;color:var(--ed-text2);margin-top:3px;line-height:1.4">'+it.warranty+'</div>' : '')+
               '</div>'+
             '</div>'+
           '</button>';
@@ -10414,7 +10460,7 @@ function refreshQuoteProposal(){
       var _selNewTot = (_qpBaseSub() + _qpSelectionDeltaSum()) * (1+_selRate);
       var _selRow = function(label, value, opts2){
         opts2 = opts2 || {};
-        return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 14px;'+
+        return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 13px;'+
           (opts2.top ? 'border-top:2px solid var(--ed-ink);' : 'border-top:1px solid var(--ed-line);')+
           (opts2.strong ? 'background:var(--ed-paper-2);' : '')+'">'+
           '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink'+(opts2.strong?'':'-2')+');'+(opts2.strong?'font-weight:700;':'')+'">'+label+'</div>'+
@@ -10446,18 +10492,18 @@ function refreshQuoteProposal(){
         edHeading('04','Choose your options','Selections')+
         // One-line "how this works" so the page explains itself.
         '<div class="ed-body" style="margin:-6px 0 16px;font-size:12px;color:var(--ed-ink-2);line-height:1.5">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is in the panel below.</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:18px">'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:14px">'+
           '<div>'+
-            '<div class="ed-eyebrow" style="margin-bottom:8px">Steel grade</div>'+
+            '<div class="ed-eyebrow" style="margin-bottom:6px">Steel grade</div>'+
             selCard('steelGrade', GRADES, pOpts.steelGrade || 'maxam', '_setProposalOption_grade')+
           '</div>'+
           '<div>'+
-            '<div class="ed-eyebrow" style="margin-bottom:8px">Steel thickness</div>'+
+            '<div class="ed-eyebrow" style="margin-bottom:6px">Steel thickness</div>'+
             selCard('steelThickness', THICKS, pOpts.steelThickness || '40', '_setProposalOption_thickness')+
-            '<div class="ed-eyebrow" style="margin:18px 0 8px">Guttering</div>'+
+            '<div class="ed-eyebrow" style="margin:12px 0 6px">Guttering</div>'+
             selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter')+
             (pOpts.gutterType && pOpts.gutterType !== 'none'
-              ? '<div class="ed-eyebrow" style="margin:14px 0 8px">Gutter brackets</div>'+
+              ? '<div class="ed-eyebrow" style="margin:10px 0 6px">Gutter brackets</div>'+
                 selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'external', '_setProposalOption_bracket')
               : '')+
           '</div>'+
