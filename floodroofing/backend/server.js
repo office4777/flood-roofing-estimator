@@ -646,6 +646,45 @@ function _fergusLooksCreated(parsed) {
   return false;
 }
 
+// The real Fergus upload endpoint (discovered from their OpenAPI spec):
+//   POST /attachments  (multipart/form-data: file, entityType, entityId)
+// It attaches the file to any entity in one atomic call. entityType is an
+// enum whose exact casing we try a few ways ('JOB' / 'job' / 'Job') unless
+// pinned via FERGUS_ATTACH_ENTITY_TYPE. This is why every earlier
+// job-NESTED path 404'd — the endpoint is top-level, not under /jobs/{id}.
+async function _fergusAttachmentAttempt(entityType, entityId, buf, contentType, filename, fileField) {
+  const path = FERGUS_PREFIX + (process.env.FERGUS_FILES_PATH || '/attachments');
+  const url  = `https://${FERGUS_HOST}${path}`;
+  try {
+    const form = new FormData();
+    form.append(fileField, new Blob([buf], { type: contentType || 'application/pdf' }), filename);
+    form.append('entityType', entityType);
+    form.append('entityId', String(entityId));
+    form.append('name', filename);
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+        'Accept':        'application/json',
+      },
+      body: form,
+    });
+    const text = await r.text();
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch {}
+    return {
+      endpoint: path, entityType, url, status: r.status, ok: r.ok,
+      looksCreated: r.ok && _fergusLooksCreated(parsed),
+      body: parsed || text.slice(0, 600),
+    };
+  } catch (e) {
+    return { endpoint: path, entityType, url, error: e.message };
+  }
+}
+
+// Legacy job-nested fallback (kept only as a safety net — every path here
+// 404s on the current Fergus API, but harmless to try if /attachments ever
+// changes).
 async function _fergusUploadAttempt(pathTpl, jobId, buf, contentType, filename, field) {
   const path = FERGUS_PREFIX + pathTpl.replace('{jobId}', encodeURIComponent(jobId));
   const url  = `https://${FERGUS_HOST}${path}`;
@@ -688,28 +727,41 @@ app.post('/fergus-files/upload', requireAuth, requireSubscription, async (req, r
   if (buf.length > 25 * 1024 * 1024) return res.status(413).json({ error: 'File too large (max 25MB)' });
 
   const field = fieldName || process.env.FERGUS_FILES_FIELD || 'file';
-  const candidates = process.env.FERGUS_FILES_PATH
-    ? [process.env.FERGUS_FILES_PATH]
-    : FERGUS_FILE_CANDIDATES;
-
   const attempts = [];
+
+  // Primary: POST /attachments with the job as the entity.
+  const entityTypes = process.env.FERGUS_ATTACH_ENTITY_TYPE
+    ? [process.env.FERGUS_ATTACH_ENTITY_TYPE]
+    : ['JOB', 'job', 'Job'];
+  for (const et of entityTypes) {
+    const a = await _fergusAttachmentAttempt(et, jobId, buf, contentType, filename, field);
+    attempts.push(a);
+    if (a.ok && a.looksCreated) {
+      return res.json({ ok: true, used: '/attachments', entityType: et, status: a.status, fergus: a.body, url: a.url, attempts });
+    }
+    // A 4xx that isn't 404 means the endpoint EXISTS but rejected this
+    // entityType/field — no point trying more casings blindly if it's a
+    // validation error naming the real problem; surface it.
+    if (a.status && a.status !== 404 && a.status >= 400 && a.status < 500 && a.body && a.body.message) {
+      // keep trying other casings, but this body is the useful clue
+    }
+  }
+
+  // Fallback: the old job-nested candidates (all 404 today, but cheap).
+  const candidates = process.env.FERGUS_FILES_PATH ? [] : FERGUS_FILE_CANDIDATES;
   for (const tpl of candidates) {
     const a = await _fergusUploadAttempt(tpl, jobId, buf, contentType, filename, field);
     attempts.push(a);
-    // Trust an env-pinned path even without the "looksCreated" heuristic
-    // (the user has told us this is the right one for their tenant).
-    const accept = process.env.FERGUS_FILES_PATH
-      ? a.ok
-      : a.looksCreated;
-    if (accept) {
+    if (a.looksCreated) {
       return res.json({ ok: true, used: tpl, status: a.status, fergus: a.body, url: a.url, attempts });
     }
   }
+
   res.status(502).json({
     ok: false,
-    error: 'No Fergus endpoint accepted the upload as a created file',
+    error: 'Fergus did not accept the upload as a created file',
     attempts,
-    hint: 'Inspect each attempt.body. Once you see which path created a file, set FERGUS_FILES_PATH (and FERGUS_FILES_FIELD if the multipart field name differs) on Railway and the upload will go straight there.',
+    hint: 'The real endpoint is POST /attachments (multipart: file, entityType, entityId). If it rejected the entityType, set FERGUS_ATTACH_ENTITY_TYPE on Railway to the exact value Fergus expects (see the attempt bodies).',
   });
 });
 
@@ -818,6 +870,24 @@ app.get('/fergus-files/spec', requireAuth, requireSubscription, async (req, res)
     });
   }
 
+  // Shallow $ref resolver + property lister so the spec output names the
+  // exact multipart fields and any enum values (e.g. the entityType casing).
+  const resolveRef = (ref) => {
+    if (typeof ref !== 'string' || !ref.startsWith('#/')) return null;
+    return ref.slice(2).split('/').reduce((o, k) => (o ? o[k] : null), spec);
+  };
+  const describeSchema = (schema) => {
+    if (!schema) return null;
+    if (schema.$ref) schema = resolveRef(schema.$ref) || {};
+    const props = schema.properties || {};
+    const out = {};
+    for (const [name, def0] of Object.entries(props)) {
+      const def = def0 && def0.$ref ? (resolveRef(def0.$ref) || def0) : (def0 || {});
+      out[name] = { type: def.type, format: def.format, enum: def.enum, required: (schema.required || []).includes(name) };
+    }
+    return { properties: out, required: schema.required || [] };
+  };
+
   const fileOps = [];
   const writeOps = [];
   for (const [p, methods] of Object.entries(spec.paths || {})) {
@@ -829,7 +899,16 @@ app.get('/fergus-files/spec', requireAuth, requireSubscription, async (req, res)
       const consumesMultipart = op && op.requestBody && op.requestBody.content &&
         Object.keys(op.requestBody.content).some(ct => /multipart|octet-stream/i.test(ct));
       if (FERGUS_FILE_WORDS.test(hay) || consumesMultipart) {
-        fileOps.push({ method: m, path: p, summary: summary.slice(0, 120), multipart: !!consumesMultipart });
+        const entry = { method: m, path: p, summary: summary.slice(0, 400), multipart: !!consumesMultipart };
+        // Include the full request-body field list for write ops so we see
+        // the exact multipart fields + entityType enum without another round.
+        if (['POST','PUT','PATCH'].includes(m) && op.requestBody && op.requestBody.content) {
+          entry.requestFields = {};
+          for (const [ct, media] of Object.entries(op.requestBody.content)) {
+            entry.requestFields[ct] = describeSchema(media && media.schema);
+          }
+        }
+        fileOps.push(entry);
       }
       if (['POST','PUT','PATCH'].includes(m)) writeOps.push(m + ' ' + p);
     }
