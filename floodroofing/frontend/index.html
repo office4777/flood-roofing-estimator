@@ -24713,7 +24713,10 @@ async function _buildJobPackPdf() {
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(9);
       var lkW = pdf.getTextWidth(lkLabel) + 9;
-      var lkX = pageW - lkW - 8, lkY = 287.5, lkH = 6.5;
+      // Top-left, tucked just under the job address (above the header
+      // divider) so the office sees the deep link straight away rather
+      // than hunting at the foot of the page.
+      var lkX = 14, lkY = 28, lkH = 6.5;
       pdf.setFillColor(37, 99, 235);
       pdf.roundedRect(lkX, lkY, lkW, lkH, 1.6, 1.6, 'F');
       pdf.setTextColor(255, 255, 255);
