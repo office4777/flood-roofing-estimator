@@ -7327,6 +7327,21 @@ function _pricingState(){
   if (!S.quote.scaffold) {
     S.quote.scaffold = { price: num(lp.scaffold_price,2500), cost: num(lp.scaffold_cost,2000), type: 'edge' };
   }
+  // Settings → quote: the Labour table rates (cost/hr, price/hr) and the
+  // scaffold cost/price start from Settings → Labour and stay in sync with it
+  // UNTIL the user tweaks them on THIS job (which sets the *Custom flags via
+  // updateLabour / updateScaffold). Hours + scaffold type are always per-job.
+  // This is why saved settings now carry through to an existing quote.
+  if (!S.quote.labourRatesCustom) {
+    S.quote.labour.leadCost  = num(lp.lead_cost,45);
+    S.quote.labour.leadPrice = num(lp.lead_price,200);
+    S.quote.labour.appCost   = num(lp.app_cost,25);
+    S.quote.labour.appPrice  = num(lp.app_price,90);
+  }
+  if (!S.quote.scaffoldCustom) {
+    S.quote.scaffold.cost  = num(lp.scaffold_cost,2000);
+    S.quote.scaffold.price = num(lp.scaffold_price,2500);
+  }
   // Legacy quotes predate the scaffolding-type toggle — default to edge protection.
   if (!S.quote.scaffold.type) S.quote.scaffold.type = 'edge';
   return { L: S.quote.labour, sc: S.quote.scaffold };
@@ -7355,10 +7370,28 @@ function updateScaffoldType(val){
   try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
 }
 function updateLabour(field, val){
-  var p = _pricingState(); p.L[field] = parseFloat(val) || 0; calcLabour();
+  var p = _pricingState(); p.L[field] = parseFloat(val) || 0;
+  // Editing a RATE column on this job detaches it from the settings default.
+  if (field === 'leadCost' || field === 'leadPrice' || field === 'appCost' || field === 'appPrice') {
+    S.quote.labourRatesCustom = true;
+  }
+  calcLabour();
 }
 function updateScaffold(field, val){
-  var p = _pricingState(); p.sc[field] = parseFloat(val) || 0; calcLabour();
+  var p = _pricingState(); p.sc[field] = parseFloat(val) || 0;
+  S.quote.scaffoldCustom = true;   // per-job scaffold cost/price now overrides settings
+  calcLabour();
+}
+// Manually pull the Labour rates + scaffold back to the current Settings
+// defaults (clears the per-job overrides). Wired to the pricing panel.
+function _pricingUseSettingsDefaults(){
+  if (!S.quote) return;
+  S.quote.labourRatesCustom = false;
+  S.quote.scaffoldCustom = false;
+  _pricingState();
+  calcLabour();
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+  try { _qaMsg && _qaMsg('Labour + scaffold rates reset to your Settings defaults.', true); } catch(e){}
 }
 function calcLabour(){
   var wrap = document.getElementById('labourTableWrap');
@@ -7391,6 +7424,9 @@ function calcLabour(){
       row('Lead Roofer','leadHrs','leadCost','leadPrice')+
       row('Apprentice','appHrs','appCost','appPrice')+
     '</tbody></table>'+
+    ((S.quote && (S.quote.labourRatesCustom || S.quote.scaffoldCustom))
+      ? '<div style="text-align:right;margin-top:4px"><button type="button" onclick="_pricingUseSettingsDefaults()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline;padding:2px 0">↻ Reset rates to Settings defaults</button></div>'
+      : '')+
     // Combined labour total
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
       '<strong style="font-size:13px">Combined labour · '+totalHrs.toFixed(1)+' hrs</strong>'+
@@ -10490,10 +10526,14 @@ function refreshQuoteProposal(){
           // NOTE: cards PRINT (static, picked one highlighted) — only
           // the tap hint is no-print.  On the live customer link the
           // same cards stay clickable.
-          return '<button type="button" class="qp-opt-pick" data-group="'+esc2(group)+'" data-value="'+esc2(it.id)+'" '+
-            'onclick="'+onclickFn+'(\''+esc2(it.id)+'\')" style="width:100%;text-align:left;padding:8px 12px;margin:0 0 6px;border:1px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';'+
+          // Rendered as a DIV (not <button>): html2canvas mis-renders
+          // normal-weight text inside form elements, which dropped the card
+          // titles / descriptions / non-bold warranty from the Quote PDF.
+          // A div with role=button stays clickable on the live customer link.
+          return '<div role="button" tabindex="0" class="qp-opt-pick" data-group="'+esc2(group)+'" data-value="'+esc2(it.id)+'" '+
+            'onclick="'+onclickFn+'(\''+esc2(it.id)+'\')" style="box-sizing:border-box;width:100%;text-align:left;padding:8px 12px;margin:0 0 6px;border:1px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';'+
             'border-left:3px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';background:'+(picked?'var(--ed-paper-2)':'#fff')+';cursor:pointer;'+
-            'border-radius:0;font-family:inherit;color:inherit">'+
+            'border-radius:0;font-family:inherit;color:var(--ed-ink)">'+
             '<div style="display:flex;align-items:flex-start;gap:9px">'+
               '<div style="width:15px;height:15px;border-radius:50%;border:2px solid '+(picked?'var(--ed-accent)':'#cbd5e1')+';background:'+(picked?'var(--ed-accent)':'#fff')+';flex-shrink:0;margin-top:2px"></div>'+
               '<div style="flex:1;min-width:0">'+
@@ -10508,7 +10548,7 @@ function refreshQuoteProposal(){
                 (it.warranty ? '<div style="font-size:10px;color:var(--ed-text2);margin-top:3px;line-height:1.4">'+it.warranty+'</div>' : '')+
               '</div>'+
             '</div>'+
-          '</button>';
+          '</div>';
         }).join('');
       }
       // Pricing summary for the picks: base quote scope, each
@@ -11380,6 +11420,13 @@ function addCatalogItem(key){
     var s = await _origLoad();
     if (s && !s.materials_catalog) s.materials_catalog = { suppliers:[], products:[], underlays:[], screws:[], flashings:[], savedFlashings:[] };
     if (s && s.materials_catalog && !s.materials_catalog.savedFlashings) s.materials_catalog.savedFlashings = [];
+    // Seed the default suppliers into an existing account that has none — the
+    // baked-in defaults only apply to brand-new accounts, so an account whose
+    // saved catalog is empty never got them. Seeding when empty installs them;
+    // once the user saves (non-empty) this no longer fires.
+    if (s && s.materials_catalog && (!s.materials_catalog.suppliers || !s.materials_catalog.suppliers.length)) {
+      s.materials_catalog.suppliers = DEFAULT_SUPPLIERS.map(function(x){ return Object.assign({}, x); });
+    }
     return s;
   };
   var _origCollect = collectSettingsFromUI;
