@@ -22399,28 +22399,48 @@ function _jpBuildSheetRows(sc){
   // so it works on every roof shape and wins over stale typed overrides.
   // The map also records which measures feed which row so retyping the
   // row's length in the cut list pushes back onto the arrows (_jpSheetSetLen).
+  // The measures that drive the display are EVERY sheet-run number the
+  // roof map last drew — both manual Sheet-measure arrows AND the auto
+  // per-plane labels, each already carrying any on-canvas override. Reading
+  // the rendered labels (window._roofCanvasHits.sheets) means the cut list
+  // mirrors the map verbatim no matter which edit path set the number
+  // (manualSheetMeasures vs DRAW.sheetOverrides). If the map hasn't drawn
+  // this session the hit list is empty, so fall back to the raw manual
+  // measures — behaviour then just degrades to the previous manual-only sync.
   var manualMap = {};
   try {
     var ms = [];
-    (DRAW.manualSheetMeasures || []).forEach(function(m, mi){
-      if (m && +m.lengthM > 0) ms.push({ mi: mi, mm: Math.round(+m.lengthM * 1000) });
+    var hits = (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
+    hits.forEach(function(h){
+      if (!h || h.label == null) return;
+      var v = parseFloat(String(h.label));         // "11.48m" -> 11.48
+      if (!isFinite(v) || v <= 0) return;
+      ms.push({ mm: Math.round(v * 1000),
+                manualIdx: (typeof h.manualIdx === 'number' ? h.manualIdx : null),
+                key: h.key || null });
     });
+    if (!ms.length && Array.isArray(DRAW.manualSheetMeasures)) {
+      DRAW.manualSheetMeasures.forEach(function(m, mi){
+        if (m && +m.lengthM > 0) ms.push({ mm: Math.round(+m.lengthM * 1000), manualIdx: mi, key: null });
+      });
+    }
     if (ms.length && rows.length){
       var pairs = [];
-      ms.forEach(function(m){
+      ms.forEach(function(m, i){
         rows.forEach(function(r){
-          pairs.push({ m: m, r: r, d: Math.abs(m.mm - r.origLen) });
+          pairs.push({ i: i, m: m, r: r, d: Math.abs(m.mm - r.origLen) });
         });
       });
       pairs.sort(function(a, b){ return a.d - b.d; });
       var mUsed = {}, rUsed = {};
       pairs.forEach(function(p){
-        if (mUsed[p.m.mi] || rUsed[p.r.origLen]) return;
-        mUsed[p.m.mi] = 1; rUsed[p.r.origLen] = 1;
+        if (mUsed[p.i] || rUsed[p.r.origLen]) return;
+        mUsed[p.i] = 1; rUsed[p.r.origLen] = 1;
         p.r.len = p.m.mm;
-        if (!manualMap[p.r.origLen]) manualMap[p.r.origLen] = { mm: p.m.mm, idxs: [] };
+        if (!manualMap[p.r.origLen]) manualMap[p.r.origLen] = { mm: p.m.mm, idxs: [], keys: [] };
         manualMap[p.r.origLen].mm = p.m.mm;
-        manualMap[p.r.origLen].idxs.push(p.m.mi);
+        if (p.m.manualIdx != null) manualMap[p.r.origLen].idxs.push(p.m.manualIdx);
+        if (p.m.key) manualMap[p.r.origLen].keys.push(p.m.key);
       });
     }
   } catch(e){}
@@ -22442,19 +22462,26 @@ function _jpSheetSetLen(origLen, valueM){
   if (!DRAW.sheetGroupOverrides) DRAW.sheetGroupOverrides = {};
   if (!isFinite(f) || f <= 0) { delete DRAW.sheetGroupOverrides[origLen]; }
   else { DRAW.sheetGroupOverrides[origLen] = Math.round(f * 1000); }
-  // Reverse sync ("…and vice versa"): if this cut-list row is fed by one or
-  // more black-arrow Sheet measures, push the retyped length straight back
-  // onto those measures so the on-canvas number tracks the cut list.  The
-  // display map records exactly which measures land on this group.
-  if (isFinite(f) && f > 0 && Array.isArray(DRAW.manualSheetMeasures) && DRAW.manualSheetMeasures.length){
+  // Reverse sync ("…and vice versa"): if this cut-list row is fed by roof-map
+  // sheet numbers, push the retyped length back onto them so the on-canvas
+  // label tracks the cut list. The display map records which source each row
+  // came from — manual Sheet-measure arrows (idxs → DRAW.manualSheetMeasures)
+  // and/or auto per-plane labels (keys → DRAW.sheetOverrides).
+  if (isFinite(f) && f > 0){
     try {
+      var newM = Math.round(f * 1000) / 1000;
       var mm = window._manualSheetLenMap && window._manualSheetLenMap[origLen];
-      if (mm && Array.isArray(mm.idxs)){
-        var newM = Math.round(f * 1000) / 1000;
-        mm.idxs.forEach(function(mi){
-          var m = DRAW.manualSheetMeasures[mi];
-          if (m && +m.lengthM > 0) m.lengthM = newM;
-        });
+      if (mm){
+        if (Array.isArray(mm.idxs) && Array.isArray(DRAW.manualSheetMeasures)){
+          mm.idxs.forEach(function(mi){
+            var m = DRAW.manualSheetMeasures[mi];
+            if (m && +m.lengthM > 0) m.lengthM = newM;
+          });
+        }
+        if (Array.isArray(mm.keys) && mm.keys.length){
+          if (!DRAW.sheetOverrides) DRAW.sheetOverrides = {};
+          mm.keys.forEach(function(k){ if (k) DRAW.sheetOverrides[k] = newM; });
+        }
       }
     } catch(e){}
   }
