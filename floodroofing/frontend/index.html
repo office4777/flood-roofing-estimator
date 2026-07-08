@@ -1489,32 +1489,38 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 .legend-swatch{width:16px;height:16px;border-radius:3px;flex-shrink:0}
 
 /* ── Report preview (printable proposal) ────────────────────── */
+/* Fraunces — self-hosted variable display serif (roman + italic).
+   Local files mean the proposal renders identically on-screen, on the
+   customer share link, and in headless/offline PDF export. */
+@font-face{font-family:'Fraunces';src:url('brand/fonts/Fraunces-var.woff2') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:'Fraunces';src:url('brand/fonts/Fraunces-var-italic.woff2') format('woff2');font-weight:100 900;font-style:italic;font-display:swap}
 .report-preview{background:#faf6f0;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-top:1rem;box-shadow:var(--shadow-sm);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
 /* Global font normalisation — consistent Inter body across all pages */
 .report-preview .rp-body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12.5px;line-height:1.6;color:#1d2a3d}
 .report-preview .rp-body *{box-sizing:border-box}
 /* ── Editorial / capability-statement palette ───────────────────
    Warm cream paper, deep brand-blue-black ink, Flood Roofing
-   electric-blue accent and terracotta warm-tone — channels the
-   "designer-builder magazine" aesthetic while staying tied to the
-   real Flood Roofing brand colours (cyan-blue + black).  Headlines
-   run on Inter throughout — clean sans-serif for body and headings,
-   hierarchy from weight + size. */
+   electric-blue accent and terracotta warm-tone — the
+   "designer-builder magazine" aesthetic tied to the real Flood
+   Roofing brand colours (cyan-blue + black).  Display type runs on
+   Fraunces (a true optical-size serif); body + labels stay Inter. */
 .report-preview{
   --ed-paper:#faf6f0; --ed-paper-2:#f1ece2;
   --ed-ink:#0a1828; --ed-ink-2:#1d2a3d;
   --ed-accent:#0099e0; --ed-accent-deep:#006fb3; --ed-warm:#b86b4c;
   --ed-line:#d9d2c5; --ed-text2:#6f6a60;
-  --ed-serif:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  --ed-serif:'Fraunces',Georgia,'Times New Roman',serif;
   --ed-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
 }
-.report-preview .ed-serif{font-family:var(--ed-serif)}
+.report-preview .ed-serif{font-family:var(--ed-serif);font-optical-sizing:auto}
 .report-preview .ed-number{font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:54px;line-height:.9;color:var(--ed-accent);letter-spacing:-.02em}
 .report-preview .ed-eyebrow{font-family:var(--ed-sans);font-size:10.5px;letter-spacing:.26em;text-transform:uppercase;font-weight:600;color:var(--ed-accent)}
-.report-preview .ed-title{font-family:var(--ed-serif);font-weight:400;color:var(--ed-ink);letter-spacing:-.01em;line-height:1.1}
+.report-preview .ed-title{font-family:var(--ed-serif);font-optical-sizing:auto;font-weight:530;color:var(--ed-ink);letter-spacing:-.01em;line-height:1.08}
 .report-preview .ed-h1{font-size:46px}
 .report-preview .ed-h2{font-size:48px}
 .report-preview .ed-h3{font-size:19px}
+/* Money / metric figures — serif display with lining tabular numerals */
+.report-preview .ed-num{font-family:var(--ed-serif);font-optical-sizing:auto;font-variant-numeric:lining-nums tabular-nums;letter-spacing:-.01em}
 .report-preview .ed-rule{height:1px;background:var(--ed-line);border:0;margin:14px 0}
 .report-preview .ed-rule-dark{height:1px;background:var(--ed-ink);border:0;margin:14px 0}
 .report-preview .ed-body{font-family:var(--ed-sans);font-size:12.5px;line-height:1.6;color:var(--ed-ink-2);font-weight:400}
@@ -1591,6 +1597,11 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   /* Bare header (only when no cover page) still reads as a sheet edge */
   .report-preview > #qpRoot > .rp-header{width:210mm;box-sizing:border-box}
 }
+/* Print-only twin: hidden on screen, shown on paper.  Pairs with
+   .no-print for elements that need a different affordance per medium
+   (e.g. a <select> on screen prints as its chosen value in serif). */
+.print-only{display:none}
+html.print-quote .print-only{display:inline!important}
 /* Inline-edit zones in the rendered proposal */
 .qp-editable{cursor:text;border-radius:3px;transition:background .12s,outline .12s;outline:none}
 .qp-editable:hover{background:rgba(0,153,224,.07)!important;outline:1.5px dashed rgba(0,153,224,.4);outline-offset:2px}
@@ -7986,11 +7997,18 @@ function defaultQuote(){
     // Long-form proposal sections — one toggle per physical page.
     proposalSections: tpl.proposalSections
       ? Object.assign({}, tpl.proposalSections)
-      : { cover: true, about: true, condition: true,
-          inclusions: true, colorsteel: true,
-          gutters: true, terms: true, signature: true },
+      // NOTE: 'condition' is deliberately NOT set here.  The inspection
+      // page has a content gate (it prints only when there are real
+      // findings / photos / a roof visual); an explicit `condition:
+      // true` — set when the office ticks the section on by hand —
+      // bypasses that gate, so seeding it here made every new quote
+      // print an empty two-field inspection page.
+      : { cover: true, letter: true, about: true,
+          inclusions: true, options: true, colorsteel: true,
+          scopework: true, guarantee: true, terms: true, signature: true },
     coverTitle: tpl.coverTitle || '',
     aboutText:  tpl.aboutText  || '',
+    letterText: tpl.letterText || '',
     // Existing roof condition — a short prose block + bullet list of
     // observations that prints on its own page above the site photos.
     conditionSummary:     tpl.conditionSummary     || '',
@@ -8991,9 +9009,13 @@ function renderProposalSectionToggles(){
   var sec = (S.quote && S.quote.proposalSections) || {};
   var labels = [
     ['cover',     'Cover page',                 'Hero + title + at-a-glance'],
-    ['condition', 'Existing roof condition',    'Condition + team photo'],
+    ['letter',    'Welcome letter',             'Personal note + contents list'],
+    ['about',     'Why Flood Roofing',          'Story, credentials + recent work'],
+    ['condition', 'Existing roof condition',    'Inspection findings + site photos'],
     ['inclusions','Price page',                 'Scope, options (incl. guttering), total'],
     ['colorsteel','Colorsteel® range',          'MAXAM with Activate™ + standard colours'],
+    ['scopework', 'Timeline & start date',      'Day-by-day plan + what we need from you'],
+    ['guarantee', 'Our guarantee',              'Warranty stack + straight answers'],
     ['terms',     'Terms & conditions',         'Flood Roofing T&Cs'],
     ['signature', 'Acceptance signature',       'Client signature page'],
   ];
@@ -9684,22 +9706,23 @@ function _buildRoofPreviewsHtml(opts){
 
 function edHeading(num, eyebrow, title, opts){
   opts = opts || {};
-  // When a photo banner sits ABOVE this heading band on the same
-  // page (e.g. Box Gutter), the banner has already consumed the
-  // rp-body top padding — so the heading band must NOT pull up
-  // with a negative top margin or it would overlap the banner.
-  var topMargin = opts.afterBanner ? '0' : '-38px';
-  // Simplified band: a single solid brand-ink panel with one slim accent
-  // rule at the top — no gradients or double stripes.
-  return '<div class="ed-heading-band" style="margin:'+topMargin+' -36px 22px;padding:15px 36px;background:var(--ed-ink);color:#fff;position:relative;overflow:hidden">'+
-    '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--ed-accent)"></div>'+
-    '<img src="brand/logo_wide_white.png" onerror="this.style.display=\'none\'" alt="" style="position:absolute;right:36px;top:50%;transform:translateY(-50%);height:34px;width:auto;opacity:.9;pointer-events:none">'+
-    '<div style="display:flex;align-items:center;gap:16px;position:relative;padding-right:150px">'+
-      '<div class="ed-number" style="flex-shrink:0;width:44px;color:var(--ed-accent);font-size:28px;line-height:1">'+esc2(num)+'</div>'+
-      '<div style="flex:1">'+
-        (eyebrow ? '<div class="ed-eyebrow" style="color:var(--ed-accent);font-size:9px">'+esc2(eyebrow)+'</div>' : '')+
-        '<div class="ed-title ed-h2" style="margin-top:2px;color:#fff;font-style:italic;font-size:26px">'+title+'</div>'+
-      '</div>'+
+  // Light editorial masthead — eyebrow + big serif title over a solid
+  // ink rule, with the section number as a serif italic folio on the
+  // right.  Replaces the old full-bleed dark band (which made every
+  // page shout); the ink panels are now reserved for the moments that
+  // deserve drama — the price card, the start date, the totals.
+  // `num` may be the literal '%%N%%' token — the assembly pass at the
+  // bottom of refreshQuoteProposal() replaces it with the section's
+  // actual position once the enabled-page order is known.
+  var topMargin = opts.afterBanner ? '18px' : '0';
+  return '<div class="ed-heading-band" style="margin:'+topMargin+' 0 20px;padding-bottom:13px;border-bottom:2px solid var(--ed-ink);display:flex;align-items:flex-end;justify-content:space-between;gap:18px">'+
+    '<div style="flex:1;min-width:0">'+
+      (eyebrow ? '<div class="ed-eyebrow">'+esc2(eyebrow)+'</div>' : '')+
+      '<div class="ed-title" style="margin-top:6px;font-size:29px;letter-spacing:-.015em">'+title+'</div>'+
+    '</div>'+
+    '<div style="flex-shrink:0;text-align:right;padding-bottom:2px">'+
+      '<img src="brand/logo_wide.png" onerror="this.style.display=\'none\'" alt="" style="height:26px;width:auto;display:block;margin-left:auto;opacity:.9">'+
+      '<div class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-text2);margin-top:4px;letter-spacing:.08em">— '+esc2(num)+' —</div>'+
     '</div>'+
   '</div>';
 }
@@ -9948,7 +9971,11 @@ function _attachInlineEditors(){
     el.addEventListener('focus', function(){
       var field = el.dataset.qfield;
       var cur = S.quote ? (S.quote[field] || '') : '';
-      if (!String(cur).trim()){
+      // data-keep-default fields (e.g. the welcome letter) render a
+      // real generated default when the stored value is empty — keep
+      // it on focus so the office can tweak a word without the whole
+      // text vanishing under them.
+      if (!String(cur).trim() && !el.dataset.keepDefault){
         el.textContent = '';
         el.style.fontStyle = 'normal';
         el.style.opacity = '1';
@@ -9993,8 +10020,27 @@ function _bestClientName(){
 function _residenceTitle(name){
   var n = String(name || '').trim();
   if (!n) return 'Client Residence';
+  // Already a property-style title ("Smith Residence", "Harrison
+  // House") — use it as-is instead of stacking another "Residence".
+  if (/\b(residence|house|home|property|bach|farm|estate)$/i.test(n)) return n;
   var parts = n.split(/\s+/);
   return parts[parts.length - 1] + ' Residence';
+}
+// First name for the welcome-letter greeting. "Jim Harrison" → "Jim";
+// "Smith Residence" (property-style, no first name) → "there" so the
+// greeting still reads naturally ("Dear there" is caught below).
+function _clientFirstName(name){
+  var n = String(name || '').trim();
+  if (!n) return 'there';
+  n = n.replace(/\b(residence|house|home|property|bach|farm|estate)\b/ig, '').trim();
+  if (!n) return 'there';
+  var parts = n.split(/\s+/);
+  // Drop a trailing surname so couples greet naturally:
+  // "Mike & Sarah Smith" → "Mike & Sarah"; "Jim Harrison" → "Jim".
+  // A single leftover token could be a bare surname — still friendlier
+  // than nothing, and the office can edit the letter inline anyway.
+  if (parts.length > 1) parts.pop();
+  return parts.join(' ');
 }
 function refreshQuoteProposal(){
   if (!S.quote) return;
@@ -10074,44 +10120,50 @@ function refreshQuoteProposal(){
   // The previous version rendered BOTH side-by-side, producing the
   // double-logo the user flagged.
   var brandMarkHtml = br.logo_data_url
-    ? '<img src="'+esc2(br.logo_data_url)+'" alt="logo" style="height:54px;max-width:180px;display:block;flex-shrink:0;object-fit:contain;background:rgba(255,255,255,.08);padding:4px;border-radius:6px">'
-    : '<img src="'+esc2(brandLogo)+'" onerror="this.style.display=\'none\'" alt="" style="height:54px;width:54px;border-radius:6px;display:block;flex-shrink:0;object-fit:cover">';
-  var headerHtml = '<div class="rp-header" style="display:flex;align-items:center;justify-content:space-between;gap:18px">'+
-    '<div style="display:flex;align-items:center;gap:14px">'+
+    ? '<img src="'+esc2(br.logo_data_url)+'" alt="logo" style="height:46px;max-width:170px;display:block;flex-shrink:0;object-fit:contain">'
+    : '<img src="brand/logo_wide_white.png" onerror="this.style.display=\'none\'" alt="'+esc2(company)+'" style="height:46px;width:auto;display:block;flex-shrink:0">';
+  // Slim cover masthead — brand mark + tagline left, document label +
+  // ref right.  The full contact block (address / email / GST) now
+  // lives on the acceptance page where it belongs; a cover should
+  // breathe, not read like an invoice header.
+  var headerHtml = '<div class="rp-header" style="display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px 48px">'+
+    '<div style="display:flex;align-items:center;gap:16px">'+
       brandMarkHtml +
-      '<div>'+
-        '<div class="rp-logo-name">'+esc2(company)+'</div>'+
-        '<div class="rp-logo-tag">'+esc2(tagline)+'</div>'+
-        '<div class="rp-logo-stripe"></div>'+
-        '<div style="font-size:10.5px;color:rgba(255,255,255,.7);margin-top:8px;font-family:var(--ed-sans);letter-spacing:.02em;line-height:1.7">'+
-          (br.address ? esc2(br.address)+'<br>' : '')+
-          (br.phone ? 'Phone: '+esc2(br.phone)+'<br>' : '')+
-          (br.email ? 'Email: '+esc2(br.email)+'<br>' : '')+
-          (br.gst_number ? 'GST Number: '+esc2(br.gst_number) : '')+
+      '<div style="border-left:1px solid rgba(255,255,255,.22);padding-left:16px">'+
+        '<div class="rp-logo-tag" style="margin-top:0">'+esc2(tagline)+'</div>'+
+        '<div style="font-family:var(--ed-sans);font-size:10.5px;color:rgba(255,255,255,.7);margin-top:5px;letter-spacing:.03em">'+
+          [br.phone, br.website].filter(Boolean).map(esc2).join(' &nbsp;·&nbsp; ')+
         '</div>'+
       '</div>'+
     '</div>'+
-    '<div class="rp-hdr-right"><strong>'+esc2(S.quote.coverTitle || 'Roofing Quote & Proposal')+'</strong>'+esc2(S.quote.date || '')+'<br>Ref: '+esc2(S.quote.ref || 'FR-001')+'<br>Valid: '+esc2(S.quote.validUntil || '30 days')+'</div>'+
+    '<div style="text-align:right">'+
+      '<div class="ed-serif" style="font-style:italic;font-size:15px;color:#fff">Roofing Quote &amp; Proposal</div>'+
+      '<div style="font-family:var(--ed-sans);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-top:5px">Ref '+esc2(S.quote.ref || 'FR-001')+' &nbsp;·&nbsp; '+esc2(S.quote.date || '')+'</div>'+
+    '</div>'+
   '</div>';
 
-  // ── 10-PAGE PROPOSAL LAYOUT ─────────────────────────────────────
+  // ── PROPOSAL LAYOUT ─────────────────────────────────────────────
   // Each variable below holds the inner HTML of one physical printed
-  // page; sections toggled off return ''.  At the end of the renderer
-  // we wrap them into individual .rp-page divs:
-  //   1.  Cover                                  (hero + meta + at-a-glance)
-  //   2.  About us + team structure
-  //   3.  Existing roof condition + site photos
-  //   4.  Quote inclusions + pricing
-  //   5.  Colorsteel® range + standard colours
-  //   6.  Marley PVC spouting (profiles + colours)
-  //   7.  Continuous steel spouting (profiles + Colorsteel colours)
-  //   8.  Scope of work + timeline + estimated start date
-  //   9.  Terms & conditions
-  //   10. Acceptance / signature
-  var partCover = '', partAbout = '', partCondition = '',
+  // page; sections toggled off return ''.  The assembly pass at the
+  // bottom wraps them into individual .rp-page divs, numbers the
+  // section mastheads (%%N%% token) and the page footers in enabled
+  // order, so toggling a section off never leaves a numbering gap.
+  // Reading order is deliberate sales flow — build value BEFORE the
+  // price, answer objections AFTER it, close with a clear next step:
+  //   1.  Cover                       (hero + title + meta)
+  //   2.  Welcome letter              (personal note + inside-this-proposal)
+  //   3.  Why Flood Roofing           (proof: story, credentials, work)
+  //   4.  Existing roof condition     (what we found)
+  //   5.  Scope & pricing             (what we'll do + your investment)
+  //   6.  Selections                  (grade / gauge / gutter picks)
+  //   7.  Colorsteel® MAXAM           (the material + colours)
+  //   8.  The plan                    (timeline, start date, site care)
+  //   9.  Our guarantee               (warranty stack + straight answers)
+  //   10. Terms & conditions
+  //   11. Acceptance / signature
+  var partCover = '', partLetter = '', partAbout = '', partCondition = '',
       partInclusions = '', partOptionsSelections = '',
-      partColorsteel = '',
-      partMarley = '', partRiGutters = '', partGutters = '',
+      partColorsteel = '', partGuarantee = '',
       partScopeWork = '', partTerms = '', partSignature = '';
 
   // ── Cover (editorial / capability-statement style) ──
@@ -10146,97 +10198,172 @@ function refreshQuoteProposal(){
       // Title plate on cream paper underneath the photo
       (function(){
         var _company = br.company_name || 'Flood Roofing';
-        return '<div style="padding:30px 48px 26px;background:var(--ed-paper)">'+
+        var _metaRow = function(label, field, val, ph){
+          return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 0;border-bottom:1px solid var(--ed-line)">'+
+            '<div style="font-family:var(--ed-sans);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;color:var(--ed-text2)">'+label+'</div>'+
+            '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="'+field+'" spellcheck="false" style="font-size:14px;color:var(--ed-ink);min-width:2em;text-align:right">'+(val ? esc2(val) : '<span style="font-style:italic;opacity:.55;pointer-events:none">'+ph+'</span>')+'</div>'+
+          '</div>';
+        };
+        return '<div style="padding:36px 48px 28px;background:var(--ed-paper);flex:1;display:flex;flex-direction:column">'+
         '<div class="ed-eyebrow">A roofing proposal — Prepared for</div>'+
         // Headline: the job / property title (defaults to the client name).
-        '<div class="ed-title ed-h1" style="margin-top:8px;font-size:38px"><span class="qp-editable" contenteditable="true" data-qfield="jobTitle" spellcheck="false" style="font-style:italic;font-weight:400;color:var(--ed-accent)">'+esc2(S.quote.jobTitle || _residenceTitle(S.quote.client || _bestClientName()))+'</span></div>'+
-        '<div class="qp-editable" contenteditable="true" data-qfield="addr" spellcheck="false" style="font-family:var(--ed-sans);font-size:13px;color:var(--ed-text2);margin-top:6px;letter-spacing:.02em">'+esc2(S.quote.addr || '—')+'</div>'+
-        // Customer details block — name, phone, email.
-        '<div style="margin-top:12px">'+
-          '<div class="ed-eyebrow" style="margin-bottom:3px">Client</div>'+
-          '<div class="qp-editable" contenteditable="true" data-qfield="client" spellcheck="false" style="font-family:var(--ed-serif);font-size:15px;color:var(--ed-ink);font-style:italic">'+esc2(S.quote.client || 'Client name')+'</div>'+
-          '<div style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2);margin-top:3px;letter-spacing:.02em;line-height:1.5">'+
-            '<span class="qp-editable" contenteditable="true" data-qfield="phone" spellcheck="false">'+(S.quote.phone ? esc2(S.quote.phone) : '<span style="font-style:italic;opacity:.6;pointer-events:none">Phone</span>')+'</span>'+
-            ' &nbsp;·&nbsp; '+
-            '<span class="qp-editable" contenteditable="true" data-qfield="email" spellcheck="false">'+(S.quote.email ? esc2(S.quote.email) : '<span style="font-style:italic;opacity:.6;pointer-events:none">client@email.co.nz</span>')+'</span>'+
+        '<div class="ed-title ed-h1" style="margin-top:10px;font-size:44px"><span class="qp-editable" contenteditable="true" data-qfield="jobTitle" spellcheck="false" style="font-style:italic;font-weight:450;color:var(--ed-accent-deep)">'+esc2(S.quote.jobTitle || _residenceTitle(S.quote.client || _bestClientName()))+'</span></div>'+
+        '<div class="qp-editable" contenteditable="true" data-qfield="addr" spellcheck="false" style="font-family:var(--ed-sans);font-size:13.5px;color:var(--ed-ink-2);margin-top:8px;letter-spacing:.02em">'+esc2(S.quote.addr || '—')+'</div>'+
+        '<hr class="ed-rule" style="margin:22px 0 18px">'+
+        // Cover statement — one calm serif line.
+        '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="coverTitle" spellcheck="false" style="font-size:21px;font-weight:400;font-style:italic;line-height:1.35;color:var(--ed-ink);max-width:80%">'+esc2(S.quote.coverTitle || 'A re-roof, done with care.')+'</div>'+
+        // One meta band — client · prepared by · document details.
+        // Merges what used to be three stacked groups + a grid.
+        // margin-top:auto sinks it toward the trust strip so the
+        // cover's whitespace sits between statement and meta, not in
+        // one dead block above the footer.
+        '<div style="height:26px"></div>'+
+        '<div style="margin-top:auto;display:grid;grid-template-columns:1.2fr 1.2fr 1fr;gap:32px;border-top:2px solid var(--ed-ink);padding-top:16px;padding-bottom:6px">'+
+          '<div>'+
+            '<div class="ed-eyebrow" style="margin-bottom:8px">Client</div>'+
+            '<div class="qp-editable" contenteditable="true" data-qfield="client" spellcheck="false" style="font-family:var(--ed-serif);font-size:17px;color:var(--ed-ink)">'+esc2(S.quote.client || 'Client name')+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2);margin-top:5px;letter-spacing:.02em;line-height:1.6">'+
+              '<span class="qp-editable" contenteditable="true" data-qfield="phone" spellcheck="false">'+(S.quote.phone ? esc2(S.quote.phone) : '<span style="font-style:italic;opacity:.6;pointer-events:none">Phone</span>')+'</span>'+
+              '<br><span class="qp-editable" contenteditable="true" data-qfield="email" spellcheck="false">'+(S.quote.email ? esc2(S.quote.email) : '<span style="font-style:italic;opacity:.6;pointer-events:none">client@email.co.nz</span>')+'</span>'+
+            '</div>'+
           '</div>'+
-        '</div>'+
-        '<hr class="ed-rule" style="margin:18px 0 14px">'+
-        '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="coverTitle" spellcheck="false" style="font-size:20px;font-weight:400;line-height:1.3;color:var(--ed-ink);max-width:78%">'+esc2(S.quote.coverTitle || 'A re-roof, done with care.')+'</div>'+
-        // Prepared by — salesperson attribution.
-        '<div style="margin-top:16px">'+
-          '<div class="ed-eyebrow" style="margin-bottom:3px">Prepared by</div>'+
-          '<div class="qp-editable" contenteditable="true" data-qfield="preparedByName" spellcheck="false" style="font-family:var(--ed-serif);font-size:17px;font-style:italic;color:var(--ed-ink)">'+esc2(S.quote.preparedByName || 'Matthew Smith')+'</div>'+
-          '<div style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2);margin-top:2px;letter-spacing:.02em">'+
-            '<span class="qp-editable" contenteditable="true" data-qfield="preparedByRole" spellcheck="false">'+esc2(S.quote.preparedByRole || 'Sales Manager')+'</span>'+
-            ' &nbsp;·&nbsp; '+esc2(_company)+
+          '<div>'+
+            '<div class="ed-eyebrow" style="margin-bottom:8px">Prepared by</div>'+
+            '<div class="qp-editable" contenteditable="true" data-qfield="preparedByName" spellcheck="false" style="font-family:var(--ed-serif);font-size:17px;color:var(--ed-ink)">'+esc2(S.quote.preparedByName || 'Matthew Smith')+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2);margin-top:5px;letter-spacing:.02em;line-height:1.6">'+
+              '<span class="qp-editable" contenteditable="true" data-qfield="preparedByRole" spellcheck="false">'+esc2(S.quote.preparedByRole || 'Sales Manager')+'</span> · '+esc2(_company)+
+              (br.phone ? '<br>'+esc2(br.phone) : '')+
+            '</div>'+
           '</div>'+
-        '</div>'+
-        // Meta footer — three columns, hairline divider
-        '<div style="margin-top:20px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid var(--ed-line);padding-top:14px">'+
-          '<div><div class="ed-eyebrow">Reference</div><div class="qp-editable" contenteditable="true" data-qfield="ref" spellcheck="false" style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.ref || 'FR-001')+'</div></div>'+
-          '<div><div class="ed-eyebrow">Prepared</div><div class="qp-editable" contenteditable="true" data-qfield="date" spellcheck="false" style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.date || '')+'</div></div>'+
-          '<div><div class="ed-eyebrow">Valid</div><div class="qp-editable" contenteditable="true" data-qfield="validUntil" spellcheck="false" style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.validUntil || '30 days')+'</div></div>'+
+          '<div>'+
+            _metaRow('Reference','ref', S.quote.ref || 'FR-001','FR-001')+
+            _metaRow('Prepared','date', S.quote.date || '','Date')+
+            _metaRow('Valid','validUntil', S.quote.validUntil || '30 days','30 days')+
+          '</div>'+
         '</div>'+
       '</div>';
       })();
   }
 
-  // ── About (compact: paragraph + 4 feature cards, no timeline) ──
-  // ── About us + team structure (editorial page) ──
+  // ── Welcome letter (personal note from the person who quoted) ──
+  // The highest-leverage page in a premium proposal: a human being,
+  // addressed by name, telling the client what this document is and
+  // that one person owns their job end-to-end.  Fully editable
+  // (S.quote.letterText); a sensible default is generated from the
+  // job data so it never prints as an empty placeholder page.
+  if (on('letter')) {
+    var _pbName = S.quote.preparedByName || 'Matthew Smith';
+    var _first = _clientFirstName(S.quote.client);
+    var _letterDefault =
+      (_first === 'there' ? 'Hi there,' : 'Dear '+_first+',')+'\n\n'+
+      'Thank you for asking us to look at '+(S.quote.addr ? 'your roof at '+S.quote.addr : 'your roof')+'. '+
+      'A new roof is one of the biggest decisions you\'ll make for your home, so this document is built to let you make it with confidence — what we found up there, exactly what we\'ll do, what it costs, and what happens next.\n\n'+
+      'Take your time with it. If anything is unclear, call me directly — I priced your roof myself, and I\'ll be your point of contact from sign-off to the final wash-down.\n\n'+
+      'Ngā mihi,';
+    var _letterText = (S.quote.letterText || '').trim() || _letterDefault;
+    partLetter =
+      edHeading('%%N%%','Welcome','Thanks for the opportunity')+
+      '<div style="display:grid;grid-template-columns:1.35fr 1fr;gap:34px;align-items:start">'+
+        // Left — the letter itself, generous serif setting
+        '<div>'+
+          '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="letterText" data-keep-default="1" data-multiline="1" spellcheck="true" style="font-size:14.5px;line-height:1.8;color:var(--ed-ink-2);min-height:3em;font-weight:380">'+esc2(_letterText)+'</div>'+
+          // Sign-off block — name, role, direct line
+          '<div style="margin-top:18px;display:flex;align-items:center;gap:14px">'+
+            '<div style="width:34px;height:1px;background:var(--ed-ink)"></div>'+
+            '<div>'+
+              '<div class="ed-serif" style="font-style:italic;font-size:19px;color:var(--ed-ink)">'+esc2(_pbName)+'</div>'+
+              '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);margin-top:3px;letter-spacing:.02em">'+esc2(S.quote.preparedByRole || 'Sales Manager')+' · '+esc2(company)+(br.phone ? ' &nbsp;·&nbsp; '+esc2(br.phone) : '')+'</div>'+
+            '</div>'+
+          '</div>'+
+        '</div>'+
+        // Right rail — owners photo + document map
+        '<div>'+
+          '<figure style="margin:0;position:relative;overflow:hidden;background:var(--ed-ink)">'+
+            '<img src="brand/owners_fleet.jpg" alt="" style="display:block;width:100%;aspect-ratio:4/4.4;object-fit:cover;object-position:62% 30%;filter:saturate(.98) contrast(1.03)">'+
+            '<figcaption style="position:absolute;left:0;right:0;bottom:0;padding:26px 12px 8px;background:linear-gradient(180deg,rgba(10,24,40,0),rgba(10,24,40,.8));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:11.5px;letter-spacing:.02em">Owner-operated · Northland</figcaption>'+
+          '</figure>'+
+          '<div style="margin-top:16px;border-top:2px solid var(--ed-ink);padding-top:10px">'+
+            '<div class="ed-eyebrow" style="margin-bottom:4px">Inside this proposal</div>'+
+            '%%TOC%%'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+      // Stats band — quiet, factual credibility. Numbers from the
+      // company's own published credentials, not marketing fluff.
+      '<div class="ed-keep" style="margin-top:22px;display:grid;grid-template-columns:repeat(4,1fr);gap:22px;border-top:2px solid var(--ed-ink);border-bottom:1px solid var(--ed-line);padding:15px 0 13px">'+
+        [
+          { n:'Est. 2016', l:'Owner-operated', s:'Northland-wide' },
+          { n:'LBP',  l:'Licensed Building', s:'Practitioners' },
+          { n:'10 yr',l:'Workmanship warranty', s:'in writing' },
+          { n:'$2m',  l:'Public liability', s:'insured' },
+        ].map(function(s){
+          return '<div>'+
+            '<div class="ed-serif ed-num" style="font-size:27px;color:var(--ed-ink);line-height:1;font-weight:500">'+s.n+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2);margin-top:6px;letter-spacing:.04em;line-height:1.45">'+s.l+'<br>'+s.s+'</div>'+
+          '</div>';
+        }).join('')+
+      '</div>';
+  }
+
+  // ── Why Flood Roofing (story + credentials + recent work) ──
   if (on('about')) {
     var aboutText = S.quote.aboutText || (br.about_text) || '';
     var features = [
-      { title:'Trade-qualified &amp; LBP', body:'All lead roofers are trade-qualified Licensed Building Practitioners. Apprentices work alongside them.' },
+      { title:'Trade-qualified &amp; LBP', body:'All lead roofers are trade-qualified Licensed Building Practitioners. Apprentices work alongside them — never unsupervised.' },
       { title:'100% price guarantee',  body:'The price we quote is the price you pay. No hidden extras, scaffolding included — we do our own.' },
-      { title:'Genuine NZ Colorsteel', body:'Maxam, ColorZen and Zinc-Aluminium — all NZ-made, backed by manufacturer warranty.' },
+      { title:'Genuine NZ Colorsteel', body:'MAXAM, ColorZen and Zinc-Aluminium — all NZ-made, backed by NZ Steel\'s manufacturer warranty.' },
       { title:'Northland-based since 2016', body:'The well-trusted name in Whangarei, Kerikeri and the Bay of Islands. Ask around.' },
     ];
-    var team = _teamArr();
     partAbout =
-      edHeading('02','Who you\'re hiring','About '+(esc2(company)||'our company'))+
+      edHeading('%%N%%','Who you\'re hiring','Why '+(esc2(company)||'us'))+
       // Two-column: body text left, pull-quote right
-      '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:28px;align-items:start;margin-bottom:22px">'+
+      '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:28px;align-items:start;margin-bottom:12px">'+
         '<div>'+
           '<div class="ed-body-lg qp-editable" contenteditable="true" data-qfield="aboutText" data-multiline="1" spellcheck="true" style="min-height:3em">'+
             (aboutText ? esc2(aboutText) : '<span class="qp-placeholder" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add your company story here — click to edit…</span>')+
           '</div>'+
         '</div>'+
         '<div>'+
-          edPullquote('100% price guarantee — the price we quote is the price you pay. No hidden extras, scaffolding included.', (br.company_name || 'FLOOD ROOFING').toUpperCase())+
+          edPullquote('Every lead roofer on your job is a trade-qualified Licensed Building Practitioner — and our apprentices never work unsupervised.', (br.company_name || 'FLOOD ROOFING').toUpperCase())+
         '</div>'+
       '</div>'+
-      // Feature row — minimalist, no icons, just numbered serif numerals
-      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:14px 0;margin-bottom:18px">'+
+      // Feature row — minimalist, numbered serif numerals
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:11px 0;margin-bottom:12px">'+
         features.map(function(f, i){
           return '<div>'+
-            '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:22px;color:var(--ed-accent);line-height:1">— 0'+(i+1)+'</div>'+
-            '<div class="ed-serif" style="font-size:13.5px;color:var(--ed-ink);margin-top:6px;letter-spacing:-.005em;line-height:1.3">'+f.title+'</div>'+
-            '<div class="ed-body" style="margin-top:4px;font-size:11.5px">'+f.body+'</div>'+
+            '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:20px;color:var(--ed-accent);line-height:1">— 0'+(i+1)+'</div>'+
+            '<div class="ed-serif" style="font-size:13.5px;color:var(--ed-ink);margin-top:6px;letter-spacing:-.005em;line-height:1.3;font-weight:500">'+f.title+'</div>'+
+            '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.5">'+f.body+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
-      // Full-bleed team-photo banner closes the page.  Straight
-      // rectangular crop (banners get the clean horizontal treatment;
-      // corner wedges below get the angled cuts).  Caption strip sits
-      // on a brand-ink scrim at the bottom so the white serif italic
-      // reads cleanly over the photo.
+      // Recent work — the portfolio grid IS the proof. Shown at its
+      // natural ratio (it's a photo grid; cropping would slice houses
+      // in half), full-bleed to the page edges.
+      '<div class="ed-eyebrow" style="margin-bottom:8px">Recent work</div>'+
       '<div style="margin:0 -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
-        '<img src="brand/team_lineup_ute.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/6;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
-        '<div style="position:absolute;left:0;right:0;bottom:0;padding:10px 36px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.78));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:13.5px;letter-spacing:.02em">The Flood Roofing crew · Northland</div>'+
+        '<img src="brand/portfolio_grid.jpg" alt="Recent Flood Roofing projects" style="display:block;width:100%;height:auto;aspect-ratio:1080/585;object-fit:cover;object-position:center top">'+
+        '<div style="position:absolute;left:0;right:0;bottom:0;padding:26px 36px 10px;background:linear-gradient(180deg,rgba(10,24,40,0),rgba(10,24,40,.78));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:12.5px;letter-spacing:.02em">Recent Flood Roofing re-roofs &amp; new builds · Northland</div>'+
       '</div>';
-    void team;
   }
 
   // ── Existing roof condition report (full page) ──
-  // The inspection page only prints when it has CONTENT (or the office
-  // explicitly ticked the section on) — an all-dashes page looked
-  // unfinished on customer PDFs.
+  // The inspection page only prints when it has REAL findings —
+  // summary prose, issues, recommendations, photos, or at least the
+  // aerial / roof-map visual.  Roof type + pitch alone don't justify
+  // a page (they used to — it printed two fields over a sheet of
+  // whitespace on customer PDFs).
+  var _condFallbackVisual = '';
+  try {
+    _condFallbackVisual = _aerialRoofBlock() ||
+      (function(){ var m = _buildRoofPreviewsHtml({ basic: true }); return m ? ('<div class="ed-eyebrow" style="margin:6px 0 8px">Existing roof — plan view</div>' + m) : ''; })();
+  } catch(e){}
   var _condHasContent = !!(((S.quote.condMajor||'')+(S.quote.condMinor||'')+(S.quote.condReco||'')+
-      (S.quote.condMaterial||'')+(S.quote.condAge||'')+(S.quote.conditionSummary||'')).trim() ||
+      (S.quote.conditionSummary||'')).trim() ||
       (S.quote.conditionObservations||[]).filter(Boolean).length ||
       (S.quote.condPhotos||[]).filter(Boolean).length ||
-      (S.photos||[]).filter(function(pp){return pp && pp.src;}).length);
+      (S.photos||[]).filter(function(pp){return pp && pp.src;}).length ||
+      _condFallbackVisual);
   if (on('condition') && (_condHasContent || sec.condition === true)) {
     var condSummary = S.quote.conditionSummary || '';
     var condObs = (S.quote.conditionObservations || []).filter(Boolean);
@@ -10246,6 +10373,7 @@ function refreshQuoteProposal(){
     // bound to THIS proposal, not the shared S.photos pool.
     if (!S.quote.condPhotos) S.quote.condPhotos = [];
     var photoBoxes = '';
+    var _condFilledPhotos = 0;
     for (var ci2 = 0; ci2 < 6; ci2++){
       var cp = S.quote.condPhotos[ci2] || null;
       // Pre-fill from S.photos uploaded under the inspection if this
@@ -10254,6 +10382,7 @@ function refreshQuoteProposal(){
       if (!cp && photos[ci2] && photos[ci2].src) {
         cp = { src: photos[ci2].src, caption: photos[ci2].caption || '', offX: 0, offY: 0, zoom: 1 };
       }
+      if (cp && cp.src) _condFilledPhotos++;
       photoBoxes += _qpCondPhotoSlotHtml(ci2, cp);
     }
     // Hidden file input — single one re-used by every slot via the
@@ -10290,7 +10419,7 @@ function refreshQuoteProposal(){
       ['Approx. age',   cAge,      'condAge'],
     ];
     partCondition =
-      edHeading('02','Inspection report','Existing roof condition')+
+      edHeading('%%N%%','Inspection report','Your roof today')+
       // (The roof map lives on page 3 — Main scope of work — as a
       // compact fixed box beside the price card, per the user's
       // request; this page keeps its room for the condition photos.)
@@ -10307,16 +10436,18 @@ function refreshQuoteProposal(){
       (condSummary
         ? '<div class="ed-body-lg" style="margin-bottom:18px">'+condSummary.split('\n').map(function(p){return '<p style="margin:0 0 10px">'+esc2(p)+'</p>';}).join('')+'</div>'
         : '')+
-      // Major + minor issues — always shown with inline-editable text areas
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start;margin-bottom:18px">'+
-        '<div>'+
+      // Major + minor issues — inline-editable on screen; a column
+      // with no content is qp-ph so it never prints as a bare heading
+      // over blank space.
+      '<div'+((cMajor.length || minorList.length) ? '' : ' class="qp-ph"')+' style="display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start;margin-bottom:18px">'+
+        '<div'+(cMajor.length ? '' : ' class="qp-ph"')+'>'+
           '<div class="ed-eyebrow" style="margin-bottom:6px;color:var(--ed-warm,#c0794d)">Major issues <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
           (cMajor.length ? issueList(cMajor,'var(--ed-warm,#c0794d)') : '')+
           '<div class="qp-editable" contenteditable="true" data-qfield="condMajor" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.6;color:var(--ed-text2);font-style:italic;margin-top:'+(cMajor.length?'8':'0')+'px;min-height:1.5em">'+
             (S.quote.condMajor ? esc2(S.quote.condMajor) : '<span class="qp-placeholder">One issue per line…</span>')+
           '</div>'+
         '</div>'+
-        '<div>'+
+        '<div'+(minorList.length ? '' : ' class="qp-ph"')+'>'+
           '<div class="ed-eyebrow" style="margin-bottom:6px">Minor issues <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
           (minorList.length ? issueList(minorList,'var(--ed-accent)') : '')+
           '<div class="qp-editable" contenteditable="true" data-qfield="condMinor" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.6;color:var(--ed-text2);font-style:italic;margin-top:'+(minorList.length?'8':'0')+'px;min-height:1.5em">'+
@@ -10324,33 +10455,30 @@ function refreshQuoteProposal(){
           '</div>'+
         '</div>'+
       '</div>'+
-      // Recommendations — always shown with editable block
-      '<div style="margin-bottom:18px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
+      // Recommendations — hidden in print until there's content
+      '<div'+(cReco ? '' : ' class="qp-ph"')+' style="margin-bottom:18px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
         '<div class="ed-eyebrow" style="margin-bottom:6px">Recommendations <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
         '<div class="qp-editable" contenteditable="true" data-qfield="condReco" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.55;color:var(--ed-ink-2);min-height:1.5em">'+
           (cReco ? esc2(cReco) : '<span class="qp-placeholder" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add recommendations here…</span>')+
         '</div>'+
       '</div>'+
       // Six existing-roof photo spots — uploaded site photos fill them,
-      // empty ones show a dashed "Upload Site Photo" placeholder.
-      '<div class="ed-eyebrow" style="margin-bottom:10px">Existing roof photos</div>'+
+      // empty ones show a dashed "Upload Site Photo" placeholder
+      // (screen-only; qp-cond-empty never prints).
+      '<div class="ed-eyebrow'+(_condFilledPhotos ? '' : ' qp-ph')+'" style="margin-bottom:10px">Existing roof photos</div>'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">'+photoBoxes+'</div>'+
-      // No uploaded site photos → fill the page with the aerial view, or the
-      // roof-map plan diagram when there's no aerial, so the inspection page
-      // isn't mostly whitespace.
-      ((S.photos && S.photos.length) ? '' : (_aerialRoofBlock() ||
-        (function(){ var m = _buildRoofPreviewsHtml({ basic: true }); return m ? ('<div class="ed-eyebrow" style="margin:6px 0 8px">Existing roof — plan view</div>' + m) : ''; })()));
+      // Fewer than three site photos → fill the remaining page with the
+      // aerial view, or the roof-map plan diagram when there's no
+      // aerial, so the inspection page isn't mostly whitespace.
+      ((_condFilledPhotos >= 3) ? '' : _condFallbackVisual);
   }
 
-  // ── Scope of work + timeline + estimated start (full page) ──
+  // ── The plan — timeline, start date, what we need, site care ──
+  // (The scope list + roof plan live on the pricing page; this page
+  //  answers the OTHER big questions: when, how long, and what will
+  //  it be like having a roofing crew at my house.)
   if (on('scopework')) {
-    var sumLen = function(arr){ return (arr||[]).reduce(function(a,x){ return a + (parseFloat(x.lengthM)||0); }, 0); };
-    var ridgeM = sumLen(d.ridges);
-    var valleyM = sumLen(d.valleys);
-    var hipM   = sumLen(d.hips);
-    var nFaces = (d.faces||[]).length;
     var sheetCount = (S.materials && S.materials.sheets) || (d.sheet_count) || 0;
-    var scopeLines = (S.quote.scope || '').split('\n').filter(Boolean);
     var timeline = (S.quote.timeline && S.quote.timeline.length)
       ? S.quote.timeline
       : [
@@ -10363,83 +10491,70 @@ function refreshQuoteProposal(){
         ];
     var totalDays = timeline.reduce(function(a,t){return a + (parseInt(t.days)||0);}, 0);
     partScopeWork =
-      edHeading('08','The plan','Scope, timeline &amp; start date')+
+      edHeading('%%N%%','The plan','Timeline &amp; start date')+
       // Stat row — minimalist, no card chrome
-      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:24px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:18px 0;margin-bottom:24px">'+
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:24px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:16px 0;margin-bottom:22px">'+
         [
-          { n:(d.area_m2 ? (+d.area_m2).toFixed(1) : '—'), l:'Roof area',  s:'square metres' },
+          { n:(d.area_m2 ? (+d.area_m2).toFixed(0)+' m²' : '—'), l:'Roof area',  s:'measured on-site' },
           { n:(d.pitch ? d.pitch+'°' : '—'),               l:'Pitch',      s:'degrees' },
-          { n:(sheetCount || '—'),                         l:'Sheets',     s:'corrugated' },
-          { n:(totalDays ? totalDays : '—'),               l:'On-site',    s:(totalDays===1?'day':'days')+' estimated' },
+          { n:(sheetCount || '—'),                         l:'Sheets',     s:'long-run steel' },
+          { n:(totalDays ? totalDays : '—'),               l:'On-site',    s:(totalDays===1?'working day':'working days')+' est.' },
         ].map(function(s){
           return '<div>'+
             '<div class="ed-eyebrow">'+s.l+'</div>'+
-            '<div class="ed-serif" style="font-size:30px;color:var(--ed-ink);margin-top:5px;line-height:1;letter-spacing:-.01em">'+s.n+'</div>'+
-            '<div style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2);margin-top:4px;letter-spacing:.02em">'+s.s+'</div>'+
+            '<div class="ed-serif ed-num" style="font-size:29px;color:var(--ed-ink);margin-top:6px;line-height:1;font-weight:500">'+s.n+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);margin-top:5px;letter-spacing:.02em">'+s.s+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
-      // Two-column: roof plan (left) + scope items (right)
-      '<div style="display:grid;grid-template-columns:1.1fr 1fr;gap:28px;align-items:start;margin-bottom:24px">'+
-        '<div>'+
-          '<div class="ed-eyebrow" style="margin-bottom:8px">Roof plan</div>'+
-          '<div style="background:#fff;border:1px solid var(--ed-line);padding:10px">'+buildRoofPlanSvg(d, 460, 260)+'</div>'+
-          ((valleyM || hipM || ridgeM) ? '<div style="display:flex;gap:18px;margin-top:8px;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2)">'+
-            (ridgeM  ? '<div><span class="ed-serif" style="font-style:italic;color:var(--ed-accent)">Ridge</span>  '+ridgeM.toFixed(1)+' m</div>' : '')+
-            (valleyM ? '<div><span class="ed-serif" style="font-style:italic;color:var(--ed-warm)">Valley</span>  '+valleyM.toFixed(1)+' m</div>' : '')+
-            (hipM    ? '<div><span class="ed-serif" style="font-style:italic;color:var(--ed-ink)">Hip</span>  '+hipM.toFixed(1)+' m</div>'    : '')+
-          '</div>' : '')+
-        '</div>'+
-        '<div>'+
-          '<div class="ed-eyebrow" style="margin-bottom:8px">Scope summary <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
-          (scopeLines.length
-            ? '<div>'+
-                scopeLines.map(function(l, i){
-                  return '<div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
-                    '<div class="ed-serif" style="font-style:italic;font-size:14.5px;color:var(--ed-accent);flex-shrink:0;min-width:22px">'+(i<9?'0':'')+(i+1)+'</div>'+
-                    '<div class="ed-body" style="font-size:12px;line-height:1.5">'+esc2(l.replace(/^•\s*/, ''))+'</div>'+
-                  '</div>';
-                }).join('')+
-              '</div>'
-            : '')+
-          '<div class="qp-editable" contenteditable="true" data-qfield="scope" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.7;color:var(--ed-text2);font-style:italic;margin-top:'+(scopeLines.length?'10':'0')+'px;min-height:1.5em">'+
-            (S.quote.scope ? esc2(S.quote.scope) : 'One scope item per line (or tick Scope chips)…')+
-          '</div>'+
-        '</div>'+
-      '</div>'+
-      // Timeline — thin horizontal bars, sage accent, serif phase numbers
-      '<div class="ed-eyebrow" style="margin-bottom:8px">Project timeline · '+totalDays+' working days on-site</div>'+
-      '<div style="border-top:1px solid var(--ed-ink);padding-top:6px;margin-bottom:24px">'+
+      // Timeline — thin horizontal bars, serif phase numbers
+      '<div class="ed-eyebrow" style="margin-bottom:8px">Day by day · '+totalDays+' working days on-site</div>'+
+      '<div style="border-top:1px solid var(--ed-ink);padding-top:6px;margin-bottom:22px">'+
         timeline.map(function(t, ti){
           var widthPct = totalDays ? Math.max(8, Math.round((parseInt(t.days)||1) / totalDays * 100)) : 16;
           return '<div style="display:grid;grid-template-columns:30px 200px 1fr 60px;gap:14px;align-items:center;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
-            '<div class="ed-serif" style="font-style:italic;font-size:14.5px;color:var(--ed-accent)">'+(ti<9?'0':'')+(ti+1)+'</div>'+
+            '<div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-accent)">'+(ti<9?'0':'')+(ti+1)+'</div>'+
             '<div class="ed-serif" style="font-size:14px;color:var(--ed-ink);letter-spacing:-.005em">'+esc2(t.label||'Phase')+'</div>'+
             '<div style="height:6px;background:var(--ed-paper-2);position:relative">'+
               '<div style="position:absolute;top:0;bottom:0;left:0;width:'+widthPct+'%;background:var(--ed-accent)"></div>'+
             '</div>'+
-            '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink);font-weight:500;text-align:right">'+(t.days||1)+' '+((t.days||1)===1?'day':'days')+'</div>'+
+            '<div class="ed-num" style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink);font-weight:500;text-align:right">'+(t.days||1)+' '+((t.days||1)===1?'day':'days')+'</div>'+
           '</div>';
         }).join('')+
       '</div>'+
-      // Estimated start date — big editorial callout
-      '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:24px;align-items:stretch">'+
-        '<div style="background:var(--ed-ink);color:#fff;padding:24px 28px">'+
+      // Estimated start date — big editorial callout + client checklist
+      '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:24px;align-items:stretch;margin-bottom:22px">'+
+        '<div style="background:var(--ed-ink);color:#fff;padding:22px 26px">'+
           '<div class="ed-eyebrow" style="color:rgba(255,255,255,.6)">Estimated start date</div>'+
-          '<div class="ed-serif" style="font-style:italic;font-size:32px;color:#fff;margin-top:8px;line-height:1.05;font-weight:400">'+esc2(S.quote.startDate || 'TBC on acceptance')+'</div>'+
-          '<div style="font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,.65);margin-top:10px;line-height:1.6">Subject to deposit clearance, materials supply and weather. We confirm the start date in writing once the deposit is paid.</div>'+
+          '<div class="ed-serif" style="font-style:italic;font-size:31px;color:#fff;margin-top:8px;line-height:1.1;font-weight:400">'+esc2(S.quote.startDate || 'TBC on acceptance')+'</div>'+
+          '<div style="font-family:var(--ed-sans);font-size:11.5px;color:rgba(255,255,255,.65);margin-top:10px;line-height:1.6">Subject to deposit clearance, materials supply and weather. We confirm your start date in writing once the deposit is paid — jobs are scheduled first-in, first-served.</div>'+
         '</div>'+
-        '<div style="border-top:1px solid var(--ed-ink);padding-top:14px">'+
+        '<div style="border-top:1px solid var(--ed-ink);padding-top:12px">'+
           '<div class="ed-eyebrow">What we need from you</div>'+
-          '<div style="margin-top:8px">'+
-            ['Sign &amp; return acceptance page','Pay 50% deposit — locks in start (invoiced ~7 days before)','Clear roof access (gardens, vehicles)','Pick your colour from page 5'].map(function(t, i){
+          '<div style="margin-top:6px">'+
+            ['Sign &amp; return the acceptance page','Pay the 50% deposit — locks in your start','Pick your Colorsteel® colour','Clear access around the house (vehicles, garden items)'].map(function(t, i){
               return '<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--ed-line)">'+
-                '<div class="ed-serif" style="font-style:italic;font-size:13.5px;color:var(--ed-accent);min-width:22px">0'+(i+1)+'</div>'+
-                '<div class="ed-body" style="font-size:12px;line-height:1.5">'+t+'</div>'+
+                '<div class="ed-serif" style="font-style:italic;font-size:13px;color:var(--ed-accent);min-width:20px">0'+(i+1)+'</div>'+
+                '<div class="ed-body" style="font-size:11.5px;line-height:1.5">'+t+'</div>'+
               '</div>';
             }).join('')+
           '</div>'+
         '</div>'+
+      '</div>'+
+      // While we're on site — the "what's it like" reassurance row.
+      // Every claim traces to the T&Cs / standard inclusions.
+      '<div class="ed-keep" style="display:grid;grid-template-columns:repeat(3,1fr);gap:22px;border-top:1px solid var(--ed-line);padding-top:14px">'+
+        [
+          { t:'Weathertight every night', b:'We only strip what we can close in the same day — if weather rolls in, the building is caught up and sealed before we leave.' },
+          { t:'A tidy site, daily',       b:'Tools packed down, offcuts gathered and the work area left safe each evening. All roofing waste is removed from site at the end.' },
+          { t:'Safety as standard',       b:'WorkSafe NZ procedures throughout — edge protection, harness anchors and clear exclusion zones for kids and pets.' },
+        ].map(function(c, i){
+          return '<div>'+
+            '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:19px;color:var(--ed-accent);line-height:1">— 0'+(i+1)+'</div>'+
+            '<div class="ed-serif" style="font-size:13.5px;color:var(--ed-ink);margin-top:7px;letter-spacing:-.005em;font-weight:500">'+c.t+'</div>'+
+            '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.55">'+c.b+'</div>'+
+          '</div>';
+        }).join('')+
       '</div>';
   }
 
@@ -10459,7 +10574,7 @@ function refreshQuoteProposal(){
     // Big per-section Total chip for the option's title row (incl. GST).
     var _priceChip = function(id, sub){
       return '<div style="text-align:right;white-space:nowrap;flex-shrink:0">'+
-        '<div id="qpOptTot-'+id+'" class="ed-serif" style="font-size:21px;font-weight:600;color:var(--ed-ink);line-height:1">'+fmtMoney(sub*(1+_rate))+'</div>'+
+        '<div id="qpOptTot-'+id+'" class="ed-serif ed-num" style="font-size:21px;font-weight:600;color:var(--ed-ink);line-height:1">'+fmtMoney(sub*(1+_rate))+'</div>'+
         '<div style="font-family:var(--ed-sans);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ed-text2);margin-top:3px">incl. GST</div>'+
       '</div>';
     };
@@ -10507,7 +10622,7 @@ function refreshQuoteProposal(){
       '</div>';
     };
     partInclusions =
-      edHeading('03','Scope of work','Main scope of work')+
+      edHeading('%%N%%','Your investment','Scope &amp; pricing')+
       _buildRoofPreviewsHtml({ small: true })+
       // Roof previews USED to render here too — they now live at the
       // top of page 2 (Inspection report / Existing roof condition)
@@ -10525,16 +10640,21 @@ function refreshQuoteProposal(){
           var checked = (o.selected !== false);
           var oSub = _optEffectiveTotal(o);
           var ups = (o.upgrades||[]);
+          // On paper the <select> would print as web chrome — swap it
+          // for the chosen grade set in quiet serif (.print-only).
+          var _chosenUp = ups.filter(function(u){ return u.id === o.selectedUpgrade; })[0];
+          var _gradeLabel = _chosenUp ? (_chosenUp.title || 'Upgrade') : 'Standard — as quoted';
           var gradeSel = ups.length
             ? '<div onclick="event.stopPropagation()" style="margin-top:9px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
                 '<span class="ed-eyebrow" style="color:var(--ed-text2)">Roofing steel grade</span>'+
-                '<select onclick="event.stopPropagation()" onchange="setOptionGrade(\''+o.id+'\', this.value)" style="font-family:var(--ed-sans);font-size:11px;padding:5px 8px;border:1px solid var(--ed-line);border-radius:5px;background:#fff;color:var(--ed-ink);max-width:100%;cursor:pointer">'+
+                '<select class="no-print" onclick="event.stopPropagation()" onchange="setOptionGrade(\''+o.id+'\', this.value)" style="font-family:var(--ed-sans);font-size:11px;padding:5px 8px;border:1px solid var(--ed-line);border-radius:5px;background:#fff;color:var(--ed-ink);max-width:100%;cursor:pointer">'+
                   '<option value=""'+(!o.selectedUpgrade?' selected':'')+'>Standard — as quoted</option>'+
                   ups.map(function(u){
                     var d=_optTotal(u), dIncl=d*(1+_rate), sign=d>=0?'+':'−';
                     return '<option value="'+esc2(u.id)+'"'+(o.selectedUpgrade===u.id?' selected':'')+'>'+esc2(u.title||'Upgrade')+'  ('+sign+fmtMoney(Math.abs(dIncl))+')</option>';
                   }).join('')+
                 '</select>'+
+                '<span class="print-only ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink)">'+esc2(_gradeLabel)+'</span>'+
               '</div>'
             : '';
           return '<label class="qp-opt-row" style="display:block;margin-bottom:10px;padding:12px 14px;border:1px solid var(--ed-line);border-left:3px solid '+(checked?'var(--ed-accent)':'var(--ed-line)')+';background:'+(checked?'var(--ed-paper-2)':'#fff')+';cursor:pointer">'+
@@ -10621,21 +10741,22 @@ function refreshQuoteProposal(){
         '<div style="display:grid;grid-template-columns:1fr 1fr 1.4fr 1fr;gap:18px;align-items:flex-end">'+
           '<div>'+
             '<div class="ed-eyebrow" style="color:rgba(255,255,255,.65)">Subtotal</div>'+
-            '<div id="qpSelSub" class="ed-serif" style="font-size:22px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedSub)+'</div>'+
+            '<div id="qpSelSub" class="ed-serif ed-num" style="font-size:21px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedSub)+'</div>'+
           '</div>'+
           '<div>'+
             '<div class="ed-eyebrow" style="color:rgba(255,255,255,.65)">+ GST '+S.quote.gstRate+'%</div>'+
-            '<div id="qpSelGst" class="ed-serif" style="font-size:22px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedGst)+'</div>'+
+            '<div id="qpSelGst" class="ed-serif ed-num" style="font-size:21px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedGst)+'</div>'+
           '</div>'+
           '<div style="border-left:1px solid rgba(255,255,255,.18);padding-left:18px">'+
             '<div class="ed-eyebrow" style="color:var(--ed-accent)">Total — incl. GST</div>'+
-            '<div id="qpSelTot" class="ed-serif" style="font-size:34px;color:var(--ed-accent);margin-top:4px;line-height:1;letter-spacing:-.01em;font-weight:500">'+fmtMoney(combinedTot)+'</div>'+
+            '<div id="qpSelTot" class="ed-serif ed-num" style="font-size:33px;color:#fff;margin-top:5px;line-height:1;font-weight:550">'+fmtMoney(combinedTot)+'</div>'+
           '</div>'+
           '<div style="text-align:right">'+
             '<div class="ed-eyebrow" style="color:rgba(255,255,255,.65)">50% Deposit</div>'+
-            '<div id="qpSelDep" class="ed-serif" style="font-size:18px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedDep)+'</div>'+
+            '<div id="qpSelDep" class="ed-serif ed-num" style="font-size:18px;color:#fff;margin-top:4px;line-height:1">'+fmtMoney(combinedDep)+'</div>'+
           '</div>'+
         '</div>'+
+        '<div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,.14);font-family:var(--ed-sans);font-size:10.5px;color:rgba(255,255,255,.6);letter-spacing:.02em">Fixed price — the price we quote is the price you pay. Edge-protection scaffolding included; no hidden extras.</div>'+
       '</div>'+
       // Itemised line items — only printed when the user ticks "Show
       // line items in printed quote" on the Quote tab. Default off,
@@ -10737,7 +10858,7 @@ function refreshQuoteProposal(){
         '</div>'
       : '';
     partInclusions =
-      edHeading('03','Your investment','Scope &amp; pricing')+
+      edHeading('%%N%%','Your investment','Scope &amp; pricing')+
       // The roof map rides in the right column as a compact fixed box
       // under the price card (moved off page 2 per the user's request).
       '<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:30px;align-items:start">'+
@@ -10749,15 +10870,16 @@ function refreshQuoteProposal(){
         // Right — price card (big total, subtotal, GST, deposit) +
         // compact roof map box.
         '<div>'+
-        '<div style="background:var(--ed-ink);color:#fff;padding:24px 26px">'+
-          '<div class="ed-eyebrow" style="color:rgba(255,255,255,.6)">Total incl. GST</div>'+
-          '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:40px;line-height:1.05;color:#fff;margin-top:6px">'+fmtMoney(tot0)+'</div>'+
-          '<div style="margin-top:16px;border-top:1px solid rgba(255,255,255,.18);padding-top:12px;font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,.82)">'+
-            '<div style="display:flex;justify-content:space-between;padding:4px 0"><span>Subtotal</span><span>'+fmtMoney(sub0)+'</span></div>'+
-            '<div style="display:flex;justify-content:space-between;padding:4px 0"><span>GST '+S.quote.gstRate+'%</span><span>'+fmtMoney(gst0)+'</span></div>'+
-            '<div style="display:flex;justify-content:space-between;padding:8px 0 0;margin-top:6px;border-top:1px solid rgba(255,255,255,.18);font-weight:600;color:#fff"><span>50% deposit</span><span>'+fmtMoney(_dep0)+'</span></div>'+
+        '<div style="background:linear-gradient(135deg,var(--ed-ink) 0%,#0d2440 100%);color:#fff;padding:22px 26px;position:relative;overflow:hidden">'+
+          '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--ed-accent)"></div>'+
+          '<div class="ed-eyebrow" style="color:var(--ed-accent)">Total incl. GST</div>'+
+          '<div class="ed-serif ed-num" style="font-weight:550;font-size:38px;line-height:1.05;color:#fff;margin-top:8px">'+fmtMoney(tot0)+'</div>'+
+          '<div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.18);padding-top:11px;font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,.82)">'+
+            '<div class="ed-num" style="display:flex;justify-content:space-between;padding:4px 0"><span>Subtotal</span><span>'+fmtMoney(sub0)+'</span></div>'+
+            '<div class="ed-num" style="display:flex;justify-content:space-between;padding:4px 0"><span>GST '+S.quote.gstRate+'%</span><span>'+fmtMoney(gst0)+'</span></div>'+
+            '<div class="ed-num" style="display:flex;justify-content:space-between;padding:8px 0 0;margin-top:6px;border-top:1px solid rgba(255,255,255,.18);font-weight:600;color:#fff"><span>50% deposit</span><span>'+fmtMoney(_dep0)+'</span></div>'+
           '</div>'+
-          '<div style="font-family:var(--ed-sans);font-size:10.5px;color:rgba(255,255,255,.6);margin-top:14px;line-height:1.5">Deposit secures your spot in the schedule. Balance due within 7 days of completion.</div>'+
+          '<div style="font-family:var(--ed-sans);font-size:10.5px;color:rgba(255,255,255,.6);margin-top:13px;line-height:1.55">Fixed price — no hidden extras, scaffolding included. Deposit secures your spot in the schedule; balance due within 7 days of completion.</div>'+
         '</div>'+
         _buildRoofPreviewsHtml({ small: true, basic: true })+
         '</div>'+
@@ -10913,9 +11035,10 @@ function refreshQuoteProposal(){
             + (pOpts.downpipes === 'yes' ? ' · New downpipes' : '')
           : '');
       partOptionsSelections =
-        edHeading('04','Choose your options','Selections')+
-        // One-line "how this works" so the page explains itself.
-        '<div class="ed-body" style="margin:-6px 0 16px;font-size:12px;color:var(--ed-ink-2);line-height:1.5">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is in the panel below.</div>'+
+        edHeading('%%N%%','Make it yours','Your selections')+
+        // One-line "how this works" — written to read correctly BOTH on
+        // the printed page and on the live customer link.
+        '<div class="ed-body" style="margin:-6px 0 16px;font-size:12px;color:var(--ed-ink-2);line-height:1.5">Your quote is based on the standard picks marked below. On your <strong>online quote</strong>, tap any card and the total updates instantly. On paper, tick your choice and we\'ll confirm the new total in writing — no surprises either way.</div>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:14px">'+
           '<div>'+
             '<div class="ed-eyebrow" style="margin-bottom:6px">Steel grade</div>'+
@@ -10944,7 +11067,7 @@ function refreshQuoteProposal(){
     }
 
     partColorsteel =
-      edHeading('05','The material','Colorsteel® MAXAM &amp; alternatives')+
+      edHeading('%%N%%','The material','Colorsteel® MAXAM &amp; alternatives')+
       '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:start;margin-bottom:22px">'+
         '<div class="ed-body-lg">'+
           '<p style="margin:0 0 10px">Flood Roofing uses <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® MAXAM</span> as standard — NZ Steel\'s newest pre-painted roofing product, rolled and painted at Glenbrook from New Zealand iron sand. MAXAM is built on <span class="ed-serif" style="font-style:italic;font-size:15px">Activate™</span> technology, a patented aluminium-zinc-magnesium coating that meaningfully slows corrosion.</p>'+
@@ -11006,176 +11129,64 @@ function refreshQuoteProposal(){
     void fieldPhotos;
   }
 
-  // ── Marley PVC spouting (full page) ──
-  if (on('marley')) {
-    partMarley =
-      edHeading('06','The spouting — our standard fit','Marley Typhoon® PVC')+
-      '<div class="ed-body-lg" style="margin-bottom:22px;max-width:60em">Marley is New Zealand\'s most-installed PVC spouting brand — UV-stabilised, light, doesn\'t corrode and won\'t dent in hail. <span class="ed-serif" style="font-style:italic;font-size:15px">Typhoon</span> is what we fit as standard: a high-flow half-round profile, far superior to the older Marley Classic for our catchments. For larger roofs or extra peace of mind we recommend the upgrade to <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — page 07. A <em>15-year manufacturer\'s warranty</em> covers the spouting, downpipes and fittings.</div>'+
-      // Profile grid — editorial cards with serif name + italic blurb.
-      // First profile (Typhoon) wears a "STANDARD" flag in the corner.
-      '<div class="ed-eyebrow" style="margin-bottom:10px">Available profiles</div>'+
-      '<div style="display:grid;grid-template-columns:repeat('+MARLEY_PROFILES.length+',1fr);gap:14px;margin-bottom:24px">'+
-        MARLEY_PROFILES.map(function(p, pi){
-          return '<div style="border-top:1px solid var(--ed-ink);padding-top:14px;position:relative">'+
-            (p.flag ? '<div style="position:absolute;top:-1px;right:0;background:var(--ed-accent);color:#fff;font-family:var(--ed-sans);font-size:9px;font-weight:600;letter-spacing:.16em;padding:3px 8px">'+p.flag+'</div>' : '')+
-            '<div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-accent);line-height:1">0'+(pi+1)+'</div>'+
-            '<div style="margin:10px 0;background:var(--ed-paper-2);padding:10px;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">'+gutterProfileSvg(p.key)+'</div>'+
-            '<div class="ed-serif" style="font-size:14.5px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em">'+esc2(p.name)+'</div>'+
-            '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.5">'+p.blurb+'</div>'+
-          '</div>';
-        }).join('')+
-      '</div>'+
-      // Colour palette wrapped in a max-width container so the
-      // swatches + footnote fit around the bottom-right corner
-      // wedge.  Wedge is 380px wide, so palette area = ~414px on the
-      // left; 4 columns × 3 rows accommodates the 12 swatches with
-      // legible label sizes.
-      '<div style="max-width:410px">'+
-        '<div class="ed-eyebrow" style="margin-bottom:8px">Colour range</div>'+
-        '<div class="ed-serif" style="font-size:17px;font-style:italic;margin-bottom:12px;color:var(--ed-ink)">Marley palette</div>'+
-        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">'+
-          MARLEY_COLOURS.map(function(c){
-            var labelStyle = 'color:'+(needsLightLabel(c.hex)?'#fff':'#0a1628');
-            return '<div style="position:relative;background:'+c.hex+';height:58px;display:flex;align-items:flex-end;padding:5px 7px;border:1px solid '+(c.hex.toLowerCase()==='#f5f5f0'?'var(--ed-line)':'rgba(0,0,0,.12)')+'">'+
-              '<div style="font-family:var(--ed-sans);font-size:10.5px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.35)':'none')+'">'+esc2(c.name)+'</div>'+
-            '</div>';
-          }).join('')+
-        '</div>'+
-        '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2);margin-top:8px;line-height:1.4;font-style:italic">Marley range matches the Colorsteel® colour family. White and Black are universal stock colours; coloured profiles are made-to-order.</div>'+
-      '</div>'+
-      // Bottom-right corner wedge — aerial multi-pitch Colorsteel
-      // roof, top-left angle-clipped.  Big (380 × 260) so it reads
-      // as a hero accent.  Content above leaves room via the
-      // palette's padding-right.
-      '<div style="position:absolute;bottom:0;right:0;width:380px;height:260px;overflow:hidden;clip-path:polygon(40% 0,100% 0,100% 100%,0 100%);background:var(--ed-ink);box-shadow:-10px 0 28px -14px rgba(10,24,40,.4);z-index:2">'+
-        '<img src="brand/roof_aerial_multipitch.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:60% 55%">'+
-      '</div>';
-  }
-
-  // ── Continuous steel spouting / RI gutters (full page) ──
-  if (on('ri_gutters')) {
-    partRiGutters =
-      // Full-bleed team banner across the top of the page.  Straight
-      // rectangular crop; corner wedges get the angled treatment, not
-      // banners.  Aspect 21:4 (shorter) leaves room for the coloured
-      // heading band + content below.  Uses the alt team-photo shot
-      // because the winter-jacket version is now the cover hero.
-      '<div style="margin:-38px -36px 0;overflow:hidden;background:var(--ed-ink)">'+
-        '<img src="brand/team_photo.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/4;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
-      '</div>'+
-      edHeading('07','The spouting — recommended upgrade','Colorsteel® 125mm Box Gutter',{afterBanner:true})+
-      '<div class="ed-body-lg" style="margin-bottom:22px;max-width:60em">For larger roofs, or for added peace of mind on Northland\'s heavy rainfall events, we recommend stepping up from Marley Typhoon to a continuous <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — rolled on-site in 0.55bmt steel, no factory joins, much higher flow capacity than any PVC profile. Finished in the same Colorsteel colour family as your roof for a fully coordinated finish, with a <em>15-year paint film warranty</em> on top of the substrate cover.</div>'+
-      // Profile grid
-      '<div class="ed-eyebrow" style="margin-bottom:10px">Available profiles</div>'+
-      '<div style="display:grid;grid-template-columns:repeat('+STEEL_GUTTER_PROFILES.length+',1fr);gap:14px;margin-bottom:28px">'+
-        STEEL_GUTTER_PROFILES.map(function(p, pi){
-          return '<div style="border-top:1px solid var(--ed-ink);padding-top:14px">'+
-            '<div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-accent);line-height:1">0'+(pi+1)+'</div>'+
-            '<div style="margin:10px 0;background:var(--ed-paper-2);padding:10px;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">'+gutterProfileSvg(p.key)+'</div>'+
-            '<div class="ed-serif" style="font-size:14.5px;color:var(--ed-ink);line-height:1.2;letter-spacing:-.005em">'+esc2(p.name)+'</div>'+
-            '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.5">'+p.blurb+'</div>'+
-          '</div>';
-        }).join('')+
-      '</div>'+
-      // Colour reminder
-      '<div class="ed-eyebrow" style="margin-bottom:8px">Matched to your roof</div>'+
-      '<div class="ed-serif" style="font-size:17px;font-style:italic;margin-bottom:12px;color:var(--ed-ink)">Colorsteel® colour range</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:24px">'+
-        MAXAM_COLOURS.slice(0, 12).map(function(c){
-          var labelStyle = 'color:'+(needsLightLabel(c.hex)?'#fff':'#0a1628');
-          return '<div style="position:relative;background:'+c.hex+';height:60px;display:flex;align-items:flex-end;padding:5px 7px">'+
-            '<div style="font-family:var(--ed-sans);font-size:10.5px;font-weight:500;letter-spacing:.04em;'+labelStyle+';text-shadow:'+(needsLightLabel(c.hex)?'0 1px 2px rgba(0,0,0,.35)':'none')+'">'+esc2(c.name)+'</div>'+
-          '</div>';
-        }).join('')+
-      '</div>'+
-      // Benefits — editorial three-column with serif numerals
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;border-top:1px solid var(--ed-line);padding-top:18px">'+
-        [
-          { t:'Coastal-grade',   b:'AZ150 / AZ200 Galvalloy® substrate stands up to salt spray.' },
-          { t:'Stiffer profile', b:'Steel doesn\'t sag like PVC — long runs without intermediate brackets.' },
-          { t:'Matches the roof',b:'Same Colorsteel® colour family — fully coordinated finish.' },
-        ].map(function(c, i){
-          return '<div>'+
-            '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:20px;color:var(--ed-accent);line-height:1">— 0'+(i+1)+'</div>'+
-            '<div class="ed-serif" style="font-size:14px;color:var(--ed-ink);margin-top:8px;letter-spacing:-.005em">'+c.t+'</div>'+
-            '<div class="ed-body" style="margin-top:5px;font-size:12px">'+c.b+'</div>'+
-          '</div>';
-        }).join('')+
-      '</div>';
-  }
-
-  // ── Gutters (combined: Marley standard + Colorsteel Box upgrade on one page) ──
-  if (on('gutters')) {
-    var _gp = S.quote.gutterPrices || {marley:0, box:0};
-    var _grate = S.quote.gstRate/100;
-    var _gMarleyIncl = (parseFloat(_gp.marley)||0)*(1+_grate);
-    var _gBoxIncl    = (parseFloat(_gp.box)||0)*(1+_grate);
-    var _gc = S.quote.gutterChoice || 'none';
-    partGutters =
-      edHeading('06','The spouting','Marley PVC &amp; Colorsteel options')+
-      '<div class="ed-body-lg" style="margin-bottom:14px;max-width:60em">Two gutter systems available. <span class="ed-serif" style="font-style:italic;font-size:15px">Marley Typhoon</span> PVC is our standard fit — UV-stabilised, light, won\'t corrode, won\'t dent in hail, backed by a 15-year manufacturer warranty. For larger roofs or extra peace of mind we recommend the upgrade to <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — rolled on-site in 0.55bmt steel, no factory joins, much higher flow capacity, fully colour-matched to the roof.</div>'+
-      // The gutter PICKER lives on the Selections page (04) only — one
-      // control, one state, one price.  This page stays informational.
-      '<div style="margin-bottom:18px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
-        '<span class="ed-eyebrow">Choosing your gutter</span> '+
-        '<span class="ed-body" style="font-size:11.5px;color:var(--ed-ink-2)">Pick your gutter type on the <em>Selections</em> page — the add-on price and new total update there'+((_gMarleyIncl||_gBoxIncl)?' (Marley Typhoon '+(_gMarleyIncl?'+'+fmtMoney(_gMarleyIncl):'included')+' · Colorsteel Box '+(_gBoxIncl?'+'+fmtMoney(_gBoxIncl):'included')+')':'')+'.</span>'+
-      '</div>'+
-      // Two clean option cards, one accurate profile cross-section each.
-      (function(){
-        function card(opts){
-          return '<div style="border:1px solid var(--ed-line);border-top:3px solid '+opts.accent+';padding:16px 18px;display:flex;gap:16px;align-items:center">'+
-            '<div style="flex-shrink:0;width:120px"><div style="background:var(--ed-paper-2);border:1px solid var(--ed-line);padding:12px">'+gutterProfileSvg(opts.profile)+'</div>'+
-              '<div class="ed-eyebrow" style="text-align:center;margin-top:6px;color:var(--ed-text2)">'+opts.profileLabel+'</div></div>'+
-            '<div style="flex:1;min-width:0">'+
-              '<div class="ed-eyebrow" style="color:'+opts.accent+';margin-bottom:4px">'+opts.tag+'</div>'+
-              '<div class="ed-serif" style="font-size:19px;color:var(--ed-ink);letter-spacing:-.005em;margin-bottom:6px">'+opts.title+'</div>'+
-              '<div class="ed-body" style="font-size:11.5px;line-height:1.5">'+opts.body+'</div>'+
+  // ── Our guarantee — warranty stack + straight answers ──
+  // Sits between the plan and the fine print. Every promise here is
+  // drawn from the T&Cs / standard inclusions, reframed as the client
+  // benefit each legal clause actually is — and the FAQ answers the
+  // questions that stall acceptance before the client has to ask.
+  // (This replaced the old standalone Marley / steel-gutter / summary
+  // pages, which were never assembled into the printed flow; gutter
+  // choice lives on the Selections page.)
+  if (on('guarantee')) {
+    var _gCards = [
+      { n:'10-year workmanship warranty', b:'Our installation — fixing, lapping, flashings, weatherproofing — is warranted in writing for 10 years from practical completion.' },
+      { n:'Up to 50-year material warranty', b:'Genuine Colorsteel® MAXAM carries NZ Steel\'s perforation warranty — up to 50 years depending on your exposure zone (see the material page).' },
+      { n:'100% price guarantee', b:'The price on the acceptance page is the price you pay. Any variation is priced and approved by you in writing before the work is done.' },
+      { n:'Insured, audited, licensed', b:'$2 million Public Liability + Contract Works insurance, Sitewise Gold rated, Site Safe member, Licensed Building Practitioners on every job.' },
+    ];
+    var _gFaq = [
+      { q:'What if you find rot under the old roof?', a:'We photograph it, price the fix and get your written OK before touching it. Hidden timber is the only genuine unknown in a re-roof — it\'s handled as a transparent variation, never a surprise on the invoice.' },
+      { q:'What happens if it rains mid-job?', a:'We only strip what we can close the same day, so your home is weathertight every night. If weather stops play, we re-schedule at no cost to you.' },
+      { q:'Is my deposit safe?', a:'Your 50% deposit goes straight into ordering your steel, rolled to length for your roof. Cancel before materials are ordered and it\'s refunded, less a $250 admin fee.' },
+      { q:'Will the site be safe for kids and pets?', a:'Yes — WorkSafe NZ exclusion zones, edge protection and harness anchors on every job, the site tidied daily, and all roofing waste removed when we\'re done.' },
+      { q:'Who do I actually deal with?', a:'One point of contact — the person who quoted your roof — from acceptance to the final wash-down.' },
+    ];
+    partGuarantee =
+      edHeading('%%N%%','Peace of mind','Our guarantee, in writing')+
+      // Warranty stack — 2×2, each promise gets its own quiet card
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 22px;margin-bottom:20px">'+
+        _gCards.map(function(c, i){
+          return '<div style="border-top:2px solid var(--ed-ink);padding-top:10px">'+
+            '<div style="display:flex;align-items:baseline;gap:10px">'+
+              '<div class="ed-serif" style="font-style:italic;font-size:15px;color:var(--ed-accent);flex-shrink:0">0'+(i+1)+'</div>'+
+              '<div class="ed-serif" style="font-size:15.5px;color:var(--ed-ink);letter-spacing:-.005em;font-weight:530;line-height:1.25">'+c.n+'</div>'+
             '</div>'+
+            '<div class="ed-body" style="margin-top:5px;font-size:11.5px;line-height:1.55">'+c.b+'</div>'+
           '</div>';
-        }
-        return '<div style="display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:4px">'+
-          card({ accent:'var(--ed-accent)', tag:'Standard fit', profile:'typhoon', profileLabel:'Half-round',
-                 title:'Marley Typhoon® PVC',
-                 body:'Our standard spouting — UV-stabilised, light, won\'t corrode or dent in hail. High-flow 145 × 90 mm half-round, 15-year manufacturer warranty on spouting, downpipes and fittings. Colour-matched to your roof.' })+
-          card({ accent:'var(--ed-warm,#c0794d)', tag:'Recommended upgrade', profile:'box', profileLabel:'Box gutter',
-                 title:'Colorsteel® 125mm Box Gutter',
-                 body:'Rolled on-site in one continuous length of 0.55 bmt steel — no factory joins, far higher flow capacity, stiff enough for long runs. AZ150/AZ200 Galvalloy® stands up to coastal salt; finished in your Colorsteel colour. 15-year paint-film warranty.' })+
-        '</div>';
-      })();
-  }
-
-  // ── Summary (compact: option-tick list) ──
-  if (on('summary')) {
-    var sumOpts = opts.length ? opts : null;
-    partSummary =
-      rpHeading('tick','Summary — tick the option(s) to proceed with')+
-      (sumOpts
-        ? sumOpts.map(function(o, oi){
-            var optSub = _optTotal(o);
-            var optTot = optSub + optSub * (S.quote.gstRate/100);
-            return '<div style="display:flex;gap:10px;padding:10px 12px;background:#fff;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">'+
-              '<div style="width:18px;height:18px;border:1.5px solid #0a1628;border-radius:3px;flex-shrink:0;margin-top:2px"></div>'+
-              '<div style="flex:1">'+
-                '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">'+
-                  '<div><span style="font-size:10.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;font-weight:700">Option '+String.fromCharCode(65+oi)+'</span> <strong style="font-size:14px;color:#0a1628">'+esc2(o.title||'')+'</strong></div>'+
-                  '<div style="font-size:14px;font-weight:800;color:#0a1628">'+fmtMoney(optTot)+'</div>'+
-                '</div>'+
-                ((o.upgrades && o.upgrades.length)
-                  ? o.upgrades.map(function(u){
-                      var uSub = _optTotal(u);
-                      var uTot = uSub + uSub * (S.quote.gstRate/100);
-                      return '<div style="display:flex;gap:8px;align-items:center;padding:3px 0 0">'+
-                        '<div style="width:14px;height:14px;border:1.5px solid #92400e;border-radius:3px;flex-shrink:0"></div>'+
-                        '<div style="flex:1;font-size:12px;color:var(--text2)"><strong style="color:#92400e">+ '+esc2(u.title||'')+'</strong></div>'+
-                        '<div style="font-size:12.5px;font-weight:700;color:#92400e">+'+fmtMoney(uTot)+'</div>'+
-                      '</div>';
-                    }).join('')
-                  : '')+
-              '</div>'+
-            '</div>';
-          }).join('')
-        : '<div style="padding:12px;background:#fff;border:1px solid var(--border);border-radius:8px;font-size:12.5px;color:var(--text2);text-align:center">Add options to make this a multi-pick proposal.</div>'
-      );
+        }).join('')+
+      '</div>'+
+      // Straight answers — objection-handling FAQ
+      '<div class="ed-eyebrow" style="margin-bottom:4px">Straight answers</div>'+
+      '<div style="margin-bottom:18px">'+
+        _gFaq.map(function(f){
+          return '<div style="display:grid;grid-template-columns:220px 1fr;gap:18px;padding:9px 0;border-bottom:1px solid var(--ed-line)">'+
+            '<div class="ed-serif" style="font-size:13px;color:var(--ed-ink);font-style:italic;line-height:1.4">'+f.q+'</div>'+
+            '<div class="ed-body" style="font-size:11.5px;line-height:1.55">'+f.a+'</div>'+
+          '</div>';
+        }).join('')+
+      '</div>'+
+      // Credential logos — their natural home is this page (and the
+      // cover); they no longer repeat in every page footer.
+      // margin-top:auto anchors the band just above the page footer.
+      '<div class="ed-keep" style="margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:18px;border-top:1px solid var(--ed-line);padding-top:14px">'+
+        '<div style="font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);letter-spacing:.06em;text-transform:uppercase">Licensed Building Practitioner · Site Safe · Sitewise Gold · Colorsteel Authorised</div>'+
+        '<div style="display:flex;align-items:center;gap:18px;flex-shrink:0">'+
+          '<img src="brand/lbp.png" alt="LBP" onerror="this.style.display=\'none\'" style="height:34px;width:auto;object-fit:contain">'+
+          '<img src="brand/sitesafe.png" alt="Site Safe" onerror="this.style.display=\'none\'" style="height:32px;width:auto;object-fit:contain">'+
+          '<img src="brand/sitewise_gold.png" alt="Sitewise Gold" onerror="this.style.display=\'none\'" style="height:28px;width:auto;object-fit:contain">'+
+          '<img src="brand/colorsteel.png" alt="Colorsteel" onerror="this.style.display=\'none\'" style="height:24px;width:auto;object-fit:contain">'+
+        '</div>'+
+      '</div>';
   }
 
   // ── Terms & conditions (full page, NZ roofing standard clauses) ──
@@ -11213,9 +11224,9 @@ function refreshQuoteProposal(){
     ];
     // Always render the full standard T&C set; any custom text in the
     // Quote tab's "Additional terms" field is appended after it.
-    var clauses = '<div style="column-count:2;column-gap:24px;font-family:var(--ed-sans);font-size:11px;line-height:1.55;color:var(--ed-ink-2)">'+
+    var clauses = '<div style="column-count:2;column-gap:22px;font-family:var(--ed-sans);font-size:9.8px;line-height:1.5;color:var(--ed-ink-2)">'+
           dflt.map(function(c){
-            return '<div style="margin-bottom:9px;break-inside:avoid"><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em">'+c.h+'</div><div style="margin-top:3px">'+c.b+'</div></div>';
+            return '<div style="margin-bottom:7px;break-inside:avoid"><div class="ed-serif" style="font-style:italic;font-size:11.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em">'+c.h+'</div><div style="margin-top:2px">'+c.b+'</div></div>';
           }).join('')+
         '</div>';
     // Editable "additional terms for this job" — kept OUT of the CSS
@@ -11228,12 +11239,12 @@ function refreshQuoteProposal(){
         '</div>'+
       '</div>';
     partTerms =
-      edHeading('06','The fine print','Terms &amp; conditions')+
+      edHeading('%%N%%','The fine print','Terms &amp; conditions')+
       clauses + addTerms +
-      // Payment three-stage band — single horizontal row tucked at
+      // Payment two-stage band — single horizontal row tucked at
       // the bottom of the T&Cs page.  Vertically compact so all the
       // clauses + the schedule sit on one A4 sheet.
-      '<div class="ed-keep" style="margin-top:18px;border-top:1px solid var(--ed-ink);padding-top:12px;display:flex;align-items:baseline;justify-content:space-between;gap:18px;flex-wrap:wrap">'+
+      '<div class="ed-keep" style="margin-top:14px;border-top:1px solid var(--ed-ink);padding-top:11px;display:flex;align-items:baseline;justify-content:space-between;gap:18px;flex-wrap:wrap">'+
         '<div class="ed-eyebrow">Payment schedule</div>'+
         [['50%','Deposit','~7 days before start'],['50%','Final','Within 7 days of completion']]
         .map(function(p,i){
@@ -11258,7 +11269,7 @@ function refreshQuoteProposal(){
     var accTot = accSub * (1+accRate);
     var acc = S.quote.accepted;
     partSignature =
-      edHeading('07','To accept','Acceptance &amp; signature')+
+      edHeading('%%N%%','To accept','Acceptance &amp; next steps')+
       // ── Quote summary (selected options + grades + total) ──
       '<div style="margin-bottom:20px">'+
         '<div class="ed-eyebrow" style="margin-bottom:8px">Your quote'+(S.quote.client?' — '+esc2(S.quote.client):'')+'</div>'+
@@ -11277,48 +11288,63 @@ function refreshQuoteProposal(){
             '<button onclick="unacceptQuote()" class="no-print" style="margin-top:12px;padding:6px 12px;background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:6px;font-size:11px;cursor:pointer">Undo acceptance</button>'+
           '</div>'
         : // ── Two ways to accept ──
-          '<p class="ed-body-lg" style="max-width:54em;margin:0 0 16px">I, <span class="ed-serif" style="font-style:italic;font-size:15px;color:var(--ed-ink)">'+esc2(S.quote.client||'—')+'</span>, accept the option(s) and grade selections shown above and agree to the terms &amp; conditions set out in this proposal.</p>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:stretch;margin-bottom:22px">'+
-            // Option A — sign & return (prints)
-            '<div style="border:1px solid var(--ed-line);padding:16px 18px">'+
-              '<div class="ed-eyebrow" style="margin-bottom:14px">Option A · sign &amp; return</div>'+
-              '<div style="border-bottom:1px solid var(--ed-ink);height:42px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">Client signature</div>'+
-              '<div style="border-bottom:1px solid var(--ed-ink);height:42px;margin-top:18px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">Name &amp; date</div>'+
+          '<p class="ed-body-lg" style="max-width:54em;margin:0 0 14px">I, <span class="ed-serif" style="font-style:italic;font-size:15px;color:var(--ed-ink)">'+esc2(S.quote.client||'—')+'</span>, accept the option(s) and selections shown above and agree to the terms &amp; conditions set out in this proposal.</p>'+
+          // Accept online — the fast path. Lives on the live customer
+          // link only; never prints (paper gets the signature grid).
+          '<div class="no-print" style="border:1.5px solid var(--ed-accent);padding:14px 18px;background:var(--ed-paper-2);display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px">'+
+            '<div style="flex:1;min-width:240px">'+
+              '<div class="ed-eyebrow" style="margin-bottom:8px">Accept online — takes 10 seconds</div>'+
+              '<input type="text" id="qpAcceptName" placeholder="Type your full name" value="'+esc2(S.quote.client||'')+'" style="width:100%;font-family:var(--ed-sans);font-size:13px;padding:9px 11px;border:1px solid var(--ed-line);border-radius:6px;box-sizing:border-box">'+
+              '<label style="display:flex;gap:8px;align-items:flex-start;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);line-height:1.4;margin-top:8px;cursor:pointer"><input type="checkbox" id="qpAcceptTerms" style="margin:2px 0 0;flex-shrink:0"> I accept this quote and the <strong>terms &amp; conditions</strong>.</label>'+
             '</div>'+
-            // Option B — accept online (screen only)
-            '<div class="no-print" style="border:1.5px solid var(--ed-accent);padding:16px 18px;background:var(--ed-paper-2);display:flex;flex-direction:column">'+
-              '<div class="ed-eyebrow" style="margin-bottom:14px">Option B · accept online</div>'+
-              '<input type="text" id="qpAcceptName" placeholder="Type your full name" value="'+esc2(S.quote.client||'')+'" style="width:100%;font-family:var(--ed-sans);font-size:13px;padding:9px 11px;border:1px solid var(--ed-line);border-radius:6px;margin-bottom:10px;box-sizing:border-box">'+
-              '<label style="display:flex;gap:8px;align-items:flex-start;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);line-height:1.4;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="qpAcceptTerms" style="margin:2px 0 0;flex-shrink:0"> I accept this quote and the <strong>terms &amp; conditions</strong>.</label>'+
-              '<button onclick="acceptQuoteDigitally()" style="margin-top:auto;width:100%;padding:12px;background:var(--ed-accent);color:#fff;border:none;border-radius:6px;font-family:var(--ed-sans);font-size:14px;font-weight:700;cursor:pointer">✓ Accept quote</button>'+
-            '</div>'+
+            '<button onclick="acceptQuoteDigitally()" style="padding:12px 26px;background:var(--ed-accent);color:#fff;border:none;border-radius:6px;font-family:var(--ed-sans);font-size:14px;font-weight:700;cursor:pointer;flex-shrink:0">✓ Accept quote</button>'+
           '</div>'+
-          // Company representative line (prints)
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-bottom:30px">'+
-            '<div><div style="border-bottom:1px solid var(--ed-ink);height:40px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">'+esc2(company||'Company')+' representative</div></div>'+
-            '<div><div style="border-bottom:1px solid var(--ed-ink);height:40px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">Date</div></div>'+
+          // Sign on paper — balanced two-party signature grid (prints)
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-bottom:20px">'+
+            [ 'Client', esc2(company||'Company') ].map(function(party){
+              return '<div>'+
+                '<div class="ed-eyebrow" style="margin-bottom:14px">'+party+'</div>'+
+                '<div style="border-bottom:1px solid var(--ed-ink);height:40px"></div><div class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-text2);margin-top:5px">Signature</div>'+
+                '<div style="border-bottom:1px solid var(--ed-ink);height:30px;margin-top:12px"></div><div class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-text2);margin-top:5px">Name &amp; date</div>'+
+              '</div>';
+            }).join('')+
           '</div>'
       )+
+      // What happens next — removes the "…then what?" doubt at the
+      // exact moment of commitment.
+      '<div class="ed-keep" style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid var(--ed-ink);padding-top:12px">'+
+        [
+          { t:'You accept',            b:'Online or on paper — the contract forms once your 50% deposit clears.' },
+          { t:'We order your steel',   b:'Your Colorsteel® is rolled to length for your roof, in your colour.' },
+          { t:'Start date confirmed',  b:'Locked in writing. One point of contact from here to the final wash-down.' },
+        ].map(function(s, i){
+          return '<div>'+
+            '<div class="ed-serif" style="font-style:italic;font-size:19px;color:var(--ed-accent);line-height:1">— 0'+(i+1)+'</div>'+
+            '<div class="ed-serif" style="font-size:13.5px;color:var(--ed-ink);margin-top:7px;letter-spacing:-.005em;font-weight:500">'+s.t+'</div>'+
+            '<div class="ed-body" style="margin-top:4px;font-size:11px;line-height:1.5">'+s.b+'</div>'+
+          '</div>';
+        }).join('')+
+      '</div>'+
       // Closing brand mark
-      '<div style="text-align:center;margin-top:8px">'+
+      '<div style="text-align:center;margin-top:16px">'+
         '<div style="display:inline-flex;align-items:center;gap:14px"><div style="width:30px;height:1px;background:var(--ed-ink)"></div><div class="ed-serif" style="font-style:italic;font-size:16px;color:var(--ed-ink)">Thank you for the opportunity.</div><div style="width:30px;height:1px;background:var(--ed-ink)"></div></div>'+
       '</div>'+
-      // Full-bleed team closing banner — the Flood Roofing crew sees
-      // the proposal out under the signature block.  Straight
-      // rectangular crop (no diagonal clip); brand-blue duotone wash
-      // ties it to the colour scheme.
-      '<div style="margin:24px -36px 14px;overflow:hidden;background:var(--ed-ink);position:relative">'+
-        '<img src="brand/team_alt.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/7;object-fit:cover;object-position:center 35%;filter:saturate(.98) contrast(1.04)">'+
-        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.18),rgba(0,153,224,.22))"></div>'+
-        '<div style="position:absolute;left:0;right:0;bottom:14px;text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:14px;color:#fff;letter-spacing:.04em;text-shadow:0 2px 6px rgba(0,0,0,.6)">The Flood Roofing crew · Whangarei, Kerikeri &amp; the Bay of Islands</div>'+
+      // Full-bleed team closing banner + the company contact block
+      // (which used to clutter the cover masthead).
+      '<div style="margin:18px -36px 0;overflow:hidden;background:var(--ed-ink);position:relative">'+
+        '<img src="brand/team_alt.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/6.5;object-fit:cover;object-position:center 35%;filter:saturate(.98) contrast(1.04)">'+
+        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.14),rgba(0,153,224,.18))"></div>'+
+        '<div style="position:absolute;left:0;right:0;bottom:12px;text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:13.5px;color:#fff;letter-spacing:.04em;text-shadow:0 2px 6px rgba(0,0,0,.6)">The Flood Roofing crew · Whangarei, Kerikeri &amp; the Bay of Islands</div>'+
+      '</div>'+
+      '<div style="margin:0 -36px;background:var(--ed-ink);color:rgba(255,255,255,.72);padding:12px 36px 14px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;font-family:var(--ed-sans);font-size:10px;letter-spacing:.05em">'+
+        '<div>'+[br.company_name || 'Flood Roofing LTD', br.address, br.phone, br.email, br.website].filter(Boolean).map(esc2).join(' &nbsp;·&nbsp; ')+'</div>'+
+        (br.gst_number ? '<div>GST '+esc2(br.gst_number)+'</div>' : '')+
       '</div>';
   }
 
-  // Trust-logo strip — Licensed Building Practitioner, Sitewise Gold,
-  // Colorsteel Authorised — rides at the bottom of every proposal page
-  // (and prominently on the cover) so the customer immediately sees the
-  // credentials. PNG paths live under /brand/; missing files self-hide
-  // via onerror so they don't break the layout.
+  // Trust-logo strip — cover only.  (The guarantee page carries the
+  // logos inside its credentials band; repeating them in every page
+  // footer diluted them to wallpaper.)
   var trustLogosHtml =
     '<div class="rp-trust-strip" style="display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap;margin-top:14px">'+
       '<img src="brand/lbp.png" alt="Licensed Building Practitioner" onerror="this.style.display=\'none\'" style="height:42px;width:auto;object-fit:contain">'+
@@ -11326,24 +11352,43 @@ function refreshQuoteProposal(){
       '<img src="brand/sitewise_gold.png" alt="Sitewise Gold 2025/26" onerror="this.style.display=\'none\'" style="height:36px;width:auto;object-fit:contain">'+
       '<img src="brand/colorsteel.png" alt="Colorsteel" onerror="this.style.display=\'none\'" style="height:30px;width:auto;object-fit:contain">'+
     '</div>';
-  var pageFooterHtml =
-    '<div class="rp-page-footer no-screen-only" style="margin-top:auto;padding-top:14px;border-top:1px solid var(--ed-line);display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:10px;color:var(--ed-text2)">'+
-      '<div style="flex:1;display:flex;gap:14px;align-items:center;opacity:.85">'+
-        '<img src="brand/lbp.png" alt="" onerror="this.style.display=\'none\'" style="height:26px;width:auto;object-fit:contain">'+
-        '<img src="brand/sitesafe.png" alt="" onerror="this.style.display=\'none\'" style="height:24px;width:auto;object-fit:contain">'+
-        '<img src="brand/sitewise_gold.png" alt="" onerror="this.style.display=\'none\'" style="height:22px;width:auto;object-fit:contain">'+
-        '<img src="brand/colorsteel.png" alt="" onerror="this.style.display=\'none\'" style="height:18px;width:auto;object-fit:contain">'+
-      '</div>'+
-      '<div style="text-align:right;font-family:var(--ed-sans);letter-spacing:.04em">'+
-        esc2(company) + ' · '+ esc2(S.quote.ref || 'FR-001')+
-      '</div>'+
+  // ── Assemble — two-pass, so section numbers, "Page X of Y" footers
+  // and the welcome-letter contents list all reflect only the ENABLED
+  // sections.  Toggling a section off never leaves a numbering gap.
+  var _pages = [
+    { key:'letter',     label:'Welcome',                 inner: partLetter },
+    { key:'about',      label:'Why '+(br.company_name || 'Flood Roofing'), inner: partAbout },
+    { key:'condition',  label:'Your roof today',         inner: partCondition },
+    { key:'inclusions', label:'Scope &amp; pricing',     inner: partInclusions },
+    { key:'options',    label:'Your selections',         inner: partOptionsSelections },
+    { key:'colorsteel', label:'The material — Colorsteel®', inner: partColorsteel },
+    { key:'scopework',  label:'Timeline &amp; start date', inner: partScopeWork },
+    { key:'guarantee',  label:'Our guarantee',           inner: partGuarantee },
+    { key:'terms',      label:'Terms &amp; conditions',  inner: partTerms },
+    { key:'signature',  label:'Acceptance',              inner: partSignature },
+  ].filter(function(p){ return !!p.inner; });
+  var _coverCount = partCover ? 1 : 0;
+  var _totalPages = _pages.length + _coverCount;
+  var _pad2 = function(n){ return (n < 10 ? '0' : '') + n; };
+  // Contents list for the welcome letter's "Inside this proposal" rail.
+  var _tocHtml = _pages.map(function(p, i){
+    if (p.key === 'letter') return '';
+    return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:4px 0;border-bottom:1px solid var(--ed-line)">'+
+      '<div class="ed-serif" style="font-size:12px;color:var(--ed-ink-2);font-style:italic">'+p.label+'</div>'+
+      '<div class="ed-num" style="font-family:var(--ed-sans);font-size:9.5px;color:var(--ed-text2)">'+_pad2(i + 1 + _coverCount)+'</div>'+
     '</div>';
-  // ── Assemble: 10 physical .rp-page divs, one per section ──
-  function rpPage(inner, extraStyle){
+  }).join('');
+  function _pageFooter(pageNo){
+    return '<div class="rp-page-footer" style="margin-top:auto;padding-top:11px;border-top:1px solid var(--ed-line);display:flex;align-items:baseline;justify-content:space-between;gap:14px;font-family:var(--ed-sans);font-size:9px;color:var(--ed-text2);letter-spacing:.14em;text-transform:uppercase">'+
+      '<div>'+esc2(company)+' &nbsp;·&nbsp; '+esc2(tagline)+'</div>'+
+      '<div>Ref '+esc2(S.quote.ref || 'FR-001')+' &nbsp;·&nbsp; Page '+pageNo+' of '+_totalPages+'</div>'+
+    '</div>';
+  }
+  function rpPage(inner, pageNo){
     if (!inner) return '';
-    return '<div class="rp-body rp-page" style="display:flex;flex-direction:column;'+(extraStyle||'')+'">'+
-      '<div class="rp-page-content" style="flex:1">'+inner+'</div>'+
-      pageFooterHtml +
+    return '<div class="rp-body rp-page" style="display:flex;flex-direction:column">'+
+      '<div class="rp-page-content" style="flex:1;display:flex;flex-direction:column">'+inner+'</div>'+
+      _pageFooter(pageNo) +
     '</div>';
   }
   // Page 1 — Cover (zero-padded so hero band sits flush to page edges).
@@ -11352,9 +11397,9 @@ function refreshQuoteProposal(){
   if (partCover){
     html += '<div class="rp-body rp-page" style="padding:0;background:#fff;display:flex;flex-direction:column">'+
       headerHtml+
-      '<div style="flex:1">'+partCover+'</div>'+
+      '<div style="flex:1;display:flex;flex-direction:column">'+partCover+'</div>'+
       // Trust strip + small footer credit centred under the cover hero.
-      '<div style="padding:18px 36px 24px;background:#fff;border-top:1px solid var(--ed-line)">'+
+      '<div style="padding:16px 36px 22px;background:#fff;border-top:1px solid var(--ed-line)">'+
         trustLogosHtml +
         '<div style="text-align:center;font-size:10px;color:var(--ed-text2);margin-top:8px;letter-spacing:.04em;font-family:var(--ed-sans)">Licensed Building Practitioner · Site Safe · Sitewise Gold 2025/26 · Colorsteel Authorised</div>'+
       '</div>'+
@@ -11363,41 +11408,14 @@ function refreshQuoteProposal(){
     // No cover page — header leads the first content page on its own.
     html += headerHtml;
   }
-  // Page 2 — Existing condition + team photo (the About page was merged in)
-  html += rpPage(partCondition);
-  // Page 3 — Quote inclusions + pricing (options A/B + guttering option C)
-  html += rpPage(partInclusions);
-  // Page 4 — Customer-selectable options (steel grade / thickness /
-  // gutter type + bracket). Inserted between Pricing and Colorsteel
-  // marketing per the user's brief; if the 'options' section is
-  // toggled off the variable is empty and rpPage emits nothing.
-  html += rpPage(partOptionsSelections);
-  // Page 4 — Colorsteel product + standard colours
-  html += rpPage(partColorsteel, 'background:linear-gradient(135deg,#fafbfc,#eef2f7)');
-  // (Standalone Gutters page removed — guttering is now Option C on the
-  //  pricing page.  partAbout / partGutters / partScopeWork are no longer
-  //  assembled into the proposal flow.)
-  // Page 5 — Terms & conditions
-  html += rpPage(partTerms);
-  // Page 6 — Acceptance
-  html += rpPage(partSignature, 'background:linear-gradient(180deg,#fafbfc,#f1f5f9)');
-
-  // ── Summary bar (always shown at the bottom) ──
-  var sumSub = _QM.sub;
-  var sumGst = _QM.gst;
-  var sumTot = _QM.tot;
-  // Compact one-line footer — appended INSIDE the last rendered
-  // .rp-page so it can't spill onto its own page in print/PDF.  The
-  // legacy dark "all options" summary bar has been replaced by the
-  // total chip on each option (page 3) so we only need contact + total.
-  var footerText = [br.company_name, br.address, br.website].filter(Boolean).join('  ·  ') || 'Add your company in Settings → Branding';
-  var footerHtml = '<div class="rp-pdf-footer" style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;margin-top:36px;border-top:1px solid var(--ed-line);font-family:var(--ed-sans);font-size:9.5px;color:var(--ed-text2);letter-spacing:.04em">'+
-    '<span class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-ink)">'+esc2(footerText)+'</span>'+
-    '<span>Total <span id="qpFooterTotal" class="ed-serif" style="font-style:italic;font-size:13px;color:var(--ed-ink);font-weight:500">'+fmtMoney(sumTot)+'</span>  ·  Generated '+esc2(new Date().toLocaleDateString('en-NZ'))+'</span>'+
-  '</div>';
-  // Inject the footer just before the closing tag of the final rp-page.
-  var lastClose = html.lastIndexOf('</div>');
-  if (lastClose !== -1) html = html.slice(0, lastClose) + footerHtml + html.slice(lastClose);
+  // Content pages — replace the %%N%% masthead token with the page's
+  // actual position, and drop the contents list into the letter page.
+  _pages.forEach(function(p, i){
+    var pageNo = i + 1 + _coverCount;
+    var inner = p.inner.replace(/%%N%%/g, _pad2(pageNo));
+    if (p.key === 'letter') inner = inner.replace('%%TOC%%', _tocHtml);
+    html += rpPage(inner, pageNo);
+  });
 
   root.innerHTML = html;
   _attachInlineEditors();
@@ -11409,7 +11427,7 @@ function refreshQuoteProposal(){
   setText('qpDate', S.quote.date||''); setText('qpRef', S.quote.ref||''); setText('qpValid', S.quote.validUntil||'');
   setText('qpClient', S.quote.client||'—'); setText('qpAddr', S.quote.addr||'—'); setText('qpEmail', S.quote.email||'—'); setText('qpPhone', phone||'—');
   setText('qpRoofType', d.roof_type||'—'); setText('qpArea', d.area_m2?d.area_m2+' m²':'—'); setText('qpPitch', d.pitch?d.pitch+'°':'—'); setText('qpInspector', inspector||'—');
-  setText('qpGstLbl', S.quote.gstRate+'%'); setText('qpTotal', fmtMoney(sumTot));
+  setText('qpGstLbl', S.quote.gstRate+'%'); setText('qpTotal', fmtMoney(_QM.tot));
   setText('qpGenDate', 'Generated '+new Date().toLocaleDateString('en-NZ'));
 }
 
@@ -11425,6 +11443,7 @@ async function saveAsDefaultTemplate(){
   var tpl = {
     coverTitle:        q.coverTitle || '',
     aboutText:         q.aboutText  || '',
+    letterText:        q.letterText || '',
     terms:             q.terms      || '',
     inclusions:        (q.inclusions || []).slice(),
     exclusions:        (q.exclusions || []).slice(),

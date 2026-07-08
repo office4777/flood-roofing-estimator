@@ -91,10 +91,11 @@ const path = require('path');
       ref: 'FR-2026-051',
       date: '22 May 2026',
       validUntil: '30 days',
-      client: 'Smith Residence',
+      client: 'Mike & Sarah Smith',
+      phone:  '021 555 0199',
       addr:   '14 Pataua South Rd, Whangarei',
       email:  'mike.smith@example.co.nz',
-      coverTitle: 'Roof Replacement — Smith Residence, Pataua South',
+      coverTitle: 'A re-roof, done with care.',
       aboutText:
         'Flood Roofing is the well-trusted name in Northland — providing high-quality, efficient roofing since 2016. We work right across Whangarei, Kerikeri and the Bay of Islands, from straightforward residential re-roofs through to large-scale commercial work and pole sheds up to 1,000m².\nAll of our lead roofers are trade-qualified Licensed Building Practitioners (LBP), and our younger crew work alongside them as apprentices. We fit genuine NZ-made Colorsteel® MAXAM as standard, and back our workmanship with a written 10-year warranty.\n100% price guarantee — the price we quote is the price you pay. No hidden extras and no separate scaffolding quote, because we do our own edge-protection scaffolding in-house.',
       scope: '• Strip existing corrugated steel roof + dispose to landfill\n• Inspect, replace damaged purlins (PC sum allowed)\n• Install new Maxam corrugate, all flashings, ridge caps\n• Re-flash chimney + 2× plumbing vents\n• 6m of new spouting on the south elevation',
@@ -118,6 +119,13 @@ const path = require('path');
       ],
       terms: '',
       gstRate: 15,
+      // Selections-page pricing inputs — material base (ex-GST) drives
+      // the grade/gauge percentage deltas; gutter metres + line count
+      // drive the per-lm gutter prices, so the sample PDF shows real
+      // +$ / −$ figures on every card like a production quote.
+      materialBase: 14200,
+      gutterLm: 34,
+      gutterLines: 3,
       options: [
         // Two scope sections mirroring how Flood Roofing's real quote
         // (#2776) is laid out — Main House re-roof + Garage re-roof,
@@ -197,6 +205,12 @@ const path = require('path');
     window.applyQuoteToInputs && window.applyQuoteToInputs();
     window.refreshQuoteProposal && window.refreshQuoteProposal();
 
+    // Mirror the production print path (printQuote() adds this class):
+    // hides editor-only chrome — upload placeholders, edit hints,
+    // no-print buttons — and clips each .rp-page to exactly one A4
+    // sheet, so this harness renders what a customer actually gets.
+    document.documentElement.classList.add('print-quote');
+
     // Strip the editor chrome so the PDF only contains the proposal.
     // This sits alongside (not instead of) the existing @media print
     // rules — those work via window.print(); page.pdf() doesn't pick
@@ -230,7 +244,9 @@ const path = require('path');
     document.head.appendChild(st);
   });
 
-  // Let the slot images + svgs fully paint before snapshotting.
+  // Let webfonts (Fraunces) + slot images + svgs fully paint before
+  // snapshotting.
+  await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(800);
 
   await page.emulateMedia({ media: 'print' });
