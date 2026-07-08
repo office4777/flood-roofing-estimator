@@ -114,7 +114,15 @@ const BUILD_SHA = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_SHA || 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const RESEND_ENABLED = !!RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || '';
-const EMAIL_ENABLED = RESEND_ENABLED || !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+const EMAIL_REPLYTO = process.env.EMAIL_REPLYTO || '';
+// Google Workspace relay (Apps Script web app that sends as office@ via
+// Gmail). Preferred when configured: it sends from the real address over
+// HTTPS, leans on the domain's already-live Google SPF/DKIM, and needs no
+// DNS changes or third-party domain verification.
+const GAS_MAIL_URL = process.env.GAS_MAIL_URL || '';
+const GAS_MAIL_TOKEN = process.env.GAS_MAIL_TOKEN || '';
+const GAS_ENABLED = !!(GAS_MAIL_URL && GAS_MAIL_TOKEN);
+const EMAIL_ENABLED = GAS_ENABLED || RESEND_ENABLED || !!(process.env.SMTP_USER && process.env.SMTP_PASS);
 // Checks the API key is genuinely valid WITHOUT requiring "Full access"
 // scope. GET /domains needs that elevated scope, so a key deliberately
 // restricted to "Sending access" (the more secure, recommended choice —
@@ -131,6 +139,43 @@ async function _resendVerifyKey() {
     return { ok: true, note: 'Key is scoped to "Sending access" only (can\'t list domains, which is fine — that\'s the more secure setting).' };
   }
   throw new Error('Resend API responded ' + r.status + ': ' + (r.body || '').slice(0, 200));
+}
+async function _gasVerify() {
+  const r = await fetch(GAS_MAIL_URL, { method: 'GET', redirect: 'follow' });
+  const txt = await r.text();
+  let parsed = null; try { parsed = JSON.parse(txt); } catch (e) {}
+  if (r.ok && parsed && parsed.ok) return { ok: true };
+  throw new Error('Google relay URL did not respond as expected (' + r.status + '). Make sure GAS_MAIL_URL is the deployed Apps Script web-app URL.');
+}
+async function _gasSendMail({ to, cc, subject, text, attachment }) {
+  const m = /^\s*"?([^"<]+?)"?\s*</.exec(EMAIL_FROM || '');
+  const fromName = (m && m[1].trim()) || 'Flood Roofing';
+  const payload = {
+    token: GAS_MAIL_TOKEN,
+    to, cc: cc || '',
+    subject, text: text || '',
+    fromName,
+    replyTo: EMAIL_REPLYTO || '',
+  };
+  if (attachment && attachment.base64) {
+    payload.attachment = {
+      base64: attachment.base64,
+      filename: attachment.filename || 'order.pdf',
+      mimeType: 'application/pdf',
+    };
+  }
+  const r = await fetch(GAS_MAIL_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    redirect: 'follow',
+  });
+  const txt = await r.text();
+  let parsed = null; try { parsed = JSON.parse(txt); } catch (e) {}
+  if (!r.ok || !parsed || parsed.ok !== true) {
+    throw new Error('Google relay send failed (' + r.status + '): ' + (parsed && parsed.error ? parsed.error : (txt || '').slice(0, 200)));
+  }
+  return { messageId: parsed.id || null };
 }
 async function _resendSendMail({ to, cc, subject, text, attachment }) {
   if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="Flood Roofing <office@floodroofing.co.nz>" (once that domain is verified in Resend → Domains).');
@@ -1291,10 +1336,12 @@ app.get('/jms/debug/fergus-find', requireAuth, async (req, res) => {
 // actual SMTP login succeed?) instead of everyone guessing from a
 // variables screenshot that might predate the last redeploy.
 app.get('/email/debug', requireAuth, rateLimit(20, 60000), async (req, res) => {
-  const method = RESEND_ENABLED ? 'resend' : 'smtp';
+  const method = GAS_ENABLED ? 'google' : (RESEND_ENABLED ? 'resend' : 'smtp');
   const info = {
     method,
     emailFrom: EMAIL_FROM || null,
+    replyTo: EMAIL_REPLYTO || null,
+    googleRelayConfigured: GAS_ENABLED,
     resendApiKeySet: RESEND_ENABLED,
     smtpUserSet: !!process.env.SMTP_USER,
     smtpPassSet: !!process.env.SMTP_PASS,
@@ -1310,7 +1357,10 @@ app.get('/email/debug', requireAuth, rateLimit(20, 60000), async (req, res) => {
     }));
   }
   try {
-    if (RESEND_ENABLED) {
+    if (GAS_ENABLED) {
+      await _gasVerify();
+      res.json(Object.assign({}, info, { verify: true, note: 'Sending via Google Workspace relay as ' + (EMAIL_FROM || 'office@floodroofing.co.nz') + '.' }));
+    } else if (RESEND_ENABLED) {
       const keyCheck = await _resendVerifyKey();
       if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="Flood Roofing <office@floodroofing.co.nz>".');
       res.json(Object.assign({}, info, { verify: true, note: keyCheck.note }));
@@ -1349,7 +1399,9 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
       attachment.filename = String(attachment.filename || 'order.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
     }
     var info;
-    if (RESEND_ENABLED) {
+    if (GAS_ENABLED) {
+      info = await _gasSendMail({ to, cc, subject: String(subject).slice(0, 300), text: String(text || ''), attachment });
+    } else if (RESEND_ENABLED) {
       info = await _resendSendMail({ to, cc, subject: String(subject).slice(0, 300), text: String(text || ''), attachment });
     } else {
       const from = process.env.SMTP_FROM || process.env.SMTP_USER;
