@@ -9623,6 +9623,15 @@ function _buildRoofOutlinePreview(roof, opts){
 // multi-roof archive yet) so it always shows whatever's currently on
 // the Map Roof tab. A 'Refresh from Map Roof' button sits above the
 // previews (hidden in print) so the user can re-capture after edits.
+// Aerial view of the existing roof — fills the Inspection page when the
+// customer hasn't uploaded site photos, so it isn't mostly whitespace.
+function _aerialRoofBlock(){
+  var ap = document.getElementById('roofPrevImg');
+  if (!(ap && ap.complete && ap.naturalWidth > 0 && ap.src)) return '';
+  if (/\/(team_|logo|brand)/i.test(ap.src)) return '';   // not a stock/brand image
+  return '<div class="ed-eyebrow" style="margin:6px 0 8px">Existing roof — aerial</div>'+
+    '<div style="border:1px solid var(--ed-line);background:#fff;padding:8px"><img src="'+esc2(ap.src)+'" alt="Aerial view of the existing roof" style="display:block;width:100%;height:auto;max-height:420px;object-fit:contain"></div>';
+}
 function _buildRoofPreviewsHtml(opts){
   // opts.small: compact fixed-height box (page 3 — Main scope of work)
   // instead of the full-width map block.
@@ -10325,9 +10334,10 @@ function refreshQuoteProposal(){
       // Six existing-roof photo spots — uploaded site photos fill them,
       // empty ones show a dashed "Upload Site Photo" placeholder.
       '<div class="ed-eyebrow" style="margin-bottom:10px">Existing roof photos</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">'+photoBoxes+'</div>';
-      // (Team-photo strip moved to the bottom of page 3 — Main scope of
-      // work — per request; this page ends on the site photos.)
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">'+photoBoxes+'</div>'+
+      // No uploaded site photos → fill the page with the aerial roof view so
+      // the inspection page isn't mostly whitespace.
+      ((S.photos && S.photos.length) ? '' : _aerialRoofBlock());
   }
 
   // ── Scope of work + timeline + estimated start (full page) ──
@@ -10756,13 +10766,9 @@ function refreshQuoteProposal(){
         '<div class="qp-editable" contenteditable="true" data-qfield="notes" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.55;color:var(--ed-ink-2);min-height:1.4em">'+
           (S.quote.notes ? esc2(S.quote.notes) : '<span class="qp-ph" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add notes for the client (access, timing, special considerations)…</span>')+
         '</div>'+
-      '</div>'+
-      // Slim team-photo strip closes the page (moved here from the
-      // inspection page per request).
-      '<div style="margin:22px -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
-        '<img src="brand/team_lineup_ute.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/5;object-fit:cover;object-position:center 38%;filter:saturate(.98) contrast(1.04)">'+
-        '<div style="position:absolute;left:0;right:0;bottom:0;padding:8px 36px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.8));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:12.5px;letter-spacing:.02em">The Flood Roofing crew · Northland</div>'+
       '</div>';
+      // (Team photo removed from page 3 — the crew banner closes the
+      //  acceptance page instead, so the proposal isn't photo-heavy.)
   }
 
   // ── Colorsteel Maxam spotlight (compact) ──
@@ -11299,8 +11305,8 @@ function refreshQuoteProposal(){
       // the proposal out under the signature block.  Straight
       // rectangular crop (no diagonal clip); brand-blue duotone wash
       // ties it to the colour scheme.
-      '<div style="margin:28px -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
-        '<img src="brand/team_alt.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/8;object-fit:cover;object-position:center 35%;filter:saturate(.98) contrast(1.04)">'+
+      '<div style="margin:24px -36px 14px;overflow:hidden;background:var(--ed-ink);position:relative">'+
+        '<img src="brand/team_alt.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/7;object-fit:cover;object-position:center 35%;filter:saturate(.98) contrast(1.04)">'+
         '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.18),rgba(0,153,224,.22))"></div>'+
         '<div style="position:absolute;left:0;right:0;bottom:14px;text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:14px;color:#fff;letter-spacing:.04em;text-shadow:0 2px 6px rgba(0,0,0,.6)">The Flood Roofing crew · Whangarei, Kerikeri &amp; the Bay of Islands</div>'+
       '</div>';
