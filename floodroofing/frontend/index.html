@@ -25593,6 +25593,13 @@ async function diagnoseFergusUpload() {
   _matMsg('Running Fergus upload diagnostics…');
   var token = localStorage.getItem('fr_token') || '';
   var report = {};
+  // Authoritative check first: read Fergus's own API spec and list every
+  // file/upload-capable operation. If this comes back empty, the API truly
+  // has no way to attach a file — no amount of path-guessing will help.
+  try {
+    var sp = await fetch(PROXY + '/fergus-files/spec', { headers: { 'Authorization': 'Bearer ' + token } });
+    report.apiSpec = await sp.json().catch(function(){ return { status: sp.status, error: 'non-JSON response' }; });
+  } catch(e) { report.apiSpec = { error: e.message }; }
   try {
     var pr = await fetch(PROXY + '/fergus-files/probe?jobId=' + encodeURIComponent(String(S.linkedJobId)), {
       headers: { 'Authorization': 'Bearer ' + token },

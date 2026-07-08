@@ -772,6 +772,82 @@ app.get('/fergus-files/probe', requireAuth, requireSubscription, async (req, res
   res.json({ jobId, results });
 });
 
+// Read Fergus's own OpenAPI spec and report every file/upload-capable
+// operation — the authoritative answer to "can the API attach a PDF to a
+// job at all?".  Fergus is a Fastify service (its 404s read
+// "Route POST:/api/partner/... not found"), and its docs live at
+// api.fergus.com/docs (OAS 3.1), so the machine-readable spec is almost
+// certainly one of the candidates below.  We fetch it server-side (the
+// browser can't read cross-origin), then surface (a) any path/operation
+// mentioning file/upload/photo/attachment/document/gallery/media/note and
+// (b) the full list of write operations, so nothing is missed.
+const FERGUS_SPEC_CANDIDATES = [
+  '/docs/json', '/docs/json/', '/openapi.json', '/documentation/json',
+  '/docs-json', '/swagger/json', '/swagger.json', '/api/partner/docs/json',
+  '/api/partner/openapi.json', '/api-docs/json', '/docs/yaml',
+];
+const FERGUS_FILE_WORDS = /file|upload|photo|attach|document|gallery|media|image|note|asset/i;
+
+app.get('/fergus-files/spec', requireAuth, requireSubscription, async (req, res) => {
+  if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
+  const headers = {
+    'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
+    'Accept':        'application/json',
+  };
+  const tried = [];
+  let spec = null, specUrl = null;
+  for (const path of FERGUS_SPEC_CANDIDATES) {
+    try {
+      const r = await httpsRequest(FERGUS_HOST, path, 'GET', headers);
+      let parsed = null;
+      try { parsed = JSON.parse(r.body); } catch {}
+      const looksSpec = parsed && (parsed.openapi || parsed.swagger) && parsed.paths;
+      tried.push({ path, status: r.status, looksSpec: !!looksSpec, len: (r.body || '').length });
+      if (looksSpec) { spec = parsed; specUrl = `https://${FERGUS_HOST}${path}`; break; }
+    } catch (e) {
+      tried.push({ path, error: e.message });
+    }
+  }
+
+  if (!spec) {
+    return res.status(502).json({
+      ok: false,
+      error: 'Could not locate the Fergus OpenAPI spec at any known path',
+      tried,
+      note: 'If the docs render at a different URL, tell us and we will add it.',
+    });
+  }
+
+  const fileOps = [];
+  const writeOps = [];
+  for (const [p, methods] of Object.entries(spec.paths || {})) {
+    for (const [method, op] of Object.entries(methods || {})) {
+      const m = String(method).toUpperCase();
+      if (!['GET','POST','PUT','PATCH','DELETE'].includes(m)) continue;
+      const summary = (op && (op.summary || op.operationId || op.description) || '').toString();
+      const hay = p + ' ' + summary;
+      const consumesMultipart = op && op.requestBody && op.requestBody.content &&
+        Object.keys(op.requestBody.content).some(ct => /multipart|octet-stream/i.test(ct));
+      if (FERGUS_FILE_WORDS.test(hay) || consumesMultipart) {
+        fileOps.push({ method: m, path: p, summary: summary.slice(0, 120), multipart: !!consumesMultipart });
+      }
+      if (['POST','PUT','PATCH'].includes(m)) writeOps.push(m + ' ' + p);
+    }
+  }
+
+  res.json({
+    ok: true,
+    specUrl,
+    title: (spec.info && spec.info.title) || null,
+    version: (spec.info && spec.info.version) || null,
+    totalPaths: Object.keys(spec.paths || {}).length,
+    fileCapableOps: fileOps,
+    fileCapableCount: fileOps.length,
+    allWriteOps: writeOps.sort(),
+    tried,
+  });
+});
+
 // List the files / photos attached to a Fergus job so the frontend can
 // show them in a picker.  Walks the same candidate paths the upload
 // route knows about, accepts the first GET that returns an array (or a
