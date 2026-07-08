@@ -1602,6 +1602,8 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
    tabs (the .panel{display:none} rule alone wouldn't beat an #id rule). */
 #tab-quote.active{display:flex;flex-direction:column}
 #tab-quote > .card,#tab-quote > details,#tab-quote > .q-extras-head{order:3}
+/* Main scope picker sits directly under the action bar, above the proposal. */
+#tab-quote > .q-scopebar{order:1;margin-top:10px}
 #tab-quote > .q-actionbar{
   order:1;
   position:sticky;
@@ -2510,33 +2512,8 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
        the relevant tasks below. Hidden until a job is opened, so the
        user follows Select Job → Map Roof → Scope without picking a
        master scope in mid-air. -->
-  <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Main scope
-      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Pick the job type — the scope of work fills in below</span>
-    </div>
-    <div id="mainScopeGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
-      <div class="ms-opt" data-scope="reroof" onclick="setMainScope('reroof')" style="cursor:pointer;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff;transition:all .15s">
-        <div style="font-size:22px;margin-bottom:4px">🔁</div>
-        <div style="font-size:14px;font-weight:700;color:#0a1628">Re-Roof</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:3px">Strip existing + install new roof</div>
-      </div>
-      <div class="ms-opt" data-scope="newroof" onclick="setMainScope('newroof')" style="cursor:pointer;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff;transition:all .15s">
-        <div style="font-size:22px;margin-bottom:4px">🏗️</div>
-        <div style="font-size:14px;font-weight:700;color:#0a1628">New Roof</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:3px">Greenfield / new build — no strip</div>
-      </div>
-      <div class="ms-opt" data-scope="tile2cs" onclick="setMainScope('tile2cs')" style="cursor:pointer;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff;transition:all .15s">
-        <div style="font-size:22px;margin-bottom:4px">🧱</div>
-        <div style="font-size:14px;font-weight:700;color:#0a1628">Tile → Colorsteel</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:3px">Remove tiles, install purlins, then re-roof</div>
-      </div>
-      <div class="ms-opt" data-scope="gutters" onclick="setMainScope('gutters')" style="cursor:pointer;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff;transition:all .15s">
-        <div style="font-size:22px;margin-bottom:4px">🌧️</div>
-        <div style="font-size:14px;font-weight:700;color:#0a1628">Gutters only</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:3px">Gutters + downpipes + fascia</div>
-      </div>
-    </div>
-  </div>
+  <!-- Main scope picker moved to the top of the Quote tab (under the action
+       bar). It still drives #scopeGrid below via setMainScope(). -->
   <div class="card" id="scopeWorkCard" style="display:none">
     <div class="card-hd"><span class="card-dot"></span>Scope of work
       <span id="scopeWorkSubtitle" style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px"></span>
@@ -2576,6 +2553,17 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
       <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Set the hours; cost/hr is what you pay, price/hr is the charge-out rate</span>
     </div>
     <div id="labourTableWrap"></div>
+  </div>
+
+  <!-- GUTTERING & DOWNPIPES — shows the computed gutter ($/lm) and downpipe
+       ($150/line) amounts for the customer's Selections pick and lets the
+       office override either total on a complex job. Populated by
+       renderGutterDownpipePricing(); hidden until a gutter is selected. -->
+  <div class="card" id="gutterDownpipeCard" style="display:none">
+    <div class="card-hd"><span class="card-dot"></span>Guttering &amp; downpipes
+      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">from the Selections pick — edit a total if this job is complex</span>
+    </div>
+    <div id="gutterDownpipeWrap"></div>
   </div>
 
   <!-- MATERIAL PRICE — auto-quantified from the drawing × Price Book.
@@ -3185,6 +3173,32 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
     <button onclick="copyCustomerLink()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🔗 Customer link</button>
     <button onclick="saveAsDefaultTemplate()" title="Snapshot this proposal's cover title, about text, terms, inclusions and options as the default for every new quote" style="padding:8px 14px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⭐ Save as default template</button>
     <span id="qaMsg" style="font-size:12px;color:var(--text2);width:100%"></span>
+  </div>
+
+  <!-- Main scope picker — sits under the action bar. Drives the scope of
+       work (page 3 of the proposal) and the detailed checklist in the
+       Pricing slide-out. Re-Roof is the default. -->
+  <div class="card q-scopebar no-print">
+    <div class="card-hd"><span class="card-dot"></span>Job type
+      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Pick the scope — page 3 of the proposal fills in from this</span>
+    </div>
+    <div id="mainScopeGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+      <div class="ms-opt" data-scope="reroof" onclick="setMainScope('reroof')" style="cursor:pointer;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff;transition:all .15s">
+        <div style="font-size:22px;margin-bottom:4px">🔁</div>
+        <div style="font-size:14px;font-weight:700;color:#0a1628">Re-Roof</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px">Strip existing + install new roof</div>
+      </div>
+      <div class="ms-opt" data-scope="newroof" onclick="setMainScope('newroof')" style="cursor:pointer;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff;transition:all .15s">
+        <div style="font-size:22px;margin-bottom:4px">🏗️</div>
+        <div style="font-size:14px;font-weight:700;color:#0a1628">New Roof</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px">Greenfield / new build — no strip</div>
+      </div>
+      <div class="ms-opt" data-scope="tile2cs" onclick="setMainScope('tile2cs')" style="cursor:pointer;border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff;transition:all .15s">
+        <div style="font-size:22px;margin-bottom:4px">🧱</div>
+        <div style="font-size:14px;font-weight:700;color:#0a1628">Tiles → Colorsteel</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px">Remove tiles, install purlins, then re-roof</div>
+      </div>
+    </div>
   </div>
 
   <!-- Email-quote-to-customer modal — same in-app sending as Order Roof,
@@ -4303,7 +4317,7 @@ function gotoTab(t) {
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
-  if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} }
+  if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
   if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpRestorePanelState();}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
   if(t!=='materials'){var __mp=document.getElementById('jpMapPanel'); if(__mp)__mp.classList.remove('is-open');}
   // Pricing slide-out is available only on the Quote tab.
@@ -7461,7 +7475,56 @@ function calcLabour(){
   S.labourCost = parseFloat(totalCost.toFixed(2));
   S.labourHours = parseFloat(totalHrs.toFixed(1));
   renderProfitability();
+  try { renderGutterDownpipePricing(); } catch(e){}
 }
+
+// ── Guttering & downpipes pricing (Pricing panel) ──────────────────
+// Shows the computed gutter ($/lm) + downpipe ($150/line) amounts for the
+// customer's Selections pick and lets the office override either total on a
+// complex job. Overrides live on the quote and feed the Selections page +
+// quote total via _selGutterDelta / _selDownpipeDelta.
+function renderGutterDownpipePricing(){
+  var card = document.getElementById('gutterDownpipeCard');
+  var wrap = document.getElementById('gutterDownpipeWrap');
+  if (!wrap) return;
+  var q = (window.S && S.quote) || {};
+  var p = q.proposalOptions || {};
+  var gname = ({ box125:'125mm Colorsteel Box Gutter', marley_typhoon:'Marley Typhoon (PVC)', marley_classic:'Marley Classic (PVC)' })[p.gutterType];
+  if (!p.gutterType || p.gutterType === 'none' || !gname){ if (card) card.style.display = 'none'; wrap.innerHTML = ''; return; }
+  if (card) card.style.display = '';
+  var rate = SEL_GUTTER_RATE_PER_LM[p.gutterType] || 0;
+  var lm = _selGutterLm(), lines = _selGutterLineCount();
+  var gComputed = rate * lm, dComputed = SEL_DOWNPIPE_PER_LINE * lines;
+  var gOv = parseFloat(q.gutterPriceOverride), dOv = parseFloat(q.downpipePriceOverride);
+  var gVal = (isFinite(gOv) && gOv >= 0) ? gOv : gComputed;
+  var dOn = p.downpipes === 'yes';
+  var dVal = (isFinite(dOv) && dOv >= 0) ? dOv : dComputed;
+  var money = function(n){ return '$' + (parseFloat(n)||0).toFixed(2); };
+  var hasOv = (isFinite(gOv) && gOv >= 0) || (isFinite(dOv) && dOv >= 0);
+  wrap.innerHTML =
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">'+esc(gname)+' · '+lm.toFixed(1)+' lm × $'+rate+'/lm'+(dOn ? (' &nbsp;·&nbsp; downpipes '+lines+' × $'+SEL_DOWNPIPE_PER_LINE+'/line') : '')+' <span style="color:var(--text3)">(ex GST)</span></div>'+
+    '<div class="f2">'+
+      '<div><label>Gutter total ($ ex-GST)</label><input type="number" step="1" min="0" value="'+gVal.toFixed(2)+'" onchange="_setGutterPriceOverride(this.value)"><div style="font-size:10.5px;color:var(--text3);margin-top:2px">computed '+money(gComputed)+'</div></div>'+
+      '<div><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" '+(dOn?'checked':'')+' onchange="_toggleDownpipesPricing(this.checked)" style="width:auto;margin:0"> New downpipes</label>'+
+        '<input type="number" step="1" min="0" '+(dOn?'':'disabled')+' value="'+dVal.toFixed(2)+'" onchange="_setDownpipePriceOverride(this.value)" style="'+(dOn?'':'opacity:.5')+'"><div style="font-size:10.5px;color:var(--text3);margin-top:2px">computed '+money(dComputed)+'</div></div>'+
+    '</div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin-top:10px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
+      '<strong style="font-size:12px">Guttering + downpipes (ex GST)</strong>'+
+      '<span style="font-weight:700;color:#2e7d32">'+money(gVal + (dOn ? dVal : 0))+'</span>'+
+    '</div>'+
+    (hasOv ? '<div style="text-align:right;margin-top:6px"><button type="button" onclick="_clearGutterDownpipeOverrides()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline">↻ Reset to computed prices</button></div>' : '');
+}
+function _gdChanged(){
+  try { renderGutterDownpipePricing(); } catch(e){}
+  try { if (typeof recalcQuoteTotals === 'function') recalcQuoteTotals(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
+}
+function _setGutterPriceOverride(v){ if(!S.quote) return; var f=parseFloat(v); S.quote.gutterPriceOverride=(isFinite(f)&&f>=0)?f:null; _gdChanged(); }
+function _setDownpipePriceOverride(v){ if(!S.quote) return; var f=parseFloat(v); S.quote.downpipePriceOverride=(isFinite(f)&&f>=0)?f:null; _gdChanged(); }
+function _toggleDownpipesPricing(on){ if(!S.quote) return; if(!S.quote.proposalOptions) S.quote.proposalOptions={}; S.quote.proposalOptions.downpipes=on?'yes':'no'; _gdChanged(); }
+function _clearGutterDownpipeOverrides(){ if(!S.quote) return; S.quote.gutterPriceOverride=null; S.quote.downpipePriceOverride=null; _gdChanged(); }
+
 // Job profitability dashboard.
 function renderProfitability(){
   var wrap = document.getElementById('profitWrap');
@@ -8177,10 +8240,42 @@ function _selGradeDelta(gradeId){
   return pct * _selMaterialBase();
 }
 function _selGauge55Delta(){ return SEL_GAUGE55_PCT * _selMaterialBase(); }
+var SEL_DOWNPIPE_PER_LINE = 150; // $/gutter line ex-GST
+// Number of gutter lines (runs) drawn on the roof — one downpipe per line.
+// Stashed on the quote office-side so the customer share prices identically.
+function _selGutterLineCount(){
+  var q = (window.S && S.quote) || {};
+  var n = parseInt(q.gutterLines, 10);
+  if (isFinite(n) && n > 0) return n;
+  try { var c = (DRAW.lines || []).filter(function(l){ return l && l.type === 'gutter'; }).length; if (c > 0) return c; } catch(e){}
+  return 1;   // a gutter was chosen, so at least one downpipe
+}
 function _selGutterDelta(gutterId){
+  // The office can override the SELECTED gutter's total in the Pricing panel
+  // (complex jobs). Other gutter cards still show their own $/lm computed price.
+  var q = (window.S && S.quote) || {};
+  var p = q.proposalOptions || {};
+  if (gutterId === p.gutterType){
+    var ov = parseFloat(q.gutterPriceOverride);
+    if (isFinite(ov) && ov >= 0) return ov;
+  }
   var rate = SEL_GUTTER_RATE_PER_LM[gutterId];
   if (!rate) return 0;
   return rate * _selGutterLm();
+}
+function _selDownpipesOn(){
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  return p.downpipes === 'yes';
+}
+// Downpipe total (ex-GST) — $150 per gutter line, or the office override.
+// Only meaningful once a gutter has been selected.
+function _selDownpipeDelta(){
+  var q = (window.S && S.quote) || {};
+  var p = q.proposalOptions || {};
+  if (!p.gutterType || p.gutterType === 'none') return 0;
+  var ov = parseFloat(q.downpipePriceOverride);
+  if (isFinite(ov) && ov >= 0) return ov;
+  return SEL_DOWNPIPE_PER_LINE * _selGutterLineCount();
 }
 
 // ── "Selections" page pricing (page 4) ──────────────────────────
@@ -8215,6 +8310,9 @@ function _qpSelectionChanges(){
       out.push({ label: gm.name, delta: _selGutterDelta(p.gutterType) });
       if (p.gutterBracket === 'internal')
         out.push({ label: 'Internal gutter brackets', delta: 0 });
+      // New downpipes — only offered once a gutter is chosen.
+      if (_selDownpipesOn())
+        out.push({ label: 'New downpipes', delta: _selDownpipeDelta() });
     }
   } else if (_gutterDelta()) {
     // Legacy Option-C gutter pick (quotes made before the Selections page).
@@ -8329,6 +8427,7 @@ function _setProposalOption(field, value){
   if (!S.quote.proposalOptions) S.quote.proposalOptions = {};
   S.quote.proposalOptions[field] = value;
   try { refreshQuoteProposal(); } catch(e){}
+  try { renderGutterDownpipePricing(); } catch(e){}
   if (typeof _scheduleCustomerWrite === 'function') {
     try { _scheduleCustomerWrite(); } catch(e){}
   }
@@ -8340,6 +8439,7 @@ function _setProposalOption_grade(v){     _setProposalOption('steelGrade', v); }
 function _setProposalOption_thickness(v){ _setProposalOption('steelThickness', v); }
 function _setProposalOption_gutter(v){    _setProposalOption('gutterType', v); }
 function _setProposalOption_bracket(v){   _setProposalOption('gutterBracket', v); }
+function _setProposalOption_downpipes(v){ _setProposalOption('downpipes', v); }
 
 // Re-render the acceptance-page summary list (selected options + grades).
 function refreshAcceptSummary(){
@@ -9750,6 +9850,10 @@ function refreshQuoteProposal(){
     try {
       if (typeof _matDrawTotals === 'function'){ var _t = _matDrawTotals(); if (_t && parseFloat(_t.gutterLm) > 0) S.quote.gutterLm = parseFloat(_t.gutterLm); }
     } catch(e){}
+    try {
+      var _gl = (DRAW.lines || []).filter(function(l){ return l && l.type === 'gutter'; }).length;
+      if (_gl > 0) S.quote.gutterLines = _gl;
+    } catch(e){}
   }
   var d = S.roofData || {};
   var br = (S.settings && S.settings.branding) || {};
@@ -10511,6 +10615,10 @@ function refreshQuoteProposal(){
         { id:'external', label:'External brackets', isDefault:true, delta:0, desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' },
         { id:'internal', label:'Internal brackets', delta:0, desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below.' }
       ];
+      var DOWNPIPES = [
+        { id:'no',  label:'Keep existing downpipes', isDefault:true, delta:0, desc:'Re-use the current downpipes.' },
+        { id:'yes', label:'New downpipes',           delta:_dIncl(_selDownpipeDelta()), desc:'Supply & install new downpipes to match the new guttering.' }
+      ];
       // Price tag for a card: what picking it does to the total.
       // Default pick = "Standard · included"; a configured add-on shows
       // +$X / −$X incl. GST; an unpriced non-default shows "Included".
@@ -10586,6 +10694,7 @@ function refreshQuoteProposal(){
         esc2((GUTTERS.find(function(g){return g.id===(pOpts.gutterType||'none');})||{}).label||'—')+
         (pOpts.gutterType && pOpts.gutterType !== 'none'
           ? ' · ' + esc2((BRACKETS.find(function(b){return b.id===(pOpts.gutterBracket||'external');})||{}).label||'—')
+            + (pOpts.downpipes === 'yes' ? ' · New downpipes' : '')
           : '');
       partOptionsSelections =
         edHeading('04','Choose your options','Selections')+
@@ -10603,7 +10712,9 @@ function refreshQuoteProposal(){
             selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter')+
             (pOpts.gutterType && pOpts.gutterType !== 'none'
               ? '<div class="ed-eyebrow" style="margin:10px 0 6px">Gutter brackets</div>'+
-                selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'external', '_setProposalOption_bracket')
+                selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'external', '_setProposalOption_bracket')+
+                '<div class="ed-eyebrow" style="margin:10px 0 6px">Downpipes</div>'+
+                selCard('downpipes', DOWNPIPES, pOpts.downpipes || 'no', '_setProposalOption_downpipes')
               : '')+
           '</div>'+
         '</div>'+
