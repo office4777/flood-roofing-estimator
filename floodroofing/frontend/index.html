@@ -25799,6 +25799,15 @@ function _orderEmailGather(){
     filename: ('Order_' + (jobNum || client)).replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf'
   };
 }
+// The order email must carry the SAME Job Pack PDF the user sees from
+// "Save as PDF" (built from the .jp-page designer pages), NOT the legacy
+// Material-Order pages — otherwise the supplier receives a different-looking
+// document to the one in the app.  Returns a Blob or throws.
+async function _orderEmailBuildBlob(){
+  var pdf = await _buildJobPackPdf();
+  if (!pdf) throw new Error('Could not build the Job Pack PDF');
+  return pdf.output('blob');
+}
 async function _orderEmailOpen(mode){
   try {
     var o = _orderEmailGather();
@@ -25815,7 +25824,7 @@ async function _orderEmailOpen(mode){
     _matMsg('Building order PDF…');
     _orderEmailStatus('Building the order PDF…');
     var blob;
-    try { blob = await _matBuildPdfBlob(); }
+    try { blob = await _orderEmailBuildBlob(); }
     catch (e){ if (popup) try{popup.close();}catch(e2){} _orderEmailStatus('PDF build failed: ' + (e.message || e), 'err'); _matMsg('PDF build failed: ' + (e.message || e), false); return; }
     _matDownloadBlob(blob, o.filename);
     _orderEmailStatus('');
@@ -25864,7 +25873,7 @@ async function _orderEmailSendNow(){
     if (!o) return;
     if (btn){ btn.disabled = true; btn.textContent = 'Building order PDF…'; }
     _orderEmailStatus('Building the order PDF…');
-    var blob = await _matBuildPdfBlob();
+    var blob = await _orderEmailBuildBlob();
     if (btn) btn.textContent = 'Sending…';
     _orderEmailStatus('Sending to ' + o.supplier.email + '…');
     var base64 = await new Promise(function(resolve, reject){
