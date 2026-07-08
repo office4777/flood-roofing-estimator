@@ -9971,6 +9971,22 @@ function _applyFergusRefToQuote(){
   var jn = S.linkedJobNo;
   if (jn != null && String(jn).trim() !== '') S.quote.ref = String(jn).trim();
 }
+// Best available customer name: the quote's client, else the job's client
+// input, else the linked Fergus job name (before any " — address" suffix).
+function _bestClientName(){
+  if (window.S && S.quote && String(S.quote.client || '').trim()) return String(S.quote.client).trim();
+  var jc = (document.getElementById('jobClient') || {}).value;
+  if (jc && jc.trim()) return jc.trim();
+  var ln = String((window.S && S.linkedJobName) || '').split(/[—–\-]/)[0].trim();
+  return ln || '';
+}
+// "<surname> Residence" from a full name (last word + Residence).
+function _residenceTitle(name){
+  var n = String(name || '').trim();
+  if (!n) return 'Client Residence';
+  var parts = n.split(/\s+/);
+  return parts[parts.length - 1] + ' Residence';
+}
 function refreshQuoteProposal(){
   if (!S.quote) return;
   var root = document.getElementById('qpRoot');
@@ -9983,6 +9999,9 @@ function refreshQuoteProposal(){
   // works on the customer share link, where the roof drawing isn't present.
   // Only write office-side (never overwrite good values with a customer-view 0).
   if (!window.__CUSTOMER_MODE) {
+    // Backfill the customer name from the job so the cover shows it (and the
+    // "<surname> Residence" title derives correctly) instead of a placeholder.
+    if (!String(S.quote.client || '').trim()) { var _bc = _bestClientName(); if (_bc) S.quote.client = _bc; }
     if (parseFloat(S.materials) > 0) S.quote.materialBase = parseFloat(S.materials);
     try {
       if (typeof _matDrawTotals === 'function'){ var _t = _matDrawTotals(); if (_t && parseFloat(_t.gutterLm) > 0) S.quote.gutterLm = parseFloat(_t.gutterLm); }
@@ -10121,7 +10140,7 @@ function refreshQuoteProposal(){
         return '<div style="padding:30px 48px 26px;background:var(--ed-paper)">'+
         '<div class="ed-eyebrow">A roofing proposal — Prepared for</div>'+
         // Headline: the job / property title (defaults to the client name).
-        '<div class="ed-title ed-h1" style="margin-top:8px;font-size:38px"><span class="qp-editable" contenteditable="true" data-qfield="jobTitle" spellcheck="false" style="font-style:italic;font-weight:400;color:var(--ed-accent)">'+esc2(S.quote.jobTitle || S.quote.client || 'Client Residence')+'</span></div>'+
+        '<div class="ed-title ed-h1" style="margin-top:8px;font-size:38px"><span class="qp-editable" contenteditable="true" data-qfield="jobTitle" spellcheck="false" style="font-style:italic;font-weight:400;color:var(--ed-accent)">'+esc2(S.quote.jobTitle || _residenceTitle(S.quote.client || _bestClientName()))+'</span></div>'+
         '<div class="qp-editable" contenteditable="true" data-qfield="addr" spellcheck="false" style="font-family:var(--ed-sans);font-size:13px;color:var(--ed-text2);margin-top:6px;letter-spacing:.02em">'+esc2(S.quote.addr || '—')+'</div>'+
         // Customer details block — name, phone, email.
         '<div style="margin-top:12px">'+
