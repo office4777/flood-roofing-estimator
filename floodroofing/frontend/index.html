@@ -8551,12 +8551,27 @@ function _scopeLineKey(e, el){
 function _scopeAddLine(){
   if (!S.quote) return;
   var lines = (S.quote.scope || '').split('\n');
-  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
-  lines.push('New inclusion');
+  // Find the first trailing section (Warranty / Exclusions / This quotation …) and
+  // insert the new inclusion just before it so it lands in the work list, not under it.
+  var stopIdx = -1;
+  for (var i = 0; i < lines.length; i++){
+    if (/^\s*(warranty|exclusions?|this quotation)\b/i.test(lines[i])){ stopIdx = i; break; }
+  }
+  var insertAt;
+  if (stopIdx >= 0){
+    insertAt = stopIdx;
+    // step back over any blank spacer lines that precede the trailing section
+    while (insertAt > 0 && !lines[insertAt - 1].trim()) insertAt--;
+    lines.splice(insertAt, 0, 'New inclusion');
+  } else {
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+    lines.push('New inclusion');
+    insertAt = lines.length - 1;
+  }
   S.quote.scope = lines.join('\n');
   var sc = document.getElementById('qdScope'); if (sc) sc.value = S.quote.scope;
   try { refreshQuoteProposal(); } catch(e){}
-  _scopeFocusIdx(lines.length - 1);
+  _scopeFocusIdx(insertAt);
 }
 function _scopeDelLine(idx){
   if (!S.quote) return;
@@ -10246,6 +10261,7 @@ function refreshQuoteProposal(){
     // bound to THIS proposal, not the shared S.photos pool.
     if (!S.quote.condPhotos) S.quote.condPhotos = [];
     var photoBoxes = '';
+    var _condPhotoCount = 0;
     for (var ci2 = 0; ci2 < 6; ci2++){
       var cp = S.quote.condPhotos[ci2] || null;
       // Pre-fill from S.photos uploaded under the inspection if this
@@ -10254,6 +10270,7 @@ function refreshQuoteProposal(){
       if (!cp && photos[ci2] && photos[ci2].src) {
         cp = { src: photos[ci2].src, caption: photos[ci2].caption || '', offX: 0, offY: 0, zoom: 1 };
       }
+      if (cp && cp.src) _condPhotoCount++;
       photoBoxes += _qpCondPhotoSlotHtml(ci2, cp);
     }
     // Hidden file input — single one re-used by every slot via the
@@ -10335,11 +10352,12 @@ function refreshQuoteProposal(){
       // empty ones show a dashed "Upload Site Photo" placeholder.
       '<div class="ed-eyebrow" style="margin-bottom:10px">Existing roof photos</div>'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">'+photoBoxes+'</div>'+
-      // No uploaded site photos → fill the page with the aerial view, or the
-      // roof-map plan diagram when there's no aerial, so the inspection page
-      // isn't mostly whitespace.
-      ((S.photos && S.photos.length) ? '' : (_aerialRoofBlock() ||
-        (function(){ var m = _buildRoofPreviewsHtml({ basic: true }); return m ? ('<div class="ed-eyebrow" style="margin:6px 0 8px">Existing roof — plan view</div>' + m) : ''; })()));
+      // When NO condition photos have been added, the six dashed slots leave a
+      // lot of whitespace — fill it with the aerial view (or the roof-map plan
+      // diagram when there's no aerial). Once real photos exist the grid already
+      // fills the page, so adding the map would push it off the bottom.
+      (_condPhotoCount > 0 ? '' : (_aerialRoofBlock() ||
+        (function(){ var m = _buildRoofPreviewsHtml({ basic: true }); return m ? ('<div class="ed-eyebrow" style="margin:6px 0 8px">Existing roof — plan view</div><div style="max-height:150mm;overflow:hidden">' + m + '</div>') : ''; })()));
   }
 
   // ── Scope of work + timeline + estimated start (full page) ──
@@ -10917,21 +10935,25 @@ function refreshQuoteProposal(){
         // One-line "how this works" so the page explains itself.
         '<div class="ed-body" style="margin:-6px 0 16px;font-size:12px;color:var(--ed-ink-2);line-height:1.5">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is in the panel below.</div>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:14px">'+
+          // LEFT: steel grade + (when a gutter is picked) brackets & downpipes.
+          // Splitting the gutter add-on cards across both columns keeps either
+          // column from stacking tall enough to push the pricing panel off page.
           '<div>'+
             '<div class="ed-eyebrow" style="margin-bottom:6px">Steel grade</div>'+
             selCard('steelGrade', GRADES, pOpts.steelGrade || 'maxam', '_setProposalOption_grade')+
+            (pOpts.gutterType && pOpts.gutterType !== 'none'
+              ? '<div class="ed-eyebrow" style="margin:12px 0 6px">Gutter brackets</div>'+
+                selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'external', '_setProposalOption_bracket')+
+                '<div class="ed-eyebrow" style="margin:12px 0 6px">Downpipes</div>'+
+                selCard('downpipes', DOWNPIPES, pOpts.downpipes || 'no', '_setProposalOption_downpipes')
+              : '')+
           '</div>'+
+          // RIGHT: steel thickness + guttering choice.
           '<div>'+
             '<div class="ed-eyebrow" style="margin-bottom:6px">Steel thickness</div>'+
             selCard('steelThickness', THICKS, pOpts.steelThickness || '40', '_setProposalOption_thickness')+
             '<div class="ed-eyebrow" style="margin:12px 0 6px">Guttering</div>'+
             selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter')+
-            (pOpts.gutterType && pOpts.gutterType !== 'none'
-              ? '<div class="ed-eyebrow" style="margin:10px 0 6px">Gutter brackets</div>'+
-                selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'external', '_setProposalOption_bracket')+
-                '<div class="ed-eyebrow" style="margin:10px 0 6px">Downpipes</div>'+
-                selCard('downpipes', DOWNPIPES, pOpts.downpipes || 'no', '_setProposalOption_downpipes')
-              : '')+
           '</div>'+
         '</div>'+
         '<div style="margin-top:18px;border-left:3px solid var(--ed-accent)">'+
