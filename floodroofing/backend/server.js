@@ -67,6 +67,10 @@ function isAllowedOrigin(origin) {
     if (host.endsWith('.vercel.app')) {
       return VERCEL_PROJECT_PREFIXES.some(function(p){ return host.startsWith(p); });
     }
+    // The customer-facing quote is served on the company's own domain
+    // (e.g. quote.floodroofing.co.nz), which then calls this backend
+    // cross-origin — allow the apex and any of its subdomains.
+    if (host === 'floodroofing.co.nz' || host.endsWith('.floodroofing.co.nz')) return true;
   } catch (e) {}
   return false;
 }
@@ -557,15 +561,17 @@ const ACCEPT_NOTIFY_EMAIL = process.env.ACCEPT_NOTIFY_EMAIL || 'office@floodroof
 app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
   try {
     if (!EMAIL_ENABLED) return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
-    const job = await _findJobByToken(req.params.token);
-    const quote = _quoteOf(job);
-    if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
+    // Validate the request body before touching the database — cheap checks
+    // first, and it means an oversized upload is rejected without a DB round-trip.
     let { pdfBase64, filename } = req.body || {};
     let attachment = null;
     if (pdfBase64 && typeof pdfBase64 === 'string') {
       if (pdfBase64.length > 20 * 1024 * 1024) return res.status(413).json({ error: 'Attachment too large' });
       attachment = { base64: pdfBase64, filename: filename || 'Accepted quote.pdf' };
     }
+    const job = await _findJobByToken(req.params.token);
+    const quote = _quoteOf(job);
+    if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
     const acc = quote.accepted || {};
     const client = job.client_name || quote.client || acc.name || 'Customer';
     const addr = job.site_address || quote.addr || '';
