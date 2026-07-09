@@ -4269,6 +4269,11 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 
 <script>
 var PROXY='https://flood-roofing-estimator-production.up.railway.app';
+// Canonical public host for customer quote links. The app is served on this
+// custom domain (a Vercel alias of the same deployment), so shared links read
+// professionally — quote.floodroofing.co.nz/?q=… — instead of exposing the
+// internal *.vercel.app project name. Change this if the domain ever moves.
+var CUSTOMER_QUOTE_BASE='https://quote.floodroofing.co.nz';
 var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],linkedJobId:null,linkedJobNo:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true,
   quote:null /* {ref,date,validUntil,client,addr,email,scope,notes,terms,gstRate,lineItems:[{desc,qty,unit}]} — lazy-init in buildQuote */};
 var COLORS=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#ea580c','#65a30d'];
@@ -8765,7 +8770,11 @@ async function _ensureCustomerLink(msg, opts){
   // than like a random hash.  &j is harmless when missing — the backend
   // still keys the lookup off the `q` token.
   var jobNo = (window.S && (S.linkedJobNo || (S.quote && S.quote.ref))) || '';
-  var link = location.origin + location.pathname + '?q=' + token;
+  // Always hand the customer the branded custom-domain link, even when the
+  // office is working on the *.vercel.app host. Fall back to the current
+  // origin only if the constant is somehow blank.
+  var base = (window.CUSTOMER_QUOTE_BASE || (location.origin + location.pathname)).replace(/\/+$/, '');
+  var link = base + '/?q=' + token;
   if (jobNo) link += '&j=' + encodeURIComponent(String(jobNo).replace(/[^A-Za-z0-9\-]/g,''));
   return { link: link, verified: verified, jobNo: jobNo };
 }
