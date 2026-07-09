@@ -192,6 +192,34 @@ async function _resendSendMail({ to, cc, subject, text, attachment }) {
   }
   throw new Error('Resend send failed (' + r.status + '): ' + (r.body || '').slice(0, 300));
 }
+// Format a number as NZ money without depending on ICU locale data.
+function _money(n) {
+  n = Number(n) || 0;
+  const parts = n.toFixed(2).split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return '$' + parts.join('.');
+}
+// One place that picks whichever mail transport is configured (Google
+// relay → Resend → SMTP) and sends. Shared by /email/send-order and the
+// customer accept-notification route so both behave identically.
+async function _dispatchMail({ to, cc, subject, text, attachment }) {
+  if (attachment && attachment.base64) {
+    attachment.filename = String(attachment.filename || 'attachment.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
+  }
+  const subj = String(subject || '').slice(0, 300);
+  const body = String(text || '');
+  if (GAS_ENABLED) {
+    return _gasSendMail({ to, cc, subject: subj, text: body, attachment });
+  } else if (RESEND_ENABLED) {
+    return _resendSendMail({ to, cc, subject: subj, text: body, attachment });
+  }
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const attachments = (attachment && attachment.base64)
+    ? [{ filename: attachment.filename, content: Buffer.from(attachment.base64, 'base64'), contentType: 'application/pdf' }]
+    : [];
+  const resolved = await _resolveMailTransport();
+  return resolved.transporter.sendMail({ from, to, cc: cc || undefined, subject: subj, text: body, attachments });
+}
 function _buildSmtpTransport(port, secure) {
   const nodemailer = require('nodemailer');
   return nodemailer.createTransport({
@@ -518,6 +546,56 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
     await _saveQuoteBack(job, quote);
     res.json({ ok: true, status: share.status });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Public, token-guarded: when a customer accepts their online quote the
+// frontend calls this with the rendered proposal PDF. We email the office a
+// one-off notification containing the accepted details AND the PDF that shows
+// the customer's chosen options. The recipient is fixed to the office address
+// (never taken from the request), so this can't be abused as an open relay.
+const ACCEPT_NOTIFY_EMAIL = process.env.ACCEPT_NOTIFY_EMAIL || 'office@floodroofing.co.nz';
+app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
+  try {
+    if (!EMAIL_ENABLED) return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
+    const job = await _findJobByToken(req.params.token);
+    const quote = _quoteOf(job);
+    if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
+    let { pdfBase64, filename } = req.body || {};
+    let attachment = null;
+    if (pdfBase64 && typeof pdfBase64 === 'string') {
+      if (pdfBase64.length > 20 * 1024 * 1024) return res.status(413).json({ error: 'Attachment too large' });
+      attachment = { base64: pdfBase64, filename: filename || 'Accepted quote.pdf' };
+    }
+    const acc = quote.accepted || {};
+    const client = job.client_name || quote.client || acc.name || 'Customer';
+    const addr = job.site_address || quote.addr || '';
+    const ref = quote.ref || '';
+    const lines = ['A customer has accepted their quote online.', ''];
+    if (ref) lines.push('Quote reference: ' + ref);
+    lines.push('Customer: ' + client);
+    if (addr) lines.push('Address: ' + addr);
+    if (acc.name && acc.name !== client) lines.push('Accepted by: ' + acc.name);
+    if (acc.at) lines.push('Accepted: ' + acc.at);
+    lines.push('', 'Accepted total (incl. GST): ' + _money(acc.total));
+    if (Array.isArray(acc.options) && acc.options.length) {
+      lines.push('', 'Selected options:');
+      acc.options.forEach(function (o) {
+        o = o || {};
+        lines.push('  • ' + (o.title || 'Option') +
+          (o.grade && o.grade !== 'Standard' ? ' — ' + o.grade : '') +
+          '   ' + _money(o.total));
+      });
+    }
+    lines.push('', attachment
+      ? 'The accepted quote PDF (showing the customer\'s selections) is attached.'
+      : '(The quote PDF could not be attached automatically — see the customer link in the app.)');
+    const subject = 'Quote accepted' + (ref ? ' — ' + ref : '') + ' — ' + client;
+    await _dispatchMail({ to: ACCEPT_NOTIFY_EMAIL, subject, text: lines.join('\n'), attachment });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('accept-email failed:', e.message);
+    res.status(502).json({ error: 'Email send failed: ' + e.message });
+  }
 });
 
 // Office home-screen feed: every job that has a shared quote, with its
@@ -1551,24 +1629,7 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
       }
       attachment.filename = String(attachment.filename || 'order.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
     }
-    var info;
-    if (GAS_ENABLED) {
-      info = await _gasSendMail({ to, cc, subject: String(subject).slice(0, 300), text: String(text || ''), attachment });
-    } else if (RESEND_ENABLED) {
-      info = await _resendSendMail({ to, cc, subject: String(subject).slice(0, 300), text: String(text || ''), attachment });
-    } else {
-      const from = process.env.SMTP_FROM || process.env.SMTP_USER;
-      const attachments = (attachment && attachment.base64)
-        ? [{ filename: attachment.filename, content: Buffer.from(attachment.base64, 'base64'), contentType: 'application/pdf' }]
-        : [];
-      const resolved = await _resolveMailTransport();
-      info = await resolved.transporter.sendMail({
-        from, to, cc: cc || undefined,
-        subject: String(subject).slice(0, 300),
-        text: String(text || ''),
-        attachments,
-      });
-    }
+    const info = await _dispatchMail({ to, cc, subject, text, attachment });
     res.json({ ok: true, id: info.messageId || null });
   } catch (e) {
     console.error('send-order email failed:', e.message);

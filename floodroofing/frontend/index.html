@@ -8674,6 +8674,10 @@ function acceptQuoteDigitally(){
         return;
       }
       refreshQuoteProposal();
+      // Email the office the accepted quote (details + a PDF of the customer's
+      // selections). Best-effort and non-blocking — the acceptance is already
+      // recorded server-side, so a mail hiccup shouldn't stall the customer.
+      try { _emailAcceptedQuoteToOffice(); } catch(e){}
       alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
     });
     return;
@@ -8793,6 +8797,29 @@ function _postCustomerEvent(type, extra){
     { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
     .then(function(r){ return { ok: r.ok }; })
     .catch(function(){ return { ok: false }; });
+}
+// After a customer accepts online, render the proposal to PDF (reflecting the
+// options they picked) and hand it to the token-guarded /accept-email route so
+// the office is emailed both the accepted details and the PDF. Best-effort: on
+// any failure we still send the text-only notification, and never surface an
+// error to the customer (their acceptance is already recorded server-side).
+async function _emailAcceptedQuoteToOffice(){
+  if (!window.__CUSTOMER_TOKEN) return;
+  var pdfBase64 = null, filename = 'Accepted quote.pdf';
+  try {
+    var pdf = await _buildQuotePdf();
+    if (pdf){
+      try { filename = _quotePdfFilename(); } catch(e){}
+      var durl = pdf.output('datauristring');
+      var comma = durl.indexOf(',');
+      if (comma >= 0) pdfBase64 = durl.slice(comma + 1);
+    }
+  } catch(e){ console.warn('Accepted-quote PDF build failed:', e); }
+  try {
+    await fetch(PROXY + '/q/' + encodeURIComponent(window.__CUSTOMER_TOKEN) + '/accept-email',
+      { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ pdfBase64: pdfBase64, filename: filename }) });
+  } catch(e){ console.warn('Accept-email send failed:', e); }
 }
 var _custUpdT;
 function _postCustomerUpdateDebounced(){
