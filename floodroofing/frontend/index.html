@@ -8670,6 +8670,16 @@ function acceptQuoteDigitally(){
   });
   S.quote.accepted = { name: name, at: new Date().toISOString(), total: sub * (1+rate), gutter: S.quote.gutterChoice || 'none', options: acceptedOptions };
   if (window.__CUSTOMER_MODE) {
+    // Guard against a double-tap while we're mid-accept.
+    if (window._custAccepting) return;
+    window._custAccepting = true;
+    // Disable the accept buttons and show a pinned "please wait" banner so the
+    // customer knows to keep the page open while we record the acceptance and
+    // build + send the confirmation (the PDF render can take a few seconds).
+    var _accBtns = Array.prototype.slice.call(document.querySelectorAll('[onclick*="acceptQuoteDigitally"]'));
+    _accBtns.forEach(function(b){ b.disabled = true; b.style.opacity = '.55'; b.style.pointerEvents = 'none'; });
+    var _reenable = function(){ window._custAccepting = false; _accBtns.forEach(function(b){ b.disabled = false; b.style.opacity = ''; b.style.pointerEvents = ''; }); };
+    _custBusyBanner(true, 'Recording your acceptance…');
     // Customer-facing view — the acceptance MUST reach the office
     // before we congratulate the customer; a swallowed failure here
     // meant "accepted" quotes the office never heard about.
@@ -8677,15 +8687,29 @@ function acceptQuoteDigitally(){
       if (!r.ok) {
         S.quote.accepted = null;
         refreshQuoteProposal();
+        _custBusyBanner(false); _reenable();
         alert('Sorry — your acceptance didn\'t reach Flood Roofing (connection problem).\n\nPlease try again in a moment, or reply to the email / phone 0800 4 FLOOD so we can record it for you.');
         return;
       }
       refreshQuoteProposal();
-      // Email the office the accepted quote (details + a PDF of the customer's
-      // selections). Best-effort and non-blocking — the acceptance is already
-      // recorded server-side, so a mail hiccup shouldn't stall the customer.
-      try { _emailAcceptedQuoteToOffice(); } catch(e){}
-      alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
+      // Await the confirmation email (accepted details + a PDF of the customer's
+      // selections) so the customer stays on the page until it's sent. It's
+      // best-effort — the acceptance is already recorded server-side, so we
+      // still congratulate them even if the email itself fails.
+      _custBusyBanner(true, 'Preparing your confirmation — almost done…');
+      Promise.resolve().then(_emailAcceptedQuoteToOffice).catch(function(){}).then(function(){
+        _custBusyBanner(false);
+        window._custAccepting = false;   // accepted — leave the buttons disabled
+        // Replace the bottom action bar with a thank-you so it can't be re-submitted.
+        var bar = document.getElementById('custBar');
+        if (bar) bar.innerHTML = '<span style="font-size:13px">✓ Thank you, '+esc2(name)+' — your quote is accepted. We’ll be in touch shortly to confirm the schedule.</span>';
+        alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
+      });
+    }, function(){
+      // Network rejection (shouldn't happen — _postCustomerEvent catches — but
+      // be safe so the UI never gets stuck in the busy state).
+      _custBusyBanner(false); _reenable();
+      alert('Sorry — your acceptance didn\'t go through. Please try again.');
     });
     return;
   }
@@ -8782,13 +8806,16 @@ async function _ensureCustomerLink(msg, opts){
 }
 async function copyCustomerLink(){
   var msg = document.getElementById('qaMsg');
-  var got = await _ensureCustomerLink(msg);
-  if (!got) return;
-  try { await navigator.clipboard.writeText(got.link); } catch(e){}
-  if (msg) { msg.textContent = got.verified ? '✓ Customer link copied — send it to the client.' : 'Link copied (unverified) — give it a moment before sending.'; msg.style.color = got.verified ? '#15803d' : '#b45309'; }
-  var prettyName = got.jobNo ? ('Flood Roofing Quote #' + got.jobNo) : 'Customer quote link';
-  // prompt() guarantees the link is selectable even if the clipboard API is blocked.
-  window.prompt(prettyName + ' — copied to clipboard:', got.link);
+  _qaBar(true);
+  try {
+    var got = await _ensureCustomerLink(msg);
+    if (!got) return;
+    try { await navigator.clipboard.writeText(got.link); } catch(e){}
+    if (msg) { msg.textContent = got.verified ? '✓ Customer link copied — send it to the client.' : 'Link copied (unverified) — give it a moment before sending.'; msg.style.color = got.verified ? '#15803d' : '#b45309'; }
+    var prettyName = got.jobNo ? ('Flood Roofing Quote #' + got.jobNo) : 'Customer quote link';
+    // prompt() guarantees the link is selectable even if the clipboard API is blocked.
+    window.prompt(prettyName + ' — copied to clipboard:', got.link);
+  } finally { _qaBar(false); }
 }
 
 // Build the customer's current selection payload for write-back.
@@ -25512,6 +25539,54 @@ function _qaMsg(text, ok){
   if (!el) return;
   el.textContent = text || '';
   el.style.color = (ok === false) ? '#b91c1c' : (ok === true) ? '#15803d' : 'var(--text2)';
+}
+
+// Injects the shared indeterminate progress-bar CSS once (used by the office
+// "Customer link" button and the customer accept flow).
+function _ensureLoadingBarCss(){
+  if (document.getElementById('loadingBarCss')) return;
+  var st = document.createElement('style'); st.id = 'loadingBarCss';
+  st.textContent =
+    '.ld-track{position:relative;height:5px;border-radius:3px;background:rgba(0,0,0,.12);overflow:hidden}'+
+    '.ld-track>i{position:absolute;top:0;bottom:0;width:40%;border-radius:3px;background:#0099e0;animation:ldslide 1.1s ease-in-out infinite}'+
+    '@keyframes ldslide{0%{left:-40%}50%{left:35%}100%{left:100%}}';
+  document.head.appendChild(st);
+}
+// Office: show/hide an indeterminate loading bar under the Quote action bar
+// (the "Customer link" save+verify can take a few seconds).
+function _qaBar(show){
+  _ensureLoadingBarCss();
+  var host = document.getElementById('qaMsg');
+  if (!host) return;
+  var bar = document.getElementById('qaBar');
+  if (show){
+    if (!bar){
+      bar = document.createElement('div'); bar.id = 'qaBar'; bar.className = 'ld-track';
+      bar.style.width = '100%'; bar.style.marginTop = '6px'; bar.innerHTML = '<i></i>';
+      host.parentNode.insertBefore(bar, host.nextSibling);
+    }
+    bar.style.display = 'block';
+  } else if (bar){ bar.style.display = 'none'; }
+}
+// Customer: full-width "please wait" banner pinned to the bottom (over the
+// action bar) while an acceptance is being recorded + the confirmation email
+// is prepared, so the customer knows not to close the page mid-way.
+function _custBusyBanner(show, msg){
+  _ensureLoadingBarCss();
+  var el = document.getElementById('custBusy');
+  if (show){
+    if (!el){
+      el = document.createElement('div'); el.id = 'custBusy';
+      el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:100003;background:#0a1628;color:#fff;'+
+        'padding:15px 18px;box-shadow:0 -6px 20px rgba(0,0,0,.35);font-family:system-ui,-apple-system,\'Segoe UI\',sans-serif';
+      el.innerHTML = '<div id="custBusyMsg" style="font-size:13.5px;font-weight:600;margin-bottom:9px"></div>'+
+        '<div class="ld-track" style="background:rgba(255,255,255,.22)"><i></i></div>'+
+        '<div style="font-size:11px;opacity:.75;margin-top:8px">Please keep this page open until it\'s finished.</div>';
+      document.body.appendChild(el);
+    }
+    var m = document.getElementById('custBusyMsg'); if (m) m.textContent = msg || 'Working…';
+    el.style.display = 'block';
+  } else if (el){ el.style.display = 'none'; }
 }
 
 // Add a (possibly tall) html2canvas capture to a jsPDF, slicing onto extra
