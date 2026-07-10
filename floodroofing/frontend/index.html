@@ -1934,7 +1934,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 </div>
 
 <div class="nav">
-  <button class="nav-btn active" onclick="gotoTab('select')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5C2 3.67 2.67 3 3.5 3H6.5L8 4.5H12.5C13.33 4.5 14 5.17 14 6V12C14 12.83 13.33 13.5 12.5 13.5H3.5C2.67 13.5 2 12.83 2 12V4.5Z" stroke="currentColor" stroke-width="1.3"/></svg>Select Job</button>
+  <button class="nav-btn active" onclick="gotoTab('select')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7L8 2.5L13.5 7M4 6V13H12V6" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>Home</button>
   <!-- Sidebar job chip: hidden until a job is loaded. Shows the Fergus
        jobNo / local id and an autosave-status pill. Sits between Select
        Job and Map Roof in the nav so the user always sees which job
@@ -1999,13 +1999,14 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 
 <!-- TAB 0: SELECT JOB -->
 <div class="panel active" id="tab-select">
-  <div class="card" style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#f0f8fb,#e8f4fd);border:1.5px solid #b3d4f0">
-    <div style="flex:1;min-width:0">
+  <div class="card" style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#f0f8fb,#e8f4fd);border:1.5px solid #b3d4f0;flex-wrap:wrap">
+    <div style="flex:1;min-width:180px">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#0a1628;font-weight:700;margin-bottom:2px">Start here</div>
       <div style="font-size:13px;color:var(--text2)">Current job: <strong id="currentJobLabelTop" style="color:#0a1628">— new (not yet saved)</strong></div>
     </div>
-    <button onclick="newJob()" style="padding:10px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;box-shadow:0 2px 6px rgba(5,150,105,.25)">＋ New Job</button>
+    <button onclick="startNewJob()" style="padding:10px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;box-shadow:0 2px 6px rgba(5,150,105,.25)">＋ New Job</button>
     <button onclick="openSelectJobModal()" style="padding:10px 18px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,153,204,.25)">📂 Select Job</button>
+    <button onclick="openJobDetailsModal('edit')" title="Edit the current job's client &amp; site details" style="padding:10px 16px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;white-space:nowrap">✎ Edit details</button>
   </div>
   <!-- Quote activity feed — accepted / declined / opened / queried by customers via the shared link -->
   <div class="card" id="quoteActivityCard" style="display:none">
@@ -2015,22 +2016,14 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
     </div>
     <div id="quoteActivityList"></div>
   </div>
-  <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Job details</div>
-    <div class="f2"><div><label>Client name</label><input type="text" id="jobClient" placeholder="Rob Henry"></div><div><label>Site address</label><div style="display:flex;gap:8px;align-items:center">
-  <div style="flex:1;position:relative">
-  <input type="text" id="jobAddr" placeholder="123 Test Rd, Whangarei" style="width:100%;box-sizing:border-box"
-    oninput="jobAddrAutoSuggest(this.value)"
-    onkeydown="if(event.key==='Enter')closeJobAddrSuggest()" />
-  <div id="jobAddrSuggestBox" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ccc;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;max-height:200px;overflow-y:auto"></div>
-</div>
-  <button onclick="openSatelliteView()" title="Open satellite view" style="padding:6px 12px;background:#0a1628;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap">🛰 Satellite view</button>
-</div></div></div>
-    <div class="f3"><div><label>Email</label><input type="email" id="jobEmail" placeholder="client@email.com"></div><div><label>Phone</label><input type="tel" id="jobPhone" placeholder="021 000 0000"></div><div><label>Date</label><input type="text" id="jobDate"></div></div>
-    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-      <button onclick="saveCurrentJob()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px">💾 Save job</button>
-      <button onclick="gotoTab('roof')" class="sec-btn" style="margin:0;width:auto;padding:9px 18px;background:#0099cc">Next: Map Roof →</button>
+  <!-- Recent drafts — unsaved in-progress work (local drafts) + recently saved
+       jobs (custom or Fergus), newest first, click a row to resume. -->
+  <div class="card" id="recentDraftsCard" style="display:none">
+    <div class="card-hd"><span class="card-dot"></span>Recent drafts
+      <span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text2)">— unsaved &amp; recent work</span>
+      <button onclick="fetchRecentDrafts()" style="margin-left:auto;padding:4px 12px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
     </div>
+    <div id="recentDraftsList"></div>
   </div>
 </div>
 
@@ -3829,6 +3822,33 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   <div id="selectJobFergList" style="flex:1;overflow-y:auto;padding:10px 14px;min-height:200px;display:none"></div>
 </div>
 
+<!-- JOB DETAILS MODAL — opened by "New Job" (blank) and "Edit details" (prefilled).
+     Holds the same #jobClient/#jobAddr/#jobEmail/#jobPhone/#jobDate inputs the rest
+     of the app reads, just relocated off the Home tab into this popup. -->
+<div id="jobDetailsOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998" onclick="closeJobDetailsModal()"></div>
+<div id="jobDetailsModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:560px;max-width:95vw;max-height:88vh;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:9999;overflow:hidden;flex-direction:column">
+  <div style="padding:14px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">
+    <strong id="jobDetailsTitle" style="flex:1;font-size:14px">New job — details</strong>
+    <button onclick="closeJobDetailsModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px">✕ Close</button>
+  </div>
+  <div style="padding:16px 18px;overflow-y:auto;flex:1">
+    <div class="f2"><div><label>Client name</label><input type="text" id="jobClient" placeholder="Rob Henry"></div><div><label>Site address</label><div style="display:flex;gap:8px;align-items:center">
+  <div style="flex:1;position:relative">
+  <input type="text" id="jobAddr" placeholder="123 Test Rd, Whangarei" style="width:100%;box-sizing:border-box"
+    oninput="jobAddrAutoSuggest(this.value)"
+    onkeydown="if(event.key==='Enter')closeJobAddrSuggest()" />
+  <div id="jobAddrSuggestBox" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ccc;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;max-height:200px;overflow-y:auto"></div>
+</div>
+  <button onclick="openSatelliteView()" title="Open satellite view" style="padding:6px 12px;background:#0a1628;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap">🛰 Satellite view</button>
+</div></div></div>
+    <div class="f3"><div><label>Email</label><input type="email" id="jobEmail" placeholder="client@email.com"></div><div><label>Phone</label><input type="tel" id="jobPhone" placeholder="021 000 0000"></div><div><label>Date</label><input type="text" id="jobDate"></div></div>
+  </div>
+  <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;background:#fafbfc">
+    <button onclick="saveCurrentJob()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px">💾 Save job</button>
+    <button id="jobDetailsPrimaryBtn" onclick="jobDetailsPrimary()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px;background:#0099cc">Start → Map Roof</button>
+  </div>
+</div>
+
 <!-- PUSH TO JMS MODAL -->
 <div id="jmsPushOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998" onclick="closeJMSPushModal()"></div>
 <div id="jmsPushModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:560px;max-width:95vw;max-height:85vh;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:9999;overflow:hidden;flex-direction:column">
@@ -4339,7 +4359,7 @@ function gotoTab(t) {
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
-  if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} }
+  if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
   if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpRestorePanelState();}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
   if(t!=='materials'){var __mp=document.getElementById('jpMapPanel'); if(__mp)__mp.classList.remove('is-open');}
@@ -6041,7 +6061,7 @@ function filterSelectJobList(){
 function renderSelectJobList(jobs){
   var box = document.getElementById('selectJobList'); if (!box) return;
   if (!jobs.length){
-    box.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:#666;font-size:13px">No saved jobs yet. Fill in the Job details below and click Save.</div>';
+    box.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:#666;font-size:13px">No saved jobs yet. Click ＋ New Job to create one.</div>';
     return;
   }
   box.innerHTML = jobs.map(function(j){
@@ -6226,6 +6246,113 @@ async function newJob(){
   gotoTab('roof');
 }
 
+// ── Home: New Job / Edit details / Recent drafts ──────────────────
+// New Job (Home button): clear to a blank job, then open the job-details
+// popup so the client + site are entered there (they no longer live inline
+// on the Home tab).
+async function startNewJob(){
+  if (!confirm('Start a new job? The current one is saved (or kept as a local draft) first.')) return;
+  try { await _saveBeforeSwitch(); } catch(e){}
+  S.currentJobId = null;
+  ['jobClient','jobAddr','jobEmail','jobPhone'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
+  try { clearAll && clearAll(); } catch(e){}
+  S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[];
+  window._aerialLoadedAddr = null;
+  setCurrentJobLabel(null);
+  openJobDetailsModal('new');
+}
+function openJobDetailsModal(mode){
+  window._jobDetailsMode = (mode === 'edit') ? 'edit' : 'new';
+  var ov = document.getElementById('jobDetailsOverlay');
+  var md = document.getElementById('jobDetailsModal');
+  if (!ov || !md) return;
+  var title = document.getElementById('jobDetailsTitle');
+  var primary = document.getElementById('jobDetailsPrimaryBtn');
+  if (title)   title.textContent   = (window._jobDetailsMode === 'edit') ? 'Edit job details' : 'New job — details';
+  if (primary) primary.textContent = (window._jobDetailsMode === 'edit') ? 'Save details' : 'Start → Map Roof';
+  ov.style.display = 'block'; md.style.display = 'flex';
+  var jc = document.getElementById('jobClient'); if (jc) setTimeout(function(){ try{ jc.focus(); }catch(e){} }, 60);
+}
+function closeJobDetailsModal(){
+  var ov = document.getElementById('jobDetailsOverlay'); if (ov) ov.style.display = 'none';
+  var md = document.getElementById('jobDetailsModal'); if (md) md.style.display = 'none';
+  try { if (typeof closeJobAddrSuggest === 'function') closeJobAddrSuggest(); } catch(e){}
+}
+function jobDetailsPrimary(){
+  // Keep the Home label + global job bar in sync with what was just typed.
+  try {
+    var cl = (document.getElementById('jobClient')||{}).value || '';
+    var ad = (document.getElementById('jobAddr')||{}).value || '';
+    setCurrentJobLabel(S.currentJobId ? { id: S.currentJobId, client_name: cl, site_address: ad } : null);
+  } catch(e){}
+  if (window._jobDetailsMode === 'edit'){
+    try { if (typeof saveCurrentJob === 'function') saveCurrentJob(); } catch(e){}
+    closeJobDetailsModal();
+    try { fetchRecentDrafts(); } catch(e){}
+  } else {
+    closeJobDetailsModal();
+    gotoTab('roof');
+  }
+}
+
+// Recent drafts feed on Home: local in-progress drafts (unsaved work on a
+// custom or Fergus job) merged with recently saved jobs, newest first.
+async function fetchRecentDrafts(){
+  var card = document.getElementById('recentDraftsCard');
+  var list = document.getElementById('recentDraftsList');
+  if (!list) return;
+  var drafts = [], jobs = [];
+  try { drafts = await _listLocalDrafts(); } catch(e){}
+  try { jobs = await api('GET', '/jobs'); } catch(e){ jobs = []; }
+  var rows = [], seen = {};
+  (drafts || []).forEach(function(d){
+    if (!d || !d.key) return;
+    seen[d.key] = true;
+    var kind = d.key === '__new__' ? 'new' : (d.key.indexOf('ferg_') === 0 ? 'fergus' : 'saved');
+    rows.push({ t: d.at, client: d.client, addr: d.addr, unsaved: true, kind: kind, resume: 'draft', key: d.key });
+  });
+  (jobs || []).forEach(function(j){
+    if (!j || seen[String(j.id)]) return;   // unsaved edits for this job already shown
+    rows.push({ t: j.updated_at, client: j.client_name, addr: j.site_address, unsaved: false, kind: 'saved', resume: 'job', id: j.id });
+  });
+  rows.sort(function(a, b){ return new Date(b.t || 0) - new Date(a.t || 0); });
+  rows = rows.slice(0, 8);
+  if (!rows.length){ if (card) card.style.display = 'none'; return; }
+  if (card) card.style.display = '';
+  list.innerHTML = rows.map(function(r){
+    var when = r.t ? new Date(r.t).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
+    var badge, bg, fg;
+    if (r.unsaved){ badge = (r.kind === 'fergus' ? 'Fergus · unsaved' : (r.kind === 'new' ? 'New · unsaved' : 'Unsaved edits')); bg = '#fef3c7'; fg = '#92400e'; }
+    else { badge = 'Saved'; bg = '#dbeafe'; fg = '#1d4ed8'; }
+    var onclick = r.resume === 'draft' ? ('_resumeDraft(\'' + r.key + '\')') : ('resumeSavedJob(\'' + r.id + '\')');
+    return '<div onclick="' + onclick + '" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer" onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'">' +
+      '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:20px;background:' + bg + ';color:' + fg + ';white-space:nowrap">' + badge + '</span>' +
+      '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(r.client || '(untitled)') + '</div>' +
+      '<div style="font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(r.addr || '—') + '</div></div>' +
+      '<div style="font-size:11px;color:var(--text2);white-space:nowrap">' + esc2(when) + '</div>' +
+      '<span style="font-size:12px;color:#0099cc;font-weight:600;white-space:nowrap">Resume →</span>' +
+    '</div>';
+  }).join('');
+}
+// Resume a local (unsaved) draft — restore its snapshot into memory and
+// re-establish the job identity from the draft key.
+async function _resumeDraft(key){
+  try { await _saveBeforeSwitch(); } catch(e){}
+  var list = [];
+  try { list = await _listLocalDrafts(); } catch(e){}
+  var d = (list || []).find(function(x){ return x.key === key; });
+  if (!d || !d.snap){ alert('That draft is no longer available.'); try { fetchRecentDrafts(); } catch(e){} return; }
+  try { restoreFromJob({ draw_state: d.snap }); } catch(e){ console.warn('resume draft failed', e); }
+  if (key === '__new__') { S.currentJobId = null; }
+  else if (key.indexOf('ferg_') === 0) { S.currentJobId = null; /* linkedJobId comes back via snap.state */ }
+  else { S.currentJobId = key; }
+  try { setCurrentJobLabel(S.currentJobId ? { id: S.currentJobId, client_name: d.client || '', site_address: d.addr || '' } : null); } catch(e){}
+  try { DRAFTS._lastSnapJson = JSON.stringify(snapshotCurrentJob()); } catch(e){}
+  window._aerialLoadedAddr = null;
+  gotoTab('roof');
+}
+function resumeSavedJob(id){ return openJob(id); }
+
 // Boot: load settings + apply branding once the user is logged in.
 (function bootJobsSettings(){
   function tryBoot(){
@@ -6233,6 +6360,7 @@ async function newJob(){
     if (!localStorage.getItem('fr_token')) { setTimeout(tryBoot, 1000); return; }
     loadSettings().catch(function(e){console.warn(e);});
     try { fetchQuoteActivity(); } catch(e){}
+    try { fetchRecentDrafts(); } catch(e){}
     try { _refreshRoofFergusBtn(); } catch(e){}
   }
   if (document.readyState === 'complete' || document.readyState === 'interactive') tryBoot();
@@ -6347,7 +6475,7 @@ async function openRoofFergusPicker(){ return; }
 
 async function _retiredOpenRoofFergusPicker(){
   if (!window.S || !S.linkedJobId) {
-    alert('Pick a Fergus job first — Select Job tab → Fergus.');
+    alert('Pick a Fergus job first — Home → 📂 Select Job → Fergus.');
     return;
   }
   var modal = document.getElementById('roofFergusModal');
@@ -25225,7 +25353,7 @@ function saveScopePricingAsPdf(){
   _scopeMsg('Opening print dialog — choose "Save as PDF"…');
 }
 async function pushScopePricingToFergus(){
-  if (!window.S || !S.linkedJobId) { _scopeMsg('Link a Fergus job first (Select Job → Fergus tab).', false); return; }
+  if (!window.S || !S.linkedJobId) { _scopeMsg('Link a Fergus job first (Home → 📂 Select Job → Fergus).', false); return; }
   _scopeMsg('Building scope & pricing PDF…');
   try {
     await _loadPdfLibs();
@@ -25717,7 +25845,7 @@ function _quotePdfFilename(){
 // the linked Fergus job, exactly like Push to Fergus on the Job Pack tab.
 async function pushQuotePdfToFergus(){
   if (!window.S || !S.linkedJobId){
-    _qaMsg('No Fergus job linked — link one on the Select Job tab first, then push.', false);
+    _qaMsg('No Fergus job linked — link one on the Home tab (📂 Select Job) first, then push.', false);
     return;
   }
   try { if (typeof readQuoteFromInputs === 'function') readQuoteFromInputs(); } catch(e){}
@@ -25916,9 +26044,9 @@ function populateMatJobInfo() {
   var delAddr = (document.getElementById('orderDeliveryAddr')||{}).value || '';
   var mode   = (S && S.order && S.order.deliveryMode) || 'site';
   var cOut = document.getElementById('matCustomerOut');
-  if (cOut) cOut.textContent = client || '— set on Select Job tab';
+  if (cOut) cOut.textContent = client || '— set via New Job / Edit details';
   var aOut = document.getElementById('matSiteAddrOut');
-  if (aOut) aOut.textContent = addr || '— set on Select Job tab';
+  if (aOut) aOut.textContent = addr || '— set via New Job / Edit details';
   var jnEl = document.getElementById('matJobNumber');
   if (jnEl && !jnEl.value && jobNum) jnEl.value = jobNum;
   // Jobs saved before the prefix was dropped carry "Fergus 2231" in the
@@ -26551,7 +26679,7 @@ function _matDownloadBlob(blob, filename) {
 // Requires a linked Fergus job (Select Job tab).
 async function pushMaterialsToFergus() {
   if (!window.S || !S.linkedJobId) {
-    _matMsg('Link a Fergus job first (Select Job → Fergus tab).', false);
+    _matMsg('Link a Fergus job first (Home → 📂 Select Job → Fergus).', false);
     return;
   }
   _matMsg('Building PDF…');
@@ -26635,7 +26763,7 @@ function _matRenderFergusDebug(label, payload) {
 // visible) diagnostics panel — so we can see whether ANY endpoint accepts
 // the file, or whether Fergus's API simply has no upload path.
 async function diagnoseFergusUpload() {
-  if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first (Select Job → Fergus tab).', false); return; }
+  if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first (Home → 📂 Select Job → Fergus).', false); return; }
   _matMsg('Running Fergus upload diagnostics…');
   var token = localStorage.getItem('fr_token') || '';
   var report = {};
@@ -26714,7 +26842,7 @@ async function probeFergusFiles() {
 // (21317541) — we cache jobNo on S.linkedJobNo after the first lookup
 // so subsequent opens are instant.
 async function openFergusJob() {
-  if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first (Select Job → Fergus tab).', false); return; }
+  if (!window.S || !S.linkedJobId) { _matMsg('Link a Fergus job first (Home → 📂 Select Job → Fergus).', false); return; }
   var jobNo = S.linkedJobNo;
   if (!jobNo) {
     _matMsg('Looking up Fergus job number…');
