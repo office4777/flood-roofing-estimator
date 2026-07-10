@@ -2006,15 +2006,11 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 
 <!-- TAB 0: SELECT JOB -->
 <div class="panel active" id="tab-select">
-  <div class="card" style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#f0f8fb,#e8f4fd);border:1.5px solid #b3d4f0;flex-wrap:wrap">
-    <div style="flex:1;min-width:180px">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#0a1628;font-weight:700;margin-bottom:2px">Start here</div>
-      <div style="font-size:13px;color:var(--text2)">Current job: <strong id="currentJobLabelTop" style="color:#0a1628">— new (not yet saved)</strong></div>
-    </div>
-    <button onclick="startNewJob()" style="padding:10px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;box-shadow:0 2px 6px rgba(5,150,105,.25)">＋ New Job</button>
-    <button onclick="openSelectJobModal()" style="padding:10px 18px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,153,204,.25)">📂 Select Job</button>
-    <button onclick="openJobDetailsModal('edit')" title="Edit the current job's client &amp; site details" style="padding:10px 16px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;white-space:nowrap">✎ Edit details</button>
-  </div>
+  <!-- The old "Start here" bar was retired: the sidebar's Selected-job box +
+       "Select job" chooser (New Job / Select Job / Edit details) now handles
+       all of that. A hidden label element is kept so setCurrentJobLabel()'s
+       #currentJobLabelTop reference stays harmless. -->
+  <strong id="currentJobLabelTop" style="display:none"></strong>
   <!-- Quote activity feed — accepted / declined / opened / queried by customers via the shared link -->
   <div class="card" id="quoteActivityCard" style="display:none">
     <div class="card-hd"><span class="card-dot"></span>Quote activity
@@ -2022,7 +2018,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
       <button onclick="fetchQuoteActivity()" style="margin-left:auto;padding:4px 12px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
     </div>
     <input id="quoteActivitySearch" type="text" placeholder="Search activity by client or reference…" oninput="_renderQuoteActivity()" style="width:100%;box-sizing:border-box;margin:2px 0 10px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit">
-    <div id="quoteActivityList"></div>
+    <div id="quoteActivityList" style="max-height:330px;overflow-y:auto"></div>
   </div>
   <!-- Recent drafts — unsaved in-progress work (local drafts) + recently saved
        jobs (custom or Fergus), newest first, click a row to resume. -->
@@ -2032,7 +2028,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
       <button onclick="fetchRecentDrafts()" style="margin-left:auto;padding:4px 12px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
     </div>
     <input id="recentDraftsSearch" type="text" placeholder="Search drafts by client or address…" oninput="_renderRecentDrafts()" style="width:100%;box-sizing:border-box;margin:2px 0 10px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit">
-    <div id="recentDraftsList"></div>
+    <div id="recentDraftsList" style="max-height:330px;overflow-y:auto"></div>
   </div>
 </div>
 
@@ -6305,8 +6301,8 @@ function openStartHereModal(){
   if (!ov || !md) return;
   var lbl = document.getElementById('startHereJobLabel');
   if (lbl){
-    var top = document.getElementById('currentJobLabelTop');
-    lbl.textContent = (top && top.textContent) ? top.textContent : '— new (not yet saved)';
+    var src = document.getElementById('globalJobBarName') || document.getElementById('currentJobLabelTop');
+    lbl.textContent = (src && src.textContent) ? src.textContent : '— new (not yet saved)';
   }
   ov.style.display = 'block'; md.style.display = 'flex';
 }
