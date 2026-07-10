@@ -11760,8 +11760,11 @@ function refreshQuoteProposal(){
       // the proposal out under the signature block.  Straight
       // rectangular crop (no diagonal clip); brand-blue duotone wash
       // ties it to the colour scheme.
-      '<div style="margin:24px -36px 14px;overflow:hidden;background:var(--ed-ink);position:relative">'+
-        '<img src="brand/team_alt.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/7;object-fit:cover;object-position:center 35%;filter:saturate(.98) contrast(1.04)">'+
+      // NOTE: rendered as a fixed-height background-cover div (not an <img> with
+      // aspect-ratio) — html2canvas doesn't compute CSS aspect-ratio, which is
+      // what distorted the photo in the PDF. background-size:cover renders
+      // identically on screen and in the PDF.
+      '<div style="margin:24px -36px 14px;height:250px;position:relative;overflow:hidden;background:var(--ed-ink) url(brand/team_lineup_2026.jpg) center 46%/cover no-repeat">'+
         '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.18),rgba(0,153,224,.22))"></div>'+
         '<div style="position:absolute;left:0;right:0;bottom:14px;text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:14px;color:#fff;letter-spacing:.04em;text-shadow:0 2px 6px rgba(0,0,0,.6)">The Flood Roofing crew · Whangarei, Kerikeri &amp; the Bay of Islands</div>'+
       '</div>';
