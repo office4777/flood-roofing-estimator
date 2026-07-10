@@ -1864,6 +1864,22 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
     window.__CUSTOMER_TOKEN = _cq;
     var _lsc = document.getElementById('login-screen'); if (_lsc) _lsc.style.display='none';
     var _apc = document.querySelector('.app'); if (_apc) _apc.style.display='none';
+    // Instant loading splash — the quote fetch (with eventual-consistency
+    // retries) can take ~10s, and a blank page reads as broken. Self-contained
+    // (the shared helpers aren't defined this early); bootCustomerView() removes
+    // it once the proposal has rendered, and the error page replaces it on fail.
+    try {
+      var _sp = document.createElement('div');
+      _sp.id = 'custSplash';
+      _sp.setAttribute('style', 'position:fixed;inset:0;z-index:100050;background:#0a1628;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,-apple-system,\'Segoe UI\',sans-serif;padding:24px;text-align:center');
+      _sp.innerHTML =
+        '<style>@keyframes _spSlide{0%{left:-40%}50%{left:35%}100%{left:100%}}</style>'+
+        '<div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;font-weight:700;opacity:.7;margin-bottom:18px">Flood Roofing</div>'+
+        '<div style="font-size:17px;font-weight:600;margin-bottom:22px">Loading your quote…</div>'+
+        '<div style="position:relative;width:min(280px,70vw);height:5px;border-radius:3px;background:rgba(255,255,255,.2);overflow:hidden"><i style="position:absolute;top:0;bottom:0;width:40%;border-radius:3px;background:#0099e0;animation:_spSlide 1.1s ease-in-out infinite"></i></div>'+
+        '<div style="font-size:12px;opacity:.6;margin-top:16px">Just a moment</div>';
+      (document.body || document.documentElement).appendChild(_sp);
+    } catch(e){}
     return;
   }
   var tok=localStorage.getItem('fr_token');
@@ -8944,6 +8960,8 @@ async function bootCustomerView(token){
       ? ('Flood Roofing Quote #' + String(refForTitle).replace(/^FR-?/i,''))
       : 'Your Roofing Proposal';
     refreshQuoteProposal();
+    // Proposal is on screen — drop the loading splash.
+    var _sp = document.getElementById('custSplash'); if (_sp && _sp.parentNode) _sp.parentNode.removeChild(_sp);
   } catch(e){
     console.error('BOOTCUST_ERR', e && (e.stack||e.message));
     document.body.innerHTML =
