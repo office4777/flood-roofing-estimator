@@ -8986,19 +8986,18 @@ function acceptQuoteDigitally(){
         return;
       }
       refreshQuoteProposal();
-      // Await the confirmation email (accepted details + a PDF of the customer's
-      // selections) so the customer stays on the page until it's sent. It's
-      // best-effort — the acceptance is already recorded server-side, so we
-      // still congratulate them even if the email itself fails.
-      _custBusyBanner(true, 'Preparing your confirmation — almost done…');
-      Promise.resolve().then(_emailAcceptedQuoteToOffice).catch(function(){}).then(function(){
-        _custBusyBanner(false);
-        window._custAccepting = false;   // accepted — leave the buttons disabled
-        // Replace the bottom action bar with a thank-you so it can't be re-submitted.
-        var bar = document.getElementById('custBar');
-        if (bar) bar.innerHTML = '<span style="font-size:13px">✓ Thank you, '+esc2(name)+' — your quote is accepted. We’ll be in touch shortly to confirm the schedule.</span>';
-        alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
-      });
+      // The acceptance is already recorded server-side (the office sees it in
+      // the activity feed) — so congratulate the customer IMMEDIATELY rather
+      // than making them wait ~20s for the PDF to render on their phone.
+      _custBusyBanner(false);
+      window._custAccepting = false;   // accepted — leave the buttons disabled
+      var bar = document.getElementById('custBar');
+      if (bar) bar.innerHTML = '<span style="font-size:13px">✓ Thank you, '+esc2(name)+' — your quote is accepted. We’ll be in touch shortly to confirm the schedule.</span>';
+      alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
+      // Render + email the confirmation PDF to the office in the BACKGROUND —
+      // best-effort, doesn't block the customer. (If they close the page before
+      // it finishes the office still has the acceptance in the activity feed.)
+      try { _emailAcceptedQuoteToOffice(); } catch(e){}
     }, function(){
       // Network rejection (shouldn't happen — _postCustomerEvent catches — but
       // be safe so the UI never gets stuck in the busy state).
@@ -9104,12 +9103,44 @@ async function copyCustomerLink(){
   try {
     var got = await _ensureCustomerLink(msg);
     if (!got) return;
-    try { await navigator.clipboard.writeText(got.link); } catch(e){}
-    if (msg) { msg.textContent = got.verified ? '✓ Customer link copied — send it to the client.' : 'Link copied (unverified) — give it a moment before sending.'; msg.style.color = got.verified ? '#15803d' : '#b45309'; }
-    var prettyName = got.jobNo ? ('Flood Roofing Quote #' + got.jobNo) : 'Customer quote link';
-    // prompt() guarantees the link is selectable even if the clipboard API is blocked.
-    window.prompt(prettyName + ' — copied to clipboard:', got.link);
+    var copied = false;
+    try { await navigator.clipboard.writeText(got.link); copied = true; } catch(e){}
+    if (msg) { msg.textContent = copied ? (got.verified ? '✓ Customer link copied to clipboard.' : 'Link copied (unverified) — give it a moment before sending.') : 'Link ready — copy it from the box below.'; msg.style.color = got.verified ? '#15803d' : '#b45309'; }
+    // Also drop the link on the page in a selectable box, so it can be copied
+    // by hand (clipboard access is blocked in some browsers / embedded views).
+    _showCustomerLinkBox(got.link, got.jobNo, copied);
   } finally { _qaBar(false); }
+}
+// Render (or update) the on-page customer-link box under the action bar.
+function _showCustomerLinkBox(link, jobNo, copied){
+  var anchor = document.getElementById('qaMsg');
+  if (!anchor){ window.prompt('Customer quote link:', link); return; }
+  var box = document.getElementById('customerLinkBox');
+  if (!box){
+    box = document.createElement('div'); box.id = 'customerLinkBox'; box.className = 'no-print';
+    box.style.cssText = 'width:100%;margin-top:8px;padding:11px 13px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb)';
+    anchor.parentNode.insertBefore(box, anchor.nextSibling);
+  }
+  box.innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">'+
+      '<span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">'+(jobNo ? ('Customer link — Quote #' + esc(jobNo)) : 'Customer link')+'</span>'+
+      (copied ? '<span style="font-size:11px;color:#15803d;font-weight:600">copied ✓</span>' : '')+
+      '<button onclick="var b=document.getElementById(\'customerLinkBox\');if(b)b.style.display=\'none\'" title="Hide" style="margin-left:auto;background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px">✕</button>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+      '<input id="customerLinkInput" type="text" readonly value="'+esc(link)+'" onclick="this.select()" style="flex:1 1 240px;min-width:0;padding:9px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:monospace;background:#fff;color:#0a1628">'+
+      '<button onclick="_copyCustomerLinkBox()" style="padding:9px 16px;background:#0099cc;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Copy</button>'+
+      '<a href="'+esc(link)+'" target="_blank" rel="noopener" style="padding:9px 16px;background:#fff;color:#0a1628;border:1px solid var(--border);border-radius:7px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap">Open ↗</a>'+
+    '</div>';
+  box.style.display = 'block';
+}
+function _copyCustomerLinkBox(){
+  var inp = document.getElementById('customerLinkInput'); if (!inp) return;
+  inp.focus(); inp.select(); try { inp.setSelectionRange(0, 99999); } catch(e){}
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch(e){}
+  if (!ok) { try { navigator.clipboard.writeText(inp.value); ok = true; } catch(e){} }
+  var msg = document.getElementById('qaMsg'); if (msg && ok) { msg.textContent = '✓ Link copied to clipboard.'; msg.style.color = '#15803d'; }
 }
 
 // Build the customer's current selection payload for write-back.
@@ -9139,7 +9170,9 @@ async function _emailAcceptedQuoteToOffice(){
   if (!window.__CUSTOMER_TOKEN) return;
   var pdfBase64 = null, filename = 'Accepted quote.pdf';
   try {
-    var pdf = await _buildQuotePdf();
+    // Lower capture scale — this runs on the customer's phone, so speed beats
+    // pixel-perfect resolution for an internal record PDF.
+    var pdf = await _buildQuotePdf({ scale: 1.5 });
     if (pdf){
       try { filename = _quotePdfFilename(); } catch(e){}
       var durl = pdf.output('datauristring');
@@ -9175,6 +9208,20 @@ function customerQuery(){
     if (!r.ok){ alert('Sorry — your question didn\'t reach Flood Roofing (connection problem). Please try again or reply to the email instead.'); return; }
     alert('Thanks — your question has been sent to Flood Roofing. We\'ll be in touch shortly.');
   });
+}
+// Scale the A4-width proposal (#qpRoot) down so it fits the viewport in the
+// customer view — the fixed 210mm pages otherwise overflow a phone screen.
+function _fitCustomerView(){
+  if (!window.__CUSTOMER_MODE) return;
+  var root = document.getElementById('qpRoot');
+  if (!root) return;
+  var parent = root.parentElement;   // .report-preview wrapper
+  var cs = parent ? getComputedStyle(parent) : null;
+  var padX = cs ? ((parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0)) : 0;
+  var avail = (parent ? parent.clientWidth : window.innerWidth) - padX - 2;
+  var A4 = 794;   // 210mm at 96dpi
+  var z = Math.min(1, avail / A4);
+  if (z > 0 && isFinite(z)) root.style.zoom = z;
 }
 async function bootCustomerView(token){
   try {
@@ -9238,6 +9285,10 @@ async function bootCustomerView(token){
       ? ('Flood Roofing Quote #' + String(refForTitle).replace(/^FR-?/i,''))
       : 'Your Roofing Proposal';
     refreshQuoteProposal();
+    // Scale the A4 proposal down to fit the device width (phones especially),
+    // and re-fit on rotate/resize.
+    _fitCustomerView();
+    window.addEventListener('resize', function(){ clearTimeout(window._custFitT); window._custFitT = setTimeout(_fitCustomerView, 150); });
     // Proposal is on screen — drop the loading splash.
     var _sp = document.getElementById('custSplash'); if (_sp && _sp.parentNode) _sp.parentNode.removeChild(_sp);
   } catch(e){
@@ -25940,7 +25991,9 @@ function _pdfAddSlicedCanvas(pdf, canvas, pageW, pageH){
 // proposal page (#qpRoot .rp-header / .rp-page) the same way the Job Pack
 // PDF captures its designer pages, so "Email Quote" and "Push to Fergus" on
 // the Quote tab both carry the real printed proposal. Returns a jsPDF or null.
-async function _buildQuotePdf(){
+async function _buildQuotePdf(opts){
+  opts = opts || {};
+  var _capScale = opts.scale || 2;   // lower = faster render (used for the accept-email PDF)
   try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
   try { await _loadPdfLibs(); } catch(err){ console.warn('PDF libs failed to load:', err); return null; }
   var html2canvas = window.html2canvas;
@@ -25968,7 +26021,7 @@ async function _buildQuotePdf(){
     for (var i = 0; i < pages.length; i++){
       _qaMsg('Rendering quote page ' + (i+1) + ' of ' + pages.length + '…');
       var canvas = await html2canvas(pages[i], {
-        scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
+        scale: _capScale, backgroundColor: '#ffffff', useCORS: true, logging: false,
         scrollX: 0, scrollY: 0,
         windowWidth: document.documentElement.scrollWidth,
         windowHeight: document.documentElement.scrollHeight,
