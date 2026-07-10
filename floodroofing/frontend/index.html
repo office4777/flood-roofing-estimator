@@ -1934,6 +1934,13 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 </div>
 
 <div class="nav">
+  <!-- Selected-job indicator + quick "Select job" chooser at the very top of
+       the left menu, so the current job is always visible from any tab. -->
+  <div id="navJobBox" style="padding:9px 10px;margin:0 6px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb)">
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);font-weight:700;margin-bottom:2px">Selected job</div>
+    <div id="navJobName" style="font-size:12px;font-weight:600;color:var(--text2);font-style:italic;margin-bottom:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No job selected</div>
+    <button onclick="openStartHereModal()" style="width:100%;padding:7px 8px;background:#0099cc;color:#fff;border:none;border-radius:7px;font-size:11.5px;font-weight:700;cursor:pointer">📂 Select job</button>
+  </div>
   <button class="nav-btn active" onclick="gotoTab('select')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7L8 2.5L13.5 7M4 6V13H12V6" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>Home</button>
   <!-- Sidebar job chip: hidden until a job is loaded. Shows the Fergus
        jobNo / local id and an autosave-status pill. Sits between Select
@@ -2014,6 +2021,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
       <span id="quoteActivityCount" style="margin-left:8px;font-size:11px;font-weight:600;color:var(--text2)"></span>
       <button onclick="fetchQuoteActivity()" style="margin-left:auto;padding:4px 12px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
     </div>
+    <input id="quoteActivitySearch" type="text" placeholder="Search activity by client or reference…" oninput="_renderQuoteActivity()" style="width:100%;box-sizing:border-box;margin:2px 0 10px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit">
     <div id="quoteActivityList"></div>
   </div>
   <!-- Recent drafts — unsaved in-progress work (local drafts) + recently saved
@@ -2023,6 +2031,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
       <span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text2)">— unsaved &amp; recent work</span>
       <button onclick="fetchRecentDrafts()" style="margin-left:auto;padding:4px 12px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
     </div>
+    <input id="recentDraftsSearch" type="text" placeholder="Search drafts by client or address…" oninput="_renderRecentDrafts()" style="width:100%;box-sizing:border-box;margin:2px 0 10px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit">
     <div id="recentDraftsList"></div>
   </div>
 </div>
@@ -3849,6 +3858,22 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   </div>
 </div>
 
+<!-- START-HERE CHOOSER MODAL — opened from the sidebar "Select job" button.
+     Mirrors the Home tab's "Start here" bar: New Job / Select Job / Edit details. -->
+<div id="startHereOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998" onclick="closeStartHereModal()"></div>
+<div id="startHereModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:420px;max-width:95vw;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:9999;overflow:hidden;flex-direction:column">
+  <div style="padding:14px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">
+    <strong style="flex:1;font-size:14px">Start here</strong>
+    <button onclick="closeStartHereModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px">✕ Close</button>
+  </div>
+  <div style="padding:16px 18px">
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Current job: <strong id="startHereJobLabel" style="color:#0a1628">— new (not yet saved)</strong></div>
+    <button onclick="_startHereNew()" style="width:100%;padding:12px;margin-bottom:9px;background:#059669;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px">＋ New Job — enter custom details</button>
+    <button onclick="_startHerePick()" style="width:100%;padding:12px;margin-bottom:9px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px">📂 Select an existing job</button>
+    <button onclick="_startHereEdit()" style="width:100%;padding:11px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">✎ Edit current job details</button>
+  </div>
+</div>
+
 <!-- PUSH TO JMS MODAL -->
 <div id="jmsPushOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998" onclick="closeJMSPushModal()"></div>
 <div id="jmsPushModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:560px;max-width:95vw;max-height:85vh;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:9999;overflow:hidden;flex-direction:column">
@@ -5637,6 +5662,14 @@ function updateGlobalJobBar(j){
     label = '— new (not yet saved)';
   }
   name.textContent = label;
+  // Sidebar "selected job" indicator (top of the left nav).
+  var navName = document.getElementById('navJobName');
+  if (navName){
+    var hasJob = (j && j.id) || (window.S && (S.linkedJobId || S.linkedJobNo));
+    navName.textContent = hasJob ? label : 'No job selected';
+    navName.style.color = hasJob ? '#0a1628' : 'var(--text2)';
+    navName.style.fontStyle = hasJob ? 'normal' : 'italic';
+  }
   try { updateGlobalJobBarCosts(); } catch(e){}
 }
 
@@ -5989,7 +6022,10 @@ function _checkDraftsOnBoot(){
     };
   });
 }
-setTimeout(function(){ try { if (!window.__CUSTOMER_TOKEN) _checkDraftsOnBoot(); } catch(e){} }, 1200);
+// The old startup "Unsaved work found — Restore it / Discard" banner is
+// retired: the Home tab's Recent drafts list now surfaces the same unsaved
+// work (with Resume + Delete), so a full-width banner on every load was just
+// noise. _checkDraftsOnBoot() is kept for reference but no longer invoked.
 
 // Persistent save-status text in the global job bar: success shows a
 // timestamped "✓ Saved", failure STAYS red until the next attempt
@@ -6261,6 +6297,27 @@ async function startNewJob(){
   setCurrentJobLabel(null);
   openJobDetailsModal('new');
 }
+// Start-here chooser (from the sidebar "Select job" button) — same options as
+// the Home tab's start-here bar.
+function openStartHereModal(){
+  var ov = document.getElementById('startHereOverlay');
+  var md = document.getElementById('startHereModal');
+  if (!ov || !md) return;
+  var lbl = document.getElementById('startHereJobLabel');
+  if (lbl){
+    var top = document.getElementById('currentJobLabelTop');
+    lbl.textContent = (top && top.textContent) ? top.textContent : '— new (not yet saved)';
+  }
+  ov.style.display = 'block'; md.style.display = 'flex';
+}
+function closeStartHereModal(){
+  var ov = document.getElementById('startHereOverlay'); if (ov) ov.style.display = 'none';
+  var md = document.getElementById('startHereModal'); if (md) md.style.display = 'none';
+}
+function _startHereNew(){ closeStartHereModal(); startNewJob(); }
+function _startHerePick(){ closeStartHereModal(); openSelectJobModal(); }
+function _startHereEdit(){ closeStartHereModal(); openJobDetailsModal('edit'); }
+
 function openJobDetailsModal(mode){
   window._jobDetailsMode = (mode === 'edit') ? 'edit' : 'new';
   var ov = document.getElementById('jobDetailsOverlay');
@@ -6299,11 +6356,22 @@ function jobDetailsPrimary(){
 // custom or Fergus job) merged with recently saved jobs, newest first.
 async function fetchRecentDrafts(){
   var card = document.getElementById('recentDraftsCard');
-  var list = document.getElementById('recentDraftsList');
-  if (!list) return;
+  if (!document.getElementById('recentDraftsList')) return;
   var drafts = [], jobs = [];
   try { drafts = await _listLocalDrafts(); } catch(e){}
   try { jobs = await api('GET', '/jobs'); } catch(e){ jobs = []; }
+  // Merge the compact beforeunload copy (localStorage) in case an edit didn't
+  // make it into IndexedDB before the tab closed — this is the work the old
+  // startup banner used to surface.
+  var unload = null;
+  try { unload = JSON.parse(localStorage.getItem('fr_unload_draft') || 'null'); } catch(e){}
+  if (unload && unload.key){
+    var m = drafts.find(function(d){ return d.key === unload.key; });
+    if (!m || new Date(unload.at) > new Date(m.at)){
+      drafts = drafts.filter(function(d){ return d.key !== unload.key; });
+      drafts.push(unload);
+    }
+  }
   var rows = [], seen = {};
   (drafts || []).forEach(function(d){
     if (!d || !d.key) return;
@@ -6316,23 +6384,57 @@ async function fetchRecentDrafts(){
     rows.push({ t: j.updated_at, client: j.client_name, addr: j.site_address, unsaved: false, kind: 'saved', resume: 'job', id: j.id });
   });
   rows.sort(function(a, b){ return new Date(b.t || 0) - new Date(a.t || 0); });
-  rows = rows.slice(0, 8);
+  window._recentDraftsRows = rows;
   if (!rows.length){ if (card) card.style.display = 'none'; return; }
   if (card) card.style.display = '';
+  _renderRecentDrafts();
+}
+// Renders (and search-filters) the cached recent-drafts rows.
+function _renderRecentDrafts(){
+  var list = document.getElementById('recentDraftsList');
+  if (!list) return;
+  var all = window._recentDraftsRows || [];
+  var q = ((document.getElementById('recentDraftsSearch')||{}).value || '').toLowerCase().trim();
+  var rows = !q ? all : all.filter(function(r){
+    return ((r.client||'')+' '+(r.addr||'')).toLowerCase().indexOf(q) >= 0;
+  });
+  rows = rows.slice(0, 20);
+  if (!rows.length){ list.innerHTML = '<div style="padding:14px 4px;color:var(--text2);font-size:12px">'+(q?'No drafts match “'+esc2(q)+'”.':'No recent work.')+'</div>'; return; }
   list.innerHTML = rows.map(function(r){
     var when = r.t ? new Date(r.t).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
     var badge, bg, fg;
     if (r.unsaved){ badge = (r.kind === 'fergus' ? 'Fergus · unsaved' : (r.kind === 'new' ? 'New · unsaved' : 'Unsaved edits')); bg = '#fef3c7'; fg = '#92400e'; }
     else { badge = 'Saved'; bg = '#dbeafe'; fg = '#1d4ed8'; }
-    var onclick = r.resume === 'draft' ? ('_resumeDraft(\'' + r.key + '\')') : ('resumeSavedJob(\'' + r.id + '\')');
-    return '<div onclick="' + onclick + '" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer" onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'">' +
+    var resume = r.resume === 'draft' ? ('_resumeDraft(\'' + r.key + '\')') : ('resumeSavedJob(\'' + r.id + '\')');
+    var del    = r.resume === 'draft' ? ('_deleteRecentDraft(event,\'' + r.key + '\')') : ('_deleteRecentJob(event,\'' + r.id + '\')');
+    return '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px" onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'">' +
       '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:20px;background:' + bg + ';color:' + fg + ';white-space:nowrap">' + badge + '</span>' +
-      '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(r.client || '(untitled)') + '</div>' +
+      '<div onclick="' + resume + '" style="flex:1;min-width:0;cursor:pointer"><div style="font-size:13px;font-weight:600;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(r.client || '(untitled)') + '</div>' +
       '<div style="font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(r.addr || '—') + '</div></div>' +
       '<div style="font-size:11px;color:var(--text2);white-space:nowrap">' + esc2(when) + '</div>' +
-      '<span style="font-size:12px;color:#0099cc;font-weight:600;white-space:nowrap">Resume →</span>' +
+      '<span onclick="' + resume + '" style="font-size:12px;color:#0099cc;font-weight:600;white-space:nowrap;cursor:pointer">Resume →</span>' +
+      '<button onclick="' + del + '" title="Delete" style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px">✕</button>' +
     '</div>';
   }).join('');
+}
+// Delete an unsaved local draft (with confirm), then refresh the list.
+async function _deleteRecentDraft(ev, key){
+  if (ev){ try { ev.stopPropagation(); } catch(e){} }
+  if (!confirm('Delete this unsaved draft? This can\'t be undone.')) return;
+  try { await _deleteLocalDraft(key); } catch(e){}
+  try { var u = JSON.parse(localStorage.getItem('fr_unload_draft')||'null'); if (u && u.key === key) localStorage.removeItem('fr_unload_draft'); } catch(e){}
+  fetchRecentDrafts();
+}
+// Delete a saved job (with confirm), then refresh the list.
+async function _deleteRecentJob(ev, id){
+  if (ev){ try { ev.stopPropagation(); } catch(e){} }
+  if (!confirm('Delete this saved job? This cannot be undone.')) return;
+  try {
+    await api('DELETE', '/jobs/' + id);
+    if (S.currentJobId === id) { S.currentJobId = null; setCurrentJobLabel(null); }
+  } catch(e){ alert('Delete failed: ' + e.message); }
+  fetchRecentDrafts();
+  try { refreshJobsList(); } catch(e){}
 }
 // Resume a local (unsaved) draft — restore its snapshot into memory and
 // re-establish the job identity from the draft key.
@@ -9112,35 +9214,47 @@ async function bootCustomerView(token){
 // ── Office home-screen: customer quote activity feed ──
 async function fetchQuoteActivity(){
   var card = document.getElementById('quoteActivityCard');
+  if (!document.getElementById('quoteActivityList')) return;
+  try {
+    var feed = await api('GET', '/quote-activity');
+    if (!feed || !feed.length){ window._quoteActivityFeed = []; if (card) card.style.display='none'; return; }
+    feed.sort(function(a,b){ return new Date(b.lastEventAt||0) - new Date(a.lastEventAt||0); });
+    window._quoteActivityFeed = feed;
+    if (card) card.style.display='';
+    _renderQuoteActivity();
+  } catch(e){ if (card) card.style.display='none'; }
+}
+// Renders (and search-filters) the cached quote-activity feed.
+function _renderQuoteActivity(){
   var list = document.getElementById('quoteActivityList');
   var countEl = document.getElementById('quoteActivityCount');
   if (!list) return;
-  try {
-    var feed = await api('GET', '/quote-activity');
-    if (!feed || !feed.length){ if (card) card.style.display='none'; return; }
-    feed.sort(function(a,b){ return new Date(b.lastEventAt||0) - new Date(a.lastEventAt||0); });
-    var STAT = {
-      accepted:['Accepted','#dcfce7','#15803d'], declined:['Declined','#fee2e2','#b91c1c'],
-      queried:['Question','#fef3c7','#92400e'], opened:['Opened','#dbeafe','#1d4ed8'],
-      sent:['Sent','#f1f5f9','#475569']
-    };
-    var actionable = feed.filter(function(f){ return f.status==='accepted'||f.status==='declined'||f.status==='queried'; }).length;
-    if (countEl) countEl.textContent = actionable ? ('· '+actionable+' need'+(actionable===1?'s':'')+' attention') : '';
-    list.innerHTML = feed.map(function(f){
-      var s = STAT[f.status] || STAT.sent;
-      var when = f.lastEventAt ? new Date(f.lastEventAt).toLocaleString('en-NZ',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
-      var extra = '';
-      if (f.status==='queried' && f.query) extra = '<div style="font-size:12px;color:#92400e;margin-top:3px">“'+esc2(f.query.message||'')+'”</div>';
-      else if (f.status==='accepted' && f.accepted) extra = '<div style="font-size:12px;color:#15803d;margin-top:3px">Accepted by '+esc2(f.accepted.name||'')+' · '+fmtMoney(f.accepted.total||0)+'</div>';
-      else if (f.status==='opened') extra = '<div style="font-size:11px;color:var(--text2);margin-top:3px">Viewed '+(f.openCount||1)+'×</div>';
-      return '<div onclick="openJob(\''+f.jobId+'\')" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer" onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'">'+
-        '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:20px;background:'+s[1]+';color:'+s[2]+';white-space:nowrap">'+s[0]+'</span>'+
-        '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#0a1628">'+esc2(f.client||'—')+(f.ref?' <span style="color:var(--text2);font-weight:400">· '+esc2(f.ref)+'</span>':'')+'</div>'+extra+'</div>'+
-        '<div style="font-size:11px;color:var(--text2);white-space:nowrap">'+esc2(when)+'</div>'+
-      '</div>';
-    }).join('');
-    if (card) card.style.display='';
-  } catch(e){ if (card) card.style.display='none'; }
+  var feed = window._quoteActivityFeed || [];
+  var STAT = {
+    accepted:['Accepted','#dcfce7','#15803d'], declined:['Declined','#fee2e2','#b91c1c'],
+    queried:['Question','#fef3c7','#92400e'], opened:['Opened','#dbeafe','#1d4ed8'],
+    sent:['Sent','#f1f5f9','#475569']
+  };
+  var actionable = feed.filter(function(f){ return f.status==='accepted'||f.status==='declined'||f.status==='queried'; }).length;
+  if (countEl) countEl.textContent = actionable ? ('· '+actionable+' need'+(actionable===1?'s':'')+' attention') : '';
+  var q = ((document.getElementById('quoteActivitySearch')||{}).value || '').toLowerCase().trim();
+  var rows = !q ? feed : feed.filter(function(f){
+    return ((f.client||'')+' '+(f.ref||'')+' '+((f.accepted&&f.accepted.name)||'')).toLowerCase().indexOf(q) >= 0;
+  });
+  if (!rows.length){ list.innerHTML = '<div style="padding:14px 4px;color:var(--text2);font-size:12px">'+(q?'No activity matches “'+esc2(q)+'”.':'No quote activity yet.')+'</div>'; return; }
+  list.innerHTML = rows.map(function(f){
+    var s = STAT[f.status] || STAT.sent;
+    var when = f.lastEventAt ? new Date(f.lastEventAt).toLocaleString('en-NZ',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+    var extra = '';
+    if (f.status==='queried' && f.query) extra = '<div style="font-size:12px;color:#92400e;margin-top:3px">“'+esc2(f.query.message||'')+'”</div>';
+    else if (f.status==='accepted' && f.accepted) extra = '<div style="font-size:12px;color:#15803d;margin-top:3px">Accepted by '+esc2(f.accepted.name||'')+' · '+fmtMoney(f.accepted.total||0)+'</div>';
+    else if (f.status==='opened') extra = '<div style="font-size:11px;color:var(--text2);margin-top:3px">Viewed '+(f.openCount||1)+'×</div>';
+    return '<div onclick="openJob(\''+f.jobId+'\')" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer" onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'">'+
+      '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:20px;background:'+s[1]+';color:'+s[2]+';white-space:nowrap">'+s[0]+'</span>'+
+      '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#0a1628">'+esc2(f.client||'—')+(f.ref?' <span style="color:var(--text2);font-weight:400">· '+esc2(f.ref)+'</span>':'')+'</div>'+extra+'</div>'+
+      '<div style="font-size:11px;color:var(--text2);white-space:nowrap">'+esc2(when)+'</div>'+
+    '</div>';
+  }).join('');
 }
 
 // Kick off the customer view once all functions are defined.
