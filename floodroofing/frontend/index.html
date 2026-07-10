@@ -5661,11 +5661,19 @@ function updateGlobalJobBar(j){
     label = '— new (not yet saved)';
   }
   name.textContent = label;
-  // Sidebar "selected job" indicator (top of the left nav).
+  // Sidebar "selected job" indicator (top of the left nav). A brand-new job
+  // that isn't saved yet still counts as "selected" once a client/address has
+  // been entered — show that name rather than a misleading "No job selected".
   var navName = document.getElementById('navJobName');
   if (navName){
-    var hasJob = (j && j.id) || (window.S && (S.linkedJobId || S.linkedJobNo));
-    navName.textContent = hasJob ? label : 'No job selected';
+    var savedOrLinked = (j && j.id) || (window.S && (S.linkedJobId || S.linkedJobNo));
+    var draftClient = ((document.getElementById('jobClient')||{}).value || '').trim();
+    var draftAddr   = ((document.getElementById('jobAddr')||{}).value || '').trim();
+    var hasJob = savedOrLinked || draftClient || draftAddr;
+    var navLabel = savedOrLinked ? label
+      : (draftClient || draftAddr) ? ((draftClient || draftAddr) + ' — new (unsaved)')
+      : 'No job selected';
+    navName.textContent = navLabel;
     navName.style.color = hasJob ? '#0a1628' : 'var(--text2)';
     navName.style.fontStyle = hasJob ? 'normal' : 'italic';
   }
