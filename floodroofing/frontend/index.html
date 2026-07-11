@@ -23793,7 +23793,21 @@ function renderMatRoofMap(){
   // Only re-fit when the Map Roof tab ISN'T the one on screen — otherwise the
   // fit→restore redraws would flicker the live canvas while the user draws.
   var _roofActive = (function(){ var r = document.getElementById('tab-roof'); return r && r.classList.contains('active'); })();
-  if (!_roofActive){ try { _fitted = fitDrawingToCanvas(); } catch(e){} }
+  if (!_roofActive){
+    try {
+      // When the Map Roof tab has never been shown (deep-link straight to the
+      // Job Pack), its canvas has no real layout size, so a fit computed
+      // against it is meaningless. Give it a standard capture buffer first,
+      // then fit the drawing to that. (The Map Roof tab re-sizes it on show.)
+      var _rect = src.getBoundingClientRect();
+      if (!(_rect.width > 40)){
+        var _cdpr = Math.min(window.devicePixelRatio || 1, 2);
+        src.width  = Math.round(900 * _cdpr);
+        src.height = Math.round(600 * _cdpr);
+      }
+      _fitted = fitDrawingToCanvas();
+    } catch(e){}
+  }
   window._hideCalibrationOverlay = true;
   window._matRoofMapHideBg = true;
   window._matRoofMapHideGrid = true;
