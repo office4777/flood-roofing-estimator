@@ -27315,56 +27315,90 @@ function _ocRowClick(ev, row){
   var cb = row.querySelector('.ordck');
   if (cb){ cb.checked = !cb.checked; _orderChecklistSync(); }
 }
+// One checklist row: a tap-anywhere card with a checkbox, a bold field label,
+// and (optionally) a full-width inline control stacked below it. Ticking the
+// box tints the card green for satisfying confirm feedback (via :has()).
+function _ocRow(label, controlHtml, hint){
+  return '<label class="ord-row">'+
+      '<input type="checkbox" class="ordck" onchange="_orderChecklistSync()">'+
+      '<span class="ord-check" aria-hidden="true"></span>'+
+      '<span class="ord-body">'+
+        '<span class="ord-label">'+label+(hint?' <span class="ord-hint">'+hint+'</span>':'')+'</span>'+
+        (controlHtml?'<span class="ord-ctrl" onclick="event.preventDefault()">'+controlHtml+'</span>':'')+
+      '</span>'+
+    '</label>';
+}
 function _openOrderChecklist(){
   var colour    = ((document.getElementById('matColour')||{}).value || '').trim();
-  var grade     = _ocSelText('matGrade');
-  var thickness = _ocSelText('matThickness');
-  var profile   = _ocSelText('matProfile');
   var gutterVal = ((document.getElementById('matGutter')||{}).value || '').trim();
   var gutterLbl = _ocSelText('matGutter');
   var noGutter  = (!gutterVal || gutterVal === 'none' || /^(no|none)/i.test(gutterLbl));
   var pitch     = DRAW.calPitch || parseFloat((document.getElementById('calPitchInput')||{}).value) || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
   var delMode   = (window.S && S.order && S.order.deliveryMode) || 'site';
-  var INL = 'font-size:13px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;font-family:inherit;background:#fff;color:#0a1628;max-width:170px;vertical-align:middle';
-  // Each row question — the value-bearing ones embed an inline dropdown/input
-  // bound to the real spec field so the office can fix it right here.
-  var q = [];
-  q.push('Sheet lengths correct? <span style="color:var(--text2);font-size:11px">(edit in Cut Lists below)</span>');
-  q.push('Colour — <input list="ocColours" value="'+esc(colour)+'" oninput="_ocSetColour(this)" placeholder="e.g. Ironsand" style="'+INL+';max-width:150px"> — correct?');
-  q.push('Gutter — <select onchange="_ocSetSelect(\'matGutter\',this)" onclick="event.stopPropagation()" style="'+INL+'">'+_ocOptions('matGutter')+'</select> — correct?');
-  q.push('Steel grade <select onchange="_ocSetSelect(\'matGrade\',this)" onclick="event.stopPropagation()" style="'+INL+'">'+_ocOptions('matGrade')+'</select> · thickness <select onchange="_ocSetSelect(\'matThickness\',this)" onclick="event.stopPropagation()" style="'+INL+';max-width:110px">'+_ocOptions('matThickness')+'</select> — correct?');
-  q.push('Profile <select onchange="_ocSetSelect(\'matProfile\',this)" onclick="event.stopPropagation()" style="'+INL+'">'+_ocOptions('matProfile')+'</select> — correct?');
-  q.push('No extra flashings required? <span style="color:var(--text2);font-size:11px">(add flashings in the Job Pack)</span>');
-  q.push('Roof pitch <input type="number" min="0" max="60" step="1" value="'+(pitch||'')+'" oninput="_ocSetPitch(this)" onclick="event.stopPropagation()" style="'+INL+';max-width:80px">° — correct?');
-  q.push('Delivery — <select onchange="_ocSetDelivery(this)" onclick="event.stopPropagation()" style="'+INL+'"><option value="site"'+(delMode==='site'?' selected':'')+'>Deliver to site</option><option value="yard"'+(delMode==='yard'?' selected':'')+'>Deliver to yard</option></select> — correct?');
-
-  var rows = q.map(function(t){
-    return '<div class="ord-row" onclick="_ocRowClick(event,this)" style="display:flex;gap:11px;align-items:flex-start;padding:11px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:8px;font-size:13.5px;line-height:1.7;color:#0a1628">'+
-      '<input type="checkbox" class="ordck" onchange="_orderChecklistSync()" style="width:18px;height:18px;margin:3px 0 0;flex-shrink:0;cursor:pointer">'+
-      '<div style="flex:1">'+t+'</div></div>';
-  }).join('') + '<datalist id="ocColours">'+
+  var INL = 'oc-inp';
+  var gutterRow = noGutter
+    ? _ocRow('No gutter required?', '<select onchange="_ocSetSelect(\'matGutter\',this)" class="'+INL+'">'+_ocOptions('matGutter')+'</select>', 'change here if a gutter is needed')
+    : _ocRow('Gutter being ordered — correct?', '<select onchange="_ocSetSelect(\'matGutter\',this)" class="'+INL+'">'+_ocOptions('matGutter')+'</select>');
+  var rows = [
+    _ocRow('Sheet lengths correct?', '', 'edit in Cut Lists below'),
+    _ocRow('Colour', '<input list="ocColours" value="'+esc(colour)+'" oninput="_ocSetColour(this)" placeholder="e.g. Ironsand" class="'+INL+'">'),
+    gutterRow,
+    _ocRow('Steel grade &amp; thickness',
+      '<span class="oc-2up">'+
+        '<select onchange="_ocSetSelect(\'matGrade\',this)" class="'+INL+'" style="flex:2">'+_ocOptions('matGrade')+'</select>'+
+        '<select onchange="_ocSetSelect(\'matThickness\',this)" class="'+INL+'" style="flex:1">'+_ocOptions('matThickness')+'</select>'+
+      '</span>'),
+    _ocRow('Profile', '<select onchange="_ocSetSelect(\'matProfile\',this)" class="'+INL+'">'+_ocOptions('matProfile')+'</select>'),
+    _ocRow('No extra flashings required?', '', 'add flashings in the Job Pack'),
+    _ocRow('Roof pitch', '<span class="oc-pitch"><input type="number" min="0" max="60" step="1" value="'+(pitch||'')+'" oninput="_ocSetPitch(this)" class="'+INL+'"><span class="oc-unit">degrees</span></span>'),
+    _ocRow('Delivery', '<select onchange="_ocSetDelivery(this)" class="'+INL+'"><option value="site"'+(delMode==='site'?' selected':'')+'>Deliver to site</option><option value="yard"'+(delMode==='yard'?' selected':'')+'>Deliver to yard</option></select>')
+  ].join('') + '<datalist id="ocColours">'+
     ['Ironsand','Ebony','Grey Friars','Karaka','Permanent Green','Titania','FlaxPod','Sandstone Grey','Gull Grey','New Denim Blue','Pioneer Red','Scoria','Windsor Grey','Slate','Thunder Grey','Lignite','Colorsteel Unpainted / Zincalume']
       .map(function(c){ return '<option value="'+esc(c)+'">'; }).join('')+'</datalist>';
 
   var overlay = document.getElementById('orderChecklistOverlay');
   if (!overlay){ overlay = document.createElement('div'); overlay.id = 'orderChecklistOverlay'; document.body.appendChild(overlay); }
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100050';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(6,14,28,.55);z-index:100050;backdrop-filter:blur(2px)';
   overlay.onclick = closeOrderChecklist;
   var modal = document.getElementById('orderChecklistModal');
   if (!modal){ modal = document.createElement('div'); modal.id = 'orderChecklistModal'; document.body.appendChild(modal); }
-  modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:520px;max-width:95vw;max-height:88vh;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:100051;overflow:hidden;display:flex;flex-direction:column';
+  modal.style.cssText = 'position:fixed;left:50%;bottom:auto;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;width:min(440px,94vw);max-height:90vh;box-shadow:0 18px 60px rgba(0,0,0,.35);z-index:100051;overflow:hidden;display:flex;flex-direction:column';
   modal.innerHTML =
-    '<div style="padding:14px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">'+
-      '<strong style="flex:1;font-size:14px">🛒 Confirm before ordering</strong>'+
-      '<button onclick="closeOrderChecklist()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px">✕ Close</button>'+
+    '<style>'+
+      '#orderChecklistModal .oc-inp{width:100%;box-sizing:border-box;font-size:14px;padding:9px 11px;border:1px solid #d3dce6;border-radius:9px;font-family:inherit;background:#fff;color:#0a1628;-webkit-appearance:none;appearance:none}'+
+      '#orderChecklistModal .oc-inp:focus{outline:none;border-color:#0099cc;box-shadow:0 0 0 3px rgba(0,153,204,.15)}'+
+      '#orderChecklistModal select.oc-inp{background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' stroke=\'%2364748b\' stroke-width=\'2\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;padding-right:30px}'+
+      '#orderChecklistModal .oc-2up{display:flex;gap:8px}'+
+      '#orderChecklistModal .oc-pitch{display:flex;align-items:center;gap:9px}'+
+      '#orderChecklistModal .oc-pitch .oc-inp{max-width:110px}'+
+      '#orderChecklistModal .oc-unit{font-size:14px;color:#64748b;font-weight:500}'+
+      '#orderChecklistModal .ord-row{display:flex;gap:12px;align-items:flex-start;padding:13px 14px;border:1.5px solid #e6ebf1;border-radius:12px;margin-bottom:9px;cursor:pointer;transition:border-color .15s,background .15s;position:relative}'+
+      '#orderChecklistModal .ord-row:active{background:#f6f9fc}'+
+      '#orderChecklistModal .ordck{position:absolute;opacity:0;width:0;height:0;pointer-events:none}'+
+      '#orderChecklistModal .ord-check{flex-shrink:0;width:23px;height:23px;border:2px solid #cbd5e1;border-radius:7px;margin-top:1px;display:flex;align-items:center;justify-content:center;transition:all .15s;background:#fff}'+
+      '#orderChecklistModal .ord-check::after{content:"";width:6px;height:11px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg) scale(0);transition:transform .15s;margin-top:-2px}'+
+      '#orderChecklistModal .ord-row:has(.ordck:checked){border-color:#16a34a;background:#f0fdf4}'+
+      '#orderChecklistModal .ord-row:has(.ordck:checked) .ord-check{background:#16a34a;border-color:#16a34a}'+
+      '#orderChecklistModal .ord-row:has(.ordck:checked) .ord-check::after{transform:rotate(45deg) scale(1)}'+
+      '#orderChecklistModal .ord-body{flex:1;min-width:0}'+
+      '#orderChecklistModal .ord-label{display:block;font-weight:650;font-size:14px;color:#0a1628;line-height:1.35}'+
+      '#orderChecklistModal .ord-hint{font-weight:400;color:#94a3b8;font-size:11.5px}'+
+      '#orderChecklistModal .ord-ctrl{display:block;margin-top:9px}'+
+    '</style>'+
+    '<div style="padding:16px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">'+
+      '<span style="font-size:18px">🛒</span>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:15px;font-weight:700;line-height:1.2">Confirm before ordering</div>'+
+        '<div style="font-size:11.5px;color:#94a3b8;margin-top:2px">Tick every item to send the order</div>'+
+      '</div>'+
+      '<button onclick="closeOrderChecklist()" aria-label="Close" style="background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:15px;line-height:1;flex-shrink:0">✕</button>'+
     '</div>'+
-    '<div style="padding:14px 18px 4px;overflow-y:auto;flex:1">'+
-      '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Tick each box to confirm these details are correct. All must be checked before the order can be sent.</div>'+
+    '<div style="padding:14px 16px 4px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">'+
       rows+
     '</div>'+
-    '<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;background:#fafbfc">'+
-      '<button onclick="closeOrderChecklist()" style="padding:9px 16px;background:#fff;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Cancel</button>'+
-      '<button id="orderChecklistGo" onclick="_orderRoofProceed()" disabled style="padding:9px 20px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:not-allowed;opacity:.5">Confirm &amp; order roof →</button>'+
+    '<div style="padding:12px 16px;border-top:1px solid #eef2f6;display:flex;gap:9px;background:#fafbfc">'+
+      '<button onclick="closeOrderChecklist()" style="padding:11px 16px;background:#fff;border:1px solid #d3dce6;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;color:#334155">Cancel</button>'+
+      '<button id="orderChecklistGo" onclick="_orderRoofProceed()" disabled style="flex:1;padding:11px 16px;background:#0099cc;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;cursor:not-allowed;opacity:.5">Confirm &amp; order roof →</button>'+
     '</div>';
   overlay.style.display = 'block'; modal.style.display = 'flex';
   _orderChecklistSync();
