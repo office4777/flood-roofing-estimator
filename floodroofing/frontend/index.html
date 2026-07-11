@@ -23784,6 +23784,16 @@ function renderMatRoofMap(){
   // hands over a clean white canvas to the supplier / customer. We
   // restore every flag + redraw once more so the live Map Roof
   // canvas shows everything back normally on the next paint.
+  // This map is a mirror of the live Map Roof canvas, so it inherits that
+  // canvas's zoom/pan. When a job is opened straight to the Job Pack (e.g. the
+  // PDF deep link) the Map Roof tab may never have been fit yet, leaving the
+  // mirror zoomed-in. Fit the drawing to the canvas JUST for this capture, then
+  // restore the user's live zoom/pan so the Map Roof tab is untouched.
+  var _pz = DRAW.zoom, _px = IMG_OFFSET.x, _py = IMG_OFFSET.y, _fitted = false;
+  // Only re-fit when the Map Roof tab ISN'T the one on screen — otherwise the
+  // fit→restore redraws would flicker the live canvas while the user draws.
+  var _roofActive = (function(){ var r = document.getElementById('tab-roof'); return r && r.classList.contains('active'); })();
+  if (!_roofActive){ try { _fitted = fitDrawingToCanvas(); } catch(e){} }
   window._hideCalibrationOverlay = true;
   window._matRoofMapHideBg = true;
   window._matRoofMapHideGrid = true;
@@ -23797,14 +23807,20 @@ function renderMatRoofMap(){
     window._hideCalibrationOverlay = false;
     window._matRoofMapHideBg = false;
     window._matRoofMapHideGrid = false;
+    if (_fitted){ DRAW.zoom = _pz; IMG_OFFSET.x = _px; IMG_OFFSET.y = _py; }
+    try { redrawAll(); } catch(e2){}
     out.innerHTML = '<p style="font-size:12px;color:#b91c1c">Couldn\'t mirror the roof map — refresh the Map Roof tab and try again.</p>';
     return;
   }
   // Restore the Map Roof canvas so the user sees the calibration line,
-  // bg image + grid back on the next paint of the live source.
+  // bg image + grid — AND their own zoom/pan — back on the next paint.
   window._hideCalibrationOverlay = false;
   window._matRoofMapHideBg = false;
   window._matRoofMapHideGrid = false;
+  if (_fitted){
+    DRAW.zoom = _pz; IMG_OFFSET.x = _px; IMG_OFFSET.y = _py;
+    var _zl = document.getElementById('zoomLabel'); if (_zl) _zl.textContent = Math.round(DRAW.zoom * 100) + '%';
+  }
   try { redrawAll(); } catch(e){}
   // Letter tags ONLY appear on the Materials canvas — the user asked to
   // keep the Map Roof tab clean. Draw them in CSS-pixel space (scaled by
