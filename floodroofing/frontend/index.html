@@ -2884,6 +2884,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
       <div class="mat-sel jp-legacy">
         <label>Steel grade</label>
         <select id="matGrade" onchange="renderMaterialsCutLists()">
+          <option value="Colorsteel">Colorsteel</option>
           <option value="Colorsteel Maxam">Colorsteel Maxam</option>
           <option value="Armorsteel ColorZen">Armorsteel ColorZen</option>
           <option value="Zincalume">Zincalume</option>
@@ -8834,6 +8835,7 @@ function _setProposalOption_thickness(v){ _setProposalOption('steelThickness', v
 function _setProposalOption_gutter(v){    _setProposalOption('gutterType', v); }
 function _setProposalOption_bracket(v){   _setProposalOption('gutterBracket', v); }
 function _setProposalOption_downpipes(v){ _setProposalOption('downpipes', v); }
+function _setProposalOption_disposal(v){  _setProposalOption('disposal', v); }
 
 // ── Editable scope-of-work rows (page 3) ───────────────────────────
 // Each line of S.quote.scope renders as a contenteditable row; edits write
@@ -11287,6 +11289,12 @@ function refreshQuoteProposal(){
         { id:'no',  label:'Keep existing downpipes', isDefault:true, delta:0, desc:'Re-use the current downpipes.' },
         { id:'yes', label:'New downpipes',           delta:_dIncl(_selDownpipeDelta()), desc:'Supply & install new downpipes to match the new guttering.' }
       ];
+      // Both disposal choices are $0 — the scrap value of the old steel just
+      // offsets the labour/time to strip and cart it away, so it's a wash.
+      var DISPOSAL = [
+        { id:'dispose', label:'We dispose of all existing material', isDefault:true, delta:0, desc:'We strip and remove all old roofing sheets and flashings off site.' },
+        { id:'keep',    label:'Keep all existing material on site',  delta:0, desc:'We leave all old sheets and flashings stacked on site for you.' }
+      ];
       // Price tag for a card: what picking it does to the total.
       // Default pick = "Standard · included"; a configured add-on shows
       // +$X / −$X incl. GST; an unpriced non-default shows "Included".
@@ -11367,7 +11375,8 @@ function refreshQuoteProposal(){
         (pOpts.gutterType && pOpts.gutterType !== 'none'
           ? ' · ' + esc2((BRACKETS.find(function(b){return b.id===(pOpts.gutterBracket||'external');})||{}).label||'—')
             + (pOpts.downpipes === 'yes' ? ' · New downpipes' : '')
-          : '');
+          : '')+
+        ' · ' + esc2((DISPOSAL.find(function(d){return d.id===(pOpts.disposal||'dispose');})||{}).label||'—');
       partOptionsSelections =
         edHeading('04','Choose your options','Selections')+
         // One-line "how this works" so the page explains itself.
@@ -11384,6 +11393,16 @@ function refreshQuoteProposal(){
             '<div class="ed-eyebrow" style="margin:12px 0 6px">Guttering</div>'+
             selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter')+
           '</div>'+
+        '</div>'+
+        // Existing roofing material — keep on site vs. we dispose. Both are
+        // $0 (scrap value offsets disposal labour), explained in the note.
+        '<div style="margin-bottom:14px">'+
+          '<div class="ed-eyebrow" style="margin-bottom:6px">Existing roofing material</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">'+
+            '<div>'+selCard('disposal', [DISPOSAL[0]], pOpts.disposal || 'dispose', '_setProposalOption_disposal', { compact: true })+'</div>'+
+            '<div>'+selCard('disposal', [DISPOSAL[1]], pOpts.disposal || 'dispose', '_setProposalOption_disposal', { compact: true })+'</div>'+
+          '</div>'+
+          '<div class="ed-body" style="font-size:11px;color:var(--ed-ink-2);margin-top:7px;line-height:1.45;font-style:italic">Either choice is included at no change to your price — the scrap value of the old steel only offsets the labour and time to strip and cart it away, so keeping it or removing it works out the same.</div>'+
         '</div>'+
         // Gutter add-ons — only when a gutter is chosen. Rendered as a compact
         // 2-up row (no card descriptions) so the extra options don't stack the
@@ -22847,7 +22866,7 @@ function _jpRenderCutLists(content, page, idx){
   // ── Selector row (mirrors hidden inputs so the spec is editable here) ──
   html += '<div class="mat-spec-row">'+
     _jpSpecSelect('Profile',     'matProfile',   ['Corrugate','5-Rib','Multidek']) +
-    _jpSpecSelect('Steel grade', 'matGrade',     ['Colorsteel Maxam','Armorsteel ColorZen','Zincalume']) +
+    _jpSpecSelect('Steel grade', 'matGrade',     ['Colorsteel','Colorsteel Maxam','Armorsteel ColorZen','Zincalume']) +
     _jpSpecSelect('Thickness',   'matThickness', ['0.40g','0.55g']) +
     _jpSpecColour() +
     _jpSpecSelect('Ridge',       'matRidgeType', [['standard','Standard ridge'],['wide','Wide ridge']]) +
@@ -24740,6 +24759,8 @@ var _FLASH_PRICE_TABLES = {
     [44.94,46.71,48.48,50.25,52.02,53.79,55.56,57.33]
   ]
 };
+// Plain "Colorsteel" (the default grade) shares MAXAM's supplier pricing.
+_FLASH_PRICE_TABLES['Colorsteel|0.55g'] = _FLASH_PRICE_TABLES['Colorsteel Maxam|0.55g'];
 var FLASH_MARKUP = 1.05;       // +5% on the supplier's table price
 var FLASH_GUARDS_RATE = 5;     // $5/lm extra when flash guards are spec'd
 
