@@ -27315,6 +27315,69 @@ function _ocRowClick(ev, row){
   var cb = row.querySelector('.ordck');
   if (cb){ cb.checked = !cb.checked; _orderChecklistSync(); }
 }
+// Build a read-only cut-list summary (sheet lengths + flashing measures)
+// so the person ordering can eyeball the numbers without leaving the modal.
+// Mirrors the Job Pack cut lists: roof sheets grouped by ordered length,
+// then ridging / gutter / flashings piece runs.
+function _ocCutLine(qty, len, ref){
+  return '<div class="oc-cl-row"><span class="q">'+qty+' ×</span>'+
+    '<span class="l">'+len+'</span>'+(ref?'<span class="rf">'+ref+'</span>':'')+'</div>';
+}
+function _ocCutGroup(title, meta, bodyHtml){
+  return '<div class="oc-cl-grp"><div class="oc-cl-hd"><span class="t">'+title+'</span>'+
+    (meta?'<span class="m">'+meta+'</span>':'')+'</div>'+
+    '<div class="oc-cl-rows">'+bodyHtml+'</div></div>';
+}
+function _ocCutSummary(){
+  var groups = [];
+  // ── Roof sheets — from the same source the Job Pack sheet list uses.
+  var sc = window._lastSheetCounts || null;
+  var profile = (document.getElementById('matProfile') || {}).value || 'Corrugate';
+  var sheetRows = [];
+  if (sc && sc.groups && sc.groups.length){
+    var byLen = {};
+    sc.groups.forEach(function(g){ byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count; });
+    sheetRows = Object.keys(byLen).map(function(k){ return { len: parseInt(k,10), qty: byLen[k] }; })
+      .sort(function(a,b){ return b.len - a.len; });
+  } else if (sc){
+    var longTotal = (sc.orangeLong||0) + (sc.blueLong||0) + (sc.purpleLong||0);
+    if (longTotal) sheetRows.push({ len: sc.longLen||7650, qty: longTotal });
+    if (sc.shortCount) sheetRows.push({ len: sc.shortLen||3900, qty: sc.shortCount });
+  }
+  var totalSheets = 0, sheetBody = '';
+  sheetRows.forEach(function(r){ totalSheets += r.qty; sheetBody += _ocCutLine(r.qty, (r.len/1000).toFixed(2)+' m'); });
+  if (!sheetBody) sheetBody = '<div class="oc-cl-empty">Generate the Roof Sheet Plan in the Job Pack to populate sheet lengths.</div>';
+  groups.push(_ocCutGroup('Roof sheets', esc(profile)+(totalSheets?' · '+totalSheets+' sheets':''), sheetBody));
+
+  // ── Ridging / gutter / flashings — piece runs from the drawing.
+  function pieceBody(cl){
+    return cl.rows.map(function(r){
+      return _ocCutLine(r.qty, (+r.length).toFixed(2)+' m', r.letter || '');
+    }).join('');
+  }
+  if (typeof _matBuildCutList === 'function'){
+    try {
+      var ridge = _matBuildCutList('ridgehip', 0);
+      if (ridge.pieceCount) groups.push(_ocCutGroup('Ridging', ridge.totalLm.toFixed(1)+' lm', pieceBody(ridge)));
+    } catch(e){}
+    try {
+      var gutterChoice = (document.getElementById('matGutter') || {}).value || 'none';
+      if (gutterChoice !== 'none'){
+        var g = _matBuildCutList('gutter', 0);
+        if (g.pieceCount) groups.push(_ocCutGroup('Gutter', g.totalLm.toFixed(1)+' lm', pieceBody(g)));
+      }
+    } catch(e){}
+    try {
+      if (Array.isArray(window._MAT_FLASHING_SPECS)){
+        _MAT_FLASHING_SPECS.slice(1).forEach(function(spec){
+          var cl = _matBuildCutList(spec.key, spec.waste);
+          if (cl.pieceCount) groups.push(_ocCutGroup(spec.label, cl.totalLm.toFixed(1)+' lm', pieceBody(cl)));
+        });
+      }
+    } catch(e){}
+  }
+  return '<div class="oc-cl">'+groups.join('')+'</div>';
+}
 // One checklist row: a tap-anywhere card with a checkbox, a bold field label,
 // and (optionally) a full-width inline control stacked below it. Ticking the
 // box tints the card green for satisfying confirm feedback (via :has()).
@@ -27339,8 +27402,9 @@ function _openOrderChecklist(){
   var gutterRow = noGutter
     ? _ocRow('No gutter required?', '<select onchange="_ocSetSelect(\'matGutter\',this)" class="'+INL+'">'+_ocOptions('matGutter')+'</select>', 'change here if a gutter is needed')
     : _ocRow('Gutter being ordered — correct?', '<select onchange="_ocSetSelect(\'matGutter\',this)" class="'+INL+'">'+_ocOptions('matGutter')+'</select>');
+  try { if (typeof renderRoofSheetPlan === 'function') renderRoofSheetPlan(); } catch(e){}
   var rows = [
-    _ocRow('Sheet lengths correct?', '', 'edit in Cut Lists below'),
+    _ocRow('Sheet lengths &amp; measures correct?', _ocCutSummary(), 'read-only — edit in the Job Pack cut lists'),
     _ocRow('Colour', '<input list="ocColours" value="'+esc(colour)+'" oninput="_ocSetColour(this)" placeholder="e.g. Ironsand" class="'+INL+'">'),
     gutterRow,
     _ocRow('Steel grade &amp; thickness',
@@ -27362,7 +27426,7 @@ function _openOrderChecklist(){
   overlay.onclick = closeOrderChecklist;
   var modal = document.getElementById('orderChecklistModal');
   if (!modal){ modal = document.createElement('div'); modal.id = 'orderChecklistModal'; document.body.appendChild(modal); }
-  modal.style.cssText = 'position:fixed;left:50%;bottom:auto;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;width:min(440px,94vw);max-height:90vh;box-shadow:0 18px 60px rgba(0,0,0,.35);z-index:100051;overflow:hidden;display:flex;flex-direction:column';
+  modal.style.cssText = 'position:fixed;left:50%;bottom:auto;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;width:min(560px,96vw);max-height:90vh;box-shadow:0 18px 60px rgba(0,0,0,.35);z-index:100051;overflow:hidden;display:flex;flex-direction:column';
   modal.innerHTML =
     '<style>'+
       '#orderChecklistModal .oc-inp{width:100%;box-sizing:border-box;font-size:14px;padding:9px 11px;border:1px solid #d3dce6;border-radius:9px;font-family:inherit;background:#fff;color:#0a1628;-webkit-appearance:none;appearance:none}'+
@@ -27384,6 +27448,17 @@ function _openOrderChecklist(){
       '#orderChecklistModal .ord-label{display:block;font-weight:650;font-size:14px;color:#0a1628;line-height:1.35}'+
       '#orderChecklistModal .ord-hint{font-weight:400;color:#94a3b8;font-size:11.5px}'+
       '#orderChecklistModal .ord-ctrl{display:block;margin-top:9px}'+
+      '#orderChecklistModal .oc-cl{display:flex;flex-direction:column;gap:10px;background:#f7fafc;border:1px solid #e6ebf1;border-radius:10px;padding:11px 12px}'+
+      '#orderChecklistModal .oc-cl-grp{}'+
+      '#orderChecklistModal .oc-cl-hd{display:flex;align-items:baseline;gap:8px;margin-bottom:5px;flex-wrap:wrap}'+
+      '#orderChecklistModal .oc-cl-hd .t{font-weight:700;font-size:12px;color:#0a1628;text-transform:uppercase;letter-spacing:.03em}'+
+      '#orderChecklistModal .oc-cl-hd .m{font-size:11px;color:#64748b}'+
+      '#orderChecklistModal .oc-cl-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:3px 14px}'+
+      '#orderChecklistModal .oc-cl-row{display:flex;align-items:baseline;gap:7px;font-size:13px;color:#1e293b;font-variant-numeric:tabular-nums}'+
+      '#orderChecklistModal .oc-cl-row .q{font-weight:700;color:#0a1628;min-width:34px;text-align:right}'+
+      '#orderChecklistModal .oc-cl-row .l{font-weight:500}'+
+      '#orderChecklistModal .oc-cl-row .rf{font-size:10.5px;color:#94a3b8;background:#eef2f6;border-radius:4px;padding:0 5px;margin-left:auto}'+
+      '#orderChecklistModal .oc-cl-empty{font-size:12px;color:#94a3b8;font-style:italic}'+
     '</style>'+
     '<div style="padding:16px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">'+
       '<span style="font-size:18px">🛒</span>'+
