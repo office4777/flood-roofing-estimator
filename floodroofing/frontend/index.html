@@ -23797,20 +23797,25 @@ function renderMatRoofMap(){
     try {
       // The Map Roof canvas is off-screen here, so its size + zoom can be
       // anything (unsized on a fresh deep-link, or the user's last zoom).
-      // Render this mirror into a fixed, known capture buffer and fit the
-      // drawing to it, so the Job Pack map is ALWAYS fit regardless. The
-      // original canvas size + view are restored below (and the Map Roof tab
-      // re-sizes it on show anyway).
+      // Render this mirror into a fixed, known capture buffer, then fit below.
       var _cdpr = Math.min(window.devicePixelRatio || 1, 2);
       src.width  = Math.round(900 * _cdpr);
       src.height = Math.round(600 * _cdpr);
-      _fitted = fitDrawingToCanvas();
+      _fitted = true;   // took over the canvas — restore size + view afterwards
     } catch(e){}
   }
   window._hideCalibrationOverlay = true;
   window._matRoofMapHideBg = true;
   window._matRoofMapHideGrid = true;
   try { redrawAll(); } catch(e){}
+  // With the bg + grid hidden, fit the roof to the capture buffer — a geometry
+  // fit first, then a pixel-accurate correction that measures the actual drawn
+  // roof (robust no matter how the geometry is stored). Guarantees the Job
+  // Pack roof map is fit even on a fresh deep-link.
+  if (!_roofActive){
+    try { fitDrawingToCanvas(); } catch(e){}
+    try { _fitMirrorByPixels(src); } catch(e){}
+  }
   var dpr = window.devicePixelRatio || 1;
   var W = src.width, H = src.height;
   out.innerHTML = '<canvas id="matRoofMapCanvas" width="'+W+'" height="'+H+'" style="display:block;width:100%;height:auto;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer"></canvas>';
@@ -27741,6 +27746,17 @@ function fitDrawingToCanvas(){
   (DRAW.sections || []).forEach(function(s){ var a = (s && s.pts) ? s.pts : (Array.isArray(s) ? s : []); (a || []).forEach(push); });
   (DRAW.lines || []).forEach(function(l){ if (l && l.pts) l.pts.forEach(push); });
   (DRAW.penetrations || []).forEach(function(p){ if (!p) return; if (Array.isArray(p)) push(p); else if (p.pts) p.pts.forEach(push); else if (typeof p.x === 'number') push([p.x, p.y]); });
+  // Multi-roof geometry lives in DRAW.roofs[] (each with its own outline/lines
+  // and an optional view transform). Include those so the fit sees every roof.
+  (DRAW.roofs || []).forEach(function(r){
+    if (!r || !r.outline || !r.outline.length) return;
+    var vo = r.viewOffset || [0, 0];
+    var vz = (typeof r.viewZoom === 'number' && r.viewZoom > 0) ? r.viewZoom : 1;
+    var cx = 0, cy = 0; r.outline.forEach(function(p){ cx += p[0]; cy += p[1]; }); cx /= r.outline.length; cy /= r.outline.length;
+    var xf = function(p){ return [cx + (p[0] - cx) * vz + vo[0], cy + (p[1] - cy) * vz + vo[1]]; };
+    r.outline.forEach(function(p){ push(xf(p)); });
+    (r.lines || []).forEach(function(l){ if (l && l.pts) l.pts.forEach(function(p){ push(xf(p)); }); });
+  });
   if (pts.length < 2) return false;
   var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   pts.forEach(function(p){ if (p[0] < minX) minX = p[0]; if (p[1] < minY) minY = p[1]; if (p[0] > maxX) maxX = p[0]; if (p[1] > maxY) maxY = p[1]; });
@@ -27761,6 +27777,58 @@ function fitDrawingToCanvas(){
   var zl = document.getElementById('zoomLabel'); if (zl) zl.textContent = Math.round(DRAW.zoom * 100) + '%';
   redrawAll();
   return true;
+}
+// Pixel-accurate fit for the off-screen mirror capture: measure the actually-
+// drawn content on the canvas and scale + centre it to fill ~80% of the frame.
+// Structure-independent (works no matter how the geometry is stored), used to
+// guarantee the Job Pack roof map is fit. Bg/grid must already be hidden so
+// only the roof lines/fill are measured.
+function _fitMirrorByPixels(cv){
+  if (!cv) return;
+  var ctx = cv.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+  var W = cv.width, H = cv.height;              // buffer px
+  function bbox(){
+    var d;
+    try { d = ctx.getImageData(0, 0, W, H).data; } catch(e){ return null; }
+    var minX = W, minY = H, maxX = -1, maxY = -1, step = 2;
+    for (var y = 0; y < H; y += step){
+      var row = y * W * 4;
+      for (var x = 0; x < W; x += step){
+        var i = row + x * 4, r = d[i], g = d[i+1], b = d[i+2], a = d[i+3];
+        // Count only the roof's coloured edges / dark lines — a hue-difference
+        // or darkness test — so the light-grey background grid (r≈g≈b) and the
+        // white paper are ignored when measuring the roof's extent.
+        var mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+        var mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+        if (a > 12 && ((mx - mn) > 22 || mx < 170)){
+          if (x < minX) minX = x; if (y < minY) minY = y;
+          if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) return null;
+    return { x:minX, y:minY, w:(maxX - minX), h:(maxY - minY) };
+  }
+  // Zoom out first so the whole roof is guaranteed visible to measure (a
+  // zoomed-in start would be cut off at the frame and mis-measured).
+  DRAW.zoom = Math.max(0.05, (DRAW.zoom || 1) * 0.25);
+  redrawAll();
+  var bb = bbox();
+  if (bb && bb.w > 3 && bb.h > 3 && (bb.w >= W - 4 || bb.h >= H - 4)){
+    // still touching the frame — zoom out more, once
+    DRAW.zoom = Math.max(0.03, DRAW.zoom * 0.4); redrawAll(); bb = bbox();
+  }
+  if (!bb || bb.w < 3 || bb.h < 3) return;
+  var f = Math.min(0.80 * W / bb.w, 0.80 * H / bb.h);
+  DRAW.zoom = Math.max(0.03, Math.min(10, DRAW.zoom * f));
+  redrawAll();
+  var bb2 = bbox();
+  if (bb2){
+    IMG_OFFSET.x += (W / dpr / 2) - ((bb2.x + bb2.w / 2) / dpr);
+    IMG_OFFSET.y += (H / dpr / 2) - ((bb2.y + bb2.h / 2) / dpr);
+    redrawAll();
+  }
 }
 function resetZoom() {
   // "Fit" button — actually fit the drawing to the canvas; only fall back to
