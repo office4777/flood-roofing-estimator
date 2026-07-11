@@ -2661,7 +2661,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
     <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
       <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark" style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
       <button onclick="printJobPack()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
-      <button onclick="pushJobPackToFergus()" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
+      <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
       <button onclick="orderRoofViaSupplier()" class="mat-btn mat-btn-blue" style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
     </div>
   </div>
@@ -2734,7 +2734,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
     <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
       <button onclick="saveMaterialsAsPdf()"    class="mat-btn mat-btn-dark"  style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
       <button onclick="printJobPack()"          class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
-      <button onclick="pushJobPackToFergus()" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
+      <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
       <button onclick="orderRoofViaSupplier()"  class="mat-btn mat-btn-blue"  style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
     </div>
   </div>
@@ -3192,7 +3192,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
     </div>
     <button onclick="saveQuote()" id="qaSaveBtn" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">💾 Save</button>
     <button onclick="openQuoteEmail()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Email Quote</button>
-    <button onclick="pushQuotePdfToFergus()" title="Build the quote proposal PDF and upload it to the linked Fergus job" style="padding:8px 14px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📤 Push to Fergus</button>
+    <button onclick="pushQuotePdfToFergus(this)" title="Build the quote proposal PDF and upload it to the linked Fergus job" style="padding:8px 14px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📤 Push to Fergus</button>
     <button onclick="printQuote()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
     <button onclick="copyCustomerLink()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🔗 Customer link</button>
     <button onclick="saveAsDefaultTemplate()" title="Snapshot this proposal's cover title, about text, terms, inclusions and options as the default for every new quote" style="padding:8px 14px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⭐ Save as default template</button>
@@ -6525,11 +6525,14 @@ function resumeSavedJob(id){ return openJob(id); }
 // browser shows the login screen first and then lands on the job.
 (function _deepLinkBoot(){
   if (window.__CUSTOMER_TOKEN) return;
-  var jobId = null, tab = 'jobpack';
+  var jobId = null, tab = 'materials';
   try {
     var qs = new URLSearchParams(location.search);
     jobId = qs.get('job');
-    tab = qs.get('tab') || 'jobpack';
+    tab = qs.get('tab') || 'materials';
+    // Older PDFs deep-linked to the legacy 'jobpack' stub — send those to the
+    // real Job Pack tab (materials) instead.
+    if (tab === 'jobpack') tab = 'materials';
   } catch(e){ return; }
   if (!jobId) return;
   var tries = 0;
@@ -25631,8 +25634,10 @@ async function pushScopePricingToFergus(){
 function _jobDeepLink(){
   if (!S.currentJobId) return null;
   if (!/^https?:$/.test(location.protocol)) return null;   // dev / file runs
+  // 'materials' is the real Job Pack tab (the old '#tab-jobpack' panel is a
+  // hidden legacy stub); land the deep link there.
   return location.origin + location.pathname +
-    '?job=' + encodeURIComponent(S.currentJobId) + '&tab=jobpack';
+    '?job=' + encodeURIComponent(S.currentJobId) + '&tab=materials';
 }
 
 // Build the Job Pack PDF by capturing each .jp-page off-screen with
@@ -25930,6 +25935,21 @@ function _qaBar(show){
     bar.style.display = 'block';
   } else if (bar){ bar.style.display = 'none'; }
 }
+// Job Pack (Materials) tab loading bar — anchored to the action-bar message.
+function _matBar(show){
+  _ensureLoadingBarCss();
+  var host = document.getElementById('matActionMsg');
+  if (!host) return;
+  var bar = document.getElementById('matBar');
+  if (show){
+    if (!bar){
+      bar = document.createElement('div'); bar.id = 'matBar'; bar.className = 'ld-track';
+      bar.style.width = '100%'; bar.style.marginTop = '6px'; bar.innerHTML = '<i></i>';
+      host.parentNode.insertBefore(bar, host.nextSibling);
+    }
+    bar.style.display = 'block';
+  } else if (bar){ bar.style.display = 'none'; }
+}
 // Customer: full-width "please wait" banner pinned to the bottom (over the
 // action bar) while an acceptance is being recorded + the confirmation email
 // is prepared, so the customer knows not to close the page mid-way.
@@ -26059,22 +26079,38 @@ function _quotePdfFilename(){
   return ('Quote ' + (ref ? ref + ' - ' : '') + client).replace(/\s+/g,' ').trim().slice(0, 80) + '.pdf';
 }
 
+// Shared "uploading…" state for a Fergus push button: disables it and swaps
+// its label to a spinner while the upload runs, then restores it.
+function _fergusBtnBusy(btn, on){
+  if (!btn) return;
+  if (on){
+    if (btn._origHtml == null) btn._origHtml = btn.innerHTML;
+    btn.disabled = true; btn.style.opacity = '.65'; btn.style.pointerEvents = 'none';
+    btn.innerHTML = '⏳ Uploading…';
+  } else {
+    btn.disabled = false; btn.style.opacity = ''; btn.style.pointerEvents = '';
+    if (btn._origHtml != null) { btn.innerHTML = btn._origHtml; btn._origHtml = null; }
+  }
+}
+
 // Push to Fergus (Quote tab) — build the Quote proposal PDF and upload it to
 // the linked Fergus job, exactly like Push to Fergus on the Job Pack tab.
-async function pushQuotePdfToFergus(){
+async function pushQuotePdfToFergus(btn){
   if (!window.S || !S.linkedJobId){
     _qaMsg('No Fergus job linked — link one on the Home tab (📂 Select Job) first, then push.', false);
+    alert('No Fergus job is linked to this quote.\n\nLink one on the Home tab (📂 Select Job → Fergus) first, then push.');
     return;
   }
   try { if (typeof readQuoteFromInputs === 'function') readQuoteFromInputs(); } catch(e){}
-  _qaMsg('Building quote PDF…');
-  var pdf = await _buildQuotePdf();
-  if (!pdf){ _qaMsg('Quote PDF build failed.', false); return; }
-  var blob = pdf.output('blob');
-  var filename = _quotePdfFilename();
-  try { _matDownloadBlob(blob, filename); } catch(e){}
-  _qaMsg('Uploading ' + filename + ' to Fergus job ' + _fergusDisplayNo() + '…');
+  _fergusBtnBusy(btn, true); _qaBar(true);
   try {
+    _qaMsg('Building quote PDF…');
+    var pdf = await _buildQuotePdf();
+    if (!pdf){ _qaMsg('Quote PDF build failed.', false); alert('Sorry — the quote PDF couldn\'t be built. Please try again.'); return; }
+    var blob = pdf.output('blob');
+    var filename = _quotePdfFilename();
+    try { _matDownloadBlob(blob, filename); } catch(e){}
+    _qaMsg('Uploading ' + filename + ' to Fergus job ' + _fergusDisplayNo() + '…');
     var b64 = await new Promise(function(ok, fail){
       var r = new FileReader();
       r.onload = function(){ ok(String(r.result).split(',')[1]); };
@@ -26089,12 +26125,17 @@ async function pushQuotePdfToFergus(){
     });
     var data = await resp.json().catch(function(){ return {}; });
     if (resp.ok && data.ok) {
-      _qaMsg('✓ ' + filename + ' uploaded to Fergus job ' + _fergusDisplayNo(), true);
+      _qaMsg('✓ Sent to Fergus job ' + _fergusDisplayNo(), true);
+      alert('✓ Sent to Fergus\n\nThe quote PDF (' + filename + ') was uploaded to Fergus job ' + _fergusDisplayNo() + '.');
     } else {
       _qaMsg('Quote PDF saved locally — Fergus upload failed.', false);
+      alert('Fergus didn\'t accept the upload.\n\nThe quote PDF was downloaded to this device so you can drop it into the Fergus job manually.');
     }
   } catch(e){
     _qaMsg('Quote PDF saved locally — Fergus upload failed: ' + (e.message || e), false);
+    alert('Fergus upload failed: ' + (e.message || e) + '\n\nThe quote PDF was downloaded so you can add it to Fergus manually.');
+  } finally {
+    _qaBar(false); _fergusBtnBusy(btn, false);
   }
 }
 
@@ -26127,19 +26168,21 @@ async function saveMaterialsAsPdf() {
 // and upload it to the linked Fergus job (same proxy route the scope
 // & pricing PDF uses).  The quickest path from "changed the job pack"
 // to "supplier-ready PDF on the Fergus job".
-async function pushJobPackToFergus() {
+async function pushJobPackToFergus(btn) {
   if (!S.linkedJobId) {
-    _matMsg('No Fergus job linked — link one on the Map Roof tab first, then push.', false);
+    _matMsg('No Fergus job linked — link one on the Home tab (📂 Select Job) first, then push.', false);
+    alert('No Fergus job is linked to this job.\n\nLink one on the Home tab (📂 Select Job → Fergus) first, then push.');
     return;
   }
-  _matMsg('Building PDF…');
-  var filename = _jpPdfFilename();
-  var pdf = await _buildJobPackPdf();
-  if (!pdf) { _matMsg('PDF build failed.', false); return; }
-  var blob = pdf.output('blob');
-  try { _matDownloadBlob(blob, filename); } catch(e){}
-  _matMsg('Uploading ' + filename + ' to Fergus job ' + _fergusDisplayNo() + '…');
+  _fergusBtnBusy(btn, true); _matBar(true);
   try {
+    _matMsg('Building PDF…');
+    var filename = _jpPdfFilename();
+    var pdf = await _buildJobPackPdf();
+    if (!pdf) { _matMsg('PDF build failed.', false); alert('Sorry — the Job Pack PDF couldn\'t be built. Please try again.'); return; }
+    var blob = pdf.output('blob');
+    try { _matDownloadBlob(blob, filename); } catch(e){}
+    _matMsg('Uploading ' + filename + ' to Fergus job ' + _fergusDisplayNo() + '…');
     var b64 = await new Promise(function(ok, fail){
       var r = new FileReader();
       r.onload = function(){ ok(String(r.result).split(',')[1]); };
@@ -26157,12 +26200,17 @@ async function pushJobPackToFergus() {
     try { _matRenderFergusDebug('Last upload attempt', data); } catch(e){}
     if (resp.ok && data.ok) {
       var via = data.used ? ' (via ' + data.used + ')' : '';
-      _matMsg('✓ ' + filename + ' uploaded to Fergus job ' + _fergusDisplayNo() + via, true);
+      _matMsg('✓ Sent to Fergus job ' + _fergusDisplayNo() + via, true);
+      alert('✓ Sent to Fergus\n\nThe Job Pack PDF (' + filename + ') was uploaded to Fergus job ' + _fergusDisplayNo() + '.');
     } else {
       _matMsg('PDF downloaded locally — Fergus rejected the upload; tap "Open in Fergus" and drop it into the gallery.', false);
+      alert('Fergus didn\'t accept the upload.\n\nThe Job Pack PDF was downloaded to this device — tap "Open in Fergus" and drop it into the job gallery manually.');
     }
   } catch(e) {
     _matMsg('PDF downloaded locally — Fergus upload failed: ' + (e.message || e), false);
+    alert('Fergus upload failed: ' + (e.message || e) + '\n\nThe Job Pack PDF was downloaded so you can add it to Fergus manually.');
+  } finally {
+    _matBar(false); _fergusBtnBusy(btn, false);
   }
 }
 
