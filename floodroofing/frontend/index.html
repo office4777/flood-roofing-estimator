@@ -27265,6 +27265,56 @@ function _ocSelText(id){
   if (el.tagName === 'SELECT'){ var o = el.options[el.selectedIndex]; return ((o ? o.textContent : el.value) || '').trim(); }
   return (el.value || '').trim();
 }
+// Clone a source <select>'s options (with the current one selected) so the
+// checklist dropdown mirrors the real spec field.
+function _ocOptions(srcId){
+  var el = document.getElementById(srcId); if (!el || el.tagName !== 'SELECT') return '';
+  return Array.prototype.map.call(el.options, function(o){
+    return '<option value="'+esc(o.value)+'"'+(o.selected ? ' selected' : '')+'>'+esc(o.textContent)+'</option>';
+  }).join('');
+}
+// Changing any inline control unchecks that row (the value changed, so it must
+// be re-confirmed) and re-evaluates whether every box is ticked.
+function _ocChanged(node){
+  var row = node.closest && node.closest('.ord-row');
+  if (row){ var cb = row.querySelector('.ordck'); if (cb) cb.checked = false; }
+  _orderChecklistSync();
+}
+function _ocSetSelect(srcId, node){
+  var el = document.getElementById(srcId);
+  if (el){ el.value = node.value; try { el.dispatchEvent(new Event('change', { bubbles:true })); } catch(e){} }
+  _ocChanged(node);
+}
+function _ocSetColour(node){
+  var el = document.getElementById('matColour');
+  if (el){ el.value = node.value; try { el.dispatchEvent(new Event('input', { bubbles:true })); } catch(e){} }
+  _ocChanged(node);
+}
+function _ocSetPitch(node){
+  var v = parseFloat(node.value) || 0;
+  DRAW.calPitch = v;
+  var pi = document.getElementById('calPitchInput'); if (pi) pi.value = v;
+  try { autoCalcLineMeasurements(); } catch(e){}
+  try { renderSheetLayout(); } catch(e){}
+  try { redrawAll(); } catch(e){}
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+  _ocChanged(node);
+}
+function _ocSetDelivery(node){
+  try { setMatDelivery(node.value); } catch(e){}
+  try { renderJobPack(); } catch(e){}
+  _ocChanged(node);
+}
+// Let a tap anywhere on the row toggle its checkbox — but not when the tap
+// lands on an inline control.
+function _ocRowClick(ev, row){
+  var tg = ev.target;
+  if (tg.classList && tg.classList.contains('ordck')) return;   // native toggle
+  if (tg.closest && tg.closest('select,input,option,button')) return;
+  var cb = row.querySelector('.ordck');
+  if (cb){ cb.checked = !cb.checked; _orderChecklistSync(); }
+}
 function _openOrderChecklist(){
   var colour    = ((document.getElementById('matColour')||{}).value || '').trim();
   var grade     = _ocSelText('matGrade');
@@ -27275,24 +27325,26 @@ function _openOrderChecklist(){
   var noGutter  = (!gutterVal || gutterVal === 'none' || /^(no|none)/i.test(gutterLbl));
   var pitch     = DRAW.calPitch || parseFloat((document.getElementById('calPitchInput')||{}).value) || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
   var delMode   = (window.S && S.order && S.order.deliveryMode) || 'site';
-  var delLabel  = (delMode === 'yard') ? 'Deliver to yard' : 'Deliver to site';
-  var b = function(v){ return '<strong style="color:#0a1628">' + esc(v) + '</strong>'; };
+  var INL = 'font-size:13px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;font-family:inherit;background:#fff;color:#0a1628;max-width:170px;vertical-align:middle';
+  // Each row question — the value-bearing ones embed an inline dropdown/input
+  // bound to the real spec field so the office can fix it right here.
+  var q = [];
+  q.push('Sheet lengths correct? <span style="color:var(--text2);font-size:11px">(edit in Cut Lists below)</span>');
+  q.push('Colour — <input list="ocColours" value="'+esc(colour)+'" oninput="_ocSetColour(this)" placeholder="e.g. Ironsand" style="'+INL+';max-width:150px"> — correct?');
+  q.push('Gutter — <select onchange="_ocSetSelect(\'matGutter\',this)" onclick="event.stopPropagation()" style="'+INL+'">'+_ocOptions('matGutter')+'</select> — correct?');
+  q.push('Steel grade <select onchange="_ocSetSelect(\'matGrade\',this)" onclick="event.stopPropagation()" style="'+INL+'">'+_ocOptions('matGrade')+'</select> · thickness <select onchange="_ocSetSelect(\'matThickness\',this)" onclick="event.stopPropagation()" style="'+INL+';max-width:110px">'+_ocOptions('matThickness')+'</select> — correct?');
+  q.push('Profile <select onchange="_ocSetSelect(\'matProfile\',this)" onclick="event.stopPropagation()" style="'+INL+'">'+_ocOptions('matProfile')+'</select> — correct?');
+  q.push('No extra flashings required? <span style="color:var(--text2);font-size:11px">(add flashings in the Job Pack)</span>');
+  q.push('Roof pitch <input type="number" min="0" max="60" step="1" value="'+(pitch||'')+'" oninput="_ocSetPitch(this)" onclick="event.stopPropagation()" style="'+INL+';max-width:80px">° — correct?');
+  q.push('Delivery — <select onchange="_ocSetDelivery(this)" onclick="event.stopPropagation()" style="'+INL+'"><option value="site"'+(delMode==='site'?' selected':'')+'>Deliver to site</option><option value="yard"'+(delMode==='yard'?' selected':'')+'>Deliver to yard</option></select> — correct?');
 
-  var items = [];
-  items.push('Sheet lengths correct?');
-  items.push('Colour correct — ' + b(colour || 'not set'));
-  items.push(noGutter ? 'No gutter required?' : ('Gutter being ordered — ' + b(gutterLbl || 'gutter') + ' — is this correct?'));
-  items.push('Steel grade ' + b(grade || '—') + ' and thickness ' + b(thickness || '—') + ' correct?');
-  items.push('Profile ' + b(profile || '—') + ' correct?');
-  items.push('No extra flashings required?');
-  items.push('Roof pitch ' + b(pitch ? (pitch + '°') : 'not set') + ' correct?');
-  items.push('Delivery — ' + b(delLabel) + ' — correct?');
-
-  var rows = items.map(function(t){
-    return '<label style="display:flex;gap:11px;align-items:flex-start;padding:11px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:8px;cursor:pointer;font-size:13.5px;line-height:1.45;color:#0a1628">'+
-      '<input type="checkbox" class="ordck" onchange="_orderChecklistSync()" style="width:18px;height:18px;margin:1px 0 0;flex-shrink:0;cursor:pointer">'+
-      '<span>'+t+'</span></label>';
-  }).join('');
+  var rows = q.map(function(t){
+    return '<div class="ord-row" onclick="_ocRowClick(event,this)" style="display:flex;gap:11px;align-items:flex-start;padding:11px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:8px;font-size:13.5px;line-height:1.7;color:#0a1628">'+
+      '<input type="checkbox" class="ordck" onchange="_orderChecklistSync()" style="width:18px;height:18px;margin:3px 0 0;flex-shrink:0;cursor:pointer">'+
+      '<div style="flex:1">'+t+'</div></div>';
+  }).join('') + '<datalist id="ocColours">'+
+    ['Ironsand','Ebony','Grey Friars','Karaka','Permanent Green','Titania','FlaxPod','Sandstone Grey','Gull Grey','New Denim Blue','Pioneer Red','Scoria','Windsor Grey','Slate','Thunder Grey','Lignite','Colorsteel Unpainted / Zincalume']
+      .map(function(c){ return '<option value="'+esc(c)+'">'; }).join('')+'</datalist>';
 
   var overlay = document.getElementById('orderChecklistOverlay');
   if (!overlay){ overlay = document.createElement('div'); overlay.id = 'orderChecklistOverlay'; document.body.appendChild(overlay); }
