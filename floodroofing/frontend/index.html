@@ -4391,6 +4391,7 @@ function gotoTab(t) {
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
+  if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
   if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpRestorePanelState();}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
   if(t!=='materials'){var __mp=document.getElementById('jpMapPanel'); if(__mp)__mp.classList.remove('is-open');}
@@ -4417,6 +4418,12 @@ function gotoTab(t) {
         setTimeout(function(){ try { searchAerialAddress(); } catch(e){} }, 100);
       }
     } catch(e){}
+    // Auto-fit the drawing when a job was just opened (deep link / Select Job /
+    // resume). Deferred so the canvas has its real pixel size first.
+    if (DRAW._fitOnShow) {
+      DRAW._fitOnShow = false;
+      setTimeout(function(){ try { fitCanvasToWrap(); fitDrawingToCanvas(); } catch(e){} }, 200);
+    }
   }
   if(t==='scope'){
     try{populateMaterialsFromLines();}catch(e){console.warn('populate:',e);}
@@ -5559,7 +5566,7 @@ function snapshotCurrentJob(){
     form: form,
     state: { img64:S.img64, roofData:S.roofData, labour:S.labour, materials:S.materials,
              condition:S.condition, photos:S.photos, linkedJobId:S.linkedJobId, linkedJobNo:S.linkedJobNo, linkedJobName:S.linkedJobName,
-             quote:S.quote, jpPdfRev:S.jpPdfRev||0 },
+             quote:S.quote, jpPdfRev:S.jpPdfRev||0, fergusSent:S.fergusSent||null },
     draw: { outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
             penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
             scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step,
@@ -5638,6 +5645,9 @@ function restoreFromJob(j){
   }
   S.currentJobId = j.id;
   setCurrentJobLabel(j);
+  // Next time the Map Roof canvas is shown, auto-fit the drawing so an opened
+  // job (incl. via the PDF deep link) doesn't land zoomed-in on a corner.
+  DRAW._fitOnShow = true;
   // Freshly-opened job = clean state for the dirty tracker, so
   // switching away again without edits doesn't trigger a save.
   try { DRAFTS._lastSnapJson = JSON.stringify(snapshotCurrentJob()); } catch(e){}
@@ -26079,6 +26089,44 @@ function _quotePdfFilename(){
   return ('Quote ' + (ref ? ref + ' - ' : '') + client).replace(/\s+/g,' ').trim().slice(0, 80) + '.pdf';
 }
 
+// Human date/time for the "last sent to Fergus" labels.
+function _fmtSent(iso){
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleString('en-NZ', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
+  catch(e){ return ''; }
+}
+// Record + render when the Job Pack / Quote PDF was last pushed to Fergus, so
+// the office can see it went through and when.
+function _markFergusSent(kind){
+  if (!window.S) return;
+  S.fergusSent = S.fergusSent || {};
+  S.fergusSent[kind] = new Date().toISOString();
+  _renderFergusSent();
+}
+function _renderFergusSent(){
+  var fs = (window.S && S.fergusSent) || {};
+  // Quote tab — a line under the action bar.
+  var qAnchor = document.getElementById('qaMsg');
+  if (qAnchor){
+    var qlbl = document.getElementById('fergusSentQuoteLbl');
+    if (fs.quote){
+      if (!qlbl){ qlbl = document.createElement('span'); qlbl.id = 'fergusSentQuoteLbl'; qlbl.className = 'no-print'; qlbl.style.cssText = 'width:100%;font-size:11px;color:#059669;font-weight:600;margin-top:2px'; qAnchor.parentNode.insertBefore(qlbl, qAnchor.nextSibling); }
+      qlbl.textContent = '✓ Quote last sent to Fergus: ' + _fmtSent(fs.quote);
+      qlbl.style.display = '';
+    } else if (qlbl){ qlbl.style.display = 'none'; }
+  }
+  // Job Pack tab — a line under the designer toolbar.
+  var jtb = document.getElementById('jpToolbar');
+  if (jtb){
+    var jlbl = document.getElementById('fergusSentJobPackLbl');
+    if (fs.jobpack){
+      if (!jlbl){ jlbl = document.createElement('div'); jlbl.id = 'fergusSentJobPackLbl'; jlbl.className = 'no-print'; jlbl.style.cssText = 'width:100%;font-size:11px;color:#059669;font-weight:600;margin-top:6px'; jtb.appendChild(jlbl); }
+      jlbl.textContent = '✓ Job Pack last sent to Fergus: ' + _fmtSent(fs.jobpack);
+      jlbl.style.display = '';
+    } else if (jlbl){ jlbl.style.display = 'none'; }
+  }
+}
+
 // Shared "uploading…" state for a Fergus push button: disables it and swaps
 // its label to a spinner while the upload runs, then restores it.
 function _fergusBtnBusy(btn, on){
@@ -26125,8 +26173,10 @@ async function pushQuotePdfToFergus(btn){
     });
     var data = await resp.json().catch(function(){ return {}; });
     if (resp.ok && data.ok) {
-      _qaMsg('✓ Sent to Fergus job ' + _fergusDisplayNo(), true);
-      alert('✓ Sent to Fergus\n\nThe quote PDF (' + filename + ') was uploaded to Fergus job ' + _fergusDisplayNo() + '.');
+      _markFergusSent('quote');
+      var _sentAt = _fmtSent(S.fergusSent && S.fergusSent.quote);
+      _qaMsg('✓ Sent to Fergus job ' + _fergusDisplayNo() + ' · ' + _sentAt, true);
+      alert('✓ Sent to Fergus\n\nThe quote PDF (' + filename + ') was uploaded to Fergus job ' + _fergusDisplayNo() + '.\n\nSent: ' + _sentAt);
     } else {
       _qaMsg('Quote PDF saved locally — Fergus upload failed.', false);
       alert('Fergus didn\'t accept the upload.\n\nThe quote PDF was downloaded to this device so you can drop it into the Fergus job manually.');
@@ -26199,9 +26249,11 @@ async function pushJobPackToFergus(btn) {
     console.log('Push Job Pack to Fergus response:', data);
     try { _matRenderFergusDebug('Last upload attempt', data); } catch(e){}
     if (resp.ok && data.ok) {
+      _markFergusSent('jobpack');
+      var _sentAtJ = _fmtSent(S.fergusSent && S.fergusSent.jobpack);
       var via = data.used ? ' (via ' + data.used + ')' : '';
-      _matMsg('✓ Sent to Fergus job ' + _fergusDisplayNo() + via, true);
-      alert('✓ Sent to Fergus\n\nThe Job Pack PDF (' + filename + ') was uploaded to Fergus job ' + _fergusDisplayNo() + '.');
+      _matMsg('✓ Sent to Fergus job ' + _fergusDisplayNo() + via + ' · ' + _sentAtJ, true);
+      alert('✓ Sent to Fergus\n\nThe Job Pack PDF (' + filename + ') was uploaded to Fergus job ' + _fergusDisplayNo() + '.\n\nSent: ' + _sentAtJ);
     } else {
       _matMsg('PDF downloaded locally — Fergus rejected the upload; tap "Open in Fergus" and drop it into the gallery.', false);
       alert('Fergus didn\'t accept the upload.\n\nThe Job Pack PDF was downloaded to this device — tap "Open in Fergus" and drop it into the job gallery manually.');
@@ -27645,11 +27697,49 @@ function adjustZoom(delta) {
   document.getElementById('zoomLabel').textContent = Math.round(DRAW.zoom*100)+'%';
   redrawAll();
 }
+// Zoom + pan so the whole drawn roof fits the canvas with a margin. Works
+// with or without a background image (the transform differs — see
+// getImgTransform — so we solve for the offset via the live transform).
+function fitDrawingToCanvas(){
+  var cv = document.getElementById('roofCanvas'); if (!cv) return false;
+  var dpr = window.devicePixelRatio || 1;
+  var W = cv.width / dpr, H = cv.height / dpr;
+  if (!(W > 4 && H > 4)) return false;
+  var pts = [];
+  var push = function(p){ if (p && isFinite(p[0]) && isFinite(p[1])) pts.push(p); };
+  (DRAW.outline || []).forEach(push);
+  (DRAW.sections || []).forEach(function(s){ var a = (s && s.pts) ? s.pts : (Array.isArray(s) ? s : []); (a || []).forEach(push); });
+  (DRAW.lines || []).forEach(function(l){ if (l && l.pts) l.pts.forEach(push); });
+  (DRAW.penetrations || []).forEach(function(p){ if (!p) return; if (Array.isArray(p)) push(p); else if (p.pts) p.pts.forEach(push); else if (typeof p.x === 'number') push([p.x, p.y]); });
+  if (pts.length < 2) return false;
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  pts.forEach(function(p){ if (p[0] < minX) minX = p[0]; if (p[1] < minY) minY = p[1]; if (p[0] > maxX) maxX = p[0]; if (p[1] > maxY) maxY = p[1]; });
+  var bw = Math.max(maxX - minX, 1), bh = Math.max(maxY - minY, 1);
+  var pad = 0.14;   // 14% breathing room around the drawing
+  var sTarget = Math.min(W * (1 - 2 * pad) / bw, H * (1 - 2 * pad) / bh);
+  var base = DRAW.bgImg ? Math.min(W / DRAW.bgImg.naturalWidth, H / DRAW.bgImg.naturalHeight) : 1;
+  if (!(base > 0)) base = 1;
+  DRAW.zoom = Math.max(0.1, Math.min(5, sTarget / base));
+  // Centre the bbox: zero the pan, see where the centre lands, then shift.
+  IMG_OFFSET.x = 0; IMG_OFFSET.y = 0;
+  var t = getImgTransform();
+  if (t){
+    var sc = imgToCanvas([(minX + maxX) / 2, (minY + maxY) / 2], t);
+    IMG_OFFSET.x += (W / 2 - sc[0]);
+    IMG_OFFSET.y += (H / 2 - sc[1]);
+  }
+  var zl = document.getElementById('zoomLabel'); if (zl) zl.textContent = Math.round(DRAW.zoom * 100) + '%';
+  redrawAll();
+  return true;
+}
 function resetZoom() {
+  // "Fit" button — actually fit the drawing to the canvas; only fall back to
+  // 100% when there's nothing drawn yet.
+  if (fitDrawingToCanvas()) return;
   DRAW.zoom = 1.0;
   IMG_OFFSET.x = 0;
   IMG_OFFSET.y = 0;
-  document.getElementById('zoomLabel').textContent = '100%';
+  var zl = document.getElementById('zoomLabel'); if (zl) zl.textContent = '100%';
   redrawAll();
 }
 function applyZoom() {
