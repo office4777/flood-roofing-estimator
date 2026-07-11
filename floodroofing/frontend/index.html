@@ -23789,22 +23789,21 @@ function renderMatRoofMap(){
   // PDF deep link) the Map Roof tab may never have been fit yet, leaving the
   // mirror zoomed-in. Fit the drawing to the canvas JUST for this capture, then
   // restore the user's live zoom/pan so the Map Roof tab is untouched.
-  var _pz = DRAW.zoom, _px = IMG_OFFSET.x, _py = IMG_OFFSET.y, _fitted = false;
+  var _pz = DRAW.zoom, _px = IMG_OFFSET.x, _py = IMG_OFFSET.y, _pw = src.width, _ph = src.height, _fitted = false;
   // Only re-fit when the Map Roof tab ISN'T the one on screen — otherwise the
   // fit→restore redraws would flicker the live canvas while the user draws.
   var _roofActive = (function(){ var r = document.getElementById('tab-roof'); return r && r.classList.contains('active'); })();
   if (!_roofActive){
     try {
-      // When the Map Roof tab has never been shown (deep-link straight to the
-      // Job Pack), its canvas has no real layout size, so a fit computed
-      // against it is meaningless. Give it a standard capture buffer first,
-      // then fit the drawing to that. (The Map Roof tab re-sizes it on show.)
-      var _rect = src.getBoundingClientRect();
-      if (!(_rect.width > 40)){
-        var _cdpr = Math.min(window.devicePixelRatio || 1, 2);
-        src.width  = Math.round(900 * _cdpr);
-        src.height = Math.round(600 * _cdpr);
-      }
+      // The Map Roof canvas is off-screen here, so its size + zoom can be
+      // anything (unsized on a fresh deep-link, or the user's last zoom).
+      // Render this mirror into a fixed, known capture buffer and fit the
+      // drawing to it, so the Job Pack map is ALWAYS fit regardless. The
+      // original canvas size + view are restored below (and the Map Roof tab
+      // re-sizes it on show anyway).
+      var _cdpr = Math.min(window.devicePixelRatio || 1, 2);
+      src.width  = Math.round(900 * _cdpr);
+      src.height = Math.round(600 * _cdpr);
       _fitted = fitDrawingToCanvas();
     } catch(e){}
   }
@@ -23821,7 +23820,7 @@ function renderMatRoofMap(){
     window._hideCalibrationOverlay = false;
     window._matRoofMapHideBg = false;
     window._matRoofMapHideGrid = false;
-    if (_fitted){ DRAW.zoom = _pz; IMG_OFFSET.x = _px; IMG_OFFSET.y = _py; }
+    if (_fitted){ DRAW.zoom = _pz; IMG_OFFSET.x = _px; IMG_OFFSET.y = _py; if (_pw) src.width = _pw; if (_ph) src.height = _ph; }
     try { redrawAll(); } catch(e2){}
     out.innerHTML = '<p style="font-size:12px;color:#b91c1c">Couldn\'t mirror the roof map — refresh the Map Roof tab and try again.</p>';
     return;
@@ -23833,6 +23832,7 @@ function renderMatRoofMap(){
   window._matRoofMapHideGrid = false;
   if (_fitted){
     DRAW.zoom = _pz; IMG_OFFSET.x = _px; IMG_OFFSET.y = _py;
+    if (_pw) src.width = _pw; if (_ph) src.height = _ph;
     var _zl = document.getElementById('zoomLabel'); if (_zl) _zl.textContent = Math.round(DRAW.zoom * 100) + '%';
   }
   try { redrawAll(); } catch(e){}
