@@ -27256,7 +27256,83 @@ async function inspectFergusJob() {
 // then pops a pre-composed email (Gmail compose window, or the default
 // mail app) addressed to the supplier and CC'd to the user's own email,
 // and downloads the order PDF so it can be attached.
-function orderRoofViaSupplier(){ _openOrderEmail(); }
+// Order Roof now goes through a mandatory pre-order checklist — the user must
+// tick every item (confirming the spec matches what they intend to order)
+// before the supplier order email can be sent.
+function orderRoofViaSupplier(){ _openOrderChecklist(); }
+function _ocSelText(id){
+  var el = document.getElementById(id); if (!el) return '';
+  if (el.tagName === 'SELECT'){ var o = el.options[el.selectedIndex]; return ((o ? o.textContent : el.value) || '').trim(); }
+  return (el.value || '').trim();
+}
+function _openOrderChecklist(){
+  var colour    = ((document.getElementById('matColour')||{}).value || '').trim();
+  var grade     = _ocSelText('matGrade');
+  var thickness = _ocSelText('matThickness');
+  var profile   = _ocSelText('matProfile');
+  var gutterVal = ((document.getElementById('matGutter')||{}).value || '').trim();
+  var gutterLbl = _ocSelText('matGutter');
+  var noGutter  = (!gutterVal || gutterVal === 'none' || /^(no|none)/i.test(gutterLbl));
+  var pitch     = DRAW.calPitch || parseFloat((document.getElementById('calPitchInput')||{}).value) || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+  var delMode   = (window.S && S.order && S.order.deliveryMode) || 'site';
+  var delLabel  = (delMode === 'yard') ? 'Deliver to yard' : 'Deliver to site';
+  var b = function(v){ return '<strong style="color:#0a1628">' + esc(v) + '</strong>'; };
+
+  var items = [];
+  items.push('Sheet lengths correct?');
+  items.push('Colour correct — ' + b(colour || 'not set'));
+  items.push(noGutter ? 'No gutter required?' : ('Gutter being ordered — ' + b(gutterLbl || 'gutter') + ' — is this correct?'));
+  items.push('Steel grade ' + b(grade || '—') + ' and thickness ' + b(thickness || '—') + ' correct?');
+  items.push('Profile ' + b(profile || '—') + ' correct?');
+  items.push('No extra flashings required?');
+  items.push('Roof pitch ' + b(pitch ? (pitch + '°') : 'not set') + ' correct?');
+  items.push('Delivery — ' + b(delLabel) + ' — correct?');
+
+  var rows = items.map(function(t){
+    return '<label style="display:flex;gap:11px;align-items:flex-start;padding:11px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:8px;cursor:pointer;font-size:13.5px;line-height:1.45;color:#0a1628">'+
+      '<input type="checkbox" class="ordck" onchange="_orderChecklistSync()" style="width:18px;height:18px;margin:1px 0 0;flex-shrink:0;cursor:pointer">'+
+      '<span>'+t+'</span></label>';
+  }).join('');
+
+  var overlay = document.getElementById('orderChecklistOverlay');
+  if (!overlay){ overlay = document.createElement('div'); overlay.id = 'orderChecklistOverlay'; document.body.appendChild(overlay); }
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100050';
+  overlay.onclick = closeOrderChecklist;
+  var modal = document.getElementById('orderChecklistModal');
+  if (!modal){ modal = document.createElement('div'); modal.id = 'orderChecklistModal'; document.body.appendChild(modal); }
+  modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:520px;max-width:95vw;max-height:88vh;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:100051;overflow:hidden;display:flex;flex-direction:column';
+  modal.innerHTML =
+    '<div style="padding:14px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">'+
+      '<strong style="flex:1;font-size:14px">🛒 Confirm before ordering</strong>'+
+      '<button onclick="closeOrderChecklist()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px">✕ Close</button>'+
+    '</div>'+
+    '<div style="padding:14px 18px 4px;overflow-y:auto;flex:1">'+
+      '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Tick each box to confirm these details are correct. All must be checked before the order can be sent.</div>'+
+      rows+
+    '</div>'+
+    '<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;background:#fafbfc">'+
+      '<button onclick="closeOrderChecklist()" style="padding:9px 16px;background:#fff;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Cancel</button>'+
+      '<button id="orderChecklistGo" onclick="_orderRoofProceed()" disabled style="padding:9px 20px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:not-allowed;opacity:.5">Confirm &amp; order roof →</button>'+
+    '</div>';
+  overlay.style.display = 'block'; modal.style.display = 'flex';
+  _orderChecklistSync();
+}
+function _orderChecklistSync(){
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('#orderChecklistModal .ordck'));
+  var all = boxes.length > 0 && boxes.every(function(b){ return b.checked; });
+  var go = document.getElementById('orderChecklistGo');
+  if (go){ go.disabled = !all; go.style.opacity = all ? '1' : '.5'; go.style.cursor = all ? 'pointer' : 'not-allowed'; }
+}
+function closeOrderChecklist(){
+  var o = document.getElementById('orderChecklistOverlay'); if (o) o.style.display = 'none';
+  var m = document.getElementById('orderChecklistModal'); if (m) m.style.display = 'none';
+}
+function _orderRoofProceed(){
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('#orderChecklistModal .ordck'));
+  if (!(boxes.length && boxes.every(function(b){ return b.checked; }))) return;   // guard
+  closeOrderChecklist();
+  _openOrderEmail();
+}
 
 function _orderEmailSuppliers(){
   var cat = (typeof _ensureCatalog === 'function') ? _ensureCatalog() : { suppliers: [] };
