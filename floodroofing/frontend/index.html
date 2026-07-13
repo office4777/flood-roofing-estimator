@@ -11491,7 +11491,7 @@ function refreshQuoteProposal(){
       var selPanel = function(label, cardsHtml){
         _selSecN++;
         return '<div style="border:1px solid var(--ed-line);background:#fff;box-sizing:border-box;box-shadow:0 1px 3px rgba(10,24,40,.05)">'+
-            '<div style="display:flex;align-items:center;gap:9px;padding:5px 12px;background:var(--ed-ink)">'+
+            '<div style="display:flex;align-items:center;gap:9px;padding:4px 12px;background:var(--ed-ink)">'+
               '<span class="ed-serif" style="font-style:italic;font-size:14px;color:#54bdec;line-height:1;flex-shrink:0">'+('0'+_selSecN).slice(-2)+'</span>'+
               '<span style="font-family:var(--ed-sans);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;color:#fff;white-space:nowrap">'+label+'</span>'+
             '</div>'+
@@ -11548,7 +11548,7 @@ function refreshQuoteProposal(){
           // titles / descriptions / non-bold warranty from the Quote PDF.
           // A div with role=button stays clickable on the live customer link.
           var boxCss = flat
-            ? 'padding:6px 12px 6px 11px;margin:0;border:none;border-left:3px solid '+(picked?'var(--ed-accent)':'transparent')+';'+
+            ? 'padding:5px 12px 5px 11px;margin:0;border:none;border-left:3px solid '+(picked?'var(--ed-accent)':'transparent')+';'+
               (_i < _n-1 ? 'border-bottom:1px solid var(--ed-line);' : '')+'background:'+(picked?'var(--ed-paper-2)':'#fff')+';'
             : 'padding:8px 12px;margin:0 0 6px;border:1px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';'+
               'border-left:3px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';background:'+(picked?'var(--ed-paper-2)':'#fff')+';';
@@ -11582,7 +11582,7 @@ function refreshQuoteProposal(){
       var _selNewTot = (_qpBaseSub() + _qpSelectionDeltaSum()) * (1+_selRate);
       var _selRow = function(label, value, opts2){
         opts2 = opts2 || {};
-        return '<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 13px;'+
+        return '<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 13px;'+
           (opts2.top ? 'border-top:2px solid var(--ed-ink);' : 'border-top:1px solid var(--ed-line);')+
           (opts2.strong ? 'background:var(--ed-paper-2);' : '')+'">'+
           '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink'+(opts2.strong?'':'-2')+');'+(opts2.strong?'font-weight:700;':'')+'">'+label+'</div>'+
