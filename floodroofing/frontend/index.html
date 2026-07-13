@@ -8387,6 +8387,10 @@ var MAXAM_COLOURS = [
   { name:'Mist Green®',        hex:'#9bab9c' },
   { name:'Ebony®',             hex:'#1b1b1d' },
 ];
+// Multi-colour swatch shown when no colour has been chosen yet — a visual
+// "pick a colour" cue in place of any default. Linear (not conic) so
+// html2canvas renders it in the PDF too.
+var _RAINBOW_SWATCH = 'linear-gradient(135deg,#e5484d 0%,#f2a03d 22%,#f5d02f 40%,#2ecc71 58%,#3a8ee6 76%,#9b59b6 100%)';
 
 function defaultProposalUpgrade(name){
   return {
@@ -8846,7 +8850,7 @@ function _setProposalOption_colour(v){    _setProposalOption('colour', v); }
 function _proposalColourLabel(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   if ((p.steelGrade || 'maxam') === 'zincalume') return 'Plain Silver Zincalume';
-  return p.colour || ((document.getElementById('matColour')||{}).value || '').trim() || 'Ironsand®';
+  return p.colour || 'Select colour';   // no default — prompt until chosen
 }
 // Full-swatch colour picker popup — shows every standard Colorsteel colour
 // as a sample tile. Opened from the Selections colour panel + the accept
@@ -8854,7 +8858,7 @@ function _proposalColourLabel(){
 function _openColourPicker(){
   var pal = (typeof MAXAM_COLOURS !== 'undefined') ? MAXAM_COLOURS : [];
   var p = (S.quote && S.quote.proposalOptions) || {};
-  var cur = p.colour || ((document.getElementById('matColour')||{}).value || '').trim() || 'Ironsand®';
+  var cur = p.colour || '';   // no default — nothing highlighted until chosen
   var tiles = pal.map(function(c, i){
     var on = c.name === cur;
     return '<div role="button" tabindex="0" onclick="_pickProposalColour('+i+')" style="cursor:pointer;border:2px solid '+(on?'#0099cc':'transparent')+';border-radius:11px;padding:4px;background:'+(on?'#eaf6fc':'transparent')+';transition:background .12s">'+
@@ -9063,13 +9067,14 @@ function _acceptConfirmBodyHtml(){
     colourCtrl = '<div style="font-size:14px;color:#0a1628;font-weight:600;padding:2px 0">Plain Silver Zincalume <span style="font-weight:400;color:#94a3b8;font-size:11.5px">— unpainted finish</span></div>';
   } else {
     var pal = (typeof MAXAM_COLOURS !== 'undefined') ? MAXAM_COLOURS : [];
-    var curCol = p.colour || ((document.getElementById('matColour')||{}).value || '').trim() || 'Ironsand®';
-    var curHex = (pal.find(function(c){ return c.name === curCol; }) || {}).hex || '#8a8f94';
+    var curCol = p.colour || '';
+    var picked = !!curCol;
+    var curHex = picked ? ((pal.find(function(c){ return c.name === curCol; }) || {}).hex || '#8a8f94') : _RAINBOW_SWATCH;
     // Clickable row opening the swatch picker (same popup as the Selections page).
     colourCtrl = '<div role="button" onclick="_openColourPicker()" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid #d3dce6;border-radius:9px;cursor:pointer;background:#fff">'+
         '<span style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(0,0,0,.15);background:'+curHex+';flex-shrink:0"></span>'+
-        '<span style="flex:1;min-width:0;font-size:14px;color:#0a1628;font-weight:600">'+esc2(curCol)+'</span>'+
-        '<span style="font-size:11.5px;font-weight:700;color:#0099cc;white-space:nowrap">Change ▾</span>'+
+        '<span style="flex:1;min-width:0;font-size:14px;color:'+(picked?'#0a1628':'#0099cc')+';font-weight:600">'+(picked?esc2(curCol):'Select colour')+'</span>'+
+        '<span style="font-size:11.5px;font-weight:700;color:#0099cc;white-space:nowrap">'+(picked?'Change ▾':'Choose ▾')+'</span>'+
       '</div>';
   }
   var html = '';
@@ -11505,13 +11510,16 @@ function refreshQuoteProposal(){
                 '<div style="font-size:10px;color:var(--ed-text2);margin-top:2px;line-height:1.35">Unpainted natural Al/Zn finish — no colour to choose.</div></div>'+
             '</div>';
         }
-        var cur = p.colour || ((document.getElementById('matColour')||{}).value || '').trim() || 'Ironsand®';
-        var hex = (pal.find(function(c){ return c.name === cur; }) || {}).hex || '#8a8f94';
+        // No default — the customer must actively choose. Until then show a
+        // multi-colour swatch + "Select colour" prompt.
+        var cur = p.colour || '';
+        var chosen = !!cur;
+        var hex = chosen ? ((pal.find(function(c){ return c.name === cur; }) || {}).hex || '#8a8f94') : _RAINBOW_SWATCH;
         // Clickable row → opens the full swatch picker popup.
         return '<div role="button" tabindex="0" onclick="_openColourPicker()" style="display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer">'+
             '<span style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(0,0,0,.15);background:'+hex+';flex-shrink:0"></span>'+
-            '<div style="flex:1;min-width:0"><div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-ink);line-height:1.2">'+esc2(cur)+'</div></div>'+
-            '<span class="no-print" style="font-family:var(--ed-sans);font-size:11px;font-weight:600;color:var(--ed-accent);white-space:nowrap">Change ▾</span>'+
+            '<div style="flex:1;min-width:0"><div class="ed-serif" style="font-style:italic;font-size:14px;color:'+(chosen?'var(--ed-ink)':'var(--ed-accent)')+';line-height:1.2">'+(chosen?esc2(cur):'Select colour')+'</div></div>'+
+            '<span class="no-print" style="font-family:var(--ed-sans);font-size:11px;font-weight:600;color:var(--ed-accent);white-space:nowrap">'+(chosen?'Change ▾':'Choose ▾')+'</span>'+
           '</div>'+
           '<div style="font-size:9.5px;color:var(--ed-text2);padding:0 12px 8px;line-height:1.4;font-style:italic">Tap to see the full Colorsteel® colour range — final selection from NZ Steel\'s chip card.</div>';
       };
