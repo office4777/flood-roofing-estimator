@@ -8848,6 +8848,55 @@ function _proposalColourLabel(){
   if ((p.steelGrade || 'maxam') === 'zincalume') return 'Plain Silver Zincalume';
   return p.colour || ((document.getElementById('matColour')||{}).value || '').trim() || 'Ironsand®';
 }
+// Full-swatch colour picker popup — shows every standard Colorsteel colour
+// as a sample tile. Opened from the Selections colour panel + the accept
+// popup; picking a tile writes it through the normal proposal-option path.
+function _openColourPicker(){
+  var pal = (typeof MAXAM_COLOURS !== 'undefined') ? MAXAM_COLOURS : [];
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var cur = p.colour || ((document.getElementById('matColour')||{}).value || '').trim() || 'Ironsand®';
+  var tiles = pal.map(function(c, i){
+    var on = c.name === cur;
+    return '<div role="button" tabindex="0" onclick="_pickProposalColour('+i+')" style="cursor:pointer;border:2px solid '+(on?'#0099cc':'transparent')+';border-radius:11px;padding:4px;background:'+(on?'#eaf6fc':'transparent')+';transition:background .12s">'+
+        '<div style="height:58px;border-radius:8px;background:'+c.hex+';border:1px solid rgba(0,0,0,.14);position:relative">'+(on?'<span style="position:absolute;top:5px;right:6px;width:18px;height:18px;border-radius:50%;background:#0099cc;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:700">✓</span>':'')+'</div>'+
+        '<div style="font-size:11px;color:#0a1628;font-weight:600;text-align:center;margin-top:5px;line-height:1.2">'+esc2(c.name)+'</div>'+
+      '</div>';
+  }).join('');
+  var overlay = document.getElementById('colourPickerOverlay');
+  if (!overlay){ overlay = document.createElement('div'); overlay.id = 'colourPickerOverlay'; document.body.appendChild(overlay); }
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(6,14,28,.55);z-index:100070;backdrop-filter:blur(2px)';
+  overlay.onclick = _closeColourPicker;
+  var modal = document.getElementById('colourPickerModal');
+  if (!modal){ modal = document.createElement('div'); modal.id = 'colourPickerModal'; document.body.appendChild(modal); }
+  modal.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;width:min(460px,94vw);max-height:90vh;box-shadow:0 18px 60px rgba(0,0,0,.35);z-index:100071;overflow:hidden;display:flex;flex-direction:column;font-family:Inter,-apple-system,sans-serif';
+  modal.onclick = function(e){ e.stopPropagation(); };
+  modal.innerHTML =
+    '<div style="padding:16px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:11px">'+
+      '<span style="font-size:18px">🎨</span>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:15px;font-weight:700;line-height:1.2">Choose your colour</div>'+
+        '<div style="font-size:11.5px;color:#94a3b8;margin-top:2px">Standard Colorsteel® range</div>'+
+      '</div>'+
+      '<button onclick="_closeColourPicker()" aria-label="Close" style="background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:15px;line-height:1;flex-shrink:0">✕</button>'+
+    '</div>'+
+    '<div style="padding:14px 16px 8px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px">'+tiles+'</div>'+
+      '<div style="font-size:10px;color:#94a3b8;margin:10px 2px 2px;line-height:1.4;font-style:italic">Approximate colours — final selection is made from NZ Steel\'s physical Colorsteel® chip card.</div>'+
+    '</div>';
+  overlay.style.display = 'block'; modal.style.display = 'flex';
+}
+function _pickProposalColour(idx){
+  var pal = (typeof MAXAM_COLOURS !== 'undefined') ? MAXAM_COLOURS : [];
+  var c = pal[idx]; if (!c) return;
+  _closeColourPicker();
+  try { _setProposalOption('colour', c.name); } catch(e){}
+  // Keep the acceptance popup (if open) in sync with the new colour.
+  try { if (document.getElementById('acceptConfirmBody')) _acceptConfirmRefresh(); } catch(e){}
+}
+function _closeColourPicker(){
+  var o = document.getElementById('colourPickerOverlay'); if (o) o.style.display = 'none';
+  var m = document.getElementById('colourPickerModal'); if (m) m.style.display = 'none';
+}
 
 // ── Editable scope-of-work rows (page 3) ───────────────────────────
 // Each line of S.quote.scope renders as a contenteditable row; edits write
@@ -9015,11 +9064,13 @@ function _acceptConfirmBodyHtml(){
   } else {
     var pal = (typeof MAXAM_COLOURS !== 'undefined') ? MAXAM_COLOURS : [];
     var curCol = p.colour || ((document.getElementById('matColour')||{}).value || '').trim() || 'Ironsand®';
-    var inList = pal.some(function(c){ return c.name === curCol; });
-    colourCtrl = '<select onchange="_acceptSelSet(\'colour\',this.value)" class="acc-sel">'+
-      (inList ? '' : '<option value="'+esc2(curCol)+'" selected>'+esc2(curCol)+'</option>')+
-      pal.map(function(c){ return '<option value="'+esc2(c.name)+'"'+(c.name===curCol?' selected':'')+'>'+esc2(c.name)+'</option>'; }).join('')+
-    '</select>';
+    var curHex = (pal.find(function(c){ return c.name === curCol; }) || {}).hex || '#8a8f94';
+    // Clickable row opening the swatch picker (same popup as the Selections page).
+    colourCtrl = '<div role="button" onclick="_openColourPicker()" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid #d3dce6;border-radius:9px;cursor:pointer;background:#fff">'+
+        '<span style="width:24px;height:24px;border-radius:6px;border:1px solid rgba(0,0,0,.15);background:'+curHex+';flex-shrink:0"></span>'+
+        '<span style="flex:1;min-width:0;font-size:14px;color:#0a1628;font-weight:600">'+esc2(curCol)+'</span>'+
+        '<span style="font-size:11.5px;font-weight:700;color:#0099cc;white-space:nowrap">Change ▾</span>'+
+      '</div>';
   }
   var html = '';
   html += row('Steel grade', sel('steelGrade', GR, 'maxam'));
@@ -11455,16 +11506,14 @@ function refreshQuoteProposal(){
             '</div>';
         }
         var cur = p.colour || ((document.getElementById('matColour')||{}).value || '').trim() || 'Ironsand®';
-        var inList = pal.some(function(c){ return c.name === cur; });
         var hex = (pal.find(function(c){ return c.name === cur; }) || {}).hex || '#8a8f94';
-        var opts = (inList ? '' : '<option value="'+esc2(cur)+'" selected>'+esc2(cur)+'</option>')+
-          pal.map(function(c){ return '<option value="'+esc2(c.name)+'"'+(c.name===cur?' selected':'')+'>'+esc2(c.name)+'</option>'; }).join('');
-        var chev = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748b' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")";
-        return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px 3px">'+
-            '<span style="width:22px;height:22px;border-radius:5px;border:1px solid var(--ed-line);background:'+hex+';flex-shrink:0"></span>'+
-            '<select onchange="_setProposalOption_colour(this.value)" style="flex:1;min-width:0;box-sizing:border-box;font-family:var(--ed-sans);font-size:13px;padding:7px 28px 7px 10px;border:1px solid var(--ed-line);border-radius:0;background:#fff;color:var(--ed-ink);-webkit-appearance:none;appearance:none;background-image:'+chev+';background-repeat:no-repeat;background-position:right 9px center;cursor:pointer">'+opts+'</select>'+
+        // Clickable row → opens the full swatch picker popup.
+        return '<div role="button" tabindex="0" onclick="_openColourPicker()" style="display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer">'+
+            '<span style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(0,0,0,.15);background:'+hex+';flex-shrink:0"></span>'+
+            '<div style="flex:1;min-width:0"><div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-ink);line-height:1.2">'+esc2(cur)+'</div></div>'+
+            '<span class="no-print" style="font-family:var(--ed-sans);font-size:11px;font-weight:600;color:var(--ed-accent);white-space:nowrap">Change ▾</span>'+
           '</div>'+
-          '<div style="font-size:9.5px;color:var(--ed-text2);padding:0 12px 8px;line-height:1.4;font-style:italic">Approximate colour — final selection from NZ Steel\'s physical Colorsteel® chip card.</div>';
+          '<div style="font-size:9.5px;color:var(--ed-text2);padding:0 12px 8px;line-height:1.4;font-style:italic">Tap to see the full Colorsteel® colour range — final selection from NZ Steel\'s chip card.</div>';
       };
       // Price tag for a card: what picking it does to the total.
       // Default pick = "Standard · included"; a configured add-on shows
