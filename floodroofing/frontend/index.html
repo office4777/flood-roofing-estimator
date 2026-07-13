@@ -8840,6 +8840,14 @@ function _setProposalOption_gutter(v){    _setProposalOption('gutterType', v); }
 function _setProposalOption_bracket(v){   _setProposalOption('gutterBracket', v); }
 function _setProposalOption_downpipes(v){ _setProposalOption('downpipes', v); }
 function _setProposalOption_disposal(v){  _setProposalOption('disposal', v); }
+function _setProposalOption_colour(v){    _setProposalOption('colour', v); }
+// The customer-facing roof colour for the Selections page + acceptance popup.
+// Zincalume is unpainted, so its "colour" is always plain silver.
+function _proposalColourLabel(){
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  if ((p.steelGrade || 'maxam') === 'zincalume') return 'Plain Silver Zincalume';
+  return p.colour || ((document.getElementById('matColour')||{}).value || '').trim() || 'Ironsand®';
+}
 
 // ── Editable scope-of-work rows (page 3) ───────────────────────────
 // Each line of S.quote.scope renders as a contenteditable row; edits write
@@ -8999,9 +9007,24 @@ function _acceptConfirmBodyHtml(){
   var row = function(label, control){
     return '<div style="margin-bottom:11px"><div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:5px">'+label+'</div>'+control+'</div>';
   };
+  // Colour — a palette dropdown, unless Zincalume is chosen (then it's the
+  // unpainted plain-silver finish and there's nothing to pick).
+  var colourCtrl;
+  if ((p.steelGrade || 'maxam') === 'zincalume'){
+    colourCtrl = '<div style="font-size:14px;color:#0a1628;font-weight:600;padding:2px 0">Plain Silver Zincalume <span style="font-weight:400;color:#94a3b8;font-size:11.5px">— unpainted finish</span></div>';
+  } else {
+    var pal = (typeof MAXAM_COLOURS !== 'undefined') ? MAXAM_COLOURS : [];
+    var curCol = p.colour || ((document.getElementById('matColour')||{}).value || '').trim() || 'Ironsand®';
+    var inList = pal.some(function(c){ return c.name === curCol; });
+    colourCtrl = '<select onchange="_acceptSelSet(\'colour\',this.value)" class="acc-sel">'+
+      (inList ? '' : '<option value="'+esc2(curCol)+'" selected>'+esc2(curCol)+'</option>')+
+      pal.map(function(c){ return '<option value="'+esc2(c.name)+'"'+(c.name===curCol?' selected':'')+'>'+esc2(c.name)+'</option>'; }).join('')+
+    '</select>';
+  }
   var html = '';
   html += row('Steel grade', sel('steelGrade', GR, 'maxam'));
   html += row('Steel thickness', sel('steelThickness', TH, '40'));
+  html += row('Colour', colourCtrl);
   html += row('Guttering', sel('gutterType', GU, 'none'));
   if (gt !== 'none'){
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
@@ -11419,6 +11442,30 @@ function refreshQuoteProposal(){
             '<div>'+cardsHtml+'</div>'+
           '</div>';
       };
+      // Colour panel body — a swatch + dropdown of the standard palette. If
+      // Zincalume is the chosen grade the roof is unpainted, so the colour is
+      // locked to "Plain Silver Zincalume".
+      var _selColourBody = function(p){
+        var pal = (typeof MAXAM_COLOURS !== 'undefined') ? MAXAM_COLOURS : [];
+        if ((p.steelGrade || 'maxam') === 'zincalume'){
+          return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px">'+
+              '<span style="width:22px;height:22px;border-radius:5px;border:1px solid var(--ed-line);background:linear-gradient(135deg,#dcdee1,#a9adb2 55%,#c9ccd0);flex-shrink:0"></span>'+
+              '<div style="min-width:0"><div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-ink);line-height:1.2">Plain Silver Zincalume</div>'+
+                '<div style="font-size:10px;color:var(--ed-text2);margin-top:2px;line-height:1.35">Unpainted natural Al/Zn finish — no colour to choose.</div></div>'+
+            '</div>';
+        }
+        var cur = p.colour || ((document.getElementById('matColour')||{}).value || '').trim() || 'Ironsand®';
+        var inList = pal.some(function(c){ return c.name === cur; });
+        var hex = (pal.find(function(c){ return c.name === cur; }) || {}).hex || '#8a8f94';
+        var opts = (inList ? '' : '<option value="'+esc2(cur)+'" selected>'+esc2(cur)+'</option>')+
+          pal.map(function(c){ return '<option value="'+esc2(c.name)+'"'+(c.name===cur?' selected':'')+'>'+esc2(c.name)+'</option>'; }).join('');
+        var chev = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748b' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")";
+        return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px 3px">'+
+            '<span style="width:22px;height:22px;border-radius:5px;border:1px solid var(--ed-line);background:'+hex+';flex-shrink:0"></span>'+
+            '<select onchange="_setProposalOption_colour(this.value)" style="flex:1;min-width:0;box-sizing:border-box;font-family:var(--ed-sans);font-size:13px;padding:7px 28px 7px 10px;border:1px solid var(--ed-line);border-radius:0;background:#fff;color:var(--ed-ink);-webkit-appearance:none;appearance:none;background-image:'+chev+';background-repeat:no-repeat;background-position:right 9px center;cursor:pointer">'+opts+'</select>'+
+          '</div>'+
+          '<div style="font-size:9.5px;color:var(--ed-text2);padding:0 12px 8px;line-height:1.4;font-style:italic">Approximate colour — final selection from NZ Steel\'s physical Colorsteel® chip card.</div>';
+      };
       // Price tag for a card: what picking it does to the total.
       // Default pick = "Standard · included"; a configured add-on shows
       // +$X / −$X incl. GST; an unpriced non-default shows "Included".
@@ -11432,6 +11479,7 @@ function refreshQuoteProposal(){
         cardOpts = cardOpts || {};
         var compact = !!cardOpts.compact;
         var flat = !!cardOpts.flat;   // rows inside a selPanel: no card border, divider-separated
+        var noWarranty = !!cardOpts.noWarranty;   // hide the warranty line (shown in full on the material page)
         var _n = items.length;
         return items.map(function(it, _i){
           var picked = current === it.id;
@@ -11463,7 +11511,7 @@ function refreshQuoteProposal(){
                 // Compact cards (gutter add-ons) drop the description/warranty
                 // so a whole extra row of options doesn't push the page tall.
                 (!compact && it.desc ? '<div class="ed-body" style="font-size:10.5px;color:var(--ed-ink-2);margin-top:2px;line-height:1.35">'+esc2(it.desc)+'</div>' : '')+
-                (!compact && it.warranty ? '<div style="font-size:10px;color:var(--ed-text2);margin-top:3px;line-height:1.4">'+it.warranty+'</div>' : '')+
+                (!compact && !noWarranty && it.warranty ? '<div style="font-size:10px;color:var(--ed-text2);margin-top:3px;line-height:1.4">'+it.warranty+'</div>' : '')+
               '</div>'+
             '</div>'+
           '</div>';
@@ -11501,6 +11549,7 @@ function refreshQuoteProposal(){
       var _selSummaryLine =
         esc2((GRADES.find(function(g){return g.id===(pOpts.steelGrade||'maxam');})||{}).label||'—') + ' · '+
         esc2((THICKS.find(function(t){return t.id===(pOpts.steelThickness||'40');})||{}).label||'—') + ' · '+
+        esc2(_proposalColourLabel()) + ' · '+
         esc2((GUTTERS.find(function(g){return g.id===(pOpts.gutterType||'none');})||{}).label||'—')+
         (pOpts.gutterType && pOpts.gutterType !== 'none'
           ? ' · ' + esc2((BRACKETS.find(function(b){return b.id===(pOpts.gutterBracket||'external');})||{}).label||'—')
@@ -11510,33 +11559,34 @@ function refreshQuoteProposal(){
       partOptionsSelections =
         edHeading('04','Choose your options','Selections')+
         // One-line "how this works" so the page explains itself.
-        '<div class="ed-body" style="margin:-6px 0 16px;font-size:12px;color:var(--ed-ink-2);line-height:1.5">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is in the panel below.</div>'+
-        // Row 1 — Steel grade (left) beside Steel thickness + Guttering (right).
-        // Each group is its own titled panel so the sections are unmistakable.
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;align-items:start">'+
-          selPanel('Steel grade', selCard('steelGrade', GRADES, pOpts.steelGrade || 'maxam', '_setProposalOption_grade', { flat: true }))+
-          '<div style="display:grid;gap:12px;align-content:start">'+
+        '<div class="ed-body" style="margin:-6px 0 9px;font-size:12px;color:var(--ed-ink-2);line-height:1.5">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is in the panel below.</div>'+
+        // LEFT column — steel grade, thickness, colour. RIGHT column —
+        // guttering, brackets, downpipes. Each group is its own titled panel
+        // so the sections are unmistakable.
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px;align-items:start">'+
+          '<div style="display:grid;gap:10px;align-content:start">'+
+            selPanel('Steel grade', selCard('steelGrade', GRADES, pOpts.steelGrade || 'maxam', '_setProposalOption_grade', { flat: true, noWarranty: true }))+
             selPanel('Steel thickness', selCard('steelThickness', THICKS, pOpts.steelThickness || '40', '_setProposalOption_thickness', { flat: true }))+
+            selPanel('Colour', _selColourBody(pOpts))+
+          '</div>'+
+          '<div style="display:grid;gap:10px;align-content:start">'+
             selPanel('Guttering', selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter', { flat: true }))+
+            (pOpts.gutterType && pOpts.gutterType !== 'none'
+              ? selPanel('Gutter brackets', selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'external', '_setProposalOption_bracket', { flat: true, compact: true }))+
+                selPanel('Downpipes', selCard('downpipes', DOWNPIPES, pOpts.downpipes || 'no', '_setProposalOption_downpipes', { flat: true, compact: true }))
+              : '')+
           '</div>'+
         '</div>'+
-        // Row 2 — Existing roofing material (keep vs. dispose; both $0).
+        // Existing roofing material (keep vs. dispose; both $0) — full width.
         '<div style="margin-bottom:12px">'+
           selPanel('Existing roofing material',
             selCard('disposal', DISPOSAL, pOpts.disposal || 'dispose', '_setProposalOption_disposal', { flat: true, compact: true })+
-            '<div class="ed-body" style="font-size:10.5px;color:var(--ed-ink-2);margin:0;padding:7px 12px 9px;line-height:1.45;font-style:italic;border-top:1px solid var(--ed-line);background:#fbfaf7">Either choice is included at no change to your price — the scrap value of the old steel only offsets the labour and time to strip and cart it away, so keeping it or removing it works out the same.</div>'
+            '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:0;padding:5px 12px 6px;line-height:1.4;font-style:italic;border-top:1px solid var(--ed-line);background:#fbfaf7">Either choice is included at no change to your price — the scrap value of the old steel only offsets the labour and time to strip and cart it away.</div>'
           )+
         '</div>'+
-        // Row 3 — gutter add-ons, only when a gutter is chosen.
-        (pOpts.gutterType && pOpts.gutterType !== 'none'
-          ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;align-items:start">'+
-              selPanel('Gutter brackets', selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'external', '_setProposalOption_bracket', { flat: true, compact: true }))+
-              selPanel('Downpipes', selCard('downpipes', DOWNPIPES, pOpts.downpipes || 'no', '_setProposalOption_downpipes', { flat: true, compact: true }))+
-            '</div>'
-          : '')+
-        '<div style="margin-top:6px;border-left:3px solid var(--ed-accent)">'+
-          '<div style="padding:12px 16px 10px;background:var(--ed-paper-2)">'+
-            '<div class="ed-eyebrow" style="margin-bottom:4px">Your selection &amp; price</div>'+
+        '<div style="margin-top:4px;border-left:3px solid var(--ed-accent)">'+
+          '<div style="padding:9px 16px 8px;background:var(--ed-paper-2)">'+
+            '<div class="ed-eyebrow" style="margin-bottom:3px">Your selection &amp; price</div>'+
             '<div style="font-family:var(--ed-sans);font-size:12px;line-height:1.6;color:var(--ed-ink-2)">'+_selSummaryLine+'</div>'+
           '</div>'+
           _selPricing+
