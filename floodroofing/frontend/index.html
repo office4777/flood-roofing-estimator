@@ -8971,6 +8971,88 @@ function acceptQuoteDigitally(){
   var name = (nameEl && nameEl.value.trim()) || (S.quote.client||'').trim();
   if (!name){ alert('Please type your full name to accept the quote.'); if (nameEl) { try{nameEl.scrollIntoView({block:'center'});}catch(e){} nameEl.focus(); } return; }
   if (termsEl && !termsEl.checked){ alert('Please tick the box to confirm you accept the quote and the terms & conditions.'); try{termsEl.scrollIntoView({block:'center'});}catch(e){} return; }
+  // Final gate: show the customer a popup summarising exactly what they're
+  // accepting (their Selections-page picks + the total). The acceptance is
+  // only recorded once they confirm in that modal.
+  _openAcceptConfirm(name);
+}
+// Human-readable list of the customer's Selections-page picks, for the
+// confirmation popup. Labels mirror the Selections page option cards.
+function _acceptSelectionList(){
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var M = {
+    steelGrade:{ maxam:'Colorsteel® MAXAM', colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume® (unpainted)' },
+    steelThickness:{ '40':'0.40 gauge', '55':'0.55 gauge' },
+    gutterType:{ none:'No new gutter', box125:'125mm Colorsteel Box Gutter', marley_typhoon:'Marley Typhoon (PVC)', marley_classic:'Marley Classic (PVC)' },
+    gutterBracket:{ external:'External brackets', internal:'Internal brackets' },
+    downpipes:{ no:'Keep existing downpipes', yes:'New downpipes' },
+    disposal:{ dispose:'We dispose of all existing material', keep:'Keep all existing material on site' }
+  };
+  var lbl = function(grp, def){ return (M[grp] && (M[grp][p[grp]] || M[grp][def])) || '—'; };
+  var rows = [];
+  rows.push(['Roofing steel', lbl('steelGrade','maxam') + ' · ' + lbl('steelThickness','40')]);
+  var gt = p.gutterType || 'none';
+  if (gt === 'none') { rows.push(['Guttering', 'No new gutter']); }
+  else { rows.push(['Guttering', lbl('gutterType','none') + ' · ' + lbl('gutterBracket','external') + ' · ' + (p.downpipes === 'yes' ? 'New downpipes' : 'Existing downpipes')]); }
+  rows.push(['Existing material', lbl('disposal','dispose')]);
+  return rows;
+}
+// Confirmation popup shown after the customer taps Accept — a last-chance
+// summary of their picks + total that they must confirm before it's recorded.
+function _openAcceptConfirm(name){
+  window.__acceptConfirmName = name;
+  var rate = (S.quote.gstRate||0)/100;
+  var total = (_qpBaseSub() + _qpSelectionDeltaSum()) * (1+rate);
+  var rows = _acceptSelectionList().map(function(r){
+    return '<div style="display:flex;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid #eef2f6">'+
+        '<span style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0">'+r[0]+'</span>'+
+        '<span style="font-size:13.5px;color:#0a1628;font-weight:600;text-align:right">'+esc2(r[1])+'</span>'+
+      '</div>';
+  }).join('');
+  var overlay = document.getElementById('acceptConfirmOverlay');
+  if (!overlay){ overlay = document.createElement('div'); overlay.id = 'acceptConfirmOverlay'; document.body.appendChild(overlay); }
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(6,14,28,.55);z-index:100060;backdrop-filter:blur(2px)';
+  overlay.onclick = _acceptConfirmClose;
+  var modal = document.getElementById('acceptConfirmModal');
+  if (!modal){ modal = document.createElement('div'); modal.id = 'acceptConfirmModal'; document.body.appendChild(modal); }
+  modal.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;width:min(460px,94vw);max-height:90vh;box-shadow:0 18px 60px rgba(0,0,0,.35);z-index:100061;overflow:hidden;display:flex;flex-direction:column;font-family:Inter,-apple-system,sans-serif';
+  modal.onclick = function(e){ e.stopPropagation(); };
+  modal.innerHTML =
+    '<div style="padding:16px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:11px">'+
+      '<span style="font-size:19px">✓</span>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:15px;font-weight:700;line-height:1.2">Confirm your selections</div>'+
+        '<div style="font-size:11.5px;color:#94a3b8;margin-top:2px">Please check these are right before you accept</div>'+
+      '</div>'+
+      '<button onclick="_acceptConfirmClose()" aria-label="Close" style="background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:15px;line-height:1;flex-shrink:0">✕</button>'+
+    '</div>'+
+    '<div style="padding:14px 18px 6px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">'+
+      rows+
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:13px 0 4px">'+
+        '<span style="font-size:13px;color:#0a1628;font-weight:700">Total <span style="font-weight:400;color:#94a3b8;font-size:11.5px">(incl. GST)</span></span>'+
+        '<span style="font-size:20px;color:#0099cc;font-weight:800;white-space:nowrap">'+fmtMoney(total)+'</span>'+
+      '</div>'+
+    '</div>'+
+    '<div style="padding:12px 16px;border-top:1px solid #eef2f6;display:flex;gap:9px;background:#fafbfc">'+
+      '<button onclick="_acceptConfirmClose()" style="padding:11px 16px;background:#fff;border:1px solid #d3dce6;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;color:#334155">← Review</button>'+
+      '<button onclick="_acceptConfirmProceed()" style="flex:1;padding:11px 16px;background:#0099cc;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer">Confirm &amp; accept ✓</button>'+
+    '</div>';
+  overlay.style.display = 'block'; modal.style.display = 'flex';
+}
+function _acceptConfirmClose(){
+  var o = document.getElementById('acceptConfirmOverlay'); if (o) o.style.display = 'none';
+  var m = document.getElementById('acceptConfirmModal'); if (m) m.style.display = 'none';
+}
+function _acceptConfirmProceed(){
+  var name = window.__acceptConfirmName || (S.quote && (S.quote.client||'').trim()) || '';
+  _acceptConfirmClose();
+  _acceptQuoteFinalize(name);
+}
+// Records the acceptance (who / when / picks / total) then, in customer mode,
+// posts it to the office and emails the confirmation PDF. Split out of
+// acceptQuoteDigitally so the confirmation popup gates it.
+function _acceptQuoteFinalize(name){
+  if (!S.quote) return;
   var rate = (S.quote.gstRate||0)/100;
   var sel = (S.quote.options||[]).filter(function(o){ return o.selected !== false; });
   // Same maths as the Selections page's "New total" + the acceptance
