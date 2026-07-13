@@ -15,6 +15,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+<!-- Editorial serif for the customer proposal display headings. Falls back
+     to Georgia (a local system serif) so the quote + its PDF still render a
+     genuine serif even if the webfont is blocked or slow. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&display=swap">
 <style>
 /* ──────────────────────────────────────────────────────────────
    RoofMap — Minimal Scandi design system
@@ -1505,7 +1509,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   --ed-ink:#0a1828; --ed-ink-2:#1d2a3d;
   --ed-accent:#0099e0; --ed-accent-deep:#006fb3; --ed-warm:#b86b4c;
   --ed-line:#d9d2c5; --ed-text2:#6f6a60;
-  --ed-serif:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  --ed-serif:'Newsreader',Georgia,'Times New Roman',Cambria,'Playfair Display',serif;
   --ed-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
 }
 .report-preview .ed-serif{font-family:var(--ed-serif)}
@@ -11295,6 +11299,18 @@ function refreshQuoteProposal(){
         { id:'dispose', label:'We dispose of all existing material', isDefault:true, delta:0, desc:'We strip and remove all old roofing sheets and flashings off site.' },
         { id:'keep',    label:'Keep all existing material on site',  delta:0, desc:'We leave all old sheets and flashings stacked on site for you.' }
       ];
+      // Distinctive section header: a numbered accent tab + label + a rule
+      // that fades across the column, so each selection group reads as its
+      // own block instead of relying on a lone eyebrow label.
+      var _selSecN = 0;
+      var _selHd = function(label, mt){
+        _selSecN++;
+        return '<div style="display:flex;align-items:center;gap:9px;margin:'+(mt||0)+'px 0 9px">'+
+            '<span class="ed-serif" style="font-style:italic;font-size:15px;color:var(--ed-accent);line-height:1;flex-shrink:0">'+('0'+_selSecN).slice(-2)+'</span>'+
+            '<span class="ed-eyebrow" style="white-space:nowrap;flex-shrink:0">'+label+'</span>'+
+            '<span style="flex:1;height:2px;background:linear-gradient(90deg,var(--ed-accent) 0%,var(--ed-line) 100%);opacity:.55;border-radius:2px"></span>'+
+          '</div>';
+      };
       // Price tag for a card: what picking it does to the total.
       // Default pick = "Standard · included"; a configured add-on shows
       // +$X / −$X incl. GST; an unpriced non-default shows "Included".
@@ -11384,20 +11400,20 @@ function refreshQuoteProposal(){
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:14px">'+
           // LEFT: steel grade. RIGHT: steel thickness + guttering choice.
           '<div>'+
-            '<div class="ed-eyebrow" style="margin-bottom:6px">Steel grade</div>'+
+            _selHd('Steel grade')+
             selCard('steelGrade', GRADES, pOpts.steelGrade || 'maxam', '_setProposalOption_grade')+
           '</div>'+
           '<div>'+
-            '<div class="ed-eyebrow" style="margin-bottom:6px">Steel thickness</div>'+
+            _selHd('Steel thickness')+
             selCard('steelThickness', THICKS, pOpts.steelThickness || '40', '_setProposalOption_thickness')+
-            '<div class="ed-eyebrow" style="margin:12px 0 6px">Guttering</div>'+
+            _selHd('Guttering', 14)+
             selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter')+
           '</div>'+
         '</div>'+
         // Existing roofing material — keep on site vs. we dispose. Both are
         // $0 (scrap value offsets disposal labour), explained in the note.
         '<div style="margin-bottom:14px">'+
-          '<div class="ed-eyebrow" style="margin-bottom:6px">Existing roofing material</div>'+
+          _selHd('Existing roofing material')+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">'+
             '<div>'+selCard('disposal', [DISPOSAL[0]], pOpts.disposal || 'dispose', '_setProposalOption_disposal', { compact: true })+'</div>'+
             '<div>'+selCard('disposal', [DISPOSAL[1]], pOpts.disposal || 'dispose', '_setProposalOption_disposal', { compact: true })+'</div>'+
@@ -11410,11 +11426,11 @@ function refreshQuoteProposal(){
         (pOpts.gutterType && pOpts.gutterType !== 'none'
           ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:14px">'+
               '<div>'+
-                '<div class="ed-eyebrow" style="margin-bottom:6px">Gutter brackets</div>'+
+                _selHd('Gutter brackets')+
                 selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'external', '_setProposalOption_bracket', { compact: true })+
               '</div>'+
               '<div>'+
-                '<div class="ed-eyebrow" style="margin-bottom:6px">Downpipes</div>'+
+                _selHd('Downpipes')+
                 selCard('downpipes', DOWNPIPES, pOpts.downpipes || 'no', '_setProposalOption_downpipes', { compact: true })+
               '</div>'+
             '</div>'
@@ -26084,6 +26100,14 @@ async function _buildQuotePdf(opts){
   opts = opts || {};
   var _capScale = opts.scale || 2;   // lower = faster render (used for the accept-email PDF)
   try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
+  // Make sure the proposal webfonts (Inter + Newsreader serif) have loaded
+  // before html2canvas paints, otherwise the PDF captures the Georgia
+  // fallback mid-swap. Cap the wait so a blocked CDN can't hang the export.
+  try {
+    if (document.fonts && document.fonts.ready) {
+      await Promise.race([ document.fonts.ready, new Promise(function(r){ setTimeout(r, 1500); }) ]);
+    }
+  } catch(e){}
   try { await _loadPdfLibs(); } catch(err){ console.warn('PDF libs failed to load:', err); return null; }
   var html2canvas = window.html2canvas;
   var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
