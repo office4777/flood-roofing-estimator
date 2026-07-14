@@ -2121,6 +2121,14 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
           <svg viewBox="0 0 16 16" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4 6l4-4 4 4"/><path d="M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
           Upload from PC
         </button>
+        <button type="button" onclick="openFergusPhotoPicker('canvas')"
+                style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
+          📷 Import from Fergus
+        </button>
+        <button type="button" onclick="probeFergusFilesRoof()"
+                style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
+          🔍 Probe endpoints
+        </button>
       </div>
     </div>
     <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="uploaded roof"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">× Remove</button></div>
@@ -10032,11 +10040,67 @@ function slotPickerTab(tab){
           (p.caption?'<div style="position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.6);color:#fff;font-size:10px">'+esc2(p.caption)+'</div>':'')+
         '</div>';
       }).join('') + '</div>';
+  } else if (tab === 'fergus'){
+    if (!window.S || !S.linkedJobId){
+      body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px">Link a Fergus job first — Home → 📂 Select Job → Fergus.</div>';
+      return;
+    }
+    body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px">Loading photos from Fergus…</div>';
+    _slotFergusLoad();
   } else if (tab === 'upload'){
     body.innerHTML = '<div style="padding:32px;text-align:center">'+
       '<label style="display:inline-block;padding:12px 22px;background:#0099cc;color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Choose file<input type="file" accept="image/*" style="display:none" onchange="uploadSlotFile(event)"></label>'+
       '<div style="font-size:11px;color:var(--text2);margin-top:10px">Saves to this proposal only. Use <strong>Stock proposal photos</strong> for re-usable photos.</div>'+
     '</div>';
+  }
+}
+// Load the linked job's Fergus photos into the slot picker's From-Fergus
+// tab; tapping one downloads it and drops it into the active quote slot.
+async function _slotFergusLoad(){
+  var body = document.getElementById('slotPickerBody');
+  if (!body) return;
+  var res;
+  try { res = await _fergusListPhotos(); }
+  catch(e){ body.innerHTML = '<div style="padding:20px;color:#b91c1c;font-size:12px">Couldn\'t reach Fergus: '+esc(e.message)+'</div>'; return; }
+  if (!res.ok || !res.files.length){
+    body.innerHTML = '<div style="padding:18px 4px;color:var(--text2);font-size:12px;line-height:1.55">'+
+      '<div style="color:#b91c1c;font-weight:600;margin-bottom:6px">No photos came back for this job.</div>'+
+      'Fergus may keep this job\'s gallery behind its web-app login. Try <strong>Upload from file</strong> instead.'+
+    '</div>';
+    return;
+  }
+  _fergusRevokeObjUrls();
+  body.innerHTML = '<div id="slotFergusGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px"></div>';
+  var grid = document.getElementById('slotFergusGrid');
+  res.files.forEach(function(f){
+    var cell = document.createElement('div');
+    cell.style.cssText = 'cursor:pointer;border-radius:6px;overflow:hidden;background:#000;aspect-ratio:4/3;position:relative';
+    cell.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#5b6677;font-size:11px">loading…</div>';
+    cell.onclick = function(){ _slotPickFergus(f); };
+    grid.appendChild(cell);
+    _fergusDownloadBlob(f.thumbnail || f.url).then(function(blob){
+      var u = URL.createObjectURL(blob); _fergusPickObjUrls.push(u);
+      cell.innerHTML = '<img src="'+u+'" style="width:100%;height:100%;object-fit:cover">'+
+        (f.name?'<div style="position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(f.name)+'</div>':'');
+    }).catch(function(){
+      cell.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#7a8699;font-size:10px;text-align:center;padding:6px;line-height:1.35">'+esc(f.name||'photo')+'<br>(tap to use)</div>';
+    });
+  });
+}
+async function _slotPickFergus(f){
+  var slotId = _slotPickerActive;
+  var body = document.getElementById('slotPickerBody');
+  if (body) body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px">Downloading photo…</div>';
+  try {
+    var blob = await _fergusDownloadBlob(f.url || f.thumbnail);
+    var dataUrl = await _blobToDataUrl(blob);
+    if (slotId) _slotAssignments()[slotId] = { source:'upload', dataUrl: dataUrl, caption: f.name || '' };
+    _fergusRevokeObjUrls();
+    closeSlotPicker();
+    renderSlotGrid();
+    refreshQuoteProposal();
+  } catch(e){
+    if (body) body.innerHTML = '<div style="padding:20px;color:#b91c1c;font-size:12px">Download failed: '+esc(e.message)+'</div>';
   }
 }
 function assignSlot(source, ref){
@@ -27771,6 +27835,222 @@ async function probeFergusFiles() {
   }
 }
 
+// ============================================================
+// Fergus job-photo import — pull phase / project-gallery photos
+// straight onto the Map Roof canvas (as the trace-over background)
+// or onto a quote photo slot.
+//
+// Fergus file URLs require an Authorization: Bearer header to
+// download, which an <img src> can't send — so we stream the bytes
+// through the backend proxy (/fergus-files/download) and hand back
+// an object URL for display / a data URL for storage.
+// ============================================================
+var _fergusPickTarget  = null;   // 'canvas' or a quote slotId string
+var _fergusPickObjUrls = [];     // object URLs to revoke when the picker closes
+
+async function _fergusDownloadBlob(fileUrl){
+  var token = localStorage.getItem('fr_token') || '';
+  var r = await fetch(PROXY + '/fergus-files/download?url=' + encodeURIComponent(fileUrl), {
+    headers: { 'Authorization': 'Bearer ' + token },
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return await r.blob();
+}
+function _blobToDataUrl(blob){
+  return new Promise(function(resolve, reject){
+    var fr = new FileReader();
+    fr.onload  = function(){ resolve(fr.result); };
+    fr.onerror = function(){ reject(new Error('read failed')); };
+    fr.readAsDataURL(blob);
+  });
+}
+// Is this file a picture (vs a PDF / doc)? Used to filter the gallery list.
+function _fergusIsImage(f){
+  var ct = (f.contentType || '').toLowerCase();
+  if (ct.indexOf('image') === 0) return true;
+  var nm = (f.name || f.url || '').toLowerCase();
+  if (/\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)(\?|#|$)/.test(nm)) return true;
+  // Unknown type with no obvious doc extension — let it through; a failed
+  // thumbnail load just hides it.
+  return !ct && !/\.(pdf|docx?|xlsx?|pptx?|zip|csv|txt)(\?|#|$)/.test(nm);
+}
+async function _fergusListPhotos(){
+  var token = localStorage.getItem('fr_token') || '';
+  var r = await fetch(PROXY + '/fergus-files/list?jobId=' + encodeURIComponent(String(S.linkedJobId)), {
+    headers: { 'Authorization': 'Bearer ' + token },
+  });
+  var data = await r.json().catch(function(){ return {}; });
+  return { ok: !!(data && data.ok), files: ((data && data.files) || []).filter(_fergusIsImage), raw: data };
+}
+function _fergusRevokeObjUrls(){
+  _fergusPickObjUrls.forEach(function(u){ try { URL.revokeObjectURL(u); } catch(e){} });
+  _fergusPickObjUrls = [];
+}
+function closeFergusPhotoPicker(){
+  var modal = document.getElementById('fergusPhotoModal');
+  if (modal) modal.style.display = 'none';
+  _fergusRevokeObjUrls();
+  _fergusPickTarget = null;
+}
+// target: 'canvas' (roof background) or a quote slotId string.
+async function openFergusPhotoPicker(target){
+  if (!window.S || !S.linkedJobId){
+    alert('Link a Fergus job first — Home → 📂 Select Job → Fergus.');
+    return;
+  }
+  _fergusPickTarget = target;
+  var modal = document.getElementById('fergusPhotoModal');
+  var body  = document.getElementById('fergusPhotoBody');
+  var sub   = document.getElementById('fergusPhotoSub');
+  if (!modal || !body) return;
+  modal.style.display = 'flex';
+  if (sub) sub.textContent = 'Job ' + (S.linkedJobNo || S.linkedJobId) +
+    (S.linkedJobName ? ' · ' + S.linkedJobName : '') +
+    (target === 'canvas' ? ' — tap a photo to use it as the roof background'
+                         : ' — tap a photo to drop it into this slot');
+  body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12.5px">Loading photos from Fergus…</div>';
+  _fergusRevokeObjUrls();
+  var res;
+  try { res = await _fergusListPhotos(); }
+  catch(e){
+    body.innerHTML = '<div style="padding:20px;color:#b91c1c;font-size:12.5px">Couldn\'t reach Fergus: '+esc(e.message)+'</div>';
+    return;
+  }
+  if (!res.ok || !res.files.length){
+    body.innerHTML = '<div style="padding:18px 4px;color:var(--text2);font-size:12.5px;line-height:1.55">'+
+      '<div style="color:#b91c1c;font-weight:600;margin-bottom:6px">No photos came back for this job.</div>'+
+      'Fergus may keep this job\'s gallery behind its web-app login (our Partner key can\'t reach it). '+
+      'Tap <strong>Probe endpoints</strong> on the Map Roof tab to see which paths responded, or upload the photo from your PC.'+
+      '</div>';
+    return;
+  }
+  body.innerHTML = '<div id="fergusPhotoGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px"></div>';
+  var grid = document.getElementById('fergusPhotoGrid');
+  res.files.forEach(function(f){
+    var cell = document.createElement('div');
+    cell.style.cssText = 'cursor:pointer;border-radius:8px;overflow:hidden;background:#0a1018;aspect-ratio:4/3;position:relative;border:1px solid var(--border)';
+    cell.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#5b6677;font-size:11px">loading…</div>';
+    cell.onclick = function(){ _fergusPickPhoto(f); };
+    grid.appendChild(cell);
+    // Auth'd thumbnail fetch → object URL (falls back to the full-size url).
+    _fergusDownloadBlob(f.thumbnail || f.url).then(function(blob){
+      var u = URL.createObjectURL(blob); _fergusPickObjUrls.push(u);
+      cell.innerHTML = '<img src="'+u+'" style="width:100%;height:100%;object-fit:cover">'+
+        '<div style="position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(f.name||'photo')+'</div>';
+    }).catch(function(){
+      cell.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#7a8699;font-size:10.5px;text-align:center;padding:6px;line-height:1.35">'+esc(f.name||'photo')+'<br>(preview n/a — tap to use)</div>';
+    });
+  });
+}
+async function _fergusPickPhoto(f){
+  var target = _fergusPickTarget;
+  var body = document.getElementById('fergusPhotoBody');
+  if (body) body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12.5px">Downloading full-size photo…</div>';
+  var dataUrl;
+  try {
+    var blob = await _fergusDownloadBlob(f.url || f.thumbnail);
+    dataUrl = await _blobToDataUrl(blob);
+  } catch(e){
+    if (body) body.innerHTML = '<div style="padding:20px;color:#b91c1c;font-size:12.5px">Download failed: '+esc(e.message)+'</div>';
+    return;
+  }
+  if (target === 'canvas'){
+    _fergusSetCanvasBg(dataUrl);
+    closeFergusPhotoPicker();
+  } else if (target && typeof target === 'string'){
+    // Quote photo slot — store as an upload-style assignment so the
+    // existing resolveSlotSrc dataUrl path renders it.
+    _slotAssignments()[target] = { source:'upload', dataUrl: dataUrl, caption: f.name || '' };
+    closeFergusPhotoPicker();
+    if (typeof renderSlotGrid === 'function') renderSlotGrid();
+    if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+  } else {
+    closeFergusPhotoPicker();
+  }
+}
+// Set a data-URL image as the Map Roof canvas background (trace-over
+// surface), mirroring the aerial-capture flow: load the image, point
+// DRAW.bgImg at it, reset zoom/offset/rotation, size the canvas to the
+// image aspect ratio, then redraw.
+function _fergusSetCanvasBg(dataUrl){
+  var img = new Image();
+  img.onload = function(){
+    DRAW.bgImg = img;
+    DRAW.zoom = 1;
+    IMG_OFFSET = { x:0, y:0 };
+    IMG_ROTATION = 0;
+    IMG_FINE_ROTATION = 0;
+    var cv = document.getElementById('roofCanvas');
+    var wrap = document.getElementById('canvasWrap');
+    if (cv && wrap){
+      var dpr2 = window.devicePixelRatio || 1;
+      var W = wrap.offsetWidth || 900;
+      var ratio = img.naturalHeight / img.naturalWidth;
+      var H = Math.round(W * ratio);
+      if (H > W * 1.5) H = Math.round(W * 1.5);
+      cv.style.width = W + 'px'; cv.style.height = H + 'px';
+      cv.width  = Math.round(W * dpr2);
+      cv.height = Math.round(H * dpr2);
+    }
+    try { redrawAll(); } catch(e){}
+    try { _collapseRoofBg(); } catch(e){}
+  };
+  img.onerror = function(){ alert('Could not display that photo — try another.'); };
+  img.src = dataUrl;
+}
+// "Probe endpoints" button on the Map Roof tab — runs the endpoint
+// discovery probe and shows the per-path status table inside the Fergus
+// photo modal (so it's visible right on the RoofMap tab, not just the
+// Materials diagnostics panel).
+async function probeFergusFilesRoof(){
+  if (!window.S || !S.linkedJobId){
+    alert('Link a Fergus job first — Home → 📂 Select Job → Fergus.');
+    return;
+  }
+  _fergusPickTarget = null;
+  var modal = document.getElementById('fergusPhotoModal');
+  var body  = document.getElementById('fergusPhotoBody');
+  var sub   = document.getElementById('fergusPhotoSub');
+  if (!modal || !body) return;
+  modal.style.display = 'flex';
+  if (sub) sub.textContent = 'Endpoint discovery — job ' + (S.linkedJobNo || S.linkedJobId);
+  body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12.5px">Probing Fergus endpoints…</div>';
+  try {
+    var token = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/fergus-files/probe?jobId=' + encodeURIComponent(String(S.linkedJobId)), {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    var probe = await r.json().catch(function(){ return {}; });
+    var rows = (probe.results || []).map(function(a){
+      var status = a.status != null ? a.status : (a.error ? 'ERR' : '?');
+      var col = (status >= 200 && status < 300) ? '#15803d' : (status >= 400 ? '#b91c1c' : '#6f6a60');
+      var shape = '';
+      var b = a.body;
+      if (b && typeof b === 'object'){
+        if (b._type === 'array') shape = 'array, length=' + b.length + (b.first && typeof b.first==='object' ? ' · first keys: [' + Object.keys(b.first).slice(0,12).join(', ') + ']' : '');
+        else if (b.keys) shape = 'object, keys: [' + b.keys.join(', ') + ']';
+        else shape = JSON.stringify(b).slice(0, 200);
+      } else if (typeof b === 'string') shape = b.slice(0, 200);
+      else if (a.error) shape = 'fetch error: ' + a.error;
+      return '<tr>'+
+        '<td style="padding:3px 8px;font-family:monospace;font-size:10.5px;color:var(--text)">'+esc(a.path||'?')+'</td>'+
+        '<td style="padding:3px 8px;font-weight:700;color:'+col+';text-align:right;font-variant-numeric:tabular-nums">'+esc(String(status))+'</td>'+
+        '<td style="padding:3px 8px;font-family:monospace;font-size:10.5px;color:var(--text2);word-break:break-all">'+esc(shape)+'</td>'+
+      '</tr>';
+    }).join('');
+    body.innerHTML = '<div style="font-size:11.5px;color:var(--text2);margin-bottom:8px;line-height:1.5">Tried every candidate file path for job <strong>'+esc(String(S.linkedJobId))+'</strong>. Green (2xx) rows are the ones that responded — send me a screenshot and I\'ll pin the right path on the server.</div>'+
+      (rows
+        ? '<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr>'+
+            '<th style="text-align:left;padding:4px 8px;background:var(--surface-2);color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.04em">Path</th>'+
+            '<th style="text-align:right;padding:4px 8px;background:var(--surface-2);color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.04em">HTTP</th>'+
+            '<th style="text-align:left;padding:4px 8px;background:var(--surface-2);color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.04em">Body shape</th>'+
+          '</tr></thead><tbody>'+rows+'</tbody></table>'
+        : '<div style="font-size:12px;color:#b91c1c">Probe returned no results — the backend may still be deploying.</div>');
+  } catch(e){
+    body.innerHTML = '<div style="padding:20px;color:#b91c1c;font-size:12.5px">Probe failed: '+esc(e.message)+'</div>';
+  }
+}
+
 // Open the linked Fergus job's project_gallery in a new tab so the
 // user can drag-drop the just-downloaded PDF into it. The gallery URL
 // uses Fergus's short jobNo (e.g. 3045), not the internal id
@@ -30470,9 +30750,24 @@ document.addEventListener('mousedown',function(e){
     <div style="display:flex;border-bottom:1px solid var(--border);padding:0 18px;gap:18px">
       <button class="slot-tab" data-tab="stock"  onclick="slotPickerTab('stock')"  style="padding:10px 0;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--text2)">Stock photos</button>
       <button class="slot-tab" data-tab="job"    onclick="slotPickerTab('job')"    style="padding:10px 0;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--text2)">Job photos</button>
+      <button class="slot-tab" data-tab="fergus" onclick="slotPickerTab('fergus')" style="padding:10px 0;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--text2)">From Fergus</button>
       <button class="slot-tab" data-tab="upload" onclick="slotPickerTab('upload')" style="padding:10px 0;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--text2)">Upload from file</button>
     </div>
     <div id="slotPickerBody" style="flex:1;padding:14px 18px;overflow:auto"></div>
+  </div>
+</div>
+
+<!-- Fergus job-photo picker modal (canvas background + endpoint probe) -->
+<div id="fergusPhotoModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(8,14,28,0.72);z-index:5000;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)closeFergusPhotoPicker()">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:760px;width:100%;max-height:82vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div style="display:flex;align-items:flex-start;padding:14px 18px;border-bottom:1px solid var(--border)">
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:600;color:var(--text)">📷 Fergus job photos</div>
+        <div id="fergusPhotoSub" style="font-size:11.5px;color:var(--text2);margin-top:2px"></div>
+      </div>
+      <button onclick="closeFergusPhotoPicker()" style="background:transparent;border:none;color:var(--text2);font-size:22px;line-height:1;cursor:pointer;padding:2px 8px">×</button>
+    </div>
+    <div id="fergusPhotoBody" style="flex:1;padding:14px 18px;overflow:auto"></div>
   </div>
 </div>
 
