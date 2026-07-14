@@ -11066,16 +11066,137 @@ function _syncQuoteKindToggle(){
     b.style.fontWeight = on ? '700' : '500';
   });
 }
-// Subtotal is typed by the office (excl GST); GST + total + deposit are
-// derived. Deposit is 50% for an exemption build, 60% when consented.
+// Pole-shed selection add-on prices (ex GST). Editable in one place so
+// the office can adjust as supplier pricing moves.
+var POLESHED_ADDONS = {
+  zincalumeSave: 1850,   // choosing Zincalume over Colorsteel saves this
+  thick055:      1520,   // upgrade 0.40g → 0.55g
+  wallUnderlay:  1450,   // add wall underlay / building paper
+  slidingDoor:   3850,   // add a sliding door
+  doubleWindow:  2950    // add a standard double window
+};
+// Sum of the currently-selected add-on deltas (ex GST). Grade/thickness/
+// wall-underlay/door/window contribute; colour + roller finish are spec.
+function _poleShedSelDelta(){
+  if (!S.quote) return 0;
+  var A = POLESHED_ADDONS, d = 0;
+  if (S.quote.psSelGrade === 'zincalume') d -= A.zincalumeSave;
+  if (S.quote.psSelThickness === '0.55')  d += A.thick055;
+  if (S.quote.psSelWallUnderlay)          d += A.wallUnderlay;
+  if (S.quote.psAddSliding)               d += A.slidingDoor;
+  if (S.quote.psAddWindow)                d += A.doubleWindow;
+  return d;
+}
+function _setPsSel(field, val){ if (!S.quote) return; S.quote[field] = val; if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); }
+function _togglePsSel(field){ if (!S.quote) return; S.quote[field] = !S.quote[field]; if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); }
+// Subtotal is typed by the office (excl GST); selection add-ons adjust it,
+// then GST + total + deposit are derived. Deposit is 50% for an exemption
+// build, 60% when consented.
 function _poleShedMoney(){
   var raw = String((S.quote && S.quote.psSubtotal != null) ? S.quote.psSubtotal : '').replace(/[^0-9.]/g,'');
-  var sub = parseFloat(raw) || 0;
+  var base = parseFloat(raw) || 0;
+  var delta = _poleShedSelDelta();
+  var sub = base + delta;
   var rate = (S.quote && S.quote.gstRate != null ? parseFloat(S.quote.gstRate) : 15) / 100;
   var gst = sub * rate;
   var tot = sub + gst;
   var pct = (S.quote && S.quote.psConsent === 'consented') ? 60 : 50;
-  return { sub: sub, gst: gst, tot: tot, rate: rate, depositPct: pct, deposit: tot * pct / 100 };
+  return { base: base, selDelta: delta, sub: sub, gst: gst, tot: tot, rate: rate, depositPct: pct, deposit: tot * pct / 100 };
+}
+// The pole-shed Selections page — steel grade / thickness / colour,
+// roller-door finish, wall underlay and door/window add-ons. Prices feed
+// _poleShedSelDelta and the totals.
+function _buildPoleShedSelections(){
+  var q = S.quote, A = POLESHED_ADDONS;
+  var eyebrow = function(t){ return '<div class="ed-eyebrow">'+esc2(t)+'</div>'; };
+  var panel = function(title, body){
+    return '<div style="border:1px solid var(--ed-line);border-radius:9px;overflow:hidden;margin-bottom:10px">'+
+      '<div style="background:var(--ed-ink);color:#fff;padding:6px 12px;font-family:var(--ed-sans);font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">'+esc2(title)+'</div>'+
+      '<div style="padding:10px 12px;display:grid;gap:7px">'+body+'</div></div>';
+  };
+  var tag = function(delta){
+    if (!delta) return '<span style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2)">Included</span>';
+    var pos = delta > 0;
+    return '<span style="font-family:var(--ed-sans);font-size:11px;font-weight:700;color:'+(pos?'var(--ed-ink)':'#2e7d32')+'">'+(pos?'+':'−')+fmtMoney(Math.abs(delta))+'<span style="font-weight:400;color:var(--ed-text2)"> +GST</span></span>';
+  };
+  var opt = function(active, label, sub, onclick, delta){
+    return '<div onclick="'+onclick+'" style="cursor:pointer;border:1px solid '+(active?'var(--ed-accent)':'var(--ed-line)')+';border-radius:7px;padding:8px 11px;background:'+(active?'rgba(0,153,224,.07)':'#fff')+';display:flex;align-items:center;gap:10px">'+
+      '<div style="width:15px;height:15px;border-radius:50%;border:2px solid '+(active?'var(--ed-accent)':'#c5ccd6')+';background:'+(active?'var(--ed-accent)':'#fff')+';flex-shrink:0;box-shadow:'+(active?'inset 0 0 0 2px #fff':'none')+'"></div>'+
+      '<div style="flex:1"><span style="font-family:var(--ed-sans);font-size:12.5px;font-weight:600;color:var(--ed-ink)">'+esc2(label)+'</span>'+(sub?' <span style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2)">'+esc2(sub)+'</span>':'')+'</div>'+
+      tag(delta)+
+    '</div>';
+  };
+  var check = function(active, label, delta, onclick){
+    return '<div onclick="'+onclick+'" style="cursor:pointer;border:1px solid '+(active?'var(--ed-accent)':'var(--ed-line)')+';border-radius:7px;padding:8px 11px;background:'+(active?'rgba(0,153,224,.07)':'#fff')+';display:flex;align-items:center;gap:10px">'+
+      '<div style="width:16px;height:16px;border-radius:4px;border:2px solid '+(active?'var(--ed-accent)':'#c5ccd6')+';background:'+(active?'var(--ed-accent)':'#fff')+';flex-shrink:0;color:#fff;font-size:11px;line-height:13px;text-align:center">'+(active?'✓':'')+'</div>'+
+      '<div style="flex:1;font-family:var(--ed-sans);font-size:12.5px;font-weight:600;color:var(--ed-ink)">'+esc2(label)+'</div>'+
+      tag(delta)+
+    '</div>';
+  };
+  var grade = q.psSelGrade || 'colorsteel';
+  var thick = q.psSelThickness || '0.40';
+  var roller = q.psSelRoller || 'colorsteel';
+  var colour = q.psSelColour || '';
+  var gradePanel = panel('Steel grade',
+    opt(grade==='colorsteel','Colorsteel®','Prepainted, full colour range',"_setPsSel('psSelGrade','colorsteel')",0)+
+    opt(grade==='zincalume','Plain silver Zincalume®','Unpainted Al/Zn — lowest cost',"_setPsSel('psSelGrade','zincalume')",-A.zincalumeSave));
+  var thickPanel = panel('Steel thickness',
+    opt(thick==='0.40','0.40 gauge','Standard residential',"_setPsSel('psSelThickness','0.40')",0)+
+    opt(thick==='0.55','0.55 gauge','Heavier — better dent resistance',"_setPsSel('psSelThickness','0.55')",A.thick055));
+  var colourBody;
+  if (grade === 'zincalume'){
+    colourBody = '<div style="font-family:var(--ed-serif);font-style:italic;font-size:12.5px;color:var(--ed-ink)">Plain silver Zincalume — no colour required.</div>';
+  } else {
+    colourBody = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px">'+
+      MAXAM_COLOURS.map(function(c){
+        var on = (colour === c.name);
+        return '<div onclick="_setPsSel(\'psSelColour\',\''+esc2(c.name).replace(/'/g,"&#39;")+'\')" style="cursor:pointer;text-align:center">'+
+          '<div style="height:32px;border-radius:6px;background:'+c.hex+';border:'+(on?'3px solid var(--ed-accent)':'1px solid rgba(0,0,0,.15)')+'"></div>'+
+          '<div style="font-family:var(--ed-sans);font-size:8.5px;color:var(--ed-ink);margin-top:2px;line-height:1.1">'+esc2(c.name.replace(/®/g,''))+'</div>'+
+        '</div>';
+      }).join('')+'</div>'+
+      (colour ? '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-ink);margin-top:6px">Selected: <strong>'+esc2(colour)+'</strong></div>'
+              : '<div class="no-print" style="font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2);margin-top:4px">Tap a colour — final selection confirmed off the Colorsteel chip card.</div>');
+  }
+  var colourPanel = panel('Roof & wall colour', colourBody);
+  var rollerPanel = panel('Roller door finish',
+    opt(roller==='colorsteel','Colorsteel® — matches the shed',"",'_setPsSel(\'psSelRoller\',\'colorsteel\')',0)+
+    opt(roller==='zincalume','Plain Zincalume®',"",'_setPsSel(\'psSelRoller\',\'zincalume\')',0));
+  var extrasPanel = panel('Add-ons',
+    check(!!q.psSelWallUnderlay,'Wall underlay / building paper',A.wallUnderlay,"_togglePsSel('psSelWallUnderlay')")+
+    check(!!q.psAddSliding,'Add sliding door',A.slidingDoor,"_togglePsSel('psAddSliding')")+
+    check(!!q.psAddWindow,'Add standard double window',A.doubleWindow,"_togglePsSel('psAddWindow')"));
+
+  var M = _poleShedMoney();
+  var moneyRow = function(label, value, opts){
+    opts = opts || {};
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 16px;'+
+      (opts.top?'border-top:2px solid rgba(255,255,255,.32);':'border-top:1px solid rgba(255,255,255,.13);')+
+      (opts.strong?'background:rgba(255,255,255,.07);':'')+'">'+
+      '<div style="font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,'+(opts.strong?'1':'.72')+');'+(opts.strong?'font-weight:700;':'')+'">'+label+'</div>'+
+      '<div class="ed-serif" style="font-size:'+(opts.strong?'17px':'13px')+';font-weight:600;white-space:nowrap;color:'+(opts.strong?'#4fc3ff':'#fff')+'">'+value+'</div>'+
+    '</div>';
+  };
+  var deltaRows = '';
+  if (q.psSelGrade === 'zincalume') deltaRows += moneyRow('↳ Plain silver Zincalume', '−'+fmtMoney(A.zincalumeSave));
+  if (q.psSelThickness === '0.55')  deltaRows += moneyRow('↳ 0.55g upgrade', '+'+fmtMoney(A.thick055));
+  if (q.psSelWallUnderlay)          deltaRows += moneyRow('↳ Wall underlay', '+'+fmtMoney(A.wallUnderlay));
+  if (q.psAddSliding)               deltaRows += moneyRow('↳ Sliding door', '+'+fmtMoney(A.slidingDoor));
+  if (q.psAddWindow)                deltaRows += moneyRow('↳ Double window', '+'+fmtMoney(A.doubleWindow));
+  var priceImpact =
+    '<div style="margin-top:8px;background:var(--ed-ink);border-radius:8px;overflow:hidden">'+
+      '<div style="padding:9px 16px 7px"><div class="ed-eyebrow" style="color:#4fc3ff">Your selections &amp; price</div></div>'+
+      moneyRow('Base quote <span style="color:rgba(255,255,255,.6)">(excl. GST)</span>', fmtMoney(M.base), { top:true })+
+      (deltaRows || moneyRow('<span style="color:rgba(255,255,255,.6)">Standard selections — no change</span>',''))+
+      moneyRow('Total <span style="font-weight:400;color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(M.tot), { strong:true })+
+    '</div>';
+
+  return edHeading('04','Choose your options','Selections')+
+    '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 12px;line-height:1.5">Tap to change a selection. Any price change shows on each option and in the summary below.</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">'+
+      '<div>'+gradePanel+thickPanel+colourPanel+'</div>'+
+      '<div>'+rollerPanel+extrasPanel+priceImpact+'</div>'+
+    '</div>';
 }
 // Build all pole-shed proposal pages. rpPage / headerHtml / trustLogosHtml
 // are passed in from refreshQuoteProposal's local scope.
@@ -11253,7 +11374,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
       money(M.depositPct+'% deposit on acceptance', fmtMoney(M.deposit))+
     '</div>';
   var inclusions =
-    edHeading('04','What\'s included','Inclusions &amp; options')+
+    edHeading('05','What\'s included','Inclusions &amp; options')+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start">'+
       '<div>'+ listBlock('Inclusions','psInclusions','#2e7d32') +'</div>'+
       '<div>'+ listBlock('Exclusions','psExclusions','var(--ed-warm,#c0794d)') + listBlock('Options','psOptions','var(--ed-accent)') +'</div>'+
@@ -11263,7 +11384,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
 
   // ── Acceptance ───────────────────────────────────────────────────
   var accept =
-    edHeading('05','Ready to go ahead?','Accept your quote')+
+    edHeading('06','Ready to go ahead?','Accept your quote')+
     '<div style="display:grid;grid-template-columns:1.1fr .9fr;gap:26px;align-items:start;margin-top:6px">'+
       '<div>'+
         '<div style="background:var(--ed-ink);border-radius:8px;overflow:hidden;margin-bottom:14px">'+
@@ -11291,6 +11412,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
   '</div>';
   html += rpPage(spec);
   html += rpPage(elevations);
+  html += rpPage(_buildPoleShedSelections());
   html += rpPage(inclusions);
   html += rpPage(accept, 'background:linear-gradient(180deg,#fafbfc,#f1f5f9)');
   return html;
