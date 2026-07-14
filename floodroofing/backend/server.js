@@ -1045,20 +1045,11 @@ const FERGUS_LIST_CANDIDATES = [
   '/documents?job_id={jobId}',
   '/job_files?job_id={jobId}',
   '/v1/files?job_id={jobId}',
-  // /attachments returned 400 (not 404) for job_id — the resource EXISTS
-  // but rejected that param. Probe its accepted parameter shape. The bare
-  // hit surfaces the "required param" message; the variants try the usual
-  // Fergus / OAS filter conventions.
-  '/attachments',
-  '/attachments?job_id={jobId}',
-  '/attachments?jobId={jobId}',
-  '/attachments?job={jobId}',
-  '/attachments?entity_id={jobId}',
-  '/attachments?entity_type=job&entity_id={jobId}',
-  '/attachments?filter[job_id]={jobId}',
-  '/attachments?job_ids={jobId}',
-  '/attachments/{jobId}',
-  '/v1/attachments?job_id={jobId}',
+  // The /attachments resource requires camelCase entityType + entityId
+  // (its 400 validation message named them). Job-card Files & Photos are
+  // attachments on the Job entity; try the likely entityType casings.
+  '/attachments?entityType=Job&entityId={jobId}',
+  '/attachments?entityType=job&entityId={jobId}',
   '/v2/jobs/{jobId}/files',
   '/v2/jobs/{jobId}/photos',
   '/v2/jobs/{jobId}/attachments',
@@ -1089,11 +1080,11 @@ function _normaliseFergusFile(raw) {
   // Cover the half-dozen field names Fergus uses across endpoints —
   // the picker needs at minimum an id, a display name, a content-type
   // hint and either a URL or a download path.
-  const id   = raw.id || raw.uuid || raw.file_id || raw.attachment_id || raw.gallery_id || null;
-  const name = raw.name || raw.filename || raw.title || raw.original_name || raw.file_name || raw.display_name || ('file-' + (id || ''));
-  const url  = raw.url || raw.public_url || raw.download_url || raw.path || raw.file_url || raw.original_url || raw.signed_url || raw.s3_url || raw.cdn_url || null;
-  const thumb= raw.thumbnail || raw.thumb_url || raw.preview_url || raw.thumbnail_url || raw.thumb || null;
-  const mime = raw.mime_type || raw.content_type || raw.contentType || raw.type || raw.file_type || '';
+  const id   = raw.id || raw.uuid || raw.file_id || raw.fileId || raw.attachment_id || raw.attachmentId || raw.gallery_id || null;
+  const name = raw.name || raw.filename || raw.fileName || raw.title || raw.original_name || raw.originalName || raw.file_name || raw.display_name || raw.displayName || ('file-' + (id || ''));
+  const url  = raw.url || raw.public_url || raw.publicUrl || raw.download_url || raw.downloadUrl || raw.path || raw.file_url || raw.fileUrl || raw.original_url || raw.originalUrl || raw.signed_url || raw.signedUrl || raw.s3_url || raw.cdn_url || raw.cdnUrl || null;
+  const thumb= raw.thumbnail || raw.thumb_url || raw.thumbUrl || raw.preview_url || raw.previewUrl || raw.thumbnail_url || raw.thumbnailUrl || raw.thumb || null;
+  const mime = raw.mime_type || raw.mimeType || raw.content_type || raw.contentType || raw.type || raw.file_type || raw.fileType || '';
   return { id, name, url, thumbnail: thumb || url, contentType: mime };
 }
 
@@ -1142,6 +1133,10 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
       else if (parsed.value && Array.isArray(parsed.value.data)) arr = parsed.value.data;
       else if (parsed.result && Array.isArray(parsed.result)) arr = parsed.result;
       else if (parsed.result && Array.isArray(parsed.result.files)) arr = parsed.result.files;
+      else if (parsed.data && typeof parsed.data === 'object' && Array.isArray(parsed.data.attachments)) arr = parsed.data.attachments;
+      else if (parsed.data && typeof parsed.data === 'object' && Array.isArray(parsed.data.files)) arr = parsed.data.files;
+      else if (parsed.data && typeof parsed.data === 'object' && Array.isArray(parsed.data.photos)) arr = parsed.data.photos;
+      else if (parsed.data && typeof parsed.data === 'object' && Array.isArray(parsed.data.items)) arr = parsed.data.items;
       if (!arr) continue;
       const files = arr.map(_normaliseFergusFile).filter(Boolean);
       if (!files.length) continue;
