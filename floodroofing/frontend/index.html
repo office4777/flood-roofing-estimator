@@ -3885,6 +3885,13 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   <button onclick="openSatelliteView()" title="Open satellite view" style="padding:6px 12px;background:#0a1628;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap">🛰 Satellite view</button>
 </div></div></div>
     <div class="f3"><div><label>Email</label><input type="email" id="jobEmail" placeholder="client@email.com"></div><div><label>Phone</label><input type="tel" id="jobPhone" placeholder="021 000 0000"></div><div><label>Date</label><input type="text" id="jobDate"></div></div>
+    <div style="margin-top:12px"><label style="display:block;margin-bottom:5px">Job type</label>
+      <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <button type="button" id="jtBtn_roofing"  onclick="_setJobType('roofing')"  style="padding:9px 20px;border:none;background:#0a1628;color:#fff;font-size:13px;font-weight:700;cursor:pointer">🏠 Roofing</button>
+        <button type="button" id="jtBtn_poleshed" onclick="_setJobType('poleshed')" style="padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">🏚 Pole Shed</button>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-top:5px">Chooses which quote draft this job uses — you can switch it later on the Quote tab.</div>
+    </div>
   </div>
   <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;background:#fafbfc">
     <button onclick="saveCurrentJob()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px">💾 Save job</button>
@@ -6422,6 +6429,26 @@ function _installNextButtons(){
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _installNextButtons);
 else _installNextButtons();
 
+// Job-type choice in the New/Edit Job modal. Stashed on window so it
+// survives until the quote is (re)built, and applied to S.quote.quoteKind
+// immediately when a quote already exists.
+function _setJobType(k){
+  window._pendingJobType = (k === 'poleshed') ? 'poleshed' : 'roofing';
+  if (S.quote) S.quote.quoteKind = window._pendingJobType;
+  _syncJobTypeToggle();
+  try { _syncQuoteKindToggle(); } catch(e){}
+}
+function _syncJobTypeToggle(){
+  var ps = (window._pendingJobType === 'poleshed');
+  ['roofing','poleshed'].forEach(function(k){
+    var b = document.getElementById('jtBtn_' + k);
+    if (!b) return;
+    var on = (k === 'poleshed') === ps;
+    b.style.background = on ? '#0a1628' : 'transparent';
+    b.style.color = on ? '#fff' : 'var(--text2)';
+    b.style.fontWeight = on ? '700' : '500';
+  });
+}
 function openJobDetailsModal(mode){
   window._jobDetailsMode = (mode === 'edit') ? 'edit' : 'new';
   var ov = document.getElementById('jobDetailsOverlay');
@@ -6431,6 +6458,9 @@ function openJobDetailsModal(mode){
   var primary = document.getElementById('jobDetailsPrimaryBtn');
   if (title)   title.textContent   = (window._jobDetailsMode === 'edit') ? 'Edit job details' : 'New job — details';
   if (primary) primary.textContent = (window._jobDetailsMode === 'edit') ? 'Save details' : 'Start → Map Roof';
+  // Reflect the current job's type (edit) or default to roofing (new).
+  window._pendingJobType = (window._jobDetailsMode === 'edit' && S.quote && S.quote.quoteKind === 'poleshed') ? 'poleshed' : 'roofing';
+  _syncJobTypeToggle();
   ov.style.display = 'block'; md.style.display = 'flex';
   var jc = document.getElementById('jobClient'); if (jc) setTimeout(function(){ try{ jc.focus(); }catch(e){} }, 60);
 }
@@ -6440,6 +6470,13 @@ function closeJobDetailsModal(){
   try { if (typeof closeJobAddrSuggest === 'function') closeJobAddrSuggest(); } catch(e){}
 }
 function jobDetailsPrimary(){
+  // Apply the chosen job type to the quote draft (create the quote first
+  // if this is a brand-new job so quoteKind sticks).
+  try {
+    if (!S.quote && typeof defaultQuote === 'function') S.quote = defaultQuote();
+    if (S.quote) S.quote.quoteKind = (window._pendingJobType === 'poleshed') ? 'poleshed' : 'roofing';
+    _syncQuoteKindToggle();
+  } catch(e){}
   // Keep the Home label + global job bar in sync with what was just typed.
   try {
     var cl = (document.getElementById('jobClient')||{}).value || '';
@@ -8448,6 +8485,8 @@ function defaultQuote(){
   var terms = tpl.terms || qd.terms || '';
   return {
     ref: 'FR-' + (Date.now().toString().slice(-5)),
+    // Roofing (default) or pole-shed draft — honours the New Job modal's pick.
+    quoteKind: (window._pendingJobType === 'poleshed') ? 'poleshed' : 'roofing',
     date: todayStr,
     validUntil: validityDays,
     client: (document.getElementById('jobClient')||{}).value || '',
