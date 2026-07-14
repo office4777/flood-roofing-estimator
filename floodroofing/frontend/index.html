@@ -2125,10 +2125,6 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
                 style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
           📷 Import from Fergus
         </button>
-        <button type="button" onclick="probeFergusFilesRoof()"
-                style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
-          🔍 Probe endpoints
-        </button>
       </div>
     </div>
     <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="uploaded roof"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">× Remove</button></div>
@@ -8164,13 +8160,16 @@ function _qpCondPhotoClear(idx){
 function _qpCondPhotoSlotHtml(idx, cp){
   if (!cp || !cp.src) {
     return '<div class="qp-cond-photo qp-cond-empty" data-cp-idx="'+idx+'" '+
-      'onclick="_qpCondPhotoPick('+idx+')" '+
       'ondragover="event.preventDefault();this.style.borderColor=\'var(--ed-accent)\'" '+
       'ondragleave="this.style.borderColor=\'var(--ed-line)\'" '+
       'ondrop="_qpCondPhotoDrop(event,'+idx+')" '+
-      'style="aspect-ratio:4/3;background:var(--ed-paper-2);border:1px dashed var(--ed-line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--ed-text2);cursor:pointer;transition:border-color .15s">'+
-      '<svg viewBox="0 0 36 36" style="width:26px;height:26px;opacity:.32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="9" width="26" height="20" rx="2"/><circle cx="13" cy="16" r="2"/><path d="M5 24 L13 18 L20 24 L26 19 L31 23"/></svg>'+
-      '<div class="ed-serif" style="font-style:italic;font-size:13px;color:var(--ed-text2);opacity:.7">Upload Site Photo</div>'+
+      'style="aspect-ratio:4/3;background:var(--ed-paper-2);border:1px dashed var(--ed-line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--ed-text2);transition:border-color .15s;padding:10px">'+
+      '<svg viewBox="0 0 36 36" style="width:24px;height:24px;opacity:.32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="9" width="26" height="20" rx="2"/><circle cx="13" cy="16" r="2"/><path d="M5 24 L13 18 L20 24 L26 19 L31 23"/></svg>'+
+      '<div class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-text2);opacity:.7">Add site photo</div>'+
+      '<div class="no-print" style="display:flex;flex-direction:column;gap:6px;width:100%;max-width:190px">'+
+        '<button type="button" onclick="_qpCondPhotoFromFergus('+idx+')" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 10px;background:#0099cc;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">📷 Upload from Fergus</button>'+
+        '<button type="button" onclick="_qpCondPhotoPick('+idx+')" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 10px;background:#0a1628;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">⬆ Upload from PC</button>'+
+      '</div>'+
     '</div>';
   }
   var ox = +cp.offX || 0, oy = +cp.offY || 0, zm = +cp.zoom || 1;
@@ -8202,6 +8201,10 @@ function _qpCondPhotoPick(idx){
   _qpCondPhotoTargetIdx = idx;
   var inp = document.getElementById('qpCondPhotoFileInput');
   if (inp) { inp.value = ''; inp.click(); }
+}
+// Open the Fergus job-photo picker targeting this existing-roof slot.
+function _qpCondPhotoFromFergus(idx){
+  if (typeof openFergusPhotoPicker === 'function') openFergusPhotoPicker('cond:' + idx);
 }
 function _qpCondPhotoUpload(e){
   var f = e.target.files && e.target.files[0];
@@ -27973,6 +27976,14 @@ async function _fergusPickPhoto(f){
   if (target === 'canvas'){
     _fergusSetCanvasBg(dataUrl);
     closeFergusPhotoPicker();
+  } else if (typeof target === 'string' && target.indexOf('cond:') === 0){
+    // Existing-roof photo slot on the proposal — downscale then set.
+    var cidx = parseInt(target.slice(5), 10);
+    closeFergusPhotoPicker();
+    _downscalePhoto(dataUrl, function(src){
+      _qpCondPhotoSet(cidx, { src: src, offX:0, offY:0, zoom:1 });
+      _qpRerenderCondPhotos();
+    });
   } else if (target && typeof target === 'string'){
     // Quote photo slot — store as an upload-style assignment so the
     // existing resolveSlotSrc dataUrl path renders it.
