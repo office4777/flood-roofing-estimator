@@ -11272,52 +11272,70 @@ function _buildPoleShedSelections(){
 // the total lands near real Flood Roofing shed quotes. All rates and
 // spacings live in SHED_RATES so they're easy to correct.
 // ══════════════════════════════════════════════════════════════════
+// TIMBER pole-shed model, calibrated so the trade-materials portion
+// matches a real Carters BOM (Whirinaki lean-to: 10×11 m, 9 H5 poles,
+// mono-pitch 3.72/4.59 m → Carters $21,040 ex GST). Carters supplies
+// timber/concrete/hardware; Flood adds roofing/cladding/doors + labour.
 var SHED_RATES = {
-  // material rates ($ ex GST)
-  roofSteel:     23,    // per m² roof area (Colorsteel 0.40 corrugate/5-rib)
-  wallSteel:     21,    // per m² wall area
-  purlin:         9,    // per m
-  girt:           8,    // per m
-  pole:          45,    // per m (H5 pole)
-  concrete:     380,    // per m³ supply + place
-  mesh:          95,    // per sheet (6.0 × 2.4 m)
-  baseMetal:     45,    // per tonne (GAP40, delivered)
-  flashing:      18,    // per m (flashings + box gutter)
-  underlayRoll: 180,    // per 75 m² roll
-  screwsBox:     85,    // per 1000 screws
-  misc:        1500,    // fixed allowance — brackets, bolts, wrap, downpipes
-  rollerDoor:  2200,    // each, supply & install
-  paDoor:      1800,    // each, supply & install
-  // labour + build margin, and consent
-  labourPerM2:  360,    // per m² of floor (labour + build margin)
+  // ── Carters trade materials (calibrated) ──
+  pole:          27.6,  // $/m of H5 building pole
+  poleExtra:      0.8,  // pole length above eave (bearing/trim)
+  poleEmbed:      1.5,  // pole embedment (m)
+  wallTimber:    24.7,  // $/m of girt-line (girts + lintels + trim)
+  roofTimber:    31.7,  // $/m² roof (rafters + beams + blocking, SG8/LVL)
+  concrete:     295,    // $/m³ (20 MPa)
+  poleConcrete:   0.97, // m³ per pole (footing + post)
+  slabThk:        0.1,  // slab thickness (m)
+  sand:         185,    // sand allowance ($)
+  meshArea:       7.26, // m² net cover per mesh sheet (SE62)
+  meshRate:      72.73, // $/sheet
+  reinfPerM2:     3,    // $/m² floor — reinforcing rod (provisional)
+  framingHwPole:150,    // framing hardware $/pole (girt plates, bolts, hangers)
+  framingHwM2:   16,    // framing hardware $/m² floor
+  foundHwPole:   50,    // foundation hardware $/pole (brackets, chairs)
+  foundHwM2:      4,    // foundation hardware $/m² floor
+  girtSpacing:    1.0,  // girts @ 1000 crs
+  // ── Flood-supplied roofing / cladding ──
+  roofClad:      20,    // $/m² 0.40 corrugated Colorsteel roof
+  wallClad:      18,    // $/m² 0.40 corrugated Colorsteel wall
+  flashing:      18,    // $/m 0.55 flashings
+  gutterAllow:  650,    // box gutter + downpipes allowance ($)
+  underlayRoll: 180,    // $/75 m² roll
+  roofScrewM2:    3.2,  // $/m² roofing screws/fixings
+  // ── doors (GM Doors, supply & install) ──
+  rollerDoor:  2200, paDoor: 1800,
+  // ── labour + extras ──
+  labourPerM2:  330,    // $/m² floor — build labour + margin
   consentAllow:4000,    // added when a building consent is required
-  // spacings / geometry
-  purlinSpacing:0.9, girtSpacing:0.9, sheetCover:0.762,
-  slabThk:0.1, baseMetalThk:0.075, poleEmbed:1.5, overhang:0.3
+  overhang:       0.3
 };
 function _psNum(s){ var m = String(s == null ? '' : s).match(/[\d.]+/); return m ? parseFloat(m[0]) : 0; }
-// Seed the estimator inputs from whatever's on the shed spec.
+function _psDoorCounts(){
+  var s = String((S.quote && S.quote.psDoors) || '');
+  // sum every "<n>x ... roller/pa" mention (a shed can list several sizes)
+  var roller = 0, pa = 0, m, re = /(\d+)\s*x?\s*(roller|p\.?\s*a\.?|personnel)/ig;
+  while ((m = re.exec(s))){ if (/roller/i.test(m[2])) roller += +m[1]; else pa += +m[1]; }
+  return { roller: roller, pa: pa };
+}
+// Seed the estimator inputs from the shed spec. Poles default from the
+// footprint: a mid pole row when the span is wide, plus a pole line every
+// ~5.5 m of length.
 function _shedEstDefaults(){
   var q = S.quote || {};
   var hs = String(q.psHeight || '').match(/[\d.]+/g) || [];
   var hi = hs[0] ? parseFloat(hs[0]) : 0;
   var lo = hs[1] ? parseFloat(hs[1]) : hi;
   if (lo > hi){ var t = hi; hi = lo; lo = t; }
+  var W = _psNum(q.psWidth), L = _psNum(q.psLength);
+  var across = (W > 7) ? 3 : 2;
+  var along  = Math.max(Math.round(L / 5.5), 1) + 1;
   var dc = _psDoorCounts();
   return {
-    W: _psNum(q.psWidth), L: _psNum(q.psLength),
-    hiEave: hi, loEave: lo || hi,
-    bays: _psNum(q.psBayAmount) || 3,
+    W: W, L: L, hiEave: hi, loEave: lo || hi,
+    poles: (W && L) ? across * along : 0,
     roller: dc.roller, pa: dc.pa,
-    centrePoles: /yes/i.test(q.psCenterPoles || '') ,
     consent: (q.psConsent === 'consented')
   };
-}
-function _psDoorCounts(){
-  var s = String((S.quote && S.quote.psDoors) || '');
-  var r = s.match(/(\d+)\s*x?\s*roller/i);
-  var p = s.match(/(\d+)\s*x?\s*(?:p\.?\s*a\.?|personnel)/i);
-  return { roller: r ? +r[1] : 0, pa: p ? +p[1] : 0 };
 }
 function _shedEst(){
   if (!S.quote) return null;
@@ -11326,51 +11344,48 @@ function _shedEst(){
 }
 function _shedEstimate(inp){
   var R = SHED_RATES;
-  var W = +inp.W || 0, L = +inp.L || 0;
+  var W = +inp.W || 0, L = +inp.L || 0;      // W = span (roof slopes across it), L = length
   var hi = +inp.hiEave || 0, lo = +inp.loEave || hi;
-  var bays = Math.max(+inp.bays || 0, 0), roller = +inp.roller || 0, pa = +inp.pa || 0;
+  var poles = Math.max(+inp.poles || 0, 0), roller = +inp.roller || 0, pa = +inp.pa || 0;
   var avgH = (hi + lo) / 2 || hi || 0;
   var rise = Math.max(hi - lo, 0);
-  var slope = Math.sqrt(L * L + rise * rise) + R.overhang;   // span slope + one overhang
+  var slope = Math.sqrt(W * W + rise * rise) + R.overhang;   // roof spans across W
   var floor = W * L;
-  var roofArea = W * slope;
+  var roofArea = L * slope;
   var perim = 2 * (W + L);
-  var doorOpen = roller * (2.6 * 2.4) + pa * (0.9 * 2.0);
-  var wallArea = Math.max(perim * avgH - doorOpen, 0);
-  var purlinLM = (Math.ceil(L / R.purlinSpacing) + 1) * W;
-  var girtLM = perim * Math.max(Math.ceil(avgH / R.girtSpacing), 1) * 0.85;   // ~15% off for openings
-  var poleCount = 2 * (bays + 1) + (inp.centrePoles ? (bays + 1) : 0);
-  var poleLM = poleCount * (avgH + R.poleEmbed);
-  var concreteVol = floor * R.slabThk + poleCount * 0.05;
-  var meshSheets = Math.ceil(floor / 13) || 0;
-  var baseMetalT = floor * R.baseMetalThk * 2.1;
-  var flashLM = W + 2 * slope + 4 * avgH + W;   // apron + barges + corners + gutter
+  var doorArea = roller * 7 + pa * 1.8;                       // avg opening area per door
+  var wallArea = Math.max(perim * avgH - doorArea, 0);
+  var poleLM = poles * (avgH + R.poleEmbed + R.poleExtra);
+  var girtLM = perim * (avgH / R.girtSpacing);
+  var concreteM3 = floor * R.slabThk + poles * R.poleConcrete;
+  var meshSheets = Math.round(floor / R.meshArea) || 0;
   var underlayRolls = Math.ceil(roofArea * 1.1 / 75) || 0;
-  var screwBoxes = Math.ceil((roofArea * 7 + wallArea * 5) / 1000) || 0;
-  var mk = function(label, qty, unit, rate){ return { label: label, qty: qty, unit: unit, rate: rate, cost: qty * rate }; };
+  var flashLM = perim + 2 * slope + L + W;                    // corners + barges + ridge/apron + gutter run
+  var mk = function(group, label, qty, unit, rate){ return { group: group, label: label, qty: qty, unit: unit, rate: rate, cost: qty * rate }; };
   var items = [
-    mk('Roof cladding', roofArea, 'm²', R.roofSteel),
-    mk('Wall cladding', wallArea, 'm²', R.wallSteel),
-    mk('Purlins', purlinLM, 'm', R.purlin),
-    mk('Wall girts', girtLM, 'm', R.girt),
-    mk('Poles / posts', poleLM, 'm', R.pole),
-    mk('Concrete floor + footings', concreteVol, 'm³', R.concrete),
-    mk('Reinforcing mesh', meshSheets, 'sheet', R.mesh),
-    mk('GAP40 base metal', baseMetalT, 't', R.baseMetal),
-    mk('Flashings & box gutter', flashLM, 'm', R.flashing),
-    mk('Roof underlay', underlayRolls, 'roll', R.underlayRoll),
-    mk('Fixings / screws', screwBoxes, 'box', R.screwsBox),
-    mk('Brackets, bolts, wrap (allowance)', 1, 'lot', R.misc)
+    mk('trade', 'Building poles (H5)',                 poleLM,        'm',       R.pole),
+    mk('trade', 'Wall timber — girts / lintels / trim', girtLM,       'm',       R.wallTimber),
+    mk('trade', 'Roof timber — rafters / beams',       roofArea,      'm²',      R.roofTimber),
+    mk('trade', 'Concrete (footings / posts / slab)',  concreteM3,    'm³',      R.concrete),
+    mk('trade', 'Sand',                                1,             'lot',     R.sand),
+    mk('trade', 'Reinforcing mesh',                    meshSheets,    'sheet',   R.meshRate),
+    mk('trade', 'Reinforcing steel (provisional)',     floor,         'm²',      R.reinfPerM2),
+    mk('trade', 'Framing hardware',                    1,             'lot',     poles * R.framingHwPole + floor * R.framingHwM2),
+    mk('trade', 'Foundation hardware',                 1,             'lot',     poles * R.foundHwPole + floor * R.foundHwM2),
+    mk('flood', 'Roof cladding (0.40 Colorsteel)',     roofArea,      'm²',      R.roofClad),
+    mk('flood', 'Wall cladding (0.40 Colorsteel)',     wallArea,      'm²',      R.wallClad),
+    mk('flood', 'Flashings (0.55)',                    flashLM,       'm',       R.flashing),
+    mk('flood', 'Box gutter + downpipes',              1,             'lot',     R.gutterAllow),
+    mk('flood', 'Roof underlay',                       underlayRolls, 'roll',    R.underlayRoll),
+    mk('flood', 'Roofing screws / fixings',            roofArea,      'm²',      R.roofScrewM2)
   ];
-  if (roller) items.push(mk('Roller doors (supply & install)', roller, 'ea', R.rollerDoor));
-  if (pa) items.push(mk('P.A. doors (supply & install)', pa, 'ea', R.paDoor));
-  var materials = items.reduce(function(a, x){ return a + x.cost; }, 0);
-  var labour = floor * R.labourPerM2;
-  items.push(mk('Labour & build margin', floor, 'm² floor', R.labourPerM2));
-  var extras = inp.consent ? R.consentAllow : 0;
-  if (inp.consent) items.push(mk('Building consent allowance', 1, 'lot', R.consentAllow));
-  return { items: items, materials: materials, labour: labour, extras: extras,
-    total: materials + labour + extras, floor: floor, roofArea: roofArea, wallArea: wallArea };
+  if (roller) items.push(mk('doors', 'Roller doors (supply & install)', roller, 'ea', R.rollerDoor));
+  if (pa)     items.push(mk('doors', 'P.A. doors (supply & install)',   pa,     'ea', R.paDoor));
+  items.push(mk('labour', 'Labour & build margin', floor, 'm² floor', R.labourPerM2));
+  if (inp.consent) items.push(mk('labour', 'Building consent allowance', 1, 'lot', R.consentAllow));
+  var gt = function(g){ return items.reduce(function(a, x){ return a + (x.group === g ? x.cost : 0); }, 0); };
+  return { items: items, trade: gt('trade'), flood: gt('flood'), doors: gt('doors'), labour: gt('labour'),
+    total: items.reduce(function(a, x){ return a + x.cost; }, 0), floor: floor, roofArea: roofArea, wallArea: wallArea };
 }
 // Show/hide + render the estimator card depending on the draft type.
 function _toggleShedEstimator(){
@@ -11407,12 +11422,12 @@ function renderShedEstimator(){
   body.innerHTML =
     '<div style="padding:4px 0 12px">'+
       '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:9px 12px;font-size:11.5px;color:#9a3412;margin-bottom:12px">⚠ <strong>Estimate only.</strong> Quantities are dimension-driven best-guesses for pricing — not a certified NZS 3604 structural takeoff. Have members/fixings confirmed by your engineer or LBP.</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:10px">'+
-        num('W','Width — bay side (m)')+ num('L','Length — span (m)')+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:10px;margin-bottom:10px">'+
+        num('W','Span — width (m)')+ num('L','Length (m)')+
         num('hiEave','High eave (m)')+ num('loEave','Low eave (m)')+
-        num('bays','Bays', '1')+ num('roller','Roller doors','1')+ num('pa','P.A. doors','1')+
+        num('poles','Poles (total)','1')+ num('roller','Roller doors','1')+ num('pa','P.A. doors','1')+
       '</div>'+
-      '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px">'+chk('centrePoles','Centre poles')+chk('consent','Building consent required')+'</div>'+
+      '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px">'+chk('consent','Building consent required')+'</div>'+
       '<div id="shedEstResults"></div>'+
     '</div>';
   _renderShedEstResults();
@@ -11423,14 +11438,26 @@ function _renderShedEstResults(){
   var host = document.getElementById('shedEstResults');
   var e = _shedEst(); if (!host || !e) return;
   var est = _shedEstimate(e);
-  var rows = est.items.map(function(it){
-    var q = (Math.round(it.qty*10)/10);
-    return '<tr>'+
-      '<td style="padding:5px 8px;font-size:12px;color:var(--text)">'+esc2(it.label)+'</td>'+
-      '<td style="padding:5px 8px;font-size:12px;text-align:right;color:var(--text2);font-variant-numeric:tabular-nums">'+q+' '+esc2(it.unit)+'</td>'+
-      '<td style="padding:5px 8px;font-size:12px;text-align:right;color:var(--text2);font-variant-numeric:tabular-nums">'+fmtMoney(it.rate)+'</td>'+
-      '<td style="padding:5px 8px;font-size:12px;text-align:right;color:var(--text);font-weight:600;font-variant-numeric:tabular-nums">'+fmtMoney(it.cost)+'</td>'+
-    '</tr>';
+  var groups = [
+    ['trade',  'Trade materials (Carters)', est.trade],
+    ['flood',  'Roofing & cladding',        est.flood],
+    ['doors',  'Doors',                     est.doors],
+    ['labour', 'Labour, margin & consent',  est.labour]
+  ];
+  var rows = groups.map(function(g){
+    var its = est.items.filter(function(x){ return x.group === g[0]; });
+    if (!its.length) return '';
+    var hdr = '<tr style="background:var(--surface-2)"><td colspan="3" style="padding:5px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--text2)">'+esc2(g[1])+'</td>'+
+      '<td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700;color:var(--text2);font-variant-numeric:tabular-nums">'+fmtMoney(g[2])+'</td></tr>';
+    return hdr + its.map(function(it){
+      var q = (Math.round(it.qty*10)/10);
+      return '<tr>'+
+        '<td style="padding:4px 8px 4px 18px;font-size:12px;color:var(--text)">'+esc2(it.label)+'</td>'+
+        '<td style="padding:4px 8px;font-size:12px;text-align:right;color:var(--text2);font-variant-numeric:tabular-nums">'+q+' '+esc2(it.unit)+'</td>'+
+        '<td style="padding:4px 8px;font-size:12px;text-align:right;color:var(--text2);font-variant-numeric:tabular-nums">'+fmtMoney(it.rate)+'</td>'+
+        '<td style="padding:4px 8px;font-size:12px;text-align:right;color:var(--text);font-weight:600;font-variant-numeric:tabular-nums">'+fmtMoney(it.cost)+'</td>'+
+      '</tr>';
+    }).join('');
   }).join('');
   host.innerHTML =
     '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'+
