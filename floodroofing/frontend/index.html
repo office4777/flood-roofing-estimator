@@ -1940,9 +1940,12 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 <div class="nav">
   <!-- Selected-job indicator + quick "Select job" chooser at the very top of
        the left menu, so the current job is always visible from any tab. -->
-  <div id="navJobBox" style="padding:9px 10px;margin:0 6px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb)">
-    <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);font-weight:700;margin-bottom:2px">Selected job</div>
-    <div id="navJobName" style="font-size:12px;font-weight:600;color:var(--text2);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No job selected</div>
+  <div id="navJobBox" style="margin:0 6px 10px">
+    <div id="navJobInfo" style="padding:9px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb)">
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);font-weight:700;margin-bottom:2px">Selected job</div>
+      <div id="navJobName" style="font-size:12px;font-weight:600;color:var(--text2);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No job selected</div>
+    </div>
+    <button id="navJobSelectBtn" onclick="openStartHereModal()" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
   </div>
   <button class="nav-btn active" onclick="gotoTab('select')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7L8 2.5L13.5 7M4 6V13H12V6" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>Home</button>
   <!-- Sidebar job chip: hidden until a job is loaded. Shows the Fergus
@@ -2017,8 +2020,8 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:stretch;margin-bottom:18px">
     <button onclick="openStartHereModal()" style="flex:1 1 260px;text-align:left;border:none;cursor:pointer;border-radius:16px;padding:22px 24px;color:#fff;background:linear-gradient(135deg,#0a1628,#1e3a5f);box-shadow:0 8px 24px rgba(10,22,40,.18)">
       <div style="font-size:10px;font-weight:800;letter-spacing:.14em;opacity:.65;margin-bottom:8px">STEP 1</div>
-      <div style="font-size:22px;font-weight:800;letter-spacing:-.01em">📂 Select a job</div>
-      <div style="font-size:13px;opacity:.8;margin-top:6px;line-height:1.4">Pick a Fergus job, open a saved one, or start a custom job</div>
+      <div style="font-size:22px;font-weight:800;letter-spacing:-.01em">📂 New Job / Select Job</div>
+      <div style="font-size:13px;opacity:.8;margin-top:6px;line-height:1.4">Start a new job, pick a Fergus job, or open a saved one</div>
     </button>
     <button onclick="_homeMapRoof()" style="flex:1.5 1 340px;text-align:left;border:none;cursor:pointer;border-radius:16px;padding:22px 24px;color:#fff;background:linear-gradient(135deg,#0099cc,#00b4d8);box-shadow:0 8px 24px rgba(0,153,204,.28)">
       <div style="font-size:10px;font-weight:800;letter-spacing:.14em;opacity:.8;margin-bottom:8px">STEP 2</div>
@@ -3823,7 +3826,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 <div id="selectJobOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998" onclick="closeSelectJobModal()"></div>
 <div id="selectJobModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:680px;max-width:95vw;max-height:80vh;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:9999;overflow:hidden;flex-direction:column">
   <div style="padding:14px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">
-    <strong style="flex:1;font-size:14px">Select a job</strong>
+    <strong style="flex:1;font-size:14px">New Job / Select Job</strong>
     <button onclick="closeSelectJobModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px">✕ Close</button>
   </div>
   <!-- Source tabs: local saved jobs vs Fergus. Local is the default
@@ -3874,7 +3877,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 <div id="startHereOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998" onclick="closeStartHereModal()"></div>
 <div id="startHereModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:420px;max-width:95vw;box-shadow:0 12px 48px rgba(0,0,0,.3);z-index:9999;overflow:hidden;flex-direction:column">
   <div style="padding:14px 18px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px">
-    <strong style="flex:1;font-size:14px">Start here</strong>
+    <strong style="flex:1;font-size:14px">New Job / Select Job</strong>
     <button onclick="closeStartHereModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px">✕ Close</button>
   </div>
   <div style="padding:16px 18px">
@@ -5698,6 +5701,12 @@ function updateGlobalJobBar(j){
     navName.textContent = navLabel;
     navName.style.color = hasJob ? '#0a1628' : 'var(--text2)';
     navName.style.fontStyle = hasJob ? 'normal' : 'italic';
+    // No job selected → show the "New Job / Select Job" button in the sidebar
+    // (opens the same chooser as the Home tile); otherwise show the job name.
+    var navInfo = document.getElementById('navJobInfo');
+    var navBtn  = document.getElementById('navJobSelectBtn');
+    if (navInfo) navInfo.style.display = hasJob ? '' : 'none';
+    if (navBtn)  navBtn.style.display  = hasJob ? 'none' : 'block';
     // Home "Step 2" tile hint — name the job we'll be mapping.
     var mapHint = document.getElementById('homeMapHint');
     if (mapHint){
@@ -6530,6 +6539,24 @@ function resumeSavedJob(id){ return openJob(id); }
   }
   if (document.readyState === 'complete' || document.readyState === 'interactive') tryBoot();
   else document.addEventListener('DOMContentLoaded', tryBoot);
+})();
+
+// On a fresh load with no job yet, show the sidebar "New Job / Select Job"
+// button (setCurrentJobLabel takes over once a job is loaded/edited).
+(function _initNavJobBtn(){
+  function sync(){
+    if (window.__CUSTOMER_TOKEN) return;
+    var savedOrLinked = (window.S && (S.currentJobId || S.linkedJobId || S.linkedJobNo));
+    var draftClient = ((document.getElementById('jobClient')||{}).value || '').trim();
+    var draftAddr   = ((document.getElementById('jobAddr')||{}).value || '').trim();
+    var hasJob = savedOrLinked || draftClient || draftAddr;
+    var navInfo = document.getElementById('navJobInfo');
+    var navBtn  = document.getElementById('navJobSelectBtn');
+    if (navInfo) navInfo.style.display = hasJob ? '' : 'none';
+    if (navBtn)  navBtn.style.display  = hasJob ? 'none' : 'block';
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', sync);
+  else sync();
 })();
 
 // ── Deep links: ?job=<id>&tab=<tab> ─────────────────────────────
