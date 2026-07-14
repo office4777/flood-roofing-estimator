@@ -3260,7 +3260,15 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 
   <!-- Divider: everything below the live proposal is optional config.
        The quote text itself is edited directly on the proposal above. -->
-  <div class="q-extras-head">Quote settings &amp; extras <span>— the quote text (client, scope, conditions, notes, terms, price) is edited directly on the proposal above. These are optional settings &amp; photos.</span></div>
+  <!-- Collapsible: all the optional config below the proposal. Collapsed by
+       default so the Quote tab stays clean; the controls (GST rate, gutter
+       prices, options, photos) are still here when expanded. -->
+  <button type="button" class="q-extras-head no-print" id="qExtrasToggle" onclick="_toggleQuoteExtras()" aria-expanded="false" style="cursor:pointer;background:none;border:none;width:100%;font-family:inherit">
+    <span id="qExtrasChevron" style="display:inline-block;transition:transform .15s;font-size:11px">▸</span>
+    <span>⚙ Quote settings &amp; extras</span>
+    <span>— optional settings &amp; photos (GST rate, gutter prices, options, sections). Tap to expand.</span>
+  </button>
+  <div id="qExtrasBody" class="no-print" style="display:none;order:3">
 
   <!-- Quote inclusions: optional add-ons baked into the PDF/email when
        the quote goes out. Inspection report used to be its own nav tab;
@@ -3442,6 +3450,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
     <div id="slotGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px"></div>
     </div>
   </details>
+  </div><!-- /#qExtrasBody -->
 
   <!-- Full proposal preview — the live editing surface. Click any text
        (client, scope, conditions, notes, terms, price fields) to edit it
@@ -9050,6 +9059,17 @@ function _scopeMove(from, to){
   S.quote.scope = lines.join('\n');
   var sc = document.getElementById('qdScope'); if (sc) sc.value = S.quote.scope;
   try { refreshQuoteProposal(); } catch(e){}
+}
+// Collapse/expand the "Quote settings & extras" block below the proposal.
+function _toggleQuoteExtras(){
+  var body = document.getElementById('qExtrasBody');
+  var chev = document.getElementById('qExtrasChevron');
+  var tog  = document.getElementById('qExtrasToggle');
+  if (!body) return;
+  var open = (body.style.display === 'none' || !body.style.display);
+  body.style.display = open ? 'block' : 'none';
+  if (chev) chev.style.transform = open ? 'rotate(90deg)' : '';
+  if (tog)  tog.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 // Re-render the acceptance-page summary list (selected options + grades).
