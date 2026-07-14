@@ -3456,6 +3456,14 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   </details>
   </div><!-- /#qExtrasBody -->
 
+  <!-- Shed materials estimator — only shown for pole-shed drafts. -->
+  <div class="card" id="shedEstimatorCard" style="display:none">
+    <div class="card-hd"><span class="card-dot"></span>🧮 Shed materials estimator
+      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">— dimension-driven estimate, not a certified NZS 3604 takeoff</span>
+    </div>
+    <div id="shedEstimatorBody"></div>
+  </div>
+
   <!-- Full proposal preview — the live editing surface. Click any text
        (client, scope, conditions, notes, terms, price fields) to edit it
        directly; changes save into the quote and print exactly as shown. -->
@@ -11258,6 +11266,191 @@ function _buildPoleShedSelections(){
       '<div>'+rollerPanel+extrasPanel+priceImpact+'</div>'+
     '</div>';
 }
+// ══════════════════════════════════════════════════════════════════
+// SHED MATERIALS ESTIMATOR  (estimate only — NOT a certified NZS 3604
+// takeoff). Dimension-driven quantities + best-guess NZ rates, tuned so
+// the total lands near real Flood Roofing shed quotes. All rates and
+// spacings live in SHED_RATES so they're easy to correct.
+// ══════════════════════════════════════════════════════════════════
+var SHED_RATES = {
+  // material rates ($ ex GST)
+  roofSteel:     23,    // per m² roof area (Colorsteel 0.40 corrugate/5-rib)
+  wallSteel:     21,    // per m² wall area
+  purlin:         9,    // per m
+  girt:           8,    // per m
+  pole:          45,    // per m (H5 pole)
+  concrete:     380,    // per m³ supply + place
+  mesh:          95,    // per sheet (6.0 × 2.4 m)
+  baseMetal:     45,    // per tonne (GAP40, delivered)
+  flashing:      18,    // per m (flashings + box gutter)
+  underlayRoll: 180,    // per 75 m² roll
+  screwsBox:     85,    // per 1000 screws
+  misc:        1500,    // fixed allowance — brackets, bolts, wrap, downpipes
+  rollerDoor:  2200,    // each, supply & install
+  paDoor:      1800,    // each, supply & install
+  // labour + build margin, and consent
+  labourPerM2:  360,    // per m² of floor (labour + build margin)
+  consentAllow:4000,    // added when a building consent is required
+  // spacings / geometry
+  purlinSpacing:0.9, girtSpacing:0.9, sheetCover:0.762,
+  slabThk:0.1, baseMetalThk:0.075, poleEmbed:1.5, overhang:0.3
+};
+function _psNum(s){ var m = String(s == null ? '' : s).match(/[\d.]+/); return m ? parseFloat(m[0]) : 0; }
+// Seed the estimator inputs from whatever's on the shed spec.
+function _shedEstDefaults(){
+  var q = S.quote || {};
+  var hs = String(q.psHeight || '').match(/[\d.]+/g) || [];
+  var hi = hs[0] ? parseFloat(hs[0]) : 0;
+  var lo = hs[1] ? parseFloat(hs[1]) : hi;
+  if (lo > hi){ var t = hi; hi = lo; lo = t; }
+  var dc = _psDoorCounts();
+  return {
+    W: _psNum(q.psWidth), L: _psNum(q.psLength),
+    hiEave: hi, loEave: lo || hi,
+    bays: _psNum(q.psBayAmount) || 3,
+    roller: dc.roller, pa: dc.pa,
+    centrePoles: /yes/i.test(q.psCenterPoles || '') ,
+    consent: (q.psConsent === 'consented')
+  };
+}
+function _psDoorCounts(){
+  var s = String((S.quote && S.quote.psDoors) || '');
+  var r = s.match(/(\d+)\s*x?\s*roller/i);
+  var p = s.match(/(\d+)\s*x?\s*(?:p\.?\s*a\.?|personnel)/i);
+  return { roller: r ? +r[1] : 0, pa: p ? +p[1] : 0 };
+}
+function _shedEst(){
+  if (!S.quote) return null;
+  if (!S.quote.shedEst) S.quote.shedEst = _shedEstDefaults();
+  return S.quote.shedEst;
+}
+function _shedEstimate(inp){
+  var R = SHED_RATES;
+  var W = +inp.W || 0, L = +inp.L || 0;
+  var hi = +inp.hiEave || 0, lo = +inp.loEave || hi;
+  var bays = Math.max(+inp.bays || 0, 0), roller = +inp.roller || 0, pa = +inp.pa || 0;
+  var avgH = (hi + lo) / 2 || hi || 0;
+  var rise = Math.max(hi - lo, 0);
+  var slope = Math.sqrt(L * L + rise * rise) + R.overhang;   // span slope + one overhang
+  var floor = W * L;
+  var roofArea = W * slope;
+  var perim = 2 * (W + L);
+  var doorOpen = roller * (2.6 * 2.4) + pa * (0.9 * 2.0);
+  var wallArea = Math.max(perim * avgH - doorOpen, 0);
+  var purlinLM = (Math.ceil(L / R.purlinSpacing) + 1) * W;
+  var girtLM = perim * Math.max(Math.ceil(avgH / R.girtSpacing), 1) * 0.85;   // ~15% off for openings
+  var poleCount = 2 * (bays + 1) + (inp.centrePoles ? (bays + 1) : 0);
+  var poleLM = poleCount * (avgH + R.poleEmbed);
+  var concreteVol = floor * R.slabThk + poleCount * 0.05;
+  var meshSheets = Math.ceil(floor / 13) || 0;
+  var baseMetalT = floor * R.baseMetalThk * 2.1;
+  var flashLM = W + 2 * slope + 4 * avgH + W;   // apron + barges + corners + gutter
+  var underlayRolls = Math.ceil(roofArea * 1.1 / 75) || 0;
+  var screwBoxes = Math.ceil((roofArea * 7 + wallArea * 5) / 1000) || 0;
+  var mk = function(label, qty, unit, rate){ return { label: label, qty: qty, unit: unit, rate: rate, cost: qty * rate }; };
+  var items = [
+    mk('Roof cladding', roofArea, 'm²', R.roofSteel),
+    mk('Wall cladding', wallArea, 'm²', R.wallSteel),
+    mk('Purlins', purlinLM, 'm', R.purlin),
+    mk('Wall girts', girtLM, 'm', R.girt),
+    mk('Poles / posts', poleLM, 'm', R.pole),
+    mk('Concrete floor + footings', concreteVol, 'm³', R.concrete),
+    mk('Reinforcing mesh', meshSheets, 'sheet', R.mesh),
+    mk('GAP40 base metal', baseMetalT, 't', R.baseMetal),
+    mk('Flashings & box gutter', flashLM, 'm', R.flashing),
+    mk('Roof underlay', underlayRolls, 'roll', R.underlayRoll),
+    mk('Fixings / screws', screwBoxes, 'box', R.screwsBox),
+    mk('Brackets, bolts, wrap (allowance)', 1, 'lot', R.misc)
+  ];
+  if (roller) items.push(mk('Roller doors (supply & install)', roller, 'ea', R.rollerDoor));
+  if (pa) items.push(mk('P.A. doors (supply & install)', pa, 'ea', R.paDoor));
+  var materials = items.reduce(function(a, x){ return a + x.cost; }, 0);
+  var labour = floor * R.labourPerM2;
+  items.push(mk('Labour & build margin', floor, 'm² floor', R.labourPerM2));
+  var extras = inp.consent ? R.consentAllow : 0;
+  if (inp.consent) items.push(mk('Building consent allowance', 1, 'lot', R.consentAllow));
+  return { items: items, materials: materials, labour: labour, extras: extras,
+    total: materials + labour + extras, floor: floor, roofArea: roofArea, wallArea: wallArea };
+}
+// Show/hide + render the estimator card depending on the draft type.
+function _toggleShedEstimator(){
+  var card = document.getElementById('shedEstimatorCard');
+  if (!card) return;
+  var ps = S.quote && S.quote.quoteKind === 'poleshed';
+  card.style.display = ps ? '' : 'none';
+  if (ps) renderShedEstimator();
+}
+function _shedEstInput(field, val, isBool){
+  var e = _shedEst(); if (!e) return;
+  e[field] = isBool ? !!val : (parseFloat(val) || 0);
+  _renderShedEstResults();   // update only the table/total so inputs keep focus
+}
+function applyShedEstimate(){
+  var e = _shedEst(); if (!e) return;
+  var est = _shedEstimate(e);
+  S.quote.psSubtotal = Math.round(est.total);
+  var st = document.getElementById('shedEstApplied');
+  if (st){ st.textContent = '✓ Applied ' + fmtMoney(est.total) + ' as the base quote subtotal.'; }
+  if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+}
+function renderShedEstimator(){
+  var body = document.getElementById('shedEstimatorBody');
+  var e = _shedEst(); if (!body || !e) return;
+  var num = function(field, label, step){
+    return '<div><label style="display:block;font-size:11px;color:var(--text2);margin-bottom:3px">'+esc2(label)+'</label>'+
+      '<input type="number" value="'+(e[field]||0)+'" step="'+(step||'0.1')+'" min="0" oninput="_shedEstInput(\''+field+'\',this.value)" '+
+      'style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--border);border-radius:7px;font-size:13px"></div>';
+  };
+  var chk = function(field, label){
+    return '<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text);cursor:pointer"><input type="checkbox" '+(e[field]?'checked':'')+' onchange="_shedEstInput(\''+field+'\',this.checked,true)"> '+esc2(label)+'</label>';
+  };
+  body.innerHTML =
+    '<div style="padding:4px 0 12px">'+
+      '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:9px 12px;font-size:11.5px;color:#9a3412;margin-bottom:12px">⚠ <strong>Estimate only.</strong> Quantities are dimension-driven best-guesses for pricing — not a certified NZS 3604 structural takeoff. Have members/fixings confirmed by your engineer or LBP.</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:10px">'+
+        num('W','Width — bay side (m)')+ num('L','Length — span (m)')+
+        num('hiEave','High eave (m)')+ num('loEave','Low eave (m)')+
+        num('bays','Bays', '1')+ num('roller','Roller doors','1')+ num('pa','P.A. doors','1')+
+      '</div>'+
+      '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px">'+chk('centrePoles','Centre poles')+chk('consent','Building consent required')+'</div>'+
+      '<div id="shedEstResults"></div>'+
+    '</div>';
+  _renderShedEstResults();
+}
+// Rebuilds only the results table + total + apply button (leaves the
+// input fields untouched so they keep focus while typing).
+function _renderShedEstResults(){
+  var host = document.getElementById('shedEstResults');
+  var e = _shedEst(); if (!host || !e) return;
+  var est = _shedEstimate(e);
+  var rows = est.items.map(function(it){
+    var q = (Math.round(it.qty*10)/10);
+    return '<tr>'+
+      '<td style="padding:5px 8px;font-size:12px;color:var(--text)">'+esc2(it.label)+'</td>'+
+      '<td style="padding:5px 8px;font-size:12px;text-align:right;color:var(--text2);font-variant-numeric:tabular-nums">'+q+' '+esc2(it.unit)+'</td>'+
+      '<td style="padding:5px 8px;font-size:12px;text-align:right;color:var(--text2);font-variant-numeric:tabular-nums">'+fmtMoney(it.rate)+'</td>'+
+      '<td style="padding:5px 8px;font-size:12px;text-align:right;color:var(--text);font-weight:600;font-variant-numeric:tabular-nums">'+fmtMoney(it.cost)+'</td>'+
+    '</tr>';
+  }).join('');
+  host.innerHTML =
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'+
+      '<thead><tr style="background:var(--surface-2)">'+
+        '<th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text2)">Item</th>'+
+        '<th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text2)">Qty</th>'+
+        '<th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text2)">Rate</th>'+
+        '<th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text2)">Cost</th>'+
+      '</tr></thead><tbody>'+rows+'</tbody>'+
+      '<tfoot><tr style="border-top:2px solid var(--border)">'+
+        '<td colspan="3" style="padding:8px;text-align:right;font-size:13px;font-weight:700;color:var(--text)">Estimated subtotal (excl. GST)</td>'+
+        '<td style="padding:8px;text-align:right;font-size:15px;font-weight:800;color:#0099cc;font-variant-numeric:tabular-nums">'+fmtMoney(est.total)+'</td>'+
+      '</tr></tfoot>'+
+    '</table></div>'+
+    '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">'+
+      '<button type="button" onclick="applyShedEstimate()" style="padding:9px 16px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Use as quote subtotal →</button>'+
+      '<span id="shedEstApplied" style="font-size:12px;color:#059669"></span>'+
+      '<span style="font-size:11px;color:var(--text2)">Selections (grade, thickness, add-ons) then adjust on top.</span>'+
+    '</div>';
+}
 // Build all pole-shed proposal pages. rpPage / headerHtml / trustLogosHtml
 // are passed in from refreshQuoteProposal's local scope.
 function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
@@ -13011,6 +13204,7 @@ function refreshQuoteProposal(){
   _attachInlineEditors();
   _fitProposalPages();
   try { _syncQuoteKindToggle(); } catch(e){}
+  try { _toggleShedEstimator(); } catch(e){}
 
   // Keep legacy hidden anchors in sync so other tabs reading qpTotal etc. still work.
   function setText(id, v){var el=document.getElementById(id); if(el) el.textContent = v;}
