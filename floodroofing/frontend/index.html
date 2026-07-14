@@ -8206,6 +8206,37 @@ function _qpCondPhotoPick(idx){
 function _qpCondPhotoFromFergus(idx){
   if (typeof openFergusPhotoPicker === 'function') openFergusPhotoPicker('cond:' + idx);
 }
+
+// ── Fixing type → roof age + condition assessment draft ─────────────
+// The fixing method used on an existing roof is a reliable proxy for
+// its age and typical failure mode. Selecting one on the proposal's
+// Existing-roof-condition page fills the Approx. age field and drops a
+// tidied, professional condition-assessment draft the office can edit.
+var CONDITION_FIXINGS = {
+  lead: {
+    label: 'Lead-head Nails',
+    age: '40+ years',
+    desc: 'This roof is secured with lead-head nails — a fixing method phased out decades ago, which places the roof well beyond its serviceable life (typically 40+ years old). Rust is forming around the nail holes and beneath the lead-edge ridging, where water has been tracking in for many years. Once corrosion takes hold at the fixings it spreads through the sheet, and re-nailing or patching only delays the inevitable. A full re-roof is the sound long-term investment.'
+  },
+  twist: {
+    label: 'Twist Shank Nails',
+    age: '20–40 years',
+    desc: 'This roof is fixed with twisted-shank nails and is moderately aged (typically 20–40 years old). The nails are no longer holding the sheets down firmly, allowing wind uplift and water ingress at the fixing points. The paint system is heavily faded with little protective coating left over the steel, so surface rust is developing quickly. A lower-cost repair — re-screwing and repainting — is possible, but far less reliable: paint frequently bridges and seals the sheet laps poorly, drawing water in by capillary action. The original underlay will also be brittle and no longer catching condensation, leading to damp, mouldy interiors. For these reasons a full re-roof is the best and most durable option.'
+  },
+  tek: {
+    label: 'Tek Screws',
+    age: 'Up to ~20 years',
+    desc: 'This roof is fixed with Tek screws, indicating a more recent installation (generally under 20 years old). While newer, the rubber sealing washers on the screws perish and shrink over time, letting water past the fixing points, and the paint finish and sheet profile should be checked for fade, wear and any developing corrosion. Where the coating is failing or the underlay has aged, re-roofing remains the most reliable way to guarantee a fully weathertight, long-lasting result.'
+  }
+};
+function _setCondFixingType(type){
+  var f = CONDITION_FIXINGS[type];
+  if (!f || !S.quote) return;
+  S.quote.condFixingType = type;
+  S.quote.condAge = f.age;            // approximate age from the fixing method
+  S.quote.condAssessment = f.desc;    // load this fixing's condition draft
+  if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+}
 function _qpCondPhotoUpload(e){
   var f = e.target.files && e.target.files[0];
   if (!f || _qpCondPhotoTargetIdx == null) return;
@@ -11171,6 +11202,25 @@ function refreshQuoteProposal(){
           '</div>';
         }).join('')+
       '</div>'+
+      // Fixing type selector (office-only, no-print) — sets the roof age
+      // and loads a matching condition-assessment draft below.
+      '<div style="margin-bottom:14px">'+
+        '<div class="ed-eyebrow" style="margin-bottom:6px">Fixing type <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7">— sets the approx. age &amp; loads a condition draft</span></div>'+
+        '<div class="no-print" style="display:flex;gap:6px;flex-wrap:wrap">'+
+          Object.keys(CONDITION_FIXINGS).map(function(k){
+            var on = (S.quote.condFixingType === k);
+            var f = CONDITION_FIXINGS[k];
+            return '<button type="button" onclick="_setCondFixingType(\''+k+'\')" style="flex:1;min-width:112px;padding:8px 10px;border-radius:6px;border:1px solid '+(on?'var(--ed-accent)':'var(--ed-line)')+';background:'+(on?'var(--ed-accent)':'var(--ed-paper-2)')+';color:'+(on?'#fff':'var(--ed-ink-2)')+';font-family:var(--ed-sans);font-size:11.5px;font-weight:600;cursor:pointer;line-height:1.25;text-align:center">'+esc2(f.label)+'<div style="font-size:9.5px;font-weight:400;opacity:.85;margin-top:2px">'+esc2(f.age)+'</div></button>';
+          }).join('')+
+        '</div>'+
+      '</div>'+
+      // Condition assessment — auto-filled by the fixing type, editable.
+      '<div style="margin-bottom:18px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-ink)">'+
+        '<div class="ed-eyebrow" style="margin-bottom:6px">Condition assessment <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7">— click to edit</span></div>'+
+        '<div class="qp-editable" contenteditable="true" data-qfield="condAssessment" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.6;color:var(--ed-ink-2);min-height:1.5em">'+
+          (S.quote.condAssessment ? esc2(S.quote.condAssessment) : '<span class="qp-placeholder" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Choose a fixing type above to load a condition assessment, or write your own…</span>')+
+        '</div>'+
+      '</div>'+
       // Optional condition summary prose
       (condSummary
         ? '<div class="ed-body-lg" style="margin-bottom:18px">'+condSummary.split('\n').map(function(p){return '<p style="margin:0 0 10px">'+esc2(p)+'</p>';}).join('')+'</div>'
@@ -11197,6 +11247,14 @@ function refreshQuoteProposal(){
         '<div class="ed-eyebrow" style="margin-bottom:6px">Recommendations <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
         '<div class="qp-editable" contenteditable="true" data-qfield="condReco" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.55;color:var(--ed-ink-2);min-height:1.5em">'+
           (cReco ? esc2(cReco) : '<span class="qp-placeholder" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add recommendations here…</span>')+
+        '</div>'+
+      '</div>'+
+      // "Why replace rather than repaint" — editable, with a sensible
+      // default that renders (and prints) even when never touched.
+      '<div style="margin-bottom:18px">'+
+        '<div class="ed-eyebrow" style="margin-bottom:6px">Why replace rather than repaint? <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+        '<div class="ed-body qp-editable" contenteditable="true" data-qfield="condWhyReroof" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.6;color:var(--ed-ink-2);min-height:1.5em">'+
+          esc2(S.quote.condWhyReroof || 'Repainting an ageing roof only treats the surface — it does nothing for the perished fixings, failed sheet laps and brittle underlay beneath. Paint applied over corroding steel and worn washers commonly seals the sheet laps poorly, drawing moisture in by capillary action, while the original underlay can no longer catch condensation, leading to damp and mould inside the home. A new roof replaces the steel, fixings and underlay as one weathertight system — backed by a manufacturer\'s warranty — making it the more cost-effective decision over the life of your home rather than paying again and again to patch and repaint.')+
         '</div>'+
       '</div>'+
       // Six existing-roof photo spots — uploaded site photos fill them,
@@ -11819,22 +11877,22 @@ function refreshQuoteProposal(){
       var _selNewTot = (_qpBaseSub() + _qpSelectionDeltaSum()) * (1+_selRate);
       var _selRow = function(label, value, opts2){
         opts2 = opts2 || {};
-        return '<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 13px;'+
-          (opts2.top ? 'border-top:2px solid var(--ed-ink);' : 'border-top:1px solid var(--ed-line);')+
-          (opts2.strong ? 'background:var(--ed-paper-2);' : '')+'">'+
-          '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink'+(opts2.strong?'':'-2')+');'+(opts2.strong?'font-weight:700;':'')+'">'+label+'</div>'+
-          '<div class="ed-serif" style="font-size:'+(opts2.strong?'16px':'13px')+';font-weight:600;white-space:nowrap;color:'+(opts2.strong?'var(--ed-accent)':'var(--ed-ink)')+'">'+value+'</div>'+
+        return '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 16px;'+
+          (opts2.top ? 'border-top:2px solid rgba(255,255,255,.32);' : 'border-top:1px solid rgba(255,255,255,.13);')+
+          (opts2.strong ? 'background:rgba(255,255,255,.07);' : '')+'">'+
+          '<div style="font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,'+(opts2.strong?'1':'.72')+');'+(opts2.strong?'font-weight:700;':'')+'">'+label+'</div>'+
+          '<div class="ed-serif" style="font-size:'+(opts2.strong?'17px':'13px')+';font-weight:600;white-space:nowrap;color:'+(opts2.strong?'#4fc3ff':'#fff')+'">'+value+'</div>'+
         '</div>';
       };
       var _selPricing =
-        '<div style="border:1px solid var(--ed-line);border-left:none;border-top:none">'+
-          _selRow('<strong style="color:var(--ed-ink)">Original quote — main scope of work</strong> <span style="color:var(--ed-text2)">(incl. GST)</span>', fmtMoney(_selBaseTot), { top: true })+
+        '<div style="border-top:none">'+
+          _selRow('<strong style="color:#fff">Original quote — main scope of work</strong> <span style="color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(_selBaseTot), { top: true })+
           (_selChanges.length
             ? _selChanges.map(function(c){
                 return _selRow('&#8627; '+esc2(c.label), c.delta ? (c.delta > 0 ? '+' : '−')+fmtMoney(Math.abs(c.delta)*(1+_selRate)) : 'Included');
               }).join('')
-            : _selRow('<span style="font-style:italic;color:var(--ed-text2)">Standard selections — no price change</span>', ''))+
-          _selRow('New total <span style="font-weight:400;color:var(--ed-text2)">(incl. GST)</span>', fmtMoney(_selNewTot), { strong: true })+
+            : _selRow('<span style="font-style:italic;color:rgba(255,255,255,.6)">Standard selections — no price change</span>', ''))+
+          _selRow('New total <span style="font-weight:400;color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(_selNewTot), { strong: true })+
         '</div>';
       // One combined price panel replaces the old separate "Current
       // selection" chip + detached pricing strip (the two blocks read as
@@ -11878,10 +11936,10 @@ function refreshQuoteProposal(){
             '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:0;padding:5px 12px 6px;line-height:1.4;font-style:italic;border-top:1px solid var(--ed-line);background:#fbfaf7">Either choice is included at no change to your price — the scrap value of the old steel only offsets the labour and time to strip and cart it away.</div>'
           )+
         '</div>'+
-        '<div style="margin-top:3px;border-left:3px solid var(--ed-accent)">'+
-          '<div style="padding:6px 16px 5px;background:var(--ed-paper-2)">'+
-            '<div class="ed-eyebrow" style="margin-bottom:2px">Your selection &amp; price</div>'+
-            '<div style="font-family:var(--ed-sans);font-size:12px;line-height:1.6;color:var(--ed-ink-2)">'+_selSummaryLine+'</div>'+
+        '<div style="margin-top:6px;background:var(--ed-ink);border-radius:7px;overflow:hidden;box-shadow:0 2px 10px rgba(10,24,40,.18)">'+
+          '<div style="padding:9px 16px 8px">'+
+            '<div class="ed-eyebrow" style="margin-bottom:3px;color:#4fc3ff">Your selection &amp; price</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:12px;line-height:1.6;color:rgba(255,255,255,.82)">'+_selSummaryLine+'</div>'+
           '</div>'+
           _selPricing+
         '</div>';
