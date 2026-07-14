@@ -4351,11 +4351,6 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
         </div>
         <span style="color:var(--text2);font-size:11px">The optional code fields are sent on each line as a product/item code if your Fergus setup uses them.</span>
       </div>
-      <div style="margin-top:14px;padding:10px 14px;background:#f6f4ff;border-left:3px solid #7c3aed;border-radius:6px;font-size:12px;color:#0a1628">
-        <strong>Fergus quote line-item format (support tool)</strong><br>
-        <span style="color:var(--text2)">If pushed line items come through blank, tap below to fetch the raw JSON of the linked job's existing quote (one that has line items). Copy it and send it over so the push can be matched to Fergus's exact field names.</span><br>
-        <button type="button" onclick="_fergusDumpQuoteJson()" style="margin-top:8px;padding:8px 14px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🔍 Fetch linked-job quote JSON</button>
-      </div>
       <div style="margin-top:14px;padding:10px 12px;background:#fff8e1;border-left:3px solid #f59e0b;border-radius:6px;font-size:12px;color:#664500">
         <strong>Phase 2:</strong> "Send job to JMS" + "Email quote" buttons (and the JMS adapters for ServiceM8, Jobber, Tradify) ship in the next iteration. Fergus push already works from the Fergus tab.
       </div>
@@ -26764,47 +26759,6 @@ async function pushQuotePricingToFergus(btn){
   } finally {
     _qaBar(false); _fergusBtnBusy(btn, false);
   }
-}
-// Support tool: fetch the linked job's quotes as raw JSON so the exact
-// Fergus line-item field names can be read from a populated quote.
-async function _fergusDumpQuoteJson(){
-  if (!window.S || !S.linkedJobId){ alert('No Fergus job is linked.\n\nLink the job that has the populated quote (Home → New Job / Select Job → Fergus) first, then try again.'); return; }
-  var out = '';
-  var tried = [];
-  try {
-    // 1) List the job's quotes (summaries only), then 2) fetch the DETAIL of
-    //    the most-populated one (highest subtotal) — that's where the line
-    //    items live.
-    var lr = await fergusCall('GET', '/jobs/' + S.linkedJobId + '/quotes');
-    var lt = await lr.text();
-    tried.push('GET /jobs/' + S.linkedJobId + '/quotes → HTTP ' + lr.status + ' (' + lt.length + ' bytes)');
-    var list = JSON.parse(lt);
-    var quotes = (list && (list.data || list.value || list.quotes)) || [];
-    // pick the quote with the biggest subtotal (the populated one)
-    var best = null;
-    quotes.forEach(function(q){ var s = (q.totals && (q.totals.subTotal || q.totals.total)) || 0; if (!best || s > best._s){ best = q; best._s = s; } });
-    if (best && best.id){
-      var dpath = '/jobs/' + S.linkedJobId + '/quotes/' + best.id;
-      var dr = await fergusCall('GET', dpath);
-      var dt = await dr.text();
-      tried.push('GET ' + dpath + ' → HTTP ' + dr.status + ' (' + dt.length + ' bytes)');
-      if (dr.ok && dt && dt.length > 2) out = dt;
-    }
-  } catch(e){ tried.push('Error: ' + (e.message || e)); }
-  if (!out) out = 'Could not read quote detail.\n\nAttempts:\n' + tried.join('\n');
-  var ov = document.getElementById('fergusDumpOverlay');
-  if (!ov){ ov = document.createElement('div'); ov.id = 'fergusDumpOverlay'; document.body.appendChild(ov); }
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(6,14,28,.6);z-index:100090;display:flex;align-items:center;justify-content:center;padding:14px;font-family:Inter,system-ui,sans-serif';
-  ov.innerHTML =
-    '<div style="background:#fff;border-radius:14px;width:min(600px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden">' +
-      '<div style="padding:12px 16px;background:#0a1628;color:#fff;display:flex;align-items:center;gap:10px"><strong style="flex:1;font-size:14px">Fergus quote JSON — copy &amp; send to support</strong>' +
-        '<button onclick="var o=document.getElementById(\'fergusDumpOverlay\');if(o)o.style.display=\'none\'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px">✕ Close</button></div>' +
-      '<div style="padding:12px 14px;overflow:auto;flex:1"><textarea id="fergusDumpText" readonly style="width:100%;box-sizing:border-box;height:360px;font-family:monospace;font-size:11px;border:1px solid #d3dce6;border-radius:8px;padding:8px"></textarea></div>' +
-      '<div style="padding:10px 14px;border-top:1px solid #eef2f6"><button onclick="var t=document.getElementById(\'fergusDumpText\');t.select();try{document.execCommand(\'copy\');}catch(e){}try{navigator.clipboard&&navigator.clipboard.writeText(t.value);}catch(e){}this.textContent=\'✓ Copied — now paste it to support\'" style="width:100%;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer">Copy JSON</button></div>' +
-    '</div>';
-  ov.style.display = 'flex';
-  var ta = document.getElementById('fergusDumpText');
-  try { ta.value = JSON.stringify(JSON.parse(out), null, 2); } catch(e){ ta.value = out; }
 }
 async function pushQuotePdfToFergus(btn){
   if (!window.S || !S.linkedJobId){
