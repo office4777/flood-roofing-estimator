@@ -10230,10 +10230,18 @@ function _autoSyncLabourMaterials(){
   if (!S.quote) return;
   if (!Array.isArray(S.quote.lineItems)) S.quote.lineItems = [];
   var updated = false;
-  [['Labour', S.labour], ['Materials', S.materials]].forEach(function(pair){
+  // Scaffolding is "included in every quote" — it must flow into the quote
+  // total like labour + materials (previously it was omitted, so the
+  // customer total was short by the scaffold amount).
+  var scaffP = (S.quote.scaffold) ? _scaffoldEff(S.quote.scaffold).price : 0;
+  [['Labour', S.labour], ['Materials', S.materials], ['Scaffolding', scaffP]].forEach(function(pair){
     var key = pair[0], val = pair[1];
-    if (!(val > 0)) return;
     var li = S.quote.lineItems.find(function(x){ return x.desc === key; });
+    if (!(val > 0)) {
+      // Value dropped to 0 (e.g. scaffold cleared) — remove a stale line.
+      if (li) { S.quote.lineItems = S.quote.lineItems.filter(function(x){ return x !== li; }); updated = true; }
+      return;
+    }
     if (li) {
       if (li.unit !== val) { li.unit = val; updated = true; }
     } else {
@@ -12137,9 +12145,19 @@ function refreshQuoteProposal(){
       '<div style="margin-bottom:20px">'+
         '<div class="ed-eyebrow" style="margin-bottom:8px">Your quote'+(S.quote.client?' — '+esc2(S.quote.client):'')+'</div>'+
         '<div id="qpAcceptSummary">'+buildAcceptSummaryRows()+'</div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:10px;padding-top:10px;border-top:2px solid var(--ed-ink)">'+
-          '<div class="ed-eyebrow">Total — incl. GST · 50% deposit '+fmtMoney(accTot*0.5)+'</div>'+
-          '<div id="qpAcceptTotal" class="ed-serif" style="font-size:28px;font-weight:600;color:var(--ed-accent);line-height:1">'+fmtMoney(accTot)+'</div>'+
+        '<div style="margin-top:10px;padding-top:10px;border-top:2px solid var(--ed-ink)">'+
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:3px 0">'+
+            '<div class="ed-body" style="font-size:12px;color:var(--ed-ink-2)">Subtotal (excl. GST)</div>'+
+            '<div class="ed-serif" style="font-size:15px;font-weight:600;color:var(--ed-ink)">'+fmtMoney(accSub)+'</div>'+
+          '</div>'+
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:3px 0">'+
+            '<div class="ed-body" style="font-size:12px;color:var(--ed-ink-2)">GST ('+(S.quote.gstRate!=null?S.quote.gstRate:15)+'%)</div>'+
+            '<div class="ed-serif" style="font-size:15px;font-weight:600;color:var(--ed-ink)">'+fmtMoney(accSub*accRate)+'</div>'+
+          '</div>'+
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0 0;margin-top:4px;border-top:1px solid var(--ed-line)">'+
+            '<div class="ed-eyebrow" style="align-self:center">Total incl. GST <span style="font-weight:400;color:var(--ed-text2);text-transform:none;letter-spacing:0">· 50% deposit '+fmtMoney(accTot*0.5)+'</span></div>'+
+            '<div id="qpAcceptTotal" class="ed-serif" style="font-size:28px;font-weight:600;color:var(--ed-accent);line-height:1">'+fmtMoney(accTot)+'</div>'+
+          '</div>'+
         '</div>'+
       '</div>'+
       (acc
