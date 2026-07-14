@@ -1082,7 +1082,14 @@ function _normaliseFergusFile(raw) {
   // hint and either a URL or a download path.
   const id   = raw.id || raw.uuid || raw.file_id || raw.fileId || raw.attachment_id || raw.attachmentId || raw.gallery_id || null;
   const name = raw.name || raw.filename || raw.fileName || raw.title || raw.original_name || raw.originalName || raw.file_name || raw.display_name || raw.displayName || ('file-' + (id || ''));
-  const url  = raw.url || raw.public_url || raw.publicUrl || raw.download_url || raw.downloadUrl || raw.path || raw.file_url || raw.fileUrl || raw.original_url || raw.originalUrl || raw.signed_url || raw.signedUrl || raw.s3_url || raw.cdn_url || raw.cdnUrl || null;
+  // Fergus attachments carry no direct URL — the download reference is a
+  // relative API path in a HATEOAS links[] array (rel:"download").
+  let linkHref = null;
+  if (Array.isArray(raw.links)) {
+    const dl = raw.links.find(l => l && (l.rel === 'download' || /\/download(\?|$)/i.test(l.href || '')));
+    if (dl) linkHref = dl.href;
+  }
+  const url  = raw.url || raw.public_url || raw.publicUrl || raw.download_url || raw.downloadUrl || raw.path || raw.file_url || raw.fileUrl || raw.original_url || raw.originalUrl || raw.signed_url || raw.signedUrl || raw.s3_url || raw.cdn_url || raw.cdnUrl || linkHref || null;
   const thumb= raw.thumbnail || raw.thumb_url || raw.thumbUrl || raw.preview_url || raw.previewUrl || raw.thumbnail_url || raw.thumbnailUrl || raw.thumb || null;
   const mime = raw.mime_type || raw.mimeType || raw.content_type || raw.contentType || raw.type || raw.file_type || raw.fileType || '';
   return { id, name, url, thumbnail: thumb || url, contentType: mime };
@@ -1405,20 +1412,44 @@ app.get('/fergus-files/download', requireAuth, requireSubscription, async (req, 
   if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
   const url = req.query.url;
   if (!url) return res.status(400).json({ error: 'url query param required' });
-  // Only allow URLs whose host matches the configured Fergus host (or a
-  // sibling like cdn / media subdomain) so this proxy can't be turned
-  // into an open redirect / SSRF.
-  let parsed;
-  try { parsed = new URL(url); } catch { return res.status(400).json({ error: 'invalid url' }); }
+
   const allowedHostSuffix = (FERGUS_HOST.replace(/^api\./, '')) || 'fergus.com';
-  if (!parsed.host.endsWith(allowedHostSuffix)) {
-    return res.status(403).json({ error: 'host not allowed', host: parsed.host, allowedSuffix: allowedHostSuffix });
+  let fetchUrl, sendAuth = true;
+  if (/^https?:\/\//i.test(url)) {
+    // Absolute URL — SSRF guard: host must be a Fergus (sub)domain.
+    let parsed;
+    try { parsed = new URL(url); } catch { return res.status(400).json({ error: 'invalid url' }); }
+    if (!parsed.host.endsWith(allowedHostSuffix)) {
+      return res.status(403).json({ error: 'host not allowed', host: parsed.host, allowedSuffix: allowedHostSuffix });
+    }
+    fetchUrl = url;
+  } else if (url.charAt(0) === '/') {
+    // Relative Fergus API path (e.g. /attachments/{id}/download from an
+    // attachment's HATEOAS links) — resolve against the API host+prefix.
+    fetchUrl = `https://${FERGUS_HOST}${FERGUS_PREFIX}${url}`;
+  } else {
+    return res.status(400).json({ error: 'invalid url' });
   }
+
   try {
-    const r = await fetch(url, {
+    let r = await fetch(fetchUrl, {
       method: 'GET',
-      headers: { 'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY },
+      headers: sendAuth ? { 'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY } : {},
     });
+    // The download endpoint may hand back JSON describing a presigned
+    // storage URL rather than the bytes themselves — follow it once,
+    // WITHOUT the API key (presigned URLs carry their own auth).
+    const ct0 = (r.headers.get('content-type') || '').toLowerCase();
+    if (r.ok && ct0.indexOf('application/json') === 0) {
+      const meta = await r.json().catch(() => null);
+      const signed = meta && (meta.url || meta.downloadUrl || meta.signedUrl || meta.signed_url || meta.href ||
+        (meta.data && (meta.data.url || meta.data.downloadUrl || meta.data.signedUrl)));
+      if (signed && /^https?:\/\//i.test(signed)) {
+        r = await fetch(signed, { method: 'GET' });
+      } else {
+        return res.status(502).json({ error: 'no downloadable url in response', keys: meta ? Object.keys(meta) : null });
+      }
+    }
     if (!r.ok) {
       const text = await r.text().catch(() => '');
       return res.status(r.status).json({ error: 'fergus returned ' + r.status, body: text.slice(0, 400) });
