@@ -3461,7 +3461,14 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
        directly; changes save into the quote and print exactly as shown. -->
   <div class="card js-proposal-print">
     <div class="card-hd"><span class="card-dot"></span>Proposal — click any text to edit
-      <button onclick="refreshQuoteProposal()" style="margin-left:auto;padding:4px 10px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
+      <div style="margin-left:auto;display:inline-flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--text2)">Draft:</span>
+        <div style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <button type="button" id="qkBtn_roofing"  onclick="_setQuoteKind('roofing')"  style="padding:4px 12px;border:none;background:#0a1628;color:#fff;font-size:11px;font-weight:700;cursor:pointer">Roofing</button>
+          <button type="button" id="qkBtn_poleshed" onclick="_setQuoteKind('poleshed')" style="padding:4px 12px;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:500;cursor:pointer">Pole Shed</button>
+        </div>
+        <button onclick="refreshQuoteProposal()" style="padding:4px 10px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
+      </div>
     </div>
     <!-- The proposal preview is rendered into qpRoot by refreshQuoteProposal().
          The hidden placeholders below are kept so legacy ID lookups still
@@ -10935,6 +10942,277 @@ function _residenceTitle(name){
   var parts = n.split(/\s+/);
   return parts[parts.length - 1] + ' Residence';
 }
+// ══════════════════════════════════════════════════════════════════
+// POLE-SHED QUOTE DRAFT
+// A second quote document type (S.quote.quoteKind === 'poleshed') that
+// reuses the premium branded proposal styling but restructures content
+// for pole-shed builds — modelled on Flood Roofing's shed quotes: cover,
+// shed specification, inclusions / exclusions / options + special notes,
+// a single manual subtotal (GST + deposit computed) and an acceptance
+// page. Roofing quotes are unchanged (quoteKind 'roofing' / undefined).
+// ══════════════════════════════════════════════════════════════════
+var POLESHED_DEFAULTS = {
+  psSubtitle: 'Colorsteel option',
+  psRoofType: 'Mono-pitch (flat)',
+  psRoofPitch: '3°',
+  psWidth: '', psLength: '', psHeight: '',
+  psBays: '', psBayAmount: '',
+  psRoofSheet: 'Five Rib or Corrugate Colorsteel over roofing underlay + Clearlite in each bay',
+  psWallSheet: 'Five Rib or Corrugate Colorsteel, no underlay',
+  psGutter: '125mm Colorsteel box gutter with 1x downpipe',
+  psFloor: '100mm 25MPa concrete over steel mesh over Gap40 base metal',
+  psCenterPoles: 'No',
+  psExtras: 'No',
+  psDoors: '3x Roller Doors, 1x P.A. Door',
+  psInclusions: [
+    'Supply all of the materials required.',
+    'Our Skid Steer to bore the holes.',
+    'Concrete in the poles.',
+    'Prep for concrete, install boxing and lay reinforcing mesh.',
+    'BDC Concrete to lay the floor.',
+    'Build the shed to the above measurements.',
+    'Install roofing, wall cladding, flashings and gutters.',
+    'GM Doors to supply and install roller doors.',
+    'Leave site clean and tidy.'
+  ],
+  psExclusions: [
+    'Site prep and earthworks (can be done as an extra).',
+    'Building consent.',
+    'Site survey.'
+  ],
+  psOptions: [
+    'Extra concrete at $100 + GST per m².',
+    'Use plain silver Zincalume to save $1,850 + GST.',
+    'Upgrade to thicker 0.55g Colorsteel, add $1,520 + GST.',
+    'Add P.A. Door $1,800 + GST (includes installation).',
+    'Add Roller Door $3,800 + GST (includes installation).',
+    'Add 1800×800 Window $1,600 + GST (includes installation).'
+  ],
+  psSpecialNotes: [
+    "Flood Roofing doesn't supply kitsets; we source all products through our building supply partners to skip the 'kitset middleman'.",
+    'Price based on a flat section with no earthworks required.',
+    'Owner acknowledges all responsibility for building consent requirements as instructed by Flood Roofing.'
+  ],
+  psIntro: 'Thank you for the opportunity to provide you with the following quote — we look forward to hearing from you.\nThe total price is shown at the bottom of the quote.\nPayment terms: a deposit invoice is issued on acceptance of the quote; once paid, your spot in the queue is locked in. Final payment is due no more than 7 days from completion of the work.\nOur lead-time is usually 5–8 weeks from quote acceptance to job start.',
+  psDesignLink: ''
+};
+function _psGet(field){
+  var v = S.quote ? S.quote[field] : undefined;
+  if (v == null || v === '') {
+    var d = POLESHED_DEFAULTS[field];
+    return Array.isArray(d) ? d.join('\n') : (d != null ? d : '');
+  }
+  return Array.isArray(v) ? v.join('\n') : v;
+}
+function _setQuoteKind(k){
+  if (!S.quote) return;
+  S.quote.quoteKind = (k === 'poleshed') ? 'poleshed' : 'roofing';
+  _syncQuoteKindToggle();
+  if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+}
+function _setPsConsent(v){
+  if (!S.quote) return;
+  S.quote.psConsent = (v === 'consented') ? 'consented' : 'exemption';
+  if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+}
+// Reflect the current draft type on the Quote-tab toggle buttons.
+function _syncQuoteKindToggle(){
+  var ps = S.quote && S.quote.quoteKind === 'poleshed';
+  ['roofing','poleshed'].forEach(function(k){
+    var b = document.getElementById('qkBtn_' + k);
+    if (!b) return;
+    var on = (k === 'poleshed') === ps;
+    b.style.background = on ? '#0a1628' : 'transparent';
+    b.style.color = on ? '#fff' : 'var(--text2)';
+    b.style.fontWeight = on ? '700' : '500';
+  });
+}
+// Subtotal is typed by the office (excl GST); GST + total + deposit are
+// derived. Deposit is 50% for an exemption build, 60% when consented.
+function _poleShedMoney(){
+  var raw = String((S.quote && S.quote.psSubtotal != null) ? S.quote.psSubtotal : '').replace(/[^0-9.]/g,'');
+  var sub = parseFloat(raw) || 0;
+  var rate = (S.quote && S.quote.gstRate != null ? parseFloat(S.quote.gstRate) : 15) / 100;
+  var gst = sub * rate;
+  var tot = sub + gst;
+  var pct = (S.quote && S.quote.psConsent === 'consented') ? 60 : 50;
+  return { sub: sub, gst: gst, tot: tot, rate: rate, depositPct: pct, deposit: tot * pct / 100 };
+}
+// Build all pole-shed proposal pages. rpPage / headerHtml / trustLogosHtml
+// are passed in from refreshQuoteProposal's local scope.
+function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
+  var q = S.quote;
+  var M = _poleShedMoney();
+  var consented = (q.psConsent === 'consented');
+  var eyebrow = function(t){ return '<div class="ed-eyebrow">'+esc2(t)+'</div>'; };
+  // inline single-line editable
+  var ed = function(field, style){
+    return '<span class="qp-editable" contenteditable="true" data-qfield="'+field+'" spellcheck="false" style="'+(style||'')+'">'+esc2(_psGet(field))+'</span>';
+  };
+  // definition-list spec row
+  var specRow = function(label, field){
+    return '<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--ed-line)">'+
+      '<div style="flex:0 0 132px;font-family:var(--ed-sans);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ed-text2);padding-top:2px">'+esc2(label)+'</div>'+
+      '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="'+field+'" spellcheck="false" style="flex:1;font-size:13px;color:var(--ed-ink);line-height:1.35">'+esc2(_psGet(field))+'</div>'+
+    '</div>';
+  };
+  // multiline editable (intro / special notes)
+  var edMulti = function(field, style){
+    return '<div class="qp-editable" contenteditable="true" data-qfield="'+field+'" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.65;color:var(--ed-ink-2);white-space:pre-wrap;'+(style||'')+'">'+esc2(_psGet(field))+'</div>';
+  };
+  var consentToggle =
+    '<div class="no-print" style="display:inline-flex;border:1px solid var(--ed-line);border-radius:6px;overflow:hidden;margin-top:6px">'+
+      ['exemption','consented'].map(function(c){
+        var on = (c==='consented')===consented;
+        return '<button type="button" onclick="_setPsConsent(\''+c+'\')" style="padding:5px 12px;border:none;background:'+(on?'var(--ed-accent)':'transparent')+';color:'+(on?'#fff':'var(--ed-ink-2)')+';font-family:var(--ed-sans);font-size:11px;font-weight:600;cursor:pointer">'+(c==='consented'?'Consented':'Consent-exempt')+'</button>';
+      }).join('')+
+    '</div>';
+
+  // ── Cover ────────────────────────────────────────────────────────
+  var hero = (typeof resolveSlotSrc === 'function' ? resolveSlotSrc('cover_hero') : null);
+  var heroBand = hero
+    ? '<div style="height:300px;background:var(--ed-ink) url('+esc2(hero)+') center/cover no-repeat;position:relative"><div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.15),rgba(0,153,224,.18))"></div></div>'
+    : '<div style="height:170px;background:linear-gradient(135deg,var(--ed-ink),#123)"></div>';
+  var designLinkVal = String(_psGet('psDesignLink')||'').trim();
+  var cover =
+    heroBand +
+    '<div style="padding:26px 36px 8px">'+
+      eyebrow('Project quote')+
+      '<div class="ed-title ed-h1" style="margin-top:6px;font-size:40px"><span class="ed-serif" style="font-style:italic;color:var(--ed-accent)">Pole Shed</span></div>'+
+      '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="psSubtitle" spellcheck="false" style="font-size:18px;color:var(--ed-ink);margin-top:2px">'+esc2(_psGet('psSubtitle'))+'</div>'+
+      consentToggle +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:20px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:16px 0">'+
+        '<div>'+eyebrow('Prepared for')+
+          '<div class="qp-editable ed-serif" contenteditable="true" data-qfield="client" spellcheck="false" style="font-size:16px;color:var(--ed-ink);font-style:italic;margin-top:4px">'+esc2(q.client||'Client name')+'</div>'+
+          '<div class="qp-editable" contenteditable="true" data-qfield="addr" spellcheck="false" style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-text2);margin-top:3px">'+esc2(q.addr||'Site address')+'</div>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+          '<div>'+eyebrow('Reference')+'<div class="ed-serif qp-editable" contenteditable="true" data-qfield="ref" spellcheck="false" style="font-size:15px;color:var(--ed-ink);margin-top:4px">'+esc2(q.ref||'FR-001')+'</div></div>'+
+          '<div>'+eyebrow('Quote date')+'<div class="ed-serif qp-editable" contenteditable="true" data-qfield="date" spellcheck="false" style="font-size:15px;color:var(--ed-ink);margin-top:4px">'+esc2(q.date||'')+'</div></div>'+
+          '<div>'+eyebrow('Valid until')+'<div class="ed-serif qp-editable" contenteditable="true" data-qfield="validUntil" spellcheck="false" style="font-size:15px;color:var(--ed-ink);margin-top:4px">'+esc2(q.validUntil||'30 days')+'</div></div>'+
+          '<div>'+eyebrow('Deposit')+'<div class="ed-serif" style="font-size:15px;color:var(--ed-ink);margin-top:4px">'+M.depositPct+'%</div></div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="margin-top:16px">'+edMulti('psIntro')+'</div>'+
+      (designLinkVal
+        ? '<div style="margin-top:14px"><a href="'+esc2(designLinkVal)+'" target="_blank" rel="noopener" style="color:var(--ed-accent);font-family:var(--ed-sans);font-size:12.5px;font-weight:600">→ Click here to view the online design</a> <span class="no-print" style="font-size:10px;color:var(--ed-text2)">('+ed('psDesignLink','font-size:10px')+')</span></div>'
+        : '<div class="no-print" style="margin-top:14px;font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2)">Design link: '+ed('psDesignLink','color:var(--ed-accent)')+' — paste the WebShed URL to show a “view the design” link.</div>')+
+    '</div>';
+
+  // ── Consent exemption summary (static) ───────────────────────────
+  var exemptItems = ['Zoned as “Rural”','No bigger than 110m²','No clear-span over 6m','No higher than 4m','Wind-zone no greater than “High”'];
+  var consentBlock =
+    '<div style="margin-bottom:16px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
+      '<div class="ed-serif" style="font-size:13.5px;color:var(--ed-ink);margin-bottom:4px">'+(consented
+        ? 'This shed will require a building consent. If you would prefer to build without one, it must meet all of the exemption criteria below:'
+        : 'This shed may not require a building consent if it meets all of the exemption criteria below:')+'</div>'+
+      '<ul style="margin:6px 0 0;padding:0;list-style:none;columns:2;column-gap:24px">'+
+        exemptItems.map(function(t){ return '<li style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-ink-2);padding:2px 0"><span style="color:var(--ed-accent);font-weight:700">•</span>&nbsp;&nbsp;'+esc2(t)+'</li>'; }).join('')+
+      '</ul>'+
+    '</div>';
+
+  // ── Shed specification ───────────────────────────────────────────
+  var elevBoxes = '';
+  for (var i = 0; i < 4; i++){
+    var cp = (typeof _qpCondPhoto === 'function') ? _qpCondPhoto(i) : null;
+    elevBoxes += (typeof _qpCondPhotoSlotHtml === 'function') ? _qpCondPhotoSlotHtml(i, cp) : '';
+  }
+  var spec =
+    edHeading('02','Specification','Shed details')+
+    consentBlock +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start">'+
+      '<div>'+
+        eyebrow('Main structure')+
+        '<div style="margin-top:6px">'+
+          specRow('Roof type','psRoofType')+ specRow('Roof pitch','psRoofPitch')+
+          specRow('Width','psWidth')+ specRow('Length','psLength')+ specRow('Height','psHeight')+
+          specRow('Bays','psBays')+ specRow('Bay amount','psBayAmount')+
+        '</div>'+
+        '<div style="margin-top:14px">'+eyebrow('Doors')+'<div style="margin-top:6px">'+specRow('Doors','psDoors')+'</div></div>'+
+      '</div>'+
+      '<div>'+
+        eyebrow('Sheeting & build')+
+        '<div style="margin-top:6px">'+
+          specRow('Roof','psRoofSheet')+ specRow('Wall','psWallSheet')+
+          specRow('Gutter','psGutter')+ specRow('Floor','psFloor')+
+          specRow('Centre poles','psCenterPoles')+ specRow('Extras','psExtras')+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+    '<input type="file" accept="image/*" id="qpCondPhotoFileInput" onchange="_qpCondPhotoUpload(event)" style="display:none">'+
+    '<div class="ed-eyebrow" style="margin:20px 0 10px">Shed design &amp; elevations</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'+elevBoxes+'</div>';
+
+  // ── Inclusions / Exclusions / Options / Notes + Price ────────────
+  var listBlock = function(title, field, accent){
+    return '<div style="margin-bottom:14px">'+
+      '<div class="ed-eyebrow" style="margin-bottom:6px'+(accent?';color:'+accent:'')+'">'+esc2(title)+' <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7">— click to edit</span></div>'+
+      _condIssuesEditable(field, _psGet(field), accent || 'var(--ed-accent)')+
+    '</div>';
+  };
+  var money = function(label, value, opts){
+    opts = opts || {};
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 16px;'+
+      (opts.top?'border-top:2px solid rgba(255,255,255,.32);':'border-top:1px solid rgba(255,255,255,.13);')+
+      (opts.strong?'background:rgba(255,255,255,.07);':'')+'">'+
+      '<div style="font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,'+(opts.strong?'1':'.72')+');'+(opts.strong?'font-weight:700;':'')+'">'+label+'</div>'+
+      '<div class="ed-serif" style="font-size:'+(opts.strong?'18px':'13px')+';font-weight:600;white-space:nowrap;color:'+(opts.strong?'#4fc3ff':'#fff')+'">'+value+'</div>'+
+    '</div>';
+  };
+  var subEditable = '<span class="qp-editable" contenteditable="true" data-qfield="psSubtotal" spellcheck="false" style="color:#fff;font-weight:600">'+(M.sub>0?fmtMoney(M.sub):'<span class="qp-placeholder" style="color:rgba(255,255,255,.5)">$0.00</span>')+'</span>';
+  var priceCard =
+    '<div style="margin-top:6px;background:var(--ed-ink);border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(10,24,40,.2)">'+
+      '<div style="padding:10px 16px 8px">'+
+        '<div class="ed-eyebrow" style="color:#4fc3ff">Your investment</div>'+
+        '<div style="font-family:var(--ed-sans);font-size:11px;color:rgba(255,255,255,.7);margin-top:2px">Type the subtotal (excl. GST); GST, total and deposit calculate automatically.</div>'+
+      '</div>'+
+      money('Subtotal <span style="color:rgba(255,255,255,.6)">(excl. GST)</span>', subEditable, { top:true })+
+      money('GST ('+Math.round(M.rate*100)+'%)', fmtMoney(M.gst))+
+      money('Total <span style="font-weight:400;color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(M.tot), { strong:true })+
+      money(M.depositPct+'% deposit on acceptance', fmtMoney(M.deposit))+
+    '</div>';
+  var inclusions =
+    edHeading('03','What\'s included','Inclusions &amp; options')+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start">'+
+      '<div>'+ listBlock('Inclusions','psInclusions','#2e7d32') +'</div>'+
+      '<div>'+ listBlock('Exclusions','psExclusions','var(--ed-warm,#c0794d)') + listBlock('Options','psOptions','var(--ed-accent)') +'</div>'+
+    '</div>'+
+    '<div style="margin-top:6px">'+ eyebrow('Special notes')+ '<div style="margin-top:6px">'+edMulti('psSpecialNotes')+'</div></div>'+
+    priceCard;
+
+  // ── Acceptance ───────────────────────────────────────────────────
+  var accept =
+    edHeading('04','Ready to go ahead?','Accept your quote')+
+    '<div style="display:grid;grid-template-columns:1.1fr .9fr;gap:26px;align-items:start;margin-top:6px">'+
+      '<div>'+
+        '<div style="background:var(--ed-ink);border-radius:8px;overflow:hidden;margin-bottom:14px">'+
+          money('Subtotal <span style="color:rgba(255,255,255,.6)">(excl. GST)</span>', fmtMoney(M.sub), { top:true })+
+          money('GST ('+Math.round(M.rate*100)+'%)', fmtMoney(M.gst))+
+          money('Total <span style="font-weight:400;color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(M.tot), { strong:true })+
+          money(M.depositPct+'% deposit on acceptance', fmtMoney(M.deposit))+
+        '</div>'+
+        '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);line-height:1.6">A '+M.depositPct+'% deposit invoice is issued on acceptance; once paid your spot in the queue is locked in. Final payment is due within 7 days of completion.</div>'+
+      '</div>'+
+      '<div style="border:1px solid var(--ed-line);border-radius:8px;padding:16px;background:var(--ed-paper-2)">'+
+        '<div class="ed-eyebrow" style="margin-bottom:8px">Accept this quote</div>'+
+        '<input type="text" id="qpAcceptName" placeholder="Type your full name" value="'+esc2(q.client||'')+'" style="width:100%;font-family:var(--ed-sans);font-size:13px;padding:9px 11px;border:1px solid var(--ed-line);border-radius:6px;margin-bottom:10px;box-sizing:border-box">'+
+        '<label style="display:flex;gap:8px;align-items:flex-start;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);line-height:1.4;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="qpAcceptTerms" style="margin:2px 0 0;flex-shrink:0"> I accept this quote and the terms above.</label>'+
+        '<button onclick="acceptQuoteDigitally()" style="width:100%;padding:12px;background:var(--ed-accent);color:#fff;border:none;border-radius:6px;font-family:var(--ed-sans);font-size:14px;font-weight:700;cursor:pointer">✓ Accept quote</button>'+
+      '</div>'+
+    '</div>';
+
+  var html = '';
+  // Cover page (padding:0 so the hero band bleeds to the edges).
+  html += '<div class="rp-body rp-page" style="padding:0;background:#fff;display:flex;flex-direction:column">'+
+    headerHtml+
+    '<div style="flex:1">'+cover+'</div>'+
+    '<div style="padding:16px 36px 22px;background:#fff;border-top:1px solid var(--ed-line)">'+trustLogosHtml+'</div>'+
+  '</div>';
+  html += rpPage(spec);
+  html += rpPage(inclusions);
+  html += rpPage(accept, 'background:linear-gradient(180deg,#fafbfc,#f1f5f9)');
+  return html;
+}
 function refreshQuoteProposal(){
   if (!S.quote) return;
   var root = document.getElementById('qpRoot');
@@ -11030,7 +11308,7 @@ function refreshQuoteProposal(){
         '</div>'+
       '</div>'+
     '</div>'+
-    '<div class="rp-hdr-right"><strong>'+esc2(S.quote.coverTitle || 'Roofing Quote & Proposal')+'</strong>'+esc2(S.quote.date || '')+'<br>Ref: '+esc2(S.quote.ref || 'FR-001')+'<br>Valid: '+esc2(S.quote.validUntil || '30 days')+'</div>'+
+    '<div class="rp-hdr-right"><strong>'+esc2(S.quote.quoteKind === 'poleshed' ? 'Pole Shed Quote' : (S.quote.coverTitle || 'Roofing Quote & Proposal'))+'</strong>'+esc2(S.quote.date || '')+'<br>Ref: '+esc2(S.quote.ref || 'FR-001')+'<br>Valid: '+esc2(S.quote.validUntil || '30 days')+'</div>'+
   '</div>';
 
   // ── 10-PAGE PROPOSAL LAYOUT ─────────────────────────────────────
@@ -12401,6 +12679,10 @@ function refreshQuoteProposal(){
       pageFooterHtml +
     '</div>';
   }
+  // Pole-shed draft renders an entirely different page set.
+  if (S.quote.quoteKind === 'poleshed'){
+    html += _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml);
+  } else {
   // Page 1 — Cover (zero-padded so hero band sits flush to page edges).
   // The letterhead header rides inside this page so the two share one
   // printed sheet (no empty overflow page).
@@ -12436,11 +12718,13 @@ function refreshQuoteProposal(){
   html += rpPage(partTerms);
   // Page 6 — Acceptance
   html += rpPage(partSignature, 'background:linear-gradient(180deg,#fafbfc,#f1f5f9)');
+  }
 
   // ── Summary bar (always shown at the bottom) ──
-  var sumSub = _QM.sub;
-  var sumGst = _QM.gst;
-  var sumTot = _QM.tot;
+  var _psM = (S.quote.quoteKind === 'poleshed') ? _poleShedMoney() : null;
+  var sumSub = _psM ? _psM.sub : _QM.sub;
+  var sumGst = _psM ? _psM.gst : _QM.gst;
+  var sumTot = _psM ? _psM.tot : _QM.tot;
   // Compact one-line footer — appended INSIDE the last rendered
   // .rp-page so it can't spill onto its own page in print/PDF.  The
   // legacy dark "all options" summary bar has been replaced by the
@@ -12457,6 +12741,7 @@ function refreshQuoteProposal(){
   root.innerHTML = html;
   _attachInlineEditors();
   _fitProposalPages();
+  try { _syncQuoteKindToggle(); } catch(e){}
 
   // Keep legacy hidden anchors in sync so other tabs reading qpTotal etc. still work.
   function setText(id, v){var el=document.getElementById(id); if(el) el.textContent = v;}
