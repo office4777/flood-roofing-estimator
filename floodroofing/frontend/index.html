@@ -11151,11 +11151,6 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
     '</div>';
 
   // ── Shed specification ───────────────────────────────────────────
-  var elevBoxes = '';
-  for (var i = 0; i < 4; i++){
-    var cp = (typeof _qpCondPhoto === 'function') ? _qpCondPhoto(i) : null;
-    elevBoxes += (typeof _qpCondPhotoSlotHtml === 'function') ? _qpCondPhotoSlotHtml(i, cp) : '';
-  }
   var spec =
     edHeading('02','Specification','Shed details')+
     consentBlock +
@@ -11177,10 +11172,26 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
           specRow('Centre poles','psCenterPoles')+ specRow('Extras','psExtras')+
         '</div>'+
       '</div>'+
-    '</div>'+
+    '</div>';
+
+  // ── Shed design & elevations (own page — large slots) ────────────
+  // Six generously-sized slots (2 columns) that fill the page: 3D view,
+  // the four elevations and the floor plan — matching the WebShed export.
+  var ELEV_LABELS = ['3D view','Front elevation','Back elevation','Left elevation','Right elevation','Floor plan'];
+  var elevCells = '';
+  for (var i = 0; i < 6; i++){
+    var cp = (typeof _qpCondPhoto === 'function') ? _qpCondPhoto(i) : null;
+    elevCells +=
+      '<div>'+
+        '<div class="ed-eyebrow" style="margin-bottom:5px">'+esc2(ELEV_LABELS[i])+'</div>'+
+        ((typeof _qpCondPhotoSlotHtml === 'function') ? _qpCondPhotoSlotHtml(i, cp) : '')+
+      '</div>';
+  }
+  var elevations =
+    edHeading('03','Design','Shed design & elevations')+
+    '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 14px;line-height:1.5">Your shed as designed — 3D view, elevations and floor plan. Pull the images straight from the Fergus job or upload them from your PC.</div>'+
     '<input type="file" accept="image/*" id="qpCondPhotoFileInput" onchange="_qpCondPhotoUpload(event)" style="display:none">'+
-    '<div class="ed-eyebrow" style="margin:20px 0 10px">Shed design &amp; elevations</div>'+
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'+elevBoxes+'</div>';
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 20px">'+elevCells+'</div>';
 
   // ── Inclusions / Exclusions / Options / Notes + Price ────────────
   var listBlock = function(title, field, accent){
@@ -11211,7 +11222,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
       money(M.depositPct+'% deposit on acceptance', fmtMoney(M.deposit))+
     '</div>';
   var inclusions =
-    edHeading('03','What\'s included','Inclusions &amp; options')+
+    edHeading('04','What\'s included','Inclusions &amp; options')+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start">'+
       '<div>'+ listBlock('Inclusions','psInclusions','#2e7d32') +'</div>'+
       '<div>'+ listBlock('Exclusions','psExclusions','var(--ed-warm,#c0794d)') + listBlock('Options','psOptions','var(--ed-accent)') +'</div>'+
@@ -11221,7 +11232,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
 
   // ── Acceptance ───────────────────────────────────────────────────
   var accept =
-    edHeading('04','Ready to go ahead?','Accept your quote')+
+    edHeading('05','Ready to go ahead?','Accept your quote')+
     '<div style="display:grid;grid-template-columns:1.1fr .9fr;gap:26px;align-items:start;margin-top:6px">'+
       '<div>'+
         '<div style="background:var(--ed-ink);border-radius:8px;overflow:hidden;margin-bottom:14px">'+
@@ -11248,6 +11259,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
     '<div style="padding:16px 36px 22px;background:#fff;border-top:1px solid var(--ed-line)">'+trustLogosHtml+'</div>'+
   '</div>';
   html += rpPage(spec);
+  html += rpPage(elevations);
   html += rpPage(inclusions);
   html += rpPage(accept, 'background:linear-gradient(180deg,#fafbfc,#f1f5f9)');
   return html;
