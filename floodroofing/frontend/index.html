@@ -26630,28 +26630,45 @@ function _buildFergusItemisedSections(){
   var matCode = (k.fergusMaterialCode || '').trim();
   var labCode = (k.fergusLabourCode || '').trim();
   var acct = function(v){ var n = parseFloat(v); return isFinite(n) ? n : v; };
-  function labLine(desc, hrs, rate){
-    var o = { description: desc, quantity: parseFloat((+hrs).toFixed(2)) || 0, unitPrice: +rate || 0, hourlyRate: +rate || 0, sellPrice: +rate || 0, price: +rate || 0, isLabour: true };
+  // Fergus's quote line-item columns are Name / Quantity / UoM / Cost / Price.
+  // The text field is `name` (NOT description) — without it Fergus creates a
+  // blank row and drops the other fields. We send `name` plus a shotgun of
+  // the plausible qty/cost/price aliases so whichever Fergus expects sticks.
+  function labLine(desc, hrs, rate, cost){
+    var q = parseFloat((+hrs).toFixed(2)) || 0, sell = +rate || 0, c = +cost || 0;
+    var o = {
+      name: desc, description: desc, title: desc,
+      quantity: q, qty: q, uom: 'hour', unitOfMeasure: 'hour',
+      price: sell, unitPrice: sell, sellPrice: sell, salePrice: sell, hourlyRate: sell,
+      cost: c, unitCost: c, costPrice: c,
+      isLabour: true
+    };
     if (labAcct) o.salesAccountId = acct(labAcct);
     if (labCode) { o.code = labCode; o.itemCode = labCode; }
     return o;
   }
-  function matLine(desc, qty, unit){
-    var o = { description: desc, quantity: parseFloat((+qty).toFixed(2)) || 0, unitPrice: +unit || 0, price: +unit || 0, sellPrice: +unit || 0 };
+  function matLine(desc, qty, unit, cost){
+    var q = parseFloat((+qty).toFixed(2)) || 0, sell = +unit || 0;
+    var o = {
+      name: desc, description: desc, title: desc,
+      quantity: q, qty: q, uom: 'item', unitOfMeasure: 'item',
+      price: sell, unitPrice: sell, sellPrice: sell, salePrice: sell
+    };
+    if (cost != null){ var c = +cost || 0; o.cost = c; o.unitCost = c; o.costPrice = c; }
     if (matAcct) o.salesAccountId = acct(matAcct);
     if (matCode) { o.code = matCode; o.itemCode = matCode; }
     return o;
   }
   var st = _pricingState(); var L = st.L;
   var labour = [];
-  if ((+L.leadHrs) > 0) labour.push(labLine('Lead Roofer', L.leadHrs, +L.leadPrice || 0));
-  if ((+L.appHrs)  > 0) labour.push(labLine('Apprentice',  L.appHrs,  +L.appPrice  || 0));
-  (L.extras || []).forEach(function(x){ if ((+x.hrs) > 0) labour.push(labLine((x.name || 'Labourer'), x.hrs, +x.price || 0)); });
+  if ((+L.leadHrs) > 0) labour.push(labLine('Lead Roofer', L.leadHrs, +L.leadPrice || 0, +L.leadCost || 0));
+  if ((+L.appHrs)  > 0) labour.push(labLine('Apprentice',  L.appHrs,  +L.appPrice  || 0, +L.appCost || 0));
+  (L.extras || []).forEach(function(x){ if ((+x.hrs) > 0) labour.push(labLine((x.name || 'Labourer'), x.hrs, +x.price || 0, +x.cost || 0)); });
   var mats = [];
   _readFergusMaterialItems().forEach(function(m){ mats.push(matLine(m.name, m.qty, m.price)); });
   if (!mats.length && (+S.materials) > 0) mats.push(matLine('Materials', 1, +S.materials));
   var sc = _scaffoldEff(st.sc);
-  if ((+sc.price) > 0) mats.push(matLine('Scaffolding' + (st.sc.type === 'platform' ? ' (platform)' : ''), 1, sc.price));
+  if ((+sc.price) > 0) mats.push(matLine('Scaffolding' + (st.sc.type === 'platform' ? ' (platform)' : ''), 1, sc.price, sc.cost));
   (typeof _qpSelectionChanges === 'function' ? _qpSelectionChanges() : []).forEach(function(c){
     if (c.delta && Math.abs(c.delta) > 0.005) mats.push(matLine('Selection — ' + c.label, 1, c.delta));
   });
