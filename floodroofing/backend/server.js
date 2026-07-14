@@ -1030,6 +1030,23 @@ const FERGUS_LIST_CANDIDATES = [
   '/jobs/{jobId}/job_files',
   '/jobs/{jobId}/job_photos',
   '/jobs/{jobId}/uploads',
+  // The docs call this "API v1" — try an explicit /v1 prefix on the
+  // file sub-resources even though bare /jobs/{id} works without one.
+  '/v1/jobs/{jobId}/files',
+  '/v1/jobs/{jobId}/photos',
+  '/v1/jobs/{jobId}/attachments',
+  '/v1/jobs/{jobId}/documents',
+  '/v1/jobs/{jobId}/gallery',
+  // Top-level file resources filtered by job id (query-param style) —
+  // common in OAS-3 REST designs where files are a first-class resource.
+  '/files?job_id={jobId}',
+  '/files?jobId={jobId}',
+  '/photos?job_id={jobId}',
+  '/attachments?job_id={jobId}',
+  '/documents?job_id={jobId}',
+  '/job_files?job_id={jobId}',
+  '/v1/files?job_id={jobId}',
+  '/v1/attachments?job_id={jobId}',
   '/v2/jobs/{jobId}/files',
   '/v2/jobs/{jobId}/photos',
   '/v2/jobs/{jobId}/attachments',

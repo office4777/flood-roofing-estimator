@@ -27998,10 +27998,11 @@ function _fergusSetCanvasBg(dataUrl){
   img.onerror = function(){ alert('Could not display that photo — try another.'); };
   img.src = dataUrl;
 }
-// "Probe endpoints" button on the Map Roof tab — runs the endpoint
-// discovery probe and shows the per-path status table inside the Fergus
-// photo modal (so it's visible right on the RoofMap tab, not just the
-// Materials diagnostics panel).
+// "Probe endpoints" button on the Map Roof tab — runs the DEEP list
+// scan (/fergus-files/list), which walks every candidate path AND digs
+// into the /jobs/{id} blob for a nested photo array, then renders each
+// attempt (status + body shape) plus the job-blob-scan's top-level keys.
+// Also offers a raw-JSON dump so the exact photo location can be pinned.
 async function probeFergusFilesRoof(){
   if (!window.S || !S.linkedJobId){
     alert('Link a Fergus job first — Home → 📂 Select Job → Fergus.');
@@ -28014,40 +28015,73 @@ async function probeFergusFilesRoof(){
   if (!modal || !body) return;
   modal.style.display = 'flex';
   if (sub) sub.textContent = 'Endpoint discovery — job ' + (S.linkedJobNo || S.linkedJobId);
-  body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12.5px">Probing Fergus endpoints…</div>';
+  body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12.5px">Scanning Fergus endpoints + job blob…</div>';
   try {
     var token = localStorage.getItem('fr_token') || '';
-    var r = await fetch(PROXY + '/fergus-files/probe?jobId=' + encodeURIComponent(String(S.linkedJobId)), {
+    var r = await fetch(PROXY + '/fergus-files/list?jobId=' + encodeURIComponent(String(S.linkedJobId)), {
       headers: { 'Authorization': 'Bearer ' + token },
     });
-    var probe = await r.json().catch(function(){ return {}; });
-    var rows = (probe.results || []).map(function(a){
+    var data = await r.json().catch(function(){ return {}; });
+    // Success path — files actually came back; jump straight to the picker.
+    if (data && data.ok && Array.isArray(data.files) && data.files.length){
+      body.innerHTML = '<div style="padding:14px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;font-size:12.5px;color:#065f46;margin-bottom:12px">'+
+        '✓ Found <strong>'+data.files.length+'</strong> file(s) via <code>'+esc(data.used||'')+'</code>. Tap <strong>Import from Fergus</strong> to pick one.</div>';
+      return;
+    }
+    var attempts = (data && data.attempts) || [];
+    var rows = attempts.map(function(a){
       var status = a.status != null ? a.status : (a.error ? 'ERR' : '?');
       var col = (status >= 200 && status < 300) ? '#15803d' : (status >= 400 ? '#b91c1c' : '#6f6a60');
+      var s = a.summary;
       var shape = '';
-      var b = a.body;
-      if (b && typeof b === 'object'){
-        if (b._type === 'array') shape = 'array, length=' + b.length + (b.first && typeof b.first==='object' ? ' · first keys: [' + Object.keys(b.first).slice(0,12).join(', ') + ']' : '');
-        else if (b.keys) shape = 'object, keys: [' + b.keys.join(', ') + ']';
-        else shape = JSON.stringify(b).slice(0, 200);
-      } else if (typeof b === 'string') shape = b.slice(0, 200);
-      else if (a.error) shape = 'fetch error: ' + a.error;
-      return '<tr>'+
-        '<td style="padding:3px 8px;font-family:monospace;font-size:10.5px;color:var(--text)">'+esc(a.path||'?')+'</td>'+
+      if (s && typeof s === 'object'){
+        if (s.type === 'array') shape = 'array, length=' + s.length + (s.firstKeys ? ' · first keys: [' + s.firstKeys.join(', ') + ']' : '');
+        else if (s.topKeys) shape = 'JOB BLOB · top keys: [' + s.topKeys.join(', ') + ']' + (s.altIdsFound && s.altIdsFound.length ? ' · altIds: ' + s.altIdsFound.join(', ') : '') + (s.matchedPath ? ' · matched: ' + s.matchedPath : '');
+        else if (s.keys) shape = 'object, keys: [' + s.keys.join(', ') + ']';
+        else if (s.sample) shape = String(s.sample);
+        else shape = JSON.stringify(s).slice(0, 200);
+      } else if (a.error) shape = 'fetch error: ' + a.error;
+      var isBlob = /job-blob/.test(a.path||'');
+      return '<tr'+(isBlob?' style="background:var(--surface-2)"':'')+'>'+
+        '<td style="padding:3px 8px;font-family:monospace;font-size:10.5px;color:var(--text)'+(isBlob?';font-weight:700':'')+'">'+esc(a.path||'?')+'</td>'+
         '<td style="padding:3px 8px;font-weight:700;color:'+col+';text-align:right;font-variant-numeric:tabular-nums">'+esc(String(status))+'</td>'+
         '<td style="padding:3px 8px;font-family:monospace;font-size:10.5px;color:var(--text2);word-break:break-all">'+esc(shape)+'</td>'+
       '</tr>';
     }).join('');
-    body.innerHTML = '<div style="font-size:11.5px;color:var(--text2);margin-bottom:8px;line-height:1.5">Tried every candidate file path for job <strong>'+esc(String(S.linkedJobId))+'</strong>. Green (2xx) rows are the ones that responded — send me a screenshot and I\'ll pin the right path on the server.</div>'+
+    body.innerHTML =
+      '<div style="font-size:11.5px;color:var(--text2);margin-bottom:8px;line-height:1.5">No photo array came back for job <strong>'+esc(String(S.linkedJobId))+'</strong>. The <strong>job-blob</strong> row (highlighted) shows the job\'s real top-level keys — that tells me where (if anywhere) the photos live. Tap <strong>Show raw job JSON</strong> and paste it back to me, or screenshot this table.</div>'+
+      '<div style="margin-bottom:10px"><button type="button" onclick="_fergusDumpRawJob()" style="padding:7px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">📋 Show raw job JSON</button></div>'+
+      '<div id="fergusRawDump"></div>'+
       (rows
         ? '<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr>'+
             '<th style="text-align:left;padding:4px 8px;background:var(--surface-2);color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.04em">Path</th>'+
             '<th style="text-align:right;padding:4px 8px;background:var(--surface-2);color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.04em">HTTP</th>'+
             '<th style="text-align:left;padding:4px 8px;background:var(--surface-2);color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.04em">Body shape</th>'+
           '</tr></thead><tbody>'+rows+'</tbody></table>'
-        : '<div style="font-size:12px;color:#b91c1c">Probe returned no results — the backend may still be deploying.</div>');
+        : '<div style="font-size:12px;color:#b91c1c">Scan returned no attempts — the backend may still be deploying.</div>');
   } catch(e){
-    body.innerHTML = '<div style="padding:20px;color:#b91c1c;font-size:12.5px">Probe failed: '+esc(e.message)+'</div>';
+    body.innerHTML = '<div style="padding:20px;color:#b91c1c;font-size:12.5px">Scan failed: '+esc(e.message)+'</div>';
+  }
+}
+// Fetch the raw /jobs/{jobId} blob and drop it into a copyable textarea
+// so the exact nested photo path can be identified.
+async function _fergusDumpRawJob(){
+  var host = document.getElementById('fergusRawDump');
+  if (!host) return;
+  host.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:8px 0">Fetching raw job JSON…</div>';
+  try {
+    var token = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/fergus/jobs/' + encodeURIComponent(String(S.linkedJobId)), {
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    });
+    var text = await r.text();
+    var pretty = text;
+    try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch(e){}
+    host.innerHTML = '<div style="font-size:11px;color:var(--text2);margin:4px 0 6px">Status '+r.status+' · tap inside, select all, copy, and paste it back to me.</div>'+
+      '<textarea readonly onclick="this.select()" style="width:100%;height:220px;font-family:monospace;font-size:10.5px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text);resize:vertical"></textarea>';
+    host.querySelector('textarea').value = pretty;
+  } catch(e){
+    host.innerHTML = '<div style="font-size:12px;color:#b91c1c;padding:8px 0">Couldn\'t fetch job JSON: '+esc(e.message)+'</div>';
   }
 }
 
