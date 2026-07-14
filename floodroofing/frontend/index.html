@@ -26634,39 +26634,38 @@ function _buildFergusItemisedSections(){
   var labAcct = k.fergusLabourAccountId || '';
   var matCode = (k.fergusMaterialCode || '').trim();
   var labCode = (k.fergusLabourCode || '').trim();
-  var acct = function(v){ var n = parseFloat(v); return isFinite(n) ? n : v; };
-  // Fergus's quote line-item columns are Name / Quantity / UoM / Cost / Price.
-  // The text field is `name` (NOT description) — without it Fergus creates a
-  // blank row and drops the other fields. We send `name` plus a shotgun of
-  // the plausible qty/cost/price aliases so whichever Fergus expects sticks.
+  var acct = function(v){ var n = parseFloat(v); return isFinite(n) ? n : (v || null); };
+  // Fergus's real quote line-item schema (confirmed from a live quote):
+  //   itemName, itemQuantity, itemPrice, itemRrp, itemCost, isLabour,
+  //   salesAccountId, sortOrder, discountRate, unitOfMeasureSell.
+  // Fergus auto-assigns the DEFAULT LABOUR / DEFAULT MATERIALS account from
+  // isLabour, so salesAccountId is only set when configured in Settings.
+  var _sort = 0;
   function labLine(desc, hrs, rate, cost){
-    var q = parseFloat((+hrs).toFixed(2)) || 0, sell = +rate || 0, c = +cost || 0;
+    _sort += 10;
     var o = {
-      name: desc, description: desc, title: desc,
-      quantity: q, qty: q, uom: 'hour', unitOfMeasure: 'hour',
-      price: sell, unitPrice: sell, sellPrice: sell, salePrice: sell, hourlyRate: sell,
-      cost: c, unitCost: c, costPrice: c,
-      isLabour: true
+      itemName: desc,
+      itemQuantity: parseFloat((+hrs).toFixed(2)) || 0,
+      itemPrice: +rate || 0, itemRrp: +rate || 0, itemCost: +cost || 0,
+      unitOfMeasureSell: null,
+      isLabour: true, sortOrder: _sort, discountRate: 0,
+      priceBookLineItemId: null, isCombined: false
     };
     if (labAcct) o.salesAccountId = acct(labAcct);
-    if (labCode) { o.code = labCode; o.itemCode = labCode; }
     return o;
   }
   function matLine(desc, qty, unit, cost){
-    var q = parseFloat((+qty).toFixed(2)) || 0, sell = +unit || 0;
-    // Labour lines work by flagging isLabour:true (Fergus auto-uses the
-    // DEFAULT LABOUR account). Material lines flag isLabour:false + isMaterial
-    // so Fergus falls back to the DEFAULT MATERIALS account when no explicit
-    // account id is set in Settings.
+    _sort += 10;
+    var sell = +unit || 0;
     var o = {
-      name: desc, description: desc, title: desc,
-      quantity: q, qty: q, uom: 'item', unitOfMeasure: 'item',
-      price: sell, unitPrice: sell, sellPrice: sell, salePrice: sell,
-      isLabour: false, isMaterial: true
+      itemName: desc,
+      itemQuantity: parseFloat((+qty).toFixed(2)) || 0,
+      itemPrice: sell, itemRrp: sell, itemCost: (cost != null ? +cost || 0 : sell),
+      unitOfMeasureSell: null,
+      isLabour: false, sortOrder: _sort, discountRate: 0,
+      priceBookLineItemId: null, isCombined: false
     };
-    if (cost != null){ var c = +cost || 0; o.cost = c; o.unitCost = c; o.costPrice = c; }
     if (matAcct) o.salesAccountId = acct(matAcct);
-    if (matCode) { o.code = matCode; o.itemCode = matCode; }
     return o;
   }
   var st = _pricingState(); var L = st.L;
@@ -26683,8 +26682,8 @@ function _buildFergusItemisedSections(){
     if (c.delta && Math.abs(c.delta) > 0.005) mats.push(matLine('Selection — ' + c.label, 1, c.delta));
   });
   var sections = [];
-  if (labour.length) sections.push({ name: 'Labour', lineItems: labour });
-  if (mats.length)   sections.push({ name: 'Materials', lineItems: mats });
+  if (labour.length) sections.push({ name: 'Labour',    sortOrder: 10, selectionMode: 'Fixed', lineItems: labour });
+  if (mats.length)   sections.push({ name: 'Materials', sortOrder: 20, selectionMode: 'Fixed', lineItems: mats });
   return { sections: sections, matAcct: matAcct, labAcct: labAcct, labourCount: labour.length, matCount: mats.length };
 }
 // Push the itemised pricing to Fergus as a NEW quote (a new version on the job).
