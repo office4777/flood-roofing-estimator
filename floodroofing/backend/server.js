@@ -1140,7 +1140,9 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
       if (!arr) continue;
       const files = arr.map(_normaliseFergusFile).filter(Boolean);
       if (!files.length) continue;
-      return res.json({ ok: true, used: tpl, count: files.length, files, attempts });
+      // Include the raw first item so the client can show the exact
+      // attachment shape when a download field is missing/indirect.
+      return res.json({ ok: true, used: tpl, count: files.length, files, attempts, sample: arr[0] });
     } catch (e) {
       attempts.push({ path: tpl, error: e.message });
     }
