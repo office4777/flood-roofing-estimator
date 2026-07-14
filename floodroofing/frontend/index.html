@@ -8282,12 +8282,61 @@ function _loadPdfJs(){
   });
   return _pdfJsPromise;
 }
+// Best-effort read of the shed's geometry from the plan PDF's text layer.
+// Returns whatever it can find (floor, span/length, eaves, door counts).
+// Fragile by nature — the estimator inputs let the user correct anything.
+async function _parseShedDimsFromPdf(pdf){
+  var text = '';
+  for (var p = 1; p <= Math.min(pdf.numPages, 6); p++){
+    var pg = await pdf.getPage(p);
+    var tc = await pg.getTextContent();
+    text += ' ' + tc.items.map(function(i){ return i.str; }).join(' ');
+  }
+  text = text.replace(/\s+/g, ' ');
+  var out = {}, found = false;
+  // Floor area — "Area: 110m²" / "110 m2"
+  var am = text.match(/([\d.]+)\s*m\s*²/) || text.match(/([\d.]+)\s*m\s*2\b/i);
+  var floor = am ? parseFloat(am[1]) : 0;
+  if (floor > 5){ out.floor = floor; found = true; }
+  // All plan dimensions in metres (1–40 m)
+  var dims = (text.match(/(\d+(?:\.\d+)?)\s*m\b/gi) || [])
+    .map(function(s){ return parseFloat(s); })
+    .filter(function(v){ return v >= 1.5 && v <= 40; });
+  // Span × length: prefer the pair whose product ≈ floor area.
+  var W = 0, L = 0;
+  if (floor && dims.length){
+    var best = null;
+    for (var i = 0; i < dims.length; i++) for (var j = 0; j < dims.length; j++){
+      if (i === j) continue;
+      var prod = dims[i] * dims[j];
+      var err = Math.abs(prod - floor) / floor;
+      if (err < 0.1 && (!best || err < best.err)) best = { a: dims[i], b: dims[j], err: err };
+    }
+    if (best){ W = Math.min(best.a, best.b); L = Math.max(best.a, best.b); }
+  }
+  if (!W && dims.length >= 2){
+    var big = dims.slice().sort(function(a, b){ return b - a; });
+    L = big[0]; W = big[1];
+  }
+  if (W && L){ out.W = W; out.L = L; found = true; }
+  // (Eave heights aren't auto-read — bay spacings and door widths sit in
+  //  the same range and would contaminate them. The user sets/confirms
+  //  eaves off the elevation drawing they just imported.)
+  // Door schedule — count mentions.
+  var roller = (text.match(/roller/gi) || []).length;
+  var pa = (text.match(/\bp\.?\s*a\.?\s*door|personnel/gi) || []).length;
+  if (roller){ out.roller = roller; found = true; }
+  if (pa){ out.pa = pa; }
+  return found ? out : null;
+}
 async function importWebShedPdf(ev){
   var f = ev && ev.target && ev.target.files && ev.target.files[0];
   if (ev && ev.target) ev.target.value = '';   // allow re-picking the same file
   if (!f) return;
-  var st = document.getElementById('webshedPdfStatus');
-  var setSt = function(t){ if (st) st.textContent = t; };
+  var setSt = function(t){
+    var a = document.getElementById('webshedPdfStatus'); if (a) a.textContent = t;
+    var b = document.getElementById('shedPlansStatus');  if (b) b.textContent = t;
+  };
   setSt('Loading PDF reader…');
   var lib;
   try { lib = await _loadPdfJs(); }
@@ -8331,7 +8380,29 @@ async function importWebShedPdf(ev){
       }
       _qpCondPhotoSet(p - 1, { src: out.toDataURL('image/jpeg', 0.88), offX: 0, offY: 0, zoom: 1 });
     }
-    setSt('✓ Imported ' + n + ' drawing' + (n > 1 ? 's' : '') + ', cropped to the plan. Replace any slot if needed.');
+    // Auto-read dimensions from the plan text and price it.
+    var dims = null;
+    try { dims = await _parseShedDimsFromPdf(pdf); } catch(e){}
+    if (dims && S.quote){
+      var e = _shedEst() || {};
+      Object.keys(dims).forEach(function(k){ e[k] = dims[k]; });
+      // Recompute pole count + build days from the new footprint.
+      var across = (e.W > 7) ? 3 : 2, along = Math.max(Math.round(e.L / 5.5), 1) + 1;
+      if (e.W && e.L){
+        e.poles = across * along;
+        e.days = Math.max(Math.round(e.W * e.L * SHED_RATES.manHrPerM2 / (SHED_RATES.crew * SHED_RATES.hoursPerDay)), 1);
+      }
+      // Eaves aren't read from the plan — seed sensible defaults so the
+      // price isn't zero; the user confirms them off the elevations.
+      if (!(e.hiEave > 0)) e.hiEave = 4.5;
+      if (!(e.loEave > 0)) e.loEave = 3.6;
+      S.quote.shedEst = e;
+      var priced = (typeof _shedEstimate === 'function') ? _shedEstimate(e) : null;
+      setSt('✓ Imported ' + n + ' drawing' + (n > 1 ? 's' : '') + ' + read the plan' + (priced ? ' → ' + fmtMoney(priced.total) + ' (ex GST). Check the inputs below.' : '. Check the inputs below.'));
+      if (typeof renderShedEstimator === 'function') renderShedEstimator();
+    } else {
+      setSt('✓ Imported ' + n + ' drawing' + (n > 1 ? 's' : '') + ', cropped to the plan. Couldn\'t auto-read dimensions — enter them below.');
+    }
     _qpRerenderCondPhotos();
   } catch(e){
     setSt('Import failed: ' + (e && e.message ? e.message : 'unreadable PDF'));
@@ -11503,6 +11574,13 @@ function renderShedEstimator(){
   };
   body.innerHTML =
     '<div style="padding:4px 0 12px">'+
+      '<div style="background:linear-gradient(135deg,#0a1628,#123a52);border-radius:10px;padding:16px 18px;margin-bottom:12px;display:flex;flex-wrap:wrap;align-items:center;gap:12px">'+
+        '<div style="flex:1;min-width:180px"><div style="font-family:var(--font,inherit);font-size:14px;font-weight:800;color:#fff">Price this shed from the plans</div>'+
+          '<div style="font-size:11.5px;color:rgba(255,255,255,.72);margin-top:2px">Upload the WebShed / engineer PDF — it reads the dimensions, fills the fields below and works out the price.</div></div>'+
+        '<button type="button" onclick="document.getElementById(\'shedPlansInput\').click()" style="padding:12px 20px;background:#0099cc;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;box-shadow:0 4px 14px rgba(0,153,204,.35)">📐 Upload plans → work out pricing</button>'+
+        '<input type="file" id="shedPlansInput" accept="application/pdf" onchange="importWebShedPdf(event)" style="display:none">'+
+        '<div id="shedPlansStatus" style="flex-basis:100%;font-size:11.5px;color:#8fe3ff"></div>'+
+      '</div>'+
       '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:9px 12px;font-size:11.5px;color:#9a3412;margin-bottom:12px">⚠ <strong>Estimate only.</strong> Quantities are dimension-driven best-guesses for pricing — not a certified NZS 3604 structural takeoff. Have members/fixings confirmed by your engineer or LBP.</div>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:10px;margin-bottom:10px">'+
         num('W','Span — width (m)')+ num('L','Length (m)')+
