@@ -8996,6 +8996,61 @@ function _scopeFocusIdx(idx){
     } catch(e){}
   }, 60);
 }
+// Insert a new scope line at a specific position (used by the per-section
+// "+ Add line" buttons so a row lands in the right section).
+function _scopeInsertAt(insertAt, text){
+  if (!S.quote) return;
+  var lines = (S.quote.scope || '').split('\n');
+  insertAt = Math.max(0, Math.min(lines.length, insertAt | 0));
+  lines.splice(insertAt, 0, text || 'New line');
+  S.quote.scope = lines.join('\n');
+  var sc = document.getElementById('qdScope'); if (sc) sc.value = S.quote.scope;
+  try { refreshQuoteProposal(); } catch(e){}
+  _scopeFocusIdx(insertAt);
+}
+// ── Drag-to-reorder scope rows (pointer-based so it works on touch) ─────
+var _scopeDrag = null;
+function _scopeDragStart(e, idx){
+  e.preventDefault(); e.stopPropagation();
+  _scopeDrag = { from: idx, over: null };
+  document.addEventListener('pointermove', _scopeDragMove, { passive: false });
+  document.addEventListener('pointerup', _scopeDragEnd, { once: true });
+  var row = document.querySelector('#qpRoot [data-scope-row="' + idx + '"]');
+  if (row) row.style.opacity = '.45';
+}
+function _scopeDragRowAt(x, y){
+  var el = document.elementFromPoint(x, y);
+  return el && el.closest ? el.closest('[data-scope-row]') : null;
+}
+function _scopeDragMove(e){
+  if (!_scopeDrag) return;
+  e.preventDefault();
+  var row = _scopeDragRowAt(e.clientX, e.clientY);
+  // clear previous indicator
+  Array.prototype.forEach.call(document.querySelectorAll('#qpRoot [data-scope-row]'), function (r) { r.style.boxShadow = ''; });
+  if (row) { row.style.boxShadow = 'inset 0 2px 0 var(--ed-accent)'; _scopeDrag.over = parseInt(row.getAttribute('data-scope-row'), 10); }
+}
+function _scopeDragEnd(e){
+  document.removeEventListener('pointermove', _scopeDragMove);
+  var d = _scopeDrag; _scopeDrag = null;
+  Array.prototype.forEach.call(document.querySelectorAll('#qpRoot [data-scope-row]'), function (r) { r.style.boxShadow = ''; r.style.opacity = ''; });
+  if (!d) return;
+  var row = _scopeDragRowAt(e.clientX, e.clientY);
+  var to = row ? parseInt(row.getAttribute('data-scope-row'), 10) : (isFinite(d.over) ? d.over : -1);
+  if (!isFinite(to) || to < 0 || to === d.from) { return; }
+  _scopeMove(d.from, to);
+}
+function _scopeMove(from, to){
+  if (!S.quote) return;
+  var lines = (S.quote.scope || '').split('\n');
+  if (from < 0 || from >= lines.length || to < 0 || to >= lines.length || from === to) return;
+  var item = lines.splice(from, 1)[0];
+  if (from < to) to--;               // account for the removed element
+  lines.splice(to, 0, item);
+  S.quote.scope = lines.join('\n');
+  var sc = document.getElementById('qdScope'); if (sc) sc.value = S.quote.scope;
+  try { refreshQuoteProposal(); } catch(e){}
+}
 
 // Re-render the acceptance-page summary list (selected options + grades).
 function refreshAcceptSummary(){
@@ -11350,11 +11405,15 @@ function refreshQuoteProposal(){
     // subheadings and restart the numbering; the rest are numbered inclusions.
     // Edits write back to S.quote.scope by original line index.
     var _mkDel = function(idx){ return '<button type="button" class="no-print" onclick="_scopeDelLine('+idx+')" title="Delete line" style="flex-shrink:0;background:none;border:none;color:#c0392b;cursor:pointer;font-size:14px;line-height:1;opacity:.55;padding:0 2px">×</button>'; };
+    var _mkGrip = function(idx){ return '<span class="no-print" onpointerdown="_scopeDragStart(event,'+idx+')" title="Drag to reorder" style="flex-shrink:0;cursor:grab;color:#b4bcc6;font-size:13px;line-height:1.6;touch-action:none;user-select:none;-webkit-user-select:none;padding:0 1px">⠿</span>'; };
     var _mkEdit = function(idx, cls, style){ return '<div class="qp-scope-edit '+cls+'" contenteditable="true" spellcheck="true" data-scope-idx="'+idx+'" onblur="_scopeLineBlur(this)" onkeydown="_scopeLineKey(event,this)" style="flex:1;outline:none;'+style+'">'; };
+    var _mkAdd = function(insertAt, label){ return '<button type="button" class="no-print" onclick="_scopeInsertAt('+insertAt+',\''+esc2(label==='warranty'?'New warranty line':'New inclusion')+'\')" style="margin:8px 0 2px;background:none;border:1px dashed var(--ed-line);border-radius:5px;color:var(--ed-accent);cursor:pointer;font-size:11px;padding:5px 12px;font-family:var(--ed-sans);letter-spacing:.03em">+ Add '+(label==='warranty'?'warranty line':'line')+'</button>'; };
     var inclList;
     if (_scopeRaw.trim()){
+      var _srcLines = _scopeRaw.split('\n');
       var _n = 0, _parts = [];
-      _scopeRaw.split('\n').forEach(function(raw, idx){
+      var _secHasItems = false, _lastItemIdx = -1, _lastHeadIdx = -1, _secKind = '';
+      _srcLines.forEach(function(raw, idx){
         var l = raw.trim();
         if (!l){ _parts.push('<div style="height:9px"></div>'); return; }
         // The page band already reads "Scope & pricing", so drop a redundant
@@ -11362,19 +11421,28 @@ function refreshQuoteProposal(){
         if (/^scope of work\b/i.test(l)) return;
         var isHead = /:$/.test(l) || /^(warranty|inclusions|exclusions|this quotation)/i.test(l);
         if (isHead){
+          // Close the previous section with its own "+ Add line" button so
+          // each list (work / warranty) gets its own add control.
+          if (_secHasItems) _parts.push(_mkAdd(_lastItemIdx + 1, _secKind));
+          _secHasItems = false;
+          _secKind = /warranty/i.test(l) ? 'warranty' : '';
+          _lastHeadIdx = idx;
           _n = 0;
           _parts.push('<div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px">'+
             _mkEdit(idx,'ed-eyebrow','color:var(--ed-ink)')+esc2(l)+'</div>'+
             _mkDel(idx)+'</div>');
         } else {
-          _n++;
-          _parts.push('<div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line);align-items:flex-start">'+
+          _n++; _secHasItems = true; _lastItemIdx = idx;
+          _parts.push('<div data-scope-row="'+idx+'" style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--ed-line);align-items:flex-start">'+
+            _mkGrip(idx)+
             '<div class="ed-serif" style="font-style:italic;font-size:14px;color:var(--ed-accent);flex-shrink:0;min-width:22px">'+(_n<10?'0':'')+_n+'</div>'+
             _mkEdit(idx,'ed-body','font-size:12px;line-height:1.5')+esc2(l)+'</div>'+
             _mkDel(idx)+'</div>');
         }
       });
-      _parts.push('<button type="button" class="no-print" onclick="_scopeAddLine()" style="margin-top:10px;background:none;border:1px dashed var(--ed-line);border-radius:5px;color:var(--ed-accent);cursor:pointer;font-size:11px;padding:5px 12px;font-family:var(--ed-sans);letter-spacing:.03em">+ Add line</button>');
+      // Add button for the final section.
+      if (_secHasItems) _parts.push(_mkAdd(_lastItemIdx + 1, _secKind));
+      else _parts.push(_mkAdd(_lastHeadIdx >= 0 ? _lastHeadIdx + 1 : _srcLines.length, _secKind));
       inclList = '<div>'+_parts.join('')+'</div>';
     } else {
       inclList = '<div class="ed-body qp-ph" style="font-style:italic;color:var(--ed-text2);font-size:12px">Add a scope of works — click below.</div>'+
