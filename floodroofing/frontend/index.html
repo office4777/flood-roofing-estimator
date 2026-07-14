@@ -8296,27 +8296,60 @@ async function importWebShedPdf(ev){
   try {
     var buf = await f.arrayBuffer();
     var pdf = await lib.getDocument({ data: buf }).promise;
-    // Fill the elevation/plan slots first (1–5), then the 3D-view slot (0).
-    var order = [1, 2, 3, 4, 5, 0];
-    var n = Math.min(pdf.numPages, order.length);
+    // WebShed wraps each drawing in a title block (contact + QR at top, a
+    // tab/URL bar, and a "developed by" footer). Crop it away so only the
+    // drawing lands in the slot. Fractions are tunable.
+    var CROP = WEBSHED_CROP;
+    var n = Math.min(pdf.numPages, 3);   // 3 sheets: 3D view, floor plan, elevations
     for (var p = 1; p <= n; p++){
       setSt('Rendering page ' + p + ' of ' + n + '…');
       var page = await pdf.getPage(p);
       var vp = page.getViewport({ scale: 1 });
-      var scale = Math.min(1600 / vp.width, 2.5);
+      var scale = Math.min(2200 / vp.width, 3);
       var v2 = page.getViewport({ scale: scale });
       var cv = document.createElement('canvas');
       cv.width = Math.round(v2.width); cv.height = Math.round(v2.height);
       var ctx = cv.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);  // white behind transparent PDFs
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
       await page.render({ canvasContext: ctx, viewport: v2 }).promise;
-      _qpCondPhotoSet(order[p - 1], { src: cv.toDataURL('image/jpeg', 0.85), offX: 0, offY: 0, zoom: 1 });
+      // Crop to the drawing region.
+      var sx = Math.round(cv.width  * CROP.left);
+      var sy = Math.round(cv.height * CROP.top);
+      var sw = Math.round(cv.width  * (1 - CROP.left - CROP.right));
+      var sh = Math.round(cv.height * (1 - CROP.top - CROP.bottom));
+      var out = document.createElement('canvas'); out.width = sw; out.height = sh;
+      out.getContext('2d').drawImage(cv, sx, sy, sw, sh, 0, 0, sw, sh);
+      _qpCondPhotoSet(p - 1, { src: out.toDataURL('image/jpeg', 0.88), offX: 0, offY: 0, zoom: 1 });
     }
-    setSt('✓ Imported ' + n + ' page' + (n > 1 ? 's' : '') + '. Tap any slot to replace or swap.');
+    setSt('✓ Imported ' + n + ' drawing' + (n > 1 ? 's' : '') + ', cropped to the plan. Replace any slot if needed.');
     _qpRerenderCondPhotos();
   } catch(e){
     setSt('Import failed: ' + (e && e.message ? e.message : 'unreadable PDF'));
   }
+}
+// Crop fractions removed from each WebShed page (title block + footer).
+var WEBSHED_CROP = { top: 0.155, bottom: 0.05, left: 0.015, right: 0.015 };
+// One large pole-shed design slot (contain, so the whole drawing shows).
+function _psDesignSlot(idx, label){
+  var cp = (typeof _qpCondPhoto === 'function') ? _qpCondPhoto(idx) : null;
+  var btns = function(sz){
+    return '<button type="button" class="no-print" onclick="_qpCondPhotoFromFergus('+idx+')" style="padding:'+(sz==='sm'?'4px 8px':'7px 13px')+';background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:'+(sz==='sm'?'10px':'12px')+';font-weight:600;cursor:pointer">📷 Fergus</button>'+
+      '<button type="button" class="no-print" onclick="_qpCondPhotoPick('+idx+')" style="padding:'+(sz==='sm'?'4px 8px':'7px 13px')+';background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:'+(sz==='sm'?'10px':'12px')+';font-weight:600;cursor:pointer">⬆ PC</button>';
+  };
+  if (cp && cp.src){
+    return '<div style="position:relative;height:100%;background:#fff;border:1px solid var(--ed-line);border-radius:7px;overflow:hidden">'+
+      '<img src="'+esc2(cp.src)+'" style="width:100%;height:100%;object-fit:contain;display:block">'+
+      '<div style="position:absolute;top:7px;left:9px;font-family:var(--ed-sans);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--ed-ink-2);background:rgba(255,255,255,.8);padding:2px 7px;border-radius:3px">'+esc2(label)+'</div>'+
+      '<div class="no-print" style="position:absolute;top:7px;right:7px;display:flex;gap:5px">'+btns('sm')+
+        '<button type="button" onclick="_qpCondPhotoClear('+idx+')" style="padding:4px 8px;background:rgba(185,28,28,.82);color:#fff;border:none;border-radius:6px;font-size:10px;cursor:pointer">✕</button>'+
+      '</div>'+
+    '</div>';
+  }
+  return '<div style="height:100%;background:var(--ed-paper-2);border:1px dashed var(--ed-line);border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:14px">'+
+    '<div class="ed-eyebrow">'+esc2(label)+'</div>'+
+    '<div class="ed-serif no-print" style="font-style:italic;font-size:12px;color:var(--ed-text2)">Import the WebShed PDF above, or add this drawing</div>'+
+    '<div class="no-print" style="display:flex;gap:7px">'+btns()+'</div>'+
+  '</div>';
 }
 
 // ── Fixing type → roof age + condition assessment draft ─────────────
@@ -11630,29 +11663,24 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
       '</div>'+
     '</div>';
 
-  // ── Shed design & elevations (own page — large slots) ────────────
-  // Six generously-sized slots (2 columns) that fill the page: 3D view,
-  // the four elevations and the floor plan — matching the WebShed export.
-  var ELEV_LABELS = ['3D view','Front elevation','Back elevation','Left elevation','Right elevation','Floor plan'];
-  var elevCells = '';
-  for (var i = 0; i < 6; i++){
-    var cp = (typeof _qpCondPhoto === 'function') ? _qpCondPhoto(i) : null;
-    elevCells +=
-      '<div>'+
-        '<div class="ed-eyebrow" style="margin-bottom:5px">'+esc2(ELEV_LABELS[i])+'</div>'+
-        ((typeof _qpCondPhotoSlotHtml === 'function') ? _qpCondPhotoSlotHtml(i, cp) : '')+
-      '</div>';
-  }
+  // ── Shed design & elevations (own page — 3 large stacked drawings) ──
+  // Three big full-width slots matching WebShed's export sheets: 3D view,
+  // floor plan and elevations. Imported PDF pages are cropped to the
+  // drawing and shown "contain" so the whole plan reads.
   var elevations =
     edHeading('03','Design','Shed design & elevations')+
-    '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 12px;line-height:1.5">Your shed as designed — 3D view, elevations and floor plan. Import the WebShed plans &amp; elevations PDF to fill the slots automatically, pull images from the Fergus job, or upload from your PC.</div>'+
-    '<div class="no-print" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">'+
+    '<div class="ed-body no-print" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 10px;line-height:1.5">Import the WebShed plans &amp; elevations PDF — each sheet is cropped to the drawing and dropped into a slot below. Or pull from Fergus / upload from PC.</div>'+
+    '<div class="no-print" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'+
       '<button type="button" onclick="document.getElementById(\'webshedPdfInput\').click()" style="display:inline-flex;align-items:center;gap:6px;padding:9px 15px;background:#0099cc;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">📄 Import WebShed PDF (plans &amp; elevations)</button>'+
       '<input type="file" id="webshedPdfInput" accept="application/pdf" onchange="importWebShedPdf(event)" style="display:none">'+
       '<span id="webshedPdfStatus" style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2)"></span>'+
     '</div>'+
     '<input type="file" accept="image/*" id="qpCondPhotoFileInput" onchange="_qpCondPhotoUpload(event)" style="display:none">'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 20px">'+elevCells+'</div>';
+    '<div style="display:flex;flex-direction:column;gap:12px">'+
+      '<div style="height:232px">'+_psDesignSlot(0,'3D view')+'</div>'+
+      '<div style="height:232px">'+_psDesignSlot(1,'Floor plan')+'</div>'+
+      '<div style="height:244px">'+_psDesignSlot(2,'Elevations')+'</div>'+
+    '</div>';
 
   // ── Inclusions / Exclusions / Options / Notes + Price ────────────
   var listBlock = function(title, field, accent){
