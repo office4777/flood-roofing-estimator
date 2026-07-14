@@ -11108,19 +11108,46 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
     '</div>';
 
   // ── Cover ────────────────────────────────────────────────────────
-  var hero = (typeof resolveSlotSrc === 'function' ? resolveSlotSrc('cover_hero') : null);
-  var heroBand = hero
-    ? '<div style="height:300px;background:var(--ed-ink) url('+esc2(hero)+') center/cover no-repeat;position:relative"><div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.15),rgba(0,153,224,.18))"></div></div>'
-    : '<div style="height:170px;background:linear-gradient(135deg,var(--ed-ink),#123)"></div>';
+  // Hero = an editable shed-render slot (condPhoto index 6, distinct from
+  // the 0–5 elevation slots). Filled → full-bleed render; empty → a
+  // branded band with upload buttons instead of a blank strip.
+  var HERO_IDX = 6;
+  var heroCp = (typeof _qpCondPhoto === 'function') ? _qpCondPhoto(HERO_IDX) : null;
+  var heroSrc = (heroCp && heroCp.src) ? heroCp.src : (typeof resolveSlotSrc === 'function' ? resolveSlotSrc('cover_hero') : null);
+  var heroBand = heroSrc
+    ? '<div style="height:330px;background:var(--ed-ink) url('+esc2(heroSrc)+') center/cover no-repeat;position:relative">'+
+        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.10),rgba(10,24,40,.30))"></div>'+
+        '<button type="button" class="no-print" onclick="_qpCondPhotoFromFergus('+HERO_IDX+')" style="position:absolute;top:12px;right:12px;padding:6px 12px;background:rgba(10,24,40,.72);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Change image</button>'+
+        '<button type="button" class="no-print" onclick="_qpCondPhotoClear('+HERO_IDX+')" style="position:absolute;top:12px;right:112px;padding:6px 10px;background:rgba(10,24,40,.72);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Remove</button>'+
+      '</div>'
+    : '<div style="height:300px;background:linear-gradient(135deg,var(--ed-ink),#0f2740);position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:0 24px">'+
+        '<img src="brand/logo_wide_white.png" onerror="this.style.display=\'none\'" alt="" style="height:52px;width:auto;opacity:.92">'+
+        '<div class="no-print" style="font-family:var(--ed-serif);font-style:italic;color:rgba(255,255,255,.82);font-size:15px">Add your shed design render for the cover</div>'+
+        '<div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'+
+          '<button type="button" onclick="_qpCondPhotoFromFergus('+HERO_IDX+')" style="padding:8px 15px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">📷 Import from Fergus</button>'+
+          '<button type="button" onclick="_qpCondPhotoPick('+HERO_IDX+')" style="padding:8px 15px;background:#fff;color:#0a1628;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">⬆ Upload from PC</button>'+
+        '</div>'+
+      '</div>';
+  // Spec highlight chips — populate as the office fills the dimensions.
+  var chip = function(t){ return t ? '<span style="display:inline-block;padding:5px 13px;background:var(--ed-paper-2);border:1px solid var(--ed-line);border-radius:20px;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink);white-space:nowrap">'+esc2(t)+'</span>' : ''; };
+  var _w = String(_psGet('psWidth')||'').trim(), _l = String(_psGet('psLength')||'').trim();
+  var chips = [
+    (_w && _l) ? (_w + ' × ' + _l) : (_w || _l),
+    _psGet('psRoofType'),
+    String(_psGet('psBayAmount')||'').trim() ? (_psGet('psBayAmount') + ' bays') : '',
+    String(_psGet('psHeight')||'').trim() ? ('Height ' + _psGet('psHeight')) : '',
+    'Colorsteel'
+  ].map(chip).join(' ');
   var designLinkVal = String(_psGet('psDesignLink')||'').trim();
   var cover =
     heroBand +
-    '<div style="padding:26px 36px 8px">'+
+    '<div style="padding:24px 36px 8px">'+
       eyebrow('Project quote')+
       '<div class="ed-title ed-h1" style="margin-top:6px;font-size:40px"><span class="ed-serif" style="font-style:italic;color:var(--ed-accent)">Pole Shed</span></div>'+
       '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="psSubtitle" spellcheck="false" style="font-size:18px;color:var(--ed-ink);margin-top:2px">'+esc2(_psGet('psSubtitle'))+'</div>'+
       consentToggle +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:20px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:16px 0">'+
+      '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:14px">'+chips+'</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:18px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:16px 0">'+
         '<div>'+eyebrow('Prepared for')+
           '<div class="qp-editable ed-serif" contenteditable="true" data-qfield="client" spellcheck="false" style="font-size:16px;color:var(--ed-ink);font-style:italic;margin-top:4px">'+esc2(q.client||'Client name')+'</div>'+
           '<div class="qp-editable" contenteditable="true" data-qfield="addr" spellcheck="false" style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-text2);margin-top:3px">'+esc2(q.addr||'Site address')+'</div>'+
@@ -11134,8 +11161,12 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
       '</div>'+
       '<div style="margin-top:16px">'+edMulti('psIntro')+'</div>'+
       (designLinkVal
-        ? '<div style="margin-top:14px"><a href="'+esc2(designLinkVal)+'" target="_blank" rel="noopener" style="color:var(--ed-accent);font-family:var(--ed-sans);font-size:12.5px;font-weight:600">→ Click here to view the online design</a> <span class="no-print" style="font-size:10px;color:var(--ed-text2)">('+ed('psDesignLink','font-size:10px')+')</span></div>'
-        : '<div class="no-print" style="margin-top:14px;font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2)">Design link: '+ed('psDesignLink','color:var(--ed-accent)')+' — paste the WebShed URL to show a “view the design” link.</div>')+
+        ? '<div style="margin-top:16px;padding:12px 16px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'+
+            '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink-2)">See your shed in 3D — full interactive design online.</div>'+
+            '<a href="'+esc2(designLinkVal)+'" target="_blank" rel="noopener" style="color:#fff;background:var(--ed-accent);text-decoration:none;padding:8px 16px;border-radius:6px;font-family:var(--ed-sans);font-size:12px;font-weight:700;white-space:nowrap">→ View the online design</a>'+
+            '<div class="no-print" style="flex-basis:100%;font-size:10px;color:var(--ed-text2)">Link: '+ed('psDesignLink','color:var(--ed-accent)')+'</div>'+
+          '</div>'
+        : '<div class="no-print" style="margin-top:14px;font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2)">Design link: '+ed('psDesignLink','color:var(--ed-accent)')+' — paste the WebShed URL to show a “view the design” button.</div>')+
     '</div>';
 
   // ── Consent exemption summary (static) ───────────────────────────
