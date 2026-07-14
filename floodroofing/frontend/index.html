@@ -26649,10 +26649,15 @@ function _buildFergusItemisedSections(){
   }
   function matLine(desc, qty, unit, cost){
     var q = parseFloat((+qty).toFixed(2)) || 0, sell = +unit || 0;
+    // Labour lines work by flagging isLabour:true (Fergus auto-uses the
+    // DEFAULT LABOUR account). Material lines flag isLabour:false + isMaterial
+    // so Fergus falls back to the DEFAULT MATERIALS account when no explicit
+    // account id is set in Settings.
     var o = {
       name: desc, description: desc, title: desc,
       quantity: q, qty: q, uom: 'item', unitOfMeasure: 'item',
-      price: sell, unitPrice: sell, sellPrice: sell, salePrice: sell
+      price: sell, unitPrice: sell, sellPrice: sell, salePrice: sell,
+      isLabour: false, isMaterial: true
     };
     if (cost != null){ var c = +cost || 0; o.cost = c; o.unitCost = c; o.costPrice = c; }
     if (matAcct) o.salesAccountId = acct(matAcct);
@@ -26688,9 +26693,6 @@ async function pushQuotePricingToFergus(btn){
   try { calcLabour(); } catch(e){}
   var built = _buildFergusItemisedSections();
   if (!built.sections.length){ _qaMsg('Nothing to push — enter labour hours and/or materials first.', false); alert('Nothing to push yet.\n\nAdd labour hours (Pricing tab) and/or material lines first.'); return; }
-  if (built.matCount && !built.matAcct){
-    if (!confirm('No Fergus Material Sales account id is set (Settings → Integrations), so Fergus will likely reject the material lines.\n\nOK = push anyway  ·  Cancel = stop and set it first')) return;
-  }
   _fergusBtnBusy(btn, true); _qaBar(true);
   try {
     _qaMsg('Creating new quote version in Fergus job ' + _fergusDisplayNo() + '…');
