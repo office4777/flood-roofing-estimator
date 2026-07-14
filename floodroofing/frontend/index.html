@@ -8251,6 +8251,66 @@ function _qpCondPhotoFromFergus(idx){
   if (typeof openFergusPhotoPicker === 'function') openFergusPhotoPicker('cond:' + idx);
 }
 
+// ── WebShed plans/elevations PDF import ─────────────────────────────
+// WebShed only exports a floor-plan + elevations PDF (no structured
+// data), so the "auto-insert" flow is: pick that PDF once, rasterise
+// each page with PDF.js and drop the pages straight into the shed
+// design slots. PDF.js is lazy-loaded from CDN (no bundle cost until
+// used); the app already loads Mapbox the same way.
+var _pdfJsPromise = null;
+function _loadPdfJs(){
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (_pdfJsPromise) return _pdfJsPromise;
+  _pdfJsPromise = new Promise(function(res, rej){
+    var base = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+    var s = document.createElement('script');
+    s.src = base + 'pdf.min.js';
+    s.onload = function(){
+      try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js'; } catch(e){}
+      res(window.pdfjsLib);
+    };
+    s.onerror = function(){ _pdfJsPromise = null; rej(new Error('Could not load the PDF reader')); };
+    document.head.appendChild(s);
+  });
+  return _pdfJsPromise;
+}
+async function importWebShedPdf(ev){
+  var f = ev && ev.target && ev.target.files && ev.target.files[0];
+  if (ev && ev.target) ev.target.value = '';   // allow re-picking the same file
+  if (!f) return;
+  var st = document.getElementById('webshedPdfStatus');
+  var setSt = function(t){ if (st) st.textContent = t; };
+  setSt('Loading PDF reader…');
+  var lib;
+  try { lib = await _loadPdfJs(); }
+  catch(e){ setSt('Couldn\'t load the PDF reader — check your connection and try again.'); return; }
+  setSt('Reading pages…');
+  try {
+    var buf = await f.arrayBuffer();
+    var pdf = await lib.getDocument({ data: buf }).promise;
+    // Fill the elevation/plan slots first (1–5), then the 3D-view slot (0).
+    var order = [1, 2, 3, 4, 5, 0];
+    var n = Math.min(pdf.numPages, order.length);
+    for (var p = 1; p <= n; p++){
+      setSt('Rendering page ' + p + ' of ' + n + '…');
+      var page = await pdf.getPage(p);
+      var vp = page.getViewport({ scale: 1 });
+      var scale = Math.min(1600 / vp.width, 2.5);
+      var v2 = page.getViewport({ scale: scale });
+      var cv = document.createElement('canvas');
+      cv.width = Math.round(v2.width); cv.height = Math.round(v2.height);
+      var ctx = cv.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);  // white behind transparent PDFs
+      await page.render({ canvasContext: ctx, viewport: v2 }).promise;
+      _qpCondPhotoSet(order[p - 1], { src: cv.toDataURL('image/jpeg', 0.85), offX: 0, offY: 0, zoom: 1 });
+    }
+    setSt('✓ Imported ' + n + ' page' + (n > 1 ? 's' : '') + '. Tap any slot to replace or swap.');
+    _qpRerenderCondPhotos();
+  } catch(e){
+    setSt('Import failed: ' + (e && e.message ? e.message : 'unreadable PDF'));
+  }
+}
+
 // ── Fixing type → roof age + condition assessment draft ─────────────
 // The fixing method used on an existing roof is a reliable proxy for
 // its age and typical failure mode. Selecting one on the proposal's
@@ -11341,7 +11401,12 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
   }
   var elevations =
     edHeading('03','Design','Shed design & elevations')+
-    '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 14px;line-height:1.5">Your shed as designed — 3D view, elevations and floor plan. Pull the images straight from the Fergus job or upload them from your PC.</div>'+
+    '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 12px;line-height:1.5">Your shed as designed — 3D view, elevations and floor plan. Import the WebShed plans &amp; elevations PDF to fill the slots automatically, pull images from the Fergus job, or upload from your PC.</div>'+
+    '<div class="no-print" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">'+
+      '<button type="button" onclick="document.getElementById(\'webshedPdfInput\').click()" style="display:inline-flex;align-items:center;gap:6px;padding:9px 15px;background:#0099cc;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">📄 Import WebShed PDF (plans &amp; elevations)</button>'+
+      '<input type="file" id="webshedPdfInput" accept="application/pdf" onchange="importWebShedPdf(event)" style="display:none">'+
+      '<span id="webshedPdfStatus" style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2)"></span>'+
+    '</div>'+
     '<input type="file" accept="image/*" id="qpCondPhotoFileInput" onchange="_qpCondPhotoUpload(event)" style="display:none">'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 20px">'+elevCells+'</div>';
 
