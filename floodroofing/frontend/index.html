@@ -26649,7 +26649,7 @@ function _buildFergusItemisedSections(){
       itemPrice: +rate || 0, itemRrp: +rate || 0, itemCost: +cost || 0,
       unitOfMeasureSell: null,
       isLabour: true, sortOrder: _sort, discountRate: 0,
-      priceBookLineItemId: null, isCombined: false
+      isCombined: false
     };
     if (labAcct) o.salesAccountId = acct(labAcct);
     return o;
@@ -26663,7 +26663,7 @@ function _buildFergusItemisedSections(){
       itemPrice: sell, itemRrp: sell, itemCost: (cost != null ? +cost || 0 : sell),
       unitOfMeasureSell: null,
       isLabour: false, sortOrder: _sort, discountRate: 0,
-      priceBookLineItemId: null, isCombined: false
+      isCombined: false
     };
     if (matAcct) o.salesAccountId = acct(matAcct);
     return o;
