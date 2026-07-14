@@ -11304,8 +11304,12 @@ var SHED_RATES = {
   roofScrewM2:    3.2,  // $/m² roofing screws/fixings
   // ── doors (GM Doors, supply & install) ──
   rollerDoor:  2200, paDoor: 1800,
-  // ── labour + extras ──
-  labourPerM2:  330,    // $/m² floor — build labour + margin
+  // ── labour (charged per hour: 1 lead + 1 apprentice working together) ──
+  leadRate:      95,    // $/hr lead tradesman (charge-out)
+  apprenticeRate:60,    // $/hr apprentice (charge-out)
+  crew:           2,    // people on site
+  hoursPerDay:   10,    // hours per working day
+  manHrPerM2:     1.8,  // man-hours per m² of floor (sets the default day count)
   consentAllow:4000,    // added when a building consent is required
   overhang:       0.3
 };
@@ -11330,10 +11334,13 @@ function _shedEstDefaults(){
   var across = (W > 7) ? 3 : 2;
   var along  = Math.max(Math.round(L / 5.5), 1) + 1;
   var dc = _psDoorCounts();
+  var floor = W * L;
   return {
     W: W, L: L, hiEave: hi, loEave: lo || hi,
     poles: (W && L) ? across * along : 0,
     roller: dc.roller, pa: dc.pa,
+    // default build days from size (man-hrs/m² ÷ crew ÷ hrs-per-day)
+    days: floor ? Math.max(Math.round(floor * SHED_RATES.manHrPerM2 / (SHED_RATES.crew * SHED_RATES.hoursPerDay)), 1) : 0,
     consent: (q.psConsent === 'consented')
   };
 }
@@ -11381,11 +11388,17 @@ function _shedEstimate(inp){
   ];
   if (roller) items.push(mk('doors', 'Roller doors (supply & install)', roller, 'ea', R.rollerDoor));
   if (pa)     items.push(mk('doors', 'P.A. doors (supply & install)',   pa,     'ea', R.paDoor));
-  items.push(mk('labour', 'Labour & build margin', floor, 'm² floor', R.labourPerM2));
+  // Labour charged per hour — 1 lead + 1 apprentice working the same days.
+  var days = Math.max(+inp.days || 0, 0);
+  var manHrs = days * R.crew * R.hoursPerDay;   // total man-hours across the crew
+  var leadHrs = manHrs / 2, appHrs = manHrs / 2;
+  items.push(mk('labour', 'Lead tradesman', leadHrs, 'hr', R.leadRate));
+  items.push(mk('labour', 'Apprentice',     appHrs,  'hr', R.apprenticeRate));
   if (inp.consent) items.push(mk('labour', 'Building consent allowance', 1, 'lot', R.consentAllow));
   var gt = function(g){ return items.reduce(function(a, x){ return a + (x.group === g ? x.cost : 0); }, 0); };
   return { items: items, trade: gt('trade'), flood: gt('flood'), doors: gt('doors'), labour: gt('labour'),
-    total: items.reduce(function(a, x){ return a + x.cost; }, 0), floor: floor, roofArea: roofArea, wallArea: wallArea };
+    total: items.reduce(function(a, x){ return a + x.cost; }, 0), floor: floor, roofArea: roofArea, wallArea: wallArea,
+    days: days, manHrs: manHrs };
 }
 // Show/hide + render the estimator card depending on the draft type.
 function _toggleShedEstimator(){
@@ -11426,8 +11439,11 @@ function renderShedEstimator(){
         num('W','Span — width (m)')+ num('L','Length (m)')+
         num('hiEave','High eave (m)')+ num('loEave','Low eave (m)')+
         num('poles','Poles (total)','1')+ num('roller','Roller doors','1')+ num('pa','P.A. doors','1')+
+        num('days','Build days','0.5')+
       '</div>'+
-      '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px">'+chk('consent','Building consent required')+'</div>'+
+      '<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin-bottom:14px">'+chk('consent','Building consent required')+
+        '<span id="shedEstHrs" style="font-size:11px;color:var(--text2)"></span>'+
+      '</div>'+
       '<div id="shedEstResults"></div>'+
     '</div>';
   _renderShedEstResults();
@@ -11438,6 +11454,8 @@ function _renderShedEstResults(){
   var host = document.getElementById('shedEstResults');
   var e = _shedEst(); if (!host || !e) return;
   var est = _shedEstimate(e);
+  var hint = document.getElementById('shedEstHrs');
+  if (hint) hint.textContent = est.days ? ('≈ ' + est.days + ' days · ' + SHED_RATES.crew + '-person crew · ' + Math.round(est.manHrs) + ' man-hours') : '';
   var groups = [
     ['trade',  'Trade materials (Carters)', est.trade],
     ['flood',  'Roofing & cladding',        est.flood],
