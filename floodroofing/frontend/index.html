@@ -11310,6 +11310,7 @@ var SHED_RATES = {
   crew:           2,    // people on site
   hoursPerDay:   10,    // hours per working day
   manHrPerM2:     1.8,  // man-hours per m² of floor (sets the default day count)
+  materialMarkup: 0.05, // markup applied to materials (trade + roofing + doors), not labour
   consentAllow:4000,    // added when a building consent is required
   overhang:       0.3
 };
@@ -11392,11 +11393,15 @@ function _shedEstimate(inp){
   var days = Math.max(+inp.days || 0, 0);
   var manHrs = days * R.crew * R.hoursPerDay;   // total man-hours across the crew
   var leadHrs = manHrs / 2, appHrs = manHrs / 2;
+  // Markup on materials only (trade + roofing + doors) — labour is charge-out.
+  var matBase = items.reduce(function(a, x){ return a + (/^(trade|flood|doors)$/.test(x.group) ? x.cost : 0); }, 0);
+  var markup = matBase * (R.materialMarkup || 0);
+  if (markup) items.push(mk('markup', 'Materials markup (' + Math.round((R.materialMarkup || 0) * 100) + '%)', 1, 'lot', markup));
   items.push(mk('labour', 'Lead tradesman', leadHrs, 'hr', R.leadRate));
   items.push(mk('labour', 'Apprentice',     appHrs,  'hr', R.apprenticeRate));
   if (inp.consent) items.push(mk('labour', 'Building consent allowance', 1, 'lot', R.consentAllow));
   var gt = function(g){ return items.reduce(function(a, x){ return a + (x.group === g ? x.cost : 0); }, 0); };
-  return { items: items, trade: gt('trade'), flood: gt('flood'), doors: gt('doors'), labour: gt('labour'),
+  return { items: items, trade: gt('trade'), flood: gt('flood'), doors: gt('doors'), markup: gt('markup'), labour: gt('labour'),
     total: items.reduce(function(a, x){ return a + x.cost; }, 0), floor: floor, roofArea: roofArea, wallArea: wallArea,
     days: days, manHrs: manHrs };
 }
@@ -11460,7 +11465,8 @@ function _renderShedEstResults(){
     ['trade',  'Trade materials (Carters)', est.trade],
     ['flood',  'Roofing & cladding',        est.flood],
     ['doors',  'Doors',                     est.doors],
-    ['labour', 'Labour, margin & consent',  est.labour]
+    ['markup', 'Materials markup',          est.markup],
+    ['labour', 'Labour & consent',          est.labour]
   ];
   var rows = groups.map(function(g){
     var its = est.items.filter(function(x){ return x.group === g[0]; });
