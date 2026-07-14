@@ -3200,7 +3200,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
     </div>
     <button onclick="saveQuote()" id="qaSaveBtn" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">💾 Save</button>
     <button onclick="openQuoteEmail()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Email Quote</button>
-    <button onclick="pushQuotePdfToFergus(this)" title="Build the quote proposal PDF and upload it to the linked Fergus job" style="padding:8px 14px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📤 Push to Fergus</button>
+    <button onclick="pushQuotePricingToFergus(this)" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines" style="padding:8px 14px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📤 Push pricing to Fergus</button>
     <button onclick="printQuote()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
     <button onclick="copyCustomerLink()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🔗 Customer link</button>
     <button onclick="saveAsDefaultTemplate()" title="Snapshot this proposal's cover title, about text, terms, inclusions and options as the default for every new quote" style="padding:8px 14px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⭐ Save as default template</button>
@@ -4339,9 +4339,17 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
         <div><label>Tradify API key</label><input type="password" id="intTradify" placeholder="trd_..." autocomplete="off"></div>
       </div>
       <div style="margin-top:14px;padding:10px 14px;background:#f0f8fb;border-left:3px solid #0099cc;border-radius:6px;font-size:12px;color:#0a1628">
-        <strong>Fergus — Material Sales account id</strong><br>
-        <span style="color:var(--text2)">Fergus's partner API doesn't expose your chart of accounts, so paste the numeric id of your "Material Sales" account here. Find it in Fergus → Settings → Sales Account Codes — click the Material Sales row and the id is the trailing number in the URL.</span><br>
-        <input type="text" id="intFergusMatAcct" placeholder="e.g. 12345678" autocomplete="off" style="margin-top:6px;width:100%;max-width:280px">
+        <strong>Fergus — Sales Account Codes</strong><br>
+        <span style="color:var(--text2)">Fergus categorises every quote line by a Sales Account. Paste the numeric ids of your <strong>Material Sales</strong> and <strong>Labour</strong> accounts — find them in Fergus → Settings → Sales Account Codes (click the row; the id is the trailing number in the URL). Material lines (materials, scaffold, selections) use the material account; labour lines use the labour account.</span>
+        <div class="f2" style="margin-top:8px">
+          <div><label>Material Sales account id</label><input type="text" id="intFergusMatAcct" placeholder="e.g. 12345678" autocomplete="off"></div>
+          <div><label>Labour account id</label><input type="text" id="intFergusLabAcct" placeholder="e.g. 12345679" autocomplete="off"></div>
+        </div>
+        <div class="f2" style="margin-top:8px">
+          <div><label>Material code <span style="color:var(--text2);font-weight:400">(optional)</span></label><input type="text" id="intFergusMatCode" placeholder="e.g. MAT" autocomplete="off"></div>
+          <div><label>Labour code <span style="color:var(--text2);font-weight:400">(optional)</span></label><input type="text" id="intFergusLabCode" placeholder="e.g. LAB" autocomplete="off"></div>
+        </div>
+        <span style="color:var(--text2);font-size:11px">The optional code fields are sent on each line as a product/item code if your Fergus setup uses them.</span>
       </div>
       <div style="margin-top:14px;padding:10px 12px;background:#fff8e1;border-left:3px solid #f59e0b;border-radius:6px;font-size:12px;color:#664500">
         <strong>Phase 2:</strong> "Send job to JMS" + "Email quote" buttons (and the JMS adapters for ServiceM8, Jobber, Tradify) ship in the next iteration. Fergus push already works from the Fergus tab.
@@ -4826,6 +4834,9 @@ function collectSettingsFromUI(){
   k.jobber     = (document.getElementById('intJobber')||{}).value || '';
   k.tradify    = (document.getElementById('intTradify')||{}).value || '';
   k.fergusMaterialsAccountId = (document.getElementById('intFergusMatAcct')||{}).value || '';
+  k.fergusLabourAccountId    = (document.getElementById('intFergusLabAcct')||{}).value || '';
+  k.fergusMaterialCode       = (document.getElementById('intFergusMatCode')||{}).value || '';
+  k.fergusLabourCode         = (document.getElementById('intFergusLabCode')||{}).value || '';
   collectPriceBookFromUI();
   collectLabourPricingFromUI();
 }
@@ -5459,6 +5470,7 @@ function refreshSettingsUI(){
   renderOptionsList(q.options || []);
   renderSectionsList(q.sections || []);
   set('intFergus', k.fergus); set('intServiceM8', k.servicem8); set('intJobber', k.jobber); set('intTradify', k.tradify); set('intFergusMatAcct', k.fergusMaterialsAccountId);
+  set('intFergusLabAcct', k.fergusLabourAccountId); set('intFergusMatCode', k.fergusMaterialCode); set('intFergusLabCode', k.fergusLabourCode);
   try { renderPriceBookUI(); } catch(e) { console.warn('price book render:', e); }
   try { renderLabourPricingUI(); } catch(e) { console.warn('labour pricing render:', e); }
 }
@@ -7826,6 +7838,25 @@ function updateScaffold(field, val){
   S.quote.scaffoldCustom = true;   // per-job scaffold cost/price now overrides settings
   calcLabour();
 }
+// Extra labourers (beyond Lead Roofer + Apprentice) — each is its own Fergus
+// labour line on push. Stored on S.quote.labour.extras.
+function _addLabourer(){
+  var p = _pricingState();
+  if (!Array.isArray(p.L.extras)) p.L.extras = [];
+  var lp = (S.settings && S.settings.labour_pricing) || {};
+  p.L.extras.push({ name: 'Labourer', hrs: 0, cost: (+lp.app_cost || 25), price: (+lp.app_price || 90) });
+  calcLabour();
+}
+function _updateLabourer(idx, field, val){
+  var p = _pricingState(); if (!Array.isArray(p.L.extras) || !p.L.extras[idx]) return;
+  p.L.extras[idx][field] = (field === 'name') ? val : (parseFloat(val) || 0);
+  calcLabour();
+}
+function _removeLabourer(idx){
+  var p = _pricingState(); if (!Array.isArray(p.L.extras)) return;
+  p.L.extras.splice(idx, 1);
+  calcLabour();
+}
 // Manually pull the Labour rates + scaffold back to the current Settings
 // defaults (clears the per-job overrides). Wired to the pricing panel.
 function _pricingUseSettingsDefaults(){
@@ -7852,10 +7883,24 @@ function calcLabour(){
       '<td style="text-align:right;font-weight:600">$'+(hrs*price).toFixed(2)+'</td>'+
     '</tr>';
   }
+  if (!Array.isArray(L.extras)) L.extras = [];
   var leadHrs=f(L.leadHrs), appHrs=f(L.appHrs);
-  var totalHrs = leadHrs + appHrs;
-  var totalPrice = leadHrs*f(L.leadPrice) + appHrs*f(L.appPrice);
-  var totalCost  = leadHrs*f(L.leadCost)  + appHrs*f(L.appCost);
+  var extrasHrs=0, extrasPrice=0, extrasCost=0;
+  L.extras.forEach(function(x){ var h=f(x.hrs); extrasHrs+=h; extrasPrice+=h*f(x.price); extrasCost+=h*f(x.cost); });
+  var totalHrs = leadHrs + appHrs + extrasHrs;
+  var totalPrice = leadHrs*f(L.leadPrice) + appHrs*f(L.appPrice) + extrasPrice;
+  var totalCost  = leadHrs*f(L.leadCost)  + appHrs*f(L.appCost)  + extrasCost;
+  // Extra labourers — editable name + hours/rates + delete. Each becomes its
+  // own Fergus labour line on push.
+  function extraRow(x, i){
+    return '<tr>'+
+      '<td><input type="text" value="'+esc2(x.name||'Labourer')+'" onchange="_updateLabourer('+i+',\'name\',this.value)" style="width:100%;font-size:12px;padding:5px 7px;font-weight:600"></td>'+
+      '<td><input type="number" step="0.5" min="0" value="'+f(x.hrs)+'" onchange="_updateLabourer('+i+',\'hrs\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></td>'+
+      '<td><div style="display:flex;align-items:center;gap:2px"><span style="color:var(--text2);font-size:11px">$</span><input type="number" step="0.5" min="0" value="'+f(x.cost)+'" onchange="_updateLabourer('+i+',\'cost\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></div></td>'+
+      '<td><div style="display:flex;align-items:center;gap:2px"><span style="color:var(--text2);font-size:11px">$</span><input type="number" step="0.5" min="0" value="'+f(x.price)+'" onchange="_updateLabourer('+i+',\'price\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></div></td>'+
+      '<td style="text-align:right;font-weight:600;white-space:nowrap">$'+(f(x.hrs)*f(x.price)).toFixed(2)+' <button type="button" onclick="_removeLabourer('+i+')" title="Remove labourer" style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:13px;padding:0 2px">×</button></td>'+
+    '</tr>';
+  }
 
   var html = '<table class="price-tbl" style="table-layout:fixed;width:100%">'+
     '<thead><tr>'+
@@ -7867,7 +7912,9 @@ function calcLabour(){
     '</tr></thead><tbody>'+
       row('Lead Roofer','leadHrs','leadCost','leadPrice')+
       row('Apprentice','appHrs','appCost','appPrice')+
+      L.extras.map(extraRow).join('')+
     '</tbody></table>'+
+    '<div style="margin-top:5px"><button type="button" onclick="_addLabourer()" style="background:none;border:1px dashed var(--border);border-radius:6px;color:#0099cc;font-size:11px;cursor:pointer;padding:5px 11px;font-weight:600">+ Add labourer</button></div>'+
     ((S.quote && (S.quote.labourRatesCustom || S.quote.scaffoldCustom))
       ? '<div style="text-align:right;margin-top:4px"><button type="button" onclick="_pricingUseSettingsDefaults()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline;padding:2px 0">↻ Reset rates to Settings defaults</button></div>'
       : '')+
@@ -26546,6 +26593,114 @@ function _fergusBtnBusy(btn, on){
 
 // Push to Fergus (Quote tab) — build the Quote proposal PDF and upload it to
 // the linked Fergus job, exactly like Push to Fergus on the Job Pack tab.
+// ── Itemised Fergus quote push ─────────────────────────────────────────
+// Read the individual priced material lines from the Materials price table
+// (_buildMaterialPriceRows + the same variant/override/delete logic the UI
+// uses), so each material becomes its own coded Fergus line.
+function _readFergusMaterialItems(){
+  var out = [];
+  try {
+    if (typeof _buildMaterialPriceRows !== 'function') return out;
+    var rows = _buildMaterialPriceRows() || [];
+    var del = (typeof MATERIAL_DELETED !== 'undefined') ? MATERIAL_DELETED : {};
+    var ovs = (typeof MATERIAL_OVERRIDES !== 'undefined') ? MATERIAL_OVERRIDES : {};
+    rows.forEach(function(r){
+      if (del[r.key]) return;
+      var ov = ovs[r.key] || {};
+      var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
+      var picked = (r.variants || []).find(function(v){ return v.value === variantValue; }) || (r.variants || [])[0];
+      var qty   = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+      var price = picked ? picked.price : 0;
+      qty = parseFloat(qty) || 0;
+      if (qty > 0 && price > 0){
+        var name = r.label + (picked && picked.label ? ' — ' + picked.label : '');
+        out.push({ name: name, qty: qty, price: price });
+      }
+    });
+  } catch(e){}
+  return out;
+}
+// Assemble Fergus quote sections with individual coded lines: one labour line
+// per worker (labour code/account), one material line per material item + the
+// scaffold + each selection add-on (material code/account).
+function _buildFergusItemisedSections(){
+  var k = (S.settings && S.settings.jms_keys) || {};
+  var matAcct = k.fergusMaterialsAccountId || '';
+  var labAcct = k.fergusLabourAccountId || '';
+  var matCode = (k.fergusMaterialCode || '').trim();
+  var labCode = (k.fergusLabourCode || '').trim();
+  var acct = function(v){ var n = parseFloat(v); return isFinite(n) ? n : v; };
+  function labLine(desc, hrs, rate){
+    var o = { description: desc, quantity: parseFloat((+hrs).toFixed(2)) || 0, unitPrice: +rate || 0, hourlyRate: +rate || 0, sellPrice: +rate || 0, price: +rate || 0, isLabour: true };
+    if (labAcct) o.salesAccountId = acct(labAcct);
+    if (labCode) { o.code = labCode; o.itemCode = labCode; }
+    return o;
+  }
+  function matLine(desc, qty, unit){
+    var o = { description: desc, quantity: parseFloat((+qty).toFixed(2)) || 0, unitPrice: +unit || 0, price: +unit || 0, sellPrice: +unit || 0 };
+    if (matAcct) o.salesAccountId = acct(matAcct);
+    if (matCode) { o.code = matCode; o.itemCode = matCode; }
+    return o;
+  }
+  var st = _pricingState(); var L = st.L;
+  var labour = [];
+  if ((+L.leadHrs) > 0) labour.push(labLine('Lead Roofer', L.leadHrs, +L.leadPrice || 0));
+  if ((+L.appHrs)  > 0) labour.push(labLine('Apprentice',  L.appHrs,  +L.appPrice  || 0));
+  (L.extras || []).forEach(function(x){ if ((+x.hrs) > 0) labour.push(labLine((x.name || 'Labourer'), x.hrs, +x.price || 0)); });
+  var mats = [];
+  _readFergusMaterialItems().forEach(function(m){ mats.push(matLine(m.name, m.qty, m.price)); });
+  if (!mats.length && (+S.materials) > 0) mats.push(matLine('Materials', 1, +S.materials));
+  var sc = _scaffoldEff(st.sc);
+  if ((+sc.price) > 0) mats.push(matLine('Scaffolding' + (st.sc.type === 'platform' ? ' (platform)' : ''), 1, sc.price));
+  (typeof _qpSelectionChanges === 'function' ? _qpSelectionChanges() : []).forEach(function(c){
+    if (c.delta && Math.abs(c.delta) > 0.005) mats.push(matLine('Selection — ' + c.label, 1, c.delta));
+  });
+  var sections = [];
+  if (labour.length) sections.push({ name: 'Labour', lineItems: labour });
+  if (mats.length)   sections.push({ name: 'Materials', lineItems: mats });
+  return { sections: sections, matAcct: matAcct, labAcct: labAcct, labourCount: labour.length, matCount: mats.length };
+}
+// Push the itemised pricing to Fergus as a NEW quote (a new version on the job).
+async function pushQuotePricingToFergus(btn){
+  if (!window.S || !S.linkedJobId){
+    _qaMsg('No Fergus job linked — link one on the Home tab (📂 New Job / Select Job) first.', false);
+    alert('No Fergus job is linked to this quote.\n\nLink one on the Home tab (📂 New Job / Select Job → Fergus) first, then push.');
+    return;
+  }
+  try { if (typeof readQuoteFromInputs === 'function') readQuoteFromInputs(); } catch(e){}
+  try { calcLabour(); } catch(e){}
+  var built = _buildFergusItemisedSections();
+  if (!built.sections.length){ _qaMsg('Nothing to push — enter labour hours and/or materials first.', false); alert('Nothing to push yet.\n\nAdd labour hours (Pricing tab) and/or material lines first.'); return; }
+  if (built.matCount && !built.matAcct){
+    if (!confirm('No Fergus Material Sales account id is set (Settings → Integrations), so Fergus will likely reject the material lines.\n\nOK = push anyway  ·  Cancel = stop and set it first')) return;
+  }
+  _fergusBtnBusy(btn, true); _qaBar(true);
+  try {
+    _qaMsg('Creating new quote version in Fergus job ' + _fergusDisplayNo() + '…');
+    var sub = (typeof quoteSubtotal === 'function') ? quoteSubtotal() : 0;
+    var gst = sub * ((S.quote.gstRate || 15) / 100);
+    S.quote.fergusQuoteRev = (S.quote.fergusQuoteRev || 0) + 1;
+    var title = 'Quote ' + (S.quote.ref || '') + ' — ' + (S.quote.client || 'Client') + ' (v' + S.quote.fergusQuoteRev + ')';
+    var dueDays = (function(){ var m = String(S.quote.validUntil || S.quote.validDays || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : 30; })();
+    var resp = await fergusCall('POST', '/jobs/' + S.linkedJobId + '/quotes', {
+      title: title, sections: built.sections, dueDays: dueDays, total: sub + gst,
+      notes: (S.quote.scope || '') + (S.quote.notes ? '\n\nNotes: ' + S.quote.notes : ''),
+      status: 'Draft'
+    });
+    var raw = ''; try { raw = await resp.clone().text(); } catch(e){}
+    if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + raw.slice(0, 300));
+    try { window._lastFergusQuote = JSON.parse(raw); } catch(e){}
+    _markFergusSent('quote');
+    var when = _fmtSent(S.fergusSent && S.fergusSent.quote);
+    _qaMsg('✓ New quote version created in Fergus job ' + _fergusDisplayNo() + ' · ' + when, true);
+    alert('✓ Pushed pricing to Fergus\n\nA new quote version (' + title + ') was created on job ' + _fergusDisplayNo() + ' with ' + built.labourCount + ' labour line(s) and ' + built.matCount + ' material line(s).\n\nOpen Fergus to review.\n\nSent: ' + when);
+  } catch(e){
+    _qaMsg('Fergus quote push failed: ' + (e.message || e), false);
+    alert('Fergus didn\'t accept the quote push:\n\n' + (e.message || e) + '\n\nIf this keeps happening, copy the message and send it over so the line-item format can be matched to your Fergus setup.');
+  } finally {
+    _qaBar(false); _fergusBtnBusy(btn, false);
+  }
+}
 async function pushQuotePdfToFergus(btn){
   if (!window.S || !S.linkedJobId){
     _qaMsg('No Fergus job linked — link one on the Home tab (📂 Select Job) first, then push.', false);
