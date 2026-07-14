@@ -1042,10 +1042,22 @@ const FERGUS_LIST_CANDIDATES = [
   '/files?job_id={jobId}',
   '/files?jobId={jobId}',
   '/photos?job_id={jobId}',
-  '/attachments?job_id={jobId}',
   '/documents?job_id={jobId}',
   '/job_files?job_id={jobId}',
   '/v1/files?job_id={jobId}',
+  // /attachments returned 400 (not 404) for job_id — the resource EXISTS
+  // but rejected that param. Probe its accepted parameter shape. The bare
+  // hit surfaces the "required param" message; the variants try the usual
+  // Fergus / OAS filter conventions.
+  '/attachments',
+  '/attachments?job_id={jobId}',
+  '/attachments?jobId={jobId}',
+  '/attachments?job={jobId}',
+  '/attachments?entity_id={jobId}',
+  '/attachments?entity_type=job&entity_id={jobId}',
+  '/attachments?filter[job_id]={jobId}',
+  '/attachments?job_ids={jobId}',
+  '/attachments/{jobId}',
   '/v1/attachments?job_id={jobId}',
   '/v2/jobs/{jobId}/files',
   '/v2/jobs/{jobId}/photos',
@@ -1056,6 +1068,22 @@ const FERGUS_LIST_CANDIDATES = [
   '/job/{jobId}/photos',
 ];
 
+// Build a compact shape summary for a probed response. For error
+// responses (4xx/5xx) it captures the `message`/`error` text so the
+// picker can show WHY a request failed — e.g. a 400 that names the
+// required query parameter — instead of just the key names.
+function _fergusShapeSummary(parsed, text) {
+  if (parsed && typeof parsed === 'object') {
+    if (Array.isArray(parsed)) {
+      return { type: 'array', length: parsed.length, firstKeys: parsed[0] && typeof parsed[0] === 'object' ? Object.keys(parsed[0]).slice(0, 12) : null };
+    }
+    const s = { type: 'object', keys: Object.keys(parsed).slice(0, 15) };
+    const msg = parsed.message || parsed.error || parsed.detail || parsed.title;
+    if (msg && typeof msg === 'string') s.msg = msg.slice(0, 160);
+    return s;
+  }
+  return { type: typeof parsed, sample: String(text).slice(0, 140) };
+}
 function _normaliseFergusFile(raw) {
   if (!raw || typeof raw !== 'object') return null;
   // Cover the half-dozen field names Fergus uses across endpoints —
@@ -1098,11 +1126,7 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
       // Always stash a short shape summary so the picker can show the
       // user exactly why no files came back — keys present, array
       // length, status code.
-      const summary = parsed && typeof parsed === 'object'
-        ? (Array.isArray(parsed)
-            ? { type:'array', length: parsed.length, firstKeys: parsed[0] && typeof parsed[0]==='object' ? Object.keys(parsed[0]).slice(0,12) : null }
-            : { type:'object', keys: Object.keys(parsed).slice(0,15) })
-        : { type: typeof parsed, sample: String(text).slice(0,120) };
+      const summary = _fergusShapeSummary(parsed, text);
       attempts.push({ path: tpl, status: r.status, ok: r.ok, summary });
       if (!r.ok || !parsed) continue;
       // Find the array — Fergus wraps lists in several shapes (.data,

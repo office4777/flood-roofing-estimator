@@ -28037,7 +28037,7 @@ async function probeFergusFilesRoof(){
       if (s && typeof s === 'object'){
         if (s.type === 'array') shape = 'array, length=' + s.length + (s.firstKeys ? ' · first keys: [' + s.firstKeys.join(', ') + ']' : '');
         else if (s.topKeys) shape = 'JOB BLOB · top keys: [' + s.topKeys.join(', ') + ']' + (s.altIdsFound && s.altIdsFound.length ? ' · altIds: ' + s.altIdsFound.join(', ') : '') + (s.matchedPath ? ' · matched: ' + s.matchedPath : '');
-        else if (s.keys) shape = 'object, keys: [' + s.keys.join(', ') + ']';
+        else if (s.keys) shape = 'object, keys: [' + s.keys.join(', ') + ']' + (s.msg ? ' · msg: "' + s.msg + '"' : '');
         else if (s.sample) shape = String(s.sample);
         else shape = JSON.stringify(s).slice(0, 200);
       } else if (a.error) shape = 'fetch error: ' + a.error;
