@@ -26731,16 +26731,27 @@ async function _fergusDumpQuoteJson(){
   if (!window.S || !S.linkedJobId){ alert('No Fergus job is linked.\n\nLink the job that has the populated quote (Home → New Job / Select Job → Fergus) first, then try again.'); return; }
   var out = '';
   var tried = [];
-  var paths = ['/jobs/' + S.linkedJobId + '/quotes', '/jobs/' + S.linkedJobId + '/quote', '/jobs/' + S.linkedJobId];
-  for (var i = 0; i < paths.length; i++){
-    try {
-      var r = await fergusCall('GET', paths[i]);
-      var t = await r.text();
-      tried.push('GET ' + paths[i] + ' → HTTP ' + r.status + ' (' + t.length + ' bytes)');
-      if (r.ok && t && t.length > 2){ out = t; break; }
-    } catch(e){ tried.push('GET ' + paths[i] + ' → ' + (e.message || e)); }
-  }
-  if (!out) out = 'No quote JSON returned.\n\nAttempts:\n' + tried.join('\n');
+  try {
+    // 1) List the job's quotes (summaries only), then 2) fetch the DETAIL of
+    //    the most-populated one (highest subtotal) — that's where the line
+    //    items live.
+    var lr = await fergusCall('GET', '/jobs/' + S.linkedJobId + '/quotes');
+    var lt = await lr.text();
+    tried.push('GET /jobs/' + S.linkedJobId + '/quotes → HTTP ' + lr.status + ' (' + lt.length + ' bytes)');
+    var list = JSON.parse(lt);
+    var quotes = (list && (list.data || list.value || list.quotes)) || [];
+    // pick the quote with the biggest subtotal (the populated one)
+    var best = null;
+    quotes.forEach(function(q){ var s = (q.totals && (q.totals.subTotal || q.totals.total)) || 0; if (!best || s > best._s){ best = q; best._s = s; } });
+    if (best && best.id){
+      var dpath = '/jobs/' + S.linkedJobId + '/quotes/' + best.id;
+      var dr = await fergusCall('GET', dpath);
+      var dt = await dr.text();
+      tried.push('GET ' + dpath + ' → HTTP ' + dr.status + ' (' + dt.length + ' bytes)');
+      if (dr.ok && dt && dt.length > 2) out = dt;
+    }
+  } catch(e){ tried.push('Error: ' + (e.message || e)); }
+  if (!out) out = 'Could not read quote detail.\n\nAttempts:\n' + tried.join('\n');
   var ov = document.getElementById('fergusDumpOverlay');
   if (!ov){ ov = document.createElement('div'); ov.id = 'fergusDumpOverlay'; document.body.appendChild(ov); }
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(6,14,28,.6);z-index:100090;display:flex;align-items:center;justify-content:center;padding:14px;font-family:Inter,system-ui,sans-serif';
