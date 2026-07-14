@@ -8216,26 +8216,68 @@ var CONDITION_FIXINGS = {
   lead: {
     label: 'Lead-head Nails',
     age: '40+ years',
-    desc: 'This roof is secured with lead-head nails — a fixing method phased out decades ago, which places the roof well beyond its serviceable life (typically 40+ years old). Rust is forming around the nail holes and beneath the lead-edge ridging, where water has been tracking in for many years. Once corrosion takes hold at the fixings it spreads through the sheet, and re-nailing or patching only delays the inevitable. A full re-roof is the sound long-term investment.'
+    desc: 'This roof is secured with lead-head nails — a fixing method phased out decades ago, which places the roof well beyond its serviceable life (typically 40+ years old). Rust is forming around the nail holes and beneath the lead-edge ridging, where water has been tracking in for many years. Once corrosion takes hold at the fixings it spreads through the sheet, and re-nailing or patching only delays the inevitable. A full re-roof is the sound long-term investment.',
+    major: [
+      'Rust forming around the nail holes and under the lead-edge ridging',
+      'Fixings well past their serviceable life — the roof is no longer reliably weathertight',
+      'Corrosion spreading through the sheets from the fixing points'
+    ],
+    minor: [
+      'Heavily weathered, chalking paint surface with little protective coating left',
+      'Original underlay brittle and no longer effective at catching condensation'
+    ]
   },
   twist: {
     label: 'Twist Shank Nails',
     age: '20–40 years',
-    desc: 'This roof is fixed with twisted-shank nails and is moderately aged (typically 20–40 years old). The nails are no longer holding the sheets down firmly, allowing wind uplift and water ingress at the fixing points. The paint system is heavily faded with little protective coating left over the steel, so surface rust is developing quickly. A lower-cost repair — re-screwing and repainting — is possible, but far less reliable: paint frequently bridges and seals the sheet laps poorly, drawing water in by capillary action. The original underlay will also be brittle and no longer catching condensation, leading to damp, mouldy interiors. For these reasons a full re-roof is the best and most durable option.'
+    desc: 'This roof is fixed with twisted-shank nails and is moderately aged (typically 20–40 years old). The nails are no longer holding the sheets down firmly, allowing wind uplift and water ingress at the fixing points. The paint system is heavily faded with little protective coating left over the steel, so surface rust is developing quickly. A lower-cost repair — re-screwing and repainting — is possible, but far less reliable: paint frequently bridges and seals the sheet laps poorly, drawing water in by capillary action. The original underlay will also be brittle and no longer catching condensation, leading to damp, mouldy interiors. For these reasons a full re-roof is the best and most durable option.',
+    major: [
+      'Nails no longer holding the sheets down — wind uplift and water ingress at the fixings',
+      'Paint system heavily faded with minimal protective coating left over the steel',
+      'Surface rust developing across the sheets'
+    ],
+    minor: [
+      'Sheet laps drawing water in by capillary action',
+      'Original underlay brittle — condensation no longer being caught (damp/mould risk)'
+    ]
   },
   tek: {
     label: 'Tek Screws',
     age: 'Up to ~20 years',
-    desc: 'This roof is fixed with Tek screws, indicating a more recent installation (generally under 20 years old). While newer, the rubber sealing washers on the screws perish and shrink over time, letting water past the fixing points, and the paint finish and sheet profile should be checked for fade, wear and any developing corrosion. Where the coating is failing or the underlay has aged, re-roofing remains the most reliable way to guarantee a fully weathertight, long-lasting result.'
+    desc: 'This roof is fixed with Tek screws, indicating a more recent installation (generally under 20 years old). While newer, the rubber sealing washers on the screws perish and shrink over time, letting water past the fixing points, and the paint finish and sheet profile should be checked for fade, wear and any developing corrosion. Where the coating is failing or the underlay has aged, re-roofing remains the most reliable way to guarantee a fully weathertight, long-lasting result.',
+    major: [
+      'Rubber sealing washers perished and shrinking — water passing the fixing points',
+      'Coating fade and wear developing on the exposed sheets'
+    ],
+    minor: [
+      'Isolated surface corrosion to monitor',
+      'Underlay ageing — condensation control should be assessed'
+    ]
   }
 };
 function _setCondFixingType(type){
   var f = CONDITION_FIXINGS[type];
   if (!f || !S.quote) return;
   S.quote.condFixingType = type;
-  S.quote.condAge = f.age;            // approximate age from the fixing method
-  S.quote.condAssessment = f.desc;    // load this fixing's condition draft
+  S.quote.condAge = f.age;                       // approximate age from the fixing method
+  S.quote.condAssessment = f.desc;               // load this fixing's condition draft
+  S.quote.condMajor = (f.major || []).join('\n'); // and its major / minor issue lists
+  S.quote.condMinor = (f.minor || []).join('\n');
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+}
+// One inline-editable block that renders each stored line as a coloured
+// bullet — a single source (no separate display + raw-text duplicate).
+// On blur the generic [data-qfield] handler saves innerText; empty lines
+// and leading bullets are stripped when the block re-renders.
+function _condIssuesEditable(field, raw, accent){
+  var lines = (raw || '').split('\n').map(function(s){ return s.replace(/^[•\-\s]+/,'').trim(); }).filter(Boolean);
+  var inner = lines.length
+    ? lines.map(function(b){
+        return '<div style="padding:2px 0"><span style="color:'+accent+';font-weight:700">&#8226;</span>&nbsp;&nbsp;'+esc2(b)+'</div>';
+      }).join('')
+    : '<span class="qp-placeholder" style="font-style:italic;color:var(--ed-text2)">One issue per line…</span>';
+  return '<div class="qp-editable" contenteditable="true" data-qfield="'+field+'" data-multiline="1" spellcheck="true" '+
+    'style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.6;color:var(--ed-ink-2);min-height:1.5em">'+inner+'</div>';
 }
 function _qpCondPhotoUpload(e){
   var f = e.target.files && e.target.files[0];
@@ -11225,21 +11267,17 @@ function refreshQuoteProposal(){
       (condSummary
         ? '<div class="ed-body-lg" style="margin-bottom:18px">'+condSummary.split('\n').map(function(p){return '<p style="margin:0 0 10px">'+esc2(p)+'</p>';}).join('')+'</div>'
         : '')+
-      // Major + minor issues — always shown with inline-editable text areas
+      // Major + minor issues — single inline-editable bulleted block each
+      // (no separate display + raw-text duplicate). Minor falls back to
+      // any legacy observations when nothing has been entered yet.
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start;margin-bottom:18px">'+
         '<div>'+
-          '<div class="ed-eyebrow" style="margin-bottom:6px;color:var(--ed-warm,#c0794d)">Major issues <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
-          (cMajor.length ? issueList(cMajor,'var(--ed-warm,#c0794d)') : '')+
-          '<div class="qp-editable" contenteditable="true" data-qfield="condMajor" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.6;color:var(--ed-text2);font-style:italic;margin-top:'+(cMajor.length?'8':'0')+'px;min-height:1.5em">'+
-            (S.quote.condMajor ? esc2(S.quote.condMajor) : '<span class="qp-placeholder">One issue per line…</span>')+
-          '</div>'+
+          '<div class="ed-eyebrow" style="margin-bottom:6px;color:var(--ed-warm,#c0794d)">Major issues <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+          _condIssuesEditable('condMajor', S.quote.condMajor, 'var(--ed-warm,#c0794d)')+
         '</div>'+
         '<div>'+
-          '<div class="ed-eyebrow" style="margin-bottom:6px">Minor issues <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
-          (minorList.length ? issueList(minorList,'var(--ed-accent)') : '')+
-          '<div class="qp-editable" contenteditable="true" data-qfield="condMinor" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.6;color:var(--ed-text2);font-style:italic;margin-top:'+(minorList.length?'8':'0')+'px;min-height:1.5em">'+
-            (S.quote.condMinor ? esc2(S.quote.condMinor) : '<span class="qp-placeholder">One issue per line…</span>')+
-          '</div>'+
+          '<div class="ed-eyebrow" style="margin-bottom:6px">Minor issues <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+          _condIssuesEditable('condMinor', S.quote.condMinor || (!cMajor.length && condObs.length ? condObs.join('\n') : ''), 'var(--ed-accent)')+
         '</div>'+
       '</div>'+
       // Recommendations — always shown with editable block
