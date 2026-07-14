@@ -26704,6 +26704,24 @@ function _buildFergusItemisedSections(){
   if (mats.length)   sections.push({ name: 'Materials', sortOrder: 20, selectionMode: 'Fixed', lineItems: mats });
   return { sections: sections, matAcct: matAcct, labAcct: labAcct, labourCount: labour.length, matCount: mats.length };
 }
+// Void every quote on the job except `keepId` (skip already-voided and
+// accepted ones). Fergus's void endpoint is POST /jobs/quotes/{id}/void.
+async function _fergusVoidOtherQuotes(jobId, keepId){
+  var voided = 0;
+  try {
+    var lr = await fergusCall('GET', '/jobs/' + jobId + '/quotes');
+    var lt = await lr.text();
+    var list = JSON.parse(lt);
+    var quotes = (list && (list.data || list.value || list.quotes)) || [];
+    for (var i = 0; i < quotes.length; i++){
+      var q = quotes[i];
+      if (!q || !q.id || String(q.id) === String(keepId)) continue;
+      if (q.voidedAt || q.isVoided || q.isAccepted || q.acceptedAt) continue;   // don't touch accepted / already-void
+      try { var vr = await fergusCall('POST', '/jobs/quotes/' + q.id + '/void'); if (vr && vr.ok) voided++; } catch(e){}
+    }
+  } catch(e){}
+  return voided;
+}
 // Push the itemised pricing to Fergus as a NEW quote (a new version on the job).
 async function pushQuotePricingToFergus(btn){
   if (!window.S || !S.linkedJobId){
@@ -26730,11 +26748,16 @@ async function pushQuotePricingToFergus(btn){
     });
     var raw = ''; try { raw = await resp.clone().text(); } catch(e){}
     if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + raw.slice(0, 300));
-    try { window._lastFergusQuote = JSON.parse(raw); } catch(e){}
+    var newId = null;
+    try { var parsed = JSON.parse(raw); window._lastFergusQuote = parsed; newId = (parsed && ((parsed.data && parsed.data.id) || parsed.id)) || null; } catch(e){}
+    // Void every earlier (non-accepted) quote version so only this newest
+    // draft remains live on the Fergus job.
+    var voided = 0;
+    if (newId){ try { _qaMsg('Voiding previous quote versions…'); voided = await _fergusVoidOtherQuotes(S.linkedJobId, newId); } catch(e){} }
     _markFergusSent('quote');
     var when = _fmtSent(S.fergusSent && S.fergusSent.quote);
-    _qaMsg('✓ New quote version created in Fergus job ' + _fergusDisplayNo() + ' · ' + when, true);
-    alert('✓ Pushed pricing to Fergus\n\nA new quote version (' + title + ') was created on job ' + _fergusDisplayNo() + ' with ' + built.labourCount + ' labour line(s) and ' + built.matCount + ' material line(s).\n\nOpen Fergus to review.\n\nSent: ' + when);
+    _qaMsg('✓ New quote version created in Fergus job ' + _fergusDisplayNo() + (voided ? ' (' + voided + ' old version' + (voided === 1 ? '' : 's') + ' voided)' : '') + ' · ' + when, true);
+    alert('✓ Pushed pricing to Fergus\n\nA new quote version (' + title + ') was created on job ' + _fergusDisplayNo() + ' with ' + built.labourCount + ' labour line(s) and ' + built.matCount + ' material line(s).' + (voided ? '\n\n' + voided + ' previous version' + (voided === 1 ? '' : 's') + ' voided.' : '') + '\n\nOpen Fergus to review.\n\nSent: ' + when);
   } catch(e){
     _qaMsg('Fergus quote push failed: ' + (e.message || e), false);
     alert('Fergus didn\'t accept the quote push:\n\n' + (e.message || e) + '\n\nIf this keeps happening, copy the message and send it over so the line-item format can be matched to your Fergus setup.');
