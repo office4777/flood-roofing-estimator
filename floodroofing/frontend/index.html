@@ -12155,18 +12155,24 @@ function refreshQuoteProposal(){
     // 4:3 frame. Storage lives on S.quote.condPhotos so the slots are
     // bound to THIS proposal, not the shared S.photos pool.
     if (!S.quote.condPhotos) S.quote.condPhotos = [];
+    // Render only the FILLED photos (up to 6) plus a single "add" slot
+    // that shows in the editor but never prints — so the customer PDF
+    // shows just the real photos and empty slots can't push content off
+    // the page.
     var photoBoxes = '';
-    var _condPhotoCount = 0;
+    var _condPhotoCount = 0, _firstEmpty = -1;
     for (var ci2 = 0; ci2 < 6; ci2++){
       var cp = S.quote.condPhotos[ci2] || null;
-      // Pre-fill from S.photos uploaded under the inspection if this
-      // slot is empty and we haven't already imported a job photo into
-      // it — keeps backwards compatibility with the old behaviour.
+      // Pre-fill from S.photos uploaded under the inspection if this slot
+      // is empty — keeps backwards compatibility with the old behaviour.
       if (!cp && photos[ci2] && photos[ci2].src) {
         cp = { src: photos[ci2].src, caption: photos[ci2].caption || '', offX: 0, offY: 0, zoom: 1 };
       }
-      if (cp && cp.src) _condPhotoCount++;
-      photoBoxes += _qpCondPhotoSlotHtml(ci2, cp);
+      if (cp && cp.src){ _condPhotoCount++; photoBoxes += _qpCondPhotoSlotHtml(ci2, cp); }
+      else if (_firstEmpty < 0) _firstEmpty = ci2;
+    }
+    if (_firstEmpty >= 0){
+      photoBoxes += '<div class="no-print">' + _qpCondPhotoSlotHtml(_firstEmpty, null) + '</div>';
     }
     // Hidden file input — single one re-used by every slot via the
     // hidden _qpCondPhotoTargetIdx pointer.  Lives at the end of the
@@ -12217,8 +12223,8 @@ function refreshQuoteProposal(){
       '</div>'+
       // Fixing type selector (office-only, no-print) — sets the roof age
       // and loads a matching condition-assessment draft below.
-      '<div style="margin-bottom:14px">'+
-        '<div class="ed-eyebrow" style="margin-bottom:6px">Fixing type <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7">— sets the approx. age &amp; loads a condition draft</span></div>'+
+      '<div class="no-print" style="margin-bottom:14px">'+
+        '<div class="ed-eyebrow" style="margin-bottom:6px">Fixing type <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7">— sets the approx. age &amp; loads a condition draft</span></div>'+
         '<div class="no-print" style="display:flex;gap:6px;flex-wrap:wrap">'+
           Object.keys(CONDITION_FIXINGS).map(function(k){
             var on = (S.quote.condFixingType === k);
