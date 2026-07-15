@@ -11001,23 +11001,68 @@ function _buildRoofPreviewsHtml(opts){
   '</div>';
 }
 
+// ── Proposal chapters ──────────────────────────────────────────────
+// Each printed page is a "chapter" with its own step number, a
+// customer-friendly title and a small accent colour, so the pack reads
+// as a guided journey (per the homeowner-readability brief). The
+// progress tracker across every heading band shows where the reader is.
+var PROPOSAL_CHAPTERS = [
+  { step:1, short:'Inspection', title:'Inspecting Your Roof',      accent:'#0099e0' }, // blue
+  { step:2, short:'Investment', title:'Your Investment',           accent:'#2e9e5b' }, // green
+  { step:3, short:'Options',    title:'Choose Your Roof',          accent:'#e08a2e' }, // orange
+  { step:4, short:'Materials',  title:'Why We Recommend MAXAM',     accent:'#64748b' }, // steel grey
+  { step:5, short:'Terms',      title:'Terms',                     accent:'#3a4658' }, // charcoal
+  { step:6, short:'Accept',     title:'Accept Your Quote',         accent:'#12467a' }  // dark blue
+];
+var POLESHED_CHAPTERS = [
+  { step:1, short:'Your Shed', title:'Your Shed',            accent:'#0099e0' },
+  { step:2, short:'Design',    title:'Design & Elevations',  accent:'#2e9e5b' },
+  { step:3, short:'Options',   title:'Choose Your Options',  accent:'#e08a2e' },
+  { step:4, short:'Included',  title:'What’s Included',  accent:'#64748b' },
+  { step:5, short:'Accept',    title:'Accept Your Quote',    accent:'#12467a' }
+];
+// Slim step-tracker strip that rides on top of the dark heading band.
+function _edProgressTracker(chapters, current, accent){
+  var cells = chapters.map(function(c){
+    var cur = c.step === current, done = c.step < current;
+    var bg = cur ? accent : (done ? 'rgba(255,255,255,.15)' : 'rgba(255,255,255,.06)');
+    var fg = cur ? '#fff' : (done ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.5)');
+    return '<div style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 5px;background:'+bg+';border-radius:5px;min-width:0">'+
+      '<span style="font-family:var(--ed-sans);font-size:9px;font-weight:800;color:'+fg+'">'+(done?'✓':c.step)+'</span>'+
+      '<span style="font-family:var(--ed-sans);font-size:8.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:'+fg+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc2(c.short)+'</span>'+
+    '</div>';
+  }).join('<div style="flex:0 0 4px"></div>');
+  return '<div class="ed-progress no-print-hint" style="display:flex;align-items:stretch;padding:10px 36px;border-bottom:1px solid rgba(255,255,255,.08)">'+cells+'</div>';
+}
 function edHeading(num, eyebrow, title, opts){
   opts = opts || {};
+  var ch = opts.chapter || null;
+  var chapters = opts.chapters || null;
+  var accent = (ch && ch.accent) || opts.accent || 'var(--ed-accent)';
   // When a photo banner sits ABOVE this heading band on the same
   // page (e.g. Box Gutter), the banner has already consumed the
   // rp-body top padding — so the heading band must NOT pull up
   // with a negative top margin or it would overlap the banner.
   var topMargin = opts.afterBanner ? '0' : '-38px';
-  // Simplified band: a single solid brand-ink panel with one slim accent
-  // rule at the top — no gradients or double stripes.
-  return '<div class="ed-heading-band" style="margin:'+topMargin+' -36px 22px;padding:15px 36px;background:var(--ed-ink);color:#fff;position:relative;overflow:hidden">'+
-    '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--ed-accent)"></div>'+
-    '<img src="brand/logo_wide_white.png" onerror="this.style.display=\'none\'" alt="" style="position:absolute;right:36px;top:50%;transform:translateY(-50%);height:34px;width:auto;opacity:.9;pointer-events:none">'+
-    '<div style="display:flex;align-items:center;gap:16px;position:relative;padding-right:150px">'+
-      '<div class="ed-number" style="flex-shrink:0;width:44px;color:var(--ed-accent);font-size:28px;line-height:1">'+esc2(num)+'</div>'+
-      '<div style="flex:1">'+
-        (eyebrow ? '<div class="ed-eyebrow" style="color:var(--ed-accent);font-size:9px">'+esc2(eyebrow)+'</div>' : '')+
-        '<div class="ed-title ed-h2" style="margin-top:2px;color:#fff;font-style:italic;font-size:26px">'+title+'</div>'+
+  var tracker = (ch && chapters) ? _edProgressTracker(chapters, ch.step, accent) : '';
+  var bigNum = ch ? String(ch.step) : num;
+  // Chapter eyebrow reads "Step N of M · <eyebrow>" for orientation.
+  var eyebrowText = ch
+    ? ('Step ' + ch.step + ' of ' + chapters.length + (eyebrow ? '  ·  ' + eyebrow : ''))
+    : (eyebrow || '');
+  // Solid brand-ink panel: an accent rule + optional step tracker on top,
+  // then a large chapter number + eyebrow + italic title.
+  return '<div class="ed-heading-band" style="margin:'+topMargin+' -36px 22px;background:var(--ed-ink);color:#fff;position:relative;overflow:hidden">'+
+    '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:'+accent+';z-index:1"></div>'+
+    tracker +
+    '<div style="padding:15px 36px;position:relative">'+
+      '<img src="brand/logo_wide_white.png" onerror="this.style.display=\'none\'" alt="" style="position:absolute;right:36px;top:50%;transform:translateY(-50%);height:34px;width:auto;opacity:.9;pointer-events:none">'+
+      '<div style="display:flex;align-items:center;gap:16px;position:relative;padding-right:150px">'+
+        '<div class="ed-number" style="flex-shrink:0;width:'+(ch?'54px':'44px')+';color:'+accent+';font-size:'+(ch?'44px':'28px')+';font-weight:'+(ch?'700':'400')+';line-height:1">'+esc2(bigNum)+'</div>'+
+        '<div style="flex:1">'+
+          (eyebrowText ? '<div class="ed-eyebrow" style="color:'+accent+';font-size:9.5px;letter-spacing:.16em">'+esc2(eyebrowText)+'</div>' : '')+
+          '<div class="ed-title ed-h2" style="margin-top:3px;color:#fff;font-style:italic;font-size:27px">'+title+'</div>'+
+        '</div>'+
       '</div>'+
     '</div>'+
   '</div>';
@@ -11525,7 +11570,7 @@ function _buildPoleShedSelections(){
       moneyRow('Total <span style="font-weight:400;color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(M.tot), { strong:true })+
     '</div>';
 
-  return edHeading('04','Choose your options','Selections')+
+  return edHeading('3','Choose your options','Choose Your Options',{chapter:POLESHED_CHAPTERS[2],chapters:POLESHED_CHAPTERS})+
     '<div class="ed-body" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 12px;line-height:1.5">Tap to change a selection. Any price change shows on each option and in the summary below.</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">'+
       '<div>'+gradePanel+thickPanel+colourPanel+'</div>'+
@@ -11904,7 +11949,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
 
   // ── Shed specification ───────────────────────────────────────────
   var spec =
-    edHeading('02','Specification','Shed details')+
+    edHeading('1','Specification','Your Shed',{chapter:POLESHED_CHAPTERS[0],chapters:POLESHED_CHAPTERS})+
     consentBlock +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start">'+
       '<div>'+
@@ -11937,7 +11982,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
 
   // ── Elevations get their own full page (3D is the cover hero) ──
   var designElev =
-    edHeading('03','Design','Elevations')+
+    edHeading('2','Plans & elevations','Design &amp; Elevations',{chapter:POLESHED_CHAPTERS[1],chapters:POLESHED_CHAPTERS})+
     '<div style="height:840px">'+_psDesignSlot(2,'Elevations')+'</div>';
 
   // ── Inclusions / Exclusions / Options / Notes + Price ────────────
@@ -11969,7 +12014,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
       money(M.depositPct+'% deposit on acceptance', fmtMoney(M.deposit))+
     '</div>';
   var inclusions =
-    edHeading('05','What\'s included','Inclusions &amp; options')+
+    edHeading('4','What\'s included','What’s Included',{chapter:POLESHED_CHAPTERS[3],chapters:POLESHED_CHAPTERS})+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start">'+
       '<div>'+ listBlock('Inclusions','psInclusions','#2e7d32') +'</div>'+
       '<div>'+ listBlock('Exclusions','psExclusions','var(--ed-warm,#c0794d)') + listBlock('Options','psOptions','var(--ed-accent)') +'</div>'+
@@ -11979,7 +12024,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
 
   // ── Acceptance ───────────────────────────────────────────────────
   var accept =
-    edHeading('06','Ready to go ahead?','Accept your quote')+
+    edHeading('5','Ready to go ahead?','Accept Your Quote',{chapter:POLESHED_CHAPTERS[4],chapters:POLESHED_CHAPTERS})+
     '<div style="display:grid;grid-template-columns:1.1fr .9fr;gap:26px;align-items:start;margin-top:6px">'+
       '<div>'+
         '<div style="background:var(--ed-ink);border-radius:8px;overflow:hidden;margin-bottom:14px">'+
@@ -12162,7 +12207,7 @@ function refreshQuoteProposal(){
       // Title plate on cream paper underneath the photo
       (function(){
         var _company = br.company_name || 'Flood Roofing';
-        return '<div style="padding:30px 48px 26px;background:var(--ed-paper)">'+
+        return '<div style="padding:26px 48px 22px;background:var(--ed-paper)">'+
         '<div class="ed-eyebrow">A roofing proposal — Prepared for</div>'+
         // Headline: the job / property title (defaults to the client name).
         '<div class="ed-title ed-h1" style="margin-top:8px;font-size:38px"><span class="qp-editable" contenteditable="true" data-qfield="jobTitle" spellcheck="false" style="font-style:italic;font-weight:400;color:var(--ed-accent)">'+esc2(S.quote.jobTitle || _residenceTitle(S.quote.client || _bestClientName()))+'</span></div>'+
@@ -12188,8 +12233,20 @@ function refreshQuoteProposal(){
             ' &nbsp;·&nbsp; '+esc2(_company)+
           '</div>'+
         '</div>'+
+        // What's inside — a quick roadmap so the homeowner knows the
+        // proposal's structure before they start reading.
+        '<div style="margin-top:16px;padding:12px 18px;background:var(--ed-paper-2);border-radius:9px;border:1px solid var(--ed-line)">'+
+          '<div class="ed-eyebrow" style="margin-bottom:8px">What’s inside</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 22px">'+
+            ['Roof inspection','Photos of defects','Fixed pricing','Optional upgrades','Warranty information','Acceptance page'].map(function(t){
+              return '<div style="display:flex;align-items:center;gap:9px;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2)">'+
+                '<span style="flex-shrink:0;width:16px;height:16px;border-radius:50%;background:var(--ed-accent);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">✓</span>'+
+                esc2(t)+'</div>';
+            }).join('')+
+          '</div>'+
+        '</div>'+
         // Meta footer — three columns, hairline divider
-        '<div style="margin-top:20px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid var(--ed-line);padding-top:14px">'+
+        '<div style="margin-top:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid var(--ed-line);padding-top:14px">'+
           '<div><div class="ed-eyebrow">Reference</div><div class="qp-editable" contenteditable="true" data-qfield="ref" spellcheck="false" style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.ref || 'FR-001')+'</div></div>'+
           '<div><div class="ed-eyebrow">Prepared</div><div class="qp-editable" contenteditable="true" data-qfield="date" spellcheck="false" style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.date || '')+'</div></div>'+
           '<div><div class="ed-eyebrow">Valid</div><div class="qp-editable" contenteditable="true" data-qfield="validUntil" spellcheck="false" style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.validUntil || '30 days')+'</div></div>'+
@@ -12339,7 +12396,7 @@ function refreshQuoteProposal(){
     '</div>';
 
     partCondition =
-      edHeading('02','Inspection report','Existing roof condition')+
+      edHeading('1','Roof condition report','Inspecting Your Roof',{chapter:PROPOSAL_CHAPTERS[0],chapters:PROPOSAL_CHAPTERS})+
       // Roof details strip — compact, inline-editable.
       '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:9px 0;margin-bottom:11px">'+
         detailItems.map(function(it){
@@ -12817,7 +12874,7 @@ function refreshQuoteProposal(){
         '</div>'
       : '';
     partInclusions =
-      edHeading('03','Your investment','Scope &amp; pricing')+
+      edHeading('2','Scope & fixed pricing','Your Investment',{chapter:PROPOSAL_CHAPTERS[1],chapters:PROPOSAL_CHAPTERS})+
       // The roof map rides in the right column as a compact fixed box
       // under the price card (moved off page 2 per the user's request).
       '<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:30px;align-items:start">'+
@@ -13052,7 +13109,7 @@ function refreshQuoteProposal(){
           : '')+
         ' · ' + esc2((DISPOSAL.find(function(d){return d.id===(pOpts.disposal||'dispose');})||{}).label||'—');
       partOptionsSelections =
-        edHeading('04','Choose your options','Selections')+
+        edHeading('3','Your upgrade options','Choose Your Roof',{chapter:PROPOSAL_CHAPTERS[2],chapters:PROPOSAL_CHAPTERS})+
         // One-line "how this works" so the page explains itself.
         '<div class="ed-body" style="margin:-6px 0 7px;font-size:12px;color:var(--ed-ink-2);line-height:1.45">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is in the panel below.</div>'+
         // LEFT column — steel grade, thickness, colour. RIGHT column —
@@ -13089,7 +13146,7 @@ function refreshQuoteProposal(){
     }
 
     partColorsteel =
-      edHeading('05','The material','Colorsteel® MAXAM &amp; alternatives')+
+      edHeading('4','The material','Why We Recommend MAXAM',{chapter:PROPOSAL_CHAPTERS[3],chapters:PROPOSAL_CHAPTERS})+
       '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:start;margin-bottom:22px">'+
         '<div class="ed-body-lg">'+
           '<p style="margin:0 0 10px">Flood Roofing uses <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® MAXAM</span> as standard — NZ Steel\'s newest pre-painted roofing product, rolled and painted at Glenbrook from New Zealand iron sand. MAXAM is built on <span class="ed-serif" style="font-style:italic;font-size:15px">Activate™</span> technology, a patented aluminium-zinc-magnesium coating that meaningfully slows corrosion.</p>'+
@@ -13373,7 +13430,7 @@ function refreshQuoteProposal(){
         '</div>'+
       '</div>';
     partTerms =
-      edHeading('06','The fine print','Terms &amp; conditions')+
+      edHeading('5','The fine print','Terms',{chapter:PROPOSAL_CHAPTERS[4],chapters:PROPOSAL_CHAPTERS})+
       clauses + addTerms +
       // Payment three-stage band — single horizontal row tucked at
       // the bottom of the T&Cs page.  Vertically compact so all the
@@ -13403,7 +13460,7 @@ function refreshQuoteProposal(){
     var accTot = accSub * (1+accRate);
     var acc = S.quote.accepted;
     partSignature =
-      edHeading('07','To accept','Acceptance &amp; signature')+
+      edHeading('6','Ready to go ahead?','Accept Your Quote',{chapter:PROPOSAL_CHAPTERS[5],chapters:PROPOSAL_CHAPTERS})+
       // ── Quote summary (selected options + grades + total) ──
       '<div style="margin-bottom:20px">'+
         '<div class="ed-eyebrow" style="margin-bottom:8px">Your quote'+(S.quote.client?' — '+esc2(S.quote.client):'')+'</div>'+
