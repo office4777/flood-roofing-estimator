@@ -8225,6 +8225,11 @@ function _qpCondPhotoSlotHtml(idx, cp){
     '</div>';
   }
   var ox = +cp.offX || 0, oy = +cp.offY || 0, zm = +cp.zoom || 1;
+  // Annotation marks (arrows / circles) drawn over the photo to point out
+  // defects. Stored on cp.marks; they PRINT — only their edit handles are
+  // hidden via .no-print.
+  var _marks = Array.isArray(cp.marks) ? cp.marks : [];
+  var marksHtml = _marks.map(function(m, mi){ return _qpCondMarkHtml(idx, mi, m); }).join('');
   var captionHtml = cp.caption
     ? '<figcaption class="qp-cond-cap" contenteditable="true" data-cp-idx="'+idx+'" '+
         'onblur="_qpCondPhotoCaptionBlur(this)" '+
@@ -8239,15 +8244,108 @@ function _qpCondPhotoSlotHtml(idx, cp){
     '<img src="'+esc2(cp.src)+'" draggable="false" '+
       'style="width:100%;height:100%;object-fit:cover;filter:saturate(.95);'+
       'transform:translate('+ox+'px,'+oy+'px) scale('+zm+');transform-origin:center center;pointer-events:none">'+
+    marksHtml +
     captionHtml +
     // Hover controls — hidden in print via .no-print
     '<div class="qp-cond-controls no-print" style="position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .15s">'+
+      '<button type="button" onclick="event.stopPropagation();_qpCondAddMark('+idx+',\'circle\')" title="Circle a defect" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(255,45,33,.9);color:#fff;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center">◯</button>'+
+      '<button type="button" onclick="event.stopPropagation();_qpCondAddMark('+idx+',\'arrow\')" title="Point an arrow" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(255,45,33,.9);color:#fff;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">↗</button>'+
       '<button type="button" onclick="event.stopPropagation();_qpCondPhotoZoom('+idx+',-0.1)" title="Zoom out" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(10,24,40,.78);color:#fff;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">−</button>'+
       '<button type="button" onclick="event.stopPropagation();_qpCondPhotoZoom('+idx+',+0.1)" title="Zoom in" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(10,24,40,.78);color:#fff;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">+</button>'+
       '<button type="button" onclick="event.stopPropagation();_qpCondPhotoReset('+idx+')" title="Reset position" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(10,24,40,.78);color:#fff;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center">↺</button>'+
       '<button type="button" onclick="event.stopPropagation();_qpCondPhotoRemove('+idx+')" title="Remove photo" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(185,28,28,.85);color:#fff;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">×</button>'+
     '</div>'+
   '</figure>';
+}
+// ── Defect annotations (arrows + circles over a condition photo) ────
+// Marks are stored on cp.marks as {type:'arrow'|'circle', x,y (% of the
+// frame), size (px), rot (deg, arrows only)}. They render on top of the
+// image and PRINT with it; only the small edit handles carry .no-print.
+function _qpCondMarkHtml(idx, mi, m){
+  var x = (m.x != null ? m.x : 50), y = (m.y != null ? m.y : 50);
+  var size = m.size || (m.type === 'arrow' ? 74 : 64);
+  var rot = m.rot || 0;
+  var inner;
+  if (m.type === 'arrow'){
+    inner = '<svg viewBox="0 0 100 100" style="width:100%;height:100%;overflow:visible;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))">'+
+      '<g fill="none" stroke="#ff2d21" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">'+
+        '<path d="M50 92 L50 28"/><path d="M27 50 L50 24 L73 50"/>'+
+      '</g></svg>';
+  } else {
+    inner = '<div style="width:100%;height:100%;border:4px solid #ff2d21;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.45),inset 0 0 0 1px rgba(0,0,0,.18)"></div>';
+  }
+  var rotHandle = (m.type === 'arrow')
+    ? '<button type="button" onclick="event.stopPropagation();_qpCondMarkRotate('+idx+','+mi+',45)" title="Rotate 45°" style="width:20px;height:20px;border:none;border-radius:4px;background:rgba(10,24,40,.82);color:#fff;cursor:pointer;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center">↻</button>'
+    : '';
+  return '<div class="qp-cond-mark" data-cp-idx="'+idx+'" data-mark-idx="'+mi+'" '+
+    'onmousedown="_qpCondMarkDragStart(event,'+idx+','+mi+')" onwheel="_qpCondMarkWheel(event,'+idx+','+mi+')" '+
+    'title="Drag to move · scroll to resize'+(m.type==='arrow'?' · shift-scroll to rotate':'')+'" '+
+    'style="position:absolute;left:'+x+'%;top:'+y+'%;width:'+size+'px;height:'+size+'px;margin-left:'+(-size/2)+'px;margin-top:'+(-size/2)+'px;transform:rotate('+rot+'deg);cursor:move;z-index:4;pointer-events:auto">'+
+      inner+
+      '<div class="qp-cond-mark-tools no-print" style="position:absolute;top:-11px;right:-11px;display:flex;gap:3px;transform:rotate('+(-rot)+'deg)">'+
+        rotHandle+
+        '<button type="button" onclick="event.stopPropagation();_qpCondMarkRemove('+idx+','+mi+')" title="Remove mark" style="width:20px;height:20px;border:none;border-radius:4px;background:rgba(185,28,28,.9);color:#fff;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center">×</button>'+
+      '</div>'+
+  '</div>';
+}
+function _qpCondAddMark(idx, type){
+  var cp = _qpCondPhoto(idx); if (!cp) return;
+  var marks = Array.isArray(cp.marks) ? cp.marks.slice() : [];
+  marks.push(type === 'arrow' ? { type:'arrow', x:52, y:40, size:74, rot:0 }
+                              : { type:'circle', x:50, y:50, size:64 });
+  _qpCondPhotoSet(idx, { marks: marks });
+  _qpRerenderOneSlot(idx);
+}
+function _qpCondMarkRemove(idx, mi){
+  var cp = _qpCondPhoto(idx); if (!cp || !Array.isArray(cp.marks)) return;
+  var marks = cp.marks.slice(); marks.splice(mi, 1);
+  _qpCondPhotoSet(idx, { marks: marks });
+  _qpRerenderOneSlot(idx);
+}
+function _qpCondMarkRotate(idx, mi, step){
+  var cp = _qpCondPhoto(idx); if (!cp || !Array.isArray(cp.marks)) return;
+  var marks = cp.marks.slice(), m = marks[mi]; if (!m) return;
+  m.rot = (((m.rot || 0) + (step || 45)) % 360 + 360) % 360;
+  _qpCondPhotoSet(idx, { marks: marks });
+  _qpRerenderOneSlot(idx);
+}
+function _qpCondMarkWheel(e, idx, mi){
+  e.preventDefault(); e.stopPropagation();
+  var cp = _qpCondPhoto(idx); if (!cp || !Array.isArray(cp.marks)) return;
+  var marks = cp.marks.slice(), m = marks[mi]; if (!m) return;
+  if (e.shiftKey && m.type === 'arrow'){
+    m.rot = (((m.rot || 0) + (e.deltaY > 0 ? 15 : -15)) % 360 + 360) % 360;
+  } else {
+    var s = (m.size || (m.type === 'arrow' ? 74 : 64)) + (e.deltaY > 0 ? -6 : 6);
+    m.size = Math.max(24, Math.min(240, s));
+  }
+  _qpCondPhotoSet(idx, { marks: marks });
+  _qpRerenderOneSlot(idx);
+}
+function _qpCondMarkDragStart(e, idx, mi){
+  if (e.target.closest('.qp-cond-mark-tools, button')) return;
+  e.preventDefault(); e.stopPropagation();      // don't pan the photo underneath
+  var fig = document.querySelector('.qp-cond-photo[data-cp-idx="'+idx+'"]');
+  var el = e.currentTarget;
+  if (!fig) return;
+  var rect = fig.getBoundingClientRect();
+  function onMove(ev){
+    var x = Math.max(0, Math.min(100, ((ev.clientX - rect.left) / rect.width) * 100));
+    var y = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
+    el.style.left = x + '%'; el.style.top = y + '%';
+    el._x = x; el._y = y;
+  }
+  function onUp(){
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    if (el._x == null) return;
+    var cp = _qpCondPhoto(idx); if (!cp || !Array.isArray(cp.marks)) return;
+    var marks = cp.marks.slice(), m = marks[mi]; if (!m) return;
+    m.x = el._x; m.y = el._y;
+    _qpCondPhotoSet(idx, { marks: marks });
+  }
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
 }
 function _qpCondPhotoPick(idx){
   _qpCondPhotoTargetIdx = idx;
@@ -12169,7 +12267,11 @@ function refreshQuoteProposal(){
     // the page.
     var photoBoxes = '';
     var _condPhotoCount = 0, _firstEmpty = -1;
-    for (var ci2 = 0; ci2 < 6; ci2++){
+    // Cap the printed photos to a single row of three. The gauge, repair
+    // vs re-roof table and recommendation callout above now consume most
+    // of the page, so a second photo row would fall off the bottom.
+    var MAX_COND_PHOTOS = 3;
+    for (var ci2 = 0; ci2 < 6 && _condPhotoCount < MAX_COND_PHOTOS; ci2++){
       var cp = S.quote.condPhotos[ci2] || null;
       // Pre-fill from S.photos uploaded under the inspection if this slot
       // is empty — keeps backwards compatibility with the old behaviour.
@@ -12179,7 +12281,8 @@ function refreshQuoteProposal(){
       if (cp && cp.src){ _condPhotoCount++; photoBoxes += _qpCondPhotoSlotHtml(ci2, cp); }
       else if (_firstEmpty < 0) _firstEmpty = ci2;
     }
-    if (_firstEmpty >= 0){
+    // Only offer an "add" slot while there's still room in the row.
+    if (_condPhotoCount < MAX_COND_PHOTOS && _firstEmpty >= 0){
       photoBoxes += '<div class="no-print">' + _qpCondPhotoSlotHtml(_firstEmpty, null) + '</div>';
     }
     // Hidden file input — single one re-used by every slot via the
@@ -12222,8 +12325,8 @@ function refreshQuoteProposal(){
     var markerPos = (cRemPct != null) ? Math.max(2, Math.min(97, 100 - cRemPct)) : 92;
     var DEFAULT_RECO = 'Repairs are not recommended — they treat the symptom (the leak) while the failed fixings, corroding steel and perished underlay all remain, so the problems return and the costs repeat. We recommend a complete re-roof: new steel, new fixings, new underlay and modern flashings, installed as one weathertight system and backed by a manufacturer\'s warranty — the sound long-term investment in your home.';
     // Repair vs re-roof rows (static persuasion table).
-    var _repairRows = ['Stops one leak today','Old nails / fixings stay in place','Original underlay stays in place','Corrosion keeps spreading','Repeat call-backs &amp; repaint costs'];
-    var _reroofRows = ['Complete weathertight system','All-new fixings throughout','New underlay &amp; modern flashings','Corrosion designed out','Warranty &amp; decades of service'];
+    var _repairRows = ['Stops one leak today','Old nails / fixings stay in place','Original underlay stays in place','Condensation &amp; mould build up inside the home','Corrosion keeps spreading','Repeat call-backs &amp; repaint costs'];
+    var _reroofRows = ['Complete weathertight system','All-new fixings throughout','New underlay &amp; modern flashings','Condensation controlled — a dry, healthy home','Corrosion designed out','Warranty &amp; decades of service'];
     var _cmpCell = function(text, ok){
       return '<div style="display:flex;gap:7px;padding:5px 12px;border-top:1px solid var(--ed-line);'+(ok?'background:rgba(0,153,224,.05)':'')+'">'+
         '<span style="flex-shrink:0;font-weight:700;color:'+(ok?'#2e7d32':'#b0554a')+'">'+(ok?'✓':'✗')+'</span>'+
@@ -12250,7 +12353,7 @@ function refreshQuoteProposal(){
       '<div style="margin-bottom:11px;padding:9px 14px;background:var(--ed-paper-2);border-radius:8px">'+
         '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">'+
           '<div class="ed-eyebrow">Roof life</div>'+
-          '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-ink-2)">Expected life <strong>'+esc2(cExpLife||'—')+'</strong> &nbsp;·&nbsp; Remaining <strong style="color:#c62828">'+(cRemPct!=null?'~'+cRemPct+'%':'—')+'</strong></div>'+
+          '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-ink-2)">Estimated age <strong>'+esc2(cAge||cExpLife||'—')+'</strong> &nbsp;·&nbsp; Remaining <strong style="color:#c62828">'+(cRemPct!=null?'~'+cRemPct+'%':'—')+'</strong></div>'+
         '</div>'+
         '<div style="position:relative;height:13px;border-radius:7px;background:linear-gradient(90deg,#4f9d55,#e6a23c 55%,#c62828)">'+
           '<div style="position:absolute;top:-4px;left:'+markerPos+'%;transform:translateX(-50%);width:3px;height:21px;background:#0a1628;border-radius:2px;box-shadow:0 0 0 2px #fff"></div>'+
@@ -12289,14 +12392,14 @@ function refreshQuoteProposal(){
       '</div>'+
       // Why repairs won't work + repair vs re-roof table.
       '<div style="margin-bottom:11px">'+
-        '<div class="ed-eyebrow" style="margin-bottom:5px">Why a repair won’t solve it</div>'+
-        '<div style="font-family:var(--ed-sans);font-size:10.5px;font-style:italic;color:var(--ed-ink-2);margin-bottom:7px;line-height:1.4">A leak is only a symptom — the failed fixings and ageing materials underneath are the real problem, so patch repairs keep coming back.</div>'+
+        '<div class="ed-eyebrow" style="margin-bottom:5px">Why a Repair Won\'t Solve It</div>'+
+        '<div style="font-family:var(--ed-sans);font-size:10.5px;font-style:italic;color:var(--ed-ink-2);margin-bottom:7px;line-height:1.4">A leak is only a symptom — the failed fixings and ageing materials underneath are the real problem, so patch repairs keep coming back. And because the old underlay has perished, condensation is no longer caught — it builds up inside the roof space and drives damp and mould into the home.</div>'+
         cmpTable+
       '</div>'+
-      // Strong recommendation box.
-      '<div style="margin-bottom:12px;padding:11px 16px;background:var(--ed-ink);border-radius:8px">'+
-        '<div class="ed-eyebrow" style="color:#4fc3ff;margin-bottom:4px">Our recommendation</div>'+
-        '<div class="qp-editable" contenteditable="true" data-qfield="condReco" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11px;line-height:1.5;color:rgba(255,255,255,.93);min-height:1.4em">'+
+      // Strong recommendation — subtle accent-tinted callout.
+      '<div style="margin-bottom:12px;padding:14px 18px;background:rgba(0,153,224,.07);border:1px solid rgba(0,153,224,.28);border-left:4px solid var(--ed-accent);border-radius:8px">'+
+        '<div class="ed-eyebrow" style="color:var(--ed-accent);margin-bottom:5px;font-size:11px">Our recommendation</div>'+
+        '<div class="qp-editable" contenteditable="true" data-qfield="condReco" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:12px;line-height:1.55;color:var(--ed-ink);min-height:1.4em">'+
           esc2(cReco || DEFAULT_RECO)+
         '</div>'+
       '</div>'+
