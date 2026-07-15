@@ -8349,6 +8349,9 @@ async function importWebShedPdf(ev){
     // tab/URL bar, and a "developed by" footer). Crop it away so only the
     // drawing lands in the slot. Fractions are tunable.
     var CROP = WEBSHED_CROP;
+    // Sheet → slot: 3D view goes to the COVER hero (slot 6); floor plan
+    // and elevations get their own design pages (slots 1 and 2).
+    var SLOT_MAP = [6, 1, 2];
     var n = Math.min(pdf.numPages, 3);   // 3 sheets: 3D view, floor plan, elevations
     for (var p = 1; p <= n; p++){
       setSt('Rendering page ' + p + ' of ' + n + '…');
@@ -8368,17 +8371,10 @@ async function importWebShedPdf(ev){
       var sh = Math.round(cv.height * (1 - CROP.top - CROP.bottom));
       var out = document.createElement('canvas'); out.width = sw; out.height = sh;
       out.getContext('2d').drawImage(cv, sx, sy, sw, sh, 0, 0, sw, sh);
-      // Floor plan (slot 1) gets its own portrait page — stand a landscape
-      // sheet up 90° so it fills the page.
-      if ((p - 1) === 1 && out.width > out.height){
-        var rot = document.createElement('canvas');
-        rot.width = out.height; rot.height = out.width;
-        var rx = rot.getContext('2d');
-        rx.translate(rot.width / 2, rot.height / 2); rx.rotate(Math.PI / 2);
-        rx.drawImage(out, -out.width / 2, -out.height / 2);
-        out = rot;
-      }
-      _qpCondPhotoSet(p - 1, { src: out.toDataURL('image/jpeg', 0.88), offX: 0, offY: 0, zoom: 1 });
+      // Content-crop: trim the drawing's own white margins so it fills the
+      // slot (the 3D render has none, so it's unaffected).
+      out = _trimWhite(out);
+      _qpCondPhotoSet(SLOT_MAP[p - 1], { src: out.toDataURL('image/jpeg', 0.9), offX: 0, offY: 0, zoom: 1 });
     }
     // Auto-read dimensions from the plan text and price it.
     var dims = null;
@@ -8411,6 +8407,34 @@ async function importWebShedPdf(ev){
 // Crop fractions removed from each WebShed page (title block + tab bar
 // at top, "developed by" footer at bottom, thin side margins).
 var WEBSHED_CROP = { top: 0.19, bottom: 0.055, left: 0.02, right: 0.02 };
+// Trim the surrounding white margin from a canvas so the drawing fills
+// the frame (bounding box of non-white pixels + a small pad).
+function _trimWhite(cv){
+  try {
+    var w = cv.width, h = cv.height;
+    var data = cv.getContext('2d').getImageData(0, 0, w, h).data;
+    var minX = w, minY = h, maxX = 0, maxY = 0, th = 244, step = 2, found = false;
+    for (var y = 0; y < h; y += step){
+      var row = y * w * 4;
+      for (var x = 0; x < w; x += step){
+        var i = row + x * 4;
+        if (data[i + 3] > 10 && (data[i] < th || data[i + 1] < th || data[i + 2] < th)){
+          found = true;
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (!found || (maxX - minX) < w * 0.1 || (maxY - minY) < h * 0.1) return cv;
+    var pad = Math.round(Math.min(w, h) * 0.012);
+    minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+    maxX = Math.min(w - 1, maxX + pad); maxY = Math.min(h - 1, maxY + pad);
+    var ow = maxX - minX + 1, oh = maxY - minY + 1;
+    var o = document.createElement('canvas'); o.width = ow; o.height = oh;
+    o.getContext('2d').drawImage(cv, minX, minY, ow, oh, 0, 0, ow, oh);
+    return o;
+  } catch(e){ return cv; }
+}
 // Rotate a slot's stored image 90° CW (re-bakes the JPEG). Used to stand
 // a landscape floor plan up so it fills a portrait page.
 function _rotateSlotImage(idx){
@@ -11772,25 +11796,22 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
       '</div>'+
     '</div>';
 
-  // ── Shed design — three full pages: 3D view, floor plan, elevations ──
-  // Imported WebShed PDF sheets are cropped to the drawing; each drawing
-  // gets its own page shown "contain" so it's as large as possible.
-  var design3D =
-    edHeading('03','Design','Shed design — 3D view')+
-    '<div class="ed-body no-print" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 10px;line-height:1.5">Import the WebShed plans &amp; elevations PDF — each sheet is cropped to the drawing and placed on its own page. Or pull from Fergus / upload from PC per slot.</div>'+
-    '<div class="no-print" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'+
+  // ── Shed design — floor plan + elevations pages (3D is the cover hero) ──
+  // Imported WebShed sheets are cropped tight to the drawing so each fills
+  // its own page. The 3D view goes onto the cover.
+  var designFloor =
+    edHeading('03','Design','Floor plan')+
+    '<div class="ed-body no-print" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 10px;line-height:1.5">Import the WebShed plans &amp; elevations PDF — the 3D view goes on the cover, the floor plan and elevations onto their own pages. Or upload per slot.</div>'+
+    '<div class="no-print" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">'+
       '<button type="button" onclick="document.getElementById(\'webshedPdfInput\').click()" style="display:inline-flex;align-items:center;gap:6px;padding:9px 15px;background:#0099cc;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">📄 Import WebShed PDF (plans &amp; elevations)</button>'+
       '<input type="file" id="webshedPdfInput" accept="application/pdf" onchange="importWebShedPdf(event)" style="display:none">'+
       '<input type="file" accept="image/*" id="qpCondPhotoFileInput" onchange="_qpCondPhotoUpload(event)" style="display:none">'+
       '<span id="webshedPdfStatus" style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2)"></span>'+
     '</div>'+
-    '<div style="height:660px">'+_psDesignSlot(0,'3D view')+'</div>';
-  var designFloor =
-    edHeading('','Design','Floor plan')+
-    '<div style="height:820px">'+_psDesignSlot(1,'Floor plan')+'</div>';
+    '<div style="height:760px">'+_psDesignSlot(1,'Floor plan')+'</div>';
   var designElev =
     edHeading('','Design','Elevations')+
-    '<div style="height:820px">'+_psDesignSlot(2,'Elevations')+'</div>';
+    '<div style="height:840px">'+_psDesignSlot(2,'Elevations')+'</div>';
 
   // ── Inclusions / Exclusions / Options / Notes + Price ────────────
   var listBlock = function(title, field, accent){
@@ -11858,7 +11879,6 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
     '<div style="padding:16px 36px 22px;background:#fff;border-top:1px solid var(--ed-line)">'+trustLogosHtml+'</div>'+
   '</div>';
   html += rpPage(spec);
-  html += rpPage(design3D);
   html += rpPage(designFloor);
   html += rpPage(designElev);
   html += rpPage(_buildPoleShedSelections());
