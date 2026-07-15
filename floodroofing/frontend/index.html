@@ -8393,8 +8393,9 @@ async function importWebShedPdf(ev){
       if (!(e.hiEave > 0)) e.hiEave = 4.5;
       if (!(e.loEave > 0)) e.loEave = 3.6;
       S.quote.shedEst = e;
-      var priced = (typeof _shedEstimate === 'function') ? _shedEstimate(e) : null;
-      setSt('✓ Imported ' + n + ' drawing' + (n > 1 ? 's' : '') + ' + read the plan' + (priced ? ' → ' + fmtMoney(priced.total) + ' (ex GST). Check the inputs below.' : '. Check the inputs below.'));
+      // Push dimensions + price into the quote so nothing shows $0/blank.
+      var total = (typeof _syncSpecFromEst === 'function') ? _syncSpecFromEst() : 0;
+      setSt('✓ Imported ' + n + ' drawing' + (n > 1 ? 's' : '') + ' + read the plan → ' + fmtMoney(total) + ' (ex GST). Check the inputs below.');
       if (typeof renderShedEstimator === 'function') renderShedEstimator();
     } else {
       setSt('✓ Imported ' + n + ' drawing' + (n > 1 ? 's' : '') + ', cropped to the plan. Couldn\'t auto-read dimensions — enter them below.');
@@ -11577,12 +11578,35 @@ function _shedEstInput(field, val, isBool){
   e[field] = isBool ? !!val : (parseFloat(val) || 0);
   _renderShedEstResults();   // update only the table/total so inputs keep focus
 }
-function applyShedEstimate(){
-  var e = _shedEst(); if (!e) return;
+// Push the estimator's dimensions + computed price into the quote spec
+// so the customer-facing "Shed details" page and totals reflect it.
+function _syncSpecFromEst(){
+  var e = _shedEst(); if (!e || !S.quote) return 0;
+  if (e.W) S.quote.psWidth = e.W + 'm';
+  if (e.L) S.quote.psLength = e.L + 'm';
+  if (e.hiEave) S.quote.psHeight = (e.loEave && e.loEave !== e.hiEave) ? (e.hiEave + 'm – ' + e.loEave + 'm') : (e.hiEave + 'm');
+  var across = (e.W > 7) ? 3 : 2;
+  var along = e.poles ? Math.max(Math.round(e.poles / across), 1) : 0;
+  if (along) S.quote.psBayAmount = String(Math.max(along - 1, 1));
+  if (e.roller || e.pa){
+    S.quote.psDoors = [
+      e.roller ? (e.roller + 'x Roller Door' + (e.roller > 1 ? 's' : '')) : '',
+      e.pa ? (e.pa + 'x P.A. Door' + (e.pa > 1 ? 's' : '')) : ''
+    ].filter(Boolean).join(', ');
+  }
+  // Ensure build-days (labour) is set so the price is never labour-less.
+  if (!(e.days > 0) && e.W && e.L){
+    e.days = Math.max(Math.round(e.W * e.L * SHED_RATES.manHrPerM2 / (SHED_RATES.crew * SHED_RATES.hoursPerDay)), 1);
+  }
   var est = _shedEstimate(e);
   S.quote.psSubtotal = Math.round(est.total);
+  return est.total;
+}
+function applyShedEstimate(){
+  var e = _shedEst(); if (!e) return;
+  var total = _syncSpecFromEst();
   var st = document.getElementById('shedEstApplied');
-  if (st){ st.textContent = '✓ Applied ' + fmtMoney(est.total) + ' as the base quote subtotal.'; }
+  if (st){ st.textContent = '✓ Applied ' + fmtMoney(total) + ' — dimensions + price pushed to the quote.'; }
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
 }
 function renderShedEstimator(){
@@ -11794,23 +11818,20 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
           specRow('Centre poles','psCenterPoles')+ specRow('Extras','psExtras')+
         '</div>'+
       '</div>'+
-    '</div>';
-
-  // ── Shed design — floor plan + elevations pages (3D is the cover hero) ──
-  // Imported WebShed sheets are cropped tight to the drawing so each fills
-  // its own page. The 3D view goes onto the cover.
-  var designFloor =
-    edHeading('03','Design','Floor plan')+
-    '<div class="ed-body no-print" style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);margin:-6px 0 10px;line-height:1.5">Import the WebShed plans &amp; elevations PDF — the 3D view goes on the cover, the floor plan and elevations onto their own pages. Or upload per slot.</div>'+
-    '<div class="no-print" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">'+
+    '</div>'+
+    // Floor plan shares the shed-details page (fills the lower half).
+    '<div class="no-print" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 8px">'+
       '<button type="button" onclick="document.getElementById(\'webshedPdfInput\').click()" style="display:inline-flex;align-items:center;gap:6px;padding:9px 15px;background:#0099cc;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">📄 Import WebShed PDF (plans &amp; elevations)</button>'+
       '<input type="file" id="webshedPdfInput" accept="application/pdf" onchange="importWebShedPdf(event)" style="display:none">'+
       '<input type="file" accept="image/*" id="qpCondPhotoFileInput" onchange="_qpCondPhotoUpload(event)" style="display:none">'+
       '<span id="webshedPdfStatus" style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-text2)"></span>'+
     '</div>'+
-    '<div style="height:760px">'+_psDesignSlot(1,'Floor plan')+'</div>';
+    '<div class="ed-eyebrow" style="margin:6px 0 6px">Floor plan</div>'+
+    '<div style="height:470px">'+_psDesignSlot(1,'Floor plan')+'</div>';
+
+  // ── Elevations get their own full page (3D is the cover hero) ──
   var designElev =
-    edHeading('','Design','Elevations')+
+    edHeading('03','Design','Elevations')+
     '<div style="height:840px">'+_psDesignSlot(2,'Elevations')+'</div>';
 
   // ── Inclusions / Exclusions / Options / Notes + Price ────────────
@@ -11879,7 +11900,6 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
     '<div style="padding:16px 36px 22px;background:#fff;border-top:1px solid var(--ed-line)">'+trustLogosHtml+'</div>'+
   '</div>';
   html += rpPage(spec);
-  html += rpPage(designFloor);
   html += rpPage(designElev);
   html += rpPage(_buildPoleShedSelections());
   html += rpPage(inclusions);
