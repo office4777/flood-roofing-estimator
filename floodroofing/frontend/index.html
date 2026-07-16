@@ -11006,20 +11006,24 @@ function _buildRoofPreviewsHtml(opts){
 // customer-friendly title and a small accent colour, so the pack reads
 // as a guided journey (per the homeowner-readability brief). The
 // progress tracker across every heading band shows where the reader is.
+// Accents are chosen to stay legible on the dark ink heading band — the
+// three greys/darks (steel, charcoal, dark blue) are lightened so the
+// step number, "Step N of M" line and the active tracker pill read
+// clearly for older homeowners.
 var PROPOSAL_CHAPTERS = [
   { step:1, short:'Inspection', title:'Inspecting Your Roof',      accent:'#0099e0' }, // blue
-  { step:2, short:'Investment', title:'Your Investment',           accent:'#2e9e5b' }, // green
-  { step:3, short:'Options',    title:'Choose Your Roof',          accent:'#e08a2e' }, // orange
-  { step:4, short:'Materials',  title:'Why We Recommend MAXAM',     accent:'#64748b' }, // steel grey
-  { step:5, short:'Terms',      title:'Terms',                     accent:'#3a4658' }, // charcoal
-  { step:6, short:'Accept',     title:'Accept Your Quote',         accent:'#12467a' }  // dark blue
+  { step:2, short:'Investment', title:'Your Investment',           accent:'#2fa564' }, // green
+  { step:3, short:'Options',    title:'Choose Your Roof',          accent:'#e8912f' }, // orange
+  { step:4, short:'Materials',  title:'Why We Recommend MAXAM',     accent:'#93a0b0' }, // light steel
+  { step:5, short:'Terms',      title:'Terms',                     accent:'#8290a6' }, // slate (charcoal family)
+  { step:6, short:'Accept',     title:'Accept Your Quote',         accent:'#4a90d9' }  // blue (dark-blue family)
 ];
 var POLESHED_CHAPTERS = [
   { step:1, short:'Your Shed', title:'Your Shed',            accent:'#0099e0' },
-  { step:2, short:'Design',    title:'Design & Elevations',  accent:'#2e9e5b' },
-  { step:3, short:'Options',   title:'Choose Your Options',  accent:'#e08a2e' },
-  { step:4, short:'Included',  title:'What’s Included',  accent:'#64748b' },
-  { step:5, short:'Accept',    title:'Accept Your Quote',    accent:'#12467a' }
+  { step:2, short:'Design',    title:'Design & Elevations',  accent:'#2fa564' },
+  { step:3, short:'Options',   title:'Choose Your Options',  accent:'#e8912f' },
+  { step:4, short:'Included',  title:'What’s Included',  accent:'#93a0b0' },
+  { step:5, short:'Accept',    title:'Accept Your Quote',    accent:'#4a90d9' }
 ];
 // Slim step-tracker strip that rides on top of the dark heading band.
 function _edProgressTracker(chapters, current, accent){
@@ -12201,7 +12205,6 @@ function refreshQuoteProposal(){
         // Bottom strip only — capability label left, section number right.
         '<div style="position:absolute;bottom:0;left:0;right:0;padding:20px 32px;display:flex;justify-content:space-between;align-items:flex-end;color:#fff">'+
           '<div style="font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:13px;color:#fff;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.5)">The Flood Roofing crew · Northland</div>'+
-          '<div style="font-family:var(--ed-serif);font-style:italic;font-size:14px;color:rgba(255,255,255,.85)">— 01 —</div>'+
         '</div>'+
       '</div>'+
       // Title plate on cream paper underneath the photo
@@ -12897,6 +12900,21 @@ function refreshQuoteProposal(){
           '<div style="font-family:var(--ed-sans);font-size:10.5px;color:rgba(255,255,255,.6);margin-top:14px;line-height:1.5">Deposit secures your spot in the schedule. Balance due within 7 days of completion.</div>'+
         '</div>'+
         _buildRoofPreviewsHtml({ small: true, basic: true })+
+        // Assurance panel — always fills the right column (whether or not a
+        // roof map is embedded) so the page never reads half-empty, and
+        // reinforces the value behind the fixed price.
+        '<div style="margin-top:14px;padding:15px 18px;background:var(--ed-paper-2);border:1px solid var(--ed-line);border-radius:9px">'+
+          '<div class="ed-eyebrow" style="margin-bottom:9px">Your price is fixed</div>'+
+          [
+            'No hidden extras — scaffolding &amp; rubbish removal included',
+            'Trade-qualified Licensed Building Practitioners on every job',
+            '10-year workmanship warranty + manufacturer’s warranty',
+            'Northland-owned &amp; operated since 2016'
+          ].map(function(t){
+            return '<div style="display:flex;gap:9px;align-items:flex-start;padding:4px 0;font-family:var(--ed-sans);font-size:11px;line-height:1.4;color:var(--ed-ink-2)">'+
+              '<span style="color:var(--ed-accent);font-weight:700;flex-shrink:0">✓</span><span>'+t+'</span></div>';
+          }).join('')+
+        '</div>'+
         '</div>'+
       '</div>'+
       itemTable+
@@ -13115,11 +13133,15 @@ function refreshQuoteProposal(){
         // LEFT column — steel grade, thickness, colour. RIGHT column —
         // guttering, brackets, downpipes. Each group is its own titled panel
         // so the sections are unmistakable.
+        // Left column keeps the two steel-spec choices; the right column
+        // holds guttering (+ its brackets/downpipes when a gutter is added)
+        // and the colour picker. Splitting colour to the right balances the
+        // two columns so neither runs long with dead space beside it, and the
+        // panels number down the left column then down the right (01, 02 …).
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:8px;align-items:start">'+
           '<div style="display:grid;gap:8px;align-content:start">'+
             selPanel('Steel grade', selCard('steelGrade', GRADES, pOpts.steelGrade || 'maxam', '_setProposalOption_grade', { flat: true, noWarranty: true }))+
             selPanel('Steel thickness', selCard('steelThickness', THICKS, pOpts.steelThickness || '40', '_setProposalOption_thickness', { flat: true }))+
-            selPanel('Colour', _selColourBody(pOpts))+
           '</div>'+
           '<div style="display:grid;gap:8px;align-content:start">'+
             selPanel('Guttering', selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter', { flat: true }))+
@@ -13127,6 +13149,7 @@ function refreshQuoteProposal(){
               ? selPanel('Gutter brackets', selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'external', '_setProposalOption_bracket', { flat: true, compact: true }))+
                 selPanel('Downpipes', selCard('downpipes', DOWNPIPES, pOpts.downpipes || 'no', '_setProposalOption_downpipes', { flat: true, compact: true }))
               : '')+
+            selPanel('Colour', _selColourBody(pOpts))+
           '</div>'+
         '</div>'+
         // Existing roofing material (keep vs. dispose; both $0) — full width.
