@@ -12310,35 +12310,38 @@ function refreshQuoteProposal(){
       // Title plate on cream paper underneath the photo
       (function(){
         var _company = br.company_name || 'Flood Roofing';
-        return '<div style="padding:26px 48px 22px;background:var(--ed-paper)">'+
-        '<div class="ed-eyebrow">A roofing proposal — Prepared for</div>'+
-        // Headline: the job / property title (defaults to the client name).
-        '<div class="ed-title ed-h1" style="margin-top:8px;font-size:38px"><span class="qp-editable" contenteditable="true" data-qfield="jobTitle" spellcheck="false" style="font-style:italic;font-weight:400;color:var(--ed-accent)">'+esc2(S.quote.jobTitle || _residenceTitle(S.quote.client || _bestClientName()))+'</span></div>'+
-        '<div class="qp-editable" contenteditable="true" data-qfield="addr" spellcheck="false" style="font-family:var(--ed-sans);font-size:13px;color:var(--ed-text2);margin-top:6px;letter-spacing:.02em">'+esc2(S.quote.addr || '—')+'</div>'+
-        // Customer details block — name, phone, email.
-        '<div style="margin-top:12px">'+
-          '<div class="ed-eyebrow" style="margin-bottom:3px">Client</div>'+
-          '<div class="qp-editable" contenteditable="true" data-qfield="client" spellcheck="false" style="font-family:var(--ed-serif);font-size:15px;color:var(--ed-ink);font-style:italic">'+esc2(S.quote.client || 'Client name')+'</div>'+
-          '<div style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2);margin-top:3px;letter-spacing:.02em;line-height:1.5">'+
-            '<span class="qp-editable" contenteditable="true" data-qfield="phone" spellcheck="false">'+(S.quote.phone ? esc2(S.quote.phone) : '<span style="font-style:italic;opacity:.6;pointer-events:none">Phone</span>')+'</span>'+
-            ' &nbsp;·&nbsp; '+
-            '<span class="qp-editable" contenteditable="true" data-qfield="email" spellcheck="false">'+(S.quote.email ? esc2(S.quote.email) : '<span style="font-style:italic;opacity:.6;pointer-events:none">client@email.co.nz</span>')+'</span>'+
-          '</div>'+
-        '</div>'+
-        '<hr class="ed-rule" style="margin:18px 0 14px">'+
-        '<div class="ed-serif qp-editable" contenteditable="true" data-qfield="coverTitle" spellcheck="false" style="font-size:20px;font-weight:400;line-height:1.3;color:var(--ed-ink);max-width:78%">'+esc2(S.quote.coverTitle || 'A re-roof, done with care.')+'</div>'+
-        // Prepared by — salesperson attribution.
-        '<div style="margin-top:16px">'+
-          '<div class="ed-eyebrow" style="margin-bottom:3px">Prepared by</div>'+
-          '<div class="qp-editable" contenteditable="true" data-qfield="preparedByName" spellcheck="false" style="font-family:var(--ed-serif);font-size:17px;font-style:italic;color:var(--ed-ink)">'+esc2(S.quote.preparedByName || 'Matthew Smith')+'</div>'+
-          '<div style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2);margin-top:2px;letter-spacing:.02em">'+
-            '<span class="qp-editable" contenteditable="true" data-qfield="preparedByRole" spellcheck="false">'+esc2(S.quote.preparedByRole || 'Sales Manager')+'</span>'+
-            ' &nbsp;·&nbsp; '+esc2(_company)+
-          '</div>'+
+        // Clean editorial title plate: one headline block, then Client and
+        // Prepared-by side by side (parallel treatment, not a mixed stack),
+        // then What's inside + the reference meta row.
+        var _detailCol = function(label, name, nameField, l2, l2field, l3){
+          return '<div>'+
+            '<div class="ed-eyebrow" style="margin-bottom:5px">'+label+'</div>'+
+            '<div class="qp-editable" contenteditable="true" data-qfield="'+nameField+'" spellcheck="false" style="font-family:var(--ed-serif);font-size:16px;font-style:italic;color:var(--ed-ink);line-height:1.25">'+name+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2);margin-top:5px;letter-spacing:.02em;line-height:1.7">'+
+              (l2field ? '<span class="qp-editable" contenteditable="true" data-qfield="'+l2field+'" spellcheck="false">'+l2+'</span>' : l2)+'<br>'+l3+
+            '</div>'+
+          '</div>';
+        };
+        return '<div style="padding:30px 48px 26px;background:var(--ed-paper)">'+
+        // Headline: eyebrow + property title + address.
+        '<div class="ed-eyebrow">A roofing proposal — prepared for</div>'+
+        '<div class="ed-title ed-h1" style="margin-top:9px;font-size:38px"><span class="qp-editable" contenteditable="true" data-qfield="jobTitle" spellcheck="false" style="font-style:italic;font-weight:400;color:var(--ed-accent)">'+esc2(S.quote.jobTitle || _residenceTitle(S.quote.client || _bestClientName()))+'</span></div>'+
+        '<div class="qp-editable" contenteditable="true" data-qfield="addr" spellcheck="false" style="font-family:var(--ed-sans);font-size:13px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em">'+esc2(S.quote.addr || '—')+'</div>'+
+        '<hr class="ed-rule" style="margin:22px 0 18px">'+
+        // Client + Prepared by — two parallel columns.
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:30px">'+
+          _detailCol('Client',
+            esc2(S.quote.client || 'Client name'), 'client',
+            (S.quote.phone ? esc2(S.quote.phone) : '<span style="font-style:italic;opacity:.6;pointer-events:none">Phone</span>'), 'phone',
+            '<span class="qp-editable" contenteditable="true" data-qfield="email" spellcheck="false">'+(S.quote.email ? esc2(S.quote.email) : '<span style="font-style:italic;opacity:.6;pointer-events:none">client@email.co.nz</span>')+'</span>')+
+          _detailCol('Prepared by',
+            esc2(S.quote.preparedByName || 'Matthew Smith'), 'preparedByName',
+            esc2(S.quote.preparedByRole || 'Sales Manager'), 'preparedByRole',
+            esc2(_company))+
         '</div>'+
         // What's inside — a quick roadmap so the homeowner knows the
         // proposal's structure before they start reading.
-        '<div style="margin-top:16px;padding:12px 18px;background:var(--ed-paper-2);border-radius:9px;border:1px solid var(--ed-line)">'+
+        '<div style="margin-top:22px;padding:12px 18px;background:var(--ed-paper-2);border-radius:9px;border:1px solid var(--ed-line)">'+
           '<div class="ed-eyebrow" style="margin-bottom:8px">What’s inside</div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 22px">'+
             ['Roof inspection','Photos of defects','Fixed pricing','Optional upgrades','Warranty information','Acceptance page'].map(function(t){
