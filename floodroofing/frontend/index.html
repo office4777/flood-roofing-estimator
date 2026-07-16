@@ -9343,6 +9343,18 @@ function toggleProposalOptionSel(id, checked){
     }
   }
 }
+// Customer includes / excludes an optional extra roof on the Selections
+// page. Each extra roof is priced by its own option package, so this just
+// flips that option's selected flag and re-renders so every total (the
+// Selections summary + Acceptance page) reflects the change.
+function _toggleProposalRoof(id, checked){
+  if (!S.quote || !S.quote.options) return;
+  var o = S.quote.options.find(function(x){ return x.id === id; });
+  if (!o) return;
+  o.selected = !!checked;
+  if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+  if (window.__CUSTOMER_MODE && typeof _postCustomerUpdateDebounced === 'function') _postCustomerUpdateDebounced();
+}
 // Customer picks a roofing-steel grade / spec for an option.
 function setOptionGrade(id, upgradeId){
   if (!S.quote || !S.quote.options) return;
@@ -10962,27 +10974,42 @@ function _buildRoofPreviewsHtml(opts){
     // up to date.
     try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
     DRAW.roofs.forEach(function(r, i){
-      var url = _buildRoofOutlinePreview(r, { name: r.name || ('Roof ' + (i+1)), basic: !!opts.basic });
-      if (url) imgs.push({ url: url, name: r.name || ('Roof ' + (i+1)) });
+      var nm = r.name || ('Roof ' + (i+1));
+      var url = _buildRoofOutlinePreview(r, { name: nm, basic: !!opts.basic });
+      // The first roof entered on the canvas is always the main roof; every
+      // roof after it is an optional extra the customer can add.
+      if (url) imgs.push({ url: url, name: nm, role: (i === 0 ? 'main' : 'optional') });
     });
   } else if (DRAW.outline && DRAW.outline.length >= 3) {
     var url = _buildRoofOutlinePreview({ outline: DRAW.outline, lines: DRAW.lines || [] }, { name: 'Roof map', basic: !!opts.basic });
-    if (url) imgs.push({ url: url, name: 'Roof map' });
+    if (url) imgs.push({ url: url, name: 'Roof map', role: 'single' });
   }
   if (!imgs.length) return '';
+  // When there's more than one roof, badge each map so the customer can see
+  // at a glance which is the main roof and which are optional extras.
+  var _multiRoof = imgs.length > 1;
+  var _roofBadge = function(im){
+    if (!_multiRoof) return '';
+    var isMain = im.role === 'main';
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'+
+      '<span style="font-family:var(--ed-sans);font-size:8.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;border-radius:3px;background:'+(isMain?'var(--ed-accent)':'#e08a2e')+';color:#fff;white-space:nowrap">'+(isMain?'Main roof':'Optional extra')+'</span>'+
+      '<span class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-ink)">'+esc2(im.name)+'</span>'+
+    '</div>';
+  };
   if (opts.small) {
-    // Compact fixed box — capped height, centred, bordered; sits
-    // beside/below the price card without dominating the page.
-    return '<div class="qp-roofmap" style="margin-top:14px;border:1px solid var(--ed-line);background:#fff;padding:10px 12px">'+
-      '<div class="ed-eyebrow" style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'+
-        '<span>Roof map</span>'+
+    // Compact bordered box; on the Investment page it stacks the roof
+    // map(s) in the right column, each labelled main / optional extra.
+    return '<div class="qp-roofmap" style="border:1px solid var(--ed-line);background:#fff;padding:12px 14px">'+
+      '<div class="ed-eyebrow" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'+
+        '<span>Roof map'+(_multiRoof?'s':'')+'</span>'+
         '<button type="button" class="no-print" onclick="refreshQuoteProposal()" style="margin-left:auto;padding:2px 8px;font-size:9.5px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;cursor:pointer;font-family:var(--ed-sans);color:var(--ed-ink-2);letter-spacing:.04em">↻ Refresh</button>'+
       '</div>'+
-      '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">'+
-        imgs.map(function(im){
-          return '<img src="'+im.url+'" alt="'+esc2(im.name)+'" style="display:block;max-width:100%;max-height:170px;width:auto;height:auto;background:#fff">';
-        }).join('')+
-      '</div>'+
+      imgs.map(function(im, mi){
+        return '<div style="'+(mi>0?'margin-top:12px;padding-top:12px;border-top:1px solid var(--ed-line);':'')+'">'+
+          _roofBadge(im)+
+          '<div style="display:flex;justify-content:center"><img src="'+im.url+'" alt="'+esc2(im.name)+'" style="display:block;max-width:100%;max-height:200px;width:auto;height:auto;background:#fff"></div>'+
+        '</div>';
+      }).join('')+
     '</div>';
   }
   var gridStyle = (imgs.length === 1)
@@ -12571,7 +12598,10 @@ function refreshQuoteProposal(){
   }
 
   // ── Quote inclusions + pricing (editorial page) ──
-  if (on('inclusions') && opts.length) {
+  // Legacy multi-option price layout retired: the price now lives only on
+  // the Selections + Acceptance pages, and this page shows scope + roof
+  // maps only (see the unified block below). Kept for reference / rollback.
+  if (false && on('inclusions') && opts.length) {
     // Combined scope-of-work + price page.  Each option/package is a
     // tick-selectable extra; the combined total reflects only the
     // currently-selected options (default: all selected).
@@ -12791,7 +12821,7 @@ function refreshQuoteProposal(){
             '</table>'+
           '</div>'
         : '');
-  } else if (on('inclusions') && !opts.length) {
+  } else if (on('inclusions')) {
     // ── Page 03 — Your investment (editorial single-price layout) ──
     // No multi-option packages defined, so we present one clean price:
     // scope/inclusions on the left, a prominent price card on the right,
@@ -12876,48 +12906,42 @@ function refreshQuoteProposal(){
           '</table>'+
         '</div>'
       : '';
+    // This page now shows the scope of work + the matching roof map(s)
+    // ONLY — no price. The price lives on the Selections and Acceptance
+    // pages. When the property has more than one roof, every roof map is
+    // shown and badged: the first roof drawn on the canvas is the main
+    // roof, and each later roof is an optional extra the customer can add
+    // on the Selections page.
+    var _roofMapsHtml = _buildRoofPreviewsHtml({ small: true, basic: true });
+    var _assurancePanel =
+      '<div style="padding:15px 18px;background:var(--ed-paper-2);border:1px solid var(--ed-line);border-radius:9px">'+
+        '<div class="ed-eyebrow" style="margin-bottom:9px">Your price is fixed</div>'+
+        [
+          'No hidden extras — scaffolding &amp; rubbish removal included',
+          'Trade-qualified Licensed Building Practitioners on every job',
+          '10-year workmanship warranty + manufacturer’s warranty',
+          'Northland-owned &amp; operated since 2016'
+        ].map(function(t){
+          return '<div style="display:flex;gap:9px;align-items:flex-start;padding:4px 0;font-family:var(--ed-sans);font-size:11px;line-height:1.4;color:var(--ed-ink-2)">'+
+            '<span style="color:var(--ed-accent);font-weight:700;flex-shrink:0">✓</span><span>'+t+'</span></div>';
+        }).join('')+
+      '</div>';
     partInclusions =
-      edHeading('2','Scope & fixed pricing','Your Investment',{chapter:PROPOSAL_CHAPTERS[1],chapters:PROPOSAL_CHAPTERS})+
-      // The roof map rides in the right column as a compact fixed box
-      // under the price card (moved off page 2 per the user's request).
-      '<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:30px;align-items:start">'+
-        // Left — what's included
+      edHeading('2','The work & your roof','Your Investment',{chapter:PROPOSAL_CHAPTERS[1],chapters:PROPOSAL_CHAPTERS})+
+      '<div style="display:grid;grid-template-columns:1.25fr 1fr;gap:30px;align-items:start">'+
+        // Left — scope of work
         '<div>'+
           '<div class="ed-eyebrow'+(_scopeRaw.trim()?'':' qp-ph')+'" style="margin-bottom:8px">What\'s included</div>'+
           inclList+
         '</div>'+
-        // Right — price card (big total, subtotal, GST, deposit) +
-        // compact roof map box.
+        // Right — the matching roof map(s), labelled main / optional extra.
+        // Falls back to the assurance panel when no roof has been mapped.
         '<div>'+
-        '<div style="background:var(--ed-ink);color:#fff;padding:24px 26px">'+
-          '<div class="ed-eyebrow" style="color:rgba(255,255,255,.6)">Total incl. GST</div>'+
-          '<div class="ed-serif" style="font-style:italic;font-weight:400;font-size:40px;line-height:1.05;color:#fff;margin-top:6px">'+fmtMoney(tot0)+'</div>'+
-          '<div style="margin-top:16px;border-top:1px solid rgba(255,255,255,.18);padding-top:12px;font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,.82)">'+
-            '<div style="display:flex;justify-content:space-between;padding:4px 0"><span>Subtotal</span><span>'+fmtMoney(sub0)+'</span></div>'+
-            '<div style="display:flex;justify-content:space-between;padding:4px 0"><span>GST '+S.quote.gstRate+'%</span><span>'+fmtMoney(gst0)+'</span></div>'+
-            '<div style="display:flex;justify-content:space-between;padding:8px 0 0;margin-top:6px;border-top:1px solid rgba(255,255,255,.18);font-weight:600;color:#fff"><span>50% deposit</span><span>'+fmtMoney(_dep0)+'</span></div>'+
-          '</div>'+
-          '<div style="font-family:var(--ed-sans);font-size:10.5px;color:rgba(255,255,255,.6);margin-top:14px;line-height:1.5">Deposit secures your spot in the schedule. Balance due within 7 days of completion.</div>'+
-        '</div>'+
-        _buildRoofPreviewsHtml({ small: true, basic: true })+
-        // Assurance panel — always fills the right column (whether or not a
-        // roof map is embedded) so the page never reads half-empty, and
-        // reinforces the value behind the fixed price.
-        '<div style="margin-top:14px;padding:15px 18px;background:var(--ed-paper-2);border:1px solid var(--ed-line);border-radius:9px">'+
-          '<div class="ed-eyebrow" style="margin-bottom:9px">Your price is fixed</div>'+
-          [
-            'No hidden extras — scaffolding &amp; rubbish removal included',
-            'Trade-qualified Licensed Building Practitioners on every job',
-            '10-year workmanship warranty + manufacturer’s warranty',
-            'Northland-owned &amp; operated since 2016'
-          ].map(function(t){
-            return '<div style="display:flex;gap:9px;align-items:flex-start;padding:4px 0;font-family:var(--ed-sans);font-size:11px;line-height:1.4;color:var(--ed-ink-2)">'+
-              '<span style="color:var(--ed-accent);font-weight:700;flex-shrink:0">✓</span><span>'+t+'</span></div>';
-          }).join('')+
-        '</div>'+
+          (_roofMapsHtml || _assurancePanel)+
+          // When there IS a roof map, still show the assurance panel below it.
+          (_roofMapsHtml ? '<div style="margin-top:14px">'+_assurancePanel+'</div>' : '')+
         '</div>'+
       '</div>'+
-      itemTable+
       '<div class="'+((S.quote.notes||'').trim() ? '' : 'qp-ph ')+'" style="margin-top:22px;padding:14px 18px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
         '<div class="ed-eyebrow" style="margin-bottom:6px">Notes <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
         '<div class="qp-editable" contenteditable="true" data-qfield="notes" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.55;color:var(--ed-ink-2);min-height:1.4em">'+
@@ -13090,8 +13114,21 @@ function refreshQuoteProposal(){
       // Pricing summary for the picks: base quote scope, each
       // non-default selection with its add-on, and the new total.
       // (_selRate is declared with the card prices above.)
-      var _selBaseTot = _qpBaseSub() * (1+_selRate);
-      var _selChanges = _qpSelectionChanges();
+      // The "main scope of work" base is the FIRST roof / option only; each
+      // additional roof the customer has ticked shows as its own +line so
+      // the price reads as main roof + optional extras + spec upgrades.
+      var _optsAll   = (S.quote.options || []);
+      var _mainOpt   = _optsAll[0] || null;
+      var _extraOpts = _optsAll.slice(1);
+      var _selBaseTot = (_mainOpt ? _optEffectiveTotal(_mainOpt) : _qpBaseSub()) * (1+_selRate);
+      var _extraRoofChanges = _extraOpts
+        .filter(function(o){ return o.selected !== false; })
+        .map(function(o){
+          var ri = _optsAll.indexOf(o);
+          var nm = (DRAW.roofs && DRAW.roofs[ri] && DRAW.roofs[ri].name) || o.title || ('Optional roof ' + ri);
+          return { label: 'Optional roof — ' + nm, delta: _optEffectiveTotal(o) };
+        });
+      var _selChanges = _extraRoofChanges.concat(_qpSelectionChanges());
       var _selNewTot = (_qpBaseSub() + _qpSelectionDeltaSum()) * (1+_selRate);
       var _selRow = function(label, value, opts2){
         opts2 = opts2 || {};
@@ -13126,10 +13163,45 @@ function refreshQuoteProposal(){
             + (pOpts.downpipes === 'yes' ? ' · New downpipes' : '')
           : '')+
         ' · ' + esc2((DISPOSAL.find(function(d){return d.id===(pOpts.disposal||'dispose');})||{}).label||'—');
+      // ── Additional roofs (optional extras) ──────────────────────────
+      // When the property has more than one roof (i.e. more than one option
+      // package), the extra roofs appear here as opt-in items. The main
+      // roof (option 0) is always included; each extra roof is priced by
+      // its own package and ticking it adds it to the running total.
+      var _extraRoofsPanel = '';
+      if (_extraOpts.length){
+        var _erRows = _extraOpts.map(function(o, k){
+          var ri = _optsAll.indexOf(o);
+          var nm = (DRAW.roofs && DRAW.roofs[ri] && DRAW.roofs[ri].name) || o.title || ('Optional roof ' + ri);
+          var incl = (o.selected !== false);
+          var priceIncl = _optEffectiveTotal(o) * (1+_selRate);
+          return '<div role="button" tabindex="0" onclick="_toggleProposalRoof(\''+esc2(o.id)+'\','+(!incl)+')" style="box-sizing:border-box;width:100%;text-align:left;padding:9px 12px;border:none;border-left:3px solid '+(incl?'var(--ed-accent)':'transparent')+';'+(k<_extraOpts.length-1?'border-bottom:1px solid var(--ed-line);':'')+'background:'+(incl?'var(--ed-paper-2)':'#fff')+';cursor:pointer">'+
+            '<div style="display:flex;align-items:center;gap:10px">'+
+              '<div style="width:17px;height:17px;border-radius:4px;border:2px solid '+(incl?'var(--ed-accent)':'#cbd5e1')+';background:'+(incl?'var(--ed-accent)':'#fff')+';flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;line-height:1">'+(incl?'✓':'')+'</div>'+
+              '<span style="font-family:var(--ed-sans);font-size:8px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:2px 7px;border-radius:3px;background:#e08a2e;color:#fff;flex-shrink:0">Optional</span>'+
+              '<div style="flex:1;min-width:0">'+
+                '<div class="ed-serif" style="font-size:14px;font-style:italic;color:var(--ed-ink);line-height:1.2">'+esc2(nm)+'</div>'+
+                '<div class="ed-body" style="font-size:10px;color:var(--ed-ink-2);margin-top:1px;line-height:1.3">'+(incl?'Included — tap to remove':'Tap to add this roof to your quote')+'</div>'+
+              '</div>'+
+              '<div class="ed-serif" style="font-size:14px;white-space:nowrap;flex-shrink:0;color:var(--ed-ink);font-weight:600">+'+fmtMoney(priceIncl)+'</div>'+
+            '</div>'+
+          '</div>';
+        }).join('');
+        _extraRoofsPanel =
+          '<div style="border:1px solid var(--ed-line);background:#fff;box-sizing:border-box;box-shadow:0 1px 3px rgba(10,24,40,.05);margin-bottom:12px">'+
+            '<div style="display:flex;align-items:center;gap:9px;padding:5px 12px;background:var(--ed-ink)">'+
+              '<span style="font-family:var(--ed-sans);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;color:#fff">Additional roofs</span>'+
+              '<span style="font-family:var(--ed-sans);font-size:9px;letter-spacing:.04em;color:rgba(255,255,255,.6);margin-left:auto">Main roof is always included</span>'+
+            '</div>'+
+            '<div style="padding:7px 12px;border-bottom:1px solid var(--ed-line);background:#fbfaf7;font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-ink-2);line-height:1.4">This property has more than one roof. Your quote covers the main roof — tick any optional extra below to add it and the total updates automatically.</div>'+
+            _erRows+
+          '</div>';
+      }
       partOptionsSelections =
         edHeading('3','Your upgrade options','Choose Your Roof',{chapter:PROPOSAL_CHAPTERS[2],chapters:PROPOSAL_CHAPTERS})+
         // One-line "how this works" so the page explains itself.
         '<div class="ed-body" style="margin:-6px 0 7px;font-size:12px;color:var(--ed-ink-2);line-height:1.45">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is in the panel below.</div>'+
+        _extraRoofsPanel+
         // LEFT column — steel grade, thickness, colour. RIGHT column —
         // guttering, brackets, downpipes. Each group is its own titled panel
         // so the sections are unmistakable.
