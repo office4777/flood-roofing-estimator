@@ -11098,33 +11098,45 @@ function _buildRoofPreviewsHtml(opts){
 // three greys/darks (steel, charcoal, dark blue) are lightened so the
 // step number, "Step N of M" line and the active tracker pill read
 // clearly for older homeowners.
+// Every chapter uses the same brand blue on its heading band (matching
+// page 1) — the step tracker shows where the reader is, not the colour.
+var _CH_BLUE = '#0099e0';
 var PROPOSAL_CHAPTERS = [
-  { step:1, short:'Inspection', title:'Inspecting Your Roof',      accent:'#0099e0' }, // blue
-  { step:2, short:'Investment', title:'Your Investment',           accent:'#2fa564' }, // green
-  { step:3, short:'Options',    title:'Choose Your Roof',          accent:'#e8912f' }, // orange
-  { step:4, short:'Materials',  title:'Why We Recommend MAXAM',     accent:'#93a0b0' }, // light steel
-  { step:5, short:'Terms',      title:'Terms',                     accent:'#8290a6' }, // slate (charcoal family)
-  { step:6, short:'Accept',     title:'Accept Your Quote',         accent:'#4a90d9' }  // blue (dark-blue family)
+  { step:1, short:'Inspection', title:'Inspecting Your Roof',      accent:_CH_BLUE },
+  { step:2, short:'Investment', title:'Your Investment',           accent:_CH_BLUE },
+  { step:3, short:'Options',    title:'Choose Your Roof',          accent:_CH_BLUE },
+  { step:4, short:'Materials',  title:'Why We Recommend MAXAM',     accent:_CH_BLUE },
+  { step:5, short:'Terms',      title:'Terms',                     accent:_CH_BLUE },
+  { step:6, short:'Accept',     title:'Accept Your Quote',         accent:_CH_BLUE }
 ];
 var POLESHED_CHAPTERS = [
-  { step:1, short:'Your Shed', title:'Your Shed',            accent:'#0099e0' },
-  { step:2, short:'Design',    title:'Design & Elevations',  accent:'#2fa564' },
-  { step:3, short:'Options',   title:'Choose Your Options',  accent:'#e8912f' },
-  { step:4, short:'Included',  title:'What’s Included',  accent:'#93a0b0' },
-  { step:5, short:'Accept',    title:'Accept Your Quote',    accent:'#4a90d9' }
+  { step:1, short:'Your Shed', title:'Your Shed',            accent:_CH_BLUE },
+  { step:2, short:'Design',    title:'Design & Elevations',  accent:_CH_BLUE },
+  { step:3, short:'Options',   title:'Choose Your Options',  accent:_CH_BLUE },
+  { step:4, short:'Included',  title:'What’s Included',  accent:_CH_BLUE },
+  { step:5, short:'Accept',    title:'Accept Your Quote',    accent:_CH_BLUE }
 ];
 // Slim step-tracker strip that rides on top of the dark heading band.
+// Each step is clickable and jumps the reader to that chapter's page.
 function _edProgressTracker(chapters, current, accent){
   var cells = chapters.map(function(c){
     var cur = c.step === current, done = c.step < current;
     var bg = cur ? accent : (done ? 'rgba(255,255,255,.15)' : 'rgba(255,255,255,.06)');
     var fg = cur ? '#fff' : (done ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.5)');
-    return '<div style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 5px;background:'+bg+';border-radius:5px;min-width:0">'+
+    return '<div role="button" tabindex="0" onclick="_qpJumpToStep('+c.step+')" title="Go to '+esc2(c.short)+'" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 5px;background:'+bg+';border-radius:5px;min-width:0;cursor:pointer">'+
       '<span style="font-family:var(--ed-sans);font-size:9px;font-weight:800;color:'+fg+'">'+(done?'✓':c.step)+'</span>'+
       '<span style="font-family:var(--ed-sans);font-size:8.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:'+fg+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc2(c.short)+'</span>'+
     '</div>';
   }).join('<div style="flex:0 0 4px"></div>');
   return '<div class="ed-progress no-print-hint" style="display:flex;align-items:stretch;padding:10px 36px;border-bottom:1px solid rgba(255,255,255,.08)">'+cells+'</div>';
+}
+// Scroll the proposal to a chapter's page when its tracker step is tapped.
+function _qpJumpToStep(step){
+  var band = document.querySelector('.ed-heading-band[data-step="'+step+'"]');
+  if (!band) return;
+  var page = band.closest('.rp-page') || band;
+  try { page.scrollIntoView({ behavior:'smooth', block:'start' }); }
+  catch(e){ page.scrollIntoView(); }
 }
 function edHeading(num, eyebrow, title, opts){
   opts = opts || {};
@@ -11144,7 +11156,7 @@ function edHeading(num, eyebrow, title, opts){
     : (eyebrow || '');
   // Solid brand-ink panel: an accent rule + optional step tracker on top,
   // then a large chapter number + eyebrow + italic title.
-  return '<div class="ed-heading-band" style="margin:'+topMargin+' -36px 22px;background:var(--ed-ink);color:#fff;position:relative;overflow:hidden">'+
+  return '<div class="ed-heading-band"'+(ch?' data-step="'+ch.step+'"':'')+' style="margin:'+topMargin+' -36px 22px;background:var(--ed-ink);color:#fff;position:relative;overflow:hidden">'+
     '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:'+accent+';z-index:1"></div>'+
     tracker +
     '<div style="padding:15px 36px;position:relative">'+
