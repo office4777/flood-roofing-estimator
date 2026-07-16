@@ -8219,7 +8219,7 @@ function _qpCondPhotoSlotHtml(idx, cp){
       'ondragover="event.preventDefault();this.style.borderColor=\'var(--ed-accent)\'" '+
       'ondragleave="this.style.borderColor=\'var(--ed-line)\'" '+
       'ondrop="_qpCondPhotoDrop(event,'+idx+')" '+
-      'style="aspect-ratio:4/3;background:var(--ed-paper-2);border:1px dashed var(--ed-line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--ed-text2);transition:border-color .15s;padding:10px">'+
+      'style="aspect-ratio:16/10;background:var(--ed-paper-2);border:2px dashed var(--ed-line);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--ed-text2);transition:border-color .15s;padding:10px">'+
       '<svg viewBox="0 0 36 36" style="width:24px;height:24px;opacity:.32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="9" width="26" height="20" rx="2"/><circle cx="13" cy="16" r="2"/><path d="M5 24 L13 18 L20 24 L26 19 L31 23"/></svg>'+
       '<div class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-text2);opacity:.7">Add site photo</div>'+
       '<div class="no-print" style="display:flex;flex-direction:column;gap:6px;width:100%;max-width:190px">'+
@@ -8244,7 +8244,7 @@ function _qpCondPhotoSlotHtml(idx, cp){
   return '<figure class="qp-cond-photo qp-cond-filled" data-cp-idx="'+idx+'" '+
     'onwheel="_qpCondPhotoWheel(event,'+idx+')" '+
     'onmousedown="_qpCondPhotoDragStart(event,'+idx+')" '+
-    'style="margin:0;aspect-ratio:4/3;background:#000;overflow:hidden;position:relative;border:1px solid var(--ed-ink);cursor:grab;user-select:none">'+
+    'style="margin:0;aspect-ratio:16/10;background:#000;overflow:hidden;position:relative;border:4px solid #fff;border-radius:10px;box-shadow:0 1px 5px rgba(10,24,40,.22);cursor:grab;user-select:none">'+
     '<img src="'+esc2(cp.src)+'" draggable="false" '+
       'style="width:100%;height:100%;object-fit:cover;filter:saturate(.95);'+
       'transform:translate('+ox+'px,'+oy+'px) scale('+zm+');transform-origin:center center;pointer-events:none">'+
@@ -12367,10 +12367,10 @@ function refreshQuoteProposal(){
     // the page.
     var photoBoxes = '';
     var _condPhotoCount = 0, _firstEmpty = -1;
-    // Cap the printed photos to a single row of three. The gauge, repair
-    // vs re-roof table and recommendation callout above now consume most
-    // of the page, so a second photo row would fall off the bottom.
-    var MAX_COND_PHOTOS = 3;
+    // Up to six photos (two rows of three). The sections above are
+    // compacted and the tiles are short (16:10) so both rows still fit
+    // the A4 page.
+    var MAX_COND_PHOTOS = 6;
     for (var ci2 = 0; ci2 < 6 && _condPhotoCount < MAX_COND_PHOTOS; ci2++){
       var cp = S.quote.condPhotos[ci2] || null;
       // Pre-fill from S.photos uploaded under the inspection if this slot
@@ -12428,20 +12428,20 @@ function refreshQuoteProposal(){
     var _repairRows = ['Stops one leak today','Old nails / fixings stay in place','Original underlay stays in place','Condensation &amp; mould build up inside the home','Corrosion keeps spreading','Repeat call-backs &amp; repaint costs'];
     var _reroofRows = ['Complete weathertight system','All-new fixings throughout','New underlay &amp; modern flashings','Condensation controlled — a dry, healthy home','Corrosion designed out','Warranty &amp; decades of service'];
     var _cmpCell = function(text, ok){
-      return '<div style="display:flex;gap:7px;padding:5px 12px;border-top:1px solid var(--ed-line);'+(ok?'background:rgba(0,153,224,.05)':'')+'">'+
+      return '<div style="display:flex;gap:7px;padding:3px 12px;border-top:1px solid var(--ed-line);'+(ok?'background:rgba(0,153,224,.05)':'')+'">'+
         '<span style="flex-shrink:0;font-weight:700;color:'+(ok?'#2e7d32':'#b0554a')+'">'+(ok?'✓':'✗')+'</span>'+
-        '<span style="font-family:var(--ed-sans);font-size:10.5px;line-height:1.35;color:var(--ed-ink-2)">'+text+'</span></div>';
+        '<span style="font-family:var(--ed-sans);font-size:10.5px;line-height:1.3;color:var(--ed-ink-2)">'+text+'</span></div>';
     };
     var cmpTable = '<div style="display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--ed-line);border-radius:8px;overflow:hidden">'+
-      '<div style="background:#767b83;color:#fff;padding:6px 12px;font-family:var(--ed-sans);font-size:10.5px;font-weight:700;letter-spacing:.03em">PATCH REPAIR</div>'+
-      '<div style="background:var(--ed-ink);color:#fff;padding:6px 12px;font-family:var(--ed-sans);font-size:10.5px;font-weight:700;letter-spacing:.03em">FULL RE-ROOF</div>'+
+      '<div style="background:#767b83;color:#fff;padding:4px 12px;font-family:var(--ed-sans);font-size:10.5px;font-weight:700;letter-spacing:.03em">PATCH REPAIR</div>'+
+      '<div style="background:var(--ed-ink);color:#fff;padding:4px 12px;font-family:var(--ed-sans);font-size:10.5px;font-weight:700;letter-spacing:.03em">FULL RE-ROOF</div>'+
       _repairRows.map(function(t,i){ return _cmpCell(t,false)+_cmpCell(_reroofRows[i],true); }).join('')+
     '</div>';
 
     partCondition =
       edHeading('1','Roof condition report','Inspecting Your Roof',{chapter:PROPOSAL_CHAPTERS[0],chapters:PROPOSAL_CHAPTERS})+
       // Roof details strip — compact, inline-editable.
-      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:9px 0;margin-bottom:11px">'+
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:7px 0;margin-bottom:8px">'+
         detailItems.map(function(it){
           return '<div>'+
             '<div class="ed-eyebrow">'+esc2(it[0])+'</div>'+
@@ -12450,7 +12450,7 @@ function refreshQuoteProposal(){
         }).join('')+
       '</div>'+
       // Roof-life gauge — instantly shows the roof is at end of life.
-      '<div style="margin-bottom:11px;padding:9px 14px;background:var(--ed-paper-2);border-radius:8px">'+
+      '<div style="margin-bottom:8px;padding:7px 14px;background:var(--ed-paper-2);border-radius:8px">'+
         '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">'+
           '<div class="ed-eyebrow">Roof life</div>'+
           '<div style="font-family:var(--ed-sans);font-size:11px;color:var(--ed-ink-2)">Estimated age <strong>'+esc2(cAge||cExpLife||'—')+'</strong> &nbsp;·&nbsp; Remaining <strong style="color:#c62828">'+(cRemPct!=null?'~'+cRemPct+'%':'—')+'</strong></div>'+
@@ -12473,14 +12473,14 @@ function refreshQuoteProposal(){
         '</div>'+
       '</div>'+
       // Condition assessment — plain-English, editable.
-      '<div style="margin-bottom:11px;padding:9px 14px;background:var(--ed-paper-2);border-left:3px solid var(--ed-ink)">'+
+      '<div style="margin-bottom:8px;padding:7px 14px;background:var(--ed-paper-2);border-left:3px solid var(--ed-ink)">'+
         '<div class="ed-eyebrow" style="margin-bottom:4px">Condition assessment <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7">— click to edit</span></div>'+
         '<div class="qp-editable" contenteditable="true" data-qfield="condAssessment" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11px;line-height:1.5;color:var(--ed-ink-2);min-height:1.4em">'+
           (S.quote.condAssessment ? esc2(S.quote.condAssessment) : '<span class="qp-placeholder" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Choose a fixing type above to load a condition assessment, or write your own…</span>')+
         '</div>'+
       '</div>'+
       // Major + minor issues (compact, 2-col).
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;margin-bottom:11px">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;margin-bottom:8px">'+
         '<div>'+
           '<div class="ed-eyebrow" style="margin-bottom:5px;color:var(--ed-warm,#c0794d)">Major issues <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7">— click to edit</span></div>'+
           _condIssuesEditable('condMajor', S.quote.condMajor, 'var(--ed-warm,#c0794d)')+
@@ -12491,21 +12491,21 @@ function refreshQuoteProposal(){
         '</div>'+
       '</div>'+
       // Why repairs won't work + repair vs re-roof table.
-      '<div style="margin-bottom:11px">'+
-        '<div class="ed-eyebrow" style="margin-bottom:5px">Why a Repair Won\'t Solve It</div>'+
-        '<div style="font-family:var(--ed-sans);font-size:10.5px;font-style:italic;color:var(--ed-ink-2);margin-bottom:7px;line-height:1.4">A leak is only a symptom — the failed fixings and ageing materials underneath are the real problem, so patch repairs keep coming back. And because the old underlay has perished, condensation is no longer caught — it builds up inside the roof space and drives damp and mould into the home.</div>'+
+      '<div style="margin-bottom:8px">'+
+        '<div class="ed-eyebrow" style="margin-bottom:4px">Why a Repair Won\'t Solve It</div>'+
+        '<div style="font-family:var(--ed-sans);font-size:10.5px;font-style:italic;color:var(--ed-ink-2);margin-bottom:5px;line-height:1.35">A leak is only a symptom — the failed fixings and ageing materials underneath are the real problem, so patch repairs keep coming back, and the perished underlay lets condensation build up and drive damp and mould into the home.</div>'+
         cmpTable+
       '</div>'+
       // Strong recommendation — subtle accent-tinted callout.
-      '<div style="margin-bottom:12px;padding:14px 18px;background:rgba(0,153,224,.07);border:1px solid rgba(0,153,224,.28);border-left:4px solid var(--ed-accent);border-radius:8px">'+
-        '<div class="ed-eyebrow" style="color:var(--ed-accent);margin-bottom:5px;font-size:11px">Our recommendation</div>'+
-        '<div class="qp-editable" contenteditable="true" data-qfield="condReco" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:12px;line-height:1.55;color:var(--ed-ink);min-height:1.4em">'+
+      '<div style="margin-bottom:8px;padding:10px 16px;background:rgba(0,153,224,.07);border:1px solid rgba(0,153,224,.28);border-left:4px solid var(--ed-accent);border-radius:8px">'+
+        '<div class="ed-eyebrow" style="color:var(--ed-accent);margin-bottom:4px;font-size:11px">Our recommendation</div>'+
+        '<div class="qp-editable" contenteditable="true" data-qfield="condReco" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.5;color:var(--ed-ink);min-height:1.4em">'+
           esc2(cReco || DEFAULT_RECO)+
         '</div>'+
       '</div>'+
-      // Annotated photos — compact single row.
-      '<div class="ed-eyebrow" style="margin-bottom:7px">Existing roof photos</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+photoBoxes+'</div>';
+      // Annotated photos — up to two rows of three.
+      '<div class="ed-eyebrow" style="margin-bottom:6px">Existing roof photos</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">'+photoBoxes+'</div>';
       void _condPhotoCount;
   }
 
