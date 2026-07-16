@@ -21093,10 +21093,17 @@ function redrawAll() {
       lines.forEach(function(rl){
         if (!rl || !rl.pts || rl.pts.length !== 2) return;
         var t = rl.type;
-        if (t !== 'ridge' && t !== 'barge' && t !== 'apron' && t !== 'changepitch') return;
-        // Skip Dutch-gable gablet flashings (barge + apron on the same
-        // line) — they aren't mono-pitch high-edges.
-        if ((t === 'barge' || t === 'apron') && _hasCollinearSibling(rl, lines)) return;
+        // A sheet-length measure runs DOWN the slope — perpendicular to the
+        // eave/gutter, from a high edge (ridge / apron wall-abutment / change
+        // of pitch). A BARGE is a rake (the sloping gable-end edge); roofing
+        // sheets run PARALLEL to a barge, never perpendicular to it, so a
+        // barge must not seed a sheet measure. Including it produced the
+        // spurious "runs parallel to the gutter" labels on gable + valley
+        // roofs (e.g. 15.69 m / 7.78 m alongside the correct 5.47 / 5.46).
+        if (t !== 'ridge' && t !== 'apron' && t !== 'changepitch') return;
+        // Skip Dutch-gable gablet flashings (apron sharing a line with its
+        // barge) — they aren't mono-pitch high-edges.
+        if (t === 'apron' && _hasCollinearSibling(rl, lines)) return;
         var ra = rl.pts[0], rb = rl.pts[1];
         var rdx = rb[0]-ra[0], rdy = rb[1]-ra[1];
         var rL  = Math.sqrt(rdx*rdx + rdy*rdy);
@@ -21182,7 +21189,7 @@ function redrawAll() {
             lblX: sL[0], lblY: sL[1],
             lblImgX: lblImgX, lblImgY: lblImgY,
             ndx: sdx/sdl, ndy: sdy/sdl, sdl: sdl,
-            label: displayedM.toFixed(2) + 'm',
+            label: displayedM.toFixed(3) + 'm',
             key: key,
             isOverride: isOverride || (displayedM !== sheetM),
           });
@@ -21203,7 +21210,7 @@ function redrawAll() {
           lblImgX: m.x, lblImgY: m.y,
           ndx: m.ndx || 1, ndy: m.ndy || 0,
           sdl: (m.sdl || 120) * ((typeof getImgTransform === 'function' && getImgTransform()) ? getImgTransform().s : 1),
-          label: (+m.lengthM || 0).toFixed(2) + 'm',
+          label: (+m.lengthM || 0).toFixed(3) + 'm',
           key: 'manual:' + mi,
           isOverride: false,
           manualIdx: mi,
@@ -24865,7 +24872,7 @@ function _jpRenderCutLists(content, page, idx){
       totalSheets += r.qty;
       var qty = '<input type="number" min="0" step="1" value="'+r.qty+'" onfocus="this.select()" '+
         'onchange="_jpSheetSetQty('+r.origLen+',this.value)">';
-      var lenInp = '<input type="number" min="0.5" step="0.05" value="'+(r.len/1000).toFixed(2)+'" onfocus="this.select()" '+
+      var lenInp = '<input type="number" min="0.5" step="0.001" value="'+_sheetLenM(r.len)+'" onfocus="this.select()" '+
         'onchange="_jpSheetSetLen('+r.origLen+',this.value)">';
       var del = '<button class="mat-list-del" onclick="_jpSheetHide('+r.origLen+')" title="Hide row">×</button>';
       rowsHtml += '<div class="mat-list-row">'+
@@ -24881,7 +24888,7 @@ function _jpRenderCutLists(content, page, idx){
         totalSheets += +x.qty || 0;
         var qty = '<input type="number" min="0" step="1" value="'+(x.qty||0)+'" onfocus="this.select()" '+
           'onchange="_jpSheetExtraUpdate('+xi+',\'qty\',this.value)">';
-        var lenInp = '<input type="number" min="0.5" step="0.05" value="'+(((x.lenMm||3000)/1000).toFixed(2))+'" onfocus="this.select()" '+
+        var lenInp = '<input type="number" min="0.5" step="0.001" value="'+_sheetLenM(x.lenMm||3000)+'" onfocus="this.select()" '+
           'onchange="_jpSheetExtraUpdate('+xi+',\'lenMm\',this.value)">';
         var del = '<button class="mat-list-del" onclick="_jpSheetExtraDelete('+xi+')" title="Delete row">×</button>';
         rowsHtml += '<div class="mat-list-row is-extra">'+
@@ -24907,7 +24914,7 @@ function _jpRenderCutLists(content, page, idx){
   var ridgeSpec = _MAT_FLASHING_SPECS[0];
   var ridgeCl = _matBuildCutList('ridgehip', ridgeSpec.waste);
   html += '<div class="mat-section">'+
-    _matSectionHead(ridgeSpec.colour, 'Ridging', (ridgeType==='wide'?'Wide ridge':'Standard ridge')+' · '+esc(grade)+' · +'+ridgeSpec.waste.toFixed(1)+'m waste',
+    _matSectionHead(ridgeSpec.colour, 'Ridging', (ridgeType==='wide'?'Wide ridge':'Standard ridge')+' · '+esc(grade),
       ridgeCl.pieceCount ? ridgeCl.pieceCount+' pcs · '+ridgeCl.totalLm.toFixed(1)+' m' : '')+
     _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.', true)+
   '</div>';
@@ -25546,6 +25553,10 @@ function _jpSpecColourChange(sel){
 // DRAW.sheetGroupOverrides (the existing sheet-plan editor already
 // honours them).  Hidden rows persist on DRAW.matSheetRowHidden.
 // User-added extras live on DRAW.matSheetExtras.
+// Format a roof-sheet length (in mm) as metres to the millimetre — 3 decimal
+// places — so a 5445 mm sheet reads "5.445" not "5.44". Roofing sheets are cut
+// to the mm, so the cut list must show that last digit.
+function _sheetLenM(mm){ var n = Math.round(+mm || 0); return (n/1000).toFixed(3); }
 function _jpBuildSheetRows(sc){
   var rows = [];
   if (!sc || !sc.groups || !sc.groups.length) return rows;
@@ -26568,11 +26579,11 @@ function renderMaterialsCutLists() {
     sheetRows.forEach(function(r){
       totalSheets += r.qty;
       var anchorMm = lenAnchorByLen[r.len] || r.len;
-      var lbl = esc(profile) + ' sheet @ ' + (r.len / 1000).toFixed(2) + 'm';
+      var lbl = esc(profile) + ' sheet @ ' + _sheetLenM(r.len) + 'm';
       // Inline editable length cell — typing here flows through
       // _setSheetGroupOverride which updates the Sheets-to-order
       // panel + the Roof Map sheet labels at the same time.
-      var lenInp = '<input type="number" step="0.01" min="0.5" value="'+(r.len/1000).toFixed(2)+'" '+
+      var lenInp = '<input type="number" step="0.001" min="0.5" value="'+_sheetLenM(r.len)+'" '+
         'data-orig-mm="'+anchorMm+'" '+
         'onfocus="this.select()" '+
         'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '+
@@ -26604,7 +26615,7 @@ function renderMaterialsCutLists() {
   html += _matCompactSection({
     swatch: ridgeSpec.colour,
     title: 'Ridging',
-    meta: (ridgeType==='wide'?'Wide ridge':'Standard ridge') + ' · ' + grade + ' · ' + thickness + ' · +' + ridgeSpec.waste.toFixed(1) + 'm waste',
+    meta: (ridgeType==='wide'?'Wide ridge':'Standard ridge') + ' · ' + grade + ' · ' + thickness,
     flashingType: 'ridgehip',
     defaultDrawing: null,
     cutList: ridgeCl,
@@ -28950,8 +28961,8 @@ function _matBuildPrintOrderDetails(mount) {
     html += '<h2 class="mp-h" style="margin-top:14px">Roof Sheet Cut List</h2>'+
       '<table class="mp-cut"><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Length each</th></tr></thead><tbody>';
     sheetRows.forEach(function(r){
-      var lbl = esc(profile) + ' sheet @ ' + (r.len / 1000).toFixed(2) + 'm';
-      html += '<tr><td>'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+(r.len / 1000).toFixed(2)+' m</td></tr>';
+      var lbl = esc(profile) + ' sheet @ ' + _sheetLenM(r.len) + 'm';
+      html += '<tr><td>'+lbl+'</td><td class="r">'+r.qty+'</td><td class="r">'+_sheetLenM(r.len)+' m</td></tr>';
     });
     html += '</tbody><tfoot><tr><td>Total</td><td class="r">'+sheetTotal+' sheets</td><td class="r"></td></tr></tfoot></table>';
   }
@@ -29778,22 +29789,29 @@ function _ocCutGroup(title, meta, bodyHtml){
 }
 function _ocCutSummary(){
   var groups = [];
-  // ── Roof sheets — from the same source the Job Pack sheet list uses.
+  // ── Roof sheets — read the SAME edited source the Job Pack cut list and
+  // the supplier order PDF use (_jpBuildSheetRows + DRAW.matSheetExtras), so
+  // the confirm dialog reflects the user's manual length/qty edits instead of
+  // the raw pre-edit auto sheet plan. (Was reading sc.groups raw, which is
+  // why it showed stale sheet lengths/quantities.)
   var sc = window._lastSheetCounts || null;
   var profile = (document.getElementById('matProfile') || {}).value || 'Corrugate';
   var sheetRows = [];
-  if (sc && sc.groups && sc.groups.length){
-    var byLen = {};
-    sc.groups.forEach(function(g){ byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count; });
-    sheetRows = Object.keys(byLen).map(function(k){ return { len: parseInt(k,10), qty: byLen[k] }; })
-      .sort(function(a,b){ return b.len - a.len; });
+  if (sc && sc.groups && sc.groups.length && typeof _jpBuildSheetRows === 'function'){
+    sheetRows = _jpBuildSheetRows(sc).map(function(r){ return { len: r.len, qty: r.qty }; });
+    if (Array.isArray(DRAW.matSheetExtras)){
+      DRAW.matSheetExtras.forEach(function(x){
+        if (x && +x.qty > 0 && +x.lenMm > 0) sheetRows.push({ len: +x.lenMm, qty: +x.qty });
+      });
+    }
+    sheetRows.sort(function(a,b){ return b.len - a.len; });
   } else if (sc){
     var longTotal = (sc.orangeLong||0) + (sc.blueLong||0) + (sc.purpleLong||0);
     if (longTotal) sheetRows.push({ len: sc.longLen||7650, qty: longTotal });
     if (sc.shortCount) sheetRows.push({ len: sc.shortLen||3900, qty: sc.shortCount });
   }
   var totalSheets = 0, sheetBody = '';
-  sheetRows.forEach(function(r){ totalSheets += r.qty; sheetBody += _ocCutLine(r.qty, (r.len/1000).toFixed(2)+' m'); });
+  sheetRows.forEach(function(r){ totalSheets += r.qty; sheetBody += _ocCutLine(r.qty, _sheetLenM(r.len)+' m'); });
   if (!sheetBody) sheetBody = '<div class="oc-cl-empty">Generate the Roof Sheet Plan in the Job Pack to populate sheet lengths.</div>';
   groups.push(_ocCutGroup('Roof sheets', esc(profile)+(totalSheets?' · '+totalSheets+' sheets':''), sheetBody));
 
@@ -29829,9 +29847,16 @@ function _ocCutSummary(){
 // One checklist row: a tap-anywhere card with a checkbox, a bold field label,
 // and (optionally) a full-width inline control stacked below it. Ticking the
 // box tints the card green for satisfying confirm feedback (via :has()).
+// Stable key for a checklist row, derived from its label text (tags/entities
+// stripped). Used to remember which boxes were ticked so closing the modal to
+// make an edit doesn't wipe every tick.
+function _ocKey(label){
+  return String(label).replace(/<[^>]*>/g,'').replace(/&[a-z#0-9]+;/gi,'')
+    .replace(/[^a-z0-9]+/gi,'').toLowerCase().slice(0,48);
+}
 function _ocRow(label, controlHtml, hint){
   return '<label class="ord-row">'+
-      '<input type="checkbox" class="ordck" onchange="_orderChecklistSync()">'+
+      '<input type="checkbox" class="ordck" data-ock="'+esc(_ocKey(label))+'" onchange="_orderChecklistSync()">'+
       '<span class="ord-check" aria-hidden="true"></span>'+
       '<span class="ord-body">'+
         '<span class="ord-label">'+label+(hint?' <span class="ord-hint">'+hint+'</span>':'')+'</span>'+
@@ -29924,10 +29949,26 @@ function _openOrderChecklist(){
       '<button id="orderChecklistGo" onclick="_orderRoofProceed()" disabled style="flex:1;padding:11px 16px;background:#0099cc;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;cursor:not-allowed;opacity:.5">Confirm &amp; order roof →</button>'+
     '</div>';
   overlay.style.display = 'block'; modal.style.display = 'flex';
+  // Restore ticks the user made last time they had this modal open — closing
+  // it to fix a measure shouldn't force them to re-tick every row.
+  try {
+    if (window.S && S.order && S.order.ocChecks){
+      Array.prototype.forEach.call(document.querySelectorAll('#orderChecklistModal .ordck'), function(b){
+        var k = b.getAttribute('data-ock');
+        if (k && Object.prototype.hasOwnProperty.call(S.order.ocChecks, k)) b.checked = !!S.order.ocChecks[k];
+      });
+    }
+  } catch(e){}
   _orderChecklistSync();
 }
 function _orderChecklistSync(){
   var boxes = Array.prototype.slice.call(document.querySelectorAll('#orderChecklistModal .ordck'));
+  // Remember the tick state so it survives closing/reopening the modal.
+  try {
+    if (window.S){ S.order = S.order || {}; S.order.ocChecks = S.order.ocChecks || {};
+      boxes.forEach(function(b){ var k = b.getAttribute('data-ock'); if (k) S.order.ocChecks[k] = b.checked; });
+    }
+  } catch(e){}
   var all = boxes.length > 0 && boxes.every(function(b){ return b.checked; });
   var go = document.getElementById('orderChecklistGo');
   if (go){ go.disabled = !all; go.style.opacity = all ? '1' : '.5'; go.style.cursor = all ? 'pointer' : 'not-allowed'; }
@@ -29939,6 +29980,8 @@ function closeOrderChecklist(){
 function _orderRoofProceed(){
   var boxes = Array.prototype.slice.call(document.querySelectorAll('#orderChecklistModal .ordck'));
   if (!(boxes.length && boxes.every(function(b){ return b.checked; }))) return;   // guard
+  // Order confirmed — clear the remembered ticks so the next order starts fresh.
+  try { if (window.S && S.order) S.order.ocChecks = {}; } catch(e){}
   closeOrderChecklist();
   _openOrderEmail();
 }
