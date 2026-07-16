@@ -28223,6 +28223,15 @@ async function pushQuotePricingToFergus(btn){
   if (!built.sections.length){ _qaMsg('Nothing to push — enter labour hours and/or materials first.', false); alert('Nothing to push yet.\n\nAdd labour hours (Pricing tab) and/or material lines first.'); return; }
   _fergusBtnBusy(btn, true); _qaBar(true);
   try {
+    // Generate the interactive online-quote link and ride it in the Fergus
+    // quote notes so the customer can choose their options and accept
+    // online straight from the Fergus quote email — a PDF can't do that.
+    // Non-blocking: if the link can't be generated we still push pricing.
+    var _link = null;
+    try { _qaMsg('Generating your online-quote link…'); _link = await _ensureCustomerLink(null, { quiet:true }); } catch(e){}
+    var _onlineLine = (_link && _link.link)
+      ? '👉 View & accept your quote online (choose your options, then sign off):\n' + _link.link + '\n\n'
+      : '';
     _qaMsg('Creating new quote version in Fergus job ' + _fergusDisplayNo() + '…');
     var sub = (typeof quoteSubtotal === 'function') ? quoteSubtotal() : 0;
     var gst = sub * ((S.quote.gstRate || 15) / 100);
@@ -28231,7 +28240,7 @@ async function pushQuotePricingToFergus(btn){
     var dueDays = (function(){ var m = String(S.quote.validUntil || S.quote.validDays || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : 30; })();
     var resp = await fergusCall('POST', '/jobs/' + S.linkedJobId + '/quotes', {
       title: title, sections: built.sections, dueDays: dueDays, total: sub + gst,
-      notes: (S.quote.scope || '') + (S.quote.notes ? '\n\nNotes: ' + S.quote.notes : ''),
+      notes: _onlineLine + (S.quote.scope || '') + (S.quote.notes ? '\n\nNotes: ' + S.quote.notes : ''),
       status: 'Draft'
     });
     var raw = ''; try { raw = await resp.clone().text(); } catch(e){}
@@ -28245,7 +28254,7 @@ async function pushQuotePricingToFergus(btn){
     _markFergusSent('quote');
     var when = _fmtSent(S.fergusSent && S.fergusSent.quote);
     _qaMsg('✓ New quote version created in Fergus job ' + _fergusDisplayNo() + (voided ? ' (' + voided + ' old version' + (voided === 1 ? '' : 's') + ' voided)' : '') + ' · ' + when, true);
-    alert('✓ Pushed pricing to Fergus\n\nA new quote version (' + title + ') was created on job ' + _fergusDisplayNo() + ' with ' + built.labourCount + ' labour line(s) and ' + built.matCount + ' material line(s).' + (voided ? '\n\n' + voided + ' previous version' + (voided === 1 ? '' : 's') + ' voided.' : '') + '\n\nOpen Fergus to review.\n\nSent: ' + when);
+    alert('✓ Pushed pricing to Fergus\n\nA new quote version (' + title + ') was created on job ' + _fergusDisplayNo() + ' with ' + built.labourCount + ' labour line(s) and ' + built.matCount + ' material line(s).' + (voided ? '\n\n' + voided + ' previous version' + (voided === 1 ? '' : 's') + ' voided.' : '') + (_onlineLine ? '\n\n🔗 Your online-quote link is in the quote notes, so when Fergus emails this quote the customer can choose their options and accept online.' : '\n\n(Heads up: the online-quote link couldn\'t be generated this time — add a client name/address, then push again to include it.)') + '\n\nOpen Fergus to review.\n\nSent: ' + when);
   } catch(e){
     _qaMsg('Fergus quote push failed: ' + (e.message || e), false);
     alert('Fergus didn\'t accept the quote push:\n\n' + (e.message || e) + '\n\nIf this keeps happening, copy the message and send it over so the line-item format can be matched to your Fergus setup.');
