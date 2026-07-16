@@ -1587,7 +1587,11 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   .report-preview{background:#9aa1ad;padding:26px 12px;overflow-x:auto;border:none;border-radius:10px}
   .report-preview #qpRoot{display:flex;flex-direction:column;align-items:center;gap:26px}
   .report-preview .rp-page{
-    width:210mm;min-height:297mm;max-height:297mm;overflow:hidden;
+    /* Each sheet is A4 tall, but on screen it may GROW past 297mm so the
+       office-only (.no-print) editing controls never clip content that
+       actually prints. The printed PDF still hides those controls and
+       stays exactly A4 (see the html.print-quote rule below). */
+    width:210mm;min-height:297mm;overflow:visible;
     background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.28);
     margin:0;border:none!important;border-top:none!important;box-sizing:border-box;
     flex:0 0 auto;position:relative;
@@ -9280,9 +9284,18 @@ function _qpSelectionDeltaSum(){
 // Base quote scope (ex-GST): the selected options' total when the
 // quote uses the options model, else the plain scope subtotal — the
 // same figure the pricing page's card shows.
+// The options that count toward the quote: the FIRST option is the main
+// roof and is always included; every option after it is an optional extra
+// roof that only counts once the customer opts in (selected === true).
+function _qpSelectedOptions(){
+  var all = (S.quote && S.quote.options) || [];
+  return all.filter(function(o, i){
+    return i === 0 ? (o.selected !== false) : (o.selected === true);
+  });
+}
 function _qpBaseSub(){
-  var opts = ((S.quote && S.quote.options) || []).filter(function(o){ return o.selected !== false; });
-  if (opts.length) return opts.reduce(function(s, o){ return s + _optEffectiveTotal(o); }, 0);
+  var all = (S.quote && S.quote.options) || [];
+  if (all.length) return _qpSelectedOptions().reduce(function(s, o){ return s + _optEffectiveTotal(o); }, 0);
   return (typeof quoteSubtotal === 'function') ? quoteSubtotal() : 0;
 }
 // ── THE quote totals — single source of truth ────────────────────
@@ -9606,7 +9619,7 @@ function refreshAcceptSummary(){
 function buildAcceptSummaryRows(){
   if (!S.quote) return '';
   var rate = (S.quote.gstRate||0)/100;
-  var opts = (S.quote.options||[]).filter(function(o){ return o.selected !== false; });
+  var opts = _qpSelectedOptions();
   var rows = '';
   if (opts.length){
     rows = opts.map(function(o){
@@ -9781,7 +9794,7 @@ function _acceptConfirmProceed(){
 function _acceptQuoteFinalize(name){
   if (!S.quote) return;
   var rate = (S.quote.gstRate||0)/100;
-  var sel = (S.quote.options||[]).filter(function(o){ return o.selected !== false; });
+  var sel = _qpSelectedOptions();
   // Same maths as the Selections page's "New total" + the acceptance
   // page display, so the recorded figure matches what the client saw.
   var sub = _qpBaseSub() + _qpSelectionDeltaSum();
@@ -13122,7 +13135,7 @@ function refreshQuoteProposal(){
       var _extraOpts = _optsAll.slice(1);
       var _selBaseTot = (_mainOpt ? _optEffectiveTotal(_mainOpt) : _qpBaseSub()) * (1+_selRate);
       var _extraRoofChanges = _extraOpts
-        .filter(function(o){ return o.selected !== false; })
+        .filter(function(o){ return o.selected === true; })
         .map(function(o){
           var ri = _optsAll.indexOf(o);
           var nm = (DRAW.roofs && DRAW.roofs[ri] && DRAW.roofs[ri].name) || o.title || ('Optional roof ' + ri);
@@ -13173,7 +13186,7 @@ function refreshQuoteProposal(){
         var _erRows = _extraOpts.map(function(o, k){
           var ri = _optsAll.indexOf(o);
           var nm = (DRAW.roofs && DRAW.roofs[ri] && DRAW.roofs[ri].name) || o.title || ('Optional roof ' + ri);
-          var incl = (o.selected !== false);
+          var incl = (o.selected === true);
           var priceIncl = _optEffectiveTotal(o) * (1+_selRate);
           return '<div role="button" tabindex="0" onclick="_toggleProposalRoof(\''+esc2(o.id)+'\','+(!incl)+')" style="box-sizing:border-box;width:100%;text-align:left;padding:9px 12px;border:none;border-left:3px solid '+(incl?'var(--ed-accent)':'transparent')+';'+(k<_extraOpts.length-1?'border-bottom:1px solid var(--ed-line);':'')+'background:'+(incl?'var(--ed-paper-2)':'#fff')+';cursor:pointer">'+
             '<div style="display:flex;align-items:center;gap:10px">'+
