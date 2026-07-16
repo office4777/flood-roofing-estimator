@@ -26501,11 +26501,15 @@ function _matBuildCutList(type, waste) {
   // same letter group always carry the same length by construction
   // (user-edited letters can break that — we collapse only when the
   // lengths match too, otherwise each row keeps its letter visible).
+  // Ridge / hip capping is cut to length and doesn't carry per-piece
+  // letter refs, so group it by LENGTH ONLY — three 7.1 m ridge pieces
+  // read as "3 @ 7.1 m" instead of three separate "1 @ 7.1 m" rows.
+  var byLenOnly = (type === 'ridgehip');
   var bucket = {};
   var order = [];
   pieces.forEach(function(p){
-    var k = (p.letter || '_') + '|' + p.length.toFixed(1);
-    if (!bucket[k]) { bucket[k] = { letter: p.letter || '', length: p.length, qty: 0 }; order.push(k); }
+    var k = byLenOnly ? ('_|' + p.length.toFixed(1)) : ((p.letter || '_') + '|' + p.length.toFixed(1));
+    if (!bucket[k]) { bucket[k] = { letter: byLenOnly ? '' : (p.letter || ''), length: p.length, qty: 0 }; order.push(k); }
     bucket[k].qty++;
   });
   var rows = order.map(function(k){ return bucket[k]; });
