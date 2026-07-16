@@ -9694,7 +9694,7 @@ function buildAcceptSummaryRows(){
         if (u) grade = u.title || 'Upgrade';
       }
       var incl = _optEffectiveTotal(o) * (1+rate);
-      return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
+      return '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--ed-line)">'+
         '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">'+esc2(o.title||'Option')+' <span style="color:var(--ed-text2)">— '+esc2(grade)+'</span></div>'+
         '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+fmtMoney(incl)+'</div>'+
       '</div>';
@@ -9707,7 +9707,7 @@ function buildAcceptSummaryRows(){
   // "Main scope of work" row — the two figures were identical and the
   // duplication read like a mistake).
   var baseTot = _qpBaseSub() * (1+rate);
-  rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
+  rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--ed-line)">'+
     '<div style="font-family:var(--ed-sans);font-size:12px;font-weight:700;color:var(--ed-ink)">Original quote'+(opts.length?'':' — main scope of work')+' <span style="font-weight:400;color:var(--ed-text2)">(incl. GST)</span></div>'+
     '<div class="ed-serif" style="font-size:14px;font-weight:700;white-space:nowrap">'+fmtMoney(baseTot)+'</div>'+
   '</div>';
@@ -9716,9 +9716,9 @@ function buildAcceptSummaryRows(){
   // fallback, so nothing is listed or charged twice.
   var changes = _qpSelectionChanges();
   if (changes.length){
-    rows += '<div class="ed-eyebrow" style="margin:12px 0 2px">Your selection changes</div>';
+    rows += '<div class="ed-eyebrow" style="margin:8px 0 2px">Your selection changes</div>';
     changes.forEach(function(c){
-      rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--ed-line)">'+
+      rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--ed-line)">'+
         '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">&#8627; '+esc2(c.label)+'</div>'+
         '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap;color:'+(c.delta < 0 ? '#1a7f4e' : 'var(--ed-ink)')+'">'+(c.delta ? (c.delta > 0 ? '+' : '−')+fmtMoney(Math.abs(c.delta)*(1+rate)) : 'Included')+'</div></div>';
     });
@@ -13113,7 +13113,7 @@ function refreshQuoteProposal(){
       var selPanel = function(label, cardsHtml){
         _selSecN++;
         return '<div style="border:1px solid var(--ed-line);background:#fff;box-sizing:border-box;box-shadow:0 1px 3px rgba(10,24,40,.05)">'+
-            '<div style="display:flex;align-items:center;gap:9px;padding:4px 12px;background:var(--ed-ink)">'+
+            '<div style="display:flex;align-items:center;gap:9px;padding:3px 12px;background:var(--ed-ink)">'+
               '<span class="ed-serif" style="font-style:italic;font-size:14px;color:#54bdec;line-height:1;flex-shrink:0">'+('0'+_selSecN).slice(-2)+'</span>'+
               '<span style="font-family:var(--ed-sans);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;color:#fff;white-space:nowrap">'+label+'</span>'+
             '</div>'+
@@ -13170,7 +13170,7 @@ function refreshQuoteProposal(){
           // titles / descriptions / non-bold warranty from the Quote PDF.
           // A div with role=button stays clickable on the live customer link.
           var boxCss = flat
-            ? 'padding:5px 12px 5px 11px;margin:0;border:none;border-left:3px solid '+(picked?'var(--ed-accent)':'transparent')+';'+
+            ? 'padding:3px 12px 3px 11px;margin:0;border:none;border-left:3px solid '+(picked?'var(--ed-accent)':'transparent')+';'+
               (_i < _n-1 ? 'border-bottom:1px solid var(--ed-line);' : '')+'background:'+(picked?'var(--ed-paper-2)':'#fff')+';'
             : 'padding:8px 12px;margin:0 0 6px;border:1px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';'+
               'border-left:3px solid '+(picked?'var(--ed-accent)':'var(--ed-line)')+';background:'+(picked?'var(--ed-paper-2)':'#fff')+';';
@@ -13189,8 +13189,8 @@ function refreshQuoteProposal(){
                 '</div>'+
                 // Compact cards (gutter add-ons) drop the description/warranty
                 // so a whole extra row of options doesn't push the page tall.
-                (!compact && it.desc ? '<div class="ed-body" style="font-size:10.5px;color:var(--ed-ink-2);margin-top:2px;line-height:1.35">'+esc2(it.desc)+'</div>' : '')+
-                (!compact && !noWarranty && it.warranty ? '<div style="font-size:10px;color:var(--ed-text2);margin-top:3px;line-height:1.4">'+it.warranty+'</div>' : '')+
+                (!compact && it.desc ? '<div class="ed-body" style="font-size:10.5px;color:var(--ed-ink-2);margin-top:1px;line-height:1.3">'+esc2(it.desc)+'</div>' : '')+
+                (!compact && !noWarranty && it.warranty ? '<div style="font-size:10px;color:var(--ed-text2);margin-top:2px;line-height:1.35">'+it.warranty+'</div>' : '')+
               '</div>'+
             '</div>'+
           '</div>';
@@ -13217,7 +13217,7 @@ function refreshQuoteProposal(){
       var _selNewTot = (_qpBaseSub() + _qpSelectionDeltaSum()) * (1+_selRate);
       var _selRow = function(label, value, opts2){
         opts2 = opts2 || {};
-        return '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 16px;'+
+        return '<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 16px;'+
           (opts2.top ? 'border-top:2px solid rgba(255,255,255,.32);' : 'border-top:1px solid rgba(255,255,255,.13);')+
           (opts2.strong ? 'background:rgba(255,255,255,.07);' : '')+'">'+
           '<div style="font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,'+(opts2.strong?'1':'.72')+');'+(opts2.strong?'font-weight:700;':'')+'">'+label+'</div>'+
@@ -13285,7 +13285,7 @@ function refreshQuoteProposal(){
       partOptionsSelections =
         edHeading('3','Your options & price','Choose Your Options',{chapter:PROPOSAL_CHAPTERS[2],chapters:PROPOSAL_CHAPTERS})+
         // One-line "how this works" so the page explains itself.
-        '<div class="ed-body" style="margin:-6px 0 7px;font-size:12px;color:var(--ed-ink-2);line-height:1.45">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is in the panel below.</div>'+
+        '<div class="ed-body" style="margin:-8px 0 4px;font-size:12px;color:var(--ed-ink-2);line-height:1.4">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is in the panel below.</div>'+
         _extraRoofsPanel+
         // LEFT column — steel grade, thickness, colour. RIGHT column —
         // guttering, brackets, downpipes. Each group is its own titled panel
@@ -13295,12 +13295,12 @@ function refreshQuoteProposal(){
         // and the colour picker. Splitting colour to the right balances the
         // two columns so neither runs long with dead space beside it, and the
         // panels number down the left column then down the right (01, 02 …).
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:8px;align-items:start">'+
-          '<div style="display:grid;gap:8px;align-content:start">'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:6px;align-items:start">'+
+          '<div style="display:grid;gap:6px;align-content:start">'+
             selPanel('Steel grade', selCard('steelGrade', GRADES, pOpts.steelGrade || 'maxam', '_setProposalOption_grade', { flat: true, noWarranty: true }))+
             selPanel('Steel thickness', selCard('steelThickness', THICKS, pOpts.steelThickness || '40', '_setProposalOption_thickness', { flat: true }))+
           '</div>'+
-          '<div style="display:grid;gap:8px;align-content:start">'+
+          '<div style="display:grid;gap:6px;align-content:start">'+
             selPanel('Guttering', selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter', { flat: true }))+
             (pOpts.gutterType && pOpts.gutterType !== 'none'
               ? selPanel('Gutter brackets', selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'external', '_setProposalOption_bracket', { flat: true, compact: true }))+
@@ -13310,15 +13310,15 @@ function refreshQuoteProposal(){
           '</div>'+
         '</div>'+
         // Existing roofing material (keep vs. dispose; both $0) — full width.
-        '<div style="margin-bottom:8px">'+
+        '<div style="margin-bottom:6px">'+
           selPanel('Existing roofing material',
             selCard('disposal', DISPOSAL, pOpts.disposal || 'dispose', '_setProposalOption_disposal', { flat: true, compact: true })+
-            '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:0;padding:5px 12px 6px;line-height:1.4;font-style:italic;border-top:1px solid var(--ed-line);background:#fbfaf7">Either choice is included at no change to your price — the scrap value of the old steel only offsets the labour and time to strip and cart it away.</div>'
+            '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:0;padding:4px 12px 5px;line-height:1.35;font-style:italic;border-top:1px solid var(--ed-line);background:#fbfaf7">Either choice is included at no change to your price — the scrap value of the old steel only offsets the labour and time to strip and cart it away.</div>'
           )+
         '</div>'+
-        '<div style="margin-top:6px;background:var(--ed-ink);border-radius:7px;overflow:hidden;box-shadow:0 2px 10px rgba(10,24,40,.18)">'+
-          '<div style="padding:9px 16px 8px">'+
-            '<div class="ed-eyebrow" style="margin-bottom:3px;color:#4fc3ff">Your selection &amp; price</div>'+
+        '<div style="margin-top:4px;background:var(--ed-ink);border-radius:7px;overflow:hidden;box-shadow:0 2px 10px rgba(10,24,40,.18)">'+
+          '<div style="padding:7px 16px 6px">'+
+            '<div class="ed-eyebrow" style="margin-bottom:2px;color:#4fc3ff">Your selection &amp; price</div>'+
             '<div style="font-family:var(--ed-sans);font-size:12px;line-height:1.6;color:rgba(255,255,255,.82)">'+_selSummaryLine+'</div>'+
           '</div>'+
           _selPricing+
@@ -13642,10 +13642,10 @@ function refreshQuoteProposal(){
     partSignature =
       edHeading('6','Ready to go ahead?','Accept Your Quote',{chapter:PROPOSAL_CHAPTERS[5],chapters:PROPOSAL_CHAPTERS})+
       // ── Quote summary (selected options + grades + total) ──
-      '<div style="margin-bottom:14px">'+
-        '<div class="ed-eyebrow" style="margin-bottom:8px">Your quote'+(S.quote.client?' — '+esc2(S.quote.client):'')+'</div>'+
+      '<div style="margin-bottom:10px">'+
+        '<div class="ed-eyebrow" style="margin-bottom:6px">Your quote'+(S.quote.client?' — '+esc2(S.quote.client):'')+'</div>'+
         '<div id="qpAcceptSummary">'+buildAcceptSummaryRows()+'</div>'+
-        '<div style="margin-top:10px;padding-top:10px;border-top:2px solid var(--ed-ink)">'+
+        '<div style="margin-top:8px;padding-top:8px;border-top:2px solid var(--ed-ink)">'+
           '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:3px 0">'+
             '<div class="ed-body" style="font-size:12px;color:var(--ed-ink-2)">Subtotal (excl. GST)</div>'+
             '<div class="ed-serif" style="font-size:15px;font-weight:600;color:var(--ed-ink)">'+fmtMoney(accSub)+'</div>'+
@@ -13669,30 +13669,30 @@ function refreshQuoteProposal(){
             '<button onclick="unacceptQuote()" class="no-print" style="margin-top:12px;padding:6px 12px;background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:6px;font-size:11px;cursor:pointer">Undo acceptance</button>'+
           '</div>'
         : // ── Two ways to accept ──
-          '<p class="ed-body-lg" style="max-width:54em;margin:0 0 16px">I, <span class="ed-serif" style="font-style:italic;font-size:15px;color:var(--ed-ink)">'+esc2(S.quote.client||'—')+'</span>, accept the option(s) and grade selections shown above and agree to the terms &amp; conditions set out in this proposal.</p>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:stretch;margin-bottom:14px">'+
+          '<p class="ed-body-lg" style="max-width:54em;margin:0 0 10px">I, <span class="ed-serif" style="font-style:italic;font-size:15px;color:var(--ed-ink)">'+esc2(S.quote.client||'—')+'</span>, accept the option(s) and grade selections shown above and agree to the terms &amp; conditions set out in this proposal.</p>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:stretch;margin-bottom:10px">'+
             // Option A — sign & return (prints)
-            '<div style="border:1px solid var(--ed-line);padding:16px 18px">'+
-              '<div class="ed-eyebrow" style="margin-bottom:14px">Option A · sign &amp; return</div>'+
-              '<div style="border-bottom:1px solid var(--ed-ink);height:42px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">Client signature</div>'+
-              '<div style="border-bottom:1px solid var(--ed-ink);height:42px;margin-top:18px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">Name &amp; date</div>'+
+            '<div style="border:1px solid var(--ed-line);padding:12px 16px">'+
+              '<div class="ed-eyebrow" style="margin-bottom:10px">Option A · sign &amp; return</div>'+
+              '<div style="border-bottom:1px solid var(--ed-ink);height:30px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:4px">Client signature</div>'+
+              '<div style="border-bottom:1px solid var(--ed-ink);height:30px;margin-top:10px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:4px">Name &amp; date</div>'+
             '</div>'+
             // Option B — accept online (screen only)
-            '<div class="no-print" style="border:1.5px solid var(--ed-accent);padding:16px 18px;background:var(--ed-paper-2);display:flex;flex-direction:column">'+
-              '<div class="ed-eyebrow" style="margin-bottom:14px">Option B · accept online</div>'+
+            '<div class="no-print" style="border:1.5px solid var(--ed-accent);padding:12px 16px;background:var(--ed-paper-2);display:flex;flex-direction:column">'+
+              '<div class="ed-eyebrow" style="margin-bottom:10px">Option B · accept online</div>'+
               '<input type="text" id="qpAcceptName" placeholder="Type your full name" value="'+esc2(S.quote.client||'')+'" style="width:100%;font-family:var(--ed-sans);font-size:13px;padding:9px 11px;border:1px solid var(--ed-line);border-radius:6px;margin-bottom:10px;box-sizing:border-box">'+
               '<label style="display:flex;gap:8px;align-items:flex-start;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2);line-height:1.4;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="qpAcceptTerms" style="margin:2px 0 0;flex-shrink:0"> I accept this quote and the <strong>terms &amp; conditions</strong>.</label>'+
               '<button onclick="acceptQuoteDigitally()" style="margin-top:auto;width:100%;padding:12px;background:var(--ed-accent);color:#fff;border:none;border-radius:6px;font-family:var(--ed-sans);font-size:14px;font-weight:700;cursor:pointer">✓ Accept quote</button>'+
             '</div>'+
           '</div>'+
           // Company representative line (prints)
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-bottom:16px">'+
-            '<div><div style="border-bottom:1px solid var(--ed-ink);height:40px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">'+esc2(company||'Company')+' representative</div></div>'+
-            '<div><div style="border-bottom:1px solid var(--ed-ink);height:40px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">Date</div></div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-bottom:10px">'+
+            '<div><div style="border-bottom:1px solid var(--ed-ink);height:32px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:4px">'+esc2(company||'Company')+' representative</div></div>'+
+            '<div><div style="border-bottom:1px solid var(--ed-ink);height:32px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:4px">Date</div></div>'+
           '</div>'
       )+
       // Closing brand mark
-      '<div style="text-align:center;margin-top:8px">'+
+      '<div style="text-align:center;margin-top:6px">'+
         '<div style="display:inline-flex;align-items:center;gap:14px"><div style="width:30px;height:1px;background:var(--ed-ink)"></div><div class="ed-serif" style="font-style:italic;font-size:16px;color:var(--ed-ink)">Thank you for the opportunity.</div><div style="width:30px;height:1px;background:var(--ed-ink)"></div></div>'+
       '</div>'+
       // Full-bleed team closing banner — the Flood Roofing crew sees
@@ -13703,9 +13703,9 @@ function refreshQuoteProposal(){
       // aspect-ratio) — html2canvas doesn't compute CSS aspect-ratio, which is
       // what distorted the photo in the PDF. background-size:cover renders
       // identically on screen and in the PDF.
-      '<div style="margin:16px -36px 12px;height:165px;position:relative;overflow:hidden;background:var(--ed-ink) url(brand/team_winter_cover.jpg) center 46%/cover no-repeat">'+
+      '<div style="margin:8px -36px 6px;height:96px;position:relative;overflow:hidden;background:var(--ed-ink) url(brand/team_winter_cover.jpg) center 42%/cover no-repeat">'+
         '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.18),rgba(0,153,224,.22))"></div>'+
-        '<div style="position:absolute;left:0;right:0;bottom:14px;text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:14px;color:#fff;letter-spacing:.04em;text-shadow:0 2px 6px rgba(0,0,0,.6)">The Flood Roofing crew · Whangarei, Kerikeri &amp; the Bay of Islands</div>'+
+        '<div style="position:absolute;left:0;right:0;bottom:10px;text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:13px;color:#fff;letter-spacing:.04em;text-shadow:0 2px 6px rgba(0,0,0,.6)">The Flood Roofing crew · Whangarei, Kerikeri &amp; the Bay of Islands</div>'+
       '</div>';
   }
 
@@ -13722,15 +13722,11 @@ function refreshQuoteProposal(){
       '<img src="brand/sitewise_gold.png" alt="Sitewise Gold 2025/26" onerror="this.style.display=\'none\'" style="height:36px;width:auto;object-fit:contain">'+
       '<img src="brand/colorsteel.png" alt="Colorsteel" onerror="this.style.display=\'none\'" style="height:30px;width:auto;object-fit:contain">'+
     '</div>';
+  // Per-page footer — a slim company · ref line only. The trust logos now
+  // live ONLY on the cover (page 1); removing them from every other page
+  // de-clutters the document and frees vertical space.
   var pageFooterHtml =
-    '<div class="rp-page-footer no-screen-only" style="margin-top:auto;padding-top:14px;border-top:1px solid var(--ed-line);display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:10px;color:var(--ed-text2)">'+
-      '<div style="flex:1;display:flex;gap:14px;align-items:center;opacity:.85">'+
-        '<img src="brand/ranz.png" alt="" onerror="this.style.display=\'none\'" style="height:28px;width:auto;object-fit:contain">'+
-        '<img src="brand/lbp.png" alt="" onerror="this.style.display=\'none\'" style="height:26px;width:auto;object-fit:contain">'+
-        '<img src="brand/sitesafe.png" alt="" onerror="this.style.display=\'none\'" style="height:24px;width:auto;object-fit:contain">'+
-        '<img src="brand/sitewise_gold.png" alt="" onerror="this.style.display=\'none\'" style="height:22px;width:auto;object-fit:contain">'+
-        '<img src="brand/colorsteel.png" alt="" onerror="this.style.display=\'none\'" style="height:18px;width:auto;object-fit:contain">'+
-      '</div>'+
+    '<div class="rp-page-footer no-screen-only" style="margin-top:auto;padding-top:10px;border-top:1px solid var(--ed-line);display:flex;align-items:center;justify-content:flex-end;font-size:10px;color:var(--ed-text2)">'+
       '<div style="text-align:right;font-family:var(--ed-sans);letter-spacing:.04em">'+
         esc2(company) + ' · '+ esc2(S.quote.ref || 'FR-001')+
       '</div>'+
