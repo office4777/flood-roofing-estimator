@@ -1647,6 +1647,27 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 /* ── Login screen (re-use new tokens) ──────────────────────── */
 #login-screen{background:var(--ink)!important}
 
+/* ── Customer link (read-only, on screen) ─────────────────────
+   The shared /q/ link is the finished customer document — it must look
+   the same as the PDF: no editor placeholders, "click to edit" hints, or
+   office-only controls (fixing-type selector, scope add/delete/reorder,
+   photo upload + hover controls, roof-map refresh, inline accept box).
+   The customer still taps the option / colour cards (not .no-print) and
+   accepts via the sticky bar. contenteditable is also stripped in JS. */
+html.customer-view .qp-ph,
+html.customer-view .qp-edit-hint,
+html.customer-view .qp-placeholder,
+html.customer-view .no-print{ display:none !important; }
+html.customer-view .qp-editable{ cursor:default !important; }
+html.customer-view .qp-editable:hover{ background:transparent !important; outline:none !important; }
+html.customer-view{ overflow-x:hidden; }
+/* Phones — go closer to edge-to-edge so the shrunk-A4 page is as large as
+   it can be, and never scroll sideways. */
+@media (max-width:640px){
+  html.customer-view .cust-scroll{ padding:8px 3px 140px !important; }
+  html.customer-view .report-preview{ padding:6px 3px !important; }
+}
+
 /* ── Print ─────────────────────────────────────────────────── */
 /* margin:0 on every page kind so the proposal, materials cut list,
    scope, and job pack all reach the sheet edge.  Each per-print-mode
@@ -1710,10 +1731,6 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   html.print-quote .qp-cond-cap-empty,
   html.print-quote .qp-ph,
   html.print-quote .no-print{display:none!important}
-  /* The live customer link is a finished document too — no editor
-     placeholders or edit hints there either. */
-  html.customer-view .qp-ph,
-  html.customer-view .qp-edit-hint{display:none!important}
   html.print-quote .qp-editable{outline:none!important;border:none!important;background:transparent!important}
   html.print-quote [contenteditable]{outline:none!important;caret-color:transparent}
   /* Colour swatches mustn't split across pages — keep the whole grid
@@ -10155,7 +10172,7 @@ async function bootCustomerView(token){
     host.id = 'customerView';
     host.style.cssText = 'position:fixed;inset:0;overflow-y:auto;background:#dfe3e8;z-index:100000;-webkit-overflow-scrolling:touch';
     host.innerHTML =
-      '<div style="max-width:900px;margin:0 auto;padding:16px 10px 150px"><div class="report-preview" style="margin:0">'+
+      '<div class="cust-scroll" style="max-width:900px;margin:0 auto;padding:12px 6px 150px"><div class="report-preview" style="margin:0">'+
         '<div id="qpRoot"></div></div></div>'+
       '<div id="custBar" style="position:fixed;left:0;right:0;bottom:0;background:#0a1628;color:#fff;padding:11px 16px;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;box-shadow:0 -4px 16px rgba(0,0,0,.25);z-index:100001">'+
         '<span style="font-size:12px;opacity:.8;margin-right:auto">Choose your options above, then:</span>'+
@@ -13786,7 +13803,17 @@ function refreshQuoteProposal(){
   if (lastClose !== -1) html = html.slice(0, lastClose) + footerHtml + html.slice(lastClose);
 
   root.innerHTML = html;
-  _attachInlineEditors();
+  if (window.__CUSTOMER_MODE) {
+    // The customer link is READ-ONLY. Strip every inline text editor so the
+    // customer can't modify the quote — they only pick options (option
+    // cards / colour swatch stay clickable) and accept via the sticky bar.
+    Array.prototype.forEach.call(root.querySelectorAll('[contenteditable]'), function(el){
+      el.setAttribute('contenteditable', 'false');
+      el.classList.remove('qp-editable');
+    });
+  } else {
+    _attachInlineEditors();
+  }
   _fitProposalPages();
   try { _syncQuoteKindToggle(); } catch(e){}
   try { _toggleShedEstimator(); } catch(e){}
