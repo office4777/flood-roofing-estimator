@@ -11103,8 +11103,8 @@ function _buildRoofPreviewsHtml(opts){
 var _CH_BLUE = '#0099e0';
 var PROPOSAL_CHAPTERS = [
   { step:1, short:'Inspection', title:'Inspecting Your Roof',      accent:_CH_BLUE },
-  { step:2, short:'Investment', title:'Your Investment',           accent:_CH_BLUE },
-  { step:3, short:'Options',    title:'Choose Your Roof',          accent:_CH_BLUE },
+  { step:2, short:'Your Roof',  title:'Your New Roof',             accent:_CH_BLUE },
+  { step:3, short:'Options',    title:'Choose Your Options',       accent:_CH_BLUE },
   { step:4, short:'Materials',  title:'Why We Recommend MAXAM',     accent:_CH_BLUE },
   { step:5, short:'Terms',      title:'Terms',                     accent:_CH_BLUE },
   { step:6, short:'Accept',     title:'Accept Your Quote',         accent:_CH_BLUE }
@@ -12289,7 +12289,7 @@ function refreshQuoteProposal(){
     // fleet of utes down to just below the team's knees, kept full
     // page width (1100×322, ≈3.42:1) so the crew + branded utes read
     // as one strong horizontal banner.
-    var hero = (heroAsn ? resolveSlotSrc('cover_hero') : null) || 'brand/team_winter_cover.jpg';
+    var hero = (heroAsn ? resolveSlotSrc('cover_hero') : null) || 'brand/team_lineup_ute.jpg';
     // Full-bleed hero photo + warm-cream title plate underneath.  All
     // type sits on the cream paper, not over the image, so it reads
     // clean regardless of how dark / colourful the photo is.  The
@@ -12398,7 +12398,7 @@ function refreshQuoteProposal(){
       // on a brand-ink scrim at the bottom so the white serif italic
       // reads cleanly over the photo.
       '<div style="margin:0 -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
-        '<img src="brand/team_lineup_ute.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/6;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
+        '<img src="brand/team_winter_cover.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/6;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
         '<div style="position:absolute;left:0;right:0;bottom:0;padding:10px 36px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.78));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:13.5px;letter-spacing:.02em">The Flood Roofing crew · Northland</div>'+
       '</div>';
     void team;
@@ -12992,7 +12992,7 @@ function refreshQuoteProposal(){
         }).join('')+
       '</div>';
     partInclusions =
-      edHeading('2','The work & your roof','Your Investment',{chapter:PROPOSAL_CHAPTERS[1],chapters:PROPOSAL_CHAPTERS})+
+      edHeading('2','The work & your roof plan','Your New Roof',{chapter:PROPOSAL_CHAPTERS[1],chapters:PROPOSAL_CHAPTERS})+
       '<div style="display:grid;grid-template-columns:1.25fr 1fr;gap:30px;align-items:start">'+
         // Left — scope of work
         '<div>'+
@@ -13263,7 +13263,7 @@ function refreshQuoteProposal(){
           '</div>';
       }
       partOptionsSelections =
-        edHeading('3','Your upgrade options','Choose Your Roof',{chapter:PROPOSAL_CHAPTERS[2],chapters:PROPOSAL_CHAPTERS})+
+        edHeading('3','Your options & price','Choose Your Options',{chapter:PROPOSAL_CHAPTERS[2],chapters:PROPOSAL_CHAPTERS})+
         // One-line "how this works" so the page explains itself.
         '<div class="ed-body" style="margin:-6px 0 7px;font-size:12px;color:var(--ed-ink-2);line-height:1.45">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is in the panel below.</div>'+
         _extraRoofsPanel+
