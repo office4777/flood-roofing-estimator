@@ -1887,6 +1887,12 @@ html.customer-view{ overflow-x:hidden; }
   var _cq = new URLSearchParams(location.search).get('q');
   if (_cq) {
     window.__CUSTOMER_TOKEN = _cq;
+    // Fire-and-forget warm-up: a free-tier backend spins down when idle, and
+    // its first request (a cold start) is what makes the customer link feel
+    // slow. Kick a /health ping the instant we know this is a customer view,
+    // so the server wakes while this 1.7 MB page is still parsing — by the
+    // time bootCustomerView() runs the real /q fetch, it's usually warm.
+    try { fetch(BACKEND + '/health', { cache:'no-store', mode:'cors' }).catch(function(){}); } catch(e){}
     var _lsc = document.getElementById('login-screen'); if (_lsc) _lsc.style.display='none';
     var _apc = document.querySelector('.app'); if (_apc) _apc.style.display='none';
     // Instant loading splash — the quote fetch (with eventual-consistency
@@ -1902,7 +1908,7 @@ html.customer-view{ overflow-x:hidden; }
         '<div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;font-weight:700;opacity:.7;margin-bottom:18px">Flood Roofing</div>'+
         '<div style="font-size:17px;font-weight:600;margin-bottom:22px">Loading your quote…</div>'+
         '<div style="position:relative;width:min(280px,70vw);height:5px;border-radius:3px;background:rgba(255,255,255,.2);overflow:hidden"><i style="position:absolute;top:0;bottom:0;width:40%;border-radius:3px;background:#0099e0;animation:_spSlide 1.1s ease-in-out infinite"></i></div>'+
-        '<div style="font-size:12px;opacity:.6;margin-top:16px">Just a moment</div>';
+        '<div id="custSplashSub" style="font-size:12px;opacity:.6;margin-top:16px">Just a moment</div>';
       (document.body || document.documentElement).appendChild(_sp);
     } catch(e){}
     return;
@@ -10130,6 +10136,9 @@ function _fitCustomerView(){
   if (z > 0 && isFinite(z)) root.style.zoom = z;
 }
 async function bootCustomerView(token){
+  var _fetched = false;   // true once /q returned a quote — a later throw is a
+                          // render problem, not a missing quote, so we mustn't
+                          // tell the customer the quote can't be found.
   try {
     // Read the optional &j=<jobNo> the office side tacks on copyCustomerLink
     // so the browser tab reads "Flood Roofing Quote #<n>" instead of the
@@ -10141,21 +10150,51 @@ async function bootCustomerView(token){
     document.title = urlJobNo
       ? ('Flood Roofing Quote #' + urlJobNo)
       : 'Your Roofing Proposal';
-    // The customer often opens the link a heartbeat after the office
-    // copied it, before Supabase's read replica has caught up. Retry a
-    // few times on 404 so the eventual-consistency window doesn't show
-    // a scary "Quote unavailable" page for a perfectly valid token.
-    var r, attempts = 0, lastStatus = 0;
-    while (attempts < 5){
-      r = await fetch(PROXY + '/q/' + encodeURIComponent(token), { cache:'no-store' });
-      lastStatus = r.status;
-      if (r.ok) break;
-      if (r.status !== 404) break; // 500 / network are real errors — bail
-      attempts++;
-      await new Promise(function(res){ setTimeout(res, 600 * attempts); });
+    // Two reasons the first hit can fail for a perfectly valid link:
+    //  1. Supabase's read replica hasn't caught up yet (404 right after the
+    //     office copied the link) — an eventual-consistency window.
+    //  2. The backend is cold — a free-tier host that has spun down answers
+    //     the first request with a 502/503 or a dropped connection, then
+    //     works a few seconds later once it's awake.
+    // So we retry on 404 *and* on 5xx / network errors, and only give up on
+    // a real client error (a 4xx that isn't 404) or after the budget runs
+    // out. lastFail tells the error page whether the quote was genuinely
+    // missing ('missing') or the server was unreachable ('unreachable').
+    // Separate budgets: a 404 usually means Supabase's replica is a beat
+    // behind (resolves in ~1s), so a handful of quick retries is plenty and
+    // we fail fast when the quote is genuinely gone. A 5xx / network error
+    // means a cold backend that can take 10-15s to wake, so we're patient.
+    var r = null, lastStatus = 0, lastFail = 'missing';
+    var notFound = 0, serverDown = 0;
+    var MAX_404 = 4, MAX_DOWN = 9;
+    while (true){
+      try {
+        r = await fetch(PROXY + '/q/' + encodeURIComponent(token), { cache:'no-store' });
+        lastStatus = r.status;
+        if (r.ok) break;
+        if (r.status === 404) { lastFail = 'missing'; notFound++; if (notFound >= MAX_404) break; }
+        else if (r.status >= 500) { lastFail = 'unreachable'; serverDown++; if (serverDown >= MAX_DOWN) break; }
+        else { lastFail = 'missing'; break; } // other 4xx — a real client error, don't retry
+      } catch(err){
+        // Network drop / timeout — the backend is almost certainly waking up.
+        r = null; lastStatus = 0; lastFail = 'unreachable'; serverDown++;
+        if (serverDown >= MAX_DOWN) break;
+      }
+      // Once we've waited a beat, reassure the customer so a cold-start wait
+      // doesn't read as broken.
+      if (notFound + serverDown >= 2){
+        try {
+          var _sub = document.getElementById('custSplashSub');
+          if (_sub) _sub.textContent = serverDown
+            ? 'Waking up the server — this can take a few seconds…'
+            : 'Almost there…';
+        } catch(e){}
+      }
+      await new Promise(function(res){ setTimeout(res, Math.min(600 * (notFound + serverDown), 2200)); });
     }
-    if (!r || !r.ok) throw new Error('not found:' + lastStatus);
+    if (!r || !r.ok){ var _e = new Error('quote fetch failed:' + lastStatus); _e.kind = lastFail; throw _e; }
     var d = await r.json();
+    _fetched = true;
     window.S = window.S || {};
     S.quote = d.quote || {};
     if (!S.quote.proposalSections) S.quote.proposalSections = {};
@@ -10199,15 +10238,32 @@ async function bootCustomerView(token){
     var _sp = document.getElementById('custSplash'); if (_sp && _sp.parentNode) _sp.parentNode.removeChild(_sp);
   } catch(e){
     console.error('BOOTCUST_ERR', e && (e.stack||e.message));
+    // "unreachable" — the server was cold/down after all retries; the quote
+    // may be perfectly fine, so lead with a Try-again button. "missing" —
+    // the server answered but has no quote at this token. A throw *after* the
+    // fetch succeeded is a display problem, not a missing quote — treat it
+    // like "unreachable" so we never wrongly claim the quote is gone.
+    var unreachable = (e && e.kind === 'unreachable') || _fetched;
+    var _sp2 = document.getElementById('custSplash'); if (_sp2 && _sp2.parentNode) _sp2.parentNode.removeChild(_sp2);
+    window.retryCustomerView = function(btn){
+      try { if (btn){ btn.disabled = true; btn.textContent = 'Loading…'; } } catch(_){}
+      bootCustomerView(window.__CUSTOMER_TOKEN);
+    };
+    var icon = unreachable ? '🌐' : '📄';
+    var heading = unreachable ? 'Taking longer than usual' : 'We can\'t find that quote';
+    var body = unreachable
+      ? 'We couldn\'t reach our server just now — it may have been waking up. Your quote is probably fine; give it another try.'
+      : 'The link looks correct but the quote is no longer published — it may have been replaced with a newer version, or the office withdrew it.';
     document.body.innerHTML =
       '<div style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:60px auto;color:#33414f;padding:0 24px">'+
         '<div style="text-align:center;font-size:13px;color:#6b7280;letter-spacing:.04em;text-transform:uppercase;font-weight:700;margin-bottom:18px">Flood Roofing LTD</div>'+
         '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:32px 28px;text-align:center;box-shadow:0 10px 30px rgba(10,22,40,.06)">'+
-          '<div style="font-size:38px;line-height:1;margin-bottom:14px">📄</div>'+
-          '<h2 style="font-weight:800;font-size:20px;margin:0 0 8px;color:#0a1628">We can\'t find that quote</h2>'+
-          '<p style="font-size:14px;line-height:1.55;margin:6px 0 18px;color:#475569">The link looks correct but the quote is no longer published — it may have been replaced with a newer version, or the office withdrew it.</p>'+
+          '<div style="font-size:38px;line-height:1;margin-bottom:14px">'+icon+'</div>'+
+          '<h2 style="font-weight:800;font-size:20px;margin:0 0 8px;color:#0a1628">'+heading+'</h2>'+
+          '<p style="font-size:14px;line-height:1.55;margin:6px 0 18px;color:#475569">'+body+'</p>'+
+          '<button onclick="retryCustomerView(this)" style="width:100%;padding:13px;background:#0099e0;border:none;color:#fff;border-radius:9px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:6px">↻ Try again</button>'+
           '<div style="font-size:13px;color:#0a1628;background:#f1f5f9;border-radius:8px;padding:12px 14px;margin-top:14px;text-align:left;line-height:1.7">'+
-            '<strong>Next step:</strong> give us a quick call and we\'ll send you a fresh link.'+
+            '<strong>Still stuck?</strong> give us a quick call and we\'ll send you a fresh link.'+
             '<br>📞 <a href="tel:08004FLOOD" style="color:#0099cc;font-weight:700;text-decoration:none">0800 4 FLOOD</a>'+
             '<br>✉ <a href="mailto:office@floodroofing.co.nz" style="color:#0099cc;font-weight:700;text-decoration:none">office@floodroofing.co.nz</a>'+
           '</div>'+
