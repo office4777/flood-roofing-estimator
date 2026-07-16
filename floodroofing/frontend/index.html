@@ -2736,6 +2736,8 @@ html.customer-view{ overflow-x:hidden; }
     <strong style="font-size:13px;color:#0a1628">Job Pack Designer</strong>
     <span style="font-size:11px;color:var(--text2)">— click any field to edit · everything you change here lands in the PDF</span>
     <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
+      <button onclick="undoLast()" class="mat-btn mat-btn-light no-print" style="padding:7px 12px;font-size:12px" title="Undo the last change (e.g. a deleted cut-list row)">↩ Undo</button>
+      <button onclick="redoLast()" class="mat-btn mat-btn-light no-print" style="padding:7px 12px;font-size:12px" title="Redo">↪ Redo</button>
       <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark" style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
       <button onclick="printJobPack()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
       <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
@@ -2809,6 +2811,8 @@ html.customer-view{ overflow-x:hidden; }
     <strong style="font-size:13px;color:#0a1628">Job Pack Designer</strong>
     <span style="font-size:11px;color:var(--text2)">— actions, mirrored from the top bar</span>
     <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
+      <button onclick="undoLast()" class="mat-btn mat-btn-light" style="padding:7px 12px;font-size:12px" title="Undo the last change (e.g. a deleted cut-list row)">↩ Undo</button>
+      <button onclick="redoLast()" class="mat-btn mat-btn-light" style="padding:7px 12px;font-size:12px" title="Redo">↪ Redo</button>
       <button onclick="saveMaterialsAsPdf()"    class="mat-btn mat-btn-dark"  style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
       <button onclick="printJobPack()"          class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
       <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
@@ -20360,6 +20364,10 @@ function _captureSnapState() {
     matSheetRowHidden: DRAW.matSheetRowHidden || {},
     matCutListExtras: DRAW.matCutListExtras || {},
     sheetPlanDeletedIds: DRAW.sheetPlanDeletedIds || [],
+    gutterRowHidden: DRAW.gutterRowHidden || {},
+    gutterRowQty: DRAW.gutterRowQty || {},
+    gutterRowLen: DRAW.gutterRowLen || {},
+    flashLayoutOverrides: DRAW.flashLayoutOverrides || {},
     scaleMetresPerPx: DRAW.scaleMetresPerPx
   });
 }
@@ -20381,6 +20389,10 @@ function _applySnapState(snapStr) {
   DRAW.matSheetExtras = s.matSheetExtras || [];
   DRAW.matSheetRowHidden = s.matSheetRowHidden || {};
   DRAW.matCutListExtras = s.matCutListExtras || {};
+  DRAW.gutterRowHidden = s.gutterRowHidden || {};
+  DRAW.gutterRowQty = s.gutterRowQty || {};
+  DRAW.gutterRowLen = s.gutterRowLen || {};
+  if (s.flashLayoutOverrides) DRAW.flashLayoutOverrides = s.flashLayoutOverrides;
   if (s.scaleMetresPerPx != null) DRAW.scaleMetresPerPx = s.scaleMetresPerPx;
 }
 // Push a pre-captured snapshot string onto the undo stack. Used by
@@ -20409,6 +20421,7 @@ function undoLast() {
   try { renderInfoPanel && renderInfoPanel(); } catch(e){}
   try { renderRoofSheetPlan && renderRoofSheetPlan(); } catch(e){}
   try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
+  try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
   redrawAll();
   try { syncToRoofData(); } catch(e){}
   try { updateMeasTotals && updateMeasTotals(); } catch(e){}
@@ -20423,6 +20436,7 @@ function redoLast() {
   try { renderInfoPanel && renderInfoPanel(); } catch(e){}
   try { renderRoofSheetPlan && renderRoofSheetPlan(); } catch(e){}
   try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
+  try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
   redrawAll();
   try { syncToRoofData(); } catch(e){}
   try { updateMeasTotals && updateMeasTotals(); } catch(e){}
@@ -24743,9 +24757,93 @@ function _matGutterPieces(){
   });
   return ded;
 }
+// Order-ready gutter pieces for ONE physical run length (metres).
+// Rules (supplier ordering):
+//   1. Add 0.4 m waste to the measured run.
+//   2. A piece can be at most 8 m long.
+//   3. If it must split, add 0.1 m lap PER JOIN, then divide into equal
+//      pieces, each rounded UP to the nearest 0.1 m.
+// Examples:
+//   2.07  → +0.4 = 2.47              → 1 × 2.5 m
+//   11.93 → +0.4 = 12.33  (> 8, 2pc) → (12.33 + 0.1)/2 = 6.215 → 2 × 6.3 m
+//   14.0  → +0.4 = 14.4   (> 8, 2pc) → (14.4  + 0.1)/2 = 7.25  → 2 × 7.3 m
+function _gutterOrderPieces(runM){
+  var w = (+runM || 0) + 0.4;
+  var ceil01 = function(x){ return Math.ceil(x * 10 - 1e-6) / 10; };
+  if (!(w > 0)) return [];
+  if (w <= 8 + 1e-9) return [ ceil01(w) ];
+  // Smallest number of pieces n so each piece (incl. laps) fits within 8 m.
+  var n = 2;
+  while ((w + 0.1 * (n - 1)) / n > 8 + 1e-9) n++;
+  var piece = ceil01((w + 0.1 * (n - 1)) / n);
+  var arr = [];
+  for (var i = 0; i < n; i++) arr.push(piece);
+  return arr;
+}
 function _matGutterPref(key, val){
   try { localStorage.setItem(key, String(val == null ? '' : val)); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
+}
+// Edit / delete the auto (drawn) gutter cut-list rows. Overrides are keyed
+// by the auto-computed piece length (toFixed(1)); undo/redo captures them.
+function _gutterRowSetLen(origKey, valM){
+  if (typeof saveSnapshot === 'function') saveSnapshot();
+  if (!DRAW.gutterRowLen) DRAW.gutterRowLen = {};
+  var f = parseFloat(valM);
+  if (!isFinite(f) || f <= 0) delete DRAW.gutterRowLen[origKey];
+  else DRAW.gutterRowLen[origKey] = Math.round(f * 10) / 10;
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _gutterRowSetQty(origKey, val){
+  if (typeof saveSnapshot === 'function') saveSnapshot();
+  if (!DRAW.gutterRowQty) DRAW.gutterRowQty = {};
+  var n = parseInt(val, 10);
+  DRAW.gutterRowQty[origKey] = (isFinite(n) && n >= 0) ? n : 0;
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _gutterRowHide(origKey){
+  if (typeof saveSnapshot === 'function') saveSnapshot();
+  if (!DRAW.gutterRowHidden) DRAW.gutterRowHidden = {};
+  DRAW.gutterRowHidden[origKey] = true;
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _gutterRowsReset(){
+  if (typeof saveSnapshot === 'function') saveSnapshot();
+  DRAW.gutterRowHidden = {}; DRAW.gutterRowQty = {}; DRAW.gutterRowLen = {};
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+// The single source of truth for the ordered gutter cut list — drawn runs
+// expanded by _gutterOrderPieces (waste + 8 m cap + lap), grouped by length,
+// with the per-length hide/qty/length overrides applied, then the manual
+// extra rows. Used by the Job Pack section AND _matBuildCutList('gutter')
+// (Materials tab, supplier order PDF, order-confirm dialog) so every surface
+// shows identical numbers.
+function _gutterCutRows(){
+  var gRuns = (typeof _matGutterPieces === 'function') ? _matGutterPieces() : [];
+  var hidden = DRAW.gutterRowHidden || {}, qtyOv = DRAW.gutterRowQty || {}, lenOv = DRAW.gutterRowLen || {};
+  var buckets = {}, order = [];
+  gRuns.forEach(function(r){
+    _gutterOrderPieces(r.lengthM).forEach(function(len){
+      var k = len.toFixed(1);
+      if (!buckets[k]) { buckets[k] = { origKey:k, len:len, qty:0 }; order.push(k); }
+      buckets[k].qty++;
+    });
+  });
+  var rows = [];
+  order.forEach(function(k){
+    if (hidden[k]) return;
+    var b = buckets[k];
+    var qty = (qtyOv[k] != null) ? +qtyOv[k] : b.qty;
+    var len = (lenOv[k] != null) ? +lenOv[k] : b.len;
+    if (!(qty > 0) || !(len > 0)) return;
+    rows.push({ origKey:k, len:len, qty:qty });
+  });
+  rows.sort(function(a, b){ return b.len - a.len; });
+  (_matGutterExtrasGet() || []).forEach(function(x, xi){
+    var len = +x.len || 0, qty = +x.qty || 0;
+    if (len > 0 && qty > 0) rows.push({ len:len, qty:qty, isExtra:true, extraIdx:xi });
+  });
+  return rows;
 }
 // Manual extra gutter rows ({qty, len} in metres) — counted into the
 // banner total and the dropper/bracket autos like drawn runs.
@@ -24953,18 +25051,45 @@ function _jpRenderCutLists(content, page, idx){
     ['marley-typhoon', 'Marley Typhoon (PVC)'],
   ];
   var gutterChoice = (document.getElementById('matGutter') || {}).value || 'none';
-  var gPieces = _matGutterPieces();
-  // Manual extra rows expand into pieces so the banner total and the
-  // dropper/bracket autos treat them exactly like drawn runs.
-  var gExtras = _matGutterExtrasGet();
-  gExtras.forEach(function(x){
-    for (var xi = 0; xi < (x.qty || 0); xi++) gPieces.push({ lengthM: +x.len || 0, _extra: true });
+  // Drawn gutter RUNS (physical lengths). Each run becomes one or more
+  // ordered pieces via _gutterOrderPieces (waste + 8 m cap + lap).
+  var gRuns = _matGutterPieces();
+  var gExtras = _matGutterExtrasGet();          // manual literal order rows {qty, len}
+  // Auto ordered pieces from the drawn runs, grouped by length, with
+  // per-length hide / qty / length overrides so the rows are editable.
+  var _gHidden = DRAW.gutterRowHidden || {}, _gQtyOv = DRAW.gutterRowQty || {}, _gLenOv = DRAW.gutterRowLen || {};
+  var _gAutoBuckets = {}, _gAutoOrder = [];
+  gRuns.forEach(function(r){
+    _gutterOrderPieces(r.lengthM).forEach(function(len){
+      var k = len.toFixed(1);
+      if (!_gAutoBuckets[k]) { _gAutoBuckets[k] = { origKey:k, len:len, qty:0 }; _gAutoOrder.push(k); }
+      _gAutoBuckets[k].qty++;
+    });
   });
-  var gTotalLm = gPieces.reduce(function(s, p){ return s + p.lengthM; }, 0);
+  var gAutoRows = [];
+  _gAutoOrder.forEach(function(k){
+    if (_gHidden[k]) return;
+    var b = _gAutoBuckets[k];
+    var qty = (_gQtyOv[k] != null) ? +_gQtyOv[k] : b.qty;
+    var len = (_gLenOv[k] != null) ? +_gLenOv[k] : b.len;
+    if (!(qty > 0) || !(len > 0)) return;
+    gAutoRows.push({ origKey:k, len:len, qty:qty });
+  });
+  gAutoRows.sort(function(a, b){ return b.len - a.len; });
+  var _gOverridesActive = _gAutoOrder.some(function(k){ return _gHidden[k] || _gQtyOv[k] != null || _gLenOv[k] != null; });
+  // Run list drives droppers (one per run) + brackets (per run length) —
+  // drawn runs plus each manual extra piece, exactly as before.
+  var runList = gRuns.map(function(r){ return r.lengthM; });
+  gExtras.forEach(function(x){ for (var i = 0; i < (+x.qty || 0); i++) runList.push(+x.len || 0); });
+  // Banner + total reflect the ORDERED pieces (auto rows + extras).
+  var gOrderPieceCount = gAutoRows.reduce(function(s, r){ return s + r.qty; }, 0)
+    + gExtras.reduce(function(s, x){ return s + (+x.qty || 0); }, 0);
+  var gTotalLm = gAutoRows.reduce(function(s, r){ return s + r.len * r.qty; }, 0)
+    + gExtras.reduce(function(s, x){ return s + (+x.len || 0) * (+x.qty || 0); }, 0);
   var _gInclRaw = localStorage.getItem('fr_jp_gutter_include');
   var gutterIncluded = _gInclRaw != null
     ? _gInclRaw === '1'
-    : (gutterChoice !== 'none' || gPieces.length > 0);   // sensible default until first tick
+    : (gutterChoice !== 'none' || gRuns.length > 0 || gExtras.length > 0);   // sensible default until first tick
   // Default to 125mm Box Gutter the moment the section is included —
   // the spec-bar select follows so pricing/order stay in step.
   if (gutterIncluded && gutterChoice === 'none') {
@@ -24979,7 +25104,7 @@ function _jpRenderCutLists(content, page, idx){
   html += '<div class="mat-section">'+
     _matSectionHead('#7c3aed', 'Gutters (Gutter, Brackets and Droppers)',
       gutterIncluded ? esc(gutterLabel) : '',
-      (gutterIncluded && gPieces.length ? gPieces.length+' pcs · '+gTotalLm.toFixed(1)+' m' : '') + gutterTick);
+      (gutterIncluded && gOrderPieceCount ? gOrderPieceCount+' pcs · '+gTotalLm.toFixed(1)+' m' : '') + gutterTick);
   if (gutterIncluded) {
     // Gutter type picker (mirrors the spec-bar select).
     var gTypeSel = '<select onchange="_matGutterTypeSet(this.value)" '+
@@ -24987,25 +25112,25 @@ function _jpRenderCutLists(content, page, idx){
       GUTTER_TYPES.map(function(t){ return '<option value="'+t[0]+'"'+(t[0]===gutterChoice?' selected':'')+'>'+esc(t[1])+'</option>'; }).join('')+
     '</select>';
     html += '<div class="cons-row"><div class="cons-row-label">Gutter type</div><div class="cons-row-qty" style="font-weight:400">'+gTypeSel+'</div><div class="cons-row-sub"></div></div>';
-    // Gutter runs, grouped by length like the ridging list (drawn runs
-    // only — manual extras get their own editable rows below).
-    var gDrawn = gPieces.filter(function(p){ return !p._extra; });
-    if (!gDrawn.length && !gExtras.length) {
+    // Ordered gutter pieces (waste + 8 m cap + lap), grouped by length.
+    // Each row is editable (qty + length) with a delete, backed by the
+    // gutterRow* override maps so undo/redo can restore it.
+    if (!gRuns.length && !gExtras.length) {
       html += '<div class="cut-list-empty">Draw gutter lines on the Map Roof tab to populate this list, or add rows below.</div>';
-    } else if (gDrawn.length) {
-      var gBuckets = {}, gOrder = [];
-      gDrawn.forEach(function(p){
-        var k = p.lengthM.toFixed(1);
-        if (!gBuckets[k]) { gBuckets[k] = 0; gOrder.push(k); }
-        gBuckets[k]++;
-      });
-      html += '<div class="mat-list">'+gOrder.map(function(k){
+    } else if (gAutoRows.length) {
+      html += '<div class="mat-list">'+gAutoRows.map(function(r){
         return '<div class="mat-list-row">'+
-          '<span class="mat-list-qty">'+gBuckets[k]+'</span>'+
+          '<span class="mat-list-qty"><input type="number" min="0" step="1" value="'+r.qty+'" onfocus="this.select()" '+
+            'onchange="_gutterRowSetQty(\''+r.origKey+'\',this.value)"></span>'+
           '<span class="mat-list-at">@</span>'+
-          '<span class="mat-list-len"><span class="mat-list-lenval">'+k+'</span><span class="mat-list-unit">m</span></span>'+
+          '<span class="mat-list-len"><input type="number" min="0.1" step="0.1" value="'+r.len.toFixed(1)+'" onfocus="this.select()" '+
+            'onchange="_gutterRowSetLen(\''+r.origKey+'\',this.value)"><span class="mat-list-unit">m</span></span>'+
+          '<button class="mat-list-del" onclick="_gutterRowHide(\''+r.origKey+'\')" title="Delete row">×</button>'+
         '</div>';
       }).join('')+'</div>';
+    }
+    if (_gOverridesActive) {
+      html += '<div class="pdf-hide" style="margin:2px 0 4px"><a onclick="_gutterRowsReset()" style="cursor:pointer;color:#3b82f6;font-size:10.5px;text-decoration:underline">↺ Reset gutter rows to auto</a></div>';
     }
     // Manual extra rows — editable qty @ length with a delete.
     if (gExtras.length) {
@@ -25024,7 +25149,7 @@ function _jpRenderCutLists(content, page, idx){
     // Droppers — size select (80mm default) + qty (auto: one per run).
     var dropSize = localStorage.getItem('fr_gutter_dropper_size') || '80';
     var dropQtyRaw = localStorage.getItem('fr_gutter_dropper_qty');
-    var dropAuto = gPieces.length;
+    var dropAuto = runList.length;
     var dropQty = (dropQtyRaw != null && dropQtyRaw !== '') ? parseInt(dropQtyRaw, 10) || 0 : dropAuto;
     var dropSel = '<select onchange="_matGutterPref(\'fr_gutter_dropper_size\',this.value)" '+
       'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0">'+
@@ -25041,7 +25166,7 @@ function _jpRenderCutLists(content, page, idx){
     // Brackets — internal/external + qty (auto: 800mm spacing + 1 per run).
     var brType = localStorage.getItem('fr_gutter_bracket_type') || 'internal';
     var brQtyRaw = localStorage.getItem('fr_gutter_bracket_qty');
-    var brAuto = gPieces.reduce(function(s, p){ return s + Math.ceil(p.lengthM / 0.8) + 1; }, 0);
+    var brAuto = runList.reduce(function(s, len){ return s + Math.ceil((+len || 0) / 0.8) + 1; }, 0);
     var brQty = (brQtyRaw != null && brQtyRaw !== '') ? parseInt(brQtyRaw, 10) || 0 : brAuto;
     var brSel = '<select onchange="_matGutterPref(\'fr_gutter_bracket_type\',this.value)" '+
       'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0">'+
@@ -26333,6 +26458,19 @@ function _flashRefreshAfterEdit(){
 function renderFlashingLayout(){ return renderMatRoofMap(); }
 
 function _matBuildCutList(type, waste) {
+  // Gutter has its own ordering rule (+0.4 m waste, 8 m max piece, 0.1 m
+  // lap per join, round up to 0.1 m) and its own edit/hide overrides —
+  // route it through the shared _gutterCutRows so the Materials tab, the
+  // supplier order PDF and the order-confirm dialog all match the Job Pack.
+  if (type === 'gutter') {
+    var grows = (typeof _gutterCutRows === 'function') ? _gutterCutRows() : [];
+    var gtot = grows.reduce(function(s, r){ return s + r.len * r.qty; }, 0);
+    var gpc  = grows.reduce(function(s, r){ return s + r.qty; }, 0);
+    return {
+      rows: grows.map(function(r){ return { letter:'', length:r.len, qty:r.qty }; }),
+      totalLm: gtot, pieceCount: gpc, typeKey:'gutter'
+    };
+  }
   // Source rows from the Flashing layout labelled-line collection so
   // the cut list inherits the letter refs + uniform +0.4 m wastage
   // shown on the diagram. The `waste` arg is now ignored — auto length
