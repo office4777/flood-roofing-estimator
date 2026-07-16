@@ -2140,6 +2140,20 @@ html.customer-view{ overflow-x:hidden; }
     </div>
     </div><!-- end roofBgBody -->
 
+    <!-- Fergus Roof Photos — a collapsible strip of the linked Fergus job's
+         site photos so they're glanceable while drawing the roof map. Auto-
+         loads when the tab opens (if a job is linked); click the header to
+         drop it down and click any photo to enlarge it. -->
+    <div id="fergusRoofPhotosBox" style="margin-top:10px;border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden">
+      <div onclick="_toggleFergusRoofPhotos()" role="button" tabindex="0" style="display:flex;align-items:center;gap:9px;cursor:pointer;padding:10px 12px;user-select:none">
+        <span style="font-weight:700;font-size:13px;color:#0a1628">📷 Fergus Roof Photos</span>
+        <span id="fergusRoofPhotosCount" style="font-size:11px;font-weight:600;color:#0099cc"></span>
+        <span style="font-weight:400;color:var(--text2);font-size:11px">— view the job's site photos while you draw</span>
+        <span id="fergusRoofPhotosChevron" style="margin-left:auto;font-size:12px;color:#94a3b8">▾</span>
+      </div>
+      <div id="fergusRoofPhotosBody" style="display:none;padding:0 12px 12px"></div>
+    </div>
+
     <!-- Full-size satellite finder popup — the interactive map lives here
          so the Map Roof tab opens straight to the canvas. Opened from the
          aerial preview above; closes automatically after "Use this view". -->
@@ -4506,6 +4520,9 @@ function gotoTab(t) {
     else { _pp.style.display='none'; _pp.classList.remove('is-open'); }
   })();
   if(t==='roof'){
+    // Pre-load the linked job's Fergus photos so the "Fergus Roof Photos"
+    // drop-down is ready the moment the user opens it.
+    try { _fergusRoofPhotosOnTabOpen(); } catch(e){}
     // Auto-fly the satellite map to the job's saved site address on
     // tab entry, but only the FIRST time per address (so a manual
     // pan/zoom by the user isn't trampled on every tab switch).
@@ -29430,6 +29447,114 @@ function closeFergusPhotoPicker(){
   if (modal) modal.style.display = 'none';
   _fergusRevokeObjUrls();
   _fergusPickTarget = null;
+}
+
+// ── Map Roof tab: "Fergus Roof Photos" drop-down ────────────────────
+// A collapsible strip on the Map Roof tab that mirrors the linked Fergus
+// job's photos so the estimator can eyeball them while drawing the roof.
+// Object URLs are kept in their own array (NOT _fergusPickObjUrls) so
+// closing the photo-picker modal doesn't revoke these.
+var _fergusRoofPhotoUrls  = [];
+var _fergusRoofPhotosLoaded = false;   // have we populated the grid?
+var _fergusRoofPhotosJobId  = null;    // which linked job the grid is for
+function _fergusRoofPhotosRevoke(){
+  _fergusRoofPhotoUrls.forEach(function(u){ try { URL.revokeObjectURL(u); } catch(e){} });
+  _fergusRoofPhotoUrls = [];
+}
+// Called from gotoTab('roof'): keeps the box collapsed but pre-loads the
+// photos so the drop-down is instant. Reloads when the linked job changes.
+function _fergusRoofPhotosOnTabOpen(){
+  var box = document.getElementById('fergusRoofPhotosBox');
+  if (!box) return;
+  var jobId = (window.S && S.linkedJobId) || null;
+  // Job changed (or first open) — invalidate any cached grid.
+  if (jobId !== _fergusRoofPhotosJobId){
+    _fergusRoofPhotosLoaded = false;
+    _fergusRoofPhotosJobId = jobId;
+    var cnt0 = document.getElementById('fergusRoofPhotosCount'); if (cnt0) cnt0.textContent = '';
+    var body0 = document.getElementById('fergusRoofPhotosBody'); if (body0) body0.innerHTML = '';
+  }
+  if (!jobId) return;                 // nothing to load until a job is linked
+  if (_fergusRoofPhotosLoaded) return; // already have it
+  _loadFergusRoofPhotos(false);
+}
+function _toggleFergusRoofPhotos(){
+  var body = document.getElementById('fergusRoofPhotosBody');
+  var chev = document.getElementById('fergusRoofPhotosChevron');
+  if (!body) return;
+  var open = body.style.display !== 'none';
+  if (open){ body.style.display = 'none'; if (chev) chev.textContent = '▾'; return; }
+  body.style.display = 'block'; if (chev) chev.textContent = '▴';
+  // Load on first expand if the tab-open pre-load hasn't run (or was empty).
+  if (!_fergusRoofPhotosLoaded) _loadFergusRoofPhotos(false);
+}
+async function _loadFergusRoofPhotos(force){
+  var body = document.getElementById('fergusRoofPhotosBody');
+  var cnt  = document.getElementById('fergusRoofPhotosCount');
+  if (!body) return;
+  if (_fergusRoofPhotosLoaded && !force) return;
+  if (!window.S || !S.linkedJobId){
+    if (cnt) cnt.textContent = '';
+    body.innerHTML = '<div style="padding:14px 2px;color:var(--text2);font-size:12px;line-height:1.5">'+
+      'Link a Fergus job to see its photos here — <strong>Home → 📂 Select Job → Fergus</strong>.</div>';
+    return;
+  }
+  _fergusRoofPhotosJobId = S.linkedJobId;
+  var _retry = ' <button onclick="_loadFergusRoofPhotos(true)" style="margin-left:6px;padding:3px 9px;background:#0a1628;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">↻ Retry</button>';
+  body.innerHTML = '<div style="padding:14px 2px;color:var(--text2);font-size:12px">Loading photos from Fergus…</div>';
+  var res;
+  try { res = await _fergusListPhotos(); }
+  catch(e){ body.innerHTML = '<div style="padding:12px 2px;color:#b91c1c;font-size:12px">Couldn\'t reach Fergus: '+esc(e.message)+_retry+'</div>'; return; }
+  if (!res.ok || !res.files.length){
+    if (cnt) cnt.textContent = '';
+    body.innerHTML = '<div style="padding:12px 2px;color:var(--text2);font-size:12px;line-height:1.5">'+
+      '<span style="color:#b91c1c;font-weight:600">No photos came back for this job.</span><br>'+
+      'Fergus may keep this job\'s gallery behind its web-app login.'+_retry+'</div>';
+    return;
+  }
+  _fergusRoofPhotosLoaded = true;
+  _fergusRoofPhotosRevoke();
+  if (cnt) cnt.textContent = res.files.length + ' photo' + (res.files.length === 1 ? '' : 's');
+  body.innerHTML =
+    '<div style="display:flex;justify-content:flex-end;margin-bottom:6px">'+
+      '<button onclick="_loadFergusRoofPhotos(true)" style="padding:4px 10px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;font-weight:600;color:#0a1628;cursor:pointer">↻ Refresh</button>'+
+    '</div>'+
+    '<div id="fergusRoofPhotoGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px;max-height:280px;overflow-y:auto"></div>';
+  var grid = document.getElementById('fergusRoofPhotoGrid');
+  res.files.forEach(function(f){
+    var cell = document.createElement('div');
+    cell.style.cssText = 'cursor:zoom-in;border-radius:6px;overflow:hidden;background:#0a1628;aspect-ratio:4/3;position:relative';
+    cell.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#5b6677;font-size:10px">loading…</div>';
+    cell.onclick = function(){ _fergusRoofPhotoLightbox(f); };
+    grid.appendChild(cell);
+    _fergusDownloadBlob(f.thumbnail || f.url).then(function(blob){
+      var u = URL.createObjectURL(blob); _fergusRoofPhotoUrls.push(u);
+      cell.innerHTML = '<img src="'+u+'" loading="lazy" style="width:100%;height:100%;object-fit:cover">'+
+        (f.name ? '<div style="position:absolute;bottom:0;left:0;right:0;padding:3px 6px;background:rgba(0,0,0,.6);color:#fff;font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(f.name)+'</div>' : '');
+    }).catch(function(){
+      cell.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#7a8699;font-size:9.5px;text-align:center;padding:6px;line-height:1.3">'+esc(f.name || 'photo')+'<br>(tap to view)</div>';
+    });
+  });
+}
+// Full-size preview of a tapped Fergus photo.
+async function _fergusRoofPhotoLightbox(f){
+  var ov = document.getElementById('fergusPhotoLightbox');
+  if (!ov){
+    ov = document.createElement('div'); ov.id = 'fergusPhotoLightbox'; ov.className = 'no-print';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(10,22,40,.9);z-index:5200;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out';
+    ov.onclick = function(){ ov.style.display = 'none'; ov.innerHTML = ''; if (ov._u){ try { URL.revokeObjectURL(ov._u); } catch(e){} ov._u = null; } };
+    document.body.appendChild(ov);
+  }
+  if (ov._u){ try { URL.revokeObjectURL(ov._u); } catch(e){} ov._u = null; }
+  ov.style.display = 'flex';
+  ov.innerHTML = '<div style="color:#fff;font-size:13px">Loading…</div>';
+  try {
+    var blob = await _fergusDownloadBlob(f.url || f.thumbnail);
+    var u = URL.createObjectURL(blob); ov._u = u;
+    ov.innerHTML = '<img src="'+u+'" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 12px 44px rgba(0,0,0,.55)">'+
+      (f.name ? '<div style="position:absolute;bottom:16px;left:0;right:0;text-align:center;color:#fff;font-size:12.5px;text-shadow:0 1px 5px rgba(0,0,0,.8)">'+esc(f.name)+'</div>' : '')+
+      '<div style="position:absolute;top:16px;right:20px;color:#fff;font-size:26px;line-height:1">✕</div>';
+  } catch(e){ ov.innerHTML = '<div style="color:#fca5a5;font-size:13px">Couldn\'t load the full image. '+esc(e.message)+'</div>'; }
 }
 // Show the raw first-attachment object so the exact download field can
 // be identified when previews fail to load.
