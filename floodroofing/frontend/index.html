@@ -12289,7 +12289,7 @@ function refreshQuoteProposal(){
     // fleet of utes down to just below the team's knees, kept full
     // page width (1100×322, ≈3.42:1) so the crew + branded utes read
     // as one strong horizontal banner.
-    var hero = (heroAsn ? resolveSlotSrc('cover_hero') : null) || 'brand/team_lineup_ute.jpg';
+    var hero = (heroAsn ? resolveSlotSrc('cover_hero') : null) || 'brand/team_lineup_2026.jpg';
     // Full-bleed hero photo + warm-cream title plate underneath.  All
     // type sits on the cream paper, not over the image, so it reads
     // clean regardless of how dark / colourful the photo is.  The
@@ -12398,7 +12398,7 @@ function refreshQuoteProposal(){
       // on a brand-ink scrim at the bottom so the white serif italic
       // reads cleanly over the photo.
       '<div style="margin:0 -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
-        '<img src="brand/team_winter_cover.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/6;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
+        '<img src="brand/team_lineup_ute.jpg" alt="The Flood Roofing crew" style="display:block;width:100%;height:auto;aspect-ratio:21/6;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
         '<div style="position:absolute;left:0;right:0;bottom:0;padding:10px 36px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.78));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:13.5px;letter-spacing:.02em">The Flood Roofing crew · Northland</div>'+
       '</div>';
     void team;
@@ -13575,17 +13575,17 @@ function refreshQuoteProposal(){
     ];
     // Always render the full standard T&C set; any custom text in the
     // Quote tab's "Additional terms" field is appended after it.
-    var clauses = '<div style="column-count:2;column-gap:24px;font-family:var(--ed-sans);font-size:11px;line-height:1.55;color:var(--ed-ink-2)">'+
+    var clauses = '<div style="column-count:2;column-gap:22px;font-family:var(--ed-sans);font-size:10px;line-height:1.4;color:var(--ed-ink-2)">'+
           dflt.map(function(c){
-            return '<div style="margin-bottom:9px;break-inside:avoid"><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em">'+c.h+'</div><div style="margin-top:3px">'+c.b+'</div></div>';
+            return '<div style="margin-bottom:6px;break-inside:avoid"><div class="ed-serif" style="font-style:italic;font-size:11.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em">'+c.h+'</div><div style="margin-top:2px">'+c.b+'</div></div>';
           }).join('')+
         '</div>';
     // Editable "additional terms for this job" — kept OUT of the CSS
     // column flow so inline editing behaves; appended below the clauses.
     var addTerms =
-      '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--ed-line)">'+
-        '<div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em;margin-bottom:3px">Additional terms for this job <span class="qp-edit-hint" style="font-family:var(--ed-sans);font-size:9px;font-style:normal;font-weight:400;color:var(--ed-text2);letter-spacing:.02em">— click to edit</span></div>'+
-        '<div class="qp-editable" contenteditable="true" data-qfield="terms" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11px;line-height:1.55;color:var(--ed-ink-2);min-height:1.3em">'+
+      '<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--ed-line)">'+
+        '<div class="ed-serif" style="font-style:italic;font-size:11.5px;color:var(--ed-ink);font-weight:500;letter-spacing:-.005em;margin-bottom:2px">Additional terms for this job <span class="qp-edit-hint" style="font-family:var(--ed-sans);font-size:9px;font-style:normal;font-weight:400;color:var(--ed-text2);letter-spacing:.02em">— click to edit</span></div>'+
+        '<div class="qp-editable" contenteditable="true" data-qfield="terms" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:10.5px;line-height:1.45;color:var(--ed-ink-2);min-height:1.3em">'+
           (customTerms ? esc2(customTerms) : '<span style="font-style:italic;color:var(--ed-text2);pointer-events:none">Any job-specific terms to add (the standard T&amp;Cs above always apply)…</span>')+
         '</div>'+
       '</div>';
@@ -13595,7 +13595,7 @@ function refreshQuoteProposal(){
       // Payment three-stage band — single horizontal row tucked at
       // the bottom of the T&Cs page.  Vertically compact so all the
       // clauses + the schedule sit on one A4 sheet.
-      '<div class="ed-keep" style="margin-top:18px;border-top:1px solid var(--ed-ink);padding-top:12px;display:flex;align-items:baseline;justify-content:space-between;gap:18px;flex-wrap:wrap">'+
+      '<div class="ed-keep" style="margin-top:10px;border-top:1px solid var(--ed-ink);padding-top:9px;display:flex;align-items:baseline;justify-content:space-between;gap:18px;flex-wrap:wrap">'+
         '<div class="ed-eyebrow">Payment schedule</div>'+
         [['50%','Deposit','~7 days before start'],['50%','Final','Within 7 days of completion']]
         .map(function(p,i){
@@ -13622,7 +13622,7 @@ function refreshQuoteProposal(){
     partSignature =
       edHeading('6','Ready to go ahead?','Accept Your Quote',{chapter:PROPOSAL_CHAPTERS[5],chapters:PROPOSAL_CHAPTERS})+
       // ── Quote summary (selected options + grades + total) ──
-      '<div style="margin-bottom:20px">'+
+      '<div style="margin-bottom:14px">'+
         '<div class="ed-eyebrow" style="margin-bottom:8px">Your quote'+(S.quote.client?' — '+esc2(S.quote.client):'')+'</div>'+
         '<div id="qpAcceptSummary">'+buildAcceptSummaryRows()+'</div>'+
         '<div style="margin-top:10px;padding-top:10px;border-top:2px solid var(--ed-ink)">'+
@@ -13650,7 +13650,7 @@ function refreshQuoteProposal(){
           '</div>'
         : // ── Two ways to accept ──
           '<p class="ed-body-lg" style="max-width:54em;margin:0 0 16px">I, <span class="ed-serif" style="font-style:italic;font-size:15px;color:var(--ed-ink)">'+esc2(S.quote.client||'—')+'</span>, accept the option(s) and grade selections shown above and agree to the terms &amp; conditions set out in this proposal.</p>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:stretch;margin-bottom:22px">'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:stretch;margin-bottom:14px">'+
             // Option A — sign & return (prints)
             '<div style="border:1px solid var(--ed-line);padding:16px 18px">'+
               '<div class="ed-eyebrow" style="margin-bottom:14px">Option A · sign &amp; return</div>'+
@@ -13666,7 +13666,7 @@ function refreshQuoteProposal(){
             '</div>'+
           '</div>'+
           // Company representative line (prints)
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-bottom:30px">'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-bottom:16px">'+
             '<div><div style="border-bottom:1px solid var(--ed-ink);height:40px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">'+esc2(company||'Company')+' representative</div></div>'+
             '<div><div style="border-bottom:1px solid var(--ed-ink);height:40px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:6px">Date</div></div>'+
           '</div>'
@@ -13683,7 +13683,7 @@ function refreshQuoteProposal(){
       // aspect-ratio) — html2canvas doesn't compute CSS aspect-ratio, which is
       // what distorted the photo in the PDF. background-size:cover renders
       // identically on screen and in the PDF.
-      '<div style="margin:24px -36px 14px;height:250px;position:relative;overflow:hidden;background:var(--ed-ink) url(brand/team_lineup_2026.jpg) center 46%/cover no-repeat">'+
+      '<div style="margin:16px -36px 12px;height:165px;position:relative;overflow:hidden;background:var(--ed-ink) url(brand/team_winter_cover.jpg) center 46%/cover no-repeat">'+
         '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.18),rgba(0,153,224,.22))"></div>'+
         '<div style="position:absolute;left:0;right:0;bottom:14px;text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:14px;color:#fff;letter-spacing:.04em;text-shadow:0 2px 6px rgba(0,0,0,.6)">The Flood Roofing crew · Whangarei, Kerikeri &amp; the Bay of Islands</div>'+
       '</div>';
@@ -28005,6 +28005,12 @@ async function _buildQuotePdf(opts){
   if (!pages.length) pages = [root];
 
   var prevZoom = root.style.zoom; root.style.zoom = 1;
+  // Hide all office-only / editor chrome (.no-print — the fixing-type
+  // selector, roof-map refresh, "click to edit" hints, empty photo add
+  // slots, the on-screen Accept-online box, etc.) so the captured PDF is
+  // the clean customer document, and those controls don't add height that
+  // pushes real content onto a second sheet.
+  document.documentElement.classList.add('pdf-rendering');
   var savedScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
   window.scrollTo(0, 0);
   await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
@@ -28025,10 +28031,12 @@ async function _buildQuotePdf(opts){
     }
   } catch(err){
     console.error('Quote PDF render failed:', err);
+    document.documentElement.classList.remove('pdf-rendering');
     root.style.zoom = prevZoom || '';
     try { window.scrollTo(0, savedScrollY); } catch(e){}
     return null;
   }
+  document.documentElement.classList.remove('pdf-rendering');
   root.style.zoom = prevZoom || '';
   try { window.scrollTo(0, savedScrollY); } catch(e){}
 
