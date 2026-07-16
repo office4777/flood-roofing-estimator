@@ -2066,74 +2066,99 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
       <span id="roofBgChevron" style="margin-left:auto;font-size:12px;color:#94a3b8">▾</span>
     </div>
     <div id="roofBgBody" style="margin-top:10px">
-    <div class="card" style="margin-bottom:12px">
-  <div class="card-hd"><span class="card-dot"></span>🛰️ Aerial imagery — find property</div>
-  <div style="padding:12px">
-    <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
-      <div style="flex:1;position:relative">
-        <input id="aerialAddressInput" type="text" placeholder="Enter NZ address (e.g. 123 Main St, Whangarei)"
-          style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"
-          oninput="aerialAutoSuggest(this.value)"
-          onkeydown="if(event.key==='Enter'){closeAerialSuggest();searchAerialAddress();}" />
-        <div id="aerialSuggestBox" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ccc;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;max-height:200px;overflow-y:auto"></div>
+    <!-- Aerial finder + Upload sit SIDE BY SIDE and stay compact so the
+         drawing canvas is visible the moment you open the Map Roof tab.
+         The aerial card shows a static preview; clicking it opens the
+         full interactive satellite map in a popup (_openAerialModal). -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:stretch">
+      <!-- Aerial imagery (compact preview → opens map popup) -->
+      <div class="card" style="flex:1 1 300px;min-width:260px;margin:0">
+        <div class="card-hd"><span class="card-dot"></span>🛰️ Aerial imagery — find property</div>
+        <div style="padding:12px">
+          <div onclick="_openAerialModal()" role="button" tabindex="0" style="position:relative;cursor:pointer;border-radius:8px;overflow:hidden;border:1px solid #ddd">
+            <img id="aerialThumb" alt="Satellite map preview"
+                 src="https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/174.7633,-36.8485,11.4,0/600x300@2x?access_token=pk.eyJ1IjoiYXJvbmZsb29kMTIzIiwiYSI6ImNtb2tmZm93dDAyeXAzMXE0d2d1bnZmb3cifQ.ZYN0R9qF0j9V1IaQuF_c2g"
+                 onerror="this.style.display='none';var n=this.nextElementSibling;if(n)n.style.display='flex'"
+                 style="width:100%;height:172px;object-fit:cover;display:block;background:#e8e8e8">
+            <div style="display:none;height:172px;align-items:center;justify-content:center;background:#dfe6ee;color:#64748b;font-size:13px">🛰️ Satellite map</div>
+            <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,22,40,0) 42%,rgba(10,22,40,.6));display:flex;align-items:flex-end;justify-content:center;padding-bottom:14px">
+              <span style="background:#0a1628;color:#fff;padding:8px 18px;border-radius:8px;font-weight:700;font-size:13px;box-shadow:0 3px 10px rgba(0,0,0,.35)">🔍 Find your property</span>
+            </div>
+          </div>
+          <div style="font-size:11.5px;color:#888;margin-top:8px;line-height:1.45">Click to open the map, find the address, zoom to the rooftop, then tap <strong>Use this view</strong>.</div>
+        </div>
       </div>
-      <button onclick="searchAerialAddress()" style="padding:8px 16px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600;white-space:nowrap">🔍 Find</button>
-    </div>
-    
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
-      <span style="font-size:12px;color:#666;white-space:nowrap">Select satellite map:</span>
-      <select id="imagerySource" onchange="switchImagerySource(this.value)" style="padding:4px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px;font-family:inherit">
-        <option value="mapbox" selected>Mapbox Satellite (default, high res)</option>
-        <option value="linz">LINZ NZ Aerial (free, highest res — needs API key)</option>
-        <option value="esri">Esri World Imagery (fallback, lower res)</option>
-      </select>
-      <div id="linzKeyWrap" style="display:none;flex:1;display:none;gap:6px;align-items:center">
-        <input id="linzApiKeyInput" type="text" placeholder="LINZ API key" style="flex:1;padding:4px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px;font-family:monospace">
-        <button onclick="saveLinzKey()" style="padding:4px 12px;background:#059669;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">Save</button>
-        <a href="https://www.linz.govt.nz/products-services/data/linz-data-service/linz-basemaps" target="_blank" style="font-size:11px;color:#0066cc">Get free key ↗</a>
-      </div>
-    </div>
-    <div id="aerialHint" style="font-size:12px;color:#888;margin-top:4px">Enter a NZ address, then <strong>zoom in until individual rooftops are clearly visible</strong> before clicking "Use this view".</div>
-    <div id="aerialMapWrap" style="margin-top:10px;border-radius:8px;border:1px solid #ddd;display:block;overflow:visible">
-      <div id="aerialLeafletMap2" style="width:100%;height:440px;min-height:340px;background:#e8e8e8;border-radius:8px 8px 0 0"></div>
-      <div style="background:#f5f5f3;padding:8px 12px;border-top:1px solid #ddd;border-radius:0 0 8px 8px;display:flex;justify-content:flex-end">
-        <button onclick="useAerialView()" style="padding:8px 20px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">📸 Use this view</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-  <!-- Upload your own roof image — drop in a sketch, builder's plan,
-       or an aerial screenshot you already have. Becomes the canvas
-       background instead of the satellite imagery above.
-       The onRoofImg handler reads the file, sets #roofPrevImg, and
-       toggles #roofUZ / #roofPrev. -->
-  <div class="card" style="margin-top:12px">
-    <div class="card-hd"><span class="card-dot"></span>Upload roof picture
-      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">— use your own sketch / aerial photo instead of the satellite view above</span>
-    </div>
-    <div class="upload-zone" id="roofUZ"
-         ondragover="_roofUzDragOver(event)" ondragleave="_roofUzDragLeave(event)" ondrop="_roofUzDrop(event)"
-         style="margin-top:6px;padding:14px 16px">
-      <div class="uz-title" style="margin-bottom:2px">Drop your roof sketch / aerial photo here</div>
-      <div class="uz-sub" style="margin-bottom:10px">JPG or PNG — drag straight from a Fergus tab, or use the buttons below</div>
-      <!-- Hidden file input — Upload from PC button below triggers this. -->
-      <input type="file" id="roofFile" accept="image/*" onchange="onRoofImg(event)" style="display:none">
-      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center">
-        <button type="button" onclick="document.getElementById('roofFile').click()"
-                style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
-          <svg viewBox="0 0 16 16" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4 6l4-4 4 4"/><path d="M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
-          Upload from PC
-        </button>
-        <button type="button" onclick="openFergusPhotoPicker('canvas')"
-                style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
-          📷 Import from Fergus
-        </button>
+      <!-- Upload your own roof image — sketch / plan / aerial screenshot.
+           onRoofImg sets #roofPrevImg and toggles #roofUZ / #roofPrev. -->
+      <div class="card" style="flex:1 1 300px;min-width:260px;margin:0">
+        <div class="card-hd"><span class="card-dot"></span>Upload roof picture
+          <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">— use your own sketch / aerial photo</span>
+        </div>
+        <div class="upload-zone" id="roofUZ"
+             ondragover="_roofUzDragOver(event)" ondragleave="_roofUzDragLeave(event)" ondrop="_roofUzDrop(event)"
+             style="margin-top:6px;padding:14px 16px">
+          <div class="uz-title" style="margin-bottom:2px">Drop your roof sketch / aerial photo here</div>
+          <div class="uz-sub" style="margin-bottom:10px">JPG or PNG — drag straight from a Fergus tab, or use the buttons below</div>
+          <input type="file" id="roofFile" accept="image/*" onchange="onRoofImg(event)" style="display:none">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center">
+            <button type="button" onclick="document.getElementById('roofFile').click()"
+                    style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
+              <svg viewBox="0 0 16 16" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4 6l4-4 4 4"/><path d="M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
+              Upload from PC
+            </button>
+            <button type="button" onclick="openFergusPhotoPicker('canvas')"
+                    style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
+              📷 Import from Fergus
+            </button>
+          </div>
+        </div>
+        <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="uploaded roof"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">× Remove</button></div>
       </div>
     </div>
-    <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="uploaded roof"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">× Remove</button></div>
-  </div>
     </div><!-- end roofBgBody -->
+
+    <!-- Full-size satellite finder popup — the interactive map lives here
+         so the Map Roof tab opens straight to the canvas. Opened from the
+         aerial preview above; closes automatically after "Use this view". -->
+    <div id="aerialModalOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:4000" onclick="_closeAerialModal()"></div>
+    <div id="aerialModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(940px,95vw);max-height:94vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(10,22,40,.4);z-index:4001">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid #eef1f5">
+        <div style="font-weight:700;font-size:15px;color:#0a1628">🛰️ Find your property</div>
+        <button onclick="_closeAerialModal()" aria-label="Close" style="background:none;border:none;font-size:20px;line-height:1;color:#64748b;cursor:pointer;padding:2px 6px">✕</button>
+      </div>
+      <div style="padding:16px 18px">
+        <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+          <div style="flex:1;position:relative">
+            <input id="aerialAddressInput" type="text" placeholder="Enter NZ address (e.g. 123 Main St, Whangarei)"
+              style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"
+              oninput="aerialAutoSuggest(this.value)"
+              onkeydown="if(event.key==='Enter'){closeAerialSuggest();searchAerialAddress();}" />
+            <div id="aerialSuggestBox" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ccc;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;max-height:200px;overflow-y:auto"></div>
+          </div>
+          <button onclick="searchAerialAddress()" style="padding:8px 16px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600;white-space:nowrap">🔍 Find</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-size:12px;color:#666;white-space:nowrap">Select satellite map:</span>
+          <select id="imagerySource" onchange="switchImagerySource(this.value)" style="padding:4px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px;font-family:inherit">
+            <option value="mapbox" selected>Mapbox Satellite (default, high res)</option>
+            <option value="linz">LINZ NZ Aerial (free, highest res — needs API key)</option>
+            <option value="esri">Esri World Imagery (fallback, lower res)</option>
+          </select>
+          <div id="linzKeyWrap" style="display:none;flex:1;display:none;gap:6px;align-items:center">
+            <input id="linzApiKeyInput" type="text" placeholder="LINZ API key" style="flex:1;padding:4px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px;font-family:monospace">
+            <button onclick="saveLinzKey()" style="padding:4px 12px;background:#059669;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">Save</button>
+            <a href="https://www.linz.govt.nz/products-services/data/linz-data-service/linz-basemaps" target="_blank" style="font-size:11px;color:#0066cc">Get free key ↗</a>
+          </div>
+        </div>
+        <div id="aerialHint" style="font-size:12px;color:#888;margin-top:4px">Enter a NZ address, then <strong>zoom in until individual rooftops are clearly visible</strong> before clicking "Use this view".</div>
+        <div id="aerialMapWrap" style="margin-top:10px;border-radius:8px;border:1px solid #ddd;display:block;overflow:visible">
+          <div id="aerialLeafletMap2" style="width:100%;height:460px;min-height:340px;background:#e8e8e8;border-radius:8px 8px 0 0"></div>
+          <div style="background:#f5f5f3;padding:8px 12px;border-top:1px solid #ddd;border-radius:0 0 8px 8px;display:flex;justify-content:flex-end">
+            <button onclick="useAerialView()" style="padding:8px 20px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">📸 Use this view</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Results -->
@@ -6717,6 +6742,29 @@ function _toggleRoofBg(){
 }
 function _collapseRoofBg(){ _setRoofBg(false); }
 function _expandRoofBg(){ _setRoofBg(true); }
+
+// ── Aerial finder popup ───────────────────────────────────────────
+// The interactive satellite map lives in a popup so the Map Roof tab
+// opens straight to the drawing canvas. The map is created lazily the
+// first time the popup opens (_ensureAerialMap), then resized so it
+// renders correctly now that its container is visible.
+function _openAerialModal(){
+  var ov = document.getElementById('aerialModalOverlay');
+  var md = document.getElementById('aerialModal');
+  if (ov) ov.style.display = 'block';
+  if (md) md.style.display = 'block';
+  try { if (window._ensureAerialMap) window._ensureAerialMap(); } catch(e){}
+  var doResize = function(){ try { if (window._aerialMap) window._aerialMap.resize(); } catch(e){} };
+  doResize(); setTimeout(doResize, 60); setTimeout(doResize, 250); setTimeout(doResize, 650);
+  setTimeout(function(){ var a = document.getElementById('aerialAddressInput'); if (a) a.focus(); }, 120);
+}
+function _closeAerialModal(){
+  var ov = document.getElementById('aerialModalOverlay');
+  var md = document.getElementById('aerialModal');
+  if (ov) ov.style.display = 'none';
+  if (md) md.style.display = 'none';
+  try { closeAerialSuggest(); } catch(e){}
+}
 
 // Push a data URL into the roof preview the same way onRoofImg does for
 // a file picker — used by the Fergus picker after it downloads a chosen
@@ -31847,6 +31895,7 @@ function captureFromMapbox(lat, lon, zoom) {
         URL.revokeObjectURL(blobUrl);
         redrawAll();
         try { _collapseRoofBg(); } catch(e){}
+        try { _closeAerialModal(); } catch(e){}
         if (hint) hint.innerHTML = '<span style="color:#059669">✅ Aerial image loaded (' + metersPerPx.toFixed(3) + 'm/px). Draw your building outline on top.</span>';
       };
       img.onerror = function() {
@@ -32130,8 +32179,10 @@ document.addEventListener('mousedown',function(e){
       if (window._aerialMap) window._aerialMap.flyTo({center:[lon,lat], zoom:19, essential:true});
     };
   }
-  if (document.readyState === 'complete') { setTimeout(initMap, 500); }
-  else { window.addEventListener('load', function(){ setTimeout(initMap, 500); }); }
+  // The map now lives in a popup — initialise it lazily the first time
+  // the popup opens (see _openAerialModal) rather than on page load, so
+  // the Map Roof tab shows the drawing canvas immediately.
+  window._ensureAerialMap = initMap;
 
   // FIND BUTTON + GEOCODING
   window.addEventListener('load', function() {
