@@ -4083,28 +4083,84 @@ function _renderRoofSheetPlanInner() {
   });
 
   // ── Legend ────────────────────────────────────────────────────
-  // Group sheets by (colour, orderedLengthMm). Offcut-fed pieces
-  // (the receiver of a paired offcut) DON'T add to the order count
-  // — they reuse the donor sheet — so they're excluded here per the
-  // SOP §10 "Large offcut reused" reward.
+  // Order a FULL sheet for every strip position of every plane and
+  // cut on site.  We count PER PLANE (per face): the number of full
+  // sheets a plane needs is ceil(plane gutter width / cover) at the
+  // plane's slope length — e.g. an 11.93 m long plane at 762 cover
+  // orders ceil(11.93 / 0.762) = 16 sheets, both long slopes = 32.
+  // We deliberately do NOT rely on re-using a hip/valley offcut across
+  // planes (the strip-level offcut donor/receiver split is a cutting
+  // aid on the diagram only) — each plane is ordered independently so
+  // the roofer's hand-count and the app agree.  Valley-fed planes get
+  // one spare sheet in case the offcut cut at the valley doesn't line
+  // up cleanly to the hip.
   try {
     window.__lastAllStrips = allStrips;
     window.__lastFaces = faces;
     window.__lastSheetTransform = { minX: minX, minY: minY, sc: sc, padX: padX, padY: padY, W: W, H: H };
   } catch(e){}
-  var groups = {};
-  allStrips.forEach(function(s){
-    if (s._deleted) return;  // user-deleted sheets drop out of the order count
-    // NOTE: we deliberately DO count offcut strips. Roofers order a full
-    // sheet for every strip of every plane (ceil(plane width / cover) per
-    // side) and cut on site — they don't rely on re-using a hip/valley
-    // offcut across the roof. Skipping offcut receivers here under-counted
-    // the order (e.g. two 11.93 m planes came out at 26 long sheets instead
-    // of the correct 16 + 16 = 32). Each strip is one full ordered sheet.
-    var key = s.color + ':' + s.orderedLengthMm;
-    if (!groups[key]) groups[key] = { color: s.color, orderedMm: s.orderedLengthMm, count: 0 };
-    groups[key].count++;
+  // Valley lines (from whichever topology drew the plan) — a plane is
+  // "valley-fed" if one of its polygon edges runs along a valley.
+  var _valLines = ((_tLines || DRAW.lines) || []).filter(function(l){
+    return l && l.type === 'valley' && l.pts && l.pts.length === 2;
   });
+  function _faceValleyFed(f){
+    if (!_valLines.length || !f || !f.poly || f.poly.length < 2) return false;
+    for (var vi = 0; vi < _valLines.length; vi++){
+      var va = _valLines[vi].pts[0], vb = _valLines[vi].pts[1];
+      for (var i = 0; i < f.poly.length; i++){
+        var p = f.poly[i], q = f.poly[(i + 1) % f.poly.length];
+        if (ptOnSegment(p, va, vb) && ptOnSegment(q, va, vb)) return true;
+      }
+    }
+    return false;
+  }
+  // User-deleted sheets (click-to-delete in the plan editor) reduce the
+  // order.  Tally deleted primary (non-offcut) strips per (colour,length).
+  var _delByKey = {};
+  allStrips.forEach(function(s){
+    if (!s._deleted || s.isOffcut) return;
+    var dk = s.color + ':' + s.orderedLengthMm;
+    _delByKey[dk] = (_delByKey[dk] || 0) + 1;
+  });
+  // Plane width = extent of the face polygon along its gutter tangent.
+  // (Some branches — straight-gable, hv-gable — deliberately store gL:1
+  // and encode the real width in the polygon, so measure it directly.)
+  function _faceWidthPx(f){
+    if (!f || !f.poly || !f.poly.length) return 0;
+    var tx = f.tx, ty = f.ty;
+    if (!(isFinite(tx) && isFinite(ty)) || (tx === 0 && ty === 0)) {
+      // No tangent — fall back to the polygon's larger bbox side.
+      var xs = f.poly.map(function(p){ return p[0]; }), ys = f.poly.map(function(p){ return p[1]; });
+      return Math.max(Math.max.apply(null, xs) - Math.min.apply(null, xs),
+                      Math.max.apply(null, ys) - Math.min.apply(null, ys));
+    }
+    var tmin = Infinity, tmax = -Infinity;
+    f.poly.forEach(function(p){
+      var t = p[0] * tx + p[1] * ty;
+      if (t < tmin) tmin = t;
+      if (t > tmax) tmax = t;
+    });
+    return tmax - tmin;
+  }
+  var groups = {};
+  faces.forEach(function(f){
+    if (!f || !f.poly || !f.poly.length) return;
+    var widthPx = _faceWidthPx(f);
+    if (!(widthPx > 0)) return;
+    var col = f.color || COL_ORANGE;
+    var mm  = orderedLengthMm(f.sheetM);
+    var n   = Math.max(1, Math.ceil(widthPx / coverPx - 1e-6));  // full sheets this plane needs
+    if (_faceValleyFed(f)) n += 1;                                // + spare for the valley cut
+    var key = col + ':' + mm;
+    if (!groups[key]) groups[key] = { color: col, orderedMm: mm, count: 0 };
+    groups[key].count += n;
+  });
+  // Apply user deletions, then drop any group that went to zero.
+  Object.keys(_delByKey).forEach(function(k){
+    if (groups[k]) groups[k].count = Math.max(0, groups[k].count - _delByKey[k]);
+  });
+  Object.keys(groups).forEach(function(k){ if (groups[k].count <= 0) delete groups[k]; });
   var groupList = Object.keys(groups).map(function(k){ return groups[k]; });
   // Sort: orange first, then blue, then purple. Within colour, longer first.
   var colorOrder = {};
