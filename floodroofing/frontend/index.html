@@ -29620,6 +29620,16 @@ function _fergusRoofPhotosOnTabOpen(){
   if (_fergusRoofPhotosLoaded) return; // already have it
   _loadFergusRoofPhotos(false);
 }
+// Cap the photo scroll box at exactly two rows tall — measure a rendered
+// tile (its height comes from the 4:3 aspect-ratio the moment it has a
+// width) and set max-height to two rows + one gap. Must run while the box
+// is VISIBLE, else the tile measures 0 (pre-load happens collapsed).
+function _fergusRoofPhotosCap(){
+  var g = document.getElementById('fergusRoofPhotoGrid');
+  if (!g || !g.firstChild) return;
+  var th = g.firstChild.getBoundingClientRect().height;
+  if (th > 0) g.style.maxHeight = Math.round(th * 2 + 10 + 2) + 'px';   // 2 rows + one gap
+}
 function _toggleFergusRoofPhotos(){
   var body = document.getElementById('fergusRoofPhotosBody');
   var chev = document.getElementById('fergusRoofPhotosChevron');
@@ -29629,6 +29639,9 @@ function _toggleFergusRoofPhotos(){
   body.style.display = 'block'; if (chev) chev.textContent = '▴';
   // Load on first expand if the tab-open pre-load hasn't run (or was empty).
   if (!_fergusRoofPhotosLoaded) _loadFergusRoofPhotos(false);
+  // Now that the box is visible, cap it to two rows (the pre-load ran while
+  // collapsed, so the tiles measured 0 then — measure again now).
+  requestAnimationFrame(_fergusRoofPhotosCap);
 }
 async function _loadFergusRoofPhotos(force){
   var body = document.getElementById('fergusRoofPhotosBody');
@@ -29661,11 +29674,10 @@ async function _loadFergusRoofPhotos(force){
     '<div style="display:flex;justify-content:flex-end;margin-bottom:6px">'+
       '<button onclick="_loadFergusRoofPhotos(true)" style="padding:4px 10px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;font-weight:600;color:#0a1628;cursor:pointer">↻ Refresh</button>'+
     '</div>'+
-    // Two large photos across; the scroll box's own aspect-ratio (4:3)
-    // makes it about two rows tall, so ~2×2 photos show at once and the
-    // rest scroll into view. align-content:start keeps rows packed at the
-    // top rather than stretched to fill.
-    '<div id="fergusRoofPhotoGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;aspect-ratio:4/3;overflow-y:auto;align-content:start"></div>';
+    // Two large photos across. Rows are their natural (4:3) height and
+    // stack normally; the box is capped to exactly two rows below (once a
+    // tile's height is known), so ~2×2 photos show and the rest scroll.
+    '<div id="fergusRoofPhotoGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;overflow-y:auto;align-content:start"></div>';
   var grid = document.getElementById('fergusRoofPhotoGrid');
   res.files.forEach(function(f){
     var cell = document.createElement('div');
@@ -29681,6 +29693,9 @@ async function _loadFergusRoofPhotos(force){
       cell.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#7a8699;font-size:11px;text-align:center;padding:6px;line-height:1.35">'+esc(f.name || 'photo')+'<br>(tap to view)</div>';
     });
   });
+  // Cap to two rows now (works when the box is already visible) and on resize.
+  requestAnimationFrame(_fergusRoofPhotosCap);
+  window.addEventListener('resize', function(){ clearTimeout(window._fergusGridCapT); window._fergusGridCapT = setTimeout(_fergusRoofPhotosCap, 150); });
 }
 // Full-size preview of a tapped Fergus photo.
 async function _fergusRoofPhotoLightbox(f){
