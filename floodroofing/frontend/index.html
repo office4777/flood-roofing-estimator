@@ -4491,6 +4491,11 @@ async function checkProxy(){S.proxyOk=true;var el=document.getElementById('proxy
 async function claudeCall(body){var tok=localStorage.getItem('fr_token')||'';return fetch(PROXY+'/claude/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify(body)});}
 
 function gotoTab(t) {
+  // While switching tabs, suppress renderJobPack's scroll-preserve (a tab
+  // switch should land at the top of the new tab, not restore the old
+  // scroll offset). In-place re-renders (add/edit/delete a cut-list row)
+  // still keep the user's scroll position.
+  window.__jpTabSwitch = true;
   // Legacy tabs that no longer have nav buttons:
   //   'fergus' → folded into Settings → "Link Job Management System"
   //   'report' → folded into Quote → "Include inspection report"
@@ -4574,6 +4579,7 @@ function gotoTab(t) {
   }
   if(t==='jobs') refreshJobsList();
   if(t==='settings'){ refreshSettingsUI(); try{prefillFergus();autoConnect();}catch(e){} }
+  window.__jpTabSwitch = false;
 }
 function switchSubTab(grp,id,btn){
   // Scope sub-panel toggling to the card the button lives in. This keeps
@@ -15221,7 +15227,10 @@ function _redrawFlashCanvas(){
           labelY = ay + (dirY / dl) * labelDist;
         }
         ctx.font = amFontPx + 'px Inter, system-ui, sans-serif';
-        var txt = '∠ angle';
+        // Show the actual angle in degrees (e.g. "∠ 15°"), falling back to
+        // the current default angle for older markers that predate storing it.
+        var amDeg = (am.deg != null && isFinite(am.deg)) ? +am.deg : _flashDefaultAngleDeg();
+        var txt = '∠ ' + Math.round(amDeg) + '°';
         var tw = ctx.measureText(txt).width;
         var boxW = tw + 16, boxH = amFontPx + 8;
         ctx.fillStyle = '#fff';
@@ -15572,7 +15581,11 @@ function _onFlashCanvasClick(p){
       var defDist = Math.max(54, _flashTextPx() + 32);
       var defX = vhit.polyline.vertices[vhit.vertexIdx][0] + defDir.dirX * defDist;
       var defY = vhit.polyline.vertices[vhit.vertexIdx][1] + defDir.dirY * defDist;
-      vhit.polyline.angleMarkers[key] = { x: defX, y: defY };
+      // Store the angle on the marker so the label reads "∠ 15°" (the
+      // flashing angle), not the bare word. Comes from the flashing
+      // default angle (Materials "Default flashing angle" field → roof
+      // pitch → 20° fallback).
+      vhit.polyline.angleMarkers[key] = { x: defX, y: defY, deg: def };
     }
     _redrawFlashCanvas();
     _updateFlashStats();
@@ -24469,6 +24482,15 @@ function _jpBasicEditorLabelUp(){
 
 function renderJobPack(){
   var mount = document.getElementById('jpPages'); if (!mount) return;
+  // Preserve the page scroll position across the rebuild. Clearing #jpPages
+  // collapses the document height, which snaps the window scroll to the top —
+  // so adding/editing/deleting a cut-list row (flashing, gutter, sheet) used
+  // to jump the page up. Skip during a tab switch (that should land at the
+  // top of the new tab, handled via the __jpTabSwitch flag in gotoTab).
+  if (!window.__jpTabSwitch){
+    var _jpScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    requestAnimationFrame(function(){ try { window.scrollTo(0, _jpScrollY); } catch(e){} });
+  }
   var state = _jpState();
   mount.innerHTML = '';
   state.pages.forEach(function(page, i){
@@ -29628,7 +29650,12 @@ function _fergusRoofPhotosCap(){
   var g = document.getElementById('fergusRoofPhotoGrid');
   if (!g || !g.firstChild) return;
   var th = g.firstChild.getBoundingClientRect().height;
-  if (th > 0) g.style.maxHeight = Math.round(th * 2 + 10 + 2) + 'px';   // 2 rows + one gap
+  if (th <= 0) return;
+  // Show one big photo plus a small peek of the next (so it's clearly
+  // scrollable), but never taller than ~80% of the viewport.
+  var oneAndPeek = Math.round(th + 34);
+  var vpCap = Math.round((window.innerHeight || 800) * 0.8);
+  g.style.maxHeight = Math.min(oneAndPeek, vpCap) + 'px';
 }
 function _toggleFergusRoofPhotos(){
   var body = document.getElementById('fergusRoofPhotosBody');
@@ -29674,10 +29701,10 @@ async function _loadFergusRoofPhotos(force){
     '<div style="display:flex;justify-content:flex-end;margin-bottom:6px">'+
       '<button onclick="_loadFergusRoofPhotos(true)" style="padding:4px 10px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;font-weight:600;color:#0a1628;cursor:pointer">↻ Refresh</button>'+
     '</div>'+
-    // Two large photos across. Rows are their natural (4:3) height and
-    // stack normally; the box is capped to exactly two rows below (once a
-    // tile's height is known), so ~2×2 photos show and the rest scroll.
-    '<div id="fergusRoofPhotoGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;overflow-y:auto;align-content:start"></div>';
+    // One big photo per row. Rows are their natural (4:3) height and stack
+    // normally; the box is capped to about one photo below (once a tile's
+    // height is known), so one big photo shows and the rest scroll into view.
+    '<div id="fergusRoofPhotoGrid" style="display:grid;grid-template-columns:1fr;gap:10px;overflow-y:auto;align-content:start"></div>';
   var grid = document.getElementById('fergusRoofPhotoGrid');
   res.files.forEach(function(f){
     var cell = document.createElement('div');
