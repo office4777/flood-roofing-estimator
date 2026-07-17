@@ -4095,7 +4095,12 @@ function _renderRoofSheetPlanInner() {
   var groups = {};
   allStrips.forEach(function(s){
     if (s._deleted) return;  // user-deleted sheets drop out of the order count
-    if (s.isOffcut) return;
+    // NOTE: we deliberately DO count offcut strips. Roofers order a full
+    // sheet for every strip of every plane (ceil(plane width / cover) per
+    // side) and cut on site — they don't rely on re-using a hip/valley
+    // offcut across the roof. Skipping offcut receivers here under-counted
+    // the order (e.g. two 11.93 m planes came out at 26 long sheets instead
+    // of the correct 16 + 16 = 32). Each strip is one full ordered sheet.
     var key = s.color + ':' + s.orderedLengthMm;
     if (!groups[key]) groups[key] = { color: s.color, orderedMm: s.orderedLengthMm, count: 0 };
     groups[key].count++;
