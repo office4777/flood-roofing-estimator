@@ -223,6 +223,25 @@ been billed for **more** materials than the 50%-of-sale forecast already
 reserved. Type a rough total to stress-test it; if it's within what the forecast
 expected, the gap doesn't move.
 
+## Cash forecast — how finish dates are estimated
+
+The 13-week and 6-month cash forecasts estimate when each active job finishes by
+laying jobs end-to-end against your crew capacity (`teams × size × hrs × 5`) and
+walking forward: `finish ≈ today + cumulative remaining hours ÷ weekly capacity`.
+Cash lands at `finish + payment lag`. Two realism buffers (both editable in Cash →
+Settings):
+
+- **Job overrun allowance (default 20%)** — pads every job's remaining hours,
+  since jobs run over. This **cascades**: padding a job also pushes back the jobs
+  queued behind it.
+- **Finishing tail (default 3 days)** — small flashings almost always add a few
+  days to *close* a job, so this is added to each job's own finish date but **not**
+  to the crew's next job (they move on while waiting on flashings).
+
+You can still override any job by tapping its real expected payment day in the
+"Active jobs — expected payment date" calendar; a manual pick wins over the
+estimate.
+
 ## Cash — "Due in" uses the quoted price, not Fergus's estimate
 
 The Cash "at a glance" **Due in** buckets (and their drill-down tables) show

@@ -802,7 +802,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     <div class="card acc-card">
       <div class="ct">Active jobs — expected payment date <span class="period-sub" style="margin-left:auto;">tap a day · scroll →</span></div>
       <div id="cf-cal"></div>
-      <div class="note">Tap the day you expect each job’s final invoice to be <b>paid</b> — that’s when the cash lands in the forecasts. The faint • is my estimate (finish + payment lag). Scroll sideways for up to 6 months; the job stays pinned on the left. Tap the same day again to clear.</div>
+      <div class="note">Tap the day you expect each job’s final invoice to be <b>paid</b> — that’s when the cash lands in the forecasts. The faint • is my estimate: remaining hours (padded for overrun) ÷ crew capacity, + a few days for finishing flashings, + your payment lag. Scroll sideways for up to 6 months; the job stays pinned on the left. Tap the same day again to clear.</div>
     </div>
     <div class="card cash-detail" data-cdetail="owed">
       <div class="ct">Context <span class="period-sub" style="margin-left:auto;">other balances</span></div>
@@ -817,6 +817,8 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     <div class="card acc-card">
       <div class="ct">Settings</div>
       <div class="fld" style="margin:2px 0 8px;"><label>Job money to 00 — % of sale (ex-GST)</label><input id="cf-oopct" type="number" inputmode="decimal" autocomplete="off" placeholder="40" onchange="saveCfCfg()"></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>Job overrun allowance (%)</label><input id="cf-overrun" type="number" inputmode="decimal" autocomplete="off" placeholder="20" onchange="saveCfCfg()"><div class="note" style="margin-top:4px;">Jobs usually run over — pad every job's remaining hours by this % so finish dates aren't too optimistic (and it cascades to the jobs behind it). Default 20%.</div></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>Finishing tail per job (days)</label><input id="cf-tail" type="number" inputmode="numeric" autocomplete="off" placeholder="3" onchange="saveCfCfg()"><div class="note" style="margin-top:4px;">Small flashings are nearly always needed to close a job — a few days' wait after the main work. Adds this to each job's finish (but not to the crew's next job). Default 3 days.</div></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Payment lag after a job finishes (weeks)</label><input id="cf-lag" type="number" inputmode="numeric" autocomplete="off" placeholder="2" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>New work won / month ($ sale, optional)</label><input id="cf-new" type="number" inputmode="decimal" autocomplete="off" placeholder="0" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Monthly OPEX + wages out (blank = 6-mo Xero avg)</label><input id="cf-out" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"></div>
@@ -3274,12 +3276,15 @@ function renderCash(){
 //  • Start    = the live 00 account balance from the balance sheet.
 // Job finish dates are scheduled from remaining Fergus hours against crew capacity (Workload tab).
 function cfCfg(){
-  return {oo:num(S.get('cfOoPct','40'))||40, lag:num(S.get('cfLag','2')), nw:num(S.get('cfNew','0')), out:S.get('cfOut',''), kw:(S.get('cfOoKw','00')||'00')};
+  return {oo:num(S.get('cfOoPct','40'))||40, lag:num(S.get('cfLag','2')), nw:num(S.get('cfNew','0')), out:S.get('cfOut',''), kw:(S.get('cfOoKw','00')||'00'),
+    overrun:(S.get('cfOverrun','')===''?20:Math.max(0,num(S.get('cfOverrun','20')))), tail:(S.get('cfTail','')===''?3:Math.max(0,num(S.get('cfTail','3'))))};
 }
 function saveCfCfg(){
   const g=id=>document.getElementById(id);
   if(g('cf-oopct'))S.set('cfOoPct',(g('cf-oopct').value||'').trim());
   if(g('cf-lag'))S.set('cfLag',(g('cf-lag').value||'').trim());
+  if(g('cf-overrun'))S.set('cfOverrun',(g('cf-overrun').value||'').trim());
+  if(g('cf-tail'))S.set('cfTail',(g('cf-tail').value||'').trim());
   if(g('cf-new'))S.set('cfNew',(g('cf-new').value||'').trim());
   if(g('cf-out'))S.set('cfOut',(g('cf-out').value||'').trim());
   if(g('cf-ookw'))S.set('cfOoKw',(g('cf-ookw').value||'').trim());
@@ -3326,7 +3331,7 @@ function renderCashflow(){
   const cfg2=cfCfg();
   const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
   const pop=(id,v)=>{const e=document.getElementById(id);if(e&&!e.value&&v!==''&&v!=null)e.value=v;};
-  pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','2'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));pop('cf-bal',S.get('cfBal',''));pop('cf-open',S.get('cfOpenCash',''));pop('cf-matlead',S.get('cfMatLead',''));pop('cf-apwk',S.get('cfApWeeks',''));pop('cf-wkout',S.get('cfWkOut',''));
+  pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','2'));pop('cf-overrun',S.get('cfOverrun','20'));pop('cf-tail',S.get('cfTail','3'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));pop('cf-bal',S.get('cfBal',''));pop('cf-open',S.get('cfOpenCash',''));pop('cf-matlead',S.get('cfMatLead',''));pop('cf-apwk',S.get('cfApWeeks',''));pop('cf-wkout',S.get('cfWkOut',''));
   // monthly outflow: 6-month avg of (opex + wages) from Xero, or a manual override
   let avgOut=0,nOut=0;for(let i=1;i<=6;i++){const x=xeroMonthly[calMonthKey(-i)];if(x){avgOut+=(x.burn!=null?num(x.burn):(num(x.opex)+num(x.wages)));nOut++;}}
   avgOut=nOut?avgOut/nOut:0;
@@ -3345,9 +3350,11 @@ function renderCashflow(){
   const jobs=[...fwJobs];
   jobs.sort((a,b)=>Math.max(0,num(a.remaining))-Math.max(0,num(b.remaining)));
   const finOv=S.get('cfFinishOv',{})||{};
+  const overF=1+(cfg2.overrun||0)/100;   // jobs run ~20% over → pad hours (cascades to jobs behind)
+  const tailMs=Math.max(0,cfg2.tail||0)*86400000;   // ~3-day flashings tail on each job's own finish (doesn't hold up the crew)
   let cumH=0;const inByMonth={},inByWeek={};const sched=[];
-  jobs.forEach(j=>{const rem=Math.max(0,num(j.remaining));cumH+=rem;
-    const compDate=new Date(Date.now()+(cumH/weeklyCap)*7*86400000);   // capacity-based finish estimate
+  jobs.forEach(j=>{const rem=Math.max(0,num(j.remaining));cumH+=rem*overF;   // pad hours for scheduling, keep true rem for display
+    const compDate=new Date(Date.now()+(cumH/weeklyCap)*7*86400000+tailMs);   // capacity-based finish + flashings tail
     const picked=finOv[j.id]?new Date(finOv[j.id]+'T00:00:00'):null;
     const finDate=picked||compDate;
     const payDate=picked?picked:new Date(finDate.getTime()+Math.max(0,num(cfg2.lag))*7*86400000);
