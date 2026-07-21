@@ -4150,8 +4150,16 @@ function _renderRoofSheetPlanInner() {
     if (!(widthPx > 0)) return;
     var col = f.color || COL_ORANGE;
     var mm  = orderedLengthMm(f.sheetM);
-    var n   = Math.max(1, Math.ceil(widthPx / coverPx - 1e-6));  // full sheets this plane needs
-    if (_faceValleyFed(f)) n += 1;                                // + spare for the valley cut
+    // Hip-end (triangular) planes don't order their own sheets — the
+    // roofer runs the long-side sheets past the hip and cuts them on the
+    // 45°, so the hip triangle is CUT FROM the main-plane sheets. Only the
+    // long-side (main) planes order full sheets: ceil(width / cover).
+    var valleyFed = _faceValleyFed(f);
+    var n = (f.type === 'hip-end')
+      ? 0                                                // absorbed into the mains
+      : Math.max(1, Math.ceil(widthPx / coverPx - 1e-6));
+    if (valleyFed) n += 1;                               // + spare for the valley cut
+    if (n <= 0) return;
     var key = col + ':' + mm;
     if (!groups[key]) groups[key] = { color: col, orderedMm: mm, count: 0 };
     groups[key].count += n;
