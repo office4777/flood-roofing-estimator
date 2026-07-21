@@ -199,6 +199,30 @@ to working days using your crew: `days = remaining hours ÷ (teams × guys-per-t
 × hours-per-day)` (defaults 4 × 2 × 8 = 64 h/day). Teams/size/hours are editable
 in the app. Jobs with no priced hours in Fergus count as 0 and are flagged.
 
+## Cash — "Deposit-funding gap" (was "Deposit cash position")
+
+The red headline number is the **deposit-funding gap**, not a loss and not
+money you're "behind". It answers a deliberately worst-case question: *if I had
+to pay every current supplier bill AND buy 100% of the remaining materials for
+all live jobs right now, using only the deposit cash I'm holding, how short am
+I?* It **ignores every final and invoice you'll still collect**.
+
+To keep that in perspective the popup now leads with a green **"Still to collect
+— not counted in the gap"** card: uninvoiced priced work + Xero AR = the total
+still coming in, and how many times over it covers the gap. The at-a-glance tile
+and the reconciliation waterfall are relabelled **Deposit-funding gap**, and the
+bottom line spells out the money still to collect. The real "will I run short?"
+answer is the **13-week / 6-month whole-business forecast** lower down, which
+*does* include the finals.
+
+**Supplier bills still in your inbox (not yet in Xero):** the Reconciliation card
+has an optional **"Supplier bills in your inbox, not yet in Xero"** input. Those
+invoices are for materials you've *already bought*, so the app moves that amount
+**out of "materials still to buy" and into A/P** — the gap only worsens if you've
+been billed for **more** materials than the 50%-of-sale forecast already
+reserved. Type a rough total to stress-test it; if it's within what the forecast
+expected, the gap doesn't move.
+
 ## Cash — "Due in" uses the quoted price, not Fergus's estimate
 
 The Cash "at a glance" **Due in** buckets (and their drill-down tables) show

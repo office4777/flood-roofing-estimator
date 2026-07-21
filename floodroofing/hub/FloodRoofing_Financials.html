@@ -713,17 +713,23 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       </div>
     </div>
     <div class="card per-this cash-detail" data-cdetail="deposit" style="border-left:4px solid var(--accent);">
-      <div class="ct">Deposit Cash Position <span id="cash-ts" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="ct">Deposit-funding gap <span id="cash-ts" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="hero">
         <div class="big" id="cash-end">—</div>
         <div class="unit" id="cash-end-unit">if you closed the business today</div>
         <div class="sub" id="cash-end-sub">Tap “Sync from Xero”.</div>
       </div>
     </div>
+    <div class="card per-week cash-detail" data-cdetail="deposit" style="border-left:4px solid var(--success);">
+      <div class="ct">Still to collect — not counted in the gap <span class="period-sub" style="margin-left:auto;">the reassuring number</span></div>
+      <div class="mg" id="cash-owed"></div>
+      <div class="note" id="cash-owed-note"></div>
+    </div>
     <div class="card per-this cash-detail" data-cdetail="deposit">
-      <div class="ct">Reconciliation <span class="period-sub" style="margin-left:auto;">what the 02 cash is committed to</span></div>
+      <div class="ct">Reconciliation — deposit-funding gap <span class="period-sub" style="margin-left:auto;">what the 02 cash is committed to</span></div>
       <div class="mg" id="cash-recon"></div>
       <div class="note" id="cash-recon-note"></div>
+      <div class="fld" style="margin:12px 0 0;"><label>Supplier bills in your inbox, not yet in Xero (est. $)</label><input id="cash-pendap" type="number" inputmode="decimal" autocomplete="off" placeholder="0" onchange="saveCashCfg()"><div class="note" style="margin-top:5px;">Emailed supplier invoices you haven't entered yet. These are for materials you've <b>already bought</b>, so they move that amount out of "still to buy" and into A/P — the gap only gets worse if you've been billed for <b>more</b> materials than the forecast reserved. Type a rough total to stress-test it.</div></div>
     </div>
     <div class="card per-last cash-detail" data-cdetail="due50">
       <div class="ct">Due in — 50–100% done <span class="period-sub" style="margin-left:auto;">nearly finished</span></div>
@@ -2993,7 +2999,7 @@ async function syncCash(){
     if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync from Xero';}
   }
 }
-function saveCashCfg(){const v=(document.getElementById('cash-matkw').value||'').trim();S.set('cashMatKw',v);const s=document.getElementById('cash-saleskw');if(s)S.set('cashSalesKw',(s.value||'').trim());const d=document.getElementById('cash-deppct');if(d)S.set('cashDepPct',(d.value||'').trim());const ac=document.getElementById('cash-apcodes');if(ac)S.set('cashApCodes',(ac.value||'').trim());renderCash();}
+function saveCashCfg(){const v=(document.getElementById('cash-matkw').value||'').trim();S.set('cashMatKw',v);const s=document.getElementById('cash-saleskw');if(s)S.set('cashSalesKw',(s.value||'').trim());const d=document.getElementById('cash-deppct');if(d)S.set('cashDepPct',(d.value||'').trim());const ac=document.getElementById('cash-apcodes');if(ac)S.set('cashApCodes',(ac.value||'').trim());const pa=document.getElementById('cash-pendap');if(pa)S.set('cashPendingAP',(pa.value||'').trim());renderCash();}
 // Sum the material actuals recorded on a job's phases (supplier bills/costs attached to the
 // job). Tolerant of shape variations — walks the phases JSON and adds up any material cost.
 async function fergusPhaseMaterials(jobId){
@@ -3134,21 +3140,41 @@ function renderCash(){
   noDep.sort((a,b)=>b.bought-a.bought);unpaidDep.sort((a,b)=>b.bought-a.bought);
   const unreceivedDep=noDepMat+unpaidBilled;   // recoverable deposit cash (materials spent w/ no deposit in)
   const actualsOk=hasMat && budgetMat>0;
-  const coverage=held+unreceivedDep-apVal-toBuy;try{window.__coverage=coverage;}catch(e){}          // credit recoverable deposits
-  const fundGap=held+toCollect+unreceivedDep-apVal-toBuy; // working-capital view (these are disjoint sets)
+  // Supplier bills sitting in the inbox but not yet in Xero = materials already bought.
+  // They move out of "still to buy" and into A/P, so the gap only worsens if you've been
+  // billed for MORE than the forecast reserved (pendingAP > toBuy).
+  const pendingAP=Math.max(0,num(S.get('cashPendingAP','0')));
+  const apCov=apVal+pendingAP;
+  const toBuyCov=Math.max(0,toBuy-pendingAP);
+  const coverage=held+unreceivedDep-apCov-toBuyCov;try{window.__coverage=coverage;}catch(e){}          // credit recoverable deposits
+  const fundGap=held+toCollect+unreceivedDep-apCov-toBuyCov; // working-capital view (these are disjoint sets)
+  // The reassuring number: money still to collect that the gap deliberately ignores.
+  const dueInTot=(fwJobs||[]).reduce((s,j)=>s+uninvPriced(j),0);
+  const owedTot=dueInTot+arVal;try{window.__owedTot=owedTot;}catch(e){}
+  const dpe=document.getElementById('cash-pendap');if(dpe&&!dpe.value&&pendingAP>0)dpe.value=pendingAP;
   // hero
   if(actualsOk){
     set('cash-end',null,fmtK(coverage));
     const b=document.getElementById('cash-end');if(b)b.style.color=coverage>=0?'var(--success)':'var(--danger)';
-    set('cash-end-unit',null,coverage>=0?'deposit cash left after all materials':'shortfall — deposits won’t cover the materials');
-    set('cash-end-sub',null,fmtK(toBuy)+' of materials still to buy on '+matRows.length+' live jobs · synced '+cash.ts);
+    set('cash-end-unit',null,coverage>=0?'deposit cash spare after materials':'deposit-funding gap — a timing snapshot, not a loss');
+    set('cash-end-sub',null,(coverage<0&&owedTot>0?('covered many times over by '+fmtK(owedTot)+' still to collect · '):'')+fmtK(toBuyCov)+' of materials still to buy · synced '+cash.ts);
   }else{
     set('cash-end',null,fmtK(net));
     const b=document.getElementById('cash-end');if(b)b.style.color=net>=0?'var(--success)':'var(--danger)';
-    set('cash-end-unit',null,net>=0?'deposit cash left to refund customers':'shortfall vs supplier invoices');
+    set('cash-end-unit',null,net>=0?'deposit cash left to refund customers':'deposit-funding gap vs supplier invoices');
     set('cash-end-sub',null,'⚠ Refresh Fergus on the Dashboard to forecast materials · synced '+cash.ts);
   }
   set('cash-ts',null,cash.ts?('· '+cash.ts):'');
+  // "Still to collect" reassurance card
+  if(owedTot>0){
+    const covMag=Math.abs(coverage);
+    set('cash-owed',
+      mb('Uninvoiced priced work',fmtK(dueInTot),'quoted work not yet billed','pos','m-gp')+
+      mb('Invoiced · awaiting payment',fmtK(arVal),'Xero AR',arVal>0?'pos':'','m-gp')+
+      mb('= Still to collect',fmtK(owedTot),'real money coming in','pos','m-np')+
+      mb('vs the gap',(coverage<0?(covMag>0?Math.max(1,Math.round(owedTot/covMag))+'× cover':'—'):'in surplus'),coverage<0?'the gap is dwarfed':'no gap','pos','m-rev'));
+    set('cash-owed-note',null,(coverage<0?('Your '+fmtK(coverage)+' deposit-funding gap is dwarfed by '+fmtK(owedTot)+' of money still to collect. '):'You have '+fmtK(owedTot)+' still to collect. ')+'This is what makes the red number a timing issue, not a loss — the 13-week forecast below shows whether cash actually runs short.');
+  }else{set('cash-owed','<div class="empty" style="grid-column:1/-1;">Refresh Fergus + sync Xero to see what you’re still owed.</div>');set('cash-owed-note',null,'');}
   // reconciliation waterfall
   if(actualsOk){
     set('cash-recon',
@@ -3156,10 +3182,10 @@ function renderCash(){
       mb('+ Deposits waiting in 03',fmtK(salesPos),salesVal<-1?('03 at '+fmtK(salesVal)+' · clearing → $0'):(sales?esc(sales.name):'not matched'),'','m-gp')+
       mb('= Deposit cash on hand',fmtK(held),'Materials 02 + 03 deposits','','m-np')+
       mb('+ Deposits owed to you',fmtK(unreceivedDep),'uninvoiced/unpaid · recoverable',unreceivedDep>0?'pos':'','m-gp')+
-      mb('− Supplier invoices (A/P)','−'+fmtK(apVal),apSplit?(apAuto?('goods only · '+(accts?'Direct Costs':'by supplier')):'goods only'):'all suppliers','','m-cogs')+
-      mb('− Materials still to buy','−'+fmtK(toBuy),matRows.length+' jobs · not yet ordered','','m-cogs')+
-      mb('= Coverage',fmtK(coverage),coverage>=0?'fully funded':'short',coverage>=0?'pos':'neg','m-np'));
-    set('cash-recon-note',null,'Held deposit cash + recoverable − A/P − materials still to buy = Coverage. It ignores the finals you’ll still collect (see the forecast below), so a red number is usually timing, not a loss.');
+      mb('− Supplier invoices (A/P)','−'+fmtK(apCov),(apSplit?(apAuto?('goods only · '+(accts?'Direct Costs':'by supplier')):'goods only'):'all suppliers')+(pendingAP>0?(' · incl '+fmtK(pendingAP)+' inbox'):''),'','m-cogs')+
+      mb('− Materials still to buy','−'+fmtK(toBuyCov),matRows.length+' jobs'+(pendingAP>0?(' · '+fmtK(pendingAP)+' now billed'):' · not yet ordered'),'','m-cogs')+
+      mb('= Deposit-funding gap',fmtK(coverage),coverage>=0?'fully funded':'timing gap · '+(owedTot>0?fmtK(owedTot)+' still to collect':'see forecast'),coverage>=0?'pos':'neg','m-np'));
+    set('cash-recon-note',null,'Held deposit cash + recoverable − A/P − materials still to buy = the deposit-funding gap. It ignores the '+fmtK(owedTot)+' of finals + invoices you’ll still collect (see the forecast below), so a red number is timing, not a loss.');
   }else{
     set('cash-recon',
       mb('Materials (02) balance',fmtK(matVal),mat?esc(mat.name):'not matched','','m-rev')+
@@ -3430,7 +3456,7 @@ function go(p,dir){
 }
 // Tap-through popups for the 'Cash at a glance' tiles. Detail cards live hidden in the page;
 // opening a tile moves the matching card(s) into the modal, close returns them to the stash.
-const CASH_DETAIL_TITLES={deposit:'Deposit cash position',owed:'Total owed to you',due50:'Due in · 50–100% done',due10:'Due in · 10–50% done',due0:'Due in · not started',ar:'Xero AR — invoiced, unpaid'};
+const CASH_DETAIL_TITLES={deposit:'Deposit-funding gap',owed:'Total owed to you',due50:'Due in · 50–100% done',due10:'Due in · 10–50% done',due0:'Due in · not started',ar:'Xero AR — invoiced, unpaid'};
 function openCashDetail(key){
   const m=document.getElementById('cash-modal'),body=document.getElementById('cmodal-body'),stash=document.getElementById('cash-stash');
   if(!m||!body||!stash)return;
@@ -3456,7 +3482,8 @@ function renderCashSummary(){
   const cov=window.__coverage;
   const dueTot=t50+tmid+t0;const ar=window.__arVal;const owed=dueTot+(ar!=null?ar:0);
   const tap=(label,val,sub,cls,boxcls,key)=>'<div class="mb mb-tap '+boxcls+'" onclick="openCashDetail(\''+key+'\')"><div class="l">'+label+'<span class="mb-go">\u203A</span></div><div class="v'+(cls?' '+cls:'')+'">'+val+'</div><div class="s2">'+(sub||'')+'</div></div>';
-  const html=tap('Deposit cash position',(cov!=null?fmtK(cov):'—'),'held − owed',(cov!=null?(cov>=0?'pos':'neg'):''),'m-np','deposit')+
+  const gapSub=(cov==null)?'held − owed':(cov>=0?'deposit cash spare':(owed>0?fmtK(owed)+' owed covers it':'timing gap · not a loss'));
+  const html=tap('Deposit-funding gap',(cov!=null?fmtK(cov):'—'),gapSub,(cov!=null?(cov>=0?'pos':'neg'):''),'m-np','deposit')+
     tap('Total owed to you',fmtK(owed),'due in '+fmtK(dueTot)+(ar!=null?(' + AR '+fmtK(ar)):' · AR: sync Xero'),'pos','m-gp','owed')+
     tap('Due in · 50–100%',fmtK(t50),'nearly done','','m-gp','due50')+
     tap('Due in · 10–50%',fmtK(tmid),'in progress','','m-rev','due10')+
