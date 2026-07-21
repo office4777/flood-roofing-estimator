@@ -4123,43 +4123,60 @@ function _renderRoofSheetPlanInner() {
     var dk = s.color + ':' + s.orderedLengthMm;
     _delByKey[dk] = (_delByKey[dk] || 0) + 1;
   });
-  // Plane width = extent of the face polygon along its gutter tangent.
-  // (Some branches — straight-gable, hv-gable — deliberately store gL:1
-  // and encode the real width in the polygon, so measure it directly.)
-  function _faceWidthPx(f){
-    if (!f || !f.poly || !f.poly.length) return 0;
-    var tx = f.tx, ty = f.ty;
-    if (!(isFinite(tx) && isFinite(ty)) || (tx === 0 && ty === 0)) {
-      // No tangent — fall back to the polygon's larger bbox side.
-      var xs = f.poly.map(function(p){ return p[0]; }), ys = f.poly.map(function(p){ return p[1]; });
-      return Math.max(Math.max.apply(null, xs) - Math.min.apply(null, xs),
-                      Math.max.apply(null, ys) - Math.min.apply(null, ys));
-    }
-    var tmin = Infinity, tmax = -Infinity;
-    f.poly.forEach(function(p){
-      var t = p[0] * tx + p[1] * ty;
-      if (t < tmin) tmin = t;
-      if (t > tmax) tmax = t;
-    });
-    return tmax - tmin;
+  // ── Order count by ROOF SECTION ────────────────────────────────
+  // The roofer lays donor (full) sheets on the two faces EITHER SIDE of
+  // a section's ridge, and cuts the hip-ends + wing wedges from those
+  // sheets' offcuts.  So the order for one hip/gable section is:
+  //     2 × ceil(ridge-axis length / cover)   (+1 if it's valley-fed)
+  // where the ridge runs along the section's LONGER axis and the sheet
+  // length is the run down the SHORTER axis (gutter → ridge).  Hip-end
+  // faces add nothing — they come out of the donor offcuts.
+  //
+  // Faces are grouped into sections by the tiler's colouring: the main
+  // hip is orange/blue (two opposite slopes of one ridge), and each wing
+  // gets its own palette colour (purple, green, …).
+  function _sectionKey(f){
+    return (f.color === COL_ORANGE || f.color === COL_BLUE) ? 'main' : ('w:' + (f.color || '?'));
   }
-  var groups = {};
+  function _faceGL(f){
+    var dx = f.b[0] - f.a[0], dy = f.b[1] - f.a[1];
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  var sections = {};
   faces.forEach(function(f){
     if (!f || !f.poly || !f.poly.length) return;
-    var widthPx = _faceWidthPx(f);
-    if (!(widthPx > 0)) return;
-    var col = f.color || COL_ORANGE;
-    var mm  = orderedLengthMm(f.sheetM);
-    // Hip-end (triangular) planes don't order their own sheets — the
-    // roofer runs the long-side sheets past the hip and cuts them on the
-    // 45°, so the hip triangle is CUT FROM the main-plane sheets. Only the
-    // long-side (main) planes order full sheets: ceil(width / cover).
-    var valleyFed = _faceValleyFed(f);
-    var n = (f.type === 'hip-end')
-      ? 0                                                // absorbed into the mains
-      : Math.max(1, Math.ceil(widthPx / coverPx - 1e-6));
-    if (valleyFed) n += 1;                               // + spare for the valley cut
-    if (n <= 0) return;
+    var k = _sectionKey(f);
+    if (!sections[k]) sections[k] = { color: f.color, valley: false, ridgeFace: null, ridgeGL: 0, polys: [] };
+    var sec = sections[k];
+    if (k === 'main' && f.color === COL_ORANGE) sec.color = COL_ORANGE;
+    if (_faceValleyFed(f)) sec.valley = true;
+    var gL = _faceGL(f);
+    // The ridge runs along the section's LONGEST eave (a hip's main run).
+    if (gL > sec.ridgeGL) { sec.ridgeGL = gL; sec.ridgeFace = f; }
+    sec.polys.push(f.poly);
+  });
+  var groups = {};
+  Object.keys(sections).forEach(function(k){
+    var sec = sections[k];
+    if (!sec.ridgeFace || !(sec.ridgeGL > 0)) return;
+    // Full donor sheets: ceil(ridge length / cover) on EACH of the two
+    // faces either side of the ridge.
+    var n = 2 * Math.max(1, Math.ceil(sec.ridgeGL / coverPx - 1e-6));
+    if (sec.valley) n += 1;                                   // spare for the valley cut
+    // Sheet length = gutter→ridge run = half the section's span measured
+    // PERPENDICULAR to the ridge (the axis the sheets actually run down).
+    var nx = sec.ridgeFace.nx, ny = sec.ridgeFace.ny;
+    if (!(isFinite(nx) && isFinite(ny)) || (nx === 0 && ny === 0)) {
+      var tx = sec.ridgeFace.tx, ty = sec.ridgeFace.ty; nx = -ty; ny = tx;
+    }
+    var pmin = Infinity, pmax = -Infinity;
+    sec.polys.forEach(function(poly){ poly.forEach(function(p){
+      var d = p[0] * nx + p[1] * ny;
+      if (d < pmin) pmin = d; if (d > pmax) pmax = d;
+    }); });
+    var perpSpanPx = (pmax > pmin) ? (pmax - pmin) : sec.ridgeFace.perpPx;
+    var mm  = orderedLengthMm((perpSpanPx / 2) * effectiveScale * pitchFactor);
+    var col = sec.color || COL_ORANGE;
     var key = col + ':' + mm;
     if (!groups[key]) groups[key] = { color: col, orderedMm: mm, count: 0 };
     groups[key].count += n;
