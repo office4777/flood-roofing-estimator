@@ -1097,17 +1097,18 @@ async function syncWorkload(band){
         let aMat=num(_ci.materials);
         if(aMat<=0){const _tot=num(_ci.total),_lab=num(_ci.labour);if(_tot>_lab)aMat=_tot-_lab;}   // fallback: total − labour
         const jChg=num(_ca.total),jBilled=num(_tb.total);
+        const jQuoted=num(_qs.quotedAmount)||num(_qs.total);   // fixed/priced quote ONLY — no chargeable (T&M) fallback
         const sale=num(_qs.quotedAmount)||jChg;   // total job sale price (before GST)
         const client=fergusName(job.customer)||fergusName(job.mainContact)||'Job '+(job.jobNo||job.jobNumber||id);
         const site=fergusAddr(job.siteAddress);
         const jobName=client+(site?(' — '+site):'');
         const fin=isFinishedJob(job,summary);
         // EVERY active job (incl. heavily-billed ones) feeds the materials-still-to-buy forecast
-        allJobs.push({id:String(id),jobNo:String(job.jobNo||job.jobNumber||''),job:jobName,pMat,aMat,sale,chg:jChg,billed:jBilled,status:job.status||'Active',fin});
+        allJobs.push({id:String(id),jobNo:String(job.jobNo||job.jobNumber||''),job:jobName,pMat,aMat,sale,quoted:jQuoted,chg:jChg,billed:jBilled,status:job.status||'Active',fin});
         if(fin){excluded++;continue;} // fully invoiced = done → not backlog (but still in the forecast above)
         const {priced,actual}=extractHours(summary);
         if(priced<=0)noPriced++;
-        out.push({id:String(id),job:jobName,priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,sale,chg:jChg,billed:jBilled,status:job.status||'Active'});
+        out.push({id:String(id),job:jobName,priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,sale,quoted:jQuoted,chg:jChg,billed:jBilled,status:job.status||'Active'});
       }
     }
     await Promise.all(Array.from({length:Math.min(4,total||1)},()=>jobWorker()));
@@ -3365,8 +3366,8 @@ function renderCashflow(){
   // job completion schedule
   renderCfCalendar(sched,finOv);
   // ===== Due in: jobs that already have >=10% of their hours on them =====
-  const started=(fwJobs||[]).filter(j=>{const p=num(j.priced);if(p<=0)return false;const a=num(j.actual);return a/p>=0.10 && (num(j.sale)-num(j.billed))>0;})
-    .map(j=>{const p=num(j.priced),a=num(j.actual);return {job:j.job,pct:p>0?a/p:0,actual:a,due:Math.max(0,num(j.sale)-num(j.billed))};}).sort((x,y)=>y.due-x.due);
+  const started=(fwJobs||[]).filter(j=>{const p=num(j.priced);if(p<=0)return false;const a=num(j.actual);return a/p>=0.10 && uninvPriced(j)>0;})
+    .map(j=>{const p=num(j.priced),a=num(j.actual);return {job:j.job,pct:p>0?a/p:0,actual:a,due:uninvPriced(j)};}).sort((x,y)=>y.due-x.due);
   const dueTot=started.reduce((s,j)=>s+j.due,0);
   const over50=started.filter(s=>s.pct>=0.50),mid=started.filter(s=>s.pct<0.50);
   const t50=over50.reduce((s,j)=>s+j.due,0),tmid=mid.reduce((s,j)=>s+j.due,0);
@@ -3380,8 +3381,8 @@ function renderCashflow(){
   set('cf-duemid-sub',null,mid.length?(mid.length+' jobs 10–50% done · still to collect'):'No jobs 10–50% done with money owing');
   const midTb=document.querySelector('#cf-duemid-tbl tbody');
   if(midTb)midTb.innerHTML=mid.length?(mid.map(dueRow).join('')+dueSum(mid.length,tmid)):'<tr><td colspan="4" class="empty">No jobs 10–50% done with money owing — Refresh Fergus.</td></tr>';
-  const notSt=(fwJobs||[]).filter(j=>{const p=num(j.priced),a=num(j.actual);return (num(j.sale)-num(j.billed))>0 && (p<=0 || a/p<0.10);})
-    .map(j=>{const p=num(j.priced),a=num(j.actual);return {job:j.job,pct:p>0?a/p:0,actual:a,due:Math.max(0,num(j.sale)-num(j.billed))};}).sort((x,y)=>y.due-x.due);
+  const notSt=(fwJobs||[]).filter(j=>{const p=num(j.priced),a=num(j.actual);return uninvPriced(j)>0 && (p<=0 || a/p<0.10);})
+    .map(j=>{const p=num(j.priced),a=num(j.actual);return {job:j.job,pct:p>0?a/p:0,actual:a,due:uninvPriced(j)};}).sort((x,y)=>y.due-x.due);
   const notTot=notSt.reduce((s,j)=>s+j.due,0);
   set('cf-due2-total',null,fmtK(notTot));
   set('cf-due2-sub',null,notSt.length?(notSt.length+' jobs <10% started · less certain'):'none — every job is underway');
@@ -3443,10 +3444,15 @@ function closeCashDetail(){
   if(body&&stash)Array.from(body.children).forEach(n=>{if(n.classList&&n.classList.contains('cash-detail'))stash.appendChild(n);});
   if(m)m.classList.remove('open');document.body.style.overflow='';
 }
+// Uninvoiced amount for the "due in" buckets = the QUOTED/PRICED sale price − what's
+// already been invoiced. Deliberately NOT chargeableAmount (Fergus's assumed T&M/costs
+// figure) — only real priced work counts, so a job with no quote contributes $0.
+// Falls back to sale for jobs cached before the quoted field existed (until next sync).
+function uninvPriced(j){const q=(j.quoted!=null?num(j.quoted):num(j.sale));return Math.max(0,q-num(j.billed));}
 // Shared 'cash at a glance' card (Cash tab + Dashboard): position + due-in buckets.
 function renderCashSummary(){
   let t50=0,tmid=0,t0=0;
-  (fwJobs||[]).forEach(j=>{const p=num(j.priced),a=num(j.actual),due=Math.max(0,num(j.sale)-num(j.billed));if(due<=0)return;const pct=p>0?a/p:0;if(p>0&&pct>=0.50)t50+=due;else if(p>0&&pct>=0.10)tmid+=due;else t0+=due;});
+  (fwJobs||[]).forEach(j=>{const p=num(j.priced),a=num(j.actual),due=uninvPriced(j);if(due<=0)return;const pct=p>0?a/p:0;if(p>0&&pct>=0.50)t50+=due;else if(p>0&&pct>=0.10)tmid+=due;else t0+=due;});
   const cov=window.__coverage;
   const dueTot=t50+tmid+t0;const ar=window.__arVal;const owed=dueTot+(ar!=null?ar:0);
   const tap=(label,val,sub,cls,boxcls,key)=>'<div class="mb mb-tap '+boxcls+'" onclick="openCashDetail(\''+key+'\')"><div class="l">'+label+'<span class="mb-go">\u203A</span></div><div class="v'+(cls?' '+cls:'')+'">'+val+'</div><div class="s2">'+(sub||'')+'</div></div>';

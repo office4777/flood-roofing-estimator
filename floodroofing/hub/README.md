@@ -199,6 +199,16 @@ to working days using your crew: `days = remaining hours ÷ (teams × guys-per-t
 × hours-per-day)` (defaults 4 × 2 × 8 = 64 h/day). Teams/size/hours are editable
 in the app. Jobs with no priced hours in Fergus count as 0 and are flagged.
 
+## Cash — "Due in" uses the quoted price, not Fergus's estimate
+
+The Cash "at a glance" **Due in** buckets (and their drill-down tables) show
+**uninvoiced money = the job's quoted/priced amount − what's already been
+invoiced**. It deliberately ignores Fergus's `chargeableAmount` (the assumed
+time-&-materials/costs figure Fergus shows when a job isn't fixed-price), so a
+job with no real quote contributes **$0** rather than an estimated amount. Only
+genuinely priced work shows as "still to collect". (Re-sync Fergus once so jobs
+carry the quoted figure.)
+
 ## Fergus on mobile (what changed in v6)
 
 Earlier versions could only reach Fergus through a desktop PowerShell proxy on
