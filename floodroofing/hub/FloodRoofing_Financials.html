@@ -610,47 +610,47 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
   <!-- ───────── GROWTH STRUCTURE ───────── -->
   <div class="page" id="page-growth">
     <div class="card" style="border-left:4px solid var(--success);">
-      <div class="ct">Projected Net Profit <span id="g-scn" class="period-sub"></span></div>
+      <div class="ct">Profit your on-tools guys make now <span id="g-src" class="period-sub" style="margin-left:auto;"></span></div>
       <div class="hero">
         <div class="big" id="g-np">—</div>
-        <div class="unit">net profit / month</div>
+        <div class="unit" id="g-np-unit">gross profit / month (Fergus back-costing)</div>
         <div class="sub" id="g-np-sub"></div>
       </div>
     </div>
 
     <div class="card">
-      <div class="ct">Crew scenario <span id="g-tradies" class="period-sub" style="margin-left:auto;"></span></div>
-      <div class="cfg" style="grid-template-columns:1fr 1fr;">
-        <div><label>Teams</label><input type="number" id="g-teams" min="1" inputmode="numeric" oninput="saveGrowthCfg()"></div>
-        <div><label>Tradesmen / team</label><input type="number" id="g-size" min="1" inputmode="numeric" oninput="saveGrowthCfg()"></div>
+      <div class="ct">Your crew now — from Fergus</div>
+      <div class="mg" id="g-now"></div>
+      <div class="note" id="g-now-note"></div>
+      <div class="cfg" style="grid-template-columns:1fr 1fr;margin-top:12px;">
+        <div><label>Guys on tools (blank = auto)</label><input type="number" id="g-guysnow" min="1" inputmode="numeric" placeholder="auto" oninput="saveGrowthCfg()"></div>
+        <div><label>Hours / week (blank = auto)</label><input type="number" id="g-hrswk" min="0" inputmode="decimal" placeholder="auto" oninput="saveGrowthCfg()"></div>
+        <div style="grid-column:1/-1;"><label>Office overhead $/mo (optional — for net profit)</label><input type="number" id="g-ohmo" min="0" inputmode="decimal" placeholder="0 = show gross profit" oninput="saveGrowthCfg()"></div>
       </div>
-      <div class="chips" id="g-presets" style="margin-top:12px;"></div>
     </div>
 
     <div class="card">
-      <div class="ct">Projected monthly P&amp;L <span id="g-src" class="period-sub" style="margin-left:auto;"></span></div>
-      <div class="mg" id="g-proj"></div>
+      <div class="ct">Grow the crew <span id="g-tradies" class="period-sub" style="margin-left:auto;"></span></div>
+      <div class="cfg" style="grid-template-columns:1fr;">
+        <div><label>Guys on the tools (scenario)</label><input type="number" id="g-guys" min="1" inputmode="numeric" placeholder="e.g. 12" oninput="saveGrowthCfg()"></div>
+      </div>
+      <div class="chips" id="g-presets" style="margin-top:12px;"></div>
+      <div class="mg" id="g-proj" style="margin-top:14px;"></div>
       <div class="note" id="g-cmp"></div>
     </div>
 
     <div class="card">
-      <div class="ct">If you scale the crew</div>
+      <div class="ct">If you add guys <span class="period-sub" style="margin-left:auto;">same real $/hr</span></div>
       <div class="tbl-wrap">
         <table class="tb" id="g-tbl">
-          <thead><tr><th>Crew</th><th>On tools</th><th>Hrs/mo</th><th>Rev/mo</th><th>GP</th><th>Opex</th><th>Opex%</th><th>NP/mo</th><th>NP/yr</th></tr></thead>
+          <thead><tr><th>Guys</th><th>Hrs/mo</th><th>Rev/mo</th><th>GP/mo</th><th>GP/yr</th></tr></thead>
           <tbody id="g-body"></tbody>
         </table>
       </div>
     </div>
 
     <div class="card">
-      <div class="ct">Assumptions <span class="period-sub" style="margin-left:auto;">edit to recalc</span></div>
-      <div class="cfg" style="grid-template-columns:1fr 1fr;">
-        <div><label>Estimator $/mo</label><input type="number" id="g-estcost" min="0" inputmode="numeric" oninput="saveGrowthCfg()"></div>
-        <div><label>Est. weeks in role</label><input type="number" id="g-estweeks" min="0" inputmode="numeric" oninput="saveGrowthCfg()"></div>
-        <div><label>Variable opex $/head/mo</label><input type="number" id="g-varopex" min="0" inputmode="numeric" oninput="saveGrowthCfg()"></div>
-        <div><label>Baseline on-tools</label><input type="number" id="g-base" min="1" inputmode="numeric" oninput="saveGrowthCfg()"></div>
-      </div>
+      <div class="ct">How this is worked out <span class="period-sub" style="margin-left:auto;">Fergus only</span></div>
       <div class="note" id="g-assume"></div>
     </div>
   </div>
@@ -910,7 +910,7 @@ let _xeroPulling=false;   // guard: prevents overlapping/recursive Xero pulls (r
 // Growth Structure scenario planner. teams/size = the what-if crew; base = the crew that
 // actually produced the last-6-month average (4×2 = 8 on-tools). estCost/estWeeks normalise
 // the estimator (only ~6 weeks in the window). varOpex = opex that scales per on-tools head.
-let growthCfg=S.get('growthCfg',{teams:4,size:2,base:8,estCost:7500,estWeeks:6,varOpex:1200});
+let growthCfg=Object.assign({guys:'',ohMo:'',guysNow:'',hrsWk:''},S.get('growthCfg',{}));
 let lastXeroRep=null,lastXeroLabel='';   // cached last full live report → re-render P&L tab without re-pulling (only sync pulls)
 
 // ════════ TOAST (mobile-safe feedback — never relies on alert/prompt) ════════
@@ -1862,6 +1862,7 @@ function walkRooferHours(data,emit){
 // entries once and group by each entry's own jobId → roofer hours { jobId:{roofer:h} } AND the
 // TOTAL logged hours per job across everyone { jobId: hours } (GP/hr divides by this total).
 let _timeMap=null,_jobLoggedHrs=null;
+let _tePersons={},_teMinT=Infinity,_teMaxT=-Infinity;   // per-person on-site hours + time-window bounds (for the Growth tab)
 let _jobMonthHrs=S.get('jobMonthHrs',{});        // {jobId:{month:hours}} accumulated across syncs (for the ≥60% work-month rule)
 let _jmSeen=new Set(S.get('jobMonthSeen',[]));    // timeEntryIds already counted into _jobMonthHrs (cross-sync dedup)
 function resetRooferDiscovery(){_timeMap=null;_jobLoggedHrs=null;}
@@ -1873,13 +1874,17 @@ function _ingestEntry(e,map,jobHrs,seen){
   const jid=e&&(e.jobId!=null?e.jobId:(e.job_id!=null?e.job_id:null));if(jid==null)return true;  // toolbox/breakfast = no job
   const h=entryHours(e);if(h<=0)return true;
   const k=String(jid);jobHrs[k]=(jobHrs[k]||0)+h;                                    // total logged hours, ALL workers
-  const roofer=matchRoofer(entryUser(e));if(roofer)(map[k]||(map[k]={}))[roofer]=(map[k][roofer]||0)+h;
+  const uname=entryUser(e);const roofer=matchRoofer(uname);if(roofer)(map[k]||(map[k]={}))[roofer]=(map[k][roofer]||0)+h;
+  // Growth tab: count EVERY on-site person (matched roofer name, else raw name) + track the window span
+  const pn=roofer||(uname||'').trim();if(pn)_tePersons[pn]=(_tePersons[pn]||0)+h;
+  const ts=Date.parse(String((e.startTime||e.dateEntered||'')).replace(' ','T'));if(!isNaN(ts)){if(ts<_teMinT)_teMinT=ts;if(ts>_teMaxT)_teMaxT=ts;}
   // accumulate per-job-month hours (deduped across syncs) so a job can be attributed to its dominant work-month
   if(eid!=null&&!_jmSeen.has(eid)){_jmSeen.add(eid);const mo=teMonth(e);if(mo){const jm=_jobMonthHrs[k]||(_jobMonthHrs[k]={});jm[mo]=(jm[mo]||0)+h;}}
   return true;
 }
 async function buildTimeMap(onProg){
   const map={},jobHrs={};const seen=new Set();let n=0;
+  _tePersons={};_teMinT=Infinity;_teMaxT=-Infinity;   // reset the Growth-tab team/window accumulators
   // Fergus caps pageSize (200 → 400). Find the biggest it accepts, then page through ALL entries
   // with ?page= in parallel batches (sortField=timeEntryDate). Group by each entry's own jobId.
   let ps=10;for(const c of [100,50,25]){try{await fergusApiFetch('/timeEntries?pageSize='+c+'&page=1');ps=c;break;}catch(e){}}
@@ -1899,6 +1904,11 @@ async function buildTimeMap(onProg){
     page+=BATCH;
   }
   _timeMap=map;_jobLoggedHrs=jobHrs;S.set('msTimeMap',{entries:seen.size,jobs:Object.keys(jobHrs).length,ps});
+  // Persist who's on the tools + how many hours over what window (for the Growth tab)
+  const persons=Object.entries(_tePersons).filter(([nm,h])=>h>0).map(([nm,h])=>({n:nm,h:Math.round(h*10)/10})).sort((a,b)=>b.h-a.h);
+  const totalHrs=persons.reduce((s,p)=>s+p.h,0);
+  const spanW=(isFinite(_teMinT)&&_teMaxT>_teMinT)?(_teMaxT-_teMinT)/(7*86400000):0;
+  S.set('teamWork',{persons,totalHrs,weeks:Math.max(1,spanW),from:(isFinite(_teMinT)?_teMinT:0),to:(_teMaxT>0?_teMaxT:0)});
   S.set('jobMonthHrs',_jobMonthHrs);S.set('jobMonthSeen',[..._jmSeen].slice(-9000));   // recent entries only re-appear, so capping is safe
   if(onProg)onProg(1);
   return map;
@@ -2542,95 +2552,91 @@ function sixMonthAvg(){
     return {rev,gp,opex,np:gp-opex,gpm:rev>0?gp/rev:0,src:'est',n:md.length,from:md[0].month,to:md[md.length-1].month};}
   return null;
 }
-// Real productivity from back-costing: revenue & GP per ACTUAL on-tools labour hour, over the
-// last 12 data months. This is what the guys actually got through per hour worked.
-function bcProd(){
-  const set=new Set(dataMonths().slice(-12));
-  let rev=0,gp=0,hrs=0,n=0;
-  getAllBC().forEach(r=>{if(!set.has(r.month))return;const h=num(r.h_actual);if(h<=0)return;rev+=num(r.sales);gp+=num(r.gp);hrs+=h;n++;});
-  if(hrs<=0||n<3)return null;
-  const ms=[...set];
-  return {rev,gp,hrs,n,revPerHr:rev/hrs,gpPerHr:gp/hrs,gpm:rev>0?gp/rev:0,from:ms[0]||'',to:ms[ms.length-1]||''};
+// Productivity from FERGUS back-costing ONLY (ignores the Excel/manual BC_DATA and the P&L):
+// revenue & GP per ACTUAL logged labour hour, over the last 12 months. Divides by the hours the
+// guys actually logged into Fergus (time entries) when available, else the summary's logged hours.
+function fergusProd(){
+  const calc=filt=>{let rev=0,gp=0,hrs=0,n=0;(bcFergus||[]).forEach(r=>{if(filt&&!filt.has(r.month))return;const h=num(r._loggedHrs)||num(r.h_actual);if(h<=0)return;rev+=num(r.sales);gp+=num(r.gp);hrs+=h;n++;});return {rev,gp,hrs,n};};
+  const set=new Set();for(let i=0;i<12;i++)set.add(calMonthKey(-i));
+  let o=calc(set);if(o.n<1||o.hrs<=0)o=calc(null);   // fall back to all Fergus rows if nothing in the last 12 months
+  if(o.hrs<=0||o.n<1)return null;
+  return {rev:o.rev,gp:o.gp,hrs:o.hrs,n:o.n,revPerHr:o.rev/o.hrs,gpPerHr:o.gp/o.hrs,gpm:o.rev>0?o.gp/o.rev:0};
 }
-// Scale to a scenario crew size. Revenue/GP come from real back-costing productivity (per-hour)
-// × each on-tools head's billable hours per month; opex = fixed overhead + per-head variable cost.
-function growthModel(scTeams,scSize){
-  const prod=bcProd(), avg=sixMonthAvg();
-  if(!prod&&!avg)return null;
-  const oh=ohRate();
-  const monthlyHrs=Math.max(1,oh.billWeeks*oh.billHrs/12);            // billable hrs/mo per on-tools head
-  const base=Math.max(1,num(growthCfg.base));
-  const estFrac=Math.min(1,Math.max(0,num(growthCfg.estWeeks)/26));   // share of the 26-wk window the estimator was present
-  const estAdj=num(growthCfg.estCost)*(1-estFrac);                    // top-up so the estimator counts full-time going forward
-  const baseOpex=(avg?num(avg.opex):0)+estAdj;
-  const varPT=Math.max(0,num(growthCfg.varOpex));
-  let fixed=baseOpex-varPT*base;if(fixed<0)fixed=0;
-  // PREFER back-costing productivity (capacity × $/hr); fall back to Xero rev ÷ assumed heads.
-  let revPT,gpm,basis;
-  if(prod){revPT=monthlyHrs*prod.revPerHr;gpm=prod.gpm;basis='bc';}
-  else {revPT=avg.rev/base;gpm=avg.gpm;basis='xero';}
-  // Crew earning weight: each team = 1 lead roofer (does 65% of a 2-man crew's earning) + apprentices
-  // (35%). Normalised so a 2-man crew = 2.0 earning-heads (lead 1.30, apprentice 0.70) → matches the
-  // back-costing baseline (mostly 2-man). Bigger crews add apprentices worth 0.70 of a head each.
-  const LEAD_W=2*0.65, APP_W=2*0.35;
-  const effHeads=(t,s)=>Math.max(0,t)*(LEAD_W+APP_W*Math.max(0,s-1));
-  const calc=(raw,eff)=>{raw=Math.max(0,raw);eff=Math.max(0,eff);const rev=revPT*eff,gp=rev*gpm,opex=fixed+varPT*raw,np=gp-opex;
-    return {tr:raw,eff,rev,gp,opex,np,gpm,hrs:monthlyHrs*raw,opexPct:rev>0?opex/rev:0,npm:rev>0?np/rev:0};};
-  const rowTS=(t,s)=>calc(t*s,effHeads(t,s));
-  return {avg,prod,monthlyHrs,oh,base,fixed,varPT,revPT,gpm,estAdj,baseOpex,basis,LEAD_W,APP_W,leadRev:revPT*LEAD_W,appRev:revPT*APP_W,row:rowTS,baseRow:calc(base,base),scenario:rowTS(scTeams,scSize)};
+// Who's actually on the tools + how many hours they log — straight from Fergus time entries.
+function teamWork(){
+  const t=S.get('teamWork',null);if(!t||!t.persons||!t.persons.length)return null;
+  const weeks=Math.max(1,num(t.weeks)||1),totalHrs=num(t.totalHrs);
+  return {persons:t.persons,guys:t.persons.length,totalHrs,weeks,hrsWeek:totalHrs/weeks,from:t.from,to:t.to};
+}
+// Growth model — 100% Fergus. Guys = people logging on-site hours; weekly hours = what they log;
+// $/hr & GP/hr = Fergus back-costing. Scale by headcount: more guys → proportionally more hours →
+// more revenue & GP at the same real per-hour rate. Optional office overhead turns GP into NP.
+function growthModel(scGuys){
+  const prod=fergusProd(), tw=teamWork();
+  if(!prod||!tw)return null;
+  const guysNow=Math.max(1,(num(growthCfg.guysNow)>0?num(growthCfg.guysNow):tw.guys));
+  const hrsWeek=(num(growthCfg.hrsWk)>0?num(growthCfg.hrsWk):tw.hrsWeek);
+  const hrsPerGuyWk=guysNow>0?hrsWeek/guysNow:0;
+  const oh=Math.max(0,num(growthCfg.ohMo));            // optional office overhead / mo (0 = pure back-costing GP)
+  const W2M=52/12;
+  const calc=g=>{g=Math.max(0,g);const hw=g*hrsPerGuyWk,hm=hw*W2M,rev=hm*prod.revPerHr,gp=hm*prod.gpPerHr,np=gp-oh;
+    return {g,hw,hm,rev,gp,oh,np,gpm:prod.gpm,npm:rev>0?np/rev:0};};
+  return {prod,tw,guysNow,hrsWeek,hrsPerGuyWk,oh,W2M,calc,cur:calc(guysNow),scenario:calc(Math.max(1,scGuys||guysNow))};
 }
 function saveGrowthCfg(){
-  growthCfg={
-    teams:Math.max(1,num(document.getElementById('g-teams').value)||4),
-    size:Math.max(1,num(document.getElementById('g-size').value)||2),
-    base:Math.max(1,num(document.getElementById('g-base').value)||8),
-    estCost:Math.max(0,num(document.getElementById('g-estcost').value)),
-    estWeeks:Math.max(0,num(document.getElementById('g-estweeks').value)),
-    varOpex:Math.max(0,num(document.getElementById('g-varopex').value))
-  };
+  const g=id=>document.getElementById(id);const gv=id=>(g(id)?(g(id).value||'').trim():'');
+  growthCfg={guys:gv('g-guys'),ohMo:gv('g-ohmo'),guysNow:gv('g-guysnow'),hrsWk:gv('g-hrswk')};
   S.set('growthCfg',growthCfg);renderGrowth();
 }
-function gSetPreset(t,s){document.getElementById('g-teams').value=t;document.getElementById('g-size').value=s;saveGrowthCfg();}
+function gSetGuys(n){const e=document.getElementById('g-guys');if(e)e.value=n;saveGrowthCfg();}
 function renderGrowth(){
-  const tr=num(growthCfg.teams)*num(growthCfg.size);
-  document.getElementById('g-tradies').textContent=growthCfg.teams+' × '+growthCfg.size+' = '+tr+' on tools';
-  document.getElementById('g-presets').innerHTML=[[4,2],[5,2],[6,2],[7,2],[5,3],[6,3]].map(([t,s])=>'<span class="chip'+(t==num(growthCfg.teams)&&s==num(growthCfg.size)?' on':'')+'" onclick="gSetPreset('+t+','+s+')">'+t+'×'+s+' = '+(t*s)+'</span>').join('');
-  const m=growthModel(num(growthCfg.teams),num(growthCfg.size));
-  const pillSrc=document.getElementById('g-src');
+  const m=growthModel(num(growthCfg.guys));
+  const setTxt=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
+  const setHtml=(id,h)=>{const e=document.getElementById(id);if(e)e.innerHTML=h;};
+  const hasOh=m&&m.oh>0;
   if(!m){
-    document.getElementById('g-np').textContent='—';
-    document.getElementById('g-np-sub').textContent='No back-costing or P&L data yet — Sync from Fergus on the Back Costing tab.';
-    document.getElementById('g-proj').innerHTML='<div class="empty" style="grid-column:1/-1;">No P&amp;L data yet.</div>';
-    document.getElementById('g-body').innerHTML='<tr><td colspan="9" class="empty">No data.</td></tr>';
-    document.getElementById('g-cmp').textContent='';document.getElementById('g-assume').textContent='';
-    if(pillSrc)pillSrc.textContent='';return;
+    setTxt('g-np','—');
+    setTxt('g-np-sub','No Fergus back-costing + time entries yet — Sync from Fergus (Back Costing tab), which loads the hours the guys log.');
+    setHtml('g-now','<div class="empty" style="grid-column:1/-1;">Sync Fergus to load who’s on the tools.</div>');
+    setHtml('g-proj','<div class="empty" style="grid-column:1/-1;">No data.</div>');
+    setHtml('g-body','<tr><td colspan="5" class="empty">No data.</td></tr>');
+    setTxt('g-now-note','');setTxt('g-cmp','');setTxt('g-assume','');
+    setTxt('g-src','');setTxt('g-tradies','');setHtml('g-presets','');return;
   }
-  const s=m.scenario,b=m.baseRow;
-  document.getElementById('g-np').textContent=fmtK(s.np);
-  document.getElementById('g-np-sub').textContent=s.tr+' on tools · '+Math.round(s.hrs)+' billable hrs/mo · '+Math.round(s.npm*100)+'% margin · '+fmtK(s.np*12)+'/yr';
-  if(pillSrc)pillSrc.textContent=(m.basis==='bc'?('⚡ back-costing · '+m.prod.from+'→'+m.prod.to):('Xero avg · '+m.avg.from+'→'+m.avg.to));
-  document.getElementById('g-proj').innerHTML=
-    mb('Revenue / mo',fmtK(s.rev),'','','m-rev')+
-    mb('Gross Profit',fmtK(s.gp),Math.round(s.gpm*100)+'% GPM',s.gpm>=0.30?'pos':'neg','m-gp')+
-    mb('Opex',fmtK(s.opex),Math.round(s.opexPct*100)+'% of rev','','m-opex')+
-    mb('Net Profit',fmtK(s.np),Math.round(s.npm*100)+'% margin',s.np>=0?'pos':'neg','m-np');
-  const dNp=s.np-b.np;
-  document.getElementById('g-cmp').innerHTML='vs your current <b>'+m.base+' on tools</b> ('+fmtK(b.np)+'/mo NP, opex '+Math.round(b.opexPct*100)+'%): '+
-    (dNp>=0?'<span class="pos">+'+fmtK(dNp)+'/mo</span>':'<span class="neg">'+fmtK(dNp)+'/mo</span>')+' → <b>'+(dNp>=0?'+':'')+fmtK(dNp*12)+'/yr</b>. '+
-    'Opex falls to <b>'+Math.round(s.opexPct*100)+'%</b> of revenue as crews absorb the fixed overhead.';
-  const cfgs=[[4,2],[5,2],[6,2],[7,2],[4,3],[5,3],[6,3],[7,3],[8,3],[num(growthCfg.teams),num(growthCfg.size)]];
-  const seen={};const rows=cfgs.filter(([t,sz])=>{const k=t+'x'+sz;if(seen[k]||t<1||sz<1)return false;seen[k]=1;return true;}).map(([t,sz])=>({t,sz,tr:t*sz})).sort((a,c)=>a.tr-c.tr||a.sz-c.sz);
-  document.getElementById('g-body').innerHTML=rows.map(r=>{const f=m.row(r.t,r.sz);const active=(r.t==num(growthCfg.teams)&&r.sz==num(growthCfg.size));
-    return '<tr'+(active?' class="tot"':'')+'><td>'+r.t+'×'+r.sz+'</td><td>'+r.tr+'</td><td>'+Math.round(f.hrs)+'</td><td>'+fmtK(f.rev)+'</td><td>'+fmtK(f.gp)+'</td><td>'+fmtK(f.opex)+'</td><td>'+Math.round(f.opexPct*100)+'%</td><td class="'+(f.np>=0?'pos':'neg')+'">'+fmtK(f.np)+'</td><td>'+fmtK(f.np*12)+'</td></tr>';}).join('');
-  document.getElementById('g-assume').innerHTML=
-    (m.basis==='bc'
-      ?('Based on <b>real back-costing</b>: the guys actually got through <b>'+fmt$(m.prod.revPerHr)+'/hr</b> revenue and <b>'+fmt$(m.prod.gpPerHr)+'/hr</b> GP across '+m.prod.n+' jobs ('+m.prod.from+'→'+m.prod.to+', '+fmtH(m.prod.hrs)+' on-tools hrs). '+
-        'Each on-tools head bills ~<b>'+Math.round(m.monthlyHrs)+' hrs/mo</b> ('+m.oh.billWeeks.toFixed(0)+' wks × '+Math.round(m.oh.billHrs)+' h/wk ÷ 12). '+
-        'Crew earnings split <b>65/35</b>: a <b>lead roofer ≈ '+fmtK(m.leadRev)+'/mo</b>, an <b>apprentice ≈ '+fmtK(m.appRev)+'/mo</b> — so each team is 1 lead + apprentices, and a 3rd hand adds ~'+fmtK(m.appRev)+'/mo (not a full head). GP held at <b>'+Math.round(m.gpm*100)+'%</b>. ')
-      :('Revenue scales at <b>'+fmtK(m.revPT)+'/tradesman/mo</b> (6-mo Xero avg ÷ '+m.base+' on tools); GP held at <b>'+Math.round(m.gpm*100)+'%</b>. '))+
-    'Opex = fixed <b>'+fmtK(m.fixed)+'/mo</b> (office + ops managers, estimator, rent, software, admin) + <b>'+fmtK(m.varPT)+'/mo</b> per on-tools head (vehicle, fuel, phone, tools, PPE). '+
-    'Estimator normalised to full-time: +'+fmtK(m.estAdj)+'/mo. '+
-    'More crews spread the fixed overhead → opex% drops while opex$ rises. Edit billable hrs/utilisation in Back Costing → Overhead Recovery.';
+  const cur=m.cur,sc=m.scenario;const guysNow=m.guysNow;
+  // hero = the profit the on-tools guys make NOW
+  setTxt('g-np',fmtK(cur.gp));
+  const heroUnit=document.getElementById('g-np-unit');if(heroUnit)heroUnit.textContent=hasOh?'net profit / month (Fergus)':'gross profit / month (Fergus back-costing)';
+  setTxt('g-np-sub',guysNow+' guys on the tools · '+Math.round(m.hrsWeek)+' h/week · '+fmt$(m.prod.gpPerHr)+'/hr GP'+(hasOh?(' · NP '+fmtK(cur.np)+'/mo'):''));
+  setTxt('g-src','⚡ Fergus only');
+  // "Your crew now" — straight from Fergus
+  setHtml('g-now',
+    mb('Guys on the tools',String(guysNow),'logging hours in Fergus','','m-np')+
+    mb('Hours / week',String(Math.round(m.hrsWeek)),Math.round(m.hrsPerGuyWk)+' h/guy · '+fmtH(m.tw.totalHrs)+'h over '+ (m.tw.weeks<1.4?'~1 wk':(m.tw.weeks.toFixed(1)+' wks')),'','m-rev')+
+    mb('GP / hr',fmt$(m.prod.gpPerHr),fmt$(m.prod.revPerHr)+'/hr revenue','pos','m-gp')+
+    mb('GP margin',Math.round(m.prod.gpm*100)+'%','from '+m.prod.n+' Fergus jobs','','m-cogs'));
+  setTxt('g-now-note','Guys = everyone logging on-site hours in Fergus (auto). Hours/week = what they actually logged. GP/hr = Fergus back-costing gross profit ÷ the hours they logged. Override any of these below if a sync window looks light.');
+  // scenario
+  const guysSc=sc.g;
+  setTxt('g-tradies',guysSc+' guys on tools');
+  const presetGuys=[...new Set([guysNow,Math.max(1,guysNow+2),Math.max(1,guysNow+4),Math.max(1,guysNow+6),Math.max(1,guysNow*2)])].sort((a,b)=>a-b);
+  setHtml('g-presets',presetGuys.map(n=>'<span class="chip'+(n==guysSc?' on':'')+'" onclick="gSetGuys('+n+')">'+n+' guys</span>').join(''));
+  setHtml('g-proj',
+    mb('Revenue / mo',fmtK(sc.rev),fmtK(sc.rev*12)+'/yr','','m-rev')+
+    mb('Gross Profit',fmtK(sc.gp),Math.round(sc.gpm*100)+'% GPM · '+fmtK(sc.gp*12)+'/yr','pos','m-gp')+
+    (hasOh?mb('Office overhead',fmtK(sc.oh),'your figure','','m-opex'):mb('Hours / mo',String(Math.round(sc.hm)),Math.round(sc.hw)+' h/wk','','m-opex'))+
+    mb(hasOh?'Net Profit':'GP / year',hasOh?fmtK(sc.np):fmtK(sc.gp*12),hasOh?(Math.round(sc.npm*100)+'% margin · '+fmtK(sc.np*12)+'/yr'):'at this crew size',(hasOh?(sc.np>=0?'pos':'neg'):'pos'),'m-np'));
+  const dGp=sc.gp-cur.gp;
+  setHtml('g-cmp','vs your <b>'+guysNow+' guys now</b> ('+fmtK(cur.gp)+'/mo GP): '+
+    (dGp>=0?'<span class="pos">+'+fmtK(dGp)+'/mo</span>':'<span class="neg">'+fmtK(dGp)+'/mo</span>')+' → <b>'+(dGp>=0?'+':'')+fmtK(dGp*12)+'/yr</b> at '+guysSc+' guys, if each guy keeps getting through ~'+Math.round(m.hrsPerGuyWk)+' h/week at '+fmt$(m.prod.gpPerHr)+'/hr GP.');
+  // scale table by headcount
+  const guyList=[...new Set([guysNow,guysNow+1,guysNow+2,guysNow+4,guysNow+6,guysNow+8,guysNow*2,guysSc].filter(n=>n>=1))].sort((a,b)=>a-b);
+  setHtml('g-body',guyList.map(n=>{const f=m.calc(n);const active=(n==guysSc);
+    return '<tr'+(active?' class="tot"':'')+'><td>'+n+'</td><td>'+Math.round(f.hm)+'</td><td>'+fmtK(f.rev)+'</td><td class="pos">'+fmtK(f.gp)+'</td><td>'+fmtK(f.gp*12)+'</td></tr>';}).join(''));
+  setHtml('g-assume',
+    'Built <b>only from Fergus</b> — no P&amp;L, no Excel back-costing. Your guys got through <b>'+fmt$(m.prod.revPerHr)+'/hr</b> revenue and <b>'+fmt$(m.prod.gpPerHr)+'/hr</b> gross profit across <b>'+m.prod.n+' Fergus jobs</b> ('+fmtH(m.prod.hrs)+' logged hours). Right now <b>'+guysNow+' guys</b> log about <b>'+Math.round(m.hrsWeek)+' h/week</b> ('+Math.round(m.hrsPerGuyWk)+' h each). '+
+    'Growth just scales those real hours: <b>'+guysSc+' guys × '+Math.round(m.hrsPerGuyWk)+' h/week × '+fmt$(m.prod.gpPerHr)+'/hr</b>. '+
+    (hasOh?('Net profit subtracts your <b>'+fmtK(m.oh)+'/mo</b> office overhead.'):('This is <b>gross profit</b> (back-costing already nets off materials + on-site labour). Add an office-overhead figure below to see net profit — it stays 0 until you do, so nothing here uses your P&amp;L.')));
 }
 
 // ════════ MARKETING / SALES FUNNEL ════════ (ported from the v6 hub — uses the real Fergus
@@ -3617,12 +3623,8 @@ function init(){
   document.getElementById('cfg-teams').value=cfg.teams;
   document.getElementById('cfg-size').value=cfg.size;
   document.getElementById('cfg-hrs').value=cfg.hrs;
-  document.getElementById('g-teams').value=growthCfg.teams;
-  document.getElementById('g-size').value=growthCfg.size;
-  document.getElementById('g-base').value=growthCfg.base;
-  document.getElementById('g-estcost').value=growthCfg.estCost;
-  document.getElementById('g-estweeks').value=growthCfg.estWeeks;
-  document.getElementById('g-varopex').value=growthCfg.varOpex;
+  const gset=(id,v)=>{const e=document.getElementById(id);if(e&&v!=null&&v!=='')e.value=v;};
+  gset('g-guys',growthCfg.guys);gset('g-guysnow',growthCfg.guysNow);gset('g-hrswk',growthCfg.hrsWk);gset('g-ohmo',growthCfg.ohMo);
   updatePill();
   recordFwSnapshot();
   renderAll();

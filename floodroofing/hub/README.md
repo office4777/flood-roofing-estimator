@@ -37,23 +37,28 @@ per-month table (newest first) with each month's GP/hr and its trailing
 everyone** (not just the lead's hours, and regardless of which month they were
 entered) — summed across the roofer's jobs in the month.
 
-## Growth — projection from real back-costing productivity
+## Growth — 100% Fergus (guys on the tools × real $/hr)
 
-The Growth tab's projected monthly P&L is now built from **actual back-costing**:
-it works out how much the on-tools crew really get through per hour —
-**revenue/hr and GP/hr** from the last 12 months of back-costed jobs (sales & GP
-÷ actual labour hours) — then multiplies by each head's **billable hours per
-month** (from the Overhead Recovery utilisation). So Revenue = on-tools heads ×
-billable hrs/mo × real $/hr, GP at the real margin, and Opex = fixed overhead +
-per-head variable (NP = GP − Opex). The "If you scale the crew" table adds an
-**Hrs/mo** column so you can see the *work* throughput, not just the money. Falls
-back to the 6-month Xero average only if there's no back-costing yet.
+The Growth tab is built **only from Fergus** — no P&L, no Excel back-costing, and
+no assumed crew counts. It answers: *for the guys actually logging hours on-site,
+how much profit are they getting through now, and what would growth look like?*
 
-Crew earnings are **weighted by role**: each team = 1 **lead roofer (65%)** +
-apprentices **(35%)**, normalised so a 2-man crew = 2.0 earning-heads (lead 1.30,
-apprentice 0.70). So a 3rd hand adds ~0.70 of a head's revenue, not a full one.
-Presets and the scale table cover the common 2-man crews (4×2, 5×2, 6×2, 7×2) as
-well as 3-man.
+Three real inputs, all from Fergus:
+- **Guys on the tools** — everyone logging on-site hours in Fergus time entries
+  (auto-counted on each sync; helpers/labourers included, not just lead roofers).
+- **Hours/week** — the hours those guys actually logged, over the window Fergus
+  exposes (÷ the span in weeks).
+- **GP/hr and revenue/hr** — from **Fergus back-costing only** (`bcFergus` rows,
+  last 12 months): gross profit and sales ÷ the hours the guys logged.
+
+**Profit now** = hours/week × (52/12) × GP/hr — the gross profit the on-tools crew
+generates per month (back-costing already nets off materials + on-site labour).
+**Growth** simply scales the *real* hours: `scenario guys × hours-per-guy/week ×
+GP/hr`. The "If you add guys" table shows Hrs/mo, Rev/mo, GP/mo and GP/yr per
+headcount. Everything is editable if a sync window looks light — override the guys
+count or hours/week — and an optional **office overhead $/mo** turns gross profit
+into net (it stays 0, i.e. pure back-costing GP, until you enter one, so the tab
+never touches your P&L).
 
 ## Average job value per month
 
