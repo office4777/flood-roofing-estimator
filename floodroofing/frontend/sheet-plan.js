@@ -3941,6 +3941,89 @@ function _renderRoofSheetPlanInner() {
     });
   }
 
+  // ── Re-tile the DIAGRAM as donor columns either side of each ridge ──
+  // The order count is computed independently (per section, below), so the
+  // strip picture is free to show the layout the roofer actually uses:
+  // full-length donor columns either side of the section's ridge, with the
+  // hip-ends cut from those same columns.  This replaces the donor-cascade
+  // "X" that the tiler draws on a 4-hip.  Falls back to the original strips
+  // if the section geometry can't be resolved.
+  (function _columnDiagram(){
+    function _hull(pts){
+      var ps = pts.map(function(p){ return [p[0], p[1]]; })
+        .sort(function(a, b){ return a[0]-b[0] || a[1]-b[1]; });
+      if (ps.length < 3) return ps;
+      function cross(o,a,b){ return (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]); }
+      var lo=[], hi=[];
+      ps.forEach(function(p){
+        while (lo.length>=2 && cross(lo[lo.length-2],lo[lo.length-1],p)<=0) lo.pop();
+        lo.push(p);
+      });
+      for (var i=ps.length-1;i>=0;i--){ var p=ps[i];
+        while (hi.length>=2 && cross(hi[hi.length-2],hi[hi.length-1],p)<=0) hi.pop();
+        hi.push(p);
+      }
+      lo.pop(); hi.pop();
+      return lo.concat(hi);
+    }
+    function _sk(f){ return (f.color===COL_ORANGE||f.color===COL_BLUE) ? 'main' : ('w:'+(f.color||'?')); }
+    var secs = {};
+    faces.forEach(function(f){
+      if (!f || !f.poly || !f.poly.length || !f.a || !f.b) return;
+      var k=_sk(f);
+      if (!secs[k]) secs[k]={verts:[], color:f.color, ridgeGL:0, rf:null};
+      var s=secs[k];
+      var dx=f.b[0]-f.a[0], dy=f.b[1]-f.a[1], gL=Math.sqrt(dx*dx+dy*dy);
+      if (gL>s.ridgeGL){ s.ridgeGL=gL; s.rf=f; }
+      if (k==='main' && f.color===COL_ORANGE) s.color=COL_ORANGE;
+      f.poly.forEach(function(p){ s.verts.push(p); });
+    });
+    var cols=[], seqBy={};
+    var ok=true;
+    Object.keys(secs).forEach(function(k){
+      if (!ok) return;
+      var s=secs[k]; if (!s.rf){ ok=false; return; }
+      var hull=_hull(s.verts); if (hull.length<3){ ok=false; return; }
+      var tx=s.rf.tx, ty=s.rf.ty;
+      if (!(isFinite(tx)&&isFinite(ty))||(tx===0&&ty===0)){ ok=false; return; }
+      var nx=-ty, ny=tx;
+      // Perpendicular span (ridge → both eaves) from the section hull.
+      var pmin=Infinity,pmax=-Infinity;
+      hull.forEach(function(p){
+        var d=p[0]*nx+p[1]*ny; if(d<pmin)pmin=d; if(d>pmax)pmax=d;
+      });
+      var pmid=(pmin+pmax)/2;
+      // Along-ridge span from the DONOR face's own eave (a→b), NOT the
+      // hull — a wing's face polygon reaches down into the valley, which
+      // would otherwise stretch the column run far past the real ridge.
+      var ta=s.rf.a[0]*tx+s.rf.a[1]*ty, tb=s.rf.b[0]*tx+s.rf.b[1]*ty;
+      var tmin=Math.min(ta,tb), tmax=Math.max(ta,tb);
+      var isMain=(k==='main');
+      var colA=isMain?COL_ORANGE:(s.color||COL_PURPLE);
+      var colB=isMain?COL_BLUE:(s.color||COL_PURPLE);
+      var lenA=orderedLengthMm(Math.abs(pmid-pmin)*effectiveScale*pitchFactor);
+      var lenB=orderedLengthMm(Math.abs(pmax-pmid)*effectiveScale*pitchFactor);
+      function xy(t,p){ return [t*tx+p*nx, t*ty+p*ny]; }
+      var nCol=Math.ceil((tmax-tmin)/coverPx-1e-6);
+      for (var i=0;i<nCol;i++){
+        var t0=tmin+i*coverPx, t1=Math.min(t0+coverPx,tmax);
+        if (t1-t0<0.5) continue;
+        [[pmid,pmin,colA,lenA],[pmid,pmax,colB,lenB]].forEach(function(h){
+          var rect=[ xy(t0,h[0]), xy(t1,h[0]), xy(t1,h[1]), xy(t0,h[1]) ];
+          var clip=clipToConvexPoly(rect, hull);
+          if (!clip || clip.length<3) return;
+          var cent=polyCentroid(clip);
+          if (!_ptInOutline(cent[0], cent[1])) return;
+          if (polyArea(clip) < coverPx*coverPx*0.06) return;
+          seqBy[h[2]]=(seqBy[h[2]]||0)+1;
+          cols.push({ poly:clip, color:h[2], centroid:cent, seq:seqBy[h[2]],
+                      orderedLengthMm:h[3], isOffcut:false, isPhantom:false });
+        });
+      }
+    });
+    if (ok && cols.length) allStrips = cols;
+  })();
+
   // DEBUG hook — expose results to window for tests.
   window.__lastSheetPlan = { faces: faces, strips: allStrips, mainA: mainA, mainB: mainB };
 
