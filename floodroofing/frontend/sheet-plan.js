@@ -4127,14 +4127,25 @@ function _renderRoofSheetPlanInner() {
   // The roofer lays donor (full) sheets on the two faces EITHER SIDE of
   // a section's ridge, and cuts the hip-ends + wing wedges from those
   // sheets' offcuts.  So the order for one hip/gable section is:
-  //     2 × ceil(ridge-axis length / cover)   (+1 if it's valley-fed)
-  // where the ridge runs along the section's LONGER axis and the sheet
-  // length is the run down the SHORTER axis (gutter → ridge).  Hip-end
-  // faces add nothing — they come out of the donor offcuts.
+  //     2 × ceil(donor-eave length / cover)   (+1 if it's valley-fed)
+  // where the DONOR eaves are the gutters that run PARALLEL to that
+  // section's ridge, and the sheet length is the run down perpendicular
+  // to the ridge (gutter → ridge).  Hip-end faces (gutters perpendicular
+  // to the ridge) add nothing — they come out of the donor offcuts.
+  //
+  // The ridge DIRECTION comes from the drawn ridge line, because a wing's
+  // ridge can run along its SHORTER axis (e.g. a cross-wing whose ridge
+  // is perpendicular to the main) — using "longest eave" mis-picks the
+  // hip-end there and over-counts.
   //
   // Faces are grouped into sections by the tiler's colouring: the main
   // hip is orange/blue (two opposite slopes of one ridge), and each wing
   // gets its own palette colour (purple, green, …).
+  // Use the ORIGINAL drawn ridges — the isBigL path injects a synthetic
+  // ridge into DRAW.lines while tiling, which would mislead the direction.
+  var _ridgeLines = ((_tLines || __origDrawLines || DRAW.lines) || []).filter(function(l){
+    return l && l.type === 'ridge' && l.pts && l.pts.length === 2;
+  });
   function _sectionKey(f){
     return (f.color === COL_ORANGE || f.color === COL_BLUE) ? 'main' : ('w:' + (f.color || '?'));
   }
@@ -4142,18 +4153,29 @@ function _renderRoofSheetPlanInner() {
     var dx = f.b[0] - f.a[0], dy = f.b[1] - f.a[1];
     return Math.sqrt(dx * dx + dy * dy);
   }
+  // Is (x,y) within `tol` px of a polygon vertex or edge?  Used to test
+  // whether a ridge endpoint sits on a section's faces.
+  function _ptNearPoly(x, y, poly, tol){
+    for (var i = 0; i < poly.length; i++){
+      var a = poly[i], b = poly[(i+1) % poly.length];
+      if (Math.abs(a[0]-x) < tol && Math.abs(a[1]-y) < tol) return true;
+      var dx = b[0]-a[0], dy = b[1]-a[1], L2 = dx*dx + dy*dy;
+      if (L2 > 0){
+        var t = ((x-a[0])*dx + (y-a[1])*dy) / L2; t = Math.max(0, Math.min(1, t));
+        if (Math.abs(a[0]+t*dx - x) < tol && Math.abs(a[1]+t*dy - y) < tol) return true;
+      }
+    }
+    return false;
+  }
   var sections = {};
   faces.forEach(function(f){
     if (!f || !f.poly || !f.poly.length) return;
     var k = _sectionKey(f);
-    if (!sections[k]) sections[k] = { color: f.color, valley: false, ridgeFace: null, ridgeGL: 0, polys: [] };
+    if (!sections[k]) sections[k] = { color: f.color, valley: false, faces: [] };
     var sec = sections[k];
     if (k === 'main' && f.color === COL_ORANGE) sec.color = COL_ORANGE;
     if (_faceValleyFed(f)) sec.valley = true;
-    var gL = _faceGL(f);
-    // The ridge runs along the section's LONGEST eave (a hip's main run).
-    if (gL > sec.ridgeGL) { sec.ridgeGL = gL; sec.ridgeFace = f; }
-    sec.polys.push(f.poly);
+    sec.faces.push(f);
   });
   // Multi-bar GABLE guard: a gable L/T draws only TWO faces — each an
   // L/T-shaped polygon spanning every bar — so the colour grouping
@@ -4176,24 +4198,53 @@ function _renderRoofSheetPlanInner() {
   } else {
   Object.keys(sections).forEach(function(k){
     var sec = sections[k];
-    if (!sec.ridgeFace || !(sec.ridgeGL > 0)) return;
-    // Full donor sheets: ceil(ridge length / cover) on EACH of the two
-    // faces either side of the ridge.
-    var n = 2 * Math.max(1, Math.ceil(sec.ridgeGL / coverPx - 1e-6));
-    if (sec.valley) n += 1;                                   // spare for the valley cut
-    // Sheet length = gutter→ridge run = half the section's span measured
-    // PERPENDICULAR to the ridge (the axis the sheets actually run down).
-    var nx = sec.ridgeFace.nx, ny = sec.ridgeFace.ny;
-    if (!(isFinite(nx) && isFinite(ny)) || (nx === 0 && ny === 0)) {
-      var tx = sec.ridgeFace.tx, ty = sec.ridgeFace.ty; nx = -ty; ny = tx;
+    if (!sec.faces.length) return;
+    // Ridge direction for this section = the longest drawn ridge whose
+    // BOTH endpoints sit on this section's faces (i.e. the ridge this
+    // section's two slopes actually meet at).  Matching by adjacency —
+    // not by midpoint-inside — stops a neighbouring wing's ridge (whose
+    // midpoint can fall inside a main face) from hijacking the direction.
+    function _secOn(x, y){
+      return sec.faces.some(function(f){ return _ptNearPoly(x, y, f.poly, 10); });
     }
+    var rdir = null, rlen = 0;
+    _ridgeLines.forEach(function(r){
+      var p0 = r.pts[0], p1 = r.pts[1];
+      if (!(_secOn(p0[0], p0[1]) && _secOn(p1[0], p1[1]))) return;
+      var dx = p1[0]-p0[0], dy = p1[1]-p0[1], L = Math.sqrt(dx*dx+dy*dy);
+      if (L > rlen) { rlen = L; rdir = [dx/L, dy/L]; }
+    });
+    // Donor eave = longest GUTTER among the faces whose gutter runs
+    // PARALLEL to the ridge (those are the two slopes the ridge splits).
+    // Using the gutter (an outline eave) — not the section polygon span —
+    // keeps a wing's count off the valley overrun.  No ridge matched
+    // (common for a main hip, whose donor eave is the longest anyway) →
+    // fall back to the longest gutter overall.
+    var ridgeGL = 0;
+    if (rdir) {
+      sec.faces.forEach(function(f){
+        if (Math.abs(f.tx*rdir[0] + f.ty*rdir[1]) <= 0.7) return;   // perpendicular = hip-end
+        var gL = _faceGL(f);
+        if (gL > ridgeGL) ridgeGL = gL;
+      });
+    }
+    if (!(ridgeGL > 0)) {
+      rdir = null;
+      sec.faces.forEach(function(f){ var gL = _faceGL(f); if (gL > ridgeGL) { ridgeGL = gL; rdir = [f.tx, f.ty]; } });
+    }
+    if (!(ridgeGL > 0)) return;
+    var n = 2 * Math.max(1, Math.ceil(ridgeGL / coverPx - 1e-6));
+    if (sec.valley) n += 1;                                   // spare for the valley cut
+    // Sheet length = run perpendicular to the ridge = half the section
+    // span measured along the ridge normal.
+    var perp = [-rdir[1], rdir[0]];
     var pmin = Infinity, pmax = -Infinity;
-    sec.polys.forEach(function(poly){ poly.forEach(function(p){
-      var d = p[0] * nx + p[1] * ny;
+    sec.faces.forEach(function(f){ f.poly.forEach(function(p){
+      var d = p[0]*perp[0] + p[1]*perp[1];
       if (d < pmin) pmin = d; if (d > pmax) pmax = d;
     }); });
-    var perpSpanPx = (pmax > pmin) ? (pmax - pmin) : sec.ridgeFace.perpPx;
-    var mm  = orderedLengthMm((perpSpanPx / 2) * effectiveScale * pitchFactor);
+    var perpPx = (pmax > pmin) ? (pmax - pmin) : (sec.faces[0].perpPx * 2);
+    var mm  = orderedLengthMm((perpPx / 2) * effectiveScale * pitchFactor);
     var col = sec.color || COL_ORANGE;
     var key = col + ':' + mm;
     if (!groups[key]) groups[key] = { color: col, orderedMm: mm, count: 0 };
