@@ -4155,7 +4155,25 @@ function _renderRoofSheetPlanInner() {
     if (gL > sec.ridgeGL) { sec.ridgeGL = gL; sec.ridgeFace = f; }
     sec.polys.push(f.poly);
   });
+  // Multi-bar GABLE guard: a gable L/T draws only TWO faces — each an
+  // L/T-shaped polygon spanning every bar — so the colour grouping
+  // above collapses all the ridges into one "main" section and the
+  // order undercounts the roof by half or more.  Hip wings each carry
+  // their own face colour, so they split into sections correctly.
+  // On a multi-corner gable outline, count the drawn primary strips
+  // instead — on single-ridge roofs the two methods produce the SAME
+  // numbers, so this only changes the case the section method can't
+  // represent.  (Barge lines exist only on gable topologies.)
   var groups = {};
+  if (__hasBarge && outline && outline.length > 4) {
+    allStrips.forEach(function(s){
+      if (s._deleted) return;   // user-deleted sheets drop out here
+      if (s.isOffcut) return;
+      var key = s.color + ':' + s.orderedLengthMm;
+      if (!groups[key]) groups[key] = { color: s.color, orderedMm: s.orderedLengthMm, count: 0 };
+      groups[key].count++;
+    });
+  } else {
   Object.keys(sections).forEach(function(k){
     var sec = sections[k];
     if (!sec.ridgeFace || !(sec.ridgeGL > 0)) return;
@@ -4181,10 +4199,12 @@ function _renderRoofSheetPlanInner() {
     if (!groups[key]) groups[key] = { color: col, orderedMm: mm, count: 0 };
     groups[key].count += n;
   });
-  // Apply user deletions, then drop any group that went to zero.
+  // Apply user deletions (the strip fallback above already skips
+  // deleted strips, so only the section path subtracts here).
   Object.keys(_delByKey).forEach(function(k){
     if (groups[k]) groups[k].count = Math.max(0, groups[k].count - _delByKey[k]);
   });
+  }
   Object.keys(groups).forEach(function(k){ if (groups[k].count <= 0) delete groups[k]; });
   var groupList = Object.keys(groups).map(function(k){ return groups[k]; });
   // Sort: orange first, then blue, then purple. Within colour, longer first.
