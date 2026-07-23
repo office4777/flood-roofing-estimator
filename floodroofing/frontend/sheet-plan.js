@@ -4069,14 +4069,50 @@ function _renderRoofSheetPlanInner() {
     ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
   });
 
-  // Strip numbers — small yellow numerals at each strip's centroid.
+  // Strip numbers — small yellow numerals, sitting near each sheet's
+  // gutter end (the strip poly edge nearest the roof outline, nudged
+  // inward) so they line up along the eaves instead of scattering with
+  // the diagonal courses.  Same strips, same numbers — only the label
+  // position moves.
   ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = 'rgba(0,0,0,0.6)';
   ctx.font = 'bold 10px Inter, sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.lineWidth = 2;
+  function _distSeg(px, py, a, b){
+    var dx = b[0]-a[0], dy = b[1]-a[1], L2 = dx*dx + dy*dy;
+    var t = L2 > 0 ? ((px-a[0])*dx + (py-a[1])*dy) / L2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    var qx = a[0]+t*dx, qy = a[1]+t*dy;
+    return Math.hypot(px-qx, py-qy);
+  }
+  function _distOutline(px, py){
+    var m = Infinity;
+    for (var i = 0; i < outline.length; i++){
+      var d = _distSeg(px, py, outline[i], outline[(i+1) % outline.length]);
+      if (d < m) m = d;
+    }
+    return m;
+  }
+  function _gutterLabel(s){
+    if (s.labelAt) return s.labelAt;   // tilers that already anchor at the gutter
+    if (!s.poly || s.poly.length < 3 || !s.centroid) return s.labelAt || s.centroid;
+    // the poly edge whose midpoint is closest to the outline = the gutter edge
+    var best = null, bd = Infinity;
+    for (var i = 0; i < s.poly.length; i++){
+      var p = s.poly[i], q = s.poly[(i+1) % s.poly.length];
+      var mx = (p[0]+q[0])/2, my = (p[1]+q[1])/2;
+      var d = _distOutline(mx, my);
+      if (d < bd){ bd = d; best = [mx, my]; }
+    }
+    if (!best) return s.centroid;
+    var cx = s.centroid[0], cy = s.centroid[1];
+    var vx = cx-best[0], vy = cy-best[1], L = Math.hypot(vx, vy) || 1;
+    var inset = Math.min(coverPx * 0.5, L * 0.6);
+    return [best[0] + vx/L*inset, best[1] + vy/L*inset];
+  }
   allStrips.forEach(function(s){
     if (s._deleted) return;  // deleted strips carry no number badge
-    var cc = toC(s.labelAt || s.centroid);
+    var cc = toC(_gutterLabel(s));
     var lbl = String(s.seq);
     ctx.strokeText(lbl, cc[0], cc[1]);
     ctx.fillText(lbl, cc[0], cc[1]);
