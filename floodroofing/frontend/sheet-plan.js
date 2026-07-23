@@ -4196,14 +4196,22 @@ function _renderRoofSheetPlanInner() {
       groups[key].count++;
     });
   } else {
+  // ── Per-section takeoff, main-first ────────────────────────────
+  // The roofer lays the PRIMARY section's sheets first (the section with
+  // the LONGEST sheet — or, when lengths tie, the LONGER face), running
+  // full-length columns either side of its ridge.  Those sheets already
+  // cover the shared corner, so every OTHER (secondary) section only needs
+  // sheets for its own ridge span — the valley/corner is filled from the
+  // primary's offcuts.  So:
+  //   primary   = 2 × ⌈ donor eave      ÷ cover ⌉        (eave = long gutter ∥ ridge)
+  //   secondary = 2 × ⌈ section's ridge ÷ cover ⌉  + 1 valley
+  var secData = [];
   Object.keys(sections).forEach(function(k){
     var sec = sections[k];
     if (!sec.faces.length) return;
-    // Ridge direction for this section = the longest drawn ridge whose
-    // BOTH endpoints sit on this section's faces (i.e. the ridge this
-    // section's two slopes actually meet at).  Matching by adjacency —
-    // not by midpoint-inside — stops a neighbouring wing's ridge (whose
-    // midpoint can fall inside a main face) from hijacking the direction.
+    // Ridge direction + length for this section = the longest drawn ridge
+    // whose BOTH endpoints sit on this section's faces (adjacency, not
+    // midpoint-inside, so a neighbour's ridge can't hijack the direction).
     function _secOn(x, y){
       return sec.faces.some(function(f){ return _ptNearPoly(x, y, f.poly, 10); });
     }
@@ -4214,29 +4222,22 @@ function _renderRoofSheetPlanInner() {
       var dx = p1[0]-p0[0], dy = p1[1]-p0[1], L = Math.sqrt(dx*dx+dy*dy);
       if (L > rlen) { rlen = L; rdir = [dx/L, dy/L]; }
     });
-    // Donor eave = longest GUTTER among the faces whose gutter runs
-    // PARALLEL to the ridge (those are the two slopes the ridge splits).
-    // Using the gutter (an outline eave) — not the section polygon span —
-    // keeps a wing's count off the valley overrun.  No ridge matched
-    // (common for a main hip, whose donor eave is the longest anyway) →
-    // fall back to the longest gutter overall.
-    var ridgeGL = 0;
+    // Donor eave = longest GUTTER among faces whose gutter runs PARALLEL to
+    // the ridge; no ridge matched → fall back to the longest gutter overall.
+    var eavePx = 0;
     if (rdir) {
       sec.faces.forEach(function(f){
         if (Math.abs(f.tx*rdir[0] + f.ty*rdir[1]) <= 0.7) return;   // perpendicular = hip-end
         var gL = _faceGL(f);
-        if (gL > ridgeGL) ridgeGL = gL;
+        if (gL > eavePx) eavePx = gL;
       });
     }
-    if (!(ridgeGL > 0)) {
+    if (!(eavePx > 0)) {
       rdir = null;
-      sec.faces.forEach(function(f){ var gL = _faceGL(f); if (gL > ridgeGL) { ridgeGL = gL; rdir = [f.tx, f.ty]; } });
+      sec.faces.forEach(function(f){ var gL = _faceGL(f); if (gL > eavePx) { eavePx = gL; rdir = [f.tx, f.ty]; } });
     }
-    if (!(ridgeGL > 0)) return;
-    var n = 2 * Math.max(1, Math.ceil(ridgeGL / coverPx - 1e-6));
-    if (sec.valley) n += 1;                                   // spare for the valley cut
-    // Sheet length = run perpendicular to the ridge = half the section
-    // span measured along the ridge normal.
+    if (!(eavePx > 0)) return;
+    // Sheet run = perpendicular to the ridge, half the section span.
     var perp = [-rdir[1], rdir[0]];
     var pmin = Infinity, pmax = -Infinity;
     sec.faces.forEach(function(f){ f.poly.forEach(function(p){
@@ -4244,10 +4245,33 @@ function _renderRoofSheetPlanInner() {
       if (d < pmin) pmin = d; if (d > pmax) pmax = d;
     }); });
     var perpPx = (pmax > pmin) ? (pmax - pmin) : (sec.faces[0].perpPx * 2);
-    var mm  = orderedLengthMm((perpPx / 2) * effectiveScale * pitchFactor);
-    var col = sec.color || COL_ORANGE;
-    var key = col + ':' + mm;
-    if (!groups[key]) groups[key] = { color: col, orderedMm: mm, count: 0 };
+    // Ridge span of THIS section (for the secondary count): the drawn ridge
+    // if we matched one, else eave minus the full depth (hip setbacks).
+    var ridgePx = (rlen > 0) ? rlen : Math.max(coverPx, eavePx - perpPx);
+    secData.push({
+      col: sec.color || COL_ORANGE,
+      mm: orderedLengthMm((perpPx / 2) * effectiveScale * pitchFactor),
+      runPx: perpPx, eavePx: eavePx, ridgePx: ridgePx, valley: !!sec.valley
+    });
+  });
+  // Primary = longest sheet run; ties (same length) → longest eave.
+  var primary = -1;
+  secData.forEach(function(s, i){
+    if (primary < 0) { primary = i; return; }
+    var pv = secData[primary];
+    if (s.runPx > pv.runPx + coverPx*0.3) primary = i;
+    else if (Math.abs(s.runPx - pv.runPx) <= coverPx*0.3 && s.eavePx > pv.eavePx) primary = i;
+  });
+  secData.forEach(function(s, i){
+    var n;
+    if (i === primary) {
+      n = 2 * Math.max(1, Math.ceil(s.eavePx / coverPx - 1e-6));   // main runs full-length
+    } else {
+      n = 2 * Math.max(1, Math.ceil(s.ridgePx / coverPx - 1e-6));  // wing: ridge span only
+      if (s.valley) n += 1;                                        // spare for the valley cut
+    }
+    var key = s.col + ':' + s.mm;
+    if (!groups[key]) groups[key] = { color: s.col, orderedMm: s.mm, count: 0 };
     groups[key].count += n;
   });
   // Apply user deletions (the strip fallback above already skips
