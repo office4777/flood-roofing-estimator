@@ -4069,29 +4069,14 @@ function _renderRoofSheetPlanInner() {
     ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
   });
 
-  // Strip numbers — small yellow numerals, lined up just inside each
-  // plane's gutter so they read as a neat row instead of scattering with
-  // the sheets.  Each donor's label is projected onto its face's gutter
-  // (a→b) and nudged inward along the face normal; the hatched OFFCUT
-  // pieces carry no number (they duplicate their donor's) to keep it clean.
+  // Strip numbers — small yellow numerals at each strip's centroid.
   ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = 'rgba(0,0,0,0.6)';
   ctx.font = 'bold 10px Inter, sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.lineWidth = 2;
-  var _lblInset = coverPx * 0.55;
   allStrips.forEach(function(s){
-    if (s._deleted) return;   // deleted strips carry no number badge
-    if (s.isOffcut) return;   // offcut pieces reuse the donor's number
-    var pos;
-    var f = s.face;
-    if (!s.labelAt && s.centroid && f && f.a && isFinite(f.nx) && (f.nx !== 0 || f.ny !== 0)) {
-      // project the strip centre onto the gutter, then step inward.
-      var t = (s.centroid[0]-f.a[0])*f.tx + (s.centroid[1]-f.a[1])*f.ty;
-      pos = [ f.a[0] + t*f.tx + f.nx*_lblInset, f.a[1] + t*f.ty + f.ny*_lblInset ];
-    } else {
-      pos = s.labelAt || s.centroid;
-    }
-    var cc = toC(pos);
+    if (s._deleted) return;  // deleted strips carry no number badge
+    var cc = toC(s.labelAt || s.centroid);
     var lbl = String(s.seq);
     ctx.strokeText(lbl, cc[0], cc[1]);
     ctx.fillText(lbl, cc[0], cc[1]);
