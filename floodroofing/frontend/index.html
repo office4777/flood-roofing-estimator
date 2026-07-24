@@ -2927,11 +2927,9 @@ html.customer-view{ overflow-x:hidden; }
       <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <button id="sheetPlanEditBtn" onclick="toggleSheetPlanEdit()" style="padding:4px 12px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;color:#0a1628">🔧 Edit sheets</button>
         <button id="sheetPlanRestoreBtn" onclick="restoreAllSheets()" style="display:none;padding:4px 12px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;color:#0a1628">↺ Restore all</button>
-        <button id="sheetCalcCheckBtn" onclick="toggleSheetCalcCheck()" style="padding:4px 12px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;color:#0a1628" title="A simple gable-style column diagram to eyeball that the sheet count matches the cut list">🧮 Sheet calc check</button>
         <button onclick="renderRoofSheetPlan();renderMaterialsCutLists()" style="padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
       </div>
     </div>
-    <div id="sheetCalcCheckOut" style="display:none;margin:0 8px 10px"></div>
     <div id="sheetPlanEditHint" style="display:none;font-size:11px;color:#92400e;background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;padding:6px 10px;margin:0 8px 8px;line-height:1.4">
       🔧 <strong>Edit mode:</strong> click any coloured sheet to remove it from the order. Deleted sheets stay outlined so you can see where they were. Click again to restore. Undo (Ctrl+Z) also reverts deletions.
     </div>
@@ -7712,67 +7710,112 @@ function drawDimLineV(ctx, x1, y1, x2, y2, label, color) {
   ctx.restore();
 }
 
-// ── SHEET CALCULATION CHECK ──────────────────────────────────────
-// A deliberately SIMPLE column diagram — each roof section drawn as a
+// ── SHEET CALCULATION CHECK MAP ──────────────────────────────────
+// A deliberately SIMPLE column diagram, drawn on a canvas so it slots
+// into the Maps panel like the other roof maps. Each roof section is a
 // plain gable (ridge down the middle, N donor columns either side, no
-// hips or valleys) — purely so the count can be eyeballed against the
-// cut list. The installer knows to cut at the valleys and place the
-// offcuts; this map is only a sheet-tally check.
-function toggleSheetCalcCheck(){
-  var box = document.getElementById('sheetCalcCheckOut');
-  if (!box) return;
-  var showing = box.style.display !== 'none';
-  if (showing){ box.style.display = 'none'; return; }
-  renderSheetCalcCheck();
-  box.style.display = 'block';
-  try { box.scrollIntoView({ behavior:'smooth', block:'nearest' }); } catch(e){}
+// hips or valleys) — purely so the sheet count can be eyeballed against
+// the cut list. The installer cuts hips/valleys on site and places the
+// offcuts; this map is only a sheet tally.
+function _calcCheckColour(hex){
+  var m = {'#f97316':'Orange','#2563eb':'Blue','#a855f7':'Purple','#16a34a':'Green'};
+  return m[hex] || 'Section';
 }
-function renderSheetCalcCheck(){
-  var box = document.getElementById('sheetCalcCheckOut');
-  if (!box) return;
-  var secs = (window._lastSheetSections || []);
+function _renderCalcCheckCanvas(sections, opts){
+  opts = opts || {};
+  var secs = (sections || []).filter(function(s){ return s && s.perSide > 0; });
+  var W = 900, pad = 24, colH = 40, ridgeH = 5, hdrH = 30, gap = 22, titleH = 54;
+  var H = titleH + pad;
+  secs.forEach(function(){ H += hdrH + colH*2 + ridgeH + gap; });
+  H += 34; // total line
+  if (!secs.length){ H = titleH + pad + 40; }
+  var scale = opts.thumb ? 1 : 2;   // hi-dpi for page/PDF use
+  var cv = document.createElement('canvas');
+  cv.width = W*scale; cv.height = H*scale;
+  var ctx = cv.getContext('2d'); ctx.scale(scale, scale);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = 'top';
+  // Title
+  ctx.fillStyle = '#0a1628'; ctx.textAlign = 'left';
+  ctx.font = '800 18px Inter, -apple-system, sans-serif';
+  ctx.fillText('SHEET CALCULATION CHECK', pad, pad);
+  ctx.fillStyle = '#6b7280'; ctx.font = '400 12px Inter, -apple-system, sans-serif';
+  ctx.fillText('Each section is a simple gable — count the columns either side of the ridge; they should match the cut list.', pad, pad + 24);
   if (!secs.length){
-    box.innerHTML = '<p style="font-size:12px;color:var(--text2);margin:0">Refresh the sheet plan first — no sheet sections to check yet.</p>';
-    return;
+    ctx.fillStyle = '#6b7280'; ctx.font = '500 13px Inter, sans-serif';
+    ctx.fillText('Refresh the sheet plan first — nothing to check yet.', pad, titleH + 6);
+    return cv;
   }
-  var COLNAME = {'#f97316':'Orange','#2563eb':'Blue','#a855f7':'Purple','#16a34a':'Green'};
+  var y = titleH;
   var grand = 0;
-  var html = '' +
-    '<div style="border:1px solid #e5e7eb;border-radius:10px;background:#fff;padding:12px 14px">' +
-    '<div style="font-weight:800;font-size:13px;color:#0a1628;letter-spacing:.03em;margin-bottom:2px">SHEET CALCULATION CHECK</div>' +
-    '<div style="font-size:11px;color:#6b7280;margin-bottom:12px">Each section shown as a simple gable — count the columns either side of the ridge and they should match the cut list. Hips &amp; valleys are cut on site from these sheets.</div>';
   secs.forEach(function(s){
     grand += s.total;
-    var per = s.perSide;
-    var name = (s.roof ? (s.roof + ' · ') : '') + (COLNAME[s.color] || 'Section') + (s.isPrimary ? ' (main)' : ' (wing)');
+    var per = s.perSide, cells = per + (s.valleyExtra ? 1 : 0);
+    var name = (s.roof ? (s.roof + ' · ') : '') + _calcCheckColour(s.color) + (s.isPrimary ? ' (main)' : ' (wing)');
     var lenM = (s.orderedMm/1000).toFixed(3);
-    // one gable: a row of `per` columns, a ridge line, another row of `per`.
-    function slope(withValley){
-      var cells = '';
-      for (var i=1;i<=per;i++){
-        cells += '<div style="flex:1 1 0;min-width:16px;border-right:1px solid rgba(0,0,0,.18);display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;font-size:10px;font-weight:700;color:#0a1628">'+i+'</div>';
+    // heading
+    ctx.fillStyle = s.color; _roundRect(ctx, pad, y + 4, 12, 12, 3); ctx.fill();
+    ctx.fillStyle = '#0a1628'; ctx.font = '700 13px Inter, sans-serif';
+    ctx.fillText(name, pad + 20, y + 3);
+    var hw = ctx.measureText(name).width;
+    ctx.fillStyle = '#6b7280'; ctx.font = '500 12px Inter, sans-serif';
+    ctx.fillText('· ' + per + (s.valleyExtra ? ' (+1)' : '') + ' each side · ' + s.total + ' sheets @ ' + lenM + ' m', pad + 26 + hw, y + 4);
+    y += hdrH;
+    // Column width from the widest row (bottom, which carries the single
+    // valley spare). The top slope shows `per` cells; the bottom slope
+    // shows `per` cells plus the one hatched +1 spare — so the spare is
+    // counted once, not once per side.
+    var cw = (W - pad*2) / cells;
+    // two slopes (top + bottom) split by a ridge line
+    [0, 1].forEach(function(slope){
+      var ry = y + slope * (colH + ridgeH);
+      var ncol = (slope === 1) ? cells : per;   // spare only on the bottom slope
+      var rowW = ncol * cw;
+      ctx.fillStyle = s.color;
+      ctx.fillRect(pad, ry, rowW, colH);
+      // valley spare on the bottom slope: hatch the last cell
+      if (slope === 1 && s.valleyExtra){
+        var vx = pad + per*cw;
+        ctx.save(); ctx.beginPath(); ctx.rect(vx, ry, cw, colH); ctx.clip();
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.4;
+        for (var hx = vx - colH; hx < vx + cw; hx += 6){ ctx.beginPath(); ctx.moveTo(hx, ry + colH); ctx.lineTo(hx + colH, ry); ctx.stroke(); }
+        ctx.restore();
       }
-      if (withValley && s.valleyExtra){
-        cells += '<div title="+1 spare for the valley cut" style="flex:1 1 0;min-width:16px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;font-size:9px;font-weight:700;color:#0a1628;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.6) 0 3px,transparent 3px 6px)">+1</div>';
+      // cell borders + numbers
+      ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1;
+      ctx.strokeRect(pad + 0.5, ry + 0.5, rowW - 1, colH - 1);
+      ctx.textAlign = 'center';
+      for (var i = 0; i < ncol; i++){
+        var x0 = pad + i*cw;
+        if (i > 0){ ctx.beginPath(); ctx.moveTo(x0, ry); ctx.lineTo(x0, ry + colH); ctx.stroke(); }
+        ctx.fillStyle = '#0a1628';
+        if (i < per){ ctx.font = '700 12px Inter, sans-serif'; ctx.fillText(String(i+1), x0 + cw/2, ry + colH/2 - 7); }
+        else { ctx.font = '700 10px Inter, sans-serif'; ctx.fillText('+1', x0 + cw/2, ry + colH/2 - 6); }
       }
-      return '<div style="display:flex;height:34px;background:'+s.color+';border:1px solid rgba(0,0,0,.25);border-radius:4px;overflow:hidden">'+cells+'</div>';
-    }
-    var eachSide = per + (s.valleyExtra ? ' (+1)' : '');
-    html += '' +
-      '<div style="margin-bottom:14px">' +
-        '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:5px">' +
-          '<span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:'+s.color+';flex:0 0 auto"></span>' +
-          '<span style="font-size:12px;font-weight:700;color:#0a1628">'+name+'</span>' +
-          '<span style="font-size:11px;color:#6b7280">'+eachSide+' each side · <strong style="color:#0a1628">'+s.total+' sheets</strong> @ '+lenM+' m</span>' +
-        '</div>' +
-        slope(false) +
-        '<div style="height:2px;background:#dc2626;margin:2px 0;border-radius:2px" title="ridge"></div>' +
-        slope(true) +
-      '</div>';
+      ctx.textAlign = 'left';
+    });
+    // ridge line between the two slopes
+    ctx.fillStyle = '#dc2626'; ctx.fillRect(pad, y + colH, W - pad*2, ridgeH);
+    y += colH*2 + ridgeH + gap;
   });
-  html += '<div style="border-top:1px solid #e5e7eb;padding-top:8px;font-size:12px;color:#0a1628;font-weight:700">Total: '+grand+' sheets — should match the cut list above.</div>';
-  html += '</div>';
-  box.innerHTML = html;
+  ctx.fillStyle = '#0a1628'; ctx.font = '700 13px Inter, sans-serif';
+  ctx.fillText('Total: ' + grand + ' sheets — should match the cut list.', pad, y);
+  return cv;
+}
+function _roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath();
+}
+function _jpCaptureCalcCheck(opts, roofIdx){
+  var secs = (window._lastSheetSections || []);
+  // Multi-roof: sections are tagged with roof:_nthName(idx+1) ('Roof N')
+  // when renderRoofSheetPlan accumulates them, so filter by that.
+  if (typeof roofIdx === 'number' && roofIdx >= 0){
+    var nm = _nthName(roofIdx + 1);
+    secs = secs.filter(function(s){ return s.roof === nm; });
+  }
+  try { return _renderCalcCheckCanvas(secs, opts).toDataURL('image/png'); } catch(e){ return null; }
 }
 
 // ── SHEET LAYOUT ─────────────────────────────────────────────────
@@ -23780,12 +23823,14 @@ function _jpMapPanelItems(){
       items.push({ key:'detailed:'+i,  label:'Detailed map',     sub:name });
       items.push({ key:'basic:'+i,     label:'Basic map',        sub:name });
       items.push({ key:'sheetplan:'+i, label:'Sheet layout',     sub:name });
+      items.push({ key:'calccheck:'+i, label:'Sheet calc check', sub:name });
       items.push({ key:'flashref:'+i,  label:'Flashing ref map', sub:name });
     });
   } else {
     items.push({ key:'detailed',  label:'Detailed map',     sub:'' });
     items.push({ key:'basic',     label:'Basic map',        sub:'' });
     items.push({ key:'sheetplan', label:'Sheet layout',     sub:'' });
+    items.push({ key:'calccheck', label:'Sheet calc check', sub:'' });
     items.push({ key:'flashref',  label:'Flashing ref map', sub:'' });
   }
   return items;
@@ -23801,6 +23846,7 @@ function _jpCaptureMap(mapKey, opts){
     if (kind === 'detailed') return _jpCaptureDetailed(roofIdx, opts);
     if (kind === 'basic')    return _jpCaptureBasic(roofIdx, opts);
     if (kind === 'sheetplan')return _jpCaptureSheetPlan(opts, roofIdx);
+    if (kind === 'calccheck')return _jpCaptureCalcCheck(opts, roofIdx);
     if (kind === 'flashref') return _jpCaptureFlashRef(roofIdx, opts);
   } catch(e){ return null; }
   return null;
