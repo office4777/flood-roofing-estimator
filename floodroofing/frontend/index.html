@@ -7751,7 +7751,8 @@ function _renderCalcCheckCanvas(sections, opts){
   var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   function track(p){ if (p[0]<minX) minX=p[0]; if (p[0]>maxX) maxX=p[0]; if (p[1]<minY) minY=p[1]; if (p[1]>maxY) maxY=p[1]; }
   if (outline) outline.forEach(track);
-  var built = [], grand = 0;
+  var built = [], grand = 0, primaryWC = null;
+  // Pass 1 — basic geometry + each section's world centre.
   secs.forEach(function(s){
     grand += s.total;
     // R,P are an orthonormal basis, so a point at ridge-coord (u,v) maps
@@ -7759,15 +7760,28 @@ function _renderCalcCheckCanvas(sections, opts){
     var R = s.rdir, P = [-R[1], R[0]];
     var cw = s.coverPx, per = s.perSide;
     var vMid = (s.obV0 + s.obV1)/2, halfRun = (s.obV1 - s.obV0)/2;
-    // Primary tiles from the section's gutter edge (its rounded-up last
-    // sheet overhangs the far eave); wings centre over their span (the hip
-    // ends are filled from the main's offcuts, so they need no full column).
-    var startU = s.isPrimary ? s.obU0 : ((s.obU0 + s.obU1)/2 - per*cw/2);
     function w2(u, v){ return [u*R[0]+v*P[0], u*R[1]+v*P[1]]; }
-    var b = { s:s, R:R, P:P, cw:cw, per:per, vMid:vMid, halfRun:halfRun, w2:w2, startU:startU };
-    for (var j = 0; j <= per; j++){ track(w2(startU + j*cw, vMid-halfRun)); track(w2(startU + j*cw, vMid+halfRun)); }
-    if (s.valleyExtra){ var vu = (s.obU0+s.obU1)/2 + per*cw/2 + cw; track(w2(vu, vMid)); track(w2(vu, vMid+halfRun)); }
+    var uMid = (s.obU0 + s.obU1)/2;
+    var b = { s:s, R:R, P:P, cw:cw, per:per, vMid:vMid, halfRun:halfRun, w2:w2, wc:w2(uMid, vMid) };
+    if (s.isPrimary) primaryWC = b.wc;
     built.push(b);
+  });
+  // Pass 2 — anchor each section's column band to a roof edge so sheets sit
+  // flush against it and only a rounded-up part sheet overhangs.  Primary
+  // tiles from one eave; a wing anchors to its OUTER edge (the one farthest
+  // from the main) and tiles toward the junction, so it fills to the roof
+  // edge and the part sheet overhangs at the valley — never a gap up top.
+  built.forEach(function(b){
+    var s = b.s, span = b.per*b.cw;
+    if (s.isPrimary || !primaryWC){ b.startU = s.obU0; }
+    else {
+      var eA = b.w2(s.obU0, b.vMid), eB = b.w2(s.obU1, b.vMid);
+      var dA = Math.hypot(eA[0]-primaryWC[0], eA[1]-primaryWC[1]);
+      var dB = Math.hypot(eB[0]-primaryWC[0], eB[1]-primaryWC[1]);
+      b.startU = (dA >= dB) ? s.obU0 : (s.obU1 - span);   // flush to the outer edge
+    }
+    for (var j = 0; j <= b.per; j++){ track(b.w2(b.startU + j*b.cw, b.vMid-b.halfRun)); track(b.w2(b.startU + j*b.cw, b.vMid+b.halfRun)); }
+    if (s.valleyExtra){ var vu = b.startU + span + b.cw; track(b.w2(vu, b.vMid)); track(b.w2(vu, b.vMid+b.halfRun)); }
   });
   var spanX = (maxX-minX) || 1, spanY = (maxY-minY) || 1;
   var drawW = W - padX*2;
