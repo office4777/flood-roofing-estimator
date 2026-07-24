@@ -4229,6 +4229,10 @@ function _renderRoofSheetPlanInner() {
   // numbers, so this only changes the case the section method can't
   // represent.  (Barge lines exist only on gable topologies.)
   var groups = {};
+  // Reset the calc-check breakdown up-front so the barge/gable branch
+  // (which doesn't produce sections) can't leave stale data from a
+  // previously rendered roof.
+  try { window._lastSheetSections = []; } catch(e){}
   if (__hasBarge && outline && outline.length > 4) {
     allStrips.forEach(function(s){
       if (s._deleted) return;   // user-deleted sheets drop out here
@@ -4290,10 +4294,16 @@ function _renderRoofSheetPlanInner() {
     // Ridge span of THIS section (for the secondary count): the drawn ridge
     // if we matched one, else eave minus the full depth (hip setbacks).
     var ridgePx = (rlen > 0) ? rlen : Math.max(coverPx, eavePx - perpPx);
+    // Section footprint centroid (for the Sheet-calc-check overlay, which
+    // redraws each section as a plain gable rectangle at its real place).
+    var cx = 0, cy = 0, npts = 0;
+    sec.faces.forEach(function(f){ f.poly.forEach(function(p){ cx += p[0]; cy += p[1]; npts++; }); });
+    if (npts) { cx /= npts; cy /= npts; }
     secData.push({
       col: sec.color || COL_ORANGE,
       mm: orderedLengthMm((perpPx / 2) * effectiveScale * pitchFactor),
-      runPx: perpPx, eavePx: eavePx, ridgePx: ridgePx, valley: !!sec.valley
+      runPx: perpPx, eavePx: eavePx, ridgePx: ridgePx, valley: !!sec.valley,
+      cx: cx, cy: cy, rdir: rdir.slice()
     });
   });
   // Primary = longest sheet run; ties (same length) → longest eave.
@@ -4319,7 +4329,10 @@ function _renderRoofSheetPlanInner() {
     if (!groups[key]) groups[key] = { color: s.col, orderedMm: s.mm, count: 0 };
     groups[key].count += n;
     _checkSections.push({ color: s.col, perSide: perSide, valleyExtra: valleyExtra,
-      total: n, orderedMm: s.mm, isPrimary: (i === primary) });
+      total: n, orderedMm: s.mm, isPrimary: (i === primary),
+      // Geometry for the to-scale gable overlay: centre, ridge direction,
+      // the sheet run (perp span) and cover width — all in outline px.
+      cx: s.cx, cy: s.cy, rdir: s.rdir, runPx: s.runPx, coverPx: coverPx });
   });
   // Expose the per-section breakdown for the "Sheet calculation check" map.
   try { window._lastSheetSections = _checkSections; } catch(e){}

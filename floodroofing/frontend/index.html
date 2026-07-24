@@ -7711,95 +7711,147 @@ function drawDimLineV(ctx, x1, y1, x2, y2, label, color) {
 }
 
 // ── SHEET CALCULATION CHECK MAP ──────────────────────────────────
-// A deliberately SIMPLE column diagram, drawn on a canvas so it slots
-// into the Maps panel like the other roof maps. Each roof section is a
-// plain gable (ridge down the middle, N donor columns either side, no
-// hips or valleys) — purely so the sheet count can be eyeballed against
-// the cut list. The installer cuts hips/valleys on site and places the
-// offcuts; this map is only a sheet tally.
+// A to-scale roof OVERLAY (like the Sheet layout map) but with the roof
+// simplified: every section is redrawn as a plain GABLE rectangle — the
+// hips and valleys squared off, the ridge run full-length down the middle
+// — with clean full-height sheet columns tiled either side. Drawn at each
+// section's real place and angle so it reads as the same roof, just made
+// simple enough to count the columns against the cut list at a glance.
+// The installer cuts the hips/valleys on site from these sheets.
 function _calcCheckColour(hex){
   var m = {'#f97316':'Orange','#2563eb':'Blue','#a855f7':'Purple','#16a34a':'Green'};
   return m[hex] || 'Section';
 }
 function _renderCalcCheckCanvas(sections, opts){
   opts = opts || {};
-  var secs = (sections || []).filter(function(s){ return s && s.perSide > 0; });
-  var W = 900, pad = 24, colH = 40, ridgeH = 5, hdrH = 30, gap = 22, titleH = 54;
-  var H = titleH + pad;
-  secs.forEach(function(){ H += hdrH + colH*2 + ridgeH + gap; });
-  H += 34; // total line
-  if (!secs.length){ H = titleH + pad + 40; }
+  var secs = (sections || []).filter(function(s){
+    return s && s.perSide > 0 && s.rdir && isFinite(s.cx) && isFinite(s.cy) && s.coverPx > 0 && s.runPx > 0;
+  });
   var scale = opts.thumb ? 1 : 2;   // hi-dpi for page/PDF use
+  var W = 960, titleH = 58, footH = 30, padX = 40, padTop = 12, padBot = 14;
+  // Empty / no-geometry fallback card.
+  if (!secs.length){
+    var H0 = 120;
+    var cv0 = document.createElement('canvas'); cv0.width = W*scale; cv0.height = H0*scale;
+    var c0 = cv0.getContext('2d'); c0.scale(scale, scale);
+    c0.fillStyle = '#fff'; c0.fillRect(0, 0, W, H0);
+    c0.textBaseline = 'top'; c0.textAlign = 'left';
+    c0.fillStyle = '#0a1628'; c0.font = '800 18px Inter, -apple-system, sans-serif';
+    c0.fillText('SHEET CALCULATION CHECK', padX, 22);
+    c0.fillStyle = '#6b7280'; c0.font = '500 13px Inter, sans-serif';
+    c0.fillText('Refresh the sheet plan first — nothing to check yet.', padX, 60);
+    return cv0;
+  }
+  // Build every gable rectangle in world (outline-px) space and collect
+  // corners so the whole simplified roof can be fitted into the canvas.
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  function track(p){ if (p[0]<minX) minX=p[0]; if (p[0]>maxX) maxX=p[0]; if (p[1]<minY) minY=p[1]; if (p[1]>maxY) maxY=p[1]; }
+  var built = [], grand = 0;
+  secs.forEach(function(s){
+    grand += s.total;
+    var R = s.rdir, P = [-R[1], R[0]];
+    var per = s.perSide, cw = s.coverPx;
+    var halfW = per*cw/2, halfRun = s.runPx/2;
+    var C = [s.cx, s.cy];
+    function w2(u, v){ return [C[0]+u*R[0]+v*P[0], C[1]+u*R[1]+v*P[1]]; }
+    var b = { s:s, R:R, P:P, per:per, cw:cw, halfW:halfW, halfRun:halfRun, w2:w2 };
+    [[-halfW,-halfRun],[halfW,-halfRun],[halfW,halfRun],[-halfW,halfRun]].forEach(function(uv){ track(w2(uv[0], uv[1])); });
+    if (s.valleyExtra){ track(w2(halfW+cw, 0)); track(w2(halfW+cw, halfRun)); }
+    built.push(b);
+  });
+  var spanX = (maxX-minX) || 1, spanY = (maxY-minY) || 1;
+  var drawW = W - padX*2;
+  var drawH = Math.max(200, Math.min(560, drawW * spanY/spanX));
+  var H = titleH + padTop + drawH + padBot + footH;
+  var sc = Math.min(drawW/spanX, drawH/spanY);
+  var offX = padX + (drawW - spanX*sc)/2;
+  var offY = titleH + padTop + (drawH - spanY*sc)/2;
+  function toC(p){ return [ (p[0]-minX)*sc + offX, (p[1]-minY)*sc + offY ]; }
+
   var cv = document.createElement('canvas');
   cv.width = W*scale; cv.height = H*scale;
   var ctx = cv.getContext('2d'); ctx.scale(scale, scale);
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
-  ctx.textBaseline = 'top';
-  // Title
-  ctx.fillStyle = '#0a1628'; ctx.textAlign = 'left';
-  ctx.font = '800 18px Inter, -apple-system, sans-serif';
-  ctx.fillText('SHEET CALCULATION CHECK', pad, pad);
-  ctx.fillStyle = '#6b7280'; ctx.font = '400 12px Inter, -apple-system, sans-serif';
-  ctx.fillText('Each section is a simple gable — count the columns either side of the ridge; they should match the cut list.', pad, pad + 24);
-  if (!secs.length){
-    ctx.fillStyle = '#6b7280'; ctx.font = '500 13px Inter, sans-serif';
-    ctx.fillText('Refresh the sheet plan first — nothing to check yet.', pad, titleH + 6);
-    return cv;
-  }
-  var y = titleH;
-  var grand = 0;
-  secs.forEach(function(s){
-    grand += s.total;
-    var per = s.perSide, cells = per + (s.valleyExtra ? 1 : 0);
-    var name = (s.roof ? (s.roof + ' · ') : '') + _calcCheckColour(s.color) + (s.isPrimary ? ' (main)' : ' (wing)');
-    var lenM = (s.orderedMm/1000).toFixed(3);
-    // heading
-    ctx.fillStyle = s.color; _roundRect(ctx, pad, y + 4, 12, 12, 3); ctx.fill();
-    ctx.fillStyle = '#0a1628'; ctx.font = '700 13px Inter, sans-serif';
-    ctx.fillText(name, pad + 20, y + 3);
-    var hw = ctx.measureText(name).width;
-    ctx.fillStyle = '#6b7280'; ctx.font = '500 12px Inter, sans-serif';
-    ctx.fillText('· ' + per + (s.valleyExtra ? ' (+1)' : '') + ' each side · ' + s.total + ' sheets @ ' + lenM + ' m', pad + 26 + hw, y + 4);
-    y += hdrH;
-    // Column width from the widest row (bottom, which carries the single
-    // valley spare). The top slope shows `per` cells; the bottom slope
-    // shows `per` cells plus the one hatched +1 spare — so the spare is
-    // counted once, not once per side.
-    var cw = (W - pad*2) / cells;
-    // two slopes (top + bottom) split by a ridge line
-    [0, 1].forEach(function(slope){
-      var ry = y + slope * (colH + ridgeH);
-      var ncol = (slope === 1) ? cells : per;   // spare only on the bottom slope
-      var rowW = ncol * cw;
-      ctx.fillStyle = s.color;
-      ctx.fillRect(pad, ry, rowW, colH);
-      // valley spare on the bottom slope: hatch the last cell
-      if (slope === 1 && s.valleyExtra){
-        var vx = pad + per*cw;
-        ctx.save(); ctx.beginPath(); ctx.rect(vx, ry, cw, colH); ctx.clip();
-        ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.4;
-        for (var hx = vx - colH; hx < vx + cw; hx += 6){ ctx.beginPath(); ctx.moveTo(hx, ry + colH); ctx.lineTo(hx + colH, ry); ctx.stroke(); }
-        ctx.restore();
+  // Title + one-line explanation.
+  ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#0a1628'; ctx.font = '800 18px Inter, -apple-system, sans-serif';
+  ctx.fillText('SHEET CALCULATION CHECK', padX, 20);
+  ctx.fillStyle = '#6b7280'; ctx.font = '500 12px Inter, -apple-system, sans-serif';
+  ctx.fillText('Each roof section squared off to a simple gable — count the sheet columns either side of the red ridge; they match the cut list. Hips & valleys are cut on site from these sheets.', padX, 42);
+
+  var poly = function(pts, close){ ctx.beginPath(); pts.forEach(function(p,i){ i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); }); if (close!==false) ctx.closePath(); };
+  built.forEach(function(b){
+    var s = b.s, colWpx = b.cw*sc;
+    var numFont = Math.max(8, Math.min(13, colWpx*0.55));
+    // faint gable background
+    poly([b.w2(-b.halfW,-b.halfRun), b.w2(b.halfW,-b.halfRun), b.w2(b.halfW,b.halfRun), b.w2(-b.halfW,b.halfRun)].map(toC));
+    ctx.fillStyle = s.color + '20'; ctx.fill();
+    // sheet columns — both slopes (top = -1, bottom = +1), ridge at v=0
+    [-1, 1].forEach(function(sd){
+      for (var j = 0; j < b.per; j++){
+        var u0 = -b.halfW + j*b.cw, u1 = u0 + b.cw;
+        poly([b.w2(u0,0), b.w2(u1,0), b.w2(u1, sd*b.halfRun), b.w2(u0, sd*b.halfRun)].map(toC));
+        ctx.fillStyle = s.color; ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1; ctx.stroke();
+        // number near the gutter end of the column
+        var nc = toC(b.w2((u0+u1)/2, sd*b.halfRun*0.62));
+        ctx.fillStyle = '#0a1628'; ctx.font = '700 '+numFont+'px Inter, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(j+1), nc[0], nc[1]);
+        ctx.textBaseline = 'top'; ctx.textAlign = 'left';
       }
-      // cell borders + numbers
-      ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1;
-      ctx.strokeRect(pad + 0.5, ry + 0.5, rowW - 1, colH - 1);
-      ctx.textAlign = 'center';
-      for (var i = 0; i < ncol; i++){
-        var x0 = pad + i*cw;
-        if (i > 0){ ctx.beginPath(); ctx.moveTo(x0, ry); ctx.lineTo(x0, ry + colH); ctx.stroke(); }
-        ctx.fillStyle = '#0a1628';
-        if (i < per){ ctx.font = '700 12px Inter, sans-serif'; ctx.fillText(String(i+1), x0 + cw/2, ry + colH/2 - 7); }
-        else { ctx.font = '700 10px Inter, sans-serif'; ctx.fillText('+1', x0 + cw/2, ry + colH/2 - 6); }
-      }
-      ctx.textAlign = 'left';
     });
-    // ridge line between the two slopes
-    ctx.fillStyle = '#dc2626'; ctx.fillRect(pad, y + colH, W - pad*2, ridgeH);
-    y += colH*2 + ridgeH + gap;
+    // valley spare: one hatched column past the bottom-right edge, "+1"
+    if (s.valleyExtra){
+      var vq = [b.w2(b.halfW,0), b.w2(b.halfW+b.cw,0), b.w2(b.halfW+b.cw, b.halfRun), b.w2(b.halfW, b.halfRun)].map(toC);
+      ctx.save(); poly(vq); ctx.fillStyle = s.color; ctx.fill(); ctx.clip();
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.4;
+      var vminx=Infinity,vmaxx=-Infinity,vminy=Infinity,vmaxy=-Infinity;
+      vq.forEach(function(p){ vminx=Math.min(vminx,p[0]);vmaxx=Math.max(vmaxx,p[0]);vminy=Math.min(vminy,p[1]);vmaxy=Math.max(vmaxy,p[1]); });
+      for (var hx=vminx-(vmaxy-vminy); hx<vmaxx; hx+=6){ ctx.beginPath(); ctx.moveTo(hx,vminy); ctx.lineTo(hx+(vmaxy-vminy),vmaxy); ctx.stroke(); }
+      ctx.restore();
+      poly(vq); ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; ctx.stroke();
+      var vc = toC(b.w2(b.halfW+b.cw/2, b.halfRun*0.55));
+      ctx.fillStyle = '#0a1628'; ctx.font = '700 '+Math.max(8,numFont-1)+'px Inter, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('+1', vc[0], vc[1]);
+      ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+    }
+    // ridge line (red) down the middle + gable outline
+    poly([b.w2(-b.halfW,-b.halfRun), b.w2(b.halfW,-b.halfRun), b.w2(b.halfW,b.halfRun), b.w2(-b.halfW,b.halfRun)].map(toC));
+    ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 2; ctx.stroke();
+    var r0 = toC(b.w2(-b.halfW,0)), r1 = toC(b.w2(b.halfW,0));
+    ctx.beginPath(); ctx.moveTo(r0[0],r0[1]); ctx.lineTo(r1[0],r1[1]);
+    ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2.4; ctx.stroke();
+    // Stash the section's canvas bounds so labels can be drawn in a final
+    // pass — on top of every gable, so a wing can't hide the main's pill.
+    var cc4 = [b.w2(-b.halfW,-b.halfRun), b.w2(b.halfW,-b.halfRun), b.w2(b.halfW,b.halfRun), b.w2(-b.halfW,b.halfRun)].map(toC);
+    var bx0=Infinity,bx1=-Infinity,by0=Infinity,by1=-Infinity;
+    cc4.forEach(function(p){ bx0=Math.min(bx0,p[0]); bx1=Math.max(bx1,p[0]); by0=Math.min(by0,p[1]); by1=Math.max(by1,p[1]); });
+    b._label = { cx:(bx0+bx1)/2, top:by0, bot:by1,
+      text:_calcCheckColour(s.color) + (s.isPrimary ? ' · main' : ' · wing') + '  ' + s.total + ' × ' + (s.orderedMm/1000).toFixed(3) + 'm',
+      color:s.color, primary:s.isPrimary };
   });
+
+  // Section label pills — final pass, so they sit above every gable fill.
+  // Main pill anchors at the bottom of its section (clear of the wings that
+  // overlap its top); wing pills anchor at the top of theirs.
+  built.forEach(function(b){
+    var L = b._label; if (!L) return;
+    ctx.font = '700 12px Inter, sans-serif'; ctx.textBaseline = 'middle';
+    var lw = ctx.measureText(L.text).width + 30;
+    var lx = Math.max(padX + lw/2, Math.min(W - padX - lw/2, L.cx));
+    var ly = L.primary ? Math.min(H - footH - 10, L.bot - 16) : Math.max(titleH + padTop + 12, L.top + 16);
+    _roundRect(ctx, lx - lw/2, ly - 10, lw, 20, 6); ctx.fillStyle = 'rgba(10,22,40,0.92)'; ctx.fill();
+    ctx.fillStyle = L.color; _roundRect(ctx, lx - lw/2 + 6, ly - 5, 10, 10, 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(L.text, lx - lw/2 + 22, ly);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  });
+
+  // Footer total.
   ctx.fillStyle = '#0a1628'; ctx.font = '700 13px Inter, sans-serif';
-  ctx.fillText('Total: ' + grand + ' sheets — should match the cut list.', pad, y);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  ctx.fillText('Total: ' + grand + ' sheets — should match the cut list above.', padX, H - 10);
+  ctx.textBaseline = 'top';
   return cv;
 }
 function _roundRect(ctx, x, y, w, h, r){
