@@ -4283,10 +4283,15 @@ function _renderRoofSheetPlanInner() {
       sec.faces.forEach(function(f){ var gL = _faceGL(f); if (gL > eavePx) { eavePx = gL; rdir = [f.tx, f.ty]; } });
     }
     if (!(eavePx > 0)) return;
-    // Sheet run = perpendicular to the ridge, half the section span.
+    // Section oriented bounding box: project every face vertex onto the
+    // ridge axis (u) and its perpendicular (v).  These ranges place the
+    // gable columns onto the REAL footprint in the calc-check overlay,
+    // instead of a vertex-average centroid that an L-shape pulls off-roof.
     var perp = [-rdir[1], rdir[0]];
-    var pmin = Infinity, pmax = -Infinity;
+    var uMin = Infinity, uMax = -Infinity, pmin = Infinity, pmax = -Infinity;
     sec.faces.forEach(function(f){ f.poly.forEach(function(p){
+      var du = p[0]*rdir[0] + p[1]*rdir[1];
+      if (du < uMin) uMin = du; if (du > uMax) uMax = du;
       var d = p[0]*perp[0] + p[1]*perp[1];
       if (d < pmin) pmin = d; if (d > pmax) pmax = d;
     }); });
@@ -4294,16 +4299,11 @@ function _renderRoofSheetPlanInner() {
     // Ridge span of THIS section (for the secondary count): the drawn ridge
     // if we matched one, else eave minus the full depth (hip setbacks).
     var ridgePx = (rlen > 0) ? rlen : Math.max(coverPx, eavePx - perpPx);
-    // Section footprint centroid (for the Sheet-calc-check overlay, which
-    // redraws each section as a plain gable rectangle at its real place).
-    var cx = 0, cy = 0, npts = 0;
-    sec.faces.forEach(function(f){ f.poly.forEach(function(p){ cx += p[0]; cy += p[1]; npts++; }); });
-    if (npts) { cx /= npts; cy /= npts; }
     secData.push({
       col: sec.color || COL_ORANGE,
       mm: orderedLengthMm((perpPx / 2) * effectiveScale * pitchFactor),
       runPx: perpPx, eavePx: eavePx, ridgePx: ridgePx, valley: !!sec.valley,
-      cx: cx, cy: cy, rdir: rdir.slice()
+      rdir: rdir.slice(), obU0: uMin, obU1: uMax, obV0: pmin, obV1: pmax
     });
   });
   // Primary = longest sheet run; ties (same length) → longest eave.
@@ -4330,9 +4330,12 @@ function _renderRoofSheetPlanInner() {
     groups[key].count += n;
     _checkSections.push({ color: s.col, perSide: perSide, valleyExtra: valleyExtra,
       total: n, orderedMm: s.mm, isPrimary: (i === primary),
-      // Geometry for the to-scale gable overlay: centre, ridge direction,
-      // the sheet run (perp span) and cover width — all in outline px.
-      cx: s.cx, cy: s.cy, rdir: s.rdir, runPx: s.runPx, coverPx: coverPx });
+      // Geometry for the to-scale overlay: ridge direction and the
+      // section's oriented bounding box (u = along ridge, v = across),
+      // plus cover width — all in outline px.  The overlay tiles the real
+      // roof and lets the rounded-up last column overhang the eave.
+      rdir: s.rdir, obU0: s.obU0, obU1: s.obU1, obV0: s.obV0, obV1: s.obV1, coverPx: coverPx,
+      outline: (outline || []).map(function(p){ return p.slice(); }), scaleM: effectiveScale });
   });
   // Expose the per-section breakdown for the "Sheet calculation check" map.
   try { window._lastSheetSections = _checkSections; } catch(e){}

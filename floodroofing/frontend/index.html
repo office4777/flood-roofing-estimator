@@ -7725,10 +7725,10 @@ function _calcCheckColour(hex){
 function _renderCalcCheckCanvas(sections, opts){
   opts = opts || {};
   var secs = (sections || []).filter(function(s){
-    return s && s.perSide > 0 && s.rdir && isFinite(s.cx) && isFinite(s.cy) && s.coverPx > 0 && s.runPx > 0;
+    return s && s.perSide > 0 && s.rdir && isFinite(s.obU0) && isFinite(s.obV0) && s.coverPx > 0 && s.obV1 > s.obV0;
   });
   var scale = opts.thumb ? 1 : 2;   // hi-dpi for page/PDF use
-  var W = 960, titleH = 58, footH = 30, padX = 40, padTop = 12, padBot = 14;
+  var W = 960, titleH = 58, footH = 30, padX = 62, padTop = 34, padBot = 34;
   // Empty / no-geometry fallback card.
   if (!secs.length){
     var H0 = 120;
@@ -7742,21 +7742,31 @@ function _renderCalcCheckCanvas(sections, opts){
     c0.fillText('Refresh the sheet plan first — nothing to check yet.', padX, 60);
     return cv0;
   }
-  // Build every gable rectangle in world (outline-px) space and collect
-  // corners so the whole simplified roof can be fitted into the canvas.
+  var outline = (secs[0].outline && secs[0].outline.length >= 3) ? secs[0].outline : null;
+  var scaleM  = secs[0].scaleM || 0;
+
+  // Build each section's sheet columns in world (outline-px) space. The
+  // columns tile the real roof as if it were a gable; the primary is
+  // gutter-anchored so its rounded-up last sheet overhangs the far eave.
   var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   function track(p){ if (p[0]<minX) minX=p[0]; if (p[0]>maxX) maxX=p[0]; if (p[1]<minY) minY=p[1]; if (p[1]>maxY) maxY=p[1]; }
+  if (outline) outline.forEach(track);
   var built = [], grand = 0;
   secs.forEach(function(s){
     grand += s.total;
+    // R,P are an orthonormal basis, so a point at ridge-coord (u,v) maps
+    // straight back to world space as u*R + v*P.
     var R = s.rdir, P = [-R[1], R[0]];
-    var per = s.perSide, cw = s.coverPx;
-    var halfW = per*cw/2, halfRun = s.runPx/2;
-    var C = [s.cx, s.cy];
-    function w2(u, v){ return [C[0]+u*R[0]+v*P[0], C[1]+u*R[1]+v*P[1]]; }
-    var b = { s:s, R:R, P:P, per:per, cw:cw, halfW:halfW, halfRun:halfRun, w2:w2 };
-    [[-halfW,-halfRun],[halfW,-halfRun],[halfW,halfRun],[-halfW,halfRun]].forEach(function(uv){ track(w2(uv[0], uv[1])); });
-    if (s.valleyExtra){ track(w2(halfW+cw, 0)); track(w2(halfW+cw, halfRun)); }
+    var cw = s.coverPx, per = s.perSide;
+    var vMid = (s.obV0 + s.obV1)/2, halfRun = (s.obV1 - s.obV0)/2;
+    // Primary tiles from the section's gutter edge (its rounded-up last
+    // sheet overhangs the far eave); wings centre over their span (the hip
+    // ends are filled from the main's offcuts, so they need no full column).
+    var startU = s.isPrimary ? s.obU0 : ((s.obU0 + s.obU1)/2 - per*cw/2);
+    function w2(u, v){ return [u*R[0]+v*P[0], u*R[1]+v*P[1]]; }
+    var b = { s:s, R:R, P:P, cw:cw, per:per, vMid:vMid, halfRun:halfRun, w2:w2, startU:startU };
+    for (var j = 0; j <= per; j++){ track(w2(startU + j*cw, vMid-halfRun)); track(w2(startU + j*cw, vMid+halfRun)); }
+    if (s.valleyExtra){ var vu = (s.obU0+s.obU1)/2 + per*cw/2 + cw; track(w2(vu, vMid)); track(w2(vu, vMid+halfRun)); }
     built.push(b);
   });
   var spanX = (maxX-minX) || 1, spanY = (maxY-minY) || 1;
@@ -7772,79 +7782,114 @@ function _renderCalcCheckCanvas(sections, opts){
   cv.width = W*scale; cv.height = H*scale;
   var ctx = cv.getContext('2d'); ctx.scale(scale, scale);
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  var poly = function(pts, close){ ctx.beginPath(); pts.forEach(function(p,i){ i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); }); if (close!==false) ctx.closePath(); };
+
   // Title + one-line explanation.
   ctx.textBaseline = 'top'; ctx.textAlign = 'left';
   ctx.fillStyle = '#0a1628'; ctx.font = '800 18px Inter, -apple-system, sans-serif';
   ctx.fillText('SHEET CALCULATION CHECK', padX, 20);
   ctx.fillStyle = '#6b7280'; ctx.font = '500 12px Inter, -apple-system, sans-serif';
-  ctx.fillText('Each roof section squared off to a simple gable — count the sheet columns either side of the red ridge; they match the cut list. Hips & valleys are cut on site from these sheets.', padX, 42);
+  ctx.fillText('The roof tiled as gable sheet columns — count them against the cut list. Faded parts poke past the roof edge: those sheets round up to a full sheet but only a part is used.', padX, 42);
 
-  var poly = function(pts, close){ ctx.beginPath(); pts.forEach(function(p,i){ i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); }); if (close!==false) ctx.closePath(); };
+  // Section legend chips (top row) — keeps names off the roof grid.
+  var lgx = padX;
   built.forEach(function(b){
-    var s = b.s, colWpx = b.cw*sc;
-    var numFont = Math.max(8, Math.min(13, colWpx*0.55));
-    // faint gable background
-    poly([b.w2(-b.halfW,-b.halfRun), b.w2(b.halfW,-b.halfRun), b.w2(b.halfW,b.halfRun), b.w2(-b.halfW,b.halfRun)].map(toC));
-    ctx.fillStyle = s.color + '20'; ctx.fill();
-    // sheet columns — both slopes (top = -1, bottom = +1), ridge at v=0
-    [-1, 1].forEach(function(sd){
-      for (var j = 0; j < b.per; j++){
-        var u0 = -b.halfW + j*b.cw, u1 = u0 + b.cw;
-        poly([b.w2(u0,0), b.w2(u1,0), b.w2(u1, sd*b.halfRun), b.w2(u0, sd*b.halfRun)].map(toC));
-        ctx.fillStyle = s.color; ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1; ctx.stroke();
-        // number near the gutter end of the column
-        var nc = toC(b.w2((u0+u1)/2, sd*b.halfRun*0.62));
-        ctx.fillStyle = '#0a1628'; ctx.font = '700 '+numFont+'px Inter, sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(String(j+1), nc[0], nc[1]);
-        ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+    var s = b.s;
+    var text = _calcCheckColour(s.color) + (s.isPrimary ? ' main' : ' wing') + ': ' + s.total + ' × ' + (s.orderedMm/1000).toFixed(3) + 'm';
+    ctx.font = '700 12px Inter, sans-serif'; ctx.textBaseline = 'middle';
+    var tw = ctx.measureText(text).width;
+    ctx.fillStyle = s.color; _roundRect(ctx, lgx, 63, 12, 12, 3); ctx.fill();
+    ctx.fillStyle = '#0a1628'; ctx.textAlign = 'left'; ctx.fillText(text, lgx + 18, 70);
+    lgx += 18 + tw + 24;
+  });
+  ctx.textBaseline = 'top';
+
+  // Pale roof fill.
+  if (outline){ poly(outline.map(toC)); ctx.fillStyle = '#ecfdf5'; ctx.fill(); }
+
+  // Column drawing helper — draws all sections' columns + ridge. `faded`
+  // draws at low opacity everywhere (whole ordered sheet, overhang and
+  // all); the solid pass is clipped to the roof so only the on-roof part
+  // is full-strength, leaving rounded-up overhang faded past the edge.
+  function drawColumns(faded){
+    built.forEach(function(b){
+      var s = b.s;
+      ctx.save();
+      if (faded) ctx.globalAlpha = 0.26;
+      [-1, 1].forEach(function(sd){
+        for (var j = 0; j < b.per; j++){
+          var u0 = b.startU + j*b.cw, u1 = u0 + b.cw;
+          poly([b.w2(u0,b.vMid), b.w2(u1,b.vMid), b.w2(u1, b.vMid+sd*b.halfRun), b.w2(u0, b.vMid+sd*b.halfRun)].map(toC));
+          ctx.fillStyle = s.color; ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,0.20)'; ctx.lineWidth = 1; ctx.stroke();
+        }
+      });
+      // valley spare — one hatched "+1" column on the bottom slope
+      if (s.valleyExtra){
+        var vu0 = b.startU + b.per*b.cw, vu1 = vu0 + b.cw;
+        var vq = [b.w2(vu0,b.vMid), b.w2(vu1,b.vMid), b.w2(vu1, b.vMid+b.halfRun), b.w2(vu0, b.vMid+b.halfRun)].map(toC);
+        ctx.save(); poly(vq); ctx.fillStyle = s.color; ctx.fill(); ctx.clip();
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.4;
+        var a=Infinity,c2=-Infinity,d=Infinity,e=-Infinity;
+        vq.forEach(function(p){ a=Math.min(a,p[0]);c2=Math.max(c2,p[0]);d=Math.min(d,p[1]);e=Math.max(e,p[1]); });
+        for (var hx=a-(e-d); hx<c2; hx+=6){ ctx.beginPath(); ctx.moveTo(hx,d); ctx.lineTo(hx+(e-d),e); ctx.stroke(); }
+        ctx.restore();
+        poly(vq); ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; ctx.stroke();
       }
-    });
-    // valley spare: one hatched column past the bottom-right edge, "+1"
-    if (s.valleyExtra){
-      var vq = [b.w2(b.halfW,0), b.w2(b.halfW+b.cw,0), b.w2(b.halfW+b.cw, b.halfRun), b.w2(b.halfW, b.halfRun)].map(toC);
-      ctx.save(); poly(vq); ctx.fillStyle = s.color; ctx.fill(); ctx.clip();
-      ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.4;
-      var vminx=Infinity,vmaxx=-Infinity,vminy=Infinity,vmaxy=-Infinity;
-      vq.forEach(function(p){ vminx=Math.min(vminx,p[0]);vmaxx=Math.max(vmaxx,p[0]);vminy=Math.min(vminy,p[1]);vmaxy=Math.max(vmaxy,p[1]); });
-      for (var hx=vminx-(vmaxy-vminy); hx<vmaxx; hx+=6){ ctx.beginPath(); ctx.moveTo(hx,vminy); ctx.lineTo(hx+(vmaxy-vminy),vmaxy); ctx.stroke(); }
       ctx.restore();
-      poly(vq); ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; ctx.stroke();
-      var vc = toC(b.w2(b.halfW+b.cw/2, b.halfRun*0.55));
-      ctx.fillStyle = '#0a1628'; ctx.font = '700 '+Math.max(8,numFont-1)+'px Inter, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('+1', vc[0], vc[1]);
-      ctx.textBaseline = 'top'; ctx.textAlign = 'left';
-    }
-    // ridge line (red) down the middle + gable outline
-    poly([b.w2(-b.halfW,-b.halfRun), b.w2(b.halfW,-b.halfRun), b.w2(b.halfW,b.halfRun), b.w2(-b.halfW,b.halfRun)].map(toC));
-    ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 2; ctx.stroke();
-    var r0 = toC(b.w2(-b.halfW,0)), r1 = toC(b.w2(b.halfW,0));
+    });
+  }
+  drawColumns(true);                                   // whole sheets, faded
+  ctx.save();
+  if (outline){ poly(outline.map(toC)); ctx.clip(); }  // solid only on-roof
+  drawColumns(false);
+  ctx.restore();
+
+  // Ridge line (red) down each section's middle.
+  built.forEach(function(b){
+    var r0 = toC(b.w2(b.startU, b.vMid)), r1 = toC(b.w2(b.startU + b.per*b.cw, b.vMid));
     ctx.beginPath(); ctx.moveTo(r0[0],r0[1]); ctx.lineTo(r1[0],r1[1]);
     ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2.4; ctx.stroke();
-    // Stash the section's canvas bounds so labels can be drawn in a final
-    // pass — on top of every gable, so a wing can't hide the main's pill.
-    var cc4 = [b.w2(-b.halfW,-b.halfRun), b.w2(b.halfW,-b.halfRun), b.w2(b.halfW,b.halfRun), b.w2(-b.halfW,b.halfRun)].map(toC);
-    var bx0=Infinity,bx1=-Infinity,by0=Infinity,by1=-Infinity;
-    cc4.forEach(function(p){ bx0=Math.min(bx0,p[0]); bx1=Math.max(bx1,p[0]); by0=Math.min(by0,p[1]); by1=Math.max(by1,p[1]); });
-    b._label = { cx:(bx0+bx1)/2, top:by0, bot:by1,
-      text:_calcCheckColour(s.color) + (s.isPrimary ? ' · main' : ' · wing') + '  ' + s.total + ' × ' + (s.orderedMm/1000).toFixed(3) + 'm',
-      color:s.color, primary:s.isPrimary };
   });
 
-  // Section label pills — final pass, so they sit above every gable fill.
-  // Main pill anchors at the bottom of its section (clear of the wings that
-  // overlap its top); wing pills anchor at the top of theirs.
+  // Real roof outline on top.
+  if (outline){ poly(outline.map(toC)); ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 2.4; ctx.stroke(); }
+
+  // Perimeter edge measurements (metres), nudged outward from the centre.
+  if (outline && scaleM > 0){
+    var ocx = 0, ocy = 0; outline.forEach(function(p){ ocx += p[0]; ocy += p[1]; }); ocx /= outline.length; ocy /= outline.length;
+    ctx.font = '700 11px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (var i = 0; i < outline.length; i++){
+      var A = outline[i], B = outline[(i+1)%outline.length];
+      var lenM = Math.hypot(B[0]-A[0], B[1]-A[1]) * scaleM;
+      if (!(lenM > 0.05)) continue;
+      var mid = toC([(A[0]+B[0])/2, (A[1]+B[1])/2]);
+      var mc  = toC([ocx, ocy]);
+      var nx = mid[0]-mc[0], ny = mid[1]-mc[1], nl = Math.hypot(nx,ny) || 1;
+      var lx = mid[0] + (nx/nl)*16, ly = mid[1] + (ny/nl)*16;
+      var txt = lenM.toFixed(2) + 'm';
+      var tw = ctx.measureText(txt).width + 8;
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'; _roundRect(ctx, lx-tw/2, ly-8, tw, 16, 4); ctx.fill();
+      ctx.fillStyle = '#7c3aed'; ctx.fillText(txt, lx, ly);
+    }
+  }
+
+  // Column numbers (full opacity, so the faded overhang sheet still counts).
   built.forEach(function(b){
-    var L = b._label; if (!L) return;
-    ctx.font = '700 12px Inter, sans-serif'; ctx.textBaseline = 'middle';
-    var lw = ctx.measureText(L.text).width + 30;
-    var lx = Math.max(padX + lw/2, Math.min(W - padX - lw/2, L.cx));
-    var ly = L.primary ? Math.min(H - footH - 10, L.bot - 16) : Math.max(titleH + padTop + 12, L.top + 16);
-    _roundRect(ctx, lx - lw/2, ly - 10, lw, 20, 6); ctx.fillStyle = 'rgba(10,22,40,0.92)'; ctx.fill();
-    ctx.fillStyle = L.color; _roundRect(ctx, lx - lw/2 + 6, ly - 5, 10, 10, 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(L.text, lx - lw/2 + 22, ly);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    var s = b.s, colWpx = b.cw*sc, numFont = Math.max(8, Math.min(13, colWpx*0.5));
+    ctx.font = '700 '+numFont+'px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    [-1, 1].forEach(function(sd){
+      for (var j = 0; j < b.per; j++){
+        var nc = toC(b.w2(b.startU + (j+0.5)*b.cw, b.vMid + sd*b.halfRun*0.6));
+        ctx.fillStyle = 'rgba(255,255,255,0.85)'; _roundRect(ctx, nc[0]-8, nc[1]-7, 16, 14, 3); ctx.fill();
+        ctx.fillStyle = '#0a1628'; ctx.fillText(String(j+1), nc[0], nc[1]);
+      }
+    });
+    if (s.valleyExtra){
+      var vc = toC(b.w2(b.startU + b.per*b.cw + b.cw/2, b.vMid + b.halfRun*0.55));
+      ctx.font = '700 '+Math.max(8,numFont-1)+'px Inter, sans-serif';
+      ctx.fillStyle = '#0a1628'; ctx.fillText('+1', vc[0], vc[1]);
+    }
   });
 
   // Footer total.
