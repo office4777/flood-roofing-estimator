@@ -101,6 +101,7 @@ function renderRoofSheetPlan() {
     _syncCurrentToRoof();
     outEl.innerHTML = '';
     var combined = {orangeLong:0, blueLong:0, purpleLong:0, shortCount:0, shortLen:0, longLen:0, groups:[]};
+    var combinedSections = [];
     // Combined groups map keyed by colour+orderedMm so identical
     // (colour, length) entries from different roofs collapse cleanly.
     var combinedGroups = {};
@@ -116,6 +117,10 @@ function renderRoofSheetPlan() {
       outEl.appendChild(sec);
       window.__rrspTargetEl = sec;
       try { _renderRoofSheetPlanInner(); } finally { window.__rrspTargetEl = null; }
+      // Accumulate per-section breakdown (Sheet calculation check) across roofs.
+      (window._lastSheetSections || []).forEach(function(ss){
+        combinedSections.push(Object.assign({ roof: _nthName(idx + 1) }, ss));
+      });
       // Accumulate counts for combined order quantities.
       var c = window._lastSheetCounts;
       if (c) {
@@ -138,6 +143,7 @@ function renderRoofSheetPlan() {
     });
     combined.groups = Object.keys(combinedGroups).map(function(k){ return combinedGroups[k]; });
     window._lastSheetCounts = combined;
+    window._lastSheetSections = combinedSections;
     _loadRoofToCurrent(savedActive);
     return;
   }
@@ -4298,18 +4304,25 @@ function _renderRoofSheetPlanInner() {
     if (s.runPx > pv.runPx + coverPx*0.3) primary = i;
     else if (Math.abs(s.runPx - pv.runPx) <= coverPx*0.3 && s.eavePx > pv.eavePx) primary = i;
   });
+  var _checkSections = [];
   secData.forEach(function(s, i){
-    var n;
+    var n, perSide, valleyExtra = 0;
     if (i === primary) {
-      n = 2 * Math.max(1, Math.ceil(s.eavePx / coverPx - 1e-6));   // main runs full-length
+      perSide = Math.max(1, Math.ceil(s.eavePx / coverPx - 1e-6));   // main runs full-length
+      n = 2 * perSide;
     } else {
-      n = 2 * Math.max(1, Math.ceil(s.ridgePx / coverPx - 1e-6));  // wing: ridge span only
-      if (s.valley) n += 1;                                        // spare for the valley cut
+      perSide = Math.max(1, Math.ceil(s.ridgePx / coverPx - 1e-6));  // wing: ridge span only
+      n = 2 * perSide;
+      if (s.valley) { n += 1; valleyExtra = 1; }                     // spare for the valley cut
     }
     var key = s.col + ':' + s.mm;
     if (!groups[key]) groups[key] = { color: s.col, orderedMm: s.mm, count: 0 };
     groups[key].count += n;
+    _checkSections.push({ color: s.col, perSide: perSide, valleyExtra: valleyExtra,
+      total: n, orderedMm: s.mm, isPrimary: (i === primary) });
   });
+  // Expose the per-section breakdown for the "Sheet calculation check" map.
+  try { window._lastSheetSections = _checkSections; } catch(e){}
   // Apply user deletions (the strip fallback above already skips
   // deleted strips, so only the section path subtracts here).
   Object.keys(_delByKey).forEach(function(k){

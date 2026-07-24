@@ -2927,9 +2927,11 @@ html.customer-view{ overflow-x:hidden; }
       <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <button id="sheetPlanEditBtn" onclick="toggleSheetPlanEdit()" style="padding:4px 12px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;color:#0a1628">🔧 Edit sheets</button>
         <button id="sheetPlanRestoreBtn" onclick="restoreAllSheets()" style="display:none;padding:4px 12px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;color:#0a1628">↺ Restore all</button>
+        <button id="sheetCalcCheckBtn" onclick="toggleSheetCalcCheck()" style="padding:4px 12px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;color:#0a1628" title="A simple gable-style column diagram to eyeball that the sheet count matches the cut list">🧮 Sheet calc check</button>
         <button onclick="renderRoofSheetPlan();renderMaterialsCutLists()" style="padding:4px 14px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh</button>
       </div>
     </div>
+    <div id="sheetCalcCheckOut" style="display:none;margin:0 8px 10px"></div>
     <div id="sheetPlanEditHint" style="display:none;font-size:11px;color:#92400e;background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;padding:6px 10px;margin:0 8px 8px;line-height:1.4">
       🔧 <strong>Edit mode:</strong> click any coloured sheet to remove it from the order. Deleted sheets stay outlined so you can see where they were. Click again to restore. Undo (Ctrl+Z) also reverts deletions.
     </div>
@@ -7708,6 +7710,69 @@ function drawDimLineV(ctx, x1, y1, x2, y2, label, color) {
   ctx.font='bold 12px sans-serif';ctx.textAlign='center';
   ctx.fillText(label,0,0);
   ctx.restore();
+}
+
+// ── SHEET CALCULATION CHECK ──────────────────────────────────────
+// A deliberately SIMPLE column diagram — each roof section drawn as a
+// plain gable (ridge down the middle, N donor columns either side, no
+// hips or valleys) — purely so the count can be eyeballed against the
+// cut list. The installer knows to cut at the valleys and place the
+// offcuts; this map is only a sheet-tally check.
+function toggleSheetCalcCheck(){
+  var box = document.getElementById('sheetCalcCheckOut');
+  if (!box) return;
+  var showing = box.style.display !== 'none';
+  if (showing){ box.style.display = 'none'; return; }
+  renderSheetCalcCheck();
+  box.style.display = 'block';
+  try { box.scrollIntoView({ behavior:'smooth', block:'nearest' }); } catch(e){}
+}
+function renderSheetCalcCheck(){
+  var box = document.getElementById('sheetCalcCheckOut');
+  if (!box) return;
+  var secs = (window._lastSheetSections || []);
+  if (!secs.length){
+    box.innerHTML = '<p style="font-size:12px;color:var(--text2);margin:0">Refresh the sheet plan first — no sheet sections to check yet.</p>';
+    return;
+  }
+  var COLNAME = {'#f97316':'Orange','#2563eb':'Blue','#a855f7':'Purple','#16a34a':'Green'};
+  var grand = 0;
+  var html = '' +
+    '<div style="border:1px solid #e5e7eb;border-radius:10px;background:#fff;padding:12px 14px">' +
+    '<div style="font-weight:800;font-size:13px;color:#0a1628;letter-spacing:.03em;margin-bottom:2px">SHEET CALCULATION CHECK</div>' +
+    '<div style="font-size:11px;color:#6b7280;margin-bottom:12px">Each section shown as a simple gable — count the columns either side of the ridge and they should match the cut list. Hips &amp; valleys are cut on site from these sheets.</div>';
+  secs.forEach(function(s){
+    grand += s.total;
+    var per = s.perSide;
+    var name = (s.roof ? (s.roof + ' · ') : '') + (COLNAME[s.color] || 'Section') + (s.isPrimary ? ' (main)' : ' (wing)');
+    var lenM = (s.orderedMm/1000).toFixed(3);
+    // one gable: a row of `per` columns, a ridge line, another row of `per`.
+    function slope(withValley){
+      var cells = '';
+      for (var i=1;i<=per;i++){
+        cells += '<div style="flex:1 1 0;min-width:16px;border-right:1px solid rgba(0,0,0,.18);display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;font-size:10px;font-weight:700;color:#0a1628">'+i+'</div>';
+      }
+      if (withValley && s.valleyExtra){
+        cells += '<div title="+1 spare for the valley cut" style="flex:1 1 0;min-width:16px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;font-size:9px;font-weight:700;color:#0a1628;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.6) 0 3px,transparent 3px 6px)">+1</div>';
+      }
+      return '<div style="display:flex;height:34px;background:'+s.color+';border:1px solid rgba(0,0,0,.25);border-radius:4px;overflow:hidden">'+cells+'</div>';
+    }
+    var eachSide = per + (s.valleyExtra ? ' (+1)' : '');
+    html += '' +
+      '<div style="margin-bottom:14px">' +
+        '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:5px">' +
+          '<span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:'+s.color+';flex:0 0 auto"></span>' +
+          '<span style="font-size:12px;font-weight:700;color:#0a1628">'+name+'</span>' +
+          '<span style="font-size:11px;color:#6b7280">'+eachSide+' each side · <strong style="color:#0a1628">'+s.total+' sheets</strong> @ '+lenM+' m</span>' +
+        '</div>' +
+        slope(false) +
+        '<div style="height:2px;background:#dc2626;margin:2px 0;border-radius:2px" title="ridge"></div>' +
+        slope(true) +
+      '</div>';
+  });
+  html += '<div style="border-top:1px solid #e5e7eb;padding-top:8px;font-size:12px;color:#0a1628;font-weight:700">Total: '+grand+' sheets — should match the cut list above.</div>';
+  html += '</div>';
+  box.innerHTML = html;
 }
 
 // ── SHEET LAYOUT ─────────────────────────────────────────────────
