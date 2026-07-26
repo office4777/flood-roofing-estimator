@@ -4261,12 +4261,22 @@ function _renderRoofSheetPlanInner() {
     function _secOn(x, y){
       return sec.faces.some(function(f){ return _ptNearPoly(x, y, f.poly, 10); });
     }
-    var rdir = null, rlen = 0;
+    // Among the ridges whose endpoints sit on this section, pick the one
+    // with the MOST of the section's slope faces parallel to it (a ridge's
+    // two slopes have gutters parallel to it), tie-broken by length.  This
+    // stops a T-roof main — which colour-grouping lumps together with the
+    // stem — from grabbing the stem's perpendicular ridge just because it is
+    // drawn longer, which would flip the whole section 90°.  The stem ridge
+    // has none of the main's slopes parallel to it; the bar ridge has two.
+    var rdir = null, rlen = 0, rseg = null, rBest = -1;
     _ridgeLines.forEach(function(r){
       var p0 = r.pts[0], p1 = r.pts[1];
       if (!(_secOn(p0[0], p0[1]) && _secOn(p1[0], p1[1]))) return;
       var dx = p1[0]-p0[0], dy = p1[1]-p0[1], L = Math.sqrt(dx*dx+dy*dy);
-      if (L > rlen) { rlen = L; rdir = [dx/L, dy/L]; }
+      if (L < 1) return;
+      var rd = [dx/L, dy/L], par = 0;
+      sec.faces.forEach(function(f){ if (f.a && f.b && Math.abs(f.tx*rd[0] + f.ty*rd[1]) > 0.7) par++; });
+      if (par > rBest || (par === rBest && L > rlen)) { rBest = par; rlen = L; rdir = rd; rseg = [p0, p1]; }
     });
     // Donor eave = longest GUTTER among faces whose gutter runs PARALLEL to
     // the ridge; no ridge matched → fall back to the longest gutter overall.
@@ -4283,19 +4293,37 @@ function _renderRoofSheetPlanInner() {
       sec.faces.forEach(function(f){ var gL = _faceGL(f); if (gL > eavePx) { eavePx = gL; rdir = [f.tx, f.ty]; } });
     }
     if (!(eavePx > 0)) return;
-    // Section oriented bounding box: project every face vertex onto the
-    // ridge axis (u) and its perpendicular (v).  These ranges place the
-    // gable columns onto the REAL footprint in the calc-check overlay,
-    // instead of a vertex-average centroid that an L-shape pulls off-roof.
+    // Section geometry (run + oriented bbox) for the count and the overlay.
+    // The tiler paints a T-roof's stem the same orange/blue as its bar, so
+    // colour grouping lumps the stem's slivers into "main".  A stem hip-end
+    // even has a gutter PARALLEL to the bar ridge, just far past the true
+    // eave — so we can't lean on gutter direction alone.  Instead, when we
+    // have the drawn ridge, take the run as the distance to the NEAREST
+    // parallel gutter (the real eave), and keep only the slope faces sitting
+    // at that run for the along-ridge extent.  Hip-ends and stem slivers,
+    // being farther, drop out and can't stretch the sheet length.
     var perp = [-rdir[1], rdir[0]];
-    var uMin = Infinity, uMax = -Infinity, pmin = Infinity, pmax = -Infinity;
-    sec.faces.forEach(function(f){ f.poly.forEach(function(p){
-      var du = p[0]*rdir[0] + p[1]*rdir[1];
-      if (du < uMin) uMin = du; if (du > uMax) uMax = du;
-      var d = p[0]*perp[0] + p[1]*perp[1];
-      if (d < pmin) pmin = d; if (d > pmax) pmax = d;
-    }); });
-    var perpPx = (pmax > pmin) ? (pmax - pmin) : (sec.faces[0].perpPx * 2);
+    var _par = sec.faces.filter(function(f){ return f.a && f.b && Math.abs(f.tx*rdir[0] + f.ty*rdir[1]) > 0.7; });
+    if (!_par.length) _par = sec.faces;
+    function _gutP(f){ return ((f.a[0]+f.b[0])/2)*perp[0] + ((f.a[1]+f.b[1])/2)*perp[1]; }
+    var uMin = Infinity, uMax = -Infinity, pmin, pmax, perpPx;
+    if (rseg) {
+      var ridgeP = rseg[0][0]*perp[0] + rseg[0][1]*perp[1];
+      var run = Infinity;
+      _par.forEach(function(f){ var d = Math.abs(_gutP(f) - ridgeP); if (d > coverPx*0.3 && d < run) run = d; });
+      if (!(run < Infinity)) run = (sec.faces[0].perpPx || coverPx);
+      perpPx = 2 * run; pmin = ridgeP - run; pmax = ridgeP + run;
+      var _slopes = _par.filter(function(f){ return Math.abs(Math.abs(_gutP(f) - ridgeP) - run) < run * 0.6 + coverPx; });
+      if (!_slopes.length) _slopes = _par;
+      _slopes.forEach(function(f){ f.poly.forEach(function(p){ var du = p[0]*rdir[0] + p[1]*rdir[1]; if (du < uMin) uMin = du; if (du > uMax) uMax = du; }); });
+    } else {
+      pmin = Infinity; pmax = -Infinity;
+      _par.forEach(function(f){ f.poly.forEach(function(p){
+        var du = p[0]*rdir[0] + p[1]*rdir[1]; if (du < uMin) uMin = du; if (du > uMax) uMax = du;
+        var d = p[0]*perp[0] + p[1]*perp[1]; if (d < pmin) pmin = d; if (d > pmax) pmax = d;
+      }); });
+      perpPx = (pmax > pmin) ? (pmax - pmin) : (sec.faces[0].perpPx * 2);
+    }
     // Ridge span of THIS section (for the secondary count): the drawn ridge
     // if we matched one, else eave minus the full depth (hip setbacks).
     var ridgePx = (rlen > 0) ? rlen : Math.max(coverPx, eavePx - perpPx);
@@ -4314,6 +4342,12 @@ function _renderRoofSheetPlanInner() {
     if (s.runPx > pv.runPx + coverPx*0.3) primary = i;
     else if (Math.abs(s.runPx - pv.runPx) <= coverPx*0.3 && s.eavePx > pv.eavePx) primary = i;
   });
+  // Distinct DISPLAY colours for the calc-check overlay: the tiler can
+  // paint two real sections the same orange (a T-roof's bar + stem), so
+  // give each section its own tint here.  The order groups below keep the
+  // REAL tiler colour so identical sheets still merge.
+  var _DPAL = ['#a855f7','#16a34a','#2563eb','#0891b2','#db2777','#ca8a04'], _dpi = 0;
+  var _dcols = secData.map(function(s, i){ return (i === primary) ? '#f97316' : _DPAL[(_dpi++) % _DPAL.length]; });
   var _checkSections = [];
   secData.forEach(function(s, i){
     var n, perSide, valleyExtra = 0;
@@ -4328,7 +4362,7 @@ function _renderRoofSheetPlanInner() {
     var key = s.col + ':' + s.mm;
     if (!groups[key]) groups[key] = { color: s.col, orderedMm: s.mm, count: 0 };
     groups[key].count += n;
-    _checkSections.push({ color: s.col, perSide: perSide, valleyExtra: valleyExtra,
+    _checkSections.push({ color: _dcols[i], perSide: perSide, valleyExtra: valleyExtra,
       total: n, orderedMm: s.mm, isPrimary: (i === primary),
       // Geometry for the to-scale overlay: ridge direction and the
       // section's oriented bounding box (u = along ridge, v = across),
