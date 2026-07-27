@@ -4204,6 +4204,20 @@ function _renderRoofSheetPlanInner() {
     t = Math.max(0, Math.min(1, t));
     return Math.hypot(px - (a[0]+t*dx), py - (a[1]+t*dy));
   }
+  function _ptInOutline(x, y){
+    var n = (outline || []).length, inside = false;
+    for (var i = 0, j = n - 1; i < n; j = i++){
+      var xi = outline[i][0], yi = outline[i][1], xj = outline[j][0], yj = outline[j][1];
+      if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi + 1e-9) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+  // Step from a point in `dir` until leaving the outline — the ridge→eave run.
+  function _rayRun(px, py, dir){
+    var step = coverPx * 0.2, d = 0, lim = coverPx * 200;
+    while (d < lim && _ptInOutline(px + dir[0]*(d+step), py + dir[1]*(d+step))) d += step;
+    return d;
+  }
   // Cluster the drawn ridge segments into PHYSICAL ridges (parallel +
   // collinear segments merged).  A proper gable L/T has ≥2 clusters (a
   // ridge per wing); a straight gable has just one.
@@ -4285,11 +4299,10 @@ function _renderRoofSheetPlanInner() {
   // A gable-hip+valley corner (L) keeps a HIP at the elbow, which the
   // two-ridge model can't split — fall back to the tiler's strip count.
   var _gableHasHips = _isGable && ((_tLines || __origDrawLines || DRAW.lines) || []).some(function(l){ return l && l.type === 'hip'; });
-  if (_isGable && (_gableClusters.length < 2 || _gableHasHips)) {
-    // ── Straight gable, or a gable with a hip corner ─────────────
-    // The tiler merges the whole roof into two faces, so the section
-    // takeoff can't resolve it — count the tiler's own strips.  (No
-    // calc-check sections here.)
+  if (_isGable && _gableHasHips) {
+    // ── Gable with a hip at its L elbow ──────────────────────────
+    // The two-ridge model can't split the hip corner, so count the
+    // tiler's own strips.  (No calc-check sections here.)
     allStrips.forEach(function(s){
       if (s._deleted) return;   // user-deleted sheets drop out here
       if (s.isOffcut) return;
@@ -4297,7 +4310,7 @@ function _renderRoofSheetPlanInner() {
       if (!groups[key]) groups[key] = { color: s.color, orderedMm: s.orderedLengthMm, count: 0 };
       groups[key].count++;
     });
-  } else if (_isGable) {
+  } else if (_isGable && _gableClusters.length >= 2) {
     // ── Proper clean-tee gable L / T (no hip corner) ─────────────
     // The tiler still merges the faces, but the drawn ridges are clean —
     // one physical ridge per wing.  Build a section per ridge; the eave
@@ -4327,6 +4340,52 @@ function _renderRoofSheetPlanInner() {
       secData.push({ col: COL_ORANGE, mm: orderedLengthMm(run * effectiveScale * pitchFactor),
         runPx: 2*run, eavePx: (eHi - eLo), ridgePx: (eHi - eLo), valley: false, valleys: 0,
         rdir: R.slice(), obU0: eLo, obU1: eHi, obV0: ridgeP - run, obV1: ridgeP + run, _rsegs: c.segs });
+    });
+  } else if (_isGable) {
+    // ── Straight gable through a T (no valley, longer sheets) ────
+    // One ridge runs straight through, but the building width changes
+    // along it — the wide bay takes long sheets, the narrow bay short.
+    // Walk the ridge, sample the run to each eave, and split it into
+    // constant-run REGIONS; each region becomes its own section.
+    var c0 = _gableClusters[0];
+    var R = c0.dir, perp = [-R[1], R[0]], ridgeP = c0.p[0]*perp[0] + c0.p[1]*perp[1];
+    var uMin = Infinity, uMax = -Infinity;
+    c0.segs.forEach(function(sg){ sg.forEach(function(q){ var u = q[0]*R[0] + q[1]*R[1]; if (u < uMin) uMin = u; if (u > uMax) uMax = u; }); });
+    // If the ridge doesn't run the full length of the roof (e.g. a straight
+    // gable on an L, where the ridge sits over the main and the wing is off
+    // to one side), region-splitting would miss the off-ridge part — count
+    // the tiler strips instead.
+    var _oLo = Infinity, _oHi = -Infinity;
+    outline.forEach(function(p){ var u = p[0]*R[0] + p[1]*R[1]; if (u < _oLo) _oLo = u; if (u > _oHi) _oHi = u; });
+    if ((uMax - uMin) < (_oHi - _oLo) * 0.85) {
+      allStrips.forEach(function(s){
+        if (s._deleted || s.isOffcut) return;
+        var key = s.color + ':' + s.orderedLengthMm;
+        if (!groups[key]) groups[key] = { color: s.color, orderedMm: s.orderedLengthMm, count: 0 };
+        groups[key].count++;
+      });
+      c0 = null;   // skip region build below
+    }
+    function _rpt(u){ return [u*R[0] + ridgeP*perp[0], u*R[1] + ridgeP*perp[1]]; }
+    var N = 96, prevRun = null, regStart = uMin, regRuns = [], regions = [];
+    if (c0) for (var si = 0; si <= N; si++){
+      var u = uMin + (uMax - uMin) * si / N, pt = _rpt(u);
+      var rp = _rayRun(pt[0], pt[1], perp), rn = _rayRun(pt[0], pt[1], [-perp[0], -perp[1]]);
+      var run = Math.min(rp, rn);   // nearest eave = the sheet run
+      if (!(run > coverPx*0.2)) continue;   // off the roof
+      if (prevRun === null){ prevRun = run; regStart = u; regRuns = [run]; }
+      else if (Math.abs(run - (regRuns.reduce(function(a,b){return a+b;},0)/regRuns.length)) > coverPx*0.9){
+        regions.push({ u0: regStart, u1: u, run: regRuns.reduce(function(a,b){return a+b;},0)/regRuns.length });
+        regStart = u; regRuns = [run];
+      } else regRuns.push(run);
+      prevRun = run;
+    }
+    if (c0 && regRuns.length) regions.push({ u0: regStart, u1: uMax, run: regRuns.reduce(function(a,b){return a+b;},0)/regRuns.length });
+    regions.forEach(function(reg){
+      if (reg.u1 - reg.u0 < coverPx*0.5 || !(reg.run > coverPx*0.2)) return;
+      secData.push({ col: COL_ORANGE, mm: orderedLengthMm(reg.run * effectiveScale * pitchFactor),
+        runPx: 2*reg.run, eavePx: (reg.u1 - reg.u0), ridgePx: (reg.u1 - reg.u0), valley: false, valleys: 0,
+        rdir: R.slice(), obU0: reg.u0, obU1: reg.u1, obV0: ridgeP - reg.run, obV1: ridgeP + reg.run, _rsegs: c0.segs });
     });
   } else {
   // ── Per-section takeoff, main-first ────────────────────────────
