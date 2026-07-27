@@ -4188,6 +4188,9 @@ function _renderRoofSheetPlanInner() {
   var _ridgeLines = ((_tLines || __origDrawLines || DRAW.lines) || []).filter(function(l){
     return l && l.type === 'ridge' && l.pts && l.pts.length === 2;
   });
+  var _valleyLines = ((_tLines || __origDrawLines || DRAW.lines) || []).filter(function(l){
+    return l && l.type === 'valley' && l.pts && l.pts.length === 2;
+  });
   function _sectionKey(f){
     return (f.color === COL_ORANGE || f.color === COL_BLUE) ? 'main' : ('w:' + (f.color || '?'));
   }
@@ -4278,6 +4281,15 @@ function _renderRoofSheetPlanInner() {
       sec.faces.forEach(function(f){ if (f.a && f.b && Math.abs(f.tx*rd[0] + f.ty*rd[1]) > 0.7) par++; });
       if (par > rBest || (par === rBest && L > rlen)) { rBest = par; rlen = L; rdir = rd; rseg = [p0, p1]; }
     });
+    // Count the valleys this section sits on.  A wing that tucks into a
+    // corner has ONE valley and only needs its ridge span (the corner
+    // wedge comes from the main's offcuts); a stem that PROTRUDES (a T)
+    // has TWO valleys and must be covered along its full length.
+    var valleyCount = 0;
+    _valleyLines.forEach(function(vln){
+      var q0 = vln.pts[0], q1 = vln.pts[1];
+      if (_secOn(q0[0], q0[1]) && _secOn(q1[0], q1[1])) valleyCount++;
+    });
     // Donor eave = longest GUTTER among faces whose gutter runs PARALLEL to
     // the ridge; no ridge matched → fall back to the longest gutter overall.
     var eavePx = 0;
@@ -4331,6 +4343,7 @@ function _renderRoofSheetPlanInner() {
       col: sec.color || COL_ORANGE,
       mm: orderedLengthMm((perpPx / 2) * effectiveScale * pitchFactor),
       runPx: perpPx, eavePx: eavePx, ridgePx: ridgePx, valley: !!sec.valley,
+      valleys: valleyCount,
       rdir: rdir.slice(), obU0: uMin, obU1: uMax, obV0: pmin, obV1: pmax
     });
   });
@@ -4354,8 +4367,15 @@ function _renderRoofSheetPlanInner() {
     if (i === primary) {
       perSide = Math.max(1, Math.ceil(s.eavePx / coverPx - 1e-6));   // main runs full-length
       n = 2 * perSide;
+    } else if (s.valleys >= 2) {
+      // Protruding stem (a T): two valleys, no shared corner to borrow from
+      // the main — cover its FULL length, like the main does, plus a spare
+      // per valley cut.
+      perSide = Math.max(1, Math.ceil(s.eavePx / coverPx - 1e-6));
+      n = 2 * perSide + s.valleys;
+      valleyExtra = s.valleys;
     } else {
-      perSide = Math.max(1, Math.ceil(s.ridgePx / coverPx - 1e-6));  // wing: ridge span only
+      perSide = Math.max(1, Math.ceil(s.ridgePx / coverPx - 1e-6));  // tucked wing: ridge span
       n = 2 * perSide;
       if (s.valley) { n += 1; valleyExtra = 1; }                     // spare for the valley cut
     }
