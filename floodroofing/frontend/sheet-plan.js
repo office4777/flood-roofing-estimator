@@ -4321,8 +4321,21 @@ function _renderRoofSheetPlanInner() {
     var uMin = Infinity, uMax = -Infinity, pmin, pmax, perpPx;
     if (rseg) {
       var ridgeP = rseg[0][0]*perp[0] + rseg[0][1]*perp[1];
+      // Run = distance from the ridge to its nearest EAVE, taken from the
+      // roof OUTLINE (the reliable source): a straight gable's tiler faces
+      // mis-report the depth, which would otherwise halve the sheet length.
+      // Use the outline edges that run PARALLEL to the ridge.
       var run = Infinity;
-      _par.forEach(function(f){ var d = Math.abs(_gutP(f) - ridgeP); if (d > coverPx*0.3 && d < run) run = d; });
+      if (outline && outline.length >= 3){
+        for (var oi = 0; oi < outline.length; oi++){
+          var A = outline[oi], B = outline[(oi+1) % outline.length];
+          var ex = B[0]-A[0], ey = B[1]-A[1], eL = Math.hypot(ex, ey);
+          if (eL < 1 || Math.abs((ex/eL)*rdir[0] + (ey/eL)*rdir[1]) < 0.7) continue;
+          var d = Math.abs((A[0]*perp[0] + A[1]*perp[1]) - ridgeP);
+          if (d > coverPx*0.3 && d < run) run = d;
+        }
+      }
+      if (!(run < Infinity)) _par.forEach(function(f){ var d = Math.abs(_gutP(f) - ridgeP); if (d > coverPx*0.3 && d < run) run = d; });
       if (!(run < Infinity)) run = (sec.faces[0].perpPx || coverPx);
       perpPx = 2 * run; pmin = ridgeP - run; pmax = ridgeP + run;
       var _slopes = _par.filter(function(f){ return Math.abs(Math.abs(_gutP(f) - ridgeP) - run) < run * 0.6 + coverPx; });
