@@ -4361,24 +4361,26 @@ function _renderRoofSheetPlanInner() {
   // REAL tiler colour so identical sheets still merge.
   var _DPAL = ['#a855f7','#16a34a','#2563eb','#0891b2','#db2777','#ca8a04'], _dpi = 0;
   var _dcols = secData.map(function(s, i){ return (i === primary) ? '#f97316' : _DPAL[(_dpi++) % _DPAL.length]; });
+  // Valley spare: ONE extra sheet of the LONGEST length per wing that meets
+  // a valley — the installer cuts a full-length sheet at the valley and
+  // re-uses the offcut, so the spare is a long, not a short.  These live on
+  // the main (it carries the longest sheets); a wing never adds its own.
+  var _valleyWings = 0;
+  secData.forEach(function(s, i){ if (i !== primary && (s.valleys >= 1 || s.valley)) _valleyWings++; });
   var _checkSections = [];
   secData.forEach(function(s, i){
-    var n, perSide, valleyExtra = 0;
+    var perSide, valleyExtra = 0;
     if (i === primary) {
       perSide = Math.max(1, Math.ceil(s.eavePx / coverPx - 1e-6));   // main runs full-length
-      n = 2 * perSide;
     } else if (s.valleys >= 2) {
       // Protruding stem (a T): two valleys, no shared corner to borrow from
-      // the main — cover its FULL length, like the main does, plus a spare
-      // per valley cut.
+      // the main — cover its FULL length, like the main does.
       perSide = Math.max(1, Math.ceil(s.eavePx / coverPx - 1e-6));
-      n = 2 * perSide + s.valleys;
-      valleyExtra = s.valleys;
     } else {
       perSide = Math.max(1, Math.ceil(s.ridgePx / coverPx - 1e-6));  // tucked wing: ridge span
-      n = 2 * perSide;
-      if (s.valley) { n += 1; valleyExtra = 1; }                     // spare for the valley cut
     }
+    var n = 2 * perSide;
+    if (i === primary && _valleyWings > 0) { n += _valleyWings; valleyExtra = _valleyWings; }  // long valley spares
     var key = s.col + ':' + s.mm;
     if (!groups[key]) groups[key] = { color: s.col, orderedMm: s.mm, count: 0 };
     groups[key].count += n;
