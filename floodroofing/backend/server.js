@@ -1059,6 +1059,29 @@ const FERGUS_LIST_CANDIDATES = [
   '/job/{jobId}/photos',
 ];
 
+// ── Fergus response caches (in-memory, best-effort) ────────────────
+// The file endpoints re-fetch from Fergus every call, and the list
+// endpoint blindly walks ~25 candidate paths until one works.  Once a
+// path is discovered it's the SAME for every job on the tenant, so
+// remember it and try it first; and cache each job's file list for a
+// short window so re-opening the Map Roof tab (or the picker) is instant
+// instead of another 25-call walk.  All best-effort: a miss just re-fetches.
+let _fergusListPath = process.env.FERGUS_FILES_PATH || null;
+const _fergusListCache = new Map();          // jobId -> { payload, ts }
+const FERGUS_LIST_TTL  = 90 * 1000;
+function _fergusListCacheGet(jobId) {
+  const hit = _fergusListCache.get(String(jobId));
+  if (hit && (Date.now() - hit.ts) < FERGUS_LIST_TTL) return hit.payload;
+  if (hit) _fergusListCache.delete(String(jobId));
+  return null;
+}
+function _fergusListCacheSet(jobId, payload) {
+  // Only cache real hits (files present), and keep the map bounded.
+  if (!payload || !payload.ok || !(payload.files || []).length) return;
+  if (_fergusListCache.size > 200) _fergusListCache.clear();
+  _fergusListCache.set(String(jobId), { payload, ts: Date.now() });
+}
+
 // Build a compact shape summary for a probed response. For error
 // responses (4xx/5xx) it captures the `message`/`error` text so the
 // picker can show WHY a request failed — e.g. a 400 that names the
@@ -1100,12 +1123,17 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
   const jobId = req.query.jobId;
   if (!jobId) return res.status(400).json({ error: 'jobId query param required' });
 
-  // If the env has pinned a known-good list path, use it directly;
-  // otherwise walk the candidates and stop at the first array-shaped
-  // response with at least one item.
-  const candidates = process.env.FERGUS_FILES_PATH
-    ? [process.env.FERGUS_FILES_PATH, ...FERGUS_LIST_CANDIDATES]
-    : FERGUS_LIST_CANDIDATES;
+  // Fast path: recently-fetched list for this job (unless ?fresh=1).
+  if (!req.query.fresh) {
+    const cached = _fergusListCacheGet(jobId);
+    if (cached) return res.json(Object.assign({}, cached, { cached: true }));
+  }
+
+  // Try the last path that worked first (env-pinned, or discovered at
+  // runtime — it's the same for every job on the tenant), then the rest.
+  const seen = new Set();
+  const candidates = [_fergusListPath, ...FERGUS_LIST_CANDIDATES]
+    .filter(p => p && !seen.has(p) && seen.add(p));
 
   const attempts = [];
   for (const tpl of candidates) {
@@ -1147,9 +1175,14 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
       if (!arr) continue;
       const files = arr.map(_normaliseFergusFile).filter(Boolean);
       if (!files.length) continue;
+      // Remember the winning path (skips the walk next time) and cache
+      // the list for this job.
+      _fergusListPath = tpl;
+      const payload = { ok: true, used: tpl, count: files.length, files, attempts, sample: arr[0] };
+      _fergusListCacheSet(jobId, payload);
       // Include the raw first item so the client can show the exact
       // attachment shape when a download field is missing/indirect.
-      return res.json({ ok: true, used: tpl, count: files.length, files, attempts, sample: arr[0] });
+      return res.json(payload);
     } catch (e) {
       attempts.push({ path: tpl, error: e.message });
     }
@@ -1252,7 +1285,9 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
               if (!arr2) continue;
               const files = arr2.map(_normaliseFergusFile).filter(Boolean);
               if (!files.length) continue;
-              return res.json({ ok: true, used: tpl + ' (altId ' + altId + ')', count: files.length, files, attempts });
+              const payload = { ok: true, used: tpl + ' (altId ' + altId + ')', count: files.length, files, attempts };
+              _fergusListCacheSet(jobId, payload);
+              return res.json(payload);
             } catch (e) {
               attempts.push({ path: tpl + ' [altId=' + altId + ']', error: e.message });
             }
@@ -1380,7 +1415,9 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
             if (subFound.length){
               const files = subFound[0].items.map(_normaliseFergusFile).filter(Boolean);
               if (files.length){
-                return res.json({ ok: true, used: tpl + ' (' + sub.kind + ' ' + sub.id + ')', count: files.length, files, attempts });
+                const payload = { ok: true, used: tpl + ' (' + sub.kind + ' ' + sub.id + ')', count: files.length, files, attempts };
+                _fergusListCacheSet(jobId, payload);
+                return res.json(payload);
               }
             }
           } catch (e) {
@@ -1457,6 +1494,10 @@ app.get('/fergus-files/download', requireAuth, requireSubscription, async (req, 
     res.set('Content-Type', r.headers.get('content-type') || 'application/octet-stream');
     const cd = r.headers.get('content-disposition');
     if (cd) res.set('Content-Disposition', cd);
+    // The bytes for a given Fergus file URL don't change — let the browser
+    // keep them so re-viewing a photo (grid → lightbox, tab revisit) is
+    // instant instead of another round-trip through the proxy.
+    res.set('Cache-Control', 'private, max-age=86400');
     const buf = Buffer.from(await r.arrayBuffer());
     res.send(buf);
   } catch (e) {

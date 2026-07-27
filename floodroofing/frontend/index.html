@@ -28115,7 +28115,12 @@ async function _buildJobPackPdf() {
   // the button.
   try {
     if (typeof _isJobDirty === 'function' && (!S.currentJobId || _isJobDirty())) {
-      await saveCurrentJob();
+      // A never-saved job must finish saving first (the PDF's "Open in
+      // RoofMap" button needs the new id).  An already-saved job keeps its
+      // id, so let the save run in the background while we render — the
+      // slow network round-trip no longer blocks the whole build.
+      if (S.currentJobId) { try { Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){} }
+      else { await saveCurrentJob(); }
     }
   } catch(e){}
   try { renderRoofSheetPlan(); } catch(e){}
@@ -28706,12 +28711,18 @@ async function _fergusVoidOtherQuotes(jobId, keepId){
     var lt = await lr.text();
     var list = JSON.parse(lt);
     var quotes = (list && (list.data || list.value || list.quotes)) || [];
-    for (var i = 0; i < quotes.length; i++){
-      var q = quotes[i];
-      if (!q || !q.id || String(q.id) === String(keepId)) continue;
-      if (q.voidedAt || q.isVoided || q.isAccepted || q.acceptedAt) continue;   // don't touch accepted / already-void
-      try { var vr = await fergusCall('POST', '/jobs/quotes/' + q.id + '/void'); if (vr && vr.ok) voided++; } catch(e){}
-    }
+    // Void every stale version in parallel — they're independent, so there's
+    // no reason to wait for each round-trip in turn.
+    var toVoid = quotes.filter(function(q){
+      return q && q.id && String(q.id) !== String(keepId) &&
+             !q.voidedAt && !q.isVoided && !q.isAccepted && !q.acceptedAt;
+    });
+    var results = await Promise.all(toVoid.map(function(q){
+      return fergusCall('POST', '/jobs/quotes/' + q.id + '/void')
+        .then(function(vr){ return (vr && vr.ok) ? 1 : 0; })
+        .catch(function(){ return 0; });
+    }));
+    voided = results.reduce(function(a, b){ return a + b; }, 0);
   } catch(e){}
   return voided;
 }
