@@ -4198,6 +4198,27 @@ function _renderRoofSheetPlanInner() {
     var dx = f.b[0] - f.a[0], dy = f.b[1] - f.a[1];
     return Math.sqrt(dx * dx + dy * dy);
   }
+  // Run from the ridge to its nearest EAVE, read off the roof OUTLINE (the
+  // reliable source) using the outline edges parallel to the ridge.  When
+  // the ridge's along-axis span [uLo,uHi] is given, only edges that OVERLAP
+  // that span count — otherwise a neighbouring wing's short side edge, which
+  // runs parallel but sits off to the side, gets mistaken for the eave.
+  function _runFromOutline(ridgeP, R, perp, uLo, uHi){
+    var run = Infinity;
+    if (!outline || outline.length < 3) return run;
+    for (var oi = 0; oi < outline.length; oi++){
+      var A = outline[oi], B = outline[(oi+1) % outline.length];
+      var ex = B[0]-A[0], ey = B[1]-A[1], eL = Math.hypot(ex, ey);
+      if (eL < 1 || Math.abs((ex/eL)*R[0] + (ey/eL)*R[1]) < 0.7) continue;
+      if (uLo != null){
+        var au = A[0]*R[0] + A[1]*R[1], bu = B[0]*R[0] + B[1]*R[1];
+        if (Math.min(Math.max(au,bu), uHi) - Math.max(Math.min(au,bu), uLo) < coverPx) continue;
+      }
+      var d = Math.abs((A[0]*perp[0] + A[1]*perp[1]) - ridgeP);
+      if (d > coverPx*0.3 && d < run) run = d;
+    }
+    return run;
+  }
   // Is (x,y) within `tol` px of a polygon vertex or edge?  Used to test
   // whether a ridge endpoint sits on a section's faces.
   function _ptNearPoly(x, y, poly, tol){
@@ -4232,11 +4253,14 @@ function _renderRoofSheetPlanInner() {
   // numbers, so this only changes the case the section method can't
   // represent.  (Barge lines exist only on gable topologies.)
   var groups = {};
-  // Reset the calc-check breakdown up-front so the barge/gable branch
-  // (which doesn't produce sections) can't leave stale data from a
-  // previously rendered roof.
   try { window._lastSheetSections = []; } catch(e){}
+  var secData = [];
   if (__hasBarge && outline && outline.length > 4) {
+    // ── Multi-corner GABLE (L/T with barge ends) ─────────────────
+    // The tiler draws these as two big merged faces, so the per-section
+    // takeoff can't resolve them.  Count the drawn primary strips instead
+    // (the tiler's own tiling).  No calc-check sections here — the auto
+    // roof for a gable L/T is a single ridge, not a true main + wing.
     allStrips.forEach(function(s){
       if (s._deleted) return;   // user-deleted sheets drop out here
       if (s.isOffcut) return;
@@ -4254,7 +4278,6 @@ function _renderRoofSheetPlanInner() {
   // primary's offcuts.  So:
   //   primary   = 2 × ⌈ donor eave      ÷ cover ⌉        (eave = long gutter ∥ ridge)
   //   secondary = 2 × ⌈ section's ridge ÷ cover ⌉  + 1 valley
-  var secData = [];
   Object.keys(sections).forEach(function(k){
     var sec = sections[k];
     if (!sec.faces.length) return;
@@ -4324,17 +4347,9 @@ function _renderRoofSheetPlanInner() {
       // Run = distance from the ridge to its nearest EAVE, taken from the
       // roof OUTLINE (the reliable source): a straight gable's tiler faces
       // mis-report the depth, which would otherwise halve the sheet length.
-      // Use the outline edges that run PARALLEL to the ridge.
-      var run = Infinity;
-      if (outline && outline.length >= 3){
-        for (var oi = 0; oi < outline.length; oi++){
-          var A = outline[oi], B = outline[(oi+1) % outline.length];
-          var ex = B[0]-A[0], ey = B[1]-A[1], eL = Math.hypot(ex, ey);
-          if (eL < 1 || Math.abs((ex/eL)*rdir[0] + (ey/eL)*rdir[1]) < 0.7) continue;
-          var d = Math.abs((A[0]*perp[0] + A[1]*perp[1]) - ridgeP);
-          if (d > coverPx*0.3 && d < run) run = d;
-        }
-      }
+      var _ruLo = Math.min(rseg[0][0]*rdir[0]+rseg[0][1]*rdir[1], rseg[1][0]*rdir[0]+rseg[1][1]*rdir[1]);
+      var _ruHi = Math.max(rseg[0][0]*rdir[0]+rseg[0][1]*rdir[1], rseg[1][0]*rdir[0]+rseg[1][1]*rdir[1]);
+      var run = _runFromOutline(ridgeP, rdir, perp, _ruLo, _ruHi);
       if (!(run < Infinity)) _par.forEach(function(f){ var d = Math.abs(_gutP(f) - ridgeP); if (d > coverPx*0.3 && d < run) run = d; });
       if (!(run < Infinity)) run = (sec.faces[0].perpPx || coverPx);
       perpPx = 2 * run; pmin = ridgeP - run; pmax = ridgeP + run;
@@ -4360,6 +4375,12 @@ function _renderRoofSheetPlanInner() {
       rdir: rdir.slice(), obU0: uMin, obU1: uMax, obV0: pmin, obV1: pmax
     });
   });
+  }
+  // ── Shared count (both hip faces and gable ridges land here) ─────
+  if (!secData.length) {
+    // Nothing to take off (e.g. an outline the tiler couldn't resolve).
+    try { window._lastSheetSections = []; } catch(e){}
+  } else {
   // Primary = longest sheet run; ties (same length) → longest eave.
   var primary = -1;
   secData.forEach(function(s, i){
