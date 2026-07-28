@@ -10244,11 +10244,14 @@ async function _publishQuoteOnly(){
 // save to create the record. When the job also has other unsaved changes
 // (photos / roof), persist those in the BACKGROUND so nothing is lost without
 // making the link wait on the megabyte upload.
+// Returns { ok, confirmed }: confirmed=true means the quote publish returned a
+// success from the server, so the link is already live — no need to poll /q.
 async function _publishQuoteForLink(){
-  if (!S.currentJobId){ await saveCurrentJob(); return; }
+  if (!S.currentJobId){ await saveCurrentJob(); return { ok: !!S.currentJobId, confirmed: false }; }
   try { await _publishQuoteOnly(); }
-  catch(e){ await saveCurrentJob(); return; }
+  catch(e){ await saveCurrentJob(); return { ok: !!S.currentJobId, confirmed: false }; }
   if (_isJobDirty()) { try { Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){} }
+  return { ok: true, confirmed: true };
 }
 async function _ensureCustomerLink(msg, opts){
   opts = opts || {};
@@ -10259,9 +10262,9 @@ async function _ensureCustomerLink(msg, opts){
     alert('Add a client name or site address (Map Roof tab) before sharing — the customer view needs a job record to attach to.');
     return null;
   }
-  var saveErr = null;
+  var saveErr = null, pub = null;
   if (msg) { msg.textContent = S.currentJobId ? 'Publishing quote…' : 'Saving & generating link…'; msg.style.color = ''; }
-  try { await _publishQuoteForLink(); } catch(e){ saveErr = e; }
+  try { pub = await _publishQuoteForLink(); } catch(e){ saveErr = e; }
   if (!S.currentJobId){
     if (msg) { msg.textContent = 'Save failed — link not generated.' + (saveErr ? ' ('+saveErr.message+')':''); msg.style.color = '#b91c1c'; }
     alert('Couldn\'t save the job, so the customer link won\'t resolve. Check your connection and try again.');
@@ -10269,11 +10272,13 @@ async function _ensureCustomerLink(msg, opts){
   }
   link = _customerLinkString() || link;   // rebuild in case the job number settled after save
   var jobNo = (window.S && (S.linkedJobNo || (S.quote && S.quote.ref))) || '';
-  // Verify the token resolves before handing it over (brief read-after-write
-  // lag on the store — retry once). SKIPPED on the quiet path (Fergus push):
-  // there the link is used regardless, so a blocking verify loop is pure latency.
-  var verified = false;
-  if (!opts.quiet){
+  // The quote publish returns success only once the row is written, so the link
+  // is already live — treat that as verified and skip polling /q entirely (each
+  // poll makes the backend re-read + re-write the whole draw_state, so it was a
+  // big chunk of the wait). Only fall back to polling when we couldn't confirm
+  // the write (e.g. a new-job full save). Quiet path never polls.
+  var verified = !!(pub && pub.confirmed);
+  if (!opts.quiet && !verified){
     if (msg) { msg.textContent = 'Verifying link…'; }
     var token = _quoteShareToken();
     for (var i = 0; i < 2 && !verified; i++){

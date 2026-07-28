@@ -501,18 +501,22 @@ app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
     if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
     const { data: settings } = await supabase.from('user_settings').select('branding').eq('user_id', job.user_id).maybeSingle();
     const share = quote.share || {};
-    share.openCount = (share.openCount || 0) + 1;
-    share.lastOpenedAt = new Date().toISOString();
-    if (!share.status || share.status === 'sent') share.status = 'opened';
     if (!Array.isArray(share.events)) share.events = [];
-    // Only log a fresh "opened" event if the last one wasn't an open in the past 2 min.
+    // Persisting the "opened" analytics rewrites the WHOLE draw_state (photos and
+    // all) back to the DB, so only do it when something meaningful actually
+    // changed — a status transition, or a fresh open outside the 2-min throttle.
+    // Rapid reloads / link-verify hits then don't trigger a heavy write each time.
+    let changed = false;
+    if (!share.status || share.status === 'sent') { share.status = 'opened'; changed = true; }
     const last = share.events[share.events.length - 1];
     if (!last || last.type !== 'opened' || (Date.now() - new Date(last.at).getTime()) > 120000) {
+      share.openCount = (share.openCount || 0) + 1;
+      share.lastOpenedAt = new Date().toISOString();
       share.events.push({ type: 'opened', at: share.lastOpenedAt });
       if (share.events.length > 80) share.events = share.events.slice(-80);
+      changed = true;
     }
-    quote.share = share;
-    await _saveQuoteBack(job, quote);
+    if (changed) { quote.share = share; await _saveQuoteBack(job, quote); }
     res.json({ quote: quote, branding: (settings && settings.branding) || {} });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
