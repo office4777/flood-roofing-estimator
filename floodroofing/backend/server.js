@@ -417,6 +417,29 @@ app.get('/jobs/:id', requireAuth, async (req, res) => {
   res.json(data);
 });
 
+// Publish ONLY the quote onto an existing job — a tiny payload (a few KB) vs
+// the full draw_state save which re-uploads the aerial screenshot + every job
+// photo (megabytes). The customer /q/:token view reads exactly this quote, so
+// generating / pushing the customer link doesn't need the heavy photo upload.
+// Read-modify-write keeps the rest of draw_state (photos, roof, etc.) intact;
+// the client→server upload is only the quote, and the server↔DB merge is local.
+app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
+  const quote = req.body && req.body.quote;
+  if (!quote || typeof quote !== 'object') return res.status(400).json({ error: 'quote object required' });
+  const { data: job, error } = await supabase.from('jobs')
+    .select('id, draw_state, client_name, site_address').eq('id', req.params.id).eq('user_id', req.user.id).single();
+  if (error || !job) return res.status(404).json({ error: 'Job not found' });
+  const ds = job.draw_state || {};
+  ds.state = ds.state || {};
+  ds.state.quote = quote;
+  const patch = { draw_state: ds, updated_at: new Date().toISOString() };
+  if (req.body.client_name) patch.client_name = String(req.body.client_name).slice(0, 300);
+  if (req.body.site_address) patch.site_address = String(req.body.site_address).slice(0, 500);
+  const { error: uerr } = await supabase.from('jobs').update(patch).eq('id', job.id).eq('user_id', req.user.id);
+  if (uerr) return res.status(500).json({ error: uerr.message });
+  res.json({ ok: true, id: job.id });
+});
+
 app.delete('/jobs/:id', requireAuth, async (req, res) => {
   const { error } = await supabase.from('jobs').delete().eq('id', req.params.id).eq('user_id', req.user.id);
   if (error) return res.status(500).json({ error: error.message });

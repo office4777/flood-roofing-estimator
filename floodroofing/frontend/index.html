@@ -10227,6 +10227,29 @@ function _customerLinkString(){
   if (jobNo) link += '&j=' + encodeURIComponent(String(jobNo).replace(/[^A-Za-z0-9\-]/g,''));
   return link;
 }
+// Publish ONLY the quote (a few KB) to an existing job — no aerial screenshot,
+// no photos. The customer /q view reads exactly this, so sharing/pushing the
+// link is instant instead of re-uploading the whole (multi-MB) job. Needs a
+// saved job id; callers create the record first when there isn't one.
+async function _publishQuoteOnly(){
+  if (!S.currentJobId || !S.quote) return false;
+  var client = (document.getElementById('jobClient')||{}).value || S.quote.client || '';
+  var addr   = (document.getElementById('jobAddr')||{}).value || S.quote.addr || '';
+  await api('PUT', '/jobs/' + S.currentJobId + '/quote', { quote: S.quote, client_name: client, site_address: addr });
+  return true;
+}
+// Make the customer link resolve as fast as possible: for an existing job,
+// publish only the quote (a few KB); if that endpoint isn't available (e.g.
+// backend mid-deploy) fall back to a full save. A brand-new job needs the full
+// save to create the record. When the job also has other unsaved changes
+// (photos / roof), persist those in the BACKGROUND so nothing is lost without
+// making the link wait on the megabyte upload.
+async function _publishQuoteForLink(){
+  if (!S.currentJobId){ await saveCurrentJob(); return; }
+  try { await _publishQuoteOnly(); }
+  catch(e){ await saveCurrentJob(); return; }
+  if (_isJobDirty()) { try { Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){} }
+}
 async function _ensureCustomerLink(msg, opts){
   opts = opts || {};
   if (!S.quote){ alert('Open or create a quote first.'); return null; }
@@ -10236,14 +10259,9 @@ async function _ensureCustomerLink(msg, opts){
     alert('Add a client name or site address (Map Roof tab) before sharing — the customer view needs a job record to attach to.');
     return null;
   }
-  // Only re-upload when something actually changed since the last save. A clean
-  // job is already on the server, so skip the (often multi-MB, photo-heavy)
-  // round-trip — the big win when sharing/pushing the same quote twice.
   var saveErr = null;
-  if (!S.currentJobId || _isJobDirty()){
-    if (msg) { msg.textContent = 'Saving & generating link…'; msg.style.color = ''; }
-    try { await saveCurrentJob(); } catch(e){ saveErr = e; }
-  }
+  if (msg) { msg.textContent = S.currentJobId ? 'Publishing quote…' : 'Saving & generating link…'; msg.style.color = ''; }
+  try { await _publishQuoteForLink(); } catch(e){ saveErr = e; }
   if (!S.currentJobId){
     if (msg) { msg.textContent = 'Save failed — link not generated.' + (saveErr ? ' ('+saveErr.message+')':''); msg.style.color = '#b91c1c'; }
     alert('Couldn\'t save the job, so the customer link won\'t resolve. Check your connection and try again.');
@@ -28765,7 +28783,8 @@ async function pushQuotePricingToFergus(btn){
     var _linkStr = null, _savePromise = Promise.resolve();
     try {
       _linkStr = _customerLinkString();
-      if (_linkStr && (!S.currentJobId || _isJobDirty())) _savePromise = Promise.resolve(saveCurrentJob()).catch(function(){});
+      if (_linkStr) _savePromise = Promise.resolve(_publishQuoteForLink()).catch(function(){});   // publish just the quote (KB) — resolves the link fast; photos save in background
+
     } catch(e){}
     var _onlineLine = _linkStr
       ? '👉 View & accept your quote online (choose your options, then sign off):\n' + _linkStr + '\n\n'
