@@ -1,0 +1,31 @@
+name: Keep backend warm
+
+# The customer quote link feels slow when the Railway backend has gone idle and
+# the first hit pays a cold start. This pings /health on a schedule so the
+# instance stays awake. GitHub's scheduler can run a few minutes late, so the
+# backend's own internal timer (server.js _keepWarm) covers the gaps.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # every 5 minutes (GitHub's minimum)
+  workflow_dispatch:        # allow a manual "run now"
+
+# Never let overlapping runs pile up.
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend /health
+        run: |
+          URL="https://flood-roofing-estimator-production.up.railway.app/health"
+          for i in 1 2 3 4; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 45 "$URL" || echo 000)
+            echo "attempt $i -> HTTP $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 12   # give a cold start time to wake, then retry
+          done
+          echo "backend did not return 200 (it may still be waking) — not failing the run"

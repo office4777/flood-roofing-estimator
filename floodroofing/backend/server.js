@@ -1806,8 +1806,41 @@ app.get('/proxy-image', async (req, res) => {
   }).on('error', () => res.status(502).end());
 });
 
+// Keep-warm: poke our own /health every few minutes so the container doesn't go
+// idle — a cold start is what makes the customer quote link feel slow. The
+// GitHub Action (keep-warm.yml) pings from outside too, which can wake a fully
+// slept instance; this internal timer keeps a running one lively between those.
+function _keepWarm(){
+  const dom = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.KEEPWARM_HOST;
+  if (!dom || typeof fetch !== 'function') return;
+  const url = (/^https?:\/\//.test(dom) ? dom : 'https://' + dom).replace(/\/+$/, '') + '/health';
+  const ping = () => { try { fetch(url, { cache: 'no-store' }).catch(function(){}); } catch(e){} };
+  const t = setInterval(ping, 4 * 60 * 1000);
+  if (t && t.unref) t.unref();
+}
+
+// One-time index so the customer /q lookup (by share token buried in draw_state)
+// is an indexed hit instead of a full-table scan that decompresses every job's
+// photos. Runs only when DATABASE_URL is set (a Postgres connection string);
+// entirely non-fatal and never blocks the server. The one-line SQL equivalent
+// can also just be run in the Supabase SQL editor.
+async function _ensureIndexes(){
+  if (!process.env.DATABASE_URL) return;
+  let Client;
+  try { Client = require('pg').Client; } catch(e){ console.log('[migrate] pg not installed — skipping index (run the SQL manually)'); return; }
+  const c = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 8000 });
+  try {
+    await c.connect();
+    await c.query("create index if not exists idx_jobs_share_token on public.jobs ((draw_state -> 'state' -> 'quote' -> 'share' ->> 'token'))");
+    console.log('[migrate] share-token index ensured');
+  } catch(e){ console.warn('[migrate] index ensure skipped:', e.message); }
+  finally { try { await c.end(); } catch(e){} }
+}
+
 app.listen(PORT, () => {
   console.log('RoofMap backend running on port ' + PORT);
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
   console.log('Stripe: disabled');
+  try { _keepWarm(); } catch(e){}
+  _ensureIndexes().catch(function(){});
 });
