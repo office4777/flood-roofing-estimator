@@ -10202,58 +10202,71 @@ function _quoteShareToken(){
 // the LINK is the quote the customer receives (they make their
 // selections and accept online; it's not just a PDF).
 // Returns { link, verified } or null (message already shown).
-async function _ensureCustomerLink(msg, opts){
-  opts = opts || {};
-  if (!S.quote){ alert('Open or create a quote first.'); return null; }
+// Build the shareable customer-quote URL from the LOCAL share token — no
+// network. The job still has to be saved for the link to RESOLVE; callers do
+// that separately (blocking, or in the background alongside another request).
+// Returns null if there's no client/address yet to attach the job to.
+function _customerLinkString(){
+  if (!S.quote) return null;
   var token = _quoteShareToken();
-  if (!token){ alert('Could not generate a share token — try reopening the quote.'); return null; }
-  // saveCurrentJob bails out unless a client name OR address is filled in.
-  // Auto-populate from the quote so the office user doesn't have to retype.
+  if (!token) return null;
+  // saveCurrentJob bails out unless a client name OR address is filled in —
+  // auto-populate from the quote so the office user doesn't have to retype.
   var jc = document.getElementById('jobClient'), ja = document.getElementById('jobAddr');
   if (jc && !jc.value && S.quote.client) jc.value = S.quote.client;
   if (ja && !ja.value && S.quote.addr)   ja.value = S.quote.addr;
-  if ((!jc || !jc.value) && (!ja || !ja.value)){
+  if ((!jc || !jc.value) && (!ja || !ja.value)) return null;
+  // Human-friendly job number on the URL so the customer tab reads
+  // "Flood Roofing Quote #3080"; &j is harmless when missing (lookup keys off q).
+  var jobNo = (window.S && (S.linkedJobNo || (S.quote && S.quote.ref))) || '';
+  // Always hand the customer the branded custom-domain link even when the
+  // office is on the *.vercel.app host; fall back to the current origin only
+  // if the constant is blank.
+  var base = (window.CUSTOMER_QUOTE_BASE || (location.origin + location.pathname)).replace(/\/+$/, '');
+  var link = base + '/?q=' + token;
+  if (jobNo) link += '&j=' + encodeURIComponent(String(jobNo).replace(/[^A-Za-z0-9\-]/g,''));
+  return link;
+}
+async function _ensureCustomerLink(msg, opts){
+  opts = opts || {};
+  if (!S.quote){ alert('Open or create a quote first.'); return null; }
+  if (!_quoteShareToken()){ alert('Could not generate a share token — try reopening the quote.'); return null; }
+  var link = _customerLinkString();
+  if (!link){
     alert('Add a client name or site address (Map Roof tab) before sharing — the customer view needs a job record to attach to.');
     return null;
   }
-  if (msg) { msg.textContent = 'Saving & generating link…'; msg.style.color = ''; }
-  // Capture save errors instead of swallowing them — a silent save failure
-  // is what produces a "valid-looking" link that the backend can't resolve.
+  // Only re-upload when something actually changed since the last save. A clean
+  // job is already on the server, so skip the (often multi-MB, photo-heavy)
+  // round-trip — the big win when sharing/pushing the same quote twice.
   var saveErr = null;
-  try { await saveCurrentJob(); } catch(e){ saveErr = e; }
+  if (!S.currentJobId || _isJobDirty()){
+    if (msg) { msg.textContent = 'Saving & generating link…'; msg.style.color = ''; }
+    try { await saveCurrentJob(); } catch(e){ saveErr = e; }
+  }
   if (!S.currentJobId){
     if (msg) { msg.textContent = 'Save failed — link not generated.' + (saveErr ? ' ('+saveErr.message+')':''); msg.style.color = '#b91c1c'; }
     alert('Couldn\'t save the job, so the customer link won\'t resolve. Check your connection and try again.');
     return null;
   }
-  // Verify the token is reachable through the public endpoint before
-  // handing it to the user.  Supabase has eventual-consistency between
-  // primary writes and follower reads, so retry a couple of times.
-  if (msg) { msg.textContent = 'Verifying link…'; }
-  var verified = false;
-  for (var i = 0; i < 4 && !verified; i++){
-    try {
-      var r = await fetch(PROXY + '/q/' + encodeURIComponent(token), { cache:'no-store' });
-      if (r.ok) { verified = true; break; }
-    } catch(e){}
-    await new Promise(function(res){ setTimeout(res, 400 * (i+1)); });
-  }
-  if (!verified && !opts.quiet){
-    if (msg) { msg.textContent = 'Saved, but the customer link isn\'t resolving yet — wait a moment and try again.'; msg.style.color = '#b45309'; }
-    if (!confirm('The link saved, but didn\'t verify on the server yet.\n\nUse it anyway? (You may need to wait a few seconds before sending.)')) return null;
-  }
-  // Tack the human-friendly job number onto the URL so the customer
-  // tab's title can read "Flood Roofing Quote #3080" instead of the
-  // bare token, and so the office-shared link looks intentional rather
-  // than like a random hash.  &j is harmless when missing — the backend
-  // still keys the lookup off the `q` token.
+  link = _customerLinkString() || link;   // rebuild in case the job number settled after save
   var jobNo = (window.S && (S.linkedJobNo || (S.quote && S.quote.ref))) || '';
-  // Always hand the customer the branded custom-domain link, even when the
-  // office is working on the *.vercel.app host. Fall back to the current
-  // origin only if the constant is somehow blank.
-  var base = (window.CUSTOMER_QUOTE_BASE || (location.origin + location.pathname)).replace(/\/+$/, '');
-  var link = base + '/?q=' + token;
-  if (jobNo) link += '&j=' + encodeURIComponent(String(jobNo).replace(/[^A-Za-z0-9\-]/g,''));
+  // Verify the token resolves before handing it over (brief read-after-write
+  // lag on the store — retry once). SKIPPED on the quiet path (Fergus push):
+  // there the link is used regardless, so a blocking verify loop is pure latency.
+  var verified = false;
+  if (!opts.quiet){
+    if (msg) { msg.textContent = 'Verifying link…'; }
+    var token = _quoteShareToken();
+    for (var i = 0; i < 2 && !verified; i++){
+      if (i) await new Promise(function(res){ setTimeout(res, 350); });
+      try { var r = await fetch(PROXY + '/q/' + encodeURIComponent(token), { cache:'no-store' }); if (r.ok) verified = true; } catch(e){}
+    }
+    if (!verified){
+      if (msg) { msg.textContent = 'Saved, but the customer link isn\'t resolving yet — wait a moment and try again.'; msg.style.color = '#b45309'; }
+      if (!confirm('The link saved, but didn\'t verify on the server yet.\n\nUse it anyway? (You may need to wait a few seconds before sending.)')) return null;
+    }
+  }
   return { link: link, verified: verified, jobNo: jobNo };
 }
 async function copyCustomerLink(){
@@ -28743,10 +28756,19 @@ async function pushQuotePricingToFergus(btn){
     // quote notes so the customer can choose their options and accept
     // online straight from the Fergus quote email — a PDF can't do that.
     // Non-blocking: if the link can't be generated we still push pricing.
-    var _link = null;
-    try { _qaMsg('Generating your online-quote link…'); _link = await _ensureCustomerLink(null, { quiet:true }); } catch(e){}
-    var _onlineLine = (_link && _link.link)
-      ? '👉 View & accept your quote online (choose your options, then sign off):\n' + _link.link + '\n\n'
+    // Build the customer link string locally (no network) so it can ride in the
+    // Fergus quote notes immediately, and kick the backend save off in the
+    // BACKGROUND so that round-trip overlaps the Fergus POST instead of blocking
+    // it. The save is what makes the link resolve; it lands before the customer
+    // opens it. Skip the save entirely when nothing changed since last time.
+    _qaMsg('Generating your online-quote link…');
+    var _linkStr = null, _savePromise = Promise.resolve();
+    try {
+      _linkStr = _customerLinkString();
+      if (_linkStr && (!S.currentJobId || _isJobDirty())) _savePromise = Promise.resolve(saveCurrentJob()).catch(function(){});
+    } catch(e){}
+    var _onlineLine = _linkStr
+      ? '👉 View & accept your quote online (choose your options, then sign off):\n' + _linkStr + '\n\n'
       : '';
     _qaMsg('Creating new quote version in Fergus job ' + _fergusDisplayNo() + '…');
     var sub = (typeof quoteSubtotal === 'function') ? quoteSubtotal() : 0;
@@ -28767,6 +28789,7 @@ async function pushQuotePricingToFergus(btn){
     // draft remains live on the Fergus job.
     var voided = 0;
     if (newId){ try { _qaMsg('Voiding previous quote versions…'); voided = await _fergusVoidOtherQuotes(S.linkedJobId, newId); } catch(e){} }
+    try { await _savePromise; } catch(e){}   // make sure the backend save landed so the customer link resolves
     _markFergusSent('quote');
     var when = _fmtSent(S.fergusSent && S.fergusSent.quote);
     _qaMsg('✓ New quote version created in Fergus job ' + _fergusDisplayNo() + (voided ? ' (' + voided + ' old version' + (voided === 1 ? '' : 's') + ' voided)' : '') + ' · ' + when, true);
