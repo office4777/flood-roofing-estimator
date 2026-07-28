@@ -28245,7 +28245,7 @@ async function _buildJobPackPdf() {
       var pageEl = pages[i];
       _matMsg('Rendering page ' + (i+1) + ' of ' + pages.length + '…');
       var canvas = await html2canvas(pageEl, {
-        scale: 2,
+        scale: 1.5,   // internal Job Pack — lower scale renders ~1.8x faster; customer quote/proposal stays at 2.0
         backgroundColor: '#ffffff',
         useCORS: true,
         logging: false,
@@ -29581,7 +29581,7 @@ async function _matBuildPdfBlob() {
   try {
     for (var i = 0; i < pages.length; i++) {
       var canv = await window.html2canvas(pages[i], {
-        scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
+        scale: 1.5, backgroundColor: '#ffffff', useCORS: true, logging: false,   // internal Job Pack / order PDF — faster render; customer-facing docs stay at 2.0
         scrollX: 0, scrollY: 0,
         windowWidth: document.documentElement.scrollWidth,
         windowHeight: document.documentElement.scrollHeight,
