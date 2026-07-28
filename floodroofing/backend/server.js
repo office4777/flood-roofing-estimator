@@ -477,10 +477,22 @@ app.put('/settings', requireAuth, async (req, res) => {
 // Supabase client so it can read/write across users without a JWT.
 // ══════════════════════════════════════════════════════════════════
 function _quoteOf(job){ return (((job||{}).draw_state||{}).state||{}).quote || null; }
-async function _findJobByToken(token){
+async function _findJobByToken(token, jobIdHint){
   if (!token) return null;
+  const cols = 'id, user_id, client_name, site_address, draw_state';
+  // Fast path: the office link carries the job id (&i=), so we can fetch that
+  // one row by primary key and just check the token matches — no full-table
+  // scan that would decompress every job's photo-heavy draw_state. Falls back
+  // to the token scan if the hint is missing or doesn't match (e.g. stale link).
+  if (jobIdHint && /^[0-9a-fA-F-]{10,}$/.test(String(jobIdHint))) {
+    const { data, error } = await supabase.from('jobs').select(cols).eq('id', jobIdHint).limit(1);
+    if (!error && data && data[0]) {
+      const q = _quoteOf(data[0]);
+      if (q && q.share && q.share.token === token) return data[0];
+    }
+  }
   const { data, error } = await supabase.from('jobs')
-    .select('id, user_id, client_name, site_address, draw_state')
+    .select(cols)
     .eq('draw_state->state->quote->share->>token', token).limit(1);
   if (error) throw new Error(error.message);
   return (data && data[0]) || null;
@@ -496,7 +508,7 @@ async function _saveQuoteBack(job, quote){
 // credential, so cap per-IP guessing speed.
 app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
   try {
-    const job = await _findJobByToken(req.params.token);
+    const job = await _findJobByToken(req.params.token, req.query.job);
     const quote = _quoteOf(job);
     if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
     const { data: settings } = await supabase.from('user_settings').select('branding').eq('user_id', job.user_id).maybeSingle();
@@ -544,7 +556,7 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
         total: isFinite(Number(o.total)) ? Number(o.total) : 0,
       };
     });
-    const job = await _findJobByToken(req.params.token);
+    const job = await _findJobByToken(req.params.token, req.query.job);
     const quote = _quoteOf(job);
     if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
     const share = quote.share || {};
@@ -596,7 +608,7 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
       if (pdfBase64.length > 20 * 1024 * 1024) return res.status(413).json({ error: 'Attachment too large' });
       attachment = { base64: pdfBase64, filename: filename || 'Accepted quote.pdf' };
     }
-    const job = await _findJobByToken(req.params.token);
+    const job = await _findJobByToken(req.params.token, req.query.job);
     const quote = _quoteOf(job);
     if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
     const acc = quote.accepted || {};

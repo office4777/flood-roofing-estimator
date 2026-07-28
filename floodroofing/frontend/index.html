@@ -1887,6 +1887,7 @@ html.customer-view{ overflow-x:hidden; }
   var _cq = new URLSearchParams(location.search).get('q');
   if (_cq) {
     window.__CUSTOMER_TOKEN = _cq;
+    try { window.__CUSTOMER_JOB = (new URLSearchParams(location.search).get('i') || '').replace(/[^A-Za-z0-9\-]/g,''); } catch(e){}
     // Fire-and-forget warm-up: a free-tier backend spins down when idle, and
     // its first request (a cold start) is what makes the customer link feel
     // slow. Kick a /health ping the instant we know this is a customer view,
@@ -10225,6 +10226,11 @@ function _customerLinkString(){
   var base = (window.CUSTOMER_QUOTE_BASE || (location.origin + location.pathname)).replace(/\/+$/, '');
   var link = base + '/?q=' + token;
   if (jobNo) link += '&j=' + encodeURIComponent(String(jobNo).replace(/[^A-Za-z0-9\-]/g,''));
+  // Carry the DB job id so the customer open can do an instant primary-key
+  // lookup instead of scanning every job's (photo-heavy) draw_state for the
+  // token. The token is still the credential — the backend verifies it matches
+  // this job before returning anything, so the id alone reveals nothing.
+  if (S.currentJobId) link += '&i=' + encodeURIComponent(String(S.currentJobId));
   return link;
 }
 // Publish ONLY the quote (a few KB) to an existing job — no aerial screenshot,
@@ -10351,7 +10357,8 @@ function _postCustomerEvent(type, extra){
   // Resolves { ok: false } instead of swallowing failures — accept /
   // decline / query MUST tell the customer when their action didn't
   // reach the office (previously they got a success message anyway).
-  return fetch(PROXY + '/q/' + encodeURIComponent(window.__CUSTOMER_TOKEN) + '/event',
+  var _jobQ = window.__CUSTOMER_JOB ? ('?job=' + encodeURIComponent(window.__CUSTOMER_JOB)) : '';
+  return fetch(PROXY + '/q/' + encodeURIComponent(window.__CUSTOMER_TOKEN) + '/event' + _jobQ,
     { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
     .then(function(r){ return { ok: r.ok }; })
     .catch(function(){ return { ok: false }; });
@@ -10376,7 +10383,7 @@ async function _emailAcceptedQuoteToOffice(){
     }
   } catch(e){ console.warn('Accepted-quote PDF build failed:', e); }
   try {
-    await fetch(PROXY + '/q/' + encodeURIComponent(window.__CUSTOMER_TOKEN) + '/accept-email',
+    await fetch(PROXY + '/q/' + encodeURIComponent(window.__CUSTOMER_TOKEN) + '/accept-email' + (window.__CUSTOMER_JOB ? ('?job=' + encodeURIComponent(window.__CUSTOMER_JOB)) : ''),
       { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ pdfBase64: pdfBase64, filename: filename }) });
   } catch(e){ console.warn('Accept-email send failed:', e); }
@@ -10450,9 +10457,14 @@ async function bootCustomerView(token){
     var r = null, lastStatus = 0, lastFail = 'missing';
     var notFound = 0, serverDown = 0;
     var MAX_404 = 4, MAX_DOWN = 9;
+    // Job-id hint (&i=) → instant primary-key lookup on the backend instead of a
+    // full-table token scan. Older links without it still resolve via the scan.
+    var _jobHint = '';
+    try { _jobHint = (new URLSearchParams(location.search).get('i') || '').replace(/[^A-Za-z0-9\-]/g,''); } catch(e){}
+    var _qUrl = PROXY + '/q/' + encodeURIComponent(token) + (_jobHint ? ('?job=' + encodeURIComponent(_jobHint)) : '');
     while (true){
       try {
-        r = await fetch(PROXY + '/q/' + encodeURIComponent(token), { cache:'no-store' });
+        r = await fetch(_qUrl, { cache:'no-store' });
         lastStatus = r.status;
         if (r.ok) break;
         if (r.status === 404) { lastFail = 'missing'; notFound++; if (notFound >= MAX_404) break; }
