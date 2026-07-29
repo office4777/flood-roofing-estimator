@@ -216,6 +216,10 @@ tr.wk-done td:nth-child(2){text-decoration:line-through;}
 .bacct .bacct-no{font-size:.66rem;color:var(--muted);font-weight:600;margin-top:1px;}
 .bacct .bacct-as{color:var(--danger);font-weight:700;}
 .bacct .bacct-bal{flex:none;font-size:1.05rem;font-weight:800;color:#fff;letter-spacing:-.3px;}
+.bacct .bacct-rf{flex:none;width:30px;height:30px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--muted);font-size:.95rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:color .15s,border-color .15s;}
+.bacct .bacct-rf:hover{color:var(--primary);border-color:var(--primary);}
+.bacct .bacct-rf:active{transform:scale(.9);}
+.bacct .bacct-rf.spinning{animation:sp .8s linear infinite;color:var(--primary);pointer-events:none;}
 .note.bank-stale{color:var(--danger);border-color:var(--danger);}
 .kd.bank-stale-tag{color:var(--danger);}
 .bacct.off .bacct-bal{color:var(--muted);}
@@ -5202,10 +5206,11 @@ function renderCashSummary(){
   ['cash-summary','dash-summary'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=html;});
 }
 // ===== Live bank feed (Akahu) — read-only balances + recent transactions via the proxy =====
-async function syncBank(){
+async function syncBank(fromEl){
   const proxy=fergusProxyUrl();if(!proxy){openConnect();return;}
   const psec=fergusProxySecret();const btn=document.getElementById('bank-sync-btn');const note=document.getElementById('bank-note');
   const hdr={'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})};
+  const tileBtns=Array.prototype.slice.call(document.querySelectorAll('.bacct-rf'));tileBtns.forEach(b=>{b.disabled=true;b.classList.add('spinning');});
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Syncing…';}
   try{
     toast('Reading live bank…');
@@ -5218,7 +5223,8 @@ async function syncBank(){
     renderBank();renderCashflow();
     toast('Live bank updated ✓ '+accounts.length+' accounts','ok');
   }catch(e){if(note)note.textContent='⚠ '+String(e&&e.message||e);toast('Bank sync failed','err');}
-  finally{if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync live bank (Akahu)';}}
+  finally{if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync live bank (Akahu)';}
+    document.querySelectorAll('.bacct-rf').forEach(b=>{b.disabled=false;b.classList.remove('spinning');});}
 }
 // Stable id for a bank account across syncs (Akahu gives _id; fall back to the account number/name).
 function bankAcctId(a){return String((a&&(a._id||a.formatted_account||a.name))||'');}
@@ -5267,7 +5273,8 @@ function renderBank(){
     return '<div class="bacct'+(inc?'':' off')+'" onclick="toggleBankAcct(\''+esc(id.replace(/'/g,''))+'\')" title="'+(inc?'Counts toward the forecast — tap to exclude':'Excluded from the forecast — tap to include')+(ams?(' · balance as of '+new Date(ams).toLocaleString('en-NZ')):'')+'">'+
       '<div class="bacct-tog">'+(inc?'✓':'')+'</div>'+
       '<div class="bacct-main"><div class="bacct-name">'+esc(a.name||(a.connection&&a.connection.name)||'Account')+(inc?'':' <span class="bacct-off">not in forecast</span>')+'</div><div class="bacct-no">'+esc(a.formatted_account||'')+lag+'</div></div>'+
-      '<div class="bacct-bal">'+fmtK(bal)+'</div></div>';}).join('')+
+      '<div class="bacct-bal">'+fmtK(bal)+'</div>'+
+      '<button type="button" class="bacct-rf" onclick="event.stopPropagation();syncBank(this)" title="Refresh live balances from Akahu">⟳</button></div>';}).join('')+
     staleNote+
     '<div class="note" style="margin:8px 2px 0;">Tap an account to include/exclude it from the forecast’s opening cash. Tax set-asides start off by default. Balances are as fresh as Akahu’s last pull from ANZ (shown above), not necessarily this second.</div>';
   if(txb){const tx=(bank.tx||[]).slice(0,40);txb.innerHTML=tx.length?tx.map(x=>{const amt=num(x.amount);return '<tr><td>'+esc(String(x.date||'').slice(0,10))+'</td><td>'+esc(String(x.description||'').slice(0,38))+'</td><td style="text-align:right;color:'+(amt>=0?'var(--success)':'var(--danger)')+';">'+(amt>=0?'+':'')+fmtK(amt)+'</td></tr>';}).join(''):'<tr><td colspan="3" class="empty">No recent transactions.</td></tr>';}
