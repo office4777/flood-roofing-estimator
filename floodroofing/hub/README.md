@@ -302,6 +302,21 @@ and the week it lands, tagged 📅 sched / picked / est by date source) and
 **A/R already invoiced**. Each job's finish date can be changed on the
 Cash → payment calendar.
 
+## Command-centre live-bank tiles
+
+The command centre shows tap-through tiles for your **everyday bank accounts** — the
+`…-00`, `…-02` and `…-03` accounts (OPEX / Material / Sales) — with their live Akahu
+balances. Tapping any of them opens **Bank accounts — live** (`openCmdDetail('bank')`),
+which lists **every** connected account with its balance, marks which are in the
+forecast, and totals "in forecast" vs "all accounts". The tiles are blank until the live
+bank is synced on the Cash tab. Which suffixes appear is set by `CMD_BANK_SUFFIXES`.
+
+## Mobile command-centre header
+
+On narrow screens the header lays out cleanly: the **Command Centre** title + a compact
+sync line on the first row, and the period toggle (Week/Month · This/Last) as its own
+full-width row of even chips — no more cramped stacked cluster.
+
 ## Command-centre tiles — This · Last · 3-mo avg
 
 The comparison tiles (Enquiries / Quotes / Conversion / GP) draw **three** vertical
