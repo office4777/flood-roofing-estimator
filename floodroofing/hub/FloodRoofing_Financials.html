@@ -397,6 +397,8 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
 .cfx-sect{font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:0 2px 7px;}
 .cfx-tag{display:inline-block;font-size:.58rem;font-weight:800;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:0 4px;vertical-align:middle;text-transform:none;letter-spacing:0;}
 .cfx-edit{color:var(--accent);cursor:pointer;white-space:nowrap;font-weight:600;}
+.expap-tune{font-size:.82rem;color:var(--text);line-height:2.1;}
+.expap-tune input{width:56px;padding:5px 7px;margin:0 2px;border:1px solid var(--border);border-radius:8px;background:var(--elev);color:var(--text);font-size:.85rem;font-weight:700;text-align:center;}
 .cfx-edit:active{opacity:.6;}
 .cal-row-flash{animation:calflash 2.5s ease;}
 @keyframes calflash{0%,100%{background:transparent;}15%,60%{background:rgba(77,141,255,.22);}}
@@ -987,6 +989,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="fld" style="margin:2px 0 8px;"><label>Monthly OPEX + wages out (blank = 6-mo Xero avg)</label><input id="cf-out" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>00 (OPEX) account name contains</label><input id="cf-ookw" type="text" autocomplete="off" autocapitalize="off" placeholder="00" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Total cash now — all accounts (blank = sum Xero banks)</label><input id="cf-open" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>Materials as % of a job's value <span class="hbtn" onclick="showHelp('matterms')" title="What's this?">?</span></label><input id="cf-matpct" type="number" inputmode="decimal" autocomplete="off" placeholder="50" onchange="saveCfCfg()"><div class="note" style="margin-top:4px;">Used to estimate still-to-buy materials for the cashflow + <b>Expected A/P</b> (same setting as Cash → deposit/materials %). Default 50%.</div></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Materials ordered N weeks before a job finishes <span class="hbtn" onclick="showHelp('matterms')" title="What's this?">?</span></label><input id="cf-matlead" type="number" inputmode="numeric" autocomplete="off" placeholder="3" onchange="saveCfCfg()"><div class="note" style="margin-top:4px;">Materials are paid on the <b>20th of the month after they're ordered</b> (supplier terms), and existing A/P lands on the next 20th.</div></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Actual 00 balance right now (override, optional)</label><input id="cf-bal" type="number" inputmode="decimal" autocomplete="off" placeholder="blank = use Xero balance sheet" onchange="saveCfCfg()"></div>
       <label style="display:flex;align-items:center;gap:9px;margin:10px 0 2px;font-size:.82rem;cursor:pointer;"><input id="cf-autorecon" type="checkbox" onchange="saveCfCfg()" style="width:18px;height:18px;"> Auto-reconcile bank vs Xero <span class="hbtn" onclick="event.preventDefault();showHelp('autorecon')" title="What's this?">?</span></label>
@@ -3522,6 +3525,13 @@ function ensureCmdModal(){
   document.body.appendChild(m);
 }
 function closeCmdDetail(){const m=document.getElementById('cmd-modal');if(m)m.classList.remove('open');document.body.style.overflow='';}
+// Tune the Expected-A/P estimate from inside its popup: material % of sale (cashDepPct) + order lead weeks (cfMatLead).
+function setExpApCfg(which,val){
+  val=String(val==null?'':val).trim();
+  if(which==='pct')S.set('cashDepPct',val);else S.set('cfMatLead',val);
+  try{renderCashflow();}catch(e){}try{renderCash();}catch(e){}
+  openCmdDetail('expap');   // refresh the popup with the new numbers
+}
 // From the cashflow detail, jump to the Cash-tab payment-date picker for one job and highlight its row.
 function editJobPayDate(id){
   closeCmdDetail();
@@ -3619,8 +3629,10 @@ function openCmdDetail(key){
         if(!rows.length)rows.push('<tr><td colspan="2" class="empty">Nothing due.</td></tr>');
         rows.push('<tr class="tot"><td>Total</td><td style="text-align:right;">'+fmtK(tot)+'</td></tr>');
         return '<div class="cfx-sec"><div class="cfx-sect">'+label+'</div><div class="tbl-wrap" style="max-height:none;overflow:auto;"><table class="tb"><thead><tr><th>Item</th><th style="text-align:right;">Amount</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div></div>';};
-      body=mkSeg('Due '+dfull(ax.next.ms),ax.next)+mkSeg('Then '+dfull(ax.foll.ms),ax.foll)+
-        '<div class="note" style="margin:10px 2px 2px;">Current A/P is what’s already invoiced in Xero (lands the very next 20th). <b>Materials</b> are estimated still-to-buy on active jobs (~'+Math.round((ax.matPct||0.5)*100)+'% of each job’s value, less what’s already recorded) — the bit you’ve ordered/will order but <b>haven’t had or processed a supplier invoice for yet</b> — landing on the 20th of the month after they’re ordered. Already-recorded materials are subtracted, so nothing’s double-counted. Reconcile bills in Xero and the split shifts from estimate to actual.</div>';
+      const pctV=Math.round((ax.matPct||0.5)*100),leadV=num(S.get('cfMatLead','3'))||3;
+      const tune='<div class="cfx-sec"><div class="cfx-sect">Assumptions — tune the estimate</div><div class="expap-tune">Materials = <input type="number" inputmode="decimal" value="'+pctV+'" onchange="setExpApCfg(\'pct\',this.value)"> % of each job’s value · ordered <input type="number" inputmode="numeric" value="'+leadV+'" onchange="setExpApCfg(\'lead\',this.value)"> weeks before finish</div></div>';
+      body=tune+mkSeg('Due '+dfull(ax.next.ms),ax.next)+mkSeg('Then '+dfull(ax.foll.ms),ax.foll)+
+        '<div class="note" style="margin:10px 2px 2px;">Current A/P is what’s already invoiced in Xero (lands the very next 20th). <b>Materials</b> are estimated still-to-buy on active jobs ('+pctV+'% of each job’s value, less what’s already recorded) — the bit you’ve ordered/will order but <b>haven’t had or processed a supplier invoice for yet</b> — landing on the 20th of the month after they’re ordered. Already-recorded materials are subtracted, so nothing’s double-counted. Reconcile bills in Xero and the split shifts from estimate to actual.</div>';
     }}
   else if(key==='fw'){title='Forward workflow — active jobs';
     const rows=(fwJobs||[]).filter(j=>!fwDone[j.id]).map(j=>({job:j.job,rem:(typeof effRem==='function'?effRem(j):Math.max(0,num(j.remaining))),due:uninvPriced(j)})).sort((a,b)=>b.rem-a.rem);
@@ -4770,6 +4782,7 @@ function saveCfCfg(){
   if(g('cf-bal'))S.set('cfBal',(g('cf-bal').value||'').trim());
   if(g('cf-open'))S.set('cfOpenCash',(g('cf-open').value||'').trim());
   if(g('cf-matlead'))S.set('cfMatLead',(g('cf-matlead').value||'').trim());
+  if(g('cf-matpct')&&(g('cf-matpct').value||'').trim()!=='')S.set('cashDepPct',(g('cf-matpct').value||'').trim());
   if(g('cf-apwk'))S.set('cfApWeeks',(g('cf-apwk').value||'').trim());
   if(g('cf-wkout'))S.set('cfWkOut',(g('cf-wkout').value||'').trim());
   if(g('cf-autorecon'))S.set('cfAutoRecon',g('cf-autorecon').checked?'on':'off');
@@ -4836,7 +4849,7 @@ function renderCashflow(){
   const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
   const pop=(id,v)=>{const e=document.getElementById(id);if(e&&!e.value&&v!==''&&v!=null)e.value=v;};
   {const ar=document.getElementById('cf-autorecon');if(ar)ar.checked=S.get('cfAutoRecon','on')!=='off';}
-  pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','3'));pop('cf-overrun',S.get('cfOverrun','20'));pop('cf-tail',S.get('cfTail','3'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));pop('cf-bal',S.get('cfBal',''));pop('cf-open',S.get('cfOpenCash',''));pop('cf-matlead',S.get('cfMatLead',''));pop('cf-apwk',S.get('cfApWeeks',''));pop('cf-wkout',S.get('cfWkOut',''));
+  pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','3'));pop('cf-overrun',S.get('cfOverrun','20'));pop('cf-tail',S.get('cfTail','3'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));pop('cf-bal',S.get('cfBal',''));pop('cf-open',S.get('cfOpenCash',''));pop('cf-matlead',S.get('cfMatLead',''));pop('cf-matpct',S.get('cashDepPct',''));pop('cf-apwk',S.get('cfApWeeks',''));pop('cf-wkout',S.get('cfWkOut',''));
   // monthly outflow: 6-month avg of (opex + wages) from Xero, or a manual override
   let avgOut=0,nOut=0;for(let i=1;i<=6;i++){const x=xeroMonthly[calMonthKey(-i)];if(x){avgOut+=(x.burn!=null?num(x.burn):(num(x.opex)+num(x.wages)));nOut++;}}
   avgOut=nOut?avgOut/nOut:0;
