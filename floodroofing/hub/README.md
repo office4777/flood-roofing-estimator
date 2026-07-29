@@ -289,6 +289,22 @@ The whole-business 13-week forecast (Cash tab + dashboard chart) times cash like
 
 So it now factors in both A/R and A/P, on their real payment terms.
 
+### Auto-reconcile bank vs Xero (no double-counting already-paid invoices)
+
+The forecast's opening balance is the **live bank** total, which already includes money
+that's landed. But Xero keeps listing an invoice as unpaid until it's reconciled — so a
+payment that's already in the bank would be counted **twice** (once in the balance, once
+as a future A/R inflow). `reconcileBank()` matches recent Akahu bank **credits** to unpaid
+Xero invoices by near-exact amount (preferring a description/name match, one deposit per
+invoice, last ~45 days) and marks those invoices as already received, so `renderCashflow`
+**excludes them from future inflows**. It only runs when the opening balance IS the live
+bank feed (`cfAutoRecon`, on by default; toggle in Cash → cashflow settings). It's a
+best-guess match, so the cashflow detail window shows exactly what it matched under
+**"Already in the bank — auto-reconciled"** (with the matched bank line), separate from
+**"A/R still expected"**, and the weekly note tallies the reconciled amount. Reconciling in
+Xero remains the permanent fix. (Supplier-side / A/P reconciliation needs per-bill data and
+is a planned follow-up.)
+
 ### Cashflow detail window (tap the dashboard cashflow panel)
 
 Tapping the **Cashflow forecast** panel on the dashboard opens a full breakdown
@@ -299,8 +315,59 @@ out over 13 weeks, weekly burn), a sign-coloured 13-week bar strip, the
 Wages+OH / Close, with the low week highlighted), and two "money coming in"
 tables — **job finals** (each job, its finish date, the final-invoice amount
 and the week it lands, tagged 📅 sched / picked / est by date source) and
-**A/R already invoiced**. Each job's finish date can be changed on the
-Cash → payment calendar.
+**A/R already invoiced**. The **"Lands" cell on each job final is tappable** (✎):
+`editJobPayDate(id)` closes the modal, jumps to the **Cash → payment calendar**,
+and flashes that job's row so you can pick a new payment date on the spot (a manual
+pick overrides the schedule/estimate).
+
+## Command-centre — Expected A/P on the 20th
+
+Supplier bills are paid on the **20th**, but Xero's A/P only shows bills that have been
+*invoiced and processed* — so it understates what you'll actually pay. The **Expected A/P**
+tile projects the next two 20ths (`window.__apExp`, built in `renderCashflow`):
+- **Current A/P** (already invoiced in Xero) lands on the **very next 20th**.
+- **Materials ordered on jobs but not yet invoiced/processed** — each active job's still-to-buy
+  materials (`matPct × sale − aMat`, i.e. estimated total materials minus what's already
+  recorded) — land on the **20th of the month after they're ordered** (order timing from the
+  schedule: finish − materials-lead). Because `aMat` is subtracted, bills already in Xero A/P
+  aren't double-counted.
+
+The tile shows the next 20th's total (`Current A/P + that month's materials`) with the
+following 20th in the sub-line (e.g. *"20 Aug $37k · then 20 Sep: $40k"*); if today is before
+the 20th, "next" is this month's 20th. Tapping it opens a per-20th breakdown (current A/P +
+each job's materials) with the double-count note.
+
+Both assumptions are **tunable**: the popup has inline inputs for **materials % of a job's
+value** (`cashDepPct`) and **order lead weeks** (`cfMatLead`) that recompute the projection
+live (`setExpApCfg`), and both also sit together in **Cash → cashflow settings** (`cf-matpct`
+mirrors the Cash-tab deposit/materials %).
+
+## Command-centre live-bank tiles
+
+The command centre shows tap-through tiles for your **everyday bank accounts** — the
+`…-00`, `…-02` and `…-03` accounts (OPEX / Material / Sales) — with their live Akahu
+balances. Tapping any of them opens **Bank accounts — live** (`openCmdDetail('bank')`),
+which lists **every** connected account with its balance, marks which are in the
+forecast, and totals "in forecast" vs "all accounts". The tiles are blank until the live
+bank is synced on the Cash tab. Which suffixes appear is set by `CMD_BANK_SUFFIXES`.
+
+## Mobile command-centre header
+
+On narrow screens the header lays out cleanly: the **Command Centre** title + a compact
+sync line on the first row, and the period toggle (Week/Month · This/Last) as its own
+full-width row of even chips — no more cramped stacked cluster.
+
+## Command-centre — Sales (work booked + revenue won) & 4-bar tiles
+
+Every comparison tile now shows **four** bars: **This · Last · 3-avg · 6-avg** (the
+6-period average sits next to the 3-period one; `curRoll` returns `roll`/`roll6`, buckets
+widened to `off+7`). Two Sales tiles were added, both driven by quotes **accepted** in the
+period (`acceptedAt`):
+- **Work booked / wk|mo** — weeks of work won: each accepted quote's value ÷ the real
+  revenue-per-hour (`fergusProd().revPerHr`) = booked labour hours, ÷ weekly capacity
+  (`capacity().perDay×5`) — the same maths as Forward Workflow. Tapping it opens a
+  **Work booked** detail listing each won quote with its $ and estimated weeks.
+- **Revenue won / wk|mo** — sum of accepted-quote values that period (`countInBuckets(...).val`).
 
 ## Command-centre tiles — This · Last · 3-mo avg
 
@@ -359,7 +426,12 @@ number** (`Job No` / `Job #` / …), a **site/address** (`Site` / `Address` / `C
 If no date header is found it falls back to whichever column parses as dates most often.
 Dates are flexible: ISO, `D/M/Y` (NZ day-first), or `4-Nov` / `30 Jul` / `Nov 4` — a
 missing year is inferred (a date more than ~3 months in the past rolls to next year,
-since schedule dates are finishes). Both importers parse **quoted CSV fields**
+since schedule dates are finishes). **Only finish dates within the next ~3 months are
+used** (`schedHorizonMs()`): anything further out is treated as tentative and dropped —
+those jobs fall back to the capacity estimate. This is enforced both at import (beyond-3-
+month rows are skipped and counted) and at lookup (`schedFinishFor` ignores stored dates
+past the horizon, so an older import self-corrects without re-importing). Both importers
+parse **quoted CSV fields**
 (`parseCSV`), so addresses containing commas are handled. Each job is matched to the
 forecast **by job number first, then by address substring**, and its finish date drives
 the final-invoice, materials and A/R timing (§ *Cashflow forecast*). A 📅 marks
