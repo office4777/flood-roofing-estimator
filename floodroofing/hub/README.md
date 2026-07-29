@@ -289,6 +289,22 @@ The whole-business 13-week forecast (Cash tab + dashboard chart) times cash like
 
 So it now factors in both A/R and A/P, on their real payment terms.
 
+### Auto-reconcile bank vs Xero (no double-counting already-paid invoices)
+
+The forecast's opening balance is the **live bank** total, which already includes money
+that's landed. But Xero keeps listing an invoice as unpaid until it's reconciled — so a
+payment that's already in the bank would be counted **twice** (once in the balance, once
+as a future A/R inflow). `reconcileBank()` matches recent Akahu bank **credits** to unpaid
+Xero invoices by near-exact amount (preferring a description/name match, one deposit per
+invoice, last ~45 days) and marks those invoices as already received, so `renderCashflow`
+**excludes them from future inflows**. It only runs when the opening balance IS the live
+bank feed (`cfAutoRecon`, on by default; toggle in Cash → cashflow settings). It's a
+best-guess match, so the cashflow detail window shows exactly what it matched under
+**"Already in the bank — auto-reconciled"** (with the matched bank line), separate from
+**"A/R still expected"**, and the weekly note tallies the reconciled amount. Reconciling in
+Xero remains the permanent fix. (Supplier-side / A/P reconciliation needs per-bill data and
+is a planned follow-up.)
+
 ### Cashflow detail window (tap the dashboard cashflow panel)
 
 Tapping the **Cashflow forecast** panel on the dashboard opens a full breakdown
