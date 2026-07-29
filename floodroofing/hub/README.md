@@ -337,6 +337,11 @@ following 20th in the sub-line (e.g. *"20 Aug $37k · then 20 Sep: $40k"*); if t
 the 20th, "next" is this month's 20th. Tapping it opens a per-20th breakdown (current A/P +
 each job's materials) with the double-count note.
 
+Both assumptions are **tunable**: the popup has inline inputs for **materials % of a job's
+value** (`cashDepPct`) and **order lead weeks** (`cfMatLead`) that recompute the projection
+live (`setExpApCfg`), and both also sit together in **Cash → cashflow settings** (`cf-matpct`
+mirrors the Cash-tab deposit/materials %).
+
 ## Command-centre live-bank tiles
 
 The command centre shows tap-through tiles for your **everyday bank accounts** — the
