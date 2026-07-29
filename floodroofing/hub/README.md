@@ -257,13 +257,19 @@ names + hours it found, and the matched roofers, so the mapping can be confirmed
 **All Back Costing** no longer shows only the jobs someone *led* — pick a roofer
 and it lists every job where they were the lead **or** logged **≥10% of the total
 hours**. Each row shows that roofer's hours and share (e.g. `24h · 30%`).
-Because Fergus only exposes ~1 week of time entries at a time, per-job roofer
-hours are **accumulated across syncs** (`jobRooferHrs` / `jobRooferTot`), so
-attribution gets more complete the longer the nightly sync runs. For older jobs
-whose entries Fergus no longer serves, tap **+ crew** under the job name to add a
-roofer by hand (saved as `crewOverride`); manual tags show as blue chips with an
-`×` to remove. A roofer counts as "on" a job via lead, ≥10% auto share, or a
-manual tag.
+Per-job roofer hours come from each job's **full Fergus labour history** (the
+phases → Labour entries, complete history — not the ~1-week `/timeEntries` feed).
+`fergusJobHoursHistory()` reads every labour entry, matches its person to a roofer
+(`matchRoofer(entryUser(e))`) and writes the exact per-roofer hours + total for the
+job into `jobRooferHrs` / `jobRooferTot` (authoritative, overwritten per job). So a
+job worked months ago — e.g. Jacob's 65h on Dion Ashby's job back in June — is
+attributed correctly. **Run a Master refresh (or P&L → Reload full labour history)
+once to backfill** older jobs; the labour-history sync now re-pulls any job that has
+month data but no roofer data yet, so this is a one-time catch-up. The ~1-week feed
+still accumulates for brand-new jobs between full pulls. You can also tap **+ crew**
+under a job to add a roofer by hand (saved as `crewOverride`); manual tags show as
+blue chips with an `×` to remove. A roofer counts as "on" a job via lead, ≥10% auto
+share, or a manual tag.
 
 **Show/hide columns:** above the table, **▦ Columns** opens tick-boxes for every
 column (all on by default; Job is locked on). **Roofer view** hides the money
@@ -333,7 +339,21 @@ out over 13 weeks, weekly burn), a sign-coloured 13-week bar strip, the
 Wages+OH / Close, with the low week highlighted), and two "money coming in"
 tables — **job finals** (each job, its finish date, the final-invoice amount
 and the week it lands, tagged 📅 sched / picked / est by date source) and
-**A/R already invoiced**. The **"Lands" cell on each job final is tappable** (✎):
+**A/R already invoiced**.
+
+The detail window also has a **"Money going out — Expected A/P (supplier bills)"**
+section (fed by `window.__apExp`, carried on `__cfDetail.apExp`) so the same figure
+you see in the standalone **Expected A/P** tile is visible *inside* the forecast and
+ties out: it itemises **Current A/P** (already invoiced in Xero, lands the next 20th)
+plus each active job's **still-to-buy materials** (≈ `cashDepPct` % of the job's value
+**less what's already recorded on the job**, `stb = max(0, matPct·sale − aMat)`),
+grouped by the 20th they land on. Those two lines are exactly the **Mat** + **A/P**
+columns of the week that contains that 20th — nothing is double-counted, because a
+job's already-recorded materials (`aMat`, which tracks what's been invoiced to the
+job) are subtracted from its still-to-buy estimate, and Current A/P is only the
+already-invoiced bills. So *estimated* materials never overlap *invoiced* ones.
+
+The **"Lands" cell on each job final is tappable** (✎):
 `editJobPayDate(id)` opens the **"Active jobs — expected payment date" calendar as a
 pop-up right there on the dashboard** (`openPayCal`), stacked over the forecast
 detail and focused on that job (its row flashes and scrolls to its date). You pick

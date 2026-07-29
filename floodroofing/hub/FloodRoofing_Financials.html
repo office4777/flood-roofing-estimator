@@ -647,7 +647,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
         </table>
       </div>
       <div class="tiles" id="bc-tiles" style="margin-top:11px;"></div>
-      <div class="note" style="margin-top:11px;">Back costing syncs with <b>⚙ → Refresh</b> (everyday) or <b>Master refresh</b> (full history), top-right.<br>Pick a roofer above to see <b>every job they were on</b> — where they were lead <b>or</b> logged ≥10% of the hours. Older jobs (before Fergus's ~1-week time feed) show no auto hours — tap <b>+ crew</b> under a job to add them by hand. Use <b>▦ Columns → Roofer view</b> to hide the $ columns before showing the table to a roofer.</div>
+      <div class="note" style="margin-top:11px;">Back costing syncs with <b>⚙ → Refresh</b> (everyday) or <b>Master refresh</b> (full history), top-right.<br>Pick a roofer above to see <b>every job they were on</b> — where they were lead <b>or</b> logged ≥10% of the hours. Hours come from each job's <b>full Fergus labour history</b>, so run a <b>Master refresh</b> (or <b>P&L → Reload full labour history</b>) once to backfill older jobs; after that they show automatically. You can still tap <b>+ crew</b> under a job to add someone by hand. Use <b>▦ Columns → Roofer view</b> to hide the $ columns before showing the table to a roofer.</div>
     </div>
 
     <div class="card">
@@ -2519,6 +2519,7 @@ async function fergusJobHoursHistory(jid){
   let phs=[];try{phs=_teArr(await fergusApiFetch(J+'/phases'));}catch(e){return null;}
   if(!phs.length)return null;
   const out={};let got=0;const seenE=new Set();   // de-dupe entries by id (a job's phases can return overlapping/job-level entries)
+  const rmap={};let rtot=0;   // per-roofer hours + total from the FULL history (fixes the "was on" filter for old jobs)
   const suffixes=['/labour','/timeEntries','/time'];
   for(const ph of phs){
     const pid=ph&&(ph.id!=null?ph.id:(ph.phaseId!=null?ph.phaseId:''));
@@ -2536,8 +2537,12 @@ async function fergusJobHoursHistory(jid){
     entries.forEach(e=>{const h=entryHours(e);if(h<=0)return;const mo=teMonth(e);if(!mo)return;
       const eid=e&&(e.timeEntryId!=null?e.timeEntryId:(e.id!=null?e.id:(e.uuid!=null?e.uuid:null)));
       if(eid!=null){if(seenE.has(eid))return;seenE.add(eid);}   // count each time entry once, no matter how many phases return it
-      out[mo]=(out[mo]||0)+h;got++;});
+      out[mo]=(out[mo]||0)+h;got++;
+      rtot+=h;const rf=matchRoofer(entryUser(e));if(rf)rmap[rf]=(rmap[rf]||0)+h;});   // who was on this job, from full history
   }
+  // Full-history roofer hours are authoritative for THIS job (the ~1-week feed only sees recent days),
+  // so overwrite — this is what makes older jobs show under a roofer in the "was on" filter.
+  if(got&&rtot>0){_jobRooferHrs[String(jid)]=rmap;_jobRooferTot[String(jid)]=rtot;}
   return got?out:null;
 }
 // Pull dated labour history (per job, from its phase Labour section) so month-by-month hours and the
@@ -2557,7 +2562,9 @@ async function syncLabourHistory(opt){
   // Skip jobs we already pulled whose lastModified hasn't moved — for BOTH modes. This is what makes
   // master resumable: if it was interrupted, re-running skips everything already done. Master just
   // covers a wider set of jobs (active + back-costed) than the everyday pass (active only).
-  const list=cand.filter(j=>!_jobMonthHrs[j.id]||!j.lm||cache[j.id]!==j.lm);
+  // re-pull if we've never pulled it, if it changed, OR if we have month data but no per-roofer data
+  // yet (one-time backfill so the "was on" filter works for jobs pulled before roofer capture existed)
+  const list=cand.filter(j=>!_jobMonthHrs[j.id]||!_jobRooferTot[j.id]||!j.lm||cache[j.id]!==j.lm);
   const total=list.length;
   const btn=document.getElementById('epl-lh-btn');
   if(!opt.band&&!total){toast(opt.master?'Sync Fergus first, then load labour history.':'Labour history already up to date ✓',opt.master?'err':'ok');return {hit:0,total:0};}
@@ -2571,12 +2578,12 @@ async function syncLabourHistory(opt){
       cache[j.id]=j.lm;   // mark checked (even if empty) so we don't re-probe an unchanged job
       done++;
       if(done%5===0)  // checkpoint often so an interrupted (backgrounded) master refresh resumes here
-        {S.set('jobMonthHrs',_jobMonthHrs);S.set('jobLabourSync',cache);}
+        {S.set('jobMonthHrs',_jobMonthHrs);S.set('jobLabourSync',cache);S.set('jobRooferHrs',_jobRooferHrs);S.set('jobRooferTot',_jobRooferTot);}
       if(done%3===0||done===total){if(btn&&!opt.band)btn.textContent='Loading… '+done+'/'+total;prog(done/total);}
     }
   }
   await Promise.all(Array.from({length:Math.min(4,total||1)},()=>worker()));
-  S.set('jobMonthHrs',_jobMonthHrs);S.set('jobLabourSync',cache);
+  S.set('jobMonthHrs',_jobMonthHrs);S.set('jobLabourSync',cache);S.set('jobRooferHrs',_jobRooferHrs);S.set('jobRooferTot',_jobRooferTot);
   if(btn&&!opt.band){btn.disabled=false;btn.textContent='⤓ Reload full labour history (dated)';}
   if(!opt.band){syncProgressDone('Labour history loaded ✓');toast('Pulled dated labour for '+hit+' of '+total+' job'+(total!==1?'s':'')+'.',hit?'ok':'err');renderAll();}
   return {hit,total};
@@ -3778,10 +3785,24 @@ function openCmdDetail(key){
       const rec=D.recon||{};const recTot=num(rec.total);
       const rectbl=(rec.matches&&rec.matches.length)?'<div class="tbl-wrap" style="max-height:none;overflow:auto;"><table class="tb"><thead><tr><th>Invoice</th><th style="text-align:right;">Amount</th><th>Matched bank payment</th></tr></thead><tbody>'+rec.matches.map(m=>'<tr><td>'+(m.jobNo?'<b>#'+esc(m.jobNo)+'</b> ':'')+esc((m.name||'').slice(0,32))+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(m.amt)+'</td><td style="color:var(--muted);font-size:.72rem;">'+esc((m.txDesc||'').slice(0,30))+(m.txDate?(' · '+esc(m.txDate)):'')+'</td></tr>').join('')+'<tr class="tot"><td>Total ('+rec.matches.length+')</td><td style="text-align:right;">'+fmtK(recTot)+'</td><td></td></tr></tbody></table></div>':'';
       const sec=(t,inner)=>'<div class="cfx-sec"><div class="cfx-sect">'+t+'</div>'+inner+'</div>';
+      // Money going OUT — Expected A/P (current supplier bills + still-to-buy materials), shown right
+      // here so the A/P you see in the standalone tile is visible inside the forecast and ties out.
+      let apSec='';const ax=D.apExp||window.__apExp;
+      if(ax){
+        const apSeg=(label,s)=>{const matTot=s.jobs.reduce((a,j)=>a+num(j.mat),0);const tot=num(s.ap)+matTot;if(tot<=0)return '';
+          const rr=[];
+          if(num(s.ap)>0)rr.push('<tr><td>Current A/P — already invoiced in Xero</td><td style="text-align:right;font-weight:700;">'+fmtK(s.ap)+'</td></tr>');
+          s.jobs.slice().sort((a,b)=>num(b.mat)-num(a.mat)).forEach(j=>rr.push('<tr><td>'+esc((j.job||'').slice(0,36))+' <span class="cfx-tag">materials</span></td><td style="text-align:right;color:#fb923c;">'+fmtK(j.mat)+'</td></tr>'));
+          rr.push('<tr class="tot"><td>Due '+dds(s.ms)+' — total</td><td style="text-align:right;">'+fmtK(tot)+'</td></tr>');
+          return '<div class="tbl-wrap" style="max-height:none;overflow:auto;margin-bottom:8px;"><table class="tb"><thead><tr><th>Item</th><th style="text-align:right;">Amount</th></tr></thead><tbody>'+rr.join('')+'</tbody></table></div>';};
+        const apInner=apSeg('next',ax.next)+apSeg('foll',ax.foll);
+        if(apInner)apSec=sec('Money going out — Expected A/P (supplier bills)',apInner+'<div class="note" style="margin:2px 2px 0;">This is the <b>Mat</b> + <b>A/P</b> columns above, itemised. <b>Current A/P</b> is already invoiced in Xero (lands the next 20th); <b>materials</b> are still-to-buy on active jobs (≈'+Math.round(D.matPct*100)+'% of each job’s value <b>less what’s already recorded on the job</b>, so anything already invoiced isn’t counted again — nothing doubles up). Tap <b>Expected A/P</b> on the dashboard to tune the %/lead.</div>');
+      }
       body=hero+bars+
         sec('Projected balance · week by week',wtbl)+
         sec('Money coming in — job finals ('+jobs.length+')'+(D.nSched?' <span class="cfx-tag" style="color:var(--accent);border-color:var(--accent);">'+D.nSched+' from schedule</span>':''),jtbl)+
         sec('Money coming in — A/R still expected ('+ar.length+')',artbl)+
+        apSec+
         (rectbl?sec('✓ Already in the bank — auto-reconciled ('+rec.matches.length+')',rectbl+'<div class="note" style="margin:7px 2px 0;">These invoices match recent bank deposits, so they’re already in your opening balance and <b>excluded from the forecast</b> to avoid double-counting. Reconcile them in Xero when you can. Turn this off in <b>Cash → cashflow settings</b> if you’d rather match manually.</div>'):(rec.active?'':'<div class="note" style="margin:10px 2px 0;">Auto-reconcile runs when your opening balance is the <b>live bank feed</b>. Sync the bank on the Cash tab to catch invoices already paid but not yet reconciled in Xero.</div>'))+
         '<div class="note" style="margin:12px 2px 2px;">Job finals paid <b>'+D.lag+' weeks</b> after each job’s scheduled finish · A/R paid <b>3 days past due</b> · materials (~'+Math.round(D.matPct*100)+'% of sale) paid the <b>20th of the month after ordering</b> · A/P at the next 20th · wages+overheads <b>'+fmtK(D.burnWk)+'/week</b>. Finish dates: <b>📅 sched</b> = your imported schedule, <b>picked</b> = you set it on the calendar, <b>est</b> = capacity estimate. Change any job’s date on the <b>Cash → payment calendar</b>.</div>';
     }}
@@ -5144,7 +5165,7 @@ function renderCashflow(){
   const wlow=wrows.reduce((m,r)=>(r.close<m.close?r:m),wrows[0]);
   const wlab2=d=>d.getDate()+' '+FG_MONTHS[d.getMonth()];
   try{window.__cfLow=wlow.close;window.__cfLowWk=wlab2(wlow.ds);window.__cashNow=openCash;window.__burnMo=outflow;window.__cfWeekly=wrows.map(r=>({ds:r.ds,close:r.close}));
-    window.__cfDetail={weekly:wrows.map(r=>({ms:r.ds.getTime(),open:r.open,inn:r.inn,mat:r.mat,ap:r.ap,burn:r.burn,close:r.close})),jobs:cfJobs,ar:cfArList,openCash,burnWk,apMat,low:wlow.close,lowWk:wlab2(wlow.ds),lag:num(cfg2.lag),matPct,matLead,nSched:cfJobs.filter(j=>j.isSch).length,recon};}catch(e){}   // share with the command centre
+    window.__cfDetail={weekly:wrows.map(r=>({ms:r.ds.getTime(),open:r.open,inn:r.inn,mat:r.mat,ap:r.ap,burn:r.burn,close:r.close})),jobs:cfJobs,ar:cfArList,openCash,burnWk,apMat,low:wlow.close,lowWk:wlab2(wlow.ds),lag:num(cfg2.lag),matPct,matLead,nSched:cfJobs.filter(j=>j.isSch).length,recon,apExp};}catch(e){}   // share with the command centre
   const lowEl=document.getElementById('cfw-low');if(lowEl){lowEl.textContent=fmtK(wlow.close);lowEl.style.color=wlow.close>=0?'var(--success)':'var(--danger)';}
   const luEl=document.getElementById('cfw-low-unit');if(luEl)luEl.textContent=(wlow.close>=0?'lowest total cash · wk of ':'cash runs short · wk of ')+wlab2(wlow.ds);
   const wtb2=document.querySelector('#cfw-tbl tbody');
