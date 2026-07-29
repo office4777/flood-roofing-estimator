@@ -36,20 +36,42 @@ async function main() {
   if (!authRes.ok || !authJson.token) throw new Error('Login failed: ' + (authJson.error || authRes.status));
   const token = authJson.token;
 
-  // 2) boot the Hub headless with creds seeded before its scripts run
+  // 1b) pull the current shared state so we boot from the team's real config
+  // (schedule CSV, tunables, bank inclusion, etc). We inject it directly and mark
+  // the session "hydrated" so the app's team bootstrap does NOT run its own
+  // fetch + location.reload() — that reload was aborting our in-flight proxy
+  // fetch mid-sync (the PROXY_NEEDED / "execution context destroyed" failure).
+  let shared = {};
+  try {
+    const stRes = await fetch(api + '/api/state', { headers: { Authorization: 'Bearer ' + token } });
+    if (stRes.ok) { const sj = await stRes.json(); if (sj && sj.data && typeof sj.data === 'object') shared = sj.data; }
+  } catch (e) { console.log('Could not preload shared state (continuing fresh):', e && e.message || e); }
+
+  // 2) boot the Hub headless with state + creds seeded before its scripts run
   const browser = await chromium.launch({ args: ['--no-sandbox'] });
   const page = await browser.newPage();
   page.on('console', m => { if (m.type() === 'error') console.log('[hub console error]', m.text()); });
-  await page.addInitScript(([a, t, pu, ps]) => {
+  await page.addInitScript(([a, t, pu, ps, data]) => {
     try {
+      // hydrate the shared team state first...
+      if (data && typeof data === 'object') {
+        Object.keys(data).forEach(function (k) {
+          if (k === 'fr3_hubApiUrl' || k === 'fr3_hubToken') return; // set explicitly below
+          try { localStorage.setItem(k, typeof data[k] === 'string' ? data[k] : JSON.stringify(data[k])); } catch (e) {}
+        });
+      }
+      // ...then the device-local creds
       localStorage.setItem('fr3_hubApiUrl', a);
       localStorage.setItem('fr3_hubToken', t);
       localStorage.setItem('fr3_fergus_proxy_url', JSON.stringify(pu));
       localStorage.setItem('fr3_fergus_proxy_secret', JSON.stringify(ps));
       // don't let the headless run trigger a full auto-master unless we asked for it
       localStorage.setItem('fr3_autoWeekly', JSON.stringify('off'));
+      // tell the team bootstrap it's already fresh so it skips fetch + reload,
+      // but still sets window.__TEAM so our teamPushNow() can push at the end.
+      sessionStorage.setItem('teamHydrated', '1');
     } catch (e) {}
-  }, [api, token, PROXY_URL, PROXY_SECRET]);
+  }, [api, token, PROXY_URL, PROXY_SECRET, shared]);
 
   await page.goto('file://' + HUB_HTML, { waitUntil: 'load' });
   await page.waitForFunction(() => typeof window.__teamHeadlessSync === 'function', null, { timeout: 30000 });
