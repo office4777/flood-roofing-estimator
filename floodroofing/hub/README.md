@@ -334,9 +334,20 @@ Wages+OH / Close, with the low week highlighted), and two "money coming in"
 tables — **job finals** (each job, its finish date, the final-invoice amount
 and the week it lands, tagged 📅 sched / picked / est by date source) and
 **A/R already invoiced**. The **"Lands" cell on each job final is tappable** (✎):
-`editJobPayDate(id)` closes the modal, jumps to the **Cash → payment calendar**,
-and flashes that job's row so you can pick a new payment date on the spot (a manual
-pick overrides the schedule/estimate).
+`editJobPayDate(id)` opens the **"Active jobs — expected payment date" calendar as a
+pop-up right there on the dashboard** (`openPayCal`), stacked over the forecast
+detail and focused on that job (its row flashes and scrolls to its date). You pick
+the real expected payment day without leaving the dashboard.
+
+The pop-up is the **same calendar** as the one on the Cash tab — both render via
+`renderCfCalendar(sched, finOv, hostId)` from the one shared store (`cfFinishOv`)
+and the one shared schedule (`window.__cfSched`). Each row shows the **auto-forecast
+date as a blue •** (remaining hours ÷ capacity + flashings tail + payment lag — the
+exact date the cashflow forecast uses) and **your pick as a green ✓**. A change in
+either place saves immediately and shows in both, and `pickPayDay` re-runs
+`renderCashflow()` so the **forecast updates too** (and the open pop-up / forecast
+detail refresh in place). A manual pick overrides the schedule/estimate; tap the
+same day again to clear it.
 
 ## Command-centre — Expected A/P on the 20th
 
