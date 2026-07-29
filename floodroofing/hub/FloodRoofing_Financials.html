@@ -3594,15 +3594,18 @@ function openCmdDetail(key){
       // weekly table
       const wtb=D.weekly.map(r=>'<tr'+(r.close===D.low?' class="tot"':'')+'><td>'+dds(r.ms)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inn?fmtK(r.inn):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.mat?'-'+fmtK(r.mat):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.ap?'-'+fmtK(r.ap):'—')+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.burn)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>');
       const wtbl='<div class="tbl-wrap" style="max-height:none;overflow:auto;"><table class="tb"><thead><tr><th>Week of</th><th style="text-align:right;">Open</th><th style="text-align:right;">In</th><th style="text-align:right;">Mat</th><th style="text-align:right;">A/P</th><th style="text-align:right;">Wages+OH</th><th style="text-align:right;">Close</th></tr></thead><tbody>'+wtb.join('')+'</tbody></table></div>';
-      // job finals coming in
-      const jobs=(D.jobs||[]).filter(j=>j.owing>0).sort((a,b)=>a.finPayMs-b.finPayMs);
+      // job finals coming in — only those landing within the 13-week window
+      const jobsAll=(D.jobs||[]).filter(j=>j.owing>0).sort((a,b)=>a.finPayMs-b.finPayMs);
+      const jobs=jobsAll.filter(j=>j.inWin!==false),jobsBeyond=jobsAll.filter(j=>j.inWin===false);
       const jtot=jobs.reduce((s,j)=>s+j.owing,0);
       const jrows=jobs.map(j=>'<tr><td>'+esc((j.job||'').slice(0,40))+(j.isOv?' <span class="cfx-tag" style="color:var(--accent);border-color:var(--accent);">picked</span>':(j.isSch?' <span class="cfx-tag" title="from your imported schedule">📅 sched</span>':' <span class="cfx-tag" style="opacity:.6;">est</span>'))+'</td><td style="text-align:right;">'+dds(j.finDate)+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(j.owing)+'</td><td style="text-align:right;color:var(--muted);">'+wkl(j.finPayMs)+'</td></tr>');
       if(jrows.length)jrows.push('<tr class="tot"><td>Total ('+jobs.length+')</td><td></td><td style="text-align:right;">'+fmtK(jtot)+'</td><td></td></tr>');
-      const jtbl=jrows.length?'<div class="tbl-wrap" style="max-height:none;overflow:auto;"><table class="tb"><thead><tr><th>Job</th><th style="text-align:right;">Finish</th><th style="text-align:right;">Final invoice</th><th style="text-align:right;">Lands</th></tr></thead><tbody>'+jrows.join('')+'</tbody></table></div>':'<div class="empty">No unbilled job finals in the window.</div>';
+      const beyondTot=jobsBeyond.reduce((s,j)=>s+j.owing,0);
+      const beyondNote=jobsBeyond.length?'<div class="note" style="margin:7px 2px 0;">+ <b>'+jobsBeyond.length+'</b> job'+(jobsBeyond.length===1?'':'s')+' finishing beyond 13 weeks ('+fmtK(beyondTot)+' in finals) — not in this forecast. Earliest '+dds(jobsBeyond[0].finPayMs)+'.</div>':'';
+      const jtbl=(jrows.length?'<div class="tbl-wrap" style="max-height:none;overflow:auto;"><table class="tb"><thead><tr><th>Job</th><th style="text-align:right;">Finish</th><th style="text-align:right;">Final invoice</th><th style="text-align:right;">Lands</th></tr></thead><tbody>'+jrows.join('')+'</tbody></table></div>':'<div class="empty">No unbilled job finals land within the next 13 weeks.</div>')+beyondNote;
       // A/R coming in — split "still expected" from "already in the bank" (auto-reconciled)
       const arAll=(D.ar||[]).slice().sort((a,b)=>a.payMs-b.payMs);
-      const ar=arAll.filter(a=>!a.cleared),arDone=arAll.filter(a=>a.cleared);
+      const ar=arAll.filter(a=>!a.cleared&&a.inWin!==false),arDone=arAll.filter(a=>a.cleared);
       const artot=ar.reduce((s,a)=>s+a.due,0);
       const arows=ar.map(a=>'<tr><td>'+(a.jobNo?'<b>#'+esc(a.jobNo)+'</b> ':'')+esc((a.job||'').slice(0,36))+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(a.due)+'</td><td style="text-align:right;color:var(--muted);">'+(a.payMs?wkl(a.payMs):'—')+'</td></tr>');
       if(arows.length)arows.push('<tr class="tot"><td>Total ('+ar.length+')</td><td style="text-align:right;">'+fmtK(artot)+'</td><td></td></tr>');
@@ -4869,19 +4872,22 @@ function renderCashflow(){
   const apMat=num(window.__apMat||0);const burnWk=outflow*12/52;
   const NOW=Date.now(),WK=7*86400000;
   const wkIdx=ms=>Math.floor((ms-NOW)/WK),clamp=i=>Math.max(0,Math.min(12,i));
+  // Bucket a payment into a forecast week: overdue/imminent -> week 0; within the 13 weeks -> its week;
+  // BEYOND the 13-week window -> -1 (excluded, so far-future jobs don't get crammed into the last week).
+  const wkBucket=ms=>{const i=wkIdx(ms);return i>12?-1:Math.max(0,i);};
   const twentiethNextMonth=ms=>{const d=new Date(ms);let mo=d.getMonth()+1,yr=d.getFullYear();if(mo>11){mo-=12;yr++;}return new Date(yr,mo,20).getTime();};   // material paid the 20th of the month AFTER it's ordered
   const nextTwentieth=ms=>{const d=new Date(ms);if(d.getDate()<20)return new Date(d.getFullYear(),d.getMonth(),20).getTime();let mo=d.getMonth()+1,yr=d.getFullYear();if(mo>11){mo-=12;yr++;}return new Date(yr,mo,20).getTime();};
   const finLagMs=Math.max(0,num(cfg2.lag))*WK;   // final invoice paid this long after a job's scheduled finish (default 3 weeks)
   const fIn=[],mOut=[],apOut=[];for(let i=0;i<13;i++){fIn[i]=0;mOut[i]=0;apOut[i]=0;}
   const cfJobs=[],cfArList=[];
   sched.forEach(s=>{
-    const finPayMs=s.finDate.getTime()+finLagMs;const finWk=clamp(wkIdx(finPayMs));
-    if(s.owing>0)fIn[finWk]+=s.owing;                                                // final invoice: scheduled finish + payment lag
+    const finPayMs=s.finDate.getTime()+finLagMs;const finWk=wkBucket(finPayMs);
+    if(finWk>=0&&s.owing>0)fIn[finWk]+=s.owing;                                      // final invoice within the window only
     const orderMs=s.finDate.getTime()-matLead*WK;                                    // materials ordered ~matLead weeks before finish
     const stb=Math.max(0,matPct*num(s.sale)-num(s.aMat));                            // still-to-buy for this job
-    const matPayMs=twentiethNextMonth(orderMs),matWk=clamp(wkIdx(matPayMs));
-    if(stb>0)mOut[matWk]+=stb;                                                       // …paid the 20th of the following month
-    if(s.owing>0||stb>0)cfJobs.push({job:s.job,finDate:s.finDate.getTime(),isSch:s.isSch,isOv:s.isOv,owing:s.owing,finWk,finPayMs,stb,matWk,matPayMs});});
+    const matPayMs=twentiethNextMonth(orderMs),matWk=wkBucket(matPayMs);
+    if(matWk>=0&&stb>0)mOut[matWk]+=stb;                                             // …paid the 20th of the following month, if in-window
+    if(s.owing>0||stb>0)cfJobs.push({job:s.job,finDate:s.finDate.getTime(),isSch:s.isSch,isOv:s.isOv,owing:s.owing,finWk,finPayMs,stb,matWk,matPayMs,inWin:(finWk>=0)});});
   // Existing A/R (invoices already sent): each paid 3 days after its due date — UNLESS the bank
   // feed shows it's already been received (paid but not yet reconciled in Xero), in which case the
   // money is already in the opening balance, so we don't forecast it again.
@@ -4891,11 +4897,11 @@ function renderCashflow(){
   Object.keys(_arb).forEach(k=>{const a=_arb[k];const amt=num(a.due);if(amt<=0)return;
     const dd=a.dueDate?Date.parse(String(a.dueDate).replace(' ','T')):NaN;
     const payMs=!isNaN(dd)?(dd+3*86400000):(NOW+10*86400000);                        // 3 days overdue; fallback ~10 days when no due date
-    const wk=clamp(wkIdx(payMs));
+    const wk=wkBucket(payMs);
     const cleared=!!recon.arCleared[k];
-    if(!cleared)fIn[wk]+=amt;                                                        // already in the bank → don't double-count
+    if(wk>=0&&!cleared)fIn[wk]+=amt;                                                 // in-window & not already in the bank
     const no=String(k).replace(/\D/g,'');const fj=_cjByNo[no];
-    cfArList.push({job:fj?fj.job:(a.name||('Job '+k)),jobNo:no,due:amt,payMs,wk,dueDate:dd,cleared});});
+    cfArList.push({job:fj?fj.job:(a.name||('Job '+k)),jobNo:no,due:amt,payMs,wk,dueDate:dd,cleared,inWin:(wk>=0)});});
   // Existing supplier bills (A/P) — 20th-of-following-month terms → land at the next 20th
   apOut[clamp(wkIdx(nextTwentieth(NOW)))]+=apMat;
   let wc=openCash;const wrows=[];
