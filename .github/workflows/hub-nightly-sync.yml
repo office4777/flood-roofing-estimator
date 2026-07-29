@@ -7,19 +7,20 @@ name: Hub nightly sync
 
 on:
   schedule:
-    - cron: '0 15 * * *'   # 15:00 UTC ≈ 3am NZST / 4am NZDT — quiet hours
+    # 12:00 UTC = midnight NZST (winter) / 1am NZDT (summer) — runs EVERY night.
+    - cron: '0 12 * * *'
   workflow_dispatch:
     inputs:
       mode:
         description: 'Sync mode'
-        default: 'refresh'
+        default: 'master'
         type: choice
-        options: [refresh, master]
+        options: [master, refresh]
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45   # master pulls FULL history (all jobs, all labour, Xero 2018+) — give it room
     env:
       HUB_API_URL: ${{ secrets.HUB_API_URL }}   # job-level so it can gate the step below
     steps:
@@ -48,5 +49,5 @@ jobs:
           HUB_PASS: ${{ secrets.HUB_SYNC_PASS }}
           PROXY_URL: ${{ secrets.PROXY_URL }}
           PROXY_SECRET: ${{ secrets.PROXY_SECRET }}
-          SYNC_MODE: ${{ github.event.inputs.mode || 'refresh' }}
+          SYNC_MODE: ${{ github.event.inputs.mode || 'master' }}
         run: node scripts/headless-sync.js
