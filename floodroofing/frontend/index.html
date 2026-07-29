@@ -1531,12 +1531,14 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
    schedule strip on the T&Cs page, profile cards, etc.  Keeps them
    from splitting awkwardly across an A4 page break. */
 .report-preview .ed-keep{break-inside:avoid;page-break-inside:avoid}
-.report-preview .rp-header{background:var(--ed-ink);color:#fff;padding:22px 48px}
-.report-preview .rp-header .rp-logo-name{font-family:var(--ed-serif);font-weight:400;letter-spacing:.02em;font-size:22px}
-.report-preview .rp-header .rp-logo-tag{font-family:var(--ed-sans);letter-spacing:.28em;font-size:8.5px;color:rgba(255,255,255,.55);text-transform:uppercase;font-weight:500;margin-top:6px}
+/* Minimal light header — plain white letterhead, no heavy ink band / roof texture. */
+.report-preview .rp-header{background:#fff;color:var(--ed-ink);padding:22px 48px;border-bottom:1px solid var(--ed-line)}
+.report-preview .rp-header::before{display:none!important}
+.report-preview .rp-header .rp-logo-name{font-family:var(--ed-serif);font-weight:400;letter-spacing:.02em;font-size:22px;color:var(--ed-ink)}
+.report-preview .rp-header .rp-logo-tag{font-family:var(--ed-sans);letter-spacing:.28em;font-size:8.5px;color:var(--ed-text2);text-transform:uppercase;font-weight:500;margin-top:6px}
 .report-preview .rp-header .rp-logo-stripe{width:34px;height:1px;background:var(--ed-accent);margin-top:10px;opacity:.9}
-.report-preview .rp-header .rp-hdr-right{font-family:var(--ed-sans);font-size:10px;letter-spacing:.04em;color:rgba(255,255,255,.55);line-height:2}
-.report-preview .rp-header .rp-hdr-right strong{font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:14px;color:#fff;display:block;letter-spacing:0;line-height:1.3;margin-bottom:4px}
+.report-preview .rp-header .rp-hdr-right{font-family:var(--ed-sans);font-size:10px;letter-spacing:.04em;color:var(--ed-text2);line-height:2}
+.report-preview .rp-header .rp-hdr-right strong{font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:14px;color:var(--ed-ink);display:block;letter-spacing:0;line-height:1.3;margin-bottom:4px}
 .rp-header{background:var(--ink);color:#fff;padding:24px 30px;display:flex;align-items:flex-start;justify-content:space-between;position:relative}
 .rp-header::before{
   content:'';
@@ -12646,7 +12648,7 @@ function refreshQuoteProposal(){
   // The previous version rendered BOTH side-by-side, producing the
   // double-logo the user flagged.
   var brandMarkHtml = br.logo_data_url
-    ? '<img src="'+esc2(br.logo_data_url)+'" alt="logo" style="height:54px;max-width:180px;display:block;flex-shrink:0;object-fit:contain;background:rgba(255,255,255,.08);padding:4px;border-radius:6px">'
+    ? '<img src="'+esc2(br.logo_data_url)+'" alt="logo" style="height:54px;max-width:180px;display:block;flex-shrink:0;object-fit:contain">'
     : '<img src="'+esc2(brandLogo)+'" onerror="this.style.display=\'none\'" alt="" style="height:54px;width:54px;border-radius:6px;display:block;flex-shrink:0;object-fit:cover">';
   var headerHtml = '<div class="rp-header" style="display:flex;align-items:center;justify-content:space-between;gap:18px">'+
     '<div style="display:flex;align-items:center;gap:14px">'+
@@ -12655,7 +12657,7 @@ function refreshQuoteProposal(){
         '<div class="rp-logo-name">'+esc2(company)+'</div>'+
         '<div class="rp-logo-tag">'+esc2(tagline)+'</div>'+
         '<div class="rp-logo-stripe"></div>'+
-        '<div style="font-size:10.5px;color:rgba(255,255,255,.7);margin-top:8px;font-family:var(--ed-sans);letter-spacing:.02em;line-height:1.7">'+
+        '<div style="font-size:10.5px;color:var(--ed-text2);margin-top:8px;font-family:var(--ed-sans);letter-spacing:.02em;line-height:1.7">'+
           (br.address ? esc2(br.address)+'<br>' : '')+
           (br.phone ? 'Phone: '+esc2(br.phone)+'<br>' : '')+
           (br.email ? 'Email: '+esc2(br.email)+'<br>' : '')+
@@ -12696,7 +12698,9 @@ function refreshQuoteProposal(){
     // fleet of utes down to just below the team's knees, kept full
     // page width (1100×322, ≈3.42:1) so the crew + branded utes read
     // as one strong horizontal banner.
-    var hero = (heroAsn ? resolveSlotSrc('cover_hero') : null) || 'brand/team_lineup_2026.jpg';
+    // Default hero = the clean fleet-lineup shot (drop the file in at
+    // brand/fleet_lineup.jpg). Falls back to the crew photo until it's added.
+    var hero = (heroAsn ? resolveSlotSrc('cover_hero') : null) || 'brand/fleet_lineup.jpg';
     // Full-bleed hero photo + warm-cream title plate underneath.  All
     // type sits on the cream paper, not over the image, so it reads
     // clean regardless of how dark / colourful the photo is.  The
@@ -12704,14 +12708,14 @@ function refreshQuoteProposal(){
     // width with no further cropping.
     partCover =
       '<div style="position:relative;aspect-ratio:1100/322;overflow:hidden;background:var(--ed-ink);margin:0">'+
-        '<img src="'+esc2(hero)+'" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(1) contrast(1.02)">'+
+        '<img src="'+esc2(hero)+'" onerror="this.onerror=null;this.src=\'brand/team_lineup_2026.jpg\'" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(1) contrast(1.02)">'+
         // Brand-blue gradient overlay at the bottom — ties hero to the
         // Flood Roofing electric-blue brand colour without obscuring
         // the photo content.
         '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 55%,rgba(0,153,224,.18) 80%,rgba(10,24,40,.78) 100%)"></div>'+
         // Bottom strip only — capability label left, section number right.
         '<div style="position:absolute;bottom:0;left:0;right:0;padding:20px 32px;display:flex;justify-content:space-between;align-items:flex-end;color:#fff">'+
-          '<div style="font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:13px;color:#fff;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.5)">The Flood Roofing crew · Northland</div>'+
+          '<div style="font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:13px;color:#fff;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.5)">The Flood Roofing fleet · Northland</div>'+
         '</div>'+
       '</div>'+
       // Title plate on cream paper underneath the photo
