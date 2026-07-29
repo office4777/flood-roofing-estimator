@@ -257,8 +257,20 @@ tr.wk-done td:nth-child(2){text-decoration:line-through;}
 .alert.ok{background:rgba(74,222,128,.09);border-color:rgba(74,222,128,.34);}
 .alert .ai{flex:none;font-weight:800;}
 .alert.crit .ai{color:var(--danger);} .alert.warn .ai{color:var(--warning);} .alert.ok .ai{color:var(--success);}
+.kpi-bank{border-left-color:#38bdf8;}
 @media(max-width:1000px){.kpigrid{grid-template-columns:repeat(4,1fr);}}
-@media(max-width:640px){.kpigrid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:640px){
+  .kpigrid{grid-template-columns:repeat(2,1fr);gap:8px;}
+  /* Tidy header: title + sync on top, the period toggle as its own full-width row of even chips */
+  .cmd-head{flex-wrap:wrap;gap:7px 9px;margin-bottom:12px;}
+  .cmd-head .csync{font-size:.53rem;line-height:1.3;max-width:52%;}
+  .cmd-tog{order:3;width:100%;margin-left:0;gap:8px;flex-wrap:nowrap;}
+  .cmd-tog .tgcol{flex-direction:row;gap:6px;flex:1;}
+  .cmd-tog .chip{flex:1;text-align:center;padding:7px 4px;font-size:.66rem;}
+  .kpi{padding:11px 11px;}
+  .kvbars{gap:8px;height:58px;}
+  .kpi .kv{font-size:1.25rem;}
+}
 /* command-centre charts & tables */
 .cmd-panels{display:grid;grid-template-columns:repeat(2,1fr);gap:13px;}
 @media(max-width:720px){.cmd-panels{grid-template-columns:1fr;}}
@@ -3400,6 +3412,18 @@ function computeAlerts(){
   if(!a.length)a.push({sev:'ok',msg:'All clear — no cash, workload, margin or productivity flags right now.'});
   return a;
 }
+// Command-centre live-bank tiles: show the everyday accounts (…-00, …-02, …-03) with the
+// rest available by tapping through to the full list. Blank until the live bank is synced.
+const CMD_BANK_SUFFIXES=['00','02','03'];
+function bankAcctSuffix(a){return String((a&&a.formatted_account)||'').split('-').pop().replace(/[^0-9]/g,'');}
+function bankCmdTiles(){
+  if(!bank||!bank.accounts||!bank.accounts.length)return '';
+  const bySfx={};bank.accounts.forEach(a=>{const s=bankAcctSuffix(a);if(s&&!bySfx[s])bySfx[s]=a;});
+  let out='';
+  CMD_BANK_SUFFIXES.forEach(sfx=>{const a=bySfx[sfx];if(!a)return;const bal=num(a.balance&&a.balance.current);
+    out+='<div class="kpi kpi-tap kpi-bank" onclick="openCmdDetail(\'bank\')"><div class="kl">'+esc((a.name||('Account '+sfx)))+'<span class="kgo">›</span></div><div class="kv'+(bal>=0?' pos':' neg')+'">'+fmtK(bal)+'</div><div class="kd">live · a/c …'+esc(sfx)+'</div></div>';});
+  return out;
+}
 function renderCommand(){
   ensureChartTip();
   const host=document.getElementById('cmd-kpis');if(!host)return;
@@ -3440,7 +3464,8 @@ function renderCommand(){
     kbar('','GP / '+pl,'#2dd4bf',gp.cur,gp.prev,gp.roll,fmtK,gpHrSel!=null?(fmt$(gpHrSel)+'/hr avg'):(gp.cur!=null?'back-costed est':'sync Fergus'),'gp')+
     tile('','Accounts receivable',ar!=null?fmtK(ar):'—','pos',arN?(arN+' invoices unpaid'):'invoiced · unpaid','ar')+
     tile('','Accounts payable',ap!=null?fmtK(ap):'—','',apN?(apN+' supplier codes'):'owed to suppliers','ap')+
-    tile(wkCls,'Forward workflow',wkWeeks!=null?(Math.round(wkWeeks*10)/10+' wk'):'—','',fwJobs.length?(fwJobs.filter(j=>!fwDone[j.id]).length+' jobs booked'):'sync Fergus','fw');
+    tile(wkCls,'Forward workflow',wkWeeks!=null?(Math.round(wkWeeks*10)/10+' wk'):'—','',fwJobs.length?(fwJobs.filter(j=>!fwDone[j.id]).length+' jobs booked'):'sync Fergus','fw')+
+    bankCmdTiles();
   const tg=document.getElementById('cmd-tog');
   if(tg)tg.innerHTML=
     '<span class="tgcol"><span class="chip'+(P==='w'?' on':'')+'" onclick="setCmdPeriod(\'w\')">Week</span><span class="chip'+(P==='m'?' on':'')+'" onclick="setCmdPeriod(\'m\')">Month</span></span>'+
@@ -3583,6 +3608,19 @@ function openCmdDetail(key){
         sec('Money coming in — job finals ('+jobs.length+')'+(D.nSched?' <span class="cfx-tag" style="color:var(--accent);border-color:var(--accent);">'+D.nSched+' from schedule</span>':''),jtbl)+
         sec('Money coming in — A/R already invoiced ('+ar.length+')',artbl)+
         '<div class="note" style="margin:12px 2px 2px;">Job finals paid <b>'+D.lag+' weeks</b> after each job’s scheduled finish · A/R paid <b>3 days past due</b> · materials (~'+Math.round(D.matPct*100)+'% of sale) paid the <b>20th of the month after ordering</b> · A/P at the next 20th · wages+overheads <b>'+fmtK(D.burnWk)+'/week</b>. Finish dates: <b>📅 sched</b> = your imported schedule, <b>picked</b> = you set it on the calendar, <b>est</b> = capacity estimate. Change any job’s date on the <b>Cash → payment calendar</b>.</div>';
+    }}
+  else if(key==='bank'){
+    title='Bank accounts — live';
+    if(!bank||!bank.accounts||!bank.accounts.length){body='<div class="empty">Sync the live bank on the Cash tab (⟳ Sync live bank).</div>';}
+    else{
+      let totAll=0,totInc=0;
+      const rows=bank.accounts.slice().sort((a,b)=>num(b.balance&&b.balance.current)-num(a.balance&&a.balance.current)).map(a=>{
+        const bal=num(a.balance&&a.balance.current);totAll+=bal;const inc=bankIncluded(a);if(inc)totInc+=bal;
+        return '<tr><td>'+esc(a.name||'Account')+(inc?'':' <span class="cfx-tag">not in forecast</span>')+'<div class="mut" style="font-size:.62rem;font-weight:600;">'+esc(a.formatted_account||'')+'</div></td><td style="text-align:right;font-weight:700;'+(inc?'':'color:var(--muted);')+'">'+fmtK(bal)+'</td></tr>';});
+      rows.push('<tr class="tot"><td>In forecast</td><td style="text-align:right;">'+fmtK(totInc)+'</td></tr>');
+      rows.push('<tr class="tot"><td>All accounts</td><td style="text-align:right;">'+fmtK(totAll)+'</td></tr>');
+      body='<div class="note" style="margin:0 0 10px;">Live balances from Akahu'+(bank.ts?(' · '+esc(bank.ts)):'')+'. Tiles on the dashboard show your everyday accounts (…-00, …-02, …-03); every connected account is listed here. Tap an account on the <b>Cash</b> tab to include/exclude it from the forecast’s opening cash.</div>'+
+        wrap('<th>Account</th><th style="text-align:right;">Balance</th>',rows,'No accounts.');
     }}
   const tt=document.getElementById('cmd-modal-title');if(tt)tt.textContent=title;
   const bd=document.getElementById('cmd-modal-body');if(bd)bd.innerHTML=body;
