@@ -37,10 +37,23 @@ function rateLimit(maxPerWindow, windowMs) {
   };
 }
 
-// Supabase - uses SUPABASE_ANON_KEY (set on Railway)
+// Supabase data client — ALL .from() queries run through this. It must stay on
+// the service_role key so it bypasses RLS. `persistSession:false` keeps it
+// stateless (no stored session, no refresh timers) on the server.
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY,
+  { auth: { persistSession: false, autoRefreshToken: false } }
+);
+// SEPARATE client for password sign-in. signInWithPassword() mutates the calling
+// client's auth to the signed-in USER (role: authenticated), which RLS then
+// restricts — so if we signed in on `supabase` above, every later query would
+// stop bypassing RLS and fail (e.g. saving user_settings). Isolating sign-in
+// here keeps the data client permanently on service_role.
+const supabaseAuth = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY,
+  { auth: { persistSession: false, autoRefreshToken: false } }
 );
 
 const allowedOrigins = [
@@ -385,7 +398,7 @@ app.post('/auth/register', async (req, res) => {
 app.post('/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
     if (error) return res.status(401).json({ error: 'Invalid email or password' });
     const userId = data.user.id;
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
