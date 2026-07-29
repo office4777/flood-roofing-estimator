@@ -301,7 +301,22 @@ app.get('/', (req, res) => {
     time: new Date().toISOString(),
   });
 });
-app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features: FEATURES, railway: _railwayIdentity() }));
+// Which Supabase role the backend is actually running as. Reveals only the
+// role name (anon vs service_role) + key shape — never the key itself — so we
+// can confirm RLS-bypass without guessing which look-alike eyJ… key got pasted.
+function _supabaseKeyInfo(){
+  const k = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
+  const from = process.env.SUPABASE_SERVICE_KEY ? 'SUPABASE_SERVICE_KEY' : (process.env.SUPABASE_ANON_KEY ? 'SUPABASE_ANON_KEY' : 'none');
+  if (!k) return { role: 'none', from, bypassesRls: false };
+  if (k.startsWith('sb_secret_')) return { role: 'new-secret-key', from, bypassesRls: 'unknown-to-old-client' };
+  if (k.startsWith('sb_publishable_')) return { role: 'new-publishable-key', from, bypassesRls: false };
+  try {
+    const payload = JSON.parse(Buffer.from(k.split('.')[1] || '', 'base64').toString('utf8'));
+    return { role: payload.role || 'unknown', from, bypassesRls: payload.role === 'service_role' };
+  } catch (e) { return { role: 'unparseable-jwt', from, bypassesRls: false }; }
+}
+
+app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features: FEATURES, railway: _railwayIdentity(), supabase: _supabaseKeyInfo() }));
 
 function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
