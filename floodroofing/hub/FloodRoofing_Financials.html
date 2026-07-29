@@ -152,6 +152,23 @@ table.tb tr:active td{background:rgba(77,141,255,.08);}
 .lr-tag{display:inline-block;font-size:.55rem;font-weight:800;letter-spacing:.3px;padding:1px 6px;border-radius:999px;background:rgba(77,141,255,.18);color:var(--primary);vertical-align:middle;}
 .lr-sel{margin-top:3px;font-size:.62rem;font-weight:700;padding:2px 4px;border-radius:7px;background:var(--card2);color:var(--muted);border:1px solid var(--border);max-width:108px;}
 .lr-sel.set{background:rgba(77,141,255,.16);color:var(--primary);border-color:var(--primary);}
+.crew-wrap{display:inline-flex;flex-wrap:wrap;gap:3px;align-items:center;margin-top:3px;margin-left:5px;vertical-align:middle;}
+.crew-chip{font-size:.58rem;font-weight:700;padding:2px 5px;border-radius:7px;background:var(--card2);color:var(--muted);border:1px solid var(--border);white-space:nowrap;}
+.crew-chip.man{background:rgba(77,141,255,.13);color:var(--primary);border-color:rgba(77,141,255,.4);}
+.crew-x{cursor:pointer;margin-left:3px;opacity:.7;font-weight:800;}
+.crew-x:hover{opacity:1;color:#ff6b6b;}
+.crew-add{font-size:.58rem;font-weight:700;padding:1px 3px;border-radius:7px;background:transparent;color:var(--muted);border:1px dashed var(--border);}
+.rf-share{font-size:.6rem;font-weight:800;padding:1px 6px;border-radius:7px;background:var(--card2);color:var(--muted);border:1px solid var(--border);white-space:nowrap;}
+.rf-share.lead{background:rgba(74,222,128,.16);color:#4ade80;border-color:rgba(74,222,128,.4);}
+.bc-cols-bar{display:flex;align-items:center;gap:10px;margin-bottom:9px;flex-wrap:wrap;}
+.bc-cols-btn{font-size:.7rem;font-weight:700;padding:5px 10px;border-radius:9px;background:var(--card2);color:var(--fg);border:1px solid var(--border);cursor:pointer;}
+.bc-cols-btn:hover{border-color:var(--primary);}
+.bc-cols-quick{font-size:.7rem;color:var(--muted);}
+.bc-cols-quick a{color:var(--primary);cursor:pointer;text-decoration:none;font-weight:700;}
+.bc-cols-quick a:hover{text-decoration:underline;}
+.bc-cols-panel{display:flex;flex-wrap:wrap;gap:8px 16px;padding:11px 13px;margin-bottom:9px;background:var(--card2);border:1px solid var(--border);border-radius:12px;}
+.bc-col-chk{display:inline-flex;align-items:center;gap:5px;font-size:.74rem;font-weight:600;color:var(--fg);cursor:pointer;}
+.bc-col-chk input{cursor:pointer;}
 .acc{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--border);border-radius:20px;margin-bottom:12px;box-shadow:0 10px 30px rgba(0,0,0,.28);overflow:hidden;}
 .acc>summary{list-style:none;cursor:pointer;padding:17px 20px;font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);display:flex;align-items:center;gap:8px;}
 .acc>summary::-webkit-details-marker{display:none;}
@@ -604,15 +621,20 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       </div>
       <select class="sel" id="bc-lead" onchange="renderBC()" style="margin-bottom:9px;"></select>
       <input class="sel" id="bc-search" placeholder="🔍 Job or address…" oninput="renderBC()" style="margin-bottom:9px;">
+      <div class="bc-cols-bar">
+        <button type="button" class="bc-cols-btn" onclick="toggleBcColsPanel()">▦ Columns</button>
+        <span class="bc-cols-quick"><a onclick="bcColsPreset('all')">Show all</a> · <a onclick="bcColsPreset('roofer')">Roofer view</a></span>
+      </div>
+      <div id="bc-cols-panel" class="bc-cols-panel" style="display:none;"></div>
       <div class="tbl-wrap" style="max-height:65vh;overflow:auto;">
         <table class="tb" id="bc-tbl">
-          <thead><tr><th>Month</th><th>Job</th><th>Src</th><th>Sales</th><th>COGS</th><th>GP</th><th>GPM</th><th>GP/Hr</th><th>NP</th><th>NP/Hr</th><th>Pr h</th><th>Act h</th></tr></thead>
+          <thead><tr><th class="c-month">Month</th><th class="c-job">Job</th><th class="c-src">Src</th><th class="c-sales">Sales</th><th class="c-cogs">COGS</th><th class="c-gp">GP</th><th class="c-gpm">GPM</th><th class="c-gphr">GP/Hr</th><th class="c-np">NP</th><th class="c-nphr">NP/Hr</th><th class="c-prh">Pr h</th><th class="c-acth">Act h</th></tr></thead>
           <tbody id="bc-body"></tbody>
           <tfoot id="bc-foot"></tfoot>
         </table>
       </div>
       <div class="tiles" id="bc-tiles" style="margin-top:11px;"></div>
-      <div class="note" style="margin-top:11px;">Back costing syncs with <b>⚙ → Refresh</b> (everyday) or <b>Master refresh</b> (full history), top-right.</div>
+      <div class="note" style="margin-top:11px;">Back costing syncs with <b>⚙ → Refresh</b> (everyday) or <b>Master refresh</b> (full history), top-right.<br>Pick a roofer above to see <b>every job they were on</b> — where they were lead <b>or</b> logged ≥10% of the hours. Older jobs (before Fergus's ~1-week time feed) show no auto hours — tap <b>+ crew</b> under a job to add them by hand. Use <b>▦ Columns → Roofer view</b> to hide the $ columns before showing the table to a roofer.</div>
     </div>
 
     <div class="card">
@@ -2311,6 +2333,64 @@ function leadSelect(r){
   LEAD_ROOFERS.forEach(rk=>{h+='<option'+(rk===cur?' selected':'')+'>'+rk+(rk===auto?' ✓':'')+'</option>';});
   h+='</select>';return h;
 }
+// ── "who was on this job" (crew) — for the ≥10%-of-hours filter ──
+// A roofer's share of the total hours on a job. Prefers the cumulative cross-sync data
+// (built up in _jobRooferHrs/_jobRooferTot), falling back to the row's last snapshot.
+function rooferShareOn(r,roofer){
+  const jid=String(r._fergus_id||'');let hrs=0,tot=0;
+  if(jid&&_jobRooferTot[jid]>0){tot=_jobRooferTot[jid];hrs=(_jobRooferHrs[jid]||{})[roofer]||0;}
+  else{const rh=r._rooferHrs||{};tot=num(r._loggedHrs)||Object.keys(rh).reduce((s,x)=>s+rh[x],0);hrs=rh[roofer]||0;}
+  return {hrs:hrs,tot:tot,share:tot>0?hrs/tot:0};
+}
+// Manual crew tags — for older jobs whose time entries Fergus no longer exposes, you add the
+// roofers who were on them by hand. Keyed like leadOverride. {jobKey:[roofer,...]}
+let crewOverride=S.get('crewOverride',{});
+const CREW_MIN_SHARE=0.10;   // a roofer "was on" a job if they logged ≥10% of its total hours
+function crewOf(r){const k=leadKey(r);return Array.isArray(crewOverride[k])?crewOverride[k]:[];}
+// Everyone on a job = the lead + anyone with ≥10% of the hours + any manual tags.
+function effCrew(r){
+  const set=new Set();const lead=effLead(r);if(lead)set.add(lead);
+  LEAD_ROOFERS.forEach(rk=>{if(rooferShareOn(r,rk).share>=CREW_MIN_SHARE)set.add(rk);});
+  crewOf(r).forEach(rk=>{if(rk)set.add(rk);});
+  return set;
+}
+function toggleCrew(kEnc,roofer){
+  const k=decodeURIComponent(kEnc);const cur=(Array.isArray(crewOverride[k])?crewOverride[k]:[]).slice();
+  const i=cur.indexOf(roofer);if(i>=0)cur.splice(i,1);else cur.push(roofer);
+  if(cur.length)crewOverride[k]=cur;else delete crewOverride[k];
+  S.set('crewOverride',crewOverride);renderBC();
+}
+// Per-row crew editor: chips for auto (≥10%) + manual crew, manual ones removable, plus an add box.
+function crewSelect(r){
+  const k=leadKey(r),kEnc=encodeURIComponent(k),lead=effLead(r);
+  const auto=LEAD_ROOFERS.filter(rk=>rk!==lead&&rooferShareOn(r,rk).share>=CREW_MIN_SHARE);
+  const manual=crewOf(r).filter(rk=>rk!==lead&&!auto.includes(rk));
+  let h='<span class="crew-wrap">';
+  auto.forEach(rk=>{h+='<span class="crew-chip" title="auto — ≥10% of hours">'+esc(rk)+'</span>';});
+  manual.forEach(rk=>{h+='<span class="crew-chip man" title="added manually">'+esc(rk)+'<span class="crew-x" onclick="event.stopPropagation();toggleCrew(\''+kEnc+'\',\''+rk+'\')">×</span></span>';});
+  const addable=LEAD_ROOFERS.filter(rk=>rk!==lead&&!auto.includes(rk)&&!manual.includes(rk));
+  if(addable.length){h+='<select class="crew-add" onclick="event.stopPropagation()" onchange="if(this.value)toggleCrew(\''+kEnc+'\',this.value)"><option value="">+ crew</option>'+addable.map(rk=>'<option>'+esc(rk)+'</option>').join('')+'</select>';}
+  h+='</span>';return h;
+}
+// ── column show/hide (so a roofer view can drop the $ columns) ──
+const BC_COLS=[{k:'month',t:'Month'},{k:'job',t:'Job',lock:1},{k:'src',t:'Src'},{k:'sales',t:'Sales'},{k:'cogs',t:'COGS'},{k:'gp',t:'GP'},{k:'gpm',t:'GPM'},{k:'gphr',t:'GP/Hr'},{k:'np',t:'NP'},{k:'nphr',t:'NP/Hr'},{k:'prh',t:'Pr h'},{k:'acth',t:'Act h'}];
+let bcColsHidden=S.get('bcColsHidden',{});   // {key:1} = hidden
+function applyBcCols(){
+  const css=BC_COLS.filter(c=>bcColsHidden[c.k]&&!c.lock).map(c=>'#bc-tbl .c-'+c.k+'{display:none;}').join('');
+  let st=document.getElementById('bc-colcss');if(!st){st=document.createElement('style');st.id='bc-colcss';document.head.appendChild(st);}
+  st.textContent=css;
+}
+function renderBcColsPanel(){
+  const p=document.getElementById('bc-cols-panel');if(!p)return;
+  p.innerHTML=BC_COLS.map(c=>'<label class="bc-col-chk"><input type="checkbox" '+(bcColsHidden[c.k]?'':'checked')+(c.lock?' disabled':'')+' onchange="setBcCol(\''+c.k+'\',this.checked)">'+c.t+(c.lock?' 🔒':'')+'</label>').join('');
+}
+function setBcCol(k,vis){if(vis)delete bcColsHidden[k];else bcColsHidden[k]=1;S.set('bcColsHidden',bcColsHidden);applyBcCols();}
+function toggleBcColsPanel(){const p=document.getElementById('bc-cols-panel');if(!p)return;const show=p.style.display==='none';p.style.display=show?'':'none';if(show)renderBcColsPanel();}
+function bcColsPreset(which){
+  bcColsHidden={};
+  if(which==='roofer')['sales','cogs','gp','gpm','gphr','np','nphr'].forEach(k=>{bcColsHidden[k]=1;});
+  S.set('bcColsHidden',bcColsHidden);applyBcCols();renderBcColsPanel();
+}
 // Pull hours off a time/labour entry — hours, else minutes, else a duration in minutes/seconds.
 function entryHours(o){
   let h=fnum(fpick(o,'paidDuration','hours','hrs','durationHours','totalHours','loggedHours'));
@@ -2352,6 +2432,8 @@ let _timeMap=null,_jobLoggedHrs=null;
 let _tePersons={},_teMinT=Infinity,_teMaxT=-Infinity;   // per-person on-site hours + time-window bounds (for the Growth tab)
 let _teamWeekHist=S.get('teamWeekHist',{});      // {isoWeek:{person:hours}} accumulated across syncs (rolling hours/week for Growth)
 let _jobMonthHrs=S.get('jobMonthHrs',{});        // {jobId:{month:hours}} accumulated across syncs (for the ≥60% work-month rule)
+let _jobRooferHrs=S.get('jobRooferHrs',{});      // {jobId:{roofer:hours}} accumulated across syncs (who was on each job — for the ≥10% "was on" filter)
+let _jobRooferTot=S.get('jobRooferTot',{});      // {jobId:totalHours} accumulated across syncs (all workers — denominator for the ≥10% share)
 let _jmSeen=new Set(S.get('jobMonthSeen',[]));    // timeEntryIds already counted into _jobMonthHrs (cross-sync dedup)
 function resetRooferDiscovery(){_timeMap=null;_jobLoggedHrs=null;}
 function _teArr(j){return Array.isArray(j)?j:((j&&(j.data||j.results||j.timeEntries))||[]);}
@@ -2368,6 +2450,10 @@ function _ingestEntry(e,map,jobHrs,seen){
   const ts=Date.parse(String((e.startTime||e.dateEntered||'')).replace(' ','T'));if(!isNaN(ts)){if(ts<_teMinT)_teMinT=ts;if(ts>_teMaxT)_teMaxT=ts;}
   // accumulate per-job-month hours (deduped across syncs) so a job can be attributed to its dominant work-month
   if(eid!=null&&!_jmSeen.has(eid)){_jmSeen.add(eid);const mo=teMonth(e);if(mo){const jm=_jobMonthHrs[k]||(_jobMonthHrs[k]={});jm[mo]=(jm[mo]||0)+h;}
+    // cumulative per-job roofer hours + total (deduped across syncs) — Fergus only exposes ~1 week
+    // of time entries at a time, so accumulating here builds up who was on each job over time.
+    _jobRooferTot[k]=(_jobRooferTot[k]||0)+h;
+    if(roofer){const jr=_jobRooferHrs[k]||(_jobRooferHrs[k]={});jr[roofer]=(jr[roofer]||0)+h;}
     // rolling per-week per-person hours (deduped by entry id across syncs)
     const wts=Date.parse(String((e.startTime||e.dateEntered||'')).replace(' ','T'));
     if(!isNaN(wts)){const wkk=isoWeekKey(new Date(wts));const pw=roofer||(uname||'').trim();if(wkk&&pw){const wh=_teamWeekHist[wkk]||(_teamWeekHist[wkk]={});wh[pw]=(wh[pw]||0)+h;}}
@@ -2405,6 +2491,7 @@ async function buildTimeMap(onProg){
   const wkeys=Object.keys(_teamWeekHist).sort();if(wkeys.length>60)wkeys.slice(0,wkeys.length-60).forEach(w=>delete _teamWeekHist[w]);
   S.set('teamWeekHist',_teamWeekHist);
   S.set('jobMonthHrs',_jobMonthHrs);S.set('jobMonthSeen',[..._jmSeen].slice(-9000));   // recent entries only re-appear, so capping is safe
+  S.set('jobRooferHrs',_jobRooferHrs);S.set('jobRooferTot',_jobRooferTot);             // cumulative who-was-on-each-job (for the ≥10% filter)
   if(onProg)onProg(1);
   return map;
 }
@@ -2819,23 +2906,26 @@ function renderBC(){
   if(ohN)ohN.innerHTML=_oh.override?('Manual override: '+fmt$(ovRate)+'/hr — clear the Override box to use the calculator.'):('OH rate = (Monthly OPEX × 12 ÷ field staff) ÷ billable weeks/yr ÷ billable hrs/week. Using OPEX '+fmtK(_oh.opex)+'/mo'+(_oh.opexIsAuto?' (6-mo Xero avg, overheads only — on-site wages excluded)':'')+' · '+_oh.emp+' staff · '+Math.round(_oh.util*100)+'% utilisation · '+_oh.billWeeks.toFixed(1)+' billable wks · '+Math.round(_oh.billHrs)+' hrs/wk → '+fmt$(_oh.calcRate)+'/hr. NP/hr = GP/hr − this rate.');
   const yr=document.getElementById('bc-year').value, ty=document.getElementById('bc-type').value, q=(document.getElementById('bc-search').value||'').toLowerCase();
   const ldEl=document.getElementById('bc-lead');const ld=ldEl?ldEl.value:'all';
+  const roofView=ld!=='all'&&ld!=='__none';   // a specific roofer picked → "jobs they were on"
+  applyBcCols();
   let rows=getAllBC().filter(r=>{
     if(yr!=='all'&&!(r.month||'').endsWith('-'+yr))return false;
     if(ty!=='all'&&r.job_type!==ty)return false;
-    if(ld!=='all'&&(ld==='__none'?!!effLead(r):effLead(r)!==ld))return false;
+    if(ld!=='all'){if(ld==='__none'){if(effLead(r))return false;}else if(!effCrew(r).has(ld))return false;}
     if(q&&!((r.job||'').toLowerCase().includes(q)))return false;
     return true;
   }).sort((a,b)=>bcDateNum(b)-bcDateNum(a));
-  document.getElementById('bc-count').textContent='· '+rows.length+' jobs'+(S.get('bc_inv_n',0)?' · dated by completion invoice':'')+' · NP @ '+fmt$(ovRate)+'/h overhead';
+  document.getElementById('bc-count').textContent='· '+rows.length+(roofView?(' jobs '+ld+' was on (lead or ≥10% of hours)'):(' jobs'+(S.get('bc_inv_n',0)?' · dated by completion invoice':'')))+' · NP @ '+fmt$(ovRate)+'/h overhead';
   document.getElementById('bc-body').innerHTML=rows.length?rows.slice(0,400).map(r=>{
     const gp=num(r.gp),gpm=num(r.gpm),h=num(r.h_actual),hP=num(r.h_priced);
     const gphr=h>0?gp/h:null;const np=gp-ovRate*h;const nphr=h>0?(gp/h-ovRate):null;
     const rs=' style="background:'+(np>=0?'rgba(74,222,128,.16)':'rgba(255,107,107,.16)')+';"';   // green if NP positive, red if negative
-    return '<tr'+rs+'><td>'+esc(r.month||'')+'</td><td>'+esc((r.job||'').slice(0,40))+'<br>'+leadSelect(r)+'</td><td>'+bcSrc(r)+'</td><td>'+fmtK(r.sales)+'</td><td>'+fmtK(num(r.sales)-gp)+'</td><td class="'+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td>'+(gpm?gpm+'%':'—')+'</td><td>'+(gphr!=null?fmt$(gphr):'—')+'</td><td class="'+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td>'+(nphr!=null?fmt$(nphr):'—')+'</td><td>'+(hP?fmtH(hP):'—')+'</td><td>'+(h?fmtH(h):'—')+'</td></tr>';
+    let badge='';if(roofView){const sh=rooferShareOn(r,ld);if(sh.tot>0)badge=' <span class="rf-share'+(effLead(r)===ld?' lead':'')+'">'+(effLead(r)===ld?'lead · ':'')+(Math.round(sh.hrs*10)/10)+'h · '+Math.round(sh.share*100)+'%</span>';else if(effLead(r)===ld)badge=' <span class="rf-share lead">lead</span>';}
+    return '<tr'+rs+'><td class="c-month">'+esc(r.month||'')+'</td><td class="c-job">'+esc((r.job||'').slice(0,40))+badge+'<br>'+leadSelect(r)+crewSelect(r)+'</td><td class="c-src">'+bcSrc(r)+'</td><td class="c-sales">'+fmtK(r.sales)+'</td><td class="c-cogs">'+fmtK(num(r.sales)-gp)+'</td><td class="c-gp '+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td class="c-gpm">'+(gpm?gpm+'%':'—')+'</td><td class="c-gphr">'+(gphr!=null?fmt$(gphr):'—')+'</td><td class="c-np '+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td class="c-nphr">'+(nphr!=null?fmt$(nphr):'—')+'</td><td class="c-prh">'+(hP?fmtH(hP):'—')+'</td><td class="c-acth">'+(h?fmtH(h):'—')+'</td></tr>';
   }).join(''):'<tr><td colspan="12" class="empty">No jobs match.</td></tr>';
   const tS=rows.reduce((s,r)=>s+num(r.sales),0),tG=rows.reduce((s,r)=>s+num(r.gp),0),tH=rows.reduce((s,r)=>s+num(r.h_actual),0),tPH=rows.reduce((s,r)=>s+num(r.h_priced),0);
   const tNP=tG-ovRate*tH;
-  document.getElementById('bc-foot').innerHTML='<tr class="tot"><td colspan="3">TOTAL ('+rows.length+')</td><td>'+fmtK(tS)+'</td><td>'+fmtK(tS-tG)+'</td><td>'+fmtK(tG)+'</td><td>'+(tS>0?Math.round(tG/tS*100)+'%':'—')+'</td><td>'+(tH>0?fmt$(tG/tH):'—')+'</td><td>'+fmtK(tNP)+'</td><td>'+(tH>0?fmt$(tG/tH-ovRate):'—')+'</td><td>'+fmtH(tPH)+'</td><td>'+fmtH(tH)+'</td></tr>';
+  document.getElementById('bc-foot').innerHTML='<tr class="tot"><td class="c-month">TOTAL ('+rows.length+')</td><td class="c-job"></td><td class="c-src"></td><td class="c-sales">'+fmtK(tS)+'</td><td class="c-cogs">'+fmtK(tS-tG)+'</td><td class="c-gp">'+fmtK(tG)+'</td><td class="c-gpm">'+(tS>0?Math.round(tG/tS*100)+'%':'—')+'</td><td class="c-gphr">'+(tH>0?fmt$(tG/tH):'—')+'</td><td class="c-np">'+fmtK(tNP)+'</td><td class="c-nphr">'+(tH>0?fmt$(tG/tH-ovRate):'—')+'</td><td class="c-prh">'+fmtH(tPH)+'</td><td class="c-acth">'+fmtH(tH)+'</td></tr>';
   // tiles
   document.getElementById('bc-tiles').innerHTML=
     tile('s','Total Sales',fmtK(tS),rows.length+' jobs')+

@@ -253,6 +253,24 @@ If roofer figures don't appear, open **🔍 Debug a job** in the ModSpace card,
 enter a job number, and tap Check — it prints which time endpoint worked, the
 names + hours it found, and the matched roofers, so the mapping can be confirmed.
 
+**"Every job a roofer was on" (≥10% of hours):** the lead-roofer dropdown in
+**All Back Costing** no longer shows only the jobs someone *led* — pick a roofer
+and it lists every job where they were the lead **or** logged **≥10% of the total
+hours**. Each row shows that roofer's hours and share (e.g. `24h · 30%`).
+Because Fergus only exposes ~1 week of time entries at a time, per-job roofer
+hours are **accumulated across syncs** (`jobRooferHrs` / `jobRooferTot`), so
+attribution gets more complete the longer the nightly sync runs. For older jobs
+whose entries Fergus no longer serves, tap **+ crew** under the job name to add a
+roofer by hand (saved as `crewOverride`); manual tags show as blue chips with an
+`×` to remove. A roofer counts as "on" a job via lead, ≥10% auto share, or a
+manual tag.
+
+**Show/hide columns:** above the table, **▦ Columns** opens tick-boxes for every
+column (all on by default; Job is locked on). **Roofer view** hides the money
+columns (Sales, COGS, GP, GPM, GP/hr, NP, NP/hr) in one tap so you can show a
+roofer their jobs + hours without the financials; **Show all** restores them. The
+choice is saved per device (`bcColsHidden`).
+
 ## Monthly revenue/GP — spread by the job's FULL hours
 
 Each month gets `job value × (hours that month ÷ the job's full hours)`. The denominator
