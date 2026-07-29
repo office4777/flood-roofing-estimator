@@ -1,0 +1,52 @@
+name: Hub nightly sync
+
+# Refreshes the Flood Roofing Hub's shared data every night by driving the real
+# app headless (reuses all in-app sync/compute logic) and pushing state to the
+# team-mode API. Scheduled workflows only run from the default branch, so this
+# starts working once merged.
+
+on:
+  schedule:
+    - cron: '0 15 * * *'   # 15:00 UTC ≈ 3am NZST / 4am NZDT — quiet hours
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Sync mode'
+        default: 'refresh'
+        type: choice
+        options: [refresh, master]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HUB_API_URL: ${{ secrets.HUB_API_URL }}   # job-level so it can gate the step below
+    steps:
+      - name: Check team mode is configured
+        id: cfg
+        run: |
+          if [ -z "$HUB_API_URL" ]; then echo "configured=false" >> "$GITHUB_OUTPUT"; echo "Team mode not configured yet — skipping."; else echo "configured=true" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.cfg.outputs.configured == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.cfg.outputs.configured == 'true'
+        with:
+          node-version: 20
+      - name: Install Playwright + Chromium
+        if: steps.cfg.outputs.configured == 'true'
+        working-directory: floodroofing/hub-api
+        run: |
+          npm init -y >/dev/null 2>&1 || true
+          npm install playwright@1.48.0
+          npx playwright install --with-deps chromium
+      - name: Run headless sync
+        if: steps.cfg.outputs.configured == 'true'
+        working-directory: floodroofing/hub-api
+        env:
+          HUB_USER: ${{ secrets.HUB_SYNC_USER }}
+          HUB_PASS: ${{ secrets.HUB_SYNC_PASS }}
+          PROXY_URL: ${{ secrets.PROXY_URL }}
+          PROXY_SECRET: ${{ secrets.PROXY_SECRET }}
+          SYNC_MODE: ${{ github.event.inputs.mode || 'refresh' }}
+        run: node scripts/headless-sync.js
