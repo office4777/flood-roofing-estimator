@@ -549,6 +549,19 @@ forecast" and the full total across every account, so you always see the whole p
 too. `bankIncluded()` decides inclusion (explicit choice wins over the name default);
 `toggleBankAcct()` flips one and re-runs the forecast.
 
+**Balance freshness (why it can differ from your ANZ app).** Akahu pulls balances
+from ANZ on **its own schedule — a few times a day**, so a balance can trail what the
+ANZ app shows until Akahu next refreshes. The hub used to stamp the balances with the
+*hub's* fetch time and label them "live", which was misleading. It now reads each
+account's real `refreshed.balance` (Akahu's last pull from the bank) via
+`akahuRefreshedMs()` / `bankFreshness()` and shows the true **"as of" time** (the
+oldest account) in the header, on the command-centre tiles, and in the detail modal.
+If that's more than ~90 min old it turns **red** and a warning appears — sync again
+later to pick up ANZ's newer figure. The figure shown is the **current/ledger** balance
+(ANZ's headline number), *not* the "available" balance (which adds any arranged
+overdraft, so it reads higher). Nothing about the numbers themselves changed — only how
+honestly their age is reported.
+
 - **⟳ Refresh (recent + changed)** — the everyday one, a few seconds. Pulls the
   active workload, recent completed jobs for back-costing, the current Xero P&L
   months, **cash (Xero balance sheet + A/R + A/P)**, and marketing. For dated labour

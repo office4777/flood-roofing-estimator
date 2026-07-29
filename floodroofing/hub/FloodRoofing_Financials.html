@@ -214,7 +214,10 @@ tr.wk-done td:nth-child(2){text-decoration:line-through;}
 .bacct .bacct-name{font-size:.9rem;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bacct .bacct-off{font-size:.6rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;border:1px solid var(--border);border-radius:5px;padding:0 4px;margin-left:5px;}
 .bacct .bacct-no{font-size:.66rem;color:var(--muted);font-weight:600;margin-top:1px;}
+.bacct .bacct-as{color:var(--danger);font-weight:700;}
 .bacct .bacct-bal{flex:none;font-size:1.05rem;font-weight:800;color:#fff;letter-spacing:-.3px;}
+.note.bank-stale{color:var(--danger);border-color:var(--danger);}
+.kd.bank-stale-tag{color:var(--danger);}
 .bacct.off .bacct-bal{color:var(--muted);}
 .mb{background:linear-gradient(180deg,var(--card2),var(--card));border:1.5px solid var(--border);border-radius:15px;padding:14px 15px;}
 .mb .l{font-size:.64rem;color:#ffffff;text-transform:uppercase;letter-spacing:.5px;font-weight:800;}
@@ -1439,7 +1442,7 @@ const HELP={
   arjobs:['Money to collect',"Each row is a Fergus job with an issued Xero invoice still unpaid. Inv % = invoiced ÷ sale, so you can see who owes you and how far through each job is billed."],
   autorecon:['Auto-reconcile bank vs Xero',"Your opening balance is the <b>live bank</b> total, which already includes money that's landed. But Xero still lists an invoice as unpaid until you reconcile it — so a payment that's already in the bank would be counted <b>twice</b> (once in the balance, once as a future A/R inflow). With this on, the app matches recent bank deposits to unpaid invoices by amount and marks them as already received, so they're excluded from the forecast. It's a best-guess match (by amount + name), so it only runs when your opening balance is the live bank feed, and you can see exactly what it matched in the cashflow detail window. Reconcile in Xero when you can — that's the permanent fix."],
   team:['Team mode',"Share one live dashboard with your office. Set the Team API URL and sign in; this device then loads the <b>same shared data + settings</b> as everyone else and pushes your changes back so the whole office stays in sync. A nightly auto-sync refreshes the data even if no one opens the app. Sign-in is per person (set up in the API's HUB_USERS). Leave the API URL blank to keep this device standalone. Your Fergus/Xero/bank keys still live only on the proxy — team mode just shares the computed dashboard."],
-  bank:['Live bank (Akahu)',"Live balances + recent transactions from Akahu via the proxy. Optional — add AKAHU_APP_TOKEN + AKAHU_USER_TOKEN to the proxy to switch it on; until then it stays dormant. <b>Tap any account to include or exclude it</b> from the forecast’s opening cash — only the ticked accounts are summed into “Total cash now”. Tax set-aside accounts are excluded by default so the forecast doesn’t count money you already owe IRD."],
+  bank:['Live bank (Akahu)',"Balances + recent transactions from Akahu via the proxy. <b>Important:</b> Akahu pulls balances from ANZ on <b>its own schedule (a few times a day)</b>, so a balance can trail what your ANZ app shows until Akahu next refreshes. The header shows the real <b>“as of” time</b> (Akahu’s last pull, oldest account) — if it’s stale it turns red and warns you; sync again later to pick up ANZ’s newer figure. The number shown is the <b>current/ledger</b> balance (ANZ’s big figure), not the “available” balance (which adds any arranged overdraft). <b>Tap any account to include or exclude it</b> from the forecast’s opening cash — only the ticked accounts are summed into “Total cash now”. Tax set-aside accounts are excluded by default so the forecast doesn’t count money you already owe IRD. Setup: add AKAHU_APP_TOKEN + AKAHU_USER_TOKEN to the proxy to switch it on."],
   cfweekly:['Weekly cashflow',"Weekly view of the same 13-week forecast — job finals land in their expected completion week; overheads and supplier bills spread across the weeks. Shows the low point so you can act early."],
   paycal:['Payment calendar',"Tap the day you expect each job's final invoice to be <b>paid</b> — that's when the cash lands in the forecasts. The blue • is the auto estimate: remaining hours (padded for overrun) ÷ crew capacity, + a few days for finishing flashings, + your payment lag. A green ✓ is your own pick. This is the same calendar you get by tapping ✎ on a job in the dashboard's cashflow-forecast detail — a change here shows on the dashboard <b>and</b> the Cash tab and re-runs the forecast. Scroll sideways up to 6 months; the job stays pinned on the left. Tap the same day again to clear."],
   overrun:['Job overrun allowance',"Jobs usually run over, so remaining hours are padded by this % — finish dates aren't too optimistic, and the delay cascades to the jobs queued behind. Default 20%."],
@@ -3527,8 +3530,9 @@ function bankCmdTiles(){
   if(!bank||!bank.accounts||!bank.accounts.length)return '';
   const bySfx={};bank.accounts.forEach(a=>{const s=bankAcctSuffix(a);if(s&&!bySfx[s])bySfx[s]=a;});
   let out='';
+  const fr=bankFreshness();const freshTag=fr?(fr.unknown?'bank':(fr.ageMin<=30?'live':(fr.ago))):'live';
   CMD_BANK_SUFFIXES.forEach(sfx=>{const a=bySfx[sfx];if(!a)return;const bal=num(a.balance&&a.balance.current);
-    out+='<div class="kpi kpi-tap kpi-bank" onclick="openCmdDetail(\'bank\')"><div class="kl">'+esc((a.name||('Account '+sfx)))+'<span class="kgo">›</span></div><div class="kv'+(bal>=0?' pos':' neg')+'">'+fmtK(bal)+'</div><div class="kd">live · a/c …'+esc(sfx)+'</div></div>';});
+    out+='<div class="kpi kpi-tap kpi-bank" onclick="openCmdDetail(\'bank\')"><div class="kl">'+esc((a.name||('Account '+sfx)))+'<span class="kgo">›</span></div><div class="kv'+(bal>=0?' pos':' neg')+'">'+fmtK(bal)+'</div><div class="kd'+(fr&&fr.stale?' bank-stale-tag':'')+'">'+esc(freshTag)+' · a/c …'+esc(sfx)+'</div></div>';});
   return out;
 }
 function renderCommand(){
@@ -3787,7 +3791,9 @@ function openCmdDetail(key){
         return '<tr><td>'+esc(a.name||'Account')+(inc?'':' <span class="cfx-tag">not in forecast</span>')+'<div class="mut" style="font-size:.62rem;font-weight:600;">'+esc(a.formatted_account||'')+'</div></td><td style="text-align:right;font-weight:700;'+(inc?'':'color:var(--muted);')+'">'+fmtK(bal)+'</td></tr>';});
       rows.push('<tr class="tot"><td>In forecast</td><td style="text-align:right;">'+fmtK(totInc)+'</td></tr>');
       rows.push('<tr class="tot"><td>All accounts</td><td style="text-align:right;">'+fmtK(totAll)+'</td></tr>');
-      body='<div class="note" style="margin:0 0 10px;">Live balances from Akahu'+(bank.ts?(' · '+esc(bank.ts)):'')+'. Tiles on the dashboard show your everyday accounts (…-00, …-02, …-03); every connected account is listed here. Tap an account on the <b>Cash</b> tab to include/exclude it from the forecast’s opening cash.</div>'+
+      {const _fr=bankFreshness();const _fresh=_fr?(_fr.unknown?('fetched '+esc(bank.ts||'')):('balances as of '+esc(_fr.label)+' · '+esc(_fr.ago)+(_fr.stale?' — Akahu may lag your ANZ app':''))):'';
+      body='<div class="note'+(_fr&&_fr.stale?' bank-stale':'')+'" style="margin:0 0 10px;">'+_fresh+'. Balances come from <b>Akahu</b>, which pulls from ANZ a few times a day, so they can trail your banking app until Akahu next refreshes. Tiles on the dashboard show your everyday accounts (…-00, …-02, …-03); every connected account is listed here. Tap an account on the <b>Cash</b> tab to include/exclude it from the forecast’s opening cash.</div>';}
+      body+=''+
         wrap('<th>Account</th><th style="text-align:right;">Balance</th>',rows,'No accounts.');
     }}
   const tt=document.getElementById('cmd-modal-title');if(tt)tt.textContent=title;
@@ -5216,6 +5222,25 @@ async function syncBank(){
 }
 // Stable id for a bank account across syncs (Akahu gives _id; fall back to the account number/name).
 function bankAcctId(a){return String((a&&(a._id||a.formatted_account||a.name))||'');}
+// When Akahu last actually pulled this account's balance FROM the bank (not when we fetched it from
+// Akahu). Akahu refreshes on its own cadence — a few times a day for some banks — so this is the
+// real "as of" time; the balance can lag your banking app until Akahu next refreshes.
+function akahuRefreshedMs(a){
+  const r=a&&a.refreshed;const t=(r&&(r.balance||r.meta||r.transactions))||(a&&(a.refreshed_at||a.updated_at))||'';
+  const ms=Date.parse(String(t));return isNaN(ms)?0:ms;
+}
+function agoStr(min){if(min==null)return '';if(min<1)return 'just now';if(min<60)return min+' min ago';const h=Math.floor(min/60);if(h<24)return h+(h===1?' hr ago':' hrs ago');const d=Math.floor(h/24);return d+(d===1?' day ago':' days ago');}
+// Freshness of the live-bank balances: the OLDEST account refresh, so the user knows the true age.
+function bankFreshness(){
+  if(!bank||!bank.accounts||!bank.accounts.length)return null;
+  let oldest=Infinity,any=false;
+  bank.accounts.forEach(a=>{const ms=akahuRefreshedMs(a);if(ms>0){any=true;if(ms<oldest)oldest=ms;}});
+  if(!any)return {ms:0,label:bank.ts||'',ageMin:null,stale:false,unknown:true};
+  const ageMin=Math.max(0,Math.round((Date.now()-oldest)/60000));
+  const d=new Date(oldest);
+  const label=d.toLocaleString('en-NZ',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit',hour12:true});
+  return {ms:oldest,label,ageMin,ago:agoStr(ageMin),stale:ageMin>90,unknown:false};
+}
 // Does this account feed the forecast's opening cash? Explicit user choice wins; otherwise default
 // is "yes" UNLESS the account name looks like a tax set-aside (money already owed to IRD).
 function bankIncluded(a){const id=bankAcctId(a);if(bankIncl&&Object.prototype.hasOwnProperty.call(bankIncl,id))return !!bankIncl[id];
@@ -5230,15 +5255,21 @@ function renderBank(){
   const accts=bank.accounts;let total=0,totalAll=0,nInc=0;
   accts.forEach(a=>{const bal=num(a.balance&&a.balance.current);totalAll+=bal;if(bankIncluded(a)){total+=bal;nInc++;}});
   window.__bankTotal=total;   // only the ticked accounts feed the forecast opening cash
+  const fr=bankFreshness();
+  const freshWord=fr?(fr.unknown?'as fetched':(fr.stale?('as of '+fr.label):(fr.ageMin<=30?'live':('as of '+fr.label)))):'live';
   if(tt){tt.textContent=fmtK(total);tt.style.color=total>=0?'var(--success)':'var(--danger)';}
-  if(sb)sb.textContent=nInc+' of '+accts.length+' account'+(accts.length!==1?'s':'')+' in forecast'+(nInc<accts.length?(' · '+fmtK(totalAll)+' total'):'')+' · live';
-  if(ts)ts.textContent=bank.ts?('· '+bank.ts):'';
+  if(sb)sb.textContent=nInc+' of '+accts.length+' account'+(accts.length!==1?'s':'')+' in forecast'+(nInc<accts.length?(' · '+fmtK(totalAll)+' total'):'')+' · '+freshWord;
+  if(ts){if(fr&&!fr.unknown){ts.textContent='balances as of '+fr.label+' · '+fr.ago;ts.style.color=fr.stale?'var(--danger)':'';}else{ts.textContent=bank.ts?('fetched '+bank.ts):'';ts.style.color='';}}
+  const staleNote=(fr&&fr.stale)?('<div class="note bank-stale" style="margin:8px 2px 0;">⚠ These are the latest balances <b>Akahu</b> has ('+fr.ago+') — Akahu pulls from ANZ a few times a day, so they can lag your ANZ app. Sync again later to pick up ANZ’s newer figure.</div>'):'';
   host.innerHTML=accts.map(a=>{const inc=bankIncluded(a),id=bankAcctId(a),bal=num(a.balance&&a.balance.current);
-    return '<div class="bacct'+(inc?'':' off')+'" onclick="toggleBankAcct(\''+esc(id.replace(/'/g,''))+'\')" title="'+(inc?'Counts toward the forecast — tap to exclude':'Excluded from the forecast — tap to include')+'">'+
+    const ams=akahuRefreshedMs(a);const amin=ams?Math.max(0,Math.round((Date.now()-ams)/60000)):null;
+    const lag=(fr&&!fr.unknown&&ams&&(ams>fr.ms+60*60000))?(' <span class="bacct-as">· '+agoStr(amin)+'</span>'):'';   // flag an account that's fresher/older than the pack
+    return '<div class="bacct'+(inc?'':' off')+'" onclick="toggleBankAcct(\''+esc(id.replace(/'/g,''))+'\')" title="'+(inc?'Counts toward the forecast — tap to exclude':'Excluded from the forecast — tap to include')+(ams?(' · balance as of '+new Date(ams).toLocaleString('en-NZ')):'')+'">'+
       '<div class="bacct-tog">'+(inc?'✓':'')+'</div>'+
-      '<div class="bacct-main"><div class="bacct-name">'+esc(a.name||(a.connection&&a.connection.name)||'Account')+(inc?'':' <span class="bacct-off">not in forecast</span>')+'</div><div class="bacct-no">'+esc(a.formatted_account||'')+'</div></div>'+
+      '<div class="bacct-main"><div class="bacct-name">'+esc(a.name||(a.connection&&a.connection.name)||'Account')+(inc?'':' <span class="bacct-off">not in forecast</span>')+'</div><div class="bacct-no">'+esc(a.formatted_account||'')+lag+'</div></div>'+
       '<div class="bacct-bal">'+fmtK(bal)+'</div></div>';}).join('')+
-    '<div class="note" style="margin:8px 2px 0;">Tap an account to include/exclude it from the forecast’s opening cash. Tax set-asides start off by default.</div>';
+    staleNote+
+    '<div class="note" style="margin:8px 2px 0;">Tap an account to include/exclude it from the forecast’s opening cash. Tax set-asides start off by default. Balances are as fresh as Akahu’s last pull from ANZ (shown above), not necessarily this second.</div>';
   if(txb){const tx=(bank.tx||[]).slice(0,40);txb.innerHTML=tx.length?tx.map(x=>{const amt=num(x.amount);return '<tr><td>'+esc(String(x.date||'').slice(0,10))+'</td><td>'+esc(String(x.description||'').slice(0,38))+'</td><td style="text-align:right;color:'+(amt>=0?'var(--success)':'var(--danger)')+';">'+(amt>=0?'+':'')+fmtK(amt)+'</td></tr>';}).join(''):'<tr><td colspan="3" class="empty">No recent transactions.</td></tr>';}
 }
 function renderAll(){renderDash();renderWork();renderModspace();renderBC();renderPL();renderGrowth();renderMkt();renderCash();renderBank();renderCashflow();renderCashSummary();renderCommand();}
