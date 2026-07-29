@@ -1578,12 +1578,6 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 .rp-page{border-top:1px solid var(--border)}
 .rp-header + .rp-page,.rp-page:first-child{border-top:none}
 @media print{.rp-page + .rp-page{page-break-before:always;break-before:page}}
-/* Per-page number badge ("N of TOTAL") — bottom-left of every proposal page.
-   Screen + customer view only; the PDF export stamps its own footer number. */
-.rp-pageno-badge{position:absolute;left:16px;bottom:9px;z-index:3;display:flex;align-items:baseline;gap:5px;font-family:var(--ed-sans);pointer-events:none}
-.rp-pageno-badge .rp-pageno-n{font-size:22px;font-weight:800;line-height:1;color:var(--ed-ink)}
-.rp-pageno-badge .rp-pageno-of{font-size:11px;font-weight:600;color:var(--ed-text2)}
-html.pdf-rendering .rp-pageno-badge,html.print-quote .rp-pageno-badge{display:none!important}
 /* Stop iOS double-tap-to-zoom on the tappable proposal cards (option picks,
    colour swatches) — tapping a selection was forcing an unwanted zoom-in.
    Pinch-zoom stays available. */
@@ -11517,23 +11511,22 @@ function _qpJumpToStep(step){
   catch(e){ page.scrollIntoView(); }
 }
 // After the proposal is (re)rendered: fill the cover Contents list with the
-// real chapter titles + page numbers, and stamp a "N of TOTAL" badge on every
-// page. Reads the actual rendered .rp-page set, so it's correct even when
-// sections are toggled off. Idempotent — safe on every re-render.
+// real chapter titles + their chapter numbers (the big number shown in each
+// page's heading band). Reads the actual rendered pages so it stays correct
+// when sections are toggled off. Idempotent — safe on every re-render.
 function _qpNumberPagesAndToc(){
   var root = document.getElementById('qpRoot'); if (!root) return;
   var pages = root.querySelectorAll('.rp-page');
-  var N = pages.length; if (!N) return;
+  if (!pages.length) return;
   var tocRows = [];
   Array.prototype.forEach.call(pages, function(pg, i){
-    var num = i + 1;
-    var old = pg.querySelector('.rp-pageno-badge'); if (old && old.parentNode) old.parentNode.removeChild(old);
-    var badge = document.createElement('div');
-    badge.className = 'rp-pageno-badge';
-    badge.innerHTML = '<span class="rp-pageno-n">' + num + '</span><span class="rp-pageno-of">of ' + N + '</span>';
-    pg.appendChild(badge);
     var h = pg.querySelector('[data-toc-title]');
-    if (h) { var t = h.getAttribute('data-toc-title') || ''; if (t) tocRows.push({ t: t, n: num }); }
+    if (h) {
+      var t = h.getAttribute('data-toc-title') || '';
+      var nAttr = h.getAttribute('data-toc-num');
+      var n = nAttr ? parseInt(nAttr, 10) : (i + 1);
+      if (t) tocRows.push({ t: t, n: n });
+    }
   });
   var toc = root.querySelector('#qpTocList');
   if (toc) {
@@ -11561,22 +11554,25 @@ function edHeading(num, eyebrow, title, opts){
   var bigNum = ch ? String(ch.step) : num;
   // Plain-text title for the cover Contents list (built post-render).
   var _tocTitle = (ch && ch.short) ? ch.short : String(title || '').replace(/<[^>]*>/g, '').trim();
-  // Chapter eyebrow reads "Step N of M · <eyebrow>" for orientation.
-  var eyebrowText = ch
-    ? ('Step ' + ch.step + ' of ' + chapters.length + (eyebrow ? '  ·  ' + eyebrow : ''))
-    : (eyebrow || '');
+  // Chapter "Step N of M · …" eyebrow removed as fluff; the big number + "of N
+  // pages" beside it carries the position. Non-chapter headings keep any eyebrow.
+  var eyebrowText = ch ? '' : (eyebrow || '');
   // Solid brand-ink panel: an accent rule + optional step tracker on top,
   // then a large chapter number + eyebrow + italic title.
-  return '<div class="ed-heading-band"'+(ch?' data-step="'+ch.step+'"':'')+(_tocTitle?' data-toc-title="'+esc2(_tocTitle)+'"':'')+' style="margin:'+topMargin+' -36px 22px;background:var(--ed-ink);color:#fff;position:relative;overflow:hidden">'+
+  return '<div class="ed-heading-band"'+(ch?' data-step="'+ch.step+'"':'')+(_tocTitle?' data-toc-title="'+esc2(_tocTitle)+'"':'')+(ch?' data-toc-num="'+ch.step+'"':'')+' style="margin:'+topMargin+' -36px 22px;background:var(--ed-ink);color:#fff;position:relative;overflow:hidden">'+
     '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:'+accent+';z-index:1"></div>'+
     tracker +
-    '<div style="padding:15px 36px;position:relative">'+
+    '<div style="padding:18px 36px;position:relative">'+
       '<img src="brand/logo_wide_white.png" onerror="this.style.display=\'none\'" alt="" style="position:absolute;right:36px;top:50%;transform:translateY(-50%);height:34px;width:auto;opacity:.9;pointer-events:none">'+
-      '<div style="display:flex;align-items:center;gap:16px;position:relative;padding-right:150px">'+
-        '<div class="ed-number" style="flex-shrink:0;width:'+(ch?'54px':'44px')+';color:'+accent+';font-size:'+(ch?'44px':'28px')+';font-weight:'+(ch?'700':'400')+';line-height:1">'+esc2(bigNum)+'</div>'+
+      '<div style="display:flex;align-items:center;gap:20px;position:relative;padding-right:150px">'+
+        // Big chapter/page number with a small "of N pages" beside it.
+        '<div class="ed-number" style="flex-shrink:0;color:'+accent+';line-height:1;display:flex;align-items:baseline;gap:8px;white-space:nowrap">'+
+          '<span style="font-size:'+(ch?'78px':'30px')+';font-weight:'+(ch?'800':'400')+'">'+esc2(bigNum)+'</span>'+
+          (ch ? '<span style="font-family:var(--ed-sans);font-size:12px;font-weight:600;letter-spacing:.05em;color:rgba(255,255,255,.7)">of '+chapters.length+' pages</span>' : '')+
+        '</div>'+
         '<div style="flex:1">'+
           (eyebrowText ? '<div class="ed-eyebrow" style="color:'+accent+';font-size:9.5px;letter-spacing:.16em">'+esc2(eyebrowText)+'</div>' : '')+
-          '<div class="ed-title ed-h2" style="margin-top:3px;color:#fff;font-style:italic;font-size:27px">'+title+'</div>'+
+          '<div class="ed-title ed-h2" style="color:#fff;font-style:italic;font-size:28px">'+title+'</div>'+
         '</div>'+
       '</div>'+
     '</div>'+
