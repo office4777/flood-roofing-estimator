@@ -335,6 +335,18 @@ On narrow screens the header lays out cleanly: the **Command Centre** title + a 
 sync line on the first row, and the period toggle (Week/Month · This/Last) as its own
 full-width row of even chips — no more cramped stacked cluster.
 
+## Command-centre — Sales (work booked + revenue won) & 4-bar tiles
+
+Every comparison tile now shows **four** bars: **This · Last · 3-avg · 6-avg** (the
+6-period average sits next to the 3-period one; `curRoll` returns `roll`/`roll6`, buckets
+widened to `off+7`). Two Sales tiles were added, both driven by quotes **accepted** in the
+period (`acceptedAt`):
+- **Work booked / wk|mo** — weeks of work won: each accepted quote's value ÷ the real
+  revenue-per-hour (`fergusProd().revPerHr`) = booked labour hours, ÷ weekly capacity
+  (`capacity().perDay×5`) — the same maths as Forward Workflow. Tapping it opens a
+  **Work booked** detail listing each won quote with its $ and estimated weeks.
+- **Revenue won / wk|mo** — sum of accepted-quote values that period (`countInBuckets(...).val`).
+
 ## Command-centre tiles — This · Last · 3-mo avg
 
 The comparison tiles (Enquiries / Quotes / Conversion / GP) draw **three** vertical

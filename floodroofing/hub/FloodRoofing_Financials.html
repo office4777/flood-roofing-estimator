@@ -243,8 +243,8 @@ tr.wk-done td:nth-child(2){text-decoration:line-through;}
 .cmd-tog .chip{padding:4px 11px;font-size:.62rem;}
 .cmd-tog .tgsep{width:1px;height:16px;background:var(--border);margin:0 2px;}
 /* command-centre tile mini bars — vertical (This vs rolling avg), matching the Revenue·GP bar look */
-.kvbars{display:flex;gap:14px;align-items:stretch;justify-content:center;margin-top:9px;height:64px;}
-.kvcol{display:flex;flex-direction:column;align-items:center;flex:1;max-width:46px;min-width:0;}
+.kvbars{display:flex;gap:9px;align-items:stretch;justify-content:center;margin-top:9px;height:64px;}
+.kvcol{display:flex;flex-direction:column;align-items:center;flex:1;max-width:42px;min-width:0;}
 .kvv{font-size:.66rem;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;margin-bottom:2px;line-height:1;}
 .kvtrack{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;min-height:6px;}
 .kvbar{width:74%;max-width:26px;border-radius:4px 4px 0 0;min-height:3px;}
@@ -268,7 +268,8 @@ tr.wk-done td:nth-child(2){text-decoration:line-through;}
   .cmd-tog .tgcol{flex-direction:row;gap:6px;flex:1;}
   .cmd-tog .chip{flex:1;text-align:center;padding:7px 4px;font-size:.66rem;}
   .kpi{padding:11px 11px;}
-  .kvbars{gap:8px;height:58px;}
+  .kvbars{gap:5px;height:58px;}
+  .kvt{font-size:.48rem;}
   .kpi .kv{font-size:1.25rem;}
 }
 /* command-centre charts & tables */
@@ -3438,16 +3439,17 @@ function renderCommand(){
   const arrow=(cur,prev)=>{if(cur==null||prev==null||prev===0)return '';const d=(cur-prev)/Math.abs(prev)*100;if(Math.abs(d)<1)return '';const up=d>0;return ' <span class="'+(up?'up':'dn')+'">'+(up?'▲':'▼')+Math.abs(Math.round(d))+'%</span>';};
   const tile=(cls,lab,val,vcls,sub,key)=>'<div class="kpi kpi-tap '+(cls||'')+'"'+(key?' onclick="openCmdDetail(\''+key+'\')"':'')+'><div class="kl">'+lab+(key?'<span class="kgo">›</span>':'')+'</div><div class="kv'+(vcls?' '+vcls:'')+'">'+val+'</div><div class="kd">'+(sub||'')+'</div></div>';
   const P=cmdPeriod,off=cmdOffset,pl=P==='w'?'wk':'mo';
-  const curLbl=off?'Last':'This',rollLbl=P==='w'?'3-wk avg':'3-mo avg';
-  const b=P==='w'?bucketsWeekly(off+4):bucketsMonthly(off+4);
+  const curLbl=off?'Last':'This',rollLbl=P==='w'?'3-wk avg':'3-mo avg',roll6Lbl=P==='w'?'6-wk avg':'6-mo avg';
+  const b=P==='w'?bucketsWeekly(off+7):bucketsMonthly(off+7);
   const prevLbl=off?'Prev':'Last';
-  // selected period value + the period before it (Last) + trailing-3 rolling average
-  const curRoll=arr=>{const sel=arr.length-1-off;if(sel<0)return{cur:null,prev:null,roll:null,sel:-1};const cur=arr[sel];const prev=(sel-1>=0)?arr[sel-1]:null;const pri=[];for(let i=sel-3;i<sel;i++){if(i>=0&&arr[i]!=null)pri.push(arr[i]);}const roll=pri.length?pri.reduce((s,x)=>s+x,0)/pri.length:null;return{cur,prev,roll,sel};};
+  // selected period value + the period before it (Last) + trailing-3 and trailing-6 rolling averages
+  const rollN=(arr,sel,n)=>{const pri=[];for(let i=sel-n;i<sel;i++){if(i>=0&&arr[i]!=null)pri.push(arr[i]);}return pri.length?pri.reduce((s,x)=>s+x,0)/pri.length:null;};
+  const curRoll=arr=>{const sel=arr.length-1-off;if(sel<0)return{cur:null,prev:null,roll:null,roll6:null,sel:-1};const cur=arr[sel];const prev=(sel-1>=0)?arr[sel-1]:null;return{cur,prev,roll:rollN(arr,sel,3),roll6:rollN(arr,sel,6),sel};};
   const noMkt=!(mkt&&mkt.quotes);
-  // mini three-bar comparison tile — VERTICAL bars (This · Last · rolling avg), like the Revenue·GP bars
-  const kbar=(cls,label,color,cur,prev,roll,fmt,sub,key)=>{const mx=Math.max(cur||0,prev||0,roll||0,1);
+  // mini four-bar comparison tile — VERTICAL bars (This · Last · 3-avg · 6-avg)
+  const kbar=(cls,label,color,cur,prev,roll,roll6,fmt,sub,key)=>{const mx=Math.max(cur||0,prev||0,roll||0,roll6||0,1);
     const col=(t,v,dim)=>'<div class="kvcol"><span class="kvv">'+(v==null?'—':fmt(v))+'</span><span class="kvtrack"><span class="kvbar" style="height:'+Math.max(4,Math.round((v||0)/mx*100))+'%;background:'+color+(dim?';opacity:.5':'')+'"></span></span><span class="kvt">'+t+'</span></div>';
-    return '<div class="kpi kpi-tap '+(cls||'')+'"'+(key?' onclick="openCmdDetail(\''+key+'\')"':'')+'><div class="kl">'+label+(key?'<span class="kgo">›</span>':'')+'</div><div class="kvbars">'+col(curLbl,cur,false)+col(prevLbl,prev,true)+col(rollLbl,roll,true)+'</div>'+(sub?'<div class="kd">'+sub+'</div>':'')+'</div>';};
+    return '<div class="kpi kpi-tap '+(cls||'')+'"'+(key?' onclick="openCmdDetail(\''+key+'\')"':'')+'><div class="kl">'+label+(key?'<span class="kgo">›</span>':'')+'</div><div class="kvbars">'+col(curLbl,cur,false)+col(prevLbl,prev,true)+col(rollLbl,roll,true)+col(roll6Lbl,roll6,true)+'</div>'+(sub?'<div class="kd">'+sub+'</div>':'')+'</div>';};
   const enq=noMkt?{cur:null,roll:null}:curRoll(countInBuckets(mkt.leads,l=>l.createdAt,b.ranges).map(o=>o.n));
   const snt=noMkt?{cur:null,roll:null}:curRoll(countInBuckets((mkt.quotes||[]).filter(q=>q.isSent),q=>q.sentAt||q.quoteDate,b.ranges).map(o=>o.n));
   let conv={cur:null,roll:null};
@@ -3464,11 +3466,21 @@ function renderCommand(){
   const convCls=conv.cur==null?'':(conv.cur>=40?'ok':(conv.cur>=25?'warn':'crit'));
   const wkCls=wkWeeks==null?'':((wkWeeks<3||wkWeeks>12)?'warn':'ok');
   const intF=v=>String(Math.round(v)),pctF=v=>Math.round(v)+'%';
+  // Sales — work booked (weeks) + revenue won, from quotes ACCEPTED in each period. Weeks booked
+  // converts won revenue to labour hours via the real revenue/hr, then ÷ weekly capacity (like Forward Workflow).
+  const revHr=(prod&&prod.revPerHr)?prod.revPerHr:0,weeklyCap=Math.max(1,c.perDay*5);
+  const accB=noMkt?null:countInBuckets((mkt.quotes||[]).filter(q=>q.isAccepted),q=>q.acceptedAt,b.ranges);
+  const revWon=noMkt?{cur:null,prev:null,roll:null,roll6:null}:curRoll(accB.map(o=>o.val));
+  const wksBooked=(noMkt||revHr<=0)?{cur:null,prev:null,roll:null,roll6:null}:curRoll(accB.map(o=>(o.val/revHr)/weeklyCap));
+  const wkBF=v=>String(Math.round(v*10)/10);
+  const accSel=(!accB||revWon.sel<0)?null:accB[revWon.sel];
   host.innerHTML=
-    kbar('','Enquiries / '+pl,'#4d8dff',enq.cur,enq.prev,enq.roll,intF,noMkt?'sync Mktg':('vs avg'+arrow(enq.cur,enq.roll)),'enq')+
-    kbar('','Quotes sent / '+pl,'#a78bfa',snt.cur,snt.prev,snt.roll,intF,noMkt?'sync Mktg':('vs avg'+arrow(snt.cur,snt.roll)),'quotes')+
-    kbar(convCls,'Conversion','#4ade80',conv.cur,conv.prev,conv.roll,pctF,noMkt?'sync Mktg':('won ÷ sent'+arrow(conv.cur,conv.roll)),'conv')+
-    kbar('','GP / '+pl,'#2dd4bf',gp.cur,gp.prev,gp.roll,fmtK,gpHrSel!=null?(fmt$(gpHrSel)+'/hr avg'):(gp.cur!=null?'back-costed est':'sync Fergus'),'gp')+
+    kbar('','Enquiries / '+pl,'#4d8dff',enq.cur,enq.prev,enq.roll,enq.roll6,intF,noMkt?'sync Mktg':('vs avg'+arrow(enq.cur,enq.roll)),'enq')+
+    kbar('','Quotes sent / '+pl,'#a78bfa',snt.cur,snt.prev,snt.roll,snt.roll6,intF,noMkt?'sync Mktg':('vs avg'+arrow(snt.cur,snt.roll)),'quotes')+
+    kbar(convCls,'Conversion','#4ade80',conv.cur,conv.prev,conv.roll,conv.roll6,pctF,noMkt?'sync Mktg':('won ÷ sent'+arrow(conv.cur,conv.roll)),'conv')+
+    kbar('','Work booked / '+pl,'#f59e0b',wksBooked.cur,wksBooked.prev,wksBooked.roll,wksBooked.roll6,wkBF,noMkt?'sync Mktg':(revHr<=0?'sync Fergus for $/hr':('wks won'+(accSel?' · '+accSel.n+' jobs':'')+arrow(wksBooked.cur,wksBooked.roll))),'won')+
+    kbar('','Revenue won / '+pl,'#22c55e',revWon.cur,revWon.prev,revWon.roll,revWon.roll6,fmtK,noMkt?'sync Mktg':('accepted quotes'+arrow(revWon.cur,revWon.roll)),'won')+
+    kbar('','GP / '+pl,'#2dd4bf',gp.cur,gp.prev,gp.roll,gp.roll6,fmtK,gpHrSel!=null?(fmt$(gpHrSel)+'/hr avg'):(gp.cur!=null?'back-costed est':'sync Fergus'),'gp')+
     tile('','Accounts receivable',ar!=null?fmtK(ar):'—','pos',arN?(arN+' invoices unpaid'):'invoiced · unpaid','ar')+
     tile('','Accounts payable',ap!=null?fmtK(ap):'—','',apN?(apN+' supplier codes'):'owed to suppliers','ap')+
     tile(wkCls,'Forward workflow',wkWeeks!=null?(Math.round(wkWeeks*10)/10+' wk'):'—','',fwJobs.length?(fwJobs.filter(j=>!fwDone[j.id]).length+' jobs booked'):'sync Fergus','fw')+
@@ -3542,6 +3554,15 @@ function openCmdDetail(key){
     title=(key==='conv'?'Conversion':'Quotes sent')+' — '+sel.label+' · '+won+'/'+sent.length+(sent.length?(' won ('+Math.round(won/sent.length*100)+'%)'):'');
     const rows=sent.sort((a,b)=>num(b.total)-num(a.total)).map(q=>'<tr><td>'+(q.jobNo?'<b>#'+esc(q.jobNo)+'</b> ':'')+esc((q.job||('Job '+q.jobId)).slice(0,34))+(q.site?' <span class="mut">— '+esc(q.site.slice(0,28))+'</span>':'')+'</td><td style="text-align:right;">'+fmtK(num(q.total))+'</td><td style="text-align:right;color:'+(q.isAccepted?'var(--success)':'var(--muted)')+';font-weight:700;">'+(q.isAccepted?'Won':'Pending')+'</td></tr>');
     body=wrap('<th>Job / address</th><th style="text-align:right;">Quote</th><th style="text-align:right;">Status</th>',rows,'No quotes sent this '+perW+'.');}
+  else if(key==='won'){
+    const acc=((mkt&&mkt.quotes)||[]).filter(q=>q.isAccepted&&(function(){const t=Date.parse(String(q.acceptedAt||'').replace(' ','T'));return t>=sel.s&&t<sel.e;})()).sort((a,b)=>num(b.total)-num(a.total));
+    const prod=fergusProd();const rHr=(prod&&prod.revPerHr)?prod.revPerHr:0;const c=capacity();const wCap=Math.max(1,c.perDay*5);
+    const totRev=acc.reduce((s,q)=>s+num(q.total),0);const totWk=rHr>0?(totRev/rHr)/wCap:0;
+    title='Work booked — '+sel.label+' · '+acc.length+' won';
+    const rows=acc.map(q=>{const wks=rHr>0?((num(q.total)/rHr)/wCap):0;return '<tr><td>'+(q.jobNo?'<b>#'+esc(q.jobNo)+'</b> ':'')+esc((q.job||('Job '+q.jobId)).slice(0,32))+(q.site?' <span class="mut">— '+esc(q.site.slice(0,26))+'</span>':'')+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(num(q.total))+'</td><td style="text-align:right;color:var(--muted);">'+(rHr>0?(Math.round(wks*10)/10+' wk'):'—')+'</td></tr>';});
+    if(rows.length)rows.push('<tr class="tot"><td>Total ('+acc.length+')</td><td style="text-align:right;">'+fmtK(totRev)+'</td><td style="text-align:right;">'+(rHr>0?(Math.round(totWk*10)/10+' wk'):'—')+'</td></tr>');
+    body='<div class="note" style="margin:0 0 10px;">Quotes <b>accepted</b> this '+perW+'. <b>Weeks booked</b> converts each won quote’s value to labour hours at your real revenue/hr'+(rHr>0?(' ('+fmt$(rHr)+'/hr)'):'')+', ÷ weekly capacity ('+fmtH(wCap)+'h) — the same maths as Forward Workflow.</div>'+
+      wrap('<th>Job / address</th><th style="text-align:right;">Won $</th><th style="text-align:right;">Weeks</th>',rows,'No quotes accepted this '+perW+'.');}
   else if(key==='gp'){const mk=sel.monthKey;
     const est=monthGpJobs(mk);                                   // finished + OPEN jobs, valued per hour worked in mk
     const rr=est.rows.map(r=>'<tr><td>'+(r.jobNo?'<b>#'+esc(r.jobNo)+'</b> ':'')+esc((r.job||'').slice(0,36))+(r.est?' <span class="mut" style="font-size:.62rem;font-weight:700;">EST</span>':'')+(r.over?' <span style="font-size:.6rem;font-weight:800;color:var(--danger);border:1px solid var(--danger);border-radius:4px;padding:0 3px;">⚠ OVER HRS</span>':'')+'</td><td style="text-align:right;">'+fmtK(r.gp)+'</td><td style="text-align:right;">'+fmtH(r.hrs)+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmt$(r.gpHr)+'</td></tr>');
