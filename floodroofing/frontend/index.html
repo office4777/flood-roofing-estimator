@@ -1578,6 +1578,16 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
 .rp-page{border-top:1px solid var(--border)}
 .rp-header + .rp-page,.rp-page:first-child{border-top:none}
 @media print{.rp-page + .rp-page{page-break-before:always;break-before:page}}
+/* Per-page number badge ("N of TOTAL") — bottom-left of every proposal page.
+   Screen + customer view only; the PDF export stamps its own footer number. */
+.rp-pageno-badge{position:absolute;left:16px;bottom:9px;z-index:3;display:flex;align-items:baseline;gap:5px;font-family:var(--ed-sans);pointer-events:none}
+.rp-pageno-badge .rp-pageno-n{font-size:22px;font-weight:800;line-height:1;color:var(--ed-ink)}
+.rp-pageno-badge .rp-pageno-of{font-size:11px;font-weight:600;color:var(--ed-text2)}
+html.pdf-rendering .rp-pageno-badge,html.print-quote .rp-pageno-badge{display:none!important}
+/* Stop iOS double-tap-to-zoom on the tappable proposal cards (option picks,
+   colour swatches) — tapping a selection was forcing an unwanted zoom-in.
+   Pinch-zoom stays available. */
+[role="button"]{touch-action:manipulation}
 /* ── Screen: Microsoft-Word-style A4 page view ──────────────────
    Each proposal page renders as a discrete A4 sheet (210 × 297 mm) on
    a grey canvas with gaps between sheets — exactly what prints to PDF.
@@ -9152,7 +9162,7 @@ function defaultQuote(){
     phone:  (document.getElementById('jobPhone')||{}).value || '',
     // Cover page — job/property headline + the salesperson who prepared it.
     jobTitle: '',
-    preparedByName: (S.settings && S.settings.branding && S.settings.branding.prepared_by_name) || 'Matthew Smith',
+    preparedByName: (S.settings && S.settings.branding && S.settings.branding.prepared_by_name) || 'Matthew Anderson-Smith',
     preparedByRole: (S.settings && S.settings.branding && S.settings.branding.prepared_by_role) || 'Sales Manager',
     scope: scopeChips.length ? scopeChips.map(function(s){return '• '+s;}).join('\n') : '',
     notes: scopeNotes,
@@ -11506,6 +11516,36 @@ function _qpJumpToStep(step){
   try { page.scrollIntoView({ behavior:'smooth', block:'start' }); }
   catch(e){ page.scrollIntoView(); }
 }
+// After the proposal is (re)rendered: fill the cover Contents list with the
+// real chapter titles + page numbers, and stamp a "N of TOTAL" badge on every
+// page. Reads the actual rendered .rp-page set, so it's correct even when
+// sections are toggled off. Idempotent — safe on every re-render.
+function _qpNumberPagesAndToc(){
+  var root = document.getElementById('qpRoot'); if (!root) return;
+  var pages = root.querySelectorAll('.rp-page');
+  var N = pages.length; if (!N) return;
+  var tocRows = [];
+  Array.prototype.forEach.call(pages, function(pg, i){
+    var num = i + 1;
+    var old = pg.querySelector('.rp-pageno-badge'); if (old && old.parentNode) old.parentNode.removeChild(old);
+    var badge = document.createElement('div');
+    badge.className = 'rp-pageno-badge';
+    badge.innerHTML = '<span class="rp-pageno-n">' + num + '</span><span class="rp-pageno-of">of ' + N + '</span>';
+    pg.appendChild(badge);
+    var h = pg.querySelector('[data-toc-title]');
+    if (h) { var t = h.getAttribute('data-toc-title') || ''; if (t) tocRows.push({ t: t, n: num }); }
+  });
+  var toc = root.querySelector('#qpTocList');
+  if (toc) {
+    toc.innerHTML = tocRows.map(function(r){
+      return '<div style="display:flex;align-items:baseline;gap:8px;font-family:var(--ed-sans);font-size:12.5px;color:var(--ed-ink-2);padding:4px 0">'+
+        '<span style="white-space:nowrap">' + esc2(r.t) + '</span>'+
+        '<span style="flex:1;border-bottom:1px dotted rgba(10,22,40,.28);position:relative;top:-4px"></span>'+
+        '<span style="white-space:nowrap;font-family:var(--ed-serif);font-weight:600;color:var(--ed-ink)">' + r.n + '</span>'+
+      '</div>';
+    }).join('') || '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-text2)">—</div>';
+  }
+}
 function edHeading(num, eyebrow, title, opts){
   opts = opts || {};
   var ch = opts.chapter || null;
@@ -11516,15 +11556,18 @@ function edHeading(num, eyebrow, title, opts){
   // rp-body top padding — so the heading band must NOT pull up
   // with a negative top margin or it would overlap the banner.
   var topMargin = opts.afterBanner ? '0' : '-38px';
-  var tracker = (ch && chapters) ? _edProgressTracker(chapters, ch.step, accent) : '';
+  // Header chapter tabs removed — they were noise on the customer proposal.
+  var tracker = '';
   var bigNum = ch ? String(ch.step) : num;
+  // Plain-text title for the cover Contents list (built post-render).
+  var _tocTitle = (ch && ch.short) ? ch.short : String(title || '').replace(/<[^>]*>/g, '').trim();
   // Chapter eyebrow reads "Step N of M · <eyebrow>" for orientation.
   var eyebrowText = ch
     ? ('Step ' + ch.step + ' of ' + chapters.length + (eyebrow ? '  ·  ' + eyebrow : ''))
     : (eyebrow || '');
   // Solid brand-ink panel: an accent rule + optional step tracker on top,
   // then a large chapter number + eyebrow + italic title.
-  return '<div class="ed-heading-band"'+(ch?' data-step="'+ch.step+'"':'')+' style="margin:'+topMargin+' -36px 22px;background:var(--ed-ink);color:#fff;position:relative;overflow:hidden">'+
+  return '<div class="ed-heading-band"'+(ch?' data-step="'+ch.step+'"':'')+(_tocTitle?' data-toc-title="'+esc2(_tocTitle)+'"':'')+' style="margin:'+topMargin+' -36px 22px;background:var(--ed-ink);color:#fff;position:relative;overflow:hidden">'+
     '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:'+accent+';z-index:1"></div>'+
     tracker +
     '<div style="padding:15px 36px;position:relative">'+
@@ -12703,21 +12746,15 @@ function refreshQuoteProposal(){
             (S.quote.phone ? esc2(S.quote.phone) : '<span style="font-style:italic;opacity:.6;pointer-events:none">Phone</span>'), 'phone',
             '<span class="qp-editable" contenteditable="true" data-qfield="email" spellcheck="false">'+(S.quote.email ? esc2(S.quote.email) : '<span style="font-style:italic;opacity:.6;pointer-events:none">client@email.co.nz</span>')+'</span>')+
           _detailCol('Prepared by',
-            esc2(S.quote.preparedByName || 'Matthew Smith'), 'preparedByName',
+            esc2(S.quote.preparedByName || 'Matthew Anderson-Smith'), 'preparedByName',
             esc2(S.quote.preparedByRole || 'Sales Manager'), 'preparedByRole',
             esc2(_company))+
         '</div>'+
-        // What's inside — a quick roadmap so the homeowner knows the
-        // proposal's structure before they start reading.
-        '<div style="margin-top:22px;padding:12px 18px;background:var(--ed-paper-2);border-radius:9px;border:1px solid var(--ed-line)">'+
-          '<div class="ed-eyebrow" style="margin-bottom:8px">What’s inside</div>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 22px">'+
-            ['Roof inspection','Photos of defects','Fixed pricing','Optional upgrades','Warranty information','Acceptance page'].map(function(t){
-              return '<div style="display:flex;align-items:center;gap:9px;font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-ink-2)">'+
-                '<span style="flex-shrink:0;width:16px;height:16px;border-radius:50%;background:var(--ed-accent);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">✓</span>'+
-                esc2(t)+'</div>';
-            }).join('')+
-          '</div>'+
+        // Contents — a real table of contents with page numbers, filled in
+        // post-render from the actual (toggle-dependent) proposal pages.
+        '<div style="margin-top:22px;padding:14px 18px;background:var(--ed-paper-2);border-radius:9px;border:1px solid var(--ed-line)">'+
+          '<div class="ed-eyebrow" style="margin-bottom:10px">Contents</div>'+
+          '<div id="qpTocList" class="ed-toc"></div>'+
         '</div>'+
         // Meta footer — three columns, hairline divider
         '<div style="margin-top:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid var(--ed-line);padding-top:14px">'+
@@ -14150,6 +14187,7 @@ function refreshQuoteProposal(){
   if (lastClose !== -1) html = html.slice(0, lastClose) + footerHtml + html.slice(lastClose);
 
   root.innerHTML = html;
+  try { _qpNumberPagesAndToc(); } catch(e){}
   if (window.__CUSTOMER_MODE) {
     // The customer link is READ-ONLY. Strip every inline text editor so the
     // customer can't modify the quote — they only pick options (option
@@ -28607,8 +28645,15 @@ async function _buildQuotePdf(opts){
   // Page numbers — "Page N of M" centred in the bottom margin.
   try {
     var _pnTotal = (typeof pdf.getNumberOfPages === 'function') ? pdf.getNumberOfPages() : pdf.internal.getNumberOfPages();
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8.5); pdf.setTextColor(130,130,130);
-    for (var _pn = 1; _pn <= _pnTotal; _pn++){ pdf.setPage(_pn); pdf.text('Page ' + _pn + ' of ' + _pnTotal, pageW/2, pageH - 4.5, { align:'center' }); }
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(12); pdf.setTextColor(90,90,90);
+    for (var _pn = 1; _pn <= _pnTotal; _pn++){ pdf.setPage(_pn);
+      // bigger page number with a smaller "of M" beside it
+      var _big = String(_pn), _sm = '  of ' + _pnTotal;
+      var _bw = pdf.getTextWidth(_big);
+      pdf.setFontSize(12); pdf.text(_big, pageW/2 - _bw/2, pageH - 5, { align:'left' });
+      pdf.setFontSize(8.5); pdf.text(_sm, pageW/2 - _bw/2 + _bw, pageH - 5, { align:'left' });
+    }
+    pdf.setFont('helvetica','normal');
     pdf.setTextColor(0,0,0);
   } catch(e){ console.warn('Quote page-number stamp failed:', e); }
   return pdf;
