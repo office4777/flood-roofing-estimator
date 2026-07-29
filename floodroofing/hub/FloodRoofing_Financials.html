@@ -981,24 +981,13 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="note" id="bank-note"></div>
     </div>
     <div class="card per-3mo acc-card">
-      <div class="ct">Whole-business cash — 13 weeks <span class="period-sub" style="margin-left:auto;">all accounts</span></div>
+      <div class="ct">Whole-business cash — 13 weeks <span class="hbtn" onclick="showHelp('cfweekly')" title="What's this?">?</span> <span class="period-sub" style="margin-left:auto;">all accounts</span></div>
       <div class="hero" style="padding:4px 0 8px;"><div class="big" id="cfw-low" style="font-size:2.4rem;">—</div><div class="unit" id="cfw-low-unit">lowest projected total cash</div></div>
+      <div class="fld" style="margin:2px 0 10px;"><label>Weekly outgoings — wages + overheads + loans (blank = Xero avg)</label><input id="cf-wkout" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"><div class="note" id="cf-wkout-note" style="margin-top:5px;"></div></div>
       <details class="cfold"><summary class="cfsum">Weekly breakdown <span class="period-sub">tap to show</span></summary>
-      <div class="tbl-wrap" style="max-height:46vh;overflow:auto;"><table class="tb" id="cfw-tbl"><thead><tr><th>Week of</th><th style="text-align:right;">Open</th><th style="text-align:right;">In</th><th style="text-align:right;">Mat</th><th style="text-align:right;">A/P</th><th style="text-align:right;">Wages+OH</th><th style="text-align:right;">Close</th></tr></thead><tbody></tbody></table></div>
+      <div class="tbl-wrap" style="max-height:46vh;overflow:auto;"><table class="tb" id="cfw-tbl"><thead><tr><th>Week of</th><th style="text-align:right;">Open</th><th style="text-align:right;">In</th><th style="text-align:right;">Mat</th><th style="text-align:right;">A/P</th><th style="text-align:right;">GST</th><th style="text-align:right;">Wages+OH</th><th style="text-align:right;">Close</th></tr></thead><tbody></tbody></table></div>
       </details>
       <div class="note" id="cfw-note"></div>
-    </div>
-    <div class="card per-week acc-card">
-      <div class="ct">13-week projection <span class="hbtn" onclick="showHelp('cfweekly')" title="What's this?">?</span> <span class="period-sub" style="margin-left:auto;">weekly</span></div>
-      <div class="fld" style="margin:2px 0 10px;"><label>Weekly outgoings — wages + overheads + loans (blank = Xero avg)</label><input id="cf-wkout" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"><div class="note" id="cf-wkout-note" style="margin-top:5px;"></div></div>
-      <details class="cfold"><summary class="cfsum">Weekly table <span class="period-sub">tap to show</span></summary>
-      <div class="tbl-wrap"><table class="tb" id="cf-wk-tbl"><thead><tr><th>Week of</th><th style="text-align:right;">Opening</th><th style="text-align:right;">In</th><th style="text-align:right;">Out</th><th style="text-align:right;">Closing</th></tr></thead><tbody></tbody></table></div>
-      </details>
-    </div>
-    <div class="card per-last acc-card">
-      <div class="ct">6-month projection <span class="period-sub" style="margin-left:auto;">00 account</span></div>
-      <div class="tbl-wrap"><table class="tb" id="cf-tbl"><thead><tr><th>Month</th><th style="text-align:right;">Opening</th><th style="text-align:right;">In</th><th style="text-align:right;">Out</th><th style="text-align:right;">Closing</th></tr></thead><tbody></tbody></table></div>
-      <div class="note" id="cf-note"></div>
     </div>
     <div class="card acc-card">
       <div class="ct">Active jobs — expected payment date <span class="hbtn" onclick="showHelp('paycal')" title="What's this?">?</span> <span class="period-sub" style="margin-left:auto;">tap a day · scroll →</span></div>
@@ -1016,17 +1005,18 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     </div>
     <div class="card acc-card">
       <div class="ct">Settings</div>
-      <div class="fld" style="margin:2px 0 8px;"><label>Job money to 00 — % of sale (ex-GST)</label><input id="cf-oopct" type="number" inputmode="decimal" autocomplete="off" placeholder="40" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Job overrun allowance (%) <span class="hbtn" onclick="showHelp('overrun')" title="What's this?">?</span></label><input id="cf-overrun" type="number" inputmode="decimal" autocomplete="off" placeholder="20" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Finishing tail per job (days) <span class="hbtn" onclick="showHelp('tail')" title="What's this?">?</span></label><input id="cf-tail" type="number" inputmode="numeric" autocomplete="off" placeholder="3" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Final invoice paid N weeks after a job's scheduled finish</label><input id="cf-lag" type="number" inputmode="numeric" autocomplete="off" placeholder="3" onchange="saveCfCfg()"></div>
-      <div class="fld" style="margin:2px 0 8px;"><label>New work won / month ($ sale, optional)</label><input id="cf-new" type="number" inputmode="decimal" autocomplete="off" placeholder="0" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Monthly OPEX + wages out (blank = 6-mo Xero avg)</label><input id="cf-out" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"></div>
-      <div class="fld" style="margin:2px 0 8px;"><label>00 (OPEX) account name contains</label><input id="cf-ookw" type="text" autocomplete="off" autocapitalize="off" placeholder="00" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Total cash now — all accounts (blank = sum Xero banks)</label><input id="cf-open" type="number" inputmode="decimal" autocomplete="off" placeholder="auto" onchange="saveCfCfg()"></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Materials as % of a job's value <span class="hbtn" onclick="showHelp('matterms')" title="What's this?">?</span></label><input id="cf-matpct" type="number" inputmode="decimal" autocomplete="off" placeholder="50" onchange="saveCfCfg()"><div class="note" style="margin-top:4px;">Used to estimate still-to-buy materials for the cashflow + <b>Expected A/P</b> (same setting as Cash → deposit/materials %). Default 50%.</div></div>
       <div class="fld" style="margin:2px 0 8px;"><label>Materials ordered N weeks before a job finishes <span class="hbtn" onclick="showHelp('matterms')" title="What's this?">?</span></label><input id="cf-matlead" type="number" inputmode="numeric" autocomplete="off" placeholder="3" onchange="saveCfCfg()"><div class="note" style="margin-top:4px;">Materials are paid on the <b>20th of the month after they're ordered</b> (supplier terms), and existing A/P lands on the next 20th.</div></div>
-      <div class="fld" style="margin:2px 0 8px;"><label>Actual 00 balance right now (override, optional)</label><input id="cf-bal" type="number" inputmode="decimal" autocomplete="off" placeholder="blank = use Xero balance sheet" onchange="saveCfCfg()"></div>
+      <label style="display:flex;align-items:center;gap:9px;margin:12px 0 2px;font-size:.82rem;cursor:pointer;"><input id="cf-gst" type="checkbox" onchange="saveCfCfg()" style="width:18px;height:18px;"> Model GST (15%) <span class="hbtn" onclick="event.preventDefault();showHelp('gst')" title="What's this?">?</span></label>
+      <div class="note" style="margin:2px 0 8px;">On: estimates are grossed to GST-inclusive cash (to match Xero A/R + A/P) and a <b>net GST</b> payment to IRD is forecast — output GST on sales <b>less</b> the GST reclaimed on materials + supplier bills (COGS).</div>
+      <div class="fld" style="margin:2px 0 8px;"><label>GST return period — months (1 = monthly, 2 = two-monthly, 6 = six-monthly)</label><input id="cf-gstfreq" type="number" inputmode="numeric" autocomplete="off" placeholder="1" onchange="saveCfCfg()"></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>Weekly overheads that carry GST (excl. wages & loans)</label><input id="cf-gstoh" type="number" inputmode="decimal" autocomplete="off" placeholder="0" onchange="saveCfCfg()"><div class="note" style="margin-top:4px;">Adds the GST you reclaim on GST-able overheads (power, fuel, tools…). Leave blank to reclaim GST on materials + A/P only (slightly overstates GST owed).</div></div>
+      <div class="fld" style="margin:2px 0 8px;"><label>GST owed to IRD right now (override, optional)</label><input id="cf-gstnow" type="number" inputmode="decimal" autocomplete="off" placeholder="blank = read from Xero balance sheet" onchange="saveCfCfg()"><div class="note" style="margin-top:4px;">The current GST liability (for work already done) — settled on the next 28th. Blank = the GST account on the Xero balance sheet.</div></div>
       <label style="display:flex;align-items:center;gap:9px;margin:10px 0 2px;font-size:.82rem;cursor:pointer;"><input id="cf-autorecon" type="checkbox" onchange="saveCfCfg()" style="width:18px;height:18px;"> Auto-reconcile bank vs Xero <span class="hbtn" onclick="event.preventDefault();showHelp('autorecon')" title="What's this?">?</span></label>
       <div class="note" style="margin:2px 0 0;">When on (and your opening balance is the live bank feed), invoices that already show up as bank deposits are treated as received — so a payment that's in the bank but not yet reconciled in Xero isn't counted twice.</div>
       <div class="note" id="cf-cfg-note"></div>
@@ -1448,6 +1438,7 @@ const HELP={
   team:['Team mode',"Share one live dashboard with your office. Set the Team API URL and sign in; this device then loads the <b>same shared data + settings</b> as everyone else and pushes your changes back so the whole office stays in sync. A nightly auto-sync refreshes the data even if no one opens the app. Sign-in is per person (set up in the API's HUB_USERS). Leave the API URL blank to keep this device standalone. Your Fergus/Xero/bank keys still live only on the proxy — team mode just shares the computed dashboard."],
   bank:['Live bank (Akahu)',"Balances + recent transactions from Akahu via the proxy. <b>Important:</b> Akahu pulls balances from ANZ on <b>its own schedule (a few times a day)</b>, so a balance can trail what your ANZ app shows until Akahu next refreshes. The header shows the real <b>“as of” time</b> (Akahu’s last pull, oldest account) — if it’s stale it turns red and warns you; sync again later to pick up ANZ’s newer figure. The number shown is the <b>current/ledger</b> balance (ANZ’s big figure), not the “available” balance (which adds any arranged overdraft). <b>Tap any account to include or exclude it</b> from the forecast’s opening cash — only the ticked accounts are summed into “Total cash now”. Tax set-aside accounts are excluded by default so the forecast doesn’t count money you already owe IRD. Setup: add AKAHU_APP_TOKEN + AKAHU_USER_TOKEN to the proxy to switch it on."],
   cfweekly:['Weekly cashflow',"Weekly view of the same 13-week forecast — job finals land in their expected completion week; overheads and supplier bills spread across the weeks. Shows the low point so you can act early."],
+  gst:['GST (15%)',"The cash a customer pays is GST-inclusive, and so is every supplier bill — so the forecast grosses your ex-GST estimates up by 15% to match what actually moves through the bank (Xero A/R + A/P are already GST-inclusive). Then, on a <b>payments basis</b>, it forecasts the <b>net GST</b> you remit to IRD: the GST you collected on sales <b>less</b> the GST you reclaim on materials and supplier bills (COGS) plus any GST-able overheads you enter. The current GST already owed (from the Xero balance sheet) is settled on the next 28th; each forecast return period is paid the 28th after it ends. Monthly by default — set your real return period in Settings. Wages and loan repayments carry no GST."],
   paycal:['Payment calendar',"Tap the day you expect each job's final invoice to be <b>paid</b> — that's when the cash lands in the forecasts. The blue • is the auto estimate: remaining hours (padded for overrun) ÷ crew capacity, + a few days for finishing flashings, + your payment lag. A green ✓ is your own pick. This is the same calendar you get by tapping ✎ on a job in the dashboard's cashflow-forecast detail — a change here shows on the dashboard <b>and</b> the Cash tab and re-runs the forecast. Scroll sideways up to 6 months; the job stays pinned on the left. Tap the same day again to clear."],
   overrun:['Job overrun allowance',"Jobs usually run over, so remaining hours are padded by this % — finish dates aren't too optimistic, and the delay cascades to the jobs queued behind. Default 20%."],
   tail:['Finishing tail',"Small flashings are nearly always needed to close a job — a few days' wait after the main work. Added to each job's finish date (but not to the crew's next job). Default 3 days."],
@@ -3749,7 +3740,7 @@ function openCmdDetail(key){
     else{
       const wkl=ms=>{const d=new Date(ms);return 'wk of '+d.getDate()+' '+FG_MONTHS[d.getMonth()];};
       const dds=ms=>{const d=new Date(ms);return d.getDate()+' '+FG_MONTHS[d.getMonth()]+' '+String(d.getFullYear()).slice(2);};
-      const totIn=D.weekly.reduce((s,r)=>s+num(r.inn),0),totOut=D.weekly.reduce((s,r)=>s+num(r.mat)+num(r.ap)+num(r.burn),0);
+      const totIn=D.weekly.reduce((s,r)=>s+num(r.inn),0),totOut=D.weekly.reduce((s,r)=>s+num(r.mat)+num(r.ap)+Math.max(0,num(r.gst))+num(r.burn),0);
       const lowNeg=D.low<0;
       // hero + KPI strip
       const hero='<div class="cfx-hero"><div class="cfx-heromain"><div class="cfx-herobig" style="color:'+(lowNeg?'var(--danger)':'var(--success)')+';">'+fmtK(D.low)+'</div><div class="cfx-herosub">'+(lowNeg?'cash runs short · ':'lowest total cash · ')+esc(D.lowWk)+'</div></div>'+
@@ -3762,10 +3753,10 @@ function openCmdDetail(key){
       // in-bars: mini weekly close sparkline as bars, coloured by sign
       const closes=D.weekly.map(r=>num(r.close));const mx=Math.max(1,...closes.map(Math.abs));
       const bars='<div class="cfx-bars">'+D.weekly.map(r=>{const h=Math.round(Math.abs(num(r.close))/mx*46)+2;const neg=r.close<0;const d=new Date(r.ms);
-        return '<div class="cfx-bcol" '+tipAttr({t:wkl(r.ms),v:'Close '+fmtK(r.close)+' · in '+fmtK(r.inn)+' · out '+fmtK(num(r.mat)+num(r.ap)+num(r.burn))})+'><div class="cfx-bwrap"><div class="cfx-bar" style="height:'+h+'px;background:'+(neg?'var(--danger)':'#38bdf8')+';"></div></div><div class="cfx-blab">'+d.getDate()+'/'+(d.getMonth()+1)+'</div></div>';}).join('')+'</div>';
+        return '<div class="cfx-bcol" '+tipAttr({t:wkl(r.ms),v:'Close '+fmtK(r.close)+' · in '+fmtK(r.inn)+' · out '+fmtK(num(r.mat)+num(r.ap)+Math.max(0,num(r.gst))+num(r.burn))})+'><div class="cfx-bwrap"><div class="cfx-bar" style="height:'+h+'px;background:'+(neg?'var(--danger)':'#38bdf8')+';"></div></div><div class="cfx-blab">'+d.getDate()+'/'+(d.getMonth()+1)+'</div></div>';}).join('')+'</div>';
       // weekly table
-      const wtb=D.weekly.map(r=>'<tr'+(r.close===D.low?' class="tot"':'')+'><td>'+dds(r.ms)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inn?fmtK(r.inn):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.mat?'-'+fmtK(r.mat):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.ap?'-'+fmtK(r.ap):'—')+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.burn)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>');
-      const wtbl='<div class="tbl-wrap" style="max-height:none;overflow:auto;"><table class="tb"><thead><tr><th>Week of</th><th style="text-align:right;">Open</th><th style="text-align:right;">In</th><th style="text-align:right;">Mat</th><th style="text-align:right;">A/P</th><th style="text-align:right;">Wages+OH</th><th style="text-align:right;">Close</th></tr></thead><tbody>'+wtb.join('')+'</tbody></table></div>';
+      const wtb=D.weekly.map(r=>'<tr'+(r.close===D.low?' class="tot"':'')+'><td>'+dds(r.ms)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inn?fmtK(r.inn):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.mat?'-'+fmtK(r.mat):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.ap?'-'+fmtK(r.ap):'—')+'</td><td style="text-align:right;color:'+(num(r.gst)>0?'#fb923c':(num(r.gst)<0?'var(--success)':'var(--muted)'))+';">'+(num(r.gst)>0?'-'+fmtK(r.gst):(num(r.gst)<0?'+'+fmtK(-r.gst):'—'))+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.burn)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>');
+      const wtbl='<div class="tbl-wrap" style="max-height:none;overflow:auto;"><table class="tb"><thead><tr><th>Week of</th><th style="text-align:right;">Open</th><th style="text-align:right;">In</th><th style="text-align:right;">Mat</th><th style="text-align:right;">A/P</th><th style="text-align:right;">GST</th><th style="text-align:right;">Wages+OH</th><th style="text-align:right;">Close</th></tr></thead><tbody>'+wtb.join('')+'</tbody></table></div>';
       // job finals coming in — only those landing within the 13-week window
       const jobsAll=(D.jobs||[]).filter(j=>j.owing>0).sort((a,b)=>a.finPayMs-b.finPayMs);
       const jobs=jobsAll.filter(j=>j.inWin!==false),jobsBeyond=jobsAll.filter(j=>j.inWin===false);
@@ -3804,7 +3795,7 @@ function openCmdDetail(key){
         sec('Money coming in — A/R still expected ('+ar.length+')',artbl)+
         apSec+
         (rectbl?sec('✓ Already in the bank — auto-reconciled ('+rec.matches.length+')',rectbl+'<div class="note" style="margin:7px 2px 0;">These invoices match recent bank deposits, so they’re already in your opening balance and <b>excluded from the forecast</b> to avoid double-counting. Reconcile them in Xero when you can. Turn this off in <b>Cash → cashflow settings</b> if you’d rather match manually.</div>'):(rec.active?'':'<div class="note" style="margin:10px 2px 0;">Auto-reconcile runs when your opening balance is the <b>live bank feed</b>. Sync the bank on the Cash tab to catch invoices already paid but not yet reconciled in Xero.</div>'))+
-        '<div class="note" style="margin:12px 2px 2px;">Job finals paid <b>'+D.lag+' weeks</b> after each job’s scheduled finish · A/R paid <b>3 days past due</b> · materials (~'+Math.round(D.matPct*100)+'% of sale) paid the <b>20th of the month after ordering</b> · A/P at the next 20th · wages+overheads <b>'+fmtK(D.burnWk)+'/week</b>. Finish dates: <b>📅 sched</b> = your imported schedule, <b>picked</b> = you set it on the calendar, <b>est</b> = capacity estimate. Change any job’s date on the <b>Cash → payment calendar</b>.</div>';
+        '<div class="note" style="margin:12px 2px 2px;">Job finals paid <b>'+D.lag+' weeks</b> after each job’s scheduled finish · A/R paid <b>3 days past due</b> · materials (~'+Math.round(D.matPct*100)+'% of sale) paid the <b>20th of the month after ordering</b> · A/P at the next 20th · wages+overheads <b>'+fmtK(D.burnWk)+'/week</b>'+(D.gstOn?' · <b>net GST</b> to IRD ('+(D.gstFreq===1?'monthly':D.gstFreq+'-monthly')+') = GST on sales received less GST reclaimed on materials + supplier bills; current GST owed <b>'+fmtK(D.gstNow)+'</b>, ~'+fmtK(D.gstTot)+' over 13 wks':' · GST modelling off')+'. All figures GST-inclusive. Finish dates: <b>📅 sched</b> = your imported schedule, <b>picked</b> = you set it on the calendar, <b>est</b> = capacity estimate. Change any job’s date on the <b>Cash → payment calendar</b>.</div>'+(D.apRisk?'<div class="note" style="margin:8px 2px 2px;color:var(--danger);">⚠ Materials A/P ('+fmtK(D.apMat)+') exceeds materials costed to open jobs ('+fmtK(D.totAMat)+') — some supplier bills may not be job-costed, which can double-count materials. Cost every supplier bill to its Fergus job.</div>':'');
     }}
   else if(key==='bank'){
     title='Bank accounts — live';
@@ -4710,6 +4701,11 @@ function renderCash(){
   const apSplit=(apMaterials!=null);
   const apVal=apSplit?apMaterials:apBS;try{window.__apMat=apVal;}catch(e){}        // goods/COGS-only A/P when codes resolve, else full A/P
   const arVal=ar?ar.val:0;try{window.__arVal=arVal;window.__apTotal=apBS;}catch(e){}   // share AR + full A/P with the command centre
+  // Current GST owed to IRD (for work already done) — settled on the next 28th in the cashflow forecast.
+  // Xero shows GST as a Current Liability (owed) or Current Asset (refund); treat asset-side as a refund.
+  const gstR=find(/\bgst\b|goods and services tax/i);
+  const gstBal=gstR?((/asset/i.test(gstR.section||'')?-1:1)*Math.abs(num(gstR.val))):0;
+  try{window.__gstBal=gstBal;}catch(e){}
   const salesPos=Math.max(0,salesVal);   // 03 is a clearing account (~$0): count deposits waiting, never a negative
   const held=matVal+salesPos;
   const net=held-apVal;                          // left to refund customers (A/P-only view)
@@ -4904,6 +4900,10 @@ function saveCfCfg(){
   if(g('cf-matpct')&&(g('cf-matpct').value||'').trim()!=='')S.set('cashDepPct',(g('cf-matpct').value||'').trim());
   if(g('cf-apwk'))S.set('cfApWeeks',(g('cf-apwk').value||'').trim());
   if(g('cf-wkout'))S.set('cfWkOut',(g('cf-wkout').value||'').trim());
+  if(g('cf-gst'))S.set('cfGst',g('cf-gst').checked?'on':'off');
+  if(g('cf-gstfreq'))S.set('cfGstFreq',(g('cf-gstfreq').value||'').trim());
+  if(g('cf-gstoh'))S.set('cfGstOh',(g('cf-gstoh').value||'').trim());
+  if(g('cf-gstnow'))S.set('cfGstNow',(g('cf-gstnow').value||'').trim());
   if(g('cf-autorecon'))S.set('cfAutoRecon',g('cf-autorecon').checked?'on':'off');
   renderCashflow();
 }
@@ -5016,7 +5016,8 @@ function renderCashflow(){
   const set=(id,html,txt)=>{const e=document.getElementById(id);if(!e)return;if(txt!=null)e.textContent=txt;else e.innerHTML=html;};
   const pop=(id,v)=>{const e=document.getElementById(id);if(e&&!e.value&&v!==''&&v!=null)e.value=v;};
   {const ar=document.getElementById('cf-autorecon');if(ar)ar.checked=S.get('cfAutoRecon','on')!=='off';}
-  pop('cf-oopct',S.get('cfOoPct','40'));pop('cf-lag',S.get('cfLag','3'));pop('cf-overrun',S.get('cfOverrun','20'));pop('cf-tail',S.get('cfTail','3'));pop('cf-new',S.get('cfNew',''));pop('cf-out',S.get('cfOut',''));pop('cf-ookw',S.get('cfOoKw','00'));pop('cf-bal',S.get('cfBal',''));pop('cf-open',S.get('cfOpenCash',''));pop('cf-matlead',S.get('cfMatLead',''));pop('cf-matpct',S.get('cashDepPct',''));pop('cf-apwk',S.get('cfApWeeks',''));pop('cf-wkout',S.get('cfWkOut',''));
+  {const gs=document.getElementById('cf-gst');if(gs)gs.checked=S.get('cfGst','on')!=='off';}
+  pop('cf-lag',S.get('cfLag','3'));pop('cf-overrun',S.get('cfOverrun','20'));pop('cf-tail',S.get('cfTail','3'));pop('cf-out',S.get('cfOut',''));pop('cf-open',S.get('cfOpenCash',''));pop('cf-matlead',S.get('cfMatLead',''));pop('cf-matpct',S.get('cashDepPct',''));pop('cf-apwk',S.get('cfApWeeks',''));pop('cf-wkout',S.get('cfWkOut',''));pop('cf-gstfreq',S.get('cfGstFreq','1'));pop('cf-gstoh',S.get('cfGstOh',''));pop('cf-gstnow',S.get('cfGstNow',''));
   // monthly outflow: 6-month avg of (opex + wages) from Xero, or a manual override
   let avgOut=0,nOut=0;for(let i=1;i<=6;i++){const x=xeroMonthly[calMonthKey(-i)];if(x){avgOut+=(x.burn!=null?num(x.burn):(num(x.opex)+num(x.wages)));nOut++;}}
   avgOut=nOut?avgOut/nOut:0;
@@ -5026,61 +5027,30 @@ function renderCashflow(){
   // P&L-based opex+wages average leaves out.
   const _wk=S.get('cfWkOut','');const wkOutManual=(_wk!==''&&!isNaN(parseFloat(_wk)));const wkOutVal=wkOutManual?parseFloat(_wk):0;
   const outflow=wkOutManual?(wkOutVal*52/12):(outManual?parseFloat(cfg2.out):avgOut);
-  // start balance: the 00 account from the balance sheet (synced on the Cash tab)
-  let ooRow=null;if(cash&&cash.rows){const k=cfg2.kw.toLowerCase();cash.rows.forEach(r=>{if(!r.summary&&r.name.toLowerCase().includes(k)&&ooRow==null)ooRow=r;});}
-  const balOv=parseFloat(S.get('cfBal',''));const haveOv=!isNaN(balOv);
-  const startBal=haveOv?balOv:(ooRow?num(ooRow.val):0);
-  // schedule active jobs by remaining hours against weekly capacity → finish month → inflow to 00
+  // GST (NZ 15%): the estimates below are ex-GST, but the cash a customer pays / you pay a supplier
+  // is GST-inclusive — so gross them up to match Xero A/R + A/P, then remit net GST to IRD (below).
+  const gstOn=S.get('cfGst','on')!=='off';
+  const GG=gstOn?1.15:1;            // ex-GST estimate → GST-inclusive cash
+  const GSTF=3/23;                  // GST portion within a GST-inclusive amount (15/115)
+  // schedule active jobs by remaining hours against weekly capacity → finish date → cash in
   const c=capacity();const weeklyCap=Math.max(1,c.perDay*5);
   const jobs=[...fwJobs];
   jobs.sort((a,b)=>Math.max(0,num(a.remaining))-Math.max(0,num(b.remaining)));
   const finOv=S.get('cfFinishOv',{})||{};
   const overF=1+(cfg2.overrun||0)/100;   // jobs run ~20% over → pad hours (cascades to jobs behind)
   const tailMs=Math.max(0,cfg2.tail||0)*86400000;   // ~3-day flashings tail on each job's own finish (doesn't hold up the crew)
-  let cumH=0;const inByMonth={},inByWeek={};const sched=[];
+  let cumH=0;const sched=[];
   jobs.forEach(j=>{const rem=Math.max(0,num(j.remaining));cumH+=rem*overF;   // pad hours for scheduling, keep true rem for display
     const compDate=new Date(Date.now()+(cumH/weeklyCap)*7*86400000+tailMs);   // capacity-based finish + flashings tail
     const picked=finOv[j.id]?new Date(finOv[j.id]+'T00:00:00'):null;
     const schMs=schedFinishFor(j.id,j.job);const schDate=schMs?new Date(schMs):null;   // imported schedule finish
     const finDate=picked||schDate||compDate;   // manual pick > imported schedule > capacity estimate
     const payDate=picked?picked:new Date(finDate.getTime()+Math.max(0,num(cfg2.lag))*7*86400000);
-    const key=FG_MONTHS[payDate.getMonth()]+'-'+payDate.getFullYear();
-    const wi=Math.floor((payDate.getTime()-Date.now())/(7*86400000));
-    const inflow=cfg2.oo/100*num(j.sale);
-    inByMonth[key]=(inByMonth[key]||0)+inflow;
-    if(wi>=0&&wi<13)inByWeek[wi]=(inByWeek[wi]||0)+inflow;else if(wi<0)inByWeek[0]=(inByWeek[0]||0)+inflow;
-    sched.push({id:String(j.id),job:j.job,priced:num(j.priced),actual:num(j.actual),rem,owing:Math.max(0,num(j.sale)-num(j.billed)),finDate,payDate,isOv:!!finOv[j.id],isSch:!finOv[j.id]&&!!schDate,inflow,sale:num(j.sale),aMat:num(j.aMat)});});
+    sched.push({id:String(j.id),job:j.job,priced:num(j.priced),actual:num(j.actual),rem,owing:Math.max(0,num(j.sale)-num(j.billed))*GG,finDate,payDate,isOv:!!finOv[j.id],isSch:!finOv[j.id]&&!!schDate,sale:num(j.sale),aMat:num(j.aMat)});});
   // keep the capacity-finish order — stable, so rows don't jump when a payment date is picked
-  // 6-month projection (current month + next 5)
-  const months=[];for(let i=0;i<6;i++)months.push(calMonthKey(i));
-  let bal=startBal;
-  const rows=months.map((k,idx)=>{const open=bal;const inflow=(inByMonth[k]||0)+(idx>=1?cfg2.oo/100*Math.max(0,num(cfg2.nw)):0);const close=open+inflow-outflow;bal=close;return {k,open,inflow,out:outflow,close};});
-  const minR=rows.reduce((m,r)=>(r.close<m.close?r:m),rows[0]||{close:0,k:''});
-  const neg=rows.find(r=>r.close<0);
-  // weekly projection (next 13 weeks): finals in their completion week, opex+wages spread evenly
-  const wOut=wkOutManual?wkOutVal:outflow*12/52;
-  let wbal=startBal;const wkRows=[];
-  for(let i=0;i<13;i++){const open=wbal;const inflow=(inByWeek[i]||0)+cfg2.oo/100*Math.max(0,num(cfg2.nw))*12/52;const close=open+inflow-wOut;wbal=close;wkRows.push({i,ds:new Date(Date.now()+i*7*86400000),open,inflow,out:wOut,close});}
-  const wneg=wkRows.find(r=>r.close<0);const wmin=wkRows.reduce((m,r)=>(r.close<m.close?r:m),wkRows[0]);
-  const wlab=d=>d.getDate()+' '+FG_MONTHS[d.getMonth()];
-  const haveXero=xeroMonthly&&Object.keys(xeroMonthly).length>0;
-  // hero
-  if(!haveXero&&!outManual){set('cf-hero',null,'—');set('cf-hero-unit',null,'lowest projected 00 balance');set('cf-hero-sub',null,'Sync Xero (Cash or P&L tab) so it can read overheads + wages.');}
-  else{
-    const headline=wneg?wneg.close:wmin.close;
-    set('cf-hero',null,fmtK(headline));
-    const hh=document.getElementById('cf-hero');if(hh)hh.style.color=headline>=0?'var(--success)':'var(--danger)';
-    set('cf-hero-unit',null,wneg?('00 runs short — wk of '+wlab(wneg.ds)):('lowest 00 balance · wk of '+wlab(wmin.ds)));
-    set('cf-hero-sub',null,'Out '+fmtK(wOut)+'/wk ('+(wkOutManual?'your weekly figure':(outManual?'manual':nOut+'-mo Xero avg'))+') · opening '+fmtK(startBal)+(haveOv?' (your figure)':' (Xero)')+' · '+cfg2.oo+'% → 00');
-  }
+  const wkBurn=wkOutManual?wkOutVal:outflow*12/52;
   set('cf-ts',null,(S.get('fw_last_sync','')?('Fergus '+S.get('fw_last_sync','')):''));
-  // projection table
-  const tb=document.querySelector('#cf-tbl tbody');
-  if(tb)tb.innerHTML=rows.map(r=>'<tr><td>'+esc(r.k)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+fmtK(r.inflow)+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.out)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
-  const wtb=document.querySelector('#cf-wk-tbl tbody');
-  if(wtb)wtb.innerHTML=wkRows.map(r=>'<tr><td>'+wlab(r.ds)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inflow?fmtK(r.inflow):'—')+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.out)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
-  set('cf-note',null,'00 (everyday) account: '+cfg2.oo+'% of each job in at completion · wages + overheads out. Opening '+(ooRow?fmtK(startBal):'$0 — set 00 keyword in Settings')+'.');
-  set('cf-wkout-note',null,(wkOutManual?('Using your figure: '+fmtK(wkOutVal)+'/week out (= '+fmtK(wkOutVal*52/12)+'/mo, incl. loans).'):('Using Xero avg '+fmtK(wOut)+'/week (excludes loan repayments). Enter a weekly figure to include loans + real overheads.'))+' 6-mo avg (Dec\u2013May): wages ~$19.1k/wk + overheads + loans, internal transfers removed = ~$32.4k/week.');
+  set('cf-wkout-note',null,(wkOutManual?('Using your figure: '+fmtK(wkOutVal)+'/week out (= '+fmtK(wkOutVal*52/12)+'/mo, incl. loans).'):('Using Xero avg '+fmtK(wkBurn)+'/week (excludes loan repayments). Enter a weekly figure to include loans + real overheads.'))+' 6-mo avg (Dec\u2013May): wages ~$19.1k/wk + overheads + loans, internal transfers removed = ~$32.4k/week.');
   set('cf-cfg-note',null,'Crew '+c.teams+'×'+c.size+'×'+c.hrs+'h · overheads+wages '+fmtK(avgOut)+'/mo (Xero avg).');
   // job completion schedule
   window.__cfSched=sched;   // shared with the dashboard pop-up calendar
@@ -5136,7 +5106,7 @@ function renderCashflow(){
     const finPayMs=s.finDate.getTime()+finLagMs;const finWk=wkBucket(finPayMs);
     if(finWk>=0&&s.owing>0)fIn[finWk]+=s.owing;                                      // final invoice within the window only
     const orderMs=s.finDate.getTime()-matLead*WK;                                    // materials ordered ~matLead weeks before finish
-    const stb=Math.max(0,matPct*num(s.sale)-num(s.aMat));                            // still-to-buy for this job
+    const stb=Math.max(0,matPct*num(s.sale)-num(s.aMat))*GG;                         // still-to-buy for this job, grossed to GST-inclusive cash
     const matPayMs=twentiethNextMonth(orderMs),matWk=wkBucket(matPayMs);
     if(matWk>=0&&stb>0)mOut[matWk]+=stb;                                             // …paid the 20th of the following month, if in-window
     if(stb>0){if(matPayMs===next20ms){apExp.next.mat+=stb;apExp.next.jobs.push({job:s.job,mat:stb});}
@@ -5159,19 +5129,46 @@ function renderCashflow(){
     cfArList.push({job:fj?fj.job:(a.name||('Job '+k)),jobNo:no,due:amt,payMs,wk,dueDate:dd,cleared,inWin:(wk>=0)});});
   // Existing supplier bills (A/P) — 20th-of-following-month terms → land at the next 20th
   apOut[clamp(wkIdx(nextTwentieth(NOW)))]+=apMat;
+  // ===== GST to IRD (payments basis, 15%) =====
+  // The cash in/out above is GST-inclusive. Each return period we remit OUTPUT GST (on sales
+  // received) LESS the INPUT GST we reclaim on GST-able purchases paid — materials + supplier A/P
+  // (COGS) + any GST-able overheads. The GST already owed (Xero balance sheet) settles the next
+  // 28th; each forecast period settles the 28th after it ends. Wages + loans carry no GST.
+  const gstFreq=Math.max(1,num(S.get('cfGstFreq','1'))||1);
+  const gstOh=Math.max(0,num(S.get('cfGstOh',''))||0);                                // weekly overheads that carry GST (excl wages/loans)
+  const gstNowOv=parseFloat(S.get('cfGstNow',''));
+  const gstNow=gstOn?(!isNaN(gstNowOv)?gstNowOv:num(window.__gstBal||0)):0;            // +owed to IRD, −refund due
+  const gstDue=[];for(let i=0;i<13;i++)gstDue[i]=0;
+  let gstNextMs=0;
+  if(gstOn){
+    const gstByMonth={};
+    for(let i=0;i<13;i++){const d=new Date(NOW+i*WK);const mk=d.getFullYear()+'-'+d.getMonth();
+      const outG=fIn[i]*GSTF, inG=(mOut[i]+apOut[i]+gstOh)*GSTF;                       // output owed − input reclaimed
+      gstByMonth[mk]=(gstByMonth[mk]||0)+(outG-inG);}
+    const tnow=new Date(NOW),cY=tnow.getFullYear(),cM=tnow.getMonth();
+    const putDue=(ms,amt)=>{const wk=wkBucket(ms);if(wk>=0)gstDue[wk]+=amt;};
+    let n28=new Date(cY,cM,28).getTime();if(n28<NOW)n28=new Date(cY,cM+1,28).getTime();  // next occurring 28th
+    putDue(n28,gstNow);gstNextMs=n28;                                                 // current liability settles next 28th
+    let acc=0,cnt=0;                                                                  // forecast months, grouped into freq-month return periods
+    for(let k=0;k<=5;k++){const d=new Date(cY,cM+k,1);acc+=(gstByMonth[d.getFullYear()+'-'+d.getMonth()]||0);cnt++;
+      if(cnt>=gstFreq){putDue(new Date(d.getFullYear(),d.getMonth()+1,28).getTime(),acc);acc=0;cnt=0;}}
+  }
+  const gstTot=gstDue.reduce((a,b)=>a+Math.max(0,b),0);                               // GST paid out over the 13 weeks
+  const totAMat=sched.reduce((a,x)=>a+num(x.aMat),0);                                 // materials costed to open jobs in Fergus
+  const apRisk=(apMat>3000 && apMat>totAMat*1.15);                                    // materials A/P > job-costed materials → possible un-costed bills
   let wc=openCash;const wrows=[];
-  for(let i=0;i<13;i++){const open=wc;const close=open+fIn[i]-mOut[i]-apOut[i]-burnWk;wc=close;
-    wrows.push({ds:new Date(NOW+i*WK),open,inn:fIn[i],mat:mOut[i],ap:apOut[i],burn:burnWk,close});}
+  for(let i=0;i<13;i++){const open=wc;const close=open+fIn[i]-mOut[i]-apOut[i]-gstDue[i]-burnWk;wc=close;
+    wrows.push({ds:new Date(NOW+i*WK),open,inn:fIn[i],mat:mOut[i],ap:apOut[i],gst:gstDue[i],burn:burnWk,close});}
   const wlow=wrows.reduce((m,r)=>(r.close<m.close?r:m),wrows[0]);
   const wlab2=d=>d.getDate()+' '+FG_MONTHS[d.getMonth()];
   try{window.__cfLow=wlow.close;window.__cfLowWk=wlab2(wlow.ds);window.__cashNow=openCash;window.__burnMo=outflow;window.__cfWeekly=wrows.map(r=>({ds:r.ds,close:r.close}));
-    window.__cfDetail={weekly:wrows.map(r=>({ms:r.ds.getTime(),open:r.open,inn:r.inn,mat:r.mat,ap:r.ap,burn:r.burn,close:r.close})),jobs:cfJobs,ar:cfArList,openCash,burnWk,apMat,low:wlow.close,lowWk:wlab2(wlow.ds),lag:num(cfg2.lag),matPct,matLead,nSched:cfJobs.filter(j=>j.isSch).length,recon,apExp};}catch(e){}   // share with the command centre
+    window.__cfDetail={weekly:wrows.map(r=>({ms:r.ds.getTime(),open:r.open,inn:r.inn,mat:r.mat,ap:r.ap,gst:r.gst,burn:r.burn,close:r.close})),jobs:cfJobs,ar:cfArList,openCash,burnWk,apMat,gstOn,gstNow,gstTot,gstFreq,apRisk,totAMat,low:wlow.close,lowWk:wlab2(wlow.ds),lag:num(cfg2.lag),matPct,matLead,nSched:cfJobs.filter(j=>j.isSch).length,recon,apExp};}catch(e){}   // share with the command centre
   const lowEl=document.getElementById('cfw-low');if(lowEl){lowEl.textContent=fmtK(wlow.close);lowEl.style.color=wlow.close>=0?'var(--success)':'var(--danger)';}
   const luEl=document.getElementById('cfw-low-unit');if(luEl)luEl.textContent=(wlow.close>=0?'lowest total cash · wk of ':'cash runs short · wk of ')+wlab2(wlow.ds);
   const wtb2=document.querySelector('#cfw-tbl tbody');
-  if(wtb2)wtb2.innerHTML=wrows.map(r=>'<tr><td>'+wlab2(r.ds)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inn?fmtK(r.inn):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.mat?'-'+fmtK(r.mat):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.ap?'-'+fmtK(r.ap):'—')+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.burn)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
+  if(wtb2)wtb2.innerHTML=wrows.map(r=>'<tr><td>'+wlab2(r.ds)+'</td><td style="text-align:right;">'+fmtK(r.open)+'</td><td style="text-align:right;color:var(--success);">'+(r.inn?fmtK(r.inn):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.mat?'-'+fmtK(r.mat):'—')+'</td><td style="text-align:right;color:#fb923c;">'+(r.ap?'-'+fmtK(r.ap):'—')+'</td><td style="text-align:right;color:'+(r.gst>0?'#fb923c':(r.gst<0?'var(--success)':'var(--muted)'))+';">'+(r.gst>0?'-'+fmtK(r.gst):(r.gst<0?'+'+fmtK(-r.gst):'—'))+'</td><td style="text-align:right;color:#fb923c;">-'+fmtK(r.burn)+'</td><td style="text-align:right;font-weight:800;color:'+(r.close>=0?'var(--success)':'var(--danger)')+';">'+fmtK(r.close)+'</td></tr>').join('');
   const cwn=document.getElementById('cfw-note');
-  if(cwn)cwn.innerHTML='All accounts. In: <b>A/R</b> (invoiced, paid 3 days past due) + job finals paid '+num(cfg2.lag)+' wks after scheduled finish. Out: materials paid the 20th of the month after ordering, A/P ('+fmtK(apMat)+') at the next 20th, wages+overheads ('+fmtK(burnWk)+'/wk). Opening '+fmtK(openCash)+'. Excludes finance/tax.'+(recon.total>0?(' <b style="color:var(--success);">Auto-reconciled '+fmtK(recon.total)+'</b> already in the bank (paid, not yet in Xero) — not double-counted.'):'');
+  if(cwn)cwn.innerHTML='All accounts. In: <b>A/R</b> (invoiced, paid 3 days past due) + job finals paid '+num(cfg2.lag)+' wks after scheduled finish (GST-inclusive). Out: materials paid the 20th of the month after ordering, A/P ('+fmtK(apMat)+') at the next 20th, wages+overheads ('+fmtK(burnWk)+'/wk)'+(gstOn?(', and <b>net GST</b> to IRD ('+(gstFreq===1?'monthly':gstFreq+'-monthly')+', output − input on materials + A/P; ~'+fmtK(gstTot)+' over 13 wks · current GST '+fmtK(gstNow)+')'):'')+'. Opening '+fmtK(openCash)+'. Excludes other finance/tax.'+(recon.total>0?(' <b style="color:var(--success);">Auto-reconciled '+fmtK(recon.total)+'</b> already in the bank (paid, not yet in Xero) — not double-counted.'):'')+(apRisk?(' <b style="color:var(--danger);">⚠ Materials A/P ('+fmtK(apMat)+') exceeds materials costed to open jobs ('+fmtK(totAMat)+') — some supplier bills may not be job-costed, which can double-count materials. Cost every bill to its Fergus job.</b>'):'');
 }
 
 // ════════ NAV ════════
