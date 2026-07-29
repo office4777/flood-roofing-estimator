@@ -320,6 +320,23 @@ and the week it lands, tagged 📅 sched / picked / est by date source) and
 and flashes that job's row so you can pick a new payment date on the spot (a manual
 pick overrides the schedule/estimate).
 
+## Command-centre — Expected A/P on the 20th
+
+Supplier bills are paid on the **20th**, but Xero's A/P only shows bills that have been
+*invoiced and processed* — so it understates what you'll actually pay. The **Expected A/P**
+tile projects the next two 20ths (`window.__apExp`, built in `renderCashflow`):
+- **Current A/P** (already invoiced in Xero) lands on the **very next 20th**.
+- **Materials ordered on jobs but not yet invoiced/processed** — each active job's still-to-buy
+  materials (`matPct × sale − aMat`, i.e. estimated total materials minus what's already
+  recorded) — land on the **20th of the month after they're ordered** (order timing from the
+  schedule: finish − materials-lead). Because `aMat` is subtracted, bills already in Xero A/P
+  aren't double-counted.
+
+The tile shows the next 20th's total (`Current A/P + that month's materials`) with the
+following 20th in the sub-line (e.g. *"20 Aug $37k · then 20 Sep: $40k"*); if today is before
+the 20th, "next" is this month's 20th. Tapping it opens a per-20th breakdown (current A/P +
+each job's materials) with the double-count note.
+
 ## Command-centre live-bank tiles
 
 The command centre shows tap-through tiles for your **everyday bank accounts** — the
