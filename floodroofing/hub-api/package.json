@@ -1,0 +1,7 @@
+{
+  "name": "floodroofing-hub-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Team-mode API for the Flood Roofing Operations Hub: shared state store + shared login.",
+  "engines": { "node": ">=18" }
+}
