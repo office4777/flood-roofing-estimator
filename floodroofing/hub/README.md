@@ -315,8 +315,10 @@ out over 13 weeks, weekly burn), a sign-coloured 13-week bar strip, the
 Wages+OH / Close, with the low week highlighted), and two "money coming in"
 tables — **job finals** (each job, its finish date, the final-invoice amount
 and the week it lands, tagged 📅 sched / picked / est by date source) and
-**A/R already invoiced**. Each job's finish date can be changed on the
-Cash → payment calendar.
+**A/R already invoiced**. The **"Lands" cell on each job final is tappable** (✎):
+`editJobPayDate(id)` closes the modal, jumps to the **Cash → payment calendar**,
+and flashes that job's row so you can pick a new payment date on the spot (a manual
+pick overrides the schedule/estimate).
 
 ## Command-centre live-bank tiles
 
@@ -390,7 +392,12 @@ number** (`Job No` / `Job #` / …), a **site/address** (`Site` / `Address` / `C
 If no date header is found it falls back to whichever column parses as dates most often.
 Dates are flexible: ISO, `D/M/Y` (NZ day-first), or `4-Nov` / `30 Jul` / `Nov 4` — a
 missing year is inferred (a date more than ~3 months in the past rolls to next year,
-since schedule dates are finishes). Both importers parse **quoted CSV fields**
+since schedule dates are finishes). **Only finish dates within the next ~3 months are
+used** (`schedHorizonMs()`): anything further out is treated as tentative and dropped —
+those jobs fall back to the capacity estimate. This is enforced both at import (beyond-3-
+month rows are skipped and counted) and at lookup (`schedFinishFor` ignores stored dates
+past the horizon, so an older import self-corrects without re-importing). Both importers
+parse **quoted CSV fields**
 (`parseCSV`), so addresses containing commas are handled. Each job is matched to the
 forecast **by job number first, then by address substring**, and its finish date drives
 the final-invoice, materials and A/R timing (§ *Cashflow forecast*). A 📅 marks

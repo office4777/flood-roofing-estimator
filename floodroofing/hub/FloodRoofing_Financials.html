@@ -395,6 +395,10 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
 .cfx-sec{margin:16px 0;}
 .cfx-sect{font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:0 2px 7px;}
 .cfx-tag{display:inline-block;font-size:.58rem;font-weight:800;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:0 4px;vertical-align:middle;text-transform:none;letter-spacing:0;}
+.cfx-edit{color:var(--accent);cursor:pointer;white-space:nowrap;font-weight:600;}
+.cfx-edit:active{opacity:.6;}
+.cal-row-flash{animation:calflash 2.5s ease;}
+@keyframes calflash{0%,100%{background:transparent;}15%,60%{background:rgba(77,141,255,.22);}}
 /* Team-mode sign-in overlay */
 #team-login{display:none;position:fixed;inset:0;z-index:120;background:rgba(4,7,12,.9);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overflow-y:auto;padding:24px 16px;}
 #team-login.on{display:flex;align-items:center;justify-content:center;}
@@ -1064,7 +1068,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     </div>
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border);">
       <label style="display:block;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px;">Job schedule (cashflow finish dates)</label>
-      <p style="font-size:.76rem;color:var(--muted);margin-bottom:10px;line-height:1.6;">Export your active-jobs schedule as a <b>CSV</b> (from Excel: <i>File → Save As → CSV</i>) with a column for the <b>scheduled finish date</b> and, ideally, a <b>job number</b> or <b>site/address</b> to match on. The cashflow forecast then times each job's final invoice, materials and A/R off your real finish dates instead of the capacity estimate. Manual payment-day picks still override.</p>
+      <p style="font-size:.76rem;color:var(--muted);margin-bottom:10px;line-height:1.6;">Export your active-jobs schedule as a <b>CSV</b> (from Excel: <i>File → Save As → CSV</i>) with a column for the <b>scheduled finish date</b> and, ideally, a <b>job number</b> or <b>site/address</b> to match on. The cashflow forecast then times each job's final invoice, materials and A/R off your real finish dates instead of the capacity estimate. <b>Only dates within the next 3 months are used</b> — anything further out is treated as tentative and falls back to the estimate. Manual payment-day picks still override.</p>
       <div style="display:flex;gap:9px;">
         <button class="btn btn-o" style="flex:1;margin:0;" onclick="document.getElementById('sched-file').click()">⤒ Import schedule CSV</button>
         <button class="btn btn-o" style="flex:1;margin:0;" onclick="clearSchedule()">Clear</button>
@@ -1301,7 +1305,7 @@ function openConnect(){
   document.getElementById('in-opexexcl').value=S.get('opexExclKw','income tax');
   const st=document.getElementById('conn-status');st.className='';st.textContent='';
   const bs=document.getElementById('bar-import-status');if(bs&&barReport&&Object.keys(barReport).length)bs.textContent=Object.keys(barReport).length+' month(s) of exact hours loaded from the Business Activity Report.';
-  const ss=document.getElementById('sched-import-status');if(ss&&schedFinish){const n=Object.keys(schedFinish.byNo||{}).length+Object.keys(schedFinish.byAddr||{}).length;if(n)ss.textContent=n+' scheduled finish date(s) loaded'+(schedFinish.ts?(' — imported '+schedFinish.ts):'')+'.';}
+  const ss=document.getElementById('sched-import-status');if(ss&&schedFinish){const hz=schedHorizonMs();const vals=Object.values(schedFinish.byNo||{}).concat(Object.values(schedFinish.byAddr||{}));const n=vals.filter(m=>m&&m<=hz).length,far=vals.length-n;if(vals.length)ss.textContent=n+' finish date(s) within 3 months in use'+(far?(' · '+far+' further out ignored'):'')+(schedFinish.ts?(' — imported '+schedFinish.ts):'')+'.';}
   renderTeamStatus();
   document.getElementById('modal').classList.add('open');
 }
@@ -3503,6 +3507,19 @@ function ensureCmdModal(){
   document.body.appendChild(m);
 }
 function closeCmdDetail(){const m=document.getElementById('cmd-modal');if(m)m.classList.remove('open');document.body.style.overflow='';}
+// From the cashflow detail, jump to the Cash-tab payment-date picker for one job and highlight its row.
+function editJobPayDate(id){
+  closeCmdDetail();
+  try{go('cash');}catch(e){}
+  setTimeout(()=>{
+    const host=document.getElementById('cf-cal-scroll');
+    let row=null;if(host)host.querySelectorAll('.cal-row').forEach(x=>{if(x.getAttribute('data-jid')===String(id))row=x;});
+    if(!row){toast('Scroll to “Active jobs — expected payment date” and tap a day.','ok');return;}
+    row.scrollIntoView({block:'center'});
+    row.classList.add('cal-row-flash');setTimeout(()=>row.classList.remove('cal-row-flash'),2600);
+    toast('Tap a day on this job’s row to set its payment date.','ok');
+  },450);
+}
 function selRange(P,off){
   let s,e,label;
   if(P==='w'){s=mondayMs()-off*7*86400000;e=s+7*86400000;const d=new Date(s);label='week of '+d.getDate()+' '+FG_MONTHS[d.getMonth()];}
@@ -3598,7 +3615,7 @@ function openCmdDetail(key){
       const jobsAll=(D.jobs||[]).filter(j=>j.owing>0).sort((a,b)=>a.finPayMs-b.finPayMs);
       const jobs=jobsAll.filter(j=>j.inWin!==false),jobsBeyond=jobsAll.filter(j=>j.inWin===false);
       const jtot=jobs.reduce((s,j)=>s+j.owing,0);
-      const jrows=jobs.map(j=>'<tr><td>'+esc((j.job||'').slice(0,40))+(j.isOv?' <span class="cfx-tag" style="color:var(--accent);border-color:var(--accent);">picked</span>':(j.isSch?' <span class="cfx-tag" title="from your imported schedule">📅 sched</span>':' <span class="cfx-tag" style="opacity:.6;">est</span>'))+'</td><td style="text-align:right;">'+dds(j.finDate)+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(j.owing)+'</td><td style="text-align:right;color:var(--muted);">'+wkl(j.finPayMs)+'</td></tr>');
+      const jrows=jobs.map(j=>'<tr><td>'+esc((j.job||'').slice(0,40))+(j.isOv?' <span class="cfx-tag" style="color:var(--accent);border-color:var(--accent);">picked</span>':(j.isSch?' <span class="cfx-tag" title="from your imported schedule">📅 sched</span>':' <span class="cfx-tag" style="opacity:.6;">est</span>'))+'</td><td style="text-align:right;">'+dds(j.finDate)+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(j.owing)+'</td><td style="text-align:right;"'+(j.id?' class="cfx-edit" onclick="editJobPayDate(\''+esc(String(j.id))+'\')" title="Tap to change this payment date"':' style="color:var(--muted);"')+'>'+wkl(j.finPayMs)+(j.id?' ✎':'')+'</td></tr>');
       if(jrows.length)jrows.push('<tr class="tot"><td>Total ('+jobs.length+')</td><td></td><td style="text-align:right;">'+fmtK(jtot)+'</td><td></td></tr>');
       const beyondTot=jobsBeyond.reduce((s,j)=>s+j.owing,0);
       const beyondNote=jobsBeyond.length?'<div class="note" style="margin:7px 2px 0;">+ <b>'+jobsBeyond.length+'</b> job'+(jobsBeyond.length===1?'':'s')+' finishing beyond 13 weeks ('+fmtK(beyondTot)+' in finals) — not in this forecast. Earliest '+dds(jobsBeyond[0].finPayMs)+'.</div>':'';
@@ -3812,6 +3829,9 @@ function parseCSV(text){
 }
 // Import a schedule CSV: auto-detects the job-number / site / finish-date columns and stores per-job
 // finish dates that override the capacity estimate in the cashflow forecast (manual payment picks still win).
+// Schedule dates are only trusted up to ~3 months ahead — beyond that they're tentative
+// placements, so those jobs fall back to the capacity estimate instead.
+function schedHorizonMs(){const d=new Date();d.setMonth(d.getMonth()+3);return d.getTime();}
 function importSchedule(input){
   const f=input&&input.files&&input.files[0];if(!f)return;
   const rd=new FileReader();
@@ -3826,16 +3846,18 @@ function importSchedule(input){
     // Fallback: pick the column whose cells parse as dates most often
     if(dateCol<0){let best=-1,bestN=0;for(let c=0;c<hdr.length;c++){let n=0;for(let r=1;r<rows.length;r++)if(parseSchedDate(rows[r][c]))n++;if(n>bestN){bestN=n;best=c;}}if(bestN>0)dateCol=best;}
     if(dateCol<0)throw new Error('no date column found');
-    const byNo={},byAddr={};let matched=0;
+    const horizon=schedHorizonMs();
+    const byNo={},byAddr={};let matched=0,beyond=0;
     for(let r=1;r<rows.length;r++){const row=rows[r];const ms=parseSchedDate(row[dateCol]);if(!ms)continue;
+      if(ms>horizon){beyond++;continue;}                                  // more than 3 months out → too tentative, skip
       const no=noCol>=0?_jobNoDigits(row[noCol]):'';
       const addr=addrCol>=0?String(row[addrCol]||'').trim().toLowerCase():'';
       if(no){byNo[no]=Math.max(byNo[no]||0,ms);matched++;}
       if(addr){byAddr[addr]=Math.max(byAddr[addr]||0,ms);if(!no)matched++;}}
-    if(!matched)throw new Error('no rows with a job identifier + date');
+    if(!matched&&!beyond)throw new Error('no rows with a job identifier + date');
     schedFinish={byNo,byAddr,ts:new Date().toLocaleString('en-NZ')};S.set('schedFinish',schedFinish);
-    const st=document.getElementById('sched-import-status');if(st)st.textContent='Imported '+matched+' scheduled finish date'+(matched===1?'':'s')+' ✓ — cashflow now uses your schedule.';
-    toast('Schedule imported — '+matched+' job finish dates.','ok');renderCashflow();
+    const st=document.getElementById('sched-import-status');if(st)st.textContent='Imported '+matched+' finish date'+(matched===1?'':'s')+' within 3 months ✓'+(beyond?(' · '+beyond+' beyond 3 months skipped (they use the estimate)'):'')+'.';
+    toast('Schedule imported — '+matched+' job finish dates (next 3 months).','ok');renderCashflow();
   }catch(e){toast('Couldn’t read that schedule CSV: '+(e&&e.message||e),'err');}};
   rd.readAsText(f);
 }
@@ -3843,11 +3865,13 @@ function clearSchedule(){schedFinish={byNo:{},byAddr:{}};S.set('schedFinish',sch
 // Look up a job's scheduled finish (ms) from the imported schedule: by job number first, then by address substring.
 function schedFinishFor(id,jobName){
   if(!schedFinish)return null;
+  const horizon=schedHorizonMs();
+  const ok=ms=>(ms&&ms<=horizon)?ms:null;                                // only trust dates within 3 months
   const cj=(S.get('cashJobs',null)||[]).find(j=>String(j.id)===String(id));
   const no=cj?_jobNoDigits(cj.jobNo):'';
-  if(no&&schedFinish.byNo&&schedFinish.byNo[no])return schedFinish.byNo[no];
+  if(no&&schedFinish.byNo&&schedFinish.byNo[no])return ok(schedFinish.byNo[no]);
   const nm=String(jobName||(cj&&cj.job)||'').toLowerCase();
-  if(nm&&schedFinish.byAddr){for(const a in schedFinish.byAddr){if(a&&(nm.includes(a)||a.includes(nm)))return schedFinish.byAddr[a];}}
+  if(nm&&schedFinish.byAddr){for(const a in schedFinish.byAddr){if(a&&(nm.includes(a)||a.includes(nm)))return ok(schedFinish.byAddr[a]);}}
   return null;
 }
 function monthLoggedHrs(mk){
@@ -4730,7 +4754,7 @@ function renderCfCalendar(sched,finOv){
   const rows=(sched&&sched.length)?sched.map(s=>{
     const sel=finOv[String(s.id)]||'';
     const auto=(!s.isOv&&s.payDate)?ymd(s.payDate):'';
-    let r='<div class="cal-row"><div class="cal-job"><div class="cal-jn">'+esc((s.job||'').slice(0,46))+(s.isSch?' <span title="from your imported schedule" style="color:var(--accent);font-size:10px;">📅</span>':'')+'</div><div class="cal-js">'+fmtK(s.owing)+(s.rem>0?(' · '+fmtH(s.rem)+'h'):'')+'</div></div>';
+    let r='<div class="cal-row" data-jid="'+esc(String(s.id))+'"><div class="cal-job"><div class="cal-jn">'+esc((s.job||'').slice(0,46))+(s.isSch?' <span title="from your imported schedule" style="color:var(--accent);font-size:10px;">📅</span>':'')+'</div><div class="cal-js">'+fmtK(s.owing)+(s.rem>0?(' · '+fmtH(s.rem)+'h'):'')+'</div></div>';
     days.forEach(d=>{const k=ymd(d);const wknd=(d.getDay()===0||d.getDay()===6)?' cal-wknd':'';const td=k===todayY?' cal-today':'';
       const isSel=k===sel;const isAuto=!isSel&&k===auto;
       r+='<div class="cal-d cal-box'+wknd+td+(isSel?' cal-sel':'')+'" onclick="pickPayDay(\''+esc(String(s.id))+'\',\''+k+'\')">'+(isSel?'✓':(isAuto?'<span class="cal-dot">•</span>':''))+'</div>';});
@@ -4887,7 +4911,7 @@ function renderCashflow(){
     const stb=Math.max(0,matPct*num(s.sale)-num(s.aMat));                            // still-to-buy for this job
     const matPayMs=twentiethNextMonth(orderMs),matWk=wkBucket(matPayMs);
     if(matWk>=0&&stb>0)mOut[matWk]+=stb;                                             // …paid the 20th of the following month, if in-window
-    if(s.owing>0||stb>0)cfJobs.push({job:s.job,finDate:s.finDate.getTime(),isSch:s.isSch,isOv:s.isOv,owing:s.owing,finWk,finPayMs,stb,matWk,matPayMs,inWin:(finWk>=0)});});
+    if(s.owing>0||stb>0)cfJobs.push({id:s.id,job:s.job,finDate:s.finDate.getTime(),isSch:s.isSch,isOv:s.isOv,owing:s.owing,finWk,finPayMs,stb,matWk,matPayMs,inWin:(finWk>=0)});});
   // Existing A/R (invoices already sent): each paid 3 days after its due date — UNLESS the bank
   // feed shows it's already been received (paid but not yet reconciled in Xero), in which case the
   // money is already in the opening balance, so we don't forecast it again.
