@@ -253,6 +253,30 @@ If roofer figures don't appear, open **🔍 Debug a job** in the ModSpace card,
 enter a job number, and tap Check — it prints which time endpoint worked, the
 names + hours it found, and the matched roofers, so the mapping can be confirmed.
 
+**"Every job a roofer was on" (≥10% of hours):** the lead-roofer dropdown in
+**All Back Costing** no longer shows only the jobs someone *led* — pick a roofer
+and it lists every job where they were the lead **or** logged **≥10% of the total
+hours**. Each row shows that roofer's hours and share (e.g. `24h · 30%`).
+Per-job roofer hours come from each job's **full Fergus labour history** (the
+phases → Labour entries, complete history — not the ~1-week `/timeEntries` feed).
+`fergusJobHoursHistory()` reads every labour entry, matches its person to a roofer
+(`matchRoofer(entryUser(e))`) and writes the exact per-roofer hours + total for the
+job into `jobRooferHrs` / `jobRooferTot` (authoritative, overwritten per job). So a
+job worked months ago — e.g. Jacob's 65h on Dion Ashby's job back in June — is
+attributed correctly. **Run a Master refresh (or P&L → Reload full labour history)
+once to backfill** older jobs; the labour-history sync now re-pulls any job that has
+month data but no roofer data yet, so this is a one-time catch-up. The ~1-week feed
+still accumulates for brand-new jobs between full pulls. You can also tap **+ crew**
+under a job to add a roofer by hand (saved as `crewOverride`); manual tags show as
+blue chips with an `×` to remove. A roofer counts as "on" a job via lead, ≥10% auto
+share, or a manual tag.
+
+**Show/hide columns:** above the table, **▦ Columns** opens tick-boxes for every
+column (all on by default; Job is locked on). **Roofer view** hides the money
+columns (Sales, COGS, GP, GPM, GP/hr, NP, NP/hr) in one tap so you can show a
+roofer their jobs + hours without the financials; **Show all** restores them. The
+choice is saved per device (`bcColsHidden`).
+
 ## Monthly revenue/GP — spread by the job's FULL hours
 
 Each month gets `job value × (hours that month ÷ the job's full hours)`. The denominator
@@ -315,10 +339,35 @@ out over 13 weeks, weekly burn), a sign-coloured 13-week bar strip, the
 Wages+OH / Close, with the low week highlighted), and two "money coming in"
 tables — **job finals** (each job, its finish date, the final-invoice amount
 and the week it lands, tagged 📅 sched / picked / est by date source) and
-**A/R already invoiced**. The **"Lands" cell on each job final is tappable** (✎):
-`editJobPayDate(id)` closes the modal, jumps to the **Cash → payment calendar**,
-and flashes that job's row so you can pick a new payment date on the spot (a manual
-pick overrides the schedule/estimate).
+**A/R already invoiced**.
+
+The detail window also has a **"Money going out — Expected A/P (supplier bills)"**
+section (fed by `window.__apExp`, carried on `__cfDetail.apExp`) so the same figure
+you see in the standalone **Expected A/P** tile is visible *inside* the forecast and
+ties out: it itemises **Current A/P** (already invoiced in Xero, lands the next 20th)
+plus each active job's **still-to-buy materials** (≈ `cashDepPct` % of the job's value
+**less what's already recorded on the job**, `stb = max(0, matPct·sale − aMat)`),
+grouped by the 20th they land on. Those two lines are exactly the **Mat** + **A/P**
+columns of the week that contains that 20th — nothing is double-counted, because a
+job's already-recorded materials (`aMat`, which tracks what's been invoiced to the
+job) are subtracted from its still-to-buy estimate, and Current A/P is only the
+already-invoiced bills. So *estimated* materials never overlap *invoiced* ones.
+
+The **"Lands" cell on each job final is tappable** (✎):
+`editJobPayDate(id)` opens the **"Active jobs — expected payment date" calendar as a
+pop-up right there on the dashboard** (`openPayCal`), stacked over the forecast
+detail and focused on that job (its row flashes and scrolls to its date). You pick
+the real expected payment day without leaving the dashboard.
+
+The pop-up is the **same calendar** as the one on the Cash tab — both render via
+`renderCfCalendar(sched, finOv, hostId)` from the one shared store (`cfFinishOv`)
+and the one shared schedule (`window.__cfSched`). Each row shows the **auto-forecast
+date as a blue •** (remaining hours ÷ capacity + flashings tail + payment lag — the
+exact date the cashflow forecast uses) and **your pick as a green ✓**. A change in
+either place saves immediately and shows in both, and `pickPayDay` re-runs
+`renderCashflow()` so the **forecast updates too** (and the open pop-up / forecast
+detail refresh in place). A manual pick overrides the schedule/estimate; tap the
+same day again to clear it.
 
 ## Command-centre — Expected A/P on the 20th
 
@@ -519,6 +568,19 @@ counting them would overstate spendable cash. The card header shows "N of M acco
 forecast" and the full total across every account, so you always see the whole position
 too. `bankIncluded()` decides inclusion (explicit choice wins over the name default);
 `toggleBankAcct()` flips one and re-runs the forecast.
+
+**Balance freshness (why it can differ from your ANZ app).** Akahu pulls balances
+from ANZ on **its own schedule — a few times a day**, so a balance can trail what the
+ANZ app shows until Akahu next refreshes. The hub used to stamp the balances with the
+*hub's* fetch time and label them "live", which was misleading. It now reads each
+account's real `refreshed.balance` (Akahu's last pull from the bank) via
+`akahuRefreshedMs()` / `bankFreshness()` and shows the true **"as of" time** (the
+oldest account) in the header, on the command-centre tiles, and in the detail modal.
+If that's more than ~90 min old it turns **red** and a warning appears — sync again
+later to pick up ANZ's newer figure. The figure shown is the **current/ledger** balance
+(ANZ's headline number), *not* the "available" balance (which adds any arranged
+overdraft, so it reads higher). Nothing about the numbers themselves changed — only how
+honestly their age is reported.
 
 - **⟳ Refresh (recent + changed)** — the everyday one, a few seconds. Pulls the
   active workload, recent completed jobs for back-costing, the current Xero P&L
