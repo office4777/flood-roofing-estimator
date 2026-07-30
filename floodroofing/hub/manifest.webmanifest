@@ -1,0 +1,15 @@
+{
+  "name": "Finance Hub — Flood Roofing",
+  "short_name": "Finance Hub",
+  "description": "Flood Roofing finance hub — cashflow, jobs, back-costing and P&L.",
+  "start_url": "FloodRoofing_Financials.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1722",
+  "theme_color": "#0f1722",
+  "icons": [
+    { "src": "icon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "icon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "maskable" }
+  ]
+}
