@@ -1575,6 +1575,7 @@ async function syncWorkload(band){
         const _qs=(summary&&summary.quoteSummary)||{},_ci=(summary&&summary.costsIncurred)||{};
         const _ca=(summary&&summary.chargeableAmount)||{},_tb=(summary&&summary.totalBilled)||{};
         const pMat=num(_qs.materials);
+        const pLab=num(_qs.labour);   // priced labour cost (0 on fixed-price jobs — labour baked into the price)
         let aMat=num(_ci.materials);
         if(aMat<=0){const _tot=num(_ci.total),_lab=num(_ci.labour);if(_tot>_lab)aMat=_tot-_lab;}   // fallback: total − labour
         const jChg=num(_ca.total),jBilled=num(_tb.total);
@@ -1587,10 +1588,10 @@ async function syncWorkload(band){
         const jobName=client+(site?(' — '+site):'');
         const fin=isFinishedJob(job,summary);
         // EVERY active job (incl. heavily-billed ones) feeds the materials-still-to-buy forecast + earned P&L
-        allJobs.push({id:String(id),jobNo:String(job.jobNo||job.jobNumber||''),job:jobName,pMat,aMat,aLab,hActual:actual,hPriced:priced,sale,quoted:jQuoted,chg:jChg,billed:jBilled,status:job.status||'Active',fin,_lm:job.lastModified||''});
+        allJobs.push({id:String(id),jobNo:String(job.jobNo||job.jobNumber||''),job:jobName,pMat,pLab,aMat,aLab,hActual:actual,hPriced:priced,sale,quoted:jQuoted,chg:jChg,billed:jBilled,status:job.status||'Active',fin,_lm:job.lastModified||''});
         if(fin){excluded++;continue;} // fully invoiced = done → not backlog (but still in the forecast above)
         if(priced<=0)noPriced++;
-        out.push({id:String(id),job:jobName,priced,actual,remaining:Math.max(0,priced-actual),pMat,aMat,aLab,sale,quoted:jQuoted,chg:jChg,billed:jBilled,status:job.status||'Active'});
+        out.push({id:String(id),job:jobName,priced,actual,remaining:Math.max(0,priced-actual),pMat,pLab,aMat,aLab,sale,quoted:jQuoted,chg:jChg,billed:jBilled,status:job.status||'Active'});
       }
     }
     await Promise.all(Array.from({length:Math.min(4,total||1)},()=>jobWorker()));
@@ -2638,11 +2639,12 @@ function bcMonthWork(){
     const sale=num(j.quoted)||num(j.sale)||num(j.chg);if(sale<=0)return;
     const mh=_jobMonthHrs&&_jobMonthHrs[id];const loggedTot=mh?Object.values(mh).reduce((s,v)=>s+v,0):num(j.actual);
     if(loggedTot<=0){skipN++;return;}   // no hours logged yet → deposit only, don't count
-    // Estimated landing GP/hr from priced hours + the materials-up-to-quote rule (see landingEst),
-    // rather than a flat average margin — so each hour worked is valued at the job's own likely result.
-    const le=landingEst({sale,aLab:num(j.aLab),aMat:num(j.aMat),pMat:num(j.pMat),hActual:num(j.hActual),hPriced:num(j.hPriced),inProgress:true,ready:!!j.fin});
-    const rateHrs=le.hrs>0?le.hrs:Math.max(loggedTot,num(j.priced)||loggedTot);
-    jobs[id]={gp:le.gp,rateHrs,actual:loggedTot,fb:calMonthKey(0),est:true};estN++;});
+    // GP = the job's PRICED margin from Fergus (sale − priced materials − priced labour). GP/hr divides
+    // by priced hours while under them, else by actual hours (see monthGpJobs) — the same rule everywhere.
+    const jobGP=sale-num(j.pMat)-num(j.pLab);
+    const hP=num(j.hPriced),hA=num(j.hActual);
+    const rateHrs=Math.max(hP,hA,loggedTot)||1;
+    jobs[id]={gp:jobGP,rateHrs,actual:loggedTot,fb:calMonthKey(0),est:true};estN++;});
   const m={};
   Object.keys(jobs).forEach(id=>{const J=jobs[id];const gpHr=J.rateHrs>0?J.gp/J.rateHrs:0;
     let dist=null;const mh=_jobMonthHrs&&_jobMonthHrs[id];
@@ -2704,13 +2706,18 @@ function monthGpJobs(mk){
     if(j.status==='Completed'||j.fin)return;                     // finished → already counted from bcFergus
     const mh=_jobMonthHrs&&_jobMonthHrs[id];const hM=mh?num(mh[mk]):0;
     if(hM<=0)return;                                             // no hours logged in mk → skip
-    const e=landingEst({sale:num(j.quoted)||num(j.sale)||num(j.chg),aLab:num(j.aLab),aMat:num(j.aMat),pMat:num(j.pMat),hActual:num(j.hActual),hPriced:num(j.hPriced),inProgress:true,ready:!!j.fin});
-    if(e.rev<=0)return;seen[id]=1;
-    // Denominator = the FULL hours (landing estimate, but at least the dated hours already logged), so
-    // spreading can never allocate more than 100% of the job even if dated hours exceed the estimate.
+    const sale=num(j.quoted)||num(j.sale)||num(j.chg);
+    if(sale<=0)return;seen[id]=1;
+    // GP = the job's PRICED margin from Fergus (sale − priced materials − priced labour), NOT an
+    // invented-labour estimate — so a fixed-price job reads its real +margin, never a false loss.
+    const jobGP=sale-num(j.pMat)-num(j.pLab);
+    // GP/hr rule: while UNDER priced hours divide by PRICED hours; once actual passes priced, divide by
+    // the ACTUAL (logged) hours — which lowers GP/hr and, because every month shares that one rate,
+    // retroactively lowers earlier months as more hours get logged. (0 priced hours → use actual.)
+    const hP=num(j.hPriced),hA=num(j.hActual);
     const datedTotO=mh?Object.values(mh).reduce((s,v)=>s+num(v),0):0;
-    const denomO=Math.max(num(e.hrs),datedTotO)||1,revHrO=e.rev/denomO,gpHrO=e.gp/denomO;
-    const over=num(j.hPriced)>0&&num(j.hActual)>num(j.hPriced)*1.02;   // blown out = past priced hours
+    const denomO=Math.max(hP,hA,datedTotO)||1,revHrO=sale/denomO,gpHrO=jobGP/denomO;
+    const over=hP>0&&hA>hP*1.02;   // over priced hours → GP/hr now on actual hours
     rows.push({jobNo:String(j.jobNo||''),job:j.job||'',gp:gpHrO*hM,rev:revHrO*hM,hrs:hM,gpHr:gpHrO,est:true,over:over});
   });
   rows.sort((a,b)=>b.gp-a.gp);
@@ -3724,7 +3731,7 @@ function openCmdDetail(key){
       groupBarChart(bk.labels,[{name:'Revenue',color:'#4d8dff',vals:revV},{name:'Gross profit',color:'#4ade80',vals:gpV},{name:'OPEX',color:'#a78bfa',vals:opV},{name:'Net profit',color:'#ff8a52',vals:npV}],hiIdx<0?null:hiIdx,{step:50000})+
       cmdLegend([{label:'Revenue (earned)',color:'#4d8dff'},{label:'Gross profit',color:'#4ade80'},{label:'OPEX'+(anyOpex?'':' — sync Xero'),color:'#a78bfa'},{label:'Net profit',color:'#ff8a52'}])+
       '<div class="note" style="margin:6px 0 0;">Revenue &amp; GP are earned from Fergus by work done that month where the labour history is complete, otherwise the month falls back to your actual Xero P&amp;L; OPEX is your Xero overhead; Net profit = GP − OPEX.</div></div>';
-    body='<div class="note" style="margin:0 0 10px;">Live earned / estimated GP for every hour worked in '+esc(mk)+' — open jobs included. Each row’s <b>GP/hr</b> is that job’s profitability per hour worked <i>on it</i>; the <b>Total GP/hr</b> ('+fmt$(denH>0?est.tGp/denH:0)+') is the month’s whole-business rate = total GP ÷ <b>every</b> hour the guys were on the tools ('+fmtH(denH)+'h'+(allH>0?', from your Business Activity Report':'')+'), so it matches the dashboard card. Jobs still running are <b>EST</b> (landing GP/hr from priced hours). <b style="color:var(--danger);">⚠ OVER HRS</b> = the crew has passed the priced hours, so GP/hr is on the <b>actual</b> hours — the real (lower) profitability, not a flattered one'+(nEst?' · '+nEst+' estimated':'')+'.</div>'+
+    body='<div class="note" style="margin:0 0 10px;">Live earned / estimated GP for every hour worked in '+esc(mk)+' — open jobs included. Each row’s <b>GP/hr</b> is that job’s profitability per hour worked <i>on it</i>; the <b>Total GP/hr</b> ('+fmt$(denH>0?est.tGp/denH:0)+') is the month’s whole-business rate = total GP ÷ <b>every</b> hour the guys were on the tools ('+fmtH(denH)+'h'+(allH>0?', from your Business Activity Report':'')+'), so it matches the dashboard card. Each open job’s <b>GP</b> is its <b>Fergus priced margin</b> (sale − priced materials − priced labour). Jobs still running are <b>EST</b>: GP/hr = that GP ÷ its <b>priced hours</b> while under them. <b style="color:var(--danger);">⚠ OVER HRS</b> = the crew has passed the priced hours, so GP/hr switches to the <b>actual</b> hours — the real (lower) rate — and, since every month shares that rate, earlier months re-value down as more hours are logged'+(nEst?' · '+nEst+' estimated':'')+'.</div>'+
       wrap('<th>Job</th><th style="text-align:right;">GP</th><th style="text-align:right;">Hrs</th><th style="text-align:right;">GP/hr</th><th></th>',rr,'No jobs logged hours in '+esc(mk)+'. If that looks wrong, load dated labour history (⚙) then Refresh.')+
       chart;}
   else if(key==='ar'){title='Accounts receivable — invoiced, unpaid';
