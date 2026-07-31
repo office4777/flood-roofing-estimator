@@ -3585,6 +3585,10 @@ function renderCommand(){
   const wksBooked=(noMkt||revHr<=0)?{cur:null,prev:null,roll:null,roll6:null}:curRoll(accB.map(o=>(o.val/revHr)/weeklyCap));
   const wkBF=v=>String(Math.round(v*10)/10);
   const accSel=(!accB||revWon.sel<0)?null:accB[revWon.sel];
+  // Active jobs (booked, not yet 100% invoiced) — total sale value + how much is still to bill
+  const actJobs=(fwJobs||[]);
+  const actRev=actJobs.reduce((s,j)=>s+num(j.sale),0);
+  const actBilled=actJobs.reduce((s,j)=>s+num(j.billed),0);
   host.innerHTML=
     kbar('','Enquiries / '+pl,'#4d8dff',enq.cur,enq.prev,enq.roll,enq.roll6,intF,noMkt?'sync Mktg':('vs avg'+arrow(enq.cur,enq.roll)),'enq')+
     kbar('','Quotes sent / '+pl,'#a78bfa',snt.cur,snt.prev,snt.roll,snt.roll6,intF,noMkt?'sync Mktg':('vs avg'+arrow(snt.cur,snt.roll)),'quotes')+
@@ -3598,6 +3602,7 @@ function renderCommand(){
       const d=ms=>{const x=new Date(ms);return x.getDate()+' '+FG_MONTHS[x.getMonth()];};
       return tile('','Expected A/P · '+d(ax.next.ms),fmtK(tot),'','then '+d(ax.foll.ms)+': '+fmtK(num(ax.foll.mat)),'expap');})()+
     tile(wkCls,'Forward workflow',wkWeeks!=null?(Math.round(wkWeeks*10)/10+' wk'):'—','',fwJobs.length?(fwJobs.filter(j=>!fwDone[j.id]).length+' jobs booked'):'sync Fergus','fw')+
+    tile('','Active job revenue',actJobs.length?fmtK(actRev):'—','pos',actJobs.length?(actJobs.length+' active · '+fmtK(actBilled)+' invoiced'):'sync Fergus','activerev')+
     bankCmdTiles();
   const tg=document.getElementById('cmd-tog');
   if(tg)tg.innerHTML=
@@ -3739,6 +3744,20 @@ function openCmdDetail(key){
     let th=0;const rr=rows.map(r=>{th+=r.rem;return '<tr><td>'+esc((r.job||'').slice(0,40))+'</td><td style="text-align:right;">'+fmtH(r.rem)+'h</td><td style="text-align:right;color:var(--success);">'+fmtK(r.due)+'</td></tr>';});
     if(rr.length)rr.push('<tr class="tot"><td>Total ('+rows.length+')</td><td style="text-align:right;">'+fmtH(th)+'h</td><td></td></tr>');
     body=wrap('<th>Job</th><th style="text-align:right;">Remain</th><th style="text-align:right;">Due in</th>',rr,'No active jobs — Refresh Fergus.');}
+  else if(key==='activerev'){
+    title='Active jobs — revenue, invoicing & labour';
+    // Every active job not yet 100% invoiced, ordered by labour done vs priced (closest to finished first)
+    const js=(fwJobs||[]).map(j=>{const sale=num(j.sale),billed=num(j.billed),pr=num(j.priced),ac=num(j.actual);
+      return {job:j.job,jobNo:String(j.jobNo||'').replace(/\D/g,''),sale,billed,toInv:Math.max(0,sale-billed),pr,ac,pct:pr>0?ac/pr:0};})
+      .sort((a,b)=>b.pct-a.pct);
+    const tR=js.reduce((s,j)=>s+j.sale,0),tB=js.reduce((s,j)=>s+j.billed,0),tI=js.reduce((s,j)=>s+j.toInv,0);
+    const rr=js.map(j=>{const pc=Math.round(j.pct*100);const pcCol=pc>=90?'var(--success)':(pc>=50?'var(--accent)':'var(--muted)');
+      const eps=Math.max(50,j.sale*0.02);
+      const tag=j.billed<=eps?'<span class="mut" style="font-size:.58rem;font-weight:800;border:1px solid var(--border);border-radius:4px;padding:0 3px;">NOT INVOICED</span>':(j.toInv>eps?'<span style="font-size:.58rem;font-weight:800;color:var(--accent);">part-invoiced</span>':'<span style="font-size:.58rem;font-weight:800;color:var(--success);">invoiced</span>');
+      return '<tr><td>'+(j.jobNo?'<b>#'+esc(j.jobNo)+'</b> ':'')+esc((j.job||'').slice(0,32))+' '+tag+'</td><td style="text-align:right;">'+fmtK(j.sale)+'</td><td style="text-align:right;">'+(j.billed?fmtK(j.billed):'—')+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+(j.toInv?fmtK(j.toInv):'—')+'</td><td style="text-align:right;">'+fmtH(j.ac)+'/'+fmtH(j.pr)+'h</td><td style="text-align:right;font-weight:800;color:'+pcCol+';">'+pc+'%</td></tr>';});
+    if(rr.length)rr.push('<tr class="tot"><td>Total ('+js.length+')</td><td style="text-align:right;">'+fmtK(tR)+'</td><td style="text-align:right;">'+fmtK(tB)+'</td><td style="text-align:right;">'+fmtK(tI)+'</td><td></td><td></td></tr>');
+    body='<div class="note" style="margin:0 0 10px;">Every <b>active</b> job (not yet 100% invoiced), ordered by <b>labour done vs priced</b> so the jobs closest to finished are at the top. <b>Revenue</b> = the job’s sale price (ex-GST) · <b>Invoiced</b> = billed so far · <b>To invoice</b> = still to bill · <b>Hrs</b> = actual / priced labour.</div>'+
+      wrap('<th>Job</th><th style="text-align:right;">Revenue</th><th style="text-align:right;">Invoiced</th><th style="text-align:right;">To invoice</th><th style="text-align:right;">Hrs act/priced</th><th style="text-align:right;">Done</th>',rr,'No active jobs — Refresh Fergus.');}
   else if(key==='cf'){
     const D=window.__cfDetail;
     title='Cashflow forecast — next 13 weeks';
