@@ -2698,6 +2698,9 @@ function monthGpJobs(mk){
     else if(bcWorkMonth(r)===mk){hM=totH;denom=totH;}
     else return;
     if(hM<=0)return;seen[id]=1;
+    // Open/in-progress job with no reliable GP yet (Fergus hasn't computed a positive margin) →
+    // don't show $0; defer it to the month-average rate like any other unmeasurable job.
+    if(r._inProgress&&num(r.gp)<=0){deferred.push({jobNo:r._jobNo||'',job:r.job||'',hM:hM});return;}
     const gpHr=num(r.gp)/denom,revHr=num(r.sales)/denom;
     const over=num(r.h_priced)>0&&num(r.h_actual)>num(r.h_priced)*1.02;
     measured.push({jobNo:r._jobNo||'',job:r.job||'',gp:gpHr*hM,rev:revHr*hM,hrs:hM,gpHr:gpHr,est:!!r._inProgress,over:over});
@@ -2713,10 +2716,11 @@ function monthGpJobs(mk){
     if(hM<=0)return;seen[id]=1;                                  // no hours logged in mk → skip
     const sale=num(j.quoted)||num(j.sale)||num(j.chg);
     const hasQuote=num(j.quoted)>0, hasBreak=(num(j.pMat)>0||num(j.pLab)>0), hasPh=num(j.hPriced)>0;
-    if(sale>0&&hasQuote&&hasBreak&&hasPh){
+    const jobGP=sale-num(j.pMat)-num(j.pLab);
+    if(sale>0&&hasQuote&&hasBreak&&hasPh&&jobGP>0){
       // GP = priced margin (sale − priced materials − priced labour). GP/hr divides by priced hours while
       // under them; once actual passes priced, by actual hours — lowering the rate for every month.
-      const jobGP=sale-num(j.pMat)-num(j.pLab);
+      // A non-positive priced margin isn't a reliable per-job rate → fall through to the month average.
       const hP=num(j.hPriced),hA=num(j.hActual);
       const datedTotO=mh?Object.values(mh).reduce((s,v)=>s+num(v),0):0;
       const denomO=Math.max(hP,hA,datedTotO)||1;
