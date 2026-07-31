@@ -1186,7 +1186,7 @@ window.__teamHeadlessSync=async function(mode){
     await new Promise(r=>setTimeout(r,1500));
     const pushed=await teamPushNow();
     return {ok:true,pushed:!!pushed,mode:mode||'refresh'};
-  }catch(e){try{const pushed=await teamPushNow();return {ok:false,pushed:!!pushed,error:String(e&&e.message||e)};}catch(_){return {ok:false,pushed:false,error:String(e&&e.message||e)};}}
+  }catch(e){return {ok:false,pushed:false,error:String(e&&e.message||e)};}   // do NOT push a half-synced snapshot — keep the last good shared state
 };
 // ── Team-mode sign-in UI ──
 function teamApiSaved(){return (localStorage.getItem('fr3_hubApiUrl')||'').replace(/^"|"$/g,'').replace(/\/+$/,'').trim();}
@@ -1513,7 +1513,7 @@ async function masterRefresh(auto){
     // 1) active workload (also fetches all active jobs into `active` for back-costing)
     let active;
     try{active=await fergusPaginate('/jobs?pageSize=100&sortField=lastModified&sortOrder=desc&filterJobStatus=Active',20);}catch(e){active=[];}
-    await syncWorkload({lo:2,hi:22});
+    try{await syncWorkload({lo:2,hi:22});}catch(e){console.warn('master workload',e.message);}   // resilient: a Fergus hiccup must not abort the rest of the master
     // 2) back-cost ALL completed jobs (deep), not just the recent few
     syncProgress(24,'Back costing every job…');
     try{await syncBackCosting(active,frac=>syncProgress(24+30*frac,'Back costing (all)…'),true);}catch(e){console.warn('master bc',e.message);}
