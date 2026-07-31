@@ -1631,7 +1631,7 @@ function isExcl(v){const k=jobNoKey(v);return !!(k&&jobExcl[k]);}
 function toggleExcl(jobNo){const k=jobNoKey(jobNo);if(!k)return;if(jobExcl[k])delete jobExcl[k];else jobExcl[k]=1;S.set('jobExcluded',jobExcl);
   try{if(typeof renderCash==='function')renderCash();}catch(e){}   // recompute __arVal (headline AR) FIRST so the command-centre tile reads the fresh figure
   try{renderAll();}catch(e){}
-  try{if(window.__cmdKey&&document.getElementById('cmd-modal')&&document.getElementById('cmd-modal').classList.contains('open'))openCmdDetail(window.__cmdKey);}catch(e){}}
+  try{if(window.__cmdKey&&document.getElementById('cmd-modal')&&document.getElementById('cmd-modal').classList.contains('open'))openCmdDetail(window.__cmdKey,window.__cmdMk);}catch(e){}}
 // Cross-out helpers for ANY job table. exTR → the <tr class> for a crossed row (dim+strike via CSS);
 // exTD → a far-RIGHT cell holding the ✕ (cross out) / ↺ (restore) button. Jobs with no number get a
 // blank cell (nothing to cross). Header/total rows just add a matching empty <th></th> / <td></td>.
@@ -3696,9 +3696,9 @@ function selRange(P,off){
   const md=new Date(s);return {s,e,label,monthKey:FG_MONTHS[md.getMonth()]+'-'+md.getFullYear()};
 }
 function _dt(iso){const t=Date.parse(String(iso||'').replace(' ','T'));if(isNaN(t))return '—';const d=new Date(t);return d.getDate()+' '+FG_MONTHS[d.getMonth()]+' '+String(d.getFullYear()).slice(2);}
-function openCmdDetail(key){
+function openCmdDetail(key,optMk){
   ensureCmdModal();
-  window.__cmdKey=key;
+  window.__cmdKey=key;window.__cmdMk=optMk||null;
   const P=cmdPeriod,off=cmdOffset,sel=selRange(P,off),perW=P==='w'?'week':'month';
   const wrap=(head,rows,empty)=>rows.length?'<div class="tbl-wrap" style="max-height:64vh;overflow:auto;"><table class="tb"><thead><tr>'+head+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>':'<div class="empty">'+(empty||'Nothing here.')+'</div>';
   let title='',body='';
@@ -3721,7 +3721,7 @@ function openCmdDetail(key){
     if(rows.length)rows.push('<tr class="tot"><td>Total ('+acc.length+')</td><td style="text-align:right;">'+fmtK(totRev)+'</td><td style="text-align:right;">'+(rHr>0?(Math.round(totWk*10)/10+' wk'):'—')+'</td><td></td></tr>');
     body='<div class="note" style="margin:0 0 10px;">Quotes <b>accepted</b> this '+perW+'. <b>Weeks booked</b> converts each won quote’s value to labour hours at your real revenue/hr'+(rHr>0?(' ('+fmt$(rHr)+'/hr)'):'')+', ÷ weekly capacity ('+fmtH(wCap)+'h) — the same maths as Forward Workflow.</div>'+
       wrap('<th>Job / address</th><th style="text-align:right;">Won $</th><th style="text-align:right;">Weeks</th><th></th>',rows,'No quotes accepted this '+perW+'.');}
-  else if(key==='gp'){const mk=sel.monthKey;
+  else if(key==='gp'){const mk=optMk||sel.monthKey;
     const est=monthGpJobs(mk);                                   // finished + OPEN jobs, valued per hour worked in mk
     const rr=est.rows.map(r=>'<tr'+exTR(r.jobNo)+'><td>'+(r.jobNo?'<b>#'+esc(r.jobNo)+'</b> ':'')+esc((r.job||'').slice(0,36))+(r.avg?' <span class="mut" style="font-size:.58rem;font-weight:800;border:1px solid var(--border);border-radius:4px;padding:0 3px;" title="No fixed price / breakdown / priced hours — valued at the month’s average GP/hr">AVG</span>':(r.est?' <span class="mut" style="font-size:.62rem;font-weight:700;">EST</span>':''))+(r.over?' <span style="font-size:.6rem;font-weight:800;color:var(--danger);border:1px solid var(--danger);border-radius:4px;padding:0 3px;">⚠ OVER HRS</span>':'')+'</td><td style="text-align:right;">'+fmtK(r.gp)+'</td><td style="text-align:right;">'+fmtH(r.hrs)+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmt$(r.gpHr)+'</td>'+exTD(r.jobNo)+'</tr>');
     // Total GP/hr must divide by ALL hours the guys were on the tools (matches the dashboard card),
@@ -3936,7 +3936,7 @@ function gpScrollChart(labels,series,meta,step,colW){
     if(m.has){const t=(txt,col,dy)=>'<text x="'+cx.toFixed(1)+'" y="'+(pt+ih+18+dy)+'" text-anchor="middle" font-size="10" font-weight="700" fill="'+col+'">'+esc(txt)+'</text>';
       lb+=t('GP '+m.gp+'%','#4ade80',16)+t('OH '+(m.hasOp?m.opex+'%':'—'),'#a78bfa',30)+t('NP '+(m.hasOp?m.np+'%':'—'),m.npv>=0?'#ff8a52':'#f87171',44)+t(fmt$(m.gpHr)+'/hr','#38bdf8',58)+t(fmtH(m.hrs)+'h worked','var(--text)',72);}
     const obj={l:String(L),v:series.map(s=>({n:s.name,c:s.color,t:s.vals[i]==null?'—':fmtK(s.vals[i])})).concat(m.has?[{n:'Avg GP/hr',c:'#38bdf8',t:fmt$(m.gpHr)},{n:'Hours worked',c:'#94a3b8',t:fmtH(m.hrs)+'h'}]:[])};
-    hit+='<rect x="'+(colW*i).toFixed(1)+'" y="'+pt+'" width="'+colW+'" height="'+(ih+pb-16)+'" fill="transparent" pointer-events="all" '+tipAttr(obj)+'/>';});
+    hit+='<rect x="'+(colW*i).toFixed(1)+'" y="'+pt+'" width="'+colW+'" height="'+(ih+pb-16)+'" fill="transparent" pointer-events="all" '+(m.mk?('onclick="openCmdDetail(\''+'gp\',\''+m.mk+'\')" style="cursor:pointer;"'):tipAttr(obj))+'/>';});
   const plot='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" preserveAspectRatio="xMinYMin meet" style="display:block;">'+g+bars+lb+hit+'</svg>';
   return '<div style="display:flex;align-items:stretch;">'+axisSvg+'<div class="gpcard-scroll" style="overflow-x:auto;overflow-y:hidden;flex:1;-webkit-overflow-scrolling:touch;">'+plot+'</div></div>';
 }
@@ -4166,9 +4166,9 @@ function renderCommandVisuals(){
       inner=any?cmdChart(labs.map(l=>l.split(" ")[0]),series,'$')+cmdLegend(series)+'<div class="note" style="margin-top:6px;">Each point = trailing 3-month average. '+(xeroMode?'Revenue, GP &amp; net profit straight from your <b>Xero P&amp;L</b> (matches your accountant).':'Revenue &amp; GP earned from Fergus where the labour history is complete, else the month uses your actual Xero P&amp;L.')+' OPEX from Xero; Net profit = GP − OPEX.</div>':'<div class="empty">Sync Fergus back-costing.</div>';
     }else{pin='scroll ↔ · 12 mo';
       const meta=keys.map((k,i)=>{const rev=s.revV[i],gp=s.gpV[i],op=s.opV[i],hrs=s.hrsV[i];
-        if(!rev||rev<=0||gp==null)return {has:false};
+        if(!rev||rev<=0||gp==null)return {has:false,mk:k};
         const npv=op!=null?gp-op:0;
-        return {has:true,gp:Math.round(gp/rev*100),opex:op!=null?Math.round(op/rev*100):null,np:op!=null?Math.round(npv/rev*100):null,npv:npv,gpHr:hrs>0?gp/hrs:0,hrs:Math.round(hrs),hasOp:op!=null};});
+        return {has:true,mk:k,gp:Math.round(gp/rev*100),opex:op!=null?Math.round(op/rev*100):null,np:op!=null?Math.round(npv/rev*100):null,npv:npv,gpHr:hrs>0?gp/hrs:0,hrs:Math.round(hrs),hasOp:op!=null};});
       const availW=(host.clientWidth||window.innerWidth||900)-76,colW=Math.max(84,Math.min(280,Math.floor(availW/6)));   // ~6 months visible, then scroll
       inner=any?gpScrollChart(labs.map(l=>l.replace(" "," ")),[{name:'Revenue',color:COL[0],vals:s.revV},{name:'Gross profit',color:COL[1],vals:s.gpV},{name:'OPEX',color:COL[2],vals:s.opV},{name:'Net profit',color:COL[3],vals:s.npV}],meta,50000,colW)
         +cmdLegend([{label:'Revenue'+(xeroMode?' (Xero)':' (earned)'),color:COL[0]},{label:'Gross profit',color:COL[1]},{label:'OPEX'+(anyOpex?'':' — sync Xero'),color:COL[2]},{label:'Net profit',color:COL[3]}])
