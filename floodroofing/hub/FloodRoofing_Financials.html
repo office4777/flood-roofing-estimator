@@ -3697,7 +3697,7 @@ function openCmdDetail(key){
     // Rev / GP / OPEX bar chart across the last 12 months. Revenue + GP are earned from Fergus (each
     // hour worked valued at its job's real/estimated GP/hr); OPEX is the month's Xero overhead.
     const bk=bucketsMonthly(12);
-    const _s=gpCardSeries(bk.keys),revV=_s.revV,gpV=_s.gpV,opV=_s.opV,npV=_s.npV;   // earned where the Fergus history is complete, else actual Xero P&L
+    const _s=gpCardSeries(bk.keys,gpCardSrc),revV=_s.revV,gpV=_s.gpV,opV=_s.opV,npV=_s.npV;   // honours the dashboard Earned/Xero toggle; earned falls back to Xero where history is thin
     const hiIdx=bk.keys.indexOf(mk),anyOpex=opV.some(v=>v!=null);
     const chart='<div style="margin:6px 0 2px;"><div style="font-size:.68rem;color:var(--muted);font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin:0 0 5px;">Revenue · GP · OPEX · Net profit — last 12 months</div>'+
       groupBarChart(bk.labels,[{name:'Revenue',color:'#4d8dff',vals:revV},{name:'Gross profit',color:'#4ade80',vals:gpV},{name:'OPEX',color:'#a78bfa',vals:opV},{name:'Net profit',color:'#ff8a52',vals:npV}],hiIdx<0?null:hiIdx,{step:50000})+
@@ -3950,6 +3950,8 @@ function setCmdOffset(v){cmdOffset=v;renderCommand();}
 // Dashboard Revenue·GP·OPEX·NP card: smooth-scroll bars or a 3-month rolling trend line.
 let gpCardView='bars';
 function setGpView(v){gpCardView=v;renderCommandVisuals();}
+let gpCardSrc=S.get('gpCardSrc','earned');   // 'earned' = %-of-completion from Fergus (falls back to Xero where thin) · 'xero' = straight Xero P&L
+function setGpSrc(v){gpCardSrc=v;S.set('gpCardSrc',v);renderCommandVisuals();}
 // Total hours the guys logged in a month — every job, deduped. Fergus doesn't expose dated historical
 // time entries (per-phase endpoints 404; global /timeEntries is only ~1 week), so the reliable figure
 // is each job's FULL hours from its financialSummary, placed in its work-month. We only use the dated
@@ -4073,7 +4075,8 @@ function monthLoggedHrs(mk){
   for(const id in (_jobMonthHrs||{}))if(!seen.has(id)){seen.add(id);const v=_jobMonthHrs[id][mk];if(v)t+=num(v);}   // quote-stage etc.
   return t;}
 // Revenue / GP / OPEX / Net-profit / hours for a set of month keys (earned from Fergus + Xero overhead).
-function gpCardSeries(keys){const revV=[],gpV=[],opV=[],npV=[],hrsV=[],srcV=[];
+function gpCardSeries(keys,src){const revV=[],gpV=[],opV=[],npV=[],hrsV=[],srcV=[];
+  const forceXero=(src==='xero');   // when on, use straight Xero P&L for every month (no earned model)
   keys.forEach(k=>{
     const e=monthGpJobs(k);const xm=xeroMonthly[k];
     const xf=(xm&&typeof xeroFig==='function')?xeroFig(k):null;
@@ -4083,7 +4086,7 @@ function gpCardSeries(keys){const revV=[],gpV=[],opV=[],npV=[],hrsV=[],srcV=[];
     // collapses toward $0 even though hours were worked (Fergus only serves a limited labour window), so
     // GP%/OH%/NP% go nonsensical. When Xero has the real P&L and the earned figure captured little of it,
     // fall back to Xero's actual month so the chart is always trustworthy.
-    const earnedOk=(e.tRev>0)&&!(xr>0&&e.tRev<0.6*xr);
+    const earnedOk=!forceXero&&(e.tRev>0)&&!(xr>0&&e.tRev<0.6*xr);
     if(earnedOk){
       const gp=e.tGp;
       revV.push(Math.round(e.tRev));gpV.push(Math.round(gp));opV.push(op!=null?Math.round(op):null);
@@ -4108,13 +4111,15 @@ function renderCommandVisuals(){
   const panels=[];
   // 1 — Revenue · GP · OPEX · Net profit — smooth-scroll bars (GP/OH/NP% + avg GP/hr) OR 3-mo rolling trend
   {const now=new Date();const COL=['#4d8dff','#4ade80','#a78bfa','#ff8a52'];
-    const chips='<div class="chips" style="margin:0 0 8px;"><span class="chip'+(gpCardView==='bars'?' on':'')+'" onclick="setGpView(\'bars\')">Monthly bars</span><span class="chip'+(gpCardView==='trend'?' on':'')+'" onclick="setGpView(\'trend\')">3-mo rolling trend</span></div>';
+    const chips='<div class="chips" style="margin:0 0 8px;"><span class="chip'+(gpCardView==='bars'?' on':'')+'" onclick="setGpView(\'bars\')">Monthly bars</span><span class="chip'+(gpCardView==='trend'?' on':'')+'" onclick="setGpView(\'trend\')">3-mo rolling trend</span></div>'+
+      '<div class="chips" style="margin:0 0 8px;"><span class="chip'+(gpCardSrc==='earned'?' on':'')+'" onclick="setGpSrc(\'earned\')" title="Revenue recognised as the work is done (deposits not booked as income up-front); falls back to Xero where the Fergus history is thin">Earned</span><span class="chip'+(gpCardSrc==='xero'?' on':'')+'" onclick="setGpSrc(\'xero\')" title="Straight from your Xero P&amp;L — matches your accountant">Xero actual</span></div>';
+    const xeroMode=(gpCardSrc==='xero');
     const keys=[],labs=[];for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);labs.push(FG_MONTHS[d.getMonth()]+" '"+String(d.getFullYear()).slice(2));keys.push(calMonthKey(-i));}
-    const s=gpCardSeries(keys),any=s.revV.concat(s.gpV).some(v=>v!=null),anyOpex=s.opV.some(v=>v!=null);
+    const s=gpCardSeries(keys,gpCardSrc),any=s.revV.concat(s.gpV).some(v=>v!=null),anyOpex=s.opV.some(v=>v!=null);
     let inner,pin;
     if(gpCardView==='trend'){pin='3-mo rolling · 12 mo';
       const series=[{label:'Revenue',color:COL[0],vals:rollAvg(s.revV,3)},{label:'Gross profit',color:COL[1],vals:rollAvg(s.gpV,3)},{label:'OPEX',color:COL[2],vals:rollAvg(s.opV,3)},{label:'Net profit',color:COL[3],vals:rollAvg(s.npV,3)}];
-      inner=any?cmdChart(labs.map(l=>l.split(" ")[0]),series,'$')+cmdLegend(series)+'<div class="note" style="margin-top:6px;">Each point = trailing 3-month average. Revenue &amp; GP earned from Fergus where the labour history is complete, else the month uses your actual Xero P&amp;L; OPEX from Xero; Net profit = GP − OPEX.</div>':'<div class="empty">Sync Fergus back-costing.</div>';
+      inner=any?cmdChart(labs.map(l=>l.split(" ")[0]),series,'$')+cmdLegend(series)+'<div class="note" style="margin-top:6px;">Each point = trailing 3-month average. '+(xeroMode?'Revenue, GP &amp; net profit straight from your <b>Xero P&amp;L</b> (matches your accountant).':'Revenue &amp; GP earned from Fergus where the labour history is complete, else the month uses your actual Xero P&amp;L.')+' OPEX from Xero; Net profit = GP − OPEX.</div>':'<div class="empty">Sync Fergus back-costing.</div>';
     }else{pin='scroll ↔ · 12 mo';
       const meta=keys.map((k,i)=>{const rev=s.revV[i],gp=s.gpV[i],op=s.opV[i],hrs=s.hrsV[i];
         if(!rev||rev<=0||gp==null)return {has:false};
@@ -4122,8 +4127,8 @@ function renderCommandVisuals(){
         return {has:true,gp:Math.round(gp/rev*100),opex:op!=null?Math.round(op/rev*100):null,np:op!=null?Math.round(npv/rev*100):null,npv:npv,gpHr:hrs>0?gp/hrs:0,hrs:Math.round(hrs),hasOp:op!=null};});
       const availW=(host.clientWidth||window.innerWidth||900)-76,colW=Math.max(84,Math.min(280,Math.floor(availW/6)));   // ~6 months visible, then scroll
       inner=any?gpScrollChart(labs.map(l=>l.replace(" "," ")),[{name:'Revenue',color:COL[0],vals:s.revV},{name:'Gross profit',color:COL[1],vals:s.gpV},{name:'OPEX',color:COL[2],vals:s.opV},{name:'Net profit',color:COL[3],vals:s.npV}],meta,50000,colW)
-        +cmdLegend([{label:'Revenue (earned)',color:COL[0]},{label:'Gross profit',color:COL[1]},{label:'OPEX'+(anyOpex?'':' — sync Xero'),color:COL[2]},{label:'Net profit',color:COL[3]}])
-        +'<div class="note" style="margin-top:6px;">Under each month: GP / OPEX / Net-profit as a % of revenue, avg GP/hr (GP ÷ hours), and total hours worked. Revenue &amp; GP are earned from Fergus where the labour history is complete, otherwise the month falls back to your <b>actual Xero P&amp;L</b>. OPEX from Xero; Net profit = GP − OPEX.</div>':'<div class="empty">Sync Fergus back-costing'+(anyOpex?'':' + Xero')+'.</div>';
+        +cmdLegend([{label:'Revenue'+(xeroMode?' (Xero)':' (earned)'),color:COL[0]},{label:'Gross profit',color:COL[1]},{label:'OPEX'+(anyOpex?'':' — sync Xero'),color:COL[2]},{label:'Net profit',color:COL[3]}])
+        +'<div class="note" style="margin-top:6px;">Under each month: GP / OPEX / Net-profit as a % of revenue, avg GP/hr (GP ÷ hours), and total hours worked. '+(xeroMode?'Revenue, GP &amp; net profit are straight from your <b>Xero P&amp;L</b> — matches your accountant.':'Revenue &amp; GP are earned from Fergus where the labour history is complete, otherwise the month falls back to your <b>actual Xero P&amp;L</b>.')+' OPEX from Xero; Net profit = GP − OPEX.</div>':'<div class="empty">Sync Fergus back-costing'+(anyOpex?'':' + Xero')+'.</div>';
     }
     panels.push('<div class="cpanel wide"><div class="cpt">Revenue · GP · OPEX · Net profit <span class="pin">'+pin+'</span></div>'+chips+inner+'</div>');}
   // 2 — Sales: quotes sent + conversion rate (two charts side by side)
