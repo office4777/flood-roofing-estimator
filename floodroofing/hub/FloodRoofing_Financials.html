@@ -1624,9 +1624,9 @@ let jobExcl=S.get('jobExcluded',{});
 function jobNoKey(v){const raw=(v&&typeof v==='object')?(v.jobNo!=null?v.jobNo:v._jobNo):v;return String(raw==null?'':raw).replace(/\D/g,'');}
 function isExcl(v){const k=jobNoKey(v);return !!(k&&jobExcl[k]);}
 function toggleExcl(jobNo){const k=jobNoKey(jobNo);if(!k)return;if(jobExcl[k])delete jobExcl[k];else jobExcl[k]=1;S.set('jobExcluded',jobExcl);
-  try{renderAll();}catch(e){}try{if(typeof renderCash==='function')renderCash();}catch(e){}
-  try{if(window.__cmdKey&&document.getElementById('cmd-modal')&&document.getElementById('cmd-modal').classList.contains('open'))openCmdDetail(window.__cmdKey);}catch(e){}
-  try{const cm=document.getElementById('cash-modal');if(cm&&cm.classList.contains('open'))renderCash();}catch(e){}}
+  try{if(typeof renderCash==='function')renderCash();}catch(e){}   // recompute __arVal (headline AR) FIRST so the command-centre tile reads the fresh figure
+  try{renderAll();}catch(e){}
+  try{if(window.__cmdKey&&document.getElementById('cmd-modal')&&document.getElementById('cmd-modal').classList.contains('open'))openCmdDetail(window.__cmdKey);}catch(e){}}
 // Little ✕ / ↺ control + strike style for a job row. Pass the jobNo.
 function exCtl(jobNo){const k=jobNoKey(jobNo);if(!k)return {on:false,strike:'',btn:''};const on=!!jobExcl[k];
   return {on,strike:on?'text-decoration:line-through;opacity:.6;':'',
@@ -3587,7 +3587,7 @@ function renderCommand(){
   const gpHrSel=(gp.sel<0)?null:(P==='w'?((hrArr[gp.sel]!=null&&gphr>0)?gphr:null):((hrArr[gp.sel]&&hrArr[gp.sel]>0)?gpArr[gp.sel]/hrArr[gp.sel]:null));
   const c=capacity();const rem=Math.max(0,totalRemaining());const wkWeeks=(fwJobs&&fwJobs.length&&c.perDay>0)?rem/c.perDay/5:null;
   const ar=window.__arVal,ap=window.__apTotal;
-  const arN=(cash&&cash.arByJob)?Object.keys(cash.arByJob).length:0;
+  const arN=(cash&&cash.arByJob)?Object.keys(cash.arByJob).filter(k=>!isExcl(k)).length:0;
   const apN=(cash&&cash.apByCode)?Object.keys(cash.apByCode).length:0;
   const convCls=conv.cur==null?'':(conv.cur>=40?'ok':(conv.cur>=25?'warn':'crit'));
   const wkCls=wkWeeks==null?'':((wkWeeks<3||wkWeeks>12)?'warn':'ok');
@@ -3729,7 +3729,7 @@ function openCmdDetail(key){
       const tot=list.reduce((s,r)=>s+(isExcl(r.jobNo)?0:r.due),0);const nX=list.filter(r=>isExcl(r.jobNo)).length;
       const rows=list.map(r=>{const x=exCtl(r.jobNo);return '<tr'+(x.on?' style="opacity:.6;"':'')+'><td><span style="'+x.strike+'">'+(r.jobNo?'<b>#'+esc(r.jobNo)+'</b> ':'')+esc((r.job||'').slice(0,40))+'</span>'+x.btn+'</td><td style="text-align:right;'+x.strike+'color:var(--success);font-weight:700;">'+fmtK(r.due)+'</td></tr>';});
       if(rows.length)rows.push('<tr class="tot"><td>Total ('+(list.length-nX)+(nX?' · '+nX+' crossed out':'')+')</td><td style="text-align:right;">'+fmtK(tot)+'</td></tr>');
-      body='<div class="note" style="margin:0 0 10px;">Tap <b>✕</b> to cross out an invoice you don’t expect to collect — it drops from the cashflow forecast and job totals. (The headline <b>Accounts receivable</b> figure comes straight from the Xero balance sheet, so it only changes once the invoice is credited in Xero.)</div>'+
+      body='<div class="note" style="margin:0 0 10px;">Tap <b>✕</b> to cross out an invoice you don’t expect to collect (e.g. a deposit you’ll void) — it drops from the cashflow, job totals <b>and the headline Accounts receivable figure</b>. Remember to credit/void it in Xero too so your books match.</div>'+
         wrap('<th>Job</th><th style="text-align:right;">Owed</th>',rows,'No outstanding invoices 🎉');}}
   else if(key==='ap'){title='Accounts payable — owed to suppliers';
     const abc=(cash&&cash.apByCode)||null,accts=(cash&&cash.accounts)||{};
@@ -4768,7 +4768,8 @@ function renderCash(){
   if(apByCode&&apCodes.length){apMaterials=0;apCodes.forEach(c=>{if(apByCode[c])apMaterials+=num(apByCode[c].amt);});}
   const apSplit=(apMaterials!=null);
   const apVal=apSplit?apMaterials:apBS;try{window.__apMat=apVal;}catch(e){}        // goods/COGS-only A/P when codes resolve, else full A/P
-  const arVal=ar?ar.val:0;try{window.__arVal=arVal;window.__apTotal=apBS;}catch(e){}   // share AR + full A/P with the command centre
+  let arExcl=0;{const _arbX=(cash&&cash.arByJob)||{};Object.keys(_arbX).forEach(k=>{if(isExcl(k))arExcl+=num(_arbX[k].due);});}   // crossed-out invoices (e.g. a deposit to be voided)
+  const arVal=Math.max(0,(ar?ar.val:0)-arExcl);try{window.__arVal=arVal;window.__apTotal=apBS;}catch(e){}   // headline AR minus crossed-out invoices; share AR + full A/P with the command centre
   // Current GST owed to IRD (for work already done) — settled on the next 28th in the cashflow forecast.
   // Xero shows GST as a Current Liability (owed) or Current Asset (refund); treat asset-side as a refund.
   const gstR=find(/\bgst\b|goods and services tax/i);
