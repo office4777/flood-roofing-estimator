@@ -2715,12 +2715,15 @@ function monthGpJobs(mk){
     const mh=_jobMonthHrs&&_jobMonthHrs[id];const hM=mh?num(mh[mk]):0;
     if(hM<=0)return;seen[id]=1;                                  // no hours logged in mk → skip
     const sale=num(j.quoted)||num(j.sale)||num(j.chg);
-    const hasQuote=num(j.quoted)>0, hasBreak=(num(j.pMat)>0||num(j.pLab)>0), hasPh=num(j.hPriced)>0;
+    const hasQuote=num(j.quoted)>0, hasBreak=(num(j.pMat)>0||num(j.pLab)>0);
     const jobGP=sale-num(j.pMat)-num(j.pLab);
-    if(sale>0&&hasQuote&&hasBreak&&hasPh&&jobGP>0){
+    // A FIXED-PRICE job with a real margin gets its OWN GP/hr — even when it has no priced labour hours
+    // (on most fixed-price jobs Fergus bakes labour into the price, so priced labour = $0 and priced
+    // hours = 0). Requiring priced hours here wrongly dumped every such job into the month-average bucket.
+    if(sale>0&&hasQuote&&hasBreak&&jobGP>0){
       // GP = priced margin (sale − priced materials − priced labour). GP/hr divides by priced hours while
-      // under them; once actual passes priced, by actual hours — lowering the rate for every month.
-      // A non-positive priced margin isn't a reliable per-job rate → fall through to the month average.
+      // under them; once actual passes priced (or there were none), by the actual/logged hours — lowering
+      // the rate for every month. A non-positive priced margin isn't reliable → fall through to the average.
       const hP=num(j.hPriced),hA=num(j.hActual);
       const datedTotO=mh?Object.values(mh).reduce((s,v)=>s+num(v),0):0;
       const denomO=Math.max(hP,hA,datedTotO)||1;
