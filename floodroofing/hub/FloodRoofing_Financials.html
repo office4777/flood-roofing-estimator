@@ -2585,15 +2585,20 @@ async function syncLabourHistory(opt){
   if(!fergusProxyUrl()&&!fergusKey()){if(!opt.band)openConnect();return {hit:0,total:0};}
   const cache=S.get('jobLabourSync',{});
   const seen=new Set(),cand=[];
-  const add=(id,lm)=>{id=String(id);if(!id||id==='null'||id==='undefined'||seen.has(id))return;seen.add(id);cand.push({id,lm:lm||''});};
-  (S.get('cashJobs',null)||[]).forEach(j=>{if(j.id!=null)add(j.id,j._lm);});
-  if(opt.master)(bcFergus||[]).forEach(r=>{if(r._fergus_id)add(r._fergus_id,r._lastModified);});
+  const add=(id,lm,totH)=>{id=String(id);if(!id||id==='null'||id==='undefined'||seen.has(id))return;seen.add(id);cand.push({id,lm:lm||'',totH:num(totH)||0});};
+  (S.get('cashJobs',null)||[]).forEach(j=>{if(j.id!=null)add(j.id,j._lm,Math.max(num(j.hActual),num(j.actual)));});
+  if(opt.master)(bcFergus||[]).forEach(r=>{if(r._fergus_id)add(r._fergus_id,r._lastModified,bcHrs(r));});
   // Skip jobs we already pulled whose lastModified hasn't moved — for BOTH modes. This is what makes
   // master resumable: if it was interrupted, re-running skips everything already done. Master just
   // covers a wider set of jobs (active + back-costed) than the everyday pass (active only).
   // re-pull if we've never pulled it, if it changed, OR if we have month data but no per-roofer data
   // yet (one-time backfill so the "was on" filter works for jobs pulled before roofer capture existed)
-  const list=cand.filter(j=>!_jobMonthHrs[j.id]||!_jobRooferTot[j.id]||!j.lm||cache[j.id]!==j.lm);
+  const datedTotOf=id=>{const mh=_jobMonthHrs[id];return mh?Object.values(mh).reduce((s,v)=>s+num(v),0):0;};
+  const list=cand.filter(j=>!_jobMonthHrs[j.id]||!_jobRooferTot[j.id]||!j.lm||cache[j.id]!==j.lm
+    // Master self-heal: if a job's dated month-split doesn't cover ~its real hours, its history is
+    // missing/incomplete (e.g. all hours lumped into the invoice month, so earlier work-months drop it).
+    // Force a full re-pull so the split becomes month-accurate. Master-only to avoid re-pull thrash.
+    ||(opt.master&&j.totH>0&&datedTotOf(j.id)<0.6*j.totH));
   const total=list.length;
   const btn=document.getElementById('epl-lh-btn');
   if(!opt.band&&!total){toast(opt.master?'Sync Fergus first, then load labour history.':'Labour history already up to date ✓',opt.master?'err':'ok');return {hit:0,total:0};}
