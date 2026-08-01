@@ -1293,6 +1293,7 @@ function proxyUrl(svc,fullPath){
   if(qi>=0)fullPath.slice(qi+1).split('&').forEach(pair=>{if(!pair)return;const eq=pair.indexOf('=');const k=eq>=0?pair.slice(0,eq):pair;const v=eq>=0?pair.slice(eq+1):'';u+='&'+encodeURIComponent(k)+'='+encodeURIComponent(v);});
   return u;
 }
+const _fgSleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function fergusApiFetch(path){
   const proxy=fergusProxyUrl();
   const key=fergusKey();
@@ -1307,13 +1308,24 @@ async function fergusApiFetch(path){
   }
   if(!attempts.length)throw new Error('NO_PROXY');
   for(const a of attempts){
-    try{
-      const res=await a();const body=await res.text();
+    // Fergus rate-limits bursts with HTTP 429 (and occasionally 503). Without this, a master sync's
+    // parallel labour-history pulls all fail the instant throttling starts and the month's data is lost.
+    // Back off (honouring Retry-After when sent) and retry the SAME endpoint before giving up.
+    for(let tries=0;;tries++){
+      let res;
+      try{res=await a();}
+      catch(e){
+        if(/Failed to fetch|NetworkError|CORS|ERR_CONNECTION|ERR_NETWORK|Load failed/i.test(e.message))break; // dead endpoint → try next (proxy→local→direct)
+        throw e;
+      }
+      if((res.status===429||res.status===503)&&tries<7){
+        const ra=parseFloat(res.headers&&res.headers.get&&res.headers.get('Retry-After'));
+        const waitMs=(isFinite(ra)&&ra>0)?Math.min(30000,ra*1000):Math.min(20000,600*Math.pow(2,tries))+Math.floor(Math.random()*400);
+        await _fgSleep(waitMs);continue;
+      }
+      const body=await res.text();
       if(res.ok){try{return body?JSON.parse(body):{};}catch(e){throw new Error('Bad JSON from Fergus: '+body.slice(0,160));}}
       throw new Error('HTTP '+res.status+': '+(body||res.statusText||'').slice(0,180));
-    }catch(e){
-      if(/Failed to fetch|NetworkError|CORS|ERR_CONNECTION|ERR_NETWORK|Load failed/i.test(e.message))continue;
-      throw e;
     }
   }
   throw new Error('PROXY_NEEDED');
