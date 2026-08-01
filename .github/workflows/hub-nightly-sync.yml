@@ -9,11 +9,6 @@ on:
   schedule:
     # 12:00 UTC = midnight NZST (winter) / 1am NZDT (summer) — runs EVERY night.
     - cron: '0 12 * * *'
-  # Temporary manual trigger: touching .github/SYNC_TRIGGER on main fires a master sync
-  # (workflow_dispatch is blocked for the integration). Reverted right after the run.
-  push:
-    branches: [main]
-    paths: ['.github/SYNC_TRIGGER']
   workflow_dispatch:
     inputs:
       mode:
