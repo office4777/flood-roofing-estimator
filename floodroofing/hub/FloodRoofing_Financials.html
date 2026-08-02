@@ -1519,6 +1519,7 @@ async function refreshAll(){
     await syncXeroMonthly({lo:64,hi:84});
     syncProgress(86,'Cash…');
     try{await syncCash();}catch(e){}        // Xero balance sheet + AR/AP so the Cash tab stays current too
+    try{await syncBank();}catch(e){}        // live Akahu bank balances (no-op if Akahu isn't configured on the proxy)
     syncProgress(92,'Marketing…');
     try{await syncMarketing();}catch(e){}   // keep the dashboard's enquiries/quotes/conversion current too
     syncProgressDone('Synced ✓');
@@ -1550,6 +1551,7 @@ async function masterRefresh(auto){
     // 5) cash (Xero balance sheet + AR/AP) + marketing
     syncProgress(90,'Cash…');
     try{await syncCash();}catch(e){console.warn('master cash',e.message);}
+    try{await syncBank();}catch(e){console.warn('master bank',e.message);}   // live Akahu bank balances (no-op if Akahu not configured on the proxy)
     syncProgress(94,'Marketing…');
     try{await syncMarketing();}catch(e){}
     S.set('masterSyncMs',Date.now());
