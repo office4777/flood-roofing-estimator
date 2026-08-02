@@ -3445,10 +3445,24 @@ function earnedRecon(){
 // full contract (with its real final GP, incl. subbies/dump fees). An in-progress job recognises
 // only % complete = costs to date ÷ total estimated cost — so a job that's mostly a 50% deposit with
 // little work done does NOT book its full sales.
-function rowEarned(r){
+function rowEarned(r,cash){
   const sale=num(r.sales);if(sale<=0)return {rev:0,mat:0,lab:0,cost:0,gp:0};
   const mat=num(r.a_mat),lab=num(r.a_lab);
   if(!r._inProgress){const gp=num(r.gp);return {rev:sale,mat,lab,cost:sale-gp,gp};}
+  // In-progress → recognise by the PRICED-MARGIN model (same as monthGpJobs / the GP-jobs view): % complete
+  // by labour hours (actual ÷ priced), revenue = % × contract, COGS = % × priced costs, GP = % × priced
+  // margin. Sourced from the reliable active-jobs breakdown; falls back to cost-to-cost POC when there's none.
+  const j=cash&&cash[String(r._fergus_id)];
+  const pm=j?num(j.pMat):0, pl=j?num(j.pLab):0;
+  const cSale=j?(num(j.quoted)||num(j.sale)||num(j.chg)||sale):sale;
+  const pricedMargin=cSale-pm-pl;
+  const hP=j?num(j.hPriced):num(r.h_priced), hA=Math.max(num(r.h_actual),num(r._loggedHrs),j?num(j.hActual):0);
+  // Sub-contract: whole job at its potential profit (sale − actual costs) — matches the GP-jobs sub view.
+  if(j&&isSubForced(r)&&hP>0){const am=num(j.aMat),al=num(j.aLab);return {rev:cSale,mat:am,lab:al,cost:am+al,gp:cSale-am-al};}
+  if((pm>0||pl>0)&&pricedMargin>0&&hP>0){
+    const poc=Math.min(1,hA/hP),rev=poc*cSale,rmat=poc*pm,rlab=poc*pl;
+    return {rev,mat:rmat,lab:rlab,cost:rmat+rlab,gp:rev-(rmat+rlab)};
+  }
   const gpPct=targetGPpct(),estCost=Math.max(mat+lab,(1-gpPct)*sale);
   const poc=estCost>0?Math.min(1,(mat+lab)/estCost):0,rev=poc*sale;
   return {rev,mat,lab,cost:mat+lab,gp:rev-(mat+lab)};
@@ -3467,9 +3481,10 @@ function jobMonthFrac(r){
 }
 function earnedByMonth(){
   if(_earnedByMonth)return _earnedByMonth;
+  const cash={};(S.get('cashJobs',null)||[]).forEach(j=>{const id=String(j.id!=null?j.id:j.jobNo);if(id)cash[id]=j;});   // reliable priced breakdown for in-progress recognition
   const M={};
   const acc=(mo,e,f)=>{const o=M[mo]||(M[mo]={rev:0,mat:0,lab:0,cost:0,gp:0,n:0});o.rev+=e.rev*f;o.mat+=e.mat*f;o.lab+=e.lab*f;o.cost+=e.cost*f;o.gp+=e.gp*f;o.n++;};
-  (bcFergus||[]).forEach(r=>{if(isExcl(r))return;const e=rowEarned(r);if(e.rev<=0&&e.cost<=0)return;   // crossed-out jobs excluded from earned P&L
+  (bcFergus||[]).forEach(r=>{if(isExcl(r))return;const e=rowEarned(r,cash);if(e.rev<=0&&e.cost<=0)return;   // crossed-out jobs excluded from earned P&L
     const d=jobMonthFrac(r);
     if(d){for(const mo in d)acc(mo,e,d[mo]);}
     else{const mo=bcWorkMonth(r);if(mo)acc(mo,e,1);}});
@@ -3499,18 +3514,22 @@ function wipEarned(){
   let contract=0,invoiced=0,earned=0,cogs=0,matC=0,labC=0,liab=0,asset=0,n=0;
   jobs.forEach(j=>{const sale=num(j.quoted)||num(j.sale)||num(j.chg);if(sale<=0)return;
     const billed=num(j.billed),aMat=num(j.aMat),aLab=num(j.aLab),hP=num(j.hPriced),hA=num(j.hActual);
-    const estMat=num(j.pMat)>0?num(j.pMat):matShare*sale;          // estimated material cost
-    const estCost=Math.max(estMat,(1-gpPct)*sale);                 // total estimated cost
-    const estLab=Math.max(0,estCost-estMat);                       // estimated labour cost
-    // Labour to date = the job's own cumulative labour cost from its financialSummary (costsIncurred.
-    // labour) — full, not windowed. Only if a job has no labour posted do we infer from hours progress.
-    const labToDate=aLab>0?aLab:(hP>0?estLab*Math.min(1,hA/hP):0);
-    const costsToDate=aMat+labToDate;
-    let poc,e;
-    if(billed>=0.95*sale){poc=1;e=sale;}                           // fully invoiced → job finished
-    else{poc=estCost>0?Math.min(1,costsToDate/estCost):0;e=poc*sale;}
-    const recCogs=Math.min(costsToDate,e);                         // recognised COGS = % × est cost = costs to date
-    contract+=sale;invoiced+=billed;earned+=e;cogs+=recCogs;matC+=aMat;labC+=labToDate;
+    const pm=num(j.pMat),pl=num(j.pLab),pricedMargin=sale-pm-pl,done=billed>=0.95*sale;
+    let poc,e,rMat,rLab;
+    if(isSubForced(j)&&hP>0){
+      // sub-contract: whole job at its potential profit (matches the GP-jobs sub view)
+      poc=1;e=sale;rMat=aMat;rLab=aLab;
+    }else if((pm>0||pl>0)&&pricedMargin>0&&hP>0){
+      // PRICED-MARGIN model (matches monthGpJobs): % complete by hours; COGS = % × priced costs.
+      poc=done?1:Math.min(1,hA/hP);e=poc*sale;rMat=poc*pm;rLab=poc*pl;
+    }else{
+      // fallback: cost-to-cost POC when there's no reliable priced breakdown/hours.
+      const estMat=pm>0?pm:matShare*sale,estCost=Math.max(estMat,(1-gpPct)*sale),estLab=Math.max(0,estCost-estMat);
+      const labToDate=aLab>0?aLab:(hP>0?estLab*Math.min(1,hA/hP):0),costsToDate=aMat+labToDate;
+      poc=done?1:(estCost>0?Math.min(1,costsToDate/estCost):0);e=done?sale:poc*sale;rMat=aMat;rLab=labToDate;
+    }
+    const recCogs=Math.min(rMat+rLab,e);                          // recognised COGS
+    contract+=sale;invoiced+=billed;earned+=e;cogs+=recCogs;matC+=rMat;labC+=rLab;
     liab+=Math.max(0,billed-e);                                    // overbilled → customer-deposit liability
     asset+=Math.max(0,e-billed);n++;});                            // underbilled → contract asset (CIP)
   return {contract,invoiced,earned,cogs,matC,labC,gp:earned-cogs,liab,asset,unearned:liab,n};
