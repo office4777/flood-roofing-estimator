@@ -1823,8 +1823,8 @@ function renderModspace(){
   // ── individual back costing, one card per job ──
   setT('ms-count',jobs.length?('· '+jobs.length+' job'+(jobs.length!==1?'s':'')):'');
   document.getElementById('ms-jobs').innerHTML=jobs.length?jobs.map(r=>{
-    const rev=num(r.sales),mat=num(r.a_mat),lab=num(r.a_lab),gp=num(r.gp),h=num(r.h_actual);
-    const gpm=rev>0?gp/rev*100:0, gphr=h>0?gp/h:0, cls=gp>=0?'pos':'neg';
+    const rev=num(r.sales),mat=num(r.a_mat),lab=num(r.a_lab),gp=num(r.gp),h=num(r.h_actual),rh=bcRateHrs(r);
+    const gpm=rev>0?gp/rev*100:0, gphr=rh>0?gp/rh:0, cls=gp>=0?'pos':'neg';   // GP/hr over priced hours for a sub-contract job
     const wip=!!r._inProgress;if(wip)nProg++;
     const nd=!!r._noData;if(nd)nNo++;
     const tag=nd?'<span class="ms-tag nodata">No data</span>':(wip?'<span class="ms-tag wip">In progress</span>':'<span class="ms-tag done">Completed</span>');
@@ -1842,7 +1842,7 @@ function renderModspace(){
   }).join(''):'<div class="empty">No ModSpace jobs yet. Tap “Sync”, or check the job/customer name contains “ModSpace”.</div>';
 
   // ── combined back costing across all ModSpace jobs ──
-  const T=jobs.reduce((a,r)=>{a.rev+=num(r.sales);a.mat+=num(r.a_mat);a.lab+=num(r.a_lab);a.gp+=num(r.gp);a.h+=num(r.h_actual);return a;},{rev:0,mat:0,lab:0,gp:0,h:0});
+  const T=jobs.reduce((a,r)=>{if(isExcl(r))return a;a.rev+=num(r.sales);a.mat+=num(r.a_mat);a.lab+=num(r.a_lab);a.gp+=num(r.gp);a.h+=bcRateHrs(r);return a;},{rev:0,mat:0,lab:0,gp:0,h:0});   // crossed-out excluded; sub-contract over priced hours
   const tcls=T.gp>=0?'pos':'neg';
   setT('ms-total',
     brk('Revenue','<b>'+fmt$(T.rev)+'</b>')+
@@ -1978,7 +1978,7 @@ function getAllBC(){return [...BC_DATA,...bcFergus];}
 // Aggregate back-costing rows by month → sales, gp, priced/actual hours & materials.
 function monthAgg(){
   const m={};
-  getAllBC().forEach(r=>{const k=r.month;if(!k)return;
+  getAllBC().forEach(r=>{if(isExcl(r))return;const k=r.month;if(!k)return;   // crossed-out jobs excluded from every period total
     const o=m[k]||(m[k]={rev:0,gp:0,hP:0,hA:0,mP:0,mA:0,lA:0,n:0});
     o.rev+=num(r.sales);o.gp+=num(r.gp);o.hP+=num(r.h_priced);o.hA+=num(r.h_actual);o.mP+=num(r.p_mat);o.mA+=num(r.a_mat);o.lA+=num(r.a_lab);o.n++;});
   return m;
@@ -2669,6 +2669,9 @@ async function syncLabourHistory(opt){
 // history) and the time-entry sum (recent window). Fergus's /timeEntries only exposes ~a week, so a
 // completed job can log e.g. 9 recent hours against 90+ real hours — always take the fuller figure.
 function bcHrs(r){return Math.max(num(r.h_actual),num(r._loggedHrs));}
+// Hours to divide GP by for a per-hour RATE: a sub-contract job uses its PRICED hours (the crew logged
+// only a few), everything else uses its real logged hours. Use this wherever a GP/hr or rev/hr is shown.
+function bcRateHrs(r){return (isSubForced(r)&&num(r.h_priced)>0)?num(r.h_priced):bcHrs(r);}
 // The month a job belongs to for trend purposes: where ≥60% of its hours were worked (from time
 // entries), else its back-costing (invoice) month.
 function bcWorkMonth(r){
@@ -2724,33 +2727,11 @@ function bcMonthWork(){
   });
   m.__meta={estN,splitN,skipN,avgMargin};return m;
 }
-// ── Live "landing" estimate for ONE job: the revenue / cost / GP it's LIKELY TO FINISH ON ──
-// Ops-approved rules for an open (in-progress) job:
-//  • Revenue   = the contract / quoted sale price (what the job sells for).
-//  • Labour    = our own cost/hr × the PRICED hours — i.e. assume we work to the quote — UNLESS we've
-//                already run past the priced hours, in which case labour is the (larger) actual cost.
-//  • Materials = actual, EXCEPT a still-open job (not complete / not ready to invoice) whose materials
-//                are under quote is assumed to still need the rest, so it lands at the QUOTED materials.
-//                Materials blown out over quote always use the (larger) actual cost.
-// A finished job (inProgress=false) just uses its real actuals, so its final GP is never re-estimated.
-function landingEst(o){
-  const sale=num(o.sale),hA=num(o.hActual),hP=num(o.hPriced);
-  const aLab=num(o.aLab),aMat=num(o.aMat),pMat=num(o.pMat);
-  const rate=hA>0?aLab/hA:0;
-  const hrs=o.inProgress?Math.max(hA,hP>0?hP:hA):hA;              // open jobs land on (at least) their priced hours
-  const lab=o.inProgress?(rate>0?rate*hrs:aLab):aLab;
-  let mat;
-  if(pMat>0&&aMat>pMat)mat=aMat;                                  // blown out over quote → actual
-  else if(o.inProgress&&!o.ready&&pMat>0&&aMat<pMat)mat=pMat;     // still buying → assume up to quote
-  else mat=aMat;
-  const gp=sale-lab-mat,h=hrs>0?hrs:hA;
-  return {rev:sale,lab,mat,gp,hrs:h,gpHr:h>0?gp/h:0,revHr:h>0?sale/h:0};
-}
 // Per-job GP for the hours worked in month `mk` — the data behind the "GP jobs" list.
 // Finished jobs distribute their FINAL GP across the months they were worked (dated labour history),
 // valuing each hour at the job's real GP/hr. Open jobs value each hour worked that month at their
-// ESTIMATED landing GP/hr (see landingEst) — so a job still running this month is counted, not dropped
-// just because it isn't invoiced yet. Only jobs that actually logged hours in `mk` appear.
+// priced-margin GP/hr — so a job still running this month is counted, not dropped just because it
+// isn't invoiced yet. Only jobs that actually logged hours in `mk` appear.
 function monthGpJobs(mk){
   const measured=[],deferred=[],seen={};
   // Active jobs (with their priced breakdown) are valued in step 2. Any job that ALSO appears as an
@@ -2866,7 +2847,7 @@ function reconStatus(pct){const a=Math.abs(pct);return a<=15?['var(--success)','
 function renderRecon(){
   const host=document.getElementById('pl-recon');if(!host)return;
   const head=document.getElementById('pl-recon-head'),badge=document.getElementById('pl-recon-badge');
-  const fMon={};(bcFergus||[]).forEach(r=>{const m=r.month;if(!m)return;fMon[m]=(fMon[m]||0)+num(r.sales);});
+  const fMon={};(bcFergus||[]).forEach(r=>{if(isExcl(r))return;const m=r.month;if(!m)return;fMon[m]=(fMon[m]||0)+num(r.sales);});   // crossed-out jobs excluded
   const ks=[];for(let i=1;i<=12;i++){const k=calMonthKey(-i);const x=xeroFig(k);if(x&&num(x.rev)>0&&fMon[k]!=null)ks.push(k);}
   if(!ks.length){host.innerHTML='<div class="empty">Need Fergus back-costing + Xero P&amp;L for the same month — sync both, then pull Xero history.</div>';if(head)head.innerHTML='';if(badge)badge.textContent='';return;}
   let fTot=0,xTot=0;ks.forEach(k=>{fTot+=fMon[k];xTot+=num(xeroFig(k).rev);});
@@ -2909,7 +2890,7 @@ function renderBCTypes(){
   const body=document.getElementById('bc-type-body');if(!body)return;
   const ovRate=ohRate().rate;
   const groups={'Pole Sheds':[],"Re-Roof's":[],'Re-Roof & Gutter':[],'Gutter only':[],'Other':[]};
-  getAllBC().forEach(r=>{const g=bcJobType(r);(groups[g]||groups['Other']).push(r);});
+  getAllBC().forEach(r=>{if(isExcl(r))return;const g=bcJobType(r);(groups[g]||groups['Other']).push(r);});   // crossed-out jobs excluded from the type breakdown + totals
   const order=['Pole Sheds',"Re-Roof's",'Re-Roof & Gutter','Gutter only','Other'];
   let html='',gS=0,gG=0,gH=0,gPH=0,gn=0;
   order.forEach(name=>{
@@ -2930,10 +2911,11 @@ function renderBCTypes(){
 // Aggregate back-costing rows → { roofer: { month: {rev,gp,h,n} } } (only rows with a known lead).
 function leadMonthAgg(){
   const m={};
-  getAllBC().forEach(r=>{const lead=effLead(r);if(!lead)return;const mo=r.month;if(!mo)return;
+  getAllBC().forEach(r=>{if(isExcl(r))return;const lead=effLead(r);if(!lead)return;const mo=r.month;if(!mo)return;   // crossed-out jobs excluded
     const rm=m[lead]||(m[lead]={});const o=rm[mo]||(rm[mo]={rev:0,gp:0,h:0,n:0});
-    // GP/hr divides job GP by the TOTAL hours logged on the job (everyone, any month), not just the lead's.
-    o.rev+=num(r.sales);o.gp+=num(r.gp);o.h+=(num(r._loggedHrs)||num(r.h_actual));o.n++;});
+    // GP/hr divides job GP by the TOTAL hours logged on the job (everyone, any month) — or its PRICED hours
+    // for a sub-contract job — not just the lead's.
+    o.rev+=num(r.sales);o.gp+=num(r.gp);o.h+=(isSubForced(r)&&num(r.h_priced)>0?num(r.h_priced):(num(r._loggedHrs)||num(r.h_actual)));o.n++;});
   return m;
 }
 function leadRoofersWithData(){const a=leadMonthAgg();return LEAD_ROOFERS.filter(k=>a[k]&&Object.keys(a[k]).length);}
@@ -3069,21 +3051,24 @@ function renderBC(){
   }).sort((a,b)=>bcDateNum(b)-bcDateNum(a));
   document.getElementById('bc-count').textContent='· '+rows.length+(roofView?(' jobs '+ld+' was on (lead or ≥10% of hours)'):(' jobs'+(S.get('bc_inv_n',0)?' · dated by completion invoice':'')))+' · NP @ '+fmt$(ovRate)+'/h overhead';
   document.getElementById('bc-body').innerHTML=rows.length?rows.slice(0,400).map(r=>{
-    const gp=num(r.gp),gpm=num(r.gpm),h=num(r.h_actual),hP=num(r.h_priced);
-    const gphr=h>0?gp/h:null;const np=gp-ovRate*h;const nphr=h>0?(gp/h-ovRate):null;
+    const gp=num(r.gp),gpm=num(r.gpm),h=num(r.h_actual),hP=num(r.h_priced),rh=bcRateHrs(r);
+    const gphr=rh>0?gp/rh:null;const np=gp-ovRate*h;const nphr=rh>0?(gp/rh-ovRate):null;   // GP/hr & NP/hr over priced hours for a sub-contract job
     const rs=' style="background:'+(np>=0?'rgba(74,222,128,.16)':'rgba(255,107,107,.16)')+';"';   // green if NP positive, red if negative
     let badge='';if(roofView){const sh=rooferShareOn(r,ld);if(sh.tot>0)badge=' <span class="rf-share'+(effLead(r)===ld?' lead':'')+'">'+(effLead(r)===ld?'lead · ':'')+(Math.round(sh.hrs*10)/10)+'h · '+Math.round(sh.share*100)+'%</span>';else if(effLead(r)===ld)badge=' <span class="rf-share lead">lead</span>';}
-    return '<tr'+rs+'><td class="c-month">'+esc(r.month||'')+'</td><td class="c-job">'+esc((r.job||'').slice(0,40))+badge+'<br>'+leadSelect(r)+crewSelect(r)+'</td><td class="c-src">'+bcSrc(r)+'</td><td class="c-sales">'+fmtK(r.sales)+'</td><td class="c-cogs">'+fmtK(num(r.sales)-gp)+'</td><td class="c-gp '+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td class="c-gpm">'+(gpm?gpm+'%':'—')+'</td><td class="c-gphr">'+(gphr!=null?fmt$(gphr):'—')+'</td><td class="c-np '+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td class="c-nphr">'+(nphr!=null?fmt$(nphr):'—')+'</td><td class="c-prh">'+(hP?fmtH(hP):'—')+'</td><td class="c-acth">'+(h?fmtH(h):'—')+'</td></tr>';
+    return '<tr'+exTR(r)+rs+'><td class="c-month">'+esc(r.month||'')+'</td><td class="c-job">'+esc((r.job||'').slice(0,40))+badge+'<br>'+leadSelect(r)+crewSelect(r)+'</td><td class="c-src">'+bcSrc(r)+'</td><td class="c-sales">'+fmtK(r.sales)+'</td><td class="c-cogs">'+fmtK(num(r.sales)-gp)+'</td><td class="c-gp '+(gp>=0?'pos':'neg')+'">'+fmtK(gp)+'</td><td class="c-gpm">'+(gpm?gpm+'%':'—')+'</td><td class="c-gphr">'+(gphr!=null?fmt$(gphr):'—')+'</td><td class="c-np '+(np>=0?'pos':'neg')+'">'+fmtK(np)+'</td><td class="c-nphr">'+(nphr!=null?fmt$(nphr):'—')+'</td><td class="c-prh">'+(hP?fmtH(hP):'—')+'</td><td class="c-acth">'+(h?fmtH(h):'—')+'</td></tr>';
   }).join(''):'<tr><td colspan="12" class="empty">No jobs match.</td></tr>';
-  const tS=rows.reduce((s,r)=>s+num(r.sales),0),tG=rows.reduce((s,r)=>s+num(r.gp),0),tH=rows.reduce((s,r)=>s+num(r.h_actual),0),tPH=rows.reduce((s,r)=>s+num(r.h_priced),0);
+  // Totals & tiles exclude crossed-out jobs (still shown struck above). GP/hr divides by rate hours
+  // (priced hours for sub-contract jobs), while the Actual-hrs column keeps the real logged hours.
+  const inc=rows.filter(r=>!isExcl(r));
+  const tS=inc.reduce((s,r)=>s+num(r.sales),0),tG=inc.reduce((s,r)=>s+num(r.gp),0),tH=inc.reduce((s,r)=>s+num(r.h_actual),0),tPH=inc.reduce((s,r)=>s+num(r.h_priced),0),tRH=inc.reduce((s,r)=>s+bcRateHrs(r),0);
   const tNP=tG-ovRate*tH;
-  document.getElementById('bc-foot').innerHTML='<tr class="tot"><td class="c-month">TOTAL ('+rows.length+')</td><td class="c-job"></td><td class="c-src"></td><td class="c-sales">'+fmtK(tS)+'</td><td class="c-cogs">'+fmtK(tS-tG)+'</td><td class="c-gp">'+fmtK(tG)+'</td><td class="c-gpm">'+(tS>0?Math.round(tG/tS*100)+'%':'—')+'</td><td class="c-gphr">'+(tH>0?fmt$(tG/tH):'—')+'</td><td class="c-np">'+fmtK(tNP)+'</td><td class="c-nphr">'+(tH>0?fmt$(tG/tH-ovRate):'—')+'</td><td class="c-prh">'+fmtH(tPH)+'</td><td class="c-acth">'+fmtH(tH)+'</td></tr>';
+  document.getElementById('bc-foot').innerHTML='<tr class="tot"><td class="c-month">TOTAL ('+inc.length+')</td><td class="c-job"></td><td class="c-src"></td><td class="c-sales">'+fmtK(tS)+'</td><td class="c-cogs">'+fmtK(tS-tG)+'</td><td class="c-gp">'+fmtK(tG)+'</td><td class="c-gpm">'+(tS>0?Math.round(tG/tS*100)+'%':'—')+'</td><td class="c-gphr">'+(tRH>0?fmt$(tG/tRH):'—')+'</td><td class="c-np">'+fmtK(tNP)+'</td><td class="c-nphr">'+(tRH>0?fmt$(tG/tRH-ovRate):'—')+'</td><td class="c-prh">'+fmtH(tPH)+'</td><td class="c-acth">'+fmtH(tH)+'</td></tr>';
   // tiles
   document.getElementById('bc-tiles').innerHTML=
-    tile('s','Total Sales',fmtK(tS),rows.length+' jobs')+
+    tile('s','Total Sales',fmtK(tS),inc.length+' jobs')+
     tile('a','Gross Profit',fmtK(tG),(tS>0?Math.round(tG/tS*100)+'% GPM':''))+
-    tile('','Total Hours',fmtH(tH)+'h',(tH>0?fmt$(tG/tH)+' GP/hr':''))+
-    tile('w','Avg / Job',fmtK(rows.length?tS/rows.length:0),'sales');
+    tile('','Total Hours',fmtH(tH)+'h',(tRH>0?fmt$(tG/tRH)+' GP/hr':''))+
+    tile('w','Avg / Job',fmtK(inc.length?tS/inc.length:0),'sales');
 }
 function tile(cls,l,v,s2){return '<div class="tile '+cls+'"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="s2">'+(s2||'')+'</div></div>';}
 
@@ -3484,7 +3469,7 @@ function earnedByMonth(){
   if(_earnedByMonth)return _earnedByMonth;
   const M={};
   const acc=(mo,e,f)=>{const o=M[mo]||(M[mo]={rev:0,mat:0,lab:0,cost:0,gp:0,n:0});o.rev+=e.rev*f;o.mat+=e.mat*f;o.lab+=e.lab*f;o.cost+=e.cost*f;o.gp+=e.gp*f;o.n++;};
-  (bcFergus||[]).forEach(r=>{const e=rowEarned(r);if(e.rev<=0&&e.cost<=0)return;
+  (bcFergus||[]).forEach(r=>{if(isExcl(r))return;const e=rowEarned(r);if(e.rev<=0&&e.cost<=0)return;   // crossed-out jobs excluded from earned P&L
     const d=jobMonthFrac(r);
     if(d){for(const mo in d)acc(mo,e,d[mo]);}
     else{const mo=bcWorkMonth(r);if(mo)acc(mo,e,1);}});
@@ -3498,7 +3483,7 @@ function earnedMonth(mk){
 // Target gross-profit margin from completed back-costing — used to derive a live job's total
 // estimated cost (contract × (1 − GP%)) when we don't have priced cost fields.
 function targetGPpct(){
-  let s=0,g=0;(bcFergus||[]).forEach(r=>{if(r._inProgress)return;const sale=num(r.sales);if(sale<=0)return;s+=sale;g+=num(r.gp);});
+  let s=0,g=0;(bcFergus||[]).forEach(r=>{if(r._inProgress||isExcl(r))return;const sale=num(r.sales);if(sale<=0)return;s+=sale;g+=num(r.gp);});
   return s>0?Math.max(0.05,Math.min(0.6,g/s)):0.30;
 }
 // Work-in-progress on LIVE jobs, proper construction accounting (cost-to-cost percentage-of-completion):
@@ -3510,7 +3495,7 @@ function targetGPpct(){
 function wipEarned(){
   const matShare=(num(S.get('cashDepPct','50'))||50)/100;   // material cost as a share of contract
   const gpPct=targetGPpct();
-  const jobs=(S.get('cashJobs',null)||[]).filter(j=>j.status!=='Completed'&&!j.fin);
+  const jobs=(S.get('cashJobs',null)||[]).filter(j=>j.status!=='Completed'&&!j.fin&&!isExcl(j));   // crossed-out jobs excluded from WIP
   let contract=0,invoiced=0,earned=0,cogs=0,matC=0,labC=0,liab=0,asset=0,n=0;
   jobs.forEach(j=>{const sale=num(j.quoted)||num(j.sale)||num(j.chg);if(sale<=0)return;
     const billed=num(j.billed),aMat=num(j.aMat),aLab=num(j.aLab),hP=num(j.hPriced),hA=num(j.hActual);
