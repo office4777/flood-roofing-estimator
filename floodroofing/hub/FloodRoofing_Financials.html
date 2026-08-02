@@ -1246,6 +1246,9 @@ function fmt$(n){const v=Math.round(n||0);return (v<0?'-$':'$')+Math.abs(v).toLo
 function fmtK(n){const v=Math.round(n||0);return (v<0?'-$':'$')+(Math.abs(v)>=1000?(Math.abs(v)/1000).toFixed(Math.abs(v)>=100000?0:1)+'k':Math.abs(v));}
 function fmtH(n){return (Math.round((n||0)*10)/10).toLocaleString('en-NZ');}
 function td_str(){return new Date().toISOString().split('T')[0];}
+// Sync timestamp in NZ time — the nightly runs on GitHub's UTC servers, so plain toLocaleString would
+// bake a UTC time that reads ~12h/"a day" off. Pin to Pacific/Auckland so it's right on phone or headless.
+function nzStamp(){try{return new Date().toLocaleString('en-NZ',{timeZone:'Pacific/Auckland'});}catch(e){return nzStamp();}}
 function bcMonthNum(m){const p=(m||'').split('-');const i=FG_MONTHS.indexOf(p[0]);return (parseInt(p[1])||0)*12+(i<0?0:i);}
 function fergusMonthLabel(dateStr){if(!dateStr)return '';const d=new Date(dateStr);if(isNaN(d))return '';return FG_MONTHS[d.getMonth()]+'-'+d.getFullYear();}
 // 'Mon-YYYY' for the calendar month n away from now (0 = current/partial, -1 = last complete, …).
@@ -1619,7 +1622,7 @@ async function syncWorkload(band){
     }
     await Promise.all(Array.from({length:Math.min(4,total||1)},()=>jobWorker()));
     fwJobs=out;S.set('fwJobs',fwJobs);S.set('cashJobs',allJobs);
-    S.set('fw_last_sync',new Date().toLocaleString('en-NZ'));
+    S.set('fw_last_sync',nzStamp());
     S.set('fw_no_priced',noPriced);
     S.set('fw_excluded',excluded);
     recordFwSnapshot();
@@ -3209,7 +3212,7 @@ async function syncXeroMonthly(band){
   if(standalone)syncProgressDone(ok?'Xero synced ✓':'Xero');
   if(no){toast('Xero not set up on the proxy — using back-costing','err');return false;}
   if(sec){toast('Proxy secret rejected (401) — check ⚙','err');return false;}
-  if(ok){xeroMonthly=out;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',new Date().toLocaleString('en-NZ'));xeroLive=true;
+  if(ok){xeroMonthly=out;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',nzStamp());xeroLive=true;
     if(!plSelected||!xeroReports[plSelected])plSelected=xeroReports[calMonthKey(-1)]?calMonthKey(-1):keys.find(k=>xeroReports[k])||'';
     toast('Xero P&L updated ✓ ('+ok+' months)','ok');renderDash();renderGrowth();renderPL();return true;}
   toast('Xero returned no data','err');return false;
@@ -3231,7 +3234,7 @@ async function syncXeroHistory(){
     catch(e){if(e.message==='NOXERO')no=true;else if(e.message==='SECRET')sec=true;}
     done++;syncProgress(done/need.length*100,'Xero history '+done+'/'+need.length);}}
   await Promise.all(Array.from({length:3},()=>worker()));
-  if(ok){xeroMonthly=out;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',new Date().toLocaleString('en-NZ'));xeroLive=true;}
+  if(ok){xeroMonthly=out;S.set('xeroMonthly',xeroMonthly);S.set('xero_last_sync',nzStamp());xeroLive=true;}
   syncProgressDone(ok?('History loaded ✓ '+ok+' mo'):'No history');
   if(btn){btn.disabled=false;btn.innerHTML=orig;}
   if(no)toast('Xero not set up on the proxy — can\'t load history','err');
@@ -4208,7 +4211,7 @@ function importSchedule(input){
       if(no){byNo[no]=Math.max(byNo[no]||0,ms);matched++;}
       if(addr){byAddr[addr]=Math.max(byAddr[addr]||0,ms);if(!no)matched++;}}
     if(!matched&&!beyond)throw new Error('no rows with a job identifier + date');
-    schedFinish={byNo,byAddr,ts:new Date().toLocaleString('en-NZ')};S.set('schedFinish',schedFinish);
+    schedFinish={byNo,byAddr,ts:nzStamp()};S.set('schedFinish',schedFinish);
     const st=document.getElementById('sched-import-status');if(st)st.textContent='Imported '+matched+' finish date'+(matched===1?'':'s')+' within 3 months ✓'+(beyond?(' · '+beyond+' beyond 3 months skipped (they use the estimate)'):'')+'.';
     toast('Schedule imported — '+matched+' job finish dates (next 3 months).','ok');renderCashflow();
   }catch(e){toast('Couldn’t read that schedule CSV: '+(e&&e.message||e),'err');}};
@@ -4495,7 +4498,7 @@ async function syncMarketing(){
       if(better)byJob[q.jobId]={jobId:String(q.jobId),jobNo:String(q.jobNumber||q.jobNo||''),custRaw:(fergusName(q.customer)||q.customerName||q.contactName||q.customerFullName||''),siteRaw:(fergusAddr(q.siteAddress)||q.address||''),total:(q.totals&&q.totals.total)||0,quoteDate:q.quoteDate,sentAt:q.publishedAt,acceptedAt:q.acceptedAt,isSent:!!q.isSent,isAccepted:!!q.isAccepted,versionNumber:q.versionNumber};
     });
     const quotes=Object.values(byJob).map(q=>{const jm=jobMap[q.jobId]||{};return Object.assign({},q,{job:(q.custRaw||jm.name||('Job '+q.jobId)),site:(q.siteRaw||jm.site||''),jobNo:(q.jobNo||jm.jobNo||'')});});
-    mkt={leads,quotes,ts:new Date().toLocaleString('en-NZ'),nE:leads.length,nQ:quotes.length,nSent:quotes.filter(q=>q.isSent).length,nAcc:quotes.filter(q=>q.isAccepted).length};
+    mkt={leads,quotes,ts:nzStamp(),nE:leads.length,nQ:quotes.length,nSent:quotes.filter(q=>q.isSent).length,nAcc:quotes.filter(q=>q.isAccepted).length};
     S.set('mkt',mkt);S.set('mktSyncMs',Date.now());renderMkt();if(typeof renderCommand==='function')renderCommand();   // refresh the dashboard tiles too
     toast('Marketing ✓ '+leads.length+' leads · '+mkt.nSent+' sent · '+mkt.nAcc+' won','ok');
   }catch(err){console.error(err);toast(fergusErrMsg(err).split('\n')[0],'err');}
@@ -4815,7 +4818,7 @@ async function syncCash(){
     const apb=await fetchXeroAPBills();
     toast('Reading chart of accounts…');
     const accts=await fetchXeroAccounts();
-    cash={rows,paidByJob:paidByJob||null,arByJob:arByJob||null,apByCode:(apb&&apb.byCode)||null,apBillsTotal:(apb&&apb.apTotal)||0,accounts:accts||null,ts:new Date().toLocaleString('en-NZ')};
+    cash={rows,paidByJob:paidByJob||null,arByJob:arByJob||null,apByCode:(apb&&apb.byCode)||null,apBillsTotal:(apb&&apb.apTotal)||0,accounts:accts||null,ts:nzStamp()};
     S.set('cash',cash);
     toast('End cash position updated ✓','ok');
     renderCash();
@@ -5472,7 +5475,7 @@ async function syncBank(fromEl){
     if(!aRes.ok)throw new Error('accounts HTTP '+aRes.status);
     const aj=JSON.parse(await aRes.text());const accounts=(aj&&(aj.items||aj.accounts))||[];
     let tx=[];try{const tRes=await fetch(proxyUrl('akahu','/v1/transactions'),{headers:hdr});if(tRes.ok){const tj=JSON.parse(await tRes.text());tx=(tj&&tj.items)||[];}}catch(e){}
-    bank={accounts,tx,ts:new Date().toLocaleString('en-NZ')};S.set('bank',bank);
+    bank={accounts,tx,ts:nzStamp()};S.set('bank',bank);
     renderBank();renderCashflow();
     toast('Live bank updated ✓ '+accounts.length+' accounts','ok');
   }catch(e){if(note)note.textContent='⚠ '+String(e&&e.message||e);toast('Bank sync failed','err');}
