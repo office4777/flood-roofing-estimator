@@ -4015,7 +4015,7 @@ function cmdLegend(series){return '<div class="cleg">'+series.map(s=>'<span><i s
 // GP% / OPEX% / NP% / avg GP-per-hour printed under each month's bars. meta[i]={has,gp,opex,np,npv,gpHr,hasOp}.
 function gpScrollChart(labels,series,meta,step,colW){
   step=step||50000;
-  const pt=44,pb=122,pl=58,n=labels.length,ns=Math.max(1,series.length);   // taller, roomier — bigger fonts + headroom for angled $ labels + the per-hour rows
+  const pt=44,pb=136,pl=58,n=labels.length,ns=Math.max(1,series.length);   // taller, roomier — bigger fonts + headroom for angled $ labels + the per-hour rows
   colW=colW||94;
   let mx=0,mn=0;series.forEach(s=>s.vals.forEach(v=>{if(v==null)return;if(v>mx)mx=v;if(v<mn)mn=v;}));
   let hiV=Math.ceil((mx||step)/step)*step,lo=Math.floor(mn/step)*step;if(hiV<=lo)hiV=lo+step;
@@ -4036,7 +4036,7 @@ function gpScrollChart(labels,series,meta,step,colW){
     lb+='<text x="'+cx.toFixed(1)+'" y="'+(pt+ih+18)+'" text-anchor="middle" font-size="12" font-weight="800" fill="var(--text)">'+esc(String(L))+'</text>';
     const m=meta[i]||{};
     if(m.has){const t=(txt,col,dy)=>'<text x="'+cx.toFixed(1)+'" y="'+(pt+ih+18+dy)+'" text-anchor="middle" font-size="10" font-weight="700" fill="'+col+'">'+esc(txt)+'</text>';
-      lb+=t('GP '+m.gp+'%','#4ade80',16)+t('OH '+(m.hasOp?m.opex+'%':'—'),'#a78bfa',30)+t('NP '+(m.hasOp?m.np+'%':'—'),m.npv>=0?'#ff8a52':'#f87171',44)+t(fmt$(m.gpHr)+'/hr worked','#38bdf8',58)+t(fmt$(m.gpBiz)+'/bus-hr','#fbbf24',72)+t(fmtH(m.hrs)+'h worked','var(--text)',86);}
+      lb+=t('GP '+m.gp+'%','#4ade80',16)+t('OH '+(m.hasOp?m.opex+'%':'—'),'#a78bfa',30)+t('NP '+(m.hasOp?m.np+'%':'—'),m.npv>=0?'#ff8a52':'#f87171',44)+t(fmt$(m.gpHr)+'/hr worked','#38bdf8',58)+t('GP '+fmt$(m.gpBiz)+'/bus-hr','#fbbf24',72)+t('OH '+(m.opBiz!=null?fmt$(m.opBiz)+'/bus-hr':'—'),'#a78bfa',86)+t(fmtH(m.hrs)+'h worked','var(--text)',100);}
     const obj={l:String(L),v:series.map(s=>({n:s.name,c:s.color,t:s.vals[i]==null?'—':fmtK(s.vals[i])})).concat(m.has?[{n:'Avg GP/hr',c:'#38bdf8',t:fmt$(m.gpHr)},{n:'Hours worked',c:'#94a3b8',t:fmtH(m.hrs)+'h'}]:[])};
     hit+='<rect x="'+(colW*i).toFixed(1)+'" y="'+pt+'" width="'+colW+'" height="'+(ih+pb-16)+'" fill="transparent" pointer-events="all" '+(m.mk?('onclick="openCmdDetail(\''+'gp\',\''+m.mk+'\')" style="cursor:pointer;"'):tipAttr(obj))+'/>';});
   const plot='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" preserveAspectRatio="xMinYMin meet" style="display:block;">'+g+bars+lb+hit+'</svg>';
@@ -4288,11 +4288,11 @@ function renderCommandVisuals(){
       const meta=keys.map((k,i)=>{const rev=s.revV[i],gp=s.gpV[i],op=s.opV[i],hrs=s.hrsV[i],bh=bizHoursOfMonth(k);
         if(!rev||rev<=0||gp==null)return {has:false,mk:k};
         const npv=op!=null?gp-op:0;
-        return {has:true,mk:k,gp:Math.round(gp/rev*100),opex:op!=null?Math.round(op/rev*100):null,np:op!=null?Math.round(npv/rev*100):null,npv:npv,gpHr:hrs>0?gp/hrs:0,gpBiz:bh>0?gp/bh:0,hrs:Math.round(hrs),hasOp:op!=null};});
+        return {has:true,mk:k,gp:Math.round(gp/rev*100),opex:op!=null?Math.round(op/rev*100):null,np:op!=null?Math.round(npv/rev*100):null,npv:npv,gpHr:hrs>0?gp/hrs:0,gpBiz:bh>0?gp/bh:0,opBiz:(op!=null&&bh>0)?op/bh:null,hrs:Math.round(hrs),hasOp:op!=null};});
       const availW=(host.clientWidth||window.innerWidth||900)-76,colW=Math.max(84,Math.min(280,Math.floor(availW/6)));   // ~6 months visible, then scroll
       inner=any?gpScrollChart(labs.map(l=>l.replace(" "," ")),[{name:'Revenue',color:COL[0],vals:s.revV},{name:'Gross profit',color:COL[1],vals:s.gpV},{name:'OPEX',color:COL[2],vals:s.opV},{name:'Net profit',color:COL[3],vals:s.npV}],meta,50000,colW)
         +cmdLegend([{label:'Revenue'+(xeroMode?' (Xero)':' (earned)'),color:COL[0]},{label:'Gross profit',color:COL[1]},{label:'OPEX'+(anyOpex?'':' — sync Xero'),color:COL[2]},{label:'Net profit',color:COL[3]}])
-        +'<div class="note" style="margin-top:6px;">Under each month: GP / OPEX / Net-profit as a % of revenue, <b>GP/hr worked</b> (GP ÷ crew hours), <b>GP/bus-hr</b> (GP ÷ business hours in the working day — working days × 10h 7am–5pm, weekends &amp; NZ public holidays excluded — the combined profit the whole team throws off per clock-hour), and total hours worked. '+(xeroMode?'Revenue, GP &amp; net profit are straight from your <b>Xero P&amp;L</b> — matches your accountant.':'Revenue &amp; GP are earned from Fergus where the labour history is complete, otherwise the month falls back to your <b>actual Xero P&amp;L</b>.')+' OPEX from Xero; Net profit = GP − OPEX.</div>':'<div class="empty">Sync Fergus back-costing'+(anyOpex?'':' + Xero')+'.</div>';
+        +'<div class="note" style="margin-top:6px;">Under each month: GP / OPEX / Net-profit as a % of revenue, <b>GP/hr worked</b> (GP ÷ crew hours), <b>GP/bus-hr</b> (GP ÷ business hours in the working day — working days × 10h 7am–5pm, weekends &amp; NZ public holidays excluded — the combined profit the whole team throws off per clock-hour), <b>OH/bus-hr</b> (Xero overhead ÷ the same business hours — the overhead you burn per clock-hour; GP/bus-hr − OH/bus-hr = net profit per business hour), and total hours worked. '+(xeroMode?'Revenue, GP &amp; net profit are straight from your <b>Xero P&amp;L</b> — matches your accountant.':'Revenue &amp; GP are earned from Fergus where the labour history is complete, otherwise the month falls back to your <b>actual Xero P&amp;L</b>.')+' OPEX from Xero; Net profit = GP − OPEX.</div>':'<div class="empty">Sync Fergus back-costing'+(anyOpex?'':' + Xero')+'.</div>';
     }
     panels.push('<div class="cpanel wide"><div class="cpt">Revenue · GP · OPEX · Net profit <span class="pin">'+pin+'</span></div>'+chips+inner+'</div>');}
   // 1b — GP efficiency: avg GP per HOUR WORKED vs combined GP per BUSINESS HOUR (monthly, like the GP card)
