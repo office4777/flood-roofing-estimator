@@ -1972,7 +1972,7 @@ html.customer-view{ overflow-x:hidden; }
       <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);font-weight:700;margin-bottom:2px">Selected job</div>
       <div id="navJobName" style="font-size:12px;font-weight:600;color:var(--text2);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No job selected</div>
     </div>
-    <button id="navJobSelectBtn" onclick="openStartHereModal()" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
+    <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
   </div>
   <button class="nav-btn active" onclick="gotoTab('select')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7L8 2.5L13.5 7M4 6V13H12V6" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>Home</button>
   <!-- Sidebar job chip: hidden until a job is loaded. Shows the Fergus
@@ -2023,7 +2023,7 @@ html.customer-view{ overflow-x:hidden; }
         <svg viewBox="0 0 16 16" style="width:13px;height:13px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7l3 3v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M5 3v3h5V3M5 11h6"/></svg>
         Save
       </button>
-      <button type="button" onclick="openSelectJobModal()" class="gjb-btn gjb-btn-light" title="Pick a different job">
+      <button type="button" onclick="openSelectJobModal('fergus')" class="gjb-btn gjb-btn-light" title="Pick a different job">
         <svg viewBox="0 0 16 16" style="width:13px;height:13px" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5a1 1 0 0 1 1-1h3.5L8 5.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg>
         Change job
       </button>
@@ -2045,7 +2045,7 @@ html.customer-view{ overflow-x:hidden; }
   <strong id="currentJobLabelTop" style="display:none"></strong>
   <!-- Home hero: two sequential steps — pick a job, then map its roof. -->
   <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:stretch;margin-bottom:18px">
-    <button onclick="openStartHereModal()" style="flex:1 1 260px;text-align:left;border:none;cursor:pointer;border-radius:16px;padding:22px 24px;color:#fff;background:linear-gradient(135deg,#0a1628,#1e3a5f);box-shadow:0 8px 24px rgba(10,22,40,.18)">
+    <button onclick="openSelectJobModal('fergus')" style="flex:1 1 260px;text-align:left;border:none;cursor:pointer;border-radius:16px;padding:22px 24px;color:#fff;background:linear-gradient(135deg,#0a1628,#1e3a5f);box-shadow:0 8px 24px rgba(10,22,40,.18)">
       <div style="font-size:10px;font-weight:800;letter-spacing:.14em;opacity:.65;margin-bottom:8px">STEP 1</div>
       <div style="font-size:22px;font-weight:800;letter-spacing:-.01em">📂 New Job / Select Job</div>
       <div style="font-size:13px;opacity:.8;margin-top:6px;line-height:1.4">Start a new job, pick a Fergus job, or open a saved one</div>
@@ -3933,9 +3933,10 @@ html.customer-view{ overflow-x:hidden; }
        because that's the path most uses follow; Fergus tab is shown
        only if Fergus is connected. -->
   <div style="padding:10px 14px 0;border-bottom:1px solid #eee">
-    <div class="tab-row" style="margin:0">
+    <div class="tab-row" style="margin:0;align-items:center">
       <button type="button" class="tab-sm on" onclick="setSelectJobSource('local',this)">📁 Saved jobs</button>
       <button type="button" class="tab-sm" onclick="setSelectJobSource('fergus',this)" id="selectJobFergBtn">🔗 Fergus jobs</button>
+      <button type="button" onclick="closeSelectJobModal();startNewJob()" title="Start a new blank job" style="margin-left:auto;margin-bottom:8px;border:none;background:#059669;color:#fff;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">＋ New job</button>
     </div>
   </div>
   <div style="padding:12px 14px;border-bottom:1px solid #eee">
@@ -6235,21 +6236,31 @@ function _downscalePhoto(dataUrl, cb){
   } catch(e){ cb(dataUrl); }
 }
 
-async function openSelectJobModal(){
+async function openSelectJobModal(opts){
+  // opts === 'fergus' (or {fergus:true}) opens straight on the Fergus-jobs tab —
+  // the common path, since most jobs come from Fergus.
+  var toFergus = (opts === 'fergus') || (opts && opts.fergus === true);
   var ov = document.getElementById('selectJobOverlay');
   var md = document.getElementById('selectJobModal');
   if (!ov || !md) return;
   ov.style.display = 'block';
   md.style.display = 'flex';
-  var search = document.getElementById('selectJobSearch'); if (search) { search.value = ''; setTimeout(function(){search.focus();},50); }
+  var search = document.getElementById('selectJobSearch'); if (search) search.value = '';
+  // Land on the requested source tab (resetting the button state each open).
+  if (toFergus) {
+    setSelectJobSource('fergus', document.getElementById('selectJobFergBtn'));
+  } else {
+    setSelectJobSource('local', document.querySelector('#selectJobModal .tab-row .tab-sm'));
+  }
+  if (search && !toFergus) setTimeout(function(){ search.focus(); }, 50);
   var list = document.getElementById('selectJobList');
-  list.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:#666;font-size:13px">Loading…</div>';
+  if (list && !toFergus) list.innerHTML = '<div style="text-align:center;padding:2rem 1rem;color:#666;font-size:13px">Loading…</div>';
   try {
     var jobs = await api('GET', '/jobs');
     window._selectJobsCache = jobs || [];
-    renderSelectJobList(window._selectJobsCache);
+    if (!toFergus) renderSelectJobList(window._selectJobsCache);
   } catch(e) {
-    list.innerHTML = '<div style="padding:1rem;color:#b91c1c;font-size:13px">Failed to load jobs: ' + esc(e.message) + '</div>';
+    if (!toFergus && list) list.innerHTML = '<div style="padding:1rem;color:#b91c1c;font-size:13px">Failed to load jobs: ' + esc(e.message) + '</div>';
   }
 }
 function closeSelectJobModal(){
