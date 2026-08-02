@@ -2738,12 +2738,17 @@ function landingEst(o){
 // just because it isn't invoiced yet. Only jobs that actually logged hours in `mk` appear.
 function monthGpJobs(mk){
   const measured=[],deferred=[],seen={};
+  // Active jobs (with their priced breakdown) are valued in step 2. Any job that ALSO appears as an
+  // in-progress back-costing row must NOT be intercepted by step 1 (its back-costed GP is ~0 when only a
+  // deposit is invoiced, which would wrongly dump a fully-priced job into the month-average bucket).
+  const cashIds={};(S.get('cashJobs',null)||[]).forEach(j=>{const id=String(j.id!=null?j.id:j.jobNo);if(id&&id!=='undefined')cashIds[id]=1;});
   // Business-wide GP/hr + rev/hr from FINISHED jobs — the fallback rate when a month has no measurable jobs
   let gGp=0,gRev=0,gHr=0;(bcFergus||[]).forEach(r=>{if(r._inProgress||isExcl(r))return;const h=bcHrs(r);if(h>0){gGp+=num(r.gp);gRev+=num(r.sales);gHr+=h;}});
   const GG=gHr>0?gGp/gHr:0, GR=gHr>0?gRev/gHr:0;
   // 1) finished / back-costed jobs — real actual GP over their hours (measurable)
   (bcFergus||[]).forEach(r=>{
     const id=String(r._fergus_id),totH=bcHrs(r);if(totH<=0)return;
+    if(r._inProgress&&cashIds[id])return;   // open job with a priced breakdown → valued in step 2, not here
     const excl=isExcl(r);   // crossed-out job — still shown (struck) & kept in place, but excluded from totals/average
     const mh=_jobMonthHrs&&_jobMonthHrs[id];
     const datedTot=mh?Object.values(mh).reduce((s,v)=>s+num(v),0):0;
