@@ -244,8 +244,10 @@ tr.wk-done td:nth-child(2){text-decoration:line-through;}
 tr.jx-off > td{opacity:.55;}
 tr.jx-off > td:not(:last-child){text-decoration:line-through;}
 .jx-btn{cursor:pointer;font-weight:800;border:1px solid var(--border);border-radius:5px;padding:1px 6px;font-size:.72rem;user-select:none;}
-.avgbtn{font-size:.58rem;padding:1px 4px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;}
+.avgbtn,.subbtn{font-size:.58rem;padding:1px 4px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;}
 .avgbtn.on{color:#fff;background:#4d8dff;border-color:#4d8dff;}
+.subbtn.on{color:#fff;background:#f59e0b;border-color:#f59e0b;}
+table.tb.tb-gp .subbtn{padding:1px 3px;}
 /* GP-jobs popup: squeeze to fit the phone — the Job name wraps instead of forcing a wide, side-scrolling table. */
 table.tb.tb-gp{font-size:.7rem;width:100%;}
 table.tb.tb-gp th,table.tb.tb-gp td{padding-left:3px;padding-right:3px;}
@@ -1661,14 +1663,22 @@ function exTD(jobNo){const k=jobNoKey(jobNo);if(!k)return '<td></td>';const on=!
 // sub-contractor, so only a few crew hours are logged and its rate reads sky-high) can be pinned to
 // the month's AVERAGE GP/hr instead. Team-synced via S.set. Toggled from the "avg" button beside the ✕.
 let jobAvg=S.get('jobAvgRate',{});
+let jobSub=S.get('jobSubK',{});   // sub-contract mode: value the WHOLE job (potential profit ÷ priced hrs) in its main work month
 function isAvgForced(v){const k=jobNoKey(v);return !!(k&&jobAvg[k]);}
-function toggleAvg(jobNo){const k=jobNoKey(jobNo);if(!k)return;if(jobAvg[k])delete jobAvg[k];else jobAvg[k]=1;S.set('jobAvgRate',jobAvg);
-  try{renderAll();}catch(e){}
+function isSubForced(v){const k=jobNoKey(v);return !!(k&&jobSub[k]);}
+function _reRenderJobs(){try{renderAll();}catch(e){}
   try{if(window.__cmdKey&&document.getElementById('cmd-modal')&&document.getElementById('cmd-modal').classList.contains('open'))openCmdDetail(window.__cmdKey,window.__cmdMk);}catch(e){}}
-// A compact "avg" toggle cell — sits just LEFT of the cross-out ✕ in the GP-jobs popup. On = this job
-// is valued at the month average GP/hr. Header/total rows add a matching empty cell.
+// avg and sub are mutually exclusive per job (turning one on clears the other).
+function toggleAvg(jobNo){const k=jobNoKey(jobNo);if(!k)return;if(jobAvg[k])delete jobAvg[k];else{jobAvg[k]=1;delete jobSub[k];S.set('jobSubK',jobSub);}S.set('jobAvgRate',jobAvg);_reRenderJobs();}
+function toggleSub(jobNo){const k=jobNoKey(jobNo);if(!k)return;if(jobSub[k])delete jobSub[k];else{jobSub[k]=1;delete jobAvg[k];S.set('jobAvgRate',jobAvg);}S.set('jobSubK',jobSub);_reRenderJobs();}
+// The month (from dated labour history) a job did the most work in — where a sub-contract job's whole
+// result is shown. Null if we have no dated hours for it (caller falls back to its invoice/work month).
+function mainWorkMonth(id){const mh=_jobMonthHrs&&_jobMonthHrs[String(id)];if(!mh)return null;let best=null,bh=-1;for(const m in mh){const v=num(mh[m]);if(v>bh){bh=v;best=m;}}return best;}
+// Compact toggle cells for the GP-jobs popup — sub / avg / ✕, in that order, on the far right.
 function avgTD(jobNo){const k=jobNoKey(jobNo);if(!k)return '<td></td>';const on=!!jobAvg[k];
-  return '<td style="text-align:right;width:1%;white-space:nowrap;padding-left:2px;padding-right:2px;"><span class="jx-btn avgbtn'+(on?' on':'')+'" onclick="event.stopPropagation();toggleAvg(\''+k+'\')" title="'+(on?'Using the month average GP/hr for this job — tap to use its own rate again':'Value this job at the month average GP/hr (use for sub-contracted jobs where few crew hours are logged)')+'">avg</span></td>';}
+  return '<td style="text-align:right;width:1%;white-space:nowrap;padding-left:2px;padding-right:2px;"><span class="jx-btn avgbtn'+(on?' on':'')+'" onclick="event.stopPropagation();toggleAvg(\''+k+'\')" title="'+(on?'Using the month average GP/hr for this job — tap to use its own rate again':'Value this job at the month average GP/hr (few crew hours logged)')+'">avg</span></td>';}
+function subTD(jobNo){const k=jobNoKey(jobNo);if(!k)return '<td></td>';const on=!!jobSub[k];
+  return '<td style="text-align:right;width:1%;white-space:nowrap;padding-left:2px;padding-right:2px;"><span class="jx-btn subbtn'+(on?' on':'')+'" onclick="event.stopPropagation();toggleSub(\''+k+'\')" title="'+(on?'Sub-contract mode on — whole job valued at potential profit ÷ priced hours, shown in its main work month':'Sub-contract mode: value the whole job at its potential profit ÷ priced hours (for jobs a sub-contractor did — priced hours used in place of the few crew hours)')+'">sub</span></td>';}
 // Stable list ordering: a list keeps whatever order it first rendered in, so crossing out or averaging
 // a job (or any other in-session change) never reshuffles the rows — the job you tapped stays exactly
 // where it was, no scrolling to find it again. New jobs (from a later sync) append at the end; a full
@@ -2685,12 +2695,14 @@ function bcMonthWork(){
   // finished back-costed jobs → real GP & hours. NO hours logged = probably a deposit-only
   // invoice, so skip it entirely (its GP must not distort GP/hr).
   (bcFergus||[]).forEach(r=>{if(r._inProgress)return;const id=String(r._fergus_id);
+    if(isSubForced(r)&&num(r.h_priced)>0){const ph=num(r.h_priced);jobs[id]={gp:num(r.gp),rateHrs:ph,actual:ph,fb:mainWorkMonth(id)||bcWorkMonth(r),sub:true};return;}
     const hrs=bcHrs(r);if(hrs<=0){skipN++;return;}
     jobs[id]={gp:num(r.gp),rateHrs:hrs,actual:hrs,fb:bcWorkMonth(r),forceAvg:isAvgForced(r)};});
   // active / unfinished jobs → estimate the final result, but only once hours have been logged.
   const act=S.get('cashJobs',null)||fwJobs||[];
   (act||[]).forEach(j=>{const id=String(j.id!=null?j.id:j.jobNo);if(!id||id==='undefined'||jobs[id])return;
     const sale=num(j.quoted)||num(j.sale)||num(j.chg);if(sale<=0)return;
+    if(isSubForced(j)&&num(j.hPriced)>0){const ph=num(j.hPriced),potGP=sale-num(j.aMat)-num(j.aLab);jobs[id]={gp:potGP,rateHrs:ph,actual:ph,fb:mainWorkMonth(id)||calMonthKey(0),est:true,sub:true};estN++;return;}
     const mh=_jobMonthHrs&&_jobMonthHrs[id];const loggedTot=mh?Object.values(mh).reduce((s,v)=>s+v,0):num(j.actual);
     if(loggedTot<=0){skipN++;return;}   // no hours logged yet → deposit only, don't count
     // Fully-priced fixed job → its own priced margin (sale − priced materials − priced labour). Charge-up
@@ -2703,8 +2715,9 @@ function bcMonthWork(){
   const m={};
   Object.keys(jobs).forEach(id=>{const J=jobs[id];const gpHr=J.forceAvg?bizGpHr:(J.rateHrs>0?J.gp/J.rateHrs:0);
     let dist=null;const mh=_jobMonthHrs&&_jobMonthHrs[id];
-    if(mh){const tot=Object.values(mh).reduce((s,v)=>s+v,0);if(tot>0){dist=mh;splitN++;}}
-    if(!dist)dist={[J.fb]:J.actual};
+    if(J.sub){dist={[J.fb]:J.rateHrs};}   // sub-contract: whole job (priced hours) lands in its main work month
+    else{if(mh){const tot=Object.values(mh).reduce((s,v)=>s+v,0);if(tot>0){dist=mh;splitN++;}}
+    if(!dist)dist={[J.fb]:J.actual};}
     for(const mo in dist){const hrs=dist[mo];if(!mo||hrs<=0)continue;const o=m[mo]||(m[mo]={hrs:0,gp:0,est:0});o.hrs+=hrs;o.gp+=gpHr*hrs;if(J.est)o.est+=hrs;}
   });
   m.__meta={estN,splitN,skipN,avgMargin};return m;
@@ -2747,9 +2760,14 @@ function monthGpJobs(mk){
   const GG=gHr>0?gGp/gHr:0, GR=gHr>0?gRev/gHr:0;
   // 1) finished / back-costed jobs — real actual GP over their hours (measurable)
   (bcFergus||[]).forEach(r=>{
-    const id=String(r._fergus_id),totH=bcHrs(r);if(totH<=0)return;
+    const id=String(r._fergus_id);
     if(r._inProgress&&cashIds[id])return;   // open job with a priced breakdown → valued in step 2, not here
     const excl=isExcl(r);   // crossed-out job — still shown (struck) & kept in place, but excluded from totals/average
+    // Sub-contract mode: show the WHOLE job at potential profit ÷ priced hours, once, in its main work month.
+    if(isSubForced(r)&&num(r.h_priced)>0){seen[id]=1;const mainM=mainWorkMonth(id)||bcWorkMonth(r);if(mainM!==mk)return;
+      const pricedH=num(r.h_priced),potGP=num(r.gp);
+      measured.push({jobNo:r._jobNo||'',job:r.job||'',gp:potGP,rev:num(r.sales),hrs:pricedH,gpHr:potGP/pricedH,est:false,sub:true,excl:excl});return;}
+    const totH=bcHrs(r);if(totH<=0)return;
     const mh=_jobMonthHrs&&_jobMonthHrs[id];
     const datedTot=mh?Object.values(mh).reduce((s,v)=>s+num(v),0):0;
     let hM,denom;
@@ -2773,6 +2791,10 @@ function monthGpJobs(mk){
     const id=String(j.id!=null?j.id:j.jobNo);if(!id||id==='undefined'||seen[id])return;
     const excl=isExcl(j);                                        // crossed-out — shown struck & kept in place, excluded from totals/avg
     if(j.status==='Completed'||j.fin)return;                     // finished → already counted above
+    // Sub-contract mode: whole job at potential profit (sale − actual costs) ÷ priced hours, in its main work month.
+    if(isSubForced(j)&&num(j.hPriced)>0){seen[id]=1;const mainM=mainWorkMonth(id)||calMonthKey(0);if(mainM!==mk)return;
+      const saleS=num(j.quoted)||num(j.sale)||num(j.chg),pricedH=num(j.hPriced),potGP=saleS-num(j.aMat)-num(j.aLab);
+      measured.push({jobNo:String(j.jobNo||''),job:j.job||'',gp:potGP,rev:saleS,hrs:pricedH,gpHr:potGP/pricedH,est:true,sub:true,excl:excl});return;}
     const mh=_jobMonthHrs&&_jobMonthHrs[id];const hM=mh?num(mh[mk]):0;
     if(hM<=0)return;seen[id]=1;                                  // no hours logged in mk → skip
     const sale=num(j.quoted)||num(j.sale)||num(j.chg);
@@ -2797,13 +2819,15 @@ function monthGpJobs(mk){
   });
   // 3) month's average GP/hr + rev/hr from the measurable jobs (fallback to the business average), then
   //    value every deferred job's hours at that rate.
-  let mGp=0,mRev=0,mHr=0;measured.forEach(r=>{if(r.excl)return;mGp+=r.gp;mRev+=r.rev;mHr+=r.hrs;});   // crossed-out jobs don't skew the average
+  let mGp=0,mRev=0,mHr=0;measured.forEach(r=>{if(r.excl||r.sub)return;mGp+=r.gp;mRev+=r.rev;mHr+=r.hrs;});   // crossed-out & sub-contract jobs don't skew the average
   const avgGp=mHr>0?mGp/mHr:GG, avgRev=mHr>0?mRev/mHr:GR;
   deferred.forEach(d=>measured.push({jobNo:d.jobNo,job:d.job,gp:avgGp*d.hM,rev:avgRev*d.hM,hrs:d.hM,gpHr:avgGp,est:true,avg:true,excl:d.excl}));
-  // Keep the display order stable across cross-out / average toggles — the tapped job stays put.
+  // Keep the display order stable across cross-out / average / sub toggles — the tapped job stays put.
   const rows=stableOrder('gpjobs-'+mk,measured,r=>String(r.jobNo||r.job||''),(a,b)=>b.gp-a.gp);
-  let tRev=0,tGp=0,tHrs=0;rows.forEach(r=>{if(r.excl)return;tRev+=r.rev;tGp+=r.gp;tHrs+=r.hrs;});   // totals exclude crossed-out jobs
-  return {rows,tRev,tGp,tHrs,avgGp};
+  // Totals exclude crossed-out jobs. Sub-contract hours (priced, not crew tool-time) are tallied
+  // separately so the crew-hours reconciliation line stays honest.
+  let tRev=0,tGp=0,tHrs=0,sHrs=0;rows.forEach(r=>{if(r.excl)return;tRev+=r.rev;tGp+=r.gp;if(r.sub)sHrs+=r.hrs;else tHrs+=r.hrs;});
+  return {rows,tRev,tGp,tHrs,sHrs,avgGp};
 }
 // Average job value per month, from back-costing revenue ÷ number of jobs in that
 // month (one back-costing row = one job, so deposit + final invoices don't double-count).
@@ -3792,14 +3816,15 @@ function openCmdDetail(key,optMk){
       wrap('<th>Job / address</th><th style="text-align:right;">Won $</th><th style="text-align:right;">Weeks</th><th></th>',rows,'No quotes accepted this '+perW+'.');}
   else if(key==='gp'){const mk=optMk||sel.monthKey;
     const est=monthGpJobs(mk);                                   // finished + OPEN jobs, valued per hour worked in mk
-    const rr=est.rows.map(r=>'<tr'+exTR(r.jobNo)+'><td>'+(r.jobNo?'<b>#'+esc(r.jobNo)+'</b> ':'')+esc((r.job||'').slice(0,36))+(r.avg?' <span class="mut" style="font-size:.58rem;font-weight:800;border:1px solid var(--border);border-radius:4px;padding:0 3px;" title="No fixed price / breakdown / priced hours — valued at the month’s average GP/hr">AVG</span>':(r.est?' <span class="mut" style="font-size:.62rem;font-weight:700;">EST</span>':''))+(r.over?' <span style="font-size:.6rem;font-weight:800;color:var(--danger);border:1px solid var(--danger);border-radius:4px;padding:0 3px;">⚠ OVER HRS</span>':'')+'</td><td style="text-align:right;">'+fmtK(r.gp)+'</td><td style="text-align:right;">'+fmtH(r.hrs)+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmt$(r.gpHr)+'</td>'+avgTD(r.jobNo)+exTD(r.jobNo)+'</tr>');
-    // Total GP/hr must divide by ALL hours the guys were on the tools (matches the dashboard card),
-    // not just job-logged hours — otherwise it flatters the rate. The gap (toolbox/travel/yard time
-    // that isn't logged to a job) is shown as its own line so the hours reconcile.
-    const allH=monthLoggedHrs(mk),jobH=est.tHrs,nonJob=allH-jobH,denH=allH>0?allH:jobH;
+    const badge=r=>r.sub?' <span class="mut" style="font-size:.58rem;font-weight:800;border:1px solid #f59e0b;color:#f59e0b;border-radius:4px;padding:0 3px;" title="Sub-contract — whole job valued at its potential profit ÷ priced hours">SUB</span>':(r.avg?' <span class="mut" style="font-size:.58rem;font-weight:800;border:1px solid var(--border);border-radius:4px;padding:0 3px;" title="Valued at the month’s average GP/hr">AVG</span>':(r.est?' <span class="mut" style="font-size:.62rem;font-weight:700;">EST</span>':''));
+    const rr=est.rows.map(r=>'<tr'+exTR(r.jobNo)+'><td>'+(r.jobNo?'<b>#'+esc(r.jobNo)+'</b> ':'')+esc((r.job||'').slice(0,36))+badge(r)+(r.over?' <span style="font-size:.6rem;font-weight:800;color:var(--danger);border:1px solid var(--danger);border-radius:4px;padding:0 3px;">⚠ OVER HRS</span>':'')+'</td><td style="text-align:right;">'+fmtK(r.gp)+'</td><td style="text-align:right;">'+fmtH(r.hrs)+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmt$(r.gpHr)+'</td>'+subTD(r.jobNo)+avgTD(r.jobNo)+exTD(r.jobNo)+'</tr>');
+    // Total GP/hr divides by ALL hours the guys were on the tools (matches the dashboard card) PLUS any
+    // sub-contract priced hours — not just crew job-logged hours. Crew toolbox/travel/yard time that
+    // isn't logged to a job is its own line so the hours reconcile.
+    const allH=monthLoggedHrs(mk),jobH=est.tHrs,sHrs=num(est.sHrs),nonJob=allH-jobH,denH=(allH>0?allH:jobH)+sHrs;
     if(rr.length){
-      if(nonJob>0.5)rr.push('<tr><td>Non-job hours <span class="mut" style="font-size:.62rem;">toolbox · travel · yard</span></td><td style="text-align:right;color:var(--muted);">$0</td><td style="text-align:right;">'+fmtH(nonJob)+'</td><td style="text-align:right;color:var(--muted);">$0</td><td></td><td></td></tr>');
-      rr.push('<tr class="tot"><td>Total — GP ÷ all hours</td><td style="text-align:right;">'+fmtK(est.tGp)+'</td><td style="text-align:right;">'+fmtH(denH)+'</td><td style="text-align:right;">'+fmt$(denH>0?est.tGp/denH:0)+'</td><td></td><td></td></tr>');
+      if(nonJob>0.5)rr.push('<tr><td>Non-job hours <span class="mut" style="font-size:.62rem;">toolbox · travel · yard</span></td><td style="text-align:right;color:var(--muted);">$0</td><td style="text-align:right;">'+fmtH(nonJob)+'</td><td style="text-align:right;color:var(--muted);">$0</td><td></td><td></td><td></td></tr>');
+      rr.push('<tr class="tot"><td>Total — GP ÷ all hours'+(sHrs>0?' <span class="mut" style="font-size:.62rem;font-weight:600;">incl. sub-contract</span>':'')+'</td><td style="text-align:right;">'+fmtK(est.tGp)+'</td><td style="text-align:right;">'+fmtH(denH)+'</td><td style="text-align:right;">'+fmt$(denH>0?est.tGp/denH:0)+'</td><td></td><td></td><td></td></tr>');
     }
     title='GP jobs — '+mk;
     const nEst=est.rows.filter(r=>r.est).length;
@@ -3813,7 +3838,7 @@ function openCmdDetail(key,optMk){
       cmdLegend([{label:'Revenue (earned)',color:'#4d8dff'},{label:'Gross profit',color:'#4ade80'},{label:'OPEX'+(anyOpex?'':' — sync Xero'),color:'#a78bfa'},{label:'Net profit',color:'#ff8a52'}])+
       '<div class="note" style="margin:6px 0 0;">Revenue &amp; GP are earned from Fergus by work done that month where the labour history is complete, otherwise the month falls back to your actual Xero P&amp;L; OPEX is your Xero overhead; Net profit = GP − OPEX.</div></div>';
     body='<div class="note" style="margin:0 0 10px;">Live earned / estimated GP for every hour worked in '+esc(mk)+' — open jobs included. Each row’s <b>GP/hr</b> is that job’s profitability per hour worked <i>on it</i>; the <b>Total GP/hr</b> ('+fmt$(denH>0?est.tGp/denH:0)+') is the month’s whole-business rate = total GP ÷ <b>every</b> hour the guys were on the tools ('+fmtH(denH)+'h'+(allH>0?', from your Business Activity Report':'')+'), so it matches the dashboard card. Each open job’s <b>GP</b> is its <b>Fergus priced margin</b> (sale − priced materials − priced labour). Jobs still running are <b>EST</b>: GP/hr = that GP ÷ its <b>priced hours</b> while under them. <b style="color:var(--danger);">⚠ OVER HRS</b> = the crew has passed the priced hours, so GP/hr switches to the <b>actual</b> hours — the real (lower) rate — and, since every month shares that rate, earlier months re-value down as more hours are logged. <b>AVG</b> = a charge-up / lump-sum / no-priced-hours job with no reliable per-job margin — its hours are valued at <b>this month’s average GP/hr</b> from the priced jobs'+(nEst?' · '+nEst+' estimated':'')+'.</div>'+
-      wrap('<th>Job</th><th style="text-align:right;">GP</th><th style="text-align:right;">Hrs</th><th style="text-align:right;">GP/hr</th><th></th><th></th>',rr,'No jobs logged hours in '+esc(mk)+'. If that looks wrong, load dated labour history (⚙) then Refresh.','tb-gp')+
+      wrap('<th>Job</th><th style="text-align:right;">GP</th><th style="text-align:right;">Hrs</th><th style="text-align:right;">GP/hr</th><th></th><th></th><th></th>',rr,'No jobs logged hours in '+esc(mk)+'. If that looks wrong, load dated labour history (⚙) then Refresh.','tb-gp')+
       chart;}
   else if(key==='ar'){title='Accounts receivable — invoiced, unpaid';
     const arb=(cash&&cash.arByJob)||null;
