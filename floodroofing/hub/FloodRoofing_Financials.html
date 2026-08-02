@@ -4085,12 +4085,23 @@ function legendBL(color,barL,lineL){return '<div class="cleg"><span><i style="ba
 // Period buckets (oldest→newest) with date ranges + labels.
 function bucketsWeekly(n){const mon=mondayMs();const labels=[],ranges=[],keys=[];for(let i=n-1;i>=0;i--){const s=mon-i*7*86400000,e=s+7*86400000,d=new Date(s);labels.push(d.getDate()+' '+FG_MONTHS[d.getMonth()]);ranges.push({s,e});keys.push(isoWeekKey(d));}return {labels,ranges,keys};}
 function bucketsMonthly(n){const labels=[],ranges=[],keys=[];const now=new Date();for(let i=n-1;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1),s=d.getTime(),e=new Date(d.getFullYear(),d.getMonth()+1,1).getTime();labels.push(FG_MONTHS[d.getMonth()]);ranges.push({s,e});keys.push(calMonthKey(-i));}return {labels,ranges,keys};}
-// Business hours in a month = weekdays (Mon–Fri) × 10h (7am–5pm). The CURRENT month is pro-rated to
-// today so its GP/business-hour rate compares fairly with full months. (Public holidays not excluded.)
+// NZ public holidays that fall on a weekday — OBSERVED (Mondayised) dates, incl. the Northland/Auckland
+// Anniversary Day. Only weekday dates matter (weekends are already excluded). Extend each new year.
+const NZ_HOLIDAYS=new Set([
+  // 2025
+  '2025-01-01','2025-01-02','2025-01-27','2025-02-06','2025-04-18','2025-04-21','2025-04-25','2025-06-02','2025-06-20','2025-10-27','2025-12-25','2025-12-26',
+  // 2026
+  '2026-01-01','2026-01-02','2026-01-26','2026-02-06','2026-04-03','2026-04-06','2026-04-27','2026-06-01','2026-07-10','2026-10-26','2026-12-25','2026-12-28',
+  // 2027
+  '2027-01-01','2027-01-04','2027-02-01','2027-02-08','2027-03-26','2027-03-29','2027-04-26','2027-06-07','2027-06-25','2027-10-25','2027-12-27','2027-12-28'
+]);
+// Business hours in a month = working days (Mon–Fri, minus NZ public holidays) × 10h (7am–5pm). The
+// CURRENT month is pro-rated to today so its GP/business-hour rate compares fairly with full months.
 function bizHoursOfMonth(mk){const p=String(mk||'').split('-');const mi=FG_MONTHS.indexOf(p[0]),y=+p[1];if(mi<0||!y)return 0;
   const now=new Date();const isCur=(mi===now.getMonth()&&y===now.getFullYear());
   const last=isCur?now.getDate():new Date(y,mi+1,0).getDate();
-  let d=0;for(let day=1;day<=last;day++){const wd=new Date(y,mi,day).getDay();if(wd>=1&&wd<=5)d++;}
+  const p2=x=>String(x).padStart(2,'0');
+  let d=0;for(let day=1;day<=last;day++){const wd=new Date(y,mi,day).getDay();if(wd<1||wd>5)continue;if(NZ_HOLIDAYS.has(y+'-'+p2(mi+1)+'-'+p2(day)))continue;d++;}
   return d*10;}
 function countInBuckets(items,dateFn,ranges){const res=ranges.map(()=>({n:0,val:0}));(items||[]).forEach(it=>{const t=Date.parse(String(dateFn(it)||'').replace(' ','T'));if(isNaN(t))return;for(let i=0;i<ranges.length;i++){if(t>=ranges[i].s&&t<ranges[i].e){res[i].n++;res[i].val+=num(it.total);break;}}});return res;}
 // One global period selector (Weekly/Monthly) drives the command-centre tiles AND the charts;
@@ -4279,7 +4290,7 @@ function renderCommandVisuals(){
       const availW=(host.clientWidth||window.innerWidth||900)-76,colW=Math.max(84,Math.min(280,Math.floor(availW/6)));   // ~6 months visible, then scroll
       inner=any?gpScrollChart(labs.map(l=>l.replace(" "," ")),[{name:'Revenue',color:COL[0],vals:s.revV},{name:'Gross profit',color:COL[1],vals:s.gpV},{name:'OPEX',color:COL[2],vals:s.opV},{name:'Net profit',color:COL[3],vals:s.npV}],meta,50000,colW)
         +cmdLegend([{label:'Revenue'+(xeroMode?' (Xero)':' (earned)'),color:COL[0]},{label:'Gross profit',color:COL[1]},{label:'OPEX'+(anyOpex?'':' — sync Xero'),color:COL[2]},{label:'Net profit',color:COL[3]}])
-        +'<div class="note" style="margin-top:6px;">Under each month: GP / OPEX / Net-profit as a % of revenue, <b>GP/hr worked</b> (GP ÷ crew hours), <b>GP/bus-hr</b> (GP ÷ business hours in the working day, weekdays × 10h 7am–5pm — the combined profit the whole team throws off per clock-hour), and total hours worked. '+(xeroMode?'Revenue, GP &amp; net profit are straight from your <b>Xero P&amp;L</b> — matches your accountant.':'Revenue &amp; GP are earned from Fergus where the labour history is complete, otherwise the month falls back to your <b>actual Xero P&amp;L</b>.')+' OPEX from Xero; Net profit = GP − OPEX.</div>':'<div class="empty">Sync Fergus back-costing'+(anyOpex?'':' + Xero')+'.</div>';
+        +'<div class="note" style="margin-top:6px;">Under each month: GP / OPEX / Net-profit as a % of revenue, <b>GP/hr worked</b> (GP ÷ crew hours), <b>GP/bus-hr</b> (GP ÷ business hours in the working day — working days × 10h 7am–5pm, weekends &amp; NZ public holidays excluded — the combined profit the whole team throws off per clock-hour), and total hours worked. '+(xeroMode?'Revenue, GP &amp; net profit are straight from your <b>Xero P&amp;L</b> — matches your accountant.':'Revenue &amp; GP are earned from Fergus where the labour history is complete, otherwise the month falls back to your <b>actual Xero P&amp;L</b>.')+' OPEX from Xero; Net profit = GP − OPEX.</div>':'<div class="empty">Sync Fergus back-costing'+(anyOpex?'':' + Xero')+'.</div>';
     }
     panels.push('<div class="cpanel wide"><div class="cpt">Revenue · GP · OPEX · Net profit <span class="pin">'+pin+'</span></div>'+chips+inner+'</div>');}
   // 1b — GP efficiency: avg GP per HOUR WORKED vs combined GP per BUSINESS HOUR (monthly, like the GP card)
@@ -4291,7 +4302,7 @@ function renderCommandVisuals(){
     const body=anyG?'<div class="cpsub">'+
       '<div><div class="cpsubt">Avg GP / hour worked</div>'+barLineChart(gl,avgV,rollAvg(avgV,3),'$','#38bdf8','GP/hr worked','3-mo avg',halfColW)+legendBL('#38bdf8','GP/hr worked','3-mo avg')+'</div>'+
       '<div><div class="cpsubt">Combined GP / business hour</div>'+barLineChart(gl,bizV,rollAvg(bizV,3),'$','#fbbf24','GP/bus-hr','3-mo avg',halfColW)+legendBL('#fbbf24','GP/bus-hr','3-mo avg')+'</div>'+
-    '</div><div class="note" style="margin-top:6px;"><b>Avg GP/hr worked</b> = GP ÷ the hours the crew logged (per man-hour). <b>Combined GP / business hour</b> = the same GP ÷ the clock hours in the working day (weekdays × 10h, 7am–5pm) — the total profit the whole team throws off per hour of business, so it climbs when more crews run in parallel.</div>':'<div class="empty">Sync Fergus back-costing.</div>';
+    '</div><div class="note" style="margin-top:6px;"><b>Avg GP/hr worked</b> = GP ÷ the hours the crew logged (per man-hour). <b>Combined GP / business hour</b> = the same GP ÷ the clock hours in the working day (working days × 10h 7am–5pm, weekends &amp; NZ public holidays excluded) — the total profit the whole team throws off per hour of business, so it climbs when more crews run in parallel.</div>':'<div class="empty">Sync Fergus back-costing.</div>';
     panels.push('<div class="cpanel wide"><div class="cpt">GP efficiency <span class="pin">'+(gpCardSrc==='xero'?'Xero':'earned')+' · 12 mo</span></div>'+body+'</div>');}
   // 2 — Sales: quotes sent + conversion rate (two charts side by side)
   {let body;
