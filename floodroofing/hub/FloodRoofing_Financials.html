@@ -2677,14 +2677,14 @@ function bcWorkMonth(r){
   return r.month;
 }
 // Per-month labour hours + GP (job counted whole in its dominant work-month) for the BC trend.
-function bcMonthHrsGP(){const m={};getAllBC().forEach(r=>{const mo=bcWorkMonth(r);if(!mo)return;const o=m[mo]||(m[mo]={hrs:0,gp:0,rev:0,n:0});const h=bcHrs(r);if(h>0){o.hrs+=h;o.gp+=num(r.gp);}o.rev+=num(r.sales);o.n++;});return m;}   // GP/hr ignores jobs with no hours logged (likely deposit-only invoices)
+function bcMonthHrsGP(){const m={};getAllBC().forEach(r=>{if(isExcl(r))return;const mo=bcWorkMonth(r);if(!mo)return;const o=m[mo]||(m[mo]={hrs:0,gp:0,rev:0,n:0});const h=bcHrs(r);if(h>0){o.hrs+=h;o.gp+=num(r.gp);}o.rev+=num(r.sales);o.n++;});return m;}   // GP/hr ignores jobs with no hours logged (likely deposit-only invoices); crossed-out jobs excluded
 // Per-month GP + hours by WORK ACTUALLY DONE that month: split each job's hours into the calendar
 // months they were logged (from time entries), and value every hour at that job's GP/hr. Finished
 // jobs use their real final GP; jobs still running are estimated (revenue × avg completed margin,
 // over their priced hours) so an in-progress month isn't understated. Jobs with no time-entry data
 // fall back to the whole job in its dominant/invoice month, so history stays populated.
 function bcMonthWork(){
-  const comp=(bcFergus||[]).filter(r=>!r._inProgress);
+  const comp=(bcFergus||[]).filter(r=>!r._inProgress&&!isExcl(r));
   let cs=0,cg=0;comp.forEach(r=>{cs+=num(r.sales);cg+=num(r.gp);});
   const avgMargin=cs>0?Math.max(0.05,Math.min(0.6,cg/cs)):0.28;   // estimated final margin for unfinished jobs
   // Business average GP/hr from finished jobs — the rate used for jobs manually pinned to the average
@@ -2694,21 +2694,23 @@ function bcMonthWork(){
   const jobs={};let estN=0,splitN=0,skipN=0;
   // finished back-costed jobs → real GP & hours. NO hours logged = probably a deposit-only
   // invoice, so skip it entirely (its GP must not distort GP/hr).
-  (bcFergus||[]).forEach(r=>{if(r._inProgress)return;const id=String(r._fergus_id);
+  (bcFergus||[]).forEach(r=>{if(r._inProgress||isExcl(r))return;const id=String(r._fergus_id);   // crossed-out jobs excluded from earned GP
     if(isSubForced(r)&&num(r.h_priced)>0){const ph=num(r.h_priced);jobs[id]={gp:num(r.gp),rateHrs:ph,actual:ph,fb:mainWorkMonth(id)||bcWorkMonth(r),sub:true};return;}
     const hrs=bcHrs(r);if(hrs<=0){skipN++;return;}
     jobs[id]={gp:num(r.gp),rateHrs:hrs,actual:hrs,fb:bcWorkMonth(r),forceAvg:isAvgForced(r)};});
   // active / unfinished jobs → estimate the final result, but only once hours have been logged.
   const act=S.get('cashJobs',null)||fwJobs||[];
   (act||[]).forEach(j=>{const id=String(j.id!=null?j.id:j.jobNo);if(!id||id==='undefined'||jobs[id])return;
+    if(isExcl(j))return;                                            // crossed-out job — excluded from earned GP
     const sale=num(j.quoted)||num(j.sale)||num(j.chg);if(sale<=0)return;
     if(isSubForced(j)&&num(j.hPriced)>0){const ph=num(j.hPriced),potGP=sale-num(j.aMat)-num(j.aLab);jobs[id]={gp:potGP,rateHrs:ph,actual:ph,fb:mainWorkMonth(id)||calMonthKey(0),est:true,sub:true};estN++;return;}
     const mh=_jobMonthHrs&&_jobMonthHrs[id];const loggedTot=mh?Object.values(mh).reduce((s,v)=>s+v,0):num(j.actual);
     if(loggedTot<=0){skipN++;return;}   // no hours logged yet → deposit only, don't count
-    // Fully-priced fixed job → its own priced margin (sale − priced materials − priced labour). Charge-up
-    // / lump-sum / no-priced-hours → the business average margin, so it never reads a false 100%.
-    const hasQuote=num(j.quoted)>0,hasBreak=(num(j.pMat)>0||num(j.pLab)>0),hasPh=num(j.hPriced)>0;
-    const jobGP=(hasQuote&&hasBreak&&hasPh)?(sale-num(j.pMat)-num(j.pLab)):(sale*avgMargin);
+    // Fully-priced fixed job → its own priced margin (sale − priced materials − priced labour), even with
+    // no priced labour hours (labour baked into the price). Only fall back to the business average margin
+    // when there's no usable breakdown / the margin isn't positive — so it never reads a false 100%.
+    const hasQuote=num(j.quoted)>0,hasBreak=(num(j.pMat)>0||num(j.pLab)>0),pm=sale-num(j.pMat)-num(j.pLab);
+    const jobGP=(hasQuote&&hasBreak&&pm>0)?pm:(sale*avgMargin);
     const hP=num(j.hPriced),hA=num(j.hActual);
     const rateHrs=Math.max(hP,hA,loggedTot)||1;
     jobs[id]={gp:jobGP,rateHrs,actual:loggedTot,fb:calMonthKey(0),est:true,forceAvg:isAvgForced(j)};estN++;});
@@ -4314,7 +4316,12 @@ function sixMonthAvg(){
 // guys actually logged into Fergus (time entries) when available, else the summary's logged hours.
 function fergusProd(){
   // Completed jobs only — an in-progress job books full revenue but partial cost, so its GP/hr reads high.
-  const calc=filt=>{let rev=0,gp=0,hrs=0,n=0;(bcFergus||[]).forEach(r=>{if(r._inProgress)return;if(filt&&!filt.has(r.month))return;const h=bcHrs(r);if(h<=0)return;rev+=num(r.sales);gp+=num(r.gp);hrs+=h;n++;});return {rev,gp,hrs,n};};
+  const calc=filt=>{let rev=0,gp=0,hrs=0,n=0;(bcFergus||[]).forEach(r=>{
+    if(r._inProgress||isExcl(r)||isAvgForced(r))return;   // skip crossed-out; avg-forced jobs aren't a measurable own rate
+    if(filt&&!filt.has(r.month))return;
+    let h=bcHrs(r);
+    if(isSubForced(r)&&num(r.h_priced)>0)h=num(r.h_priced);   // sub-contract: value GP over PRICED hours, not the few crew hours
+    if(h<=0)return;rev+=num(r.sales);gp+=num(r.gp);hrs+=h;n++;});return {rev,gp,hrs,n};};
   const set=new Set();for(let i=0;i<12;i++)set.add(calMonthKey(-i));
   let o=calc(set);if(o.n<1||o.hrs<=0)o=calc(null);   // fall back to all Fergus rows if nothing in the last 12 months
   if(o.hrs<=0||o.n<1)return null;
