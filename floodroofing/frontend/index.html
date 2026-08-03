@@ -780,7 +780,7 @@ select{
    padding scale to the cut-list tables above so the page reads as a
    single layered surface rather than a mash of dissimilar panels. */
 .mat-fl-card{
-  border:1px solid #e5e7eb; border-radius:8px;
+  border:2px solid #94a3b8; border-radius:8px;
   padding:10px 12px; background:#fff;
   display:flex; flex-direction:column;
 }
@@ -789,7 +789,7 @@ select{
 /* line-height 1.55 (was 1.4): the per-face length inputs ("4.7", "6.2")
    are Inter <input>s that clip overflow — a 1.4 line shaved the bottom of
    the digits.  The looser line keeps each measure fully legible. */
-.mat-fl-card .mat-fl-rows{ margin-top:6px; border-top:1px solid #e5e7eb; padding-top:4px; font-size:12px; line-height:1.55; }
+.mat-fl-card .mat-fl-rows{ margin-top:6px; border:2px solid #64748b; border-radius:6px; padding:5px 8px; font-size:12px; line-height:1.55; }
 .mat-fl-card .mat-fl-row{ display:grid; gap:8px; align-items:center; padding:2px 4px; }
 .mat-fl-card .mat-fl-row input{ line-height:1.55; }
 .mat-fl-card .mat-fl-row.is-extra{ background:#fffbeb; border-radius:3px; }
@@ -5708,7 +5708,7 @@ function snapshotCurrentJob(){
     form: form,
     state: { img64:S.img64, roofData:S.roofData, labour:S.labour, materials:S.materials,
              condition:S.condition, photos:S.photos, linkedJobId:S.linkedJobId, linkedJobNo:S.linkedJobNo, linkedJobName:S.linkedJobName,
-             quote:S.quote, jpPdfRev:S.jpPdfRev||0, fergusSent:S.fergusSent||null },
+             quote:S.quote, jpPdfRev:S.jpPdfRev||0, fergusSent:S.fergusSent||null, jpFlashAngles:S.jpFlashAngles||{} },
     draw: { outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
             penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
             scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step,
@@ -25588,6 +25588,68 @@ function _jpRenderCutLists(content, page, idx){
 //   - auto-derived flashing type (spec + cut list)
 //   - user-added gallery slot (library entry or custom sketch)
 //   - empty "Add" cell with "Select From Favourites" + "Enter Custom"
+// ── Flashing angles (∠) — a flashing bend usually has one or two angle
+// markers; let the user tap each to enter the real degrees, shown as "N°".
+// Stored per flashing on S.jpFlashAngles (persisted with the job), keyed by
+// slot index / auto-type so it doesn't mutate the shared library drawing.
+function _jpFlashPolys(box){
+  try {
+    if (box.slot){
+      var slot = box.slot;
+      if (Array.isArray(slot.polylines)) return slot.polylines;
+      if (slot.source === 'library'){ var e = _getAllFlashings().find(function(x){ return x.name === slot.name; }); return (e && e.polylines) || []; }
+      return [];
+    }
+    if (box.spec && box.spec.drawing){ var p = _jpResolveDefaultDrawing(box.spec.key); return (p && p.entry && p.entry.polylines) || []; }
+  } catch(e){}
+  return [];
+}
+// One default (marker deg, or null) per angle marker found across the polylines.
+function _jpFlashAngleDefaults(polys){
+  var out = [];
+  (polys || []).forEach(function(p){
+    if (p && p.angleMarkers) Object.keys(p.angleMarkers).forEach(function(k){
+      var m = p.angleMarkers[k];
+      out.push((m && m.deg != null && isFinite(m.deg)) ? +m.deg : null);
+    });
+  });
+  return out;
+}
+function _jpFlashAngleKey(box){ return box.slot ? ('slot:' + box.slotIdx) : ('auto:' + ((box.spec && box.spec.key) || '')); }
+function _jpFlashAngleVal(key, idx, dflt){
+  var arr = (S.jpFlashAngles && S.jpFlashAngles[key]) || [];
+  var v = arr[idx];
+  if (v != null && isFinite(v)) return +v;
+  if (dflt != null && isFinite(dflt)) return +dflt;
+  return (typeof _flashDefaultAngleDeg === 'function') ? _flashDefaultAngleDeg() : 20;
+}
+function _jpFlashAnglePrompt(key, idx, dflt){
+  var cur = _jpFlashAngleVal(key, idx, dflt);
+  var ans = window.prompt('Enter the flashing angle in degrees:', cur != null ? String(Math.round(cur * 10) / 10) : '');
+  if (ans == null) return;
+  var v = parseFloat(ans);
+  if (!isFinite(v)) { alert('Please enter a number, e.g. 45'); return; }
+  v = Math.max(0, Math.min(180, v));
+  if (!S.jpFlashAngles) S.jpFlashAngles = {};
+  if (!Array.isArray(S.jpFlashAngles[key])) S.jpFlashAngles[key] = [];
+  S.jpFlashAngles[key][idx] = v;
+  try { if (S.currentJobId) Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){}
+  try { renderJobPack(); } catch(e){}
+}
+// Chip row of tappable "∠ N°" angles for a flashing card (empty string if none).
+function _jpFlashAngleChips(box){
+  var polys = _jpFlashPolys(box);
+  var defs = _jpFlashAngleDefaults(polys);
+  if (!defs.length) return '';
+  var key = _jpFlashAngleKey(box);
+  return '<div class="mat-fl-angles" style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 5px">' +
+    defs.map(function(d, ai){
+      var v = _jpFlashAngleVal(key, ai, d);
+      var dArg = (d != null && isFinite(d)) ? d : 'null';
+      return '<button type="button" class="mat-fl-angle" onclick="_jpFlashAnglePrompt(\'' + key + '\',' + ai + ',' + dArg + ')" title="Tap to enter this angle" '+
+        'style="border:1.5px solid #0ea5e9;background:#e0f2fe;color:#075985;border-radius:6px;padding:2px 10px;font-size:12.5px;font-weight:800;cursor:pointer;font-variant-numeric:tabular-nums;line-height:1.5">∠ ' + (Math.round(v * 10) / 10) + '°</button>';
+    }).join('') + '</div>';
+}
 function _jpRenderFlashingCell(box, bi){
   if (box.add){
     return '<div class="mat-fl-empty">' +
@@ -25630,13 +25692,12 @@ function _jpRenderFlashingCell(box, bi){
         '<button class="mat-list-del" onclick="_matFlSlotRowRemove('+si+','+ri+')" title="Delete row">×</button>'+
       '</div>';
     });
-    var slotHead = '<div class="mat-fl-head" style="padding-right:22px"><strong>'+esc(slotTitle || 'Flashing')+'</strong>'+
-      '<span style="margin-left:auto;flex-shrink:0;font-size:11px;font-weight:800;color:#0a1628;font-variant-numeric:tabular-nums;white-space:nowrap">'+
-        (sPcs ? sPcs + ' pcs · ' + sLm.toFixed(1) + ' m' : '')+'</span></div>';
+    var slotHead = '<div class="mat-fl-head" style="padding-right:22px"><strong>'+esc(slotTitle || 'Flashing')+'</strong></div>';
     return '<div class="mat-fl-card" style="position:relative">' +
       '<button class="no-print pdf-hide" onclick="_matFlashingsRemove('+si+')" title="Remove this flashing" style="position:absolute;top:4px;right:4px;background:none;border:none;color:#94a3b8;font-size:14px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:4px;z-index:2">×</button>'+
       slotHead +
       inner +
+      _jpFlashAngleChips(box) +
       '<div class="mat-fl-rows">'+sRowsHtml+'</div>'+
       '<button class="mat-add-btn no-print pdf-hide" onclick="_matFlSlotRowAdd('+si+')" style="margin-top:6px">+ Add row</button>'+
     '</div>';
@@ -25695,9 +25756,9 @@ function _jpRenderFlashingCell(box, bi){
   });
   var addRowBtn = '<button class="mat-add-btn" onclick="_matExtrasAdd(\''+esc(spec.key)+'\')" style="align-self:flex-start">+ Add row</button>';
   return '<div class="mat-fl-card">'+
-    '<div class="mat-fl-head"><span class="mat-dot" style="background:'+spec.colour+'"></span><strong>'+esc(spec.label)+'</strong>'+
-      '<span style="margin-left:auto;flex-shrink:0;font-size:11px;font-weight:800;color:#0a1628;font-variant-numeric:tabular-nums;white-space:nowrap">'+cl.pieceCount+' pcs · '+cl.totalLm.toFixed(1)+' m</span></div>'+
+    '<div class="mat-fl-head"><span class="mat-dot" style="background:'+spec.colour+'"></span><strong>'+esc(spec.label)+'</strong></div>'+
     drawing +
+    _jpFlashAngleChips(box) +
     '<div class="mat-fl-rows">'+rowsHtml+'</div>'+
     addRowBtn +
   '</div>';
