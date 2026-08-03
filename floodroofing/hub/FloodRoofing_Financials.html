@@ -1263,7 +1263,10 @@ let barReport=S.get('barReport',{});         // Fergus Business Activity Report 
 let schedFinish=S.get('schedFinish',{byNo:{},byAddr:{}});   // imported job schedule {byNo:{jobNoDigits:finishMs}, byAddr:{addr:finishMs}} — drives cashflow finish dates
 let msBC=S.get('msBC',[]);                    // ModSpace back-costing rows (Active + Completed, every status of work)
 let bcInvDates={};                            // {jobId: [non-void invoice dates, ascending]} for completion-date back-costing
-let fwJobs=S.get('fwJobs',[]);               // [{id,job,priced,actual,remaining,status}]
+let fwJobs=S.get('fwJobs',[]);               // [{id,jobNo,job,priced,actual,remaining,status}]
+// Back-fill jobNo onto older forward-workflow rows (they used to omit it) from cashJobs by id, so the
+// cross-out ✕ shows on the Forward-workflow list and crossing a job actually drops it from its totals.
+(function(){try{const cj=S.get('cashJobs',null);if(!cj||!fwJobs.length)return;const m={};cj.forEach(c=>{if(c&&c.id!=null)m[String(c.id)]=c.jobNo;});fwJobs.forEach(j=>{if((j.jobNo==null||j.jobNo==='')&&m[String(j.id)]!=null)j.jobNo=m[String(j.id)];});}catch(e){}})();
 let cfg=S.get('fwCfg',{teams:4,size:2,hrs:8});
 let xeroMonthly=S.get('xeroMonthly',{});     // { 'Mon-YYYY': {rev,gp,opex,np,wages} } from Xero monthly P&L
 let xeroReports={};                          // { 'Mon-YYYY': full Xero report } cached in-memory for instant breakdown
@@ -1617,7 +1620,7 @@ async function syncWorkload(band){
         allJobs.push({id:String(id),jobNo:String(job.jobNo||job.jobNumber||''),job:jobName,pMat,pLab,aMat,aLab,hActual:actual,hPriced:priced,sale,quoted:jQuoted,chg:jChg,billed:jBilled,status:job.status||'Active',fin,_lm:job.lastModified||''});
         if(fin){excluded++;continue;} // fully invoiced = done → not backlog (but still in the forecast above)
         if(priced<=0)noPriced++;
-        out.push({id:String(id),job:jobName,priced,actual,remaining:Math.max(0,priced-actual),pMat,pLab,aMat,aLab,sale,quoted:jQuoted,chg:jChg,billed:jBilled,status:job.status||'Active'});
+        out.push({id:String(id),jobNo:String(job.jobNo||job.jobNumber||''),job:jobName,priced,actual,remaining:Math.max(0,priced-actual),pMat,pLab,aMat,aLab,sale,quoted:jQuoted,chg:jChg,billed:jBilled,status:job.status||'Active'});
       }
     }
     await Promise.all(Array.from({length:Math.min(4,total||1)},()=>jobWorker()));
