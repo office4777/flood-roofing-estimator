@@ -2126,14 +2126,16 @@ function fsFig(summary){
   const ca=s.chargeableAmount||s.billable||s.chargeable||{};
   const tb=s.totalBilled||s.invoiced||s.totalInvoiced||{};
   const lh=s.labourHours||s.hours||{};
-  // Revenue = the GREATER of the priced/quoted amount and the claimed/invoiced amount. Extras that
-  // were invoiced but never quoted (claimed > priced) lift revenue; un-invoiced jobs use the price.
+  // Revenue = the ACTUAL claimed/invoiced amount once a job has been invoiced — this reflects reality
+  // (scope cuts, discounts, extras) and excludes voided invoices, so it matches Fergus "Total Claimed".
+  // Using max(quote, claimed) overstated revenue whenever a job was invoiced for LESS than quoted (e.g.
+  // #2856 quoted $14.3k but claimed $10.8k). Only fall back to the quote when nothing's invoiced yet.
   const priced=fnum(fpick(qs,'quotedAmount','priced','billablePriced','pricedAmount','total','amount'))
          || fnum(fpick(ca,'total','priced','billable','amount'))
          || fnum(fpick(s,'billablePricedAmount','pricedAmount','totalPriced'));
   const claimed=fnum(fpick(tb,'total','invoicedBillable','invoiced','claimed','totalClaimed'))
          || fnum(fpick(s,'invoicedBillable','totalClaimed','totalInvoiced','invoicedBillableAmount'));
-  const rev=Math.max(priced,claimed)||priced||claimed;
+  const rev=(claimed>0?claimed:priced)||priced||claimed;
   // Actual costs to date (Fergus: "Current Labour/Material Costs").
   const lab=fnum(fpick(ci,'labour','labor','labourCost','currentLabour','labourCurrent'))
          || fnum(fpick(s,'currentLabourCosts','labourCosts'));
