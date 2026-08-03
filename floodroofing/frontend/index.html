@@ -9506,9 +9506,12 @@ function _gutterDelta(){
 // The base material cost + gutter lm are stashed on the quote when it's
 // built office-side (see refreshQuoteProposal) so the customer-facing
 // share link prices identically without the roof drawing.
-var SEL_GRADE_PCT   = { maxam: 0, colorzen: -0.138, colourcote: 0, zincalume: -0.327 };
+var SEL_GRADE_PCT   = { maxam: 0, colorzen: -0.138, colourcote: -0.07, zincalume: -0.327 };
 var SEL_GAUGE55_PCT = 0.22;
 var SEL_GUTTER_RATE_PER_LM = { box125: 70, marley_typhoon: 80, marley_classic: 72 }; // $/lm ex-GST
+// External brackets are an upcharge over the standard internal brackets:
+// +$6/lm on a 125mm box gutter, +$3/lm on either Marley PVC gutter (ex-GST).
+var SEL_BRACKET_EXT_PER_LM = { box125: 6, marley_typhoon: 3, marley_classic: 3 };
 function _selMaterialBase(){
   var q = (window.S && S.quote) || {};
   var b = parseFloat(q.materialBase);
@@ -9539,6 +9542,25 @@ function _selGutterLineCount(){
   if (isFinite(n) && n > 0) return n;
   try { var c = (DRAW.lines || []).filter(function(l){ return l && l.type === 'gutter'; }).length; if (c > 0) return c; } catch(e){}
   return 1;   // a gutter was chosen, so at least one downpipe
+}
+// External-bracket upcharge (ex-GST) for the currently-selected gutter.
+// Internal brackets are the standard (no change); external adds $/lm.
+// Standard scaffolding price (ex-GST) — the figure a +25% platform upgrade is
+// charged on. Stashed office-side onto the quote so the customer share link
+// (which has no live pricing state) can price the gutter-triggered upgrade.
+function _selScaffoldBasePrice(){
+  var q = (window.S && S.quote) || {};
+  var b = parseFloat(q.scaffoldBase);
+  if (isFinite(b) && b > 0) return b;
+  var sc = q.scaffold || {};
+  return parseFloat(sc.price) || 0;
+}
+function _selBracketExtDelta(){
+  var p = (window.S && S.quote && S.quote.proposalOptions) || {};
+  if (!p.gutterType || p.gutterType === 'none') return 0;
+  var rate = SEL_BRACKET_EXT_PER_LM[p.gutterType];
+  if (!rate) return 0;
+  return rate * _selGutterLm();
 }
 function _selGutterDelta(gutterId){
   // The office can override the SELECTED gutter's total in the Pricing panel
@@ -9581,6 +9603,15 @@ function _qpSelectionChanges(){
   var p = q.proposalOptions || {};
   var gp = q.gutterPrices || {};
   var out = [];
+  // Optional extra roofs the customer has opted into (synthetic multi-roof
+  // extras — the base scope is the main roof only, so each is an additive
+  // delta). Listed first so they read as "main roof + extra roofs + upgrades".
+  var _er = q.extraRoofs || [];
+  var _erSel = (p.extraRoofsSel && typeof p.extraRoofsSel === 'object') ? p.extraRoofsSel : {};
+  _er.forEach(function(rr, i){
+    if (_erSel[i] && parseFloat(rr.price) > 0)
+      out.push({ label: 'Optional extra roof — ' + (rr.name || ('Roof ' + (i + 2))), delta: parseFloat(rr.price) });
+  });
   var gradeNames = { colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume® (unpainted)' };
   if (p.steelGrade && p.steelGrade !== 'maxam')
     out.push({ label: (gradeNames[p.steelGrade] || p.steelGrade) + ' steel', delta: _selGradeDelta(p.steelGrade) });
@@ -9598,8 +9629,15 @@ function _qpSelectionChanges(){
     var gm = gmap[p.gutterType];
     if (gm) {
       out.push({ label: gm.name, delta: _selGutterDelta(p.gutterType) });
-      if (p.gutterBracket === 'internal')
-        out.push({ label: 'Internal gutter brackets', delta: 0 });
+      // Selecting any gutter upgrades the site from edge protection to a full
+      // working platform — an extra 25% on the standard scaffolding price.
+      var _scUp = 0.25 * _selScaffoldBasePrice();
+      if (_scUp > 0)
+        out.push({ label: 'Platform scaffolding upgrade (from edge protection — required to install guttering safely)', delta: _scUp });
+      // Internal brackets are standard (no charge). External brackets add a
+      // per-lm upcharge ($6/lm box, $3/lm Marley). Default is internal.
+      if ((p.gutterBracket || 'internal') === 'external')
+        out.push({ label: 'External gutter brackets', delta: _selBracketExtDelta() });
       // New downpipes — only offered once a gutter is chosen.
       if (_selDownpipesOn())
         out.push({ label: 'New downpipes', delta: _selDownpipeDelta() });
@@ -9701,6 +9739,18 @@ function _toggleProposalRoof(id, checked){
   var o = S.quote.options.find(function(x){ return x.id === id; });
   if (!o) return;
   o.selected = !!checked;
+  if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
+  if (window.__CUSTOMER_MODE && typeof _postCustomerUpdateDebounced === 'function') _postCustomerUpdateDebounced();
+}
+// Customer includes / excludes a SYNTHETIC optional extra roof (multi-roof
+// jobs where the office didn't author explicit option packages). The pick is
+// held on proposalOptions.extraRoofsSel keyed by extra-roof index and flows
+// through _qpSelectionChanges into every total.
+function _toggleProposalExtraRoof(i, checked){
+  if (!S.quote) return;
+  var p = S.quote.proposalOptions || (S.quote.proposalOptions = {});
+  if (!p.extraRoofsSel || typeof p.extraRoofsSel !== 'object') p.extraRoofsSel = {};
+  p.extraRoofsSel[i] = !!checked;
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
   if (window.__CUSTOMER_MODE && typeof _postCustomerUpdateDebounced === 'function') _postCustomerUpdateDebounced();
 }
@@ -10001,14 +10051,13 @@ function buildAcceptSummaryRows(){
 // tracks acceptance in Fergus).
 function acceptQuoteDigitally(){
   if (!S.quote) return;
-  var nameEl  = document.getElementById('qpAcceptName');
-  var termsEl = document.getElementById('qpAcceptTerms');
+  // The prominent "Accept quote" button (sticky bar + signature page) ALWAYS
+  // opens the confirmation popup. The name field + terms tick now live INSIDE
+  // that popup — previously this button silently blocked when the terms box,
+  // buried on the signature page and shrunk in the zoomed customer view, was
+  // left unticked, so tapping Accept just flashed an alert and read as dead.
+  var nameEl = document.getElementById('qpAcceptName');
   var name = (nameEl && nameEl.value.trim()) || (S.quote.client||'').trim();
-  if (!name){ alert('Please type your full name to accept the quote.'); if (nameEl) { try{nameEl.scrollIntoView({block:'center'});}catch(e){} nameEl.focus(); } return; }
-  if (termsEl && !termsEl.checked){ alert('Please tick the box to confirm you accept the quote and the terms & conditions.'); try{termsEl.scrollIntoView({block:'center'});}catch(e){} return; }
-  // Final gate: show the customer a popup summarising exactly what they're
-  // accepting (their Selections-page picks + the total). The acceptance is
-  // only recorded once they confirm in that modal.
   _openAcceptConfirm(name);
 }
 // Editable body of the acceptance popup: one dropdown per Selections-page
@@ -10058,7 +10107,7 @@ function _acceptConfirmBodyHtml(){
   html += row('Guttering', sel('gutterType', GU, 'none'));
   if (gt !== 'none'){
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-        '<div>'+row('Gutter brackets', sel('gutterBracket', BR, 'external'))+'</div>'+
+        '<div>'+row('Gutter brackets', sel('gutterBracket', BR, 'internal'))+'</div>'+
         '<div>'+row('Downpipes', sel('downpipes', DP, 'no'))+'</div>'+
       '</div>';
   }
@@ -10109,9 +10158,16 @@ function _openAcceptConfirm(name){
     '<div id="acceptConfirmBody" style="padding:15px 18px 8px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">'+
       _acceptConfirmBodyHtml()+
     '</div>'+
-    '<div style="padding:12px 16px;border-top:1px solid #eef2f6;display:flex;gap:9px;background:#fafbfc">'+
-      '<button onclick="_acceptConfirmClose()" style="padding:11px 16px;background:#fff;border:1px solid #d3dce6;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;color:#334155">Cancel</button>'+
-      '<button onclick="_acceptConfirmProceed()" style="flex:1;padding:11px 16px;background:#0099cc;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer">Confirm &amp; accept ✓</button>'+
+    '<div style="padding:12px 16px;border-top:1px solid #eef2f6;background:#fafbfc">'+
+      // Name + terms live here so the popup is the single place acceptance is
+      // confirmed (no reliance on the buried signature-page fields). Pre-fill
+      // the name and pre-tick if the customer already ticked on the page.
+      '<input type="text" id="acceptConfirmName" placeholder="Type your full name" value="'+esc2(name||'')+'" autocomplete="name" style="width:100%;box-sizing:border-box;font-size:15px;padding:11px;border:1px solid #d3dce6;border-radius:9px;margin-bottom:9px;font-family:inherit;color:#0a1628">'+
+      '<label style="display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:#334155;line-height:1.4;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="acceptConfirmTerms"'+(((document.getElementById('qpAcceptTerms')||{}).checked)?' checked':'')+' style="margin:1px 0 0;flex-shrink:0;width:17px;height:17px"><span>I accept this quote and the <strong>terms &amp; conditions</strong>.</span></label>'+
+      '<div style="display:flex;gap:9px">'+
+        '<button onclick="_acceptConfirmClose()" style="padding:11px 16px;background:#fff;border:1px solid #d3dce6;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;color:#334155">Cancel</button>'+
+        '<button onclick="_acceptConfirmProceed()" style="flex:1;padding:11px 16px;background:#0099cc;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer">Confirm &amp; accept ✓</button>'+
+      '</div>'+
     '</div>';
   overlay.style.display = 'block'; modal.style.display = 'flex';
 }
@@ -10120,7 +10176,21 @@ function _acceptConfirmClose(){
   var m = document.getElementById('acceptConfirmModal'); if (m) m.style.display = 'none';
 }
 function _acceptConfirmProceed(){
-  var name = window.__acceptConfirmName || (S.quote && (S.quote.client||'').trim()) || '';
+  // Gate on the popup's own name + terms so the acceptance can't be recorded
+  // without them — this is now the single confirmation point.
+  var termsEl = document.getElementById('acceptConfirmTerms');
+  if (termsEl && !termsEl.checked){
+    alert('Please tick the box to confirm you accept the quote and the terms & conditions.');
+    try { termsEl.focus(); termsEl.scrollIntoView({block:'center'}); } catch(e){}
+    return;
+  }
+  var nameEl = document.getElementById('acceptConfirmName');
+  var name = (nameEl && nameEl.value.trim()) || window.__acceptConfirmName || (S.quote && (S.quote.client||'').trim()) || '';
+  if (!name){
+    alert('Please type your full name to accept the quote.');
+    if (nameEl){ try { nameEl.focus(); } catch(e){} }
+    return;
+  }
   _acceptConfirmClose();
   _acceptQuoteFinalize(name);
 }
@@ -10139,6 +10209,16 @@ function _acceptQuoteFinalize(name){
     if (o.selectedUpgrade){ var u=(o.upgrades||[]).find(function(x){return x.id===o.selectedUpgrade;}); if (u) g=u.title||'Upgrade'; }
     return { title: o.title||'Option', grade: g, total: _optEffectiveTotal(o)*(1+rate) };
   });
+  // Include any synthetic optional extra roofs the customer opted into, so the
+  // office's acceptance record itemises them alongside the option packages.
+  try {
+    var _p = S.quote.proposalOptions || {};
+    var _erSelA = (_p.extraRoofsSel && typeof _p.extraRoofsSel === 'object') ? _p.extraRoofsSel : {};
+    (S.quote.extraRoofs || []).forEach(function(rr, i){
+      if (_erSelA[i] && parseFloat(rr.price) > 0)
+        acceptedOptions.push({ title: 'Optional extra roof — ' + (rr.name || ('Roof ' + (i + 2))), grade: 'Standard', total: parseFloat(rr.price) * (1+rate) });
+    });
+  } catch(e){}
   S.quote.accepted = { name: name, at: new Date().toISOString(), total: sub * (1+rate), gutter: S.quote.gutterChoice || 'none', options: acceptedOptions };
   if (window.__CUSTOMER_MODE) {
     // Guard against a double-tap while we're mid-accept.
@@ -12604,6 +12684,44 @@ function refreshQuoteProposal(){
       var _gl = (DRAW.lines || []).filter(function(l){ return l && l.type === 'gutter'; }).length;
       if (_gl > 0) S.quote.gutterLines = _gl;
     } catch(e){}
+    // Standard scaffolding price (ex-GST) so the customer link can price the
+    // gutter-triggered platform-scaffolding upgrade (+25%).
+    try {
+      var _scp = (S.quote.scaffold && parseFloat(S.quote.scaffold.price)) || 0;
+      if (_scp > 0) S.quote.scaffoldBase = _scp;
+    } catch(e){}
+    // ── Optional extra roofs ─────────────────────────────────────────
+    // The headline quote scope is the ACTIVE (main) roof only — materials +
+    // labour are computed from DRAW.outline. Any further roof drawn is an
+    // optional extra the customer can add on the Selections page. Stash each
+    // extra roof's name + a pro-rata price (its plan area ÷ the main roof's,
+    // times the main-roof scope) so the customer share link — which has no
+    // live drawing — can render + price them. Skipped when the office has
+    // authored explicit multi-option packages (those drive the extras instead).
+    try {
+      var _hasOptionPkgs = (S.quote.options && S.quote.options.length > 1);
+      if (!_hasOptionPkgs && DRAW.roofs && DRAW.roofs.length > 1 && DRAW.scaleMetresPerPx > 0) {
+        var _sc2 = DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx;
+        var _areaOf = function(idx){
+          var r = DRAW.roofs[idx] || {};
+          var ol = (idx === DRAW.activeRoofIdx) ? DRAW.outline : (r.outline || []);
+          if (!ol || ol.length < 3) return 0;
+          return polyAreaPx(ol) * _sc2;
+        };
+        var _mainArea = _areaOf(0);
+        var _baseSub  = (typeof _qpBaseSub === 'function') ? _qpBaseSub() : 0;
+        var _extra = [];
+        for (var _ri = 1; _ri < DRAW.roofs.length; _ri++){
+          var _a = _areaOf(_ri);
+          if (_a <= 0) continue;
+          var _price = (_mainArea > 0 && _baseSub > 0) ? (_baseSub * (_a / _mainArea)) : 0;
+          _extra.push({ name: (DRAW.roofs[_ri].name || ('Roof ' + (_ri + 1))), area: +_a.toFixed(1), price: +_price.toFixed(2) });
+        }
+        S.quote.extraRoofs = _extra;
+      } else if (!_hasOptionPkgs) {
+        S.quote.extraRoofs = [];   // single roof — clear any stale stash
+      }
+    } catch(e){}
   }
   var d = S.roofData || {};
   var br = (S.settings && S.settings.branding) || {};
@@ -13491,8 +13609,8 @@ function refreshQuoteProposal(){
         { id:'marley_classic',label:'Marley Classic (PVC)',         delta:_dIncl(_selGutterDelta('marley_classic')), desc:'Classic half-round PVC profile — clean look, easy maintenance.' }
       ];
       var BRACKETS = [
-        { id:'external', label:'External brackets', isDefault:true, delta:0, desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' },
-        { id:'internal', label:'Internal brackets', delta:0, desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below.' }
+        { id:'internal', label:'Internal brackets', isDefault:true, delta:0, desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below. Standard on your quote.' },
+        { id:'external', label:'External brackets', delta:_dIncl(_selBracketExtDelta()), desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' }
       ];
       var DOWNPIPES = [
         { id:'no',  label:'Keep existing downpipes', isDefault:true, delta:0, desc:'Re-use the current downpipes.' },
@@ -13643,7 +13761,7 @@ function refreshQuoteProposal(){
         esc2(_proposalColourLabel()) + ' · '+
         esc2((GUTTERS.find(function(g){return g.id===(pOpts.gutterType||'none');})||{}).label||'—')+
         (pOpts.gutterType && pOpts.gutterType !== 'none'
-          ? ' · ' + esc2((BRACKETS.find(function(b){return b.id===(pOpts.gutterBracket||'external');})||{}).label||'—')
+          ? ' · ' + esc2((BRACKETS.find(function(b){return b.id===(pOpts.gutterBracket||'internal');})||{}).label||'—')
             + (pOpts.downpipes === 'yes' ? ' · New downpipes' : '')
           : '')+
         ' · ' + esc2((DISPOSAL.find(function(d){return d.id===(pOpts.disposal||'dispose');})||{}).label||'—');
@@ -13652,6 +13770,31 @@ function refreshQuoteProposal(){
       // package), the extra roofs appear here as opt-in items. The main
       // roof (option 0) is always included; each extra roof is priced by
       // its own package and ticking it adds it to the running total.
+      // A single opt-in roof row (shared by the option-package extras and the
+      // synthetic multi-roof extras).
+      var _erRow = function(nm, incl, priceIncl, onclick, isLast){
+        return '<div role="button" tabindex="0" onclick="'+onclick+'" style="box-sizing:border-box;width:100%;text-align:left;padding:9px 12px;border:none;border-left:3px solid '+(incl?'var(--ed-accent)':'transparent')+';'+(!isLast?'border-bottom:1px solid var(--ed-line);':'')+'background:'+(incl?'var(--ed-paper-2)':'#fff')+';cursor:pointer">'+
+          '<div style="display:flex;align-items:center;gap:10px">'+
+            '<div style="width:17px;height:17px;border-radius:4px;border:2px solid '+(incl?'var(--ed-accent)':'#cbd5e1')+';background:'+(incl?'var(--ed-accent)':'#fff')+';flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;line-height:1">'+(incl?'✓':'')+'</div>'+
+            '<span style="font-family:var(--ed-sans);font-size:8px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:2px 7px;border-radius:3px;background:#e08a2e;color:#fff;flex-shrink:0">Optional</span>'+
+            '<div style="flex:1;min-width:0">'+
+              '<div class="ed-serif" style="font-size:14px;font-style:italic;color:var(--ed-ink);line-height:1.2">'+esc2(nm)+'</div>'+
+              '<div class="ed-body" style="font-size:10px;color:var(--ed-ink-2);margin-top:1px;line-height:1.3">'+(incl?'Included — tap to remove':'Tap to add this roof to your quote')+'</div>'+
+            '</div>'+
+            '<div class="ed-serif" style="font-size:14px;white-space:nowrap;flex-shrink:0;color:var(--ed-ink);font-weight:600">+'+fmtMoney(priceIncl)+'</div>'+
+          '</div>'+
+        '</div>';
+      };
+      var _erPanelWrap = function(rowsHtml){
+        return '<div style="border:1px solid var(--ed-line);background:#fff;box-sizing:border-box;box-shadow:0 1px 3px rgba(10,24,40,.05);margin-bottom:12px">'+
+            '<div style="display:flex;align-items:center;gap:9px;padding:5px 12px;background:var(--ed-ink)">'+
+              '<span style="font-family:var(--ed-sans);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;color:#fff">Additional roofs</span>'+
+              '<span style="font-family:var(--ed-sans);font-size:9px;letter-spacing:.04em;color:rgba(255,255,255,.6);margin-left:auto">Main roof is always included</span>'+
+            '</div>'+
+            '<div style="padding:7px 12px;border-bottom:1px solid var(--ed-line);background:#fbfaf7;font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-ink-2);line-height:1.4">This property has more than one roof. Your quote covers the main roof — tick any optional extra below to add it and the total updates automatically.</div>'+
+            rowsHtml+
+          '</div>';
+      };
       var _extraRoofsPanel = '';
       if (_extraOpts.length){
         var _erRows = _extraOpts.map(function(o, k){
@@ -13659,27 +13802,20 @@ function refreshQuoteProposal(){
           var nm = (DRAW.roofs && DRAW.roofs[ri] && DRAW.roofs[ri].name) || o.title || ('Optional roof ' + ri);
           var incl = (o.selected === true);
           var priceIncl = _optEffectiveTotal(o) * (1+_selRate);
-          return '<div role="button" tabindex="0" onclick="_toggleProposalRoof(\''+esc2(o.id)+'\','+(!incl)+')" style="box-sizing:border-box;width:100%;text-align:left;padding:9px 12px;border:none;border-left:3px solid '+(incl?'var(--ed-accent)':'transparent')+';'+(k<_extraOpts.length-1?'border-bottom:1px solid var(--ed-line);':'')+'background:'+(incl?'var(--ed-paper-2)':'#fff')+';cursor:pointer">'+
-            '<div style="display:flex;align-items:center;gap:10px">'+
-              '<div style="width:17px;height:17px;border-radius:4px;border:2px solid '+(incl?'var(--ed-accent)':'#cbd5e1')+';background:'+(incl?'var(--ed-accent)':'#fff')+';flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;line-height:1">'+(incl?'✓':'')+'</div>'+
-              '<span style="font-family:var(--ed-sans);font-size:8px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:2px 7px;border-radius:3px;background:#e08a2e;color:#fff;flex-shrink:0">Optional</span>'+
-              '<div style="flex:1;min-width:0">'+
-                '<div class="ed-serif" style="font-size:14px;font-style:italic;color:var(--ed-ink);line-height:1.2">'+esc2(nm)+'</div>'+
-                '<div class="ed-body" style="font-size:10px;color:var(--ed-ink-2);margin-top:1px;line-height:1.3">'+(incl?'Included — tap to remove':'Tap to add this roof to your quote')+'</div>'+
-              '</div>'+
-              '<div class="ed-serif" style="font-size:14px;white-space:nowrap;flex-shrink:0;color:var(--ed-ink);font-weight:600">+'+fmtMoney(priceIncl)+'</div>'+
-            '</div>'+
-          '</div>';
+          return _erRow(nm, incl, priceIncl, '_toggleProposalRoof(\''+esc2(o.id)+'\','+(!incl)+')', k >= _extraOpts.length - 1);
         }).join('');
-        _extraRoofsPanel =
-          '<div style="border:1px solid var(--ed-line);background:#fff;box-sizing:border-box;box-shadow:0 1px 3px rgba(10,24,40,.05);margin-bottom:12px">'+
-            '<div style="display:flex;align-items:center;gap:9px;padding:5px 12px;background:var(--ed-ink)">'+
-              '<span style="font-family:var(--ed-sans);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;color:#fff">Additional roofs</span>'+
-              '<span style="font-family:var(--ed-sans);font-size:9px;letter-spacing:.04em;color:rgba(255,255,255,.6);margin-left:auto">Main roof is always included</span>'+
-            '</div>'+
-            '<div style="padding:7px 12px;border-bottom:1px solid var(--ed-line);background:#fbfaf7;font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-ink-2);line-height:1.4">This property has more than one roof. Your quote covers the main roof — tick any optional extra below to add it and the total updates automatically.</div>'+
-            _erRows+
-          '</div>';
+        _extraRoofsPanel = _erPanelWrap(_erRows);
+      } else if (S.quote.extraRoofs && S.quote.extraRoofs.length){
+        // Synthetic multi-roof extras (no authored option packages). Priced
+        // pro-rata office-side and stashed on the quote so this renders on the
+        // customer link too. Selection lives on proposalOptions.extraRoofsSel.
+        var _erSelR = (pOpts.extraRoofsSel && typeof pOpts.extraRoofsSel === 'object') ? pOpts.extraRoofsSel : {};
+        var _synRows = S.quote.extraRoofs.map(function(rr, i){
+          var incl = (_erSelR[i] === true);
+          var priceIncl = (parseFloat(rr.price) || 0) * (1+_selRate);
+          return _erRow((rr.name || ('Roof ' + (i + 2))), incl, priceIncl, '_toggleProposalExtraRoof('+i+','+(!incl)+')', i >= S.quote.extraRoofs.length - 1);
+        }).join('');
+        _extraRoofsPanel = _erPanelWrap(_synRows);
       }
       partOptionsSelections =
         edHeading('3','Your options & price','Choose Your Options',{chapter:PROPOSAL_CHAPTERS[2],chapters:PROPOSAL_CHAPTERS})+
@@ -13702,7 +13838,8 @@ function refreshQuoteProposal(){
           '<div style="display:grid;gap:6px;align-content:start">'+
             selPanel('Guttering', selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter', { flat: true }))+
             (pOpts.gutterType && pOpts.gutterType !== 'none'
-              ? selPanel('Gutter brackets', selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'external', '_setProposalOption_bracket', { flat: true, compact: true }))+
+              ? '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:-2px 0 0;padding:6px 10px;line-height:1.35;font-style:italic;border-left:3px solid var(--ed-accent);background:#fbfaf7">Adding new guttering also upgrades the site from edge protection to a full platform scaffold — needed to install the gutter line safely. This adds 25% to the standard scaffolding price, shown in your total below.</div>'+
+                selPanel('Gutter brackets', selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'internal', '_setProposalOption_bracket', { flat: true, compact: true }))+
                 selPanel('Downpipes', selCard('downpipes', DOWNPIPES, pOpts.downpipes || 'no', '_setProposalOption_downpipes', { flat: true, compact: true }))
               : '')+
             selPanel('Colour', _selColourBody(pOpts))+
