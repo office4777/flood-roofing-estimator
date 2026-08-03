@@ -25647,27 +25647,37 @@ function _jpFlashAnglePrompt(key, idx, dflt){
 // flashings persist with the job (saveCurrentJob); a library-backed auto card
 // writes to the shared catalog entry so the saved flashing keeps the angle.
 function _jpWriteFlashMarkerDeg(key, idx, v){
-  var polys = null, persistCatalog = false;
+  var target = null, persistCatalog = false;
   if (key.indexOf('slot:') === 0){
     var si = parseInt(key.slice(5), 10);
     var arr = (typeof _matFlashingsArr === 'function') ? _matFlashingsArr() : [];
     var slot = arr && arr[si];
-    if (slot && Array.isArray(slot.polylines)) polys = slot.polylines;
-    else if (slot && slot.source === 'library'){ var e = _getAllFlashings().find(function(x){ return x.name === slot.name; }); if (e && Array.isArray(e.polylines)){ polys = e.polylines; persistCatalog = true; } }
+    if (slot && Array.isArray(slot.polylines)) target = slot;
+    else if (slot && slot.source === 'library'){ var e = _getAllFlashings().find(function(x){ return x.name === slot.name; }); if (e && Array.isArray(e.polylines)){ target = e; persistCatalog = true; } }
   } else if (key.indexOf('auto:') === 0){
     var pick = (typeof _jpResolveDefaultDrawing === 'function') ? _jpResolveDefaultDrawing(key.slice(5)) : null;
-    if (pick && pick.entry && Array.isArray(pick.entry.polylines)){ polys = pick.entry.polylines; persistCatalog = true; }
+    if (pick && pick.entry && Array.isArray(pick.entry.polylines)){ target = pick.entry; persistCatalog = true; }
   }
-  if (!polys) return;
-  var count = -1;
-  for (var pi = 0; pi < polys.length; pi++){
-    var am = polys[pi] && polys[pi].angleMarkers; if (!am) continue;
+  if (!target || !Array.isArray(target.polylines)) return;
+  var count = -1, done = false;
+  for (var pi = 0; pi < target.polylines.length && !done; pi++){
+    var am = target.polylines[pi] && target.polylines[pi].angleMarkers; if (!am) continue;
     var mk = Object.keys(am);
     for (var ki = 0; ki < mk.length; ki++){
       count++;
-      if (count === idx){ if (am[mk[ki]]) am[mk[ki]].deg = v; if (persistCatalog) { try { _persistCatalogSilently && _persistCatalogSilently(); } catch(e){} } return; }
+      if (count === idx){ if (am[mk[ki]]) am[mk[ki]].deg = v; done = true; break; }
     }
   }
+  if (!done) return;
+  try { _rebakeFlashSketch(target); } catch(e){}   // repaint the diagram PNG with the new angle
+  if (persistCatalog) { try { _persistCatalogSilently && _persistCatalogSilently(); } catch(e){} }
+}
+// Force the flashing's diagram PNG to re-render from its current polylines
+// (so an angle change made via the chip shows in the drawing, not just the chip).
+function _rebakeFlashSketch(p){
+  if (!p) return;
+  p.sketch = null;
+  try { if (typeof _ensureBuiltinSketch === 'function') _ensureBuiltinSketch(p); } catch(e){}
 }
 // Chip row of tappable "∠ N°" angles for a flashing card (empty string if none).
 function _jpFlashAngleChips(box){
