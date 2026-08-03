@@ -15276,20 +15276,24 @@ function _flashEditLabelPrompt(hit){
   if (hit.type === 'angleMarker') {
     var am = hit.polyline.angleMarkers && hit.polyline.angleMarkers[hit.vertexIdx];
     if (!am) return;
-    var curFP = am.fontPx || _flashTextPx();
+    // Tap an ∠ marker to set its angle in degrees; drag it to move it; the
+    // ∠ Angle tool adds/removes one. Blank deletes this marker.
+    var curDeg = (am.deg != null && isFinite(am.deg)) ? +am.deg : _flashDefaultAngleDeg();
     var ans = window.prompt(
-      'Font size for this ∠ angle label in pixels (leave BLANK to DELETE this marker, Cancel to keep it as-is):',
-      String(curFP)
+      'Angle in degrees for this ∠ marker (leave BLANK to DELETE it, Cancel to keep as-is):',
+      String(Math.round(curDeg * 10) / 10)
     );
     if (ans == null) return;
     var trimmed1 = String(ans).trim();
     _pushFlashHistory();
     if (trimmed1 === '') {
       delete hit.polyline.angleMarkers[hit.vertexIdx];
+      try { _redrawFlashCanvas(); } catch(e){}
       return;
     }
-    var fpN = parseInt(trimmed1, 10);
-    if (isFinite(fpN) && fpN >= 8) am.fontPx = Math.min(80, fpN);
+    var dN = parseFloat(trimmed1);
+    if (isFinite(dN)) am.deg = Math.max(0, Math.min(180, dN));
+    try { _redrawFlashCanvas(); } catch(e){}
     return;
   }
   function currentLabelFontPx(){
@@ -25633,8 +25637,37 @@ function _jpFlashAnglePrompt(key, idx, dflt){
   if (!S.jpFlashAngles) S.jpFlashAngles = {};
   if (!Array.isArray(S.jpFlashAngles[key])) S.jpFlashAngles[key] = [];
   S.jpFlashAngles[key][idx] = v;
+  // Write the angle onto the saved flashing's marker too, so it REPLACES any
+  // existing angle on the flashing (not just this job's chip).
+  try { _jpWriteFlashMarkerDeg(key, idx, v); } catch(e){}
   try { if (S.currentJobId) Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){}
   try { renderJobPack(); } catch(e){}
+}
+// Set the deg on the idx-th angle marker of a flashing's polylines. Slot
+// flashings persist with the job (saveCurrentJob); a library-backed auto card
+// writes to the shared catalog entry so the saved flashing keeps the angle.
+function _jpWriteFlashMarkerDeg(key, idx, v){
+  var polys = null, persistCatalog = false;
+  if (key.indexOf('slot:') === 0){
+    var si = parseInt(key.slice(5), 10);
+    var arr = (typeof _matFlashingsArr === 'function') ? _matFlashingsArr() : [];
+    var slot = arr && arr[si];
+    if (slot && Array.isArray(slot.polylines)) polys = slot.polylines;
+    else if (slot && slot.source === 'library'){ var e = _getAllFlashings().find(function(x){ return x.name === slot.name; }); if (e && Array.isArray(e.polylines)){ polys = e.polylines; persistCatalog = true; } }
+  } else if (key.indexOf('auto:') === 0){
+    var pick = (typeof _jpResolveDefaultDrawing === 'function') ? _jpResolveDefaultDrawing(key.slice(5)) : null;
+    if (pick && pick.entry && Array.isArray(pick.entry.polylines)){ polys = pick.entry.polylines; persistCatalog = true; }
+  }
+  if (!polys) return;
+  var count = -1;
+  for (var pi = 0; pi < polys.length; pi++){
+    var am = polys[pi] && polys[pi].angleMarkers; if (!am) continue;
+    var mk = Object.keys(am);
+    for (var ki = 0; ki < mk.length; ki++){
+      count++;
+      if (count === idx){ if (am[mk[ki]]) am[mk[ki]].deg = v; if (persistCatalog) { try { _persistCatalogSilently && _persistCatalogSilently(); } catch(e){} } return; }
+    }
+  }
 }
 // Chip row of tappable "∠ N°" angles for a flashing card (empty string if none).
 function _jpFlashAngleChips(box){
