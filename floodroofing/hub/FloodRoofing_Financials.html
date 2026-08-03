@@ -1701,7 +1701,7 @@ function stableOrder(key,items,idOf,cmp){
   const out=known.concat(fresh);_listOrder[key]=out.map(idOf);return out;
 }
 function remVal(j){const o=fwRemOv[j.id];return (o!=null&&o!=='')?Math.max(0,num(o)):Math.max(0,num(j.remaining));}  // editable value; defaults priced−actual
-function effRem(j){return (fwDone[j.id]||isExcl(j))?0:remVal(j);}                                                   // counts toward the total (0 if ticked done or crossed out)
+function effRem(j){return (fwDone[j.id]||isExcl(j)||isSubForced(j))?0:remVal(j);}                                     // 0 if ticked done, crossed out, or sub-contracted (crew won't work its remaining hours)
 function toggleWkDone(id,on){if(on)fwDone[id]=1;else delete fwDone[id];S.set('fwDone',fwDone);renderWork();renderDash();}
 function setWkRem(id,v){if(v===''||v==null)delete fwRemOv[id];else fwRemOv[id]=Math.max(0,num(v));S.set('fwRemOverride',fwRemOv);renderWork();renderDash();}
 function totalRemaining(){return fwJobs.reduce((s,j)=>s+effRem(j),0);}
@@ -3891,10 +3891,10 @@ function openCmdDetail(key,optMk){
     }}
   else if(key==='fw'){title='Forward workflow — active jobs';
     const rows=(fwJobs||[]).filter(j=>!fwDone[j.id]).map(j=>({jobNo:jobNoKey(j),job:j.job,rem:Math.max(0,num(j.remaining)),due:uninvPriced(j)})).sort((a,b)=>b.rem-a.rem);
-    let th=0;const rr=rows.map(r=>{if(!isExcl(r.jobNo))th+=r.rem;return '<tr'+exTR(r.jobNo)+'><td>'+esc((r.job||'').slice(0,40))+'</td><td style="text-align:right;">'+fmtH(r.rem)+'h</td><td style="text-align:right;color:var(--success);">'+fmtK(r.due)+'</td>'+exTD(r.jobNo)+'</tr>';});
-    if(rr.length)rr.push('<tr class="tot"><td>Total ('+rows.length+')</td><td style="text-align:right;">'+fmtH(th)+'h</td><td></td><td></td></tr>');
-    body='<div class="note" style="margin:0 0 10px;">Tap <b>✕</b> (far right) to cross out a job you don’t think will go ahead — it drops from the weeks-booked total and from the cashflow/materials/revenue calcs everywhere. Tap <b>↺</b> to restore it.</div>'+
-      wrap('<th>Job</th><th style="text-align:right;">Remain</th><th style="text-align:right;">Due in</th><th></th>',rr,'No active jobs — Refresh Fergus.');}
+    let th=0;const rr=rows.map(r=>{const off=isExcl(r.jobNo)||isSubForced(r.jobNo);if(!off)th+=r.rem;return '<tr'+(off?' class="jx-off"':'')+'><td>'+esc((r.job||'').slice(0,40))+'</td><td style="text-align:right;">'+fmtH(r.rem)+'h</td><td style="text-align:right;color:var(--success);">'+fmtK(r.due)+'</td>'+subTD(r.jobNo)+exTD(r.jobNo)+'</tr>';});
+    if(rr.length)rr.push('<tr class="tot"><td>Total ('+rows.length+')</td><td style="text-align:right;">'+fmtH(th)+'h</td><td></td><td></td><td></td></tr>');
+    body='<div class="note" style="margin:0 0 10px;"><b>✕</b> = job likely to fall through — drops its hours <i>and</i> its revenue/profit from every calc (tap <b>↺</b> to restore). <b>sub</b> = a sub-contractor is doing it — keeps the revenue &amp; profit but removes the crew’s remaining hours from the weeks-booked total.</div>'+
+      wrap('<th>Job</th><th style="text-align:right;">Remain</th><th style="text-align:right;">Due in</th><th></th><th></th>',rr,'No active jobs — Refresh Fergus.');}
   else if(key==='activerev'){
     title='Active jobs — revenue, invoicing & labour';
     // Every active job not yet 100% invoiced, ordered by labour done vs priced (closest to finished first)
