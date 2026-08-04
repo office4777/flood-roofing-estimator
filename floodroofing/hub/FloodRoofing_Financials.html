@@ -436,8 +436,28 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
 .mtg-print:active{transform:scale(.97);}
 .mtg-note{font-size:.74rem;font-style:italic;color:var(--muted);margin:2px 0 8px;}
 .mtg-ph{position:relative;display:inline-flex;}
-.mtg-ph-x{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(4,7,12,.72);color:#fff;font-size:.62rem;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;}
+.mtg-ph-x{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(4,7,12,.72);color:#fff;font-size:.62rem;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;z-index:2;}
 .mtg-ph-x:hover{background:#ef4444;}
+.mtg-photobar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:12px 0 6px;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);}
+.mtg-photobar a{font-size:.66rem;font-weight:800;color:var(--primary);cursor:pointer;text-transform:none;letter-spacing:0;}
+.mtg-slotgrid{display:flex;flex-direction:column;gap:8px;}
+.mtg-slotpage{border:1px solid var(--border);border-radius:12px;padding:8px;background:var(--card2);}
+.mtg-slotpage-h{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;}
+.mtg-slotpair{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.mtg-slot{display:flex;flex-direction:column;gap:5px;}
+.mtg-slot-lab{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;}
+.mtg-slot-lab.bef{color:#60a5fa;}
+.mtg-slot-lab.aft{color:#22c55e;}
+.mtg-slot-img{position:relative;width:100%;aspect-ratio:4/3;border-radius:9px;overflow:hidden;border:1px solid var(--border);background:var(--card);}
+.mtg-slot-img img{width:100%;height:100%;object-fit:cover;display:block;}
+.mtg-slot-drop{width:100%;aspect-ratio:4/3;border-radius:9px;border:1.5px dashed var(--border);background:var(--card);color:var(--muted);font-size:.72rem;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;text-align:center;padding:4px;}
+.mtg-slot-paste{font-size:.6rem;font-weight:700;color:var(--primary);cursor:pointer;}
+.mtg-cap{background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:5px 7px;font-size:.66rem;width:100%;}
+.mtg-notes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;}
+.mtg-nf{display:flex;flex-direction:column;gap:3px;}
+.mtg-nf label{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);}
+.mtg-ta{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px 9px;font-size:.74rem;font-family:inherit;resize:vertical;min-height:38px;}
+@media (max-width:560px){.mtg-notes{grid-template-columns:1fr;}}
 .mtg-input{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px 10px;font-size:.78rem;}
 .mtg-title-slide{background:linear-gradient(140deg,#1b2740,#0d1017);border:1px solid var(--border);border-radius:18px;padding:34px 22px;text-align:center;margin-bottom:16px;}
 .mtg-title-slide .mts-k{font-size:.66rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--primary);}
@@ -488,7 +508,7 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
   body.mtg-printing #mtg-modal{display:block!important;position:static!important;background:#fff!important;backdrop-filter:none!important;overflow:visible!important;}
   body.mtg-printing #mtg-modal .cmodal-card{max-width:none!important;padding:0!important;}
   body.mtg-printing .cmodal-head,body.mtg-printing .mtg-toolbar,body.mtg-printing .mtg-tools,body.mtg-printing .mtg-photo-add,body.mtg-printing .mtg-chk{ }
-  body.mtg-printing .mtg-print,body.mtg-printing .mtg-ppt,body.mtg-printing .cmodal-x,body.mtg-printing .mtg-photo-add,body.mtg-printing .mtg-seg,body.mtg-printing .mtg-mbtn,body.mtg-printing .mtg-tools,body.mtg-printing .mtg-ph-x{display:none!important;}
+  body.mtg-printing .mtg-print,body.mtg-printing .mtg-ppt,body.mtg-printing .cmodal-x,body.mtg-printing .mtg-photo-add,body.mtg-printing .mtg-seg,body.mtg-printing .mtg-mbtn,body.mtg-printing .mtg-tools,body.mtg-printing .mtg-ph-x,body.mtg-printing .mtg-slot-drop,body.mtg-printing .mtg-slot-paste,body.mtg-printing .mtg-photobar a,body.mtg-printing .mtg-cap{display:none!important;}
   body.mtg-printing .cmodal-head{position:static!important;}
   body.mtg-printing .mtg-title-slide,body.mtg-printing .mtg-slide{break-inside:avoid;page-break-after:always;box-shadow:none!important;border:1px solid #ccc!important;background:#fff!important;color:#111!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   body.mtg-printing .mtg-title-slide h1,body.mtg-printing .mtg-slide-head h3,body.mtg-printing .mtg-barval,body.mtg-printing .mtg-title-slide .mts-v{color:#111!important;}
@@ -5512,12 +5532,22 @@ function renderCashflow(){
 // photos. Runs every month — it defaults to last complete month, one tap.
 let mtgCfg=S.get('mtgCfg',{venue:'',unit:'hrs'});                 // {venue, unit:'hrs'|'days'} — small, team-synced
 let mtgFlags=S.get('mtgFlags',{});                                // {jobNoKey:{rev,photos,qa}} — team-synced ticks
-let mtgPhotos=S.get('mtgPhotos',{});                             // {jobNoKey:[imageUrl,...]} — pasted URLs, team-synced
+let mtgPhotos=S.get('mtgPhotos',{});                             // {jobNoKey:{slotId:url}} — pasted remote URLs (team-synced)
 let mtgCrew=S.get('mtgCrew',{});                                 // {jobNoKey:"Ethan, Luke & Christian"} — free-text crew override (team-synced)
-let mtgNotes=S.get('mtgNotes',{});                              // {jobNoKey:"Includes our Scaffolding"} — per-job note (team-synced)
-const _mtgPhotoData={};                                          // {jobNoKey:[dataURL,...]} — photos fetched from Fergus / uploaded; in-memory (too big for team state), embeds into the .pptx
+let mtgNotes=S.get('mtgNotes',{});                              // {jobNoKey:{general,labPriced,labActual,qa,cust}} — per-job notes (team-synced)
+let mtgCaptions=S.get('mtgCaptions',{});                        // {jobNoKey:{slotId:caption}} — optional per-photo caption (team-synced)
+const _mtgPhotoData={};                                          // {jobNoKey:{slotId:dataURL}} — fetched/uploaded photos; in-memory (too big for team state), embeds into the .pptx
 let _mtgMk=null;                                                 // currently shown month key
 const MTG_HRS_PER_DAY=8;
+// Each job gets 3 photo PAGES, each a Before + After pair (6 labelled slots). Each page becomes one
+// full-bleed PowerPoint slide (two photos filling it), labelled BEFORE / AFTER.
+const MTG_SLOTS=[{id:'p1b',page:1,kind:'Before'},{id:'p1a',page:1,kind:'After'},{id:'p2b',page:2,kind:'Before'},{id:'p2a',page:2,kind:'After'},{id:'p3b',page:3,kind:'Before'},{id:'p3a',page:3,kind:'After'}];
+const MTG_NOTE_FIELDS=[{k:'general',label:'General notes'},{k:'labPriced',label:'Labour — priced'},{k:'labActual',label:'Labour — actual'},{k:'qa',label:'QA notes'},{k:'cust',label:'Customer experience'}];
+// One-time migration from the earlier flat model: photo arrays → first empty slots; string note → {general}.
+(function mtgMigrate(){try{
+  let cp=false;Object.keys(mtgPhotos).forEach(k=>{if(Array.isArray(mtgPhotos[k])){const o={};mtgPhotos[k].slice(0,6).forEach((u,i)=>{o[MTG_SLOTS[i].id]=u;});mtgPhotos[k]=o;cp=true;}});if(cp)S.set('mtgPhotos',mtgPhotos);
+  let cn=false;Object.keys(mtgNotes).forEach(k=>{if(typeof mtgNotes[k]==='string'){mtgNotes[k]=mtgNotes[k]?{general:mtgNotes[k]}:{};cn=true;}});if(cn)S.set('mtgNotes',mtgNotes);
+}catch(e){}})();
 // ── Roofmap estimator backend (Railway) — reused ONLY to pull Fergus job PHOTOS as bytes. The hub's own
 //    proxy is JSON-only, but this backend already streams image binary (Fergus key stays server-side).
 //    Same login you use in the Roofmap estimator; a 30-day token is cached on THIS device (not team-synced).
@@ -5540,7 +5570,22 @@ function mtgCrewLine(j,k){
   return c.length===1?c[0]:(c.slice(0,-1).join(', ')+' & '+c[c.length-1]);
 }
 function mtgEditCrew(k,j){const cur=String(mtgCrew[k]||'')||((j&&mtgCrewLine(j,k))||'');const v=prompt('Crew on this job (free text, e.g. "Ethan, Luke & Christian"):',cur);if(v===null)return;if(v.trim())mtgCrew[k]=v.trim();else delete mtgCrew[k];S.set('mtgCrew',mtgCrew);renderMeeting();}
-function mtgEditNote(k){const v=prompt('Note for this job (e.g. "Includes our Scaffolding"):',String(mtgNotes[k]||''));if(v===null)return;if(v.trim())mtgNotes[k]=v.trim();else delete mtgNotes[k];S.set('mtgNotes',mtgNotes);renderMeeting();}
+function mtgNoteVal(k,f){const n=mtgNotes[k];if(!n)return '';if(typeof n==='string')return f==='general'?n:'';return n[f]||'';}
+function mtgSetNote(k,f,v){let n=mtgNotes[k];if(typeof n==='string')n={general:n};if(!n)n={};if(v&&v.trim())n[f]=v.trim();else delete n[f];if(Object.keys(n).length)mtgNotes[k]=n;else delete mtgNotes[k];S.set('mtgNotes',mtgNotes);}
+// Per-slot photo helpers (slot = one Before/After cell). Uploaded/pulled bytes live in _mtgPhotoData (embeds
+// in the deck); pasted remote URLs live in mtgPhotos (team-synced). Captions in mtgCaptions.
+function mtgSlotImg(k,id){const d=_mtgPhotoData[k]&&_mtgPhotoData[k][id];if(d)return d;return (mtgPhotos[k]&&mtgPhotos[k][id])||'';}
+function mtgCaption(k,id){return (mtgCaptions[k]&&mtgCaptions[k][id])||'';}
+function mtgSetCaption(k,id,v){const o=mtgCaptions[k]||(mtgCaptions[k]={});if(v&&v.trim())o[id]=v.trim();else delete o[id];if(!Object.keys(o).length)delete mtgCaptions[k];S.set('mtgCaptions',mtgCaptions);}
+function mtgUploadSlot(k,id,input){const f=input&&input.files&&input.files[0];input.value='';if(!f||!/^image\//.test(f.type))return;const fr=new FileReader();fr.onload=()=>{(_mtgPhotoData[k]||(_mtgPhotoData[k]={}))[id]=fr.result;const o=mtgFlags[k]||(mtgFlags[k]={});if(!o.photos){o.photos=1;S.set('mtgFlags',mtgFlags);}renderMeeting();};fr.readAsDataURL(f);}
+function mtgPasteSlot(k,id){const u=prompt('Paste an image URL for this slot (jpg/png):');if(u===null)return;if(u&&!/^https?:\/\//i.test(u)){alert('That doesn’t look like a web link.');return;}const o=mtgPhotos[k]||(mtgPhotos[k]={});if(u)o[id]=u;else delete o[id];if(!Object.keys(o).length)delete mtgPhotos[k];S.set('mtgPhotos',mtgPhotos);renderMeeting();}
+function mtgRmSlot(k,id){if(_mtgPhotoData[k])delete _mtgPhotoData[k][id];if(mtgPhotos[k]){delete mtgPhotos[k][id];if(!Object.keys(mtgPhotos[k]).length)delete mtgPhotos[k];S.set('mtgPhotos',mtgPhotos);}if(mtgCaptions[k]){delete mtgCaptions[k][id];if(!Object.keys(mtgCaptions[k]).length)delete mtgCaptions[k];S.set('mtgCaptions',mtgCaptions);}renderMeeting();}
+// Resolve a slot to an embeddable data URL for the .pptx (pasted remote URLs fetched → data URL; may CORS-fail).
+async function mtgSlotDataUrl(k,id){
+  const d=_mtgPhotoData[k]&&_mtgPhotoData[k][id];if(d)return d;
+  const u=mtgPhotos[k]&&mtgPhotos[k][id];if(!u)return '';
+  try{const r=await fetch(u);const b=await r.blob();return await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(b);});}catch(e){return '';}
+}
 function mtgKey(j){return jobNoKey(j.jobNo)||('id'+(j.id||''));}
 function mtgFlagOn(k,f){return !!(mtgFlags[k]&&mtgFlags[k][f]);}
 function toggleMtgFlag(k,f){const o=mtgFlags[k]||(mtgFlags[k]={});o[f]=o[f]?0:1;if(!o.rev&&!o.photos&&!o.qa)delete mtgFlags[k];S.set('mtgFlags',mtgFlags);renderMeeting();}
@@ -5575,15 +5620,8 @@ function openMeeting(mk){_mtgMk=mk||calMonthKey(-1);document.getElementById('mtg
 function closeMeeting(){document.getElementById('mtg-modal').classList.remove('open');document.body.style.overflow='';}
 function mtgStep(d){_mtgMk=(function(){const p=(_mtgMk||calMonthKey(-1)).split('-');let i=FG_MONTHS.indexOf(p[0]),y=parseInt(p[1]);i+=d;while(i<0){i+=12;y--;}while(i>11){i-=12;y++;}return FG_MONTHS[i]+'-'+y;})();renderMeeting();}
 function mtgMonthLabel(mk){const p=(mk||'').split('-');const full=['January','February','March','April','May','June','July','August','September','October','November','December'];const i=FG_MONTHS.indexOf(p[0]);return (i>=0?full[i]:p[0])+' '+(p[1]||'');}
-function mtgAddPhotoUrl(k){const u=prompt('Paste an image URL (jpg/png) for this job:');if(!u)return;if(!/^https?:\/\//i.test(u)){alert('That doesn’t look like a web link.');return;}mtgPhotos[k]=(mtgPhotos[k]||[]).concat([u]);S.set('mtgPhotos',mtgPhotos);renderMeeting();}
-function mtgRmPhoto(k,i){const a=mtgPhotos[k]||[];a.splice(i,1);if(!a.length)delete mtgPhotos[k];else mtgPhotos[k]=a;S.set('mtgPhotos',mtgPhotos);renderMeeting();}
-// Uploaded photos are read as data URLs (not object URLs) so they both preview here AND embed in the .pptx.
-function mtgUpload(k,input){const fs=input&&input.files;if(!fs||!fs.length)return;const out=_mtgPhotoData[k]||(_mtgPhotoData[k]=[]);let pend=0;
-  for(let i=0;i<fs.length;i++){const f=fs[i];if(!/^image\//.test(f.type))continue;pend++;const fr=new FileReader();fr.onload=()=>{if(out.indexOf(fr.result)<0)out.push(fr.result);if(--pend<=0)renderMeeting();};fr.onerror=()=>{if(--pend<=0)renderMeeting();};fr.readAsDataURL(f);}
-  input.value='';if(!pend)renderMeeting();}
-function mtgRmData(k,i){const a=_mtgPhotoData[k]||[];a.splice(i,1);renderMeeting();}
-// Pull the job's photos straight from Fergus, via the Roofmap backend (it streams the bytes with the Fergus
-// key held server-side). Stored in memory as data URLs → shown here and embedded in the PowerPoint.
+// Pull the job's photos from Fergus via the Roofmap backend (streams bytes with the Fergus key held
+// server-side) and drop them into the EMPTY Before/After slots in order. Stored as data URLs (embed in deck).
 async function mtgFetchPhotos(id,k,btn){
   if(!id){return;}
   if(!rmToken()){const ok=await rmLogin();if(!ok)return;}
@@ -5597,35 +5635,30 @@ async function mtgFetchPhotos(id,k,btn){
     const j=await r.json().catch(()=>({}));
     files=(j&&Array.isArray(j.files))?j.files:[];
   }catch(e){setL('backend error');setTimeout(renderMeeting,1600);return;}
-  const imgs=files.filter(f=>f&&f.url&&(/^image\//i.test(f.contentType||'')||/\.(jpe?g|png|webp|gif|heic)(\?|#|$)/i.test(String(f.name||f.url)))).slice(0,8);
+  const imgs=files.filter(f=>f&&f.url&&(/^image\//i.test(f.contentType||'')||/\.(jpe?g|png|webp|gif|heic)(\?|#|$)/i.test(String(f.name||f.url)))).slice(0,6);
   if(!imgs.length){setL('no photos');setTimeout(renderMeeting,1600);return;}
-  const out=_mtgPhotoData[k]||(_mtgPhotoData[k]=[]);
+  const store=_mtgPhotoData[k]||(_mtgPhotoData[k]={});
+  const emptySlots=MTG_SLOTS.filter(sl=>!mtgSlotImg(k,sl.id)).map(sl=>sl.id);
+  let si=0;
   for(const f of imgs){
+    if(si>=emptySlots.length)break;
     try{
       const r=await fetch(rmBackend()+'/fergus-files/download?url='+encodeURIComponent(f.url),{headers:auth});
       if(!r.ok)continue;
       const blob=await r.blob();
       const dataUrl=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(blob);});
-      if(dataUrl&&out.indexOf(dataUrl)<0)out.push(dataUrl);
+      if(dataUrl){store[emptySlots[si]]=dataUrl;si++;}
     }catch(e){}
-    setL('pulling… '+out.length);
+    setL('pulling… '+si);
   }
-  // Auto-tick the Photos flag if we pulled any.
-  if(out.length){const o=mtgFlags[k]||(mtgFlags[k]={});if(!o.photos){o.photos=1;S.set('mtgFlags',mtgFlags);}}
+  if(si){const o=mtgFlags[k]||(mtgFlags[k]={});if(!o.photos){o.photos=1;S.set('mtgFlags',mtgFlags);}}
+  else setL('slots full');
   renderMeeting();
 }
 function mtgPrint(){document.body.classList.add('mtg-printing');const done=()=>{document.body.classList.remove('mtg-printing');window.removeEventListener('afterprint',done);};window.addEventListener('afterprint',done);setTimeout(()=>{try{window.print();}catch(e){done();}},60);}
-// Gather embeddable data-URL images for a slide: fetched/uploaded (already data URLs) + best-effort remote (pasted URLs).
-async function mtgSlideImages(k){
-  const out=(_mtgPhotoData[k]||[]).slice();
-  for(const u of (mtgPhotos[k]||[])){
-    try{const r=await fetch(u);const b=await r.blob();const d=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(b);});if(d&&out.indexOf(d)<0)out.push(d);}catch(e){}   // remote may CORS-fail → skipped
-  }
-  return out;
-}
-// Build a REAL, editable PowerPoint from the same data the on-screen deck uses (title slide + one
-// performance slide per job) and download it. Bars are drawn as shapes so they colour + print exactly
-// like the deck; photos embed from mtgSlideImages(). Uses the locally-bundled PptxGenJS.
+// Build a REAL, editable PowerPoint and download it. Overall title slide, then per job: a cover slide,
+// up to 3 before/after photo slides (skipping empty pages), and a stats & notes slide. Bars are drawn
+// as shapes so they colour + print like the deck; photos embed via mtgSlotDataUrl(). Bundled PptxGenJS.
 async function buildMeetingPptx(mk,btn){
   mk=mk||_mtgMk||calMonthKey(-1);
   if(typeof PptxGenJS==='undefined'){alert('PowerPoint library didn’t load — reload the hub and try again.');return;}
@@ -5643,47 +5676,65 @@ async function buildMeetingPptx(mk,btn){
     t.addText(mtgMonthLabel(mk),{x:0.6,y:2.75,w:12.13,h:1.4,fontSize:60,color:WHITE,bold:true,align:'center'});
     if(String(mtgCfg.venue||'').trim())t.addText(String(mtgCfg.venue).trim(),{x:0.6,y:4.15,w:12.13,h:0.6,fontSize:26,color:MUTED,align:'center'});
     t.addText(jobs.length+' jobs reviewed      ·      '+under+' on / under target      ·      '+over+' over',{x:0.6,y:5.0,w:12.13,h:0.5,fontSize:16,color:MUTED,align:'center'});
-    // ── per-job slides ──
+    const HALF=6.665;
+    // ── per-job section: cover → photo pages → stats & notes ──
     for(const j of jobs){
       const k=mtgKey(j);const res=mtgResult(j.pct);const good=res.cls!=='bad';const barCol=good?GREEN:ORANGE;
-      const s=P.addSlide();s.background={color:WHITE};
-      s.addText(j.job,{x:0.5,y:0.32,w:9.4,h:0.75,fontSize:26,bold:true,color:INK});
-      let sub='';if(j.jobNo)sub='Job #'+j.jobNo;if(j.inProgress)sub+=(sub?'   ·   ':'')+'in progress';
-      if(sub)s.addText(sub,{x:0.52,y:1.05,w:9,h:0.3,fontSize:12,color:MUTED});
-      const crew=mtgCrewLine(j,k);if(crew)s.addText(crew,{x:0.52,y:1.33,w:9,h:0.35,fontSize:15,bold:true,color:BLUE});
-      // result badge
-      s.addShape(R.roundRect,{x:10.15,y:0.4,w:2.68,h:0.72,fill:{color:good?GREEN:ORANGE},rectRadius:0.1,line:{type:'none'}});
-      s.addText(res.txt,{x:10.15,y:0.4,w:2.68,h:0.72,fontSize:16,bold:true,color:WHITE,align:'center',valign:'middle'});
-      // bars (Allowed vs Taken)
-      const scale=Math.max(j.priced,j.actual,1),bx=1.9,bw=4.9,bh=0.5;
-      const allowV=mtgAmt(j.priced),takenV=mtgAmt(j.actual);
-      s.addText('TIME ALLOWED',{x:0.5,y:2.35,w:1.35,h:bh,fontSize:9,bold:true,color:MUTED,valign:'middle'});
-      s.addShape(R.roundRect,{x:bx,y:2.35,w:bw,h:bh,fill:{color:TRACK},rectRadius:0.03,line:{type:'none'}});
-      s.addShape(R.roundRect,{x:bx,y:2.35,w:Math.max(0.03,bw*(j.priced/scale)),h:bh,fill:{color:BLUE},rectRadius:0.03,line:{type:'none'}});
-      s.addText((j.priced>0?allowV+' '+unit:'—'),{x:bx+bw+0.1,y:2.35,w:1.4,h:bh,fontSize:13,bold:true,color:INK,valign:'middle'});
-      s.addText('TIME TAKEN',{x:0.5,y:3.05,w:1.35,h:bh,fontSize:9,bold:true,color:MUTED,valign:'middle'});
-      s.addShape(R.roundRect,{x:bx,y:3.05,w:bw,h:bh,fill:{color:TRACK},rectRadius:0.03,line:{type:'none'}});
-      s.addShape(R.roundRect,{x:bx,y:3.05,w:Math.max(0.03,bw*(j.actual/scale)),h:bh,fill:{color:barCol},rectRadius:0.03,line:{type:'none'}});
-      s.addText(takenV+' '+unit,{x:bx+bw+0.1,y:3.05,w:1.4,h:bh,fontSize:13,bold:true,color:good?GREEN:ORANGE,valign:'middle'});
-      // flags
-      const fY=(on)=>({text:on?'Y':'N',options:{bold:true,color:on?GREEN:ORANGE}});
-      s.addText([{text:'Google Review?   ',options:{color:MUTED}},fY(mtgFlagOn(k,'rev'))],{x:0.5,y:4.0,w:4.2,h:0.35,fontSize:14});
-      s.addText([{text:'Photos?   ',options:{color:MUTED}},fY(mtgFlagOn(k,'photos'))],{x:0.5,y:4.4,w:4.2,h:0.35,fontSize:14});
-      s.addText([{text:'QA Checklist?   ',options:{color:MUTED}},fY(mtgFlagOn(k,'qa'))],{x:0.5,y:4.8,w:4.2,h:0.35,fontSize:14});
-      const note=String(mtgNotes[k]||'').trim();if(note)s.addText(note,{x:0.5,y:5.25,w:6,h:0.5,fontSize:12,italic:true,color:MUTED});
-      // legend
-      s.addShape(R.rect,{x:0.5,y:6.9,w:0.22,h:0.22,fill:{color:GREEN},line:{type:'none'}});s.addText('Good',{x:0.78,y:6.82,w:1.2,h:0.35,fontSize:11,color:INK,valign:'middle'});
-      s.addShape(R.rect,{x:1.85,y:6.9,w:0.22,h:0.22,fill:{color:ORANGE},line:{type:'none'}});s.addText('Improvement needed',{x:2.13,y:6.82,w:2.8,h:0.35,fontSize:11,color:INK,valign:'middle'});
-      // photos — up to 4 in a 2×2 grid on the right
-      const imgs=await mtgSlideImages(k);
-      if(imgs.length){
-        const n=Math.min(imgs.length,4),pw=2.85,ph=1.95,gap=0.18,sx=7.15,sy=1.95;
-        for(let i=0;i<n;i++){const col=i%2,row=Math.floor(i/2);
-          try{s.addImage({data:imgs[i],x:sx+col*(pw+gap),y:sy+row*(ph+gap),w:pw,h:ph,sizing:{type:'cover',w:pw,h:ph}});}catch(e){}}
-      }else{
-        s.addShape(R.roundRect,{x:7.15,y:1.95,w:5.68,h:4.08,fill:{color:'F8FAFC'},line:{color:TRACK,width:1,dashType:'dash'},rectRadius:0.08});
-        s.addText('Add job photos',{x:7.15,y:1.95,w:5.68,h:4.08,fontSize:14,color:MUTED,align:'center',valign:'middle'});
+      // 1) COVER slide
+      const cv=P.addSlide();cv.background={color:NAVY};
+      cv.addText('JOB REVIEW',{x:0.6,y:2.15,w:12.13,h:0.4,fontSize:14,color:BLUE,bold:true,charSpacing:3,align:'center'});
+      cv.addText(j.job,{x:0.6,y:2.6,w:12.13,h:1.5,fontSize:40,color:WHITE,bold:true,align:'center'});
+      let csub=[];if(j.jobNo)csub.push('Job #'+j.jobNo);if(j.inProgress)csub.push('in progress');
+      if(csub.length)cv.addText(csub.join('     ·     '),{x:0.6,y:4.05,w:12.13,h:0.4,fontSize:16,color:MUTED,align:'center'});
+      const crew=mtgCrewLine(j,k);if(crew)cv.addText(crew,{x:0.6,y:4.5,w:12.13,h:0.5,fontSize:18,color:'93C5FD',bold:true,align:'center'});
+      cv.addShape(R.roundRect,{x:5.365,y:5.25,w:2.6,h:0.72,fill:{color:good?GREEN:ORANGE},rectRadius:0.1,line:{type:'none'}});
+      cv.addText(res.txt,{x:5.365,y:5.25,w:2.6,h:0.72,fontSize:16,bold:true,color:WHITE,align:'center',valign:'middle'});
+      // 2) PHOTO slides — one per page (1..3) that has at least one photo; two photos fill the slide
+      for(const pg of [1,2,3]){
+        const bId='p'+pg+'b',aId='p'+pg+'a';
+        const bImg=await mtgSlotDataUrl(k,bId),aImg=await mtgSlotDataUrl(k,aId);
+        if(!bImg&&!aImg)continue;
+        const ps=P.addSlide();ps.background={color:'0B0F16'};
+        const half=(img,x,label,cap,pillCol)=>{
+          if(img){try{ps.addImage({data:img,x:x,y:0,w:HALF,h:7.5,sizing:{type:'cover',w:HALF,h:7.5}});}catch(e){}}
+          else{ps.addShape(R.rect,{x:x,y:0,w:HALF,h:7.5,fill:{color:'111827'},line:{type:'none'}});ps.addText('No '+label.toLowerCase()+' photo',{x:x,y:0,w:HALF,h:7.5,fontSize:14,color:MUTED,align:'center',valign:'middle'});}
+          ps.addShape(R.roundRect,{x:x+0.3,y:6.55,w:1.55,h:0.55,fill:{color:pillCol},rectRadius:0.1,line:{type:'none'}});
+          ps.addText(label,{x:x+0.3,y:6.55,w:1.55,h:0.55,fontSize:13,bold:true,color:WHITE,align:'center',valign:'middle'});
+          if(cap)ps.addText(cap,{x:x+1.95,y:6.55,w:HALF-2.2,h:0.55,fontSize:12,color:WHITE,valign:'middle'});
+        };
+        half(bImg,0,'BEFORE',mtgCaption(k,bId),BLUE);
+        half(aImg,HALF,'AFTER',mtgCaption(k,aId),GREEN);
+        // job-name strip
+        ps.addShape(R.rect,{x:0,y:0,w:13.33,h:0.62,fill:{color:'000000',transparency:35},line:{type:'none'}});
+        ps.addText(j.job+'   ·   Photos '+pg,{x:0.3,y:0.06,w:12.7,h:0.5,fontSize:14,bold:true,color:WHITE,valign:'middle'});
       }
+      // 3) STATS & NOTES slide
+      const s=P.addSlide();s.background={color:WHITE};
+      s.addText(j.job,{x:0.5,y:0.3,w:9.4,h:0.6,fontSize:24,bold:true,color:INK});
+      s.addText('Performance & notes',{x:0.52,y:0.9,w:9,h:0.3,fontSize:12,color:MUTED});
+      s.addShape(R.roundRect,{x:10.15,y:0.35,w:2.68,h:0.7,fill:{color:good?GREEN:ORANGE},rectRadius:0.1,line:{type:'none'}});
+      s.addText(res.txt,{x:10.15,y:0.35,w:2.68,h:0.7,fontSize:16,bold:true,color:WHITE,align:'center',valign:'middle'});
+      // bars (Allowed vs Taken)
+      const scale=Math.max(j.priced,j.actual,1),bx=1.9,bw=4.4,bh=0.45;
+      const allowV=mtgAmt(j.priced),takenV=mtgAmt(j.actual);
+      s.addText('TIME ALLOWED',{x:0.5,y:1.5,w:1.35,h:bh,fontSize:9,bold:true,color:MUTED,valign:'middle'});
+      s.addShape(R.roundRect,{x:bx,y:1.5,w:bw,h:bh,fill:{color:TRACK},rectRadius:0.03,line:{type:'none'}});
+      s.addShape(R.roundRect,{x:bx,y:1.5,w:Math.max(0.03,bw*(j.priced/scale)),h:bh,fill:{color:BLUE},rectRadius:0.03,line:{type:'none'}});
+      s.addText((j.priced>0?allowV+' '+unit:'—'),{x:bx+bw+0.1,y:1.5,w:1.5,h:bh,fontSize:13,bold:true,color:INK,valign:'middle'});
+      s.addText('TIME TAKEN',{x:0.5,y:2.1,w:1.35,h:bh,fontSize:9,bold:true,color:MUTED,valign:'middle'});
+      s.addShape(R.roundRect,{x:bx,y:2.1,w:bw,h:bh,fill:{color:TRACK},rectRadius:0.03,line:{type:'none'}});
+      s.addShape(R.roundRect,{x:bx,y:2.1,w:Math.max(0.03,bw*(j.actual/scale)),h:bh,fill:{color:barCol},rectRadius:0.03,line:{type:'none'}});
+      s.addText(takenV+' '+unit,{x:bx+bw+0.1,y:2.1,w:1.5,h:bh,fontSize:13,bold:true,color:good?GREEN:ORANGE,valign:'middle'});
+      // flags (three across)
+      const fY=(on)=>({text:on?'Y':'N',options:{bold:true,color:on?GREEN:ORANGE}});
+      s.addText([{text:'Google Review?  ',options:{color:MUTED}},fY(mtgFlagOn(k,'rev'))],{x:0.5,y:2.8,w:4,h:0.35,fontSize:13});
+      s.addText([{text:'Photos?  ',options:{color:MUTED}},fY(mtgFlagOn(k,'photos'))],{x:4.6,y:2.8,w:3.2,h:0.35,fontSize:13});
+      s.addText([{text:'QA Checklist?  ',options:{color:MUTED}},fY(mtgFlagOn(k,'qa'))],{x:8,y:2.8,w:4,h:0.35,fontSize:13});
+      // notes — five labelled blocks in a 2-column grid
+      MTG_NOTE_FIELDS.forEach((nf,i)=>{const col=i%2,row=Math.floor(i/2);const x=0.5+col*6.35,y=3.45+row*1.28;
+        s.addText(nf.label.toUpperCase(),{x:x,y:y,w:6,h:0.3,fontSize:10,bold:true,color:BLUE});
+        s.addText(mtgNoteVal(k,nf.k)||'—',{x:x,y:y+0.3,w:6.05,h:0.9,fontSize:12,color:INK,valign:'top'});
+      });
     }
     await P.writeFile({fileName:'FloodRoofing-Meeting-'+mk+'.pptx'});
   }catch(e){alert('Couldn’t build the PowerPoint: '+(e&&e.message||e));}
@@ -5728,28 +5779,34 @@ function renderMeeting(){
     h+='<div class="mtg-barrow"><span class="mtg-barlab">Allowed</span><div class="mtg-track"><div class="mtg-fill allow" style="width:'+allowW+'%"></div></div><span class="mtg-barval">'+(j.priced>0?mtgAmt(j.priced)+' '+mtgUnitLab():'—')+'</span></div>';
     h+='<div class="mtg-barrow"><span class="mtg-barlab">Taken</span><div class="mtg-track"><div class="mtg-fill taken '+takenCls+'" style="width:'+takenW+'%"></div></div><span class="mtg-barval">'+mtgAmt(j.actual)+' '+mtgUnitLab()+'</span></div>';
     h+='</div>';
-    const note=String(mtgNotes[k]||'').trim();
-    if(note)h+='<div class="mtg-note">'+esc(note)+'</div>';
     // checkboxes
     h+='<div class="mtg-checks">';
     [['rev','Google review'],['photos','Photos'],['qa','QA checklist']].forEach(f=>{const on=mtgFlagOn(k,f[0]);h+='<span class="mtg-chk'+(on?' on':'')+'" onclick="toggleMtgFlag(\''+k+'\',\''+f[0]+'\')"><span class="box">'+(on?'✓':'')+'</span>'+f[1]+'</span>';});
     h+='</div>';
-    // photos — embeddable (fetched from Fergus / uploaded) first, then pasted remote URLs
-    const data=(_mtgPhotoData[k]||[]).slice(), purls=(mtgPhotos[k]||[]).slice();
-    h+='<div class="mtg-photos">';
-    data.forEach((u,i)=>{h+='<span class="mtg-ph"><img src="'+u+'" alt=""><span class="mtg-ph-x" onclick="mtgRmData(\''+k+'\','+i+')">✕</span></span>';});
-    purls.forEach((u,i)=>{h+='<span class="mtg-ph"><img src="'+esc(u)+'" alt="" onerror="this.style.opacity=.25"><span class="mtg-ph-x" onclick="mtgRmPhoto(\''+k+'\','+i+')">✕</span></span>';});
-    h+='<label class="mtg-photo-add">＋ Upload<input type="file" accept="image/*" multiple style="display:none" onchange="mtgUpload(\''+k+'\',this)"></label>';
+    // photo pages — 3 pages × Before/After (each pair becomes one full-bleed PowerPoint slide)
+    h+='<div class="mtg-photobar"><span>Photos — 3 before/after pages</span>'+(j.id?'<a onclick="mtgFetchPhotos(\''+esc(String(j.id))+'\',\''+k+'\',this)">⤓ pull from Fergus (fills empty slots)</a>':'')+'</div>';
+    h+='<div class="mtg-slotgrid">';
+    [1,2,3].forEach(pg=>{
+      h+='<div class="mtg-slotpage"><div class="mtg-slotpage-h">Page '+pg+'</div><div class="mtg-slotpair">';
+      [['b','Before'],['a','After']].forEach(kd=>{
+        const id='p'+pg+kd[0],label=kd[1],img=mtgSlotImg(k,id),cap=mtgCaption(k,id);
+        h+='<div class="mtg-slot"><div class="mtg-slot-lab '+(kd[0]==='b'?'bef':'aft')+'">'+label+'</div>';
+        if(img){h+='<div class="mtg-slot-img"><img src="'+(img.indexOf('data:')===0?img:esc(img))+'" alt="" onerror="this.style.opacity=.25"><span class="mtg-ph-x" onclick="mtgRmSlot(\''+k+'\',\''+id+'\')">✕</span></div>';}
+        else{h+='<label class="mtg-slot-drop">＋ '+label+'<input type="file" accept="image/*" style="display:none" onchange="mtgUploadSlot(\''+k+'\',\''+id+'\',this)"><a class="mtg-slot-paste" onclick="event.preventDefault();event.stopPropagation();mtgPasteSlot(\''+k+'\',\''+id+'\')">or paste URL</a></label>';}
+        h+='<input class="mtg-cap" placeholder="caption (optional)" value="'+esc(cap)+'" onchange="mtgSetCaption(\''+k+'\',\''+id+'\',this.value)">';
+        h+='</div>';
+      });
+      h+='</div></div>';
+    });
     h+='</div>';
-    h+='<div class="mtg-tools">'+
-       (j.id?'<a onclick="mtgFetchPhotos(\''+esc(String(j.id))+'\',\''+k+'\',this)">⤓ pull photos from Fergus</a> · ':'')+
-       '<a onclick="mtgAddPhotoUrl(\''+k+'\')">+ paste URL</a>'+
-       ' · <a onclick="mtgEditCrew(\''+k+'\')">✎ crew</a>'+
-       ' · <a onclick="mtgEditNote(\''+k+'\')">✎ note</a>'+
-       '</div>';
+    // notes — five fields
+    h+='<div class="mtg-notes">';
+    MTG_NOTE_FIELDS.forEach(nf=>{h+='<div class="mtg-nf"><label>'+nf.label+'</label><textarea class="mtg-ta" rows="2" placeholder="…" onchange="mtgSetNote(\''+k+'\',\''+nf.k+'\',this.value)">'+esc(mtgNoteVal(k,nf.k))+'</textarea></div>';});
+    h+='</div>';
+    h+='<div class="mtg-tools"><a onclick="mtgEditCrew(\''+k+'\')">✎ edit crew line</a></div>';
     h+='</div>';
   });
-  h+='<div class="mtg-empty" style="padding:14px 8px;font-size:.72rem;">Stats come straight from Fergus back-costing (Allowed = priced hours, Taken = logged hours). Tick the flags, pull/upload photos, then <b>⬇ PowerPoint</b> for an editable deck (or <b>PDF</b>). Photos &amp; flags stay put — the deck never reshuffles.</div>';
+  h+='<div class="mtg-empty" style="padding:14px 8px;font-size:.72rem;">Stats come straight from Fergus back-costing (Allowed = priced hours, Taken = logged hours). Each job exports as a cover slide, up to 3 before/after photo pages, and a stats &amp; notes slide. Tick the flags, add photos + notes, then <b>⬇ PowerPoint</b> (or <b>PDF</b>). Nothing reshuffles.</div>';
   host.innerHTML=h;
 }
 // New month? quietly point the meeting at last complete month so it's one tap when the boss opens it.
