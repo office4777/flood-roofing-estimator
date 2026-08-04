@@ -429,8 +429,15 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
 .mtg-seg{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden;}
 .mtg-seg button{background:var(--card2);color:var(--muted);border:none;padding:6px 11px;font-size:.68rem;font-weight:700;cursor:pointer;}
 .mtg-seg button.on{background:var(--primary);color:#fff;}
-.mtg-print{margin-left:auto;background:var(--success);color:#04170c;border:none;border-radius:22px;padding:8px 16px;font-size:.76rem;font-weight:800;cursor:pointer;}
+.mtg-ppt{margin-left:auto;background:linear-gradient(135deg,#d24726,#e8683a);color:#fff;border:none;border-radius:22px;padding:8px 16px;font-size:.76rem;font-weight:800;cursor:pointer;box-shadow:0 2px 10px rgba(210,71,38,.35);}
+.mtg-ppt:active{transform:scale(.97);}
+.mtg-ppt:disabled{opacity:.6;cursor:default;}
+.mtg-print{background:var(--card2);color:var(--text);border:1px solid var(--border);border-radius:22px;padding:8px 16px;font-size:.76rem;font-weight:800;cursor:pointer;}
 .mtg-print:active{transform:scale(.97);}
+.mtg-note{font-size:.74rem;font-style:italic;color:var(--muted);margin:2px 0 8px;}
+.mtg-ph{position:relative;display:inline-flex;}
+.mtg-ph-x{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(4,7,12,.72);color:#fff;font-size:.62rem;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;}
+.mtg-ph-x:hover{background:#ef4444;}
 .mtg-input{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px 10px;font-size:.78rem;}
 .mtg-title-slide{background:linear-gradient(140deg,#1b2740,#0d1017);border:1px solid var(--border);border-radius:18px;padding:34px 22px;text-align:center;margin-bottom:16px;}
 .mtg-title-slide .mts-k{font-size:.66rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--primary);}
@@ -481,7 +488,7 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
   body.mtg-printing #mtg-modal{display:block!important;position:static!important;background:#fff!important;backdrop-filter:none!important;overflow:visible!important;}
   body.mtg-printing #mtg-modal .cmodal-card{max-width:none!important;padding:0!important;}
   body.mtg-printing .cmodal-head,body.mtg-printing .mtg-toolbar,body.mtg-printing .mtg-tools,body.mtg-printing .mtg-photo-add,body.mtg-printing .mtg-chk{ }
-  body.mtg-printing .mtg-print,body.mtg-printing .cmodal-x,body.mtg-printing .mtg-photo-add,body.mtg-printing .mtg-seg,body.mtg-printing .mtg-mbtn,body.mtg-printing .mtg-tools{display:none!important;}
+  body.mtg-printing .mtg-print,body.mtg-printing .mtg-ppt,body.mtg-printing .cmodal-x,body.mtg-printing .mtg-photo-add,body.mtg-printing .mtg-seg,body.mtg-printing .mtg-mbtn,body.mtg-printing .mtg-tools,body.mtg-printing .mtg-ph-x{display:none!important;}
   body.mtg-printing .cmodal-head{position:static!important;}
   body.mtg-printing .mtg-title-slide,body.mtg-printing .mtg-slide{break-inside:avoid;page-break-after:always;box-shadow:none!important;border:1px solid #ccc!important;background:#fff!important;color:#111!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   body.mtg-printing .mtg-title-slide h1,body.mtg-printing .mtg-slide-head h3,body.mtg-printing .mtg-barval,body.mtg-printing .mtg-title-slide .mts-v{color:#111!important;}
@@ -1226,6 +1233,10 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
   </div>
 </div>
 
+<!-- PptxGenJS (bundled locally, incl. JSZip) — powers the Monthly-meeting "Download PowerPoint" export.
+     Local sibling file, no CDN, so it works offline and under file:// (nightly headless). Exposes window.PptxGenJS. -->
+<script src="pptxgen.bundle.min.js"></script>
+
 <script>
 /* ══════════ TEAM MODE BOOTSTRAP ══════════
    If a team API is configured, pull the shared company state into localStorage BEFORE
@@ -1262,7 +1273,7 @@ const S={
   set:(k,v)=>{try{localStorage.setItem('fr3_'+k,JSON.stringify(v));}catch(e){} if(window.__TEAM&&window.__TEAM.tok)teamPush();}
 };
 // ── Team mode: push the shared state (all fr3_* keys except device-local ones) to the API ──
-const TEAM_LOCAL_KEYS={'fr3_hubApiUrl':1,'fr3_hubToken':1};   // never leave this device
+const TEAM_LOCAL_KEYS={'fr3_hubApiUrl':1,'fr3_hubToken':1,'fr3_rmToken':1};   // never leave this device (rmToken = personal Roofmap login)
 let _teamT=null;
 function teamSnapshot(){const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('fr3_')===0&&!TEAM_LOCAL_KEYS[k])d[k]=localStorage.getItem(k);}return d;}
 function teamPushNow(){if(!window.__TEAM||!window.__TEAM.tok)return Promise.resolve(false);
@@ -5502,9 +5513,34 @@ function renderCashflow(){
 let mtgCfg=S.get('mtgCfg',{venue:'',unit:'hrs'});                 // {venue, unit:'hrs'|'days'} — small, team-synced
 let mtgFlags=S.get('mtgFlags',{});                                // {jobNoKey:{rev,photos,qa}} — team-synced ticks
 let mtgPhotos=S.get('mtgPhotos',{});                             // {jobNoKey:[imageUrl,...]} — pasted URLs, team-synced
-const _mtgUploads={};                                            // {jobNoKey:[objectURL,...]} — session-only uploads, for the printout
+let mtgCrew=S.get('mtgCrew',{});                                 // {jobNoKey:"Ethan, Luke & Christian"} — free-text crew override (team-synced)
+let mtgNotes=S.get('mtgNotes',{});                              // {jobNoKey:"Includes our Scaffolding"} — per-job note (team-synced)
+const _mtgPhotoData={};                                          // {jobNoKey:[dataURL,...]} — photos fetched from Fergus / uploaded; in-memory (too big for team state), embeds into the .pptx
 let _mtgMk=null;                                                 // currently shown month key
 const MTG_HRS_PER_DAY=8;
+// ── Roofmap estimator backend (Railway) — reused ONLY to pull Fergus job PHOTOS as bytes. The hub's own
+//    proxy is JSON-only, but this backend already streams image binary (Fergus key stays server-side).
+//    Same login you use in the Roofmap estimator; a 30-day token is cached on THIS device (not team-synced).
+const RM_BACKEND_DEFAULT='https://flood-roofing-estimator-production.up.railway.app';
+function rmBackend(){return String(S.get('rmBackend','')||RM_BACKEND_DEFAULT).replace(/\/+$/,'');}
+function rmToken(){return S.get('rmToken','');}
+async function rmLogin(){
+  const email=prompt('Roofmap login email (to pull Fergus photos):','');if(!email)return false;
+  const password=prompt('Roofmap password:');if(!password)return false;
+  try{const r=await fetch(rmBackend()+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:password})});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok&&j&&j.token){S.set('rmToken',j.token);return true;}
+    alert('Roofmap login failed'+(j&&j.error?': '+j.error:'')); return false;
+  }catch(e){alert('Roofmap login error: '+e.message);return false;}
+}
+// Crew line: manual override wins; else the auto-tagged crew joined "A, B & C".
+function mtgCrewLine(j,k){
+  const ov=String(mtgCrew[k]||'').trim();if(ov)return ov;
+  const c=(j.crew||[]).slice();if(!c.length)return '';
+  return c.length===1?c[0]:(c.slice(0,-1).join(', ')+' & '+c[c.length-1]);
+}
+function mtgEditCrew(k,j){const cur=String(mtgCrew[k]||'')||((j&&mtgCrewLine(j,k))||'');const v=prompt('Crew on this job (free text, e.g. "Ethan, Luke & Christian"):',cur);if(v===null)return;if(v.trim())mtgCrew[k]=v.trim();else delete mtgCrew[k];S.set('mtgCrew',mtgCrew);renderMeeting();}
+function mtgEditNote(k){const v=prompt('Note for this job (e.g. "Includes our Scaffolding"):',String(mtgNotes[k]||''));if(v===null)return;if(v.trim())mtgNotes[k]=v.trim();else delete mtgNotes[k];S.set('mtgNotes',mtgNotes);renderMeeting();}
 function mtgKey(j){return jobNoKey(j.jobNo)||('id'+(j.id||''));}
 function mtgFlagOn(k,f){return !!(mtgFlags[k]&&mtgFlags[k][f]);}
 function toggleMtgFlag(k,f){const o=mtgFlags[k]||(mtgFlags[k]={});o[f]=o[f]?0:1;if(!o.rev&&!o.photos&&!o.qa)delete mtgFlags[k];S.set('mtgFlags',mtgFlags);renderMeeting();}
@@ -5541,26 +5577,118 @@ function mtgStep(d){_mtgMk=(function(){const p=(_mtgMk||calMonthKey(-1)).split('
 function mtgMonthLabel(mk){const p=(mk||'').split('-');const full=['January','February','March','April','May','June','July','August','September','October','November','December'];const i=FG_MONTHS.indexOf(p[0]);return (i>=0?full[i]:p[0])+' '+(p[1]||'');}
 function mtgAddPhotoUrl(k){const u=prompt('Paste an image URL (jpg/png) for this job:');if(!u)return;if(!/^https?:\/\//i.test(u)){alert('That doesn’t look like a web link.');return;}mtgPhotos[k]=(mtgPhotos[k]||[]).concat([u]);S.set('mtgPhotos',mtgPhotos);renderMeeting();}
 function mtgRmPhoto(k,i){const a=mtgPhotos[k]||[];a.splice(i,1);if(!a.length)delete mtgPhotos[k];else mtgPhotos[k]=a;S.set('mtgPhotos',mtgPhotos);renderMeeting();}
-function mtgUpload(k,input){const fs=input&&input.files;if(!fs||!fs.length)return;const a=_mtgUploads[k]||(_mtgUploads[k]=[]);for(let i=0;i<fs.length;i++){if(/^image\//.test(fs[i].type))a.push(URL.createObjectURL(fs[i]));}input.value='';renderMeeting();}
-// Best-effort: pull photos straight off the Fergus job (endpoint varies by account/plan). Any image URLs
-// found are added to the (synced) list; if none come back, you upload/paste manually — the deck still builds.
+// Uploaded photos are read as data URLs (not object URLs) so they both preview here AND embed in the .pptx.
+function mtgUpload(k,input){const fs=input&&input.files;if(!fs||!fs.length)return;const out=_mtgPhotoData[k]||(_mtgPhotoData[k]=[]);let pend=0;
+  for(let i=0;i<fs.length;i++){const f=fs[i];if(!/^image\//.test(f.type))continue;pend++;const fr=new FileReader();fr.onload=()=>{if(out.indexOf(fr.result)<0)out.push(fr.result);if(--pend<=0)renderMeeting();};fr.onerror=()=>{if(--pend<=0)renderMeeting();};fr.readAsDataURL(f);}
+  input.value='';if(!pend)renderMeeting();}
+function mtgRmData(k,i){const a=_mtgPhotoData[k]||[];a.splice(i,1);renderMeeting();}
+// Pull the job's photos straight from Fergus, via the Roofmap backend (it streams the bytes with the Fergus
+// key held server-side). Stored in memory as data URLs → shown here and embedded in the PowerPoint.
 async function mtgFetchPhotos(id,k,btn){
-  if(btn){btn.textContent='…';}
-  const paths=['/jobs/'+encodeURIComponent(id)+'/attachments','/jobs/'+encodeURIComponent(id)+'/files','/jobs/'+encodeURIComponent(id)+'/photos','/jobs/'+encodeURIComponent(id)+'/images'];
-  let added=0;
-  for(const p of paths){
-    let j=null;try{j=await fergusApiFetch(p);}catch(e){continue;}
-    const arr=Array.isArray(j)?j:((j&&(j.data||j.attachments||j.files||j.items||j.results||j.value))||[]);
-    if(!Array.isArray(arr)||!arr.length)continue;
-    const urls=arr.map(a=>a&&(a.url||a.downloadUrl||a.href||a.location||a.thumbnailUrl||a.thumbUrl||(a.file&&(a.file.url||a.file.href)))).filter(u=>u&&/^https?:/i.test(u));
-    const imgs=urls.filter(u=>/\.(jpe?g|png|webp|gif|heic)(\?|#|$)/i.test(u));
-    const pick=(imgs.length?imgs:urls);
-    if(pick.length){const cur=mtgPhotos[k]||[];pick.forEach(u=>{if(!cur.includes(u)){cur.push(u);added++;}});mtgPhotos[k]=cur;break;}
+  if(!id){return;}
+  if(!rmToken()){const ok=await rmLogin();if(!ok)return;}
+  const setL=t=>{if(btn)btn.textContent=t;};
+  setL('pulling…');
+  const auth={Authorization:'Bearer '+rmToken()};
+  let files=[];
+  try{
+    const r=await fetch(rmBackend()+'/fergus-files/list?jobId='+encodeURIComponent(id),{headers:auth});
+    if(r.status===401){S.set('rmToken','');const ok=await rmLogin();if(!ok){setL('sign-in needed');return;}return mtgFetchPhotos(id,k,btn);}
+    const j=await r.json().catch(()=>({}));
+    files=(j&&Array.isArray(j.files))?j.files:[];
+  }catch(e){setL('backend error');setTimeout(renderMeeting,1600);return;}
+  const imgs=files.filter(f=>f&&f.url&&(/^image\//i.test(f.contentType||'')||/\.(jpe?g|png|webp|gif|heic)(\?|#|$)/i.test(String(f.name||f.url)))).slice(0,8);
+  if(!imgs.length){setL('no photos');setTimeout(renderMeeting,1600);return;}
+  const out=_mtgPhotoData[k]||(_mtgPhotoData[k]=[]);
+  for(const f of imgs){
+    try{
+      const r=await fetch(rmBackend()+'/fergus-files/download?url='+encodeURIComponent(f.url),{headers:auth});
+      if(!r.ok)continue;
+      const blob=await r.blob();
+      const dataUrl=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(blob);});
+      if(dataUrl&&out.indexOf(dataUrl)<0)out.push(dataUrl);
+    }catch(e){}
+    setL('pulling… '+out.length);
   }
-  if(added){S.set('mtgPhotos',mtgPhotos);renderMeeting();}
-  else{if(btn)btn.textContent='none found';setTimeout(renderMeeting,1400);}
+  // Auto-tick the Photos flag if we pulled any.
+  if(out.length){const o=mtgFlags[k]||(mtgFlags[k]={});if(!o.photos){o.photos=1;S.set('mtgFlags',mtgFlags);}}
+  renderMeeting();
 }
 function mtgPrint(){document.body.classList.add('mtg-printing');const done=()=>{document.body.classList.remove('mtg-printing');window.removeEventListener('afterprint',done);};window.addEventListener('afterprint',done);setTimeout(()=>{try{window.print();}catch(e){done();}},60);}
+// Gather embeddable data-URL images for a slide: fetched/uploaded (already data URLs) + best-effort remote (pasted URLs).
+async function mtgSlideImages(k){
+  const out=(_mtgPhotoData[k]||[]).slice();
+  for(const u of (mtgPhotos[k]||[])){
+    try{const r=await fetch(u);const b=await r.blob();const d=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(b);});if(d&&out.indexOf(d)<0)out.push(d);}catch(e){}   // remote may CORS-fail → skipped
+  }
+  return out;
+}
+// Build a REAL, editable PowerPoint from the same data the on-screen deck uses (title slide + one
+// performance slide per job) and download it. Bars are drawn as shapes so they colour + print exactly
+// like the deck; photos embed from mtgSlideImages(). Uses the locally-bundled PptxGenJS.
+async function buildMeetingPptx(mk,btn){
+  mk=mk||_mtgMk||calMonthKey(-1);
+  if(typeof PptxGenJS==='undefined'){alert('PowerPoint library didn’t load — reload the hub and try again.');return;}
+  const jobs=meetingJobs(mk);
+  if(!jobs.length){alert('No jobs to include for '+mtgMonthLabel(mk)+'.');return;}
+  if(btn){btn.disabled=true;btn._lab=btn.textContent;btn.textContent='Building…';}
+  try{
+    const P=new PptxGenJS();P.defineLayout({name:'FR',width:13.33,height:7.5});P.layout='FR';
+    const NAVY='0D1017',BLUE='3B82F6',GREEN='22C55E',ORANGE='FB923C',MUTED='94A3B8',WHITE='FFFFFF',TRACK='E2E8F0',INK='0F172A';
+    const unit=mtgUnitLab();const R=P.ShapeType;
+    let over=0,under=0;jobs.forEach(j=>{const r=mtgResult(j.pct);if(r.cls==='bad')over++;else if(r.cls==='good')under++;});
+    // ── title slide ──
+    const t=P.addSlide();t.background={color:NAVY};
+    t.addText('FLOOD ROOFING   ·   MONTHLY MEETING',{x:0.6,y:2.25,w:12.13,h:0.5,fontSize:16,color:BLUE,bold:true,charSpacing:3,align:'center'});
+    t.addText(mtgMonthLabel(mk),{x:0.6,y:2.75,w:12.13,h:1.4,fontSize:60,color:WHITE,bold:true,align:'center'});
+    if(String(mtgCfg.venue||'').trim())t.addText(String(mtgCfg.venue).trim(),{x:0.6,y:4.15,w:12.13,h:0.6,fontSize:26,color:MUTED,align:'center'});
+    t.addText(jobs.length+' jobs reviewed      ·      '+under+' on / under target      ·      '+over+' over',{x:0.6,y:5.0,w:12.13,h:0.5,fontSize:16,color:MUTED,align:'center'});
+    // ── per-job slides ──
+    for(const j of jobs){
+      const k=mtgKey(j);const res=mtgResult(j.pct);const good=res.cls!=='bad';const barCol=good?GREEN:ORANGE;
+      const s=P.addSlide();s.background={color:WHITE};
+      s.addText(j.job,{x:0.5,y:0.32,w:9.4,h:0.75,fontSize:26,bold:true,color:INK});
+      let sub='';if(j.jobNo)sub='Job #'+j.jobNo;if(j.inProgress)sub+=(sub?'   ·   ':'')+'in progress';
+      if(sub)s.addText(sub,{x:0.52,y:1.05,w:9,h:0.3,fontSize:12,color:MUTED});
+      const crew=mtgCrewLine(j,k);if(crew)s.addText(crew,{x:0.52,y:1.33,w:9,h:0.35,fontSize:15,bold:true,color:BLUE});
+      // result badge
+      s.addShape(R.roundRect,{x:10.15,y:0.4,w:2.68,h:0.72,fill:{color:good?GREEN:ORANGE},rectRadius:0.1,line:{type:'none'}});
+      s.addText(res.txt,{x:10.15,y:0.4,w:2.68,h:0.72,fontSize:16,bold:true,color:WHITE,align:'center',valign:'middle'});
+      // bars (Allowed vs Taken)
+      const scale=Math.max(j.priced,j.actual,1),bx=1.9,bw=4.9,bh=0.5;
+      const allowV=mtgAmt(j.priced),takenV=mtgAmt(j.actual);
+      s.addText('TIME ALLOWED',{x:0.5,y:2.35,w:1.35,h:bh,fontSize:9,bold:true,color:MUTED,valign:'middle'});
+      s.addShape(R.roundRect,{x:bx,y:2.35,w:bw,h:bh,fill:{color:TRACK},rectRadius:0.03,line:{type:'none'}});
+      s.addShape(R.roundRect,{x:bx,y:2.35,w:Math.max(0.03,bw*(j.priced/scale)),h:bh,fill:{color:BLUE},rectRadius:0.03,line:{type:'none'}});
+      s.addText((j.priced>0?allowV+' '+unit:'—'),{x:bx+bw+0.1,y:2.35,w:1.4,h:bh,fontSize:13,bold:true,color:INK,valign:'middle'});
+      s.addText('TIME TAKEN',{x:0.5,y:3.05,w:1.35,h:bh,fontSize:9,bold:true,color:MUTED,valign:'middle'});
+      s.addShape(R.roundRect,{x:bx,y:3.05,w:bw,h:bh,fill:{color:TRACK},rectRadius:0.03,line:{type:'none'}});
+      s.addShape(R.roundRect,{x:bx,y:3.05,w:Math.max(0.03,bw*(j.actual/scale)),h:bh,fill:{color:barCol},rectRadius:0.03,line:{type:'none'}});
+      s.addText(takenV+' '+unit,{x:bx+bw+0.1,y:3.05,w:1.4,h:bh,fontSize:13,bold:true,color:good?GREEN:ORANGE,valign:'middle'});
+      // flags
+      const fY=(on)=>({text:on?'Y':'N',options:{bold:true,color:on?GREEN:ORANGE}});
+      s.addText([{text:'Google Review?   ',options:{color:MUTED}},fY(mtgFlagOn(k,'rev'))],{x:0.5,y:4.0,w:4.2,h:0.35,fontSize:14});
+      s.addText([{text:'Photos?   ',options:{color:MUTED}},fY(mtgFlagOn(k,'photos'))],{x:0.5,y:4.4,w:4.2,h:0.35,fontSize:14});
+      s.addText([{text:'QA Checklist?   ',options:{color:MUTED}},fY(mtgFlagOn(k,'qa'))],{x:0.5,y:4.8,w:4.2,h:0.35,fontSize:14});
+      const note=String(mtgNotes[k]||'').trim();if(note)s.addText(note,{x:0.5,y:5.25,w:6,h:0.5,fontSize:12,italic:true,color:MUTED});
+      // legend
+      s.addShape(R.rect,{x:0.5,y:6.9,w:0.22,h:0.22,fill:{color:GREEN},line:{type:'none'}});s.addText('Good',{x:0.78,y:6.82,w:1.2,h:0.35,fontSize:11,color:INK,valign:'middle'});
+      s.addShape(R.rect,{x:1.85,y:6.9,w:0.22,h:0.22,fill:{color:ORANGE},line:{type:'none'}});s.addText('Improvement needed',{x:2.13,y:6.82,w:2.8,h:0.35,fontSize:11,color:INK,valign:'middle'});
+      // photos — up to 4 in a 2×2 grid on the right
+      const imgs=await mtgSlideImages(k);
+      if(imgs.length){
+        const n=Math.min(imgs.length,4),pw=2.85,ph=1.95,gap=0.18,sx=7.15,sy=1.95;
+        for(let i=0;i<n;i++){const col=i%2,row=Math.floor(i/2);
+          try{s.addImage({data:imgs[i],x:sx+col*(pw+gap),y:sy+row*(ph+gap),w:pw,h:ph,sizing:{type:'cover',w:pw,h:ph}});}catch(e){}}
+      }else{
+        s.addShape(R.roundRect,{x:7.15,y:1.95,w:5.68,h:4.08,fill:{color:'F8FAFC'},line:{color:TRACK,width:1,dashType:'dash'},rectRadius:0.08});
+        s.addText('Add job photos',{x:7.15,y:1.95,w:5.68,h:4.08,fontSize:14,color:MUTED,align:'center',valign:'middle'});
+      }
+    }
+    await P.writeFile({fileName:'FloodRoofing-Meeting-'+mk+'.pptx'});
+  }catch(e){alert('Couldn’t build the PowerPoint: '+(e&&e.message||e));}
+  if(btn){btn.disabled=false;btn.textContent=btn._lab||'⬇ PowerPoint';}
+}
 function renderMeeting(){
   const host=document.getElementById('mtg-body');if(!host)return;
   const mk=_mtgMk||calMonthKey(-1);_mtgMk=mk;
@@ -5571,7 +5699,8 @@ function renderMeeting(){
   h+='<div class="mtg-toolbar">';
   h+='<div class="mtg-mstep"><button class="mtg-mbtn" onclick="mtgStep(-1)" aria-label="Previous month">‹</button><span class="mtg-mlabel">'+esc(mtgMonthLabel(mk))+'</span><button class="mtg-mbtn" onclick="mtgStep(1)" aria-label="Next month">›</button></div>';
   h+='<div class="mtg-seg"><button class="'+(mtgCfg.unit!=='days'?'on':'')+'" onclick="mtgSetUnit(\'hrs\')">Hours</button><button class="'+(mtgCfg.unit==='days'?'on':'')+'" onclick="mtgSetUnit(\'days\')">Days</button></div>';
-  h+='<button class="mtg-print" onclick="mtgPrint()">🖨 Print / Save PDF</button>';
+  h+='<button class="mtg-ppt" onclick="buildMeetingPptx(null,this)" title="Download an editable PowerPoint">⬇ PowerPoint</button>';
+  h+='<button class="mtg-print" onclick="mtgPrint()">🖨 PDF</button>';
   h+='</div>';
   // title slide
   h+='<div class="mtg-title-slide"><div class="mts-k">Flood Roofing · Monthly Meeting</div><h1>'+esc(mtgMonthLabel(mk))+'</h1>';
@@ -5587,32 +5716,40 @@ function renderMeeting(){
     const scale=Math.max(j.priced,j.actual,1);
     const allowW=Math.round(j.priced/scale*100), takenW=Math.round(j.actual/scale*100);
     const takenCls=(res.cls==='bad')?'bad':'good';
+    const crewLine=mtgCrewLine(j,k);
+    const crewHtml=String(mtgCrew[k]||'').trim()
+      ? '<span class="cc lead">'+esc(crewLine)+'</span>'
+      : (j.crew.length?j.crew.map(c=>'<span class="cc'+(c===j.lead?' lead':'')+'">'+esc(c)+'</span>').join(''):'<span class="cc">crew not tagged</span>');
     h+='<div class="mtg-slide">';
     h+='<div class="mtg-slide-head"><div class="mtg-jn"><h3>'+esc(j.job)+'</h3>'+(j.jobNo?'<div class="mtg-jobno">Job #'+esc(j.jobNo)+(j.inProgress?' · in progress':'')+'</div>':'')+
-       '<div class="mtg-crew">'+(j.crew.length?j.crew.map(c=>'<span class="cc'+(c===j.lead?' lead':'')+'">'+esc(c)+'</span>').join(''):'<span class="cc">crew not tagged</span>')+'</div></div>'+
+       '<div class="mtg-crew">'+crewHtml+'</div></div>'+
        '<span class="mtg-result '+res.cls+'">'+res.txt+'</span></div>';
     h+='<div class="mtg-bars">';
     h+='<div class="mtg-barrow"><span class="mtg-barlab">Allowed</span><div class="mtg-track"><div class="mtg-fill allow" style="width:'+allowW+'%"></div></div><span class="mtg-barval">'+(j.priced>0?mtgAmt(j.priced)+' '+mtgUnitLab():'—')+'</span></div>';
     h+='<div class="mtg-barrow"><span class="mtg-barlab">Taken</span><div class="mtg-track"><div class="mtg-fill taken '+takenCls+'" style="width:'+takenW+'%"></div></div><span class="mtg-barval">'+mtgAmt(j.actual)+' '+mtgUnitLab()+'</span></div>';
     h+='</div>';
+    const note=String(mtgNotes[k]||'').trim();
+    if(note)h+='<div class="mtg-note">'+esc(note)+'</div>';
     // checkboxes
     h+='<div class="mtg-checks">';
     [['rev','Google review'],['photos','Photos'],['qa','QA checklist']].forEach(f=>{const on=mtgFlagOn(k,f[0]);h+='<span class="mtg-chk'+(on?' on':'')+'" onclick="toggleMtgFlag(\''+k+'\',\''+f[0]+'\')"><span class="box">'+(on?'✓':'')+'</span>'+f[1]+'</span>';});
     h+='</div>';
-    // photos
-    const purls=(mtgPhotos[k]||[]).slice(), ups=(_mtgUploads[k]||[]).slice();
+    // photos — embeddable (fetched from Fergus / uploaded) first, then pasted remote URLs
+    const data=(_mtgPhotoData[k]||[]).slice(), purls=(mtgPhotos[k]||[]).slice();
     h+='<div class="mtg-photos">';
-    purls.forEach((u,i)=>{h+='<img src="'+esc(u)+'" alt="" onerror="this.style.opacity=.25" title="tap ✕ in tools to remove">';});
-    ups.forEach(u=>{h+='<img src="'+esc(u)+'" alt="">';});
-    h+='<label class="mtg-photo-add">＋ Add photos<input type="file" accept="image/*" multiple style="display:none" onchange="mtgUpload(\''+k+'\',this)"></label>';
+    data.forEach((u,i)=>{h+='<span class="mtg-ph"><img src="'+u+'" alt=""><span class="mtg-ph-x" onclick="mtgRmData(\''+k+'\','+i+')">✕</span></span>';});
+    purls.forEach((u,i)=>{h+='<span class="mtg-ph"><img src="'+esc(u)+'" alt="" onerror="this.style.opacity=.25"><span class="mtg-ph-x" onclick="mtgRmPhoto(\''+k+'\','+i+')">✕</span></span>';});
+    h+='<label class="mtg-photo-add">＋ Upload<input type="file" accept="image/*" multiple style="display:none" onchange="mtgUpload(\''+k+'\',this)"></label>';
     h+='</div>';
-    h+='<div class="mtg-tools"><a onclick="mtgAddPhotoUrl(\''+k+'\')">+ paste image URL</a>'+
-       (j.id?' · <a onclick="mtgFetchPhotos(\''+esc(String(j.id))+'\',\''+k+'\',this)">pull from Fergus</a>':'')+
-       (purls.length?' · '+purls.map((u,i)=>'<a onclick="mtgRmPhoto(\''+k+'\','+i+')">✕ url'+(purls.length>1?(i+1):'')+'</a>').join(' '):'')+
+    h+='<div class="mtg-tools">'+
+       (j.id?'<a onclick="mtgFetchPhotos(\''+esc(String(j.id))+'\',\''+k+'\',this)">⤓ pull photos from Fergus</a> · ':'')+
+       '<a onclick="mtgAddPhotoUrl(\''+k+'\')">+ paste URL</a>'+
+       ' · <a onclick="mtgEditCrew(\''+k+'\')">✎ crew</a>'+
+       ' · <a onclick="mtgEditNote(\''+k+'\')">✎ note</a>'+
        '</div>';
     h+='</div>';
   });
-  h+='<div class="mtg-empty" style="padding:14px 8px;font-size:.72rem;">Stats are pulled from Fergus back-costing (Allowed = priced hours, Taken = logged hours). Tick the flags and add photos, then <b>Print / Save PDF</b> for the deck. Uploaded photos are for this printout; pasted URLs are saved for the team.</div>';
+  h+='<div class="mtg-empty" style="padding:14px 8px;font-size:.72rem;">Stats come straight from Fergus back-costing (Allowed = priced hours, Taken = logged hours). Tick the flags, pull/upload photos, then <b>⬇ PowerPoint</b> for an editable deck (or <b>PDF</b>). Photos &amp; flags stay put — the deck never reshuffles.</div>';
   host.innerHTML=h;
 }
 // New month? quietly point the meeting at last complete month so it's one tap when the boss opens it.
