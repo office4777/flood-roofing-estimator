@@ -11672,25 +11672,67 @@ function _aerialRoofBlock(){
   return '<div class="ed-eyebrow" style="margin:6px 0 8px">Existing roof — aerial</div>'+
     '<div style="border:1px solid var(--ed-line);background:#fff;padding:8px"><img src="'+esc2(ap.src)+'" alt="Aerial view of the existing roof" style="display:block;width:100%;height:auto;max-height:420px;object-fit:contain"></div>';
 }
+// Whether the quote roof map shows the aerial (satellite/drone) background
+// behind the basic outline. Office-set per quote; default off (keeps the
+// customer share payload small — the background is an embedded photo).
+function _qpRoofMapShowBg(){ return !!(S.quote && S.quote.roofMapShowBg); }
+function _toggleRoofMapBg(){
+  if (!S.quote) return;
+  S.quote.roofMapShowBg = !S.quote.roofMapShowBg;
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
+}
+// Build the quote's "Basic map" per roof (the Job Pack basic map — roof name +
+// area m², optional aerial background). Stashes the rendered images on the
+// quote so the customer share link (no live drawing) can render them too.
+function _qpBasicRoofMaps(showBg){
+  var out = [];
+  if (window.DRAW && DRAW.roofs && DRAW.roofs.length) {
+    try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+    DRAW.roofs.forEach(function(r, i){
+      var nm = r.name || ('Roof ' + (i + 1));
+      var url = null;
+      try { url = _jpCaptureBasic(i, { bgOpacity: showBg ? 55 : 0 }); } catch(e){}
+      if (url) out.push({ url: url, name: nm, role: (i === 0 ? 'main' : 'optional') });
+    });
+  } else if (window.DRAW && DRAW.outline && DRAW.outline.length >= 3) {
+    var u = null;
+    try { u = _jpCaptureBasic(-1, { bgOpacity: showBg ? 55 : 0 }); } catch(e){}
+    if (u) out.push({ url: u, name: (DRAW.roofs && DRAW.roofs[0] && DRAW.roofs[0].name) || 'Roof 1', role: 'single' });
+  }
+  if (!window.__CUSTOMER_MODE) {
+    // Office side — stash the freshly rendered maps for the customer link.
+    if (out.length) { S.quote.roofMapImgs = out; }
+    else if (Array.isArray(S.quote.roofMapImgs)) { S.quote.roofMapImgs = []; }
+  } else if (!out.length && S.quote && Array.isArray(S.quote.roofMapImgs)) {
+    // Customer link — no live drawing, so render the office-stashed images.
+    return S.quote.roofMapImgs;
+  }
+  return out;
+}
 function _buildRoofPreviewsHtml(opts){
   // opts.small: compact fixed-height box (page 3 — Main scope of work)
   // instead of the full-width map block.
   opts = opts || {};
   var imgs = [];
-  if (DRAW.roofs && DRAW.roofs.length) {
+  if (opts.basic) {
+    // Page-2 quote map — the Job Pack "Basic map" (roof name + area, optional
+    // aerial background), stashed for the customer link.
+    imgs = _qpBasicRoofMaps(_qpRoofMapShowBg());
+  } else if (DRAW.roofs && DRAW.roofs.length) {
     // Use stored snapshots — active roof's live state is also synced
     // to DRAW.roofs[activeRoofIdx] every time we render, so this is
     // up to date.
     try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
     DRAW.roofs.forEach(function(r, i){
       var nm = r.name || ('Roof ' + (i+1));
-      var url = _buildRoofOutlinePreview(r, { name: nm, basic: !!opts.basic });
+      var url = _buildRoofOutlinePreview(r, { name: nm, basic: false });
       // The first roof entered on the canvas is always the main roof; every
       // roof after it is an optional extra the customer can add.
       if (url) imgs.push({ url: url, name: nm, role: (i === 0 ? 'main' : 'optional') });
     });
   } else if (DRAW.outline && DRAW.outline.length >= 3) {
-    var url = _buildRoofOutlinePreview({ outline: DRAW.outline, lines: DRAW.lines || [] }, { name: 'Roof map', basic: !!opts.basic });
+    var url = _buildRoofOutlinePreview({ outline: DRAW.outline, lines: DRAW.lines || [] }, { name: 'Roof map', basic: false });
     if (url) imgs.push({ url: url, name: 'Roof map', role: 'single' });
   }
   if (!imgs.length) return '';
@@ -11708,10 +11750,18 @@ function _buildRoofPreviewsHtml(opts){
   if (opts.small) {
     // Compact bordered box; on the Investment page it stacks the roof
     // map(s) in the right column, each labelled main / optional extra.
+    // Office-only background toggle (basic map): show/hide the aerial photo
+    // (satellite / drone measure) behind the outline. Hidden on the customer
+    // link — the customer sees whatever the office chose.
+    var _bgToggle = (opts.basic && !window.__CUSTOMER_MODE)
+      ? '<button type="button" class="no-print" onclick="_toggleRoofMapBg()" title="Show/hide the aerial photo behind the roof outline" style="padding:2px 8px;font-size:9.5px;border:1px solid '+(_qpRoofMapShowBg()?'var(--ed-accent)':'var(--ed-line)')+';border-radius:4px;background:'+(_qpRoofMapShowBg()?'var(--ed-accent)':'#fff')+';color:'+(_qpRoofMapShowBg()?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);letter-spacing:.04em">'+(_qpRoofMapShowBg()?'✓ Aerial background':'Aerial background')+'</button>'
+      : '';
     return '<div class="qp-roofmap" style="border:1px solid var(--ed-line);background:#fff;padding:12px 14px">'+
-      '<div class="ed-eyebrow" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'+
+      '<div class="ed-eyebrow" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">'+
         '<span>Roof map'+(_multiRoof?'s':'')+'</span>'+
-        '<button type="button" class="no-print" onclick="refreshQuoteProposal()" style="margin-left:auto;padding:2px 8px;font-size:9.5px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;cursor:pointer;font-family:var(--ed-sans);color:var(--ed-ink-2);letter-spacing:.04em">↻ Refresh</button>'+
+        '<span style="margin-left:auto;display:flex;gap:6px">'+_bgToggle+
+        '<button type="button" class="no-print" onclick="refreshQuoteProposal()" style="padding:2px 8px;font-size:9.5px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;cursor:pointer;font-family:var(--ed-sans);color:var(--ed-ink-2);letter-spacing:.04em">↻ Refresh</button>'+
+        '</span>'+
       '</div>'+
       imgs.map(function(im, mi){
         return '<div style="'+(mi>0?'margin-top:12px;padding-top:12px;border-top:1px solid var(--ed-line);':'')+'">'+
@@ -23956,7 +24006,8 @@ function _flashCollectLabelled() {
 // roof shaded a distinct colour with its name + area centred. No
 // measurements, no letter tags, no sheet labels. Pure SVG so it
 // scales cleanly at any zoom + drops into the PDF later if needed.
-function _renderMatRoofMapBasic(out){
+function _renderMatRoofMapBasic(out, opts){
+  opts = opts || {};
   var roofs = _matBasicCollectRoofs();
   if (!roofs.length) {
     out.innerHTML = '<p style="font-size:12px;color:var(--text2)">Draw your roof outline on the Map Roof tab — this map will appear here.</p>';
@@ -23996,7 +24047,11 @@ function _renderMatRoofMapBasic(out){
   // localStorage value fr_mat_basic_bg_opacity, 0–100) controls how
   // strongly the bg image bleeds through behind the polygons.
   var hasBg = !!(DRAW.bgImg && DRAW.bgImg.naturalWidth && DRAW.bgImg.naturalHeight);
-  var bgOpRaw = parseInt(localStorage.getItem('fr_mat_basic_bg_opacity') || '0', 10);
+  // Callers (e.g. the quote roof-map) can force the background opacity instead
+  // of reading the Job Pack slider's saved value.
+  var bgOpRaw = (opts.bgOpacity != null)
+    ? parseInt(opts.bgOpacity, 10)
+    : parseInt(localStorage.getItem('fr_mat_basic_bg_opacity') || '0', 10);
   if (!isFinite(bgOpRaw) || bgOpRaw < 0) bgOpRaw = 0;
   if (bgOpRaw > 100) bgOpRaw = 100;
   var bgOp = bgOpRaw / 100;
@@ -24521,13 +24576,24 @@ function _jpCaptureBasic(roofIdx, opts){
   try {
     // If a specific roof is requested, temporarily limit the
     // collector to that roof.
+    var _basicOpts = { bgOpacity: (opts && opts.bgOpacity != null) ? opts.bgOpacity : undefined };
     if (roofIdx >= 0 && DRAW.roofs && DRAW.roofs[roofIdx]) {
       var allRoofs = DRAW.roofs;
-      DRAW.roofs = [allRoofs[roofIdx]];
-      try { _renderMatRoofMapBasic(tmp); }
-      finally { DRAW.roofs = allRoofs; }
+      var _savedActive = DRAW.activeRoofIdx;
+      var _savedOutline = DRAW.outline, _savedLines = DRAW.lines;
+      var _target = allRoofs[roofIdx];
+      // Pin the temp single-roof array to index 0 and make DRAW.outline/lines
+      // the TARGET roof's — otherwise _matBasicCollectRoofs' isActive check
+      // (0 === activeRoofIdx) makes every roof reuse the active roof's live
+      // outline when the active roof is index 0 (so all areas came out equal).
+      // The active roof keeps its live outline; others use their snapshot.
+      DRAW.roofs = [_target];
+      DRAW.activeRoofIdx = 0;
+      if (roofIdx !== _savedActive) { DRAW.outline = _target.outline || []; DRAW.lines = _target.lines || []; }
+      try { _renderMatRoofMapBasic(tmp, _basicOpts); }
+      finally { DRAW.roofs = allRoofs; DRAW.activeRoofIdx = _savedActive; DRAW.outline = _savedOutline; DRAW.lines = _savedLines; }
     } else {
-      _renderMatRoofMapBasic(tmp);
+      _renderMatRoofMapBasic(tmp, _basicOpts);
     }
     var svg = tmp.querySelector('svg');
     if (!svg) return null;
