@@ -84,6 +84,9 @@ function isAllowedOrigin(origin) {
     // (e.g. quote.floodroofing.co.nz), which then calls this backend
     // cross-origin — allow the apex and any of its subdomains.
     if (host === 'floodroofing.co.nz' || host.endsWith('.floodroofing.co.nz')) return true;
+    // The Finance Hub is hosted on GitHub Pages and calls this backend
+    // cross-origin only to pull Fergus job photos (list + download).
+    if (host === 'office4777.github.io') return true;
   } catch (e) {}
   return false;
 }
