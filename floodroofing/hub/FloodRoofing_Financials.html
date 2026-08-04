@@ -418,6 +418,76 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
 .cmodal-head span{font-size:1.08rem;font-weight:800;color:var(--text);}
 .cmodal-x{background:var(--elev);border:1px solid var(--border);color:var(--text);border-radius:22px;padding:9px 17px;font-size:.82rem;font-weight:700;cursor:pointer;white-space:nowrap;}
 .cmodal-x:active{transform:scale(.96);}
+/* ── Monthly team meeting deck ── */
+.mtg-btn{display:inline-flex;align-items:center;gap:5px;margin-left:auto;background:linear-gradient(135deg,#4d8dff,#8b5cf6);color:#fff;border:none;border-radius:22px;padding:7px 14px;font-size:.72rem;font-weight:800;letter-spacing:.2px;cursor:pointer;box-shadow:0 2px 10px rgba(77,141,255,.35);}
+.mtg-btn:active{transform:scale(.97);}
+.mtg-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 14px;}
+.mtg-toolbar .mtg-mstep{display:flex;align-items:center;gap:8px;}
+.mtg-mbtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:1.2rem;font-weight:700;cursor:pointer;}
+.mtg-mbtn:active{background:var(--elev);}
+.mtg-mlabel{font-size:.9rem;font-weight:800;min-width:112px;text-align:center;}
+.mtg-seg{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden;}
+.mtg-seg button{background:var(--card2);color:var(--muted);border:none;padding:6px 11px;font-size:.68rem;font-weight:700;cursor:pointer;}
+.mtg-seg button.on{background:var(--primary);color:#fff;}
+.mtg-print{margin-left:auto;background:var(--success);color:#04170c;border:none;border-radius:22px;padding:8px 16px;font-size:.76rem;font-weight:800;cursor:pointer;}
+.mtg-print:active{transform:scale(.97);}
+.mtg-input{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px 10px;font-size:.78rem;}
+.mtg-title-slide{background:linear-gradient(140deg,#1b2740,#0d1017);border:1px solid var(--border);border-radius:18px;padding:34px 22px;text-align:center;margin-bottom:16px;}
+.mtg-title-slide .mts-k{font-size:.66rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--primary);}
+.mtg-title-slide h1{font-size:1.9rem;font-weight:900;margin:8px 0 4px;color:#fff;letter-spacing:-.02em;}
+.mtg-title-slide .mts-v{font-size:1.02rem;color:var(--muted);font-weight:600;}
+.mtg-title-slide input{margin-top:12px;text-align:center;min-width:220px;}
+.mtg-slide{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px 16px 14px;margin-bottom:14px;}
+.mtg-slide.done .mtg-result{}
+.mtg-slide-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;}
+.mtg-slide-head .mtg-jn{flex:1;min-width:0;}
+.mtg-slide-head h3{font-size:1.12rem;font-weight:800;color:var(--text);margin:0;overflow-wrap:anywhere;line-height:1.2;}
+.mtg-slide-head .mtg-jobno{font-size:.64rem;font-weight:700;color:var(--muted);letter-spacing:.5px;margin-top:2px;}
+.mtg-crew{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 0;}
+.mtg-crew .cc{font-size:.64rem;font-weight:800;padding:3px 8px;border-radius:8px;background:var(--card2);color:var(--muted);border:1px solid var(--border);}
+.mtg-crew .cc.lead{background:rgba(77,141,255,.16);color:var(--primary);border-color:rgba(77,141,255,.45);}
+.mtg-result{white-space:nowrap;font-size:.72rem;font-weight:900;padding:6px 11px;border-radius:11px;align-self:flex-start;}
+.mtg-result.good{background:rgba(34,197,94,.16);color:#22c55e;border:1px solid rgba(34,197,94,.4);}
+.mtg-result.bad{background:rgba(251,146,60,.16);color:#fb923c;border:1px solid rgba(251,146,60,.42);}
+.mtg-result.na{background:var(--card2);color:var(--muted);border:1px solid var(--border);}
+.mtg-bars{margin:6px 0 12px;}
+.mtg-barrow{display:flex;align-items:center;gap:9px;margin:7px 0;}
+.mtg-barlab{width:66px;font-size:.66rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+.mtg-track{flex:1;height:22px;border-radius:7px;background:var(--card2);border:1px solid var(--border);overflow:hidden;}
+.mtg-fill{height:100%;border-radius:6px 0 0 6px;}
+.mtg-fill.allow{background:linear-gradient(90deg,#3b82f6,#60a5fa);}
+.mtg-fill.taken.good{background:linear-gradient(90deg,#16a34a,#22c55e);}
+.mtg-fill.taken.bad{background:linear-gradient(90deg,#ea580c,#fb923c);}
+.mtg-barval{width:70px;text-align:right;font-size:.74rem;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;}
+.mtg-checks{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px;}
+.mtg-chk{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;font-weight:800;padding:6px 11px;border-radius:20px;border:1px solid var(--border);background:var(--card2);color:var(--muted);cursor:pointer;user-select:none;}
+.mtg-chk .box{width:14px;height:14px;border-radius:4px;border:1.5px solid var(--muted);display:inline-flex;align-items:center;justify-content:center;font-size:.62rem;line-height:1;}
+.mtg-chk.on{background:rgba(34,197,94,.14);color:#22c55e;border-color:rgba(34,197,94,.45);}
+.mtg-chk.on .box{background:#22c55e;border-color:#22c55e;color:#04170c;}
+.mtg-photos{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px;}
+.mtg-photos img{width:104px;height:78px;object-fit:cover;border-radius:9px;border:1px solid var(--border);background:var(--card2);}
+.mtg-photo-add{width:104px;height:78px;border-radius:9px;border:1.5px dashed var(--border);background:var(--card2);color:var(--muted);font-size:.62rem;font-weight:800;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;padding:4px;}
+.mtg-empty{text-align:center;color:var(--muted);padding:40px 16px;font-size:.9rem;}
+.mtg-legend{display:flex;gap:14px;justify-content:center;font-size:.66rem;font-weight:800;color:var(--muted);margin:2px 0 14px;}
+.mtg-legend .lg{display:inline-flex;align-items:center;gap:5px;}
+.mtg-legend .sw{width:12px;height:12px;border-radius:3px;}
+.mtg-tools{display:flex;gap:6px;align-items:center;margin-top:9px;flex-wrap:wrap;}
+.mtg-tools a{font-size:.66rem;font-weight:800;color:var(--primary);cursor:pointer;}
+@media print{
+  @page{margin:11mm;size:A4 landscape;}
+  body.mtg-printing{background:#fff!important;overflow:visible!important;}
+  body.mtg-printing #nav,body.mtg-printing #topbar,body.mtg-printing .page{display:none!important;}
+  body.mtg-printing .cmodal{display:none!important;}
+  body.mtg-printing #mtg-modal{display:block!important;position:static!important;background:#fff!important;backdrop-filter:none!important;overflow:visible!important;}
+  body.mtg-printing #mtg-modal .cmodal-card{max-width:none!important;padding:0!important;}
+  body.mtg-printing .cmodal-head,body.mtg-printing .mtg-toolbar,body.mtg-printing .mtg-tools,body.mtg-printing .mtg-photo-add,body.mtg-printing .mtg-chk{ }
+  body.mtg-printing .mtg-print,body.mtg-printing .cmodal-x,body.mtg-printing .mtg-photo-add,body.mtg-printing .mtg-seg,body.mtg-printing .mtg-mbtn,body.mtg-printing .mtg-tools{display:none!important;}
+  body.mtg-printing .cmodal-head{position:static!important;}
+  body.mtg-printing .mtg-title-slide,body.mtg-printing .mtg-slide{break-inside:avoid;page-break-after:always;box-shadow:none!important;border:1px solid #ccc!important;background:#fff!important;color:#111!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  body.mtg-printing .mtg-title-slide h1,body.mtg-printing .mtg-slide-head h3,body.mtg-printing .mtg-barval,body.mtg-printing .mtg-title-slide .mts-v{color:#111!important;}
+  body.mtg-printing .mtg-fill,body.mtg-printing .mtg-result,body.mtg-printing .mtg-chk,body.mtg-printing .cc{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  body.mtg-printing .mtg-legend,body.mtg-printing .mtg-crew{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+}
 /* ── Cashflow detail modal (openCmdDetail('cf')) ── */
 .cfx-click{cursor:pointer;border-radius:12px;transition:background .15s;}
 .cfx-click:hover{background:rgba(56,189,248,.06);}
@@ -536,6 +606,14 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
 
 <div id="app">
 
+  <!-- Monthly team meeting deck — sibling of the pages (opens from any tab), never hidden by page switching -->
+  <div id="mtg-modal" class="cmodal" onclick="if(event.target===this)closeMeeting();">
+    <div class="cmodal-card">
+      <div class="cmodal-head"><span>📋 Monthly team meeting</span><button class="cmodal-x" onclick="closeMeeting()">✕ Close</button></div>
+      <div id="mtg-body"></div>
+    </div>
+  </div>
+
   <!-- ───────── DASHBOARD ───────── -->
   <div class="page active" id="page-dash">
     <div class="card" style="border-left:4px solid var(--success);">
@@ -544,7 +622,7 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
       <div class="cmd-alerts" id="cmd-alerts"></div>
     </div>
     <div class="card">
-      <div class="ct">Performance — charts &amp; tables <span class="period-sub" style="margin-left:auto;">the full picture</span></div>
+      <div class="ct">Performance — charts &amp; tables <button class="mtg-btn" onclick="openMeeting()" title="Build this month's team meeting deck">📋 Team meeting</button></div>
       <div class="cmd-panels" id="cmd-vis"></div>
     </div>
     <div class="card per-this">
@@ -5413,6 +5491,132 @@ function renderCashflow(){
   const cwn=document.getElementById('cfw-note');
   if(cwn)cwn.innerHTML='All accounts. In: <b>A/R</b> (invoiced, paid 3 days past due) + job finals paid '+num(cfg2.lag)+' wks after scheduled finish (GST-inclusive). Out: materials paid the 20th of the month after ordering, A/P ('+fmtK(apMat)+') at the next 20th, wages+overheads ('+fmtK(burnWk)+'/wk)'+(gstOn?(', and <b>net GST</b> to IRD ('+(gstFreq===1?'monthly':gstFreq+'-monthly')+', output − input on materials + A/P; ~'+fmtK(gstTot)+' over 13 wks · current GST '+fmtK(gstNow)+')'):'')+'. Opening '+fmtK(openCash)+'. Excludes other finance/tax.'+(recon.total>0?(' <b style="color:var(--success);">Auto-reconciled '+fmtK(recon.total)+'</b> already in the bank (paid, not yet in Xero) — not double-counted.'):'')+(apRisk?(' <b style="color:var(--danger);">⚠ Materials A/P ('+fmtK(apMat)+') exceeds materials costed to open jobs ('+fmtK(totAMat)+') — some supplier bills may not be job-costed, which can double-count materials. Cost every bill to its Fergus job.</b>'):'');
 }
+
+// ════════ MONTHLY TEAM MEETING ════════
+// Auto-builds the month's team-meeting deck from the data the hub already syncs, mirroring the old
+// PowerPoint: a title slide, then one performance slide per job — Time Allowed (priced hours) vs Time
+// Taken (actual/logged hours), the over/under result, the crew, Google-review/Photos/QA checkboxes, and
+// a photo strip. "Print / Save PDF" turns it into the shareable deck (one job per page), replacing the
+// slow manual slideshow. Stats come straight from Fergus back-costing; you just tick the flags + drop
+// photos. Runs every month — it defaults to last complete month, one tap.
+let mtgCfg=S.get('mtgCfg',{venue:'',unit:'hrs'});                 // {venue, unit:'hrs'|'days'} — small, team-synced
+let mtgFlags=S.get('mtgFlags',{});                                // {jobNoKey:{rev,photos,qa}} — team-synced ticks
+let mtgPhotos=S.get('mtgPhotos',{});                             // {jobNoKey:[imageUrl,...]} — pasted URLs, team-synced
+const _mtgUploads={};                                            // {jobNoKey:[objectURL,...]} — session-only uploads, for the printout
+let _mtgMk=null;                                                 // currently shown month key
+const MTG_HRS_PER_DAY=8;
+function mtgKey(j){return jobNoKey(j.jobNo)||('id'+(j.id||''));}
+function mtgFlagOn(k,f){return !!(mtgFlags[k]&&mtgFlags[k][f]);}
+function toggleMtgFlag(k,f){const o=mtgFlags[k]||(mtgFlags[k]={});o[f]=o[f]?0:1;if(!o.rev&&!o.photos&&!o.qa)delete mtgFlags[k];S.set('mtgFlags',mtgFlags);renderMeeting();}
+function mtgSetVenue(v){mtgCfg.venue=v;S.set('mtgCfg',mtgCfg);}
+function mtgSetUnit(u){mtgCfg.unit=u;S.set('mtgCfg',mtgCfg);renderMeeting();}
+function mtgAmt(hrs){return mtgCfg.unit==='days'?(Math.round((hrs/MTG_HRS_PER_DAY)*10)/10):(Math.round(hrs*10)/10);}
+function mtgUnitLab(){return mtgCfg.unit==='days'?'days':'hrs';}
+// The month's jobs, one card each, placed in each job's dominant work-month so a job shows once.
+function meetingJobs(mk){
+  const seen={},out=[];
+  (bcFergus||[]).forEach(r=>{
+    if(isExcl(r))return;
+    if(bcWorkMonth(r)!==mk)return;
+    const id=String(r._fergus_id||'');if(id&&seen[id])return;if(id)seen[id]=1;
+    const priced=num(r.h_priced), actual=Math.max(num(r.h_actual),num(r._loggedHrs));
+    if(priced<=0&&actual<=0)return;                              // nothing to review
+    const lead=effLead(r), crew=Array.from(effCrew(r));
+    crew.sort((a,b)=>(a===lead?-1:(b===lead?1:0)));
+    const pct=priced>0?((actual-priced)/priced*100):null;
+    out.push({id,jobNo:r._jobNo||'',job:r.job||'(unnamed job)',priced,actual,lead,crew,pct,inProgress:!!r._inProgress,sales:num(r.sales),gp:num(r.gp)});
+  });
+  // Finished jobs first, then most hours — kept stable so ticking a flag never reshuffles the deck.
+  return stableOrder('mtg-'+mk,out,r=>String(r.jobNo||r.id||r.job),(a,b)=>((a.inProgress?1:0)-(b.inProgress?1:0))||(b.actual-a.actual));
+}
+function mtgResult(pct){
+  if(pct===null)return {cls:'na',txt:'No time budget'};
+  if(pct>2)return {cls:'bad',txt:'Over by '+Math.round(pct)+'%'};
+  if(pct<-2)return {cls:'good',txt:'Under by '+Math.round(-pct)+'%'};
+  return {cls:'good',txt:'On target'};
+}
+function openMeeting(mk){_mtgMk=mk||calMonthKey(-1);document.getElementById('mtg-modal').classList.add('open');document.body.style.overflow='hidden';renderMeeting();window.scrollTo(0,0);}
+function closeMeeting(){document.getElementById('mtg-modal').classList.remove('open');document.body.style.overflow='';}
+function mtgStep(d){_mtgMk=(function(){const p=(_mtgMk||calMonthKey(-1)).split('-');let i=FG_MONTHS.indexOf(p[0]),y=parseInt(p[1]);i+=d;while(i<0){i+=12;y--;}while(i>11){i-=12;y++;}return FG_MONTHS[i]+'-'+y;})();renderMeeting();}
+function mtgMonthLabel(mk){const p=(mk||'').split('-');const full=['January','February','March','April','May','June','July','August','September','October','November','December'];const i=FG_MONTHS.indexOf(p[0]);return (i>=0?full[i]:p[0])+' '+(p[1]||'');}
+function mtgAddPhotoUrl(k){const u=prompt('Paste an image URL (jpg/png) for this job:');if(!u)return;if(!/^https?:\/\//i.test(u)){alert('That doesn’t look like a web link.');return;}mtgPhotos[k]=(mtgPhotos[k]||[]).concat([u]);S.set('mtgPhotos',mtgPhotos);renderMeeting();}
+function mtgRmPhoto(k,i){const a=mtgPhotos[k]||[];a.splice(i,1);if(!a.length)delete mtgPhotos[k];else mtgPhotos[k]=a;S.set('mtgPhotos',mtgPhotos);renderMeeting();}
+function mtgUpload(k,input){const fs=input&&input.files;if(!fs||!fs.length)return;const a=_mtgUploads[k]||(_mtgUploads[k]=[]);for(let i=0;i<fs.length;i++){if(/^image\//.test(fs[i].type))a.push(URL.createObjectURL(fs[i]));}input.value='';renderMeeting();}
+// Best-effort: pull photos straight off the Fergus job (endpoint varies by account/plan). Any image URLs
+// found are added to the (synced) list; if none come back, you upload/paste manually — the deck still builds.
+async function mtgFetchPhotos(id,k,btn){
+  if(btn){btn.textContent='…';}
+  const paths=['/jobs/'+encodeURIComponent(id)+'/attachments','/jobs/'+encodeURIComponent(id)+'/files','/jobs/'+encodeURIComponent(id)+'/photos','/jobs/'+encodeURIComponent(id)+'/images'];
+  let added=0;
+  for(const p of paths){
+    let j=null;try{j=await fergusApiFetch(p);}catch(e){continue;}
+    const arr=Array.isArray(j)?j:((j&&(j.data||j.attachments||j.files||j.items||j.results||j.value))||[]);
+    if(!Array.isArray(arr)||!arr.length)continue;
+    const urls=arr.map(a=>a&&(a.url||a.downloadUrl||a.href||a.location||a.thumbnailUrl||a.thumbUrl||(a.file&&(a.file.url||a.file.href)))).filter(u=>u&&/^https?:/i.test(u));
+    const imgs=urls.filter(u=>/\.(jpe?g|png|webp|gif|heic)(\?|#|$)/i.test(u));
+    const pick=(imgs.length?imgs:urls);
+    if(pick.length){const cur=mtgPhotos[k]||[];pick.forEach(u=>{if(!cur.includes(u)){cur.push(u);added++;}});mtgPhotos[k]=cur;break;}
+  }
+  if(added){S.set('mtgPhotos',mtgPhotos);renderMeeting();}
+  else{if(btn)btn.textContent='none found';setTimeout(renderMeeting,1400);}
+}
+function mtgPrint(){document.body.classList.add('mtg-printing');const done=()=>{document.body.classList.remove('mtg-printing');window.removeEventListener('afterprint',done);};window.addEventListener('afterprint',done);setTimeout(()=>{try{window.print();}catch(e){done();}},60);}
+function renderMeeting(){
+  const host=document.getElementById('mtg-body');if(!host)return;
+  const mk=_mtgMk||calMonthKey(-1);_mtgMk=mk;
+  const jobs=meetingJobs(mk);
+  let over=0,under=0,ontgt=0;jobs.forEach(j=>{const r=mtgResult(j.pct);if(r.cls==='bad')over++;else if(r.txt==='On target')ontgt++;else if(r.cls==='good')under++;});
+  let h='';
+  // toolbar
+  h+='<div class="mtg-toolbar">';
+  h+='<div class="mtg-mstep"><button class="mtg-mbtn" onclick="mtgStep(-1)" aria-label="Previous month">‹</button><span class="mtg-mlabel">'+esc(mtgMonthLabel(mk))+'</span><button class="mtg-mbtn" onclick="mtgStep(1)" aria-label="Next month">›</button></div>';
+  h+='<div class="mtg-seg"><button class="'+(mtgCfg.unit!=='days'?'on':'')+'" onclick="mtgSetUnit(\'hrs\')">Hours</button><button class="'+(mtgCfg.unit==='days'?'on':'')+'" onclick="mtgSetUnit(\'days\')">Days</button></div>';
+  h+='<button class="mtg-print" onclick="mtgPrint()">🖨 Print / Save PDF</button>';
+  h+='</div>';
+  // title slide
+  h+='<div class="mtg-title-slide"><div class="mts-k">Flood Roofing · Monthly Meeting</div><h1>'+esc(mtgMonthLabel(mk))+'</h1>';
+  h+='<div class="mts-v">'+(jobs.length+' job'+(jobs.length===1?'':'s')+' reviewed · '+under+' under/on target · '+over+' over')+'</div>';
+  h+='<div><input class="mtg-input" placeholder="Venue (e.g. Waikare Marae)" value="'+esc(mtgCfg.venue||'')+'" oninput="mtgSetVenue(this.value)" onblur="renderMeeting()"></div>';
+  h+='</div>';
+  if(!jobs.length){h+='<div class="mtg-empty">No jobs with logged or priced hours in '+esc(mtgMonthLabel(mk))+' yet.<br>Run a sync, or step to another month.</div>';host.innerHTML=h;return;}
+  h+='<div class="mtg-legend"><span class="lg"><span class="sw" style="background:#22c55e;"></span>Good — on/under time</span><span class="lg"><span class="sw" style="background:#fb923c;"></span>Improvement needed — over time</span></div>';
+  // one slide per job
+  jobs.forEach(j=>{
+    const k=mtgKey(j);
+    const res=mtgResult(j.pct);
+    const scale=Math.max(j.priced,j.actual,1);
+    const allowW=Math.round(j.priced/scale*100), takenW=Math.round(j.actual/scale*100);
+    const takenCls=(res.cls==='bad')?'bad':'good';
+    h+='<div class="mtg-slide">';
+    h+='<div class="mtg-slide-head"><div class="mtg-jn"><h3>'+esc(j.job)+'</h3>'+(j.jobNo?'<div class="mtg-jobno">Job #'+esc(j.jobNo)+(j.inProgress?' · in progress':'')+'</div>':'')+
+       '<div class="mtg-crew">'+(j.crew.length?j.crew.map(c=>'<span class="cc'+(c===j.lead?' lead':'')+'">'+esc(c)+'</span>').join(''):'<span class="cc">crew not tagged</span>')+'</div></div>'+
+       '<span class="mtg-result '+res.cls+'">'+res.txt+'</span></div>';
+    h+='<div class="mtg-bars">';
+    h+='<div class="mtg-barrow"><span class="mtg-barlab">Allowed</span><div class="mtg-track"><div class="mtg-fill allow" style="width:'+allowW+'%"></div></div><span class="mtg-barval">'+(j.priced>0?mtgAmt(j.priced)+' '+mtgUnitLab():'—')+'</span></div>';
+    h+='<div class="mtg-barrow"><span class="mtg-barlab">Taken</span><div class="mtg-track"><div class="mtg-fill taken '+takenCls+'" style="width:'+takenW+'%"></div></div><span class="mtg-barval">'+mtgAmt(j.actual)+' '+mtgUnitLab()+'</span></div>';
+    h+='</div>';
+    // checkboxes
+    h+='<div class="mtg-checks">';
+    [['rev','Google review'],['photos','Photos'],['qa','QA checklist']].forEach(f=>{const on=mtgFlagOn(k,f[0]);h+='<span class="mtg-chk'+(on?' on':'')+'" onclick="toggleMtgFlag(\''+k+'\',\''+f[0]+'\')"><span class="box">'+(on?'✓':'')+'</span>'+f[1]+'</span>';});
+    h+='</div>';
+    // photos
+    const purls=(mtgPhotos[k]||[]).slice(), ups=(_mtgUploads[k]||[]).slice();
+    h+='<div class="mtg-photos">';
+    purls.forEach((u,i)=>{h+='<img src="'+esc(u)+'" alt="" onerror="this.style.opacity=.25" title="tap ✕ in tools to remove">';});
+    ups.forEach(u=>{h+='<img src="'+esc(u)+'" alt="">';});
+    h+='<label class="mtg-photo-add">＋ Add photos<input type="file" accept="image/*" multiple style="display:none" onchange="mtgUpload(\''+k+'\',this)"></label>';
+    h+='</div>';
+    h+='<div class="mtg-tools"><a onclick="mtgAddPhotoUrl(\''+k+'\')">+ paste image URL</a>'+
+       (j.id?' · <a onclick="mtgFetchPhotos(\''+esc(String(j.id))+'\',\''+k+'\',this)">pull from Fergus</a>':'')+
+       (purls.length?' · '+purls.map((u,i)=>'<a onclick="mtgRmPhoto(\''+k+'\','+i+')">✕ url'+(purls.length>1?(i+1):'')+'</a>').join(' '):'')+
+       '</div>';
+    h+='</div>';
+  });
+  h+='<div class="mtg-empty" style="padding:14px 8px;font-size:.72rem;">Stats are pulled from Fergus back-costing (Allowed = priced hours, Taken = logged hours). Tick the flags and add photos, then <b>Print / Save PDF</b> for the deck. Uploaded photos are for this printout; pasted URLs are saved for the team.</div>';
+  host.innerHTML=h;
+}
+// New month? quietly point the meeting at last complete month so it's one tap when the boss opens it.
+try{_mtgMk=calMonthKey(-1);}catch(e){}
 
 // ════════ NAV ════════
 const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'Cash'};
