@@ -1188,6 +1188,43 @@ function _normaliseFergusFile(raw) {
   return { id, name, url, thumbnail: thumb || url, contentType: mime };
 }
 
+// Peel the file/photo array out of whatever shape Fergus wrapped it in.
+function _extractFileArray(parsed) {
+  if (!parsed) return null;
+  if (Array.isArray(parsed)) return parsed;
+  if (Array.isArray(parsed.data)) return parsed.data;
+  if (Array.isArray(parsed.files)) return parsed.files;
+  if (Array.isArray(parsed.photos)) return parsed.photos;
+  if (Array.isArray(parsed.attachments)) return parsed.attachments;
+  if (Array.isArray(parsed.items)) return parsed.items;
+  if (Array.isArray(parsed.records)) return parsed.records;
+  if (parsed.value && Array.isArray(parsed.value.data)) return parsed.value.data;
+  if (parsed.result && Array.isArray(parsed.result)) return parsed.result;
+  if (parsed.result && Array.isArray(parsed.result.files)) return parsed.result.files;
+  if (parsed.data && typeof parsed.data === 'object') {
+    if (Array.isArray(parsed.data.attachments)) return parsed.data.attachments;
+    if (Array.isArray(parsed.data.files)) return parsed.data.files;
+    if (Array.isArray(parsed.data.photos)) return parsed.data.photos;
+    if (Array.isArray(parsed.data.items)) return parsed.data.items;
+  }
+  return null;
+}
+// Read a "next page" cursor out of a Fergus list response (same field names
+// the job-list pagination uses).
+function _readListCursor(data) {
+  if (!data || typeof data !== 'object') return null;
+  return data.nextCursor || data.next_cursor || data.cursor ||
+    (data.pagination && (data.pagination.nextCursor || data.pagination.next_cursor || data.pagination.cursor)) ||
+    (data.meta && (data.meta.nextCursor || data.meta.next_cursor || data.meta.cursor)) || null;
+}
+// A stable key for de-duping files across pages.
+function _fileDedupKey(it) {
+  if (!it || typeof it !== 'object') return String(it);
+  return String(it.id || it.uuid || it.file_id || it.fileId || it.attachment_id || it.attachmentId || it.gallery_id ||
+    ((it.name || it.filename || '') + '|' + (it.url || it.download_url || it.downloadUrl || '')) ||
+    JSON.stringify(it).slice(0, 140));
+}
+
 app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res) => {
   if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
   const jobId = req.query.jobId;
@@ -1210,13 +1247,15 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
     const path = FERGUS_PREFIX + tpl.replace('{jobId}', encodeURIComponent(jobId));
     const url  = `https://${FERGUS_HOST}${path}`;
     try {
-      const r = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY,
-          'Accept':        'application/json',
-        },
-      });
+      const fHeaders = { 'Authorization': 'Bearer ' + process.env.FERGUS_API_KEY, 'Accept': 'application/json' };
+      // Ask for a big page up-front (Fergus caps pageSize at 100) so a
+      // single-page endpoint returns EVERY file instead of its ~10-item
+      // default. If pageSize is rejected, fall back to the bare path.
+      const sep0 = url.indexOf('?') >= 0 ? '&' : '?';
+      let r = await fetch(url + sep0 + 'pageSize=100', { method: 'GET', headers: fHeaders });
+      if (!r.ok && (r.status === 400 || r.status === 422)) {
+        r = await fetch(url, { method: 'GET', headers: fHeaders });
+      }
       const text = await r.text();
       let parsed = null; try { parsed = JSON.parse(text); } catch {}
       // Always stash a short shape summary so the picker can show the
@@ -1225,24 +1264,29 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
       const summary = _fergusShapeSummary(parsed, text);
       attempts.push({ path: tpl, status: r.status, ok: r.ok, summary });
       if (!r.ok || !parsed) continue;
-      // Find the array — Fergus wraps lists in several shapes (.data,
-      // .files, .photos, …) so peel one level of nesting if needed.
-      let arr = null;
-      if (Array.isArray(parsed)) arr = parsed;
-      else if (Array.isArray(parsed.data)) arr = parsed.data;
-      else if (Array.isArray(parsed.files)) arr = parsed.files;
-      else if (Array.isArray(parsed.photos)) arr = parsed.photos;
-      else if (Array.isArray(parsed.attachments)) arr = parsed.attachments;
-      else if (Array.isArray(parsed.items)) arr = parsed.items;
-      else if (Array.isArray(parsed.records)) arr = parsed.records;
-      else if (parsed.value && Array.isArray(parsed.value.data)) arr = parsed.value.data;
-      else if (parsed.result && Array.isArray(parsed.result)) arr = parsed.result;
-      else if (parsed.result && Array.isArray(parsed.result.files)) arr = parsed.result.files;
-      else if (parsed.data && typeof parsed.data === 'object' && Array.isArray(parsed.data.attachments)) arr = parsed.data.attachments;
-      else if (parsed.data && typeof parsed.data === 'object' && Array.isArray(parsed.data.files)) arr = parsed.data.files;
-      else if (parsed.data && typeof parsed.data === 'object' && Array.isArray(parsed.data.photos)) arr = parsed.data.photos;
-      else if (parsed.data && typeof parsed.data === 'object' && Array.isArray(parsed.data.items)) arr = parsed.data.items;
+      let arr = _extractFileArray(parsed);
       if (!arr) continue;
+      // Follow pagination — a job with more files than one page (Fergus
+      // paginates the file list, default ~10) would otherwise drop the
+      // rest. Walk pageCursor, de-duping, until it runs out.
+      let cursor = _readListCursor(parsed);
+      if (cursor) {
+        const seen = new Set(); arr.forEach(function(it){ seen.add(_fileDedupKey(it)); });
+        let prev = null, pages = 1;
+        while (cursor && cursor !== prev && pages < 12) {
+          const sepN = url.indexOf('?') >= 0 ? '&' : '?';
+          const pageUrl = url + sepN + 'pageCursor=' + encodeURIComponent(cursor) + '&pageSize=100';
+          let pr; try { pr = await fetch(pageUrl, { method: 'GET', headers: fHeaders }); } catch (e) { break; }
+          if (!pr.ok) break;
+          let pparsed = null; try { pparsed = JSON.parse(await pr.text()); } catch {}
+          const parr = _extractFileArray(pparsed);
+          if (!parr || !parr.length) break;
+          let added = 0;
+          parr.forEach(function(it){ const k = _fileDedupKey(it); if (!seen.has(k)) { seen.add(k); arr.push(it); added++; } });
+          prev = cursor; cursor = _readListCursor(pparsed); pages++;
+          if (!added) break;   // endpoint ignored the cursor — stop before looping
+        }
+      }
       const files = arr.map(_normaliseFergusFile).filter(Boolean);
       if (!files.length) continue;
       // Remember the winning path (skips the walk next time) and cache
