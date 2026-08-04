@@ -5494,11 +5494,28 @@ function renderMaterialPriceTable(){
     box.innerHTML = '<p style="font-size:12px;color:var(--text2)">Set unit prices in <strong>Settings → Price book</strong> first.</p>';
     return;
   }
-  // Per-roof selector — reuses the Materials tab picker so ticking a
-  // roof on one tab carries to the other. Rendered into the slot above
-  // the price table (only shows when there are 2+ roofs).
-  try { _matRenderRoofPickerInto && _matRenderRoofPickerInto('materialPriceRoofPicker'); } catch(e){}
-  var rows = _buildMaterialPriceRows();
+  // Per-roof selector — big roof-switch buttons (shared with the Labour +
+  // Scaffold sections). On multi-roof jobs the table is scoped to the selected
+  // roof; single-roof jobs render normally.
+  var _multiMat = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+  var _matRi = _multiMat ? _pricingRoofIdx() : -1;
+  try {
+    var _pkr = document.getElementById('materialPriceRoofPicker');
+    if (_pkr){
+      if (_multiMat){ _pkr.style.display = 'block'; _pkr.innerHTML = _pricingRoofTabsHtml(); }
+      else { _pkr.style.display = 'none'; _pkr.innerHTML = ''; }
+    }
+  } catch(e){}
+  // Build the rows for the selected roof (multi-roof) without disturbing the
+  // Materials-tab view selection.
+  var rows, _matSavedSel = null;
+  if (_multiMat){
+    try { _matSavedSel = _matSelectedRoofIndices(); _syncCurrentToRoof && _syncCurrentToRoof(); _matSetSelectedRoofs([_matRi]); } catch(e){}
+  }
+  try { rows = _buildMaterialPriceRows(); }
+  finally {
+    if (_multiMat && _matSavedSel){ try { _matSetSelectedRoofs(_matSavedSel); } catch(e){} }
+  }
   if (!rows.length) {
     box.innerHTML = '<p style="font-size:12px;color:var(--text2)">No quantifiable items yet — draw your roof on the Map Roof tab.</p>';
     S.materials = 0;
@@ -5582,19 +5599,20 @@ function renderMaterialPriceTable(){
     '</tr>';
   }
   var _gradeTotal = total * _gf;
-  var _multiMat = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
   var _gradeSpan = (_grade !== 'maxam') ? ' <span style="font-weight:400;color:var(--text2)">· '+esc(_gradeLabel(_grade))+'</span>' : '';
+  var _matRoofNm = (_multiMat ? _pricingRoofName(_matRi) : '');
   html += '</tbody></table>'+
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
-      '<strong style="font-size:13px">'+(_multiMat ? 'Materials — shown roof(s)' : 'Total materials → Quote')+_gradeSpan+'</strong>'+
+      '<strong style="font-size:13px">'+(_multiMat ? ('Materials — '+esc(_matRoofNm)) : 'Total materials → Quote')+_gradeSpan+'</strong>'+
       '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+_gradeTotal.toFixed(2)+'</span>'+
     '</div>'+
-    (_multiMat ? '<div style="font-size:11px;color:var(--text2);margin-top:6px">This job has more than one roof. The <strong>base quote uses Roof 1 only</strong> — each roof\'s own materials + labour are in the <strong>Per-roof price breakdown</strong> below.</div>' : '');
+    (_multiMat ? '<div style="font-size:11px;color:var(--text2);margin-top:6px">Showing <strong>'+esc(_matRoofNm)+'</strong>'+(_matRi===0?' — the base quote.':' — an optional extra roof.')+' Switch roofs with the buttons above. Every roof\'s price is summed in the <strong>Per-roof price breakdown</strong> below.</div>' : '');
   if (deletedCount > 0) {
     html += '<div style="margin-top:8px;font-size:11px;color:var(--text2)">'+deletedCount+' row'+(deletedCount===1?'':'s')+' deleted — <button onclick="restoreDeletedMatRows()" style="background:none;border:none;color:#0099cc;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">restore all</button></div>';
   }
   box.innerHTML = html;
-  S.materials = total;
+  // Base quote materials stay Roof 1 even while viewing another roof.
+  S.materials = (_multiMat && _matRi !== 0) ? _materialsCostForRoofIdx(0) : total;
   try { renderProfitability(); } catch(e){}
   try { updateGlobalJobBarCosts(); } catch(e){}
   try { renderPerRoofBreakdown(); } catch(e){}
@@ -5674,14 +5692,62 @@ function _labourCostForRoof(idx){
   var rl = _roofLabour(idx), r = _labourRates();
   return (parseFloat(rl.leadHrs)||0) * r.leadCost + (parseFloat(rl.appHrs)||0) * r.appCost;
 }
-// Office edits an extra roof's labour hours in the per-roof breakdown card.
+// Office edits an extra roof's labour hours (in the Labour section, scoped to
+// the selected roof). Re-renders labour (which refreshes the breakdown) + the
+// proposal totals.
 function _updateRoofLabour(idx, field, val){
   var rl = _roofLabour(idx);
   rl[field] = parseFloat(val) || 0;
+  try { calcLabour(); } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
-  try { renderPerRoofBreakdown(); } catch(e){}
   try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
 }
+
+// ── Shared per-roof pricing selector ───────────────────────────────
+// The Labour, Scaffolding and Material sections each show a big roof-switch
+// button row; picking a roof scopes ALL THREE to that roof so the office edits
+// one roof at a time. Roof 1 is always the base quote; every further roof is an
+// optional extra priced from its own labour + scaffold + materials. UI-only
+// state (not persisted) — resets to Roof 1 on load.
+var _PRICING_ROOF_IDX = 0;
+function _pricingRoofCount(){ return (window.DRAW && DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs.length : 1; }
+function _pricingRoofIdx(){ var n = _pricingRoofCount(); var i = _PRICING_ROOF_IDX || 0; return (i >= 0 && i < n) ? i : 0; }
+function _pricingRoofName(i){ return (window.DRAW && DRAW.roofs && DRAW.roofs[i] && DRAW.roofs[i].name) || ('Roof ' + (i + 1)); }
+function _setPricingRoof(i){
+  _PRICING_ROOF_IDX = i;
+  try { calcLabour(); } catch(e){}
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { renderPerRoofBreakdown(); } catch(e){}
+}
+// Big roof-switch buttons for the top of each pricing section (multi-roof only).
+function _pricingRoofTabsHtml(){
+  var n = _pricingRoofCount();
+  if (n < 2) return '';
+  var cur = _pricingRoofIdx();
+  var btns = '';
+  for (var i = 0; i < n; i++){
+    var on = (i === cur);
+    btns += '<button type="button" onclick="_setPricingRoof(' + i + ')" style="flex:1 1 96px;min-width:88px;padding:13px 10px 10px;font-size:15px;font-weight:800;line-height:1.15;border-radius:11px;border:2px solid ' + (on ? '#0099cc' : 'var(--border)') + ';background:' + (on ? '#0099cc' : '#fff') + ';color:' + (on ? '#fff' : '#0a1628') + ';cursor:pointer;' + (on ? 'box-shadow:0 3px 12px rgba(0,153,204,.35)' : '') + '">' +
+      esc(_pricingRoofName(i)) +
+      '<div style="font-size:8px;font-weight:700;letter-spacing:.06em;margin-top:3px;opacity:.9">' + (i === 0 ? 'MAIN · BASE' : 'OPTIONAL EXTRA') + '</div>' +
+    '</button>';
+  }
+  return '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">' + btns + '</div>';
+}
+// Per-roof scaffold. Roof 0 = the site scaffold (S.quote.scaffold). Each extra
+// roof gets its own (seeded from Settings) so its opt-in price is accurate.
+function _roofScaffold(i){
+  if (i === 0){ _pricingState(); return S.quote.scaffold; }
+  if (!S.quote.roofScaffold || typeof S.quote.roofScaffold !== 'object') S.quote.roofScaffold = {};
+  if (!S.quote.roofScaffold[i]){
+    var lp = (S.settings && S.settings.labour_pricing) || {};
+    var num = function(v, d){ return (v != null && v !== '') ? +v : d; };
+    S.quote.roofScaffold[i] = { price: num(lp.scaffold_price, 2500), cost: num(lp.scaffold_cost, 2000), type: 'edge' };
+  }
+  if (!S.quote.roofScaffold[i].type) S.quote.roofScaffold[i].type = 'edge';
+  return S.quote.roofScaffold[i];
+}
+function _scaffoldPriceForRoof(i){ return _scaffoldEff(_roofScaffold(i)).price; }
 // Per-roof price breakdown card (multi-roof jobs only). Roof 1 = base quote
 // scope (its own materials + labour + scaffold). Every further roof is an
 // optional extra priced from its OWN materials (auto, at the selected grade)
@@ -5692,40 +5758,34 @@ function renderPerRoofBreakdown(){
   box.style.display = '';
   var gf = _gradeFactor();
   var gLbl = _gradeLabel((S.quote && S.quote.proposalOptions && S.quote.proposalOptions.steelGrade) || 'maxam');
-  var scaff = (S.quote && S.quote.scaffold) ? _scaffoldEff(S.quote.scaffold).price : 0;
+  var cur = _pricingRoofIdx();
   var money = function(v){ return '$' + (v || 0).toFixed(2); };
+  // Read-only summary — each roof's numbers are edited in the Labour / Scaffold
+  // / Material sections via the roof buttons; this card just totals them.
   var cards = DRAW.roofs.map(function(r, i){
     var nm = r.name || ('Roof ' + (i + 1));
     var isBase = (i === 0);
     var mat = _materialsCostForRoofIdx(i) * gf;
     var lab = _labourPriceForRoof(i);
-    var sub = mat + lab + (isBase ? scaff : 0);
-    var labCell;
-    if (isBase) {
-      labCell = '<span style="font-weight:600">' + money(lab) + '</span>'+
-        '<div style="font-size:10px;color:var(--text2)">from the labour table above</div>';
-    } else {
-      var rl = _roofLabour(i);
-      labCell = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">'+
-        '<span style="font-size:10px;color:var(--text2)">Lead</span><input type="number" step="0.5" min="0" value="'+(parseFloat(rl.leadHrs)||0)+'" onchange="_updateRoofLabour('+i+',\'leadHrs\',this.value)" style="width:52px;font-size:12px;padding:4px 6px"><span style="font-size:10px;color:var(--text2)">hrs</span>'+
-        '<span style="font-size:10px;color:var(--text2)">App</span><input type="number" step="0.5" min="0" value="'+(parseFloat(rl.appHrs)||0)+'" onchange="_updateRoofLabour('+i+',\'appHrs\',this.value)" style="width:52px;font-size:12px;padding:4px 6px"><span style="font-size:10px;color:var(--text2)">hrs</span>'+
-        '<span style="font-weight:600;min-width:70px;text-align:right">'+money(lab)+'</span>'+
-      '</div>';
-    }
-    return '<div style="border:1px solid var(--border);border-radius:8px;padding:11px 13px;margin-bottom:8px;background:'+(isBase?'#f0f7ff':'#fff')+'">'+
+    var scaff = _scaffoldPriceForRoof(i);
+    var sub = mat + lab + scaff;
+    var onCur = (i === cur);
+    var line = function(label, val){ return '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text2)">'+label+'</span><span style="font-weight:600">'+money(val)+'</span></div>'; };
+    return '<div role="button" onclick="_setPricingRoof('+i+')" title="Edit this roof" style="border:2px solid '+(onCur?'#0099cc':'var(--border)')+';border-radius:8px;padding:11px 13px;margin-bottom:8px;background:'+(isBase?'#f0f7ff':'#fff')+';cursor:pointer">'+
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
         '<span style="font-size:8.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:3px;background:'+(isBase?'#0099cc':'#e08a2e')+';color:#fff">'+(isBase?'Base quote':'Optional extra')+'</span>'+
         '<strong style="font-size:13px">'+esc(nm)+'</strong>'+
+        (onCur?'<span style="margin-left:auto;font-size:9px;font-weight:700;color:#0099cc">● EDITING</span>':'<span style="margin-left:auto;font-size:10px;color:var(--text2)">tap to edit</span>')+
       '</div>'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text2)">Materials <span style="font-size:10px">('+esc(gLbl)+')</span></span><span style="font-weight:600">'+money(mat)+'</span></div>'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text2)">Labour</span><span style="text-align:right">'+labCell+'</span></div>'+
-      (isBase ? '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text2)">Scaffolding</span><span style="font-weight:600">'+money(scaff)+'</span></div>' : '')+
+      line('Materials <span style="font-size:10px">('+esc(gLbl)+')</span>', mat)+
+      line('Labour', lab)+
+      line('Scaffolding', scaff)+
       '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);margin-top:6px;padding-top:7px"><strong style="font-size:12px">'+(isBase?'Base subtotal':'Extra roof price')+' <span style="font-weight:400;color:var(--text2);font-size:10px">(ex GST)</span></strong><strong style="font-size:15px;color:#2e7d32">'+money(sub)+'</strong></div>'+
     '</div>';
   }).join('');
   box.innerHTML = '<div class="card-hd"><span class="card-dot"></span>Per-roof price breakdown'+
-    '<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Roof 1 = base quote · each extra roof is priced from its own materials + labour</span></div>'+
-    '<p style="font-size:11px;color:var(--text2);margin:-6px 0 10px">Enter each optional roof\'s own labour hours below — the customer opts in per roof on the proposal Selections page.</p>'+
+    '<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Roof 1 = base quote · each extra roof is priced from its own materials + labour + scaffold</span></div>'+
+    '<p style="font-size:11px;color:var(--text2);margin:-6px 0 10px">Tap a roof to edit it above, or use the roof buttons on each section. The customer opts in per extra roof on the proposal Selections page.</p>'+
     cards;
 }
 
@@ -8374,9 +8434,10 @@ function _scaffoldEff(sc){
   };
 }
 function updateScaffoldType(val){
-  var p = _pricingState();
-  p.sc.type = (val === 'platform') ? 'platform' : 'edge';
+  var sc = _roofScaffold(_pricingRoofIdx());
+  sc.type = (val === 'platform') ? 'platform' : 'edge';
   calcLabour();
+  try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
 }
 function updateLabour(field, val){
@@ -8388,9 +8449,11 @@ function updateLabour(field, val){
   calcLabour();
 }
 function updateScaffold(field, val){
-  var p = _pricingState(); p.sc[field] = parseFloat(val) || 0;
-  S.quote.scaffoldCustom = true;   // per-job scaffold cost/price now overrides settings
+  var ri = _pricingRoofIdx();
+  var sc = _roofScaffold(ri); sc[field] = parseFloat(val) || 0;
+  if (ri === 0) S.quote.scaffoldCustom = true;   // roof-1 scaffold overrides Settings default
   calcLabour();
+  try { refreshQuoteProposal(); } catch(e){}
 }
 // Extra labourers (beyond Lead Roofer + Apprentice) — each is its own Fergus
 // labour line on push. Stored on S.quote.labour.extras.
@@ -8457,9 +8520,34 @@ function calcLabour(){
   }
 
   var _multiRoofLab = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
-  var html = (_multiRoofLab
-    ? '<div style="font-size:11px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:7px 10px;margin-bottom:8px">This labour is for <strong>Roof 1 (main)</strong> — the base quote. Enter each extra roof\'s labour in the <strong>Per-roof price breakdown</strong> below.</div>'
-    : '')+
+  var ri = _multiRoofLab ? _pricingRoofIdx() : 0;
+  var isBaseRoof = (ri === 0);
+  var _tabs = _pricingRoofTabsHtml();
+  // A Lead/Apprentice row scoped to an EXTRA roof — hours per roof, shared
+  // crew rates (editing a rate on Roof 1 changes it for all).
+  function roofRow(label, hrsField, priceKey, costKey){
+    var rl = _roofLabour(ri);
+    var hrs = f(rl[hrsField]), price = f(L[priceKey]), cost = f(L[costKey]);
+    return '<tr>'+
+      '<td style="font-weight:600">'+label+'</td>'+
+      '<td><input type="number" step="0.5" min="0" value="'+hrs+'" onchange="_updateRoofLabour('+ri+',\''+hrsField+'\',this.value)" style="width:100%;font-size:12px;padding:5px 7px"></td>'+
+      '<td style="color:var(--text2);font-size:12px">$'+cost.toFixed(0)+'<div style="font-size:9px;color:var(--text2)">shared</div></td>'+
+      '<td style="color:var(--text2);font-size:12px">$'+price.toFixed(0)+'<div style="font-size:9px;color:var(--text2)">shared</div></td>'+
+      '<td style="text-align:right;font-weight:600">$'+(hrs*price).toFixed(2)+'</td>'+
+    '</tr>';
+  }
+  // Display totals for the SELECTED roof (base roof 0 = the combined table).
+  var dispHrs, dispPrice;
+  if (isBaseRoof){ dispHrs = totalHrs; dispPrice = totalPrice; }
+  else {
+    var _rl = _roofLabour(ri), lh = f(_rl.leadHrs), ah = f(_rl.appHrs);
+    dispHrs = lh + ah; dispPrice = lh * f(L.leadPrice) + ah * f(L.appPrice);
+  }
+  var scR = _roofScaffold(ri);
+  var html = _tabs +
+    (_multiRoofLab
+      ? '<div style="font-size:11.5px;color:#0a1628;background:'+(isBaseRoof?'#eef6ff':'#fff7ed')+';border:1px solid '+(isBaseRoof?'#cfe0f5':'#fed7aa')+';border-radius:8px;padding:7px 10px;margin-bottom:10px">Editing labour for <strong>'+esc(_pricingRoofName(ri))+'</strong>'+(isBaseRoof?' — the base quote.':' — an optional extra roof (its own price).')+'</div>'
+      : '')+
     '<table class="price-tbl" style="table-layout:fixed;width:100%">'+
     '<thead><tr>'+
       '<th style="width:26%">Worker</th>'+
@@ -8468,34 +8556,37 @@ function calcLabour(){
       '<th style="width:20%">Price/hr</th>'+
       '<th style="width:18%;text-align:right">Total</th>'+
     '</tr></thead><tbody>'+
-      row('Lead Roofer','leadHrs','leadCost','leadPrice')+
-      row('Apprentice','appHrs','appCost','appPrice')+
-      L.extras.map(extraRow).join('')+
+      (isBaseRoof
+        ? row('Lead Roofer','leadHrs','leadCost','leadPrice')+row('Apprentice','appHrs','appCost','appPrice')+L.extras.map(extraRow).join('')
+        : roofRow('Lead Roofer','leadHrs','leadPrice','leadCost')+roofRow('Apprentice','appHrs','appPrice','appCost'))+
     '</tbody></table>'+
-    '<div style="margin-top:5px"><button type="button" onclick="_addLabourer()" style="background:none;border:1px dashed var(--border);border-radius:6px;color:#0099cc;font-size:11px;cursor:pointer;padding:5px 11px;font-weight:600">+ Add labourer</button></div>'+
-    ((S.quote && (S.quote.labourRatesCustom || S.quote.scaffoldCustom))
-      ? '<div style="text-align:right;margin-top:4px"><button type="button" onclick="_pricingUseSettingsDefaults()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline;padding:2px 0">↻ Reset rates to Settings defaults</button></div>'
+    (isBaseRoof
+      ? '<div style="margin-top:5px"><button type="button" onclick="_addLabourer()" style="background:none;border:1px dashed var(--border);border-radius:6px;color:#0099cc;font-size:11px;cursor:pointer;padding:5px 11px;font-weight:600">+ Add labourer</button></div>'+
+        ((S.quote && (S.quote.labourRatesCustom || S.quote.scaffoldCustom))
+          ? '<div style="text-align:right;margin-top:4px"><button type="button" onclick="_pricingUseSettingsDefaults()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline;padding:2px 0">↻ Reset rates to Settings defaults</button></div>'
+          : '')
       : '')+
-    // Combined labour total
+    // Combined labour total (for the selected roof)
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
-      '<strong style="font-size:13px">Combined labour · '+totalHrs.toFixed(1)+' hrs</strong>'+
-      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+totalPrice.toFixed(2)+'</span>'+
+      '<strong style="font-size:13px">'+esc(_pricingRoofName(ri))+' labour · '+dispHrs.toFixed(1)+' hrs</strong>'+
+      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+dispPrice.toFixed(2)+'</span>'+
     '</div>'+
-    // Scaffolding line (included in every quote)
+    // Scaffolding (per roof)
     (function(){
       var pct = _scaffoldPlatformPct();
-      var eff = _scaffoldEff(sc);
-      var isPlat = sc.type === 'platform';
+      var eff = _scaffoldEff(scR);
+      var isPlat = scR.type === 'platform';
       return '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">'+
-      '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:8px">🪜 Scaffolding <span style="font-weight:400;color:var(--text2)">— included in every quote</span></div>'+
+      _tabs +
+      '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:8px">🪜 Scaffolding — <strong>'+esc(_pricingRoofName(ri))+'</strong> <span style="font-weight:400;color:var(--text2)">'+(isBaseRoof?'· included in every quote':'· added to this roof’s price')+'</span></div>'+
       '<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--text2);margin-bottom:4px">Scaffolding type</label>'+
         '<select onchange="updateScaffoldType(this.value)" style="width:100%;font-size:12px;padding:6px 8px">'+
           '<option value="edge"'+(isPlat?'':' selected')+'>Edge-Protection (standard)</option>'+
           '<option value="platform"'+(isPlat?' selected':'')+'>Platform Scaffolding (+'+pct+'%)</option>'+
         '</select></div>'+
       '<div class="f2">'+
-        '<div><label>Scaffolding cost ($)</label><input type="number" step="1" min="0" value="'+f(sc.cost)+'" onchange="updateScaffold(\'cost\',this.value)"></div>'+
-        '<div><label>Scaffolding price ($)</label><input type="number" step="1" min="0" value="'+f(sc.price)+'" onchange="updateScaffold(\'price\',this.value)"></div>'+
+        '<div><label>Scaffolding cost ($)</label><input type="number" step="1" min="0" value="'+f(scR.cost)+'" onchange="updateScaffold(\'cost\',this.value)"></div>'+
+        '<div><label>Scaffolding price ($)</label><input type="number" step="1" min="0" value="'+f(scR.price)+'" onchange="updateScaffold(\'price\',this.value)"></div>'+
       '</div>'+
       (isPlat
         ? '<div style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 10px">Platform +'+pct+'% → charged <strong>$'+eff.price.toFixed(2)+'</strong> <span style="color:var(--text2)">(cost $'+eff.cost.toFixed(2)+')</span></div>'
@@ -12954,10 +13045,11 @@ function refreshQuoteProposal(){
         for (var _ri = 1; _ri < DRAW.roofs.length; _ri++){
           var _matI = _materialsCostForRoofIdx(_ri) * _gfNow;   // materials at selected grade
           var _labI = _labourPriceForRoof(_ri);                 // this roof's own labour
-          var _priceI = _matI + _labI;
+          var _scaffI = _scaffoldPriceForRoof(_ri);             // this roof's own scaffold
+          var _priceI = _matI + _labI + _scaffI;
           _extra.push({ name: (DRAW.roofs[_ri].name || ('Roof ' + (_ri + 1))),
                         area: +(_areaOf(_ri)).toFixed(1),
-                        materials: +_matI.toFixed(2), labour: +_labI.toFixed(2),
+                        materials: +_matI.toFixed(2), labour: +_labI.toFixed(2), scaffold: +_scaffI.toFixed(2),
                         price: +_priceI.toFixed(2) });
         }
         S.quote.extraRoofs = _extra;
