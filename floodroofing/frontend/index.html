@@ -6006,6 +6006,8 @@ function restoreFromJob(j){
   }
   S.currentJobId = j.id;
   setCurrentJobLabel(j);
+  // Keep the Fergus → saved-job link fresh whenever a linked job is opened.
+  try { if (S.linkedJobId && j.id) _fergJobMapSet(S.linkedJobId, j.id); } catch(e){}
   // Next time the Map Roof canvas is shown, auto-fit the drawing so an opened
   // job (incl. via the PDF deep link) doesn't land zoomed-in on a corner.
   DRAW._fitOnShow = true;
@@ -6278,6 +6280,20 @@ function _draftDb(){
 function _draftKey(){
   return S.currentJobId ? String(S.currentJobId) : (S.linkedJobId ? 'ferg_' + S.linkedJobId : '__new__');
 }
+// Remember which SAVED job belongs to which Fergus job, so re-selecting a
+// Fergus job in the Select Job modal resumes the work from last time. Kept in
+// localStorage (per-device) so it needs no backend change; the /jobs list
+// doesn't expose the linked Fergus id.
+function _fergJobMap(){ try { return JSON.parse(localStorage.getItem('fr_ferg2job') || '{}') || {}; } catch(e){ return {}; } }
+function _fergJobMapSet(fergId, jobId){
+  if (!fergId) return;
+  try {
+    var m = _fergJobMap();
+    if (jobId) m[String(fergId)] = String(jobId); else delete m[String(fergId)];
+    localStorage.setItem('fr_ferg2job', JSON.stringify(m));
+  } catch(e){}
+}
+function _fergJobMapGet(fergId){ if (!fergId) return null; var m = _fergJobMap(); return m[String(fergId)] || null; }
 // Only draft when there's actually something worth keeping — stops a
 // junk "__new__" draft appearing every time the app is merely opened.
 function _snapHasSubstance(snap){
@@ -6340,6 +6356,8 @@ function _draftMarkSynced(){
   } catch(e){ DRAFTS._lastSnapJson = null; }
   _deleteLocalDraft(_draftKey());
   if (S.currentJobId) _deleteLocalDraft('__new__');   // just-created job's pre-save draft
+  // A Fergus-linked job that's now saved no longer needs its ferg_<id> draft.
+  if (S.linkedJobId) _deleteLocalDraft('ferg_' + S.linkedJobId);
   try { localStorage.removeItem('fr_unload_draft'); } catch(e){}
 }
 function _isJobDirty(){
@@ -6639,6 +6657,9 @@ async function saveCurrentJob(){
     else                saved = await api('POST', '/jobs', body);
     S.currentJobId = saved.id;
     setCurrentJobLabel(saved);
+    // Link this saved job to its Fergus job so re-selecting the Fergus job
+    // resumes it.
+    try { if (S.linkedJobId) _fergJobMapSet(S.linkedJobId, S.currentJobId); } catch(e2){}
     // Persistent, timestamped — replaces the old 4-second flash so the
     // office can always see when the job last reached the server.
     set('✓ Saved ' + new Date().toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' }), '#15803d');
@@ -17930,32 +17951,64 @@ async function _serverSearchSelectJobFergus(q, seq){
   };
 })();
 
-function useFergusJobInModal(jobId){
+async function useFergusJobInModal(jobId){
   var j = (S.fergJobsCache || []).find(function(x){ return String(x.id) === String(jobId); });
   if (!j) return;
-  // Mirror the existing Fergus-link state used by the rest of the app
-  // so Push to JMS and friends keep working.
+  // Don't lose the currently-open job's edits when we switch.
+  try { await _saveBeforeSwitch(); } catch(e){}
+  closeSelectJobModal();
+
+  // 1. A previously-SAVED job for this Fergus job → open it (restores the
+  //    drawing + quote from last time AND jumps to Map Roof).
+  var savedId = _fergJobMapGet(j.id);
+  if (savedId){
+    try {
+      await openJob(savedId);
+      if (!S.linkedJobId){ S.linkedJobId = j.id; S.linkedJobNo = j.jobNo || j.displayNo || j.id; }
+      try { _refreshRoofFergusBtn(); } catch(e){}
+      return;
+    } catch(e){ _fergJobMapSet(j.id, null); /* saved job gone — fall through */ }
+  }
+
+  // 2. Unsaved local work for this Fergus job → resume the draft.
+  var draft = null;
+  try {
+    var list = await _listLocalDrafts();
+    draft = (list || []).find(function(x){ return x.key === 'ferg_' + j.id; });
+  } catch(e){}
+  if (draft && draft.snap){
+    try { restoreFromJob({ draw_state: draft.snap }); } catch(e){}
+    S.currentJobId = null;   // still an unsaved draft
+  } else {
+    // 3. Fresh — start this Fergus job with a clean canvas.
+    S.currentJobId = null;
+    try { clearAll && clearAll(); } catch(e){}
+    S.img64 = null; S.roofData = null; S.labour = 0; S.materials = 0; S.photos = [];
+    var c = document.getElementById('jobClient'); if (c) c.value = j.customer || j.client || '';
+    var a = document.getElementById('jobAddr');   if (a) a.value = j.address  || j.siteAddress || '';
+  }
+
+  // Mirror the Fergus-link state used across the app (Push to JMS, photo
+  // picker, etc.).
   S.linkedJobId   = j.id;
-  S.linkedJobNo   = j.jobNo || j.displayNo || j.id;   // human-readable job number for display
+  S.linkedJobNo   = j.jobNo || j.displayNo || j.id;
   S.linkedJobName = (j.customer || '') + ' — ' + (j.address || '');
-  // Populate the Job Details fields on the Map Roof tab.
-  var c = document.getElementById('jobClient'); if (c) c.value = j.customer || j.client || '';
-  var a = document.getElementById('jobAddr');   if (a) a.value = j.address  || j.siteAddress || '';
-  // Update the "current job" labels at the top of the Map Roof tab.
-  var label = ((j.customer||'(no client)')) + ' — ' + (j.address||'') + (j.jobNo ? '  (Fergus #'+j.jobNo+')' : '');
+  // Labels reflect the actual job fields (restored draft may differ from Fergus).
+  var curClient = (document.getElementById('jobClient')||{}).value || j.customer || '';
+  var curAddr   = (document.getElementById('jobAddr')||{}).value   || j.address  || '';
+  var label = (curClient || '(no client)') + ' — ' + curAddr + (j.jobNo ? '  (Fergus #'+j.jobNo+')' : '');
   var lt = document.getElementById('currentJobLabel');    if (lt) lt.textContent = label;
   var lb = document.getElementById('currentJobLabelTop'); if (lb) lb.textContent = label;
   if (typeof updateSidebarJobChip === 'function') updateSidebarJobChip(j);
-  // Also reflect it on the Fergus side so the existing notice + push
-  // flow recognises this as the linked job.
   var n = document.getElementById('fergSelNotice'); if (n) { n.style.display = ''; }
   var nn = document.getElementById('fergJobName');  if (nn) nn.textContent = label;
-  // The "Select photo from Fergus" button on the Map Roof tab keys off
-  // S.linkedJobId — refresh its enabled state + hint text now that we
-  // have a linked job.
   try { _refreshRoofFergusBtn(); } catch(e){}
   try { updateGlobalJobBar(null); } catch(e){}
-  closeSelectJobModal();
+  window._aerialLoadedAddr = null;
+  // Baseline the dirty tracker, capture a recent draft, then jump to Map Roof.
+  try { DRAFTS._lastSnapJson = JSON.stringify(snapshotCurrentJob()); } catch(e){}
+  try { _writeLocalDraftNow(); } catch(e){}
+  gotoTab('roof');
 }
 
 // ══════════════════════════════════════════════════════════════════
