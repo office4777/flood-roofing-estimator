@@ -453,6 +453,31 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
 .mtg-slot-drop{width:100%;aspect-ratio:4/3;border-radius:9px;border:1.5px dashed var(--border);background:var(--card);color:var(--muted);font-size:.72rem;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;text-align:center;padding:4px;}
 .mtg-slot-paste{font-size:.6rem;font-weight:700;color:var(--primary);cursor:pointer;}
 .mtg-cap{background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:5px 7px;font-size:.66rem;width:100%;}
+/* crop window: pan + zoom, sized to the PowerPoint half-slide aspect (WYSIWYG) */
+.mtg-win{position:relative;width:100%;aspect-ratio:6.665/7.5;border-radius:9px;overflow:hidden;border:1px solid var(--border);background:#111827;cursor:grab;touch-action:none;}
+.mtg-win:active{cursor:grabbing;}
+.mtg-win img{position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-drag:none;pointer-events:none;}
+.mtg-zoomrow{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.8rem;font-weight:800;}
+.mtg-zoom{flex:1;}
+.mtg-slot-empty{aspect-ratio:6.665/7.5;border-radius:9px;border:1.5px dashed var(--border);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:8px;}
+.mtg-slot-btn{display:inline-flex;align-items:center;gap:4px;background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:.7rem;font-weight:800;cursor:pointer;width:82%;justify-content:center;}
+.mtg-slot-btn:active{transform:scale(.97);}
+/* Fergus photo picker */
+.mtg-picker{display:none;position:fixed;inset:0;z-index:130;background:rgba(4,7,12,.8);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);overflow-y:auto;}
+.mtg-picker.open{display:block;animation:fade .18s ease;}
+.mtg-picker-card{max-width:820px;margin:0 auto;min-height:100%;padding:10px 14px 60px;}
+.mtg-picker-head{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 2px 10px;background:linear-gradient(180deg,var(--bg) 72%,transparent);}
+.mtg-picker-head span{font-size:1.05rem;font-weight:800;color:var(--text);}
+.mtg-pk-sub{font-size:.78rem;color:var(--muted);margin:2px 0 12px;}
+.mtg-pk-msg{text-align:center;color:var(--muted);padding:40px 16px;font-size:.9rem;}
+.mtg-pk-msg a,.mtg-pk-sub a{color:var(--primary);cursor:pointer;}
+.mtg-pk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+@media(max-width:640px){.mtg-pk-grid{grid-template-columns:repeat(2,1fr);}}
+.mtg-pk-item{position:relative;aspect-ratio:4/3;border-radius:10px;border:1px solid var(--border);background:var(--card2) center/cover no-repeat;cursor:pointer;display:flex;align-items:flex-end;overflow:hidden;transition:transform .12s,box-shadow .12s;}
+.mtg-pk-item:not(.ready){background-image:linear-gradient(110deg,var(--card2) 30%,var(--elev) 50%,var(--card2) 70%);}
+.mtg-pk-item.ready:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.4);border-color:var(--primary);}
+.mtg-pk-item.picking{outline:3px solid var(--primary);opacity:.7;}
+.mtg-pk-name{width:100%;font-size:.56rem;font-weight:700;color:#fff;background:linear-gradient(0deg,rgba(0,0,0,.72),transparent);padding:14px 6px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .mtg-notes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;}
 .mtg-nf{display:flex;flex-direction:column;gap:3px;}
 .mtg-nf label{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);}
@@ -508,7 +533,7 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
   body.mtg-printing #mtg-modal{display:block!important;position:static!important;background:#fff!important;backdrop-filter:none!important;overflow:visible!important;}
   body.mtg-printing #mtg-modal .cmodal-card{max-width:none!important;padding:0!important;}
   body.mtg-printing .cmodal-head,body.mtg-printing .mtg-toolbar,body.mtg-printing .mtg-tools,body.mtg-printing .mtg-photo-add,body.mtg-printing .mtg-chk{ }
-  body.mtg-printing .mtg-print,body.mtg-printing .mtg-ppt,body.mtg-printing .cmodal-x,body.mtg-printing .mtg-photo-add,body.mtg-printing .mtg-seg,body.mtg-printing .mtg-mbtn,body.mtg-printing .mtg-tools,body.mtg-printing .mtg-ph-x,body.mtg-printing .mtg-slot-drop,body.mtg-printing .mtg-slot-paste,body.mtg-printing .mtg-photobar a,body.mtg-printing .mtg-cap{display:none!important;}
+  body.mtg-printing .mtg-print,body.mtg-printing .mtg-ppt,body.mtg-printing .cmodal-x,body.mtg-printing .mtg-photo-add,body.mtg-printing .mtg-seg,body.mtg-printing .mtg-mbtn,body.mtg-printing .mtg-tools,body.mtg-printing .mtg-ph-x,body.mtg-printing .mtg-slot-drop,body.mtg-printing .mtg-slot-paste,body.mtg-printing .mtg-photobar a,body.mtg-printing .mtg-cap,body.mtg-printing .mtg-zoomrow,body.mtg-printing .mtg-slot-empty,body.mtg-printing .mtg-slot-btn{display:none!important;}
   body.mtg-printing .cmodal-head{position:static!important;}
   body.mtg-printing .mtg-title-slide,body.mtg-printing .mtg-slide{break-inside:avoid;page-break-after:always;box-shadow:none!important;border:1px solid #ccc!important;background:#fff!important;color:#111!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   body.mtg-printing .mtg-title-slide h1,body.mtg-printing .mtg-slide-head h3,body.mtg-printing .mtg-barval,body.mtg-printing .mtg-title-slide .mts-v{color:#111!important;}
@@ -5536,9 +5561,15 @@ let mtgPhotos=S.get('mtgPhotos',{});                             // {jobNoKey:{s
 let mtgCrew=S.get('mtgCrew',{});                                 // {jobNoKey:"Ethan, Luke & Christian"} — free-text crew override (team-synced)
 let mtgNotes=S.get('mtgNotes',{});                              // {jobNoKey:{general,labPriced,labActual,qa,cust}} — per-job notes (team-synced)
 let mtgCaptions=S.get('mtgCaptions',{});                        // {jobNoKey:{slotId:caption}} — optional per-photo caption (team-synced)
-const _mtgPhotoData={};                                          // {jobNoKey:{slotId:dataURL}} — fetched/uploaded photos; in-memory (too big for team state), embeds into the .pptx
+const _mtgPhotoOrig={};                                          // {jobNoKey:{slotId:dataURL}} — original (EXIF-corrected) photo bytes; in-memory
+const _mtgView={};                                              // {jobNoKey:{slotId:{z,px,py}}} — crop/zoom/pan transform per slot; in-memory
+const _mtgFergusCache={};                                        // {jobId:{files,raw,thumbs,full}} — Fergus photo picker cache; in-memory
+let _mtgPickTarget=null;                                         // {jobId,k,id} — slot the picker is filling
+let _mtgDrag=null;                                              // active pan drag
 let _mtgMk=null;                                                 // currently shown month key
 const MTG_HRS_PER_DAY=8;
+// Each PowerPoint photo fills half the widescreen slide (6.665 × 7.5 in) → this is the crop window's aspect.
+const MTG_AR=6.665/7.5;
 // Each job gets 3 photo PAGES, each a Before + After pair (6 labelled slots). Each page becomes one
 // full-bleed PowerPoint slide (two photos filling it), labelled BEFORE / AFTER.
 const MTG_SLOTS=[{id:'p1b',page:1,kind:'Before'},{id:'p1a',page:1,kind:'After'},{id:'p2b',page:2,kind:'Before'},{id:'p2a',page:2,kind:'After'},{id:'p3b',page:3,kind:'Before'},{id:'p3a',page:3,kind:'After'}];
@@ -5572,19 +5603,124 @@ function mtgCrewLine(j,k){
 function mtgEditCrew(k,j){const cur=String(mtgCrew[k]||'')||((j&&mtgCrewLine(j,k))||'');const v=prompt('Crew on this job (free text, e.g. "Ethan, Luke & Christian"):',cur);if(v===null)return;if(v.trim())mtgCrew[k]=v.trim();else delete mtgCrew[k];S.set('mtgCrew',mtgCrew);renderMeeting();}
 function mtgNoteVal(k,f){const n=mtgNotes[k];if(!n)return '';if(typeof n==='string')return f==='general'?n:'';return n[f]||'';}
 function mtgSetNote(k,f,v){let n=mtgNotes[k];if(typeof n==='string')n={general:n};if(!n)n={};if(v&&v.trim())n[f]=v.trim();else delete n[f];if(Object.keys(n).length)mtgNotes[k]=n;else delete mtgNotes[k];S.set('mtgNotes',mtgNotes);}
-// Per-slot photo helpers (slot = one Before/After cell). Uploaded/pulled bytes live in _mtgPhotoData (embeds
-// in the deck); pasted remote URLs live in mtgPhotos (team-synced). Captions in mtgCaptions.
-function mtgSlotImg(k,id){const d=_mtgPhotoData[k]&&_mtgPhotoData[k][id];if(d)return d;return (mtgPhotos[k]&&mtgPhotos[k][id])||'';}
+// Per-slot photo helpers. Originals (EXIF-corrected, editable) live in _mtgPhotoOrig with a crop transform in
+// _mtgView. Pasted remote URLs (unccroppable if CORS-tainted) live in mtgPhotos (team-synced). Captions in mtgCaptions.
+function _blobToDataURL(b){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(b);});}
+// Bake EXIF orientation into the pixels (so PowerPoint never rotates the photo) and downscale → JPEG data URL.
+function _drawToJpeg(src,w,h,maxDim){const sc=Math.min(1,maxDim/Math.max(w,h));const cw=Math.max(1,Math.round(w*sc)),ch=Math.max(1,Math.round(h*sc));const c=document.createElement('canvas');c.width=cw;c.height=ch;const ctx=c.getContext('2d');ctx.drawImage(src,0,0,cw,ch);return c.toDataURL('image/jpeg',0.86);}
+async function mtgNormalizeImage(blob,maxDim){
+  maxDim=maxDim||1600;
+  // Preferred: createImageBitmap bakes EXIF orientation into the pixels.
+  try{const bmp=await createImageBitmap(blob,{imageOrientation:'from-image'});const d=_drawToJpeg(bmp,bmp.width,bmp.height,maxDim);try{bmp.close&&bmp.close();}catch(e){}return d;}catch(e){}
+  // Fallback: <img> + canvas — Chrome applies EXIF orientation when drawing an <img>, and toDataURL strips EXIF.
+  const url=(typeof blob==='string')?blob:await _blobToDataURL(blob);
+  return await new Promise((resolve)=>{const im=new Image();im.onload=()=>{try{resolve(_drawToJpeg(im,im.naturalWidth,im.naturalHeight,maxDim));}catch(e){resolve(url);}};im.onerror=()=>resolve(url);im.src=url;});
+}
+function mtgView(k,id){const v=_mtgView[k]&&_mtgView[k][id];return v?{z:v.z,px:v.px,py:v.py}:{z:1,px:0.5,py:0.5};}
+function mtgSetView(k,id,v){(_mtgView[k]||(_mtgView[k]={}))[id]={z:v.z,px:v.px,py:v.py};}
+function mtgSetSlot(k,id,dataUrl){(_mtgPhotoOrig[k]||(_mtgPhotoOrig[k]={}))[id]=dataUrl;mtgSetView(k,id,{z:1,px:0.5,py:0.5});const o=mtgFlags[k]||(mtgFlags[k]={});if(!o.photos){o.photos=1;S.set('mtgFlags',mtgFlags);}}
+function mtgSlotOrig(k,id){return (_mtgPhotoOrig[k]&&_mtgPhotoOrig[k][id])||'';}
+function mtgSlotHas(k,id){return !!(mtgSlotOrig(k,id)||(mtgPhotos[k]&&mtgPhotos[k][id]));}
 function mtgCaption(k,id){return (mtgCaptions[k]&&mtgCaptions[k][id])||'';}
 function mtgSetCaption(k,id,v){const o=mtgCaptions[k]||(mtgCaptions[k]={});if(v&&v.trim())o[id]=v.trim();else delete o[id];if(!Object.keys(o).length)delete mtgCaptions[k];S.set('mtgCaptions',mtgCaptions);}
-function mtgUploadSlot(k,id,input){const f=input&&input.files&&input.files[0];input.value='';if(!f||!/^image\//.test(f.type))return;const fr=new FileReader();fr.onload=()=>{(_mtgPhotoData[k]||(_mtgPhotoData[k]={}))[id]=fr.result;const o=mtgFlags[k]||(mtgFlags[k]={});if(!o.photos){o.photos=1;S.set('mtgFlags',mtgFlags);}renderMeeting();};fr.readAsDataURL(f);}
-function mtgPasteSlot(k,id){const u=prompt('Paste an image URL for this slot (jpg/png):');if(u===null)return;if(u&&!/^https?:\/\//i.test(u)){alert('That doesn’t look like a web link.');return;}const o=mtgPhotos[k]||(mtgPhotos[k]={});if(u)o[id]=u;else delete o[id];if(!Object.keys(o).length)delete mtgPhotos[k];S.set('mtgPhotos',mtgPhotos);renderMeeting();}
-function mtgRmSlot(k,id){if(_mtgPhotoData[k])delete _mtgPhotoData[k][id];if(mtgPhotos[k]){delete mtgPhotos[k][id];if(!Object.keys(mtgPhotos[k]).length)delete mtgPhotos[k];S.set('mtgPhotos',mtgPhotos);}if(mtgCaptions[k]){delete mtgCaptions[k][id];if(!Object.keys(mtgCaptions[k]).length)delete mtgCaptions[k];S.set('mtgCaptions',mtgCaptions);}renderMeeting();}
-// Resolve a slot to an embeddable data URL for the .pptx (pasted remote URLs fetched → data URL; may CORS-fail).
+function mtgUploadSlot(k,id,input){const f=input&&input.files&&input.files[0];input.value='';if(!f||!/^image\//.test(f.type))return;mtgNormalizeImage(f).then(d=>{mtgSetSlot(k,id,d);renderMeeting();});}
+async function mtgPasteSlot(k,id){const u=prompt('Paste an image URL for this slot (jpg/png):');if(u===null)return;const uu=(u||'').trim();
+  if(uu&&!/^https?:\/\//i.test(uu)){alert('That doesn’t look like a web link.');return;}
+  if(!uu){mtgRmSlot(k,id);return;}
+  try{const r=await fetch(uu);const b=await r.blob();const d=await mtgNormalizeImage(b);mtgSetSlot(k,id,d);renderMeeting();return;}catch(e){}   // CORS-taint → fall back to a plain (uncroppable) URL
+  (mtgPhotos[k]||(mtgPhotos[k]={}))[id]=uu;S.set('mtgPhotos',mtgPhotos);const o=mtgFlags[k]||(mtgFlags[k]={});if(!o.photos){o.photos=1;S.set('mtgFlags',mtgFlags);}renderMeeting();
+}
+function mtgRmSlot(k,id){if(_mtgPhotoOrig[k])delete _mtgPhotoOrig[k][id];if(_mtgView[k])delete _mtgView[k][id];if(mtgPhotos[k]){delete mtgPhotos[k][id];if(!Object.keys(mtgPhotos[k]).length)delete mtgPhotos[k];S.set('mtgPhotos',mtgPhotos);}if(mtgCaptions[k]){delete mtgCaptions[k][id];if(!Object.keys(mtgCaptions[k]).length)delete mtgCaptions[k];S.set('mtgCaptions',mtgCaptions);}renderMeeting();}
+// Render an original + its crop transform to the exact half-slide aspect → the framed image the deck embeds.
+function mtgBake(src,view){return new Promise((resolve)=>{const img=new Image();img.onload=()=>{
+  const W=1200,H=Math.round(W/MTG_AR);const c=document.createElement('canvas');c.width=W;c.height=H;const ctx=c.getContext('2d');ctx.fillStyle='#111827';ctx.fillRect(0,0,W,H);
+  const nw=img.naturalWidth,nh=img.naturalHeight;const s0=Math.max(W/nw,H/nh);const s=s0*(view.z||1);const sw=nw*s,sh=nh*s;
+  const px=(view.px!=null?view.px:0.5),py=(view.py!=null?view.py:0.5);
+  ctx.drawImage(img,px*(W-sw),py*(H-sh),sw,sh);resolve(c.toDataURL('image/jpeg',0.9));
+};img.onerror=()=>resolve(src);img.src=src;});}
+// Resolve a slot to an embeddable data URL for the .pptx: originals are baked with their crop; pasted URLs fetched.
 async function mtgSlotDataUrl(k,id){
-  const d=_mtgPhotoData[k]&&_mtgPhotoData[k][id];if(d)return d;
+  const o=mtgSlotOrig(k,id);if(o)return await mtgBake(o,mtgView(k,id));
   const u=mtgPhotos[k]&&mtgPhotos[k][id];if(!u)return '';
-  try{const r=await fetch(u);const b=await r.blob();return await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(b);});}catch(e){return '';}
+  try{const r=await fetch(u);const b=await r.blob();return await mtgNormalizeImage(b);}catch(e){return '';}
+}
+// ── Fergus photo picker (like RoofMap): a grid of the job's photos; tap one to drop it into a slot ──
+async function mtgOpenPicker(jobId,k,id){
+  if(!jobId)return;
+  if(!rmToken()){const ok=await rmLogin();if(!ok)return;}
+  _mtgPickTarget={jobId:String(jobId),k:k,id:id};
+  if(_mtgFergusCache[jobId]&&_mtgFergusCache[jobId].files){mtgRenderPicker('list');mtgLoadThumbs(jobId);return;}
+  mtgRenderPicker('loading');
+  const auth={Authorization:'Bearer '+rmToken()};let data={};
+  try{
+    const r=await fetch(rmBackend()+'/fergus-files/list?jobId='+encodeURIComponent(jobId),{headers:auth});
+    if(r.status===401){S.set('rmToken','');const ok=await rmLogin();if(!ok){mtgRenderPicker('error','Sign-in needed.');return;}return mtgOpenPicker(jobId,k,id);}
+    data=await r.json().catch(()=>({}));
+  }catch(e){mtgRenderPicker('error','Couldn’t reach the photo service (login/CORS).');return;}
+  const files=(data&&Array.isArray(data.files))?data.files.filter(f=>f&&f.url&&(/^image\//i.test(f.contentType||'')||/\.(jpe?g|png|webp|heic|gif)(\?|#|$)/i.test(String(f.name||f.url)))):[];
+  _mtgFergusCache[jobId]={files:files,raw:data,thumbs:{},full:{}};
+  if(!files.length){mtgRenderPicker('empty',(data&&data.hint)||'No photos found for this job.');return;}
+  mtgRenderPicker('list');mtgLoadThumbs(jobId);
+}
+async function mtgLoadThumbs(jobId){
+  const cache=_mtgFergusCache[jobId];if(!cache)return;const auth={Authorization:'Bearer '+rmToken()};
+  for(let i=0;i<cache.files.length;i++){const f=cache.files[i];const fid=f.id||('i'+i);
+    if(cache.thumbs[fid]){const el=document.getElementById('mtgpk-'+i);if(el&&!el.classList.contains('ready')){el.style.backgroundImage="url('"+cache.thumbs[fid]+"')";el.classList.add('ready');}continue;}
+    try{const r=await fetch(rmBackend()+'/fergus-files/download?url='+encodeURIComponent(f.thumbnail||f.url),{headers:auth});if(!r.ok)throw 0;const b=await r.blob();const d=await _blobToDataURL(b);cache.thumbs[fid]=d;const el=document.getElementById('mtgpk-'+i);if(el){el.style.backgroundImage="url('"+d+"')";el.classList.add('ready');}}
+    catch(e){const el=document.getElementById('mtgpk-'+i);if(el)el.classList.add('na');}
+  }
+}
+async function mtgPick(i){
+  const t=_mtgPickTarget;if(!t)return;const cache=_mtgFergusCache[t.jobId];if(!cache)return;const f=cache.files[i];if(!f)return;
+  const el=document.getElementById('mtgpk-'+i);if(el)el.classList.add('picking');
+  const auth={Authorization:'Bearer '+rmToken()};let dataUrl='';
+  try{const r=await fetch(rmBackend()+'/fergus-files/download?url='+encodeURIComponent(f.url),{headers:auth});if(!r.ok)throw new Error('HTTP '+r.status);const b=await r.blob();dataUrl=await mtgNormalizeImage(b);}
+  catch(e){alert('Couldn’t download that photo: '+e.message);if(el)el.classList.remove('picking');return;}
+  mtgSetSlot(t.k,t.id,dataUrl);mtgClosePicker();renderMeeting();
+}
+function mtgRenderPicker(state,msg){
+  let ov=document.getElementById('mtg-picker');
+  if(!ov){ov=document.createElement('div');ov.id='mtg-picker';ov.className='mtg-picker';ov.onclick=(e)=>{if(e.target===ov)mtgClosePicker();};document.body.appendChild(ov);}
+  const t=_mtgPickTarget||{};const cache=_mtgFergusCache[t.jobId];
+  let body='<div class="mtg-picker-card"><div class="mtg-picker-head"><span>📷 Fergus job photos</span><button class="cmodal-x" onclick="mtgClosePicker()">✕ Close</button></div>';
+  const slotLab=(t.id&&t.id.slice(-1)==='b')?'Before':'After';
+  if(state==='loading')body+='<div class="mtg-pk-msg">Loading photos…</div>';
+  else if(state==='error')body+='<div class="mtg-pk-msg">'+esc(msg||'Error')+'</div>';
+  else if(state==='empty')body+='<div class="mtg-pk-msg">'+esc(msg||'No photos.')+(cache&&cache.raw?' · <a onclick="mtgPickerRaw()">show raw data</a>':'')+'</div>';
+  else if(state==='list'&&cache){
+    body+='<div class="mtg-pk-sub">Job '+esc(t.jobId)+' — '+cache.files.length+' photo(s). Tap one to use it in the <b>'+slotLab+'</b> slot.</div><div class="mtg-pk-grid">';
+    cache.files.forEach((f,i)=>{const th=cache.thumbs[f.id||('i'+i)];body+='<div class="mtg-pk-item'+(th?' ready':'')+'" id="mtgpk-'+i+'"'+(th?' style="background-image:url(\''+th+'\')"':'')+' onclick="mtgPick('+i+')"><span class="mtg-pk-name">'+esc(String(f.name||('photo '+(i+1))).slice(0,24))+'</span></div>';});
+    body+='</div>';
+  }
+  ov.innerHTML=body+'</div>';ov.classList.add('open');
+}
+function mtgClosePicker(){const ov=document.getElementById('mtg-picker');if(ov)ov.remove();_mtgPickTarget=null;}
+function mtgPickerRaw(){const t=_mtgPickTarget;const cache=t&&_mtgFergusCache[t.jobId];if(!cache)return;prompt('Raw attachment data (copy & paste back to me if previews say n/a):',JSON.stringify(cache.raw).slice(0,4000));}
+// ── Crop window: pan (drag) + zoom (slider/wheel), WYSIWYG with the .pptx bake ──
+function mtgLayoutWin(win){
+  if(!win)return;const k=win.getAttribute('data-k'),id=win.getAttribute('data-id');const img=win.querySelector('img');if(!img||!img.naturalWidth)return;
+  const cw=win.clientWidth,ch=win.clientHeight;if(!cw||!ch)return;const v=mtgView(k,id);
+  const nw=img.naturalWidth,nh=img.naturalHeight;const s0=Math.max(cw/nw,ch/nh);const s=s0*(v.z||1);const sw=nw*s,sh=nh*s;
+  img.style.width=sw+'px';img.style.height=sh+'px';img.style.left=(v.px*(cw-sw))+'px';img.style.top=(v.py*(ch-sh))+'px';
+}
+function mtgLayoutAll(){document.querySelectorAll('#mtg-body .mtg-win').forEach(mtgLayoutWin);}
+function mtgZoom(k,id,z){const v=mtgView(k,id);v.z=Math.max(1,Math.min(6,z));mtgSetView(k,id,v);mtgLayoutWin(document.querySelector('#mtg-body .mtg-win[data-k="'+k+'"][data-id="'+id+'"]'));}
+function mtgInitOnce(){
+  if(window.__mtgInit)return;const body=document.getElementById('mtg-body');if(!body)return;window.__mtgInit=1;
+  body.addEventListener('pointerdown',e=>{const win=e.target.closest&&e.target.closest('.mtg-win');if(!win)return;if(e.target.closest('.mtg-ph-x'))return;
+    const img=win.querySelector('img');if(!img||!img.naturalWidth)return;
+    _mtgDrag={win:win,k:win.getAttribute('data-k'),id:win.getAttribute('data-id'),x:e.clientX,y:e.clientY,cw:win.clientWidth,ch:win.clientHeight,nw:img.naturalWidth,nh:img.naturalHeight};
+    try{win.setPointerCapture(e.pointerId);}catch(err){}e.preventDefault();
+  });
+  body.addEventListener('pointermove',e=>{const d=_mtgDrag;if(!d)return;const v=mtgView(d.k,d.id);
+    const s0=Math.max(d.cw/d.nw,d.ch/d.nh);const s=s0*(v.z||1);const denx=d.cw-d.nw*s,deny=d.ch-d.nh*s;
+    let dx=v.px*denx+(e.clientX-d.x);dx=Math.max(denx,Math.min(0,dx));v.px=denx!==0?dx/denx:0.5;
+    let dy=v.py*deny+(e.clientY-d.y);dy=Math.max(deny,Math.min(0,dy));v.py=deny!==0?dy/deny:0.5;
+    mtgSetView(d.k,d.id,v);d.x=e.clientX;d.y=e.clientY;mtgLayoutWin(d.win);
+  });
+  const endDrag=()=>{_mtgDrag=null;};
+  body.addEventListener('pointerup',endDrag);body.addEventListener('pointercancel',endDrag);
+  body.addEventListener('wheel',e=>{const win=e.target.closest&&e.target.closest('.mtg-win');if(!win)return;e.preventDefault();const k=win.getAttribute('data-k'),id=win.getAttribute('data-id');mtgZoom(k,id,(mtgView(k,id).z||1)*(e.deltaY<0?1.12:0.9));const sl=win.parentNode&&win.parentNode.querySelector('.mtg-zoom');if(sl)sl.value=mtgView(k,id).z;},{passive:false});
 }
 function mtgKey(j){return jobNoKey(j.jobNo)||('id'+(j.id||''));}
 function mtgFlagOn(k,f){return !!(mtgFlags[k]&&mtgFlags[k][f]);}
@@ -5637,8 +5773,7 @@ async function mtgFetchPhotos(id,k,btn){
   }catch(e){setL('backend error');setTimeout(renderMeeting,1600);return;}
   const imgs=files.filter(f=>f&&f.url&&(/^image\//i.test(f.contentType||'')||/\.(jpe?g|png|webp|gif|heic)(\?|#|$)/i.test(String(f.name||f.url)))).slice(0,6);
   if(!imgs.length){setL('no photos');setTimeout(renderMeeting,1600);return;}
-  const store=_mtgPhotoData[k]||(_mtgPhotoData[k]={});
-  const emptySlots=MTG_SLOTS.filter(sl=>!mtgSlotImg(k,sl.id)).map(sl=>sl.id);
+  const emptySlots=MTG_SLOTS.filter(sl=>!mtgSlotHas(k,sl.id)).map(sl=>sl.id);
   let si=0;
   for(const f of imgs){
     if(si>=emptySlots.length)break;
@@ -5646,13 +5781,12 @@ async function mtgFetchPhotos(id,k,btn){
       const r=await fetch(rmBackend()+'/fergus-files/download?url='+encodeURIComponent(f.url),{headers:auth});
       if(!r.ok)continue;
       const blob=await r.blob();
-      const dataUrl=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(blob);});
-      if(dataUrl){store[emptySlots[si]]=dataUrl;si++;}
+      const dataUrl=await mtgNormalizeImage(blob);      // bake EXIF orientation so PowerPoint never rotates it
+      if(dataUrl){mtgSetSlot(k,emptySlots[si],dataUrl);si++;}
     }catch(e){}
     setL('pulling… '+si);
   }
-  if(si){const o=mtgFlags[k]||(mtgFlags[k]={});if(!o.photos){o.photos=1;S.set('mtgFlags',mtgFlags);}}
-  else setL('slots full');
+  if(!si)setL('slots full');
   renderMeeting();
 }
 function mtgPrint(){document.body.classList.add('mtg-printing');const done=()=>{document.body.classList.remove('mtg-printing');window.removeEventListener('afterprint',done);};window.addEventListener('afterprint',done);setTimeout(()=>{try{window.print();}catch(e){done();}},60);}
@@ -5789,10 +5923,16 @@ function renderMeeting(){
     [1,2,3].forEach(pg=>{
       h+='<div class="mtg-slotpage"><div class="mtg-slotpage-h">Page '+pg+'</div><div class="mtg-slotpair">';
       [['b','Before'],['a','After']].forEach(kd=>{
-        const id='p'+pg+kd[0],label=kd[1],img=mtgSlotImg(k,id),cap=mtgCaption(k,id);
+        const id='p'+pg+kd[0],label=kd[1],cap=mtgCaption(k,id);
+        const orig=mtgSlotOrig(k,id),pasted=mtgPhotos[k]&&mtgPhotos[k][id];
         h+='<div class="mtg-slot"><div class="mtg-slot-lab '+(kd[0]==='b'?'bef':'aft')+'">'+label+'</div>';
-        if(img){h+='<div class="mtg-slot-img"><img src="'+(img.indexOf('data:')===0?img:esc(img))+'" alt="" onerror="this.style.opacity=.25"><span class="mtg-ph-x" onclick="mtgRmSlot(\''+k+'\',\''+id+'\')">✕</span></div>';}
-        else{h+='<label class="mtg-slot-drop">＋ '+label+'<input type="file" accept="image/*" style="display:none" onchange="mtgUploadSlot(\''+k+'\',\''+id+'\',this)"><a class="mtg-slot-paste" onclick="event.preventDefault();event.stopPropagation();mtgPasteSlot(\''+k+'\',\''+id+'\')">or paste URL</a></label>';}
+        if(orig){const v=mtgView(k,id);
+          h+='<div class="mtg-win" data-k="'+k+'" data-id="'+id+'" title="drag to move · scroll to zoom"><img src="'+orig+'" draggable="false" onload="mtgLayoutWin(this.closest(\'.mtg-win\'))"><span class="mtg-ph-x" onclick="mtgRmSlot(\''+k+'\',\''+id+'\')">✕</span></div>';
+          h+='<div class="mtg-zoomrow"><span>–</span><input type="range" class="mtg-zoom" min="1" max="4" step="0.01" value="'+(v.z||1)+'" oninput="mtgZoom(\''+k+'\',\''+id+'\',parseFloat(this.value))"><span>+</span></div>';
+        }else if(pasted){h+='<div class="mtg-slot-img"><img src="'+esc(pasted)+'" alt="" onerror="this.style.opacity=.25"><span class="mtg-ph-x" onclick="mtgRmSlot(\''+k+'\',\''+id+'\')">✕</span></div>';}
+        else{h+='<div class="mtg-slot-empty"><label class="mtg-slot-btn">⬆ Upload<input type="file" accept="image/*" style="display:none" onchange="mtgUploadSlot(\''+k+'\',\''+id+'\',this)"></label>'+
+          (j.id?'<button class="mtg-slot-btn" onclick="mtgOpenPicker(\''+esc(String(j.id))+'\',\''+k+'\',\''+id+'\')">⤓ Fergus</button>':'')+
+          '<a class="mtg-slot-paste" onclick="mtgPasteSlot(\''+k+'\',\''+id+'\')">paste URL</a></div>';}
         h+='<input class="mtg-cap" placeholder="caption (optional)" value="'+esc(cap)+'" onchange="mtgSetCaption(\''+k+'\',\''+id+'\',this.value)">';
         h+='</div>';
       });
@@ -5808,6 +5948,8 @@ function renderMeeting(){
   });
   h+='<div class="mtg-empty" style="padding:14px 8px;font-size:.72rem;">Stats come straight from Fergus back-costing (Allowed = priced hours, Taken = logged hours). Each job exports as a cover slide, up to 3 before/after photo pages, and a stats &amp; notes slide. Tick the flags, add photos + notes, then <b>⬇ PowerPoint</b> (or <b>PDF</b>). Nothing reshuffles.</div>';
   host.innerHTML=h;
+  mtgInitOnce();
+  requestAnimationFrame(mtgLayoutAll);   // frame the crop windows once the images have a box to measure
 }
 // New month? quietly point the meeting at last complete month so it's one tap when the boss opens it.
 try{_mtgMk=calMonthKey(-1);}catch(e){}
