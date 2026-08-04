@@ -2622,35 +2622,35 @@ html.customer-view{ overflow-x:hidden; }
        master scope in mid-air. -->
   <!-- Main scope picker moved to the top of the Quote tab (under the action
        bar). It still drives #scopeGrid below via setMainScope(). -->
-  <div class="card" id="scopeWorkCard" style="display:none">
-    <div class="card-hd"><span class="card-dot"></span>Scope of work
-      <span id="scopeWorkSubtitle" style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px"></span>
+  <!-- Scope-of-work checklist REMOVED from the Pricing tab to simplify it.
+       The proposal's page-3 scope description still auto-defaults to the
+       re-roof template (MAIN_SCOPE_DESCRIPTIONS) via setMainScope /
+       _autoSyncFromScope. These elements are kept but permanently hidden
+       only so older code that reads/writes them keeps working (the scope
+       grid feeds an optional bullet fallback; the legacy number inputs feed
+       autosave nudges + a couple of legacy readers). -->
+  <div id="scopeWorkCard" style="display:none !important" aria-hidden="true">
+    <span id="scopeWorkSubtitle"></span>
+    <div class="chk-grid" id="scopeGrid" style="display:none">
+      <div class="chk-item" data-h="6" data-item="Strip existing roofing"></div>
+      <div class="chk-item" data-h="6" data-item="Remove existing tiles"></div>
+      <div class="chk-item" data-h="5" data-item="Install new purlins"></div>
+      <div class="chk-item" data-h="4" data-item="Install underlayment"></div>
+      <div class="chk-item" data-h="8" data-item="Install new roof sheets"></div>
+      <div class="chk-item" data-h="3" data-item="Install ridges"></div>
+      <div class="chk-item" data-h="2" data-item="Install valleys"></div>
+      <div class="chk-item" data-h="3" data-item="Install flashings"></div>
+      <div class="chk-item" data-h="3" data-item="Install gutters"></div>
+      <div class="chk-item" data-h="2" data-item="Install downpipes"></div>
+      <div class="chk-item" data-h="2" data-item="Fascia work"></div>
+      <div class="chk-item" data-h="1.5" data-item="Penetrations/skylights"></div>
+      <div class="chk-item" data-h="1" data-item="Cleanup and disposal"></div>
+      <div class="chk-item" data-h="2" data-item="Scaffold setup/removal"></div>
     </div>
-    <label style="margin-bottom:.5rem">Defaults are pre-ticked — adjust as needed:</label>
-    <div class="chk-grid" id="scopeGrid">
-      <div class="chk-item" onclick="toggleChk(this)" data-h="6" data-item="Strip existing roofing"><span class="chk-dot"></span>Strip existing roofing</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="6" data-item="Remove existing tiles"><span class="chk-dot"></span>Remove existing tiles</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="5" data-item="Install new purlins"><span class="chk-dot"></span>Install new purlins</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="4" data-item="Install underlayment"><span class="chk-dot"></span>Install underlayment</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="8" data-item="Install new roof sheets"><span class="chk-dot"></span>Install roof sheets</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="3" data-item="Install ridges"><span class="chk-dot"></span>Install ridges</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="2" data-item="Install valleys"><span class="chk-dot"></span>Install valleys</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="3" data-item="Install flashings"><span class="chk-dot"></span>Install flashings</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="3" data-item="Install gutters"><span class="chk-dot"></span>Install gutters</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="2" data-item="Install downpipes"><span class="chk-dot"></span>Install downpipes</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="2" data-item="Fascia work"><span class="chk-dot"></span>Fascia work</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="1.5" data-item="Penetrations/skylights"><span class="chk-dot"></span>Penetrations/skylights</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="1" data-item="Cleanup and disposal"><span class="chk-dot"></span>Cleanup and disposal</div>
-      <div class="chk-item" onclick="toggleChk(this)" data-h="2" data-item="Scaffold setup/removal"><span class="chk-dot"></span>Scaffold setup/removal</div>
-    </div>
-    <label>Notes</label><textarea id="scopeNotes" placeholder="Special instructions..."></textarea>
-    <!-- Legacy inputs (old labour model) kept hidden so existing code that
-         reads/writes them keeps working — labour is now the two-line table below. -->
-    <div style="display:none" aria-hidden="true">
-      <input type="number" id="nWorkers" value="2"><input type="number" id="wRate" value="55">
-      <input type="number" id="scopeArea"><select id="cxMult"><option value="1">1</option></select>
-      <div class="result-box" id="labourOut"><div id="labourRows"></div></div>
-    </div>
+    <textarea id="scopeNotes"></textarea>
+    <input type="number" id="nWorkers" value="2"><input type="number" id="wRate" value="55">
+    <input type="number" id="scopeArea"><select id="cxMult"><option value="1">1</option></select>
+    <div class="result-box" id="labourOut"><div id="labourRows"></div></div>
   </div>
 
   <!-- LABOUR — two charge-out lines (Lead Roofer + Apprentice) plus the
@@ -2691,6 +2691,12 @@ html.customer-view{ overflow-x:hidden; }
       <p style="font-size:12px;color:var(--text2)">Draw your roof on the Map Roof tab and set unit prices in Settings → Price book — this table will auto-populate.</p>
     </div>
   </div>
+
+  <!-- PER-ROOF PRICE BREAKDOWN — only shown on multi-roof jobs. Roof 1 is the
+       base quote scope; each further roof is an optional extra priced from its
+       own materials (auto, at the selected grade) + its own labour (entered
+       here). Populated by renderPerRoofBreakdown(). -->
+  <div class="card" id="perRoofBreakdownCard" style="display:none"></div>
 
   <!-- JOB PROFITABILITY — revenue vs cost, gross profit % and $/hr. -->
   <div class="card" id="profitCard">
@@ -5555,11 +5561,35 @@ function renderMaterialPriceTable(){
       '<td><button onclick="_deleteMatRow(\''+r.key+'\')" title="Delete this line" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button></td>'+
     '</tr>';
   });
+  // Steel-grade adjustment — the roofing steel costs more/less by grade
+  // (Maxam standard; ColorCote/ColorZen/Zincalume cheaper). Shown as its own
+  // row so the office sees the selected grade's real material cost. S.materials
+  // stays the Maxam (grade-neutral) subtotal — the quote applies the grade
+  // factor once in _autoSyncLabourMaterials so it is never double-counted.
+  var _grade = (S.quote && S.quote.proposalOptions && S.quote.proposalOptions.steelGrade) || 'maxam';
+  var _gf = (typeof _gradeFactor === 'function') ? _gradeFactor(_grade) : 1;
+  var _gradeAdj = total * (_gf - 1);
+  if (Math.abs(_gradeAdj) > 0.005) {
+    var _pctTxt = Math.abs((_gf - 1) * 100).toFixed(1).replace(/\.0$/,'') + '%';
+    html += '<tr style="background:#f4f8ff">'+
+      '<td style="font-weight:600">Steel grade — '+esc(_gradeLabel(_grade))+
+        '<div style="font-size:10px;color:var(--text2);margin-top:2px">vs Colorsteel® MAXAM standard</div></td>'+
+      '<td style="font-size:11px;color:var(--text2)">applies to roofing steel</td>'+
+      '<td></td>'+
+      '<td style="font-size:11px;color:var(--text2)">'+(_gradeAdj<0?'−':'+')+_pctTxt+'</td>'+
+      '<td style="text-align:right;font-weight:600;color:'+(_gradeAdj<0?'#2e7d32':'#b45309')+'">'+(_gradeAdj<0?'−$':'+$')+Math.abs(_gradeAdj).toFixed(2)+'</td>'+
+      '<td></td>'+
+    '</tr>';
+  }
+  var _gradeTotal = total * _gf;
+  var _multiMat = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+  var _gradeSpan = (_grade !== 'maxam') ? ' <span style="font-weight:400;color:var(--text2)">· '+esc(_gradeLabel(_grade))+'</span>' : '';
   html += '</tbody></table>'+
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
-      '<strong style="font-size:13px">Total materials → Quote</strong>'+
-      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+total.toFixed(2)+'</span>'+
-    '</div>';
+      '<strong style="font-size:13px">'+(_multiMat ? 'Materials — shown roof(s)' : 'Total materials → Quote')+_gradeSpan+'</strong>'+
+      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+_gradeTotal.toFixed(2)+'</span>'+
+    '</div>'+
+    (_multiMat ? '<div style="font-size:11px;color:var(--text2);margin-top:6px">This job has more than one roof. The <strong>base quote uses Roof 1 only</strong> — each roof\'s own materials + labour are in the <strong>Per-roof price breakdown</strong> below.</div>' : '');
   if (deletedCount > 0) {
     html += '<div style="margin-top:8px;font-size:11px;color:var(--text2)">'+deletedCount+' row'+(deletedCount===1?'':'s')+' deleted — <button onclick="restoreDeletedMatRows()" style="background:none;border:none;color:#0099cc;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">restore all</button></div>';
   }
@@ -5567,6 +5597,136 @@ function renderMaterialPriceTable(){
   S.materials = total;
   try { renderProfitability(); } catch(e){}
   try { updateGlobalJobBarCosts(); } catch(e){}
+  try { renderPerRoofBreakdown(); } catch(e){}
+}
+
+// ── Per-roof pricing + steel-grade helpers ─────────────────────────────
+// Multi-roof jobs price each roof from its OWN materials + labour: Roof 1
+// (the first roof drawn) is the base quote scope; every further roof is an
+// optional extra. Single-roof jobs are untouched (all guards below no-op).
+
+// Steel-grade material multiplier from the customer Selections model
+// (Maxam 1.00 · ColorCote 0.93 · ColorZen 0.862 · Zincalume 0.673). Applied to
+// the material subtotal so the quoted material cost reflects the chosen grade.
+function _gradeFactor(grade){
+  if (grade == null) grade = (S.quote && S.quote.proposalOptions && S.quote.proposalOptions.steelGrade) || 'maxam';
+  var pct = (typeof SEL_GRADE_PCT !== 'undefined' && SEL_GRADE_PCT) ? SEL_GRADE_PCT[grade] : 0;
+  return 1 + (pct || 0);
+}
+function _gradeLabel(grade){
+  var M = { maxam:'Colorsteel® MAXAM', colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume®' };
+  return M[grade] || 'MAXAM';
+}
+// Sum a material-rows array to a $ total (Maxam / grade-neutral), honouring
+// per-row qty + variant overrides and deletions (mirrors the render loop).
+function _materialsTotalFromRows(rows){
+  var total = 0;
+  (rows || []).forEach(function(r){
+    if (typeof MATERIAL_DELETED !== 'undefined' && MATERIAL_DELETED[r.key]) return;
+    var ov = (typeof MATERIAL_OVERRIDES !== 'undefined' && MATERIAL_OVERRIDES[r.key]) || {};
+    var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
+    var picked = (r.variants || []).find(function(v){ return v.value === variantValue; }) || (r.variants || [])[0];
+    var qty = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+    var price = picked ? picked.price : 0;
+    total += (qty || 0) * (price || 0);
+  });
+  return total;
+}
+// Maxam material cost ($, ex-GST) for ONE roof, independent of the Material
+// tab's view selection. Single-roof jobs just use the current build.
+function _materialsCostForRoofIdx(idx){
+  if (!window.DRAW || !DRAW.roofs || DRAW.roofs.length <= 1) {
+    return _materialsTotalFromRows(_buildMaterialPriceRows());
+  }
+  var savedActive = DRAW.activeRoofIdx;
+  var savedSel = _matSelectedRoofIndices();
+  try {
+    _syncCurrentToRoof();
+    _matSetSelectedRoofs([idx]);
+    return _materialsTotalFromRows(_buildMaterialPriceRows());
+  } catch(e){ return 0; }
+  finally {
+    _matSetSelectedRoofs(savedSel);
+    if (savedActive >= 0 && savedActive < DRAW.roofs.length) _loadRoofToCurrent(savedActive);
+  }
+}
+// Current labour charge-out rates (from the main labour table).
+function _labourRates(){
+  var L = (S.quote && S.quote.labour) || {};
+  return { leadPrice: parseFloat(L.leadPrice)||0, appPrice: parseFloat(L.appPrice)||0,
+           leadCost:  parseFloat(L.leadCost)||0,  appCost:  parseFloat(L.appCost)||0 };
+}
+// Per-roof labour hours for an EXTRA roof (idx>=1). Roof 0 (main) labour is the
+// main labour table (S.labour). Stored on S.quote.roofLabour[idx] = {leadHrs,appHrs}.
+function _roofLabour(idx){
+  if (!S.quote.roofLabour || typeof S.quote.roofLabour !== 'object') S.quote.roofLabour = {};
+  if (!S.quote.roofLabour[idx]) S.quote.roofLabour[idx] = { leadHrs: 0, appHrs: 0 };
+  return S.quote.roofLabour[idx];
+}
+// Labour charge-out ($) for a roof. Roof 0 = the main table total (S.labour).
+function _labourPriceForRoof(idx){
+  if (idx === 0) return (typeof S.labour === 'number') ? S.labour : 0;
+  var rl = _roofLabour(idx), r = _labourRates();
+  return (parseFloat(rl.leadHrs)||0) * r.leadPrice + (parseFloat(rl.appHrs)||0) * r.appPrice;
+}
+function _labourCostForRoof(idx){
+  if (idx === 0) return (typeof S.labourCost === 'number') ? S.labourCost : 0;
+  var rl = _roofLabour(idx), r = _labourRates();
+  return (parseFloat(rl.leadHrs)||0) * r.leadCost + (parseFloat(rl.appHrs)||0) * r.appCost;
+}
+// Office edits an extra roof's labour hours in the per-roof breakdown card.
+function _updateRoofLabour(idx, field, val){
+  var rl = _roofLabour(idx);
+  rl[field] = parseFloat(val) || 0;
+  try { refreshQuoteProposal(); } catch(e){}
+  try { renderPerRoofBreakdown(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+}
+// Per-roof price breakdown card (multi-roof jobs only). Roof 1 = base quote
+// scope (its own materials + labour + scaffold). Every further roof is an
+// optional extra priced from its OWN materials (auto, at the selected grade)
+// + its OWN labour (Lead/App hours entered here at the main table's rates).
+function renderPerRoofBreakdown(){
+  var box = document.getElementById('perRoofBreakdownCard'); if (!box) return;
+  if (!window.DRAW || !DRAW.roofs || DRAW.roofs.length < 2){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = '';
+  var gf = _gradeFactor();
+  var gLbl = _gradeLabel((S.quote && S.quote.proposalOptions && S.quote.proposalOptions.steelGrade) || 'maxam');
+  var scaff = (S.quote && S.quote.scaffold) ? _scaffoldEff(S.quote.scaffold).price : 0;
+  var money = function(v){ return '$' + (v || 0).toFixed(2); };
+  var cards = DRAW.roofs.map(function(r, i){
+    var nm = r.name || ('Roof ' + (i + 1));
+    var isBase = (i === 0);
+    var mat = _materialsCostForRoofIdx(i) * gf;
+    var lab = _labourPriceForRoof(i);
+    var sub = mat + lab + (isBase ? scaff : 0);
+    var labCell;
+    if (isBase) {
+      labCell = '<span style="font-weight:600">' + money(lab) + '</span>'+
+        '<div style="font-size:10px;color:var(--text2)">from the labour table above</div>';
+    } else {
+      var rl = _roofLabour(i);
+      labCell = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">'+
+        '<span style="font-size:10px;color:var(--text2)">Lead</span><input type="number" step="0.5" min="0" value="'+(parseFloat(rl.leadHrs)||0)+'" onchange="_updateRoofLabour('+i+',\'leadHrs\',this.value)" style="width:52px;font-size:12px;padding:4px 6px"><span style="font-size:10px;color:var(--text2)">hrs</span>'+
+        '<span style="font-size:10px;color:var(--text2)">App</span><input type="number" step="0.5" min="0" value="'+(parseFloat(rl.appHrs)||0)+'" onchange="_updateRoofLabour('+i+',\'appHrs\',this.value)" style="width:52px;font-size:12px;padding:4px 6px"><span style="font-size:10px;color:var(--text2)">hrs</span>'+
+        '<span style="font-weight:600;min-width:70px;text-align:right">'+money(lab)+'</span>'+
+      '</div>';
+    }
+    return '<div style="border:1px solid var(--border);border-radius:8px;padding:11px 13px;margin-bottom:8px;background:'+(isBase?'#f0f7ff':'#fff')+'">'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+        '<span style="font-size:8.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:3px;background:'+(isBase?'#0099cc':'#e08a2e')+';color:#fff">'+(isBase?'Base quote':'Optional extra')+'</span>'+
+        '<strong style="font-size:13px">'+esc(nm)+'</strong>'+
+      '</div>'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text2)">Materials <span style="font-size:10px">('+esc(gLbl)+')</span></span><span style="font-weight:600">'+money(mat)+'</span></div>'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text2)">Labour</span><span style="text-align:right">'+labCell+'</span></div>'+
+      (isBase ? '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text2)">Scaffolding</span><span style="font-weight:600">'+money(scaff)+'</span></div>' : '')+
+      '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);margin-top:6px;padding-top:7px"><strong style="font-size:12px">'+(isBase?'Base subtotal':'Extra roof price')+' <span style="font-weight:400;color:var(--text2);font-size:10px">(ex GST)</span></strong><strong style="font-size:15px;color:#2e7d32">'+money(sub)+'</strong></div>'+
+    '</div>';
+  }).join('');
+  box.innerHTML = '<div class="card-hd"><span class="card-dot"></span>Per-roof price breakdown'+
+    '<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Roof 1 = base quote · each extra roof is priced from its own materials + labour</span></div>'+
+    '<p style="font-size:11px;color:var(--text2);margin:-6px 0 10px">Enter each optional roof\'s own labour hours below — the customer opts in per roof on the proposal Selections page.</p>'+
+    cards;
 }
 
 function refreshSettingsUI(){
@@ -5774,8 +5934,7 @@ function restoreFromJob(j){
         });
         try { calcLabour(); } catch(e){}
       } else if (snap.scope.items && snap.scope.items.length) {
-        // Older saves without mainScope — just reveal the card and tick saved items
-        var card = document.getElementById('scopeWorkCard'); if (card) card.style.display = '';
+        // Older saves without mainScope — tick saved items (card stays hidden).
         var wanted2 = {};
         snap.scope.items.forEach(function(it){ wanted2[it] = true; });
         document.querySelectorAll('#scopeGrid .chk-item').forEach(function(el){
@@ -8118,8 +8277,7 @@ function setMainScope(key){
   document.querySelectorAll('#mainScopeGrid .ms-opt').forEach(function(el){
     el.classList.toggle('on', el.getAttribute('data-scope') === key);
   });
-  // Reveal scope-of-work card + set subtitle
-  var card = document.getElementById('scopeWorkCard'); if (card) card.style.display = '';
+  // Scope-of-work card was removed from the Pricing tab — keep it hidden.
   var sub  = document.getElementById('scopeWorkSubtitle'); if (sub) sub.textContent = '— ' + preset.subtitle;
   // Reset all chk-items, then tick the preset list
   var wanted = {};
@@ -8298,7 +8456,11 @@ function calcLabour(){
     '</tr>';
   }
 
-  var html = '<table class="price-tbl" style="table-layout:fixed;width:100%">'+
+  var _multiRoofLab = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+  var html = (_multiRoofLab
+    ? '<div style="font-size:11px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:7px 10px;margin-bottom:8px">This labour is for <strong>Roof 1 (main)</strong> — the base quote. Enter each extra roof\'s labour in the <strong>Per-roof price breakdown</strong> below.</div>'
+    : '')+
+    '<table class="price-tbl" style="table-layout:fixed;width:100%">'+
     '<thead><tr>'+
       '<th style="width:26%">Worker</th>'+
       '<th style="width:16%">Hours</th>'+
@@ -8349,6 +8511,7 @@ function calcLabour(){
   S.labourHours = parseFloat(totalHrs.toFixed(1));
   renderProfitability();
   try { renderGutterDownpipePricing(); } catch(e){}
+  try { renderPerRoofBreakdown(); } catch(e){}
 }
 
 // ── Guttering & downpipes pricing (Pricing panel) ──────────────────
@@ -9530,7 +9693,12 @@ function _selGutterLm(){
 function _selGradeDelta(gradeId){
   var pct = SEL_GRADE_PCT[gradeId];
   if (pct == null) return 0;
-  return pct * _selMaterialBase();
+  // Delta is RELATIVE to the grade the base quote was built at (baseGrade,
+  // default Maxam) so a base already priced at a non-Maxam grade shows that
+  // grade as "Included" and the others as +/− from it — no double-counting.
+  var q = (window.S && S.quote) || {};
+  var basePct = SEL_GRADE_PCT[q.baseGrade || 'maxam'] || 0;
+  return (pct - basePct) * _selMaterialBase();
 }
 function _selGauge55Delta(){ return SEL_GAUGE55_PCT * _selMaterialBase(); }
 var SEL_DOWNPIPE_PER_LINE = 150; // $/gutter line ex-GST
@@ -9789,6 +9957,13 @@ function _setProposalOption(field, value){
   S.quote.proposalOptions[field] = value;
   try { refreshQuoteProposal(); } catch(e){}
   try { renderGutterDownpipePricing(); } catch(e){}
+  // The steel grade drives the office Material Price total — re-render it so the
+  // grade adjustment row + "→ Quote" figure follow the selection immediately.
+  if (field === 'steelGrade') {
+    try { renderMaterialPriceTable(); } catch(e){}
+    try { _autoSyncLabourMaterials(); } catch(e){}
+    try { renderPerRoofBreakdown(); } catch(e){}
+  }
   if (typeof _scheduleCustomerWrite === 'function') {
     try { _scheduleCustomerWrite(); } catch(e){}
   }
@@ -11287,7 +11462,15 @@ function _autoSyncLabourMaterials(){
   // total like labour + materials (previously it was omitted, so the
   // customer total was short by the scaffold amount).
   var scaffP = (S.quote.scaffold) ? _scaffoldEff(S.quote.scaffold).price : 0;
-  [['Labour', S.labour], ['Materials', S.materials], ['Scaffolding', scaffP]].forEach(function(pair){
+  // Base quote scope = ROOF 1 (main). On multi-roof jobs the base uses roof 1's
+  // own materials + labour only; every further roof is an optional extra
+  // (S.quote.extraRoofs). Single-roof jobs use the whole totals. Materials
+  // carry the selected steel grade (Maxam base × _gradeFactor).
+  var _multiRoof = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+  var _gf = (typeof _gradeFactor === 'function') ? _gradeFactor() : 1;
+  var _baseMat = (_multiRoof ? _materialsCostForRoofIdx(0) : (parseFloat(S.materials)||0)) * _gf;
+  var _baseLab = (_multiRoof ? _labourPriceForRoof(0) : (parseFloat(S.labour)||0));
+  [['Labour', _baseLab], ['Materials', _baseMat], ['Scaffolding', scaffP]].forEach(function(pair){
     var key = pair[0], val = pair[1];
     var li = S.quote.lineItems.find(function(x){ return x.desc === key; });
     if (!(val > 0)) {
@@ -12676,7 +12859,16 @@ function refreshQuoteProposal(){
     // Backfill the customer name from the job so the cover shows it (and the
     // "<surname> Residence" title derives correctly) instead of a placeholder.
     if (!String(S.quote.client || '').trim()) { var _bc = _bestClientName(); if (_bc) S.quote.client = _bc; }
-    if (parseFloat(S.materials) > 0) S.quote.materialBase = parseFloat(S.materials);
+    // Material base (Maxam, ex-GST) for the MAIN roof — drives the customer
+    // Selections steel-grade deltas. On multi-roof jobs the main roof is Roof 1
+    // only (each further roof is an optional extra priced separately below).
+    var _selGrade0 = (S.quote.proposalOptions && S.quote.proposalOptions.steelGrade) || 'maxam';
+    var _multi0 = (DRAW.roofs && DRAW.roofs.length > 1);
+    var _mat0Maxam = _multi0 ? _materialsCostForRoofIdx(0) : (parseFloat(S.materials) || 0);
+    if (_mat0Maxam > 0) S.quote.materialBase = _mat0Maxam;
+    // The grade the base quote was built at — so the customer Selections grade
+    // deltas read relative to it (a non-Maxam base shows as "Included").
+    S.quote.baseGrade = _selGrade0;
     try {
       if (typeof _matDrawTotals === 'function'){ var _t = _matDrawTotals(); if (_t && parseFloat(_t.gutterLm) > 0) S.quote.gutterLm = parseFloat(_t.gutterLm); }
     } catch(e){}
@@ -12691,16 +12883,16 @@ function refreshQuoteProposal(){
       if (_scp > 0) S.quote.scaffoldBase = _scp;
     } catch(e){}
     // ── Optional extra roofs ─────────────────────────────────────────
-    // The headline quote scope is the ACTIVE (main) roof only — materials +
-    // labour are computed from DRAW.outline. Any further roof drawn is an
-    // optional extra the customer can add on the Selections page. Stash each
-    // extra roof's name + a pro-rata price (its plan area ÷ the main roof's,
-    // times the main-roof scope) so the customer share link — which has no
-    // live drawing — can render + price them. Skipped when the office has
-    // authored explicit multi-option packages (those drive the extras instead).
+    // The base quote is Roof 1 (main). Any further roof drawn is an optional
+    // extra, priced from its OWN materials (at the selected grade) + its OWN
+    // labour (entered in the Pricing tab's per-roof breakdown). Stash each
+    // extra roof's name + area + price + the materials/labour split so the
+    // customer share link — which has no live drawing — can render + price
+    // them. Skipped when the office authored explicit multi-option packages.
     try {
       var _hasOptionPkgs = (S.quote.options && S.quote.options.length > 1);
       if (!_hasOptionPkgs && DRAW.roofs && DRAW.roofs.length > 1 && DRAW.scaleMetresPerPx > 0) {
+        var _gfNow = _gradeFactor(_selGrade0);
         var _sc2 = DRAW.scaleMetresPerPx * DRAW.scaleMetresPerPx;
         var _areaOf = function(idx){
           var r = DRAW.roofs[idx] || {};
@@ -12708,14 +12900,15 @@ function refreshQuoteProposal(){
           if (!ol || ol.length < 3) return 0;
           return polyAreaPx(ol) * _sc2;
         };
-        var _mainArea = _areaOf(0);
-        var _baseSub  = (typeof _qpBaseSub === 'function') ? _qpBaseSub() : 0;
         var _extra = [];
         for (var _ri = 1; _ri < DRAW.roofs.length; _ri++){
-          var _a = _areaOf(_ri);
-          if (_a <= 0) continue;
-          var _price = (_mainArea > 0 && _baseSub > 0) ? (_baseSub * (_a / _mainArea)) : 0;
-          _extra.push({ name: (DRAW.roofs[_ri].name || ('Roof ' + (_ri + 1))), area: +_a.toFixed(1), price: +_price.toFixed(2) });
+          var _matI = _materialsCostForRoofIdx(_ri) * _gfNow;   // materials at selected grade
+          var _labI = _labourPriceForRoof(_ri);                 // this roof's own labour
+          var _priceI = _matI + _labI;
+          _extra.push({ name: (DRAW.roofs[_ri].name || ('Roof ' + (_ri + 1))),
+                        area: +(_areaOf(_ri)).toFixed(1),
+                        materials: +_matI.toFixed(2), labour: +_labI.toFixed(2),
+                        price: +_priceI.toFixed(2) });
         }
         S.quote.extraRoofs = _extra;
       } else if (!_hasOptionPkgs) {
