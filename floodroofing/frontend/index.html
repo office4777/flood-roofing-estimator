@@ -12035,9 +12035,9 @@ function _qpNumberPagesAndToc(){
   var toc = root.querySelector('#qpTocList');
   if (toc) {
     toc.innerHTML = tocRows.map(function(r){
-      return '<div style="display:flex;align-items:baseline;gap:8px;font-family:var(--ed-sans);font-size:12.5px;color:var(--ed-ink-2);padding:4px 0">'+
+      return '<div style="display:flex;align-items:baseline;gap:8px;font-family:var(--ed-serif);font-size:11px;color:var(--ed-ink-2);padding:2px 0">'+
         '<span style="white-space:nowrap">' + esc2(r.t) + '</span>'+
-        '<span style="flex:1;border-bottom:1px dotted rgba(10,22,40,.28);position:relative;top:-4px"></span>'+
+        '<span style="flex:1;border-bottom:1px dotted rgba(10,22,40,.28);position:relative;top:-3px"></span>'+
         '<span style="white-space:nowrap;font-family:var(--ed-serif);font-weight:600;color:var(--ed-ink)">' + r.n + '</span>'+
       '</div>';
     }).join('') || '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-text2)">—</div>';
@@ -13266,11 +13266,8 @@ function refreshQuoteProposal(){
         // Brand-blue gradient overlay at the bottom — ties hero to the
         // Flood Roofing electric-blue brand colour without obscuring
         // the photo content.
-        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 55%,rgba(0,153,224,.18) 80%,rgba(10,24,40,.78) 100%)"></div>'+
-        // Bottom strip only — capability label left, section number right.
-        '<div style="position:absolute;bottom:0;left:0;right:0;padding:20px 32px;display:flex;justify-content:space-between;align-items:flex-end;color:#fff">'+
-          '<div style="font-family:var(--ed-serif);font-style:italic;font-weight:400;font-size:13px;color:#fff;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.5)">The Flood Roofing fleet · Northland</div>'+
-        '</div>'+
+        // Subtle brand-blue gradient at the base (caption removed per request).
+        '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 62%,rgba(0,153,224,.14) 85%,rgba(10,24,40,.45) 100%)"></div>'+
       '</div>'+
       // Title plate on cream paper underneath the photo
       (function(){
@@ -13281,8 +13278,8 @@ function refreshQuoteProposal(){
         var _detailCol = function(label, name, nameField, l2, l2field, l3){
           return '<div>'+
             '<div class="ed-eyebrow" style="margin-bottom:5px">'+label+'</div>'+
-            '<div class="qp-editable" contenteditable="true" data-qfield="'+nameField+'" spellcheck="false" style="font-family:var(--ed-serif);font-size:16px;font-style:italic;color:var(--ed-ink);line-height:1.25">'+name+'</div>'+
-            '<div style="font-family:var(--ed-sans);font-size:11.5px;color:var(--ed-text2);margin-top:5px;letter-spacing:.02em;line-height:1.7">'+
+            '<div class="qp-editable" contenteditable="true" data-qfield="'+nameField+'" spellcheck="false" style="font-family:var(--ed-serif);font-size:20px;font-style:italic;color:var(--ed-ink);line-height:1.25">'+name+'</div>'+
+            '<div style="font-family:var(--ed-sans);font-size:13px;color:var(--ed-text2);margin-top:6px;letter-spacing:.02em;line-height:1.7">'+
               (l2field ? '<span class="qp-editable" contenteditable="true" data-qfield="'+l2field+'" spellcheck="false">'+l2+'</span>' : l2)+'<br>'+l3+
             '</div>'+
           '</div>';
@@ -13290,8 +13287,8 @@ function refreshQuoteProposal(){
         return '<div style="padding:30px 48px 26px;background:var(--ed-paper)">'+
         // Headline: eyebrow + property title + address.
         '<div class="ed-eyebrow">A roofing proposal — prepared for</div>'+
-        '<div class="ed-title ed-h1" style="margin-top:9px;font-size:38px"><span class="qp-editable" contenteditable="true" data-qfield="jobTitle" spellcheck="false" style="font-style:italic;font-weight:400;color:var(--ed-accent)">'+esc2(S.quote.jobTitle || _residenceTitle(S.quote.client || _bestClientName()))+'</span></div>'+
-        '<div class="qp-editable" contenteditable="true" data-qfield="addr" spellcheck="false" style="font-family:var(--ed-sans);font-size:13px;color:var(--ed-text2);margin-top:8px;letter-spacing:.02em">'+esc2(S.quote.addr || '—')+'</div>'+
+        '<div class="ed-title ed-h1" style="margin-top:10px;font-size:48px"><span class="qp-editable" contenteditable="true" data-qfield="jobTitle" spellcheck="false" style="font-style:italic;font-weight:400;color:var(--ed-accent)">'+esc2(S.quote.jobTitle || _residenceTitle(S.quote.client || _bestClientName()))+'</span></div>'+
+        '<div class="qp-editable" contenteditable="true" data-qfield="addr" spellcheck="false" style="font-family:var(--ed-sans);font-size:15px;color:var(--ed-text2);margin-top:9px;letter-spacing:.02em">'+esc2(S.quote.addr || '—')+'</div>'+
         '<hr class="ed-rule" style="margin:22px 0 18px">'+
         // Client + Prepared by — two parallel columns.
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:30px">'+
@@ -13306,15 +13303,17 @@ function refreshQuoteProposal(){
         '</div>'+
         // Contents — a real table of contents with page numbers, filled in
         // post-render from the actual (toggle-dependent) proposal pages.
-        '<div style="margin-top:22px;padding:14px 18px;background:var(--ed-paper-2);border-radius:9px;border:1px solid var(--ed-line)">'+
-          '<div class="ed-eyebrow" style="margin-bottom:10px">Contents</div>'+
+        // Traditional table of contents — no background card, just a titled
+        // list with dotted leaders (smaller, understated).
+        '<div style="margin-top:24px">'+
+          '<div class="ed-eyebrow" style="margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid var(--ed-line)">Contents</div>'+
           '<div id="qpTocList" class="ed-toc"></div>'+
         '</div>'+
         // Meta footer — three columns, hairline divider
         '<div style="margin-top:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid var(--ed-line);padding-top:14px">'+
-          '<div><div class="ed-eyebrow">Reference</div><div class="qp-editable" contenteditable="true" data-qfield="ref" spellcheck="false" style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.ref || 'FR-001')+'</div></div>'+
-          '<div><div class="ed-eyebrow">Prepared</div><div class="qp-editable" contenteditable="true" data-qfield="date" spellcheck="false" style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.date || '')+'</div></div>'+
-          '<div><div class="ed-eyebrow">Valid</div><div class="qp-editable" contenteditable="true" data-qfield="validUntil" spellcheck="false" style="font-family:var(--ed-serif);font-size:18px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.validUntil || '30 days')+'</div></div>'+
+          '<div><div class="ed-eyebrow">Reference</div><div class="qp-editable" contenteditable="true" data-qfield="ref" spellcheck="false" style="font-family:var(--ed-serif);font-size:21px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.ref || 'FR-001')+'</div></div>'+
+          '<div><div class="ed-eyebrow">Prepared</div><div class="qp-editable" contenteditable="true" data-qfield="date" spellcheck="false" style="font-family:var(--ed-serif);font-size:21px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.date || '')+'</div></div>'+
+          '<div><div class="ed-eyebrow">Valid</div><div class="qp-editable" contenteditable="true" data-qfield="validUntil" spellcheck="false" style="font-family:var(--ed-serif);font-size:21px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.validUntil || '30 days')+'</div></div>'+
         '</div>'+
       '</div>';
       })();
