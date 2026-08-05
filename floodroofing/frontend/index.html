@@ -1030,11 +1030,11 @@ html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .
    set how far it comes out; a zoom slider scales the photos. */
 #fergusRoofPanel{
   position:fixed; top:70px; right:0; bottom:16px;
-  width:var(--fr-photos-w,40vw); min-width:200px; max-width:96vw; z-index:69;
+  width:var(--fr-photos-w,40vw); min-width:200px; max-width:96vw; z-index:75;
   background:#0a1628; border:1px solid #10233c; border-right:none;
   border-radius:12px 0 0 12px; box-shadow:-8px 10px 34px rgba(0,0,0,.32);
   transform:translateX(100%); transition:transform .28s ease;
-  display:none; flex-direction:column; overflow:hidden;
+  display:none; flex-direction:column;
 }
 #fergusRoofPanel.is-open{ transform:translateX(0); }
 #fergusRoofPanel.is-resizing{ transition:none; user-select:none; }
@@ -4591,11 +4591,18 @@ function gotoTab(t) {
     if(t==='quote'){ _pp.style.display='flex'; try{_pricingPanelInit();}catch(e){} }
     else { _pp.style.display='none'; _pp.classList.remove('is-open'); }
   })();
-  // Fergus job-photos slide-out is available only on the Map Roof tab.
+  // Fergus job-photos slide-out is available only on the Map Roof tab. It
+  // auto-opens next to the canvas when a job is linked (so the photos are
+  // visible without hunting for the tab), unless the user has closed it before.
   (function(){
     var _fp=document.getElementById('fergusRoofPanel');
     if(!_fp) return;
-    if(t==='roof'){ _fp.style.display='flex'; try{ var _w=localStorage.getItem('fr_fergus_panel_w'); if(_w) _fp.style.width=_w; }catch(e){} }
+    if(t==='roof'){
+      _fp.style.display='flex';
+      try{ var _w=localStorage.getItem('fr_fergus_panel_w'); if(_w) _fp.style.width=_w; }catch(e){}
+      var _wantOpen=true; try{ _wantOpen = localStorage.getItem('fr_fergus_panel_open') !== '0'; }catch(e){}
+      if(_wantOpen && window.S && S.linkedJobId){ requestAnimationFrame(function(){ try{_fergusPanelOpen();}catch(e){} }); }
+    }
     else { _fp.style.display='none'; _fp.classList.remove('is-open'); }
   })();
   if(t==='roof'){
@@ -30712,10 +30719,12 @@ function _fergusPanelOpen(){
   p.style.display = 'flex';
   try { var w = localStorage.getItem('fr_fergus_panel_w'); if (w) p.style.width = w; } catch(e){}
   requestAnimationFrame(function(){ p.classList.add('is-open'); });
+  try { localStorage.setItem('fr_fergus_panel_open', '1'); } catch(e){}
   if (!_fergusRoofPhotosLoaded) _loadFergusRoofPhotos(false);
 }
 function _fergusPanelClose(){
   var p = document.getElementById('fergusRoofPanel'); if (p) p.classList.remove('is-open');
+  try { localStorage.setItem('fr_fergus_panel_open', '0'); } catch(e){}
 }
 function _fergusPanelToggle(){
   var p = document.getElementById('fergusRoofPanel'); if (!p) return;
