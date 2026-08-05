@@ -14601,9 +14601,15 @@ function refreshQuoteProposal(){
     var accTot = accSub * (1+accRate);
     var acc = S.quote.accepted;
     partSignature =
+      // Full-height flex column: the flex:1 spacers below spread the summary
+      // and accept blocks evenly down the page and push the closing photo
+      // banner to the very bottom (was crammed at the top with a big gap
+      // under a mid-page banner).
+      '<div style="display:flex;flex-direction:column;flex:1 1 auto;min-height:0">'+
       edHeading('6','Ready to go ahead?','Accept Your Quote',{chapter:PROPOSAL_CHAPTERS[5],chapters:PROPOSAL_CHAPTERS})+
+      '<div style="flex:1 1 0;min-height:16px"></div>'+
       // ── Quote summary (selected options + grades + total) ──
-      '<div style="margin-bottom:10px">'+
+      '<div style="margin-bottom:0">'+
         '<div class="ed-eyebrow" style="margin-bottom:6px">Your quote'+(S.quote.client?' — '+esc2(S.quote.client):'')+'</div>'+
         '<div id="qpAcceptSummary">'+buildAcceptSummaryRows()+'</div>'+
         '<div style="margin-top:8px;padding-top:8px;border-top:2px solid var(--ed-ink)">'+
@@ -14621,6 +14627,7 @@ function refreshQuoteProposal(){
           '</div>'+
         '</div>'+
       '</div>'+
+      '<div style="flex:1 1 0;min-height:16px"></div>'+
       (acc
         ? // ── Already accepted ──
           '<div class="ed-keep" style="margin-bottom:28px;padding:18px 20px;background:#0d2e1e;color:#fff;border-left:3px solid #34d399">'+
@@ -14652,6 +14659,7 @@ function refreshQuoteProposal(){
             '<div><div style="border-bottom:1px solid var(--ed-ink);height:32px"></div><div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-text2);margin-top:4px">Date</div></div>'+
           '</div>'
       )+
+      '<div style="flex:1 1 0;min-height:16px"></div>'+
       // Closing brand mark
       '<div style="text-align:center;margin-top:6px">'+
         '<div style="display:inline-flex;align-items:center;gap:14px"><div style="width:30px;height:1px;background:var(--ed-ink)"></div><div class="ed-serif" style="font-style:italic;font-size:16px;color:var(--ed-ink)">Thank you for the opportunity.</div><div style="width:30px;height:1px;background:var(--ed-ink)"></div></div>'+
@@ -14664,9 +14672,10 @@ function refreshQuoteProposal(){
       // aspect-ratio) — html2canvas doesn't compute CSS aspect-ratio, which is
       // what distorted the photo in the PDF. background-size:cover renders
       // identically on screen and in the PDF.
-      '<div style="margin:8px -36px 6px;height:96px;position:relative;overflow:hidden;background:var(--ed-ink) url(brand/fleet_wide.jpg) center 42%/cover no-repeat">'+
+      '<div style="margin:12px -36px 0;height:118px;position:relative;overflow:hidden;background:var(--ed-ink) url(brand/fleet_wide.jpg) center 42%/cover no-repeat">'+
         '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,24,40,.18),rgba(0,153,224,.22))"></div>'+
         '<div style="position:absolute;left:0;right:0;bottom:10px;text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:13px;color:#fff;letter-spacing:.04em;text-shadow:0 2px 6px rgba(0,0,0,.6)">The Flood Roofing crew · Whangarei, Kerikeri &amp; the Bay of Islands</div>'+
+      '</div>'+
       '</div>';
   }
 
@@ -14737,8 +14746,13 @@ function refreshQuoteProposal(){
   //  assembled into the proposal flow.)
   // Page 5 — Terms & conditions
   html += rpPage(partTerms);
-  // Page 6 — Acceptance
-  html += rpPage(partSignature, 'background:linear-gradient(180deg,#fafbfc,#f1f5f9)');
+  // Page 6 — Acceptance. Its content area is a flex column so partSignature's
+  // wrapper can stretch (flex:1) to the full page height and its spacers can
+  // spread the blocks out + pin the closing photo banner to the bottom.
+  html += '<div class="rp-body rp-page" style="display:flex;flex-direction:column;background:linear-gradient(180deg,#fafbfc,#f1f5f9)">'+
+      '<div class="rp-page-content" style="flex:1;display:flex;flex-direction:column">'+partSignature+'</div>'+
+      pageFooterHtml +
+    '</div>';
   }
 
   // ── Summary bar (always shown at the bottom) ──
