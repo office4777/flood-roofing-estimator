@@ -12063,22 +12063,20 @@ function edHeading(num, eyebrow, title, opts){
   var eyebrowText = ch ? '' : (eyebrow || '');
   // Solid brand-ink panel: an accent rule + optional step tracker on top,
   // then a large chapter number + eyebrow + italic title.
-  return '<div class="ed-heading-band"'+(ch?' data-step="'+ch.step+'"':'')+(_tocTitle?' data-toc-title="'+esc2(_tocTitle)+'"':'')+(ch?' data-toc-num="'+ch.step+'"':'')+' style="margin:'+topMargin+' -36px 22px;background:var(--ed-paper);color:var(--ed-ink);border-bottom:1px solid var(--ed-line);position:relative;overflow:hidden">'+
+  return '<div class="ed-heading-band"'+(ch?' data-step="'+ch.step+'"':'')+(_tocTitle?' data-toc-title="'+esc2(_tocTitle)+'"':'')+(ch?' data-toc-num="'+ch.step+'"':'')+' style="margin:'+topMargin+' -36px 22px;background:var(--ed-ink);color:#fff;position:relative;overflow:hidden">'+
     '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:'+accent+';z-index:1"></div>'+
     tracker +
     '<div style="padding:18px 36px;position:relative">'+
-      // (Decorative header logo removed — the band now blends with the cream
-      //  page, and the white-background logo would show as a white box on it.
-      //  The page-1 letterhead still carries the logo prominently.)
-      '<div style="display:flex;align-items:center;gap:20px;position:relative;padding-right:24px">'+
+      '<img src="brand/logo_wide_white.png" onerror="this.style.display=\'none\'" alt="" style="position:absolute;right:36px;top:50%;transform:translateY(-50%);height:34px;width:auto;opacity:.9;pointer-events:none">'+
+      '<div style="display:flex;align-items:center;gap:20px;position:relative;padding-right:150px">'+
         // Big chapter/page number with a small "of N pages" beside it.
         '<div class="ed-number" style="flex-shrink:0;color:'+accent+';line-height:1;display:flex;align-items:baseline;gap:8px;white-space:nowrap">'+
           '<span style="font-size:'+(ch?'78px':'30px')+';font-weight:'+(ch?'800':'400')+'">'+esc2(bigNum)+'</span>'+
-          (ch ? '<span style="font-family:var(--ed-sans);font-size:12px;font-weight:600;letter-spacing:.05em;color:var(--ed-text2)">of '+chapters.length+' pages</span>' : '')+
+          (ch ? '<span style="font-family:var(--ed-sans);font-size:12px;font-weight:600;letter-spacing:.05em;color:rgba(255,255,255,.7)">of '+chapters.length+' pages</span>' : '')+
         '</div>'+
         '<div style="flex:1">'+
           (eyebrowText ? '<div class="ed-eyebrow" style="color:'+accent+';font-size:9.5px;letter-spacing:.16em">'+esc2(eyebrowText)+'</div>' : '')+
-          '<div class="ed-title ed-h2" style="color:var(--ed-ink);font-style:italic;font-size:28px">'+title+'</div>'+
+          '<div class="ed-title ed-h2" style="color:#fff;font-style:italic;font-size:28px">'+title+'</div>'+
         '</div>'+
       '</div>'+
     '</div>'+
@@ -13203,7 +13201,7 @@ function refreshQuoteProposal(){
   var brandMarkHtml = br.logo_data_url
     ? '<img src="'+esc2(br.logo_data_url)+'" alt="logo" style="height:54px;max-width:180px;display:block;flex-shrink:0;object-fit:contain">'
     : '<img src="'+esc2(brandLogo)+'" onerror="this.style.display=\'none\'" alt="" style="height:54px;width:54px;border-radius:6px;display:block;flex-shrink:0;object-fit:cover">';
-  var headerHtml = '<div class="rp-header" style="display:flex;align-items:center;justify-content:space-between;gap:18px">'+
+  var headerHtml = '<div class="rp-header" style="display:flex;align-items:center;justify-content:space-between;gap:18px;background:var(--ed-paper)">'+
     '<div style="display:flex;align-items:center;gap:14px">'+
       brandMarkHtml +
       '<div>'+
