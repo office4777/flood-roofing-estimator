@@ -1025,6 +1025,41 @@ select{
    inside the fixed slide-out — neutralise the panel chrome while printing. */
 html.print-scope #quotePricingPanel{ position:static!important; transform:none!important; width:auto!important; box-shadow:none!important; border:none!important; display:block!important; }
 html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .qpx-hd{ display:none!important; }
+/* Fergus job photos slide-out (Map Roof tab) — a resizable side pop-out so
+   the site photos sit next to the canvas while drawing. Drag its left edge to
+   set how far it comes out; a zoom slider scales the photos. */
+#fergusRoofPanel{
+  position:fixed; top:70px; right:0; bottom:16px;
+  width:var(--fr-photos-w,40vw); min-width:200px; max-width:96vw; z-index:69;
+  background:#0a1628; border:1px solid #10233c; border-right:none;
+  border-radius:12px 0 0 12px; box-shadow:-8px 10px 34px rgba(0,0,0,.32);
+  transform:translateX(100%); transition:transform .28s ease;
+  display:none; flex-direction:column; overflow:hidden;
+}
+#fergusRoofPanel.is-open{ transform:translateX(0); }
+#fergusRoofPanel.is-resizing{ transition:none; user-select:none; }
+#fergusRoofPanelToggle{
+  position:absolute; left:-46px; top:16px; width:46px; height:150px;
+  background:#0099cc; color:#fff; border:none; border-radius:10px 0 0 10px;
+  cursor:pointer; font-size:11px; font-weight:700; letter-spacing:.05em;
+  padding:8px 0 10px; display:flex; flex-direction:column; align-items:center;
+  justify-content:space-between; gap:6px; box-shadow:-3px 4px 12px rgba(0,153,204,.35);
+  transition:background .15s;
+}
+#fergusRoofPanelToggle:hover{ background:#007bab; }
+#fergusRoofPanelToggle .frp-arrow{ font-size:16px; line-height:1; transition:transform .28s ease; display:block; }
+#fergusRoofPanel.is-open #fergusRoofPanelToggle .frp-arrow{ transform:rotate(180deg); }
+#fergusRoofPanelToggle .frp-text{ writing-mode:vertical-rl; text-orientation:mixed; font-weight:700; }
+#fergusRoofPanelResize{
+  position:absolute; left:0; top:0; bottom:0; width:12px; cursor:ew-resize; z-index:3;
+  display:flex; align-items:center; justify-content:center; touch-action:none;
+}
+#fergusRoofPanelResize::after{ content:''; width:4px; height:52px; border-radius:3px; background:rgba(255,255,255,.35); transition:background .15s; }
+#fergusRoofPanelResize:hover::after{ background:#0099cc; height:80px; }
+#fergusRoofPanel .frp-hd{ padding:11px 14px 11px 20px; border-bottom:1px solid rgba(255,255,255,.12); color:#fff; }
+#fergusRoofPhotoScroll{ flex:1; overflow:auto; padding:10px 12px 16px 18px; -webkit-overflow-scrolling:touch; }
+#fergusRoofPhotoGrid{ width:var(--frp-zoom,100%); display:grid; grid-template-columns:1fr; gap:10px; align-content:start; }
+html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!important; }
 #jpMapPanel{
   position:fixed; top:88px; right:0; bottom:24px;
   width:240px; z-index:60;
@@ -2147,19 +2182,9 @@ html.customer-view{ overflow-x:hidden; }
     </div>
     </div><!-- end roofBgBody -->
 
-    <!-- Fergus Roof Photos — a collapsible strip of the linked Fergus job's
-         site photos so they're glanceable while drawing the roof map. Auto-
-         loads when the tab opens (if a job is linked); click the header to
-         drop it down and click any photo to enlarge it. -->
-    <div id="fergusRoofPhotosBox" style="margin-top:10px;border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden">
-      <div onclick="_toggleFergusRoofPhotos()" role="button" tabindex="0" style="display:flex;align-items:center;gap:9px;cursor:pointer;padding:10px 12px;user-select:none">
-        <span style="font-weight:700;font-size:13px;color:#0a1628">📷 Fergus Roof Photos</span>
-        <span id="fergusRoofPhotosCount" style="font-size:11px;font-weight:600;color:#0099cc"></span>
-        <span style="font-weight:400;color:var(--text2);font-size:11px">— view the job's site photos while you draw</span>
-        <span id="fergusRoofPhotosChevron" style="margin-left:auto;font-size:12px;color:#94a3b8">▾</span>
-      </div>
-      <div id="fergusRoofPhotosBody" style="display:none;padding:0 12px 12px"></div>
-    </div>
+    <!-- Fergus Roof Photos moved to the resizable side pop-out (#fergusRoofPanel,
+         defined below, outside this tab). It slides out next to the canvas so
+         the crew can compare the site photos while drawing. -->
 
     <!-- Full-size satellite finder popup — the interactive map lives here
          so the Map Roof tab opens straight to the canvas. Opened from the
@@ -2731,6 +2756,30 @@ html.customer-view{ overflow-x:hidden; }
     <button onclick="_closePricingPanel()" title="Close" style="margin-left:10px;background:none;border:none;color:var(--text2);font-size:16px;cursor:pointer;line-height:1">✕</button>
   </div>
   <div id="quotePricingHost"></div>
+</aside>
+
+<!-- Fergus job photos slide-out — Map Roof tab. Resizable (drag the left edge),
+     photos auto-fit the width, zoom slider scales them. -->
+<aside id="fergusRoofPanel" class="no-print">
+  <button id="fergusRoofPanelToggle" onclick="_fergusPanelToggle()" title="Fergus job photos — compare while you draw">
+    <span class="frp-arrow">◀</span>
+    <span class="frp-text">PHOTOS</span>
+  </button>
+  <div id="fergusRoofPanelResize" onpointerdown="_fergusPanelResizeStart(event)" title="Drag to resize"></div>
+  <div class="frp-hd">
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
+      <span style="font-size:13px;font-weight:700">📷 Fergus job photos</span>
+      <span id="fergusRoofPanelCount" style="font-size:11px;font-weight:600;color:#4fc3ff"></span>
+      <button onclick="_loadFergusRoofPhotos(true)" title="Refresh from Fergus" style="margin-left:auto;background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:600;cursor:pointer">↻</button>
+      <button onclick="_fergusPanelClose()" title="Close" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:6px;width:26px;height:26px;font-size:14px;line-height:1;cursor:pointer">✕</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:9px">
+      <span style="font-size:11px;color:rgba(255,255,255,.65);white-space:nowrap">🔍 Zoom</span>
+      <input id="fergusRoofPanelZoom" type="range" min="100" max="400" step="10" value="100" oninput="_fergusPanelZoom(this.value)" style="flex:1;accent-color:#0099cc">
+      <span id="fergusRoofPanelZoomOut" style="font-size:11px;color:#fff;min-width:38px;text-align:right;font-variant-numeric:tabular-nums">100%</span>
+    </div>
+  </div>
+  <div id="fergusRoofPhotoScroll"><div id="fergusRoofPhotoGrid"></div></div>
 </aside>
 
 <!-- TAB 3: MATERIALS -->
@@ -4541,6 +4590,13 @@ function gotoTab(t) {
     if(!_pp) return;
     if(t==='quote'){ _pp.style.display='flex'; try{_pricingPanelInit();}catch(e){} }
     else { _pp.style.display='none'; _pp.classList.remove('is-open'); }
+  })();
+  // Fergus job-photos slide-out is available only on the Map Roof tab.
+  (function(){
+    var _fp=document.getElementById('fergusRoofPanel');
+    if(!_fp) return;
+    if(t==='roof'){ _fp.style.display='flex'; try{ var _w=localStorage.getItem('fr_fergus_panel_w'); if(_w) _fp.style.width=_w; }catch(e){} }
+    else { _fp.style.display='none'; _fp.classList.remove('is-open'); }
   })();
   if(t==='roof'){
     // Pre-load the linked job's Fergus photos so the "Fergus Roof Photos"
@@ -30636,101 +30692,105 @@ function _fergusRoofPhotosRevoke(){
 // Called from gotoTab('roof'): keeps the box collapsed but pre-loads the
 // photos so the drop-down is instant. Reloads when the linked job changes.
 function _fergusRoofPhotosOnTabOpen(){
-  var box = document.getElementById('fergusRoofPhotosBox');
-  if (!box) return;
+  var panel = document.getElementById('fergusRoofPanel');
+  if (!panel) return;
   var jobId = (window.S && S.linkedJobId) || null;
   // Job changed (or first open) — invalidate any cached grid.
   if (jobId !== _fergusRoofPhotosJobId){
     _fergusRoofPhotosLoaded = false;
     _fergusRoofPhotosJobId = jobId;
-    var cnt0 = document.getElementById('fergusRoofPhotosCount'); if (cnt0) cnt0.textContent = '';
-    var body0 = document.getElementById('fergusRoofPhotosBody'); if (body0) body0.innerHTML = '';
+    var cnt0 = document.getElementById('fergusRoofPanelCount'); if (cnt0) cnt0.textContent = '';
+    var grid0 = document.getElementById('fergusRoofPhotoGrid'); if (grid0) grid0.innerHTML = '';
   }
   if (!jobId) return;                 // nothing to load until a job is linked
   if (_fergusRoofPhotosLoaded) return; // already have it
   _loadFergusRoofPhotos(false);
 }
-// Cap the photo scroll box at exactly two rows tall — measure a rendered
-// tile (its height comes from the 4:3 aspect-ratio the moment it has a
-// width) and set max-height to two rows + one gap. Must run while the box
-// is VISIBLE, else the tile measures 0 (pre-load happens collapsed).
-function _fergusRoofPhotosCap(){
-  var g = document.getElementById('fergusRoofPhotoGrid');
-  if (!g || !g.firstChild) return;
-  var th = g.firstChild.getBoundingClientRect().height;
-  if (th <= 0) return;
-  // Show one big photo plus a small peek of the next (so it's clearly
-  // scrollable), but never taller than ~80% of the viewport.
-  var oneAndPeek = Math.round(th + 34);
-  var vpCap = Math.round((window.innerHeight || 800) * 0.8);
-  g.style.maxHeight = Math.min(oneAndPeek, vpCap) + 'px';
-}
-function _toggleFergusRoofPhotos(){
-  var body = document.getElementById('fergusRoofPhotosBody');
-  var chev = document.getElementById('fergusRoofPhotosChevron');
-  if (!body) return;
-  var open = body.style.display !== 'none';
-  if (open){ body.style.display = 'none'; if (chev) chev.textContent = '▾'; return; }
-  body.style.display = 'block'; if (chev) chev.textContent = '▴';
-  // Load on first expand if the tab-open pre-load hasn't run (or was empty).
+// ── Fergus photos side pop-out (open / close / resize / zoom) ──────────
+function _fergusPanelOpen(){
+  var p = document.getElementById('fergusRoofPanel'); if (!p) return;
+  p.style.display = 'flex';
+  try { var w = localStorage.getItem('fr_fergus_panel_w'); if (w) p.style.width = w; } catch(e){}
+  requestAnimationFrame(function(){ p.classList.add('is-open'); });
   if (!_fergusRoofPhotosLoaded) _loadFergusRoofPhotos(false);
-  // Now that the box is visible, cap it to two rows (the pre-load ran while
-  // collapsed, so the tiles measured 0 then — measure again now).
-  requestAnimationFrame(_fergusRoofPhotosCap);
+}
+function _fergusPanelClose(){
+  var p = document.getElementById('fergusRoofPanel'); if (p) p.classList.remove('is-open');
+}
+function _fergusPanelToggle(){
+  var p = document.getElementById('fergusRoofPanel'); if (!p) return;
+  if (p.classList.contains('is-open')) _fergusPanelClose(); else _fergusPanelOpen();
+}
+// Drag the panel's left edge to set how far it comes out (right-anchored, so
+// width = viewport-right − pointer-x). Persisted so it stays put next time.
+function _fergusPanelResizeStart(e){
+  var panel = document.getElementById('fergusRoofPanel'); if (!panel) return;
+  e.preventDefault();
+  panel.classList.add('is-resizing');
+  function mv(ev){
+    var w = window.innerWidth - ev.clientX;
+    w = Math.max(200, Math.min(Math.round(window.innerWidth * 0.96), w));
+    panel.style.width = w + 'px';
+  }
+  function up(){
+    panel.classList.remove('is-resizing');
+    window.removeEventListener('pointermove', mv);
+    window.removeEventListener('pointerup', up);
+    try { localStorage.setItem('fr_fergus_panel_w', panel.style.width); } catch(e){}
+  }
+  window.addEventListener('pointermove', mv);
+  window.addEventListener('pointerup', up);
+}
+// Zoom slider (100–400%) scales the photo column width; the scroll box pans.
+function _fergusPanelZoom(v){
+  var g = document.getElementById('fergusRoofPhotoGrid');
+  var out = document.getElementById('fergusRoofPanelZoomOut');
+  var z = parseInt(v, 10); if (!isFinite(z) || z < 100) z = 100;
+  if (g) g.style.setProperty('--frp-zoom', z + '%');
+  if (out) out.textContent = z + '%';
 }
 async function _loadFergusRoofPhotos(force){
-  var body = document.getElementById('fergusRoofPhotosBody');
-  var cnt  = document.getElementById('fergusRoofPhotosCount');
-  if (!body) return;
+  var grid = document.getElementById('fergusRoofPhotoGrid');
+  var cnt  = document.getElementById('fergusRoofPanelCount');
+  if (!grid) return;
   if (_fergusRoofPhotosLoaded && !force) return;
+  var msg = function(html){ grid.style.width = '100%'; grid.innerHTML = '<div style="color:rgba(255,255,255,.82);font-size:12.5px;line-height:1.55;padding:6px 2px">'+html+'</div>'; };
+  var _retry = ' <button onclick="_loadFergusRoofPhotos(true)" style="margin-left:6px;padding:3px 9px;background:#0099cc;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">↻ Retry</button>';
   if (!window.S || !S.linkedJobId){
     if (cnt) cnt.textContent = '';
-    body.innerHTML = '<div style="padding:14px 2px;color:var(--text2);font-size:12px;line-height:1.5">'+
-      'Link a Fergus job to see its photos here — <strong>Home → 📂 Select Job → Fergus</strong>.</div>';
+    msg('Link a Fergus job to see its photos here — <strong>Home → 📂 Select Job → Fergus</strong>.');
     return;
   }
   _fergusRoofPhotosJobId = S.linkedJobId;
-  var _retry = ' <button onclick="_loadFergusRoofPhotos(true)" style="margin-left:6px;padding:3px 9px;background:#0a1628;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">↻ Retry</button>';
-  body.innerHTML = '<div style="padding:14px 2px;color:var(--text2);font-size:12px">Loading photos from Fergus…</div>';
+  msg('Loading photos from Fergus…');
   var res;
   try { res = await _fergusListPhotos(); }
-  catch(e){ body.innerHTML = '<div style="padding:12px 2px;color:#b91c1c;font-size:12px">Couldn\'t reach Fergus: '+esc(e.message)+_retry+'</div>'; return; }
+  catch(e){ msg('<span style="color:#fca5a5">Couldn\'t reach Fergus: '+esc(e.message)+'</span>'+_retry); return; }
   if (!res.ok || !res.files.length){
     if (cnt) cnt.textContent = '';
-    body.innerHTML = '<div style="padding:12px 2px;color:var(--text2);font-size:12px;line-height:1.5">'+
-      '<span style="color:#b91c1c;font-weight:600">No photos came back for this job.</span><br>'+
-      'Fergus may keep this job\'s gallery behind its web-app login.'+_retry+'</div>';
+    msg('<span style="color:#fca5a5;font-weight:600">No photos came back for this job.</span><br>Fergus may keep this job\'s gallery behind its web-app login.'+_retry);
     return;
   }
   _fergusRoofPhotosLoaded = true;
   _fergusRoofPhotosRevoke();
   if (cnt) cnt.textContent = res.files.length + ' photo' + (res.files.length === 1 ? '' : 's');
-  body.innerHTML =
-    '<div style="display:flex;justify-content:flex-end;margin-bottom:6px">'+
-      '<button onclick="_loadFergusRoofPhotos(true)" style="padding:4px 10px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;font-weight:600;color:#0a1628;cursor:pointer">↻ Refresh</button>'+
-    '</div>'+
-    // One big photo per row. Rows are their natural (4:3) height and stack
-    // normally; the box is capped to about one photo below (once a tile's
-    // height is known), so one big photo shows and the rest scroll into view.
-    '<div id="fergusRoofPhotoGrid" style="display:grid;grid-template-columns:1fr;gap:10px;overflow-y:auto;align-content:start"></div>';
-  var grid = document.getElementById('fergusRoofPhotoGrid');
+  // Photos fill the panel width (grid width follows the zoom var); each keeps
+  // its aspect ratio and stacks vertically — the scroll box pans when zoomed.
+  grid.innerHTML = '';
   res.files.forEach(function(f){
     var cell = document.createElement('div');
-    cell.style.cssText = 'cursor:zoom-in;border-radius:8px;overflow:hidden;background:#0a1628;aspect-ratio:4/3;position:relative';
-    cell.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#5b6677;font-size:10px">loading…</div>';
+    cell.style.cssText = 'cursor:zoom-in;border-radius:8px;overflow:hidden;background:#08111f;position:relative;width:100%';
+    cell.innerHTML = '<div style="width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:#5b6677;font-size:10px">loading…</div>';
     cell.onclick = function(){ _fergusRoofPhotoLightbox(f); };
     grid.appendChild(cell);
     _fergusDownloadBlob(f.thumbnail || f.url).then(function(blob){
       var u = URL.createObjectURL(blob); _fergusRoofPhotoUrls.push(u);
-      cell.innerHTML = '<img src="'+u+'" loading="lazy" style="width:100%;height:100%;object-fit:cover">'+
+      cell.innerHTML = '<img src="'+u+'" loading="lazy" style="width:100%;height:auto;display:block">'+
         (f.name ? '<div style="position:absolute;bottom:0;left:0;right:0;padding:5px 9px;background:rgba(0,0,0,.6);color:#fff;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(f.name)+'</div>' : '');
     }).catch(function(){
-      cell.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#7a8699;font-size:11px;text-align:center;padding:6px;line-height:1.35">'+esc(f.name || 'photo')+'<br>(tap to view)</div>';
+      cell.innerHTML = '<div style="width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:#7a8699;font-size:11px;text-align:center;padding:6px;line-height:1.35">'+esc(f.name || 'photo')+'<br>(tap to view)</div>';
     });
   });
-  // Cap to two rows now (works when the box is already visible) and on resize.
-  requestAnimationFrame(_fergusRoofPhotosCap);
-  window.addEventListener('resize', function(){ clearTimeout(window._fergusGridCapT); window._fergusGridCapT = setTimeout(_fergusRoofPhotosCap, 150); });
 }
 // Full-size preview of a tapped Fergus photo.
 async function _fergusRoofPhotoLightbox(f){
