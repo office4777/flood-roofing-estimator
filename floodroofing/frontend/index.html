@@ -10326,13 +10326,23 @@ function _scopeInsertAt(insertAt, text){
 var _scopeDrag = null;
 function _scopeDragStart(e, idx){
   e.preventDefault(); e.stopPropagation();
-  _scopeDrag = { from: idx, over: null };
+  // Capture the pointer on the grip so a touch-drag can't be re-interpreted
+  // as a page scroll mid-gesture. Without this the browser fires
+  // pointercancel on touch devices, pointerup never arrives, and the row
+  // silently snaps back — i.e. "the line item won't move".
+  var grip = e.currentTarget || e.target;
+  try { if (grip && grip.setPointerCapture) grip.setPointerCapture(e.pointerId); } catch(_){}
+  _scopeDrag = { from: idx, over: null, grip: grip, pointerId: e.pointerId };
   document.addEventListener('pointermove', _scopeDragMove, { passive: false });
-  document.addEventListener('pointerup', _scopeDragEnd, { once: true });
+  document.addEventListener('pointerup', _scopeDragEnd);
+  // A stray pointercancel (browser reclaiming the gesture) must still tear the
+  // drag down and apply the drop, not leave it hanging.
+  document.addEventListener('pointercancel', _scopeDragEnd);
   var row = document.querySelector('#qpRoot [data-scope-row="' + idx + '"]');
   if (row) row.style.opacity = '.45';
 }
 function _scopeDragRowAt(x, y){
+  if (!isFinite(x) || !isFinite(y)) return null;
   var el = document.elementFromPoint(x, y);
   return el && el.closest ? el.closest('[data-scope-row]') : null;
 }
@@ -10346,10 +10356,15 @@ function _scopeDragMove(e){
 }
 function _scopeDragEnd(e){
   document.removeEventListener('pointermove', _scopeDragMove);
+  document.removeEventListener('pointerup', _scopeDragEnd);
+  document.removeEventListener('pointercancel', _scopeDragEnd);
   var d = _scopeDrag; _scopeDrag = null;
   Array.prototype.forEach.call(document.querySelectorAll('#qpRoot [data-scope-row]'), function (r) { r.style.boxShadow = ''; r.style.opacity = ''; });
   if (!d) return;
-  var row = _scopeDragRowAt(e.clientX, e.clientY);
+  try { if (d.grip && d.grip.releasePointerCapture && d.pointerId != null) d.grip.releasePointerCapture(d.pointerId); } catch(_){}
+  // Prefer the row under the release point; fall back to the last row we
+  // hovered (pointercancel may not carry usable coordinates).
+  var row = e ? _scopeDragRowAt(e.clientX, e.clientY) : null;
   var to = row ? parseInt(row.getAttribute('data-scope-row'), 10) : (isFinite(d.over) ? d.over : -1);
   if (!isFinite(to) || to < 0 || to === d.from) { return; }
   _scopeMove(d.from, to);
@@ -13906,7 +13921,7 @@ function refreshQuoteProposal(){
     // subheadings and restart the numbering; the rest are numbered inclusions.
     // Edits write back to S.quote.scope by original line index.
     var _mkDel = function(idx){ return '<button type="button" class="no-print" onclick="_scopeDelLine('+idx+')" title="Delete line" style="flex-shrink:0;background:none;border:none;color:#c0392b;cursor:pointer;font-size:14px;line-height:1;opacity:.55;padding:0 2px">×</button>'; };
-    var _mkGrip = function(idx){ return '<span class="no-print" onpointerdown="_scopeDragStart(event,'+idx+')" title="Drag to reorder" style="flex-shrink:0;cursor:grab;color:#b4bcc6;font-size:13px;line-height:1.6;touch-action:none;user-select:none;-webkit-user-select:none;padding:0 1px">⠿</span>'; };
+    var _mkGrip = function(idx){ return '<span class="no-print" onpointerdown="_scopeDragStart(event,'+idx+')" title="Drag to reorder" style="flex-shrink:0;cursor:grab;color:#b4bcc6;font-size:15px;line-height:1.4;touch-action:none;user-select:none;-webkit-user-select:none;padding:4px 6px;margin:-4px -2px -4px -4px;-webkit-tap-highlight-color:transparent">⠿</span>'; };
     var _mkEdit = function(idx, cls, style){ return '<div class="qp-scope-edit '+cls+'" contenteditable="true" spellcheck="true" data-scope-idx="'+idx+'" onblur="_scopeLineBlur(this)" onkeydown="_scopeLineKey(event,this)" style="flex:1;outline:none;'+style+'">'; };
     var _mkAdd = function(insertAt, label){ return '<button type="button" class="no-print" onclick="_scopeInsertAt('+insertAt+',\''+esc2(label==='warranty'?'New warranty line':'New inclusion')+'\')" style="margin:8px 0 2px;background:none;border:1px dashed var(--ed-line);border-radius:5px;color:var(--ed-accent);cursor:pointer;font-size:11px;padding:5px 12px;font-family:var(--ed-sans);letter-spacing:.03em">+ Add '+(label==='warranty'?'warranty line':'line')+'</button>'; };
     var inclList;
