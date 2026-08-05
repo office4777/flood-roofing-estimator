@@ -8712,6 +8712,11 @@ function renderGutterDownpipePricing(){
   var dVal = (isFinite(dOv) && dOv >= 0) ? dOv : dComputed;
   var money = function(n){ return '$' + (parseFloat(n)||0).toFixed(2); };
   var hasOv = (isFinite(gOv) && gOv >= 0) || (isFinite(dOv) && dOv >= 0);
+  // Selecting a gutter upgrades the site from edge protection to a full working
+  // platform — an extra 25% on the standard scaffolding price. Fold that into
+  // the guttering cost shown here so the office sees the true all-in figure.
+  var scaffBase = (typeof _selScaffoldBasePrice === 'function') ? _selScaffoldBasePrice() : 0;
+  var scUp = 0.25 * (parseFloat(scaffBase) || 0);
   wrap.innerHTML =
     '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">'+esc(gname)+' · '+lm.toFixed(1)+' lm × $'+rate+'/lm'+(dOn ? (' &nbsp;·&nbsp; downpipes '+lines+' × $'+SEL_DOWNPIPE_PER_LINE+'/line') : '')+' <span style="color:var(--text3)">(ex GST)</span></div>'+
     '<div class="f2">'+
@@ -8719,9 +8724,14 @@ function renderGutterDownpipePricing(){
       '<div><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" '+(dOn?'checked':'')+' onchange="_toggleDownpipesPricing(this.checked)" style="width:auto;margin:0"> New downpipes</label>'+
         '<input type="number" step="1" min="0" '+(dOn?'':'disabled')+' value="'+dVal.toFixed(2)+'" onchange="_setDownpipePriceOverride(this.value)" style="'+(dOn?'':'opacity:.5')+'"><div style="font-size:10.5px;color:var(--text3);margin-top:2px">computed '+money(dComputed)+'</div></div>'+
     '</div>'+
+    (scUp > 0 ?
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 12px;margin-top:8px;font-size:12px;color:var(--text2)">'+
+        '<span>Platform scaffolding upgrade <span style="color:var(--text3)">(edge protection → platform · +25% of scaffold '+money(scaffBase)+')</span></span>'+
+        '<span style="font-weight:600;color:var(--text)">+'+money(scUp)+'</span>'+
+      '</div>' : '')+
     '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin-top:10px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
-      '<strong style="font-size:12px">Guttering + downpipes (ex GST)</strong>'+
-      '<span style="font-weight:700;color:#2e7d32">'+money(gVal + (dOn ? dVal : 0))+'</span>'+
+      '<strong style="font-size:12px">Guttering'+(scUp>0?' + scaffold upgrade':'')+(dOn?' + downpipes':'')+' (ex GST)</strong>'+
+      '<span style="font-weight:700;color:#2e7d32">'+money(gVal + scUp + (dOn ? dVal : 0))+'</span>'+
     '</div>'+
     (hasOv ? '<div style="text-align:right;margin-top:6px"><button type="button" onclick="_clearGutterDownpipeOverrides()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline">↻ Reset to computed prices</button></div>' : '');
 }
@@ -14012,8 +14022,13 @@ function refreshQuoteProposal(){
       var _spP = S.quote.selectionPrices || {};
       var _gpP = S.quote.gutterPrices || {};
       var _dIncl = function(exGst){ return (parseFloat(exGst)||0) * (1+_selRate); };
+      // The grade the base quote was priced at is the "standard · included"
+      // one; every other grade (Maxam included) shows its +/− difference from
+      // it. Maxam was previously hard-pinned to "included", so when the quote
+      // was built on a cheaper grade (e.g. Armorsteel) Maxam showed no figure.
+      var _baseGrade = (S.quote.baseGrade) || 'maxam';
       var GRADES = [
-        { id:'maxam',     label:'Colorsteel® MAXAM',     isDefault:true, delta:0, desc:'NZ Steel\'s newest, with the Activate™ aluminium-zinc-magnesium coating. Best corrosion resistance available.',
+        { id:'maxam',     label:'Colorsteel® MAXAM',     isDefault:(_baseGrade==='maxam'), delta:_dIncl(_selGradeDelta('maxam')), desc:'NZ Steel\'s newest, with the Activate™ aluminium-zinc-magnesium coating. Best corrosion resistance available.',
           warranty:'<strong>Up to 50 yrs perforation</strong> in mild zones (>5km from breaking surf); 30/15/5 yr stepped warranty as exposure rises.' },
         { id:'colorzen',  label:'Armorsteel ColorZen',   delta:_dIncl(_selGradeDelta('colorzen')), desc:'Solid mid-tier prepainted steel — proven coating, broad colour range.',
           warranty:'<strong>30 yr warranty</strong> in mild and very-mild environments (manufacturer specs).' },
