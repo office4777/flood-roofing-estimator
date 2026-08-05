@@ -10025,16 +10025,28 @@ function _qpSelectionDeltaSum(){
 // The options that count toward the quote: the FIRST option is the main
 // roof and is always included; every option after it is an optional extra
 // roof that only counts once the customer opts in (selected === true).
+// True once the quote is priced through the live line items (Labour /
+// Materials / Scaffolding synced from the Pricing tab, plus any manual lines).
+// The legacy multi-option A/B/C layout is retired, so whenever the quote has a
+// line-item price that is the single source of truth and any stale template
+// `options` are ignored — otherwise the office's live pricing never reached the
+// Selections / Acceptance pages (they read the frozen option totals instead).
+function _qpPricedByLineItems(){
+  return ((typeof quoteSubtotal === 'function') ? quoteSubtotal() : 0) > 0;
+}
 function _qpSelectedOptions(){
+  if (_qpPricedByLineItems()) return [];
   var all = (S.quote && S.quote.options) || [];
   return all.filter(function(o, i){
     return i === 0 ? (o.selected !== false) : (o.selected === true);
   });
 }
 function _qpBaseSub(){
-  var all = (S.quote && S.quote.options) || [];
-  if (all.length) return _qpSelectedOptions().reduce(function(s, o){ return s + _optEffectiveTotal(o); }, 0);
-  return (typeof quoteSubtotal === 'function') ? quoteSubtotal() : 0;
+  var liSub = (typeof quoteSubtotal === 'function') ? quoteSubtotal() : 0;
+  if (liSub > 0) return liSub;
+  var sel = _qpSelectedOptions();
+  if (sel.length) return sel.reduce(function(s, o){ return s + _optEffectiveTotal(o); }, 0);
+  return liSub;
 }
 // ── THE quote totals — single source of truth ────────────────────
 // Every figure on every proposal page (price card, Selections
@@ -14178,7 +14190,10 @@ function refreshQuoteProposal(){
       // The "main scope of work" base is the FIRST roof / option only; each
       // additional roof the customer has ticked shows as its own +line so
       // the price reads as main roof + optional extras + spec upgrades.
-      var _optsAll   = (S.quote.options || []);
+      // Legacy options are ignored once the quote is priced via line items, so
+      // the Selections-page base mirrors the Pricing tab (main roof = line-item
+      // total) and extra roofs come from S.quote.extraRoofs, not stale options.
+      var _optsAll   = _qpPricedByLineItems() ? [] : (S.quote.options || []);
       var _mainOpt   = _optsAll[0] || null;
       var _extraOpts = _optsAll.slice(1);
       var _selBaseTot = (_mainOpt ? _optEffectiveTotal(_mainOpt) : _qpBaseSub()) * (1+_selRate);
