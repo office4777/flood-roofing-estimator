@@ -13244,14 +13244,17 @@ function refreshQuoteProposal(){
     // Cover hero — explicitly assigned slot wins, otherwise we show
     // the real Flood Roofing winter-crew team photo (strong cover
     // hero — full crew lined up in front of the branded fleet).
-    var heroAsn = (S.imageSlots && S.imageSlots.cover_hero);
-    // Default hero is the crew band crop — tight from just above the
-    // fleet of utes down to just below the team's knees, kept full
-    // page width (1100×322, ≈3.42:1) so the crew + branded utes read
-    // as one strong horizontal banner.
-    // Default hero = the clean fleet-lineup shot (drop the file in at
-    // brand/fleet_lineup.jpg). Falls back to the crew photo until it's added.
-    var hero = (heroAsn ? resolveSlotSrc('cover_hero') : null) || 'brand/fleet_lineup.jpg';
+    // Cover hero: use the photo the office assigned to the "Cover hero" image
+    // slot (Quote → cover image → upload) if any, else the branded fleet shot.
+    // Read the assignment from the quote's own slot map — the old code checked
+    // a global S.imageSlots that assignments are never written to, so an
+    // uploaded cover hero silently never applied. Only an EXPLICIT assignment
+    // wins (never auto-fall to job photos, which could be the roof sketch).
+    var _heroAsn = (typeof _slotAssignments === 'function') ? _slotAssignments().cover_hero : null;
+    // Default (1100×322 banner crop) is the real fleet-lineup shot — an EXISTING
+    // brand file, so it can't 404 (the old brand/fleet_lineup.jpg didn't exist,
+    // which is why the hero vanished in the PDF).
+    var hero = (_heroAsn && resolveSlotSrc('cover_hero')) || 'brand/fleet_wide.jpg';
     // Full-bleed hero photo + warm-cream title plate underneath.  All
     // type sits on the cream paper, not over the image, so it reads
     // clean regardless of how dark / colourful the photo is.  The
@@ -13491,8 +13494,9 @@ function refreshQuoteProposal(){
           }).join('')+
         '</div>'+
       '</div>'+
-      // Condition assessment — plain-English, editable.
-      '<div style="margin-bottom:8px;padding:7px 14px;background:var(--ed-paper-2);border-left:3px solid var(--ed-ink)">'+
+      // Condition assessment — plain-English, editable. Plain (no tinted
+      // background) so the page reads cleaner.
+      '<div style="margin-bottom:10px">'+
         '<div class="ed-eyebrow" style="margin-bottom:4px">Condition assessment <span class="qp-edit-hint no-print" style="font-size:9px;font-weight:400;opacity:.7">— click to edit</span></div>'+
         '<div class="qp-editable" contenteditable="true" data-qfield="condAssessment" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11px;line-height:1.5;color:var(--ed-ink-2);min-height:1.4em">'+
           (S.quote.condAssessment ? esc2(S.quote.condAssessment) : '<span class="qp-placeholder" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Choose a fixing type above to load a condition assessment, or write your own…</span>')+
@@ -13501,10 +13505,9 @@ function refreshQuoteProposal(){
       // (Major / minor issue lists removed — the repair vs re-roof table
       //  below covers the same ground and this frees the vertical space
       //  needed to fit two rows of photos on both A4 and US-Letter paper.)
-      // Why repairs won't work + repair vs re-roof table.
+      // Repair vs re-roof comparison table (the "Why a Repair Won't Solve It"
+      // heading + blurb were removed to declutter the page).
       '<div style="margin-bottom:8px">'+
-        '<div class="ed-eyebrow" style="margin-bottom:4px">Why a Repair Won\'t Solve It</div>'+
-        '<div style="font-family:var(--ed-sans);font-size:10.5px;font-style:italic;color:var(--ed-ink-2);margin-bottom:5px;line-height:1.35">A leak is only a symptom — the failed fixings and ageing materials underneath are the real problem, so patch repairs keep coming back, and the perished underlay lets condensation build up and drive damp and mould into the home.</div>'+
         cmpTable+
       '</div>'+
       // Strong recommendation — subtle accent-tinted callout.
@@ -29301,6 +29304,44 @@ function _pdfAddSlicedCanvas(pdf, canvas, pageW, pageH){
 // proposal page (#qpRoot .rp-header / .rp-page) the same way the Job Pack
 // PDF captures its designer pages, so "Email Quote" and "Push to Fergus" on
 // the Quote tab both carry the real printed proposal. Returns a jsPDF or null.
+// html2canvas often drops <img> heroes (object-fit + onerror fallbacks) — the
+// captured PDF shows the container's dark background instead of the photo. To
+// make every proposal image render reliably, pre-draw each loaded image onto a
+// canvas (honouring its on-screen cover/contain crop) and swap in that data
+// URL for the capture, then restore. Cross-origin images that would taint the
+// canvas are left untouched. Returns a restore fn.
+function _inlineCoverImagesForPdf(root){
+  var restores = [];
+  var imgs = Array.prototype.slice.call(root.querySelectorAll('img'));
+  imgs.forEach(function(img){
+    try {
+      if (!img.complete || !img.naturalWidth || !img.naturalHeight) return;
+      var src = img.getAttribute('src') || '';
+      if (src.indexOf('data:') === 0) return;   // already inline
+      var r = img.getBoundingClientRect();
+      var w = Math.round(r.width), h = Math.round(r.height);
+      if (w < 2 || h < 2) return;
+      var fit = getComputedStyle(img).objectFit || 'fill';
+      var iw = img.naturalWidth, ih = img.naturalHeight;
+      var scale = (fit === 'contain') ? Math.min(w/iw, h/ih)
+                : (fit === 'cover')   ? Math.max(w/iw, h/ih)
+                : 1;   // fill / none → let drawImage stretch to the box
+      var c = document.createElement('canvas'); c.width = w; c.height = h;
+      var ctx = c.getContext('2d');
+      if (fit === 'cover' || fit === 'contain'){
+        var dw = iw*scale, dh = ih*scale;
+        ctx.drawImage(img, (w-dw)/2, (h-dh)/2, dw, dh);
+      } else {
+        ctx.drawImage(img, 0, 0, w, h);
+      }
+      var url = c.toDataURL('image/jpeg', 0.92);   // throws if the img tainted the canvas
+      restores.push({ img: img, src: src, fit: img.style.objectFit });
+      img.src = url; img.style.objectFit = 'fill';
+    } catch(e){ /* tainted / cross-origin — leave the original img as-is */ }
+  });
+  return function(){ restores.forEach(function(x){ img_restore(x); }); };
+  function img_restore(x){ try { x.img.src = x.src; x.img.style.objectFit = x.fit || ''; } catch(e){} }
+}
 async function _buildQuotePdf(opts){
   opts = opts || {};
   var _capScale = opts.scale || 2;   // lower = faster render (used for the accept-email PDF)
@@ -29338,6 +29379,10 @@ async function _buildQuotePdf(opts){
   var savedScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
   window.scrollTo(0, 0);
   await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+  // Inline every loaded image as a cover-cropped data URL so html2canvas can't
+  // drop the cover hero / photos. Restored right after capture.
+  var _restoreImgs = function(){};
+  try { _restoreImgs = _inlineCoverImagesForPdf(root); } catch(e){}
 
   var pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
   var pageW = 210, pageH = 297;
@@ -29355,11 +29400,13 @@ async function _buildQuotePdf(opts){
     }
   } catch(err){
     console.error('Quote PDF render failed:', err);
+    try { _restoreImgs(); } catch(e){}
     document.documentElement.classList.remove('pdf-rendering');
     root.style.zoom = prevZoom || '';
     try { window.scrollTo(0, savedScrollY); } catch(e){}
     return null;
   }
+  try { _restoreImgs(); } catch(e){}
   document.documentElement.classList.remove('pdf-rendering');
   root.style.zoom = prevZoom || '';
   try { window.scrollTo(0, savedScrollY); } catch(e){}
