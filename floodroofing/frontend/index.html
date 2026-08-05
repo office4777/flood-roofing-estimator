@@ -1058,7 +1058,7 @@ html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .
 #fergusRoofPanelResize:hover::after{ background:#0099cc; height:80px; }
 #fergusRoofPanel .frp-hd{ padding:11px 14px 11px 20px; border-bottom:1px solid rgba(255,255,255,.12); color:#fff; }
 #fergusRoofPhotoScroll{ flex:1; overflow:auto; padding:10px 12px 16px 18px; -webkit-overflow-scrolling:touch; }
-#fergusRoofPhotoGrid{ width:var(--frp-zoom,100%); display:grid; grid-template-columns:1fr; gap:10px; align-content:start; }
+#fergusRoofPhotoGrid{ width:100%; display:grid; grid-template-columns:1fr; gap:10px; align-content:start; }
 html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!important; }
 #jpMapPanel{
   position:fixed; top:88px; right:0; bottom:24px;
@@ -11848,12 +11848,15 @@ function _aerialRoofBlock(){
     '<div style="border:1px solid var(--ed-line);background:#fff;padding:8px"><img src="'+esc2(ap.src)+'" alt="Aerial view of the existing roof" style="display:block;width:100%;height:auto;max-height:420px;object-fit:contain"></div>';
 }
 // Whether the quote roof map shows the aerial (satellite/drone) background
-// behind the basic outline. Office-set per quote; default off (keeps the
-// customer share payload small — the background is an embedded photo).
-function _qpRoofMapShowBg(){ return !!(S.quote && S.quote.roofMapShowBg); }
+// behind the basic outline. Office-set per quote; defaults ON (aerial included)
+// — click "Aerial background" to exclude it. (Explicit false = excluded.)
+function _qpRoofMapShowBg(){
+  var q = (window.S && S.quote) || {};
+  return (q.roofMapShowBg == null) ? true : !!q.roofMapShowBg;
+}
 function _toggleRoofMapBg(){
   if (!S.quote) return;
-  S.quote.roofMapShowBg = !S.quote.roofMapShowBg;
+  S.quote.roofMapShowBg = !_qpRoofMapShowBg();   // flip the effective state
   try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
 }
@@ -30751,12 +30754,19 @@ function _fergusPanelResizeStart(e){
   window.addEventListener('pointerup', up);
 }
 // Zoom slider (100–400%) scales the photo column width; the scroll box pans.
+// Sets the width INLINE so it always wins (the load flow also writes an inline
+// width, which would otherwise override a CSS-var approach).
 function _fergusPanelZoom(v){
   var g = document.getElementById('fergusRoofPhotoGrid');
   var out = document.getElementById('fergusRoofPanelZoomOut');
   var z = parseInt(v, 10); if (!isFinite(z) || z < 100) z = 100;
-  if (g) g.style.setProperty('--frp-zoom', z + '%');
+  if (g) g.style.width = z + '%';
   if (out) out.textContent = z + '%';
+}
+// Re-apply the current zoom to the grid (after photos (re)load).
+function _fergusApplyZoom(){
+  var sl = document.getElementById('fergusRoofPanelZoom');
+  _fergusPanelZoom(sl ? sl.value : 100);
 }
 async function _loadFergusRoofPhotos(force){
   var grid = document.getElementById('fergusRoofPhotoGrid');
@@ -30800,6 +30810,7 @@ async function _loadFergusRoofPhotos(force){
       cell.innerHTML = '<div style="width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:#7a8699;font-size:11px;text-align:center;padding:6px;line-height:1.35">'+esc(f.name || 'photo')+'<br>(tap to view)</div>';
     });
   });
+  _fergusApplyZoom();   // honour the current zoom on the freshly-loaded grid
 }
 // Full-size preview of a tapped Fergus photo.
 async function _fergusRoofPhotoLightbox(f){
