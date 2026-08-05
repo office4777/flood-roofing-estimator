@@ -1619,6 +1619,13 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
    colour swatches) — tapping a selection was forcing an unwanted zoom-in.
    Pinch-zoom stays available. */
 [role="button"]{touch-action:manipulation}
+/* Customer link: no zooming at all on mobile. Kills iOS double-tap zoom on
+   every element (not just buttons) and stops the focus-zoom that fires when a
+   sub-16px input is tapped. Backs up the user-scalable=no viewport that
+   bootCustomerView() sets, for iOS builds that ignore it. */
+html.customer-view, html.customer-view *{touch-action:manipulation}
+html.customer-view{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html.customer-view input,html.customer-view select,html.customer-view textarea{font-size:16px !important}
 /* ── Screen: Microsoft-Word-style A4 page view ──────────────────
    Each proposal page renders as a discrete A4 sheet (210 × 297 mm) on
    a grey canvas with gaps between sheets — exactly what prints to PDF.
@@ -10974,6 +10981,15 @@ async function bootCustomerView(token){
     document.body.appendChild(host);
     window.__CUSTOMER_MODE = true;
     document.documentElement.classList.add('customer-view');
+    // The customer link is a fixed-layout, tap-to-select proposal whose A4
+    // pages are already scaled to the device width (_fitCustomerView). Disable
+    // ALL mobile zoom — pinch, double-tap, and iOS tap/focus zoom — so tapping
+    // an option never zooms the page in with no way back out.
+    try {
+      var _vp = document.querySelector('meta[name="viewport"]');
+      if (!_vp){ _vp = document.createElement('meta'); _vp.setAttribute('name','viewport'); document.head.appendChild(_vp); }
+      _vp.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover');
+    } catch(e){}
     // Now that the proposal data is loaded, prefer the saved quote ref
     // for the title (matches what the customer sees in the proposal
     // header), falling back to the url ?j= and finally the generic name.
