@@ -1652,6 +1652,23 @@ html.customer-view input,html.customer-view select,html.customer-view textarea{f
 .qp-editable:hover{background:rgba(0,153,224,.07)!important;outline:1.5px dashed rgba(0,153,224,.4);outline-offset:2px}
 .qp-editable:focus{background:rgba(0,153,224,.05)!important;outline:2px solid rgba(0,153,224,.55);outline-offset:2px}
 [data-multiline].qp-editable{white-space:pre-wrap;display:block}
+/* ── Free "Word-style" layout on the inclusions page ───────────────
+   .qp-canvas is the positioning area; each .qp-mov is an absolutely
+   positioned, office-draggable / resizable box. The grip + resize
+   handle are .no-print, so they vanish in the PDF and on the customer
+   link — the customer just sees the boxes where the office placed them. */
+.qp-canvas{position:relative;width:100%}
+.qp-mov{box-sizing:border-box}
+.qp-mov > .qp-mov-grip{position:absolute;top:-11px;left:0;display:inline-flex;align-items:center;gap:4px;font:600 9px/1 var(--ed-sans);letter-spacing:.06em;text-transform:uppercase;background:var(--ed-accent);color:#fff;padding:3px 8px;border-radius:5px;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;white-space:nowrap;z-index:6;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.qp-mov > .qp-mov-grip:active{cursor:grabbing}
+.qp-mov > .qp-mov-size{position:absolute;right:-7px;bottom:-7px;width:15px;height:15px;background:#fff;border:2px solid var(--ed-accent);border-radius:3px;cursor:nwse-resize;touch-action:none;z-index:6;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.qp-mov:hover{outline:1px dashed rgba(0,153,224,.55);outline-offset:4px}
+/* The print cut-off marker only shows to the office, never on paper. */
+.qp-canvas > .qp-canvas-edge{position:absolute;left:0;right:0;border-top:1px dashed rgba(224,138,46,.55);pointer-events:none;z-index:1}
+.qp-canvas > .qp-canvas-edge::after{content:'▲ printable page edge';position:absolute;right:0;top:2px;font:600 8px var(--ed-sans);letter-spacing:.05em;color:#e08a2e;text-transform:uppercase}
+html.pdf-rendering .qp-mov-grip,html.pdf-rendering .qp-mov-size,html.pdf-rendering .qp-canvas-edge,
+html.customer-view .qp-mov-grip,html.customer-view .qp-mov-size,html.customer-view .qp-canvas-edge{display:none!important}
+html.pdf-rendering .qp-mov:hover,html.customer-view .qp-mov:hover{outline:none!important}
 /* Quote tab order: action bar → live proposal (the editing surface) →
    optional settings.  The proposal is edited in-place; settings cards sit
    below.  Scoped to .active so the panel stays display:none on other
@@ -9597,6 +9614,15 @@ function defaultQuote(){
     // Proposal roof-map display size on the inclusions page — 'sm' | 'md' |
     // 'lg'. Office-set, persists to the customer link. Default medium.
     roofMapSize: 'md',
+    // Free "Word-style" layout for the inclusions page. When enabled the roof
+    // map, the "What's included" scope and the notes each become a movable /
+    // resizable box positioned inside the A4 page. Geometry is stored per box
+    // as { x:%left, y:pxTop, w:%width, h:pxHeight|null }. Disabled = the
+    // default auto stack (map full-width on top, scope + notes underneath).
+    // Persists to the customer link; because the proposal is a fixed A4 sheet
+    // that's only zoom-scaled to fit, absolute positions are WYSIWYG on the
+    // phone view and in the PDF too.
+    proposalLayout: { enabled: false, map: null, scope: null, notes: null },
   };
 }
 
@@ -11949,7 +11975,7 @@ function _toggleRoofSeparate(i, checked){
   m[i] = !!checked;
   try { _autoSyncLabourMaterials(); } catch(e){}   // re-bakes folded roofs into the base line items
   try { refreshQuoteProposal(); } catch(e){}
-  try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
 // Proposal roof-map size on the inclusions page. 'sm' | 'md' | 'lg' — drives
 // the map image max-height. Office-set, persists to the customer link.
@@ -11964,7 +11990,138 @@ function _setRoofMapSize(sz){
   if (!S.quote) return;
   S.quote.roofMapSize = (sz === 'sm' || sz === 'lg') ? sz : 'md';
   try { refreshQuoteProposal(); } catch(e){}
-  try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+
+// ── Free "Word-style" layout for the inclusions page ────────────────
+// The roof map, the "What's included" scope and the notes each become a
+// movable / resizable box. Geometry per box: { x:%left, y:pxTop, w:%width,
+// h:pxHeight|null }. All coordinates are in the A4 page's own (zoom=1) space,
+// so they render identically on screen, in the PDF and on the phone view
+// (the whole page is only zoom-scaled to fit — never reflowed).
+var _QP_CANVAS_H = 900;   // positioning-area height in page px (fits an A4 body)
+function _qpLayout(){
+  if (!S.quote) return { enabled: false, map: null, scope: null, notes: null };
+  var L = S.quote.proposalLayout;
+  if (!L || typeof L !== 'object') L = S.quote.proposalLayout = { enabled: false, map: null, scope: null, notes: null };
+  return L;
+}
+function _qpLayoutOn(){ return !!_qpLayout().enabled; }
+// Toggle free layout. On first enable, seed each box from sensible defaults so
+// it opens looking like the normal auto stack; the office then drags to taste.
+function _qpLayoutEnable(on){
+  var L = _qpLayout();
+  L.enabled = !!on;
+  if (on){
+    var mh = (typeof _qpRoofMapMaxH === 'function' ? _qpRoofMapMaxH() : 240) + 120;
+    if (!L.map)   L.map   = { x: 0, y: 0,             w: 100, h: null };
+    if (!L.scope) L.scope = { x: 0, y: mh + 20,       w: 100, h: null };
+    if (!L.notes) L.notes = { x: 0, y: mh + 20 + 320, w: 100, h: null };
+  }
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+function _qpLayoutReset(){
+  var L = _qpLayout();
+  L.map = L.scope = L.notes = null;
+  _qpLayoutEnable(true);   // reseed defaults + re-render
+}
+// Current zoom applied to the proposal (screen-fit / customer-fit), so pointer
+// deltas in screen px convert back to page px.
+function _qpZoom(){
+  var r = document.getElementById('qpRoot');
+  var z = r && r.style && r.style.zoom ? parseFloat(r.style.zoom) : 1;
+  if (!(z > 0)) { try { z = parseFloat(getComputedStyle(r).zoom) || 1; } catch(e){ z = 1; } }
+  return z > 0 ? z : 1;
+}
+var _qpMov = null;
+// Both handlers measure the canvas with getBoundingClientRect (on-screen px,
+// same space as pointer clientX/Y regardless of how the CSS `zoom` fit scales
+// things). Horizontal is stored as a %, so it needs no zoom conversion; the
+// vertical px coordinate does — one screen px is 1/zoom page px.
+function _qpMovDown(e, key){
+  e.preventDefault(); e.stopPropagation();
+  var box = document.querySelector('.qp-mov[data-mov="' + key + '"]');
+  var canvas = box && box.closest('.qp-canvas');
+  if (!box || !canvas) return;
+  var g = _qpLayout()[key] || { x: 0, y: 0, w: 100, h: null };
+  _qpMov = { mode: 'move', key: key, box: box, z: _qpZoom(),
+             sx: e.clientX, sy: e.clientY, x0: g.x || 0, y0: g.y || 0, w: g.w || 100,
+             cw: (canvas.getBoundingClientRect().width) || 754, grip: e.currentTarget || e.target, pointerId: e.pointerId };
+  try { if (_qpMov.grip.setPointerCapture) _qpMov.grip.setPointerCapture(e.pointerId); } catch(_){}
+  document.addEventListener('pointermove', _qpMovMove, { passive: false });
+  document.addEventListener('pointerup', _qpMovUp);
+  document.addEventListener('pointercancel', _qpMovUp);
+}
+function _qpMovResizeDown(e, key){
+  e.preventDefault(); e.stopPropagation();
+  var box = document.querySelector('.qp-mov[data-mov="' + key + '"]');
+  var canvas = box && box.closest('.qp-canvas');
+  if (!box || !canvas) return;
+  var g = _qpLayout()[key] || { x: 0, y: 0, w: 100, h: null };
+  var z = _qpZoom();
+  var h0 = (g.h != null) ? g.h : ((box.getBoundingClientRect().height / z) || 120);
+  _qpMov = { mode: 'size', key: key, box: box, z: z,
+             sx: e.clientX, sy: e.clientY, w0: g.w || 100, h0: h0,
+             cw: (canvas.getBoundingClientRect().width) || 754, grip: e.currentTarget || e.target, pointerId: e.pointerId };
+  try { if (_qpMov.grip.setPointerCapture) _qpMov.grip.setPointerCapture(e.pointerId); } catch(_){}
+  document.addEventListener('pointermove', _qpMovMove, { passive: false });
+  document.addEventListener('pointerup', _qpMovUp);
+  document.addEventListener('pointercancel', _qpMovUp);
+}
+function _qpMovMove(e){
+  if (!_qpMov) return;
+  e.preventDefault();
+  var m = _qpMov;
+  var dxs = e.clientX - m.sx;         // screen px
+  var dys = e.clientY - m.sy;         // screen px
+  if (m.mode === 'move'){
+    var nx = m.x0 + (dxs / m.cw * 100);   // % of canvas width (zoom-independent)
+    var ny = m.y0 + (dys / m.z);          // page px
+    nx = Math.max(0, Math.min(100 - m.w, nx));
+    ny = Math.max(0, ny);
+    m.box.style.left = nx + '%';
+    m.box.style.top  = ny + 'px';
+    m._nx = nx; m._ny = ny;
+  } else {
+    var nw = m.w0 + (dxs / m.cw * 100);
+    var nh = m.h0 + (dys / m.z);
+    nw = Math.max(14, Math.min(100, nw));
+    nh = Math.max(40, nh);
+    m.box.style.width  = nw + '%';
+    m.box.style.height = nh + 'px';
+    m.box.style.overflow = 'auto';
+    m._nw = nw; m._nh = nh;
+  }
+}
+function _qpMovUp(){
+  document.removeEventListener('pointermove', _qpMovMove);
+  document.removeEventListener('pointerup', _qpMovUp);
+  document.removeEventListener('pointercancel', _qpMovUp);
+  var m = _qpMov; _qpMov = null;
+  if (!m) return;
+  try { if (m.grip && m.grip.releasePointerCapture && m.pointerId != null) m.grip.releasePointerCapture(m.pointerId); } catch(_){}
+  var L = _qpLayout();
+  var g = L[m.key] || (L[m.key] = { x: 0, y: 0, w: 100, h: null });
+  if (m.mode === 'move'){
+    if (m._nx != null) g.x = +m._nx.toFixed(2);
+    if (m._ny != null) g.y = Math.round(m._ny);
+  } else {
+    if (m._nw != null) g.w = +m._nw.toFixed(2);
+    if (m._nh != null) g.h = Math.round(m._nh);
+  }
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+// Wrap one section in a movable box (only when free layout is on). Office
+// gets a drag grip + resize handle; the customer link / PDF get neither.
+function _qpMovBox(key, inner, label){
+  var g = _qpLayout()[key] || { x: 0, y: 0, w: 100, h: null };
+  var office = !window.__CUSTOMER_MODE;
+  var style = 'position:absolute;left:' + (g.x || 0) + '%;top:' + (g.y || 0) + 'px;width:' + (g.w || 100) + '%;' +
+              (g.h ? ('height:' + g.h + 'px;overflow:auto;') : '');
+  var grip = office ? '<div class="qp-mov-grip no-print" onpointerdown="_qpMovDown(event,\'' + key + '\')" title="Drag to move">⤢ ' + esc2(label || key) + '</div>' : '';
+  var size = office ? '<div class="qp-mov-size no-print" onpointerdown="_qpMovResizeDown(event,\'' + key + '\')" title="Drag to resize"></div>' : '';
+  return '<div class="qp-mov" data-mov="' + key + '" style="' + style + '">' + grip + inner + size + '</div>';
 }
 // Build the quote's "Basic map" per roof (the Job Pack basic map — roof name +
 // area m², optional aerial background). Stashes the rendered images on the
@@ -14090,23 +14247,49 @@ function refreshQuoteProposal(){
     // roof, and each later roof is an optional extra the customer can add
     // on the Selections page.
     var _roofMapsHtml = _buildRoofPreviewsHtml({ small: true, basic: true });
-    // Roof map(s) run FULL WIDTH across the top of the page so the customer
-    // can clearly see which roof is which, and the "What's included" scope
-    // reads underneath. (The old "Your price is fixed" assurance panel has
-    // been removed at the office's request.)
-    partInclusions =
-      edHeading('2','The work & your roof plan','Your New Roof',{chapter:PROPOSAL_CHAPTERS[1],chapters:PROPOSAL_CHAPTERS})+
-      (_roofMapsHtml ? _roofMapsHtml + '<div style="height:20px"></div>' : '')+
-      '<div>'+
-        '<div class="ed-eyebrow'+(_scopeRaw.trim()?'':' qp-ph')+'" style="margin-bottom:8px">What\'s included</div>'+
-        inclList+
-      '</div>'+
-      '<div class="'+((S.quote.notes||'').trim() ? '' : 'qp-ph ')+'" style="margin-top:22px;padding:14px 18px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
-        '<div class="ed-eyebrow" style="margin-bottom:6px">Notes <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
-        '<div class="qp-editable" contenteditable="true" data-qfield="notes" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.55;color:var(--ed-ink-2);min-height:1.4em">'+
-          (S.quote.notes ? esc2(S.quote.notes) : '<span class="qp-ph" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add notes for the client (access, timing, special considerations)…</span>')+
-        '</div>'+
+    // The scope ("What's included") and the notes, as reusable inner blocks —
+    // they render either in the default auto stack OR inside movable boxes when
+    // free layout is on.
+    var _scopeInner =
+      '<div class="ed-eyebrow'+(_scopeRaw.trim()?'':' qp-ph')+'" style="margin-bottom:8px">What\'s included</div>'+
+      inclList;
+    var _notesInner =
+      '<div class="ed-eyebrow" style="margin-bottom:6px">Notes <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
+      '<div class="qp-editable" contenteditable="true" data-qfield="notes" data-multiline="1" spellcheck="true" style="font-family:var(--ed-sans);font-size:11.5px;line-height:1.55;color:var(--ed-ink-2);min-height:1.4em">'+
+        (S.quote.notes ? esc2(S.quote.notes) : '<span class="qp-ph" style="font-style:italic;color:var(--ed-text2);pointer-events:none">Add notes for the client (access, timing, special considerations)…</span>')+
       '</div>';
+    var _notesPanel =
+      '<div class="'+((S.quote.notes||'').trim() ? '' : 'qp-ph ')+'" style="padding:14px 18px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+_notesInner+'</div>';
+    // Office-only control bar: switch the page between the default auto stack
+    // and free "Word-style" drag/resize layout. Hidden on the customer link.
+    var _layoutOn = _qpLayoutOn();
+    var _layoutBar = (!window.__CUSTOMER_MODE)
+      ? '<div class="no-print" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px">'+
+          '<button type="button" onclick="_qpLayoutEnable('+(!_layoutOn)+')" title="Freely drag &amp; resize the map, scope and notes like floating boxes in Word" style="padding:3px 11px;font-size:10.5px;border:1px solid '+(_layoutOn?'var(--ed-accent)':'var(--ed-line)')+';border-radius:5px;background:'+(_layoutOn?'var(--ed-accent)':'#fff')+';color:'+(_layoutOn?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);letter-spacing:.03em">'+(_layoutOn?'✓ Free layout on':'⤢ Free layout')+'</button>'+
+          (_layoutOn?'<button type="button" onclick="_qpLayoutReset()" title="Reset the map, scope and notes back to the default positions" style="padding:3px 11px;font-size:10.5px;border:1px solid var(--ed-line);border-radius:5px;background:#fff;color:var(--ed-ink-2);cursor:pointer;font-family:var(--ed-sans);letter-spacing:.03em">↺ Reset positions</button><span style="font-size:9.5px;color:var(--ed-text2);font-family:var(--ed-sans)">Drag the blue tab to move · drag the corner to resize</span>':'')+
+        '</div>'
+      : '';
+    if (_layoutOn) {
+      // Free layout — map / scope / notes are absolutely positioned, draggable
+      // boxes inside the A4 page. Only the office sees the grips + print edge.
+      partInclusions =
+        edHeading('2','The work & your roof plan','Your New Roof',{chapter:PROPOSAL_CHAPTERS[1],chapters:PROPOSAL_CHAPTERS})+
+        _layoutBar+
+        '<div class="qp-canvas" style="min-height:'+_QP_CANVAS_H+'px">'+
+          (window.__CUSTOMER_MODE ? '' : '<div class="qp-canvas-edge no-print" style="top:'+_QP_CANVAS_H+'px"></div>')+
+          (_roofMapsHtml ? _qpMovBox('map', _roofMapsHtml, 'Roof map') : '')+
+          _qpMovBox('scope', '<div>'+_scopeInner+'</div>', 'What\'s included')+
+          _qpMovBox('notes', _notesPanel, 'Notes')+
+        '</div>';
+    } else {
+      // Default auto stack — roof map(s) full width on top, scope + notes below.
+      partInclusions =
+        edHeading('2','The work & your roof plan','Your New Roof',{chapter:PROPOSAL_CHAPTERS[1],chapters:PROPOSAL_CHAPTERS})+
+        _layoutBar+
+        (_roofMapsHtml ? _roofMapsHtml + '<div style="height:20px"></div>' : '')+
+        '<div>'+_scopeInner+'</div>'+
+        '<div style="margin-top:22px">'+_notesPanel+'</div>';
+    }
       // (Team photo removed from page 3 — the crew banner closes the
       //  acceptance page instead, so the proposal isn't photo-heavy.)
   }
