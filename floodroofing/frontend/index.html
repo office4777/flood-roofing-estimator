@@ -9588,6 +9588,15 @@ function defaultQuote(){
     // photos, or a direct upload}.  Missing slots fall back to the
     // gallery / first job photo so existing proposals keep working.
     imageSlots: {},
+    // Multi-roof: which roofs after the main one are quoted as SEPARATE
+    // optional extras. Keyed by DRAW.roofs index (2nd roof = 1, 3rd = 2…);
+    // true = its own optional extra on the Selections page, absent/false =
+    // folded into the single main price (e.g. the 2nd roof is part of the
+    // main structure, but the 3rd is a standalone garage). Default: folded.
+    roofSeparate: {},
+    // Proposal roof-map display size on the inclusions page — 'sm' | 'md' |
+    // 'lg'. Office-set, persists to the customer link. Default medium.
+    roofMapSize: 'md',
   };
 }
 
@@ -11702,6 +11711,19 @@ function _autoSyncLabourMaterials(){
   var _gf = (typeof _gradeFactor === 'function') ? _gradeFactor() : 1;
   var _baseMat = (_multiRoof ? _materialsCostForRoofIdx(0) : (parseFloat(S.materials)||0)) * _gf;
   var _baseLab = (_multiRoof ? _labourPriceForRoof(0) : (parseFloat(S.labour)||0));
+  // Roofs after the main one that AREN'T flagged "separate" are part of the
+  // main structure, so their materials + labour + scaffold fold into the base
+  // line items and the customer sees a single main price. Only roofs the
+  // office ticks "Separate roof N" stay optional extras (S.quote.extraRoofs).
+  if (_multiRoof) {
+    var _sepMap = (S.quote.roofSeparate && typeof S.quote.roofSeparate === 'object') ? S.quote.roofSeparate : {};
+    for (var _fri = 1; _fri < DRAW.roofs.length; _fri++) {
+      if (_sepMap[_fri]) continue;                 // separate → priced as its own extra
+      _baseMat += _materialsCostForRoofIdx(_fri) * _gf;
+      _baseLab += _labourPriceForRoof(_fri);
+      if (typeof _scaffoldPriceForRoof === 'function') scaffP += _scaffoldPriceForRoof(_fri);
+    }
+  }
   [['Labour', _baseLab], ['Materials', _baseMat], ['Scaffolding', scaffP]].forEach(function(pair){
     var key = pair[0], val = pair[1];
     var li = S.quote.lineItems.find(function(x){ return x.desc === key; });
@@ -11917,6 +11939,33 @@ function _toggleRoofMapBg(){
   try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
 }
+// Office ticks a roof (2nd, 3rd…) as a SEPARATE optional extra. Un-ticked
+// roofs are folded into the single main price; ticked roofs become their own
+// optional extra on the Selections page. Re-fold the base line items, then
+// re-render every total. Keyed by DRAW.roofs index (2nd roof = 1).
+function _toggleRoofSeparate(i, checked){
+  if (!S.quote) return;
+  var m = (S.quote.roofSeparate && typeof S.quote.roofSeparate === 'object') ? S.quote.roofSeparate : (S.quote.roofSeparate = {});
+  m[i] = !!checked;
+  try { _autoSyncLabourMaterials(); } catch(e){}   // re-bakes folded roofs into the base line items
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
+}
+// Proposal roof-map size on the inclusions page. 'sm' | 'md' | 'lg' — drives
+// the map image max-height. Office-set, persists to the customer link.
+function _qpRoofMapSize(){
+  var s = (window.S && S.quote && S.quote.roofMapSize) || 'md';
+  return (s === 'sm' || s === 'lg') ? s : 'md';
+}
+function _qpRoofMapMaxH(){
+  return ({ sm: 150, md: 240, lg: 360 })[_qpRoofMapSize()] || 240;
+}
+function _setRoofMapSize(sz){
+  if (!S.quote) return;
+  S.quote.roofMapSize = (sz === 'sm' || sz === 'lg') ? sz : 'md';
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
+}
 // Build the quote's "Basic map" per roof (the Job Pack basic map — roof name +
 // area m², optional aerial background). Stashes the rendered images on the
 // quote so the customer share link (no live drawing) can render them too.
@@ -11924,11 +11973,15 @@ function _qpBasicRoofMaps(showBg){
   var out = [];
   if (window.DRAW && DRAW.roofs && DRAW.roofs.length) {
     try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+    var _sepR = (S.quote && S.quote.roofSeparate && typeof S.quote.roofSeparate === 'object') ? S.quote.roofSeparate : {};
     DRAW.roofs.forEach(function(r, i){
       var nm = r.name || ('Roof ' + (i + 1));
       var url = null;
       try { url = _jpCaptureBasic(i, { bgOpacity: showBg ? 55 : 0 }); } catch(e){}
-      if (url) out.push({ url: url, name: nm, role: (i === 0 ? 'main' : 'optional') });
+      // Roof 0 is the main roof; later roofs are either their own optional
+      // extra (ticked "separate") or folded into the main price (default).
+      var role = (i === 0) ? 'main' : (_sepR[i] ? 'optional' : 'included');
+      if (url) out.push({ url: url, name: nm, role: role });
     });
   } else if (window.DRAW && DRAW.outline && DRAW.outline.length >= 3) {
     var u = null;
@@ -11976,34 +12029,73 @@ function _buildRoofPreviewsHtml(opts){
   var _multiRoof = imgs.length > 1;
   var _roofBadge = function(im){
     if (!_multiRoof) return '';
-    var isMain = im.role === 'main';
+    // main / folded-into-main ("included") / separate optional extra.
+    var label, bg;
+    if (im.role === 'optional') { label = 'Optional extra'; bg = '#e08a2e'; }
+    else if (im.role === 'included') { label = 'Included in main'; bg = '#5b7a8c'; }
+    else { label = 'Main roof'; bg = 'var(--ed-accent)'; }
     return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'+
-      '<span style="font-family:var(--ed-sans);font-size:8.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;border-radius:3px;background:'+(isMain?'var(--ed-accent)':'#e08a2e')+';color:#fff;white-space:nowrap">'+(isMain?'Main roof':'Optional extra')+'</span>'+
+      '<span style="font-family:var(--ed-sans);font-size:8.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;border-radius:3px;background:'+bg+';color:#fff;white-space:nowrap">'+label+'</span>'+
       '<span class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-ink)">'+esc2(im.name)+'</span>'+
     '</div>';
   };
   if (opts.small) {
-    // Compact bordered box; on the Investment page it stacks the roof
-    // map(s) in the right column, each labelled main / optional extra.
-    // Office-only background toggle (basic map): show/hide the aerial photo
-    // (satellite / drone measure) behind the outline. Hidden on the customer
-    // link — the customer sees whatever the office chose.
-    var _bgToggle = (opts.basic && !window.__CUSTOMER_MODE)
+    // Full-width bordered box on the inclusions page. The map(s) sit across
+    // the top, each labelled main / optional extra; the "What's included"
+    // scope renders underneath. Office-only controls (basic map, no-print):
+    // aerial background on/off, map size S/M/L, and — for multi-roof jobs —
+    // a "Separate roof N" tick per extra roof. Hidden on the customer link,
+    // which shows whatever the office chose.
+    var _officeCtl = (opts.basic && !window.__CUSTOMER_MODE);
+    var _bgToggle = _officeCtl
       ? '<button type="button" class="no-print" onclick="_toggleRoofMapBg()" title="Show/hide the aerial photo behind the roof outline" style="padding:2px 8px;font-size:9.5px;border:1px solid '+(_qpRoofMapShowBg()?'var(--ed-accent)':'var(--ed-line)')+';border-radius:4px;background:'+(_qpRoofMapShowBg()?'var(--ed-accent)':'#fff')+';color:'+(_qpRoofMapShowBg()?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);letter-spacing:.04em">'+(_qpRoofMapShowBg()?'✓ Aerial background':'Aerial background')+'</button>'
       : '';
+    // Size picker S / M / L.
+    var _sizeCtl = '';
+    if (_officeCtl) {
+      var _cur = _qpRoofMapSize();
+      _sizeCtl = '<span class="no-print" title="Roof map size" style="display:inline-flex;border:1px solid var(--ed-line);border-radius:4px;overflow:hidden">'+
+        [['sm','S'],['md','M'],['lg','L']].map(function(p){
+          var _seld = _cur === p[0];
+          return '<button type="button" onclick="_setRoofMapSize(\''+p[0]+'\')" style="padding:2px 8px;font-size:9.5px;border:none;border-left:'+(p[0]==='sm'?'0':'1px solid var(--ed-line)')+';background:'+(_seld?'var(--ed-accent)':'#fff')+';color:'+(_seld?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans)">'+p[1]+'</button>';
+        }).join('')+'</span>';
+    }
+    // "Separate roof N" ticks — one per roof after the main one. Ticked =
+    // quoted as its own optional extra; un-ticked = folded into the main price.
+    var _sepToggles = '';
+    if (_officeCtl && window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) {
+      var _sm = (S.quote.roofSeparate && typeof S.quote.roofSeparate === 'object') ? S.quote.roofSeparate : {};
+      var _rows = [];
+      for (var _si = 1; _si < DRAW.roofs.length; _si++) {
+        var _rn = (DRAW.roofs[_si] && DRAW.roofs[_si].name) || ('Roof ' + (_si + 1));
+        _rows.push('<label class="no-print" style="display:flex;align-items:center;gap:7px;font-size:10.5px;font-family:var(--ed-sans);color:var(--ed-ink-2);cursor:pointer">'+
+          '<input type="checkbox" '+(_sm[_si]?'checked':'')+' onchange="_toggleRoofSeparate('+_si+',this.checked)" style="cursor:pointer;margin:0">'+
+          'Separate roof '+(_si + 1)+' <span style="color:var(--ed-text2)">— '+esc2(_rn)+'</span></label>');
+      }
+      _sepToggles = '<div class="no-print" style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--ed-line);display:flex;flex-direction:column;gap:6px">'+
+        '<div style="font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--ed-text2);font-family:var(--ed-sans)">Tick a roof to quote it as a separate optional extra <span style="text-transform:none;letter-spacing:0">(un-ticked = part of the main roof)</span></div>'+
+        _rows.join('')+'</div>';
+    }
+    var _mh = _qpRoofMapMaxH();
+    var _grid = _multiRoof
+      ? 'display:grid;grid-template-columns:repeat('+Math.min(imgs.length, 2)+',minmax(0,1fr));gap:14px;align-items:start'
+      : 'display:block';
     return '<div class="qp-roofmap" style="border:1px solid var(--ed-line);background:#fff;padding:12px 14px">'+
       '<div class="ed-eyebrow" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">'+
         '<span>Roof map'+(_multiRoof?'s':'')+'</span>'+
-        '<span style="margin-left:auto;display:flex;gap:6px">'+_bgToggle+
-        '<button type="button" class="no-print" onclick="refreshQuoteProposal()" style="padding:2px 8px;font-size:9.5px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;cursor:pointer;font-family:var(--ed-sans);color:var(--ed-ink-2);letter-spacing:.04em">↻ Refresh</button>'+
+        '<span class="no-print" style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+_bgToggle+_sizeCtl+
+        (_officeCtl ? '<button type="button" class="no-print" onclick="refreshQuoteProposal()" style="padding:2px 8px;font-size:9.5px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;cursor:pointer;font-family:var(--ed-sans);color:var(--ed-ink-2);letter-spacing:.04em">↻ Refresh</button>' : '')+
         '</span>'+
       '</div>'+
-      imgs.map(function(im, mi){
-        return '<div style="'+(mi>0?'margin-top:12px;padding-top:12px;border-top:1px solid var(--ed-line);':'')+'">'+
-          _roofBadge(im)+
-          '<div style="display:flex;justify-content:center"><img src="'+im.url+'" alt="'+esc2(im.name)+'" style="display:block;max-width:100%;max-height:200px;width:auto;height:auto;background:#fff"></div>'+
-        '</div>';
-      }).join('')+
+      '<div style="'+_grid+'">'+
+        imgs.map(function(im){
+          return '<div>'+
+            _roofBadge(im)+
+            '<div style="display:flex;justify-content:center"><img src="'+im.url+'" alt="'+esc2(im.name)+'" style="display:block;max-width:100%;max-height:'+_mh+'px;width:auto;height:auto;background:#fff"></div>'+
+          '</div>';
+        }).join('')+
+      '</div>'+
+      _sepToggles+
     '</div>';
   }
   var gridStyle = (imgs.length === 1)
@@ -13185,8 +13277,10 @@ function refreshQuoteProposal(){
           if (!ol || ol.length < 3) return 0;
           return polyAreaPx(ol) * _sc2;
         };
+        var _sepMap2 = (S.quote.roofSeparate && typeof S.quote.roofSeparate === 'object') ? S.quote.roofSeparate : {};
         var _extra = [];
         for (var _ri = 1; _ri < DRAW.roofs.length; _ri++){
+          if (!_sepMap2[_ri]) continue;   // not flagged separate → folded into the main price above
           var _matI = _materialsCostForRoofIdx(_ri) * _gfNow;   // materials at selected grade
           var _labI = _labourPriceForRoof(_ri);                 // this roof's own labour
           var _scaffI = _scaffoldPriceForRoof(_ri);             // this roof's own scaffold
@@ -13996,34 +14090,16 @@ function refreshQuoteProposal(){
     // roof, and each later roof is an optional extra the customer can add
     // on the Selections page.
     var _roofMapsHtml = _buildRoofPreviewsHtml({ small: true, basic: true });
-    var _assurancePanel =
-      '<div style="padding:15px 18px;background:var(--ed-paper-2);border:1px solid var(--ed-line);border-radius:9px">'+
-        '<div class="ed-eyebrow" style="margin-bottom:9px">Your price is fixed</div>'+
-        [
-          'No hidden extras — scaffolding &amp; rubbish removal included',
-          'Trade-qualified Licensed Building Practitioners on every job',
-          '10-year workmanship warranty + manufacturer’s warranty',
-          'Northland-owned &amp; operated since 2016'
-        ].map(function(t){
-          return '<div style="display:flex;gap:9px;align-items:flex-start;padding:4px 0;font-family:var(--ed-sans);font-size:11px;line-height:1.4;color:var(--ed-ink-2)">'+
-            '<span style="color:var(--ed-accent);font-weight:700;flex-shrink:0">✓</span><span>'+t+'</span></div>';
-        }).join('')+
-      '</div>';
+    // Roof map(s) run FULL WIDTH across the top of the page so the customer
+    // can clearly see which roof is which, and the "What's included" scope
+    // reads underneath. (The old "Your price is fixed" assurance panel has
+    // been removed at the office's request.)
     partInclusions =
       edHeading('2','The work & your roof plan','Your New Roof',{chapter:PROPOSAL_CHAPTERS[1],chapters:PROPOSAL_CHAPTERS})+
-      '<div style="display:grid;grid-template-columns:1.25fr 1fr;gap:30px;align-items:start">'+
-        // Left — scope of work
-        '<div>'+
-          '<div class="ed-eyebrow'+(_scopeRaw.trim()?'':' qp-ph')+'" style="margin-bottom:8px">What\'s included</div>'+
-          inclList+
-        '</div>'+
-        // Right — the matching roof map(s), labelled main / optional extra.
-        // Falls back to the assurance panel when no roof has been mapped.
-        '<div>'+
-          (_roofMapsHtml || _assurancePanel)+
-          // When there IS a roof map, still show the assurance panel below it.
-          (_roofMapsHtml ? '<div style="margin-top:14px">'+_assurancePanel+'</div>' : '')+
-        '</div>'+
+      (_roofMapsHtml ? _roofMapsHtml + '<div style="height:20px"></div>' : '')+
+      '<div>'+
+        '<div class="ed-eyebrow'+(_scopeRaw.trim()?'':' qp-ph')+'" style="margin-bottom:8px">What\'s included</div>'+
+        inclList+
       '</div>'+
       '<div class="'+((S.quote.notes||'').trim() ? '' : 'qp-ph ')+'" style="margin-top:22px;padding:14px 18px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+
         '<div class="ed-eyebrow" style="margin-bottom:6px">Notes <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
