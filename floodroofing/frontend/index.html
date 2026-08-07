@@ -9809,6 +9809,9 @@ function defaultQuote(){
     // folded into the single main price (e.g. the 2nd roof is part of the
     // main structure, but the 3rd is a standalone garage). Default: folded.
     roofSeparate: {},
+    // Roofs (after the main one) the customer explicitly asked NOT to quote —
+    // drawn on the plan but shown crossed-out red and priced nowhere.
+    roofExcluded: {},
     // Proposal roof-map display size on the inclusions page — 'sm' | 'md' |
     // 'lg'. Office-set, persists to the customer link. Default medium.
     roofMapSize: 'md',
@@ -11989,9 +11992,10 @@ function _syncQuoteBaseLineItems(){
   // line items and the customer sees a single main price. Only roofs the
   // office ticks "Separate roof N" stay optional extras (S.quote.extraRoofs).
   if (_multiRoof) {
-    var _sepMap = (S.quote.roofSeparate && typeof S.quote.roofSeparate === 'object') ? S.quote.roofSeparate : {};
     for (var _fri = 1; _fri < DRAW.roofs.length; _fri++) {
-      if (_sepMap[_fri]) continue;                 // separate → priced as its own extra
+      // Only roofs that are part of the main structure fold into the base.
+      // 'separate' → its own optional extra; 'excluded' → not priced at all.
+      if (_roofQuoteMode(_fri) !== 'folded') continue;
       _baseMat += _materialsCostForRoofIdx(_fri) * _gf;
       _baseLab += _labourPriceForRoof(_fri);
       if (typeof _scaffoldPriceForRoof === 'function') scaffP += _scaffoldPriceForRoof(_fri);
@@ -12231,9 +12235,29 @@ function _toggleRoofMapBg(){
 // optional extra on the Selections page. Re-fold the base line items, then
 // re-render every total. Keyed by DRAW.roofs index (2nd roof = 1).
 function _toggleRoofSeparate(i, checked){
+  _setRoofMode(i, checked ? 'separate' : 'folded');
+}
+// A roof (after the main one) is quoted in one of these modes:
+//   'main'     — roof 0, always included.
+//   'folded'   — part of the main price (default for extra roofs).
+//   'separate' — its own optional extra on the Selections page.
+//   'excluded' — drawn on the plan but NOT quoted (shown crossed-out red so
+//                the customer sees it was deliberately left out).
+function _roofQuoteMode(i){
+  if (i === 0) return 'main';
+  var q = (window.S && S.quote) || {};
+  var ex  = (q.roofExcluded && typeof q.roofExcluded === 'object') ? q.roofExcluded : {};
+  if (ex[i]) return 'excluded';
+  var sep = (q.roofSeparate && typeof q.roofSeparate === 'object') ? q.roofSeparate : {};
+  if (sep[i]) return 'separate';
+  return 'folded';
+}
+function _setRoofMode(i, mode){
   if (!S.quote) return;
-  var m = (S.quote.roofSeparate && typeof S.quote.roofSeparate === 'object') ? S.quote.roofSeparate : (S.quote.roofSeparate = {});
-  m[i] = !!checked;
+  var sep = (S.quote.roofSeparate && typeof S.quote.roofSeparate === 'object') ? S.quote.roofSeparate : (S.quote.roofSeparate = {});
+  var ex  = (S.quote.roofExcluded && typeof S.quote.roofExcluded === 'object') ? S.quote.roofExcluded : (S.quote.roofExcluded = {});
+  sep[i] = (mode === 'separate');
+  ex[i]  = (mode === 'excluded');
   try { _autoSyncLabourMaterials(); } catch(e){}   // re-bakes folded roofs into the base line items
   try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
@@ -12387,32 +12411,50 @@ function _qpMovBox(key, inner, label){
 // Build the quote's "Basic map" per roof (the Job Pack basic map — roof name +
 // area m², optional aerial background). Stashes the rendered images on the
 // quote so the customer share link (no live drawing) can render them too.
+// Included = light blue, excluded / out-of-this-scope = light red (+ red X).
+var _QP_ROOF_INCL = { fill:'#dbeafe', stroke:'#1d4ed8', text:'#1e3a8a' };
+var _QP_ROOF_EXCL = { fill:'#fee2e2', stroke:'#dc2626', text:'#991b1b' };
+// Build the proposal roof maps as ONE combined plan (every roof in its true
+// canvas position). Roofs are coloured by their quote status:
+//   • base map      — main + folded roofs blue; separate + excluded red-crossed
+//   • an extra map per SEPARATE roof — main + folded + that roof blue (shows the
+//     optional extra covers the whole job), everything else red-crossed
+// Excluded roofs are always red-crossed and never priced. Stashed for the
+// customer link (which has no live drawing).
 function _qpBasicRoofMaps(showBg){
   var out = [];
-  if (window.DRAW && DRAW.roofs && DRAW.roofs.length) {
+  var bgOp = showBg ? 55 : 0;
+  var haveLive = !!(window.DRAW && ((DRAW.roofs && DRAW.roofs.length) || (DRAW.outline && DRAW.outline.length >= 3)));
+  if (haveLive) {
     try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
-    var _sepR = (S.quote && S.quote.roofSeparate && typeof S.quote.roofSeparate === 'object') ? S.quote.roofSeparate : {};
-    DRAW.roofs.forEach(function(r, i){
-      var nm = r.name || ('Roof ' + (i + 1));
+    var n = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs.length : 1;
+    var _cfg = function(includeMap){
+      var colors = {}, cross = {};
+      for (var i = 0; i < n; i++){ if (includeMap[i]) colors[i] = _QP_ROOF_INCL; else { colors[i] = _QP_ROOF_EXCL; cross[i] = true; } }
+      return { roofColors: colors, crossSet: cross };
+    };
+    var _grab = function(cfg, meta){
       var url = null;
-      try { url = _jpCaptureBasic(i, { bgOpacity: showBg ? 55 : 0 }); } catch(e){}
-      // Roof 0 is the main roof; later roofs are either their own optional
-      // extra (ticked "separate") or folded into the main price (default).
-      var role = (i === 0) ? 'main' : (_sepR[i] ? 'optional' : 'included');
-      if (url) out.push({ url: url, name: nm, role: role });
+      try { url = _jpCaptureBasic(-1, { bgOpacity: bgOp, roofColors: cfg.roofColors, crossSet: cfg.crossSet }); } catch(e){}
+      if (url) out.push(Object.assign({ url: url }, meta));
+    };
+    var separate = [], anyOut = false;
+    for (var i = 1; i < n; i++){ var m = _roofQuoteMode(i); if (m === 'separate'){ separate.push(i); anyOut = true; } else if (m === 'excluded'){ anyOut = true; } }
+    // Base map.
+    var baseInc = {}; for (var i = 0; i < n; i++){ var mm = _roofQuoteMode(i); baseInc[i] = (mm === 'main' || mm === 'folded'); }
+    _grab(_cfg(baseInc), { role:'base', caption:(separate.length ? 'Included in your quote — base scope' : 'Your new roof'), legend: anyOut });
+    // One optional-extra map per separate roof.
+    separate.forEach(function(si){
+      var inc = {}; for (var i = 0; i < n; i++){ var m2 = _roofQuoteMode(i); inc[i] = (m2 === 'main' || m2 === 'folded' || i === si); }
+      var nm = (DRAW.roofs && DRAW.roofs[si] && DRAW.roofs[si].name) || ('Roof ' + (si + 1));
+      _grab(_cfg(inc), { role:'extra', extraIdx: si, caption:'Optional extra — add ' + nm, legend:true });
     });
-  } else if (window.DRAW && DRAW.outline && DRAW.outline.length >= 3) {
-    var u = null;
-    try { u = _jpCaptureBasic(-1, { bgOpacity: showBg ? 55 : 0 }); } catch(e){}
-    if (u) out.push({ url: u, name: (DRAW.roofs && DRAW.roofs[0] && DRAW.roofs[0].name) || 'Roof 1', role: 'single' });
   }
   if (!window.__CUSTOMER_MODE) {
-    // Office side — stash the freshly rendered maps for the customer link.
     if (out.length) { S.quote.roofMapImgs = out; }
     else if (Array.isArray(S.quote.roofMapImgs)) { S.quote.roofMapImgs = []; }
   } else if (!out.length && S.quote && Array.isArray(S.quote.roofMapImgs)) {
-    // Customer link — no live drawing, so render the office-stashed images.
-    return S.quote.roofMapImgs;
+    return S.quote.roofMapImgs;   // customer link — render the office-stashed maps
   }
   return out;
 }
@@ -12478,29 +12520,39 @@ function _buildRoofPreviewsHtml(opts){
           return '<button type="button" onclick="_setRoofMapSize(\''+p[0]+'\')" style="padding:2px 8px;font-size:9.5px;border:none;border-left:'+(p[0]==='sm'?'0':'1px solid var(--ed-line)')+';background:'+(_seld?'var(--ed-accent)':'#fff')+';color:'+(_seld?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans)">'+p[1]+'</button>';
         }).join('')+'</span>';
     }
-    // "Separate roof N" ticks — one per roof after the main one. Ticked =
-    // quoted as its own optional extra; un-ticked = folded into the main price.
-    var _sepToggles = '';
+    // Per-roof quote mode — one 3-way control per roof after the main one:
+    // part of the main price · its own optional extra · excluded from the quote.
+    var _modeToggles = '';
     if (_officeCtl && window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) {
-      var _sm = (S.quote.roofSeparate && typeof S.quote.roofSeparate === 'object') ? S.quote.roofSeparate : {};
       var _rows = [];
       for (var _si = 1; _si < DRAW.roofs.length; _si++) {
         var _rn = (DRAW.roofs[_si] && DRAW.roofs[_si].name) || ('Roof ' + (_si + 1));
-        _rows.push('<label class="no-print" style="display:flex;align-items:center;gap:7px;font-size:10.5px;font-family:var(--ed-sans);color:var(--ed-ink-2);cursor:pointer">'+
-          '<input type="checkbox" '+(_sm[_si]?'checked':'')+' onchange="_toggleRoofSeparate('+_si+',this.checked)" style="cursor:pointer;margin:0">'+
-          'Separate roof '+(_si + 1)+' <span style="color:var(--ed-text2)">— '+esc2(_rn)+'</span></label>');
+        var _cm = _roofQuoteMode(_si);
+        var _seg = [['folded','Part of main'],['separate','Separate extra'],['excluded','Exclude']].map(function(p){
+          var _on = (_cm === p[0]);
+          var _col = (p[0] === 'excluded') ? '#dc2626' : 'var(--ed-accent)';
+          return '<button type="button" onclick="_setRoofMode('+_si+',\''+p[0]+'\')" style="padding:2px 9px;font-size:9.5px;border:none;border-left:'+(p[0]==='folded'?'0':'1px solid var(--ed-line)')+';background:'+(_on?_col:'#fff')+';color:'+(_on?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
+        }).join('');
+        _rows.push('<div class="no-print" style="display:flex;align-items:center;gap:9px;font-size:10.5px;font-family:var(--ed-sans);color:var(--ed-ink-2);flex-wrap:wrap">'+
+          '<span style="min-width:64px;font-weight:600">'+esc2(_rn)+'</span>'+
+          '<span style="display:inline-flex;border:1px solid var(--ed-line);border-radius:4px;overflow:hidden">'+_seg+'</span></div>');
       }
-      _sepToggles = '<div class="no-print" style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--ed-line);display:flex;flex-direction:column;gap:6px">'+
-        '<div style="font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--ed-text2);font-family:var(--ed-sans)">Tick a roof to quote it as a separate optional extra <span style="text-transform:none;letter-spacing:0">(un-ticked = part of the main roof)</span></div>'+
+      _modeToggles = '<div class="no-print" style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--ed-line);display:flex;flex-direction:column;gap:7px">'+
+        '<div style="font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--ed-text2)">How is each roof quoted? <span style="text-transform:none;letter-spacing:0">(part of the main price · its own optional extra · excluded &amp; shown crossed-out)</span></div>'+
         _rows.join('')+'</div>';
     }
+    // Legend under any map that mixes included/excluded roofs.
+    var _legendHtml = '<div style="display:flex;gap:16px;align-items:center;margin-top:7px;font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);flex-wrap:wrap">'+
+      '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:15px;height:11px;background:#dbeafe;border:1.5px solid #1d4ed8;border-radius:2px;display:inline-block"></span>Included in this price</span>'+
+      '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:15px;height:11px;background:#fee2e2;border:1.5px solid #dc2626;border-radius:2px;display:inline-block"></span>Not included</span>'+
+    '</div>';
     var _mh = _qpRoofMapMaxH();
     var _grid = _multiRoof
       ? 'display:grid;grid-template-columns:repeat('+Math.min(imgs.length, 2)+',minmax(0,1fr));gap:14px;align-items:start'
       : 'display:block';
     return '<div class="qp-roofmap" style="border:1px solid var(--ed-line);background:#fff;padding:12px 14px">'+
       '<div class="ed-eyebrow" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">'+
-        '<span>Roof map'+(_multiRoof?'s':'')+'</span>'+
+        '<span>Roof plan'+(_multiRoof?'s':'')+'</span>'+
         '<span class="no-print" style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+_bgToggle+_sizeCtl+
         (_officeCtl ? '<button type="button" class="no-print" onclick="refreshQuoteProposal()" style="padding:2px 8px;font-size:9.5px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;cursor:pointer;font-family:var(--ed-sans);color:var(--ed-ink-2);letter-spacing:.04em">↻ Refresh</button>' : '')+
         '</span>'+
@@ -12508,12 +12560,13 @@ function _buildRoofPreviewsHtml(opts){
       '<div style="'+_grid+'">'+
         imgs.map(function(im){
           return '<div>'+
-            _roofBadge(im)+
-            '<div style="display:flex;justify-content:center"><img src="'+im.url+'" alt="'+esc2(im.name)+'" style="display:block;max-width:100%;max-height:'+_mh+'px;width:auto;height:auto;background:#fff"></div>'+
+            (im.caption ? '<div class="ed-serif" style="font-style:italic;font-size:12.5px;color:var(--ed-ink);margin-bottom:5px">'+esc2(im.caption)+'</div>' : '')+
+            '<div style="display:flex;justify-content:center"><img src="'+im.url+'" alt="'+esc2(im.caption||'Roof plan')+'" style="display:block;max-width:100%;max-height:'+_mh+'px;width:auto;height:auto;background:#fff"></div>'+
+            (im.legend ? _legendHtml : '')+
           '</div>';
         }).join('')+
       '</div>'+
-      _sepToggles+
+      _modeToggles+
     '</div>';
   }
   var gridStyle = (imgs.length === 1)
@@ -13701,10 +13754,9 @@ function refreshQuoteProposal(){
           if (!ol || ol.length < 3) return 0;
           return polyAreaPx(ol) * _sc2;
         };
-        var _sepMap2 = (S.quote.roofSeparate && typeof S.quote.roofSeparate === 'object') ? S.quote.roofSeparate : {};
         var _extra = [];
         for (var _ri = 1; _ri < DRAW.roofs.length; _ri++){
-          if (!_sepMap2[_ri]) continue;   // not flagged separate → folded into the main price above
+          if (_roofQuoteMode(_ri) !== 'separate') continue;   // folded → in base; excluded → not quoted
           var _matI = _materialsCostForRoofIdx(_ri) * _gfNow;   // materials at selected grade
           var _labI = _labourPriceForRoof(_ri);                 // this roof's own labour
           var _scaffI = _scaffoldPriceForRoof(_ri);             // this roof's own scaffold
@@ -24927,8 +24979,16 @@ function _renderMatRoofMapBasic(out, opts){
   // Untouched roofs render exactly as before (default centroid + auto
   // font size derived from the bounding-box height).
   var overrides = DRAW.basicLabelOverrides || {};
+  // opts.roofColors[DRAW.roofs idx] = {fill,stroke,text} overrides the palette
+  // (used by the quote to paint included roofs blue / excluded roofs red).
+  // opts.crossSet[idx] = true draws a red X over that roof (excluded / not in
+  // this scope).
+  var roofColors = opts.roofColors || null;
+  var crossSet   = opts.crossSet || null;
   roofs.forEach(function(r, ri){
+    var _key = (r.idx != null) ? r.idx : ri;
     var c = palette[ri % palette.length];
+    if (roofColors && roofColors[_key]) c = roofColors[_key];
     var pts = r.outline.map(function(p){ return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
     svg += '<polygon points="'+pts+'" fill="'+c.fill+'" fill-opacity="'+polyOp.toFixed(2)+'" stroke="'+c.stroke+'" stroke-width="2.5"/>';
     (r.lines || []).forEach(function(l){
@@ -24954,6 +25014,15 @@ function _renderMatRoofMapBasic(out, opts){
       '<text x="'+lx.toFixed(1)+'" y="'+(ly - 2).toFixed(1)+'" text-anchor="middle" font-size="'+nFs+'" font-weight="700" stroke="#fff" stroke-width="4" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+esc(r.name)+'</text>'+
       '<text x="'+lx.toFixed(1)+'" y="'+(ly + nFs*0.95).toFixed(1)+'" text-anchor="middle" font-size="'+sFs+'" font-weight="500" stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+areaTxt+'</text>'+
     '</g>';
+    // Red X over an excluded / out-of-scope roof.
+    if (crossSet && crossSet[_key]) {
+      var bx0=Infinity, by0=Infinity, bx1=-Infinity, by1=-Infinity;
+      r.outline.forEach(function(p){ if(p[0]<bx0)bx0=p[0]; if(p[0]>bx1)bx1=p[0]; if(p[1]<by0)by0=p[1]; if(p[1]>by1)by1=p[1]; });
+      svg += '<g stroke="#dc2626" stroke-width="'+Math.max(2.5,(h/90)).toFixed(1)+'" stroke-linecap="round" opacity="0.7">'+
+        '<line x1="'+bx0.toFixed(1)+'" y1="'+by0.toFixed(1)+'" x2="'+bx1.toFixed(1)+'" y2="'+by1.toFixed(1)+'"/>'+
+        '<line x1="'+bx1.toFixed(1)+'" y1="'+by0.toFixed(1)+'" x2="'+bx0.toFixed(1)+'" y2="'+by1.toFixed(1)+'"/>'+
+      '</g>';
+    }
   });
   svg += '</svg>';
   out.innerHTML = controlsHtml + svg;
@@ -25006,6 +25075,7 @@ function _matBasicCollectRoofs(){
       var lines   = isActive ? DRAW.lines   : (r.lines   || []);
       if (!outline || outline.length < 3) return;
       roofs.push({
+        idx: i,                       // original DRAW.roofs index (for per-roof colour overrides)
         name: r.name || _nthName(i + 1),
         outline: outline,
         lines: lines,
@@ -25014,6 +25084,7 @@ function _matBasicCollectRoofs(){
     });
   } else if (DRAW.outline && DRAW.outline.length >= 3) {
     roofs.push({
+      idx: 0,
       name: 'Roof 1',
       outline: DRAW.outline,
       lines: DRAW.lines || [],
@@ -25393,7 +25464,9 @@ function _jpCaptureBasic(roofIdx, opts){
   try {
     // If a specific roof is requested, temporarily limit the
     // collector to that roof.
-    var _basicOpts = { bgOpacity: (opts && opts.bgOpacity != null) ? opts.bgOpacity : undefined };
+    var _basicOpts = { bgOpacity: (opts && opts.bgOpacity != null) ? opts.bgOpacity : undefined,
+                       roofColors: (opts && opts.roofColors) || null,
+                       crossSet: (opts && opts.crossSet) || null };
     if (roofIdx >= 0 && DRAW.roofs && DRAW.roofs[roofIdx]) {
       var allRoofs = DRAW.roofs;
       var _savedActive = DRAW.activeRoofIdx;
