@@ -332,6 +332,8 @@ table.tb.tb-gp .avgbtn{padding:1px 3px;}
 .cleg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle;}
 .cpanel table.tb{font-size:.74rem;}
 .cpanel table.tb td,.cpanel table.tb th{padding:8px 6px;}
+tr.apsec td{background:var(--card2);font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;padding-top:11px;border-bottom:1px solid var(--border);}
+.apno{font-size:.62rem;color:var(--muted);font-weight:600;margin-left:5px;}
 .lrbar{position:relative;}
 .lrbar .lrf{position:absolute;left:0;top:0;bottom:0;background:rgba(74,222,128,.16);border-radius:5px;}
 .cpt .chip{padding:3px 10px;font-size:.6rem;}
@@ -483,6 +485,37 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
 .mtg-nf label{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);}
 .mtg-ta{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px 9px;font-size:.74rem;font-family:inherit;resize:vertical;min-height:38px;}
 @media (max-width:560px){.mtg-notes{grid-template-columns:1fr;}}
+/* Back-costing review */
+.bcr-sum{font-size:.8rem;font-weight:700;color:var(--muted);margin:2px 0 14px;text-align:center;}
+.bcr-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px;}
+.bcr-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;}
+.bcr-jn{flex:1;min-width:0;}
+.bcr-head h3{font-size:1.08rem;font-weight:800;margin:0;color:var(--text);overflow-wrap:anywhere;line-height:1.2;}
+.bcr-sub{font-size:.64rem;font-weight:700;color:var(--muted);letter-spacing:.4px;margin-top:2px;}
+table.tb.bcr-cmp{font-size:.76rem;margin:2px 0 10px;}
+table.tb.bcr-cmp th,table.tb.bcr-cmp td{padding:6px 8px;}
+table.tb.bcr-cmp td:first-child{font-weight:700;color:var(--muted);}
+.bcr-good{color:#22c55e;font-weight:800;}
+.bcr-bad{color:#fb923c;font-weight:800;}
+.bcr-muted{color:var(--muted);opacity:.7;}
+tr.bcr-hl td{background:rgba(77,141,255,.10);font-size:.82rem;}
+.bcr-tag{font-size:.54rem;font-weight:800;color:#fb923c;vertical-align:middle;}
+.bcr-lbl{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:12px 0 6px;}
+.bcr-crew{display:flex;flex-wrap:wrap;gap:5px;}
+.bcr-crew .cc{font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:8px;background:var(--card2);color:var(--muted);border:1px solid var(--border);}
+.bcr-crew .cc b{color:var(--text);}
+.bcr-crew .cc.lead{background:rgba(77,141,255,.16);color:var(--primary);border-color:rgba(77,141,255,.45);}
+.bcr-lead{color:var(--primary);font-weight:800;}
+.bcr-tools a,.bcr-note a{font-size:.72rem;font-weight:800;color:var(--primary);cursor:pointer;}
+.bcr-note{font-size:.72rem;color:var(--muted);padding:4px 0;}
+.bcr-lines-toggle{display:flex;align-items:center;gap:6px;margin:12px 0 2px;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);cursor:pointer;user-select:none;padding:6px 0;}
+.bcr-lines-toggle:active{opacity:.7;}
+.bcr-chev{display:inline-block;width:12px;color:var(--primary);}
+.bcr-linetitle{font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--primary);margin:8px 0 4px;}
+table.tb.bcr-lines{font-size:.72rem;margin-bottom:4px;}
+table.tb.bcr-lines th,table.tb.bcr-lines td{padding:5px 7px;}
+table.tb.bcr-lines td:first-child{white-space:normal;overflow-wrap:anywhere;}
+.bcr-linetotal{font-size:.78rem;text-align:right;margin-top:4px;color:var(--text);}
 .mtg-input{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px 10px;font-size:.78rem;}
 .mtg-title-slide{background:linear-gradient(140deg,#1b2740,#0d1017);border:1px solid var(--border);border-radius:18px;padding:34px 22px;text-align:center;margin-bottom:16px;}
 .mtg-title-slide .mts-k{font-size:.66rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--primary);}
@@ -670,6 +703,14 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     </div>
   </div>
 
+  <!-- Back-costing review (sales-manager sit-down) — sibling of the pages so it opens from any tab -->
+  <div id="bcr-modal" class="cmodal" onclick="if(event.target===this)closeBcReview();">
+    <div class="cmodal-card">
+      <div class="cmodal-head"><span>🧾 Back-costing review</span><button class="cmodal-x" onclick="closeBcReview()">✕ Close</button></div>
+      <div id="bcr-body"></div>
+    </div>
+  </div>
+
   <!-- ───────── DASHBOARD ───────── -->
   <div class="page active" id="page-dash">
     <div class="card" style="border-left:4px solid var(--success);">
@@ -755,6 +796,10 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
 
   <!-- ───────── BACK COSTING ───────── -->
   <div class="page" id="page-bc">
+    <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div><div style="font-weight:800;letter-spacing:-.01em;">🧾 Back-costing review</div><div class="period-sub">Sit down with the sales manager — every finished job, the quote vs the actual costs &amp; hours.</div></div>
+      <button class="mtg-btn" onclick="openBcReview()" title="Run through the month's finished jobs">Start review</button>
+    </div>
     <!-- OPEN at top: Performance by Lead Roofer + All Back Costing -->
     <div class="card" id="lr-card">
       <div class="ct">Performance by Lead Roofer <span id="lr-sub" class="period-sub" style="margin-left:auto;"></span></div>
@@ -2287,8 +2332,15 @@ function fsFig(summary){
     fnum(lh.total),fnum(lh.logged),fnum(lh.loggedHours),fnum(lh.incurred),fnum(lh.incurredHours),fnum(lh.actual),
     fnum(s.loggedHours),fnum(s.incurredHours),fnum(s.loggedHrs),fnum(s.incurredHrs))
     || fnum(fpick(lh,'billable'));
+  // Priced/allowed COSTS (Fergus "Billable/Priced Labour/Material Costs") — the COST side of the quote,
+  // distinct from the priced SELL (quoteSummary.labour/materials). Field names vary across tenants → wide net.
+  const pc=s.pricedCosts||s.billablePricedCosts||s.quotedCosts||s.billableCosts||s.pricedCost||{};
+  const p_labCost=fnum(fpick(pc,'labour','labor','labourCost'))||fnum(fpick(qs,'labourCost','labourCosts','pricedLabourCost','labourCostPriced','billableLabourCost','billablePricedLabourCosts'))||fnum(fpick(s,'billablePricedLabourCosts','pricedLabourCosts','pricedLabourCost'));
+  const p_matCost=fnum(fpick(pc,'materials','material','materialCost'))||fnum(fpick(qs,'materialCost','materialCosts','pricedMaterialCost','materialCostPriced','billableMaterialCost','billablePricedMaterialCosts'))||fnum(fpick(s,'billablePricedMaterialCosts','pricedMaterialCosts','pricedMaterialCost'));
+  const p_cost=fnum(fpick(pc,'total','cost','totalCost'))||fnum(fpick(s,'billablePricedCosts','pricedCostsTotal','totalPricedCost'))||((p_labCost+p_matCost)||0);
   return {rev,lab,mat,cost,hours,
     p_lab:fnum(fpick(qs,'labour','labourPriced')),p_mat:fnum(fpick(qs,'materials','materialsPriced')),
+    p_labCost,p_matCost,p_cost,
     h_priced:fnum(fpick(qs,'quotedHours','pricedHours','hours'))};
 }
 // Build a back-costing row from a Fergus financial summary, dated to a given invoice timestamp.
@@ -2296,10 +2348,11 @@ function bcRowFrom(job,summary,dateMs){
   const fid=job.id!=null?job.id:(job.jobId!=null?job.jobId:(job.jobNo||job.jobNumber));if(fid==null)return null;
   const f=fsFig(summary);
   const sales=f.rev,a_lab=f.lab,a_mat=f.mat,cost=f.cost,p_lab=f.p_lab,p_mat=f.p_mat,h_actual=f.hours,h_priced=f.h_priced;
+  const p_labCost=f.p_labCost,p_matCost=f.p_matCost,p_cost=f.p_cost;
   const gp=sales-cost,gpm=sales>0?Math.round(gp/sales*1000)/10:0;
   const client=fergusName(job.customer)||fergusName(job.mainContact)||'Unknown';const site=fergusAddr(job.siteAddress);
   const iso=new Date(dateMs).toISOString();
-  return {month:fergusMonthLabel(iso),job:client+(site?(' — '+site):''),date:iso.split('T')[0],job_type:job.jobType||job.type||'Fergus',_title:(job.brief||job.title||job.jobDescription||job.description||job.summary||''),_jobNo:String(job.jobNo||job.jobNumber||''),_site:site||'',p_lab,a_lab,p_mat,a_mat,sales,gp,gpm,h_actual,h_priced,lead_src:'Fergus',_fergus:true,_fergus_id:String(fid),_lastModified:job.lastModified||''};
+  return {month:fergusMonthLabel(iso),job:client+(site?(' — '+site):''),date:iso.split('T')[0],job_type:job.jobType||job.type||'Fergus',_title:(job.brief||job.title||job.jobDescription||job.description||job.summary||''),_jobNo:String(job.jobNo||job.jobNumber||''),_site:site||'',p_lab,a_lab,p_mat,a_mat,p_labCost,p_matCost,p_cost,sales,gp,gpm,h_actual,h_priced,lead_src:'Fergus',_fergus:true,_fergus_id:String(fid),_lastModified:job.lastModified||''};
 }
 // Rebuild ALL Fergus back-costing rows. A job is back-costed (treated as finished) when:
 //  • 2+ paid Xero invoices, OR
@@ -4008,13 +4061,36 @@ function openCmdDetail(key,optMk){
       if(rows.length)rows.push('<tr class="tot"><td>Total ('+(list.length-nX)+(nX?' · '+nX+' crossed out':'')+')</td><td style="text-align:right;">'+fmtK(tot)+'</td><td></td></tr>');
       body='<div class="note" style="margin:0 0 10px;">Tap <b>✕</b> (far right) to cross out an invoice you don’t expect to collect (e.g. a deposit you’ll void) — it drops from the cashflow, job totals <b>and the headline Accounts receivable figure</b>. Remember to credit/void it in Xero too so your books match.</div>'+
         wrap('<th>Job</th><th style="text-align:right;">Owed</th><th></th>',rows,'No outstanding invoices 🎉');}}
-  else if(key==='ap'){title='Accounts payable — owed to suppliers';
-    const abc=(cash&&cash.apByCode)||null,accts=(cash&&cash.accounts)||{};
-    if(abc&&Object.keys(abc).length){const list=Object.keys(abc).map(c=>({c,amt:num(abc[c].amt),name:(accts[c]&&accts[c].name)||''})).filter(r=>r.amt>0).sort((a,b)=>b.amt-a.amt);
-      const tot=list.reduce((s,r)=>s+r.amt,0);const rows=list.map(r=>'<tr><td>'+esc(r.c)+'</td><td>'+esc((r.name||'').slice(0,28))+'</td><td style="text-align:right;font-weight:700;">'+fmtK(r.amt)+'</td></tr>');
-      if(rows.length)rows.push('<tr class="tot"><td colspan="2">Total</td><td style="text-align:right;">'+fmtK(tot)+'</td></tr>');
-      body=wrap('<th>Code</th><th>Account</th><th style="text-align:right;">Unpaid</th>',rows,'No unpaid supplier bills.');}
-    else{const ap=window.__apTotal;body='<div class="note">Total unpaid supplier bills (Accounts Payable): <b>'+(ap!=null?fmtK(ap):'—')+'</b>.<br><br>Open <b>Cash → Accounts Payable</b> and sync to load the per-supplier / per-code breakdown, and it will show here.</div>';}}
+  else if(key==='ap'){title='Accounts payable — supplier bills due';
+    const bills=(cash&&cash.apBills)||null;
+    if(bills&&bills.length){
+      const now=new Date(),tY=now.getFullYear(),tM=now.getMonth(),curMk=tY*12+tM;
+      const todayStr=tY+'-'+String(tM+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+      const mkOf=d=>{if(!d)return null;const p=d.split('-');return parseInt(p[0])*12+(parseInt(p[1])-1);};
+      const fullMon=off=>{const d=new Date(tY,tM+off,1);const F=['January','February','March','April','May','June','July','August','September','October','November','December'];return F[d.getMonth()]+' '+d.getFullYear();};
+      const fmtDue=d=>{if(!d)return '—';const p=d.split('-');return (p[2].replace(/^0/,''))+' '+FG_MONTHS[parseInt(p[1])-1];};
+      const bk={over:[],cur:[],next:[],later:[],undated:[]};
+      bills.forEach(b=>{const m=mkOf(b.due);if(m==null)bk.undated.push(b);else if(b.due<todayStr)bk.over.push(b);else if(m===curMk)bk.cur.push(b);else if(m===curMk+1)bk.next.push(b);else bk.later.push(b);});
+      [bk.over,bk.cur,bk.next,bk.later,bk.undated].forEach(a=>a.sort((x,y)=>y.amt-x.amt));   // most expensive first
+      const rowsArr=[];
+      const section=(label,arr,col)=>{if(!arr.length)return;const sub=arr.reduce((s,b)=>s+b.amt,0);
+        rowsArr.push('<tr class="apsec"><td colspan="2" style="color:'+col+';">'+esc(label)+'</td><td style="text-align:right;color:'+col+';">'+fmtK(sub)+'</td></tr>');
+        arr.forEach(b=>rowsArr.push('<tr><td><b>'+esc((b.supplier||'').slice(0,36))+'</b>'+(b.no?' <span class="apno">'+esc(b.no)+'</span>':'')+'</td><td style="text-align:right;color:var(--muted);white-space:nowrap;">'+esc(fmtDue(b.due))+'</td><td style="text-align:right;font-weight:700;">'+fmtK(b.amt)+'</td></tr>'));};
+      section('⚠ Overdue',bk.over,'#ff6b6b');
+      section('Due this month · '+fullMon(0),bk.cur,'var(--primary)');
+      section('Due next month · '+fullMon(1),bk.next,'var(--success)');
+      section('Later',bk.later,'var(--muted)');
+      section('No due date',bk.undated,'var(--muted)');
+      const tot=bills.reduce((s,b)=>s+b.amt,0);
+      rowsArr.push('<tr class="tot"><td colspan="2">Total owed ('+bills.length+' bill'+(bills.length===1?'':'s')+')</td><td style="text-align:right;">'+fmtK(tot)+'</td></tr>');
+      body='<div class="note" style="margin:0 0 10px;">Every unpaid supplier bill in Xero, grouped by when it’s due — most expensive first. GST-inclusive.</div>'+
+        wrap('<th>Supplier</th><th style="text-align:right;">Due</th><th style="text-align:right;">Amount</th>',rowsArr,'No unpaid supplier bills.');}
+    else{const abc=(cash&&cash.apByCode)||null,accts=(cash&&cash.accounts)||{};
+      if(abc&&Object.keys(abc).length){const list=Object.keys(abc).map(c=>({c,amt:num(abc[c].amt),name:(accts[c]&&accts[c].name)||''})).filter(r=>r.amt>0).sort((a,b)=>b.amt-a.amt);
+        const tot=list.reduce((s,r)=>s+r.amt,0);const rows=list.map(r=>'<tr><td>'+esc(r.c)+'</td><td>'+esc((r.name||'').slice(0,28))+'</td><td style="text-align:right;font-weight:700;">'+fmtK(r.amt)+'</td></tr>');
+        if(rows.length)rows.push('<tr class="tot"><td colspan="2">Total</td><td style="text-align:right;">'+fmtK(tot)+'</td></tr>');
+        body='<div class="note" style="margin:0 0 10px;">Re-sync <b>Cash</b> to switch this to the per-bill, due-date view.</div>'+wrap('<th>Code</th><th>Account</th><th style="text-align:right;">Unpaid</th>',rows,'No unpaid supplier bills.');}
+      else{const ap=window.__apTotal;body='<div class="note">Total unpaid supplier bills (Accounts Payable): <b>'+(ap!=null?fmtK(ap):'—')+'</b>.<br><br>Open <b>Cash → Accounts Payable</b> and sync to load the per-bill breakdown.</div>';}}}
   else if(key==='expap'){
     const ax=window.__apExp;
     title='Expected A/P — upcoming 20ths';
@@ -4911,20 +4987,25 @@ async function fetchXeroAPBills(){
   const proxy=fergusProxyUrl();if(!proxy)return null;
   const psec=fergusProxySecret();
   const byCode={};let apTotal=0,page=1,got=false;
+  const bills=[];   // individual unpaid bills {supplier, amt, no, due:'YYYY-MM-DD'} — for the per-bill AP view
   // Materials/goods-merchant name signals for a NZ roofing business (best-guess; user can override).
   const MAT_KW=['steel','colorsteel','colour steel','colorcote','roofing','roof ','iron','metalcraft','dimond','flashing','gutter','spouting','downpipe','timber','itm','bunnings','mitre 10','placemaker','carters','nuralite','marley','james hardie','hardie','insulation','purlin','fastener','fixing','rivet','cladding','fletcher','ullrich','aluminium','membrane','viking','stratco','calder stewart','roofing industries','building supplies','trade depot','plumbing world','metal'];
   const isMatSupplier=nm=>{const s=(nm||'').toLowerCase();return MAT_KW.some(k=>s.includes(k));};
   while(page<=15){
     let res;
     try{res=await fetch(proxyUrl('xero','/Invoices?where=Type=="ACCPAY" AND Status=="AUTHORISED"&page='+page+'&order=Date DESC'),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});}
-    catch(e){return got?{byCode,apTotal}:null;}
-    if(!res.ok)return got?{byCode,apTotal}:null;
+    catch(e){return got?{byCode,apTotal,bills}:null;}
+    if(!res.ok)return got?{byCode,apTotal,bills}:null;
     let inv=[];try{inv=(JSON.parse(await res.text()).Invoices)||[];}catch(e){inv=[];}
     got=true;
     inv.forEach(v=>{
       const due=num(v.AmountDue);if(due<=0)return;
       apTotal+=due;
       const supplier=(v.Contact&&v.Contact.Name)||'';const isMat=isMatSupplier(supplier);
+      const dstr=String(v.DueDateString||'');let dd='';
+      if(/^\d{4}-\d{2}-\d{2}/.test(dstr))dd=dstr.slice(0,10);
+      else{const md=/\/Date\((\d+)/.exec(String(v.DueDate||''));if(md){const dt=new Date(+md[1]);if(!isNaN(dt))dd=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}}
+      bills.push({supplier:supplier||'(no supplier)',amt:due,no:String(v.InvoiceNumber||v.Reference||''),due:dd});
       const addTo=(c,amt)=>{const b=byCode[c]||(byCode[c]={amt:0,matAmt:0,egs:[]});b.amt+=amt;if(isMat)b.matAmt+=amt;if(supplier&&b.egs.length<3&&b.egs.indexOf(supplier)<0)b.egs.push(supplier);};
       const lines=v.LineItems||[];
       let lt=0;lines.forEach(l=>lt+=Math.abs(num(l.LineAmount)));
@@ -4934,7 +5015,7 @@ async function fetchXeroAPBills(){
     if(inv.length<100)break;
     page++;toast('Xero bills… '+((page-1)*100)+'+');
   }
-  return {byCode,apTotal};
+  return {byCode,apTotal,bills};
 }
 // Chart of accounts → { code:{name,type,cls} }. Needs accounting.settings.read (now granted).
 async function fetchXeroAccounts(){
@@ -4965,7 +5046,7 @@ async function syncCash(){
     const apb=await fetchXeroAPBills();
     toast('Reading chart of accounts…');
     const accts=await fetchXeroAccounts();
-    cash={rows,paidByJob:paidByJob||null,arByJob:arByJob||null,apByCode:(apb&&apb.byCode)||null,apBillsTotal:(apb&&apb.apTotal)||0,accounts:accts||null,ts:nzStamp()};
+    cash={rows,paidByJob:paidByJob||null,arByJob:arByJob||null,apByCode:(apb&&apb.byCode)||null,apBills:(apb&&apb.bills)||null,apBillsTotal:(apb&&apb.apTotal)||0,accounts:accts||null,ts:nzStamp()};
     S.set('cash',cash);
     toast('End cash position updated ✓','ok');
     renderCash();
@@ -5981,6 +6062,126 @@ function renderMeeting(){
 }
 // New month? quietly point the meeting at last complete month so it's one tap when the boss opens it.
 try{_mtgMk=calMonthKey(-1);}catch(e){}
+
+// ════════ BACK-COSTING REVIEW (sales-manager sit-down) ════════
+// Runs through each job FINISHED that month: the real quote line items (fetched live from Fergus), the
+// actual costs (materials + labour totals, plus who logged the hours), and priced vs actual hours — so
+// you can see exactly what was quoted vs what it cost. Quote lines are fetched per job (cached).
+let _bcrMk=null;
+const _bcrQuote={};   // {jobId:{mat:[],lab:[],total,err,loading}} — fetched quote line items (in-memory)
+const _bcrOpen={};    // {jobId:1} — which jobs have the quoted-line-items pop-down expanded (default collapsed)
+function bcrToggleLines(id){if(_bcrOpen[id])delete _bcrOpen[id];else{_bcrOpen[id]=1;if(!_bcrQuote[id])bcrFetchQuote(id);}renderBcReview();}
+function bcrFinishedJobs(mk){
+  const out=[];
+  (bcFergus||[]).forEach(r=>{if(isExcl(r)||r._inProgress)return;if((r.month||'')!==mk)return;out.push(r);});   // finished & back-costed this month
+  return stableOrder('bcr-'+mk,out,r=>String(r._jobNo||r._fergus_id||r.job),(a,b)=>num(b.sales)-num(a.sales));
+}
+function openBcReview(mk){_bcrMk=mk||calMonthKey(-1);document.getElementById('bcr-modal').classList.add('open');document.body.style.overflow='hidden';renderBcReview();window.scrollTo(0,0);bcrAutoLoad(_bcrMk);}
+function closeBcReview(){document.getElementById('bcr-modal').classList.remove('open');document.body.style.overflow='';}
+function bcrStep(d){_bcrMk=(function(){const p=(_bcrMk||calMonthKey(-1)).split('-');let i=FG_MONTHS.indexOf(p[0]),y=parseInt(p[1]);i+=d;while(i<0){i+=12;y--;}while(i>11){i-=12;y++;}return FG_MONTHS[i]+'-'+y;})();renderBcReview();bcrAutoLoad(_bcrMk);}
+// Pull the job's accepted/latest Fergus quote and split its line items into materials & labour.
+async function bcrFetchQuote(id){
+  if(!id||_bcrQuote[id])return;
+  _bcrQuote[id]={mat:[],lab:[],total:0,err:null,loading:true};renderBcReview();
+  try{
+    const j=await fergusApiFetch('/jobs/'+encodeURIComponent(id)+'/quotes');
+    let list=Array.isArray(j)?j:((j&&(j.data||j.value||j.quotes||j.results))||[]);
+    list=(list||[]).filter(q=>q&&!q.isVoided&&!q.voidedAt);
+    list.sort((a,b)=>((b.isAccepted?1:0)-(a.isAccepted?1:0))||(num(b.versionNumber)-num(a.versionNumber)));
+    const q=list[0]||null;let sections=(q&&(q.sections||q.quoteSections))||[];
+    const hasLines=s=>Array.isArray(s)&&s.some(x=>((x.lineItems||x.items||[]).length));
+    if(q&&q.id!=null&&!hasLines(sections)){try{const d=await fergusApiFetch('/jobs/'+encodeURIComponent(id)+'/quotes/'+encodeURIComponent(q.id));const dd=(d&&(d.data||d))||{};if(hasLines(dd.sections||dd.quoteSections))sections=dd.sections||dd.quoteSections;}catch(e){}}
+    _bcrQuote[id]=bcrNormalizeQuote(sections);
+  }catch(e){_bcrQuote[id]={mat:[],lab:[],total:0,err:String((e&&e.message)||e),loading:false};}
+  renderBcReview();
+}
+function bcrNormalizeQuote(sections){
+  const mat=[],lab=[];let total=0,matCost=0,labCost=0;
+  const isLab=(it,desc,sname)=>{
+    if(it.isLabour===true)return true;if(it.isLabour===false&&it.itemCost==null&&!/labou?r/i.test(desc))return false;
+    return /labou?r/i.test(desc)||/labou?r/i.test(String(sname||''))||/^(ll|la)\b/i.test(String(desc).trim());   // "LL Labour Lead", "LA Labour Apprentice"
+  };
+  (sections||[]).forEach(s=>{const items=s.lineItems||s.items||[];(items||[]).forEach(it=>{
+    const desc=it.itemName||it.description||it.name||it.desc||'(no description)';
+    const qty=num(it.itemQuantity!=null?it.itemQuantity:(it.quantity!=null?it.quantity:it.qty));
+    const price=num(it.itemPrice!=null?it.itemPrice:(it.unitPrice!=null?it.unitPrice:(it.unit!=null?it.unit:it.rate)));
+    const unitCost=num(it.itemCost!=null?it.itemCost:(it.cost!=null?it.cost:it.costPrice));
+    let disc=num(it.discountRate);if(disc>1)disc=disc/100;
+    const tot=qty*price*(1-(disc||0));total+=tot;const lineCost=qty*unitCost;
+    if(isLab(it,desc,s.name)){lab.push({desc:String(desc),qty,price,tot,cost:lineCost});labCost+=lineCost;}
+    else{mat.push({desc:String(desc),qty,price,tot,cost:lineCost});matCost+=lineCost;}
+  });});
+  return {mat,lab,total,matCost,labCost,err:null,loading:false};
+}
+// Auto-load every finished job's quote (sequential, cached) so the cost comparison + line-item split fill in.
+async function bcrAutoLoad(mk){for(const r of bcrFinishedJobs(mk)){const id=String(r._fergus_id||'');if(id&&!_bcrQuote[id]){try{await bcrFetchQuote(id);}catch(e){}}if(_bcrMk!==mk)return;}}
+function bcrJobLabour(id){const rc=_jobCrewHrs&&_jobCrewHrs[String(id)];if(!rc)return [];return Object.keys(rc).map(n=>({name:n,hrs:num(rc[n])})).sort((a,b)=>b.hrs-a.hrs);}
+function renderBcReview(){
+  const host=document.getElementById('bcr-body');if(!host)return;
+  const mk=_bcrMk||calMonthKey(-1);_bcrMk=mk;
+  const jobs=bcrFinishedJobs(mk);
+  let h='<div class="mtg-toolbar"><div class="mtg-mstep"><button class="mtg-mbtn" onclick="bcrStep(-1)" aria-label="Previous month">‹</button><span class="mtg-mlabel">'+esc(mtgMonthLabel(mk))+'</span><button class="mtg-mbtn" onclick="bcrStep(1)" aria-label="Next month">›</button></div></div>';
+  if(!jobs.length){h+='<div class="mtg-empty">No jobs finished in '+esc(mtgMonthLabel(mk))+' yet. Step to another month, or run a sync.</div>';host.innerHTML=h;return;}
+  let tCost=0,tGp=0,tH=0;jobs.forEach(r=>{tCost+=num(r.a_mat)+num(r.a_lab);tGp+=num(r.gp);tH+=num(r.h_actual);});
+  h+='<div class="bcr-sum">'+jobs.length+' job'+(jobs.length===1?'':'s')+' finished · actual cost '+fmtK(tCost)+' · GP '+fmtK(tGp)+(tH>0?' · '+fmt$(tGp/tH)+'/hr':'')+'</div>';
+  jobs.forEach(r=>{
+    const id=String(r._fergus_id||'');
+    const sale=num(r.sales),aMat=num(r.a_mat),aLab=num(r.a_lab),pMat=num(r.p_mat),pLab=num(r.p_lab),hP=num(r.h_priced),hA=num(r.h_actual);
+    const q=_bcrQuote[id];const saleQ=(q&&!q.err&&q.total>0)?q.total:sale;
+    // Allowed (priced) COST for labour/materials — Fergus priced-cost field first, then the quote's line
+    // itemCosts, else fall back to the priced SELL (flagged). This makes it a true cost-vs-cost review.
+    const allowed=kind=>{const ferg=kind==='lab'?num(r.p_labCost):num(r.p_matCost);if(ferg>0)return {v:ferg,src:'cost'};
+      if(q){if(q.loading)return {v:null,src:'load'};if(!q.err){const c=kind==='lab'?num(q.labCost):num(q.matCost);if(c>0)return {v:c,src:'cost'};}}
+      return {v:kind==='lab'?pLab:pMat,src:'sell'};};
+    const la=allowed('lab'),ma=allowed('mat');
+    const costKnown=la.src!=='load'&&ma.src!=='load';
+    const allowTot=(num(r.p_cost)>0)?num(r.p_cost):((la.v||0)+(ma.v||0));
+    const gpA=num(r.gp),mA=sale>0?gpA/sale*100:0;
+    const gpQ=costKnown?(saleQ-allowTot):null,mQ=(costKnown&&saleQ>0)?gpQ/saleQ*100:null;
+    const gphrA=hA>0?gpA/hA:0,gphrQ=(costKnown&&hP>0)?gpQ/hP:null;
+    const anySell=la.src==='sell'||ma.src==='sell';
+    h+='<div class="bcr-card">';
+    h+='<div class="bcr-head"><div class="bcr-jn"><h3>'+esc(r.job||'(job)')+'</h3><div class="bcr-sub">'+(r._jobNo?'Job #'+esc(r._jobNo)+' · ':'')+esc(r.date||'')+'</div></div><span class="mtg-result '+(gpA>=0?'good':'bad')+'">'+fmt$(gphrA)+'/hr</span></div>';
+    const vr=(lbl,qv,av,fmt,badHi,tag)=>{if(qv==null)return '<tr><td>'+lbl+'</td><td class="bcr-muted">…</td><td>'+fmt(av)+'</td><td class="bcr-muted">—</td></tr>';const d=av-qv,cls=(Math.abs(d)<0.5)?'':((badHi?d>0:d<0)?'bcr-bad':'bcr-good');return '<tr><td>'+lbl+(tag?' <span class="bcr-tag">'+tag+'</span>':'')+'</td><td>'+fmt(qv)+'</td><td>'+fmt(av)+'</td><td class="'+cls+'">'+((qv||av)?((d>0?'+':'')+fmt(d)):'—')+'</td></tr>';};
+    const pct=(lbl,qv,av,hi)=>{if(qv==null)return '<tr><td>'+lbl+'</td><td class="bcr-muted">…</td><td>'+Math.round(av)+'%</td><td class="bcr-muted">—</td></tr>';const d=av-qv,g=(hi?d>=0:d<=0);return '<tr><td>'+lbl+'</td><td>'+Math.round(qv)+'%</td><td>'+Math.round(av)+'%</td><td class="'+(g?'bcr-good':'bcr-bad')+'">'+(d>=0?'+':'')+Math.round(d)+'%</td></tr>';};
+    h+='<table class="tb bcr-cmp"><thead><tr><th>Line</th><th>Allowed</th><th>Actual</th><th>Var</th></tr></thead><tbody>';
+    h+=vr('Sale price',saleQ,sale,fmtK,false);
+    h+=vr('Materials cost',ma.v,aMat,fmtK,true,ma.src==='sell'?'sell*':'');
+    h+=vr('Labour cost',la.v,aLab,fmtK,true,la.src==='sell'?'sell*':'');
+    h+=vr('Total cost',costKnown?allowTot:null,aMat+aLab,fmtK,true);
+    h+=vr('Hours',hP,hA,(x)=>fmtH(x)+'h',true);
+    h+=vr('Gross profit',gpQ,gpA,fmtK,false);
+    h+=pct('Margin',mQ,mA,true);
+    h+='<tr class="bcr-hl">'+vr('GP / hr',gphrQ,gphrA,fmt$,false).slice(4);
+    h+='</tbody></table>';
+    if(anySell)h+='<div class="bcr-note" style="margin-top:-4px;">* Allowed cost not in the summary yet — showing the quoted price. Run a master sync (or load the quote) for the true priced cost.</div>';
+    const scale=Math.max(hP,hA,1);
+    h+='<div class="mtg-bars"><div class="mtg-barrow"><span class="mtg-barlab">Priced</span><div class="mtg-track"><div class="mtg-fill allow" style="width:'+Math.round(hP/scale*100)+'%"></div></div><span class="mtg-barval">'+fmtH(hP)+'h</span></div>';
+    h+='<div class="mtg-barrow"><span class="mtg-barlab">Actual</span><div class="mtg-track"><div class="mtg-fill taken '+(hA>hP*1.02?'bad':'good')+'" style="width:'+Math.round(hA/scale*100)+'%"></div></div><span class="mtg-barval">'+fmtH(hA)+'h</span></div></div>';
+    const lab=bcrJobLabour(id);
+    const lead=effLead(r)||((lab[0]||{}).name)||'';
+    if(lead)h+='<div class="bcr-lbl">Lead roofer · <span class="bcr-lead">★ '+esc(lead)+'</span></div>';
+    if(lab.length){h+='<div class="bcr-lbl" style="margin-top:8px;">Actual labour — who logged the hours</div><div class="bcr-crew">'+lab.map(p=>{const isLead=lead&&(p.name===lead||matchRoofer(p.name)===lead||String(p.name).toLowerCase().indexOf(String(lead).toLowerCase())===0);return '<span class="cc'+(isLead?' lead':'')+'">'+(isLead?'★ ':'')+esc(p.name)+' <b>'+fmtH(p.hrs)+'h</b></span>';}).join('')+'</div>';}
+    const open=!!_bcrOpen[id];
+    const qReady=q&&!q.loading&&!q.err&&(q.mat.length||q.lab.length);
+    const qTot=qReady?(' · '+fmtK(q.total)):(q&&q.loading?' · loading…':'');
+    h+='<div class="bcr-lines-toggle" onclick="bcrToggleLines(\''+esc(id)+'\')"><span class="bcr-chev">'+(open?'▾':'▸')+'</span> Quoted line items'+qTot+'</div>';
+    if(open){
+      if(!q){h+='<div class="bcr-tools"><a onclick="event.stopPropagation();bcrFetchQuote(\''+esc(id)+'\')">⤓ Load the quote breakdown from Fergus</a></div>';}
+      else if(q.loading){h+='<div class="bcr-note">Loading quote…</div>';}
+      else if(q.err){h+='<div class="bcr-note">Couldn’t load the quote ('+esc(q.err)+'). <a onclick="delete _bcrQuote[\''+esc(id)+'\'];renderBcReview();">retry</a></div>';}
+      else if(!q.mat.length&&!q.lab.length){h+='<div class="bcr-note">No itemised quote lines returned for this job.</div>';}
+      else{
+        const lineTbl=(t,arr)=>{if(!arr.length)return '';const s=arr.reduce((a,x)=>a+x.tot,0);return '<div class="bcr-linetitle">'+t+' · '+fmtK(s)+'</div><table class="tb bcr-lines"><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody>'+arr.map(x=>'<tr><td>'+esc(x.desc.slice(0,64))+'</td><td>'+fmtH(x.qty)+'</td><td>'+fmt$(x.price)+'</td><td>'+fmt$(x.tot)+'</td></tr>').join('')+'</tbody></table>';};
+        h+=lineTbl('Materials',q.mat)+lineTbl('Labour',q.lab)+'<div class="bcr-linetotal">Quote total (ex GST): <b>'+fmt$(q.total)+'</b></div>';
+      }
+    }
+    h+='</div>';
+  });
+  h+='<div class="mtg-empty" style="padding:12px 8px;font-size:.72rem;">Quoted vs actual from Fergus back-costing. Quote line items are pulled live from the job’s Fergus quote; actual materials &amp; labour are category totals, and per-person hours come from the labour history. <b style="color:#fb923c;">Red</b> = over the quote.</div>';
+  host.innerHTML=h;
+}
+try{_bcrMk=calMonthKey(-1);}catch(e){}
 
 // ════════ NAV ════════
 const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'Cash'};
