@@ -5793,6 +5793,162 @@ function _updateRoofLabour(idx, field, val){
   try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
 }
 
+// ── Roofing labour auto-calculator (from the Master File pricing model) ──
+// Hours = quantity ÷ rate for each driver, summed and rounded UP = the hours a
+// 2-man crew works (lead + apprentice each work that duration). 3-man ≈ ×0.7.
+// Scaffolding labour is intentionally excluded. Rates (m/hr) are editable for
+// calibration; quantities auto-fill from the drawing and can be overridden per
+// roof. Drives the Lead + Apprentice hours when enabled.
+var LABOUR_CALC_DEFAULT_RATES = { roof: 14, sheets: 6, cuts: 18, flash: 8, pen: 6 };
+var LABOUR_CALC_SHEET_WIDTH_M = 0.762;   // effective sheet cover for the sheet-count estimate
+function _labourCalcCfg(){
+  if (!S.quote) return { enabled: false, rates: {} };
+  var c = S.quote.labourCalc;
+  if (!c || typeof c !== 'object') c = S.quote.labourCalc = { enabled: false, rates: {} };
+  if (!c.rates || typeof c.rates !== 'object') c.rates = {};
+  return c;
+}
+function _labourCalcEnabled(){ return !!_labourCalcCfg().enabled; }
+function _labourCalcRate(key){
+  var v = parseFloat(_labourCalcCfg().rates[key]);
+  return (isFinite(v) && v > 0) ? v : LABOUR_CALC_DEFAULT_RATES[key];
+}
+// Measurement totals for ONE roof (roof-swap like _materialsCostForRoofIdx),
+// plus that roof's penetration count.
+function _roofMeasForIdx(idx){
+  var grab = function(){
+    var m = _matDrawTotalsForCurrent();
+    m.penetrations = (DRAW.penetrations || []).length;
+    return m;
+  };
+  if (!(window.DRAW && DRAW.roofs && DRAW.roofs.length > 1)) return grab();
+  var savedActive = DRAW.activeRoofIdx;
+  try { _syncCurrentToRoof(); _loadRoofToCurrent(idx); return grab(); }
+  catch(e){ return { totals:{}, ridgeHip:0, flashingsLm:0, gutterLm:0, roofArea:0, pitch:0, penetrations:0 }; }
+  finally { try { if (savedActive >= 0 && savedActive < DRAW.roofs.length) _loadRoofToCurrent(savedActive); } catch(e){} }
+}
+// Auto driver quantities from the drawing for one roof.
+function _labourCalcAutoQty(idx){
+  var m = _roofMeasForIdx(idx), t = m.totals || {};
+  var cutsLm  = (t.ridge||0) + (t.hip||0) + (t.valley||0);                       // sheet cuts
+  var flashLm = (t.barge||0) + (t.apron||0) + (t.changepitch||0) + (t.ridge||0) + (t.hip||0); // barge/apron/back tray/ridging
+  var sheetsAcross = (m.gutterLm > 0) ? (m.gutterLm / LABOUR_CALC_SHEET_WIDTH_M) : 0; // gutter run ÷ cover width
+  return {
+    roof:   +(m.roofArea || 0).toFixed(1),
+    sheets: Math.round(sheetsAcross),      // one length piece per column — office overrides for stacked runs
+    cuts:   +cutsLm.toFixed(1),
+    flash:  +flashLm.toFixed(1),
+    pen:    m.penetrations || 0
+  };
+}
+// Effective quantities = auto, with any per-roof office overrides applied.
+function _labourCalcQty(idx){
+  var q = _labourCalcAutoQty(idx);
+  var ov = (S.quote && S.quote.roofLabourCalc && S.quote.roofLabourCalc[idx]) || {};
+  ['roof','sheets','cuts','flash','pen'].forEach(function(k){
+    var v = parseFloat(ov[k]);
+    if (isFinite(v) && v >= 0) q[k] = v;
+  });
+  return q;
+}
+// Per-driver hours + the 2-man / 3-man crew totals for one roof.
+function _labourCalcHours(idx){
+  var q = _labourCalcQty(idx);
+  var rows = [
+    { key:'roof',   label:'Roofing',                qty:q.roof,   unit:'m²', rate:_labourCalcRate('roof') },
+    { key:'sheets', label:'Sheets',                 qty:q.sheets, unit:'',   rate:_labourCalcRate('sheets') },
+    { key:'cuts',   label:'Cuts (valleys/ridging)', qty:q.cuts,   unit:'lm', rate:_labourCalcRate('cuts') },
+    { key:'flash',  label:'Flashings',              qty:q.flash,  unit:'lm', rate:_labourCalcRate('flash') },
+    { key:'pen',    label:'Penetrations',           qty:q.pen,    unit:'',   rate:_labourCalcRate('pen') }
+  ];
+  var sum = 0;
+  rows.forEach(function(r){ r.hours = (r.rate > 0) ? (r.qty / r.rate) : 0; sum += r.hours; });
+  var h2 = Math.ceil(sum);
+  return { rows: rows, raw: sum, hours2: h2, hours3: Math.ceil(h2 * 0.7) };
+}
+// Write the computed 2-man hours into the Lead + Apprentice hours for a roof
+// (both work the full crew duration). Roof 0 = the main labour table.
+function _applyLabourCalcToHours(idx){
+  if (!S.quote) return;
+  var h = _labourCalcHours(idx).hours2;
+  if (idx === 0){
+    if (!S.quote.labour) return;
+    S.quote.labour.leadHrs = h; S.quote.labour.appHrs = h;
+  } else {
+    var rl = _roofLabour(idx); rl.leadHrs = h; rl.appHrs = h;
+  }
+}
+function _toggleLabourCalc(on){
+  _labourCalcCfg().enabled = !!on;
+  try { calcLabour(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+function _setLabourCalcRate(key, v){
+  var c = _labourCalcCfg(); var f = parseFloat(v);
+  if (isFinite(f) && f > 0) c.rates[key] = f; else delete c.rates[key];
+  try { calcLabour(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+function _setLabourCalcQty(idx, key, v){
+  if (!S.quote) return;
+  if (!S.quote.roofLabourCalc) S.quote.roofLabourCalc = {};
+  if (!S.quote.roofLabourCalc[idx]) S.quote.roofLabourCalc[idx] = {};
+  var f = parseFloat(v);
+  if (isFinite(f) && f >= 0) S.quote.roofLabourCalc[idx][key] = f;
+  else delete S.quote.roofLabourCalc[idx][key];   // blank → back to the drawing value
+  try { calcLabour(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+function _resetLabourCalcQty(idx){
+  if (S.quote && S.quote.roofLabourCalc) delete S.quote.roofLabourCalc[idx];
+  try { calcLabour(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+// The auto-calc panel shown above the labour table (office only).
+function _labourCalcPanelHtml(ri){
+  var on = _labourCalcEnabled();
+  var head = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:'+(on?'10px':'0')+'">'+
+    '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:700;color:#0a1628">'+
+      '<input type="checkbox" '+(on?'checked':'')+' onchange="_toggleLabourCalc(this.checked)" style="width:auto;margin:0"> 🧮 Auto-calc labour hours from the drawing</label>'+
+    '<span style="font-size:10.5px;color:var(--text2)">roofing only · scaffolding excluded</span>'+
+  '</div>';
+  if (!on) {
+    return '<div style="margin-bottom:12px;padding:9px 11px;background:#f1f7ff;border:1px solid #cfe0f5;border-radius:8px">'+head+
+      '<div style="font-size:11px;color:var(--text2)">Sets the Lead + Apprentice hours from the roof measurements (area, sheets, cuts, flashings, penetrations) ÷ your m/hr rates.</div></div>';
+  }
+  var calc = _labourCalcHours(ri);
+  var rateInput = function(r){ return '<input type="number" step="0.5" min="0" value="'+r.rate+'" onchange="_setLabourCalcRate(\''+r.key+'\',this.value)" style="width:54px;font-size:11px;padding:3px 5px;text-align:right;margin:0">'; };
+  var qtyInput  = function(r){ return '<input type="number" step="0.1" min="0" value="'+r.qty+'" onchange="_setLabourCalcQty('+ri+',\''+r.key+'\',this.value)" style="width:66px;font-size:11px;padding:3px 5px;text-align:right;margin:0">'; };
+  var rows = calc.rows.map(function(r){
+    return '<tr>'+
+      '<td style="padding:3px 6px;font-size:11.5px;color:#0a1628">'+esc(r.label)+'</td>'+
+      '<td style="padding:3px 6px;text-align:right">'+qtyInput(r)+' <span style="font-size:10px;color:var(--text2)">'+esc(r.unit)+'</span></td>'+
+      '<td style="padding:3px 3px;text-align:center;color:var(--text2);font-size:11px">÷</td>'+
+      '<td style="padding:3px 6px;text-align:right">'+rateInput(r)+' <span style="font-size:10px;color:var(--text2)">/hr</span></td>'+
+      '<td style="padding:3px 6px;text-align:right;font-weight:600;font-size:11.5px">'+r.hours.toFixed(2)+' hr</td>'+
+    '</tr>';
+  }).join('');
+  return '<div style="margin-bottom:12px;padding:10px 11px;background:#f1f7ff;border:1px solid #cfe0f5;border-radius:8px">'+head+
+    '<table style="width:100%;border-collapse:collapse">'+
+      '<thead><tr style="font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text2)">'+
+        '<th style="text-align:left;padding:2px 6px">Driver</th><th style="text-align:right;padding:2px 6px">Quantity</th><th></th><th style="text-align:right;padding:2px 6px">Rate</th><th style="text-align:right;padding:2px 6px">Hours</th></tr></thead>'+
+      '<tbody>'+rows+'</tbody>'+
+    '</table>'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:7px 10px;background:#0a1628;border-radius:7px;color:#fff">'+
+      '<span style="font-size:11.5px;font-weight:600">2-man crew hours → applied to Lead + Apprentice</span>'+
+      '<span style="font-size:15px;font-weight:800">'+calc.hours2+' hrs</span>'+
+    '</div>'+
+    '<div style="font-size:10.5px;color:var(--text2);margin-top:5px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
+      '<span>3-man crew ≈ '+calc.hours3+' hrs · '+(calc.hours2/10).toFixed(1)+' days (10 hr incl. travel)</span>'+
+      '<button type="button" onclick="_resetLabourCalcQty('+ri+')" style="background:none;border:none;color:#0099cc;font-size:10.5px;cursor:pointer;text-decoration:underline;padding:0">↻ Reset quantities to drawing</button>'+
+    '</div>'+
+  '</div>';
+}
+
 // ── Shared per-roof pricing selector ───────────────────────────────
 // The Labour, Scaffolding and Material sections each show a big roof-switch
 // button row; picking a roof scopes ALL THREE to that roof so the office edits
@@ -8605,6 +8761,11 @@ function calcLabour(){
   if (!wrap) return;
   var st = _pricingState(); var L = st.L, sc = st.sc;
   var f = function(v){ return parseFloat(v) || 0; };
+  // Auto-calc labour hours from the drawing (roofing) — applied BEFORE the
+  // hours are read below, so the Lead + Apprentice rows show the computed
+  // values and everything downstream (quote total) follows.
+  var _lcRi = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) ? _pricingRoofIdx() : 0;
+  if (_labourCalcEnabled()) { try { _applyLabourCalcToHours(_lcRi); } catch(e){} }
   function row(label, hrsKey, costKey, priceKey){
     var hrs=f(L[hrsKey]), cost=f(L[costKey]), price=f(L[priceKey]);
     return '<tr>'+
@@ -8663,6 +8824,7 @@ function calcLabour(){
     (_multiRoofLab
       ? '<div style="font-size:11.5px;color:#0a1628;background:'+(isBaseRoof?'#eef6ff':'#fff7ed')+';border:1px solid '+(isBaseRoof?'#cfe0f5':'#fed7aa')+';border-radius:8px;padding:7px 10px;margin-bottom:10px">Editing labour for <strong>'+esc(_pricingRoofName(ri))+'</strong>'+(isBaseRoof?' — the base quote.':' — an optional extra roof (its own price).')+'</div>'
       : '')+
+    _labourCalcPanelHtml(ri)+
     '<table class="price-tbl" style="table-layout:fixed;width:100%">'+
     '<thead><tr>'+
       '<th style="width:26%">Worker</th>'+
