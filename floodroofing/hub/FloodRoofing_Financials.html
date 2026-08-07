@@ -497,6 +497,9 @@ table.tb.bcr-cmp th,table.tb.bcr-cmp td{padding:6px 8px;}
 table.tb.bcr-cmp td:first-child{font-weight:700;color:var(--muted);}
 .bcr-good{color:#22c55e;font-weight:800;}
 .bcr-bad{color:#fb923c;font-weight:800;}
+.bcr-muted{color:var(--muted);opacity:.7;}
+tr.bcr-hl td{background:rgba(77,141,255,.10);font-size:.82rem;}
+.bcr-tag{font-size:.54rem;font-weight:800;color:#fb923c;vertical-align:middle;}
 .bcr-lbl{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:12px 0 6px;}
 .bcr-crew{display:flex;flex-wrap:wrap;gap:5px;}
 .bcr-crew .cc{font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:8px;background:var(--card2);color:var(--muted);border:1px solid var(--border);}
@@ -2324,8 +2327,15 @@ function fsFig(summary){
     fnum(lh.total),fnum(lh.logged),fnum(lh.loggedHours),fnum(lh.incurred),fnum(lh.incurredHours),fnum(lh.actual),
     fnum(s.loggedHours),fnum(s.incurredHours),fnum(s.loggedHrs),fnum(s.incurredHrs))
     || fnum(fpick(lh,'billable'));
+  // Priced/allowed COSTS (Fergus "Billable/Priced Labour/Material Costs") — the COST side of the quote,
+  // distinct from the priced SELL (quoteSummary.labour/materials). Field names vary across tenants → wide net.
+  const pc=s.pricedCosts||s.billablePricedCosts||s.quotedCosts||s.billableCosts||s.pricedCost||{};
+  const p_labCost=fnum(fpick(pc,'labour','labor','labourCost'))||fnum(fpick(qs,'labourCost','labourCosts','pricedLabourCost','labourCostPriced','billableLabourCost','billablePricedLabourCosts'))||fnum(fpick(s,'billablePricedLabourCosts','pricedLabourCosts','pricedLabourCost'));
+  const p_matCost=fnum(fpick(pc,'materials','material','materialCost'))||fnum(fpick(qs,'materialCost','materialCosts','pricedMaterialCost','materialCostPriced','billableMaterialCost','billablePricedMaterialCosts'))||fnum(fpick(s,'billablePricedMaterialCosts','pricedMaterialCosts','pricedMaterialCost'));
+  const p_cost=fnum(fpick(pc,'total','cost','totalCost'))||fnum(fpick(s,'billablePricedCosts','pricedCostsTotal','totalPricedCost'))||((p_labCost+p_matCost)||0);
   return {rev,lab,mat,cost,hours,
     p_lab:fnum(fpick(qs,'labour','labourPriced')),p_mat:fnum(fpick(qs,'materials','materialsPriced')),
+    p_labCost,p_matCost,p_cost,
     h_priced:fnum(fpick(qs,'quotedHours','pricedHours','hours'))};
 }
 // Build a back-costing row from a Fergus financial summary, dated to a given invoice timestamp.
@@ -2333,10 +2343,11 @@ function bcRowFrom(job,summary,dateMs){
   const fid=job.id!=null?job.id:(job.jobId!=null?job.jobId:(job.jobNo||job.jobNumber));if(fid==null)return null;
   const f=fsFig(summary);
   const sales=f.rev,a_lab=f.lab,a_mat=f.mat,cost=f.cost,p_lab=f.p_lab,p_mat=f.p_mat,h_actual=f.hours,h_priced=f.h_priced;
+  const p_labCost=f.p_labCost,p_matCost=f.p_matCost,p_cost=f.p_cost;
   const gp=sales-cost,gpm=sales>0?Math.round(gp/sales*1000)/10:0;
   const client=fergusName(job.customer)||fergusName(job.mainContact)||'Unknown';const site=fergusAddr(job.siteAddress);
   const iso=new Date(dateMs).toISOString();
-  return {month:fergusMonthLabel(iso),job:client+(site?(' — '+site):''),date:iso.split('T')[0],job_type:job.jobType||job.type||'Fergus',_title:(job.brief||job.title||job.jobDescription||job.description||job.summary||''),_jobNo:String(job.jobNo||job.jobNumber||''),_site:site||'',p_lab,a_lab,p_mat,a_mat,sales,gp,gpm,h_actual,h_priced,lead_src:'Fergus',_fergus:true,_fergus_id:String(fid),_lastModified:job.lastModified||''};
+  return {month:fergusMonthLabel(iso),job:client+(site?(' — '+site):''),date:iso.split('T')[0],job_type:job.jobType||job.type||'Fergus',_title:(job.brief||job.title||job.jobDescription||job.description||job.summary||''),_jobNo:String(job.jobNo||job.jobNumber||''),_site:site||'',p_lab,a_lab,p_mat,a_mat,p_labCost,p_matCost,p_cost,sales,gp,gpm,h_actual,h_priced,lead_src:'Fergus',_fergus:true,_fergus_id:String(fid),_lastModified:job.lastModified||''};
 }
 // Rebuild ALL Fergus back-costing rows. A job is back-costed (treated as finished) when:
 //  • 2+ paid Xero invoices, OR
@@ -6058,9 +6069,9 @@ function bcrFinishedJobs(mk){
   (bcFergus||[]).forEach(r=>{if(isExcl(r)||r._inProgress)return;if((r.month||'')!==mk)return;out.push(r);});   // finished & back-costed this month
   return stableOrder('bcr-'+mk,out,r=>String(r._jobNo||r._fergus_id||r.job),(a,b)=>num(b.sales)-num(a.sales));
 }
-function openBcReview(mk){_bcrMk=mk||calMonthKey(-1);document.getElementById('bcr-modal').classList.add('open');document.body.style.overflow='hidden';renderBcReview();window.scrollTo(0,0);}
+function openBcReview(mk){_bcrMk=mk||calMonthKey(-1);document.getElementById('bcr-modal').classList.add('open');document.body.style.overflow='hidden';renderBcReview();window.scrollTo(0,0);bcrAutoLoad(_bcrMk);}
 function closeBcReview(){document.getElementById('bcr-modal').classList.remove('open');document.body.style.overflow='';}
-function bcrStep(d){_bcrMk=(function(){const p=(_bcrMk||calMonthKey(-1)).split('-');let i=FG_MONTHS.indexOf(p[0]),y=parseInt(p[1]);i+=d;while(i<0){i+=12;y--;}while(i>11){i-=12;y++;}return FG_MONTHS[i]+'-'+y;})();renderBcReview();}
+function bcrStep(d){_bcrMk=(function(){const p=(_bcrMk||calMonthKey(-1)).split('-');let i=FG_MONTHS.indexOf(p[0]),y=parseInt(p[1]);i+=d;while(i<0){i+=12;y--;}while(i>11){i-=12;y++;}return FG_MONTHS[i]+'-'+y;})();renderBcReview();bcrAutoLoad(_bcrMk);}
 // Pull the job's accepted/latest Fergus quote and split its line items into materials & labour.
 async function bcrFetchQuote(id){
   if(!id||_bcrQuote[id])return;
@@ -6078,17 +6089,25 @@ async function bcrFetchQuote(id){
   renderBcReview();
 }
 function bcrNormalizeQuote(sections){
-  const mat=[],lab=[];let total=0;
+  const mat=[],lab=[];let total=0,matCost=0,labCost=0;
+  const isLab=(it,desc,sname)=>{
+    if(it.isLabour===true)return true;if(it.isLabour===false&&it.itemCost==null&&!/labou?r/i.test(desc))return false;
+    return /labou?r/i.test(desc)||/labou?r/i.test(String(sname||''))||/^(ll|la)\b/i.test(String(desc).trim());   // "LL Labour Lead", "LA Labour Apprentice"
+  };
   (sections||[]).forEach(s=>{const items=s.lineItems||s.items||[];(items||[]).forEach(it=>{
     const desc=it.itemName||it.description||it.name||it.desc||'(no description)';
     const qty=num(it.itemQuantity!=null?it.itemQuantity:(it.quantity!=null?it.quantity:it.qty));
     const price=num(it.itemPrice!=null?it.itemPrice:(it.unitPrice!=null?it.unitPrice:(it.unit!=null?it.unit:it.rate)));
+    const unitCost=num(it.itemCost!=null?it.itemCost:(it.cost!=null?it.cost:it.costPrice));
     let disc=num(it.discountRate);if(disc>1)disc=disc/100;
-    const tot=qty*price*(1-(disc||0));total+=tot;
-    (it.isLabour?lab:mat).push({desc:String(desc),qty,price,tot});
+    const tot=qty*price*(1-(disc||0));total+=tot;const lineCost=qty*unitCost;
+    if(isLab(it,desc,s.name)){lab.push({desc:String(desc),qty,price,tot,cost:lineCost});labCost+=lineCost;}
+    else{mat.push({desc:String(desc),qty,price,tot,cost:lineCost});matCost+=lineCost;}
   });});
-  return {mat,lab,total,err:null,loading:false};
+  return {mat,lab,total,matCost,labCost,err:null,loading:false};
 }
+// Auto-load every finished job's quote (sequential, cached) so the cost comparison + line-item split fill in.
+async function bcrAutoLoad(mk){for(const r of bcrFinishedJobs(mk)){const id=String(r._fergus_id||'');if(id&&!_bcrQuote[id]){try{await bcrFetchQuote(id);}catch(e){}}if(_bcrMk!==mk)return;}}
 function bcrJobLabour(id){const rc=_jobCrewHrs&&_jobCrewHrs[String(id)];if(!rc)return [];return Object.keys(rc).map(n=>({name:n,hrs:num(rc[n])})).sort((a,b)=>b.hrs-a.hrs);}
 function renderBcReview(){
   const host=document.getElementById('bcr-body');if(!host)return;
@@ -6096,24 +6115,39 @@ function renderBcReview(){
   const jobs=bcrFinishedJobs(mk);
   let h='<div class="mtg-toolbar"><div class="mtg-mstep"><button class="mtg-mbtn" onclick="bcrStep(-1)" aria-label="Previous month">‹</button><span class="mtg-mlabel">'+esc(mtgMonthLabel(mk))+'</span><button class="mtg-mbtn" onclick="bcrStep(1)" aria-label="Next month">›</button></div></div>';
   if(!jobs.length){h+='<div class="mtg-empty">No jobs finished in '+esc(mtgMonthLabel(mk))+' yet. Step to another month, or run a sync.</div>';host.innerHTML=h;return;}
-  let tQ=0,tA=0,tGp=0;jobs.forEach(r=>{tQ+=num(r.p_mat)+num(r.p_lab);tA+=num(r.a_mat)+num(r.a_lab);tGp+=num(r.gp);});
-  h+='<div class="bcr-sum">'+jobs.length+' job'+(jobs.length===1?'':'s')+' finished · quoted cost '+fmtK(tQ)+' vs actual '+fmtK(tA)+' · GP '+fmtK(tGp)+'</div>';
+  let tCost=0,tGp=0,tH=0;jobs.forEach(r=>{tCost+=num(r.a_mat)+num(r.a_lab);tGp+=num(r.gp);tH+=num(r.h_actual);});
+  h+='<div class="bcr-sum">'+jobs.length+' job'+(jobs.length===1?'':'s')+' finished · actual cost '+fmtK(tCost)+' · GP '+fmtK(tGp)+(tH>0?' · '+fmt$(tGp/tH)+'/hr':'')+'</div>';
   jobs.forEach(r=>{
     const id=String(r._fergus_id||'');
     const sale=num(r.sales),aMat=num(r.a_mat),aLab=num(r.a_lab),pMat=num(r.p_mat),pLab=num(r.p_lab),hP=num(r.h_priced),hA=num(r.h_actual);
     const q=_bcrQuote[id];const saleQ=(q&&!q.err&&q.total>0)?q.total:sale;
-    const gpA=num(r.gp),gpQ=saleQ-(pMat+pLab),mA=sale>0?gpA/sale*100:0,mQ=saleQ>0?gpQ/saleQ*100:0;
+    // Allowed (priced) COST for labour/materials — Fergus priced-cost field first, then the quote's line
+    // itemCosts, else fall back to the priced SELL (flagged). This makes it a true cost-vs-cost review.
+    const allowed=kind=>{const ferg=kind==='lab'?num(r.p_labCost):num(r.p_matCost);if(ferg>0)return {v:ferg,src:'cost'};
+      if(q){if(q.loading)return {v:null,src:'load'};if(!q.err){const c=kind==='lab'?num(q.labCost):num(q.matCost);if(c>0)return {v:c,src:'cost'};}}
+      return {v:kind==='lab'?pLab:pMat,src:'sell'};};
+    const la=allowed('lab'),ma=allowed('mat');
+    const costKnown=la.src!=='load'&&ma.src!=='load';
+    const allowTot=(num(r.p_cost)>0)?num(r.p_cost):((la.v||0)+(ma.v||0));
+    const gpA=num(r.gp),mA=sale>0?gpA/sale*100:0;
+    const gpQ=costKnown?(saleQ-allowTot):null,mQ=(costKnown&&saleQ>0)?gpQ/saleQ*100:null;
+    const gphrA=hA>0?gpA/hA:0,gphrQ=(costKnown&&hP>0)?gpQ/hP:null;
+    const anySell=la.src==='sell'||ma.src==='sell';
     h+='<div class="bcr-card">';
-    h+='<div class="bcr-head"><div class="bcr-jn"><h3>'+esc(r.job||'(job)')+'</h3><div class="bcr-sub">'+(r._jobNo?'Job #'+esc(r._jobNo)+' · ':'')+esc(r.date||'')+'</div></div><span class="mtg-result '+(gpA>=0?'good':'bad')+'">'+Math.round(mA)+'% GP</span></div>';
-    const vr=(lbl,qv,av,fmt,badHi)=>{const d=av-qv,cls=(Math.abs(d)<0.5)?'':((badHi?d>0:d<0)?'bcr-bad':'bcr-good');return '<tr><td>'+lbl+'</td><td>'+fmt(qv)+'</td><td>'+fmt(av)+'</td><td class="'+cls+'">'+((qv||av)?((d>0?'+':'')+fmt(d)):'—')+'</td></tr>';};
-    h+='<table class="tb bcr-cmp"><thead><tr><th>Line</th><th>Quoted</th><th>Actual</th><th>Var</th></tr></thead><tbody>';
-    h+=vr('Sale',saleQ,sale,fmtK,false);
-    h+=vr('Materials',pMat,aMat,fmtK,true);
-    h+=vr('Labour',pLab,aLab,fmtK,true);
+    h+='<div class="bcr-head"><div class="bcr-jn"><h3>'+esc(r.job||'(job)')+'</h3><div class="bcr-sub">'+(r._jobNo?'Job #'+esc(r._jobNo)+' · ':'')+esc(r.date||'')+'</div></div><span class="mtg-result '+(gpA>=0?'good':'bad')+'">'+fmt$(gphrA)+'/hr</span></div>';
+    const vr=(lbl,qv,av,fmt,badHi,tag)=>{if(qv==null)return '<tr><td>'+lbl+'</td><td class="bcr-muted">…</td><td>'+fmt(av)+'</td><td class="bcr-muted">—</td></tr>';const d=av-qv,cls=(Math.abs(d)<0.5)?'':((badHi?d>0:d<0)?'bcr-bad':'bcr-good');return '<tr><td>'+lbl+(tag?' <span class="bcr-tag">'+tag+'</span>':'')+'</td><td>'+fmt(qv)+'</td><td>'+fmt(av)+'</td><td class="'+cls+'">'+((qv||av)?((d>0?'+':'')+fmt(d)):'—')+'</td></tr>';};
+    const pct=(lbl,qv,av,hi)=>{if(qv==null)return '<tr><td>'+lbl+'</td><td class="bcr-muted">…</td><td>'+Math.round(av)+'%</td><td class="bcr-muted">—</td></tr>';const d=av-qv,g=(hi?d>=0:d<=0);return '<tr><td>'+lbl+'</td><td>'+Math.round(qv)+'%</td><td>'+Math.round(av)+'%</td><td class="'+(g?'bcr-good':'bcr-bad')+'">'+(d>=0?'+':'')+Math.round(d)+'%</td></tr>';};
+    h+='<table class="tb bcr-cmp"><thead><tr><th>Line</th><th>Allowed</th><th>Actual</th><th>Var</th></tr></thead><tbody>';
+    h+=vr('Sale price',saleQ,sale,fmtK,false);
+    h+=vr('Materials cost',ma.v,aMat,fmtK,true,ma.src==='sell'?'sell*':'');
+    h+=vr('Labour cost',la.v,aLab,fmtK,true,la.src==='sell'?'sell*':'');
+    h+=vr('Total cost',costKnown?allowTot:null,aMat+aLab,fmtK,true);
     h+=vr('Hours',hP,hA,(x)=>fmtH(x)+'h',true);
     h+=vr('Gross profit',gpQ,gpA,fmtK,false);
-    h+='<tr><td>Margin</td><td>'+Math.round(mQ)+'%</td><td>'+Math.round(mA)+'%</td><td class="'+(mA>=mQ?'bcr-good':'bcr-bad')+'">'+(mA>=mQ?'+':'')+Math.round(mA-mQ)+'%</td></tr>';
+    h+=pct('Margin',mQ,mA,true);
+    h+='<tr class="bcr-hl">'+vr('GP / hr',gphrQ,gphrA,fmt$,false).slice(4);
     h+='</tbody></table>';
+    if(anySell)h+='<div class="bcr-note" style="margin-top:-4px;">* Allowed cost not in the summary yet — showing the quoted price. Run a master sync (or load the quote) for the true priced cost.</div>';
     const scale=Math.max(hP,hA,1);
     h+='<div class="mtg-bars"><div class="mtg-barrow"><span class="mtg-barlab">Priced</span><div class="mtg-track"><div class="mtg-fill allow" style="width:'+Math.round(hP/scale*100)+'%"></div></div><span class="mtg-barval">'+fmtH(hP)+'h</span></div>';
     h+='<div class="mtg-barrow"><span class="mtg-barlab">Actual</span><div class="mtg-track"><div class="mtg-fill taken '+(hA>hP*1.02?'bad':'good')+'" style="width:'+Math.round(hA/scale*100)+'%"></div></div><span class="mtg-barval">'+fmtH(hA)+'h</span></div></div>';
