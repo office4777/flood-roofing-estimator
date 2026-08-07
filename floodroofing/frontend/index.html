@@ -12546,6 +12546,32 @@ function _qpRoofMapSvg(opts){
   svg+='</svg>';
   return svg;
 }
+// A sentence for the "What's included" scope that names which roofs the quote
+// currently covers (and, in bold, any that are excluded) — updates live as the
+// customer toggles roofs. Empty for single-roof jobs.
+function _qpRoofScopeLine(){
+  var g = S.quote && S.quote.roofMapGeom;
+  if (!g || !g.roofs || g.roofs.length < 2) return '';
+  var sel = (S.quote.proposalOptions && S.quote.proposalOptions.extraRoofsSel) || {};
+  var inc = [], exc = [];
+  g.roofs.forEach(function(r){
+    var included;
+    if (r.mode === 'excluded') included = false;
+    else if (r.mode === 'main' || r.mode === 'folded') included = true;
+    else included = (r.extraPos != null) && (sel[r.extraPos] === true);
+    var label = esc2(r.name) + (r.area > 0 ? ' (' + r.area.toFixed(1) + ' m²)' : '');
+    (included ? inc : exc).push(label);
+  });
+  if (!inc.length) return '';
+  var join = function(arr){ return arr.length === 1 ? arr[0] : (arr.slice(0,-1).join(', ') + ' as well as ' + arr[arr.length-1]); };
+  var incHtml = join(inc.map(function(n){ return 'the <strong>' + n + '</strong>'; }));
+  var html = 'This covers ' + incHtml + '.';
+  if (exc.length){
+    var joinEx = function(arr){ return arr.length === 1 ? arr[0] : (arr.slice(0,-1).join(', ') + ' and ' + arr[arr.length-1]); };
+    html += ' <strong style="color:#b91c1c">Excluding the ' + joinEx(exc.map(function(n){ return n; })) + '.</strong>';
+  }
+  return html;
+}
 // Office renames a roof (e.g. "Roof 2" → "Veranda"). Flows into the map labels,
 // the include buttons and the Selections-page extra-roof rows.
 function _renameRoof(i){
@@ -14713,8 +14739,11 @@ function refreshQuoteProposal(){
     // The scope ("What's included") and the notes, as reusable inner blocks —
     // they render either in the default auto stack OR inside movable boxes when
     // free layout is on.
+    var _roofScopeLine = '';
+    try { _roofScopeLine = _qpRoofScopeLine(); } catch(e){}
     var _scopeInner =
       '<div class="ed-eyebrow'+(_scopeRaw.trim()?'':' qp-ph')+'" style="margin-bottom:8px">What\'s included</div>'+
+      (_roofScopeLine ? '<div class="ed-body" style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink-2);line-height:1.5;margin:-2px 0 10px">'+_roofScopeLine+'</div>' : '')+
       inclList;
     var _notesInner =
       '<div class="ed-eyebrow" style="margin-bottom:6px">Notes <span class="qp-edit-hint" style="font-size:9px;font-weight:400;opacity:.7;letter-spacing:.02em">— click to edit</span></div>'+
