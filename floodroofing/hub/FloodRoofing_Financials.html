@@ -504,6 +504,8 @@ tr.bcr-hl td{background:rgba(77,141,255,.10);font-size:.82rem;}
 .bcr-crew{display:flex;flex-wrap:wrap;gap:5px;}
 .bcr-crew .cc{font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:8px;background:var(--card2);color:var(--muted);border:1px solid var(--border);}
 .bcr-crew .cc b{color:var(--text);}
+.bcr-crew .cc.lead{background:rgba(77,141,255,.16);color:var(--primary);border-color:rgba(77,141,255,.45);}
+.bcr-lead{color:var(--primary);font-weight:800;}
 .bcr-tools a,.bcr-note a{font-size:.72rem;font-weight:800;color:var(--primary);cursor:pointer;}
 .bcr-note{font-size:.72rem;color:var(--muted);padding:4px 0;}
 .bcr-lines-toggle{display:flex;align-items:center;gap:6px;margin:12px 0 2px;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);cursor:pointer;user-select:none;padding:6px 0;}
@@ -6157,7 +6159,9 @@ function renderBcReview(){
     h+='<div class="mtg-bars"><div class="mtg-barrow"><span class="mtg-barlab">Priced</span><div class="mtg-track"><div class="mtg-fill allow" style="width:'+Math.round(hP/scale*100)+'%"></div></div><span class="mtg-barval">'+fmtH(hP)+'h</span></div>';
     h+='<div class="mtg-barrow"><span class="mtg-barlab">Actual</span><div class="mtg-track"><div class="mtg-fill taken '+(hA>hP*1.02?'bad':'good')+'" style="width:'+Math.round(hA/scale*100)+'%"></div></div><span class="mtg-barval">'+fmtH(hA)+'h</span></div></div>';
     const lab=bcrJobLabour(id);
-    if(lab.length){h+='<div class="bcr-lbl">Actual labour — who logged the hours</div><div class="bcr-crew">'+lab.map(p=>'<span class="cc">'+esc(p.name)+' <b>'+fmtH(p.hrs)+'h</b></span>').join('')+'</div>';}
+    const lead=effLead(r)||((lab[0]||{}).name)||'';
+    if(lead)h+='<div class="bcr-lbl">Lead roofer · <span class="bcr-lead">★ '+esc(lead)+'</span></div>';
+    if(lab.length){h+='<div class="bcr-lbl" style="margin-top:8px;">Actual labour — who logged the hours</div><div class="bcr-crew">'+lab.map(p=>{const isLead=lead&&(p.name===lead||matchRoofer(p.name)===lead||String(p.name).toLowerCase().indexOf(String(lead).toLowerCase())===0);return '<span class="cc'+(isLead?' lead':'')+'">'+(isLead?'★ ':'')+esc(p.name)+' <b>'+fmtH(p.hrs)+'h</b></span>';}).join('')+'</div>';}
     const open=!!_bcrOpen[id];
     const qReady=q&&!q.loading&&!q.err&&(q.mat.length||q.lab.length);
     const qTot=qReady?(' · '+fmtK(q.total)):(q&&q.loading?' · loading…':'');
