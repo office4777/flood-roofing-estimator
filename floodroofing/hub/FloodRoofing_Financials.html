@@ -485,6 +485,29 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
 .mtg-nf label{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);}
 .mtg-ta{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px 9px;font-size:.74rem;font-family:inherit;resize:vertical;min-height:38px;}
 @media (max-width:560px){.mtg-notes{grid-template-columns:1fr;}}
+/* Back-costing review */
+.bcr-sum{font-size:.8rem;font-weight:700;color:var(--muted);margin:2px 0 14px;text-align:center;}
+.bcr-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px;}
+.bcr-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;}
+.bcr-jn{flex:1;min-width:0;}
+.bcr-head h3{font-size:1.08rem;font-weight:800;margin:0;color:var(--text);overflow-wrap:anywhere;line-height:1.2;}
+.bcr-sub{font-size:.64rem;font-weight:700;color:var(--muted);letter-spacing:.4px;margin-top:2px;}
+table.tb.bcr-cmp{font-size:.76rem;margin:2px 0 10px;}
+table.tb.bcr-cmp th,table.tb.bcr-cmp td{padding:6px 8px;}
+table.tb.bcr-cmp td:first-child{font-weight:700;color:var(--muted);}
+.bcr-good{color:#22c55e;font-weight:800;}
+.bcr-bad{color:#fb923c;font-weight:800;}
+.bcr-lbl{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:12px 0 6px;}
+.bcr-crew{display:flex;flex-wrap:wrap;gap:5px;}
+.bcr-crew .cc{font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:8px;background:var(--card2);color:var(--muted);border:1px solid var(--border);}
+.bcr-crew .cc b{color:var(--text);}
+.bcr-tools a,.bcr-note a{font-size:.72rem;font-weight:800;color:var(--primary);cursor:pointer;}
+.bcr-note{font-size:.72rem;color:var(--muted);padding:4px 0;}
+.bcr-linetitle{font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--primary);margin:8px 0 4px;}
+table.tb.bcr-lines{font-size:.72rem;margin-bottom:4px;}
+table.tb.bcr-lines th,table.tb.bcr-lines td{padding:5px 7px;}
+table.tb.bcr-lines td:first-child{white-space:normal;overflow-wrap:anywhere;}
+.bcr-linetotal{font-size:.78rem;text-align:right;margin-top:4px;color:var(--text);}
 .mtg-input{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:7px 10px;font-size:.78rem;}
 .mtg-title-slide{background:linear-gradient(140deg,#1b2740,#0d1017);border:1px solid var(--border);border-radius:18px;padding:34px 22px;text-align:center;margin-bottom:16px;}
 .mtg-title-slide .mts-k{font-size:.66rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--primary);}
@@ -672,6 +695,14 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
     </div>
   </div>
 
+  <!-- Back-costing review (sales-manager sit-down) — sibling of the pages so it opens from any tab -->
+  <div id="bcr-modal" class="cmodal" onclick="if(event.target===this)closeBcReview();">
+    <div class="cmodal-card">
+      <div class="cmodal-head"><span>🧾 Back-costing review</span><button class="cmodal-x" onclick="closeBcReview()">✕ Close</button></div>
+      <div id="bcr-body"></div>
+    </div>
+  </div>
+
   <!-- ───────── DASHBOARD ───────── -->
   <div class="page active" id="page-dash">
     <div class="card" style="border-left:4px solid var(--success);">
@@ -757,6 +788,10 @@ summary.cfsum .period-sub{margin-left:auto;text-transform:none;letter-spacing:0;
 
   <!-- ───────── BACK COSTING ───────── -->
   <div class="page" id="page-bc">
+    <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div><div style="font-weight:800;letter-spacing:-.01em;">🧾 Back-costing review</div><div class="period-sub">Sit down with the sales manager — every finished job, the quote vs the actual costs &amp; hours.</div></div>
+      <button class="mtg-btn" onclick="openBcReview()" title="Run through the month's finished jobs">Start review</button>
+    </div>
     <!-- OPEN at top: Performance by Lead Roofer + All Back Costing -->
     <div class="card" id="lr-card">
       <div class="ct">Performance by Lead Roofer <span id="lr-sub" class="period-sub" style="margin-left:auto;"></span></div>
@@ -6011,6 +6046,94 @@ function renderMeeting(){
 }
 // New month? quietly point the meeting at last complete month so it's one tap when the boss opens it.
 try{_mtgMk=calMonthKey(-1);}catch(e){}
+
+// ════════ BACK-COSTING REVIEW (sales-manager sit-down) ════════
+// Runs through each job FINISHED that month: the real quote line items (fetched live from Fergus), the
+// actual costs (materials + labour totals, plus who logged the hours), and priced vs actual hours — so
+// you can see exactly what was quoted vs what it cost. Quote lines are fetched per job (cached).
+let _bcrMk=null;
+const _bcrQuote={};   // {jobId:{mat:[],lab:[],total,err,loading}} — fetched quote line items (in-memory)
+function bcrFinishedJobs(mk){
+  const out=[];
+  (bcFergus||[]).forEach(r=>{if(isExcl(r)||r._inProgress)return;if((r.month||'')!==mk)return;out.push(r);});   // finished & back-costed this month
+  return stableOrder('bcr-'+mk,out,r=>String(r._jobNo||r._fergus_id||r.job),(a,b)=>num(b.sales)-num(a.sales));
+}
+function openBcReview(mk){_bcrMk=mk||calMonthKey(-1);document.getElementById('bcr-modal').classList.add('open');document.body.style.overflow='hidden';renderBcReview();window.scrollTo(0,0);}
+function closeBcReview(){document.getElementById('bcr-modal').classList.remove('open');document.body.style.overflow='';}
+function bcrStep(d){_bcrMk=(function(){const p=(_bcrMk||calMonthKey(-1)).split('-');let i=FG_MONTHS.indexOf(p[0]),y=parseInt(p[1]);i+=d;while(i<0){i+=12;y--;}while(i>11){i-=12;y++;}return FG_MONTHS[i]+'-'+y;})();renderBcReview();}
+// Pull the job's accepted/latest Fergus quote and split its line items into materials & labour.
+async function bcrFetchQuote(id){
+  if(!id||_bcrQuote[id])return;
+  _bcrQuote[id]={mat:[],lab:[],total:0,err:null,loading:true};renderBcReview();
+  try{
+    const j=await fergusApiFetch('/jobs/'+encodeURIComponent(id)+'/quotes');
+    let list=Array.isArray(j)?j:((j&&(j.data||j.value||j.quotes||j.results))||[]);
+    list=(list||[]).filter(q=>q&&!q.isVoided&&!q.voidedAt);
+    list.sort((a,b)=>((b.isAccepted?1:0)-(a.isAccepted?1:0))||(num(b.versionNumber)-num(a.versionNumber)));
+    const q=list[0]||null;let sections=(q&&(q.sections||q.quoteSections))||[];
+    const hasLines=s=>Array.isArray(s)&&s.some(x=>((x.lineItems||x.items||[]).length));
+    if(q&&q.id!=null&&!hasLines(sections)){try{const d=await fergusApiFetch('/jobs/'+encodeURIComponent(id)+'/quotes/'+encodeURIComponent(q.id));const dd=(d&&(d.data||d))||{};if(hasLines(dd.sections||dd.quoteSections))sections=dd.sections||dd.quoteSections;}catch(e){}}
+    _bcrQuote[id]=bcrNormalizeQuote(sections);
+  }catch(e){_bcrQuote[id]={mat:[],lab:[],total:0,err:String((e&&e.message)||e),loading:false};}
+  renderBcReview();
+}
+function bcrNormalizeQuote(sections){
+  const mat=[],lab=[];let total=0;
+  (sections||[]).forEach(s=>{const items=s.lineItems||s.items||[];(items||[]).forEach(it=>{
+    const desc=it.itemName||it.description||it.name||it.desc||'(no description)';
+    const qty=num(it.itemQuantity!=null?it.itemQuantity:(it.quantity!=null?it.quantity:it.qty));
+    const price=num(it.itemPrice!=null?it.itemPrice:(it.unitPrice!=null?it.unitPrice:(it.unit!=null?it.unit:it.rate)));
+    let disc=num(it.discountRate);if(disc>1)disc=disc/100;
+    const tot=qty*price*(1-(disc||0));total+=tot;
+    (it.isLabour?lab:mat).push({desc:String(desc),qty,price,tot});
+  });});
+  return {mat,lab,total,err:null,loading:false};
+}
+function bcrJobLabour(id){const rc=_jobCrewHrs&&_jobCrewHrs[String(id)];if(!rc)return [];return Object.keys(rc).map(n=>({name:n,hrs:num(rc[n])})).sort((a,b)=>b.hrs-a.hrs);}
+function renderBcReview(){
+  const host=document.getElementById('bcr-body');if(!host)return;
+  const mk=_bcrMk||calMonthKey(-1);_bcrMk=mk;
+  const jobs=bcrFinishedJobs(mk);
+  let h='<div class="mtg-toolbar"><div class="mtg-mstep"><button class="mtg-mbtn" onclick="bcrStep(-1)" aria-label="Previous month">‹</button><span class="mtg-mlabel">'+esc(mtgMonthLabel(mk))+'</span><button class="mtg-mbtn" onclick="bcrStep(1)" aria-label="Next month">›</button></div></div>';
+  if(!jobs.length){h+='<div class="mtg-empty">No jobs finished in '+esc(mtgMonthLabel(mk))+' yet. Step to another month, or run a sync.</div>';host.innerHTML=h;return;}
+  let tQ=0,tA=0,tGp=0;jobs.forEach(r=>{tQ+=num(r.p_mat)+num(r.p_lab);tA+=num(r.a_mat)+num(r.a_lab);tGp+=num(r.gp);});
+  h+='<div class="bcr-sum">'+jobs.length+' job'+(jobs.length===1?'':'s')+' finished · quoted cost '+fmtK(tQ)+' vs actual '+fmtK(tA)+' · GP '+fmtK(tGp)+'</div>';
+  jobs.forEach(r=>{
+    const id=String(r._fergus_id||'');
+    const sale=num(r.sales),aMat=num(r.a_mat),aLab=num(r.a_lab),pMat=num(r.p_mat),pLab=num(r.p_lab),hP=num(r.h_priced),hA=num(r.h_actual);
+    const q=_bcrQuote[id];const saleQ=(q&&!q.err&&q.total>0)?q.total:sale;
+    const gpA=num(r.gp),gpQ=saleQ-(pMat+pLab),mA=sale>0?gpA/sale*100:0,mQ=saleQ>0?gpQ/saleQ*100:0;
+    h+='<div class="bcr-card">';
+    h+='<div class="bcr-head"><div class="bcr-jn"><h3>'+esc(r.job||'(job)')+'</h3><div class="bcr-sub">'+(r._jobNo?'Job #'+esc(r._jobNo)+' · ':'')+esc(r.date||'')+'</div></div><span class="mtg-result '+(gpA>=0?'good':'bad')+'">'+Math.round(mA)+'% GP</span></div>';
+    const vr=(lbl,qv,av,fmt,badHi)=>{const d=av-qv,cls=(Math.abs(d)<0.5)?'':((badHi?d>0:d<0)?'bcr-bad':'bcr-good');return '<tr><td>'+lbl+'</td><td>'+fmt(qv)+'</td><td>'+fmt(av)+'</td><td class="'+cls+'">'+((qv||av)?((d>0?'+':'')+fmt(d)):'—')+'</td></tr>';};
+    h+='<table class="tb bcr-cmp"><thead><tr><th>Line</th><th>Quoted</th><th>Actual</th><th>Var</th></tr></thead><tbody>';
+    h+=vr('Sale',saleQ,sale,fmtK,false);
+    h+=vr('Materials',pMat,aMat,fmtK,true);
+    h+=vr('Labour',pLab,aLab,fmtK,true);
+    h+=vr('Hours',hP,hA,(x)=>fmtH(x)+'h',true);
+    h+=vr('Gross profit',gpQ,gpA,fmtK,false);
+    h+='<tr><td>Margin</td><td>'+Math.round(mQ)+'%</td><td>'+Math.round(mA)+'%</td><td class="'+(mA>=mQ?'bcr-good':'bcr-bad')+'">'+(mA>=mQ?'+':'')+Math.round(mA-mQ)+'%</td></tr>';
+    h+='</tbody></table>';
+    const scale=Math.max(hP,hA,1);
+    h+='<div class="mtg-bars"><div class="mtg-barrow"><span class="mtg-barlab">Priced</span><div class="mtg-track"><div class="mtg-fill allow" style="width:'+Math.round(hP/scale*100)+'%"></div></div><span class="mtg-barval">'+fmtH(hP)+'h</span></div>';
+    h+='<div class="mtg-barrow"><span class="mtg-barlab">Actual</span><div class="mtg-track"><div class="mtg-fill taken '+(hA>hP*1.02?'bad':'good')+'" style="width:'+Math.round(hA/scale*100)+'%"></div></div><span class="mtg-barval">'+fmtH(hA)+'h</span></div></div>';
+    const lab=bcrJobLabour(id);
+    if(lab.length){h+='<div class="bcr-lbl">Actual labour — who logged the hours</div><div class="bcr-crew">'+lab.map(p=>'<span class="cc">'+esc(p.name)+' <b>'+fmtH(p.hrs)+'h</b></span>').join('')+'</div>';}
+    h+='<div class="bcr-lbl">Quoted line items</div>';
+    if(!q){h+='<div class="bcr-tools"><a onclick="bcrFetchQuote(\''+esc(id)+'\')">⤓ Load the quote breakdown from Fergus</a></div>';}
+    else if(q.loading){h+='<div class="bcr-note">Loading quote…</div>';}
+    else if(q.err){h+='<div class="bcr-note">Couldn’t load the quote ('+esc(q.err)+'). <a onclick="delete _bcrQuote[\''+esc(id)+'\'];renderBcReview();">retry</a></div>';}
+    else if(!q.mat.length&&!q.lab.length){h+='<div class="bcr-note">No itemised quote lines returned for this job.</div>';}
+    else{
+      const lineTbl=(t,arr)=>{if(!arr.length)return '';const s=arr.reduce((a,x)=>a+x.tot,0);return '<div class="bcr-linetitle">'+t+' · '+fmtK(s)+'</div><table class="tb bcr-lines"><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody>'+arr.map(x=>'<tr><td>'+esc(x.desc.slice(0,64))+'</td><td>'+fmtH(x.qty)+'</td><td>'+fmt$(x.price)+'</td><td>'+fmt$(x.tot)+'</td></tr>').join('')+'</tbody></table>';};
+      h+=lineTbl('Materials',q.mat)+lineTbl('Labour',q.lab)+'<div class="bcr-linetotal">Quote total (ex GST): <b>'+fmt$(q.total)+'</b></div>';
+    }
+    h+='</div>';
+  });
+  h+='<div class="mtg-empty" style="padding:12px 8px;font-size:.72rem;">Quoted vs actual from Fergus back-costing. Quote line items are pulled live from the job’s Fergus quote; actual materials &amp; labour are category totals, and per-person hours come from the labour history. <b style="color:#fb923c;">Red</b> = over the quote.</div>';
+  host.innerHTML=h;
+}
+try{_bcrMk=calMonthKey(-1);}catch(e){}
 
 // ════════ NAV ════════
 const PAGE_TITLES={dash:'Dashboard',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'Cash'};
