@@ -11109,15 +11109,30 @@ async function bootCustomerView(token){
 // ── Office home-screen: customer quote activity feed ──
 async function fetchQuoteActivity(){
   var card = document.getElementById('quoteActivityCard');
-  if (!document.getElementById('quoteActivityList')) return;
+  var list = document.getElementById('quoteActivityList');
+  if (!list) return;
+  // Always show the section on the home screen — even while loading, when
+  // empty, or if the fetch fails — so recent activity is never silently
+  // hidden (the office should always see this card and know its state).
+  if (card) card.style.display = '';
+  if (!window._quoteActivityFeed) {
+    list.innerHTML = '<div style="padding:14px 4px;color:var(--text2);font-size:12px">Loading recent activity…</div>';
+  }
   try {
     var feed = await api('GET', '/quote-activity');
-    if (!feed || !feed.length){ window._quoteActivityFeed = []; if (card) card.style.display='none'; return; }
+    feed = Array.isArray(feed) ? feed : [];
     feed.sort(function(a,b){ return new Date(b.lastEventAt||0) - new Date(a.lastEventAt||0); });
     window._quoteActivityFeed = feed;
-    if (card) card.style.display='';
     _renderQuoteActivity();
-  } catch(e){ if (card) card.style.display='none'; }
+  } catch(e){
+    // Keep any previously-loaded activity on screen; only show the error when
+    // we have nothing cached to display.
+    if (!(window._quoteActivityFeed && window._quoteActivityFeed.length)) {
+      var l2 = document.getElementById('quoteActivityList');
+      if (l2) l2.innerHTML = '<div style="padding:14px 4px;color:#b91c1c;font-size:12px">Couldn’t load recent activity right now. '+
+        '<button onclick="fetchQuoteActivity()" style="margin-left:6px;padding:3px 10px;background:transparent;color:#b91c1c;border:1px solid #b91c1c;border-radius:6px;font-size:11px;cursor:pointer">↻ Retry</button></div>';
+    }
+  }
 }
 // Renders (and search-filters) the cached quote-activity feed.
 function _renderQuoteActivity(){
@@ -11136,7 +11151,7 @@ function _renderQuoteActivity(){
   var rows = !q ? feed : feed.filter(function(f){
     return ((f.client||'')+' '+(f.ref||'')+' '+((f.accepted&&f.accepted.name)||'')).toLowerCase().indexOf(q) >= 0;
   });
-  if (!rows.length){ list.innerHTML = '<div style="padding:14px 4px;color:var(--text2);font-size:12px">'+(q?'No activity matches “'+esc2(q)+'”.':'No quote activity yet.')+'</div>'; return; }
+  if (!rows.length){ list.innerHTML = '<div style="padding:14px 4px;color:var(--text2);font-size:12px">'+(q?'No activity matches “'+esc2(q)+'”.':'No quote activity yet — accepted, declined, opened and queried quotes will appear here once you share a quote link with a customer.')+'</div>'; return; }
   list.innerHTML = rows.map(function(f){
     var s = STAT[f.status] || STAT.sent;
     var when = f.lastEventAt ? new Date(f.lastEventAt).toLocaleString('en-NZ',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
