@@ -12249,8 +12249,8 @@ function _roofQuoteMode(i){
   var ex  = (q.roofExcluded && typeof q.roofExcluded === 'object') ? q.roofExcluded : {};
   if (ex[i]) return 'excluded';
   var sep = (q.roofSeparate && typeof q.roofSeparate === 'object') ? q.roofSeparate : {};
-  if (sep[i]) return 'separate';
-  return 'folded';
+  if (sep[i] === false) return 'folded';   // office explicitly folded it into the main price
+  return 'separate';                        // DEFAULT — its own optional extra
 }
 function _setRoofMode(i, mode){
   if (!S.quote) return;
@@ -12510,7 +12510,6 @@ function _qpRoofMapSvg(opts){
   var pad = Math.max(20, (b.maxX-b.minX)*0.06, (b.maxY-b.minY)*0.06);
   var minX=b.minX-pad, minY=b.minY-pad, w=(b.maxX-b.minX)+2*pad, h=(b.maxY-b.minY)+2*pad;
   var INCL={fill:'#dbeafe',stroke:'#1d4ed8',text:'#1e3a8a'};
-  var AVAIL={fill:'#eef2f7',stroke:'#94a3b8',text:'#64748b'};
   var EXCL={fill:'#fee2e2',stroke:'#dc2626',text:'#991b1b'};
   var sel = opts.sel || {};
   var fontSize=Math.max(11,Math.min(28,h/22)), subSize=Math.max(9,Math.min(18,h/32));
@@ -12518,19 +12517,28 @@ function _qpRoofMapSvg(opts){
   var svg='<svg viewBox="'+minX+' '+minY+' '+w+' '+h+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-height:'+(opts.maxH||_qpRoofMapMaxH())+'px;background:#fff;border:1px solid var(--ed-line);border-radius:6px;font-family:Inter,-apple-system,sans-serif">';
   if (g.bg && opts.showBg !== false){ svg+='<image x="0" y="0" width="'+g.bgW+'" height="'+g.bgH+'" opacity="0.55" preserveAspectRatio="none" href="'+g.bg+'"/>'; }
   g.roofs.forEach(function(r){
-    var c, cross=false;
-    if (r.mode==='excluded'){ c=EXCL; cross=true; }
-    else if (r.mode==='main' || r.mode==='folded'){ c=INCL; }
-    else { var on=(r.extraPos!=null) && (sel[r.extraPos]===true); c = on?INCL:AVAIL; if(!on && opts.crossUnselected) cross=true; }
+    // Included → blue + faint green tick. Not included (excluded, or a separate
+    // roof the customer hasn't added) → red + crossed out.
+    var included;
+    if (r.mode==='excluded') included = false;
+    else if (r.mode==='main' || r.mode==='folded') included = true;
+    else included = (r.extraPos!=null) && (sel[r.extraPos]===true);
+    var c = included ? INCL : EXCL;
     var pts = r.pts.map(function(p){ return p[0]+','+p[1]; }).join(' ');
     svg+='<polygon points="'+pts+'" fill="'+c.fill+'" fill-opacity="0.78" stroke="'+c.stroke+'" stroke-width="2.5"/>';
     r.lines.forEach(function(l){ svg+='<line x1="'+l.p[0][0]+'" y1="'+l.p[0][1]+'" x2="'+l.p[1][0]+'" y2="'+l.p[1][1]+'" stroke="'+l.c+'" stroke-width="2" stroke-linecap="round"/>'; });
     if (showGutters){ r.gutters.forEach(function(gp){ svg+='<line x1="'+gp[0][0]+'" y1="'+gp[0][1]+'" x2="'+gp[1][0]+'" y2="'+gp[1][1]+'" stroke="#7c3aed" stroke-width="3.5" stroke-linecap="round"/>'; }); }
     var cx=0,cy=0; r.pts.forEach(function(p){cx+=p[0];cy+=p[1];}); cx/=r.pts.length; cy/=r.pts.length;
-    var sub = (r.mode==='excluded') ? 'Not included' : ((r.mode==='separate' && !(r.extraPos!=null && sel[r.extraPos]===true)) ? 'Optional' : (r.area>0 ? r.area.toFixed(1)+' m²' : ''));
+    var sub = included ? (r.area>0 ? r.area.toFixed(1)+' m²' : '') : (r.mode==='excluded' ? 'Not included' : 'Optional — tap to add');
     svg+='<g><text x="'+cx.toFixed(1)+'" y="'+(cy-2).toFixed(1)+'" text-anchor="middle" font-size="'+fontSize+'" font-weight="700" stroke="#fff" stroke-width="4" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+esc(r.name)+'</text>'+
       '<text x="'+cx.toFixed(1)+'" y="'+(cy+fontSize*0.95).toFixed(1)+'" text-anchor="middle" font-size="'+subSize+'" font-weight="500" stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+esc(sub)+'</text></g>';
-    if (cross){
+    if (included){
+      // Faint green tick above the roof name.
+      var ts = fontSize*1.0, tx = cx, ty = cy - fontSize*1.55;
+      var td = 'M'+(tx-ts*0.46).toFixed(1)+','+ty.toFixed(1)+' L'+(tx-ts*0.08).toFixed(1)+','+(ty+ts*0.4).toFixed(1)+' L'+(tx+ts*0.52).toFixed(1)+','+(ty-ts*0.44).toFixed(1);
+      svg+='<path d="'+td+'" fill="none" stroke="#fff" stroke-width="'+(ts*0.5).toFixed(1)+'" stroke-linecap="round" stroke-linejoin="round"/>'+
+           '<path d="'+td+'" fill="none" stroke="#16a34a" stroke-width="'+(ts*0.26).toFixed(1)+'" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>';
+    } else {
       var x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity; r.pts.forEach(function(p){if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];});
       svg+='<g stroke="#dc2626" stroke-width="'+Math.max(2.5,h/90).toFixed(1)+'" stroke-linecap="round" opacity="0.7"><line x1="'+x0+'" y1="'+y0+'" x2="'+x1+'" y2="'+y1+'"/><line x1="'+x1+'" y1="'+y0+'" x2="'+x0+'" y2="'+y1+'"/></g>';
     }
@@ -12671,12 +12679,11 @@ function _buildRoofPreviewsHtml(opts){
       _inclBtns = '<div class="qp-incl-btns" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' + _bw.join('') + '</div>'+
         '<div style="font-size:10px;color:var(--ed-text2);font-family:var(--ed-sans);margin-top:5px">Tap to choose which roofs to include — the plan and your price update instantly.</div>';
     }
-    // Legend — shown whenever the plan mixes included / optional / excluded.
+    // Legend — green tick = included, red cross = not included.
     var _legendHtml = (_hasExtras || _anyExcl)
       ? '<div style="display:flex;gap:16px;align-items:center;margin-top:8px;font-family:var(--ed-sans);font-size:10px;color:var(--ed-text2);flex-wrap:wrap">'+
-          '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:15px;height:11px;background:#dbeafe;border:1.5px solid #1d4ed8;border-radius:2px;display:inline-block"></span>Included</span>'+
-          (_hasExtras ? '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:15px;height:11px;background:#eef2f7;border:1.5px solid #94a3b8;border-radius:2px;display:inline-block"></span>Optional — tap to add</span>' : '')+
-          (_anyExcl ? '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:15px;height:11px;background:#fee2e2;border:1.5px solid #dc2626;border-radius:2px;display:inline-block"></span>Not included</span>' : '')+
+          '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:15px;height:11px;background:#dbeafe;border:1.5px solid #1d4ed8;border-radius:2px;display:inline-block"></span><span style="color:#16a34a;font-weight:800">✓</span> Included</span>'+
+          '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:15px;height:11px;background:#fee2e2;border:1.5px solid #dc2626;border-radius:2px;display:inline-block"></span><span style="color:#dc2626;font-weight:800">✗</span> Not included'+(_hasExtras?' <span style="color:var(--ed-text2)">— tap to add</span>':'')+'</span>'+
         '</div>'
       : '';
     var _mh = _qpRoofMapMaxH();
