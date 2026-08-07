@@ -13047,6 +13047,11 @@ var STEEL_GUTTER_PROFILES = [
 // canvas hugs the scaled pages).  Never scales above 1:1.  Print
 // resets zoom to 1 via the before/afterprint handlers.
 function _fitProposalPages(){
+  // Customer view has its own fitter. The office #quoteProposal wrapper is
+  // still in the (hidden) DOM there with clientWidth 0, which would compute
+  // zoom = 1 and blow the A4 page up past the phone width after every re-render
+  // (e.g. tapping "Include <roof>") — so hand off to _fitCustomerView instead.
+  if (window.__CUSTOMER_MODE) { try { _fitCustomerView(); } catch(e){} return; }
   var wrap = document.getElementById('quoteProposal');
   var root = document.getElementById('qpRoot');
   if (!wrap || !root) return;
