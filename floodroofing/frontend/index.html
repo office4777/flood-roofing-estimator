@@ -5703,6 +5703,9 @@ function renderMaterialPriceTable(){
   try { renderProfitability(); } catch(e){}
   try { updateGlobalJobBarCosts(); } catch(e){}
   try { renderPerRoofBreakdown(); } catch(e){}
+  // Materials just changed — reflect it in the quote so the quote follows the
+  // pricing tab live (the proposal re-render re-syncs the base line items).
+  try { _reflectPricingInQuote(); } catch(e){}
 }
 
 // ── Per-roof pricing + steel-grade helpers ─────────────────────────────
@@ -8715,6 +8718,9 @@ function calcLabour(){
   renderProfitability();
   try { renderGutterDownpipePricing(); } catch(e){}
   try { renderPerRoofBreakdown(); } catch(e){}
+  // Labour just changed — reflect it in the quote so the quote follows the
+  // pricing tab live (the proposal re-render re-syncs the base line items).
+  try { _reflectPricingInQuote(); } catch(e){}
 }
 
 // ── Guttering & downpipes pricing (Pricing panel) ──────────────────
@@ -8731,9 +8737,12 @@ function renderGutterDownpipePricing(){
   var gname = ({ box125:'125mm Colorsteel Box Gutter', marley_typhoon:'Marley Typhoon (PVC)', marley_classic:'Marley Classic (PVC)' })[p.gutterType];
   if (!p.gutterType || p.gutterType === 'none' || !gname){ if (card) card.style.display = 'none'; wrap.innerHTML = ''; return; }
   if (card) card.style.display = '';
-  var rate = SEL_GUTTER_RATE_PER_LM[p.gutterType] || 0;
+  var matRate = _gutterMaterialPerLm(p.gutterType);
   var lm = _selGutterLm(), lines = _selGutterLineCount();
-  var gComputed = rate * lm, dComputed = SEL_DOWNPIPE_PER_LINE * lines;
+  var labHrs = _gutterLabourHours(lm);
+  var labCharge = _gutterLabourCharge(lm);
+  var matCharge = matRate * lm;
+  var gComputed = matCharge + labCharge, dComputed = SEL_DOWNPIPE_PER_LINE * lines;
   var gOv = parseFloat(q.gutterPriceOverride), dOv = parseFloat(q.downpipePriceOverride);
   var gVal = (isFinite(gOv) && gOv >= 0) ? gOv : gComputed;
   var dOn = p.downpipes === 'yes';
@@ -8746,9 +8755,9 @@ function renderGutterDownpipePricing(){
   var scaffBase = (typeof _selScaffoldBasePrice === 'function') ? _selScaffoldBasePrice() : 0;
   var scUp = 0.25 * (parseFloat(scaffBase) || 0);
   wrap.innerHTML =
-    '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">'+esc(gname)+' · '+lm.toFixed(1)+' lm × $'+rate+'/lm'+(dOn ? (' &nbsp;·&nbsp; downpipes '+lines+' × $'+SEL_DOWNPIPE_PER_LINE+'/line') : '')+' <span style="color:var(--text3)">(ex GST)</span></div>'+
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">'+esc(gname)+' · '+lm.toFixed(1)+' lm &nbsp;·&nbsp; material '+lm.toFixed(1)+' × $'+matRate+'/lm = '+money(matCharge)+' &nbsp;+&nbsp; labour '+labHrs+' hr'+(labHrs===1?'':'s')+' <span style="color:var(--text3)">(lead + apprentice)</span> = '+money(labCharge)+(dOn ? (' &nbsp;·&nbsp; downpipes '+lines+' × $'+SEL_DOWNPIPE_PER_LINE+'/line') : '')+' <span style="color:var(--text3)">(ex GST)</span></div>'+
     '<div class="f2">'+
-      '<div><label>Gutter total ($ ex-GST)</label><input type="number" step="1" min="0" value="'+gVal.toFixed(2)+'" onchange="_setGutterPriceOverride(this.value)"><div style="font-size:10.5px;color:var(--text3);margin-top:2px">computed '+money(gComputed)+'</div></div>'+
+      '<div><label>Gutter total ($ ex-GST)</label><input type="number" step="1" min="0" value="'+gVal.toFixed(2)+'" onchange="_setGutterPriceOverride(this.value)"><div style="font-size:10.5px;color:var(--text3);margin-top:2px">computed '+money(gComputed)+' = material '+money(matCharge)+' + labour '+money(labCharge)+' ('+labHrs+' hr)</div></div>'+
       '<div><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" '+(dOn?'checked':'')+' onchange="_toggleDownpipesPricing(this.checked)" style="width:auto;margin:0"> New downpipes</label>'+
         '<input type="number" step="1" min="0" '+(dOn?'':'disabled')+' value="'+dVal.toFixed(2)+'" onchange="_setDownpipePriceOverride(this.value)" style="'+(dOn?'':'opacity:.5')+'"><div style="font-size:10.5px;color:var(--text3);margin-top:2px">computed '+money(dComputed)+'</div></div>'+
     '</div>'+
@@ -8767,7 +8776,7 @@ function _gdChanged(){
   try { renderGutterDownpipePricing(); } catch(e){}
   try { if (typeof recalcQuoteTotals === 'function') recalcQuoteTotals(); } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
-  try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
 function _setGutterPriceOverride(v){ if(!S.quote) return; var f=parseFloat(v); S.quote.gutterPriceOverride=(isFinite(f)&&f>=0)?f:null; _gdChanged(); }
 function _setDownpipePriceOverride(v){ if(!S.quote) return; var f=parseFloat(v); S.quote.downpipePriceOverride=(isFinite(f)&&f>=0)?f:null; _gdChanged(); }
@@ -9902,7 +9911,35 @@ function _gutterDelta(){
 // share link prices identically without the roof drawing.
 var SEL_GRADE_PCT   = { maxam: 0, colorzen: -0.138, colourcote: -0.07, zincalume: -0.327 };
 var SEL_GAUGE55_PCT = 0.22;
-var SEL_GUTTER_RATE_PER_LM = { box125: 70, marley_typhoon: 80, marley_classic: 72 }; // $/lm ex-GST
+// Guttering is priced like the roof — MATERIAL ($/lm, per profile) + LABOUR
+// (hours by gutter run, charged at the lead + apprentice rates) — not a single
+// flat all-in $/lm rate.
+var SEL_GUTTER_MATERIAL_PER_LM = { box125: 30, marley_typhoon: 40, marley_classic: 35 }; // $/lm ex-GST
+function _gutterMaterialPerLm(id){ return SEL_GUTTER_MATERIAL_PER_LM[id] || 0; }
+// Gutter install LABOUR HOURS by total gutter run (lm). Each band's hours are
+// worked by BOTH the lead roofer AND the apprentice, charged at the labour
+// table's lead + apprentice charge-out rates — exactly like the roof labour.
+function _gutterLabourHours(lm){
+  lm = parseFloat(lm) || 0;
+  if (lm <= 0)   return 0;
+  if (lm <= 10)  return 3;
+  if (lm <= 20)  return 4;
+  if (lm <= 30)  return 6;
+  if (lm <= 40)  return 7;
+  if (lm <= 65)  return 10;
+  if (lm <= 80)  return 12;
+  return 14;                  // 80–120 lm (and beyond)
+}
+// Gutter labour charge ($ ex-GST) = band hours × (lead + apprentice charge-out).
+function _gutterLabourCharge(lm){
+  var r = (typeof _labourRates === 'function') ? _labourRates() : { leadPrice:0, appPrice:0 };
+  return _gutterLabourHours(lm) * ((r.leadPrice||0) + (r.appPrice||0));
+}
+// Total gutter charge ($ ex-GST) = material ($/lm × lm) + labour (hours × rates).
+function _gutterTotalCharge(id, lm){
+  if (!SEL_GUTTER_MATERIAL_PER_LM[id]) return 0;
+  return _gutterMaterialPerLm(id) * (parseFloat(lm)||0) + _gutterLabourCharge(lm);
+}
 // External brackets are an upcharge over the standard internal brackets:
 // +$6/lm on a 125mm box gutter, +$3/lm on either Marley PVC gutter (ex-GST).
 var SEL_BRACKET_EXT_PER_LM = { box125: 6, marley_typhoon: 3, marley_classic: 3 };
@@ -9970,9 +10007,8 @@ function _selGutterDelta(gutterId){
     var ov = parseFloat(q.gutterPriceOverride);
     if (isFinite(ov) && ov >= 0) return ov;
   }
-  var rate = SEL_GUTTER_RATE_PER_LM[gutterId];
-  if (!rate) return 0;
-  return rate * _selGutterLm();
+  // Material ($/lm × lm) + labour (hours by run × lead+apprentice rates).
+  return _gutterTotalCharge(gutterId, _selGutterLm());
 }
 function _selDownpipesOn(){
   var p = (S.quote && S.quote.proposalOptions) || {};
@@ -11736,8 +11772,15 @@ function _autoSyncFromScope(){
 
 // Silently update Labour/Materials line items from current computed
 // values each time the Quote tab opens, without disturbing custom lines.
-function _autoSyncLabourMaterials(){
-  if (!S.quote) return;
+// Pure sync — recompute the base Labour / Materials / Scaffolding line items
+// straight from the live Pricing tab (labour table, material price table,
+// scaffold price + any folded extra roofs). Returns true if a line changed.
+// NO rendering, so it is safe to call from inside refreshQuoteProposal — this
+// is what makes the quote ALWAYS follow the pricing tab, even when pricing is
+// edited from the quote's own slide-out pricing panel (no tab switch fires).
+function _syncQuoteBaseLineItems(){
+  if (!S.quote) return false;
+  if (window.__CUSTOMER_MODE) return false;   // customer link has no live pricing state
   if (!Array.isArray(S.quote.lineItems)) S.quote.lineItems = [];
   var updated = false;
   // Scaffolding is "included in every quote" — it must flow into the quote
@@ -11766,7 +11809,7 @@ function _autoSyncLabourMaterials(){
     }
   }
   [['Labour', _baseLab], ['Materials', _baseMat], ['Scaffolding', scaffP]].forEach(function(pair){
-    var key = pair[0], val = pair[1];
+    var key = pair[0], val = +(parseFloat(pair[1])||0).toFixed(2);
     var li = S.quote.lineItems.find(function(x){ return x.desc === key; });
     if (!(val > 0)) {
       // Value dropped to 0 (e.g. scaffold cleared) — remove a stale line.
@@ -11774,13 +11817,27 @@ function _autoSyncLabourMaterials(){
       return;
     }
     if (li) {
-      if (li.unit !== val) { li.unit = val; updated = true; }
+      if (+(parseFloat(li.unit)||0).toFixed(2) !== val) { li.unit = val; updated = true; }
     } else {
       S.quote.lineItems.unshift({ desc: key, qty: 1, unit: val });
       updated = true;
     }
   });
-  if (updated) { renderQuoteLines(); recalcQuoteTotals(); refreshQuoteProposal(); }
+  return updated;
+}
+// Pricing-edit entry point: sync + re-render the quote lines and proposal.
+function _autoSyncLabourMaterials(){
+  if (_syncQuoteBaseLineItems()) {
+    try { renderQuoteLines(); } catch(e){}
+    try { recalcQuoteTotals(); } catch(e){}
+    try { refreshQuoteProposal(); } catch(e){}
+  }
+}
+// Debounced "reflect the pricing tab in the quote" — called whenever labour or
+// materials are recomputed so the live proposal preview follows immediately.
+function _reflectPricingInQuote(){
+  clearTimeout(window._qpPricingTimer);
+  window._qpPricingTimer = setTimeout(function(){ try { refreshQuoteProposal(); } catch(e){} }, 120);
 }
 
 function quoteSubtotal(){
@@ -13405,6 +13462,12 @@ function refreshQuoteProposal(){
   // works on the customer share link, where the roof drawing isn't present.
   // Only write office-side (never overwrite good values with a customer-view 0).
   if (!window.__CUSTOMER_MODE) {
+    // The quote ALWAYS follows the pricing tab: re-sync the base Labour /
+    // Materials / Scaffolding line items from live pricing before computing any
+    // total, so edits made anywhere (incl. the quote's own slide-out pricing
+    // panel, which fires no tab switch) carry straight through. Pure/no-render,
+    // so this can't recurse back into refreshQuoteProposal.
+    try { _syncQuoteBaseLineItems(); } catch(e){}
     // Backfill the customer name from the job so the cover shows it (and the
     // "<surname> Residence" title derives correctly) instead of a placeholder.
     if (!String(S.quote.client || '').trim()) { var _bc = _bestClientName(); if (_bc) S.quote.client = _bc; }
