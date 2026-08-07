@@ -332,6 +332,8 @@ table.tb.tb-gp .avgbtn{padding:1px 3px;}
 .cleg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle;}
 .cpanel table.tb{font-size:.74rem;}
 .cpanel table.tb td,.cpanel table.tb th{padding:8px 6px;}
+tr.apsec td{background:var(--card2);font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;padding-top:11px;border-bottom:1px solid var(--border);}
+.apno{font-size:.62rem;color:var(--muted);font-weight:600;margin-left:5px;}
 .lrbar{position:relative;}
 .lrbar .lrf{position:absolute;left:0;top:0;bottom:0;background:rgba(74,222,128,.16);border-radius:5px;}
 .cpt .chip{padding:3px 10px;font-size:.6rem;}
@@ -4008,13 +4010,36 @@ function openCmdDetail(key,optMk){
       if(rows.length)rows.push('<tr class="tot"><td>Total ('+(list.length-nX)+(nX?' · '+nX+' crossed out':'')+')</td><td style="text-align:right;">'+fmtK(tot)+'</td><td></td></tr>');
       body='<div class="note" style="margin:0 0 10px;">Tap <b>✕</b> (far right) to cross out an invoice you don’t expect to collect (e.g. a deposit you’ll void) — it drops from the cashflow, job totals <b>and the headline Accounts receivable figure</b>. Remember to credit/void it in Xero too so your books match.</div>'+
         wrap('<th>Job</th><th style="text-align:right;">Owed</th><th></th>',rows,'No outstanding invoices 🎉');}}
-  else if(key==='ap'){title='Accounts payable — owed to suppliers';
-    const abc=(cash&&cash.apByCode)||null,accts=(cash&&cash.accounts)||{};
-    if(abc&&Object.keys(abc).length){const list=Object.keys(abc).map(c=>({c,amt:num(abc[c].amt),name:(accts[c]&&accts[c].name)||''})).filter(r=>r.amt>0).sort((a,b)=>b.amt-a.amt);
-      const tot=list.reduce((s,r)=>s+r.amt,0);const rows=list.map(r=>'<tr><td>'+esc(r.c)+'</td><td>'+esc((r.name||'').slice(0,28))+'</td><td style="text-align:right;font-weight:700;">'+fmtK(r.amt)+'</td></tr>');
-      if(rows.length)rows.push('<tr class="tot"><td colspan="2">Total</td><td style="text-align:right;">'+fmtK(tot)+'</td></tr>');
-      body=wrap('<th>Code</th><th>Account</th><th style="text-align:right;">Unpaid</th>',rows,'No unpaid supplier bills.');}
-    else{const ap=window.__apTotal;body='<div class="note">Total unpaid supplier bills (Accounts Payable): <b>'+(ap!=null?fmtK(ap):'—')+'</b>.<br><br>Open <b>Cash → Accounts Payable</b> and sync to load the per-supplier / per-code breakdown, and it will show here.</div>';}}
+  else if(key==='ap'){title='Accounts payable — supplier bills due';
+    const bills=(cash&&cash.apBills)||null;
+    if(bills&&bills.length){
+      const now=new Date(),tY=now.getFullYear(),tM=now.getMonth(),curMk=tY*12+tM;
+      const todayStr=tY+'-'+String(tM+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+      const mkOf=d=>{if(!d)return null;const p=d.split('-');return parseInt(p[0])*12+(parseInt(p[1])-1);};
+      const fullMon=off=>{const d=new Date(tY,tM+off,1);const F=['January','February','March','April','May','June','July','August','September','October','November','December'];return F[d.getMonth()]+' '+d.getFullYear();};
+      const fmtDue=d=>{if(!d)return '—';const p=d.split('-');return (p[2].replace(/^0/,''))+' '+FG_MONTHS[parseInt(p[1])-1];};
+      const bk={over:[],cur:[],next:[],later:[],undated:[]};
+      bills.forEach(b=>{const m=mkOf(b.due);if(m==null)bk.undated.push(b);else if(b.due<todayStr)bk.over.push(b);else if(m===curMk)bk.cur.push(b);else if(m===curMk+1)bk.next.push(b);else bk.later.push(b);});
+      [bk.over,bk.cur,bk.next,bk.later,bk.undated].forEach(a=>a.sort((x,y)=>y.amt-x.amt));   // most expensive first
+      const rowsArr=[];
+      const section=(label,arr,col)=>{if(!arr.length)return;const sub=arr.reduce((s,b)=>s+b.amt,0);
+        rowsArr.push('<tr class="apsec"><td colspan="2" style="color:'+col+';">'+esc(label)+'</td><td style="text-align:right;color:'+col+';">'+fmtK(sub)+'</td></tr>');
+        arr.forEach(b=>rowsArr.push('<tr><td><b>'+esc((b.supplier||'').slice(0,36))+'</b>'+(b.no?' <span class="apno">'+esc(b.no)+'</span>':'')+'</td><td style="text-align:right;color:var(--muted);white-space:nowrap;">'+esc(fmtDue(b.due))+'</td><td style="text-align:right;font-weight:700;">'+fmtK(b.amt)+'</td></tr>'));};
+      section('⚠ Overdue',bk.over,'#ff6b6b');
+      section('Due this month · '+fullMon(0),bk.cur,'var(--primary)');
+      section('Due next month · '+fullMon(1),bk.next,'var(--success)');
+      section('Later',bk.later,'var(--muted)');
+      section('No due date',bk.undated,'var(--muted)');
+      const tot=bills.reduce((s,b)=>s+b.amt,0);
+      rowsArr.push('<tr class="tot"><td colspan="2">Total owed ('+bills.length+' bill'+(bills.length===1?'':'s')+')</td><td style="text-align:right;">'+fmtK(tot)+'</td></tr>');
+      body='<div class="note" style="margin:0 0 10px;">Every unpaid supplier bill in Xero, grouped by when it’s due — most expensive first. GST-inclusive.</div>'+
+        wrap('<th>Supplier</th><th style="text-align:right;">Due</th><th style="text-align:right;">Amount</th>',rowsArr,'No unpaid supplier bills.');}
+    else{const abc=(cash&&cash.apByCode)||null,accts=(cash&&cash.accounts)||{};
+      if(abc&&Object.keys(abc).length){const list=Object.keys(abc).map(c=>({c,amt:num(abc[c].amt),name:(accts[c]&&accts[c].name)||''})).filter(r=>r.amt>0).sort((a,b)=>b.amt-a.amt);
+        const tot=list.reduce((s,r)=>s+r.amt,0);const rows=list.map(r=>'<tr><td>'+esc(r.c)+'</td><td>'+esc((r.name||'').slice(0,28))+'</td><td style="text-align:right;font-weight:700;">'+fmtK(r.amt)+'</td></tr>');
+        if(rows.length)rows.push('<tr class="tot"><td colspan="2">Total</td><td style="text-align:right;">'+fmtK(tot)+'</td></tr>');
+        body='<div class="note" style="margin:0 0 10px;">Re-sync <b>Cash</b> to switch this to the per-bill, due-date view.</div>'+wrap('<th>Code</th><th>Account</th><th style="text-align:right;">Unpaid</th>',rows,'No unpaid supplier bills.');}
+      else{const ap=window.__apTotal;body='<div class="note">Total unpaid supplier bills (Accounts Payable): <b>'+(ap!=null?fmtK(ap):'—')+'</b>.<br><br>Open <b>Cash → Accounts Payable</b> and sync to load the per-bill breakdown.</div>';}}}
   else if(key==='expap'){
     const ax=window.__apExp;
     title='Expected A/P — upcoming 20ths';
@@ -4911,20 +4936,25 @@ async function fetchXeroAPBills(){
   const proxy=fergusProxyUrl();if(!proxy)return null;
   const psec=fergusProxySecret();
   const byCode={};let apTotal=0,page=1,got=false;
+  const bills=[];   // individual unpaid bills {supplier, amt, no, due:'YYYY-MM-DD'} — for the per-bill AP view
   // Materials/goods-merchant name signals for a NZ roofing business (best-guess; user can override).
   const MAT_KW=['steel','colorsteel','colour steel','colorcote','roofing','roof ','iron','metalcraft','dimond','flashing','gutter','spouting','downpipe','timber','itm','bunnings','mitre 10','placemaker','carters','nuralite','marley','james hardie','hardie','insulation','purlin','fastener','fixing','rivet','cladding','fletcher','ullrich','aluminium','membrane','viking','stratco','calder stewart','roofing industries','building supplies','trade depot','plumbing world','metal'];
   const isMatSupplier=nm=>{const s=(nm||'').toLowerCase();return MAT_KW.some(k=>s.includes(k));};
   while(page<=15){
     let res;
     try{res=await fetch(proxyUrl('xero','/Invoices?where=Type=="ACCPAY" AND Status=="AUTHORISED"&page='+page+'&order=Date DESC'),{headers:{'Accept':'application/json',...(psec?{'X-Proxy-Secret':psec}:{})}});}
-    catch(e){return got?{byCode,apTotal}:null;}
-    if(!res.ok)return got?{byCode,apTotal}:null;
+    catch(e){return got?{byCode,apTotal,bills}:null;}
+    if(!res.ok)return got?{byCode,apTotal,bills}:null;
     let inv=[];try{inv=(JSON.parse(await res.text()).Invoices)||[];}catch(e){inv=[];}
     got=true;
     inv.forEach(v=>{
       const due=num(v.AmountDue);if(due<=0)return;
       apTotal+=due;
       const supplier=(v.Contact&&v.Contact.Name)||'';const isMat=isMatSupplier(supplier);
+      const dstr=String(v.DueDateString||'');let dd='';
+      if(/^\d{4}-\d{2}-\d{2}/.test(dstr))dd=dstr.slice(0,10);
+      else{const md=/\/Date\((\d+)/.exec(String(v.DueDate||''));if(md){const dt=new Date(+md[1]);if(!isNaN(dt))dd=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}}
+      bills.push({supplier:supplier||'(no supplier)',amt:due,no:String(v.InvoiceNumber||v.Reference||''),due:dd});
       const addTo=(c,amt)=>{const b=byCode[c]||(byCode[c]={amt:0,matAmt:0,egs:[]});b.amt+=amt;if(isMat)b.matAmt+=amt;if(supplier&&b.egs.length<3&&b.egs.indexOf(supplier)<0)b.egs.push(supplier);};
       const lines=v.LineItems||[];
       let lt=0;lines.forEach(l=>lt+=Math.abs(num(l.LineAmount)));
@@ -4934,7 +4964,7 @@ async function fetchXeroAPBills(){
     if(inv.length<100)break;
     page++;toast('Xero bills… '+((page-1)*100)+'+');
   }
-  return {byCode,apTotal};
+  return {byCode,apTotal,bills};
 }
 // Chart of accounts → { code:{name,type,cls} }. Needs accounting.settings.read (now granted).
 async function fetchXeroAccounts(){
@@ -4965,7 +4995,7 @@ async function syncCash(){
     const apb=await fetchXeroAPBills();
     toast('Reading chart of accounts…');
     const accts=await fetchXeroAccounts();
-    cash={rows,paidByJob:paidByJob||null,arByJob:arByJob||null,apByCode:(apb&&apb.byCode)||null,apBillsTotal:(apb&&apb.apTotal)||0,accounts:accts||null,ts:nzStamp()};
+    cash={rows,paidByJob:paidByJob||null,arByJob:arByJob||null,apByCode:(apb&&apb.byCode)||null,apBills:(apb&&apb.bills)||null,apBillsTotal:(apb&&apb.apTotal)||0,accounts:accts||null,ts:nzStamp()};
     S.set('cash',cash);
     toast('End cash position updated ✓','ok');
     renderCash();
