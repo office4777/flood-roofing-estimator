@@ -506,6 +506,9 @@ tr.bcr-hl td{background:rgba(77,141,255,.10);font-size:.82rem;}
 .bcr-crew .cc b{color:var(--text);}
 .bcr-tools a,.bcr-note a{font-size:.72rem;font-weight:800;color:var(--primary);cursor:pointer;}
 .bcr-note{font-size:.72rem;color:var(--muted);padding:4px 0;}
+.bcr-lines-toggle{display:flex;align-items:center;gap:6px;margin:12px 0 2px;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);cursor:pointer;user-select:none;padding:6px 0;}
+.bcr-lines-toggle:active{opacity:.7;}
+.bcr-chev{display:inline-block;width:12px;color:var(--primary);}
 .bcr-linetitle{font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--primary);margin:8px 0 4px;}
 table.tb.bcr-lines{font-size:.72rem;margin-bottom:4px;}
 table.tb.bcr-lines th,table.tb.bcr-lines td{padding:5px 7px;}
@@ -6064,6 +6067,8 @@ try{_mtgMk=calMonthKey(-1);}catch(e){}
 // you can see exactly what was quoted vs what it cost. Quote lines are fetched per job (cached).
 let _bcrMk=null;
 const _bcrQuote={};   // {jobId:{mat:[],lab:[],total,err,loading}} — fetched quote line items (in-memory)
+const _bcrOpen={};    // {jobId:1} — which jobs have the quoted-line-items pop-down expanded (default collapsed)
+function bcrToggleLines(id){if(_bcrOpen[id])delete _bcrOpen[id];else{_bcrOpen[id]=1;if(!_bcrQuote[id])bcrFetchQuote(id);}renderBcReview();}
 function bcrFinishedJobs(mk){
   const out=[];
   (bcFergus||[]).forEach(r=>{if(isExcl(r)||r._inProgress)return;if((r.month||'')!==mk)return;out.push(r);});   // finished & back-costed this month
@@ -6153,14 +6158,19 @@ function renderBcReview(){
     h+='<div class="mtg-barrow"><span class="mtg-barlab">Actual</span><div class="mtg-track"><div class="mtg-fill taken '+(hA>hP*1.02?'bad':'good')+'" style="width:'+Math.round(hA/scale*100)+'%"></div></div><span class="mtg-barval">'+fmtH(hA)+'h</span></div></div>';
     const lab=bcrJobLabour(id);
     if(lab.length){h+='<div class="bcr-lbl">Actual labour — who logged the hours</div><div class="bcr-crew">'+lab.map(p=>'<span class="cc">'+esc(p.name)+' <b>'+fmtH(p.hrs)+'h</b></span>').join('')+'</div>';}
-    h+='<div class="bcr-lbl">Quoted line items</div>';
-    if(!q){h+='<div class="bcr-tools"><a onclick="bcrFetchQuote(\''+esc(id)+'\')">⤓ Load the quote breakdown from Fergus</a></div>';}
-    else if(q.loading){h+='<div class="bcr-note">Loading quote…</div>';}
-    else if(q.err){h+='<div class="bcr-note">Couldn’t load the quote ('+esc(q.err)+'). <a onclick="delete _bcrQuote[\''+esc(id)+'\'];renderBcReview();">retry</a></div>';}
-    else if(!q.mat.length&&!q.lab.length){h+='<div class="bcr-note">No itemised quote lines returned for this job.</div>';}
-    else{
-      const lineTbl=(t,arr)=>{if(!arr.length)return '';const s=arr.reduce((a,x)=>a+x.tot,0);return '<div class="bcr-linetitle">'+t+' · '+fmtK(s)+'</div><table class="tb bcr-lines"><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody>'+arr.map(x=>'<tr><td>'+esc(x.desc.slice(0,64))+'</td><td>'+fmtH(x.qty)+'</td><td>'+fmt$(x.price)+'</td><td>'+fmt$(x.tot)+'</td></tr>').join('')+'</tbody></table>';};
-      h+=lineTbl('Materials',q.mat)+lineTbl('Labour',q.lab)+'<div class="bcr-linetotal">Quote total (ex GST): <b>'+fmt$(q.total)+'</b></div>';
+    const open=!!_bcrOpen[id];
+    const qReady=q&&!q.loading&&!q.err&&(q.mat.length||q.lab.length);
+    const qTot=qReady?(' · '+fmtK(q.total)):(q&&q.loading?' · loading…':'');
+    h+='<div class="bcr-lines-toggle" onclick="bcrToggleLines(\''+esc(id)+'\')"><span class="bcr-chev">'+(open?'▾':'▸')+'</span> Quoted line items'+qTot+'</div>';
+    if(open){
+      if(!q){h+='<div class="bcr-tools"><a onclick="event.stopPropagation();bcrFetchQuote(\''+esc(id)+'\')">⤓ Load the quote breakdown from Fergus</a></div>';}
+      else if(q.loading){h+='<div class="bcr-note">Loading quote…</div>';}
+      else if(q.err){h+='<div class="bcr-note">Couldn’t load the quote ('+esc(q.err)+'). <a onclick="delete _bcrQuote[\''+esc(id)+'\'];renderBcReview();">retry</a></div>';}
+      else if(!q.mat.length&&!q.lab.length){h+='<div class="bcr-note">No itemised quote lines returned for this job.</div>';}
+      else{
+        const lineTbl=(t,arr)=>{if(!arr.length)return '';const s=arr.reduce((a,x)=>a+x.tot,0);return '<div class="bcr-linetitle">'+t+' · '+fmtK(s)+'</div><table class="tb bcr-lines"><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody>'+arr.map(x=>'<tr><td>'+esc(x.desc.slice(0,64))+'</td><td>'+fmtH(x.qty)+'</td><td>'+fmt$(x.price)+'</td><td>'+fmt$(x.tot)+'</td></tr>').join('')+'</tbody></table>';};
+        h+=lineTbl('Materials',q.mat)+lineTbl('Labour',q.lab)+'<div class="bcr-linetotal">Quote total (ex GST): <b>'+fmt$(q.total)+'</b></div>';
+      }
     }
     h+='</div>';
   });
