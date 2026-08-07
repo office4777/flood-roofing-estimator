@@ -6170,6 +6170,12 @@ function snapshotCurrentJob(){
   // Scope tab — capture the master-scope pick + which chk-items are on
   var scopeItems = Array.from(document.querySelectorAll('#scopeGrid .chk-item.on'))
     .map(function(el){ return el.getAttribute('data-item'); });
+  // Keep the active roof's archive entry current, then persist the WHOLE
+  // multi-roof archive (DRAW.roofs) + which roof is active. Without this,
+  // re-opening a job restored only the active roof's geometry and left
+  // DRAW.roofs empty — so "add another building outline" wiped the first
+  // roof instead of appending a second, and extra roofs were lost on save.
+  try { if (typeof _syncCurrentToRoof === 'function') _syncCurrentToRoof(); } catch(e){}
   return {
     form: form,
     state: { img64:S.img64, roofData:S.roofData, labour:S.labour, materials:S.materials,
@@ -6180,7 +6186,9 @@ function snapshotCurrentJob(){
             scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step,
             sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[],
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
-            gableRidgeOffset:DRAW.gableRidgeOffset||0 },
+            gableRidgeOffset:DRAW.gableRidgeOffset||0,
+            roofs: (Array.isArray(DRAW.roofs) ? DRAW.roofs : []),
+            activeRoofIdx: (typeof DRAW.activeRoofIdx === 'number' ? DRAW.activeRoofIdx : -1) },
     scope: { mainScope: (typeof _currentMainScope !== 'undefined' ? _currentMainScope : null), items: scopeItems }
   };
 }
@@ -6214,6 +6222,24 @@ function restoreFromJob(j){
     DRAW.roofType = snap.draw.roofType || DRAW.roofType || '';
     DRAW.rotation = snap.draw.rotation || 0;
     DRAW.gableRidgeOffset = snap.draw.gableRidgeOffset || 0;
+    // Rebuild the multi-roof archive so every roof survives a save + reopen,
+    // and so "add another building outline" appends a roof instead of wiping
+    // the first. Jobs saved before the archive was persisted have no roofs[]
+    // — seed a single roof from the restored geometry so they behave correctly.
+    if (Array.isArray(snap.draw.roofs) && snap.draw.roofs.length) {
+      DRAW.roofs = snap.draw.roofs;
+      var _ai = snap.draw.activeRoofIdx;
+      DRAW.activeRoofIdx = (typeof _ai === 'number' && _ai >= 0 && _ai < DRAW.roofs.length) ? _ai : 0;
+      try { if (typeof _loadRoofToCurrent === 'function') _loadRoofToCurrent(DRAW.activeRoofIdx); } catch(e){}
+    } else if (DRAW.outline && DRAW.outline.length >= 3) {
+      var _seed = (typeof _newEmptyRoof === 'function') ? _newEmptyRoof('Roof 1') : { name:'Roof 1' };
+      if (typeof ROOF_FIELDS !== 'undefined') ROOF_FIELDS.forEach(function(k){ if (DRAW[k] !== undefined) _seed[k] = DRAW[k]; });
+      DRAW.roofs = [_seed];
+      DRAW.activeRoofIdx = 0;
+    } else {
+      DRAW.roofs = [];
+      DRAW.activeRoofIdx = -1;
+    }
     try { _syncGableRidgeUI(); } catch(e){}
     // A render/sync failure here used to be swallowed — the user saw a
     // blank canvas and assumed the drawing was gone.  Say what happened
@@ -6221,6 +6247,7 @@ function restoreFromJob(j){
     var _restoreErr = null;
     try { redrawAll(); } catch(e){ _restoreErr = e; console.error('restore redraw failed', e); }
     try { syncToRoofData(); } catch(e){ if (!_restoreErr) _restoreErr = e; console.error('restore sync failed', e); }
+    try { if (typeof renderRoofSwitcher === 'function') renderRoofSwitcher(); } catch(e){}
     if (_restoreErr) {
       try { _setSaveStatus('⚠ This job loaded but its drawing failed to render (' + _restoreErr.message + ') — the data is intact; try re-opening it.', '#b91c1c', true); } catch(e){}
     }
