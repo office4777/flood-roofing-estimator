@@ -30705,6 +30705,20 @@ async function _buildQuotePdf(opts){
   if (!html2canvas || !jsPDF) return null;
   var root = document.getElementById('qpRoot');
   if (!root) return null;
+  // The customer link may be in the phone-reflow layout (540px virtual width,
+  // tall single-column pages). Capturing THAT slices every page across 2–3 A4
+  // sheets (a 6-page proposal came out as 17). Force the true A4 layout first
+  // (drop the mobile reflow + re-render); _qpFitPrintPages below then scales any
+  // over-tall page so each captures as exactly one sheet.
+  var _htmlEl = document.documentElement;
+  var _wasCustMobile = _htmlEl.classList.contains('customer-mobile');
+  window.__PRINTING_QUOTE = true;
+  if (window.__CUSTOMER_MODE && _wasCustMobile){
+    _htmlEl.classList.remove('customer-mobile');
+    root.style.width = '';
+    try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
+    await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+  }
   // Each top-level child of #qpRoot is one printed page (.rp-page, or the
   // standalone header when there's no cover). On screen these are already
   // A4-sized (.report-preview .rp-page{width:210mm;height:297mm}) — the only
@@ -30728,6 +30742,10 @@ async function _buildQuotePdf(opts){
   // drop the cover hero / photos. Restored right after capture.
   var _restoreImgs = function(){};
   try { _restoreImgs = _inlineCoverImagesForPdf(root); } catch(e){}
+  // Scale any page taller than one A4 sheet down to fit, so each captures as
+  // exactly one page (no slicing into half-empty extra sheets).
+  try { _qpFitPrintPages(); } catch(e){}
+  await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
 
   var pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
   var pageW = 210, pageH = 297;
@@ -30745,16 +30763,24 @@ async function _buildQuotePdf(opts){
     }
   } catch(err){
     console.error('Quote PDF render failed:', err);
+    try { _qpUnfitPrintPages(); } catch(e){}
     try { _restoreImgs(); } catch(e){}
     document.documentElement.classList.remove('pdf-rendering');
     root.style.zoom = prevZoom || '';
+    if (_wasCustMobile) _htmlEl.classList.add('customer-mobile');
+    window.__PRINTING_QUOTE = false;
     try { window.scrollTo(0, savedScrollY); } catch(e){}
+    try { if (window.__CUSTOMER_MODE) _fitCustomerView(); } catch(e){}
     return null;
   }
+  try { _qpUnfitPrintPages(); } catch(e){}
   try { _restoreImgs(); } catch(e){}
   document.documentElement.classList.remove('pdf-rendering');
   root.style.zoom = prevZoom || '';
+  if (_wasCustMobile) _htmlEl.classList.add('customer-mobile');
+  window.__PRINTING_QUOTE = false;
   try { window.scrollTo(0, savedScrollY); } catch(e){}
+  try { if (window.__CUSTOMER_MODE) _fitCustomerView(); } catch(e){}
 
   // Page numbers — "Page N of M" centred in the bottom margin.
   try {
