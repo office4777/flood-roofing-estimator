@@ -1733,6 +1733,33 @@ html.customer-view{ overflow-x:hidden; }
   html.customer-view .report-preview{ padding:6px 3px !important; }
 }
 
+/* ── Mobile customer view — reflow the fixed A4 proposal into a single,
+   readable, phone-width column instead of shrinking the whole A4 sheet down
+   to ~half size. The page runs full device width at natural font size (so
+   text is legible), every multi-column grid stacks to one column, and the
+   customer only scrolls up/down. Toggled by _fitCustomerView adding
+   html.customer-mobile when the viewport is phone-sized. */
+html.customer-mobile .report-preview{ background:#fff !important; padding:0 !important; border-radius:0 !important; }
+html.customer-mobile .cust-scroll{ padding:6px 5px 150px !important; max-width:680px !important; }
+html.customer-mobile .report-preview #qpRoot{ zoom:1 !important; gap:12px !important; align-items:stretch !important; width:100% !important; }
+html.customer-mobile .report-preview .rp-page,
+html.customer-mobile .report-preview > #qpRoot > .rp-header{
+  width:100% !important; min-width:0 !important; max-width:100% !important;
+  min-height:0 !important; box-shadow:0 1px 8px rgba(10,22,40,.14) !important;
+}
+html.customer-mobile .rp-body{ padding:16px 13px !important; }
+/* Stack every inline grid (2-col option layouts, TOC, price rows, roof maps)
+   into a single column so nothing runs off the side. */
+html.customer-mobile .rp-page [style*="grid-template-columns"]{
+  grid-template-columns:1fr !important; gap:12px !important;
+}
+/* Keep media + long words inside the phone width. */
+html.customer-mobile .rp-page{ overflow-wrap:break-word; word-break:break-word; }
+html.customer-mobile .rp-page img,
+html.customer-mobile .rp-page svg,
+html.customer-mobile .rp-page table{ max-width:100% !important; }
+html.customer-mobile .qp-canvas{ min-height:0 !important; }
+
 /* ── Print ─────────────────────────────────────────────────── */
 /* margin:0 on every page kind so the proposal, materials cut list,
    scope, and job pack all reach the sheet edge.  Each per-print-mode
@@ -11217,10 +11244,24 @@ function customerQuery(){
 }
 // Scale the A4-width proposal (#qpRoot) down so it fits the viewport in the
 // customer view — the fixed 210mm pages otherwise overflow a phone screen.
+// Phones get a reflowed, full-width, natural-size layout (html.customer-mobile);
+// tablets/desktop keep the true-to-print A4 page scaled to fit the window.
+function _qpIsMobileView(){ return (window.innerWidth || document.documentElement.clientWidth || 0) <= 720; }
 function _fitCustomerView(){
   if (!window.__CUSTOMER_MODE) return;
   var root = document.getElementById('qpRoot');
   if (!root) return;
+  var mobile = _qpIsMobileView();
+  var wasMobile = document.documentElement.classList.contains('customer-mobile');
+  document.documentElement.classList.toggle('customer-mobile', mobile);
+  if (mobile){
+    // Reflow mode — no A4 shrink; CSS makes the page phone-width + single column.
+    root.style.zoom = '';
+    if (!wasMobile){ try { refreshQuoteProposal(); } catch(e){} }   // re-render so free-layout drops to the stack
+    return;
+  }
+  // Desktop / tablet — scale the A4 page to fit the window width.
+  if (wasMobile){ try { refreshQuoteProposal(); } catch(e){} }
   var parent = root.parentElement;   // .report-preview wrapper
   var cs = parent ? getComputedStyle(parent) : null;
   var padX = cs ? ((parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0)) : 0;
@@ -14817,7 +14858,9 @@ function refreshQuoteProposal(){
       '<div class="'+((S.quote.notes||'').trim() ? '' : 'qp-ph ')+'" style="padding:14px 18px;background:var(--ed-paper-2);border-left:3px solid var(--ed-accent)">'+_notesInner+'</div>';
     // Office-only control bar: switch the page between the default auto stack
     // and free "Word-style" drag/resize layout. Hidden on the customer link.
-    var _layoutOn = _qpLayoutOn();
+    // Free "Word-style" absolute layout is desktop-only — on a phone the page
+    // reflows to a single column, so fall back to the auto stack there.
+    var _layoutOn = _qpLayoutOn() && !(window.__CUSTOMER_MODE && typeof _qpIsMobileView === 'function' && _qpIsMobileView());
     var _layoutBar = (!window.__CUSTOMER_MODE)
       ? '<div class="no-print" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px">'+
           '<button type="button" onclick="_qpLayoutEnable('+(!_layoutOn)+')" title="Freely drag &amp; resize the map, scope and notes like floating boxes in Word" style="padding:3px 11px;font-size:10.5px;border:1px solid '+(_layoutOn?'var(--ed-accent)':'var(--ed-line)')+';border-radius:5px;background:'+(_layoutOn?'var(--ed-accent)':'#fff')+';color:'+(_layoutOn?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);letter-spacing:.03em">'+(_layoutOn?'✓ Free layout on':'⤢ Free layout')+'</button>'+
