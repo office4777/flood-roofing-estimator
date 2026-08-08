@@ -1765,6 +1765,26 @@ html.customer-mobile .rp-page svg,
 html.customer-mobile .rp-page table{ max-width:100% !important; }
 html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
+/* Customer link — Save-as-PDF / print. The customer view is a fixed overlay
+   (#customerView) scaled to the phone; a fixed, scaled container can't
+   paginate, so printing spills each page across many sheets. During print,
+   make it a normal flowing document at true A4 and hide the office app + bar. */
+@media print {
+  html.customer-view .app{ display:none !important; }
+  html.customer-view #customerView{ position:static !important; inset:auto !important; overflow:visible !important; height:auto !important; background:#fff !important; z-index:auto !important; }
+  html.customer-view #custBar{ display:none !important; }
+  html.customer-view .cust-scroll{ padding:0 !important; max-width:none !important; }
+  html.customer-view #customerView .report-preview{ margin:0 !important; border:none !important; box-shadow:none !important; }
+  html.customer-view #customerView #qpRoot{ width:auto !important; zoom:1 !important; gap:0 !important; }
+  /* Each proposal page = exactly one A4 sheet, breaking between them. */
+  html.customer-view #customerView .rp-page{
+    width:210mm !important; min-width:0 !important; max-width:210mm !important;
+    min-height:297mm !important; max-height:297mm !important; overflow:hidden !important;
+    box-shadow:none !important; box-sizing:border-box !important; margin:0 !important;
+  }
+  html.customer-view #customerView .rp-page + .rp-page{ page-break-before:always; break-before:page; }
+}
+
 /* ── Print ─────────────────────────────────────────────────── */
 /* margin:0 on every page kind so the proposal, materials cut list,
    scope, and job pack all reach the sheet edge.  Each per-print-mode
@@ -11482,6 +11502,9 @@ function customerQuery(){
 function _qpIsMobileView(){ return (window.innerWidth || document.documentElement.clientWidth || 0) <= 720; }
 function _fitCustomerView(){
   if (!window.__CUSTOMER_MODE) return;
+  // While a print / save-as-PDF is in flight the proposal is forced to the
+  // true A4 layout — don't let the phone-reflow fit re-apply mid-print.
+  if (window.__PRINTING_QUOTE) return;
   var root = document.getElementById('qpRoot');
   if (!root) return;
   var mobile = _qpIsMobileView();
@@ -11595,6 +11618,7 @@ async function bootCustomerView(token){
         '<div id="qpRoot"></div></div></div>'+
       '<div id="custBar" style="position:fixed;left:0;right:0;bottom:0;background:#0a1628;color:#fff;padding:11px 16px;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;box-shadow:0 -4px 16px rgba(0,0,0,.25);z-index:100001">'+
         '<span style="font-size:12px;opacity:.8;margin-right:auto">Choose your options above, then:</span>'+
+        '<button onclick="printCustomerQuote()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⬇ Save as PDF</button>'+
         '<button onclick="customerQuery()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Ask a question</button>'+
         '<button onclick="customerDecline()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Decline</button>'+
         '<button onclick="acceptQuoteDigitally()" style="padding:10px 22px;background:#0099e0;border:none;color:#fff;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">✓ Accept quote</button>'+
@@ -16223,6 +16247,32 @@ function printQuote(){
     }, 500);
   }, 50);
 }
+// Customer-side Save-as-PDF / Print. The shared customer link scales the
+// proposal to a ~540px phone-reflow layout; printing THAT spills each page
+// across many A4 sheets. So force the true A4 layout first (drop the mobile
+// reflow, reset the width, re-render), print, then restore the on-screen fit.
+function printCustomerQuote(){
+  var htmlEl = document.documentElement;
+  var root = document.getElementById('qpRoot');
+  var wasMobile = htmlEl.classList.contains('customer-mobile');
+  window.__PRINTING_QUOTE = true;
+  htmlEl.classList.remove('customer-mobile');
+  if (root){ root.style.width = ''; root.style.zoom = 1; }
+  // Re-render so any free-layout / stacked-mobile boxes return to A4.
+  try { refreshQuoteProposal(); } catch(e){}
+  htmlEl.classList.add('print-quote');
+  setTimeout(function(){
+    try { _qpFitPrintPages(); } catch(e){}
+    window.print();
+    setTimeout(function(){
+      try { _qpUnfitPrintPages(); } catch(e){}
+      htmlEl.classList.remove('print-quote');
+      if (wasMobile) htmlEl.classList.add('customer-mobile');
+      window.__PRINTING_QUOTE = false;
+      try { _fitCustomerView(); } catch(e){}
+    }, 600);
+  }, 150);
+}
 // Ctrl/Cmd+P from the Quote tab should print the proposal only, not the
 // whole editing UI. Auto-add the print-quote class on beforeprint when
 // the Quote tab is active. (printQuote() handles the click-path; this
@@ -16231,6 +16281,15 @@ window.addEventListener('beforeprint', function(){
   // Always reset the preview zoom so the printed sheets are full A4,
   // regardless of how the on-screen preview was scaled to fit.
   var root = document.getElementById('qpRoot'); if (root) root.style.zoom = 1;
+  // Customer link printed via the browser menu / Ctrl-P (not our button):
+  // drop the phone reflow + 540px virtual width and apply the A4 print rule,
+  // so it doesn't spill each page across many sheets. (Our Save-as-PDF button
+  // sets __PRINTING_QUOTE and has already done this + re-rendered.)
+  if (window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) {
+    document.documentElement.classList.remove('customer-mobile');
+    if (root) root.style.width = '';
+    document.documentElement.classList.add('print-quote');
+  }
   var ap = document.querySelector('.panel.active');
   var isOfficeQuote = !!(ap && ap.id === 'tab-quote');
   if (isOfficeQuote && !document.documentElement.classList.contains('print-quote')) {
@@ -16245,6 +16304,11 @@ window.addEventListener('afterprint', function(){
   if (document.documentElement.dataset.autoPrintQuote === '1') {
     document.documentElement.classList.remove('print-quote');
     delete document.documentElement.dataset.autoPrintQuote;
+  }
+  // Customer browser-menu print added print-quote (see beforeprint) without the
+  // autoPrintQuote flag — drop it here so the on-screen view is fully restored.
+  if (window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) {
+    document.documentElement.classList.remove('print-quote');
   }
   try { if (window.__CUSTOMER_MODE) _fitCustomerView(); else _fitProposalPages(); } catch(e){}   // restore screen fit
 });
