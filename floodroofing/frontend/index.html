@@ -1741,7 +1741,10 @@ html.customer-view{ overflow-x:hidden; }
    html.customer-mobile when the viewport is phone-sized. */
 html.customer-mobile .report-preview{ background:#fff !important; padding:0 !important; border-radius:0 !important; }
 html.customer-mobile .cust-scroll{ padding:6px 5px 150px !important; max-width:680px !important; }
-html.customer-mobile .report-preview #qpRoot{ zoom:1 !important; gap:12px !important; align-items:stretch !important; width:100% !important; }
+/* #qpRoot width + zoom are set by _fitCustomerView (a ~540px virtual layout
+   scaled down to the phone) — a happy medium between the tiny A4 shrink and
+   full natural size. */
+html.customer-mobile .report-preview #qpRoot{ gap:12px !important; align-items:stretch !important; margin:0 auto !important; }
 html.customer-mobile .report-preview .rp-page,
 html.customer-mobile .report-preview > #qpRoot > .rp-header{
   width:100% !important; min-width:0 !important; max-width:100% !important;
@@ -11255,12 +11258,19 @@ function _fitCustomerView(){
   var wasMobile = document.documentElement.classList.contains('customer-mobile');
   document.documentElement.classList.toggle('customer-mobile', mobile);
   if (mobile){
-    // Reflow mode — no A4 shrink; CSS makes the page phone-width + single column.
-    root.style.zoom = '';
+    // Reflow mode — lay the single-column page out at a ~540px "virtual" width
+    // (so lines wrap less and it's shorter), then scale it down to the phone.
+    // Middle ground: bigger than the old A4 shrink, smaller than full size.
+    var VW = 540;
+    root.style.width = VW + 'px';
+    var vp = Math.max(280, window.innerWidth || document.documentElement.clientWidth || 390);
+    var mz = Math.min(1, (vp - 6) / VW);
+    root.style.zoom = (mz > 0 && isFinite(mz)) ? mz : 1;
     if (!wasMobile){ try { refreshQuoteProposal(); } catch(e){} }   // re-render so free-layout drops to the stack
     return;
   }
   // Desktop / tablet — scale the A4 page to fit the window width.
+  root.style.width = '';
   if (wasMobile){ try { refreshQuoteProposal(); } catch(e){} }
   var parent = root.parentElement;   // .report-preview wrapper
   var cs = parent ? getComputedStyle(parent) : null;
