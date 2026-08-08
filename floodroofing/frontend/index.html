@@ -10368,13 +10368,14 @@ function _setGutterMatMarkup(val){
 function _gutterLabourHours(lm){
   lm = parseFloat(lm) || 0;
   if (lm <= 0)   return 0;
-  if (lm <= 10)  return 3;
-  if (lm <= 20)  return 4;
-  if (lm <= 30)  return 6;
-  if (lm <= 40)  return 7;
-  if (lm <= 65)  return 10;
-  if (lm <= 80)  return 12;
-  return 14;                  // 80–120 lm (and beyond)
+  if (lm <= 10)  return 2;
+  if (lm <= 15)  return 3;
+  if (lm <= 25)  return 4;
+  if (lm <= 35)  return 5;
+  if (lm <= 50)  return 8;
+  if (lm <= 80)  return 10;
+  if (lm <= 100) return 12;
+  return 14;                  // 100–150 lm (and beyond)
 }
 // Gutter labour charge ($ ex-GST) = editable lead/apprentice hours × rates.
 function _gutterLabourCharge(lm){
