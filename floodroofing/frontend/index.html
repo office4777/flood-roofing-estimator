@@ -15857,6 +15857,36 @@ async function _quoteEmailSendNow(){
   }
 }
 
+// Shrink any proposal page whose content is taller than an A4 sheet so it
+// prints on ONE page instead of being clipped (browser print forces a fixed
+// A4 height with overflow:hidden). The Selections page especially can run long
+// with many options + a full price breakdown. Undone after printing.
+var _qpPrintFit = [];
+function _qpFitPrintPages(){
+  _qpUnfitPrintPages();
+  var root = document.getElementById('qpRoot');
+  if (!root) return;
+  var A4H = 1122;   // 297mm @ 96dpi
+  Array.prototype.forEach.call(root.children, function(pg){
+    if (!pg || pg.nodeType !== 1) return;
+    var h = pg.scrollHeight || pg.offsetHeight || 0;
+    if (h > A4H + 6){
+      var k = Math.max(0.55, (A4H - 6) / h);
+      var w = document.createElement('div');
+      w.setAttribute('data-rp-fit','1');
+      w.style.cssText = 'transform:scale('+k.toFixed(4)+');transform-origin:top left;width:'+(100/k).toFixed(3)+'%';
+      while (pg.firstChild) w.appendChild(pg.firstChild);
+      pg.appendChild(w);
+      _qpPrintFit.push({ pg: pg, w: w });
+    }
+  });
+}
+function _qpUnfitPrintPages(){
+  _qpPrintFit.forEach(function(o){
+    try { while (o.w.firstChild) o.pg.appendChild(o.w.firstChild); if (o.w.parentNode) o.w.parentNode.removeChild(o.w); } catch(e){}
+  });
+  _qpPrintFit = [];
+}
 function printQuote(){
   // Print the editorial proposal only (#qpRoot) — exactly what the
   // Quote-tab preview shows.  The inspection report is the proposal's
@@ -15866,8 +15896,10 @@ function printQuote(){
   document.documentElement.classList.add('print-quote');
   var root = document.getElementById('qpRoot'); if (root) root.style.zoom = 1; // full A4 on paper
   setTimeout(function(){
+    try { _qpFitPrintPages(); } catch(e){}
     window.print();
     setTimeout(function(){
+      try { _qpUnfitPrintPages(); } catch(e){}
       document.documentElement.classList.remove('print-quote');
       try { _fitProposalPages(); } catch(e){}   // restore screen fit
     }, 500);
@@ -15882,17 +15914,21 @@ window.addEventListener('beforeprint', function(){
   // regardless of how the on-screen preview was scaled to fit.
   var root = document.getElementById('qpRoot'); if (root) root.style.zoom = 1;
   var ap = document.querySelector('.panel.active');
-  if (!ap || ap.id !== 'tab-quote') return;
-  if (document.documentElement.classList.contains('print-quote')) return;
-  document.documentElement.classList.add('print-quote');
-  document.documentElement.dataset.autoPrintQuote = '1';
+  var isOfficeQuote = !!(ap && ap.id === 'tab-quote');
+  if (isOfficeQuote && !document.documentElement.classList.contains('print-quote')) {
+    document.documentElement.classList.add('print-quote');
+    document.documentElement.dataset.autoPrintQuote = '1';
+  }
+  // Shrink any over-long page so it fits one A4 sheet (office + customer print).
+  if (isOfficeQuote || window.__CUSTOMER_MODE) { try { _qpFitPrintPages(); } catch(e){} }
 });
 window.addEventListener('afterprint', function(){
+  try { _qpUnfitPrintPages(); } catch(e){}
   if (document.documentElement.dataset.autoPrintQuote === '1') {
     document.documentElement.classList.remove('print-quote');
     delete document.documentElement.dataset.autoPrintQuote;
   }
-  try { _fitProposalPages(); } catch(e){}   // restore screen fit
+  try { if (window.__CUSTOMER_MODE) _fitCustomerView(); else _fitProposalPages(); } catch(e){}   // restore screen fit
 });
 
 // ══════════════════════════════════════════════════════════════════
