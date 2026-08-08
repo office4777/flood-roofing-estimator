@@ -9812,6 +9812,11 @@ function defaultQuote(){
     // Roofs (after the main one) the customer explicitly asked NOT to quote —
     // drawn on the plan but shown crossed-out red and priced nowhere.
     roofExcluded: {},
+    // Whether each roof is attached to the house (shares the continuous gutter
+    // run) vs a detached structure with its own gutters. Keyed by roof index;
+    // default attached. Detached roofs' gutter is only quoted when that roof
+    // is added as an extra.
+    roofAttached: {},
     // Proposal roof-map display size on the inclusions page — 'sm' | 'md' |
     // 'lg'. Office-set, persists to the customer link. Default medium.
     roofMapSize: 'md',
@@ -10141,7 +10146,40 @@ function _selMaterialBase(){
   if (isFinite(b) && b > 0) return b;
   return (window.S && parseFloat(S.materials)) || 0;
 }
+// Is a roof physically attached to the house (so its gutter is part of the
+// continuous house gutter run)? Default true; the office marks detached
+// structures (e.g. a standalone garage) as "own gutters".
+function _roofAttached(i){
+  var q = (window.S && S.quote) || {};
+  var a = (q.roofAttached && typeof q.roofAttached === 'object') ? q.roofAttached : {};
+  return a[i] !== false;
+}
+// Whether roof idx's gutter counts toward the quoted gutter run right now.
+function _roofGutterIncluded(mode, idx, extraPos, sel){
+  if (mode === 'excluded') return false;
+  if (mode === 'main' || mode === 'folded') return true;      // part of the main job
+  if (_roofAttached(idx)) return true;                        // attached (veranda) → always
+  return (extraPos != null) && (sel[extraPos] === true);      // detached (garage) → only if added
+}
+// Gutter lineal metres for the CURRENT selection, summed per roof: the main +
+// part-of-main + attached roofs always, plus any detached roof the customer
+// has added; excluded roofs never. null when there's no per-roof gutter data.
+function _selGutterLmDynamic(){
+  var q = (window.S && S.quote) || {};
+  var g = q.roofMapGeom;
+  if (!g || !g.roofs || !g.roofs.length) return null;
+  if (!g.roofs.some(function(r){ return r.gutterLm != null; })) return null;   // old quote — no per-roof data
+  var sel = (q.proposalOptions && q.proposalOptions.extraRoofsSel) || {};
+  var total = 0;
+  g.roofs.forEach(function(r){
+    var glm = parseFloat(r.gutterLm) || 0;
+    if (glm > 0 && _roofGutterIncluded(r.mode, r.idx, r.extraPos, sel)) total += glm;
+  });
+  return total;
+}
 function _selGutterLm(){
+  var dyn = _selGutterLmDynamic();
+  if (dyn != null) return dyn;
   var q = (window.S && S.quote) || {};
   var lm = parseFloat(q.gutterLm);
   if (isFinite(lm) && lm > 0) return lm;
@@ -10149,6 +10187,14 @@ function _selGutterLm(){
     if (typeof _matDrawTotals === 'function'){ var t = _matDrawTotals(); if (t && parseFloat(t.gutterLm) > 0) return parseFloat(t.gutterLm); }
   } catch(e){}
   return 0;
+}
+function _setRoofAttached(i, val){
+  if (!S.quote) return;
+  var a = (S.quote.roofAttached && typeof S.quote.roofAttached === 'object') ? S.quote.roofAttached : (S.quote.roofAttached = {});
+  a[i] = !!val;
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof recalcQuoteTotals === 'function') recalcQuoteTotals(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
 function _selGradeDelta(gradeId){
   var pct = SEL_GRADE_PCT[gradeId];
@@ -12485,6 +12531,9 @@ function _qpStashRoofGeom(showBg){
       return {
         idx: r.idx, name: r.name, area: +(r.areaM2||0), mode: _roofQuoteMode(r.idx),
         extraPos: (extraPos[r.idx] != null) ? extraPos[r.idx] : null,
+        // Gutter lineal metres drawn on this roof — lets the gutter price count
+        // attached roofs always + detached roofs only when the customer adds them.
+        gutterLm: +(r.lines||[]).filter(function(l){ return l && l.type==='gutter'; }).reduce(function(s,l){ return s + (parseFloat(l.measM)||0); }, 0).toFixed(2),
         pts: r.outline.map(function(p){ return [R2(p[0]), R2(p[1])]; }),
         lines: (r.lines||[]).filter(function(l){ return l&&l.pts&&l.pts.length===2 && l.type!=='gutter'; })
                  .map(function(l){ return { c:(_QP_LINE_COLORS[l.type]||'#475569'), p:[[R2(l.pts[0][0]),R2(l.pts[0][1])],[R2(l.pts[1][0]),R2(l.pts[1][1])]] }; }),
@@ -12527,7 +12576,7 @@ function _qpRoofMapSvg(opts){
     var pts = r.pts.map(function(p){ return p[0]+','+p[1]; }).join(' ');
     svg+='<polygon points="'+pts+'" fill="'+c.fill+'" fill-opacity="0.78" stroke="'+c.stroke+'" stroke-width="2.5"/>';
     r.lines.forEach(function(l){ svg+='<line x1="'+l.p[0][0]+'" y1="'+l.p[0][1]+'" x2="'+l.p[1][0]+'" y2="'+l.p[1][1]+'" stroke="'+l.c+'" stroke-width="2" stroke-linecap="round"/>'; });
-    if (showGutters){ r.gutters.forEach(function(gp){ svg+='<line x1="'+gp[0][0]+'" y1="'+gp[0][1]+'" x2="'+gp[1][0]+'" y2="'+gp[1][1]+'" stroke="#7c3aed" stroke-width="3.5" stroke-linecap="round"/>'; }); }
+    if (showGutters && _roofGutterIncluded(r.mode, r.idx, r.extraPos, sel)){ r.gutters.forEach(function(gp){ svg+='<line x1="'+gp[0][0]+'" y1="'+gp[0][1]+'" x2="'+gp[1][0]+'" y2="'+gp[1][1]+'" stroke="#7c3aed" stroke-width="3.5" stroke-linecap="round"/>'; }); }
     var cx=0,cy=0; r.pts.forEach(function(p){cx+=p[0];cy+=p[1];}); cx/=r.pts.length; cy/=r.pts.length;
     var sub = included ? (r.area>0 ? r.area.toFixed(1)+' m²' : '') : (r.mode==='excluded' ? 'Not included' : 'Optional — tap to add');
     svg+='<g><text x="'+cx.toFixed(1)+'" y="'+(cy-2).toFixed(1)+'" text-anchor="middle" font-size="'+fontSize+'" font-weight="700" stroke="#fff" stroke-width="4" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+esc(r.name)+'</text>'+
@@ -12674,13 +12723,27 @@ function _buildRoofPreviewsHtml(opts){
           var _col = (p[0] === 'excluded') ? '#dc2626' : 'var(--ed-accent)';
           return '<button type="button" onclick="_setRoofMode('+_si+',\''+p[0]+'\')" style="padding:2px 9px;font-size:9.5px;border:none;border-left:'+(p[0]==='folded'?'0':'1px solid var(--ed-line)')+';background:'+(_on?_col:'#fff')+';color:'+(_on?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
         }).join('');
+        // Gutter attachment — only meaningful for a separate roof: "with house"
+        // (veranda — always guttered) vs "own gutters" (garage — guttered only
+        // when the roof is added).
+        var _gutSeg = '';
+        if (_cm === 'separate') {
+          var _att = _roofAttached(_si);
+          _gutSeg = '<span title="Attached roofs (veranda) share the house gutter run and are always guttered; detached roofs (garage) are guttered only when added as an extra" style="display:inline-flex;align-items:center;gap:5px;margin-left:2px">'+
+            '<span style="font-size:9px;color:var(--ed-text2)">gutter</span>'+
+            '<span style="display:inline-flex;border:1px solid var(--ed-line);border-radius:4px;overflow:hidden">'+
+            [[true,'With house'],[false,'Own gutters']].map(function(p){
+              var _on2 = (p[0] === _att);
+              return '<button type="button" onclick="_setRoofAttached('+_si+','+p[0]+')" style="padding:2px 8px;font-size:9px;border:none;border-left:'+(p[0]===true?'0':'1px solid var(--ed-line)')+';background:'+(_on2?'#7c3aed':'#fff')+';color:'+(_on2?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
+            }).join('')+'</span></span>';
+        }
         _rows.push('<div class="no-print" style="display:flex;align-items:center;gap:8px;font-size:10.5px;font-family:var(--ed-sans);color:var(--ed-ink-2);flex-wrap:wrap">'+
           '<span style="min-width:64px;font-weight:600">'+esc2(_rn)+'</span>'+
           '<button type="button" onclick="_renameRoof('+_si+')" title="Rename" style="font-size:9.5px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;color:var(--ed-ink-2);cursor:pointer;padding:2px 7px;font-family:var(--ed-sans)">✎</button>'+
-          '<span style="display:inline-flex;border:1px solid var(--ed-line);border-radius:4px;overflow:hidden">'+_seg+'</span></div>');
+          '<span style="display:inline-flex;border:1px solid var(--ed-line);border-radius:4px;overflow:hidden">'+_seg+'</span>'+_gutSeg+'</div>');
       }
       _modeToggles = '<div class="no-print" style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--ed-line);display:flex;flex-direction:column;gap:7px">'+
-        '<div style="font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--ed-text2)">Name each roof &amp; choose how it\'s quoted <span style="text-transform:none;letter-spacing:0">(part of main price · optional extra · excluded)</span></div>'+
+        '<div style="font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--ed-text2)">Name each roof &amp; choose how it\'s quoted <span style="text-transform:none;letter-spacing:0">(part of main price · optional extra · excluded · gutter with house or its own)</span></div>'+
         _rows.join('')+'</div>';
     }
     // Selection state (shared with the Selections page) + the customer's
