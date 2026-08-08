@@ -1305,6 +1305,21 @@ html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!impo
    no Profile/Grade selector row, no "+ Add row" buttons, no
    per-row × delete buttons, no empty-state placeholders, no
    inline sub-text explanations. */
+/* Hard-pin every proposal page to exactly one A4 sheet while building the
+   customer / acceptance PDF, so the phone-reflow (tall single-column) layout
+   can't be sliced across multiple sheets. _qpFitPrintPages scales each page's
+   content down to fit inside the pinned box. Deterministic — no dependence on
+   a re-render toggling the mobile class back. */
+html.qp-pdf-a4 .report-preview,
+html.qp-pdf-a4 .cust-scroll{ overflow:visible !important; padding:0 !important; background:#fff !important; }
+html.qp-pdf-a4 .report-preview #qpRoot{ width:210mm !important; min-width:210mm !important; max-width:210mm !important; zoom:1 !important; gap:0 !important; margin:0 !important; align-items:stretch !important; }
+html.qp-pdf-a4 .report-preview #qpRoot > *{
+  width:210mm !important; min-width:210mm !important; max-width:210mm !important;
+  height:297mm !important; min-height:297mm !important; max-height:297mm !important;
+  overflow:hidden !important; box-sizing:border-box !important;
+  box-shadow:none !important; margin:0 !important; border-radius:0 !important;
+}
+
 html.pdf-rendering .no-print,
 html.pdf-rendering .jp-page-tools,
 html.pdf-rendering .jp-img-tools,
@@ -11236,7 +11251,9 @@ function _acceptQuoteFinalize(name){
       _custBusyBanner(false);
       window._custAccepting = false;   // accepted — leave the buttons disabled
       var bar = document.getElementById('custBar');
-      if (bar) bar.innerHTML = '<span style="font-size:13px">✓ Thank you, '+esc2(name)+' — your quote is accepted. We’ll be in touch shortly to confirm the schedule.</span>';
+      if (bar) bar.innerHTML =
+        '<span style="font-size:13px;margin-right:auto">✓ Thank you, '+esc2(name)+' — your quote is accepted. We’ll be in touch shortly to confirm the schedule.</span>'+
+        '<button onclick="printCustomerQuote()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⬇ Save as PDF</button>';
       alert('Thank you, '+name+' — your quote has been accepted.\n\nWe\'ll be in touch shortly to confirm the schedule.');
       // Render + email the confirmation PDF to the office in the BACKGROUND —
       // best-effort, doesn't block the customer. (If they close the page before
@@ -30735,6 +30752,9 @@ async function _buildQuotePdf(opts){
   // the clean customer document, and those controls don't add height that
   // pushes real content onto a second sheet.
   document.documentElement.classList.add('pdf-rendering');
+  // Force every page to exactly one A4 sheet (deterministic geometry, so a
+  // phone-reflow capture can't slice a page across 2–3 sheets).
+  document.documentElement.classList.add('qp-pdf-a4');
   var savedScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
   window.scrollTo(0, 0);
   await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
@@ -30766,6 +30786,7 @@ async function _buildQuotePdf(opts){
     try { _qpUnfitPrintPages(); } catch(e){}
     try { _restoreImgs(); } catch(e){}
     document.documentElement.classList.remove('pdf-rendering');
+    document.documentElement.classList.remove('qp-pdf-a4');
     root.style.zoom = prevZoom || '';
     if (_wasCustMobile) _htmlEl.classList.add('customer-mobile');
     window.__PRINTING_QUOTE = false;
@@ -30776,6 +30797,7 @@ async function _buildQuotePdf(opts){
   try { _qpUnfitPrintPages(); } catch(e){}
   try { _restoreImgs(); } catch(e){}
   document.documentElement.classList.remove('pdf-rendering');
+  document.documentElement.classList.remove('qp-pdf-a4');
   root.style.zoom = prevZoom || '';
   if (_wasCustMobile) _htmlEl.classList.add('customer-mobile');
   window.__PRINTING_QUOTE = false;
