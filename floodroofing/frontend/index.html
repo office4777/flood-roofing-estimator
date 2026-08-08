@@ -14257,6 +14257,10 @@ function refreshQuoteProposal(){
     // Backfill the customer name from the job so the cover shows it (and the
     // "<surname> Residence" title derives correctly) instead of a placeholder.
     if (!String(S.quote.client || '').trim()) { var _bc = _bestClientName(); if (_bc) S.quote.client = _bc; }
+    // Backfill the customer phone + email from the job details too, so the
+    // cover shows real contact details (and they carry to the customer link).
+    if (!String(S.quote.phone || '').trim()) { var _jp = ((document.getElementById('jobPhone')||{}).value || '').trim(); if (_jp) S.quote.phone = _jp; }
+    if (!String(S.quote.email || '').trim()) { var _je = ((document.getElementById('jobEmail')||{}).value || '').trim(); if (_je) S.quote.email = _je; }
     // Material base (Maxam, ex-GST) for the MAIN roof — drives the customer
     // Selections steel-grade deltas. On multi-roof jobs the main roof is Roof 1
     // only (each further roof is an optional extra priced separately below).
@@ -14449,7 +14453,7 @@ function refreshQuoteProposal(){
         var _detailCol = function(label, name, nameField, l2, l2field, l3){
           return '<div>'+
             '<div class="ed-eyebrow" style="margin-bottom:5px">'+label+'</div>'+
-            '<div class="qp-editable" contenteditable="true" data-qfield="'+nameField+'" spellcheck="false" style="font-family:var(--ed-serif);font-size:20px;font-style:italic;color:var(--ed-ink);line-height:1.25">'+name+'</div>'+
+            '<div class="qp-editable" contenteditable="true" data-qfield="'+nameField+'" spellcheck="false" style="font-family:var(--ed-sans);font-size:18px;font-weight:600;color:var(--ed-ink);line-height:1.3;letter-spacing:.01em">'+name+'</div>'+
             '<div style="font-family:var(--ed-sans);font-size:13px;color:var(--ed-text2);margin-top:6px;letter-spacing:.02em;line-height:1.7">'+
               (l2field ? '<span class="qp-editable" contenteditable="true" data-qfield="'+l2field+'" spellcheck="false">'+l2+'</span>' : l2)+'<br>'+l3+
             '</div>'+
@@ -14472,16 +14476,8 @@ function refreshQuoteProposal(){
             esc2(S.quote.preparedByRole || 'Sales Manager'), 'preparedByRole',
             esc2(_company))+
         '</div>'+
-        // Contents — a real table of contents with page numbers, filled in
-        // post-render from the actual (toggle-dependent) proposal pages.
-        // Traditional table of contents — no background card, just a titled
-        // list with dotted leaders (smaller, understated).
-        '<div style="margin-top:24px">'+
-          '<div class="ed-eyebrow" style="margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid var(--ed-line)">Contents</div>'+
-          '<div id="qpTocList" class="ed-toc"></div>'+
-        '</div>'+
         // Meta footer — three columns, hairline divider
-        '<div style="margin-top:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid var(--ed-line);padding-top:14px">'+
+        '<div style="margin-top:24px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid var(--ed-line);padding-top:14px">'+
           '<div><div class="ed-eyebrow">Reference</div><div class="qp-editable" contenteditable="true" data-qfield="ref" spellcheck="false" style="font-family:var(--ed-serif);font-size:21px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.ref || 'FR-001')+'</div></div>'+
           '<div><div class="ed-eyebrow">Prepared</div><div class="qp-editable" contenteditable="true" data-qfield="date" spellcheck="false" style="font-family:var(--ed-serif);font-size:21px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.date || '')+'</div></div>'+
           '<div><div class="ed-eyebrow">Valid</div><div class="qp-editable" contenteditable="true" data-qfield="validUntil" spellcheck="false" style="font-family:var(--ed-serif);font-size:21px;color:var(--ed-ink);margin-top:4px;min-width:2em">'+esc2(S.quote.validUntil || '30 days')+'</div></div>'+
