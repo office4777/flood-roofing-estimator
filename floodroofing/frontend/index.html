@@ -1740,6 +1740,11 @@ html.customer-view .qp-placeholder,
 html.customer-view .no-print{ display:none !important; }
 html.customer-view .qp-editable{ cursor:default !important; }
 html.customer-view .qp-editable:hover{ background:transparent !important; outline:none !important; }
+/* Once the customer has ACCEPTED, the quote is locked — no option / roof /
+   colour changes can be made (the selections are frozen at what they accepted).
+   Interaction is blocked across the whole proposal; the sticky bar (Save as PDF)
+   sits outside #qpRoot so it still works. JS guards back this up. */
+html.quote-locked .report-preview #qpRoot{ pointer-events:none !important; }
 html.customer-view{ overflow-x:hidden; }
 /* Phones — go closer to edge-to-edge so the shrunk-A4 page is as large as
    it can be, and never scroll sideways. */
@@ -10718,6 +10723,7 @@ function _toggleProposalRoof(id, checked){
 // through _qpSelectionChanges into every total.
 function _toggleProposalExtraRoof(i, checked){
   if (!S.quote) return;
+  if (_qpAcceptedLock()) return;   // accepted → selections frozen
   var p = S.quote.proposalOptions || (S.quote.proposalOptions = {});
   if (!p.extraRoofsSel || typeof p.extraRoofsSel !== 'object') p.extraRoofsSel = {};
   p.extraRoofsSel[i] = !!checked;
@@ -10755,6 +10761,7 @@ function setGutterChoice(choice){
 //     posts back to the backend write-through endpoint.
 function _setProposalOption(field, value){
   if (!S.quote) return;
+  if (_qpAcceptedLock()) return;   // accepted → selections frozen
   if (!S.quote.proposalOptions) S.quote.proposalOptions = {};
   S.quote.proposalOptions[field] = value;
   try { refreshQuoteProposal(); } catch(e){}
@@ -11634,7 +11641,7 @@ async function bootCustomerView(token){
       '<div class="cust-scroll" style="max-width:900px;margin:0 auto;padding:12px 6px 150px"><div class="report-preview" style="margin:0">'+
         '<div id="qpRoot"></div></div></div>'+
       '<div id="custBar" style="position:fixed;left:0;right:0;bottom:0;background:#0a1628;color:#fff;padding:11px 16px;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;box-shadow:0 -4px 16px rgba(0,0,0,.25);z-index:100001">'+
-        '<span style="font-size:12px;opacity:.8;margin-right:auto">Choose your options above, then:</span>'+
+        '<span style="font-size:13px;font-weight:700;margin-right:auto">Edit your selections on page 3</span>'+
         '<button onclick="printCustomerQuote()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⬇ Save as PDF</button>'+
         '<button onclick="customerQuery()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Ask a question</button>'+
         '<button onclick="customerDecline()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Decline</button>'+
@@ -13000,6 +13007,7 @@ function _qpInteractiveRoofBlock(opts){
 // Customer taps "Main roof only" — clears every optional-extra-roof selection.
 function _qpSelectMainOnly(){
   if (!S.quote) return;
+  if (_qpAcceptedLock()) return;   // accepted → selections frozen
   var p = S.quote.proposalOptions || (S.quote.proposalOptions = {});
   p.extraRoofsSel = {};
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
@@ -14287,10 +14295,16 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
   html += rpPage(accept, 'background:linear-gradient(180deg,#fafbfc,#f1f5f9)');
   return html;
 }
+// The customer's quote is locked once they've accepted it — selections are
+// frozen at what they signed off. Blocks the option/roof/colour setters (the
+// CSS pointer-events lock is the visible half of this).
+function _qpAcceptedLock(){ return !!(window.__CUSTOMER_MODE && window.S && S.quote && S.quote.accepted); }
 function refreshQuoteProposal(){
   if (!S.quote) return;
   var root = document.getElementById('qpRoot');
   if (!root) return;
+  // Lock the proposal from further changes once accepted (customer view only).
+  try { document.documentElement.classList.toggle('quote-locked', _qpAcceptedLock()); } catch(e){}
   // Don't re-render while the user is typing inside an inline-edit field
   if (root.contains(document.activeElement) && document.activeElement.dataset && (document.activeElement.dataset.qfield || (document.activeElement.classList && document.activeElement.classList.contains('qp-scope-edit')))) return;
   _applyFergusRefToQuote();
