@@ -678,38 +678,54 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
 // current status + last activity.
 app.get('/quote-activity', requireAuth, async (req, res) => {
   try {
-    // Select ONLY the specific quote fields this feed needs — NOT the whole
-    // quote subtree.  The quote now carries roofMapGeom.bg (a base64 aerial
-    // JPEG, ~1 MB each); pulling the full quote for 120 jobs ran to hundreds
-    // of MB and timed the request out (recent activity stopped loading).
-    // Selecting only share/ref/client/accepted keeps the payload at kilobytes.
-    const { data, error } = await supabase.from('jobs')
-      .select('id, client_name, site_address, updated_at, ' +
-              'q_share:draw_state->state->quote->share, ' +
-              'q_ref:draw_state->state->quote->>ref, ' +
-              'q_client:draw_state->state->quote->>client, ' +
-              'q_accepted:draw_state->state->quote->accepted')
-      .eq('user_id', req.user.id).order('updated_at', { ascending: false }).limit(120);
-    if (error) return res.status(500).json({ error: error.message });
-    const feed = (data || []).map(function(j){
-      const sh = j.q_share;
+    // Build one feed row from a quote object (+ the job's top-level columns).
+    const rowFrom = function(j, q){
+      const sh = q && q.share;
       if (!sh || !sh.token) return null;
       const lastEv = (sh.events && sh.events.length) ? sh.events[sh.events.length - 1] : null;
       return {
         jobId: j.id,
-        client: j.client_name || j.q_client || '—',
-        ref: j.q_ref || '',
+        client: j.client_name || q.client || '—',
+        ref: q.ref || '',
         status: sh.status || 'sent',
         token: sh.token,
         openCount: sh.openCount || 0,
         lastOpenedAt: sh.lastOpenedAt || null,
         query: sh.query || null,
-        accepted: j.q_accepted || null,
+        accepted: q.accepted || null,
         lastEventAt: lastEv ? lastEv.at : (sh.lastOpenedAt || null),
       };
-    }).filter(Boolean);
+    };
+    // Primary: select ONLY the specific quote fields this feed needs — NOT the
+    // whole quote subtree.  The quote now carries roofMapGeom.bg (a base64
+    // aerial JPEG, ~1 MB each); pulling the full quote for 120 jobs ran to
+    // hundreds of MB and timed the request out (recent activity stopped
+    // loading).  These narrow JSON paths keep the payload at kilobytes.
+    const primary = await supabase.from('jobs')
+      .select('id, client_name, ' +
+              'q_share:draw_state->state->quote->share, ' +
+              'q_ref:draw_state->state->quote->ref, ' +
+              'q_client:draw_state->state->quote->client, ' +
+              'q_accepted:draw_state->state->quote->accepted')
+      .eq('user_id', req.user.id).order('updated_at', { ascending: false }).limit(120);
+    if (!primary.error) {
+      const feed = (primary.data || []).map(function(j){
+        return rowFrom({ id: j.id, client_name: j.client_name },
+                       { share: j.q_share, ref: j.q_ref, client: j.q_client, accepted: j.q_accepted });
+      }).filter(Boolean);
+      return res.json(feed);
+    }
+    // Fallback: some environments choke on the deep JSON-path select. Pull the
+    // whole quote subtree (the original, proven query shape) and strip the
+    // heavy roofMapGeom before responding, so the client transfer stays small.
+    console.error('quote-activity narrow select failed, falling back:', primary.error.message, primary.error.hint || '');
+    const fb = await supabase.from('jobs')
+      .select('id, client_name, quote:draw_state->state->quote')
+      .eq('user_id', req.user.id).order('updated_at', { ascending: false }).limit(120);
+    if (fb.error) { console.error('quote-activity fallback failed:', fb.error.message, fb.error.hint || ''); return res.status(500).json({ error: fb.error.message }); }
+    const feed = (fb.data || []).map(function(j){ return rowFrom(j, j.quote || {}); }).filter(Boolean);
     res.json(feed);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('quote-activity threw:', e && e.message); res.status(500).json({ error: e.message }); }
 });
 
 function httpsPost(host, path, headers, body) {
