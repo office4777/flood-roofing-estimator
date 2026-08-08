@@ -4929,7 +4929,7 @@ function defaultSettings(){
     // by the complexity multiplier the user picks per-job).
     labour_pricing: {
       // Two-line charge-out model (cost/hr = what you pay; price/hr = charge-out).
-      lead_cost: 45,  lead_price: 200,
+      lead_cost: 45,  lead_price: 180,
       app_cost:  25,  app_price:  90,
       scaffold_price: 2500, scaffold_cost: 2000,
       // Platform scaffolding costs more than edge protection — uplift %.
@@ -5089,7 +5089,7 @@ function collectLabourPricingFromUI(){
   // Default charge-out rates + scaffolding (fall back to the seeded defaults).
   var numOr = function(id, d){ var v = parseFloat((document.getElementById(id)||{}).value); return isFinite(v) ? v : d; };
   lp.lead_cost   = numOr('lpLeadCost', 45);
-  lp.lead_price  = numOr('lpLeadPrice', 200);
+  lp.lead_price  = numOr('lpLeadPrice', 180);
   lp.app_cost    = numOr('lpAppCost', 25);
   lp.app_price   = numOr('lpAppPrice', 90);
   lp.scaffold_cost  = numOr('lpScaffoldCost', 2000);
@@ -8748,7 +8748,7 @@ function _pricingState(){
   var num = function(v, d){ return (v != null && v !== '') ? +v : d; };
   if (!S.quote.labour) {
     S.quote.labour = {
-      leadHrs: 0, leadCost: num(lp.lead_cost,45), leadPrice: num(lp.lead_price,200),
+      leadHrs: 0, leadCost: num(lp.lead_cost,45), leadPrice: num(lp.lead_price,180),
       appHrs:  0, appCost:  num(lp.app_cost,25),  appPrice:  num(lp.app_price,90)
     };
   }
@@ -8762,7 +8762,7 @@ function _pricingState(){
   // This is why saved settings now carry through to an existing quote.
   if (!S.quote.labourRatesCustom) {
     S.quote.labour.leadCost  = num(lp.lead_cost,45);
-    S.quote.labour.leadPrice = num(lp.lead_price,200);
+    S.quote.labour.leadPrice = num(lp.lead_price,180);
     S.quote.labour.appCost   = num(lp.app_cost,25);
     S.quote.labour.appPrice  = num(lp.app_price,90);
   }
@@ -10241,6 +10241,10 @@ var GUTTER_MATERIAL_PRICES = {
 var GUTTER_BRACKET_SPACING_M  = 0.5;   // one bracket every 500 mm
 var GUTTER_OUTLET_SPACING_M   = 15;    // one outlet every 15 m
 var GUTTER_SPOUTING_LENGTH_M  = 5;     // spouting sold in 5 m lengths → one joiner per join
+// Gutter labour is charged out lower than roofing — default $140/hr lead,
+// $70/hr apprentice (editable per job). Roofing keeps its own higher rates.
+var GUTTER_LABOUR_LEAD_PRICE = 140;
+var GUTTER_LABOUR_APP_PRICE  = 70;
 // Gutter material markup / safety buffer (%). Default 10; editable per job.
 function _gutterMatMarkupPct(){
   var q = (window.S && S.quote) || {};
@@ -10335,8 +10339,8 @@ function _gutterLabourState(lm){
   return {
     leadHrs:   pick(gl.leadHrs,   band),
     appHrs:    pick(gl.appHrs,    band),
-    leadPrice: pick(gl.leadPrice, r.leadPrice),
-    appPrice:  pick(gl.appPrice,  r.appPrice),
+    leadPrice: pick(gl.leadPrice, GUTTER_LABOUR_LEAD_PRICE),
+    appPrice:  pick(gl.appPrice,  GUTTER_LABOUR_APP_PRICE),
     leadCost:  pick(gl.leadCost,  r.leadCost),
     appCost:   pick(gl.appCost,   r.appCost),
     band: band,
