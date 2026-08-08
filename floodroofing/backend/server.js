@@ -678,29 +678,33 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
 // current status + last activity.
 app.get('/quote-activity', requireAuth, async (req, res) => {
   try {
-    // Select ONLY the quote subtree.  draw_state holds the full drawing —
-    // often megabytes of aerial-image data URLs — and pulling 120 whole
-    // rows on every poll blew the request (the office console filled with
-    // /quote-activity 500s).  The JSON-path select fetches kilobytes.
+    // Select ONLY the specific quote fields this feed needs — NOT the whole
+    // quote subtree.  The quote now carries roofMapGeom.bg (a base64 aerial
+    // JPEG, ~1 MB each); pulling the full quote for 120 jobs ran to hundreds
+    // of MB and timed the request out (recent activity stopped loading).
+    // Selecting only share/ref/client/accepted keeps the payload at kilobytes.
     const { data, error } = await supabase.from('jobs')
-      .select('id, client_name, site_address, updated_at, quote:draw_state->state->quote')
+      .select('id, client_name, site_address, updated_at, ' +
+              'q_share:draw_state->state->quote->share, ' +
+              'q_ref:draw_state->state->quote->>ref, ' +
+              'q_client:draw_state->state->quote->>client, ' +
+              'q_accepted:draw_state->state->quote->accepted')
       .eq('user_id', req.user.id).order('updated_at', { ascending: false }).limit(120);
     if (error) return res.status(500).json({ error: error.message });
     const feed = (data || []).map(function(j){
-      const q = j.quote || {};
-      const sh = q.share;
+      const sh = j.q_share;
       if (!sh || !sh.token) return null;
       const lastEv = (sh.events && sh.events.length) ? sh.events[sh.events.length - 1] : null;
       return {
         jobId: j.id,
-        client: j.client_name || q.client || '—',
-        ref: q.ref || '',
+        client: j.client_name || j.q_client || '—',
+        ref: j.q_ref || '',
         status: sh.status || 'sent',
         token: sh.token,
         openCount: sh.openCount || 0,
         lastOpenedAt: sh.lastOpenedAt || null,
         query: sh.query || null,
-        accepted: q.accepted || null,
+        accepted: j.q_accepted || null,
         lastEventAt: lastEv ? lastEv.at : (sh.lastOpenedAt || null),
       };
     }).filter(Boolean);
