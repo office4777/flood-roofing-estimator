@@ -5718,20 +5718,33 @@ function renderMaterialPriceTable(){
     '</tr>';
   }
   var _gradeTotal = total * _gf;
+  // Roof material markup / safety buffer (default 5%) — shown as an editable
+  // row and folded into the material total that feeds the quote.
+  var _mkPct = _roofMatMarkupPct(), _mkAmt = _gradeTotal * (_mkPct/100);
+  var _finalMat = _gradeTotal + _mkAmt;
+  html += '<tr style="background:#f4f8ff">'+
+    '<td style="font-weight:600">Safety buffer / markup'+
+      '<div style="font-size:10px;color:var(--text2);margin-top:2px">margin on material cost</div></td>'+
+    '<td colspan="2"><div style="display:flex;align-items:center;gap:4px"><input type="number" step="1" min="0" value="'+_mkPct+'" onchange="_setRoofMatMarkup(this.value)" style="width:64px;font-size:12px;padding:4px 6px;text-align:right"><span style="font-size:11px;color:var(--text2)">%</span></div></td>'+
+    '<td style="font-size:11px;color:var(--text2)">+'+_mkPct+'%</td>'+
+    '<td style="text-align:right;font-weight:600;color:#b45309">+$'+_mkAmt.toFixed(2)+'</td>'+
+    '<td></td>'+
+  '</tr>';
   var _gradeSpan = (_grade !== 'maxam') ? ' <span style="font-weight:400;color:var(--text2)">· '+esc(_gradeLabel(_grade))+'</span>' : '';
   var _matRoofNm = (_multiMat ? _pricingRoofName(_matRi) : '');
   html += '</tbody></table>'+
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
       '<strong style="font-size:13px">'+(_multiMat ? ('Materials — '+esc(_matRoofNm)) : 'Total materials → Quote')+_gradeSpan+'</strong>'+
-      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+_gradeTotal.toFixed(2)+'</span>'+
+      '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+_finalMat.toFixed(2)+'</span>'+
     '</div>'+
     (_multiMat ? '<div style="font-size:11px;color:var(--text2);margin-top:6px">Showing <strong>'+esc(_matRoofNm)+'</strong>'+(_matRi===0?' — the base quote.':' — an optional extra roof.')+' Switch roofs with the buttons above. Every roof\'s price is summed in the <strong>Per-roof price breakdown</strong> below.</div>' : '');
   if (deletedCount > 0) {
     html += '<div style="margin-top:8px;font-size:11px;color:var(--text2)">'+deletedCount+' row'+(deletedCount===1?'':'s')+' deleted — <button onclick="restoreDeletedMatRows()" style="background:none;border:none;color:#0099cc;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">restore all</button></div>';
   }
   box.innerHTML = html;
-  // Base quote materials stay Roof 1 even while viewing another roof.
-  S.materials = (_multiMat && _matRi !== 0) ? _materialsCostForRoofIdx(0) : total;
+  // Base quote materials stay Roof 1 even while viewing another roof. Store the
+  // grade-neutral figure WITH markup (grade is applied once at sync time).
+  S.materials = (_multiMat && _matRi !== 0) ? _materialsCostForRoofIdx(0) : (total * (1 + _mkPct/100));
   try { renderProfitability(); } catch(e){}
   try { updateGlobalJobBarCosts(); } catch(e){}
   try { renderPerRoofBreakdown(); } catch(e){}
@@ -5757,8 +5770,23 @@ function _gradeLabel(grade){
   var M = { maxam:'Colorsteel® MAXAM', colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume®' };
   return M[grade] || 'MAXAM';
 }
+// Roof material markup / safety buffer (%). Default 5; editable per job.
+function _roofMatMarkupPct(){
+  var q = (window.S && S.quote) || {};
+  var v = parseFloat(q.roofMaterialMarkup);
+  return (isFinite(v) && v >= 0) ? v : 5;
+}
+function _setRoofMatMarkup(val){
+  if (!S.quote) return;
+  var v = parseFloat(val);
+  S.quote.roofMaterialMarkup = (isFinite(v) && v >= 0) ? v : 0;
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+}
 // Sum a material-rows array to a $ total (Maxam / grade-neutral), honouring
-// per-row qty + variant overrides and deletions (mirrors the render loop).
+// per-row qty + variant overrides and deletions (mirrors the render loop) and
+// applying the roof material markup / safety buffer.
 function _materialsTotalFromRows(rows){
   var total = 0;
   (rows || []).forEach(function(r){
@@ -5770,7 +5798,7 @@ function _materialsTotalFromRows(rows){
     var price = picked ? picked.price : 0;
     total += (qty || 0) * (price || 0);
   });
-  return total;
+  return total * (1 + _roofMatMarkupPct() / 100);
 }
 // Maxam material cost ($, ex-GST) for ONE roof, independent of the Material
 // tab's view selection. Single-roof jobs just use the current build.
@@ -8958,12 +8986,13 @@ function renderGutterDownpipePricing(){
   var gname = ({ box125:'125mm Colorsteel Box Gutter', marley_typhoon:'Marley Typhoon (PVC)', marley_classic:'Marley Classic (PVC)' })[p.gutterType];
   if (!p.gutterType || p.gutterType === 'none' || !gname){ if (card) card.style.display = 'none'; wrap.innerHTML = ''; return; }
   if (card) card.style.display = '';
-  var lm = _selGutterLm(), lines = _selGutterLineCount();
-  var labHrs = _gutterLabourHours(lm);
-  var lr = (typeof _labourRates === 'function') ? _labourRates() : { leadPrice:0, appPrice:0 };
-  var labCharge = _gutterLabourCharge(lm);
-  var matLines = _gutterMaterialLines(p.gutterType, lm, lines);
-  var matCharge = matLines.reduce(function(s, r){ return s + (r.lineTotal||0); }, 0);
+  var lm = _selGutterLm(), lines = _selGutterLineCount(), corners = _selGutterCorners();
+  var gls = _gutterLabourState(lm);
+  var labCharge = gls.leadHrs * gls.leadPrice + gls.appHrs * gls.appPrice;
+  var matLines = _gutterMaterialLines(p.gutterType, lm, lines, corners);
+  var matBase = matLines.reduce(function(s, r){ return s + (r.lineTotal||0); }, 0);
+  var mkPct = _gutterMatMarkupPct(), mkAmt = matBase * (mkPct/100);
+  var matCharge = matBase + mkAmt;
   var gComputed = matCharge + labCharge, dComputed = SEL_DOWNPIPE_PER_LINE * lines;
   var gOv = parseFloat(q.gutterPriceOverride), dOv = parseFloat(q.downpipePriceOverride);
   var gVal = (isFinite(gOv) && gOv >= 0) ? gOv : gComputed;
@@ -8986,24 +9015,36 @@ function renderGutterDownpipePricing(){
       '<td style="text-align:right;font-weight:600">'+money(r.lineTotal)+'</td>'+
     '</tr>';
   }).join('');
+  var labRow = function(label, hrsKey, priceKey, hrs, price){
+    return '<tr>'+
+      '<td style="font-weight:600">'+label+'</td>'+
+      '<td><input type="number" step="0.5" min="0" value="'+hrs+'" onchange="_setGutterLabour(\''+hrsKey+'\',this.value)" style="width:100%;font-size:12px;padding:5px 7px;text-align:right"></td>'+
+      '<td><div style="display:flex;align-items:center;gap:2px"><span style="color:var(--text2);font-size:11px">$</span><input type="number" step="1" min="0" value="'+price+'" onchange="_setGutterLabour(\''+priceKey+'\',this.value)" style="width:100%;font-size:12px;padding:5px 7px;text-align:right"></div></td>'+
+      '<td style="text-align:right;font-weight:600">'+money(hrs*price)+'</td>'+
+    '</tr>';
+  };
   wrap.innerHTML =
-    '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">'+esc(gname)+' &nbsp;·&nbsp; '+lm.toFixed(1)+' lm gutter run <span style="color:var(--text3)">(ex GST)</span></div>'+
-    // Labour — hour lines like the re-roof labour table (lead + apprentice)
-    '<div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px">Gutter labour</div>'+
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">'+esc(gname)+' &nbsp;·&nbsp; '+lm.toFixed(1)+' lm gutter run &nbsp;·&nbsp; '+lines+' line'+(lines===1?'':'s')+' &nbsp;·&nbsp; '+corners+' corner'+(corners===1?'':'s')+' <span style="color:var(--text3)">(ex GST)</span></div>'+
+    // Labour — editable hour lines like the re-roof labour table (lead + apprentice)
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:var(--text)">Gutter labour</div>'+(gls.overridden?'<button type="button" onclick="_resetGutterLabour()" style="background:none;border:none;color:#0099cc;font-size:10.5px;cursor:pointer;text-decoration:underline;padding:0">↻ Reset to auto ('+gls.band+' hr)</button>':'<span style="font-size:10.5px;color:var(--text3)">auto '+gls.band+' hr · editable</span>')+'</div>'+
     '<table class="price-tbl" style="table-layout:fixed;width:100%;margin-bottom:4px">'+
-      '<thead><tr><th style="width:40%">Worker</th><th style="width:20%;text-align:right">Hours</th><th style="width:20%;text-align:right">Price/hr</th><th style="width:20%;text-align:right">Total</th></tr></thead>'+
+      '<thead><tr><th style="width:34%">Worker</th><th style="width:22%;text-align:right">Hours</th><th style="width:24%;text-align:right">Price/hr</th><th style="width:20%;text-align:right">Total</th></tr></thead>'+
       '<tbody>'+
-        '<tr><td style="font-weight:600">Lead Roofer</td><td style="text-align:right">'+labHrs+'</td><td style="text-align:right">'+money(lr.leadPrice)+'</td><td style="text-align:right;font-weight:600">'+money(labHrs*(lr.leadPrice||0))+'</td></tr>'+
-        '<tr><td style="font-weight:600">Apprentice</td><td style="text-align:right">'+labHrs+'</td><td style="text-align:right">'+money(lr.appPrice)+'</td><td style="text-align:right;font-weight:600">'+money(labHrs*(lr.appPrice||0))+'</td></tr>'+
+        labRow('Lead Roofer','leadHrs','leadPrice',gls.leadHrs,gls.leadPrice)+
+        labRow('Apprentice','appHrs','appPrice',gls.appHrs,gls.appPrice)+
       '</tbody>'+
-      '<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Labour ('+labHrs+' hr'+(labHrs===1?'':'s')+' each)</td><td style="text-align:right;font-weight:700;color:#2e7d32">'+money(labCharge)+'</td></tr></tfoot>'+
+      '<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Labour</td><td style="text-align:right;font-weight:700;color:#2e7d32">'+money(labCharge)+'</td></tr></tfoot>'+
     '</table>'+
-    // Material — itemised list like the re-roof material table (invoice pricing)
-    '<div style="font-size:11px;font-weight:700;color:var(--text);margin:12px 0 6px">Gutter material</div>'+
+    // Material — itemised list like the re-roof material table (invoice per-unit pricing)
+    '<div style="font-size:11px;font-weight:700;color:var(--text);margin:12px 0 6px">Gutter material <span style="font-weight:400;color:var(--text3)">· Typhoon invoice pricing</span></div>'+
     '<table class="price-tbl" style="table-layout:fixed;width:100%;margin-bottom:4px">'+
       '<thead><tr><th style="width:40%">Item</th><th style="width:20%;text-align:right">Qty</th><th style="width:20%;text-align:right">$/unit</th><th style="width:20%;text-align:right">Total</th></tr></thead>'+
       '<tbody>'+matRows+'</tbody>'+
-      '<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Material</td><td style="text-align:right;font-weight:700;color:#2e7d32">'+money(matCharge)+'</td></tr></tfoot>'+
+      '<tfoot>'+
+        '<tr><td colspan="3" style="text-align:right;color:var(--text2)">Material subtotal</td><td style="text-align:right;color:var(--text2)">'+money(matBase)+'</td></tr>'+
+        '<tr><td colspan="3" style="text-align:right"><span style="color:var(--text2)">Safety buffer / markup&nbsp;</span><input type="number" step="1" min="0" value="'+mkPct+'" onchange="_setGutterMatMarkup(this.value)" style="width:56px;font-size:12px;padding:3px 6px;text-align:right">&nbsp;%</td><td style="text-align:right">+'+money(mkAmt)+'</td></tr>'+
+        '<tr><td colspan="3" style="text-align:right;font-weight:700">Material</td><td style="text-align:right;font-weight:700;color:#2e7d32">'+money(matCharge)+'</td></tr>'+
+      '</tfoot>'+
     '</table>'+
     '<div class="f2" style="margin-top:12px">'+
       '<div><label>Gutter total ($ ex-GST)</label><input type="number" step="1" min="0" value="'+gVal.toFixed(2)+'" onchange="_setGutterPriceOverride(this.value)"><div style="font-size:10.5px;color:var(--text3);margin-top:2px">computed '+money(gComputed)+' = material '+money(matCharge)+' + labour '+money(labCharge)+'</div></div>'+
@@ -9877,6 +9918,12 @@ function defaultQuote(){
     // default attached. Detached roofs' gutter is only quoted when that roof
     // is added as an extra.
     roofAttached: {},
+    // Gutter labour override ({leadHrs,appHrs,leadPrice,...}; blank = auto band
+    // hours + crew rates) and material markup / safety buffer (%, default 10).
+    gutterLabour: {},
+    gutterMaterialMarkup: 10,
+    // Roof material markup / safety buffer (%, default 5).
+    roofMaterialMarkup: 5,
     // Proposal roof-map display size on the inclusions page — 'sm' | 'md' |
     // 'lg'. Office-set, persists to the customer link. Default medium.
     roofMapSize: 'md',
@@ -10173,42 +10220,143 @@ var SEL_GAUGE55_PCT = 0.22;
 // flat all-in $/lm rate.
 var SEL_GUTTER_MATERIAL_PER_LM = { box125: 30, marley_typhoon: 40, marley_classic: 35 }; // $/lm ex-GST
 function _gutterMaterialPerLm(id){ return SEL_GUTTER_MATERIAL_PER_LM[id] || 0; }
-// Typhoon gutter material — RETAIL unit prices (ex-GST) taken from the Plumbing
-// World supplier invoice 1CI01990994 (24/07/26). Fittings spacing follows the
-// job standard: one bracket every 500 mm of gutter run, one outlet every 15 m.
-//   Typhoon Spouting 5m White (MT1-5)      $135.65 / 5m  → $27.13 /lm
-//   Typhoon External Bracket White (MT2E)  $11.74 each
-//   Typhoon Expansion Outlet 80mm (MT8-80) $38.69 each
+// Typhoon gutter material — PER-UNIT (trade) prices (ex-GST) taken from the
+// Plumbing World supplier invoice 1CI01990994 (24/07/26). Fittings spacing
+// follows the job standard: one bracket every 500 mm, one outlet every 15 m,
+// one joiner per 5 m spouting join, plus corners (external/internal angles).
+//   Typhoon Spouting 5m White (MT1-5)      $96.34 / 5m  → $19.27 /lm
+//   Typhoon External Bracket White (MT2E)  $5.56 each
+//   Typhoon Expansion Outlet 80mm (MT8-80) $24.21 each
+//   Typhoon Joiner White (MT5)             $3.82 each
+//   Typhoon External/Internal Angle (MT6/MT7) $19.74 each
 var GUTTER_MATERIAL_PRICES = {
   marley_typhoon: {
-    gutter:  27.13, gutterDesc:  'Typhoon PVC spouting (supply)',
-    bracket: 11.74, bracketDesc: 'Typhoon external brackets',
-    outlet:  38.69, outletDesc:  'Typhoon 80mm outlets'
+    gutter:  19.27, gutterDesc:  'Typhoon PVC spouting (supply)',
+    bracket:  5.56, bracketDesc: 'Typhoon external brackets',
+    outlet:  24.21, outletDesc:  'Typhoon 80mm outlets',
+    joiner:   3.82, joinerDesc:  'Typhoon joiners',
+    corner:  19.74, cornerDesc:  'Typhoon corners (ext/int angle)'
   }
 };
-var GUTTER_BRACKET_SPACING_M = 0.5;   // one bracket every 500 mm
-var GUTTER_OUTLET_SPACING_M  = 15;    // one outlet every 15 m
-// Itemised gutter material for a profile + run length (lm) + gutter-line count.
-// Typhoon is priced line-by-line off the supplier invoice (spouting + brackets
-// + outlets); other profiles keep their single all-in $/lm figure as one line.
-function _gutterMaterialLines(id, lm, lines){
-  lm = parseFloat(lm) || 0; lines = parseInt(lines, 10) || 0;
+var GUTTER_BRACKET_SPACING_M  = 0.5;   // one bracket every 500 mm
+var GUTTER_OUTLET_SPACING_M   = 15;    // one outlet every 15 m
+var GUTTER_SPOUTING_LENGTH_M  = 5;     // spouting sold in 5 m lengths → one joiner per join
+// Gutter material markup / safety buffer (%). Default 10; editable per job.
+function _gutterMatMarkupPct(){
+  var q = (window.S && S.quote) || {};
+  var v = parseFloat(q.gutterMaterialMarkup);
+  return (isFinite(v) && v >= 0) ? v : 10;
+}
+// Itemised gutter material for a profile + run length (lm) + gutter-line count
+// + corner count. Typhoon is priced line-by-line off the supplier invoice
+// (spouting + brackets + outlets + joiners + corners); other profiles keep
+// their single all-in $/lm figure as one line.
+function _gutterMaterialLines(id, lm, lines, corners){
+  lm = parseFloat(lm) || 0; lines = parseInt(lines, 10) || 0; corners = parseInt(corners, 10) || 0;
   var out = [], inv = GUTTER_MATERIAL_PRICES[id];
   if (inv && lm > 0){
-    var nBr  = Math.ceil(lm / GUTTER_BRACKET_SPACING_M);
-    var nOut = Math.max(lines, Math.ceil(lm / GUTTER_OUTLET_SPACING_M));
+    var nBr   = Math.ceil(lm / GUTTER_BRACKET_SPACING_M);
+    var nOut  = Math.max(lines, Math.ceil(lm / GUTTER_OUTLET_SPACING_M));
+    var nJoin = Math.max(0, Math.ceil(lm / GUTTER_SPOUTING_LENGTH_M) - Math.max(1, lines));
     out.push({ desc: inv.gutterDesc,  qty: lm,  unit:'lm', price: inv.gutter });
     out.push({ desc: inv.bracketDesc + ' (1 / '+Math.round(GUTTER_BRACKET_SPACING_M*1000)+'mm)', qty: nBr,  unit:'ea', price: inv.bracket });
     out.push({ desc: inv.outletDesc  + ' (1 / '+GUTTER_OUTLET_SPACING_M+'m)',                     qty: nOut, unit:'ea', price: inv.outlet });
+    if (nJoin > 0)   out.push({ desc: inv.joinerDesc + ' ('+GUTTER_SPOUTING_LENGTH_M+' m lengths)', qty: nJoin,   unit:'ea', price: inv.joiner });
+    if (corners > 0) out.push({ desc: inv.cornerDesc,                                               qty: corners, unit:'ea', price: inv.corner });
   } else if (lm > 0){
     out.push({ desc:'Gutter (supply)', qty: lm, unit:'lm', price: _gutterMaterialPerLm(id) });
   }
   out.forEach(function(r){ r.lineTotal = (parseFloat(r.qty)||0) * (parseFloat(r.price)||0); });
   return out;
 }
-// Total gutter MATERIAL charge ($ ex-GST) = sum of the itemised material lines.
-function _gutterMaterialCharge(id, lm, lines){
-  return _gutterMaterialLines(id, lm, lines).reduce(function(s, r){ return s + (r.lineTotal||0); }, 0);
+// Total gutter MATERIAL charge ($ ex-GST) = itemised lines + markup buffer.
+function _gutterMaterialCharge(id, lm, lines, corners){
+  var base = _gutterMaterialLines(id, lm, lines, corners).reduce(function(s, r){ return s + (r.lineTotal||0); }, 0);
+  return base * (1 + _gutterMatMarkupPct() / 100);
+}
+// Angle (deg, 0–360) from vector u to vector v.
+function _gutterAngleBetween(u, v){
+  var d = (Math.atan2(v[1], v[0]) - Math.atan2(u[1], u[0])) * 180 / Math.PI;
+  while (d < 0) d += 360; while (d >= 360) d -= 360; return d;
+}
+// Count corners in a set of 2-point gutter segments: a junction where the two
+// segments meeting there bend (i.e. are not roughly collinear) is one corner.
+function _gutterCornersInSegments(segs){
+  if (!segs || !segs.length) return 0;
+  var key = function(p){ return (Math.round(p[0]*2)/2)+'_'+(Math.round(p[1]*2)/2); };
+  var jun = {};
+  segs.forEach(function(s){
+    if (!s || s.length < 2) return;
+    var a = s[0], b = s[1];
+    (jun[key(a)] = jun[key(a)] || []).push([b[0]-a[0], b[1]-a[1]]);   // away from a
+    (jun[key(b)] = jun[key(b)] || []).push([a[0]-b[0], a[1]-b[1]]);   // away from b
+  });
+  var corners = 0;
+  Object.keys(jun).forEach(function(k){
+    var vs = jun[k]; if (vs.length < 2) return;
+    var bent = false;
+    for (var i = 0; i < vs.length && !bent; i++){
+      for (var j = i+1; j < vs.length; j++){
+        var ang = _gutterAngleBetween(vs[i], vs[j]);
+        if (ang > 5 && ang < 355 && Math.abs(ang - 180) > 25){ bent = true; break; }
+      }
+    }
+    if (bent) corners++;
+  });
+  return corners;
+}
+// Corners across the currently-included gutter run (from the drawn geometry).
+// Falls back to 4 (a simple rectangular run) when there's no per-roof geometry.
+function _selGutterCorners(){
+  try {
+    var q = (window.S && S.quote) || {};
+    var g = q.roofMapGeom;
+    if (g && g.roofs && g.roofs.length){
+      var sel = (q.proposalOptions && q.proposalOptions.extraRoofsSel) || {};
+      var total = 0;
+      g.roofs.forEach(function(r){
+        if (!_roofGutterIncluded(r.mode, r.idx, r.extraPos, sel)) return;
+        total += _gutterCornersInSegments(r.gutters || []);
+      });
+      if (total > 0) return total;
+    }
+  } catch(e){}
+  return (_selGutterLm() > 0) ? 4 : 0;
+}
+// Editable gutter labour — hours + charge-out rates. Defaults to the auto band
+// hours (worked by BOTH lead + apprentice) and the crew rates; any field the
+// office edits on this job is stored on S.quote.gutterLabour and overrides.
+function _gutterLabourState(lm){
+  var q = (window.S && S.quote) || {};
+  var band = _gutterLabourHours(lm);
+  var r = (typeof _labourRates === 'function') ? _labourRates() : { leadPrice:0, appPrice:0, leadCost:0, appCost:0 };
+  var gl = (q.gutterLabour && typeof q.gutterLabour === 'object') ? q.gutterLabour : {};
+  var pick = function(v, d){ return (v != null && v !== '') ? (parseFloat(v)||0) : d; };
+  return {
+    leadHrs:   pick(gl.leadHrs,   band),
+    appHrs:    pick(gl.appHrs,    band),
+    leadPrice: pick(gl.leadPrice, r.leadPrice),
+    appPrice:  pick(gl.appPrice,  r.appPrice),
+    leadCost:  pick(gl.leadCost,  r.leadCost),
+    appCost:   pick(gl.appCost,   r.appCost),
+    band: band,
+    overridden: ['leadHrs','appHrs','leadPrice','appPrice','leadCost','appCost'].some(function(k){ return gl[k] != null && gl[k] !== ''; })
+  };
+}
+// Office edits a gutter labour field (hours or rate) in the Pricing card.
+function _setGutterLabour(field, val){
+  if (!S.quote) return;
+  if (!S.quote.gutterLabour || typeof S.quote.gutterLabour !== 'object') S.quote.gutterLabour = {};
+  S.quote.gutterLabour[field] = (val === '' || val == null) ? '' : (parseFloat(val) || 0);
+  _gdChanged();
+}
+function _resetGutterLabour(){ if (S.quote) S.quote.gutterLabour = {}; _gdChanged(); }
+// Office edits the gutter material markup (%).
+function _setGutterMatMarkup(val){
+  if (!S.quote) return;
+  var v = parseFloat(val);
+  S.quote.gutterMaterialMarkup = (isFinite(v) && v >= 0) ? v : 0;
+  _gdChanged();
 }
 // Gutter install LABOUR HOURS by total gutter run (lm). Each band's hours are
 // worked by BOTH the lead roofer AND the apprentice, charged at the labour
@@ -10224,15 +10372,15 @@ function _gutterLabourHours(lm){
   if (lm <= 80)  return 12;
   return 14;                  // 80–120 lm (and beyond)
 }
-// Gutter labour charge ($ ex-GST) = band hours × (lead + apprentice charge-out).
+// Gutter labour charge ($ ex-GST) = editable lead/apprentice hours × rates.
 function _gutterLabourCharge(lm){
-  var r = (typeof _labourRates === 'function') ? _labourRates() : { leadPrice:0, appPrice:0 };
-  return _gutterLabourHours(lm) * ((r.leadPrice||0) + (r.appPrice||0));
+  var g = _gutterLabourState(lm);
+  return g.leadHrs * g.leadPrice + g.appHrs * g.appPrice;
 }
-// Total gutter charge ($ ex-GST) = itemised material + labour (hours × rates).
+// Total gutter charge ($ ex-GST) = itemised material (+markup) + labour.
 function _gutterTotalCharge(id, lm){
   if (!SEL_GUTTER_MATERIAL_PER_LM[id] && !GUTTER_MATERIAL_PRICES[id]) return 0;
-  return _gutterMaterialCharge(id, lm, _selGutterLineCount()) + _gutterLabourCharge(lm);
+  return _gutterMaterialCharge(id, lm, _selGutterLineCount(), _selGutterCorners()) + _gutterLabourCharge(lm);
 }
 // External brackets are an upcharge over the standard internal brackets:
 // +$6/lm on a 125mm box gutter, +$3/lm on either Marley PVC gutter (ex-GST).
