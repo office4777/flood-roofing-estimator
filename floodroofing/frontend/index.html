@@ -10989,6 +10989,16 @@ function buildAcceptSummaryRows(){
     '<div style="font-family:var(--ed-sans);font-size:12px;font-weight:700;color:var(--ed-ink)">Original quote'+(opts.length?'':' — main scope of work')+' <span style="font-weight:400;color:var(--ed-text2)">(incl. GST)</span></div>'+
     '<div class="ed-serif" style="font-size:14px;font-weight:700;white-space:nowrap">'+fmtMoney(baseTot)+'</div>'+
   '</div>';
+  // Scaffolding always shown just below the main scope — the base
+  // (edge-protection) price is already inside the main-scope total, so it's
+  // informational (included), not an add-on line.
+  var _acScaffBase = (typeof _selScaffoldBasePrice === 'function') ? _selScaffoldBasePrice() : 0;
+  if (_acScaffBase > 0){
+    rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--ed-line)">'+
+      '<div style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink)">&#8627; Scaffolding <span style="color:var(--ed-text2)">(edge protection · included in main scope)</span></div>'+
+      '<div class="ed-serif" style="font-size:13px;font-weight:600;white-space:nowrap">'+fmtMoney(_acScaffBase*(1+rate))+'</div>'+
+    '</div>';
+  }
   // Selections-page changes (steel / gutter / brackets) — the same
   // unified list as page 4, including the legacy Option-C gutter
   // fallback, so nothing is listed or charged twice.
@@ -15353,9 +15363,17 @@ function refreshQuoteProposal(){
           '<div class="ed-serif" style="font-size:'+(opts2.strong?'17px':'13px')+';font-weight:600;white-space:nowrap;color:'+(opts2.strong?'#4fc3ff':'#fff')+'">'+value+'</div>'+
         '</div>';
       };
+      // Scaffolding is always broken out just below the main scope so the
+      // customer can see it — the base (edge-protection) price is already part
+      // of the main-scope total, so it reads as "included", not an add-on.
+      var _selScaffBase = (typeof _selScaffoldBasePrice === 'function') ? _selScaffoldBasePrice() : 0;
+      var _selScaffRow = (_selScaffBase > 0)
+        ? _selRow('&#8627; Scaffolding <span style="color:rgba(255,255,255,.55)">(edge protection · included in main scope)</span>', fmtMoney(_selScaffBase * (1+_selRate)))
+        : '';
       var _selPricing =
         '<div style="border-top:none">'+
           _selRow('<strong style="color:#fff">Original quote — main scope of work</strong> <span style="color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(_selBaseTot), { top: true })+
+          _selScaffRow+
           (_selChanges.length
             ? _selChanges.map(function(c){
                 return _selRow('&#8627; '+esc2(c.label), c.delta ? (c.delta > 0 ? '+' : '−')+fmtMoney(Math.abs(c.delta)*(1+_selRate)) : 'Included');
