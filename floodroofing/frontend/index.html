@@ -336,17 +336,35 @@ body{
   overflow:hidden;
 }
 #tab-scope .card-hd{
-  margin:0 -14px 12px;
-  padding:11px 14px;
-  background:rgba(10,22,40,.03);
-  border-bottom:1px solid var(--border);
-  font-size:15px;
+  margin:0 -14px 14px;
+  padding:13px 16px;
+  background:rgba(10,22,40,.04);
+  border-bottom:1px solid rgba(10,22,40,.12);
+  font-size:17px;
   font-weight:800;
-  letter-spacing:-.01em;
+  letter-spacing:-.02em;
+  line-height:1.15;
   flex-wrap:wrap;
 }
 #tab-scope .card-hd .card-dot{ display:none; }
-#tab-scope .card-hd .tile-sub-note{ font-size:11px;font-weight:400;color:var(--text2);margin-left:8px;flex-basis:100%;margin-top:2px; }
+#tab-scope .card-hd .tile-ic{ font-size:18px;margin-right:2px; }
+#tab-scope .card-hd .tile-sub-note{ font-size:11px;font-weight:500;color:var(--text2);margin-left:0;flex-basis:100%;margin-top:3px;text-transform:none;letter-spacing:0; }
+
+/* Sticky Main Roof / Roof 2 switch in the pricing-panel header. */
+#pricingRoofSwitchBar{
+  display:flex; gap:8px; padding:9px 14px;
+  border-bottom:1px solid var(--border); background:#f2f5f9;
+}
+.pr-roof-btn{
+  flex:1 1 0; min-width:0; padding:9px 8px 7px;
+  border:2px solid var(--border); border-radius:10px; background:#fff;
+  cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:1px;
+  font-family:inherit; line-height:1.1;
+}
+.pr-roof-btn .pr-roof-nm{ font-size:14px; font-weight:800; color:#0a1628; }
+.pr-roof-btn .pr-roof-sub{ font-size:8.5px; font-weight:700; letter-spacing:.05em; color:var(--text2); text-transform:uppercase; }
+.pr-roof-btn.on{ border-color:#0099cc; background:#0099cc; box-shadow:0 3px 12px rgba(0,153,204,.32); }
+.pr-roof-btn.on .pr-roof-nm, .pr-roof-btn.on .pr-roof-sub{ color:#fff; }
 /* Sub-blocks inside a tile (e.g. Roof labour + Roof material). */
 #tab-scope .tile-block:first-of-type{ margin-top:2px; }
 #tab-scope .tile-block + .tile-block{ margin-top:16px;padding-top:14px;border-top:1px dashed var(--border); }
@@ -354,17 +372,18 @@ body{
 #tab-scope .tile-mini-btn{ margin-left:auto;padding:4px 9px;font-size:10.5px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-weight:600;color:#0a1628; }
 #tab-scope .tile-mini-btn-dark{ background:#0a1628;color:#fff;border-color:#0a1628;margin-left:6px; }
 #tab-scope .tile-note{ font-size:11px;color:var(--text2);margin:0 0 10px; }
-/* Per-tile accent + tint. */
-#tab-scope #scaffoldCard          { border-left-color:#64748b;background:#f8fafc; }
-#tab-scope #scaffoldCard .card-hd { background:#e9eef4; }
-#tab-scope #roofPriceTile          { border-left-color:#2563eb;background:#f6faff; }
-#tab-scope #roofPriceTile .card-hd { background:#e6f0ff; }
-#tab-scope #gutterDownpipeCard          { border-left-color:#0891b2;background:#f3fdff; }
-#tab-scope #gutterDownpipeCard .card-hd { background:#dbf6fb; }
-#tab-scope #perRoofBreakdownCard          { border-left-color:#7c3aed;background:#faf8ff; }
-#tab-scope #perRoofBreakdownCard .card-hd { background:#efeaff; }
-#tab-scope #profitCard          { border-left-color:#16a34a;background:#f6fef9; }
-#tab-scope #profitCard .card-hd { background:#e6f9ee; }
+/* Per-tile accent + tint (a touch darker so the sections stand apart). The
+   header band is a deeper shade of the same hue, title in the accent colour. */
+#tab-scope #scaffoldCard          { border-left-color:#475569;background:#e8edf3; }
+#tab-scope #scaffoldCard .card-hd { background:#d6deea;color:#334155; }
+#tab-scope #roofPriceTile          { border-left-color:#2563eb;background:#e6effd; }
+#tab-scope #roofPriceTile .card-hd { background:#d0e2ff;color:#1d4ed8; }
+#tab-scope #gutterDownpipeCard          { border-left-color:#0891b2;background:#ddf4f9; }
+#tab-scope #gutterDownpipeCard .card-hd { background:#c3ebf3;color:#0e7490; }
+#tab-scope #perRoofBreakdownCard          { border-left-color:#7c3aed;background:#efe9fd; }
+#tab-scope #perRoofBreakdownCard .card-hd { background:#e0d4ff;color:#6d28d9; }
+#tab-scope #profitCard          { border-left-color:#16a34a;background:#e5f6ec; }
+#tab-scope #profitCard .card-hd { background:#cfeeda;color:#15803d; }
 /* The material sub-block's roof switch is redundant with the labour tabs
    directly above it in the same tile — hide it. */
 #tab-scope #roofPriceTile #materialPriceRoofPicker{ display:none !important; }
@@ -2829,14 +2848,14 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <!-- 1. SCAFFOLDING — its own tile, first. Rendered per-roof by calcLabour
        into #scaffoldWrap (split out of the labour table). -->
   <div class="card" id="scaffoldCard">
-    <div class="card-hd">🪜 Scaffolding<span class="tile-sub-note">included in every quote · per roof</span></div>
+    <div class="card-hd"><span class="tile-ic">🪜</span>Scaffolding<span class="tile-sub-note">Included in every quote · priced per roof</span></div>
     <div id="scaffoldWrap"></div>
   </div>
 
   <!-- 2. ROOF — labour + material for the roof itself, grouped in one tile.
        #labourTableWrap (calcLabour) + #materialPriceTableWrap (renderMaterialPriceTable). -->
   <div class="card" id="roofPriceTile">
-    <div class="card-hd">Roof<span class="tile-sub-note">labour &amp; material for the roof</span></div>
+    <div class="card-hd"><span class="tile-ic">🏠</span>Roof<span class="tile-sub-note">Labour &amp; material for the roof itself</span></div>
     <div class="tile-block">
       <div class="tile-block-hd">Roof labour</div>
       <div id="labourTableWrap"></div>
@@ -2857,7 +2876,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <!-- 3. GUTTERING & DOWNPIPES — labour + material, grouped in one tile.
        Populated by renderGutterDownpipePricing(); hidden until a gutter is picked. -->
   <div class="card" id="gutterDownpipeCard" style="display:none">
-    <div class="card-hd">Guttering &amp; downpipes<span class="tile-sub-note">from the Selections pick — edit a total if this job is complex</span></div>
+    <div class="card-hd"><span class="tile-ic">🌧️</span>Guttering &amp; downpipes<span class="tile-sub-note">From the Selections pick — edit a total if this job is complex</span></div>
     <div id="gutterDownpipeWrap"></div>
   </div>
 
@@ -2869,9 +2888,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
   <!-- JOB PROFITABILITY — revenue vs cost, gross profit % and $/hr. -->
   <div class="card" id="profitCard">
-    <div class="card-hd"><span class="card-dot"></span>Job profitability
-      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Revenue (charge-out) vs cost — refresh material price above to update</span>
-    </div>
+    <div class="card-hd"><span class="tile-ic">📈</span>Job profitability<span class="tile-sub-note">Revenue (charge-out) vs cost — refresh material price above to update</span></div>
     <div id="profitWrap"></div>
   </div>
 
@@ -2899,6 +2916,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <small style="margin-left:auto;font-size:10px;font-weight:500;color:var(--text2)">labour · materials · scaffold</small>
     <button onclick="_closePricingPanel()" title="Close" style="margin-left:10px;background:none;border:none;color:var(--text2);font-size:16px;cursor:pointer;line-height:1">✕</button>
   </div>
+  <!-- Sticky roof switch — stays visible while the pricing content scrolls, so
+       the office can flip Main Roof / Roof 2 from anywhere in the panel. Filled
+       by _renderPricingRoofSwitchBar() (hidden on single-roof jobs). -->
+  <div id="pricingRoofSwitchBar" class="no-print" style="display:none"></div>
   <div id="quotePricingHost"></div>
 </aside>
 
@@ -6112,6 +6133,27 @@ function _setPricingRoof(i){
   try { calcLabour(); } catch(e){}
   try { renderMaterialPriceTable(); } catch(e){}
   try { renderPerRoofBreakdown(); } catch(e){}
+  try { _renderPricingRoofSwitchBar(); } catch(e){}
+}
+// Sticky Main Roof / Roof 2 switch that lives in the pricing-panel header, so
+// it's always visible while scrolling. Replaces the per-section roof tabs.
+// Hidden on single-roof jobs.
+function _renderPricingRoofSwitchBar(){
+  var bar = document.getElementById('pricingRoofSwitchBar');
+  if (!bar) return;
+  var n = _pricingRoofCount();
+  if (n < 2){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  bar.style.display = 'flex';
+  var cur = _pricingRoofIdx();
+  var html = '';
+  for (var i = 0; i < n; i++){
+    var on = (i === cur);
+    html += '<button type="button" onclick="_setPricingRoof(' + i + ')" class="pr-roof-btn' + (on ? ' on' : '') + '">' +
+      '<span class="pr-roof-nm">' + esc(_pricingRoofName(i)) + '</span>' +
+      '<span class="pr-roof-sub">' + (i === 0 ? 'Main · base' : 'Optional extra') + '</span>' +
+    '</button>';
+  }
+  bar.innerHTML = html;
 }
 // Big roof-switch buttons for the top of each pricing section (multi-roof only).
 function _pricingRoofTabsHtml(){
@@ -6177,7 +6219,7 @@ function renderPerRoofBreakdown(){
       '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);margin-top:6px;padding-top:7px"><strong style="font-size:12px">'+(isBase?'Base subtotal':'Extra roof price')+' <span style="font-weight:400;color:var(--text2);font-size:10px">(ex GST)</span></strong><strong style="font-size:15px;color:#2e7d32">'+money(sub)+'</strong></div>'+
     '</div>';
   }).join('');
-  box.innerHTML = '<div class="card-hd"><span class="card-dot"></span>Per-roof price breakdown'+
+  box.innerHTML = '<div class="card-hd"><span class="tile-ic">📊</span>Per-roof price breakdown'+
     '<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Roof 1 = base quote · each extra roof is priced from its own materials + labour + scaffold</span></div>'+
     '<p style="font-size:11px;color:var(--text2);margin:-6px 0 10px">Tap a roof to edit it above, or use the roof buttons on each section. The customer opts in per extra roof on the proposal Selections page.</p>'+
     cards;
@@ -8995,9 +9037,9 @@ function calcLabour(){
     dispHrs = lh + ah; dispPrice = lh * f(L.leadPrice) + ah * f(L.appPrice);
   }
   var scR = _roofScaffold(ri);
-  var html = _tabs +
+  var html =
     (_multiRoofLab
-      ? '<div style="font-size:11.5px;color:#0a1628;background:'+(isBaseRoof?'#eef6ff':'#fff7ed')+';border:1px solid '+(isBaseRoof?'#cfe0f5':'#fed7aa')+';border-radius:8px;padding:7px 10px;margin-bottom:10px">Editing labour for <strong>'+esc(_pricingRoofName(ri))+'</strong>'+(isBaseRoof?' — the base quote.':' — an optional extra roof (its own price).')+'</div>'
+      ? '<div style="font-size:11.5px;color:#0a1628;background:'+(isBaseRoof?'#eef6ff':'#fff7ed')+';border:1px solid '+(isBaseRoof?'#cfe0f5':'#fed7aa')+';border-radius:8px;padding:7px 10px;margin-bottom:10px">Editing <strong>'+esc(_pricingRoofName(ri))+'</strong>'+(isBaseRoof?' — the base quote. Switch roofs at the top of the panel.':' — an optional extra roof (its own price). Switch roofs at the top of the panel.')+'</div>'
       : '')+
     _labourCalcPanelHtml(ri)+
     '<table class="price-tbl" style="table-layout:fixed;width:100%">'+
@@ -9032,7 +9074,6 @@ function calcLabour(){
     var _scEff = _scaffoldEff(scR);
     var _scPlat = scR.type === 'platform';
     scw.innerHTML =
-      _tabs +
       '<div style="font-size:11.5px;color:var(--text2);margin-bottom:8px">For <strong>'+esc(_pricingRoofName(ri))+'</strong> '+(isBaseRoof?'· included in every quote':'· added to this roof’s price')+'</div>'+
       '<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--text2);margin-bottom:4px">Scaffolding type</label>'+
         '<select onchange="updateScaffoldType(this.value)" style="width:100%;font-size:12px;padding:6px 8px">'+
@@ -9053,6 +9094,7 @@ function calcLabour(){
   S.labour = parseFloat(totalPrice.toFixed(2));
   S.labourCost = parseFloat(totalCost.toFixed(2));
   S.labourHours = parseFloat(totalHrs.toFixed(1));
+  try { _renderPricingRoofSwitchBar(); } catch(e){}
   renderProfitability();
   try { renderGutterDownpipePricing(); } catch(e){}
   try { renderPerRoofBreakdown(); } catch(e){}
@@ -26004,6 +26046,7 @@ function _openPricingPanel(){
   try { populateMaterialsFromLines(); } catch(e){ console.warn('pricing populate:', e); }
   try { renderMaterialPriceTable(); } catch(e){ console.warn('pricing material price:', e); }
   try { calcLabour(); } catch(e){ console.warn('pricing labour:', e); }
+  try { _renderPricingRoofSwitchBar(); } catch(e){}
   var p = document.getElementById('quotePricingPanel');
   if (p){ p.style.display = 'flex'; p.classList.add('is-open'); }
 }
