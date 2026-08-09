@@ -321,6 +321,45 @@ body{
 #tab-scope .result-box{margin-top:.5rem;padding:12px 14px}
 #tab-scope .sec-btn{margin-top:.5rem}
 
+/* ── Pricing panel: make each section clearly its own block ──────────
+   Every section (labour · gutter · material · per-roof · profit) gets a
+   full-width tinted header band + a coloured left accent, so they're easy
+   to tell apart while scrolling the long panel — instead of a row of
+   near-identical white cards. */
+#tab-scope .card{
+  padding:0 16px 16px;
+  margin-bottom:20px;
+  border:1px solid var(--border);
+  border-left:4px solid var(--accent);
+  border-radius:12px;
+  box-shadow:0 2px 8px rgba(10,22,40,.06);
+  overflow:hidden;
+}
+#tab-scope .card-hd{
+  margin:0 -16px 16px;
+  padding:13px 16px;
+  background:var(--surface-2,#f4f7fb);
+  border-bottom:1px solid var(--border);
+  font-size:14.5px;
+  font-weight:700;
+  letter-spacing:-.01em;
+  flex-wrap:wrap;
+}
+#tab-scope .card-hd .card-dot{ display:none; }          /* the accent bar replaces the dot */
+/* Per-section accent colour + matching header tint. */
+#tab-scope #labourCard          { border-left-color:#2563eb; }
+#tab-scope #labourCard .card-hd { background:#eef4ff; }
+#tab-scope #gutterDownpipeCard          { border-left-color:#0891b2; }
+#tab-scope #gutterDownpipeCard .card-hd { background:#ecfeff; }
+#tab-scope #materialPriceCard          { border-left-color:#d97706; }
+#tab-scope #materialPriceCard .card-hd { background:#fff7ed; }
+#tab-scope #perRoofBreakdownCard          { border-left-color:#7c3aed; }
+#tab-scope #perRoofBreakdownCard .card-hd { background:#f5f3ff; }
+#tab-scope #profitCard          { border-left-color:#16a34a; }
+#tab-scope #profitCard .card-hd { background:#f0fdf4; }
+/* The action bar isn't a titled section — keep it plain. */
+#tab-scope .card.mat-actions{ padding:14px 16px; border-left:1px solid var(--border); box-shadow:none; }
+
 /* Tighter, less-crowded Quote tab + collapsible advanced cards */
 #tab-quote .card{padding:14px 16px;margin-bottom:10px}
 #tab-quote .card-hd{margin-bottom:10px}
