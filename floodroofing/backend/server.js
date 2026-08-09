@@ -91,10 +91,16 @@ function isAllowedOrigin(origin) {
   return false;
 }
 
+const _corsBlockedSeen = {};
 const corsOptions = {
   origin: (origin, cb) => {
     if (isAllowedOrigin(origin)) return cb(null, true);
-    cb(new Error('Not allowed by CORS'));
+    // Log each blocked origin once so a legitimate new domain can be added to
+    // the allowlist, and DECLINE gracefully (cb(null,false)) rather than
+    // throwing — throwing produced a 500 error stack on every blocked request.
+    var key = origin || '(none)';
+    if (!_corsBlockedSeen[key]) { _corsBlockedSeen[key] = 1; console.warn('CORS: blocked origin →', key); }
+    return cb(null, false);
   },
   credentials: true,
 };
