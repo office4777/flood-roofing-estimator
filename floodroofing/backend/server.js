@@ -1940,7 +1940,7 @@ async function _ensureIndexes(){
 }
 
 app.listen(PORT, () => {
-  console.log('RoofMap backend running on port ' + PORT);
+  console.log('RoofMap backend running on port ' + PORT + ' · build: quote-activity-shared-filter-v2');
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
   console.log('Stripe: disabled');
   try { _keepWarm(); } catch(e){}
