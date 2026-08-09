@@ -11820,10 +11820,13 @@ async function fetchQuoteActivity(){
   } catch(e){
     // Keep any previously-loaded activity on screen; only show the error when
     // we have nothing cached to display.
+    try { console.error('quote-activity load failed:', e && (e.message || e)); } catch(_){}
     if (!(window._quoteActivityFeed && window._quoteActivityFeed.length)) {
       var l2 = document.getElementById('quoteActivityList');
+      var _emsg = (e && (e.message || String(e))) || 'unknown error';
       if (l2) l2.innerHTML = '<div style="padding:14px 4px;color:#b91c1c;font-size:12px">Couldn’t load recent activity right now. '+
-        '<button onclick="fetchQuoteActivity()" style="margin-left:6px;padding:3px 10px;background:transparent;color:#b91c1c;border:1px solid #b91c1c;border-radius:6px;font-size:11px;cursor:pointer">↻ Retry</button></div>';
+        '<button onclick="fetchQuoteActivity()" style="margin-left:6px;padding:3px 10px;background:transparent;color:#b91c1c;border:1px solid #b91c1c;border-radius:6px;font-size:11px;cursor:pointer">↻ Retry</button>'+
+        '<div style="margin-top:6px;font-size:10.5px;color:var(--text2);word-break:break-word">'+esc2(_emsg)+'</div></div>';
     }
   }
 }

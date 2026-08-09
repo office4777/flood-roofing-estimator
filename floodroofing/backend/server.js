@@ -707,7 +707,12 @@ app.get('/quote-activity', requireAuth, async (req, res) => {
               'q_ref:draw_state->state->quote->ref, ' +
               'q_client:draw_state->state->quote->client, ' +
               'q_accepted:draw_state->state->quote->accepted')
-      .eq('user_id', req.user.id).order('updated_at', { ascending: false }).limit(120);
+      .eq('user_id', req.user.id)
+      // Only jobs that have actually been SHARED appear in the feed — filter to
+      // them (there's a functional index on this token expression), so Postgres
+      // doesn't have to decompress every job's multi-MB draw_state.
+      .not('draw_state->state->quote->share->>token', 'is', null)
+      .order('updated_at', { ascending: false }).limit(120);
     if (!primary.error) {
       const feed = (primary.data || []).map(function(j){
         return rowFrom({ id: j.id, client_name: j.client_name },
@@ -721,7 +726,9 @@ app.get('/quote-activity', requireAuth, async (req, res) => {
     console.error('quote-activity narrow select failed, falling back:', primary.error.message, primary.error.hint || '');
     const fb = await supabase.from('jobs')
       .select('id, client_name, quote:draw_state->state->quote')
-      .eq('user_id', req.user.id).order('updated_at', { ascending: false }).limit(120);
+      .eq('user_id', req.user.id)
+      .not('draw_state->state->quote->share->>token', 'is', null)
+      .order('updated_at', { ascending: false }).limit(120);
     if (fb.error) { console.error('quote-activity fallback failed:', fb.error.message, fb.error.hint || ''); return res.status(500).json({ error: fb.error.message }); }
     const feed = (fb.data || []).map(function(j){ return rowFrom(j, j.quote || {}); }).filter(Boolean);
     res.json(feed);
