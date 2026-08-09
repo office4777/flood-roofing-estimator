@@ -321,14 +321,14 @@ body{
 #tab-scope .result-box{margin-top:.5rem;padding:12px 14px}
 #tab-scope .sec-btn{margin-top:.5rem}
 
-/* ── Pricing panel: make each section clearly its own block ──────────
-   Every section (labour · gutter · material · per-roof · profit) gets a
-   full-width tinted header band + a coloured left accent, so they're easy
-   to tell apart while scrolling the long panel — instead of a row of
-   near-identical white cards. */
+/* ── Pricing panel: grouped, colour-tinted tiles ────────────────────
+   The panel reads top-to-bottom as distinct tinted tiles:
+   Scaffold → Roof (labour + material) → Gutter (labour + material) →
+   Per-roof breakdown → Profitability. Each tile is tinted its own colour so
+   the sections are instantly easy to tell apart. */
 #tab-scope .card{
-  padding:0 16px 16px;
-  margin-bottom:20px;
+  padding:0 14px 14px;
+  margin-bottom:16px;
   border:1px solid var(--border);
   border-left:4px solid var(--accent);
   border-radius:12px;
@@ -336,29 +336,42 @@ body{
   overflow:hidden;
 }
 #tab-scope .card-hd{
-  margin:0 -16px 16px;
-  padding:13px 16px;
-  background:var(--surface-2,#f4f7fb);
+  margin:0 -14px 12px;
+  padding:11px 14px;
+  background:rgba(10,22,40,.03);
   border-bottom:1px solid var(--border);
-  font-size:14.5px;
-  font-weight:700;
+  font-size:15px;
+  font-weight:800;
   letter-spacing:-.01em;
   flex-wrap:wrap;
 }
-#tab-scope .card-hd .card-dot{ display:none; }          /* the accent bar replaces the dot */
-/* Per-section accent colour + matching header tint. */
-#tab-scope #labourCard          { border-left-color:#2563eb; }
-#tab-scope #labourCard .card-hd { background:#eef4ff; }
-#tab-scope #gutterDownpipeCard          { border-left-color:#0891b2; }
-#tab-scope #gutterDownpipeCard .card-hd { background:#ecfeff; }
-#tab-scope #materialPriceCard          { border-left-color:#d97706; }
-#tab-scope #materialPriceCard .card-hd { background:#fff7ed; }
-#tab-scope #perRoofBreakdownCard          { border-left-color:#7c3aed; }
-#tab-scope #perRoofBreakdownCard .card-hd { background:#f5f3ff; }
-#tab-scope #profitCard          { border-left-color:#16a34a; }
-#tab-scope #profitCard .card-hd { background:#f0fdf4; }
-/* The action bar isn't a titled section — keep it plain. */
-#tab-scope .card.mat-actions{ padding:14px 16px; border-left:1px solid var(--border); box-shadow:none; }
+#tab-scope .card-hd .card-dot{ display:none; }
+#tab-scope .card-hd .tile-sub-note{ font-size:11px;font-weight:400;color:var(--text2);margin-left:8px;flex-basis:100%;margin-top:2px; }
+/* Sub-blocks inside a tile (e.g. Roof labour + Roof material). */
+#tab-scope .tile-block:first-of-type{ margin-top:2px; }
+#tab-scope .tile-block + .tile-block{ margin-top:16px;padding-top:14px;border-top:1px dashed var(--border); }
+#tab-scope .tile-block-hd{ font-size:11.5px;font-weight:800;color:#0a1628;margin-bottom:9px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;text-transform:uppercase;letter-spacing:.04em; }
+#tab-scope .tile-mini-btn{ margin-left:auto;padding:4px 9px;font-size:10.5px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-weight:600;color:#0a1628; }
+#tab-scope .tile-mini-btn-dark{ background:#0a1628;color:#fff;border-color:#0a1628;margin-left:6px; }
+#tab-scope .tile-note{ font-size:11px;color:var(--text2);margin:0 0 10px; }
+/* Per-tile accent + tint. */
+#tab-scope #scaffoldCard          { border-left-color:#64748b;background:#f8fafc; }
+#tab-scope #scaffoldCard .card-hd { background:#e9eef4; }
+#tab-scope #roofPriceTile          { border-left-color:#2563eb;background:#f6faff; }
+#tab-scope #roofPriceTile .card-hd { background:#e6f0ff; }
+#tab-scope #gutterDownpipeCard          { border-left-color:#0891b2;background:#f3fdff; }
+#tab-scope #gutterDownpipeCard .card-hd { background:#dbf6fb; }
+#tab-scope #perRoofBreakdownCard          { border-left-color:#7c3aed;background:#faf8ff; }
+#tab-scope #perRoofBreakdownCard .card-hd { background:#efeaff; }
+#tab-scope #profitCard          { border-left-color:#16a34a;background:#f6fef9; }
+#tab-scope #profitCard .card-hd { background:#e6f9ee; }
+/* The material sub-block's roof switch is redundant with the labour tabs
+   directly above it in the same tile — hide it. */
+#tab-scope #roofPriceTile #materialPriceRoofPicker{ display:none !important; }
+/* Action bar isn't a titled tile — keep it plain. */
+#tab-scope .card.mat-actions{ padding:14px 16px;border-left:1px solid var(--border);background:var(--surface);box-shadow:none; }
+/* Density: tighter table cells throughout the pricing tiles. */
+#tab-scope .price-tbl th, #tab-scope .price-tbl td{ padding:5px 7px !important; }
 
 /* Tighter, less-crowded Quote tab + collapsible advanced cards */
 #tab-quote .card{padding:14px 16px;margin-bottom:10px}
@@ -2813,43 +2826,39 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div class="result-box" id="labourOut"><div id="labourRows"></div></div>
   </div>
 
-  <!-- LABOUR — two charge-out lines (Lead Roofer + Apprentice) plus the
-       always-included scaffolding line.  Hours / cost-hr / charge-out-hr
-       are all editable; rolls up to a combined total. -->
-  <div class="card" id="labourCard">
-    <div class="card-hd"><span class="card-dot"></span>Labour &amp; scaffolding
-      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Set the hours; cost/hr is what you pay, price/hr is the charge-out rate</span>
-    </div>
-    <div id="labourTableWrap"></div>
+  <!-- 1. SCAFFOLDING — its own tile, first. Rendered per-roof by calcLabour
+       into #scaffoldWrap (split out of the labour table). -->
+  <div class="card" id="scaffoldCard">
+    <div class="card-hd">🪜 Scaffolding<span class="tile-sub-note">included in every quote · per roof</span></div>
+    <div id="scaffoldWrap"></div>
   </div>
 
-  <!-- GUTTERING & DOWNPIPES — shows the computed gutter ($/lm) and downpipe
-       ($150/line) amounts for the customer's Selections pick and lets the
-       office override either total on a complex job. Populated by
-       renderGutterDownpipePricing(); hidden until a gutter is selected. -->
+  <!-- 2. ROOF — labour + material for the roof itself, grouped in one tile.
+       #labourTableWrap (calcLabour) + #materialPriceTableWrap (renderMaterialPriceTable). -->
+  <div class="card" id="roofPriceTile">
+    <div class="card-hd">Roof<span class="tile-sub-note">labour &amp; material for the roof</span></div>
+    <div class="tile-block">
+      <div class="tile-block-hd">Roof labour</div>
+      <div id="labourTableWrap"></div>
+    </div>
+    <div class="tile-block">
+      <div class="tile-block-hd">Roof material
+        <button onclick="openPriceSettings()" class="tile-mini-btn">⚙ Prices</button>
+        <button onclick="renderMaterialPriceTable();try{resyncQuoteLines();}catch(e){}" class="tile-mini-btn tile-mini-btn-dark">↻ Refresh</button>
+      </div>
+      <p class="tile-note">Quantities auto-calc from your drawing (flashings include a <strong>1.2× wastage</strong> allowance). Swap variants per row, or add more in Settings → Price book.</p>
+      <div id="materialPriceRoofPicker" style="display:none;margin-bottom:10px"></div>
+      <div id="materialPriceTableWrap">
+        <p style="font-size:12px;color:var(--text2)">Draw your roof on the Map Roof tab and set unit prices in Settings → Price book — this table will auto-populate.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. GUTTERING & DOWNPIPES — labour + material, grouped in one tile.
+       Populated by renderGutterDownpipePricing(); hidden until a gutter is picked. -->
   <div class="card" id="gutterDownpipeCard" style="display:none">
-    <div class="card-hd"><span class="card-dot"></span>Guttering &amp; downpipes
-      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">from the Selections pick — edit a total if this job is complex</span>
-    </div>
+    <div class="card-hd">Guttering &amp; downpipes<span class="tile-sub-note">from the Selections pick — edit a total if this job is complex</span></div>
     <div id="gutterDownpipeWrap"></div>
-  </div>
-
-  <!-- MATERIAL PRICE — auto-quantified from the drawing × Price Book.
-       Each row has a variant dropdown (with a hint to add more options
-       in Price Settings) and an editable qty. The total auto-fills the
-       Materials line on the Quote. Flashings get a 1.2× wastage factor
-       on the auto-quantity. -->
-  <div class="card" id="materialPriceCard">
-    <div class="card-hd"><span class="card-dot"></span>Material Price
-      <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Quantities auto-calc from your drawing — adjust any row manually</span>
-      <button onclick="openPriceSettings()" style="margin-left:auto;padding:5px 12px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">⚙ Price settings</button>
-      <button onclick="renderMaterialPriceTable();try{resyncQuoteLines();}catch(e){}" style="margin-left:6px;padding:5px 12px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↻ Refresh &amp; sync to Quote</button>
-    </div>
-    <p style="font-size:11px;color:var(--text2);margin:-8px 0 10px">Flashing quantities include a <strong>1.2× wastage allowance</strong>. Drop-down on each row lets you swap product variants (add more in <strong>Settings → Price book</strong>).</p>
-    <div id="materialPriceRoofPicker" style="display:none;margin-bottom:10px"></div>
-    <div id="materialPriceTableWrap">
-      <p style="font-size:12px;color:var(--text2)">Draw your roof on the Map Roof tab and set unit prices in Settings → Price book — this table will auto-populate.</p>
-    </div>
   </div>
 
   <!-- PER-ROOF PRICE BREAKDOWN — only shown on multi-roof jobs. Roof 1 is the
@@ -9013,30 +9022,31 @@ function calcLabour(){
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
       '<strong style="font-size:13px">'+esc(_pricingRoofName(ri))+' labour · '+dispHrs.toFixed(1)+' hrs</strong>'+
       '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+dispPrice.toFixed(2)+'</span>'+
-    '</div>'+
-    // Scaffolding (per roof)
-    (function(){
-      var pct = _scaffoldPlatformPct();
-      var eff = _scaffoldEff(scR);
-      var isPlat = scR.type === 'platform';
-      return '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">'+
+    '</div>';
+  wrap.innerHTML = html;
+  // Scaffolding renders into its OWN tile (#scaffoldWrap), shown first above
+  // the roof tile — split out of the labour table so the two read separately.
+  var scw = document.getElementById('scaffoldWrap');
+  if (scw){
+    var _scPct = _scaffoldPlatformPct();
+    var _scEff = _scaffoldEff(scR);
+    var _scPlat = scR.type === 'platform';
+    scw.innerHTML =
       _tabs +
-      '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:8px">🪜 Scaffolding — <strong>'+esc(_pricingRoofName(ri))+'</strong> <span style="font-weight:400;color:var(--text2)">'+(isBaseRoof?'· included in every quote':'· added to this roof’s price')+'</span></div>'+
+      '<div style="font-size:11.5px;color:var(--text2);margin-bottom:8px">For <strong>'+esc(_pricingRoofName(ri))+'</strong> '+(isBaseRoof?'· included in every quote':'· added to this roof’s price')+'</div>'+
       '<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--text2);margin-bottom:4px">Scaffolding type</label>'+
         '<select onchange="updateScaffoldType(this.value)" style="width:100%;font-size:12px;padding:6px 8px">'+
-          '<option value="edge"'+(isPlat?'':' selected')+'>Edge-Protection (standard)</option>'+
-          '<option value="platform"'+(isPlat?' selected':'')+'>Platform Scaffolding (+'+pct+'%)</option>'+
+          '<option value="edge"'+(_scPlat?'':' selected')+'>Edge-Protection (standard)</option>'+
+          '<option value="platform"'+(_scPlat?' selected':'')+'>Platform Scaffolding (+'+_scPct+'%)</option>'+
         '</select></div>'+
       '<div class="f2">'+
         '<div><label>Scaffolding cost ($)</label><input type="number" step="1" min="0" value="'+f(scR.cost)+'" onchange="updateScaffold(\'cost\',this.value)"></div>'+
         '<div><label>Scaffolding price ($)</label><input type="number" step="1" min="0" value="'+f(scR.price)+'" onchange="updateScaffold(\'price\',this.value)"></div>'+
       '</div>'+
-      (isPlat
-        ? '<div style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 10px">Platform +'+pct+'% → charged <strong>$'+eff.price.toFixed(2)+'</strong> <span style="color:var(--text2)">(cost $'+eff.cost.toFixed(2)+')</span></div>'
-        : '')+
-    '</div>';
-    })();
-  wrap.innerHTML = html;
+      (_scPlat
+        ? '<div style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 10px">Platform +'+_scPct+'% → charged <strong>$'+_scEff.price.toFixed(2)+'</strong> <span style="color:var(--text2)">(cost $'+_scEff.cost.toFixed(2)+')</span></div>'
+        : '');
+  }
 
   // Roll up to the quote (price feeds the combined quote total; cost +
   // hours feed the profitability panel).
