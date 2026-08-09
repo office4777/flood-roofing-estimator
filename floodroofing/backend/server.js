@@ -183,7 +183,9 @@ async function _gasSendMail({ to, cc, subject, text, html, attachment }) {
     fromName,
     replyTo: EMAIL_REPLYTO || '',
   };
-  if (html) payload.html = html;
+  // Send the HTML body under both common keys so whichever the Apps Script
+  // relay reads (html / htmlBody) picks it up and calls GmailApp with htmlBody.
+  if (html) { payload.html = html; payload.htmlBody = html; }
   if (attachment && attachment.base64) {
     payload.attachment = {
       base64: attachment.base64,
@@ -1984,7 +1986,7 @@ async function _ensureIndexes(){
 }
 
 app.listen(PORT, () => {
-  console.log('RoofMap backend running on port ' + PORT + ' · build: quote-activity-shared-filter-v2');
+  console.log('RoofMap backend running on port ' + PORT + ' · build: email-html-button-v3');
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
   console.log('Stripe: disabled');
   try { _keepWarm(); } catch(e){}
