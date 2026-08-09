@@ -5848,8 +5848,7 @@ function renderMaterialPriceTable(){
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
       '<strong style="font-size:13px">'+(_multiMat ? ('Materials — '+esc(_matRoofNm)) : 'Total materials → Quote')+_gradeSpan+'</strong>'+
       '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+_finalMat.toFixed(2)+'</span>'+
-    '</div>'+
-    (_multiMat ? '<div style="font-size:11px;color:var(--text2);margin-top:6px">Showing <strong>'+esc(_matRoofNm)+'</strong>'+(_matRi===0?' — the base quote.':' — an optional extra roof.')+' Switch roofs with the buttons above. Every roof\'s price is summed in the <strong>Per-roof price breakdown</strong> below.</div>' : '');
+    '</div>';
   if (deletedCount > 0) {
     html += '<div style="margin-top:8px;font-size:11px;color:var(--text2)">'+deletedCount+' row'+(deletedCount===1?'':'s')+' deleted — <button onclick="restoreDeletedMatRows()" style="background:none;border:none;color:#0099cc;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">restore all</button></div>';
   }
@@ -9180,8 +9179,7 @@ function renderGutterDownpipePricing(){
         '<tr><td colspan="3" style="text-align:right;font-weight:700">Material</td><td style="text-align:right;font-weight:700;color:#2e7d32">'+money(matCharge)+'</td></tr>'+
       '</tfoot>'+
     '</table>'+
-    '<div class="f2" style="margin-top:12px">'+
-      '<div><label>Gutter total ($ ex-GST)</label><input type="number" step="1" min="0" value="'+gVal.toFixed(2)+'" onchange="_setGutterPriceOverride(this.value)"><div style="font-size:10.5px;color:var(--text3);margin-top:2px">computed '+money(gComputed)+' = material '+money(matCharge)+' + labour '+money(labCharge)+'</div></div>'+
+    '<div style="margin-top:12px">'+
       '<div><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" '+(dOn?'checked':'')+' onchange="_toggleDownpipesPricing(this.checked)" style="width:auto;margin:0"> New downpipes</label>'+
         '<input type="number" step="1" min="0" '+(dOn?'':'disabled')+' value="'+dVal.toFixed(2)+'" onchange="_setDownpipePriceOverride(this.value)" style="'+(dOn?'':'opacity:.5')+'"><div style="font-size:10.5px;color:var(--text3);margin-top:2px">computed '+money(dComputed)+'</div></div>'+
     '</div>'+
