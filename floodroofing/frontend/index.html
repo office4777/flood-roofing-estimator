@@ -329,8 +329,8 @@ body{
 #tab-scope .card{
   padding:0 14px 14px;
   margin-bottom:16px;
-  border:1px solid var(--border);
-  border-left:4px solid var(--accent);
+  border:2px solid var(--accent);        /* accent runs right around the tile */
+  border-left-width:8px;                 /* wider on the left */
   border-radius:12px;
   box-shadow:0 2px 8px rgba(10,22,40,.06);
   overflow:hidden;
@@ -377,21 +377,21 @@ body{
    tile BODY stays white so the tables + green totals inside read cleanly —
    the colour lives in the header, not clashing with everything inside. */
 #tab-scope .card{ background:#fff; }
-#tab-scope #scaffoldCard          { border-left-color:#475569; }
+#tab-scope #scaffoldCard          { border-color:#475569; }
 #tab-scope #scaffoldCard .card-hd { background:#e2e8f0;color:#334155; }
-#tab-scope #roofPriceTile          { border-left-color:#2563eb; }
+#tab-scope #roofPriceTile          { border-color:#2563eb; }
 #tab-scope #roofPriceTile .card-hd { background:#dbe8ff;color:#1d4ed8; }
-#tab-scope #gutterDownpipeCard          { border-left-color:#0891b2; }
+#tab-scope #gutterDownpipeCard          { border-color:#0891b2; }
 #tab-scope #gutterDownpipeCard .card-hd { background:#cdeef5;color:#0e7490; }
-#tab-scope #perRoofBreakdownCard          { border-left-color:#7c3aed; }
+#tab-scope #perRoofBreakdownCard          { border-color:#7c3aed; }
 #tab-scope #perRoofBreakdownCard .card-hd { background:#e7dcff;color:#6d28d9; }
-#tab-scope #profitCard          { border-left-color:#16a34a; }
+#tab-scope #profitCard          { border-color:#16a34a; }
 #tab-scope #profitCard .card-hd { background:#d6f0e0;color:#15803d; }
 /* The material sub-block's roof switch is redundant with the labour tabs
    directly above it in the same tile — hide it. */
 #tab-scope #roofPriceTile #materialPriceRoofPicker{ display:none !important; }
 /* Action bar isn't a titled tile — keep it plain. */
-#tab-scope .card.mat-actions{ padding:14px 16px;border-left:1px solid var(--border);background:var(--surface);box-shadow:none; }
+#tab-scope .card.mat-actions{ padding:14px 16px;border:1px solid var(--border);background:var(--surface);box-shadow:none; }
 /* Density: tighter table cells throughout the pricing tiles. */
 #tab-scope .price-tbl th, #tab-scope .price-tbl td{ padding:5px 7px !important; }
 
