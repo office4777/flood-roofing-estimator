@@ -451,24 +451,59 @@ app.get('/jobs/:id', requireAuth, async (req, res) => {
   res.json(data);
 });
 
-// Publish ONLY the quote onto an existing job — a tiny payload (a few KB) vs
-// the full draw_state save which re-uploads the aerial screenshot + every job
-// photo (megabytes). The customer /q/:token view reads exactly this quote, so
-// generating / pushing the customer link doesn't need the heavy photo upload.
-// Read-modify-write keeps the rest of draw_state (photos, roof, etc.) intact;
-// the client→server upload is only the quote, and the server↔DB merge is local.
+// Lazy shared Postgres pool (for targeted jsonb updates that don't round-trip
+// the whole multi-MB draw_state). Null when DATABASE_URL isn't set.
+let _pgPoolInst = null, _pgPoolTried = false;
+function _pgPool(){
+  if (_pgPoolTried) return _pgPoolInst;
+  _pgPoolTried = true;
+  if (!process.env.DATABASE_URL) return null;
+  try {
+    const { Pool } = require('pg');
+    _pgPoolInst = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 4, idleTimeoutMillis: 30000, connectionTimeoutMillis: 8000 });
+    _pgPoolInst.on('error', function(e){ console.warn('pg pool error:', e.message); });
+  } catch(e){ console.warn('pg pool init failed:', e.message); _pgPoolInst = null; }
+  return _pgPoolInst;
+}
+
+// Publish ONLY the quote onto an existing job. The customer /q/:token view reads
+// exactly this quote, so the customer link / Fergus push don't need the heavy
+// photo+aerial upload. FAST PATH: a single UPDATE with a jsonb merge so the
+// multi-MB draw_state never travels DB→server→DB (the old read-modify-write
+// round-tripped the whole aerial + photos on EVERY publish — that was the "takes
+// ages" regression). Falls back to the supabase read-modify-write if there's no
+// direct DB connection.
 app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
   const quote = req.body && req.body.quote;
   if (!quote || typeof quote !== 'object') return res.status(400).json({ error: 'quote object required' });
+  const clientName = req.body.client_name ? String(req.body.client_name).slice(0, 300) : null;
+  const siteAddr   = req.body.site_address ? String(req.body.site_address).slice(0, 500) : null;
+  const pool = _pgPool();
+  if (pool) {
+    try {
+      // Merge quote into draw_state.state.quote, preserving every other key.
+      const sql = "UPDATE public.jobs SET draw_state = " +
+        "coalesce(draw_state,'{}'::jsonb) || jsonb_build_object('state', " +
+        "coalesce(draw_state->'state','{}'::jsonb) || jsonb_build_object('quote', $1::jsonb)), " +
+        "client_name = coalesce($2, client_name), site_address = coalesce($3, site_address), " +
+        "updated_at = now() WHERE id = $4 AND user_id = $5";
+      const r = await pool.query(sql, [JSON.stringify(quote), clientName, siteAddr, req.params.id, req.user.id]);
+      if (r.rowCount === 0) return res.status(404).json({ error: 'Job not found' });
+      return res.json({ ok: true, id: req.params.id, fast: true });
+    } catch (e) {
+      console.error('quote fast-update failed, falling back to read-modify-write:', e.message);
+      // fall through
+    }
+  }
   const { data: job, error } = await supabase.from('jobs')
-    .select('id, draw_state, client_name, site_address').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    .select('id, draw_state').eq('id', req.params.id).eq('user_id', req.user.id).single();
   if (error || !job) return res.status(404).json({ error: 'Job not found' });
   const ds = job.draw_state || {};
   ds.state = ds.state || {};
   ds.state.quote = quote;
   const patch = { draw_state: ds, updated_at: new Date().toISOString() };
-  if (req.body.client_name) patch.client_name = String(req.body.client_name).slice(0, 300);
-  if (req.body.site_address) patch.site_address = String(req.body.site_address).slice(0, 500);
+  if (clientName) patch.client_name = clientName;
+  if (siteAddr) patch.site_address = siteAddr;
   const { error: uerr } = await supabase.from('jobs').update(patch).eq('id', job.id).eq('user_id', req.user.id);
   if (uerr) return res.status(500).json({ error: uerr.message });
   res.json({ ok: true, id: job.id });

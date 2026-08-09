@@ -12942,8 +12942,22 @@ function _qpStashRoofGeom(showBg){
   var bg = null, bgW = 0, bgH = 0;
   if (showBg && DRAW.bgImg && DRAW.bgImg.naturalWidth){
     try {
-      if (!DRAW.bgImg._cachedDataUrl){ var cc=document.createElement('canvas'); cc.width=DRAW.bgImg.naturalWidth; cc.height=DRAW.bgImg.naturalHeight; cc.getContext('2d').drawImage(DRAW.bgImg,0,0); DRAW.bgImg._cachedDataUrl=cc.toDataURL('image/jpeg',0.85); }
-      bg = DRAW.bgImg._cachedDataUrl; bgW = DRAW.bgImg.naturalWidth; bgH = DRAW.bgImg.naturalHeight;
+      // The aerial rides INSIDE the quote (so the customer map shows it without
+      // the live drawing). A full-res JPEG is ~1 MB — that bloats every quote
+      // publish (customer link, Fergus push) and the activity feed. Downscale
+      // to a modest max dimension + lower quality: it's only a faint background,
+      // so ~120 KB looks the same but publishes ~8× faster. Cached separately
+      // from _cachedDataUrl (which other features need at full res).
+      if (!DRAW.bgImg._cachedGeomBg){
+        var MAXD = 1000;
+        var nw = DRAW.bgImg.naturalWidth, nh = DRAW.bgImg.naturalHeight;
+        var sc = Math.min(1, MAXD / Math.max(nw, nh));
+        var cw = Math.max(1, Math.round(nw * sc)), ch = Math.max(1, Math.round(nh * sc));
+        var cc = document.createElement('canvas'); cc.width = cw; cc.height = ch;
+        cc.getContext('2d').drawImage(DRAW.bgImg, 0, 0, cw, ch);
+        DRAW.bgImg._cachedGeomBg = cc.toDataURL('image/jpeg', 0.62);
+      }
+      bg = DRAW.bgImg._cachedGeomBg; bgW = DRAW.bgImg.naturalWidth; bgH = DRAW.bgImg.naturalHeight;
     } catch(e){ bg = null; }
   }
   var R2 = function(v){ return +(+v).toFixed(1); };
