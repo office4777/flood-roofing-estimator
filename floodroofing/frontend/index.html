@@ -337,18 +337,19 @@ body{
 }
 #tab-scope .card-hd{
   margin:0 -14px 14px;
-  padding:13px 16px;
+  padding:16px 16px 14px;
   background:rgba(10,22,40,.04);
   border-bottom:1px solid rgba(10,22,40,.12);
-  font-size:17px;
+  font-size:26px;
   font-weight:800;
-  letter-spacing:-.02em;
-  line-height:1.15;
+  letter-spacing:-.025em;
+  line-height:1.05;
+  align-items:baseline;
   flex-wrap:wrap;
 }
 #tab-scope .card-hd .card-dot{ display:none; }
-#tab-scope .card-hd .tile-ic{ font-size:18px;margin-right:2px; }
-#tab-scope .card-hd .tile-sub-note{ font-size:11px;font-weight:500;color:var(--text2);margin-left:0;flex-basis:100%;margin-top:3px;text-transform:none;letter-spacing:0; }
+#tab-scope .card-hd .tile-ic{ font-size:24px;margin-right:4px; }
+#tab-scope .card-hd .tile-sub-note{ font-size:11.5px;font-weight:500;color:var(--text2);margin-left:0;flex-basis:100%;margin-top:5px;text-transform:none;letter-spacing:0; }
 
 /* Sticky Main Roof / Roof 2 switch in the pricing-panel header. */
 #pricingRoofSwitchBar{
@@ -372,18 +373,20 @@ body{
 #tab-scope .tile-mini-btn{ margin-left:auto;padding:4px 9px;font-size:10.5px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-weight:600;color:#0a1628; }
 #tab-scope .tile-mini-btn-dark{ background:#0a1628;color:#fff;border-color:#0a1628;margin-left:6px; }
 #tab-scope .tile-note{ font-size:11px;color:var(--text2);margin:0 0 10px; }
-/* Per-tile accent + tint (a touch darker so the sections stand apart). The
-   header band is a deeper shade of the same hue, title in the accent colour. */
-#tab-scope #scaffoldCard          { border-left-color:#475569;background:#e8edf3; }
-#tab-scope #scaffoldCard .card-hd { background:#d6deea;color:#334155; }
-#tab-scope #roofPriceTile          { border-left-color:#2563eb;background:#e6effd; }
-#tab-scope #roofPriceTile .card-hd { background:#d0e2ff;color:#1d4ed8; }
-#tab-scope #gutterDownpipeCard          { border-left-color:#0891b2;background:#ddf4f9; }
-#tab-scope #gutterDownpipeCard .card-hd { background:#c3ebf3;color:#0e7490; }
-#tab-scope #perRoofBreakdownCard          { border-left-color:#7c3aed;background:#efe9fd; }
-#tab-scope #perRoofBreakdownCard .card-hd { background:#e0d4ff;color:#6d28d9; }
-#tab-scope #profitCard          { border-left-color:#16a34a;background:#e5f6ec; }
-#tab-scope #profitCard .card-hd { background:#cfeeda;color:#15803d; }
+/* Each tile's IDENTITY is its coloured header band + left accent stripe. The
+   tile BODY stays white so the tables + green totals inside read cleanly —
+   the colour lives in the header, not clashing with everything inside. */
+#tab-scope .card{ background:#fff; }
+#tab-scope #scaffoldCard          { border-left-color:#475569; }
+#tab-scope #scaffoldCard .card-hd { background:#e2e8f0;color:#334155; }
+#tab-scope #roofPriceTile          { border-left-color:#2563eb; }
+#tab-scope #roofPriceTile .card-hd { background:#dbe8ff;color:#1d4ed8; }
+#tab-scope #gutterDownpipeCard          { border-left-color:#0891b2; }
+#tab-scope #gutterDownpipeCard .card-hd { background:#cdeef5;color:#0e7490; }
+#tab-scope #perRoofBreakdownCard          { border-left-color:#7c3aed; }
+#tab-scope #perRoofBreakdownCard .card-hd { background:#e7dcff;color:#6d28d9; }
+#tab-scope #profitCard          { border-left-color:#16a34a; }
+#tab-scope #profitCard .card-hd { background:#d6f0e0;color:#15803d; }
 /* The material sub-block's roof switch is redundant with the labour tabs
    directly above it in the same tile — hide it. */
 #tab-scope #roofPriceTile #materialPriceRoofPicker{ display:none !important; }
@@ -5816,7 +5819,7 @@ function renderMaterialPriceTable(){
   var _gradeAdj = total * (_gf - 1);
   if (Math.abs(_gradeAdj) > 0.005) {
     var _pctTxt = Math.abs((_gf - 1) * 100).toFixed(1).replace(/\.0$/,'') + '%';
-    html += '<tr style="background:#f4f8ff">'+
+    html += '<tr style="background:#f7f8fa">'+
       '<td style="font-weight:600">Steel grade — '+esc(_gradeLabel(_grade))+
         '<div style="font-size:10px;color:var(--text2);margin-top:2px">vs Colorsteel® MAXAM standard</div></td>'+
       '<td style="font-size:11px;color:var(--text2)">applies to roofing steel</td>'+
@@ -5831,7 +5834,7 @@ function renderMaterialPriceTable(){
   // row and folded into the material total that feeds the quote.
   var _mkPct = _roofMatMarkupPct(), _mkAmt = _gradeTotal * (_mkPct/100);
   var _finalMat = _gradeTotal + _mkAmt;
-  html += '<tr style="background:#f4f8ff">'+
+  html += '<tr style="background:#f7f8fa">'+
     '<td style="font-weight:600">Safety buffer / markup'+
       '<div style="font-size:10px;color:var(--text2);margin-top:2px">margin on material cost</div></td>'+
     '<td colspan="2"><div style="display:flex;align-items:center;gap:4px"><input type="number" step="1" min="0" value="'+_mkPct+'" onchange="_setRoofMatMarkup(this.value)" style="width:64px;font-size:12px;padding:4px 6px;text-align:right"><span style="font-size:11px;color:var(--text2)">%</span></div></td>'+
@@ -9039,7 +9042,7 @@ function calcLabour(){
   var scR = _roofScaffold(ri);
   var html =
     (_multiRoofLab
-      ? '<div style="font-size:11.5px;color:#0a1628;background:'+(isBaseRoof?'#eef6ff':'#fff7ed')+';border:1px solid '+(isBaseRoof?'#cfe0f5':'#fed7aa')+';border-radius:8px;padding:7px 10px;margin-bottom:10px">Editing <strong>'+esc(_pricingRoofName(ri))+'</strong>'+(isBaseRoof?' — the base quote. Switch roofs at the top of the panel.':' — an optional extra roof (its own price). Switch roofs at the top of the panel.')+'</div>'
+      ? '<div style="font-size:11.5px;color:var(--text2);background:#f4f5f7;border:1px solid #e3e6ea;border-radius:8px;padding:7px 10px;margin-bottom:10px">Editing <strong style="color:#0a1628">'+esc(_pricingRoofName(ri))+'</strong>'+(isBaseRoof?' — the base quote.':' — an optional extra roof (its own price).')+' Switch roofs at the top of the panel.</div>'
       : '')+
     _labourCalcPanelHtml(ri)+
     '<table class="price-tbl" style="table-layout:fixed;width:100%">'+
