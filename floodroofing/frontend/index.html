@@ -2868,7 +2868,6 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button onclick="openPriceSettings()" class="tile-mini-btn">⚙ Prices</button>
         <button onclick="renderMaterialPriceTable();try{resyncQuoteLines();}catch(e){}" class="tile-mini-btn tile-mini-btn-dark">↻ Refresh</button>
       </div>
-      <p class="tile-note">Quantities auto-calc from your drawing (flashings include a <strong>1.2× wastage</strong> allowance). Swap variants per row, or add more in Settings → Price book.</p>
       <div id="materialPriceRoofPicker" style="display:none;margin-bottom:10px"></div>
       <div id="materialPriceTableWrap">
         <p style="font-size:12px;color:var(--text2)">Draw your roof on the Map Roof tab and set unit prices in Settings → Price book — this table will auto-populate.</p>
@@ -6088,8 +6087,7 @@ function _labourCalcPanelHtml(ri){
     '<span style="font-size:10.5px;color:var(--text2)">roofing only · scaffolding excluded</span>'+
   '</div>';
   if (!on) {
-    return '<div style="margin-bottom:12px;padding:9px 11px;background:#f1f7ff;border:1px solid #cfe0f5;border-radius:8px">'+head+
-      '<div style="font-size:11px;color:var(--text2)">Sets the Lead + Apprentice hours from the roof measurements (area, sheets, cuts, flashings, penetrations) ÷ your m/hr rates.</div></div>';
+    return '<div style="margin-bottom:12px;padding:9px 11px;background:#f1f7ff;border:1px solid #cfe0f5;border-radius:8px">'+head+'</div>';
   }
   var calc = _labourCalcHours(ri);
   var rateInput = function(r){ return '<input type="number" step="0.5" min="0" value="'+r.rate+'" onchange="_setLabourCalcRate(\''+r.key+'\',this.value)" style="width:54px;font-size:11px;padding:3px 5px;text-align:right;margin:0">'; };
