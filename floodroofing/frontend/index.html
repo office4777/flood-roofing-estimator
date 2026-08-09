@@ -6392,7 +6392,7 @@ function restoreFromJob(j){
     Object.assign(S, snap.state);
     if (S.img64) {
       var img = document.getElementById('roofPrevImg');
-      if (img) { img.src = 'data:image/png;base64,' + S.img64;
+      if (img) { img.src = _img64ToDataUrl(S.img64);
         var pv=document.getElementById('roofPrev'); if(pv) pv.style.display='block';
         var uz=document.getElementById('roofUZ'); if(uz) uz.style.display='none';
       }
@@ -7477,7 +7477,7 @@ function onRoofImg(e){
   var f=e.target.files[0];if(!f)return;
   var r=new FileReader();
   r.onload=function(ev){
-    S.img64=ev.target.result.split(',')[1];
+    _storeAerialCompressed(ev.target.result);
     document.getElementById('roofPrevImg').src=ev.target.result;
     document.getElementById('roofPrev').style.display='block';
     document.getElementById('roofUZ').style.display='none';
@@ -7544,10 +7544,51 @@ function _closeAerialModal(){
 // Push a data URL into the roof preview the same way onRoofImg does for
 // a file picker — used by the Fergus picker after it downloads a chosen
 // photo via the backend proxy.
+// Build a data URL from the stored aerial base64, detecting JPEG vs PNG from
+// its signature (JPEG base64 starts with "/", PNG with "i"). Keeps old
+// PNG-saved jobs working after we switched new saves to JPEG.
+function _img64ToDataUrl(b64){
+  if (!b64) return '';
+  var mime = (String(b64).charAt(0) === '/') ? 'image/jpeg' : 'image/png';
+  return 'data:' + mime + ';base64,' + b64;
+}
+// Downscale + JPEG-compress an aerial so a SAVED job stays small — a raw PNG
+// satellite screenshot is often several MB, which made every save / job-open /
+// customer-link slow. 1600px is still plenty to trace roofs on.
+function _compressAerialB64(dataUrl, cb){
+  try {
+    var im = new Image();
+    im.onload = function(){
+      try {
+        var MAXD = 1600;
+        var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+        var sc = Math.min(1, MAXD / Math.max(w, h));
+        var cw = Math.max(1, Math.round(w * sc)), ch = Math.max(1, Math.round(h * sc));
+        var c = document.createElement('canvas'); c.width = cw; c.height = ch;
+        c.getContext('2d').drawImage(im, 0, 0, cw, ch);
+        var out = c.toDataURL('image/jpeg', 0.72).split(',')[1];
+        cb(out || null);
+      } catch(e){ cb(null); }
+    };
+    im.onerror = function(){ cb(null); };
+    im.src = dataUrl;
+  } catch(e){ cb(null); }
+}
+// Replace S.img64 with a compressed version (in the background) so the saved
+// job is small. The on-screen preview keeps the original until it's ready.
+function _storeAerialCompressed(dataUrl){
+  var orig = dataUrl.split(',')[1] || '';
+  if (!orig) return;
+  S.img64 = orig;
+  _compressAerialB64(dataUrl, function(small){
+    if (small && small.length < orig.length) S.img64 = small;
+    try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+  });
+}
 function _setRoofImgFromDataUrl(dataUrl){
   var b64 = dataUrl.split(',')[1];
   if (!b64) return;
-  S.img64 = b64;
+  _storeAerialCompressed(dataUrl);
   var img = document.getElementById('roofPrevImg');
   if (img) img.src = dataUrl;
   var prev = document.getElementById('roofPrev'); if (prev) prev.style.display = 'block';
@@ -7799,7 +7840,7 @@ async function analyseRoof(){
     '}';
 
   try {
-    var resp=await claudeCall({model:'claude-haiku-4-5-20251001',max_tokens:4000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:S.img64}},{type:'text',text:prompt}]}]});
+    var resp=await claudeCall({model:'claude-haiku-4-5-20251001',max_tokens:4000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:(S.img64&&String(S.img64).charAt(0)==='/'?'image/jpeg':'image/png'),data:S.img64}},{type:'text',text:prompt}]}]});
     if(!resp.ok)throw new Error('AI error '+resp.status);
     var data = await resp.json();
     if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
@@ -12949,13 +12990,13 @@ function _qpStashRoofGeom(showBg){
       // so ~120 KB looks the same but publishes ~8× faster. Cached separately
       // from _cachedDataUrl (which other features need at full res).
       if (!DRAW.bgImg._cachedGeomBg){
-        var MAXD = 1000;
+        var MAXD = 680;
         var nw = DRAW.bgImg.naturalWidth, nh = DRAW.bgImg.naturalHeight;
         var sc = Math.min(1, MAXD / Math.max(nw, nh));
         var cw = Math.max(1, Math.round(nw * sc)), ch = Math.max(1, Math.round(nh * sc));
         var cc = document.createElement('canvas'); cc.width = cw; cc.height = ch;
         cc.getContext('2d').drawImage(DRAW.bgImg, 0, 0, cw, ch);
-        DRAW.bgImg._cachedGeomBg = cc.toDataURL('image/jpeg', 0.62);
+        DRAW.bgImg._cachedGeomBg = cc.toDataURL('image/jpeg', 0.5);
       }
       bg = DRAW.bgImg._cachedGeomBg; bgW = DRAW.bgImg.naturalWidth; bgH = DRAW.bgImg.naturalHeight;
     } catch(e){ bg = null; }
