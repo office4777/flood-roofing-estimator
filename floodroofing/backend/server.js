@@ -167,7 +167,7 @@ async function _gasVerify() {
   if (r.ok && parsed && parsed.ok) return { ok: true };
   throw new Error('Google relay URL did not respond as expected (' + r.status + '). Make sure GAS_MAIL_URL is the deployed Apps Script web-app URL.');
 }
-async function _gasSendMail({ to, cc, subject, text, attachment }) {
+async function _gasSendMail({ to, cc, subject, text, html, attachment }) {
   const m = /^\s*"?([^"<]+?)"?\s*</.exec(EMAIL_FROM || '');
   const fromName = (m && m[1].trim()) || 'Flood Roofing';
   const payload = {
@@ -177,6 +177,7 @@ async function _gasSendMail({ to, cc, subject, text, attachment }) {
     fromName,
     replyTo: EMAIL_REPLYTO || '',
   };
+  if (html) payload.html = html;
   if (attachment && attachment.base64) {
     payload.attachment = {
       base64: attachment.base64,
@@ -197,9 +198,10 @@ async function _gasSendMail({ to, cc, subject, text, attachment }) {
   }
   return { messageId: parsed.id || null };
 }
-async function _resendSendMail({ to, cc, subject, text, attachment }) {
+async function _resendSendMail({ to, cc, subject, text, html, attachment }) {
   if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="Flood Roofing <office@floodroofing.co.nz>" (once that domain is verified in Resend → Domains).');
   const payload = { from: EMAIL_FROM, to: [to], subject, text };
+  if (html) payload.html = html;
   if (cc) payload.cc = [cc];
   if (attachment && attachment.base64) {
     payload.attachments = [{ filename: attachment.filename || 'order.pdf', content: attachment.base64 }];
@@ -222,23 +224,24 @@ function _money(n) {
 // One place that picks whichever mail transport is configured (Google
 // relay → Resend → SMTP) and sends. Shared by /email/send-order and the
 // customer accept-notification route so both behave identically.
-async function _dispatchMail({ to, cc, subject, text, attachment }) {
+async function _dispatchMail({ to, cc, subject, text, html, attachment }) {
   if (attachment && attachment.base64) {
     attachment.filename = String(attachment.filename || 'attachment.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
   }
   const subj = String(subject || '').slice(0, 300);
   const body = String(text || '');
+  const htmlBody = html ? String(html) : undefined;
   if (GAS_ENABLED) {
-    return _gasSendMail({ to, cc, subject: subj, text: body, attachment });
+    return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment });
   } else if (RESEND_ENABLED) {
-    return _resendSendMail({ to, cc, subject: subj, text: body, attachment });
+    return _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment });
   }
   const from = process.env.SMTP_FROM || process.env.SMTP_USER;
   const attachments = (attachment && attachment.base64)
     ? [{ filename: attachment.filename, content: Buffer.from(attachment.base64, 'base64'), contentType: 'application/pdf' }]
     : [];
   const resolved = await _resolveMailTransport();
-  return resolved.transporter.sendMail({ from, to, cc: cc || undefined, subject: subj, text: body, attachments });
+  return resolved.transporter.sendMail({ from, to, cc: cc || undefined, subject: subj, text: body, html: htmlBody, attachments });
 }
 function _buildSmtpTransport(port, secure) {
   const nodemailer = require('nodemailer');
@@ -1873,7 +1876,7 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
     return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
   }
   try {
-    const { to, cc, subject, text, attachment } = req.body || {};
+    const { to, cc, subject, text, html, attachment } = req.body || {};
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!to || !emailRe.test(String(to))) return res.status(400).json({ error: 'Valid "to" address required' });
     if (cc && !emailRe.test(String(cc)))  return res.status(400).json({ error: 'CC address is not a valid email' });
@@ -1886,7 +1889,7 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
       }
       attachment.filename = String(attachment.filename || 'order.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
     }
-    const info = await _dispatchMail({ to, cc, subject, text, attachment });
+    const info = await _dispatchMail({ to, cc, subject, text, html: (html ? String(html).slice(0, 200000) : undefined), attachment });
     res.json({ ok: true, id: info.messageId || null });
   } catch (e) {
     console.error('send-order email failed:', e.message);
