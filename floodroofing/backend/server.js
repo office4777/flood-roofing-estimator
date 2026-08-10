@@ -1960,7 +1960,20 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
       }
       attachment.filename = String(attachment.filename || 'order.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
     }
-    const info = await _dispatchMail({ to, cc, subject, text, html: (html ? String(html).slice(0, 200000) : undefined), attachment });
+    const mail = { to, cc, subject, text, html: (html ? String(html).slice(0, 200000) : undefined), attachment };
+    // The Google Apps Script relay can take 10-20s to wake + send, which made
+    // the office wait on the "Send" button. When the caller opts into
+    // background mode, dispatch the send without blocking the response: this
+    // process is long-lived (Railway), so the promise completes after we reply.
+    // Failures are logged; the office is CC'd on quote emails as the human
+    // safety net. Attachment sends stay synchronous so their result is known.
+    if ((req.body && req.body.background === true) && !(attachment && attachment.base64)) {
+      _dispatchMail(mail)
+        .then(function(info){ console.log('send-order (bg) sent to', to, '·', (info && info.messageId) || ''); })
+        .catch(function(e){ console.error('send-order (bg) email failed to', to, ':', e.message); });
+      return res.status(202).json({ ok: true, queued: true });
+    }
+    const info = await _dispatchMail(mail);
     res.json({ ok: true, id: info.messageId || null });
   } catch (e) {
     console.error('send-order email failed:', e.message);
@@ -1987,11 +2000,15 @@ app.get('/proxy-image', async (req, res) => {
 // GitHub Action (keep-warm.yml) pings from outside too, which can wake a fully
 // slept instance; this internal timer keeps a running one lively between those.
 function _keepWarm(){
-  const dom = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.KEEPWARM_HOST;
+  // Prefer the platform-provided domain; fall back to the known public URL so
+  // the self-ping runs even if RAILWAY_PUBLIC_DOMAIN isn't set on this service.
+  const dom = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.KEEPWARM_HOST
+    || 'flood-roofing-estimator-production.up.railway.app';
   if (!dom || typeof fetch !== 'function') return;
   const url = (/^https?:\/\//.test(dom) ? dom : 'https://' + dom).replace(/\/+$/, '') + '/health';
   const ping = () => { try { fetch(url, { cache: 'no-store' }).catch(function(){}); } catch(e){} };
-  const t = setInterval(ping, 4 * 60 * 1000);
+  ping();                                   // warm immediately on boot
+  const t = setInterval(ping, 150 * 1000);  // every 2.5 min — stay under the idle window
   if (t && t.unref) t.unref();
 }
 
@@ -2014,7 +2031,7 @@ async function _ensureIndexes(){
 }
 
 app.listen(PORT, () => {
-  console.log('RoofMap backend running on port ' + PORT + ' · build: speed-jsonb-lowres-v4');
+  console.log('RoofMap backend running on port ' + PORT + ' · build: email-bg-keepwarm-v5');
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
   console.log('Stripe: disabled');
   try { _keepWarm(); } catch(e){}

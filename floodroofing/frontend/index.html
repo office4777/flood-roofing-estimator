@@ -16714,8 +16714,11 @@ async function _quoteEmailSendNow(){
     var html = _quoteEmailHtml(body);
     if (btn) btn.textContent = 'Sending…';
     _quoteEmailStatus('Sending to ' + to + '…');
+    // background:true → the backend queues the send and replies immediately
+    // instead of blocking on the slow mail relay (the office is CC'd as the
+    // delivery check).
     await api('POST', '/email/send-order', {
-      to: to, cc: cc || undefined, subject: subject, text: body, html: html
+      to: to, cc: cc || undefined, subject: subject, text: body, html: html, background: true
     });
     _tSend = (function(){ try { return ((window.performance && performance.now) ? performance.now() : +new Date()) - _t0 - _tPub; } catch(e){ return 0; } })();
     // Email is out — NOW persist the job's photos/aerial in the background so
