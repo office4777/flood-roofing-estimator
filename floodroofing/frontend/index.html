@@ -9067,58 +9067,30 @@ var MAIN_SCOPE_PRESETS = {
 // starting a section (Scope of Work / Warranty) render as headings; the rest
 // render as numbered inclusions. The user can edit the text inline afterwards.
 var MAIN_SCOPE_DESCRIPTIONS = {
-  reroof: `Scope of Work – Re-Roof
-
-This quotation includes the following work:
-
-Install edge protection/scaffolding as required for safe access.
-Remove and dispose of the existing roof sheeting.
-Inspect roof framing and replace any rotten or damaged purlins found during the re-roof (within reason).
-Supply and install premium synthetic roof underlay.
-Supply and install new COLORSTEEL® Maxam® long-run roofing (0.40 BMT Corrugate profile unless otherwise specified).
-Supply and install all associated flashings, ridging, barges, apron flashings and closures required for a complete roof.
-Replace all roofing screws with new colour-matched Class 4 fasteners.
-Leave the roof and work area clean and tidy upon completion.
-Remove all roofing waste from site.
-
-Warranty
-
-Manufacturer's warranty on roofing materials (subject to product and environmental conditions).
-Flood Roofing workmanship warranty in accordance with our standard terms and conditions.`,
-  newroof: `Scope of Work – New Roof
-
-This quotation includes the following work:
-
-Install edge protection/scaffolding as required for safe access.
-Supply and install premium synthetic roof underlay.
-Supply and install new COLORSTEEL® Maxam® long-run roofing (0.40 BMT Corrugate profile unless otherwise specified).
-Supply and install all associated flashings, ridging, barges, apron flashings and closures required for a complete roof.
-Fix all roofing with new colour-matched Class 4 fasteners.
-Leave the roof and work area clean and tidy upon completion.
-Remove all roofing waste from site.
-
-Warranty
-
-Manufacturer's warranty on roofing materials (subject to product and environmental conditions).
-Flood Roofing workmanship warranty in accordance with our standard terms and conditions.`,
-  tile2cs: `Scope of Work – Tile to Colorsteel Conversion
-
-This quotation includes the following work:
-
-Install edge protection/scaffolding as required for safe access.
-Remove and dispose of the existing concrete/clay roof tiles.
-Inspect roof framing and install new timber purlins/battens to suit long-run roofing.
-Supply and install premium synthetic roof underlay.
-Supply and install new COLORSTEEL® Maxam® long-run roofing (0.40 BMT Corrugate profile unless otherwise specified).
-Supply and install all associated flashings, ridging, barges, apron flashings and closures required for a complete roof.
-Fix all roofing with new colour-matched Class 4 fasteners.
-Leave the roof and work area clean and tidy upon completion.
-Remove all roofing waste from site.
-
-Warranty
-
-Manufacturer's warranty on roofing materials (subject to product and environmental conditions).
-Flood Roofing workmanship warranty in accordance with our standard terms and conditions.`
+  reroof: `Includes set-up and removal of appropriate Scaffolding
+Strip existing roofing for disposal ourselves or stack for customer to keep (select on page 3)
+Supply & install synthetic Roofing Underlay/Paper DriStud RU24
+Supply & install new Corrugated or 5-Rib Roofing - Colorsteel Maxam included as standard (select on page 3)
+Supply & install all associated Roof Flashings, may include Ridges, Barges, Aprons Pipe penetrations.
+Clean up after ourselves and leave the site tidy
+Supply product warranty and inspect over job
+Final check-in to ensure your happy`,
+  newroof: `Includes set-up and removal of appropriate Scaffolding
+Supply & install synthetic Roofing Underlay/Paper DriStud RU24
+Supply & install new Corrugated or 5-Rib Roofing - Colorsteel Maxam included as standard (select on page 3)
+Supply & install all associated Roof Flashings, may include Ridges, Barges, Aprons Pipe penetrations.
+Clean up after ourselves and leave the site tidy
+Supply product warranty and inspect over job
+Final check-in to ensure your happy`,
+  tile2cs: `Includes set-up and removal of appropriate Scaffolding
+Strip existing tiles for disposal ourselves or stack for customer to keep (select on page 3)
+Supply & install new timber purlins/battens to suit long-run roofing
+Supply & install synthetic Roofing Underlay/Paper DriStud RU24
+Supply & install new Corrugated or 5-Rib Roofing - Colorsteel Maxam included as standard (select on page 3)
+Supply & install all associated Roof Flashings, may include Ridges, Barges, Aprons Pipe penetrations.
+Clean up after ourselves and leave the site tidy
+Supply product warranty and inspect over job
+Final check-in to ensure your happy`
 };
 // Is the current quote scope still an auto-inserted default (blank or matches
 // one of the presets)? Then it's safe to swap when the job type changes.
@@ -15774,7 +15746,7 @@ function refreshQuoteProposal(){
     var _roofScopeLine = '';
     try { _roofScopeLine = _qpRoofScopeLine(); } catch(e){}
     var _scopeInner =
-      '<div class="ed-eyebrow'+(_scopeRaw.trim()?'':' qp-ph')+'" style="margin-bottom:8px">What\'s included</div>'+
+      '<div class="ed-eyebrow'+(_scopeRaw.trim()?'':' qp-ph')+'" style="margin-bottom:8px">What\'s included and our process</div>'+
       (_roofScopeLine ? '<div class="ed-body" style="font-family:var(--ed-sans);font-size:12px;color:var(--ed-ink-2);line-height:1.5;margin:-2px 0 10px">'+_roofScopeLine+'</div>' : '')+
       inclList;
     var _notesInner =
