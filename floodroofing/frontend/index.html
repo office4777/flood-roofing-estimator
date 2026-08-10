@@ -4424,28 +4424,15 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <p style="font-size:11px;color:var(--text2);margin-top:.5rem">Autosave only fires while a job is open (the chip in the sidebar shows the job number).</p>
   </div>
 
-  <!-- Link Job Management System -->
-  <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Link Job Management System</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Pick the platform you run jobs in. Selecting a system opens its setup page where you enter API keys and test the connection. You can still push to a different system per-quote via the <strong>Push to JMS</strong> button on the Quote tab.</p>
-    <div style="display:flex;gap:8px;align-items:flex-end;max-width:520px;flex-wrap:wrap">
-      <div style="flex:1;min-width:240px">
-        <label>Job management system</label>
-        <select id="jmsSelect" onchange="setJMS(this.value)">
-          <option value="none">None — manual quoting only</option>
-          <option value="fergus" selected>Fergus</option>
-          <option value="tradify" disabled>Tradify (coming soon)</option>
-          <option value="servicem8" disabled>ServiceM8 (coming soon)</option>
-          <option value="jobber" disabled>Jobber (coming soon)</option>
-          <option value="aroflo" disabled>AroFlo (coming soon)</option>
-          <option value="simpro" disabled>simPRO (coming soon)</option>
-          <option value="workflowmax" disabled>WorkflowMax (coming soon)</option>
-        </select>
-      </div>
-      <button type="button" id="jmsConfigureBtn" onclick="openJMSSetup()" class="sec-btn" style="margin:0;width:auto;padding:11px 18px">⚙ Configure connection</button>
+  <!-- Link Job Management System — big CTA, shown ONLY when not yet linked.
+       Once a system is connected this hides and the linking UI moves into the
+       "Job Management" settings sub-tab below (see _refreshJmsLinkUI). -->
+  <div class="card" id="jmsBigLinkCard" style="display:none;text-align:center">
+    <div style="padding:12px 0 6px">
+      <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:6px">Link your job management software</div>
+      <p style="font-size:12.5px;color:var(--text2);max-width:560px;margin:0 auto 16px">Connect Fergus so you can push quotes, pricing and files straight onto your jobs. Once it's linked, this tucks away into a tab in your settings.</p>
+      <button type="button" onclick="_openJmsLink()" style="display:inline-flex;align-items:center;gap:10px;padding:15px 30px;background:var(--fr-dark);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 4px 16px rgba(10,22,40,.28)">🔗 Link job management software</button>
     </div>
-    <div id="jmsStatusLine" style="margin-top:10px;font-size:12px;color:var(--text2)"></div>
-    <div id="jmsNoneMsg" style="display:none;margin-top:10px;padding:10px 14px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text2)">No JMS linked. Quotes will print/email locally only.</div>
   </div>
 
   <!-- Placeholder kept so legacy setJMS calls don't error; the actual
@@ -4454,9 +4441,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Settings
-      <button onclick="saveSettings()" id="saveSettingsBtn" style="margin-left:auto;padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save settings</button>
+      <span style="margin-left:auto;font-size:11px;color:var(--text2);font-weight:400">Auto-saves as you type</span>
+      <button onclick="saveSettings()" id="saveSettingsBtn" style="margin-left:10px;padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save now</button>
     </div>
     <div class="tab-row">
+      <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)" style="display:none">🔗 Job Management</button>
       <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Branding</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-pricebook',this)">Price book</button>
@@ -4466,6 +4455,29 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
     </div>
     <span id="saveSettingsMsg" style="font-size:12px;color:var(--text2);margin-left:8px"></span>
+
+    <!-- JOB MANAGEMENT (shown as a tab only once a system is linked) -->
+    <div class="sub-panel settings-sub" id="set-jms" style="margin-top:14px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Pick the platform you run jobs in. Use <strong>Configure connection</strong> to re-test the link or update keys. You can still push to a different system per-quote via the <strong>Push to JMS</strong> button on the Quote tab.</p>
+      <div style="display:flex;gap:8px;align-items:flex-end;max-width:520px;flex-wrap:wrap">
+        <div style="flex:1;min-width:240px">
+          <label>Job management system</label>
+          <select id="jmsSelect" onchange="setJMS(this.value)">
+            <option value="none">None — manual quoting only</option>
+            <option value="fergus" selected>Fergus</option>
+            <option value="tradify" disabled>Tradify (coming soon)</option>
+            <option value="servicem8" disabled>ServiceM8 (coming soon)</option>
+            <option value="jobber" disabled>Jobber (coming soon)</option>
+            <option value="aroflo" disabled>AroFlo (coming soon)</option>
+            <option value="simpro" disabled>simPRO (coming soon)</option>
+            <option value="workflowmax" disabled>WorkflowMax (coming soon)</option>
+          </select>
+        </div>
+        <button type="button" id="jmsConfigureBtn" onclick="openJMSSetup()" class="sec-btn" style="margin:0;width:auto;padding:11px 18px">⚙ Configure connection</button>
+      </div>
+      <div id="jmsStatusLine" style="margin-top:10px;font-size:12px;color:var(--text2)"></div>
+      <div id="jmsNoneMsg" style="display:none;margin-top:10px;padding:10px 14px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text2)">No JMS linked. Quotes will print/email locally only.</div>
+    </div>
 
     <!-- BRANDING -->
     <div class="sub-panel on settings-sub" id="set-brand" style="margin-top:14px">
@@ -4969,6 +4981,10 @@ function setJMS(provider){
   if (status)   status.textContent = (provider === 'none') ? '' :
     (provider === 'fergus' ? 'Fergus selected — click Configure to set up the connection and test it.' :
     'Setup for this JMS is coming soon.');
+  // Picking "None" un-links the JMS; a real provider stays "not linked" until a
+  // connection is confirmed (testFergus).
+  if (provider === 'none') { try { localStorage.removeItem('fr_jms_linked'); } catch(e){} }
+  try { _refreshJmsLinkUI(); } catch(e){}
   // First time this provider is picked → auto-open the setup modal.
   // Subsequent changes don't auto-open; user uses Configure button.
   if (provider !== 'none' && provider !== prev) {
@@ -5001,6 +5017,44 @@ function closeJMSSetup(){
   var md = document.getElementById('jmsSetupModal');
   if (ov) ov.style.display = 'none';
   if (md) md.style.display = 'none';
+  // Re-evaluate link state after the setup modal closes (a connection may have
+  // just been made or dropped).
+  try { _refreshJmsLinkUI(); } catch(e){}
+}
+// Is a job management system linked? True when a provider (not "None") is
+// chosen AND we've confirmed a live connection at least once (this session via
+// S.fergConnected, or a prior session via the persisted flag).
+function _jmsLinked(){
+  var prov = ''; try { prov = localStorage.getItem('fr_jms') || ''; } catch(e){}
+  if (prov === 'none') return false;
+  if (window.S && S.fergConnected) return true;
+  try { if (localStorage.getItem('fr_jms_linked') === '1') return true; } catch(e){}
+  return false;
+}
+// Show the JMS linking as a big CTA button when NOT linked, or tucked away as
+// the "Job Management" settings sub-tab once it is.
+function _refreshJmsLinkUI(){
+  var linked = _jmsLinked();
+  var big    = document.getElementById('jmsBigLinkCard');
+  var tabBtn = document.getElementById('jmsSubTabBtn');
+  if (big)    big.style.display    = linked ? 'none' : '';
+  if (tabBtn) tabBtn.style.display = linked ? ''     : 'none';
+  // If we're no longer linked but the JMS sub-panel is showing, fall back to
+  // the Branding tab so no orphaned panel is left visible.
+  if (!linked){
+    var panel = document.getElementById('set-jms');
+    if (panel && panel.classList.contains('on')){
+      var bb = document.querySelector('#tab-settings .tab-row button[onclick*="set-brand"]');
+      if (bb) try { switchSettingsSub('set-brand', bb); } catch(e){}
+    }
+  }
+}
+// Big-button entry point: reveal the JMS settings panel + open the setup modal
+// so the user can pick a system and connect it.
+function _openJmsLink(){
+  var tabBtn = document.getElementById('jmsSubTabBtn');
+  if (tabBtn){ tabBtn.style.display = ''; try { switchSettingsSub('set-jms', tabBtn); } catch(e){} }
+  try { openJMSSetup(); } catch(e){}
 }
 // Apply the saved JMS choice on load.
 (function(){
@@ -5017,6 +5071,7 @@ function closeJMSSetup(){
     if (status)   status.textContent = (saved === 'none') ? '' :
       (saved === 'fergus' ? 'Fergus selected — Configure to set up the connection.' :
       'Setup for this JMS is coming soon.');
+    try { _refreshJmsLinkUI(); } catch(e){}
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _init);
   else _init();
@@ -5258,12 +5313,20 @@ async function loadSettings(){
   return S.settings;
 }
 
-async function saveSettings(){
+// Debounced auto-save — every settings tab saves as you type, so the manual
+// "Save settings" button is just a "save now" fallback. See the delegated
+// input/change listener wired on #tab-settings below.
+var _settingsAutosaveTimer = null;
+function _scheduleSettingsAutosave(){
+  clearTimeout(_settingsAutosaveTimer);
+  _settingsAutosaveTimer = setTimeout(function(){ try { saveSettings(true); } catch(e){} }, 900);
+}
+async function saveSettings(auto){
   collectSettingsFromUI();
   var btn = document.getElementById('saveSettingsBtn');
   var msg = document.getElementById('saveSettingsMsg');
-  if (btn) btn.disabled = true;
-  msg.textContent = 'Saving…';
+  if (btn && !auto) btn.disabled = true;
+  if (msg) { msg.textContent = auto ? 'Auto-saving…' : 'Saving…'; msg.style.color = ''; }
 
   // Always save to localStorage immediately — this never fails
   try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e2){}
@@ -5278,18 +5341,42 @@ async function saveSettings(){
     if (saved.labour_pricing) S.settings.labour_pricing = saved.labour_pricing;
     // Re-mirror merged result to localStorage
     try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e2){}
-    msg.textContent = '✓ Saved'; msg.style.color = '#15803d';
+    if (msg) { msg.textContent = auto ? '✓ Auto-saved' : '✓ Saved'; msg.style.color = '#15803d'; }
     applyBranding();
   } catch(e) {
     // localStorage save already succeeded — this is a cloud-only failure.
     // Surface the real backend error so cloud-sync issues can be diagnosed.
-    msg.textContent = '✓ Saved locally — cloud sync failed: ' + (e && e.message ? e.message : 'unknown error');
-    msg.style.color = '#b45309';
+    if (msg) {
+      msg.textContent = (auto ? '✓ Auto-saved locally' : '✓ Saved locally') + ' — cloud sync failed: ' + (e && e.message ? e.message : 'unknown error');
+      msg.style.color = '#b45309';
+    }
     applyBranding();
   }
-  if (btn) btn.disabled = false;
-  setTimeout(function(){msg.textContent='';msg.style.color='';}, 7000);
+  if (btn && !auto) btn.disabled = false;
+  if (msg) setTimeout(function(){ msg.textContent=''; msg.style.color=''; }, auto ? 2500 : 7000);
 }
+// Auto-save every settings sub-tab as the user edits. One delegated listener on
+// the Settings tab covers all fields (branding, quote defaults, price book,
+// labour, integrations, …). collectSettingsFromUI() reads the whole form, so a
+// single debounced save persists everything. Excluded: the job-autosave
+// controls and the JMS provider picker (which manage their own state).
+(function(){
+  function _wire(){
+    var root = document.getElementById('tab-settings');
+    if (!root || root._settingsAutosaveWired) return;
+    root._settingsAutosaveWired = true;
+    function handler(ev){
+      var t = ev.target; if (!t) return;
+      if (t.id === 'autosaveToggle' || t.id === 'autosaveInterval' || t.id === 'jmsSelect') return;
+      if (t.closest && t.closest('#jmsBigLinkCard')) return;
+      _scheduleSettingsAutosave();
+    }
+    root.addEventListener('input', handler, true);
+    root.addEventListener('change', handler, true);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _wire);
+  else _wire();
+})();
 
 function collectSettingsFromUI(){
   if (!S.settings) S.settings = defaultSettings();
@@ -6404,6 +6491,7 @@ function refreshSettingsUI(){
   set('intFergusLabAcct', k.fergusLabourAccountId); set('intFergusMatCode', k.fergusMaterialCode); set('intFergusLabCode', k.fergusLabourCode);
   try { renderPriceBookUI(); } catch(e) { console.warn('price book render:', e); }
   try { renderLabourPricingUI(); } catch(e) { console.warn('labour pricing render:', e); }
+  try { _refreshJmsLinkUI(); } catch(e){}
 }
 
 function renderOptionsList(list){
@@ -20549,6 +20637,10 @@ async function testFergus(){
     var resp = await fergusCall('GET', '/jobs?pageSize=100&sortField=createdAt&sortOrder=desc');
     if (!resp.ok) throw new Error(resp.status);
     S.fergConnected = true;
+    // Remember the successful link so the next session starts with the JMS as a
+    // settings tab (not the big "link me" button), and refresh the settings UI.
+    try { localStorage.setItem('fr_jms_linked', '1'); } catch(e){}
+    try { _refreshJmsLinkUI(); } catch(e){}
     var _fOk = document.getElementById('fergOk'); if (_fOk) _fOk.style.display = 'block';
     var _fJC = document.getElementById('fergJobsCard'); if (_fJC) _fJC.style.display = 'block';
     var _fPC = document.getElementById('fergPushCard'); if (_fPC) _fPC.style.display = 'block';
