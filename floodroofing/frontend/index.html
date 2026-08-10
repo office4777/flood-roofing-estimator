@@ -32481,10 +32481,13 @@ function _matBuildPrintOrderDetails(mount) {
     var cl = _matBuildCutList(spec.key, spec.waste);
     if (!cl.pieceCount) return;
     var savedName = localStorage.getItem('fr_mat_flash_pick_' + spec.key) || '';
-    var saved = null;
-    if (savedName) {
-      var lib = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
-      saved = lib.find(function(e){ return e.name === savedName; }) || null;
+    var _flashLib = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
+    var saved = savedName ? (_flashLib.find(function(e){ return e.name === savedName; }) || null) : null;
+    // No explicit pick + no built-in drawing → default to a saved sketch whose
+    // flashing type matches this row. So a saved Valley sketch (flashingType
+    // 'valley') becomes the valley default instead of "No drawing".
+    if (!saved && !spec.drawing) {
+      saved = _flashLib.find(function(e){ return e && e.sketch && e.flashingType === spec.key; }) || null;
     }
     var imgHtml;
     if (saved && saved.sketch) {
