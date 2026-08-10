@@ -7417,13 +7417,31 @@ async function deleteJob(id){
   } catch(e) { alert('Delete failed: ' + e.message); }
 }
 
+// Reset the quote to a clean default when starting a fresh job — clearAll()
+// only wipes the DRAWING, so without this the Quote tab keeps the previous
+// job's proposal (client, ref, totals, photos). Optionally seed the new job's
+// client/site/contact, then re-render so the Quote tab reflects the reset.
+function _resetQuoteForFreshJob(seed){
+  seed = seed || {};
+  try { S.quote = (typeof defaultQuote === 'function') ? defaultQuote() : {}; } catch(e){ S.quote = {}; }
+  if (S.quote){
+    if (seed.client != null) S.quote.client = seed.client;
+    if (seed.addr   != null) S.quote.addr   = seed.addr;
+    if (seed.email) S.quote.email = seed.email;
+    if (seed.phone) S.quote.phone = seed.phone;
+  }
+  try { renderQuoteLines && renderQuoteLines(); } catch(e){}
+  try { refreshQuoteProposal && refreshQuoteProposal(); } catch(e){}
+  try { recalcQuoteTotals && recalcQuoteTotals(); } catch(e){}
+}
 async function newJob(){
   if (!confirm('Start a new job? The current one is saved (or kept as a local draft) first.')) return;
   try { await _saveBeforeSwitch(); } catch(e){}
   S.currentJobId = null;
   ['jobClient','jobAddr','jobEmail','jobPhone'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
-  try { clearAll && clearAll(); } catch(e){}
+  try { clearAll && clearAll(true); } catch(e){}
   S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[];
+  _resetQuoteForFreshJob();
   window._aerialLoadedAddr = null;
   setCurrentJobLabel(null);
   gotoTab('roof');
@@ -7438,8 +7456,9 @@ async function startNewJob(){
   try { await _saveBeforeSwitch(); } catch(e){}
   S.currentJobId = null;
   ['jobClient','jobAddr','jobEmail','jobPhone'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
-  try { clearAll && clearAll(); } catch(e){}
+  try { clearAll && clearAll(true); } catch(e){}
   S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[];
+  _resetQuoteForFreshJob();
   window._aerialLoadedAddr = null;
   setCurrentJobLabel(null);
   openJobDetailsModal('new');
@@ -20008,15 +20027,17 @@ async function useFergusJobInModal(jobId){
     try { restoreFromJob({ draw_state: draft.snap }); } catch(e){}
     S.currentJobId = null;   // still an unsaved draft
   } else {
-    // 3. Fresh — start this Fergus job with a clean canvas.
+    // 3. Fresh — start this Fergus job with a clean canvas AND a clean quote
+    //    (otherwise the Quote tab keeps the previous job's proposal).
     S.currentJobId = null;
-    try { clearAll && clearAll(); } catch(e){}
+    try { clearAll && clearAll(true); } catch(e){}
     S.img64 = null; S.roofData = null; S.labour = 0; S.materials = 0; S.photos = [];
-    var c = document.getElementById('jobClient'); if (c) c.value = j.customer || j.client || '';
-    var a = document.getElementById('jobAddr');   if (a) a.value = j.address  || j.siteAddress || '';
-    var e = document.getElementById('jobEmail');  if (e && j.email) e.value = j.email;
-    var ph = document.getElementById('jobPhone'); if (ph && j.phone) ph.value = j.phone;
-    if (S.quote){ if (j.email) S.quote.email = j.email; if (j.phone) S.quote.phone = j.phone; }
+    var _client = j.customer || j.client || '', _addr = j.address || j.siteAddress || '';
+    var c = document.getElementById('jobClient'); if (c) c.value = _client;
+    var a = document.getElementById('jobAddr');   if (a) a.value = _addr;
+    var e = document.getElementById('jobEmail');  if (e) e.value = j.email || '';
+    var ph = document.getElementById('jobPhone'); if (ph) ph.value = j.phone || '';
+    _resetQuoteForFreshJob({ client: _client, addr: _addr, email: j.email, phone: j.phone });
   }
 
   // Mirror the Fergus-link state used across the app (Push to JMS, photo
@@ -23384,8 +23405,8 @@ function redoLast() {
   try { updateMeasTotals && updateMeasTotals(); } catch(e){}
 }
 
-function clearAll() {
-  if(!confirm('Clear everything? (outline, lines, penetrations, calibration + all sheet/flashing overrides)')) return;
+function clearAll(silent) {
+  if(!silent && !confirm('Clear everything? (outline, lines, penetrations, calibration + all sheet/flashing overrides)')) return;
   DRAW.outline=[]; DRAW.sections=[]; DRAW.lines=[]; DRAW.penetrations=[];
   DRAW.currentPts=[]; DRAW.outlineDone=false;
   DRAW.selectedSection=-1; DRAW.selectedLine=-1; DRAW.selectedPen=-1;
