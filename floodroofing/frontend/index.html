@@ -3583,6 +3583,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <button onclick="printQuote()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
     <button onclick="copyCustomerLink()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🔗 Customer link</button>
     <button onclick="saveAsDefaultTemplate()" title="Snapshot this proposal's cover title, about text, terms, inclusions and options as the default for every new quote" style="padding:8px 14px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⭐ Save as default template</button>
+    <button onclick="unacceptQuote()" id="qaUnacceptBtn" title="This quote has been accepted, which locks the customer's selections. Undo it to let the customer change their selections again." style="display:none;padding:8px 14px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🔓 Undo acceptance (unlock selections)</button>
     <span id="qaMsg" style="font-size:12px;color:var(--text2);width:100%"></span>
   </div>
 
@@ -12151,10 +12152,17 @@ async function bootCustomerView(token){
     host.id = 'customerView';
     host.style.cssText = 'position:fixed;inset:0;overflow-y:auto;background:#dfe3e8;z-index:100000;-webkit-overflow-scrolling:touch';
     host.innerHTML =
-      '<div class="cust-scroll" style="max-width:900px;margin:0 auto;padding:12px 6px 150px"><div class="report-preview" style="margin:0">'+
+      '<div class="cust-scroll" style="max-width:900px;margin:0 auto;padding:12px 6px 150px">'+
+        '<div id="custAcceptedBanner" style="display:none;margin:0 4px 10px">'+
+          '<div style="background:#0d2e1e;color:#fff;border-left:4px solid #34d399;border-radius:10px;padding:14px 16px;font-family:Inter,-apple-system,sans-serif">'+
+            '<div style="font-size:14.5px;font-weight:800">✓ This quote has been accepted</div>'+
+            '<div style="font-size:12px;color:rgba(255,255,255,.85);margin-top:3px">Your selections are now locked in. If you need to change anything, just get in touch with us.</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="report-preview" style="margin:0">'+
         '<div id="qpRoot"></div></div></div>'+
       '<div id="custBar" style="position:fixed;left:0;right:0;bottom:0;background:#0a1628;color:#fff;padding:11px 16px;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;box-shadow:0 -4px 16px rgba(0,0,0,.25);z-index:100001">'+
-        '<span style="font-size:13px;font-weight:700;margin-right:auto">Edit your selections on page 3</span>'+
+        '<span id="custBarMsg" style="font-size:13px;font-weight:700;margin-right:auto">Edit your selections on page 3</span>'+
         '<button onclick="printCustomerQuote()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⬇ Save as PDF</button>'+
         '<button onclick="customerQuery()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Ask a question</button>'+
         '<button onclick="customerDecline()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Decline</button>'+
@@ -14838,6 +14846,12 @@ function refreshQuoteProposal(){
   if (!root) return;
   // Lock the proposal from further changes once accepted (customer view only).
   try { document.documentElement.classList.toggle('quote-locked', _qpAcceptedLock()); } catch(e){}
+  // Office: surface an "Undo acceptance" button on the action bar while the
+  // quote is accepted (accepted quotes freeze the customer's selections).
+  try { var _ub = document.getElementById('qaUnacceptBtn'); if (_ub) _ub.style.display = (!window.__CUSTOMER_MODE && S.quote && S.quote.accepted) ? '' : 'none'; } catch(e){}
+  // Customer: show a clear "accepted → locked" banner at the top so a frozen
+  // proposal never just looks broken.
+  try { var _ab = document.getElementById('custAcceptedBanner'); if (_ab) _ab.style.display = _qpAcceptedLock() ? 'block' : 'none'; } catch(e){}
   // Don't re-render while the user is typing inside an inline-edit field
   if (root.contains(document.activeElement) && document.activeElement.dataset && (document.activeElement.dataset.qfield || (document.activeElement.classList && document.activeElement.classList.contains('qp-scope-edit')))) return;
   _applyFergusRefToQuote();
