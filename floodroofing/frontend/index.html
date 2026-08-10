@@ -12566,10 +12566,13 @@ function _syncQuoteBaseLineItems(){
   var scaffP = (S.quote.scaffold) ? _scaffoldEff(S.quote.scaffold).price : 0;
   // Base quote scope = ROOF 1 (main). On multi-roof jobs the base uses roof 1's
   // own materials + labour only; every further roof is an optional extra
-  // (S.quote.extraRoofs). Single-roof jobs use the whole totals. Materials
-  // carry the selected steel grade (Maxam base × _gradeFactor).
+  // (S.quote.extraRoofs). Single-roof jobs use the whole totals. The base
+  // materials line is kept at the BASE grade (Maxam) — grade upgrades/downgrades
+  // are applied ONCE as a Selections delta (_selGradeDelta). Using the selected
+  // grade here would double-count it against that delta, so the base stays
+  // grade-neutral and the delta is the single source of the grade change.
   var _multiRoof = (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
-  var _gf = (typeof _gradeFactor === 'function') ? _gradeFactor() : 1;
+  var _gf = (typeof _gradeFactor === 'function') ? _gradeFactor((S.quote && S.quote.baseGrade) || 'maxam') : 1;
   var _baseMat = (_multiRoof ? _materialsCostForRoofIdx(0) : (parseFloat(S.materials)||0)) * _gf;
   var _baseLab = (_multiRoof ? _labourPriceForRoof(0) : (parseFloat(S.labour)||0));
   // Roofs after the main one that AREN'T flagged "separate" are part of the
@@ -31258,10 +31261,22 @@ function _buildFergusItemisedSections(){
   if ((+L.appHrs)  > 0) roofLabour.push(labLine('Apprentice',  L.appHrs,  +L.appPrice  || 0, +L.appCost || 0));
   (L.extras || []).forEach(function(x){ if ((+x.hrs) > 0) roofLabour.push(labLine((x.name || 'Labourer'), x.hrs, +x.price || 0, +x.cost || 0)); });
 
-  // ── Roof material ──
+  // ── Roof material ── (itemised per-unit lines, then the safety-buffer / markup
+  //    line so the section total matches the quote's Materials line, which is
+  //    S.materials = raw material subtotal × (1 + roof markup %). The itemised
+  //    lines are the raw grade-neutral prices; the steel-grade change rides in
+  //    below as its own routed Selections delta.)
   var roofMat = [];
   _readFergusMaterialItems().forEach(function(m){ roofMat.push(matLine(m.name, m.qty, m.price)); });
-  if (!roofMat.length && (+S.materials) > 0) roofMat.push(matLine('Materials', 1, +S.materials));
+  if (roofMat.length){
+    var _rmk = (typeof _roofMatMarkupPct === 'function') ? _roofMatMarkupPct() : 0;
+    if (_rmk > 0){
+      var _rawMatTot = roofMat.reduce(function(s, li){ return s + (li.itemQuantity || 0) * (li.itemPrice || 0); }, 0);
+      if (_rawMatTot > 0) roofMat.push(matLine('Safety buffer / markup (' + _rmk + '%)', 1, _rawMatTot * (_rmk / 100)));
+    }
+  } else if ((+S.materials) > 0){
+    roofMat.push(matLine('Materials', 1, +S.materials));   // fallback — S.materials already includes the markup
+  }
 
   // ── Scaffolding (base — the platform upgrade delta is routed in below) ──
   var scaff = [];
@@ -31279,6 +31294,16 @@ function _buildFergusItemisedSections(){
     _gutterMaterialLines(p.gutterType, _glm, _glines, _gcorn).forEach(function(r){
       gutterMat.push(matLine('Gutter — ' + r.desc, r.qty, (+r.price || 0) * _mkMul));
     });
+    // If the office typed a manual gutter total (gutterPriceOverride), the quote
+    // charges that lump sum for the gutter — not the itemised labour+material.
+    // Reconcile the itemised sections to it with one adjustment line so the
+    // Gutter Labour + Gutter Material sections sum to exactly the quoted override.
+    var _gOv = parseFloat(S.quote && S.quote.gutterPriceOverride);
+    if (isFinite(_gOv) && _gOv >= 0){
+      var _sumLI = function(arr){ return arr.reduce(function(s, li){ return s + (li.itemQuantity || 0) * (li.itemPrice || 0); }, 0); };
+      var _adj = _gOv - (_sumLI(gutterLabour) + _sumLI(gutterMat));
+      if (Math.abs(_adj) > 0.005) gutterMat.push(matLine('Gutter pricing adjustment (to quoted total)', 1, _adj));
+    }
   }
 
   // ── Route the customer's selection deltas into the right section, so totals
