@@ -4577,12 +4577,51 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div class="f3" style="margin-top:6px">
           <div><label>Barge flashing ($/lm)</label><input type="number" id="pbBargeLm" step="0.01" min="0" placeholder="0.00"></div>
           <div><label>Apron flashing ($/lm)</label><input type="number" id="pbApronLm" step="0.01" min="0" placeholder="0.00"></div>
-          <div></div>
+          <div><label>Change-of-pitch flashing ($/lm)</label><input type="number" id="pbChangepitchLm" step="0.01" min="0" placeholder="0.00"></div>
         </div>
         <div class="f3" style="margin-top:6px">
           <div><label>65mm Unitites / screws ($/each)</label><input type="number" id="pbScrewsEach" step="0.001" min="0" placeholder="0.00"></div>
           <div><label>Rivets ($/each)</label><input type="number" id="pbRivetsEach" step="0.001" min="0" placeholder="0.00"></div>
           <div></div>
+        </div>
+      </div>
+
+      <!-- Guttering & spouting (long-run) — customer Selections page -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="margin-bottom:8px"><strong style="font-size:13px">Guttering &amp; spouting</strong>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px">— long-run spouting the customer can add on the Selections page</span></div>
+        <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">Marley Typhoon is itemised off the supplier invoice (spouting + fittings). The box &amp; Classic profiles use a single all-in $/lm. Leave a field blank if you don't supply that item.</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin:4px 0 6px">Marley Typhoon — itemised</div>
+        <div class="f3">
+          <div><label>Typhoon spouting ($/lm)</label><input type="number" id="pbGutTyphoonSpouting" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Typhoon bracket ($/each)</label><input type="number" id="pbGutTyphoonBracket" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Typhoon 80mm outlet ($/each)</label><input type="number" id="pbGutTyphoonOutlet" step="0.01" min="0" placeholder="0.00"></div>
+        </div>
+        <div class="f3" style="margin-top:6px">
+          <div><label>Typhoon joiner ($/each)</label><input type="number" id="pbGutTyphoonJoiner" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Typhoon corner / angle ($/each)</label><input type="number" id="pbGutTyphoonCorner" step="0.01" min="0" placeholder="0.00"></div>
+          <div></div>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">Other profiles &amp; external brackets</div>
+        <div class="f3">
+          <div><label>125mm box gutter ($/lm, all-in)</label><input type="number" id="pbGutBox125Lm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Marley Classic ($/lm, all-in)</label><input type="number" id="pbGutMarleyClassicLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Marley Typhoon simple ($/lm)</label><input type="number" id="pbGutMarleyTyphoonLm" step="0.01" min="0" placeholder="0.00"></div>
+        </div>
+        <div class="f3" style="margin-top:6px">
+          <div><label>External bracket upcharge — box ($/lm)</label><input type="number" id="pbGutExtBox125Lm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>External bracket upcharge — Marley ($/lm)</label><input type="number" id="pbGutExtMarleyLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div></div>
+        </div>
+      </div>
+
+      <!-- Downpipes -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="margin-bottom:8px"><strong style="font-size:13px">Downpipes</strong>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px">— one downpipe per gutter line</span></div>
+        <div class="f3">
+          <div><label>Downpipe ($/each)</label><input type="number" id="pbDownpipeEach" step="0.01" min="0" placeholder="0.00"></div>
+          <div></div><div></div>
         </div>
       </div>
 
@@ -5101,13 +5140,31 @@ function defaultSettings(){
         { product: '0.55g Zincalume',        unit: 'm2', price: 0 }
       ],
       underlay: { '50': 120, '75': 0, '100': 0 },   // $ per roll, keyed by m²/roll
-      ridge_lm:    20,   // $/lm — used for ridge + hip cap (they share flashing)
-      valley_lm:   15,   // $/lm
-      gutter_lm:   20,   // $/lm
-      barge_lm:    0,    // $/lm
-      apron_lm:    0,    // $/lm
-      screws_each: 0.35, // $ per 65mm Unitite / roofing screw ($35/100)
-      rivets_each: 0.15, // $ per rivet ($15/100)
+      ridge_lm:       20,   // $/lm — used for ridge + hip cap (they share flashing)
+      valley_lm:      15,   // $/lm
+      gutter_lm:      20,   // $/lm
+      barge_lm:        0,   // $/lm
+      apron_lm:        0,   // $/lm
+      changepitch_lm:  0,   // $/lm — change-of-pitch flashing (blank until you have a price)
+      screws_each:  0.35,   // $ per 65mm Unitite / roofing screw ($35/100)
+      rivets_each:  0.15,   // $ per rivet ($15/100)
+      // Long-run guttering + downpipe unit prices used by the customer
+      // Selections page (Marley Typhoon is itemised off the supplier invoice;
+      // the box/Classic profiles use a single $/lm). Blank fields fall back to
+      // the built-in defaults; edit to your own supplier pricing.
+      gutter: {
+        typhoon_spouting_lm: 19.27,  // Typhoon PVC spouting (supply) $/lm
+        typhoon_bracket_ea:   5.56,  // Typhoon external brackets $/ea
+        typhoon_outlet_ea:   24.21,  // Typhoon 80mm outlets $/ea
+        typhoon_joiner_ea:    3.82,  // Typhoon joiners $/ea
+        typhoon_corner_ea:   19.74,  // Typhoon corners (ext/int angle) $/ea
+        box125_lm:              30,  // 125mm Colorsteel box gutter $/lm (all-in)
+        marley_classic_lm:      35,  // Marley Classic PVC $/lm (all-in)
+        marley_typhoon_lm:      40,  // Marley Typhoon simple $/lm (fallback if not itemised)
+        ext_bracket_box125_lm:   6,  // external-bracket upcharge on box gutter $/lm
+        ext_bracket_marley_lm:   3   // external-bracket upcharge on either Marley PVC $/lm
+      },
+      downpipe_ea:   150,   // $ per downpipe (one per gutter line)
       extras: []         // [{desc, unit, qty, price}] — custom price-book items the user adds
     },
     // Labour pricing — per-scope-item default hour budgets and the
@@ -5161,6 +5218,7 @@ function mergeSettings(s){
     price_book: (function(){
       var pb = Object.assign({}, d.price_book, s.price_book || {});
       pb.underlay = Object.assign({}, d.price_book.underlay, (s.price_book && s.price_book.underlay) || {});
+      pb.gutter   = Object.assign({}, d.price_book.gutter,   (s.price_book && s.price_book.gutter)   || {});
       if (!Array.isArray(pb.sheets) || !pb.sheets.length) pb.sheets = d.price_book.sheets.slice();
       if (!Array.isArray(pb.extras)) pb.extras = [];
       return pb;
@@ -5349,13 +5407,27 @@ function collectPriceBookFromUI(){
     '75':  _num('pbUnderlay75'),
     '100': _num('pbUnderlay100')
   };
-  pb.ridge_lm    = _num('pbRidgeLm');
-  pb.valley_lm   = _num('pbValleyLm');
-  pb.gutter_lm   = _num('pbGutterLm');
-  pb.barge_lm    = _num('pbBargeLm');
-  pb.apron_lm    = _num('pbApronLm');
-  pb.screws_each = _num('pbScrewsEach');
-  pb.rivets_each = _num('pbRivetsEach');
+  pb.ridge_lm       = _num('pbRidgeLm');
+  pb.valley_lm      = _num('pbValleyLm');
+  pb.gutter_lm      = _num('pbGutterLm');
+  pb.barge_lm       = _num('pbBargeLm');
+  pb.apron_lm       = _num('pbApronLm');
+  pb.changepitch_lm = _num('pbChangepitchLm');
+  pb.screws_each    = _num('pbScrewsEach');
+  pb.rivets_each    = _num('pbRivetsEach');
+  pb.downpipe_ea    = _num('pbDownpipeEach');
+  pb.gutter = {
+    typhoon_spouting_lm:   _num('pbGutTyphoonSpouting'),
+    typhoon_bracket_ea:    _num('pbGutTyphoonBracket'),
+    typhoon_outlet_ea:     _num('pbGutTyphoonOutlet'),
+    typhoon_joiner_ea:     _num('pbGutTyphoonJoiner'),
+    typhoon_corner_ea:     _num('pbGutTyphoonCorner'),
+    box125_lm:             _num('pbGutBox125Lm'),
+    marley_classic_lm:     _num('pbGutMarleyClassicLm'),
+    marley_typhoon_lm:     _num('pbGutMarleyTyphoonLm'),
+    ext_bracket_box125_lm: _num('pbGutExtBox125Lm'),
+    ext_bracket_marley_lm: _num('pbGutExtMarleyLm')
+  };
   pb.extras = Array.from(document.querySelectorAll('#pbExtrasList > [data-pb-extra]')).map(function(row){
     return {
       desc:  (row.querySelector('input[data-f="desc"]')||{}).value || '',
@@ -5375,13 +5447,26 @@ function renderPriceBookUI(){
   setN('pbUnderlay50',  (pb.underlay||{})['50']);
   setN('pbUnderlay75',  (pb.underlay||{})['75']);
   setN('pbUnderlay100', (pb.underlay||{})['100']);
-  setN('pbRidgeLm',    pb.ridge_lm);
-  setN('pbValleyLm',   pb.valley_lm);
-  setN('pbGutterLm',   pb.gutter_lm);
-  setN('pbBargeLm',    pb.barge_lm);
-  setN('pbApronLm',    pb.apron_lm);
-  setN('pbScrewsEach', pb.screws_each);
-  setN('pbRivetsEach', pb.rivets_each);
+  setN('pbRidgeLm',       pb.ridge_lm);
+  setN('pbValleyLm',      pb.valley_lm);
+  setN('pbGutterLm',      pb.gutter_lm);
+  setN('pbBargeLm',       pb.barge_lm);
+  setN('pbApronLm',       pb.apron_lm);
+  setN('pbChangepitchLm', pb.changepitch_lm);
+  setN('pbScrewsEach',    pb.screws_each);
+  setN('pbRivetsEach',    pb.rivets_each);
+  setN('pbDownpipeEach',  pb.downpipe_ea);
+  var g = pb.gutter || {};
+  setN('pbGutTyphoonSpouting', g.typhoon_spouting_lm);
+  setN('pbGutTyphoonBracket',  g.typhoon_bracket_ea);
+  setN('pbGutTyphoonOutlet',   g.typhoon_outlet_ea);
+  setN('pbGutTyphoonJoiner',   g.typhoon_joiner_ea);
+  setN('pbGutTyphoonCorner',   g.typhoon_corner_ea);
+  setN('pbGutBox125Lm',        g.box125_lm);
+  setN('pbGutMarleyClassicLm', g.marley_classic_lm);
+  setN('pbGutMarleyTyphoonLm', g.marley_typhoon_lm);
+  setN('pbGutExtBox125Lm',     g.ext_bracket_box125_lm);
+  setN('pbGutExtMarleyLm',     g.ext_bracket_marley_lm);
   renderPriceBookExtras(pb.extras || []);
 }
 
@@ -5766,6 +5851,7 @@ function _buildMaterialPriceRows(){
   flashRow('gutter', 'Gutter',           totals.gutter,   pb.gutter_lm);
   flashRow('barge',  'Barge flashing',   totals.barge,    pb.barge_lm);
   flashRow('apron',  'Apron flashing',   totals.apron,    pb.apron_lm);
+  flashRow('changepitch', 'Change-of-pitch flashing', totals.changepitch, pb.changepitch_lm);
 
   // Screws
   if (roofArea > 0 && (pb.screws_each || 0) >= 0) {
@@ -9241,7 +9327,7 @@ function renderGutterDownpipePricing(){
   var matBase = matLines.reduce(function(s, r){ return s + (r.lineTotal||0); }, 0);
   var mkPct = _gutterMatMarkupPct(), mkAmt = matBase * (mkPct/100);
   var matCharge = matBase + mkAmt;
-  var gComputed = matCharge + labCharge, dComputed = SEL_DOWNPIPE_PER_LINE * lines;
+  var gComputed = matCharge + labCharge, dComputed = _downpipeUnitPrice() * lines;
   var gOv = parseFloat(q.gutterPriceOverride), dOv = parseFloat(q.downpipePriceOverride);
   var gVal = (isFinite(gOv) && gOv >= 0) ? gOv : gComputed;
   var dOn = p.downpipes === 'yes';
@@ -10466,7 +10552,52 @@ var SEL_GAUGE55_PCT = 0.22;
 // (hours by gutter run, charged at the lead + apprentice rates) — not a single
 // flat all-in $/lm rate.
 var SEL_GUTTER_MATERIAL_PER_LM = { box125: 30, marley_typhoon: 40, marley_classic: 35 }; // $/lm ex-GST
-function _gutterMaterialPerLm(id){ return SEL_GUTTER_MATERIAL_PER_LM[id] || 0; }
+// ── Settings-driven guttering + downpipe unit prices ──────────────────
+// The office sets these in Settings → Price book. Resolvers prefer, in order:
+//   1) the price stashed on the quote at publish (so a customer share link
+//      reproduces exactly what the office quoted, even with no live settings),
+//   2) the current Settings → Price book value,
+//   3) the built-in default constant (used when nothing is configured).
+function _pbGutterCfg(){ return (window.S && S.settings && S.settings.price_book && S.settings.price_book.gutter) || {}; }
+function _pbNum(v){ var n = parseFloat(v); return (isFinite(n) && n >= 0) ? n : null; }
+function _gutterPrice(stashKey, pbKey, def){
+  var q = (window.S && S.quote) || {};
+  var s = _pbNum((q.gutterUnitPrices || {})[stashKey]); if (s != null) return s;
+  var p = _pbNum(_pbGutterCfg()[pbKey]);                 if (p != null) return p;
+  return def;
+}
+// All-in $/lm for the box / Marley Classic (and the Typhoon simple fallback).
+function _gutterMaterialPerLm(id){
+  if (id === 'box125')        return _gutterPrice('perlm_box125',        'box125_lm',        SEL_GUTTER_MATERIAL_PER_LM.box125);
+  if (id === 'marley_classic')return _gutterPrice('perlm_marley_classic','marley_classic_lm',SEL_GUTTER_MATERIAL_PER_LM.marley_classic);
+  if (id === 'marley_typhoon')return _gutterPrice('perlm_marley_typhoon','marley_typhoon_lm',SEL_GUTTER_MATERIAL_PER_LM.marley_typhoon);
+  return SEL_GUTTER_MATERIAL_PER_LM[id] || 0;
+}
+// Itemised Typhoon invoice — descriptions stay fixed; prices come from settings.
+function _gutterTyphoonInv(){
+  var b = GUTTER_MATERIAL_PRICES.marley_typhoon;
+  return {
+    gutter:  _gutterPrice('typhoon_spouting', 'typhoon_spouting_lm', b.gutter),  gutterDesc:  b.gutterDesc,
+    bracket: _gutterPrice('typhoon_bracket',  'typhoon_bracket_ea',  b.bracket), bracketDesc: b.bracketDesc,
+    outlet:  _gutterPrice('typhoon_outlet',   'typhoon_outlet_ea',   b.outlet),  outletDesc:  b.outletDesc,
+    joiner:  _gutterPrice('typhoon_joiner',   'typhoon_joiner_ea',   b.joiner),  joinerDesc:  b.joinerDesc,
+    corner:  _gutterPrice('typhoon_corner',   'typhoon_corner_ea',   b.corner),  cornerDesc:  b.cornerDesc
+  };
+}
+// External-bracket upcharge ($/lm) for a gutter profile.
+function _bracketExtPerLm(id){
+  if (id === 'box125') return _gutterPrice('ext_box125', 'ext_bracket_box125_lm', SEL_BRACKET_EXT_PER_LM.box125 || 0);
+  if (id === 'marley_typhoon' || id === 'marley_classic')
+    return _gutterPrice('ext_marley', 'ext_bracket_marley_lm', SEL_BRACKET_EXT_PER_LM[id] || 0);
+  return SEL_BRACKET_EXT_PER_LM[id] || 0;
+}
+// Downpipe unit price ($ per gutter line).
+function _downpipeUnitPrice(){
+  var q = (window.S && S.quote) || {};
+  var s = _pbNum((q.gutterUnitPrices || {}).downpipe); if (s != null) return s;
+  var p = _pbNum(((window.S && S.settings && S.settings.price_book) || {}).downpipe_ea); if (p != null) return p;
+  return SEL_DOWNPIPE_PER_LINE;
+}
 // Typhoon gutter material — PER-UNIT (trade) prices (ex-GST) taken from the
 // Plumbing World supplier invoice 1CI01990994 (24/07/26). Fittings spacing
 // follows the job standard: one bracket every 500 mm, one outlet every 15 m,
@@ -10504,7 +10635,7 @@ function _gutterMatMarkupPct(){
 // their single all-in $/lm figure as one line.
 function _gutterMaterialLines(id, lm, lines, corners){
   lm = parseFloat(lm) || 0; lines = parseInt(lines, 10) || 0; corners = parseInt(corners, 10) || 0;
-  var out = [], inv = GUTTER_MATERIAL_PRICES[id];
+  var out = [], inv = (id === 'marley_typhoon') ? _gutterTyphoonInv() : GUTTER_MATERIAL_PRICES[id];
   if (inv && lm > 0){
     var nBr   = Math.ceil(lm / GUTTER_BRACKET_SPACING_M);
     var nOut  = Math.max(lines, Math.ceil(lm / GUTTER_OUTLET_SPACING_M));
@@ -10729,7 +10860,7 @@ function _selScaffoldBasePrice(){
 function _selBracketExtDelta(){
   var p = (window.S && S.quote && S.quote.proposalOptions) || {};
   if (!p.gutterType || p.gutterType === 'none') return 0;
-  var rate = SEL_BRACKET_EXT_PER_LM[p.gutterType];
+  var rate = _bracketExtPerLm(p.gutterType);
   if (!rate) return 0;
   return rate * _selGutterLm();
 }
@@ -10757,7 +10888,7 @@ function _selDownpipeDelta(){
   if (!p.gutterType || p.gutterType === 'none') return 0;
   var ov = parseFloat(q.downpipePriceOverride);
   if (isFinite(ov) && ov >= 0) return ov;
-  return SEL_DOWNPIPE_PER_LINE * _selGutterLineCount();
+  return _downpipeUnitPrice() * _selGutterLineCount();
 }
 
 // ── "Selections" page pricing (page 4) ──────────────────────────
@@ -14575,6 +14706,26 @@ function refreshQuoteProposal(){
     try {
       var _scp = (S.quote.scaffold && parseFloat(S.quote.scaffold.price)) || 0;
       if (_scp > 0) S.quote.scaffoldBase = _scp;
+    } catch(e){}
+    // Freeze the office's current guttering + downpipe unit prices (Settings →
+    // Price book) onto the quote so the customer share link — which has no live
+    // settings — prices the gutter Selections exactly as the office quoted them.
+    try {
+      var _pbg = (S.settings && S.settings.price_book) || {};
+      var _g   = _pbg.gutter || {};
+      S.quote.gutterUnitPrices = {
+        typhoon_spouting:     _g.typhoon_spouting_lm,
+        typhoon_bracket:      _g.typhoon_bracket_ea,
+        typhoon_outlet:       _g.typhoon_outlet_ea,
+        typhoon_joiner:       _g.typhoon_joiner_ea,
+        typhoon_corner:       _g.typhoon_corner_ea,
+        perlm_box125:         _g.box125_lm,
+        perlm_marley_classic: _g.marley_classic_lm,
+        perlm_marley_typhoon: _g.marley_typhoon_lm,
+        ext_box125:           _g.ext_bracket_box125_lm,
+        ext_marley:           _g.ext_bracket_marley_lm,
+        downpipe:             _pbg.downpipe_ea
+      };
     } catch(e){}
     // ── Optional extra roofs ─────────────────────────────────────────
     // The base quote is Roof 1 (main). Any further roof drawn is an optional
