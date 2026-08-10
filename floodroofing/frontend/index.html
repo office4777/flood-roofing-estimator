@@ -4449,6 +4449,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)" style="display:none">🔗 Job Management</button>
       <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Branding</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
+      <button class="tab-sm" onclick="switchSettingsSub('set-email',this)">✉️ Email</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-pricebook',this)">Price book</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers &amp; materials</button>
@@ -4532,6 +4533,28 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
         <div id="qdSectionsList"></div>
         <div style="font-size:11px;color:var(--text2);margin-top:6px">Extra sections appended to the inspection report (e.g. health &amp; safety statement, council compliance notes).</div>
+      </div>
+    </div>
+
+    <!-- EMAIL -->
+    <div class="sub-panel settings-sub" id="set-email" style="margin-top:14px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Who gets copied on the emails the app sends. Separate multiple addresses with a comma (e.g. <code>office@floodroofing.co.nz, aron@floodroofing.co.nz</code>).</p>
+      <div style="display:grid;gap:14px;max-width:620px">
+        <div>
+          <label>Copy of quotes sent (CC)</label>
+          <input type="text" id="emQuoteCc" placeholder="office@floodroofing.co.nz" autocomplete="off">
+          <div style="font-size:11px;color:var(--text2);margin-top:3px">CC'd whenever a quote is emailed to a customer.</div>
+        </div>
+        <div>
+          <label>Acceptance email goes to</label>
+          <input type="text" id="emAcceptTo" placeholder="office@floodroofing.co.nz" autocomplete="off">
+          <div style="font-size:11px;color:var(--text2);margin-top:3px">Notified when a customer accepts their quote online (with the accepted-quote PDF).</div>
+        </div>
+        <div>
+          <label>Copy of orders sent (CC)</label>
+          <input type="text" id="emOrderCc" placeholder="office@floodroofing.co.nz" autocomplete="off">
+          <div style="font-size:11px;color:var(--text2);margin-top:3px">CC'd whenever a material order is emailed to a supplier.</div>
+        </div>
       </div>
     </div>
 
@@ -5181,7 +5204,12 @@ function defaultSettings(){
                 // the keys read out of this object.
                 proposal_template: null },
     quote_defaults: { validity_days: 30, gst_rate: 15, terms: '',
-                      options: [], sections: [] },
+                      options: [], sections: [],
+                      // Email recipients (comma-separate for more than one).
+                      // Stored here so it persists without a DB migration.
+                      email: { quote_cc:'office@floodroofing.co.nz',
+                               accept_to:'office@floodroofing.co.nz',
+                               order_cc:'office@floodroofing.co.nz' } },
     jms_keys: { fergus:'', servicem8:'', jobber:'', tradify:'' },
     // Price book — default unit prices that the Materials tab uses
     // to compute the materials cost automatically. Quantities come
@@ -5269,7 +5297,11 @@ function mergeSettings(s){
       });
       return merged;
     })(),
-    quote_defaults: Object.assign(d.quote_defaults, s.quote_defaults || {}),
+    quote_defaults: (function(){
+      var qd = Object.assign({}, d.quote_defaults, s.quote_defaults || {});
+      qd.email = Object.assign({}, d.quote_defaults.email, (s.quote_defaults && s.quote_defaults.email) || {});
+      return qd;
+    })(),
     jms_keys: Object.assign(d.jms_keys, s.jms_keys || {}),
     price_book: (function(){
       var pb = Object.assign({}, d.price_book, s.price_book || {});
@@ -5399,6 +5431,10 @@ function collectSettingsFromUI(){
   q.terms         = (document.getElementById('qdTerms')||{}).value || '';
   q.options       = collectListEditor('qdOptionsList', ['label','enabled']);
   q.sections      = collectListEditor('qdSectionsList', ['title','body']);
+  if (!q.email || typeof q.email !== 'object') q.email = {};
+  q.email.quote_cc  = ((document.getElementById('emQuoteCc') ||{}).value || '').trim();
+  q.email.accept_to = ((document.getElementById('emAcceptTo')||{}).value || '').trim();
+  q.email.order_cc  = ((document.getElementById('emOrderCc') ||{}).value || '').trim();
   var k = S.settings.jms_keys;
   k.fergus     = (document.getElementById('intFergus')||{}).value || '';
   k.servicem8  = (document.getElementById('intServiceM8')||{}).value || '';
@@ -6486,6 +6522,8 @@ function refreshSettingsUI(){
   var lp = document.getElementById('brLogoPreview');
   if (b.logo_data_url) { lp.src = b.logo_data_url; lp.style.display = 'inline-block'; } else { lp.style.display = 'none'; }
   set('qdValidity', q.validity_days||30); set('qdGst', q.gst_rate==null?15:q.gst_rate); set('qdTerms', q.terms);
+  var _em = q.email || {};
+  set('emQuoteCc', _em.quote_cc); set('emAcceptTo', _em.accept_to); set('emOrderCc', _em.order_cc);
   renderOptionsList(q.options || []);
   renderSectionsList(q.sections || []);
   set('intFergus', k.fergus); set('intServiceM8', k.servicem8); set('intJobber', k.jobber); set('intTradify', k.tradify); set('intFergusMatAcct', k.fergusMaterialsAccountId);
@@ -14892,6 +14930,10 @@ function refreshQuoteProposal(){
       var _pit = (window.DRAW && DRAW.calPitch > 0) ? DRAW.calPitch : ((S.roofData && parseFloat(S.roofData.pitch)) || 0);
       if (_pit > 0) S.quote.roofPitch = _pit;
     } catch(e){}
+    // Who gets the acceptance email — stashed on the quote so the customer's
+    // accept, which posts from the share link (no office settings), reaches the
+    // office's configured recipient(s).
+    try { var _an = _acceptNotifyTo(); if (_an) S.quote.acceptNotify = _an; } catch(e){}
     try {
       if (typeof _matDrawTotals === 'function'){ var _t = _matDrawTotals(); if (_t && parseFloat(_t.gutterLm) > 0) S.quote.gutterLm = parseFloat(_t.gutterLm); }
     } catch(e){}
@@ -16744,10 +16786,21 @@ async function emailQuote(){
 // ── Email quote to customer (in-app send, Quote PDF attached, office CC'd).
 // Mirrors the Order Roof send flow but the recipient is the customer and the
 // CC is the office. Uses the same backend /email/send-order route. ──
-function _quoteEmailCc(){
+// Configurable email recipients (Settings → Email). Falls back to the branding
+// email, then the office default. Values may be comma-separated for several
+// recipients.
+function _emailCfg(){
+  return (window.S && S.settings && S.settings.quote_defaults && S.settings.quote_defaults.email) || {};
+}
+function _emailRecip(key){
+  var v = (_emailCfg()[key] || '').trim();
+  if (v) return v;
   var br = (window.S && S.settings && S.settings.branding) || {};
   return br.email || 'office@floodroofing.co.nz';
 }
+function _quoteEmailCc(){ return _emailRecip('quote_cc'); }
+function _orderEmailCc(){ return _emailRecip('order_cc'); }
+function _acceptNotifyTo(){ return _emailRecip('accept_to'); }
 function _quoteEmailStatus(text, kind){
   var el = document.getElementById('quoteEmailStatus');
   if (!el) return;
@@ -33628,9 +33681,9 @@ function _openOrderEmail(){
               || (document.getElementById('jobAddr')||{}).value || '';
   var dt = document.getElementById('orderEmailDeliverTo');
   if (dt) dt.textContent = (delMode === 'site') ? ('site — ' + (siteAddr || 'address tbc')) : 'the yard';
-  var cc = (window.S && S.settings && S.settings.branding && S.settings.branding.email) || '';
+  var cc = _orderEmailCc();
   var ccEl = document.getElementById('orderEmailCc');
-  if (ccEl) ccEl.textContent = cc || '(set your email in Settings → Branding)';
+  if (ccEl) ccEl.textContent = cc || '(set a recipient in Settings → Email)';
   // Fresh open = fresh template; edits only stick while the modal is up.
   window._orderEmailDirty = false;
   try { _orderEmailStatus(''); } catch(e){}
@@ -33738,7 +33791,7 @@ function _orderEmailGather(){
   var client = ((document.getElementById('jobClient')||{}).value || 'Order').trim();
   return {
     supplier: s,
-    cc: brand.email || '',
+    cc: _orderEmailCc(),
     subject: (subjEl && subjEl.value.trim()) || defs.subject,
     body: (bodyEl && bodyEl.value) || defs.body,
     filename: ('Order_' + (jobNum || client)).replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf'

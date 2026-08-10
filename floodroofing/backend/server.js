@@ -208,9 +208,10 @@ async function _gasSendMail({ to, cc, subject, text, html, attachment }) {
 }
 async function _resendSendMail({ to, cc, subject, text, html, attachment }) {
   if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="Flood Roofing <office@floodroofing.co.nz>" (once that domain is verified in Resend → Domains).');
-  const payload = { from: EMAIL_FROM, to: [to], subject, text };
+  const _split = (v) => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
+  const payload = { from: EMAIL_FROM, to: _split(to), subject, text };
   if (html) payload.html = html;
-  if (cc) payload.cc = [cc];
+  if (cc) payload.cc = _split(cc);
   if (attachment && attachment.base64) {
     payload.attachments = [{ filename: attachment.filename || 'order.pdf', content: attachment.base64 }];
   }
@@ -740,7 +741,10 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
       ? 'The accepted quote PDF (showing the customer\'s selections) is attached.'
       : '(The quote PDF could not be attached automatically — see the customer link in the app.)');
     const subject = 'Quote accepted' + (ref ? ' — ' + ref : '') + ' — ' + client;
-    await _dispatchMail({ to: ACCEPT_NOTIFY_EMAIL, subject, text: lines.join('\n'), attachment });
+    // Prefer the office's configured recipient(s) stashed on the quote
+    // (Settings → Email), falling back to the server default.
+    const acceptTo = (quote.acceptNotify && String(quote.acceptNotify).trim()) || ACCEPT_NOTIFY_EMAIL;
+    await _dispatchMail({ to: acceptTo, subject, text: lines.join('\n'), attachment });
     res.json({ ok: true });
   } catch (e) {
     console.error('accept-email failed:', e.message);
@@ -2031,7 +2035,7 @@ async function _ensureIndexes(){
 }
 
 app.listen(PORT, () => {
-  console.log('RoofMap backend running on port ' + PORT + ' · build: email-bg-keepwarm-v5');
+  console.log('RoofMap backend running on port ' + PORT + ' · build: email-recipients-v6');
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
   console.log('Stripe: disabled');
   try { _keepWarm(); } catch(e){}
