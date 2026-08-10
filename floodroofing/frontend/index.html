@@ -31249,22 +31249,71 @@ function _buildFergusItemisedSections(){
     return o;
   }
   var st = _pricingState(); var L = st.L;
-  var labour = [];
-  if ((+L.leadHrs) > 0) labour.push(labLine('Lead Roofer', L.leadHrs, +L.leadPrice || 0, +L.leadCost || 0));
-  if ((+L.appHrs)  > 0) labour.push(labLine('Apprentice',  L.appHrs,  +L.appPrice  || 0, +L.appCost || 0));
-  (L.extras || []).forEach(function(x){ if ((+x.hrs) > 0) labour.push(labLine((x.name || 'Labourer'), x.hrs, +x.price || 0, +x.cost || 0)); });
-  var mats = [];
-  _readFergusMaterialItems().forEach(function(m){ mats.push(matLine(m.name, m.qty, m.price)); });
-  if (!mats.length && (+S.materials) > 0) mats.push(matLine('Materials', 1, +S.materials));
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var gutterOn = !!(p.gutterType && p.gutterType !== 'none');
+
+  // ── Roof labour ──
+  var roofLabour = [];
+  if ((+L.leadHrs) > 0) roofLabour.push(labLine('Lead Roofer', L.leadHrs, +L.leadPrice || 0, +L.leadCost || 0));
+  if ((+L.appHrs)  > 0) roofLabour.push(labLine('Apprentice',  L.appHrs,  +L.appPrice  || 0, +L.appCost || 0));
+  (L.extras || []).forEach(function(x){ if ((+x.hrs) > 0) roofLabour.push(labLine((x.name || 'Labourer'), x.hrs, +x.price || 0, +x.cost || 0)); });
+
+  // ── Roof material ──
+  var roofMat = [];
+  _readFergusMaterialItems().forEach(function(m){ roofMat.push(matLine(m.name, m.qty, m.price)); });
+  if (!roofMat.length && (+S.materials) > 0) roofMat.push(matLine('Materials', 1, +S.materials));
+
+  // ── Scaffolding (base — the platform upgrade delta is routed in below) ──
+  var scaff = [];
   var sc = _scaffoldEff(st.sc);
-  if ((+sc.price) > 0) mats.push(matLine('Scaffolding' + (st.sc.type === 'platform' ? ' (platform)' : ''), 1, sc.price, sc.cost));
+  if ((+sc.price) > 0) scaff.push(matLine('Scaffolding' + (st.sc.type === 'platform' ? ' (platform)' : ''), 1, sc.price, sc.cost));
+
+  // ── Gutter labour + material (itemised) + downpipes ──
+  var gutterLabour = [], gutterMat = [], downpipes = [];
+  if (gutterOn){
+    var _glm = _selGutterLm(), _glines = _selGutterLineCount(), _gcorn = _selGutterCorners();
+    var gls = _gutterLabourState(_glm);
+    if ((+gls.leadHrs) > 0) gutterLabour.push(labLine('Gutter — Lead Roofer', gls.leadHrs, +gls.leadPrice || 0, +gls.leadCost || 0));
+    if ((+gls.appHrs)  > 0) gutterLabour.push(labLine('Gutter — Apprentice',  gls.appHrs,  +gls.appPrice  || 0, +gls.appCost || 0));
+    var _mkMul = 1 + (_gutterMatMarkupPct() / 100);
+    _gutterMaterialLines(p.gutterType, _glm, _glines, _gcorn).forEach(function(r){
+      gutterMat.push(matLine('Gutter — ' + r.desc, r.qty, (+r.price || 0) * _mkMul));
+    });
+  }
+
+  // ── Route the customer's selection deltas into the right section, so totals
+  //    stay identical to the quote (the gutter TOTAL delta is skipped because
+  //    it's already itemised above into Gutter Labour + Gutter Material). ──
+  var gmapNames = { box125:'125mm Colorsteel Box Gutter', marley_typhoon:'Marley Typhoon (PVC)', marley_classic:'Marley Classic (PVC)' };
+  var gutterTotalLabel = gmapNames[p.gutterType] || '';
   (typeof _qpSelectionChanges === 'function' ? _qpSelectionChanges() : []).forEach(function(c){
-    if (c.delta && Math.abs(c.delta) > 0.005) mats.push(matLine('Selection — ' + c.label, 1, c.delta));
+    if (!c.delta || Math.abs(c.delta) <= 0.005) return;
+    var lbl = String(c.label || ''), low = lbl.toLowerCase();
+    if (gutterOn && lbl === gutterTotalLabel) return;                           // itemised already
+    if (low.indexOf('downpipe') >= 0){ downpipes.push(matLine(lbl, 1, c.delta)); return; }
+    if (low.indexOf('bracket')  >= 0){ gutterMat.push(matLine(lbl, 1, c.delta)); return; }
+    if (low.indexOf('scaffold') >= 0){ scaff.push(matLine(lbl, 1, c.delta)); return; }
+    roofMat.push(matLine('Selection — ' + lbl, 1, c.delta));                    // grade / gauge / extra roof
   });
-  var sections = [];
-  if (labour.length) sections.push({ name: 'Labour',    sortOrder: 10, selectionMode: 'Fixed', lineItems: labour });
-  if (mats.length)   sections.push({ name: 'Materials', sortOrder: 20, selectionMode: 'Fixed', lineItems: mats });
-  return { sections: sections, matAcct: matAcct, labAcct: labAcct, labourCount: labour.length, matCount: mats.length };
+
+  // ── Assemble the sections ──
+  var sections = [], _so = 0;
+  function addSection(name, items){ if (items && items.length){ _so += 10; sections.push({ name: name, sortOrder: _so, selectionMode: 'Fixed', lineItems: items }); } }
+  if (gutterOn){
+    addSection('Roof Labour',   roofLabour);
+    addSection('Roof Material', roofMat);
+    addSection('Gutter Labour', gutterLabour);
+    addSection('Gutter Material', gutterMat);
+    addSection('Scaffolding',   scaff);
+    addSection('Downpipes',     downpipes);
+  } else {
+    addSection('Labour', roofLabour);
+    scaff.forEach(function(s){ roofMat.push(s); });   // no gutter → fold scaffold into materials as before
+    addSection('Materials', roofMat);
+  }
+  var _labCount = sections.reduce(function(a, s){ return a + s.lineItems.filter(function(li){ return li.isLabour; }).length; }, 0);
+  var _matCount = sections.reduce(function(a, s){ return a + s.lineItems.filter(function(li){ return !li.isLabour; }).length; }, 0);
+  return { sections: sections, matAcct: matAcct, labAcct: labAcct, labourCount: _labCount, matCount: _matCount };
 }
 // Void every quote on the job except `keepId` (skip already-voided and
 // accepted ones). Fergus's void endpoint is POST /jobs/quotes/{id}/void.
