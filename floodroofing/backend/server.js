@@ -553,10 +553,18 @@ app.put('/settings', requireAuth, async (req, res) => {
 // the office app sees the status + selections.  Uses the service-key
 // Supabase client so it can read/write across users without a JWT.
 // ══════════════════════════════════════════════════════════════════
-function _quoteOf(job){ return (((job||{}).draw_state||{}).state||{}).quote || null; }
+function _quoteOf(job){
+  if (!job) return null;
+  if (job.quote !== undefined) return job.quote || null;                 // narrowed select
+  return (((job.draw_state||{}).state)||{}).quote || null;               // full select
+}
 async function _findJobByToken(token, jobIdHint){
   if (!token) return null;
-  const cols = 'id, user_id, client_name, site_address, draw_state';
+  // Select ONLY the quote subtree, not the whole draw_state — the customer view
+  // needs just the quote, and NOT the job's photos / drawing aerial (state.photos
+  // + state.img64), which are megabytes. Writes go back via _saveQuoteBack's
+  // targeted jsonb update, so the full draw_state is never round-tripped.
+  const cols = 'id, user_id, client_name, site_address, quote:draw_state->state->quote';
   // Fast path: the office link carries the job id (&i=), so we can fetch that
   // one row by primary key and just check the token matches — no full-table
   // scan that would decompress every job's photo-heavy draw_state. Falls back
@@ -575,7 +583,27 @@ async function _findJobByToken(token, jobIdHint){
   return (data && data[0]) || null;
 }
 async function _saveQuoteBack(job, quote){
-  const ds = job.draw_state || {};
+  // Fast path: targeted jsonb merge so the multi-MB draw_state (photos + aerial)
+  // is never round-tripped just to update the quote — this is what made customer
+  // opens / accepts drag. Falls back to read-modify-write without a pg pool.
+  const pool = _pgPool();
+  if (pool) {
+    try {
+      const sql = "UPDATE public.jobs SET draw_state = " +
+        "coalesce(draw_state,'{}'::jsonb) || jsonb_build_object('state', " +
+        "coalesce(draw_state->'state','{}'::jsonb) || jsonb_build_object('quote', $1::jsonb)), " +
+        "updated_at = now() WHERE id = $2";
+      await pool.query(sql, [JSON.stringify(quote), job.id]);
+      return;
+    } catch (e) { console.error('_saveQuoteBack fast-update failed, falling back:', e.message); }
+  }
+  // Fallback (no pg pool): the token lookup now selects only the quote subtree,
+  // so re-fetch the full draw_state before merging to avoid wiping it.
+  let ds = job.draw_state;
+  if (!ds) {
+    const { data } = await supabase.from('jobs').select('draw_state').eq('id', job.id).single();
+    ds = (data && data.draw_state) || {};
+  }
   ds.state = ds.state || {};
   ds.state.quote = quote;
   await supabase.from('jobs').update({ draw_state: ds, updated_at: new Date().toISOString() }).eq('id', job.id);
@@ -1986,7 +2014,7 @@ async function _ensureIndexes(){
 }
 
 app.listen(PORT, () => {
-  console.log('RoofMap backend running on port ' + PORT + ' · build: email-html-button-v3');
+  console.log('RoofMap backend running on port ' + PORT + ' · build: speed-jsonb-lowres-v4');
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
   console.log('Stripe: disabled');
   try { _keepWarm(); } catch(e){}
