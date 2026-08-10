@@ -11786,12 +11786,25 @@ async function _publishQuoteOnly(){
 // making the link wait on the megabyte upload.
 // Returns { ok, confirmed }: confirmed=true means the quote publish returned a
 // success from the server, so the link is already live — no need to poll /q.
-async function _publishQuoteForLink(){
+async function _publishQuoteForLink(opts){
+  opts = opts || {};
   if (!S.currentJobId){ await saveCurrentJob(); return { ok: !!S.currentJobId, confirmed: false }; }
   try { await _publishQuoteOnly(); }
   catch(e){ await saveCurrentJob(); return { ok: !!S.currentJobId, confirmed: false }; }
-  if (_isJobDirty()) { try { Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){} }
-  return { ok: true, confirmed: true };
+  // The customer link needs only the quote (published above) — NOT the job's
+  // photos or aerial. Persisting those is just "don't lose other edits", so on
+  // a metered/mobile uplink it must never race the thing the user is waiting on
+  // (e.g. the email send). With deferHeavySave the caller runs it AFTER the
+  // user-facing action completes; otherwise fire it in the background as before.
+  var heavySave = null;
+  if (_isJobDirty()) {
+    if (opts.deferHeavySave) {
+      heavySave = function(){ try { return Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){} };
+    } else {
+      try { Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){}
+    }
+  }
+  return { ok: true, confirmed: true, heavySave: heavySave };
 }
 async function _ensureCustomerLink(msg, opts){
   opts = opts || {};
@@ -11804,7 +11817,7 @@ async function _ensureCustomerLink(msg, opts){
   }
   var saveErr = null, pub = null;
   if (msg) { msg.textContent = S.currentJobId ? 'Publishing quote…' : 'Saving & generating link…'; msg.style.color = ''; }
-  try { pub = await _publishQuoteForLink(); } catch(e){ saveErr = e; }
+  try { pub = await _publishQuoteForLink({ deferHeavySave: !!opts.deferHeavySave }); } catch(e){ saveErr = e; }
   if (!S.currentJobId){
     if (msg) { msg.textContent = 'Save failed — link not generated.' + (saveErr ? ' ('+saveErr.message+')':''); msg.style.color = '#b91c1c'; }
     alert('Couldn\'t save the job, so the customer link won\'t resolve. Check your connection and try again.');
@@ -11830,7 +11843,7 @@ async function _ensureCustomerLink(msg, opts){
       if (!confirm('The link saved, but didn\'t verify on the server yet.\n\nUse it anyway? (You may need to wait a few seconds before sending.)')) return null;
     }
   }
-  return { link: link, verified: verified, jobNo: jobNo };
+  return { link: link, verified: verified, jobNo: jobNo, heavySave: (pub && pub.heavySave) || null };
 }
 async function copyCustomerLink(){
   var msg = document.getElementById('qaMsg');
@@ -16681,13 +16694,19 @@ async function _quoteEmailSendNow(){
   var subject = (document.getElementById('quoteEmailSubject') || {}).value || '';
   var body = (document.getElementById('quoteEmailBody') || {}).value || '';
   var cc = _quoteEmailCc();
+  var _t0 = (function(){ try { return (window.performance && performance.now) ? performance.now() : +new Date(); } catch(e){ return 0; } })();
+  var _tPub = 0, _tSend = 0;
   try {
     if (btn){ btn.disabled = true; btn.textContent = 'Publishing quote link…'; }
     _quoteEmailStatus('Publishing the customer quote link…');
     // Save + publish the quote so the customer link resolves the moment they
-    // tap it (no PDF is built or attached anymore).
-    var got = await _ensureCustomerLink(null, { quiet: true });
+    // tap it (no PDF is built or attached anymore). deferHeavySave keeps the
+    // job's photos + aerial OFF the uplink until after the email is sent — the
+    // customer link needs only the quote, so the big upload must not delay the
+    // send (that was the ~20s wait on a job with several photos).
+    var got = await _ensureCustomerLink(null, { quiet: true, deferHeavySave: true });
     if (!got || !got.link) throw new Error('Could not generate the customer quote link — add a client name / address and try again.');
+    _tPub = (function(){ try { return ((window.performance && performance.now) ? performance.now() : +new Date()) - _t0; } catch(e){ return 0; } })();
     // Make sure the (possibly edited) body actually carries the live link.
     if (body.indexOf(got.link) === -1 && !/https?:\/\//.test(body)) {
       body += '\n\nView & accept your quote online:\n' + got.link + '\n';
@@ -16698,7 +16717,16 @@ async function _quoteEmailSendNow(){
     await api('POST', '/email/send-order', {
       to: to, cc: cc || undefined, subject: subject, text: body, html: html
     });
-    _quoteEmailStatus('✓ Sent to ' + to + (cc ? ' — copy CC’d to ' + cc : ''), 'ok');
+    _tSend = (function(){ try { return ((window.performance && performance.now) ? performance.now() : +new Date()) - _t0 - _tPub; } catch(e){ return 0; } })();
+    // Email is out — NOW persist the job's photos/aerial in the background so
+    // the uplink was clear for the send.
+    try { if (got.heavySave) got.heavySave(); } catch(e){}
+    // If it was slow, show where the time went so it can be diagnosed
+    // (publish = quote upload, email = server relay). Hidden on a fast send.
+    var _timing = ((_tPub + _tSend) > 6000)
+      ? ' · link ' + (_tPub/1000).toFixed(1) + 's, email ' + (_tSend/1000).toFixed(1) + 's'
+      : '';
+    _quoteEmailStatus('✓ Sent to ' + to + (cc ? ' — copy CC’d to ' + cc : '') + _timing, 'ok');
     _qaMsg('✓ Quote link emailed to ' + to + (cc ? ' — CC’d to ' + cc : ''), true);
     setTimeout(function(){ _closeQuoteEmail(); _quoteEmailStatus(''); }, 1600);
   } catch(err){
