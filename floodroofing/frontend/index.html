@@ -2076,17 +2076,49 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
 <!-- ── LOGIN SCREEN ─────────────────────────────────────────────────────── -->
 <div id="login-screen" style="display:none;position:fixed;inset:0;background:#0a1628;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <style>
+    .li-input{width:100%;padding:10px 13px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:1rem;outline:none;font-family:inherit;box-sizing:border-box}
+    .li-input:focus{border-color:#0099cc}
+    .li-label{font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:4px}
+    .li-btn{width:100%;padding:12px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:background .15s}
+    .li-alt{text-align:center;margin-top:1.25rem;font-size:13px;color:#666}
+    .li-alt a{color:#0099cc;font-weight:600;text-decoration:none;cursor:pointer}
+  </style>
   <div style="background:#fff;border-radius:16px;padding:2.5rem 2rem;width:100%;max-width:400px;box-shadow:0 25px 60px rgba(0,0,0,.4);margin:1rem">
     <div style="text-align:center;margin-bottom:2rem">
       <img src="brand/roofmap_logo.png" alt="RoofMap" style="width:172px;height:auto;display:inline-block">
     </div>
     <div id="login-err" style="display:none;background:#fee2e2;color:#991b1b;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:1rem"></div>
-    <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:4px">Email</label>
-    <input id="li-email" type="email" placeholder="you@example.com" style="width:100%;padding:10px 13px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:1rem;outline:none;font-family:inherit" onfocus="this.style.borderColor='#0099cc'" onblur="this.style.borderColor='#ddd'">
-    <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:4px">Password</label>
-    <input id="li-pass" type="password" placeholder="••••••••" style="width:100%;padding:10px 13px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:1.5rem;outline:none;font-family:inherit" onfocus="this.style.borderColor='#0099cc'" onblur="this.style.borderColor='#ddd'" onkeydown="if(event.key==='Enter')doLogin()">
-    <button onclick="doLogin()" id="login-btn" style="width:100%;padding:12px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:background .15s">Sign In</button>
-    <div id="login-spinner" style="display:none;text-align:center;margin-top:1rem;color:#666;font-size:13px">Signing in…</div>
+
+    <!-- SIGN IN -->
+    <div id="login-signin-view">
+      <label class="li-label">Email</label>
+      <input id="li-email" type="email" placeholder="you@floodroofing.co.nz" class="li-input">
+      <label class="li-label">Password</label>
+      <input id="li-pass" type="password" placeholder="••••••••" class="li-input" style="margin-bottom:1.5rem" onkeydown="if(event.key==='Enter')doLogin()">
+      <button onclick="doLogin()" id="login-btn" class="li-btn">Sign In</button>
+      <div id="login-spinner" style="display:none;text-align:center;margin-top:1rem;color:#666;font-size:13px">Signing in…</div>
+      <div class="li-alt">First time here? <a onclick="showSetupView()">Set my password</a></div>
+    </div>
+
+    <!-- SET MY PASSWORD (first-time setup) -->
+    <div id="login-setup-view" style="display:none">
+      <div style="font-size:16px;font-weight:700;color:#0a1628;margin-bottom:3px">Set my password</div>
+      <div style="font-size:12.5px;color:#666;margin-bottom:1.25rem;line-height:1.55">Create your RoofMap login. You'll need the <strong>invite code</strong> from Flood Roofing.</div>
+      <label class="li-label">Full name</label>
+      <input id="su-name" type="text" placeholder="Matt" class="li-input">
+      <label class="li-label">Email</label>
+      <input id="su-email" type="email" placeholder="matt@floodroofing.co.nz" class="li-input">
+      <label class="li-label">Invite code</label>
+      <input id="su-invite" type="text" placeholder="Code from Flood Roofing" class="li-input">
+      <label class="li-label">Choose a password</label>
+      <input id="su-pass" type="password" placeholder="At least 8 characters" class="li-input">
+      <label class="li-label">Confirm password</label>
+      <input id="su-pass2" type="password" placeholder="Re-enter your password" class="li-input" style="margin-bottom:1.5rem" onkeydown="if(event.key==='Enter')doRegister()">
+      <button onclick="doRegister()" id="setup-btn" class="li-btn">Set my password &amp; sign in</button>
+      <div id="setup-spinner" style="display:none;text-align:center;margin-top:1rem;color:#666;font-size:13px">Creating your login…</div>
+      <div class="li-alt">Already have a login? <a onclick="showSigninView()">Sign in</a></div>
+    </div>
   </div>
 </div>
 <script>
@@ -2125,11 +2157,55 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     } catch(e){}
     return;
   }
+  window.showSetupView=function(){
+    document.getElementById('login-signin-view').style.display='none';
+    document.getElementById('login-setup-view').style.display='block';
+    var e=document.getElementById('login-err'); if(e) e.style.display='none';
+  };
+  window.showSigninView=function(){
+    document.getElementById('login-setup-view').style.display='none';
+    document.getElementById('login-signin-view').style.display='block';
+    var e=document.getElementById('login-err'); if(e) e.style.display='none';
+  };
   var tok=localStorage.getItem('fr_token');
+  var _p=new URLSearchParams(location.search);
   if(!tok){
     document.getElementById('login-screen').style.display='flex';
     document.querySelector('.app') && (document.querySelector('.app').style.display='none');
+    // Direct "set my password" link: ?setup=1 (optionally &email=matt@floodroofing.co.nz)
+    if(_p.get('setup')==='1' || _p.get('setup')==='true'){
+      window.showSetupView();
+      var _pe=_p.get('email'); if(_pe){ var _se=document.getElementById('su-email'); if(_se) _se.value=_pe; }
+    }
   }
+  window.doRegister=async function(){
+    var name=document.getElementById('su-name').value.trim();
+    var email=document.getElementById('su-email').value.trim();
+    var invite=document.getElementById('su-invite').value.trim();
+    var pass=document.getElementById('su-pass').value;
+    var pass2=document.getElementById('su-pass2').value;
+    var err=document.getElementById('login-err');
+    err.style.display='none';
+    if(!email || !pass){ err.textContent='Enter your email and choose a password.'; err.style.display='block'; return; }
+    if(pass.length<8){ err.textContent='Password must be at least 8 characters.'; err.style.display='block'; return; }
+    if(pass!==pass2){ err.textContent='The two passwords don\'t match.'; err.style.display='block'; return; }
+    var btn=document.getElementById('setup-btn'), spin=document.getElementById('setup-spinner');
+    btn.style.display='none'; spin.style.display='block';
+    try{
+      var r=await fetch(BACKEND+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,name:name,company:'Flood Roofing',invite:invite})});
+      var d=await r.json();
+      if(!r.ok) throw new Error(d.error||'Could not set up your login');
+      localStorage.setItem('fr_token',d.token);
+      localStorage.setItem('fr_user',JSON.stringify(d.user||{email:email,name:name}));
+      document.getElementById('login-screen').style.display='none';
+      document.querySelector('.app') && (document.querySelector('.app').style.display='');
+      setTimeout(function(){ window._aerialMap && window._aerialMap.resize(); }, 300);
+      try { window.loadSettings && window.loadSettings(); } catch(e){}
+    }catch(e){
+      err.textContent=e.message; err.style.display='block';
+      btn.style.display='block'; spin.style.display='none';
+    }
+  };
   window.doLogin=async function(){
     var email=document.getElementById('li-email').value.trim();
     var pass=document.getElementById('li-pass').value;
