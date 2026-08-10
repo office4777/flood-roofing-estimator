@@ -4845,25 +4845,42 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 <div class="panel" id="tab-feedback">
   <div class="card" style="max-width:720px;margin:0 auto">
     <div class="card-hd"><span class="card-dot"></span>Send feedback</div>
-    <p style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:16px">Found a bug, or thought of a feature you'd like us to build? Tell us about it here. Give it a short title, describe the issue or idea in as much detail as you can, and attach screenshots if they'd help explain it. It goes straight to the team.</p>
-    <div style="display:grid;gap:14px">
-      <div>
-        <label>Title</label>
-        <input type="text" id="fbTitle" placeholder="e.g. Gutter price wrong on 2-storey jobs, or: add a deposit invoice button" maxlength="140">
+    <p style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-bottom:18px">Report a bug or request a feature — it goes straight to the team.</p>
+
+    <!-- Section 1 — Title -->
+    <div style="margin-bottom:22px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--fr-dark);color:#fff;font-size:13px;font-weight:800;flex-shrink:0">1</span>
+        <span style="font-size:17px;font-weight:800;color:var(--text)">Title</span>
       </div>
-      <div>
-        <label>Details — what's happening, or what you'd like</label>
-        <textarea id="fbDetails" rows="7" placeholder="Describe the issue or the feature. For a bug: what you did, what you expected, and what happened instead. The more detail, the faster we can act on it." style="width:100%;resize:vertical;font-family:inherit;font-size:13px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box"></textarea>
+      <div style="font-size:11px;color:var(--text2);margin:0 0 8px 33px">A short summary of the issue or idea.</div>
+      <input type="text" id="fbTitle" placeholder="e.g. Gutter price wrong on 2-storey jobs" maxlength="140" style="font-size:15px;padding:12px 14px">
+    </div>
+
+    <!-- Section 2 — Details -->
+    <div style="margin-bottom:22px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--fr-dark);color:#fff;font-size:13px;font-weight:800;flex-shrink:0">2</span>
+        <span style="font-size:17px;font-weight:800;color:var(--text)">Details</span>
       </div>
-      <div>
-        <label>Screenshots <span style="color:var(--text2);font-weight:400">(optional — attach if it helps show the issue)</span></label>
-        <input type="file" id="fbShotInput" accept="image/*" multiple onchange="_feedbackAddShots(event)" style="font-size:12px">
-        <div id="fbShotList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+      <div style="font-size:11px;color:var(--text2);margin:0 0 8px 33px">For a bug: what you did, what you expected, what happened. The more detail, the faster we can act.</div>
+      <textarea id="fbDetails" rows="7" placeholder="Describe the issue or the feature you'd like…" style="width:100%;resize:vertical;font-family:inherit;font-size:15px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box"></textarea>
+    </div>
+
+    <!-- Section 3 — Screenshots -->
+    <div style="margin-bottom:24px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--fr-dark);color:#fff;font-size:13px;font-weight:800;flex-shrink:0">3</span>
+        <span style="font-size:17px;font-weight:800;color:var(--text)">Screenshots <span style="font-size:12px;font-weight:500;color:var(--text2)">— optional</span></span>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;border-top:1px solid var(--border);padding-top:14px">
-        <button type="button" id="fbSubmitBtn" onclick="_sendFeedback(this)" style="padding:10px 22px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Submit feedback</button>
-        <span id="fbMsg" style="font-size:12.5px;color:var(--text2)"></span>
-      </div>
+      <div style="font-size:11px;color:var(--text2);margin:0 0 8px 33px">Attach images if they help show the issue.</div>
+      <input type="file" id="fbShotInput" accept="image/*" multiple onchange="_feedbackAddShots(event)" style="font-size:12px">
+      <div id="fbShotList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;border-top:1px solid var(--border);padding-top:16px">
+      <button type="button" id="fbSubmitBtn" onclick="_sendFeedback(this)" style="padding:12px 26px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:800;cursor:pointer">Submit feedback</button>
+      <span id="fbMsg" style="font-size:12.5px;color:var(--text2)"></span>
     </div>
   </div>
 </div>
@@ -16897,8 +16914,11 @@ function _renderFeedbackShots(){
 }
 function _feedbackRemoveShot(i){ _feedbackShots.splice(i, 1); _renderFeedbackShots(); }
 async function _feedbackShotsToPdf(){
+  if (!_feedbackShots.length) return null;
+  // jsPDF is lazy-loaded from a CDN — make sure it's here before we build.
+  try { if (typeof _loadPdfLibs === 'function') await _loadPdfLibs(); } catch(e){}
   var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-  if (!jsPDF || !_feedbackShots.length) return null;
+  if (!jsPDF) return null;
   var pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
   var pageW = 210, pageH = 297, margin = 10;
   for (var i = 0; i < _feedbackShots.length; i++){
@@ -16929,6 +16949,9 @@ async function _sendFeedback(btn){
     show('Preparing ' + _feedbackShots.length + ' screenshot' + (_feedbackShots.length===1?'':'s') + '…');
     try { attachment = await _feedbackShotsToPdf(); } catch(e){ attachment = null; }
   }
+  var shotsNote = !_feedbackShots.length ? 'none'
+    : attachment ? (_feedbackShots.length + ' attached (PDF)')
+    : (_feedbackShots.length + ' — could NOT be attached (image tools unavailable). Please email them separately.');
   var text =
     'RoofMap feedback\n\n' +
     'Title: ' + title + '\n\n' +
@@ -16936,14 +16959,14 @@ async function _sendFeedback(btn){
     '— — —\n' +
     'From: ' + (who || '(unknown user)') + '\n' +
     'Sent: ' + new Date().toLocaleString('en-NZ') + '\n' +
-    'Screenshots: ' + (_feedbackShots.length ? (_feedbackShots.length + ' attached (PDF)') : 'none');
+    'Screenshots: ' + shotsNote;
   var esc = function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
   var html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:640px">'+
     '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">RoofMap feedback</div>'+
     '<h2 style="font-size:18px;margin:8px 0 12px;color:#0a1628">'+esc(title)+'</h2>'+
     '<div style="white-space:pre-wrap">'+esc(details)+'</div>'+
     '<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">'+
-    '<div style="font-size:12px;color:#475569">From: '+esc(who || '(unknown user)')+'<br>Sent: '+esc(new Date().toLocaleString('en-NZ'))+'<br>Screenshots: '+(_feedbackShots.length ? (_feedbackShots.length+' attached (PDF)') : 'none')+'</div>'+
+    '<div style="font-size:12px;color:#475569">From: '+esc(who || '(unknown user)')+'<br>Sent: '+esc(new Date().toLocaleString('en-NZ'))+'<br>Screenshots: '+esc(shotsNote)+'</div>'+
   '</div>';
   try {
     await api('POST', '/email/send-order', {
