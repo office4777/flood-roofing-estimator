@@ -11791,34 +11791,42 @@ function _shrinkImg(dataUrl, maxDim, quality, cb){
     img.src = dataUrl;
   } catch(e){ cb(dataUrl); }
 }
-// The proposal condition photos ride as base64 INSIDE the quote, so a 6-photo
-// quote is multi-MB — that was what made "get the customer link" slow. Shrink
-// the big ones IN PLACE (to ~700px) so the SINGLE canonical quote publish is a
-// few hundred KB. Doing it in place (not on a throwaway copy) means the job
-// save writes the small version too — one source of truth, so there's no second
-// write to race the customer's live selections. Only touches oversized photos,
-// so it's idempotent. Quality at 700px is fine for a proposal.
-function _shrinkQuotePhotosInPlace(cb){
+// Both the proposal condition photos AND the aerial map background ride as
+// base64 INSIDE the quote, so a 6-photo quote is multi-MB — that is what makes
+// "get the customer link" slow (it scales with the images, not the backend).
+// Shrink them all IN PLACE so the SINGLE canonical quote publish is a couple
+// hundred KB. In place (not a throwaway copy) means the job save writes the
+// small version too — one source of truth, nothing to race the customer's live
+// selections. Idempotent: only oversized images are touched. These sizes are
+// fine for phone viewing of a proposal.
+function _shrinkQuoteMediaInPlace(cb){
   var q = S.quote;
-  if (!q || !Array.isArray(q.condPhotos)) return cb && cb();
+  if (!q) return cb && cb();
   var jobs = [];
-  q.condPhotos.forEach(function(cp){
-    if (cp && typeof cp.src === 'string' && cp.src.length > 90 * 1024){
-      jobs.push(function(done){ _shrinkImg(cp.src, 700, 0.5, function(s){ if (s && s.length < cp.src.length) cp.src = s; done(); }); });
+  if (Array.isArray(q.condPhotos)) q.condPhotos.forEach(function(cp){
+    if (cp && typeof cp.src === 'string' && cp.src.length > 70 * 1024){
+      jobs.push(function(done){ _shrinkImg(cp.src, 520, 0.44, function(s){ if (s && s.length < cp.src.length) cp.src = s; done(); }); });
     }
   });
+  var g = q.roofMapGeom;
+  if (g && typeof g.bg === 'string' && g.bg.length > 40 * 1024){
+    jobs.push(function(done){ _shrinkImg(g.bg, 440, 0.4, function(s){ if (s && s.length < g.bg.length) g.bg = s; done(); }); });
+  }
   if (!jobs.length) return cb && cb();
   var n = jobs.length, d = 0;
   jobs.forEach(function(j){ j(function(){ if (++d === n && cb) cb(); }); });
 }
 async function _publishQuoteOnly(){
   if (!S.currentJobId || !S.quote) return false;
-  // Shrink oversized proposal photos first so the payload is small, then
-  // publish the FULL quote — one canonical write (no stripped/second version
-  // that could clobber a customer's selection).
-  try { await new Promise(function(res){ _shrinkQuotePhotosInPlace(res); }); } catch(e){}
+  // Shrink the oversized proposal photos + aerial first so the payload is small,
+  // then publish the FULL quote — one canonical write (no stripped/second
+  // version that could clobber a customer's selection).
+  try { await new Promise(function(res){ _shrinkQuoteMediaInPlace(res); }); } catch(e){}
   var client = (document.getElementById('jobClient')||{}).value || S.quote.client || '';
   var addr   = (document.getElementById('jobAddr')||{}).value || S.quote.addr || '';
+  // Record the published payload size so any remaining slowness can be pinned on
+  // size vs the network (shown on the link/email status when it's still slow).
+  try { window._lastQuotePublishKB = Math.round(JSON.stringify(S.quote).length / 1024); } catch(e){}
   await api('PUT', '/jobs/' + S.currentJobId + '/quote', { quote: S.quote, client_name: client, site_address: addr });
   return true;
 }
@@ -11900,7 +11908,8 @@ async function copyCustomerLink(){
     if (!got) return;
     var copied = false;
     try { await navigator.clipboard.writeText(got.link); copied = true; } catch(e){}
-    if (msg) { msg.textContent = copied ? (got.verified ? '✓ Customer link copied to clipboard.' : 'Link copied (unverified) — give it a moment before sending.') : 'Link ready — copy it from the box below.'; msg.style.color = got.verified ? '#15803d' : '#b45309'; }
+    var _kb = (typeof window._lastQuotePublishKB === 'number') ? (' · ' + window._lastQuotePublishKB + ' KB') : '';
+    if (msg) { msg.textContent = (copied ? (got.verified ? '✓ Customer link copied to clipboard.' : 'Link copied (unverified) — give it a moment before sending.') : 'Link ready — copy it from the box below.') + _kb; msg.style.color = got.verified ? '#15803d' : '#b45309'; }
     // Also drop the link on the page in a selectable box, so it can be copied
     // by hand (clipboard access is blocked in some browsers / embedded views).
     _showCustomerLinkBox(got.link, got.jobNo, copied);
