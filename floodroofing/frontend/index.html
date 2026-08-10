@@ -2288,6 +2288,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <button class="nav-btn" onclick="gotoTab('jobpack')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3.5" width="11" height="10" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.5 H13.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 9.5 H10 M6 11.5 H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Job Pack</button>
   <button class="nav-btn" onclick="gotoTab('jobs')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
   <button class="nav-btn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
+  <button class="nav-btn" onclick="gotoTab('feedback')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v8h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5 6.5h6 M5 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Feedback</button>
 </div>
 </aside>
 <main class="content">
@@ -4841,6 +4842,33 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 </div>
 </div>
 
+<!-- TAB: SEND FEEDBACK -->
+<div class="panel" id="tab-feedback">
+  <div class="card" style="max-width:720px;margin:0 auto">
+    <div class="card-hd"><span class="card-dot"></span>Send feedback</div>
+    <p style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:16px">Found a bug, or thought of a feature you'd like us to build? Tell us about it here. Give it a short title, describe the issue or idea in as much detail as you can, and attach screenshots if they'd help explain it. It goes straight to the team.</p>
+    <div style="display:grid;gap:14px">
+      <div>
+        <label>Title</label>
+        <input type="text" id="fbTitle" placeholder="e.g. Gutter price wrong on 2-storey jobs, or: add a deposit invoice button" maxlength="140">
+      </div>
+      <div>
+        <label>Details — what's happening, or what you'd like</label>
+        <textarea id="fbDetails" rows="7" placeholder="Describe the issue or the feature. For a bug: what you did, what you expected, and what happened instead. The more detail, the faster we can act on it." style="width:100%;resize:vertical;font-family:inherit;font-size:13px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box"></textarea>
+      </div>
+      <div>
+        <label>Screenshots <span style="color:var(--text2);font-weight:400">(optional — attach if it helps show the issue)</span></label>
+        <input type="file" id="fbShotInput" accept="image/*" multiple onchange="_feedbackAddShots(event)" style="font-size:12px">
+        <div id="fbShotList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;border-top:1px solid var(--border);padding-top:14px">
+        <button type="button" id="fbSubmitBtn" onclick="_sendFeedback(this)" style="padding:10px 22px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Submit feedback</button>
+        <span id="fbMsg" style="font-size:12.5px;color:var(--text2)"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 var PROXY='https://flood-roofing-estimator-production.up.railway.app';
 // Canonical public host for customer quote links. Set this to the branded
@@ -4897,7 +4925,7 @@ function gotoTab(t) {
   // 'scope' (Pricing) is no longer a nav tab — it lives in a slide-out on
   // the Quote tab (see _openPricingPanel). Keep it OUT of this index-aligned
   // list so the remaining nav buttons stay matched to their ids.
-  var ids=['select','roof','materials','quote','order','jobpack','jobs','settings'];
+  var ids=['select','roof','materials','quote','order','jobpack','jobs','settings','feedback'];
   document.querySelectorAll('.nav-btn').forEach(function(b,i){b.classList.toggle('active',ids[i]===t);});
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
@@ -16842,6 +16870,98 @@ async function _sendTestEmail(btn){
     if (m.indexOf('EMAIL_NOT_CONFIGURED') !== -1 || m.indexOf('503') !== -1) show('In-app sending isn\'t set up on the server yet.', false);
     else show('Test failed: ' + m.slice(0, 200), false);
   } finally { if (btn) btn.disabled = false; }
+}
+// ── Send feedback ─────────────────────────────────────────────────
+// Feedback goes by email to the team. Screenshots (optional) are downscaled
+// and stitched into a single PDF attachment, so they ride through the existing
+// single-attachment mail path (and render reliably, unlike inline images).
+var _feedbackShots = [];
+function _feedbackAddShots(e){
+  var files = (e.target && e.target.files) ? Array.from(e.target.files) : [];
+  files.forEach(function(f){
+    if (!f.type || f.type.indexOf('image/') !== 0) return;
+    var r = new FileReader();
+    r.onload = function(ev){ _downscalePhoto(ev.target.result, function(src){ _feedbackShots.push(src); _renderFeedbackShots(); }); };
+    r.readAsDataURL(f);
+  });
+  if (e.target) e.target.value = '';
+}
+function _renderFeedbackShots(){
+  var box = document.getElementById('fbShotList'); if (!box) return;
+  box.innerHTML = _feedbackShots.map(function(src, i){
+    return '<div style="position:relative;width:88px;height:88px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">'+
+      '<img src="'+src+'" style="width:100%;height:100%;object-fit:cover">'+
+      '<button type="button" onclick="_feedbackRemoveShot('+i+')" title="Remove" style="position:absolute;top:2px;right:2px;width:20px;height:20px;border:none;border-radius:50%;background:rgba(10,22,40,.75);color:#fff;font-size:13px;line-height:1;cursor:pointer">×</button>'+
+    '</div>';
+  }).join('');
+}
+function _feedbackRemoveShot(i){ _feedbackShots.splice(i, 1); _renderFeedbackShots(); }
+async function _feedbackShotsToPdf(){
+  var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (!jsPDF || !_feedbackShots.length) return null;
+  var pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
+  var pageW = 210, pageH = 297, margin = 10;
+  for (var i = 0; i < _feedbackShots.length; i++){
+    if (i > 0) pdf.addPage();
+    var src = _feedbackShots[i];
+    var dim = await new Promise(function(res){ var im = new Image(); im.onload = function(){ res({ w: im.width || 1, h: im.height || 1 }); }; im.onerror = function(){ res({ w: 1, h: 1 }); }; im.src = src; });
+    var ratio = Math.min((pageW - 2*margin) / dim.w, (pageH - 2*margin) / dim.h);
+    var w = dim.w * ratio, h = dim.h * ratio;
+    try { pdf.addImage(src, 'JPEG', (pageW - w)/2, margin, w, h, undefined, 'FAST'); } catch(e){}
+  }
+  var blob = pdf.output('blob');
+  var b64 = await new Promise(function(res, rej){ var fr = new FileReader(); fr.onload = function(){ res(String(fr.result).split(',')[1] || ''); }; fr.onerror = function(){ rej(fr.error); }; fr.readAsDataURL(blob); });
+  return { base64: b64, filename: 'feedback-screenshots.pdf' };
+}
+async function _sendFeedback(btn){
+  var msg = document.getElementById('fbMsg');
+  function show(t, ok){ if (msg){ msg.textContent = t; msg.style.color = ok===true ? '#15803d' : ok===false ? '#b91c1c' : 'var(--text2)'; } }
+  var title = ((document.getElementById('fbTitle')||{}).value || '').trim();
+  var details = ((document.getElementById('fbDetails')||{}).value || '').trim();
+  if (!title){ show('Please add a short title.', false); return; }
+  if (!details){ show('Please describe the issue or idea.', false); return; }
+  var who = '';
+  try { who = (JSON.parse(localStorage.getItem('fr_user') || '{}').email) || ''; } catch(e){}
+  if (btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  show('Sending your feedback…');
+  var attachment = null;
+  if (_feedbackShots.length){
+    show('Preparing ' + _feedbackShots.length + ' screenshot' + (_feedbackShots.length===1?'':'s') + '…');
+    try { attachment = await _feedbackShotsToPdf(); } catch(e){ attachment = null; }
+  }
+  var text =
+    'RoofMap feedback\n\n' +
+    'Title: ' + title + '\n\n' +
+    'Details:\n' + details + '\n\n' +
+    '— — —\n' +
+    'From: ' + (who || '(unknown user)') + '\n' +
+    'Sent: ' + new Date().toLocaleString('en-NZ') + '\n' +
+    'Screenshots: ' + (_feedbackShots.length ? (_feedbackShots.length + ' attached (PDF)') : 'none');
+  var esc = function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  var html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:640px">'+
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">RoofMap feedback</div>'+
+    '<h2 style="font-size:18px;margin:8px 0 12px;color:#0a1628">'+esc(title)+'</h2>'+
+    '<div style="white-space:pre-wrap">'+esc(details)+'</div>'+
+    '<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">'+
+    '<div style="font-size:12px;color:#475569">From: '+esc(who || '(unknown user)')+'<br>Sent: '+esc(new Date().toLocaleString('en-NZ'))+'<br>Screenshots: '+(_feedbackShots.length ? (_feedbackShots.length+' attached (PDF)') : 'none')+'</div>'+
+  '</div>';
+  try {
+    await api('POST', '/email/send-order', {
+      to: 'Aron@floodroofing.co.nz',
+      subject: 'RoofMap Feedback: ' + title,
+      text: text, html: html,
+      attachment: attachment || undefined
+    });
+    show('✓ Thanks — your feedback has been sent to the team.', true);
+    // Reset the form for the next one.
+    var t1 = document.getElementById('fbTitle'); if (t1) t1.value = '';
+    var t2 = document.getElementById('fbDetails'); if (t2) t2.value = '';
+    _feedbackShots = []; _renderFeedbackShots();
+  } catch(err){
+    var m = String((err && err.message) || err);
+    if (m.indexOf('EMAIL_NOT_CONFIGURED') !== -1 || m.indexOf('503') !== -1) show('In-app sending isn\'t set up on the server yet — please email us directly.', false);
+    else show('Couldn\'t send: ' + m.slice(0, 200), false);
+  } finally { if (btn){ btn.disabled = false; btn.textContent = 'Submit feedback'; } }
 }
 function _quoteEmailStatus(text, kind){
   var el = document.getElementById('quoteEmailStatus');
