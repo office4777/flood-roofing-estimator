@@ -11771,11 +11771,31 @@ function _customerLinkString(){
 // no photos. The customer /q view reads exactly this, so sharing/pushing the
 // link is instant instead of re-uploading the whole (multi-MB) job. Needs a
 // saved job id; callers create the record first when there isn't one.
-async function _publishQuoteOnly(){
+// The heavy base64 media that rides INSIDE the quote: the proposal condition
+// photos + the aerial map background. A quote with 6 photos is multi-MB, which
+// is what made "get the customer link" slow. A light publish strips these so
+// the link resolves on a few KB; the media is published straight after in the
+// background (before the customer opens it).
+function _quoteHasMedia(q){
+  if (!q) return false;
+  if (Array.isArray(q.condPhotos) && q.condPhotos.some(function(c){ return c && c.src; })) return true;
+  if (q.roofMapGeom && q.roofMapGeom.bg) return true;
+  return false;
+}
+function _quoteStripMedia(q){
+  if (!q) return q;
+  var lite = Object.assign({}, q);
+  if (Array.isArray(q.condPhotos) && q.condPhotos.length) lite.condPhotos = q.condPhotos.map(function(){ return null; });
+  if (q.roofMapGeom && q.roofMapGeom.bg) lite.roofMapGeom = Object.assign({}, q.roofMapGeom, { bg: null });
+  return lite;
+}
+async function _publishQuoteOnly(opts){
+  opts = opts || {};
   if (!S.currentJobId || !S.quote) return false;
   var client = (document.getElementById('jobClient')||{}).value || S.quote.client || '';
   var addr   = (document.getElementById('jobAddr')||{}).value || S.quote.addr || '';
-  await api('PUT', '/jobs/' + S.currentJobId + '/quote', { quote: S.quote, client_name: client, site_address: addr });
+  var quote  = opts.light ? _quoteStripMedia(S.quote) : S.quote;
+  await api('PUT', '/jobs/' + S.currentJobId + '/quote', { quote: quote, client_name: client, site_address: addr });
   return true;
 }
 // Make the customer link resolve as fast as possible: for an existing job,
@@ -11789,20 +11809,24 @@ async function _publishQuoteOnly(){
 async function _publishQuoteForLink(opts){
   opts = opts || {};
   if (!S.currentJobId){ await saveCurrentJob(); return { ok: !!S.currentJobId, confirmed: false }; }
-  try { await _publishQuoteOnly(); }
+  // With deferHeavySave, publish a LIGHT quote (no photos/aerial) so the link
+  // resolves on a tiny payload; the media + the rest of the job are persisted
+  // in the background via heavySave(). Without it, publish the full quote now.
+  var light = !!opts.deferHeavySave && _quoteHasMedia(S.quote);
+  try { await _publishQuoteOnly({ light: light }); }
   catch(e){ await saveCurrentJob(); return { ok: !!S.currentJobId, confirmed: false }; }
-  // The customer link needs only the quote (published above) — NOT the job's
-  // photos or aerial. Persisting those is just "don't lose other edits", so on
-  // a metered/mobile uplink it must never race the thing the user is waiting on
-  // (e.g. the email send). With deferHeavySave the caller runs it AFTER the
-  // user-facing action completes; otherwise fire it in the background as before.
   var heavySave = null;
-  if (_isJobDirty()) {
-    if (opts.deferHeavySave) {
-      heavySave = function(){ try { return Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){} };
-    } else {
-      try { Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){}
-    }
+  if (opts.deferHeavySave) {
+    // 1) publish the FULL quote (condition photos + aerial) so the customer link
+    //    shows them, then 2) persist the rest of the job if it changed. Runs
+    //    off the critical path — the caller fires it after the user-facing
+    //    action (email send / link copy) has returned.
+    heavySave = function(){
+      var p = light ? Promise.resolve(_publishQuoteOnly()).catch(function(){}) : Promise.resolve();
+      return p.then(function(){ if (_isJobDirty()) return Promise.resolve(saveCurrentJob()).catch(function(){}); });
+    };
+  } else if (_isJobDirty()) {
+    try { Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){}
   }
   return { ok: true, confirmed: true, heavySave: heavySave };
 }
@@ -11849,7 +11873,9 @@ async function copyCustomerLink(){
   var msg = document.getElementById('qaMsg');
   _qaBar(true);
   try {
-    var got = await _ensureCustomerLink(msg);
+    // deferHeavySave → the link resolves on a light quote (few KB); the photos
+    // + aerial publish in the background right after, before the customer opens.
+    var got = await _ensureCustomerLink(msg, { deferHeavySave: true });
     if (!got) return;
     var copied = false;
     try { await navigator.clipboard.writeText(got.link); copied = true; } catch(e){}
@@ -11857,6 +11883,8 @@ async function copyCustomerLink(){
     // Also drop the link on the page in a selectable box, so it can be copied
     // by hand (clipboard access is blocked in some browsers / embedded views).
     _showCustomerLinkBox(got.link, got.jobNo, copied);
+    // Publish the photos/aerial in the background now that the link is in hand.
+    try { if (got.heavySave) got.heavySave(); } catch(e){}
   } finally { _qaBar(false); }
 }
 // Render (or update) the on-page customer-link box under the action bar.
