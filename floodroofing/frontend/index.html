@@ -3458,7 +3458,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div><label>Sheet effective width (mm)</label><input type="number" id="sheetWidth" value="762" min="100" oninput="renderSheetLayout()"></div>
         <div><label>End lap / overlap (mm)</label><input type="number" id="overlapMm" value="150" min="0" oninput="renderSheetLayout()"></div>
         <div><label>Pitch (degrees)</label><input type="number" id="pitchDeg" value="15" min="1" max="60"
-              oninput="DRAW.calPitch=parseFloat(this.value)||0;try{autoCalcLineMeasurements()}catch(e){};try{renderSheetLayout()}catch(e){};try{redrawAll()}catch(e){};try{renderRoofSheetPlan()}catch(e){}"></div>
+              oninput="DRAW.calPitch=parseFloat(this.value)||0;DRAW.calPitchAtCal=DRAW.calPitch;try{_syncCurrentToRoof()}catch(e){};try{autoCalcLineMeasurements()}catch(e){};try{renderSheetLayout()}catch(e){};try{redrawAll()}catch(e){};try{renderRoofSheetPlan()}catch(e){}"></div>
       </div>
       <div class="f3 jp-legacy" style="margin-top:8px">
         <div><label>Gutter overhang (mm)
@@ -14885,6 +14885,13 @@ function refreshQuoteProposal(){
     // The grade the base quote was built at — so the customer Selections grade
     // deltas read relative to it (a non-Maxam base shows as "Included").
     S.quote.baseGrade = _selGrade0;
+    // Stash the roof pitch (calibration is authoritative) so the quote's page-1
+    // stat shows it — and the customer link, which has no live drawing/roofData,
+    // still shows the pitch.
+    try {
+      var _pit = (window.DRAW && DRAW.calPitch > 0) ? DRAW.calPitch : ((S.roofData && parseFloat(S.roofData.pitch)) || 0);
+      if (_pit > 0) S.quote.roofPitch = _pit;
+    } catch(e){}
     try {
       if (typeof _matDrawTotals === 'function'){ var _t = _matDrawTotals(); if (_t && parseFloat(_t.gutterLm) > 0) S.quote.gutterLm = parseFloat(_t.gutterLm); }
     } catch(e){}
@@ -15349,7 +15356,7 @@ function refreshQuoteProposal(){
       '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:24px;border-top:1px solid var(--ed-line);border-bottom:1px solid var(--ed-line);padding:18px 0;margin-bottom:24px">'+
         [
           { n:(d.area_m2 ? (+d.area_m2).toFixed(1) : '—'), l:'Roof area',  s:'square metres' },
-          { n:(d.pitch ? d.pitch+'°' : '—'),               l:'Pitch',      s:'degrees' },
+          { n:((d.pitch || (S.quote && S.quote.roofPitch)) ? (d.pitch || S.quote.roofPitch)+'°' : '—'), l:'Pitch',      s:'degrees' },
           { n:(sheetCount || '—'),                         l:'Sheets',     s:'corrugated' },
           { n:(totalDays ? totalDays : '—'),               l:'On-site',    s:(totalDays===1?'day':'days')+' estimated' },
         ].map(function(s){
@@ -16650,7 +16657,7 @@ function refreshQuoteProposal(){
   setText('qpCompany', company); setText('qpTagline', tagline); setText('qpContact', contactBits);
   setText('qpDate', S.quote.date||''); setText('qpRef', S.quote.ref||''); setText('qpValid', S.quote.validUntil||'');
   setText('qpClient', S.quote.client||'—'); setText('qpAddr', S.quote.addr||'—'); setText('qpEmail', S.quote.email||'—'); setText('qpPhone', phone||'—');
-  setText('qpRoofType', d.roof_type||'—'); setText('qpArea', d.area_m2?d.area_m2+' m²':'—'); setText('qpPitch', d.pitch?d.pitch+'°':'—'); setText('qpInspector', inspector||'—');
+  setText('qpRoofType', d.roof_type||'—'); setText('qpArea', d.area_m2?d.area_m2+' m²':'—'); setText('qpPitch', (d.pitch||(S.quote&&S.quote.roofPitch))?((d.pitch||S.quote.roofPitch)+'°'):'—'); setText('qpInspector', inspector||'—');
   setText('qpGstLbl', S.quote.gstRate+'%'); setText('qpTotal', fmtMoney(sumTot));
   setText('qpGenDate', 'Generated '+new Date().toLocaleDateString('en-NZ'));
 }
@@ -25383,6 +25390,14 @@ function confirmCalibrate() {
   // photo-analysis or any other auto-pitch source).
   DRAW.calRealM       = realM;
   DRAW.calPitchAtCal  = pitch;
+  // Persist the calibrated pitch straight into the active roof's archive, so the
+  // per-roof reload (Job Pack / quote pitch readout) can never resurface the
+  // roof's old/default pitch over the value just calibrated.
+  try { _syncCurrentToRoof(); } catch(e){}
+  // The Job Pack stat tiles + the quote page-1 pitch read S.roofData.pitch (the
+  // AI estimate). Calibration is authoritative, so write it through — the
+  // calibrated pitch now always follows through to both.
+  try { if (pitch > 0) { if (!S.roofData) S.roofData = {}; S.roofData.pitch = pitch; } } catch(e){}
   if(pitch>0) {
     var el=document.getElementById('pitchDeg'); if(el) el.value=pitch;
     var el2=document.getElementById('editPitch'); if(el2) el2.value=pitch;
@@ -35298,7 +35313,7 @@ function _newEmptyRoof(name){
   return {
     name: name || ('Roof ' + (DRAW.roofs.length + 1)),
     outline: [], lines: [], sections: [], penetrations: [], infoItems: [],
-    outlineDone: false, roofType: '', calPitch: 22, rotation: 0,
+    outlineDone: false, roofType: '', calPitch: 0, rotation: 0,
   };
 }
 function _syncCurrentToRoof(){
