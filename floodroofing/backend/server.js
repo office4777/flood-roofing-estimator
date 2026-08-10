@@ -1953,8 +1953,10 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
   try {
     const { to, cc, subject, text, html, attachment } = req.body || {};
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!to || !emailRe.test(String(to))) return res.status(400).json({ error: 'Valid "to" address required' });
-    if (cc && !emailRe.test(String(cc)))  return res.status(400).json({ error: 'CC address is not a valid email' });
+    // to / cc may be a comma-separated list of addresses — validate each part.
+    const validList = (v) => { const p = String(v || '').split(',').map(s => s.trim()).filter(Boolean); return p.length > 0 && p.every(a => emailRe.test(a)); };
+    if (!to || !validList(to)) return res.status(400).json({ error: 'Valid "to" address required' });
+    if (cc && !validList(cc))  return res.status(400).json({ error: 'CC address is not a valid email' });
     if (!subject || !String(subject).trim()) return res.status(400).json({ error: 'Subject required' });
     if (attachment && attachment.base64) {
       // ~25MB JSON body cap upstream; belt-and-braces cap the decoded
@@ -2035,7 +2037,7 @@ async function _ensureIndexes(){
 }
 
 app.listen(PORT, () => {
-  console.log('RoofMap backend running on port ' + PORT + ' · build: email-recipients-v6');
+  console.log('RoofMap backend running on port ' + PORT + ' · build: email-recipients-v7');
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
   console.log('Stripe: disabled');
   try { _keepWarm(); } catch(e){}

@@ -4555,6 +4555,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <input type="text" id="emOrderCc" placeholder="office@floodroofing.co.nz" autocomplete="off">
           <div style="font-size:11px;color:var(--text2);margin-top:3px">CC'd whenever a material order is emailed to a supplier.</div>
         </div>
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+          <button type="button" id="emTestBtn" onclick="_sendTestEmail(this)" style="padding:9px 18px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✉️ Send test email</button>
+          <span id="emTestMsg" style="font-size:12px;margin-left:10px;color:var(--text2)"></span>
+          <div style="font-size:11px;color:var(--text2);margin-top:6px">Sends a clearly-labelled test to every address above, so you can confirm they arrive.</div>
+        </div>
       </div>
     </div>
 
@@ -16801,6 +16806,43 @@ function _emailRecip(key){
 function _quoteEmailCc(){ return _emailRecip('quote_cc'); }
 function _orderEmailCc(){ return _emailRecip('order_cc'); }
 function _acceptNotifyTo(){ return _emailRecip('accept_to'); }
+// Send a clearly-labelled test email to every address configured in Settings →
+// Email, so the office can confirm the recipients + relay are working.
+async function _sendTestEmail(btn){
+  var msg = document.getElementById('emTestMsg');
+  function show(t, ok){ if (msg){ msg.textContent = t; msg.style.color = ok===true ? '#15803d' : ok===false ? '#b91c1c' : 'var(--text2)'; } }
+  try { collectSettingsFromUI(); } catch(e){}   // capture the latest field values
+  var em = _emailCfg();
+  var seen = {}, uniq = [];
+  [em.quote_cc, em.accept_to, em.order_cc].forEach(function(v){
+    String(v || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean).forEach(function(a){
+      var k = a.toLowerCase(); if (!seen[k]){ seen[k] = 1; uniq.push(a); }
+    });
+  });
+  if (!uniq.length){ show('Add at least one email address first.', false); return; }
+  var to = uniq.join(', ');
+  if (btn){ btn.disabled = true; }
+  show('Sending test to ' + uniq.length + ' address' + (uniq.length===1?'':'es') + '…');
+  var text = 'This is a TEST email from RoofMap.\n\n' +
+    'If you\'re reading this, your email settings are working — RoofMap can send from the app and this address is receiving copies.\n\n' +
+    'Sent to: ' + to + '\n' +
+    'Sent: ' + new Date().toLocaleString('en-NZ') + '\n\n' +
+    'Nothing further is needed — this was just a test.';
+  var html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:600px">'+
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">Test email from RoofMap</div>'+
+    '<p style="margin:10px 0">If you\'re reading this, your email settings are working — RoofMap can send from the app and this address is receiving copies.</p>'+
+    '<p style="margin:10px 0;color:#475569;font-size:12.5px">Sent to: '+to.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'<br>Sent: '+new Date().toLocaleString('en-NZ')+'</p>'+
+    '<p style="margin:10px 0;color:#475569;font-size:12.5px">Nothing further is needed — this was just a test.</p>'+
+  '</div>';
+  try {
+    await api('POST', '/email/send-order', { to: to, subject: 'TEST — Test email from RoofMap', text: text, html: html });
+    show('✓ Test sent to ' + to + ' — check the inbox(es).', true);
+  } catch(err){
+    var m = String((err && err.message) || err);
+    if (m.indexOf('EMAIL_NOT_CONFIGURED') !== -1 || m.indexOf('503') !== -1) show('In-app sending isn\'t set up on the server yet.', false);
+    else show('Test failed: ' + m.slice(0, 200), false);
+  } finally { if (btn) btn.disabled = false; }
+}
 function _quoteEmailStatus(text, kind){
   var el = document.getElementById('quoteEmailStatus');
   if (!el) return;
