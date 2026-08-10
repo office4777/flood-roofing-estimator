@@ -11812,6 +11812,14 @@ function _shrinkQuoteMediaInPlace(cb){
   if (g && typeof g.bg === 'string' && g.bg.length > 40 * 1024){
     jobs.push(function(done){ _shrinkImg(g.bg, 440, 0.4, function(s){ if (s && s.length < g.bg.length) g.bg = s; done(); }); });
   }
+  // Roof-map PNG captures (aerial baked in) — the biggest offenders. They're a
+  // fallback; the customer view draws the light inline-SVG from roofMapGeom. A
+  // full-canvas PNG re-encodes to a small JPEG at a fraction of the size.
+  if (Array.isArray(q.roofMapImgs)) q.roofMapImgs.forEach(function(im){
+    if (im && typeof im.url === 'string' && im.url.length > 60 * 1024){
+      jobs.push(function(done){ _shrinkImg(im.url, 720, 0.5, function(s){ if (s && s.length < im.url.length) im.url = s; done(); }); });
+    }
+  });
   if (!jobs.length) return cb && cb();
   var n = jobs.length, d = 0;
   jobs.forEach(function(j){ j(function(){ if (++d === n && cb) cb(); }); });
@@ -11824,9 +11832,17 @@ async function _publishQuoteOnly(){
   try { await new Promise(function(res){ _shrinkQuoteMediaInPlace(res); }); } catch(e){}
   var client = (document.getElementById('jobClient')||{}).value || S.quote.client || '';
   var addr   = (document.getElementById('jobAddr')||{}).value || S.quote.addr || '';
-  // Record the published payload size so any remaining slowness can be pinned on
-  // size vs the network (shown on the link/email status when it's still slow).
-  try { window._lastQuotePublishKB = Math.round(JSON.stringify(S.quote).length / 1024); } catch(e){}
+  // Record the published payload size + the biggest fields, so any remaining
+  // slowness can be pinned on exactly what's heavy in the quote.
+  try {
+    window._lastQuotePublishKB = Math.round(JSON.stringify(S.quote).length / 1024);
+    var _sz = {};
+    Object.keys(S.quote).forEach(function(k){ try { _sz[k] = JSON.stringify(S.quote[k]).length; } catch(e){ _sz[k] = 0; } });
+    window._lastQuoteBig = Object.keys(_sz).sort(function(a,b){ return _sz[b] - _sz[a]; })
+      .filter(function(k){ return _sz[k] > 50 * 1024; }).slice(0, 4)
+      .map(function(k){ return k + ' ' + Math.round(_sz[k] / 1024) + 'KB'; }).join(', ');
+    try { console.log('[publish] quote', window._lastQuotePublishKB, 'KB · big fields:', window._lastQuoteBig); } catch(e){}
+  } catch(e){}
   await api('PUT', '/jobs/' + S.currentJobId + '/quote', { quote: S.quote, client_name: client, site_address: addr });
   return true;
 }
@@ -11908,7 +11924,7 @@ async function copyCustomerLink(){
     if (!got) return;
     var copied = false;
     try { await navigator.clipboard.writeText(got.link); copied = true; } catch(e){}
-    var _kb = (typeof window._lastQuotePublishKB === 'number') ? (' · ' + window._lastQuotePublishKB + ' KB') : '';
+    var _kb = (typeof window._lastQuotePublishKB === 'number') ? (' · ' + window._lastQuotePublishKB + ' KB' + (window._lastQuoteBig ? ' (' + window._lastQuoteBig + ')' : '')) : '';
     if (msg) { msg.textContent = (copied ? (got.verified ? '✓ Customer link copied to clipboard.' : 'Link copied (unverified) — give it a moment before sending.') : 'Link ready — copy it from the box below.') + _kb; msg.style.color = got.verified ? '#15803d' : '#b45309'; }
     // Also drop the link on the page in a selectable box, so it can be copied
     // by hand (clipboard access is blocked in some browsers / embedded views).
