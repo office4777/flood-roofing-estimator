@@ -11771,31 +11771,55 @@ function _customerLinkString(){
 // no photos. The customer /q view reads exactly this, so sharing/pushing the
 // link is instant instead of re-uploading the whole (multi-MB) job. Needs a
 // saved job id; callers create the record first when there isn't one.
-// The heavy base64 media that rides INSIDE the quote: the proposal condition
-// photos + the aerial map background. A quote with 6 photos is multi-MB, which
-// is what made "get the customer link" slow. A light publish strips these so
-// the link resolves on a few KB; the media is published straight after in the
-// background (before the customer opens it).
-function _quoteHasMedia(q){
-  if (!q) return false;
-  if (Array.isArray(q.condPhotos) && q.condPhotos.some(function(c){ return c && c.src; })) return true;
-  if (q.roofMapGeom && q.roofMapGeom.bg) return true;
-  return false;
+// Re-encode a data-URL image to a smaller JPEG. Falls back to the original on
+// any failure so a publish never breaks on a bad image.
+function _shrinkImg(dataUrl, maxDim, quality, cb){
+  try {
+    if (!dataUrl || typeof dataUrl !== 'string' || dataUrl.indexOf('data:image') !== 0) return cb(dataUrl);
+    var img = new Image();
+    img.onload = function(){
+      try {
+        var w = img.width, h = img.height;
+        var sc = Math.min(1, maxDim / Math.max(w, h));
+        var cw = Math.max(1, Math.round(w * sc)), ch = Math.max(1, Math.round(h * sc));
+        var c = document.createElement('canvas'); c.width = cw; c.height = ch;
+        c.getContext('2d').drawImage(img, 0, 0, cw, ch);
+        cb(c.toDataURL('image/jpeg', quality));
+      } catch(e){ cb(dataUrl); }
+    };
+    img.onerror = function(){ cb(dataUrl); };
+    img.src = dataUrl;
+  } catch(e){ cb(dataUrl); }
 }
-function _quoteStripMedia(q){
-  if (!q) return q;
-  var lite = Object.assign({}, q);
-  if (Array.isArray(q.condPhotos) && q.condPhotos.length) lite.condPhotos = q.condPhotos.map(function(){ return null; });
-  if (q.roofMapGeom && q.roofMapGeom.bg) lite.roofMapGeom = Object.assign({}, q.roofMapGeom, { bg: null });
-  return lite;
+// The proposal condition photos ride as base64 INSIDE the quote, so a 6-photo
+// quote is multi-MB — that was what made "get the customer link" slow. Shrink
+// the big ones IN PLACE (to ~700px) so the SINGLE canonical quote publish is a
+// few hundred KB. Doing it in place (not on a throwaway copy) means the job
+// save writes the small version too — one source of truth, so there's no second
+// write to race the customer's live selections. Only touches oversized photos,
+// so it's idempotent. Quality at 700px is fine for a proposal.
+function _shrinkQuotePhotosInPlace(cb){
+  var q = S.quote;
+  if (!q || !Array.isArray(q.condPhotos)) return cb && cb();
+  var jobs = [];
+  q.condPhotos.forEach(function(cp){
+    if (cp && typeof cp.src === 'string' && cp.src.length > 90 * 1024){
+      jobs.push(function(done){ _shrinkImg(cp.src, 700, 0.5, function(s){ if (s && s.length < cp.src.length) cp.src = s; done(); }); });
+    }
+  });
+  if (!jobs.length) return cb && cb();
+  var n = jobs.length, d = 0;
+  jobs.forEach(function(j){ j(function(){ if (++d === n && cb) cb(); }); });
 }
-async function _publishQuoteOnly(opts){
-  opts = opts || {};
+async function _publishQuoteOnly(){
   if (!S.currentJobId || !S.quote) return false;
+  // Shrink oversized proposal photos first so the payload is small, then
+  // publish the FULL quote — one canonical write (no stripped/second version
+  // that could clobber a customer's selection).
+  try { await new Promise(function(res){ _shrinkQuotePhotosInPlace(res); }); } catch(e){}
   var client = (document.getElementById('jobClient')||{}).value || S.quote.client || '';
   var addr   = (document.getElementById('jobAddr')||{}).value || S.quote.addr || '';
-  var quote  = opts.light ? _quoteStripMedia(S.quote) : S.quote;
-  await api('PUT', '/jobs/' + S.currentJobId + '/quote', { quote: quote, client_name: client, site_address: addr });
+  await api('PUT', '/jobs/' + S.currentJobId + '/quote', { quote: S.quote, client_name: client, site_address: addr });
   return true;
 }
 // Make the customer link resolve as fast as possible: for an existing job,
@@ -11809,24 +11833,21 @@ async function _publishQuoteOnly(opts){
 async function _publishQuoteForLink(opts){
   opts = opts || {};
   if (!S.currentJobId){ await saveCurrentJob(); return { ok: !!S.currentJobId, confirmed: false }; }
-  // With deferHeavySave, publish a LIGHT quote (no photos/aerial) so the link
-  // resolves on a tiny payload; the media + the rest of the job are persisted
-  // in the background via heavySave(). Without it, publish the full quote now.
-  var light = !!opts.deferHeavySave && _quoteHasMedia(S.quote);
-  try { await _publishQuoteOnly({ light: light }); }
+  // Publish the full (photo-shrunk) quote — one canonical write so the customer
+  // link is complete and nothing later overwrites their live selections.
+  try { await _publishQuoteOnly(); }
   catch(e){ await saveCurrentJob(); return { ok: !!S.currentJobId, confirmed: false }; }
+  // The rest of the job (drawing aerial + the full-res photo pool in draw_state)
+  // isn't needed by the customer link. Persisting it must not race the thing the
+  // user is waiting on (email send / link copy) on a metered uplink, so with
+  // deferHeavySave the caller runs it AFTER that returns; else background it.
   var heavySave = null;
-  if (opts.deferHeavySave) {
-    // 1) publish the FULL quote (condition photos + aerial) so the customer link
-    //    shows them, then 2) persist the rest of the job if it changed. Runs
-    //    off the critical path — the caller fires it after the user-facing
-    //    action (email send / link copy) has returned.
-    heavySave = function(){
-      var p = light ? Promise.resolve(_publishQuoteOnly()).catch(function(){}) : Promise.resolve();
-      return p.then(function(){ if (_isJobDirty()) return Promise.resolve(saveCurrentJob()).catch(function(){}); });
-    };
-  } else if (_isJobDirty()) {
-    try { Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){}
+  if (_isJobDirty()) {
+    if (opts.deferHeavySave) {
+      heavySave = function(){ try { return Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){} };
+    } else {
+      try { Promise.resolve(saveCurrentJob()).catch(function(){}); } catch(e){}
+    }
   }
   return { ok: true, confirmed: true, heavySave: heavySave };
 }
