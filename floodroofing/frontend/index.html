@@ -4642,6 +4642,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div class="f3" style="margin-top:6px">
           <div><label>Typhoon joiner ($/each)</label><input type="number" id="pbGutTyphoonJoiner" step="0.01" min="0" placeholder="0.00"></div>
           <div><label>Typhoon corner / angle ($/each)</label><input type="number" id="pbGutTyphoonCorner" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Typhoon stop-end ($/each)</label><input type="number" id="pbGutTyphoonStopend" step="0.01" min="0" placeholder="0.00"></div>
+        </div>
+        <div class="f3" style="margin-top:6px">
+          <div><label>Typhoon expansion joiner ($/each)</label><input type="number" id="pbGutTyphoonExpJoiner" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Typhoon weld solvent ($/tube)</label><input type="number" id="pbGutTyphoonWeldSolvent" step="0.01" min="0" placeholder="0.00"></div>
           <div></div>
         </div>
         <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">Other profiles &amp; external brackets</div>
@@ -5292,6 +5297,9 @@ function defaultSettings(){
         typhoon_outlet_ea:   24.21,  // Typhoon 80mm outlets $/ea
         typhoon_joiner_ea:    3.82,  // Typhoon joiners $/ea
         typhoon_corner_ea:   19.74,  // Typhoon corners (ext/int angle) $/ea
+        typhoon_stopend_ea:   5.16,  // Typhoon stop-ends (LH/RH) $/ea
+        typhoon_expjoiner_ea:21.92,  // Typhoon expansion joiners $/ea
+        typhoon_weldsolvent_ea:20.87,// Typhoon weld solvent $/180g tube
         box125_lm:              30,  // 125mm Colorsteel box gutter $/lm (all-in)
         marley_classic_lm:      35,  // Marley Classic PVC $/lm (all-in)
         marley_typhoon_lm:      40,  // Marley Typhoon simple $/lm (fallback if not itemised)
@@ -5596,6 +5604,9 @@ function collectPriceBookFromUI(){
     typhoon_outlet_ea:     _num('pbGutTyphoonOutlet'),
     typhoon_joiner_ea:     _num('pbGutTyphoonJoiner'),
     typhoon_corner_ea:     _num('pbGutTyphoonCorner'),
+    typhoon_stopend_ea:    _num('pbGutTyphoonStopend'),
+    typhoon_expjoiner_ea:  _num('pbGutTyphoonExpJoiner'),
+    typhoon_weldsolvent_ea:_num('pbGutTyphoonWeldSolvent'),
     box125_lm:             _num('pbGutBox125Lm'),
     marley_classic_lm:     _num('pbGutMarleyClassicLm'),
     marley_typhoon_lm:     _num('pbGutMarleyTyphoonLm'),
@@ -5636,6 +5647,9 @@ function renderPriceBookUI(){
   setN('pbGutTyphoonOutlet',   g.typhoon_outlet_ea);
   setN('pbGutTyphoonJoiner',   g.typhoon_joiner_ea);
   setN('pbGutTyphoonCorner',   g.typhoon_corner_ea);
+  setN('pbGutTyphoonStopend',     g.typhoon_stopend_ea);
+  setN('pbGutTyphoonExpJoiner',   g.typhoon_expjoiner_ea);
+  setN('pbGutTyphoonWeldSolvent', g.typhoon_weldsolvent_ea);
   setN('pbGutBox125Lm',        g.box125_lm);
   setN('pbGutMarleyClassicLm', g.marley_classic_lm);
   setN('pbGutMarleyTyphoonLm', g.marley_typhoon_lm);
@@ -10749,7 +10763,10 @@ function _gutterTyphoonInv(){
     bracket: _gutterPrice('typhoon_bracket',  'typhoon_bracket_ea',  b.bracket), bracketDesc: b.bracketDesc,
     outlet:  _gutterPrice('typhoon_outlet',   'typhoon_outlet_ea',   b.outlet),  outletDesc:  b.outletDesc,
     joiner:  _gutterPrice('typhoon_joiner',   'typhoon_joiner_ea',   b.joiner),  joinerDesc:  b.joinerDesc,
-    corner:  _gutterPrice('typhoon_corner',   'typhoon_corner_ea',   b.corner),  cornerDesc:  b.cornerDesc
+    corner:  _gutterPrice('typhoon_corner',   'typhoon_corner_ea',   b.corner),  cornerDesc:  b.cornerDesc,
+    stopend: _gutterPrice('typhoon_stopend',  'typhoon_stopend_ea',  b.stopend), stopendDesc: b.stopendDesc,
+    expjoiner: _gutterPrice('typhoon_expjoiner','typhoon_expjoiner_ea', b.expjoiner), expjoinerDesc: b.expjoinerDesc,
+    weldsolvent: _gutterPrice('typhoon_weldsolvent','typhoon_weldsolvent_ea', b.weldsolvent), weldsolventDesc: b.weldsolventDesc
   };
 }
 // External-bracket upcharge ($/lm) for a gutter profile.
@@ -10781,12 +10798,17 @@ var GUTTER_MATERIAL_PRICES = {
     bracket:  5.56, bracketDesc: 'Typhoon external brackets',
     outlet:  24.21, outletDesc:  'Typhoon 80mm outlets',
     joiner:   3.82, joinerDesc:  'Typhoon joiners',
-    corner:  19.74, cornerDesc:  'Typhoon corners (ext/int angle)'
+    corner:  19.74, cornerDesc:  'Typhoon corners (ext/int angle)',
+    stopend:  5.16, stopendDesc: 'Typhoon stop-ends (LH/RH)',
+    expjoiner:21.92, expjoinerDesc:'Typhoon expansion joiners',
+    weldsolvent:20.87, weldsolventDesc:'Typhoon weld solvent (180g tube)'
   }
 };
 var GUTTER_BRACKET_SPACING_M  = 0.5;   // one bracket every 500 mm
 var GUTTER_OUTLET_SPACING_M   = 15;    // one outlet every 15 m
 var GUTTER_SPOUTING_LENGTH_M  = 5;     // spouting sold in 5 m lengths → one joiner per join
+var GUTTER_EXPJOINER_SPACING_M = 12;   // one expansion joiner every 12 m of run
+var GUTTER_SOLVENT_PER_M      = 30;    // one 180g solvent tube per ~30 m of spouting
 // Gutter labour is charged out lower than roofing — default $140/hr lead,
 // $70/hr apprentice (editable per job). Roofing keeps its own higher rates.
 var GUTTER_LABOUR_LEAD_PRICE = 140;
@@ -10813,6 +10835,20 @@ function _gutterMaterialLines(id, lm, lines, corners){
     out.push({ desc: inv.outletDesc  + ' (1 / '+GUTTER_OUTLET_SPACING_M+'m)',                     qty: nOut, unit:'ea', price: inv.outlet });
     if (nJoin > 0)   out.push({ desc: inv.joinerDesc + ' ('+GUTTER_SPOUTING_LENGTH_M+' m lengths)', qty: nJoin,   unit:'ea', price: inv.joiner });
     if (corners > 0) out.push({ desc: inv.cornerDesc,                                               qty: corners, unit:'ea', price: inv.corner });
+    // Typhoon-only fittings (solvent-weld PVC system). Only added when the
+    // itemised invoice carries these prices, so box/Classic are unaffected.
+    if (inv.stopend != null){
+      var nEnd = Math.max(2, (parseInt(lines, 10) || 1) * 2);   // two ends per run
+      out.push({ desc: inv.stopendDesc, qty: nEnd, unit:'ea', price: inv.stopend });
+    }
+    if (inv.expjoiner != null){
+      var nExp = Math.floor(lm / GUTTER_EXPJOINER_SPACING_M);   // one per 12 m of run
+      if (nExp > 0) out.push({ desc: inv.expjoinerDesc + ' (1 / '+GUTTER_EXPJOINER_SPACING_M+'m)', qty: nExp, unit:'ea', price: inv.expjoiner });
+    }
+    if (inv.weldsolvent != null){
+      var nSol = Math.max(1, Math.ceil(lm / GUTTER_SOLVENT_PER_M));   // one tube per ~30 m
+      out.push({ desc: inv.weldsolventDesc, qty: nSol, unit:'ea', price: inv.weldsolvent });
+    }
   } else if (lm > 0){
     out.push({ desc:'Gutter (supply)', qty: lm, unit:'lm', price: _gutterMaterialPerLm(id) });
   }
@@ -29992,6 +30028,17 @@ function _matOnPickFlashing(sel) {
   renderMaterialsCutLists();
 }
 
+// Fallback matcher: a saved flashing whose NAME mentions this flashing
+// type (e.g. a sketch named "Valley" saved under type "Custom"). Lets a
+// user's drawing become the default even if the Type field wasn't set.
+function _matSketchByNameKeyword(flashingType){
+  var kw = String(flashingType || '').split('|')[0].toLowerCase();
+  if (!kw) return null;
+  var all = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
+  return all.find(function(e){
+    return e && e.sketch && String(e.name || '').toLowerCase().indexOf(kw) >= 0;
+  }) || null;
+}
 // Returns either a saved-drawing <img> if the user picked one for
 // this flashing type, else falls back to the built-in SVG profile.
 function _matFlashingDrawingHtml(flashingType, defaultKind) {
@@ -30004,6 +30051,12 @@ function _matFlashingDrawingHtml(flashingType, defaultKind) {
   // saved Valley drawing shows instead of a blank tile.
   if (!pick && !builtin) {
     pick = matches.find(function(m){ return m.entry && m.entry.sketch; }) || null;
+    // Last resort: a sketch saved under a different type (e.g. "Custom")
+    // but whose name mentions this flashing (e.g. "Valley").
+    if (!pick) {
+      var hit = _matSketchByNameKeyword(flashingType);
+      if (hit) pick = { entry: hit };
+    }
   }
   if (pick && pick.entry.sketch) {
     return '<img src="'+pick.entry.sketch+'" alt="" style="width:130px;height:70px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:2px">';
@@ -32733,6 +32786,11 @@ function _matBuildPrintOrderDetails(mount) {
     // 'valley') becomes the valley default instead of "No drawing".
     if (!saved && !spec.drawing) {
       saved = _flashLib.find(function(e){ return e && e.sketch && e.flashingType === spec.key; }) || null;
+      // Last resort — match by name keyword (covers a sketch saved as
+      // "Custom" but named e.g. "Valley").
+      if (!saved && typeof _matSketchByNameKeyword === 'function') {
+        saved = _matSketchByNameKeyword(spec.key);
+      }
     }
     var imgHtml;
     if (saved && saved.sketch) {
