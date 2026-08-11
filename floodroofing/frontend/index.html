@@ -4660,6 +4660,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <div><label>External bracket upcharge — Marley ($/lm)</label><input type="number" id="pbGutExtMarleyLm" step="0.01" min="0" placeholder="0.00"></div>
           <div></div>
         </div>
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">Back-tray prices ($/each) <span style="font-weight:400;color:var(--text3)">— pipe-penetration trays; auto-added to the order &amp; Fergus. Leave blank for $0.</span></div>
+        <div id="pbBackTrayList" class="f3"></div>
       </div>
 
       <!-- Downpipes -->
@@ -5307,6 +5309,7 @@ function defaultSettings(){
         ext_bracket_marley_lm:   3   // external-bracket upcharge on either Marley PVC $/lm
       },
       downpipe_ea:   150,   // $ per downpipe (one per gutter line)
+      backtray_prices: {},  // { '<tray name>': $/each } — pipe-penetration back-trays
       extras: []         // [{desc, unit, qty, price}] — custom price-book items the user adds
     },
     // Labour pricing — per-scope-item default hour budgets and the
@@ -5613,6 +5616,12 @@ function collectPriceBookFromUI(){
     ext_bracket_box125_lm: _num('pbGutExtBox125Lm'),
     ext_bracket_marley_lm: _num('pbGutExtMarleyLm')
   };
+  pb.backtray_prices = {};
+  Array.from(document.querySelectorAll('#pbBackTrayList [data-bt-name]')).forEach(function(inp){
+    var nm = inp.getAttribute('data-bt-name');
+    var v = parseFloat(inp.value);
+    if (nm && isFinite(v) && v > 0) pb.backtray_prices[nm] = v;
+  });
   pb.extras = Array.from(document.querySelectorAll('#pbExtrasList > [data-pb-extra]')).map(function(row){
     return {
       desc:  (row.querySelector('input[data-f="desc"]')||{}).value || '',
@@ -5655,7 +5664,19 @@ function renderPriceBookUI(){
   setN('pbGutMarleyTyphoonLm', g.marley_typhoon_lm);
   setN('pbGutExtBox125Lm',     g.ext_bracket_box125_lm);
   setN('pbGutExtMarleyLm',     g.ext_bracket_marley_lm);
+  _renderBackTrayPriceInputs();
   renderPriceBookExtras(pb.extras || []);
+}
+// Render the back-tray $/each inputs (one per standard tray name).
+function _renderBackTrayPriceInputs(){
+  var box = document.getElementById('pbBackTrayList'); if (!box) return;
+  var names = (typeof BACKTRAY_NAMES !== 'undefined') ? BACKTRAY_NAMES : [];
+  var m = (S.settings && S.settings.price_book && S.settings.price_book.backtray_prices) || {};
+  box.innerHTML = names.map(function(nm){
+    var v = parseFloat(m[nm]); v = (isFinite(v) && v > 0) ? v : '';
+    return '<div><label style="font-size:11px">'+esc(nm)+'</label>'+
+      '<input type="number" step="0.01" min="0" data-bt-name="'+esc(nm)+'" value="'+v+'" placeholder="0.00"></div>';
+  }).join('');
 }
 
 function renderPriceBookSheets(sheets){
@@ -20125,6 +20146,10 @@ function emailOrderToSupplier(){
   lines.push('  Screws:      ' + (o.screws || '—'));
   lines.push('  Rivets:      ' + (o.rivets || '—'));
   lines.push('  Dektites:    ' + (o.dektites || '—'));
+  var _btOrder = (typeof _backTrayOrderList === 'function') ? _backTrayOrderList() : [];
+  if (_btOrder.length){
+    lines.push('  Back-trays:  ' + _btOrder.map(function(b){ return b.qty + ' × ' + b.name; }).join(', '));
+  }
   lines.push('  Ridging:     ' + (o.ridging === 'wide' ? 'Wide' : 'Standard'));
   lines.push('  Gutter:      ' + (o.gutter || '—'));
   lines.push('');
@@ -20442,6 +20467,7 @@ function _renderJobPackOrder(){
     row('Screws',   o.screws) +
     row('Rivets',   o.rivets) +
     row('Dektites', o.dektites) +
+    (function(){ var l=(typeof _backTrayOrderList==='function')?_backTrayOrderList():[]; return l.length ? row('Back-trays', l.map(function(b){return b.qty+' × '+b.name;}).join(', ')) : ''; })() +
     row('Ridging',  o.ridging === 'wide' ? 'Wide' : 'Standard') +
     row('Gutter',   o.gutter) +
     '</div>';
@@ -26120,6 +26146,29 @@ function _penBackTrayName(p){
   var d = _penDiamMm(p.sizeLabel);
   if (!d) return null;
   return _backTrayNameFor(d, prof);
+}
+// The standard back-tray names (Corrugate then 5-Rib) — drives the price
+// book inputs and the Fergus / order line items.
+var BACKTRAY_NAMES = [
+  '270mm Corrugate back-tray','340mm Corrugate back-tray','570mm Corrugate back-tray',
+  '725mm Corrugate back-tray','800mm Corrugate back-tray',
+  '250mm 5-Rib back-tray','420mm 5-Rib back-tray','610mm 5-Rib back-tray','800mm 5-Rib back-tray'
+];
+// $/each for a named back-tray from the price book (0 when unset).
+function _backTrayUnitPrice(name){
+  var m = (window.S && S.settings && S.settings.price_book && S.settings.price_book.backtray_prices) || {};
+  var n = parseFloat(m[name]);
+  return (isFinite(n) && n >= 0) ? n : 0;
+}
+// [{name, qty}] of back-trays for the current job's pipe penetrations,
+// grouped by tray name. Feeds the Job Pack, the order, and Fergus.
+function _backTrayOrderList(){
+  var counts = {};
+  (DRAW.penetrations || []).forEach(function(p){
+    var nm = _penBackTrayName(p);
+    if (nm) counts[nm] = (counts[nm] || 0) + 1;
+  });
+  return Object.keys(counts).map(function(nm){ return { name: nm, qty: counts[nm] }; });
 }
 
 // ── INFO PANEL ───────────────────────────────────────────────────
@@ -32263,6 +32312,13 @@ function _buildFergusItemisedSections(){
     }
   } else if ((+S.materials) > 0){
     roofMat.push(matLine('Materials', 1, +S.materials));   // fallback — S.materials already includes the markup
+  }
+  // ── Back-trays (one line per pipe-penetration tray) ── added AFTER the
+  //    markup so they pass through at their set $/each, not marked up.
+  if (typeof _backTrayOrderList === 'function'){
+    _backTrayOrderList().forEach(function(bt){
+      roofMat.push(matLine(bt.name, bt.qty, _backTrayUnitPrice(bt.name)));
+    });
   }
 
   // ── Scaffolding (base — the platform upgrade delta is routed in below) ──
