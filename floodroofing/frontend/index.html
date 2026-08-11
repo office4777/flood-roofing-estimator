@@ -21671,6 +21671,13 @@ var DRAG_OUTLINE_VERT = null;
 // star marker. Drag updates item.cx/.cy directly; mouseup commits the
 // snapshot captured on grab so undo can put the star back.
 var DRAG_INFO_STAR = null;
+// Straight-gable ridge slide — set when the user grabs the ridge line
+// of a gable in Move mode. Drag moves the ridge perpendicular to its
+// run, snapping to the vertical centre of the left end and of the right
+// end (two small snap points; Shift bypasses). Committed by writing
+// DRAW.gableRidgeOffset via setGableRidgeOffset (regenerates barges +
+// faces so sheet lengths stay correct).
+var DRAG_RIDGE = null;
 // Smaller of: hit-test radius for grabbing a corner (~14 canvas px).
 var OUTLINE_VERT_GRAB = 14;
 // Set true on corner-drag mouseup so the subsequent click event
@@ -22108,6 +22115,58 @@ function _stretchQuadOutline(cornerIdx, cursorX, cursorY, initialOutline){
   return { A_idx:A_idx, B_idx:B_idx, D_idx:D_idx, A:A, newB:newB, newD:newD, newC:newC };
 }
 
+// Perpendicular distance from point (px,py) to segment a→b (image px).
+function _ridgeDistToSeg(px, py, a, b){
+  var vx = b[0]-a[0], vy = b[1]-a[1], wx = px-a[0], wy = py-a[1];
+  var L2 = vx*vx + vy*vy;
+  var t = L2 > 0 ? Math.max(0, Math.min(1, (wx*vx + wy*vy)/L2)) : 0;
+  var cx = a[0]+t*vx, cy = a[1]+t*vy;
+  return Math.sqrt((px-cx)*(px-cx) + (py-cy)*(py-cy));
+}
+// Vertical extent [minY,maxY] of the outline polygon where a vertical
+// line x=X crosses it — used to find the centre between the two eaves
+// at a given point along a gable so the ridge can snap there.
+function _polyVSpanAtX(outline, X){
+  var ys = [];
+  for (var i=0;i<outline.length;i++){
+    var a=outline[i], b=outline[(i+1)%outline.length];
+    if ((a[0]-X)*(b[0]-X) < 0){ var t=(X-a[0])/(b[0]-a[0]); ys.push(a[1]+t*(b[1]-a[1])); }
+  }
+  if (ys.length < 2) return null;
+  return [Math.min.apply(null,ys), Math.max.apply(null,ys)];
+}
+// Horizontal extent [minX,maxX] where a horizontal line y=Y crosses the
+// outline — the vertical-ridge analogue of _polyVSpanAtX.
+function _polyHSpanAtY(outline, Y){
+  var xs = [];
+  for (var i=0;i<outline.length;i++){
+    var a=outline[i], b=outline[(i+1)%outline.length];
+    if ((a[1]-Y)*(b[1]-Y) < 0){ var t=(Y-a[1])/(b[1]-a[1]); xs.push(a[0]+t*(b[0]-a[0])); }
+  }
+  if (xs.length < 2) return null;
+  return [Math.min.apply(null,xs), Math.max.apply(null,xs)];
+}
+// Overlay the two ridge snap points during a ridge drag. Small dots so
+// they still read when the two centres are close; the active (snapped)
+// one gets a highlight ring.
+function _drawRidgeSnapDots(){
+  if (!DRAG_RIDGE || !DRAG_RIDGE.snapTargets) return;
+  var cv = document.getElementById('roofCanvas'); if (!cv) return;
+  var ctx = cv.getContext('2d'); var t = getImgTransform();
+  DRAG_RIDGE.snapTargets.forEach(function(s, i){
+    var imgPt = DRAG_RIDGE.horiz ? [s.at, s.coord] : [s.coord, s.at];
+    var c = imgToCanvas(imgPt, t);
+    var active = (DRAG_RIDGE.activeSnap === i);
+    if (active){
+      ctx.beginPath(); ctx.arc(c[0], c[1], 8, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(37,99,235,0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(c[0], c[1], active ? 4.5 : 3.2, 0, Math.PI*2);
+    ctx.fillStyle = active ? '#2563eb' : 'rgba(37,99,235,0.55)'; ctx.fill();
+    if (active){ ctx.lineWidth = 1.4; ctx.strokeStyle = '#fff'; ctx.stroke(); }
+  });
+}
+
 function onCanvasMouseDown(e) {
   // Info star drag — let the user nudge the amber star in Move
   // (select) and Info tools. Skipped in Delete (so a tap still
@@ -22270,6 +22329,61 @@ function onCanvasMouseDown(e) {
       }
     }
   }
+  // Ridge slide (straight gable, Move tool) — grab the ridge line and
+  // drag it up/down. It snaps to the vertical centre of the LEFT end and
+  // of the RIGHT end (two small snap points). Hold Shift to ignore the
+  // snaps. Claimed before PAN so a press on the ridge starts a slide,
+  // not a pan.
+  if (DRAW.tool === 'select' && DRAW.roofType === 'gable' && DRAW.outline && DRAW.outline.length >= 3) {
+    var _rxy = getXY(e);
+    var _rtr = getImgTransform();
+    var _rThresh = _rtr ? 10/_rtr.s : 10;
+    var _ridge = null;
+    for (var _ri = 0; _ri < DRAW.lines.length; _ri++){
+      var _ln = DRAW.lines[_ri];
+      if (!_ln || _ln.type !== 'ridge' || !_ln.pts || _ln.pts.length !== 2) continue;
+      if (_ridgeDistToSeg(_rxy[0], _rxy[1], _ln.pts[0], _ln.pts[1]) < _rThresh){ _ridge = _ln; break; }
+    }
+    if (_ridge){
+      var _rp0 = _ridge.pts[0], _rp1 = _ridge.pts[1];
+      var _horiz = Math.abs(_rp1[0]-_rp0[0]) >= Math.abs(_rp1[1]-_rp0[1]);
+      var _minX=Infinity,_maxX=-Infinity,_minY=Infinity,_maxY=-Infinity;
+      DRAW.outline.forEach(function(p){
+        if(p[0]<_minX)_minX=p[0]; if(p[0]>_maxX)_maxX=p[0];
+        if(p[1]<_minY)_minY=p[1]; if(p[1]>_maxY)_maxY=p[1];
+      });
+      // Two snap targets: centre between the eaves near the LEFT end and
+      // near the RIGHT end (sampled just inside each gable end so a step
+      // on one side gives a slightly different centre than the other).
+      var _snaps = [];
+      if (_horiz){
+        var _insX = Math.max(2, (_maxX-_minX)*0.04);
+        [_minX+_insX, _maxX-_insX].forEach(function(_ax){
+          var _sp = _polyVSpanAtX(DRAW.outline, _ax);
+          _snaps.push({ coord: _sp ? (_sp[0]+_sp[1])/2 : (_minY+_maxY)/2, at: _ax });
+        });
+      } else {
+        var _insY = Math.max(2, (_maxY-_minY)*0.04);
+        [_minY+_insY, _maxY-_insY].forEach(function(_ay){
+          var _sp = _polyHSpanAtY(DRAW.outline, _ay);
+          _snaps.push({ coord: _sp ? (_sp[0]+_sp[1])/2 : (_minX+_maxX)/2, at: _ay });
+        });
+      }
+      DRAG_RIDGE = {
+        horiz: _horiz,
+        bbCenter: _horiz ? (_minY+_maxY)/2 : (_minX+_maxX)/2,
+        bbSpan:   _horiz ? (_maxY-_minY)  : (_maxX-_minX),
+        snapTargets: _snaps,
+        activeSnap: -1,
+        moved: false,
+        preSnap: _captureSnapState()
+      };
+      var _rcv = document.getElementById('roofCanvas');
+      if (_rcv) _rcv.style.cursor = 'grabbing';
+      e.preventDefault();
+      return;
+    }
+  }
   // Only pan in Move (select) tool
   if(DRAW.tool !== 'select') return;
   PAN.active = true;
@@ -22347,6 +22461,19 @@ function onCanvasMouseUp(e) {
     SUPPRESS_NEXT_CLICK = true;
     var cv = document.getElementById('roofCanvas');
     if (cv) cv.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
+    redrawAll();
+    return;
+  }
+  if(DRAG_RIDGE) {
+    if (DRAG_RIDGE.moved){
+      _pushSnap(DRAG_RIDGE.preSnap);
+      try { syncToRoofData && syncToRoofData(); } catch(err){}
+      try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(err){}
+      SUPPRESS_NEXT_CLICK = true;
+    }
+    DRAG_RIDGE = null;
+    var _rcvU = document.getElementById('roofCanvas');
+    if (_rcvU) _rcvU.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
     redrawAll();
     return;
   }
@@ -22828,6 +22955,36 @@ function onCanvasMove(e) {
     redrawAll();
     return;
   }
+  // Drag the gable ridge — move it perpendicular to its run, snapping
+  // to the two end-centre targets unless Shift is held, then convert the
+  // position to DRAW.gableRidgeOffset and regenerate.
+  if (DRAG_RIDGE){
+    var _rcv2 = document.getElementById('roofCanvas');
+    var _rr = _rcv2.getBoundingClientRect();
+    var _rdpr = window.devicePixelRatio || 1;
+    var _rcx = (e.clientX-_rr.left)*(_rcv2.width/_rr.width)/_rdpr;
+    var _rcy = (e.clientY-_rr.top)*(_rcv2.height/_rr.height)/_rdpr;
+    var _rt = getImgTransform();
+    var _rimg = _rt ? [(_rcx-_rt.ix)/_rt.s, (_rcy-_rt.iy)/_rt.s] : [_rcx, _rcy];
+    var _desired = DRAG_RIDGE.horiz ? _rimg[1] : _rimg[0];
+    DRAG_RIDGE.activeSnap = -1;
+    if (!e.shiftKey){
+      var _snapR = _rt ? 8/_rt.s : 8;   // small radius so close centres stay distinct
+      var _bestD = Infinity, _bi = -1;
+      DRAG_RIDGE.snapTargets.forEach(function(s, i){
+        var d = Math.abs(_desired - s.coord);
+        if (d < _snapR && d < _bestD){ _bestD = d; _bi = i; }
+      });
+      if (_bi >= 0){ _desired = DRAG_RIDGE.snapTargets[_bi].coord; DRAG_RIDGE.activeSnap = _bi; }
+    }
+    var _half = (DRAG_RIDGE.bbSpan*0.5) || 1;
+    var _off = Math.max(-0.9, Math.min(0.9, (_desired - DRAG_RIDGE.bbCenter)/_half));
+    DRAG_RIDGE.moved = true;
+    try { setGableRidgeOffset(_off, true); } catch(err){}
+    redrawAll();
+    _drawRidgeSnapDots();
+    return;
+  }
   // Hover affordance for corners — change cursor when the pointer is
   // close to a draggable vertex while the Move tool is active.
   if(DRAW.tool==='select' && DRAW.outlineDone && DRAW.outline.length>=3){
@@ -22838,8 +22995,22 @@ function onCanvasMove(e) {
       var v=DRAW.outline[hi], hdx=v[0]-xy[0], hdy=v[1]-xy[1];
       if(Math.sqrt(hdx*hdx+hdy*hdy) < GRAB){ near = true; break; }
     }
+    // Gable ridge hover — show a resize cursor so the user knows the
+    // ridge can be dragged up/down.
+    var _ridgeHover = false;
+    if (!near && DRAW.roofType === 'gable'){
+      var _rTh = trH ? 10/trH.s : 10;
+      for (var _hri=0; _hri<DRAW.lines.length; _hri++){
+        var _hl = DRAW.lines[_hri];
+        if (!_hl || _hl.type !== 'ridge' || !_hl.pts || _hl.pts.length !== 2) continue;
+        if (_ridgeDistToSeg(xy[0], xy[1], _hl.pts[0], _hl.pts[1]) < _rTh){
+          _ridgeHover = Math.abs(_hl.pts[1][0]-_hl.pts[0][0]) >= Math.abs(_hl.pts[1][1]-_hl.pts[0][1]) ? 'ns-resize' : 'ew-resize';
+          break;
+        }
+      }
+    }
     var cv = document.getElementById('roofCanvas');
-    if (cv) cv.style.cursor = near ? 'move' : 'grab';
+    if (cv) cv.style.cursor = near ? 'move' : (_ridgeHover || 'grab');
   }
 
   DRAW.hoveredLine=-1;
@@ -24393,7 +24564,13 @@ function redrawAll() {
         var rAng = Math.atan2(rdy, rdx);
         [1, -1].forEach(function(sgn){
           var dx = ppx*sgn, dy = ppy*sgn;
-          var bestPerp = Infinity, bestG = null;
+          // Gather EVERY gutter on this side that runs parallel to the
+          // ridge and overlaps its span. A stepped eave (an L / T, or a
+          // gable with a bump-out) drops to gutters at several depths —
+          // we want one sheet-length measure per distinct run, not just
+          // the single nearest gutter, so each different sheet length is
+          // labelled over its own section of roof.
+          var cand = [];
           gutters.forEach(function(g){
             var ga = g.pts[0], gb = g.pts[1];
             var gdx = gb[0]-ga[0], gdy = gb[1]-ga[1];
@@ -24407,70 +24584,91 @@ function redrawAll() {
             if (perp <= 4) return;
             var g0 = (ga[0]-rmx)*rux + (ga[1]-rmy)*ruy;
             var g1 = (gb[0]-rmx)*rux + (gb[1]-rmy)*ruy;
-            if (Math.max(g0,g1) < -0.55*rL || Math.min(g0,g1) > 0.55*rL) return;
+            var lo = Math.min(g0,g1), hi = Math.max(g0,g1);
+            if (hi < -0.55*rL || lo > 0.55*rL) return;
             // Cross-line filter only valid against the current roof's
             // own lines; harmless to skip it for non-active roofs.
             if (lines === DRAW.lines && _crossesAnotherRoofLine([rmx,rmy], [gmx,gmy], rl)) return;
-            if (perp < bestPerp) { bestPerp = perp; bestG = g; }
+            cand.push({ g:g, perp:perp, lo:lo, hi:hi });
           });
-          if (!bestG || !isFinite(bestPerp)) return;
-          var endImgX = rmx + dx*bestPerp, endImgY = rmy + dy*bestPerp;
-          var lblImgX = rmx + dx*bestPerp*0.5, lblImgY = rmy + dy*bestPerp*0.5;
-          if (!_pointInPoly(lblImgX, lblImgY, outline)) return;
-          var autoSheetM = _calibratedSheetM(bestPerp * (DRAW.scaleMetresPerPx || 0) * _pitchF);
-          // Face-based key (gutter + into-face direction) PLUS the
-          // source ridge's midpoint hash, so two ridges that drop
-          // perpendicular onto the same gutter on the same face get
-          // INDEPENDENT override entries.  Without the ridge suffix
-          // editing one "4.50m" label would silently rewrite the
-          // other label on the same face (the user's bug report —
-          // "the two top sheet measures are copying each other").
-          // The applicator (_applySheetOverridesToFaces) walks every
-          // entry whose prefix matches the face key, so it still
-          // picks up the override even with the new suffix.
-          var ridgeMid = (rmx|0) + ',' + (rmy|0);
-          var faceKey = _faceOverrideKey(bestG, -dx, -dy);
-          var key = faceKey + '_r' + ridgeMid;
-          // Legacy override entries (pre-ridge-suffix) used the bare
-          // face key.  Honour them if the per-ridge key has nothing
-          // so existing jobs don't lose their tweaks on first load.
-          var ov  = (DRAW.sheetOverrides && DRAW.sheetOverrides[key]);
-          if (ov == null && DRAW.sheetOverrides) ov = DRAW.sheetOverrides[faceKey];
-          // -1 sentinel = user typed DELETE in the edit popup; hide
-          // this auto sheet label entirely.
-          if (ov === -1) return;
-          var sheetM = (ov != null && isFinite(ov) && ov > 0) ? ov : autoSheetM;
-          var isOverride = (ov != null && isFinite(ov) && ov > 0);
-          // Per-label offset (set when the user drags the label in
-          // Move mode) — applied to the label position before we
-          // convert to screen coords. Stored in IMAGE pixels so it
-          // stays anchored as the user zooms / pans.
-          var lblOff = (DRAW.sheetLabelOffsets && DRAW.sheetLabelOffsets[key]) || [0, 0];
-          lblImgX += lblOff[0]; lblImgY += lblOff[1];
-          var sR = dp([rmx, rmy]), sE = dp([endImgX, endImgY]), sL = dp([lblImgX, lblImgY]);
-          var sdx = sE[0]-sR[0], sdy = sE[1]-sR[1];
-          var sdl = Math.sqrt(sdx*sdx + sdy*sdy);
-          if (sdl < 1) return;
-          // Apply the group-level override too — if the user typed a
-          // new mm value in the cut list / Sheets-to-order panel, the
-          // ordered length for THIS face is remapped. Strip out the
-          // overhang to get the displayed metres back.
-          var displayedM = sheetM;
-          try {
-            if (DRAW.sheetGroupOverrides) {
-              var overhang = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '0') || 0;
-              var origMm = Math.max(1000, Math.round(sheetM * 1000 + overhang));
-              var ovMm = DRAW.sheetGroupOverrides[origMm];
-              if (ovMm != null && ovMm > 0) displayedM = (ovMm - overhang) / 1000;
-            }
-          } catch(e){}
-          sink.push({
-            lblX: sL[0], lblY: sL[1],
-            lblImgX: lblImgX, lblImgY: lblImgY,
-            ndx: sdx/sdl, ndy: sdy/sdl, sdl: sdl,
-            label: displayedM.toFixed(3) + 'm',
-            key: key,
-            isOverride: isOverride || (displayedM !== sheetM),
+          if (!cand.length) return;
+          // Keep only gutters that are the CLOSEST to the ridge over
+          // their own horizontal span. A nearer same-side gutter that
+          // covers most of this one's span means this gutter sits behind
+          // a step and is not a real sheet run on this face.
+          var kept = cand.filter(function(c){
+            return !cand.some(function(o){
+              if (o === c || o.perp >= c.perp - 0.5) return false;
+              var ov2 = Math.min(c.hi, o.hi) - Math.max(c.lo, o.lo);
+              var span = Math.max(1, c.hi - c.lo);
+              return ov2 > span * 0.5;
+            });
+          });
+          kept.forEach(function(c){
+            var bestG = c.g, bestPerp = c.perp;
+            // Source point = ridge point above the horizontal CENTRE of
+            // this gutter's run (clamped to the ridge), so the label and
+            // arrows sit over the run they measure.
+            var cc = Math.max(-0.5*rL, Math.min(0.5*rL, (c.lo + c.hi)/2));
+            var srcx = rmx + rux*cc, srcy = rmy + ruy*cc;
+            var endImgX = srcx + dx*bestPerp, endImgY = srcy + dy*bestPerp;
+            var lblImgX = srcx + dx*bestPerp*0.5, lblImgY = srcy + dy*bestPerp*0.5;
+            if (!_pointInPoly(lblImgX, lblImgY, outline)) return;
+            var autoSheetM = _calibratedSheetM(bestPerp * (DRAW.scaleMetresPerPx || 0) * _pitchF);
+            // Face-based key (gutter + into-face direction) PLUS the
+            // source ridge's midpoint hash, so two ridges that drop
+            // perpendicular onto the same gutter on the same face get
+            // INDEPENDENT override entries.  Without the ridge suffix
+            // editing one "4.50m" label would silently rewrite the
+            // other label on the same face (the user's bug report —
+            // "the two top sheet measures are copying each other").
+            // The applicator (_applySheetOverridesToFaces) walks every
+            // entry whose prefix matches the face key, so it still
+            // picks up the override even with the new suffix.
+            var ridgeMid = (rmx|0) + ',' + (rmy|0);
+            var faceKey = _faceOverrideKey(bestG, -dx, -dy);
+            var key = faceKey + '_r' + ridgeMid;
+            // Legacy override entries (pre-ridge-suffix) used the bare
+            // face key.  Honour them if the per-ridge key has nothing
+            // so existing jobs don't lose their tweaks on first load.
+            var ov  = (DRAW.sheetOverrides && DRAW.sheetOverrides[key]);
+            if (ov == null && DRAW.sheetOverrides) ov = DRAW.sheetOverrides[faceKey];
+            // -1 sentinel = user typed DELETE in the edit popup; hide
+            // this auto sheet label entirely.
+            if (ov === -1) return;
+            var sheetM = (ov != null && isFinite(ov) && ov > 0) ? ov : autoSheetM;
+            var isOverride = (ov != null && isFinite(ov) && ov > 0);
+            // Per-label offset (set when the user drags the label in
+            // Move mode) — applied to the label position before we
+            // convert to screen coords. Stored in IMAGE pixels so it
+            // stays anchored as the user zooms / pans.
+            var lblOff = (DRAW.sheetLabelOffsets && DRAW.sheetLabelOffsets[key]) || [0, 0];
+            lblImgX += lblOff[0]; lblImgY += lblOff[1];
+            var sR = dp([srcx, srcy]), sE = dp([endImgX, endImgY]), sL = dp([lblImgX, lblImgY]);
+            var sdx = sE[0]-sR[0], sdy = sE[1]-sR[1];
+            var sdl = Math.sqrt(sdx*sdx + sdy*sdy);
+            if (sdl < 1) return;
+            // Apply the group-level override too — if the user typed a
+            // new mm value in the cut list / Sheets-to-order panel, the
+            // ordered length for THIS face is remapped. Strip out the
+            // overhang to get the displayed metres back.
+            var displayedM = sheetM;
+            try {
+              if (DRAW.sheetGroupOverrides) {
+                var overhang = parseFloat(localStorage.getItem('fr_sheet_overhang_mm') || '0') || 0;
+                var origMm = Math.max(1000, Math.round(sheetM * 1000 + overhang));
+                var ovMm = DRAW.sheetGroupOverrides[origMm];
+                if (ovMm != null && ovMm > 0) displayedM = (ovMm - overhang) / 1000;
+              }
+            } catch(e){}
+            sink.push({
+              lblX: sL[0], lblY: sL[1],
+              lblImgX: lblImgX, lblImgY: lblImgY,
+              ndx: sdx/sdl, ndy: sdy/sdl, sdl: sdl,
+              label: displayedM.toFixed(3) + 'm',
+              key: key,
+              isOverride: isOverride || (displayedM !== sheetM),
+            });
           });
         });
       });
