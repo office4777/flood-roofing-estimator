@@ -867,6 +867,16 @@ select{
 .mat-fl-card .mat-fl-row{ display:grid; gap:8px; align-items:center; padding:2px 4px; }
 .mat-fl-card .mat-fl-row input{ line-height:1.55; }
 .mat-fl-card .mat-fl-row.is-extra{ background:#fffbeb; border-radius:3px; }
+/* User-added (slot) flashing rows share .mat-list-row with dektite /
+   gutter rows — scope the 2× "N @ X.Xm" sizing to flashing cards only. */
+.mat-fl-card .mat-list-row,
+.mat-fl-card .mat-list-row input,
+.mat-fl-card .mat-list-at,
+.mat-fl-card .mat-list-unit{ font-size:24px; }
+.mat-fl-card .mat-list-row .mat-list-qty{ min-width:auto; }
+.mat-fl-card .mat-list-row .mat-list-qty input{ width:48px; }
+.mat-fl-card .mat-list-row .mat-list-len input,
+.mat-fl-card .mat-list-row .mat-list-lenval{ width:84px; }
 .mat-fl-card .mat-fl-foot{
   display:flex; justify-content:space-between; align-items:center;
   padding:3px 4px; margin-top:3px; border-top:1px solid #e5e7eb;
@@ -2757,12 +2767,28 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       </div>
       <div id="calOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:999" onclick="closeCalPopup()"></div>
 
-      <!-- Penetration size popup -->
-      <div id="penPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;padding:24px 28px;box-shadow:0 8px 32px rgba(0,0,0,.25);z-index:1000;min-width:280px">
-        <div style="font-weight:700;font-size:14px;margin-bottom:12px;color:#0a1628">⬛ Penetration size</div>
-        <div style="font-size:12px;color:#666;margin-bottom:10px">Enter a label for this penetration (e.g. <strong>240</strong>, <strong>600x400</strong>, <strong>50cm DIA</strong>)</div>
-        <input type="text" id="penSizeInput" placeholder="e.g. 240 or 600x400" style="width:100%;font-size:15px;padding:10px 12px;border:2px solid #0099cc;border-radius:8px;margin-bottom:12px;outline:none"
-          onkeydown="if(event.key==='Enter') confirmPenPopup()">
+      <!-- Penetration entry popup -->
+      <div id="penPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;padding:22px 26px;box-shadow:0 8px 32px rgba(0,0,0,.25);z-index:1000;min-width:300px">
+        <div style="font-weight:700;font-size:15px;margin-bottom:14px;color:#0a1628">Penetration</div>
+        <div style="font-size:12px;color:#475569;margin-bottom:4px">Penetration type</div>
+        <select id="penTypeInput" style="width:100%;font-size:14px;padding:9px 10px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:12px;background:#fff;color:#0a1628">
+          <option value="pipe">Pipe/Flue</option>
+          <option value="skylight">Skylight</option>
+          <option value="chimney">Chimney</option>
+          <option value="skydome">Sky dome</option>
+          <option value="other">Other</option>
+        </select>
+        <div style="font-size:12px;color:#475569;margin-bottom:4px">Size</div>
+        <div style="display:flex;gap:6px;margin-bottom:12px">
+          <input type="number" id="penSizeInput" placeholder="e.g. 240" style="flex:1;font-size:15px;padding:9px 11px;border:2px solid #0099cc;border-radius:8px;outline:none"
+            onkeydown="if(event.key==='Enter') confirmPenPopup()">
+          <select id="penSizeUnit" style="width:64px;font-size:14px;padding:9px 6px;border:1px solid #cbd5e1;border-radius:8px;background:#fff"><option value="mm">mm</option><option value="cm">cm</option></select>
+        </div>
+        <div style="font-size:12px;color:#475569;margin-bottom:4px">Back-tray length</div>
+        <div style="display:flex;margin-bottom:16px">
+          <button type="button" id="penBtFull" onclick="_penPopupSetBt('full')" style="flex:1;padding:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid #0a1628;background:#0a1628;color:#fff;border-radius:8px 0 0 8px">Full length</button>
+          <button type="button" id="penBtShort" onclick="_penPopupSetBt('short')" style="flex:1;padding:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid #cbd5e1;border-left:none;background:#fff;color:#475569;border-radius:0 8px 8px 0">Short</button>
+        </div>
         <div style="display:flex;gap:8px">
           <button onclick="confirmPenPopup()" style="flex:1;padding:10px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">Add ↵</button>
           <button onclick="cancelPenPopup()" style="padding:10px 16px;background:#f5f5f3;color:#666;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px">Cancel</button>
@@ -26084,25 +26110,45 @@ function calcLineMeasIfCalibrated(lineIdx) {
 // ── PENETRATION POPUP ────────────────────────────────────────────
 var _pendingPenX = 0, _pendingPenY = 0;
 
+// Back-tray length choice inside the entry popup (Full / Short).
+var _penPopupBtMode = 'full';
+function _penPopupSetBt(m){
+  _penPopupBtMode = (m === 'short') ? 'short' : 'full';
+  var f = document.getElementById('penBtFull'), s = document.getElementById('penBtShort');
+  if (f){ f.style.background = _penPopupBtMode==='full'?'#0a1628':'#fff'; f.style.color = _penPopupBtMode==='full'?'#fff':'#475569'; f.style.borderColor = _penPopupBtMode==='full'?'#0a1628':'#cbd5e1'; }
+  if (s){ s.style.background = _penPopupBtMode==='short'?'#0a1628':'#fff'; s.style.color = _penPopupBtMode==='short'?'#fff':'#475569'; s.style.borderColor = _penPopupBtMode==='short'?'#0a1628':'#cbd5e1'; }
+}
+
 function showPenPopup(cx, cy) {
   _pendingPenX = cx;
   _pendingPenY = cy;
-  document.getElementById('penSizeInput').value = '';
+  var si = document.getElementById('penSizeInput'); if (si) si.value = '';
+  var ti = document.getElementById('penTypeInput'); if (ti) ti.value = 'pipe';   // default Pipe/Flue
+  var ui = document.getElementById('penSizeUnit');  if (ui) ui.value = 'mm';
+  _penPopupBtMode = 'full';
+  try { _penPopupSetBt('full'); } catch(e){}
   document.getElementById('penPopup').style.display = 'block';
   document.getElementById('penPopupOverlay').style.display = 'block';
-  setTimeout(function(){ document.getElementById('penSizeInput').focus(); }, 50);
+  setTimeout(function(){ if (si) si.focus(); }, 50);
 }
 
 function confirmPenPopup() {
-  var label = document.getElementById('penSizeInput').value.trim();
+  var rawSize = (document.getElementById('penSizeInput')||{}).value;
+  rawSize = (rawSize == null ? '' : String(rawSize)).trim();
+  var unit  = (document.getElementById('penSizeUnit')||{}).value || 'mm';
+  var ptype = (document.getElementById('penTypeInput')||{}).value || 'pipe';
+  // Store the size as a label _penDiamMm can parse (e.g. "240" or "24cm").
+  var sizeLabel = rawSize ? (rawSize + (unit === 'cm' ? 'cm' : '')) : '';
   document.getElementById('penPopup').style.display = 'none';
   document.getElementById('penPopupOverlay').style.display = 'none';
   var i = DRAW.penetrations.length;
   DRAW.penetrations.push({
     type: 'penetration',
+    penType: ptype,
     cx: _pendingPenX,
     cy: _pendingPenY,
-    sizeLabel: label || ''
+    sizeLabel: sizeLabel,
+    backTrayMode: _penPopupBtMode || 'full'
   });
   DRAW.selectedPen = i;
   saveSnapshot();
@@ -26240,7 +26286,10 @@ function _penBackTrayDetail(p, idx){
   var mode = (p.backTrayMode === 'short') ? 'short' : 'full';
   var geom = _penSheetGeom(p);
   var lengthM = 0;
-  if (geom.ok) lengthM = (mode === 'short') ? (geom.topToPenM + 1.0) : (geom.sheetM + 0.1);
+  if (geom.ok){
+    var raw = (mode === 'short') ? (geom.topToPenM + 1.0) : (geom.sheetM + 0.1);
+    lengthM = Math.ceil(raw * 10) / 10;   // always round UP to the nearest 0.1m
+  }
   return { idx: idx, name: name, mode: mode, lengthM: lengthM, hasGeom: geom.ok && lengthM > 0, soft: (mode === 'short') };
 }
 // One entry per pipe penetration that resolves to a back-tray.
@@ -26267,7 +26316,7 @@ function _setPenBackTrayMode(idx, mode){
 // Order / Fergus line description for a grouped back-tray entry.
 function _backTrayLineDesc(bt){
   return bt.name +
-    (bt.lengthLabel ? ' — ' + bt.lengthLabel : '') +
+    (bt.lengthLabel ? ' @ ' + bt.lengthLabel : '') +
     (bt.mode === 'short' ? ' (short · soft-edge one end)' : ' (full length)');
 }
 // Grouped back-trays for the order + Fergus — collapsed by name + mode +
@@ -26276,7 +26325,7 @@ function _backTrayLineDesc(bt){
 function _backTrayOrderList(){
   var groups = {};
   _backTrayPenList().forEach(function(d){
-    var lenLbl = d.hasGeom ? d.lengthM.toFixed(2) + 'm' : '';
+    var lenLbl = d.hasGeom ? (d.lengthM.toFixed(1) + 'm') : '';
     var key = d.name + '|' + d.mode + '|' + lenLbl;
     if (!groups[key]) groups[key] = { name:d.name, qty:0, mode:d.mode, lengthLabel:lenLbl, soft:d.soft };
     groups[key].qty++;
@@ -28985,13 +29034,13 @@ function _jpRenderCutLists(content, page, idx){
       var img = (entry && entry.sketch)
         ? '<img src="'+entry.sketch+'" alt="'+esc(bt.name)+'" style="display:block;width:100%;height:120px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:6px">'
         : '<div style="width:100%;height:120px;background:var(--surface-2);border:1px dashed #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--text3);font-size:11px;padding:8px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(bt.name)+'&rdquo; in Settings &rarr; Flashing library</div>';
-      var lenTxt = bt.hasGeom ? (bt.lengthM.toFixed(2)+'m') : (_btUncal2 ? 'calibrate map to size' : '—');
-      var soft = (bt.mode==='short') ? '<span style="font-size:11px;font-weight:700;color:#b45309;margin-left:6px">Soft-edge one end</span>' : '';
+      var lenTxt = bt.hasGeom ? ('1 @ '+bt.lengthM.toFixed(1)+'m') : (_btUncal2 ? 'calibrate map to size' : '—');
+      var soft = (bt.mode==='short') ? '<span style="font-size:12px;font-weight:700;color:#b45309;margin-left:8px">Soft-edge one end</span>' : '';
       function _bt2(m, label){ var on=(bt.mode===m); return '<button onclick="_setPenBackTrayMode('+bt.idx+',\''+m+'\')" style="flex:1;padding:5px 6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid '+(on?'#0a1628':'#cbd5e1')+';background:'+(on?'#0a1628':'#fff')+';color:'+(on?'#fff':'#475569')+';'+(m==='full'?'border-radius:6px 0 0 6px':'border-radius:0 6px 6px 0;border-left:none')+'">'+label+'</button>'; }
       html += '<div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:#fafafa">'+
         img+
         '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-top:6px">'+esc(bt.name)+'</div>'+
-        '<div style="font-size:11px;color:var(--text2);margin-top:2px">'+(bt.mode==='short'?'Short':'Full length')+' &middot; '+esc(lenTxt)+soft+'</div>'+
+        '<div style="font-size:18px;font-weight:800;color:#0a1628;margin-top:3px">'+esc(lenTxt)+soft+'</div>'+
         '<div style="display:flex;margin-top:6px">'+_bt2('full','Full length')+_bt2('short','Short')+'</div>'+
       '</div>';
     });
@@ -29188,26 +29237,27 @@ function _jpRenderFlashingCell(box, bi){
     var lbl = r.letter ? r.letter : '?';
     var rowKey = esc(spec.key + '::' + (r.letter || '') + '::' + r.length.toFixed(2));
     var isExtra = !!r._isExtra, extraIdx = r._extraIdx;
+    // Measure text is rendered at ~2× so the qty + length read clearly on
+    // the Job Pack; the "×N (gap) X.Xm" layout is replaced by "N @ X.Xm".
+    var _fs = 'font-size:24px;';
     var letterInput, lenInput, qtyCell, deleteCell;
     if (isExtra){
-      letterInput = '<input type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'letter\',this.value)" style="width:32px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;font-size:12px;font-style:italic">';
-      lenInput    = '<input type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'length\',this.value)" style="width:46px;border:none;background:transparent;text-align:right;padding:0;font-size:12px">';
-      qtyCell     = '<input type="number" step="1" min="1" value="'+r.qty+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'qty\',this.value)" style="width:32px;border:none;background:transparent;text-align:right;padding:0;font-size:12px">';
-      deleteCell  = '<button onclick="_matExtrasDelete(\''+esc(spec.key)+'\','+extraIdx+')" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
+      letterInput = '<input type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'letter\',this.value)" style="width:40px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;'+_fs+'font-style:italic">';
+      lenInput    = '<input type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'length\',this.value)" style="width:70px;border:none;background:transparent;text-align:left;padding:0;'+_fs+'font-weight:700">';
+      qtyCell     = '<input type="number" step="1" min="1" value="'+r.qty+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'qty\',this.value)" style="width:46px;border:none;background:transparent;text-align:right;padding:0;'+_fs+'font-weight:700">';
+      deleteCell  = '<button class="pdf-hide" onclick="_matExtrasDelete(\''+esc(spec.key)+'\','+extraIdx+')" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:18px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
     } else {
-      letterInput = '<input data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matInlineSetLetter(this)" style="width:32px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;font-size:12px">';
-      lenInput    = '<input data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matInlineSetLength(this)" style="width:46px;border:none;background:transparent;text-align:right;padding:0;font-size:12px">';
-      qtyCell     = '<span style="font-size:12px">'+r.qty+'</span>';
-      deleteCell  = '<button onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
+      letterInput = '<input data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matInlineSetLetter(this)" style="width:40px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;'+_fs+'">';
+      lenInput    = '<input data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matInlineSetLength(this)" style="width:70px;border:none;background:transparent;text-align:left;padding:0;'+_fs+'font-weight:700">';
+      qtyCell     = '<span style="'+_fs+'font-weight:700">'+r.qty+'</span>';
+      deleteCell  = '<button class="pdf-hide" onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:18px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
     }
     var letterCell = rowsRefsOn
       ? letterInput
       : '<span style="display:none">'+letterInput+'</span>';
-    var gridCols   = rowsRefsOn ? 'auto auto 1fr auto' : 'auto 1fr auto';
-    rowsHtml += '<div class="mat-fl-row'+(isExtra?' is-extra':'')+'" style="grid-template-columns:'+gridCols+'">'+
+    rowsHtml += '<div class="mat-fl-row'+(isExtra?' is-extra':'')+'" style="grid-template-columns:auto 1fr auto;align-items:center">'+
       letterCell +
-      '<span style="color:#6f6a60">×'+qtyCell+'</span>'+
-      '<span style="text-align:right">'+lenInput+'<span style="color:#6f6a60">m</span></span>'+
+      '<span style="display:flex;align-items:center;gap:6px;font-weight:700;color:#0a1628;'+_fs+'">'+qtyCell+'<span style="color:#6f6a60">@</span>'+lenInput+'<span style="color:#6f6a60">m</span></span>'+
       deleteCell +
     '</div>';
   });
@@ -33320,7 +33370,7 @@ function _matBuildPrintOrderDetails(mount) {
       var img = (entry && entry.sketch)
         ? '<img src="'+entry.sketch+'" alt="'+esc(bt.name)+'" style="display:block;width:100%;height:84px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:4px">'
         : '<div style="width:100%;height:84px;background:#fafaf7;border:1px dashed #cbd5e1;border-radius:4px;display:flex;align-items:center;justify-content:center;text-align:center;color:#94a3b8;font-size:9px;font-style:italic;padding:4px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(bt.name)+'&rdquo; in the flashing library</div>';
-      var lenTxt = bt.hasGeom ? (bt.lengthM.toFixed(2) + 'm') : (_btUncal ? 'calibrate map to size' : '—');
+      var lenTxt = bt.hasGeom ? ('1 @ ' + bt.lengthM.toFixed(1) + 'm') : (_btUncal ? 'calibrate map to size' : '—');
       var soft = (bt.mode === 'short') ? '<div style="font-size:9.5px;font-weight:700;color:#b45309;text-align:center;margin-top:1px">Soft-edge one end</div>' : '';
       function _btBtn(m, label){
         var on = (bt.mode === m);
@@ -33332,7 +33382,7 @@ function _matBuildPrintOrderDetails(mount) {
       return '<div style="break-inside:avoid">'+
         img+
         '<div style="font-size:10.5px;font-weight:700;color:#0a1628;margin-top:4px;text-align:center">'+esc(bt.name)+'</div>'+
-        '<div style="font-size:10px;color:#374151;text-align:center;margin-top:2px">'+(bt.mode==='short'?'Short':'Full length')+' &middot; '+esc(lenTxt)+'</div>'+
+        '<div style="font-size:13px;font-weight:800;color:#0a1628;text-align:center;margin-top:2px">'+esc(lenTxt)+'</div>'+
         soft+
         '<div class="pdf-hide" style="display:flex;margin-top:4px">'+_btBtn('full','Full')+_btBtn('short','Short')+'</div>'+
       '</div>';
