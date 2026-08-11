@@ -28970,6 +28970,34 @@ function _jpRenderCutLists(content, page, idx){
   });
   html += '</div></div>';
 
+  // ── Back-trays — one card per pipe penetration, auto-selected by
+  //    diameter + roof profile. Each has a Full length / Short toggle;
+  //    the drawing comes from the flashing library by name.
+  var _btList2 = (typeof _backTrayPenList === 'function') ? _backTrayPenList() : [];
+  if (_btList2.length){
+    var _btLib2 = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
+    var _btUncal2 = !(DRAW.scaleMetresPerPx > 0);
+    html += '<div class="mat-section">'+
+      _matSectionHead('#0891b2', 'Back-trays', 'auto-selected per pipe penetration')+
+      '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">';
+    _btList2.forEach(function(bt){
+      var entry = _btLib2.find(function(e){ return e && e.name === bt.name; });
+      var img = (entry && entry.sketch)
+        ? '<img src="'+entry.sketch+'" alt="'+esc(bt.name)+'" style="display:block;width:100%;height:120px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:6px">'
+        : '<div style="width:100%;height:120px;background:var(--surface-2);border:1px dashed #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--text3);font-size:11px;padding:8px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(bt.name)+'&rdquo; in Settings &rarr; Flashing library</div>';
+      var lenTxt = bt.hasGeom ? (bt.lengthM.toFixed(2)+'m') : (_btUncal2 ? 'calibrate map to size' : '—');
+      var soft = (bt.mode==='short') ? '<span style="font-size:11px;font-weight:700;color:#b45309;margin-left:6px">Soft-edge one end</span>' : '';
+      function _bt2(m, label){ var on=(bt.mode===m); return '<button onclick="_setPenBackTrayMode('+bt.idx+',\''+m+'\')" style="flex:1;padding:5px 6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid '+(on?'#0a1628':'#cbd5e1')+';background:'+(on?'#0a1628':'#fff')+';color:'+(on?'#fff':'#475569')+';'+(m==='full'?'border-radius:6px 0 0 6px':'border-radius:0 6px 6px 0;border-left:none')+'">'+label+'</button>'; }
+      html += '<div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:#fafafa">'+
+        img+
+        '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-top:6px">'+esc(bt.name)+'</div>'+
+        '<div style="font-size:11px;color:var(--text2);margin-top:2px">'+(bt.mode==='short'?'Short':'Full length')+' &middot; '+esc(lenTxt)+soft+'</div>'+
+        '<div style="display:flex;margin-top:6px">'+_bt2('full','Full length')+_bt2('short','Short')+'</div>'+
+      '</div>';
+    });
+    html += '</div></div>';
+  }
+
   content.innerHTML = html;
   _jpCropFlashImgs(content);
 }
