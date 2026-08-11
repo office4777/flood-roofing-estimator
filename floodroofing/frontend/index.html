@@ -5417,6 +5417,14 @@ function _scheduleSettingsAutosave(){
 }
 async function saveSettings(auto){
   collectSettingsFromUI();
+  // The user_settings table has no materials_catalog column, so the
+  // flashing library + supplier/product catalog ride along INSIDE the
+  // persisted price_book JSONB. Fold a copy in right before every save
+  // (localStorage + cloud); loadSettings unfolds it back out.
+  try {
+    if (!S.settings.price_book) S.settings.price_book = {};
+    S.settings.price_book.__materials_catalog = S.settings.materials_catalog || {};
+  } catch(e){}
   var btn = document.getElementById('saveSettingsBtn');
   var msg = document.getElementById('saveSettingsMsg');
   if (btn && !auto) btn.disabled = true;
@@ -5433,6 +5441,14 @@ async function saveSettings(auto){
     S.settings.jms_keys = saved.jms_keys || S.settings.jms_keys;
     if (saved.price_book) S.settings.price_book = saved.price_book;
     if (saved.labour_pricing) S.settings.labour_pricing = saved.labour_pricing;
+    // Unfold the catalog back out of the returned price_book so the live
+    // materials_catalog is restored and price_book stays clean in memory.
+    try {
+      if (S.settings.price_book && S.settings.price_book.__materials_catalog){
+        S.settings.materials_catalog = S.settings.price_book.__materials_catalog;
+        delete S.settings.price_book.__materials_catalog;
+      }
+    } catch(e){}
     // Re-mirror merged result to localStorage
     try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e2){}
     if (msg) { msg.textContent = auto ? '✓ Auto-saved' : '✓ Saved'; msg.style.color = '#15803d'; }
@@ -17402,6 +17418,13 @@ function addCatalogItem(key){
   var _origLoad = loadSettings;
   loadSettings = async function(){
     var s = await _origLoad();
+    // Unfold the flashing library / catalog we persist INSIDE price_book
+    // (the user_settings table has no materials_catalog column), before
+    // the empty-catalog / supplier-seed fallbacks below run.
+    if (s && s.price_book && s.price_book.__materials_catalog){
+      s.materials_catalog = s.price_book.__materials_catalog;
+      try { delete s.price_book.__materials_catalog; } catch(e){}
+    }
     if (s && !s.materials_catalog) s.materials_catalog = { suppliers:[], products:[], underlays:[], screws:[], flashings:[], savedFlashings:[] };
     if (s && s.materials_catalog && !s.materials_catalog.savedFlashings) s.materials_catalog.savedFlashings = [];
     // Seed the default suppliers into an existing account that has none — the
