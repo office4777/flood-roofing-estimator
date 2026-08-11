@@ -30249,8 +30249,16 @@ function _matSketchByNameKeyword(flashingType){
   var kw = String(flashingType || '').split('|')[0].toLowerCase();
   if (!kw) return null;
   var all = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
+  // Match the keyword against EVERY identity field a saved flashing can
+  // carry. Sketches saved via the sketch tool set `flashingType`, but a
+  // flashing saved straight from an order via "Save to library" only
+  // sets the legacy `type` field (no flashingType) — so a valley saved
+  // that way needs `type` / `name` checked too, or it never matches.
   return all.find(function(e){
-    return e && e.sketch && String(e.name || '').toLowerCase().indexOf(kw) >= 0;
+    if (!e || !e.sketch) return false;
+    var hay = [e.name, e.type, e.flashingType, e.label]
+      .map(function(v){ return String(v || '').toLowerCase(); }).join(' ');
+    return hay.indexOf(kw) >= 0;
   }) || null;
 }
 // Returns either a saved-drawing <img> if the user picked one for
@@ -30259,8 +30267,9 @@ function _matFlashingDrawingHtml(flashingType, defaultKind) {
   var matches = _matSavedFlashingsFor(flashingType);
   var savedName = localStorage.getItem('fr_mat_flash_pick_' + flashingType) || '';
   var pick = savedName ? matches.find(function(m){ return m.entry.name === savedName; }) : null;
+  if (pick && !pick.entry.sketch) pick = null;   // a sketchless pick shouldn't block the fallback
   var builtin = _matFlashingDrawing(defaultKind);
-  // No explicit pick AND no built-in SVG for this type (e.g. valley) →
+  // No usable pick AND no built-in SVG for this type (e.g. valley) →
   // use the first saved sketch of this flashing type as the default so a
   // saved Valley drawing shows instead of a blank tile.
   if (!pick && !builtin) {
@@ -32995,13 +33004,14 @@ function _matBuildPrintOrderDetails(mount) {
     var savedName = localStorage.getItem('fr_mat_flash_pick_' + spec.key) || '';
     var _flashLib = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
     var saved = savedName ? (_flashLib.find(function(e){ return e.name === savedName; }) || null) : null;
-    // No explicit pick + no built-in drawing → default to a saved sketch whose
-    // flashing type matches this row. So a saved Valley sketch (flashingType
-    // 'valley') becomes the valley default instead of "No drawing".
-    if (!saved && !spec.drawing) {
+    // No usable pick (missing OR sketchless) + no built-in drawing →
+    // default to a saved sketch for this flashing type, so a saved Valley
+    // sketch becomes the valley default instead of "No drawing".
+    if ((!saved || !saved.sketch) && !spec.drawing) {
       saved = _flashLib.find(function(e){ return e && e.sketch && e.flashingType === spec.key; }) || null;
-      // Last resort — match by name keyword (covers a sketch saved as
-      // "Custom" but named e.g. "Valley").
+      // Last resort — match by keyword across name / type / flashingType
+      // (covers a sketch saved from an order, which sets `type` not
+      // `flashingType`, or one named e.g. "Valley" but typed "Custom").
       if (!saved && typeof _matSketchByNameKeyword === 'function') {
         saved = _matSketchByNameKeyword(spec.key);
       }
