@@ -29998,10 +29998,17 @@ function _matFlashingDrawingHtml(flashingType, defaultKind) {
   var matches = _matSavedFlashingsFor(flashingType);
   var savedName = localStorage.getItem('fr_mat_flash_pick_' + flashingType) || '';
   var pick = savedName ? matches.find(function(m){ return m.entry.name === savedName; }) : null;
+  var builtin = _matFlashingDrawing(defaultKind);
+  // No explicit pick AND no built-in SVG for this type (e.g. valley) →
+  // use the first saved sketch of this flashing type as the default so a
+  // saved Valley drawing shows instead of a blank tile.
+  if (!pick && !builtin) {
+    pick = matches.find(function(m){ return m.entry && m.entry.sketch; }) || null;
+  }
   if (pick && pick.entry.sketch) {
     return '<img src="'+pick.entry.sketch+'" alt="" style="width:130px;height:70px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:2px">';
   }
-  return _matFlashingDrawing(defaultKind);
+  return builtin;
 }
 
 // Simple SVG cross-section profiles for the three flashings that
