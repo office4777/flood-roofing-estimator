@@ -22334,10 +22334,17 @@ function onCanvasMouseDown(e) {
   // of the RIGHT end (two small snap points). Hold Shift to ignore the
   // snaps. Claimed before PAN so a press on the ridge starts a slide,
   // not a pan.
-  if (DRAW.tool === 'select' && DRAW.roofType === 'gable' && DRAW.outline && DRAW.outline.length >= 3) {
+  // Treat the roof as a gable when it's flagged one, OR when it simply
+  // has a ridge and no hips/valleys (a plain gable the generator didn't
+  // tag). Grabbing the ridge on such a roof also registers it as a gable
+  // so setGableRidgeOffset's regen keeps the barges + faces in sync.
+  var _hasRidgeLn = DRAW.lines.some(function(l){ return l && l.type === 'ridge'; });
+  var _hasHipVal  = DRAW.lines.some(function(l){ return l && (l.type === 'hip' || l.type === 'valley'); });
+  var _gableLike  = _hasRidgeLn && (DRAW.roofType === 'gable' || !_hasHipVal);
+  if (DRAW.tool === 'select' && _gableLike && DRAW.outline && DRAW.outline.length >= 3) {
     var _rxy = getXY(e);
     var _rtr = getImgTransform();
-    var _rThresh = _rtr ? 10/_rtr.s : 10;
+    var _rThresh = _rtr ? 14/_rtr.s : 14;
     var _ridge = null;
     for (var _ri = 0; _ri < DRAW.lines.length; _ri++){
       var _ln = DRAW.lines[_ri];
@@ -22345,6 +22352,7 @@ function onCanvasMouseDown(e) {
       if (_ridgeDistToSeg(_rxy[0], _rxy[1], _ln.pts[0], _ln.pts[1]) < _rThresh){ _ridge = _ln; break; }
     }
     if (_ridge){
+      if (DRAW.roofType !== 'gable') DRAW.roofType = 'gable';   // register so regen tracks the drag
       var _rp0 = _ridge.pts[0], _rp1 = _ridge.pts[1];
       var _horiz = Math.abs(_rp1[0]-_rp0[0]) >= Math.abs(_rp1[1]-_rp0[1]);
       var _minX=Infinity,_maxX=-Infinity,_minY=Infinity,_maxY=-Infinity;
@@ -22998,7 +23006,9 @@ function onCanvasMove(e) {
     // Gable ridge hover — show a resize cursor so the user knows the
     // ridge can be dragged up/down.
     var _ridgeHover = false;
-    if (!near && DRAW.roofType === 'gable'){
+    var _hoverGableLike = DRAW.lines.some(function(l){ return l && l.type === 'ridge'; }) &&
+      (DRAW.roofType === 'gable' || !DRAW.lines.some(function(l){ return l && (l.type === 'hip' || l.type === 'valley'); }));
+    if (!near && _hoverGableLike){
       var _rTh = trH ? 10/trH.s : 10;
       for (var _hri=0; _hri<DRAW.lines.length; _hri++){
         var _hl = DRAW.lines[_hri];
@@ -24586,10 +24596,17 @@ function redrawAll() {
             var g1 = (gb[0]-rmx)*rux + (gb[1]-rmy)*ruy;
             var lo = Math.min(g0,g1), hi = Math.max(g0,g1);
             if (hi < -0.55*rL || lo > 0.55*rL) return;
-            // Cross-line filter only valid against the current roof's
-            // own lines; harmless to skip it for non-active roofs.
-            if (lines === DRAW.lines && _crossesAnotherRoofLine([rmx,rmy], [gmx,gmy], rl)) return;
-            cand.push({ g:g, perp:perp, lo:lo, hi:hi });
+            // Source point on the ridge directly ABOVE this gutter's own
+            // centre. Testing the cross-line filter straight down from
+            // here (not diagonally from the ridge midpoint) is what lets
+            // a stepped / offset gutter keep its label — the diagonal
+            // path clipped a barge and wrongly dropped every south run
+            // except the one nearest the ridge centre.
+            var cc = Math.max(-0.5*rL, Math.min(0.5*rL, (lo+hi)/2));
+            var srcx = rmx + rux*cc, srcy = rmy + ruy*cc;
+            var endx = srcx + dx*perp, endy = srcy + dy*perp;
+            if (lines === DRAW.lines && _crossesAnotherRoofLine([srcx,srcy], [endx,endy], rl)) return;
+            cand.push({ g:g, perp:perp, lo:lo, hi:hi, cc:cc, srcx:srcx, srcy:srcy });
           });
           if (!cand.length) return;
           // Keep only gutters that are the CLOSEST to the ridge over
@@ -24606,11 +24623,10 @@ function redrawAll() {
           });
           kept.forEach(function(c){
             var bestG = c.g, bestPerp = c.perp;
-            // Source point = ridge point above the horizontal CENTRE of
-            // this gutter's run (clamped to the ridge), so the label and
+            // Source point (above this gutter's centre) already computed
+            // when the candidate was gathered — reuse it so the label and
             // arrows sit over the run they measure.
-            var cc = Math.max(-0.5*rL, Math.min(0.5*rL, (c.lo + c.hi)/2));
-            var srcx = rmx + rux*cc, srcy = rmy + ruy*cc;
+            var srcx = c.srcx, srcy = c.srcy;
             var endImgX = srcx + dx*bestPerp, endImgY = srcy + dy*bestPerp;
             var lblImgX = srcx + dx*bestPerp*0.5, lblImgY = srcy + dy*bestPerp*0.5;
             if (!_pointInPoly(lblImgX, lblImgY, outline)) return;
