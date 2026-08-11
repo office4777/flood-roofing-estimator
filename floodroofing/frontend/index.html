@@ -24889,6 +24889,15 @@ function redrawAll() {
       ctx.textAlign='left';
       ctx.fillText(p.sizeLabel, cx+dotR+3, cy+3);
     }
+    // Auto back-tray callout — shows which pre-drawn tray this pipe size
+    // + roof profile calls up, right under the size.
+    var _bt = (typeof _penBackTrayName === 'function') ? _penBackTrayName(p) : null;
+    if (_bt){
+      ctx.fillStyle = '#0891b2';
+      ctx.font = '8px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('→ ' + _bt, cx+dotR+3, cy+13);
+    }
   });
 
   // Current in-progress drawing
@@ -26056,6 +26065,61 @@ function confirmPenPopup() {
 function cancelPenPopup() {
   document.getElementById('penPopup').style.display = 'none';
   document.getElementById('penPopupOverlay').style.display = 'none';
+}
+
+// ── PIPE PENETRATION → BACK-TRAY AUTO-SELECT ─────────────────────
+// A round (non-boxed) pipe penetration automatically calls up the
+// matching pre-drawn back-tray flashing, chosen by the pipe diameter
+// and the current roof profile. Each named tray is drawn + saved once in
+// the flashing library; we look it up by name at render time so the
+// drawing shows in the Job Pack and switching profile re-selects it.
+//
+// Parse a pipe diameter in mm from a free-text size label. Handles
+// "240", "240mm", "24cm", "0.24m", "240 DIA". A label with an "x" is a
+// rectangular / boxed opening, not a round pipe → returns null.
+function _penDiamMm(label){
+  if (label == null) return null;
+  var s = String(label).toLowerCase().trim();
+  if (!s) return null;
+  if (s.indexOf('x') >= 0 || s.indexOf('×') >= 0) return null;
+  var m = s.match(/(\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  var n = parseFloat(m[1]);
+  if (!isFinite(n) || n <= 0) return null;
+  if (s.indexOf('cm') >= 0) n *= 10;                      // 24cm → 240
+  else if (s.indexOf('mm') >= 0) { /* already mm */ }
+  else if (s.indexOf('m') >= 0 && n < 10) n *= 1000;      // 0.24m → 240
+  return Math.round(n);
+}
+// Back-tray flashing NAME for a diameter (mm) + roof profile. Ranges and
+// names come straight from Flood's back-tray schedule.
+function _backTrayNameFor(diamMm, profile){
+  if (!(diamMm > 0)) return null;
+  if (/5.?rib/i.test(String(profile || ''))){
+    if (diamMm >= 220) return '800mm 5-Rib back-tray';
+    if (diamMm >= 180) return '610mm 5-Rib back-tray';
+    if (diamMm >= 80)  return '420mm 5-Rib back-tray';
+    return '250mm 5-Rib back-tray';
+  }
+  if (diamMm >= 220) return '800mm Corrugate back-tray';
+  if (diamMm >= 180) return '725mm Corrugate back-tray';
+  if (diamMm >= 130) return '570mm Corrugate back-tray';
+  if (diamMm >= 80)  return '340mm Corrugate back-tray';
+  return '270mm Corrugate back-tray';
+}
+// Current roof profile string ("Corrugate" / "5-Rib" / …).
+function _penRoofProfile(){
+  return (document.getElementById('matProfile') || {}).value || 'Corrugate';
+}
+// Resolve the back-tray name for a penetration (null for boxed, an
+// unparseable size, or a profile with no back-tray schedule).
+function _penBackTrayName(p){
+  if (!p || p.kind === 'box') return null;
+  var prof = _penRoofProfile();
+  if (!/corrugate|5.?rib/i.test(prof)) return null;   // only defined for these two profiles
+  var d = _penDiamMm(p.sizeLabel);
+  if (!d) return null;
+  return _backTrayNameFor(d, prof);
 }
 
 // ── INFO PANEL ───────────────────────────────────────────────────
@@ -33042,6 +33106,35 @@ function _matBuildPrintOrderDetails(mount) {
     html += '<h2 class="mp-h" style="margin-top:14px">Flashing drawings</h2>'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px 12px;margin-top:6px">'+
         drawingBlocks.join('')+
+      '</div>';
+  }
+
+  // Back-trays — auto-selected per round pipe penetration by diameter +
+  // roof profile. The drawing is pulled from the flashing library by
+  // name; if the user hasn't drawn that tray yet a placeholder prompts
+  // them to add it. Grouped by tray with a per-tray quantity.
+  var _btCounts = {};
+  (DRAW.penetrations || []).forEach(function(p){
+    var nm = (typeof _penBackTrayName === 'function') ? _penBackTrayName(p) : null;
+    if (nm) _btCounts[nm] = (_btCounts[nm] || 0) + 1;
+  });
+  var _btNames = Object.keys(_btCounts);
+  if (_btNames.length){
+    var _btLib = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
+    var _btBlocks = _btNames.map(function(nm){
+      var entry = _btLib.find(function(e){ return e && e.name === nm; });
+      var img = (entry && entry.sketch)
+        ? '<img src="'+entry.sketch+'" alt="'+esc(nm)+'" style="display:block;width:100%;height:84px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:4px">'
+        : '<div style="width:100%;height:84px;background:#fafaf7;border:1px dashed #cbd5e1;border-radius:4px;display:flex;align-items:center;justify-content:center;text-align:center;color:#94a3b8;font-size:9px;font-style:italic;padding:4px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(nm)+'&rdquo; in the flashing library</div>';
+      return '<div style="break-inside:avoid">'+
+        img+
+        '<div style="font-size:10.5px;font-weight:700;color:#0a1628;margin-top:4px;text-align:center">'+esc(nm)+'</div>'+
+        '<div style="font-size:10px;color:#374151;text-align:center;margin-top:2px">&times; '+_btCounts[nm]+'</div>'+
+      '</div>';
+    });
+    html += '<h2 class="mp-h" style="margin-top:14px">Back-trays <span style="font-weight:400;font-size:11px;color:#6f6a60">&middot; auto-selected per pipe penetration</span></h2>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px 12px;margin-top:6px">'+
+        _btBlocks.join('')+
       '</div>';
   }
 
