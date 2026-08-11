@@ -20148,7 +20148,7 @@ function emailOrderToSupplier(){
   lines.push('  Dektites:    ' + (o.dektites || '—'));
   var _btOrder = (typeof _backTrayOrderList === 'function') ? _backTrayOrderList() : [];
   if (_btOrder.length){
-    lines.push('  Back-trays:  ' + _btOrder.map(function(b){ return b.qty + ' × ' + b.name; }).join(', '));
+    lines.push('  Back-trays:  ' + _btOrder.map(function(b){ return b.qty + ' × ' + _backTrayLineDesc(b); }).join('; '));
   }
   lines.push('  Ridging:     ' + (o.ridging === 'wide' ? 'Wide' : 'Standard'));
   lines.push('  Gutter:      ' + (o.gutter || '—'));
@@ -20467,7 +20467,7 @@ function _renderJobPackOrder(){
     row('Screws',   o.screws) +
     row('Rivets',   o.rivets) +
     row('Dektites', o.dektites) +
-    (function(){ var l=(typeof _backTrayOrderList==='function')?_backTrayOrderList():[]; return l.length ? row('Back-trays', l.map(function(b){return b.qty+' × '+b.name;}).join(', ')) : ''; })() +
+    (function(){ var l=(typeof _backTrayOrderList==='function')?_backTrayOrderList():[]; return l.length ? row('Back-trays', l.map(function(b){return b.qty+' × '+_backTrayLineDesc(b);}).join('; ')) : ''; })() +
     row('Ridging',  o.ridging === 'wide' ? 'Wide' : 'Standard') +
     row('Gutter',   o.gutter) +
     '</div>';
@@ -26160,15 +26160,105 @@ function _backTrayUnitPrice(name){
   var n = parseFloat(m[name]);
   return (isFinite(n) && n >= 0) ? n : 0;
 }
-// [{name, qty}] of back-trays for the current job's pipe penetrations,
-// grouped by tray name. Feeds the Job Pack, the order, and Fergus.
-function _backTrayOrderList(){
-  var counts = {};
-  (DRAW.penetrations || []).forEach(function(p){
-    var nm = _penBackTrayName(p);
-    if (nm) counts[nm] = (counts[nm] || 0) + 1;
+// Down-slope geometry for a penetration, from the calibrated map: the
+// sheet length of the run it sits on, and the distance from the TOP of
+// the sheet (ridge / high edge, opposite the gutter) down to the pipe.
+function _penSheetGeom(p){
+  var out = { ok:false, sheetM:0, topToPenM:0 };
+  if (!p || p.cx == null || p.kind === 'box') return out;
+  var spp = DRAW.scaleMetresPerPx || 0;
+  if (!(spp > 0)) return out;                        // not calibrated yet
+  var pitch = DRAW.calPitch || 0;
+  var pitchF = (pitch > 0 && pitch < 80) ? (1/Math.cos(pitch*Math.PI/180)) : 1;
+  var lines = DRAW.lines || [];
+  var tops = lines.filter(function(l){ return l && (l.type==='ridge'||l.type==='apron'||l.type==='changepitch') && l.pts && l.pts.length===2; });
+  var gutters = lines.filter(function(l){ return l && l.type==='gutter' && l.pts && l.pts.length===2; });
+  if (!tops.length) return out;
+  var best = null;
+  tops.forEach(function(r){
+    var a=r.pts[0], b=r.pts[1];
+    var dx=b[0]-a[0], dy=b[1]-a[1], L=Math.sqrt(dx*dx+dy*dy);
+    if (L < 8) return;
+    var ux=dx/L, uy=dy/L, nx=-uy, ny=ux;
+    var along = (p.cx-a[0])*ux + (p.cy-a[1])*uy;     // position along the high edge
+    if (along < -L*0.15 || along > L*1.15) return;   // pipe isn't under this edge
+    var perp = (p.cx-a[0])*nx + (p.cy-a[1])*ny;
+    var perpAbs = Math.abs(perp);
+    if (perpAbs < 1) return;
+    var side = perp >= 0 ? 1 : -1, dxs=nx*side, dys=ny*side;   // downslope direction
+    var rAng = Math.atan2(dy,dx), bestG = Infinity;
+    gutters.forEach(function(g){
+      var ga=g.pts[0], gb=g.pts[1];
+      var gdx=gb[0]-ga[0], gdy=gb[1]-ga[1], gL=Math.sqrt(gdx*gdx+gdy*gdy);
+      if (gL < 4) return;
+      var diff=Math.atan2(gdy,gdx)-rAng; diff=diff-Math.round(diff/Math.PI)*Math.PI;
+      if (Math.abs(diff) > 0.25) return;              // not parallel to the high edge
+      var g0=(ga[0]-a[0])*ux+(ga[1]-a[1])*uy, g1=(gb[0]-a[0])*ux+(gb[1]-a[1])*uy;
+      if (along < Math.min(g0,g1)-2 || along > Math.max(g0,g1)+2) return;  // gutter not below the pipe
+      var gmx=(ga[0]+gb[0])/2, gmy=(ga[1]+gb[1])/2;
+      var gperp=(gmx-a[0])*dxs + (gmy-a[1])*dys;
+      if (gperp <= 4) return;
+      if (gperp < bestG) bestG = gperp;
+    });
+    if (!best || perpAbs < best.perpAbs) best = { perpAbs:perpAbs, gutterPerp:isFinite(bestG)?bestG:0 };
   });
-  return Object.keys(counts).map(function(nm){ return { name: nm, qty: counts[nm] }; });
+  if (!best) return out;
+  out.topToPenM = best.perpAbs * spp * pitchF;                              // raw slope distance top → pipe
+  out.sheetM    = best.gutterPerp>0 ? _calibratedSheetM(best.gutterPerp * spp * pitchF) : 0;
+  out.ok = true;
+  return out;
+}
+// Per-penetration back-tray detail — name, Full/Short mode, and the
+// resolved length. Full = sheet length + 0.1m; Short = top-of-sheet down
+// to the pipe + 1m (soft-edged one end).
+function _penBackTrayDetail(p, idx){
+  var name = _penBackTrayName(p);
+  if (!name) return null;
+  var mode = (p.backTrayMode === 'short') ? 'short' : 'full';
+  var geom = _penSheetGeom(p);
+  var lengthM = 0;
+  if (geom.ok) lengthM = (mode === 'short') ? (geom.topToPenM + 1.0) : (geom.sheetM + 0.1);
+  return { idx: idx, name: name, mode: mode, lengthM: lengthM, hasGeom: geom.ok && lengthM > 0, soft: (mode === 'short') };
+}
+// One entry per pipe penetration that resolves to a back-tray.
+function _backTrayPenList(){
+  var out = [];
+  (DRAW.penetrations || []).forEach(function(p, i){
+    var d = _penBackTrayDetail(p, i);
+    if (d) out.push(d);
+  });
+  return out;
+}
+// Toggle a penetration's back-tray between full length and short, then
+// rebuild the Job Pack preview / map so the length + note update live.
+function _setPenBackTrayMode(idx, mode){
+  var p = DRAW.penetrations && DRAW.penetrations[idx];
+  if (!p) return;
+  p.backTrayMode = (mode === 'short') ? 'short' : 'full';
+  try { syncToRoofData && syncToRoofData(); } catch(e){}
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { if (typeof _matRefreshPrintPreview === 'function') _matRefreshPrintPreview(); } catch(e){}
+  try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
+  try { redrawAll && redrawAll(); } catch(e){}
+}
+// Order / Fergus line description for a grouped back-tray entry.
+function _backTrayLineDesc(bt){
+  return bt.name +
+    (bt.lengthLabel ? ' — ' + bt.lengthLabel : '') +
+    (bt.mode === 'short' ? ' (short · soft-edge one end)' : ' (full length)');
+}
+// Grouped back-trays for the order + Fergus — collapsed by name + mode +
+// length so identical trays share one qty line but a different length or
+// full/short split into their own.
+function _backTrayOrderList(){
+  var groups = {};
+  _backTrayPenList().forEach(function(d){
+    var lenLbl = d.hasGeom ? d.lengthM.toFixed(2) + 'm' : '';
+    var key = d.name + '|' + d.mode + '|' + lenLbl;
+    if (!groups[key]) groups[key] = { name:d.name, qty:0, mode:d.mode, lengthLabel:lenLbl, soft:d.soft };
+    groups[key].qty++;
+  });
+  return Object.keys(groups).map(function(k){ return groups[k]; });
 }
 
 // ── INFO PANEL ───────────────────────────────────────────────────
@@ -32317,7 +32407,7 @@ function _buildFergusItemisedSections(){
   //    markup so they pass through at their set $/each, not marked up.
   if (typeof _backTrayOrderList === 'function'){
     _backTrayOrderList().forEach(function(bt){
-      roofMat.push(matLine(bt.name, bt.qty, _backTrayUnitPrice(bt.name)));
+      roofMat.push(matLine(_backTrayLineDesc(bt), bt.qty, _backTrayUnitPrice(bt.name)));
     });
   }
 
@@ -33165,27 +33255,35 @@ function _matBuildPrintOrderDetails(mount) {
       '</div>';
   }
 
-  // Back-trays — auto-selected per round pipe penetration by diameter +
-  // roof profile. The drawing is pulled from the flashing library by
-  // name; if the user hasn't drawn that tray yet a placeholder prompts
-  // them to add it. Grouped by tray with a per-tray quantity.
-  var _btCounts = {};
-  (DRAW.penetrations || []).forEach(function(p){
-    var nm = (typeof _penBackTrayName === 'function') ? _penBackTrayName(p) : null;
-    if (nm) _btCounts[nm] = (_btCounts[nm] || 0) + 1;
-  });
-  var _btNames = Object.keys(_btCounts);
-  if (_btNames.length){
+  // Back-trays — one tile per pipe penetration, auto-selected by diameter
+  // + roof profile. Each has a Full length / Short toggle: Full = the
+  // sheet length it's on + 0.1m; Short = the top of the sheet down to the
+  // pipe + 1m, and is soft-edged at one end. Drawing is pulled from the
+  // flashing library by name.
+  var _btList = (typeof _backTrayPenList === 'function') ? _backTrayPenList() : [];
+  if (_btList.length){
     var _btLib = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
-    var _btBlocks = _btNames.map(function(nm){
-      var entry = _btLib.find(function(e){ return e && e.name === nm; });
+    var _btUncal = !(DRAW.scaleMetresPerPx > 0);
+    var _btBlocks = _btList.map(function(bt){
+      var entry = _btLib.find(function(e){ return e && e.name === bt.name; });
       var img = (entry && entry.sketch)
-        ? '<img src="'+entry.sketch+'" alt="'+esc(nm)+'" style="display:block;width:100%;height:84px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:4px">'
-        : '<div style="width:100%;height:84px;background:#fafaf7;border:1px dashed #cbd5e1;border-radius:4px;display:flex;align-items:center;justify-content:center;text-align:center;color:#94a3b8;font-size:9px;font-style:italic;padding:4px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(nm)+'&rdquo; in the flashing library</div>';
+        ? '<img src="'+entry.sketch+'" alt="'+esc(bt.name)+'" style="display:block;width:100%;height:84px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:4px">'
+        : '<div style="width:100%;height:84px;background:#fafaf7;border:1px dashed #cbd5e1;border-radius:4px;display:flex;align-items:center;justify-content:center;text-align:center;color:#94a3b8;font-size:9px;font-style:italic;padding:4px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(bt.name)+'&rdquo; in the flashing library</div>';
+      var lenTxt = bt.hasGeom ? (bt.lengthM.toFixed(2) + 'm') : (_btUncal ? 'calibrate map to size' : '—');
+      var soft = (bt.mode === 'short') ? '<div style="font-size:9.5px;font-weight:700;color:#b45309;text-align:center;margin-top:1px">Soft-edge one end</div>' : '';
+      function _btBtn(m, label){
+        var on = (bt.mode === m);
+        return '<button class="pdf-hide" onclick="_setPenBackTrayMode('+bt.idx+',\''+m+'\')" '+
+          'style="flex:1;padding:3px 4px;font-size:9.5px;font-weight:700;cursor:pointer;'+
+          'border:1px solid '+(on?'#0a1628':'#cbd5e1')+';background:'+(on?'#0a1628':'#fff')+';color:'+(on?'#fff':'#475569')+';'+
+          (m==='full'?'border-radius:5px 0 0 5px':'border-radius:0 5px 5px 0;border-left:none')+'">'+label+'</button>';
+      }
       return '<div style="break-inside:avoid">'+
         img+
-        '<div style="font-size:10.5px;font-weight:700;color:#0a1628;margin-top:4px;text-align:center">'+esc(nm)+'</div>'+
-        '<div style="font-size:10px;color:#374151;text-align:center;margin-top:2px">&times; '+_btCounts[nm]+'</div>'+
+        '<div style="font-size:10.5px;font-weight:700;color:#0a1628;margin-top:4px;text-align:center">'+esc(bt.name)+'</div>'+
+        '<div style="font-size:10px;color:#374151;text-align:center;margin-top:2px">'+(bt.mode==='short'?'Short':'Full length')+' &middot; '+esc(lenTxt)+'</div>'+
+        soft+
+        '<div class="pdf-hide" style="display:flex;margin-top:4px">'+_btBtn('full','Full')+_btBtn('short','Short')+'</div>'+
       '</div>';
     });
     html += '<h2 class="mp-h" style="margin-top:14px">Back-trays <span style="font-weight:400;font-size:11px;color:#6f6a60">&middot; auto-selected per pipe penetration</span></h2>'+
