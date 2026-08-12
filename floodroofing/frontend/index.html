@@ -35383,7 +35383,34 @@ function buildTRoofLines(ol){
   return ln.map(function(L){ return {type:L.t, pts:[_r90(L.a,pvx,pvy,inv), _r90(L.b,pvx,pvy,inv)]}; });
 }
 
+// Merge near-straight outline vertices before building a roof skeleton,
+// so a stray / shallow kink on a long wall doesn't spawn a phantom hip /
+// valley / gablet — the roof should just span it with longer sheets.
+// Real corners (~90°) are always kept; only vertices whose wall barely
+// changes direction (< angleTolDeg) are dropped. Gutters still follow
+// the true outline (autoPopulateGutters uses DRAW.outline), so this only
+// affects the internal ridge / hip / barge skeleton.
+function _roofSimplifyOutline(outline, angleTolDeg){
+  if (!outline || outline.length <= 4) return outline;
+  var tol = angleTolDeg || 18;
+  var out = outline.map(function(p){ return p.slice(); });
+  var guard = 0, changed = true;
+  while (changed && out.length > 4 && guard++ < 200){
+    changed = false;
+    for (var i = 0; i < out.length; i++){
+      var a = out[(i-1+out.length)%out.length], b = out[i], c = out[(i+1)%out.length];
+      var e1x=b[0]-a[0], e1y=b[1]-a[1], e2x=c[0]-b[0], e2y=c[1]-b[1];
+      var l1=Math.sqrt(e1x*e1x+e1y*e1y), l2=Math.sqrt(e2x*e2x+e2y*e2y);
+      if (l1 < 0.5 || l2 < 0.5){ out.splice(i,1); changed=true; break; }   // degenerate vertex
+      var cosA=(e1x*e2x+e1y*e2y)/(l1*l2);
+      var turn=Math.acos(Math.max(-1,Math.min(1,cosA)))*180/Math.PI;       // deviation from straight
+      if (turn < tol){ out.splice(i,1); changed=true; break; }             // nearly straight — drop it
+    }
+  }
+  return out;
+}
 function buildHipValleyLines(outline) {
+  outline = _roofSimplifyOutline(outline, 18);
   var _tLn = buildTRoofLines(outline);
   if (_tLn) return _tLn;            // clean imposed topology for T-shapes
   var result = [];
