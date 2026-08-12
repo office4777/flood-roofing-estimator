@@ -5029,7 +5029,7 @@ function gotoTab(t) {
   try { document.body.setAttribute('data-tab', t); } catch(e){}   // drives per-tab layout (fill/left)
   // Reserve content space for this tab's side pop-out (deferred so panels
   // that open via restore/timeout are already settled when we measure).
-  try { _setPopReserve(46); setTimeout(function(){ try{ _syncPopReserveForTab(t); }catch(e){} }, 80); } catch(e){}
+  try { _setPopReserve(0); setTimeout(function(){ try{ _syncPopReserveForTab(t); }catch(e){} }, 80); } catch(e){}
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
@@ -5058,8 +5058,12 @@ function gotoTab(t) {
     if(t==='roof'){
       _fp.style.display='flex';
       try{ var _w=localStorage.getItem('fr_fergus_panel_w'); if(_w) _fp.style.width=_w; }catch(e){}
+      // Popped out by DEFAULT (like the Job Pack / Quote panels) — regardless
+      // of whether a Fergus job is linked; only stay closed if the user
+      // explicitly closed it. When no job is linked the panel just shows the
+      // "Link a Fergus job…" hint.
       var _wantOpen=true; try{ _wantOpen = localStorage.getItem('fr_fergus_panel_open') !== '0'; }catch(e){}
-      if(_wantOpen && window.S && S.linkedJobId){ requestAnimationFrame(function(){ try{_fergusPanelOpen();}catch(e){} }); }
+      if(_wantOpen){ requestAnimationFrame(function(){ try{_fergusPanelOpen();}catch(e){} }); }
     }
     else { _fp.style.display='none'; _fp.classList.remove('is-open'); }
   })();
@@ -28133,7 +28137,7 @@ function _openPricingPanel(){
 }
 function _closePricingPanel(){
   var p = document.getElementById('quotePricingPanel'); if (p) p.classList.remove('is-open');
-  _setPopReserve(46);
+  _setPopReserve(0);
   try { localStorage.setItem('fr_qp_pricing_open', '0'); } catch(e){}
 }
 function _togglePricingPanel(){
@@ -28178,7 +28182,7 @@ function _jpToggleMapPanel(){
   var open = p.classList.toggle('is-open');
   try { localStorage.setItem('fr_jp_map_panel_open', open ? '1' : '0'); } catch(e){}
   if (open){ _jpApplyMapPanelWidth(); renderJpMapPanel(); _setPopReserve(p.getBoundingClientRect().width); }
-  else { _setPopReserve(46); }
+  else { _setPopReserve(0); }
 }
 function _jpRestorePanelState(){
   var p = document.getElementById('jpMapPanel'); if (!p) return;
@@ -28187,7 +28191,7 @@ function _jpRestorePanelState(){
   var open = localStorage.getItem('fr_jp_map_panel_open') !== '0';
   p.classList.toggle('is-open', open);
   if (open) { try { renderJpMapPanel(); } catch(e){} }
-  _setPopReserve(open ? p.getBoundingClientRect().width : 46);
+  _setPopReserve(open ? p.getBoundingClientRect().width : 0);
 }
 // Drag the panel's left edge to resize (right-anchored). Persisted.
 function _jpMapPanelResizeStart(e){
@@ -34653,14 +34657,21 @@ function _fergusRoofPhotosOnTabOpen(){
 // so the content sits to its LEFT (never hidden under it). Shared across the
 // three pop-out tabs (roof=photos, materials=maps, quote=pricing); only one
 // panel shows per tab. Falls back to the 46px toggle strip when closed.
+// px = the OPEN panel's body width, or 0 when closed. The panel's toggle tab
+// sticks 46px to the LEFT of the panel body, so we reserve panel + toggle +
+// a GAP — giving the content breathing room from the pop-out, matching the
+// gap on the left between the canvas and the sidebar. Closed = just the
+// toggle strip + gap.
 function _setPopReserve(px){
-  try { document.documentElement.style.setProperty('--pop-reserve', Math.max(46, Math.round(px)) + 'px'); } catch(e){}
+  var TOGGLE = 46, GAP = 26;
+  var reserve = (px && px > 60) ? (Math.round(px) + TOGGLE + GAP) : (TOGGLE + GAP);
+  try { document.documentElement.style.setProperty('--pop-reserve', reserve + 'px'); } catch(e){}
 }
 function _syncPopReserveForTab(t){
   var id = t==='roof' ? 'fergusRoofPanel' : t==='materials' ? 'jpMapPanel' : t==='quote' ? 'quotePricingPanel' : null;
-  if (!id){ _setPopReserve(46); return; }
+  if (!id){ _setPopReserve(0); return; }
   var p = document.getElementById(id);
-  _setPopReserve((p && p.classList.contains('is-open')) ? p.getBoundingClientRect().width : 46);
+  _setPopReserve((p && p.classList.contains('is-open')) ? p.getBoundingClientRect().width : 0);
 }
 // ── Fergus photos side pop-out (open / close / resize / zoom) ──────────
 function _fergusPanelOpen(){
@@ -34674,7 +34685,7 @@ function _fergusPanelOpen(){
 }
 function _fergusPanelClose(){
   var p = document.getElementById('fergusRoofPanel'); if (p) p.classList.remove('is-open');
-  _setPopReserve(46);
+  _setPopReserve(0);
   try { localStorage.setItem('fr_fergus_panel_open', '0'); } catch(e){}
 }
 function _fergusPanelToggle(){
