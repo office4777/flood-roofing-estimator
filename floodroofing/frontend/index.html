@@ -6230,6 +6230,9 @@ function renderMaterialPriceTable(){
       '<td><button onclick="_deleteMatRow(\''+r.key+'\')" title="Delete this line" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button></td>'+
     '</tr>';
   });
+  // Custom material lines — sit directly under the item rows, above the
+  // grade + safety-buffer rows.
+  if (!_multiMat || _matRi === 0) html += _qCustomTableRows('material', {totalCols:6, descColspan:4});
   // Steel-grade adjustment — the roofing steel costs more/less by grade
   // (Maxam standard; ColorCote/ColorZen/Zincalume cheaper). Shown as its own
   // row so the office sees the selected grade's real material cost. S.materials
@@ -6273,7 +6276,6 @@ function renderMaterialPriceTable(){
   if (deletedCount > 0) {
     html += '<div style="margin-top:8px;font-size:11px;color:var(--text2)">'+deletedCount+' row'+(deletedCount===1?'':'s')+' deleted — <button onclick="restoreDeletedMatRows()" style="background:none;border:none;color:#0099cc;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">restore all</button></div>';
   }
-  if (!_multiMat || _matRi === 0) html += _qCustomRowsHtml('material');
   box.innerHTML = html;
   // Base quote materials stay Roof 1 even while viewing another roof. Store the
   // grade-neutral figure WITH markup (grade is applied once at sync time).
@@ -9632,7 +9634,7 @@ function renderGutterDownpipePricing(){
     '<div style="font-size:11px;font-weight:700;color:var(--text);margin:12px 0 6px">Gutter material <span style="font-weight:400;color:var(--text3)">· Typhoon invoice pricing</span></div>'+
     '<table class="price-tbl" style="table-layout:fixed;width:100%;margin-bottom:4px">'+
       '<thead><tr><th style="width:40%">Item</th><th style="width:20%;text-align:right">Qty</th><th style="width:20%;text-align:right">$/unit</th><th style="width:20%;text-align:right">Total</th></tr></thead>'+
-      '<tbody>'+matRows+'</tbody>'+
+      '<tbody>'+matRows+_qCustomTableRows('gutter',{totalCols:4,descColspan:2})+'</tbody>'+
       '<tfoot>'+
         '<tr><td colspan="3" style="text-align:right;color:var(--text2)">Material subtotal</td><td style="text-align:right;color:var(--text2)">'+money(matBase)+'</td></tr>'+
         '<tr><td colspan="3" style="text-align:right"><span style="color:var(--text2)">Safety buffer / markup&nbsp;</span><input type="number" step="1" min="0" value="'+mkPct+'" onchange="_setGutterMatMarkup(this.value)" style="width:56px;font-size:12px;padding:3px 6px;text-align:right">&nbsp;%</td><td style="text-align:right">+'+money(mkAmt)+'</td></tr>'+
@@ -9652,8 +9654,7 @@ function renderGutterDownpipePricing(){
       '<strong style="font-size:12px">Guttering'+(scUp>0?' + scaffold upgrade':'')+(dOn?' + downpipes':'')+' (ex GST)</strong>'+
       '<span style="font-weight:700;color:#2e7d32">'+money(gVal + scUp + (dOn ? dVal : 0))+'</span>'+
     '</div>'+
-    (hasOv ? '<div style="text-align:right;margin-top:6px"><button type="button" onclick="_clearGutterDownpipeOverrides()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline">↻ Reset to computed prices</button></div>' : '')+
-    _qCustomRowsHtml('gutter');
+    (hasOv ? '<div style="text-align:right;margin-top:6px"><button type="button" onclick="_clearGutterDownpipeOverrides()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline">↻ Reset to computed prices</button></div>' : '');
 }
 function _gdChanged(){
   try { renderGutterDownpipePricing(); } catch(e){}
@@ -13120,6 +13121,26 @@ function _qCustomRowsHtml(area){
     rows+
     '<button onclick="_qAddCustom(\''+area+'\')" style="margin-top:6px;padding:6px 12px;font-size:12px;background:#fff;color:#0a1628;border:1px dashed #94a3b8;border-radius:6px;cursor:pointer;font-weight:600">+ Add custom line</button>'+
   '</div>';
+}
+// Table-row variant of the custom-line UI, for pricing areas rendered as a
+// <table> (roof material, gutter material). Rows sit directly under the line
+// items, above the markup/safety-buffer footer. totalCols = the table's
+// column count; descColspan = leading columns the description spans.
+function _qCustomTableRows(area, opts){
+  opts = opts || {};
+  var tc = opts.totalCols || 4, dc = opts.descColspan || (tc - 2);
+  var tail = Math.max(1, tc - dc - 1);
+  var rows = _qCustom(area).map(function(r,i){
+    return '<tr>'+
+      '<td colspan="'+dc+'"><input type="text" value="'+esc(r.desc||'')+'" placeholder="Custom line" oninput="_qUpdCustom(\''+area+'\','+i+',\'desc\',this.value)" style="width:100%;margin:0;font-size:12px;padding:4px 6px"></td>'+
+      '<td style="text-align:right"><div style="display:flex;align-items:center;gap:2px;justify-content:flex-end"><span style="color:var(--text2);font-size:11px">$</span><input type="number" step="0.01" value="'+(r.amount||'')+'" placeholder="0.00" oninput="_qUpdCustom(\''+area+'\','+i+',\'amount\',this.value)" style="width:74px;margin:0;font-size:12px;padding:4px 6px;text-align:right"></div></td>'+
+      '<td'+(tail>1?' colspan="'+tail+'"':'')+' style="text-align:center"><button onclick="_qDelCustom(\''+area+'\','+i+')" title="Remove custom line" style="background:none;border:none;color:#dc2626;font-size:15px;cursor:pointer;padding:0 2px;line-height:1">×</button></td>'+
+    '</tr>';
+  }).join('');
+  var addRow = '<tr><td colspan="'+tc+'" style="padding-top:3px;border:none">'+
+    '<button onclick="_qAddCustom(\''+area+'\')" style="padding:5px 10px;font-size:11.5px;background:#fff;color:#0a1628;border:1px dashed #94a3b8;border-radius:6px;cursor:pointer;font-weight:600">+ Add custom line</button>'+
+  '</td></tr>';
+  return rows + addRow;
 }
 // Silently update Labour/Materials line items from current computed
 // values each time the Quote tab opens, without disturbing custom lines.
