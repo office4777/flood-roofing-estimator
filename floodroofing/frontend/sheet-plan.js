@@ -4540,12 +4540,19 @@ function _renderRoofSheetPlanInner() {
   var _checkSections = [];
   secData.forEach(function(s, i){
     var perSide, valleyExtra = 0;
+    // Full along-ridge eave span. `eavePx` (donor-gutter length) is
+    // mis-measured on a 4-corner straight gable when the outline's first
+    // edge is a gable end — it then reports the sheet RUN (~half the depth)
+    // instead of the eave, undercounting the sheets ~4x. The oriented-bbox
+    // u-extent (obU1-obU0) is the reliable along-ridge span the overlay
+    // already tiles, so take the larger of the two.
+    var _eaveSpan = Math.max(s.eavePx || 0, (s.obU1 - s.obU0) || 0);
     if (i === primary) {
-      perSide = Math.max(1, Math.ceil(s.eavePx / coverPx - 1e-6));   // main runs full-length
+      perSide = Math.max(1, Math.ceil(_eaveSpan / coverPx - 1e-6));   // main runs full-length
     } else if (s.valleys >= 2) {
       // Protruding stem (a T): two valleys, no shared corner to borrow from
       // the main — cover its FULL length, like the main does.
-      perSide = Math.max(1, Math.ceil(s.eavePx / coverPx - 1e-6));
+      perSide = Math.max(1, Math.ceil(_eaveSpan / coverPx - 1e-6));
     } else {
       perSide = Math.max(1, Math.ceil(s.ridgePx / coverPx - 1e-6));  // tucked wing: ridge span
     }
