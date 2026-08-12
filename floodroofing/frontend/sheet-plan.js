@@ -105,7 +105,13 @@ function renderRoofSheetPlan() {
     // Combined groups map keyed by colour+orderedMm so identical
     // (colour, length) entries from different roofs collapse cleanly.
     var combinedGroups = {};
+    // Honour the Job Pack / Materials roof-selection pills: only the
+    // selected roofs contribute sheets to the plan + combined order
+    // counts. Without this the sheet section always showed every roof
+    // even when the user narrowed the job pack to one roof.
+    var _selRoofs = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
     DRAW.roofs.forEach(function(r, idx){
+      if (_selRoofs && _selRoofs.indexOf(idx) < 0) return;
       _loadRoofToCurrent(idx);
       if (!r.outline || r.outline.length < 3) return;
       var hdr = document.createElement('h2');

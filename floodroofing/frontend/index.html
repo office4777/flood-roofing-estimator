@@ -27160,15 +27160,19 @@ function _matToggleRoof(i) {
   if (sel.length === 0) sel = DRAW.roofs.map(function(_, k){ return k; }); // never empty
   _matSetSelectedRoofs(sel);
   populateMaterialsFromLines();
+  try { renderRoofSheetPlan(); } catch(e){}   // sheet plan is selection-aware now
   renderMaterialsCutLists();
   try { renderMaterialPriceTable(); } catch(e){}
+  try { renderJobPack(); } catch(e){}
 }
 function _matToggleAllRoofs() {
   var all = DRAW.roofs.map(function(_, i){ return i; });
   _matSetSelectedRoofs(all);
   populateMaterialsFromLines();
+  try { renderRoofSheetPlan(); } catch(e){}
   renderMaterialsCutLists();
   try { renderMaterialPriceTable(); } catch(e){}
+  try { renderJobPack(); } catch(e){}
 }
 
 // Render the "From your drawing measurements" card as a 3-tick summary:
@@ -28677,6 +28681,12 @@ function renderJobPack(){
   }
   var state = _jpState();
   mount.innerHTML = '';
+  // Roof-selection pills at the very top — control which roofs' materials
+  // the whole job pack shows. Only rendered for multi-roof jobs.
+  try {
+    var _rpHtml = _jpRoofPickerHtml();
+    if (_rpHtml){ var _rp = document.createElement('div'); _rp.innerHTML = _rpHtml; if (_rp.firstChild) mount.appendChild(_rp.firstChild); }
+  } catch(e){ console.warn('jp roof picker:', e); }
   state.pages.forEach(function(page, i){
     var pageEl = document.createElement('div');
     pageEl.className = 'jp-page';
@@ -28719,6 +28729,50 @@ function renderJobPack(){
     if (ev.target.closest('.jp-page-imgwrap')) return;
     document.querySelectorAll('.jp-page-imgwrap.is-selected').forEach(function(w){ w.classList.remove('is-selected'); });
   };
+}
+// ── Job Pack roof-selection pills ──────────────────────────────────
+// Big roof buttons at the top of the Job Pack. They drive the SAME
+// selection store as the Materials-tab picker (fr_mat_selected_roofs),
+// so the whole job pack — sheet plan, cut lists, flashings, gutters,
+// consumables, material price — reflects exactly the roofs ticked here.
+// Only Roof 1 ticked → only Roof 1's materials; Roof 1 + Roof 2 ticked →
+// both roofs combined.
+function _jpRoofPickerHtml(){
+  if (!DRAW.roofs || DRAW.roofs.length < 2) return '';
+  var selected = _matSelectedRoofIndices();
+  var selSet = {}; selected.forEach(function(i){ selSet[i] = true; });
+  var allOn = selected.length === DRAW.roofs.length;
+  function pill(label, isOn, onclick){
+    var bg = isOn ? '#0099cc' : '#fff', fg = isOn ? '#fff' : '#0a1628', border = isOn ? '#0099cc' : '#cbd5e1';
+    return '<button onclick="'+onclick+'" style="margin-right:8px;margin-bottom:6px;padding:11px 20px;font-size:14px;font-weight:700;background:'+bg+';color:'+fg+';border:2px solid '+border+';border-radius:10px;cursor:pointer">'+esc(label)+'</button>';
+  }
+  var h = '<div class="jp-roof-picker no-print" style="margin:0 auto 14px;max-width:840px;padding:14px 16px;background:linear-gradient(135deg,#f0f8ff,#e8f4fd);border:1px solid #b3d4f0;border-radius:12px">'+
+    '<div style="font-size:11px;font-weight:700;color:#0a1628;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Roofs included in this job pack</div>';
+  h += pill('All roofs', allOn, '_jpSelectAllRoofs()');
+  DRAW.roofs.forEach(function(r, i){ h += pill(r.name || ('Roof ' + (i+1)), !!selSet[i], '_jpToggleRoof('+i+')'); });
+  h += '</div>';
+  return h;
+}
+function _jpAfterRoofSelChange(){
+  try { renderRoofSheetPlan(); } catch(e){}
+  try { populateMaterialsFromLines(); } catch(e){}
+  try { renderMaterialsCutLists(); } catch(e){}
+  try { if (typeof renderMaterialPriceTable === 'function') renderMaterialPriceTable(); } catch(e){}
+  try { renderJobPack(); } catch(e){}
+  try { autosaveJob && autosaveJob(); } catch(e){}
+}
+function _jpToggleRoof(i){
+  var sel = _matSelectedRoofIndices();
+  if (sel.length === 1 && sel[0] === -1) sel = DRAW.roofs.map(function(_, k){ return k; });
+  var has = sel.indexOf(i) >= 0;
+  sel = has ? sel.filter(function(x){ return x !== i; }) : sel.concat([i]);
+  if (sel.length === 0) sel = DRAW.roofs.map(function(_, k){ return k; });   // never empty
+  _matSetSelectedRoofs(sel);
+  _jpAfterRoofSelChange();
+}
+function _jpSelectAllRoofs(){
+  _matSetSelectedRoofs(DRAW.roofs.map(function(_, i){ return i; }));
+  _jpAfterRoofSelChange();
 }
 function _jpAddPage(afterIdx){
   var state = _jpState();
