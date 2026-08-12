@@ -1166,6 +1166,9 @@ html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .
 }
 #fergusRoofPanelResize::after{ content:''; width:4px; height:52px; border-radius:3px; background:rgba(10,22,40,.18); transition:background .15s; }
 #fergusRoofPanelResize:hover::after{ background:#0099cc; height:80px; }
+.crn-btn{ width:38px; height:38px; border:1px solid rgba(255,255,255,.22); background:#152a44; color:#fff; border-radius:8px; font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:background .12s,border-color .12s; }
+.crn-btn:hover{ background:#0099cc; border-color:#0099cc; }
+.crn-btn:active{ background:#007bab; }
 #fergusRoofPanel .frp-hd{ padding:11px 14px 11px 20px; border-bottom:1px solid var(--border); color:#0a1628; }
 #fergusRoofPhotoScroll{ flex:1; overflow:auto; padding:10px 12px 16px 18px; -webkit-overflow-scrolling:touch; }
 #fergusRoofPhotoGrid{ width:100%; display:grid; grid-template-columns:1fr; gap:10px; align-content:start; }
@@ -2698,6 +2701,23 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           ondblclick="onCanvasDblClick(event)"
           oncontextmenu="onCanvasRightClick(event)">
         </canvas>
+      </div>
+      <!-- Corner reposition popup — click an outline corner in Move mode to
+           open; arrows (buttons or keyboard) nudge the corner 0.1m. Draggable
+           by its header; ✕ or clicking elsewhere on the canvas closes it. -->
+      <div id="cornerRepoPopup" class="no-print" style="display:none;position:fixed;z-index:2000;left:140px;top:150px;width:158px;background:#0a1628;border:1px solid #10233c;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.38);font-family:Inter,-apple-system,sans-serif">
+        <div id="cornerRepoHdr" style="display:flex;align-items:center;gap:6px;padding:7px 9px;cursor:move;border-bottom:1px solid rgba(255,255,255,.12);touch-action:none">
+          <span style="font-size:12px;line-height:1">✥</span>
+          <span style="font-size:11px;font-weight:700;color:#fff">Move corner</span>
+          <span style="font-size:10px;color:#7fd4ff;margin-left:auto;font-weight:600">0.1m</span>
+          <button onclick="_closeCornerRepo()" title="Close" style="background:none;border:none;color:#cbd5e1;font-size:14px;line-height:1;cursor:pointer;padding:0 2px">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,38px);gap:5px;padding:9px;justify-content:center">
+          <span></span><button onclick="_cornerRepoNudge(0,-1)" class="crn-btn" title="Up 0.1m">▲</button><span></span>
+          <button onclick="_cornerRepoNudge(-1,0)" class="crn-btn" title="Left 0.1m">◀</button><span style="display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.3);font-size:10px">•</span><button onclick="_cornerRepoNudge(1,0)" class="crn-btn" title="Right 0.1m">▶</button>
+          <span></span><button onclick="_cornerRepoNudge(0,1)" class="crn-btn" title="Down 0.1m">▼</button><span></span>
+        </div>
+        <div style="font-size:9.5px;color:rgba(255,255,255,.6);padding:0 9px 9px;text-align:center;line-height:1.4">Keyboard arrows work too. You can still drag the corner.</div>
       </div>
       <!-- Context menu -->
       <div id="ctxMenu" style="display:none;position:fixed;background:#fff;border:1px solid #ddd;border-radius:8px;padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:999;min-width:140px">
@@ -21919,15 +21939,96 @@ function _nudgeSelected(dx, dy){
   redrawAll(); try { syncToRoofData(); } catch(e){}
   return true;
 }
+// ── Corner reposition popup ─────────────────────────────────────────
+window._cornerRepo = window._cornerRepo || { idx: -1, userMoved: false };
+function _cornerRepoOpen(idx){
+  if (idx == null || idx < 0 || !DRAW.outline || idx >= DRAW.outline.length) return;
+  window._cornerRepo.idx = idx;
+  var pop = document.getElementById('cornerRepoPopup'); if (!pop) return;
+  pop.style.display = 'block';
+  // First open (or not yet user-moved this session): place it beside the
+  // corner so it's obviously tied to it, but offset so it doesn't cover it.
+  if (!window._cornerRepo.userMoved){
+    try {
+      var t = getImgTransform();
+      var cpt = (typeof imgToCanvas === 'function') ? imgToCanvas(DRAW.outline[idx], t) : DRAW.outline[idx];
+      var cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect();
+      var clientX = r.left + cpt[0] * (r.width  / cv.width);
+      var clientY = r.top  + cpt[1] * (r.height / cv.height);
+      pop.style.left = Math.max(6, Math.min(window.innerWidth  - 170, clientX + 18)) + 'px';
+      pop.style.top  = Math.max(70, Math.min(window.innerHeight - 160, clientY - 60)) + 'px';
+    } catch(e){}
+  }
+}
+function _closeCornerRepo(){
+  window._cornerRepo.idx = -1;
+  var pop = document.getElementById('cornerRepoPopup'); if (pop) pop.style.display = 'none';
+}
+// Nudge the active corner 0.1m (100mm) in a direction. Uses the SAME
+// rectilinear stretch a drag does, so arrows and dragging behave the same.
+function _cornerRepoNudge(dirX, dirY){
+  var idx = window._cornerRepo.idx;
+  if (idx < 0 || !DRAW.outline || idx >= DRAW.outline.length) return;
+  var step = (DRAW.scaleMetresPerPx > 0) ? (0.1 / DRAW.scaleMetresPerPx) : 4;  // 0.1m in px (fallback 4px uncalibrated)
+  var dx = dirX * step, dy = dirY * step;
+  saveSnapshot();
+  var cur = DRAW.outline[idx];
+  var nx = cur[0] + dx, ny = cur[1] + dy;
+  var initial = DRAW.outline.map(function(p){ return p.slice(); });
+  var stretched = (typeof _stretchRectilinearOutline === 'function') ? _stretchRectilinearOutline(idx, nx, ny, initial) : null;
+  if (stretched && stretched.length === DRAW.outline.length){ for (var i=0;i<stretched.length;i++) DRAW.outline[i] = stretched[i]; }
+  else { DRAW.outline[idx] = [nx, ny]; }
+  try { var rt = _detectAutoRoofType(); if (rt) regenerateAutoRoofLines(rt); else autoPopulateGutters(); } catch(e){}
+  try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+  try { syncToRoofData(); } catch(e){}
+  redrawAll();
+  try { updateMeasTotals(); } catch(e){}
+  try { autosaveJob && autosaveJob(); } catch(e){}
+}
+// Drag the popup by its header.
+(function(){
+  function init(){
+    var hdr = document.getElementById('cornerRepoHdr'); if (!hdr) return;
+    hdr.addEventListener('pointerdown', function(e){
+      if (e.target.closest('button')) return;
+      e.preventDefault();
+      var pop = document.getElementById('cornerRepoPopup'); if (!pop) return;
+      var r = pop.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top;
+      window._cornerRepo.userMoved = true;
+      function mv(ev){
+        pop.style.left = Math.max(4, Math.min(window.innerWidth  - 40, ev.clientX - ox)) + 'px';
+        pop.style.top  = Math.max(4, Math.min(window.innerHeight - 40, ev.clientY - oy)) + 'px';
+      }
+      function up(){ window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); }
+      window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
 document.addEventListener('keydown', function(e){
   var ae = document.activeElement;
   var inField = ae && (ae.tagName==='INPUT' || ae.tagName==='TEXTAREA' || ae.isContentEditable);
   if(e.key==='Enter' && !inField){ e.preventDefault(); finishCurrent(); return; }
-  if(e.key==='Escape'){ DRAW.currentPts=[]; redrawAll(); return; }
+  if(e.key==='Escape'){
+    // If the corner reposition popup is open, Escape closes it first.
+    if(window._cornerRepo && window._cornerRepo.idx>=0){ var _crp=document.getElementById('cornerRepoPopup'); if(_crp && _crp.style.display!=='none'){ e.preventDefault(); _closeCornerRepo(); return; } }
+    DRAW.currentPts=[]; redrawAll(); return;
+  }
   // Redo: Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y — checked before plain undo.
   if((e.ctrlKey||e.metaKey) && ((e.shiftKey && (e.key==='z'||e.key==='Z')) || e.key==='y' || e.key==='Y')){ e.preventDefault(); redoLast(); return; }
   if((e.ctrlKey||e.metaKey) && (e.key==='z'||e.key==='Z')){ e.preventDefault(); undoLast(); return; }
   if(inField) return;
+  // Corner reposition popup open → arrows nudge the corner 0.1m (100mm).
+  if (window._cornerRepo && window._cornerRepo.idx >= 0){
+    var _cp = document.getElementById('cornerRepoPopup');
+    if (_cp && _cp.style.display !== 'none'){
+      var _cnx=0, _cny=0;
+      if(e.key==='ArrowLeft') _cnx=-1; else if(e.key==='ArrowRight') _cnx=1;
+      else if(e.key==='ArrowUp') _cny=-1; else if(e.key==='ArrowDown') _cny=1;
+      else if(e.key==='Escape'){ e.preventDefault(); _closeCornerRepo(); return; }
+      if(_cnx||_cny){ e.preventDefault(); _cornerRepoNudge(_cnx,_cny); return; }
+    }
+  }
   if(DRAW.tool==='select'){
     // Broadened delete: selected line OR penetration.
     if(e.key==='Delete' || e.key==='Backspace'){
@@ -22635,11 +22736,15 @@ function onCanvasMouseDown(e) {
           // undoStack at mouseup only if the corner actually moved.
           preSnap: _captureSnapState()
         };
+        try { _cornerRepoOpen(vi); } catch(e){}   // open/refresh the reposition popup for this corner
         document.getElementById('roofCanvas').style.cursor = 'grabbing';
         e.preventDefault();
         return;
       }
     }
+    // Reached here = a Move-mode press that did NOT land on a corner →
+    // clicking elsewhere on the canvas dismisses the reposition popup.
+    try { _closeCornerRepo(); } catch(e){}
   }
   // Ridge slide (straight gable, Move tool) — grab the ridge line and
   // drag it up/down. It snaps to the vertical centre of the LEFT end and
