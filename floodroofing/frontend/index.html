@@ -22029,12 +22029,31 @@ document.addEventListener('keydown', function(e){
       if(_cnx||_cny){ e.preventDefault(); _cornerRepoNudge(_cnx,_cny); return; }
     }
   }
-  if(DRAW.tool==='select'){
-    // Broadened delete: selected line OR penetration.
-    if(e.key==='Delete' || e.key==='Backspace'){
-      if(DRAW.selectedLine>=0){ e.preventDefault(); deleteSelectedLine(); return; }
-      if(DRAW.selectedPen>=0){ e.preventDefault(); deletePen(); return; }
+  // ── Delete / Backspace ─────────────────────────────────────────────
+  // Delete removes the current selection wherever it is; Backspace does
+  // the same, and when nothing is selected on the Map Roof tab it also
+  // acts as the canvas Undo button (same as the ↩ Undo toolbar button).
+  if(e.key==='Delete' || e.key==='Backspace'){
+    var _tab = (document.body && document.body.getAttribute('data-tab')) || '';
+    // 1) Job Pack: a selected dropped map image.
+    if(_tab==='materials'){
+      var _jpSel = document.querySelector('.jp-page-imgwrap.is-selected');
+      if(_jpSel){
+        e.preventDefault();
+        var _pi = parseInt(_jpSel.getAttribute('data-page'),10);
+        var _iid = _jpSel.getAttribute('data-img-id');
+        if(!isNaN(_pi) && _iid && typeof _jpDeleteImage==='function') _jpDeleteImage(_pi, _iid);
+        return;
+      }
     }
+    // 2) Canvas: a selected line, penetration or roof section.
+    if(DRAW.selectedLine>=0){ e.preventDefault(); deleteSelectedLine(); return; }
+    if(DRAW.selectedPen>=0){ e.preventDefault(); deletePen(); return; }
+    if(DRAW.selectedSection>=0){ e.preventDefault(); ctxDelete(); return; }
+    // 3) Backspace with nothing selected on the Map Roof tab → Undo.
+    if(e.key==='Backspace' && _tab==='roof'){ e.preventDefault(); undoLast(); return; }
+  }
+  if(DRAW.tool==='select'){
     // Arrow-key nudge of the selected line / penetration (Shift = 10px).
     if(DRAW.selectedLine>=0 || DRAW.selectedPen>=0){
       var s = e.shiftKey ? 10 : 1, dx=0, dy=0;
@@ -36253,13 +36272,10 @@ function ctxDelete() {
 }
 
 // ── DELETE KEY ────────────────────────────────────────────────────
-document.addEventListener('keydown', function(e){
-  if((e.key==='Delete'||e.key==='Backspace') && document.activeElement.tagName!=='INPUT' && document.activeElement.tagName!=='TEXTAREA'){
-    if(DRAW.selectedPen>=0||DRAW.selectedLine>=0||DRAW.selectedSection>=0){
-      ctxDelete(); e.preventDefault();
-    }
-  }
-});
+// Delete / Backspace on a selected pen / line / section is handled by the
+// unified keyboard handler above (which also respects contentEditable and
+// wires Backspace to Undo when nothing is selected). ctxDelete() remains as
+// the context-menu Delete action.
 
 // Resize canvas wrap to fill window on resize
 window.addEventListener('resize', function(){
