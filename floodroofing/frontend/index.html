@@ -25392,7 +25392,21 @@ function redrawAll() {
         // barge must not seed a sheet measure. Including it produced the
         // spurious "runs parallel to the gutter" labels on gable + valley
         // roofs (e.g. 15.69 m / 7.78 m alongside the correct 5.47 / 5.46).
-        if (t !== 'ridge' && t !== 'apron' && t !== 'changepitch') return;
+        // Mono-pitch has NO ridge: its HIGH side stays a barge by default.
+        // That high-side barge runs PARALLEL to the gutter (a gable RAKE
+        // barge runs perpendicular and must still be skipped), so treat a
+        // gutter-parallel barge on a ridgeless roof as the ridge-equivalent
+        // high edge — that's what gives a mono slope its sheet-length arrow.
+        var _monoHigh = false;
+        if (t === 'barge' && !lines.some(function(z){ return z && z.type === 'ridge'; })) {
+          var _bang = Math.atan2(rl.pts[1][1]-rl.pts[0][1], rl.pts[1][0]-rl.pts[0][0]);
+          _monoHigh = gutters.some(function(g){
+            var _d = Math.atan2(g.pts[1][1]-g.pts[0][1], g.pts[1][0]-g.pts[0][0]) - _bang;
+            _d = _d - Math.round(_d / Math.PI) * Math.PI;   // fold to a line angle
+            return Math.abs(_d) < 0.20;                      // parallel to a gutter (~11°)
+          });
+        }
+        if (t !== 'ridge' && t !== 'apron' && t !== 'changepitch' && !_monoHigh) return;
         // Skip Dutch-gable gablet flashings (apron sharing a line with its
         // barge) — they aren't mono-pitch high-edges.
         if (t === 'apron' && _hasCollinearSibling(rl, lines)) return;

@@ -4492,9 +4492,15 @@ function _renderRoofSheetPlanInner() {
     // Ridge span of THIS section (for the secondary count): the drawn ridge
     // if we matched one, else eave minus the full depth (hip setbacks).
     var ridgePx = (rlen > 0) ? rlen : Math.max(coverPx, eavePx - perpPx);
+    // Sheet run length: a gable/hip splits `perpPx` (the full ridge-to-eave
+    // depth) into TWO slopes, so each sheet is half. A MONO-PITCH is a
+    // SINGLE slope with no ridge — its sheet runs the FULL depth, so it
+    // must NOT be halved (otherwise a lean-to orders sheets at half length).
+    var _monoRoof = (typeof DRAW !== 'undefined' && DRAW.roofType === 'mono');
+    var _runPx = _monoRoof ? perpPx : (perpPx / 2);
     secData.push({
       col: sec.color || COL_ORANGE,
-      mm: orderedLengthMm((perpPx / 2) * effectiveScale * pitchFactor),
+      mm: orderedLengthMm(_runPx * effectiveScale * pitchFactor),
       runPx: perpPx, eavePx: eavePx, ridgePx: ridgePx, valley: !!sec.valley,
       valleys: valleyCount,
       rdir: rdir.slice(), obU0: uMin, obU1: uMax, obV0: pmin, obV1: pmax
