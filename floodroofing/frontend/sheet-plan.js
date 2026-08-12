@@ -4562,7 +4562,13 @@ function _renderRoofSheetPlanInner() {
     } else {
       perSide = Math.max(1, Math.ceil(s.ridgePx / coverPx - 1e-6));  // tucked wing: ridge span
     }
-    var n = 2 * perSide;
+    // Two slopes meet at a ridge → 2 columns of sheets per bay. A
+    // MONO-PITCH roof is a SINGLE slope (one gutter, no ridge), so it must
+    // count one column per bay, not two — otherwise a lean-to orders ~2×
+    // the sheets it needs. DRAW.roofType is per-roof (in ROOF_FIELDS) and
+    // loaded before this runs, so it's the current roof's type.
+    var _mono = (typeof DRAW !== 'undefined' && DRAW.roofType === 'mono');
+    var n = (_mono ? 1 : 2) * perSide;
     if (i === primary && _valleyWings > 0) { n += _valleyWings; valleyExtra = _valleyWings; }  // long valley spares
     var key = s.col + ':' + s.mm;
     if (!groups[key]) groups[key] = { color: s.col, orderedMm: s.mm, count: 0 };

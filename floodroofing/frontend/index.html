@@ -26329,6 +26329,14 @@ function confirmCalibrate() {
   var pitch = parseFloat(document.getElementById('calPitchInput').value)||0;
   if(!realM || realM <= 0) { alert('Please enter a real-world measurement first.'); return; }
   if(!DRAW.calibratePixels) { alert('Draw a calibration line on the image first, then click Calibrate.'); return; }
+  // Guard against a degenerate reference wall: a near-zero-length pixel
+  // span divides into an enormous scaleMetresPerPx and blows up EVERY
+  // measurement on the plan. A real building wall is many pixels long, so
+  // treat a sub-6px span as a misclick and refuse it.
+  if(DRAW.calibratePixels < 6) {
+    alert('That wall is too short to calibrate from — click a longer wall (a full building edge), then enter its real length.');
+    return;
+  }
   // If the measurement was taken along the roof pitch (sheet length /
   // rafter), the pixel line on the plan view covers a SHORTER plan
   // distance — realM * cos(pitch). Convert to plan-metres so
@@ -36748,11 +36756,21 @@ function clearRoofLines() {
 DRAW.roofs = DRAW.roofs || [];
 DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
 var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac'];
+// Defaults for the SCALAR per-roof fields. Used when loading a roof that
+// doesn't carry a value for one, so it resets to a clean default instead
+// of leaking the previously-active roof's value into the newly-loaded one
+// (e.g. a slid gable ridge / dutch gablet fraction bleeding onto a fresh
+// roof). Array fields aren't listed — they're always present on a roof.
+var ROOF_FIELD_DEFAULTS = {
+  outlineDone:false, roofType:'', calPitch:0, rotation:0,
+  gableRidgeOffset:0, dutchGabletFrac:0.5,
+};
 function _newEmptyRoof(name){
   return {
     name: name || ('Roof ' + (DRAW.roofs.length + 1)),
     outline: [], lines: [], sections: [], penetrations: [], infoItems: [],
     outlineDone: false, roofType: '', calPitch: 0, rotation: 0,
+    gableRidgeOffset: 0, dutchGabletFrac: 0.5,
   };
 }
 function _syncCurrentToRoof(){
@@ -36763,7 +36781,10 @@ function _syncCurrentToRoof(){
 function _loadRoofToCurrent(idx){
   if (idx < 0 || idx >= DRAW.roofs.length) return;
   var r = DRAW.roofs[idx];
-  ROOF_FIELDS.forEach(function(k){ if (r[k] !== undefined) DRAW[k] = r[k]; });
+  ROOF_FIELDS.forEach(function(k){
+    if (r[k] !== undefined) DRAW[k] = r[k];
+    else if (Object.prototype.hasOwnProperty.call(ROOF_FIELD_DEFAULTS, k)) DRAW[k] = ROOF_FIELD_DEFAULTS[k];  // reset, don't leak prior roof
+  });
   DRAW.activeRoofIdx = idx;
   DRAW.currentPts = [];
   DRAW.selectedSection = -1;
