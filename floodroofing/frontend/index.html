@@ -26351,7 +26351,7 @@ function confirmCalibrate() {
     (pitch>0?' | Pitch: '+pitch+'°':'') + _typeNote +
     '. Sheet, hip and valley measures are along the roof pitch; gutter/ridge measures are flat plan.';
   DRAW.scaleLabel = '1px='+(DRAW.scaleMetresPerPx*1000).toFixed(2)+'mm | ref:'+realM+'m '+measType+(pitch>0?' | '+pitch+'°':'');
-  autoCalcLineMeasurements();
+  _recalcAllRoofsMeas();   // refresh EVERY roof's measures, not just the active one
   updateMeasTotals();
   populateMaterialsFromLines();
   redrawAll();
@@ -26456,6 +26456,30 @@ function autoCalcLineMeasurements() {
   if(DRAW.outlineRoofAreaM2 > 0 && document.getElementById('scopeArea')) {
     document.getElementById('scopeArea').value = DRAW.outlineRoofAreaM2.toFixed(1);
   }
+}
+
+// The pixel scale is GLOBAL, so a single calibration fixes the size of
+// EVERY roof — not just the one whose wall was clicked. autoCalcLineMeasurements
+// only touches the active roof (DRAW.lines), which is why the other roofs
+// showed stale / missing measures after calibrating. This refreshes the line
+// measures on every archived roof too, each using its OWN calibrated pitch.
+function _recalcAllRoofsMeas(){
+  if (!DRAW.scaleMetresPerPx) return;
+  autoCalcLineMeasurements();               // active roof (live DRAW.*)
+  if (!(DRAW.roofs && DRAW.roofs.length > 1)) return;
+  try { if (typeof _syncCurrentToRoof === 'function') _syncCurrentToRoof(); } catch(e){}
+  var actPitch = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
+  DRAW.roofs.forEach(function(r, ri){
+    if (ri === DRAW.activeRoofIdx || !r || !r.lines) return;   // active already done
+    var pitch = (typeof r.calPitch === 'number' && r.calPitch > 0) ? r.calPitch : actPitch;
+    r.lines.forEach(function(l){
+      if (!l || !l.pts || l.pts.length < 2) return;
+      var dx = l.pts[1][0]-l.pts[0][0], dy = l.pts[1][1]-l.pts[0][1];
+      var planM = Math.sqrt(dx*dx + dy*dy) * DRAW.scaleMetresPerPx;
+      var measM = Math.round(planM * slopeFactorForLineType(l.type, pitch) * 100) / 100;
+      if (measM > 0){ l.measM = measM; l.planM = Math.round(planM*100)/100; l.label = measM.toFixed(2)+'m'; }
+    });
+  });
 }
 
 // Re-calc when new lines are drawn after calibration
