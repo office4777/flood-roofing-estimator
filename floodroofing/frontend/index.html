@@ -3120,7 +3120,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <div class="card jp-toolbar" id="jpToolbar">
     <strong style="font-size:13px;color:#0a1628">Job Pack Designer</strong>
     <span style="font-size:11px;color:var(--text2)">— click any field to edit · everything you change here lands in the PDF</span>
-    <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
+    <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;align-items:center">
+      <span class="no-print" style="font-size:11px;color:var(--text2)">🔍 Zoom</span>
+      <input class="no-print" type="range" id="jpZoomSlider" min="40" max="150" step="5" value="70" oninput="_setDocZoomFactor(this.value)" title="Page zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0 4px 0 0">
+      <span class="no-print" id="jpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums;margin-right:4px">70%</span>
       <button onclick="undoLast()" class="mat-btn mat-btn-light no-print" style="padding:7px 12px;font-size:12px" title="Undo the last change (e.g. a deleted cut-list row)">↩ Undo</button>
       <button onclick="redoLast()" class="mat-btn mat-btn-light no-print" style="padding:7px 12px;font-size:12px" title="Redo">↪ Redo</button>
       <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark" style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
@@ -3927,6 +3930,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <div class="card js-proposal-print">
     <div class="card-hd"><span class="card-dot"></span>Proposal — click any text to edit
       <div style="margin-left:auto;display:inline-flex;align-items:center;gap:8px">
+        <span class="no-print" style="font-size:11px;color:var(--text2)">🔍 Zoom</span>
+        <input class="no-print" type="range" id="qpZoomSlider" min="40" max="150" step="5" value="70" oninput="_setDocZoomFactor(this.value)" title="Proposal zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0">
+        <span class="no-print" id="qpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums">70%</span>
+        <span class="no-print" style="width:1px;height:16px;background:var(--border);margin:0 2px"></span>
         <span style="font-size:11px;color:var(--text2)">Draft:</span>
         <div style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
           <button type="button" id="qkBtn_roofing"  onclick="_setQuoteKind('roofing')"  style="padding:4px 12px;border:none;background:#0a1628;color:#fff;font-size:11px;font-weight:700;cursor:pointer">Roofing</button>
@@ -5036,7 +5043,7 @@ function gotoTab(t) {
   try { document.body.setAttribute('data-tab', t); } catch(e){}   // drives per-tab layout (fill/left)
   // Reserve content space for this tab's side pop-out (deferred so panels
   // that open via restore/timeout are already settled when we measure).
-  try { _setPopReserve(0); setTimeout(function(){ try{ _syncPopReserveForTab(t); }catch(e){} }, 80); } catch(e){}
+  try { _setPopReserve(0); setTimeout(function(){ try{ _syncPopReserveForTab(t); }catch(e){} try{ _syncDocZoomUi(); }catch(e){} }, 80); } catch(e){}
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
@@ -14425,7 +14432,7 @@ function _fitProposalPages(){
   } else {
     avail = wrap.clientWidth - 28;
   }
-  var z = avail > 0 ? Math.max(1, Math.min(2.2, avail / A4px)) : 1;
+  var z = avail > 0 ? Math.max(1, Math.min(2.2, avail / A4px)) * _docZoomFactor() : 1;
   root.style.zoom = z;
 }
 window.addEventListener('resize', function(){
@@ -34691,9 +34698,30 @@ function _setPopReserve(px){
   try { _fitDocZoom(); } catch(e){}          // Job Pack pages (CSS --doc-zoom)
   try { _fitProposalPages(); } catch(e){}    // Quote proposal (inline zoom, fill-to-width)
 }
-// Scale the fixed-size A4 pages (Quote proposal, Job Pack pages) UP so they
-// fill the working area between the sidebar and the side pop-out — killing
-// the wasted grey. Writes --doc-zoom; the CSS applies it on screen only.
+// Manual zoom multiplier applied on top of the fit-to-width size. 1.0 = fill
+// the width; default 0.70 (70% of that) so the doc isn't over-zoomed. Driven
+// by the sliders on the Quote + Job Pack tabs.
+function _docZoomFactor(){
+  var v = parseFloat(localStorage.getItem('fr_doc_zoom_factor'));
+  if (!isFinite(v) || v <= 0) v = 0.70;
+  return Math.max(0.3, Math.min(1.5, v));
+}
+function _syncDocZoomUi(){
+  var pct = Math.round(_docZoomFactor() * 100);
+  ['qpZoomSlider','jpZoomSlider'].forEach(function(id){ var el = document.getElementById(id); if (el) el.value = pct; });
+  ['qpZoomOut','jpZoomOut'].forEach(function(id){ var el = document.getElementById(id); if (el) el.textContent = pct + '%'; });
+}
+function _setDocZoomFactor(pct){
+  var f = (parseFloat(pct) || 70) / 100;
+  f = Math.max(0.3, Math.min(1.5, f));
+  try { localStorage.setItem('fr_doc_zoom_factor', f); } catch(e){}
+  _syncDocZoomUi();
+  try { _fitDocZoom(); } catch(e){}
+  try { _fitProposalPages(); } catch(e){}
+}
+// Scale the fixed-size A4 pages (Quote proposal, Job Pack pages) so they fill
+// the working area between the sidebar and the side pop-out (× the manual
+// zoom factor). Writes --doc-zoom; the CSS applies it on screen only.
 function _fitDocZoom(){
   var content = document.querySelector('.content'); if (!content) return;
   var cs = getComputedStyle(content);
@@ -34702,7 +34730,7 @@ function _fitDocZoom(){
   var contentLeft = content.getBoundingClientRect().left;   // = sidebar width (content itself isn't zoomed)
   var avail = window.innerWidth - contentLeft - padL - reserve - 20;   // -20 = doc frame breathing room
   var A4 = 793.7;                                            // 210mm @ 96dpi
-  var z = Math.max(1, Math.min(2.2, avail / A4));
+  var z = Math.max(1, Math.min(2.2, avail / A4)) * _docZoomFactor();
   document.documentElement.style.setProperty('--doc-zoom', z.toFixed(3));
 }
 try { window.addEventListener('resize', function(){ try { _fitDocZoom(); } catch(e){} }); } catch(e){}
