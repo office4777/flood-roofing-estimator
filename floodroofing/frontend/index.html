@@ -24424,12 +24424,64 @@ function _syncMeasureGroup(edited, newM){
     _recalibrateFromLine(edited, newM);
     DRAW.lines.forEach(function(x){ if (x && (x.type==='ridge'||x.type==='gutter')){ x.measM=newM; x.label=lbl; } });
   } else if (t === 'barge'){
-    DRAW.lines.forEach(function(x){ if (x && x.type==='barge'){ x.measM=newM; x.label=lbl; } });
-    _setAllSheetRuns(newM, DRAW.activeRoofIdx);   // only THIS roof's sheet runs
+    // Face-scoped: update only the sheet run(s) whose rake includes THIS
+    // barge, plus the barges sharing those runs — never the opposite face
+    // or a neighbouring step. Falls back to the parallel-opposite rake
+    // when there are no rendered runs yet to key off.
+    var touched = _syncBargeToItsFaces(edited, newM);
+    if (!touched){
+      var opp = _findParallelOppositeLine(edited);
+      if (opp){ opp.measM=newM; opp.label=lbl; }
+    }
   } else {
-    var opp = _findParallelOppositeLine(edited);
-    if (opp){ opp.measM=newM; opp.label=lbl; }
+    var opp2 = _findParallelOppositeLine(edited);
+    if (opp2){ opp2.measM=newM; opp2.label=lbl; }
   }
+}
+// Barges (rakes) that belong to ONE sheet run: parallel to the run's
+// into-face direction, on the same side of the ridge, and sitting within
+// that run's own along-ridge span (so a stepped face's short run keeps its
+// own barge and the opposite face is never touched). `lines` is the owning
+// roof's line array; the run geometry travels on the sheet hit.
+function _bargesForSheetRun(hit, lines){
+  var out = [];
+  if (!hit || hit.faceDx == null || !Array.isArray(lines)) return out;
+  var dx=hit.faceDx, dy=hit.faceDy;
+  var rmx=hit.ridgeMx, rmy=hit.ridgeMy, rux=hit.ridgeUx, ruy=hit.ridgeUy;
+  var lo=Math.min(hit.runLo, hit.runHi), hi=Math.max(hit.runLo, hit.runHi);
+  var span=Math.max(1, hi-lo);
+  var tol=Math.max(22, span*0.12);      // px slack at the run ends
+  lines.forEach(function(b){
+    if (!b || b.type!=='barge' || !b.pts || b.pts.length!==2) return;
+    var a0=b.pts[0], a1=b.pts[1];
+    var bdx=a1[0]-a0[0], bdy=a1[1]-a0[1], bl=Math.sqrt(bdx*bdx+bdy*bdy);
+    if (bl<4) return;
+    if (Math.abs((bdx/bl)*dx + (bdy/bl)*dy) < 0.7) return;   // not a rake for this face
+    var bmx=(a0[0]+a1[0])/2, bmy=(a0[1]+a1[1])/2;
+    if (((bmx-rmx)*dx + (bmy-rmy)*dy) <= 2) return;          // wrong side of the ridge
+    var along=(bmx-rmx)*rux + (bmy-rmy)*ruy;                 // along-ridge position
+    if (along < lo - tol || along > hi + tol) return;        // outside this run's span
+    out.push(b);
+  });
+  return out;
+}
+// Editing a barge → mirror the change onto only the sheet runs whose rake
+// includes this barge (same face/step), and the barges sharing those runs.
+// Returns the number of runs touched (0 → caller falls back).
+function _syncBargeToItsFaces(barge, newM){
+  if (!barge || !(newM > 0)) return 0;
+  var hits = (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
+  var lbl = newM.toFixed(2)+'m', did = 0;
+  if (!DRAW.sheetOverrides) DRAW.sheetOverrides = {};
+  hits.forEach(function(h){
+    if (!h || !h.key || ('manualIdx' in h)) return;
+    if (h.roofIdx !== DRAW.activeRoofIdx) return;   // the line editor edits the active roof
+    var bg = _bargesForSheetRun(h, DRAW.lines);
+    if (bg.indexOf(barge) === -1) return;           // this run isn't on the barge's face
+    DRAW.sheetOverrides[h.key] = newM; did++;
+    bg.forEach(function(b){ b.measM=newM; b.label=lbl; });
+  });
+  return did;
 }
 // A sheet-run label edit drives the whole slope group (barges + all runs)
 // for the OWNING roof only. On a gable the sheet run and the barge (rake)
@@ -25465,6 +25517,13 @@ function redrawAll() {
               key: key,
               isOverride: isOverride || (displayedM !== sheetM),
               roofIdx: (typeof ownerRoofIdx === 'number' ? ownerRoofIdx : DRAW.activeRoofIdx),
+              // Geometry so a length edit can find THIS run's own barges
+              // (its face + step) without touching the opposite face or a
+              // neighbouring step: into-face unit dir, along-ridge span,
+              // and the source ridge reference (all in image px).
+              faceDx: dx, faceDy: dy,
+              runLo: c.lo, runHi: c.hi,
+              ridgeMx: rmx, ridgeMy: rmy, ridgeUx: rux, ridgeUy: ruy,
             });
           });
         });
@@ -25544,6 +25603,14 @@ function redrawAll() {
         key: d.key, label: d.label,
         roofIdx: (typeof d.roofIdx === 'number' ? d.roofIdx : DRAW.activeRoofIdx)
       };
+      // Carry the run geometry through so click-to-edit can scope the
+      // barge sync to this run's own face/step (auto labels only).
+      if (d.faceDx != null){
+        _hit.faceDx=d.faceDx; _hit.faceDy=d.faceDy;
+        _hit.runLo=d.runLo; _hit.runHi=d.runHi;
+        _hit.ridgeMx=d.ridgeMx; _hit.ridgeMy=d.ridgeMy;
+        _hit.ridgeUx=d.ridgeUx; _hit.ridgeUy=d.ridgeUy;
+      }
       // Only attach manualIdx when this dim is a manual sheet measure
       // — auto labels keep `manualIdx in hit` false so the Delete tool
       // can branch on it cleanly.
@@ -31243,7 +31310,18 @@ function _sheetEditPopup(hit){
     delete DRAW.sheetOverrides[hit.key];
   } else {
     var n = parseFloat(clean);
-    if (!isNaN(n) && n > 0){ DRAW.sheetOverrides[hit.key] = n; _syncSlopeGroupFromSheet(n, hit.roofIdx); }
+    if (!isNaN(n) && n > 0){
+      // Only THIS run's length changes, plus the barges on its own
+      // face/step — not the opposite face and not a neighbouring step.
+      DRAW.sheetOverrides[hit.key] = n;
+      try {
+        var _lines = (typeof hit.roofIdx !== 'number' || hit.roofIdx === DRAW.activeRoofIdx)
+          ? DRAW.lines
+          : (DRAW.roofs && DRAW.roofs[hit.roofIdx] && DRAW.roofs[hit.roofIdx].lines);
+        var _lbl = n.toFixed(2) + 'm';
+        _bargesForSheetRun(hit, _lines || []).forEach(function(b){ b.measM = n; b.label = _lbl; });
+      } catch(e){}
+    }
   }
   // Also clear any group-level override keyed by the previous ordered
   // length — the face-side override now wins and we don't want a
