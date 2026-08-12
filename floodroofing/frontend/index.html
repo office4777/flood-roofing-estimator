@@ -24043,14 +24043,21 @@ function _findParallelOppositeLine(edited){
 //   • SPAN group — the ridge + both gutters (the flat plan span). Edit one
 //     → RE-CALIBRATE the scale from that line, then force ridge + gutters
 //     equal. The whole plan rescales to match, as requested.
-function _setAllSheetRuns(newM){
+// Set every auto sheet-run label to newM. When roofIdx is supplied, ONLY
+// the runs belonging to that roof are changed — critical in show-all mode
+// where window._roofCanvasHits.sheets holds runs from every roof, so an
+// unscoped set would rewrite all roofs' sheet measures at once (the bug:
+// "changing the sheet measure on one roof changes it on all roofs").
+function _setAllSheetRuns(newM, roofIdx){
   if (!(newM > 0)) return 0;
   if (!DRAW.sheetOverrides) DRAW.sheetOverrides = {};
   var hits = (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
+  var scoped = (typeof roofIdx === 'number');
   var n = 0;
   hits.forEach(function(h){
     if (!h || !h.key) return;
     if ('manualIdx' in h) return;        // leave manual black-arrow measures alone
+    if (scoped && h.roofIdx !== roofIdx) return;   // only this roof's runs
     DRAW.sheetOverrides[h.key] = newM; n++;
   });
   return n;
@@ -24087,18 +24094,26 @@ function _syncMeasureGroup(edited, newM){
     DRAW.lines.forEach(function(x){ if (x && (x.type==='ridge'||x.type==='gutter')){ x.measM=newM; x.label=lbl; } });
   } else if (t === 'barge'){
     DRAW.lines.forEach(function(x){ if (x && x.type==='barge'){ x.measM=newM; x.label=lbl; } });
-    _setAllSheetRuns(newM);
+    _setAllSheetRuns(newM, DRAW.activeRoofIdx);   // only THIS roof's sheet runs
   } else {
     var opp = _findParallelOppositeLine(edited);
     if (opp){ opp.measM=newM; opp.label=lbl; }
   }
 }
-// A sheet-run label edit drives the whole slope group (barges + all runs).
-function _syncSlopeGroupFromSheet(newM){
+// A sheet-run label edit drives the whole slope group (barges + all runs)
+// for the OWNING roof only. On a gable the sheet run and the barge (rake)
+// are the same slope length, so they stay locked together. roofIdx scopes
+// both the run overrides and the barge sync to that one roof.
+function _syncSlopeGroupFromSheet(newM, roofIdx){
   if (!(newM > 0)) return;
-  _setAllSheetRuns(newM);
+  _setAllSheetRuns(newM, roofIdx);
   var lbl = newM.toFixed(2)+'m';
-  if (Array.isArray(DRAW.lines)) DRAW.lines.forEach(function(x){ if (x && x.type==='barge'){ x.measM=newM; x.label=lbl; } });
+  // Barges live on the owning roof: the live DRAW.lines when it's the
+  // active roof, otherwise that roof's archived lines array.
+  var lines = (typeof roofIdx !== 'number' || roofIdx === DRAW.activeRoofIdx)
+    ? DRAW.lines
+    : (DRAW.roofs && DRAW.roofs[roofIdx] && DRAW.roofs[roofIdx].lines);
+  if (Array.isArray(lines)) lines.forEach(function(x){ if (x && x.type==='barge'){ x.measM=newM; x.label=lbl; } });
 }
 function updateLine() {
   var i=DRAW.selectedLine; if(i<0) return;
@@ -24936,7 +24951,7 @@ function redrawAll() {
       if (!sibType) return false;
       return lines.some(function(o){ return o !== rl && o.type === sibType && o.pts && o.pts.length===2 && _collinearPair(rl, o); });
     }
-    function _collectSheetDimsFor(outline, lines, sink){
+    function _collectSheetDimsFor(outline, lines, sink, ownerRoofIdx){
       if (!outline || outline.length < 3 || !lines || !lines.length) return;
       var gutters = lines.filter(function(g){ return g && g.type === 'gutter' && g.pts && g.pts.length === 2; });
       if (!gutters.length) return;
@@ -25074,6 +25089,7 @@ function redrawAll() {
               label: displayedM.toFixed(3) + 'm',
               key: key,
               isOverride: isOverride || (displayedM !== sheetM),
+              roofIdx: (typeof ownerRoofIdx === 'number' ? ownerRoofIdx : DRAW.activeRoofIdx),
             });
           });
         });
@@ -25097,19 +25113,23 @@ function redrawAll() {
           key: 'manual:' + mi,
           isOverride: false,
           manualIdx: mi,
+          roofIdx: DRAW.activeRoofIdx,      // manual measures live on the active roof
           fullSize: m.fullSize !== false   // default true so legacy entries also render at full size
         });
       });
     }
-    // Active roof — same as before.
-    _collectSheetDimsFor(DRAW.outline, DRAW.lines, _sheetDims);
+    // Active roof — same as before. Tagged with its roof index so a
+    // sheet-measure edit only touches THIS roof's runs (not every roof
+    // drawn in show-all).
+    _collectSheetDimsFor(DRAW.outline, DRAW.lines, _sheetDims, DRAW.activeRoofIdx);
     // Show-all: also collect from every non-active roof so their
-    // sheet-length labels are visible at the same time.
+    // sheet-length labels are visible at the same time — each tagged with
+    // its OWN roof index.
     if (DRAW.showAllRoofs && DRAW.roofs && DRAW.roofs.length > 1) {
       DRAW.roofs.forEach(function(r, ri){
         if (ri === DRAW.activeRoofIdx) return;
         if (!r || !r.outline || !r.lines) return;
-        _collectSheetDimsFor(r.outline, r.lines, _sheetDims);
+        _collectSheetDimsFor(r.outline, r.lines, _sheetDims, ri);
       });
     }
     // Pass 2 — draw, scaling font + arrows to each dim's length relative
@@ -25146,7 +25166,8 @@ function redrawAll() {
       var _hit = {
         x: d.lblX, y: d.lblY,
         w: Math.max(hitTw + 14, 50), h: Math.max(fontPx + 8, 18),
-        key: d.key, label: d.label
+        key: d.key, label: d.label,
+        roofIdx: (typeof d.roofIdx === 'number' ? d.roofIdx : DRAW.activeRoofIdx)
       };
       // Only attach manualIdx when this dim is a manual sheet measure
       // — auto labels keep `manualIdx in hit` false so the Delete tool
@@ -30640,7 +30661,7 @@ function _sheetEditPopup(hit){
     delete DRAW.sheetOverrides[hit.key];
   } else {
     var n = parseFloat(clean);
-    if (!isNaN(n) && n > 0){ DRAW.sheetOverrides[hit.key] = n; _syncSlopeGroupFromSheet(n); }
+    if (!isNaN(n) && n > 0){ DRAW.sheetOverrides[hit.key] = n; _syncSlopeGroupFromSheet(n, hit.roofIdx); }
   }
   // Also clear any group-level override keyed by the previous ordered
   // length — the face-side override now wins and we don't want a
