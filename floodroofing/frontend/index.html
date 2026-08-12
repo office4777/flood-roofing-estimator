@@ -151,11 +151,16 @@ body{
    clearance for the fixed side-panel toggle tab. Other tabs stay centred.
    body[data-tab] is stamped by gotoTab. */
 body[data-tab="roof"] .content,
-body[data-tab="materials"] .content{
+body[data-tab="materials"] .content,
+body[data-tab="quote"] .content{
   max-width:none;
   margin-left:0;
   margin-right:0;
-  padding-right:64px;
+  /* Reserve room on the right for the side pop-out so the content sits to
+     its LEFT (never hidden under it). --pop-reserve tracks the open panel's
+     live width (JS); falls back to the toggle strip (46px) when closed. */
+  padding-right:var(--pop-reserve,46px);
+  transition:padding-right .2s ease;
 }
 /* Left-align the A4 job-pack pages (they're a fixed 210mm, otherwise
    centred) so the whole Job Pack sits to the left too. */
@@ -1094,7 +1099,7 @@ select{
    it (display:flex) only on the Quote tab, and it slides in on .is-open. */
 #quotePricingPanel{
   position:fixed; top:70px; right:0; bottom:16px;
-  width:var(--qp-pricing-w,min(860px,94vw)); min-width:280px; max-width:96vw; z-index:70;
+  width:var(--qp-pricing-w,40vw); min-width:280px; max-width:96vw; z-index:70;
   background:#fff; border:1px solid var(--border); border-right:none;
   border-radius:12px 0 0 12px; box-shadow:-8px 10px 34px rgba(0,0,0,.18);
   transform:translateX(100%); transition:transform .28s ease;
@@ -1109,7 +1114,7 @@ select{
 #quotePricingPanelResize::after{ content:''; width:4px; height:52px; border-radius:3px; background:rgba(10,22,40,.18); transition:background .15s; }
 #quotePricingPanelResize:hover::after{ background:#0099cc; height:80px; }
 #quotePricingPanelToggle{
-  position:absolute; left:-46px; top:16px; width:46px; height:140px;
+  position:absolute; left:-46px; top:16px; width:46px; height:150px;
   background:#0099cc; color:#fff; border:none; border-radius:10px 0 0 10px;
   cursor:pointer; font-size:11px; font-weight:700; letter-spacing:.05em;
   padding:8px 0 10px; display:flex; flex-direction:column; align-items:center;
@@ -1167,8 +1172,8 @@ html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .
 #fergusRoofPhotoGrid{ width:100%; display:grid; grid-template-columns:1fr; gap:10px; align-content:start; }
 html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!important; }
 #jpMapPanel{
-  position:fixed; top:88px; right:0; bottom:24px;
-  width:var(--jp-maps-w,320px); min-width:200px; max-width:96vw; z-index:60;
+  position:fixed; top:70px; right:0; bottom:16px;
+  width:var(--jp-maps-w,40vw); min-width:200px; max-width:96vw; z-index:60;
   background:#fff; border:1px solid var(--border); border-right:none;
   border-radius:10px 0 0 10px;
   box-shadow:-6px 8px 24px rgba(0,0,0,.12);
@@ -1184,8 +1189,8 @@ html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!impo
 #jpMapPanelResize::after{ content:''; width:4px; height:52px; border-radius:3px; background:rgba(10,22,40,.18); transition:background .15s; }
 #jpMapPanelResize:hover::after{ background:#0099cc; height:80px; }
 #jpMapPanelToggle{
-  position:absolute; left:-44px; top:14px;
-  width:44px; height:110px;
+  position:absolute; left:-46px; top:16px;
+  width:46px; height:150px;
   background:#0099cc; color:#fff; border:none;
   border-radius:10px 0 0 10px;
   cursor:pointer; font-size:11px; font-weight:700;
@@ -5022,6 +5027,9 @@ function gotoTab(t) {
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   try { document.body.setAttribute('data-tab', t); } catch(e){}   // drives per-tab layout (fill/left)
+  // Reserve content space for this tab's side pop-out (deferred so panels
+  // that open via restore/timeout are already settled when we measure).
+  try { _setPopReserve(46); setTimeout(function(){ try{ _syncPopReserveForTab(t); }catch(e){} }, 80); } catch(e){}
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
@@ -28120,11 +28128,12 @@ function _openPricingPanel(){
   try { calcLabour(); } catch(e){ console.warn('pricing labour:', e); }
   try { _renderPricingRoofSwitchBar(); } catch(e){}
   var p = document.getElementById('quotePricingPanel');
-  if (p){ p.style.display = 'flex'; _quotePricingApplyWidth(); p.classList.add('is-open'); }
+  if (p){ p.style.display = 'flex'; _quotePricingApplyWidth(); p.classList.add('is-open'); _setPopReserve(p.getBoundingClientRect().width); }
   try { localStorage.setItem('fr_qp_pricing_open', '1'); } catch(e){}
 }
 function _closePricingPanel(){
   var p = document.getElementById('quotePricingPanel'); if (p) p.classList.remove('is-open');
+  _setPopReserve(46);
   try { localStorage.setItem('fr_qp_pricing_open', '0'); } catch(e){}
 }
 function _togglePricingPanel(){
@@ -28145,6 +28154,7 @@ function _quotePricingResizeStart(e){
     var w = window.innerWidth - ev.clientX;
     w = Math.max(280, Math.min(Math.round(window.innerWidth * 0.96), w));
     panel.style.width = w + 'px';
+    _setPopReserve(w);
   }
   function up(){
     panel.classList.remove('is-resizing');
@@ -28167,7 +28177,8 @@ function _jpToggleMapPanel(){
   var p = document.getElementById('jpMapPanel'); if (!p) return;
   var open = p.classList.toggle('is-open');
   try { localStorage.setItem('fr_jp_map_panel_open', open ? '1' : '0'); } catch(e){}
-  if (open){ _jpApplyMapPanelWidth(); renderJpMapPanel(); }
+  if (open){ _jpApplyMapPanelWidth(); renderJpMapPanel(); _setPopReserve(p.getBoundingClientRect().width); }
+  else { _setPopReserve(46); }
 }
 function _jpRestorePanelState(){
   var p = document.getElementById('jpMapPanel'); if (!p) return;
@@ -28176,6 +28187,7 @@ function _jpRestorePanelState(){
   var open = localStorage.getItem('fr_jp_map_panel_open') !== '0';
   p.classList.toggle('is-open', open);
   if (open) { try { renderJpMapPanel(); } catch(e){} }
+  _setPopReserve(open ? p.getBoundingClientRect().width : 46);
 }
 // Drag the panel's left edge to resize (right-anchored). Persisted.
 function _jpMapPanelResizeStart(e){
@@ -28186,6 +28198,7 @@ function _jpMapPanelResizeStart(e){
     var w = window.innerWidth - ev.clientX;
     w = Math.max(200, Math.min(Math.round(window.innerWidth * 0.96), w));
     panel.style.width = w + 'px';
+    _setPopReserve(w);
   }
   function up(){
     panel.classList.remove('is-resizing');
@@ -34636,17 +34649,32 @@ function _fergusRoofPhotosOnTabOpen(){
   if (_fergusRoofPhotosLoaded) return; // already have it
   _loadFergusRoofPhotos(false);
 }
+// Reserve space on the right of the main content for the OPEN side pop-out
+// so the content sits to its LEFT (never hidden under it). Shared across the
+// three pop-out tabs (roof=photos, materials=maps, quote=pricing); only one
+// panel shows per tab. Falls back to the 46px toggle strip when closed.
+function _setPopReserve(px){
+  try { document.documentElement.style.setProperty('--pop-reserve', Math.max(46, Math.round(px)) + 'px'); } catch(e){}
+}
+function _syncPopReserveForTab(t){
+  var id = t==='roof' ? 'fergusRoofPanel' : t==='materials' ? 'jpMapPanel' : t==='quote' ? 'quotePricingPanel' : null;
+  if (!id){ _setPopReserve(46); return; }
+  var p = document.getElementById(id);
+  _setPopReserve((p && p.classList.contains('is-open')) ? p.getBoundingClientRect().width : 46);
+}
 // ── Fergus photos side pop-out (open / close / resize / zoom) ──────────
 function _fergusPanelOpen(){
   var p = document.getElementById('fergusRoofPanel'); if (!p) return;
   p.style.display = 'flex';
   try { var w = localStorage.getItem('fr_fergus_panel_w'); if (w) p.style.width = w; } catch(e){}
   requestAnimationFrame(function(){ p.classList.add('is-open'); });
+  _setPopReserve(p.getBoundingClientRect().width);
   try { localStorage.setItem('fr_fergus_panel_open', '1'); } catch(e){}
   if (!_fergusRoofPhotosLoaded) _loadFergusRoofPhotos(false);
 }
 function _fergusPanelClose(){
   var p = document.getElementById('fergusRoofPanel'); if (p) p.classList.remove('is-open');
+  _setPopReserve(46);
   try { localStorage.setItem('fr_fergus_panel_open', '0'); } catch(e){}
 }
 function _fergusPanelToggle(){
@@ -34663,6 +34691,7 @@ function _fergusPanelResizeStart(e){
     var w = window.innerWidth - ev.clientX;
     w = Math.max(200, Math.min(Math.round(window.innerWidth * 0.96), w));
     panel.style.width = w + 'px';
+    _setPopReserve(w);
   }
   function up(){
     panel.classList.remove('is-resizing');
