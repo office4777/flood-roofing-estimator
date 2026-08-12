@@ -24602,6 +24602,31 @@ function redrawAll() {
           }
         });
       }
+      // Penetrations (non-active roofs) — a simple marker so a flue on
+      // another roof is visible in View-All, not just on the active roof.
+      if (r.penetrations && r.penetrations.length) {
+        r.penetrations.forEach(function(p){
+          if (!p) return;
+          ctx.setLineDash([]);
+          if (p.kind === 'box' && p.x0 != null) {
+            var ba = _dpv([p.x0, p.y0]), bb = _dpv([p.x1, p.y1]);
+            var brx = Math.min(ba[0],bb[0]), bry = Math.min(ba[1],bb[1]);
+            ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.4;
+            ctx.strokeRect(brx, bry, Math.abs(bb[0]-ba[0]), Math.abs(bb[1]-ba[1]));
+          } else if (p.cx != null) {
+            var pc = _dpv([p.cx, p.cy]);
+            ctx.beginPath(); ctx.arc(pc[0], pc[1], 5, 0, Math.PI*2);
+            ctx.fillStyle = '#475569'; ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.4; ctx.stroke();
+            if (p.sizeLabel) {
+              ctx.font = '600 10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+              ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+              ctx.strokeText(p.sizeLabel, pc[0], pc[1] - 11);
+              ctx.fillStyle = '#334155'; ctx.fillText(p.sizeLabel, pc[0], pc[1] - 11);
+            }
+          }
+        });
+      }
       // Label the roof with its name (centred, in the TRANSFORMED space).
       var lp = _dpv([_cxV, _cyV]);
       ctx.setLineDash([]);
@@ -26678,14 +26703,17 @@ function _backTrayUnitPrice(name){
 // Down-slope geometry for a penetration, from the calibrated map: the
 // sheet length of the run it sits on, and the distance from the TOP of
 // the sheet (ridge / high edge, opposite the gutter) down to the pipe.
-function _penSheetGeom(p){
+// ctx (optional) lets this run against a NON-active roof's data without
+// loading it into DRAW: { lines:[...], pitch:deg }. Scale is global so it
+// still comes from DRAW.scaleMetresPerPx.
+function _penSheetGeom(p, ctx){
   var out = { ok:false, sheetM:0, topToPenM:0 };
   if (!p || p.cx == null || p.kind === 'box') return out;
   var spp = DRAW.scaleMetresPerPx || 0;
   if (!(spp > 0)) return out;                        // not calibrated yet
-  var pitch = DRAW.calPitch || 0;
+  var pitch = (ctx && ctx.pitch != null) ? ctx.pitch : (DRAW.calPitch || 0);
   var pitchF = (pitch > 0 && pitch < 80) ? (1/Math.cos(pitch*Math.PI/180)) : 1;
-  var lines = DRAW.lines || [];
+  var lines = (ctx && ctx.lines) ? ctx.lines : (DRAW.lines || []);
   var tops = lines.filter(function(l){ return l && (l.type==='ridge'||l.type==='apron'||l.type==='changepitch') && l.pts && l.pts.length===2; });
   var gutters = lines.filter(function(l){ return l && l.type==='gutter' && l.pts && l.pts.length===2; });
   if (!tops.length) return out;
@@ -26726,31 +26754,53 @@ function _penSheetGeom(p){
 // Per-penetration back-tray detail — name, Full/Short mode, and the
 // resolved length. Full = sheet length + 0.1m; Short = top-of-sheet down
 // to the pipe + 1m (soft-edged one end).
-function _penBackTrayDetail(p, idx){
+function _penBackTrayDetail(p, idx, ctx, roofIdx){
   var name = _penBackTrayName(p);
   if (!name) return null;
   var mode = (p.backTrayMode === 'short') ? 'short' : 'full';
-  var geom = _penSheetGeom(p);
+  var geom = _penSheetGeom(p, ctx);
   var lengthM = 0;
   if (geom.ok){
     var raw = (mode === 'short') ? (geom.topToPenM + 1.0) : (geom.sheetM + 0.1);
     lengthM = Math.ceil(raw * 10) / 10;   // always round UP to the nearest 0.1m
   }
-  return { idx: idx, name: name, mode: mode, lengthM: lengthM, hasGeom: geom.ok && lengthM > 0, soft: (mode === 'short') };
+  return { idx: idx, roofIdx: (typeof roofIdx === 'number' ? roofIdx : DRAW.activeRoofIdx),
+           name: name, mode: mode, lengthM: lengthM, hasGeom: geom.ok && lengthM > 0, soft: (mode === 'short') };
 }
-// One entry per pipe penetration that resolves to a back-tray.
+// One entry per pipe penetration (across ALL selected roofs) that resolves
+// to a back-tray. Non-active roofs are read directly (their lines + own
+// pitch) so a flue on Roof 2 is priced + ordered, not just the active roof.
 function _backTrayPenList(){
   var out = [];
-  (DRAW.penetrations || []).forEach(function(p, i){
-    var d = _penBackTrayDetail(p, i);
-    if (d) out.push(d);
-  });
+  function add(pens, ctx, roofIdx){
+    (pens || []).forEach(function(p, i){
+      var d = _penBackTrayDetail(p, i, ctx, roofIdx);
+      if (d) out.push(d);
+    });
+  }
+  var roofs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs : null;
+  if (roofs){
+    var selected = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
+    roofs.forEach(function(r, idx){
+      if (selected && selected.indexOf(idx) < 0) return;
+      if (idx === DRAW.activeRoofIdx) add(DRAW.penetrations, null, idx);            // live active context
+      else add(r && r.penetrations, { lines: (r && r.lines) || [], pitch: (+(r && r.calPitch) || 0) }, idx);
+    });
+  } else {
+    add(DRAW.penetrations, null, DRAW.activeRoofIdx);
+  }
   return out;
 }
 // Toggle a penetration's back-tray between full length and short, then
 // rebuild the Job Pack preview / map so the length + note update live.
-function _setPenBackTrayMode(idx, mode){
-  var p = DRAW.penetrations && DRAW.penetrations[idx];
+function _setPenBackTrayMode(idx, mode, roofIdx){
+  // Target the owning roof's penetration — a back-tray card can now belong
+  // to a non-active roof (multi-roof pen list), so index into that roof's
+  // archived penetrations rather than always the active DRAW.penetrations.
+  var pens = (typeof roofIdx === 'number' && roofIdx !== DRAW.activeRoofIdx && DRAW.roofs && DRAW.roofs[roofIdx])
+    ? DRAW.roofs[roofIdx].penetrations
+    : DRAW.penetrations;
+  var p = pens && pens[idx];
   if (!p) return;
   p.backTrayMode = (mode === 'short') ? 'short' : 'full';
   try { syncToRoofData && syncToRoofData(); } catch(e){}
@@ -29561,7 +29611,7 @@ function _jpRenderCutLists(content, page, idx){
         : '<div style="width:100%;height:120px;background:var(--surface-2);border:1px dashed #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--text3);font-size:11px;padding:8px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(bt.name)+'&rdquo; in Settings &rarr; Flashing library</div>';
       var lenTxt = bt.hasGeom ? ('1 @ '+bt.lengthM.toFixed(1)+'m') : (_btUncal2 ? 'calibrate map to size' : '—');
       var soft = (bt.mode==='short') ? '<span style="font-size:12px;font-weight:700;color:#b45309;margin-left:8px">Soft-edge one end</span>' : '';
-      function _bt2(m, label){ var on=(bt.mode===m); return '<button onclick="_setPenBackTrayMode('+bt.idx+',\''+m+'\')" style="flex:1;padding:5px 6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid '+(on?'#0a1628':'#cbd5e1')+';background:'+(on?'#0a1628':'#fff')+';color:'+(on?'#fff':'#475569')+';'+(m==='full'?'border-radius:6px 0 0 6px':'border-radius:0 6px 6px 0;border-left:none')+'">'+label+'</button>'; }
+      function _bt2(m, label){ var on=(bt.mode===m); return '<button onclick="_setPenBackTrayMode('+bt.idx+',\''+m+'\','+(bt.roofIdx)+')" style="flex:1;padding:5px 6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid '+(on?'#0a1628':'#cbd5e1')+';background:'+(on?'#0a1628':'#fff')+';color:'+(on?'#fff':'#475569')+';'+(m==='full'?'border-radius:6px 0 0 6px':'border-radius:0 6px 6px 0;border-left:none')+'">'+label+'</button>'; }
       html += '<div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:#fafafa">'+
         img+
         '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-top:6px">'+esc(bt.name)+'</div>'+
@@ -31772,10 +31822,16 @@ function _matDektitePenSizes(){
       counts[sz] = (counts[sz] || 0) + 1;
     });
   }
-  addPens(DRAW.penetrations);
-  (DRAW.roofs || []).forEach(function(r, i){
-    if (i !== DRAW.activeRoofIdx) addPens(r && r.penetrations);
-  });
+  var _selD = (typeof _matSelectedRoofIndices === 'function' && DRAW.roofs && DRAW.roofs.length)
+    ? _matSelectedRoofIndices() : null;
+  if (_selD) {
+    DRAW.roofs.forEach(function(r, i){
+      if (_selD.indexOf(i) < 0) return;
+      addPens(i === DRAW.activeRoofIdx ? DRAW.penetrations : (r && r.penetrations));
+    });
+  } else {
+    addPens(DRAW.penetrations);
+  }
   return counts;
 }
 function _matDektitesSynced(){
@@ -33908,7 +33964,7 @@ function _matBuildPrintOrderDetails(mount) {
       var soft = (bt.mode === 'short') ? '<div style="font-size:9.5px;font-weight:700;color:#b45309;text-align:center;margin-top:1px">Soft-edge one end</div>' : '';
       function _btBtn(m, label){
         var on = (bt.mode === m);
-        return '<button class="pdf-hide" onclick="_setPenBackTrayMode('+bt.idx+',\''+m+'\')" '+
+        return '<button class="pdf-hide" onclick="_setPenBackTrayMode('+bt.idx+',\''+m+'\','+(bt.roofIdx)+')" '+
           'style="flex:1;padding:3px 4px;font-size:9.5px;font-weight:700;cursor:pointer;'+
           'border:1px solid '+(on?'#0a1628':'#cbd5e1')+';background:'+(on?'#0a1628':'#fff')+';color:'+(on?'#fff':'#475569')+';'+
           (m==='full'?'border-radius:5px 0 0 5px':'border-radius:0 5px 5px 0;border-left:none')+'">'+label+'</button>';
