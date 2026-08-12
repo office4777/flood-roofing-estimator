@@ -9341,7 +9341,15 @@ Final check-in to ensure your happy`
 function _scopeIsAutoDefault(){
   var cur = ((S.quote && S.quote.scope) || '').trim();
   if (!cur) return true;
-  return Object.keys(MAIN_SCOPE_DESCRIPTIONS).some(function(k){ return MAIN_SCOPE_DESCRIPTIONS[k].trim() === cur; });
+  // Current default: the descriptive sentences.
+  if (Object.keys(MAIN_SCOPE_DESCRIPTIONS).some(function(k){ return MAIN_SCOPE_DESCRIPTIONS[k].trim() === cur; })) return true;
+  // LEGACY default: the plain preset step list (short labels joined by
+  // newlines) that older saved quotes stored before the descriptive default.
+  // Treat it as still-auto so those quotes migrate to the new wording the
+  // next time the scope is applied (opening the Quote tab) — user edits,
+  // which won't match a preset exactly, are still preserved.
+  if (Object.keys(MAIN_SCOPE_PRESETS).some(function(k){ return MAIN_SCOPE_PRESETS[k].items.join('\n').trim() === cur; })) return true;
+  return false;
 }
 var _currentMainScope = null;
 function setMainScope(key){
