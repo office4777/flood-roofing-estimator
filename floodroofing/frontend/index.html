@@ -6273,6 +6273,7 @@ function renderMaterialPriceTable(){
   if (deletedCount > 0) {
     html += '<div style="margin-top:8px;font-size:11px;color:var(--text2)">'+deletedCount+' row'+(deletedCount===1?'':'s')+' deleted — <button onclick="restoreDeletedMatRows()" style="background:none;border:none;color:#0099cc;cursor:pointer;font-size:11px;text-decoration:underline;padding:0">restore all</button></div>';
   }
+  if (!_multiMat || _matRi === 0) html += _qCustomRowsHtml('material');
   box.innerHTML = html;
   // Base quote materials stay Roof 1 even while viewing another roof. Store the
   // grade-neutral figure WITH markup (grade is applied once at sync time).
@@ -9519,6 +9520,7 @@ function calcLabour(){
           ? '<div style="text-align:right;margin-top:4px"><button type="button" onclick="_pricingUseSettingsDefaults()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline;padding:2px 0">↻ Reset rates to Settings defaults</button></div>'
           : '')
       : '')+
+    (isBaseRoof ? _qCustomRowsHtml('labour') : '')+
     // Combined labour total (for the selected roof)
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
       '<strong style="font-size:13px">'+esc(_pricingRoofName(ri))+' labour · '+dispHrs.toFixed(1)+' hrs</strong>'+
@@ -9545,7 +9547,8 @@ function calcLabour(){
       '</div>'+
       (_scPlat
         ? '<div style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 10px">Platform +'+_scPct+'% → charged <strong>$'+_scEff.price.toFixed(2)+'</strong> <span style="color:var(--text2)">(cost $'+_scEff.cost.toFixed(2)+')</span></div>'
-        : '');
+        : '')+
+      (isBaseRoof ? _qCustomRowsHtml('scaffold') : '');
   }
 
   // Roll up to the quote (price feeds the combined quote total; cost +
@@ -9649,7 +9652,8 @@ function renderGutterDownpipePricing(){
       '<strong style="font-size:12px">Guttering'+(scUp>0?' + scaffold upgrade':'')+(dOn?' + downpipes':'')+' (ex GST)</strong>'+
       '<span style="font-weight:700;color:#2e7d32">'+money(gVal + scUp + (dOn ? dVal : 0))+'</span>'+
     '</div>'+
-    (hasOv ? '<div style="text-align:right;margin-top:6px"><button type="button" onclick="_clearGutterDownpipeOverrides()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline">↻ Reset to computed prices</button></div>' : '');
+    (hasOv ? '<div style="text-align:right;margin-top:6px"><button type="button" onclick="_clearGutterDownpipeOverrides()" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline">↻ Reset to computed prices</button></div>' : '')+
+    _qCustomRowsHtml('gutter');
 }
 function _gdChanged(){
   try { renderGutterDownpipePricing(); } catch(e){}
@@ -12943,6 +12947,14 @@ function renderQuoteLines(){
   }
   function lineRow(li, i){
     var line = (parseFloat(li.qty)||0) * (parseFloat(li.unit)||0);
+    // Custom pricing-tab lines are read-only here — edit them in the
+    // Pricing tab (their source of truth).
+    if (li._custom){
+      return '<tr style="border-top:1px solid var(--border);background:#fafafa">'+
+        '<td colspan="3" style="padding:8px 10px;font-size:13px;color:#0a1628">'+esc2(li.desc||'Custom item')+' <span style="font-size:10px;color:var(--text2)">· from Pricing tab</span></td>'+
+        '<td style="padding:4px 10px;text-align:right;font-weight:600">'+fmtMoney(line)+'</td>'+
+        '<td></td></tr>';
+    }
     var section = _lineSection(li);
     var sectionSel = '<select onchange="updateQuoteLine('+i+',\'section\',this.value)" '+
       'style="padding:4px 6px;font-size:11px;border:1px solid var(--border);border-radius:5px;background:#fff;color:#0a1628;margin-right:6px">'+
@@ -13061,6 +13073,54 @@ function _autoSyncFromScope(){
   if (touched) refreshQuoteProposal();
 }
 
+// ── Per-area custom pricing lines ────────────────────────────────
+// The user can add a flat $ line to ANY pricing area (labour, material,
+// scaffold, gutter). Lines live on S.quote.customLines[area] and are
+// projected into the quote's lineItems (so they add to the total and
+// show read-only in the quote) and into the matching Fergus section.
+function _qCustom(area){
+  if (!S.quote) return [];
+  if (!S.quote.customLines) S.quote.customLines = {};
+  if (!Array.isArray(S.quote.customLines[area])) S.quote.customLines[area] = [];
+  return S.quote.customLines[area];
+}
+function _qCustomTotal(area){ return _qCustom(area).reduce(function(s,r){ return s + (parseFloat(r&&r.amount)||0); }, 0); }
+function _qAddCustom(area){ _qCustom(area).push({ desc:'', amount:0 }); _qCustomChanged(area, false); }
+function _qDelCustom(area, i){ var a=_qCustom(area); if(i>=0&&i<a.length) a.splice(i,1); _qCustomChanged(area, false); }
+function _qUpdCustom(area, i, field, val){
+  var a=_qCustom(area); if(!a[i]) return;
+  if (field==='amount') a[i].amount = parseFloat(val)||0; else a[i].desc = val;
+  _qCustomChanged(area, true);   // typing — keep focus, don't re-render the section
+}
+function _qCustomChanged(area, keepFocus){
+  try { _syncQuoteBaseLineItems(); } catch(e){}
+  try { renderQuoteLines(); } catch(e){}
+  try { recalcQuoteTotals(); } catch(e){}
+  try { _reflectPricingInQuote(); } catch(e){}
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  if (!keepFocus){
+    try {
+      if (area==='labour' || area==='scaffold') calcLabour();
+      else if (area==='material') renderMaterialPriceTable();
+      else if (area==='gutter') renderGutterDownpipePricing();
+    } catch(e){}
+  }
+}
+// Editable custom-line rows + "add" button for a pricing area.
+function _qCustomRowsHtml(area){
+  var rows = _qCustom(area).map(function(r,i){
+    return '<div style="display:flex;gap:6px;align-items:center;margin-top:5px">'+
+      '<input type="text" value="'+esc(r.desc||'')+'" placeholder="Custom line description" oninput="_qUpdCustom(\''+area+'\','+i+',\'desc\',this.value)" style="flex:1;margin:0;font-size:12px;padding:6px 8px">'+
+      '<span style="color:var(--text2);font-size:12px;font-weight:600">$</span>'+
+      '<input type="number" step="0.01" value="'+(r.amount||'')+'" placeholder="0.00" oninput="_qUpdCustom(\''+area+'\','+i+',\'amount\',this.value)" style="width:96px;margin:0;font-size:12px;padding:6px 8px;text-align:right">'+
+      '<button onclick="_qDelCustom(\''+area+'\','+i+')" title="Remove custom line" style="background:none;border:none;color:#dc2626;font-size:16px;cursor:pointer;padding:0 4px;line-height:1">×</button>'+
+    '</div>';
+  }).join('');
+  return '<div class="pricing-custom-lines" style="margin-top:8px">'+
+    rows+
+    '<button onclick="_qAddCustom(\''+area+'\')" style="margin-top:6px;padding:6px 12px;font-size:12px;background:#fff;color:#0a1628;border:1px dashed #94a3b8;border-radius:6px;cursor:pointer;font-weight:600">+ Add custom line</button>'+
+  '</div>';
+}
 // Silently update Labour/Materials line items from current computed
 // values each time the Quote tab opens, without disturbing custom lines.
 // Pure sync — recompute the base Labour / Materials / Scaffolding line items
@@ -13118,6 +13178,20 @@ function _syncQuoteBaseLineItems(){
       updated = true;
     }
   });
+  // Project per-area custom lines into lineItems (re-built each sync so
+  // they always follow the pricing tab + can't double-add).
+  try {
+    S.quote.lineItems = S.quote.lineItems.filter(function(x){ return !(x && x._custom); });
+    var _cl = S.quote.customLines || {};
+    ['labour','material','scaffold','gutter'].forEach(function(area){
+      (_cl[area] || []).forEach(function(row){
+        var amt = parseFloat(row && row.amount) || 0;
+        var desc = ((row && row.desc) || '').trim();
+        if (!amt && !desc) return;
+        S.quote.lineItems.push({ desc: desc || ('Custom ' + area + ' item'), qty: 1, unit: amt, _custom: true, _area: area, section: 'reroof' });
+      });
+    });
+  } catch(e){}
   return updated;
 }
 // Pricing-edit entry point: sync + re-render the quote lines and proposal.
@@ -32738,6 +32812,15 @@ function _buildFergusItemisedSections(){
     if (low.indexOf('scaffold') >= 0){ scaff.push(matLine(lbl, 1, c.delta)); return; }
     roofMat.push(matLine('Selection — ' + lbl, 1, c.delta));                    // grade / gauge / extra roof
   });
+
+  // Custom pricing-tab lines → matching Fergus sections (flat $ each).
+  try {
+    var _qcl = (S.quote && S.quote.customLines) || {};
+    (_qcl.labour   || []).forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) roofLabour.push(labLine((r.desc||'Custom labour'), 1, a, 0)); });
+    (_qcl.material || []).forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) roofMat.push(matLine((r.desc||'Custom material'), 1, a)); });
+    (_qcl.scaffold || []).forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) scaff.push(matLine((r.desc||'Custom scaffold'), 1, a)); });
+    (_qcl.gutter   || []).forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a){ (gutterOn ? gutterMat : roofMat).push(matLine((r.desc||'Custom gutter'), 1, a)); } });
+  } catch(e){}
 
   // ── Assemble the sections ──
   var sections = [], _so = 0;
