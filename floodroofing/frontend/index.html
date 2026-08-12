@@ -35661,6 +35661,58 @@ function _roofSimplifyOutline(outline, angleTolDeg){
   }
   return out;
 }
+// Remove SMALL rectangular tabs (wings / bumps / notches) from an outline
+// so a Dutch (or hip) roof spans them with longer sheets instead of
+// spawning a phantom gablet + hip/valley cluster on top of them. A tab is
+// four vertices A-B-C-D where B,C poke off the A→D carrier on the same
+// side; it's absorbed only when it's small vs the building (shallow AND
+// narrow), so genuine wings that deserve their own ridge are kept. The
+// gutters + sheets still follow the true DRAW.outline, so the wing just
+// gets longer sheets. Returns a cleaned outline (collinear points merged).
+function _roofRemoveSmallTabs(outline){
+  if (!outline || outline.length < 6) return outline;   // rect (4) + smallest tab (2)
+  var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  outline.forEach(function(p){ if(p[0]<minX)minX=p[0]; if(p[0]>maxX)maxX=p[0]; if(p[1]<minY)minY=p[1]; if(p[1]>maxY)maxY=p[1]; });
+  var bw=maxX-minX, bh=maxY-minY;
+  var out = outline.map(function(p){ return p.slice(); });
+  var guard=0, changed=true;
+  while (changed && out.length >= 6 && guard++ < 100){
+    changed=false;
+    var n=out.length;
+    for (var i=0;i<n;i++){
+      var A=out[i], B=out[(i+1)%n], C=out[(i+2)%n], D=out[(i+3)%n];
+      var cx=D[0]-A[0], cy=D[1]-A[1], cl=Math.sqrt(cx*cx+cy*cy);
+      if (cl < 1) continue;
+      var ux=cx/cl, uy=cy/cl, nxv=-uy, nyv=ux;                  // carrier unit + normal
+      // Genuine rectangular tab only: A→B ⟂ B→C ⟂ C→D, the two side legs
+      // (A→B, C→D) parallel & similar length, poking the SAME carrier side.
+      var ABx=B[0]-A[0],ABy=B[1]-A[1],BCx=C[0]-B[0],BCy=C[1]-B[1],CDx=D[0]-C[0],CDy=D[1]-C[1];
+      var lAB=Math.sqrt(ABx*ABx+ABy*ABy), lBC=Math.sqrt(BCx*BCx+BCy*BCy), lCD=Math.sqrt(CDx*CDx+CDy*CDy);
+      if (lAB<1||lBC<1||lCD<1) continue;
+      if (Math.abs((ABx*BCx+ABy*BCy)/(lAB*lBC))>0.26) continue;   // A→B ⟂ B→C
+      if (Math.abs((BCx*CDx+BCy*CDy)/(lBC*lCD))>0.26) continue;   // B→C ⟂ C→D
+      if (Math.abs((ABx*CDx+ABy*CDy)/(lAB*lCD))<0.96) continue;   // legs parallel
+      if (Math.abs(lAB-lCD) > Math.max(lAB,lCD)*0.5) continue;    // legs similar depth
+      var dB=ABx*nxv+ABy*nyv, dC=(C[0]-A[0])*nxv+(C[1]-A[1])*nyv;
+      if (dB===0 || (dB>0)!==(dC>0)) continue;                  // same side of the carrier
+      var depth=Math.max(Math.abs(dB),Math.abs(dC));
+      // Depth vs the MAIN roof depth on the FAR side of the carrier (the
+      // bbox would include the tab itself and inflate the threshold).
+      var tabSide=(dB>0)?1:-1, mainDepth=0;
+      for (var k=0;k<out.length;k++){
+        var pp=((out[k][0]-A[0])*nxv+(out[k][1]-A[1])*nyv)*(-tabSide);
+        if (pp>mainDepth) mainDepth=pp;
+      }
+      var alongBuild = Math.abs(ux)*bw + Math.abs(uy)*bh;       // building extent ∥ carrier
+      if (depth > mainDepth*0.45) continue;                     // deep vs main roof → real wing, keep
+      if (cl    > alongBuild*0.60) continue;                    // too wide → a real section, keep
+      var rm1=(i+1)%n, rm2=(i+2)%n;
+      out = out.filter(function(_,idx){ return idx!==rm1 && idx!==rm2; });
+      changed=true; break;
+    }
+  }
+  return _roofSimplifyOutline(out, 18);   // merge the now-collinear carrier points
+}
 function buildHipValleyLines(outline) {
   outline = _roofSimplifyOutline(outline, 18);
   var _tLn = buildTRoofLines(outline);
@@ -36390,7 +36442,10 @@ function buildDutchGableRoofLines(outline) {
   var GABLET_FRAC = (window.DRAW && typeof DRAW.dutchGabletFrac === 'number')
     ? Math.max(0.05, Math.min(0.95, DRAW.dutchGabletFrac)) : 0.5;
   var EP_TOL = 2.5; // pixel tolerance for "shared endpoint" between hip and ridge
-  var skel = buildHipValleyLines(outline);
+  // Absorb small wings/bumps so the Dutch gable spans them with longer
+  // sheets (a clean main-rectangle dutch gable) instead of converting the
+  // whole roof to hip & valley. Gutters + sheets still use the real outline.
+  var skel = buildHipValleyLines(_roofRemoveSmallTabs(outline));
   var ridges  = skel.filter(function(l){return l.type==='ridge';});
   var hips    = skel.filter(function(l){return l.type==='hip';});
   var valleys = skel.filter(function(l){return l.type==='valley';});
