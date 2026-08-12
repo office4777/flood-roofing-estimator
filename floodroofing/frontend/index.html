@@ -23547,6 +23547,7 @@ function onCanvasClick(e) {
     if (entered === null) { redrawAll(); return; }
     var mv = parseFloat(entered);
     if (!isFinite(mv) || mv < 0) mv = 0;
+    try { saveSnapshot(); } catch(e){}   // BEFORE the push, so Undo removes the arrow
     DRAW.manualSheetMeasures.push({
       x: mxL, y: myL,
       lengthM: mv,
@@ -23554,7 +23555,6 @@ function onCanvasClick(e) {
       sdl: len/2,                             // half the drawn line's IMAGE length
       fullSize: true                          // render at full font size, no shrink
     });
-    try { saveSnapshot(); } catch(e){}
     redrawAll();
     // A freshly-placed measure sitting over a roof plane should flow into
     // the ROOF SHEETS cut list straight away (see _applyManualMeasuresToFaces).
@@ -24202,7 +24202,17 @@ function _captureSnapState() {
     gutterRowQty: DRAW.gutterRowQty || {},
     gutterRowLen: DRAW.gutterRowLen || {},
     flashLayoutOverrides: DRAW.flashLayoutOverrides || {},
-    scaleMetresPerPx: DRAW.scaleMetresPerPx
+    scaleMetresPerPx: DRAW.scaleMetresPerPx,
+    // Calibration state — so Undo can revert a calibration and never
+    // leaves the on-canvas Scale-ref line / pitch out of sync with the
+    // restored scaleMetresPerPx.
+    calibratePts: DRAW.calibratePts || null,
+    calibratePixels: DRAW.calibratePixels || 0,
+    calPitch: DRAW.calPitch || 0,
+    calMeasType: DRAW.calMeasType || 'flat',
+    calRealM: DRAW.calRealM || 0,
+    calPitchAtCal: DRAW.calPitchAtCal || 0,
+    scaleLabel: DRAW.scaleLabel || ''
   });
 }
 function _applySnapState(snapStr) {
@@ -24228,6 +24238,15 @@ function _applySnapState(snapStr) {
   DRAW.gutterRowLen = s.gutterRowLen || {};
   if (s.flashLayoutOverrides) DRAW.flashLayoutOverrides = s.flashLayoutOverrides;
   if (s.scaleMetresPerPx != null) DRAW.scaleMetresPerPx = s.scaleMetresPerPx;
+  // Calibration state (only present on snapshots captured after this was
+  // added; guarded so older snapshots don't wipe a live calibration).
+  if ('calibratePts' in s)    DRAW.calibratePts    = s.calibratePts;
+  if ('calibratePixels' in s) DRAW.calibratePixels = s.calibratePixels || 0;
+  if ('calPitch' in s)        DRAW.calPitch        = s.calPitch || 0;
+  if ('calMeasType' in s)     DRAW.calMeasType     = s.calMeasType || 'flat';
+  if ('calRealM' in s)        DRAW.calRealM        = s.calRealM || 0;
+  if ('calPitchAtCal' in s)   DRAW.calPitchAtCal   = s.calPitchAtCal || 0;
+  if ('scaleLabel' in s)      DRAW.scaleLabel      = s.scaleLabel || '';
 }
 // Push a pre-captured snapshot string onto the undo stack. Used by
 // drag handlers that capture state at drag-start and only commit it
@@ -26094,7 +26113,12 @@ function updateMeasTotals() {
       '<div style="font-size:9px;color:#666;margin-top:2px">'+areaMethod+'</div>'+
       (planM2show?'<div style="font-size:9px;color:#888">Plan area: '+planM2show+'</div>':'')+
       '</div>';
-    if(document.getElementById('scopeArea')) document.getElementById('scopeArea').value=roofArea.toFixed(1);
+    // Only own #scopeArea in single-roof mode. With multiple roofs the
+    // scope area is the SUM of selected roofs, written by
+    // populateMaterialsFromLines — writing the active roof's area here
+    // (updateMeasTotals runs last, called from populate) would clobber
+    // that summed value and make the field flip-flop between redraws.
+    if(!(DRAW.roofs && DRAW.roofs.length > 1) && document.getElementById('scopeArea')) document.getElementById('scopeArea').value=roofArea.toFixed(1);
   }
   document.getElementById('measTotalsGrid').innerHTML=html;
 
@@ -26337,6 +26361,7 @@ function confirmCalibrate() {
     alert('That wall is too short to calibrate from — click a longer wall (a full building edge), then enter its real length.');
     return;
   }
+  try { saveSnapshot(); } catch(e){}   // capture pre-calibration state so Undo can revert the scale
   // If the measurement was taken along the roof pitch (sheet length /
   // rafter), the pixel line on the plan view covers a SHORTER plan
   // distance — realM * cos(pitch). Convert to plan-metres so
@@ -26482,7 +26507,9 @@ function autoCalcLineMeasurements() {
   // Store outline area
   DRAW.outlinePlanAreaM2 = outlinePlanAreaM2();
   DRAW.outlineRoofAreaM2 = outlineRoofAreaM2();
-  if(DRAW.outlineRoofAreaM2 > 0 && document.getElementById('scopeArea')) {
+  // Single-roof only — see the note in updateMeasTotals. Multi-roof scope
+  // area is the summed selected total from populateMaterialsFromLines.
+  if(DRAW.outlineRoofAreaM2 > 0 && !(DRAW.roofs && DRAW.roofs.length > 1) && document.getElementById('scopeArea')) {
     document.getElementById('scopeArea').value = DRAW.outlineRoofAreaM2.toFixed(1);
   }
 }
@@ -27629,14 +27656,16 @@ function _setMatBasicBgOpacity(v){
 // roof fallback (DRAW.outline + DRAW.lines).
 function _matBasicCollectRoofs(){
   var roofs = [];
-  function planArea(outline){
+  // pitch is PER ROOF: a shallow wing must use its own calPitch, not the
+  // active/main roof's, or its sloped area is inflated by the wrong factor.
+  function planArea(outline, pitch){
     if (!outline || outline.length < 3) return 0;
     if (typeof polyAreaPx !== 'function' || !DRAW.scaleMetresPerPx) return 0;
     var areaPx = polyAreaPx(outline);
     var sM = DRAW.scaleMetresPerPx;
     var pitchF = 1;
-    var pitch = +DRAW.calPitch || 0;
-    if (pitch > 0 && pitch < 80) pitchF = 1 / Math.cos(pitch * Math.PI / 180);
+    var p = +pitch || 0;
+    if (p > 0 && p < 80) pitchF = 1 / Math.cos(p * Math.PI / 180);
     return areaPx * sM * sM * pitchF;
   }
   if (DRAW.roofs && DRAW.roofs.length) {
@@ -27644,13 +27673,14 @@ function _matBasicCollectRoofs(){
       var isActive = (i === DRAW.activeRoofIdx);
       var outline = isActive ? DRAW.outline : (r.outline || []);
       var lines   = isActive ? DRAW.lines   : (r.lines   || []);
+      var pitch   = isActive ? (+DRAW.calPitch || 0) : (+(r.calPitch) || 0);
       if (!outline || outline.length < 3) return;
       roofs.push({
         idx: i,                       // original DRAW.roofs index (for per-roof colour overrides)
         name: r.name || _nthName(i + 1),
         outline: outline,
         lines: lines,
-        areaM2: planArea(outline)
+        areaM2: planArea(outline, pitch)
       });
     });
   } else if (DRAW.outline && DRAW.outline.length >= 3) {
@@ -27659,7 +27689,7 @@ function _matBasicCollectRoofs(){
       name: 'Roof 1',
       outline: DRAW.outline,
       lines: DRAW.lines || [],
-      areaM2: planArea(DRAW.outline)
+      areaM2: planArea(DRAW.outline, +DRAW.calPitch || 0)
     });
   }
   return roofs;
