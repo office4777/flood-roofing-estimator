@@ -23607,7 +23607,87 @@ function onCanvasClick(e) {
   redrawAll();
 }
 
+// Small styled input modal — replaces window.prompt for in-app entry
+// (edge length, sheet measure, penetration size). onOk gets the string
+// value; Cancel / Esc / backdrop-click dismiss with no call.
+function _styledPrompt(opts, onOk){
+  opts = opts || {};
+  var prev = document.getElementById('_spModal'); if (prev) prev.remove();
+  var wrap = document.createElement('div');
+  wrap.id = '_spModal';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,22,40,0.45);display:flex;align-items:center;justify-content:center;padding:16px';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.3);max-width:340px;width:100%;padding:18px 18px 14px;font-family:Inter,-apple-system,sans-serif';
+  card.innerHTML =
+    '<div style="font-size:14px;font-weight:700;color:#0a1628;margin-bottom:6px">'+esc(opts.title||'Enter a value')+'</div>' +
+    (opts.message ? '<div style="font-size:12px;color:#475569;margin-bottom:10px;line-height:1.4">'+esc(opts.message)+'</div>' : '') +
+    '<input id="_spInput" type="'+(opts.inputType||'text')+'" value="'+esc(opts.value!=null?String(opts.value):'')+'" placeholder="'+esc(opts.placeholder||'')+'" '+
+      'style="width:100%;box-sizing:border-box;padding:9px 11px;font-size:15px;border:1.5px solid #cbd5e1;border-radius:8px;outline:none;margin-bottom:12px">' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+      '<button id="_spCancel" style="padding:8px 14px;font-size:13px;font-weight:600;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer">Cancel</button>' +
+      '<button id="_spOk" style="padding:8px 16px;font-size:13px;font-weight:700;background:#0099cc;color:#fff;border:none;border-radius:8px;cursor:pointer">'+esc(opts.okLabel||'Set')+'</button>' +
+    '</div>';
+  wrap.appendChild(card);
+  document.body.appendChild(wrap);
+  var input = card.querySelector('#_spInput');
+  function close(){ wrap.remove(); }
+  function ok(){ var v = input.value; close(); if (typeof onOk === 'function') onOk(v); }
+  card.querySelector('#_spOk').onclick = ok;
+  card.querySelector('#_spCancel').onclick = close;
+  wrap.addEventListener('mousedown', function(ev){ if (ev.target === wrap) close(); });
+  input.addEventListener('keydown', function(ev){ if (ev.key === 'Enter'){ ev.preventDefault(); ok(); } else if (ev.key === 'Escape'){ ev.preventDefault(); close(); } });
+  setTimeout(function(){ try { input.focus(); input.select(); } catch(e){} }, 30);
+}
+// Nearest ACTIVE-outline edge to an image-space point (returns start index).
+function _hitActiveOutlineEdge(imgX, imgY){
+  if (!DRAW.outline || DRAW.outline.length < 3) return -1;
+  var t = getImgTransform();
+  var thresh = t ? 12/t.s : 12;
+  var best = -1, bestD = Infinity;
+  for (var i = 0; i < DRAW.outline.length; i++){
+    var a = DRAW.outline[i], b = DRAW.outline[(i+1)%DRAW.outline.length];
+    var d = _ridgeDistToSeg(imgX, imgY, a, b);
+    if (d < thresh && d < bestD){ bestD = d; best = i; }
+  }
+  return best;
+}
+// Set outline edge (edgeIdx → edgeIdx+1) to an exact metre length by
+// moving the second corner along the edge, keeping 90° corners via the
+// same rectilinear stretch the corner-drag uses.
+function _setOutlineEdgeLength(edgeIdx, newLenM){
+  if (!(newLenM > 0) || !DRAW.scaleMetresPerPx) return;
+  var n = DRAW.outline.length;
+  var i0 = edgeIdx, i1 = (edgeIdx+1)%n;
+  var A = DRAW.outline[i0], B = DRAW.outline[i1];
+  var dx = B[0]-A[0], dy = B[1]-A[1], L = Math.hypot(dx, dy);
+  if (L < 1) return;
+  var newLpx = newLenM / DRAW.scaleMetresPerPx;
+  var nx = A[0] + (dx/L)*newLpx, ny = A[1] + (dy/L)*newLpx;
+  saveSnapshot();
+  var initial = DRAW.outline.map(function(p){ return p.slice(); });
+  var stretched = (typeof _stretchRectilinearOutline === 'function') ? _stretchRectilinearOutline(i1, nx, ny, initial) : null;
+  if (stretched && stretched.length === n){ for (var k = 0; k < n; k++) DRAW.outline[k] = stretched[k]; }
+  else { DRAW.outline[i1] = [nx, ny]; }
+  try { if (DRAW.roofType) regenerateAutoRoofLines(DRAW.roofType); else autoPopulateGutters(); } catch(e){}
+  try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+  syncToRoofData(); redrawAll(); updateMeasTotals();
+  try { autosaveJob && autosaveJob(); } catch(e){}
+}
 function onCanvasDblClick(e) {
+  // In Move mode on a finished, calibrated outline, double-clicking a wall
+  // opens a "set exact length" editor. Otherwise fall through to finish.
+  if (DRAW.tool === 'select' && DRAW.outlineDone && DRAW.scaleMetresPerPx > 0 && DRAW.outline && DRAW.outline.length >= 3){
+    var xy = getXY(e);
+    var ei = _hitActiveOutlineEdge(xy[0], xy[1]);
+    if (ei >= 0){
+      var a = DRAW.outline[ei], b = DRAW.outline[(ei+1)%DRAW.outline.length];
+      var curM = Math.hypot(b[0]-a[0], b[1]-a[1]) * DRAW.scaleMetresPerPx;
+      _styledPrompt({ title:'Set wall length', message:'Enter this wall’s real length in metres — the wall stretches to match and 90° corners are kept.', value: curM.toFixed(2), inputType:'number', okLabel:'Set length' }, function(v){
+        var nv = parseFloat(v); if (isFinite(nv) && nv > 0) _setOutlineEdgeLength(ei, nv);
+      });
+      return;
+    }
+  }
   finishCurrent();
 }
 
@@ -25427,6 +25507,35 @@ function redrawAll() {
   if(DRAW.currentPts.length>0||['outline','section','ridge','valley','gutter','hip','penetration','info'].indexOf(DRAW.tool)>=0){var MAGNET2=15,allPts2=[];DRAW.outline.forEach(function(p){allPts2.push(p);});DRAW.sections.forEach(function(s){s.poly.forEach(function(p){allPts2.push(p);});});DRAW.lines.forEach(function(l){allPts2.push(l.pts[0]);allPts2.push(l.pts[1]);});var nearSnap=null,_mxy=_t?canvasToImg([DRAW.mouseX,DRAW.mouseY],_t):[DRAW.mouseX,DRAW.mouseY];allPts2.forEach(function(p){var d=Math.sqrt((p[0]-_mxy[0])*(p[0]-_mxy[0])+(p[1]-_mxy[1])*(p[1]-_mxy[1]));if(d<MAGNET2)nearSnap=p;});if(nearSnap){var nsp=dp(nearSnap);ctx.beginPath();ctx.arc(nsp[0],nsp[1],8,0,Math.PI*2);ctx.strokeStyle='#ff6600';ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.arc(nsp[0],nsp[1],3,0,Math.PI*2);ctx.fillStyle='#ff6600';ctx.fill();}}
   if(DRAW._hipIntersectSnap&&DRAW._hipIntersectSnap.active&&DRAW._hipIntersectSnap.pt){var _ipt=_t?imgToCanvas(DRAW._hipIntersectSnap.pt,_t):DRAW._hipIntersectSnap.pt;ctx.save();ctx.beginPath();ctx.arc(_ipt[0],_ipt[1],13,0,Math.PI*2);ctx.strokeStyle='#059669';ctx.lineWidth=2.5;ctx.stroke();ctx.beginPath();ctx.arc(_ipt[0],_ipt[1],4,0,Math.PI*2);ctx.fillStyle='#059669';ctx.fill();ctx.strokeStyle='#059669';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(_ipt[0]-18,_ipt[1]);ctx.lineTo(_ipt[0]+18,_ipt[1]);ctx.stroke();ctx.beginPath();ctx.moveTo(_ipt[0],_ipt[1]-18);ctx.lineTo(_ipt[0],_ipt[1]+18);ctx.stroke();ctx.fillStyle='rgba(5,150,105,0.93)';ctx.font='bold 10px sans-serif';var _cwM=ctx.measureText('✓ CENTRE MEET').width+10;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(_ipt[0]-_cwM/2,_ipt[1]+16,_cwM,17,3);else ctx.rect(_ipt[0]-_cwM/2,_ipt[1]+16,_cwM,17);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓ CENTRE MEET',_ipt[0],_ipt[1]+24);ctx.restore();}
   if((DRAW.tool==='hip'||DRAW.tool==='valley')&&DRAW.currentPts.length===1){var _spM=DRAW.currentPts[0],_epM=[DRAW.mouseX,DRAW.mouseY],_dlM=Math.sqrt((_epM[0]-_spM[0])*(_epM[0]-_spM[0])+(_epM[1]-_spM[1])*(_epM[1]-_spM[1]));if(_dlM>8){var _spCM=_t?imgToCanvas(_spM,_t):_spM,_epCM=_t?imgToCanvas(_epM,_t):_epM,_mCM=[(_spCM[0]+_epCM[0])/2,(_spCM[1]+_epCM[1])/2],_lbM=(DRAW.tool==='hip'?'Hip':'Valley')+' ✓ 45°';ctx.save();ctx.font='bold 11px sans-serif';var _lwM=ctx.measureText(_lbM).width+10;ctx.fillStyle='rgba(5,150,105,0.92)';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(_mCM[0]-_lwM/2,_mCM[1]-20,_lwM,18,4);else ctx.rect(_mCM[0]-_lwM/2,_mCM[1]-20,_lwM,18);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(_lbM,_mCM[0],_mCM[1]-11);ctx.restore();}}
+
+  // Live dimension HUD while dragging an outline corner: show the two
+  // adjacent wall lengths (metres when calibrated, else pixels) at each
+  // edge midpoint, so the user can drag to an exact wall dimension.
+  if (DRAG_OUTLINE_VERT && DRAW.outline && DRAW.outline.length >= 2) {
+    var _hIdx = DRAG_OUTLINE_VERT.idx, _hN = DRAW.outline.length;
+    var _hC = DRAW.outline[_hIdx];
+    var _hSpp = DRAW.scaleMetresPerPx || 0;
+    if (_hC) {
+      ctx.save();
+      ctx.font = '700 12px Inter, -apple-system, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      [[_hIdx, (_hIdx-1+_hN)%_hN], [_hIdx, (_hIdx+1)%_hN]].forEach(function(pair){
+        var A = DRAW.outline[pair[0]], B = DRAW.outline[pair[1]];
+        if (!A || !B) return;
+        var pxLen = Math.hypot(B[0]-A[0], B[1]-A[1]);
+        if (pxLen < 1) return;
+        var txt = _hSpp > 0 ? ((pxLen*_hSpp).toFixed(2) + 'm') : (Math.round(pxLen) + 'px');
+        var mid = dp([(A[0]+B[0])/2, (A[1]+B[1])/2]);
+        var tw = ctx.measureText(txt).width + 10;
+        ctx.fillStyle = 'rgba(10,22,40,0.9)';
+        if (ctx.roundRect){ ctx.beginPath(); ctx.roundRect(mid[0]-tw/2, mid[1]-10, tw, 20, 5); ctx.fill(); }
+        else ctx.fillRect(mid[0]-tw/2, mid[1]-10, tw, 20);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(txt, mid[0], mid[1]);
+      });
+      ctx.restore();
+    }
+  }
 
   // Draw calibration line if set. Hidden when window._hideCalibrationOverlay
   // is on — used by renderMatRoofMap so the Materials Roof Map preview
