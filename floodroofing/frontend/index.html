@@ -2520,6 +2520,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <button onclick="clearRoofLines()" class="tool-btn" style="color:#dc2626;border-color:#dc2626;margin-left:4px">🗑 Clear lines</button>
           <button onclick="snapOutlineToSquare()" class="tool-btn" style="background:#fff;color:#0a1628;border-color:#0a1628;font-weight:600" title="Square up every corner of your existing outline (makes all angles 90°). Edges may get longer or shorter — nudge any corner afterwards if needed.">📐 Snap Square</button>
         </div>
+        <!-- Auto roof-type suggestion / mismatch warning (populated by _updateRoofTypeHint) -->
+        <div id="roofTypeHint" style="display:none;font-size:11px;font-weight:600;border-radius:7px;padding:6px 10px;margin-bottom:8px"></div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <button onclick="rotateActiveRoof()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed;font-weight:600" title="Rotate the generated roof lines 90° around the outline centre. Useful for switching ridge direction on gable/dutch or slope direction on mono-pitch.">⟳ Rotate roof 90°</button>
           <span style="font-size:10px;color:#64748b">Use this to flip the ridge direction on gable/dutch, or the slope direction on mono-pitch.</span>
@@ -21812,6 +21814,7 @@ function updateStepUI() {
   document.getElementById('finishBtn').textContent = info.btn;
   var rtp=document.getElementById('roofTypePanel');
   if(rtp) rtp.style.display=DRAW.outlineDone?'block':'none';
+  try { _updateRoofTypeHint(DRAW.roofType || ''); } catch(e){}
 }
 
 function finishStep() {
@@ -23740,6 +23743,7 @@ function finishCurrent() {
     setTool('select');
     var rtp=document.getElementById('roofTypePanel');
     if(rtp)rtp.style.display='block';
+    try { _updateRoofTypeHint(''); } catch(e){}   // suggest a roof type as soon as the outline closes
     return;
   }
 
@@ -36800,6 +36804,58 @@ function buildMonoPitchRoofLines(outline, rotation) {
 //     becomes the gutter).
 //   • gable / dutch / hip get rotation applied by geometrically rotating
 //     the generated lines around the outline centroid.
+// Count the reflex (internal, >180°) corners of the outline — the signal
+// for how complex the footprint is. 0 = simple convex (rectangle), 1 = L,
+// 2 = T/U, 3+ = complex. Uses the collinear-simplified outline so drawing
+// jitter doesn't inflate the count.
+function _roofReflexCount(outline){
+  var o = (typeof _roofSimplifyOutline === 'function') ? _roofSimplifyOutline(outline, 18) : outline;
+  if (!o || o.length < 4) return { verts: (o ? o.length : 0), reflex: 0 };
+  var n = o.length, area = 0;
+  for (var i = 0; i < n; i++){ var a = o[i], b = o[(i+1)%n]; area += a[0]*b[1] - b[0]*a[1]; }
+  var ccw = area > 0, reflex = 0;
+  for (var j = 0; j < n; j++){
+    var p = o[(j-1+n)%n], c = o[j], q = o[(j+1)%n];
+    var cross = (c[0]-p[0])*(q[1]-c[1]) - (c[1]-p[1])*(q[0]-c[0]);
+    if (ccw ? (cross < 0) : (cross > 0)) reflex++;
+  }
+  return { verts: n, reflex: reflex };
+}
+// Best-guess roof type for the current outline.
+function suggestRoofType(){
+  var o = DRAW.outline;
+  if (!o || o.length < 3) return null;
+  var c = _roofReflexCount(o);
+  if (c.reflex >= 2) return { type:'hip', label:'Hip & Valley', reason:'complex footprint ('+c.reflex+' internal corners) — needs valleys' };
+  if (c.reflex === 1) return { type:'hip', label:'Hip & Valley', reason:'L-shaped footprint — a straight gable would leave the wing without a ridge' };
+  var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  o.forEach(function(p){ if(p[0]<minX)minX=p[0]; if(p[0]>maxX)maxX=p[0]; if(p[1]<minY)minY=p[1]; if(p[1]>maxY)maxY=p[1]; });
+  var w=maxX-minX, h=maxY-minY, ar = Math.max(w,h) / Math.max(1, Math.min(w,h));
+  if (ar >= 2.2) return { type:'gable', label:'Straight Gable', reason:'long, narrow footprint' };
+  return { type:'hip', label:'Hip & Valley', reason:'simple rectangular footprint' };
+}
+// Populate #roofTypeHint. With no chosenType → show the suggestion. With a
+// chosenType that can't represent the footprint (gable/mono on a footprint
+// with internal corners) → show a mismatch warning instead.
+function _updateRoofTypeHint(chosenType){
+  var el = document.getElementById('roofTypeHint'); if (!el) return;
+  var o = DRAW.outline;
+  if (!o || o.length < 3 || !DRAW.outlineDone){ el.style.display = 'none'; return; }
+  var c = _roofReflexCount(o);
+  if (chosenType && (chosenType === 'gable' || chosenType === 'mono') && c.reflex >= 1){
+    el.style.display = 'block';
+    el.style.background = '#fef3c7'; el.style.color = '#92400e'; el.style.border = '1px solid #fcd34d';
+    el.innerHTML = '⚠ A ' + (chosenType==='mono'?'mono-pitch':'straight gable') + ' suits a simple rectangle — this footprint has ' +
+      c.reflex + ' internal corner' + (c.reflex>1?'s':'') + ', so a wing may end up without its own ridge. ' +
+      'Consider <strong>Hip &amp; Valley</strong> or <strong>Gable — hip+valley corner</strong>.';
+    return;
+  }
+  var s = suggestRoofType();
+  if (!s){ el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.style.background = '#eff6ff'; el.style.color = '#1e40af'; el.style.border = '1px solid #bfdbfe';
+  el.innerHTML = '💡 Suggested: <strong>' + esc(s.label) + '</strong> — ' + esc(s.reason) + '.';
+}
 function autoGenerateRoof(type, rotation) {
   if(!DRAW.outline||DRAW.outline.length<3){alert('Draw your building outline first.');return;}
   saveSnapshot();
@@ -36844,6 +36900,7 @@ function autoGenerateRoof(type, rotation) {
   syncToRoofData();
   redrawAll();
   updateMeasTotals();
+  try { _updateRoofTypeHint(type); } catch(e){}   // warn if this type can't represent the footprint
 }
 
 // Clear auto-generated (and all drawn) roof lines — keep gutter outline
