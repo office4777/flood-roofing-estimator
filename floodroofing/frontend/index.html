@@ -21822,7 +21822,43 @@ function finishStep() {
 }
 
 // Keyboard Enter support
-document.addEventListener('keydown', function(e){if(e.key==='Enter'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='TEXTAREA'){e.preventDefault();finishCurrent();}if(e.key==='Escape'){DRAW.currentPts=[];redrawAll();}if(e.key==='z'&&(e.ctrlKey||e.metaKey)){e.preventDefault();undoLast();}if((e.key==='Delete'||e.key==='Backspace')&&DRAW.tool==='select'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='TEXTAREA'){if(DRAW.selectedLine>=0){e.preventDefault();deleteSelectedLine();}}});
+// Move the currently-selected line or penetration by (dx,dy) IMAGE pixels.
+function _nudgeSelected(dx, dy){
+  if (DRAW.selectedLine >= 0 && DRAW.lines[DRAW.selectedLine]){
+    var l = DRAW.lines[DRAW.selectedLine];
+    l.pts[0][0]+=dx; l.pts[0][1]+=dy; l.pts[1][0]+=dx; l.pts[1][1]+=dy;
+  } else if (DRAW.selectedPen >= 0 && DRAW.penetrations[DRAW.selectedPen]){
+    var p = DRAW.penetrations[DRAW.selectedPen];
+    if (p.kind === 'box'){ p.x0+=dx; p.y0+=dy; p.x1+=dx; p.y1+=dy; }
+    else { p.cx+=dx; p.cy+=dy; }
+  } else return false;
+  redrawAll(); try { syncToRoofData(); } catch(e){}
+  return true;
+}
+document.addEventListener('keydown', function(e){
+  var ae = document.activeElement;
+  var inField = ae && (ae.tagName==='INPUT' || ae.tagName==='TEXTAREA' || ae.isContentEditable);
+  if(e.key==='Enter' && !inField){ e.preventDefault(); finishCurrent(); return; }
+  if(e.key==='Escape'){ DRAW.currentPts=[]; redrawAll(); return; }
+  // Redo: Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y — checked before plain undo.
+  if((e.ctrlKey||e.metaKey) && ((e.shiftKey && (e.key==='z'||e.key==='Z')) || e.key==='y' || e.key==='Y')){ e.preventDefault(); redoLast(); return; }
+  if((e.ctrlKey||e.metaKey) && (e.key==='z'||e.key==='Z')){ e.preventDefault(); undoLast(); return; }
+  if(inField) return;
+  if(DRAW.tool==='select'){
+    // Broadened delete: selected line OR penetration.
+    if(e.key==='Delete' || e.key==='Backspace'){
+      if(DRAW.selectedLine>=0){ e.preventDefault(); deleteSelectedLine(); return; }
+      if(DRAW.selectedPen>=0){ e.preventDefault(); deletePen(); return; }
+    }
+    // Arrow-key nudge of the selected line / penetration (Shift = 10px).
+    if(DRAW.selectedLine>=0 || DRAW.selectedPen>=0){
+      var s = e.shiftKey ? 10 : 1, dx=0, dy=0;
+      if(e.key==='ArrowLeft') dx=-s; else if(e.key==='ArrowRight') dx=s;
+      else if(e.key==='ArrowUp') dy=-s; else if(e.key==='ArrowDown') dy=s;
+      if(dx||dy){ e.preventDefault(); if(!e.repeat){ try{saveSnapshot();}catch(_){} } _nudgeSelected(dx,dy); return; }
+    }
+  }
+});
 
 // Track shift key for angle locking
 var SHIFT_DOWN = false;
@@ -23457,25 +23493,26 @@ function onCanvasClick(e) {
       var x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]);
       var y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
       DRAW.currentPts = [];
-      var ans = window.prompt('Boxed penetration size (mm) — width x length:', '350x850');
-      var w = '', L = '';
-      if (ans != null) {
-        var m = String(ans).match(/(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)/);
-        if (m) { w = m[1]; L = m[2]; }
-      }
       saveSnapshot();
-      DRAW.penetrations.push({
+      // Place the box immediately (blank size), then fill the size from a
+      // styled popup — Cancel leaves it unlabeled, matching the old prompt.
+      var _penBox = {
         type: 'penetration',
         kind: 'box',
         cx: (x0 + x1) / 2,
         cy: (y0 + y1) / 2,
         x0: x0, y0: y0, x1: x1, y1: y1,
-        widthMm: w, lengthMm: L,
-        sizeLabel: (w && L) ? (w + '×' + L + ' mm') : ''
-      });
+        widthMm: '', lengthMm: '', sizeLabel: ''
+      };
+      DRAW.penetrations.push(_penBox);
       syncToRoofData();
       redrawAll();
       updateMeasTotals();
+      _styledPrompt({ title:'Boxed penetration size', message:'Width × length in mm (e.g. 350 x 850).', value:'350x850', okLabel:'Set size' }, function(ans){
+        var m = String(ans||'').match(/(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)/);
+        if (m){ _penBox.widthMm = m[1]; _penBox.lengthMm = m[2]; _penBox.sizeLabel = m[1]+'×'+m[2]+' mm';
+          try { syncToRoofData(); redrawAll(); updateMeasTotals(); } catch(e){} }
+      });
     } else {
       redrawAll();
     }
@@ -23546,23 +23583,25 @@ function onCanvasClick(e) {
       }
     }
     if (!Array.isArray(DRAW.manualSheetMeasures)) DRAW.manualSheetMeasures = [];
-    var entered = window.prompt('Sheet length for this measure (m). Leave blank for 0.', '0');
-    if (entered === null) { redrawAll(); return; }
-    var mv = parseFloat(entered);
-    if (!isFinite(mv) || mv < 0) mv = 0;
-    try { saveSnapshot(); } catch(e){}   // BEFORE the push, so Undo removes the arrow
-    DRAW.manualSheetMeasures.push({
-      x: mxL, y: myL,
-      lengthM: mv,
-      ndx: dirNx, ndy: dirNy,                 // perp-to-gutter (or raw with Shift)
-      sdl: len/2,                             // half the drawn line's IMAGE length
-      fullSize: true                          // render at full font size, no shrink
-    });
+    var _msMx = mxL, _msMy = myL, _msNx = dirNx, _msNy = dirNy, _msSdl = len/2;
     redrawAll();
-    // A freshly-placed measure sitting over a roof plane should flow into
-    // the ROOF SHEETS cut list straight away (see _applyManualMeasuresToFaces).
-    try { renderRoofSheetPlan(); } catch(e){}
-    try { renderJobPack(); } catch(e){}
+    _styledPrompt({ title:'Sheet measure length', message:'Enter the sheet length for this measure (m). Leave blank for 0.', value:'0', inputType:'number', okLabel:'Place measure' }, function(entered){
+      var mv = parseFloat(entered);
+      if (!isFinite(mv) || mv < 0) mv = 0;
+      try { saveSnapshot(); } catch(e){}   // BEFORE the push, so Undo removes the arrow
+      DRAW.manualSheetMeasures.push({
+        x: _msMx, y: _msMy,
+        lengthM: mv,
+        ndx: _msNx, ndy: _msNy,               // perp-to-gutter (or raw with Shift)
+        sdl: _msSdl,                          // half the drawn line's IMAGE length
+        fullSize: true                        // render at full font size, no shrink
+      });
+      redrawAll();
+      // A freshly-placed measure sitting over a roof plane should flow into
+      // the ROOF SHEETS cut list straight away (see _applyManualMeasuresToFaces).
+      try { renderRoofSheetPlan(); } catch(e){}
+      try { renderJobPack(); } catch(e){}
+    });
     return;
   }
 
