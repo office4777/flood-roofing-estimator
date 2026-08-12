@@ -2720,7 +2720,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div id="calPixelInfo" style="font-size:12px;color:#666;margin-bottom:14px;background:#f5f5f3;padding:8px 12px;border-radius:6px"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
           <div>
-            <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Real-world length of drawn line</label>
+            <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Real length of this wall</label>
             <div style="display:flex;gap:6px;align-items:center">
               <input type="number" id="calRealInput" placeholder="e.g. 15.7" step="0.01" min="0.01"
                 style="flex:1;font-size:15px;padding:9px 11px;border:2px solid #0099cc;border-radius:8px;outline:none;font-family:inherit"
@@ -2766,6 +2766,18 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
       </div>
       <div id="calOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:999" onclick="closeCalPopup()"></div>
+
+      <!-- Calibrate scale — instruction popup (shown when the tool is picked) -->
+      <div id="calInstrPopup" class="no-print" style="display:none;position:fixed;top:92px;left:50%;transform:translateX(-50%);background:#0a1628;color:#fff;border-radius:12px;padding:13px 16px;box-shadow:0 8px 28px rgba(0,0,0,.28);z-index:998;max-width:430px;font-size:13px;line-height:1.5">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <span style="font-size:18px;line-height:1.1">📐</span>
+          <div style="flex:1">
+            <div style="font-weight:700;margin-bottom:3px">Calibrate scale</div>
+            <div style="color:#cbd5e1">Click any <strong style="color:#fff">one wall of your building outline</strong>, then type that wall's real length. It sets the exact size &amp; scale for the whole plan.</div>
+          </div>
+          <button onclick="_hideCalInstruction()" title="Got it" style="background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:6px;width:24px;height:24px;font-size:14px;line-height:1;cursor:pointer;flex-shrink:0">✕</button>
+        </div>
+      </div>
 
       <!-- Penetration entry popup -->
       <div id="penPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;padding:22px 26px;box-shadow:0 8px 32px rgba(0,0,0,.25);z-index:1000;min-width:300px">
@@ -2851,9 +2863,6 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             <div><label>Measurement (m)</label>
               <input type="number" id="editLineMeasM" placeholder="e.g. 4.6" step="0.01" min="0" oninput="updateLine()" style="margin:0">
             </div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:flex-end">
-            <div style="flex:1"><label>Label text (optional)</label><input type="text" id="editLineLabel" placeholder="e.g. Ridge 13.2m" oninput="updateLine()" style="margin:0"></div>
           </div>
           <div style="display:flex;gap:6px;margin-top:.5rem">
             <button onclick="deleteSelectedLine()" style="padding:6px 12px;background:#fff0f0;color:#dc2626;border:1px solid #f09595;border-radius:6px;cursor:pointer;font-size:12px">🗑 Delete line</button>
@@ -21609,7 +21618,7 @@ var STEP_INFO = {
   valley:       {icon:'🟠', title:'Draw valley line', hint:'Pixel-precise — no snap. Click start point then end point. Hold Shift to lock to 45°. Press Enter/Finish to save.', btn:'Done ↵'},
   barge:        {icon:'🔵', title:'Draw barge line', hint:'Click start then end of a barge (rake) edge. Splits into two lengths where a ridge connects to it.', btn:'Done ↵'},
   addmeas:      {icon:'📏', title:'Add measurements', hint:'Click any line to enter its length. Valley auto-fills connected valleys. Barge splits at ridge junctions.', btn:'Done ↵'},
-  calibrate:    {icon:'📐', title:'Calibrate scale', hint:'Click two points on a feature you know the real length of (e.g. a wall). Then enter the real-world distance to set the scale for all measurements.', btn:'Set scale ↵'},
+  calibrate:    {icon:'📐', title:'Calibrate scale', hint:'Click one wall of your building outline, then enter its real length to set the scale for the whole plan.', btn:'Set scale ↵'},
   gutter:       {icon:'🟣', title:'Draw gutter line', hint:'Click start then end of gutter run. Press Enter/Finish to save.', btn:'Done ↵'},
   hip:          {icon:'🟢', title:'Draw hip line', hint:'Pixel-precise — no snap. Click start point then end point. Hold Shift to lock to 45°. Press Enter/Finish to save.', btn:'Done ↵'},
   apron:        {icon:'🩷', title:'Draw apron flashing', hint:'Click start then end of apron flashing. Press Enter/Finish to save.', btn:'Done ↵'},
@@ -21656,7 +21665,10 @@ function setTool(t) {
   if(cv) cv.style.cursor=cur;
   if(wrap) wrap.style.cursor=cur;
   if(t!=='select') { PAN.active=false; }
+  if(t!=='calibrate') { try { _hideCalInstruction(); } catch(e){} }
   redrawAll();
+  // Calibrate: show the "click one wall" instruction popup.
+  if (t === 'calibrate') { try { _onCalibrateToolSelected(); } catch(e){} }
 }
 
 // ── "Add Roof Lines or Details" dropdown ──────────────────────────
@@ -23463,11 +23475,24 @@ function onCanvasClick(e) {
     return;
   }
 
-  // For line tools: collect 2 points
+  // Calibrate: click ONE building-outline wall, then enter its real
+  // length. That single known wall sets the scale for the whole plan.
   if(DRAW.tool==='calibrate') {
-    DRAW.currentPts.push(xy);
-    if(DRAW.currentPts.length>=2) finishCurrent();
-    else redrawAll();
+    if (!DRAW.outline || DRAW.outline.length < 3){
+      alert('Draw your building outline first, then click one of its walls to calibrate.');
+      return;
+    }
+    var _cei = _hitOutlineEdge(xy[0], xy[1]);
+    if (_cei < 0) { return; }   // clicked away from any wall — ignore
+    var _ca = DRAW.outline[_cei], _cb = DRAW.outline[(_cei+1)%DRAW.outline.length];
+    var _cdx = _cb[0]-_ca[0], _cdy = _cb[1]-_ca[1];
+    DRAW.calibratePts   = [_ca.slice(), _cb.slice()];
+    DRAW.calibratePixels = Math.sqrt(_cdx*_cdx + _cdy*_cdy);
+    DRAW.calEdgeIdx = _cei;
+    DRAW.currentPts = [];
+    try { _hideCalInstruction(); } catch(e){}
+    redrawAll();
+    showCalibratePopup(DRAW.calibratePixels);
     return;
   }
   if(['ridge','valley','gutter','hip','backtray','barge','unknown'].indexOf(DRAW.tool)>=0) {
@@ -23845,7 +23870,7 @@ function showLineEditor(i) {
   var pretty = (l.subtype && subLabels[l.subtype] ? subLabels[l.subtype] : '') + (typeLabels[l.type] || l.type);
   showPropPanel('Edit: '+pretty);
   document.getElementById('lineEditor').style.display='block';
-  document.getElementById('editLineLabel').value=l.label||'';
+  var _lblEl=document.getElementById('editLineLabel'); if(_lblEl) _lblEl.value=l.label||'';   // legacy box (removed) — guard
   var _ll=document.getElementById('editLineLength'); if(_ll) _ll.value=l.lengthM||'';
   // Set type selector — barge and apron use compound type|subtype
   // values so the dropdown can offer Side / Head variants. Default to
@@ -23883,6 +23908,36 @@ function updateSection() {
   document.getElementById('propTitle').textContent='Section: '+s.name;
   redrawAll(); syncToRoofData();
 }
+// Find the PARALLEL line on the opposite side of the same face (e.g. the
+// barge on the other end of the roof, or the far gutter) — same type,
+// parallel within ~10°, NOT sharing an endpoint (so it's not one of the
+// perpendicular lines this one touches), and offset the furthest across.
+function _findParallelOppositeLine(edited){
+  if (!edited || !edited.pts || edited.pts.length !== 2 || !Array.isArray(DRAW.lines)) return null;
+  var a=edited.pts[0], b=edited.pts[1];
+  var dx=b[0]-a[0], dy=b[1]-a[1], L=Math.sqrt(dx*dx+dy*dy); if (L<1) return null;
+  var ux=dx/L, uy=dy/L, nx=-uy, ny=ux;
+  var mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  var EPS=1.5;
+  function shares(l){
+    return l.pts.some(function(p){
+      return (Math.abs(p[0]-a[0])<EPS && Math.abs(p[1]-a[1])<EPS) ||
+             (Math.abs(p[0]-b[0])<EPS && Math.abs(p[1]-b[1])<EPS);
+    });
+  }
+  var best=null, bestPerp=-1;
+  DRAW.lines.forEach(function(l){
+    if (l===edited || !l || l.type!==edited.type || !l.pts || l.pts.length!==2) return;
+    var cdx=l.pts[1][0]-l.pts[0][0], cdy=l.pts[1][1]-l.pts[0][1], cl=Math.sqrt(cdx*cdx+cdy*cdy); if (cl<1) return;
+    var par=Math.abs((cdx/cl)*ux + (cdy/cl)*uy);
+    if (par < 0.985) return;                 // not parallel (within ~10°)
+    if (shares(l)) return;                   // touches this line's end — skip
+    var cmid=[(l.pts[0][0]+l.pts[1][0])/2,(l.pts[0][1]+l.pts[1][1])/2];
+    var perp=Math.abs((cmid[0]-mid[0])*nx + (cmid[1]-mid[1])*ny);
+    if (perp > 4 && perp > bestPerp){ bestPerp=perp; best=l; }
+  });
+  return best;
+}
 function updateLine() {
   var i=DRAW.selectedLine; if(i<0) return;
   var l=DRAW.lines[i];
@@ -23909,7 +23964,15 @@ function updateLine() {
   } else if(ml) {
     var mv=parseFloat(ml.value); l.measM=mv>0?mv:null;
   }
-  l.label=document.getElementById('editLineLabel').value;
+  // One box only now — the label is derived from the measurement.
+  l.label = (l.measM > 0) ? (l.measM.toFixed(2) + 'm') : '';
+  // Sync the PARALLEL opposite line on the same face (e.g. the barge on
+  // the far end) so both read the same length — not the perpendicular
+  // lines this one touches at its ends.
+  if (l.measM > 0){
+    var _opp = _findParallelOppositeLine(l);
+    if (_opp){ _opp.measM = l.measM; _opp.label = l.label; }
+  }
   var typeLabels = {ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',apron:'Apron',changepitch:'Change of pitch',drip:'Drip edge',custom:'Custom flashing'};
   var subLabels = {side:'Side ',head:'Head ',starter:'Starter ',finish:'Finish '};
   var pretty = (l.subtype && subLabels[l.subtype] ? subLabels[l.subtype] : '') + (typeLabels[l.type] || l.type);
@@ -25868,10 +25931,36 @@ function _restoreCalMeasType(){
   for (var i = 0; i < radios.length; i++) radios[i].checked = (radios[i].value === t);
 }
 
+// ── New calibration: click ONE building-outline wall ──────────────
+function _showCalInstruction(){ var el = document.getElementById('calInstrPopup'); if (el) el.style.display = 'block'; }
+function _hideCalInstruction(){ var el = document.getElementById('calInstrPopup'); if (el) el.style.display = 'none'; }
+// Called when the Calibrate tool is selected — needs an outline to click.
+function _onCalibrateToolSelected(){
+  if (!DRAW.outline || DRAW.outline.length < 3){
+    _hideCalInstruction();
+    alert('Draw your building outline first.\n\nThen click 📏 Calibrate scale and click on one of its walls to set the size.');
+    try { setTool('outline'); } catch(e){}
+    return;
+  }
+  _showCalInstruction();
+}
+// Nearest building-outline edge to a point (image coords) — or -1.
+function _hitOutlineEdge(px, py){
+  if (!DRAW.outline || DRAW.outline.length < 2) return -1;
+  var t = getImgTransform();
+  var thresh = t ? 12/t.s : 12;
+  var best = -1, bestD = Infinity;
+  for (var i = 0; i < DRAW.outline.length; i++){
+    var a = DRAW.outline[i], b = DRAW.outline[(i+1)%DRAW.outline.length];
+    var d = (typeof _ridgeDistToSeg === 'function') ? _ridgeDistToSeg(px, py, a, b) : Infinity;
+    if (d < thresh && d < bestD){ bestD = d; best = i; }
+  }
+  return best;
+}
 function showCalibratePopup(pixelDist) {
   var info = pixelDist
-    ? 'Line drawn: ' + Math.round(pixelDist) + ' pixels. Enter the real-world length below:'
-    : 'Draw a line between two known points on the image, then enter the real length below.';
+    ? 'Wall selected (' + Math.round(pixelDist) + ' px). Enter this wall’s real length below:'
+    : 'Click one wall of your building outline, then enter its real length below.';
   document.getElementById('calPixelInfo').textContent = info;
   document.getElementById('calRealInput').value = '';
   document.getElementById('calPitchInput').value = DRAW.calPitch||'';
@@ -35251,7 +35340,7 @@ function ctxEdit() {
   document.getElementById('ctxMenu').style.display='none';
   // Focus label input if available
   if(DRAW.selectedLine>=0){
-    var el=document.getElementById('editLineLabel');
+    var el=document.getElementById('editLineMeasM');
     if(el){el.focus();el.select();}
   } else if(DRAW.selectedSection>=0){
     var el=document.getElementById('editName');
