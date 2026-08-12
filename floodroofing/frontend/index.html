@@ -2861,7 +2861,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
               </select>
             </div>
             <div><label>Measurement (m)</label>
-              <input type="number" id="editLineMeasM" placeholder="e.g. 4.6" step="0.01" min="0" oninput="updateLine()" style="margin:0">
+              <input type="number" id="editLineMeasM" placeholder="e.g. 4.6" step="0.01" min="0" onchange="updateLine()" onkeydown="if(event.key==='Enter'){this.blur();}" style="margin:0">
             </div>
           </div>
           <div style="display:flex;gap:6px;margin-top:.5rem">
@@ -24033,6 +24033,70 @@ function _findParallelOppositeLine(edited){
   });
   return best;
 }
+// ── Grouped measurement sync ─────────────────────────────────────
+// Two groups stay locked together when the user edits any member:
+//   • SLOPE group — the two barges + every sheet-run length (all the same
+//     up-the-rake distance). Edit one → all match; scale unchanged.
+//   • SPAN group — the ridge + both gutters (the flat plan span). Edit one
+//     → RE-CALIBRATE the scale from that line, then force ridge + gutters
+//     equal. The whole plan rescales to match, as requested.
+function _setAllSheetRuns(newM){
+  if (!(newM > 0)) return 0;
+  if (!DRAW.sheetOverrides) DRAW.sheetOverrides = {};
+  var hits = (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
+  var n = 0;
+  hits.forEach(function(h){
+    if (!h || !h.key) return;
+    if ('manualIdx' in h) return;        // leave manual black-arrow measures alone
+    DRAW.sheetOverrides[h.key] = newM; n++;
+  });
+  return n;
+}
+function _recalibrateFromLine(line, realM){
+  if (!line || !line.pts || line.pts.length < 2 || !(realM > 0)) return;
+  var a=line.pts[0], b=line.pts[1];
+  var px=Math.sqrt((b[0]-a[0])*(b[0]-a[0])+(b[1]-a[1])*(b[1]-a[1]));
+  if (!(px > 0)) return;
+  // Ridge + gutters are flat plan lines (slope factor 1) — the entered
+  // metres IS the plan distance, so scale straight from pixels.
+  DRAW.scaleMetresPerPx = realM / px;
+  // Keep the on-canvas Scale-ref line where it is; just refresh its shown
+  // length to the new scale. No prior ref → adopt this line as the ref.
+  if (DRAW.calibratePixels > 0 && DRAW.calibratePts){
+    DRAW.calRealM = +(DRAW.calibratePixels * DRAW.scaleMetresPerPx).toFixed(3);
+  } else {
+    DRAW.calibratePts = [a.slice(), b.slice()];
+    DRAW.calibratePixels = px;
+    DRAW.calRealM = +realM.toFixed(3);
+  }
+  DRAW.calMeasType = 'flat';
+  DRAW.scaleLabel = '1px='+(DRAW.scaleMetresPerPx*1000).toFixed(2)+'mm | ref:'+DRAW.calRealM+'m';
+  try { autoCalcLineMeasurements(); } catch(e){}
+  try { updateMeasTotals(); } catch(e){}
+  try { populateMaterialsFromLines(); } catch(e){}
+}
+function _syncMeasureGroup(edited, newM){
+  if (!edited || !(newM > 0)) return;
+  var lbl = newM.toFixed(2)+'m';
+  var t = edited.type;
+  if (t === 'ridge' || t === 'gutter'){
+    _recalibrateFromLine(edited, newM);
+    DRAW.lines.forEach(function(x){ if (x && (x.type==='ridge'||x.type==='gutter')){ x.measM=newM; x.label=lbl; } });
+  } else if (t === 'barge'){
+    DRAW.lines.forEach(function(x){ if (x && x.type==='barge'){ x.measM=newM; x.label=lbl; } });
+    _setAllSheetRuns(newM);
+  } else {
+    var opp = _findParallelOppositeLine(edited);
+    if (opp){ opp.measM=newM; opp.label=lbl; }
+  }
+}
+// A sheet-run label edit drives the whole slope group (barges + all runs).
+function _syncSlopeGroupFromSheet(newM){
+  if (!(newM > 0)) return;
+  _setAllSheetRuns(newM);
+  var lbl = newM.toFixed(2)+'m';
+  if (Array.isArray(DRAW.lines)) DRAW.lines.forEach(function(x){ if (x && x.type==='barge'){ x.measM=newM; x.label=lbl; } });
+}
 function updateLine() {
   var i=DRAW.selectedLine; if(i<0) return;
   var l=DRAW.lines[i];
@@ -24061,13 +24125,8 @@ function updateLine() {
   }
   // One box only now — the label is derived from the measurement.
   l.label = (l.measM > 0) ? (l.measM.toFixed(2) + 'm') : '';
-  // Sync the PARALLEL opposite line on the same face (e.g. the barge on
-  // the far end) so both read the same length — not the perpendicular
-  // lines this one touches at its ends.
-  if (l.measM > 0){
-    var _opp = _findParallelOppositeLine(l);
-    if (_opp){ _opp.measM = l.measM; _opp.label = l.label; }
-  }
+  // Sync the whole measurement group (barges+sheets, or ridge+gutters+scale).
+  if (l.measM > 0){ _syncMeasureGroup(l, l.measM); }
   var typeLabels = {ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',apron:'Apron',changepitch:'Change of pitch',drip:'Drip edge',custom:'Custom flashing'};
   var subLabels = {side:'Side ',head:'Head ',starter:'Starter ',finish:'Finish '};
   var pretty = (l.subtype && subLabels[l.subtype] ? subLabels[l.subtype] : '') + (typeLabels[l.type] || l.type);
@@ -25839,7 +25898,7 @@ function confirmLineMeas() {
   var typeEl = document.getElementById('lineMeasTypeSelect');
   if(typeEl && typeEl.value) l.type = typeEl.value;
   // Save measurement (optional - can just change type)
-  if(!isNaN(val) && val > 0) l.measM = val;
+  if(!isNaN(val) && val > 0){ l.measM = val; l.label = val.toFixed(2)+'m'; _syncMeasureGroup(l, val); }
   // The popup's second "Sheet length for this gutter" input was
   // removed — sheet runs are now placed independently via the Sheet
   // measure tool, so a custom line measurement no longer drags the
@@ -30529,7 +30588,7 @@ function _sheetEditPopup(hit){
     delete DRAW.sheetOverrides[hit.key];
   } else {
     var n = parseFloat(clean);
-    if (!isNaN(n) && n > 0) DRAW.sheetOverrides[hit.key] = n;
+    if (!isNaN(n) && n > 0){ DRAW.sheetOverrides[hit.key] = n; _syncSlopeGroupFromSheet(n); }
   }
   // Also clear any group-level override keyed by the previous ordered
   // length — the face-side override now wins and we don't want a
