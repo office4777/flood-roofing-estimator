@@ -162,9 +162,8 @@ body[data-tab="quote"] .content{
   padding-right:var(--pop-reserve,46px);
   transition:padding-right .2s ease;
 }
-/* Left-align the A4 job-pack pages (they're a fixed 210mm, otherwise
-   centred) so the whole Job Pack sits to the left too. */
-body[data-tab="materials"] .jp-pages{ align-items:flex-start; }
+/* Job-pack pages stay CENTRED (matching the Quote proposal's location);
+   the fit-to-width zoom (--doc-zoom) makes them fill the working area. */
 
 /* ── Sidebar: brand block + nav + status ────────────────────── */
 .hdr{
@@ -1779,12 +1778,14 @@ html.customer-view input,html.customer-view select,html.customer-view textarea{f
   }
   /* Bare header (only when no cover page) still reads as a sheet edge */
   .report-preview > #qpRoot > .rp-header{width:210mm;box-sizing:border-box}
-  /* Quote tab (office editing only): scale the A4 proposal up and trim the
-     grey frame so it fills the working area instead of floating small in a
-     sea of grey. Excluded from print / customer / PDF flows so the exported
-     page stays exact A4. */
-  html:not(.print-quote):not(.customer-view):not(.qp-pdf-a4) #quoteProposal{ padding:14px 10px; }
-  html:not(.print-quote):not(.customer-view):not(.qp-pdf-a4) #quoteProposal #qpRoot{ zoom:1.28; }
+  /* Quote + Job Pack (office editing only): scale the A4 pages up to FILL
+     the working area (--doc-zoom is computed live in _fitDocZoom from the
+     space between the sidebar and the side pop-out), so the doc fills the
+     screen instead of floating small in grey. Excluded from print /
+     customer / PDF flows so the exported page stays exact A4. */
+  html:not(.print-quote):not(.customer-view):not(.qp-pdf-a4) #quoteProposal{ padding:12px 8px; }
+  /* Quote #qpRoot zoom is set inline by _fitProposalPages (fill-to-width). */
+  html:not(.print-jobpack) body[data-tab="materials"] .jp-pages .jp-page{ zoom:var(--doc-zoom,1); }
 }
 /* Inline-edit zones in the rendered proposal */
 .qp-editable{cursor:text;border-radius:3px;transition:background .12s,outline .12s;outline:none}
@@ -14410,8 +14411,21 @@ function _fitProposalPages(){
   if (!wrap || !root) return;
   if (document.documentElement.classList.contains('print-quote')) { root.style.zoom = 1; return; }
   var A4px = 794;                       // 210mm @ 96dpi
-  var avail = wrap.clientWidth - 28;    // canvas side padding
-  var z = avail > 0 ? Math.min(1, avail / A4px) : 1;
+  // Fill the working area between the sidebar and the side pop-out. Computed
+  // from viewport math (not clientWidth) so it's correct even mid-transition
+  // as the pricing panel slides. Enlarge as well as shrink (old code capped
+  // at 1, leaving the proposal small in a sea of grey).
+  var content = document.querySelector('.content');
+  var avail;
+  if (content){
+    var cs = getComputedStyle(content);
+    var padL = parseFloat(cs.paddingLeft) || 0;
+    var reserve = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pop-reserve')) || 72;
+    avail = window.innerWidth - content.getBoundingClientRect().left - padL - reserve - 28;
+  } else {
+    avail = wrap.clientWidth - 28;
+  }
+  var z = avail > 0 ? Math.max(1, Math.min(2.2, avail / A4px)) : 1;
   root.style.zoom = z;
 }
 window.addEventListener('resize', function(){
@@ -28570,11 +28584,16 @@ function _jpHandleDrop(ev, pageIdx){
   // CSS size of 210mm × 297mm so we divide by the live mm-to-px ratio.
   var pageEl = ev.currentTarget;
   var r = pageEl.getBoundingClientRect();
-  var x = ev.clientX - r.left;
-  var y = ev.clientY - r.top;
-  // Default size: 90mm × 65mm centred on the drop point.
-  var defW = 90 * (r.width / 210);   // 90mm in CSS px
-  var defH = 65 * (r.height / 297);  // 65mm
+  // The page is zoomed on screen (--doc-zoom). getBoundingClientRect is in
+  // ZOOMED px but stored image coords are the page's UNZOOMED px (clientWidth
+  // space), so divide the cursor offset by the zoom. clientWidth is already
+  // unzoomed, so the mm→px ratio uses it directly.
+  var Z = parseFloat(getComputedStyle(pageEl).zoom) || 1;
+  var x = (ev.clientX - r.left) / Z;
+  var y = (ev.clientY - r.top) / Z;
+  // Default size: 90mm × 65mm centred on the drop point (unzoomed px).
+  var defW = 90 * (pageEl.clientWidth  / 210);   // 90mm
+  var defH = 65 * (pageEl.clientHeight / 297);   // 65mm
   var img = {
     id: 'img_' + Date.now() + '_' + Math.floor(Math.random() * 1e4),
     mapKey: key,
@@ -28663,12 +28682,14 @@ function _jpImgMouseDown(ev, pageIdx, imgId){
   if (!page || !page.images) return;
   var im = page.images.find(function(x){ return x.id === imgId; });
   if (!im) return;
+  var _pgEl = wrap.closest('.jp-page');
   _JP_IMG_DRAG = {
     pageIdx: pageIdx, imgId: imgId,
     startX: ev.clientX, startY: ev.clientY,
     startLeft: im.x, startTop: im.y,
     startW: im.w, startH: im.h,
     mode: isResize ? 'resize' : 'move',
+    zoom: (_pgEl ? (parseFloat(getComputedStyle(_pgEl).zoom) || 1) : 1),  // page is scaled on screen
     wrap: wrap, moved: false
   };
   document.addEventListener('mousemove', _jpImgMouseMove);
@@ -28680,7 +28701,8 @@ function _jpImgMouseMove(ev){
   var page = _jpState().pages[d.pageIdx]; if (!page) return;
   var im = page.images.find(function(x){ return x.id === d.imgId; });
   if (!im) return;
-  var dx = ev.clientX - d.startX, dy = ev.clientY - d.startY;
+  var _z = d.zoom || 1;
+  var dx = (ev.clientX - d.startX) / _z, dy = (ev.clientY - d.startY) / _z;   // client px → page (unzoomed) px
   if (Math.abs(dx) + Math.abs(dy) > 1) d.moved = true;
   if (d.mode === 'move'){
     im.x = d.startLeft + dx;
@@ -34666,7 +34688,24 @@ function _setPopReserve(px){
   var TOGGLE = 46, GAP = 26;
   var reserve = (px && px > 60) ? (Math.round(px) + TOGGLE + GAP) : (TOGGLE + GAP);
   try { document.documentElement.style.setProperty('--pop-reserve', reserve + 'px'); } catch(e){}
+  try { _fitDocZoom(); } catch(e){}          // Job Pack pages (CSS --doc-zoom)
+  try { _fitProposalPages(); } catch(e){}    // Quote proposal (inline zoom, fill-to-width)
 }
+// Scale the fixed-size A4 pages (Quote proposal, Job Pack pages) UP so they
+// fill the working area between the sidebar and the side pop-out — killing
+// the wasted grey. Writes --doc-zoom; the CSS applies it on screen only.
+function _fitDocZoom(){
+  var content = document.querySelector('.content'); if (!content) return;
+  var cs = getComputedStyle(content);
+  var padL = parseFloat(cs.paddingLeft) || 0;
+  var reserve = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pop-reserve')) || 72;
+  var contentLeft = content.getBoundingClientRect().left;   // = sidebar width (content itself isn't zoomed)
+  var avail = window.innerWidth - contentLeft - padL - reserve - 20;   // -20 = doc frame breathing room
+  var A4 = 793.7;                                            // 210mm @ 96dpi
+  var z = Math.max(1, Math.min(2.2, avail / A4));
+  document.documentElement.style.setProperty('--doc-zoom', z.toFixed(3));
+}
+try { window.addEventListener('resize', function(){ try { _fitDocZoom(); } catch(e){} }); } catch(e){}
 function _syncPopReserveForTab(t){
   var id = t==='roof' ? 'fergusRoofPanel' : t==='materials' ? 'jpMapPanel' : t==='quote' ? 'quotePricingPanel' : null;
   if (!id){ _setPopReserve(0); return; }
