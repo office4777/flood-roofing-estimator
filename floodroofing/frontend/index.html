@@ -146,6 +146,21 @@ body{
   position:relative;
 }
 
+/* Map Roof + Job Pack: use the full working area and sit hard-left so a
+   16:9 monitor isn't wasted on centred margins. The right padding leaves
+   clearance for the fixed side-panel toggle tab. Other tabs stay centred.
+   body[data-tab] is stamped by gotoTab. */
+body[data-tab="roof"] .content,
+body[data-tab="materials"] .content{
+  max-width:none;
+  margin-left:0;
+  margin-right:0;
+  padding-right:64px;
+}
+/* Left-align the A4 job-pack pages (they're a fixed 210mm, otherwise
+   centred) so the whole Job Pack sits to the left too. */
+body[data-tab="materials"] .jp-pages{ align-items:flex-start; }
+
 /* ── Sidebar: brand block + nav + status ────────────────────── */
 .hdr{
   display:flex;
@@ -1079,13 +1094,20 @@ select{
    it (display:flex) only on the Quote tab, and it slides in on .is-open. */
 #quotePricingPanel{
   position:fixed; top:70px; right:0; bottom:16px;
-  width:min(860px,94vw); z-index:70;
+  width:var(--qp-pricing-w,min(860px,94vw)); min-width:280px; max-width:96vw; z-index:70;
   background:#fff; border:1px solid var(--border); border-right:none;
   border-radius:12px 0 0 12px; box-shadow:-8px 10px 34px rgba(0,0,0,.18);
   transform:translateX(100%); transition:transform .28s ease;
   display:none; flex-direction:column;
 }
 #quotePricingPanel.is-open{ transform:translateX(0); }
+#quotePricingPanel.is-resizing{ transition:none; user-select:none; }
+#quotePricingPanelResize{
+  position:absolute; left:0; top:0; bottom:0; width:12px; cursor:ew-resize; z-index:3;
+  display:flex; align-items:center; justify-content:center; touch-action:none;
+}
+#quotePricingPanelResize::after{ content:''; width:4px; height:52px; border-radius:3px; background:rgba(10,22,40,.18); transition:background .15s; }
+#quotePricingPanelResize:hover::after{ background:#0099cc; height:80px; }
 #quotePricingPanelToggle{
   position:absolute; left:-46px; top:16px; width:46px; height:140px;
   background:#0099cc; color:#fff; border:none; border-radius:10px 0 0 10px;
@@ -1146,14 +1168,21 @@ html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .
 html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!important; }
 #jpMapPanel{
   position:fixed; top:88px; right:0; bottom:24px;
-  width:240px; z-index:60;
+  width:var(--jp-maps-w,320px); min-width:200px; max-width:96vw; z-index:60;
   background:#fff; border:1px solid var(--border); border-right:none;
   border-radius:10px 0 0 10px;
   box-shadow:-6px 8px 24px rgba(0,0,0,.12);
-  transform:translateX(220px); transition:transform .25s ease;
+  transform:translateX(100%); transition:transform .25s ease;
   display:flex; flex-direction:column;
 }
 #jpMapPanel.is-open{ transform:translateX(0); }
+#jpMapPanel.is-resizing{ transition:none; user-select:none; }
+#jpMapPanelResize{
+  position:absolute; left:0; top:0; bottom:0; width:12px; cursor:ew-resize; z-index:3;
+  display:flex; align-items:center; justify-content:center; touch-action:none;
+}
+#jpMapPanelResize::after{ content:''; width:4px; height:52px; border-radius:3px; background:rgba(10,22,40,.18); transition:background .15s; }
+#jpMapPanelResize:hover::after{ background:#0099cc; height:80px; }
 #jpMapPanelToggle{
   position:absolute; left:-44px; top:14px;
   width:44px; height:110px;
@@ -3028,6 +3057,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <span class="qpx-arrow">◀</span>
     <span class="qpx-text">PRICING</span>
   </button>
+  <div id="quotePricingPanelResize" onpointerdown="_quotePricingResizeStart(event)" title="Drag to resize"></div>
   <div class="qpx-hd"><span>💰 Pricing</span>
     <small style="margin-left:auto;font-size:10px;font-weight:500;color:var(--text2)">labour · materials · scaffold</small>
     <button onclick="_closePricingPanel()" title="Close" style="margin-left:10px;background:none;border:none;color:var(--text2);font-size:16px;cursor:pointer;line-height:1">✕</button>
@@ -3172,6 +3202,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <span class="jp-mp-arrow">◀</span>
       <span class="jp-mp-text">MAPS</span>
     </button>
+    <div id="jpMapPanelResize" onpointerdown="_jpMapPanelResizeStart(event)" title="Drag to resize"></div>
     <div class="jp-map-hd">
       <span>📂 Maps</span>
       <small style="margin-left:auto">drag onto a page</small>
@@ -4990,6 +5021,7 @@ function gotoTab(t) {
   document.querySelectorAll('.nav-btn').forEach(function(b,i){b.classList.toggle('active',ids[i]===t);});
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
+  try { document.body.setAttribute('data-tab', t); } catch(e){}   // drives per-tab layout (fill/left)
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
@@ -5000,7 +5032,13 @@ function gotoTab(t) {
   (function(){
     var _pp=document.getElementById('quotePricingPanel');
     if(!_pp) return;
-    if(t==='quote'){ _pp.style.display='flex'; try{_pricingPanelInit();}catch(e){} }
+    if(t==='quote'){
+      _pp.style.display='flex';
+      try{_pricingPanelInit();}catch(e){}
+      try{_quotePricingApplyWidth();}catch(e){}
+      // Popped out by DEFAULT — only stay closed if the user closed it.
+      if(localStorage.getItem('fr_qp_pricing_open')!=='0'){ setTimeout(function(){ try{_openPricingPanel();}catch(e){} }, 20); }
+    }
     else { _pp.style.display='none'; _pp.classList.remove('is-open'); }
   })();
   // Fergus job-photos slide-out is available only on the Map Roof tab. It
@@ -28082,30 +28120,81 @@ function _openPricingPanel(){
   try { calcLabour(); } catch(e){ console.warn('pricing labour:', e); }
   try { _renderPricingRoofSwitchBar(); } catch(e){}
   var p = document.getElementById('quotePricingPanel');
-  if (p){ p.style.display = 'flex'; p.classList.add('is-open'); }
+  if (p){ p.style.display = 'flex'; _quotePricingApplyWidth(); p.classList.add('is-open'); }
+  try { localStorage.setItem('fr_qp_pricing_open', '1'); } catch(e){}
 }
 function _closePricingPanel(){
   var p = document.getElementById('quotePricingPanel'); if (p) p.classList.remove('is-open');
+  try { localStorage.setItem('fr_qp_pricing_open', '0'); } catch(e){}
 }
 function _togglePricingPanel(){
   var p = document.getElementById('quotePricingPanel'); if (!p) return;
   if (p.classList.contains('is-open')) _closePricingPanel();
   else _openPricingPanel();
 }
+function _quotePricingApplyWidth(){
+  var p = document.getElementById('quotePricingPanel'); if (!p) return;
+  try { var w = localStorage.getItem('fr_qp_pricing_w'); if (w) p.style.width = w; } catch(e){}
+}
+// Drag the panel's left edge to resize (right-anchored). Persisted.
+function _quotePricingResizeStart(e){
+  var panel = document.getElementById('quotePricingPanel'); if (!panel) return;
+  e.preventDefault();
+  panel.classList.add('is-resizing');
+  function mv(ev){
+    var w = window.innerWidth - ev.clientX;
+    w = Math.max(280, Math.min(Math.round(window.innerWidth * 0.96), w));
+    panel.style.width = w + 'px';
+  }
+  function up(){
+    panel.classList.remove('is-resizing');
+    window.removeEventListener('pointermove', mv);
+    window.removeEventListener('pointerup', up);
+    try { localStorage.setItem('fr_qp_pricing_w', panel.style.width); } catch(e){}
+  }
+  window.addEventListener('pointermove', mv);
+  window.addEventListener('pointerup', up);
+}
 
 // ── Maps side panel ────────────────────────────────────────────────
 // Toggle the slide-out panel that lists every available map as a
 // draggable thumbnail.
+function _jpApplyMapPanelWidth(){
+  var p = document.getElementById('jpMapPanel'); if (!p) return;
+  try { var w = localStorage.getItem('fr_jp_map_panel_w'); if (w) p.style.width = w; } catch(e){}
+}
 function _jpToggleMapPanel(){
   var p = document.getElementById('jpMapPanel'); if (!p) return;
   var open = p.classList.toggle('is-open');
   try { localStorage.setItem('fr_jp_map_panel_open', open ? '1' : '0'); } catch(e){}
-  if (open) renderJpMapPanel();
+  if (open){ _jpApplyMapPanelWidth(); renderJpMapPanel(); }
 }
 function _jpRestorePanelState(){
   var p = document.getElementById('jpMapPanel'); if (!p) return;
-  var open = localStorage.getItem('fr_jp_map_panel_open') === '1';
+  _jpApplyMapPanelWidth();
+  // Popped out by DEFAULT — only stay closed if the user explicitly closed it.
+  var open = localStorage.getItem('fr_jp_map_panel_open') !== '0';
   p.classList.toggle('is-open', open);
+  if (open) { try { renderJpMapPanel(); } catch(e){} }
+}
+// Drag the panel's left edge to resize (right-anchored). Persisted.
+function _jpMapPanelResizeStart(e){
+  var panel = document.getElementById('jpMapPanel'); if (!panel) return;
+  e.preventDefault();
+  panel.classList.add('is-resizing');
+  function mv(ev){
+    var w = window.innerWidth - ev.clientX;
+    w = Math.max(200, Math.min(Math.round(window.innerWidth * 0.96), w));
+    panel.style.width = w + 'px';
+  }
+  function up(){
+    panel.classList.remove('is-resizing');
+    window.removeEventListener('pointermove', mv);
+    window.removeEventListener('pointerup', up);
+    try { localStorage.setItem('fr_jp_map_panel_w', panel.style.width); } catch(e){}
+  }
+  window.addEventListener('pointermove', mv);
+  window.addEventListener('pointerup', up);
 }
 // Build the thumbnail list. Each entry carries a key that identifies
 // which map to render at drop time — we DON'T snapshot the image into
