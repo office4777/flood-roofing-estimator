@@ -1099,7 +1099,7 @@ select{
    it (display:flex) only on the Quote tab, and it slides in on .is-open. */
 #quotePricingPanel{
   position:fixed; top:70px; right:0; bottom:16px;
-  width:var(--qp-pricing-w,40vw); min-width:280px; max-width:96vw; z-index:70;
+  width:var(--sidepop-w,40vw); min-width:200px; max-width:96vw; z-index:70;
   background:#fff; border:1px solid var(--border); border-right:none;
   border-radius:12px 0 0 12px; box-shadow:-8px 10px 34px rgba(0,0,0,.18);
   transform:translateX(100%); transition:transform .28s ease;
@@ -1141,7 +1141,7 @@ html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .
    set how far it comes out; a zoom slider scales the photos. */
 #fergusRoofPanel{
   position:fixed; top:70px; right:0; bottom:16px;
-  width:var(--fr-photos-w,40vw); min-width:200px; max-width:96vw; z-index:75;
+  width:var(--sidepop-w,40vw); min-width:200px; max-width:96vw; z-index:75;
   background:#0a1628; border:1px solid #10233c; border-right:none;
   border-radius:12px 0 0 12px; box-shadow:-8px 10px 34px rgba(0,0,0,.32);
   transform:translateX(100%); transition:transform .28s ease;
@@ -1173,7 +1173,7 @@ html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .
 html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!important; }
 #jpMapPanel{
   position:fixed; top:70px; right:0; bottom:16px;
-  width:var(--jp-maps-w,40vw); min-width:200px; max-width:96vw; z-index:60;
+  width:var(--sidepop-w,40vw); min-width:200px; max-width:96vw; z-index:60;
   background:#fff; border:1px solid var(--border); border-right:none;
   border-radius:10px 0 0 10px;
   box-shadow:-6px 8px 24px rgba(0,0,0,.12);
@@ -1779,6 +1779,12 @@ html.customer-view input,html.customer-view select,html.customer-view textarea{f
   }
   /* Bare header (only when no cover page) still reads as a sheet edge */
   .report-preview > #qpRoot > .rp-header{width:210mm;box-sizing:border-box}
+  /* Quote tab (office editing only): scale the A4 proposal up and trim the
+     grey frame so it fills the working area instead of floating small in a
+     sea of grey. Excluded from print / customer / PDF flows so the exported
+     page stays exact A4. */
+  html:not(.print-quote):not(.customer-view):not(.qp-pdf-a4) #quoteProposal{ padding:14px 10px; }
+  html:not(.print-quote):not(.customer-view):not(.qp-pdf-a4) #quoteProposal #qpRoot{ zoom:1.28; }
 }
 /* Inline-edit zones in the rendered proposal */
 .qp-editable{cursor:text;border-radius:3px;transition:background .12s,outline .12s;outline:none}
@@ -3062,7 +3068,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <span class="qpx-arrow">◀</span>
     <span class="qpx-text">PRICING</span>
   </button>
-  <div id="quotePricingPanelResize" onpointerdown="_quotePricingResizeStart(event)" title="Drag to resize"></div>
+  <div id="quotePricingPanelResize" onpointerdown="_sidepopResizeStart(event,this.parentNode)" title="Drag to resize"></div>
   <div class="qpx-hd"><span>💰 Pricing</span>
     <small style="margin-left:auto;font-size:10px;font-weight:500;color:var(--text2)">labour · materials · scaffold</small>
     <button onclick="_closePricingPanel()" title="Close" style="margin-left:10px;background:none;border:none;color:var(--text2);font-size:16px;cursor:pointer;line-height:1">✕</button>
@@ -3081,7 +3087,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <span class="frp-arrow">◀</span>
     <span class="frp-text">PHOTOS</span>
   </button>
-  <div id="fergusRoofPanelResize" onpointerdown="_fergusPanelResizeStart(event)" title="Drag to resize"></div>
+  <div id="fergusRoofPanelResize" onpointerdown="_sidepopResizeStart(event,this.parentNode)" title="Drag to resize"></div>
   <div class="frp-hd">
     <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
       <span style="font-size:13px;font-weight:700">📷 Fergus job photos</span>
@@ -3207,7 +3213,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <span class="jp-mp-arrow">◀</span>
       <span class="jp-mp-text">MAPS</span>
     </button>
-    <div id="jpMapPanelResize" onpointerdown="_jpMapPanelResizeStart(event)" title="Drag to resize"></div>
+    <div id="jpMapPanelResize" onpointerdown="_sidepopResizeStart(event,this.parentNode)" title="Drag to resize"></div>
     <div class="jp-map-hd">
       <span>📂 Maps</span>
       <small style="margin-left:auto">drag onto a page</small>
@@ -5057,7 +5063,7 @@ function gotoTab(t) {
     if(!_fp) return;
     if(t==='roof'){
       _fp.style.display='flex';
-      try{ var _w=localStorage.getItem('fr_fergus_panel_w'); if(_w) _fp.style.width=_w; }catch(e){}
+      try{ _applySidepopWidth(); }catch(e){}
       // Popped out by DEFAULT (like the Job Pack / Quote panels) — regardless
       // of whether a Fergus job is linked; only stay closed if the user
       // explicitly closed it. When no job is linked the panel just shows the
@@ -28145,10 +28151,7 @@ function _togglePricingPanel(){
   if (p.classList.contains('is-open')) _closePricingPanel();
   else _openPricingPanel();
 }
-function _quotePricingApplyWidth(){
-  var p = document.getElementById('quotePricingPanel'); if (!p) return;
-  try { var w = localStorage.getItem('fr_qp_pricing_w'); if (w) p.style.width = w; } catch(e){}
-}
+function _quotePricingApplyWidth(){ _applySidepopWidth(); }   // shared width for all three pop-outs
 // Drag the panel's left edge to resize (right-anchored). Persisted.
 function _quotePricingResizeStart(e){
   var panel = document.getElementById('quotePricingPanel'); if (!panel) return;
@@ -28173,10 +28176,7 @@ function _quotePricingResizeStart(e){
 // ── Maps side panel ────────────────────────────────────────────────
 // Toggle the slide-out panel that lists every available map as a
 // draggable thumbnail.
-function _jpApplyMapPanelWidth(){
-  var p = document.getElementById('jpMapPanel'); if (!p) return;
-  try { var w = localStorage.getItem('fr_jp_map_panel_w'); if (w) p.style.width = w; } catch(e){}
-}
+function _jpApplyMapPanelWidth(){ _applySidepopWidth(); }   // shared width for all three pop-outs
 function _jpToggleMapPanel(){
   var p = document.getElementById('jpMapPanel'); if (!p) return;
   var open = p.classList.toggle('is-open');
@@ -34673,11 +34673,41 @@ function _syncPopReserveForTab(t){
   var p = document.getElementById(id);
   _setPopReserve((p && p.classList.contains('is-open')) ? p.getBoundingClientRect().width : 0);
 }
+// The three side pop-outs (photos / maps / pricing) SHARE one width so they
+// always match — resize any of them and all follow. Stored in a single key;
+// seeded from the old photos-panel width so an existing sizing carries over.
+function _applySidepopWidth(){
+  try {
+    var w = localStorage.getItem('fr_sidepop_w') || localStorage.getItem('fr_fergus_panel_w');
+    if (w) document.documentElement.style.setProperty('--sidepop-w', w);
+  } catch(e){}
+}
+function _sidepopResizeStart(e, panel){
+  if (!panel) return;
+  e.preventDefault();
+  panel.classList.add('is-resizing');
+  var lastW = panel.getBoundingClientRect().width;
+  function mv(ev){
+    var w = window.innerWidth - ev.clientX;
+    w = Math.max(200, Math.min(Math.round(window.innerWidth * 0.96), w));
+    lastW = w;
+    document.documentElement.style.setProperty('--sidepop-w', w + 'px');   // drives ALL three panels
+    _setPopReserve(w);
+  }
+  function up(){
+    panel.classList.remove('is-resizing');
+    window.removeEventListener('pointermove', mv);
+    window.removeEventListener('pointerup', up);
+    try { localStorage.setItem('fr_sidepop_w', lastW + 'px'); } catch(e){}
+  }
+  window.addEventListener('pointermove', mv);
+  window.addEventListener('pointerup', up);
+}
 // ── Fergus photos side pop-out (open / close / resize / zoom) ──────────
 function _fergusPanelOpen(){
   var p = document.getElementById('fergusRoofPanel'); if (!p) return;
   p.style.display = 'flex';
-  try { var w = localStorage.getItem('fr_fergus_panel_w'); if (w) p.style.width = w; } catch(e){}
+  _applySidepopWidth();
   requestAnimationFrame(function(){ p.classList.add('is-open'); });
   _setPopReserve(p.getBoundingClientRect().width);
   try { localStorage.setItem('fr_fergus_panel_open', '1'); } catch(e){}
