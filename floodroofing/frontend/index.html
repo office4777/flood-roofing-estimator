@@ -21749,7 +21749,7 @@ function setTool(t) {
   // Update cursor
   var cv=document.getElementById('roofCanvas');
   var wrap=document.getElementById('canvasWrap');
-  var cur=(t==='select')?'grab':(t==='addmeas')?'pointer':(t==='delete')?'not-allowed':(t==='calibrate')?'crosshair':'crosshair';
+  var cur=(t==='select')?'grab':(t==='addmeas')?'pointer':(t==='delete')?'not-allowed':(t==='calibrate')?'pointer':'crosshair';
   if(t==='addmeas') {
     // Totals panel no longer exists as a floating side window; just
     // refresh the values in the Roofing Measurements card below the
@@ -23573,17 +23573,20 @@ function onCanvasClick(e) {
   // Calibrate: click ONE building-outline wall, then enter its real
   // length. That single known wall sets the scale for the whole plan.
   if(DRAW.tool==='calibrate') {
-    if (!DRAW.outline || DRAW.outline.length < 3){
+    var _hasOutline = (DRAW.outline && DRAW.outline.length >= 3) ||
+                      (DRAW.roofs && DRAW.roofs.some(function(r){ return r && r.outline && r.outline.length >= 3; }));
+    if (!_hasOutline){
       alert('Draw your building outline first, then click one of its walls to calibrate.');
       return;
     }
-    var _cei = _hitOutlineEdge(xy[0], xy[1]);
-    if (_cei < 0) { return; }   // clicked away from any wall — ignore
-    var _ca = DRAW.outline[_cei], _cb = DRAW.outline[(_cei+1)%DRAW.outline.length];
+    // Scale is global — accept a click on ANY roof's wall (View-All), not
+    // just the active roof's, so calibration works on every roof.
+    var _wall = _hitAnyRoofWall(xy[0], xy[1]);
+    if (!_wall) { return; }   // clicked away from any wall — ignore
+    var _ca = _wall[0], _cb = _wall[1];
     var _cdx = _cb[0]-_ca[0], _cdy = _cb[1]-_ca[1];
     DRAW.calibratePts   = [_ca.slice(), _cb.slice()];
     DRAW.calibratePixels = Math.sqrt(_cdx*_cdx + _cdy*_cdy);
-    DRAW.calEdgeIdx = _cei;
     DRAW.currentPts = [];
     try { _hideCalInstruction(); } catch(e){}
     redrawAll();
@@ -26108,6 +26111,31 @@ function _hitOutlineEdge(px, py){
     var a = DRAW.outline[i], b = DRAW.outline[(i+1)%DRAW.outline.length];
     var d = (typeof _ridgeDistToSeg === 'function') ? _ridgeDistToSeg(px, py, a, b) : Infinity;
     if (d < thresh && d < bestD){ bestD = d; best = i; }
+  }
+  return best;
+}
+// Calibration sets a GLOBAL pixel scale, so ANY roof's wall is a valid
+// reference. When View-All is on, test EVERY roof's outline — not just the
+// active one — otherwise clicking a wall of Roof 1/2 does nothing and only
+// the last-added (active) roof responds. Returns the hit wall's two image-
+// space endpoints [a,b], or null when the click missed every wall.
+function _hitAnyRoofWall(px, py){
+  var t = getImgTransform();
+  var thresh = t ? 12/t.s : 12;
+  var best = null, bestD = Infinity;
+  function scan(outline){
+    if (!outline || outline.length < 2) return;
+    for (var i = 0; i < outline.length; i++){
+      var a = outline[i], b = outline[(i+1)%outline.length];
+      var d = (typeof _ridgeDistToSeg === 'function') ? _ridgeDistToSeg(px, py, a, b) : Infinity;
+      if (d < thresh && d < bestD){ bestD = d; best = [a.slice(), b.slice()]; }
+    }
+  }
+  if (DRAW.showAllRoofs && DRAW.roofs && DRAW.roofs.length > 1){
+    try { if (typeof _syncCurrentToRoof === 'function') _syncCurrentToRoof(); } catch(e){}
+    DRAW.roofs.forEach(function(r){ scan(r && r.outline); });
+  } else {
+    scan(DRAW.outline);
   }
   return best;
 }
