@@ -2703,7 +2703,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div style="background:#e8f4fb;border:1px solid #b3d9f0;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#0a3d5c;display:flex;align-items:center;gap:8px">
   <span style="font-size:16px">💡</span>
   <span><strong>Best workflow:</strong> Upload photo → click <strong>Building outline</strong> → click each corner of the roof perimeter clockwise → press <strong>Enter</strong> to close → then draw internal lines (ridge, valley etc) on top.</span>
-  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13g</span>
+  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13h</span>
 </div>
 <div style="display:flex;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
@@ -37472,12 +37472,24 @@ function buildDutchGableRoofLines(outline) {
   // Absorb small wings/bumps so the Dutch gable spans them with longer
   // sheets (a clean main-rectangle dutch gable) instead of converting the
   // whole roof to hip & valley. Gutters + sheets still use the real outline.
-  var skel = buildHipValleyLines(_roofRemoveSmallTabs(outline));
+  var _simpOutline = _roofRemoveSmallTabs(outline);
+  var skel = buildHipValleyLines(_simpOutline);
   var ridges  = skel.filter(function(l){return l.type==='ridge';});
   var hips    = skel.filter(function(l){return l.type==='hip';});
   var valleys = skel.filter(function(l){return l.type==='valley';});
 
   function ptDist(a,b){var dx=b[0]-a[0],dy=b[1]-a[1];return Math.sqrt(dx*dx+dy*dy);}
+  // Is `pt` one of the building's OUTLINE corners? A genuine gable/gablet end
+  // has BOTH its converging hips springing from real outline corners. At an
+  // L / T elbow one of the "converging hips" is a short transition hip whose
+  // far end is an INTERIOR ridge/valley junction, not a wall corner — that
+  // junction must stay a plain hip & valley corner, never a third gablet.
+  function _isOutlineCorner(pt){
+    for (var _i = 0; _i < _simpOutline.length; _i++){
+      if (ptDist(_simpOutline[_i], pt) <= EP_TOL * 2) return true;
+    }
+    return false;
+  }
 
   // Deep-copy so we can mutate endpoints without disturbing the original skeleton.
   var workHips   = hips.map(function(h){return {type:'hip',  pts:[h.pts[0].slice(),h.pts[1].slice()]};});
@@ -37508,6 +37520,14 @@ function buildDutchGableRoofLines(outline) {
         return ptDist(rr.pts[0], R) <= EP_TOL || ptDist(rr.pts[1], R) <= EP_TOL;
       });
       if (hasValley || otherRidge) return;
+      // Both converging hips must spring from real outline corners. If either
+      // one's far (non-ridge) end is an interior junction, this is an L / T
+      // elbow, not a gable end — leave it as a simple hip & valley corner
+      // instead of stamping a spurious angled third gablet over it.
+      var _bothAtCorners = attached.every(function(a){
+        return _isOutlineCorner(a.h.pts[1 - a.endIdx]);
+      });
+      if (!_bothAtCorners) return;
       // Pull each hip back toward its corner by GABLET_FRAC of its length.
       // The new endpoint is the "gablet base corner".
       var newEnds = attached.map(function(a){
