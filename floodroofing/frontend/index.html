@@ -21781,7 +21781,7 @@ function prefillFergus(){document.getElementById('fNewClient').value=document.ge
 // canonical helper below; the canvas labels, the sheet plan, the cut
 // list and the wing strips all derive their sheet length through that
 // helper so the reduction stays uniform across the app.
-var SHEET_LENGTH_INSET_M = 0.040;
+var SHEET_LENGTH_INSET_M = 0;   // sheet length = full run = its barge (rake) length, never inset
 function _calibratedSheetM(rawM){
   var n = +rawM;
   if (!isFinite(n) || n <= 0) return 0;
