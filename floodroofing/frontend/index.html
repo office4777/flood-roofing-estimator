@@ -2703,7 +2703,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div style="background:#e8f4fb;border:1px solid #b3d9f0;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#0a3d5c;display:flex;align-items:center;gap:8px">
   <span style="font-size:16px">💡</span>
   <span><strong>Best workflow:</strong> Upload photo → click <strong>Building outline</strong> → click each corner of the roof perimeter clockwise → press <strong>Enter</strong> to close → then draw internal lines (ridge, valley etc) on top.</span>
-  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13d</span>
+  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13e</span>
 </div>
 <div style="display:flex;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
@@ -37457,6 +37457,23 @@ function buildMonoPitchRoofLines(outline, rotation) {
   var _gA = outline[bestI], _gB = outline[(bestI+1)%n];
   var _gdx = _gB[0]-_gA[0], _gdy = _gB[1]-_gA[1], _gLen = Math.sqrt(_gdx*_gdx+_gdy*_gdy) || 1;
   var _gux = _gdx/_gLen, _guy = _gdy/_gLen;
+  // Polygon centroid — used to point each edge's normal OUTWARD (away from the
+  // interior). A mono-pitch slopes one way only: the high side is the apron and
+  // its outward normal points "uphill". Every parallel edge is then either a
+  // LOW eave (its outward normal points the opposite way → gutter) or another
+  // HIGH edge at a step (outward normal points the SAME way as the apron →
+  // apron, NOT a gutter). Without this test a stepped footprint gets gutters
+  // facing opposite directions, which a mono-pitch never has.
+  var _cx = 0, _cy = 0; for (var _ci = 0; _ci < n; _ci++){ _cx += outline[_ci][0]; _cy += outline[_ci][1]; }
+  _cx /= n; _cy /= n;
+  function _outwardNormal(a, b){
+    var ex = b[0]-a[0], ey = b[1]-a[1], eL = Math.sqrt(ex*ex+ey*ey) || 1;
+    var nx = -ey/eL, ny = ex/eL;                 // one perpendicular
+    var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;  // edge midpoint
+    if (nx*(mx-_cx) + ny*(my-_cy) < 0){ nx = -nx; ny = -ny; }  // flip to point outward
+    return [nx, ny];
+  }
+  var _apN = _outwardNormal(_gA, _gB);
   // High side = an apron (a horizontal high eave / ridge-equivalent): it seeds
   // the sheet runs and, unlike a barge, keeps its true plan length (a barge
   // gets the rake slope factor, which would over-length a horizontal edge).
@@ -37466,7 +37483,16 @@ function buildMonoPitchRoofLines(outline, rotation) {
     var _a = outline[idx], _b = outline[(idx+1)%n];
     var _ex = _b[0]-_a[0], _ey = _b[1]-_a[1], _eL = Math.sqrt(_ex*_ex+_ey*_ey) || 1;
     var _par = Math.abs((_ex/_eL)*_gux + (_ey/_eL)*_guy);
-    result.push({ type: (_par > 0.9 ? 'gutter' : 'barge'), pts:[_a.slice(), _b.slice()] });
+    var _tp;
+    if (_par <= 0.9){
+      _tp = 'barge';                             // perpendicular → rake barge
+    } else {
+      // Parallel edge: same-facing as the apron ⇒ high step (apron); opposite ⇒ low eave (gutter).
+      var _eN = _outwardNormal(_a, _b);
+      var _dot = _eN[0]*_apN[0] + _eN[1]*_apN[1];
+      _tp = (_dot > 0) ? 'apron' : 'gutter';
+    }
+    result.push({ type: _tp, pts:[_a.slice(), _b.slice()] });
   }
   return result;
 }
