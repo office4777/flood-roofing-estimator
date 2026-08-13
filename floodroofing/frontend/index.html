@@ -2703,7 +2703,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div style="background:#e8f4fb;border:1px solid #b3d9f0;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#0a3d5c;display:flex;align-items:center;gap:8px">
   <span style="font-size:16px">💡</span>
   <span><strong>Best workflow:</strong> Upload photo → click <strong>Building outline</strong> → click each corner of the roof perimeter clockwise → press <strong>Enter</strong> to close → then draw internal lines (ridge, valley etc) on top.</span>
-  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13h</span>
+  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13i</span>
 </div>
 <div style="display:flex;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
@@ -5134,7 +5134,10 @@ function gotoTab(t) {
       // of whether a Fergus job is linked; only stay closed if the user
       // explicitly closed it. When no job is linked the panel just shows the
       // "Link a Fergus job…" hint.
-      var _wantOpen=true; try{ _wantOpen = localStorage.getItem('fr_fergus_panel_open') !== '0'; }catch(e){}
+      // Open-by-default state lives in sessionStorage (not localStorage) so a
+      // page refresh ALWAYS re-opens the panel — a one-time close no longer
+      // hides the photos forever. Closing it only lasts the current session.
+      var _wantOpen=true; try{ _wantOpen = sessionStorage.getItem('fr_fergus_panel_open') !== '0'; }catch(e){}
       if(_wantOpen){ requestAnimationFrame(function(){ try{_fergusPanelOpen();}catch(e){} }); }
     }
     else { _fp.style.display='none'; _fp.classList.remove('is-open'); }
@@ -35186,13 +35189,13 @@ function _fergusPanelOpen(){
   _applySidepopWidth();
   requestAnimationFrame(function(){ p.classList.add('is-open'); });
   _setPopReserve(p.getBoundingClientRect().width);
-  try { localStorage.setItem('fr_fergus_panel_open', '1'); } catch(e){}
+  try { sessionStorage.setItem('fr_fergus_panel_open', '1'); } catch(e){}
   if (!_fergusRoofPhotosLoaded) _loadFergusRoofPhotos(false);
 }
 function _fergusPanelClose(){
   var p = document.getElementById('fergusRoofPanel'); if (p) p.classList.remove('is-open');
   _setPopReserve(0);
-  try { localStorage.setItem('fr_fergus_panel_open', '0'); } catch(e){}
+  try { sessionStorage.setItem('fr_fergus_panel_open', '0'); } catch(e){}
 }
 function _fergusPanelToggle(){
   var p = document.getElementById('fergusRoofPanel'); if (!p) return;
