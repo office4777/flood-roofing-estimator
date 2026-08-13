@@ -2703,7 +2703,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div style="background:#e8f4fb;border:1px solid #b3d9f0;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#0a3d5c;display:flex;align-items:center;gap:8px">
   <span style="font-size:16px">💡</span>
   <span><strong>Best workflow:</strong> Upload photo → click <strong>Building outline</strong> → click each corner of the roof perimeter clockwise → press <strong>Enter</strong> to close → then draw internal lines (ridge, valley etc) on top.</span>
-  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13l</span>
+  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13m</span>
 </div>
 <div style="display:flex;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
@@ -9178,7 +9178,7 @@ function _renderCalcCheckCanvas(sections, opts){
   var lgx = padX;
   built.forEach(function(b){
     var s = b.s;
-    var text = _calcCheckColour(s.color) + (s.isPrimary ? ' main' : ' wing') + ': ' + s.total + ' × ' + (s.orderedMm/1000).toFixed(3) + 'm';
+    var text = _calcCheckColour(s.color) + (s.isPrimary ? ' main' : ' wing') + ': ' + s.total + ' × ' + (s.orderedMm/1000).toFixed(2) + 'm';
     ctx.font = '700 12px Inter, sans-serif'; ctx.textBaseline = 'middle';
     var tw = ctx.measureText(text).width;
     ctx.fillStyle = s.color; _roundRect(ctx, lgx, 63, 12, 12, 3); ctx.fill();
@@ -25710,7 +25710,7 @@ function redrawAll() {
               lblX: sL[0], lblY: sL[1],
               lblImgX: lblImgX, lblImgY: lblImgY,
               ndx: sdx/sdl, ndy: sdy/sdl, sdl: sdl,
-              label: displayedM.toFixed(3) + 'm',
+              label: displayedM.toFixed(2) + 'm',
               key: key,
               isOverride: isOverride || (displayedM !== sheetM),
               roofIdx: (typeof ownerRoofIdx === 'number' ? ownerRoofIdx : DRAW.activeRoofIdx),
@@ -25740,7 +25740,7 @@ function redrawAll() {
           lblImgX: m.x, lblImgY: m.y,
           ndx: m.ndx || 1, ndy: m.ndy || 0,
           sdl: (m.sdl || 120) * ((typeof getImgTransform === 'function' && getImgTransform()) ? getImgTransform().s : 1),
-          label: (+m.lengthM || 0).toFixed(3) + 'm',
+          label: (+m.lengthM || 0).toFixed(2) + 'm',
           key: 'manual:' + mi,
           isOverride: false,
           manualIdx: mi,
@@ -26372,7 +26372,7 @@ function calcMeasurements() {
   html += tile('🟣','Gutter',             gutterLm.toFixed(1),    'lm',  '#7c3aed');
   html += tile('🟢','Hip rafter (×4)',    totalHipLm.toFixed(1),  'lm',  '#059669');
   html += tile('📋','Sheets needed',      totalSheets||'—',       'sheets','#0a1628');
-  html += tile('📏','Sheet length',       sheetLengthM>0?sheetLengthM.toFixed(3):'—','m','#0a1628');
+  html += tile('📏','Sheet length',       sheetLengthM>0?sheetLengthM.toFixed(2):'—','m','#0a1628');
   html += tile('🟤','Roofing paper',      underlayM2.toFixed(1),  'm²',  '#92400e');
   html += tile('📐','Pitch factor',       pitchFactor.toFixed(3), 'x',   '#0a1628');
   html += tile('🏠','Pitch angle',        pitch||'—',             '°',   '#0a1628');
@@ -26434,7 +26434,7 @@ function calcMeasurements(){
   html+=tile('🟣','Gutter',gutterLm.toFixed(1),'lm','#7c3aed');
   html+=tile('🟢','Hip ×4',totalHipLm.toFixed(1),'lm','#059669');
   html+=tile('📋','Sheets',totalSheets||'—','sheets','#0a1628');
-  html+=tile('📏','Sheet length',sheetLengthM>0?sheetLengthM.toFixed(3):'—','m','#0a1628');
+  html+=tile('📏','Sheet length',sheetLengthM>0?sheetLengthM.toFixed(2):'—','m','#0a1628');
   html+=tile('🟤','Underlay',roofAreaWaste.toFixed(1),'m²','#92400e');
   html+=tile('📐','Pitch factor',pitchFactor.toFixed(3),'x','#0a1628');
   html+=tile('🏠','Pitch',pitch||'—','°','#0a1628');
@@ -30895,10 +30895,10 @@ function _jpSpecColourChange(sel){
 // DRAW.sheetGroupOverrides (the existing sheet-plan editor already
 // honours them).  Hidden rows persist on DRAW.matSheetRowHidden.
 // User-added extras live on DRAW.matSheetExtras.
-// Format a roof-sheet length (in mm) as metres to the millimetre — 3 decimal
-// places — so a 5445 mm sheet reads "5.445" not "5.44". Roofing sheets are cut
-// to the mm, so the cut list must show that last digit.
-function _sheetLenM(mm){ var n = Math.round(+mm || 0); return (n/1000).toFixed(3); }
+// Format a roof-sheet length (in mm) as metres, rounded to the nearest 0.01 m
+// (2 decimals) so the cut list matches the on-map sheet labels exactly (a
+// 5691 mm sheet reads "5.69", same as the map arrow).
+function _sheetLenM(mm){ var n = Math.round(+mm || 0); return (n/1000).toFixed(2); }
 function _jpBuildSheetRows(sc){
   var rows = [];
   if (!sc || !sc.groups || !sc.groups.length) return rows;
