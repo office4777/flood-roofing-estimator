@@ -23995,7 +23995,9 @@ function autoPopulateGutters(){
     // Collect covered intervals along the edge from collinear lines.
     var covered=[];
     DRAW.lines.forEach(function(l){
-      if(l.type!=='gutter'&&l.type!=='barge')return;
+      // An apron / change-of-pitch on an outline edge (e.g. a mono-pitch high
+      // side) also COVERS that edge — don't lay a duplicate gutter over it.
+      if(l.type!=='gutter'&&l.type!=='barge'&&l.type!=='apron'&&l.type!=='changepitch')return;
       var t0=null,t1=null,ok=true;
       [l.pts[0],l.pts[1]].forEach(function(p,pi){
         var t=(p[0]-a[0])*ux+(p[1]-a[1])*uy;                 // along edge
@@ -37405,15 +37407,24 @@ function buildMonoPitchRoofLines(outline, rotation) {
   var rotSteps = Math.round(((rotation||0) % 360) / 90) % n;
   if (rotSteps < 0) rotSteps += n;
   bestI = (bestI + rotSteps) % n;
-  // Gutter on the chosen edge.
-  result.push({ type:'gutter', pts:[outline[bestI].slice(), outline[(bestI+1)%n].slice()] });
-  // Every other edge starts as a barge — the algorithm has no way to
-  // know whether the high side is an open eave / wall apron / pitch
-  // change without the user telling it. Barge is the safest default
-  // and lets all four sides participate in the flashing cut list.
+  // The longest edge is the HIGH side (a barge / ridge-equivalent that seeds
+  // the sheet runs). Every edge PARALLEL to it is a LOW eave → gutter (so a
+  // stepped low edge is a gutter, not a barge, and each run drains to its own
+  // gutter). The PERPENDICULAR edges are the rake barges (same length as the
+  // sheets). The user can re-tag any edge from the line editor.
+  var _gA = outline[bestI], _gB = outline[(bestI+1)%n];
+  var _gdx = _gB[0]-_gA[0], _gdy = _gB[1]-_gA[1], _gLen = Math.sqrt(_gdx*_gdx+_gdy*_gdy) || 1;
+  var _gux = _gdx/_gLen, _guy = _gdy/_gLen;
+  // High side = an apron (a horizontal high eave / ridge-equivalent): it seeds
+  // the sheet runs and, unlike a barge, keeps its true plan length (a barge
+  // gets the rake slope factor, which would over-length a horizontal edge).
+  result.push({ type:'apron', pts:[_gA.slice(), _gB.slice()] });
   for (var k = 1; k < n; k++) {
     var idx = (bestI + k) % n;
-    result.push({ type:'barge', pts:[outline[idx].slice(), outline[(idx+1)%n].slice()] });
+    var _a = outline[idx], _b = outline[(idx+1)%n];
+    var _ex = _b[0]-_a[0], _ey = _b[1]-_a[1], _eL = Math.sqrt(_ex*_ex+_ey*_ey) || 1;
+    var _par = Math.abs((_ex/_eL)*_gux + (_ey/_eL)*_guy);
+    result.push({ type: (_par > 0.9 ? 'gutter' : 'barge'), pts:[_a.slice(), _b.slice()] });
   }
   return result;
 }
