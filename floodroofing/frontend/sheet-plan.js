@@ -4580,7 +4580,7 @@ function _renderRoofSheetPlanInner() {
     if (!groups[key]) groups[key] = { color: s.col, orderedMm: s.mm, count: 0 };
     groups[key].count += n;
     _checkSections.push({ color: _dcols[i], perSide: perSide, valleyExtra: valleyExtra,
-      total: n, orderedMm: s.mm, isPrimary: (i === primary),
+      total: n, orderedMm: s.mm, isPrimary: (i === primary), mono: _mono,
       // Geometry for the to-scale overlay: ridge direction and the
       // section's oriented bounding box (u = along ridge, v = across),
       // plus cover width — all in outline px.  The overlay tiles the real

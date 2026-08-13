@@ -9131,10 +9131,15 @@ function _renderCalcCheckCanvas(sections, opts){
       var s = b.s;
       ctx.save();
       if (faded) ctx.globalAlpha = 0.26;
-      [-1, 1].forEach(function(sd){
+      // Gable/hip = two half-slopes either side of the ridge; a MONO-PITCH
+      // is one full-depth face (no ridge), so draw a single full-height band.
+      var _sds = s.mono ? [1] : [-1, 1];
+      _sds.forEach(function(sd){
         for (var j = 0; j < b.per; j++){
           var u0 = b.startU + j*b.cw, u1 = u0 + b.cw;
-          poly([b.w2(u0,b.vMid), b.w2(u1,b.vMid), b.w2(u1, b.vMid+sd*b.halfRun), b.w2(u0, b.vMid+sd*b.halfRun)].map(toC));
+          var vLo = s.mono ? (b.vMid - b.halfRun) : b.vMid;
+          var vHi = b.vMid + sd*b.halfRun;
+          poly([b.w2(u0,vLo), b.w2(u1,vLo), b.w2(u1, vHi), b.w2(u0, vHi)].map(toC));
           ctx.fillStyle = s.color; ctx.fill();
           ctx.strokeStyle = 'rgba(0,0,0,0.20)'; ctx.lineWidth = 1; ctx.stroke();
         }
@@ -9160,8 +9165,9 @@ function _renderCalcCheckCanvas(sections, opts){
   drawColumns(false);
   ctx.restore();
 
-  // Ridge line (red) down each section's middle.
+  // Ridge line (red) down each section's middle — mono-pitch has no ridge.
   built.forEach(function(b){
+    if (b.s && b.s.mono) return;
     var r0 = toC(b.w2(b.startU, b.vMid)), r1 = toC(b.w2(b.startU + b.per*b.cw, b.vMid));
     ctx.beginPath(); ctx.moveTo(r0[0],r0[1]); ctx.lineTo(r1[0],r1[1]);
     ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2.4; ctx.stroke();
@@ -9193,7 +9199,9 @@ function _renderCalcCheckCanvas(sections, opts){
   built.forEach(function(b){
     var s = b.s, colWpx = b.cw*sc, numFont = Math.max(8, Math.min(13, colWpx*0.5));
     ctx.font = '700 '+numFont+'px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    [-1, 1].forEach(function(sd){
+    // Mono = one row of numbers (single face); gable/hip = one row per slope.
+    var _nsds = s.mono ? [0] : [-1, 1];
+    _nsds.forEach(function(sd){
       for (var j = 0; j < b.per; j++){
         var nc = toC(b.w2(b.startU + (j+0.5)*b.cw, b.vMid + sd*b.halfRun*0.6));
         ctx.fillStyle = 'rgba(255,255,255,0.85)'; _roundRect(ctx, nc[0]-8, nc[1]-7, 16, 14, 3); ctx.fill();
