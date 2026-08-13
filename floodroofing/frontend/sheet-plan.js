@@ -4439,8 +4439,11 @@ function _renderRoofSheetPlanInner() {
         if(!best) return;
         var eaveLen=Math.hypot(best.pts[1][0]-best.pts[0][0], best.pts[1][1]-best.pts[0][1]);
         var ps=Math.max(1, Math.ceil(eaveLen/coverPx - 1e-6));
-        var uMin=Math.min(a[0]*R[0]+a[1]*R[1], b[0]*R[0]+b[1]*R[1]);
-        var uMax=Math.max(a[0]*R[0]+a[1]*R[1], b[0]*R[0]+b[1]*R[1]);
+        // Tile across the full END EAVE (not the shorter, centred gablet base)
+        // so the first short sheet sits flush on the roof edge.
+        var e0=best.pts[0], e1=best.pts[1];
+        var uMin=Math.min(e0[0]*R[0]+e0[1]*R[1], e1[0]*R[0]+e1[1]*R[1]);
+        var uMax=Math.max(e0[0]*R[0]+e0[1]*R[1], e1[0]*R[0]+e1[1]*R[1]);
         addGroup(orderedLengthMm(bestPD*effectiveScale*pitchFactor), ps,
                  mkSec(R, uMin, uMax, apP, outS*bestPD, ps, ps, true));
       });
