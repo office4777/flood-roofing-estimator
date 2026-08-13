@@ -417,6 +417,20 @@ body[data-tab="quote"] .content{
 /* Tighter, less-crowded Quote tab + collapsible advanced cards */
 #tab-quote .card{padding:14px 16px;margin-bottom:10px}
 #tab-quote .card-hd{margin-bottom:10px}
+/* Proposal card header (holds the Zoom control) sticks to the top of the
+   screen while the user scrolls the long proposal, so the zoom is always
+   reachable. Pulled out to the card edges + given a solid background and a
+   soft shadow so scrolled content passes cleanly underneath it. */
+#tab-quote .js-proposal-print > .card-hd{
+  position:sticky; top:0; z-index:40;
+  margin:-14px -16px 10px; padding:12px 16px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow:0 4px 12px rgba(10,22,40,.07);
+  flex-wrap:wrap; row-gap:6px;
+}
+@media print{ #tab-quote .js-proposal-print > .card-hd{ position:static; box-shadow:none; } }
 #tab-quote .f2,#tab-quote .f3{gap:10px}
 #tab-quote textarea{min-height:auto}
 /* A collapsed <details> card: the summary acts as the card header. */
@@ -2689,7 +2703,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div style="background:#e8f4fb;border:1px solid #b3d9f0;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#0a3d5c;display:flex;align-items:center;gap:8px">
   <span style="font-size:16px">💡</span>
   <span><strong>Best workflow:</strong> Upload photo → click <strong>Building outline</strong> → click each corner of the roof perimeter clockwise → press <strong>Enter</strong> to close → then draw internal lines (ridge, valley etc) on top.</span>
-  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13b</span>
+  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13d</span>
 </div>
 <div style="display:flex;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
@@ -2704,19 +2718,19 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </canvas>
       </div>
       <!-- Corner reposition popup — click an outline corner in Move mode to
-           open; arrows (buttons or keyboard) nudge the corner 0.1m. Draggable
+           open; arrows (buttons or keyboard) nudge the corner 0.01m. Draggable
            by its header; ✕ or clicking elsewhere on the canvas closes it. -->
       <div id="cornerRepoPopup" class="no-print" style="display:none;position:fixed;z-index:2000;left:140px;top:150px;width:158px;background:#0a1628;border:1px solid #10233c;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.38);font-family:Inter,-apple-system,sans-serif">
         <div id="cornerRepoHdr" style="display:flex;align-items:center;gap:6px;padding:7px 9px;cursor:move;border-bottom:1px solid rgba(255,255,255,.12);touch-action:none">
           <span style="font-size:12px;line-height:1">✥</span>
           <span style="font-size:11px;font-weight:700;color:#fff">Move corner</span>
-          <span style="font-size:10px;color:#7fd4ff;margin-left:auto;font-weight:600">0.1m</span>
+          <span style="font-size:10px;color:#7fd4ff;margin-left:auto;font-weight:600">0.01m</span>
           <button onclick="_closeCornerRepo()" title="Close" style="background:none;border:none;color:#cbd5e1;font-size:14px;line-height:1;cursor:pointer;padding:0 2px">✕</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,38px);gap:5px;padding:9px;justify-content:center">
-          <span></span><button onclick="_cornerRepoNudge(0,-1)" class="crn-btn" title="Up 0.1m">▲</button><span></span>
-          <button onclick="_cornerRepoNudge(-1,0)" class="crn-btn" title="Left 0.1m">◀</button><span style="display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.3);font-size:10px">•</span><button onclick="_cornerRepoNudge(1,0)" class="crn-btn" title="Right 0.1m">▶</button>
-          <span></span><button onclick="_cornerRepoNudge(0,1)" class="crn-btn" title="Down 0.1m">▼</button><span></span>
+          <span></span><button onclick="_cornerRepoNudge(0,-1)" class="crn-btn" title="Up 0.01m">▲</button><span></span>
+          <button onclick="_cornerRepoNudge(-1,0)" class="crn-btn" title="Left 0.01m">◀</button><span style="display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.3);font-size:10px">•</span><button onclick="_cornerRepoNudge(1,0)" class="crn-btn" title="Right 0.01m">▶</button>
+          <span></span><button onclick="_cornerRepoNudge(0,1)" class="crn-btn" title="Down 0.01m">▼</button><span></span>
         </div>
         <div style="font-size:9.5px;color:rgba(255,255,255,.6);padding:0 9px 9px;text-align:center;line-height:1.4">Keyboard arrows work too. You can still drag the corner.</div>
       </div>
@@ -6226,6 +6240,13 @@ function _buildMaterialPriceRows(){
   return rows;
 }
 
+// Order quantities are whole units: lineal metres round UP to the next full
+// metre (you buy full lengths), everything else to the nearest whole. No
+// decimal quantities anywhere in the material order.
+function _matOrderQty(qtyRaw, unit){
+  var q = parseFloat(qtyRaw) || 0;
+  return (unit === 'lm') ? Math.ceil(q - 1e-9) : Math.round(q);
+}
 function renderMaterialPriceTable(){
   var box = document.getElementById('materialPriceTableWrap'); if (!box) return;
   if (!S.settings || !S.settings.price_book) {
@@ -6281,9 +6302,10 @@ function renderMaterialPriceTable(){
     var ov = MATERIAL_OVERRIDES[r.key] || {};
     var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
     var picked = r.variants.find(function(v){return v.value===variantValue;}) || r.variants[0];
-    var qty   = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
     var price = picked ? picked.price : 0;
     var unit  = picked ? picked.unit : r.autoUnit;
+    var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+    var qty   = _matOrderQty(qtyRaw, unit);
     var lineTotal = (qty||0) * (price||0);
     total += lineTotal;
 
@@ -6306,7 +6328,7 @@ function renderMaterialPriceTable(){
       '</td>'+
       '<td>'+
         '<div style="display:flex;align-items:center;gap:2px">'+
-        '<input type="number" step="0.01" min="0" value="'+(qty||0).toFixed(2)+'" data-qty-key="'+r.key+'" onchange="_onMatOverride(\''+r.key+'\',\'qty\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"/>'+
+        '<input type="number" step="1" min="0" value="'+(qty||0)+'" data-qty-key="'+r.key+'" onchange="_onMatOverride(\''+r.key+'\',\'qty\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"/>'+
         resetBtn +
         '</div>'+
         '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(unit)+ ovBadge +'</div>'+
@@ -6415,7 +6437,9 @@ function _materialsTotalFromRows(rows){
     var ov = (typeof MATERIAL_OVERRIDES !== 'undefined' && MATERIAL_OVERRIDES[r.key]) || {};
     var variantValue = (ov.variant != null) ? ov.variant : r.defaultVariant;
     var picked = (r.variants || []).find(function(v){ return v.value === variantValue; }) || (r.variants || [])[0];
-    var qty = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+    var unit = picked ? picked.unit : r.autoUnit;
+    var qtyRaw = (ov.qty != null && ov.qty !== '') ? parseFloat(ov.qty) : r.autoQty;
+    var qty = _matOrderQty(qtyRaw, unit);
     var price = picked ? picked.price : 0;
     total += (qty || 0) * (price || 0);
   });
@@ -9704,7 +9728,7 @@ function renderGutterDownpipePricing(){
   var scUp = 0.25 * (parseFloat(scaffBase) || 0);
   // Material list rows — itemised like the re-roof material table.
   var matRows = matLines.map(function(r){
-    var qtyTxt = (r.unit === 'lm') ? (parseFloat(r.qty)||0).toFixed(1) : String(parseFloat(r.qty)||0);
+    var qtyTxt = String(_matOrderQty(r.qty, r.unit));
     return '<tr>'+
       '<td>'+esc(r.desc)+'</td>'+
       '<td style="text-align:right">'+qtyTxt+' '+esc(r.unit)+'</td>'+
@@ -9789,15 +9813,16 @@ function renderProfitability(){
   var gpPct = revenue > 0 ? (gp / revenue * 100) : 0;
   var gpHr  = hrs > 0 ? (gp / hrs) : 0;
   function stat(label, val, sub, color){
-    return '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px">'+
-      '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);font-weight:600">'+label+'</div>'+
-      '<div style="font-size:22px;font-weight:700;color:'+(color||'#0a1628')+';margin-top:4px;letter-spacing:-.01em">'+val+'</div>'+
-      (sub?'<div style="font-size:11px;color:var(--text2);margin-top:2px">'+sub+'</div>':'')+
+    // Compact so all four tiles fit on one row even on a phone.
+    return '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 9px;min-width:0">'+
+      '<div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+label+'</div>'+
+      '<div style="font-size:17px;font-weight:700;color:'+(color||'#0a1628')+';margin-top:3px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+val+'</div>'+
+      (sub?'<div style="font-size:9.5px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+sub+'</div>':'')+
     '</div>';
   }
   var gpColor = gpPct >= 40 ? '#15803d' : (gpPct >= 25 ? '#b45309' : '#b91c1c');
   wrap.innerHTML =
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">'+
+    '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px">'+
       stat('Job revenue', fmtMoney(revenue), 'ex GST · labour + materials + scaffold') +
       stat('Material cost', fmtMoney(mat), 'from the price book') +
       stat('GP %', gpPct.toFixed(1)+'%', 'gross profit ÷ revenue', gpColor) +
@@ -21955,30 +21980,30 @@ function _cornerRepoOpen(idx){
   window._cornerRepo.idx = idx;
   var pop = document.getElementById('cornerRepoPopup'); if (!pop) return;
   pop.style.display = 'block';
-  // First open (or not yet user-moved this session): place it beside the
-  // corner so it's obviously tied to it, but offset so it doesn't cover it.
+  // First open (or not yet user-moved this session): pin it to the top-left
+  // corner of the canvas so it always lands in a predictable, out-of-the-way
+  // spot. The moving corner itself is highlighted (yellow ring) on the canvas,
+  // so the popup no longer needs to sit next to it.
   if (!window._cornerRepo.userMoved){
     try {
-      var t = getImgTransform();
-      var cpt = (typeof imgToCanvas === 'function') ? imgToCanvas(DRAW.outline[idx], t) : DRAW.outline[idx];
       var cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect();
-      var clientX = r.left + cpt[0] * (r.width  / cv.width);
-      var clientY = r.top  + cpt[1] * (r.height / cv.height);
-      pop.style.left = Math.max(6, Math.min(window.innerWidth  - 170, clientX + 18)) + 'px';
-      pop.style.top  = Math.max(70, Math.min(window.innerHeight - 160, clientY - 60)) + 'px';
+      pop.style.left = Math.max(6, r.left + 12) + 'px';
+      pop.style.top  = Math.max(70, r.top + 12) + 'px';
     } catch(e){}
   }
+  try { redrawAll(); } catch(e){}   // draw the yellow highlight ring
 }
 function _closeCornerRepo(){
   window._cornerRepo.idx = -1;
   var pop = document.getElementById('cornerRepoPopup'); if (pop) pop.style.display = 'none';
+  try { redrawAll(); } catch(e){}   // clear the yellow highlight ring
 }
-// Nudge the active corner 0.1m (100mm) in a direction. Uses the SAME
+// Nudge the active corner 0.01m (10mm) in a direction. Uses the SAME
 // rectilinear stretch a drag does, so arrows and dragging behave the same.
 function _cornerRepoNudge(dirX, dirY){
   var idx = window._cornerRepo.idx;
   if (idx < 0 || !DRAW.outline || idx >= DRAW.outline.length) return;
-  var step = (DRAW.scaleMetresPerPx > 0) ? (0.1 / DRAW.scaleMetresPerPx) : 4;  // 0.1m in px (fallback 4px uncalibrated)
+  var step = (DRAW.scaleMetresPerPx > 0) ? (0.01 / DRAW.scaleMetresPerPx) : 1;  // 0.01m in px (fallback 1px uncalibrated)
   var dx = dirX * step, dy = dirY * step;
   saveSnapshot();
   var cur = DRAW.outline[idx];
@@ -25929,6 +25954,22 @@ function redrawAll() {
       ctx.fillText(barM+'m',sbX+barPx+5,sbY+4);
       if(DRAW.scaleLabel){ctx.font='9px sans-serif';ctx.fillStyle='#555';ctx.fillText(DRAW.scaleLabel,sbX,sbY-8);}
     }
+  }
+
+  // Corner-reposition highlight — when the Move-corner popup is open, ring
+  // the active corner in yellow so the user can see which corner the arrows
+  // are moving. Skipped during the Job Pack capture.
+  if (window._cornerRepo && window._cornerRepo.idx >= 0 && DRAW.outline &&
+      window._cornerRepo.idx < DRAW.outline.length && !window._matRoofMapHideCanvasBg){
+    try {
+      var _crT = getImgTransform();
+      var _crC = imgToCanvas(DRAW.outline[window._cornerRepo.idx], _crT);
+      ctx.save();
+      ctx.beginPath(); ctx.arc(_crC[0], _crC[1], 11, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(250,204,21,0.30)'; ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = '#facc15'; ctx.stroke();
+      ctx.restore();
+    } catch(e){}
   }
 
   ctx.restore(); // restore dpr scale transform
