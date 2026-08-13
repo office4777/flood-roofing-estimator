@@ -4297,6 +4297,130 @@ function _renderRoofSheetPlanInner() {
   // represent.  (Barge lines exist only on gable topologies.)
   var groups = {};
   try { window._lastSheetSections = []; } catch(e){}
+
+  // ── Simple gable / mono-pitch takeoff (per-face, per-step) ─────────
+  // A straight gable or a mono-pitch (no hips / valleys) is counted by
+  // walking its ridge (gable) or gutter (mono) and shooting rays to the
+  // opposite eave.  Each side of the ridge, and each along-run STEP, is
+  // split into its own constant-depth region → its own length group. This
+  // is what breaks an ASYMMETRIC gable (offset ridge: long face + short
+  // face) and a STEPPED face (one long run + one short run) into separate
+  // sheet lengths in the order, instead of collapsing to one length.
+  function _sgmAvg(a){ return a.reduce(function(x,y){return x+y;},0)/a.length; }
+  // EXACT distance from (px,py) along (dx,dy) to the first outline edge it
+  // crosses — used to measure the sheet run precisely (the coarse stepped
+  // _rayRun quantises to 0.2×cover and would drop the ordered length by up
+  // to 100 mm). Returns Infinity if the ray never leaves the polygon.
+  function _sgmRayDist(px, py, dx, dy){
+    var best = Infinity, n = outline.length;
+    for (var i = 0; i < n; i++){
+      var a = outline[i], b = outline[(i+1)%n];
+      var ex = b[0]-a[0], ey = b[1]-a[1];
+      var den = dx*ey - dy*ex;
+      if (Math.abs(den) < 1e-9) continue;            // parallel
+      var t = ((a[0]-px)*ey - (a[1]-py)*ex) / den;   // distance along the ray
+      var s = ((a[0]-px)*dy - (a[1]-py)*dx) / den;   // param along the edge
+      if (t > 1e-3 && s >= -1e-6 && s <= 1+1e-6 && t < best) best = t;
+    }
+    return best;
+  }
+  function _sgmSplit(uLo, uHi, runAt){
+    var N = 160, regions = [], regStart = uLo, regRuns = [], have = false;
+    for (var i = 0; i <= N; i++){
+      var u = uLo + (uHi-uLo)*(i/N);
+      var run = runAt(u);
+      var ok = (run > coverPx*0.25 && isFinite(run));
+      if (!ok){ if (have && regRuns.length) regions.push({u0:regStart,u1:u,run:_sgmAvg(regRuns)}); have=false; regRuns=[]; continue; }
+      if (!have){ have=true; regStart=u; regRuns=[run]; }
+      else if (Math.abs(run - _sgmAvg(regRuns)) > coverPx*0.9){ regions.push({u0:regStart,u1:u,run:_sgmAvg(regRuns)}); regStart=u; regRuns=[run]; }
+      else regRuns.push(run);
+    }
+    if (have && regRuns.length) regions.push({u0:regStart,u1:uHi,run:_sgmAvg(regRuns)});
+    return regions;
+  }
+  function _enumSimpleGableMono(){
+    var checkSecs = [], isMono = (DRAW.roofType === 'mono');
+    function addGroup(mm, cnt, sec){
+      var key = COL_ORANGE + ':' + mm;
+      if (!groups[key]) groups[key] = { color: COL_ORANGE, orderedMm: mm, count: 0 };
+      groups[key].count += cnt;
+      if (sec) checkSecs.push(sec);
+    }
+    // `run` is SIGNED (which side of the ridge / gutter the face sits on, in
+    // the overlay's P = [-R.y, R.x] axis). obV0/obV1 are ordered low→high so
+    // the overlay's `obV1 > obV0` filter keeps both faces; orderedMm uses the
+    // magnitude so a negative-side face still gets its true length.
+    function mkSec(R, u0, u1, base, run, perSide, total, mono){
+      var v0 = base, v1 = base + run;
+      return { color: COL_ORANGE, perSide: perSide, valleyExtra: 0, total: total,
+        orderedMm: orderedLengthMm(Math.abs(run)*effectiveScale*pitchFactor), isPrimary: true, mono: mono,
+        rdir: R.slice(), obU0: u0, obU1: u1, obV0: Math.min(v0,v1), obV1: Math.max(v0,v1), coverPx: coverPx,
+        outline: (outline||[]).map(function(p){ return p.slice(); }), scaleM: effectiveScale };
+    }
+    if (!isMono){
+      var ridges = DRAW.lines.filter(function(l){ return l && l.type==='ridge' && l.pts && l.pts.length===2; });
+      ridges.forEach(function(rl){
+        var a=rl.pts[0], b=rl.pts[1], rL=Math.hypot(b[0]-a[0], b[1]-a[1]);
+        if (rL < coverPx*0.3) return;
+        var R=[(b[0]-a[0])/rL,(b[1]-a[1])/rL], perp=[-R[1],R[0]];
+        var ridgeP=a[0]*perp[0]+a[1]*perp[1];
+        var uA=a[0]*R[0]+a[1]*R[1], uB=b[0]*R[0]+b[1]*R[1], uLo=Math.min(uA,uB), uHi=Math.max(uA,uB);
+        function ray(u, side){ var x=u*R[0]+ridgeP*perp[0], y=u*R[1]+ridgeP*perp[1]; return _sgmRayDist(x, y, perp[0]*side, perp[1]*side); }
+        var up=_sgmSplit(uLo,uHi,function(u){return ray(u,1);});
+        var dn=_sgmSplit(uLo,uHi,function(u){return ray(u,-1);});
+        // Symmetric fast-path: one region each side, equal run → one classic
+        // two-sided gable section (keeps the red-ridge look in the overlay).
+        var sym = up.length===1 && dn.length===1 &&
+                  Math.abs(up[0].run - dn[0].run) <= coverPx*0.6 &&
+                  Math.abs((up[0].u1-up[0].u0)-(dn[0].u1-dn[0].u0)) <= coverPx*0.6;
+        if (sym){
+          var reg=up[0], wpx=Math.max(reg.u1-reg.u0, dn[0].u1-dn[0].u0);
+          var ps=Math.max(1, Math.ceil(wpx/coverPx - 1e-6));
+          var sec=mkSec(R, reg.u0, reg.u1, ridgeP-reg.run, reg.run, ps, 2*ps, false);
+          sec.obV0=ridgeP-reg.run; sec.obV1=ridgeP+reg.run;   // full two-sided band
+          addGroup(sec.orderedMm, 2*ps, sec); return;
+        }
+        [[up,1],[dn,-1]].forEach(function(pr){
+          pr[0].forEach(function(reg){
+            var wpx=reg.u1-reg.u0; if (wpx < coverPx*0.5) return;
+            var ps=Math.max(1, Math.ceil(wpx/coverPx - 1e-6));
+            addGroup(orderedLengthMm(reg.run*effectiveScale*pitchFactor), ps,
+                     mkSec(R, reg.u0, reg.u1, ridgeP, pr[1]*reg.run, ps, ps, true));
+          });
+        });
+      });
+    } else {
+      var gutters = DRAW.lines.filter(function(l){ return l && l.type==='gutter' && l.pts && l.pts.length===2; });
+      var cx=0, cy=0; outline.forEach(function(p){ cx+=p[0]; cy+=p[1]; }); cx/=outline.length; cy/=outline.length;
+      gutters.forEach(function(g){
+        var a=g.pts[0], b=g.pts[1], gL=Math.hypot(b[0]-a[0], b[1]-a[1]);
+        if (gL < coverPx*0.3) return;
+        // Keep perp on the overlay's P axis; `side` says which way the roof is.
+        var R=[(b[0]-a[0])/gL,(b[1]-a[1])/gL], perp=[-R[1],R[0]];
+        var gm=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+        var side = ((cx-gm[0])*perp[0] + (cy-gm[1])*perp[1]) >= 0 ? 1 : -1;   // into the roof
+        var gutP=a[0]*perp[0]+a[1]*perp[1];
+        var uA=a[0]*R[0]+a[1]*R[1], uB=b[0]*R[0]+b[1]*R[1], uLo=Math.min(uA,uB), uHi=Math.max(uA,uB);
+        function ray(u){ var x=u*R[0]+gutP*perp[0]+perp[0]*side*0.5, y=u*R[1]+gutP*perp[1]+perp[1]*side*0.5; return _sgmRayDist(x, y, perp[0]*side, perp[1]*side); }
+        _sgmSplit(uLo,uHi,ray).forEach(function(reg){
+          var wpx=reg.u1-reg.u0; if (wpx < coverPx*0.5) return;
+          var ps=Math.max(1, Math.ceil(wpx/coverPx - 1e-6));
+          addGroup(orderedLengthMm(reg.run*effectiveScale*pitchFactor), ps,
+                   mkSec(R, reg.u0, reg.u1, gutP, side*reg.run, ps, ps, true));
+        });
+      });
+    }
+    Object.keys(_delByKey).forEach(function(k){ if (groups[k]) groups[k].count = Math.max(0, groups[k].count - _delByKey[k]); });
+    try { window._lastSheetSections = checkSecs; } catch(e){}
+  }
+  var _sgmHasHV = DRAW.lines.some(function(l){ return l && (l.type==='hip' || l.type==='valley'); });
+  var _sgmHasRidge = DRAW.lines.some(function(l){ return l && l.type==='ridge'; });
+  var _sgmHasGutter = DRAW.lines.some(function(l){ return l && l.type==='gutter'; });
+  var _simpleGM = !_sgmHasHV && (
+    (DRAW.roofType==='mono'  && _sgmHasGutter) ||
+    (DRAW.roofType==='gable' && _sgmHasRidge && _sgmHasGutter)
+  );
+  if (_simpleGM) { _enumSimpleGableMono(); } else {
   var secData = [];
   var _isGable = (__hasBarge && outline && outline.length > 4);
   var _gableClusters = _isGable ? _clusterRidges() : null;
@@ -4596,6 +4720,7 @@ function _renderRoofSheetPlanInner() {
     if (groups[k]) groups[k].count = Math.max(0, groups[k].count - _delByKey[k]);
   });
   }
+  }  // end simple-gable/mono gate
   Object.keys(groups).forEach(function(k){ if (groups[k].count <= 0) delete groups[k]; });
   var groupList = Object.keys(groups).map(function(k){ return groups[k]; });
   // Sort: orange first, then blue, then purple. Within colour, longer first.
