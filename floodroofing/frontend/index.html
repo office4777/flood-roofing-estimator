@@ -2703,7 +2703,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div style="background:#e8f4fb;border:1px solid #b3d9f0;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#0a3d5c;display:flex;align-items:center;gap:8px">
   <span style="font-size:16px">💡</span>
   <span><strong>Best workflow:</strong> Upload photo → click <strong>Building outline</strong> → click each corner of the roof perimeter clockwise → press <strong>Enter</strong> to close → then draw internal lines (ridge, valley etc) on top.</span>
-  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13e</span>
+  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13f</span>
 </div>
 <div style="display:flex;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
@@ -31365,6 +31365,10 @@ function _sheetEditPopup(hit){
       (+m.lengthM || 0).toFixed(2)
     );
     if (ans == null) return;
+    // Snapshot BEFORE mutating so Undo reverts exactly this one measure edit
+    // (see undoLast — it restores the most recent undo-stack entry, which must
+    // capture the world as it was before the edit).
+    try { saveSnapshot(); } catch(e){}
     var trimmed = String(ans).trim();
     if (trimmed.toUpperCase() === 'DELETE' || trimmed.toUpperCase() === 'X') {
       DRAW.manualSheetMeasures.splice(hit.manualIdx, 1);
@@ -31372,7 +31376,6 @@ function _sheetEditPopup(hit){
       var v = parseFloat(trimmed);
       if (isFinite(v) && v >= 0) m.lengthM = v;
     }
-    try { saveSnapshot(); } catch(e){}
     try { redrawAll(); } catch(e){}
     // Re-tile + rebuild the cut list so the ROOF SHEETS list follows the
     // edited (or deleted) black-arrow measure — _applyManualMeasuresToFaces
@@ -31386,6 +31389,10 @@ function _sheetEditPopup(hit){
   var newLen = window.prompt(promptMsg, current.replace(/m$/, ''));
   if (newLen == null) return;
   var clean = String(newLen).trim();
+  // Snapshot BEFORE mutating the override + barge measures so Undo reverts
+  // exactly this one face edit. Without this the edit left no undo entry, so
+  // Undo popped an older snapshot and wiped every measure on the map.
+  try { saveSnapshot(); } catch(e){}
   if (!DRAW.sheetOverrides) DRAW.sheetOverrides = {};
   if (clean.toUpperCase() === 'DELETE' || clean.toUpperCase() === 'X') {
     // Sentinel value below 0 marks "hidden" — _collectSheetDimsFor
