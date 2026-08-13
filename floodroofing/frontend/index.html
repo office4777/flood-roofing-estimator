@@ -2703,7 +2703,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div style="background:#e8f4fb;border:1px solid #b3d9f0;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#0a3d5c;display:flex;align-items:center;gap:8px">
   <span style="font-size:16px">💡</span>
   <span><strong>Best workflow:</strong> Upload photo → click <strong>Building outline</strong> → click each corner of the roof perimeter clockwise → press <strong>Enter</strong> to close → then draw internal lines (ridge, valley etc) on top.</span>
-  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13f</span>
+  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13g</span>
 </div>
 <div style="display:flex;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
@@ -2733,6 +2733,30 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <span></span><button onclick="_cornerRepoNudge(0,1)" class="crn-btn" title="Down 0.01m">▼</button><span></span>
         </div>
         <div style="font-size:9.5px;color:rgba(255,255,255,.6);padding:0 9px 9px;text-align:center;line-height:1.4">Keyboard arrows work too. You can still drag the corner.</div>
+      </div>
+      <!-- Sheet-length measure editor — click a sheet-length label in Move
+           mode to open. Small floating window (positioned so it doesn't cover
+           the label) to change the length, resize the text, or delete the
+           measure. Draggable by its header; ✕ / Escape / click-elsewhere close. -->
+      <div id="sheetMeasPopup" class="no-print" style="display:none;position:fixed;z-index:2000;left:160px;top:160px;width:212px;background:#0a1628;border:1px solid #10233c;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.38);font-family:Inter,-apple-system,sans-serif">
+        <div id="sheetMeasHdr" style="display:flex;align-items:center;gap:6px;padding:8px 10px;cursor:move;border-bottom:1px solid rgba(255,255,255,.12);touch-action:none">
+          <span style="font-size:12px;line-height:1">📏</span>
+          <span style="font-size:11px;font-weight:700;color:#fff">Sheet length</span>
+          <button onclick="_closeSheetMeasPopup()" title="Close" style="background:none;border:none;color:#cbd5e1;font-size:14px;line-height:1;cursor:pointer;padding:0 2px;margin-left:auto">✕</button>
+        </div>
+        <div style="padding:10px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <input id="sheetMeasInput" type="number" step="0.01" min="0" onkeydown="if(event.key==='Enter'){event.preventDefault();_sheetMeasApplyLen();}" style="flex:1;min-width:0;font-size:13px;padding:6px 7px;border-radius:6px;border:1px solid #24405f;background:#0f1f38;color:#fff" />
+            <span style="font-size:12px;color:#9fb4cc">m</span>
+            <button onclick="_sheetMeasApplyLen()" style="font-size:12px;font-weight:700;color:#0a1628;background:#7fd4ff;border:none;border-radius:6px;padding:6px 11px;cursor:pointer">Set</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:10px">
+            <span style="font-size:10.5px;color:#9fb4cc;margin-right:auto">Text size</span>
+            <button onclick="_sheetMeasResize(0.85)" title="Smaller text" style="width:32px;height:27px;font-size:12px;font-weight:700;color:#fff;background:#173154;border:1px solid #24405f;border-radius:6px;cursor:pointer">A−</button>
+            <button onclick="_sheetMeasResize(1.18)" title="Bigger text" style="width:32px;height:27px;font-size:15px;font-weight:700;color:#fff;background:#173154;border:1px solid #24405f;border-radius:6px;cursor:pointer">A+</button>
+          </div>
+          <button onclick="_sheetMeasDelete()" style="width:100%;margin-top:11px;font-size:11.5px;font-weight:600;color:#fff;background:#b91c1c;border:none;border-radius:6px;padding:8px;cursor:pointer">🗑 Delete this measure</button>
+        </div>
       </div>
       <!-- Context menu -->
       <div id="ctxMenu" style="display:none;position:fixed;background:#fff;border:1px solid #ddd;border-radius:8px;padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:999;min-width:140px">
@@ -22044,7 +22068,9 @@ document.addEventListener('keydown', function(e){
   var inField = ae && (ae.tagName==='INPUT' || ae.tagName==='TEXTAREA' || ae.isContentEditable);
   if(e.key==='Enter' && !inField){ e.preventDefault(); finishCurrent(); return; }
   if(e.key==='Escape'){
-    // If the corner reposition popup is open, Escape closes it first.
+    // If the sheet-measure editor is open, Escape closes it first.
+    var _smp=document.getElementById('sheetMeasPopup'); if(_smp && _smp.style.display!=='none'){ e.preventDefault(); _closeSheetMeasPopup(); return; }
+    // If the corner reposition popup is open, Escape closes it next.
     if(window._cornerRepo && window._cornerRepo.idx>=0){ var _crp=document.getElementById('cornerRepoPopup'); if(_crp && _crp.style.display!=='none'){ e.preventDefault(); _closeCornerRepo(); return; } }
     DRAW.currentPts=[]; redrawAll(); return;
   }
@@ -23695,6 +23721,8 @@ function onCanvasClick(e) {
     // so they need first-pick to avoid the underlying line selecting.
     var hitFL = _roofCanvasHitLetterOrSheet(e);
     if (hitFL) { return; }
+    // Clicked somewhere that isn't a sheet-length label → dismiss the editor.
+    try { _closeSheetMeasPopup(); } catch(e){}
     var hitS = hitSection(xy[0],xy[1]);
     var hitL = hitLine(xy[0],xy[1]);
     var hitP = hitPen(xy[0],xy[1]);
@@ -24611,6 +24639,7 @@ function _captureSnapState() {
     sheetGroupOverrides: DRAW.sheetGroupOverrides || {},
     sheetGroupQtyOverrides: DRAW.sheetGroupQtyOverrides || {},
     sheetLabelOffsets: DRAW.sheetLabelOffsets || {},
+    sheetTextScale: DRAW.sheetTextScale || {},
     manualSheetMeasures: DRAW.manualSheetMeasures || [],
     sheetOverrides: DRAW.sheetOverrides || {},
     matSheetExtras: DRAW.matSheetExtras || [],
@@ -24647,6 +24676,7 @@ function _applySnapState(snapStr) {
   DRAW.sheetGroupOverrides = s.sheetGroupOverrides || {};
   DRAW.sheetGroupQtyOverrides = s.sheetGroupQtyOverrides || {};
   DRAW.sheetLabelOffsets = s.sheetLabelOffsets || {};
+  DRAW.sheetTextScale = s.sheetTextScale || {};
   DRAW.manualSheetMeasures = s.manualSheetMeasures || [];
   DRAW.sheetOverrides = s.sheetOverrides || {};
   DRAW.matSheetExtras = s.matSheetExtras || [];
@@ -25654,7 +25684,10 @@ function redrawAll() {
       // the longest-sheet font, so a small drawn span doesn't shrink
       // the label below the auto-labelled sheets next to it.
       var ratio  = d.fullSize ? 1 : (d.sdl / _maxSdl);       // 0..1 (1 = longest sheet)
-      var fontPx = Math.max(7, _shAutoBase * ratio) * _shTextScale;    // user-multiplied size
+      // Per-measure text size — set from the sheet-length editor's A− / A+
+      // buttons, keyed by the same run key as the hit box. 1 = default.
+      var _perScale = (DRAW.sheetTextScale && DRAW.sheetTextScale[d.key]) || 1;
+      var fontPx = Math.max(7, _shAutoBase * ratio) * _shTextScale * _perScale;    // user-multiplied size
       var af     = fontPx / 10;                              // arrow scale tracks the font
       ctx.font = '600 ' + fontPx.toFixed(1) + 'px Inter, -apple-system, sans-serif';
       ctx.lineJoin = 'round';
@@ -27875,7 +27908,7 @@ function _roofCanvasHitLetterOrSheet(ev){
         && cy >= (h.y - h.h/2) && cy <= (h.y + h.h/2);
   }
   for (var j = 0; j < hits.sheets.length; j++) {
-    if (inBox(hits.sheets[j])) { _sheetEditPopup(hits.sheets[j]); return true; }
+    if (inBox(hits.sheets[j])) { _sheetEditPopup(hits.sheets[j], ev); return true; }
   }
   return false;
 }
@@ -31150,7 +31183,7 @@ function renderMatRoofMap(){
     var d = window._matRoofMapDrag;
     if (d && d.moved) { window._matRoofMapDrag = null; return; }
     var p = _mxy(ev);
-    _matRoofMapHandleClick(p[0], p[1]);
+    _matRoofMapHandleClick(p[0], p[1], ev);
   };
   _matRoofMapSetupGlobalDrag();
 }
@@ -31286,7 +31319,7 @@ function _drawFlashLetterOverlaysOn(ctx, cssW, cssH){
 // boxes (CSS-pixel space). Letters come from the on-mat-canvas overlay
 // pass; sheets come from the global redrawAll stash. First letters,
 // then sheets — letters sit on top.
-function _matRoofMapHandleClick(cx, cy){
+function _matRoofMapHandleClick(cx, cy, ev){
   var canvas = document.getElementById('matRoofMapCanvas');
   var letterHits = (canvas && canvas._letterHits) || [];
   var sheetHits  = (canvas && canvas._sheetHits)  || (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
@@ -31298,7 +31331,7 @@ function _matRoofMapHandleClick(cx, cy){
     if (inBox(letterHits[i])) { _flashEditPopup(letterHits[i]); return; }
   }
   for (var j = 0; j < sheetHits.length; j++) {
-    if (inBox(sheetHits[j])) { _sheetEditPopup(sheetHits[j]); return; }
+    if (inBox(sheetHits[j])) { _sheetEditPopup(sheetHits[j], ev); return; }
   }
 }
 
@@ -31350,53 +31383,39 @@ function _flashEditPopup(hit){
 // Edit popup for a sheet-length label. The key encodes a (ridge,
 // perpendicular-side) pair; the value is a per-side length override in
 // metres, stashed on DRAW.sheetOverrides. Blank = revert to auto.
-function _sheetEditPopup(hit){
+// Apply a length edit to ONE sheet-length measure (manual black-arrow tag or
+// an auto face label). `raw` is the metres string, '' (auto labels → revert to
+// auto), or 'DELETE'/'X' (hide / remove). Snapshots before mutating so Undo
+// reverts exactly this edit, then re-renders every consumer. Returns nothing.
+function _applySheetMeasureChange(hit, raw){
   if (!hit || !hit.key) return;
-  var current = hit.label || '';
-  // Manual sheet measures (placed via the Sheet measure tool) live in
-  // DRAW.manualSheetMeasures — click to edit length, type DELETE to
-  // remove the whole tag.
+  var clean = String(raw == null ? '' : raw).trim();
+  var isDelete = (clean.toUpperCase() === 'DELETE' || clean.toUpperCase() === 'X');
+  // Manual sheet measures live in DRAW.manualSheetMeasures.
   if (typeof hit.manualIdx === 'number' && Array.isArray(DRAW.manualSheetMeasures)) {
     var m = DRAW.manualSheetMeasures[hit.manualIdx];
     if (!m) return;
-    var ans = window.prompt(
-      'Sheet measure currently ' + current + '.\n\n' +
-      'Enter a new length in metres, or type DELETE to remove this measure.',
-      (+m.lengthM || 0).toFixed(2)
-    );
-    if (ans == null) return;
-    // Snapshot BEFORE mutating so Undo reverts exactly this one measure edit
-    // (see undoLast — it restores the most recent undo-stack entry, which must
-    // capture the world as it was before the edit).
     try { saveSnapshot(); } catch(e){}
-    var trimmed = String(ans).trim();
-    if (trimmed.toUpperCase() === 'DELETE' || trimmed.toUpperCase() === 'X') {
+    if (isDelete) {
       DRAW.manualSheetMeasures.splice(hit.manualIdx, 1);
-    } else {
-      var v = parseFloat(trimmed);
+      if (DRAW.sheetTextScale) delete DRAW.sheetTextScale[hit.key];
+    } else if (clean !== '') {
+      var v = parseFloat(clean);
       if (isFinite(v) && v >= 0) m.lengthM = v;
     }
     try { redrawAll(); } catch(e){}
-    // Re-tile + rebuild the cut list so the ROOF SHEETS list follows the
-    // edited (or deleted) black-arrow measure — _applyManualMeasuresToFaces
-    // stamps the plane this measure sits on.
     try { renderRoofSheetPlan(); } catch(e){}
-    try { renderJobPack(); } catch(e){}
+    try { renderMatRoofMap(); } catch(e){}
+    try { renderMaterialsCutLists(); } catch(e){}
+    try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
     return;
   }
-  var promptMsg = 'Sheet length for this face is currently ' + current + '.\n\n' +
-    'Enter a new length in metres, type DELETE to hide this auto label, or leave blank to revert to auto.';
-  var newLen = window.prompt(promptMsg, current.replace(/m$/, ''));
-  if (newLen == null) return;
-  var clean = String(newLen).trim();
-  // Snapshot BEFORE mutating the override + barge measures so Undo reverts
-  // exactly this one face edit. Without this the edit left no undo entry, so
-  // Undo popped an older snapshot and wiped every measure on the map.
+  // Auto face label.
+  var current = hit.label || '';
   try { saveSnapshot(); } catch(e){}
   if (!DRAW.sheetOverrides) DRAW.sheetOverrides = {};
-  if (clean.toUpperCase() === 'DELETE' || clean.toUpperCase() === 'X') {
-    // Sentinel value below 0 marks "hidden" — _collectSheetDimsFor
-    // checks for this and skips the label entirely.
+  if (isDelete) {
+    // Sentinel value below 0 marks "hidden" — _collectSheetDimsFor skips it.
     DRAW.sheetOverrides[hit.key] = -1;
   } else if (clean === '') {
     delete DRAW.sheetOverrides[hit.key];
@@ -31415,9 +31434,8 @@ function _sheetEditPopup(hit){
       } catch(e){}
     }
   }
-  // Also clear any group-level override keyed by the previous ordered
-  // length — the face-side override now wins and we don't want a
-  // stale group remap papering over it.
+  // Also clear any group-level override keyed by the previous ordered length —
+  // the face-side override now wins and we don't want a stale group remap.
   try {
     if (DRAW.sheetGroupOverrides) {
       var prevM = parseFloat(current.replace(/m$/, ''));
@@ -31432,10 +31450,100 @@ function _sheetEditPopup(hit){
   try { renderRoofSheetPlan(); } catch(e){}
   try { renderMatRoofMap(); } catch(e){}
   try { renderMaterialsCutLists(); } catch(e){}
-  // Refresh the Job Pack too — its ROOF SHEETS cut list reads the same
-  // sheet counts, so the manual length has to flow through here as well.
   try { if (typeof renderJobPack === 'function') renderJobPack(); } catch(e){}
 }
+
+// Bump the per-measure text size (A− / A+ in the editor). factor < 1 shrinks,
+// > 1 grows; clamped to a sane range. Snapshots so Undo reverts the resize.
+function _sheetMeasResize(factor){
+  var hit = window._sheetMeasEdit && window._sheetMeasEdit.hit;
+  if (!hit || !hit.key) return;
+  if (!DRAW.sheetTextScale) DRAW.sheetTextScale = {};
+  var cur = DRAW.sheetTextScale[hit.key] || 1;
+  var next = Math.max(0.4, Math.min(4, cur * factor));
+  try { saveSnapshot(); } catch(e){}
+  DRAW.sheetTextScale[hit.key] = next;
+  try { redrawAll(); } catch(e){}
+  try { renderMatRoofMap(); } catch(e){}
+}
+
+// Apply the length typed into the editor's input (keeps the popup open).
+function _sheetMeasApplyLen(){
+  var hit = window._sheetMeasEdit && window._sheetMeasEdit.hit;
+  if (!hit) return;
+  var inp = document.getElementById('sheetMeasInput');
+  _applySheetMeasureChange(hit, inp ? inp.value : '');
+  _closeSheetMeasPopup();
+}
+// Delete / hide this measure from the editor.
+function _sheetMeasDelete(){
+  var hit = window._sheetMeasEdit && window._sheetMeasEdit.hit;
+  if (!hit) return;
+  _applySheetMeasureChange(hit, 'DELETE');
+  _closeSheetMeasPopup();
+}
+function _closeSheetMeasPopup(){
+  window._sheetMeasEdit = { hit: null };
+  var pop = document.getElementById('sheetMeasPopup'); if (pop) pop.style.display = 'none';
+}
+// Position the editor near the clicked measure WITHOUT covering it. `ev` (the
+// click event) anchors it; falls back to the measure's canvas position.
+function _openSheetMeasPopup(hit, ev){
+  var pop = document.getElementById('sheetMeasPopup'); if (!pop) return;
+  window._sheetMeasEdit = { hit: hit };
+  var inp = document.getElementById('sheetMeasInput');
+  if (inp){
+    var m = parseFloat(String(hit.label || '').replace(/m$/, ''));
+    inp.value = isFinite(m) ? (+m).toFixed(2) : '';
+  }
+  pop.style.display = 'block';
+  // Anchor point = where the label sits on screen.
+  var ax, ay;
+  if (ev && ev.clientX != null){ ax = ev.clientX; ay = ev.clientY; }
+  else {
+    try {
+      var cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect();
+      var dpr = window.devicePixelRatio || 1;
+      ax = r.left + (hit.x * dpr) * (r.width  / cv.width);
+      ay = r.top  + (hit.y * dpr) * (r.height / cv.height);
+    } catch(e){ ax = 200; ay = 200; }
+  }
+  var popW = pop.offsetWidth || 212, popH = pop.offsetHeight || 170;
+  var gap = 22;
+  // Prefer to the right of the label; flip left if it would overflow.
+  var left = ax + gap;
+  if (left + popW > window.innerWidth - 8) left = ax - popW - gap;
+  if (left < 8) left = 8;
+  var top = ay - 12;
+  if (top + popH > window.innerHeight - 8) top = window.innerHeight - popH - 8;
+  if (top < 64) top = 64;
+  pop.style.left = left + 'px';
+  pop.style.top  = top  + 'px';
+}
+// Entry point (click on a sheet-length label). `ev` optional (positions popup).
+function _sheetEditPopup(hit, ev){
+  if (!hit || !hit.key) return;
+  _openSheetMeasPopup(hit, ev);
+}
+// Drag the sheet-measure editor by its header; Escape / click-away close it.
+(function(){
+  function init(){
+    var hdr = document.getElementById('sheetMeasHdr'); if (!hdr) return;
+    hdr.addEventListener('pointerdown', function(e){
+      if (e.target.closest('button')) return;
+      e.preventDefault();
+      var pop = document.getElementById('sheetMeasPopup'); if (!pop) return;
+      var r = pop.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top;
+      function mv(ev){
+        pop.style.left = Math.max(4, Math.min(window.innerWidth  - 40, ev.clientX - ox)) + 'px';
+        pop.style.top  = Math.max(4, Math.min(window.innerHeight - 40, ev.clientY - oy)) + 'px';
+      }
+      function up(){ window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); }
+      window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
 
 // Group-level override of ordered sheet length. Triggered by the
 // inline edit cells in the Materials "Roof sheets" cut list and the
