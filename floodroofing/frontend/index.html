@@ -25388,6 +25388,14 @@ function redrawAll() {
     }
     function _collectSheetDimsFor(outline, lines, sink, ownerRoofIdx){
       if (!outline || outline.length < 3 || !lines || !lines.length) return;
+      // Per-roof pitch: a NON-active roof in show-all keeps its OWN pitch, not
+      // the active roof's, so its sheet-length labels match its own cut list.
+      var _rPitch = _pitch;
+      if (typeof ownerRoofIdx === 'number' && ownerRoofIdx !== DRAW.activeRoofIdx
+          && DRAW.roofs && DRAW.roofs[ownerRoofIdx] && DRAW.roofs[ownerRoofIdx].calPitch != null) {
+        _rPitch = DRAW.roofs[ownerRoofIdx].calPitch || 0;
+      }
+      var _rPitchF = (_rPitch > 0 && _rPitch < 80) ? (1 / Math.cos(_rPitch * Math.PI / 180)) : 1;
       var gutters = lines.filter(function(g){ return g && g.type === 'gutter' && g.pts && g.pts.length === 2; });
       if (!gutters.length) return;
       lines.forEach(function(rl){
@@ -25484,7 +25492,7 @@ function redrawAll() {
             var endImgX = srcx + dx*bestPerp, endImgY = srcy + dy*bestPerp;
             var lblImgX = srcx + dx*bestPerp*0.5, lblImgY = srcy + dy*bestPerp*0.5;
             if (!_pointInPoly(lblImgX, lblImgY, outline)) return;
-            var autoSheetM = _calibratedSheetM(bestPerp * (DRAW.scaleMetresPerPx || 0) * _pitchF);
+            var autoSheetM = _calibratedSheetM(bestPerp * (DRAW.scaleMetresPerPx || 0) * _rPitchF);
             // Face-based key (gutter + into-face direction) PLUS the
             // source ridge's midpoint hash, so two ridges that drop
             // perpendicular onto the same gutter on the same face get

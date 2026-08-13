@@ -220,12 +220,15 @@ function _renderRoofSheetPlanInner() {
   var SHORT_MM = 3900;
   var LONG_MM  = 7650;
   function orderedLengthMm(sheetMetres) {
-    var mm = Math.ceil(sheetMetres * 1000 + 50);  // +50mm trim
-    // Round up to the nearest 100mm — roofing iron is cut-to-order
-    // at the supplier so there's no benefit to forcing every sheet
-    // into a SHORT (3900mm) or LONG (7650mm) standard length. Min
-    // 1000mm to leave enough material for endlap.
-    return Math.max(1000, Math.ceil(mm / 100) * 100);
+    // The ordered / cut sheet length MUST equal the roof-map sheet label —
+    // the calibrated slope run MINUS the display inset, to the millimetre.
+    // Previously this added +50 mm trim and rounded UP to the nearest 100 mm,
+    // so the cut list read longer than the map (e.g. map 2.833 m vs order
+    // 3.00 m). Roofing iron is cut-to-order, so we order the exact length the
+    // map shows. SHEET_LENGTH_INSET_M is the same inset _calibratedSheetM
+    // subtracts for the on-canvas label, so the two always agree.
+    var inset = (typeof SHEET_LENGTH_INSET_M === 'number') ? SHEET_LENGTH_INSET_M : 0.04;
+    return Math.max(1, Math.round((sheetMetres - inset) * 1000));
   }
 
   // ── Geometry helpers ───────────────────────────────────────────
@@ -4401,7 +4404,7 @@ function _renderRoofSheetPlanInner() {
         var side = ((cx-gm[0])*perp[0] + (cy-gm[1])*perp[1]) >= 0 ? 1 : -1;   // into the roof
         var gutP=a[0]*perp[0]+a[1]*perp[1];
         var uA=a[0]*R[0]+a[1]*R[1], uB=b[0]*R[0]+b[1]*R[1], uLo=Math.min(uA,uB), uHi=Math.max(uA,uB);
-        function ray(u){ var x=u*R[0]+gutP*perp[0]+perp[0]*side*0.5, y=u*R[1]+gutP*perp[1]+perp[1]*side*0.5; return _sgmRayDist(x, y, perp[0]*side, perp[1]*side); }
+        function ray(u){ var x=u*R[0]+gutP*perp[0], y=u*R[1]+gutP*perp[1]; return _sgmRayDist(x, y, perp[0]*side, perp[1]*side); }
         _sgmSplit(uLo,uHi,ray).forEach(function(reg){
           var wpx=reg.u1-reg.u0; if (wpx < coverPx*0.5) return;
           var ps=Math.max(1, Math.ceil(wpx/coverPx - 1e-6));
