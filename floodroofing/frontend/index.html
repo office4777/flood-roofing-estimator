@@ -2703,7 +2703,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div style="background:#e8f4fb;border:1px solid #b3d9f0;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#0a3d5c;display:flex;align-items:center;gap:8px">
   <span style="font-size:16px">💡</span>
   <span><strong>Best workflow:</strong> Upload photo → click <strong>Building outline</strong> → click each corner of the roof perimeter clockwise → press <strong>Enter</strong> to close → then draw internal lines (ridge, valley etc) on top.</span>
-  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13i</span>
+  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13j</span>
 </div>
 <div style="display:flex;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
@@ -10673,8 +10673,8 @@ function defaultQuote(){
     // Roof material markup / safety buffer (%, default 5).
     roofMaterialMarkup: 5,
     // Proposal roof-map display size on the inclusions page — 'sm' | 'md' |
-    // 'lg'. Office-set, persists to the customer link. Default medium.
-    roofMapSize: 'md',
+    // 'lg'. Office-set, persists to the customer link. Default large.
+    roofMapSize: 'lg',
     // Free "Word-style" layout for the inclusions page. When enabled the roof
     // map, the "What's included" scope and the notes each become a movable /
     // resizable box positioned inside the A4 page. Geometry is stored per box
@@ -13616,8 +13616,8 @@ function _setRoofMode(i, mode){
 // Proposal roof-map size on the inclusions page. 'sm' | 'md' | 'lg' — drives
 // the map image max-height. Office-set, persists to the customer link.
 function _qpRoofMapSize(){
-  var s = (window.S && S.quote && S.quote.roofMapSize) || 'md';
-  return (s === 'sm' || s === 'lg') ? s : 'md';
+  var s = (window.S && S.quote && S.quote.roofMapSize) || 'lg';
+  return (s === 'sm' || s === 'md') ? s : 'lg';
 }
 function _qpRoofMapMaxH(){
   return ({ sm: 150, md: 240, lg: 360 })[_qpRoofMapSize()] || 240;
