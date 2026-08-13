@@ -25424,8 +25424,10 @@ function redrawAll() {
         }
         if (t !== 'ridge' && t !== 'apron' && t !== 'changepitch' && !_monoHigh) return;
         // Skip Dutch-gable gablet flashings (apron sharing a line with its
-        // barge) — they aren't mono-pitch high-edges.
-        if (t === 'apron' && _hasCollinearSibling(rl, lines)) return;
+        // barge) — EXCEPT the head apron the Dutch builder lays across each
+        // gablet base: that IS the high edge the hip-end sheets run up to, so
+        // it must seed the end short-sheet dimension (gutter→gablet base).
+        if (t === 'apron' && rl.subtype !== 'head' && _hasCollinearSibling(rl, lines)) return;
         var ra = rl.pts[0], rb = rl.pts[1];
         var rdx = rb[0]-ra[0], rdy = rb[1]-ra[1];
         var rL  = Math.sqrt(rdx*rdx + rdy*rdy);
@@ -25434,8 +25436,17 @@ function redrawAll() {
         var ppx = -ruy, ppy = rux;
         var rmx = (ra[0]+rb[0])/2, rmy = (ra[1]+rb[1])/2;
         var rAng = Math.atan2(rdy, rdx);
+        // A Dutch head apron (gablet base) is a high edge on ONE side only —
+        // the hip end faces OUTWARD toward the near end eave. The inward side
+        // is the main roof (already covered by the ridge faces), and seeding
+        // it produces a phantom full-length run. Restrict head aprons to the
+        // outward side (away from the roof centroid).
+        var _headApron = (t === 'apron' && rl.subtype === 'head');
+        var _ocx = 0, _ocy = 0;
+        if (_headApron){ outline.forEach(function(p){ _ocx += p[0]; _ocy += p[1]; }); _ocx /= outline.length; _ocy /= outline.length; }
         [1, -1].forEach(function(sgn){
           var dx = ppx*sgn, dy = ppy*sgn;
+          if (_headApron && ((rmx - _ocx) * dx + (rmy - _ocy) * dy) <= 0) return;   // inward → skip
           // Gather EVERY gutter on this side that runs parallel to the
           // ridge and overlaps its span. A stepped eave (an L / T, or a
           // gable with a bump-out) drops to gutters at several depths —

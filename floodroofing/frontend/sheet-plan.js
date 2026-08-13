@@ -4342,7 +4342,7 @@ function _renderRoofSheetPlanInner() {
     return regions;
   }
   function _enumSimpleGableMono(){
-    var checkSecs = [], isMono = (DRAW.roofType === 'mono');
+    var checkSecs = [], isMono = (DRAW.roofType === 'mono'), isDutch = (DRAW.roofType === 'dutch');
     function addGroup(mm, cnt, sec){
       var key = COL_ORANGE + ':' + mm;
       if (!groups[key]) groups[key] = { color: COL_ORANGE, orderedMm: mm, count: 0 };
@@ -4413,15 +4413,51 @@ function _renderRoofSheetPlanInner() {
         });
       });
     }
+    if (isDutch){
+      // Dutch gable: the ridge walk above counts the main slopes over the
+      // ridge (centre gable). Each hip END below a gablet is a short-sheet
+      // face: high edge = the head apron across the gablet base, low edge =
+      // the near end eave. Count = end-eave length / cover; sheet length =
+      // eave→apron perpendicular (the "gutter to barge" run, same value the
+      // map now shows).
+      var _cx=0,_cy=0; outline.forEach(function(p){_cx+=p[0];_cy+=p[1];}); _cx/=outline.length; _cy/=outline.length;
+      var _guts = DRAW.lines.filter(function(l){ return l && l.type==='gutter' && l.pts && l.pts.length===2; });
+      DRAW.lines.filter(function(l){ return l && l.type==='apron' && l.subtype==='head' && l.pts && l.pts.length===2; }).forEach(function(ap){
+        var a=ap.pts[0], b=ap.pts[1], aL=Math.hypot(b[0]-a[0],b[1]-a[1]); if(aL<coverPx*0.3) return;
+        var R=[(b[0]-a[0])/aL,(b[1]-a[1])/aL], perp=[-R[1],R[0]];
+        var am=[(a[0]+b[0])/2,(a[1]+b[1])/2], apP=a[0]*perp[0]+a[1]*perp[1];
+        var outS=((am[0]-_cx)*perp[0]+(am[1]-_cy)*perp[1])>=0?1:-1;   // outward = away from centre
+        var best=null, bestPD=Infinity;
+        _guts.forEach(function(g){
+          var ga=g.pts[0], gb=g.pts[1], gL=Math.hypot(gb[0]-ga[0],gb[1]-ga[1]); if(gL<coverPx*0.3) return;
+          if (Math.abs(((gb[0]-ga[0])/gL)*R[0] + ((gb[1]-ga[1])/gL)*R[1]) < 0.85) return;   // not parallel to apron
+          var gm=[(ga[0]+gb[0])/2,(ga[1]+gb[1])/2];
+          var pd=((gm[0]-am[0])*perp[0]+(gm[1]-am[1])*perp[1])*outS;   // outward perpendicular distance
+          if (pd<=coverPx*0.2) return;
+          if (pd<bestPD){ bestPD=pd; best=g; }
+        });
+        if(!best) return;
+        var eaveLen=Math.hypot(best.pts[1][0]-best.pts[0][0], best.pts[1][1]-best.pts[0][1]);
+        var ps=Math.max(1, Math.ceil(eaveLen/coverPx - 1e-6));
+        var uMin=Math.min(a[0]*R[0]+a[1]*R[1], b[0]*R[0]+b[1]*R[1]);
+        var uMax=Math.max(a[0]*R[0]+a[1]*R[1], b[0]*R[0]+b[1]*R[1]);
+        addGroup(orderedLengthMm(bestPD*effectiveScale*pitchFactor), ps,
+                 mkSec(R, uMin, uMax, apP, outS*bestPD, ps, ps, true));
+      });
+    }
     Object.keys(_delByKey).forEach(function(k){ if (groups[k]) groups[k].count = Math.max(0, groups[k].count - _delByKey[k]); });
     try { window._lastSheetSections = checkSecs; } catch(e){}
   }
   var _sgmHasHV = DRAW.lines.some(function(l){ return l && (l.type==='hip' || l.type==='valley'); });
   var _sgmHasRidge = DRAW.lines.some(function(l){ return l && l.type==='ridge'; });
   var _sgmHasGutter = DRAW.lines.some(function(l){ return l && l.type==='gutter'; });
-  var _simpleGM = !_sgmHasHV && (
+  var _simpleGM = (!_sgmHasHV && (
     (DRAW.roofType==='mono'  && _sgmHasGutter) ||
     (DRAW.roofType==='gable' && _sgmHasRidge && _sgmHasGutter)
+  )) || (
+    // Dutch gable keeps its hips, but its centre is a plain gable and its
+    // ends are short hip faces the enumerator handles explicitly.
+    DRAW.roofType==='dutch' && _sgmHasRidge && _sgmHasGutter
   );
   if (_simpleGM) { _enumSimpleGableMono(); } else {
   var secData = [];
