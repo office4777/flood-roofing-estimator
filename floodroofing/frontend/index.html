@@ -1238,29 +1238,32 @@ html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!impo
   font-size:10px; font-weight:500; color:var(--text2);
   letter-spacing:0; text-transform:none;
 }
+/* Scroll box + big-picture grid — mirrors the Map Roof photos pop-out
+   (#fergusRoofPhotoScroll / #fergusRoofPhotoGrid) so the Maps panel shows
+   full-width pictures with the same zoom behaviour. */
+#jpMapPanelScroll{ flex:1; overflow:auto; padding:10px 12px 16px 18px; -webkit-overflow-scrolling:touch; }
 #jpMapPanelList{
-  flex:1; overflow-y:auto; padding:8px 10px;
-  display:flex; flex-direction:column; gap:8px;
+  width:100%; display:grid; grid-template-columns:1fr; gap:12px; align-content:start;
 }
 .jp-map-thumb{
-  border:1px solid #e5e7eb; border-radius:6px;
-  padding:6px; background:#fafafa; cursor:grab;
-  display:flex; flex-direction:column; gap:4px;
+  border:1px solid #e5e7eb; border-radius:8px;
+  padding:8px; background:#fafafa; cursor:grab;
+  display:flex; flex-direction:column; gap:6px;
   transition:border-color .12s;
 }
 .jp-map-thumb:hover{ border-color:#0099cc; background:#f0f9ff; }
 .jp-map-thumb:active{ cursor:grabbing; }
 .jp-map-thumb img, .jp-map-thumb canvas, .jp-map-thumb svg{
-  width:100%; height:84px; object-fit:contain;
-  background:#fff; border-radius:4px;
+  width:100%; height:auto; object-fit:contain;
+  background:#fff; border-radius:5px;
   pointer-events:none; display:block;
 }
 .jp-map-thumb .jp-map-label{
-  font-size:10.5px; font-weight:600; color:#0a1628;
+  font-size:12px; font-weight:600; color:#0a1628;
   display:flex; justify-content:space-between; align-items:center;
 }
 .jp-map-thumb .jp-map-label small{
-  font-size:9px; color:var(--text2); font-weight:500;
+  font-size:10.5px; color:var(--text2); font-weight:500;
 }
 /* Drop zones on pages */
 .jp-page.jp-drop-active{
@@ -2703,7 +2706,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div style="background:#e8f4fb;border:1px solid #b3d9f0;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#0a3d5c;display:flex;align-items:center;gap:8px">
   <span style="font-size:16px">💡</span>
   <span><strong>Best workflow:</strong> Upload photo → click <strong>Building outline</strong> → click each corner of the roof perimeter clockwise → press <strong>Enter</strong> to close → then draw internal lines (ridge, valley etc) on top.</span>
-  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13m</span>
+  <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13n</span>
 </div>
 <div style="display:flex;gap:0;width:100%;position:relative">
       <div class="canvas-wrap" style="position:relative;padding:0;overflow:hidden;user-select:none;background:#f0f2f5;line-height:0;flex:1" id="canvasWrap">
@@ -3276,12 +3279,21 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <span class="jp-mp-text">MAPS</span>
     </button>
     <div id="jpMapPanelResize" onpointerdown="_sidepopResizeStart(event,this.parentNode)" title="Drag to resize"></div>
-    <div class="jp-map-hd">
-      <span>📂 Maps</span>
-      <small style="margin-left:auto">drag onto a page</small>
+    <div class="jp-map-hd" style="flex-direction:column;align-items:stretch;gap:9px;padding-bottom:11px">
+      <div style="display:flex;align-items:center;gap:9px">
+        <span>📂 Maps</span>
+        <small style="margin-left:auto">drag onto a page</small>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <span style="font-size:11px;color:var(--text2);white-space:nowrap;font-weight:500">🔍 Zoom</span>
+        <input id="jpMapPanelZoom" type="range" min="100" max="400" step="10" value="100" oninput="_jpMapPanelZoom(this.value)" style="flex:1;accent-color:#0099cc">
+        <span id="jpMapPanelZoomOut" style="font-size:11px;color:#0a1628;min-width:38px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600">100%</span>
+      </div>
     </div>
-    <div id="jpMapPanelList">
-      <div style="padding:14px 4px;font-size:11px;color:var(--text2);font-style:italic">Open the Job Pack tab to populate maps.</div>
+    <div id="jpMapPanelScroll">
+      <div id="jpMapPanelList">
+        <div style="padding:14px 4px;font-size:11px;color:var(--text2);font-style:italic">Open the Job Pack tab to populate maps.</div>
+      </div>
     </div>
   </aside>
 
@@ -28654,6 +28666,19 @@ function _jpMapPanelResizeStart(e){
 // underlying drawing before dropping. Instead the drop handler
 // re-captures the map at drop time so the dropped image is always
 // current.
+// Zoom slider (100–400%) scales the maps column width; the scroll box pans.
+// Mirrors _fergusPanelZoom so the Maps panel behaves like the Map Roof photos.
+function _jpMapPanelZoom(v){
+  var g = document.getElementById('jpMapPanelList');
+  var out = document.getElementById('jpMapPanelZoomOut');
+  var z = parseInt(v, 10); if (!isFinite(z) || z < 100) z = 100;
+  if (g) g.style.width = z + '%';
+  if (out) out.textContent = z + '%';
+}
+function _jpMapApplyZoom(){
+  var sl = document.getElementById('jpMapPanelZoom');
+  _jpMapPanelZoom(sl ? sl.value : 100);
+}
 function renderJpMapPanel(){
   var list = document.getElementById('jpMapPanelList'); if (!list) return;
   var items = _jpMapPanelItems();
@@ -28662,11 +28687,11 @@ function renderJpMapPanel(){
     return;
   }
   list.innerHTML = items.map(function(it){
-    // Build a small preview right here so the panel reads visually.
-    var preview = _jpCaptureMap(it.key, { thumb: true });
+    // Full-resolution capture so the big pictures stay crisp when zoomed.
+    var preview = _jpCaptureMap(it.key, {});
     var imgHtml = preview
       ? '<img src="'+esc(preview)+'" alt="">'
-      : '<div style="width:100%;height:84px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#94a3b8">No preview</div>';
+      : '<div style="width:100%;height:160px;background:#f4f4ef;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#94a3b8">No preview</div>';
     return '<div class="jp-map-thumb" draggable="true" '+
       'data-map-key="'+esc(it.key)+'" '+
       'ondragstart="_jpDragStart(event,\''+esc(it.key)+'\')" '+
@@ -28675,6 +28700,7 @@ function renderJpMapPanel(){
       '<div class="jp-map-label"><span>'+esc(it.label)+'</span><small>'+esc(it.sub||'')+'</small></div>' +
     '</div>';
   }).join('');
+  try { _jpMapApplyZoom(); } catch(e){}   // keep the current zoom after a re-render
 }
 function _jpMapPanelItems(){
   var items = [];
