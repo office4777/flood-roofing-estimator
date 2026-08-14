@@ -287,12 +287,24 @@ function _ccBuildCookiePlan(sections, outline, lines){
         pieces.forEach(function(p){
           var onRoof = _ccClipToConvex(outline, p);
           if (!onRoof || _ccPolyArea(onRoof) < b.cw*b.cw*0.02) return;   // pure overhang
-          // Solid iff the straight drop from this piece to its own eave
-          // crosses no cut line (i.e. the piece sits on its own face).
+          // Classify by what the straight drop to this piece's own eave
+          // crosses. Nothing → solid on its own face. A hip / gablet apron
+          // → offcut (cut there, spun 90° and reused at the mirrored
+          // corner). A VALLEY alone is different: the SOP runs the primary
+          // section's sheets THROUGH and cuts them along the valley (the
+          // +1 valley spare pays for it), so a primary piece stays SOLID;
+          // the non-primary side's beyond-valley scrap is dropped — the
+          // primary's through-run covers that area.
           var c = _ccCentroid(onRoof);
           var cu = c[0]*b.R[0] + c[1]*b.R[1];
           var rayEnd = b.w2(cu, vE);
-          var solid = !cutLines.some(function(L){ return _ccSegX(c, rayEnd, L.pts[0], L.pts[1]); });
+          var hitHip = false, hitValley = false;
+          cutLines.forEach(function(L){
+            if (!_ccSegX(c, rayEnd, L.pts[0], L.pts[1])) return;
+            if (L.type === 'valley') hitValley = true; else hitHip = true;
+          });
+          if (hitValley && !hitHip && !s.isPrimary) return;            // wing scrap past the valley
+          var solid = !hitHip;
           strips.push({ poly: onRoof, centroid: c, seq: seq, color: dCol,
                         isOffcut: !solid, orderedLengthMm: s.orderedMm || 0,
                         _id: id, _deleted: del, face: null,
@@ -363,24 +375,11 @@ function _ccBuildCookiePlan(sections, outline, lines){
           });
           pieces = next;
         });
-        pieces.forEach(function(pp){
-          var onRoof = _ccClipToConvex(outline, pp);
-          if (!onRoof || _ccPolyArea(onRoof) < cw0*cw0*0.02) return;
-          var c = _ccCentroid(onRoof);
-          // Only fill genuine offcut territory, never something a solid owns
-          // or a spot another gutter's grid already claimed.
-          var host = inAny(rawOffcuts, c);
-          if (!host) return;
-          if (inAny(solids, c)) return;
-          if (inAny(kept, c)) return;
-          // This gutter must be the piece's OWN gutter: the straight drop
-          // onto it crosses no cut line.
-          var foot = [a[0] + E[0]*(((c[0]-a[0])*E[0] + (c[1]-a[1])*E[1])),
-                      a[1] + E[1]*(((c[0]-a[0])*E[0] + (c[1]-a[1])*E[1]))];
-          if (cutLines.some(function(L){ return _ccSegX(c, foot, L.pts[0], L.pts[1]); })) return;
-          // Donor = the offcut from the OPPOSITE corner of the same end:
-          // mirror across the donor section's centre axis and take the
-          // offcut piece found there (fallback: the in-place donor).
+        // Push one reuse piece (donor found by mirroring across the donor
+        // section's centre axis — the offcut from the OPPOSITE corner of
+        // the same end; fallback: the in-place donor).
+        function pushReuse(polyPiece, host){
+          var c = _ccCentroid(polyPiece);
           var donor = host, sec = host._sec;
           if (sec){
             var u = c[0]*sec.R[0] + c[1]*sec.R[1];
@@ -391,9 +390,40 @@ function _ccBuildCookiePlan(sections, outline, lines){
             var mh = inAny(rawOffcuts, m);
             if (mh) donor = mh;
           }
-          kept.push({ poly: onRoof, centroid: c, seq: donor.seq, color: donor.color,
+          kept.push({ poly: polyPiece, centroid: c, seq: donor.seq, color: donor.color,
                       isOffcut: true, orderedLengthMm: donor.orderedLengthMm,
                       _id: donor._id, _deleted: !!delColSet[donor._id], face: null, _sec: null });
+        }
+        function rayClean(c){
+          var foot = [a[0] + E[0]*(((c[0]-a[0])*E[0] + (c[1]-a[1])*E[1])),
+                      a[1] + E[1]*(((c[0]-a[0])*E[0] + (c[1]-a[1])*E[1]))];
+          return !cutLines.some(function(L){ return _ccSegX(c, foot, L.pts[0], L.pts[1]); });
+        }
+        pieces.forEach(function(pp){
+          // Fast path — the WHOLE strip piece sits in offcut territory
+          // (the usual hip-corner case): keep it in one piece so the
+          // corner reads as clean full strips.
+          var onRoof = _ccClipToConvex(outline, pp);
+          if (!onRoof || _ccPolyArea(onRoof) < cw0*cw0*0.02) return;
+          var c = _ccCentroid(onRoof);
+          var host = inAny(rawOffcuts, c);
+          if (host && !inAny(solids, c) && !inAny(kept, c) && rayClean(c)){
+            pushReuse(onRoof, host);
+            return;
+          }
+          // Fallback — the strip straddles solid ground (e.g. the pocket
+          // beside a valley): intersect it with each raw offcut piece and
+          // keep the slivers individually, so no offcut territory is left
+          // uncovered just because the strip's centroid sat elsewhere.
+          rawOffcuts.forEach(function(ro){
+            var sliver = _ccClipToConvex(ro.poly, pp);
+            if (!sliver || _ccPolyArea(sliver) < cw0*cw0*0.02) return;
+            var sc2 = _ccCentroid(sliver);
+            if (inAny(solids, sc2)) return;
+            if (inAny(kept, sc2)) return;
+            if (!rayClean(sc2)) return;
+            pushReuse(sliver, ro);
+          });
         });
       }
     });
@@ -534,15 +564,17 @@ function _ccDrawCookiePlan(cv, plan, outline, lines, T){
     ctx.font = '700 ' + numFont + 'px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(255,255,255,0.88)'; rr(cc[0]-8, cc[1]-7, 16, 14, 3); ctx.fill();
     ctx.fillStyle = '#0a1628'; ctx.fillText(String(col.seq), cc[0], cc[1]);
-    // Offcut piece numbers (skip slivers).
-    pieces.forEach(function(p){
-      if (!p.isOffcut || p === main) return;
-      if (_ccPolyArea(p.poly) < colWpx*colWpx*0.35/(T.sc*T.sc)) return;
-      var oc = toC(p.centroid);
+    // Offcut number — ONE badge per donor, on its largest reuse piece
+    // (several slivers of the same donor would otherwise spam the corner
+    // with repeated numbers).
+    var reuse = pieces.filter(function(p){ return p.isOffcut && p !== main; })
+                      .sort(function(a2, b2){ return _ccPolyArea(b2.poly) - _ccPolyArea(a2.poly); })[0];
+    if (reuse && _ccPolyArea(reuse.poly) >= colWpx*colWpx*0.25/(T.sc*T.sc)){
+      var oc = toC(reuse.centroid);
       ctx.font = '700 ' + Math.max(7, numFont-2) + 'px Inter, sans-serif';
       ctx.fillStyle = 'rgba(255,255,255,0.75)'; rr(oc[0]-7, oc[1]-6, 14, 12, 3); ctx.fill();
       ctx.fillStyle = 'rgba(10,22,40,0.9)'; ctx.fillText(String(col.seq), oc[0], oc[1]);
-    });
+    }
   });
 }
 
