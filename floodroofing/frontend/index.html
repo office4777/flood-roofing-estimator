@@ -25836,6 +25836,66 @@ function _jpBuildSheetRows(sc){
   // (manualSheetMeasures vs DRAW.sheetOverrides). If the map hasn't drawn
   // this session the hit list is empty, so fall back to the raw manual
   // measures — behaviour then just degrades to the previous manual-only sync.
+  //
+  // ── Bump-out split (runs FIRST, before the value-matcher) ──────────
+  // The roof map ray-casts every sheet column down to ITS OWN gutter, so a
+  // bump-out that pushes part of a face out to a further gutter shows its
+  // own longer length on the map (e.g. 5.69m over a 5.00m main). The section
+  // take-off, by contrast, gives a whole face ONE length, so those longer
+  // columns get counted at the main length and the cut list never shows the
+  // bump run at all. Here we detect any auto sheet-run length the map drew
+  // that has NO matching cut-list row, work out how many columns it spans
+  // from its OWN along-ridge extent (runHi-runLo ÷ sheet cover), and MOVE
+  // that many sheets out of the main row into a new row at the real length.
+  // The TOTAL sheet count is preserved — only the split across lengths
+  // changes — so the ordered quantity never drifts, and a roof whose every
+  // map length already has a row is left completely untouched. Doing this
+  // before the value-matcher below means it then sees one row per distinct
+  // length and labels each correctly.
+  try {
+    var _bhits = (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
+    var _coverMm = parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762;
+    var _coverM  = _coverMm / 1000;
+    var _mpp     = (window.DRAW && DRAW.scaleMetresPerPx) || 0;
+    if (_mpp > 0 && _coverM > 0 && _bhits.length && rows.length) {
+      // Sum auto-run sheet columns by ordered length (mm). Manual sheet
+      // measures carry no run geometry (runLo/runHi) — skip them; the
+      // value-matcher below handles those.
+      var _colsByMm = {};
+      _bhits.forEach(function(h){
+        if (!h || h.label == null || h.runLo == null || h.runHi == null) return;
+        var _lm = parseFloat(String(h.label));
+        if (!isFinite(_lm) || _lm <= 0) return;
+        var _spanM = Math.abs(h.runHi - h.runLo) * _mpp;
+        var _cols  = Math.round(_spanM / _coverM);
+        if (_cols <= 0) return;
+        var _mm = Math.round(_lm * 1000);
+        _colsByMm[_mm] = (_colsByMm[_mm] || 0) + _cols;
+      });
+      var _SPLIT_TOL = 100;   // mm — lengths within 10cm count as the same run
+      Object.keys(_colsByMm).forEach(function(k){
+        var _mm   = parseInt(k, 10);
+        var _cols = _colsByMm[k];
+        // Already represented by a cut-list row? Then it wasn't absorbed —
+        // leave it for the value-matcher.
+        if (rows.some(function(r){ return Math.abs(r.origLen - _mm) <= _SPLIT_TOL; })) return;
+        // Source = the row this run was most likely folded into: prefer the
+        // largest-qty SHORTER row (a bump protrudes past the main it sits
+        // on, so its sheets are longer), else the largest row overall.
+        var _src = null;
+        rows.forEach(function(r){
+          if (r.qty <= 1) return;
+          if (_mm > r.origLen && (!_src || r.qty > _src.qty)) _src = r;
+        });
+        if (!_src) rows.forEach(function(r){ if (r.qty > 1 && (!_src || r.qty > _src.qty)) _src = r; });
+        if (!_src) return;
+        var _peel = Math.min(_cols, _src.qty - 1);   // leave >=1 in the source
+        if (_peel < 1) return;
+        _src.qty -= _peel;
+        rows.push({ origLen: _mm, len: _mm, qty: _peel });
+      });
+    }
+  } catch(e){}
   var manualMap = {};
   try {
     var ms = [];
