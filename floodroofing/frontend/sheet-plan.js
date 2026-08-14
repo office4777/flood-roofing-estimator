@@ -106,6 +106,30 @@ function _onSheetPlanCanvasClick(ev){
 // layout, the check map and the cut list all speak the same sheet numbers.
 // If the pieces don't cover ≥97% of the roof (a topology the sections
 // don't fully describe), the caller keeps the legacy cascade canvas.
+// Display colour per DISTINCT ordered length — every different sheet length
+// gets its own colour across the layout, the calc-check map and the order
+// legend. The longest length keeps the colour its section already carries
+// (orange main); a length whose section colour is already taken by a longer
+// one pulls the next unused palette colour. Purely visual — order groups
+// stay keyed on the section's real colour.
+function _ccLenColours(sections){
+  var secs = (sections || []).filter(function(s){ return s && s.orderedMm > 0; });
+  var mms = [];
+  secs.forEach(function(s){ if (mms.indexOf(s.orderedMm) < 0) mms.push(s.orderedMm); });
+  mms.sort(function(a, b){ return b - a; });
+  var PAL = ['#f97316','#a855f7','#2563eb','#16a34a','#0891b2','#db2777','#ca8a04'];
+  var used = {}, map = {};
+  mms.forEach(function(mm){
+    var c = '';
+    for (var i = 0; i < secs.length; i++){ if (secs[i].orderedMm === mm){ c = secs[i].color || ''; break; } }
+    if (!c || used[c]){
+      c = '#64748b';
+      for (var pi = 0; pi < PAL.length; pi++){ if (!used[PAL[pi]]){ c = PAL[pi]; break; } }
+    }
+    used[c] = 1; map[mm] = c;
+  });
+  return map;
+}
 function _ccPolyArea(p){
   var a = 0;
   for (var i = 0; i < p.length; i++){ var q = p[(i+1)%p.length]; a += p[i][0]*q[1] - q[0]*p[i][1]; }
@@ -227,9 +251,11 @@ function _ccBuildCookiePlan(sections, outline, lines){
   });
   var deletedSet = {};
   (DRAW.sheetPlanDeletedIds || []).forEach(function(id){ deletedSet[id] = true; });
+  var lenCol = _ccLenColours(secs);
   var strips = [], spares = [], columns = [];
   built.forEach(function(b, secIdx){
     var s = b.s;
+    var dCol = lenCol[s.orderedMm] || s.color;   // display colour = sheet length
     var gcolHex = String(s.gcol || s.color || '#f97316').replace('#','').toLowerCase();
     var vHigh = isFinite(s.vHigh) ? s.vHigh : b.vMid;
     // Side bands. Two-sided: si order matches the calc-check's [-1, +1].
@@ -246,7 +272,7 @@ function _ccBuildCookiePlan(sections, outline, lines){
         var id  = 'cc|' + gcolHex + '|' + (s.orderedMm || 0) + '|' + secIdx + '|' + bd.si + '|' + j;
         var del = !!deletedSet[id];
         var seq = (_base.get(b) || 0) + bd.si*b.per + j + 1;
-        columns.push({ id: id, rect: rect, seq: seq, color: s.color, deleted: del,
+        columns.push({ id: id, rect: rect, seq: seq, color: dCol, deleted: del,
                        numAt: b.w2(u0 + b.cw/2, s.mono ? b.vMid : (b.vMid + (bd.si ? 1 : -1)*b.halfRun*0.6)) });
         // Cookie-cut the column along every roof line that passes through it.
         var pieces = [rect];
@@ -267,7 +293,7 @@ function _ccBuildCookiePlan(sections, outline, lines){
           var cu = c[0]*b.R[0] + c[1]*b.R[1];
           var rayEnd = b.w2(cu, vE);
           var solid = !cutLines.some(function(L){ return _ccSegX(c, rayEnd, L.pts[0], L.pts[1]); });
-          strips.push({ poly: onRoof, centroid: c, seq: seq, color: s.color,
+          strips.push({ poly: onRoof, centroid: c, seq: seq, color: dCol,
                         isOffcut: !solid, orderedLengthMm: s.orderedMm || 0,
                         _id: id, _deleted: del, face: null,
                         // Donor-section frame, kept so the offcut re-tiler can
@@ -281,7 +307,7 @@ function _ccBuildCookiePlan(sections, outline, lines){
         for (var vi = 0; vi < (s.valleyExtra || 0); vi++){
           var su0 = b.startU + b.per*b.cw + vi*b.cw;
           spares.push({ rect: [b.w2(su0, bd.v0), b.w2(su0+b.cw, bd.v0), b.w2(su0+b.cw, bd.v1), b.w2(su0, bd.v1)],
-                        color: s.color });
+                        color: dCol });
         }
       }
     });
@@ -5284,9 +5310,14 @@ function _renderRoofSheetPlanInner() {
   if (!groupList.length) {
     legHtml += '<div style="font-size:12px;color:#6b7280">No sheets — check that the outline has gutters and hips.</div>';
   } else {
+    // Numeral colour = the length's display colour on the maps (distinct
+    // colour per distinct sheet length). Display only — the group objects
+    // keep their real colour for the materials sync.
+    var _legLenCol = _ccLenColours(window._lastSheetSections);
     groupList.forEach(function(g){
+      var _lc = _legLenCol[g.orderedMm] || g.color;
       legHtml += '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">'+
-        '<span style="font-size:24px;font-weight:800;color:'+g.color+'">'+g.count+'</span>'+
+        '<span style="font-size:24px;font-weight:800;color:'+_lc+'">'+g.count+'</span>'+
         '<span style="font-size:12px;color:#6b7280">× @ '+g.orderedMm+'mm ('+(g.orderedMm/1000).toFixed(2)+'m)</span>'+
         '</div>';
     });
