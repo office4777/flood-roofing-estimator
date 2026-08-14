@@ -530,64 +530,38 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
         // for any single offcut is CUT and pieced together from the nearest
         // offcuts; a true shortfall comes off the round-up spare of the
         // nearest ordered sheet.
+        // ONE sheet per location. A reuse location is always filled by ONE
+        // complete piece: a single donor offcut that has the FULL material
+        // for the whole spot, or — when no local offcut is big enough — a
+        // fresh full-length sheet cut to suit, labelled off the round-up
+        // spare of the nearest own-face ordered sheet. Never a mosaic of
+        // little pieces joined together.
+        function pickDonor(A, c0, preferred){
+          // A roofer reuses offcuts from the SAME corner or nearby — never
+          // carts a scrap across the roof: donor search is radius-capped.
+          var MAXD = cw0 * 9;
+          if (preferred && preferred._cap >= A*0.98) return preferred;
+          var cand = null, bd0 = MAXD;
+          rawOffcuts.forEach(function(r){
+            if (r._cap < A*0.98) return;
+            var d = Math.hypot(r.centroid[0]-c0[0], r.centroid[1]-c0[1]);
+            if (d < bd0){ bd0 = d; cand = r; }
+          });
+          if (cand) return cand;
+          var ns = null, bd2 = Infinity;
+          solids.forEach(function(s){
+            var d = Math.hypot(s.centroid[0]-c0[0], s.centroid[1]-c0[1]);
+            if (d < bd2){ bd2 = d; ns = s; }
+          });
+          return ns;
+        }
         function allocReuse(polyPiece, preferred){
           var A = _ccPolyArea(polyPiece);
           if (A < cw0*cw0*0.02) return;
-          // A roofer reuses offcuts from the SAME corner or nearby — never
-          // carts a scrap across the roof. Donor search is capped to a
-          // local radius; past it the piece is labelled off the round-up
-          // spare of the nearest own-face sheet instead.
-          var MAXD = cw0 * 9;
-          var cand = (preferred && preferred._cap >= A*0.98) ? preferred : null;
-          if (!cand){
-            var c0 = _ccCentroid(polyPiece), bd0 = MAXD;
-            rawOffcuts.forEach(function(r){
-              if (r._cap < A*0.98) return;
-              var d = Math.hypot(r.centroid[0]-c0[0], r.centroid[1]-c0[1]);
-              if (d < bd0){ bd0 = d; cand = r; }
-            });
-          }
-          if (cand){ cand._cap -= A; pushPiece(polyPiece, cand); return; }
-          var rest = polyPiece, guard = 0;
-          while (rest && guard++ < 10){
-            var Ar = _ccPolyArea(rest);
-            if (Ar < cw0*cw0*0.02) return;
-            var c1 = _ccCentroid(rest), best = null, bd1 = MAXD;
-            rawOffcuts.forEach(function(r){
-              if (r._cap < cw0*cw0*0.05) return;
-              var d = Math.hypot(r.centroid[0]-c1[0], r.centroid[1]-c1[1]);
-              if (d < bd1){ bd1 = d; best = r; }
-            });
-            if (!best) break;
-            if (best._cap >= Ar*0.98){ best._cap -= Ar; pushPiece(rest, best); return; }
-            // Cut the piece along its run to EXACTLY the donor's remaining
-            // material — never hand out more than the offcut holds.
-            var frac = Math.min(0.85, best._cap / Ar);
-            if (frac < 0.08){ best._cap = 0; continue; }   // sliver — skip this donor
-            var vLo2 = Infinity, vHi2 = -Infinity;
-            rest.forEach(function(p){ var vv = p[0]*N[0]+p[1]*N[1]; if (vv < vLo2) vLo2 = vv; if (vv > vHi2) vHi2 = vv; });
-            var cutD = vLo2 + (vHi2 - vLo2)*frac;
-            var partA = _ccClipHalf(rest,  N[0],  N[1],  cutD);
-            var Aa = (partA.length > 2) ? _ccPolyArea(partA) : 0;
-            if (Aa > best._cap*1.02 && Aa > 0){
-              // one correction step: shrink the cut so the piece fits the cap
-              cutD = vLo2 + (cutD - vLo2)*(best._cap/Aa);
-              partA = _ccClipHalf(rest,  N[0],  N[1],  cutD);
-              Aa = (partA.length > 2) ? _ccPolyArea(partA) : 0;
-            }
-            var partB = _ccClipHalf(rest, -N[0], -N[1], -cutD);
-            if (partA.length > 2 && Aa > cw0*cw0*0.02){ best._cap = Math.max(0, best._cap - Aa); pushPiece(partA, best); }
-            else best._cap = 0;
-            rest = (partB.length > 2 && _ccPolyArea(partB) > cw0*cw0*0.02) ? partB : null;
-          }
-          if (rest){
-            var c2 = _ccCentroid(rest), ns = null, bd2 = Infinity;
-            solids.forEach(function(s){
-              var d = Math.hypot(s.centroid[0]-c2[0], s.centroid[1]-c2[1]);
-              if (d < bd2){ bd2 = d; ns = s; }
-            });
-            if (ns) pushPiece(rest, ns);
-          }
+          var donor = pickDonor(A, _ccCentroid(polyPiece), preferred);
+          if (!donor) return;
+          if (donor._cap != null) donor._cap = Math.max(0, donor._cap - A);
+          pushPiece(polyPiece, donor);
         }
         function rayClean(c){
           var foot = [a[0] + E[0]*(((c[0]-a[0])*E[0] + (c[1]-a[1])*E[1])),
@@ -649,9 +623,11 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
             return;
           }
           // Fallback — the strip straddles solid ground (e.g. the pocket
-          // beside a valley): intersect it with each raw offcut piece and
-          // keep the slivers individually, so no offcut territory is left
-          // uncovered just because the strip's centroid sat elsewhere.
+          // beside a valley): intersect it with the raw offcut territory to
+          // find the location's genuinely empty part, then fill ALL of it
+          // with ONE donor (one sheet per location — the sub-polygons share
+          // a single number and colour so they read as one piece).
+          var slivers = [];
           rawOffcuts.forEach(function(ro){
             var sliver = _ccClipToConvex(ro.poly, pp);
             if (!sliver || _ccPolyArea(sliver) < cw0*cw0*0.02) return;
@@ -659,8 +635,17 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
             if (inAny(solids, sc2)) return;
             if (inAny(kept, sc2)) return;
             if (!rayClean(sc2)) return;
-            allocReuse(sliver, _resolveMirror(ro, sc2));
+            slivers.push({ poly: sliver, host: ro, area: _ccPolyArea(sliver) });
           });
+          if (!slivers.length) return;
+          slivers.sort(function(x, y){ return y.area - x.area; });
+          var At = 0;
+          slivers.forEach(function(sv){ At += sv.area; });
+          var c9 = _ccCentroid(slivers[0].poly);
+          var donor9 = pickDonor(At, c9, _resolveMirror(slivers[0].host, c9));
+          if (!donor9) return;
+          if (donor9._cap != null) donor9._cap = Math.max(0, donor9._cap - At);
+          slivers.forEach(function(sv){ pushPiece(sv.poly, donor9); });
         });
       }
     });
