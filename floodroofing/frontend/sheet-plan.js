@@ -202,7 +202,106 @@ function _ccSegX(p, q, a, b){
   var d1 = o(a,b,p), d2 = o(a,b,q), d3 = o(p,q,a), d4 = o(p,q,b);
   return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
 }
-function _ccBuildCookiePlan(sections, outline, lines){
+// ── Hip & valley band sections (the office SOP) ──────────────────
+// Build cookie-plan pseudo-sections for a hip & valley roof directly from
+// its drawn geometry, the way the crew lays it:
+//   1. Each hip END populates itself — the end gutter divides into its
+//      own sheets filling the whole end (band from the end eave to the
+//      ridge apex, cut at the hips; the cut pieces flip onto the
+//      neighbouring faces' corner triangles).
+//   2. Every other face runs full DONOR sheets off its own gutter, from
+//      eave to ridge, spanning the gutter LESS the depth any adjacent end
+//      band already covers.
+//   3. The internal valley corner is filled from the external corner-hip
+//      offcuts (the re-tiler's gap fill, labelled from the nearest corner).
+// The caller only uses the result when the band sheet count EXACTLY
+// matches the counted SHEETS TO ORDER total — any disagreement means this
+// roof doesn't fit the model and the cascade diagram stays.
+function _ccHipBandSections(outline, lines, coverPx, lenOf){
+  if (!outline || outline.length < 3) return null;
+  var gutters = (lines||[]).filter(function(l){ return l && l.type==='gutter' && l.pts && l.pts.length===2; });
+  var hips    = (lines||[]).filter(function(l){ return l && l.type==='hip'    && l.pts && l.pts.length===2; });
+  var ridges  = (lines||[]).filter(function(l){ return l && l.type==='ridge'  && l.pts && l.pts.length===2; });
+  if (!gutters.length || !hips.length || !ridges.length) return null;
+  var ocx = 0, ocy = 0;
+  outline.forEach(function(p){ ocx += p[0]; ocy += p[1]; }); ocx /= outline.length; ocy /= outline.length;
+  var tol = coverPx * 0.6;
+  function near(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]) <= tol; }
+  function hipFar(c){
+    for (var i = 0; i < hips.length; i++){
+      if (near(hips[i].pts[0], c)) return hips[i].pts[1];
+      if (near(hips[i].pts[1], c)) return hips[i].pts[0];
+    }
+    return null;
+  }
+  // Pass 1 — hip ENDS: both corner hips of the gutter converge on one apex.
+  var ends = [], donors = [];
+  gutters.forEach(function(g){
+    var a = g.pts[0], b = g.pts[1];
+    var gl = Math.hypot(b[0]-a[0], b[1]-a[1]);
+    if (gl < coverPx*0.5) return;
+    var R = [(b[0]-a[0])/gl, (b[1]-a[1])/gl];
+    var N = [-R[1], R[0]];
+    // Inward = the side of THIS edge that is inside the outline (the
+    // polygon centroid mispoints on an L, where a wing gutter can face
+    // away from the centroid).
+    var gmx = (a[0]+b[0])/2, gmy = (a[1]+b[1])/2, eps = coverPx*0.3;
+    if (!_spPointInPoly(gmx + N[0]*eps, gmy + N[1]*eps, outline)) N = [R[1], -R[0]];
+    var fa = hipFar(a), fb = hipFar(b);
+    var vG = a[0]*N[0] + a[1]*N[1];
+    var uA = a[0]*R[0] + a[1]*R[1], uB = b[0]*R[0] + b[1]*R[1];
+    var e = { g:g, a:a, b:b, gl:gl, R:R, N:N, vG:vG, uLo:Math.min(uA,uB), uHi:Math.max(uA,uB) };
+    if (fa && fb && near(fa, fb)){
+      e.depth = (fa[0]*N[0] + fa[1]*N[1]) - vG;
+      if (e.depth > coverPx*0.2){ ends.push(e); return; }
+    }
+    donors.push(e);
+  });
+  // Pass 2 — DONOR faces: depth = nearest parallel ridge in front; trim the
+  // side(s) an adjacent end band already covers.
+  var out = [];
+  function mkBand(e, kind){
+    var per = Math.max(1, Math.ceil((e.uHi - e.uLo)/coverPx - 1e-6));
+    return { kind: kind, color: '#f97316', gcol: '#f97316', perSide: per, valleyExtra: 0,
+      total: per, orderedMm: lenOf(e.depth), isPrimary: true, mono: true,
+      rdir: e.R.slice(), obU0: e.uLo, obU1: e.uHi,
+      obV0: Math.min(e.vG, e.vG + e.depth), obV1: Math.max(e.vG, e.vG + e.depth),
+      vHigh: e.vG + e.depth, coverPx: coverPx,
+      outline: outline.map(function(p){ return p.slice(); }) };
+  }
+  ends.sort(function(x, y){ return y.gl - x.gl; });
+  ends.forEach(function(e){ out.push(mkBand(e, 'end')); });
+  var okDonors = true;
+  donors.sort(function(x, y){ return y.gl - x.gl; });
+  donors.forEach(function(e){
+    var depth = Infinity;
+    ridges.forEach(function(r){
+      var rl = Math.hypot(r.pts[1][0]-r.pts[0][0], r.pts[1][1]-r.pts[0][1]);
+      if (rl < 1) return;
+      var rd = [(r.pts[1][0]-r.pts[0][0])/rl, (r.pts[1][1]-r.pts[0][1])/rl];
+      if (Math.abs(rd[0]*e.R[0] + rd[1]*e.R[1]) < 0.85) return;      // not parallel
+      var vR = ((r.pts[0][0]+r.pts[1][0])/2)*e.N[0] + ((r.pts[0][1]+r.pts[1][1])/2)*e.N[1];
+      var d = vR - e.vG;
+      if (d > coverPx*0.2 && d < depth) depth = d;
+    });
+    if (!isFinite(depth)){ okDonors = false; return; }
+    e.depth = depth;
+    // Trim each side whose corner leads (across its hip) to an END band.
+    [e.a, e.b].forEach(function(c, ci){
+      var adjacent = null;
+      ends.forEach(function(en){ if (near(en.a, c) || near(en.b, c)) adjacent = en; });
+      if (!adjacent) return;
+      if (ci === 0 && Math.abs(c[0]*e.R[0]+c[1]*e.R[1] - e.uLo) < tol) e.uLo += adjacent.depth;
+      else e.uHi -= adjacent.depth;
+    });
+    if (e.uHi - e.uLo < coverPx*0.4){ return; }                       // fully consumed by ends
+    out.push(mkBand(e, 'donor'));
+  });
+  if (!okDonors || !out.length) return null;
+  return out;
+}
+function _ccBuildCookiePlan(sections, outline, lines, opts){
+  opts = opts || {};
   var secs = (sections || []).filter(function(s){
     return s && s.perSide > 0 && s.rdir && isFinite(s.obU0) && isFinite(s.obV0) && s.coverPx > 0 && s.obV1 > s.obV0;
   });
@@ -358,10 +457,25 @@ function _ccBuildCookiePlan(sections, outline, lines){
       if (gl < cw0*0.4) return;
       var E = [(bpt[0]-a[0])/gl, (bpt[1]-a[1])/gl];
       var N = [-E[1], E[0]];
-      if ((ocx-a[0])*N[0] + (ocy-a[1])*N[1] < 0){ N = [E[1], -E[0]]; }   // point inward
-      var nCols = Math.ceil(gl/cw0 - 1e-6);
-      for (var j = 0; j < nCols; j++){
-        var t0 = j*cw0, t1 = Math.min(gl, t0 + cw0);
+      // Inward = the side of THIS edge inside the outline (the centroid
+      // mispoints on an L, where a wing gutter faces away from it).
+      var _gmx = (a[0]+bpt[0])/2, _gmy = (a[1]+bpt[1])/2, _geps = cw0*0.3;
+      if (!_spPointInPoly(_gmx + N[0]*_geps, _gmy + N[1]*_geps, outline)){ N = [E[1], -E[0]]; }
+      // Gap-fill mode marches the strip grid across the outline's FULL
+      // extent along this gutter's line (an internal wedge can sit beyond
+      // the physical gutter segment); normal mode stays on the segment.
+      var jFrom = 0, jTo = Math.ceil(gl/cw0 - 1e-6);
+      if (opts.fillGaps){
+        var tMin = Infinity, tMax = -Infinity;
+        outline.forEach(function(p){
+          var t = (p[0]-a[0])*E[0] + (p[1]-a[1])*E[1];
+          if (t < tMin) tMin = t; if (t > tMax) tMax = t;
+        });
+        jFrom = Math.floor(tMin/cw0); jTo = Math.ceil(tMax/cw0);
+      }
+      for (var j = jFrom; j < jTo; j++){
+        var t0 = j*cw0, t1 = t0 + cw0;
+        if (!opts.fillGaps) t1 = Math.min(gl, t1);
         var p0 = [a[0]+E[0]*t0, a[1]+E[1]*t0], p1 = [a[0]+E[0]*t1, a[1]+E[1]*t1];
         var rect = [p0, p1,
                     [p1[0]+N[0]*bbW, p1[1]+N[1]*bbW],
@@ -397,7 +511,20 @@ function _ccBuildCookiePlan(sections, outline, lines){
         function rayClean(c){
           var foot = [a[0] + E[0]*(((c[0]-a[0])*E[0] + (c[1]-a[1])*E[1])),
                       a[1] + E[1]*(((c[0]-a[0])*E[0] + (c[1]-a[1])*E[1]))];
-          return !cutLines.some(function(L){ return _ccSegX(c, foot, L.pts[0], L.pts[1]); });
+          return !cutLines.some(function(L){
+            // A valley never blocks the drop when the mode allows it — the
+            // reuse sheet legitimately starts AT the valley cut.
+            if (opts.valleyRayOK && L.type === 'valley') return false;
+            return _ccSegX(c, foot, L.pts[0], L.pts[1]);
+          });
+        }
+        function nearestOf(list, pt){
+          var best = null, bd = Infinity;
+          list.forEach(function(s){
+            var d = Math.hypot(s.centroid[0]-pt[0], s.centroid[1]-pt[1]);
+            if (d < bd){ bd = d; best = s; }
+          });
+          return best;
         }
         pieces.forEach(function(pp){
           // Fast path — the WHOLE strip piece sits in offcut territory
@@ -409,6 +536,15 @@ function _ccBuildCookiePlan(sections, outline, lines){
           var host = inAny(rawOffcuts, c);
           if (host && !inAny(solids, c) && !inAny(kept, c) && rayClean(c)){
             pushReuse(onRoof, host);
+            return;
+          }
+          // Gap fill (hip & valley mode) — territory NO band covers at all
+          // (the internal valley wedge): fill it in this gutter's own
+          // direction and label it from the nearest external corner-hip
+          // offcut, which is the material that physically fills it.
+          if (!host && opts.fillGaps && !inAny(solids, c) && !inAny(kept, c) && rayClean(c)){
+            var nd = nearestOf(rawOffcuts, c) || nearestOf(solids, c);
+            if (nd){ pushReuse(onRoof, nd); }
             return;
           }
           // Fallback — the strip straddles solid ground (e.g. the pocket
@@ -4763,10 +4899,10 @@ function _renderRoofSheetPlanInner() {
   // deletion id itself ('cc|f97316|5137|…'), so a sheet deleted off the
   // cookie diagram reduces the order even though the legacy strip list this
   // tally walks never contained it. Only honoured on the roof types that
-  // actually render the cookie diagram (dutch / mono) — anywhere else a
-  // stale cc id must not subtract from a legacy diagram that still shows
-  // the sheet.
-  if (DRAW.roofType === 'dutch' || DRAW.roofType === 'mono'){
+  // can render the cookie diagram (dutch / mono / hip bands) — anywhere
+  // else a stale cc id must not subtract from a legacy diagram that still
+  // shows the sheet.
+  if (DRAW.roofType === 'dutch' || DRAW.roofType === 'mono' || DRAW.roofType === 'hip'){
     (DRAW.sheetPlanDeletedIds || []).forEach(function(id){
       var m = /^cc\|([0-9a-fA-F]{3,8})\|(\d+)\|/.exec(String(id));
       if (m){ var ck = '#' + m[1].toLowerCase() + ':' + m[2]; _delByKey[ck] = (_delByKey[ck] || 0) + 1; }
@@ -5439,9 +5575,26 @@ function _renderRoofSheetPlanInner() {
   // correctly. Even for dutch/mono it replaces the cascade canvas only
   // when the cookie pieces cover the roof.
   try {
+    var __ccLines = (_tLines || __origDrawLines || DRAW.lines);
     var __ccPlan = (DRAW.roofType === 'dutch' || DRAW.roofType === 'mono')
-      ? _ccBuildCookiePlan(window._lastSheetSections, outline, (_tLines || __origDrawLines || DRAW.lines))
+      ? _ccBuildCookiePlan(window._lastSheetSections, outline, __ccLines)
       : null;
+    // Hip & valley: lay it the way the crew does (see _ccHipBandSections —
+    // self-populating hip ends, trimmed donor faces, valley filled from
+    // corner offcuts), but ONLY when the band layout's sheet count agrees
+    // EXACTLY with the counted SHEETS TO ORDER total. Any disagreement
+    // means this roof doesn't fit the band model — the cascade diagram
+    // stays (e.g. a plain rectangle counts full-length donors instead).
+    if (!__ccPlan && DRAW.roofType === 'hip'){
+      var __hb = _ccHipBandSections(outline, __ccLines, coverPx,
+                   function(d){ return orderedLengthMm(d * effectiveScale * pitchFactor); });
+      if (__hb && __hb.length){
+        var __hp = _ccBuildCookiePlan(__hb, outline, __ccLines, { fillGaps: true, valleyRayOK: true });
+        var __tot = ((window._lastSheetCounts && window._lastSheetCounts.groups) || [])
+                      .reduce(function(s2, g){ return s2 + g.count; }, 0);
+        if (__hp && __hp.ok && __hp.columns.length === __tot) __ccPlan = __hp;
+      }
+    }
     if (__ccPlan && __ccPlan.ok){
       _ccDrawCookiePlan(cv, __ccPlan, outline, (_tLines || __origDrawLines || DRAW.lines),
                         { minX: minX, minY: minY, sc: sc, padX: padX, padY: padY, W: W, H: H });
