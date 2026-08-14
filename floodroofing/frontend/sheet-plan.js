@@ -4125,6 +4125,85 @@ function _renderRoofSheetPlanInner() {
     var inset = Math.min(coverPx * 0.5, L * 0.6);
     return [best[0] + vx/L*inset, best[1] + vy/L*inset];
   }
+  // ── Final global sheet numbering — ordered by length, unique across
+  // the whole roof ──────────────────────────────────────────────────
+  // The per-face / per-colour passes above each restart their counter at 1,
+  // so two different sheets can show the same number. Roofers want ONE
+  // running sequence ordered by sheet length: same-length sheets numbered
+  // straight through (both sides of a gable with equal-length sheets run
+  // 1..40), different lengths falling into consecutive blocks (one side
+  // 1..20 of its length, the other 21..40 of its). Offcut / cascade pieces
+  // already inherited their donor's number in the passes above, so we
+  // cluster by that shared (colour, seq-group, number) key and give each
+  // physical sheet ONE new global number — the offcut keeps matching its
+  // donor. Deleted sheets are skipped so the visible run stays contiguous.
+  // seq is only ever the badge drawn below (quantities count off
+  // orderedLengthMm / faces, never seq), so renumbering is display-only.
+  try {
+    // Stable side/face ordering so a face's sheets stay together and the two
+    // sides fall in a consistent order within a length block.
+    var _faceRank = [];
+    (faces || []).forEach(function(f){
+      var _c = (f && f.poly) ? polyCentroid(f.poly) : [0, 0];
+      _faceRank.push({ f: f, c: _c });
+    });
+    _faceRank.sort(function(a, b){ return a.c[1] - b.c[1] || a.c[0] - b.c[0]; });
+    function _rankOf(face){
+      for (var i = 0; i < _faceRank.length; i++) if (_faceRank[i].f === face) return i;
+      return 999;
+    }
+    function _numProj(s){
+      if (mainA && s.centroid) return (s.centroid[0]-mainA.a[0])*mainA.tx + (s.centroid[1]-mainA.a[1])*mainA.ty;
+      return s.centroid ? (s.centroid[0]*1e4 + s.centroid[1]) : 0;
+    }
+    function _colorSeqKey(s){
+      return (s.color || '') + '|' + (s._seqGroup || '') + '#' + s.seq;
+    }
+    // ── Pass A: number the physical FULL sheets (non-offcut) globally.
+    // Order longest-length block first, then side by side, then install
+    // order within a side. Deleted sheets are skipped so the visible run
+    // stays contiguous 1..N.
+    var _fulls = allStrips.filter(function(s){
+      return !s.isPhantom && !s.isOffcut && !s._deleted;
+    });
+    _fulls.sort(function(a, b){
+      var la = a.orderedLengthMm || 0, lb = b.orderedLengthMm || 0;
+      if (lb !== la) return lb - la;                               // longest length block first
+      var fa = _rankOf(a.face), fb = _rankOf(b.face);
+      if (fa !== fb) return fa - fb;                               // then side by side
+      return _numProj(a) - _numProj(b);                           // then install order within a side
+    });
+    var _byId = {}, _byColorSeq = {}, _g = 0;
+    _fulls.forEach(function(s){
+      _g++;
+      if (s._id != null) _byId[s._id] = _g;                       // capture BEFORE overwriting seq
+      if (s.seq != null && _byColorSeq[_colorSeqKey(s)] == null) _byColorSeq[_colorSeqKey(s)] = _g;
+      s._gseq = _g;
+    });
+    // ── Pass B: every offcut / cascade piece adopts its donor's new number
+    // — via the source chain first (survives recolouring), else by the
+    // colour+seq it inherited in the passes above. Falls back to its own
+    // old number only if neither resolves (a truly detached piece).
+    function _donorNew(s){
+      var cur = s, guard = 0;
+      while (cur && cur.isOffcut && guard++ < 16){
+        var nxt = cur._offcutSource || cur.cascadeParent || cur._hvSrc;
+        if (!nxt || nxt === cur) break;
+        cur = nxt;
+        if (cur._id != null && _byId[cur._id] != null) return _byId[cur._id];
+      }
+      if (cur && cur._id != null && _byId[cur._id] != null) return _byId[cur._id];
+      var cs = _byColorSeq[_colorSeqKey(s)];
+      return (cs != null) ? cs : null;
+    }
+    allStrips.forEach(function(s){
+      if (s.isPhantom) return;
+      if (s._gseq != null) { s.seq = s._gseq; return; }           // a full sheet numbered in pass A
+      var dn = _donorNew(s);
+      if (dn != null) s.seq = dn;                                 // else keep existing seq (detached)
+    });
+    allStrips.forEach(function(s){ delete s._gseq; });
+  } catch(e){}
   allStrips.forEach(function(s){
     if (s._deleted) return;  // deleted strips carry no number badge
     var cc = toC(_gutterLabel(s));
