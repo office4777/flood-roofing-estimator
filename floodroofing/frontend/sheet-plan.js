@@ -269,7 +269,11 @@ function _ccBuildCookiePlan(sections, outline, lines){
           var solid = !cutLines.some(function(L){ return _ccSegX(c, rayEnd, L.pts[0], L.pts[1]); });
           strips.push({ poly: onRoof, centroid: c, seq: seq, color: s.color,
                         isOffcut: !solid, orderedLengthMm: s.orderedMm || 0,
-                        _id: id, _deleted: del, face: null });
+                        _id: id, _deleted: del, face: null,
+                        // Donor-section frame, kept so the offcut re-tiler can
+                        // mirror a reuse strip back to its opposite-corner donor.
+                        _sec: solid ? null : { R: b.R, P: b.P, vMid: b.vMid, mono: !!s.mono,
+                                               uGridMid: b.startU + b.per*b.cw/2 } });
         });
       }
       // Valley spares live on the +1 side band of a two-sided section.
@@ -283,6 +287,95 @@ function _ccBuildCookiePlan(sections, outline, lines){
     });
   });
   if (!strips.length) return null;
+  // ── Offcut re-tiling: spin the reuse 90° ─────────────────────────
+  // A sheet is always laid PERPENDICULAR to its gutter, so an offcut can't
+  // stay in the donor's orientation where it lands. Re-tile every offcut
+  // region with strips hanging off the region's OWN gutter (cookie-cut the
+  // same way), and number each strip with the donor from the OPPOSITE
+  // corner of the same end — the piece that, spun 90°, physically fits
+  // there (mirror across the donor section's centre axis). The in-place
+  // offcut pieces are dropped from the drawn plan; only these direction-
+  // correct reuse strips remain hatched.
+  var rawOffcuts = strips.filter(function(s){ return s.isOffcut; });
+  if (rawOffcuts.length){
+    strips = strips.filter(function(s){ return !s.isOffcut; });
+    var delColSet = {};
+    columns.forEach(function(c){ if (c.deleted) delColSet[c.id] = 1; });
+    function inAny(list, pt){
+      for (var i = 0; i < list.length; i++) if (_spPointInPoly(pt[0], pt[1], list[i].poly)) return list[i];
+      return null;
+    }
+    var solids = strips.slice();
+    var ocx = 0, ocy = 0;
+    outline.forEach(function(p){ ocx += p[0]; ocy += p[1]; }); ocx /= outline.length; ocy /= outline.length;
+    var bbW = 0;
+    outline.forEach(function(p){ outline.forEach(function(q){ bbW = Math.max(bbW, Math.hypot(p[0]-q[0], p[1]-q[1])); }); });
+    var cw0 = built[0].cw;
+    var kept = [];
+    var gutterEdges = (lines || []).filter(function(l){ return l && l.type === 'gutter' && l.pts && l.pts.length === 2; });
+    gutterEdges.forEach(function(g){
+      var a = g.pts[0], bpt = g.pts[1];
+      var gl = Math.hypot(bpt[0]-a[0], bpt[1]-a[1]);
+      if (gl < cw0*0.4) return;
+      var E = [(bpt[0]-a[0])/gl, (bpt[1]-a[1])/gl];
+      var N = [-E[1], E[0]];
+      if ((ocx-a[0])*N[0] + (ocy-a[1])*N[1] < 0){ N = [E[1], -E[0]]; }   // point inward
+      var nCols = Math.ceil(gl/cw0 - 1e-6);
+      for (var j = 0; j < nCols; j++){
+        var t0 = j*cw0, t1 = Math.min(gl, t0 + cw0);
+        var p0 = [a[0]+E[0]*t0, a[1]+E[1]*t0], p1 = [a[0]+E[0]*t1, a[1]+E[1]*t1];
+        var rect = [p0, p1,
+                    [p1[0]+N[0]*bbW, p1[1]+N[1]*bbW],
+                    [p0[0]+N[0]*bbW, p0[1]+N[1]*bbW]];
+        var pieces = [rect];
+        cutLines.forEach(function(L){
+          var next = [];
+          pieces.forEach(function(pp){
+            if (_ccSegTouches(pp, L.pts[0], L.pts[1])) next.push.apply(next, _ccSplitByLine(pp, L.pts[0], L.pts[1]));
+            else next.push(pp);
+          });
+          pieces = next;
+        });
+        pieces.forEach(function(pp){
+          var onRoof = _ccClipToConvex(outline, pp);
+          if (!onRoof || _ccPolyArea(onRoof) < cw0*cw0*0.02) return;
+          var c = _ccCentroid(onRoof);
+          // Only fill genuine offcut territory, never something a solid owns
+          // or a spot another gutter's grid already claimed.
+          var host = inAny(rawOffcuts, c);
+          if (!host) return;
+          if (inAny(solids, c)) return;
+          if (inAny(kept, c)) return;
+          // This gutter must be the piece's OWN gutter: the straight drop
+          // onto it crosses no cut line.
+          var foot = [a[0] + E[0]*(((c[0]-a[0])*E[0] + (c[1]-a[1])*E[1])),
+                      a[1] + E[1]*(((c[0]-a[0])*E[0] + (c[1]-a[1])*E[1]))];
+          if (cutLines.some(function(L){ return _ccSegX(c, foot, L.pts[0], L.pts[1]); })) return;
+          // Donor = the offcut from the OPPOSITE corner of the same end:
+          // mirror across the donor section's centre axis and take the
+          // offcut piece found there (fallback: the in-place donor).
+          var donor = host, sec = host._sec;
+          if (sec){
+            var u = c[0]*sec.R[0] + c[1]*sec.R[1];
+            var v = c[0]*sec.P[0] + c[1]*sec.P[1];
+            var m = sec.mono
+              ? [ (2*sec.uGridMid - u)*sec.R[0] + v*sec.P[0], (2*sec.uGridMid - u)*sec.R[1] + v*sec.P[1] ]
+              : [ u*sec.R[0] + (2*sec.vMid - v)*sec.P[0],     u*sec.R[1] + (2*sec.vMid - v)*sec.P[1] ];
+            var mh = inAny(rawOffcuts, m);
+            if (mh) donor = mh;
+          }
+          kept.push({ poly: onRoof, centroid: c, seq: donor.seq, color: donor.color,
+                      isOffcut: true, orderedLengthMm: donor.orderedLengthMm,
+                      _id: donor._id, _deleted: !!delColSet[donor._id], face: null, _sec: null });
+        });
+      }
+    });
+    // Only adopt the re-tiling when it actually replaces the in-place
+    // pieces — if a roof has offcut regions but no gutters matched (odd
+    // hand-drawn geometry), keep the in-place pieces rather than a hole.
+    if (kept.length) strips = strips.concat(kept);
+    else strips = strips.concat(rawOffcuts);
+  }
   // Coverage gate — sample the roof; if the cookie pieces don't cover it,
   // the topology isn't fully described by the sections: fall back.
   var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
