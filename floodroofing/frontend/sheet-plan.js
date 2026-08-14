@@ -502,6 +502,9 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
         // the same end; fallback: the in-place donor).
         function pushReuse(polyPiece, host){
           var c = _ccCentroid(polyPiece);
+          // Degenerate clip results can leave a centroid outside the roof
+          // (the source of stray number badges floating off the outline).
+          if (!_spPointInPoly(c[0], c[1], outline)) return;
           var donor = host, sec = host._sec;
           if (sec){
             var u = c[0]*sec.R[0] + c[1]*sec.R[1];
@@ -558,12 +561,18 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
             var sameSide = cutLines.every(function(L){
               if (L.type !== 'valley') return true;
               var vx = L.pts[1][0]-L.pts[0][0], vy = L.pts[1][1]-L.pts[0][1];
-              // side of the piece vs side of the gutter's nearest point
+              // side of the piece vs side of the gutter's nearest point.
+              // Clamp the reference STRICTLY inside the segment — at an
+              // internal corner the raw clamp lands exactly on the valley
+              // endpoint, zeroing the side and wrongly passing the test.
               var sc3 = vx*(c[1]-L.pts[0][1]) - vy*(c[0]-L.pts[0][0]);
-              var tG = Math.max(0, Math.min(gl, (c[0]-a[0])*E[0] + (c[1]-a[1])*E[1]));
+              if (sc3 === 0) return true;                    // piece ON the line — either side
+              var gEps = Math.min(cw0*0.6, gl*0.4);
+              var tG = Math.max(gEps, Math.min(gl-gEps, (c[0]-a[0])*E[0] + (c[1]-a[1])*E[1]));
               var gp = [a[0]+E[0]*tG, a[1]+E[1]*tG];
               var sg = vx*(gp[1]-L.pts[0][1]) - vy*(gp[0]-L.pts[0][0]);
-              return sc3 === 0 || sg === 0 || (sc3 > 0) === (sg > 0);
+              if (sg === 0) return false;                    // still ambiguous — not this gutter's side
+              return (sc3 > 0) === (sg > 0);
             });
             if (!sameSide) return;
             var nd = nearestOf(rawOffcuts, c) || nearestOf(solids, c);
