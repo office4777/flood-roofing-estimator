@@ -260,9 +260,14 @@ function _ccHipBandSections(outline, lines, coverPx, lenOf){
   // Pass 2 — DONOR faces: depth = nearest parallel ridge in front; trim the
   // side(s) an adjacent end band already covers.
   var out = [];
+  // One colour per band — every face's sheet/offcut combo reads as its own
+  // colour on the diagram (the offcut pieces inherit their donor band's
+  // colour). gcol stays orange: the ORDER group key is unchanged.
+  var _BPAL = ['#f97316','#2563eb','#a855f7','#16a34a','#0891b2','#db2777','#ca8a04','#dc2626'];
+  var _bpi = 0;
   function mkBand(e, kind){
     var per = Math.max(1, Math.ceil((e.uHi - e.uLo)/coverPx - 1e-6));
-    return { kind: kind, color: '#f97316', gcol: '#f97316', perSide: per, valleyExtra: 0,
+    return { kind: kind, color: _BPAL[(_bpi++) % _BPAL.length], gcol: '#f97316', perSide: per, valleyExtra: 0,
       total: per, orderedMm: lenOf(e.depth), isPrimary: true, mono: true,
       rdir: e.R.slice(), obU0: e.uLo, obU1: e.uHi,
       obV0: Math.min(e.vG, e.vG + e.depth), obV1: Math.max(e.vG, e.vG + e.depth),
@@ -354,7 +359,10 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
   var strips = [], spares = [], columns = [];
   built.forEach(function(b, secIdx){
     var s = b.s;
-    var dCol = lenCol[s.orderedMm] || s.color;   // display colour = sheet length
+    // Display colour: normally one colour per distinct sheet length; band
+    // mode (hip & valley) keeps each band's OWN colour so every face's
+    // sheet/offcut combo reads as its own colour.
+    var dCol = opts.bandColours ? (s.color || '#f97316') : (lenCol[s.orderedMm] || s.color);
     var gcolHex = String(s.gcol || s.color || '#f97316').replace('#','').toLowerCase();
     var vHigh = isFinite(s.vHigh) ? s.vHigh : b.vMid;
     // Side bands. Two-sided: si order matches the calc-check's [-1, +1].
@@ -542,7 +550,22 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           // (the internal valley wedge): fill it in this gutter's own
           // direction and label it from the nearest external corner-hip
           // offcut, which is the material that physically fills it.
+          // VALLEY-SIDE test: the extended grids of BOTH faces reach the
+          // wedge, but a piece may only be filled by the gutter on ITS OWN
+          // side of the valley — otherwise the main's vertical grid claims
+          // the wing's side (the "offcut doesn't slot in" complaint).
           if (!host && opts.fillGaps && !inAny(solids, c) && !inAny(kept, c) && rayClean(c)){
+            var sameSide = cutLines.every(function(L){
+              if (L.type !== 'valley') return true;
+              var vx = L.pts[1][0]-L.pts[0][0], vy = L.pts[1][1]-L.pts[0][1];
+              // side of the piece vs side of the gutter's nearest point
+              var sc3 = vx*(c[1]-L.pts[0][1]) - vy*(c[0]-L.pts[0][0]);
+              var tG = Math.max(0, Math.min(gl, (c[0]-a[0])*E[0] + (c[1]-a[1])*E[1]));
+              var gp = [a[0]+E[0]*tG, a[1]+E[1]*tG];
+              var sg = vx*(gp[1]-L.pts[0][1]) - vy*(gp[0]-L.pts[0][0]);
+              return sc3 === 0 || sg === 0 || (sc3 > 0) === (sg > 0);
+            });
+            if (!sameSide) return;
             var nd = nearestOf(rawOffcuts, c) || nearestOf(solids, c);
             if (nd){ pushReuse(onRoof, nd); }
             return;
@@ -5589,7 +5612,7 @@ function _renderRoofSheetPlanInner() {
       var __hb = _ccHipBandSections(outline, __ccLines, coverPx,
                    function(d){ return orderedLengthMm(d * effectiveScale * pitchFactor); });
       if (__hb && __hb.length){
-        var __hp = _ccBuildCookiePlan(__hb, outline, __ccLines, { fillGaps: true, valleyRayOK: true });
+        var __hp = _ccBuildCookiePlan(__hb, outline, __ccLines, { fillGaps: true, valleyRayOK: true, bandColours: true });
         var __tot = ((window._lastSheetCounts && window._lastSheetCounts.groups) || [])
                       .reduce(function(s2, g){ return s2 + g.count; }, 0);
         if (__hp && __hp.ok && __hp.columns.length === __tot) __ccPlan = __hp;
