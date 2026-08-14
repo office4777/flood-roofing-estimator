@@ -9280,16 +9280,35 @@ function _renderCalcCheckCanvas(sections, opts){
   }
 
   // Column numbers (full opacity, so the faded overhang sheet still counts).
+  // Numbered as ONE running sequence ordered by length, unique across the
+  // whole roof (matching the colour-coded sheet plan): the longest-length
+  // sections come first, and within a section the two slopes carry straight
+  // through (top 1..per, bottom per+1..2·per) instead of each slope
+  // restarting at 1. Same-length sections stay contiguous; a different length
+  // starts a new block. Only the printed numbers change — column geometry,
+  // anchoring and draw order are untouched, so the picture is identical.
+  var _numBase = new Map(), _crun = 0;
+  built.slice().sort(function(a, b){
+    var la = a.s.orderedMm || 0, lb = b.s.orderedMm || 0;
+    if (lb !== la) return lb - la;                                  // longest length block first
+    return (b.s.isPrimary ? 1 : 0) - (a.s.isPrimary ? 1 : 0);      // main before wing within a length
+  }).forEach(function(b){
+    _numBase.set(b, _crun);
+    _crun += (b.s.mono ? 1 : 2) * b.per;                           // columns this section consumes
+  });
   built.forEach(function(b){
     var s = b.s, colWpx = b.cw*sc, numFont = Math.max(8, Math.min(13, colWpx*0.5));
     ctx.font = '700 '+numFont+'px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    // Mono = one row of numbers (single face); gable/hip = one row per slope.
+    var _base0 = _numBase.get(b) || 0;
+    // Mono = one row of numbers (single face); gable/hip = one row per slope,
+    // the second slope continuing after the first (base + per).
     var _nsds = s.mono ? [0] : [-1, 1];
-    _nsds.forEach(function(sd){
+    _nsds.forEach(function(sd, si){
+      var base = _base0 + si*b.per;
       for (var j = 0; j < b.per; j++){
         var nc = toC(b.w2(b.startU + (j+0.5)*b.cw, b.vMid + sd*b.halfRun*0.6));
         ctx.fillStyle = 'rgba(255,255,255,0.85)'; _roundRect(ctx, nc[0]-8, nc[1]-7, 16, 14, 3); ctx.fill();
-        ctx.fillStyle = '#0a1628'; ctx.fillText(String(j+1), nc[0], nc[1]);
+        ctx.fillStyle = '#0a1628'; ctx.fillText(String(base + j + 1), nc[0], nc[1]);
       }
     });
     for (var vi = 0; vi < (s.valleyExtra || 0); vi++){
