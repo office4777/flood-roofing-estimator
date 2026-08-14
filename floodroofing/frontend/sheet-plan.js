@@ -442,6 +442,11 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
   // offcut pieces are dropped from the drawn plan; only these direction-
   // correct reuse strips remain hatched.
   var rawOffcuts = strips.filter(function(s){ return s.isOffcut; });
+  // Offcut ACCOUNTING: each raw offcut piece carries its own area as the
+  // material available for reuse. Every reuse piece consumes capacity from
+  // its donor, so a donor sheet + everything cut from it can never add up
+  // to more than one full sheet.
+  rawOffcuts.forEach(function(r){ r._cap = _ccPolyArea(r.poly); });
   var baseOffcuts = [];
   if (rawOffcuts.length){
     strips = strips.filter(function(s){ return !s.isOffcut; });
@@ -497,27 +502,87 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           });
           pieces = next;
         });
-        // Push one reuse piece (donor found by mirroring across the donor
-        // section's centre axis — the offcut from the OPPOSITE corner of
-        // the same end; fallback: the in-place donor).
-        function pushReuse(polyPiece, host){
+        // The mirror rule: the piece that fits here, spun 90°, is the
+        // offcut from the OPPOSITE corner of the same end.
+        function _resolveMirror(host, c){
+          var sec = host._sec;
+          if (!sec) return host;
+          var u = c[0]*sec.R[0] + c[1]*sec.R[1];
+          var v = c[0]*sec.P[0] + c[1]*sec.P[1];
+          var m = sec.mono
+            ? [ (2*sec.uGridMid - u)*sec.R[0] + v*sec.P[0], (2*sec.uGridMid - u)*sec.R[1] + v*sec.P[1] ]
+            : [ u*sec.R[0] + (2*sec.vMid - v)*sec.P[0],     u*sec.R[1] + (2*sec.vMid - v)*sec.P[1] ];
+          return inAny(rawOffcuts, m) || host;
+        }
+        function pushPiece(polyPiece, donor){
           var c = _ccCentroid(polyPiece);
           // Degenerate clip results can leave a centroid outside the roof
           // (the source of stray number badges floating off the outline).
           if (!_spPointInPoly(c[0], c[1], outline)) return;
-          var donor = host, sec = host._sec;
-          if (sec){
-            var u = c[0]*sec.R[0] + c[1]*sec.R[1];
-            var v = c[0]*sec.P[0] + c[1]*sec.P[1];
-            var m = sec.mono
-              ? [ (2*sec.uGridMid - u)*sec.R[0] + v*sec.P[0], (2*sec.uGridMid - u)*sec.R[1] + v*sec.P[1] ]
-              : [ u*sec.R[0] + (2*sec.vMid - v)*sec.P[0],     u*sec.R[1] + (2*sec.vMid - v)*sec.P[1] ];
-            var mh = inAny(rawOffcuts, m);
-            if (mh) donor = mh;
-          }
           kept.push({ poly: polyPiece, centroid: c, seq: donor.seq, color: donor.color,
                       isOffcut: true, orderedLengthMm: donor.orderedLengthMm,
                       _id: donor._id, _deleted: !!delColSet[donor._id], face: null, _sec: null });
+        }
+        // Assign a reuse piece to donor offcut(s) WITH material accounting:
+        // a donor sheet plus everything cut from it can never exceed one
+        // full sheet. Preference order: the mirror donor if its offcut has
+        // the material, else the nearest offcut that does; a piece too big
+        // for any single offcut is CUT and pieced together from the nearest
+        // offcuts; a true shortfall comes off the round-up spare of the
+        // nearest ordered sheet.
+        function allocReuse(polyPiece, preferred){
+          var A = _ccPolyArea(polyPiece);
+          if (A < cw0*cw0*0.02) return;
+          var cand = (preferred && preferred._cap >= A*0.98) ? preferred : null;
+          if (!cand){
+            var c0 = _ccCentroid(polyPiece), bd0 = Infinity;
+            rawOffcuts.forEach(function(r){
+              if (r._cap < A*0.98) return;
+              var d = Math.hypot(r.centroid[0]-c0[0], r.centroid[1]-c0[1]);
+              if (d < bd0){ bd0 = d; cand = r; }
+            });
+          }
+          if (cand){ cand._cap -= A; pushPiece(polyPiece, cand); return; }
+          var rest = polyPiece, guard = 0;
+          while (rest && guard++ < 10){
+            var Ar = _ccPolyArea(rest);
+            if (Ar < cw0*cw0*0.02) return;
+            var c1 = _ccCentroid(rest), best = null, bd1 = Infinity;
+            rawOffcuts.forEach(function(r){
+              if (r._cap < cw0*cw0*0.05) return;
+              var d = Math.hypot(r.centroid[0]-c1[0], r.centroid[1]-c1[1]);
+              if (d < bd1){ bd1 = d; best = r; }
+            });
+            if (!best) break;
+            if (best._cap >= Ar*0.98){ best._cap -= Ar; pushPiece(rest, best); return; }
+            // Cut the piece along its run to EXACTLY the donor's remaining
+            // material — never hand out more than the offcut holds.
+            var frac = Math.min(0.85, best._cap / Ar);
+            if (frac < 0.08){ best._cap = 0; continue; }   // sliver — skip this donor
+            var vLo2 = Infinity, vHi2 = -Infinity;
+            rest.forEach(function(p){ var vv = p[0]*N[0]+p[1]*N[1]; if (vv < vLo2) vLo2 = vv; if (vv > vHi2) vHi2 = vv; });
+            var cutD = vLo2 + (vHi2 - vLo2)*frac;
+            var partA = _ccClipHalf(rest,  N[0],  N[1],  cutD);
+            var Aa = (partA.length > 2) ? _ccPolyArea(partA) : 0;
+            if (Aa > best._cap*1.02 && Aa > 0){
+              // one correction step: shrink the cut so the piece fits the cap
+              cutD = vLo2 + (cutD - vLo2)*(best._cap/Aa);
+              partA = _ccClipHalf(rest,  N[0],  N[1],  cutD);
+              Aa = (partA.length > 2) ? _ccPolyArea(partA) : 0;
+            }
+            var partB = _ccClipHalf(rest, -N[0], -N[1], -cutD);
+            if (partA.length > 2 && Aa > cw0*cw0*0.02){ best._cap = Math.max(0, best._cap - Aa); pushPiece(partA, best); }
+            else best._cap = 0;
+            rest = (partB.length > 2 && _ccPolyArea(partB) > cw0*cw0*0.02) ? partB : null;
+          }
+          if (rest){
+            var c2 = _ccCentroid(rest), ns = null, bd2 = Infinity;
+            solids.forEach(function(s){
+              var d = Math.hypot(s.centroid[0]-c2[0], s.centroid[1]-c2[1]);
+              if (d < bd2){ bd2 = d; ns = s; }
+            });
+            if (ns) pushPiece(rest, ns);
+          }
         }
         function rayClean(c){
           var foot = [a[0] + E[0]*(((c[0]-a[0])*E[0] + (c[1]-a[1])*E[1])),
@@ -546,7 +611,7 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           var c = _ccCentroid(onRoof);
           var host = inAny(rawOffcuts, c);
           if (host && !inAny(solids, c) && !inAny(kept, c) && rayClean(c)){
-            pushReuse(onRoof, host);
+            allocReuse(onRoof, _resolveMirror(host, c));
             return;
           }
           // Gap fill (hip & valley mode) — territory NO band covers at all
@@ -575,8 +640,7 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
               return (sc3 > 0) === (sg > 0);
             });
             if (!sameSide) return;
-            var nd = nearestOf(rawOffcuts, c) || nearestOf(solids, c);
-            if (nd){ pushReuse(onRoof, nd); }
+            allocReuse(onRoof, null);
             return;
           }
           // Fallback — the strip straddles solid ground (e.g. the pocket
@@ -590,7 +654,7 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
             if (inAny(solids, sc2)) return;
             if (inAny(kept, sc2)) return;
             if (!rayClean(sc2)) return;
-            pushReuse(sliver, ro);
+            allocReuse(sliver, _resolveMirror(ro, sc2));
           });
         });
       }
