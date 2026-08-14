@@ -508,12 +508,15 @@ function _ccDrawCookiePlan(cv, plan, outline, lines, T){
   plan.strips.forEach(function(s){
     if (s._deleted || !s.isOffcut) return;
     hatch(s.poly, s.color);
+    // Seam killer — bleed ~1px so neighbours meet without white seams.
+    poly(s.poly); ctx.strokeStyle = s.color; ctx.lineWidth = 1.6; ctx.stroke();
     poly(s.poly); ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; ctx.stroke();
   });
   // Solid donor pieces.
   plan.strips.forEach(function(s){
     if (s._deleted || s.isOffcut) return;
     poly(s.poly); ctx.fillStyle = s.color; ctx.fill();
+    ctx.strokeStyle = s.color; ctx.lineWidth = 1.6; ctx.stroke();   // seam killer
     ctx.strokeStyle = 'rgba(0,0,0,0.20)'; ctx.lineWidth = 1; ctx.stroke();
   });
   // Valley spares — hatched "+1", clipped to the roof; skip when the spare
@@ -4490,6 +4493,18 @@ function _renderRoofSheetPlanInner() {
   // Offcut-fed strips get a diagonal hatch overlay so the roofer can
   // see at a glance "this piece comes from the matching numbered
   // sheet on the donor face".
+  // Tidy plan: every strip is CLIPPED to the roof outline so nothing pokes
+  // past the roof edge, and each strip is pre-stroked in its own colour so
+  // canvas antialiasing can't leave hairline white seams between sheets.
+  ctx.save();
+  ctx.beginPath();
+  outline.forEach(function(p, i){
+    var cc = toC(p);
+    if (i === 0) ctx.moveTo(cc[0], cc[1]);
+    else         ctx.lineTo(cc[0], cc[1]);
+  });
+  ctx.closePath();
+  ctx.clip();
   allStrips.forEach(function(s){
     if (s._deleted) {
       // Deleted sheet — dashed grey outline only (no fill / hatch /
@@ -4519,6 +4534,9 @@ function _renderRoofSheetPlanInner() {
     });
     ctx.closePath();
     ctx.fillStyle = s.color; ctx.fill();
+    // Seam killer — bleed the fill ~1px past the poly edge so two
+    // neighbouring sheets always meet with no white antialiasing seam.
+    ctx.strokeStyle = s.color; ctx.lineWidth = 1.6; ctx.stroke();
     if (s.isOffcut) {
       ctx.clip();
       ctx.strokeStyle = 'rgba(255,255,255,0.55)';
@@ -4550,6 +4568,7 @@ function _renderRoofSheetPlanInner() {
     ctx.lineWidth = 1;
     ctx.stroke();
   });
+  ctx.restore();   // end of roof-outline clip — structure lines draw unclipped
 
   // Outline + hip/ridge lines on top so the structure stays readable.
   ctx.lineWidth = 2; ctx.strokeStyle = '#0a1628';
