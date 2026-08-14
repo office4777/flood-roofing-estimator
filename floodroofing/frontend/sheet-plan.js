@@ -323,6 +323,7 @@ function _ccBuildCookiePlan(sections, outline, lines){
   // offcut pieces are dropped from the drawn plan; only these direction-
   // correct reuse strips remain hatched.
   var rawOffcuts = strips.filter(function(s){ return s.isOffcut; });
+  var baseOffcuts = [];
   if (rawOffcuts.length){
     strips = strips.filter(function(s){ return !s.isOffcut; });
     var delColSet = {};
@@ -399,7 +400,10 @@ function _ccBuildCookiePlan(sections, outline, lines){
     // Only adopt the re-tiling when it actually replaces the in-place
     // pieces — if a roof has offcut regions but no gutters matched (odd
     // hand-drawn geometry), keep the in-place pieces rather than a hole.
-    if (kept.length) strips = strips.concat(kept);
+    // When re-tiled, the raw pieces survive as a BASE COAT the renderer
+    // paints beneath the reuse strips, so a hairline seam between the two
+    // grids can never show through as a white gap.
+    if (kept.length){ strips = strips.concat(kept); baseOffcuts = rawOffcuts; }
     else strips = strips.concat(rawOffcuts);
   }
   // Coverage gate — sample the roof; if the cookie pieces don't cover it,
@@ -415,13 +419,21 @@ function _ccBuildCookiePlan(sections, outline, lines){
       var px = minX + (maxX-minX)*(gx+0.5)/G, py = minY + (maxY-minY)*(gy+0.5)/G;
       if (!_spPointInPoly(px, py, outline)) continue;
       inN++;
+      var hitCov = false;
       for (var si = 0; si < strips.length; si++){
-        if (_spPointInPoly(px, py, strips[si].poly)){ covN++; break; }
+        if (_spPointInPoly(px, py, strips[si].poly)){ hitCov = true; break; }
       }
+      if (!hitCov){
+        for (var bi = 0; bi < baseOffcuts.length; bi++){
+          if (_spPointInPoly(px, py, baseOffcuts[bi].poly)){ hitCov = true; break; }
+        }
+      }
+      if (hitCov) covN++;
     }
   }
   var ratio = inN ? covN/inN : 0;
-  return { strips: strips, spares: spares, columns: columns, ok: ratio >= 0.97, ratio: ratio };
+  return { strips: strips, spares: spares, columns: columns, rawOffcuts: baseOffcuts,
+           ok: ratio >= 0.97, ratio: ratio };
 }
 // Repaint the sheet-plan canvas from a cookie plan. Same canvas + same
 // image→canvas transform the legacy engine used, so click-to-delete and
@@ -443,39 +455,49 @@ function _ccDrawCookiePlan(cv, plan, outline, lines, T){
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, T.W, T.H);
   // Pale roof ground.
   poly(outline); ctx.fillStyle = 'rgba(249,115,22,0.05)'; ctx.fill();
-  // Pass 1 — every ordered sheet at full extent, faded (shows the rounded-up
-  // overhang past the roof edge, calc-check style). Deleted → dashed ghost.
+  // A tidy plan: EVERYTHING is clipped to the roof outline — no sheet ever
+  // pokes past the roof edge (round-up overhang is the calc-check map's
+  // story, not the layout's).
+  ctx.save();
+  poly(outline); ctx.clip();
+  // Deleted sheets ghost as dashed outlines.
   plan.columns.forEach(function(col){
-    if (col.deleted){
-      ctx.save(); poly(col.rect); ctx.setLineDash([4,3]);
-      ctx.strokeStyle = 'rgba(15,23,42,0.35)'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.setLineDash([]); ctx.restore(); return;
-    }
-    ctx.save(); ctx.globalAlpha = 0.20;
-    poly(col.rect); ctx.fillStyle = col.color; ctx.fill();
-    ctx.globalAlpha = 0.4; ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 0.8; ctx.stroke();
-    ctx.restore();
+    if (!col.deleted) return;
+    ctx.save(); poly(col.rect); ctx.setLineDash([4,3]);
+    ctx.strokeStyle = 'rgba(15,23,42,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
   });
-  // Pass 2 — hatched offcut pieces (the cut-off part re-laid in place).
+  // Base coat — the raw in-place offcut territory, hatched with no strip
+  // lines. The re-tiled reuse strips draw over it, so a hairline seam
+  // between the two grids shows this coat instead of a white gap.
+  (plan.rawOffcuts || []).forEach(function(s){
+    if (s._deleted) return;
+    hatch(s.poly, s.color);
+  });
+  // Hatched reuse strips (the offcuts spun perpendicular to their gutter).
   plan.strips.forEach(function(s){
     if (s._deleted || !s.isOffcut) return;
     hatch(s.poly, s.color);
     poly(s.poly); ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; ctx.stroke();
   });
-  // Pass 3 — solid donor pieces.
+  // Solid donor pieces.
   plan.strips.forEach(function(s){
     if (s._deleted || s.isOffcut) return;
     poly(s.poly); ctx.fillStyle = s.color; ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,0.20)'; ctx.lineWidth = 1; ctx.stroke();
   });
-  // Valley spares — hatched, "+1".
+  // Valley spares — hatched "+1", clipped to the roof; skip when the spare
+  // sits wholly outside (the order legend still counts it).
   plan.spares.forEach(function(sp){
-    hatch(sp.rect, sp.color);
-    poly(sp.rect); ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; ctx.stroke();
-    var cc = toC(_ccCentroid(sp.rect));
+    var inPoly = _ccClipToConvex(outline, sp.rect);
+    if (!inPoly) return;
+    hatch(inPoly, sp.color);
+    poly(inPoly); ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; ctx.stroke();
+    var cc = toC(_ccCentroid(inPoly));
     ctx.font = '700 10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#0a1628'; ctx.fillText('+1', cc[0], cc[1]);
   });
+  ctx.restore();
   // Roof structure on top.
   poly(outline); ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 2.2; ctx.stroke();
   (lines || []).forEach(function(l){
