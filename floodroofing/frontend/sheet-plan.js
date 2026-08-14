@@ -533,9 +533,14 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
         function allocReuse(polyPiece, preferred){
           var A = _ccPolyArea(polyPiece);
           if (A < cw0*cw0*0.02) return;
+          // A roofer reuses offcuts from the SAME corner or nearby — never
+          // carts a scrap across the roof. Donor search is capped to a
+          // local radius; past it the piece is labelled off the round-up
+          // spare of the nearest own-face sheet instead.
+          var MAXD = cw0 * 9;
           var cand = (preferred && preferred._cap >= A*0.98) ? preferred : null;
           if (!cand){
-            var c0 = _ccCentroid(polyPiece), bd0 = Infinity;
+            var c0 = _ccCentroid(polyPiece), bd0 = MAXD;
             rawOffcuts.forEach(function(r){
               if (r._cap < A*0.98) return;
               var d = Math.hypot(r.centroid[0]-c0[0], r.centroid[1]-c0[1]);
@@ -547,7 +552,7 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           while (rest && guard++ < 10){
             var Ar = _ccPolyArea(rest);
             if (Ar < cw0*cw0*0.02) return;
-            var c1 = _ccCentroid(rest), best = null, bd1 = Infinity;
+            var c1 = _ccCentroid(rest), best = null, bd1 = MAXD;
             rawOffcuts.forEach(function(r){
               if (r._cap < cw0*cw0*0.05) return;
               var d = Math.hypot(r.centroid[0]-c1[0], r.centroid[1]-c1[1]);
