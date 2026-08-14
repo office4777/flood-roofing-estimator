@@ -91,6 +91,320 @@ function _onSheetPlanCanvasClick(ev){
   try { renderMatRoofMap(); } catch(e){}
 }
 
+// ══ Cookie-cutter sheet layout ═══════════════════════════════════
+// v2 layout engine. Instead of the per-topology cascade engines, lay the
+// SAME columns the Sheet Calculation Check tiles (the sections the counting
+// pass builds), then cut every column with the drawn roof lines (hips /
+// valleys / gablet aprons / ridge) like a cookie cutter and classify each
+// piece:
+//   • the part over its own face  → SOLID sheet (the ordered donor)
+//   • the part past a roof line   → HATCHED offcut — the piece the
+//     installer cuts off along that line, which lands exactly on the
+//     area it fills (the SOP hip/valley cut-and-reuse)
+//   • the part past the roof edge → FADED overhang (round-up waste)
+// Numbering mirrors the calc check 1:1 (global, ordered by length), so the
+// layout, the check map and the cut list all speak the same sheet numbers.
+// If the pieces don't cover ≥97% of the roof (a topology the sections
+// don't fully describe), the caller keeps the legacy cascade canvas.
+function _ccPolyArea(p){
+  var a = 0;
+  for (var i = 0; i < p.length; i++){ var q = p[(i+1)%p.length]; a += p[i][0]*q[1] - q[0]*p[i][1]; }
+  return Math.abs(a)/2;
+}
+function _ccCentroid(p){
+  var x = 0, y = 0;
+  p.forEach(function(q){ x += q[0]; y += q[1]; });
+  return [x/p.length, y/p.length];
+}
+// One Sutherland–Hodgman step: keep the part of `subj` with n·p <= d.
+function _ccClipHalf(subj, nx, ny, d){
+  var out = [];
+  for (var i = 0; i < subj.length; i++){
+    var A = subj[i], B = subj[(i+1)%subj.length];
+    var da = nx*A[0]+ny*A[1]-d, db = nx*B[0]+ny*B[1]-d;
+    if (da <= 1e-9) out.push(A);
+    if ((da < 0) !== (db < 0)){
+      var t = da/(da-db);
+      out.push([A[0]+(B[0]-A[0])*t, A[1]+(B[1]-A[1])*t]);
+    }
+  }
+  return out;
+}
+// Intersection of an ARBITRARY polygon `subj` with a CONVEX polygon.
+function _ccClipToConvex(subj, convex){
+  var c = _ccCentroid(convex), out = subj.slice();
+  for (var i = 0; i < convex.length && out.length > 2; i++){
+    var A = convex[i], B = convex[(i+1)%convex.length];
+    var nx = B[1]-A[1], ny = A[0]-B[0], d = nx*A[0]+ny*A[1];
+    if (nx*c[0]+ny*c[1]-d > 0){ nx = -nx; ny = -ny; d = -d; }   // inside = <= d
+    out = _ccClipHalf(out, nx, ny, d);
+  }
+  return (out.length > 2) ? out : null;
+}
+// Split a convex polygon by the infinite line through a-b → [sideA, sideB].
+function _ccSplitByLine(poly, a, b){
+  var nx = b[1]-a[1], ny = a[0]-b[0], d = nx*a[0]+ny*a[1];
+  var p1 = _ccClipHalf(poly,  nx,  ny,  d);
+  var p2 = _ccClipHalf(poly, -nx, -ny, -d);
+  var out = [];
+  if (p1.length > 2 && _ccPolyArea(p1) > 1e-6) out.push(p1);
+  if (p2.length > 2 && _ccPolyArea(p2) > 1e-6) out.push(p2);
+  return out.length ? out : [poly];
+}
+// Does segment a-b genuinely pass through convex `poly` (vertices on both
+// sides AND a positive-length part of the segment inside)?
+function _ccSegTouches(poly, a, b){
+  var nx = b[1]-a[1], ny = a[0]-b[0], d = nx*a[0]+ny*a[1], pos = false, neg = false;
+  for (var i = 0; i < poly.length; i++){
+    var v = nx*poly[i][0]+ny*poly[i][1]-d;
+    if (v > 1e-6) pos = true; else if (v < -1e-6) neg = true;
+  }
+  if (!pos || !neg) return false;
+  var t0 = 0, t1 = 1, c = _ccCentroid(poly);
+  for (var i = 0; i < poly.length; i++){
+    var A = poly[i], B = poly[(i+1)%poly.length];
+    var ex = B[1]-A[1], ey = A[0]-B[0], ed = ex*A[0]+ey*A[1];
+    if (ex*c[0]+ey*c[1]-ed > 0){ ex = -ex; ey = -ey; ed = -ed; }
+    var fa = ex*a[0]+ey*a[1]-ed, fb = ex*b[0]+ey*b[1]-ed;
+    if (fa > 0 && fb > 0) return false;
+    if (fa > 0)      t0 = Math.max(t0, fa/(fa-fb));
+    else if (fb > 0) t1 = Math.min(t1, fa/(fa-fb));
+  }
+  return (t1 - t0) > 1e-4;
+}
+// Proper segment-segment crossing.
+function _ccSegX(p, q, a, b){
+  function o(p1, p2, p3){ return (p2[0]-p1[0])*(p3[1]-p1[1]) - (p2[1]-p1[1])*(p3[0]-p1[0]); }
+  var d1 = o(a,b,p), d2 = o(a,b,q), d3 = o(p,q,a), d4 = o(p,q,b);
+  return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+}
+function _ccBuildCookiePlan(sections, outline, lines){
+  var secs = (sections || []).filter(function(s){
+    return s && s.perSide > 0 && s.rdir && isFinite(s.obU0) && isFinite(s.obV0) && s.coverPx > 0 && s.obV1 > s.obV0;
+  });
+  if (!secs.length || !outline || outline.length < 3) return null;
+  // Roof lines the cookie cutter cuts along — the physical cut edges where
+  // sheet direction / length changes.
+  var cutLines = (lines || []).filter(function(l){
+    if (!l || !l.pts || l.pts.length !== 2) return false;
+    if (l.type === 'hip' || l.type === 'valley' || l.type === 'ridge' || l.type === 'changepitch') return true;
+    return (l.type === 'apron' && l.subtype === 'head');
+  });
+  // Anchoring — same as the calc-check overlay: primary tiles from obU0; a
+  // wing anchors to its OUTER edge (farthest from the primary's centre).
+  var built = [], primaryWC = null;
+  secs.forEach(function(s){
+    var R = s.rdir, P = [-R[1], R[0]];
+    var cw = s.coverPx, per = s.perSide;
+    var vMid = (s.obV0 + s.obV1)/2, halfRun = (s.obV1 - s.obV0)/2;
+    function w2(u, v){ return [u*R[0]+v*P[0], u*R[1]+v*P[1]]; }
+    var uMid = (s.obU0 + s.obU1)/2;
+    var b = { s:s, R:R, P:P, cw:cw, per:per, vMid:vMid, halfRun:halfRun, w2:w2, wc:w2(uMid, vMid) };
+    if (s.isPrimary && !primaryWC) primaryWC = b.wc;
+    built.push(b);
+  });
+  built.forEach(function(b){
+    var s = b.s, span = b.per*b.cw;
+    if (s.isPrimary || !primaryWC){ b.startU = s.obU0; }
+    else {
+      var eA = b.w2(s.obU0, b.vMid), eB = b.w2(s.obU1, b.vMid);
+      var dA = Math.hypot(eA[0]-primaryWC[0], eA[1]-primaryWC[1]);
+      var dB = Math.hypot(eB[0]-primaryWC[0], eB[1]-primaryWC[1]);
+      b.startU = (dA >= dB) ? s.obU0 : (s.obU1 - span);
+    }
+  });
+  // Global numbering bases — MUST mirror the calc-check sort exactly so the
+  // two diagrams show identical numbers: longest length block first, main
+  // before wing within a length, stable otherwise.
+  var _base = new Map(), _run = 0;
+  built.slice().sort(function(a, c){
+    var la = a.s.orderedMm || 0, lc = c.s.orderedMm || 0;
+    if (lc !== la) return lc - la;
+    return (c.s.isPrimary ? 1 : 0) - (a.s.isPrimary ? 1 : 0);
+  }).forEach(function(b){
+    _base.set(b, _run);
+    _run += (b.s.mono ? 1 : 2) * b.per;
+  });
+  var deletedSet = {};
+  (DRAW.sheetPlanDeletedIds || []).forEach(function(id){ deletedSet[id] = true; });
+  var strips = [], spares = [], columns = [];
+  built.forEach(function(b, secIdx){
+    var s = b.s;
+    var gcolHex = String(s.gcol || s.color || '#f97316').replace('#','').toLowerCase();
+    var vHigh = isFinite(s.vHigh) ? s.vHigh : b.vMid;
+    // Side bands. Two-sided: si order matches the calc-check's [-1, +1].
+    var bands = s.mono
+      ? [{ si: 0, v0: b.vMid - b.halfRun, v1: b.vMid + b.halfRun }]
+      : [{ si: 0, v0: b.vMid - b.halfRun, v1: b.vMid },
+         { si: 1, v0: b.vMid,             v1: b.vMid + b.halfRun }];
+    bands.forEach(function(bd){
+      // The eave = the band edge farthest from the section's high edge.
+      var vE = (Math.abs(bd.v0 - vHigh) > Math.abs(bd.v1 - vHigh)) ? bd.v0 : bd.v1;
+      for (var j = 0; j < b.per; j++){
+        var u0 = b.startU + j*b.cw, u1 = u0 + b.cw;
+        var rect = [b.w2(u0, bd.v0), b.w2(u1, bd.v0), b.w2(u1, bd.v1), b.w2(u0, bd.v1)];
+        var id  = 'cc|' + gcolHex + '|' + (s.orderedMm || 0) + '|' + secIdx + '|' + bd.si + '|' + j;
+        var del = !!deletedSet[id];
+        var seq = (_base.get(b) || 0) + bd.si*b.per + j + 1;
+        columns.push({ id: id, rect: rect, seq: seq, color: s.color, deleted: del,
+                       numAt: b.w2(u0 + b.cw/2, s.mono ? b.vMid : (b.vMid + (bd.si ? 1 : -1)*b.halfRun*0.6)) });
+        // Cookie-cut the column along every roof line that passes through it.
+        var pieces = [rect];
+        cutLines.forEach(function(L){
+          var next = [];
+          pieces.forEach(function(p){
+            if (_ccSegTouches(p, L.pts[0], L.pts[1])) next.push.apply(next, _ccSplitByLine(p, L.pts[0], L.pts[1]));
+            else next.push(p);
+          });
+          pieces = next;
+        });
+        pieces.forEach(function(p){
+          var onRoof = _ccClipToConvex(outline, p);
+          if (!onRoof || _ccPolyArea(onRoof) < b.cw*b.cw*0.02) return;   // pure overhang
+          // Solid iff the straight drop from this piece to its own eave
+          // crosses no cut line (i.e. the piece sits on its own face).
+          var c = _ccCentroid(onRoof);
+          var cu = c[0]*b.R[0] + c[1]*b.R[1];
+          var rayEnd = b.w2(cu, vE);
+          var solid = !cutLines.some(function(L){ return _ccSegX(c, rayEnd, L.pts[0], L.pts[1]); });
+          strips.push({ poly: onRoof, centroid: c, seq: seq, color: s.color,
+                        isOffcut: !solid, orderedLengthMm: s.orderedMm || 0,
+                        _id: id, _deleted: del, face: null });
+        });
+      }
+      // Valley spares live on the +1 side band of a two-sided section.
+      if (!s.mono && bd.si === 1){
+        for (var vi = 0; vi < (s.valleyExtra || 0); vi++){
+          var su0 = b.startU + b.per*b.cw + vi*b.cw;
+          spares.push({ rect: [b.w2(su0, bd.v0), b.w2(su0+b.cw, bd.v0), b.w2(su0+b.cw, bd.v1), b.w2(su0, bd.v1)],
+                        color: s.color });
+        }
+      }
+    });
+  });
+  if (!strips.length) return null;
+  // Coverage gate — sample the roof; if the cookie pieces don't cover it,
+  // the topology isn't fully described by the sections: fall back.
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  outline.forEach(function(p){
+    if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+    if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+  });
+  var inN = 0, covN = 0, G = 34;
+  for (var gy = 0; gy < G; gy++){
+    for (var gx = 0; gx < G; gx++){
+      var px = minX + (maxX-minX)*(gx+0.5)/G, py = minY + (maxY-minY)*(gy+0.5)/G;
+      if (!_spPointInPoly(px, py, outline)) continue;
+      inN++;
+      for (var si = 0; si < strips.length; si++){
+        if (_spPointInPoly(px, py, strips[si].poly)){ covN++; break; }
+      }
+    }
+  }
+  var ratio = inN ? covN/inN : 0;
+  return { strips: strips, spares: spares, columns: columns, ok: ratio >= 0.97, ratio: ratio };
+}
+// Repaint the sheet-plan canvas from a cookie plan. Same canvas + same
+// image→canvas transform the legacy engine used, so click-to-delete and
+// downstream captures keep working unchanged.
+function _ccDrawCookiePlan(cv, plan, outline, lines, T){
+  var ctx = cv.getContext('2d');
+  function toC(p){ return [(p[0]-T.minX)*T.sc + T.padX, (p[1]-T.minY)*T.sc + T.padY]; }
+  function poly(pts){ ctx.beginPath(); pts.forEach(function(p,i){ var c=toC(p); i?ctx.lineTo(c[0],c[1]):ctx.moveTo(c[0],c[1]); }); ctx.closePath(); }
+  function rr(x, y, w, h, r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function hatch(pts, col){
+    ctx.save(); poly(pts); ctx.fillStyle = col; ctx.fill(); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.4;
+    var a=Infinity,b2=-Infinity,c2=Infinity,d2=-Infinity;
+    pts.forEach(function(p){ var q=toC(p); a=Math.min(a,q[0]); b2=Math.max(b2,q[0]); c2=Math.min(c2,q[1]); d2=Math.max(d2,q[1]); });
+    for (var hx=a-(d2-c2); hx<b2; hx+=6){ ctx.beginPath(); ctx.moveTo(hx,c2); ctx.lineTo(hx+(d2-c2),d2); ctx.stroke(); }
+    ctx.restore();
+  }
+  ctx.clearRect(0, 0, T.W, T.H);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, T.W, T.H);
+  // Pale roof ground.
+  poly(outline); ctx.fillStyle = 'rgba(249,115,22,0.05)'; ctx.fill();
+  // Pass 1 — every ordered sheet at full extent, faded (shows the rounded-up
+  // overhang past the roof edge, calc-check style). Deleted → dashed ghost.
+  plan.columns.forEach(function(col){
+    if (col.deleted){
+      ctx.save(); poly(col.rect); ctx.setLineDash([4,3]);
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.setLineDash([]); ctx.restore(); return;
+    }
+    ctx.save(); ctx.globalAlpha = 0.20;
+    poly(col.rect); ctx.fillStyle = col.color; ctx.fill();
+    ctx.globalAlpha = 0.4; ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 0.8; ctx.stroke();
+    ctx.restore();
+  });
+  // Pass 2 — hatched offcut pieces (the cut-off part re-laid in place).
+  plan.strips.forEach(function(s){
+    if (s._deleted || !s.isOffcut) return;
+    hatch(s.poly, s.color);
+    poly(s.poly); ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; ctx.stroke();
+  });
+  // Pass 3 — solid donor pieces.
+  plan.strips.forEach(function(s){
+    if (s._deleted || s.isOffcut) return;
+    poly(s.poly); ctx.fillStyle = s.color; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.20)'; ctx.lineWidth = 1; ctx.stroke();
+  });
+  // Valley spares — hatched, "+1".
+  plan.spares.forEach(function(sp){
+    hatch(sp.rect, sp.color);
+    poly(sp.rect); ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; ctx.stroke();
+    var cc = toC(_ccCentroid(sp.rect));
+    ctx.font = '700 10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#0a1628'; ctx.fillText('+1', cc[0], cc[1]);
+  });
+  // Roof structure on top.
+  poly(outline); ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 2.2; ctx.stroke();
+  (lines || []).forEach(function(l){
+    if (!l || !l.pts || l.pts.length !== 2) return;
+    if (l.type === 'gutter' || l.type === 'barge') return;
+    var a = toC(l.pts[0]), b = toC(l.pts[1]);
+    if (l.type === 'ridge'){ ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2; }
+    else if (l.type === 'valley'){ ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 1.6; }
+    else { ctx.strokeStyle = 'rgba(10,22,40,0.55)'; ctx.lineWidth = 1.4; }
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+  });
+  // Numbers — one badge per ordered sheet on its biggest SOLID piece (at
+  // the calc-check number spot when that spot is inside the piece), plus a
+  // small number on each sizeable offcut piece so the reuse stays traceable.
+  var colWpx = 0;
+  plan.columns.forEach(function(c){
+    var w = Math.hypot(toC(c.rect[1])[0]-toC(c.rect[0])[0], toC(c.rect[1])[1]-toC(c.rect[0])[1]);
+    if (w > colWpx) colWpx = w;
+  });
+  var numFont = Math.max(8, Math.min(13, colWpx*0.5));
+  var byId = {};
+  plan.strips.forEach(function(s){
+    if (s._deleted) return;
+    (byId[s._id] = byId[s._id] || []).push(s);
+  });
+  plan.columns.forEach(function(col){
+    if (col.deleted) return;
+    var pieces = byId[col.id] || [];
+    if (!pieces.length) return;
+    var solids = pieces.filter(function(p){ return !p.isOffcut; });
+    var main = (solids.length ? solids : pieces).slice().sort(function(a,b){ return _ccPolyArea(b.poly)-_ccPolyArea(a.poly); })[0];
+    var at = _spPointInPoly(col.numAt[0], col.numAt[1], main.poly) ? col.numAt : main.centroid;
+    var cc = toC(at);
+    ctx.font = '700 ' + numFont + 'px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,0.88)'; rr(cc[0]-8, cc[1]-7, 16, 14, 3); ctx.fill();
+    ctx.fillStyle = '#0a1628'; ctx.fillText(String(col.seq), cc[0], cc[1]);
+    // Offcut piece numbers (skip slivers).
+    pieces.forEach(function(p){
+      if (!p.isOffcut || p === main) return;
+      if (_ccPolyArea(p.poly) < colWpx*colWpx*0.35/(T.sc*T.sc)) return;
+      var oc = toC(p.centroid);
+      ctx.font = '700 ' + Math.max(7, numFont-2) + 'px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.75)'; rr(oc[0]-7, oc[1]-6, 14, 12, 3); ctx.fill();
+      ctx.fillStyle = 'rgba(10,22,40,0.9)'; ctx.fillText(String(col.seq), oc[0], oc[1]);
+    });
+  });
+}
+
 // render its sheet plan into a labelled section.  Single-roof or
 // pre-multi-roof code paths go straight to the inner renderer.
 function renderRoofSheetPlan() {
@@ -4253,6 +4567,14 @@ function _renderRoofSheetPlanInner() {
     var dk = s.color + ':' + s.orderedLengthMm;
     _delByKey[dk] = (_delByKey[dk] || 0) + 1;
   });
+  // Cookie-cutter strips encode their (group colour, ordered length) in the
+  // deletion id itself ('cc|f97316|5137|…'), so a sheet deleted off the
+  // cookie diagram reduces the order even though the legacy strip list this
+  // tally walks never contained it.
+  (DRAW.sheetPlanDeletedIds || []).forEach(function(id){
+    var m = /^cc\|([0-9a-fA-F]{3,8})\|(\d+)\|/.exec(String(id));
+    if (m){ var ck = '#' + m[1].toLowerCase() + ':' + m[2]; _delByKey[ck] = (_delByKey[ck] || 0) + 1; }
+  });
   // ── Order count by ROOF SECTION ────────────────────────────────
   // The roofer lays donor (full) sheets on the two faces EITHER SIDE of
   // a section's ridge, and cuts the hip-ends + wing wedges from those
@@ -4437,6 +4759,11 @@ function _renderRoofSheetPlanInner() {
       return { color: COL_ORANGE, perSide: perSide, valleyExtra: 0, total: total,
         orderedMm: orderedLengthMm(Math.abs(run)*effectiveScale*pitchFactor), isPrimary: true, mono: mono,
         rdir: R.slice(), obU0: u0, obU1: u1, obV0: Math.min(v0,v1), obV1: Math.max(v0,v1), coverPx: coverPx,
+        // gcol keys the order group this section counts into; vHigh marks
+        // the HIGH edge (base = the ridge / apron the run springs from) so
+        // the cookie-cutter knows which way is down-slope. The mono-gutter
+        // branch overrides vHigh (there `base` is the LOW gutter edge).
+        gcol: COL_ORANGE, vHigh: base,
         outline: (outline||[]).map(function(p){ return p.slice(); }), scaleM: effectiveScale };
     }
     if (!isMono){
@@ -4460,6 +4787,7 @@ function _renderRoofSheetPlanInner() {
           var ps=Math.max(1, Math.ceil(wpx/coverPx - 1e-6));
           var sec=mkSec(R, reg.u0, reg.u1, ridgeP-reg.run, reg.run, ps, 2*ps, false);
           sec.obV0=ridgeP-reg.run; sec.obV1=ridgeP+reg.run;   // full two-sided band
+          sec.vHigh=ridgeP;                                    // ridge splits the band
           addGroup(sec.orderedMm, 2*ps, sec); return;
         }
         [[up,1],[dn,-1]].forEach(function(pr){
@@ -4487,8 +4815,9 @@ function _renderRoofSheetPlanInner() {
         _sgmSplit(uLo,uHi,ray).forEach(function(reg){
           var wpx=reg.u1-reg.u0; if (wpx < coverPx*0.5) return;
           var ps=Math.max(1, Math.ceil(wpx/coverPx - 1e-6));
-          addGroup(orderedLengthMm(reg.run*effectiveScale*pitchFactor), ps,
-                   mkSec(R, reg.u0, reg.u1, gutP, side*reg.run, ps, ps, true));
+          var _ms=mkSec(R, reg.u0, reg.u1, gutP, side*reg.run, ps, ps, true);
+          _ms.vHigh = gutP + side*reg.run;   // base was the LOW gutter — high is the far edge
+          addGroup(orderedLengthMm(reg.run*effectiveScale*pitchFactor), ps, _ms);
         });
       });
     }
@@ -4831,6 +5160,10 @@ function _renderRoofSheetPlanInner() {
       // plus cover width — all in outline px.  The overlay tiles the real
       // roof and lets the rounded-up last column overhang the eave.
       rdir: s.rdir, obU0: s.obU0, obU1: s.obU1, obV0: s.obV0, obV1: s.obV1, coverPx: coverPx,
+      // gcol = the REAL tiler colour keying this section's order group
+      // (cookie-cutter deletions reduce that group); vHigh = the v of the
+      // section's HIGH edge (the ridge splits a two-sided band in half).
+      gcol: s.col, vHigh: (s.obV0 + s.obV1) / 2,
       outline: (outline || []).map(function(p){ return p.slice(); }), scaleM: effectiveScale });
   });
   // Expose the per-section breakdown for the "Sheet calculation check" map.
@@ -4895,6 +5228,20 @@ function _renderRoofSheetPlanInner() {
     groups: groupList.map(function(g){ return { color: g.color, orderedMm: g.orderedMm, count: g.count }; }),
   };
 
+  // ── Cookie-cutter layout ─────────────────────────────────────────
+  // Rebuild the diagram from the calc-check sections (columns laid where
+  // the Sheet Calculation Check tiles them, cut along the roof lines,
+  // offcuts hatched in place). Replaces the legacy cascade canvas ONLY
+  // when the pieces cover the roof — otherwise the cascade stays.
+  try {
+    var __ccPlan = _ccBuildCookiePlan(window._lastSheetSections, outline, (_tLines || __origDrawLines || DRAW.lines));
+    if (__ccPlan && __ccPlan.ok){
+      _ccDrawCookiePlan(cv, __ccPlan, outline, (_tLines || __origDrawLines || DRAW.lines),
+                        { minX: minX, minY: minY, sc: sc, padX: padX, padY: padY, W: W, H: H });
+      allStrips = __ccPlan.strips;
+      try { window.__lastAllStrips = allStrips; } catch(e){}
+    }
+  } catch(e){}
   outEl.innerHTML = '';
   // Wire up click-to-delete: stash the strips + image→canvas transform
   // on the element and mount the click handler.  Cursor shows the edit
