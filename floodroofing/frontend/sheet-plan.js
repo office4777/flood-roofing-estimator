@@ -4743,11 +4743,16 @@ function _renderRoofSheetPlanInner() {
   // Cookie-cutter strips encode their (group colour, ordered length) in the
   // deletion id itself ('cc|f97316|5137|…'), so a sheet deleted off the
   // cookie diagram reduces the order even though the legacy strip list this
-  // tally walks never contained it.
-  (DRAW.sheetPlanDeletedIds || []).forEach(function(id){
-    var m = /^cc\|([0-9a-fA-F]{3,8})\|(\d+)\|/.exec(String(id));
-    if (m){ var ck = '#' + m[1].toLowerCase() + ':' + m[2]; _delByKey[ck] = (_delByKey[ck] || 0) + 1; }
-  });
+  // tally walks never contained it. Only honoured on the roof types that
+  // actually render the cookie diagram (dutch / mono) — anywhere else a
+  // stale cc id must not subtract from a legacy diagram that still shows
+  // the sheet.
+  if (DRAW.roofType === 'dutch' || DRAW.roofType === 'mono'){
+    (DRAW.sheetPlanDeletedIds || []).forEach(function(id){
+      var m = /^cc\|([0-9a-fA-F]{3,8})\|(\d+)\|/.exec(String(id));
+      if (m){ var ck = '#' + m[1].toLowerCase() + ':' + m[2]; _delByKey[ck] = (_delByKey[ck] || 0) + 1; }
+    });
+  }
   // ── Order count by ROOF SECTION ────────────────────────────────
   // The roofer lays donor (full) sheets on the two faces EITHER SIDE of
   // a section's ridge, and cuts the hip-ends + wing wedges from those
@@ -5409,10 +5414,15 @@ function _renderRoofSheetPlanInner() {
   // ── Cookie-cutter layout ─────────────────────────────────────────
   // Rebuild the diagram from the calc-check sections (columns laid where
   // the Sheet Calculation Check tiles them, cut along the roof lines,
-  // offcuts hatched in place). Replaces the legacy cascade canvas ONLY
-  // when the pieces cover the roof — otherwise the cascade stays.
+  // offcuts hatched in place). ONLY for the roof types it has been signed
+  // off on — Dutch gable and mono-pitch. Hip & valley (and every other
+  // type) keeps the legacy cascade diagram, which lays those roofs
+  // correctly. Even for dutch/mono it replaces the cascade canvas only
+  // when the cookie pieces cover the roof.
   try {
-    var __ccPlan = _ccBuildCookiePlan(window._lastSheetSections, outline, (_tLines || __origDrawLines || DRAW.lines));
+    var __ccPlan = (DRAW.roofType === 'dutch' || DRAW.roofType === 'mono')
+      ? _ccBuildCookiePlan(window._lastSheetSections, outline, (_tLines || __origDrawLines || DRAW.lines))
+      : null;
     if (__ccPlan && __ccPlan.ok){
       _ccDrawCookiePlan(cv, __ccPlan, outline, (_tLines || __origDrawLines || DRAW.lines),
                         { minX: minX, minY: minY, sc: sc, padX: padX, padY: padY, W: W, H: H });
