@@ -222,6 +222,7 @@ function _ccHipBandSections(outline, lines, coverPx, lenOf){
   var gutters = (lines||[]).filter(function(l){ return l && l.type==='gutter' && l.pts && l.pts.length===2; });
   var hips    = (lines||[]).filter(function(l){ return l && l.type==='hip'    && l.pts && l.pts.length===2; });
   var ridges  = (lines||[]).filter(function(l){ return l && l.type==='ridge'  && l.pts && l.pts.length===2; });
+  var aprons  = (lines||[]).filter(function(l){ return l && l.type==='apron' && l.subtype==='head' && l.pts && l.pts.length===2; });
   if (!gutters.length || !hips.length || !ridges.length) return null;
   var ocx = 0, ocy = 0;
   outline.forEach(function(p){ ocx += p[0]; ocy += p[1]; }); ocx /= outline.length; ocy /= outline.length;
@@ -254,6 +255,20 @@ function _ccHipBandSections(outline, lines, coverPx, lenOf){
     if (fa && fb && near(fa, fb)){
       e.depth = (fa[0]*N[0] + fa[1]*N[1]) - vG;
       if (e.depth > coverPx*0.2){ ends.push(e); return; }
+    }
+    // DUTCH GABLE end: the two corner hips do NOT converge — they stop at
+    // the gablet, and an apron (head) line joins their tops. The end still
+    // populates itself the same way, just shallower: band depth runs from
+    // the end gutter to the apron.
+    if (fa && fb && !near(fa, fb)){
+      var ap = aprons.find(function(L){
+        return (near(L.pts[0], fa) && near(L.pts[1], fb)) ||
+               (near(L.pts[0], fb) && near(L.pts[1], fa));
+      });
+      if (ap){
+        e.depth = (fa[0]*N[0] + fa[1]*N[1]) - vG;
+        if (e.depth > coverPx*0.2){ ends.push(e); return; }
+      }
     }
     donors.push(e);
   });
@@ -5839,14 +5854,27 @@ function _renderRoofSheetPlanInner() {
     // EXACTLY with the counted SHEETS TO ORDER total. Any disagreement
     // means this roof doesn't fit the band model — the cascade diagram
     // stays (e.g. a plain rectangle counts full-length donors instead).
-    if (!__ccPlan && DRAW.roofType === 'hip'){
+    // Dutch gable on a non-rectangle: the plain cookie can't cover it, but
+    // the band model can — the gablet ends self-populate exactly like hip
+    // ends (band depth to the apron instead of the apex) and the valley is
+    // fed from the corner offcuts. Same strict gate as hip below.
+    if ((!__ccPlan || !__ccPlan.ok) && (DRAW.roofType === 'hip' || DRAW.roofType === 'dutch')){
       var __hb = _ccHipBandSections(outline, __ccLines, coverPx,
                    function(d){ return orderedLengthMm(d * effectiveScale * pitchFactor); });
       if (__hb && __hb.length){
         var __hp = _ccBuildCookiePlan(__hb, outline, __ccLines, { fillGaps: true, valleyRayOK: true, bandColours: true });
-        var __tot = ((window._lastSheetCounts && window._lastSheetCounts.groups) || [])
-                      .reduce(function(s2, g){ return s2 + g.count; }, 0);
-        if (__hp && __hp.ok && __hp.columns.length === __tot) __ccPlan = __hp;
+        // The gate compares PER-LENGTH groups, not just the grand total — a
+        // roof whose band count happens to hit the same total with a
+        // different length mix must stay on the cascade, or the diagram
+        // would contradict the SHEETS TO ORDER legend.
+        var __cm = {}, __bm = {}, __gOK = !!(__hp && __hp.ok);
+        ((window._lastSheetCounts && window._lastSheetCounts.groups) || []).forEach(function(g){
+          var mm = g.orderedMm || g.lengthMm || 0; __cm[mm] = (__cm[mm]||0) + g.count;
+        });
+        __hb.forEach(function(bb){ __bm[bb.orderedMm] = (__bm[bb.orderedMm]||0) + bb.perSide; });
+        Object.keys(__cm).forEach(function(k){ if (__cm[k] !== __bm[k]) __gOK = false; });
+        Object.keys(__bm).forEach(function(k){ if (__cm[k] !== __bm[k]) __gOK = false; });
+        if (__gOK) __ccPlan = __hp;
       }
     }
     if (__ccPlan && __ccPlan.ok){
