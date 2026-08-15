@@ -526,7 +526,7 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
       // gutter: corner reuse strips must continue the face's OWN sheet
       // columns exactly, or a part-width sliver strip appears at the seam
       // between the solid band and the reuse fill.
-      var offT = 0;
+      var offT = 0, gBandP = null, gBandVHigh = 0, gBandSgn = 1;
       for (var bi2 = 0; bi2 < secs.length; bi2++){
         var sb = secs[bi2];
         if (!sb.srcGutter || sb.srcGutter !== g) continue;
@@ -539,6 +539,13 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
         var qb = [uAnchor*Rb[0] + vGut*Pb[0], uAnchor*Rb[1] + vGut*Pb[1]];
         var tq = (qb[0]-a[0])*E[0] + (qb[1]-a[1])*E[1];
         offT = ((tq % cw0) + cw0) % cw0;
+        // Remember this gutter's band edges: a face can be DEEPER than its
+        // band where the ridge stops short of it (the strip then runs
+        // through the band and out the far side), and that remainder is
+        // legitimate gap-fill territory.
+        gBandP = Pb;
+        gBandVHigh = (sb.vHigh != null ? sb.vHigh : sb.obV1);
+        gBandSgn = (gBandVHigh - vGut) >= 0 ? 1 : -1;
         break;
       }
       // Gap-fill mode marches the strip grid across the outline's FULL
@@ -784,26 +791,52 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           // (the internal valley wedge): fill it in this gutter's own
           // direction. VALLEY-SIDE test: the extended grids of BOTH faces
           // reach the wedge, but a piece may only be filled by the gutter
-          // on ITS OWN side of the valley.
-          if (!host && opts.fillGaps && !inAny(solids, c) && !inAny(kept, c) && rayClean(c)){
-            var sameSide = cutLines.every(function(L){
+          // on ITS OWN side of the valley. The test only applies where the
+          // piece actually sits ALONGSIDE the valley segment — past its
+          // endpoints the valley separates nothing.
+          function valleySideOK(cP){
+            return cutLines.every(function(L){
               if (L.type !== 'valley') return true;
               var vx = L.pts[1][0]-L.pts[0][0], vy = L.pts[1][1]-L.pts[0][1];
+              var vL2 = vx*vx + vy*vy;
+              var tV = vL2 ? (((cP[0]-L.pts[0][0])*vx + (cP[1]-L.pts[0][1])*vy) / vL2) : 0;
+              if (tV < 0 || tV > 1) return true;             // beyond the valley's extent
               // side of the piece vs side of the gutter's nearest point,
               // clamped STRICTLY inside the segment (at an internal corner
               // the raw clamp lands exactly on the valley endpoint).
-              var sc3 = vx*(c[1]-L.pts[0][1]) - vy*(c[0]-L.pts[0][0]);
+              var sc3 = vx*(cP[1]-L.pts[0][1]) - vy*(cP[0]-L.pts[0][0]);
               if (sc3 === 0) return true;                    // piece ON the line — either side
               var gEps = Math.min(cw0*0.6, gl*0.4);
-              var tG = Math.max(gEps, Math.min(gl-gEps, (c[0]-a[0])*E[0] + (c[1]-a[1])*E[1]));
+              var tG = Math.max(gEps, Math.min(gl-gEps, (cP[0]-a[0])*E[0] + (cP[1]-a[1])*E[1]));
               var gp = [a[0]+E[0]*tG, a[1]+E[1]*tG];
               var sg = vx*(gp[1]-L.pts[0][1]) - vy*(gp[0]-L.pts[0][0]);
               if (sg === 0) return false;                    // still ambiguous — not this gutter's side
               return (sc3 > 0) === (sg > 0);
             });
-            if (!sameSide) return;
+          }
+          if (!host && opts.fillGaps && !inAny(solids, c) && !inAny(kept, c) && rayClean(c)){
+            if (!valleySideOK(c)) return;
             stripCand.push({ poly: onRoof, host: null, area: _ccPolyArea(onRoof) });
             return;
+          }
+          // Strip runs from the gutter THROUGH its own band and out the far
+          // side (the ridge stops short of this column, so no cut line ends
+          // the piece at the band edge — its centroid sits on band solids
+          // but the remainder past the band is genuinely empty roof).
+          if (!host && opts.fillGaps && gBandP && inAny(solids, c)){
+            var beyond = _ccClipHalf(onRoof, -gBandP[0]*gBandSgn, -gBandP[1]*gBandSgn, -gBandVHigh*gBandSgn);
+            if (beyond && beyond.length >= 3 && _ccPolyArea(beyond) >= cw0*cw0*0.02){
+              var cB = _ccCentroid(beyond), aB = _ccPolyArea(beyond);
+              // At the multi-hip junction another face's fill may already
+              // hold part of this remainder — a SMALL remainder is kept
+              // anyway (the pieces paint over each other cleanly; a white
+              // hole never does).
+              var keptHit = inAny(kept, cB);
+              if (!inAny(solids, cB) && (!keptHit || aB < cw0*cw0) && rayClean(cB) && valleySideOK(cB)){
+                stripCand.push({ poly: beyond, host: null, area: aB });
+                return;
+              }
+            }
           }
           // Straddling piece — keep only its genuinely empty slivers.
           rawOffcuts.forEach(function(ro){
@@ -5367,6 +5400,34 @@ function _renderRoofSheetPlanInner() {
         // branch overrides vHigh (there `base` is the LOW gutter edge).
         gcol: COL_ORANGE, vHigh: base,
         outline: (outline||[]).map(function(p){ return p.slice(); }), scaleM: effectiveScale };
+    }
+    // Dutch gable on a NON-RECTANGULAR outline (L / T): the ridge walk
+    // below mis-reads the far bar as one sideways run (sheets parallel to
+    // the gutter — never how the office sheets a roof). Count the whole
+    // roof with the hip-band model instead: the gablet ENDS use the same
+    // dutch-end logic as always (eave→apron short sheets tiled across the
+    // full end eave — identical numbers to the isDutch block below) and
+    // every other face runs full donor sheets off its own gutter, trimmed
+    // past the ends. The order, the check map and the band layout then all
+    // describe the same roof. A plain rectangle keeps the original path.
+    if (isDutch && outline && outline.length > 4){
+      try {
+        var _db = _ccHipBandSections(outline, DRAW.lines, coverPx,
+                    function(d){ return orderedLengthMm(d * effectiveScale * pitchFactor); });
+        if (_db && _db.length){
+          var _dp = _ccBuildCookiePlan(_db, outline, DRAW.lines,
+                      { fillGaps: true, valleyRayOK: true, bandColours: true });
+          if (_dp && _dp.ok){
+            _db.forEach(function(bb){
+              bb.scaleM = effectiveScale;
+              addGroup(bb.orderedMm, bb.perSide, bb);
+            });
+            Object.keys(_delByKey).forEach(function(k){ if (groups[k]) groups[k].count = Math.max(0, groups[k].count - _delByKey[k]); });
+            try { window._lastSheetSections = checkSecs; } catch(e){}
+            return;
+          }
+        }
+      } catch(e){}
     }
     if (!isMono){
       var ridges = DRAW.lines.filter(function(l){ return l && l.type==='ridge' && l.pts && l.pts.length===2; });
