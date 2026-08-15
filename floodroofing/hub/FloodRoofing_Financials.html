@@ -3923,6 +3923,14 @@ function apDueThisMonth(){
     return {total:list.reduce((s,b)=>s+num(b.amt),0),list:list,hasBills:true};}
   const ax=window.__apExp;return {total:ax?(num(ax.next.ap)+num(ax.next.mat)):(window.__apTotal||0),list:[],hasBills:false};
 }
+// Actual supplier bills already in Xero whose due date falls in the same calendar month as `ms`
+// (i.e. bills that land on that month's 20th). Used by the "A/P due next month" tile + popup.
+function apBillsDueInMonth(ms){
+  const bills=(cash&&cash.apBills)||null;const d=new Date(ms);const mk=d.getFullYear()*12+d.getMonth();
+  const mkOf=x=>{if(!x)return null;const p=String(x).slice(0,10).split('-');return parseInt(p[0])*12+((parseInt(p[1])||1)-1);};
+  const list=bills?bills.filter(b=>mkOf(b.due)===mk):[];
+  return {total:list.reduce((s,b)=>s+num(b.amt),0),list:list,hasBills:!!(bills&&bills.length)};
+}
 function renderCommand(){
   ensureChartTip();
   const host=document.getElementById('cmd-kpis');if(!host)return;
@@ -3982,10 +3990,13 @@ function renderCommand(){
         '<div class="kv kv-cmp">AR <b class="cmp-in">'+fmtK(arv)+'</b> / <b>'+fmtK(apThis)+'</b> AP</div>'+
         '<div class="kd" style="color:'+(diff>=0?'var(--success)':'var(--danger)')+';font-weight:700;">'+(diff>=0?'+'+fmtK(diff)+' ahead':'−'+fmtK(-diff)+' short')+' this month</div></div>';})()+
     tile('','Accounts payable',ap!=null?fmtK(ap):'—','',apN?(apN+' supplier codes'):'owed to suppliers','ap')+
-    // A/P due NEXT month — the new materials landing the following 20th, i.e. on top of (less) what's due this month.
-    (function(){const ax=window.__apExp;if(!ax)return '';const fm=num(ax.foll.mat);if(fm<=0)return '';
+    // A/P due NEXT month — actual current bills landing that month's 20th PLUS new materials likely paid
+    // the same 20th. Combined here; the popup separates the two totals. This is on top of what's due this month.
+    (function(){const ax=window.__apExp;if(!ax)return '';
+      const nb=apBillsDueInMonth(ax.foll.ms);const fm=num(ax.foll.mat);const comb=nb.total+fm;if(comb<=0)return '';
       const d=ms=>{const x=new Date(ms);return x.getDate()+' '+FG_MONTHS[x.getMonth()];};
-      return tile('','A/P due next month · '+d(ax.foll.ms),fmtK(fm),'','on top of this month · new materials','expap');})()+
+      const sub=(nb.total>0?fmtK(nb.total)+' bills':'')+((nb.total>0&&fm>0)?' + ':'')+(fm>0?fmtK(fm)+' materials':'');
+      return tile('','A/P due next month · '+d(ax.foll.ms),fmtK(comb),'',sub||'on top of this month','expap');})()+
     tile(wkCls,'Forward workflow',wkWeeks!=null?(Math.round(wkWeeks*10)/10+' wk'):'—','',fwJobs.length?(fwJobs.filter(j=>!fwDone[j.id]&&!isExcl(j)).length+' jobs booked'):'sync Fergus','fw')+
     tile('','Active job revenue',actJobs.length?fmtK(actRev):'—','pos',actJobs.length?(actJobs.length+' active · '+fmtK(actBilled)+' invoiced'):'sync Fergus','activerev')+
     bankCmdTiles();
@@ -4153,21 +4164,28 @@ function openCmdDetail(key,optMk){
       else{const ap=window.__apTotal;body='<div class="note">Total unpaid supplier bills (Accounts Payable): <b>'+(ap!=null?fmtK(ap):'—')+'</b>.<br><br>Open <b>Cash → Accounts Payable</b> and sync to load the per-bill breakdown.</div>';}}}
   else if(key==='expap'){
     const ax=window.__apExp;
-    title='Expected A/P — upcoming 20ths';
+    const dfull=ms=>{const x=new Date(ms);return x.getDate()+' '+FG_MONTHS[x.getMonth()]+' '+String(x.getFullYear()).slice(2);};
+    title='A/P due next month'+(ax?' · '+dfull(ax.foll.ms):'');
     if(!ax){body='<div class="empty">Refresh Fergus + sync Xero A/P to project the 20th.</div>';}
     else{
-      const dfull=ms=>{const x=new Date(ms);return x.getDate()+' '+FG_MONTHS[x.getMonth()]+' '+String(x.getFullYear()).slice(2);};
-      const mkSeg=(label,s)=>{const matTot=s.jobs.reduce((a,j)=>a+num(j.mat),0);const tot=num(s.ap)+matTot;
-        const rows=[];
-        if(num(s.ap)>0)rows.push('<tr><td>Current A/P — already invoiced in Xero</td><td style="text-align:right;font-weight:700;">'+fmtK(s.ap)+'</td></tr>');
-        s.jobs.slice().sort((a,b)=>num(b.mat)-num(a.mat)).forEach(j=>rows.push('<tr><td>'+esc((j.job||'').slice(0,38))+' <span class="cfx-tag">materials</span></td><td style="text-align:right;color:#fb923c;">'+fmtK(j.mat)+'</td></tr>'));
-        if(!rows.length)rows.push('<tr><td colspan="2" class="empty">Nothing due.</td></tr>');
-        rows.push('<tr class="tot"><td>Total</td><td style="text-align:right;">'+fmtK(tot)+'</td></tr>');
-        return '<div class="cfx-sec"><div class="cfx-sect">'+label+'</div><div class="tbl-wrap" style="max-height:none;overflow:auto;"><table class="tb"><thead><tr><th>Item</th><th style="text-align:right;">Amount</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div></div>';};
+      const when=dfull(ax.foll.ms);
+      const nb=apBillsDueInMonth(ax.foll.ms);
+      const matJobs=ax.foll.jobs.slice().sort((a,b)=>num(b.mat)-num(a.mat));
+      const billTot=num(nb.total),matTot=matJobs.reduce((a,j)=>a+num(j.mat),0),comb=billTot+matTot;
+      // 1) actual supplier bills already in Xero, due that month's 20th (most expensive first)
+      const billRows=nb.list.slice().sort((a,b)=>num(b.amt)-num(a.amt)).map(b=>'<tr><td>'+esc((b.supplier||'—').slice(0,38))+(b.no?' <span class="cfx-tag">'+esc(b.no)+'</span>':'')+'</td><td style="text-align:right;font-weight:700;">'+fmtK(num(b.amt))+'</td></tr>');
+      if(!billRows.length)billRows.push('<tr><td colspan="2" class="empty">'+(nb.hasBills?'No bills already in Xero due next month.':'Sync Xero A/P to list the actual bills.')+'</td></tr>');
+      billRows.push('<tr class="tot"><td>Bills subtotal</td><td style="text-align:right;">'+fmtK(billTot)+'</td></tr>');
+      // 2) materials likely to be paid the same 20th (estimated still-to-buy on active jobs)
+      const matRows=matJobs.map(j=>'<tr><td>'+esc((j.job||'').slice(0,38))+' <span class="cfx-tag">materials</span></td><td style="text-align:right;color:#fb923c;">'+fmtK(num(j.mat))+'</td></tr>');
+      if(!matRows.length)matRows.push('<tr><td colspan="2" class="empty">No materials estimated for next month.</td></tr>');
+      matRows.push('<tr class="tot"><td>Materials subtotal</td><td style="text-align:right;">'+fmtK(matTot)+'</td></tr>');
+      const seg=(label,rows)=>'<div class="cfx-sec"><div class="cfx-sect">'+label+'</div><div class="tbl-wrap" style="max-height:none;overflow:auto;"><table class="tb"><thead><tr><th>Item</th><th style="text-align:right;">Amount</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div></div>';
+      const hero='<div class="cfx-sec" style="text-align:center;padding:14px 12px;"><div class="cfx-sect">Combined — due '+when+'</div><div style="font-size:1.7rem;font-weight:800;color:#fb923c;line-height:1.05;">'+fmtK(comb)+'</div><div class="note" style="margin-top:5px;">'+fmtK(billTot)+' current bills + '+fmtK(matTot)+' materials</div></div>';
       const pctV=Math.round((ax.matPct||0.5)*100),leadV=num(S.get('cfMatLead','3'))||3;
       const tune='<div class="cfx-sec"><div class="cfx-sect">Assumptions — tune the estimate</div><div class="expap-tune">Materials = <input type="number" inputmode="decimal" value="'+pctV+'" onchange="setExpApCfg(\'pct\',this.value)"> % of each job’s value · ordered <input type="number" inputmode="numeric" value="'+leadV+'" onchange="setExpApCfg(\'lead\',this.value)"> weeks before finish</div></div>';
-      body=tune+mkSeg('Due '+dfull(ax.next.ms),ax.next)+mkSeg('Then '+dfull(ax.foll.ms),ax.foll)+
-        '<div class="note" style="margin:10px 2px 2px;">Current A/P is what’s already invoiced in Xero (lands the very next 20th). <b>Materials</b> are estimated still-to-buy on active jobs ('+pctV+'% of each job’s value, less what’s already recorded) — the bit you’ve ordered/will order but <b>haven’t had or processed a supplier invoice for yet</b> — landing on the 20th of the month after they’re ordered. Already-recorded materials are subtracted, so nothing’s double-counted. Reconcile bills in Xero and the split shifts from estimate to actual.</div>';
+      body=hero+seg('Current bills due '+when,billRows)+seg('Materials likely paid '+when,matRows)+tune+
+        '<div class="note" style="margin:10px 2px 2px;"><b>Current bills</b> are actual supplier invoices already in Xero whose due date lands in next month (paid the 20th). <b>Materials</b> are estimated still-to-buy on active jobs ('+pctV+'% of each job’s value, less what’s already recorded) — the bit you’ve ordered/will order but <b>haven’t had or processed a supplier invoice for yet</b> — landing on the same 20th. Already-recorded materials are subtracted, so nothing’s double-counted. This is on top of what’s already due this month.</div>';
     }}
   else if(key==='fw'){title='Forward workflow — active jobs';
     const rows=(fwJobs||[]).filter(j=>!fwDone[j.id]).map(j=>({jobNo:jobNoKey(j),job:j.job,rem:Math.max(0,num(j.remaining)),due:uninvPriced(j)})).sort((a,b)=>b.rem-a.rem);
