@@ -517,47 +517,33 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           });
           pieces = next;
         });
-        // The physical pairing at a hip: the offcut that fills a spot is
-        // the one cut from the sheet sitting MIRROR-OPPOSITE across that
-        // hip (cut along the hip, spin the piece 90°, it drops exactly
-        // here). Reflect the piece centre across the nearest hip line,
-        // find the SOLID sheet at the reflection, and use THAT sheet's
-        // shed offcut — so the reuse piece carries its true donor number.
+        // FACE-UP rule: a reused offcut keeps its colour side UP, so it can
+        // only be ROTATED in the plane, never mirrored. A piece cut along
+        // one hip, spun 90° face-up, fits against the hip of the OPPOSITE
+        // corner of the same end (that hip runs at the rotated angle) — it
+        // can never fit back against its own hip, which would need a flip.
+        // So the donor for a spot is found by mirroring across the donor
+        // band's centre AXIS (the opposite corner), not across the hip.
         function _resolveMirror(host, c){
-          var hip = null, hd = Infinity;
-          cutLines.forEach(function(L){
-            if (L.type !== 'hip') return;
-            var A2 = L.pts[0], B2 = L.pts[1];
-            var dxh = B2[0]-A2[0], dyh = B2[1]-A2[1], L2 = dxh*dxh + dyh*dyh;
-            var tt = L2 ? (((c[0]-A2[0])*dxh + (c[1]-A2[1])*dyh) / L2) : 0;
-            tt = Math.max(0, Math.min(1, tt));
-            var qx = A2[0]+tt*dxh - c[0], qy = A2[1]+tt*dyh - c[1];
-            var d = qx*qx + qy*qy;
-            if (d < hd){ hd = d; hip = L; }
-          });
-          if (hip){
-            var A3 = hip.pts[0], B3 = hip.pts[1];
-            var hl = Math.hypot(B3[0]-A3[0], B3[1]-A3[1]) || 1;
-            var ux = (B3[0]-A3[0])/hl, uy = (B3[1]-A3[1])/hl;
-            var pr = (c[0]-A3[0])*ux + (c[1]-A3[1])*uy;
-            var px2 = A3[0] + ux*pr, py2 = A3[1] + uy*pr;
-            var m2 = [2*px2 - c[0], 2*py2 - c[1]];
-            var sd = inAny(solids, m2);
-            if (sd){
-              for (var ri = 0; ri < rawOffcuts.length; ri++){
-                if (rawOffcuts[ri]._id === sd._id) return rawOffcuts[ri];
-              }
-            }
-          }
-          // Fallback — the donor band's own axis mirror (opposite corner).
           var sec = host._sec;
-          if (!sec) return host;
+          if (!sec) return null;
           var u = c[0]*sec.R[0] + c[1]*sec.R[1];
           var v = c[0]*sec.P[0] + c[1]*sec.P[1];
           var m = sec.mono
             ? [ (2*sec.uGridMid - u)*sec.R[0] + v*sec.P[0], (2*sec.uGridMid - u)*sec.R[1] + v*sec.P[1] ]
             : [ u*sec.R[0] + (2*sec.vMid - v)*sec.P[0],     u*sec.R[1] + (2*sec.vMid - v)*sec.P[1] ];
-          return inAny(rawOffcuts, m) || host;
+          var hit = inAny(rawOffcuts, m);
+          if (hit) return hit;
+          // The mirror point can miss a raw poly by a whisker — snap to the
+          // nearest offcut AT the opposite corner. NEVER fall back to the
+          // same-corner host: that placement would need the sheet flipped
+          // colour-side-down.
+          var best = null, bd = cw0*2;
+          rawOffcuts.forEach(function(r){
+            var d = Math.hypot(r.centroid[0]-m[0], r.centroid[1]-m[1]);
+            if (d < bd){ bd = d; best = r; }
+          });
+          return best;
         }
         function pushPiece(polyPiece, donor){
           var c = _ccCentroid(polyPiece);
@@ -584,14 +570,38 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
         // fresh full-length sheet cut to suit, labelled off the round-up
         // spare of the nearest own-face ordered sheet. Never a mosaic of
         // little pieces joined together.
+        // Direction of the nearest hip to a point (null when none nearby).
+        function nearestHipDir(pt){
+          var best = null, bd = cw0*9;
+          cutLines.forEach(function(L){
+            if (L.type !== 'hip') return;
+            var A2 = L.pts[0], B2 = L.pts[1];
+            var dxh = B2[0]-A2[0], dyh = B2[1]-A2[1], L2 = dxh*dxh + dyh*dyh;
+            var tt = L2 ? (((pt[0]-A2[0])*dxh + (pt[1]-A2[1])*dyh) / L2) : 0;
+            tt = Math.max(0, Math.min(1, tt));
+            var qx = A2[0]+tt*dxh - pt[0], qy = A2[1]+tt*dyh - pt[1];
+            var d = Math.sqrt(qx*qx + qy*qy);
+            if (d < bd){ bd = d; var hl = Math.sqrt(L2)||1; best = [dxh/hl, dyh/hl]; }
+          });
+          return best;
+        }
         function pickDonor(A, c0, preferred){
           // A roofer reuses offcuts from the SAME corner or nearby — never
           // carts a scrap across the roof: donor search is radius-capped.
           var MAXD = cw0 * 9;
           if (preferred && preferred._cap >= A*0.98) return preferred;
+          // FACE-UP fallback: an offcut keeps its colour side up, so its
+          // cut edge can only be ROTATED into place. A donor whose hip runs
+          // PARALLEL to the spot's hip would need a flip — exclude it; only
+          // offcuts cut on a rotated (crossing) hip qualify.
+          var hs = nearestHipDir(c0);
           var cand = null, bd0 = MAXD;
           rawOffcuts.forEach(function(r){
             if (r._cap < A*0.98) return;
+            if (hs){
+              var hr = nearestHipDir(r.centroid);
+              if (hr && Math.abs(hs[0]*hr[0] + hs[1]*hr[1]) > 0.9) return;   // parallel hip — flip needed
+            }
             var d = Math.hypot(r.centroid[0]-c0[0], r.centroid[1]-c0[1]);
             if (d < bd0){ bd0 = d; cand = r; }
           });
