@@ -581,6 +581,10 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           });
           return best;
         }
+        // Gather EVERY accepted reuse piece of THIS strip location first,
+        // then fill the whole location from ONE donor — a strip cut by two
+        // roof lines must never end up half one sheet, half another.
+        var stripCand = [];
         pieces.forEach(function(pp){
           // Fast path — the WHOLE strip piece sits in offcut territory
           // (the usual hip-corner case): keep it in one piece so the
@@ -590,25 +594,21 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           var c = _ccCentroid(onRoof);
           var host = inAny(rawOffcuts, c);
           if (host && !inAny(solids, c) && !inAny(kept, c) && rayClean(c)){
-            allocReuse(onRoof, _resolveMirror(host, c));
+            stripCand.push({ poly: onRoof, host: host, area: _ccPolyArea(onRoof) });
             return;
           }
           // Gap fill (hip & valley mode) — territory NO band covers at all
           // (the internal valley wedge): fill it in this gutter's own
-          // direction and label it from the nearest external corner-hip
-          // offcut, which is the material that physically fills it.
-          // VALLEY-SIDE test: the extended grids of BOTH faces reach the
-          // wedge, but a piece may only be filled by the gutter on ITS OWN
-          // side of the valley — otherwise the main's vertical grid claims
-          // the wing's side (the "offcut doesn't slot in" complaint).
+          // direction. VALLEY-SIDE test: the extended grids of BOTH faces
+          // reach the wedge, but a piece may only be filled by the gutter
+          // on ITS OWN side of the valley.
           if (!host && opts.fillGaps && !inAny(solids, c) && !inAny(kept, c) && rayClean(c)){
             var sameSide = cutLines.every(function(L){
               if (L.type !== 'valley') return true;
               var vx = L.pts[1][0]-L.pts[0][0], vy = L.pts[1][1]-L.pts[0][1];
-              // side of the piece vs side of the gutter's nearest point.
-              // Clamp the reference STRICTLY inside the segment — at an
-              // internal corner the raw clamp lands exactly on the valley
-              // endpoint, zeroing the side and wrongly passing the test.
+              // side of the piece vs side of the gutter's nearest point,
+              // clamped STRICTLY inside the segment (at an internal corner
+              // the raw clamp lands exactly on the valley endpoint).
               var sc3 = vx*(c[1]-L.pts[0][1]) - vy*(c[0]-L.pts[0][0]);
               if (sc3 === 0) return true;                    // piece ON the line — either side
               var gEps = Math.min(cw0*0.6, gl*0.4);
@@ -619,15 +619,10 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
               return (sc3 > 0) === (sg > 0);
             });
             if (!sameSide) return;
-            allocReuse(onRoof, null);
+            stripCand.push({ poly: onRoof, host: null, area: _ccPolyArea(onRoof) });
             return;
           }
-          // Fallback — the strip straddles solid ground (e.g. the pocket
-          // beside a valley): intersect it with the raw offcut territory to
-          // find the location's genuinely empty part, then fill ALL of it
-          // with ONE donor (one sheet per location — the sub-polygons share
-          // a single number and colour so they read as one piece).
-          var slivers = [];
+          // Straddling piece — keep only its genuinely empty slivers.
           rawOffcuts.forEach(function(ro){
             var sliver = _ccClipToConvex(ro.poly, pp);
             if (!sliver || _ccPolyArea(sliver) < cw0*cw0*0.02) return;
@@ -635,18 +630,21 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
             if (inAny(solids, sc2)) return;
             if (inAny(kept, sc2)) return;
             if (!rayClean(sc2)) return;
-            slivers.push({ poly: sliver, host: ro, area: _ccPolyArea(sliver) });
+            stripCand.push({ poly: sliver, host: ro, area: _ccPolyArea(sliver) });
           });
-          if (!slivers.length) return;
-          slivers.sort(function(x, y){ return y.area - x.area; });
-          var At = 0;
-          slivers.forEach(function(sv){ At += sv.area; });
-          var c9 = _ccCentroid(slivers[0].poly);
-          var donor9 = pickDonor(At, c9, _resolveMirror(slivers[0].host, c9));
-          if (!donor9) return;
-          if (donor9._cap != null) donor9._cap = Math.max(0, donor9._cap - At);
-          slivers.forEach(function(sv){ pushPiece(sv.poly, donor9); });
         });
+        if (stripCand.length){
+          stripCand.sort(function(x, y){ return y.area - x.area; });
+          var At = 0;
+          stripCand.forEach(function(sv){ At += sv.area; });
+          var cL = _ccCentroid(stripCand[0].poly);
+          var pref = stripCand[0].host ? _resolveMirror(stripCand[0].host, cL) : null;
+          var donorL = pickDonor(At, cL, pref);
+          if (donorL){
+            if (donorL._cap != null) donorL._cap = Math.max(0, donorL._cap - At);
+            stripCand.forEach(function(sv){ pushPiece(sv.poly, donorL); });
+          }
+        }
       }
     });
     // Only adopt the re-tiling when it actually replaces the in-place
