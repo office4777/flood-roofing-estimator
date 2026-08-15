@@ -410,7 +410,12 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
             if (!_ccSegX(c, rayEnd, L.pts[0], L.pts[1])) return;
             if (L.type === 'valley') hitValley = true; else hitHip = true;
           });
-          if (hitValley && !hitHip && !s.isPrimary) return;            // wing scrap past the valley
+          // Beyond-the-valley territory: on a hip & valley band roof it
+          // ALWAYS belongs to the neighbouring corner's offcuts (the office
+          // fills the valley from the external corner-hip offcuts), so no
+          // band runs its sheets through. Elsewhere the primary section's
+          // through-run SOP stands.
+          if (hitValley && !hitHip && (!s.isPrimary || opts.bandColours)) return;
           var solid = !hitHip;
           strips.push({ poly: onRoof, centroid: c, seq: seq, color: dCol,
                         isOffcut: !solid, orderedLengthMm: s.orderedMm || 0,
@@ -463,6 +468,63 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
     outline.forEach(function(p){ outline.forEach(function(q){ bbW = Math.max(bbW, Math.hypot(p[0]-q[0], p[1]-q[1])); }); });
     var cw0 = built[0].cw;
     var kept = [];
+    // ── SOP exact valley placement (hip & valley band mode) ──────────
+    // Where a corner hip continues through its apex into an internal
+    // valley (collinear), a 180° FACE-UP rotation about the apex carries
+    // each corner-hip offcut EXACTLY onto its own side of the valley
+    // wedge — sheet direction preserved, cut edge landing ON the valley.
+    // The placed polygon is the donor's offcut itself — same size, same
+    // number — so the wedge consumes every corner offcut one-for-one and
+    // no phantom donor is ever invented. (Hip END corners have no exact
+    // face-up motion — a 90° spin changes the sheet direction — so they
+    // stay with the grid re-tile below.)
+    if (opts.bandColours){
+      var _hips2 = cutLines.filter(function(L){ return L.type === 'hip'; });
+      var _onOL2 = function(p){
+        for (var oi3 = 0; oi3 < outline.length; oi3++){
+          var A4 = outline[oi3], B4 = outline[(oi3+1)%outline.length];
+          var dx4 = B4[0]-A4[0], dy4 = B4[1]-A4[1], L4 = dx4*dx4 + dy4*dy4;
+          var t4 = L4 ? (((p[0]-A4[0])*dx4 + (p[1]-A4[1])*dy4) / L4) : 0;
+          t4 = Math.max(0, Math.min(1, t4));
+          if (Math.hypot(A4[0]+t4*dx4-p[0], A4[1]+t4*dy4-p[1]) < cw0*0.3) return true;
+        }
+        return false;
+      };
+      rawOffcuts.slice().sort(function(x, y){ return _ccPolyArea(y.poly) - _ccPolyArea(x.poly); })
+                .forEach(function(r){
+        // The hip that cut this offcut, and the apex it spins about.
+        var H = null, bdH = cw0*9;
+        _hips2.forEach(function(L){
+          var A5 = L.pts[0], B5 = L.pts[1];
+          var dx5 = B5[0]-A5[0], dy5 = B5[1]-A5[1], L5 = dx5*dx5 + dy5*dy5;
+          var t5 = L5 ? (((r.centroid[0]-A5[0])*dx5 + (r.centroid[1]-A5[1])*dy5) / L5) : 0;
+          t5 = Math.max(0, Math.min(1, t5));
+          var d5 = Math.hypot(A5[0]+t5*dx5-r.centroid[0], A5[1]+t5*dy5-r.centroid[1]);
+          if (d5 < bdH){ bdH = d5; H = L; }
+        });
+        if (!H) return;
+        var P = _onOL2(H.pts[0]) ? H.pts[1] : H.pts[0];
+        // The 180° rotation is only the SOP move when the hip really does
+        // continue into a valley through this apex — require a valley line
+        // ending at (or passing through) the apex.
+        var hasValley = cutLines.some(function(L){
+          if (L.type !== 'valley') return false;
+          return Math.hypot(L.pts[0][0]-P[0], L.pts[0][1]-P[1]) < cw0*0.5 ||
+                 Math.hypot(L.pts[1][0]-P[0], L.pts[1][1]-P[1]) < cw0*0.5;
+        });
+        if (!hasValley) return;
+        var rA = _ccPolyArea(r.poly);
+        var img = _ccClipToConvex(outline, r.poly.map(function(q){ return [2*P[0]-q[0], 2*P[1]-q[1]]; }));
+        if (!img || _ccPolyArea(img) < rA*0.9) return;            // must land whole on the roof
+        var cI = _ccCentroid(img);
+        if (inAny(solids, cI) || inAny(kept, cI)) return;         // spot already occupied
+        kept.push({ poly: img, centroid: cI, seq: r.seq, color: r.color, isOffcut: true,
+                    orderedLengthMm: r.orderedLengthMm, _id: r._id,
+                    _deleted: !!delColSet[r._id], face: null, _sec: null, _g: -1,
+                    _fresh: false });
+        r._cap = 0;                                               // fully consumed
+      });
+    }
     var gutterEdges = (lines || []).filter(function(l){ return l && l.type === 'gutter' && l.pts && l.pts.length === 2; });
     gutterEdges.forEach(function(g, _gi){
       var a = g.pts[0], bpt = g.pts[1];
@@ -606,7 +668,11 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           // A roofer reuses offcuts from the SAME corner or nearby — never
           // carts a scrap across the roof: donor search is radius-capped.
           var MAXD = cw0 * 9;
-          if (preferred && preferred._cap >= A*0.98) return preferred;
+          // Band mode allocates by TIGHTEST FIT instead of first-come: each
+          // corner's spots pair one-for-one with the opposite corner's
+          // offcuts (biggest spot ↔ biggest offcut), so a big offcut is
+          // never wasted on a small spot leaving the big spot donor-less.
+          if (preferred && !opts.bandColours && preferred._cap >= A*0.98) return preferred;
           // SOP valley map — a 180° FACE-UP ROTATION about the valley's apex
           // end (the endpoint away from the internal eave corner): each
           // external corner-hip offcut spins around that junction and lands
@@ -649,7 +715,7 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           // hip runs PARALLEL to the spot's hip would need a flip — exclude
           // it; only offcuts cut on a rotated (crossing) hip qualify.
           var hs = nearestHipDir(c0);
-          var cand = null, bd0 = MAXD;
+          var cand = null, bd0 = MAXD, bc0 = Infinity;
           rawOffcuts.forEach(function(r){
             if (r._cap < A*0.98) return;
             if (hs){
@@ -657,7 +723,11 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
               if (hr && Math.abs(hs[0]*hr[0] + hs[1]*hr[1]) > 0.9) return;   // parallel hip — flip needed
             }
             var d = Math.hypot(r.centroid[0]-c0[0], r.centroid[1]-c0[1]);
-            if (d < bd0){ bd0 = d; cand = r; }
+            if (d >= MAXD) return;
+            var take = opts.bandColours
+              ? (r._cap < bc0 - 1e-6 || (Math.abs(r._cap - bc0) <= 1e-6 && d < bd0))
+              : (d < bd0);
+            if (take){ bd0 = d; bc0 = r._cap; cand = r; }
           });
           if (cand) return cand;
           var ns = null, bd2 = Infinity;
@@ -917,9 +987,14 @@ function _ccDrawCookiePlan(cv, plan, outline, lines, T){
                       .sort(function(a2, b2){ return _ccPolyArea(b2.poly) - _ccPolyArea(a2.poly); })[0];
     if (reuse && _ccPolyArea(reuse.poly) >= colWpx*colWpx*0.25/(T.sc*T.sc)){
       var oc = toC(reuse.centroid);
+      // A real offcut reuse shows the donor's plain number; a piece cut
+      // from a FRESH sheet shows +N — new material off group N's spare,
+      // never pretending to be an offcut the sheet doesn't have.
+      var lbl2 = (reuse._fresh ? '+' : '') + col.seq;
+      var bw2 = reuse._fresh ? 18 : 14;
       ctx.font = '700 ' + Math.max(7, numFont-2) + 'px Inter, sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,0.75)'; rr(oc[0]-7, oc[1]-6, 14, 12, 3); ctx.fill();
-      ctx.fillStyle = 'rgba(10,22,40,0.9)'; ctx.fillText(String(col.seq), oc[0], oc[1]);
+      ctx.fillStyle = 'rgba(255,255,255,0.75)'; rr(oc[0]-bw2/2, oc[1]-6, bw2, 12, 3); ctx.fill();
+      ctx.fillStyle = 'rgba(10,22,40,0.9)'; ctx.fillText(lbl2, oc[0], oc[1]);
     }
   });
 }
