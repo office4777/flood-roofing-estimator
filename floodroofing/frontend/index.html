@@ -24082,7 +24082,16 @@ function onCanvasDblClick(e) {
 
 function autoPopulateGutters(){
   if(DRAW.outline.length<2)return;
+  // Snap tolerance in ROOF metres (~0.35 m), not raw pixels: at a fixed
+  // 18 px, a small-scale drawing let a shallow dutch gablet's apron and
+  // rake barges "cover" the end eave (no gutter was laid under the
+  // gablet) and let the ridge-split pass mistake the gablet ridge for a
+  // gable ridge meeting the eave. Real photo-calibrated jobs sit at
+  // ~50 px/m where 18 px ≈ 0.36 m, so their behaviour is unchanged.
   var n=DRAW.outline.length,T=18;
+  if (DRAW.scaleMetresPerPx > 0){
+    T = Math.max(6, Math.min(18, 0.35 / DRAW.scaleMetresPerPx));
+  }
   function pD(a,b){return Math.sqrt((a[0]-b[0])*(a[0]-b[0])+(a[1]-b[1])*(a[1]-b[1]));}
   // Pre-build a list of (a,b) outline edges so the cleanup pass can
   // test each existing gutter/barge against EVERY edge in one place.
