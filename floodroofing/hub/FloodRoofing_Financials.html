@@ -6281,16 +6281,24 @@ async function syncBank(fromEl){
   const tileBtns=Array.prototype.slice.call(document.querySelectorAll('.bacct-rf'));tileBtns.forEach(b=>{b.disabled=true;b.classList.add('spinning');});
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Syncing…';}
   try{
-    toast('Reading live bank…');
-    const aRes=await fetch(proxyUrl('akahu','/v1/accounts'),{headers:hdr});
-    if(aRes.status===501){if(note)note.textContent='Akahu isn’t set up on the proxy yet — add AKAHU_APP_TOKEN + AKAHU_USER_TOKEN, then sync again.';toast('Akahu not configured on the proxy','err');return;}
-    if(!aRes.ok)throw new Error('accounts HTTP '+aRes.status);
-    const aj=JSON.parse(await aRes.text());const accounts=(aj&&(aj.items||aj.accounts))||[];
+    toast('Refreshing live bank…');
+    // Ask Akahu to pull fresh balances FROM the bank first — some banks only let Akahu refresh a few
+    // times a day on their own, so a plain read returns yesterday's figure. Best-effort: needs a user
+    // token with refresh permission + the proxy to forward POST; harmless no-op otherwise.
+    let triggered=false;
+    try{const rr=await fetch(proxyUrl('akahu','/v1/refresh'),{method:'POST',headers:hdr});triggered=!!(rr&&rr.ok);}catch(e){}
+    const readAccts=async()=>{const aRes=await fetch(proxyUrl('akahu','/v1/accounts'),{headers:hdr});
+      if(aRes.status===501)throw new Error('AKAHU501');
+      if(!aRes.ok)throw new Error('accounts HTTP '+aRes.status);
+      const aj=JSON.parse(await aRes.text());return (aj&&(aj.items||aj.accounts))||[];};
+    let accounts=await readAccts();
+    if(triggered){await new Promise(r=>setTimeout(r,3500));try{accounts=await readAccts();}catch(e){}}   // give Akahu a moment, then re-read the fresh figures
     let tx=[];try{const tRes=await fetch(proxyUrl('akahu','/v1/transactions'),{headers:hdr});if(tRes.ok){const tj=JSON.parse(await tRes.text());tx=(tj&&tj.items)||[];}}catch(e){}
     bank={accounts,tx,ts:nzStamp()};S.set('bank',bank);
-    renderBank();renderCashflow();
-    toast('Live bank updated ✓ '+accounts.length+' accounts','ok');
-  }catch(e){if(note)note.textContent='⚠ '+String(e&&e.message||e);toast('Bank sync failed','err');}
+    renderBank();renderCashflow();try{renderCommand();}catch(e){}try{renderCashSummary();}catch(e){}   // also refresh the dashboard bank tiles + cash-at-a-glance
+    const fr=bankFreshness();
+    toast('Live bank updated ✓ '+accounts.length+' accounts'+(fr&&!fr.unknown?' · '+fr.ago:''),'ok');
+  }catch(e){const m=(e&&e.message==='AKAHU501')?'Akahu isn’t set up on the proxy yet — add AKAHU_APP_TOKEN + AKAHU_USER_TOKEN, then sync again.':('⚠ '+String((e&&e.message)||e));if(note)note.textContent=m;toast(e&&e.message==='AKAHU501'?'Akahu not configured on the proxy':'Bank sync failed','err');}
   finally{if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync live bank (Akahu)';}
     document.querySelectorAll('.bacct-rf').forEach(b=>{b.disabled=false;b.classList.remove('spinning');});}
 }
