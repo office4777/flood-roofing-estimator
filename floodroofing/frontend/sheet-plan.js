@@ -556,7 +556,20 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
         if (!sb.srcGutter || sb.srcGutter !== g) continue;
         var Rb = sb.rdir, Pb = [-Rb[1], Rb[0]];
         var vGut = (Math.abs((sb.vHigh != null ? sb.vHigh : sb.obV1) - sb.obV1) < 1e-6) ? sb.obV0 : sb.obV1;
-        var qb = [sb.obU0*Rb[0] + vGut*Pb[0], sb.obU0*Rb[1] + vGut*Pb[1]];
+        // Band mode: anchor the grid at the band's TRIMMED end — the seam
+        // the corner reuse actually butts against. The band's whole run of
+        // columns is laid off that same seam, so anchoring the far outline
+        // end would leave a part-width sliver cell at the seam that gets
+        // filled as pieced-together fragments.
+        var uAnchor = sb.obU0;
+        if (opts.bandColours){
+          var eP0 = [sb.obU0*Rb[0] + vGut*Pb[0], sb.obU0*Rb[1] + vGut*Pb[1]];
+          var eP1 = [sb.obU1*Rb[0] + vGut*Pb[0], sb.obU1*Rb[1] + vGut*Pb[1]];
+          var dEnd0 = Math.min(Math.hypot(eP0[0]-a[0], eP0[1]-a[1]), Math.hypot(eP0[0]-bpt[0], eP0[1]-bpt[1]));
+          var dEnd1 = Math.min(Math.hypot(eP1[0]-a[0], eP1[1]-a[1]), Math.hypot(eP1[0]-bpt[0], eP1[1]-bpt[1]));
+          if (dEnd1 > dEnd0 + cw0*0.5) uAnchor = sb.obU1;
+        }
+        var qb = [uAnchor*Rb[0] + vGut*Pb[0], uAnchor*Rb[1] + vGut*Pb[1]];
         var tq = (qb[0]-a[0])*E[0] + (qb[1]-a[1])*E[1];
         offT = ((tq % cw0) + cw0) % cw0;
         break;
