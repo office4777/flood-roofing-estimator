@@ -517,9 +517,39 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           });
           pieces = next;
         });
-        // The mirror rule: the piece that fits here, spun 90°, is the
-        // offcut from the OPPOSITE corner of the same end.
+        // The physical pairing at a hip: the offcut that fills a spot is
+        // the one cut from the sheet sitting MIRROR-OPPOSITE across that
+        // hip (cut along the hip, spin the piece 90°, it drops exactly
+        // here). Reflect the piece centre across the nearest hip line,
+        // find the SOLID sheet at the reflection, and use THAT sheet's
+        // shed offcut — so the reuse piece carries its true donor number.
         function _resolveMirror(host, c){
+          var hip = null, hd = Infinity;
+          cutLines.forEach(function(L){
+            if (L.type !== 'hip') return;
+            var A2 = L.pts[0], B2 = L.pts[1];
+            var dxh = B2[0]-A2[0], dyh = B2[1]-A2[1], L2 = dxh*dxh + dyh*dyh;
+            var tt = L2 ? (((c[0]-A2[0])*dxh + (c[1]-A2[1])*dyh) / L2) : 0;
+            tt = Math.max(0, Math.min(1, tt));
+            var qx = A2[0]+tt*dxh - c[0], qy = A2[1]+tt*dyh - c[1];
+            var d = qx*qx + qy*qy;
+            if (d < hd){ hd = d; hip = L; }
+          });
+          if (hip){
+            var A3 = hip.pts[0], B3 = hip.pts[1];
+            var hl = Math.hypot(B3[0]-A3[0], B3[1]-A3[1]) || 1;
+            var ux = (B3[0]-A3[0])/hl, uy = (B3[1]-A3[1])/hl;
+            var pr = (c[0]-A3[0])*ux + (c[1]-A3[1])*uy;
+            var px2 = A3[0] + ux*pr, py2 = A3[1] + uy*pr;
+            var m2 = [2*px2 - c[0], 2*py2 - c[1]];
+            var sd = inAny(solids, m2);
+            if (sd){
+              for (var ri = 0; ri < rawOffcuts.length; ri++){
+                if (rawOffcuts[ri]._id === sd._id) return rawOffcuts[ri];
+              }
+            }
+          }
+          // Fallback — the donor band's own axis mirror (opposite corner).
           var sec = host._sec;
           if (!sec) return host;
           var u = c[0]*sec.R[0] + c[1]*sec.R[1];
@@ -536,7 +566,10 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           if (!_spPointInPoly(c[0], c[1], outline)) return;
           kept.push({ poly: polyPiece, centroid: c, seq: donor.seq, color: donor.color,
                       isOffcut: true, orderedLengthMm: donor.orderedLengthMm,
-                      _id: donor._id, _deleted: !!delColSet[donor._id], face: null, _sec: null, _g: _gi });
+                      _id: donor._id, _deleted: !!delColSet[donor._id], face: null, _sec: null, _g: _gi,
+                      // fresh-sheet fallback (donor is a SOLID, not an offcut):
+                      // this location is cut from new stock, not reuse material
+                      _fresh: (donor._cap == null) });
         }
         // Assign a reuse piece to donor offcut(s) WITH material accounting:
         // a donor sheet plus everything cut from it can never exceed one
@@ -585,9 +618,12 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           // a far gutter must never claim territory it can only "reach" by
           // passing through the roof edge (an L's wing pocket sits beside
           // the main block; the east end's grid line runs straight through
-          // it but exits the outline on the way).
+          // it but exits the outline on the way). Test the path stopping
+          // just SHORT of the foot — the foot itself legitimately sits on
+          // the gutter, which is an outline edge.
+          var fIn = [c[0] + (foot[0]-c[0])*0.96, c[1] + (foot[1]-c[1])*0.96];
           for (var oi = 0; oi < outline.length; oi++){
-            if (_ccSegX(c, foot, outline[oi], outline[(oi+1)%outline.length])) return false;
+            if (_ccSegX(c, fIn, outline[oi], outline[(oi+1)%outline.length])) return false;
           }
           return !cutLines.some(function(L){
             // A valley never blocks the drop when the mode allows it — the
