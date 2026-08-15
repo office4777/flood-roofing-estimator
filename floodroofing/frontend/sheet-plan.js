@@ -196,6 +196,23 @@ function _ccSegTouches(poly, a, b){
   }
   return (t1 - t0) > 1e-4;
 }
+// Total length of `poly` boundary lying ON segment AB (within tol).
+function _ccSharedLen(poly, A, B){
+  var abx = B[0]-A[0], aby = B[1]-A[1], abL = Math.hypot(abx, aby);
+  if (abL < 1e-6) return 0;
+  var ux = abx/abL, uy = aby/abL, tot = 0;
+  for (var i = 0; i < poly.length; i++){
+    var P = poly[i], Q = poly[(i+1)%poly.length];
+    var dP = Math.abs((P[0]-A[0])*uy - (P[1]-A[1])*ux);
+    var dQ = Math.abs((Q[0]-A[0])*uy - (Q[1]-A[1])*ux);
+    if (dP > 1.5 || dQ > 1.5) continue;                     // not on the line
+    var tP = (P[0]-A[0])*ux + (P[1]-A[1])*uy;
+    var tQ = (Q[0]-A[0])*ux + (Q[1]-A[1])*uy;
+    var lo = Math.max(0, Math.min(tP, tQ)), hi = Math.min(abL, Math.max(tP, tQ));
+    if (hi > lo) tot += hi - lo;
+  }
+  return tot;
+}
 // Proper segment-segment crossing.
 function _ccSegX(p, q, a, b){
   function o(p1, p2, p3){ return (p2[0]-p1[0])*(p3[1]-p1[1]) - (p2[1]-p1[1])*(p3[0]-p1[0]); }
@@ -512,6 +529,105 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
     var cw0 = built[0].cw;
     var kept = [];
     var gutterEdges = (lines || []).filter(function(l){ return l && l.type === 'gutter' && l.pts && l.pts.length === 2; });
+    // ── FACE OWNERSHIP (band mode) ───────────────────────────────────
+    // Rasterise the roof and flood-fill it into FACES: neighbouring
+    // samples connect unless the hop between them crosses a cut line, so
+    // each connected region is one roof face. A face belongs to the gutter
+    // with the most samples along it, and a gutter's grid may only fill
+    // its OWN faces — any zone is then filled by exactly one face's grid
+    // in complete columns, never a mosaic of bits from competing grids.
+    var _ownGrid = null;
+    if (opts.fillGaps){
+      var _oMinX = Infinity, _oMinY = Infinity, _oMaxX = -Infinity, _oMaxY = -Infinity;
+      outline.forEach(function(p){
+        if (p[0] < _oMinX) _oMinX = p[0]; if (p[0] > _oMaxX) _oMaxX = p[0];
+        if (p[1] < _oMinY) _oMinY = p[1]; if (p[1] > _oMaxY) _oMaxY = p[1];
+      });
+      var _st = cw0*0.5;
+      var _nx = Math.max(2, Math.ceil((_oMaxX-_oMinX)/_st)+1);
+      var _ny = Math.max(2, Math.ceil((_oMaxY-_oMinY)/_st)+1);
+      var _comp = new Array(_nx*_ny).fill(-2);              // -2 outside, -1 unvisited
+      var _px = function(i){ return _oMinX + i*_st; }, _py = function(j){ return _oMinY + j*_st; };
+      for (var j5 = 0; j5 < _ny; j5++) for (var i5 = 0; i5 < _nx; i5++){
+        if (_spPointInPoly(_px(i5), _py(j5), outline)) _comp[j5*_nx+i5] = -1;
+      }
+      var _hopOK = function(x0, y0, x1, y1){
+        for (var li = 0; li < cutLines.length; li++){
+          var L = cutLines[li];
+          if (_ccSegX([x0,y0], [x1,y1], L.pts[0], L.pts[1])) return false;
+        }
+        return true;
+      };
+      var _nComp = 0;
+      for (var s5 = 0; s5 < _nx*_ny; s5++){
+        if (_comp[s5] !== -1) continue;
+        var q = [s5]; _comp[s5] = _nComp;
+        while (q.length){
+          var cur = q.pop(), ci = cur % _nx, cj = (cur - ci) / _nx;
+          [[1,0],[-1,0],[0,1],[0,-1]].forEach(function(d5){
+            var ni = ci + d5[0], nj = cj + d5[1];
+            if (ni < 0 || nj < 0 || ni >= _nx || nj >= _ny) return;
+            var nn = nj*_nx + ni;
+            if (_comp[nn] !== -1) return;
+            if (!_hopOK(_px(ci), _py(cj), _px(ni), _py(nj))) return;
+            _comp[nn] = _nComp; q.push(nn);
+          });
+        }
+        _nComp++;
+      }
+      // Each gutter votes along its edge (samples nudged just inside).
+      var _votes = {};
+      gutterEdges.forEach(function(g, gi5){
+        var ga = g.pts[0], gb2 = g.pts[1];
+        var gL5 = Math.hypot(gb2[0]-ga[0], gb2[1]-ga[1]);
+        if (gL5 < 1) return;
+        var gE = [(gb2[0]-ga[0])/gL5, (gb2[1]-ga[1])/gL5];
+        var gN = [-gE[1], gE[0]];
+        if (!_spPointInPoly((ga[0]+gb2[0])/2 + gN[0]*_st, (ga[1]+gb2[1])/2 + gN[1]*_st, outline)) gN = [gE[1], -gE[0]];
+        var K5 = Math.max(2, Math.round(gL5/_st));
+        for (var k5 = 0; k5 <= K5; k5++){
+          var t5 = (k5+0.5)/(K5+1);
+          var sx5 = ga[0] + gE[0]*gL5*t5 + gN[0]*_st*0.8;
+          var sy5 = ga[1] + gE[1]*gL5*t5 + gN[1]*_st*0.8;
+          var ii = Math.round((sx5-_oMinX)/_st), jj = Math.round((sy5-_oMinY)/_st);
+          if (ii < 0 || jj < 0 || ii >= _nx || jj >= _ny) continue;
+          var cc5 = _comp[jj*_nx+ii];
+          if (cc5 < 0) continue;
+          _votes[cc5] = _votes[cc5] || {};
+          _votes[cc5][gi5] = (_votes[cc5][gi5]||0) + 1;
+        }
+      });
+      var _compOwner = new Array(_nComp).fill(-1);
+      Object.keys(_votes).forEach(function(cKey){
+        var best5 = -1, bv5 = 0;
+        Object.keys(_votes[cKey]).forEach(function(gKey){
+          if (_votes[cKey][gKey] > bv5){ bv5 = _votes[cKey][gKey]; best5 = +gKey; }
+        });
+        _compOwner[+cKey] = best5;
+      });
+      _ownGrid = { minX:_oMinX, minY:_oMinY, st:_st, nx:_nx, ny:_ny, comp:_comp, owner:_compOwner, hopOK:_hopOK };
+    }
+    function ownedBy(pt, gi){
+      if (!_ownGrid) return true;
+      // Resolve the query against the NEAREST sample the point can reach
+      // without crossing a cut line — a plain rounded lookup jitters near
+      // hips and valleys and mis-owns boundary pieces both ways.
+      var ii = Math.round((pt[0]-_ownGrid.minX)/_ownGrid.st);
+      var jj = Math.round((pt[1]-_ownGrid.minY)/_ownGrid.st);
+      var best = -1, bd6 = Infinity;
+      for (var dj6 = -1; dj6 <= 1; dj6++) for (var di6 = -1; di6 <= 1; di6++){
+        var i6 = ii+di6, j6 = jj+dj6;
+        if (i6 < 0 || j6 < 0 || i6 >= _ownGrid.nx || j6 >= _ownGrid.ny) continue;
+        var c6 = _ownGrid.comp[j6*_ownGrid.nx+i6];
+        if (c6 < 0) continue;
+        var sx6 = _ownGrid.minX + i6*_ownGrid.st, sy6 = _ownGrid.minY + j6*_ownGrid.st;
+        if (!_ownGrid.hopOK(pt[0], pt[1], sx6, sy6)) continue;   // sample is across a cut line
+        var d6 = (sx6-pt[0])*(sx6-pt[0]) + (sy6-pt[1])*(sy6-pt[1]);
+        if (d6 < bd6){ bd6 = d6; best = c6; }
+      }
+      if (best < 0) return false;
+      return _ownGrid.owner[best] === gi;
+    }
     gutterEdges.forEach(function(g, _gi){
       var a = g.pts[0], bpt = g.pts[1];
       var gl = Math.hypot(bpt[0]-a[0], bpt[1]-a[1]);
@@ -783,39 +899,18 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           if (!onRoof || _ccPolyArea(onRoof) < cw0*cw0*0.02) return;
           var c = _ccCentroid(onRoof);
           var host = inAny(rawOffcuts, c);
-          if (host && !inAny(solids, c) && !inAny(kept, c) && rayClean(c)){
+          // Territory test: in band mode a piece is kept only when this
+          // gutter OWNS the face it sits on (see the ownership raster
+          // above); the legacy modes keep the drop-ray test.
+          function territoryOK(pt){ return _ownGrid ? ownedBy(pt, _gi) : rayClean(pt); }
+          if (host && !inAny(solids, c) && !inAny(kept, c) && territoryOK(c)){
             stripCand.push({ poly: onRoof, host: host, area: _ccPolyArea(onRoof) });
             return;
           }
-          // Gap fill (hip & valley mode) — territory NO band covers at all
-          // (the internal valley wedge): fill it in this gutter's own
-          // direction. VALLEY-SIDE test: the extended grids of BOTH faces
-          // reach the wedge, but a piece may only be filled by the gutter
-          // on ITS OWN side of the valley. The test only applies where the
-          // piece actually sits ALONGSIDE the valley segment — past its
-          // endpoints the valley separates nothing.
-          function valleySideOK(cP){
-            return cutLines.every(function(L){
-              if (L.type !== 'valley') return true;
-              var vx = L.pts[1][0]-L.pts[0][0], vy = L.pts[1][1]-L.pts[0][1];
-              var vL2 = vx*vx + vy*vy;
-              var tV = vL2 ? (((cP[0]-L.pts[0][0])*vx + (cP[1]-L.pts[0][1])*vy) / vL2) : 0;
-              if (tV < 0 || tV > 1) return true;             // beyond the valley's extent
-              // side of the piece vs side of the gutter's nearest point,
-              // clamped STRICTLY inside the segment (at an internal corner
-              // the raw clamp lands exactly on the valley endpoint).
-              var sc3 = vx*(cP[1]-L.pts[0][1]) - vy*(cP[0]-L.pts[0][0]);
-              if (sc3 === 0) return true;                    // piece ON the line — either side
-              var gEps = Math.min(cw0*0.6, gl*0.4);
-              var tG = Math.max(gEps, Math.min(gl-gEps, (cP[0]-a[0])*E[0] + (cP[1]-a[1])*E[1]));
-              var gp = [a[0]+E[0]*tG, a[1]+E[1]*tG];
-              var sg = vx*(gp[1]-L.pts[0][1]) - vy*(gp[0]-L.pts[0][0]);
-              if (sg === 0) return false;                    // still ambiguous — not this gutter's side
-              return (sc3 > 0) === (sg > 0);
-            });
-          }
-          if (!host && opts.fillGaps && !inAny(solids, c) && !inAny(kept, c) && rayClean(c)){
-            if (!valleySideOK(c)) return;
+          // Gap fill (band mode) — territory the bands don't cover (the
+          // internal valley wedge, a face deeper than its band): filled in
+          // its owner gutter's own direction.
+          if (!host && opts.fillGaps && !inAny(solids, c) && !inAny(kept, c) && territoryOK(c)){
             stripCand.push({ poly: onRoof, host: null, area: _ccPolyArea(onRoof) });
             return;
           }
@@ -826,14 +921,9 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           if (!host && opts.fillGaps && gBandP && inAny(solids, c)){
             var beyond = _ccClipHalf(onRoof, -gBandP[0]*gBandSgn, -gBandP[1]*gBandSgn, -gBandVHigh*gBandSgn);
             if (beyond && beyond.length >= 3 && _ccPolyArea(beyond) >= cw0*cw0*0.02){
-              var cB = _ccCentroid(beyond), aB = _ccPolyArea(beyond);
-              // At the multi-hip junction another face's fill may already
-              // hold part of this remainder — a SMALL remainder is kept
-              // anyway (the pieces paint over each other cleanly; a white
-              // hole never does).
-              var keptHit = inAny(kept, cB);
-              if (!inAny(solids, cB) && (!keptHit || aB < cw0*cw0) && rayClean(cB) && valleySideOK(cB)){
-                stripCand.push({ poly: beyond, host: null, area: aB });
+              var cB = _ccCentroid(beyond);
+              if (!inAny(solids, cB) && !inAny(kept, cB) && territoryOK(cB)){
+                stripCand.push({ poly: beyond, host: null, area: _ccPolyArea(beyond) });
                 return;
               }
             }
@@ -845,7 +935,7 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
             var sc2 = _ccCentroid(sliver);
             if (inAny(solids, sc2)) return;
             if (inAny(kept, sc2)) return;
-            if (!rayClean(sc2)) return;
+            if (!territoryOK(sc2)) return;
             stripCand.push({ poly: sliver, host: ro, area: _ccPolyArea(sliver) });
           });
         });
