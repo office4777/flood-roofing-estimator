@@ -464,7 +464,7 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
     var cw0 = built[0].cw;
     var kept = [];
     var gutterEdges = (lines || []).filter(function(l){ return l && l.type === 'gutter' && l.pts && l.pts.length === 2; });
-    gutterEdges.forEach(function(g){
+    gutterEdges.forEach(function(g, _gi){
       var a = g.pts[0], bpt = g.pts[1];
       var gl = Math.hypot(bpt[0]-a[0], bpt[1]-a[1]);
       if (gl < cw0*0.4) return;
@@ -536,7 +536,7 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
           if (!_spPointInPoly(c[0], c[1], outline)) return;
           kept.push({ poly: polyPiece, centroid: c, seq: donor.seq, color: donor.color,
                       isOffcut: true, orderedLengthMm: donor.orderedLengthMm,
-                      _id: donor._id, _deleted: !!delColSet[donor._id], face: null, _sec: null });
+                      _id: donor._id, _deleted: !!delColSet[donor._id], face: null, _sec: null, _g: _gi });
         }
         // Assign a reuse piece to donor offcut(s) WITH material accounting:
         // a donor sheet plus everything cut from it can never exceed one
@@ -581,6 +581,14 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
         function rayClean(c){
           var foot = [a[0] + E[0]*(((c[0]-a[0])*E[0] + (c[1]-a[1])*E[1])),
                       a[1] + E[1]*(((c[0]-a[0])*E[0] + (c[1]-a[1])*E[1]))];
+          // The drop to the gutter must stay INSIDE the roof — a grid from
+          // a far gutter must never claim territory it can only "reach" by
+          // passing through the roof edge (an L's wing pocket sits beside
+          // the main block; the east end's grid line runs straight through
+          // it but exits the outline on the way).
+          for (var oi = 0; oi < outline.length; oi++){
+            if (_ccSegX(c, foot, outline[oi], outline[(oi+1)%outline.length])) return false;
+          }
           return !cutLines.some(function(L){
             // A valley never blocks the drop when the mode allows it — the
             // reuse sheet legitimately starts AT the valley cut.
