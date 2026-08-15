@@ -4234,7 +4234,8 @@ function openCmdDetail(key,optMk){
     }}
   else if(key==='bank'){
     title='Bank accounts — live';
-    if(!bank||!bank.accounts||!bank.accounts.length){body='<div class="empty">Sync the live bank on the Cash tab (⟳ Sync live bank).</div>';}
+    const bankBtn='<button class="btn btn-o bank-cmd-refresh" style="width:100%;margin:0 0 12px;" onclick="bankRefreshFromCmd(this)">⟳ Refresh live bank (Akahu)</button>';
+    if(!bank||!bank.accounts||!bank.accounts.length){body='<div class="empty">No live balances yet.</div>'+bankBtn;}
     else{
       let totAll=0,totInc=0;
       const rows=bank.accounts.slice().sort((a,b)=>num(b.balance&&b.balance.current)-num(a.balance&&a.balance.current)).map(a=>{
@@ -4244,7 +4245,7 @@ function openCmdDetail(key,optMk){
       rows.push('<tr class="tot"><td>All accounts</td><td style="text-align:right;">'+fmtK(totAll)+'</td></tr>');
       {const _fr=bankFreshness();const _fresh=_fr?(_fr.unknown?('fetched '+esc(bank.ts||'')):('balances as of '+esc(_fr.label)+' · '+esc(_fr.ago)+(_fr.stale?' — Akahu may lag your ANZ app':''))):'';
       body='<div class="note'+(_fr&&_fr.stale?' bank-stale':'')+'" style="margin:0 0 10px;">'+_fresh+'. Balances come from <b>Akahu</b>, which pulls from ANZ a few times a day, so they can trail your banking app until Akahu next refreshes. Tiles on the dashboard show your everyday accounts (…-00, …-02, …-03); every connected account is listed here. Tap an account on the <b>Cash</b> tab to include/exclude it from the forecast’s opening cash.</div>';}
-      body+=''+
+      body+=bankBtn+
         wrap('<th>Account</th><th style="text-align:right;">Balance</th>',rows,'No accounts.');
     }}
   const tt=document.getElementById('cmd-modal-title');if(tt)tt.textContent=title;
@@ -6302,6 +6303,9 @@ async function syncBank(fromEl){
   finally{if(btn){btn.disabled=false;btn.innerHTML='⟳ Sync live bank (Akahu)';}
     document.querySelectorAll('.bacct-rf').forEach(b=>{b.disabled=false;b.classList.remove('spinning');});}
 }
+// Refresh the live bank straight from the command centre (so you don't have to open the Cash tab),
+// then rebuild the bank popup with the fresh balances.
+async function bankRefreshFromCmd(btn){if(btn){btn.disabled=true;btn.textContent='⟳ Refreshing…';}try{await syncBank();}catch(e){}try{openCmdDetail('bank');}catch(e){}}
 // Stable id for a bank account across syncs (Akahu gives _id; fall back to the account number/name).
 function bankAcctId(a){return String((a&&(a._id||a.formatted_account||a.name))||'');}
 // When Akahu last actually pulled this account's balance FROM the bank (not when we fetched it from
