@@ -3890,6 +3890,17 @@ function bankCmdTiles(){
     out+='<div class="kpi kpi-tap kpi-bank" onclick="openCmdDetail(\'bank\')"><div class="kl">'+esc((a.name||('Account '+sfx)))+'<span class="kgo">›</span></div><div class="kv'+(bal>=0?' pos':' neg')+'">'+fmtK(bal)+'</div><div class="kd'+(fr&&fr.stale?' bank-stale-tag':'')+'">'+esc(freshTag)+' · a/c …'+esc(sfx)+'</div></div>';});
   return out;
 }
+// A/P that must be paid THIS month = actual supplier bills whose due date is this month or overdue.
+// Falls back to the Expected-A/P forecast (all current A/P + est. materials on the next 20th) if the
+// per-bill list hasn't synced yet. Used by the AR-vs-AP tile and its combined popup so they reconcile.
+function apDueThisMonth(){
+  const bills=(cash&&cash.apBills)||null;
+  if(bills&&bills.length){const now=new Date(),curMk=now.getFullYear()*12+now.getMonth();
+    const mkOf=d=>{if(!d)return null;const p=String(d).slice(0,10).split('-');return parseInt(p[0])*12+((parseInt(p[1])||1)-1);};
+    const list=bills.filter(b=>{const m=mkOf(b.due);return m!=null&&m<=curMk;});
+    return {total:list.reduce((s,b)=>s+num(b.amt),0),list:list,hasBills:true};}
+  const ax=window.__apExp;return {total:ax?(num(ax.next.ap)+num(ax.next.mat)):(window.__apTotal||0),list:[],hasBills:false};
+}
 function renderCommand(){
   ensureChartTip();
   const host=document.getElementById('cmd-kpis');if(!host)return;
@@ -3943,9 +3954,9 @@ function renderCommand(){
     kbar('','Work booked / '+pl,'#f59e0b',wksBooked.cur,wksBooked.prev,wksBooked.roll,wksBooked.roll6,wkBF,noMkt?'sync Mktg':(revHr<=0?'sync Fergus for $/hr':('wks won'+(accSel?' · '+accSel.n+' jobs':'')+arrow(wksBooked.cur,wksBooked.roll))),'won')+
     kbar('','Revenue won / '+pl,'#22c55e',revWon.cur,revWon.prev,revWon.roll,revWon.roll6,fmtK,noMkt?'sync Mktg':('accepted quotes'+arrow(revWon.cur,revWon.roll)),'won')+
     kbar('','GP / '+pl,'#2dd4bf',gp.cur,gp.prev,gp.roll,gp.roll6,fmtK,gpHrSel!=null?(fmt$(gpHrSel)+'/hr avg'):(gp.cur!=null?'back-costed est':'sync Fergus'),'gp')+
-    // AR vs the A/P due THIS month (current bills + materials landing on the next 20th) — the cash gut-check.
-    (function(){const ax=window.__apExp;const arv=(ar!=null?ar:0);const apThis=ax?(num(ax.next.ap)+num(ax.next.mat)):(ap!=null?ap:0);const diff=arv-apThis;
-      return '<div class="kpi kpi-tap" onclick="openCmdDetail(\'ar\')"><div class="kl">AR vs A/P this month<span class="kgo">›</span></div>'+
+    // AR vs the A/P due THIS month (supplier bills due this month + overdue) — the cash gut-check.
+    (function(){const arv=(ar!=null?ar:0);const apThis=apDueThisMonth().total;const diff=arv-apThis;
+      return '<div class="kpi kpi-tap" onclick="openCmdDetail(\'arap\')"><div class="kl">AR vs A/P this month<span class="kgo">›</span></div>'+
         '<div class="kv kv-cmp">AR <b class="cmp-in">'+fmtK(arv)+'</b> / <b>'+fmtK(apThis)+'</b> AP</div>'+
         '<div class="kd" style="color:'+(diff>=0?'var(--success)':'var(--danger)')+';font-weight:700;">'+(diff>=0?'+'+fmtK(diff)+' ahead':'−'+fmtK(-diff)+' short')+' this month</div></div>';})()+
     tile('','Accounts payable',ap!=null?fmtK(ap):'—','',apN?(apN+' supplier codes'):'owed to suppliers','ap')+
@@ -4059,6 +4070,25 @@ function openCmdDetail(key,optMk){
     body='<div class="note" style="margin:0 0 10px;">Live earned / estimated GP for every hour worked in '+esc(mk)+' — open jobs included. Each row’s <b>GP/hr</b> is that job’s profitability per hour worked <i>on it</i>; the <b>Total GP/hr</b> ('+fmt$(denH>0?est.tGp/denH:0)+') is the month’s whole-business rate = total GP ÷ <b>every</b> hour the guys were on the tools ('+fmtH(denH)+'h'+(allH>0?', from your Business Activity Report':'')+'), so it matches the dashboard card. Each open job’s <b>GP</b> is its <b>Fergus priced margin</b> (sale − priced materials − priced labour). Jobs still running are <b>EST</b>: GP/hr = that GP ÷ its <b>priced hours</b> while under them. <b style="color:var(--danger);">⚠ OVER HRS</b> = the crew has passed the priced hours, so GP/hr switches to the <b>actual</b> hours — the real (lower) rate — and, since every month shares that rate, earlier months re-value down as more hours are logged. <b>AVG</b> = a charge-up / lump-sum / no-priced-hours job with no reliable per-job margin — its hours are valued at <b>this month’s average GP/hr</b> from the priced jobs'+(nEst?' · '+nEst+' estimated':'')+'.</div>'+
       wrap('<th>Job</th><th style="text-align:right;">GP</th><th style="text-align:right;">Hrs</th><th style="text-align:right;">GP/hr</th><th></th><th></th><th></th>',rr,'No jobs logged hours in '+esc(mk)+'. If that looks wrong, load dated labour history (⚙) then Refresh.','tb-gp')+
       chart;}
+  else if(key==='arap'){title='This month — money in vs out';
+    const arb=(cash&&cash.arByJob)||null;
+    const fmtDue=d=>{if(!d)return '—';const p=String(d).slice(0,10).split('-');if(p.length<3)return '—';return (p[2].replace(/^0/,''))+' '+FG_MONTHS[(parseInt(p[1])||1)-1];};
+    const dk=d=>String(d||'').slice(0,10).replace(/-/g,'')||'99999999';
+    const allCJ=S.get('cashJobs',[])||[];const byNo={};allCJ.forEach(j=>{const k=String(j.jobNo||'').replace(/[^0-9]/g,'');if(k)byNo[k]=j;});
+    // A/R — invoiced, awaiting payment (soonest due first)
+    let arRows=[],arTot=0;
+    if(arb){Object.keys(arb).map(k=>{const a=arb[k],nk=String(k).replace(/[^0-9]/g,''),fj=byNo[nk];return {jobNo:nk,job:fj?fj.job:(a.name||('Job '+k)),due:num(a.due),dd:a.dueDate||''};}).filter(r=>r.due>0&&!isExcl(r.jobNo)).sort((x,y)=>dk(x.dd).localeCompare(dk(y.dd))).forEach(r=>{arTot+=r.due;arRows.push('<tr><td>'+(r.jobNo?'<b>#'+esc(r.jobNo)+'</b> ':'')+esc((r.job||'').slice(0,32))+'</td><td style="text-align:right;color:var(--muted);white-space:nowrap;">'+esc(fmtDue(r.dd))+'</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(r.due)+'</td></tr>');});}
+    // A/P — bills due this month + overdue (soonest first)
+    const apd=apDueThisMonth();const apTot=apd.total;let apRows=[];
+    apd.list.slice().sort((x,y)=>dk(x.due).localeCompare(dk(y.due))).forEach(b=>{apRows.push('<tr><td><b>'+esc((b.supplier||'').slice(0,32))+'</b></td><td style="text-align:right;color:var(--muted);white-space:nowrap;">'+esc(fmtDue(b.due))+'</td><td style="text-align:right;font-weight:700;">'+fmtK(b.amt)+'</td></tr>');});
+    const diff=arTot-apTot;const rows=[];
+    rows.push('<tr class="apsec"><td colspan="2" style="color:var(--success);">Coming in · A/R ('+arRows.length+')</td><td style="text-align:right;color:var(--success);">'+fmtK(arTot)+'</td></tr>');
+    rows.push.apply(rows,arRows.length?arRows:['<tr><td colspan="3" style="color:var(--muted);">'+(arb?'No unpaid invoices.':'Sync Xero to load invoices.')+'</td></tr>']);
+    rows.push('<tr class="apsec"><td colspan="2" style="color:#fb923c;">Going out · A/P due this month'+(apd.hasBills?'':' (forecast)')+'</td><td style="text-align:right;color:#fb923c;">'+fmtK(apTot)+'</td></tr>');
+    rows.push.apply(rows,apRows.length?apRows:['<tr><td colspan="3" style="color:var(--muted);">'+(apd.hasBills?'No bills due this month.':'Re-sync Cash for the per-bill list.')+'</td></tr>']);
+    rows.push('<tr class="tot"><td colspan="2">Net this month</td><td style="text-align:right;color:'+(diff>=0?'var(--success)':'var(--danger)')+';">'+(diff>=0?'+':'−')+fmtK(Math.abs(diff))+'</td></tr>');
+    body='<div class="note" style="margin:0 0 10px;">What you’re owed (A/R) vs the supplier bills due this month incl. overdue (A/P), and when each falls due. <b>Net</b> = A/R − A/P this month.</div>'+
+      wrap('<th>Job / supplier</th><th style="text-align:right;">Due</th><th style="text-align:right;">Amount</th>',rows,'Nothing to show.');}
   else if(key==='ar'){title='Accounts receivable — invoiced, unpaid';
     const arb=(cash&&cash.arByJob)||null;
     if(!arb)body='<div class="empty">Sync Xero to load outstanding invoices.</div>';
