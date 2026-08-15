@@ -570,42 +570,104 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
         // fresh full-length sheet cut to suit, labelled off the round-up
         // spare of the nearest own-face ordered sheet. Never a mosaic of
         // little pieces joined together.
-        // Direction of the nearest hip to a point (null when none nearby).
-        function nearestHipDir(pt){
+        // Nearest hip-or-valley cut line to a point (and its direction).
+        function nearestCutLine(pt){
           var best = null, bd = cw0*9;
           cutLines.forEach(function(L){
-            if (L.type !== 'hip') return;
+            if (L.type !== 'hip' && L.type !== 'valley') return;
             var A2 = L.pts[0], B2 = L.pts[1];
             var dxh = B2[0]-A2[0], dyh = B2[1]-A2[1], L2 = dxh*dxh + dyh*dyh;
             var tt = L2 ? (((pt[0]-A2[0])*dxh + (pt[1]-A2[1])*dyh) / L2) : 0;
             tt = Math.max(0, Math.min(1, tt));
             var qx = A2[0]+tt*dxh - pt[0], qy = A2[1]+tt*dyh - pt[1];
             var d = Math.sqrt(qx*qx + qy*qy);
-            if (d < bd){ bd = d; var hl = Math.sqrt(L2)||1; best = [dxh/hl, dyh/hl]; }
+            if (d < bd){ bd = d; best = L; }
           });
           return best;
+        }
+        function cutDirAt(pt){
+          var L = nearestCutLine(pt);
+          if (!L) return null;
+          var dxh = L.pts[1][0]-L.pts[0][0], dyh = L.pts[1][1]-L.pts[0][1];
+          var hl = Math.hypot(dxh, dyh) || 1;
+          return [dxh/hl, dyh/hl];
+        }
+        function onOutlineEdge(p){
+          for (var oi2 = 0; oi2 < outline.length; oi2++){
+            var A3 = outline[oi2], B3 = outline[(oi2+1)%outline.length];
+            var dx3 = B3[0]-A3[0], dy3 = B3[1]-A3[1], L3 = dx3*dx3 + dy3*dy3;
+            var t3 = L3 ? (((p[0]-A3[0])*dx3 + (p[1]-A3[1])*dy3) / L3) : 0;
+            t3 = Math.max(0, Math.min(1, t3));
+            if (Math.hypot(A3[0]+t3*dx3-p[0], A3[1]+t3*dy3-p[1]) < cw0*0.3) return true;
+          }
+          return false;
         }
         function pickDonor(A, c0, preferred){
           // A roofer reuses offcuts from the SAME corner or nearby — never
           // carts a scrap across the roof: donor search is radius-capped.
           var MAXD = cw0 * 9;
           if (preferred && preferred._cap >= A*0.98) return preferred;
-          // FACE-UP fallback: an offcut keeps its colour side up, so its
-          // cut edge can only be ROTATED into place. A donor whose hip runs
-          // PARALLEL to the spot's hip would need a flip — exclude it; only
-          // offcuts cut on a rotated (crossing) hip qualify.
-          var hs = nearestHipDir(c0);
-          var cand = null, bd0 = MAXD;
+          // FACE-UP geometry: an offcut keeps its colour side up, so it can
+          // slide/rotate 180° (sheet direction AND cut angle both stay) or
+          // spin 90° (both turn). A donor is legal only when
+          //     (donor sheet dir ∥ spot dir)  ===  (donor cut ∥ spot cut)
+          // — anything else needs a flip. The PARALLEL family is preferred:
+          // at an external corner whose hip runs parallel with the valley,
+          // those offcuts slide straight into their own side of the valley
+          // (purple sheets feed the valley's north/east side, turquoise the
+          // south/west side, per the office SOP).
+          var spotCut = cutDirAt(c0);
+          // SOP valley map — a 180° FACE-UP ROTATION about the valley's apex
+          // end (the endpoint away from the internal eave corner): each
+          // external corner-hip offcut spins around that junction and lands
+          // on its own side of the valley. The donor named for a valley spot
+          // is the raw offcut sitting at the spot's rotated position (purple
+          // 15/16/17 feed the north/east side, turquoise 51/52/53 the
+          // south/west side on the reference L).
+          var rotRaw = null, ncl = nearestCutLine(c0);
+          if (ncl && ncl.type === 'valley'){
+            var vE0 = ncl.pts[0], vE1 = ncl.pts[1];
+            var J = onOutlineEdge(vE0) ? vE1 : vE0;
+            var m2 = [2*J[0]-c0[0], 2*J[1]-c0[1]];
+            rotRaw = inAny(rawOffcuts, m2);
+            if (!rotRaw){
+              var bdr = cw0*1.5;
+              rawOffcuts.forEach(function(r){
+                var d2 = Math.hypot(r.centroid[0]-m2[0], r.centroid[1]-m2[1]);
+                if (d2 < bdr){ bdr = d2; rotRaw = r; }
+              });
+            }
+            if (rotRaw && rotRaw._cap >= A*0.98) return rotRaw;
+          }
+          var cand = null, bd0 = MAXD, candRank = 2;
           rawOffcuts.forEach(function(r){
             if (r._cap < A*0.98) return;
-            if (hs){
-              var hr = nearestHipDir(r.centroid);
-              if (hr && Math.abs(hs[0]*hr[0] + hs[1]*hr[1]) > 0.9) return;   // parallel hip — flip needed
+            var rank = 1;
+            if (spotCut){
+              var Sd = (r._sec && r._sec.P) ? r._sec.P : null;
+              var Cd = cutDirAt(r.centroid);
+              if (Sd && Cd){
+                var sdD = Math.abs(Sd[0]*N[0] + Sd[1]*N[1]) > 0.9;
+                var cdV = Math.abs(Cd[0]*spotCut[0] + Cd[1]*spotCut[1]) > 0.9;
+                if (sdD && cdV) rank = 0;                    // slide / 180° — preferred
+                else if (!sdD && !cdV) rank = 1;             // 90° spin — legal
+                else return;                                 // mismatched — needs a flip
+              }
             }
             var d = Math.hypot(r.centroid[0]-c0[0], r.centroid[1]-c0[1]);
-            if (d < bd0){ bd0 = d; cand = r; }
+            if (rank < candRank || (rank === candRank && d < bd0)){
+              bd0 = d; cand = r; candRank = rank;
+            }
           });
           if (cand) return cand;
+          // No offcut holds the full material for this spot, so it's cut
+          // from a FRESH sheet — but the label follows the SOP: it reads off
+          // the same order group as the offcut that BELONGS here by the
+          // valley rotation map (the top valley course on the reference L is
+          // longer than teal 53's offcut, so it's a new teal-length sheet
+          // labelled 53 — never a random far-face number).
+          if (rotRaw) return { seq: rotRaw.seq, color: rotRaw.color, _id: rotRaw._id,
+                               orderedLengthMm: rotRaw.orderedLengthMm };
           var ns = null, bd2 = Infinity;
           solids.forEach(function(s){
             var d = Math.hypot(s.centroid[0]-c0[0], s.centroid[1]-c0[1]);
