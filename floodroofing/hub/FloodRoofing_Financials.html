@@ -284,6 +284,23 @@ table.tb.tb-gp .avgbtn{padding:1px 3px;}
 .kpi .kv.kv-cmp{font-size:1.02rem;font-weight:700;}
 .kpi .kv.kv-cmp b{font-weight:800;}
 .kpi .kv.kv-cmp .cmp-in{color:var(--success);}
+/* Command-centre combined bank tile (double-width, lists all balances + inline refresh) */
+.kpi-bankc{grid-column:span 2;}
+.bankc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.bankc-head .kl{flex:1;}
+.bankc-rf{flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--card2);color:var(--muted);font-size:.85rem;line-height:1;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;transition:color .12s,border-color .12s;}
+.bankc-rf:hover{color:var(--text);border-color:var(--muted);}
+.bankc-rf.spinning{animation:bankc-spin .8s linear infinite;}
+@keyframes bankc-spin{to{transform:rotate(360deg);}}
+.bankc-list{margin-top:8px;display:flex;flex-direction:column;gap:5px;}
+.bankc-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:.8rem;}
+.bankc-nm{color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bankc-sfx{color:var(--muted);font-weight:500;font-size:.72rem;}
+.bankc-bal{font-weight:800;color:var(--success);flex:none;font-variant-numeric:tabular-nums;}
+.bankc-bal.neg{color:var(--danger);}
+.bankc-tot{margin-top:3px;padding-top:6px;border-top:1px solid var(--border);}
+.bankc-tot .bankc-nm{text-transform:uppercase;letter-spacing:.05em;font-size:.68rem;color:var(--muted);}
+@media(max-width:560px){.kpi-bankc{grid-column:span 2;}}
 .cmd-tog{display:inline-flex;gap:10px;align-items:flex-start;margin-left:14px;flex-wrap:wrap;}
 .cmd-tog .tgcol{display:flex;flex-direction:column;gap:5px;}
 .cmd-tog .chip{padding:4px 11px;font-size:.62rem;}
@@ -3881,14 +3898,19 @@ function computeAlerts(){
 // rest available by tapping through to the full list. Blank until the live bank is synced.
 const CMD_BANK_SUFFIXES=['00','02','03'];
 function bankAcctSuffix(a){return String((a&&a.formatted_account)||'').split('-').pop().replace(/[^0-9]/g,'');}
+// One double-width tile listing ALL live bank balances, with a refresh button inside it.
 function bankCmdTiles(){
   if(!bank||!bank.accounts||!bank.accounts.length)return '';
-  const bySfx={};bank.accounts.forEach(a=>{const s=bankAcctSuffix(a);if(s&&!bySfx[s])bySfx[s]=a;});
-  let out='';
-  const fr=bankFreshness();const freshTag=fr?(fr.unknown?'bank':(fr.ageMin<=30?'live':(fr.ago))):'live';
-  CMD_BANK_SUFFIXES.forEach(sfx=>{const a=bySfx[sfx];if(!a)return;const bal=num(a.balance&&a.balance.current);
-    out+='<div class="kpi kpi-tap kpi-bank" onclick="openCmdDetail(\'bank\')"><div class="kl">'+esc((a.name||('Account '+sfx)))+'<span class="kgo">›</span></div><div class="kv'+(bal>=0?' pos':' neg')+'">'+fmtK(bal)+'</div><div class="kd'+(fr&&fr.stale?' bank-stale-tag':'')+'">'+esc(freshTag)+' · a/c …'+esc(sfx)+'</div></div>';});
-  return out;
+  const fr=bankFreshness();const freshTag=fr?(fr.unknown?'':(fr.ageMin<=30?'live':fr.ago)):'';
+  const accts=bank.accounts.slice().sort((a,b)=>num(b.balance&&b.balance.current)-num(a.balance&&a.balance.current));
+  let total=0,rows='';
+  accts.forEach(a=>{const bal=num(a.balance&&a.balance.current);total+=bal;const sfx=bankAcctSuffix(a);
+    rows+='<div class="bankc-row"><span class="bankc-nm">'+esc(a.name||'Account')+(sfx?' <span class="bankc-sfx">…'+esc(sfx)+'</span>':'')+'</span><span class="bankc-bal'+(bal>=0?'':' neg')+'">'+fmtK(bal)+'</span></div>';});
+  rows+='<div class="bankc-row bankc-tot"><span class="bankc-nm">Total</span><span class="bankc-bal">'+fmtK(total)+'</span></div>';
+  return '<div class="kpi kpi-bankc kpi-tap" onclick="openCmdDetail(\'bank\')">'+
+    '<div class="bankc-head"><span class="kl">Bank accounts'+(freshTag?' · '+esc(freshTag):'')+(fr&&fr.stale?'':'')+'<span class="kgo">›</span></span>'+
+    '<button class="bankc-rf" onclick="event.stopPropagation();bankRefreshFromCmd(this,false)" title="Refresh live balances from Akahu">⟳</button></div>'+
+    '<div class="bankc-list">'+rows+'</div></div>';
 }
 // A/P that must be paid THIS month = actual supplier bills whose due date is this month or overdue.
 // Falls back to the Expected-A/P forecast (all current A/P + est. materials on the next 20th) if the
@@ -4234,7 +4256,7 @@ function openCmdDetail(key,optMk){
     }}
   else if(key==='bank'){
     title='Bank accounts — live';
-    const bankBtn='<button class="btn btn-o bank-cmd-refresh" style="width:100%;margin:0 0 12px;" onclick="bankRefreshFromCmd(this)">⟳ Refresh live bank (Akahu)</button>';
+    const bankBtn='<button class="btn btn-o bank-cmd-refresh" style="width:100%;margin:0 0 12px;" onclick="bankRefreshFromCmd(this,true)">⟳ Refresh live bank (Akahu)</button>';
     if(!bank||!bank.accounts||!bank.accounts.length){body='<div class="empty">No live balances yet.</div>'+bankBtn;}
     else{
       let totAll=0,totInc=0;
@@ -6305,7 +6327,7 @@ async function syncBank(fromEl){
 }
 // Refresh the live bank straight from the command centre (so you don't have to open the Cash tab),
 // then rebuild the bank popup with the fresh balances.
-async function bankRefreshFromCmd(btn){if(btn){btn.disabled=true;btn.textContent='⟳ Refreshing…';}try{await syncBank();}catch(e){}try{openCmdDetail('bank');}catch(e){}}
+async function bankRefreshFromCmd(btn,reopen){const wasTxt=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.classList&&btn.classList.add('spinning');if(reopen)btn.textContent='⟳ Refreshing…';}try{await syncBank();}catch(e){}if(reopen){try{openCmdDetail('bank');}catch(e){}}else{if(btn){btn.disabled=false;btn.classList&&btn.classList.remove('spinning');btn.textContent=wasTxt;}try{renderCommand();}catch(e){}}}
 // Stable id for a bank account across syncs (Akahu gives _id; fall back to the account number/name).
 function bankAcctId(a){return String((a&&(a._id||a.formatted_account||a.name))||'');}
 // When Akahu last actually pulled this account's balance FROM the bank (not when we fetched it from
