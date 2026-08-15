@@ -268,7 +268,7 @@ function _ccHipBandSections(outline, lines, coverPx, lenOf){
   function mkBand(e, kind){
     var per = Math.max(1, Math.ceil((e.uHi - e.uLo)/coverPx - 1e-6));
     return { kind: kind, color: _BPAL[(_bpi++) % _BPAL.length], gcol: '#f97316', perSide: per, valleyExtra: 0,
-      total: per, orderedMm: lenOf(e.depth), isPrimary: true, mono: true,
+      total: per, orderedMm: lenOf(e.depth), isPrimary: true, mono: true, srcGutter: e.g,
       rdir: e.R.slice(), obU0: e.uLo, obU1: e.uHi,
       obV0: Math.min(e.vG, e.vG + e.depth), obV1: Math.max(e.vG, e.vG + e.depth),
       vHigh: e.vG + e.depth, coverPx: coverPx,
@@ -474,21 +474,36 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
       // mispoints on an L, where a wing gutter faces away from it).
       var _gmx = (a[0]+bpt[0])/2, _gmy = (a[1]+bpt[1])/2, _geps = cw0*0.3;
       if (!_spPointInPoly(_gmx + N[0]*_geps, _gmy + N[1]*_geps, outline)){ N = [E[1], -E[0]]; }
+      // PHASE-ALIGN the reuse grid with the band that hangs off this same
+      // gutter: corner reuse strips must continue the face's OWN sheet
+      // columns exactly, or a part-width sliver strip appears at the seam
+      // between the solid band and the reuse fill.
+      var offT = 0;
+      for (var bi2 = 0; bi2 < secs.length; bi2++){
+        var sb = secs[bi2];
+        if (!sb.srcGutter || sb.srcGutter !== g) continue;
+        var Rb = sb.rdir, Pb = [-Rb[1], Rb[0]];
+        var vGut = (Math.abs((sb.vHigh != null ? sb.vHigh : sb.obV1) - sb.obV1) < 1e-6) ? sb.obV0 : sb.obV1;
+        var qb = [sb.obU0*Rb[0] + vGut*Pb[0], sb.obU0*Rb[1] + vGut*Pb[1]];
+        var tq = (qb[0]-a[0])*E[0] + (qb[1]-a[1])*E[1];
+        offT = ((tq % cw0) + cw0) % cw0;
+        break;
+      }
       // Gap-fill mode marches the strip grid across the outline's FULL
       // extent along this gutter's line (an internal wedge can sit beyond
       // the physical gutter segment); normal mode stays on the segment.
-      var jFrom = 0, jTo = Math.ceil(gl/cw0 - 1e-6);
+      var jFrom = Math.floor(-offT/cw0), jTo = Math.ceil((gl-offT)/cw0);
       if (opts.fillGaps){
         var tMin = Infinity, tMax = -Infinity;
         outline.forEach(function(p){
           var t = (p[0]-a[0])*E[0] + (p[1]-a[1])*E[1];
           if (t < tMin) tMin = t; if (t > tMax) tMax = t;
         });
-        jFrom = Math.floor(tMin/cw0); jTo = Math.ceil(tMax/cw0);
+        jFrom = Math.floor((tMin-offT)/cw0); jTo = Math.ceil((tMax-offT)/cw0);
       }
       for (var j = jFrom; j < jTo; j++){
-        var t0 = j*cw0, t1 = t0 + cw0;
-        if (!opts.fillGaps) t1 = Math.min(gl, t1);
+        var t0 = offT + j*cw0, t1 = t0 + cw0;
+        if (!opts.fillGaps){ t0 = Math.max(0, t0); t1 = Math.min(gl, t1); if (t1 - t0 < cw0*0.05) continue; }
         var p0 = [a[0]+E[0]*t0, a[1]+E[1]*t0], p1 = [a[0]+E[0]*t1, a[1]+E[1]*t1];
         var rect = [p0, p1,
                     [p1[0]+N[0]*bbW, p1[1]+N[1]*bbW],
