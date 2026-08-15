@@ -375,12 +375,22 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
       var vE = (Math.abs(bd.v0 - vHigh) > Math.abs(bd.v1 - vHigh)) ? bd.v0 : bd.v1;
       for (var j = 0; j < b.per; j++){
         var u0 = b.startU + j*b.cw, u1 = u0 + b.cw;
+        // Band mode: a column never crosses the band's trimmed span into a
+        // neighbour's territory — the trim is a physical seam. The last
+        // sheet of a run is the narrow RIP against that seam (the reference
+        // L's green 44 is the slim strip beside the internal corner), never
+        // a full column overhanging the valley wedge or the end band.
+        if (opts.bandColours){
+          u0 = Math.max(u0, s.obU0);
+          u1 = Math.min(u1, s.obU1);
+          if (u1 <= u0){ u0 = Math.max(s.obU0, Math.min(u0, s.obU1)); u1 = u0 + b.cw*0.02; }
+        }
         var rect = [b.w2(u0, bd.v0), b.w2(u1, bd.v0), b.w2(u1, bd.v1), b.w2(u0, bd.v1)];
         var id  = 'cc|' + gcolHex + '|' + (s.orderedMm || 0) + '|' + secIdx + '|' + bd.si + '|' + j;
         var del = !!deletedSet[id];
         var seq = (_base.get(b) || 0) + bd.si*b.per + j + 1;
         columns.push({ id: id, rect: rect, seq: seq, color: dCol, deleted: del,
-                       numAt: b.w2(u0 + b.cw/2, s.mono ? b.vMid : (b.vMid + (bd.si ? 1 : -1)*b.halfRun*0.6)) });
+                       numAt: b.w2((u0 + u1)/2, s.mono ? b.vMid : (b.vMid + (bd.si ? 1 : -1)*b.halfRun*0.6)) });
         // Cookie-cut the column along every roof line that passes through it.
         var pieces = [rect];
         cutLines.forEach(function(L){
@@ -918,16 +928,18 @@ function _ccDrawCookiePlan(cv, plan, outline, lines, T){
     hatch(s.poly, s.color);
   });
   // Hatched reuse strips (the offcuts spun perpendicular to their gutter).
+  // A FRESH-sheet piece is NOT an offcut — it's new full material, so it
+  // draws below as a full solid in its group's colour, never hatched.
   plan.strips.forEach(function(s){
-    if (s._deleted || !s.isOffcut) return;
+    if (s._deleted || !s.isOffcut || s._fresh) return;
     hatch(s.poly, s.color);
     // Seam killer — bleed ~1px so neighbours meet without white seams.
     poly(s.poly); ctx.strokeStyle = s.color; ctx.lineWidth = 1.6; ctx.stroke();
     poly(s.poly); ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1; ctx.stroke();
   });
-  // Solid donor pieces.
+  // Solid donor pieces (and fresh-sheet fills).
   plan.strips.forEach(function(s){
-    if (s._deleted || s.isOffcut) return;
+    if (s._deleted || (s.isOffcut && !s._fresh)) return;
     poly(s.poly); ctx.fillStyle = s.color; ctx.fill();
     ctx.strokeStyle = s.color; ctx.lineWidth = 1.6; ctx.stroke();   // seam killer
     ctx.strokeStyle = 'rgba(0,0,0,0.20)'; ctx.lineWidth = 1; ctx.stroke();
@@ -987,14 +999,9 @@ function _ccDrawCookiePlan(cv, plan, outline, lines, T){
                       .sort(function(a2, b2){ return _ccPolyArea(b2.poly) - _ccPolyArea(a2.poly); })[0];
     if (reuse && _ccPolyArea(reuse.poly) >= colWpx*colWpx*0.25/(T.sc*T.sc)){
       var oc = toC(reuse.centroid);
-      // A real offcut reuse shows the donor's plain number; a piece cut
-      // from a FRESH sheet shows +N — new material off group N's spare,
-      // never pretending to be an offcut the sheet doesn't have.
-      var lbl2 = (reuse._fresh ? '+' : '') + col.seq;
-      var bw2 = reuse._fresh ? 18 : 14;
       ctx.font = '700 ' + Math.max(7, numFont-2) + 'px Inter, sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,0.75)'; rr(oc[0]-bw2/2, oc[1]-6, bw2, 12, 3); ctx.fill();
-      ctx.fillStyle = 'rgba(10,22,40,0.9)'; ctx.fillText(lbl2, oc[0], oc[1]);
+      ctx.fillStyle = 'rgba(255,255,255,0.75)'; rr(oc[0]-7, oc[1]-6, 14, 12, 3); ctx.fill();
+      ctx.fillStyle = 'rgba(10,22,40,0.9)'; ctx.fillText(String(col.seq), oc[0], oc[1]);
     }
   });
 }
