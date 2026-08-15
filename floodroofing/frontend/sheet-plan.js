@@ -331,8 +331,36 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
     if (s.isPrimary && !primaryWC) primaryWC = b.wc;
     built.push(b);
   });
+  // Internal (reflex) outline corners — where a valley meets the eave. In
+  // band mode a run whose span ends at one ANCHORS there: full-width sheets
+  // march away from the internal corner and the part-width rip is pushed
+  // out to the roof's outline edge. A part-width sheet is only ever legal
+  // at the edge of the roof, never beside a valley in the middle.
+  var _reflex = [];
+  if (opts.bandColours){
+    var _oArea = 0;
+    for (var ri = 0; ri < outline.length; ri++){
+      var rp = outline[ri], rq = outline[(ri+1)%outline.length];
+      _oArea += rp[0]*rq[1] - rq[0]*rp[1];
+    }
+    var _oSign = _oArea >= 0 ? 1 : -1;
+    for (var ri2 = 0; ri2 < outline.length; ri2++){
+      var pv = outline[(ri2+outline.length-1)%outline.length], cv = outline[ri2], nv = outline[(ri2+1)%outline.length];
+      var crz = (cv[0]-pv[0])*(nv[1]-cv[1]) - (cv[1]-pv[1])*(nv[0]-cv[0]);
+      if (crz * _oSign < 0) _reflex.push(cv);
+    }
+  }
   built.forEach(function(b){
     var s = b.s, span = b.per*b.cw;
+    if (opts.bandColours && _reflex.length){
+      var vGut2 = (Math.abs((s.vHigh != null ? s.vHigh : s.obV1) - s.obV1) < 1e-6) ? s.obV0 : s.obV1;
+      var q0 = b.w2(s.obU0, vGut2), q1 = b.w2(s.obU1, vGut2);
+      var nearRef = function(p){
+        return _reflex.some(function(rv){ return Math.hypot(rv[0]-p[0], rv[1]-p[1]) < b.cw*0.6; });
+      };
+      if (nearRef(q1)){ b.startU = s.obU1 - span; return; }
+      if (nearRef(q0)){ b.startU = s.obU0; return; }
+    }
     if (s.isPrimary || !primaryWC){ b.startU = s.obU0; }
     else {
       var eA = b.w2(s.obU0, b.vMid), eB = b.w2(s.obU1, b.vMid);
@@ -375,16 +403,6 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
       var vE = (Math.abs(bd.v0 - vHigh) > Math.abs(bd.v1 - vHigh)) ? bd.v0 : bd.v1;
       for (var j = 0; j < b.per; j++){
         var u0 = b.startU + j*b.cw, u1 = u0 + b.cw;
-        // Band mode: a column never crosses the band's trimmed span into a
-        // neighbour's territory — the trim is a physical seam. The last
-        // sheet of a run is the narrow RIP against that seam (the reference
-        // L's green 44 is the slim strip beside the internal corner), never
-        // a full column overhanging the valley wedge or the end band.
-        if (opts.bandColours){
-          u0 = Math.max(u0, s.obU0);
-          u1 = Math.min(u1, s.obU1);
-          if (u1 <= u0){ u0 = Math.max(s.obU0, Math.min(u0, s.obU1)); u1 = u0 + b.cw*0.02; }
-        }
         var rect = [b.w2(u0, bd.v0), b.w2(u1, bd.v0), b.w2(u1, bd.v1), b.w2(u0, bd.v1)];
         var id  = 'cc|' + gcolHex + '|' + (s.orderedMm || 0) + '|' + secIdx + '|' + bd.si + '|' + j;
         var del = !!deletedSet[id];
@@ -478,63 +496,6 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
     outline.forEach(function(p){ outline.forEach(function(q){ bbW = Math.max(bbW, Math.hypot(p[0]-q[0], p[1]-q[1])); }); });
     var cw0 = built[0].cw;
     var kept = [];
-    // ── SOP exact valley placement (hip & valley band mode) ──────────
-    // Where a corner hip continues through its apex into an internal
-    // valley (collinear), a 180° FACE-UP rotation about the apex carries
-    // each corner-hip offcut EXACTLY onto its own side of the valley
-    // wedge — sheet direction preserved, cut edge landing ON the valley.
-    // The placed polygon is the donor's offcut itself — same size, same
-    // number — so the wedge consumes every corner offcut one-for-one and
-    // no phantom donor is ever invented. (Hip END corners have no exact
-    // face-up motion — a 90° spin changes the sheet direction — so they
-    // stay with the grid re-tile below.)
-    if (opts.bandColours){
-      var _hips2 = cutLines.filter(function(L){ return L.type === 'hip'; });
-      var _onOL2 = function(p){
-        for (var oi3 = 0; oi3 < outline.length; oi3++){
-          var A4 = outline[oi3], B4 = outline[(oi3+1)%outline.length];
-          var dx4 = B4[0]-A4[0], dy4 = B4[1]-A4[1], L4 = dx4*dx4 + dy4*dy4;
-          var t4 = L4 ? (((p[0]-A4[0])*dx4 + (p[1]-A4[1])*dy4) / L4) : 0;
-          t4 = Math.max(0, Math.min(1, t4));
-          if (Math.hypot(A4[0]+t4*dx4-p[0], A4[1]+t4*dy4-p[1]) < cw0*0.3) return true;
-        }
-        return false;
-      };
-      rawOffcuts.slice().sort(function(x, y){ return _ccPolyArea(y.poly) - _ccPolyArea(x.poly); })
-                .forEach(function(r){
-        // The hip that cut this offcut, and the apex it spins about.
-        var H = null, bdH = cw0*9;
-        _hips2.forEach(function(L){
-          var A5 = L.pts[0], B5 = L.pts[1];
-          var dx5 = B5[0]-A5[0], dy5 = B5[1]-A5[1], L5 = dx5*dx5 + dy5*dy5;
-          var t5 = L5 ? (((r.centroid[0]-A5[0])*dx5 + (r.centroid[1]-A5[1])*dy5) / L5) : 0;
-          t5 = Math.max(0, Math.min(1, t5));
-          var d5 = Math.hypot(A5[0]+t5*dx5-r.centroid[0], A5[1]+t5*dy5-r.centroid[1]);
-          if (d5 < bdH){ bdH = d5; H = L; }
-        });
-        if (!H) return;
-        var P = _onOL2(H.pts[0]) ? H.pts[1] : H.pts[0];
-        // The 180° rotation is only the SOP move when the hip really does
-        // continue into a valley through this apex — require a valley line
-        // ending at (or passing through) the apex.
-        var hasValley = cutLines.some(function(L){
-          if (L.type !== 'valley') return false;
-          return Math.hypot(L.pts[0][0]-P[0], L.pts[0][1]-P[1]) < cw0*0.5 ||
-                 Math.hypot(L.pts[1][0]-P[0], L.pts[1][1]-P[1]) < cw0*0.5;
-        });
-        if (!hasValley) return;
-        var rA = _ccPolyArea(r.poly);
-        var img = _ccClipToConvex(outline, r.poly.map(function(q){ return [2*P[0]-q[0], 2*P[1]-q[1]]; }));
-        if (!img || _ccPolyArea(img) < rA*0.9) return;            // must land whole on the roof
-        var cI = _ccCentroid(img);
-        if (inAny(solids, cI) || inAny(kept, cI)) return;         // spot already occupied
-        kept.push({ poly: img, centroid: cI, seq: r.seq, color: r.color, isOffcut: true,
-                    orderedLengthMm: r.orderedLengthMm, _id: r._id,
-                    _deleted: !!delColSet[r._id], face: null, _sec: null, _g: -1,
-                    _fresh: false });
-        r._cap = 0;                                               // fully consumed
-      });
-    }
     var gutterEdges = (lines || []).filter(function(l){ return l && l.type === 'gutter' && l.pts && l.pts.length === 2; });
     gutterEdges.forEach(function(g, _gi){
       var a = g.pts[0], bpt = g.pts[1];
@@ -556,19 +517,10 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
         if (!sb.srcGutter || sb.srcGutter !== g) continue;
         var Rb = sb.rdir, Pb = [-Rb[1], Rb[0]];
         var vGut = (Math.abs((sb.vHigh != null ? sb.vHigh : sb.obV1) - sb.obV1) < 1e-6) ? sb.obV0 : sb.obV1;
-        // Band mode: anchor the grid at the band's TRIMMED end — the seam
-        // the corner reuse actually butts against. The band's whole run of
-        // columns is laid off that same seam, so anchoring the far outline
-        // end would leave a part-width sliver cell at the seam that gets
-        // filled as pieced-together fragments.
-        var uAnchor = sb.obU0;
-        if (opts.bandColours){
-          var eP0 = [sb.obU0*Rb[0] + vGut*Pb[0], sb.obU0*Rb[1] + vGut*Pb[1]];
-          var eP1 = [sb.obU1*Rb[0] + vGut*Pb[0], sb.obU1*Rb[1] + vGut*Pb[1]];
-          var dEnd0 = Math.min(Math.hypot(eP0[0]-a[0], eP0[1]-a[1]), Math.hypot(eP0[0]-bpt[0], eP0[1]-bpt[1]));
-          var dEnd1 = Math.min(Math.hypot(eP1[0]-a[0], eP1[1]-a[1]), Math.hypot(eP1[0]-bpt[0], eP1[1]-bpt[1]));
-          if (dEnd1 > dEnd0 + cw0*0.5) uAnchor = sb.obU1;
-        }
+        // Anchor the reuse grid where the BAND's own tiling is anchored (a
+        // run against an internal corner anchors there with its rip pushed
+        // to the roof edge) — the corner reuse continues those same cells.
+        var uAnchor = (built[bi2] && isFinite(built[bi2].startU)) ? built[bi2].startU : sb.obU0;
         var qb = [uAnchor*Rb[0] + vGut*Pb[0], uAnchor*Rb[1] + vGut*Pb[1]];
         var tq = (qb[0]-a[0])*E[0] + (qb[1]-a[1])*E[1];
         offT = ((tq % cw0) + cw0) % cw0;
