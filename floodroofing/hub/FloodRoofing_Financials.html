@@ -281,6 +281,9 @@ table.tb.tb-gp .avgbtn{padding:1px 3px;}
 .kpi .kv{font-size:1.35rem;font-weight:800;letter-spacing:-.02em;margin-top:4px;line-height:1.05;}
 .kpi .kv.ok{color:var(--success);} .kpi .kv.warn{color:var(--warning);} .kpi .kv.crit{color:var(--danger);}
 .kpi .kd{font-size:.62rem;color:var(--muted);margin-top:3px;font-weight:600;}
+.kpi .kv.kv-cmp{font-size:1.02rem;font-weight:700;}
+.kpi .kv.kv-cmp b{font-weight:800;}
+.kpi .kv.kv-cmp .cmp-in{color:var(--success);}
 .cmd-tog{display:inline-flex;gap:10px;align-items:flex-start;margin-left:14px;flex-wrap:wrap;}
 .cmd-tog .tgcol{display:flex;flex-direction:column;gap:5px;}
 .cmd-tog .chip{padding:4px 11px;font-size:.62rem;}
@@ -3940,11 +3943,16 @@ function renderCommand(){
     kbar('','Work booked / '+pl,'#f59e0b',wksBooked.cur,wksBooked.prev,wksBooked.roll,wksBooked.roll6,wkBF,noMkt?'sync Mktg':(revHr<=0?'sync Fergus for $/hr':('wks won'+(accSel?' · '+accSel.n+' jobs':'')+arrow(wksBooked.cur,wksBooked.roll))),'won')+
     kbar('','Revenue won / '+pl,'#22c55e',revWon.cur,revWon.prev,revWon.roll,revWon.roll6,fmtK,noMkt?'sync Mktg':('accepted quotes'+arrow(revWon.cur,revWon.roll)),'won')+
     kbar('','GP / '+pl,'#2dd4bf',gp.cur,gp.prev,gp.roll,gp.roll6,fmtK,gpHrSel!=null?(fmt$(gpHrSel)+'/hr avg'):(gp.cur!=null?'back-costed est':'sync Fergus'),'gp')+
-    tile('','Accounts receivable',ar!=null?fmtK(ar):'—','pos',arN?(arN+' invoices unpaid'):'invoiced · unpaid','ar')+
+    // AR vs the A/P due THIS month (current bills + materials landing on the next 20th) — the cash gut-check.
+    (function(){const ax=window.__apExp;const arv=(ar!=null?ar:0);const apThis=ax?(num(ax.next.ap)+num(ax.next.mat)):(ap!=null?ap:0);const diff=arv-apThis;
+      return '<div class="kpi kpi-tap" onclick="openCmdDetail(\'ar\')"><div class="kl">AR vs A/P this month<span class="kgo">›</span></div>'+
+        '<div class="kv kv-cmp">AR <b class="cmp-in">'+fmtK(arv)+'</b> / <b>'+fmtK(apThis)+'</b> AP</div>'+
+        '<div class="kd" style="color:'+(diff>=0?'var(--success)':'var(--danger)')+';font-weight:700;">'+(diff>=0?'+'+fmtK(diff)+' ahead':'−'+fmtK(-diff)+' short')+' this month</div></div>';})()+
     tile('','Accounts payable',ap!=null?fmtK(ap):'—','',apN?(apN+' supplier codes'):'owed to suppliers','ap')+
-    (function(){const ax=window.__apExp;if(!ax)return '';const tot=num(ax.next.ap)+num(ax.next.mat);if(tot<=0&&num(ax.foll.mat)<=0)return '';
+    // A/P due NEXT month — the new materials landing the following 20th, i.e. on top of (less) what's due this month.
+    (function(){const ax=window.__apExp;if(!ax)return '';const fm=num(ax.foll.mat);if(fm<=0)return '';
       const d=ms=>{const x=new Date(ms);return x.getDate()+' '+FG_MONTHS[x.getMonth()];};
-      return tile('','Expected A/P · '+d(ax.next.ms),fmtK(tot),'','then '+d(ax.foll.ms)+': '+fmtK(num(ax.foll.mat)),'expap');})()+
+      return tile('','A/P due next month · '+d(ax.foll.ms),fmtK(fm),'','on top of this month · new materials','expap');})()+
     tile(wkCls,'Forward workflow',wkWeeks!=null?(Math.round(wkWeeks*10)/10+' wk'):'—','',fwJobs.length?(fwJobs.filter(j=>!fwDone[j.id]&&!isExcl(j)).length+' jobs booked'):'sync Fergus','fw')+
     tile('','Active job revenue',actJobs.length?fmtK(actRev):'—','pos',actJobs.length?(actJobs.length+' active · '+fmtK(actBilled)+' invoiced'):'sync Fergus','activerev')+
     bankCmdTiles();
