@@ -3991,7 +3991,6 @@ function renderCommand(){
       return '<div class="kpi kpi-tap" onclick="openCmdDetail(\'arap\')"><div class="kl">AR vs A/P this month<span class="kgo">›</span></div>'+
         '<div class="kv kv-cmp">AR <b class="cmp-in">'+fmtK(arv)+'</b> / <b>'+fmtK(apThis)+'</b> AP</div>'+
         '<div class="kd" style="color:'+(diff>=0?'var(--success)':'var(--danger)')+';font-weight:700;">'+(diff>=0?'+'+fmtK(diff)+' ahead':'−'+fmtK(-diff)+' short')+' this month</div></div>';})()+
-    tile('','Accounts payable',ap!=null?fmtK(ap):'—','',apN?(apN+' supplier codes'):'owed to suppliers','ap')+
     // A/P due NEXT month — actual current bills landing that month's 20th PLUS new materials likely paid
     // the same 20th. Combined here; the popup separates the two totals. This is on top of what's due this month.
     (function(){const ax=window.__apExp;if(!ax)return '';
