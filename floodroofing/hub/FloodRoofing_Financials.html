@@ -3902,7 +3902,9 @@ function bankAcctSuffix(a){return String((a&&a.formatted_account)||'').split('-'
 function bankCmdTiles(){
   if(!bank||!bank.accounts||!bank.accounts.length)return '';
   const fr=bankFreshness();const freshTag=fr?(fr.unknown?'':(fr.ageMin<=30?'live':fr.ago)):'';
-  const accts=bank.accounts.slice().sort((a,b)=>num(b.balance&&b.balance.current)-num(a.balance&&a.balance.current));
+  // Order by account-number suffix (…-00, …-01, …-02 …); accounts with no suffix fall to the end.
+  const sfxNum=a=>{const s=bankAcctSuffix(a);return s===''?9999:parseInt(s,10);};
+  const accts=bank.accounts.slice().sort((a,b)=>sfxNum(a)-sfxNum(b));
   let total=0,rows='';
   accts.forEach(a=>{const bal=num(a.balance&&a.balance.current);total+=bal;const sfx=bankAcctSuffix(a);
     rows+='<div class="bankc-row"><span class="bankc-nm">'+esc(a.name||'Account')+(sfx?' <span class="bankc-sfx">…'+esc(sfx)+'</span>':'')+'</span><span class="bankc-bal'+(bal>=0?'':' neg')+'">'+fmtK(bal)+'</span></div>';});
