@@ -3977,13 +3977,15 @@ function renderCommand(){
   const actJobs=(fwJobs||[]).filter(j=>!isExcl(j));
   const actRev=actJobs.reduce((s,j)=>s+num(j.sale),0);
   const actBilled=actJobs.reduce((s,j)=>s+num(j.billed),0);
+  // whole-thousand $ formatter (no decimals) for the revenue/GP comparison bars
+  const fmtK0=n=>{const v=Math.round(n||0);return (v<0?'-$':'$')+(Math.abs(v)>=1000?Math.round(Math.abs(v)/1000)+'k':Math.abs(v));};
   host.innerHTML=
     kbar('','Enquiries / '+pl,'#4d8dff',enq.cur,enq.prev,enq.roll,enq.roll6,intF,noMkt?'sync Mktg':('vs avg'+arrow(enq.cur,enq.roll)),'enq')+
     kbar('','Quotes sent / '+pl,'#a78bfa',snt.cur,snt.prev,snt.roll,snt.roll6,intF,noMkt?'sync Mktg':('vs avg'+arrow(snt.cur,snt.roll)),'quotes')+
     kbar(convCls,'Conversion','#4ade80',conv.cur,conv.prev,conv.roll,conv.roll6,pctF,noMkt?'sync Mktg':('won ÷ sent'+arrow(conv.cur,conv.roll)),'conv')+
     kbar('','Work booked / '+pl,'#f59e0b',wksBooked.cur,wksBooked.prev,wksBooked.roll,wksBooked.roll6,wkBF,noMkt?'sync Mktg':(revHr<=0?'sync Fergus for $/hr':('wks won'+(accSel?' · '+accSel.n+' jobs':'')+arrow(wksBooked.cur,wksBooked.roll))),'won')+
-    kbar('','Revenue won / '+pl,'#22c55e',revWon.cur,revWon.prev,revWon.roll,revWon.roll6,fmtK,noMkt?'sync Mktg':('accepted quotes'+arrow(revWon.cur,revWon.roll)),'won')+
-    kbar('','GP / '+pl,'#2dd4bf',gp.cur,gp.prev,gp.roll,gp.roll6,fmtK,gpHrSel!=null?(fmt$(gpHrSel)+'/hr avg'):(gp.cur!=null?'back-costed est':'sync Fergus'),'gp')+
+    kbar('','Revenue won / '+pl,'#22c55e',revWon.cur,revWon.prev,revWon.roll,revWon.roll6,fmtK0,noMkt?'sync Mktg':('accepted quotes'+arrow(revWon.cur,revWon.roll)),'won')+
+    kbar('','GP / '+pl,'#2dd4bf',gp.cur,gp.prev,gp.roll,gp.roll6,fmtK0,gpHrSel!=null?(fmt$(gpHrSel)+'/hr avg'):(gp.cur!=null?'back-costed est':'sync Fergus'),'gp')+
     // AR vs the A/P due THIS month (supplier bills due this month + overdue) — the cash gut-check.
     (function(){const arv=(ar!=null?ar:0);const apThis=apDueThisMonth().total;const diff=arv-apThis;
       return '<div class="kpi kpi-tap" onclick="openCmdDetail(\'arap\')"><div class="kl">AR vs A/P this month<span class="kgo">›</span></div>'+
