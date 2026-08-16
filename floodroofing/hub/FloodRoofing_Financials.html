@@ -4001,11 +4001,11 @@ function renderCommand(){
       const sub=(nb.total>0?fmtK(nb.total)+' bills':'')+((nb.total>0&&fm>0)?' + ':'')+(fm>0?fmtK(fm)+' materials':'');
       return tile('','A/P due next month · '+d(ax.foll.ms),fmtK(comb),'',sub||'on top of this month','expap');})()+
     tile(wkCls,'Forward workflow',wkWeeks!=null?(Math.round(wkWeeks*10)/10+' wk'):'—','',fwJobs.length?(fwJobs.filter(j=>!fwDone[j.id]&&!isExcl(j)).length+' jobs booked'):'sync Fergus','fw')+
-    // Jobs nearing completion (50–100% through priced labour) — their remaining quoted value still to
-    // invoice. Mirrors the Cash tab's "Due in · 50–100%" figure so the two reconcile.
-    (function(){const near=(fwJobs||[]).filter(j=>{if(isExcl(j))return false;const p=num(j.priced);return p>0&&(num(j.actual)/p)>=0.50&&uninvPriced(j)>0;});
+    // Jobs underway (5–100% through priced labour) — their remaining quoted value still to invoice.
+    // The popup breaks it into 5–20%, 20–50% and 50–100% stages.
+    (function(){const near=(fwJobs||[]).filter(j=>{if(isExcl(j))return false;const p=num(j.priced);return p>0&&(num(j.actual)/p)>=0.05&&uninvPriced(j)>0;});
       const t50=near.reduce((s,j)=>s+uninvPriced(j),0);
-      return tile('','Nearing completion · 50–100%',near.length?fmtK(t50):'—','pos',near.length?(near.length+' jobs · still to invoice'):'sync Fergus','near50');})()+
+      return tile('','Jobs underway · 5–100%',near.length?fmtK(t50):'—','pos',near.length?(near.length+' jobs · still to invoice'):'sync Fergus','near50');})()+
     bankCmdTiles();
   const tg=document.getElementById('cmd-tog');
   if(tg)tg.innerHTML=
@@ -4216,16 +4216,20 @@ function openCmdDetail(key,optMk){
     body='<div class="note" style="margin:0 0 10px;">Every <b>active</b> job (not yet 100% invoiced), ordered by <b>labour done vs priced</b> so the jobs closest to finished are at the top. <b>Revenue</b> = sale price (ex-GST) · <b>Invoiced</b> = billed so far · <b>To invoice</b> = still to bill · <b>Hrs</b> = actual / priced labour. Tap <b>✕</b> (far right) to cross a job out — it drops from every total here and across the app (cashflow, materials, revenue); tap <b>↺</b> to bring it back.</div>'+
       wrap('<th>Job</th><th style="text-align:right;">Revenue</th><th style="text-align:right;">Invoiced</th><th style="text-align:right;">To invoice</th><th style="text-align:right;">Hrs act/priced</th><th style="text-align:right;">Done</th><th></th>',rr,'No active jobs — Refresh Fergus.');}
   else if(key==='near50'){
-    title='Jobs nearing completion · 50–100% done';
-    // Booked jobs at least halfway through their priced labour, ordered most-complete first.
+    title='Jobs underway · 5–100% done';
+    // Booked jobs 5%+ through their priced labour, split into stage bands.
     const js=(fwJobs||[]).filter(j=>!isExcl(j)).map(j=>{const pr=num(j.priced),ac=num(j.actual),due=uninvPriced(j);return {job:j.job,jobNo:String(j.jobNo||'').replace(/\D/g,''),pr,ac,due,pct:pr>0?ac/pr:0};})
-      .filter(j=>j.pr>0&&j.pct>=0.50&&j.due>0).sort((a,b)=>b.pct-a.pct);
-    const tD=js.reduce((s,j)=>s+j.due,0);
-    const rr=js.map(j=>{const pc=Math.round(j.pct*100);const pcCol=pc>=90?'var(--success)':'var(--accent)';
-      return '<tr'+exTR(j.jobNo)+'><td>'+(j.jobNo?'<b>#'+esc(j.jobNo)+'</b> ':'')+esc((j.job||'').slice(0,34))+'</td><td style="text-align:right;">'+fmtH(j.ac)+'/'+fmtH(j.pr)+'h</td><td style="text-align:right;font-weight:800;color:'+pcCol+';">'+pc+'%</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(j.due)+'</td>'+exTD(j.jobNo)+'</tr>';});
-    if(rr.length)rr.push('<tr class="tot"><td>Total ('+js.length+')</td><td></td><td></td><td style="text-align:right;font-weight:800;">'+fmtK(tD)+'</td><td></td></tr>');
-    body='<div class="note" style="margin:0 0 10px;">Booked jobs at least <b>50% through their priced labour</b> — nearly finished, so their remaining <b>quoted value still to invoice</b> is cash coming in soon. Ordered most-complete first. <b>Hrs</b> = actual / priced labour · <b>Due in</b> = priced sale less what’s already invoiced. Matches the Cash tab’s “Due in · 50–100%”.</div>'+
-      wrap('<th>Job</th><th style="text-align:right;">Hrs act/priced</th><th style="text-align:right;">Done</th><th style="text-align:right;">Due in</th><th></th>',rr,'No jobs are 50%+ complete right now.');}
+      .filter(j=>j.pr>0&&j.pct>=0.05&&j.due>0).sort((a,b)=>b.pct-a.pct);
+    const grand=js.reduce((s,j)=>s+j.due,0);
+    const bandSeg=(label,lo,hi)=>{const rows=js.filter(j=>j.pct>=lo&&j.pct<hi).sort((a,b)=>b.pct-a.pct);
+      const sub=rows.reduce((s,j)=>s+j.due,0);
+      const rr=rows.map(j=>{const pc=Math.round(j.pct*100);const pcCol=pc>=90?'var(--success)':(pc>=50?'var(--accent)':'var(--muted)');
+        return '<tr'+exTR(j.jobNo)+'><td>'+(j.jobNo?'<b>#'+esc(j.jobNo)+'</b> ':'')+esc((j.job||'').slice(0,34))+'</td><td style="text-align:right;">'+fmtH(j.ac)+'/'+fmtH(j.pr)+'h</td><td style="text-align:right;font-weight:800;color:'+pcCol+';">'+pc+'%</td><td style="text-align:right;color:var(--success);font-weight:700;">'+fmtK(j.due)+'</td>'+exTD(j.jobNo)+'</tr>';});
+      rr.push('<tr class="tot"><td>Subtotal ('+rows.length+')</td><td></td><td></td><td style="text-align:right;font-weight:800;">'+fmtK(sub)+'</td><td></td></tr>');
+      return '<div class="cfx-sec"><div class="cfx-sect">'+label+'</div>'+wrap('<th>Job</th><th style="text-align:right;">Hrs act/priced</th><th style="text-align:right;">Done</th><th style="text-align:right;">Due in</th><th></th>',rr,'No jobs in this stage.')+'</div>';};
+    body='<div class="note" style="margin:0 0 10px;">Booked jobs <b>5%+ through their priced labour</b> — their remaining <b>quoted value still to invoice</b> is cash coming in as they finish, split by stage. <b>Hrs</b> = actual / priced labour · <b>Due in</b> = priced sale less what’s already invoiced.</div>'+
+      '<div class="cfx-sec" style="text-align:center;padding:12px;"><div class="cfx-sect">Total due in · 5–100%</div><div style="font-size:1.6rem;font-weight:800;color:var(--success);line-height:1.05;">'+fmtK(grand)+'</div><div class="note" style="margin-top:4px;">'+js.length+' jobs still to invoice</div></div>'+
+      bandSeg('Early · 5–20%',0.05,0.20)+bandSeg('Well underway · 20–50%',0.20,0.50)+bandSeg('Nearly done · 50–100%',0.50,Infinity);}
   else if(key==='cf'){
     const D=window.__cfDetail;
     title='Cashflow forecast — next 13 weeks';
