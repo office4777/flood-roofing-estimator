@@ -1836,6 +1836,13 @@ html.customer-view input,html.customer-view select,html.customer-view textarea{f
 .qp-canvas > .qp-canvas-edge::after{content:'▲ printable page edge';position:absolute;right:0;top:2px;font:600 8px var(--ed-sans);letter-spacing:.05em;color:#e08a2e;text-transform:uppercase}
 html.pdf-rendering .qp-mov-grip,html.pdf-rendering .qp-mov-size,html.pdf-rendering .qp-canvas-edge,
 html.customer-view .qp-mov-grip,html.customer-view .qp-mov-size,html.customer-view .qp-canvas-edge{display:none!important}
+/* Customer link: photos are part of the finished document — hide every photo
+   edit affordance and neutralise drag/zoom cursors even if a render path
+   slips an office control through. */
+html.customer-view .qp-cond-controls,html.customer-view .qp-cond-mark-tools,html.customer-view .qp-cond-cap-empty,html.customer-view .qp-cond-empty{display:none!important}
+html.customer-view .qp-cond-photo{cursor:default!important}
+html.customer-view .qp-cond-mark{pointer-events:none!important;cursor:default!important}
+html.customer-view .qp-cond-cap{pointer-events:none!important}
 html.pdf-rendering .qp-mov:hover,html.customer-view .qp-mov:hover{outline:none!important}
 /* Quote tab order: action bar → live proposal (the editing surface) →
    optional settings.  The proposal is edited in-place; settings cards sit
@@ -10060,7 +10067,11 @@ function _qpCondPhotoClear(idx){
 // hover controls (zoom in/out + remove). Print CSS hides the
 // controls so only the image reaches paper.
 function _qpCondPhotoSlotHtml(idx, cp){
+  // The customer link is a finished document: empty slots don't exist and a
+  // filled photo is a plain picture — no drag, no zoom, no edit controls.
+  var _cust = !!window.__CUSTOMER_MODE;
   if (!cp || !cp.src) {
+    if (_cust) return '';
     return '<div class="qp-cond-photo qp-cond-empty" data-cp-idx="'+idx+'" '+
       'ondragover="event.preventDefault();this.style.borderColor=\'var(--ed-accent)\'" '+
       'ondragleave="this.style.borderColor=\'var(--ed-line)\'" '+
@@ -10081,21 +10092,24 @@ function _qpCondPhotoSlotHtml(idx, cp){
   var _marks = Array.isArray(cp.marks) ? cp.marks : [];
   var marksHtml = _marks.map(function(m, mi){ return _qpCondMarkHtml(idx, mi, m); }).join('');
   var captionHtml = cp.caption
-    ? '<figcaption class="qp-cond-cap" contenteditable="true" data-cp-idx="'+idx+'" '+
-        'onblur="_qpCondPhotoCaptionBlur(this)" '+
+    ? '<figcaption class="qp-cond-cap" '+(_cust ? '' : 'contenteditable="true" ')+'data-cp-idx="'+idx+'" '+
+        (_cust ? '' : 'onblur="_qpCondPhotoCaptionBlur(this)" ')+
         'style="position:absolute;bottom:0;left:0;right:0;padding:6px 10px;background:rgba(10,24,40,.82);color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:11.5px;outline:none">'+esc2(cp.caption)+'</figcaption>'
-    : '<figcaption class="qp-cond-cap qp-cond-cap-empty no-print" contenteditable="true" data-cp-idx="'+idx+'" '+
+    : (_cust ? '' :
+      '<figcaption class="qp-cond-cap qp-cond-cap-empty no-print" contenteditable="true" data-cp-idx="'+idx+'" '+
         'onblur="_qpCondPhotoCaptionBlur(this)" '+
-        'style="position:absolute;bottom:0;left:0;right:0;padding:4px 10px;background:rgba(10,24,40,.5);color:rgba(255,255,255,.5);font-family:var(--ed-serif);font-style:italic;font-size:10.5px;outline:none">Click to add caption…</figcaption>';
+        'style="position:absolute;bottom:0;left:0;right:0;padding:4px 10px;background:rgba(10,24,40,.5);color:rgba(255,255,255,.5);font-family:var(--ed-serif);font-style:italic;font-size:10.5px;outline:none">Click to add caption…</figcaption>');
   return '<figure class="qp-cond-photo qp-cond-filled" data-cp-idx="'+idx+'" '+
-    'onwheel="_qpCondPhotoWheel(event,'+idx+')" '+
-    'onmousedown="_qpCondPhotoDragStart(event,'+idx+')" '+
-    'style="margin:0;aspect-ratio:16/9;background:#000;overflow:hidden;position:relative;border:3px solid #fff;border-radius:9px;box-shadow:0 1px 5px rgba(10,24,40,.22);cursor:grab;user-select:none">'+
+    (_cust ? '' :
+      'onwheel="_qpCondPhotoWheel(event,'+idx+')" '+
+      'onmousedown="_qpCondPhotoDragStart(event,'+idx+')" ')+
+    'style="margin:0;aspect-ratio:16/9;background:#000;overflow:hidden;position:relative;border:3px solid #fff;border-radius:9px;box-shadow:0 1px 5px rgba(10,24,40,.22);cursor:'+(_cust?'default':'grab')+';user-select:none">'+
     '<img src="'+esc2(cp.src)+'" draggable="false" loading="lazy" decoding="async" '+
       'style="width:100%;height:100%;object-fit:cover;filter:saturate(.95);'+
       'transform:translate('+ox+'px,'+oy+'px) scale('+zm+');transform-origin:center center;pointer-events:none">'+
     marksHtml +
     captionHtml +
+    (_cust ? '' :
     // Hover controls — hidden in print via .no-print
     '<div class="qp-cond-controls no-print" style="position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .15s">'+
       '<button type="button" onclick="event.stopPropagation();_qpCondAddMark('+idx+',\'circle\')" title="Circle a defect" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(255,45,33,.9);color:#fff;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center">◯</button>'+
@@ -10104,7 +10118,7 @@ function _qpCondPhotoSlotHtml(idx, cp){
       '<button type="button" onclick="event.stopPropagation();_qpCondPhotoZoom('+idx+',+0.1)" title="Zoom in" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(10,24,40,.78);color:#fff;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">+</button>'+
       '<button type="button" onclick="event.stopPropagation();_qpCondPhotoReset('+idx+')" title="Reset position" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(10,24,40,.78);color:#fff;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center">↺</button>'+
       '<button type="button" onclick="event.stopPropagation();_qpCondPhotoRemove('+idx+')" title="Remove photo" style="width:24px;height:24px;border:none;border-radius:4px;background:rgba(185,28,28,.85);color:#fff;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">×</button>'+
-    '</div>'+
+    '</div>')+
   '</figure>';
 }
 // ── Defect annotations (arrows + circles over a condition photo) ────
@@ -10127,6 +10141,14 @@ function _qpCondMarkHtml(idx, mi, m){
   var rotHandle = (m.type === 'arrow')
     ? '<button type="button" onclick="event.stopPropagation();_qpCondMarkRotate('+idx+','+mi+',45)" title="Rotate 45°" style="width:20px;height:20px;border:none;border-radius:4px;background:rgba(10,24,40,.82);color:#fff;cursor:pointer;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center">↻</button>'
     : '';
+  // Customer link: the annotation is part of the finished picture — no drag,
+  // no resize, no tools, and it must never intercept taps.
+  if (window.__CUSTOMER_MODE){
+    return '<div class="qp-cond-mark" '+
+      'style="position:absolute;left:'+x+'%;top:'+y+'%;width:'+size+'px;height:'+size+'px;margin-left:'+(-size/2)+'px;margin-top:'+(-size/2)+'px;transform:rotate('+rot+'deg);z-index:4;pointer-events:none">'+
+        inner+
+    '</div>';
+  }
   return '<div class="qp-cond-mark" data-cp-idx="'+idx+'" data-mark-idx="'+mi+'" '+
     'onmousedown="_qpCondMarkDragStart(event,'+idx+','+mi+')" onwheel="_qpCondMarkWheel(event,'+idx+','+mi+')" '+
     'title="Drag to move · scroll to resize'+(m.type==='arrow'?' · shift-scroll to rotate':'')+'" '+
@@ -10139,6 +10161,7 @@ function _qpCondMarkHtml(idx, mi, m){
   '</div>';
 }
 function _qpCondAddMark(idx, type){
+  if (window.__CUSTOMER_MODE) return;
   var cp = _qpCondPhoto(idx); if (!cp) return;
   var marks = Array.isArray(cp.marks) ? cp.marks.slice() : [];
   marks.push(type === 'arrow' ? { type:'arrow', x:52, y:40, size:74, rot:0 }
@@ -10147,12 +10170,14 @@ function _qpCondAddMark(idx, type){
   _qpRerenderOneSlot(idx);
 }
 function _qpCondMarkRemove(idx, mi){
+  if (window.__CUSTOMER_MODE) return;
   var cp = _qpCondPhoto(idx); if (!cp || !Array.isArray(cp.marks)) return;
   var marks = cp.marks.slice(); marks.splice(mi, 1);
   _qpCondPhotoSet(idx, { marks: marks });
   _qpRerenderOneSlot(idx);
 }
 function _qpCondMarkRotate(idx, mi, step){
+  if (window.__CUSTOMER_MODE) return;
   var cp = _qpCondPhoto(idx); if (!cp || !Array.isArray(cp.marks)) return;
   var marks = cp.marks.slice(), m = marks[mi]; if (!m) return;
   m.rot = (((m.rot || 0) + (step || 45)) % 360 + 360) % 360;
@@ -10160,6 +10185,7 @@ function _qpCondMarkRotate(idx, mi, step){
   _qpRerenderOneSlot(idx);
 }
 function _qpCondMarkWheel(e, idx, mi){
+  if (window.__CUSTOMER_MODE) return;
   e.preventDefault(); e.stopPropagation();
   var cp = _qpCondPhoto(idx); if (!cp || !Array.isArray(cp.marks)) return;
   var marks = cp.marks.slice(), m = marks[mi]; if (!m) return;
@@ -10173,6 +10199,7 @@ function _qpCondMarkWheel(e, idx, mi){
   _qpRerenderOneSlot(idx);
 }
 function _qpCondMarkDragStart(e, idx, mi){
+  if (window.__CUSTOMER_MODE) return;
   if (e.target.closest('.qp-cond-mark-tools, button')) return;
   e.preventDefault(); e.stopPropagation();      // don't pan the photo underneath
   var fig = document.querySelector('.qp-cond-photo[data-cp-idx="'+idx+'"]');
@@ -10536,25 +10563,30 @@ function _qpCondPhotoDrop(e, idx){
   r.readAsDataURL(f);
 }
 function _qpCondPhotoRemove(idx){
+  if (window.__CUSTOMER_MODE) return;
   if (!confirm('Remove this photo?')) return;
   _qpCondPhotoClear(idx);
 }
 function _qpCondPhotoReset(idx){
+  if (window.__CUSTOMER_MODE) return;
   _qpCondPhotoSet(idx, { offX:0, offY:0, zoom:1 });
   _qpRerenderOneSlot(idx);
 }
 function _qpCondPhotoZoom(idx, delta){
+  if (window.__CUSTOMER_MODE) return;
   var cp = _qpCondPhoto(idx); if (!cp) return;
   var z = Math.max(0.3, Math.min(4, (+cp.zoom || 1) + delta));
   _qpCondPhotoSet(idx, { zoom: z });
   _qpApplySlotTransform(idx);
 }
 function _qpCondPhotoWheel(e, idx){
+  if (window.__CUSTOMER_MODE) return;
   e.preventDefault();
   var delta = e.deltaY > 0 ? -0.08 : 0.08;
   _qpCondPhotoZoom(idx, delta);
 }
 function _qpCondPhotoDragStart(e, idx){
+  if (window.__CUSTOMER_MODE) return;
   // Ignore clicks on controls / caption inputs.
   if (e.target.closest('.qp-cond-controls, .qp-cond-cap, button')) return;
   e.preventDefault();
@@ -10577,6 +10609,7 @@ function _qpCondPhotoDragStart(e, idx){
   window.addEventListener('mouseup', onUp);
 }
 function _qpCondPhotoCaptionBlur(el){
+  if (window.__CUSTOMER_MODE) return;
   var idx = parseInt(el.getAttribute('data-cp-idx'), 10);
   if (!isFinite(idx)) return;
   var txt = (el.textContent || '').trim();
