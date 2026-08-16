@@ -4005,7 +4005,7 @@ function renderCommand(){
     // The popup breaks it into 5–20%, 20–50% and 50–100% stages.
     (function(){const near=(fwJobs||[]).filter(j=>{if(isExcl(j))return false;const p=num(j.priced);return p>0&&(num(j.actual)/p)>=0.05&&uninvPriced(j)>0;});
       const t50=near.reduce((s,j)=>s+uninvPriced(j),0);
-      return tile('','Jobs underway · 5–100%',near.length?fmtK(t50):'—','pos',near.length?(near.length+' jobs · still to invoice'):'sync Fergus','near50');})()+
+      return tile('','WIP Due in soon',near.length?fmtK(t50):'—','pos',near.length?(near.length+' jobs · still to invoice'):'sync Fergus','near50');})()+
     bankCmdTiles();
   const tg=document.getElementById('cmd-tog');
   if(tg)tg.innerHTML=
@@ -4216,7 +4216,7 @@ function openCmdDetail(key,optMk){
     body='<div class="note" style="margin:0 0 10px;">Every <b>active</b> job (not yet 100% invoiced), ordered by <b>labour done vs priced</b> so the jobs closest to finished are at the top. <b>Revenue</b> = sale price (ex-GST) · <b>Invoiced</b> = billed so far · <b>To invoice</b> = still to bill · <b>Hrs</b> = actual / priced labour. Tap <b>✕</b> (far right) to cross a job out — it drops from every total here and across the app (cashflow, materials, revenue); tap <b>↺</b> to bring it back.</div>'+
       wrap('<th>Job</th><th style="text-align:right;">Revenue</th><th style="text-align:right;">Invoiced</th><th style="text-align:right;">To invoice</th><th style="text-align:right;">Hrs act/priced</th><th style="text-align:right;">Done</th><th></th>',rr,'No active jobs — Refresh Fergus.');}
   else if(key==='near50'){
-    title='Jobs underway · 5–100% done';
+    title='WIP — due in soon · 5–100% done';
     // Booked jobs 5%+ through their priced labour, split into stage bands.
     const js=(fwJobs||[]).filter(j=>!isExcl(j)).map(j=>{const pr=num(j.priced),ac=num(j.actual),due=uninvPriced(j);return {job:j.job,jobNo:String(j.jobNo||'').replace(/\D/g,''),pr,ac,due,pct:pr>0?ac/pr:0};})
       .filter(j=>j.pr>0&&j.pct>=0.05&&j.due>0).sort((a,b)=>b.pct-a.pct);
