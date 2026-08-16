@@ -344,7 +344,12 @@ function _supabaseKeyInfo(){
   } catch (e) { return { role: 'unparseable-jwt', from, bypassesRls: false }; }
 }
 
-app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features: FEATURES, railway: _railwayIdentity(), supabase: _supabaseKeyInfo() }));
+app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features: FEATURES, railway: _railwayIdentity(), supabase: _supabaseKeyInfo(),
+  // pg=true means DATABASE_URL is set: the share-token index migration ran and
+  // quote writes use the targeted jsonb update instead of round-tripping the
+  // whole multi-MB draw_state. If this reads false, set DATABASE_URL on the
+  // Railway service (Supabase connection string) or run the index SQL by hand.
+  pg: !!process.env.DATABASE_URL, tokenCache: _tokenIdCache.size }));
 
 function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -559,8 +564,19 @@ function _quoteOf(job){
   if (job.quote !== undefined) return job.quote || null;                 // narrowed select
   return (((job.draw_state||{}).state)||{}).quote || null;               // full select
 }
+// token → job id cache: once ANY lookup resolves a share token, later opens
+// use the primary-key fast path even when the link carries no &i= hint (old
+// links) and no expression index exists — the slow token scan runs at most
+// once per token per process lifetime.
+const _tokenIdCache = new Map();
+function _tokenCachePut(token, id){
+  if (!token || !id) return;
+  if (_tokenIdCache.size > 500) _tokenIdCache.delete(_tokenIdCache.keys().next().value);
+  _tokenIdCache.set(token, id);
+}
 async function _findJobByToken(token, jobIdHint){
   if (!token) return null;
+  if (!jobIdHint && _tokenIdCache.has(token)) jobIdHint = _tokenIdCache.get(token);
   // Select ONLY the quote subtree, not the whole draw_state — the customer view
   // needs just the quote, and NOT the job's photos / drawing aerial (state.photos
   // + state.img64), which are megabytes. Writes go back via _saveQuoteBack's
@@ -574,13 +590,14 @@ async function _findJobByToken(token, jobIdHint){
     const { data, error } = await supabase.from('jobs').select(cols).eq('id', jobIdHint).limit(1);
     if (!error && data && data[0]) {
       const q = _quoteOf(data[0]);
-      if (q && q.share && q.share.token === token) return data[0];
+      if (q && q.share && q.share.token === token){ _tokenCachePut(token, data[0].id); return data[0]; }
     }
   }
   const { data, error } = await supabase.from('jobs')
     .select(cols)
     .eq('draw_state->state->quote->share->>token', token).limit(1);
   if (error) throw new Error(error.message);
+  if (data && data[0]) _tokenCachePut(token, data[0].id);
   return (data && data[0]) || null;
 }
 async function _saveQuoteBack(job, quote){
@@ -634,7 +651,11 @@ app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
       if (share.events.length > 80) share.events = share.events.slice(-80);
       changed = true;
     }
-    if (changed) { quote.share = share; await _saveQuoteBack(job, quote); }
+    // Respond FIRST, persist the "opened" analytics in the background — the
+    // customer's page load must never wait on the write (without a pg pool
+    // the fallback save round-trips the whole multi-MB draw_state, which is
+    // exactly what made the quote link feel slow to open).
+    if (changed) { quote.share = share; _saveQuoteBack(job, quote).catch(e => console.error('open-analytics save failed:', e.message)); }
     res.json({ quote: quote, branding: (settings && settings.branding) || {} });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
