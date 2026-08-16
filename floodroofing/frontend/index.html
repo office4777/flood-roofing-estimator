@@ -9,6 +9,10 @@
 <link rel="icon" type="image/png" href="brand/roofmap_icon.png">
 <link rel="apple-touch-icon" href="brand/roofmap_icon.png">
 <meta name="theme-color" content="#1f6fc0">
+<!-- Open the backend connection while the (large) page is still downloading —
+     the customer-quote prefetch below rides on this warm socket. -->
+<link rel="preconnect" href="https://flood-roofing-estimator-production.up.railway.app" crossorigin>
+<link rel="dns-prefetch" href="https://flood-roofing-estimator-production.up.railway.app">
 <!-- Editorial typography for the proposal preview — degrades to
      Georgia + system sans if the network's not available (e.g. when
      printing offline). -->
@@ -2206,12 +2210,18 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   if (_cq) {
     window.__CUSTOMER_TOKEN = _cq;
     try { window.__CUSTOMER_JOB = (new URLSearchParams(location.search).get('i') || '').replace(/[^A-Za-z0-9\-]/g,''); } catch(e){}
-    // Fire-and-forget warm-up: a free-tier backend spins down when idle, and
-    // its first request (a cold start) is what makes the customer link feel
-    // slow. Kick a /health ping the instant we know this is a customer view,
-    // so the server wakes while this 1.7 MB page is still parsing — by the
-    // time bootCustomerView() runs the real /q fetch, it's usually warm.
-    try { fetch(BACKEND + '/health', { cache:'no-store', mode:'cors' }).catch(function(){}); } catch(e){}
+    // PREFETCH the actual quote the instant we know this is a customer view —
+    // this script runs when only ~6% of the (2 MB) page has parsed, so the
+    // /q round trip happens IN PARALLEL with the rest of the download. By the
+    // time bootCustomerView() runs on DOMContentLoaded the data is usually
+    // already here, taking the whole network hop off the critical path.
+    // (It also doubles as the backend warm-up the old /health ping did.)
+    try {
+      var _qhUrl = BACKEND + '/q/' + encodeURIComponent(_cq)
+        + (window.__CUSTOMER_JOB ? ('?job=' + encodeURIComponent(window.__CUSTOMER_JOB)) : '');
+      window.__CUSTOMER_QUOTE_PREFETCH = fetch(_qhUrl, { cache:'no-store', mode:'cors' });
+      window.__CUSTOMER_QUOTE_PREFETCH.catch(function(){});
+    } catch(e){}
     var _lsc = document.getElementById('login-screen'); if (_lsc) _lsc.style.display='none';
     var _apc = document.querySelector('.app'); if (_apc) _apc.style.display='none';
     // Instant loading splash — the quote fetch (with eventual-consistency
@@ -3187,8 +3197,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <span style="font-size:11px;color:var(--text2)">— click any field to edit · everything you change here lands in the PDF</span>
     <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;align-items:center">
       <span class="no-print" style="font-size:11px;color:var(--text2)">🔍 Zoom</span>
-      <input class="no-print" type="range" id="jpZoomSlider" min="40" max="150" step="5" value="70" oninput="_setDocZoomFactor(this.value)" title="Page zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0 4px 0 0">
-      <span class="no-print" id="jpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums;margin-right:4px">70%</span>
+      <input class="no-print" type="range" id="jpZoomSlider" min="40" max="150" step="5" value="60" oninput="_setDocZoomFactor(this.value)" title="Page zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0 4px 0 0">
+      <span class="no-print" id="jpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums;margin-right:4px">60%</span>
       <button onclick="undoLast()" class="mat-btn mat-btn-light no-print" style="padding:7px 12px;font-size:12px" title="Undo the last change (e.g. a deleted cut-list row)">↩ Undo</button>
       <button onclick="redoLast()" class="mat-btn mat-btn-light no-print" style="padding:7px 12px;font-size:12px" title="Redo">↪ Redo</button>
       <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark" style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
@@ -4005,8 +4015,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div class="card-hd"><span class="card-dot"></span>Proposal — click any text to edit
       <div style="margin-left:auto;display:inline-flex;align-items:center;gap:8px">
         <span class="no-print" style="font-size:11px;color:var(--text2)">🔍 Zoom</span>
-        <input class="no-print" type="range" id="qpZoomSlider" min="40" max="150" step="5" value="70" oninput="_setDocZoomFactor(this.value)" title="Proposal zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0">
-        <span class="no-print" id="qpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums">70%</span>
+        <input class="no-print" type="range" id="qpZoomSlider" min="40" max="150" step="5" value="60" oninput="_setDocZoomFactor(this.value)" title="Proposal zoom (screen only)" style="width:88px;accent-color:#0099cc;margin:0">
+        <span class="no-print" id="qpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums">60%</span>
         <span class="no-print" style="width:1px;height:16px;background:var(--border);margin:0 2px"></span>
         <span style="font-size:11px;color:var(--text2)">Draft:</span>
         <div style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
@@ -12544,9 +12554,16 @@ async function bootCustomerView(token){
     var _jobHint = '';
     try { _jobHint = (new URLSearchParams(location.search).get('i') || '').replace(/[^A-Za-z0-9\-]/g,''); } catch(e){}
     var _qUrl = PROXY + '/q/' + encodeURIComponent(token) + (_jobHint ? ('?job=' + encodeURIComponent(_jobHint)) : '');
+    // The early inline script (top of the page) started this same fetch while
+    // the page was still downloading — consume it first so the render doesn't
+    // pay the network round trip again. Any failure just falls through to the
+    // normal fetch-with-retries below.
+    var _pre = window.__CUSTOMER_QUOTE_PREFETCH || null;
+    window.__CUSTOMER_QUOTE_PREFETCH = null;
     while (true){
       try {
-        r = await fetch(_qUrl, { cache:'no-store' });
+        var _useNow = _pre; _pre = null;   // consume ONCE — a rejected prefetch must not be re-awaited
+        r = _useNow ? await _useNow : await fetch(_qUrl, { cache:'no-store' });
         lastStatus = r.status;
         if (r.ok) break;
         if (r.status === 404) { lastFail = 'missing'; notFound++; if (notFound >= MAX_404) break; }
@@ -35276,11 +35293,15 @@ function _setPopReserve(px){
   try { _fitProposalPages(); } catch(e){}    // Quote proposal (inline zoom, fill-to-width)
 }
 // Manual zoom multiplier applied on top of the fit-to-width size. 1.0 = fill
-// the width; default 0.70 (70% of that) so the doc isn't over-zoomed. Driven
+// the width; default 0.60 (60% of that) so the doc isn't over-zoomed. Driven
 // by the sliders on the Quote + Job Pack tabs.
 function _docZoomFactor(){
   var v = parseFloat(localStorage.getItem('fr_doc_zoom_factor'));
-  if (!isFinite(v) || v <= 0) v = 0.70;
+  // One-time migration: 0.70 was the old DEFAULT, so a stored 0.70 almost
+  // certainly just means "never changed" — carry those devices to the new
+  // 60% default too. A deliberately chosen other value is left alone.
+  if (v > 0.68 && v < 0.72){ v = 0.60; try { localStorage.setItem('fr_doc_zoom_factor', v); } catch(e){} }
+  if (!isFinite(v) || v <= 0) v = 0.60;
   return Math.max(0.3, Math.min(1.5, v));
 }
 function _syncDocZoomUi(){
