@@ -12570,16 +12570,18 @@ function _custBarRows(){
   var mainOpt = optsAll[0] || null;
   var baseTot = (mainOpt ? _optEffectiveTotal(mainOpt) : _qpBaseSub()) * (1 + rate);
   rows.push({ label: '<strong>Original quote — main scope of work</strong> <span style="opacity:.6">(incl. GST)</span>', value: fmtMoney(baseTot) });
-  var scaff = (typeof _selScaffoldBasePrice === 'function') ? _selScaffoldBasePrice() : 0;
-  if (scaff > 0) rows.push({ label: '&#8627; Scaffolding <span style="opacity:.55">(edge protection · included)</span>', value: fmtMoney(scaff * (1 + rate)) });
   var extra = optsAll.slice(1).filter(function(o){ return o.selected === true; }).map(function(o){
     var ri = optsAll.indexOf(o);
     var nm = (window.DRAW && DRAW.roofs && DRAW.roofs[ri] && DRAW.roofs[ri].name) || o.title || ('Optional roof ' + ri);
     return { label: 'Optional roof — ' + nm, delta: _optEffectiveTotal(o) };
   });
+  // Only picks that actually move the price are listed — "included"/$0 items
+  // (scaffolding, disposal choice, etc.) would bulk the popup out without
+  // adding information; the full itemised record is on the acceptance page.
   extra.concat(_qpSelectionChanges()).forEach(function(c){
+    if (!c.delta) return;
     rows.push({ label: '&#8627; ' + esc2(c.label),
-                value: c.delta ? ((c.delta > 0 ? '+' : '−') + fmtMoney(Math.abs(c.delta) * (1 + rate))) : 'Included' });
+                value: (c.delta > 0 ? '+' : '−') + fmtMoney(Math.abs(c.delta) * (1 + rate)) });
   });
   rows.push({ label: 'New total <span style="opacity:.6;font-weight:400">(incl. GST)</span>', value: fmtMoney(_custBarTotalValue()), strong: true });
   return rows;
@@ -12595,9 +12597,26 @@ function _custBarRenderBreak(br){
   });
   br.innerHTML = html;
 }
+// The price stays OFF the bar until the reader has scrolled to the
+// Selections page (page 3) — the proposal should lead with the scope and
+// story, not a number. Once page 3 has been on screen the price stays up
+// for the rest of the visit (it's just as relevant on the acceptance page).
+function _custBarPriceReached(){
+  if (window.__custBarPriceOn) return true;
+  var a = document.getElementById('qpSelPageAnchor');
+  // No Selections page on this proposal (section toggled off) — nothing to
+  // wait for, show the price straight away.
+  if (!a){ window.__custBarPriceOn = true; return true; }
+  var pg = (a.closest && a.closest('.rp-page')) || a;
+  var r = pg.getBoundingClientRect();
+  if (r.top < window.innerHeight * 0.65) window.__custBarPriceOn = true;
+  return !!window.__custBarPriceOn;
+}
 function _custBarSync(){
   if (!window.__CUSTOMER_MODE) return;
   try {
+    var sum = document.getElementById('custBarSum');
+    if (sum) sum.style.display = _custBarPriceReached() ? 'flex' : 'none';
     var el = document.getElementById('custBarTotal');
     if (el) el.textContent = fmtMoney(_custBarTotalValue());
     var br = document.getElementById('custBarBreak');
@@ -12720,7 +12739,7 @@ async function bootCustomerView(token){
         '<div id="qpRoot"></div></div></div>'+
       '<div id="custBar" style="position:fixed;left:0;right:0;bottom:0;background:#0a1628;color:#fff;padding:11px 16px;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;box-shadow:0 -4px 16px rgba(0,0,0,.25);z-index:100001">'+
         '<div id="custBarSum" onclick="_custBarToggleBreakdown()" title="Tap for the full price breakdown" '+
-          'style="margin-right:auto;cursor:pointer;display:flex;flex-direction:column;gap:0;min-width:0;line-height:1.25">'+
+          'style="margin-right:auto;cursor:pointer;display:none;flex-direction:column;gap:0;min-width:0;line-height:1.25">'+
           '<span style="font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;opacity:.72">Your total <span style="text-transform:none;letter-spacing:0;font-weight:400">(incl. GST)</span> <span id="custBarChev" style="opacity:.85">▴</span></span>'+
           '<span id="custBarTotal" class="ed-serif" style="font-size:19px;font-weight:800;color:#4fc3ff;white-space:nowrap">—</span>'+
         '</div>'+
@@ -12732,6 +12751,13 @@ async function bootCustomerView(token){
     document.body.appendChild(host);
     window.__CUSTOMER_MODE = true;
     document.documentElement.classList.add('customer-view');
+    // Reveal the bottom-bar price the moment the reader scrolls the
+    // Selections page into view. Cheap check per scroll event (one rect
+    // read), and a no-op once the price is on — it never hides again.
+    host.addEventListener('scroll', function(){
+      if (window.__custBarPriceOn) return;
+      if (_custBarPriceReached()) _custBarSync();
+    }, { passive: true });
     // The customer link is a fixed-layout, tap-to-select proposal whose A4
     // pages are already scaled to the device width (_fitCustomerView). Disable
     // ALL mobile zoom — pinch, double-tap, and iOS tap/focus zoom — so tapping
@@ -16633,70 +16659,14 @@ function refreshQuoteProposal(){
           '</div>';
         }).join('');
       }
-      // Pricing summary for the picks: base quote scope, each
-      // non-default selection with its add-on, and the new total.
-      // (_selRate is declared with the card prices above.)
-      // The "main scope of work" base is the FIRST roof / option only; each
-      // additional roof the customer has ticked shows as its own +line so
-      // the price reads as main roof + optional extras + spec upgrades.
+      // (The old on-page "Your selection & price" panel is gone — the live
+      // running total now lives in the customer bottom bar, and the full
+      // itemised record is on the acceptance page — so this page only needs
+      // the option lists.)
       // Legacy options are ignored once the quote is priced via line items, so
-      // the Selections-page base mirrors the Pricing tab (main roof = line-item
-      // total) and extra roofs come from S.quote.extraRoofs, not stale options.
+      // extra roofs come from S.quote.extraRoofs, not stale options.
       var _optsAll   = _qpPricedByLineItems() ? [] : (S.quote.options || []);
-      var _mainOpt   = _optsAll[0] || null;
       var _extraOpts = _optsAll.slice(1);
-      var _selBaseTot = (_mainOpt ? _optEffectiveTotal(_mainOpt) : _qpBaseSub()) * (1+_selRate);
-      var _extraRoofChanges = _extraOpts
-        .filter(function(o){ return o.selected === true; })
-        .map(function(o){
-          var ri = _optsAll.indexOf(o);
-          var nm = (DRAW.roofs && DRAW.roofs[ri] && DRAW.roofs[ri].name) || o.title || ('Optional roof ' + ri);
-          return { label: 'Optional roof — ' + nm, delta: _optEffectiveTotal(o) };
-        });
-      var _selChanges = _extraRoofChanges.concat(_qpSelectionChanges());
-      var _selNewTot = (_qpBaseSub() + _qpSelectionDeltaSum()) * (1+_selRate);
-      var _selRow = function(label, value, opts2){
-        opts2 = opts2 || {};
-        return '<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 16px;'+
-          (opts2.top ? 'border-top:2px solid rgba(255,255,255,.32);' : 'border-top:1px solid rgba(255,255,255,.13);')+
-          (opts2.strong ? 'background:rgba(255,255,255,.07);' : '')+'">'+
-          '<div style="font-family:var(--ed-sans);font-size:12px;color:rgba(255,255,255,'+(opts2.strong?'1':'.72')+');'+(opts2.strong?'font-weight:700;':'')+'">'+label+'</div>'+
-          '<div class="ed-serif" style="font-size:'+(opts2.strong?'17px':'13px')+';font-weight:600;white-space:nowrap;color:'+(opts2.strong?'#4fc3ff':'#fff')+'">'+value+'</div>'+
-        '</div>';
-      };
-      // Scaffolding is always broken out just below the main scope so the
-      // customer can see it — the base (edge-protection) price is already part
-      // of the main-scope total, so it reads as "included", not an add-on.
-      var _selScaffBase = (typeof _selScaffoldBasePrice === 'function') ? _selScaffoldBasePrice() : 0;
-      var _selScaffRow = (_selScaffBase > 0)
-        ? _selRow('&#8627; Scaffolding <span style="color:rgba(255,255,255,.55)">(edge protection · included in main scope)</span>', fmtMoney(_selScaffBase * (1+_selRate)))
-        : '';
-      var _selPricing =
-        '<div style="border-top:none">'+
-          _selRow('<strong style="color:#fff">Original quote — main scope of work</strong> <span style="color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(_selBaseTot), { top: true })+
-          _selScaffRow+
-          (_selChanges.length
-            ? _selChanges.map(function(c){
-                return _selRow('&#8627; '+esc2(c.label), c.delta ? (c.delta > 0 ? '+' : '−')+fmtMoney(Math.abs(c.delta)*(1+_selRate)) : 'Included');
-              }).join('')
-            : _selRow('<span style="font-style:italic;color:rgba(255,255,255,.6)">Standard selections — no price change</span>', ''))+
-          _selRow('New total <span style="font-weight:400;color:rgba(255,255,255,.6)">(incl. GST)</span>', fmtMoney(_selNewTot), { strong: true })+
-        '</div>';
-      // One combined price panel replaces the old separate "Current
-      // selection" chip + detached pricing strip (the two blocks read as
-      // disconnected and made the page feel busy).  Flow inside the
-      // panel: current picks → base quote → each change → new total.
-      var _selSummaryLine =
-        esc2((PROFILES.find(function(p){return p.id===(pOpts.profile||'corrugate');})||{}).label||'—') + ' · '+
-        esc2((GRADES.find(function(g){return g.id===(pOpts.steelGrade||'maxam');})||{}).label||'—') + ' · '+
-        esc2((THICKS.find(function(t){return t.id===(pOpts.steelThickness||'40');})||{}).label||'—') + ' · '+
-        esc2(_proposalColourLabel()) + ' · '+
-        esc2((GUTTERS.find(function(g){return g.id===(pOpts.gutterType||'none');})||{}).label||'—')+
-        (pOpts.gutterType && pOpts.gutterType !== 'none'
-          ? ' · ' + esc2((BRACKETS.find(function(b){return b.id===(pOpts.gutterBracket||'internal');})||{}).label||'—')
-            + (pOpts.downpipes === 'yes' ? ' · New downpipes' : '')
-          : '')+
-        ' · ' + esc2((DISPOSAL.find(function(d){return d.id===(pOpts.disposal||'dispose');})||{}).label||'—');
       // ── Additional roofs (optional extras) ──────────────────────────
       // When the property has more than one roof (i.e. more than one option
       // package), the extra roofs appear here as opt-in items. The main
@@ -16750,9 +16720,12 @@ function refreshQuoteProposal(){
         _extraRoofsPanel = _erPanelWrap(_synRows);
       }
       partOptionsSelections =
+        // Invisible marker so the customer view can tell when the reader has
+        // scrolled to this page — the bottom-bar price stays hidden until then.
+        '<span id="qpSelPageAnchor"></span>'+
         edHeading('3','Your options & price','Choose Your Options',{chapter:PROPOSAL_CHAPTERS[2],chapters:PROPOSAL_CHAPTERS})+
         // One-line "how this works" so the page explains itself.
-        '<div class="ed-body" style="margin:-8px 0 4px;font-size:12px;color:var(--ed-ink-2);line-height:1.4">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is in the panel below.</div>'+
+        '<div class="ed-body" style="margin:-8px 0 4px;font-size:12px;color:var(--ed-ink-2);line-height:1.4">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is always shown in the price bar at the bottom of your screen, with the full breakdown on the acceptance page.</div>'+
         _extraRoofsPanel+
         // LEFT column — steel grade, thickness, colour. RIGHT column —
         // guttering, brackets, downpipes. Each group is its own titled panel
@@ -16799,13 +16772,6 @@ function refreshQuoteProposal(){
             selCard('disposal', DISPOSAL, pOpts.disposal || 'dispose', '_setProposalOption_disposal', { flat: true, compact: true })+
             '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:0;padding:4px 12px 5px;line-height:1.35;font-style:italic;border-top:1px solid var(--ed-line);background:#fbfaf7">Either choice is included at no change to your price — the scrap value of the old steel only offsets the labour and time to strip and cart it away.</div>'
           )+
-        '</div>'+
-        '<div style="margin-top:4px;background:var(--ed-ink);border-radius:7px;overflow:hidden;box-shadow:0 2px 10px rgba(10,24,40,.18)">'+
-          '<div style="padding:7px 16px 6px">'+
-            '<div class="ed-eyebrow" style="margin-bottom:2px;color:#4fc3ff">Your selection &amp; price</div>'+
-            '<div style="font-family:var(--ed-sans);font-size:12px;line-height:1.6;color:rgba(255,255,255,.82)">'+_selSummaryLine+'</div>'+
-          '</div>'+
-          _selPricing+
         '</div>';
     }
 
