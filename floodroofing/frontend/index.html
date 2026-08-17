@@ -2356,8 +2356,18 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <!-- Selected-job indicator + quick "Select job" chooser at the very top of
        the left menu, so the current job is always visible from any tab. -->
   <div id="navJobBox" style="margin:0 6px 10px">
-    <div id="navJobInfo" style="padding:9px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb)">
-      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);font-weight:700;margin-bottom:2px">Selected job</div>
+    <!-- Clickable: tapping the selected-job chip opens the same New Job /
+         Select Job chooser as the button below, so the user can swap or
+         edit the job from any tab without hunting for the Home tile. -->
+    <div id="navJobInfo" role="button" tabindex="0" onclick="openSelectJobModal('fergus')"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSelectJobModal('fergus');}"
+         title="Tap to swap or edit the selected job"
+         style="padding:9px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);cursor:pointer"
+         onmouseenter="this.style.borderColor='#0099cc'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:2px">
+        <span style="color:var(--text2)">Selected job</span>
+        <span style="color:#0099cc;letter-spacing:.04em;flex-shrink:0">Change ▾</span>
+      </div>
       <div id="navJobName" style="font-size:12px;font-weight:600;color:var(--text2);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No job selected</div>
     </div>
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
