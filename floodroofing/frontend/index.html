@@ -2590,25 +2590,24 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     .hb-drop-row{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;cursor:pointer}
     .hb-drop-row:hover{background:#f0f8fb}
     .hb-drop-badge{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:20px;white-space:nowrap}
-    .hb-newjob{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;background:#0a1628;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 14px rgba(10,22,40,.22);white-space:nowrap}
-    .hb-newjob:hover{background:#13294a}
-    .hb-board-wrap{overflow-x:auto;padding-bottom:6px}
-    .hb-board{display:grid;grid-template-columns:repeat(6,minmax(172px,1fr));gap:10px;min-width:1090px}
-    .hb-col{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;display:flex;flex-direction:column;min-height:120px}
-    .hb-col-hd{display:flex;align-items:center;gap:7px;padding:10px 12px 8px;border-top:3px solid transparent;border-radius:12px 12px 0 0}
-    .hb-col-title{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#334155;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .hb-col-count{font-size:11px;font-weight:800;min-width:20px;text-align:center;padding:2px 7px;border-radius:20px;background:#e2e8f0;color:#475569}
-    .hb-col-list{padding:0 8px 8px;overflow-y:auto;max-height:56vh;flex:1}
-    .hb-card{background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:9px 11px;margin-bottom:7px;cursor:pointer;box-shadow:0 1px 2px rgba(15,23,42,.05);position:relative}
-    .hb-card:hover{border-color:#0099cc;box-shadow:0 3px 10px rgba(0,153,204,.14)}
-    .hb-card-client{font-size:12.5px;font-weight:700;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:14px}
-    .hb-card-sub{font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
-    .hb-card-extra{font-size:11px;margin-top:3px;line-height:1.45}
-    .hb-card-when{font-size:10px;color:#94a3b8;margin-top:4px}
-    .hb-card-del{position:absolute;top:6px;right:7px;background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:13px;line-height:1;padding:2px}
-    .hb-card-del:hover{color:#b91c1c}
-    .hb-empty{font-size:11px;color:#94a3b8;text-align:center;padding:18px 8px}
-    .hb-chip{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-bottom:4px}
+    .hb-newjob{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(0,153,204,.3);white-space:nowrap}
+    .hb-newjob:hover{filter:brightness(1.06)}
+    .hb-tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
+    @media (max-width:900px){ .hb-tiles{grid-template-columns:repeat(3,1fr)} }
+    .hb-tile{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:13px 8px 11px;cursor:pointer;text-align:center;transition:border-color .12s, box-shadow .12s, background .12s}
+    .hb-tile:hover{border-color:#0099cc}
+    .hb-tile.on{border-color:#0099cc;background:#f0f8fb;box-shadow:0 4px 14px rgba(0,153,204,.14)}
+    .hb-tile-num{font-size:27px;font-weight:800;color:#0a1628;line-height:1.05}
+    .hb-tile-lbl{font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hb-tile-bar{height:4px;border-radius:2px;margin:9px auto 0;width:70%;opacity:.28;transition:opacity .12s}
+    .hb-tile.on .hb-tile-bar{opacity:1}
+    .hb-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;background:#fff}
+    .hb-row:hover{background:var(--surface-2);border-color:#0099cc}
+    .hb-row-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:20px;white-space:nowrap}
+    .hb-row-client{font-size:13px;font-weight:600;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hb-row-sub{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hb-row-when{font-size:11px;color:var(--text2);white-space:nowrap}
+    .hb-empty{font-size:12px;color:var(--text2);text-align:center;padding:20px 8px}
   </style>
   <div class="hb-topbar">
     <div class="hb-search-wrap">
@@ -2620,8 +2619,12 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <button type="button" onclick="fetchQuoteActivity();fetchRecentDrafts()" title="Refresh the board" style="padding:10px 14px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:10px;font-size:12px;cursor:pointer;font-family:inherit">↻</button>
   </div>
   <div style="font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:2px 0 8px">Status board</div>
-  <div class="hb-board-wrap">
-    <div class="hb-board" id="homeBoard"></div>
+  <div class="hb-tiles" id="homeBoardTiles"></div>
+  <div class="card" style="margin-top:0">
+    <div class="card-hd"><span class="card-dot"></span><span id="homeBoardListTitle">Recent drafts</span>
+      <span id="homeBoardListCount" style="margin-left:8px;font-size:11px;font-weight:600;color:var(--text2)"></span>
+    </div>
+    <div id="homeBoard" style="max-height:52vh;overflow-y:auto"></div>
   </div>
 </div>
 
@@ -8232,72 +8235,93 @@ async function fetchRecentDrafts(){
 function _hbWhen(t){
   return t ? new Date(t).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
 }
+var _hbSelected = 'drafts';   // which status tile's jobs show in the list below
+function _hbSelect(key){
+  _hbSelected = key;
+  _renderHomeBoard();
+}
 function _renderHomeBoard(){
+  var tiles = document.getElementById('homeBoardTiles');
   var host = document.getElementById('homeBoard');
-  if (!host) return;
+  if (!tiles || !host) return;
   var feed = window._quoteActivityFeed || [];
-  var drafts = (window._recentDraftsRows || []).slice(0, 15);
-  var orders = (window._ordersSentRows || []).slice(0, 15);
+  var drafts = (window._recentDraftsRows || []).slice(0, 25);
+  var orders = (window._ordersSentRows || []).slice(0, 25);
 
-  function feedCard(f, extra){
-    return '<div class="hb-card" onclick="openJob(\'' + f.jobId + '\')">' +
-      '<div class="hb-card-client">' + esc2(f.client || '—') + (f.ref ? ' <span style="color:#94a3b8;font-weight:500">· ' + esc2(f.ref) + '</span>' : '') + '</div>' +
-      (extra || '') +
-      '<div class="hb-card-when">' + esc2(_hbWhen(f.lastEventAt)) + '</div>' +
+  function feedRow(f, badge, bg, fg, extra){
+    return '<div class="hb-row" onclick="openJob(\'' + f.jobId + '\')">' +
+      '<span class="hb-row-badge" style="background:' + bg + ';color:' + fg + '">' + badge + '</span>' +
+      '<div style="flex:1;min-width:0"><div class="hb-row-client">' + esc2(f.client || '—') +
+        (f.ref ? ' <span style="color:var(--text2);font-weight:400">· ' + esc2(f.ref) + '</span>' : '') + '</div>' +
+        (extra || '') + '</div>' +
+      '<div class="hb-row-when">' + esc2(_hbWhen(f.lastEventAt)) + '</div>' +
     '</div>';
   }
   var sent = feed.filter(function(f){ return f.status === 'sent' || f.status === 'opened'; }).map(function(f){
-    return feedCard(f, f.status === 'opened' ? '<div class="hb-card-extra" style="color:#64748b">Viewed ' + (f.openCount || 1) + '×</div>' : '');
+    return feedRow(f, f.status === 'opened' ? 'Viewed' : 'Sent', f.status === 'opened' ? '#dbeafe' : '#f1f5f9', f.status === 'opened' ? '#1d4ed8' : '#475569',
+      f.status === 'opened' ? '<div class="hb-row-sub">Viewed ' + (f.openCount || 1) + '×</div>' : '');
   });
   var questions = feed.filter(function(f){ return f.status === 'queried'; }).map(function(f){
-    return feedCard(f, (f.query && f.query.message) ? '<div class="hb-card-extra" style="color:#92400e">“' + esc2(String(f.query.message).slice(0, 90)) + '”</div>' : '');
+    return feedRow(f, 'Question', '#fef3c7', '#92400e',
+      (f.query && f.query.message) ? '<div class="hb-row-sub" style="color:#92400e">“' + esc2(String(f.query.message).slice(0, 120)) + '”</div>' : '');
   });
-  var declined = feed.filter(function(f){ return f.status === 'declined'; }).map(function(f){ return feedCard(f, ''); });
+  var declined = feed.filter(function(f){ return f.status === 'declined'; }).map(function(f){
+    return feedRow(f, 'Declined', '#fee2e2', '#b91c1c', '');
+  });
   var accepted = feed.filter(function(f){ return f.status === 'accepted'; }).map(function(f){
-    return feedCard(f, (f.accepted ? '<div class="hb-card-extra" style="color:#15803d;font-weight:600">' + esc2(f.accepted.name || '') + ' · ' + fmtMoney(f.accepted.total || 0) + '</div>' : ''));
+    return feedRow(f, 'Accepted', '#dcfce7', '#15803d',
+      f.accepted ? '<div class="hb-row-sub" style="color:#15803d;font-weight:600">Accepted by ' + esc2(f.accepted.name || '') + ' · ' + fmtMoney(f.accepted.total || 0) + '</div>' : '');
   });
-  var draftCards = drafts.map(function(r){
+  var draftRows = drafts.map(function(r){
     var resume = r.resume === 'draft' ? ("_resumeDraft('" + r.key + "')") : ("resumeSavedJob('" + r.id + "')");
     var del    = r.resume === 'draft' ? ("_deleteRecentDraft(event,'" + r.key + "')") : ("_deleteRecentJob(event,'" + r.id + "')");
-    var chip = r.unsaved
-      ? '<span class="hb-chip" style="background:#fef3c7;color:#92400e">' + (r.kind === 'fergus' ? 'Fergus · unsaved' : 'Unsaved') + '</span>'
-      : '<span class="hb-chip" style="background:#dbeafe;color:#1d4ed8">Saved</span>';
-    return '<div class="hb-card" onclick="' + resume + '">' + chip +
-      '<button class="hb-card-del" title="Delete" onclick="' + del + '">✕</button>' +
-      '<div class="hb-card-client">' + esc2(r.client || '(untitled)') + '</div>' +
-      '<div class="hb-card-sub">' + esc2(r.addr || '—') + '</div>' +
-      '<div class="hb-card-when">' + esc2(_hbWhen(r.t)) + '</div>' +
+    var badge, bg, fg;
+    if (r.unsaved){ badge = (r.kind === 'fergus' ? 'Fergus · unsaved' : 'Unsaved'); bg = '#fef3c7'; fg = '#92400e'; }
+    else { badge = 'Saved'; bg = '#dbeafe'; fg = '#1d4ed8'; }
+    return '<div class="hb-row" onclick="' + resume + '">' +
+      '<span class="hb-row-badge" style="background:' + bg + ';color:' + fg + '">' + badge + '</span>' +
+      '<div style="flex:1;min-width:0"><div class="hb-row-client">' + esc2(r.client || '(untitled)') + '</div>' +
+      '<div class="hb-row-sub">' + esc2(r.addr || '—') + '</div></div>' +
+      '<div class="hb-row-when">' + esc2(_hbWhen(r.t)) + '</div>' +
+      '<span style="font-size:12px;color:#0099cc;font-weight:600;white-space:nowrap">Resume →</span>' +
+      '<button onclick="' + del + '" title="Delete" style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px">✕</button>' +
     '</div>';
   });
-  var orderCards = orders.map(function(o){
-    return '<div class="hb-card" onclick="openJob(\'' + o.id + '\')">' +
-      '<div class="hb-card-client">' + esc2(o.client || '(untitled)') + '</div>' +
-      '<div class="hb-card-sub">' + esc2(o.addr || '—') + '</div>' +
-      (o.to ? '<div class="hb-card-extra" style="color:#6d28d9">→ ' + esc2(o.to) + '</div>' : '') +
-      '<div class="hb-card-when">' + esc2(_hbWhen(o.at)) + '</div>' +
+  var orderRows = orders.map(function(o){
+    return '<div class="hb-row" onclick="openJob(\'' + o.id + '\')">' +
+      '<span class="hb-row-badge" style="background:#e0f2fe;color:#0369a1">Ordered</span>' +
+      '<div style="flex:1;min-width:0"><div class="hb-row-client">' + esc2(o.client || '(untitled)') + '</div>' +
+      '<div class="hb-row-sub">' + esc2(o.addr || '—') + (o.to ? ' · order to ' + esc2(o.to) : '') + '</div></div>' +
+      '<div class="hb-row-when">' + esc2(_hbWhen(o.at)) + '</div>' +
     '</div>';
   });
 
   var qaErr = window._quoteActivityError
-    ? '<div class="hb-empty" style="color:#b91c1c">Couldn’t load quote activity.<br><button onclick="fetchQuoteActivity()" style="margin-top:6px;padding:3px 10px;background:transparent;color:#b91c1c;border:1px solid #b91c1c;border-radius:6px;font-size:11px;cursor:pointer">↻ Retry</button></div>'
+    ? '<div class="hb-empty" style="color:#b91c1c">Couldn’t load quote activity. <button onclick="fetchQuoteActivity()" style="margin-left:6px;padding:3px 10px;background:transparent;color:#b91c1c;border:1px solid #b91c1c;border-radius:6px;font-size:11px;cursor:pointer">↻ Retry</button></div>'
     : null;
   var cols = [
-    { title: 'Recent Drafts',   accent: '#f59e0b', cards: draftCards, empty: 'No recent work' },
-    { title: 'Quotes Sent',     accent: '#0284c7', cards: sent,       empty: 'No quotes awaiting a reply', err: qaErr },
-    { title: 'Questions',       accent: '#ea580c', cards: questions,  empty: 'No customer questions', err: qaErr },
-    { title: 'Quotes Declined', accent: '#dc2626', cards: declined,   empty: 'Nothing declined', err: qaErr },
-    { title: 'Quotes Accepted', accent: '#16a34a', cards: accepted,   empty: 'Nothing accepted yet', err: qaErr },
-    { title: 'Orders Sent',     accent: '#7c3aed', cards: orderCards, empty: 'No orders emailed yet' },
+    { key: 'drafts',    title: 'Recent Drafts',   accent: '#f59e0b', rows: draftRows, empty: 'No recent work yet — create a job to get started.' },
+    { key: 'sent',      title: 'Quotes Sent',     accent: '#0099cc', rows: sent,      empty: 'No quotes awaiting a reply.', err: qaErr },
+    { key: 'questions', title: 'Questions',       accent: '#ea580c', rows: questions, empty: 'No customer questions.', err: qaErr },
+    { key: 'declined',  title: 'Quotes Declined', accent: '#dc2626', rows: declined,  empty: 'Nothing declined.', err: qaErr },
+    { key: 'accepted',  title: 'Quotes Accepted', accent: '#16a34a', rows: accepted,  empty: 'Nothing accepted yet.', err: qaErr },
+    { key: 'orders',    title: 'Orders Sent',     accent: '#0a1628', rows: orderRows, empty: 'No orders emailed yet — sent orders will show up here.' },
   ];
-  host.innerHTML = cols.map(function(c){
-    return '<div class="hb-col">' +
-      '<div class="hb-col-hd" style="border-top-color:' + c.accent + '">' +
-        '<span class="hb-col-title">' + c.title + '</span>' +
-        '<span class="hb-col-count"' + (c.cards.length ? ' style="background:' + c.accent + ';color:#fff"' : '') + '>' + c.cards.length + '</span>' +
-      '</div>' +
-      '<div class="hb-col-list">' + (c.cards.length ? c.cards.join('') : (c.err || '<div class="hb-empty">' + c.empty + '</div>')) + '</div>' +
+  tiles.innerHTML = cols.map(function(c){
+    return '<div class="hb-tile' + (c.key === _hbSelected ? ' on' : '') + '" onclick="_hbSelect(\'' + c.key + '\')">' +
+      '<div class="hb-tile-num">' + c.rows.length + '</div>' +
+      '<div class="hb-tile-lbl">' + c.title + '</div>' +
+      '<div class="hb-tile-bar" style="background:' + c.accent + '"></div>' +
     '</div>';
   }).join('');
+  var sel = null;
+  for (var i = 0; i < cols.length; i++) if (cols[i].key === _hbSelected) sel = cols[i];
+  if (!sel) sel = cols[0];
+  var tEl = document.getElementById('homeBoardListTitle');
+  var cEl = document.getElementById('homeBoardListCount');
+  if (tEl) tEl.textContent = sel.title;
+  if (cEl) cEl.textContent = sel.rows.length ? ('· ' + sel.rows.length) : '';
+  host.innerHTML = sel.rows.length ? sel.rows.join('') : (sel.err || '<div class="hb-empty">' + sel.empty + '</div>');
 }
 // Back-compat aliases — older call sites repaint the whole board now.
 function _renderRecentDrafts(){ _renderHomeBoard(); }
