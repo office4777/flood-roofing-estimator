@@ -2702,6 +2702,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
               <input type="range" id="sheetTextScale" min="0.7" max="4" step="0.1" value="1" style="flex:1;margin:0" oninput="_setSheetTextScale(this.value)">
               <span id="sheetTextScaleOut" style="font-variant-numeric:tabular-nums;color:#0a1628;min-width:24px;text-align:right">1.0</span>×
             </label>
+            <label style="display:flex;align-items:center;gap:6px;margin:8px 0 0" title="Multiplier for the building outline / line measurement labels (e.g. 19.85m) — separate from the sheet-length labels.">
+              Outline text
+              <input type="range" id="outlineTextScale" min="0.5" max="4" step="0.1" value="1" style="flex:1;margin:0" oninput="_setOutlineTextScale(this.value)">
+              <span id="outlineTextScaleOut" style="font-variant-numeric:tabular-nums;color:#0a1628;min-width:24px;text-align:right">1.0</span>×
+            </label>
             <div style="border-top:1px solid #eef1f5;margin:11px 0 9px"></div>
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Rotate photo</div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -20076,6 +20081,29 @@ function _syncSheetTextScaleUi(){
   var out = document.getElementById('sheetTextScaleOut');
   if (inp) inp.value = saved;
   if (out) out.textContent = saved.toFixed(1);
+  try { _syncOutlineTextScaleUi(); } catch(e){}
+}
+// Outline-text scaler (View menu) — sizes ALL the building outline / line
+// measurement labels (e.g. "19.85m") together, independent of the
+// sheet-length labels above.
+function _setOutlineTextScale(v){
+  var n = parseFloat(v);
+  if (!isFinite(n) || n < 0.5) n = 0.5;
+  if (n > 4) n = 4;
+  try { localStorage.setItem('fr_outline_text_scale', String(n)); } catch(e){}
+  var out = document.getElementById('outlineTextScaleOut');
+  if (out) out.textContent = n.toFixed(1);
+  try { redrawAll(); } catch(e){}
+}
+function _syncOutlineTextScaleUi(){
+  var saved = parseFloat(localStorage.getItem('fr_outline_text_scale')
+               || localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
+  if (!isFinite(saved) || saved < 0.5) saved = 1;
+  if (saved > 4) saved = 4;
+  var inp = document.getElementById('outlineTextScale');
+  var out = document.getElementById('outlineTextScaleOut');
+  if (inp) inp.value = saved;
+  if (out) out.textContent = saved.toFixed(1);
 }
 // ─── Print designer ─────────────────────────────────────────────────
 // Per-element layout state, persisted in localStorage. Each printable
@@ -25318,12 +25346,12 @@ function redrawAll() {
             var lenL = Math.sqrt(dxL*dxL + dyL*dyL) || 1;
             var oxL = -dyL/lenL * 12, oyL = dxL/lenL * 12;
             var txtL = (+l.measM).toFixed(2) + 'm';
-            // Honour the same fr_roofmap_font_scale slider the active
-            // roof uses — without this the secondary roofs' labels
-            // stay locked at 11 px while the active roof's labels grow,
-            // and the user sees mismatched sizes (e.g. main roof at
-            // 14 px next to a wing roof's gutter measures at 11 px).
-            var _shAllScale = parseFloat(localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
+            // Honour the same Outline-text scale the active roof's
+            // measure labels use — without this the secondary roofs'
+            // labels stay locked at 11 px while the active roof's labels
+            // grow, and the user sees mismatched sizes.
+            var _shAllScale = parseFloat(localStorage.getItem('fr_outline_text_scale')
+                               || localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
             if (_shAllScale < 0.5) _shAllScale = 0.5;
             if (_shAllScale > 4)   _shAllScale = 4;
             var _shAllPx = Math.round(11 * _shAllScale);
@@ -25518,7 +25546,12 @@ function redrawAll() {
       var labelStr = l.label || (parseFloat(l.measM).toFixed(2) + 'm');
       var mmx = (lp0[0] + lp1[0]) / 2;
       var mmy = (lp0[1] + lp1[1]) / 2;
-      var _measScale = parseFloat(localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
+      // Outline-text slider (View menu) — sizes ALL the building-outline /
+      // line measurement labels together, independent of the Sheet-text
+      // slider. Falls back to the legacy Materials-map scale so a size the
+      // user already tuned carries over until they touch the new slider.
+      var _measScale = parseFloat(localStorage.getItem('fr_outline_text_scale')
+                        || localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
       if (_measScale < 0.5) _measScale = 0.5;
       if (_measScale > 4)   _measScale = 4;
       var measFontPx = Math.round(11 * _measScale);
@@ -25965,10 +25998,12 @@ function redrawAll() {
     // fine-tune on top.
     var _shAutoBase = Math.min(44, Math.max(8, _maxSdl * 0.13));
     _sheetDims.forEach(function(d){
-      // Manual sheet measures (d.fullSize === true) always render at
-      // the longest-sheet font, so a small drawn span doesn't shrink
-      // the label below the auto-labelled sheets next to it.
-      var ratio  = d.fullSize ? 1 : (d.sdl / _maxSdl);       // 0..1 (1 = longest sheet)
+      // EVERY sheet-length label renders at the same default size — a
+      // short run's "2.57m" is exactly as prominent as the longest run's
+      // "9.37m". (Labels used to scale with their run length, which read
+      // as mismatched sizes.) The Sheet-text slider + per-label A−/A+
+      // still fine-tune on top.
+      var ratio  = 1;
       // Per-measure text size — set from the sheet-length editor's A− / A+
       // buttons, keyed by the same run key as the hit box. 1 = default.
       var _perScale = (DRAW.sheetTextScale && DRAW.sheetTextScale[d.key]) || 1;
