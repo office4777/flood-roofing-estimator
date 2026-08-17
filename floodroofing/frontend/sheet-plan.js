@@ -401,15 +401,21 @@ function _ccBuildCookiePlan(sections, outline, lines, opts){
       b.startU = (dA >= dB) ? s.obU0 : (s.obU1 - span);
     }
   });
-  // Global numbering bases — MUST mirror the calc-check sort exactly so the
-  // two diagrams show identical numbers: longest length block first, main
-  // before wing within a length, stable otherwise.
-  var _base = new Map(), _run = 0;
+  // Numbering bases — MUST mirror the calc-check sort exactly so the two
+  // diagrams show identical numbers: longest length block first, main
+  // before wing within a length, stable otherwise. Each sheet LENGTH
+  // restarts its run at 1 (green 1..10, purple 1..10, …) — the installer
+  // counts within a bundle, and the bundle is the length. Same-length
+  // sections stay contiguous and continue the run.
+  var _base = new Map(), _run = 0, _prevLen = null;
   built.slice().sort(function(a, c){
     var la = a.s.orderedMm || 0, lc = c.s.orderedMm || 0;
     if (lc !== la) return lc - la;
     return (c.s.isPrimary ? 1 : 0) - (a.s.isPrimary ? 1 : 0);
   }).forEach(function(b){
+    var _len = b.s.orderedMm || 0;
+    if (_prevLen !== null && _len !== _prevLen) _run = 0;   // new length → restart at 1
+    _prevLen = _len;
     _base.set(b, _run);
     _run += (b.s.mono ? 1 : 2) * b.per;
   });

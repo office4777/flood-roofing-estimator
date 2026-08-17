@@ -9320,19 +9320,21 @@ function _renderCalcCheckCanvas(sections, opts){
   }
 
   // Column numbers (full opacity, so the faded overhang sheet still counts).
-  // Numbered as ONE running sequence ordered by length, unique across the
-  // whole roof (matching the colour-coded sheet plan): the longest-length
-  // sections come first, and within a section the two slopes carry straight
-  // through (top 1..per, bottom per+1..2·per) instead of each slope
-  // restarting at 1. Same-length sections stay contiguous; a different length
-  // starts a new block. Only the printed numbers change — column geometry,
-  // anchoring and draw order are untouched, so the picture is identical.
-  var _numBase = new Map(), _crun = 0;
+  // Each SHEET LENGTH numbers its own run starting at 1 (green 1..10,
+  // purple 1..10, …) — the installer counts within a bundle, and the
+  // bundle IS the length. Within a section the two slopes carry straight
+  // through (top 1..per, bottom per+1..2·per); same-length sections stay
+  // contiguous and continue the run. Only the printed numbers change —
+  // column geometry, anchoring and draw order are untouched.
+  var _numBase = new Map(), _crun = 0, _prevLen = null;
   built.slice().sort(function(a, b){
     var la = a.s.orderedMm || 0, lb = b.s.orderedMm || 0;
     if (lb !== la) return lb - la;                                  // longest length block first
     return (b.s.isPrimary ? 1 : 0) - (a.s.isPrimary ? 1 : 0);      // main before wing within a length
   }).forEach(function(b){
+    var _len = b.s.orderedMm || 0;
+    if (_prevLen !== null && _len !== _prevLen) _crun = 0;         // new length → restart at 1
+    _prevLen = _len;
     _numBase.set(b, _crun);
     _crun += (b.s.mono ? 1 : 2) * b.per;                           // columns this section consumes
   });
