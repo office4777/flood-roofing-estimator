@@ -904,16 +904,9 @@ select{
 .mat-fl-card .mat-fl-row{ display:grid; gap:8px; align-items:center; padding:2px 4px; }
 .mat-fl-card .mat-fl-row input{ line-height:1.55; }
 .mat-fl-card .mat-fl-row.is-extra{ background:#fffbeb; border-radius:3px; }
-/* User-added (slot) flashing rows share .mat-list-row with dektite /
-   gutter rows — scope the 2× "N @ X.Xm" sizing to flashing cards only. */
-.mat-fl-card .mat-list-row,
-.mat-fl-card .mat-list-row input,
-.mat-fl-card .mat-list-at,
-.mat-fl-card .mat-list-unit{ font-size:24px; }
-.mat-fl-card .mat-list-row .mat-list-qty{ min-width:auto; }
-.mat-fl-card .mat-list-row .mat-list-qty input{ width:48px; }
-.mat-fl-card .mat-list-row .mat-list-len input,
-.mat-fl-card .mat-list-row .mat-list-lenval{ width:84px; }
+/* Flashing-card "N @ X.Xm" rows use the SAME size as every other
+   cut-list row (screws / rivets / underlay rolls) — the old 2× sizing
+   made the cards shout over the rest of the order. */
 .mat-fl-card .mat-fl-foot{
   display:flex; justify-content:space-between; align-items:center;
   padding:3px 4px; margin-top:3px; border-top:1px solid #e5e7eb;
@@ -1124,6 +1117,10 @@ select{
 }
 #quotePricingPanel.is-open{ transform:translateX(0); }
 #quotePricingPanel.is-resizing{ transition:none; user-select:none; }
+/* Tab switches show/hide the pop-outs INSTANTLY (no slide) — the slide
+   animation is for the user's own open/close toggles only. Re-sliding on
+   every tab change made switching feel jumpy. */
+#quotePricingPanel.sidepop-instant, #fergusRoofPanel.sidepop-instant, #jpMapPanel.sidepop-instant{ transition:none !important; }
 #quotePricingPanelResize{
   position:absolute; left:0; top:0; bottom:0; width:12px; cursor:ew-resize; z-index:3;
   display:flex; align-items:center; justify-content:center; touch-action:none;
@@ -5132,14 +5129,21 @@ function gotoTab(t) {
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   try { document.body.setAttribute('data-tab', t); } catch(e){}   // drives per-tab layout (fill/left)
-  // Reserve content space for this tab's side pop-out (deferred so panels
-  // that open via restore/timeout are already settled when we measure).
-  try { _setPopReserve(0); setTimeout(function(){ try{ _syncPopReserveForTab(t); }catch(e){} try{ _syncDocZoomUi(); }catch(e){} }, 80); } catch(e){}
+  // Reserve content space for this tab's side pop-out. The reserve is set
+  // SYNCHRONOUSLY by each tab's panel branch below — and since all three
+  // pop-outs share one width, switching between panel tabs keeps the same
+  // reserve, so the document never lays out wide-then-narrow (that double
+  // reflow was what made tab switching feel jumpy). Tabs without a pop-out
+  // clear it here; the deferred re-measure stays as a safety net only.
+  try {
+    if (t !== 'roof' && t !== 'materials' && t !== 'quote') _setPopReserve(0);
+    setTimeout(function(){ try{ _syncPopReserveForTab(t); }catch(e){} try{ _syncDocZoomUi(); }catch(e){} }, 80);
+  } catch(e){}
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
-  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{_syncCurrentToRoof&&_syncCurrentToRoof();}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpRestorePanelState();}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
+  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{_syncCurrentToRoof&&_syncCurrentToRoof();}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpRestorePanelState(true);}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
   if(t!=='materials'){var __mp=document.getElementById('jpMapPanel'); if(__mp)__mp.classList.remove('is-open');}
   // Pricing slide-out is available only on the Quote tab.
   (function(){
@@ -5150,7 +5154,10 @@ function gotoTab(t) {
       try{_pricingPanelInit();}catch(e){}
       try{_quotePricingApplyWidth();}catch(e){}
       // Popped out by DEFAULT — only stay closed if the user closed it.
-      if(localStorage.getItem('fr_qp_pricing_open')!=='0'){ setTimeout(function(){ try{_openPricingPanel();}catch(e){} }, 20); }
+      // Opened SYNCHRONOUSLY and without the slide animation so the tab
+      // lands fully laid out in one paint instead of jumping.
+      if(localStorage.getItem('fr_qp_pricing_open')!=='0'){ try{_openPricingPanel(true);}catch(e){} }
+      else { try{_setPopReserve(0);}catch(e){} }
     }
     else { _pp.style.display='none'; _pp.classList.remove('is-open'); }
   })();
@@ -5171,7 +5178,8 @@ function gotoTab(t) {
       // page refresh ALWAYS re-opens the panel — a one-time close no longer
       // hides the photos forever. Closing it only lasts the current session.
       var _wantOpen=true; try{ _wantOpen = sessionStorage.getItem('fr_fergus_panel_open') !== '0'; }catch(e){}
-      if(_wantOpen){ requestAnimationFrame(function(){ try{_fergusPanelOpen();}catch(e){} }); }
+      if(_wantOpen){ try{_fergusPanelOpen(true);}catch(e){} }
+      else { try{_setPopReserve(0);}catch(e){} }
     }
     else { _fp.style.display='none'; _fp.classList.remove('is-open'); }
   })();
@@ -28738,7 +28746,7 @@ function _pricingPanelInit(){
   var sc = document.getElementById('tab-scope');
   if (host && sc && sc.parentNode !== host) host.appendChild(sc);
 }
-function _openPricingPanel(){
+function _openPricingPanel(instant){
   // The panel only exists on the Quote tab — switch there first if needed.
   try {
     var ap = document.querySelector('.panel.active');
@@ -28750,7 +28758,13 @@ function _openPricingPanel(){
   try { calcLabour(); } catch(e){ console.warn('pricing labour:', e); }
   try { _renderPricingRoofSwitchBar(); } catch(e){}
   var p = document.getElementById('quotePricingPanel');
-  if (p){ p.style.display = 'flex'; _quotePricingApplyWidth(); p.classList.add('is-open'); _setPopReserve(p.getBoundingClientRect().width); }
+  if (p){
+    // instant = tab-switch restore: no slide animation (see _fergusPanelOpen).
+    if (instant === true) p.classList.add('sidepop-instant');
+    p.style.display = 'flex'; _quotePricingApplyWidth(); p.classList.add('is-open');
+    _setPopReserve(p.getBoundingClientRect().width);
+    if (instant === true) requestAnimationFrame(function(){ requestAnimationFrame(function(){ p.classList.remove('sidepop-instant'); }); });
+  }
   try { localStorage.setItem('fr_qp_pricing_open', '1'); } catch(e){}
 }
 function _closePricingPanel(){
@@ -28796,12 +28810,15 @@ function _jpToggleMapPanel(){
   if (open){ _jpApplyMapPanelWidth(); renderJpMapPanel(); _setPopReserve(p.getBoundingClientRect().width); }
   else { _setPopReserve(0); }
 }
-function _jpRestorePanelState(){
+function _jpRestorePanelState(instant){
   var p = document.getElementById('jpMapPanel'); if (!p) return;
+  // instant = tab-switch restore: appear in place, no slide (see _fergusPanelOpen).
+  if (instant) p.classList.add('sidepop-instant');
   _jpApplyMapPanelWidth();
   // Popped out by DEFAULT — only stay closed if the user explicitly closed it.
   var open = localStorage.getItem('fr_jp_map_panel_open') !== '0';
   p.classList.toggle('is-open', open);
+  if (instant) requestAnimationFrame(function(){ requestAnimationFrame(function(){ p.classList.remove('sidepop-instant'); }); });
   if (open) { try { renderJpMapPanel(); } catch(e){} }
   _setPopReserve(open ? p.getBoundingClientRect().width : 0);
 }
@@ -30704,20 +30721,21 @@ function _jpRenderFlashingCell(box, bi){
     var lbl = r.letter ? r.letter : '?';
     var rowKey = esc(spec.key + '::' + (r.letter || '') + '::' + r.length.toFixed(2));
     var isExtra = !!r._isExtra, extraIdx = r._extraIdx;
-    // Measure text is rendered at ~2× so the qty + length read clearly on
-    // the Job Pack; the "×N (gap) X.Xm" layout is replaced by "N @ X.Xm".
-    var _fs = 'font-size:24px;';
+    // Same size as every other cut-list row (screws / rivets / underlay
+    // rolls) — the old 2× sizing made the flashing cards shout over the
+    // rest of the order.
+    var _fs = 'font-size:13px;';
     var letterInput, lenInput, qtyCell, deleteCell;
     if (isExtra){
-      letterInput = '<input type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'letter\',this.value)" style="width:40px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;'+_fs+'font-style:italic">';
-      lenInput    = '<input type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'length\',this.value)" style="width:70px;border:none;background:transparent;text-align:left;padding:0;'+_fs+'font-weight:700">';
-      qtyCell     = '<input type="number" step="1" min="1" value="'+r.qty+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'qty\',this.value)" style="width:46px;border:none;background:transparent;text-align:right;padding:0;'+_fs+'font-weight:700">';
-      deleteCell  = '<button class="pdf-hide" onclick="_matExtrasDelete(\''+esc(spec.key)+'\','+extraIdx+')" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:18px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
+      letterInput = '<input type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'letter\',this.value)" style="width:30px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;'+_fs+'font-style:italic">';
+      lenInput    = '<input type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'length\',this.value)" style="width:52px;border:none;background:transparent;text-align:left;padding:0;'+_fs+'font-weight:700">';
+      qtyCell     = '<input type="number" step="1" min="1" value="'+r.qty+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'qty\',this.value)" style="width:34px;border:none;background:transparent;text-align:right;padding:0;'+_fs+'font-weight:700">';
+      deleteCell  = '<button class="pdf-hide" onclick="_matExtrasDelete(\''+esc(spec.key)+'\','+extraIdx+')" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
     } else {
-      letterInput = '<input data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matInlineSetLetter(this)" style="width:40px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;'+_fs+'">';
-      lenInput    = '<input data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matInlineSetLength(this)" style="width:70px;border:none;background:transparent;text-align:left;padding:0;'+_fs+'font-weight:700">';
+      letterInput = '<input data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matInlineSetLetter(this)" style="width:30px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;'+_fs+'">';
+      lenInput    = '<input data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matInlineSetLength(this)" style="width:52px;border:none;background:transparent;text-align:left;padding:0;'+_fs+'font-weight:700">';
       qtyCell     = '<span style="'+_fs+'font-weight:700">'+r.qty+'</span>';
-      deleteCell  = '<button class="pdf-hide" onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:18px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
+      deleteCell  = '<button class="pdf-hide" onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
     }
     var letterCell = rowsRefsOn
       ? letterInput
@@ -35533,11 +35551,20 @@ function _sidepopResizeStart(e, panel){
   window.addEventListener('pointerup', up);
 }
 // ── Fergus photos side pop-out (open / close / resize / zoom) ──────────
-function _fergusPanelOpen(){
+function _fergusPanelOpen(instant){
   var p = document.getElementById('fergusRoofPanel'); if (!p) return;
+  // instant = tab-switch restore: appear in place with no slide animation
+  // (the slide is for the user's own toggle only — re-sliding on every tab
+  // change made switching look jumpy).
+  if (instant) p.classList.add('sidepop-instant');
   p.style.display = 'flex';
   _applySidepopWidth();
-  requestAnimationFrame(function(){ p.classList.add('is-open'); });
+  if (instant){
+    p.classList.add('is-open');
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ p.classList.remove('sidepop-instant'); }); });
+  } else {
+    requestAnimationFrame(function(){ p.classList.add('is-open'); });
+  }
   _setPopReserve(p.getBoundingClientRect().width);
   try { sessionStorage.setItem('fr_fergus_panel_open', '1'); } catch(e){}
   if (!_fergusRoofPhotosLoaded) _loadFergusRoofPhotos(false);
