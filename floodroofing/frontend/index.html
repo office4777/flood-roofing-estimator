@@ -3412,6 +3412,21 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   </button>
   <div id="fergusRoofPanelResize" onpointerdown="_sidepopResizeStart(event,this.parentNode)" title="Drag to resize"></div>
   <div class="frp-hd">
+    <!-- JOB PHOTOS — taken on site (camera) or picked from the gallery, saved
+         INSIDE the job file so they're on the office computer as soon as the
+         job saves. Renders via _renderJobPhotosGrid(). -->
+    <div id="jobPhotosSec" style="border-bottom:1px solid var(--border);margin:0 -14px 10px -20px;padding:0 14px 12px 20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700">📸 Job photos</span>
+        <span id="jobPhotosCount" style="font-size:11px;font-weight:600;color:#0099cc"></span>
+        <span style="margin-left:auto;font-size:10px;color:var(--text2)">saved with the job</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:9px">
+        <button onclick="document.getElementById('jobPhotoCam').click()" style="flex:1;padding:10px 8px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📷 Take photo</button>
+        <button onclick="document.getElementById('jobPhotoGal').click()" style="flex:1;padding:10px 8px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🖼 From gallery</button>
+      </div>
+      <div id="jobPhotosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:7px"></div>
+    </div>
     <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
       <span style="font-size:13px;font-weight:700">📷 Fergus job photos</span>
       <span id="fergusRoofPanelCount" style="font-size:11px;font-weight:600;color:#0099cc"></span>
@@ -3928,6 +3943,15 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div class="uz-sub">Multiple photos — add captions</div>
       <input type="file" id="photoInput" accept="image/*" multiple onchange="addPhotos(event)">
     </div>
+    <div class="no-print" style="display:flex;gap:8px;margin:10px 0 4px">
+      <button onclick="document.getElementById('jobPhotoCam').click()" style="padding:10px 18px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">📷 Take photo</button>
+      <button onclick="document.getElementById('jobPhotoGal').click()" style="padding:10px 18px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">🖼 From gallery</button>
+    </div>
+    <!-- Shared hidden pickers: camera capture (phone/tablet rear camera) and
+         plain gallery/file picker. Used by the buttons here, the roof-photos
+         side panel and the tablet toolbar. -->
+    <input type="file" id="jobPhotoCam" accept="image/*" capture="environment" style="display:none" onchange="_jobPhotosAdd(event)">
+    <input type="file" id="jobPhotoGal" accept="image/*" multiple style="display:none" onchange="_jobPhotosAdd(event)">
     <div class="photo-grid" id="photoGrid"></div>
   </div>
   <div class="card">
@@ -7281,6 +7305,8 @@ function restoreFromJob(j){
   if (snap.state) {
     S.orderSent = null;   // pre-stamp jobs: don't inherit the previous job's stamp
     Object.assign(S, snap.state);
+    if (!Array.isArray(S.photos)) S.photos = [];
+    try { renderPhotos(); } catch(e){}   // refresh the photo grids (Quote card + side panel)
     if (S.img64) {
       var img = document.getElementById('roofPrevImg');
       if (img) { img.src = _img64ToDataUrl(S.img64);
@@ -10532,8 +10558,74 @@ async function handlePriceFile(e){
 // ── INSPECTION ───────────────────────────────────────────────────
 function selectCond(el,c){document.querySelectorAll('.cond-opt').forEach(function(x){x.className='cond-opt';});el.classList.add('sel-'+c);S.condition=c;}
 function addPhotos(e){Array.from(e.target.files).forEach(function(f){var r=new FileReader();r.onload=function(ev){_downscalePhoto(ev.target.result,function(src){S.photos.push({src:src,caption:''});renderPhotos();});};r.readAsDataURL(f);});document.getElementById('photoInput').value='';}
-function renderPhotos(){document.getElementById('photoGrid').innerHTML=S.photos.map(function(p,i){return '<div class="photo-thumb"><img src="'+p.src+'"><button class="photo-rm" onclick="removePhoto('+i+')">x</button><div class="photo-caption"><input type="text" placeholder="Caption..." value="'+p.caption+'" style="width:100%;margin:0;padding:3px 5px;font-size:11px" oninput="S.photos['+i+'].caption=this.value"></div></div>';}).join('');}
+function renderPhotos(){var _pg=document.getElementById('photoGrid');if(_pg)_pg.innerHTML=S.photos.map(function(p,i){return '<div class="photo-thumb"><img src="'+p.src+'"><button class="photo-rm" onclick="removePhoto('+i+')">x</button><div class="photo-caption"><input type="text" placeholder="Caption..." value="'+p.caption+'" style="width:100%;margin:0;padding:3px 5px;font-size:11px" oninput="S.photos['+i+'].caption=this.value"></div></div>';}).join('');try{_renderJobPhotosGrid();}catch(e){}}
 function removePhoto(i){S.photos.splice(i,1);renderPhotos();}
+
+// ── JOB PHOTOS (camera / gallery → saved with the job) ─────────────
+// Shared by the Quote tab's Site photos card, the roof-photos side panel
+// and the tablet toolbar. Photos are downscaled client-side and stored in
+// S.photos, so they ride inside the job file: shot on site, visible on the
+// office computer the moment the job saves (and protected by the automatic
+// DB snapshots like everything else in the job).
+function _jobPhotosAdd(e){
+  var files = Array.from((e.target && e.target.files) || []);
+  if (!files.length) return;
+  var pending = files.length;
+  files.forEach(function(f){
+    var r = new FileReader();
+    r.onload = function(ev){
+      _downscalePhoto(ev.target.result, function(src){
+        S.photos.push({ src: src, caption: '' });
+        if (--pending === 0){
+          renderPhotos();
+          try { _setSaveStatus && _setSaveStatus('📸 ' + files.length + ' photo' + (files.length > 1 ? 's' : '') + ' added — they save with the job.', '#0369a1'); } catch(err){}
+        }
+      });
+    };
+    r.readAsDataURL(f);
+  });
+  e.target.value = '';
+}
+function _renderJobPhotosGrid(){
+  var g = document.getElementById('jobPhotosGrid');
+  if (!g) return;
+  var ph = (window.S && S.photos) || [];
+  var c = document.getElementById('jobPhotosCount');
+  if (c) c.textContent = ph.length ? String(ph.length) : '';
+  g.innerHTML = ph.length ? ph.map(function(p, i){
+    return '<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--border);aspect-ratio:1;background:#f1f5f9">' +
+      '<img src="' + p.src + '" onclick="_jobPhotoView(' + i + ')" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in">' +
+      '<button onclick="_jobPhotoRemove(' + i + ')" title="Remove" style="position:absolute;top:3px;right:3px;width:20px;height:20px;border:none;border-radius:6px;background:rgba(10,22,40,.62);color:#fff;font-size:11px;line-height:1;cursor:pointer">✕</button>' +
+    '</div>';
+  }).join('') : '<div style="grid-column:1/-1;font-size:11px;color:var(--text2);text-align:center;padding:4px 0 2px">No photos yet — take one on site, it saves with the job.</div>';
+}
+function _jobPhotoRemove(i){
+  if (!confirm('Remove this photo from the job?')) return;
+  S.photos.splice(i, 1);
+  renderPhotos();
+}
+function _jobPhotoView(i){
+  var p = (S.photos || [])[i];
+  if (!p) return;
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100060;background:rgba(10,22,40,.92);display:flex;align-items:center;justify-content:center;padding:14px;cursor:zoom-out';
+  ov.innerHTML = '<img src="' + p.src + '" style="max-width:100%;max-height:100%;border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.5)">' +
+    '<button style="position:fixed;top:14px;right:14px;width:38px;height:38px;border:none;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:17px;cursor:pointer">✕</button>';
+  ov.onclick = function(){ ov.remove(); };
+  document.body.appendChild(ov);
+}
+// Keep the side-panel grid fresh whenever the panel opens.
+(function(){
+  function wrap(name){
+    var o = window[name];
+    if (typeof o !== 'function' || o.__jp) return;
+    window[name] = function(){ var r = o.apply(this, arguments); try { _renderJobPhotosGrid(); } catch(e){} return r; };
+    window[name].__jp = true;
+  }
+  function init(){ wrap('_fergusPanelOpen'); wrap('_fergusPanelToggle'); try { _renderJobPhotosGrid(); } catch(e){} }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
 
 // ── Condition photos (Quote → Inspection page slots) ─────────────
 // Per-slot photo storage on S.quote.condPhotos. Each entry is
