@@ -166,6 +166,13 @@ body[data-tab="quote"] .content{
   padding-right:var(--pop-reserve,46px);
   transition:padding-right .2s ease;
 }
+/* Home dashboard: same hard-left full-width treatment as the working tabs
+   (no side pop-out on this tab, so the normal right padding stays). */
+body[data-tab="select"] .content{
+  max-width:none;
+  margin-left:0;
+  margin-right:0;
+}
 /* Job-pack pages stay CENTRED (matching the Quote proposal's location);
    the fit-to-width zoom (--doc-zoom) makes them fill the working area. */
 
@@ -2198,7 +2205,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
 </head>
-<body>
+<body data-tab="select">
 
 <!-- ── LOGIN SCREEN ─────────────────────────────────────────────────────── -->
 <div id="login-screen" style="display:none;position:fixed;inset:0;background:#0a1628;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
@@ -2582,26 +2589,26 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 <div class="panel active" id="tab-select">
   <strong id="currentJobLabelTop" style="display:none"></strong>
   <style>
-    .hb-topbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
-    .hb-search-wrap{position:relative;flex:1 1 340px;max-width:560px}
-    .hb-search{width:100%;box-sizing:border-box;padding:11px 14px 11px 38px;border:1.5px solid var(--border);border-radius:10px;font-size:13.5px;font-family:inherit;background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>') 13px center no-repeat}
+    .hb-topbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+    .hb-search-wrap{position:relative;flex:1 1 480px;max-width:none}
+    .hb-search{width:100%;box-sizing:border-box;padding:17px 18px 17px 50px;border:1.5px solid var(--border);border-radius:14px;font-size:15.5px;font-family:inherit;box-shadow:0 2px 8px rgba(10,22,40,.05);background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>') 18px center no-repeat}
     .hb-search:focus{outline:none;border-color:#0099cc;box-shadow:0 0 0 3px rgba(0,153,204,.12)}
     .hb-drop{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 36px rgba(10,22,40,.16);z-index:500;max-height:380px;overflow-y:auto;padding:6px}
     .hb-drop-row{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;cursor:pointer}
     .hb-drop-row:hover{background:#f0f8fb}
     .hb-drop-badge{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:20px;white-space:nowrap}
-    .hb-newjob{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(0,153,204,.3);white-space:nowrap}
+    .hb-newjob{display:inline-flex;align-items:center;gap:10px;padding:17px 34px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;border:none;border-radius:14px;font-size:15.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 5px 16px rgba(0,153,204,.32);white-space:nowrap}
     .hb-newjob:hover{filter:brightness(1.06)}
-    .hb-tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
+    .hb-tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:18px}
     @media (max-width:900px){ .hb-tiles{grid-template-columns:repeat(3,1fr)} }
-    .hb-tile{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:13px 8px 11px;cursor:pointer;text-align:center;transition:border-color .12s, box-shadow .12s, background .12s}
+    .hb-tile{background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:22px 10px 18px;cursor:pointer;text-align:center;transition:border-color .12s, box-shadow .12s, background .12s}
     .hb-tile:hover{border-color:#0099cc}
     .hb-tile.on{border-color:#0099cc;background:#f0f8fb;box-shadow:0 4px 14px rgba(0,153,204,.14)}
-    .hb-tile-num{font-size:27px;font-weight:800;color:#0a1628;line-height:1.05}
-    .hb-tile-lbl{font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .hb-tile-bar{height:4px;border-radius:2px;margin:9px auto 0;width:70%;opacity:.28;transition:opacity .12s}
+    .hb-tile-num{font-size:38px;font-weight:800;color:#0a1628;line-height:1.05}
+    .hb-tile-lbl{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hb-tile-bar{height:5px;border-radius:3px;margin:13px auto 0;width:70%;opacity:.28;transition:opacity .12s}
     .hb-tile.on .hb-tile-bar{opacity:1}
-    .hb-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;background:#fff}
+    .hb-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:9px;margin-bottom:7px;cursor:pointer;background:#fff}
     .hb-row:hover{background:var(--surface-2);border-color:#0099cc}
     .hb-row-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:20px;white-space:nowrap}
     .hb-row-client{font-size:13px;font-weight:600;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2616,15 +2623,15 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div id="homeJobSearchDrop" class="hb-drop"></div>
     </div>
     <button type="button" class="hb-newjob" onclick="startNewJob()">＋ Create new job</button>
-    <button type="button" onclick="fetchQuoteActivity();fetchRecentDrafts()" title="Refresh the board" style="padding:10px 14px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:10px;font-size:12px;cursor:pointer;font-family:inherit">↻</button>
+    <button type="button" onclick="fetchQuoteActivity();fetchRecentDrafts()" title="Refresh the board" style="padding:16px 18px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:14px;font-size:14px;cursor:pointer;font-family:inherit">↻</button>
   </div>
-  <div style="font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:2px 0 8px">Status board</div>
+  <div style="font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:2px 0 10px">Status board</div>
   <div class="hb-tiles" id="homeBoardTiles"></div>
   <div class="card" style="margin-top:0">
     <div class="card-hd"><span class="card-dot"></span><span id="homeBoardListTitle">Recent drafts</span>
       <span id="homeBoardListCount" style="margin-left:8px;font-size:11px;font-weight:600;color:var(--text2)"></span>
     </div>
-    <div id="homeBoard" style="max-height:52vh;overflow-y:auto"></div>
+    <div id="homeBoard" style="min-height:46vh;max-height:66vh;overflow-y:auto"></div>
   </div>
 </div>
 
