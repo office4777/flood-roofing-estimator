@@ -12753,6 +12753,21 @@ async function bootCustomerView(token){
     window.S = window.S || {};
     S.quote = d.quote || {};
     if (!S.quote.proposalSections) S.quote.proposalSections = {};
+    // Fresh (not-yet-accepted) links always open in the standard state:
+    // no optional extra roofs ticked, and MAXAM — the steel we quote as
+    // standard — as the selected grade with the grade deltas anchored to
+    // it. This clears any picks left saved on the quote from office
+    // preview taps or earlier customer sessions. Accepted quotes are
+    // locked and keep exactly what was accepted.
+    if (!S.quote.accepted){
+      try {
+        (S.quote.options || []).slice(1).forEach(function(o){ o.selected = false; });
+        var _po = S.quote.proposalOptions = S.quote.proposalOptions || {};
+        _po.extraRoofsSel = {};
+        delete _po.steelGrade;        // every reader falls back to 'maxam'
+        S.quote.baseGrade = 'maxam';  // MAXAM reads "Standard · included"
+      } catch(e){}
+    }
     S.settings = S.settings || {};
     var baseBrand = (typeof defaultSettings === 'function') ? defaultSettings().branding : {};
     S.settings.branding = Object.assign({}, baseBrand, d.branding || {});
