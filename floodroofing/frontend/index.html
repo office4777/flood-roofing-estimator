@@ -12575,16 +12575,51 @@ function _custBarRows(){
     var nm = (window.DRAW && DRAW.roofs && DRAW.roofs[ri] && DRAW.roofs[ri].name) || o.title || ('Optional roof ' + ri);
     return { label: 'Optional roof — ' + nm, delta: _optEffectiveTotal(o) };
   });
-  // Only picks that actually move the price are listed — "included"/$0 items
-  // (scaffolding, disposal choice, etc.) would bulk the bar out without
-  // adding information; the full itemised record is on the acceptance page.
+  // Picks that move the price get their own +/− line; the rest of the
+  // customer's picks follow as small grey "Included" lines (built below)
+  // so the banner reads as the complete chosen spec.
   extra.concat(_qpSelectionChanges()).forEach(function(c){
     if (!c.delta) return;
     rows.push({ kind: 'change', label: String(c.label),
                 value: (c.delta > 0 ? '+' : '−') + fmtMoney(Math.abs(c.delta) * (1 + rate)) });
   });
+  _custBarInclRows().forEach(function(l){ rows.push({ kind: 'incl', label: l, value: 'Included' }); });
   rows.push({ kind: 'total', label: 'Your total', value: fmtMoney(_custBarTotalValue()) });
   return rows;
+}
+// The customer's no-charge picks, mirroring the Selections-page cards —
+// every category that did NOT produce a priced row above shows here so the
+// banner lists the whole chosen spec. Only meaningful when the proposal
+// actually has a Selections page (the anchor exists).
+function _custBarInclRows(){
+  if (!document.getElementById('qpSelPageAnchor')) return [];
+  var q = (window.S && S.quote) || {};
+  var p = q.proposalOptions || {};
+  var out = [];
+  // Roof profile — never separately priced (5-Rib prices via the 0.55 gauge).
+  out.push(((p.profile || 'corrugate') === '5rib') ? '5-Rib' : 'Corrugate');
+  // Steel grade — grey when it doesn't move the price (base grade / unpriced).
+  var gid = p.steelGrade || 'maxam';
+  var gradeLbl = { maxam:'Colorsteel® MAXAM', colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume® (unpainted)' }[gid];
+  try { if (gradeLbl && !_selGradeDelta(gid)) out.push(gradeLbl); } catch(e){}
+  // Steel thickness — 0.40 is standard; a priced 0.55 already has its row.
+  if ((p.steelThickness || '40') === '40') out.push('0.40 gauge');
+  // Colour pick, when one has been made.
+  try { var cl = _proposalColourLabel(); if (cl && cl !== '—' && !/^select\b/i.test(cl)) out.push('Colour — ' + cl); } catch(e){}
+  // Guttering + its dependent picks.
+  var gt = p.gutterType;
+  if (!gt || gt === 'none'){ out.push('No new gutter'); }
+  else {
+    var gutLbl = { box125:'125mm Colorsteel Box Gutter', marley_typhoon:'Marley Typhoon (PVC)', marley_classic:'Marley Classic (PVC)' }[gt];
+    try { if (gutLbl && !_selGutterDelta(gt)) out.push(gutLbl); } catch(e){}
+    if ((p.gutterBracket || 'internal') === 'internal') out.push('Internal brackets');
+    else { try { if (!_selBracketExtDelta()) out.push('External brackets'); } catch(e){} }
+    if (p.downpipes === 'yes'){ try { if (!_selDownpipeDelta()) out.push('New downpipes'); } catch(e){} }
+    else out.push('Keep existing downpipes');
+  }
+  // Existing roofing material — both choices are $0.
+  out.push((p.disposal === 'keep') ? 'Keep all existing material on site' : 'We dispose of all existing material');
+  return out;
 }
 // Compact always-visible summary INSIDE the bottom bar: main scope price at
 // the top, each price-changing pick, then the big total — so the customer
@@ -12605,6 +12640,11 @@ function _custBarSumHtml(){
         '<span style="opacity:.78;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">Main scope of work <span style="opacity:.65">(incl. GST)</span></span>'+
         '<span class="ed-serif" style="font-weight:600;white-space:nowrap">'+r.value+'</span>'+
       '</div>';
+    } else if (r.kind === 'incl'){
+      h += '<div style="display:flex;justify-content:space-between;gap:10px;font-size:10px;line-height:1.45;color:rgba(255,255,255,.45)">'+
+        '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">&#8627; '+esc2(r.label)+'</span>'+
+        '<span style="white-space:nowrap;font-style:italic">Included</span>'+
+      '</div>';
     } else {
       // Trim trailing parentheticals (e.g. the scaffolding upgrade's long
       // explainer) so each pick stays one line; the popup keeps the full text.
@@ -12621,13 +12661,14 @@ function _custBarRenderBreak(br){
   var html = '<div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:#7dd3fc;padding:11px 16px 6px">Your selection &amp; price</div>';
   _custBarRows().forEach(function(r){
     var strong = r.kind === 'total';
+    var incl = r.kind === 'incl';
     var label = r.kind === 'base'  ? '<strong>Original quote — main scope of work</strong> <span style="opacity:.6">(incl. GST)</span>'
               : r.kind === 'total' ? 'New total <span style="opacity:.6;font-weight:400">(incl. GST)</span>'
               : '&#8627; ' + esc2(r.label);
-    html += '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 16px;border-top:1px solid rgba(255,255,255,.12);'+
+    html += '<div style="display:flex;justify-content:space-between;gap:12px;padding:'+(incl ? '3px' : '5px')+' 16px;border-top:1px solid rgba(255,255,255,.12);'+
       (strong ? 'background:rgba(255,255,255,.07);' : '') + '">'+
-      '<div style="font-family:var(--ed-sans,system-ui);font-size:12px;line-height:1.4;color:rgba(255,255,255,'+(strong ? '1' : '.75')+');'+(strong ? 'font-weight:700;' : '')+'">'+label+'</div>'+
-      '<div class="ed-serif" style="font-size:'+(strong ? '16px' : '13px')+';font-weight:600;white-space:nowrap;color:'+(strong ? '#4fc3ff' : '#fff')+'">'+r.value+'</div>'+
+      '<div style="font-family:var(--ed-sans,system-ui);font-size:'+(incl ? '11px' : '12px')+';line-height:1.4;color:rgba(255,255,255,'+(strong ? '1' : (incl ? '.5' : '.75'))+');'+(strong ? 'font-weight:700;' : '')+'">'+label+'</div>'+
+      '<div class="'+(incl ? '' : 'ed-serif')+'" style="font-size:'+(strong ? '16px' : (incl ? '11px' : '13px'))+';font-weight:'+(incl ? '400' : '600')+';white-space:nowrap;'+(incl ? 'font-style:italic;' : '')+'color:'+(strong ? '#4fc3ff' : (incl ? 'rgba(255,255,255,.5)' : '#fff'))+'">'+r.value+'</div>'+
     '</div>';
   });
   br.innerHTML = html;
