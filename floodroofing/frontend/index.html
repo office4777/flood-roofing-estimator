@@ -900,7 +900,9 @@ select{
 /* line-height 1.55 (was 1.4): the per-face length inputs ("4.7", "6.2")
    are Inter <input>s that clip overflow — a 1.4 line shaved the bottom of
    the digits.  The looser line keeps each measure fully legible. */
-.mat-fl-card .mat-fl-rows{ margin-top:6px; border:2px solid #64748b; border-radius:6px; padding:5px 8px; font-size:12px; line-height:1.55; }
+/* No inner box around the cut-list rows — the CARD outline is the frame,
+   the rows just sit inside it. */
+.mat-fl-card .mat-fl-rows{ margin-top:6px; padding:5px 2px; font-size:12px; line-height:1.55; }
 .mat-fl-card .mat-fl-row{ display:grid; gap:8px; align-items:center; padding:2px 4px; }
 .mat-fl-card .mat-fl-row input{ line-height:1.55; }
 .mat-fl-card .mat-fl-row.is-extra{ background:#fffbeb; border-radius:3px; }
@@ -28249,7 +28251,7 @@ var _MAT_FLASHING_SPECS = [
   { key:'apron|side',   label:'Side apron flashing',     colour:'#e11d48', waste:0.4, drawing:'apron'      },
   { key:'apron|head',   label:'Head apron flashing',     colour:'#be185d', waste:0.4, drawing:'apron'      },
   { key:'changepitch',  label:'Change-of-pitch flashing',colour:'#0ea5e9', waste:0.4, drawing:'changepitch'},
-  { key:'valley',       label:'Valley iron',             colour:'#f59e0b', waste:0.4, drawing:null         },
+  { key:'valley',       label:'Valley iron',             colour:'#f59e0b', waste:0.4, drawing:'valley'     },
   { key:'drip',         label:'Drip edge',               colour:'#f59e0b', waste:0.4, drawing:null         },
   { key:'custom',       label:'Custom flashing',         colour:'#64748b', waste:0.4, drawing:null         },
 ];
