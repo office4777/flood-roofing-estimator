@@ -1838,6 +1838,12 @@ html.customer-view .qp-mov-grip,html.customer-view .qp-mov-size,html.customer-vi
    makes the page wiggle left/right on phones. */
 html.customer-view, html.customer-view body{ overflow-x:hidden !important; }
 html.customer-view #customerView{ overflow-x:hidden !important; }
+/* The @media screen rule gives .report-preview overflow-x:auto (office A4
+   view) — on the customer link that inner scroller is where the sideways
+   wiggle actually lives (the fixed bottom bar stays put while the pages
+   pan). Clip it, and everything inside the customer scroll column. */
+html.customer-view .report-preview,
+html.customer-view .cust-scroll{ overflow-x:hidden !important; }
 /* Customer link: photos are part of the finished document — hide every photo
    edit affordance and neutralise drag/zoom cursors even if a render path
    slips an office control through. */
@@ -12848,6 +12854,17 @@ async function bootCustomerView(token){
       if (window.__custBarPriceOn) return;
       if (_custBarPriceReached()) _custBarSync();
     }, { passive: true });
+    // No sideways drift, ever: overflow-x is clipped in CSS, but an
+    // overflow:hidden box is still a scroll container — a focus-triggered
+    // scrollIntoView (tapping an input) can nudge it sideways and leave the
+    // page stuck off-centre. Snap any horizontal scroll straight back.
+    try {
+      [host, host.querySelector('.report-preview')].forEach(function(_sc){
+        if (!_sc) return;
+        _sc.addEventListener('scroll', function(){ if (_sc.scrollLeft) _sc.scrollLeft = 0; }, { passive: true });
+        if (_sc.scrollLeft) _sc.scrollLeft = 0;
+      });
+    } catch(e){}
     // The customer link is a fixed-layout, tap-to-select proposal whose A4
     // pages are already scaled to the device width (_fitCustomerView). Disable
     // ALL mobile zoom — pinch, double-tap, and iOS tap/focus zoom — so tapping
