@@ -1552,7 +1552,9 @@ html.pdf-rendering .jp-page .mat-list-row .mat-list-len input{ width:56px!import
 html.pdf-rendering .jp-page .gu-row .gu-qty input{ width:100%!important; text-align:right!important; }
 html.pdf-rendering .cons-row{ display:flex!important; gap:10px!important; padding:3px 4px!important; align-items:baseline!important; }
 html.pdf-rendering .cons-row-qty{ white-space:nowrap!important; }
-html.pdf-rendering .mat-section{ margin-bottom:10px!important; }
+/* Breathing room between the cut-list sections on the exported PDF —
+   10px read as one dense block ("cluttered"). */
+html.pdf-rendering .mat-section{ margin-bottom:26px!important; padding-bottom:6px!important; }
 html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6px!important; }
 /* Print: only #jpPages elements reach paper.  Each .jp-page is one A4
    sheet so we just suppress everything else and let CSS page breaks
@@ -33755,6 +33757,16 @@ async function _buildJobPackPdf() {
       // or table row.  Each slice renders via its own sub-canvas.
       var pxPerMm = canvas.width / pageW;
       var hardStep = Math.floor(pageH * pxPerMm);
+      // FORCED breaks: the Flashings section always starts at the TOP of a
+      // fresh sheet (title + cards together) — without this the slicer cut
+      // at the white gap just under the FLASHINGS banner, stranding the
+      // heading at the foot of the cut-lists page with the cards overleaf.
+      var _fcRect = pageEl.getBoundingClientRect();
+      var _fcScale = _fcRect.width > 0 ? (canvas.width / _fcRect.width) : 0;
+      var forcedCuts = Array.prototype.slice.call(pageEl.querySelectorAll('.mat-flash-section'))
+        .map(function(el){ return Math.round((el.getBoundingClientRect().top - _fcRect.top) * _fcScale) - 4; })
+        .filter(function(y){ return y > 8 && y < canvas.height - 8; })
+        .sort(function(a, b){ return a - b; });
       var cctx = canvas.getContext('2d', { willReadFrequently: true });
       function _rowInk(y){
         if (y <= 0 || y >= canvas.height) return 0;
@@ -33768,7 +33780,16 @@ async function _buildJobPackPdf() {
       var sliceTop = 0;
       while (sliceTop < canvas.height - 2) {
         var cutY = Math.min(canvas.height, sliceTop + hardStep);
-        if (cutY < canvas.height - 2) {
+        // A forced break (Flashings section) inside this slice wins over
+        // both the hard A4 boundary and the white-row seek — the section
+        // then STARTS the next sheet.
+        var _fcY = null;
+        for (var _fi = 0; _fi < forcedCuts.length; _fi++){
+          if (forcedCuts[_fi] > sliceTop + 8 && forcedCuts[_fi] < cutY - 1){ _fcY = forcedCuts[_fi]; break; }
+        }
+        if (_fcY != null) {
+          cutY = _fcY;
+        } else if (cutY < canvas.height - 2) {
           // Look upward for a clean (white) row to cut on.  Search all
           // the way down to the 55%-of-page floor (below) — a flashing
           // card can be ~70-90mm tall, so the old 28mm window couldn't
@@ -35328,6 +35349,21 @@ async function _matBuildPdfBlob() {
     if (imgH > pageH) imgH = pageH;
     pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, imgW, imgH);
   });
+  // "Page N of M" centred in the bottom margin of every sheet — same
+  // stamp the Job Pack PDF gets.
+  try {
+    var _opTotal = (typeof pdf.getNumberOfPages === 'function')
+      ? pdf.getNumberOfPages()
+      : pdf.internal.getNumberOfPages();
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(130, 130, 130);
+    for (var _op = 1; _op <= _opTotal; _op++){
+      pdf.setPage(_op);
+      pdf.text('Page ' + _op + ' of ' + _opTotal, pageW / 2, pageH - 4.5, { align: 'center' });
+    }
+    pdf.setTextColor(0, 0, 0);
+  } catch(e){}
   return pdf.output('blob');
 }
 
