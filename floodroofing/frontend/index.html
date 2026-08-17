@@ -11473,7 +11473,13 @@ function _qpSelectionChanges(){
   var gradeNames = { colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume® (unpainted)' };
   if (p.steelGrade && p.steelGrade !== 'maxam')
     out.push({ label: (gradeNames[p.steelGrade] || p.steelGrade) + ' steel', delta: _selGradeDelta(p.steelGrade) });
-  if (p.steelThickness && p.steelThickness !== '40')
+  // 5-Rib is only supplied in 0.55 gauge, so the compulsory gauge upgrade is
+  // charged (and labelled) as part of the 5-Rib pick — its card shows the
+  // price and the locked gauge row reads "Included". A 0.55 pick under
+  // Corrugate stays its own line.
+  if (p.profile === '5rib')
+    out.push({ label: '5-Rib profile (supplied in 0.55 gauge)', delta: _selGauge55Delta() });
+  else if (p.steelThickness && p.steelThickness !== '40')
     out.push({ label: '0.55 gauge steel', delta: _selGauge55Delta() });
   if (p.gutterType !== undefined) {
     // Page-4 pick is canonical once made (including an explicit
@@ -16598,7 +16604,10 @@ function refreshQuoteProposal(){
       ];
       var PROFILES = [
         { id:'corrugate', label:'Corrugate', isDefault:true, delta:0, desc:'The classic corrugated profile — proven, versatile and the standard choice for most homes.' },
-        { id:'5rib',      label:'5-Rib',     delta:0, desc:'Bold trapezoidal rib. Supplied in 0.55 gauge only — the heavier steel resists denting.' }
+        // 5-Rib forces the 0.55 gauge upgrade, so ITS card carries that price
+        // (the locked gauge row below then reads "Included") — otherwise the
+        // profile looks free and the charge appears to come from nowhere.
+        { id:'5rib',      label:'5-Rib',     delta:_dIncl(_selGauge55Delta()), desc:'Bold trapezoidal rib. Supplied in 0.55 gauge only — the heavier steel resists denting. Price includes the compulsory 0.55 gauge upgrade.' }
       ];
       var GUTTERS = [
         { id:'none',          label:'No new gutter',                isDefault:true, delta:0, desc:'Existing gutter stays as-is.' },
@@ -16800,7 +16809,7 @@ function refreshQuoteProposal(){
                     '<div style="flex:1;min-width:0">'+
                       '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">'+
                         '<div class="ed-serif" style="font-size:14px;font-style:italic;color:var(--ed-ink);line-height:1.2">0.55 gauge <span style="font-family:var(--ed-sans);font-size:8.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#b45309;background:#fef3c7;padding:1px 6px;border-radius:3px;margin-left:2px">🔒 Locked for 5-Rib</span></div>'+
-                        '<div class="ed-serif" style="font-size:13px;white-space:nowrap;flex-shrink:0">'+_selPriceTag({ delta:_dIncl(_selGauge55Delta()) })+'</div>'+
+                        '<div class="ed-serif" style="font-size:13px;white-space:nowrap;flex-shrink:0">'+_selPriceTag({ delta: 0 })+'</div>'+
                       '</div>'+
                       '<div class="ed-body" style="font-size:10.5px;color:var(--ed-ink-2);margin-top:1px;line-height:1.3">5-Rib is supplied in 0.55 gauge only — the heavier steel resists denting. Switch to Corrugate to choose 0.40 gauge.</div>'+
                     '</div>'+
