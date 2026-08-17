@@ -2224,7 +2224,32 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <input id="li-pass" type="password" placeholder="••••••••" class="li-input" style="margin-bottom:1.5rem" onkeydown="if(event.key==='Enter')doLogin()">
       <button onclick="doLogin()" id="login-btn" class="li-btn">Sign In</button>
       <div id="login-spinner" style="display:none;text-align:center;margin-top:1rem;color:#666;font-size:13px">Signing in…</div>
-      <div class="li-alt">First time here? <a onclick="showSetupView()">Set my password</a></div>
+      <div class="li-alt">First time here? <a onclick="showSetupView()">Set my password</a><br><a onclick="showForgotView()" style="font-weight:500">Forgot password?</a></div>
+    </div>
+
+    <!-- FORGOT PASSWORD -->
+    <div id="login-forgot-view" style="display:none">
+      <div style="font-size:16px;font-weight:700;color:#0a1628;margin-bottom:3px">Reset your password</div>
+      <div style="font-size:12.5px;color:#666;margin-bottom:1.25rem;line-height:1.55">Enter your login email and we'll send you a link to choose a new password.</div>
+      <label class="li-label">Email</label>
+      <input id="fp-email" type="email" placeholder="you@floodroofing.co.nz" class="li-input" style="margin-bottom:1.5rem" onkeydown="if(event.key==='Enter')doForgot()">
+      <button onclick="doForgot()" id="forgot-btn" class="li-btn">Email me a reset link</button>
+      <div id="forgot-spinner" style="display:none;text-align:center;margin-top:1rem;color:#666;font-size:13px">Sending…</div>
+      <div id="forgot-done" style="display:none;background:#dcfce7;color:#166534;border-radius:8px;padding:10px 14px;font-size:13px;margin-top:1rem;line-height:1.5">If that email has a RoofMap login, a reset link is on its way. Check your inbox (and spam) — the link works for 30 minutes.</div>
+      <div class="li-alt">Remembered it? <a onclick="showSigninView()">Sign in</a></div>
+    </div>
+
+    <!-- NEW PASSWORD (opened from the emailed ?reset= link) -->
+    <div id="login-reset-view" style="display:none">
+      <div style="font-size:16px;font-weight:700;color:#0a1628;margin-bottom:3px">Choose a new password</div>
+      <div style="font-size:12.5px;color:#666;margin-bottom:1.25rem;line-height:1.55">Set the new password for your RoofMap login.</div>
+      <label class="li-label">New password</label>
+      <input id="rp-pass" type="password" placeholder="At least 8 characters" class="li-input">
+      <label class="li-label">Confirm new password</label>
+      <input id="rp-pass2" type="password" placeholder="Re-enter your new password" class="li-input" style="margin-bottom:1.5rem" onkeydown="if(event.key==='Enter')doReset()">
+      <button onclick="doReset()" id="reset-btn" class="li-btn">Save new password &amp; sign in</button>
+      <div id="reset-spinner" style="display:none;text-align:center;margin-top:1rem;color:#666;font-size:13px">Saving…</div>
+      <div class="li-alt"><a onclick="showSigninView()">Back to sign in</a></div>
     </div>
 
     <!-- SET MY PASSWORD (first-time setup) -->
@@ -2233,6 +2258,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div style="font-size:12.5px;color:#666;margin-bottom:1.25rem;line-height:1.55">Create your RoofMap login. You'll need the <strong>invite code</strong> from Flood Roofing.</div>
       <label class="li-label">Full name</label>
       <input id="su-name" type="text" placeholder="Matt" class="li-input">
+      <label class="li-label">Company</label>
+      <input id="su-company" type="text" value="Flood Roofing" placeholder="Your company name" class="li-input">
       <label class="li-label">Email</label>
       <input id="su-email" type="email" placeholder="matt@floodroofing.co.nz" class="li-input">
       <label class="li-label">Invite code</label>
@@ -2289,19 +2316,48 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     } catch(e){}
     return;
   }
-  window.showSetupView=function(){
-    document.getElementById('login-signin-view').style.display='none';
-    document.getElementById('login-setup-view').style.display='block';
+  function _liShow(view){
+    ['login-signin-view','login-setup-view','login-forgot-view','login-reset-view'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.style.display = (id===view?'block':'none');
+    });
     var e=document.getElementById('login-err'); if(e) e.style.display='none';
+  }
+  window.showSetupView=function(){ _liShow('login-setup-view'); };
+  window.showSigninView=function(){ _liShow('login-signin-view'); };
+  window.showForgotView=function(){
+    _liShow('login-forgot-view');
+    var d=document.getElementById('forgot-done'); if(d) d.style.display='none';
+    var b=document.getElementById('forgot-btn'); if(b) b.style.display='block';
+    var le=document.getElementById('li-email'), fe=document.getElementById('fp-email');
+    if(le && fe && le.value && !fe.value) fe.value=le.value;
   };
-  window.showSigninView=function(){
-    document.getElementById('login-setup-view').style.display='none';
-    document.getElementById('login-signin-view').style.display='block';
-    var e=document.getElementById('login-err'); if(e) e.style.display='none';
+  // Called (from anywhere in the app) when an API call answers 401 with a
+  // token present — the 30-day session has expired. Back to sign-in with a
+  // friendly note instead of a half-broken app that silently saves nothing.
+  window._frSessionExpired=function(){
+    if(window.__CUSTOMER_TOKEN) return;
+    if(!localStorage.getItem('fr_token')) return;
+    localStorage.removeItem('fr_token');
+    localStorage.removeItem('fr_user');
+    var ls=document.getElementById('login-screen');
+    if(ls) ls.style.display='flex';
+    var ap=document.querySelector('.app'); if(ap) ap.style.display='none';
+    _liShow('login-signin-view');
+    var e=document.getElementById('login-err');
+    if(e){ e.textContent='Your session has expired — please sign in again.'; e.style.display='block'; }
   };
   var tok=localStorage.getItem('fr_token');
   var _p=new URLSearchParams(location.search);
-  if(!tok){
+  var _rt=_p.get('reset');
+  if(_rt){
+    // Emailed password-reset link: always show the choose-a-new-password form,
+    // even if an old session token is still lying around.
+    window.__RESET_TOKEN=_rt;
+    document.getElementById('login-screen').style.display='flex';
+    document.querySelector('.app') && (document.querySelector('.app').style.display='none');
+    _liShow('login-reset-view');
+    try{ history.replaceState(null,'',location.pathname); }catch(e){}
+  } else if(!tok){
     document.getElementById('login-screen').style.display='flex';
     document.querySelector('.app') && (document.querySelector('.app').style.display='none');
     // Direct "set my password" link: ?setup=1 (optionally &email=matt@floodroofing.co.nz)
@@ -2310,8 +2366,46 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       var _pe=_p.get('email'); if(_pe){ var _se=document.getElementById('su-email'); if(_se) _se.value=_pe; }
     }
   }
+  window.doForgot=async function(){
+    var email=document.getElementById('fp-email').value.trim();
+    var err=document.getElementById('login-err');
+    err.style.display='none';
+    if(!email){ err.textContent='Enter your login email first.'; err.style.display='block'; return; }
+    var btn=document.getElementById('forgot-btn'), spin=document.getElementById('forgot-spinner');
+    btn.style.display='none'; spin.style.display='block';
+    try{
+      await fetch(BACKEND+'/auth/forgot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})});
+    }catch(e){}
+    spin.style.display='none';
+    document.getElementById('forgot-done').style.display='block';
+  };
+  window.doReset=async function(){
+    var pass=document.getElementById('rp-pass').value;
+    var pass2=document.getElementById('rp-pass2').value;
+    var err=document.getElementById('login-err');
+    err.style.display='none';
+    if(pass.length<8){ err.textContent='Password must be at least 8 characters.'; err.style.display='block'; return; }
+    if(pass!==pass2){ err.textContent='The two passwords don\'t match.'; err.style.display='block'; return; }
+    var btn=document.getElementById('reset-btn'), spin=document.getElementById('reset-spinner');
+    btn.style.display='none'; spin.style.display='block';
+    try{
+      var r=await fetch(BACKEND+'/auth/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:window.__RESET_TOKEN||'',password:pass})});
+      var d=await r.json();
+      if(!r.ok) throw new Error(d.error||'Could not reset your password');
+      localStorage.setItem('fr_token',d.token);
+      localStorage.setItem('fr_user',JSON.stringify(d.user||{}));
+      document.getElementById('login-screen').style.display='none';
+      document.querySelector('.app') && (document.querySelector('.app').style.display='');
+      setTimeout(function(){ window._aerialMap && window._aerialMap.resize(); }, 300);
+      try { window.loadSettings && window.loadSettings(); } catch(e){}
+    }catch(e){
+      err.textContent=e.message; err.style.display='block';
+      btn.style.display='block'; spin.style.display='none';
+    }
+  };
   window.doRegister=async function(){
     var name=document.getElementById('su-name').value.trim();
+    var companyName=(document.getElementById('su-company')||{value:''}).value.trim()||'Flood Roofing';
     var email=document.getElementById('su-email').value.trim();
     var invite=document.getElementById('su-invite').value.trim();
     var pass=document.getElementById('su-pass').value;
@@ -2324,7 +2418,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     var btn=document.getElementById('setup-btn'), spin=document.getElementById('setup-spinner');
     btn.style.display='none'; spin.style.display='block';
     try{
-      var r=await fetch(BACKEND+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,name:name,company:'Flood Roofing',invite:invite})});
+      var r=await fetch(BACKEND+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,name:name,company:companyName,invite:invite})});
       var d=await r.json();
       if(!r.ok) throw new Error(d.error||'Could not set up your login');
       localStorage.setItem('fr_token',d.token);
@@ -5503,6 +5597,11 @@ async function api(method, path, body) {
   var opts = { method: method, headers: { 'Authorization': 'Bearer ' + tok } };
   if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
   var r = await fetch(PROXY + path, opts);
+  if (r.status === 401 && tok) {
+    // Expired/invalid session — bounce to the sign-in screen with a message
+    // instead of leaving the app half-working with saves silently failing.
+    try { window._frSessionExpired && window._frSessionExpired(); } catch(e){}
+  }
   if (!r.ok) { var t = await r.text().catch(function(){return '';}); throw new Error('HTTP ' + r.status + ' ' + t.slice(0,200)); }
   if (r.status === 204) return null;
   return r.json();

@@ -351,15 +351,69 @@ app.get('/health', (req, res) => res.json({ ok: true, build: BUILD_SHA, features
   // Railway service (Supabase connection string) or run the index SQL by hand.
   pg: !!process.env.DATABASE_URL, tokenCache: _tokenIdCache.size }));
 
-function requireAuth(req, res, next) {
+// user_id → company_id, cached per process. Newer JWTs carry the company id
+// (payload.cid) so this is only hit for legacy 30-day tokens minted before the
+// multi-tenant upgrade; those self-heal here (a company is created on the fly
+// if the boot migration hasn't backfilled one yet) so nobody is logged out or
+// loses access to their jobs by the upgrade.
+const _companyCache = new Map();
+async function _companyOf(userId){
+  if (!userId) return null;
+  if (_companyCache.has(userId)) return _companyCache.get(userId);
+  let cid = null;
+  try {
+    const { data } = await supabase.from('company_users').select('company_id').eq('user_id', userId).maybeSingle();
+    cid = (data && data.company_id) || null;
+    if (!cid) {
+      let cname = '';
+      try {
+        const { data: prof } = await supabase.from('profiles').select('company, name, email').eq('id', userId).maybeSingle();
+        cname = (prof && (prof.company || prof.name || prof.email)) || '';
+      } catch(e){}
+      const { data: co, error } = await supabase.from('companies').insert({ name: cname || 'My Company' }).select('id').single();
+      if (!error && co) {
+        cid = co.id;
+        await supabase.from('company_users').insert({ company_id: cid, user_id: userId, role: 'owner' });
+        await supabase.from('profiles').update({ company_id: cid }).eq('id', userId);
+      }
+    }
+  } catch(e){ console.warn('_companyOf failed (continuing per-user):', e.message); }
+  if (cid) {
+    if (_companyCache.size > 2000) _companyCache.clear();
+    _companyCache.set(userId, cid);
+  }
+  return cid;
+}
+
+async function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'No token' });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
-    next();
   } catch {
-    res.status(401).json({ error: 'Invalid token' });
+    return res.status(401).json({ error: 'Invalid token' });
   }
+  // Single-purpose tokens (e.g. the emailed password-reset link) are signed
+  // with the same secret but are NOT session tokens — a leaked reset email
+  // must never grant API access.
+  if (req.user && req.user.purpose) return res.status(401).json({ error: 'Invalid token' });
+  // Tenant scope: from the token when present, otherwise resolved (and cached).
+  // On any failure fall back to null — every query then scopes by user_id, the
+  // pre-upgrade behaviour, so auth NEVER breaks because company lookup did.
+  try {
+    req.companyId = req.user.cid || await _companyOf(req.user.id);
+  } catch(e){ req.companyId = null; }
+  next();
+}
+
+// Company-scope filter for supabase job/settings queries. Matches rows stamped
+// with the user's company PLUS legacy rows that predate the backfill
+// (company_id null, owned by this user) so nothing disappears mid-upgrade.
+function _scopeCompany(q, req){
+  if (req.companyId) {
+    return q.or('company_id.eq.' + req.companyId + ',and(company_id.is.null,user_id.eq.' + req.user.id + ')');
+  }
+  return q.eq('user_id', req.user.id);
 }
 
 // Billing flag: when no Stripe key is present (or BILLING_ENABLED is not
@@ -393,12 +447,14 @@ app.post('/auth/register', async (req, res) => {
   // through the authenticated proxies.  Set REGISTRATION_INVITE_CODE on
   // Railway and share it when onboarding someone; set
   // OPEN_REGISTRATION=true to deliberately restore open signup.
+  let invitedViaCode = false;
   if (process.env.OPEN_REGISTRATION !== 'true') {
     const invite = (req.body || {}).invite || '';
     const expected = process.env.REGISTRATION_INVITE_CODE || '';
     if (!expected || invite !== expected) {
       return res.status(403).json({ error: 'Registration is invite-only — contact Flood Roofing for access.' });
     }
+    invitedViaCode = true;
   }
   try {
     const { data, error } = await supabase.auth.admin.createUser({ email, password, email_confirm: true });
@@ -408,11 +464,89 @@ app.post('/auth/register', async (req, res) => {
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 14);
     await supabase.from('subscriptions').insert({ user_id: userId, status: 'trialing', trial_ends_at: trialEnd.toISOString() });
-    const token = jwt.sign({ id: userId, email }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: userId, email, name, company } });
+    // Every new account gets its own company (its tenant): jobs, photos and
+    // settings are scoped to it, and teammates can be attached to the same
+    // company later. Falls back to per-user scoping if the tables aren't there.
+    // If INVITE_COMPANY_ID is set, people who sign up with the invite code join
+    // THAT company as members instead of getting their own — that's how the
+    // Flood Roofing team shares one set of jobs.
+    let cid = null;
+    if (invitedViaCode && process.env.INVITE_COMPANY_ID) {
+      const { error: merr } = await supabase.from('company_users').insert({ company_id: process.env.INVITE_COMPANY_ID, user_id: userId, role: 'member' });
+      if (!merr) {
+        cid = process.env.INVITE_COMPANY_ID;
+        await supabase.from('profiles').update({ company_id: cid }).eq('id', userId);
+        _companyCache.set(userId, cid);
+      } else { console.warn('[auth] INVITE_COMPANY_ID join failed, giving own company:', merr.message); }
+    }
+    if (!cid) cid = await _companyOf(userId);
+    const token = jwt.sign({ id: userId, email, cid }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, user: { id: userId, email, name, company, company_id: cid } });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Password reset ─────────────────────────────────────────────────
+// POST /auth/forgot { email } → emails a signed, 30-minute reset link
+// (https://<frontend>/?reset=<token>). Always answers ok so the endpoint
+// can't be used to probe which emails have accounts. Uses the same mail
+// transports as order emails (Resend / GAS / SMTP).
+app.post('/auth/forgot', rateLimit(5, 900000), async (req, res) => {
+  const email = String((req.body || {}).email || '').trim().toLowerCase();
+  res.json({ ok: true });
+  if (!email || !EMAIL_ENABLED) {
+    if (email && !EMAIL_ENABLED) console.warn('[auth] reset requested for ' + email + ' but no mail transport is configured');
+    return;
+  }
+  try {
+    let userId = null;
+    const { data: prof } = await supabase.from('profiles').select('id').ilike('email', email).maybeSingle();
+    if (prof) userId = prof.id;
+    if (!userId) {
+      // profiles row can be missing for accounts created directly in Supabase
+      const { data } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const u = ((data && data.users) || []).find(u => (u.email || '').toLowerCase() === email);
+      if (u) userId = u.id;
+    }
+    if (!userId) { console.log('[auth] reset requested for unknown email (no mail sent)'); return; }
+    const t = jwt.sign({ id: userId, email, purpose: 'pwreset' }, JWT_SECRET, { expiresIn: '30m' });
+    const base = (process.env.FRONTEND_URL || 'https://quote.floodroofing.co.nz').replace(/\/+$/, '');
+    const link = base + '/?reset=' + encodeURIComponent(t);
+    await _dispatchMail({
+      to: email,
+      subject: 'Reset your RoofMap password',
+      text: 'Someone (hopefully you) asked to reset the RoofMap password for ' + email + '.\n\n' +
+            'Open this link to choose a new password (it works for 30 minutes):\n' + link + '\n\n' +
+            'If this wasn\'t you, you can ignore this email — your password is unchanged.',
+      html: '<div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:14px;color:#1c2733;line-height:1.6">' +
+            '<p>Someone (hopefully you) asked to reset the RoofMap password for <strong>' + email + '</strong>.</p>' +
+            '<p><a href="' + link + '" style="display:inline-block;background:#0a1628;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:600">Choose a new password</a></p>' +
+            '<p style="color:#667">The link works for 30 minutes. If this wasn\'t you, ignore this email — your password is unchanged.</p></div>',
+    });
+    console.log('[auth] password reset email sent');
+  } catch (e) { console.error('[auth] forgot-password failed:', e.message); }
+});
+
+// POST /auth/reset { token, password } → verifies the emailed token, sets the
+// new password via the Supabase admin API, and signs the user straight in.
+app.post('/auth/reset', rateLimit(10, 900000), async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!token || !password || String(password).length < 8) {
+    return res.status(400).json({ error: 'A reset link and a password of at least 8 characters are required.' });
+  }
+  let payload;
+  try { payload = jwt.verify(token, JWT_SECRET); }
+  catch { return res.status(401).json({ error: 'This reset link has expired or already been used — request a new one.' }); }
+  if (payload.purpose !== 'pwreset') return res.status(401).json({ error: 'Invalid reset link.' });
+  try {
+    const { error } = await supabase.auth.admin.updateUserById(payload.id, { password: String(password) });
+    if (error) return res.status(400).json({ error: error.message });
+    const cid = await _companyOf(payload.id);
+    const authToken = jwt.sign({ id: payload.id, email: payload.email, cid }, JWT_SECRET, { expiresIn: '30d' });
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', payload.id).maybeSingle();
+    res.json({ token: authToken, user: profile || { id: payload.id, email: payload.email } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/auth/login', async (req, res) => {
@@ -423,8 +557,9 @@ app.post('/auth/login', async (req, res) => {
     const userId = data.user.id;
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
     const { data: sub } = await supabase.from('subscriptions').select('*').eq('user_id', userId).single();
-    const token = jwt.sign({ id: userId, email }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { ...profile }, subscription: sub });
+    const cid = await _companyOf(userId);
+    const token = jwt.sign({ id: userId, email, cid }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, user: { ...profile, company_id: cid }, subscription: sub });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -441,26 +576,28 @@ app.post('/billing/portal', requireAuth, (req, res) => res.status(503).json({ er
 app.post('/webhook', (req, res) => res.status(503).json({ error: 'Webhooks not configured yet' }));
 
 app.get('/jobs', requireAuth, async (req, res) => {
-  const { data, error } = await supabase.from('jobs').select('id, client_name, site_address, created_at, updated_at, status').eq('user_id', req.user.id).order('updated_at', { ascending: false });
+  const { data, error } = await _scopeCompany(supabase.from('jobs').select('id, client_name, site_address, created_at, updated_at, status'), req).order('updated_at', { ascending: false });
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
 
 app.post('/jobs', requireAuth, requireSubscription, async (req, res) => {
   const { client_name, site_address, draw_state, settings } = req.body;
-  const { data, error } = await supabase.from('jobs').insert({ user_id: req.user.id, client_name: client_name || '', site_address: site_address || '', draw_state: draw_state || {}, settings: settings || {}, status: 'draft' }).select().single();
+  const { data, error } = await supabase.from('jobs').insert({ user_id: req.user.id, company_id: req.companyId || null, client_name: client_name || '', site_address: site_address || '', draw_state: draw_state || {}, settings: settings || {}, status: 'draft' }).select().single();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
 
 app.put('/jobs/:id', requireAuth, async (req, res) => {
-  const { data, error } = await supabase.from('jobs').update({ ...req.body, updated_at: new Date().toISOString() }).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
+  const patch = { ...req.body, updated_at: new Date().toISOString() };
+  delete patch.user_id; delete patch.company_id; delete patch.id;   // ownership fields are never client-writable
+  const { data, error } = await _scopeCompany(supabase.from('jobs').update(patch).eq('id', req.params.id), req).select().single();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
 
 app.get('/jobs/:id', requireAuth, async (req, res) => {
-  const { data, error } = await supabase.from('jobs').select('*').eq('id', req.params.id).eq('user_id', req.user.id).single();
+  const { data, error } = await _scopeCompany(supabase.from('jobs').select('*').eq('id', req.params.id), req).single();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
@@ -500,8 +637,8 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
         "coalesce(draw_state,'{}'::jsonb) || jsonb_build_object('state', " +
         "coalesce(draw_state->'state','{}'::jsonb) || jsonb_build_object('quote', $1::jsonb)), " +
         "client_name = coalesce($2, client_name), site_address = coalesce($3, site_address), " +
-        "updated_at = now() WHERE id = $4 AND user_id = $5";
-      const r = await pool.query(sql, [JSON.stringify(quote), clientName, siteAddr, req.params.id, req.user.id]);
+        "updated_at = now() WHERE id = $4 AND (user_id = $5 OR ($6::uuid IS NOT NULL AND company_id = $6::uuid))";
+      const r = await pool.query(sql, [JSON.stringify(quote), clientName, siteAddr, req.params.id, req.user.id, req.companyId || null]);
       if (r.rowCount === 0) return res.status(404).json({ error: 'Job not found' });
       return res.json({ ok: true, id: req.params.id, fast: true });
     } catch (e) {
@@ -509,8 +646,8 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
       // fall through
     }
   }
-  const { data: job, error } = await supabase.from('jobs')
-    .select('id, draw_state').eq('id', req.params.id).eq('user_id', req.user.id).single();
+  const { data: job, error } = await _scopeCompany(supabase.from('jobs')
+    .select('id, draw_state').eq('id', req.params.id), req).single();
   if (error || !job) return res.status(404).json({ error: 'Job not found' });
   const ds = job.draw_state || {};
   ds.state = ds.state || {};
@@ -518,28 +655,71 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
   const patch = { draw_state: ds, updated_at: new Date().toISOString() };
   if (clientName) patch.client_name = clientName;
   if (siteAddr) patch.site_address = siteAddr;
-  const { error: uerr } = await supabase.from('jobs').update(patch).eq('id', job.id).eq('user_id', req.user.id);
+  const { error: uerr } = await supabase.from('jobs').update(patch).eq('id', job.id);
   if (uerr) return res.status(500).json({ error: uerr.message });
   res.json({ ok: true, id: job.id });
 });
 
 app.delete('/jobs/:id', requireAuth, async (req, res) => {
-  const { error } = await supabase.from('jobs').delete().eq('id', req.params.id).eq('user_id', req.user.id);
+  const { error } = await _scopeCompany(supabase.from('jobs').delete().eq('id', req.params.id), req);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
 });
 
-// Per-user settings: branding, quote defaults, JMS API keys.
+// ── Job revision history (automatic DB snapshots — see _MIGRATION_SQL) ──
+// GET lists the snapshots for a job (metadata only, never the multi-MB
+// draw_state); POST restores one — onto the existing job row (the update
+// trigger snapshots the current state first, so a restore is itself
+// undoable) or by re-creating the job if it was deleted.
+app.get('/jobs/:id/revisions', requireAuth, async (req, res) => {
+  const { data, error } = await _scopeCompany(
+    supabase.from('job_revisions').select('id, job_id, client_name, site_address, status, reason, saved_at').eq('job_id', req.params.id), req)
+    .order('saved_at', { ascending: false }).limit(20);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+app.post('/jobs/:id/revisions/:revId/restore', requireAuth, async (req, res) => {
+  try {
+    const { data: rev, error } = await _scopeCompany(
+      supabase.from('job_revisions').select('*').eq('id', req.params.revId).eq('job_id', req.params.id), req).single();
+    if (error || !rev) return res.status(404).json({ error: 'Revision not found' });
+    const { data: existing } = await supabase.from('jobs').select('id').eq('id', rev.job_id).maybeSingle();
+    const fields = {
+      client_name: rev.client_name || '', site_address: rev.site_address || '',
+      draw_state: rev.draw_state || {}, settings: rev.settings || {},
+      status: rev.status || 'draft', updated_at: new Date().toISOString(),
+    };
+    if (existing) {
+      const { error: uerr } = await supabase.from('jobs').update(fields).eq('id', rev.job_id);
+      if (uerr) return res.status(500).json({ error: uerr.message });
+    } else {
+      const { error: ierr } = await supabase.from('jobs').insert({ id: rev.job_id, user_id: rev.user_id || req.user.id, company_id: rev.company_id || req.companyId || null, ...fields });
+      if (ierr) return res.status(500).json({ error: ierr.message });
+    }
+    res.json({ ok: true, id: rev.job_id, recreated: !existing });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Per-user settings: branding, quote defaults, JMS API keys. A user with no
+// settings row yet inherits their company's most recent one (so a teammate
+// joining an existing company starts with the company branding + price book).
 app.get('/settings', requireAuth, async (req, res) => {
   const { data, error } = await supabase.from('user_settings').select('*').eq('user_id', req.user.id).maybeSingle();
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data || { user_id: req.user.id, branding: {}, quote_defaults: {}, jms_keys: {} });
+  let row = data;
+  if (!row && req.companyId) {
+    const { data: fam } = await supabase.from('user_settings').select('*').eq('company_id', req.companyId).order('updated_at', { ascending: false }).limit(1);
+    row = (fam && fam[0]) || null;
+  }
+  res.json(row || { user_id: req.user.id, branding: {}, quote_defaults: {}, jms_keys: {} });
 });
 
 app.put('/settings', requireAuth, async (req, res) => {
   const { branding, quote_defaults, jms_keys, price_book, labour_pricing } = req.body;
   const row = {
     user_id: req.user.id,
+    company_id: req.companyId || null,
     branding: branding || {},
     quote_defaults: quote_defaults || {},
     jms_keys: jms_keys || {},
@@ -547,7 +727,12 @@ app.put('/settings', requireAuth, async (req, res) => {
     labour_pricing: labour_pricing || {},
     updated_at: new Date().toISOString(),
   };
-  const { data, error } = await supabase.from('user_settings').upsert(row, { onConflict: 'user_id' }).select().single();
+  let { data, error } = await supabase.from('user_settings').upsert(row, { onConflict: 'user_id' }).select().single();
+  if (error && /company_id/.test(error.message || '')) {
+    // company_id column not migrated yet — save without it rather than failing
+    delete row.company_id;
+    ({ data, error } = await supabase.from('user_settings').upsert(row, { onConflict: 'user_id' }).select().single());
+  }
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
@@ -800,13 +985,12 @@ app.get('/quote-activity', requireAuth, async (req, res) => {
     // aerial JPEG, ~1 MB each); pulling the full quote for 120 jobs ran to
     // hundreds of MB and timed the request out (recent activity stopped
     // loading).  These narrow JSON paths keep the payload at kilobytes.
-    const primary = await supabase.from('jobs')
+    const primary = await _scopeCompany(supabase.from('jobs')
       .select('id, client_name, ' +
               'q_share:draw_state->state->quote->share, ' +
               'q_ref:draw_state->state->quote->ref, ' +
               'q_client:draw_state->state->quote->client, ' +
-              'q_accepted:draw_state->state->quote->accepted')
-      .eq('user_id', req.user.id)
+              'q_accepted:draw_state->state->quote->accepted'), req)
       // Only jobs that have actually been SHARED appear in the feed — filter to
       // them (there's a functional index on this token expression), so Postgres
       // doesn't have to decompress every job's multi-MB draw_state.
@@ -823,9 +1007,8 @@ app.get('/quote-activity', requireAuth, async (req, res) => {
     // whole quote subtree (the original, proven query shape) and strip the
     // heavy roofMapGeom before responding, so the client transfer stays small.
     console.error('quote-activity narrow select failed, falling back:', primary.error.message, primary.error.hint || '');
-    const fb = await supabase.from('jobs')
-      .select('id, client_name, quote:draw_state->state->quote')
-      .eq('user_id', req.user.id)
+    const fb = await _scopeCompany(supabase.from('jobs')
+      .select('id, client_name, quote:draw_state->state->quote'), req)
       .not('draw_state->state->quote->share->>token', 'is', null)
       .order('updated_at', { ascending: false }).limit(120);
     if (fb.error) { console.error('quote-activity fallback failed:', fb.error.message, fb.error.hint || ''); return res.status(500).json({ error: fb.error.message }); }
@@ -2039,21 +2222,178 @@ function _keepWarm(){
   if (t && t.unref) t.unref();
 }
 
-// One-time index so the customer /q lookup (by share token buried in draw_state)
-// is an indexed hit instead of a full-table scan that decompresses every job's
-// photos. Runs only when DATABASE_URL is set (a Postgres connection string);
-// entirely non-fatal and never blocks the server. The one-line SQL equivalent
-// can also just be run in the Supabase SQL editor.
-async function _ensureIndexes(){
-  if (!process.env.DATABASE_URL) return;
+// ── Boot-time schema migration ─────────────────────────────────────
+// Idempotent and STRICTLY ADDITIVE: every statement is create-if-not-exists /
+// add-column-if-not-exists / create-or-replace, so re-running on every deploy
+// is safe and NO existing data is ever dropped, renamed, or rewritten
+// destructively. Runs only when DATABASE_URL is set; entirely non-fatal and
+// never blocks the server (each statement is tried independently). Any of
+// this SQL can also just be run by hand in the Supabase SQL editor.
+//
+// What it ensures, in order:
+//   1. The share-token expression index for the customer /q lookup.
+//   2. Multi-tenant tables: companies + company_users (one company per user
+//      for now, enforced by a unique index), and a company_id column on
+//      jobs / user_settings / profiles.
+//   3. Backfill: every existing user gets their own company (named from
+//      their profile) and their jobs/settings are stamped with it.
+//   4. job_revisions: automatic point-in-time snapshots of each job, taken
+//      by DB triggers on UPDATE (throttled, drawing/photo changes only) and
+//      on DELETE (always) — so a bad save or an accidental delete can be
+//      restored. Pruned to the 8 most recent per job.
+//   5. Row Level Security on every tenant table, scoped per company. The
+//      backend's service_role key (and the postgres-owned pg pool) bypass
+//      RLS by design; the policies are defence-in-depth so the anon key /
+//      PostgREST can never read another company's data.
+const _MIGRATION_SQL = [
+  "create extension if not exists pgcrypto",
+
+  // 1. share-token index (pre-existing migration, kept)
+  "create index if not exists idx_jobs_share_token on public.jobs ((draw_state -> 'state' -> 'quote' -> 'share' ->> 'token'))",
+
+  // 2. tenant tables + columns
+  "create table if not exists public.companies (" +
+  "  id uuid primary key default gen_random_uuid()," +
+  "  name text not null default ''," +
+  "  created_at timestamptz not null default now())",
+  "create table if not exists public.company_users (" +
+  "  company_id uuid not null references public.companies(id) on delete cascade," +
+  "  user_id uuid not null," +
+  "  role text not null default 'member'," +
+  "  created_at timestamptz not null default now()," +
+  "  primary key (company_id, user_id))",
+  "create unique index if not exists idx_company_users_user on public.company_users (user_id)",
+  "alter table public.jobs add column if not exists company_id uuid",
+  "alter table public.user_settings add column if not exists company_id uuid",
+  "alter table public.profiles add column if not exists company_id uuid",
+  "create index if not exists idx_jobs_company on public.jobs (company_id)",
+  "create index if not exists idx_jobs_user on public.jobs (user_id)",
+
+  // 3. backfill — a company for every user seen in profiles or jobs that has
+  //    no membership yet, then stamp their jobs/settings/profile. All guarded
+  //    by NOT EXISTS so re-runs are no-ops.
+  "do $$ declare p record; cid uuid; begin" +
+  "  for p in select pr.id, coalesce(nullif(pr.company,''), nullif(pr.name,''), pr.email, 'My Company') as cname" +
+  "    from public.profiles pr" +
+  "    where not exists (select 1 from public.company_users cu where cu.user_id = pr.id)" +
+  "  loop" +
+  "    insert into public.companies (name) values (p.cname) returning id into cid;" +
+  "    insert into public.company_users (company_id, user_id, role) values (cid, p.id, 'owner');" +
+  "  end loop;" +
+  "end $$",
+  "do $$ declare u record; cid uuid; begin" +
+  "  for u in select distinct j.user_id from public.jobs j" +
+  "    where j.user_id is not null" +
+  "      and not exists (select 1 from public.company_users cu where cu.user_id = j.user_id)" +
+  "  loop" +
+  "    insert into public.companies (name) values ('My Company') returning id into cid;" +
+  "    insert into public.company_users (company_id, user_id, role) values (cid, u.user_id, 'owner');" +
+  "  end loop;" +
+  "end $$",
+  "update public.profiles p set company_id = cu.company_id from public.company_users cu" +
+  "  where p.company_id is null and cu.user_id = p.id",
+  "update public.jobs j set company_id = cu.company_id from public.company_users cu" +
+  "  where j.company_id is null and cu.user_id = j.user_id",
+  "update public.user_settings s set company_id = cu.company_id from public.company_users cu" +
+  "  where s.company_id is null and cu.user_id = s.user_id",
+
+  // 4. automatic job snapshots (survive bad saves AND deletes)
+  "create table if not exists public.job_revisions (" +
+  "  id bigserial primary key," +
+  "  job_id uuid not null," +
+  "  company_id uuid," +
+  "  user_id uuid," +
+  "  client_name text," +
+  "  site_address text," +
+  "  status text," +
+  "  draw_state jsonb," +
+  "  settings jsonb," +
+  "  reason text not null default 'update'," +
+  "  saved_at timestamptz not null default now())",
+  "create index if not exists idx_jobrev_job on public.job_revisions (job_id, saved_at desc)",
+  // UPDATE trigger: snapshot the OLD row before it's overwritten, but only
+  // when the drawing actually changed (quote-share pings from customer opens
+  // are excluded) and at most once per 10 minutes per job, so autosave churn
+  // doesn't multiply multi-MB rows. Prune keeps the 8 newest per job.
+  "create or replace function public._job_backup_upd() returns trigger" +
+  " language plpgsql security definer set search_path = public as $$ begin" +
+  "  if (old.draw_state is distinct from new.draw_state)" +
+  "     and ((old.draw_state->'state') - 'quote' is distinct from (new.draw_state->'state') - 'quote')" +
+  "     and not exists (select 1 from public.job_revisions r where r.job_id = old.id" +
+  "                     and r.reason = 'update' and r.saved_at > now() - interval '10 minutes') then" +
+  "    insert into public.job_revisions (job_id, company_id, user_id, client_name, site_address, status, draw_state, settings, reason)" +
+  "    values (old.id, old.company_id, old.user_id, old.client_name, old.site_address, old.status, old.draw_state, old.settings, 'update');" +
+  "    delete from public.job_revisions where job_id = old.id and id not in" +
+  "      (select id from public.job_revisions where job_id = old.id order by saved_at desc, id desc limit 8);" +
+  "  end if;" +
+  "  return new;" +
+  " end $$",
+  "drop trigger if exists trg_job_backup_upd on public.jobs",
+  "create trigger trg_job_backup_upd before update on public.jobs" +
+  "  for each row execute function public._job_backup_upd()",
+  // DELETE trigger: always keep a final snapshot so a deleted job is recoverable.
+  "create or replace function public._job_backup_del() returns trigger" +
+  " language plpgsql security definer set search_path = public as $$ begin" +
+  "  insert into public.job_revisions (job_id, company_id, user_id, client_name, site_address, status, draw_state, settings, reason)" +
+  "  values (old.id, old.company_id, old.user_id, old.client_name, old.site_address, old.status, old.draw_state, old.settings, 'delete');" +
+  "  return old;" +
+  " end $$",
+  "drop trigger if exists trg_job_backup_del on public.jobs",
+  "create trigger trg_job_backup_del before delete on public.jobs" +
+  "  for each row execute function public._job_backup_del()",
+
+  // 5. RLS per company. my_company_ids() is SECURITY DEFINER so the policies
+  //    can consult company_users without recursing into its own policy.
+  "create or replace function public.my_company_ids() returns setof uuid" +
+  " language sql stable security definer set search_path = public as" +
+  " $$ select company_id from public.company_users where user_id = auth.uid() $$",
+  "alter table public.companies enable row level security",
+  "alter table public.company_users enable row level security",
+  "alter table public.profiles enable row level security",
+  "alter table public.subscriptions enable row level security",
+  "alter table public.jobs enable row level security",
+  "alter table public.user_settings enable row level security",
+  "alter table public.job_revisions enable row level security",
+  "drop policy if exists companies_member on public.companies",
+  "create policy companies_member on public.companies for all" +
+  "  using (id in (select public.my_company_ids()))" +
+  "  with check (id in (select public.my_company_ids()))",
+  "drop policy if exists company_users_self on public.company_users",
+  "create policy company_users_self on public.company_users for select" +
+  "  using (user_id = auth.uid() or company_id in (select public.my_company_ids()))",
+  "drop policy if exists profiles_self on public.profiles",
+  "create policy profiles_self on public.profiles for all" +
+  "  using (id = auth.uid()) with check (id = auth.uid())",
+  "drop policy if exists subscriptions_self on public.subscriptions",
+  "create policy subscriptions_self on public.subscriptions for select" +
+  "  using (user_id = auth.uid())",
+  "drop policy if exists jobs_company on public.jobs",
+  "create policy jobs_company on public.jobs for all" +
+  "  using (company_id in (select public.my_company_ids()) or user_id = auth.uid())" +
+  "  with check (company_id in (select public.my_company_ids()) or user_id = auth.uid())",
+  "drop policy if exists user_settings_company on public.user_settings",
+  "create policy user_settings_company on public.user_settings for all" +
+  "  using (company_id in (select public.my_company_ids()) or user_id = auth.uid())" +
+  "  with check (company_id in (select public.my_company_ids()) or user_id = auth.uid())",
+  "drop policy if exists job_revisions_company on public.job_revisions",
+  "create policy job_revisions_company on public.job_revisions for select" +
+  "  using (company_id in (select public.my_company_ids()) or user_id = auth.uid())",
+];
+
+async function _ensureSchema(){
+  if (!process.env.DATABASE_URL) { console.warn('[migrate] DATABASE_URL not set — multi-tenant schema NOT ensured'); return; }
   let Client;
-  try { Client = require('pg').Client; } catch(e){ console.log('[migrate] pg not installed — skipping index (run the SQL manually)'); return; }
+  try { Client = require('pg').Client; } catch(e){ console.log('[migrate] pg not installed — skipping (run the SQL manually)'); return; }
   const c = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 8000 });
+  let ok = 0, failed = 0;
   try {
     await c.connect();
-    await c.query("create index if not exists idx_jobs_share_token on public.jobs ((draw_state -> 'state' -> 'quote' -> 'share' ->> 'token'))");
-    console.log('[migrate] share-token index ensured');
-  } catch(e){ console.warn('[migrate] index ensure skipped:', e.message); }
+    for (const sql of _MIGRATION_SQL) {
+      try { await c.query(sql); ok++; }
+      catch(e){ failed++; console.warn('[migrate] statement failed (continuing): ' + e.message + ' — SQL: ' + sql.slice(0, 90)); }
+    }
+    console.log('[migrate] schema ensured: ' + ok + ' ok, ' + failed + ' failed');
+  } catch(e){ console.warn('[migrate] schema ensure skipped:', e.message); }
   finally { try { await c.end(); } catch(e){} }
 }
 
@@ -2062,5 +2402,5 @@ app.listen(PORT, () => {
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
   console.log('Stripe: disabled');
   try { _keepWarm(); } catch(e){}
-  _ensureIndexes().catch(function(){});
+  _ensureSchema().catch(function(){});
 });
