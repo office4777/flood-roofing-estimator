@@ -1553,8 +1553,9 @@ html.pdf-rendering .jp-page .gu-row .gu-qty input{ width:100%!important; text-al
 html.pdf-rendering .cons-row{ display:flex!important; gap:10px!important; padding:3px 4px!important; align-items:baseline!important; }
 html.pdf-rendering .cons-row-qty{ white-space:nowrap!important; }
 /* Breathing room between the cut-list sections on the exported PDF —
-   10px read as one dense block ("cluttered"). */
-html.pdf-rendering .mat-section{ margin-bottom:26px!important; padding-bottom:6px!important; }
+   10px read as one dense block ("cluttered"). No divider line under a
+   section either: the gap does the separating. */
+html.pdf-rendering .mat-section{ margin-bottom:26px!important; padding-bottom:6px!important; border-bottom:none!important; }
 html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6px!important; }
 /* Print: only #jpPages elements reach paper.  Each .jp-page is one A4
    sheet so we just suppress everything else and let CSS page breaks
@@ -1636,7 +1637,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   html.print-jobpack .mat-flash-section{ page-break-before:always!important; break-before:page!important; }
   /* Breathing room between the printed cut-list sections, and keep each
      section (and each flashing card) in one piece across page edges. */
-  html.print-jobpack .jp-flow .mat-section{ margin-bottom:26px!important; padding-bottom:14px!important; }
+  html.print-jobpack .jp-flow .mat-section{ margin-bottom:26px!important; padding-bottom:14px!important; border-bottom:none!important; }
   html.print-jobpack .mat-section:not(.mat-flash-section){ page-break-inside:avoid; break-inside:avoid; }
   html.print-jobpack .mat-fl-card{ page-break-inside:avoid; break-inside:avoid; }
 
@@ -33778,8 +33779,12 @@ async function _buildJobPackPdf() {
         return ink;
       }
       var sliceTop = 0;
+      // Sheets that BEGIN at a forced break (the Flashings section) get a
+      // small top margin so the title doesn't sit hard against the page edge.
+      var _sliceForcedTop = false, _forcedTopMm = 9;
       while (sliceTop < canvas.height - 2) {
-        var cutY = Math.min(canvas.height, sliceTop + hardStep);
+        var _stepNow = _sliceForcedTop ? (hardStep - Math.floor(_forcedTopMm * pxPerMm)) : hardStep;
+        var cutY = Math.min(canvas.height, sliceTop + _stepNow);
         // A forced break (Flashings section) inside this slice wins over
         // both the hard A4 boundary and the white-row seek — the section
         // then STARTS the next sheet.
@@ -33812,7 +33817,8 @@ async function _buildJobPackPdf() {
         sc.width = canvas.width; sc.height = sliceH;
         sc.getContext('2d').drawImage(canvas, 0, sliceTop, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
         if (sliceTop > 0) pdf.addPage();
-        pdf.addImage(sc.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pageW, sliceH / pxPerMm, undefined, 'FAST');
+        pdf.addImage(sc.toDataURL('image/jpeg', 0.92), 'JPEG', 0, (_sliceForcedTop ? _forcedTopMm : 0), pageW, sliceH / pxPerMm, undefined, 'FAST');
+        _sliceForcedTop = (_fcY != null);   // the NEXT slice starts at a forced break
         sliceTop = cutY;
       }
     }
