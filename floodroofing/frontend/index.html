@@ -23945,9 +23945,11 @@ function onCanvasClick(e) {
     return;
   }
   if(DRAW.tool==='select') {
-    // Click the calibration line to re-open the popup and update its
-    // measure without redrawing.
-    if (hitCalibrationLine(xy[0], xy[1])) { editCalibrate(); return; }
+    // (The old click-the-calibration-line-to-edit shortcut is gone — the
+    // scale-ref line no longer renders once calibration is confirmed, and an
+    // invisible click target that pops the calibrate dialog reads as a bug.
+    // Re-calibrating is done through the Calibrate tool, which overrides the
+    // previous calibration.)
     // Click a flashing letter tag (A: 4.2m) or a sheet-length label
     // before anything else — these labels sit on top of lines + faces
     // so they need first-pick to avoid the underlying line selecting.
@@ -26199,11 +26201,20 @@ function redrawAll() {
     }
   }
 
-  // Draw calibration line if set. Hidden when window._hideCalibrationOverlay
-  // is on — used by renderMatRoofMap so the Materials Roof Map preview
-  // doesn't carry the orange dashed "Scale ref" tag (it belongs on the
-  // Map Roof tab only).
-  if(DRAW.calibratePts && DRAW.calibratePts.length===2 && !window._hideCalibrationOverlay) {
+  // Draw the calibration line ONLY while actively calibrating (tool picked /
+  // popup open) so the user can see which wall they clicked. Once the scale
+  // is confirmed the overlay disappears for good — a persistent "Scale ref"
+  // line just cluttered the plan, and it went stale (floated off the wall)
+  // the moment a corner was moved. Re-running Calibrate simply overrides the
+  // previous calibration. window._hideCalibrationOverlay keeps it out of the
+  // Materials Roof Map preview as before.
+  // "Actively calibrating" = the calibrate popup is open (it opens the moment
+  // a wall is clicked and closes on confirm/cancel). Deliberately NOT keyed on
+  // the tool being selected — re-picking the tool would resurface the stale
+  // previous reference line before a new wall is clicked.
+  var _calActive =
+    (function(){ try { var cp = document.getElementById('calPopup'); return cp && cp.style.display !== 'none' && cp.style.display !== ''; } catch(e){ return false; } })();
+  if(DRAW.calibratePts && DRAW.calibratePts.length===2 && !window._hideCalibrationOverlay && _calActive) {
     var cp0=dp(DRAW.calibratePts[0]), cp1=dp(DRAW.calibratePts[1]);
     ctx.save();
     ctx.beginPath(); ctx.moveTo(cp0[0],cp0[1]); ctx.lineTo(cp1[0],cp1[1]);
