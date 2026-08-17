@@ -1619,6 +1619,25 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
      marks them visually disabled if the JS hook hasn't run yet. */
   html.print-jobpack .mat-section.is-empty-section{ display:none!important; }
 
+  /* The Cut Lists page prints as FLOWING content: natural height and real
+     page breaks instead of one clipped 297mm sheet. Flex/grid ancestors
+     swallow break-* rules, so the whole chain goes block for print. */
+  html.print-jobpack .jp-page.jp-flow{
+    height:auto!important; max-height:none!important; min-height:297mm;
+    overflow:visible!important; display:block!important;
+    page-break-inside:auto!important; break-inside:auto!important;
+  }
+  html.print-jobpack .jp-page.jp-flow .jp-page-content{ display:block!important; }
+  /* Flashings (title + cards) ALWAYS start on their own fresh sheet — the
+     heading was stranding at the foot of the cut-list page with its cards
+     clipped or overleaf. */
+  html.print-jobpack .mat-flash-section{ page-break-before:always!important; break-before:page!important; }
+  /* Breathing room between the printed cut-list sections, and keep each
+     section (and each flashing card) in one piece across page edges. */
+  html.print-jobpack .jp-flow .mat-section{ margin-bottom:26px!important; padding-bottom:14px!important; }
+  html.print-jobpack .mat-section:not(.mat-flash-section){ page-break-inside:avoid; break-inside:avoid; }
+  html.print-jobpack .mat-fl-card{ page-break-inside:avoid; break-inside:avoid; }
+
   /* Spec-row chrome (background panel) flattens to plain "Label: Value"
      pairs across the top of each page, so it reads like a stamped
      order header instead of a form. */
@@ -29820,7 +29839,10 @@ function renderJobPack(){
   } catch(e){ console.warn('jp roof picker:', e); }
   state.pages.forEach(function(page, i){
     var pageEl = document.createElement('div');
-    pageEl.className = 'jp-page';
+    // jp-flow: the Cut Lists page prints as FLOWING content (natural height,
+    // real page breaks) instead of one clipped A4 sheet — its sections space
+    // out and the Flashings block starts on its own fresh sheet.
+    pageEl.className = 'jp-page' + (page.type === 'cutlists' ? ' jp-flow' : '');
     pageEl.setAttribute('data-jp-idx', i);
     // Drop target for maps panel — accepts the text/x-jp-map payload.
     pageEl.addEventListener('dragover', _jpAllowDrop);
@@ -30592,7 +30614,9 @@ function _jpRenderCutLists(content, page, idx){
       '<input type="checkbox" '+(refsOn?'checked':'')+' onchange="_jpToggleFlashRefs(this.checked)" style="width:auto;margin:0"> '+(refsOn?'On':'Off')+
     '</label>'+
   '</div>';
-  html += '<div class="mat-section">'+
+  // mat-flash-section: the print stylesheet starts this section on its own
+  // fresh page (title + cards together) — see html.print-jobpack rules.
+  html += '<div class="mat-section mat-flash-section">'+
     _matSectionHead('#0891b2', 'Flashings', 'one card per type');
   var typeBoxes = [];
   _MAT_FLASHING_SPECS.slice(1).forEach(function(spec){
