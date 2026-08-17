@@ -23804,6 +23804,200 @@ document.addEventListener('mouseup', function(e) {
   }
 });
 
+// ── Pen + touch input (tablet / phone) ───────────────────────────
+// Unified Pointer Events layer over the existing mouse pipeline:
+//   · pen        — draws: pen-down places the stroke's first point (when a
+//                  two-point tool has nothing in progress), pen-up places the
+//                  end point through the SAME click pipeline as the mouse, so
+//                  every stroke becomes a perfectly straight, snapped edge.
+//                  In Move mode the pen grabs corners/ridges exactly like the
+//                  mouse (onCanvasMouseDown claims the drag).
+//   · one finger — behaves exactly like the mouse: tap to place points,
+//                  press-drag to move corners / pan.
+//   · two fingers— pinch to zoom (anchored under the pinch centre) + pan.
+//   · palm       — while a pen is in contact, all touch input is ignored.
+// Mouse input continues through the original on* attributes untouched;
+// preventDefault() on pointerdown stops the browser's compatibility mouse
+// events from double-firing for pen/touch.
+(function _wirePenTouchInput(){
+  function _init(){
+    var cv = document.getElementById('roofCanvas');
+    if (!cv || cv._penWired) return;
+    cv._penWired = true;
+    cv.style.touchAction = 'none';
+
+    // Tools whose click flow places two points via DRAW.currentPts — a pen
+    // stroke on these = first point at pen-down, second at pen-up.
+    var STROKE_TOOLS = { outline:1, section:1, ridge:1, gutter:1, changepitch:1, hip:1, valley:1, barge:1, apron:1, addmeas:1 };
+
+    var P = {
+      pen: null,                 // {id, sx, sy, downPlaced}
+      touches: new Map(),        // active touch pointers
+      touchDrag: null,           // pointerId driving the single-finger mouse emulation
+      pinch: null,               // {d0, z0, w:[wx,wy]} world point under pinch centre
+      waitAllUp: false,          // after a pinch, ignore touches until all lifted
+      lastTap: { t: 0, x: 0, y: 0 },
+    };
+
+    function fake(e){
+      return { clientX: e.clientX, clientY: e.clientY, shiftKey: !!e.shiftKey,
+               button: 0, target: cv,
+               preventDefault: function(){}, stopPropagation: function(){} };
+    }
+    function cvPt(e){
+      var rect = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+      return [ (e.clientX - rect.left) * (cv.width / rect.width) / dpr,
+               (e.clientY - rect.top)  * (cv.height / rect.height) / dpr ];
+    }
+    function dragActive(){
+      return !!(window.DRAG_INFO_STAR || window.DRAG_EP || window.DRAG_ROOF_VIEW ||
+                window.DRAG_SHEET || window.DRAG_OUTLINE_VERT || window.DRAG_RIDGE ||
+                window.DRAG_GABLET || (window.PAN && PAN.active));
+    }
+    function maybeDblTap(e){
+      var now = Date.now();
+      var isDbl = (now - P.lastTap.t < 350) &&
+                  Math.abs(e.clientX - P.lastTap.x) < 26 && Math.abs(e.clientY - P.lastTap.y) < 26;
+      P.lastTap = { t: now, x: e.clientX, y: e.clientY };
+      if (isDbl){ P.lastTap.t = 0; try { onCanvasDblClick(fake(e)); } catch(err){} }
+      return isDbl;
+    }
+    // Mirrors the browser's mouse sequencing: up always fires, then click
+    // (SUPPRESS_NEXT_CLICK sorts out post-drag suppression, same as mouse).
+    function emulatedUp(e, alsoClick){
+      try { onCanvasMouseUp(fake(e)); } catch(err){}
+      if (alsoClick){ try { onCanvasClick(fake(e)); } catch(err){} }
+    }
+    function panStep(e, start){
+      // PAN continuation normally lives on document mousemove — replicate.
+      var dx = e.clientX - PAN.startX, dy = e.clientY - PAN.startY;
+      PAN.totalMoved = (PAN.totalMoved || 0) + Math.abs(dx) + Math.abs(dy);
+      IMG_OFFSET.x = PAN.originX + dx;
+      IMG_OFFSET.y = PAN.originY + dy;
+      redrawAll();
+    }
+    function endTouchDragNoClick(){
+      // A second finger arrived mid-gesture: finish whatever the first
+      // finger started WITHOUT letting it register as a tap.
+      if (P.touchDrag == null) return;
+      if (dragActive()){
+        try { onCanvasMouseUp({ clientX: 0, clientY: 0, shiftKey: false, preventDefault: function(){}, target: cv }); } catch(err){}
+        window.SUPPRESS_NEXT_CLICK = false;
+      }
+      PAN.active = false;
+      P.touchDrag = null;
+    }
+
+    cv.addEventListener('pointerdown', function(e){
+      if (e.pointerType === 'mouse') return;             // original attrs handle mouse
+      e.preventDefault();                                 // no compat mouse events
+      if (e.pointerType === 'pen'){
+        endTouchDragNoClick();                            // pen wins over a stray finger
+        P.pen = { id: e.pointerId, sx: e.clientX, sy: e.clientY, downPlaced: false };
+        try { cv.setPointerCapture(e.pointerId); } catch(err){}
+        onCanvasMouseDown(fake(e));
+        if (STROKE_TOOLS[DRAW.tool] && !dragActive() && (DRAW.currentPts || []).length === 0){
+          try { onCanvasClick(fake(e)); P.pen.downPlaced = true; } catch(err){}
+        }
+        return;
+      }
+      // touch
+      if (P.pen) return;                                  // palm rejection
+      P.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (P.waitAllUp) return;
+      if (P.touches.size === 2){
+        endTouchDragNoClick();
+        var pts = Array.from(P.touches.values());
+        var mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
+        var t0 = getImgTransform();
+        var c0 = cvPt({ clientX: mx, clientY: my });
+        P.pinch = {
+          d0: Math.max(12, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)),
+          z0: DRAW.zoom || 1,
+          w: t0 ? [ (c0[0] - t0.ix) / t0.s, (c0[1] - t0.iy) / t0.s ] : c0.slice(),
+        };
+        return;
+      }
+      if (P.touches.size === 1){
+        P.touchDrag = e.pointerId;
+        try { cv.setPointerCapture(e.pointerId); } catch(err){}
+        onCanvasMouseDown(fake(e));
+      }
+    });
+
+    cv.addEventListener('pointermove', function(e){
+      if (e.pointerType === 'mouse') return;
+      e.preventDefault();
+      if (e.pointerType === 'pen'){
+        if (!P.pen || e.pointerId !== P.pen.id) return;
+        if (PAN.active) panStep(e);
+        else { try { onCanvasMove(fake(e)); } catch(err){} }
+        return;
+      }
+      var tch = P.touches.get(e.pointerId);
+      if (tch){ tch.x = e.clientX; tch.y = e.clientY; }
+      if (P.pinch && P.touches.size >= 2){
+        var pts = Array.from(P.touches.values());
+        var d = Math.max(12, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y));
+        var z1 = Math.max(0.1, Math.min(5, P.pinch.z0 * d / P.pinch.d0));
+        DRAW.zoom = z1;
+        // Anchor: keep the world point that was under the pinch centre
+        // under the CURRENT pinch centre.
+        var mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
+        var c1 = cvPt({ clientX: mx, clientY: my });
+        var t1 = getImgTransform();
+        if (t1){
+          IMG_OFFSET.x += (c1[0] - P.pinch.w[0] * t1.s) - t1.ix;
+          IMG_OFFSET.y += (c1[1] - P.pinch.w[1] * t1.s) - t1.iy;
+        }
+        var zl = document.getElementById('zoomLabel');
+        if (zl) zl.textContent = Math.round(DRAW.zoom * 100) + '%';
+        redrawAll();
+        return;
+      }
+      if (e.pointerId === P.touchDrag && !P.waitAllUp){
+        if (PAN.active) panStep(e);
+        else { try { onCanvasMove(fake(e)); } catch(err){} }
+      }
+    });
+
+    function pointerEnd(e, cancelled){
+      if (e.pointerType === 'mouse') return;
+      e.preventDefault();
+      if (e.pointerType === 'pen'){
+        if (!P.pen || e.pointerId !== P.pen.id) return;
+        var pen = P.pen; P.pen = null;
+        if (cancelled){ emulatedUp(e, false); window.SUPPRESS_NEXT_CLICK = false; return; }
+        var moved = Math.hypot(e.clientX - pen.sx, e.clientY - pen.sy);
+        // Skip the up-click only when the pen-down ALREADY placed this
+        // point and the pen never travelled (a plain tap) — otherwise a
+        // zero-length edge would land on top of the fresh first point.
+        var clickOnUp = !(pen.downPlaced && moved < 9);
+        if (clickOnUp && moved < 9) maybeDblTap(e);
+        emulatedUp(e, clickOnUp);
+        return;
+      }
+      var wasTracked = P.touches.delete(e.pointerId);
+      if (!wasTracked) return;
+      if (P.pinch){
+        if (P.touches.size < 2){ P.pinch = null; P.waitAllUp = P.touches.size > 0; }
+        return;
+      }
+      if (P.touches.size === 0) P.waitAllUp = false;
+      if (e.pointerId === P.touchDrag){
+        P.touchDrag = null;
+        if (cancelled){ emulatedUp(e, false); window.SUPPRESS_NEXT_CLICK = false; return; }
+        maybeDblTap(e);
+        emulatedUp(e, true);
+      }
+    }
+    cv.addEventListener('pointerup', function(e){ pointerEnd(e, false); });
+    cv.addEventListener('pointercancel', function(e){ pointerEnd(e, true); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _init);
+  else _init();
+})();
+
 // ── Global geometry helpers ──────────────────────────────────────
 function vL(dx,dy){return Math.sqrt(dx*dx+dy*dy);}
 function getOutlineDominantAngle(){if(DRAW.outline.length<2)return 0;var b=0,bL=0;for(var i=0;i<DRAW.outline.length;i++){var a=DRAW.outline[i],bb=DRAW.outline[(i+1)%DRAW.outline.length],dx=bb[0]-a[0],dy=bb[1]-a[1],l=Math.sqrt(dx*dx+dy*dy);if(l>bL){bL=l;b=Math.atan2(dy,dx);}}return b;}
