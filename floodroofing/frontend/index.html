@@ -2365,6 +2365,16 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       window.showSetupView();
       var _pe=_p.get('email'); if(_pe){ var _se=document.getElementById('su-email'); if(_se) _se.value=_pe; }
     }
+  } else {
+    // Valid session token → straight into the app, no sign-in screen. (The
+    // .app div sits below this script, so unhide it once the DOM is ready.
+    // If the token turns out to be expired, api()'s 401 hook brings the
+    // sign-in screen back with a message.)
+    document.getElementById('login-screen').style.display='none';
+    document.addEventListener('DOMContentLoaded', function(){
+      var ap=document.querySelector('.app'); if(ap) ap.style.display='';
+      setTimeout(function(){ try{ window._aerialMap && window._aerialMap.resize(); }catch(e){} }, 300);
+    });
   }
   window.doForgot=async function(){
     var email=document.getElementById('fp-email').value.trim();
@@ -2565,40 +2575,53 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   </div>
 </div>
 
-<!-- TAB 0: SELECT JOB -->
+<!-- TAB 0: HOME — Fergus-style dashboard: job search + create, then a six-
+     column status board (drafts → quotes sent → questions → declined →
+     accepted → orders). _renderHomeBoard() paints the columns from the
+     recent-drafts rows, the quote-activity feed and the jobs list. -->
 <div class="panel active" id="tab-select">
   <strong id="currentJobLabelTop" style="display:none"></strong>
-  <!-- Home hero: two sequential steps — pick a job, then map its roof. -->
-  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:stretch;margin-bottom:18px">
-    <button onclick="openSelectJobModal('fergus')" style="flex:1 1 260px;text-align:left;border:none;cursor:pointer;border-radius:16px;padding:22px 24px;color:#fff;background:linear-gradient(135deg,#0a1628,#1e3a5f);box-shadow:0 8px 24px rgba(10,22,40,.18)">
-      <div style="font-size:10px;font-weight:800;letter-spacing:.14em;opacity:.65;margin-bottom:8px">STEP 1</div>
-      <div style="font-size:22px;font-weight:800;letter-spacing:-.01em">📂 New Job / Select Job</div>
-      <div style="font-size:13px;opacity:.8;margin-top:6px;line-height:1.4">Start a new job, pick a Fergus job, or open a saved one</div>
-    </button>
-    <button onclick="_homeMapRoof()" style="flex:1.5 1 340px;text-align:left;border:none;cursor:pointer;border-radius:16px;padding:22px 24px;color:#fff;background:linear-gradient(135deg,#0099cc,#00b4d8);box-shadow:0 8px 24px rgba(0,153,204,.28)">
-      <div style="font-size:10px;font-weight:800;letter-spacing:.14em;opacity:.8;margin-bottom:8px">STEP 2</div>
-      <div style="font-size:28px;font-weight:900;letter-spacing:-.02em;line-height:1.05">Let's map this roof! <span style="font-size:26px">→</span></div>
-      <div id="homeMapHint" style="font-size:13.5px;opacity:.92;margin-top:8px;line-height:1.4">Opens the Map Roof tab for the selected job</div>
-    </button>
-  </div>
-  <!-- Quote activity feed — accepted / declined / opened / queried by customers via the shared link -->
-  <div class="card" id="quoteActivityCard" style="display:none">
-    <div class="card-hd"><span class="card-dot"></span>Quote activity
-      <span id="quoteActivityCount" style="margin-left:8px;font-size:11px;font-weight:600;color:var(--text2)"></span>
-      <button onclick="fetchQuoteActivity()" style="margin-left:auto;padding:4px 12px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
+  <style>
+    .hb-topbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+    .hb-search-wrap{position:relative;flex:1 1 340px;max-width:560px}
+    .hb-search{width:100%;box-sizing:border-box;padding:11px 14px 11px 38px;border:1.5px solid var(--border);border-radius:10px;font-size:13.5px;font-family:inherit;background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>') 13px center no-repeat}
+    .hb-search:focus{outline:none;border-color:#0099cc;box-shadow:0 0 0 3px rgba(0,153,204,.12)}
+    .hb-drop{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 36px rgba(10,22,40,.16);z-index:500;max-height:380px;overflow-y:auto;padding:6px}
+    .hb-drop-row{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;cursor:pointer}
+    .hb-drop-row:hover{background:#f0f8fb}
+    .hb-drop-badge{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:20px;white-space:nowrap}
+    .hb-newjob{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;background:#0a1628;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 14px rgba(10,22,40,.22);white-space:nowrap}
+    .hb-newjob:hover{background:#13294a}
+    .hb-board-wrap{overflow-x:auto;padding-bottom:6px}
+    .hb-board{display:grid;grid-template-columns:repeat(6,minmax(172px,1fr));gap:10px;min-width:1090px}
+    .hb-col{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;display:flex;flex-direction:column;min-height:120px}
+    .hb-col-hd{display:flex;align-items:center;gap:7px;padding:10px 12px 8px;border-top:3px solid transparent;border-radius:12px 12px 0 0}
+    .hb-col-title{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#334155;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hb-col-count{font-size:11px;font-weight:800;min-width:20px;text-align:center;padding:2px 7px;border-radius:20px;background:#e2e8f0;color:#475569}
+    .hb-col-list{padding:0 8px 8px;overflow-y:auto;max-height:56vh;flex:1}
+    .hb-card{background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:9px 11px;margin-bottom:7px;cursor:pointer;box-shadow:0 1px 2px rgba(15,23,42,.05);position:relative}
+    .hb-card:hover{border-color:#0099cc;box-shadow:0 3px 10px rgba(0,153,204,.14)}
+    .hb-card-client{font-size:12.5px;font-weight:700;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:14px}
+    .hb-card-sub{font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+    .hb-card-extra{font-size:11px;margin-top:3px;line-height:1.45}
+    .hb-card-when{font-size:10px;color:#94a3b8;margin-top:4px}
+    .hb-card-del{position:absolute;top:6px;right:7px;background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:13px;line-height:1;padding:2px}
+    .hb-card-del:hover{color:#b91c1c}
+    .hb-empty{font-size:11px;color:#94a3b8;text-align:center;padding:18px 8px}
+    .hb-chip{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-bottom:4px}
+  </style>
+  <div class="hb-topbar">
+    <div class="hb-search-wrap">
+      <input id="homeJobSearch" class="hb-search" type="text" placeholder="Select job — search saved &amp; Fergus jobs by client, address or job number…"
+             oninput="_homeJobSearchInput()" onfocus="_homeJobSearchInput()" autocomplete="off">
+      <div id="homeJobSearchDrop" class="hb-drop"></div>
     </div>
-    <input id="quoteActivitySearch" type="text" placeholder="Search activity by client or reference…" oninput="_renderQuoteActivity()" style="width:100%;box-sizing:border-box;margin:2px 0 10px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit">
-    <div id="quoteActivityList" style="max-height:330px;overflow-y:auto"></div>
+    <button type="button" class="hb-newjob" onclick="startNewJob()">＋ Create new job</button>
+    <button type="button" onclick="fetchQuoteActivity();fetchRecentDrafts()" title="Refresh the board" style="padding:10px 14px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:10px;font-size:12px;cursor:pointer;font-family:inherit">↻</button>
   </div>
-  <!-- Recent drafts — unsaved in-progress work (local drafts) + recently saved
-       jobs (custom or Fergus), newest first, click a row to resume. -->
-  <div class="card" id="recentDraftsCard" style="display:none">
-    <div class="card-hd"><span class="card-dot"></span>Recent drafts
-      <span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text2)">— unsaved &amp; recent work</span>
-      <button onclick="fetchRecentDrafts()" style="margin-left:auto;padding:4px 12px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">↻ Refresh</button>
-    </div>
-    <input id="recentDraftsSearch" type="text" placeholder="Search drafts by client or address…" oninput="_renderRecentDrafts()" style="width:100%;box-sizing:border-box;margin:2px 0 10px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit">
-    <div id="recentDraftsList" style="max-height:330px;overflow-y:auto"></div>
+  <div style="font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:2px 0 8px">Status board</div>
+  <div class="hb-board-wrap">
+    <div class="hb-board" id="homeBoard"></div>
   </div>
 </div>
 
@@ -4598,6 +4621,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <button onclick="openSatelliteView()" title="Open satellite view" style="padding:6px 12px;background:#0a1628;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap">🛰 Satellite view</button>
 </div></div></div>
     <div class="f3"><div><label>Email</label><input type="email" id="jobEmail" placeholder="client@email.com"></div><div><label>Phone</label><input type="tel" id="jobPhone" placeholder="021 000 0000"></div><div><label>Date</label><input type="text" id="jobDate"></div></div>
+    <div class="f3"><div><label>Job number</label><input type="text" id="jobNo" placeholder="06121" style="font-weight:700">
+      <div style="font-size:10.5px;color:var(--text2);margin-top:3px">Auto-filled from Settings → Quote defaults → Next job number</div></div><div></div><div></div></div>
     <div style="margin-top:12px"><label style="display:block;margin-bottom:5px">Job type</label>
       <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
         <button type="button" id="jtBtn_roofing"  onclick="_setJobType('roofing')"  style="padding:9px 20px;border:none;background:#0a1628;color:#fff;font-size:13px;font-weight:700;cursor:pointer">🏠 Roofing</button>
@@ -4844,6 +4869,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div class="f2">
         <div><label>Quote validity (days)</label><input type="number" id="qdValidity" value="30" min="1" max="365"></div>
         <div><label>GST rate (%)</label><input type="number" id="qdGst" value="15" min="0" max="50" step="0.5"></div>
+      </div>
+      <div class="f2">
+        <div><label>Next job number</label><input type="text" id="qdNextJobNo" value="06121">
+          <div style="font-size:10.5px;color:var(--text2);margin-top:3px">New jobs are auto-numbered from here (zero-padding kept) — each new job bumps it by one.</div></div>
+        <div></div>
       </div>
       <div><label>Default warranty / terms text</label><textarea id="qdTerms" rows="3" placeholder="10-year materials warranty. Workmanship guaranteed. Quote valid 30 days."></textarea></div>
       <div style="margin-top:14px">
@@ -5629,7 +5659,7 @@ function defaultSettings(){
                 // with the user's standard copy.  See defaultQuote() for
                 // the keys read out of this object.
                 proposal_template: null },
-    quote_defaults: { validity_days: 30, gst_rate: 15, terms: '',
+    quote_defaults: { validity_days: 30, gst_rate: 15, terms: '', next_job_no: '06121',
                       options: [], sections: [],
                       // Email recipients (comma-separate for more than one).
                       // Stored here so it persists without a DB migration.
@@ -5874,6 +5904,7 @@ function collectSettingsFromUI(){
   var q = S.settings.quote_defaults;
   q.validity_days = parseInt((document.getElementById('qdValidity')||{}).value || 30, 10);
   q.gst_rate      = parseFloat((document.getElementById('qdGst')||{}).value || 15);
+  q.next_job_no   = ((document.getElementById('qdNextJobNo')||{}).value || q.next_job_no || '06121').trim() || '06121';
   q.terms         = (document.getElementById('qdTerms')||{}).value || '';
   q.options       = collectListEditor('qdOptionsList', ['label','enabled']);
   q.sections      = collectListEditor('qdSectionsList', ['title','body']);
@@ -7021,6 +7052,7 @@ function refreshSettingsUI(){
   var lp = document.getElementById('brLogoPreview');
   if (b.logo_data_url) { lp.src = b.logo_data_url; lp.style.display = 'inline-block'; } else { lp.style.display = 'none'; }
   set('qdValidity', q.validity_days||30); set('qdGst', q.gst_rate==null?15:q.gst_rate); set('qdTerms', q.terms);
+  set('qdNextJobNo', q.next_job_no || '06121');
   var _em = q.email || {};
   set('emQuoteCc', _em.quote_cc); set('emAcceptTo', _em.accept_to); set('emOrderCc', _em.order_cc);
   renderOptionsList(q.options || []);
@@ -7142,7 +7174,7 @@ function snapshotCurrentJob(){
   // Includes the materials spec (profile / grade / thickness / COLOUR /
   // ridge / gutter) — these are per-job choices that must survive a
   // save + reopen, not per-computer preferences.
-  var formIds = ['jobClient','jobAddr','jobEmail','jobPhone','jobDate',
+  var formIds = ['jobClient','jobAddr','jobEmail','jobPhone','jobDate','jobNo',
                  'matProfile','matGrade','matThickness','matColour','matRidgeType','matGutter'];
   var form = {}; formIds.forEach(function(id){var el=document.getElementById(id); if(el) form[id]=el.value;});
   // Scope tab — capture the master-scope pick + which chk-items are on
@@ -7158,7 +7190,8 @@ function snapshotCurrentJob(){
     form: form,
     state: { img64:S.img64, roofData:S.roofData, labour:S.labour, materials:S.materials,
              condition:S.condition, photos:S.photos, linkedJobId:S.linkedJobId, linkedJobNo:S.linkedJobNo, linkedJobName:S.linkedJobName,
-             quote:S.quote, jpPdfRev:S.jpPdfRev||0, fergusSent:S.fergusSent||null, jpFlashAngles:S.jpFlashAngles||{} },
+             quote:S.quote, jpPdfRev:S.jpPdfRev||0, fergusSent:S.fergusSent||null, jpFlashAngles:S.jpFlashAngles||{},
+             orderSent:S.orderSent||null },
     draw: { outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
             penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
             scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step,
@@ -7178,6 +7211,7 @@ function restoreFromJob(j){
     Object.keys(snap.form).forEach(function(id){var el=document.getElementById(id); if(el) el.value=snap.form[id];});
   }
   if (snap.state) {
+    S.orderSent = null;   // pre-stamp jobs: don't inherit the previous job's stamp
     Object.assign(S, snap.state);
     if (S.img64) {
       var img = document.getElementById('roofPrevImg');
@@ -7890,6 +7924,8 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
 async function saveCurrentJob(){
   var client = (document.getElementById('jobClient')||{}).value || '';
   var addr   = (document.getElementById('jobAddr')||{}).value || '';
+  // Saving a job whose number is still the Settings counter claims it.
+  try { var _sjno = ((document.getElementById('jobNo')||{}).value || '').trim(); if (_sjno) _consumeJobNo(_sjno); } catch(e){}
   var msg = document.getElementById('saveJobMsg');
   var barMsg = document.getElementById('globalJobBarSaveMsg');
   function set(text, color){
@@ -7990,13 +8026,36 @@ async function newJob(){
 // New Job (Home button): clear to a blank job, then open the job-details
 // popup so the client + site are entered there (they no longer live inline
 // on the Home tab).
+// ── Job numbers ─────────────────────────────────────────────────────
+// New jobs are auto-numbered from Settings → Quote defaults → "Next job
+// number" (default 06121). Using the offered number bumps the counter,
+// preserving zero-padding; typing a custom number leaves the counter alone.
+function _nextJobNo(){
+  var qd = (S.settings && S.settings.quote_defaults) || {};
+  return String(qd.next_job_no || '06121').trim() || '06121';
+}
+function _consumeJobNo(no){
+  try {
+    if (!S.settings) return;
+    var qd = S.settings.quote_defaults = S.settings.quote_defaults || {};
+    var cur = String(qd.next_job_no || '06121');
+    if (String(no).trim() === cur && /^\d+$/.test(cur)) {
+      var n = (parseInt(cur, 10) + 1).toString();
+      while (n.length < cur.length) n = '0' + n;
+      qd.next_job_no = n;
+      var f = document.getElementById('qdNextJobNo'); if (f) f.value = n;
+      saveSettings(true);
+    }
+  } catch(e){}
+}
 async function startNewJob(){
   if (!confirm('Start a new job? The current one is saved (or kept as a local draft) first.')) return;
   try { await _saveBeforeSwitch(); } catch(e){}
   S.currentJobId = null;
-  ['jobClient','jobAddr','jobEmail','jobPhone'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
+  ['jobClient','jobAddr','jobEmail','jobPhone','jobNo'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
   try { clearAll && clearAll(true); } catch(e){}
   S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[];
+  S.orderSent = null;
   _resetQuoteForFreshJob();
   window._aerialLoadedAddr = null;
   setCurrentJobLabel(null);
@@ -8082,6 +8141,9 @@ function openJobDetailsModal(mode){
   // Reflect the current job's type (edit) or default to roofing (new).
   window._pendingJobType = (window._jobDetailsMode === 'edit' && S.quote && S.quote.quoteKind === 'poleshed') ? 'poleshed' : 'roofing';
   _syncJobTypeToggle();
+  // New job → offer the next job number from Settings (editable).
+  var jn = document.getElementById('jobNo');
+  if (jn && window._jobDetailsMode === 'new' && !jn.value.trim()) jn.value = _nextJobNo();
   ov.style.display = 'block'; md.style.display = 'flex';
   var jc = document.getElementById('jobClient'); if (jc) setTimeout(function(){ try{ jc.focus(); }catch(e){} }, 60);
 }
@@ -8097,6 +8159,13 @@ function jobDetailsPrimary(){
     if (!S.quote && typeof defaultQuote === 'function') S.quote = defaultQuote();
     if (S.quote) S.quote.quoteKind = (window._pendingJobType === 'poleshed') ? 'poleshed' : 'roofing';
     _syncQuoteKindToggle();
+  } catch(e){}
+  // The job number becomes the quote reference (a linked Fergus job's own
+  // number still overrides it), and using the offered number bumps the
+  // Settings counter for the next job.
+  try {
+    var _jno = ((document.getElementById('jobNo')||{}).value || '').trim();
+    if (_jno){ if (S.quote && !S.linkedJobNo) S.quote.ref = _jno; _consumeJobNo(_jno); }
   } catch(e){}
   // Keep the Home label + global job bar in sync with what was just typed.
   try {
@@ -8117,8 +8186,7 @@ function jobDetailsPrimary(){
 // Recent drafts feed on Home: local in-progress drafts (unsaved work on a
 // custom or Fergus job) merged with recently saved jobs, newest first.
 async function fetchRecentDrafts(){
-  var card = document.getElementById('recentDraftsCard');
-  if (!document.getElementById('recentDraftsList')) return;
+  if (!document.getElementById('homeBoard')) return;
   var drafts = [], jobs = [];
   try { drafts = await _listLocalDrafts(); } catch(e){}
   try { jobs = await api('GET', '/jobs'); } catch(e){ jobs = []; }
@@ -8147,38 +8215,199 @@ async function fetchRecentDrafts(){
   });
   rows.sort(function(a, b){ return new Date(b.t || 0) - new Date(a.t || 0); });
   window._recentDraftsRows = rows;
-  if (!rows.length){ if (card) card.style.display = 'none'; return; }
-  if (card) card.style.display = '';
-  _renderRecentDrafts();
+  // Orders-sent column rides along on the same jobs fetch: the backend list
+  // now exposes the order_sent stamp written when an order email goes out.
+  var orders = (jobs || []).filter(function(j){ return j && (j.status === 'ordered' || (j.order_sent && j.order_sent.at)); })
+    .map(function(j){ return { id: j.id, client: j.client_name, addr: j.site_address,
+      at: (j.order_sent && j.order_sent.at) || j.updated_at, to: (j.order_sent && j.order_sent.to) || '' }; });
+  orders.sort(function(a, b){ return new Date(b.at || 0) - new Date(a.at || 0); });
+  window._ordersSentRows = orders;
+  window._selectJobsCache = jobs || [];   // keep the home job-search instant
+  _renderHomeBoard();
 }
-// Renders (and search-filters) the cached recent-drafts rows.
-function _renderRecentDrafts(){
-  var list = document.getElementById('recentDraftsList');
-  if (!list) return;
-  var all = window._recentDraftsRows || [];
-  var q = ((document.getElementById('recentDraftsSearch')||{}).value || '').toLowerCase().trim();
-  var rows = !q ? all : all.filter(function(r){
-    return ((r.client||'')+' '+(r.addr||'')).toLowerCase().indexOf(q) >= 0;
+// ── HOME STATUS BOARD ───────────────────────────────────────────────
+// Six Fergus-style columns painted from three sources: the recent-drafts
+// rows (fetchRecentDrafts), the quote-activity feed (fetchQuoteActivity)
+// and the orders-sent stamps that ride along on the jobs list.
+function _hbWhen(t){
+  return t ? new Date(t).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
+}
+function _renderHomeBoard(){
+  var host = document.getElementById('homeBoard');
+  if (!host) return;
+  var feed = window._quoteActivityFeed || [];
+  var drafts = (window._recentDraftsRows || []).slice(0, 15);
+  var orders = (window._ordersSentRows || []).slice(0, 15);
+
+  function feedCard(f, extra){
+    return '<div class="hb-card" onclick="openJob(\'' + f.jobId + '\')">' +
+      '<div class="hb-card-client">' + esc2(f.client || '—') + (f.ref ? ' <span style="color:#94a3b8;font-weight:500">· ' + esc2(f.ref) + '</span>' : '') + '</div>' +
+      (extra || '') +
+      '<div class="hb-card-when">' + esc2(_hbWhen(f.lastEventAt)) + '</div>' +
+    '</div>';
+  }
+  var sent = feed.filter(function(f){ return f.status === 'sent' || f.status === 'opened'; }).map(function(f){
+    return feedCard(f, f.status === 'opened' ? '<div class="hb-card-extra" style="color:#64748b">Viewed ' + (f.openCount || 1) + '×</div>' : '');
   });
-  rows = rows.slice(0, 20);
-  if (!rows.length){ list.innerHTML = '<div style="padding:14px 4px;color:var(--text2);font-size:12px">'+(q?'No drafts match “'+esc2(q)+'”.':'No recent work.')+'</div>'; return; }
-  list.innerHTML = rows.map(function(r){
-    var when = r.t ? new Date(r.t).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
-    var badge, bg, fg;
-    if (r.unsaved){ badge = (r.kind === 'fergus' ? 'Fergus · unsaved' : (r.kind === 'new' ? 'New · unsaved' : 'Unsaved edits')); bg = '#fef3c7'; fg = '#92400e'; }
-    else { badge = 'Saved'; bg = '#dbeafe'; fg = '#1d4ed8'; }
-    var resume = r.resume === 'draft' ? ('_resumeDraft(\'' + r.key + '\')') : ('resumeSavedJob(\'' + r.id + '\')');
-    var del    = r.resume === 'draft' ? ('_deleteRecentDraft(event,\'' + r.key + '\')') : ('_deleteRecentJob(event,\'' + r.id + '\')');
-    return '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px" onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'">' +
-      '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:20px;background:' + bg + ';color:' + fg + ';white-space:nowrap">' + badge + '</span>' +
-      '<div onclick="' + resume + '" style="flex:1;min-width:0;cursor:pointer"><div style="font-size:13px;font-weight:600;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(r.client || '(untitled)') + '</div>' +
-      '<div style="font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(r.addr || '—') + '</div></div>' +
-      '<div style="font-size:11px;color:var(--text2);white-space:nowrap">' + esc2(when) + '</div>' +
-      '<span onclick="' + resume + '" style="font-size:12px;color:#0099cc;font-weight:600;white-space:nowrap;cursor:pointer">Resume →</span>' +
-      '<button onclick="' + del + '" title="Delete" style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px">✕</button>' +
+  var questions = feed.filter(function(f){ return f.status === 'queried'; }).map(function(f){
+    return feedCard(f, (f.query && f.query.message) ? '<div class="hb-card-extra" style="color:#92400e">“' + esc2(String(f.query.message).slice(0, 90)) + '”</div>' : '');
+  });
+  var declined = feed.filter(function(f){ return f.status === 'declined'; }).map(function(f){ return feedCard(f, ''); });
+  var accepted = feed.filter(function(f){ return f.status === 'accepted'; }).map(function(f){
+    return feedCard(f, (f.accepted ? '<div class="hb-card-extra" style="color:#15803d;font-weight:600">' + esc2(f.accepted.name || '') + ' · ' + fmtMoney(f.accepted.total || 0) + '</div>' : ''));
+  });
+  var draftCards = drafts.map(function(r){
+    var resume = r.resume === 'draft' ? ("_resumeDraft('" + r.key + "')") : ("resumeSavedJob('" + r.id + "')");
+    var del    = r.resume === 'draft' ? ("_deleteRecentDraft(event,'" + r.key + "')") : ("_deleteRecentJob(event,'" + r.id + "')");
+    var chip = r.unsaved
+      ? '<span class="hb-chip" style="background:#fef3c7;color:#92400e">' + (r.kind === 'fergus' ? 'Fergus · unsaved' : 'Unsaved') + '</span>'
+      : '<span class="hb-chip" style="background:#dbeafe;color:#1d4ed8">Saved</span>';
+    return '<div class="hb-card" onclick="' + resume + '">' + chip +
+      '<button class="hb-card-del" title="Delete" onclick="' + del + '">✕</button>' +
+      '<div class="hb-card-client">' + esc2(r.client || '(untitled)') + '</div>' +
+      '<div class="hb-card-sub">' + esc2(r.addr || '—') + '</div>' +
+      '<div class="hb-card-when">' + esc2(_hbWhen(r.t)) + '</div>' +
+    '</div>';
+  });
+  var orderCards = orders.map(function(o){
+    return '<div class="hb-card" onclick="openJob(\'' + o.id + '\')">' +
+      '<div class="hb-card-client">' + esc2(o.client || '(untitled)') + '</div>' +
+      '<div class="hb-card-sub">' + esc2(o.addr || '—') + '</div>' +
+      (o.to ? '<div class="hb-card-extra" style="color:#6d28d9">→ ' + esc2(o.to) + '</div>' : '') +
+      '<div class="hb-card-when">' + esc2(_hbWhen(o.at)) + '</div>' +
+    '</div>';
+  });
+
+  var qaErr = window._quoteActivityError
+    ? '<div class="hb-empty" style="color:#b91c1c">Couldn’t load quote activity.<br><button onclick="fetchQuoteActivity()" style="margin-top:6px;padding:3px 10px;background:transparent;color:#b91c1c;border:1px solid #b91c1c;border-radius:6px;font-size:11px;cursor:pointer">↻ Retry</button></div>'
+    : null;
+  var cols = [
+    { title: 'Recent Drafts',   accent: '#f59e0b', cards: draftCards, empty: 'No recent work' },
+    { title: 'Quotes Sent',     accent: '#0284c7', cards: sent,       empty: 'No quotes awaiting a reply', err: qaErr },
+    { title: 'Questions',       accent: '#ea580c', cards: questions,  empty: 'No customer questions', err: qaErr },
+    { title: 'Quotes Declined', accent: '#dc2626', cards: declined,   empty: 'Nothing declined', err: qaErr },
+    { title: 'Quotes Accepted', accent: '#16a34a', cards: accepted,   empty: 'Nothing accepted yet', err: qaErr },
+    { title: 'Orders Sent',     accent: '#7c3aed', cards: orderCards, empty: 'No orders emailed yet' },
+  ];
+  host.innerHTML = cols.map(function(c){
+    return '<div class="hb-col">' +
+      '<div class="hb-col-hd" style="border-top-color:' + c.accent + '">' +
+        '<span class="hb-col-title">' + c.title + '</span>' +
+        '<span class="hb-col-count"' + (c.cards.length ? ' style="background:' + c.accent + ';color:#fff"' : '') + '>' + c.cards.length + '</span>' +
+      '</div>' +
+      '<div class="hb-col-list">' + (c.cards.length ? c.cards.join('') : (c.err || '<div class="hb-empty">' + c.empty + '</div>')) + '</div>' +
     '</div>';
   }).join('');
 }
+// Back-compat aliases — older call sites repaint the whole board now.
+function _renderRecentDrafts(){ _renderHomeBoard(); }
+
+// ── Home "Select job" type-ahead ────────────────────────────────────
+// One search box over BOTH sources the Select Job modal covers: saved
+// RoofMap jobs (client/address) and Fergus jobs (client/address/job N°,
+// instant cache hits + the same debounced server-side Fergus lookup).
+var _hbSearchTimer = null, _hbSearchSeq = 0;
+function _homeJobSearchInput(){
+  var inp = document.getElementById('homeJobSearch');
+  if (!inp) return;
+  var q = (inp.value || '').trim();
+  if (!window._selectJobsCache) {
+    api('GET', '/jobs').then(function(j){
+      window._selectJobsCache = j || [];
+      var cur = ((document.getElementById('homeJobSearch')||{}).value || '').trim();
+      _hbPaintSearch(cur);
+    }).catch(function(){});
+  }
+  _hbPaintSearch(q);
+  if (q && (S.fergConnected || (S.fergJobsCache && S.fergJobsCache.length))) {
+    clearTimeout(_hbSearchTimer);
+    var mySeq = ++_hbSearchSeq;
+    _hbSearchTimer = setTimeout(function(){ _hbServerSearchFergus(q, mySeq); }, 300);
+  }
+}
+function _hbPaintSearch(q){
+  var drop = document.getElementById('homeJobSearchDrop');
+  if (!drop) return;
+  var ql = (q || '').toLowerCase();
+  var saved = (window._selectJobsCache || []).filter(function(j){
+    if (!q) return true;
+    return ((j.client_name || '') + ' ' + (j.site_address || '')).toLowerCase().indexOf(ql) >= 0;
+  }).slice(0, q ? 8 : 6);
+  var ferg = [];
+  var allF = S.fergJobsCache || [];
+  if (allF.length) {
+    ferg = !q ? allF.slice() : allF.filter(function(j){
+      return (typeof _fergMatches === 'function') ? _fergMatches(j, q)
+        : ((j.customer || '').toLowerCase().indexOf(ql) >= 0 || (j.address || '').toLowerCase().indexOf(ql) >= 0 || String(j.jobNo || '').indexOf(q) >= 0);
+    });
+    if (typeof _fergRecencyComp === 'function') ferg.sort(_fergRecencyComp);
+    ferg = ferg.slice(0, q ? 8 : 4);
+  }
+  var rows = saved.map(function(j){
+    return '<div class="hb-drop-row" onmousedown="event.preventDefault()" onclick="_hbPickSaved(\'' + j.id + '\')">' +
+      '<span class="hb-drop-badge" style="background:#dbeafe;color:#1d4ed8">Saved</span>' +
+      '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(j.client_name || '(untitled)') + '</div>' +
+      '<div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(j.site_address || '—') + '</div></div>' +
+    '</div>';
+  }).concat(ferg.map(function(j){
+    var fid = String(j.id).replace(/[\\']/g, '');
+    return '<div class="hb-drop-row" onmousedown="event.preventDefault()" onclick="_hbPickFergus(\'' + fid + '\')">' +
+      '<span class="hb-drop-badge" style="background:#ede9fe;color:#6d28d9">Fergus</span>' +
+      '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(j.customer || j.client || '(no client)') + (j.jobNo ? ' <span style="color:#94a3b8;font-weight:500">· #' + esc2(j.jobNo) + '</span>' : '') + '</div>' +
+      '<div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc2(j.address || j.siteAddress || '—') + '</div></div>' +
+    '</div>';
+  }));
+  drop.innerHTML = rows.length ? rows.join('')
+    : '<div style="padding:14px;color:#94a3b8;font-size:12px;text-align:center">' + (q ? 'No matches yet' + ((S.fergConnected) ? ' — also checking Fergus directly…' : '') : 'Start typing to search your jobs') + '</div>';
+  drop.style.display = 'block';
+}
+async function _hbServerSearchFergus(q, seq){
+  try {
+    var proms = [
+      fergusCall('GET', '/jobs?pageSize=20&filterSearchText=' + encodeURIComponent(q))
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){ return d ? (d.value || d.jobs || d.data || []) : []; })
+        .catch(function(){ return []; })
+    ];
+    if (/^\d+$/.test(q)) {
+      proms.push(
+        fergusCall('GET', '/jobs?pageSize=20&filterJobNo=' + encodeURIComponent(q))
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(d){ return d ? (d.value || d.jobs || d.data || []) : []; })
+          .catch(function(){ return []; })
+      );
+    }
+    var batches = await Promise.all(proms);
+    if (seq !== _hbSearchSeq) return;   // a newer keystroke superseded this one
+    var serverJobs = [].concat.apply([], batches).map(_fergJobView);
+    S.fergJobsCache = S.fergJobsCache || [];
+    var seen = {}; S.fergJobsCache.forEach(function(j){ seen[j.id] = 1; });
+    serverJobs.forEach(function(j){ if (!seen[j.id]) { seen[j.id] = 1; S.fergJobsCache.unshift(j); } });
+    var inp = document.getElementById('homeJobSearch');
+    if (inp && (inp.value || '').trim() === q) _hbPaintSearch(q);
+  } catch(e){}
+}
+function _hbHideSearchDrop(){
+  var drop = document.getElementById('homeJobSearchDrop');
+  if (drop) drop.style.display = 'none';
+}
+function _hbPickSaved(id){
+  _hbHideSearchDrop();
+  var inp = document.getElementById('homeJobSearch'); if (inp) inp.value = '';
+  pickJobFromModal(id);
+}
+function _hbPickFergus(fid){
+  _hbHideSearchDrop();
+  var inp = document.getElementById('homeJobSearch'); if (inp) inp.value = '';
+  useFergusJobInModal(fid);
+}
+// Close the dropdown on outside click / Escape.
+document.addEventListener('click', function(ev){
+  if (!ev.target || !ev.target.closest || !ev.target.closest('.hb-search-wrap')) _hbHideSearchDrop();
+});
+document.addEventListener('keydown', function(ev){
+  if (ev.key === 'Escape') _hbHideSearchDrop();
+});
 // Delete an unsaved local draft (with confirm), then refresh the list.
 async function _deleteRecentDraft(ev, key){
   if (ev){ try { ev.stopPropagation(); } catch(e){} }
@@ -10877,7 +11106,7 @@ function defaultQuote(){
   var scopeNotes = (document.getElementById('scopeNotes')||{}).value || '';
   var terms = tpl.terms || qd.terms || '';
   return {
-    ref: 'FR-' + (Date.now().toString().slice(-5)),
+    ref: (((document.getElementById('jobNo')||{}).value)||'').trim() || ('FR-' + (Date.now().toString().slice(-5))),
     // Roofing (default) or pole-shed draft — honours the New Job modal's pick.
     quoteKind: (window._pendingJobType === 'poleshed') ? 'poleshed' : 'roofing',
     date: todayStr,
@@ -13067,67 +13296,25 @@ async function bootCustomerView(token){
 
 // ── Office home-screen: customer quote activity feed ──
 async function fetchQuoteActivity(){
-  var card = document.getElementById('quoteActivityCard');
-  var list = document.getElementById('quoteActivityList');
-  if (!list) return;
-  // Always show the section on the home screen — even while loading, when
-  // empty, or if the fetch fails — so recent activity is never silently
-  // hidden (the office should always see this card and know its state).
-  if (card) card.style.display = '';
-  if (!window._quoteActivityFeed) {
-    list.innerHTML = '<div style="padding:14px 4px;color:var(--text2);font-size:12px">Loading recent activity…</div>';
-  }
+  if (!document.getElementById('homeBoard')) return;
   try {
     var feed = await api('GET', '/quote-activity');
     feed = Array.isArray(feed) ? feed : [];
     feed.sort(function(a,b){ return new Date(b.lastEventAt||0) - new Date(a.lastEventAt||0); });
     window._quoteActivityFeed = feed;
-    _renderQuoteActivity();
+    window._quoteActivityError = null;
   } catch(e){
-    // Keep any previously-loaded activity on screen; only show the error when
-    // we have nothing cached to display.
+    // Keep any previously-loaded activity on the board; flag the error only
+    // when there's nothing cached to show.
     try { console.error('quote-activity load failed:', e && (e.message || e)); } catch(_){}
     if (!(window._quoteActivityFeed && window._quoteActivityFeed.length)) {
-      var l2 = document.getElementById('quoteActivityList');
-      var _emsg = (e && (e.message || String(e))) || 'unknown error';
-      if (l2) l2.innerHTML = '<div style="padding:14px 4px;color:#b91c1c;font-size:12px">Couldn’t load recent activity right now. '+
-        '<button onclick="fetchQuoteActivity()" style="margin-left:6px;padding:3px 10px;background:transparent;color:#b91c1c;border:1px solid #b91c1c;border-radius:6px;font-size:11px;cursor:pointer">↻ Retry</button>'+
-        '<div style="margin-top:6px;font-size:10.5px;color:var(--text2);word-break:break-word">'+esc2(_emsg)+'</div></div>';
+      window._quoteActivityError = (e && (e.message || String(e))) || 'unknown error';
     }
   }
+  _renderHomeBoard();
 }
-// Renders (and search-filters) the cached quote-activity feed.
-function _renderQuoteActivity(){
-  var list = document.getElementById('quoteActivityList');
-  var countEl = document.getElementById('quoteActivityCount');
-  if (!list) return;
-  var feed = window._quoteActivityFeed || [];
-  var STAT = {
-    accepted:['Accepted','#dcfce7','#15803d'], declined:['Declined','#fee2e2','#b91c1c'],
-    queried:['Question','#fef3c7','#92400e'], opened:['Opened','#dbeafe','#1d4ed8'],
-    sent:['Sent','#f1f5f9','#475569']
-  };
-  var actionable = feed.filter(function(f){ return f.status==='accepted'||f.status==='declined'||f.status==='queried'; }).length;
-  if (countEl) countEl.textContent = actionable ? ('· '+actionable+' need'+(actionable===1?'s':'')+' attention') : '';
-  var q = ((document.getElementById('quoteActivitySearch')||{}).value || '').toLowerCase().trim();
-  var rows = !q ? feed : feed.filter(function(f){
-    return ((f.client||'')+' '+(f.ref||'')+' '+((f.accepted&&f.accepted.name)||'')).toLowerCase().indexOf(q) >= 0;
-  });
-  if (!rows.length){ list.innerHTML = '<div style="padding:14px 4px;color:var(--text2);font-size:12px">'+(q?'No activity matches “'+esc2(q)+'”.':'No quote activity yet — accepted, declined, opened and queried quotes will appear here once you share a quote link with a customer.')+'</div>'; return; }
-  list.innerHTML = rows.map(function(f){
-    var s = STAT[f.status] || STAT.sent;
-    var when = f.lastEventAt ? new Date(f.lastEventAt).toLocaleString('en-NZ',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
-    var extra = '';
-    if (f.status==='queried' && f.query) extra = '<div style="font-size:12px;color:#92400e;margin-top:3px">“'+esc2(f.query.message||'')+'”</div>';
-    else if (f.status==='accepted' && f.accepted) extra = '<div style="font-size:12px;color:#15803d;margin-top:3px">Accepted by '+esc2(f.accepted.name||'')+' · '+fmtMoney(f.accepted.total||0)+'</div>';
-    else if (f.status==='opened') extra = '<div style="font-size:11px;color:var(--text2);margin-top:3px">Viewed '+(f.openCount||1)+'×</div>';
-    return '<div onclick="openJob(\''+f.jobId+'\')" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer" onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'">'+
-      '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 10px;border-radius:20px;background:'+s[1]+';color:'+s[2]+';white-space:nowrap">'+s[0]+'</span>'+
-      '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#0a1628">'+esc2(f.client||'—')+(f.ref?' <span style="color:var(--text2);font-weight:400">· '+esc2(f.ref)+'</span>':'')+'</div>'+extra+'</div>'+
-      '<div style="font-size:11px;color:var(--text2);white-space:nowrap">'+esc2(when)+'</div>'+
-    '</div>';
-  }).join('');
-}
+// Back-compat alias — the quote-activity card is now board columns.
+function _renderQuoteActivity(){ _renderHomeBoard(); }
 
 // Kick off the customer view once all functions are defined.
 if (window.__CUSTOMER_TOKEN) {
@@ -21113,7 +21300,7 @@ async function useFergusJobInModal(jobId){
     //    (otherwise the Quote tab keeps the previous job's proposal).
     S.currentJobId = null;
     try { clearAll && clearAll(true); } catch(e){}
-    S.img64 = null; S.roofData = null; S.labour = 0; S.materials = 0; S.photos = [];
+    S.img64 = null; S.roofData = null; S.labour = 0; S.materials = 0; S.photos = []; S.orderSent = null;
     var _client = j.customer || j.client || '', _addr = j.address || j.siteAddress || '';
     var c = document.getElementById('jobClient'); if (c) c.value = _client;
     var a = document.getElementById('jobAddr');   if (a) a.value = _addr;
@@ -36753,6 +36940,16 @@ async function _orderEmailSendNow(){
     });
     _orderEmailStatus('✓ Sent to ' + o.supplier.email + (o.cc ? ' — copy CC’d to ' + o.cc : ''), 'ok');
     _matMsg('✓ Order emailed to ' + o.supplier.email + (o.cc ? ' — copy CC’d to ' + o.cc : '') + '.', true);
+    // Stamp the job so the home board's "Orders Sent" column picks it up:
+    // the detail lives in draw_state (via the snapshot) and the cheap-to-list
+    // status column flips to 'ordered' so the board never has to decompress
+    // every job's multi-MB draw_state just to find ordered ones.
+    try {
+      S.orderSent = { at: new Date().toISOString(), to: o.supplier.email, supplier: (o.supplier.name || '') };
+      Promise.resolve(saveCurrentJob()).then(function(){
+        if (S.currentJobId) return api('PUT', '/jobs/' + S.currentJobId, { status: 'ordered' });
+      }).then(function(){ try { fetchRecentDrafts(); } catch(e){} }).catch(function(e){ console.warn('order stamp save failed:', e && e.message); });
+    } catch(e){}
     setTimeout(function(){ _closeOrderEmail(); _orderEmailStatus(''); }, 1600);
   } catch(err) {
     var msg = String(err && err.message || err);
