@@ -173,6 +173,48 @@ body[data-tab="select"] .content{
   margin-left:0;
   margin-right:0;
 }
+
+/* ── TABLET / PHONE MODE ────────────────────────────────────────
+   html.tablet-mode is applied automatically on coarse-pointer devices
+   (overridable from View → Tablet mode). The sidebar becomes a slide-in
+   drawer behind a ☰ button, the content goes full-bleed, touch targets
+   grow, and the Map Roof tab gets a full-height canvas with a fixed
+   bottom toolbar sized for thumbs / a pen. */
+#tabletNavBtn, #tabletToolbar, #tabletNavBackdrop{display:none}
+html.tablet-mode #tabletNavBtn{
+  display:flex;position:fixed;top:10px;left:10px;z-index:500;width:46px;height:46px;
+  align-items:center;justify-content:center;background:#0a1628;color:#fff;border:none;
+  border-radius:12px;font-size:20px;box-shadow:0 4px 14px rgba(10,22,40,.3);cursor:pointer;
+}
+html.tablet-mode.tnav-open #tabletNavBackdrop{display:block;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:390}
+html.tablet-mode .app{grid-template-columns:1fr}
+html.tablet-mode .sidebar{
+  position:fixed;left:0;top:0;bottom:0;width:280px;height:100vh;
+  transform:translateX(-103%);transition:transform .22s ease;
+  box-shadow:8px 0 30px rgba(10,22,40,.3);z-index:400;
+}
+html.tablet-mode.tnav-open .sidebar{transform:none}
+html.tablet-mode .content{padding:64px 10px 116px;max-width:none;margin:0}
+html.tablet-mode .tool-btn{padding:11px 15px;font-size:14px;border-radius:9px}
+html.tablet-mode #workflowTipBar{display:none!important}
+html.tablet-mode body[data-tab="roof"] #canvasWrap{height:calc(100vh - 330px)!important;min-height:340px}
+html.tablet-mode body[data-tab="roof"] #tabletToolbar{display:flex}
+#tabletToolbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:300;background:#0a1628;
+  padding:9px max(10px, env(safe-area-inset-right)) max(9px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  gap:6px;justify-content:space-around;box-shadow:0 -6px 20px rgba(10,22,40,.35);
+}
+.ttb-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;
+  background:transparent;border:none;color:#cbd5e1;font-family:inherit;font-size:10.5px;
+  font-weight:700;letter-spacing:.03em;padding:7px 2px;border-radius:10px;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.ttb-btn .ttb-ico{font-size:21px;line-height:1}
+.ttb-btn.on{background:#0099cc;color:#fff}
+/* Lift the floating Help bubble clear of the bottom toolbar. */
+html.tablet-mode #frHelpLauncher{bottom:88px!important}
+html.tablet-mode #frHelpPanel{bottom:88px!important}
 /* Job-pack pages stay CENTRED (matching the Quote proposal's location);
    the fit-to-width zoom (--doc-zoom) makes them fill the working area. */
 
@@ -2481,6 +2523,20 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 </script>
 
 <div class="app" style="display:none">
+<!-- Tablet-mode chrome: ☰ drawer button + backdrop, and the fixed bottom
+     toolbar shown on the Map Roof tab. All display:none outside tablet mode. -->
+<button id="tabletNavBtn" class="no-print" onclick="_tabletNavToggle()" aria-label="Menu">☰</button>
+<div id="tabletNavBackdrop" class="no-print" onclick="_tabletNavToggle(false)"></div>
+<div id="tabletToolbar" class="no-print">
+  <button class="ttb-btn" id="ttbMove"    onclick="setTool('select')"><span class="ttb-ico">✋</span>Move</button>
+  <button class="ttb-btn" id="ttbOutline" onclick="setTool('outline')"><span class="ttb-ico">🏠</span>Outline</button>
+  <button class="ttb-btn" id="ttbLines"   onclick="toggleRoofLinesMenu(event)"><span class="ttb-ico">＋</span>Lines</button>
+  <button class="ttb-btn" id="ttbCal"     onclick="setTool('calibrate')"><span class="ttb-ico">📏</span>Calibrate</button>
+  <button class="ttb-btn" onclick="undoLast()"><span class="ttb-ico">↺</span>Undo</button>
+  <button class="ttb-btn" onclick="redoLast()"><span class="ttb-ico">↻</span>Redo</button>
+  <button class="ttb-btn" onclick="_tabletPhotos()"><span class="ttb-ico">📷</span>Photos</button>
+  <button class="ttb-btn" onclick="saveCurrentJob()"><span class="ttb-ico">💾</span>Save</button>
+</div>
 <aside class="sidebar">
 <div class="hdr">
   <div class="hdr-logo">
@@ -2888,6 +2944,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
               <span id="outlineTextScaleOut" style="font-variant-numeric:tabular-nums;color:#0a1628;min-width:24px;text-align:right">1.0</span>×
             </label>
             <div style="border-top:1px solid #eef1f5;margin:11px 0 9px"></div>
+            <button type="button" id="tabletModeBtn" onclick="_cycleTabletMode()" style="width:100%;margin:0 0 9px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0a1628;font-size:12px;font-weight:600;cursor:pointer;text-align:left" title="Full-screen canvas, drawer menu and a bottom toolbar sized for touch. Auto = on for touch devices.">📱 Tablet mode: Auto</button>
+            <div style="border-top:1px solid #eef1f5;margin:0 0 9px"></div>
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Rotate photo</div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <button onclick="rotateImage(-90)" style="padding:2px 9px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff;font-size:13px" title="Rotate 90° left">↺</button>
@@ -2906,7 +2964,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
       </div>
 
-      <div style="background:#e8f4fb;border:1px solid #b3d9f0;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#0a3d5c;display:flex;align-items:center;gap:8px">
+      <div id="workflowTipBar" style="background:#e8f4fb;border:1px solid #b3d9f0;border-radius:8px;padding:8px 14px;margin:0 0 6px;font-size:12px;color:#0a3d5c;display:flex;align-items:center;gap:8px">
   <span style="font-size:16px">💡</span>
   <span><strong>Best workflow:</strong> Upload photo → click <strong>Building outline</strong> → click each corner of the roof perimeter clockwise → press <strong>Enter</strong> to close → then draw internal lines (ridge, valley etc) on top.</span>
   <span style="margin-left:auto;font-size:10px;color:#5b7f95;white-space:nowrap" title="App build">build&nbsp;2026-08-13p</span>
@@ -23996,6 +24054,76 @@ document.addEventListener('mouseup', function(e) {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _init);
   else _init();
+})();
+
+// ── TABLET MODE ─────────────────────────────────────────────────
+// html.tablet-mode turns the sidebar into a slide-in drawer, grows every
+// touch target, and gives Map Roof a full-height canvas + fixed bottom
+// toolbar. Auto-enabled on coarse-pointer devices; View → "Tablet mode"
+// cycles Auto → On → Off (persisted per device).
+function _applyTabletMode(){
+  if (window.__CUSTOMER_TOKEN) return;
+  var pref = localStorage.getItem('fr_tablet_mode') || 'auto';
+  var coarse = false;
+  try { coarse = window.matchMedia('(pointer: coarse)').matches; } catch(e){}
+  var on = pref === 'on' || (pref === 'auto' && coarse);
+  document.documentElement.classList.toggle('tablet-mode', !!on);
+  if (!on) document.documentElement.classList.remove('tnav-open');
+  var btn = document.getElementById('tabletModeBtn');
+  if (btn) btn.textContent = '📱 Tablet mode: ' + (pref === 'auto' ? ('Auto (' + (on ? 'on' : 'off') + ')') : (pref === 'on' ? 'On' : 'Off'));
+  try { window.dispatchEvent(new Event('resize')); } catch(e){}
+  try { _syncTabletBar(); } catch(e){}
+}
+function _cycleTabletMode(){
+  var pref = localStorage.getItem('fr_tablet_mode') || 'auto';
+  var next = pref === 'auto' ? 'on' : (pref === 'on' ? 'off' : 'auto');
+  try { localStorage.setItem('fr_tablet_mode', next); } catch(e){}
+  _applyTabletMode();
+}
+function _tabletNavToggle(force){
+  var root = document.documentElement;
+  var open = (force === undefined) ? !root.classList.contains('tnav-open') : !!force;
+  root.classList.toggle('tnav-open', open);
+}
+// Keep the bottom toolbar's active state in step with the current tool.
+function _syncTabletBar(){
+  var bar = document.getElementById('tabletToolbar');
+  if (!bar) return;
+  var lineTools = { ridge:1, valley:1, gutter:1, hip:1, barge:1, apron:1, changepitch:1, penetration:1, boxedpen:1, sheetmeas:1, info:1 };
+  var id = ({ select: 'ttbMove', outline: 'ttbOutline', calibrate: 'ttbCal' })[DRAW.tool] || (lineTools[DRAW.tool] ? 'ttbLines' : null);
+  bar.querySelectorAll('.ttb-btn').forEach(function(b){ b.classList.remove('on'); });
+  if (id){ var el = document.getElementById(id); if (el) el.classList.add('on'); }
+}
+// Photos button — opens the roof-photos side panel (Fergus + job photos).
+function _tabletPhotos(){
+  try { _fergusPanelOpen(); } catch(e){}
+}
+(function _tabletModeBoot(){
+  function init(){
+    if (window.__CUSTOMER_TOKEN) return;
+    // Wrap setTool so ANY tool change (desktop buttons included) relights
+    // the bottom toolbar.
+    if (window.setTool && !window.setTool.__ttb){
+      var o = window.setTool;
+      window.setTool = function(t){ var r = o.apply(this, arguments); try { _syncTabletBar(); } catch(e){} return r; };
+      window.setTool.__ttb = true;
+    }
+    // Tapping a sidebar nav item closes the drawer.
+    var sb = document.querySelector('.sidebar');
+    if (sb && !sb.__ttbWired){
+      sb.__ttbWired = true;
+      sb.addEventListener('click', function(ev){
+        if (!document.documentElement.classList.contains('tablet-mode')) return;
+        var t = ev.target;
+        if (t && t.closest && (t.closest('[onclick*="gotoTab"]') || t.closest('[onclick*="openSelectJobModal"]'))){
+          setTimeout(function(){ _tabletNavToggle(false); }, 60);
+        }
+      });
+    }
+    _applyTabletMode();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
 
 // ── Global geometry helpers ──────────────────────────────────────
