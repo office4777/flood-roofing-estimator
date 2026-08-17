@@ -12569,30 +12569,65 @@ function _custBarRows(){
   var optsAll = _qpPricedByLineItems() ? [] : ((S.quote && S.quote.options) || []);
   var mainOpt = optsAll[0] || null;
   var baseTot = (mainOpt ? _optEffectiveTotal(mainOpt) : _qpBaseSub()) * (1 + rate);
-  rows.push({ label: '<strong>Original quote — main scope of work</strong> <span style="opacity:.6">(incl. GST)</span>', value: fmtMoney(baseTot) });
+  rows.push({ kind: 'base', label: 'Original quote — main scope of work', value: fmtMoney(baseTot) });
   var extra = optsAll.slice(1).filter(function(o){ return o.selected === true; }).map(function(o){
     var ri = optsAll.indexOf(o);
     var nm = (window.DRAW && DRAW.roofs && DRAW.roofs[ri] && DRAW.roofs[ri].name) || o.title || ('Optional roof ' + ri);
     return { label: 'Optional roof — ' + nm, delta: _optEffectiveTotal(o) };
   });
   // Only picks that actually move the price are listed — "included"/$0 items
-  // (scaffolding, disposal choice, etc.) would bulk the popup out without
+  // (scaffolding, disposal choice, etc.) would bulk the bar out without
   // adding information; the full itemised record is on the acceptance page.
   extra.concat(_qpSelectionChanges()).forEach(function(c){
     if (!c.delta) return;
-    rows.push({ label: '&#8627; ' + esc2(c.label),
+    rows.push({ kind: 'change', label: String(c.label),
                 value: (c.delta > 0 ? '+' : '−') + fmtMoney(Math.abs(c.delta) * (1 + rate)) });
   });
-  rows.push({ label: 'New total <span style="opacity:.6;font-weight:400">(incl. GST)</span>', value: fmtMoney(_custBarTotalValue()), strong: true });
+  rows.push({ kind: 'total', label: 'Your total', value: fmtMoney(_custBarTotalValue()) });
   return rows;
+}
+// Compact always-visible summary INSIDE the bottom bar: main scope price at
+// the top, each price-changing pick, then the big total — so the customer
+// watches the numbers move while they scroll and choose. Tapping it still
+// opens the roomier popup with the untruncated labels.
+function _custBarSumHtml(){
+  var brEl = document.getElementById('custBarBreak');
+  var open = !!(brEl && brEl.style.display !== 'none' && brEl.innerHTML);
+  var h = '';
+  _custBarRows().forEach(function(r){
+    if (r.kind === 'total'){
+      h += '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-top:1px solid rgba(255,255,255,.28);margin-top:5px;padding-top:4px">'+
+        '<span style="font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;opacity:.8">Your total <span style="text-transform:none;letter-spacing:0;font-weight:400">(incl. GST)</span> <span id="custBarChev" style="opacity:.85">'+(open ? '▾' : '▴')+'</span></span>'+
+        '<span id="custBarTotal" class="ed-serif" style="font-size:19px;font-weight:800;color:#4fc3ff;white-space:nowrap">'+r.value+'</span>'+
+      '</div>';
+    } else if (r.kind === 'base'){
+      h += '<div style="display:flex;justify-content:space-between;gap:10px;font-size:11.5px;line-height:1.5">'+
+        '<span style="opacity:.78;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">Main scope of work <span style="opacity:.65">(incl. GST)</span></span>'+
+        '<span class="ed-serif" style="font-weight:600;white-space:nowrap">'+r.value+'</span>'+
+      '</div>';
+    } else {
+      // Trim trailing parentheticals (e.g. the scaffolding upgrade's long
+      // explainer) so each pick stays one line; the popup keeps the full text.
+      var lab = r.label.replace(/\s*\([^)]*\)\s*$/, '');
+      h += '<div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;line-height:1.5">'+
+        '<span style="opacity:.68;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">&#8627; '+esc2(lab)+'</span>'+
+        '<span class="ed-serif" style="white-space:nowrap;opacity:.92">'+r.value+'</span>'+
+      '</div>';
+    }
+  });
+  return h;
 }
 function _custBarRenderBreak(br){
   var html = '<div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:#7dd3fc;padding:11px 16px 6px">Your selection &amp; price</div>';
   _custBarRows().forEach(function(r){
+    var strong = r.kind === 'total';
+    var label = r.kind === 'base'  ? '<strong>Original quote — main scope of work</strong> <span style="opacity:.6">(incl. GST)</span>'
+              : r.kind === 'total' ? 'New total <span style="opacity:.6;font-weight:400">(incl. GST)</span>'
+              : '&#8627; ' + esc2(r.label);
     html += '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 16px;border-top:1px solid rgba(255,255,255,.12);'+
-      (r.strong ? 'background:rgba(255,255,255,.07);' : '') + '">'+
-      '<div style="font-family:var(--ed-sans,system-ui);font-size:12px;line-height:1.4;color:rgba(255,255,255,'+(r.strong ? '1' : '.75')+');'+(r.strong ? 'font-weight:700;' : '')+'">'+r.label+'</div>'+
-      '<div class="ed-serif" style="font-size:'+(r.strong ? '16px' : '13px')+';font-weight:600;white-space:nowrap;color:'+(r.strong ? '#4fc3ff' : '#fff')+'">'+r.value+'</div>'+
+      (strong ? 'background:rgba(255,255,255,.07);' : '') + '">'+
+      '<div style="font-family:var(--ed-sans,system-ui);font-size:12px;line-height:1.4;color:rgba(255,255,255,'+(strong ? '1' : '.75')+');'+(strong ? 'font-weight:700;' : '')+'">'+label+'</div>'+
+      '<div class="ed-serif" style="font-size:'+(strong ? '16px' : '13px')+';font-weight:600;white-space:nowrap;color:'+(strong ? '#4fc3ff' : '#fff')+'">'+r.value+'</div>'+
     '</div>';
   });
   br.innerHTML = html;
@@ -12616,16 +12651,17 @@ function _custBarSync(){
   if (!window.__CUSTOMER_MODE) return;
   try {
     var sum = document.getElementById('custBarSum');
-    if (sum) sum.style.display = _custBarPriceReached() ? 'flex' : 'none';
-    var el = document.getElementById('custBarTotal');
-    if (el) el.textContent = fmtMoney(_custBarTotalValue());
+    if (sum){
+      var on = _custBarPriceReached();
+      sum.style.display = on ? 'block' : 'none';
+      if (on) sum.innerHTML = _custBarSumHtml();
+    }
     var br = document.getElementById('custBarBreak');
     if (br && br.style.display !== 'none' && br.innerHTML) _custBarRenderBreak(br);
   } catch(e){}
 }
 function _custBarToggleBreakdown(){
   var bar = document.getElementById('custBar');
-  var chev = document.getElementById('custBarChev');
   var br = document.getElementById('custBarBreak');
   if (!br){
     br = document.createElement('div');
@@ -12634,11 +12670,13 @@ function _custBarToggleBreakdown(){
     document.body.appendChild(br);
   }
   var open = br.style.display !== 'none' && br.innerHTML !== '';
-  if (open){ br.style.display = 'none'; br.innerHTML = ''; if (chev) chev.textContent = '▴'; return; }
-  _custBarRenderBreak(br);
-  br.style.display = '';
-  br.style.bottom = (bar ? bar.offsetHeight : 64) + 'px';
-  if (chev) chev.textContent = '▾';
+  if (open){ br.style.display = 'none'; br.innerHTML = ''; }
+  else {
+    _custBarRenderBreak(br);
+    br.style.display = '';
+    br.style.bottom = (bar ? bar.offsetHeight : 64) + 'px';
+  }
+  _custBarSync();   // refresh the in-bar summary (chevron direction)
 }
 async function bootCustomerView(token){
   var _fetched = false;   // true once /q returned a quote — a later throw is a
@@ -12739,10 +12777,7 @@ async function bootCustomerView(token){
         '<div id="qpRoot"></div></div></div>'+
       '<div id="custBar" style="position:fixed;left:0;right:0;bottom:0;background:#0a1628;color:#fff;padding:11px 16px;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;box-shadow:0 -4px 16px rgba(0,0,0,.25);z-index:100001">'+
         '<div id="custBarSum" onclick="_custBarToggleBreakdown()" title="Tap for the full price breakdown" '+
-          'style="margin-right:auto;cursor:pointer;display:none;flex-direction:column;gap:0;min-width:0;line-height:1.25">'+
-          '<span style="font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;opacity:.72">Your total <span style="text-transform:none;letter-spacing:0;font-weight:400">(incl. GST)</span> <span id="custBarChev" style="opacity:.85">▴</span></span>'+
-          '<span id="custBarTotal" class="ed-serif" style="font-size:19px;font-weight:800;color:#4fc3ff;white-space:nowrap">—</span>'+
-        '</div>'+
+          'style="flex:1 1 100%;cursor:pointer;display:none;min-width:0;line-height:1.25"></div>'+
         '<button onclick="printCustomerQuote()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⬇ Save as PDF</button>'+
         '<button onclick="customerQuery()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Ask a question</button>'+
         '<button onclick="customerDecline()" style="padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Decline</button>'+
