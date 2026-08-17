@@ -1833,6 +1833,11 @@ html.customer-view input,html.customer-view select,html.customer-view textarea{f
 .qp-canvas > .qp-canvas-edge::after{content:'▲ printable page edge';position:absolute;right:0;top:2px;font:600 8px var(--ed-sans);letter-spacing:.05em;color:#e08a2e;text-transform:uppercase}
 html.pdf-rendering .qp-mov-grip,html.pdf-rendering .qp-mov-size,html.pdf-rendering .qp-canvas-edge,
 html.customer-view .qp-mov-grip,html.customer-view .qp-mov-size,html.customer-view .qp-canvas-edge{display:none!important}
+/* Customer link: no horizontal scroll anywhere — the A4 pages are zoomed to
+   the device width, so any sideways travel is just sub-pixel overflow that
+   makes the page wiggle left/right on phones. */
+html.customer-view, html.customer-view body{ overflow-x:hidden !important; }
+html.customer-view #customerView{ overflow-x:hidden !important; }
 /* Customer link: photos are part of the finished document — hide every photo
    edit affordance and neutralise drag/zoom cursors even if a render path
    slips an office control through. */
@@ -12809,7 +12814,10 @@ async function bootCustomerView(token){
     var ls = document.getElementById('login-screen'); if (ls) ls.style.display = 'none';
     var host = document.createElement('div');
     host.id = 'customerView';
-    host.style.cssText = 'position:fixed;inset:0;overflow-y:auto;background:#dfe3e8;z-index:100000;-webkit-overflow-scrolling:touch';
+    // overflow-x hidden: the A4 pages are zoomed to the device width, but
+    // sub-pixel rounding (and the odd element poking a few px past the page)
+    // otherwise leaves a slight left/right wiggle on phones.
+    host.style.cssText = 'position:fixed;inset:0;overflow-y:auto;overflow-x:hidden;background:#dfe3e8;z-index:100000;-webkit-overflow-scrolling:touch';
     host.innerHTML =
       '<div class="cust-scroll" style="max-width:900px;margin:0 auto;padding:12px 6px 150px">'+
         '<div id="custAcceptedBanner" style="display:none;margin:0 4px 10px">'+
