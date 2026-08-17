@@ -23088,23 +23088,41 @@ function onCanvasMouseDown(e) {
         if(p[0]<_minX)_minX=p[0]; if(p[0]>_maxX)_maxX=p[0];
         if(p[1]<_minY)_minY=p[1]; if(p[1]>_maxY)_maxY=p[1];
       });
-      // Two snap targets: centre between the eaves near the LEFT end and
-      // near the RIGHT end (sampled just inside each gable end so a step
-      // on one side gives a slightly different centre than the other).
+      // Two snap targets: the midpoint of the gable-end WALL (the far barge)
+      // each ridge end terminates on — so the snap is exactly half-way along
+      // that end wall. Previously this sampled the centre of the whole
+      // polygon cross-section near each end, which drifts off the barge
+      // midpoint when an L-wing hangs off one side of the building.
       var _snaps = [];
-      if (_horiz){
-        var _insX = Math.max(2, (_maxX-_minX)*0.04);
-        [_minX+_insX, _maxX-_insX].forEach(function(_ax){
-          var _sp = _polyVSpanAtX(DRAW.outline, _ax);
-          _snaps.push({ coord: _sp ? (_sp[0]+_sp[1])/2 : (_minY+_maxY)/2, at: _ax });
-        });
-      } else {
-        var _insY = Math.max(2, (_maxY-_minY)*0.04);
-        [_minY+_insY, _maxY-_insY].forEach(function(_ay){
-          var _sp = _polyHSpanAtY(DRAW.outline, _ay);
-          _snaps.push({ coord: _sp ? (_sp[0]+_sp[1])/2 : (_minX+_maxX)/2, at: _ay });
-        });
-      }
+      var _endWallSnap = function(_ep){
+        var _bw = null, _bd = Infinity;
+        for (var _wi = 0; _wi < DRAW.outline.length; _wi++){
+          var _wa = DRAW.outline[_wi], _wb = DRAW.outline[(_wi+1)%DRAW.outline.length];
+          var _wdx = Math.abs(_wb[0]-_wa[0]), _wdy = Math.abs(_wb[1]-_wa[1]);
+          // Only walls roughly PERPENDICULAR to the ridge can be its end wall.
+          if (_horiz ? (_wdx > _wdy) : (_wdy > _wdx)) continue;
+          var _wd = _ridgeDistToSeg(_ep[0], _ep[1], _wa, _wb);
+          if (_wd < _bd){ _bd = _wd; _bw = [_wa, _wb]; }
+        }
+        // Sanity: the ridge end sits ON its end wall, so anything far away
+        // means odd geometry — fall back to the old cross-section centre.
+        var _lim = 0.2 * Math.max(_maxX - _minX, _maxY - _minY);
+        if (!_bw || _bd > _lim) return null;
+        return _horiz
+          ? { coord: (_bw[0][1]+_bw[1][1])/2, at: _ep[0] }
+          : { coord: (_bw[0][0]+_bw[1][0])/2, at: _ep[1] };
+      };
+      [_rp0, _rp1].forEach(function(_ep){
+        var _s = _endWallSnap(_ep);
+        if (_s){ _snaps.push(_s); return; }
+        if (_horiz){
+          var _sp = _polyVSpanAtX(DRAW.outline, _ep[0]);
+          _snaps.push({ coord: _sp ? (_sp[0]+_sp[1])/2 : (_minY+_maxY)/2, at: _ep[0] });
+        } else {
+          var _sp2 = _polyHSpanAtY(DRAW.outline, _ep[1]);
+          _snaps.push({ coord: _sp2 ? (_sp2[0]+_sp2[1])/2 : (_minX+_maxX)/2, at: _ep[1] });
+        }
+      });
       DRAG_RIDGE = {
         horiz: _horiz,
         bbCenter: _horiz ? (_minY+_maxY)/2 : (_minX+_maxX)/2,
