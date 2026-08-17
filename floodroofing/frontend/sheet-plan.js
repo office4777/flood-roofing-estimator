@@ -5490,6 +5490,7 @@ function _renderRoofSheetPlanInner() {
       ? Math.max(1, whole + (rem >= 0.15 - 1e-9 ? 1 : 0))
       : Math.max(1, Math.ceil(frac - 1e-6));
     var per = regs.map(function(){ return 0; });
+    var colOf = [];
     var MINOV = coverPx * 0.02;
     for (var i = 0; i < n; i++){
       var c0 = u0 + i * coverPx, c1 = c0 + coverPx;
@@ -5508,8 +5509,13 @@ function _renderRoofSheetPlanInner() {
         });
       }
       per[best]++;
+      colOf.push(best);
     }
-    return per;
+    // colOf lets the caller anchor each region's DRAWN block at its actual
+    // column positions (columns march continuously from the face edge), so
+    // no white strip ever opens where a boundary column was handed to the
+    // longer region.
+    return { per: per, colOf: colOf, u0: u0 };
   }
   function _enumSimpleGableMono(){
     var checkSecs = [], isMono = (DRAW.roofType === 'mono'), isDutch = (DRAW.roofType === 'dutch');
@@ -5592,14 +5598,18 @@ function _renderRoofSheetPlanInner() {
         }
         // Each SIDE of the ridge is one face: count its columns across the
         // whole face width (never one round-up per gutter run), boundary
-        // laps take the longer length — see _sgmFaceCols.
+        // laps take the longer length — see _sgmFaceCols. Sections are
+        // anchored at their COLUMN positions (continuous march from the
+        // face edge) so adjoining blocks always touch — no white strips.
         [[up,1],[dn,-1]].forEach(function(pr){
-          var per = _sgmFaceCols(pr[0]);
-          if (!per) return;
+          var fc = _sgmFaceCols(pr[0]);
+          if (!fc) return;
           pr[0].forEach(function(reg, k){
-            if (!per[k]) return;
-            addGroup(orderedLengthMm(reg.run*effectiveScale*pitchFactor), per[k],
-                     mkSec(R, reg.u0, reg.u1, ridgeP, pr[1]*reg.run, per[k], per[k], true));
+            var n = fc.per[k]; if (!n) return;
+            var i0 = fc.colOf.indexOf(k);
+            var cu0 = fc.u0 + i0 * coverPx, cu1 = cu0 + n * coverPx;
+            addGroup(orderedLengthMm(reg.run*effectiveScale*pitchFactor), n,
+                     mkSec(R, cu0, cu1, ridgeP, pr[1]*reg.run, n, n, true));
           });
         });
       });
@@ -5620,12 +5630,14 @@ function _renderRoofSheetPlanInner() {
         // sides (0.15 threshold on a single length, round-up + longer
         // sheet at length changes on a stepped face).
         var _mregs = _sgmSplit(uLo,uHi,ray);
-        var _mper = _sgmFaceCols(_mregs);
-        if (_mper) _mregs.forEach(function(reg, k){
-          if (!_mper[k]) return;
-          var _ms=mkSec(R, reg.u0, reg.u1, gutP, side*reg.run, _mper[k], _mper[k], true);
+        var _mfc = _sgmFaceCols(_mregs);
+        if (_mfc) _mregs.forEach(function(reg, k){
+          var n = _mfc.per[k]; if (!n) return;
+          var i0 = _mfc.colOf.indexOf(k);
+          var cu0 = _mfc.u0 + i0 * coverPx, cu1 = cu0 + n * coverPx;
+          var _ms=mkSec(R, cu0, cu1, gutP, side*reg.run, n, n, true);
           _ms.vHigh = gutP + side*reg.run;   // base was the LOW gutter — high is the far edge
-          addGroup(orderedLengthMm(reg.run*effectiveScale*pitchFactor), _mper[k], _ms);
+          addGroup(orderedLengthMm(reg.run*effectiveScale*pitchFactor), n, _ms);
         });
       });
     }
