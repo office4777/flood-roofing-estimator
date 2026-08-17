@@ -1556,6 +1556,13 @@ html.pdf-rendering .cons-row-qty{ white-space:nowrap!important; }
    10px read as one dense block ("cluttered"). No divider line under a
    section either: the gap does the separating. */
 html.pdf-rendering .mat-section{ margin-bottom:26px!important; padding-bottom:6px!important; border-bottom:none!important; }
+/* No row underlines on the exported PDF either — the dashed rules under
+   the underlay / screws / dektite rows read as more clutter on paper. */
+html.pdf-rendering .gu-row{ border-bottom:none!important; }
+/* The jp-page's own screen chrome (1px border + shadow) was being
+   CAPTURED into the PDF — it painted a faint full-width line at the end
+   of every sheet's content. */
+html.pdf-rendering .jp-page{ border:none!important; box-shadow:none!important; border-radius:0!important; }
 html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6px!important; }
 /* Print: only #jpPages elements reach paper.  Each .jp-page is one A4
    sheet so we just suppress everything else and let CSS page breaks
@@ -1638,6 +1645,7 @@ html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6p
   /* Breathing room between the printed cut-list sections, and keep each
      section (and each flashing card) in one piece across page edges. */
   html.print-jobpack .jp-flow .mat-section{ margin-bottom:26px!important; padding-bottom:14px!important; border-bottom:none!important; }
+  html.print-jobpack .gu-row{ border-bottom:none!important; }
   html.print-jobpack .mat-section:not(.mat-flash-section){ page-break-inside:avoid; break-inside:avoid; }
   html.print-jobpack .mat-fl-card{ page-break-inside:avoid; break-inside:avoid; }
 
