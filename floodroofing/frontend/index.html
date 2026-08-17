@@ -5143,8 +5143,17 @@ function gotoTab(t) {
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
-  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{_syncCurrentToRoof&&_syncCurrentToRoof();}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpRestorePanelState(true);}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
-  if(t!=='materials'){var __mp=document.getElementById('jpMapPanel'); if(__mp)__mp.classList.remove('is-open');}
+  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{_jpRestorePanelState(true, true);}catch(e){}try{_syncCurrentToRoof&&_syncCurrentToRoof();}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
+  // Leaving Job Pack: hide the maps panel INSTANTLY — letting it slide out
+  // over the incoming tab read as the pop-out "jumping around".
+  if(t!=='materials'){
+    var __mp=document.getElementById('jpMapPanel');
+    if(__mp && __mp.classList.contains('is-open')){
+      __mp.classList.add('sidepop-instant');
+      __mp.classList.remove('is-open');
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ __mp.classList.remove('sidepop-instant'); }); });
+    }
+  }
   // Pricing slide-out is available only on the Quote tab.
   (function(){
     var _pp=document.getElementById('quotePricingPanel');
@@ -28810,16 +28819,20 @@ function _jpToggleMapPanel(){
   if (open){ _jpApplyMapPanelWidth(); renderJpMapPanel(); _setPopReserve(p.getBoundingClientRect().width); }
   else { _setPopReserve(0); }
 }
-function _jpRestorePanelState(instant){
+function _jpRestorePanelState(instant, skipRender){
   var p = document.getElementById('jpMapPanel'); if (!p) return;
   // instant = tab-switch restore: appear in place, no slide (see _fergusPanelOpen).
+  // skipRender = show the frame + reserve NOW (start of the Job Pack tab
+  // entry, before the heavy renders) and let the caller render the map
+  // thumbnails once at the end — capturing them is expensive, and doing it
+  // twice made the panel visibly rebuild ("jump around").
   if (instant) p.classList.add('sidepop-instant');
   _jpApplyMapPanelWidth();
   // Popped out by DEFAULT — only stay closed if the user explicitly closed it.
   var open = localStorage.getItem('fr_jp_map_panel_open') !== '0';
   p.classList.toggle('is-open', open);
   if (instant) requestAnimationFrame(function(){ requestAnimationFrame(function(){ p.classList.remove('sidepop-instant'); }); });
-  if (open) { try { renderJpMapPanel(); } catch(e){} }
+  if (open && !skipRender) { try { renderJpMapPanel(); } catch(e){} }
   _setPopReserve(open ? p.getBoundingClientRect().width : 0);
 }
 // Drag the panel's left edge to resize (right-anchored). Persisted.
@@ -28868,7 +28881,7 @@ function renderJpMapPanel(){
     list.innerHTML = '<div style="padding:14px 4px;font-size:11px;color:var(--text2);font-style:italic">Draw your roof on the Map Roof tab — maps will populate here.</div>';
     return;
   }
-  list.innerHTML = items.map(function(it){
+  var _html = items.map(function(it){
     // Full-resolution capture so the big pictures stay crisp when zoomed.
     var preview = _jpCaptureMap(it.key, {});
     var imgHtml = preview
@@ -28882,6 +28895,15 @@ function renderJpMapPanel(){
       '<div class="jp-map-label"><span>'+esc(it.label)+'</span><small>'+esc(it.sub||'')+'</small></div>' +
     '</div>';
   }).join('');
+  // Skip the DOM write when nothing changed (same maps → same captures) and
+  // preserve the panel's scroll position when it did — an innerHTML rebuild
+  // otherwise blanks the panel and snaps it back to the top ("jumpy").
+  if (list.__jpHtml === _html) return;
+  var _sc = document.getElementById('jpMapPanelScroll');
+  var _scTop = _sc ? _sc.scrollTop : 0;
+  list.innerHTML = _html;
+  list.__jpHtml = _html;
+  if (_sc) _sc.scrollTop = _scTop;
   try { _jpMapApplyZoom(); } catch(e){}   // keep the current zoom after a re-render
 }
 function _jpMapPanelItems(){
