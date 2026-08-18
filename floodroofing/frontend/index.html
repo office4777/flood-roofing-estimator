@@ -3703,6 +3703,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
        the office can flip Main Roof / Roof 2 from anywhere in the panel. Filled
        by _renderPricingRoofSwitchBar() (hidden on single-roof jobs). -->
   <div id="pricingRoofSwitchBar" class="no-print" style="display:none"></div>
+  <!-- Which building am I pricing? On a multi-roof job the numbers on this
+       panel belong to ONE roof, and a name in a button was not enough to tell
+       them apart. This little map singles it out. -->
+  <div id="pricingRoofMap" class="no-print" style="display:none"></div>
   <div id="quotePricingHost"></div>
 </aside>
 
@@ -7156,6 +7160,7 @@ function _labourCostForRoof(idx){
 function _updateRoofLabour(idx, field, val){
   var rl = _roofLabour(idx);
   rl[field] = parseFloat(val) || 0;
+  if (field === 'leadHrs' || field === 'appHrs') _setLabourHrsManual(idx, true);
   try { calcLabour(); } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
@@ -7249,8 +7254,23 @@ function _labourCalcHours(idx){
 }
 // Write the computed 2-man hours into the Lead + Apprentice hours for a roof
 // (both work the full crew duration). Roof 0 = the main labour table.
+/* Hours typed by hand beat the auto-calc.  The calculator re-ran on every
+   render and wrote the computed hours straight back over the Lead and
+   Apprentice rows, so a manual figure vanished the instant anything else on
+   the panel changed. A roof whose hours have been set by hand is flagged and
+   left alone until the office asks for the calculated number back. */
+function _labourHrsManual(idx){
+  return !!(S.quote && S.quote.labourHrsManual && S.quote.labourHrsManual[idx]);
+}
+function _setLabourHrsManual(idx, on){
+  if (!S.quote) return;
+  if (!S.quote.labourHrsManual) S.quote.labourHrsManual = {};
+  if (on) S.quote.labourHrsManual[idx] = true;
+  else delete S.quote.labourHrsManual[idx];
+}
 function _applyLabourCalcToHours(idx){
   if (!S.quote) return;
+  if (_labourHrsManual(idx)) return;              // the office typed these
   var h = _labourCalcHours(idx).hours2;
   if (idx === 0){
     if (!S.quote.labour) return;
@@ -7258,6 +7278,14 @@ function _applyLabourCalcToHours(idx){
   } else {
     var rl = _roofLabour(idx); rl.leadHrs = h; rl.appHrs = h;
   }
+}
+// "Back to the calculated hours" — drops the manual figures for this roof.
+function _labourHrsUseAuto(idx){
+  _setLabourHrsManual(idx, false);
+  try { _applyLabourCalcToHours(idx); } catch(e){}
+  try { calcLabour(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
 function _toggleLabourCalc(on){
   _labourCalcCfg().enabled = !!on;
@@ -7296,11 +7324,21 @@ function _resetLabourCalcQty(idx){
 function _labourCalcPanelHtml(ri){
   var show = _showLabourCalc();
   var calc = _labourCalcHours(ri);
+  var manual = _labourHrsManual(ri);
   var head = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:'+(show?'10px':'0')+'">'+
     '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:700;color:#0a1628">'+
       '<input type="checkbox" '+(show?'checked':'')+' onchange="_toggleShowLabourCalc(this.checked)" style="width:auto;margin:0"> 🧮 Show labour auto-calculations</label>'+
-    '<span style="font-size:10.5px;color:var(--text2);margin-left:auto">'+calc.hours2+' hrs auto-applied · roofing only</span>'+
-  '</div>';
+    '<span style="font-size:10.5px;color:var(--text2);margin-left:auto">'+
+      (manual ? 'calculated: '+calc.hours2+' hrs' : calc.hours2+' hrs auto-applied · roofing only')+'</span>'+
+  '</div>'+
+  // Typed-over hours are easy to forget about — say so, and make the way back
+  // one click, whether or not the calculator itself is expanded.
+  (manual
+    ? '<div id="labourHrsManualNote" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:'+(show?'0 0 10px':'8px 0 0')+';padding:7px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:7px">'+
+        '<span style="font-size:11.5px;color:#7c2d12;font-weight:600">✎ Hours set by hand for '+esc(_pricingRoofName(ri))+' — the calculator is not touching them.</span>'+
+        '<button type="button" onclick="_labourHrsUseAuto('+ri+')" style="margin-left:auto;background:none;border:none;color:#b45309;font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline;padding:2px 0">↻ Use the calculated '+calc.hours2+' hrs</button>'+
+      '</div>'
+    : '');
   if (!show) {
     return '<div style="margin-bottom:12px;padding:9px 11px;background:#f1f7ff;border:1px solid #cfe0f5;border-radius:8px">'+head+'</div>';
   }
@@ -7368,6 +7406,31 @@ function _renderPricingRoofSwitchBar(){
     '</button>';
   }
   bar.innerHTML = html;
+  try { _renderPricingRoofMap(); } catch(e){}
+}
+/* The mini map under the roof switcher: every building drawn, the one being
+   priced picked out in full colour with an amber ring, the rest greyed. */
+function _renderPricingRoofMap(){
+  var host = document.getElementById('pricingRoofMap');
+  if (!host) return;
+  if (_pricingRoofCount() < 2){ host.style.display = 'none'; host.innerHTML = ''; return; }
+  var svg = '';
+  try {
+    if (typeof _qpStashRoofGeom === 'function') _qpStashRoofGeom(false);
+    if (typeof _qpRoofMapSvg === 'function'){
+      svg = _qpRoofMapSvg({ highlightIdx: _pricingRoofIdx(), showBg: false, maxH: 150 });
+    }
+  } catch(e){ svg = ''; }
+  if (!svg){ host.style.display = 'none'; host.innerHTML = ''; return; }
+  host.style.display = 'block';
+  host.innerHTML =
+    '<div style="padding:8px 10px 10px;background:#fffbeb;border:1px solid #fde68a;border-bottom:none">' +
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">' +
+        '<span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;flex:0 0 auto"></span>' +
+        '<span style="font-size:11px;font-weight:700;color:#78350f;letter-spacing:.02em">Pricing ' +
+          esc(_pricingRoofName(_pricingRoofIdx())) + '</span>' +
+      '</div>' + svg +
+    '</div>';
 }
 // Big roof-switch buttons for the top of each pricing section (multi-roof only).
 function _pricingRoofTabsHtml(){
@@ -7596,6 +7659,8 @@ function snapshotCurrentJob(){
             sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[],
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
             gableRidgeOffset:DRAW.gableRidgeOffset||0,
+            roofBaseHoriz:(typeof DRAW.roofBaseHoriz==='boolean'?DRAW.roofBaseHoriz:null),
+            monoBaseDeg:(typeof DRAW.monoBaseDeg==='number'?DRAW.monoBaseDeg:null),
             dutchGabletFrac:(typeof DRAW.dutchGabletFrac==='number'?DRAW.dutchGabletFrac:0.5),
             roofs: (Array.isArray(DRAW.roofs) ? DRAW.roofs : []),
             activeRoofIdx: (typeof DRAW.activeRoofIdx === 'number' ? DRAW.activeRoofIdx : -1) },
@@ -7635,6 +7700,8 @@ function restoreFromJob(j){
     DRAW.roofType = snap.draw.roofType || DRAW.roofType || '';
     DRAW.rotation = snap.draw.rotation || 0;
     DRAW.gableRidgeOffset = snap.draw.gableRidgeOffset || 0;
+    DRAW.roofBaseHoriz = (typeof snap.draw.roofBaseHoriz === 'boolean') ? snap.draw.roofBaseHoriz : undefined;
+    DRAW.monoBaseDeg   = (typeof snap.draw.monoBaseDeg === 'number')   ? snap.draw.monoBaseDeg   : undefined;
     DRAW.dutchGabletFrac = (typeof snap.draw.dutchGabletFrac === 'number') ? snap.draw.dutchGabletFrac : 0.5;
     // Rebuild the multi-roof archive so every roof survives a save + reopen,
     // and so "add another building outline" appends a roof instead of wiping
@@ -10731,6 +10798,7 @@ function updateScaffoldType(val){
 }
 function updateLabour(field, val){
   var p = _pricingState(); p.L[field] = parseFloat(val) || 0;
+  if (field === 'leadHrs' || field === 'appHrs') _setLabourHrsManual(0, true);
   // Editing a RATE column on this job detaches it from the settings default.
   if (field === 'leadCost' || field === 'leadPrice' || field === 'appCost' || field === 'appPrice') {
     S.quote.labourRatesCustom = true;
@@ -15335,6 +15403,10 @@ function _qpRoofMapSvg(opts){
   var INCL={fill:'#dbeafe',stroke:'#1d4ed8',text:'#1e3a8a'};
   var EXCL={fill:'#fee2e2',stroke:'#dc2626',text:'#991b1b'};
   var sel = opts.sel || {};
+  // opts.highlightIdx: single out ONE roof and mute the rest. Used by the
+  // Pricing tab, where the office needs to see at a glance which building
+  // the labour, scaffold and materials on screen actually belong to.
+  var hi = (typeof opts.highlightIdx === 'number') ? opts.highlightIdx : null;
   var fontSize=Math.max(11,Math.min(28,h/22)), subSize=Math.max(9,Math.min(18,h/32));
   var showGutters = !!opts.showGutters;
   var svg='<svg viewBox="'+minX+' '+minY+' '+w+' '+h+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-height:'+(opts.maxH||_qpRoofMapMaxH())+'px;background:#fff;border:1px solid var(--ed-line);border-radius:6px;font-family:Inter,-apple-system,sans-serif">';
@@ -15348,8 +15420,15 @@ function _qpRoofMapSvg(opts){
     else included = (r.extraPos!=null) && (sel[r.extraPos]===true);
     var c = included ? INCL : EXCL;
     var pts = r.pts.map(function(p){ return p[0]+','+p[1]; }).join(' ');
-    svg+='<polygon points="'+pts+'" fill="'+c.fill+'" fill-opacity="0.78" stroke="'+c.stroke+'" stroke-width="2.5"/>';
-    r.lines.forEach(function(l){ svg+='<line x1="'+l.p[0][0]+'" y1="'+l.p[0][1]+'" x2="'+l.p[1][0]+'" y2="'+l.p[1][1]+'" stroke="'+l.c+'" stroke-width="2" stroke-linecap="round"/>'; });
+    var _isHi = (hi === null) || (r.idx === hi);
+    if (hi !== null && !_isHi){
+      // Muted: still there for context, clearly not the one being priced.
+      svg+='<polygon points="'+pts+'" fill="#e9edf3" fill-opacity="0.85" stroke="#b9c3d1" stroke-width="1.6"/>';
+    } else {
+      svg+='<polygon points="'+pts+'" fill="'+c.fill+'" fill-opacity="0.78" stroke="'+c.stroke+'" stroke-width="2.5"/>';
+      if (hi !== null) svg+='<polygon points="'+pts+'" fill="none" stroke="#f59e0b" stroke-width="5" stroke-linejoin="round" opacity="0.95"/>';
+    }
+    r.lines.forEach(function(l){ svg+='<line x1="'+l.p[0][0]+'" y1="'+l.p[0][1]+'" x2="'+l.p[1][0]+'" y2="'+l.p[1][1]+'" stroke="'+(_isHi?l.c:'#c6cedb')+'" stroke-width="2" stroke-linecap="round"/>'; });
     if (showGutters && _roofGutterIncluded(r.mode, r.idx, r.extraPos, sel)){ r.gutters.forEach(function(gp){ svg+='<line x1="'+gp[0][0]+'" y1="'+gp[0][1]+'" x2="'+gp[1][0]+'" y2="'+gp[1][1]+'" stroke="#7c3aed" stroke-width="3.5" stroke-linecap="round"/>'; }); }
     var cx=0,cy=0; r.pts.forEach(function(p){cx+=p[0];cy+=p[1];}); cx/=r.pts.length; cy/=r.pts.length;
     var sub = included ? (r.area>0 ? r.area.toFixed(1)+' m²' : '') : (r.mode==='excluded' ? 'Not included' : 'Optional — tap to add');
@@ -39998,10 +40077,13 @@ function buildGableRoofLines(outline, flipAxis) {
     if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
   });
   var bbW = maxX - minX, bbH = maxY - minY;
-  var horiz = bbW >= bbH;
-  // "Rotate roof 90°" on a gable REGENERATES with the ridge on the
-  // other axis (rotating the drawn lines geometrically only works on
-  // a square — on a rectangle the ridge pokes out past the walls).
+  /* Which way the ridge runs is a DECISION, not a measurement. Deriving it
+     from "whichever bounding side is longer right now" meant dragging a
+     corner past square silently spun the whole roof round. The axis is
+     frozen when the roof type is chosen (DRAW.roofBaseHoriz) and only
+     "Rotate roof 90°" changes it. */
+  var horiz = (window.DRAW && typeof DRAW.roofBaseHoriz === 'boolean')
+    ? DRAW.roofBaseHoriz : (bbW >= bbH);
   if (flipAxis) horiz = !horiz;
   // Ridge can slide along the gable barge — DRAW.gableRidgeOffset is
   // a signed fraction (-1..+1) of the half-bay.  0 = centred between
@@ -40533,15 +40615,51 @@ function buildMonoPitchRoofLines(outline, rotation) {
   // `rotation` shifts which outline edge becomes the gutter so the
   // "Rotate roof 90°" button cycles the slope direction.
   var n = outline.length, result = [];
-  var best = 0, bestI = 0;
-  for (var i = 0; i < n; i++) {
+  /* Which edge is the high side is chosen by DIRECTION, not by walking the
+     edge list. Two things were wrong with the old index walk: rotating
+     stepped "+1 edge index", which on a stepped footprint (a mono with a
+     step down in the gutter — six or eight corners) is not 90° at all but
+     a hop onto whatever short connector came next; and the starting edge
+     was re-picked as "the longest one" on every regen, so dragging a corner
+     could hand the high side to a different wall and spin the slope round.
+     The high side's ANGLE is frozen when the roof type is chosen and
+     "Rotate roof 90°" adds a true 90° to it. */
+  function _edgeLen(i){
     var a = outline[i], b = outline[(i+1)%n];
-    var l = Math.sqrt((b[0]-a[0])*(b[0]-a[0]) + (b[1]-a[1])*(b[1]-a[1]));
-    if (l > best) { best = l; bestI = i; }
+    return Math.sqrt((b[0]-a[0])*(b[0]-a[0]) + (b[1]-a[1])*(b[1]-a[1]));
   }
-  var rotSteps = Math.round(((rotation||0) % 360) / 90) % n;
-  if (rotSteps < 0) rotSteps += n;
-  bestI = (bestI + rotSteps) % n;
+  // A mono's high side is defined by which way it FACES, not by which way the
+  // wall runs — north and south walls run the same direction but slope
+  // opposite ways. So the stored orientation is the outward normal's bearing,
+  // which gives four real states for the four presses of Rotate 90°.
+  var _cx0 = 0, _cy0 = 0;
+  for (var _q = 0; _q < n; _q++){ _cx0 += outline[_q][0]; _cy0 += outline[_q][1]; }
+  _cx0 /= n; _cy0 /= n;
+  function _normalAng(i){
+    var a = outline[i], b = outline[(i+1)%n];
+    var ex = b[0]-a[0], ey = b[1]-a[1], eL = Math.sqrt(ex*ex+ey*ey) || 1;
+    var nx = -ey/eL, ny = ex/eL;
+    var mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+    if (nx*(mx-_cx0) + ny*(my-_cy0) < 0){ nx = -nx; ny = -ny; }   // point outward
+    return Math.atan2(ny, nx);
+  }
+  var bestI = 0, best = 0, i;
+  for (i = 0; i < n; i++){ var l0 = _edgeLen(i); if (l0 > best){ best = l0; bestI = i; } }
+  var baseDeg = (window.DRAW && typeof DRAW.monoBaseDeg === 'number')
+    ? DRAW.monoBaseDeg : (_normalAng(bestI) * 180 / Math.PI);
+  var wantRad = (baseDeg + (rotation || 0)) * Math.PI / 180;
+  // Among the walls facing that way (within ~50°), take the longest; if the
+  // shape has none facing that way, take whichever faces closest.
+  var pick = -1, pickLen = -1, fbI = -1, fbDot = -2;
+  for (i = 0; i < n; i++){
+    var d = Math.cos(_normalAng(i) - wantRad);        // 1 = faces exactly that way
+    if (d > fbDot){ fbDot = d; fbI = i; }
+    if (d < 0.64) continue;
+    var li = _edgeLen(i);
+    if (li > pickLen){ pickLen = li; pick = i; }
+  }
+  if (pick >= 0) bestI = pick;
+  else if (fbI >= 0) bestI = fbI;
   // The longest edge is the HIGH side (a barge / ridge-equivalent that seeds
   // the sheet runs). Every edge PARALLEL to it is a LOW eave → gutter (so a
   // stepped low edge is a gutter, not a barge, and each run drains to its own
@@ -40652,6 +40770,35 @@ function _updateRoofTypeHint(chosenType){
 function autoGenerateRoof(type, rotation) {
   if(!DRAW.outline||DRAW.outline.length<3){alert('Draw your building outline first.');return;}
   saveSnapshot();
+  /* Picking a shape from the sheet (no rotation passed) is the one moment
+     the roof's orientation is decided from the drawing. From then on it is
+     remembered, so corner drags move the walls without spinning the roof —
+     only "Rotate roof 90°" turns it. */
+  if (rotation === undefined || rotation === null){
+    try {
+      var _bx0=Infinity,_by0=Infinity,_bx1=-Infinity,_by1=-Infinity;
+      DRAW.outline.forEach(function(p){
+        if(p[0]<_bx0)_bx0=p[0]; if(p[0]>_bx1)_bx1=p[0];
+        if(p[1]<_by0)_by0=p[1]; if(p[1]>_by1)_by1=p[1];
+      });
+      DRAW.roofBaseHoriz = (_bx1-_bx0) >= (_by1-_by0);
+      var _mn = DRAW.outline.length, _mBest = 0, _mI = 0;
+      for (var _mk = 0; _mk < _mn; _mk++){
+        var _ma = DRAW.outline[_mk], _mb = DRAW.outline[(_mk+1)%_mn];
+        var _ml = Math.hypot(_mb[0]-_ma[0], _mb[1]-_ma[1]);
+        if (_ml > _mBest){ _mBest = _ml; _mI = _mk; }
+      }
+      var _mA = DRAW.outline[_mI], _mB = DRAW.outline[(_mI+1)%_mn];
+      var _mcx = 0, _mcy = 0;
+      DRAW.outline.forEach(function(p){ _mcx += p[0]; _mcy += p[1]; });
+      _mcx /= _mn; _mcy /= _mn;
+      var _mex = _mB[0]-_mA[0], _mey = _mB[1]-_mA[1], _meL = Math.hypot(_mex,_mey) || 1;
+      var _mnx = -_mey/_meL, _mny = _mex/_meL;
+      var _mmx = (_mA[0]+_mB[0])/2, _mmy = (_mA[1]+_mB[1])/2;
+      if (_mnx*(_mmx-_mcx) + _mny*(_mmy-_mcy) < 0){ _mnx = -_mnx; _mny = -_mny; }
+      DRAW.monoBaseDeg = Math.atan2(_mny, _mnx) * 180 / Math.PI;   // which way the high side faces
+    } catch(e){}
+  }
   clearRoofLines();
   var lines=[];
   var rot = ((rotation || 0) % 360 + 360) % 360;
@@ -40713,7 +40860,7 @@ function clearRoofLines() {
 // DRAW.outline as before; the model is additive.
 DRAW.roofs = DRAW.roofs || [];
 DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
-var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac'];
+var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg'];
 // Defaults for the SCALAR per-roof fields. Used when loading a roof that
 // doesn't carry a value for one, so it resets to a clean default instead
 // of leaking the previously-active roof's value into the newly-loaded one
@@ -40722,6 +40869,9 @@ var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','outl
 var ROOF_FIELD_DEFAULTS = {
   outlineDone:false, roofType:'', calPitch:0, rotation:0,
   gableRidgeOffset:0, dutchGabletFrac:0.5,
+  // undefined = "not decided yet", so a fresh roof takes its orientation
+  // from its own drawing instead of inheriting the last roof's.
+  roofBaseHoriz:undefined, monoBaseDeg:undefined,
 };
 function _newEmptyRoof(name){
   return {
@@ -40729,6 +40879,7 @@ function _newEmptyRoof(name){
     outline: [], lines: [], sections: [], penetrations: [], infoItems: [],
     outlineDone: false, roofType: '', calPitch: 0, rotation: 0,
     gableRidgeOffset: 0, dutchGabletFrac: 0.5,
+    roofBaseHoriz: undefined, monoBaseDeg: undefined,
   };
 }
 function _syncCurrentToRoof(){
