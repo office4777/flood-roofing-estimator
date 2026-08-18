@@ -3,12 +3,19 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RoofMap</title>
 <meta name="description" content="RoofMap — roofing quote &amp; proposal builder">
 <link rel="icon" type="image/png" href="brand/roofmap_icon.png">
 <link rel="apple-touch-icon" href="brand/roofmap_icon.png">
 <meta name="theme-color" content="#1f6fc0">
+<!-- Installable app: Chrome → "Install app" puts RoofMap on the home screen
+     and runs it full screen (no address bar) for onsite use. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RoofMap">
 <!-- Open the backend connection while the (large) page is still downloading —
      the customer-quote prefetch below rides on this warm socket. -->
 <link rel="preconnect" href="https://flood-roofing-estimator-production.up.railway.app" crossorigin>
@@ -226,8 +233,13 @@ html.tablet-mode #frHelpPanel{bottom:88px!important}
 html.site-mode #tabletNavBtn{display:none!important}
 #phoneTopBar{display:none}
 html.site-mode #phoneTopBar{
-  display:flex;position:fixed;top:0;left:0;right:0;height:52px;z-index:495;
-  align-items:center;gap:8px;padding:0 8px;background:#0a1628;
+  display:flex;position:fixed;top:0;left:0;right:0;z-index:495;
+  /* Full screen means the page owns the notch area too — grow by the
+     safe-area inset rather than letting a cutout sit over the ☰ button. */
+  height:calc(52px + env(safe-area-inset-top, 0px));
+  align-items:center;gap:8px;background:#0a1628;
+  padding:env(safe-area-inset-top, 0px) max(8px, env(safe-area-inset-right, 0px))
+          0 max(8px, env(safe-area-inset-left, 0px));
   box-shadow:0 2px 10px rgba(10,22,40,.28);
 }
 #phoneNavBtn{flex:0 0 auto;width:38px;height:38px;border:none;border-radius:10px;
@@ -252,7 +264,7 @@ html.site-mode body[data-tab="roof"] #nextBar-tab-roof,
 html.site-mode body[data-tab="roof"] #workflowTipBar{display:none!important}
 html.site-mode body[data-tab="roof"] #roofPlanCard{padding:0!important;margin:0!important;border:none;background:transparent;box-shadow:none}
 html.site-mode body[data-tab="roof"] #canvasWrap{
-  position:fixed!important;top:52px!important;left:0!important;right:0!important;bottom:var(--ttb-h,72px)!important;
+  position:fixed!important;top:calc(52px + env(safe-area-inset-top, 0px))!important;left:0!important;right:0!important;bottom:var(--ttb-h,72px)!important;
   width:auto!important;height:auto!important;border-radius:0!important;margin:0!important;
 }
 html.site-mode #roofCanvas{width:100%!important;height:100%!important}
@@ -2690,6 +2702,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
   </div>
   <button class="nav-btn" id="navSiteModeBtn" onclick="_toggleSiteMode()" style="display:none"></button>
+  <button class="nav-btn" id="navInstallBtn" onclick="_frInstallApp()" style="display:none"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2.5V10M8 10L5 7M8 10L11 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 11.5V12.5C3 13.05 3.45 13.5 4 13.5H12C12.55 13.5 13 13.05 13 12.5V11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Install app</button>
   <button class="nav-btn" id="navRoofImgBtn" onclick="_phoneSetRoofImage()" style="display:none"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6.8" r="1.1" stroke="currentColor" stroke-width="1.2"/><path d="M3 11.5L6.5 8.5L9 10.5L11 9L13 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Set roof image</button>
   <button class="nav-btn active" onclick="gotoTab('select')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7L8 2.5L13.5 7M4 6V13H12V6" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>Home</button>
   <!-- Sidebar job chip: hidden until a job is loaded. Shows the Fergus
@@ -8728,16 +8741,29 @@ function resumeSavedJob(id){ return openJob(id); }
 // browser shows the login screen first and then lands on the job.
 (function _deepLinkBoot(){
   if (window.__CUSTOMER_TOKEN) return;
-  var jobId = null, tab = 'materials';
+  var jobId = null, tab = 'materials', qs = null;
   try {
-    var qs = new URLSearchParams(location.search);
+    qs = new URLSearchParams(location.search);
     jobId = qs.get('job');
     tab = qs.get('tab') || 'materials';
     // Older PDFs deep-linked to the legacy 'jobpack' stub — send those to the
     // real Job Pack tab (materials) instead.
     if (tab === 'jobpack') tab = 'materials';
   } catch(e){ return; }
-  if (!jobId) return;
+  // No job id? A bare ?tab= still counts — the installed app's "Map a roof"
+  // shortcut uses it to land straight on the canvas after login.
+  if (!jobId){
+    if (!qs.get('tab')) return;
+    var tTries = 0;
+    (function goTab(){
+      if (!localStorage.getItem('fr_token')){
+        if (++tTries < 600) setTimeout(goTab, 1000);
+        return;
+      }
+      try { gotoTab(tab); } catch(e){}
+    })();
+    return;
+  }
   var tries = 0;
   function go(){
     if (!localStorage.getItem('fr_token')) {
@@ -40390,4 +40416,59 @@ document.addEventListener('mousedown',function(e){
 </body>
 <script src="sheet-plan.js"></script>
 <script src="help-bot.js"></script>
+<script>
+/* ── INSTALLABLE APP ─────────────────────────────────────────────
+   Registers the service worker that lets RoofMap open (and keep working)
+   with no signal on a roof, and makes Chrome offer "Install app" so it
+   runs full screen from the home screen. Registered on load so it never
+   competes with the page download, and skipped for customer quote links —
+   a customer opening a proposal once shouldn't cache the whole app. */
+(function(){
+  if (!('serviceWorker' in navigator)) return;
+  if (window.__CUSTOMER_TOKEN) return;
+  if (!window.isSecureContext) return;   // https or localhost only
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(err){
+      console.warn('Service worker registration failed:', err);
+    });
+  });
+})();
+
+/* The Install button in the ☰ menu. Chrome fires beforeinstallprompt when
+   the app qualifies; we stash it and light the menu item up. Already
+   installed (or an unsupported browser) → the item stays hidden. */
+window.__frInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e){
+  e.preventDefault();
+  window.__frInstallPrompt = e;
+  try { _syncInstallBtn(); } catch(err){}
+});
+window.addEventListener('appinstalled', function(){
+  window.__frInstallPrompt = null;
+  try { _syncInstallBtn(); } catch(err){}
+});
+function _frStandalone(){
+  try {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.matchMedia('(display-mode: fullscreen)').matches ||
+           window.navigator.standalone === true;
+  } catch(e){ return false; }
+}
+function _syncInstallBtn(){
+  var b = document.getElementById('navInstallBtn');
+  if (!b) return;
+  b.style.display = (window.__frInstallPrompt && !_frStandalone()) ? '' : 'none';
+}
+function _frInstallApp(){
+  var p = window.__frInstallPrompt;
+  if (!p){
+    alert('To install RoofMap, open your browser menu and choose "Install app" (Chrome) or "Add to Home Screen" (Safari).');
+    return;
+  }
+  window.__frInstallPrompt = null;
+  p.prompt();
+  p.userChoice.then(function(){ _syncInstallBtn(); }).catch(function(){});
+}
+document.addEventListener('DOMContentLoaded', function(){ try { _syncInstallBtn(); } catch(e){} });
+</script>
 </html>
