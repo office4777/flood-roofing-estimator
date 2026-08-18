@@ -283,6 +283,14 @@ html.phone-mode body[data-tab="roof"].rtp-collapsed #roofSheetHandle{
   background:#0a1628;color:#fff;font-family:inherit;font-size:12px;font-weight:700;
   box-shadow:0 4px 14px rgba(10,22,40,.32);cursor:pointer}
 html.phone-mode body[data-tab="roof"].rtp-collapsed #roofTypePanel{display:none!important}
+#roofSheetClose{display:none}
+/* NB: no position here — the sheet rule below sets position:fixed, which is
+   already a containing block for the absolutely-placed chevron. */
+html.phone-mode body[data-tab="roof"] #roofTypePanel{padding-top:32px!important}
+html.phone-mode body[data-tab="roof"] #roofSheetClose{
+  display:flex;align-items:center;justify-content:center;position:absolute;top:4px;right:6px;z-index:3;
+  width:44px;height:26px;border:1px solid #b3d4f0;border-radius:13px;background:#fff;color:#0a1628;
+  font-size:13px;line-height:1;cursor:pointer;font-family:inherit;box-shadow:0 1px 4px rgba(10,22,40,.12)}
 html.phone-mode body[data-tab="roof"] #roofTypePanel{transition:transform .18s ease}
 /* The calibrate instruction blurb is desktop-only — the step bar says it. */
 html.phone-mode #calInstrPopup{display:none!important}
@@ -2680,6 +2688,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     </div>
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
   </div>
+  <button class="nav-btn" id="navRoofImgBtn" onclick="_phoneSetRoofImage()" style="display:none"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6.8" r="1.1" stroke="currentColor" stroke-width="1.2"/><path d="M3 11.5L6.5 8.5L9 10.5L11 9L13 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Set roof image</button>
   <button class="nav-btn active" onclick="gotoTab('select')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7L8 2.5L13.5 7M4 6V13H12V6" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>Home</button>
   <!-- Sidebar job chip: hidden until a job is loaded. Shows the Fergus
        jobNo / local id and an autosave-status pill. Sits between Select
@@ -2936,6 +2945,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <!-- Auto-generate roof panel -->
       <div id="roofTypePanel" style="display:none;margin:0 .75rem .5rem;padding:10px 14px;background:linear-gradient(135deg,#f0f8ff,#e8f4fd);border-radius:10px;border:1.5px solid #b3d4f0">
         <div id="roofTypeHeading" style="font-weight:700;font-size:12px;color:#0a1628;margin-bottom:8px">⚡ Auto-generate roof lines from outline</div>
+        <button type="button" id="roofSheetClose" class="no-print" onclick="_phoneRoofSheet(false)" title="Collapse">▼</button>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
           <button onclick="autoGenerateRoof('hip')" class="tool-btn" style="background:#0099cc;color:#fff;border-color:#0099cc;font-weight:600">🔺 Hip &amp; Valley</button>
           <button onclick="autoGenerateRoof('gable')" class="tool-btn" style="background:#059669;color:#fff;border-color:#059669;font-weight:600">🏠 Straight Gable</button>
@@ -24288,6 +24298,8 @@ function _applyTabletMode(){
   var narrow = Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 520;
   document.documentElement.classList.toggle('phone-mode', !!on && narrow);
   if (!on) document.documentElement.classList.remove('tnav-open');
+  var _ri = document.getElementById('navRoofImgBtn');
+  if (_ri) _ri.style.display = document.documentElement.classList.contains('phone-mode') ? '' : 'none';
   var btn = document.getElementById('tabletModeBtn');
   if (btn) btn.textContent = '📱 Tablet mode: ' + (pref === 'auto' ? ('Auto (' + (on ? 'on' : 'off') + ')') : (pref === 'on' ? 'On' : 'Off'));
   try { window.dispatchEvent(new Event('resize')); } catch(e){}
@@ -24344,6 +24356,33 @@ function _phoneFitCanvas(){
     }
     fitCanvasToWrap();
   } catch(e){}
+}
+// Phone: "Set roof image" from the ☰ menu. The aerial finder / upload card is
+// hidden on phones (it filled the screen), so offer its two actions directly.
+function _phoneSetRoofImage(){
+  try { _tabletNavToggle(false); } catch(e){}
+  var prev = document.getElementById('_riSheet'); if (prev) prev.remove();
+  var w = document.createElement('div');
+  w.id = '_riSheet';
+  w.style.cssText = 'position:fixed;inset:0;z-index:100055;background:rgba(10,22,40,.5);display:flex;align-items:flex-end';
+  w.innerHTML =
+    '<div style="width:100%;background:#fff;border-radius:16px 16px 0 0;padding:16px 14px calc(16px + env(safe-area-inset-bottom));font-family:inherit">' +
+      '<div style="font-size:14px;font-weight:800;color:#0a1628;margin-bottom:3px">Set roof image</div>' +
+      '<div style="font-size:12px;color:#64748b;margin-bottom:13px">Draw your outline on top of an aerial or a photo.</div>' +
+      '<button id="_riAerial" style="width:100%;padding:13px;margin-bottom:9px;background:#0a1628;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer">🛰 Find aerial photo</button>' +
+      '<button id="_riUpload" style="width:100%;padding:13px;margin-bottom:9px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:10px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer">📷 Take / choose a photo</button>' +
+      '<button id="_riCancel" style="width:100%;padding:11px;background:transparent;color:#64748b;border:none;font-size:13px;font-family:inherit;cursor:pointer">Cancel</button>' +
+    '</div>';
+  document.body.appendChild(w);
+  function close(){ w.remove(); }
+  w.onclick = function(ev){ if (ev.target === w) close(); };
+  w.querySelector('#_riCancel').onclick = close;
+  w.querySelector('#_riAerial').onclick = function(){ close(); try { _openAerialModal(); } catch(e){} };
+  w.querySelector('#_riUpload').onclick = function(){
+    close();
+    var f = document.getElementById('roofFile');
+    if (f) f.click();
+  };
 }
 // Phone: the roof-shape chooser is a sheet above the toolbar. Once a shape is
 // picked it collapses to a handle so the drawing gets the screen back; the
