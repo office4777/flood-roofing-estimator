@@ -3,17 +3,21 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RoofMap</title>
 <meta name="description" content="RoofMap — roofing quote &amp; proposal builder">
 <link rel="icon" type="image/png" href="brand/roofmap_icon.png">
 <link rel="apple-touch-icon" href="brand/roofmap_icon.png">
-<!-- Matches the app header. The installed app paints the status-bar strip
-     with this colour, so a blue that appears nowhere in the onsite UI read
-     as a pale banner sitting above the header. -->
+<!-- Matches the app header. The installed app runs standalone, so Android
+     paints the status bar with this colour and it reads as one continuous
+     navy bar with the header below it — no pale strip at the top. -->
 <meta name="theme-color" content="#0a1628">
 <!-- Installable app: Chrome → "Install app" puts RoofMap on the home screen
-     and runs it full screen (no address bar) for onsite use. -->
+     and runs it with no address bar. Standalone (not fullscreen) on purpose:
+     Android keeps its status bar and its back/home/recents bar on screen,
+     tinted to match, and the app sits between them — same as Trade Me. The
+     viewport meta deliberately omits viewport-fit=cover so the page never
+     lays out underneath either bar. -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -216,9 +220,9 @@ html.tablet-mode body[data-tab="roof"] #tabletToolbar{display:flex}
      gesture mode (where the inset is small) and in three-button mode (where
      it may be reported as zero) alike. The canvas is pinned to the toolbar's
      measured height, so it takes the change automatically. */
-  padding:9px max(10px, env(safe-area-inset-right))
+  padding:9px max(10px, env(safe-area-inset-right, 0px))
           calc(env(safe-area-inset-bottom, 0px) + 16px)
-          max(10px, env(safe-area-inset-left));
+          max(10px, env(safe-area-inset-left, 0px));
   gap:6px;justify-content:space-around;box-shadow:0 -6px 20px rgba(10,22,40,.35);
 }
 .ttb-btn{
@@ -387,8 +391,9 @@ html.site-mode #cornerRepoPopup .crn-step{font-size:9px!important}
 #phoneTopBar{display:none}
 html.site-mode #phoneTopBar{
   display:flex;position:fixed;top:0;left:0;right:0;z-index:495;
-  /* Full screen means the page owns the notch area too — grow by the
-     safe-area inset rather than letting a cutout sit over the ☰ button. */
+  /* Standalone: Android's own status bar sits above us, so the inset is 0
+     and this is a plain 52px bar. The inset stays in the sum so a browser
+     tab that DOES lay out under a cutout still keeps it off the ☰ button. */
   height:calc(52px + env(safe-area-inset-top, 0px));
   align-items:center;gap:8px;background:#0a1628;
   padding:env(safe-area-inset-top, 0px) max(8px, env(safe-area-inset-right, 0px))
@@ -14102,7 +14107,7 @@ async function bootCustomerView(token){
     try {
       var _vp = document.querySelector('meta[name="viewport"]');
       if (!_vp){ _vp = document.createElement('meta'); _vp.setAttribute('name','viewport'); document.head.appendChild(_vp); }
-      _vp.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover');
+      _vp.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no');
     } catch(e){}
     // Now that the proposal data is loaded, prefer the saved quote ref
     // for the title (matches what the customer sees in the proposal
@@ -25001,8 +25006,8 @@ function _applyTabletMode(){
   try {
     var _vp = document.querySelector('meta[name=viewport]');
     if (_vp){
-      var _locked = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
-      var _free   = 'width=device-width, initial-scale=1.0, viewport-fit=cover';
+      var _locked = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+      var _free   = 'width=device-width, initial-scale=1.0';
       var _want = site ? _locked : _free;
       if (_vp.getAttribute('content') !== _want) _vp.setAttribute('content', _want);
     }
@@ -25105,7 +25110,7 @@ function _phoneSetRoofImage(){
   w.id = '_riSheet';
   w.style.cssText = 'position:fixed;inset:0;z-index:100055;background:rgba(10,22,40,.5);display:flex;align-items:flex-end';
   w.innerHTML =
-    '<div style="width:100%;background:#fff;border-radius:16px 16px 0 0;padding:16px 14px calc(16px + env(safe-area-inset-bottom));font-family:inherit">' +
+    '<div style="width:100%;background:#fff;border-radius:16px 16px 0 0;padding:16px 14px calc(16px + env(safe-area-inset-bottom, 0px));font-family:inherit">' +
       '<div style="font-size:14px;font-weight:800;color:#0a1628;margin-bottom:3px">Set roof image</div>' +
       '<div style="font-size:12px;color:#64748b;margin-bottom:13px">Draw your outline on top of an aerial or a photo.</div>' +
       '<button id="_riAerial" style="width:100%;padding:13px;margin-bottom:9px;background:#0a1628;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer">🛰 Find aerial photo</button>' +
