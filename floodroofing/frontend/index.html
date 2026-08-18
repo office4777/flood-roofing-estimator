@@ -8,7 +8,10 @@
 <meta name="description" content="RoofMap — roofing quote &amp; proposal builder">
 <link rel="icon" type="image/png" href="brand/roofmap_icon.png">
 <link rel="apple-touch-icon" href="brand/roofmap_icon.png">
-<meta name="theme-color" content="#1f6fc0">
+<!-- Matches the app header. The installed app paints the status-bar strip
+     with this colour, so a blue that appears nowhere in the onsite UI read
+     as a pale banner sitting above the header. -->
+<meta name="theme-color" content="#0a1628">
 <!-- Installable app: Chrome → "Install app" puts RoofMap on the home screen
      and runs it full screen (no address bar) for onsite use. -->
 <link rel="manifest" href="manifest.webmanifest">
@@ -231,6 +234,21 @@ html.tablet-mode #frHelpPanel{bottom:88px!important}
    canvas as a contextual overlay. Office mode (the full tablet UI) is one
    tap away in the ☰ menu. Defaults on for phones, off for tablets. */
 html.site-mode #tabletNavBtn{display:none!important}
+/* Map Roof onsite is edge-to-edge dark chrome over a canvas. The page
+   ground goes dark with it so nothing pale can show through above the
+   fixed header — the top of the app reads as one continuous bar. */
+html.site-mode body[data-tab="roof"]{background:#0a1628!important}
+/* Move-corner pad: compact, and parked low-left so it never sits over the
+   header or the step bar. It is still draggable anywhere from its title. */
+html.site-mode #cornerRepoPopup{width:132px!important}   /* !important beats the inline width */
+html.site-mode #cornerRepoPopup .crn-btn{width:28px;height:28px;font-size:13px;border-radius:7px}
+html.site-mode #cornerRepoPopup .crn-grid{grid-template-columns:repeat(3,28px)!important;gap:4px!important;padding:7px!important}
+html.site-mode #cornerRepoPopup .crn-hint{display:none!important}
+/* Keep the title strip to one line — wrapped, it was taller than the pad. */
+html.site-mode #cornerRepoHdr{padding:4px 7px!important;white-space:nowrap;flex-wrap:nowrap}
+html.site-mode #cornerRepoPopup .crn-grip{display:none}
+html.site-mode #cornerRepoPopup .crn-title{font-size:10px!important}
+html.site-mode #cornerRepoPopup .crn-step{font-size:9px!important}
 #phoneTopBar{display:none}
 html.site-mode #phoneTopBar{
   display:flex;position:fixed;top:0;left:0;right:0;z-index:495;
@@ -3123,17 +3141,17 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
            by its header; ✕ or clicking elsewhere on the canvas closes it. -->
       <div id="cornerRepoPopup" class="no-print" style="display:none;position:fixed;z-index:2000;left:140px;top:150px;width:158px;background:#0a1628;border:1px solid #10233c;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.38);font-family:Inter,-apple-system,sans-serif">
         <div id="cornerRepoHdr" style="display:flex;align-items:center;gap:6px;padding:7px 9px;cursor:move;border-bottom:1px solid rgba(255,255,255,.12);touch-action:none">
-          <span style="font-size:12px;line-height:1">✥</span>
-          <span style="font-size:11px;font-weight:700;color:#fff">Move corner</span>
-          <span style="font-size:10px;color:#7fd4ff;margin-left:auto;font-weight:600">0.01m</span>
+          <span class="crn-grip" style="font-size:12px;line-height:1">✥</span>
+          <span class="crn-title" style="font-size:11px;font-weight:700;color:#fff">Move corner</span>
+          <span class="crn-step" style="font-size:10px;color:#7fd4ff;margin-left:auto;font-weight:600">0.01m</span>
           <button onclick="_closeCornerRepo()" title="Close" style="background:none;border:none;color:#cbd5e1;font-size:14px;line-height:1;cursor:pointer;padding:0 2px">✕</button>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,38px);gap:5px;padding:9px;justify-content:center">
+        <div class="crn-grid" style="display:grid;grid-template-columns:repeat(3,38px);gap:5px;padding:9px;justify-content:center">
           <span></span><button onclick="_cornerRepoNudge(0,-1)" class="crn-btn" title="Up 0.01m">▲</button><span></span>
           <button onclick="_cornerRepoNudge(-1,0)" class="crn-btn" title="Left 0.01m">◀</button><span style="display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.3);font-size:10px">•</span><button onclick="_cornerRepoNudge(1,0)" class="crn-btn" title="Right 0.01m">▶</button>
           <span></span><button onclick="_cornerRepoNudge(0,1)" class="crn-btn" title="Down 0.01m">▼</button><span></span>
         </div>
-        <div style="font-size:9.5px;color:rgba(255,255,255,.6);padding:0 9px 9px;text-align:center;line-height:1.4">Keyboard arrows work too. You can still drag the corner.</div>
+        <div class="crn-hint" style="font-size:9.5px;color:rgba(255,255,255,.6);padding:0 9px 9px;text-align:center;line-height:1.4">Keyboard arrows work too. You can still drag the corner.</div>
       </div>
       <!-- Sheet-length measure editor — click a sheet-length label in Move
            mode to open. Small floating window (positioned so it doesn't cover
@@ -22994,8 +23012,21 @@ function _cornerRepoOpen(idx){
   if (!window._cornerRepo.userMoved){
     try {
       var cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect();
-      pop.style.left = Math.max(6, r.left + 12) + 'px';
-      pop.style.top  = Math.max(70, r.top + 12) + 'px';
+      if (window.__siteModeOn){
+        // Onsite the canvas runs the full screen and the header + step bar
+        // own the top, so the pad goes low-left instead — clear of both,
+        // and clear of the toolbar underneath it.
+        var ttb = parseInt(getComputedStyle(document.documentElement)
+                    .getPropertyValue('--ttb-h'), 10) || 72;
+        pop.style.left = '8px';
+        pop.style.top  = Math.max(70, window.innerHeight - ttb - pop.offsetHeight - 14) + 'px';
+      } else {
+        pop.style.left = Math.max(6, r.left + 12) + 'px';
+        // Clamp into the window — on a long page the canvas can start below
+        // the fold, which used to open the pad off-screen entirely.
+        pop.style.top  = Math.min(Math.max(70, r.top + 12),
+                                  Math.max(70, window.innerHeight - pop.offsetHeight - 12)) + 'px';
+      }
     } catch(e){}
   }
   try { redrawAll(); } catch(e){}   // draw the yellow highlight ring
