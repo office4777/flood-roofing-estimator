@@ -282,7 +282,7 @@ html.tablet-mode #frHelpPanel{bottom:88px!important}
 }
 
 html.site-mode #tabletToolbar{
-  background:#0a1628;border-top:1px solid rgba(255,255,255,.08);
+  background:#0b1626;border-top:1px solid rgba(255,255,255,.08);
   box-shadow:0 -10px 26px rgba(3,8,18,.45);
 }
 html.site-mode .ttb-btn{
@@ -314,7 +314,7 @@ html.site-mode .ttb-btn.on::before{
 html.site-mode .ttb-btn:disabled,html.site-mode .ttb-btn[disabled]{color:#44506490}
 
 /* header: a little more air, softer surfaces */
-html.site-mode #phoneTopBar{background:#0a1628;box-shadow:0 1px 0 rgba(255,255,255,.06);z-index:496}
+html.site-mode #phoneTopBar{background:#0b1626;box-shadow:0 1px 0 rgba(255,255,255,.06)}
 html.site-mode #phoneNavBtn{background:rgba(255,255,255,.08);border-radius:12px;font-size:16px}
 html.site-mode #phoneJobBtn{
   background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:12px;
@@ -373,14 +373,6 @@ html.site-mode #roofViewRow{touch-action:none}
    fixed header — the top of the app reads as one continuous bar. */
 html.site-mode{background:#0a1628}
 html.site-mode body[data-tab="roof"]{background:#0a1628!important}
-/* Belt and braces for the strip at the very top of the phone. Whatever the
-   browser decides to do with the status-bar / cutout area — hide it, letterbox
-   it, hand it to the page — these pixels are painted the header's own navy, so
-   there is nothing pale left to see. Sits just under the header. */
-html.site-mode body::before{
-  content:'';position:fixed;left:0;right:0;top:0;height:140px;
-  background:#0a1628;z-index:494;pointer-events:none;
-}
 /* Move-corner pad: compact, and parked low-left so it never sits over the
    header or the step bar. It is still draggable anywhere from its title. */
 html.site-mode #cornerRepoPopup{width:132px!important}   /* !important beats the inline width */
