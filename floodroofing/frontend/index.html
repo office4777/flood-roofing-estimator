@@ -233,6 +233,19 @@ html.tablet-mode #frHelpPanel{bottom:88px!important}
    stops it jumping around. Everything else is hidden or floats over the
    canvas as a contextual overlay. Office mode (the full tablet UI) is one
    tap away in the ☰ menu. Defaults on for phones, off for tablets. */
+/* Offline / waiting-to-upload pill. Sits low-right, out of the way of the
+   toolbar and the drawing, and is hidden entirely when there is nothing to
+   report — silence means the server has everything. */
+#syncChip{
+  display:none;position:fixed;right:10px;bottom:calc(var(--ttb-h,72px) + 12px);z-index:520;
+  align-items:center;gap:6px;max-width:min(78vw,340px);
+  padding:7px 12px;border-radius:16px;background:#78350f;color:#fff;
+  font:600 11.5px/1.25 Inter,-apple-system,sans-serif;letter-spacing:.01em;
+  box-shadow:0 4px 14px rgba(10,22,40,.32);cursor:pointer;
+}
+html:not(.tablet-mode) #syncChip{bottom:14px}
+@media print{ #syncChip{display:none!important} }
+
 html.site-mode #tabletNavBtn{display:none!important}
 /* Onsite the page must NEVER pinch-zoom. A page zoom offsets the visual
    viewport from the layout viewport, which shows up as a pale band above
@@ -4128,7 +4141,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <!-- Shared hidden pickers: camera capture (phone/tablet rear camera) and
          plain gallery/file picker. Used by the buttons here, the roof-photos
          side panel and the tablet toolbar. -->
-    <input type="file" id="jobPhotoCam" accept="image/*" capture="environment" style="display:none" onchange="_jobPhotosAdd(event)">
+    <input type="file" id="jobPhotoCam" accept="image/*" capture="environment" multiple style="display:none" onchange="_jobPhotosAdd(event, true)">
     <input type="file" id="jobPhotoGal" accept="image/*" multiple style="display:none" onchange="_jobPhotosAdd(event)">
     <div class="photo-grid" id="photoGrid"></div>
   </div>
@@ -7828,6 +7841,31 @@ setTimeout(function(){
 // (no-photos) copy to localStorage, since IndexedDB writes may not
 // complete during unload.
 // ══════════════════════════════════════════════════════════════════
+/* Who made a draft, and on what. Onsite work is done on a phone or tablet
+   and picked up on the office computer, so a draft that just says "unsaved"
+   is a puzzle — it needs a name and a device against it. */
+function _meLabel(){
+  try {
+    var u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {};
+    return u.name || u.email || '';
+  } catch(e){ return ''; }
+}
+function _deviceLabel(){
+  var saved = null;
+  try { saved = localStorage.getItem('fr_device_label'); } catch(e){}
+  if (saved) return saved;
+  var ua = navigator.userAgent || '';
+  var kind = 'this device';
+  if (/iPad/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) kind = 'iPad';
+  else if (/iPhone/i.test(ua)) kind = 'iPhone';
+  else if (/Android/i.test(ua)) kind = /Mobile/i.test(ua) ? 'Android phone' : 'Android tablet';
+  else if (/Windows/i.test(ua)) kind = 'Windows PC';
+  else if (/Macintosh|Mac OS X/i.test(ua)) kind = 'Mac';
+  else if (/Linux/i.test(ua)) kind = 'Linux PC';
+  try { localStorage.setItem('fr_device_label', kind); } catch(e){}
+  return kind;
+}
+
 var DRAFTS = { _db: null, _timer: null, _lastSnapJson: null };
 function _draftDb(){
   return new Promise(function(ok, fail){
@@ -7861,6 +7899,8 @@ function _fergJobMapGet(fergId){ if (!fergId) return null; var m = _fergJobMap()
 function _snapHasSubstance(snap){
   try {
     return !!((snap.draw && snap.draw.outline && snap.draw.outline.length > 2) ||
+              (snap.draw && (snap.draw.currentPts || []).length > 1) ||
+              (snap.state && (snap.state.photos || []).length) ||      // photos alone are work worth keeping
               (snap.form && (snap.form.jobClient || snap.form.jobAddr)) ||
               (snap.state && snap.state.quote && (snap.state.quote.client || (snap.state.quote.lineItems || []).length)));
   } catch(e){ return false; }
@@ -7872,6 +7912,7 @@ function _writeLocalDraftNow(){
     if (!_snapHasSubstance(snap)) return ok(false);
     var rec = {
       key: _draftKey(), at: new Date().toISOString(),
+      by: _meLabel(), device: _deviceLabel(),
       client: (snap.form && snap.form.jobClient) || '',
       addr:   (snap.form && snap.form.jobAddr) || '',
       snap: snap,
@@ -7954,6 +7995,7 @@ window.addEventListener('beforeunload', function(){
       state: Object.assign({}, snap.state, { img64: null, photos: [] }) }));
     if (slim.state.quote && Array.isArray(slim.state.quote.condPhotos)) slim.state.quote = Object.assign({}, slim.state.quote, { condPhotos: [] });
     var rec = JSON.stringify({ key: _draftKey(), at: new Date().toISOString(),
+      by: _meLabel(), device: _deviceLabel(),
       client: (snap.form && snap.form.jobClient) || '', addr: (snap.form && snap.form.jobAddr) || '', snap: slim });
     if (rec.length < 3.5 * 1024 * 1024) localStorage.setItem('fr_unload_draft', rec);
   } catch(e){}
@@ -8000,6 +8042,144 @@ function _checkDraftsOnBoot(){
     };
   });
 }
+// ══════════════════════════════════════════════════════════════════
+// OFFLINE MODE / SYNC OUTBOX
+// On a roof there is often no reception. Every edit already lands in the
+// IndexedDB draft store above, so the app keeps working with no signal —
+// what was missing was the way BACK: a failed save left a draft sitting
+// there until the user happened to edit again. Now any draft is treated as
+// an outbox entry and pushed automatically the moment the connection
+// returns (and on a slow retry loop meanwhile), so onsite work uploads
+// itself without anybody remembering to press Save.
+// ══════════════════════════════════════════════════════════════════
+var SYNC = { busy:false, pending:0, lastErr:'', _timer:null, _lastFlush:0 };
+function _isOnline(){ return navigator.onLine !== false; }
+
+// Push ONE draft record straight to the backend, without loading it into
+// the UI — an outbox entry is data, it doesn't need to become the open job.
+/* Onsite you draw the roof first and name the job later — often never. An
+   unnamed draft still has to reach the office, so it uploads under a
+   timestamped title with the person and device on it, rather than being
+   refused for having no client name. */
+function _draftTitle(d){
+  var c = String(d.client || '').trim(), a = String(d.addr || '').trim();
+  if (c || a) return { client: c, addr: a };
+  var when = new Date(d.at || Date.now()).toLocaleString('en-NZ',
+    { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+  var who = [d.by, d.device].filter(Boolean).join(' · ');
+  return { client: 'Site draft — ' + when + (who ? ' (' + who + ')' : ''), addr: '' };
+}
+async function _syncPushDraft(d){
+  if (!d || !d.snap) return false;
+  var t = _draftTitle(d);
+  // Carry the stamp INTO the uploaded job, so the office sees who drew it
+  // and on what once it is off the device.
+  var snap = d.snap;
+  try {
+    snap = Object.assign({}, d.snap);
+    snap.draftMeta = { by: d.by || '', device: d.device || '', at: d.at || '' };
+  } catch(e){}
+  var body = { client_name: t.client, site_address: t.addr,
+               draw_state: snap, settings: {} };
+  var isSavedJob = d.key && d.key !== '__new__' && String(d.key).indexOf('ferg_') !== 0;
+  var saved = isSavedJob ? await api('PUT', '/jobs/' + d.key, body)
+                         : await api('POST', '/jobs', body);
+  // A draft that just became a real job: if it is the one open on screen,
+  // adopt the new id so the next save updates it instead of duplicating.
+  if (!isSavedJob && saved && saved.id){
+    if (_draftKey() === d.key){
+      S.currentJobId = saved.id;
+      try {
+        var _ci = document.getElementById('jobClient');
+        if (_ci && !_ci.value) _ci.value = t.client;
+      } catch(e){}
+      try { setCurrentJobLabel(Object.assign({ client_name: t.client, site_address: t.addr }, saved)); } catch(e){}
+      try { if (S.linkedJobId) _fergJobMapSet(S.linkedJobId, S.currentJobId); } catch(e){}
+    }
+    if (String(d.key).indexOf('ferg_') === 0){
+      try { _fergJobMapSet(String(d.key).slice(5), saved.id); } catch(e){}
+    }
+  }
+  await _deleteLocalDraft(d.key);
+  return true;
+}
+
+async function _syncFlush(force){
+  if (SYNC.busy || !_isOnline()) return;
+  if (!localStorage.getItem('fr_token')) return;         // not logged in yet
+  if (!force && Date.now() - SYNC._lastFlush < 8000) return;
+  SYNC.busy = true; SYNC._lastFlush = Date.now();
+  _renderSyncChip();
+  try {
+    var drafts = await _listLocalDrafts();
+    SYNC.pending = drafts.length;
+    for (var i = 0; i < drafts.length; i++){
+      var d = drafts[i];
+      try {
+        // The job on screen goes through the normal save so the UI, the job
+        // id and the Fergus link all stay in step — but only when it has a
+        // name to save under, since saveCurrentJob refuses without one.
+        // An unnamed onsite draft goes out through the outbox instead.
+        var named = !!(String(d.client || '').trim() || String(d.addr || '').trim());
+        if (_draftKey() === d.key && named && typeof saveCurrentJob === 'function'){
+          await saveCurrentJob();
+        } else {
+          await _syncPushDraft(d);
+        }
+        SYNC.pending = Math.max(0, SYNC.pending - 1);
+        SYNC.lastErr = '';
+      } catch(e){
+        SYNC.lastErr = e && e.message ? e.message : 'upload failed';
+        break;                                            // still offline / server down — try again later
+      }
+      _renderSyncChip();
+    }
+    var left = await _listLocalDrafts();
+    SYNC.pending = left.length;
+    try { if (typeof fetchRecentDrafts === 'function') fetchRecentDrafts(); } catch(e){}
+  } catch(e){
+    SYNC.lastErr = e && e.message ? e.message : 'sync failed';
+  }
+  SYNC.busy = false;
+  _renderSyncChip();
+}
+
+/* A single, quiet status pill: only ever visible when there is something to
+   say — offline, or work still waiting to upload. Silence means everything
+   is on the server. */
+function _renderSyncChip(){
+  var el = document.getElementById('syncChip');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'syncChip';
+    el.className = 'no-print';
+    el.onclick = function(){ _syncFlush(true); };
+    document.body.appendChild(el);
+  }
+  var offline = !_isOnline();
+  var n = SYNC.pending;
+  if (!offline && !n){ el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  if (offline){
+    el.style.background = '#78350f';
+    el.textContent = '⚡ Offline — saving on this device' + (n ? ' (' + n + ' to upload)' : '');
+  } else if (SYNC.busy){
+    el.style.background = '#0369a1';
+    el.textContent = '⟳ Uploading ' + n + ' saved job' + (n === 1 ? '' : 's') + '…';
+  } else {
+    el.style.background = '#b45309';
+    el.textContent = '⏳ ' + n + ' job' + (n === 1 ? '' : 's') + ' waiting to upload — tap to retry';
+  }
+}
+
+window.addEventListener('online',  function(){ _renderSyncChip(); _syncFlush(true); });
+window.addEventListener('offline', function(){ _renderSyncChip(); });
+document.addEventListener('visibilitychange', function(){ if (!document.hidden) _syncFlush(); });
+setInterval(function(){ _syncFlush(); }, 30000);
+setTimeout(function(){
+  _listLocalDrafts().then(function(d){ SYNC.pending = d.length; _renderSyncChip(); _syncFlush(true); });
+}, 2500);
+
 // The old startup "Unsaved work found — Restore it / Discard" banner is
 // retired: the Home tab's Recent drafts list now surfaces the same unsaved
 // work (with Resume + Delete), so a full-width banner on every load was just
@@ -8482,7 +8662,8 @@ async function fetchRecentDrafts(){
     if (!d || !d.key) return;
     seen[d.key] = true;
     var kind = d.key === '__new__' ? 'new' : (d.key.indexOf('ferg_') === 0 ? 'fergus' : 'saved');
-    rows.push({ t: d.at, client: d.client, addr: d.addr, unsaved: true, kind: kind, resume: 'draft', key: d.key });
+    rows.push({ t: d.at, client: d.client, addr: d.addr, unsaved: true, kind: kind, resume: 'draft', key: d.key,
+                by: d.by || '', device: d.device || '' });
   });
   (jobs || []).forEach(function(j){
     if (!j || seen[String(j.id)]) return;   // unsaved edits for this job already shown
@@ -8553,7 +8734,9 @@ function _renderHomeBoard(){
     return '<div class="hb-row" onclick="' + resume + '">' +
       '<span class="hb-row-badge" style="background:' + bg + ';color:' + fg + '">' + badge + '</span>' +
       '<div style="flex:1;min-width:0"><div class="hb-row-client">' + esc2(r.client || '(untitled)') + '</div>' +
-      '<div class="hb-row-sub">' + esc2(r.addr || '—') + '</div></div>' +
+      '<div class="hb-row-sub">' + esc2(r.addr || '—') +
+        ((r.by || r.device) ? '<span style="opacity:.75"> · ' + esc2([r.by, r.device].filter(Boolean).join(' on ')) + '</span>' : '') +
+      '</div></div>' +
       '<div class="hb-row-when">' + esc2(_hbWhen(r.t)) + '</div>' +
       '<span style="font-size:12px;color:#0099cc;font-weight:600;white-space:nowrap">Resume →</span>' +
       '<button onclick="' + del + '" title="Delete" style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px">✕</button>' +
@@ -10761,9 +10944,16 @@ function removePhoto(i){S.photos.splice(i,1);renderPhotos();}
 // S.photos, so they ride inside the job file: shot on site, visible on the
 // office computer the moment the job saves (and protected by the automatic
 // DB snapshots like everything else in the job).
-function _jobPhotosAdd(e){
-  var files = Array.from((e.target && e.target.files) || []);
-  if (!files.length) return;
+/* Onsite you take a run of photos, not one. Every shot is added straight to
+   the job with nothing to confirm, and the camera REOPENS itself so the next
+   one is a single tap — the burst only ends when the camera is cancelled.
+   Photos ride inside the job snapshot, so they are written to the local
+   draft immediately and upload with everything else when there is signal. */
+function _jobPhotosAdd(e, burst){
+  var input = e.target;
+  var files = Array.from((input && input.files) || []);
+  input.value = '';
+  if (!files.length) return;                       // cancelled — ends the burst
   var pending = files.length;
   files.forEach(function(f){
     var r = new FileReader();
@@ -10772,13 +10962,25 @@ function _jobPhotosAdd(e){
         S.photos.push({ src: src, caption: '' });
         if (--pending === 0){
           renderPhotos();
-          try { _setSaveStatus && _setSaveStatus('📸 ' + files.length + ' photo' + (files.length > 1 ? 's' : '') + ' added — they save with the job.', '#0369a1'); } catch(err){}
+          var total = (S.photos || []).length;
+          try { _setSaveStatus && _setSaveStatus('📸 ' + files.length + ' photo' + (files.length > 1 ? 's' : '') +
+            ' added (' + total + ' on this job) — saved on this device, uploads with the job.', '#0369a1'); } catch(err){}
+          try { _scheduleAutosave && _scheduleAutosave(); } catch(err){}   // straight into the local draft
+          if (burst) _jobPhotoNext();
         }
       });
     };
     r.readAsDataURL(f);
   });
-  e.target.value = '';
+}
+// Reopen the camera for the next shot. Some browsers only allow this inside
+// the user-activation window, so if it is refused the user just taps 📷
+// again — nothing breaks either way.
+function _jobPhotoNext(){
+  setTimeout(function(){
+    var cam = document.getElementById('jobPhotoCam');
+    if (cam) { try { cam.click(); } catch(e){} }
+  }, 220);
 }
 function _renderJobPhotosGrid(){
   var g = document.getElementById('jobPhotosGrid');
