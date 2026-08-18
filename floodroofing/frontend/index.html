@@ -194,7 +194,7 @@ html.tablet-mode .sidebar{
   box-shadow:8px 0 30px rgba(10,22,40,.3);z-index:400;
 }
 html.tablet-mode.tnav-open .sidebar{transform:none}
-html.tablet-mode .content{padding:64px 10px 116px;max-width:none;margin:0}
+html.tablet-mode .content{padding:64px 10px 116px!important;max-width:none;margin:0}
 html.tablet-mode .tool-btn{padding:11px 15px;font-size:14px;border-radius:9px}
 html.tablet-mode #workflowTipBar{display:none!important}
 html.tablet-mode body[data-tab="roof"] #canvasWrap{height:calc(100vh - 330px)!important;min-height:340px}
@@ -215,6 +215,88 @@ html.tablet-mode body[data-tab="roof"] #tabletToolbar{display:flex}
 /* Lift the floating Help bubble clear of the bottom toolbar. */
 html.tablet-mode #frHelpLauncher{bottom:88px!important}
 html.tablet-mode #frHelpPanel{bottom:88px!important}
+
+/* ── PHONE MODE (tall 19.5:9 handsets) ───────────────────────────
+   Everything the bottom toolbar already does is REMOVED from the page,
+   so Map Roof is: slim step bar → big canvas → toolbar. Added on top of
+   tablet-mode whenever the viewport is phone-width. */
+html.phone-mode .content{padding:56px 6px 92px!important}
+html.phone-mode #tabletNavBtn{width:42px;height:42px;top:8px;left:8px;font-size:18px}
+html.phone-mode .card{padding:.5rem .4rem;margin-bottom:8px}
+html.phone-mode .card-hd{font-size:12px}
+/* 1. Duplicated tool rows — the bottom bar covers all of these. */
+html.phone-mode #roofToolRow{display:none!important}
+html.phone-mode #roofZoomStepper{display:none!important}          /* pinch to zoom instead */
+html.phone-mode #phoneClearBtn{display:inline-block!important}
+/* Clear / View overlay the canvas corner instead of eating a whole row above
+   it — a negative bottom margin pulls the canvas up under them, so the drawing
+   area gets those pixels back. Taps pass through everywhere except the two
+   buttons themselves. */
+html.phone-mode #roofViewRow{position:relative;z-index:6;margin:0 .4rem -32px!important;gap:6px;
+  justify-content:flex-end;pointer-events:none}
+html.phone-mode #roofViewRow > *{pointer-events:auto}
+html.phone-mode #roofViewRow button{padding:7px 11px;font-size:11.5px;background:rgba(255,255,255,.94);
+  box-shadow:0 2px 8px rgba(10,22,40,.16)}
+/* 2. Desktop-only hints / explainers. */
+html.phone-mode #roofShiftHint,
+html.phone-mode #roofTypeHeading,
+html.phone-mode .rt-explain,
+html.phone-mode #aerialHint,
+html.phone-mode #nextBar-tab-roof{display:none!important}
+html.phone-mode #stepIndicator{padding:5px 8px!important;margin:0 .4rem .3rem!important;font-size:11px;gap:7px}
+html.phone-mode #stepIcon{font-size:15px}
+html.phone-mode #stepHint{display:none}
+html.phone-mode #finishBtn{padding:7px 13px;font-size:12px}
+/* 3. Roof-type panel: keep the buttons (they're the workflow), drop the chrome. */
+html.phone-mode #roofTypePanel{margin:0 .4rem .4rem;padding:7px 8px}
+html.phone-mode #roofTypePanel .tool-btn{padding:8px 10px;font-size:11.5px;border-radius:8px}
+html.phone-mode #roofRotateRow{gap:4px}
+/* 4. Canvas gets the screen: full-bleed and tall, so the drawing area
+      matches the phone's own 19.5:9 shape instead of a squat landscape box.
+      (vh fallback first for browsers without dvh.) */
+html.phone-mode body[data-tab="roof"] #roofPlanHd{display:none}
+html.phone-mode body[data-tab="roof"] .canvas-wrap{margin-left:-6px!important;margin-right:-6px!important;border-radius:0!important}
+html.phone-mode body[data-tab="roof"] #canvasWrap{height:calc(100vh - 300px);min-height:300px}
+@supports (height: 100dvh){
+  html.phone-mode body[data-tab="roof"] #canvasWrap{height:calc(100dvh - 300px)}
+}
+/* Trim the chrome above the canvas so it gets as close to the phone's own
+   19.5:9 shape as the controls allow. */
+html.phone-mode #roofBgBar{padding:0;font-size:11px}
+html.phone-mode #roofBgBar span{font-size:11px!important}
+html.phone-mode #roofBgCard{padding:.3rem .4rem;margin-bottom:5px}
+html.phone-mode #roofCanvas{width:100%!important;height:100%!important}
+/* 5. Side panel goes full-width; its edge tab would cover the drawing. */
+html.phone-mode #fergusRoofPanel{width:100vw!important;max-width:100vw}
+html.phone-mode #fergusRoofPanelToggle{display:none!important}
+html.phone-mode #fergusRoofPanelResize{display:none!important}
+/* 6. Help bubble: shrink to a dot so it never sits over the toolbar/canvas. */
+html.phone-mode #frHelpLauncher{bottom:96px!important;right:8px!important;padding:9px 11px!important}
+html.phone-mode #frHelpLauncher span:last-child{display:none}
+html.phone-mode #frHelpPanel{bottom:88px!important;right:6px!important;left:6px!important;width:auto!important}
+/* 7. Bottom toolbar: tighter so 8 items fit a 390px screen. */
+html.phone-mode #tabletToolbar{gap:2px;padding-left:4px;padding-right:4px}
+html.phone-mode .ttb-btn{font-size:9px;padding:6px 1px;gap:2px}
+html.phone-mode .ttb-btn .ttb-ico{font-size:18px}
+/* 8. Home tab on a phone: stacked search + full-width button, 2-up tiles. */
+html.phone-mode .hb-topbar{margin:6px 0 12px;gap:8px}
+html.phone-mode .hb-topbar .hb-search{height:48px;font-size:14px;padding-left:44px}
+html.phone-mode .hb-search-wrap{order:1;flex:1 1 100%}
+html.phone-mode .hb-newjob{order:2;flex:1 1 auto;width:auto;height:48px;font-size:14px;padding:0 16px}
+html.phone-mode .hb-topbar > button:last-child{order:3;height:48px;flex:0 0 auto}
+html.phone-mode .hb-tiles{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+html.phone-mode .hb-tile{padding:12px 6px 10px;border-radius:11px}
+html.phone-mode .hb-tile-num{font-size:26px}
+html.phone-mode .hb-tile-lbl{font-size:9px}
+html.phone-mode #homeBoard{min-height:0;max-height:none}
+html.phone-mode .hb-row{gap:8px;padding:10px}
+html.phone-mode .hb-row-when{display:none}
+/* 9. Slim fixed strip so scrolled content never runs under the ☰ button. */
+html.phone-mode .app::before{content:'';position:fixed;top:0;left:0;right:0;height:56px;background:var(--bg);z-index:480;pointer-events:none}
+html.phone-mode #roofPlanHdHint{display:none}
+html.phone-mode #roofPlanHd{margin:.4rem .4rem .3rem}
+/* 10. Help stays available everywhere EXCEPT over the drawing canvas. */
+html.phone-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 /* Job-pack pages stay CENTRED (matching the Quote proposal's location);
    the fit-to-width zoom (--doc-zoom) makes them fill the working area. */
 
@@ -2810,8 +2892,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
     <!-- DRAW YOUR ROOF TOOL -->
     <div class="card" style="padding:0;border-radius:var(--radius-lg);overflow:visible;position:relative">
-      <div class="card-hd" style="margin:.75rem .75rem .5rem;"><span class="card-dot"></span>Roof plan — draw your sections
-        <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Click corners to draw each section, then label it</span>
+      <div class="card-hd" id="roofPlanHd" style="margin:.75rem .75rem .5rem;"><span class="card-dot"></span>Roof plan — draw your sections
+        <span id="roofPlanHdHint" style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Click corners to draw each section, then label it</span>
       </div>
 
       <!-- Step indicator -->
@@ -2826,7 +2908,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
       <!-- Auto-generate roof panel -->
       <div id="roofTypePanel" style="display:none;margin:0 .75rem .5rem;padding:10px 14px;background:linear-gradient(135deg,#f0f8ff,#e8f4fd);border-radius:10px;border:1.5px solid #b3d4f0">
-        <div style="font-weight:700;font-size:12px;color:#0a1628;margin-bottom:8px">⚡ Auto-generate roof lines from outline</div>
+        <div id="roofTypeHeading" style="font-weight:700;font-size:12px;color:#0a1628;margin-bottom:8px">⚡ Auto-generate roof lines from outline</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
           <button onclick="autoGenerateRoof('hip')" class="tool-btn" style="background:#0099cc;color:#fff;border-color:#0099cc;font-weight:600">🔺 Hip &amp; Valley</button>
           <button onclick="autoGenerateRoof('gable')" class="tool-btn" style="background:#059669;color:#fff;border-color:#059669;font-weight:600">🏠 Straight Gable</button>
@@ -2838,9 +2920,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
         <!-- Auto roof-type suggestion / mismatch warning (populated by _updateRoofTypeHint) -->
         <div id="roofTypeHint" style="display:none;font-size:11px;font-weight:600;border-radius:7px;padding:6px 10px;margin-bottom:8px"></div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <div id="roofRotateRow" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <button onclick="rotateActiveRoof()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed;font-weight:600" title="Rotate the generated roof lines 90° around the outline centre. Useful for switching ridge direction on gable/dutch or slope direction on mono-pitch.">⟳ Rotate roof 90°</button>
-          <span style="font-size:10px;color:#64748b">Use this to flip the ridge direction on gable/dutch, or the slope direction on mono-pitch.</span>
+          <span class="rt-explain" style="font-size:10px;color:#64748b">Use this to flip the ridge direction on gable/dutch, or the slope direction on mono-pitch.</span>
         </div>
         <!-- Straight-gable ridge slide: drag toward one gutter when the
              sheets on one side of the roof run longer than the other. -->
@@ -2859,11 +2941,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
         <!-- Roof switcher (shown when >= 1 roof exists) -->
         <div id="roofSwitcher" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #b3d4f0;gap:4px;flex-wrap:wrap;align-items:center"></div>
-        <div style="font-size:10px;color:#94a3b8;margin-top:6px">💡 Hold <kbd style="background:#eee;border:1px solid #ccc;border-radius:3px;padding:0 3px">Shift</kbd> while dragging a corner to disable the rectangle-stretch (lets you make diagonal / non-square roofs) &nbsp;|&nbsp; Right-click any line to delete</div>
+        <div id="roofShiftHint" style="font-size:10px;color:#94a3b8;margin-top:6px">💡 Hold <kbd style="background:#eee;border:1px solid #ccc;border-radius:3px;padding:0 3px">Shift</kbd> while dragging a corner to disable the rectangle-stretch (lets you make diagonal / non-square roofs) &nbsp;|&nbsp; Right-click any line to delete</div>
       </div>
 
       <!-- Toolbar -->
-      <div style="display:flex;gap:4px;flex-wrap:wrap;margin:0 .75rem .4rem;align-items:center">
+      <div id="roofToolRow" style="display:flex;gap:4px;flex-wrap:wrap;margin:0 .75rem .4rem;align-items:center">
         <button onclick="setTool('select')" id="btn-move" onmouseenter="showTip('btn-move',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:grab">✋ Move / Edit</button>
         <button onclick="setTool('addmeas')" id="btn-select" onmouseenter="showTip('btn-select',event)" onmouseleave="hideTip()" class="tool-btn tool-dark" style="cursor:pointer">📐 Measure</button>
         <!-- 'Delete line' tool removed — right-click a line, or use the
@@ -2905,8 +2987,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
            (grid, background, AI dims, transparency, sheet-text, photo
            rotate) moves into the ⚙ View popover so the workspace isn't
            buried under a strip of sliders. -->
-      <div style="display:flex;gap:12px;align-items:center;margin:0 .75rem .4rem;font-size:12px;color:var(--text2);flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:4px">
+      <div id="roofViewRow" style="display:flex;gap:12px;align-items:center;margin:0 .75rem .4rem;font-size:12px;color:var(--text2);flex-wrap:wrap">
+        <button type="button" id="phoneClearBtn" onclick="clearAll()" style="display:none;padding:7px 13px;border:1px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">🗑 Clear</button>
+        <div id="roofZoomStepper" style="display:flex;align-items:center;gap:4px">
           Zoom:
           <button onclick="adjustZoom(-0.1)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">−</button>
           <span id="zoomLabel" style="min-width:36px;text-align:center">100%</span>
@@ -5462,6 +5545,9 @@ function gotoTab(t) {
       // page refresh ALWAYS re-opens the panel — a one-time close no longer
       // hides the photos forever. Closing it only lasts the current session.
       var _wantOpen=true; try{ _wantOpen = sessionStorage.getItem('fr_fergus_panel_open') !== '0'; }catch(e){}
+      // On a phone the panel is full-width, so opening it by default would
+      // bury the drawing — it opens only when Photos is tapped.
+      if (document.documentElement.classList.contains('phone-mode')) _wantOpen = false;
       if(_wantOpen){ try{_fergusPanelOpen(true);}catch(e){} }
       else { try{_setPopReserve(0);}catch(e){} }
     }
@@ -24170,11 +24256,17 @@ function _applyTabletMode(){
   try { coarse = window.matchMedia('(pointer: coarse)').matches; } catch(e){}
   var on = pref === 'on' || (pref === 'auto' && coarse);
   document.documentElement.classList.toggle('tablet-mode', !!on);
+  // Phone layer (tall 19.5:9 handsets): strips every control the bottom
+  // toolbar already provides, so the canvas gets the screen.
+  var narrow = Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 520;
+  document.documentElement.classList.toggle('phone-mode', !!on && narrow);
   if (!on) document.documentElement.classList.remove('tnav-open');
   var btn = document.getElementById('tabletModeBtn');
   if (btn) btn.textContent = '📱 Tablet mode: ' + (pref === 'auto' ? ('Auto (' + (on ? 'on' : 'off') + ')') : (pref === 'on' ? 'On' : 'Off'));
   try { window.dispatchEvent(new Event('resize')); } catch(e){}
   try { _syncTabletBar(); } catch(e){}
+  setTimeout(function(){ try { _phoneFitCanvas(); } catch(e){} }, 60);
+  setTimeout(function(){ try { _phoneFitCanvas(); } catch(e){} }, 420);
 }
 function _cycleTabletMode(){
   var pref = localStorage.getItem('fr_tablet_mode') || 'auto';
@@ -24195,6 +24287,28 @@ function _syncTabletBar(){
   var id = ({ select: 'ttbMove', outline: 'ttbOutline', calibrate: 'ttbCal' })[DRAW.tool] || (lineTools[DRAW.tool] ? 'ttbLines' : null);
   bar.querySelectorAll('.ttb-btn').forEach(function(b){ b.classList.remove('on'); });
   if (id){ var el = document.getElementById(id); if (el) el.classList.add('on'); }
+}
+// Phone: size the drawing canvas to EVERY pixel between the chrome above it
+// and the bottom toolbar, so it takes the phone's tall shape and nothing is
+// hidden behind the bar. Re-run whenever the chrome above it changes.
+function _phoneFitCanvas(){
+  try {
+    if (!document.documentElement.classList.contains('phone-mode')) return;
+    if ((document.body.getAttribute('data-tab') || '') !== 'roof') return;
+    var wrap = document.getElementById('canvasWrap');
+    var bar  = document.getElementById('tabletToolbar');
+    if (!wrap || !bar) return;
+    var layoutTop = wrap.getBoundingClientRect().top + (window.scrollY || 0);
+    var barH = bar.getBoundingClientRect().height || 76;
+    var avail = Math.round((window.innerHeight || 0) - layoutTop - barH - 6);
+    if (avail < 260) avail = 260;
+    if (String(wrap.style.height) !== avail + 'px'){
+      wrap.style.setProperty('height', avail + 'px', 'important');
+      var flex = wrap.parentElement;
+      if (flex) flex.style.height = avail + 'px';
+    }
+    try { fitCanvasToWrap(); } catch(e){}
+  } catch(e){}
 }
 // Photos button — opens the roof-photos side panel (Fergus + job photos).
 function _tabletPhotos(){
@@ -24223,9 +24337,42 @@ function _tabletPhotos(){
       });
     }
     _applyTabletMode();
+    var _rt = null;
+    window.addEventListener('resize', function(){
+      clearTimeout(_rt);
+      _rt = setTimeout(function(){ try { _applyTabletMode(); } catch(e){} }, 180);
+    });
+    // The roof-image card collapsing / expanding changes how much room the
+    // canvas has — refit whenever anything above it resizes.
+    try {
+      if (typeof ResizeObserver !== 'undefined'){
+        var _card = document.getElementById('roofBgCard');
+        if (_card) new ResizeObserver(function(){ _phoneFitCanvas(); }).observe(_card);
+        var _rtp = document.getElementById('roofTypePanel');
+        if (_rtp) new ResizeObserver(function(){ _phoneFitCanvas(); }).observe(_rtp);
+      }
+    } catch(e){}
+    window.addEventListener('orientationchange', function(){
+      setTimeout(function(){ try { _applyTabletMode(); } catch(e){} }, 250);
+    });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
+})();
+// On a phone the "Roof image" finder/upload card fills the whole screen —
+// collapse it on first open so Map Roof starts on the drawing. It stays a
+// tap away (the bar toggles it) and the choice is per-device.
+(function _phoneCollapseRoofBg(){
+  function go(){
+    if (!document.documentElement.classList.contains('phone-mode')) return;
+    try {
+      if (localStorage.getItem('fr_phone_bg_collapsed')) return;
+      localStorage.setItem('fr_phone_bg_collapsed', '1');
+    } catch(e){}
+    try { if (typeof _collapseRoofBg === 'function') _collapseRoofBg(); } catch(e){}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(go, 700); });
+  else setTimeout(go, 700);
 })();
 
 // ── Global geometry helpers ──────────────────────────────────────
