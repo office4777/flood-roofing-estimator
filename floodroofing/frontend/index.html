@@ -211,7 +211,14 @@ html.tablet-mode body[data-tab="roof"] #canvasWrap{height:calc(100vh - 330px)!im
 html.tablet-mode body[data-tab="roof"] #tabletToolbar{display:flex}
 #tabletToolbar{
   position:fixed;left:0;right:0;bottom:0;z-index:300;background:#0a1628;
-  padding:9px max(10px, env(safe-area-inset-right)) max(9px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  /* Always keep a gap under the buttons for the phone's home / back bar —
+     ADDED to the safe-area inset, not maxed against it, so there is room in
+     gesture mode (where the inset is small) and in three-button mode (where
+     it may be reported as zero) alike. The canvas is pinned to the toolbar's
+     measured height, so it takes the change automatically. */
+  padding:9px max(10px, env(safe-area-inset-right))
+          calc(env(safe-area-inset-bottom, 0px) + 16px)
+          max(10px, env(safe-area-inset-left));
   gap:6px;justify-content:space-around;box-shadow:0 -6px 20px rgba(10,22,40,.35);
 }
 .ttb-btn{
@@ -323,14 +330,16 @@ html.site-mode body[data-tab="roof"] #canvasWrap{
 }
 html.site-mode #roofCanvas{width:100%!important;height:100%!important}
 /* 2. Contextual overlays float ON the canvas rather than pushing it down. */
-html.site-mode body[data-tab="roof"] #stepIndicator{
-  position:fixed;top:58px;left:6px;right:6px;z-index:210;margin:0!important;
-  padding:6px 9px!important;font-size:11.5px;gap:8px;opacity:.96}
+/* No step banner onsite. The outline finishes itself when the shape closes
+   (tap or trace back onto the first corner), so a full-width bar telling you
+   which step you are on — and a Finish button you should not need — was just
+   eating the top of the drawing. */
+html.site-mode body[data-tab="roof"] #stepIndicator{display:none!important}
 html.site-mode #stepIcon{font-size:15px}
 html.site-mode #stepHint{display:none}
 html.site-mode #finishBtn{padding:7px 14px;font-size:12px}
 html.site-mode body[data-tab="roof"] #roofViewRow{
-  position:fixed;top:106px;right:8px;z-index:210;margin:0!important;gap:6px;
+  position:fixed;top:60px;right:8px;z-index:210;margin:0!important;gap:6px;
   justify-content:flex-end;pointer-events:none;font-size:12px}
 html.site-mode #roofViewRow > *{pointer-events:auto}
 html.site-mode #roofViewRow button{padding:7px 11px;font-size:11.5px;background:rgba(255,255,255,.94);
@@ -25856,7 +25865,16 @@ function onCanvasClick(e) {
   if((DRAW.tool==='outline'||DRAW.tool==='section') && DRAW.currentPts.length>=3){
     var _f0 = DRAW.currentPts[0];
     var _tc = getImgTransform();
-    var _closeR = _tc ? 16/_tc.s : 16;
+    // Scaled to the size of what's being drawn, and generous enough for a
+    // thumb: this is now how an outline finishes, so "near enough the first
+    // corner" has to mean near enough.
+    var _cb0=Infinity,_cb1=-Infinity,_cb2=Infinity,_cb3=-Infinity;
+    for(var _ci=0;_ci<DRAW.currentPts.length;_ci++){
+      var _cp=DRAW.currentPts[_ci];
+      if(_cp[0]<_cb0)_cb0=_cp[0]; if(_cp[0]>_cb1)_cb1=_cp[0];
+      if(_cp[1]<_cb2)_cb2=_cp[1]; if(_cp[1]>_cb3)_cb3=_cp[1];
+    }
+    var _closeR = Math.max(_tc ? 20/_tc.s : 20, Math.hypot(_cb1-_cb0,_cb3-_cb2)*0.07);
     if(Math.hypot(xy[0]-_f0[0], xy[1]-_f0[1]) < _closeR){ finishCurrent(); return; }
   }
 
@@ -28271,6 +28289,16 @@ function redrawAll() {
     DRAW.currentPts.forEach(function(pt){
       var p=dp(pt);ctx.beginPath();ctx.arc(p[0],p[1],5,0,Math.PI*2);ctx.fillStyle=c;ctx.fill();
     });
+    // Once three corners are down the shape can be closed — ring the first
+    // one so it is obvious that going back to it finishes the outline.
+    if((DRAW.tool==='outline'||DRAW.tool==='section') && DRAW.currentPts.length>=3){
+      var _hp=dp(DRAW.currentPts[0]);
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(_hp[0],_hp[1],11,0,Math.PI*2);
+      ctx.strokeStyle=c; ctx.lineWidth=2.5; ctx.globalAlpha=0.65; ctx.stroke();
+      ctx.restore();
+    }
     // Penetration preview rect
     if(DRAW.tool==='penetration'&&DRAW.currentPts.length===1){
       var p0=DRAW.currentPts[0];
