@@ -234,6 +234,18 @@ html.tablet-mode #frHelpPanel{bottom:88px!important}
    canvas as a contextual overlay. Office mode (the full tablet UI) is one
    tap away in the ☰ menu. Defaults on for phones, off for tablets. */
 html.site-mode #tabletNavBtn{display:none!important}
+/* Onsite the page must NEVER pinch-zoom. A page zoom offsets the visual
+   viewport from the layout viewport, which shows up as a pale band above
+   the fixed header (the page no longer reaches the top of the screen) and
+   throws every touch off, because the canvas maps taps through
+   getBoundingClientRect — layout coordinates — while the finger arrives in
+   visual ones. Two fingers ON the canvas are the drawing pinch-zoom and
+   are handled there; two fingers anywhere else now do nothing at all. */
+html.site-mode body[data-tab="roof"]{touch-action:none;overscroll-behavior:none}
+html.site-mode #phoneTopBar,
+html.site-mode #tabletToolbar,
+html.site-mode #stepIndicator,
+html.site-mode #roofViewRow{touch-action:none}
 /* Map Roof onsite is edge-to-edge dark chrome over a canvas. The page
    ground goes dark with it so nothing pale can show through above the
    fixed header — the top of the app reads as one continuous bar. */
@@ -304,8 +316,19 @@ html.site-mode #phoneClearBtn{display:inline-block!important}
 /* Roof-type chooser: a sheet just above the toolbar, only while it's needed. */
 html.site-mode body[data-tab="roof"] #roofTypePanel{
   position:fixed;left:6px;right:6px;bottom:80px;z-index:210;margin:0!important;
-  padding:7px 8px!important;max-height:36vh;overflow:auto;box-shadow:0 -4px 18px rgba(10,22,40,.18)}
-html.site-mode #roofTypePanel .tool-btn{padding:8px 10px;font-size:11.5px;border-radius:8px}
+  padding:6px 7px!important;max-height:30vh;overflow:auto;box-shadow:0 -4px 18px rgba(10,22,40,.18)}
+/* Onsite the chooser is a sheet over the drawing, so it earns its space:
+   compact buttons, short labels, and none of the desktop explainers. */
+html.site-mode #roofTypePanel .tool-btn{padding:7px 9px;font-size:11px;border-radius:7px;line-height:1.2}
+html.site-mode #roofTypePanel > div{gap:5px!important;margin-bottom:5px!important}
+.rt-short{display:none}
+html.site-mode .rt-short{display:inline}
+html.site-mode .rt-long{display:none}
+/* The suggestion box repeats what the shape buttons already offer and it is
+   the tallest thing in the sheet — desktop keeps it. */
+html.site-mode #roofTypeHint{display:none!important}
+html.site-mode #roofSwitcher{margin-top:5px!important;padding-top:5px!important;font-size:11px}
+html.site-mode #roofSwitcher > div{font-size:11px!important;margin-right:4px!important}
 /* Roof-shape chooser collapses to a slide-up handle once a shape is picked. */
 #roofSheetHandle{display:none}
 html.site-mode body[data-tab="roof"].rtp-collapsed #roofSheetHandle{
@@ -317,11 +340,11 @@ html.site-mode body[data-tab="roof"].rtp-collapsed #roofTypePanel{display:none!i
 #roofSheetClose{display:none}
 /* NB: no position here — the sheet rule below sets position:fixed, which is
    already a containing block for the absolutely-placed chevron. */
-html.site-mode body[data-tab="roof"] #roofTypePanel{padding-top:32px!important}
+html.site-mode body[data-tab="roof"] #roofTypePanel{padding-top:26px!important}
 html.site-mode body[data-tab="roof"] #roofSheetClose{
-  display:flex;align-items:center;justify-content:center;position:absolute;top:4px;right:6px;z-index:3;
-  width:44px;height:26px;border:1px solid #b3d4f0;border-radius:13px;background:#fff;color:#0a1628;
-  font-size:13px;line-height:1;cursor:pointer;font-family:inherit;box-shadow:0 1px 4px rgba(10,22,40,.12)}
+  display:flex;align-items:center;justify-content:center;position:absolute;top:3px;right:5px;z-index:3;
+  width:38px;height:21px;border:1px solid #b3d4f0;border-radius:11px;background:#fff;color:#0a1628;
+  font-size:12px;line-height:1;cursor:pointer;font-family:inherit;box-shadow:0 1px 4px rgba(10,22,40,.12)}
 html.site-mode body[data-tab="roof"] #roofTypePanel{transition:transform .18s ease}
 /* The calibrate instruction blurb is desktop-only — the step bar says it. */
 html.site-mode #calInstrPopup{display:none!important}
@@ -2982,7 +3005,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
           <button onclick="autoGenerateRoof('hip')" class="tool-btn" style="background:#0099cc;color:#fff;border-color:#0099cc;font-weight:600">🔺 Hip &amp; Valley</button>
           <button onclick="autoGenerateRoof('gable')" class="tool-btn" style="background:#059669;color:#fff;border-color:#059669;font-weight:600">🏠 Straight Gable</button>
-          <button onclick="autoGenerateRoof('gable-hv')" class="tool-btn" style="background:#047857;color:#fff;border-color:#047857;font-weight:600" title="Gable ends with a hip + valley at the L corner (instead of running longer sheets through it)">🏠 Gable — hip+valley corner</button>
+          <button onclick="autoGenerateRoof('gable-hv')" class="tool-btn" style="background:#047857;color:#fff;border-color:#047857;font-weight:600" title="Gable ends with a hip + valley at the L corner (instead of running longer sheets through it)">🏠 Gable<span class="rt-long"> — hip+valley corner</span><span class="rt-short"> + HV</span></button>
           <button onclick="autoGenerateRoof('dutch')" class="tool-btn" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:600">🏡 Dutch Gable</button>
           <button onclick="autoGenerateRoof('mono')" class="tool-btn" style="background:#d97706;color:#fff;border-color:#d97706;font-weight:600">📐 Mono-Pitch</button>
           <button onclick="clearRoofLines()" class="tool-btn" style="color:#dc2626;border-color:#dc2626;margin-left:4px">🗑 Clear lines</button>
@@ -24468,6 +24491,18 @@ function _applyTabletMode(){
   var wasSite = !!window.__siteModeOn;
   window.__siteModeOn = !!site;
   document.documentElement.classList.toggle('site-mode', !!site);
+  /* Belt to the CSS brace: pin the viewport scale while the onsite shell is
+     up, so a stray two-finger gesture can't page-zoom and knock the whole
+     app out of register. Office mode and desktop stay pinch-zoomable. */
+  try {
+    var _vp = document.querySelector('meta[name=viewport]');
+    if (_vp){
+      var _locked = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
+      var _free   = 'width=device-width, initial-scale=1.0, viewport-fit=cover';
+      var _want = site ? _locked : _free;
+      if (_vp.getAttribute('content') !== _want) _vp.setAttribute('content', _want);
+    }
+  } catch(e){}
   if (!on) document.documentElement.classList.remove('tnav-open');
   // Entering site mode: the photos panel is full-width there, so a panel
   // left open in Office mode would bury the canvas.
