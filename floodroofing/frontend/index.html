@@ -216,15 +216,16 @@ html.tablet-mode body[data-tab="roof"] #tabletToolbar{display:flex}
 html.tablet-mode #frHelpLauncher{bottom:88px!important}
 html.tablet-mode #frHelpPanel{bottom:88px!important}
 
-/* ── PHONE MODE (tall 19.5:9 handsets) ───────────────────────────
-   The app on a phone is exactly three things: a fixed top header (menu +
-   current job), the drawing canvas, and the bottom toolbar. Nothing
-   scrolls on Map Roof — the canvas is pinned between header and toolbar,
-   which is what stops it jumping around. Everything else on the page is
-   either hidden or floats over the canvas as a contextual overlay. */
-html.phone-mode #tabletNavBtn{display:none!important}
+/* ── SITE MODE (onsite drawing — phones AND tablets) ─────────────
+   The app becomes exactly three things: a fixed top header (menu + current
+   job), the drawing canvas, and the bottom toolbar. Nothing scrolls on Map
+   Roof — the canvas is pinned between header and toolbar, which is what
+   stops it jumping around. Everything else is hidden or floats over the
+   canvas as a contextual overlay. Office mode (the full tablet UI) is one
+   tap away in the ☰ menu. Defaults on for phones, off for tablets. */
+html.site-mode #tabletNavBtn{display:none!important}
 #phoneTopBar{display:none}
-html.phone-mode #phoneTopBar{
+html.site-mode #phoneTopBar{
   display:flex;position:fixed;top:0;left:0;right:0;height:52px;z-index:495;
   align-items:center;gap:8px;padding:0 8px;background:#0a1628;
   box-shadow:0 2px 10px rgba(10,22,40,.28);
@@ -235,95 +236,95 @@ html.phone-mode #phoneTopBar{
   height:38px;padding:0 12px;border:1px solid rgba(255,255,255,.16);border-radius:10px;
   background:rgba(255,255,255,.07);color:#fff;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
 #phoneJobName{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-html.phone-mode .content{padding:58px 6px 92px!important}
-html.phone-mode .card{padding:.5rem .4rem;margin-bottom:8px}
-html.phone-mode .card-hd{font-size:12px}
+html.site-mode .content{padding:58px 6px 92px!important}
+html.site-mode .card{padding:.5rem .4rem;margin-bottom:8px}
+html.site-mode .card-hd{font-size:12px}
 /* 1. Map Roof = canvas only. Page can't scroll, so nothing can shift. */
-html.phone-mode body[data-tab="roof"]{overflow:hidden}
-html.phone-mode body[data-tab="roof"] .content{padding:0!important;height:100vh;overflow:hidden}
+html.site-mode body[data-tab="roof"]{overflow:hidden}
+html.site-mode body[data-tab="roof"] .content{padding:0!important;height:100vh;overflow:hidden}
 @supports (height: 100dvh){
-  html.phone-mode body[data-tab="roof"] .content{height:100dvh}
+  html.site-mode body[data-tab="roof"] .content{height:100dvh}
 }
-html.phone-mode body[data-tab="roof"] #roofBgCard,          /* aerial finder + upload */
-html.phone-mode body[data-tab="roof"] #roofPlanHd,
-html.phone-mode body[data-tab="roof"] #roofToolRow,
-html.phone-mode body[data-tab="roof"] #nextBar-tab-roof,
-html.phone-mode body[data-tab="roof"] #workflowTipBar{display:none!important}
-html.phone-mode body[data-tab="roof"] #roofPlanCard{padding:0!important;margin:0!important;border:none;background:transparent;box-shadow:none}
-html.phone-mode body[data-tab="roof"] #canvasWrap{
+html.site-mode body[data-tab="roof"] #roofBgCard,          /* aerial finder + upload */
+html.site-mode body[data-tab="roof"] #roofPlanHd,
+html.site-mode body[data-tab="roof"] #roofToolRow,
+html.site-mode body[data-tab="roof"] #nextBar-tab-roof,
+html.site-mode body[data-tab="roof"] #workflowTipBar{display:none!important}
+html.site-mode body[data-tab="roof"] #roofPlanCard{padding:0!important;margin:0!important;border:none;background:transparent;box-shadow:none}
+html.site-mode body[data-tab="roof"] #canvasWrap{
   position:fixed!important;top:52px!important;left:0!important;right:0!important;bottom:var(--ttb-h,72px)!important;
   width:auto!important;height:auto!important;border-radius:0!important;margin:0!important;
 }
-html.phone-mode #roofCanvas{width:100%!important;height:100%!important}
+html.site-mode #roofCanvas{width:100%!important;height:100%!important}
 /* 2. Contextual overlays float ON the canvas rather than pushing it down. */
-html.phone-mode body[data-tab="roof"] #stepIndicator{
+html.site-mode body[data-tab="roof"] #stepIndicator{
   position:fixed;top:58px;left:6px;right:6px;z-index:210;margin:0!important;
   padding:6px 9px!important;font-size:11.5px;gap:8px;opacity:.96}
-html.phone-mode #stepIcon{font-size:15px}
-html.phone-mode #stepHint{display:none}
-html.phone-mode #finishBtn{padding:7px 14px;font-size:12px}
-html.phone-mode body[data-tab="roof"] #roofViewRow{
+html.site-mode #stepIcon{font-size:15px}
+html.site-mode #stepHint{display:none}
+html.site-mode #finishBtn{padding:7px 14px;font-size:12px}
+html.site-mode body[data-tab="roof"] #roofViewRow{
   position:fixed;top:106px;right:8px;z-index:210;margin:0!important;gap:6px;
   justify-content:flex-end;pointer-events:none;font-size:12px}
-html.phone-mode #roofViewRow > *{pointer-events:auto}
-html.phone-mode #roofViewRow button{padding:7px 11px;font-size:11.5px;background:rgba(255,255,255,.94);
+html.site-mode #roofViewRow > *{pointer-events:auto}
+html.site-mode #roofViewRow button{padding:7px 11px;font-size:11.5px;background:rgba(255,255,255,.94);
   box-shadow:0 2px 8px rgba(10,22,40,.16)}
-html.phone-mode #roofZoomStepper{display:none!important}     /* pinch to zoom */
-html.phone-mode #phoneClearBtn{display:inline-block!important}
+html.site-mode #roofZoomStepper{display:none!important}     /* pinch to zoom */
+html.site-mode #phoneClearBtn{display:inline-block!important}
 /* Roof-type chooser: a sheet just above the toolbar, only while it's needed. */
-html.phone-mode body[data-tab="roof"] #roofTypePanel{
+html.site-mode body[data-tab="roof"] #roofTypePanel{
   position:fixed;left:6px;right:6px;bottom:80px;z-index:210;margin:0!important;
   padding:7px 8px!important;max-height:36vh;overflow:auto;box-shadow:0 -4px 18px rgba(10,22,40,.18)}
-html.phone-mode #roofTypePanel .tool-btn{padding:8px 10px;font-size:11.5px;border-radius:8px}
+html.site-mode #roofTypePanel .tool-btn{padding:8px 10px;font-size:11.5px;border-radius:8px}
 /* Roof-shape chooser collapses to a slide-up handle once a shape is picked. */
 #roofSheetHandle{display:none}
-html.phone-mode body[data-tab="roof"].rtp-collapsed #roofSheetHandle{
+html.site-mode body[data-tab="roof"].rtp-collapsed #roofSheetHandle{
   display:inline-flex;align-items:center;gap:6px;position:fixed;left:50%;transform:translateX(-50%);
   bottom:calc(var(--ttb-h,72px) + 8px);z-index:212;padding:8px 16px;border:none;border-radius:20px;
   background:#0a1628;color:#fff;font-family:inherit;font-size:12px;font-weight:700;
   box-shadow:0 4px 14px rgba(10,22,40,.32);cursor:pointer}
-html.phone-mode body[data-tab="roof"].rtp-collapsed #roofTypePanel{display:none!important}
+html.site-mode body[data-tab="roof"].rtp-collapsed #roofTypePanel{display:none!important}
 #roofSheetClose{display:none}
 /* NB: no position here — the sheet rule below sets position:fixed, which is
    already a containing block for the absolutely-placed chevron. */
-html.phone-mode body[data-tab="roof"] #roofTypePanel{padding-top:32px!important}
-html.phone-mode body[data-tab="roof"] #roofSheetClose{
+html.site-mode body[data-tab="roof"] #roofTypePanel{padding-top:32px!important}
+html.site-mode body[data-tab="roof"] #roofSheetClose{
   display:flex;align-items:center;justify-content:center;position:absolute;top:4px;right:6px;z-index:3;
   width:44px;height:26px;border:1px solid #b3d4f0;border-radius:13px;background:#fff;color:#0a1628;
   font-size:13px;line-height:1;cursor:pointer;font-family:inherit;box-shadow:0 1px 4px rgba(10,22,40,.12)}
-html.phone-mode body[data-tab="roof"] #roofTypePanel{transition:transform .18s ease}
+html.site-mode body[data-tab="roof"] #roofTypePanel{transition:transform .18s ease}
 /* The calibrate instruction blurb is desktop-only — the step bar says it. */
-html.phone-mode #calInstrPopup{display:none!important}
-html.phone-mode #roofTypeHeading,
-html.phone-mode #roofShiftHint,
-html.phone-mode .rt-explain,
-html.phone-mode #aerialHint{display:none!important}
+html.site-mode #calInstrPopup{display:none!important}
+html.site-mode #roofTypeHeading,
+html.site-mode #roofShiftHint,
+html.site-mode .rt-explain,
+html.site-mode #aerialHint{display:none!important}
 /* 3. Photos panel full-width; its edge tab would sit on the drawing. */
-html.phone-mode #fergusRoofPanel{width:100vw!important;max-width:100vw}
-html.phone-mode #fergusRoofPanelToggle,
-html.phone-mode #fergusRoofPanelResize{display:none!important}
+html.site-mode #fergusRoofPanel{width:100vw!important;max-width:100vw}
+html.site-mode #fergusRoofPanelToggle,
+html.site-mode #fergusRoofPanelResize{display:none!important}
 /* 4. Bottom toolbar tightened so all 8 fit a 390px screen. */
-html.phone-mode #tabletToolbar{gap:2px;padding-left:4px;padding-right:4px}
-html.phone-mode .ttb-btn{font-size:9px;padding:6px 1px;gap:2px}
-html.phone-mode .ttb-btn .ttb-ico{font-size:18px}
+html.site-mode #tabletToolbar{gap:2px;padding-left:4px;padding-right:4px}
+html.site-mode .ttb-btn{font-size:9px;padding:6px 1px;gap:2px}
+html.site-mode .ttb-btn .ttb-ico{font-size:18px}
 /* 5. Other tabs keep a normal scrolling page under the fixed header. */
-html.phone-mode .hb-topbar{margin:6px 0 12px;gap:8px}
-html.phone-mode .hb-topbar .hb-search{height:48px;font-size:14px;padding-left:44px}
-html.phone-mode .hb-search-wrap{order:1;flex:1 1 100%}
-html.phone-mode .hb-newjob{order:2;flex:1 1 auto;width:auto;height:48px;font-size:14px;padding:0 16px}
-html.phone-mode .hb-topbar > button:last-child{order:3;height:48px;flex:0 0 auto}
-html.phone-mode .hb-tiles{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
-html.phone-mode .hb-tile{padding:12px 6px 10px;border-radius:11px}
-html.phone-mode .hb-tile-num{font-size:26px}
-html.phone-mode .hb-tile-lbl{font-size:9px}
-html.phone-mode #homeBoard{min-height:0;max-height:none}
-html.phone-mode .hb-row{gap:8px;padding:10px}
-html.phone-mode .hb-row-when{display:none}
+html.site-mode .hb-topbar{margin:6px 0 12px;gap:8px}
+html.site-mode .hb-topbar .hb-search{height:48px;font-size:14px;padding-left:44px}
+html.site-mode .hb-search-wrap{order:1;flex:1 1 100%}
+html.site-mode .hb-newjob{order:2;flex:1 1 auto;width:auto;height:48px;font-size:14px;padding:0 16px}
+html.site-mode .hb-topbar > button:last-child{order:3;height:48px;flex:0 0 auto}
+html.site-mode .hb-tiles{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+html.site-mode .hb-tile{padding:12px 6px 10px;border-radius:11px}
+html.site-mode .hb-tile-num{font-size:26px}
+html.site-mode .hb-tile-lbl{font-size:9px}
+html.site-mode #homeBoard{min-height:0;max-height:none}
+html.site-mode .hb-row{gap:8px;padding:10px}
+html.site-mode .hb-row-when{display:none}
 /* 6. Help stays available elsewhere, never over the drawing. */
-html.phone-mode #frHelpLauncher{bottom:96px!important;right:8px!important;padding:9px 11px!important}
-html.phone-mode #frHelpLauncher span:last-child{display:none}
-html.phone-mode #frHelpPanel{bottom:88px!important;right:6px!important;left:6px!important;width:auto!important}
-html.phone-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
+html.site-mode #frHelpLauncher{bottom:96px!important;right:8px!important;padding:9px 11px!important}
+html.site-mode #frHelpLauncher span:last-child{display:none}
+html.site-mode #frHelpPanel{bottom:88px!important;right:6px!important;left:6px!important;width:auto!important}
+html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 /* Job-pack pages stay CENTRED (matching the Quote proposal's location);
    the fit-to-width zoom (--doc-zoom) makes them fill the working area. */
 
@@ -2688,6 +2689,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     </div>
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
   </div>
+  <button class="nav-btn" id="navSiteModeBtn" onclick="_toggleSiteMode()" style="display:none"></button>
   <button class="nav-btn" id="navRoofImgBtn" onclick="_phoneSetRoofImage()" style="display:none"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6.8" r="1.1" stroke="currentColor" stroke-width="1.2"/><path d="M3 11.5L6.5 8.5L9 10.5L11 9L13 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Set roof image</button>
   <button class="nav-btn active" onclick="gotoTab('select')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7L8 2.5L13.5 7M4 6V13H12V6" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>Home</button>
   <!-- Sidebar job chip: hidden until a job is loaded. Shows the Fergus
@@ -3065,6 +3067,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
               <span id="outlineTextScaleOut" style="font-variant-numeric:tabular-nums;color:#0a1628;min-width:24px;text-align:right">1.0</span>×
             </label>
             <div style="border-top:1px solid #eef1f5;margin:11px 0 9px"></div>
+            <button type="button" id="siteModeBtn" onclick="_toggleSiteMode()" style="width:100%;margin:0 0 7px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0a1628;font-size:12px;font-weight:600;cursor:pointer;text-align:left" title="Site mode = stripped-back onsite drawing (canvas, header, toolbar). Office mode = the full UI.">📐 Switch to Site mode</button>
             <button type="button" id="tabletModeBtn" onclick="_cycleTabletMode()" style="width:100%;margin:0 0 9px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0a1628;font-size:12px;font-weight:600;cursor:pointer;text-align:left" title="Full-screen canvas, drawer menu and a bottom toolbar sized for touch. Auto = on for touch devices.">📱 Tablet mode: Auto</button>
             <div style="border-top:1px solid #eef1f5;margin:0 0 9px"></div>
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Rotate photo</div>
@@ -5584,7 +5587,7 @@ function gotoTab(t) {
       var _wantOpen=true; try{ _wantOpen = sessionStorage.getItem('fr_fergus_panel_open') !== '0'; }catch(e){}
       // On a phone the panel is full-width, so opening it by default would
       // bury the drawing — it opens only when Photos is tapped.
-      if (document.documentElement.classList.contains('phone-mode')) _wantOpen = false;
+      if (document.documentElement.classList.contains('site-mode')) _wantOpen = false;
       if(_wantOpen){ try{_fergusPanelOpen(true);}catch(e){} }
       else { try{_setPopReserve(0);}catch(e){} }
     }
@@ -24291,15 +24294,38 @@ function _applyTabletMode(){
   var pref = localStorage.getItem('fr_tablet_mode') || 'auto';
   var coarse = false;
   try { coarse = window.matchMedia('(pointer: coarse)').matches; } catch(e){}
-  var on = pref === 'on' || (pref === 'auto' && coarse);
-  document.documentElement.classList.toggle('tablet-mode', !!on);
-  // Phone layer (tall 19.5:9 handsets): strips every control the bottom
-  // toolbar already provides, so the canvas gets the screen.
+  // SITE vs OFFICE. Site mode is the stripped-back onsite drawing shell;
+  // Office mode is the full tablet/desktop UI. Default ('auto') is site on
+  // phones, office on tablets — and the ☰ menu switches either way.
   var narrow = Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 520;
-  document.documentElement.classList.toggle('phone-mode', !!on && narrow);
+  var sPref = localStorage.getItem('fr_site_mode') || 'auto';
+  var site = sPref === 'on' || (sPref === 'auto' && narrow);
+  // Site mode brings the touch chrome (drawer + bottom toolbar) with it, so
+  // it works even if tablet mode was switched off.
+  var on = site || pref === 'on' || (pref === 'auto' && coarse);
+  document.documentElement.classList.toggle('tablet-mode', !!on);
+  var wasSite = !!window.__siteModeOn;
+  window.__siteModeOn = !!site;
+  document.documentElement.classList.toggle('site-mode', !!site);
   if (!on) document.documentElement.classList.remove('tnav-open');
+  // Entering site mode: the photos panel is full-width there, so a panel
+  // left open in Office mode would bury the canvas.
+  if (site && !wasSite){
+    try { _fergusPanelClose(); } catch(e){}
+    try { sessionStorage.setItem('fr_fergus_panel_open','0'); } catch(e){}
+  }
+  if (!site && wasSite){ try { sessionStorage.removeItem('fr_fergus_panel_open'); } catch(e){} }
+  var sb = document.getElementById('navSiteModeBtn');
+  if (sb){
+    sb.style.display = (on ? '' : 'none');
+    sb.innerHTML = site
+      ? '<svg viewBox="0 0 16 16" fill="none"><path d="M2 13V6.5L8 2.5L14 6.5V13H10V9H6V13H2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Switch to Office mode'
+      : '<svg viewBox="0 0 16 16" fill="none"><path d="M2.5 12.5L8 3L13.5 12.5H2.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5.5 12.5L8 8L10.5 12.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>Switch to Site mode';
+  }
+  var vb = document.getElementById('siteModeBtn');
+  if (vb) vb.textContent = site ? '🏢 Switch to Office mode' : '📐 Switch to Site mode';
   var _ri = document.getElementById('navRoofImgBtn');
-  if (_ri) _ri.style.display = document.documentElement.classList.contains('phone-mode') ? '' : 'none';
+  if (_ri) _ri.style.display = document.documentElement.classList.contains('site-mode') ? '' : 'none';
   var btn = document.getElementById('tabletModeBtn');
   if (btn) btn.textContent = '📱 Tablet mode: ' + (pref === 'auto' ? ('Auto (' + (on ? 'on' : 'off') + ')') : (pref === 'on' ? 'On' : 'Off'));
   try { window.dispatchEvent(new Event('resize')); } catch(e){}
@@ -24307,6 +24333,19 @@ function _applyTabletMode(){
   setTimeout(function(){ try { _phoneFitCanvas(); } catch(e){} }, 60);
   setTimeout(function(){ try { _phoneFitCanvas(); } catch(e){} }, 420);
   try { _syncPhoneJobName(); } catch(e){}
+}
+// Flip between the onsite drawing shell and the full office UI.
+function _toggleSiteMode(){
+  var site = document.documentElement.classList.contains('site-mode');
+  try { localStorage.setItem('fr_site_mode', site ? 'off' : 'on'); } catch(e){}
+  try { _tabletNavToggle(false); } catch(e){}
+  _applyTabletMode();
+  // Site mode is a drawing tool — land on Map Roof when switching into it.
+  if (!site){
+    setTimeout(function(){
+      try { if ((document.body.getAttribute('data-tab')||'') !== 'roof') gotoTab('roof'); } catch(e){}
+    }, 120);
+  }
 }
 function _cycleTabletMode(){
   var pref = localStorage.getItem('fr_tablet_mode') || 'auto';
@@ -24336,7 +24375,7 @@ function _phoneFitCanvas(){
   // does is match the canvas backing store to it. No layout writes here —
   // measuring and re-sizing in JS is what made the canvas jump around.
   try {
-    if (!document.documentElement.classList.contains('phone-mode')) return;
+    if (!document.documentElement.classList.contains('site-mode')) return;
     if ((document.body.getAttribute('data-tab') || '') !== 'roof') return;
     var wrap = document.getElementById('canvasWrap');
     if (wrap){
@@ -24430,7 +24469,7 @@ function _tabletPhotos(){
     _applyTabletMode();
     // A phone is a drawing tool: open on Map Roof with the OUTLINE tool armed,
     // so the first tap starts drawing the building.
-    if (document.documentElement.classList.contains('phone-mode')){
+    if (document.documentElement.classList.contains('site-mode')){
       setTimeout(function(){
         try { if ((document.body.getAttribute('data-tab')||'') !== 'roof') gotoTab('roof'); } catch(e){}
         try {
@@ -24444,7 +24483,7 @@ function _tabletPhotos(){
       window.autoGenerateRoof = function(){
         var r = _ag.apply(this, arguments);
         try {
-          if (document.documentElement.classList.contains('phone-mode')) _phoneRoofSheet(false);
+          if (document.documentElement.classList.contains('site-mode')) _phoneRoofSheet(false);
         } catch(e){}
         return r;
       };
@@ -24477,7 +24516,7 @@ function _tabletPhotos(){
 // tap away (the bar toggles it) and the choice is per-device.
 (function _phoneCollapseRoofBg(){
   function go(){
-    if (!document.documentElement.classList.contains('phone-mode')) return;
+    if (!document.documentElement.classList.contains('site-mode')) return;
     try {
       if (localStorage.getItem('fr_phone_bg_collapsed')) return;
       localStorage.setItem('fr_phone_bg_collapsed', '1');
@@ -38315,7 +38354,7 @@ window.addEventListener('resize', function(){
   if(!wrap) return;
   // Phone mode pins the canvas between the fixed header and toolbar in CSS —
   // writing an inline height here fought that rule (and made the canvas jump).
-  if (document.documentElement.classList.contains('phone-mode')){
+  if (document.documentElement.classList.contains('site-mode')){
     wrap.style.height=''; var pf=wrap.parentElement; if(pf) pf.style.height='';
     try { fitCanvasToWrap(); } catch(e){}
     return;
