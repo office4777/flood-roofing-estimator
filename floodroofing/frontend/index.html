@@ -39208,6 +39208,21 @@ function buildHipValleyLines(outline) {
   function run(pts,isOrig,depth){
     var n=pts.length;
     if(depth>50||n<2)return;
+    /* No straight-skeleton event can offset the wavefront further than the
+       biggest circle that fits inside the polygon, which is at most half its
+       shortest side. Numerically degenerate events used to solve to enormous
+       times — the cap was a flat 9000 — and flung a vertex hundreds of pixels
+       clear of the building, which is the hip/valley skeleton "going haywire"
+       on certain footprints. Recomputed per recursion, so it tightens as the
+       wavefront shrinks. */
+    var _bx0=Infinity,_by0=Infinity,_bx1=-Infinity,_by1=-Infinity;
+    for(var _bi=0;_bi<n;_bi++){
+      if(pts[_bi][0]<_bx0)_bx0=pts[_bi][0];
+      if(pts[_bi][0]>_bx1)_bx1=pts[_bi][0];
+      if(pts[_bi][1]<_by0)_by0=pts[_bi][1];
+      if(pts[_bi][1]>_by1)_by1=pts[_bi][1];
+    }
+    var TMAX=0.5*Math.min(_bx1-_bx0,_by1-_by0)+2;
     // Ridge segment — just record it
     if(n===2){
       var d=vlen([pts[1][0]-pts[0][0],pts[1][1]-pts[0][1]]);
@@ -39248,7 +39263,7 @@ function buildHipValleyLines(outline) {
       var dx=pts[j][0]-pts[i][0],dy=pts[j][1]-pts[i][1];
       var dvx=vel[i][0]-vel[j][0],dvy=vel[i][1]-vel[j][1];
       var dv2=dvx*dvx+dvy*dvy;if(dv2<1e-8)continue;
-      var t=(dx*dvx+dy*dvy)/dv2;if(t<0.05)continue;
+      var t=(dx*dvx+dy*dvy)/dv2;if(t<0.05||t>TMAX)continue;
       var rx=dx-t*dvx,ry=dy-t*dvy;
       if(rx*rx+ry*ry>EPS*EPS*9)continue;
       if(t<minT-EPS){minT=t;minEdges=[i];}
@@ -39266,7 +39281,7 @@ function buildHipValleyLines(outline) {
         var denom=1-(vel[i][0]*nj[0]+vel[i][1]*nj[1]);
         if(Math.abs(denom)<1e-8)continue;
         var t=dist/denom;
-        if(t<0.05)continue;
+        if(t<0.05||t>TMAX)continue;
         // Verify hit is inside the MOVING edge segment at time t
         var hx=pts[i][0]+t*vel[i][0],hy=pts[i][1]+t*vel[i][1];
         var jx=pts[j][0]+t*vel[j][0],jy=pts[j][1]+t*vel[j][1];
@@ -39279,7 +39294,7 @@ function buildHipValleyLines(outline) {
         else if(t<minT+EPS&&!splitEv)splitEv={vi:i,ej:j,ejj:jj};
       }
     }
-    if(minT>9000||minT===Infinity)return;
+    if(!(minT<=TMAX))return;
     var T=minT;
     // Advance vertices
     var np=pts.map(function(p,i){return[p[0]+T*vel[i][0],p[1]+T*vel[i][1]];});
@@ -39336,6 +39351,30 @@ function buildHipValleyLines(outline) {
 
   var initOrig=outline.map(function(){return true;});
   run(outline.map(function(p){return p.slice();}),initOrig,0);
+  /* A roof skeleton lives INSIDE the building. Anything that ended up outside
+     is a degenerate event, not a roof line — drop it rather than draw it. An
+     incomplete roof the user can see and fix beats a confident wrong one. */
+  (function _dropStrayArcs(){
+    var poly=outline, np=poly.length, TOL=2.5;
+    function _inPoly(p){
+      var win=false;
+      for(var i=0,j=np-1;i<np;j=i++){
+        var a=poly[j],c=poly[i];
+        if(((c[1]>p[1])!==(a[1]>p[1])) && (p[0]<(a[0]-c[0])*(p[1]-c[1])/(a[1]-c[1])+c[0])) win=!win;
+      }
+      if(win)return true;
+      for(var i2=0,j2=np-1;i2<np;j2=i2++){
+        var a2=poly[j2],c2=poly[i2];
+        var dx=c2[0]-a2[0],dy=c2[1]-a2[1],L2=dx*dx+dy*dy;
+        var t=L2?((p[0]-a2[0])*dx+(p[1]-a2[1])*dy)/L2:0;
+        t=Math.max(0,Math.min(1,t));
+        var qx=a2[0]+t*dx-p[0],qy=a2[1]+t*dy-p[1];
+        if(qx*qx+qy*qy<=TOL*TOL)return true;
+      }
+      return false;
+    }
+    result=result.filter(function(seg){ return _inPoly(seg.pts[0])&&_inPoly(seg.pts[1]); });
+  })();
   // Post-process: reclassify 'ridge' arcs that run at ~45° to any outline edge as 'hip'
   // These are generated at skeleton junctions where two faces meet diagonally — geometrically hips
   var _oa=[];
