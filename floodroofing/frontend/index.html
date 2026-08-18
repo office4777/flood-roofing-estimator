@@ -237,13 +237,23 @@ html.tablet-mode #frHelpPanel{bottom:88px!important}
    toolbar and the drawing, and is hidden entirely when there is nothing to
    report — silence means the server has everything. */
 #syncChip{
-  display:none;position:fixed;right:10px;bottom:calc(var(--ttb-h,72px) + 12px);z-index:520;
+  display:none;position:fixed;right:12px;top:12px;z-index:520;
   align-items:center;gap:6px;max-width:min(78vw,340px);
-  padding:7px 12px;border-radius:16px;background:#78350f;color:#fff;
+  padding:7px 12px;border:none;border-radius:16px;background:#78350f;color:#fff;
   font:600 11.5px/1.25 Inter,-apple-system,sans-serif;letter-spacing:.01em;
   box-shadow:0 4px 14px rgba(10,22,40,.32);cursor:pointer;
 }
-html:not(.tablet-mode) #syncChip{bottom:14px}
+/* Onsite: a 30px symbol living IN the header, so it can never sit on the
+   drawing or the roof-shape handle. */
+#syncChip.sc-mini{
+  position:static;flex:0 0 auto;width:32px;height:32px;padding:0;border-radius:10px;
+  justify-content:center;font-size:15px;max-width:none;box-shadow:none;
+}
+#syncChip.sc-mini .sc-n{
+  position:absolute;transform:translate(11px,-11px);
+  min-width:15px;height:15px;padding:0 3px;border-radius:8px;
+  background:#fff;color:#0a1628;font-size:9.5px;font-weight:800;line-height:15px;text-align:center;
+}
 @media print{ #syncChip{display:none!important} }
 
 html.site-mode #tabletNavBtn{display:none!important}
@@ -8077,6 +8087,22 @@ function _syncFail(key, msg, permanent){
   SYNC.lastErr = msg;
 }
 function _isOnline(){ return navigator.onLine !== false; }
+/* What actually counts as "waiting to upload". The open job's draft is
+   rewritten on every keystroke and every line drawn, so counting it meant
+   the indicator was permanently lit while anyone was working — "Uploading
+   1 saved job…" that never went away. That draft only counts as unsent
+   when there is no signal, or when a save of it has actually failed. */
+function _syncCount(list){
+  var here = _draftKey();
+  var live = 0, stuck = 0;
+  (list || []).forEach(function(d){
+    var f = SYNC.fails[d.key];
+    if (f && f.stuck) { stuck++; return; }
+    if (d.key === here && _isOnline() && !f) return;   // just the working draft
+    live++;
+  });
+  SYNC.pending = live; SYNC.stuck = stuck;
+}
 
 // Push ONE draft record straight to the backend, without loading it into
 // the UI — an outbox entry is data, it doesn't need to become the open job.
@@ -8153,7 +8179,7 @@ async function _syncFlush(force){
   _renderSyncChip();
   try {
     var drafts = await _listLocalDrafts();
-    SYNC.pending = drafts.length;
+    _syncCount(drafts);
     for (var i = 0; i < drafts.length; i++){
       var d = drafts[i];
       var f = SYNC.fails[d.key];
@@ -8170,7 +8196,6 @@ async function _syncFlush(force){
         } else {
           await _syncPushDraft(d);
         }
-        SYNC.pending = Math.max(0, SYNC.pending - 1);
         delete SYNC.fails[d.key];
         SYNC.lastErr = '';
       } catch(e){
@@ -8182,8 +8207,7 @@ async function _syncFlush(force){
       _renderSyncChip();
     }
     var left = await _listLocalDrafts();
-    SYNC.pending = left.length;
-    SYNC.stuck = left.filter(function(x){ var g = SYNC.fails[x.key]; return g && g.stuck; }).length;
+    _syncCount(left);
     try { if (typeof fetchRecentDrafts === 'function') fetchRecentDrafts(); } catch(e){}
   } catch(e){
     SYNC.lastErr = e && e.message ? e.message : 'sync failed';
@@ -8195,32 +8219,54 @@ async function _syncFlush(force){
 /* A single, quiet status pill: only ever visible when there is something to
    say — offline, or work still waiting to upload. Silence means everything
    is on the server. */
+/* Onsite this is a small symbol in the header, not a pill over the drawing —
+   it was landing on top of the roof-shape handle. On desktop it stays a
+   labelled chip, up in the corner clear of everything. Either way it is
+   invisible unless there is something to say. */
 function _renderSyncChip(){
+  var site = !!window.__siteModeOn;
+  var host = site ? document.getElementById('phoneTopBar') : document.body;
   var el = document.getElementById('syncChip');
   if (!el){
-    el = document.createElement('div');
+    el = document.createElement('button');
     el.id = 'syncChip';
+    el.type = 'button';
     el.className = 'no-print';
-    el.onclick = function(){ _syncChipTap(); };
-    document.body.appendChild(el);
+    el.onclick = function(ev){ ev.stopPropagation(); _syncChipTap(); };
   }
+  if (host && el.parentNode !== host) host.appendChild(el);
+  el.classList.toggle('sc-mini', site);
+
   var offline = !_isOnline();
-  var n = SYNC.pending;
-  if (!offline && !n){ el.style.display = 'none'; return; }
+  var n = SYNC.pending, stuck = SYNC.stuck;
+  if (!offline && !n && !stuck){ el.style.display = 'none'; return; }
   el.style.display = 'flex';
+
+  var icon, bg, label, title;
   if (offline){
-    el.style.background = '#78350f';
-    el.textContent = '⚡ Offline — saving on this device' + (n ? ' (' + n + ' to upload)' : '');
+    icon = '⚡'; bg = '#78350f';
+    label = 'Offline — saving on this device' + (n ? ' (' + n + ' to upload)' : '');
+    title = 'No signal — everything is being saved on this device';
+  } else if (stuck){
+    icon = '⚠'; bg = '#b91c1c';
+    label = stuck + ' job' + (stuck === 1 ? " won't" : "s won't") + ' upload — tap to see why';
+    title = label;
   } else if (SYNC.busy){
-    el.style.background = '#0369a1';
-    el.textContent = '⟳ Uploading ' + n + ' saved job' + (n === 1 ? '' : 's') + '…';
-  } else if (SYNC.stuck){
-    el.style.background = '#b91c1c';
-    el.textContent = '⚠ ' + SYNC.stuck + ' job' + (SYNC.stuck === 1 ? " won't" : "s won't") + ' upload — tap to see why';
+    icon = '⟳'; bg = '#0369a1';
+    label = 'Uploading ' + n + ' saved job' + (n === 1 ? '' : 's') + '…';
+    title = label;
   } else {
-    el.style.background = '#b45309';
-    el.textContent = '⏳ ' + n + ' job' + (n === 1 ? '' : 's') + ' waiting to upload — tap to retry';
+    icon = '⏳'; bg = '#b45309';
+    label = n + ' job' + (n === 1 ? '' : 's') + ' waiting to upload — tap to retry';
+    title = label;
   }
+  el.style.background = bg;
+  el.title = title;
+  el.setAttribute('aria-label', title);
+  var count = (stuck || n);
+  el.innerHTML = site
+    ? ('<span>' + icon + '</span>' + (count > 1 ? '<span class="sc-n">' + count + '</span>' : ''))
+    : ('<span>' + icon + '</span><span>' + esc(label) + '</span>');
 }
 /* Tapping the pill: retry, and when something is genuinely stuck, say what
    and why instead of leaving the office guessing. */
@@ -8245,7 +8291,7 @@ window.addEventListener('offline', function(){ _renderSyncChip(); });
 document.addEventListener('visibilitychange', function(){ if (!document.hidden) _syncFlush(); });
 setInterval(function(){ _syncFlush(); }, 30000);
 setTimeout(function(){
-  _listLocalDrafts().then(function(d){ SYNC.pending = d.length; _renderSyncChip(); _syncFlush(true); });
+  _listLocalDrafts().then(function(d){ _syncCount(d); _renderSyncChip(); _syncFlush(true); });
 }, 2500);
 
 // The old startup "Unsaved work found — Restore it / Discard" banner is
@@ -23187,8 +23233,16 @@ function setTool(t) {
   // tool after the current roof's outline is already finished.  This
   // lets them draw a 2nd, 3rd ... outline anywhere on the canvas
   // without an explicit "add roof" button.
+  /* Re-selecting Building Outline on a finished roof means "start another
+     building" — but it used to switch to that empty new roof IMMEDIATELY,
+     which greyed out Lines, Calibrate and the rest (they need an outline)
+     and looked exactly like the app refusing to let you add a line. The
+     switch is now deferred until the first corner of the second outline is
+     actually placed; tap Outline and change your mind and nothing happened. */
   if (t === 'outline' && DRAW.outlineDone && DRAW.outline && DRAW.outline.length >= 3) {
-    _addAndSwitchToNewRoof();
+    DRAW._pendingNewRoof = true;
+  } else if (t !== 'outline') {
+    DRAW._pendingNewRoof = false;
   }
   DRAW.tool = t;
   DRAW.currentPts = [];
@@ -25806,6 +25860,7 @@ function onCanvasClick(e) {
     if(Math.hypot(xy[0]-_f0[0], xy[1]-_f0[1]) < _closeR){ finishCurrent(); return; }
   }
 
+  if ((DRAW.tool === 'outline' || DRAW.tool === 'section') && !DRAW.currentPts.length) _startPendingRoof();
   DRAW.currentPts.push(xy);
   redrawAll();
 }
@@ -26025,6 +26080,15 @@ function autoPopulateGutters(){
   toRemove.sort(function(a,b){return b-a;}).forEach(function(i){DRAW.lines.splice(i,1);});
   toAdd.forEach(function(l){DRAW.lines.push(l);});
   DRAW.lines.forEach(function(l,i){if(l.type==='barge'&&!l.measM)calcLineMeasIfCalibrated(i);});
+}
+// The deferred "another building" switch — called the moment the first
+// corner of a second outline lands, not when the tool is selected.
+function _startPendingRoof(){
+  if (!DRAW._pendingNewRoof) return;
+  DRAW._pendingNewRoof = false;
+  if (DRAW.outlineDone && DRAW.outline && DRAW.outline.length >= 3){
+    try { _addAndSwitchToNewRoof(); } catch(e){}
+  }
 }
 function finishCurrent() {
   var pts = DRAW.currentPts;
@@ -27075,6 +27139,7 @@ function _inkCommit(){
 
   var pts = fit.pts.map(function(p){ return [p[0], p[1]]; });
   if (INK_POLY_TOOLS[tool]){
+    if (!(DRAW.currentPts || []).length) _startPendingRoof();
     if (fit.closed){
       DRAW.currentPts = pts;
       DRAW._inkRuns = [];
