@@ -262,6 +262,7 @@ html.site-mode #roofViewRow{touch-action:none}
 /* Map Roof onsite is edge-to-edge dark chrome over a canvas. The page
    ground goes dark with it so nothing pale can show through above the
    fixed header — the top of the app reads as one continuous bar. */
+html.site-mode{background:#0a1628}
 html.site-mode body[data-tab="roof"]{background:#0a1628!important}
 /* Move-corner pad: compact, and parked low-left so it never sits over the
    header or the step bar. It is still draggable anywhere from its title. */
@@ -8052,7 +8053,29 @@ function _checkDraftsOnBoot(){
 // returns (and on a slow retry loop meanwhile), so onsite work uploads
 // itself without anybody remembering to press Save.
 // ══════════════════════════════════════════════════════════════════
-var SYNC = { busy:false, pending:0, lastErr:'', _timer:null, _lastFlush:0 };
+var SYNC = { busy:false, pending:0, stuck:0, lastErr:'', fails:{}, _timer:null, _lastFlush:0 };
+var SYNC_MAX_BODY = 20 * 1024 * 1024;   // the backend 413s past ~25MB
+var SYNC_MAX_TRIES = 4;
+/* Some uploads will never succeed however many times we try — a job too big
+   for the backend, a job the server has since deleted, a rejected body. The
+   first version retried everything forever, which is how "Uploading 4 saved
+   jobs…" could sit there for good with no clue why. A failure is now counted
+   per draft, classified, and once it is clearly permanent the draft is parked
+   as STUCK with its reason shown, instead of spinning. */
+function _syncPermanent(msg){
+  var m = String(msg || '');
+  var code = (m.match(/HTTP (\d{3})/) || [])[1];
+  if (!code) return false;
+  code = parseInt(code, 10);
+  if (code === 408 || code === 429) return false;    // timeout / rate limit — worth retrying
+  return code >= 400 && code < 500;
+}
+function _syncFail(key, msg, permanent){
+  var f = SYNC.fails[key] || (SYNC.fails[key] = { n:0, msg:'' });
+  f.n++; f.msg = msg;
+  f.stuck = !!permanent || f.n >= SYNC_MAX_TRIES;
+  SYNC.lastErr = msg;
+}
 function _isOnline(){ return navigator.onLine !== false; }
 
 // Push ONE draft record straight to the backend, without loading it into
@@ -8081,9 +8104,27 @@ async function _syncPushDraft(d){
   } catch(e){}
   var body = { client_name: t.client, site_address: t.addr,
                draw_state: snap, settings: {} };
+  // Too big to ever land — usually a long run of site photos. Say so rather
+  // than retrying it every thirty seconds for the rest of the day.
+  var size = 0;
+  try { size = JSON.stringify(body).length; } catch(e){}
+  if (size > SYNC_MAX_BODY){
+    throw new Error('too large (' + Math.round(size/1024/1024) + ' MB) — remove some photos');
+  }
   var isSavedJob = d.key && d.key !== '__new__' && String(d.key).indexOf('ferg_') !== 0;
-  var saved = isSavedJob ? await api('PUT', '/jobs/' + d.key, body)
-                         : await api('POST', '/jobs', body);
+  var saved;
+  if (isSavedJob){
+    try {
+      saved = await api('PUT', '/jobs/' + d.key, body);
+    } catch(e){
+      // The server no longer has that job (deleted elsewhere) — don't lose
+      // the work, send it up as a new one.
+      if (/HTTP 40[34]/.test(e.message || '')) { saved = await api('POST', '/jobs', body); isSavedJob = false; }
+      else throw e;
+    }
+  } else {
+    saved = await api('POST', '/jobs', body);
+  }
   // A draft that just became a real job: if it is the one open on screen,
   // adopt the new id so the next save updates it instead of duplicating.
   if (!isSavedJob && saved && saved.id){
@@ -8115,6 +8156,9 @@ async function _syncFlush(force){
     SYNC.pending = drafts.length;
     for (var i = 0; i < drafts.length; i++){
       var d = drafts[i];
+      var f = SYNC.fails[d.key];
+      if (f && f.stuck && !force) continue;          // parked — a manual tap retries it
+      if (force && f) f.stuck = false;
       try {
         // The job on screen goes through the normal save so the UI, the job
         // id and the Fergus link all stay in step — but only when it has a
@@ -8127,15 +8171,19 @@ async function _syncFlush(force){
           await _syncPushDraft(d);
         }
         SYNC.pending = Math.max(0, SYNC.pending - 1);
+        delete SYNC.fails[d.key];
         SYNC.lastErr = '';
       } catch(e){
-        SYNC.lastErr = e && e.message ? e.message : 'upload failed';
-        break;                                            // still offline / server down — try again later
+        var msg = (e && e.message) ? e.message : 'upload failed';
+        _syncFail(d.key, msg, _syncPermanent(msg) || /too large/.test(msg));
+        if (!_isOnline()) break;                          // signal gone again — stop here
+        continue;                                          // one bad job must not block the rest
       }
       _renderSyncChip();
     }
     var left = await _listLocalDrafts();
     SYNC.pending = left.length;
+    SYNC.stuck = left.filter(function(x){ var g = SYNC.fails[x.key]; return g && g.stuck; }).length;
     try { if (typeof fetchRecentDrafts === 'function') fetchRecentDrafts(); } catch(e){}
   } catch(e){
     SYNC.lastErr = e && e.message ? e.message : 'sync failed';
@@ -8153,7 +8201,7 @@ function _renderSyncChip(){
     el = document.createElement('div');
     el.id = 'syncChip';
     el.className = 'no-print';
-    el.onclick = function(){ _syncFlush(true); };
+    el.onclick = function(){ _syncChipTap(); };
     document.body.appendChild(el);
   }
   var offline = !_isOnline();
@@ -8166,10 +8214,30 @@ function _renderSyncChip(){
   } else if (SYNC.busy){
     el.style.background = '#0369a1';
     el.textContent = '⟳ Uploading ' + n + ' saved job' + (n === 1 ? '' : 's') + '…';
+  } else if (SYNC.stuck){
+    el.style.background = '#b91c1c';
+    el.textContent = '⚠ ' + SYNC.stuck + ' job' + (SYNC.stuck === 1 ? " won't" : "s won't") + ' upload — tap to see why';
   } else {
     el.style.background = '#b45309';
     el.textContent = '⏳ ' + n + ' job' + (n === 1 ? '' : 's') + ' waiting to upload — tap to retry';
   }
+}
+/* Tapping the pill: retry, and when something is genuinely stuck, say what
+   and why instead of leaving the office guessing. */
+function _syncChipTap(){
+  if (!SYNC.stuck) { _syncFlush(true); return; }
+  _listLocalDrafts().then(function(list){
+    var lines = list.map(function(d){
+      var f = SYNC.fails[d.key] || {};
+      if (!f.stuck) return null;
+      var who = d.client || d.addr || (d.key === '__new__' ? 'Unsaved site draft' : 'Job ' + d.key);
+      return '• ' + who + '\n   ' + (f.msg || 'upload failed');
+    }).filter(Boolean);
+    var msg = "These are saved on this device but the server won't take them:\n\n" +
+              lines.join('\n') +
+              '\n\nThey stay on this device — nothing is lost. Try again now?';
+    if (confirm(msg)) { SYNC.fails = {}; SYNC.stuck = 0; _syncFlush(true); }
+  });
 }
 
 window.addEventListener('online',  function(){ _renderSyncChip(); _syncFlush(true); });
