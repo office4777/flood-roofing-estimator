@@ -2645,15 +2645,16 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 <div class="panel active" id="tab-select">
   <strong id="currentJobLabelTop" style="display:none"></strong>
   <style>
-    .hb-topbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+    /* Sits level with the sidebar's SYSTEM / RoofMap v2 row. */
+    .hb-topbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:64px 0 20px}
     .hb-search-wrap{position:relative;flex:1 1 480px;max-width:none}
-    .hb-search{width:100%;box-sizing:border-box;padding:17px 18px 17px 50px;border:1.5px solid var(--border);border-radius:14px;font-size:15.5px;font-family:inherit;box-shadow:0 2px 8px rgba(10,22,40,.05);background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>') 18px center no-repeat}
+    .hb-topbar .hb-search{display:block;width:100%;height:58px;margin:0;box-sizing:border-box;padding:0 18px 0 50px;border:1.5px solid var(--border);border-radius:14px;font-size:15.5px;font-family:inherit;box-shadow:0 2px 8px rgba(10,22,40,.05);background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>') 18px center no-repeat}
     .hb-search:focus{outline:none;border-color:#0099cc;box-shadow:0 0 0 3px rgba(0,153,204,.12)}
     .hb-drop{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 36px rgba(10,22,40,.16);z-index:500;max-height:380px;overflow-y:auto;padding:6px}
     .hb-drop-row{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;cursor:pointer}
     .hb-drop-row:hover{background:#f0f8fb}
     .hb-drop-badge{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:20px;white-space:nowrap}
-    .hb-newjob{display:inline-flex;align-items:center;gap:10px;padding:17px 34px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;border:none;border-radius:14px;font-size:15.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 5px 16px rgba(0,153,204,.32);white-space:nowrap}
+    .hb-newjob{display:inline-flex;align-items:center;justify-content:center;gap:10px;height:58px;box-sizing:border-box;padding:0 34px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;border:none;border-radius:14px;font-size:15.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 5px 16px rgba(0,153,204,.32);white-space:nowrap}
     .hb-newjob:hover{filter:brightness(1.06)}
     .hb-tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:18px}
     @media (max-width:900px){ .hb-tiles{grid-template-columns:repeat(3,1fr)} }
@@ -2673,13 +2674,13 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     .hb-empty{font-size:12px;color:var(--text2);text-align:center;padding:20px 8px}
   </style>
   <div class="hb-topbar">
+    <button type="button" class="hb-newjob" onclick="startNewJob()">＋ Create new job</button>
     <div class="hb-search-wrap">
       <input id="homeJobSearch" class="hb-search" type="text" placeholder="Select job — search saved &amp; Fergus jobs by client, address or job number…"
              oninput="_homeJobSearchInput()" onfocus="_homeJobSearchInput()" autocomplete="off">
       <div id="homeJobSearchDrop" class="hb-drop"></div>
     </div>
-    <button type="button" class="hb-newjob" onclick="startNewJob()">＋ Create new job</button>
-    <button type="button" onclick="fetchQuoteActivity();fetchRecentDrafts()" title="Refresh the board" style="padding:16px 18px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:14px;font-size:14px;cursor:pointer;font-family:inherit">↻</button>
+    <button type="button" onclick="fetchQuoteActivity();fetchRecentDrafts()" title="Refresh the board" style="height:58px;padding:0 18px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:14px;font-size:14px;cursor:pointer;font-family:inherit">↻</button>
   </div>
   <div style="font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:2px 0 10px">Status board</div>
   <div class="hb-tiles" id="homeBoardTiles"></div>
@@ -20637,9 +20638,18 @@ function _setOutlineTextScale(v){
   if (out) out.textContent = n.toFixed(1);
   try { redrawAll(); } catch(e){}
 }
+// One-time migration: the outline-text size used to inherit whatever the
+// legacy Materials-map slider was set to. Reset every device to the 1.0
+// default once; after that the user's own slider value is respected.
+(function _outlineTextScaleV2(){
+  try {
+    if (localStorage.getItem('fr_outline_text_scale_v2')) return;
+    localStorage.setItem('fr_outline_text_scale', '1');
+    localStorage.setItem('fr_outline_text_scale_v2', '1');
+  } catch(e){}
+})();
 function _syncOutlineTextScaleUi(){
-  var saved = parseFloat(localStorage.getItem('fr_outline_text_scale')
-               || localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
+  var saved = parseFloat(localStorage.getItem('fr_outline_text_scale') || '1') || 1;
   if (!isFinite(saved) || saved < 0.5) saved = 1;
   if (saved > 4) saved = 4;
   var inp = document.getElementById('outlineTextScale');
@@ -26159,8 +26169,7 @@ function redrawAll() {
             // measure labels use — without this the secondary roofs'
             // labels stay locked at 11 px while the active roof's labels
             // grow, and the user sees mismatched sizes.
-            var _shAllScale = parseFloat(localStorage.getItem('fr_outline_text_scale')
-                               || localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
+            var _shAllScale = parseFloat(localStorage.getItem('fr_outline_text_scale') || '1') || 1;
             if (_shAllScale < 0.5) _shAllScale = 0.5;
             if (_shAllScale > 4)   _shAllScale = 4;
             var _shAllPx = Math.round(11 * _shAllScale);
@@ -26363,8 +26372,7 @@ function redrawAll() {
       // line measurement labels together, independent of the Sheet-text
       // slider. Falls back to the legacy Materials-map scale so a size the
       // user already tuned carries over until they touch the new slider.
-      var _measScale = parseFloat(localStorage.getItem('fr_outline_text_scale')
-                        || localStorage.getItem('fr_roofmap_font_scale') || '1') || 1;
+      var _measScale = parseFloat(localStorage.getItem('fr_outline_text_scale') || '1') || 1;
       if (_measScale < 0.5) _measScale = 0.5;
       if (_measScale > 4)   _measScale = 4;
       var measFontPx = Math.round(11 * _measScale);
@@ -29051,21 +29059,46 @@ var _MAT_FLASHING_SPECS = [
 // Not calibrated yet? The first typed real measure becomes the
 // calibration instead (scale = metres / drawn pixels).
 
-// Map a drawn segment (e.g. an auto gutter/barge line) onto the outline
-// edge it sits on. Returns the edge index (edge i runs corner i → i+1),
-// or -1 when the segment isn't an outline edge (interior ridge etc.).
-function _findOutlineEdgeForSegment(p0, p1){
+// Map a drawn segment (gutter / barge / any line lying on a wall) onto the
+// outline edge it sits on. Returns { idx, frac, edgeLen } where idx is the
+// edge (corner idx → idx+1) and frac is how much of that edge the segment
+// covers — barges are SPLIT at the ridge crossing, so a gable-end barge is
+// typically half its wall (frac ≈ 0.5). Returns null for interior lines
+// (ridge / hip / valley) that don't lie on any wall.
+function _outlineEdgeForSegment(p0, p1){
   var n = (DRAW.outline || []).length;
-  if (n < 3 || !p0 || !p1) return -1;
+  if (n < 3 || !p0 || !p1) return null;
   var t = getImgTransform();
-  var EPS = (t ? 10 / t.s : 10) * 2;
+  var TOL = (t ? 10 / t.s : 10);
+  if (Math.hypot(p1[0]-p0[0], p1[1]-p0[1]) < 1) return null;
+  var best = null;
   for (var i = 0; i < n; i++){
     var a = DRAW.outline[i], b = DRAW.outline[(i + 1) % n];
-    var d1 = Math.hypot(a[0]-p0[0], a[1]-p0[1]) + Math.hypot(b[0]-p1[0], b[1]-p1[1]);
-    var d2 = Math.hypot(a[0]-p1[0], a[1]-p1[1]) + Math.hypot(b[0]-p0[0], b[1]-p0[1]);
-    if (Math.min(d1, d2) < EPS) return i;
+    var ex = b[0]-a[0], ey = b[1]-a[1];
+    var eL = Math.hypot(ex, ey);
+    if (eL < 1) continue;
+    var ux = ex/eL, uy = ey/eL;
+    // BOTH endpoints must sit on this edge's line and within its span.
+    var ok = true, ts = [];
+    [p0, p1].forEach(function(p){
+      var dx = p[0]-a[0], dy = p[1]-a[1];
+      var along = dx*ux + dy*uy;
+      var perp  = Math.abs(dx*(-uy) + dy*ux);
+      if (perp > TOL || along < -TOL || along > eL + TOL) ok = false;
+      ts.push(along);
+    });
+    if (!ok) continue;
+    var frac = Math.abs(ts[1]-ts[0]) / eL;
+    if (frac < 0.05) continue;                     // degenerate stub
+    var score = Math.abs(1 - frac);                // prefer the edge it spans most fully
+    if (!best || score < best.score) best = { idx: i, frac: Math.min(1, frac), edgeLen: eL, score: score };
   }
-  return -1;
+  return best;
+}
+// Back-compat: edge index only (-1 when the segment isn't on a wall).
+function _findOutlineEdgeForSegment(p0, p1){
+  var m = _outlineEdgeForSegment(p0, p1);
+  return m ? m.idx : -1;
 }
 
 function _applyTrueEdgeMeasure(edgeIdx, metres){
@@ -29140,7 +29173,8 @@ function _roofCanvasHitMeasureLabel(ev){
     if (cx < h.x - h.w/2 || cx > h.x + h.w/2 || cy < h.y - h.h/2 || cy > h.y + h.h/2) continue;
     var l = h.line;
     if (!l || !l.pts || l.pts.length < 2) return false;
-    var edgeIdx = _findOutlineEdgeForSegment(l.pts[0], l.pts[1]);
+    var em = _outlineEdgeForSegment(l.pts[0], l.pts[1]);
+    var edgeIdx = em ? em.idx : -1;
     if (edgeIdx < 0){
       // Interior line — existing measurement editor.
       var li = DRAW.lines.indexOf(l);
@@ -29157,7 +29191,11 @@ function _roofCanvasHitMeasureLabel(ev){
       okLabel: 'Apply',
     }, function(v){
       var m = parseFloat(String(v).replace(/m$/i, ''));
-      if (isFinite(m) && m > 0) _applyTrueEdgeMeasure(edgeIdx, m);
+      if (!isFinite(m) || m <= 0) return;
+      // A barge is split at the ridge, so it usually covers HALF its wall:
+      // scale the whole wall proportionally so the tapped piece becomes the
+      // typed length (frac === 1 for full-wall gutters — no change there).
+      _applyTrueEdgeMeasure(edgeIdx, m / (em.frac || 1));
     });
     return true;
   }
@@ -32805,8 +32843,8 @@ function _applySheetMeasureChange(hit, raw){
           for (var _tbi = 0; _tbi < _tb.length && !_stretched; _tbi++){
             var _bl = _tb[_tbi];
             if (!_bl || !_bl.pts || _bl.pts.length < 2) continue;
-            var _tei = _findOutlineEdgeForSegment(_bl.pts[0], _bl.pts[1]);
-            if (_tei >= 0) _stretched = _applyTrueEdgeMeasure(_tei, n);
+            var _tem = _outlineEdgeForSegment(_bl.pts[0], _bl.pts[1]);
+            if (_tem) _stretched = _applyTrueEdgeMeasure(_tem.idx, n / (_tem.frac || 1));
           }
         }
       } catch(e){}
