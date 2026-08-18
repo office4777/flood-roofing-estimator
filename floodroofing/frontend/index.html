@@ -24130,6 +24130,57 @@ document.addEventListener('mouseup', function(e) {
                button: 0, target: cv,
                preventDefault: function(){}, stopPropagation: function(){} };
     }
+    function fakeAt(clientX, clientY){
+      return { clientX: clientX, clientY: clientY, shiftKey: false, button: 0, target: cv,
+               preventDefault: function(){}, stopPropagation: function(){} };
+    }
+
+    // ── Continuous pen tracing ────────────────────────────────────
+    // Trace a whole building without lifting the pen: while the pen is down
+    // we watch the ink for a sharp bend and drop a corner there, then carry
+    // on from it. Detection = incremental Douglas–Peucker: measure how far
+    // the ink strays from the straight line between the last corner and the
+    // pen, and when that exceeds DEV_TOL the furthest point IS the corner —
+    // provided the turn is genuinely sharp (MIN_TURN) and both legs have
+    // some length. Gentle drifting therefore stays one straight edge.
+    var TRACE = {
+      MIN_SEG:  26,   // px of leg before a corner can be dropped
+      MIN_TAIL: 15,   // px travelled past the corner before we believe it
+      DEV_TOL:  11,   // px the ink must stray from the straight line
+      MIN_TURN: 38,   // degrees of direction change to call it a corner
+      STEP:      2,   // px between recorded ink samples
+    };
+    function _traceReset(pen, cx, cy, clientX, clientY){
+      pen.trail = [{ x: cx, y: cy, cx: clientX, cy: clientY }];
+    }
+    function _traceCorner(pen){
+      var t = pen.trail;
+      if (!t || t.length < 3) return null;
+      var a = t[0], c = t[t.length - 1];
+      var ax = c.x - a.x, ay = c.y - a.y;
+      var span = Math.hypot(ax, ay);
+      if (span < TRACE.MIN_SEG) return null;
+      var ux = ax / span, uy = ay / span;
+      // furthest ink point from the straight line a→c
+      var best = 0, bi = -1;
+      for (var i = 1; i < t.length - 1; i++){
+        var dx = t[i].x - a.x, dy = t[i].y - a.y;
+        var d = Math.abs(dx * (-uy) + dy * ux);
+        if (d > best){ best = d; bi = i; }
+      }
+      if (bi < 0 || best < TRACE.DEV_TOL) return null;
+      var k = t[bi];
+      var l1 = Math.hypot(k.x - a.x, k.y - a.y);
+      var l2 = Math.hypot(c.x - k.x, c.y - k.y);
+      if (l1 < TRACE.MIN_SEG * 0.55 || l2 < TRACE.MIN_TAIL) return null;
+      // how hard did we turn at that point?
+      var a1 = Math.atan2(k.y - a.y, k.x - a.x);
+      var a2 = Math.atan2(c.y - k.y, c.x - k.x);
+      var turn = Math.abs(a2 - a1);
+      while (turn > Math.PI) turn = Math.abs(turn - 2 * Math.PI);
+      if (turn * 180 / Math.PI < TRACE.MIN_TURN) return null;
+      return { idx: bi, pt: k };
+    }
     function cvPt(e){
       var rect = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
       return [ (e.clientX - rect.left) * (cv.width / rect.width) / dpr,
@@ -24179,11 +24230,18 @@ document.addEventListener('mouseup', function(e) {
       e.preventDefault();                                 // no compat mouse events
       if (e.pointerType === 'pen'){
         endTouchDragNoClick();                            // pen wins over a stray finger
-        P.pen = { id: e.pointerId, sx: e.clientX, sy: e.clientY, downPlaced: false };
+        P.pen = { id: e.pointerId, sx: e.clientX, sy: e.clientY, downPlaced: false,
+                  trail: null, corners: 0, lastCorner: null,
+                  travel: 0, lx: e.clientX, ly: e.clientY };
         try { cv.setPointerCapture(e.pointerId); } catch(err){}
         onCanvasMouseDown(fake(e));
         if (STROKE_TOOLS[DRAW.tool] && !dragActive() && (DRAW.currentPts || []).length === 0){
           try { onCanvasClick(fake(e)); P.pen.downPlaced = true; } catch(err){}
+        }
+        // Start recording ink so the stroke can turn corners without lifting.
+        if (STROKE_TOOLS[DRAW.tool] && !dragActive()){
+          var _p0 = cvPt(e);
+          _traceReset(P.pen, _p0[0], _p0[1], e.clientX, e.clientY);
         }
         return;
       }
@@ -24216,8 +24274,31 @@ document.addEventListener('mouseup', function(e) {
       e.preventDefault();
       if (e.pointerType === 'pen'){
         if (!P.pen || e.pointerId !== P.pen.id) return;
-        if (PAN.active) panStep(e);
-        else { try { onCanvasMove(fake(e)); } catch(err){} }
+        // Path length, not displacement — a stroke that traces right back
+        // round to its start has travelled a long way even though it ends
+        // where it began.
+        P.pen.travel += Math.hypot(e.clientX - P.pen.lx, e.clientY - P.pen.ly);
+        P.pen.lx = e.clientX; P.pen.ly = e.clientY;
+        if (PAN.active) { panStep(e); return; }
+        try { onCanvasMove(fake(e)); } catch(err){}
+        // Continuous tracing: drop a corner the moment the ink turns sharply.
+        var pen = P.pen;
+        if (pen.trail && STROKE_TOOLS[DRAW.tool] && !dragActive()){
+          var q = cvPt(e), last = pen.trail[pen.trail.length - 1];
+          if (Math.hypot(q[0] - last.x, q[1] - last.y) >= TRACE.STEP){
+            pen.trail.push({ x: q[0], y: q[1], cx: e.clientX, cy: e.clientY });
+            var hit = _traceCorner(pen);
+            if (hit){
+              try { onCanvasClick(fakeAt(hit.pt.cx, hit.pt.cy)); } catch(err){}
+              pen.corners++;
+              pen.lastCorner = { cx: hit.pt.cx, cy: hit.pt.cy };
+              pen.downPlaced = true;
+              pen.trail = pen.trail.slice(hit.idx);      // carry on from the corner
+              // the outline may have closed itself on that vertex
+              if (DRAW.outlineDone || !(DRAW.currentPts || []).length) pen.trail = null;
+            }
+          }
+        }
         return;
       }
       var tch = P.touches.get(e.pointerId);
@@ -24258,7 +24339,11 @@ document.addEventListener('mouseup', function(e) {
         // Skip the up-click only when the pen-down ALREADY placed this
         // point and the pen never travelled (a plain tap) — otherwise a
         // zero-length edge would land on top of the fresh first point.
-        var clickOnUp = !(pen.downPlaced && moved < 9);
+        var clickOnUp = !(pen.downPlaced && moved < 9 && (pen.travel || 0) < 14);
+        // …or when the pen lifted right on the corner it just dropped
+        // mid-stroke (that vertex is already placed).
+        if (clickOnUp && pen.lastCorner &&
+            Math.hypot(e.clientX - pen.lastCorner.cx, e.clientY - pen.lastCorner.cy) < 12) clickOnUp = false;
         if (clickOnUp && moved < 9) maybeDblTap(e);
         emulatedUp(e, clickOnUp);
         return;
@@ -25327,6 +25412,17 @@ function onCanvasClick(e) {
     if(DRAW.currentPts.length>=2) finishCurrent();
     else redrawAll();
     return;
+  }
+
+  // Outline / section: landing back on the very first corner closes the
+  // shape. That is standard polygon behaviour with a mouse, and it is the
+  // natural finish when a building is traced in one continuous pen stroke —
+  // the pen comes back round to where it started and lifts.
+  if((DRAW.tool==='outline'||DRAW.tool==='section') && DRAW.currentPts.length>=3){
+    var _f0 = DRAW.currentPts[0];
+    var _tc = getImgTransform();
+    var _closeR = _tc ? 16/_tc.s : 16;
+    if(Math.hypot(xy[0]-_f0[0], xy[1]-_f0[1]) < _closeR){ finishCurrent(); return; }
   }
 
   DRAW.currentPts.push(xy);
