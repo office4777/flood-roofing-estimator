@@ -26542,27 +26542,31 @@ function _fitInk(raw, tool){
      screen. A length-weighted circular mean over 4θ collapses all four
      axis directions onto one, so long walls set the grid and short ones
      fall in line with it. */
-  var th0;
+  /* The grid every wall snaps to. An onsite drawing is a schematic on grid
+     paper, so the building is squared to the CANVAS — a hand-drawn wall
+     that came out two degrees off is a wobble, not a design decision, and
+     a plan sitting on a slight lean reads as wrong however square it is to
+     itself. Ridges, gutters and barges instead take the outline's own grid,
+     so they stay true to a roof that arrived at an angle. */
+  var th0 = 0;
   if (!INK_POLY_TOOLS[tool]){
-    // Ridges, gutters, barges: square to the building, not to themselves.
     var grid = _inkGridAngle();
-    th0 = (grid == null) ? 0 : grid;
-  } else {
-    var sx = 0, sy = 0;
-    segs.forEach(function(s){ sx += s.len*Math.cos(4*s.ang); sy += s.len*Math.sin(4*s.ang); });
-    th0 = (Math.abs(sx) + Math.abs(sy) < 1e-9) ? 0 : Math.atan2(sy, sx) / 4;
+    if (grid != null) th0 = grid;
   }
 
-  var HALF = Math.PI/2, QUARTER = Math.PI/4, SNAP90 = 24 * Math.PI/180;
-  // A wall may only claim to be diagonal if it is long enough to BE a wall.
-  // Short diagonals are the rounding of a corner the pen swept through, and
-  // squaring them up is what lets them fold into their neighbour.
+  var HALF = Math.PI/2, QUARTER = Math.PI/4, SNAP45 = 12 * Math.PI/180;
+  // Every wall goes to the nearest axis unless it is BOTH long enough to be
+  // a real wall and genuinely diagonal — within 12° of a true 45°. That
+  // keeps a splayed corner splayed while a swept corner, a wobble, or a
+  // whole building traced on a lean all square up.
   var diagMin = Math.max(28, diag * 0.12);
   segs.forEach(function(s){
     var a90 = th0 + Math.round((s.ang - th0)/HALF)*HALF;
-    s.snap = (Math.abs(_angDelta(s.ang, a90)) <= SNAP90 || s.len < diagMin)
-      ? a90
-      : th0 + Math.round((s.ang - th0)/QUARTER)*QUARTER;
+    var a45 = th0 + Math.round((s.ang - th0)/QUARTER)*QUARTER;
+    var reallyDiagonal = Math.abs(_angDelta(a45, a90)) > 1e-6 &&
+                         s.len >= diagMin &&
+                         Math.abs(_angDelta(s.ang, a45)) <= SNAP45;
+    s.snap = reallyDiagonal ? a45 : a90;
   });
 
   var lines = _inkMergeLines(segs, closed);
