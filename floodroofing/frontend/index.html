@@ -263,6 +263,98 @@ html.tablet-mode #frHelpPanel{bottom:88px!important}
 }
 @media print{ #syncChip{display:none!important} }
 
+/* ── ONSITE LOOK ──────────────────────────────────────────────────
+   Emoji at whatever size the font felt like, a solid block behind the
+   active tool and bright bordered buttons over the drawing all read as
+   cheap. The onsite chrome now uses one 24px line-icon set on a single
+   stroke weight, a muted-to-accent active state, and dark glass over the
+   canvas — the language every good phone app uses. Office and desktop
+   are untouched. */
+:root{
+  --ico-move: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3v18M3 12h18M12 3l-2.6 2.6M12 3l2.6 2.6M12 21l-2.6-2.6M12 21l2.6-2.6M3 12l2.6-2.6M3 12l2.6 2.6M21 12l-2.6-2.6M21 12l-2.6 2.6'/></svg>");
+  --ico-outline: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M3 10.8 12 4l9 6.8'/><path d='M5.6 9.6V19a1 1 0 0 0 1 1h10.8a1 1 0 0 0 1-1V9.6'/></svg>");
+  --ico-lines: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M12 5v14M5 12h14'/></svg>");
+  --ico-ruler: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><rect x='2.6' y='8' width='18.8' height='8' rx='1.4'/><path d='M7 8v3.2M11 8v4.4M15 8v3.2M19 8v4.4'/></svg>");
+  --ico-undo: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M9.5 14.5 4.5 9.5l5-5'/><path d='M4.5 9.5h9.8a5.7 5.7 0 0 1 0 11.4H8.4'/></svg>");
+  --ico-redo: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='m14.5 14.5 5-5-5-5'/><path d='M19.5 9.5H9.7a5.7 5.7 0 0 0 0 11.4h5.9'/></svg>");
+  --ico-camera: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M3.4 8.9h3.2l1.6-2.3h7.6l1.6 2.3h3.2a1 1 0 0 1 1 1v8.5a1 1 0 0 1-1 1H3.4a1 1 0 0 1-1-1V9.9a1 1 0 0 1 1-1Z'/><circle cx='12' cy='13.6' r='3.4'/></svg>");
+  --ico-save: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M5 3.6h10.4L20.4 8.6V19.4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4.6a1 1 0 0 1 1-1Z'/><path d='M8.2 3.6v5h6.6v-5M8.2 14.4h7.6v6h-7.6z'/></svg>");
+}
+
+html.site-mode #tabletToolbar{
+  background:#0b1626;border-top:1px solid rgba(255,255,255,.08);
+  box-shadow:0 -10px 26px rgba(3,8,18,.45);
+}
+html.site-mode .ttb-btn{
+  position:relative;color:#8a97ab;gap:6px;padding:9px 2px 3px;border-radius:14px;
+  font-size:10px;font-weight:600;letter-spacing:.015em;
+  transition:color .14s ease;
+}
+/* the icon is a mask, so it simply takes the button's colour */
+html.site-mode .ttb-btn .ttb-ico{
+  width:23px!important;height:23px!important;font-size:0!important;line-height:0;background-color:currentColor;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;
+  -webkit-mask-size:23px 23px;mask-size:23px 23px;
+}
+html.site-mode .ttb-btn .ttb-ico[data-ico="move"]{-webkit-mask-image:var(--ico-move);mask-image:var(--ico-move)}
+html.site-mode .ttb-btn .ttb-ico[data-ico="outline"]{-webkit-mask-image:var(--ico-outline);mask-image:var(--ico-outline)}
+html.site-mode .ttb-btn .ttb-ico[data-ico="lines"]{-webkit-mask-image:var(--ico-lines);mask-image:var(--ico-lines)}
+html.site-mode .ttb-btn .ttb-ico[data-ico="ruler"]{-webkit-mask-image:var(--ico-ruler);mask-image:var(--ico-ruler)}
+html.site-mode .ttb-btn .ttb-ico[data-ico="undo"]{-webkit-mask-image:var(--ico-undo);mask-image:var(--ico-undo)}
+html.site-mode .ttb-btn .ttb-ico[data-ico="redo"]{-webkit-mask-image:var(--ico-redo);mask-image:var(--ico-redo)}
+html.site-mode .ttb-btn .ttb-ico[data-ico="camera"]{-webkit-mask-image:var(--ico-camera);mask-image:var(--ico-camera)}
+html.site-mode .ttb-btn .ttb-ico[data-ico="save"]{-webkit-mask-image:var(--ico-save);mask-image:var(--ico-save)}
+/* active tool: a soft pill behind the icon, label picks up the accent */
+html.site-mode .ttb-btn.on{background:transparent;color:#38bdf8}
+html.site-mode .ttb-btn.on::before{
+  content:'';position:absolute;top:4px;left:50%;transform:translateX(-50%);
+  width:48px;height:31px;border-radius:16px;background:rgba(56,189,248,.16);
+}
+html.site-mode .ttb-btn:disabled,html.site-mode .ttb-btn[disabled]{color:#44506490}
+
+/* header: a little more air, softer surfaces */
+html.site-mode #phoneTopBar{background:#0b1626;box-shadow:0 1px 0 rgba(255,255,255,.06)}
+html.site-mode #phoneNavBtn{background:rgba(255,255,255,.08);border-radius:12px;font-size:16px}
+html.site-mode #phoneJobBtn{
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:12px;
+  font-size:13px;font-weight:600;letter-spacing:.01em;
+}
+
+/* floating canvas controls: dark glass, not bordered white boxes */
+html.site-mode #roofViewRow button{
+  background:rgba(11,22,38,.82)!important;color:#e6edf6!important;
+  border:1px solid rgba(255,255,255,.12)!important;border-radius:11px!important;
+  font-size:11.5px!important;font-weight:600!important;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  box-shadow:0 2px 10px rgba(3,8,18,.35)!important;
+}
+html.site-mode #phoneClearBtn{color:#fca5a5!important}
+
+/* roof-shape sheet: one calm dark surface instead of a blue gradient card */
+html.site-mode body[data-tab="roof"] #roofTypePanel{
+  background:#0f1c30!important;border:1px solid rgba(255,255,255,.10)!important;
+  border-radius:16px!important;box-shadow:0 -12px 32px rgba(3,8,18,.5)!important;
+}
+html.site-mode #roofTypePanel .tool-btn{
+  border:1px solid rgba(255,255,255,.10)!important;font-weight:600!important;
+}
+/* The sheet's emoji were the last thing shouting on this screen — the
+   colour of each chip already tells the shapes apart. */
+html.site-mode .rt-emo{display:none}
+html.site-mode #roofTypePanel .tool-btn[style*="background:#fff"],
+html.site-mode #roofTypePanel .tool-btn:not([style*="color:#fff"]){
+  background:rgba(255,255,255,.07)!important;color:#dce5f0!important;
+}
+html.site-mode #roofSheetClose{
+  background:rgba(255,255,255,.10)!important;border-color:rgba(255,255,255,.14)!important;color:#e6edf6!important;
+}
+html.site-mode #roofSwitcher{border-top-color:rgba(255,255,255,.10)!important;color:#9fb0c4}
+html.site-mode #roofSwitcher > div{color:#9fb0c4!important}
+html.site-mode #roofSheetHandle{
+  background:rgba(11,22,38,.92);border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-weight:600;
+}
 html.site-mode #tabletNavBtn{display:none!important}
 /* Onsite the page must NEVER pinch-zoom. A page zoom offsets the visual
    viewport from the layout viewport, which shows up as a pale band above
@@ -2732,14 +2824,14 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 <div id="tabletNavBackdrop" class="no-print" onclick="_tabletNavToggle(false)"></div>
 <button id="roofSheetHandle" class="no-print" onclick="_phoneRoofSheet(true)">🏠 Roof shape <span style="font-size:10px;opacity:.7">▲</span></button>
 <div id="tabletToolbar" class="no-print">
-  <button class="ttb-btn" id="ttbMove"    onclick="setTool('select')"><span class="ttb-ico">✋</span>Move</button>
-  <button class="ttb-btn" id="ttbOutline" onclick="setTool('outline')"><span class="ttb-ico">🏠</span>Outline</button>
-  <button class="ttb-btn" id="ttbLines"   onclick="toggleRoofLinesMenu(event)"><span class="ttb-ico">＋</span>Lines</button>
-  <button class="ttb-btn" id="ttbCal"     onclick="setTool('calibrate')"><span class="ttb-ico">📏</span>Calibrate</button>
-  <button class="ttb-btn" onclick="undoLast()"><span class="ttb-ico">↺</span>Undo</button>
-  <button class="ttb-btn" onclick="redoLast()"><span class="ttb-ico">↻</span>Redo</button>
-  <button class="ttb-btn" onclick="_tabletPhotos()"><span class="ttb-ico">📷</span>Photos</button>
-  <button class="ttb-btn" onclick="saveCurrentJob()"><span class="ttb-ico">💾</span>Save</button>
+  <button class="ttb-btn" id="ttbMove"    onclick="setTool('select')"><span class="ttb-ico" data-ico="move">✋</span>Move</button>
+  <button class="ttb-btn" id="ttbOutline" onclick="setTool('outline')"><span class="ttb-ico" data-ico="outline">🏠</span>Outline</button>
+  <button class="ttb-btn" id="ttbLines"   onclick="toggleRoofLinesMenu(event)"><span class="ttb-ico" data-ico="lines">＋</span>Lines</button>
+  <button class="ttb-btn" id="ttbCal"     onclick="setTool('calibrate')"><span class="ttb-ico" data-ico="ruler">📏</span>Calibrate</button>
+  <button class="ttb-btn" onclick="undoLast()"><span class="ttb-ico" data-ico="undo">↺</span>Undo</button>
+  <button class="ttb-btn" onclick="redoLast()"><span class="ttb-ico" data-ico="redo">↻</span>Redo</button>
+  <button class="ttb-btn" onclick="_tabletPhotos()"><span class="ttb-ico" data-ico="camera">📷</span>Photos</button>
+  <button class="ttb-btn" onclick="saveCurrentJob()"><span class="ttb-ico" data-ico="save">💾</span>Save</button>
 </div>
 <aside class="sidebar">
 <div class="hdr">
@@ -3036,18 +3128,18 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div id="roofTypeHeading" style="font-weight:700;font-size:12px;color:#0a1628;margin-bottom:8px">⚡ Auto-generate roof lines from outline</div>
         <button type="button" id="roofSheetClose" class="no-print" onclick="_phoneRoofSheet(false)" title="Collapse">▼</button>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-          <button onclick="autoGenerateRoof('hip')" class="tool-btn" style="background:#0099cc;color:#fff;border-color:#0099cc;font-weight:600">🔺 Hip &amp; Valley</button>
-          <button onclick="autoGenerateRoof('gable')" class="tool-btn" style="background:#059669;color:#fff;border-color:#059669;font-weight:600">🏠 Straight Gable</button>
-          <button onclick="autoGenerateRoof('gable-hv')" class="tool-btn" style="background:#047857;color:#fff;border-color:#047857;font-weight:600" title="Gable ends with a hip + valley at the L corner (instead of running longer sheets through it)">🏠 Gable<span class="rt-long"> — hip+valley corner</span><span class="rt-short"> + HV</span></button>
-          <button onclick="autoGenerateRoof('dutch')" class="tool-btn" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:600">🏡 Dutch Gable</button>
-          <button onclick="autoGenerateRoof('mono')" class="tool-btn" style="background:#d97706;color:#fff;border-color:#d97706;font-weight:600">📐 Mono-Pitch</button>
-          <button onclick="clearRoofLines()" class="tool-btn" style="color:#dc2626;border-color:#dc2626;margin-left:4px">🗑 Clear lines</button>
-          <button onclick="snapOutlineToSquare()" class="tool-btn" style="background:#fff;color:#0a1628;border-color:#0a1628;font-weight:600" title="Square up every corner of your existing outline (makes all angles 90°). Edges may get longer or shorter — nudge any corner afterwards if needed.">📐 Snap Square</button>
+          <button onclick="autoGenerateRoof('hip')" class="tool-btn" style="background:#0099cc;color:#fff;border-color:#0099cc;font-weight:600"><span class="rt-emo">🔺 </span>Hip &amp; Valley</button>
+          <button onclick="autoGenerateRoof('gable')" class="tool-btn" style="background:#059669;color:#fff;border-color:#059669;font-weight:600"><span class="rt-emo">🏠 </span>Straight Gable</button>
+          <button onclick="autoGenerateRoof('gable-hv')" class="tool-btn" style="background:#047857;color:#fff;border-color:#047857;font-weight:600" title="Gable ends with a hip + valley at the L corner (instead of running longer sheets through it)"><span class="rt-emo">🏠 </span>Gable<span class="rt-long"> — hip+valley corner</span><span class="rt-short"> + HV</span></button>
+          <button onclick="autoGenerateRoof('dutch')" class="tool-btn" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:600"><span class="rt-emo">🏡 </span>Dutch Gable</button>
+          <button onclick="autoGenerateRoof('mono')" class="tool-btn" style="background:#d97706;color:#fff;border-color:#d97706;font-weight:600"><span class="rt-emo">📐 </span>Mono-Pitch</button>
+          <button onclick="clearRoofLines()" class="tool-btn" style="color:#dc2626;border-color:#dc2626;margin-left:4px"><span class="rt-emo">🗑 </span>Clear lines</button>
+          <button onclick="snapOutlineToSquare()" class="tool-btn" style="background:#fff;color:#0a1628;border-color:#0a1628;font-weight:600" title="Square up every corner of your existing outline (makes all angles 90°). Edges may get longer or shorter — nudge any corner afterwards if needed."><span class="rt-emo">📐 </span>Snap Square</button>
         </div>
         <!-- Auto roof-type suggestion / mismatch warning (populated by _updateRoofTypeHint) -->
         <div id="roofTypeHint" style="display:none;font-size:11px;font-weight:600;border-radius:7px;padding:6px 10px;margin-bottom:8px"></div>
         <div id="roofRotateRow" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <button onclick="rotateActiveRoof()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed;font-weight:600" title="Rotate the generated roof lines 90° around the outline centre. Useful for switching ridge direction on gable/dutch or slope direction on mono-pitch.">⟳ Rotate roof 90°</button>
+          <button onclick="rotateActiveRoof()" class="tool-btn" style="color:#7c3aed;border-color:#7c3aed;font-weight:600" title="Rotate the generated roof lines 90° around the outline centre. Useful for switching ridge direction on gable/dutch or slope direction on mono-pitch."><span class="rt-emo">⟳ </span>Rotate roof 90°</button>
           <span class="rt-explain" style="font-size:10px;color:#64748b">Use this to flip the ridge direction on gable/dutch, or the slope direction on mono-pitch.</span>
         </div>
         <!-- Straight-gable ridge slide: drag toward one gutter when the
@@ -3114,7 +3206,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
            rotate) moves into the ⚙ View popover so the workspace isn't
            buried under a strip of sliders. -->
       <div id="roofViewRow" style="display:flex;gap:12px;align-items:center;margin:0 .75rem .4rem;font-size:12px;color:var(--text2);flex-wrap:wrap">
-        <button type="button" id="phoneClearBtn" onclick="clearAll()" style="display:none;padding:7px 13px;border:1px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">🗑 Clear</button>
+        <button type="button" id="phoneClearBtn" onclick="clearAll()" style="display:none;padding:7px 13px;border:1px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer"><span class="rt-emo">🗑 </span>Clear</button>
         <div id="roofZoomStepper" style="display:flex;align-items:center;gap:4px">
           Zoom:
           <button onclick="adjustZoom(-0.1)" style="padding:2px 8px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff">−</button>
@@ -3124,7 +3216,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
         <div id="viewMenuWrap" style="position:relative;display:inline-block">
           <button type="button" id="viewMenuBtn" onclick="toggleViewMenu(event)" style="border:1px solid #cbd5e1;background:#fff;color:#0a1628;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-            <span aria-hidden="true">⚙</span><span>View</span><span style="font-size:10px;opacity:.7">▾</span>
+            <span aria-hidden="true" class="rt-emo">⚙</span><span>View</span><span style="font-size:10px;opacity:.7">▾</span>
           </button>
           <div id="viewMenu" style="display:none;position:absolute;top:calc(100% + 5px);left:0;z-index:300;background:#fff;border:1px solid #d6dbe2;border-radius:10px;box-shadow:0 12px 32px rgba(10,22,40,.20);padding:12px 14px;min-width:250px;font-size:12px;color:#334155;font-weight:400">
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Canvas view</div>
