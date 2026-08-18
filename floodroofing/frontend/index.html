@@ -275,6 +275,17 @@ html.phone-mode body[data-tab="roof"] #roofTypePanel{
   position:fixed;left:6px;right:6px;bottom:80px;z-index:210;margin:0!important;
   padding:7px 8px!important;max-height:36vh;overflow:auto;box-shadow:0 -4px 18px rgba(10,22,40,.18)}
 html.phone-mode #roofTypePanel .tool-btn{padding:8px 10px;font-size:11.5px;border-radius:8px}
+/* Roof-shape chooser collapses to a slide-up handle once a shape is picked. */
+#roofSheetHandle{display:none}
+html.phone-mode body[data-tab="roof"].rtp-collapsed #roofSheetHandle{
+  display:inline-flex;align-items:center;gap:6px;position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--ttb-h,72px) + 8px);z-index:212;padding:8px 16px;border:none;border-radius:20px;
+  background:#0a1628;color:#fff;font-family:inherit;font-size:12px;font-weight:700;
+  box-shadow:0 4px 14px rgba(10,22,40,.32);cursor:pointer}
+html.phone-mode body[data-tab="roof"].rtp-collapsed #roofTypePanel{display:none!important}
+html.phone-mode body[data-tab="roof"] #roofTypePanel{transition:transform .18s ease}
+/* The calibrate instruction blurb is desktop-only — the step bar says it. */
+html.phone-mode #calInstrPopup{display:none!important}
 html.phone-mode #roofTypeHeading,
 html.phone-mode #roofShiftHint,
 html.phone-mode .rt-explain,
@@ -2624,6 +2635,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   </button>
 </div>
 <div id="tabletNavBackdrop" class="no-print" onclick="_tabletNavToggle(false)"></div>
+<button id="roofSheetHandle" class="no-print" onclick="_phoneRoofSheet(true)">🏠 Roof shape <span style="font-size:10px;opacity:.7">▲</span></button>
 <div id="tabletToolbar" class="no-print">
   <button class="ttb-btn" id="ttbMove"    onclick="setTool('select')"><span class="ttb-ico">✋</span>Move</button>
   <button class="ttb-btn" id="ttbOutline" onclick="setTool('outline')"><span class="ttb-ico">🏠</span>Outline</button>
@@ -24333,6 +24345,14 @@ function _phoneFitCanvas(){
     fitCanvasToWrap();
   } catch(e){}
 }
+// Phone: the roof-shape chooser is a sheet above the toolbar. Once a shape is
+// picked it collapses to a handle so the drawing gets the screen back; the
+// handle slides it up again.
+function _phoneRoofSheet(open){
+  var b = document.body; if (!b) return;
+  b.classList.toggle('rtp-collapsed', !open);
+  try { _phoneFitCanvas(); } catch(e){}
+}
 // Keep the phone header's job button showing the current job.
 function _syncPhoneJobName(){
   var el = document.getElementById('phoneJobName');
@@ -24369,11 +24389,27 @@ function _tabletPhotos(){
       });
     }
     _applyTabletMode();
-    // A phone is a drawing tool: open on Map Roof, not the office dashboard.
+    // A phone is a drawing tool: open on Map Roof with the OUTLINE tool armed,
+    // so the first tap starts drawing the building.
     if (document.documentElement.classList.contains('phone-mode')){
       setTimeout(function(){
         try { if ((document.body.getAttribute('data-tab')||'') !== 'roof') gotoTab('roof'); } catch(e){}
+        try {
+          if (!DRAW.outlineDone && !(DRAW.outline || []).length && DRAW.tool === 'select') setTool('outline');
+        } catch(e){}
       }, 350);
+    }
+    // Picking an auto roof shape collapses the chooser into its handle.
+    if (window.autoGenerateRoof && !window.autoGenerateRoof.__phoneSheet){
+      var _ag = window.autoGenerateRoof;
+      window.autoGenerateRoof = function(){
+        var r = _ag.apply(this, arguments);
+        try {
+          if (document.documentElement.classList.contains('phone-mode')) _phoneRoofSheet(false);
+        } catch(e){}
+        return r;
+      };
+      window.autoGenerateRoof.__phoneSheet = true;
     }
     // Mirror the current job into the phone header (cheap, poll-free).
     try {
