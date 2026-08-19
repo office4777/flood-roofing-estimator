@@ -38859,17 +38859,28 @@ window.addEventListener('afterprint', function(){
 // print CSS hides).  Without this the printed page shows an
 // orange-bullet "Roof sheets" header followed by nothing — noise on
 // what's supposed to be a clean supplier order form.
+/* Which sections have nothing in them, so a Dektites band with no
+   penetrations does not print as a heading followed by white space.
+
+   The row selectors have to cover EVERY kind of row a section can hold.
+   They used to list only .mat-list-row and friends — but Underlay and
+   Screws & Rivets are built from .gu-row (the shared name · qty · unit
+   row, same as the gutter Droppers and Brackets), so both were being
+   called empty and dropped. On screen that lost two sections from the
+   preview; on paper it had been quietly dropping them from every printed
+   job pack. */
+var _JP_ROW_SELECTORS = [
+  '.mat-list-row',                            // cut-list "N @ L m" rows
+  '.gu-row',                                  // underlay, screws, droppers, brackets
+  '.cons-row',                                // consumables
+  '.mat-fl-card',                             // a rendered flashing
+  '.mat-list-foot',                           // a section total
+  'table.cut-list tbody tr:not(.no-print)',   // legacy table rows
+].join(',');
 function _jpMarkEmptySections(on){
   document.querySelectorAll('.mat-section').forEach(function(sec){
     if (!on){ sec.classList.remove('is-empty-section'); return; }
-    // A section "has content" if it carries at least one cut-list row,
-    // mat-list-row, table body row, or rendered flashing card.
-    var hasRows =
-      sec.querySelector('.mat-list-row') ||
-      sec.querySelector('.mat-fl-card') ||
-      sec.querySelector('table.cut-list tbody tr:not(.no-print)') ||
-      sec.querySelector('.mat-list-foot');
-    sec.classList.toggle('is-empty-section', !hasRows);
+    sec.classList.toggle('is-empty-section', !sec.querySelector(_JP_ROW_SELECTORS));
   });
 }
 window.addEventListener('beforeprint', function(){
