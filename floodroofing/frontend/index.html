@@ -188,12 +188,17 @@ body[data-tab="select"] .content{
   margin-right:0;
 }
 
-/* ── TABLET / PHONE MODE ────────────────────────────────────────
-   html.tablet-mode is applied automatically on coarse-pointer devices
-   (overridable from View → Tablet mode). The sidebar becomes a slide-in
-   drawer behind a ☰ button, the content goes full-bleed, touch targets
-   grow, and the Map Roof tab gets a full-height canvas with a fixed
-   bottom toolbar sized for thumbs / a pen. */
+/* ── SITE MODE CHROME ───────────────────────────────────────────
+   html.tablet-mode now means exactly one thing: SITE mode is on. The
+   sidebar becomes a slide-in drawer behind a ☰ button, the content goes
+   full-bleed, touch targets grow, and the Map Roof tab gets a full-height
+   canvas with a fixed bottom toolbar sized for thumbs / a pen.
+
+   It used to switch on for any coarse-pointer device, which meant a tablet
+   in OFFICE mode got this touch chrome instead of the computer app —
+   Office now means the same full desktop UI on every device, and touch
+   chrome belongs to Site mode alone. Hardware is tracked separately as
+   html.touch-device, for the things that genuinely are device facts. */
 #tabletNavBtn, #tabletToolbar, #tabletNavBackdrop{display:none}
 html.tablet-mode #tabletNavBtn{
   display:flex;position:fixed;top:10px;left:10px;z-index:500;width:46px;height:46px;
@@ -477,8 +482,8 @@ html.site-mode #navRoofBtn{display:none!important}
    and offered to upload them. Touch devices only, and the status pill with
    it. Work FROM a phone reaches the office the normal way: uploaded, in
    Recent drafts. */
-html:not(.tablet-mode) #navOfflineSavesBtn,
-html:not(.tablet-mode) #syncChip{display:none!important}
+html:not(.touch-device) #navOfflineSavesBtn,
+html:not(.touch-device) #syncChip{display:none!important}
 /* A count beside Offline saves, so the drawer says what is waiting without
    being opened. */
 #navOfflineSavesN{margin-left:auto;font-size:11px;font-weight:700;padding:1px 7px;
@@ -3616,7 +3621,6 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             </label>
             <div style="border-top:1px solid #eef1f5;margin:11px 0 9px"></div>
             <button type="button" id="siteModeBtn" onclick="_toggleSiteMode()" style="width:100%;margin:0 0 7px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0a1628;font-size:12px;font-weight:600;cursor:pointer;text-align:left" title="Site mode = stripped-back onsite drawing (canvas, header, toolbar). Office mode = the full UI.">📐 Switch to Site mode</button>
-            <button type="button" id="tabletModeBtn" onclick="_cycleTabletMode()" style="width:100%;margin:0 0 9px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0a1628;font-size:12px;font-weight:600;cursor:pointer;text-align:left" title="Full-screen canvas, drawer menu and a bottom toolbar sized for touch. Auto = on for touch devices.">📱 Tablet mode: Auto</button>
             <div style="border-top:1px solid #eef1f5;margin:0 0 9px"></div>
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Rotate photo</div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -8650,7 +8654,7 @@ function _syncCount(list){
    listed the computer's working copies as if they were somebody's onsite
    work — and offered to upload them. Touch device only. */
 function _offlineSavesForThisDevice(){
-  return document.documentElement.classList.contains('tablet-mode');
+  return document.documentElement.classList.contains('touch-device');
 }
 
 // Push ONE draft record straight to the backend, without loading it into
@@ -25847,19 +25851,24 @@ document.addEventListener('mouseup', function(e) {
 // cycles Auto → On → Off (persisted per device).
 function _applyTabletMode(){
   if (window.__CUSTOMER_TOKEN) return;
-  var pref = localStorage.getItem('fr_tablet_mode') || 'auto';
   var coarse = false;
   try { coarse = window.matchMedia('(pointer: coarse)').matches; } catch(e){}
-  // SITE vs OFFICE. Site mode is the stripped-back onsite drawing shell;
-  // Office mode is the full tablet/desktop UI. Default ('auto') is site on
-  // phones, office on tablets — and the ☰ menu switches either way.
+  /* Whether this is a touch device is a fact about the HARDWARE, and it is
+     kept separate from which mode the user is in. Onsite tools that belong
+     to the devices that leave the building — Offline saves, the sync pill —
+     key off this, so a tablet keeps them even while it is in Office mode. */
+  document.documentElement.classList.toggle('touch-device', !!coarse);
+  /* SITE vs OFFICE, and there are only these two. Site mode is the onsite
+     drawing shell: touch chrome, drawer, bottom toolbar, thumb-sized
+     everything. Office mode is the computer app — THE SAME on a desktop, a
+     tablet and a phone, because "the full version" that works on the office
+     machine is the whole point of it. The device only picks which one you
+     land in ('auto': site on phones, office on tablets and computers); the
+     ☰ menu switches either way and that device remembers the choice. */
   var narrow = Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 520;
   var sPref = localStorage.getItem('fr_site_mode') || 'auto';
   var site = sPref === 'on' || (sPref === 'auto' && narrow);
-  // Site mode brings the touch chrome (drawer + bottom toolbar) with it, so
-  // it works even if tablet mode was switched off.
-  var on = site || pref === 'on' || (pref === 'auto' && coarse);
-  document.documentElement.classList.toggle('tablet-mode', !!on);
+  document.documentElement.classList.toggle('tablet-mode', !!site);
   var wasSite = !!window.__siteModeOn;
   window.__siteModeOn = !!site;
   document.documentElement.classList.toggle('site-mode', !!site);
@@ -25877,11 +25886,18 @@ function _applyTabletMode(){
     if (_vp){
       var _locked = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
       var _free   = 'width=device-width, initial-scale=1.0';
-      var _want = site ? _locked : _free;
+      /* Office mode on a screen too narrow for the desktop layout lays out at
+         a desktop width and scales to fit, so it reads like the computer app
+         and pinches like one — the same thing a browser's "Request desktop
+         site" does. At device-width the sidebar and content just squash. */
+      var _desk   = 'width=1100';
+      var _want = site ? _locked : (narrow ? _desk : _free);
       if (_vp.getAttribute('content') !== _want) _vp.setAttribute('content', _want);
     }
   } catch(e){}
-  if (!on) document.documentElement.classList.remove('tnav-open');
+  // The drawer only exists in Site mode — leaving Site mode must not leave it
+  // "open" over the computer app.
+  if (!site) document.documentElement.classList.remove('tnav-open');
   // Entering site mode: the photos panel is full-width there, so a panel
   // left open in Office mode would bury the canvas.
   if (site && !wasSite){
@@ -25891,7 +25907,10 @@ function _applyTabletMode(){
   if (!site && wasSite){ try { sessionStorage.removeItem('fr_fergus_panel_open'); } catch(e){} }
   var sb = document.getElementById('navSiteModeBtn');
   if (sb){
-    sb.style.display = (on ? '' : 'none');
+    // Offered on the devices that have both modes to choose between — a
+    // touch device, or anything currently IN Site mode so there is always a
+    // way back out. A desk machine has no use for it.
+    sb.style.display = ((coarse || site) ? '' : 'none');
     sb.innerHTML = site
       ? '<svg viewBox="0 0 16 16" fill="none"><path d="M2 13V6.5L8 2.5L14 6.5V13H10V9H6V13H2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Switch to Office mode'
       : '<svg viewBox="0 0 16 16" fill="none"><path d="M2.5 12.5L8 3L13.5 12.5H2.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5.5 12.5L8 8L10.5 12.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>Switch to Site mode';
@@ -25900,8 +25919,6 @@ function _applyTabletMode(){
   if (vb) vb.textContent = site ? '🏢 Switch to Office mode' : '📐 Switch to Site mode';
   var _ri = document.getElementById('navRoofImgBtn');
   if (_ri) _ri.style.display = document.documentElement.classList.contains('site-mode') ? '' : 'none';
-  var btn = document.getElementById('tabletModeBtn');
-  if (btn) btn.textContent = '📱 Tablet mode: ' + (pref === 'auto' ? ('Auto (' + (on ? 'on' : 'off') + ')') : (pref === 'on' ? 'On' : 'Off'));
   try { window.dispatchEvent(new Event('resize')); } catch(e){}
   try { _syncTabletBar(); } catch(e){}
   setTimeout(function(){ try { _phoneFitCanvas(); } catch(e){} }, 60);
@@ -25921,12 +25938,9 @@ function _toggleSiteMode(){
     }, 120);
   }
 }
-function _cycleTabletMode(){
-  var pref = localStorage.getItem('fr_tablet_mode') || 'auto';
-  var next = pref === 'auto' ? 'on' : (pref === 'on' ? 'off' : 'auto');
-  try { localStorage.setItem('fr_tablet_mode', next); } catch(e){}
-  _applyTabletMode();
-}
+/* Kept so an old bookmark or a stale button can't throw; there is no longer
+   a state between Site and Office for it to cycle through. */
+function _cycleTabletMode(){ _applyTabletMode(); }
 function _tabletNavToggle(force){
   var root = document.documentElement;
   var open = (force === undefined) ? !root.classList.contains('tnav-open') : !!force;
