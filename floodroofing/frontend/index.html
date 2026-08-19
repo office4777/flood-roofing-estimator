@@ -13823,6 +13823,9 @@ function _toggleProposalExtraRoof(i, checked){
   p.extraRoofsSel[i] = !!checked;
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
   if (window.__CUSTOMER_MODE && typeof _postCustomerUpdateDebounced === 'function') _postCustomerUpdateDebounced();
+  // Office: this is now what the customer will open on, so it has to reach
+  // the server — a tick that only lived in the tab was never going to.
+  else { try { _scheduleAutosave(); } catch(e){} }
 }
 // Customer picks a roofing-steel grade / spec for an option.
 function setOptionGrade(id, upgradeId){
@@ -14952,17 +14955,22 @@ async function bootCustomerView(token){
     window.S = window.S || {};
     S.quote = d.quote || {};
     if (!S.quote.proposalSections) S.quote.proposalSections = {};
-    // Fresh (not-yet-accepted) links always open in the standard state:
-    // no optional extra roofs ticked, and MAXAM — the steel we quote as
-    // standard — as the selected grade with the grade deltas anchored to
-    // it. This clears any picks left saved on the quote from office
-    // preview taps or earlier customer sessions. Accepted quotes are
-    // locked and keep exactly what was accepted.
+    /* Fresh (not-yet-accepted) links open on MAXAM — the steel we quote as
+       standard — with the grade deltas anchored to it, and no upgrade
+       options pre-ticked.
+
+       Which ROOFS are included is deliberately NOT reset. That is the
+       office's call: whatever was ticked when the quote was sent is what the
+       customer opens on, and they can take a roof back off if they don't
+       want it. Clearing it here meant a quote built to include the Veranda
+       and the Garage arrived saying "Excluding the Veranda and Garage",
+       which is the opposite of what was sent. Accepted quotes are locked and
+       keep exactly what was accepted either way. */
     if (!S.quote.accepted){
       try {
         (S.quote.options || []).slice(1).forEach(function(o){ o.selected = false; });
         var _po = S.quote.proposalOptions = S.quote.proposalOptions || {};
-        _po.extraRoofsSel = {};
+        if (!_po.extraRoofsSel || typeof _po.extraRoofsSel !== 'object') _po.extraRoofsSel = {};
         delete _po.steelGrade;        // every reader falls back to 'maxam'
         S.quote.baseGrade = 'maxam';  // MAXAM reads "Standard · included"
       } catch(e){}
@@ -16464,6 +16472,7 @@ function _qpSelectMainOnly(){
   p.extraRoofsSel = {};
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
   if (window.__CUSTOMER_MODE && typeof _postCustomerUpdateDebounced === 'function') _postCustomerUpdateDebounced();
+  else { try { _scheduleAutosave(); } catch(e){} }
 }
 function _buildRoofPreviewsHtml(opts){
   // opts.small: compact fixed-height box (page 3 — Main scope of work)
