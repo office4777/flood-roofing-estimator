@@ -460,6 +460,89 @@ html.site-mode #roofTypeHint{display:none!important}
 html.site-mode #roofSwitcher{margin-top:5px!important;padding-top:5px!important;font-size:11px}
 html.site-mode #roofSwitcher > div{font-size:11px!important;margin-right:4px!important}
 /* Roof-shape chooser collapses to a slide-up handle once a shape is picked. */
+/* Onsite the drawer is for one job: pick the job, map the roof, get the work
+   off the device. Job Pack, Quote, Settings and Feedback are office work and
+   only clutter a screen somebody is holding on a ladder — they are one tap
+   away in Office mode. Home goes too: Offline saves is the onsite way back
+   to earlier work. */
+html.site-mode #navHomeBtn,
+html.site-mode #navJobPackBtn,
+html.site-mode #navQuoteBtn,
+html.site-mode #navSettingsBtn,
+html.site-mode #navFeedbackBtn{display:none!important}
+/* A count beside Offline saves, so the drawer says what is waiting without
+   being opened. */
+#navOfflineSavesN{margin-left:auto;font-size:11px;font-weight:700;padding:1px 7px;
+  border-radius:9px;background:#b45309;color:#fff;display:none}
+#navOfflineSavesN.on{display:inline-block}
+
+/* Offline saves list. Same dark sheet language as the rest of the onsite
+   chrome, and a plain centred card in Office mode. */
+#offlineSavesModal{display:none;position:fixed;inset:0;z-index:10050;
+  background:rgba(3,8,18,.55);align-items:center;justify-content:center;padding:16px}
+#offlineSavesCard{width:100%;max-width:560px;max-height:82vh;display:flex;flex-direction:column;
+  background:#fff;border-radius:16px;box-shadow:0 24px 60px rgba(3,8,18,.35);overflow:hidden;
+  font-family:inherit}
+#offlineSavesHead{display:flex;align-items:flex-start;gap:12px;padding:16px 16px 12px;
+  border-bottom:1px solid #e6ebf2}
+#offlineSavesTitle{font-size:16px;font-weight:700;color:#0a1628}
+#offlineSavesNote{font-size:12px;color:#64748b;margin-top:3px;line-height:1.4}
+#offlineSavesClose{margin-left:auto;flex:0 0 auto;width:32px;height:32px;border-radius:9px;
+  border:1px solid #e6ebf2;background:#f6f8fb;color:#475569;font-size:15px;cursor:pointer;font-family:inherit}
+#offlineSavesList{overflow:auto;padding:10px 12px 14px;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+.ofs-empty{padding:26px 8px;text-align:center;color:#94a3b8;font-size:13px}
+.ofs-row{display:flex;gap:10px;align-items:center;padding:11px 12px;border:1px solid #e6ebf2;
+  border-radius:12px;margin-bottom:8px;background:#fbfcfe}
+.ofs-main{min-width:0;flex:1}
+.ofs-title{font-size:13.5px;font-weight:700;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ofs-when{font-size:11px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ofs-msg{font-size:11px;margin-top:3px;color:#64748b}
+.ofs-msg.ofs-good{color:#15803d;font-weight:600}
+.ofs-msg.ofs-bad{color:#b91c1c;font-weight:600}
+.ofs-acts{display:flex;gap:6px;align-items:center;flex:0 0 auto}
+.ofs-acts button{font-family:inherit;cursor:pointer;border-radius:9px;font-weight:700;font-size:12px}
+.ofs-up{padding:9px 14px;border:none;background:#0099cc;color:#fff}
+.ofs-up:disabled{opacity:.6;cursor:default}
+.ofs-open{padding:9px 12px;border:1px solid #cbd5e1;background:#fff;color:#334155}
+.ofs-del{padding:9px 10px;border:1px solid #fecaca;background:#fff;color:#b91c1c}
+/* On a phone the three buttons take the width the stamp needs, and "19 Aug
+   2026, 01:48 am · Aron · Android phone" got clipped to the date. Stack the
+   actions under the save instead — who saved it and when is the whole point
+   of the list. */
+@media (max-width: 560px){
+  .ofs-row{flex-wrap:wrap;padding:12px}
+  .ofs-main{flex:1 1 100%}
+  .ofs-when{white-space:normal}
+  .ofs-acts{flex:1 1 100%;margin-top:10px}
+  .ofs-up{flex:1;padding:11px 14px;font-size:13px}
+  .ofs-open{padding:11px 16px}
+  .ofs-del{padding:11px 13px}
+}
+html.site-mode #offlineSavesCard{background:#0f1c30;border:1px solid rgba(255,255,255,.10)}
+html.site-mode #offlineSavesHead{border-bottom-color:rgba(255,255,255,.10)}
+html.site-mode #offlineSavesTitle{color:#e6edf6}
+html.site-mode #offlineSavesNote{color:#9fb0c4}
+html.site-mode #offlineSavesClose{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.14);color:#e6edf6}
+html.site-mode .ofs-row{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.10)}
+html.site-mode .ofs-title{color:#e6edf6}
+html.site-mode .ofs-when,html.site-mode .ofs-msg{color:#9fb0c4}
+html.site-mode .ofs-msg.ofs-good{color:#4ade80}
+html.site-mode .ofs-msg.ofs-bad{color:#fca5a5}
+html.site-mode .ofs-open{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#dce5f0}
+html.site-mode .ofs-del{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#fca5a5}
+html.site-mode .ofs-empty{color:#7d8ea3}
+
+/* Save's answer, onsite: a short pill just above the toolbar, where the
+   thumb already is. There is no status line on that screen — it is all
+   drawing. */
+#siteToast{display:none}
+html.site-mode #siteToast{
+  display:none;position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--ttb-h, 72px) + 14px);z-index:10040;max-width:88vw;
+  padding:10px 16px;border-radius:22px;background:#0a1628;color:#fff;
+  font-family:inherit;font-size:12.5px;font-weight:700;text-align:center;
+  box-shadow:0 6px 22px rgba(3,8,18,.45);pointer-events:none}
+
 /* Roof lines & details, onsite. The menu's markup lives inside the desktop
    tool row, and site mode strips that row out — so opening it set
    display:block on a subtree of a display:none parent and nothing appeared
@@ -2872,6 +2955,20 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 </div>
 <div id="tabletNavBackdrop" class="no-print" onclick="_tabletNavToggle(false)"></div>
 <div id="rlSheetBackdrop" class="no-print" onclick="closeRoofLinesMenu()"></div>
+<!-- Offline saves: what this device is holding that the server has not got.
+     One Upload button per save — nothing leaves the device on its own. -->
+<div id="offlineSavesModal" class="no-print" onclick="if(event.target===this)_closeOfflineSaves()">
+  <div id="offlineSavesCard" role="dialog" aria-labelledby="offlineSavesTitle">
+    <div id="offlineSavesHead">
+      <div>
+        <div id="offlineSavesTitle">Offline saves</div>
+        <div id="offlineSavesNote"></div>
+      </div>
+      <button type="button" id="offlineSavesClose" onclick="_closeOfflineSaves()" aria-label="Close">✕</button>
+    </div>
+    <div id="offlineSavesList"></div>
+  </div>
+</div>
 <button id="roofSheetHandle" class="no-print" onclick="_phoneRoofSheet(true)">🏠 Roof shape <span style="font-size:10px;opacity:.7">▲</span></button>
 <div id="tabletToolbar" class="no-print">
   <button class="ttb-btn" id="ttbMove"    onclick="setTool('select')"><span class="ttb-ico" data-ico="move">✋</span>Move</button>
@@ -2920,7 +3017,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <button class="nav-btn" id="navSiteModeBtn" onclick="_toggleSiteMode()" style="display:none"></button>
   <button class="nav-btn" id="navInstallBtn" onclick="_frInstallApp()" style="display:none"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2.5V10M8 10L5 7M8 10L11 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 11.5V12.5C3 13.05 3.45 13.5 4 13.5H12C12.55 13.5 13 13.05 13 12.5V11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Install app</button>
   <button class="nav-btn" id="navRoofImgBtn" onclick="_phoneSetRoofImage()" style="display:none"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6.8" r="1.1" stroke="currentColor" stroke-width="1.2"/><path d="M3 11.5L6.5 8.5L9 10.5L11 9L13 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Set roof image</button>
-  <button class="nav-btn active" onclick="gotoTab('select')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7L8 2.5L13.5 7M4 6V13H12V6" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>Home</button>
+  <button class="nav-btn active" id="navHomeBtn" onclick="gotoTab('select')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7L8 2.5L13.5 7M4 6V13H12V6" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>Home</button>
   <!-- Sidebar job chip: hidden until a job is loaded. Shows the Fergus
        jobNo / local id and an autosave-status pill. Sits between Select
        Job and Map Roof in the nav so the user always sees which job
@@ -2933,9 +3030,12 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div id="sidebarJobChipLabel"></div>
     <div id="sidebarJobChipAutosave"><span id="sidebarJobChipAutosaveText"></span></div>
   </div>
-  <button class="nav-btn" onclick="gotoTab('roof')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.3"/></svg>Map Roof</button>
-  <button class="nav-btn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Job Pack</button>
-  <button class="nav-btn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
+  <button class="nav-btn" id="navRoofBtn" onclick="gotoTab('roof')"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.3"/></svg>Map Roof</button>
+  <!-- What this device is holding that the server has not got. Onsite this is
+       the way work gets off the phone, so it sits right under Map Roof. -->
+  <button class="nav-btn" id="navOfflineSavesBtn" onclick="_openOfflineSaves()"><svg viewBox="0 0 16 16" fill="none"><path d="M3.5 2.5h7L13 5v8.5H3.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5.5 2.5v4h5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 13.5v-3.5h5v3.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>Offline saves<span id="navOfflineSavesN"></span></button>
+  <button class="nav-btn" id="navJobPackBtn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Job Pack</button>
+  <button class="nav-btn" id="navQuoteBtn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <!-- "Order Material" tab consolidated into Materials (action bar buttons:
        Save PDF / Push to Fergus / Order Roof). Nav button hidden; panel
        kept so legacy gotoTab('order') calls don't blow up. -->
@@ -2945,8 +3045,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
        hooks don't blow up; nav button is hidden so it can't be clicked. -->
   <button class="nav-btn" onclick="gotoTab('jobpack')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3.5" width="11" height="10" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.5 H13.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 9.5 H10 M6 11.5 H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Job Pack</button>
   <button class="nav-btn" onclick="gotoTab('jobs')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
-  <button class="nav-btn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
-  <button class="nav-btn" onclick="gotoTab('feedback')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v8h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5 6.5h6 M5 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Feedback</button>
+  <button class="nav-btn" id="navSettingsBtn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
+  <button class="nav-btn" id="navFeedbackBtn" onclick="gotoTab('feedback')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v8h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5 6.5h6 M5 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Feedback</button>
 </div>
 </aside>
 <main class="content">
@@ -8144,6 +8244,7 @@ function _writeLocalDraftNow(){
       by: _meLabel(), device: _deviceLabel(),
       client: (snap.form && snap.form.jobClient) || '',
       addr:   (snap.form && snap.form.jobAddr) || '',
+      jobNo:  (snap.form && snap.form.jobNo) || '',
       snap: snap,
     };
     _draftDb().then(function(db){
@@ -8225,7 +8326,8 @@ window.addEventListener('beforeunload', function(){
     if (slim.state.quote && Array.isArray(slim.state.quote.condPhotos)) slim.state.quote = Object.assign({}, slim.state.quote, { condPhotos: [] });
     var rec = JSON.stringify({ key: _draftKey(), at: new Date().toISOString(),
       by: _meLabel(), device: _deviceLabel(),
-      client: (snap.form && snap.form.jobClient) || '', addr: (snap.form && snap.form.jobAddr) || '', snap: slim });
+      client: (snap.form && snap.form.jobClient) || '', addr: (snap.form && snap.form.jobAddr) || '',
+      jobNo: (snap.form && snap.form.jobNo) || '', snap: slim });
     if (rec.length < 3.5 * 1024 * 1024) localStorage.setItem('fr_unload_draft', rec);
   } catch(e){}
 });
@@ -8272,54 +8374,30 @@ function _checkDraftsOnBoot(){
   });
 }
 // ══════════════════════════════════════════════════════════════════
-// OFFLINE MODE / SYNC OUTBOX
+// OFFLINE MODE / OFFLINE SAVES
 // On a roof there is often no reception. Every edit already lands in the
-// IndexedDB draft store above, so the app keeps working with no signal —
-// what was missing was the way BACK: a failed save left a draft sitting
-// there until the user happened to edit again. Now any draft is treated as
-// an outbox entry and pushed automatically the moment the connection
-// returns (and on a slow retry loop meanwhile), so onsite work uploads
-// itself without anybody remembering to press Save.
+// IndexedDB draft store above, so the app keeps working with no signal, and
+// Save writes there too and says so. Getting the work OFF the device is a
+// deliberate act: the menu's Offline saves list shows what this device is
+// holding and each one has its own Upload button. Nothing goes to the server
+// unless somebody presses it.
 // ══════════════════════════════════════════════════════════════════
-var SYNC = { busy:false, pending:0, stuck:0, lastErr:'', fails:{}, _timer:null, _lastFlush:0 };
+var SYNC = { pending:0 };
 var SYNC_MAX_BODY = 20 * 1024 * 1024;   // the backend 413s past ~25MB
-var SYNC_MAX_TRIES = 4;
-/* Some uploads will never succeed however many times we try — a job too big
-   for the backend, a job the server has since deleted, a rejected body. The
-   first version retried everything forever, which is how "Uploading 4 saved
-   jobs…" could sit there for good with no clue why. A failure is now counted
-   per draft, classified, and once it is clearly permanent the draft is parked
-   as STUCK with its reason shown, instead of spinning. */
-function _syncPermanent(msg){
-  var m = String(msg || '');
-  var code = (m.match(/HTTP (\d{3})/) || [])[1];
-  if (!code) return false;
-  code = parseInt(code, 10);
-  if (code === 408 || code === 429) return false;    // timeout / rate limit — worth retrying
-  return code >= 400 && code < 500;
-}
-function _syncFail(key, msg, permanent){
-  var f = SYNC.fails[key] || (SYNC.fails[key] = { n:0, msg:'' });
-  f.n++; f.msg = msg;
-  f.stuck = !!permanent || f.n >= SYNC_MAX_TRIES;
-  SYNC.lastErr = msg;
-}
 function _isOnline(){ return navigator.onLine !== false; }
-/* What actually counts as "waiting to upload". The open job's draft is
-   rewritten on every keystroke and every line drawn, so counting it meant
-   the indicator was permanently lit while anyone was working — "Uploading
-   1 saved job…" that never went away. That draft only counts as unsent
-   when there is no signal, or when a save of it has actually failed. */
+/* What the status pill counts. The open job's draft is rewritten on every
+   keystroke and every line drawn, so counting it lit the indicator the whole
+   time anybody was working. It only counts once there is no signal — at
+   which point it genuinely is a save sitting on this device. Offline saves
+   itself always lists everything. */
 function _syncCount(list){
   var here = _draftKey();
-  var live = 0, stuck = 0;
+  var n = 0;
   (list || []).forEach(function(d){
-    var f = SYNC.fails[d.key];
-    if (f && f.stuck) { stuck++; return; }
-    if (d.key === here && _isOnline() && !f) return;   // just the working draft
-    live++;
+    if (d.key === here && _isOnline()) return;   // just the job open on screen
+    n++;
   });
-  SYNC.pending = live; SYNC.stuck = stuck;
+  SYNC.pending = n;
 }
 
 // Push ONE draft record straight to the backend, without loading it into
@@ -8389,58 +8467,13 @@ async function _syncPushDraft(d){
   return true;
 }
 
-async function _syncFlush(force){
-  if (SYNC.busy || !_isOnline()) return;
-  if (!localStorage.getItem('fr_token')) return;         // not logged in yet
-  if (!force && Date.now() - SYNC._lastFlush < 8000) return;
-  SYNC.busy = true; SYNC._lastFlush = Date.now();
-  _renderSyncChip();
-  try {
-    var drafts = await _listLocalDrafts();
-    _syncCount(drafts);
-    for (var i = 0; i < drafts.length; i++){
-      var d = drafts[i];
-      var f = SYNC.fails[d.key];
-      if (f && f.stuck && !force) continue;          // parked — a manual tap retries it
-      if (force && f) f.stuck = false;
-      try {
-        // The job on screen goes through the normal save so the UI, the job
-        // id and the Fergus link all stay in step — but only when it has a
-        // name to save under, since saveCurrentJob refuses without one.
-        // An unnamed onsite draft goes out through the outbox instead.
-        var named = !!(String(d.client || '').trim() || String(d.addr || '').trim());
-        if (_draftKey() === d.key && named && typeof saveCurrentJob === 'function'){
-          await saveCurrentJob();
-        } else {
-          await _syncPushDraft(d);
-        }
-        delete SYNC.fails[d.key];
-        SYNC.lastErr = '';
-      } catch(e){
-        var msg = (e && e.message) ? e.message : 'upload failed';
-        _syncFail(d.key, msg, _syncPermanent(msg) || /too large/.test(msg));
-        if (!_isOnline()) break;                          // signal gone again — stop here
-        continue;                                          // one bad job must not block the rest
-      }
-      _renderSyncChip();
-    }
-    var left = await _listLocalDrafts();
-    _syncCount(left);
-    try { if (typeof fetchRecentDrafts === 'function') fetchRecentDrafts(); } catch(e){}
-  } catch(e){
-    SYNC.lastErr = e && e.message ? e.message : 'sync failed';
-  }
-  SYNC.busy = false;
-  _renderSyncChip();
-}
-
 /* A single, quiet status pill: only ever visible when there is something to
-   say — offline, or work still waiting to upload. Silence means everything
-   is on the server. */
+   say — no signal, or saves sitting on this device. Silence means everything
+   is on the server. Tapping it opens the Offline saves list; it never starts
+   an upload by itself. */
 /* Onsite this is a small symbol in the header, not a pill over the drawing —
    it was landing on top of the roof-shape handle. On desktop it stays a
-   labelled chip, up in the corner clear of everything. Either way it is
-   invisible unless there is something to say. */
+   labelled chip, up in the corner clear of everything. */
 function _renderSyncChip(){
   var site = !!window.__siteModeOn;
   var host = site ? document.getElementById('phoneTopBar') : document.body;
@@ -8450,66 +8483,170 @@ function _renderSyncChip(){
     el.id = 'syncChip';
     el.type = 'button';
     el.className = 'no-print';
-    el.onclick = function(ev){ ev.stopPropagation(); _syncChipTap(); };
+    el.onclick = function(ev){ ev.stopPropagation(); _openOfflineSaves(); };
   }
   if (host && el.parentNode !== host) host.appendChild(el);
   el.classList.toggle('sc-mini', site);
 
+  // The drawer's own count: everything this device is holding, including the
+  // job open on screen — the list shows it, so the badge must agree.
+  try {
+    _listLocalDrafts().then(function(l){
+      var b = document.getElementById('navOfflineSavesN');
+      if (!b) return;
+      b.textContent = l.length ? String(l.length) : '';
+      b.classList.toggle('on', l.length > 0);
+    });
+  } catch(e){}
+
   var offline = !_isOnline();
-  var n = SYNC.pending, stuck = SYNC.stuck;
-  if (!offline && !n && !stuck){ el.style.display = 'none'; return; }
+  var n = SYNC.pending;
+  if (!offline && !n){ el.style.display = 'none'; return; }
   el.style.display = 'flex';
 
-  var icon, bg, label, title;
+  var icon, bg, label;
   if (offline){
     icon = '⚡'; bg = '#78350f';
-    label = 'Offline — saving on this device' + (n ? ' (' + n + ' to upload)' : '');
-    title = 'No signal — everything is being saved on this device';
-  } else if (stuck){
-    icon = '⚠'; bg = '#b91c1c';
-    label = stuck + ' job' + (stuck === 1 ? " won't" : "s won't") + ' upload — tap to see why';
-    title = label;
-  } else if (SYNC.busy){
-    icon = '⟳'; bg = '#0369a1';
-    label = 'Uploading ' + n + ' saved job' + (n === 1 ? '' : 's') + '…';
-    title = label;
+    label = 'Offline — saving on this device' + (n ? ' (' + n + ' saved)' : '');
   } else {
-    icon = '⏳'; bg = '#b45309';
-    label = n + ' job' + (n === 1 ? '' : 's') + ' waiting to upload — tap to retry';
-    title = label;
+    icon = '💾'; bg = '#b45309';
+    label = n + ' save' + (n === 1 ? '' : 's') + ' on this device — tap to upload';
   }
   el.style.background = bg;
-  el.title = title;
-  el.setAttribute('aria-label', title);
-  var count = (stuck || n);
+  el.title = label;
+  el.setAttribute('aria-label', label);
   el.innerHTML = site
-    ? ('<span>' + icon + '</span>' + (count > 1 ? '<span class="sc-n">' + count + '</span>' : ''))
+    ? ('<span>' + icon + '</span>' + (n > 1 ? '<span class="sc-n">' + n + '</span>' : ''))
     : ('<span>' + icon + '</span><span>' + esc(label) + '</span>');
 }
-/* Tapping the pill: retry, and when something is genuinely stuck, say what
-   and why instead of leaving the office guessing. */
-function _syncChipTap(){
-  if (!SYNC.stuck) { _syncFlush(true); return; }
-  _listLocalDrafts().then(function(list){
-    var lines = list.map(function(d){
-      var f = SYNC.fails[d.key] || {};
-      if (!f.stuck) return null;
-      var who = d.client || d.addr || (d.key === '__new__' ? 'Unsaved site draft' : 'Job ' + d.key);
-      return '• ' + who + '\n   ' + (f.msg || 'upload failed');
-    }).filter(Boolean);
-    var msg = "These are saved on this device but the server won't take them:\n\n" +
-              lines.join('\n') +
-              '\n\nThey stay on this device — nothing is lost. Try again now?';
-    if (confirm(msg)) { SYNC.fails = {}; SYNC.stuck = 0; _syncFlush(true); }
+
+/* ── Offline saves ───────────────────────────────────────────────────────
+   Everything this device has saved but not sent, newest first, each named by
+   its site address or job number and stamped with when it was saved, by whom
+   and on what. One Upload button per save, pressed by a person — that is the
+   only thing that ever puts a save on the server. */
+function _offlineSaveTitle(d){
+  var addr = String(d.addr || '').trim();
+  if (addr) return addr;
+  var no = String(d.jobNo || '').trim();
+  if (no) return 'Job ' + no;
+  var client = String(d.client || '').trim();
+  if (client) return client;
+  if (d.key && d.key !== '__new__' && String(d.key).indexOf('ferg_') !== 0) return 'Job ' + d.key;
+  return 'Site draft';
+}
+function _offlineSaveWhen(d){
+  var t = d.at ? new Date(d.at) : null;
+  if (!t || isNaN(t)) return '';
+  return t.toLocaleString('en-NZ', { day:'numeric', month:'short', year:'numeric',
+                                     hour:'2-digit', minute:'2-digit' });
+}
+function _openOfflineSaves(){
+  var m = document.getElementById('offlineSavesModal');
+  if (!m) return;
+  m.dataset.open = '1';
+  m.style.display = 'flex';
+  try { closeRoofLinesMenu(); } catch(e){}
+  try { _tabletNavToggle(false); } catch(e){}
+  _renderOfflineSaves();
+}
+function _closeOfflineSaves(){
+  var m = document.getElementById('offlineSavesModal');
+  if (m){ m.dataset.open = ''; m.style.display = 'none'; }
+}
+function _renderOfflineSaves(){
+  var m = document.getElementById('offlineSavesModal');
+  if (!m || m.dataset.open !== '1') return;
+  var list = document.getElementById('offlineSavesList');
+  var note = document.getElementById('offlineSavesNote');
+  if (!list) return;
+  _listLocalDrafts().then(function(drafts){
+    drafts.sort(function(a, b){ return new Date(b.at || 0) - new Date(a.at || 0); });
+    if (note) note.textContent = _isOnline()
+      ? 'Saved on this device. Press Upload to send one to the main app.'
+      : 'No connection. These are safe on this device — upload them when you have signal.';
+    if (!drafts.length){
+      list.innerHTML = '<div class="ofs-empty">Nothing saved on this device.</div>';
+      return;
+    }
+    list.innerHTML = drafts.map(function(d){
+      var stamp = [_offlineSaveWhen(d), d.by, d.device].filter(Boolean).join(' · ');
+      return '<div class="ofs-row" data-key="' + esc(d.key) + '">' +
+               '<div class="ofs-main">' +
+                 '<div class="ofs-title">' + esc(_offlineSaveTitle(d)) + '</div>' +
+                 '<div class="ofs-when">' + esc(stamp) + '</div>' +
+                 '<div class="ofs-msg"></div>' +
+               '</div>' +
+               '<div class="ofs-acts">' +
+                 '<button type="button" class="ofs-up" data-act="upload">Upload</button>' +
+                 '<button type="button" class="ofs-open" data-act="open">Open</button>' +
+                 '<button type="button" class="ofs-del" data-act="delete" title="Delete this save">🗑</button>' +
+               '</div>' +
+             '</div>';
+    }).join('');
+    Array.prototype.forEach.call(list.querySelectorAll('.ofs-row'), function(row){
+      var key = row.getAttribute('data-key');
+      var d = drafts.filter(function(x){ return String(x.key) === key; })[0];
+      row.querySelector('[data-act="upload"]').onclick = function(){ _offlineSaveUpload(d, row); };
+      row.querySelector('[data-act="open"]').onclick   = function(){ _offlineSaveOpen(d); };
+      row.querySelector('[data-act="delete"]').onclick = function(){ _offlineSaveDelete(d); };
+    });
+  });
+}
+function _offlineSaveMsg(row, text, tone){
+  var el = row && row.querySelector('.ofs-msg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'ofs-msg' + (tone ? ' ofs-' + tone : '');
+}
+async function _offlineSaveUpload(d, row){
+  if (!d) return;
+  if (!_isOnline()){ _offlineSaveMsg(row, 'No connection — try again when you have signal.', 'bad'); return; }
+  var btn = row && row.querySelector('[data-act="upload"]');
+  if (btn){ btn.disabled = true; btn.textContent = 'Uploading…'; }
+  _offlineSaveMsg(row, '');
+  try {
+    await _syncPushDraft(d);
+    _offlineSaveMsg(row, '✓ Uploaded to the main app', 'good');
+    if (btn) btn.textContent = 'Uploaded';
+    try { if (typeof refreshJobsList === 'function') refreshJobsList(); } catch(e){}
+    try { if (typeof fetchRecentDrafts === 'function') fetchRecentDrafts(); } catch(e){}
+    setTimeout(function(){
+      _listLocalDrafts().then(function(l){ _syncCount(l); _renderSyncChip(); });
+      _renderOfflineSaves();
+    }, 900);
+  } catch(e){
+    _offlineSaveMsg(row, (e && e.message) ? e.message : 'Upload failed', 'bad');
+    if (btn){ btn.disabled = false; btn.textContent = 'Upload'; }
+  }
+}
+function _offlineSaveOpen(d){
+  if (!d) return;
+  try {
+    restoreFromJob({ id: (d.key !== '__new__' && String(d.key).indexOf('ferg_') !== 0) ? d.key : null,
+                     client_name: d.client, site_address: d.addr, draw_state: d.snap });
+    _closeOfflineSaves();
+    gotoTab('roof');
+  } catch(e){ alert('Could not open that save: ' + e.message); }
+}
+function _offlineSaveDelete(d){
+  if (!d) return;
+  if (!confirm('Delete this save from this device? It has not been uploaded — this cannot be undone.')) return;
+  _deleteLocalDraft(d.key).then(function(){
+    _listLocalDrafts().then(function(l){ _syncCount(l); _renderSyncChip(); });
+    _renderOfflineSaves();
   });
 }
 
-window.addEventListener('online',  function(){ _renderSyncChip(); _syncFlush(true); });
-window.addEventListener('offline', function(){ _renderSyncChip(); });
-document.addEventListener('visibilitychange', function(){ if (!document.hidden) _syncFlush(); });
-setInterval(function(){ _syncFlush(); }, 30000);
+/* Nothing uploads on its own. The background outbox pushed every draft the
+   moment a connection appeared — which on the office machine meant work from
+   somebody's phone arriving as uploads nobody had asked for, and a status
+   pill permanently announcing it. A save now stays on the device that made
+   it until somebody opens Offline saves and presses Upload. */
+window.addEventListener('online',  function(){ _renderSyncChip(); _renderOfflineSaves(); });
+window.addEventListener('offline', function(){ _renderSyncChip(); _renderOfflineSaves(); });
 setTimeout(function(){
-  _listLocalDrafts().then(function(d){ _syncCount(d); _renderSyncChip(); _syncFlush(true); });
+  _listLocalDrafts().then(function(d){ _syncCount(d); _renderSyncChip(); });
 }, 2500);
 
 // The old startup "Unsaved work found — Restore it / Discard" banner is
@@ -8719,7 +8856,23 @@ async function saveCurrentJob(){
     if (msg)    { msg.textContent = text; msg.style.color = color || ''; }
     if (barMsg) { barMsg.textContent = text; barMsg.style.color = color || ''; }
   }
-  if (!client && !addr) { set('Enter a client name or address first (Map Roof tab).', '#b91c1c'); return; }
+  /* No signal: Save is still Save. It writes to this device and says so,
+     rather than failing at the network and leaving the roofer wondering.
+     The client/address rule is an office rule — onsite the job is usually
+     nameless until later, and the save is titled by its timestamp instead. */
+  if (!_isOnline()){
+    var _wrote = await _writeLocalDraftNow();
+    var _m = _wrote
+      ? 'Offline — saved on this device. Menu → Offline saves to upload it when you have signal.'
+      : 'Offline — nothing to save yet.';
+    set('⚡ ' + _m, '#b45309');
+    _siteToast('⚡ ' + (_wrote ? 'Offline — saved on this device' : 'Offline — nothing to save yet'));
+    try { _listLocalDrafts().then(function(l){ _syncCount(l); _renderSyncChip(); }); } catch(e){}
+    try { _renderOfflineSaves(); } catch(e){}
+    return;
+  }
+  if (!client && !addr) { set('Enter a client name or address first (Map Roof tab).', '#b91c1c');
+    _siteToast('Enter a client name or address first'); return; }
   set('Saving…', '');
   var body = { client_name: client, site_address: addr, draw_state: snapshotCurrentJob(), settings: {} };
   // The backend rejects bodies over 25 MB with an opaque 413 — catch it
@@ -8743,6 +8896,7 @@ async function saveCurrentJob(){
     // Persistent, timestamped — replaces the old 4-second flash so the
     // office can always see when the job last reached the server.
     set('✓ Saved ' + new Date().toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' }), '#15803d');
+    _siteToast('✓ Saved to the main app');
     try { _draftMarkSynced(); } catch(e2){}
     refreshJobsList();
   } catch(e) {
@@ -8750,9 +8904,29 @@ async function saveCurrentJob(){
     // cleared it after 4 seconds — easy to miss entirely).  No rethrow:
     // onclick callers have no handler, and every caller that cares
     // checks S.currentJobId / _isJobDirty() instead.
-    set('⚠ Save failed: ' + e.message + ' — a local draft is kept on this computer.', '#b91c1c');
-    try { _writeLocalDraftNow(); } catch(e2){}
+    set('⚠ Could not reach the server (' + e.message + ') — saved on this device instead. Menu → Offline saves to upload it.', '#b45309');
+    _siteToast('⚡ Saved on this device — the server did not answer');
+    try { await _writeLocalDraftNow(); } catch(e2){}
+    try { _listLocalDrafts().then(function(l){ _syncCount(l); _renderSyncChip(); }); } catch(e2){}
   }
+}
+
+/* Onsite there is no save-status line on screen — the whole screen is the
+   drawing — so Save has to say what it did somewhere the thumb is already
+   looking: a short pill just above the toolbar. */
+function _siteToast(text){
+  if (!window.__siteModeOn) return;
+  var el = document.getElementById('siteToast');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'siteToast';
+    el.className = 'no-print';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.style.display = 'block';
+  clearTimeout(el.__t);
+  el.__t = setTimeout(function(){ el.style.display = 'none'; }, 3200);
 }
 
 async function openJob(id){
