@@ -5733,8 +5733,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       </div>
       <div class="f2">
         <div><label>Next job number</label><input type="text" id="qdNextJobNo" value="06121">
-          <div style="font-size:10.5px;color:var(--text2);margin-top:3px">New jobs are auto-numbered from here (zero-padding kept) — each new job bumps it by one.</div></div>
-        <div></div>
+          <div style="font-size:10.5px;color:var(--text2);margin-top:3px">New jobs are auto-numbered from here (zero-padding kept) — each new job bumps it by one. Shared across everyone in your business, so two people can't be given the same number.</div></div>
+        <div><label>Customer quote link domain</label><input type="text" id="qdQuoteDomain" placeholder="quote.yourcompany.co.nz" autocomplete="off" oninput="_qdQuoteDomainCheck()">
+          <div style="font-size:10.5px;color:var(--text2);margin-top:3px">Optional. The domain your customers' quote links are sent on — leave blank to use whichever address you're working on. Point the domain at RoofMap first, or the links won't open.</div>
+          <div id="qdQuoteDomainMsg" style="font-size:10.5px;margin-top:3px"></div></div>
       </div>
       <div><label>Default warranty / terms text</label><textarea id="qdTerms" rows="3" placeholder="10-year materials warranty. Workmanship guaranteed. Quote valid 30 days."></textarea></div>
       <div style="margin-top:14px">
@@ -6781,6 +6783,7 @@ function collectSettingsFromUI(){
   q.validity_days = parseInt((document.getElementById('qdValidity')||{}).value || 30, 10);
   q.gst_rate      = parseFloat((document.getElementById('qdGst')||{}).value || 15);
   q.next_job_no   = ((document.getElementById('qdNextJobNo')||{}).value || q.next_job_no || '06121').trim() || '06121';
+  q.quote_domain  = _normQuoteDomain((document.getElementById('qdQuoteDomain')||{}).value);
   q.terms         = (document.getElementById('qdTerms')||{}).value || '';
   q.options       = collectListEditor('qdOptionsList', ['label','enabled']);
   q.sections      = collectListEditor('qdSectionsList', ['title','body']);
@@ -8005,6 +8008,7 @@ function refreshSettingsUI(){
   if (b.logo_data_url) { lp.src = b.logo_data_url; lp.style.display = 'inline-block'; } else { lp.style.display = 'none'; }
   set('qdValidity', q.validity_days||30); set('qdGst', q.gst_rate==null?15:q.gst_rate); set('qdTerms', q.terms);
   set('qdNextJobNo', q.next_job_no || '06121');
+  set('qdQuoteDomain', q.quote_domain || '');
   var _em = q.email || {};
   set('emQuoteCc', _em.quote_cc); set('emAcceptTo', _em.accept_to); set('emOrderCc', _em.order_cc);
   renderOptionsList(q.options || []);
@@ -14645,6 +14649,40 @@ function _quoteShareToken(){
 // network. The job still has to be saved for the link to RESOLVE; callers do
 // that separately (blocking, or in the background alongside another request).
 // Returns null if there's no client/address yet to attach the job to.
+// A business can send its customer quotes on its OWN domain (Flood Roofing on
+// quote.floodroofing.co.nz) while the office app itself lives on roofmap.co.nz.
+// Normalised to a bare https origin: a pasted path, query or http:// URL would
+// produce links that open on the wrong page or not at all, and a customer
+// following a broken quote link is the worst possible time to find out.
+function _normQuoteDomain(v){
+  var t = String(v == null ? '' : v).trim();
+  if (!t) return '';
+  if (!/^[a-z]+:\/\//i.test(t)) t = 'https://' + t;
+  try {
+    var u = new URL(t);
+    if (u.protocol !== 'https:') return '';
+    if (u.username || u.password) return '';
+    var h = u.hostname;
+    if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(h)) return '';
+    return 'https://' + h.toLowerCase();
+  } catch(e){ return ''; }
+}
+// Live feedback while typing: show the exact link customers will get, or say
+// plainly that what's been typed isn't usable — rather than silently storing
+// '' and leaving the office wondering why nothing changed.
+function _qdQuoteDomainCheck(){
+  var el = document.getElementById('qdQuoteDomain');
+  var msg = document.getElementById('qdQuoteDomainMsg');
+  if (!el || !msg) return;
+  var raw = el.value.trim();
+  if (!raw){ msg.textContent = ''; return; }
+  var norm = _normQuoteDomain(raw);
+  if (norm){ msg.textContent = '✓ Quote links will read ' + norm + '/?q=…'; msg.style.color = '#15803d'; }
+  else { msg.textContent = 'Not a usable domain — enter it like quote.yourcompany.co.nz (https only, no path).'; msg.style.color = '#b91c1c'; }
+}
+function _quoteDomainPref(){
+  try { return _normQuoteDomain(((S.settings || {}).quote_defaults || {}).quote_domain); } catch(e){ return ''; }
+}
 function _customerLinkString(){
   if (!S.quote) return null;
   var token = _quoteShareToken();
@@ -14661,7 +14699,10 @@ function _customerLinkString(){
   // Always hand the customer the branded custom-domain link even when the
   // office is on the *.vercel.app host; fall back to the current origin only
   // if the constant is blank.
-  var base = (window.CUSTOMER_QUOTE_BASE || (location.origin + location.pathname)).replace(/\/+$/, '');
+  // The business's own quote domain wins when one is set, so the office can
+  // work on roofmap.co.nz while customers still see the company's address.
+  var base = _quoteDomainPref()
+    || (window.CUSTOMER_QUOTE_BASE || (location.origin + location.pathname)).replace(/\/+$/, '');
   var link = base + '/?q=' + token;
   if (jobNo) link += '&j=' + encodeURIComponent(String(jobNo).replace(/[^A-Za-z0-9\-]/g,''));
   // Carry the DB job id so the customer open can do an instant primary-key

@@ -115,8 +115,20 @@ const corsOptions = {
   credentials: true,
 };
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+// The PUBLIC customer-quote routes are served from whatever domain each
+// business points at the app — a roofer's quote.acme.co.nz is as legitimate as
+// roofmap.co.nz, and we can't know the list in advance. Those routes carry no
+// cookies, are guarded by the share token in the URL, and are equally callable
+// from any server, so CORS was never what protected them and reflecting the
+// caller's origin gives nothing away. Every AUTHENTICATED office route stays on
+// the fixed allowlist above.
+function _publicQuoteRoute(req){ return /^\/q\//.test(req.path || ''); }
+const corsDelegate = function(req, cb){
+  if (_publicQuoteRoute(req)) return cb(null, { origin: true, credentials: false });
+  cb(null, corsOptions);
+};
+app.use(cors(corsDelegate));
+app.options('*', cors(corsDelegate));
 // 25mb cap so saved jobs can include a base64 roof image + photos
 app.use(express.json({ limit: '25mb' }));
 
