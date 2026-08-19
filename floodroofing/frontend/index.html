@@ -4105,9 +4105,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   </div>
 
   <!-- 3. GUTTERING & DOWNPIPES — labour + material, grouped in one tile.
-       Populated by renderGutterDownpipePricing(); hidden until a gutter is picked. -->
-  <div class="card" id="gutterDownpipeCard" style="display:none">
-    <div class="card-hd"><span class="tile-ic">🌧️</span>Guttering &amp; downpipes<span class="tile-sub-note">From the Selections pick — edit a total if this job is complex</span></div>
+       Populated by renderGutterDownpipePricing(). Priced on EVERY job, whether
+       or not the customer has taken guttering up, unless the office ticks
+       "Exclude gutter pricing" on this card or on the Selections page. -->
+  <div class="card" id="gutterDownpipeCard">
+    <div class="card-hd"><span class="tile-ic">🌧️</span>Guttering &amp; downpipes<span class="tile-sub-note">Priced on every job — edit a total if this one is complex</span></div>
     <div id="gutterDownpipeWrap"></div>
   </div>
 
@@ -7942,6 +7944,13 @@ function renderPerRoofBreakdown(){
     var mat = _materialsCostForRoofIdx(i) * gf;
     var lab = _labourPriceForRoof(i);
     var scaff = _scaffoldPriceForRoof(i);
+    // Guttering is costed on every roof that has a gutter run drawn, whether or
+    // not the customer has taken it up — so the office can see, per roof, what
+    // adding it would come to. It stays OUT of the roof subtotal: the customer
+    // opts into guttering separately and the base quote must not silently
+    // include it. Excluding gutter pricing on the job zeroes it here too.
+    var gut = _gutterPriceForRoof(i);
+    var gutRun = _gutterRunForRoofIdx(i);
     var sub = mat + lab + scaff;
     var onCur = (i === cur);
     var line = function(label, val){ return '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text2)">'+label+'</span><span style="font-weight:600">'+money(val)+'</span></div>'; };
@@ -7954,12 +7963,17 @@ function renderPerRoofBreakdown(){
       line('Materials <span style="font-size:10px">('+esc(gLbl)+')</span>', mat)+
       line('Labour', lab)+
       line('Scaffolding', scaff)+
+      (_gutterExcluded()
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text3)">Guttering</span><span style="font-weight:600;color:var(--text3)">excluded</span></div>'
+        : (gut > 0
+            ? line('Guttering <span style="font-size:10px">('+gutRun.lm.toFixed(1)+' lm · '+(_gutterOnQuote()?'on the quote':'optional')+')</span>', gut)
+            : '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px"><span style="color:var(--text3)">Guttering</span><span style="color:var(--text3);font-size:11px">no gutter drawn</span></div>'))+
       '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);margin-top:6px;padding-top:7px"><strong style="font-size:12px">'+(isBase?'Base subtotal':'Extra roof price')+' <span style="font-weight:400;color:var(--text2);font-size:10px">(ex GST)</span></strong><strong style="font-size:15px;color:#2e7d32">'+money(sub)+'</strong></div>'+
     '</div>';
   }).join('');
   box.innerHTML = '<div class="card-hd"><span class="tile-ic">📊</span>Per-roof price breakdown'+
     '<span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:8px">Roof 1 = base quote · each extra roof is priced from its own materials + labour + scaffold</span></div>'+
-    '<p style="font-size:11px;color:var(--text2);margin:-6px 0 10px">Tap a roof to edit it above, or use the roof buttons on each section. The customer opts in per extra roof on the proposal Selections page.</p>'+
+    '<p style="font-size:11px;color:var(--text2);margin:-6px 0 10px">Tap a roof to edit it above, or use the roof buttons on each section. The customer opts in per extra roof on the proposal Selections page. Guttering is priced per roof but sits outside the subtotal — the customer opts into it separately.</p>'+
     cards;
 }
 
@@ -11907,19 +11921,105 @@ function calcLabour(){
 // customer's Selections pick and lets the office override either total on a
 // complex job. Overrides live on the quote and feed the Selections page +
 // quote total via _selGutterDelta / _selDownpipeDelta.
+// Guttering is priced on EVERY job, not only the ones where the customer has
+// taken it up — the office needs the figure ready the moment it's asked for.
+// The single exception is a job we deliberately don't quote gutter on: the
+// office ticks "Exclude gutter pricing" (on this card or on the Guttering
+// panel of the Selections page) and guttering stops being priced here AND
+// stops being offered anywhere on the customer's quote.
+var GUTTER_PRICE_TYPES = ['box125', 'marley_typhoon', 'marley_classic'];
+var GUTTER_TYPE_NAMES = { box125:'125mm Colorsteel Box Gutter', marley_typhoon:'Marley Typhoon (PVC)', marley_classic:'Marley Classic (PVC)' };
+function _gutterExcluded(){ return !!(window.S && S.quote && S.quote.gutterExcluded); }
+// Is guttering actually ON the customer's quote (as opposed to merely priced)?
+function _gutterOnQuote(){
+  if (_gutterExcluded()) return false;
+  var p = (window.S && S.quote && S.quote.proposalOptions) || {};
+  return !!(p.gutterType && p.gutterType !== 'none');
+}
+// The product the Pricing tab prices against. Follows the customer's pick once
+// one exists; until then it's whatever the office set, defaulting to the
+// standard Typhoon fit so there's always a real number on screen.
+function _gutterPricingType(){
+  var q = (window.S && S.quote) || {}, p = q.proposalOptions || {};
+  if (p.gutterType && p.gutterType !== 'none') return p.gutterType;
+  return (GUTTER_PRICE_TYPES.indexOf(q.gutterPricingType) >= 0) ? q.gutterPricingType : 'marley_typhoon';
+}
+function _setGutterPricingType(v){
+  if (!S.quote || GUTTER_PRICE_TYPES.indexOf(v) < 0) return;
+  S.quote.gutterPricingType = v;
+  // One control, one state: if a gutter is genuinely selected on the quote,
+  // repricing against a different product means changing that selection too.
+  var p = S.quote.proposalOptions || {};
+  if (p.gutterType && p.gutterType !== 'none'){ try { _setProposalOption('gutterType', v); } catch(e){} }
+  _gdChanged();
+}
+function _toggleGutterExcluded(on){
+  if (!S.quote) return;
+  S.quote.gutterExcluded = !!on;
+  // Excluding it drops any gutter the quote had taken up — it must not keep
+  // charging for something the customer can no longer see or deselect.
+  if (on){
+    var p = S.quote.proposalOptions || (S.quote.proposalOptions = {});
+    p.gutterType = 'none'; p.downpipes = 'no';
+    S.quote.gutterChoice = 'none';
+  }
+  _gdChanged();
+  try { refreshQuoteProposal(); } catch(e){}
+}
+// The same tick, dressed for the Selections page. Both carry .no-print, so it
+// is stripped from the PDF, the printed quote and the customer view on top of
+// the __CUSTOMER_MODE guard.
+function _gutterExcludeRowHtml(){
+  if (window.__CUSTOMER_MODE) return '';
+  return '<div class="no-print" style="padding:7px 11px;border-top:1px dashed var(--ed-line);background:#fbfaf7">'+
+      '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-family:var(--ed-sans);font-size:10.5px;font-weight:700;color:var(--ed-ink-2)">'+
+        '<input type="checkbox" onchange="_toggleGutterExcluded(this.checked)" style="width:auto;margin:0"> Exclude gutter pricing'+
+        '<span style="font-weight:400;color:var(--ed-text2)">· office only — takes guttering off the customer\'s quote entirely</span>'+
+      '</label>'+
+    '</div>';
+}
+function _gutterExcludedPanelBody(){
+  return '<div class="no-print" style="padding:10px 12px;background:#fffbeb">'+
+      '<div class="ed-body" style="font-size:11px;color:#b45309;font-weight:700;margin-bottom:6px">Guttering is excluded from this job.</div>'+
+      '<div class="ed-body" style="font-size:10.5px;color:var(--ed-ink-2);line-height:1.4;margin-bottom:8px">The customer isn\'t offered guttering anywhere on this quote, and it isn\'t priced on the Pricing tab. Untick to put it back.</div>'+
+      '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-family:var(--ed-sans);font-size:10.5px;font-weight:700;color:var(--ed-ink-2)">'+
+        '<input type="checkbox" checked onchange="_toggleGutterExcluded(this.checked)" style="width:auto;margin:0"> Exclude gutter pricing'+
+      '</label>'+
+    '</div>';
+}
+// The office-only tick that turns gutter pricing off for this job. Rendered on
+// the Pricing card and on the Selections page; never shown on a customer link.
+function _gutterExcludeToggleHtml(style){
+  if (window.__CUSTOMER_MODE) return '';
+  var ex = _gutterExcluded();
+  return '<label style="'+(style||'')+'display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:11px;font-weight:700;color:'+(ex?'#b45309':'var(--text2)')+'">'+
+      '<input type="checkbox" '+(ex?'checked':'')+' onchange="_toggleGutterExcluded(this.checked)" style="width:auto;margin:0"> Exclude gutter pricing'+
+      '<span style="font-weight:400;color:var(--text3);font-size:10.5px">· internal — removes guttering from the customer quote</span>'+
+    '</label>';
+}
 function renderGutterDownpipePricing(){
   var card = document.getElementById('gutterDownpipeCard');
   var wrap = document.getElementById('gutterDownpipeWrap');
   if (!wrap) return;
   var q = (window.S && S.quote) || {};
   var p = q.proposalOptions || {};
-  var gname = ({ box125:'125mm Colorsteel Box Gutter', marley_typhoon:'Marley Typhoon (PVC)', marley_classic:'Marley Classic (PVC)' })[p.gutterType];
-  if (!p.gutterType || p.gutterType === 'none' || !gname){ if (card) card.style.display = 'none'; wrap.innerHTML = ''; return; }
   if (card) card.style.display = '';
+  // Deliberately not quoting gutter on this job — collapse to the tick that
+  // says so (and can put it back), and price nothing.
+  if (_gutterExcluded()){
+    wrap.innerHTML =
+      '<div style="padding:10px 12px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:8px;font-size:12px;color:var(--text2);margin-bottom:10px">'+
+        '<strong style="color:#b45309">Guttering is excluded from this job.</strong> It isn\'t priced here, and the customer isn\'t offered it anywhere on their quote.'+
+      '</div>'+ _gutterExcludeToggleHtml();
+    return;
+  }
+  var gtype = _gutterPricingType();
+  var gname = GUTTER_TYPE_NAMES[gtype];
+  var gOnQuote = _gutterOnQuote();
   var lm = _selGutterLm(), lines = _selGutterLineCount(), corners = _selGutterCorners();
   var gls = _gutterLabourState(lm);
   var labCharge = gls.leadHrs * gls.leadPrice + gls.appHrs * gls.appPrice;
-  var matLines = _gutterMaterialLines(p.gutterType, lm, lines, corners);
+  var matLines = _gutterMaterialLines(gtype, lm, lines, corners);
   var matBase = matLines.reduce(function(s, r){ return s + (r.lineTotal||0); }, 0);
   var mkPct = _gutterMatMarkupPct(), mkAmt = matBase * (mkPct/100);
   var matCharge = matBase + mkAmt;
@@ -11973,8 +12073,23 @@ function renderGutterDownpipePricing(){
         '<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Labour</td><td style="text-align:right;font-weight:700;color:#2e7d32">'+money(labCharge)+'</td></tr></tfoot>'+
       '</table>'
     : '');
+  // Which product this job is priced against. When the customer has actually
+  // taken guttering up this IS their pick, so changing it changes their
+  // selection; otherwise it's just the basis the office is costing against.
+  var typePicker = '<select onchange="_setGutterPricingType(this.value)" style="font-size:12px;padding:5px 8px;max-width:250px">'+
+      GUTTER_PRICE_TYPES.map(function(id){
+        return '<option value="'+id+'"'+(id===gtype?' selected':'')+'>'+esc(GUTTER_TYPE_NAMES[id])+'</option>';
+      }).join('')+
+    '</select>';
   wrap.innerHTML =
-    '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">'+esc(gname)+' &nbsp;·&nbsp; '+lm.toFixed(1)+' lm gutter run &nbsp;·&nbsp; '+lines+' line'+(lines===1?'':'s')+' &nbsp;·&nbsp; '+corners+' corner'+(corners===1?'':'s')+' <span style="color:var(--text3)">(ex GST)</span></div>'+
+    '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+
+      typePicker+
+      '<span style="font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:20px;'+
+        (gOnQuote ? 'background:#e8f5e9;color:#2e7d32">On the customer\'s quote' : 'background:#eef2f6;color:#64748b">Priced, not yet on the quote')+'</span>'+
+      _gutterExcludeToggleHtml('margin-left:auto;')+
+    '</div>'+
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">'+lm.toFixed(1)+' lm gutter run &nbsp;·&nbsp; '+lines+' line'+(lines===1?'':'s')+' &nbsp;·&nbsp; '+corners+' corner'+(corners===1?'':'s')+' <span style="color:var(--text3)">(ex GST)</span>'+
+      (lm > 0 ? '' : ' <span style="color:#b45309">— no gutter line drawn yet, so only labour is costed. Draw the gutter on Map Roof for a full price.</span>')+'</div>'+
     // Labour — editable hour lines like the re-roof labour table (lead + apprentice)
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:var(--text)">Gutter labour</div>'+(gls.overridden?'<button type="button" onclick="_resetGutterLabour()" style="background:none;border:none;color:#0099cc;font-size:10.5px;cursor:pointer;text-decoration:underline;padding:0">↻ Reset to auto ('+gls.band+' hr)</button>':'<span style="font-size:10.5px;color:var(--text3)">auto '+gls.band+' hr · editable</span>')+'</div>'+
     '<table class="price-tbl" style="table-layout:fixed;width:100%;margin-bottom:4px">'+
@@ -12949,6 +13064,9 @@ function defaultQuote(){
     // Guttering selector on the Gutters page.  'none' = no gutter work;
     // prices are ex-GST add-ons applied to the combined total.
     gutterChoice: tpl.gutterChoice || 'none',
+    // Gutter is priced on every job unless the office deliberately excludes it.
+    gutterExcluded: !!tpl.gutterExcluded,
+    gutterPricingType: tpl.gutterPricingType || 'marley_typhoon',
     gutterPrices: tpl.gutterPrices ? Object.assign({}, tpl.gutterPrices) : { marley: 0, box: 0 },
     // Ex-GST add-ons for the Selections page's steel-grade / thickness
     // picks (may be negative — e.g. Zincalume is cheaper than MAXAM).
@@ -13262,6 +13380,7 @@ function _optUpgradeDelta(o){
 function _optEffectiveTotal(o){ return _optTotal(o) + _optUpgradeDelta(o); }
 // Selected guttering add-on (ex-GST), if any.
 function _gutterDelta(){
+  if (typeof _gutterExcluded === 'function' && _gutterExcluded()) return 0;
   var g = S.quote && S.quote.gutterChoice;
   if (!g || g === 'none') return 0;
   return parseFloat((S.quote.gutterPrices||{})[g]) || 0;
@@ -13512,8 +13631,36 @@ function _gutterLabourCharge(lm){
 }
 // Total gutter charge ($ ex-GST) = itemised material (+markup) + labour.
 function _gutterTotalCharge(id, lm){
+  return _gutterTotalChargeFor(id, lm, _selGutterLineCount(), _selGutterCorners());
+}
+// Same sum for an arbitrary run — used by the per-roof breakdown, which needs
+// each roof's own lm / line / corner counts rather than the whole job's.
+function _gutterTotalChargeFor(id, lm, lines, corners){
   if (!SEL_GUTTER_MATERIAL_PER_LM[id] && !GUTTER_MATERIAL_PRICES[id]) return 0;
-  return _gutterMaterialCharge(id, lm, _selGutterLineCount(), _selGutterCorners()) + _gutterLabourCharge(lm);
+  return _gutterMaterialCharge(id, lm, lines, corners) + _gutterLabourCharge(lm);
+}
+// The gutter run drawn on ONE roof, and what it costs at the priced product.
+// This is what puts a gutter figure against every roof on the Pricing tab.
+function _gutterRunForRoofIdx(idx){
+  var out = { lm: 0, lines: 0, corners: 0 };
+  try {
+    var roofs = (typeof _matBasicCollectRoofs === 'function') ? _matBasicCollectRoofs() : [];
+    var r = null;
+    for (var i = 0; i < roofs.length; i++){ if (roofs[i].idx === idx){ r = roofs[i]; break; } }
+    if (!r) return out;
+    var gl = (r.lines || []).filter(function(l){ return l && l.type === 'gutter'; });
+    out.lines = gl.length;
+    out.lm = +gl.reduce(function(s, l){ return s + (parseFloat(l.measM) || 0); }, 0).toFixed(2);
+    out.corners = _gutterCornersInSegments(gl.filter(function(l){ return l.pts && l.pts.length === 2; })
+                                             .map(function(l){ return [l.pts[0], l.pts[1]]; }));
+  } catch(e){}
+  return out;
+}
+function _gutterPriceForRoof(idx){
+  if (_gutterExcluded()) return 0;
+  var run = _gutterRunForRoofIdx(idx);
+  if (!(run.lm > 0)) return 0;
+  return _gutterTotalChargeFor(_gutterPricingType(), run.lm, Math.max(1, run.lines), run.corners);
 }
 // External brackets are an upcharge over the standard internal brackets:
 // +$6/lm on a 125mm box gutter, +$3/lm on either Marley PVC gutter (ex-GST).
@@ -13608,6 +13755,7 @@ function _selScaffoldBasePrice(){
   return parseFloat(sc.price) || 0;
 }
 function _selBracketExtDelta(){
+  if (typeof _gutterExcluded === 'function' && _gutterExcluded()) return 0;
   var p = (window.S && S.quote && S.quote.proposalOptions) || {};
   if (!p.gutterType || p.gutterType === 'none') return 0;
   var rate = _bracketExtPerLm(p.gutterType);
@@ -13615,6 +13763,7 @@ function _selBracketExtDelta(){
   return rate * _selGutterLm();
 }
 function _selGutterDelta(gutterId){
+  if (typeof _gutterExcluded === 'function' && _gutterExcluded()) return 0;
   // The office can override the SELECTED gutter's total in the Pricing panel
   // (complex jobs). Other gutter cards still show their own $/lm computed price.
   var q = (window.S && S.quote) || {};
@@ -13633,6 +13782,7 @@ function _selDownpipesOn(){
 // Downpipe total (ex-GST) — $150 per gutter line, or the office override.
 // Only meaningful once a gutter has been selected.
 function _selDownpipeDelta(){
+  if (typeof _gutterExcluded === 'function' && _gutterExcluded()) return 0;
   var q = (window.S && S.quote) || {};
   var p = q.proposalOptions || {};
   if (!p.gutterType || p.gutterType === 'none') return 0;
@@ -14224,8 +14374,8 @@ function _acceptConfirmBodyHtml(){
   html += row('Steel grade', sel('steelGrade', GR, 'maxam'));
   html += row('Steel thickness', sel('steelThickness', TH, '40'));
   html += row('Colour', colourCtrl);
-  html += row('Guttering', sel('gutterType', GU, 'none'));
-  if (gt !== 'none'){
+  if (!_gutterExcluded()) html += row('Guttering', sel('gutterType', GU, 'none'));
+  if (!_gutterExcluded() && gt !== 'none'){
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
         '<div>'+row('Gutter brackets', sel('gutterBracket', BR, 'internal'))+'</div>'+
         '<div>'+row('Downpipes', sel('downpipes', DP, 'no'))+'</div>'+
@@ -17928,7 +18078,12 @@ function refreshQuoteProposal(){
   var phone = (document.getElementById('jobPhone')||{}).value || '';
   var inspector = (document.getElementById('inspName')||{}).value || '';
   var sec = S.quote.proposalSections || {};
-  var on = function(k){ return sec[k] !== false; };
+  var on = function(k){
+    // A job with gutter pricing excluded must not carry the spouting page —
+    // there is nothing on offer to read about.
+    if (k === 'gutters' && typeof _gutterExcluded === 'function' && _gutterExcluded()) return false;
+    return sec[k] !== false;
+  };
   var opts = S.quote.options || [];
   // Two photo pools:
   //   gallery — stock past-job / Colorsteel photos, re-used across every
@@ -19027,12 +19182,18 @@ function refreshQuoteProposal(){
               : selCard('steelThickness', THICKS, pOpts.steelThickness || '40', '_setProposalOption_thickness', { flat: true }))+
           '</div>'+
           '<div style="display:grid;gap:6px;align-content:start">'+
-            selPanel('Guttering', selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter', { flat: true }))+
-            (pOpts.gutterType && pOpts.gutterType !== 'none'
-              ? '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:-2px 0 0;padding:6px 10px;line-height:1.35;font-style:italic;border-left:3px solid var(--ed-accent);background:#fbfaf7">Adding new guttering also upgrades the site from edge protection to a full platform scaffold — needed to install the gutter line safely. This adds 25% to the standard scaffolding price, shown in your total below.</div>'+
-                selPanel('Gutter brackets', selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'internal', '_setProposalOption_bracket', { flat: true, compact: true }))+
-                selPanel('Downpipes', selCard('downpipes', DOWNPIPES, pOpts.downpipes || 'no', '_setProposalOption_downpipes', { flat: true, compact: true }))
-              : '')+
+            // Guttering. On a job the office has ticked "Exclude gutter
+            // pricing" the whole group disappears — the customer is never
+            // offered it. The office still sees the tick (so it can be put
+            // back); the customer link renders nothing at all.
+            (_gutterExcluded()
+              ? (window.__CUSTOMER_MODE ? '' : selPanel('Guttering', _gutterExcludedPanelBody()))
+              : selPanel('Guttering', selCard('gutterType', GUTTERS, pOpts.gutterType || 'none', '_setProposalOption_gutter', { flat: true }) + _gutterExcludeRowHtml())+
+                (pOpts.gutterType && pOpts.gutterType !== 'none'
+                  ? '<div class="ed-body" style="font-size:9.5px;color:var(--ed-ink-2);margin:-2px 0 0;padding:6px 10px;line-height:1.35;font-style:italic;border-left:3px solid var(--ed-accent);background:#fbfaf7">Adding new guttering also upgrades the site from edge protection to a full platform scaffold — needed to install the gutter line safely. This adds 25% to the standard scaffolding price, shown in your total below.</div>'+
+                    selPanel('Gutter brackets', selCard('gutterBracket', BRACKETS, pOpts.gutterBracket || 'internal', '_setProposalOption_bracket', { flat: true, compact: true }))+
+                    selPanel('Downpipes', selCard('downpipes', DOWNPIPES, pOpts.downpipes || 'no', '_setProposalOption_downpipes', { flat: true, compact: true }))
+                  : ''))+
             selPanel('Colour', _selColourBody(pOpts))+
           '</div>'+
         '</div>'+
