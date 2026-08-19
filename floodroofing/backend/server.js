@@ -72,6 +72,17 @@ const VERCEL_PROJECT_PREFIXES = [
   'flood-roofing-estimator',
 ];
 
+// Domains the app itself is served from. The office app and the customer quote
+// both call this backend cross-origin, so a domain missing from here loads the
+// page fine and then fails EVERY api() call — which reads as "the app is
+// broken", not as a CORS problem. Each entry covers the apex and any subdomain
+// of it (roofmap.co.nz, www.roofmap.co.nz, quote.roofmap.co.nz …).
+const APP_DOMAINS = [
+  'floodroofing.co.nz',   // quote.floodroofing.co.nz — Flood Roofing's own
+  'roofmap.co.nz',        // the product, New Zealand
+  'roofmap.com',          // the product, international
+];
+
 function isAllowedOrigin(origin) {
   if (!origin) return true;                       // same-origin / non-browser
   if (allowedOrigins.includes(origin)) return true;
@@ -80,10 +91,9 @@ function isAllowedOrigin(origin) {
     if (host.endsWith('.vercel.app')) {
       return VERCEL_PROJECT_PREFIXES.some(function(p){ return host.startsWith(p); });
     }
-    // The customer-facing quote is served on the company's own domain
-    // (e.g. quote.floodroofing.co.nz), which then calls this backend
-    // cross-origin — allow the apex and any of its subdomains.
-    if (host === 'floodroofing.co.nz' || host.endsWith('.floodroofing.co.nz')) return true;
+    // The office app and the customer-facing quote are served from these,
+    // then call this backend cross-origin — apex and any subdomain.
+    if (APP_DOMAINS.some(function(d){ return host === d || host.endsWith('.' + d); })) return true;
     // The Finance Hub is hosted on GitHub Pages and calls this backend
     // cross-origin only to pull Fergus job photos (list + download).
     if (host === 'office4777.github.io') return true;
@@ -325,7 +335,7 @@ app.get('/', (req, res) => {
     build: BUILD_SHA,
     features: FEATURES,
     railway: _railwayIdentity(),
-    corsAllow: 'localhost + *.vercel.app (flood-roofing-estimator-*) + FRONTEND_URL',
+    corsAllow: 'localhost + *.vercel.app (flood-roofing-estimator-*) + FRONTEND_URL + ' + APP_DOMAINS.join(', '),
     time: new Date().toISOString(),
   });
 });
@@ -539,7 +549,7 @@ app.post('/auth/forgot', rateLimit(5, 900000), async (req, res) => {
     }
     if (!userId) { console.log('[auth] reset requested for unknown email (no mail sent)'); return; }
     const t = jwt.sign({ id: userId, email, purpose: 'pwreset' }, JWT_SECRET, { expiresIn: '30m' });
-    const base = (process.env.FRONTEND_URL || 'https://quote.floodroofing.co.nz').replace(/\/+$/, '');
+    const base = (process.env.FRONTEND_URL || 'https://roofmap.co.nz').replace(/\/+$/, '');
     const link = base + '/?reset=' + encodeURIComponent(t);
     await _dispatchMail({
       to: email,
