@@ -2182,8 +2182,8 @@ html.jp-preview #jpPages .mat-section.is-empty-section{
    typeset values instead of form controls. */
 html.pdf-rendering .jp-page input[type="number"],
 html.pdf-rendering .jp-page input[type="text"],
-html.jp-preview #jpPages input[type="number"],
-html.jp-preview #jpPages input[type="text"]{
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages input[type="number"],
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages input[type="text"]{
   appearance:none!important;
   -webkit-appearance:none!important;
   -moz-appearance:none!important;
@@ -2199,7 +2199,7 @@ html.jp-preview #jpPages input[type="text"]{
   outline:none!important;
 }
 html.pdf-rendering .jp-page select,
-html.jp-preview #jpPages select{
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages select{
   appearance:none!important;
   -webkit-appearance:none!important;
   -moz-appearance:none!important;
@@ -2212,7 +2212,7 @@ html.jp-preview #jpPages select{
   width:auto!important;
 }
 html.pdf-rendering .jp-page input[type="checkbox"],
-html.jp-preview #jpPages input[type="checkbox"]{ display:none!important; }
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages input[type="checkbox"]{ display:none!important; }
 /* Chrome keeps the number-input spin button INSIDE the box even when
    the input is flattened — it eats ~half of a value-fitted width and
    clips the last digit.  Kill it outright for capture + print. */
@@ -2231,9 +2231,9 @@ html.print-jobpack .jp-page input[type="number"]::-webkit-outer-spin-button{
 html.pdf-rendering .jp-page input[type="number"],
 html.pdf-rendering .jp-page input[type="text"],
 html.pdf-rendering .jp-page select,
-html.jp-preview #jpPages input[type="number"],
-html.jp-preview #jpPages input[type="text"],
-html.jp-preview #jpPages select{
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages input[type="number"],
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages input[type="text"],
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages select{
   height:auto!important;
   line-height:inherit!important;
   vertical-align:baseline!important;
@@ -2243,21 +2243,33 @@ html.jp-preview #jpPages select{
    third column is hidden in PDF) to a simple label + value line — the
    screen grid left the quantity floating mid-page with the unit
    wrapped underneath it. */
-html.pdf-rendering .mat-list{ gap:0!important; padding:2px 0!important; }
+html.pdf-rendering .mat-list,
+html.jp-preview #jpPages .mat-list{ gap:0!important; padding:2px 0!important; }
 /* line-height 1.5 (was 1.3): the inputs inherit this leading (rule above),
    and 1.3 clipped the bottom of the Inter digits on paper too. */
-html.pdf-rendering .mat-list-row{ padding:0 6px!important; line-height:1.5!important; }
+html.pdf-rendering .mat-list-row,
+html.jp-preview #jpPages .mat-list-row{ padding:0 6px!important; line-height:1.5!important; }
 /* On paper the input-flatten rule above resets widths to auto; re-pin the
    cut-list qty / length inputs to the shared column widths so the "N @ L
    m" rows stay aligned across every section (the fixed .mat-list-qty /
    .mat-list-len column widths come from the base CSS and apply here too). */
-html.pdf-rendering .jp-page .mat-list-row .mat-list-qty input{ width:34px!important; text-align:right!important; }
-html.pdf-rendering .jp-page .mat-list-row .mat-list-len input{ width:56px!important; text-align:left!important; }
+/* The :not() guards are load-bearing, not decoration: they carry the same
+   specificity as the flatten rule above, which sets width:auto. Without
+   them that rule outranks this one and every cut-list column collapses to
+   the browser's default input width — which is what made the "N @ L m" rows
+   scatter across the page. */
+html.pdf-rendering .jp-page .mat-list-row .mat-list-qty input,
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages .mat-list-row .mat-list-qty input{ width:34px!important; text-align:right!important; }
+html.pdf-rendering .jp-page .mat-list-row .mat-list-len input,
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages .mat-list-row .mat-list-len input{ width:56px!important; text-align:left!important; }
 /* Keep the gutter Droppers / Brackets quantity in its fixed column on
    paper too (excluded from the value-fit) so the × stays on axis. */
-html.pdf-rendering .jp-page .gu-row .gu-qty input{ width:100%!important; text-align:right!important; }
-html.pdf-rendering .cons-row{ display:flex!important; gap:10px!important; padding:3px 4px!important; align-items:baseline!important; }
-html.pdf-rendering .cons-row-qty{ white-space:nowrap!important; }
+html.pdf-rendering .jp-page .gu-row .gu-qty input,
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages .gu-row .gu-qty input{ width:100%!important; text-align:right!important; }
+html.pdf-rendering .cons-row,
+html.jp-preview #jpPages .cons-row{ display:flex!important; gap:10px!important; padding:3px 4px!important; align-items:baseline!important; }
+html.pdf-rendering .cons-row-qty,
+html.jp-preview #jpPages .cons-row-qty{ white-space:nowrap!important; }
 /* Breathing room between the cut-list sections on the exported PDF —
    10px read as one dense block ("cluttered"). No divider line under a
    section either: the gap does the separating. */
@@ -2270,7 +2282,7 @@ html.pdf-rendering .gu-row{ border-bottom:none!important; }
    of every sheet's content. */
 html.pdf-rendering .jp-page{ border:none!important; box-shadow:none!important; border-radius:0!important; }
 html.pdf-rendering .mat-section-hd,
-html.jp-preview #jpPages .mat-section-hd{ padding:6px 14px!important; margin-bottom:6px!important; }
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages .mat-section-hd{ padding:6px 14px!important; margin-bottom:6px!important; }
 /* Print: only #jpPages elements reach paper.  Each .jp-page is one A4
    sheet so we just suppress everything else and let CSS page breaks
    slot between them. */
