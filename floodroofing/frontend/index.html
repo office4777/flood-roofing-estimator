@@ -2978,6 +2978,23 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div class="li-alt"><a onclick="showSigninView()">Back to sign in</a></div>
     </div>
 
+    <!-- JOIN A TEAM (opened from an emailed ?invite= link) -->
+    <div id="login-invite-view" style="display:none">
+      <div style="font-size:16px;font-weight:700;color:#0a1628;margin-bottom:3px">Join your team on RoofMap</div>
+      <div id="inv-intro" style="font-size:12.5px;color:#666;margin-bottom:1.25rem;line-height:1.55">Checking your invitation…</div>
+      <div id="inv-form" style="display:none">
+        <label class="li-label">Your name</label>
+        <input id="inv-name" type="text" placeholder="Matt" class="li-input">
+        <label class="li-label">Choose a password</label>
+        <input id="inv-pass" type="password" placeholder="At least 8 characters" class="li-input">
+        <label class="li-label">Confirm password</label>
+        <input id="inv-pass2" type="password" placeholder="Re-enter your password" class="li-input" style="margin-bottom:1.5rem" onkeydown="if(event.key==='Enter')doAcceptInvite()">
+        <button onclick="doAcceptInvite()" id="inv-btn" class="li-btn">Join &amp; sign in</button>
+        <div id="inv-spinner" style="display:none;text-align:center;margin-top:1rem;color:#666;font-size:13px">Setting up your login…</div>
+      </div>
+      <div class="li-alt"><a onclick="showSigninView()">Back to sign in</a></div>
+    </div>
+
     <!-- SET MY PASSWORD (first-time setup) -->
     <div id="login-setup-view" style="display:none">
       <div style="font-size:16px;font-weight:700;color:#0a1628;margin-bottom:3px">Set my password</div>
@@ -3043,11 +3060,39 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     return;
   }
   function _liShow(view){
-    ['login-signin-view','login-setup-view','login-forgot-view','login-reset-view'].forEach(function(id){
+    ['login-signin-view','login-setup-view','login-forgot-view','login-reset-view','login-invite-view'].forEach(function(id){
       var el=document.getElementById(id); if(el) el.style.display = (id===view?'block':'none');
     });
     var e=document.getElementById('login-err'); if(e) e.style.display='none';
   }
+  // Accept a team invitation: create the login and drop straight into the
+  // business that invited them, on that business's subscription.
+  window.doAcceptInvite=async function(){
+    var pass=document.getElementById('inv-pass').value;
+    var pass2=document.getElementById('inv-pass2').value;
+    var err=document.getElementById('login-err');
+    err.style.display='none';
+    if(pass.length<8){ err.textContent='Password must be at least 8 characters.'; err.style.display='block'; return; }
+    if(pass!==pass2){ err.textContent='The two passwords don\'t match.'; err.style.display='block'; return; }
+    var btn=document.getElementById('inv-btn'), spin=document.getElementById('inv-spinner');
+    btn.style.display='none'; spin.style.display='block';
+    try{
+      var r=await fetch(BACKEND+'/auth/accept-invite',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({token:window.__INVITE_TOKEN||'',password:pass,name:document.getElementById('inv-name').value})});
+      var d=await r.json();
+      if(!r.ok) throw new Error(d.error||'Could not accept the invitation');
+      localStorage.setItem('fr_token',d.token);
+      localStorage.setItem('fr_user',JSON.stringify(d.user||{}));
+      if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
+      document.getElementById('login-screen').style.display='none';
+      document.querySelector('.app') && (document.querySelector('.app').style.display='');
+      setTimeout(function(){ window._aerialMap && window._aerialMap.resize(); }, 300);
+      try { window.loadSettings && window.loadSettings(); } catch(e){}
+    }catch(e){
+      err.textContent=e.message; err.style.display='block';
+      btn.style.display='block'; spin.style.display='none';
+    }
+  };
   window.showSetupView=function(){ _liShow('login-setup-view'); };
   window.showSigninView=function(){ _liShow('login-signin-view'); };
   window.showForgotView=function(){
@@ -3065,6 +3110,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     if(!localStorage.getItem('fr_token')) return;
     localStorage.removeItem('fr_token');
     localStorage.removeItem('fr_user');
+    localStorage.removeItem('fr_company');
     var ls=document.getElementById('login-screen');
     if(ls) ls.style.display='flex';
     var ap=document.querySelector('.app'); if(ap) ap.style.display='none';
@@ -3075,7 +3121,26 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   var tok=localStorage.getItem('fr_token');
   var _p=new URLSearchParams(location.search);
   var _rt=_p.get('reset');
-  if(_rt){
+  var _inv=_p.get('invite');
+  if(_inv){
+    // Emailed team invitation. Like the reset link, this wins over any session
+    // token lying around — the whole point is to sign in as somebody else.
+    window.__INVITE_TOKEN=_inv;
+    document.getElementById('login-screen').style.display='flex';
+    document.querySelector('.app') && (document.querySelector('.app').style.display='none');
+    _liShow('login-invite-view');
+    try{ history.replaceState(null,'',location.pathname); }catch(e){}
+    (async function(){
+      var intro=document.getElementById('inv-intro');
+      try{
+        var r=await fetch(BACKEND+'/auth/invite/'+encodeURIComponent(_inv));
+        var d=await r.json();
+        if(!r.ok) throw new Error(d.error||'This invitation is no longer valid.');
+        intro.innerHTML='You have been invited to join <strong>'+(d.company||'a team')+'</strong> as <strong>'+(d.email||'')+'</strong>. Choose a password to get started.';
+        document.getElementById('inv-form').style.display='';
+      }catch(e){ intro.textContent=e.message; intro.style.color='#b91c1c'; }
+    })();
+  } else if(_rt){
     // Emailed password-reset link: always show the choose-a-new-password form,
     // even if an old session token is still lying around.
     window.__RESET_TOKEN=_rt;
@@ -3130,6 +3195,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       if(!r.ok) throw new Error(d.error||'Could not reset your password');
       localStorage.setItem('fr_token',d.token);
       localStorage.setItem('fr_user',JSON.stringify(d.user||{}));
+      if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
       document.getElementById('login-screen').style.display='none';
       document.querySelector('.app') && (document.querySelector('.app').style.display='');
       setTimeout(function(){ window._aerialMap && window._aerialMap.resize(); }, 300);
@@ -3159,6 +3225,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       if(!r.ok) throw new Error(d.error||'Could not set up your login');
       localStorage.setItem('fr_token',d.token);
       localStorage.setItem('fr_user',JSON.stringify(d.user||{email:email,name:name}));
+      if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
       document.getElementById('login-screen').style.display='none';
       document.querySelector('.app') && (document.querySelector('.app').style.display='');
       setTimeout(function(){ window._aerialMap && window._aerialMap.resize(); }, 300);
@@ -3182,6 +3249,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       if(!r.ok) throw new Error(d.error||'Login failed');
       localStorage.setItem('fr_token',d.token);
       localStorage.setItem('fr_user',JSON.stringify(d.user));
+      if(d.company) localStorage.setItem('fr_company',JSON.stringify(d.company));
       document.getElementById('login-screen').style.display='none';
       document.querySelector('.app') && (document.querySelector('.app').style.display='');
       setTimeout(function(){ window._aerialMap && window._aerialMap.resize(); }, 300);
@@ -3194,6 +3262,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   window.doLogout=function(){
     localStorage.removeItem('fr_token');
     localStorage.removeItem('fr_user');
+    localStorage.removeItem('fr_company');
     location.reload();
   };
 })();
@@ -5662,6 +5731,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div class="tab-row">
       <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)" style="display:none">🔗 Job Management</button>
       <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Branding</button>
+      <button class="tab-sm" onclick="switchSettingsSub('set-team',this);loadTeam()">👥 Team</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-email',this)">✉️ Email</button>
       <button class="tab-sm" onclick="switchSettingsSub('set-pricebook',this)">Price book</button>
@@ -5671,6 +5741,13 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
     </div>
     <span id="saveSettingsMsg" style="font-size:12px;color:var(--text2);margin-left:8px"></span>
+
+    <!-- TEAM — everyone in this business, and the business's RoofMap address.
+         Jobs, price book and settings are the COMPANY's, so this is the screen
+         that decides who can see and work on them. -->
+    <div class="sub-panel settings-sub" id="set-team" style="margin-top:14px">
+      <div id="teamWrap"><p style="font-size:12px;color:var(--text2)">Loading your team…</p></div>
+    </div>
 
     <!-- JOB MANAGEMENT (shown as a tab only once a system is linked) -->
     <div class="sub-panel settings-sub" id="set-jms" style="margin-top:14px">
@@ -14680,6 +14757,179 @@ function _qdQuoteDomainCheck(){
   if (norm){ msg.textContent = '✓ Quote links will read ' + norm + '/?q=…'; msg.style.color = '#15803d'; }
   else { msg.textContent = 'Not a usable domain — enter it like quote.yourcompany.co.nz (https only, no path).'; msg.style.color = '#b91c1c'; }
 }
+// ── Team screen (Settings → Team) ─────────────────────────────────
+// Jobs, the price book and every setting belong to the BUSINESS, so this is
+// the screen that decides who can see and work on them. Only an owner can
+// change who's in it; everyone else sees the same list, read-only.
+var TEAM = { company: null, me: {}, members: [], invites: [], loading: false, err: '' };
+async function loadTeam(){
+  var wrap = document.getElementById('teamWrap'); if (!wrap) return;
+  TEAM.loading = true; TEAM.err = ''; renderTeam();
+  try {
+    var d = await api('GET', '/team');
+    TEAM.company = d.company || null;
+    TEAM.me = d.me || {};
+    TEAM.members = d.members || [];
+    TEAM.invites = d.invites || [];
+    // Keep the cached brief in step — the quote link is built from the slug.
+    if (TEAM.company) _setCompanyBrief({ id: TEAM.company.id, name: TEAM.company.name, slug: TEAM.company.slug, role: (TEAM.me || {}).role || '' });
+  } catch(e){ TEAM.err = (e && e.message) || 'Could not load your team.'; }
+  TEAM.loading = false; renderTeam();
+}
+function _teamMsg(text, ok){
+  var el = document.getElementById('teamMsg'); if (!el) return;
+  el.textContent = text || '';
+  el.style.color = ok === true ? '#15803d' : ok === false ? '#b91c1c' : 'var(--text2)';
+}
+function renderTeam(){
+  var wrap = document.getElementById('teamWrap'); if (!wrap) return;
+  if (TEAM.loading && !TEAM.members.length){ wrap.innerHTML = '<p style="font-size:12px;color:var(--text2)">Loading your team…</p>'; return; }
+  if (TEAM.err){ wrap.innerHTML = '<p style="font-size:12px;color:#b91c1c">'+esc(TEAM.err)+' <button onclick="loadTeam()" class="tool-btn" style="font-size:11px">↻ Retry</button></p>'; return; }
+  var owner = (TEAM.me.role === 'owner');
+  var slug = (TEAM.company && TEAM.company.slug) || '';
+  var h = '';
+  // The business's address on RoofMap.
+  h += '<div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;background:var(--surface-2)">'+
+    '<div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:3px">Your RoofMap address</div>'+
+    '<div style="font-size:11.5px;color:var(--text2);margin-bottom:9px;line-height:1.5">This is the web address your customers\' quote links are sent on. Nothing to set up — it works the moment you choose it.</div>'+
+    '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
+      '<input id="teamSlug" type="text" value="'+esc(slug)+'" placeholder="yourcompany" '+(owner?'':'disabled')+' oninput="_teamSlugCheck()" style="width:190px;margin:0">'+
+      '<span style="font-size:13px;color:var(--text2);font-family:monospace">.'+ROOFMAP_ROOT+'</span>'+
+      (owner ? '<button type="button" onclick="saveTeamSlug()" class="sec-btn" style="margin:0;width:auto;padding:9px 16px">Save address</button>' : '')+
+    '</div>'+
+    '<div id="teamSlugMsg" style="font-size:10.5px;margin-top:5px;min-height:14px"></div>'+
+    (slug ? '<div style="font-size:11px;color:var(--text2);margin-top:2px">Quote links currently read <strong>https://'+esc(slug)+'.'+ROOFMAP_ROOT+'/?q=…</strong></div>' : '')+
+  '</div>';
+  // Members.
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+    '<strong style="font-size:13px">People in '+esc((TEAM.company && TEAM.company.name) || 'your business')+'</strong>'+
+    '<span style="font-size:11px;color:var(--text2)">'+TEAM.members.length+' '+(TEAM.members.length===1?'person':'people')+'</span>'+
+    '<span id="teamMsg" style="font-size:11.5px;margin-left:auto"></span>'+
+  '</div>';
+  h += '<table class="price-tbl" style="width:100%;table-layout:fixed;margin-bottom:16px">'+
+    '<thead><tr><th style="width:34%">Name</th><th style="width:36%">Email</th><th style="width:16%">Role</th><th style="width:14%"></th></tr></thead><tbody>'+
+    (TEAM.members.map(function(m){
+      var who = esc(m.name || (m.email||'').split('@')[0] || '—');
+      return '<tr>'+
+        '<td style="font-weight:600">'+who+(m.you?' <span style="font-weight:400;color:var(--text2);font-size:10.5px">(you)</span>':'')+'</td>'+
+        '<td style="color:var(--text2);overflow:hidden;text-overflow:ellipsis">'+esc(m.email||'')+'</td>'+
+        '<td>'+(owner && !m.you
+          ? '<select onchange="setTeamRole(\''+m.id+'\',this.value)" style="font-size:12px;padding:4px 6px;margin:0"><option value="member"'+(m.role!=='owner'?' selected':'')+'>Member</option><option value="owner"'+(m.role==='owner'?' selected':'')+'>Owner</option></select>'
+          : '<span style="font-size:11.5px;color:var(--text2);text-transform:capitalize">'+esc(m.role||'member')+'</span>')+'</td>'+
+        '<td style="text-align:right">'+(owner && !m.you
+          ? '<button onclick="removeTeamMember(\''+m.id+'\',\''+esc(m.name||m.email||'')+'\')" class="tool-btn" style="font-size:11px;color:#b91c1c">Remove</button>' : '')+'</td>'+
+      '</tr>';
+    }).join('') || '<tr><td colspan="4" style="color:var(--text2);font-size:12px">Just you so far.</td></tr>')+
+  '</tbody></table>';
+  // Pending invitations.
+  if (TEAM.invites.length){
+    h += '<div style="font-size:13px;font-weight:700;margin-bottom:6px">Invitations waiting to be accepted</div>'+
+      '<table class="price-tbl" style="width:100%;table-layout:fixed;margin-bottom:16px"><tbody>'+
+      TEAM.invites.map(function(i){
+        return '<tr><td>'+esc(i.email)+'</td>'+
+          '<td style="color:var(--text2);font-size:11.5px">invited as '+esc(i.role||'member')+'</td>'+
+          '<td style="text-align:right">'+(owner?'<button onclick="revokeTeamInvite(\''+i.id+'\')" class="tool-btn" style="font-size:11px;color:#b91c1c">Revoke</button>':'')+'</td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+  // Invite someone.
+  if (owner){
+    h += '<div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px">'+
+      '<div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:3px">Add someone to your business</div>'+
+      '<div style="font-size:11.5px;color:var(--text2);margin-bottom:9px;line-height:1.5">They get their own login and see the same jobs, price book and settings. Your subscription covers them — they don\'t need one of their own.</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'+
+        '<input id="teamInviteEmail" type="email" placeholder="name@yourcompany.co.nz" style="flex:1 1 240px;min-width:0;margin:0" onkeydown="if(event.key===\'Enter\')inviteTeamMember()">'+
+        '<select id="teamInviteRole" style="width:auto;margin:0;font-size:12px;padding:9px 8px"><option value="member">Member</option><option value="owner">Owner</option></select>'+
+        '<button type="button" onclick="inviteTeamMember()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px">Send invitation</button>'+
+      '</div>'+
+      '<div id="teamInviteOut" style="font-size:11.5px;margin-top:8px"></div>'+
+    '</div>';
+  } else {
+    h += '<p style="font-size:11.5px;color:var(--text2)">Only an owner can add or remove people. Ask whoever set up your RoofMap account.</p>';
+  }
+  wrap.innerHTML = h;
+  _teamSlugCheck();
+}
+var _teamSlugT;
+function _teamSlugCheck(){
+  var el = document.getElementById('teamSlug'), msg = document.getElementById('teamSlugMsg');
+  if (!el || !msg) return;
+  var v = el.value.trim().toLowerCase();
+  var cur = (TEAM.company && TEAM.company.slug) || '';
+  clearTimeout(_teamSlugT);
+  if (!v || v === cur){ msg.textContent = ''; return; }
+  msg.textContent = 'Checking…'; msg.style.color = 'var(--text2)';
+  // Debounced: this is a keystroke-by-keystroke check against the server.
+  _teamSlugT = setTimeout(async function(){
+    try {
+      var d = await api('GET', '/team/slug-available?slug=' + encodeURIComponent(v));
+      if (d.ok){ msg.textContent = '✓ ' + d.slug + '.' + ROOFMAP_ROOT + ' is free'; msg.style.color = '#15803d'; }
+      else if (d.reason === 'taken'){ msg.textContent = 'Another business already has that address.'; msg.style.color = '#b91c1c'; }
+      else { msg.textContent = 'Use 3–30 letters, numbers or dashes.'; msg.style.color = '#b91c1c'; }
+    } catch(e){ msg.textContent = ''; }
+  }, 350);
+}
+async function saveTeamSlug(){
+  var el = document.getElementById('teamSlug'); if (!el) return;
+  try {
+    var d = await api('POST', '/team/slug', { slug: el.value.trim() });
+    if (TEAM.company) TEAM.company.slug = d.slug;
+    _setCompanyBrief(Object.assign({}, _companyBrief(), { slug: d.slug }));
+    renderTeam(); _teamMsg('Address saved — quote links now use it.', true);
+  } catch(e){ _teamMsg((e && e.message) || 'Could not save that address.', false); }
+}
+async function inviteTeamMember(){
+  var el = document.getElementById('teamInviteEmail');
+  var role = (document.getElementById('teamInviteRole')||{}).value || 'member';
+  var out = document.getElementById('teamInviteOut');
+  if (!el || !el.value.trim()) return;
+  out.textContent = 'Sending…'; out.style.color = 'var(--text2)';
+  try {
+    var d = await api('POST', '/team/invites', { email: el.value.trim(), role: role });
+    el.value = '';
+    await loadTeam();
+    out = document.getElementById('teamInviteOut');
+    if (out){
+      if (d.emailed){ out.textContent = '✓ Invitation emailed.'; out.style.color = '#15803d'; }
+      else {
+        // Email isn't set up (or bounced) — hand the owner the link rather than
+        // leaving them thinking an invitation went out when it didn't.
+        out.style.color = '#b45309';
+        out.innerHTML = 'Couldn\'t send the email — copy this link to them instead:<br>'+
+          '<input type="text" readonly value="'+esc(d.link)+'" onclick="this.select()" style="width:100%;margin-top:5px;font-family:monospace;font-size:11px">';
+      }
+    }
+  } catch(e){ out.textContent = (e && e.message) || 'Could not send that invitation.'; out.style.color = '#b91c1c'; }
+}
+async function revokeTeamInvite(id){
+  try { await api('DELETE', '/team/invites/' + id); await loadTeam(); _teamMsg('Invitation revoked.', true); }
+  catch(e){ _teamMsg((e && e.message) || 'Could not revoke that invitation.', false); }
+}
+async function setTeamRole(userId, role){
+  try { await api('POST', '/team/members/' + userId + '/role', { role: role }); await loadTeam(); _teamMsg('Role updated.', true); }
+  catch(e){ await loadTeam(); _teamMsg((e && e.message) || 'Could not change that role.', false); }
+}
+async function removeTeamMember(userId, who){
+  if (!confirm('Remove ' + (who || 'this person') + ' from your business?\n\nTheir jobs stay — every job belongs to the business, not to the person who made it.')) return;
+  try { await api('DELETE', '/team/members/' + userId); await loadTeam(); _teamMsg('Removed.', true); }
+  catch(e){ _teamMsg((e && e.message) || 'Could not remove them.', false); }
+}
+// ── The business (cached at sign-in, refreshed by the Team screen) ────
+function _companyBrief(){
+  try { return JSON.parse(localStorage.getItem('fr_company') || '{}') || {}; } catch(e){ return {}; }
+}
+function _setCompanyBrief(c){
+  try { localStorage.setItem('fr_company', JSON.stringify(c || {})); } catch(e){}
+}
+function _companyIsOwner(){ return _companyBrief().role === 'owner'; }
+// Every business gets an address on RoofMap the moment it picks one —
+// acmeroofing.roofmap.co.nz — with no DNS for them and nothing for us to set
+// up. A company that has bought its own domain overrides this in Quote
+// defaults; a company that hasn't still sends links carrying its own name.
+var ROOFMAP_ROOT = 'roofmap.co.nz';
+function _companyQuoteBase(){
+  var slug = String(_companyBrief().slug || '').trim().toLowerCase();
+  return slug ? ('https://' + slug + '.' + ROOFMAP_ROOT) : '';
+}
 function _quoteDomainPref(){
   try { return _normQuoteDomain(((S.settings || {}).quote_defaults || {}).quote_domain); } catch(e){ return ''; }
 }
@@ -14702,6 +14952,7 @@ function _customerLinkString(){
   // The business's own quote domain wins when one is set, so the office can
   // work on roofmap.co.nz while customers still see the company's address.
   var base = _quoteDomainPref()
+    || _companyQuoteBase()
     || (window.CUSTOMER_QUOTE_BASE || (location.origin + location.pathname)).replace(/\/+$/, '');
   var link = base + '/?q=' + token;
   if (jobNo) link += '&j=' + encodeURIComponent(String(jobNo).replace(/[^A-Za-z0-9\-]/g,''));

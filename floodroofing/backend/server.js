@@ -472,23 +472,270 @@ function _scopeCompany(q, req){
 // in Supabase doesn't 403 every JMS/AI call.
 const BILLING_ENABLED = process.env.BILLING_ENABLED === 'true' || !!process.env.STRIPE_SECRET_KEY;
 
+// The BUSINESS's subscription. One licence covers everyone in the company, so
+// an invited teammate is already paid for and never needs a trial of their own.
+// Falls back to a row keyed on the user for accounts that predate the change.
+async function _companySubscription(companyId, userId){
+  if (companyId){
+    try {
+      const { data } = await supabase.from('subscriptions').select('*')
+        .eq('company_id', companyId).order('created_at', { ascending: false }).limit(1);
+      if (data && data[0]) return data[0];
+    } catch (e) { console.warn('[billing] company lookup failed:', e.message); }
+  }
+  if (!userId) return null;
+  try {
+    const { data } = await supabase.from('subscriptions').select('*').eq('user_id', userId).maybeSingle();
+    return data || null;
+  } catch (e) { return null; }
+}
+function _subscriptionLive(sub){
+  if (!sub) return false;
+  if (sub.status === 'active' || sub.status === 'trialing') return true;
+  return !!(sub.trial_ends_at && new Date(sub.trial_ends_at) > new Date());
+}
 async function requireSubscription(req, res, next) {
   if (!BILLING_ENABLED) return next();
   try {
-    const { data } = await supabase
-      .from('subscriptions')
-      .select('status, trial_ends_at')
-      .eq('user_id', req.user.id)
-      .single();
-    if (!data) return res.status(403).json({ error: 'No subscription found' });
-    const isActive = data.status === 'active' || data.status === 'trialing';
-    const inTrial = data.trial_ends_at && new Date(data.trial_ends_at) > new Date();
-    if (!isActive && !inTrial) return res.status(403).json({ error: 'Subscription required', code: 'SUBSCRIPTION_REQUIRED' });
+    const sub = await _companySubscription(req.companyId, req.user.id);
+    if (!sub) return res.status(403).json({ error: 'No subscription found', code: 'SUBSCRIPTION_REQUIRED' });
+    if (!_subscriptionLive(sub)) return res.status(403).json({ error: 'Subscription required', code: 'SUBSCRIPTION_REQUIRED' });
     next();
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 }
+
+// ══════════════════════════════════════════════════════════════════
+// TEAM — a business invites its OWN staff
+// ══════════════════════════════════════════════════════════════════
+// Someone's role in their company. 'owner' can invite, remove and rename;
+// 'member' can do the work but not change who's in the business.
+async function _roleOf(userId){
+  if (!userId) return '';
+  try {
+    const { data } = await supabase.from('company_users').select('role').eq('user_id', userId).maybeSingle();
+    return (data && data.role) || '';
+  } catch (e) { return ''; }
+}
+async function requireOwner(req, res, next){
+  if (!req.companyId) return res.status(403).json({ error: 'You are not part of a company yet.' });
+  const role = await _roleOf(req.user.id);
+  if (role !== 'owner') return res.status(403).json({ error: 'Only the account owner can change who is in the business.', code: 'OWNER_ONLY' });
+  req.role = role;
+  next();
+}
+// The business's address on RoofMap: <slug>.roofmap.co.nz. Lowercase letters,
+// digits and dashes only, and not one of the hostnames the product itself uses
+// — "www.roofmap.co.nz" must never belong to a subscriber.
+const SLUG_RESERVED = ['www', 'app', 'api', 'admin', 'quote', 'quotes', 'mail', 'support',
+                       'help', 'blog', 'status', 'staging', 'dev', 'test', 'roofmap', 'office'];
+function _normSlug(v){
+  const t = String(v == null ? '' : v).trim().toLowerCase();
+  if (!/^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$/.test(t)) return '';
+  if (t.indexOf('--') >= 0) return '';
+  if (SLUG_RESERVED.indexOf(t) >= 0) return '';
+  return t;
+}
+async function _slugTaken(slug, exceptCompanyId){
+  try {
+    const { data } = await supabase.from('companies').select('id, slug').ilike('slug', slug);
+    return (data || []).some(function (c) { return String(c.id) !== String(exceptCompanyId || ''); });
+  } catch (e) { return false; }
+}
+const _sha256 = (v) => require('crypto').createHash('sha256').update(String(v)).digest('hex');
+// The business, as the app needs to know it at sign-in: its name, its RoofMap
+// address (which quote links are built from) and the caller's role (which
+// decides whether the Team screen is read-only).
+async function _companyBrief(cid, userId){
+  if (!cid) return null;
+  try {
+    const { data } = await supabase.from('companies').select('id, name, slug').eq('id', cid).maybeSingle();
+    const brief = data || { id: cid };
+    brief.role = await _roleOf(userId);
+    return brief;
+  } catch (e) { return { id: cid, role: '' }; }
+}
+
+// Everything the Team screen needs in one call.
+app.get('/team', requireAuth, async (req, res) => {
+  if (!req.companyId) return res.json({ company: null, me: { id: req.user.id, role: '' }, members: [], invites: [] });
+  try {
+    const [{ data: co }, { data: links }, { data: profs }] = await Promise.all([
+      supabase.from('companies').select('id, name, slug').eq('id', req.companyId).maybeSingle(),
+      supabase.from('company_users').select('user_id, role').eq('company_id', req.companyId),
+      supabase.from('profiles').select('id, name, email').eq('company_id', req.companyId),
+    ]);
+    const byId = {}; (profs || []).forEach(function (p) { byId[p.id] = p; });
+    const members = (links || []).map(function (l) {
+      const p = byId[l.user_id] || {};
+      return { id: l.user_id, role: l.role || 'member', name: p.name || '', email: p.email || '', you: l.user_id === req.user.id };
+    });
+    let invites = [];
+    try {
+      const { data } = await supabase.from('company_invites')
+        .select('id, email, role, created_at, expires_at, accepted_at')
+        .eq('company_id', req.companyId).is('accepted_at', null);
+      invites = (data || []).filter(function (i) { return new Date(i.expires_at) > new Date(); });
+    } catch (e) { /* table not migrated yet — show the members we have */ }
+    res.json({ company: co || { id: req.companyId }, me: { id: req.user.id, role: await _roleOf(req.user.id) }, members, invites });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Invite a teammate. The token is emailed; only its hash is stored, so the
+// invite can be revoked and a leaked database can't be used to join.
+app.post('/team/invites', requireAuth, requireOwner, rateLimit(20, 3600000), async (req, res) => {
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  const role = (req.body && req.body.role) === 'owner' ? 'owner' : 'member';
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'That doesn\'t look like an email address.' });
+  try {
+    const { data: existing } = await supabase.from('profiles').select('id, company_id').eq('email', email).maybeSingle();
+    if (existing && String(existing.company_id) === String(req.companyId))
+      return res.status(400).json({ error: 'They are already in your business.' });
+    const raw = require('crypto').randomBytes(32).toString('hex');
+    const row = { company_id: req.companyId, email: email, role: role, token_hash: _sha256(raw), created_by: req.user.id };
+    const { data, error } = await supabase.from('company_invites').insert(row).select('id, email, role, created_at, expires_at').single();
+    if (error) return res.status(500).json({ error: error.message });
+    const base = (process.env.FRONTEND_URL || 'https://roofmap.co.nz').replace(/\/+$/, '');
+    const link = base + '/?invite=' + encodeURIComponent(raw);
+    const { data: co } = await supabase.from('companies').select('name').eq('id', req.companyId).maybeSingle();
+    const coName = (co && co.name) || 'your team';
+    const who = req.user.email || 'a colleague';
+    let emailed = false;
+    try {
+      await _dispatchMail({
+        to: email,
+        subject: 'You have been added to ' + coName + ' on RoofMap',
+        text: who + ' has invited you to join ' + coName + ' on RoofMap.\n\n' +
+              'Open this link to set your password and get started (it works for 14 days):\n' + link + '\n\n' +
+              'If you weren\'t expecting this, you can ignore this email.',
+        html: '<div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:14px;color:#1c2733;line-height:1.6">' +
+              '<p><strong>' + who + '</strong> has invited you to join <strong>' + coName + '</strong> on RoofMap.</p>' +
+              '<p><a href="' + link + '" style="display:inline-block;background:#0a1628;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:600">Set your password</a></p>' +
+              '<p style="color:#667">The link works for 14 days. If you weren\'t expecting this, ignore this email.</p></div>',
+      });
+      emailed = true;
+    } catch (e) { console.warn('[team] invite email failed (link still valid):', e.message); }
+    // The link comes back either way — if email isn't configured the owner can
+    // still hand it over, rather than the invite silently going nowhere.
+    res.json({ invite: data, link: link, emailed: emailed });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/team/invites/:id', requireAuth, requireOwner, async (req, res) => {
+  try {
+    const { error } = await supabase.from('company_invites').delete()
+      .eq('id', req.params.id).eq('company_id', req.companyId);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Remove someone. Their JOBS stay with the business — they always belonged to
+// the company, not to them — so nothing is lost when a person leaves.
+app.delete('/team/members/:userId', requireAuth, requireOwner, async (req, res) => {
+  const target = req.params.userId;
+  if (target === req.user.id) return res.status(400).json({ error: 'You can\'t remove yourself.' });
+  try {
+    const { data: links } = await supabase.from('company_users').select('user_id, role').eq('company_id', req.companyId);
+    const row = (links || []).find(function (l) { return l.user_id === target; });
+    if (!row) return res.status(404).json({ error: 'They are not in your business.' });
+    const owners = (links || []).filter(function (l) { return l.role === 'owner'; });
+    if (row.role === 'owner' && owners.length <= 1)
+      return res.status(400).json({ error: 'That is the only owner — make someone else an owner first.' });
+    await supabase.from('company_users').delete().eq('company_id', req.companyId).eq('user_id', target);
+    await supabase.from('profiles').update({ company_id: null }).eq('id', target);
+    _companyCache.delete(target);
+    _membersCache.delete(req.companyId);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/team/members/:userId/role', requireAuth, requireOwner, async (req, res) => {
+  const role = (req.body && req.body.role) === 'owner' ? 'owner' : 'member';
+  const target = req.params.userId;
+  try {
+    const { data: links } = await supabase.from('company_users').select('user_id, role').eq('company_id', req.companyId);
+    const row = (links || []).find(function (l) { return l.user_id === target; });
+    if (!row) return res.status(404).json({ error: 'They are not in your business.' });
+    const owners = (links || []).filter(function (l) { return l.role === 'owner'; });
+    if (row.role === 'owner' && role !== 'owner' && owners.length <= 1)
+      return res.status(400).json({ error: 'A business needs at least one owner.' });
+    const { error } = await supabase.from('company_users').update({ role: role })
+      .eq('company_id', req.companyId).eq('user_id', target);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true, role: role });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// The business's RoofMap address.
+app.get('/team/slug-available', requireAuth, async (req, res) => {
+  const slug = _normSlug(req.query.slug);
+  if (!slug) return res.json({ slug: '', ok: false, reason: 'invalid' });
+  const taken = await _slugTaken(slug, req.companyId);
+  res.json({ slug: slug, ok: !taken, reason: taken ? 'taken' : '' });
+});
+app.post('/team/slug', requireAuth, requireOwner, async (req, res) => {
+  const slug = _normSlug(req.body && req.body.slug);
+  if (!slug) return res.status(400).json({ error: 'Use 3–30 letters, numbers or dashes — and not a name RoofMap reserves.' });
+  if (await _slugTaken(slug, req.companyId)) return res.status(409).json({ error: 'Another business already has that address.' });
+  try {
+    const { error } = await supabase.from('companies').update({ slug: slug }).eq('id', req.companyId);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true, slug: slug });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// What an invite link points at — shown before the invitee commits to anything.
+app.get('/auth/invite/:token', rateLimit(30, 900000), async (req, res) => {
+  try {
+    const { data } = await supabase.from('company_invites')
+      .select('id, company_id, email, role, expires_at, accepted_at')
+      .eq('token_hash', _sha256(req.params.token)).maybeSingle();
+    if (!data || data.accepted_at || new Date(data.expires_at) <= new Date())
+      return res.status(404).json({ error: 'This invitation has expired or already been used.' });
+    const { data: co } = await supabase.from('companies').select('name').eq('id', data.company_id).maybeSingle();
+    res.json({ email: data.email, role: data.role, company: (co && co.name) || '' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Accept an invitation: join THAT company. No trial is created — the business
+// already has one subscription and it covers everybody in it.
+app.post('/auth/accept-invite', rateLimit(10, 900000), async (req, res) => {
+  const { token, password, name } = req.body || {};
+  if (!token || !password || String(password).length < 8)
+    return res.status(400).json({ error: 'An invitation link and a password of at least 8 characters are required.' });
+  try {
+    const { data: inv } = await supabase.from('company_invites')
+      .select('*').eq('token_hash', _sha256(token)).maybeSingle();
+    if (!inv || inv.accepted_at || new Date(inv.expires_at) <= new Date())
+      return res.status(401).json({ error: 'This invitation has expired or already been used.' });
+    const email = String(inv.email).toLowerCase();
+    let userId = null;
+    const { data: existing } = await supabase.from('profiles').select('id').eq('email', email).maybeSingle();
+    if (existing) {
+      // Already has a RoofMap login — set the password they just chose and move
+      // them into this business rather than refusing and stranding the invite.
+      userId = existing.id;
+      await supabase.auth.admin.updateUserById(userId, { password: String(password) });
+    } else {
+      const { data, error } = await supabase.auth.admin.createUser({ email, password: String(password), email_confirm: true });
+      if (error) return res.status(400).json({ error: error.message });
+      userId = data.user.id;
+      await supabase.from('profiles').insert({ id: userId, email, name: String(name || '').slice(0, 120) });
+    }
+    await supabase.from('company_users').delete().eq('user_id', userId);
+    await supabase.from('company_users').insert({ company_id: inv.company_id, user_id: userId, role: inv.role || 'member' });
+    await supabase.from('profiles').update({ company_id: inv.company_id }).eq('id', userId);
+    await supabase.from('company_invites').update({ accepted_at: new Date().toISOString(), accepted_by: userId }).eq('id', inv.id);
+    _companyCache.set(userId, inv.company_id);
+    _membersCache.delete(inv.company_id);
+    const authToken = jwt.sign({ id: userId, email, cid: inv.company_id }, JWT_SECRET, { expiresIn: '30d' });
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    const sub = await _companySubscription(inv.company_id, userId);
+    res.json({ token: authToken, user: profile || { id: userId, email }, subscription: sub, company: await _companyBrief(inv.company_id, userId) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 app.post('/auth/register', async (req, res) => {
   const { email, password, name, company } = req.body;
@@ -511,27 +758,26 @@ app.post('/auth/register', async (req, res) => {
     if (error) return res.status(400).json({ error: error.message });
     const userId = data.user.id;
     await supabase.from('profiles').insert({ id: userId, email, name: name || '', company: company || '' });
+    // Registering ALWAYS creates your own business. Joining an existing one
+    // happens only through a per-company invitation (POST /team/invites →
+    // /auth/accept-invite), which is what makes self-onboarding possible:
+    // INVITE_COMPANY_ID could only ever name ONE company, so every person who
+    // signed up with the shared code landed in that same business — fine while
+    // there was one, wrong the moment RoofMap has subscribers.
+    const cid = await _companyOf(userId);
+    // The trial belongs to the BUSINESS. Everyone the owner invites is covered
+    // by it, and nobody gets a second one by being added to a team.
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 14);
-    await supabase.from('subscriptions').insert({ user_id: userId, status: 'trialing', trial_ends_at: trialEnd.toISOString() });
-    // Every new account gets its own company (its tenant): jobs, photos and
-    // settings are scoped to it, and teammates can be attached to the same
-    // company later. Falls back to per-user scoping if the tables aren't there.
-    // If INVITE_COMPANY_ID is set, people who sign up with the invite code join
-    // THAT company as members instead of getting their own — that's how the
-    // Flood Roofing team shares one set of jobs.
-    let cid = null;
-    if (invitedViaCode && process.env.INVITE_COMPANY_ID) {
-      const { error: merr } = await supabase.from('company_users').insert({ company_id: process.env.INVITE_COMPANY_ID, user_id: userId, role: 'member' });
-      if (!merr) {
-        cid = process.env.INVITE_COMPANY_ID;
-        await supabase.from('profiles').update({ company_id: cid }).eq('id', userId);
-        _companyCache.set(userId, cid);
-      } else { console.warn('[auth] INVITE_COMPANY_ID join failed, giving own company:', merr.message); }
+    const subRow = { user_id: userId, company_id: cid || null, status: 'trialing', trial_ends_at: trialEnd.toISOString() };
+    let { error: serr } = await supabase.from('subscriptions').insert(subRow);
+    if (serr && /company_id/.test(serr.message || '')) {
+      delete subRow.company_id;   // column not migrated yet
+      ({ error: serr } = await supabase.from('subscriptions').insert(subRow));
     }
-    if (!cid) cid = await _companyOf(userId);
+    if (serr) console.warn('[auth] trial row insert failed:', serr.message);
     const token = jwt.sign({ id: userId, email, cid }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: userId, email, name, company, company_id: cid } });
+    res.json({ token, user: { id: userId, email, name, company, company_id: cid }, company: await _companyBrief(cid, userId) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -595,7 +841,7 @@ app.post('/auth/reset', rateLimit(10, 900000), async (req, res) => {
     const cid = await _companyOf(payload.id);
     const authToken = jwt.sign({ id: payload.id, email: payload.email, cid }, JWT_SECRET, { expiresIn: '30d' });
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', payload.id).maybeSingle();
-    res.json({ token: authToken, user: profile || { id: payload.id, email: payload.email } });
+    res.json({ token: authToken, user: profile || { id: payload.id, email: payload.email }, company: await _companyBrief(cid, payload.id) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -606,10 +852,10 @@ app.post('/auth/login', async (req, res) => {
     if (error) return res.status(401).json({ error: 'Invalid email or password' });
     const userId = data.user.id;
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    const { data: sub } = await supabase.from('subscriptions').select('*').eq('user_id', userId).single();
     const cid = await _companyOf(userId);
+    const sub = await _companySubscription(cid, userId);
     const token = jwt.sign({ id: userId, email, cid }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { ...profile, company_id: cid }, subscription: sub });
+    res.json({ token, user: { ...profile, company_id: cid }, subscription: sub, company: await _companyBrief(cid, userId) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -617,8 +863,8 @@ app.post('/auth/login', async (req, res) => {
 
 app.get('/auth/me', requireAuth, async (req, res) => {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', req.user.id).single();
-  const { data: sub } = await supabase.from('subscriptions').select('*').eq('user_id', req.user.id).single();
-  res.json({ user: profile, subscription: sub });
+  const sub = await _companySubscription(req.companyId, req.user.id);
+  res.json({ user: profile, subscription: sub, company: await _companyBrief(req.companyId, req.user.id) });
 });
 
 app.post('/billing/checkout', requireAuth, (req, res) => res.status(503).json({ error: 'Billing not configured yet' }));
@@ -2478,6 +2724,33 @@ const _MIGRATION_SQL = [
   "alter table public.jobs add column if not exists order_sent jsonb",
   // Last person to save the company's shared settings row.
   "alter table public.user_settings add column if not exists updated_by uuid",
+  // Each business's RoofMap address: <slug>.roofmap.co.nz. Unique, case-blind.
+  "alter table public.companies add column if not exists slug text",
+  "create unique index if not exists idx_companies_slug on public.companies (lower(slug)) where slug is not null",
+  // Per-company invitations. Replaces INVITE_COMPANY_ID, which could only ever
+  // point at ONE company — so every invited person landed in that same
+  // business, which is the opposite of what selling this to others needs.
+  // Only a hash of the token is stored, so a database leak can't be used to
+  // join anybody's company.
+  "create table if not exists public.company_invites (" +
+  "  id uuid primary key default gen_random_uuid()," +
+  "  company_id uuid not null references public.companies(id) on delete cascade," +
+  "  email text not null," +
+  "  role text not null default 'member'," +
+  "  token_hash text not null," +
+  "  created_by uuid," +
+  "  created_at timestamptz not null default now()," +
+  "  expires_at timestamptz not null default (now() + interval '14 days')," +
+  "  accepted_at timestamptz," +
+  "  accepted_by uuid)",
+  "create index if not exists idx_company_invites_company on public.company_invites (company_id)",
+  "create unique index if not exists idx_company_invites_token on public.company_invites (token_hash)",
+  // Billing is per BUSINESS, not per login — three office staff are one
+  // subscription, and an invited teammate must not need their own.
+  "alter table public.subscriptions add column if not exists company_id uuid",
+  "create index if not exists idx_subscriptions_company on public.subscriptions (company_id)",
+  "update public.subscriptions s set company_id = cu.company_id from public.company_users cu" +
+  "  where s.company_id is null and cu.user_id = s.user_id",
   "alter table public.user_settings add column if not exists company_id uuid",
   "alter table public.profiles add column if not exists company_id uuid",
   "create index if not exists idx_jobs_company on public.jobs (company_id)",
