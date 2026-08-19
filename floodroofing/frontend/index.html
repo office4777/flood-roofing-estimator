@@ -460,6 +460,50 @@ html.site-mode #roofTypeHint{display:none!important}
 html.site-mode #roofSwitcher{margin-top:5px!important;padding-top:5px!important;font-size:11px}
 html.site-mode #roofSwitcher > div{font-size:11px!important;margin-right:4px!important}
 /* Roof-shape chooser collapses to a slide-up handle once a shape is picked. */
+/* Roof lines & details, onsite. The menu's markup lives inside the desktop
+   tool row, and site mode strips that row out — so opening it set
+   display:block on a subtree of a display:none parent and nothing appeared
+   on screen at all. The menu is lifted onto the body instead and shown as a
+   sheet over the drawing, so the SAME buttons serve both modes. */
+#rlSheetBackdrop{display:none}
+html.site-mode #rlSheetBackdrop{position:fixed;inset:0;z-index:519;background:rgba(3,8,18,.45)}
+html.site-mode #rlDropMenu.rl-sheet{
+  position:fixed!important;left:6px!important;right:6px!important;
+  top:auto!important;bottom:calc(var(--ttb-h,72px) + 8px)!important;
+  z-index:520!important;min-width:0!important;overflow:auto;
+  /* Tall enough that the whole list fits on a normal phone without a scroll,
+     capped so it can never grow up under the header on a short screen. */
+  max-height:calc(100vh - var(--ttb-h, 72px) - 130px);
+  touch-action:pan-y;                      /* the page is locked; this scrolls */
+  background:#0f1c30!important;border:1px solid rgba(255,255,255,.10)!important;
+  border-radius:16px!important;padding:9px!important;
+  box-shadow:0 -12px 32px rgba(3,8,18,.5)!important;
+}
+/* Section headings sit on dark now, and their hairline rule with them. */
+html.site-mode #rlDropMenu.rl-sheet > div{border-top-color:rgba(255,255,255,.10)!important}
+/* Thumb-sized rows. The border keeps each line type's own colour — that is
+   what tells Ridge from Valley at a glance on the canvas. */
+html.site-mode #rlDropMenu.rl-sheet .tool-btn{
+  background:rgba(255,255,255,.07)!important;
+  padding:11px 12px!important;font-size:13px!important;font-weight:600!important;
+  border-radius:9px!important;margin:0 0 5px!important;
+}
+/* Each row is inked in its line type's colour, chosen against the WHITE
+   desktop dropdown — on the dark sheet the deeper ones drop under 4.5:1 and
+   the two near-black ones all but vanish. Each is lifted to the light end of
+   the same hue, so a row still reads as Ridge red or Gutter violet. */
+html.site-mode #rlDropMenu.rl-sheet .tool-btn[style*="color:#dc2626"]{ color:#f87171!important;border-color:#f87171!important }
+html.site-mode #rlDropMenu.rl-sheet .tool-btn[style*="color:#f59e0b"]{ color:#fbbf24!important;border-color:#fbbf24!important }
+html.site-mode #rlDropMenu.rl-sheet .tool-btn[style*="color:#7c3aed"]{ color:#a78bfa!important;border-color:#a78bfa!important }
+html.site-mode #rlDropMenu.rl-sheet .tool-btn[style*="color:#059669"]{ color:#34d399!important;border-color:#34d399!important }
+html.site-mode #rlDropMenu.rl-sheet .tool-btn[style*="color:#0891b2"]{ color:#22d3ee!important;border-color:#22d3ee!important }
+html.site-mode #rlDropMenu.rl-sheet .tool-btn[style*="color:#e11d48"]{ color:#fb7185!important;border-color:#fb7185!important }
+html.site-mode #rlDropMenu.rl-sheet .tool-btn[style*="color:#0ea5e9"]{ color:#38bdf8!important;border-color:#38bdf8!important }
+html.site-mode #rlDropMenu.rl-sheet .tool-btn[style*="color:#d97706"]{ color:#fbbf24!important;border-color:#fbbf24!important }
+html.site-mode #rlDropMenu.rl-sheet .tool-btn[style*="color:#475569"],
+html.site-mode #rlDropMenu.rl-sheet .tool-btn[style*="color:#0a1628"]{
+  color:#c9d6e6!important;border-color:rgba(255,255,255,.24)!important;
+}
 #roofSheetHandle{display:none}
 html.site-mode body[data-tab="roof"].rtp-collapsed #roofSheetHandle{
   display:inline-flex;align-items:center;gap:6px;position:fixed;left:50%;transform:translateX(-50%);
@@ -2827,6 +2871,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   </button>
 </div>
 <div id="tabletNavBackdrop" class="no-print" onclick="_tabletNavToggle(false)"></div>
+<div id="rlSheetBackdrop" class="no-print" onclick="closeRoofLinesMenu()"></div>
 <button id="roofSheetHandle" class="no-print" onclick="_phoneRoofSheet(true)">🏠 Roof shape <span style="font-size:10px;opacity:.7">▲</span></button>
 <div id="tabletToolbar" class="no-print">
   <button class="ttb-btn" id="ttbMove"    onclick="setTool('select')"><span class="ttb-ico" data-ico="move">✋</span>Move</button>
@@ -23479,17 +23524,44 @@ function syncRoofLinesBtn(t){
   if(ROOF_LINE_TOOLS[t]){ b.classList.add('active-tool'); lbl.textContent=ROOF_LINE_TOOLS[t]; }
   else { b.classList.remove('active-tool'); lbl.textContent='Add Roof Lines or Details'; }
 }
+/* Park the roof-lines menu where it can actually be seen: inside the tool
+   row on desktop, and out on the body as a sheet onsite — the tool row is
+   display:none there, which took the menu with it. */
+function _rlMount(){
+  var m = document.getElementById('rlDropMenu'); if (!m) return null;
+  if (window.__siteModeOn === true){
+    if (m.parentNode !== document.body){ m.__rlHome = m.parentNode; document.body.appendChild(m); }
+    m.classList.add('rl-sheet');
+  } else {
+    m.classList.remove('rl-sheet');
+    var home = m.__rlHome || document.getElementById('rlDropWrap');
+    if (home && m.parentNode !== home) home.appendChild(m);
+  }
+  return m;
+}
 function toggleRoofLinesMenu(e){
   if(e){ e.stopPropagation(); }
-  var m=document.getElementById('rlDropMenu'); if(!m) return;
-  m.style.display = (m.style.display==='block') ? 'none' : 'block';
+  var m = _rlMount(); if(!m) return;
+  var wasOpen = (m.style.display === 'block');
+  if (wasOpen){ closeRoofLinesMenu(); return; }
+  m.style.display = 'block';
+  var bd = document.getElementById('rlSheetBackdrop');
+  if (bd) bd.style.display = (window.__siteModeOn === true) ? 'block' : 'none';
+  var lb = document.getElementById('ttbLines'); if (lb) lb.classList.add('on');
 }
 function closeRoofLinesMenu(){
   var m=document.getElementById('rlDropMenu'); if(m) m.style.display='none';
+  var bd=document.getElementById('rlSheetBackdrop'); if(bd) bd.style.display='none';
+  var lb=document.getElementById('ttbLines'); if(lb) lb.classList.remove('on');
 }
 document.addEventListener('click', function(e){
   var w=document.getElementById('rlDropWrap');
-  if(w && !w.contains(e.target)) closeRoofLinesMenu();
+  var m=document.getElementById('rlDropMenu');
+  // The menu may be mounted out on the body, so it is no longer inside the
+  // wrap — test both before treating a click as "outside".
+  if (m && m.contains(e.target)) return;
+  if (w && w.contains(e.target)) return;
+  closeRoofLinesMenu();
 });
 // ⚙ View popover — holds the canvas display settings that used to sprawl
 // across the toolbar (grid, background, AI dims, transparency, sheet
@@ -25006,6 +25078,9 @@ function _applyTabletMode(){
   var wasSite = !!window.__siteModeOn;
   window.__siteModeOn = !!site;
   document.documentElement.classList.toggle('site-mode', !!site);
+  // The roof-lines menu is re-homed by mode, so close it and re-park it
+  // rather than leave it open in a container that is about to disappear.
+  try { closeRoofLinesMenu(); _rlMount(); } catch(e){}
   /* Belt to the CSS brace: pin the viewport scale while the onsite shell is
      up, so a stray two-finger gesture can't page-zoom and knock the whole
      app out of register. Office mode and desktop stay pinch-zoomable. */
