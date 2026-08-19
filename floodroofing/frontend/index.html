@@ -23369,6 +23369,11 @@ var DRAW = {
   lines: [],
   penetrations: [],     // [{type,cx,cy,penW,penWUnit,penD,penDUnit}] — single dot
   currentPts: [],
+  // Walls drawn out of order that are not linked into currentPts yet, plus
+  // the per-stroke Undo stack for them (see _inkCommit).
+  _inkLoose: [],
+  _inkUndo: [],
+  _inkDrawn: false,
   selectedSection: -1,
   selectedLine: -1,
   selectedPen: -1,
@@ -23431,6 +23436,7 @@ function setTool(t) {
   }
   DRAW.tool = t;
   DRAW.currentPts = [];
+  try { _inkResetRuns(); } catch(e){}
   document.querySelectorAll('.tool-btn').forEach(function(b){b.classList.remove('active-tool');});
   // Map tool names to button IDs
   var _btnMap = {addmeas:'btn-select', select:'btn-move'};
@@ -26055,6 +26061,9 @@ function onCanvasClick(e) {
   }
 
   if ((DRAW.tool === 'outline' || DRAW.tool === 'section') && !DRAW.currentPts.length) _startPendingRoof();
+  // Once a stroke has been inked, tapped corners go on the same one-step-per-
+  // action Undo stack, so a tap takes back the tap and not the stroke.
+  try { if (DRAW._inkDrawn && _inkToolOk(DRAW.tool)) _inkPushUndo(); } catch(e){}
   DRAW.currentPts.push(xy);
   redrawAll();
 }
@@ -26287,6 +26296,8 @@ function _startPendingRoof(){
 function finishCurrent() {
   var pts = DRAW.currentPts;
   var t = DRAW.tool;
+  // Whatever is being finished, the in-progress ink runs are done with.
+  try { _inkResetRuns(); } catch(e){}
 
   if(t==='outline'&&pts.length>=3){
     DRAW.outline=pts.slice();
@@ -26837,6 +26848,9 @@ function _captureSnapState() {
   });
 }
 function _applySnapState(snapStr) {
+  // Restoring a committed state — any half-drawn ink runs belong to the
+  // state we are leaving, not the one we are landing on.
+  try { _inkResetRuns(); } catch(e){}
   var s = JSON.parse(snapStr);
   DRAW.outline = s.outline || [];
   DRAW.sections = s.sections || [];
@@ -26887,18 +26901,18 @@ function saveSnapshot() {
 }
 
 function undoLast() {
+  /* A pen stroke is one action — Undo lifts the whole stroke, and any runs
+     that stroke joined together come back apart with it. Tapped-out points
+     still come off one corner at a time. */
+  var _iu = DRAW._inkUndo || [];
+  if (_iu.length && (DRAW.currentPts.length || (DRAW._inkLoose || []).length)){
+    var _st = _iu.pop();
+    DRAW.currentPts = _st.cur;
+    DRAW._inkLoose  = _st.loose;
+    redrawAll(); return;
+  }
   if(DRAW.currentPts.length>0) {
-    // A pen stroke is one action — Undo lifts the whole stroke, not the
-    // last corner of it. Tapped-out points still come off one at a time.
-    var _runs = DRAW._inkRuns || [];
-    while (_runs.length && _runs[_runs.length-1].to > DRAW.currentPts.length) _runs.pop();
-    var _run = _runs[_runs.length-1];
-    if (_run && _run.to === DRAW.currentPts.length){
-      _runs.pop();
-      DRAW.currentPts.length = _run.from;
-    } else {
-      DRAW.currentPts.pop();
-    }
+    DRAW.currentPts.pop();
     redrawAll(); return;
   }
   if(DRAW.undoStack.length===0) return;
@@ -26934,6 +26948,7 @@ function clearAll(silent) {
   if(!silent && !confirm('Clear everything? (outline, lines, penetrations, calibration + all sheet/flashing overrides)')) return;
   DRAW.outline=[]; DRAW.sections=[]; DRAW.lines=[]; DRAW.penetrations=[];
   DRAW.currentPts=[]; DRAW.outlineDone=false;
+  try { _inkResetRuns(); } catch(e){}
   DRAW.selectedSection=-1; DRAW.selectedLine=-1; DRAW.selectedPen=-1;
   // Reset calibration so the next session starts at a clean scale.
   DRAW.calibratePts = null;
@@ -27291,6 +27306,82 @@ function _inkSquareChain(pts){
   return out;
 }
 
+/* ── loose runs ─────────────────────────────────────────────────────────
+   Nobody onsite draws a building's walls in order — the two long sides go
+   down first, then the ends. A stroke that lands nowhere near what is
+   already on the page is therefore a NEW wall, not a continuation of the
+   last one, and roping it onto the previous stroke is what produced the
+   stray diagonal that used to appear between two parallel walls. So an
+   unattached stroke is kept as a loose run of its own.
+
+   A stroke that comes down ON a free end joins that run. A stroke that
+   lands on a free end at BOTH ends bridges two runs into one, and the
+   joined-up chain is squared on the spot. And when a stroke brings one
+   chain's two free ends together the outline is closed and the whole
+   polygon is squared. */
+
+// How close the pen has to land on a free end to count as joining it.
+// Scales with the drawing, so the same hand accuracy works at any size.
+function _inkJoinTol(chains){
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, n = 0;
+  (chains || []).forEach(function(ch){
+    (ch || []).forEach(function(pt){
+      n++;
+      if (pt[0] < minX) minX = pt[0];
+      if (pt[0] > maxX) maxX = pt[0];
+      if (pt[1] < minY) minY = pt[1];
+      if (pt[1] > maxY) maxY = pt[1];
+    });
+  });
+  if (!n) return 30;
+  return Math.max(26, Math.hypot(maxX-minX, maxY-minY) * 0.085);
+}
+function _inkEndPt(ch, e){ return e ? ch[ch.length-1] : ch[0]; }
+/* Nearest free end of any run to p, within tol. `skip` excludes the end the
+   stroke's other tip has already claimed, so one endpoint can't answer for
+   both ends of the same stroke. */
+function _inkNearEnd(chains, pt, tol, skip){
+  var best = null, bd = tol;
+  for (var i = 0; i < chains.length; i++){
+    var ch = chains[i];
+    if (!ch || ch.length < 2) continue;
+    for (var e = 0; e < 2; e++){
+      if (skip && skip.c === i && skip.e === e) continue;
+      var q = _inkEndPt(ch, e);
+      var d = Math.hypot(pt[0]-q[0], pt[1]-q[1]);
+      if (d < bd){ bd = d; best = { c:i, e:e, d:d }; }
+    }
+  }
+  return best;
+}
+// Turn a run round so the named end is its tail (wantTail) or its head.
+function _inkOrient(ch, e, wantTail){
+  return ((e === 1) === !!wantTail) ? ch.slice() : ch.slice().reverse();
+}
+/* Slide `add` bodily so its first point sits exactly on `base`'s last, then
+   run the two together. Sliding rather than simply dropping the duplicate
+   vertex matters: the added run keeps the angles it was drawn at instead of
+   having its first wall tilted by however far the pen came down off the
+   mark. */
+function _inkGlue(base, add){
+  if (!base || !base.length) return (add || []).slice();
+  if (!add  || !add.length)  return base.slice();
+  var tail = base[base.length-1];
+  var jx = tail[0] - add[0][0], jy = tail[1] - add[0][1];
+  var out = base.slice();
+  for (var i = 1; i < add.length; i++) out.push([add[i][0] + jx, add[i][1] + jy]);
+  return out;
+}
+// Wipe the in-progress runs — the outline they belonged to is over.
+function _inkResetRuns(){ DRAW._inkLoose = []; DRAW._inkUndo = []; DRAW._inkDrawn = false; }
+// Snapshot the runs before a stroke changes them: one stroke, one Undo.
+function _inkPushUndo(){
+  var cp = function(c){ return (c || []).map(function(pt){ return [pt[0], pt[1]]; }); };
+  var st = { cur: cp(DRAW.currentPts), loose: (DRAW._inkLoose || []).map(cp) };
+  (DRAW._inkUndo = DRAW._inkUndo || []).push(st);
+  if (DRAW._inkUndo.length > 60) DRAW._inkUndo.shift();
+}
+
 // ── stroke lifecycle ──
 function _inkStart(pt, tool, id){
   INK.active = true; INK.raw = [[pt[0], pt[1]]]; INK.fit = null;
@@ -27328,59 +27419,106 @@ function _inkCommit(){
   // corner away from it — flattening a sloping stroke to its mean, keeping
   // a wall's drawn length — so neither can answer it.
   var rawEnd = INK.raw.length ? [INK.raw[INK.raw.length-1][0], INK.raw[INK.raw.length-1][1]] : null;
+  var rawStart = INK.raw.length ? [INK.raw[0][0], INK.raw[0][1]] : null;
   _inkCancel();
   if (moved < 12 || !fit || !fit.pts || fit.pts.length < 2) return false;
 
   var pts = fit.pts.map(function(p){ return [p[0], p[1]]; });
   if (INK_POLY_TOOLS[tool]){
     if (!(DRAW.currentPts || []).length) _startPendingRoof();
+    var loose = (DRAW._inkLoose = DRAW._inkLoose || []);
     if (fit.closed){
+      _inkPushUndo();
       DRAW.currentPts = pts;
-      DRAW._inkRuns = [];
-      finishCurrent();                       // saves its own snapshot
+      finishCurrent();                       // clears the runs, saves its own snapshot
       return true;
     }
-    if ((DRAW.currentPts || []).length){
-      /* Carrying on from where the last stroke stopped. The new stroke is
-         square within itself, but it starts wherever the pen came down —
-         so simply dropping its first vertex and running the wall from the
-         old tail tilts that wall by however far the pen missed by. Slide
-         the whole stroke onto the tail instead, then drop the duplicate:
-         the join is exact and the stroke keeps its own square corners. */
-      var tail = DRAW.currentPts[DRAW.currentPts.length-1];
-      var jx = tail[0] - pts[0][0], jy = tail[1] - pts[0][1];
-      if (Math.hypot(jx, jy) < 40){
-        for (var ji = 0; ji < pts.length; ji++){ pts[ji][0] += jx; pts[ji][1] += jy; }
-        pts.shift();
-      }
-    } else {
-      DRAW._inkRuns = [];
+    // One stroke is one action: Undo lifts the whole stroke, and the runs it
+    // joined up come back apart with it (see undoLast).
+    _inkPushUndo();
+    DRAW._inkDrawn = true;
+
+    // First wall on a blank canvas — nothing yet to join it to.
+    if (!(DRAW.currentPts || []).length && !loose.length){
+      DRAW.currentPts = _inkSquareChain(pts);
+      redrawAll();
+      return true;
     }
-    var from = DRAW.currentPts.length;
-    var joined = DRAW.currentPts.concat(pts);
-    var penEnd = rawEnd || joined[joined.length-1];
-    DRAW.currentPts = _inkSquareChain(joined);
-    // One stroke is one action: Undo takes the whole stroke back, not the
-    // last corner of it (see undoLast).
-    (DRAW._inkRuns = DRAW._inkRuns || []).push({ from: from, to: DRAW.currentPts.length });
-    // Did this stroke bring the shape home? Then the building is finished —
-    // it does not matter that the closing loop took several strokes.
-    var cp = DRAW.currentPts;
-    if (cp.length >= 4){
-      var bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
-      for (var ci = 0; ci < cp.length; ci++){
-        if (cp[ci][0] < bx0) bx0 = cp[ci][0];
-        if (cp[ci][0] > bx1) bx1 = cp[ci][0];
-        if (cp[ci][1] < by0) by0 = cp[ci][1];
-        if (cp[ci][1] > by1) by1 = cp[ci][1];
+
+    var chains = [(DRAW.currentPts || []).slice()];
+    for (var li = 0; li < loose.length; li++) chains.push(loose[li].slice());
+    var jtol = _inkJoinTol(chains.concat([pts]));
+    /* "Did the pen come down ON that free end?" is a question about the hand,
+       so it is asked of the raw ink. Fitting answers a different question and
+       moves both tips to do it — flattening a wall drawn across two sides of
+       unequal length can shift each end half the slope — which would have the
+       stroke miss ends the pen landed squarely on. */
+    var sHit = _inkNearEnd(chains, rawStart || pts[0], jtol, null);
+    var eHit = _inkNearEnd(chains, rawEnd || pts[pts.length-1], jtol, sHit);
+
+    /* Landed clear of every free end: this is a wall of its own, drawn out
+       of order. Park it as a loose run — the whole point is that two
+       parallel walls drawn one after the other are NOT strung together. */
+    if (!sHit && !eHit){
+      loose.push(_inkSquareChain(pts));
+      redrawAll();
+      return true;
+    }
+
+    var merged, used = [];
+    if (sHit && eHit && sHit.c === eHit.c){
+      /* Both ends landed on the same run's two free ends — that closes the
+         building, however many strokes it took to get round. */
+      var A0 = _inkOrient(chains[sHit.c], sHit.e, true);
+      merged = _inkGlue(A0, pts);
+      merged.pop();                          // that last vertex IS the first
+      merged = _inkSquareChain(merged);
+      if (merged.length >= 3){
+        DRAW.currentPts = merged;
+        finishCurrent();                     // squares the closed polygon
+        return true;
       }
-      var tol = Math.max(18, Math.hypot(bx1-bx0, by1-by0) * 0.10);
-      var head = cp[0];
-      if (Math.hypot(penEnd[0]-head[0], penEnd[1]-head[1]) < tol){
-        var _dropped = cp.pop();               // that last vertex IS the start
+      merged = _inkSquareChain(_inkGlue(A0, pts));
+      used.push(sHit.c);
+    } else if (sHit && eHit){
+      // Bridging two separate runs — they become one, squared together.
+      var A = _inkOrient(chains[sHit.c], sHit.e, true);    // joined end → tail
+      var B = _inkOrient(chains[eHit.c], eHit.e, false);   // joined end → head
+      merged = _inkSquareChain(_inkGlue(_inkGlue(A, pts), B));
+      used.push(sHit.c, eHit.c);
+    } else {
+      // One end landed: carry that run on.
+      var hit = sHit || eHit;
+      var stroke = sHit ? pts : pts.slice().reverse();
+      merged = _inkSquareChain(_inkGlue(_inkOrient(chains[hit.c], hit.e, true), stroke));
+      used.push(hit.c);
+    }
+
+    // Whatever the stroke did not touch stays loose; the joined-up chain is
+    // the one the next stroke carries on from.
+    var rest = [];
+    for (var ri = 0; ri < chains.length; ri++){
+      if (used.indexOf(ri) >= 0) continue;
+      if (chains[ri] && chains[ri].length >= 2) rest.push(chains[ri]);
+    }
+    DRAW.currentPts = merged;
+    DRAW._inkLoose = rest;
+
+    /* Did that bring the two free ends together? Then the outline is closed.
+       Only once nothing is left hanging — a loose run still on the page is
+       part of the building the roofer has not linked up yet, and finishing
+       would throw it away. */
+    var cp = DRAW.currentPts;
+    if (cp.length >= 4 && !rest.length){
+      var ctol = _inkJoinTol([cp]);
+      var head = cp[0], tail = cp[cp.length-1];
+      var penEnd = rawEnd || tail;
+      if (Math.hypot(tail[0]-head[0], tail[1]-head[1]) < ctol ||
+          Math.hypot(penEnd[0]-head[0], penEnd[1]-head[1]) < ctol){
+        var _dropped = cp.pop();             // that last vertex IS the start
         // finishCurrent squares the closed polygon, which trues up the
         // closing wall even if the last one was drawn a little short.
-        if (cp.length >= 3){ DRAW._inkRuns = []; finishCurrent(); return true; }
+        if (cp.length >= 3){ finishCurrent(); return true; }
         cp.push(_dropped);
       }
     }
@@ -28440,6 +28578,31 @@ function redrawAll() {
     }
   });
 
+  /* Loose runs — walls drawn out of order that have not been linked up yet.
+     Same dashed style as the run being extended, with their free ends ringed
+     so it is obvious where a stroke has to land to join them together. */
+  if ((DRAW._inkLoose || []).length){
+    if (!DRAW.currentPts.length){ DRAW._inkLoose = []; }
+    else {
+      var _lc = (DRAW.tool === 'section') ? '#0099cc' : '#1b5e20';
+      ctx.save();
+      DRAW._inkLoose.forEach(function(ch){
+        if (!ch || ch.length < 2) return;
+        ctx.strokeStyle = _lc; ctx.lineWidth = 2; ctx.setLineDash([5,3]);
+        ctx.beginPath();
+        ch.forEach(function(pt,j){ var p=dp(pt); if(j===0)ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]); });
+        ctx.stroke(); ctx.setLineDash([]);
+        ch.forEach(function(pt){ var p=dp(pt); ctx.beginPath(); ctx.arc(p[0],p[1],5,0,Math.PI*2); ctx.fillStyle=_lc; ctx.fill(); });
+        [ch[0], ch[ch.length-1]].forEach(function(pt){
+          var p=dp(pt);
+          ctx.beginPath(); ctx.arc(p[0],p[1],11,0,Math.PI*2);
+          ctx.strokeStyle=_lc; ctx.lineWidth=2.5; ctx.globalAlpha=0.45; ctx.stroke(); ctx.globalAlpha=1;
+        });
+      });
+      ctx.restore();
+    }
+  }
+
   // Current in-progress drawing
   if(DRAW.currentPts.length>0){
     var toolColors={outline:'#1b5e20',section:'#0099cc',ridge:'#dc2626',valley:'#f59e0b',gutter:'#7c3aed',hip:'#059669',penetration:'#374151'};
@@ -28451,7 +28614,13 @@ function redrawAll() {
     // wet the pen already shows where it is, and a band flicking to a
     // stale cursor position on top of the live stroke reads as the
     // drawing breaking up — so the walls already placed just stay put.
-    var _inkWet = (typeof INK === 'object' && INK.active);
+    /* No cursor comes with a pen, so there is nothing to band to — and a
+       line flicking out to wherever the nib last was reads exactly like the
+       app roping two separate walls together. */
+    var _inkWet = (typeof INK === 'object' && INK.active) ||
+      (function(){ try {
+        return _inkModeOn() && _inkToolOk(DRAW.tool) && !!DRAW._inkDrawn;
+      } catch(e){ return false; } })();
     if (!_inkWet){
       var mx=DRAW.mouseX, my=DRAW.mouseY;
       var _mp=_t?imgToCanvas([mx,my],_t):[mx,my];
@@ -28467,12 +28636,20 @@ function redrawAll() {
     });
     // Once three corners are down the shape can be closed — ring the first
     // one so it is obvious that going back to it finishes the outline.
-    if((DRAW.tool==='outline'||DRAW.tool==='section') && DRAW.currentPts.length>=3){
-      var _hp=dp(DRAW.currentPts[0]);
+    if((DRAW.tool==='outline'||DRAW.tool==='section') && DRAW.currentPts.length>=2){
+      // Drawn with a pen a run grows from either end, so ring both of them.
+      var _ends = [];
+      if (DRAW.currentPts.length >= 3 || _inkWet) _ends.push(DRAW.currentPts[0]);
+      // Drawn with a pen a run grows from either end, so its tail is a
+      // landing place for the next stroke just as much as its head is.
+      if (_inkWet) _ends.push(DRAW.currentPts[DRAW.currentPts.length-1]);
       ctx.save();
       ctx.setLineDash([]);
-      ctx.beginPath(); ctx.arc(_hp[0],_hp[1],11,0,Math.PI*2);
-      ctx.strokeStyle=c; ctx.lineWidth=2.5; ctx.globalAlpha=0.65; ctx.stroke();
+      _ends.forEach(function(_e){
+        var _hp=dp(_e);
+        ctx.beginPath(); ctx.arc(_hp[0],_hp[1],11,0,Math.PI*2);
+        ctx.strokeStyle=c; ctx.lineWidth=2.5; ctx.globalAlpha=0.65; ctx.stroke();
+      });
       ctx.restore();
     }
     // Penetration preview rect
