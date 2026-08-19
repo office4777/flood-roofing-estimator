@@ -567,6 +567,12 @@ html.site-mode body:not([data-tab="roof"]) #phoneBackBtn{
   background:rgba(255,255,255,.12);color:#fff;cursor:pointer;font-family:inherit}
 #phoneBackBtn svg{width:18px;height:18px}
 
+/* The "Next: <tab>" rail steps a desk user Map Roof → Job Pack → Quote →
+   Jobs. Onsite the flow is the drawer and the Job Pack sheet, and Quote and
+   Jobs are not on the onsite menu at all — so the rail was offering a way
+   into tabs that deliberately are not part of the job on a roof. */
+html.site-mode [id^="nextBar-"]{display:none!important}
+
 /* The Job Pack tab, onsite. The A4 pages already scale themselves to the
    working width (_fitDocZoom), so what needed doing was the chrome: the
    designer's zoom slider, undo/redo and Print are desk controls on a phone,
