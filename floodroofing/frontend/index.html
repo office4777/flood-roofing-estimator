@@ -466,10 +466,11 @@ html.site-mode #roofSwitcher > div{font-size:11px!important;margin-right:4px!imp
    away in Office mode. Home goes too: Offline saves is the onsite way back
    to earlier work. */
 html.site-mode #navHomeBtn,
-html.site-mode #navJobPackBtn,
 html.site-mode #navQuoteBtn,
 html.site-mode #navSettingsBtn,
-html.site-mode #navFeedbackBtn{display:none!important}
+html.site-mode #navFeedbackBtn,
+/* Site mode IS Map Roof — the button only ever went where you already were. */
+html.site-mode #navRoofBtn{display:none!important}
 /* Offline saves belongs to the devices that go up ladders. On a desktop the
    only local drafts are that machine's own autosaves, so the button listed
    the computer's working copies as if they were somebody's onsite work —
@@ -550,6 +551,96 @@ html.site-mode .ofs-msg.ofs-wait{color:#fbbf24}
 html.site-mode .ofs-row.ofs-done{background:rgba(74,222,128,.09);border-color:rgba(74,222,128,.24)}
 html.site-mode .ofs-tick{background:rgba(74,222,128,.18);color:#4ade80}
 html.site-mode .ofs-row.ofs-done .ofs-up{background:rgba(255,255,255,.10);color:#c9d6e6}
+
+/* ── Job Pack, onsite ────────────────────────────────────────────────────
+   The Job Pack Designer is A4 pages at 60% zoom — a desk job, which is why
+   it was taken off the onsite menu. But the thing a roofer needs from a
+   ladder is the urgent one: get the material ordered before leaving site.
+   So onsite the Job Pack entry opens a compact sheet of the four actions
+   that matter, with Order roof first, and a way through to the full
+   designer for anyone who wants it. */
+/* Back to the roof — only ever shown when the onsite app is somewhere else. */
+#phoneBackBtn{display:none}
+html.site-mode body:not([data-tab="roof"]) #phoneBackBtn{
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  width:38px;height:38px;border:none;border-radius:10px;
+  background:rgba(255,255,255,.12);color:#fff;cursor:pointer;font-family:inherit}
+#phoneBackBtn svg{width:18px;height:18px}
+
+/* The Job Pack tab, onsite. The A4 pages already scale themselves to the
+   working width (_fitDocZoom), so what needed doing was the chrome: the
+   designer's zoom slider, undo/redo and Print are desk controls on a phone,
+   and the three that matter have to be thumb-sized and always in reach. */
+/* Sticky, not fixed: the pages are scaled by --doc-zoom, so reserving space
+   for a fixed bar meant guessing at a height that changes with the zoom.
+   In the flow it pushes the first page down by exactly its own height. */
+html.site-mode #jpToolbar{
+  position:sticky;top:54px;z-index:60;margin:0 0 8px!important;
+  display:flex;gap:6px;padding:7px!important;border-radius:14px;
+  background:#0f1c30;border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 6px 20px rgba(3,8,18,.35)}
+html.site-mode #jpToolbar > strong,
+html.site-mode #jpToolbar > span,
+html.site-mode #jpToolbar .no-print,
+html.site-mode #jpToolbar button[onclick*="printJobPack"],
+html.site-mode #jpToolbarBottom,
+html.site-mode .jp-add-page-btn{display:none!important}
+html.site-mode #jpToolbar > div{margin-left:0!important;gap:6px!important;width:100%;flex-wrap:nowrap!important}
+html.site-mode #jpToolbar .mat-btn{
+  flex:1;min-width:0;padding:11px 6px!important;font-size:12px!important;font-weight:700;
+  border-radius:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.site-mode #jpToolbar .mat-btn-blue{flex:1.35}
+/* The Maps pop-out is a drag-a-thumbnail-onto-a-page tool. On a phone there
+   is nothing to drag it to and it took half the screen, sitting over the
+   action bar. Gone onsite, and the page reserve with it so the A4 pages fit
+   the full width. */
+html.site-mode #jpMapPanel{display:none!important}
+html.site-mode body[data-tab="materials"]{--pop-reserve:0px!important}
+html.site-mode body[data-tab="materials"] .content{padding-right:8px!important;padding-left:8px!important}
+
+#jobPackSheetBackdrop,#jobPackSheet{display:none}
+html.site-mode #jobPackSheetBackdrop.on{
+  display:block;position:fixed;inset:0;z-index:10059;background:rgba(3,8,18,.45)}
+html.site-mode #jobPackSheet.on{
+  display:flex;flex-direction:column;gap:8px;
+  position:fixed;left:8px;right:8px;bottom:calc(var(--ttb-h, 72px) + 10px);
+  z-index:10060;max-height:calc(100vh - var(--ttb-h, 72px) - 90px);overflow:auto;
+  touch-action:pan-y;padding:12px;border-radius:18px;
+  background:#0f1c30;border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 -14px 40px rgba(3,8,18,.55);font-family:inherit}
+#jpsHead{display:flex;align-items:flex-start;gap:10px;padding:2px 2px 4px}
+#jpsTitle{font-size:15px;font-weight:700;color:#e6edf6}
+#jpsJob{font-size:11.5px;color:#9fb0c4;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70vw}
+#jpsClose{margin-left:auto;flex:0 0 auto;width:32px;height:32px;border-radius:9px;
+  border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.10);color:#e6edf6;
+  font-size:14px;cursor:pointer;font-family:inherit}
+#jpsSummary{font-size:11.5px;line-height:1.5;color:#9fb0c4;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:9px 11px;margin-bottom:2px}
+#jpsSummary b{color:#e6edf6}
+#jpsSummary .jps-warn{color:#fbbf24}
+.jps-act{display:flex;align-items:center;gap:11px;width:100%;box-sizing:border-box;
+  padding:12px 13px;border-radius:12px;text-align:left;cursor:pointer;font-family:inherit;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.10);color:#dce5f0}
+.jps-act .jps-ico{font-size:19px;flex:0 0 auto;line-height:1}
+.jps-act b{display:block;font-size:13.5px;font-weight:700}
+.jps-act i{display:block;font-style:normal;font-size:11px;color:#9fb0c4;margin-top:2px;line-height:1.35}
+.jps-act.jps-primary{background:#0099cc;border-color:#0099cc;color:#fff;padding:14px 13px}
+.jps-act.jps-primary b{font-size:15px}
+.jps-act.jps-primary i{color:rgba(255,255,255,.82)}
+.jps-act.jps-quiet{background:transparent;border-style:dashed}
+.jps-act[disabled]{opacity:.45;cursor:default}
+
+/* Both order dialogs are desk-sized. On a phone they have to fit the screen
+   and scroll inside themselves rather than running off the bottom. */
+@media (max-width: 620px){
+  #orderEmailModal{width:auto!important;left:8px!important;right:8px!important;
+    max-width:none!important;transform:translateY(-50%)!important;
+    max-height:88vh!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch}
+  #orderEmailModal textarea{min-height:120px!important}
+  #orderChecklistModal{width:auto!important;left:8px!important;right:8px!important;
+    transform:translateY(-50%)!important;max-height:88vh!important}
+}
 
 /* ── Screen lock ─────────────────────────────────────────────────────────
    A device carried round a roof takes knocks: a palm on the glass draws a
@@ -3021,6 +3112,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 <!-- Phone header bar: menu + the current job (tap to pick / change job). -->
 <div id="phoneTopBar" class="no-print">
   <button id="phoneNavBtn" onclick="_tabletNavToggle()" aria-label="Menu">☰</button>
+  <!-- Map Roof came off the onsite menu because site mode IS Map Roof — so
+       anything that lands on another tab needs its own way home. -->
+  <button id="phoneBackBtn" onclick="gotoTab('roof')" aria-label="Back to the roof" title="Back to the roof">
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M9.8 3.5L5.3 8l4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
   <button id="phoneJobBtn" onclick="openSelectJobModal('fergus')">
     <span id="phoneJobName">Select a job</span><span style="opacity:.6;font-size:10px">▾</span>
   </button>
@@ -3029,6 +3125,31 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
        the user slides the catch across. -->
   <button id="screenLockBtn" onclick="_screenLock(true)" aria-label="Lock the screen" title="Lock the screen">
     <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.2" y="7" width="9.6" height="6.6" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+  </button>
+</div>
+<!-- Job Pack / Order Roof, onsite. The A4 designer is a desk job; what a
+     roofer needs from a ladder is to get the material ordered. -->
+<div id="jobPackSheetBackdrop" class="no-print" onclick="_closeSiteJobPack()"></div>
+<div id="jobPackSheet" class="no-print" role="dialog" aria-labelledby="jpsTitle">
+  <div id="jpsHead">
+    <div>
+      <div id="jpsTitle">Job Pack</div>
+      <div id="jpsJob"></div>
+    </div>
+    <button type="button" id="jpsClose" onclick="_closeSiteJobPack()" aria-label="Close">✕</button>
+  </div>
+  <div id="jpsSummary"></div>
+  <button type="button" class="jps-act jps-primary" onclick="_sitePackAction('order')">
+    <span class="jps-ico">🛒</span><span><b>Order roof</b><i>Check the material list, then email the supplier</i></span>
+  </button>
+  <button type="button" class="jps-act" onclick="_sitePackAction('fergus')">
+    <span class="jps-ico">📤</span><span><b>Push to Fergus</b><i>Build the Job Pack PDF and put it on the job</i></span>
+  </button>
+  <button type="button" class="jps-act" onclick="_sitePackAction('pdf')">
+    <span class="jps-ico">📄</span><span><b>Save as PDF</b><i>The full Job Pack, to keep or send on</i></span>
+  </button>
+  <button type="button" class="jps-act jps-quiet" onclick="_sitePackAction('full')">
+    <span class="jps-ico">🖥</span><span><b>Open the full Job Pack</b><i>Switches to Office mode — better on a big screen</i></span>
   </button>
 </div>
 <!-- Screen lock. Swallows every touch on the page; the only live thing is
@@ -3126,7 +3247,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <!-- What this device is holding that the server has not got. Onsite this is
        the way work gets off the phone, so it sits right under Map Roof. -->
   <button class="nav-btn" id="navOfflineSavesBtn" onclick="_openOfflineSaves()"><svg viewBox="0 0 16 16" fill="none"><path d="M3.5 2.5h7L13 5v8.5H3.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5.5 2.5v4h5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 13.5v-3.5h5v3.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>Offline saves<span id="navOfflineSavesN"></span></button>
-  <button class="nav-btn" id="navJobPackBtn" onclick="gotoTab('materials')"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg>Job Pack</button>
+  <button class="nav-btn" id="navJobPackBtn" data-tab-target="materials" onclick="_navJobPack()"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 4V3C5 2.45 5.45 2 6 2H10C10.55 2 11 2.45 11 3V4" stroke="currentColor" stroke-width="1.3"/></svg><span id="navJobPackLbl">Job Pack</span></button>
   <button class="nav-btn" id="navQuoteBtn" onclick="gotoTab('quote')"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.8 5.2L14 5.8L11 8.7L11.7 13L8 11L4.3 13L5 8.7L2 5.8L6.2 5.2Z" stroke="currentColor" stroke-width="1.3"/></svg>Quote</button>
   <!-- "Order Material" tab consolidated into Materials (action bar buttons:
        Save PDF / Push to Fergus / Order Roof). Nav button hidden; panel
@@ -5947,8 +6068,19 @@ function gotoTab(t) {
   // 'scope' (Pricing) is no longer a nav tab — it lives in a slide-out on
   // the Quote tab (see _openPricingPanel). Keep it OUT of this index-aligned
   // list so the remaining nav buttons stay matched to their ids.
-  var ids=['select','roof','materials','quote','order','jobpack','jobs','settings','feedback'];
-  document.querySelectorAll('.nav-btn').forEach(function(b,i){b.classList.toggle('active',ids[i]===t);});
+  /* Which menu entry lights up is read off the button's own target. It used
+     to be matched by POSITION against a list of tab ids, which only held
+     while the menu's shape never changed — and it has: Install app, Set roof
+     image and Offline saves are .nav-btn too but are not tabs, so every entry
+     after them was highlighting the wrong one. */
+  document.querySelectorAll('.nav-btn').forEach(function(b){
+    var want = b.getAttribute('data-tab-target');
+    if (!want){
+      var m = /gotoTab\('([^']+)'\)/.exec(b.getAttribute('onclick') || '');
+      want = m ? m[1] : '';
+    }
+    b.classList.toggle('active', !!want && want === t);
+  });
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   var p=document.getElementById('tab-'+t); if(p) p.classList.add('active');
   try { document.body.setAttribute('data-tab', t); } catch(e){}   // drives per-tab layout (fill/left)
@@ -9181,6 +9313,94 @@ function _saveSiteDraft(set){
     try { _listLocalDrafts().then(function(l){ _syncCount(l); _renderSyncChip(); }); } catch(e){}
     try { _renderOfflineSaves(); } catch(e){}
   });
+}
+
+/* ── Job Pack, onsite ────────────────────────────────────────────────────
+   Office keeps the A4 designer. Onsite the same menu entry opens a compact
+   sheet of the four things worth doing from a ladder, Order roof first —
+   the urgent one, when the material has to be on site tomorrow. */
+function _navJobPack(){
+  if (window.__siteModeOn === true){ _openSiteJobPack(); return; }
+  gotoTab('materials');
+}
+/* The A4 pages are sized for a desk. Onsite, fit them to the screen once the
+   tab has laid out — the manual zoom the office left behind is meaningless
+   on a phone. */
+function _sitePackFit(){
+  if (window.__siteModeOn !== true) return;
+  if ((document.body.getAttribute('data-tab') || '') !== 'materials') return;
+  try { _fitDocZoom(); } catch(e){}
+}
+function _openSiteJobPack(){
+  var sheet = document.getElementById('jobPackSheet');
+  var back  = document.getElementById('jobPackSheetBackdrop');
+  if (!sheet) return;
+  try { _tabletNavToggle(false); } catch(e){}
+  try { closeRoofLinesMenu(); } catch(e){}
+  _renderSiteJobPack();
+  sheet.classList.add('on');
+  if (back) back.classList.add('on');
+}
+function _closeSiteJobPack(){
+  var sheet = document.getElementById('jobPackSheet');
+  var back  = document.getElementById('jobPackSheetBackdrop');
+  if (sheet) sheet.classList.remove('on');
+  if (back) back.classList.remove('on');
+}
+/* What is actually going to be ordered, in one line: how many roofs, how big,
+   and — the thing that silently ruins an order — whether the drawing has been
+   calibrated and pitched at all. */
+function _renderSiteJobPack(){
+  var jobEl = document.getElementById('jpsJob');
+  if (jobEl){
+    var name = '';
+    try {
+      name = ((document.getElementById('jobAddr')||{}).value || '').trim() ||
+             ((document.getElementById('jobClient')||{}).value || '').trim();
+      var no = ((document.getElementById('jobNo')||{}).value || '').trim();
+      if (no) name = name ? (name + ' · Job ' + no) : ('Job ' + no);
+    } catch(e){}
+    jobEl.textContent = name || 'No job selected';
+  }
+  var sum = document.getElementById('jpsSummary');
+  if (!sum) return;
+  var roofs = [];
+  try { roofs = _matBasicCollectRoofs() || []; } catch(e){ roofs = []; }
+  var area = 0;
+  roofs.forEach(function(r){ area += (+r.areaM2 || 0); });
+  var bits = [];
+  if (!roofs.length){
+    bits.push('<span class="jps-warn">Nothing measured yet — map a roof first.</span>');
+  } else {
+    bits.push('<b>' + roofs.length + ' roof' + (roofs.length === 1 ? '' : 's') + '</b>' +
+              (area > 0 ? ' · <b>' + area.toFixed(1) + ' m²</b>' : ''));
+    if (!DRAW.scaleMetresPerPx) bits.push('<span class="jps-warn">Not calibrated — every length will be wrong.</span>');
+    else if (!(+DRAW.calPitch > 0)) bits.push('<span class="jps-warn">No pitch set — sheet lengths are plan lengths.</span>');
+  }
+  sum.innerHTML = bits.join('<br>');
+  var order = document.querySelector('#jobPackSheet .jps-primary');
+  if (order) order.disabled = !roofs.length;
+}
+function _sitePackAction(what){
+  if (what === 'full'){
+    _closeSiteJobPack();
+    try { if (window.__siteModeOn) _toggleSiteMode(); } catch(e){}
+    setTimeout(function(){ try { gotoTab('materials'); } catch(e){} }, 260);
+    return;
+  }
+  /* The Job Pack renderers read the materials tab's own DOM, so it has to
+     have been built at least once before any of these will produce a PDF.
+     Visit it, let it render, then fire — the sheet closes either way. */
+  _closeSiteJobPack();
+  try { gotoTab('materials'); } catch(e){}
+  setTimeout(function(){
+    _sitePackFit();
+    try {
+      if (what === 'order')  orderRoofViaSupplier();
+      if (what === 'pdf')    saveMaterialsAsPdf();
+      if (what === 'fergus') pushJobPackToFergus();
+    } catch(e){ alert('Could not start that: ' + (e && e.message ? e.message : e)); }
+  }, 420);
 }
 
 /* ── Screen lock ─────────────────────────────────────────────────────────
@@ -38923,7 +39143,13 @@ function _fitDocZoom(){
   var contentLeft = content.getBoundingClientRect().left;   // = sidebar width (content itself isn't zoomed)
   var avail = window.innerWidth - contentLeft - padL - reserve - 20;   // -20 = doc frame breathing room
   var A4 = 793.7;                                            // 210mm @ 96dpi
-  var z = Math.max(1, Math.min(2.2, avail / A4)) * _docZoomFactor();
+  /* A page could never be scaled BELOW 100%, so on anything narrower than A4
+     — a phone — it simply ran off the side. Narrower than a page, fit it
+     exactly and ignore the manual zoom: there is no room for a choice. Wider
+     than a page is unchanged, so the desk keeps its slider. */
+  var raw = avail / A4;
+  var z = (raw < 1) ? Math.max(0.3, raw)
+                    : Math.min(2.2, raw) * _docZoomFactor();
   document.documentElement.style.setProperty('--doc-zoom', z.toFixed(3));
 }
 try { window.addEventListener('resize', function(){ try { _fitDocZoom(); } catch(e){} }); } catch(e){}
