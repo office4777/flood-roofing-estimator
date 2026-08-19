@@ -1766,6 +1766,11 @@ select{
   display:none; flex-direction:column;
 }
 #quotePricingPanel.is-open{ transform:translateX(0); }
+/* The office price bar is fixed to the bottom — lift the pricing slide-out
+   and pad the Quote tab so it never sits on top of either. */
+html.office-price-bar #quotePricingPanel{ bottom:calc(var(--office-bar-h, 96px) + 10px); }
+html.office-price-bar #tab-quote{ padding-bottom:calc(var(--office-bar-h, 96px) + 20px); }
+@media print{ #officePriceBar, #officePriceBreak{ display:none !important; } }
 #quotePricingPanel.is-resizing{ transition:none; user-select:none; }
 /* Tab switches show/hide the pop-outs INSTANTLY (no slide) — the slide
    animation is for the user's own open/close toggles only. Re-sliding on
@@ -6188,6 +6193,7 @@ function gotoTab(t) {
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
+  try { _officePriceBarSync(); } catch(e){}   // shows on Quote, hides everywhere else
   if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{_jpRestorePanelState(true, true);}catch(e){}try{_syncCurrentToRoof&&_syncCurrentToRoof();}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpPreview(_jpPreviewPref());}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
   // Leaving Job Pack: hide the maps panel INSTANTLY — letting it slide out
   // over the incoming tab read as the pop-out "jumping around".
@@ -12134,6 +12140,7 @@ function renderGutterDownpipePricing(){
 }
 function _gdChanged(){
   try { renderGutterDownpipePricing(); } catch(e){}
+  try { _officePriceBarSync(); } catch(e){}
   try { if (typeof recalcQuoteTotals === 'function') recalcQuoteTotals(); } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
@@ -13934,6 +13941,7 @@ function recalcQuoteSelectedTotals(){
   refreshAcceptSummary();
   // In the customer-facing view, push the selection back to the office.
   if (window.__CUSTOMER_MODE) _postCustomerUpdateDebounced();
+  else { try { _officePriceBarSync(); } catch(e){} }
 }
 
 // Client ticks a proposal-option package on the printed Price page.
@@ -14972,8 +14980,8 @@ function _custBarRows(){
 // the top, each price-changing pick, then the big total — so the customer
 // watches the numbers move while they scroll and choose. Tapping it still
 // opens the roomier popup with the untruncated labels.
-function _custBarSumHtml(){
-  var brEl = document.getElementById('custBarBreak');
+function _custBarSumHtml(breakId){
+  var brEl = document.getElementById(breakId || 'custBarBreak');
   var open = !!(brEl && brEl.style.display !== 'none' && brEl.innerHTML);
   var h = '';
   _custBarRows().forEach(function(r){
@@ -15059,6 +15067,87 @@ function _custBarToggleBreakdown(){
     br.style.bottom = (bar ? bar.offsetHeight : 64) + 'px';
   }
   _custBarSync();   // refresh the in-bar summary (chevron direction)
+}
+// ── Office price bar ───────────────────────────────────────────────
+// The office prices the job in the slide-out and reads the result on the
+// proposal, so the running total was never in front of them while they worked.
+// This is the CUSTOMER'S bottom bar, shown to the estimator: same rows, same
+// maths (_custBarRows), so what the office watches while pricing is exactly
+// the number the customer will be shown — the two can't drift.
+function _officeBarPref(){ try { return localStorage.getItem('fr_office_price_bar') !== 'off'; } catch(e){ return true; } }
+function _officeBarShouldShow(){
+  if (window.__CUSTOMER_MODE) return false;
+  if (!(window.S && S.quote)) return false;
+  // Site mode owns the bottom of the screen for its own nav — two stacked
+  // bars would bury the app on a phone.
+  if (document.documentElement.classList.contains('site-mode')) return false;
+  var t = document.getElementById('tab-quote');
+  return !!(t && t.classList.contains('active'));
+}
+function _officeBarToggle(){
+  var on = !_officeBarPref();
+  try { localStorage.setItem('fr_office_price_bar', on ? 'on' : 'off'); } catch(e){}
+  _officePriceBarSync();
+}
+function _officeBarToggleBreakdown(){
+  var br = document.getElementById('officePriceBreak');
+  var bar = document.getElementById('officePriceBar');
+  if (!br){
+    br = document.createElement('div');
+    br.id = 'officePriceBreak';
+    br.setAttribute('style', 'position:fixed;left:0;right:0;display:none;background:#0a1628;color:#fff;z-index:100000;box-shadow:0 -8px 24px rgba(0,0,0,.35);max-height:55vh;overflow:auto;border-top:1px solid rgba(255,255,255,.15);padding-bottom:6px');
+    document.body.appendChild(br);
+  }
+  var open = br.style.display !== 'none' && br.innerHTML !== '';
+  if (open){ br.style.display = 'none'; br.innerHTML = ''; }
+  else {
+    _custBarRenderBreak(br);
+    br.style.display = '';
+    br.style.bottom = (bar ? bar.offsetHeight : 64) + 'px';
+  }
+  _officePriceBarSync();
+}
+function _officePriceBarSync(){
+  var bar = document.getElementById('officePriceBar');
+  var br = document.getElementById('officePriceBreak');
+  var hide = function(){
+    if (bar) bar.style.display = 'none';
+    if (br){ br.style.display = 'none'; br.innerHTML = ''; }
+    document.documentElement.classList.remove('office-price-bar');
+  };
+  if (!_officeBarShouldShow()) return hide();
+  if (!bar){
+    bar = document.createElement('div');
+    bar.id = 'officePriceBar';
+    bar.className = 'no-print';
+    document.body.appendChild(bar);
+  }
+  if (!_officeBarPref()){
+    // Collapsed to a single chip so the bar can be got out of the way without
+    // losing the way back to it.
+    bar.setAttribute('style', 'position:fixed;right:16px;bottom:14px;z-index:100001;display:block');
+    bar.innerHTML = '<button type="button" onclick="_officeBarToggle()" title="Show the customer price bar" '+
+      'style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:20px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3)">💲 Show price bar</button>';
+    if (br){ br.style.display = 'none'; br.innerHTML = ''; }
+    document.documentElement.classList.remove('office-price-bar');
+    return;
+  }
+  var sum = '';
+  try { sum = _custBarSumHtml('officePriceBreak'); } catch(e){ sum = ''; }
+  if (!sum) return hide();
+  bar.setAttribute('style', 'position:fixed;left:0;right:0;bottom:0;background:#0a1628;color:#fff;padding:9px 16px 10px;z-index:100001;box-shadow:0 -4px 16px rgba(0,0,0,.25);display:block');
+  bar.innerHTML =
+    '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:3px">'+
+      '<span style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:#7dd3fc">What the customer sees</span>'+
+      '<button type="button" onclick="_officeBarToggle()" title="Hide the price bar" style="margin-left:auto;background:none;border:none;color:rgba(255,255,255,.6);font-size:15px;line-height:1;cursor:pointer;padding:0 2px">×</button>'+
+    '</div>'+
+    '<div onclick="_officeBarToggleBreakdown()" title="Click for the full price breakdown" style="cursor:pointer;line-height:1.25">'+sum+'</div>';
+  document.documentElement.classList.add('office-price-bar');
+  try { document.documentElement.style.setProperty('--office-bar-h', bar.offsetHeight + 'px'); } catch(e){}
+  if (br && br.style.display !== 'none' && br.innerHTML){
+    _custBarRenderBreak(br);
+    br.style.bottom = bar.offsetHeight + 'px';
+  }
 }
 async function bootCustomerView(token){
   var _fetched = false;   // true once /q returned a quote — a later throw is a
@@ -19768,6 +19857,9 @@ function refreshQuoteProposal(){
   setText('qpRoofType', d.roof_type||'—'); setText('qpArea', d.area_m2?d.area_m2+' m²':'—'); setText('qpPitch', (d.pitch||(S.quote&&S.quote.roofPitch))?((d.pitch||S.quote.roofPitch)+'°'):'—'); setText('qpInspector', inspector||'—');
   setText('qpGstLbl', S.quote.gstRate+'%'); setText('qpTotal', fmtMoney(sumTot));
   setText('qpGenDate', 'Generated '+new Date().toLocaleDateString('en-NZ'));
+  // The office's bottom price bar mirrors this proposal — one hook here beats
+  // chasing every individual pricing edit.
+  if (!window.__CUSTOMER_MODE) { try { _officePriceBarSync(); } catch(e){} }
 }
 
 // Snapshot the customisable parts of the current proposal as the
