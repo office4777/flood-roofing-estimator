@@ -551,6 +551,59 @@ html.site-mode .ofs-row.ofs-done{background:rgba(74,222,128,.09);border-color:rg
 html.site-mode .ofs-tick{background:rgba(74,222,128,.18);color:#4ade80}
 html.site-mode .ofs-row.ofs-done .ofs-up{background:rgba(255,255,255,.10);color:#c9d6e6}
 
+/* ── Screen lock ─────────────────────────────────────────────────────────
+   A device carried round a roof takes knocks: a palm on the glass draws a
+   wall, a thumb on the toolbar changes the tool. Lock the screen the way a
+   video app does — everything stops responding, and the only way back is to
+   press the catch and drag it across, which a pocket or a palm will not do
+   by accident. */
+#screenLockBtn{display:none}
+html.site-mode #screenLockBtn{
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  width:38px;height:38px;border:none;border-radius:10px;
+  background:rgba(255,255,255,.12);color:#fff;cursor:pointer;font-family:inherit}
+html.site-mode #screenLockBtn svg{width:17px;height:17px}
+#lockOverlay{display:none}
+html.screen-locked #lockOverlay{
+  display:flex;position:fixed;inset:0;z-index:2147483000;
+  align-items:flex-end;justify-content:center;
+  padding:0 14px calc(var(--ttb-h, 72px) + 22px);
+  background:rgba(3,8,18,.10);
+  touch-action:none;-webkit-user-select:none;user-select:none;
+  /* The page beneath is inert while this is up — see _screenLock. */
+}
+/* The catch fades out of the way so the drawing is not covered; a tap on the
+   locked screen brings it back. */
+#lockPanel{
+  width:100%;max-width:340px;opacity:0;transform:translateY(6px);
+  transition:opacity .22s ease, transform .22s ease;pointer-events:none}
+html.screen-locked.lock-show #lockPanel{opacity:1;transform:none;pointer-events:auto}
+/* The caption sits over whatever the roofer had on screen, so it carries its
+   own ground rather than trusting the drawing behind it to be plain. */
+#lockSaid{
+  display:block;width:-moz-fit-content;width:fit-content;margin:0 auto 9px;
+  padding:5px 13px;border-radius:14px;background:rgba(10,22,40,.92);
+  border:1px solid rgba(255,255,255,.12);
+  font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.02em;color:#fff;
+  box-shadow:0 4px 14px rgba(3,8,18,.4)}
+#lockTrack{
+  position:relative;height:56px;border-radius:28px;overflow:hidden;
+  background:rgba(10,22,40,.92);border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 10px 30px rgba(3,8,18,.5);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#lockFill{position:absolute;inset:0;width:0;background:rgba(56,189,248,.22);pointer-events:none}
+#lockHint{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  padding-left:34px;font-family:inherit;font-size:13px;font-weight:700;
+  color:rgba(255,255,255,.66);pointer-events:none;white-space:nowrap}
+#lockKnob{
+  position:absolute;top:4px;left:4px;width:48px;height:48px;border-radius:24px;
+  display:flex;align-items:center;justify-content:center;
+  border:none;background:#38bdf8;color:#04263a;cursor:grab;touch-action:none;
+  box-shadow:0 3px 10px rgba(3,8,18,.45);font-family:inherit}
+#lockKnob svg{width:20px;height:20px}
+#lockKnob:active{cursor:grabbing}
+
 /* Save's answer, onsite: a short pill just above the toolbar, where the
    thumb already is. There is no status line on that screen — it is all
    drawing. */
@@ -2971,6 +3024,26 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <button id="phoneJobBtn" onclick="openSelectJobModal('fergus')">
     <span id="phoneJobName">Select a job</span><span style="opacity:.6;font-size:10px">▾</span>
   </button>
+  <!-- Carrying the device round a roof, a palm on the glass draws a wall.
+       Lock it the way a video app does: the screen stops responding until
+       the user slides the catch across. -->
+  <button id="screenLockBtn" onclick="_screenLock(true)" aria-label="Lock the screen" title="Lock the screen">
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.2" y="7" width="9.6" height="6.6" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+  </button>
+</div>
+<!-- Screen lock. Swallows every touch on the page; the only live thing is
+     the catch, which has to be pressed and dragged across to let go. -->
+<div id="lockOverlay" class="no-print" aria-hidden="true">
+  <div id="lockPanel" role="dialog" aria-label="Screen locked">
+    <div id="lockSaid">Screen locked</div>
+    <div id="lockTrack">
+      <div id="lockFill"></div>
+      <span id="lockHint">Slide to unlock</span>
+      <button type="button" id="lockKnob" aria-label="Slide to unlock">
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.2" y="7" width="9.6" height="6.6" rx="1.6" stroke="currentColor" stroke-width="1.5"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
 </div>
 <div id="tabletNavBackdrop" class="no-print" onclick="_tabletNavToggle(false)"></div>
 <div id="rlSheetBackdrop" class="no-print" onclick="closeRoofLinesMenu()"></div>
@@ -9109,6 +9182,116 @@ function _saveSiteDraft(set){
     try { _renderOfflineSaves(); } catch(e){}
   });
 }
+
+/* ── Screen lock ─────────────────────────────────────────────────────────
+   Carried round a roof, a device gets touched: a palm on the glass draws a
+   wall, a thumb on the toolbar changes the tool. Locked, the page stops
+   responding to anything — the overlay sits above the lot and eats every
+   event before it can reach the canvas or the toolbar — and the only live
+   control is a catch that has to be pressed and dragged across. A pocket
+   cannot do that; a deliberate hand can. */
+var LOCK = { on:false, hideT:null, id:null, x0:0, dx:0, span:0 };
+
+function _screenLocked(){ return !!LOCK.on; }
+function _screenLock(on){
+  on = !!on;
+  if (on === LOCK.on) return;
+  LOCK.on = on;
+  document.documentElement.classList.toggle('screen-locked', on);
+  var ov = document.getElementById('lockOverlay');
+  if (ov) ov.setAttribute('aria-hidden', on ? 'false' : 'true');
+  if (on){
+    // Nothing half-open underneath: a sheet left up would be frozen mid-air.
+    try { closeRoofLinesMenu(); } catch(e){}
+    try { _tabletNavToggle(false); } catch(e){}
+    try { _closeOfflineSaves(); } catch(e){}
+    _lockReset();
+    _lockReveal();
+  } else {
+    document.documentElement.classList.remove('lock-show');
+    clearTimeout(LOCK.hideT);
+    _lockReset();
+    _siteToast('🔓 Screen unlocked');
+  }
+}
+// Show the catch, then let it fade so it is not sitting over the drawing.
+function _lockReveal(){
+  document.documentElement.classList.add('lock-show');
+  clearTimeout(LOCK.hideT);
+  LOCK.hideT = setTimeout(function(){
+    document.documentElement.classList.remove('lock-show');
+  }, 4000);
+}
+function _lockReset(){
+  LOCK.id = null; LOCK.dx = 0;
+  var k = document.getElementById('lockKnob'), f = document.getElementById('lockFill');
+  if (k){ k.style.transition = ''; k.style.transform = ''; }
+  if (f) f.style.width = '0px';
+}
+function _lockTravel(){
+  var t = document.getElementById('lockTrack'), k = document.getElementById('lockKnob');
+  if (!t || !k) return 0;
+  return Math.max(1, t.clientWidth - k.offsetWidth - 8);   // 4px inset each end
+}
+(function(){
+  function init(){
+    var ov = document.getElementById('lockOverlay');
+    var knob = document.getElementById('lockKnob');
+    if (!ov || !knob) return;
+
+    /* Everything that lands on the locked page dies here — captured, so it
+       never reaches a handler below, and cancelled so the browser does not
+       scroll, zoom or synthesise a click out of it. A touch that is not on
+       the catch simply brings the catch back into view. */
+    ['pointerdown','pointerup','pointermove','pointercancel','touchstart','touchmove','touchend',
+     'mousedown','mouseup','mousemove','click','dblclick','wheel','contextmenu','keydown'].forEach(function(type){
+      window.addEventListener(type, function(e){
+        if (!LOCK.on) return;
+        var t = e.target;
+        if (t && t.closest && t.closest('#lockKnob')) return;      // the one live control
+        e.stopImmediatePropagation();
+        if (e.cancelable) e.preventDefault();
+        if (type === 'pointerdown' || type === 'mousedown' || type === 'touchstart') _lockReveal();
+      // passive:false or the browser ignores preventDefault on wheel and touch,
+      // which are passive by default at window level — the page would scroll
+      // and pinch under the lock.
+      }, { capture:true, passive:false });
+    });
+
+    knob.addEventListener('pointerdown', function(e){
+      if (!LOCK.on) return;
+      e.preventDefault(); e.stopPropagation();
+      LOCK.id = e.pointerId; LOCK.x0 = e.clientX; LOCK.dx = 0;
+      LOCK.span = _lockTravel();
+      knob.style.transition = 'none';
+      try { knob.setPointerCapture(e.pointerId); } catch(err){}
+      _lockReveal();
+    });
+    knob.addEventListener('pointermove', function(e){
+      if (!LOCK.on || LOCK.id !== e.pointerId) return;
+      e.preventDefault(); e.stopPropagation();
+      LOCK.dx = Math.max(0, Math.min(LOCK.span, e.clientX - LOCK.x0));
+      knob.style.transform = 'translateX(' + LOCK.dx + 'px)';
+      var f = document.getElementById('lockFill');
+      if (f) f.style.width = (LOCK.dx + 52) + 'px';
+      clearTimeout(LOCK.hideT);                       // mid-drag it must not fade
+    });
+    function release(e){
+      if (!LOCK.on || LOCK.id !== e.pointerId) return;
+      e.preventDefault(); e.stopPropagation();
+      try { knob.releasePointerCapture(e.pointerId); } catch(err){}
+      var far = LOCK.dx >= LOCK.span * 0.75;          // three quarters of the way
+      knob.style.transition = 'transform .18s ease';
+      LOCK.id = null;
+      if (far) _screenLock(false);
+      else { _lockReset(); _lockReveal(); }
+    }
+    knob.addEventListener('pointerup', release);
+    knob.addEventListener('pointercancel', release);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
 
 /* Onsite there is no save-status line on screen — the whole screen is the
    drawing — so Save has to say what it did somewhere the thumb is already
