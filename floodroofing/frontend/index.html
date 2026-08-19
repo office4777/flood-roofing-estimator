@@ -13870,8 +13870,11 @@ function _setProposalOption(field, value){
     try { _autoSyncLabourMaterials(); } catch(e){}
     try { renderPerRoofBreakdown(); } catch(e){}
   }
-  if (typeof _scheduleCustomerWrite === 'function') {
-    try { _scheduleCustomerWrite(); } catch(e){}
+  // Customer link: this pick has to reach the office. (This used to call
+  // _scheduleCustomerWrite, which was never defined — guarded by a typeof
+  // test, so every spec change the customer made was silently dropped.)
+  if (window.__CUSTOMER_MODE && typeof _postCustomerUpdateDebounced === 'function') {
+    try { _postCustomerUpdateDebounced(); } catch(e){}
   }
   if (typeof autosaveJob === 'function') {
     try { autosaveJob(); } catch(e){}
@@ -14648,10 +14651,31 @@ function _copyCustomerLinkBox(){
 }
 
 // Build the customer's current selection payload for write-back.
+// This is what the office reopens the job on after an acceptance, so it has to
+// carry EVERY choice the proposal page lets the customer change — not just the
+// option packages. Previously the spec cards (grade, profile, gauge, gutter,
+// brackets, downpipes) and the optional-extra-roof ticks never left the
+// customer's browser, so an accepted job came back showing the defaults the
+// quote was SENT with and the material order was built off the wrong steel.
 function _customerSelections(){
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var er = (p.extraRoofsSel && typeof p.extraRoofsSel === 'object') ? p.extraRoofsSel : {};
+  var erOut = {};
+  Object.keys(er).forEach(function(k){ if (/^\d+$/.test(String(k)) && er[k]) erOut[k] = true; });
   return {
     options: (S.quote.options||[]).map(function(o){ return { id:o.id, selected:o.selected!==false, selectedUpgrade:o.selectedUpgrade||'' }; }),
-    gutterChoice: S.quote.gutterChoice || 'none'
+    gutterChoice: S.quote.gutterChoice || 'none',
+    proposalOptions: {
+      profile:        p.profile || '',
+      steelGrade:     p.steelGrade || '',
+      steelThickness: p.steelThickness || '',
+      gutterType:     p.gutterType || '',
+      gutterBracket:  p.gutterBracket || '',
+      downpipes:      p.downpipes || '',
+      disposal:       p.disposal || '',
+      colour:         p.colour || '',
+      extraRoofsSel:  erOut
+    }
   };
 }
 function _postCustomerEvent(type, extra){

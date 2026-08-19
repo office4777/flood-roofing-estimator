@@ -884,6 +884,44 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
         });
       }
       if (['none', 'box', 'marley'].indexOf(selections.gutterChoice) >= 0) quote.gutterChoice = selections.gutterChoice;
+      // Spec choices from the proposal page (steel grade, profile, gauge,
+      // guttering, brackets, downpipes, disposal) plus which optional extra
+      // roofs the customer kept. Strictly allow-listed — the payload is
+      // untrusted, and these values drive pricing and the material order.
+      const po = selections.proposalOptions;
+      if (po && typeof po === 'object' && !Array.isArray(po)) {
+        const ALLOW = {
+          profile:        ['corrugate', '5rib'],
+          steelGrade:     ['maxam', 'colorzen', 'colourcote', 'zincalume'],
+          steelThickness: ['40', '55'],
+          gutterType:     ['none', 'box125', 'marley_classic', 'marley_typhoon'],
+          gutterBracket:  ['internal', 'external'],
+          downpipes:      ['yes', 'no'],
+          disposal:       ['dispose', 'keep'],
+        };
+        if (!quote.proposalOptions || typeof quote.proposalOptions !== 'object') quote.proposalOptions = {};
+        Object.keys(ALLOW).forEach(function (k) {
+          const v = String(po[k] == null ? '' : po[k]);
+          if (v && ALLOW[k].indexOf(v) >= 0) quote.proposalOptions[k] = v;
+        });
+        if (po.colour != null) {
+          const c = String(po.colour).slice(0, 60);
+          if (c) quote.proposalOptions.colour = c;
+        }
+        // Index-keyed booleans. Bounded by the extra roofs this quote actually
+        // carries (older quotes that predate the stash fall back to a hard cap)
+        // so a crafted payload can't grow the stored object. Only the ticked
+        // ones are kept — every reader treats a missing key as "not included".
+        if (po.extraRoofsSel && typeof po.extraRoofsSel === 'object' && !Array.isArray(po.extraRoofsSel)) {
+          const nExtra = Array.isArray(quote.extraRoofs) ? quote.extraRoofs.length : 20;
+          const sel = {};
+          Object.keys(po.extraRoofsSel).slice(0, 40).forEach(function (k) {
+            const i = Number(k);
+            if (Number.isInteger(i) && i >= 0 && i < nExtra && po.extraRoofsSel[k]) sel[i] = true;
+          });
+          quote.proposalOptions.extraRoofsSel = sel;
+        }
+      }
     }
     if (type === 'accepted') {
       quote.accepted = { name: name || quote.client || 'Customer', at: now, total: total || 0, options: acceptedOptions || [], gutter: quote.gutterChoice || 'none' };
