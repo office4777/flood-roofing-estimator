@@ -470,6 +470,14 @@ html.site-mode #navJobPackBtn,
 html.site-mode #navQuoteBtn,
 html.site-mode #navSettingsBtn,
 html.site-mode #navFeedbackBtn{display:none!important}
+/* Offline saves belongs to the devices that go up ladders. On a desktop the
+   only local drafts are that machine's own autosaves, so the button listed
+   the computer's working copies as if they were somebody's onsite work —
+   and offered to upload them. Touch devices only, and the status pill with
+   it. Work FROM a phone reaches the office the normal way: uploaded, in
+   Recent drafts. */
+html:not(.tablet-mode) #navOfflineSavesBtn,
+html:not(.tablet-mode) #syncChip{display:none!important}
 /* A count beside Offline saves, so the drawer says what is waiting without
    being opened. */
 #navOfflineSavesN{margin-left:auto;font-size:11px;font-weight:700;padding:1px 7px;
@@ -499,6 +507,13 @@ html.site-mode #navFeedbackBtn{display:none!important}
 .ofs-msg{font-size:11px;margin-top:3px;color:#64748b}
 .ofs-msg.ofs-good{color:#15803d;font-weight:600}
 .ofs-msg.ofs-bad{color:#b91c1c;font-weight:600}
+.ofs-msg.ofs-wait{color:#b45309}
+/* Uploaded saves stay in the list, ticked and faded back — the roofer clears
+   them once they have seen the work land in the office. */
+.ofs-row.ofs-done{background:#f4f9f5;border-color:#cfe8d6}
+.ofs-tick{margin-left:7px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  padding:2px 7px;border-radius:8px;background:#dcfce7;color:#15803d;vertical-align:middle}
+.ofs-row.ofs-done .ofs-up{background:#e2e8f0;color:#475569}
 .ofs-acts{display:flex;gap:6px;align-items:center;flex:0 0 auto}
 .ofs-acts button{font-family:inherit;cursor:pointer;border-radius:9px;font-weight:700;font-size:12px}
 .ofs-up{padding:9px 14px;border:none;background:#0099cc;color:#fff}
@@ -531,6 +546,10 @@ html.site-mode .ofs-msg.ofs-bad{color:#fca5a5}
 html.site-mode .ofs-open{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#dce5f0}
 html.site-mode .ofs-del{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#fca5a5}
 html.site-mode .ofs-empty{color:#7d8ea3}
+html.site-mode .ofs-msg.ofs-wait{color:#fbbf24}
+html.site-mode .ofs-row.ofs-done{background:rgba(74,222,128,.09);border-color:rgba(74,222,128,.24)}
+html.site-mode .ofs-tick{background:rgba(74,222,128,.18);color:#4ade80}
+html.site-mode .ofs-row.ofs-done .ofs-up{background:rgba(255,255,255,.10);color:#c9d6e6}
 
 /* Save's answer, onsite: a short pill just above the toolbar, where the
    thumb already is. There is no status line on that screen — it is all
@@ -8249,7 +8268,22 @@ function _writeLocalDraftNow(){
     };
     _draftDb().then(function(db){
       var tx = db.transaction('drafts', 'readwrite');
-      tx.objectStore('drafts').put(rec);
+      var st = tx.objectStore('drafts');
+      var rq = st.get(rec.key);
+      rq.onsuccess = function(){
+        var prev = rq.result;
+        if (prev){
+          /* Carry the record's own flags across a rewrite. The job number the
+             roofer typed at Save, and the standing instruction to send this
+             site draft up when there is signal, belong to the SAVE — not to
+             whichever keystroke happened to trigger this write. The work has
+             changed though, so what the server holds is out of date again. */
+          if (!rec.jobNo && prev.jobNo) rec.jobNo = prev.jobNo;
+          if (prev.autoUpload) rec.autoUpload = true;
+          if (prev.serverId) rec.serverId = prev.serverId;
+        }
+        st.put(rec);
+      };
       tx.oncomplete = function(){ ok(true); };
       tx.onerror = function(){ ok(false); };
     }).catch(function(){ ok(false); });
@@ -8394,10 +8428,18 @@ function _syncCount(list){
   var here = _draftKey();
   var n = 0;
   (list || []).forEach(function(d){
+    if (d.uploaded) return;                      // the office already has it
     if (d.key === here && _isOnline()) return;   // just the job open on screen
     n++;
   });
   SYNC.pending = n;
+}
+/* Offline saves is for the devices that go up ladders. On the office machine
+   the only local drafts are that machine's own autosaves, so the button
+   listed the computer's working copies as if they were somebody's onsite
+   work — and offered to upload them. Touch device only. */
+function _offlineSavesForThisDevice(){
+  return document.documentElement.classList.contains('tablet-mode');
 }
 
 // Push ONE draft record straight to the backend, without loading it into
@@ -8409,6 +8451,12 @@ function _syncCount(list){
 function _draftTitle(d){
   var c = String(d.client || '').trim(), a = String(d.addr || '').trim();
   if (c || a) return { client: c, addr: a };
+  /* An unnamed onsite draft. It reaches the office as "Site draft" plus the
+     job number the roofer typed at Save — that is what the office looks it
+     up by — and the board's own column supplies the date and time. Without a
+     number it falls back to the timestamp so it is still identifiable. */
+  var no = String(d.jobNo || '').trim();
+  if (no) return { client: 'Site draft — Job ' + no, addr: '' };
   var when = new Date(d.at || Date.now()).toLocaleString('en-NZ',
     { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
   var who = [d.by, d.device].filter(Boolean).join(' · ');
@@ -8423,6 +8471,12 @@ async function _syncPushDraft(d){
   try {
     snap = Object.assign({}, d.snap);
     snap.draftMeta = { by: d.by || '', device: d.device || '', at: d.at || '' };
+    // A site draft carries the job number the roofer typed at Save — put it
+    // back in the job's own field so the office opens it already numbered.
+    if (d.jobNo){
+      snap.form = Object.assign({}, snap.form || {});
+      if (!String(snap.form.jobNo || '').trim()) snap.form.jobNo = d.jobNo;
+    }
   } catch(e){}
   var body = { client_name: t.client, site_address: t.addr,
                draw_state: snap, settings: {} };
@@ -8463,8 +8517,32 @@ async function _syncPushDraft(d){
       try { _fergJobMapSet(String(d.key).slice(5), saved.id); } catch(e){}
     }
   }
-  await _deleteLocalDraft(d.key);
+  /* The save STAYS on the device, marked as uploaded. Clearing it
+     automatically was the app deciding for the user that the copy in their
+     hand was no longer needed — they clear it themselves, once they have
+     seen it land in the office. */
+  await _markDraftUploaded(d.key, saved && saved.id);
   return true;
+}
+// Stamp a local save as "this one reached the server", keeping everything else
+// about it — including the work itself — exactly where it is.
+function _markDraftUploaded(key, serverId){
+  return _draftDb().then(function(db){
+    return new Promise(function(ok){
+      var tx = db.transaction('drafts', 'readwrite');
+      var st = tx.objectStore('drafts');
+      var rq = st.get(key);
+      rq.onsuccess = function(){
+        var rec = rq.result;
+        if (!rec) return;
+        rec.uploaded = true;
+        rec.uploadedAt = new Date().toISOString();
+        if (serverId) rec.serverId = String(serverId);
+        st.put(rec);
+      };
+      tx.oncomplete = function(){ ok(); }; tx.onerror = function(){ ok(); };
+    });
+  }).catch(function(){});
 }
 
 /* A single, quiet status pill: only ever visible when there is something to
@@ -8475,6 +8553,12 @@ async function _syncPushDraft(d){
    it was landing on top of the roof-shape handle. On desktop it stays a
    labelled chip, up in the corner clear of everything. */
 function _renderSyncChip(){
+  // Nothing to say on a machine that never leaves the office.
+  if (!_offlineSavesForThisDevice()){
+    var _old = document.getElementById('syncChip');
+    if (_old) _old.style.display = 'none';
+    return;
+  }
   var site = !!window.__siteModeOn;
   var host = site ? document.getElementById('phoneTopBar') : document.body;
   var el = document.getElementById('syncChip');
@@ -8528,11 +8612,14 @@ function _renderSyncChip(){
 function _offlineSaveTitle(d){
   var addr = String(d.addr || '').trim();
   if (addr) return addr;
-  var no = String(d.jobNo || '').trim();
-  if (no) return 'Job ' + no;
   var client = String(d.client || '').trim();
   if (client) return client;
-  if (d.key && d.key !== '__new__' && String(d.key).indexOf('ferg_') !== 0) return 'Job ' + d.key;
+  var no = String(d.jobNo || '').trim();
+  // An unnamed draft with a number is a site draft — say so, and match the
+  // name the office will see it under once it is uploaded.
+  var isSite = !d.key || d.key === '__new__';
+  if (no) return isSite ? ('Site draft — Job ' + no) : ('Job ' + no);
+  if (!isSite && String(d.key).indexOf('ferg_') !== 0) return 'Job ' + d.key;
   return 'Site draft';
 }
 function _offlineSaveWhen(d){
@@ -8543,7 +8630,7 @@ function _offlineSaveWhen(d){
 }
 function _openOfflineSaves(){
   var m = document.getElementById('offlineSavesModal');
-  if (!m) return;
+  if (!m || !_offlineSavesForThisDevice()) return;
   m.dataset.open = '1';
   m.style.display = 'flex';
   try { closeRoofLinesMenu(); } catch(e){}
@@ -8571,16 +8658,25 @@ function _renderOfflineSaves(){
     }
     list.innerHTML = drafts.map(function(d){
       var stamp = [_offlineSaveWhen(d), d.by, d.device].filter(Boolean).join(' · ');
-      return '<div class="ofs-row" data-key="' + esc(d.key) + '">' +
+      // An uploaded save keeps its place with a tick on it, so the roofer can
+      // see the office has it before clearing the copy in their hand.
+      var done = !!d.uploaded;
+      var state = done
+        ? '<div class="ofs-msg ofs-good">✓ Uploaded ' + esc(_offlineSaveWhen({ at: d.uploadedAt })) + '</div>'
+        : (d.autoUpload
+            ? '<div class="ofs-msg ofs-wait">Uploads by itself when there is signal</div>'
+            : '<div class="ofs-msg"></div>');
+      return '<div class="ofs-row' + (done ? ' ofs-done' : '') + '" data-key="' + esc(d.key) + '">' +
                '<div class="ofs-main">' +
-                 '<div class="ofs-title">' + esc(_offlineSaveTitle(d)) + '</div>' +
+                 '<div class="ofs-title">' + esc(_offlineSaveTitle(d)) +
+                   (done ? '<span class="ofs-tick">Uploaded</span>' : '') + '</div>' +
                  '<div class="ofs-when">' + esc(stamp) + '</div>' +
-                 '<div class="ofs-msg"></div>' +
+                 state +
                '</div>' +
                '<div class="ofs-acts">' +
-                 '<button type="button" class="ofs-up" data-act="upload">Upload</button>' +
+                 '<button type="button" class="ofs-up" data-act="upload">' + (done ? 'Upload again' : 'Upload') + '</button>' +
                  '<button type="button" class="ofs-open" data-act="open">Open</button>' +
-                 '<button type="button" class="ofs-del" data-act="delete" title="Delete this save">🗑</button>' +
+                 '<button type="button" class="ofs-del" data-act="delete" title="Delete this save from this device">🗑</button>' +
                '</div>' +
              '</div>';
     }).join('');
@@ -8608,9 +8704,10 @@ async function _offlineSaveUpload(d, row){
   try {
     await _syncPushDraft(d);
     _offlineSaveMsg(row, '✓ Uploaded to the main app', 'good');
-    if (btn) btn.textContent = 'Uploaded';
+    if (btn){ btn.disabled = false; btn.textContent = 'Upload again'; }
     try { if (typeof refreshJobsList === 'function') refreshJobsList(); } catch(e){}
     try { if (typeof fetchRecentDrafts === 'function') fetchRecentDrafts(); } catch(e){}
+    // The save stays in the list, ticked — the user clears it when ready.
     setTimeout(function(){
       _listLocalDrafts().then(function(l){ _syncCount(l); _renderSyncChip(); });
       _renderOfflineSaves();
@@ -8631,7 +8728,10 @@ function _offlineSaveOpen(d){
 }
 function _offlineSaveDelete(d){
   if (!d) return;
-  if (!confirm('Delete this save from this device? It has not been uploaded — this cannot be undone.')) return;
+  var msg = d.uploaded
+    ? 'The office has this one. Remove it from this device?'
+    : 'Delete this save from this device? It has NOT been uploaded — this cannot be undone.';
+  if (!confirm(msg)) return;
   _deleteLocalDraft(d.key).then(function(){
     _listLocalDrafts().then(function(l){ _syncCount(l); _renderSyncChip(); });
     _renderOfflineSaves();
@@ -8643,10 +8743,11 @@ function _offlineSaveDelete(d){
    somebody's phone arriving as uploads nobody had asked for, and a status
    pill permanently announcing it. A save now stays on the device that made
    it until somebody opens Offline saves and presses Upload. */
-window.addEventListener('online',  function(){ _renderSyncChip(); _renderOfflineSaves(); });
+window.addEventListener('online',  function(){ _renderSyncChip(); _renderOfflineSaves(); _autoUploadArmedDrafts(); });
 window.addEventListener('offline', function(){ _renderSyncChip(); _renderOfflineSaves(); });
 setTimeout(function(){
   _listLocalDrafts().then(function(d){ _syncCount(d); _renderSyncChip(); });
+  _autoUploadArmedDrafts();
 }, 2500);
 
 // The old startup "Unsaved work found — Restore it / Discard" banner is
@@ -8856,10 +8957,16 @@ async function saveCurrentJob(){
     if (msg)    { msg.textContent = text; msg.style.color = color || ''; }
     if (barMsg) { barMsg.textContent = text; barMsg.style.color = color || ''; }
   }
+  /* An unnamed site draft on a phone or tablet: no job is selected and there
+     is nothing to call it by. Ask for the job number once, here at Save — it
+     is the one thing the office needs to match the work up — and from then on
+     this draft sends itself the moment there is signal. */
+  var _siteDraft = _offlineSavesForThisDevice() && !client && !addr &&
+                   !S.currentJobId && !S.linkedJobId;
+  if (_siteDraft){ _saveSiteDraft(set); return; }
+
   /* No signal: Save is still Save. It writes to this device and says so,
-     rather than failing at the network and leaving the roofer wondering.
-     The client/address rule is an office rule — onsite the job is usually
-     nameless until later, and the save is titled by its timestamp instead. */
+     rather than failing at the network and leaving the roofer wondering. */
   if (!_isOnline()){
     var _wrote = await _writeLocalDraftNow();
     var _m = _wrote
@@ -8909,6 +9016,98 @@ async function saveCurrentJob(){
     try { await _writeLocalDraftNow(); } catch(e2){}
     try { _listLocalDrafts().then(function(l){ _syncCount(l); _renderSyncChip(); }); } catch(e2){}
   }
+}
+
+/* Arm a site draft for sending. The roofer types the job number once, at
+   Save; from then on this save goes up by itself the moment the phone has
+   signal, and lands in the office as "Site draft — Job NNNNN". Everything
+   else still waits for a person to press Upload. */
+function _armSiteDraft(jobNo){
+  return _draftDb().then(function(db){
+    return new Promise(function(ok){
+      var key = _draftKey();
+      var tx = db.transaction('drafts', 'readwrite');
+      var st = tx.objectStore('drafts');
+      var rq = st.get(key);
+      rq.onsuccess = function(){
+        var rec = rq.result;
+        if (!rec) return;
+        rec.jobNo = jobNo;
+        rec.autoUpload = true;
+        rec.uploaded = false;                 // the work has moved on since
+        st.put(rec);
+      };
+      tx.oncomplete = function(){ ok(); }; tx.onerror = function(){ ok(); };
+    });
+  }).catch(function(){});
+}
+/* The one thing that still uploads on its own: a site draft the roofer
+   already put a job number on. Runs when the connection comes back and once
+   at startup — not on a timer, and never for anything the user has not
+   explicitly armed. */
+async function _autoUploadArmedDrafts(){
+  if (!_isOnline() || !localStorage.getItem('fr_token')) return;
+  if (SYNC.autoBusy) return;
+  SYNC.autoBusy = true;
+  try {
+    var list = await _listLocalDrafts();
+    for (var i = 0; i < list.length; i++){
+      var d = list[i];
+      if (!d.autoUpload || d.uploaded) continue;
+      try { await _syncPushDraft(d); } catch(e){ /* stays armed for next time */ }
+    }
+    try { if (typeof fetchRecentDrafts === 'function') fetchRecentDrafts(); } catch(e){}
+    _listLocalDrafts().then(function(l){ _syncCount(l); _renderSyncChip(); });
+    _renderOfflineSaves();
+  } catch(e){}
+  SYNC.autoBusy = false;
+}
+
+/* Save on an unnamed site draft: ask for the job number, write it onto the
+   save, and send it up — now if there is signal, by itself as soon as there
+   is. The number is offered pre-filled from Settings so the usual case is
+   one tap. */
+function _saveSiteDraft(set){
+  var suggested = '';
+  try { suggested = ((document.getElementById('jobNo')||{}).value || '').trim() || _nextJobNo(); } catch(e){}
+  _styledPrompt({
+    title: 'Job number for this site draft',
+    message: 'No job is selected. Give this a job number so the office can match it up — the draft uploads under it as soon as you have signal.',
+    value: suggested, okLabel: 'Save draft',
+  }, async function(v){
+    var no = String(v || '').trim();
+    if (!no){
+      set('Save cancelled — a site draft needs a job number.', '#b91c1c');
+      _siteToast('A site draft needs a job number');
+      return;
+    }
+    try { var jn = document.getElementById('jobNo'); if (jn) jn.value = no; } catch(e){}
+    try { _consumeJobNo(no); } catch(e){}
+    var wrote = await _writeLocalDraftNow();
+    if (!wrote){
+      set('Nothing to save yet — draw an outline or take a photo first.', '#b91c1c');
+      _siteToast('Nothing to save yet');
+      return;
+    }
+    await _armSiteDraft(no);
+    if (_isOnline()){
+      set('Saving site draft ' + no + '…', '');
+      await _autoUploadArmedDrafts();
+      var still = (await _listLocalDrafts()).filter(function(d){ return d.key === _draftKey(); })[0];
+      if (still && still.uploaded){
+        set('✓ Site draft ' + no + ' uploaded — it is in Recent drafts in the office.', '#15803d');
+        _siteToast('✓ Site draft ' + no + ' uploaded');
+      } else {
+        set('Saved on this device as site draft ' + no + ' — it will upload when the connection is back.', '#b45309');
+        _siteToast('⚡ Saved as site draft ' + no);
+      }
+    } else {
+      set('⚡ Offline — saved on this device as site draft ' + no + '. It uploads by itself once you have signal.', '#b45309');
+      _siteToast('⚡ Saved as site draft ' + no + ' — uploads when you have signal');
+    }
+    try { _listLocalDrafts().then(function(l){ _syncCount(l); _renderSyncChip(); }); } catch(e){}
+    try { _renderOfflineSaves(); } catch(e){}
+  });
 }
 
 /* Onsite there is no save-status line on screen — the whole screen is the
@@ -9166,6 +9365,9 @@ async function fetchRecentDrafts(){
   var rows = [], seen = {};
   (drafts || []).forEach(function(d){
     if (!d || !d.key) return;
+    // Already on the server — the job itself is the row to show, not a
+    // duplicate claiming there is unsaved work.
+    if (d.uploaded) return;
     seen[d.key] = true;
     var kind = d.key === '__new__' ? 'new' : (d.key.indexOf('ferg_') === 0 ? 'fergus' : 'saved');
     rows.push({ t: d.at, client: d.client, addr: d.addr, unsaved: true, kind: kind, resume: 'draft', key: d.key,
