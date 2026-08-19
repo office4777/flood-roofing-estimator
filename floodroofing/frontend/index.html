@@ -1026,8 +1026,9 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
   display:flex; gap:8px; padding:9px 14px;
   border-bottom:1px solid var(--border); background:#f2f5f9;
 }
+.pr-roof-cell{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; }
 .pr-roof-btn{
-  flex:1 1 0; min-width:0; padding:20px 10px 18px;
+  flex:1 1 auto; min-width:0; padding:20px 10px 18px;
   border:2px solid var(--border); border-radius:12px; background:#fff;
   cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px;
   font-family:inherit; line-height:1.1;
@@ -7863,10 +7864,13 @@ function _renderPricingRoofSwitchBar(){
   var html = '';
   for (var i = 0; i < n; i++){
     var on = (i === cur);
-    html += '<button type="button" onclick="_setPricingRoof(' + i + ')" class="pr-roof-btn' + (on ? ' on' : '') + '">' +
-      '<span class="pr-roof-nm">' + esc(_pricingRoofName(i)) + '</span>' +
-      '<span class="pr-roof-sub">' + (i === 0 ? 'Main · base' : 'Optional extra') + '</span>' +
-    '</button>';
+    // Each roof is a column: the switch button, with its own Rename under it.
+    html += '<div class="pr-roof-cell">' +
+      '<button type="button" onclick="_setPricingRoof(' + i + ')" class="pr-roof-btn' + (on ? ' on' : '') + '">' +
+        '<span class="pr-roof-nm">' + esc(_pricingRoofName(i)) + '</span>' +
+        '<span class="pr-roof-sub">' + (i === 0 ? 'Main · base' : 'Optional extra') + '</span>' +
+      '</button>' + _roofRenameLinkHtml(i, { size:'10.5px' }) +
+    '</div>';
   }
   bar.innerHTML = html;
   try { _renderPricingRoofMap(); } catch(e){}
@@ -7903,10 +7907,12 @@ function _pricingRoofTabsHtml(){
   var btns = '';
   for (var i = 0; i < n; i++){
     var on = (i === cur);
-    btns += '<button type="button" onclick="_setPricingRoof(' + i + ')" style="flex:1 1 96px;min-width:88px;padding:13px 10px 10px;font-size:15px;font-weight:800;line-height:1.15;border-radius:11px;border:2px solid ' + (on ? '#0099cc' : 'var(--border)') + ';background:' + (on ? '#0099cc' : '#fff') + ';color:' + (on ? '#fff' : '#0a1628') + ';cursor:pointer;' + (on ? 'box-shadow:0 3px 12px rgba(0,153,204,.35)' : '') + '">' +
-      esc(_pricingRoofName(i)) +
-      '<div style="font-size:8px;font-weight:700;letter-spacing:.06em;margin-top:3px;opacity:.9">' + (i === 0 ? 'MAIN · BASE' : 'OPTIONAL EXTRA') + '</div>' +
-    '</button>';
+    btns += '<div style="flex:1 1 96px;min-width:88px;display:flex;flex-direction:column">' +
+      '<button type="button" onclick="_setPricingRoof(' + i + ')" style="flex:1 1 auto;padding:13px 10px 10px;font-size:15px;font-weight:800;line-height:1.15;border-radius:11px;border:2px solid ' + (on ? '#0099cc' : 'var(--border)') + ';background:' + (on ? '#0099cc' : '#fff') + ';color:' + (on ? '#fff' : '#0a1628') + ';cursor:pointer;' + (on ? 'box-shadow:0 3px 12px rgba(0,153,204,.35)' : '') + '">' +
+        esc(_pricingRoofName(i)) +
+        '<div style="font-size:8px;font-weight:700;letter-spacing:.06em;margin-top:3px;opacity:.9">' + (i === 0 ? 'MAIN · BASE' : 'OPTIONAL EXTRA') + '</div>' +
+      '</button>' + _roofRenameLinkHtml(i, { size:'9.5px' }) +
+    '</div>';
   }
   return '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">' + btns + '</div>';
 }
@@ -16586,6 +16592,30 @@ function _qpRoofScopeLine(){
 }
 // Office renames a roof (e.g. "Roof 2" → "Veranda"). Flows into the map labels,
 // the include buttons and the Selections-page extra-roof rows.
+// Which DRAWN roof an "Include <roof>" button refers to. The customer's extra
+// roofs are positions in S.quote.extraRoofs, but renaming acts on the drawn
+// roof, so the two have to be tied back together through the stashed geometry.
+function _roofIdxForExtraPos(pos){
+  try {
+    var rs = (window.S && S.quote && S.quote.roofMapGeom && S.quote.roofMapGeom.roofs) || [];
+    for (var i = 0; i < rs.length; i++){ if (rs[i].extraPos === pos) return rs[i].idx; }
+  } catch(e){}
+  return -1;
+}
+// The small "✎ Rename" that sits UNDER a roof button. Office-only and
+// .no-print, so it never reaches the customer, the PDF or the printed quote.
+// opts lets the proposal pages pass their own (--ed-*) palette.
+function _roofRenameLinkHtml(idx, opts){
+  if (window.__CUSTOMER_MODE) return '';
+  if (idx == null || idx < 0) return '';
+  if (!(window.DRAW && DRAW.roofs && DRAW.roofs[idx])) return '';
+  opts = opts || {};
+  return '<button type="button" class="no-print" onclick="event.stopPropagation();_renameRoof('+idx+')" '+
+      'title="Rename this roof" style="display:block;width:100%;margin-top:4px;padding:3px 6px;'+
+      'font-family:'+(opts.font || 'inherit')+';font-size:'+(opts.size || '10px')+';font-weight:700;letter-spacing:.03em;'+
+      'border:1px dashed '+(opts.line || 'var(--border)')+';border-radius:6px;background:transparent;'+
+      'color:'+(opts.color || 'var(--text2)')+';cursor:pointer">✎ Rename</button>';
+}
 function _renameRoof(i){
   if (!window.DRAW || !DRAW.roofs || !DRAW.roofs[i]) return;
   var cur = DRAW.roofs[i].name || ('Roof ' + (i+1));
@@ -16621,14 +16651,18 @@ function _qpInteractiveRoofBlock(opts){
   var btns = '';
   if (hasExtras){
     var anySel = extraList.some(function(rr, i){ return erSel[i] === true; });
-    var mkBtn = function(label, active, onclick){
-      return '<button type="button" onclick="'+onclick+'" style="flex:1 1 auto;min-width:130px;padding:11px 15px;font-family:var(--ed-sans);font-size:12.5px;font-weight:700;border:2px solid '+(active?'var(--ed-accent)':'var(--ed-line)')+';border-radius:10px;background:'+(active?'var(--ed-accent)':'#fff')+';color:'+(active?'#fff':'var(--ed-ink)')+';cursor:pointer">'+esc2(label)+'</button>';
+    // Each button is a column so the office's Rename can sit directly under it.
+    var mkBtn = function(label, active, onclick, roofIdx){
+      return '<div style="flex:1 1 auto;min-width:130px;display:flex;flex-direction:column">'+
+        '<button type="button" onclick="'+onclick+'" style="flex:1 1 auto;padding:11px 15px;font-family:var(--ed-sans);font-size:12.5px;font-weight:700;border:2px solid '+(active?'var(--ed-accent)':'var(--ed-line)')+';border-radius:10px;background:'+(active?'var(--ed-accent)':'#fff')+';color:'+(active?'#fff':'var(--ed-ink)')+';cursor:pointer">'+esc2(label)+'</button>'+
+        _roofRenameLinkHtml(roofIdx, { font:'var(--ed-sans)', size:'9.5px', line:'var(--ed-line)', color:'var(--ed-text2)' })+
+      '</div>';
     };
-    var bw = [ mkBtn('Main roof only', !anySel, '_qpSelectMainOnly()') ];
+    var bw = [ mkBtn('Main roof only', !anySel, '_qpSelectMainOnly()', 0) ];
     extraList.forEach(function(rr, i){
       var on = erSel[i] === true;
       var nm = rr.name || ('Roof ' + (i + 2));
-      bw.push(mkBtn((on ? '✓ ' : '+ ') + 'Include ' + nm, on, '_toggleProposalExtraRoof(' + i + ',' + (!on) + ')'));
+      bw.push(mkBtn((on ? '✓ ' : '+ ') + 'Include ' + nm, on, '_toggleProposalExtraRoof(' + i + ',' + (!on) + ')', _roofIdxForExtraPos(i)));
     });
     btns = '<div class="qp-incl-btns" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'+bw.join('')+'</div>'+
       '<div style="font-size:10px;color:var(--ed-text2);font-family:var(--ed-sans);margin-top:5px">Tap to choose which roofs to include — the plan and your price update instantly.</div>';
@@ -16715,10 +16749,18 @@ function _buildRoofPreviewsHtml(opts){
     // the customer's Include buttons and the Selections page.
     var _modeToggles = '';
     if (_officeCtl && window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) {
+      // Renaming now lives UNDER each roof button above. These rows keep a
+      // pencil only for a roof that has no button of its own to sit under
+      // (folded into the main price, or excluded), so nothing becomes
+      // un-renameable from this page.
+      var _extrasN = ((S.quote && S.quote.extraRoofs) || []).length;
+      var _pencil = function(i){
+        return '<button type="button" onclick="_renameRoof('+i+')" title="Rename" style="font-size:9.5px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;color:var(--ed-ink-2);cursor:pointer;padding:2px 7px;font-family:var(--ed-sans)">✎ Rename</button>';
+      };
       var _rows = [];
       _rows.push('<div class="no-print" style="display:flex;align-items:center;gap:8px;font-size:10.5px;font-family:var(--ed-sans);color:var(--ed-ink-2)">'+
         '<span style="min-width:64px;font-weight:600">'+esc2((DRAW.roofs[0] && DRAW.roofs[0].name) || 'Main Roof')+'</span>'+
-        '<button type="button" onclick="_renameRoof(0)" title="Rename" style="font-size:9.5px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;color:var(--ed-ink-2);cursor:pointer;padding:2px 7px;font-family:var(--ed-sans)">✎ Rename</button>'+
+        (_extrasN ? '' : _pencil(0))+
         '<span style="color:var(--ed-text2)">— always included</span></div>');
       for (var _si = 1; _si < DRAW.roofs.length; _si++) {
         var _rn = (DRAW.roofs[_si] && DRAW.roofs[_si].name) || ('Roof ' + (_si + 1));
@@ -16744,11 +16786,11 @@ function _buildRoofPreviewsHtml(opts){
         }
         _rows.push('<div class="no-print" style="display:flex;align-items:center;gap:8px;font-size:10.5px;font-family:var(--ed-sans);color:var(--ed-ink-2);flex-wrap:wrap">'+
           '<span style="min-width:64px;font-weight:600">'+esc2(_rn)+'</span>'+
-          '<button type="button" onclick="_renameRoof('+_si+')" title="Rename" style="font-size:9.5px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;color:var(--ed-ink-2);cursor:pointer;padding:2px 7px;font-family:var(--ed-sans)">✎</button>'+
+          (_cm === 'separate' ? '' : _pencil(_si))+
           '<span style="display:inline-flex;border:1px solid var(--ed-line);border-radius:4px;overflow:hidden">'+_seg+'</span>'+_gutSeg+'</div>');
       }
       _modeToggles = '<div class="no-print" style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--ed-line);display:flex;flex-direction:column;gap:7px">'+
-        '<div style="font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--ed-text2)">Name each roof &amp; choose how it\'s quoted <span style="text-transform:none;letter-spacing:0">(part of main price · optional extra · excluded · gutter with house or its own)</span></div>'+
+        '<div style="font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--ed-text2)">How each roof is quoted <span style="text-transform:none;letter-spacing:0">(part of main price · optional extra · excluded · gutter with house or its own — rename each roof under its button above)</span></div>'+
         _rows.join('')+'</div>';
     }
     // Selection state (shared with the Selections page) + the customer's
@@ -16761,14 +16803,17 @@ function _buildRoofPreviewsHtml(opts){
     var _inclBtns = '';
     if (_hasExtras) {
       var _anySel = _extraList.some(function(rr, i){ return _erSel[i] === true; });
-      var _btn = function(label, active, onclick){
-        return '<button type="button" onclick="'+onclick+'" style="flex:1 1 auto;min-width:130px;padding:11px 15px;font-family:var(--ed-sans);font-size:12.5px;font-weight:700;border:2px solid '+(active?'var(--ed-accent)':'var(--ed-line)')+';border-radius:10px;background:'+(active?'var(--ed-accent)':'#fff')+';color:'+(active?'#fff':'var(--ed-ink)')+';cursor:pointer">'+esc2(label)+'</button>';
+      var _btn = function(label, active, onclick, roofIdx){
+        return '<div style="flex:1 1 auto;min-width:130px;display:flex;flex-direction:column">'+
+          '<button type="button" onclick="'+onclick+'" style="flex:1 1 auto;padding:11px 15px;font-family:var(--ed-sans);font-size:12.5px;font-weight:700;border:2px solid '+(active?'var(--ed-accent)':'var(--ed-line)')+';border-radius:10px;background:'+(active?'var(--ed-accent)':'#fff')+';color:'+(active?'#fff':'var(--ed-ink)')+';cursor:pointer">'+esc2(label)+'</button>'+
+          _roofRenameLinkHtml(roofIdx, { font:'var(--ed-sans)', size:'9.5px', line:'var(--ed-line)', color:'var(--ed-text2)' })+
+        '</div>';
       };
-      var _bw = [ _btn('Main roof only', !_anySel, '_qpSelectMainOnly()') ];
+      var _bw = [ _btn('Main roof only', !_anySel, '_qpSelectMainOnly()', 0) ];
       _extraList.forEach(function(rr, i){
         var _on = _erSel[i] === true;
         var _nm = rr.name || ('Roof ' + (i + 2));
-        _bw.push(_btn((_on ? '✓ ' : '+ ') + 'Include ' + _nm, _on, '_toggleProposalExtraRoof(' + i + ',' + (!_on) + ')'));
+        _bw.push(_btn((_on ? '✓ ' : '+ ') + 'Include ' + _nm, _on, '_toggleProposalExtraRoof(' + i + ',' + (!_on) + ')', _roofIdxForExtraPos(i)));
       });
       _inclBtns = '<div class="qp-incl-btns" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' + _bw.join('') + '</div>'+
         '<div style="font-size:10px;color:var(--ed-text2);font-family:var(--ed-sans);margin-top:5px">Tap to choose which roofs to include — the plan and your price update instantly.</div>';
