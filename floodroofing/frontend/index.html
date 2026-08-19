@@ -600,6 +600,11 @@ html.site-mode #jpToolbar .mat-btn{
   flex:1;min-width:0;padding:11px 6px!important;font-size:12px!important;font-weight:700;
   border-radius:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 html.site-mode #jpToolbar .mat-btn-blue{flex:1.35}
+/* The Preview/Edit switch is a mode, not an action — icon only onsite so the
+   three things you actually DO keep their share of a phone's width. */
+html.site-mode #jpToolbar #jpPreviewBtn{flex:0 0 auto;width:44px;padding:11px 0!important;font-size:15px!important}
+html.site-mode #jpToolbar #jpPreviewBtn .jp-pv-on span,
+html.site-mode #jpToolbar #jpPreviewBtn .jp-pv-off span{display:none}
 /* The Maps pop-out is a drag-a-thumbnail-onto-a-page tool. On a phone there
    is nothing to drag it to and it took half the screen, sitting over the
    action bar. Gone onsite, and the page reserve with it so the A4 pages fit
@@ -2030,6 +2035,47 @@ html.print-scope #fergusRoofPanel, .no-print #fergusRoofPanel{ display:none!impo
   color:#0a1628;
   display:flex; flex-direction:column;
 }
+/* ── Job Pack preview ────────────────────────────────────────────
+   The designer is a form: bordered inputs, + Add row, × delete, zoom
+   sliders, empty-state hints. The PDF is none of that, and the PDF is what
+   the office and the supplier see — so Preview shows the pages exactly as
+   they will come out, and the pencil switches the form back on.
+
+   The chrome-stripping is shared with the PDF capture (see html.jp-preview
+   alongside html.pdf-rendering above). What is left here is the paper:
+   sheet geometry, section spacing, and the flashings landing on their own
+   sheet the way the print stylesheet puts them. */
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .jp-pages{ background:#eef2f7; gap:26px; padding:22px 0 26px; }
+/* The cut-list page flows: on paper it breaks across sheets, so on screen it
+   takes its natural height rather than clipping at 297mm. */
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .jp-page.jp-flow{ height:auto!important; max-height:none!important; overflow:visible!important; }
+/* Sections breathe the way they do on paper — the printed rule is the same
+   26px, and the divider lines that separate them on the form are gone. */
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .jp-flow .mat-section{ margin-bottom:26px!important; padding-bottom:14px!important; border-bottom:none!important; }
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .gu-row{ border-bottom:none!important; }
+/* Flashings print on a sheet of their own. Break it out of the page's 14mm
+   padding so it reads as that sheet, rather than as a panel tucked inside
+   the cut lists. */
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .mat-flash-section{
+  margin:34px -14mm 0!important; padding:14mm!important;
+  background:#fff!important; border-top:1px solid #dbe2ea!important;
+  min-height:220mm!important;
+  box-shadow:0 -1px 0 #fff, 0 -14px 26px -14px rgba(10,22,40,.16)!important;
+}
+/* No page number here on purpose. A counter over .jp-page elements counts
+   TWO — the cut-list page prints across two sheets — so it would stamp
+   "Page 2" on what comes out as page 3. Better no number than a wrong one;
+   the real count is on the PDF. */
+/* Preview is for looking at. Editing is the pencil's job, and a caret
+   blinking in a "printed" page is a lie about what you are looking at. */
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .jp-page input,
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .jp-page select,
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .jp-page textarea,
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .jp-page [contenteditable]{ pointer-events:none!important; }
+#jpPreviewBtn .jp-pv-off{ display:none; }
+html.jp-preview #jpPreviewBtn .jp-pv-off{ display:inline; }
+html.jp-preview #jpPreviewBtn .jp-pv-on{ display:none; }
+
 .jp-page-tools{
   position:absolute; top:-32px; left:0; right:0;
   display:flex; align-items:center; gap:8px;
@@ -2106,27 +2152,38 @@ html.qp-pdf-a4 .report-preview #qpRoot > *{
   box-shadow:none !important; margin:0 !important; border-radius:0 !important;
 }
 
-html.pdf-rendering .no-print,
-html.pdf-rendering .jp-page-tools,
-html.pdf-rendering .jp-img-tools,
-html.pdf-rendering .jp-img-handle,
-html.pdf-rendering .jp-crop-edge,
-html.pdf-rendering .qp-edit-hint,
-html.pdf-rendering .cut-list-empty,
-html.pdf-rendering .mat-add-btn,
-html.pdf-rendering .mat-list-del,
-html.pdf-rendering .mat-toggle-row,
-html.pdf-rendering .mat-fl-empty,
-html.pdf-rendering .mat-spec-row,
-html.pdf-rendering .cons-row-sub,
-html.pdf-rendering .pdf-hide,
-html.pdf-rendering .mat-section.is-empty-section{
+/* html.jp-preview rides on every one of these, so Preview is not an
+   approximation of the PDF — it is the same transformation on the same live
+   DOM that html2canvas captures. One set of rules; the two cannot drift.
+
+   Scoped to #jpPages, which the capture path does not need to be. A capture
+   is a snapshot of the pages alone, so hiding every .no-print in the
+   document is harmless there — on screen it would take the app's own header,
+   toolbar and drawer with it, since those carry .no-print too. */
+html.pdf-rendering .no-print,          html.jp-preview #jpPages .no-print,
+html.pdf-rendering .jp-page-tools,     html.jp-preview #jpPages .jp-page-tools,
+html.pdf-rendering .jp-img-tools,      html.jp-preview #jpPages .jp-img-tools,
+html.pdf-rendering .jp-img-handle,     html.jp-preview #jpPages .jp-img-handle,
+html.pdf-rendering .jp-crop-edge,      html.jp-preview #jpPages .jp-crop-edge,
+html.pdf-rendering .qp-edit-hint,      html.jp-preview #jpPages .qp-edit-hint,
+html.pdf-rendering .cut-list-empty,    html.jp-preview #jpPages .cut-list-empty,
+html.pdf-rendering .mat-add-btn,       html.jp-preview #jpPages .mat-add-btn,
+html.pdf-rendering .mat-list-del,      html.jp-preview #jpPages .mat-list-del,
+html.pdf-rendering .mat-toggle-row,    html.jp-preview #jpPages .mat-toggle-row,
+html.pdf-rendering .mat-fl-empty,      html.jp-preview #jpPages .mat-fl-empty,
+html.pdf-rendering .mat-spec-row,      html.jp-preview #jpPages .mat-spec-row,
+html.pdf-rendering .cons-row-sub,      html.jp-preview #jpPages .cons-row-sub,
+html.pdf-rendering .pdf-hide,          html.jp-preview #jpPages .pdf-hide,
+html.pdf-rendering .mat-section.is-empty-section,
+html.jp-preview #jpPages .mat-section.is-empty-section{
   display:none!important;
 }
 /* Inputs flatten to plain text so number / qty cells read as
    typeset values instead of form controls. */
 html.pdf-rendering .jp-page input[type="number"],
-html.pdf-rendering .jp-page input[type="text"]{
+html.pdf-rendering .jp-page input[type="text"],
+html.jp-preview #jpPages input[type="number"],
+html.jp-preview #jpPages input[type="text"]{
   appearance:none!important;
   -webkit-appearance:none!important;
   -moz-appearance:none!important;
@@ -2141,7 +2198,8 @@ html.pdf-rendering .jp-page input[type="text"]{
   min-width:0!important;
   outline:none!important;
 }
-html.pdf-rendering .jp-page select{
+html.pdf-rendering .jp-page select,
+html.jp-preview #jpPages select{
   appearance:none!important;
   -webkit-appearance:none!important;
   -moz-appearance:none!important;
@@ -2153,12 +2211,15 @@ html.pdf-rendering .jp-page select{
   font:inherit!important;
   width:auto!important;
 }
-html.pdf-rendering .jp-page input[type="checkbox"]{ display:none!important; }
+html.pdf-rendering .jp-page input[type="checkbox"],
+html.jp-preview #jpPages input[type="checkbox"]{ display:none!important; }
 /* Chrome keeps the number-input spin button INSIDE the box even when
    the input is flattened — it eats ~half of a value-fitted width and
    clips the last digit.  Kill it outright for capture + print. */
 html.pdf-rendering .jp-page input[type="number"]::-webkit-inner-spin-button,
 html.pdf-rendering .jp-page input[type="number"]::-webkit-outer-spin-button,
+html.jp-preview #jpPages input[type="number"]::-webkit-inner-spin-button,
+html.jp-preview #jpPages input[type="number"]::-webkit-outer-spin-button,
 html.print-jobpack .jp-page input[type="number"]::-webkit-inner-spin-button,
 html.print-jobpack .jp-page input[type="number"]::-webkit-outer-spin-button{
   -webkit-appearance:none!important; appearance:none!important;
@@ -2169,7 +2230,10 @@ html.print-jobpack .jp-page input[type="number"]::-webkit-outer-spin-button{
    ("A 1 @" up, "6.2 m" down) and units looked superscripted. */
 html.pdf-rendering .jp-page input[type="number"],
 html.pdf-rendering .jp-page input[type="text"],
-html.pdf-rendering .jp-page select{
+html.pdf-rendering .jp-page select,
+html.jp-preview #jpPages input[type="number"],
+html.jp-preview #jpPages input[type="text"],
+html.jp-preview #jpPages select{
   height:auto!important;
   line-height:inherit!important;
   vertical-align:baseline!important;
@@ -2205,7 +2269,8 @@ html.pdf-rendering .gu-row{ border-bottom:none!important; }
    CAPTURED into the PDF — it painted a faint full-width line at the end
    of every sheet's content. */
 html.pdf-rendering .jp-page{ border:none!important; box-shadow:none!important; border-radius:0!important; }
-html.pdf-rendering .mat-section-hd{ padding:6px 14px!important; margin-bottom:6px!important; }
+html.pdf-rendering .mat-section-hd,
+html.jp-preview #jpPages .mat-section-hd{ padding:6px 14px!important; margin-bottom:6px!important; }
 /* Print: only #jpPages elements reach paper.  Each .jp-page is one A4
    sheet so we just suppress everything else and let CSS page breaks
    slot between them. */
@@ -4142,6 +4207,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <span class="no-print" id="jpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums;margin-right:4px">60%</span>
       <button onclick="undoLast()" class="mat-btn mat-btn-light no-print" style="padding:7px 12px;font-size:12px" title="Undo the last change (e.g. a deleted cut-list row)">↩ Undo</button>
       <button onclick="redoLast()" class="mat-btn mat-btn-light no-print" style="padding:7px 12px;font-size:12px" title="Redo">↪ Redo</button>
+      <button onclick="_jpTogglePreview()" id="jpPreviewBtn" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px" title="Switch between the printed page and the form that edits it"><span class="jp-pv-on">👁<span> Preview</span></span><span class="jp-pv-off">✏️<span> Edit</span></span></button>
       <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark" style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
       <button onclick="printJobPack()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
       <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
@@ -6107,7 +6173,7 @@ function gotoTab(t) {
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
-  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{_jpRestorePanelState(true, true);}catch(e){}try{_syncCurrentToRoof&&_syncCurrentToRoof();}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
+  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{_jpRestorePanelState(true, true);}catch(e){}try{_syncCurrentToRoof&&_syncCurrentToRoof();}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpPreview(_jpPreviewPref());}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
   // Leaving Job Pack: hide the maps panel INSTANTLY — letting it slide out
   // over the incoming tab read as the pop-out "jumping around".
   if(t!=='materials'){
@@ -33362,6 +33428,10 @@ function renderJobPack(){
     if (ev.target.closest('.jp-page-imgwrap')) return;
     document.querySelectorAll('.jp-page-imgwrap.is-selected').forEach(function(w){ w.classList.remove('is-selected'); });
   };
+  /* Preview hides sections that have nothing in them, so a rebuild has to
+     re-decide: adding the first row to a band brings it back, deleting the
+     last one takes it away again. */
+  try { _jpPreviewRefresh(); } catch(e){}
 }
 // ── Job Pack roof-selection pills ──────────────────────────────────
 // Big roof buttons at the top of the Job Pack. They drive the SAME
@@ -38763,10 +38833,13 @@ window.addEventListener('afterprint', function(){
     document.documentElement.classList.remove('print-jobpack');
     delete document.documentElement.dataset.autoPrintJobPack;
   }
-  // Drop the is-empty-section flag so on-screen sections still show
-  // their empty-state hints once the user closes the print dialog.
-  document.querySelectorAll('.mat-section.is-empty-section')
-    .forEach(function(s){ s.classList.remove('is-empty-section'); });
+  /* Drop the is-empty-section flag so on-screen sections show their
+     empty-state hints again once the print dialog closes — unless Preview is
+     up, which wants exactly the printed treatment. */
+  if (!document.documentElement.classList.contains('jp-preview')){
+    document.querySelectorAll('.mat-section.is-empty-section')
+      .forEach(function(s){ s.classList.remove('is-empty-section'); });
+  }
 });
 
 // Walk every cut-list / consumables section on beforeprint and flag
@@ -38774,9 +38847,9 @@ window.addEventListener('afterprint', function(){
 // print CSS hides).  Without this the printed page shows an
 // orange-bullet "Roof sheets" header followed by nothing — noise on
 // what's supposed to be a clean supplier order form.
-window.addEventListener('beforeprint', function(){
-  if (!document.documentElement.classList.contains('print-jobpack')) return;
+function _jpMarkEmptySections(on){
   document.querySelectorAll('.mat-section').forEach(function(sec){
+    if (!on){ sec.classList.remove('is-empty-section'); return; }
     // A section "has content" if it carries at least one cut-list row,
     // mat-list-row, table body row, or rendered flashing card.
     var hasRows =
@@ -38784,9 +38857,45 @@ window.addEventListener('beforeprint', function(){
       sec.querySelector('.mat-fl-card') ||
       sec.querySelector('table.cut-list tbody tr:not(.no-print)') ||
       sec.querySelector('.mat-list-foot');
-    if (!hasRows) sec.classList.add('is-empty-section');
+    sec.classList.toggle('is-empty-section', !hasRows);
   });
+}
+window.addEventListener('beforeprint', function(){
+  if (!document.documentElement.classList.contains('print-jobpack')) return;
+  _jpMarkEmptySections(true);
 });
+
+/* ── Job Pack preview ─────────────────────────────────────────────────────
+   The designer is a form and the PDF is a document; they were showing two
+   different things and only one of them is what anybody receives. Preview
+   applies the PDF's own transformation to the live pages — the same rules
+   the capture uses, so the two cannot drift — and the pencil switches the
+   form back on. It is the default view: what the Job Pack IS matters more
+   than the controls that shape it, and the controls are one tap away. */
+function _jpPreview(on){
+  on = !!on;
+  document.documentElement.classList.toggle('jp-preview', on);
+  try { localStorage.setItem('fr_jp_preview', on ? '1' : '0'); } catch(e){}
+  // Empty sections (a Dektites band with nothing in it) collapse in the PDF;
+  // in the form they keep their "click + Add…" hint.
+  try { _jpMarkEmptySections(on); } catch(e){}
+  try { _fitDocZoom(); } catch(e){}
+}
+function _jpTogglePreview(){
+  _jpPreview(!document.documentElement.classList.contains('jp-preview'));
+}
+// Re-flag on every re-render: adding the first row to a section has to bring
+// that section back, and deleting the last one has to take it away again.
+function _jpPreviewRefresh(){
+  if (document.documentElement.classList.contains('jp-preview')){
+    try { _jpMarkEmptySections(true); } catch(e){}
+  }
+}
+function _jpPreviewPref(){
+  var v = null;
+  try { v = localStorage.getItem('fr_jp_preview'); } catch(e){}
+  return v === null ? true : v === '1';       // preview unless told otherwise
+}
 
 // Lazy-load html2canvas + jsPDF from a CDN. Cached on window after the
 // first call so subsequent uploads don't re-fetch.
