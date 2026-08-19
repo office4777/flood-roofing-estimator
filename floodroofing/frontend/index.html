@@ -25078,9 +25078,12 @@ function _applyTabletMode(){
   var wasSite = !!window.__siteModeOn;
   window.__siteModeOn = !!site;
   document.documentElement.classList.toggle('site-mode', !!site);
-  // The roof-lines menu is re-homed by mode, so close it and re-park it
-  // rather than leave it open in a container that is about to disappear.
-  try { closeRoofLinesMenu(); _rlMount(); } catch(e){}
+  /* The roof-lines menu is re-homed by mode, so on a genuine switch close it
+     and re-park it rather than leave it open in a container that is about to
+     disappear. ONLY on a switch: this function also runs on every window
+     resize, and a phone fires those constantly — which had the sheet flash
+     open and vanish the moment it was tapped. */
+  if (!!site !== wasSite){ try { closeRoofLinesMenu(); _rlMount(); } catch(e){} }
   /* Belt to the CSS brace: pin the viewport scale while the onsite shell is
      up, so a stray two-finger gesture can't page-zoom and knock the whole
      app out of register. Office mode and desktop stay pinch-zoomable. */
