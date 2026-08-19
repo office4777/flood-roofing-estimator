@@ -14761,7 +14761,7 @@ function _qdQuoteDomainCheck(){
 // Jobs, the price book and every setting belong to the BUSINESS, so this is
 // the screen that decides who can see and work on them. Only an owner can
 // change who's in it; everyone else sees the same list, read-only.
-var TEAM = { company: null, me: {}, members: [], invites: [], loading: false, err: '' };
+var TEAM = { company: null, me: {}, members: [], invites: [], domains: [], domainsEnabled: false, loading: false, err: '' };
 async function loadTeam(){
   var wrap = document.getElementById('teamWrap'); if (!wrap) return;
   TEAM.loading = true; TEAM.err = ''; renderTeam();
@@ -14771,8 +14771,17 @@ async function loadTeam(){
     TEAM.me = d.me || {};
     TEAM.members = d.members || [];
     TEAM.invites = d.invites || [];
+    try {
+      var dom = await api('GET', '/team/domains');
+      TEAM.domains = dom.domains || [];
+      TEAM.domainsEnabled = !!dom.enabled;
+    } catch(e){ TEAM.domains = []; TEAM.domainsEnabled = false; }
     // Keep the cached brief in step — the quote link is built from the slug.
-    if (TEAM.company) _setCompanyBrief({ id: TEAM.company.id, name: TEAM.company.name, slug: TEAM.company.slug, role: (TEAM.me || {}).role || '' });
+    if (TEAM.company) _setCompanyBrief({
+      id: TEAM.company.id, name: TEAM.company.name, slug: TEAM.company.slug,
+      role: (TEAM.me || {}).role || '',
+      domain: ((TEAM.domains || []).filter(function(x){ return x.status === 'verified'; })[0] || {}).domain || '',
+    });
   } catch(e){ TEAM.err = (e && e.message) || 'Could not load your team.'; }
   TEAM.loading = false; renderTeam();
 }
@@ -14800,6 +14809,7 @@ function renderTeam(){
     '<div id="teamSlugMsg" style="font-size:10.5px;margin-top:5px;min-height:14px"></div>'+
     (slug ? '<div style="font-size:11px;color:var(--text2);margin-top:2px">Quote links currently read <strong>https://'+esc(slug)+'.'+ROOFMAP_ROOT+'/?q=…</strong></div>' : '')+
   '</div>';
+  h += _teamDomainsHtml(owner);
   // Members.
   h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
     '<strong style="font-size:13px">People in '+esc((TEAM.company && TEAM.company.name) || 'your business')+'</strong>'+
@@ -14848,6 +14858,80 @@ function renderTeam(){
   }
   wrap.innerHTML = h;
   _teamSlugCheck();
+}
+// Your own domain — registered with Vercel for you, so all the business has to
+// do is add one DNS record at its registrar.
+function _teamDomainsHtml(owner){
+  if (!TEAM.domainsEnabled && !(TEAM.domains || []).length) return '';
+  var manual = '';
+  try { manual = _quoteDomainPref(); } catch(e){}
+  var rows = (TEAM.domains || []).map(function(d){
+    var ok = d.status === 'verified';
+    return '<div style="border:1px solid '+(ok?'#bbf7d0':'var(--border)')+';border-radius:9px;padding:11px 13px;margin-bottom:8px;background:'+(ok?'#f0fdf4':'#fff')+'">'+
+      '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">'+
+        '<strong style="font-size:13px;font-family:monospace">'+esc(d.domain)+'</strong>'+
+        '<span style="font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:20px;background:'+(ok?'#dcfce7':'#fef3c7')+';color:'+(ok?'#15803d':'#92400e')+'">'+(ok?'✓ Connected':'Waiting for DNS')+'</span>'+
+        (owner ? '<span style="margin-left:auto;display:flex;gap:6px">'+
+          (ok?'':'<button onclick="checkTeamDomain(\''+d.id+'\')" class="tool-btn" style="font-size:11px">↻ Check now</button>')+
+          '<button onclick="removeTeamDomain(\''+d.id+'\',\''+esc(d.domain)+'\')" class="tool-btn" style="font-size:11px;color:#b91c1c">Remove</button>'+
+        '</span>' : '')+
+      '</div>'+
+      (ok
+        ? '<div style="font-size:11px;color:var(--text2);margin-top:5px">Quote links go out as <strong>https://'+esc(d.domain)+'/?q=…</strong></div>'
+        : '<div style="margin-top:8px">'+
+            '<div style="font-size:11.5px;color:var(--text2);margin-bottom:5px">Add this one record where your domain is managed, then tap <em>Check now</em>:</div>'+
+            '<table class="price-tbl" style="width:100%;table-layout:fixed"><thead><tr><th style="width:20%">Type</th><th style="width:28%">Name</th><th style="width:52%">Value</th></tr></thead>'+
+            '<tbody><tr><td style="font-family:monospace">'+esc(d.dns.type)+'</td><td style="font-family:monospace">'+esc(d.dns.name)+'</td><td style="font-family:monospace;word-break:break-all">'+esc(d.dns.value)+'</td></tr>'+
+            ((d.verification||[]).filter(function(v){ return v.type==='TXT'; }).map(function(v){
+              return '<tr><td style="font-family:monospace">TXT</td><td style="font-family:monospace;word-break:break-all">'+esc(v.domain||'')+'</td><td style="font-family:monospace;word-break:break-all">'+esc(v.value||'')+'</td></tr>';
+            }).join(''))+
+            '</tbody></table>'+
+            (d.error ? '<div style="font-size:11px;color:#b45309;margin-top:5px">'+esc(d.error)+'</div>' : '')+
+          '</div>')+
+    '</div>';
+  }).join('');
+  return '<div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px">'+
+    '<div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:3px">Your own domain <span style="font-weight:400;color:var(--text2);font-size:11px">(optional)</span></div>'+
+    '<div style="font-size:11.5px;color:var(--text2);margin-bottom:9px;line-height:1.5">Send quotes on a domain you own, like <em>quote.yourcompany.co.nz</em>. We connect it for you — you just add one DNS record.</div>'+
+    rows +
+    (manual ? '<div style="font-size:11px;color:#b45309;margin:2px 0 8px">Note: Quote defaults has a quote-link domain set to <strong>'+esc(manual)+'</strong>, which overrides everything here. Clear it to use a domain connected below.</div>' : '')+
+    (owner && TEAM.domainsEnabled
+      ? '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px">'+
+          '<input id="teamDomainInput" type="text" placeholder="quote.yourcompany.co.nz" style="flex:1 1 240px;min-width:0;margin:0" onkeydown="if(event.key===\'Enter\')addTeamDomain()">'+
+          '<button type="button" onclick="addTeamDomain()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px">Connect domain</button>'+
+        '</div>'+
+        '<div id="teamDomainMsg" style="font-size:11.5px;margin-top:7px"></div>'
+      : (TEAM.domainsEnabled ? '' : '<div style="font-size:11.5px;color:var(--text2)">Connecting your own domain isn\'t switched on yet — your RoofMap address above works today.</div>'))+
+  '</div>';
+}
+function _teamDomainMsg(t, ok){
+  var el = document.getElementById('teamDomainMsg'); if (!el) return;
+  el.textContent = t || '';
+  el.style.color = ok === true ? '#15803d' : ok === false ? '#b91c1c' : 'var(--text2)';
+}
+async function addTeamDomain(){
+  var el = document.getElementById('teamDomainInput'); if (!el || !el.value.trim()) return;
+  _teamDomainMsg('Connecting…');
+  try {
+    await api('POST', '/team/domains', { domain: el.value.trim() });
+    el.value = '';
+    await loadTeam();
+    _teamDomainMsg('Added — now add the DNS record shown above.', true);
+  } catch(e){ _teamDomainMsg((e && e.message) || 'Could not connect that domain.', false); }
+}
+async function checkTeamDomain(id){
+  _teamDomainMsg('Checking DNS…');
+  try {
+    var d = await api('POST', '/team/domains/' + id + '/verify');
+    await loadTeam();
+    if (d.domain && d.domain.status === 'verified') _teamDomainMsg('✓ Connected — quote links now use it.', true);
+    else _teamDomainMsg('Not visible yet. DNS can take a few minutes — up to 24 hours on some registrars.', false);
+  } catch(e){ _teamDomainMsg((e && e.message) || 'Could not check that domain.', false); }
+}
+async function removeTeamDomain(id, host){
+  if (!confirm('Disconnect ' + host + '?\n\nQuote links already sent on it will stop working.')) return;
+  try { await api('DELETE', '/team/domains/' + id); await loadTeam(); _teamDomainMsg('Disconnected.', true); }
+  catch(e){ _teamDomainMsg((e && e.message) || 'Could not disconnect that domain.', false); }
 }
 var _teamSlugT;
 function _teamSlugCheck(){
@@ -14927,7 +15011,12 @@ function _companyIsOwner(){ return _companyBrief().role === 'owner'; }
 // defaults; a company that hasn't still sends links carrying its own name.
 var ROOFMAP_ROOT = 'roofmap.co.nz';
 function _companyQuoteBase(){
-  var slug = String(_companyBrief().slug || '').trim().toLowerCase();
+  var c = _companyBrief();
+  // A domain the business connected and Vercel verified beats the RoofMap
+  // address — they went to the trouble precisely so customers see their name.
+  var own = String(c.domain || '').trim().toLowerCase();
+  if (own) return 'https://' + own;
+  var slug = String(c.slug || '').trim().toLowerCase();
   return slug ? ('https://' + slug + '.' + ROOFMAP_ROOT) : '';
 }
 function _quoteDomainPref(){

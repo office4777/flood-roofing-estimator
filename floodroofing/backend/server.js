@@ -94,6 +94,9 @@ function isAllowedOrigin(origin) {
     // The office app and the customer-facing quote are served from these,
     // then call this backend cross-origin — apex and any subdomain.
     if (APP_DOMAINS.some(function(d){ return host === d || host.endsWith('.' + d); })) return true;
+    // A subscriber's own verified domain — they may run the office app there
+    // too, not just serve their customers' quotes from it.
+    if (typeof _isVerifiedCompanyDomain === 'function' && _isVerifiedCompanyDomain(host)) return true;
     // The Finance Hub is hosted on GitHub Pages and calls this backend
     // cross-origin only to pull Fergus job photos (list + download).
     if (host === 'office4777.github.io') return true;
@@ -553,6 +556,13 @@ async function _companyBrief(cid, userId){
     const { data } = await supabase.from('companies').select('id, name, slug').eq('id', cid).maybeSingle();
     const brief = data || { id: cid };
     brief.role = await _roleOf(userId);
+    // The business's own verified domain, if it has one — quote links prefer it
+    // over the roofmap.co.nz address.
+    try {
+      const { data: doms } = await supabase.from('company_domains').select('domain')
+        .eq('company_id', cid).eq('status', 'verified').limit(1);
+      brief.domain = (doms && doms[0] && doms[0].domain) || '';
+    } catch (e) { brief.domain = ''; }
     return brief;
   } catch (e) { return { id: cid, role: '' }; }
 }
@@ -734,6 +744,207 @@ app.post('/auth/accept-invite', rateLimit(10, 900000), async (req, res) => {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     const sub = await _companySubscription(inv.company_id, userId);
     res.json({ token: authToken, user: profile || { id: userId, email }, subscription: sub, company: await _companyBrief(inv.company_id, userId) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// CUSTOM DOMAINS — a subscriber points its own domain at RoofMap
+// ══════════════════════════════════════════════════════════════════
+// Registering the domain with Vercel is something only we can do (it needs our
+// project token), so the subscriber types the domain, we register it, and they
+// just add one DNS record at their registrar. Without this the owner has to ask
+// us to do it by hand, which is not self-onboarding.
+// Verified subscriber domains, held in memory so the CORS check — which is
+// synchronous — can consult them without a database round-trip per request.
+// A domain only lands here after an owner added it AND Vercel confirmed they
+// control it, so it is a legitimate origin for their own office app, not just
+// for the customer quote page.
+const _verifiedDomains = { at: 0, set: new Set(), loading: false };
+// Reload NOW and wait for it. Called after a domain is added, verified or
+// removed so the new state is in place before the response goes back — a lazy
+// refresh would have blocked the very first request from a domain that had
+// just verified, which is exactly when someone is watching.
+async function _reloadVerifiedDomains(){
+  try {
+    const { data, error } = await supabase.from('company_domains').select('domain').eq('status', 'verified');
+    if (error) return;
+    _verifiedDomains.set = new Set((data || []).map(function (d) { return String(d.domain || '').toLowerCase(); }));
+    _verifiedDomains.at = Date.now();
+  } catch (e) { console.warn('[domains] verified reload failed:', e.message); }
+}
+function _refreshVerifiedDomains(){
+  if (_verifiedDomains.loading) return;
+  if (Date.now() - _verifiedDomains.at < 5 * 60 * 1000) return;
+  _verifiedDomains.loading = true;
+  _reloadVerifiedDomains().then(function () { _verifiedDomains.loading = false; });
+}
+function _isVerifiedCompanyDomain(host){
+  _refreshVerifiedDomains();   // fire and forget; this call reads what we have
+  if (_verifiedDomains.set.has(host)) return true;
+  // A verified apex also covers the www of it, which is how people type them.
+  if (host.indexOf('www.') === 0 && _verifiedDomains.set.has(host.slice(4))) return true;
+  return false;
+}
+
+const VERCEL_TOKEN = process.env.VERCEL_TOKEN || '';
+const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID || 'flood-roofing-estimator';
+const VERCEL_TEAM_ID = process.env.VERCEL_TEAM_ID || '';
+// The CNAME target Vercel wants for a subdomain. Kept as an env var rather than
+// hardcoded because Vercel has changed it before and a redeploy shouldn't be
+// needed to correct what subscribers are told.
+const VERCEL_CNAME_TARGET = process.env.VERCEL_CNAME_TARGET || 'cname.vercel-dns.com';
+const VERCEL_APEX_IP = process.env.VERCEL_APEX_IP || '76.76.21.21';
+const VERCEL_API = process.env.VERCEL_API || 'https://api.vercel.com';
+const DOMAINS_ENABLED = !!VERCEL_TOKEN;
+
+async function _vercel(method, path, body){
+  const sep = path.indexOf('?') >= 0 ? '&' : '?';
+  const url = VERCEL_API + path + (VERCEL_TEAM_ID ? (sep + 'teamId=' + encodeURIComponent(VERCEL_TEAM_ID)) : '');
+  const r = await fetch(url, {
+    method,
+    headers: { Authorization: 'Bearer ' + VERCEL_TOKEN, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data = null;
+  try { data = await r.json(); } catch (e) { data = null; }
+  return { ok: r.ok, status: r.status, data: data };
+}
+function _vercelErr(r){
+  return (r && r.data && r.data.error && r.data.error.message) || (r && r.data && r.data.message) || ('Vercel returned ' + (r && r.status));
+}
+// Normalised to a bare hostname. An apex (acme.co.nz) and a subdomain
+// (quote.acme.co.nz) need different DNS records, so which one it is matters.
+function _normHost(v){
+  let t = String(v == null ? '' : v).trim().toLowerCase();
+  if (!t) return '';
+  if (t.indexOf('://') >= 0) { try { t = new URL(t).hostname; } catch (e) { return ''; } }
+  t = t.replace(/\/.*$/, '').replace(/:\d+$/, '');
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(t)) return '';
+  if (t.length > 253) return '';
+  // Our own domains are not up for grabs.
+  if (APP_DOMAINS.some(function (d) { return t === d || t.endsWith('.' + d); })) return '';
+  return t;
+}
+// Is this the domain itself, or a subdomain of it? It decides which DNS record
+// the subscriber is told to add, and "count the dots" gets New Zealand wrong:
+// acmeroofing.co.nz is an apex with three labels, not a subdomain. These are
+// the second-level suffixes a NZ/AU/UK roofing company actually registers under.
+const MULTI_PART_TLDS = [
+  'co.nz','net.nz','org.nz','govt.nz','ac.nz','school.nz','geek.nz','kiwi.nz','maori.nz','iwi.nz',
+  'com.au','net.au','org.au','id.au','co.uk','org.uk','me.uk','ltd.uk','plc.uk',
+  'co.za','com.sg','co.in','com.br','co.jp',
+];
+function _isApex(host){
+  const parts = String(host || '').split('.');
+  if (parts.length <= 2) return true;
+  if (parts.length === 3 && MULTI_PART_TLDS.indexOf(parts.slice(1).join('.')) >= 0) return true;
+  return false;
+}
+// The one record the subscriber has to add, in plain terms.
+function _dnsInstruction(host){
+  if (_isApex(host)) return { type: 'A', name: '@', value: VERCEL_APEX_IP };
+  const parts = String(host).split('.');
+  return { type: 'CNAME', name: parts[0], value: VERCEL_CNAME_TARGET };
+}
+// Ask Vercel where a domain stands. Anything unexpected is reported as "not
+// ready yet" with Vercel's own words attached, rather than throwing.
+async function _vercelDomainStatus(host){
+  const out = { verified: false, misconfigured: true, verification: [], error: '' };
+  try {
+    const v = await _vercel('POST', '/v9/projects/' + encodeURIComponent(VERCEL_PROJECT_ID) + '/domains/' + encodeURIComponent(host) + '/verify');
+    if (v.ok && v.data && v.data.verified) out.verified = true;
+    else if (v.data && v.data.verification) out.verification = v.data.verification;
+    else if (!v.ok) out.error = _vercelErr(v);
+  } catch (e) { out.error = e.message; }
+  try {
+    const c = await _vercel('GET', '/v6/domains/' + encodeURIComponent(host) + '/config');
+    if (c.ok && c.data) out.misconfigured = !!c.data.misconfigured;
+  } catch (e) { /* config is advisory — verify is what decides */ }
+  return out;
+}
+function _domainRow(d){
+  return {
+    id: d.id, domain: d.domain, status: d.status,
+    verification: d.verification || null, error: d.last_error || '',
+    dns: _dnsInstruction(d.domain),
+    created_at: d.created_at, verified_at: d.verified_at,
+  };
+}
+
+app.get('/team/domains', requireAuth, async (req, res) => {
+  if (!req.companyId) return res.json({ enabled: DOMAINS_ENABLED, domains: [] });
+  try {
+    const { data } = await supabase.from('company_domains').select('*')
+      .eq('company_id', req.companyId).order('created_at', { ascending: true });
+    res.json({ enabled: DOMAINS_ENABLED, domains: (data || []).map(_domainRow) });
+  } catch (e) { res.json({ enabled: DOMAINS_ENABLED, domains: [] }); }
+});
+
+// Claim a domain: register it with Vercel and hand back the record to add.
+app.post('/team/domains', requireAuth, requireOwner, rateLimit(20, 3600000), async (req, res) => {
+  if (!DOMAINS_ENABLED) return res.status(503).json({ error: 'Custom domains are not switched on yet.', code: 'DOMAINS_DISABLED' });
+  const host = _normHost(req.body && req.body.domain);
+  if (!host) return res.status(400).json({ error: 'Enter a domain like quote.yourcompany.co.nz.' });
+  try {
+    const { data: claimed } = await supabase.from('company_domains').select('id, company_id').ilike('domain', host);
+    if ((claimed || []).some(function (c) { return String(c.company_id) !== String(req.companyId); }))
+      return res.status(409).json({ error: 'That domain is already connected to another RoofMap account.' });
+    if ((claimed || []).length) return res.status(400).json({ error: 'You have already added that domain.' });
+    const add = await _vercel('POST', '/v10/projects/' + encodeURIComponent(VERCEL_PROJECT_ID) + '/domains', { name: host });
+    // 409 = already on the project (a retry, or left over from a removal we
+    // didn't see) — that's fine, carry on and let verification decide.
+    if (!add.ok && add.status !== 409) return res.status(400).json({ error: _vercelErr(add) });
+    const verified = !!(add.data && add.data.verified);
+    const row = {
+      company_id: req.companyId, domain: host, created_by: req.user.id,
+      status: verified ? 'verified' : 'pending',
+      verification: (add.data && add.data.verification) || null,
+      verified_at: verified ? new Date().toISOString() : null,
+      last_checked_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from('company_domains').insert(row).select('*').single();
+    if (error) return res.status(500).json({ error: error.message });
+    await _reloadVerifiedDomains();
+    res.json({ domain: _domainRow(data) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// "I've added the record" — re-check with Vercel.
+app.post('/team/domains/:id/verify', requireAuth, requireOwner, rateLimit(60, 3600000), async (req, res) => {
+  if (!DOMAINS_ENABLED) return res.status(503).json({ error: 'Custom domains are not switched on yet.' });
+  try {
+    const { data: row } = await supabase.from('company_domains').select('*')
+      .eq('id', req.params.id).eq('company_id', req.companyId).maybeSingle();
+    if (!row) return res.status(404).json({ error: 'Domain not found.' });
+    const st = await _vercelDomainStatus(row.domain);
+    const ready = st.verified && !st.misconfigured;
+    const patch = {
+      status: ready ? 'verified' : 'pending',
+      verification: st.verification && st.verification.length ? st.verification : null,
+      last_error: ready ? null : (st.error || (st.misconfigured ? 'The DNS record isn\'t visible yet. It can take a few minutes — up to 24 hours on some registrars.' : '')),
+      last_checked_at: new Date().toISOString(),
+      verified_at: ready ? (row.verified_at || new Date().toISOString()) : null,
+    };
+    const { data } = await supabase.from('company_domains').update(patch).eq('id', row.id).select('*').single();
+    await _reloadVerifiedDomains();
+    res.json({ domain: _domainRow(data || Object.assign({}, row, patch)) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/team/domains/:id', requireAuth, requireOwner, async (req, res) => {
+  try {
+    const { data: row } = await supabase.from('company_domains').select('*')
+      .eq('id', req.params.id).eq('company_id', req.companyId).maybeSingle();
+    if (!row) return res.status(404).json({ error: 'Domain not found.' });
+    if (DOMAINS_ENABLED) {
+      // Best effort — if Vercel refuses, still let go of it our side rather
+      // than leaving the owner stuck with a domain they can't remove.
+      try { await _vercel('DELETE', '/v9/projects/' + encodeURIComponent(VERCEL_PROJECT_ID) + '/domains/' + encodeURIComponent(row.domain)); }
+      catch (e) { console.warn('[domains] Vercel removal failed:', e.message); }
+    }
+    await supabase.from('company_domains').delete().eq('id', row.id);
+    await _reloadVerifiedDomains();
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -2744,6 +2955,22 @@ const _MIGRATION_SQL = [
   "  accepted_at timestamptz," +
   "  accepted_by uuid)",
   "create index if not exists idx_company_invites_company on public.company_invites (company_id)",
+  // A subscriber's OWN quote domain, registered with Vercel on their behalf.
+  // status: pending → (they add the DNS record) → verified. Unique on the
+  // domain so two businesses can't both claim one.
+  "create table if not exists public.company_domains (" +
+  "  id uuid primary key default gen_random_uuid()," +
+  "  company_id uuid not null references public.companies(id) on delete cascade," +
+  "  domain text not null," +
+  "  status text not null default 'pending'," +
+  "  verification jsonb," +
+  "  last_error text," +
+  "  created_by uuid," +
+  "  created_at timestamptz not null default now()," +
+  "  verified_at timestamptz," +
+  "  last_checked_at timestamptz)",
+  "create unique index if not exists idx_company_domains_domain on public.company_domains (lower(domain))",
+  "create index if not exists idx_company_domains_company on public.company_domains (company_id)",
   "create unique index if not exists idx_company_invites_token on public.company_invites (token_hash)",
   // Billing is per BUSINESS, not per login — three office staff are one
   // subscription, and an invited teammate must not need their own.
@@ -2889,5 +3116,8 @@ app.listen(PORT, () => {
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
   console.log('Stripe: disabled');
   try { _keepWarm(); } catch(e){}
+  // Load the verified subscriber domains up front — after a restart the CORS
+  // allowlist must not start empty for whoever asks first.
+  _reloadVerifiedDomains().catch(function(){});
   _ensureSchema().catch(function(){});
 });
