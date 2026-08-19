@@ -476,14 +476,13 @@ html.site-mode #navSettingsBtn,
 html.site-mode #navFeedbackBtn,
 /* Site mode IS Map Roof — the button only ever went where you already were. */
 html.site-mode #navRoofBtn{display:none!important}
-/* Offline saves belongs to the devices that go up ladders. On a desktop the
-   only local drafts are that machine's own autosaves, so the button listed
-   the computer's working copies as if they were somebody's onsite work —
-   and offered to upload them. Touch devices only, and the status pill with
-   it. Work FROM a phone reaches the office the normal way: uploaded, in
-   Recent drafts. */
-html:not(.touch-device) #navOfflineSavesBtn,
-html:not(.touch-device) #syncChip{display:none!important}
+/* Offline saves, and the pill that opens it, are Site mode's. In Office mode
+   the only local drafts are that machine's own autosaves, so the button
+   listed working copies as if they were somebody's onsite work — and offered
+   to upload them. Onsite work reaches the office the normal way: uploaded,
+   into Home → Recent drafts, flagged as a site draft. */
+html:not(.site-mode) #navOfflineSavesBtn,
+html:not(.site-mode) #syncChip{display:none!important}
 /* A count beside Offline saves, so the drawer says what is waiting without
    being opened. */
 #navOfflineSavesN{margin-left:auto;font-size:11px;font-weight:700;padding:1px 7px;
@@ -8649,12 +8648,13 @@ function _syncCount(list){
   });
   SYNC.pending = n;
 }
-/* Offline saves is for the devices that go up ladders. On the office machine
-   the only local drafts are that machine's own autosaves, so the button
-   listed the computer's working copies as if they were somebody's onsite
-   work — and offered to upload them. Touch device only. */
+/* Offline saves belongs to Site mode and nowhere else. It is the onsite way
+   to get work off the device; in Office mode the only local drafts are that
+   machine's own autosaves, so the button listed working copies as if they
+   were somebody's onsite work — and offered to upload them. Once a save is
+   uploaded the office meets it where it belongs: Home → Recent drafts. */
 function _offlineSavesForThisDevice(){
-  return document.documentElement.classList.contains('touch-device');
+  return document.documentElement.classList.contains('site-mode');
 }
 
 // Push ONE draft record straight to the backend, without loading it into
@@ -8663,19 +8663,30 @@ function _offlineSavesForThisDevice(){
    unnamed draft still has to reach the office, so it uploads under a
    timestamped title with the person and device on it, rather than being
    refused for having no client name. */
+/* What an uploaded save is called once it reaches the office.
+
+   Work done onsite is flagged "Site draft" so it stands out in Home → Recent
+   drafts as something measured on a roof rather than typed at a desk, named
+   by whatever identifies it — the job number first, since that is what the
+   office matches on — with the address kept underneath and the board's own
+   column supplying the date and time.
+
+   A draft that belongs to a job the office ALREADY has is the exception: it
+   uploads as an update to that job, so it keeps that job's own name. Marking
+   it would permanently rename a real job. */
 function _draftTitle(d){
   var c = String(d.client || '').trim(), a = String(d.addr || '').trim();
-  if (c || a) return { client: c, addr: a };
-  /* An unnamed onsite draft. It reaches the office as "Site draft" plus the
-     job number the roofer typed at Save — that is what the office looks it
-     up by — and the board's own column supplies the date and time. Without a
-     number it falls back to the timestamp so it is still identifiable. */
+  var isSavedJob = d.key && d.key !== '__new__' && String(d.key).indexOf('ferg_') !== 0;
+  if (isSavedJob) return { client: c, addr: a };
   var no = String(d.jobNo || '').trim();
-  if (no) return { client: 'Site draft — Job ' + no, addr: '' };
-  var when = new Date(d.at || Date.now()).toLocaleString('en-NZ',
-    { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
-  var who = [d.by, d.device].filter(Boolean).join(' · ');
-  return { client: 'Site draft — ' + when + (who ? ' (' + who + ')' : ''), addr: '' };
+  var who = no ? ('Job ' + no) : (c || a);
+  if (!who){
+    var when = new Date(d.at || Date.now()).toLocaleString('en-NZ',
+      { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+    var by = [d.by, d.device].filter(Boolean).join(' · ');
+    who = when + (by ? ' (' + by + ')' : '');
+  }
+  return { client: 'Site draft — ' + who, addr: a };
 }
 async function _syncPushDraft(d){
   if (!d || !d.snap) return false;
