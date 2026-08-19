@@ -25865,7 +25865,14 @@ function _applyTabletMode(){
      machine is the whole point of it. The device only picks which one you
      land in ('auto': site on phones, office on tablets and computers); the
      ☰ menu switches either way and that device remembers the choice. */
-  var narrow = Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 520;
+  /* "Is this a phone?" is answered by the DEVICE's own screen, not by the
+     layout viewport. The viewport is something this function sets a few
+     lines below, so deciding anything from innerWidth feeds back on itself.
+     innerWidth is only a fallback for the rare case screen.* is unreadable. */
+  var _screenMin = 0;
+  try { _screenMin = Math.min(screen.width || 0, screen.height || 0); } catch(e){}
+  if (!_screenMin) _screenMin = Math.min(window.innerWidth || 0, window.innerHeight || 0);
+  var narrow = _screenMin <= 520;
   var sPref = localStorage.getItem('fr_site_mode') || 'auto';
   var site = sPref === 'on' || (sPref === 'auto' && narrow);
   document.documentElement.classList.toggle('tablet-mode', !!site);
@@ -25889,9 +25896,16 @@ function _applyTabletMode(){
       /* Office mode on a screen too narrow for the desktop layout lays out at
          a desktop width and scales to fit, so it reads like the computer app
          and pinches like one — the same thing a browser's "Request desktop
-         site" does. At device-width the sidebar and content just squash. */
+         site" does. At device-width the sidebar and content just squash.
+
+         Judged on the PHYSICAL screen, never on innerWidth. innerWidth is
+         the layout viewport, which is the very thing this line sets — so
+         reading it here fed straight back: 412 wide → set width=1100 →
+         innerWidth becomes 1100 → "not narrow" → set device-width → 412
+         again, flickering between the two layouts many times a second.
+         screen.* does not move when the viewport meta does. */
       var _desk   = 'width=1100';
-      var _want = site ? _locked : (narrow ? _desk : _free);
+      var _want = site ? _locked : (_screenMin && _screenMin <= 620 ? _desk : _free);
       if (_vp.getAttribute('content') !== _want) _vp.setAttribute('content', _want);
     }
   } catch(e){}
