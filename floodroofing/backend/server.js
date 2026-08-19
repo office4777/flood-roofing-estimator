@@ -406,6 +406,34 @@ async function requireAuth(req, res, next) {
   next();
 }
 
+// user_id → display name for everyone in a company. The board has to be able
+// to say WHO made a job, and doing that with a lookup per row would be a query
+// storm; this is one query per company, cached, and a name changes about never.
+const _membersCache = new Map();   // companyId → { at, map }
+async function _companyMembers(companyId){
+  if (!companyId) return {};
+  const hit = _membersCache.get(companyId);
+  if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.map;
+  const map = {};
+  try {
+    const { data } = await supabase.from('profiles').select('id, name, email').eq('company_id', companyId);
+    (data || []).forEach(function (p) {
+      map[p.id] = (p.name || '').trim() || String(p.email || '').split('@')[0] || '';
+    });
+  } catch (e) { console.warn('[members] lookup failed:', e.message); }
+  _membersCache.set(companyId, { at: Date.now(), map });
+  return map;
+}
+// Name for one user, falling back to the caller's own identity (so a job made
+// before the company existed still reads as someone rather than blank).
+async function _nameOf(userId, req){
+  if (!userId) return '';
+  const map = await _companyMembers(req.companyId);
+  if (map[userId]) return map[userId];
+  if (userId === req.user.id) return (req.user.name || String(req.user.email || '').split('@')[0] || '');
+  return '';
+}
+
 // Company-scope filter for supabase job/settings queries. Matches rows stamped
 // with the user's company PLUS legacy rows that predate the backfill
 // (company_id null, owned by this user) so nothing disappears mid-upgrade.
@@ -575,10 +603,52 @@ app.post('/billing/checkout', requireAuth, (req, res) => res.status(503).json({ 
 app.post('/billing/portal', requireAuth, (req, res) => res.status(503).json({ error: 'Billing not configured yet' }));
 app.post('/webhook', (req, res) => res.status(503).json({ error: 'Webhooks not configured yet' }));
 
+// The list every board and job-picker reads. Jobs belong to the COMPANY, so a
+// teammate sees them all — but each row now says who made it, and who sent the
+// material order, which is the whole point of several people sharing one set of
+// jobs. Names are resolved here rather than stored on the row, so renaming a
+// person fixes every job at once.
 app.get('/jobs', requireAuth, async (req, res) => {
-  const { data, error } = await _scopeCompany(supabase.from('jobs').select('id, client_name, site_address, created_at, updated_at, status'), req).order('updated_at', { ascending: false });
+  const COLS = 'id, client_name, site_address, created_at, updated_at, status, user_id, order_sent';
+  let { data, error } = await _scopeCompany(supabase.from('jobs').select(COLS), req).order('updated_at', { ascending: false });
+  if (error && /order_sent/.test(error.message || '')) {
+    // Column not migrated on this database yet — serve the list without it
+    // rather than failing the whole board.
+    ({ data, error } = await _scopeCompany(supabase.from('jobs')
+      .select('id, client_name, site_address, created_at, updated_at, status, user_id'), req)
+      .order('updated_at', { ascending: false }));
+  }
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  const names = await _companyMembers(req.companyId);
+  const me = (req.user.name || String(req.user.email || '').split('@')[0] || '');
+  res.json((data || []).map(function (j) {
+    const os = j.order_sent && typeof j.order_sent === 'object' ? j.order_sent : null;
+    return Object.assign({}, j, {
+      created_by: names[j.user_id] || (j.user_id === req.user.id ? me : ''),
+      order_sent: os ? Object.assign({}, os, { by_name: names[os.by] || '' }) : (j.order_sent || null),
+    });
+  }));
+});
+
+// The office emails a material order. Stamped SERVER-side so the "who" is the
+// authenticated user and can't be spoofed or lost by a client that forgot to
+// send it. Also flips the cheap status column the board filters on.
+app.post('/jobs/:id/order-sent', requireAuth, async (req, res) => {
+  const b = req.body || {};
+  const stamp = {
+    at: new Date().toISOString(),
+    to: String(b.to || '').slice(0, 300),
+    supplier: String(b.supplier || '').slice(0, 200),
+    by: req.user.id,
+  };
+  let { error } = await _scopeCompany(supabase.from('jobs')
+    .update({ order_sent: stamp, status: 'ordered', updated_at: stamp.at }).eq('id', req.params.id), req);
+  if (error && /order_sent/.test(error.message || '')) {
+    ({ error } = await _scopeCompany(supabase.from('jobs')
+      .update({ status: 'ordered', updated_at: stamp.at }).eq('id', req.params.id), req));
+  }
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true, order_sent: Object.assign({}, stamp, { by_name: await _nameOf(req.user.id, req) }) });
 });
 
 app.post('/jobs', requireAuth, requireSubscription, async (req, res) => {
@@ -598,6 +668,14 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
 
 app.get('/jobs/:id', requireAuth, async (req, res) => {
   const { data, error } = await _scopeCompany(supabase.from('jobs').select('*').eq('id', req.params.id), req).single();
+  if (!error && data) {
+    // Same attribution the list carries, so opening a job shows who made it.
+    try {
+      data.created_by = await _nameOf(data.user_id, req);
+      if (data.order_sent && typeof data.order_sent === 'object')
+        data.order_sent = Object.assign({}, data.order_sent, { by_name: await _nameOf(data.order_sent.by, req) });
+    } catch (e) {}
+  }
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
@@ -704,22 +782,33 @@ app.post('/jobs/:id/revisions/:revId/restore', requireAuth, async (req, res) => 
 // Per-user settings: branding, quote defaults, JMS API keys. A user with no
 // settings row yet inherits their company's most recent one (so a teammate
 // joining an existing company starts with the company branding + price book).
-app.get('/settings', requireAuth, async (req, res) => {
-  const { data, error } = await supabase.from('user_settings').select('*').eq('user_id', req.user.id).maybeSingle();
-  if (error) return res.status(500).json({ error: error.message });
-  let row = data;
-  if (!row && req.companyId) {
-    const { data: fam } = await supabase.from('user_settings').select('*').eq('company_id', req.companyId).order('updated_at', { ascending: false }).limit(1);
-    row = (fam && fam[0]) || null;
+// The company's ONE settings row. Price book, branding, labour rates and the
+// job-number counter belong to the BUSINESS, not to whoever happens to be
+// logged in: three office staff each editing a private copy is exactly how
+// price books drift apart and how two people hand out job 06121 on the same
+// morning. Canonical = the company's most recently updated row, so existing
+// per-user rows converge on one the first time anybody saves. Nothing is
+// deleted — an old row just stops being the one that's read.
+async function _companySettingsRow(req){
+  if (req.companyId){
+    const { data } = await supabase.from('user_settings').select('*')
+      .eq('company_id', req.companyId).order('updated_at', { ascending: false }).limit(1);
+    if (data && data[0]) return data[0];
   }
-  res.json(row || { user_id: req.user.id, branding: {}, quote_defaults: {}, jms_keys: {} });
+  const { data } = await supabase.from('user_settings').select('*').eq('user_id', req.user.id).maybeSingle();
+  return data || null;
+}
+
+app.get('/settings', requireAuth, async (req, res) => {
+  try {
+    const row = await _companySettingsRow(req);
+    res.json(row || { user_id: req.user.id, branding: {}, quote_defaults: {}, jms_keys: {} });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/settings', requireAuth, async (req, res) => {
   const { branding, quote_defaults, jms_keys, price_book, labour_pricing } = req.body;
-  const row = {
-    user_id: req.user.id,
-    company_id: req.companyId || null,
+  const payload = {
     branding: branding || {},
     quote_defaults: quote_defaults || {},
     jms_keys: jms_keys || {},
@@ -727,14 +816,74 @@ app.put('/settings', requireAuth, async (req, res) => {
     labour_pricing: labour_pricing || {},
     updated_at: new Date().toISOString(),
   };
-  let { data, error } = await supabase.from('user_settings').upsert(row, { onConflict: 'user_id' }).select().single();
-  if (error && /company_id/.test(error.message || '')) {
-    // company_id column not migrated yet — save without it rather than failing
-    delete row.company_id;
-    ({ data, error } = await supabase.from('user_settings').upsert(row, { onConflict: 'user_id' }).select().single());
+  try {
+    const existing = await _companySettingsRow(req);
+    let data, error;
+    if (existing && existing.user_id){
+      // Update the company's row IN PLACE, keyed on the row's own owner —
+      // never on the caller — so a teammate saving doesn't try to take the row
+      // over and collide with their own legacy row's unique user_id.
+      const patch = Object.assign({}, payload, { updated_by: req.user.id });
+      if (req.companyId) patch.company_id = req.companyId;
+      ({ data, error } = await supabase.from('user_settings').update(patch).eq('user_id', existing.user_id).select().single());
+      if (error && /updated_by/.test(error.message || '')){
+        delete patch.updated_by;
+        ({ data, error } = await supabase.from('user_settings').update(patch).eq('user_id', existing.user_id).select().single());
+      }
+    } else {
+      const row = Object.assign({ user_id: req.user.id, company_id: req.companyId || null }, payload);
+      ({ data, error } = await supabase.from('user_settings').upsert(row, { onConflict: 'user_id' }).select().single());
+      if (error && /company_id/.test(error.message || '')){
+        delete row.company_id;
+        ({ data, error } = await supabase.from('user_settings').upsert(row, { onConflict: 'user_id' }).select().single());
+      }
+    }
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Hand out the next job number — ATOMICALLY. A shared counter isn't enough on
+// its own: two people opening "New job" at the same moment both read 06121 and
+// both use it. This bumps and returns in ONE locked statement, so the number
+// each caller gets is theirs alone. Falls back to read-modify-write when
+// there's no direct DB connection (still shared, just not race-proof).
+app.post('/settings/next-job-no', requireAuth, async (req, res) => {
+  const pool = _pgPool();
+  if (pool && req.companyId){
+    try {
+      const sql =
+        "WITH cur AS (" +
+        "  SELECT user_id, coalesce(quote_defaults->>'next_job_no','06121') AS n" +
+        "    FROM public.user_settings WHERE company_id = $1" +
+        "   ORDER BY updated_at DESC NULLS LAST LIMIT 1 FOR UPDATE)" +
+        " UPDATE public.user_settings s" +
+        "    SET quote_defaults = jsonb_set(coalesce(s.quote_defaults,'{}'::jsonb), '{next_job_no}'," +
+        "        to_jsonb(CASE WHEN cur.n ~ '^[0-9]+$'" +
+        "                      THEN lpad(((cur.n)::bigint + 1)::text, length(cur.n), '0')" +
+        "                      ELSE cur.n END))," +
+        "        updated_at = now()" +
+        "   FROM cur WHERE s.user_id = cur.user_id" +
+        " RETURNING cur.n AS allocated, s.quote_defaults->>'next_job_no' AS next";
+      const r = await pool.query(sql, [req.companyId]);
+      if (r.rowCount) return res.json({ jobNo: r.rows[0].allocated, next: r.rows[0].next, atomic: true });
+    } catch (e) { console.warn('[jobno] atomic allocation failed, falling back:', e.message); }
   }
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  try {
+    const row = await _companySettingsRow(req);
+    const qd = (row && row.quote_defaults) || {};
+    const cur = String(qd.next_job_no || '06121').trim() || '06121';
+    let next = cur;
+    if (/^[0-9]+$/.test(cur)){
+      next = String(parseInt(cur, 10) + 1);
+      while (next.length < cur.length) next = '0' + next;
+    }
+    if (row && row.user_id && next !== cur){
+      const patch = { quote_defaults: Object.assign({}, qd, { next_job_no: next }), updated_at: new Date().toISOString() };
+      await supabase.from('user_settings').update(patch).eq('user_id', row.user_id);
+    }
+    res.json({ jobNo: cur, next: next, atomic: false });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ══════════════════════════════════════════════════════════════════
@@ -2302,6 +2451,11 @@ const _MIGRATION_SQL = [
   "  primary key (company_id, user_id))",
   "create unique index if not exists idx_company_users_user on public.company_users (user_id)",
   "alter table public.jobs add column if not exists company_id uuid",
+  // Who sent the material order, and when — stamped server-side so the board
+  // can say "Ethan ordered this" rather than just "ordered".
+  "alter table public.jobs add column if not exists order_sent jsonb",
+  // Last person to save the company's shared settings row.
+  "alter table public.user_settings add column if not exists updated_by uuid",
   "alter table public.user_settings add column if not exists company_id uuid",
   "alter table public.profiles add column if not exists company_id uuid",
   "create index if not exists idx_jobs_company on public.jobs (company_id)",

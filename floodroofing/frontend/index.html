@@ -1682,6 +1682,7 @@ select{
 .global-job-bar .gjb-label{ display:flex; flex-direction:column; min-width:0; flex:1; }
 .global-job-bar .gjb-eyebrow{ font-size:9.5px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.06em; }
 .global-job-bar .gjb-name{ font-size:13px; font-weight:700; color:#0a1628; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.global-job-bar .gjb-by{ font-size:10.5px; font-weight:600; color:var(--text2); white-space:nowrap; }
 .global-job-bar .gjb-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .global-job-bar .gjb-btn{
   display:inline-flex; align-items:center; gap:5px;
@@ -3370,6 +3371,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div class="gjb-label">
       <span class="gjb-eyebrow">Current job</span>
       <span class="gjb-name" id="globalJobBarName">— new (not yet saved)</span>
+      <!-- Who made this job. Everyone in the business shares one job list, so
+           the name is what tells you whose work you've just opened. -->
+      <span class="gjb-by" id="globalJobBarBy" style="display:none"></span>
     </div>
     <div class="gjb-actions">
       <button type="button" id="globalJobBarSaveBtn" onclick="saveCurrentJob()" class="gjb-btn gjb-btn-primary" title="Save the job draft">
@@ -8282,6 +8286,12 @@ function updateGlobalJobBar(j){
     label = '— new (not yet saved)';
   }
   name.textContent = label;
+  var by = document.getElementById('globalJobBarBy');
+  if (by){
+    var who = (j && j.created_by) || '';
+    by.textContent = who ? ('made by ' + who) : '';
+    by.style.display = who ? '' : 'none';
+  }
   // Sidebar "selected job" indicator (top of the left nav). A brand-new job
   // that isn't saved yet still counts as "selected" once a client/address has
   // been entered — show that name rather than a misleading "No job selected".
@@ -9411,8 +9421,10 @@ function _saveSiteDraft(set){
       _siteToast('A site draft needs a job number');
       return;
     }
+    // Wait for the allocation — the draft is armed under this number, so it has
+    // to be the one we actually got, not the one we hoped for.
+    try { no = String((await _consumeJobNo(no)) || no).trim(); } catch(e){}
     try { var jn = document.getElementById('jobNo'); if (jn) jn.value = no; } catch(e){}
-    try { _consumeJobNo(no); } catch(e){}
     var wrote = await _writeLocalDraftNow();
     if (!wrote){
       set('Nothing to save yet — draw an outline or take a photo first.', '#b91c1c');
@@ -9722,18 +9734,51 @@ function _nextJobNo(){
   var qd = (S.settings && S.settings.quote_defaults) || {};
   return String(qd.next_job_no || '06121').trim() || '06121';
 }
-function _consumeJobNo(no){
+// The counter now lives on the COMPANY's settings row, and the bump happens on
+// the server in one locked statement. That matters with more than one person in
+// the office: bumping locally meant two people opening "New job" at the same
+// moment both took 06121 and both kept it. If the server hands back a different
+// number (someone beat us to it), the job takes the one we were actually given.
+async function _consumeJobNo(no){
+  var cur = '';
   try {
-    if (!S.settings) return;
+    if (!S.settings) return no;
     var qd = S.settings.quote_defaults = S.settings.quote_defaults || {};
-    var cur = String(qd.next_job_no || '06121');
-    if (String(no).trim() === cur && /^\d+$/.test(cur)) {
-      var n = (parseInt(cur, 10) + 1).toString();
-      while (n.length < cur.length) n = '0' + n;
-      qd.next_job_no = n;
-      var f = document.getElementById('qdNextJobNo'); if (f) f.value = n;
-      saveSettings(true);
+    cur = String(qd.next_job_no || '06121');
+    if (String(no).trim() !== cur || !/^\d+$/.test(cur)) return no;   // typed their own — leave the counter alone
+  } catch(e){ return no; }
+  try {
+    var r = await api('POST', '/settings/next-job-no', {});
+    if (r && r.jobNo){
+      var qd2 = S.settings.quote_defaults = S.settings.quote_defaults || {};
+      qd2.next_job_no = String(r.next || qd2.next_job_no);
+      var f2 = document.getElementById('qdNextJobNo'); if (f2) f2.value = qd2.next_job_no;
+      var got = String(r.jobNo);
+      if (got !== String(no).trim()) _adoptJobNo(String(no).trim(), got);
+      return got;
     }
+  } catch(e){ /* offline or an older backend — fall through to the local bump */ }
+  try {
+    var qd3 = S.settings.quote_defaults;
+    var n = (parseInt(cur, 10) + 1).toString();
+    while (n.length < cur.length) n = '0' + n;
+    qd3.next_job_no = n;
+    var f = document.getElementById('qdNextJobNo'); if (f) f.value = n;
+    saveSettings(true);
+  } catch(e){}
+  return no;
+}
+// Someone else took the number we were about to use — move this job onto the
+// one the server actually allocated, wherever the old number has already been
+// written, and say so rather than silently renumbering.
+function _adoptJobNo(oldNo, newNo){
+  try {
+    var f = document.getElementById('jobNo');
+    if (f && f.value.trim() === oldNo) f.value = newNo;
+    if (S.quote && String(S.quote.ref || '').trim() === oldNo) S.quote.ref = newNo;
+    if (String(S.linkedJobNo || '').trim() === oldNo) S.linkedJobNo = newNo;
+    if (typeof _siteToast === 'function') _siteToast('Job number ' + oldNo + ' was taken — this job is ' + newNo);
+    else console.warn('job number ' + oldNo + ' was taken; using ' + newNo);
   } catch(e){}
 }
 async function startNewJob(){
@@ -9903,7 +9948,8 @@ async function fetchRecentDrafts(){
   });
   (jobs || []).forEach(function(j){
     if (!j || seen[String(j.id)]) return;   // unsaved edits for this job already shown
-    rows.push({ t: j.updated_at, client: j.client_name, addr: j.site_address, unsaved: false, kind: 'saved', resume: 'job', id: j.id });
+    rows.push({ t: j.updated_at, client: j.client_name, addr: j.site_address, unsaved: false, kind: 'saved', resume: 'job', id: j.id,
+                by: j.created_by || '' });
   });
   rows.sort(function(a, b){ return new Date(b.t || 0) - new Date(a.t || 0); });
   window._recentDraftsRows = rows;
@@ -9911,7 +9957,8 @@ async function fetchRecentDrafts(){
   // now exposes the order_sent stamp written when an order email goes out.
   var orders = (jobs || []).filter(function(j){ return j && (j.status === 'ordered' || (j.order_sent && j.order_sent.at)); })
     .map(function(j){ return { id: j.id, client: j.client_name, addr: j.site_address,
-      at: (j.order_sent && j.order_sent.at) || j.updated_at, to: (j.order_sent && j.order_sent.to) || '' }; });
+      at: (j.order_sent && j.order_sent.at) || j.updated_at, to: (j.order_sent && j.order_sent.to) || '',
+      by: (j.order_sent && j.order_sent.by_name) || '', madeBy: j.created_by || '' }; });
   orders.sort(function(a, b){ return new Date(b.at || 0) - new Date(a.at || 0); });
   window._ordersSentRows = orders;
   window._selectJobsCache = jobs || [];   // keep the home job-search instant
@@ -9971,7 +10018,14 @@ function _renderHomeBoard(){
       '<span class="hb-row-badge" style="background:' + bg + ';color:' + fg + '">' + badge + '</span>' +
       '<div style="flex:1;min-width:0"><div class="hb-row-client">' + esc2(r.client || '(untitled)') + '</div>' +
       '<div class="hb-row-sub">' + esc2(r.addr || '—') +
-        ((r.by || r.device) ? '<span style="opacity:.75"> · ' + esc2([r.by, r.device].filter(Boolean).join(' on ')) + '</span>' : '') +
+        // An unsaved draft says who was working and on what device; a saved job
+        // just says who made it. With several people on one job list, "who" is
+        // the difference between picking a job up and having to go and ask.
+        ((r.by || r.device)
+          ? '<span style="opacity:.75"> · ' + esc2(r.unsaved
+              ? [r.by, r.device].filter(Boolean).join(' on ')
+              : 'made by ' + r.by) + '</span>'
+          : '') +
       '</div></div>' +
       '<div class="hb-row-when">' + esc2(_hbWhen(r.t)) + '</div>' +
       '<span style="font-size:12px;color:#0099cc;font-weight:600;white-space:nowrap">Resume →</span>' +
@@ -9982,7 +10036,8 @@ function _renderHomeBoard(){
     return '<div class="hb-row" onclick="openJob(\'' + o.id + '\')">' +
       '<span class="hb-row-badge" style="background:#e0f2fe;color:#0369a1">Ordered</span>' +
       '<div style="flex:1;min-width:0"><div class="hb-row-client">' + esc2(o.client || '(untitled)') + '</div>' +
-      '<div class="hb-row-sub">' + esc2(o.addr || '—') + (o.to ? ' · order to ' + esc2(o.to) : '') + '</div></div>' +
+      '<div class="hb-row-sub">' + esc2(o.addr || '—') + (o.to ? ' · order to ' + esc2(o.to) : '') +
+        (o.by ? '<span style="opacity:.75"> · sent by ' + esc2(o.by) + '</span>' : '') + '</div></div>' +
       '<div class="hb-row-when">' + esc2(_hbWhen(o.at)) + '</div>' +
     '</div>';
   });
@@ -40620,9 +40675,12 @@ async function _orderEmailSendNow(){
     // status column flips to 'ordered' so the board never has to decompress
     // every job's multi-MB draw_state just to find ordered ones.
     try {
-      S.orderSent = { at: new Date().toISOString(), to: o.supplier.email, supplier: (o.supplier.name || '') };
+      S.orderSent = { at: new Date().toISOString(), to: o.supplier.email, supplier: (o.supplier.name || ''), by: _meLabel() };
       Promise.resolve(saveCurrentJob()).then(function(){
-        if (S.currentJobId) return api('PUT', '/jobs/' + S.currentJobId, { status: 'ordered' });
+        // Stamped SERVER-side so the board can say who sent it — the office
+        // shares one job list, and "ordered" without a name is half the story.
+        if (S.currentJobId) return api('POST', '/jobs/' + S.currentJobId + '/order-sent',
+          { to: o.supplier.email, supplier: (o.supplier.name || '') });
       }).then(function(){ try { fetchRecentDrafts(); } catch(e){} }).catch(function(e){ console.warn('order stamp save failed:', e && e.message); });
     } catch(e){}
     setTimeout(function(){ _closeOrderEmail(); _orderEmailStatus(''); }, 1600);
