@@ -182,6 +182,16 @@
   .tier li.off::before{ content:'—'; color:var(--line) }
   .tier .btn{ width:100% }
   .tier-note{ text-align:center; font-size:14.5px; color:var(--muted); margin-top:26px }
+  .tier-note + .tier-note{ margin-top:8px; font-size:13.5px }
+  /* The price anchor. Sits in the section head and does one job: put the
+     cost of the alternative next to the cost of this, so the number below
+     is read as a saving rather than as a price. */
+  .sec-head p.anchor{
+    margin-top:18px; padding:16px 20px; font-size:16px; line-height:1.55;
+    background:var(--paper); border:1px solid var(--line); border-left:4px solid var(--accent);
+    border-radius:0 12px 12px 0; color:var(--ink-2);
+  }
+  .sec-head p.anchor strong{ color:var(--ink); font-weight:800; white-space:nowrap }
   @media (max-width:900px){ .tiers{ grid-template-columns:1fr; gap:26px } .tier .who{ min-height:0 } }
 
   /* ── signup ── */
@@ -375,18 +385,25 @@
       <h2>Priced per business, not per seat.</h2>
       <p>Your estimator, your office manager and your foreman all work off the same jobs, the same
          price book and the same job numbers. Every plan starts with 14 days free.</p>
+      <p class="anchor">Measuring is included on every plan, with no cap. The overseas products charge
+         roughly <strong>$40&ndash;$65 a roof</strong> to measure it for you &mdash; twenty roofs a month
+         and you are past <strong>$1,000</strong> before you have priced anything.</p>
     </div>
 
     <!-- ─────────────────────────────────────────────────────────────
-         PRICES ARE A STARTING PROPOSAL, NOT A DECISION. Change the three
-         numbers below and nothing else needs touching. Shown ex GST, which
-         is what a trade customer expects to compare on.
+         Three numbers, changed in one place. Shown ex GST, which is what a
+         trade customer expects to compare on.
+
+         They are set deliberately ABOVE the cheapest software in the
+         category and still well below what per-report measuring costs a
+         busy shop. Undercutting everybody while being the only product
+         that measures on the roof reads as a doubt, not a bargain.
          ───────────────────────────────────────────────────────────── -->
     <div class="tiers">
       <div class="tier">
         <h3>Solo</h3>
         <div class="who">One person doing the measuring, the quoting and the ordering.</div>
-        <div class="amt">$99</div>
+        <div class="amt">$149</div>
         <div class="per">per month + GST · 1 user</div>
         <ul>
           <li>Roof measuring, onsite and in the office</li>
@@ -403,14 +420,14 @@
         <span class="tag">Most roofers</span>
         <h3>Team</h3>
         <div class="who">An office and a crew sharing one set of jobs.</div>
-        <div class="amt">$199</div>
+        <div class="amt">$299</div>
         <div class="per">per month + GST · up to 5 users</div>
         <ul>
           <li>Everything in Solo</li>
           <li>Up to 5 logins, one shared price book</li>
           <li>One job-number counter across the office</li>
           <li>Every job shows who made it and who ordered</li>
-          <li>Your own address — <em>yourname</em>.roofmap.co.nz</li>
+          <li><span>Your own address — <em>yourname</em>.roofmap.co.nz</span></li>
           <li class="off">Quotes on your own domain</li>
         </ul>
         <a href="#start" class="btn btn-primary">Start free trial</a>
@@ -419,7 +436,7 @@
       <div class="tier">
         <h3>Business</h3>
         <div class="who">More than one crew, or you want it on your own domain.</div>
-        <div class="amt">$349</div>
+        <div class="amt">$549</div>
         <div class="per">per month + GST · unlimited users</div>
         <ul>
           <li>Everything in Team</li>
@@ -432,6 +449,7 @@
       </div>
     </div>
     <p class="tier-note">14 days free on every plan · No credit card to start · Cancel any time and your data stays yours</p>
+    <p class="tier-note">Prices in NZD, excluding GST. Unlimited roofs measured on every plan.</p>
   </div>
 </section>
 

@@ -1302,6 +1302,12 @@ select{
 .err{background:var(--danger-soft);color:#7f1d1d;border-radius:8px;padding:10px 13px;font-size:12px;margin-top:.5rem;display:none;border:1px solid #fecaca}
 .notice{background:var(--ok-soft);border:1px solid #a7f3d0;border-radius:8px;padding:10px 13px;font-size:12px;color:#065f46;margin-bottom:.75rem}
 .warn-box{background:var(--warn-soft);border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;font-size:12px;color:#7c2d12;margin-bottom:.75rem;line-height:1.6}
+/* "Sample prices" notice — a new account prices its first roof off indicative
+   retail figures rather than off zero, and this is what stops those figures
+   quietly becoming somebody's real quote. Removed by saving the price book. */
+.pb-listnote{background:var(--warn-soft);border:1px solid #fed7aa;border-left:4px solid #d97706;
+  border-radius:0 8px 8px 0;padding:10px 14px;font-size:12px;color:#7c2d12;line-height:1.6;margin:0 0 12px}
+.pb-listnote strong{color:#7c2d12}
 .result-box{display:none;background:var(--surface-2);border-radius:var(--radius);padding:14px 18px;margin-top:.75rem;border:1px solid var(--border)}
 .result-box-title{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em}
 .r-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text)}
@@ -4237,6 +4243,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
        panel belong to ONE roof, and a name in a button was not enough to tell
        them apart. This little map singles it out. -->
   <div id="pricingRoofMap" class="no-print" style="display:none"></div>
+  <!-- Filled by _pbListPriceNoticeSync() while the price book is still on the
+       sample figures, and empty the moment the roofer saves their own. -->
+  <div data-pb-listnote="pricing" class="no-print"></div>
   <div id="quotePricingHost"></div>
 </aside>
 
@@ -5867,6 +5876,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
       <!-- Upload supplier price book -->
       <div style="margin-bottom:18px;padding:14px;background:var(--surface-2);border-radius:10px;border:1px dashed var(--border)">
+        <div data-pb-listnote="settings"></div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <strong style="font-size:13px">📤 Upload supplier price book</strong>
           <span style="font-size:11px;color:var(--text2)">CSV (immediate) or PDF (AI parse)</span>
@@ -6647,22 +6657,33 @@ function defaultSettings(){
     // screws/rivets); price book × quantity = the Materials line on
     // the Quote tab.
     price_book: {
-      // Structure, not prices. These are what a roofer PAYS their supplier —
-      // shipping Flood Roofing's negotiated rates as the default would hand
-      // them to every competitor who signs up. New businesses enter their own.
+      // ── Indicative list prices, NOT anybody's negotiated rates ──
+      // These used to be zeroes, which was safe and useless: a business that
+      // signed up on Monday priced its first roof at nothing, decided the
+      // thing didn't work, and left. Nobody evaluates a quoting tool that
+      // says the roof costs $0.
+      //
+      // So the book ships with ballpark NZ retail figures — the sort of
+      // number a merchant quotes a stranger over the counter, not what any
+      // roofer actually pays. They are deliberately ROUND and deliberately
+      // high, and list_prices below keeps them labelled as a placeholder
+      // everywhere they show, until the roofer saves their own. A
+      // wrong-but-plausible number gets a real quote on screen in the first
+      // ten minutes; a zero never does.
+      list_prices: true,
       sheets: [
-        { product: '0.40g Colorsteel Maxam', unit: 'm2', price: 0 },
-        { product: '0.55g Colorsteel Maxam', unit: 'm2', price: 0 },
-        { product: '0.40g Zincalume',        unit: 'm2', price: 0 },
-        { product: '0.55g Zincalume',        unit: 'm2', price: 0 }
+        { product: '0.40g Colorsteel Maxam', unit: 'm2', price: 34 },
+        { product: '0.55g Colorsteel Maxam', unit: 'm2', price: 45 },
+        { product: '0.40g Zincalume',        unit: 'm2', price: 26 },
+        { product: '0.55g Zincalume',        unit: 'm2', price: 36 }
       ],
-      underlay: { '50': 0, '75': 0, '100': 0 },   // $ per roll, keyed by m²/roll
-      ridge_lm:        0,   // $/lm — used for ridge + hip cap (they share flashing)
-      valley_lm:       0,   // $/lm
-      gutter_lm:       0,   // $/lm
-      barge_lm:        0,   // $/lm
-      apron_lm:        0,   // $/lm
-      changepitch_lm:  0,   // $/lm — change-of-pitch flashing (blank until you have a price)
+      underlay: { '50': 150, '75': 210, '100': 270 },   // $ per roll, keyed by m²/roll
+      ridge_lm:       22,   // $/lm — used for ridge + hip cap (they share flashing)
+      valley_lm:      26,   // $/lm
+      gutter_lm:      28,   // $/lm
+      barge_lm:       20,   // $/lm
+      apron_lm:       22,   // $/lm
+      changepitch_lm: 24,   // $/lm — change-of-pitch flashing
       screws_each:  0.35,   // $ per 65mm Unitite / roofing screw ($35/100)
       rivets_each:  0.15,   // $ per rivet ($15/100)
       // Long-run guttering + downpipe unit prices used by the customer
@@ -6746,6 +6767,11 @@ function mergeSettings(s){
       pb.gutter   = Object.assign({}, d.price_book.gutter,   (s.price_book && s.price_book.gutter)   || {});
       if (!Array.isArray(pb.sheets) || !pb.sheets.length) pb.sheets = d.price_book.sheets.slice();
       if (!Array.isArray(pb.extras)) pb.extras = [];
+      // The "these are only list prices" flag defaults to true, which is right
+      // for a business that has never saved a price book — and wrong for
+      // everybody who already has one. A saved book is somebody's own work
+      // unless it explicitly says otherwise, so only a stored true keeps it.
+      pb.list_prices = s.price_book ? (s.price_book.list_prices === true) : true;
       return pb;
     })(),
     labour_pricing: (function(){
@@ -7028,9 +7054,39 @@ function collectPriceBookFromUI(){
       price: parseFloat((row.querySelector('input[data-f="price"]')||{}).value) || 0
     };
   }).filter(function(r){ return r.desc; });
+  // Saving the price book is the moment it stops being ours and starts being
+  // theirs — whether they changed one number or all of them. Drop the
+  // placeholder warning from here on.
+  pb.list_prices = false;
+  _pbListPriceNoticeSync();
+}
+
+// ── "These are list prices" notice ──────────────────────────────────
+// Shown until the price book is saved. It is not a nag: it says what the
+// numbers are, and links to the one screen that fixes them. Prices a roofer
+// hasn't checked leaving the building on a real quote is the failure mode
+// worth being loud about.
+function _pbOnListPrices(){
+  return !!(window.S && S.settings && S.settings.price_book && S.settings.price_book.list_prices);
+}
+function _pbListPriceNoticeHtml(where){
+  if (!_pbOnListPrices()) return '';
+  var goto = where === 'settings' ? '' :
+    ' <a href="#" onclick="showTab(\'settings\');setTimeout(function(){var e=document.getElementById(\'pbSheetsList\');if(e)e.scrollIntoView({behavior:\'smooth\',block:\'center\'});},250);return false;" style="color:inherit;font-weight:700;text-decoration:underline">Put your rates in →</a>';
+  return '<div class="pb-listnote">' +
+    '<strong>Sample prices.</strong> This price book is still on indicative retail figures so you can ' +
+    'see a finished quote straight away. They are not your supplier rates — replace them before you ' +
+    'send anything to a customer.' + goto +
+    '</div>';
+}
+function _pbListPriceNoticeSync(){
+  Array.from(document.querySelectorAll('[data-pb-listnote]')).forEach(function(el){
+    el.innerHTML = _pbListPriceNoticeHtml(el.getAttribute('data-pb-listnote'));
+  });
 }
 
 function renderPriceBookUI(){
+  try { _pbListPriceNoticeSync(); } catch(e){}
   if (!S.settings || !S.settings.price_book) return;
   var pb = S.settings.price_book;
   renderPriceBookSheets(pb.sheets || []);
@@ -8248,7 +8304,7 @@ function openSetupWizard(){
       '<div id="swMsg" style="font-size:13px;margin-bottom:12px;min-height:17px"></div>'+
       '<button type="button" onclick="_swSave()" id="swSaveBtn" style="width:100%;padding:14px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;border:none;border-radius:10px;font-size:15.5px;font-weight:700;font-family:inherit;cursor:pointer">Save and get started</button>'+
       '<div style="font-size:12px;color:var(--text3);margin-top:12px;line-height:1.5;text-align:center">'+
-        'Next: put your own prices into <strong>Settings → Price book</strong>. RoofMap ships with the list of items but no prices — your rates are yours.'+
+        'Next: put your own prices into <strong>Settings → Price book</strong>. It starts on sample retail figures so you can see a finished quote today — swap them for your rates before you send one.'+
       '</div>'+
       // Somebody who just wants a look around shouldn't be trapped. It asks
       // again next time, and until it's done their quotes carry no company.
@@ -33474,6 +33530,7 @@ function _openPricingPanel(instant){
   try { renderMaterialPriceTable(); } catch(e){ console.warn('pricing material price:', e); }
   try { calcLabour(); } catch(e){ console.warn('pricing labour:', e); }
   try { _renderPricingRoofSwitchBar(); } catch(e){}
+  try { _pbListPriceNoticeSync(); } catch(e){}
   var p = document.getElementById('quotePricingPanel');
   if (p){
     // instant = tab-switch restore: no slide animation (see _fergusPanelOpen).
