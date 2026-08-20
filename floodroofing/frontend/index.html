@@ -3516,6 +3516,18 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       border-radius:10px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap}
     .sj-card .sj-go:hover{background:#00b4d8}
     .sj-card .sj-mark{flex-shrink:0;font-size:30px;line-height:1}
+    /* Trial countdown. Quiet for most of the fortnight, then insistent —
+       a subscription running out with no warning is somebody's Monday
+       morning gone, and the first they'd otherwise know is a failed save. */
+    .tb{display:flex;align-items:center;gap:14px;padding:13px 18px;margin:0 0 14px;
+      border-radius:12px;font-size:13.5px;line-height:1.5}
+    .tb .tb-x{flex-shrink:0;font-size:19px;line-height:1}
+    .tb strong{font-weight:800}
+    .tb-calm{background:#f1f5f9;border:1px solid #e2e8f0;color:#334155}
+    .tb-soon{background:var(--warn-soft);border:1px solid #fed7aa;color:#7c2d12}
+    .tb-out{background:var(--danger-soft);border:1px solid #fecaca;color:#7f1d1d}
+    .tb a{color:inherit;font-weight:700}
+
     /* The strip that rides along the top while a sample job is open. */
     .sj-open{display:flex;align-items:center;gap:12px;padding:9px 16px;background:#fff7ed;
       border:1px solid #fed7aa;border-left:4px solid #d97706;border-radius:0 8px 8px 0;
@@ -3534,6 +3546,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     </div>
     <button type="button" onclick="fetchQuoteActivity();fetchRecentDrafts()" title="Refresh the board" style="height:58px;padding:0 18px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:14px;font-size:14px;cursor:pointer;font-family:inherit">↻</button>
   </div>
+  <!-- Filled by _trialBannerSync() as the trial runs down. See loadSubscription(). -->
+  <div id="trialBanner"></div>
   <!-- Filled by _sampleJobBannerSync() while this account has no jobs of its
        own. See openSampleJob(). -->
   <div id="sampleJobBanner"></div>
@@ -6893,6 +6907,9 @@ async function loadSettings(){
     // settings. A failed or odd response means we don't know whether they're
     // set up, and guessing wrong means nagging someone who already is.
     if (s && typeof s === 'object' && !Array.isArray(s)) { try { maybeOpenSetup(); } catch(e2){} }
+    // Where the business stands — drives the trial countdown on Home. Not
+    // awaited: nothing on screen should wait on it.
+    try { loadSubscription(); } catch(e2){}
     return S.settings;
   } catch(e) {
     console.warn('settings cloud load failed:', e.message);
@@ -10567,9 +10584,47 @@ function _renderHomeBoard(){
   if (cEl) cEl.textContent = sel.rows.length ? ('· ' + sel.rows.length) : '';
   host.innerHTML = sel.rows.length ? sel.rows.join('') : (sel.err || '<div class="hb-empty">' + sel.empty + '</div>');
   try { _sampleJobBannerSync(); } catch(e){}
+  try { _trialBannerSync(); } catch(e){}
 }
 // Back-compat aliases — older call sites repaint the whole board now.
 function _renderRecentDrafts(){ _renderHomeBoard(); }
+
+// ── HOW LONG HAVE THEY GOT? ──────────────────────────────────────────
+// A trial that runs out with no warning is a support call at best and a
+// cancellation at worst. The server is the only thing that knows — the app
+// asks once per load and says so on the home board.
+//
+// Deliberately quiet until it matters: nothing at all for the first week,
+// a grey note in the second, amber in the last three days, red when it's
+// gone. Nobody needs a countdown on day one.
+var SUBSCRIPTION = null;
+async function loadSubscription(){
+  try { SUBSCRIPTION = await api('GET', '/subscription'); }
+  catch(e){ SUBSCRIPTION = null; }     // never let this block the app
+  try { _trialBannerSync(); } catch(e){}
+}
+function _trialBannerHtml(){
+  var s = SUBSCRIPTION;
+  if (!s || !s.trial || s.status === 'active') return '';
+  var d = s.trial.days_left;
+  if (s.trial.expired){
+    return '<div class="tb tb-out"><span class="tb-x">⏳</span><span>' +
+      '<strong>Your free trial has ended.</strong> Your jobs are all still here. ' +
+      'Email <a href="mailto:office@floodroofing.co.nz">office@floodroofing.co.nz</a> to keep going.' +
+      '</span></div>';
+  }
+  if (d > 7) return '';                                  // plenty of time — say nothing
+  var cls = d <= 3 ? 'tb-soon' : 'tb-calm';
+  var when = d === 1 ? 'ends tomorrow' : (d === 0 ? 'ends today' : 'has ' + d + ' days left');
+  return '<div class="tb ' + cls + '"><span class="tb-x">⏳</span><span>' +
+    '<strong>Your free trial ' + when + '.</strong> Nothing is deleted when it does — ' +
+    'email <a href="mailto:office@floodroofing.co.nz">office@floodroofing.co.nz</a> to carry on.' +
+    '</span></div>';
+}
+function _trialBannerSync(){
+  var el = document.getElementById('trialBanner');
+  if (el) el.innerHTML = _trialBannerHtml();
+}
 
 // ── THE SAMPLE JOB ───────────────────────────────────────────────────
 // A trial that opens on an empty board has nothing to judge. Nobody buys a

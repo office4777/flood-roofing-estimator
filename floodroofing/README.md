@@ -66,6 +66,19 @@ no third party, no cookie, no page tracking — the browser can only report
 server at the route that does the thing. What is stored is which milestone a
 business reached and when: never a customer, an address or a price.
 
+## Public pages
+
+| URL | File | What it's for |
+|---|---|---|
+| `/` | `frontend/landing.html` | The pitch. A signed-in visitor is forwarded straight into the app. |
+| `/signup` | `frontend/signup.html` | Four fields, above the fold on a phone. The only conversion point. |
+| `/terms`, `/privacy` | `terms.html`, `privacy.html` | See below. |
+| `/index.html` | `frontend/index.html` | The app itself, and the PWA's `start_url`. |
+
+Routing lives in `frontend/vercel.json`. **The app is at `/index.html`, not `/`** —
+if that ever moves, `manifest.webmanifest`'s `start_url` and `sw.js`'s precache
+list have to move with it or an installed RoofMap opens the sales page.
+
 ## Terms and Privacy Policy
 
 `frontend/terms.html` and `frontend/privacy.html`, styled by `frontend/legal.css`

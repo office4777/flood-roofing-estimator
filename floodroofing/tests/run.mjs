@@ -23,12 +23,13 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // The real Express app against an in-memory stand-in for PostgREST. Fast,
 // no browser, and the place a multi-tenancy bug shows up first.
 const API = [
-  'orgapi', 'teamapi', 'domainapi', 'dupjob', 'plans', 'cors', 'errmon', 'usage',
+  'orgapi', 'teamapi', 'domainapi', 'dupjob', 'plans', 'cors', 'errmon', 'usage', 'trial',
 ];
 // The real index.html, driven by Playwright.
 const UI = [
   'tenantbrand', 'ownbrand', 'pricebook', 'samplejob', 'crashui', 'landing', 'signup', 'quotedomain',
-  'gutterprice', 'officebar', 'roofrename', 'acceptcarry', 'orgui', 'teamui', 'dupjobui', 'legal',
+  'gutterprice', 'officebar', 'roofrename', 'acceptcarry', 'orgui', 'teamui', 'dupjobui',
+  'trialui', 'legal',
 ];
 
 const arg = (process.argv[2] || '').toLowerCase();

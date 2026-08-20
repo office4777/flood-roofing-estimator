@@ -673,10 +673,25 @@ async function _companySubscription(companyId, userId){
     return data || null;
   } catch (e) { return null; }
 }
+// Is this business entitled to use the product right now?
+//
+// 'trialing' used to short-circuit to true, which meant a trial never ended:
+// registration writes status 'trialing' and nothing has ever written it back,
+// so the trial_ends_at date below was never reached. Harmless while billing
+// was off — and a permanent free account for everybody the day it goes on.
+// A trial is live until its end date and not one minute longer.
 function _subscriptionLive(sub){
   if (!sub) return false;
-  if (sub.status === 'active' || sub.status === 'trialing') return true;
-  return !!(sub.trial_ends_at && new Date(sub.trial_ends_at) > new Date());
+  if (sub.status === 'active') return true;                    // paying
+  if (sub.status === 'canceled' || sub.status === 'unpaid') return false;
+  return _trialRemainingMs(sub) > 0;                           // trialing / past_due / anything else
+}
+// Milliseconds left on the trial — negative once it's over, 0 when there
+// isn't one. Shared with /subscription so the app and the gate can never
+// disagree about how long somebody has left.
+function _trialRemainingMs(sub){
+  if (!sub || !sub.trial_ends_at) return 0;
+  return new Date(sub.trial_ends_at).getTime() - Date.now();
 }
 async function requireSubscription(req, res, next) {
   if (!BILLING_ENABLED) return next();
@@ -689,6 +704,27 @@ async function requireSubscription(req, res, next) {
     res.status(500).json({ error: e.message });
   }
 }
+
+// Where a business stands: what it's on, and how long it has. The app has had
+// no way to ask this, which is why a trial could run out with no warning — the
+// first anybody knew was a 403 on a job save.
+app.get('/subscription', requireAuth, async (req, res) => {
+  const sub = await _companySubscription(req.companyId, req.user.id);
+  const ms = _trialRemainingMs(sub);
+  const onTrial = !!(sub && sub.status !== 'active' && sub.trial_ends_at);
+  res.json({
+    status: (sub && sub.status) || 'none',
+    billing: BILLING_ENABLED,        // false = the gate is open regardless
+    live: !BILLING_ENABLED || _subscriptionLive(sub),
+    trial: !onTrial ? null : {
+      ends_at: sub.trial_ends_at,
+      // Round UP: with 6 hours left a roofer should read "1 day", not "0".
+      days_left: Math.max(0, Math.ceil(ms / 864e5)),
+      expired: ms <= 0,
+    },
+    plan: await _planOf(req.companyId),
+  });
+});
 
 // ══════════════════════════════════════════════════════════════════
 // PLANS — what each tier actually includes

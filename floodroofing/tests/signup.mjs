@@ -176,6 +176,35 @@ check('…and the form no longer lives on the landing page too', v.form === fals
 check('…which is shorter for it', v.screens < 12, v.screens + ' screens on a phone');
 await ctx.close();
 
+// ── the front door ──
+// The root now serves the landing page, so a stranger typing the bare domain
+// gets the pitch rather than a login screen. Everything that assumed "/" was
+// the app has to have moved with it.
+const { readFile: rf } = await import('node:fs/promises');
+const vercel = JSON.parse(await rf(_j(DIR, 'vercel.json'), 'utf8'));
+const rw = Object.fromEntries((vercel.rewrites || []).map(r => [r.source, r.destination]));
+check('the site root serves the landing page, not the app',
+  rw['/'] === '/landing.html', JSON.stringify(rw));
+check('…and /signup, /terms and /privacy are addresses you can say out loud',
+  rw['/signup'] === '/signup.html' && rw['/terms'] === '/terms.html' && rw['/privacy'] === '/privacy.html');
+
+const manifest = JSON.parse(await rf(_j(DIR, 'manifest.webmanifest'), 'utf8'));
+check('an installed RoofMap still launches the app, not the sales pitch',
+  manifest.start_url === '/index.html', manifest.start_url);
+const sw = await rf(_j(DIR, 'sw.js'), 'utf8');
+const precache = (sw.match(/var PRECACHE = \[([\s\S]*?)\];/) || [])[1] || '';
+check('…and the offline shell caches the app, not the landing page',
+  /'\/index\.html'/.test(precache) && !/^\s*'\/',/m.test(precache),
+  precache.replace(/\/\/[^\n]*/g,'').split(',').map(x=>x.trim()).filter(Boolean).join(' '));
+
+// A signed-in person arriving at the root is forwarded into the app by the
+// landing page itself — that logic predates this change and has to still work.
+({ ctx, pg } = await open('landing.html', 1360, 900, true));
+await pg.waitForTimeout(500);
+check('a signed-in visitor at /landing.html is offered the app rather than the pitch',
+  (await pg.evaluate(() => (document.getElementById('signInLink')||{}).textContent)) === 'Open RoofMap');
+await ctx.close();
+
 await b.close(); srv.close();
 const pass = results.filter(Boolean).length;
 console.log('\n'+pass+'/'+results.length+' passed');

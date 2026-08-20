@@ -14,13 +14,14 @@
  * Bump SW_VERSION when the precache list changes; old caches are dropped
  * on activate.
  */
-var SW_VERSION = 'roofmap-v2';
+var SW_VERSION = 'roofmap-v3';
 var SHELL = SW_VERSION + '-shell';
 var ASSETS = SW_VERSION + '-assets';
 var NET_TIMEOUT = 5000;   // ms before we fall back to the cached copy
 
 var PRECACHE = [
-  '/',
+  // NOT '/' — the root serves the landing page now, and the offline shell is
+  // the app. index.html is what an installed RoofMap launches.
   '/index.html',
   '/sheet-plan.js',
   '/help-bot.js',

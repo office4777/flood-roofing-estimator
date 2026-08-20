@@ -181,6 +181,7 @@ in `PLANS`.
 **Keeping it running**
 
 ✅ Error monitoring — server, browser, and alerts  
+✅ Trials that actually expire, with a countdown in the app  
 ✅ Usage milestones — whether a trialist actually got anywhere  
 ✅ 22 test suites in CI on every push  
 ✅ Terms of Service and Privacy Policy  
@@ -189,6 +190,9 @@ in `PLANS`.
 ## Still To Build
 
 - [ ] **Stripe** — the code paths exist but billing is off (`BILLING_ENABLED=false`). Needs keys, price IDs, and a webhook.
+  Note: with billing off, `requireSubscription` is a no-op, so **nothing is gated and trials don't stop anybody**.
+  The trial dates are recorded correctly and the countdown shows in the app; the gate only bites once
+  `BILLING_ENABLED=true`. Turn it on knowing every existing trial starts being enforced from that moment.
 - [ ] **Open registration** — currently invite-only (`REGISTRATION_INVITE_CODE`).
 - [ ] **Paid hosting.** Vercel and Railway hobby tiers are non-commercial by licence. This has to change before the first invoice.
 - [ ] **A restore drill.** Backups exist and have never been restored under pressure. An untested backup is a hope.
