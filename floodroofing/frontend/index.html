@@ -1213,6 +1213,34 @@ select{
 .active-tool{background:var(--ink);color:#fff;border-color:var(--ink)}
 
 .tab-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+/* ── Settings: left section nav + content pane ─────────────────────
+   Eleven chips in two wrapped rows read as a pile; every settings page a
+   tradesperson already knows (ServiceM8, Tradify, Fergus, Xero) is a grouped
+   list down the left with the section's content beside it. Same buttons and
+   ids as the chips had — only the geometry changed. */
+#tab-settings .set-shell{display:flex;gap:0;align-items:stretch}
+#tab-settings .set-nav{flex-direction:column;flex-wrap:nowrap;gap:2px;width:212px;flex-shrink:0;margin-bottom:0;padding-right:22px}
+#tab-settings .set-nav .set-grp{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin:16px 0 4px;padding:0 12px}
+#tab-settings .set-nav .set-grp:first-child{margin-top:2px}
+#tab-settings .set-nav .tab-sm{display:block;width:100%;text-align:left;border:none;background:transparent;padding:8px 12px;border-radius:8px;font-size:13px;color:var(--text2)}
+#tab-settings .set-nav .tab-sm:hover{background:var(--surface-2);color:var(--text)}
+#tab-settings .set-nav .tab-sm.on{background:var(--ink);color:#fff}
+#tab-settings .set-body{flex:1;min-width:0;border-left:1px solid var(--border);padding-left:26px}
+#tab-settings .set-head{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding-bottom:12px}
+#tab-settings .set-title{font-size:17px;font-weight:800;color:var(--text);letter-spacing:-.01em}
+/* One setting, one row: label + explanation left, its control right. */
+#tab-settings .set-row{display:flex;align-items:center;gap:18px;padding:13px 0;border-bottom:1px solid var(--border)}
+#tab-settings .set-row:last-child{border-bottom:none}
+#tab-settings .set-row-txt{flex:1;min-width:0}
+#tab-settings .set-row-txt b{display:block;font-size:13.5px;font-weight:700;color:var(--text)}
+#tab-settings .set-row-txt span{display:block;font-size:12px;color:var(--text2);margin-top:2px;line-height:1.45}
+@media (max-width:900px){
+  #tab-settings .set-shell{display:block}
+  #tab-settings .set-nav{width:auto;flex-direction:row;flex-wrap:wrap;gap:6px;padding-right:0;margin-bottom:14px}
+  #tab-settings .set-nav .set-grp{display:none}
+  #tab-settings .set-nav .tab-sm{display:inline-block;width:auto;border:1px solid var(--border-strong);background:#fff}
+  #tab-settings .set-body{border-left:none;padding-left:0}
+}
 .tab-sm{
   padding:7px 14px;
   border:1px solid var(--border-strong);
@@ -5753,26 +5781,6 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 <!-- TAB 8: SETTINGS -->
 <div class="panel" id="tab-settings">
 
-  <!-- Autosave -->
-  <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Autosave</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:.75rem">When autosave is on, every change you make to job details, the roof drawing, scope, materials, and quote fields is saved against the currently-open job. Reopening the job restores everything.</p>
-    <label style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text);font-weight:500;margin-bottom:.5rem;cursor:pointer">
-      <input type="checkbox" id="autosaveToggle" checked onchange="toggleAutosave(this.checked)" style="width:18px;height:18px;margin:0;cursor:pointer">
-      Autosave changes to the current job
-    </label>
-    <div class="f2" style="margin-top:.5rem;max-width:420px">
-      <div>
-        <label>Save interval (seconds)</label>
-        <input type="number" id="autosaveInterval" value="2" min="1" max="60" onchange="setAutosaveInterval(this.value)">
-      </div>
-      <div style="display:flex;align-items:flex-end">
-        <button onclick="saveCurrentJob()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px">💾 Save now</button>
-      </div>
-    </div>
-    <p style="font-size:11px;color:var(--text2);margin-top:.5rem">Autosave only fires while a job is open (the chip in the sidebar shows the job number).</p>
-  </div>
-
   <!-- Link Job Management System — big CTA, shown ONLY when not yet linked.
        Once a system is connected this hides and the linking UI moves into the
        "Job Management" settings sub-tab below (see _refreshJmsLinkUI). -->
@@ -5789,28 +5797,58 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <div id="jms-fergus-content" style="display:none"></div>
 
   <div class="card">
-    <div class="card-hd"><span class="card-dot"></span>Settings
+    <div class="set-shell">
+      <nav class="tab-row set-nav" aria-label="Settings sections">
+        <div class="set-grp">Business</div>
+        <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Branding</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-team',this);loadTeam()">Team</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-email',this)">Email</button>
+        <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)" style="display:none">Job Management</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
+        <div class="set-grp">Pricing</div>
+        <button class="tab-sm" onclick="switchSettingsSub('set-pricebook',this)">Price book</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers &amp; materials</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-flashings',this)">Flashing library</button>
+        <div class="set-grp">Quoting</div>
+        <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
+        <div class="set-grp">App</div>
+        <button class="tab-sm" onclick="switchSettingsSub('set-general',this)">General</button>
+      </nav>
+      <div class="set-body">
+    <div class="set-head">
+      <div class="set-title" id="setPaneTitle">Branding</div>
       <span style="margin-left:auto;font-size:11px;color:var(--text2);font-weight:400">Auto-saves as you type</span>
-      <button onclick="saveSettings()" id="saveSettingsBtn" style="margin-left:10px;padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save now</button>
+      <button onclick="saveSettings()" id="saveSettingsBtn" style="padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save now</button>
     </div>
-    <div class="tab-row">
-      <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)" style="display:none">🔗 Job Management</button>
-      <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Branding</button>
-      <button class="tab-sm" onclick="switchSettingsSub('set-team',this);loadTeam()">👥 Team</button>
-      <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
-      <button class="tab-sm" onclick="switchSettingsSub('set-email',this)">✉️ Email</button>
-      <button class="tab-sm" onclick="switchSettingsSub('set-pricebook',this)">Price book</button>
-      <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
-      <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers &amp; materials</button>
-      <button class="tab-sm" onclick="switchSettingsSub('set-flashings',this)">Flashing library</button>
-      <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
-    </div>
-    <span id="saveSettingsMsg" style="font-size:12px;color:var(--text2);margin-left:8px"></span>
 
-    <!-- TEAM — everyone in this business, and the business's RoofMap address.
-         Jobs, price book and settings are the COMPANY's, so this is the screen
-         that decides who can see and work on them. -->
-    <div class="sub-panel settings-sub" id="set-team" style="margin-top:14px">
+    <!-- General: autosave — one toggle and one number don't earn a card of
+         their own at the top of the page. -->
+    <div class="sub-panel settings-sub" id="set-general" style="margin-top:14px">
+      <div class="set-row">
+        <div class="set-row-txt">
+          <b>Autosave the open job</b>
+          <span>Every change to job details, the roof drawing, scope, materials and quote is saved against the currently-open job. Reopening the job restores everything. Only fires while a job is open — the chip in the sidebar shows the job number.</span>
+        </div>
+        <input type="checkbox" id="autosaveToggle" checked onchange="toggleAutosave(this.checked)" style="width:20px;height:20px;margin:0;cursor:pointer;flex-shrink:0">
+      </div>
+      <div class="set-row">
+        <div class="set-row-txt">
+          <b>Save interval</b>
+          <span>Seconds between autosaves.</span>
+        </div>
+        <input type="number" id="autosaveInterval" value="2" min="1" max="60" onchange="setAutosaveInterval(this.value)" style="width:80px;flex-shrink:0">
+      </div>
+      <div class="set-row">
+        <div class="set-row-txt">
+          <b>Save now</b>
+          <span>Writes the open job immediately, without waiting for the timer.</span>
+        </div>
+        <button onclick="saveCurrentJob()" class="sec-btn" style="margin:0;width:auto;padding:9px 18px;flex-shrink:0">💾 Save now</button>
+      </div>
+    </div>
+
+    <div class="sub-panel settings-sub" id="set-team"<div class="sub-panel settings-sub" id="set-team" style="margin-top:14px">
       <div id="teamWrap"><p style="font-size:12px;color:var(--text2)">Loading your team…</p></div>
       <!-- Somebody who wants to check what they agreed to shouldn't have to
            find the marketing site to do it. -->
@@ -6217,6 +6255,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <strong>Phase 2:</strong> "Send job to JMS" + "Email quote" buttons (and the JMS adapters for ServiceM8, Jobber, Tradify) ship in the next iteration. Fergus push already works from the Fergus tab.
       </div>
     </div>
+      </div><!-- /set-body -->
+    </div><!-- /set-shell -->
   </div>
 </div>
 
@@ -6638,9 +6678,17 @@ function toggleIncludeReport(ev){
 }
 function switchSettingsSub(id,btn){
   document.querySelectorAll('#tab-settings .settings-sub').forEach(function(p){p.classList.remove('on');});
-  document.getElementById(id).classList.add('on');
-  btn.closest('.tab-row').querySelectorAll('.tab-sm').forEach(function(b){b.classList.remove('on');});
-  btn.classList.add('on');
+  var panel = document.getElementById(id);
+  if (panel) panel.classList.add('on');
+  // Callers that only know the panel id (tests, the setup wizard) can omit
+  // the button — it's findable from the id.
+  if (!btn) btn = document.querySelector('#tab-settings .set-nav button[onclick*="' + id + '"]');
+  if (btn){
+    document.querySelectorAll('#tab-settings .set-nav .tab-sm').forEach(function(b){b.classList.remove('on');});
+    btn.classList.add('on');
+    var t = document.getElementById('setPaneTitle');
+    if (t) t.textContent = btn.textContent.trim();
+  }
   if (id === 'set-flashings') {
     try { renderFlashingLibrary(); } catch(e) { console.warn('library render:', e); }
   }
