@@ -206,7 +206,10 @@
   }
   .field input:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,153,204,.14) }
   .two{ display:grid; grid-template-columns:1fr 1fr; gap:13px }
-  @media (max-width:520px){ .two{ grid-template-columns:1fr } }
+  /* Stacked, the grid gap adds to each field's own margin and the space
+     between "Your name" and "Email" comes out wider than every other gap.
+     One column means the fields' margins should do the spacing alone. */
+  @media (max-width:520px){ .two{ grid-template-columns:1fr; gap:0 } }
   .form-card .btn{ width:100%; margin-top:8px }
   .form-msg{ font-size:14px; margin-top:14px; line-height:1.5; display:none }
   .form-fine{ font-size:13px; color:var(--muted); margin-top:14px; text-align:center; line-height:1.5 }
@@ -462,7 +465,7 @@
         You'll get your own account with your own jobs, your own price book and your own quote branding.
         Nothing is shared with anyone else.
       </p>
-      <ul class="split" style="display:grid;gap:13px;list-style:none;padding:0;margin:24px 0 0;grid-template-columns:1fr">
+      <ul style="display:grid;gap:13px;list-style:none;padding:0;margin:24px 0 0">
         <li style="display:flex;gap:11px;font-size:16px"><span style="color:var(--accent);font-weight:800">✓</span> Free for 14 days, no card needed</li>
         <li style="display:flex;gap:11px;font-size:16px"><span style="color:var(--accent);font-weight:800">✓</span> Invite your team once you're in</li>
         <li style="display:flex;gap:11px;font-size:16px"><span style="color:var(--accent);font-weight:800">✓</span> Your first quote out the same day</li>
