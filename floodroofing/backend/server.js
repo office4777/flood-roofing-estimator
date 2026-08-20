@@ -656,6 +656,14 @@ function _scopeCompany(q, req){
 // in Supabase doesn't 403 every JMS/AI call.
 const BILLING_ENABLED = process.env.BILLING_ENABLED === 'true' || !!process.env.STRIPE_SECRET_KEY;
 
+// Where every emailed link points. This is deliberately NOT FRONTEND_URL:
+// that variable predates the real domain and still holds the *.vercel.app
+// address in Railway, which is how an invited teammate ended up signing up
+// on the Vercel host instead of roofmap.co.nz. Links in emails outlive any
+// deploy, so they get the canonical domain, full stop — PUBLIC_APP_URL
+// exists only for staging.
+const PUBLIC_APP_URL = (process.env.PUBLIC_APP_URL || 'https://roofmap.co.nz').replace(/\/+$/, '');
+
 // The BUSINESS's subscription. One licence covers everyone in the company, so
 // an invited teammate is already paid for and never needs a trial of their own.
 // Falls back to a row keyed on the user for accounts that predate the change.
@@ -918,8 +926,7 @@ app.post('/team/invites', requireAuth, requireOwner, rateLimit(20, 3600000), asy
     const row = { company_id: req.companyId, email: email, role: role, token_hash: _sha256(raw), created_by: req.user.id };
     const { data, error } = await supabase.from('company_invites').insert(row).select('id, email, role, created_at, expires_at').single();
     if (error) return res.status(500).json({ error: error.message });
-    const base = (process.env.FRONTEND_URL || 'https://roofmap.co.nz').replace(/\/+$/, '');
-    const link = base + '/?invite=' + encodeURIComponent(raw);
+    const link = PUBLIC_APP_URL + '/?invite=' + encodeURIComponent(raw);
     const { data: co } = await supabase.from('companies').select('name').eq('id', req.companyId).maybeSingle();
     const coName = (co && co.name) || 'your team';
     const who = req.user.email || 'a colleague';
@@ -1346,8 +1353,7 @@ app.post('/auth/forgot', rateLimit(5, 900000), async (req, res) => {
     }
     if (!userId) { console.log('[auth] reset requested for unknown email (no mail sent)'); return; }
     const t = jwt.sign({ id: userId, email, purpose: 'pwreset' }, JWT_SECRET, { expiresIn: '30m' });
-    const base = (process.env.FRONTEND_URL || 'https://roofmap.co.nz').replace(/\/+$/, '');
-    const link = base + '/?reset=' + encodeURIComponent(t);
+    const link = PUBLIC_APP_URL + '/?reset=' + encodeURIComponent(t);
     await _dispatchMail({
       to: email,
       subject: 'Reset your RoofMap password',

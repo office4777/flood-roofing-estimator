@@ -29,7 +29,7 @@ const API = [
 const UI = [
   'tenantbrand', 'ownbrand', 'pricebook', 'samplejob', 'crashui', 'landing', 'signup', 'quotedomain',
   'gutterprice', 'officebar', 'roofrename', 'acceptcarry', 'orgui', 'teamui', 'dupjobui',
-  'trialui', 'legal',
+  'trialui', 'legal', 'photospanel',
 ];
 
 const arg = (process.argv[2] || '').toLowerCase();

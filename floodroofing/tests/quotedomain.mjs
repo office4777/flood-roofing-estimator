@@ -58,8 +58,11 @@ const link = pg.evaluate(() => {
   return _customerLinkString();
 });
 let v = await link;
-check('with no domain set, links follow the address the office is on',
-  /^file:/.test(v) || v.startsWith(await pg.evaluate(() => location.origin)), v);
+// The fallback used to follow whatever origin the office was on, which meant
+// an office still working on the *.vercel.app host handed customers vercel
+// links. Now the canonical domain is the floor, not the origin.
+check('with no domain set, links go to roofmap.co.nz — never the host the office is on',
+  v.startsWith('https://roofmap.co.nz/?q=tok123'), v);
 
 v = await pg.evaluate(() => {
   S.settings = S.settings || {};

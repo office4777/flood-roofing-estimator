@@ -1814,10 +1814,16 @@ html.print-scope #quotePricingPanel{ position:static!important; transform:none!i
 html.print-scope #quotePricingPanelToggle, html.print-scope #quotePricingPanel .qpx-hd{ display:none!important; }
 /* Fergus job photos slide-out (Map Roof tab) — a resizable side pop-out so
    the site photos sit next to the canvas while drawing. Drag its left edge to
-   set how far it comes out; a zoom slider scales the photos. */
+   set how far it comes out; a zoom slider scales the photos.
+   Its UNSET default is narrower than the other two pop-outs: this one opens
+   alongside the drawing canvas, and 40vw of photos on a wide monitor pushed
+   the roof plan into a strip. Photos are a reference while you draw, not the
+   work — so it starts at a quarter of the window and stops at 520px however
+   wide the screen is. Drag the edge once and --sidepop-w takes over, which
+   still keeps all three panels the same width. */
 #fergusRoofPanel{
   position:fixed; top:70px; right:0; bottom:16px;
-  width:var(--sidepop-w,40vw); min-width:200px; max-width:96vw; z-index:75;
+  width:var(--sidepop-w,clamp(320px,25vw,520px)); min-width:200px; max-width:96vw; z-index:75;
   background:#fff; border:1px solid var(--border); border-right:none;
   border-radius:12px 0 0 12px; box-shadow:-6px 8px 24px rgba(0,0,0,.12);
   transform:translateX(100%); transition:transform .28s ease;
@@ -6249,13 +6255,12 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
 <script>
 var PROXY='https://flood-roofing-estimator-production.up.railway.app';
-// Canonical public host for customer quote links. Set this to the branded
-// custom domain (https://quote.floodroofing.co.nz) ONCE that domain shows
-// "Valid Configuration" in Vercel and Cloudflare is Active — until then it
-// must stay blank so links fall back to the live *.vercel.app origin the
-// office is already on (a custom-domain link that doesn't resolve = dead
-// quote links). Flip it back to the custom domain when DNS is live.
-var CUSTOMER_QUOTE_BASE='';
+// Canonical public host for links that leave the building — customer quote
+// links and the PDF deep link. roofmap.co.nz is live, so this is set: an
+// office user still working on the *.vercel.app host must never hand a
+// customer (or a teammate) that address. A company's own quote domain,
+// when configured, still wins over this.
+var CUSTOMER_QUOTE_BASE='https://roofmap.co.nz';
 var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],linkedJobId:null,linkedJobNo:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true,
   quote:null /* {ref,date,validUntil,client,addr,email,scope,notes,terms,gstRate,lineItems:[{desc,qty,unit}]} — lazy-init in buildQuote */};
 var COLORS=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#ea580c','#65a30d'];
@@ -38595,9 +38600,11 @@ function _jobDeepLink(){
   if (!S.currentJobId) return null;
   if (!/^https?:$/.test(location.protocol)) return null;   // dev / file runs
   // 'materials' is the real Job Pack tab (the old '#tab-jobpack' panel is a
-  // hidden legacy stub); land the deep link there.
-  return location.origin + location.pathname +
-    '?job=' + encodeURIComponent(S.currentJobId) + '&tab=materials';
+  // hidden legacy stub); land the deep link there. The link goes into a PDF
+  // that outlives today's host, so it uses the canonical domain, not
+  // whatever origin this office machine happens to be on.
+  var base = (window.CUSTOMER_QUOTE_BASE || (location.origin + location.pathname)).replace(/\/+$/, '');
+  return base + '/?job=' + encodeURIComponent(S.currentJobId) + '&tab=materials';
 }
 
 // Build the Job Pack PDF by capturing each .jp-page off-screen with
