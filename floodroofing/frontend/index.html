@@ -43777,41 +43777,27 @@ function searchAerialAddress() {
 }
 
 function showAerialMap(lat, lon) {
+  // The map became Mapbox GL long ago, but this function kept its Leaflet
+  // body — and Leaflet was no longer loaded, so any search that came through
+  // here (the address autocomplete, the auto-search on a Fergus job select,
+  // or a Find pressed in the first second before the Mapbox handler rebinds
+  // the button) threw "L is not defined" at the user. It now drives the one
+  // real map, waiting for it if the search beat the map's lazy init.
   var wrap = document.getElementById('aerialMapWrap');
   if(wrap) wrap.style.display = 'block';
-  document.getElementById('aerialHint').textContent = 'Zoom in until individual rooftops are clearly visible, then click "Use this view".';
-  console.log('showAerialMap called:', lat, lon, 'L available:', typeof L !== 'undefined');
-
-  // Re-use existing map
-  if(window._aerialMap) {
-    window._aerialMap.setView([lat, lon], 19);
-    setTimeout(function(){ window._aerialMap.invalidateSize(true); }, 200);
-    return;
-  }
-  // Small delay to ensure div is visible before Leaflet measures it
-  setTimeout(function() { _initAerialMap(lat, lon); }, 100);
-}
-
-function _initAerialMap(lat, lon) {
-  // Use a fixed overlay so Leaflet always gets real pixel dimensions
-  var mapDiv = document.getElementById('aerialLeafletMap2');
-  if(!mapDiv) return;
-  if(window._aerialMap) {
-    window._aerialMap.setView([lat, lon], 19);
-    window._aerialMap.invalidateSize(true);
-    return;
-  }
-  // Now div is in viewport at full size
-  setTimeout(function() {
-    console.log('Map div size:', mapDiv.offsetWidth, 'x', mapDiv.offsetHeight);
-    var map = L.map(mapDiv, {zoomControl:true, maxZoom:21}).setView([lat, lon], 19);
-    L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYXJvbmZsb29kMTIzIiwiYSI6ImNtb2tmZm93dDAyeXAzMXE0d2d1bnZmb3cifQ.ZYN0R9qF0j9V1IaQuF_c2g', {
-      maxZoom:22, maxNativeZoom:22, tileSize:512, zoomOffset:-1, attribution:'Mapbox'
-    }).addTo(map);
-    L.marker([lat, lon]).addTo(map);
-    window._aerialMap = map;
-    map.invalidateSize(true);
-  }, 100);
+  var hint = document.getElementById('aerialHint');
+  if(hint) hint.textContent = 'Zoom in until individual rooftops are clearly visible, then click "Use this view".';
+  AERIAL_MAP_CENTER = {lat: lat, lon: lon};
+  try { if (window._ensureAerialMap) window._ensureAerialMap(); } catch(e){}
+  var tries = 0;
+  (function fly(){
+    if (window._aerialMap) {
+      window._aerialMap.flyTo({center:[lon, lat], zoom:19, essential:true});
+      return;
+    }
+    if (++tries < 100) setTimeout(fly, 200);   // mapbox-gl still arriving from its CDN
+    else if (hint) hint.textContent = 'Map failed to load — check your internet connection and try again.';
+  })();
 }
 
 
@@ -44014,9 +44000,12 @@ function switchImagerySource(val) {
     var key = localStorage.getItem('linzApiKey');
     if(key) { applyLinzTiles(key); }
     else { alert('Enter your LINZ API key to use high-res NZ imagery.\n\nGet a free key at basemaps.linz.govt.nz'); }
-  } else {
+  } else if(val === 'esri') {
     linzWrap.style.display = 'none';
     applyEsriTiles();
+  } else {
+    linzWrap.style.display = 'none';
+    applyMapboxTiles();
   }
 }
 
@@ -44027,19 +44016,41 @@ function saveLinzKey() {
   applyLinzTiles(key);
 }
 
+// The two overlay tilesets used to be applied with Leaflet calls, but the map
+// has been Mapbox GL for a long time — Leaflet isn't even loaded, so choosing
+// LINZ or Esri from the dropdown threw "L is not defined". They're raster
+// layers on the GL map now: laid over the base style, removed when the user
+// switches back to Mapbox.
+function _aerialOverlayTiles(url, attribution) {
+  var m = window._aerialMap;
+  if(!m) return;
+  var apply = function(){
+    try {
+      if (m.getLayer('rm-imagery'))  m.removeLayer('rm-imagery');
+      if (m.getSource('rm-imagery')) m.removeSource('rm-imagery');
+      if (url) {
+        m.addSource('rm-imagery', { type:'raster', tiles:[url], tileSize:256, attribution:attribution });
+        m.addLayer({ id:'rm-imagery', type:'raster', source:'rm-imagery' });
+      }
+    } catch(e){ console.warn('imagery switch failed:', e.message); }
+  };
+  if (m.isStyleLoaded && !m.isStyleLoaded()) m.once('idle', apply); else apply();
+}
+
 function applyLinzTiles(key) {
-  if(!window._aerialMap) return;
-  window._aerialMap.eachLayer(function(l){ if(l._url||l.options.attribution) window._aerialMap.removeLayer(l); });
-  L.tileLayer('https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/{z}/{x}/{y}.webp?api='+key,
-    {maxZoom:21,maxNativeZoom:21,attribution:'\u00a9 LINZ CC BY 4.0'}).addTo(window._aerialMap);
+  _aerialOverlayTiles('https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/{z}/{x}/{y}.webp?api='+encodeURIComponent(key),
+    '\u00a9 LINZ CC BY 4.0');
   window._linzKey = key;
 }
 
 function applyEsriTiles() {
-  if(!window._aerialMap) return;
-  window._aerialMap.eachLayer(function(l){ if(l._url||l.options.attribution) window._aerialMap.removeLayer(l); });
-  L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYXJvbmZsb29kMTIzIiwiYSI6ImNtb2tmZm93dDAyeXAzMXE0d2d1bnZmb3cifQ.ZYN0R9qF0j9V1IaQuF_c2g',
-    {maxZoom:21,maxNativeZoom:19,attribution:'Esri'}).addTo(window._aerialMap);
+  _aerialOverlayTiles('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    'Esri World Imagery');
+  window._linzKey = null;
+}
+
+function applyMapboxTiles() {
+  _aerialOverlayTiles(null, '');   // drop the overlay — the base style IS Mapbox satellite
   window._linzKey = null;
 }
 
@@ -44127,27 +44138,6 @@ function jobAddrAutoSuggest(val) {
     });
   },350);
 }
-
-// Pre-init aerial map when page loads
-setTimeout(function(){
-  if(typeof L !== 'undefined'){
-    var md = document.getElementById('aerialLeafletMap2');
-    if(md && !window._aerialMap){
-      var map = L.map(md, {zoomControl:true, maxZoom:21}).setView([-35.7275, 174.3166], 13);
-      // Try LINZ high-res NZ aerial (0.075m/px) with Esri as fallback
-    var linzKey = localStorage.getItem('linzApiKey') || '';
-    if(linzKey) {
-      L.tileLayer('https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/{z}/{x}/{y}.webp?api=' + linzKey,
-        {maxZoom:21, maxNativeZoom:21, attribution:'\u00a9 LINZ CC BY 4.0'}).addTo(map);
-    } else {
-      L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/512/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYXJvbmZsb29kMTIzIiwiYSI6ImNtb2tmZm93dDAyeXAzMXE0d2d1bnZmb3cifQ.ZYN0R9qF0j9V1IaQuF_c2g',
-        {maxZoom:21, maxNativeZoom:19, attribution:'Esri World Imagery'}).addTo(map);
-    }
-      window._aerialMap = map;
-      console.log('Aerial map initialised, size:', md.offsetWidth, 'x', md.offsetHeight);
-    }
-  }
-}, 1000);
 
 document.addEventListener('mousedown',function(e){
   var ab=document.getElementById('aerialSuggestBox');

@@ -1514,7 +1514,34 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
 });
 
 app.get('/jobs/:id', requireAuth, async (req, res) => {
-  const { data, error } = await _scopeCompany(supabase.from('jobs').select('*').eq('id', req.params.id), req).single();
+  // A job row runs to tens of MB once site photos and the aerial land in
+  // draw_state, and the PostgREST role carries Supabase's 8-second
+  // statement_timeout — which is how a first job-open produced
+  // "canceling statement due to statement timeout". The direct connection
+  // has no such ceiling, so the heavy read goes there when it exists; the
+  // WHERE mirrors _scopeCompany exactly.
+  let data = null, error = null;
+  const pool = _pgPool();
+  if (pool) {
+    try {
+      const r = req.companyId
+        ? await pool.query(
+            'select * from public.jobs where id = $1 and (company_id = $2 or (company_id is null and user_id = $3))',
+            [req.params.id, req.companyId, req.user.id])
+        : await pool.query(
+            'select * from public.jobs where id = $1 and user_id = $2',
+            [req.params.id, req.user.id]);
+      if (r.rows.length) data = r.rows[0];
+      else error = { message: 'not found', code: 'PGRST116' };
+    } catch (e) {
+      console.warn('[jobs] direct read failed, falling back to PostgREST:', e.message);
+      data = null; error = null;
+    }
+  }
+  if (!data && !error) {
+    const r = await _scopeCompany(supabase.from('jobs').select('*').eq('id', req.params.id), req).single();
+    data = r.data; error = r.error;
+  }
   if (!error && data) {
     // Same attribution the list carries, so opening a job shows who made it.
     try {
