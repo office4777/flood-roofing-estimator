@@ -6636,6 +6636,56 @@ async function api(method, path, body) {
   return r.json();
 }
 
+// ── CRASH REPORTING ──────────────────────────────────────────────────
+// A JavaScript error on a roofer's laptop used to be seen by exactly one
+// person: the roofer, who saw a button that did nothing and assumed the app
+// was rubbish. Nothing about it ever reached us.
+//
+// So an unhandled error is posted to the backend, where it lands in the same
+// recorder as a server crash and gets announced once. Deliberately quiet on
+// screen — the app tries to carry on — and deliberately cheap: one report per
+// distinct error per session, capped, and never the user's data.
+var _crashSent = {}, _crashCount = 0;
+var CRASH_MAX_PER_SESSION = 8;
+function _reportClientError(message, stack, where){
+  try {
+    if (_crashCount >= CRASH_MAX_PER_SESSION) return;
+    // Same message and same top frame = same bug. Sending it forty times
+    // because it fires on every mousemove helps nobody.
+    var key = String(message || '').slice(0, 160) + '|' + String(stack || '').split('\n')[1];
+    if (_crashSent[key]) return;
+    _crashSent[key] = 1; _crashCount++;
+
+    var co = '', user = '';
+    try { co = (JSON.parse(localStorage.getItem('fr_company') || '{}') || {}).name || ''; } catch(e){}
+    try { user = (JSON.parse(localStorage.getItem('fr_user') || '{}') || {}).email || ''; } catch(e){}
+    var payload = JSON.stringify({
+      message: String(message || '').slice(0, 500),
+      stack: String(stack || '').slice(0, 4000),
+      // The path only — a customer quote URL carries a token in the query.
+      url: (location.origin + location.pathname).slice(0, 300),
+      where: where || (document.body && document.body.getAttribute('data-tab')) || '',
+      company: co, user: user,
+    });
+    // keepalive so a crash during unload still gets out.
+    fetch(PROXY + '/client-error', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                     body: payload, keepalive: true }).catch(function(){});
+  } catch(e){ /* a failed crash report must not itself crash anything */ }
+}
+window.addEventListener('error', function(e){
+  // Ignore resource load failures (a missing image fires this too) — they
+  // have no error object and are not what this is for.
+  if (!e || !e.error) return;
+  _reportClientError(e.message || String(e.error), e.error && e.error.stack);
+});
+window.addEventListener('unhandledrejection', function(e){
+  var r = e && e.reason;
+  if (!r) return;
+  // A rejected api() call the code already handles is not a crash — only
+  // report rejections nobody caught, which is what this event means.
+  _reportClientError((r && r.message) || String(r), r && r.stack, 'promise');
+});
+
 // — Settings —
 function defaultSettings(){
   // Neutral by design. These used to be Flood Roofing's own details — company

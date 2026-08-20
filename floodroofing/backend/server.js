@@ -135,6 +135,187 @@ app.options('*', cors(corsDelegate));
 // 25mb cap so saved jobs can include a base64 roof image + photos
 app.use(express.json({ limit: '25mb' }));
 
+// ══════════════════════════════════════════════════════════════════
+// ERROR MONITORING — so a subscriber hitting a bug is not a secret
+// ══════════════════════════════════════════════════════════════════
+// Until now a crash went to the container's stdout and stayed there. With
+// one company using this that was survivable — Aron would ring. With a
+// hundred, a broken save is a silent cancellation: they hit it, they don't
+// report it, they leave.
+//
+// This is the smallest thing that fixes that, with no SDK and no account to
+// sign up for:
+//   • every unhandled route error, uncaught exception and rejected promise
+//     lands in one recorder;
+//   • so does every frontend crash, posted from the browser;
+//   • the last 200 are kept in memory and readable at /admin/errors;
+//   • each distinct error is announced ONCE per quiet period, to a webhook
+//     (Slack, Discord, anything that takes a JSON POST) and/or an email.
+//
+// Nothing here can throw its way into a request: every path is wrapped.
+const ERR_KEEP        = 200;                                     // ring buffer size
+const ERR_QUIET_MS    = 15 * 60 * 1000;                          // re-announce the same error at most this often
+const ERR_MAX_PER_HR  = 20;                                      // total notifications an hour, whatever happens
+const ERR_WEBHOOK     = process.env.ERROR_WEBHOOK_URL || '';
+const ERR_EMAIL_TO    = process.env.ERROR_EMAIL_TO || '';
+const ADMIN_TOKEN     = process.env.ADMIN_TOKEN || '';
+
+const _errRing  = [];              // newest last
+const _errSeen  = new Map();       // fingerprint → { count, first, last, announced }
+let   _errSentThisHour = 0, _errHourStartedAt = Date.now();
+
+// Two errors are "the same" when they'd be fixed by the same change: same
+// kind, same message shape, same first line of the stack. Numbers and ids in
+// the message are stripped so "job 41 not found" and "job 92 not found" don't
+// read as two separate problems.
+function _errFingerprint(kind, message, stack){
+  const shape = String(message || '')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<id>')
+    .replace(/\b\d+\b/g, '<n>')
+    .slice(0, 200);
+  const top = String(stack || '').split('\n')[1] || '';
+  return crypto.createHash('sha1').update(kind + '|' + shape + '|' + top.trim()).digest('hex').slice(0, 12);
+}
+function _errRedact(v){
+  // Never let a token, a password or a base64 photo into a log line or a
+  // Slack channel. Errors get read by people who shouldn't need clearance.
+  return String(v == null ? '' : v)
+    // A JWT is recognisable on its own, wherever it turns up — which matters,
+    // because "Authorization: Bearer <jwt>" hides the token one word further
+    // along than a naive keyword match reaches.
+    .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '<jwt>')
+    .replace(/(authorization|password|passwd|token|api[-_]?key|secret)\s*[:=]\s*(bearer\s+)?\S+/gi, '$1: <redacted>')
+    .replace(/\bbearer\s+\S+/gi, 'bearer <redacted>')
+    .replace(/data:[a-z/+]+;base64,[A-Za-z0-9+/=]{40,}/gi, '<data-uri>')
+    .slice(0, 4000);
+}
+function _errAllowNotify(){
+  if (Date.now() - _errHourStartedAt > 3600e3){ _errHourStartedAt = Date.now(); _errSentThisHour = 0; }
+  return _errSentThisHour < ERR_MAX_PER_HR;
+}
+async function _errNotify(rec, seen){
+  if (!_errAllowNotify()) return;
+  _errSentThisHour++;
+  const where = rec.route || rec.url || '—';
+  const title = '[RoofMap ' + rec.kind + '] ' + rec.message.slice(0, 140);
+  const lines = [
+    title,
+    'Build:   ' + BUILD_SHA,
+    'Where:   ' + where,
+    'Who:     ' + (rec.company || '—') + (rec.user ? ' · ' + rec.user : ''),
+    'Seen:    ' + seen.count + '× since ' + new Date(seen.first).toISOString(),
+    'Print:   ' + rec.fingerprint,
+    '',
+    rec.stack || '(no stack)',
+  ].join('\n');
+  if (ERR_WEBHOOK){
+    try {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 6000);
+      await fetch(ERR_WEBHOOK, { method:'POST', headers:{'content-type':'application/json'},
+        // `text` suits Slack and Discord; the rest is there for anything that
+        // wants the structure instead.
+        body: JSON.stringify({ text: lines, kind: rec.kind, fingerprint: rec.fingerprint,
+                               message: rec.message, where, build: BUILD_SHA, count: seen.count }),
+        signal: ctl.signal }).catch(function(){});
+      clearTimeout(t);
+    } catch(e){ /* a failed alert must never become a second incident */ }
+  }
+  if (ERR_EMAIL_TO){
+    try { await _dispatchMail({ to: ERR_EMAIL_TO, subject: title, text: lines }); } catch(e){}
+  }
+}
+function recordError(kind, err, ctx){
+  try {
+    ctx = ctx || {};
+    const message = _errRedact((err && err.message) || err || 'unknown error');
+    const stack   = _errRedact((err && err.stack) || '');
+    const fingerprint = _errFingerprint(kind, message, stack);
+    const rec = {
+      at: new Date().toISOString(), kind, fingerprint, message, stack,
+      route: ctx.route || '', url: _errRedact(ctx.url || '').slice(0, 300),
+      method: ctx.method || '', status: ctx.status || 0,
+      company: ctx.company || '', user: _errRedact(ctx.user || '').slice(0, 120),
+      agent: _errRedact(ctx.agent || '').slice(0, 200), build: BUILD_SHA,
+    };
+    _errRing.push(rec);
+    while (_errRing.length > ERR_KEEP) _errRing.shift();
+
+    const seen = _errSeen.get(fingerprint) || { count: 0, first: Date.now(), last: 0, announced: 0 };
+    seen.count++; seen.last = Date.now();
+    _errSeen.set(fingerprint, seen);
+
+    console.error('[error:' + kind + '] ' + fingerprint + ' ' + (rec.route || rec.url) + ' — ' + message);
+    if (stack) console.error(stack);
+
+    if (Date.now() - seen.announced > ERR_QUIET_MS){
+      seen.announced = Date.now();
+      _errNotify(rec, seen).catch(function(){});
+    }
+    return fingerprint;
+  } catch(e){ try { console.error('[error:recorder-failed]', e && e.message); } catch(e2){} return ''; }
+}
+
+// Forty-nine routes catch their own database error and answer with a
+// hand-rolled 500. Those never reach the error middleware at the bottom, and
+// they are exactly the failures that matter — a save that didn't save. So
+// every 5xx is recorded on the way OUT, whoever wrote it.
+app.use(function (req, res, next) {
+  const send = res.json.bind(res);
+  res.json = function (body) {
+    try {
+      if (res.statusCode >= 500){
+        const msg = (body && (body.error || body.message)) || ('HTTP ' + res.statusCode);
+        const e = new Error(String(msg));
+        e.stack = '';   // there is no throw site — the route handled it itself
+        const id = recordError('server-5xx', e, {
+          route: (req.route && req.route.path) || '', url: req.originalUrl,
+          method: req.method, status: res.statusCode,
+          company: req.companyId || '', user: (req.user && req.user.email) || '',
+          agent: req.headers['user-agent'] || '',
+        });
+        // Give the caller something to quote, the same as the middleware does.
+        if (body && typeof body === 'object' && !body.incident) body.incident = id;
+      }
+    } catch(e){}
+    return send(body);
+  };
+  next();
+});
+
+// Express 4 does not catch an async handler that rejects — it hangs the
+// request instead. Rather than wrap 90 route bodies by hand, wrap the
+// REGISTRATION, so every route declared below is covered whether or not
+// somebody remembers.
+['get','post','put','patch','delete','all'].forEach(function(verb){
+  const orig = app[verb].bind(app);
+  app[verb] = function(path){
+    const handlers = Array.prototype.slice.call(arguments, 1).map(function(h){
+      if (typeof h !== 'function' || h.length >= 4) return h;
+      return function(req, res, next){
+        let out;
+        try { out = h(req, res, next); }
+        catch(e){ return next(e); }
+        if (out && typeof out.then === 'function') out.catch(next);
+        return out;
+      };
+    });
+    return orig.apply(null, [path].concat(handlers));
+  };
+});
+
+// A crash that kills the process must be seen before the platform restarts
+// it — otherwise it looks like a mysterious blip in the logs.
+process.on('unhandledRejection', function(reason){
+  recordError('unhandled-rejection', reason instanceof Error ? reason : new Error(String(reason)), {});
+});
+process.on('uncaughtException', function(err){
+  recordError('uncaught-exception', err, {});
+  // Keep going only long enough to get the alert out. The process state is
+  // not trustworthy after this, so let the platform restart us.
+  setTimeout(function(){ process.exit(1); }, 1500).unref();
+});
+
 // Health-check + visible status root.  `/` is the easiest URL to type
 // in a browser and it now returns JSON so we can confirm which build
 // of the backend is live without having to dig into a real route.
@@ -3285,10 +3466,84 @@ async function _ensureSchema(){
   finally { try { await c.end(); } catch(e){} }
 }
 
+// ── Reading and receiving errors ────────────────────────────────────
+// A frontend crash is the half that was completely invisible: it happens on
+// somebody else's laptop and nothing about it ever reaches us. The app posts
+// here (see _reportClientError in index.html). Deliberately unauthenticated —
+// a crash on the login screen is exactly the one worth hearing about — so it
+// is size-capped and rate-limited instead.
+const _clientErrHits = new Map();   // ip → { n, since }
+app.post('/client-error', (req, res) => {
+  try {
+    const ip = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+    const hit = _clientErrHits.get(ip) || { n: 0, since: Date.now() };
+    if (Date.now() - hit.since > 60e3){ hit.n = 0; hit.since = Date.now(); }
+    hit.n++; _clientErrHits.set(ip, hit);
+    if (_clientErrHits.size > 5000) _clientErrHits.clear();
+    if (hit.n > 30) return res.status(429).json({ ok: false });
+
+    const b = req.body || {};
+    const err = new Error(String(b.message || 'client error').slice(0, 500));
+    err.stack = String(b.stack || '').slice(0, 4000);
+    recordError('client', err, {
+      url: b.url, route: b.where || '', company: b.company || '', user: b.user || '',
+      agent: req.headers['user-agent'] || '',
+    });
+  } catch(e){ /* never fail a crash report */ }
+  res.json({ ok: true });
+});
+
+// What has gone wrong lately, newest first. Gated on ADMIN_TOKEN — without
+// one set, the route stays shut rather than defaulting to open.
+function _adminOk(req){
+  if (!ADMIN_TOKEN) return false;
+  const given = String(req.headers['x-admin-token'] || req.query.token || '');
+  if (given.length !== ADMIN_TOKEN.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(ADMIN_TOKEN));
+}
+app.get('/admin/errors', (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  const groups = Array.from(_errSeen.entries()).map(function(e){
+    const last = _errRing.slice().reverse().find(function(r){ return r.fingerprint === e[0]; }) || {};
+    return { fingerprint: e[0], count: e[1].count,
+             first: new Date(e[1].first).toISOString(), last: new Date(e[1].last).toISOString(),
+             kind: last.kind || '', message: last.message || '', route: last.route || last.url || '' };
+  }).sort(function(a, b){ return new Date(b.last) - new Date(a.last); });
+  res.json({ build: BUILD_SHA, distinct: groups.length, total: _errRing.length,
+             notified_this_hour: _errSentThisHour,
+             alerting: { webhook: !!ERR_WEBHOOK, email: !!ERR_EMAIL_TO },
+             groups,
+             recent: _errRing.slice(-50).reverse() });
+});
+
+// ── The last word on any request ────────────────────────────────────
+// Anything a route threw, or handed to next(err), ends here. The caller gets
+// an incident id they can quote instead of a stack trace they can't use.
+// Must be registered AFTER every route, and must take four arguments —
+// that arity is how Express knows it is an error handler.
+app.use(function (err, req, res, next) {
+  const status = (err && (err.status || err.statusCode)) || 500;
+  const id = recordError('server', err, {
+    route: (req.route && req.route.path) || '', url: req.originalUrl,
+    method: req.method, status,
+    company: (req.companyId || ''), user: (req.user && req.user.email) || '',
+    agent: req.headers['user-agent'] || '',
+  });
+  if (res.headersSent) return next(err);
+  // A 4xx is the caller's own doing and its message is meant for them; a 5xx
+  // is ours, and its message is for the log, not the customer.
+  res.status(status).json(status < 500
+    ? { error: String((err && err.message) || 'Request failed'), incident: id }
+    : { error: 'Something went wrong at our end. Quote this if you get in touch.', incident: id });
+});
+
 app.listen(PORT, () => {
   console.log('RoofMap backend running on port ' + PORT + ' · build: email-recipients-v7');
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? 'OK' : 'NOT SET'));
   console.log('Stripe: disabled');
+  console.log('Error alerts: ' + [ERR_WEBHOOK && 'webhook', ERR_EMAIL_TO && 'email'].filter(Boolean).join(' + ')
+    + (ERR_WEBHOOK || ERR_EMAIL_TO ? '' : 'log only — set ERROR_WEBHOOK_URL or ERROR_EMAIL_TO')
+    + ' · /admin/errors ' + (ADMIN_TOKEN ? 'open with ADMIN_TOKEN' : 'closed (no ADMIN_TOKEN)'));
   try { _keepWarm(); } catch(e){}
   // Load the verified subscriber domains up front — after a restart the CORS
   // allowlist must not start empty for whoever asks first.

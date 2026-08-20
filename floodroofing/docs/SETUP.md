@@ -56,6 +56,29 @@ git push
 5. Railway gives you a URL like `https://floodroofing-backend.railway.app`
 6. Test: open that URL + `/health` — should show `{"ok":true,...}`
 
+### Error monitoring (do this before the first paying customer)
+
+Without these the app still records every error, but only into the container
+log — where nobody reads it, and where it is gone after a restart. A
+subscriber who hits a bug and doesn't ring you is a silent cancellation.
+
+```
+ERROR_WEBHOOK_URL=https://hooks.slack.com/services/...   # or a Discord webhook
+ERROR_EMAIL_TO=you@yourcompany.co.nz                     # or instead of the webhook
+ADMIN_TOKEN=<a long random string>                       # opens /admin/errors
+```
+
+Then `https://<backend>/admin/errors?token=<ADMIN_TOKEN>` lists what has gone
+wrong lately, grouped, newest first. Without `ADMIN_TOKEN` that route 404s.
+
+### Custom domains for subscribers (Business plan)
+
+```
+VERCEL_TOKEN=<a Vercel personal token>
+VERCEL_PROJECT_ID=prj_...
+VERCEL_TEAM_ID=team_...
+```
+
 ---
 
 ## Step 4 — Deploy Frontend to Vercel
@@ -104,12 +127,31 @@ No file copying. No server restarts. Works from any computer.
 
 ---
 
-## Pricing Suggestions
+## Pricing
 
-- **Free trial:** 14 days (already coded)
-- **Monthly:** NZD $49-99/month per user
-- **Yearly:** NZD $490-990/year (save ~2 months)
-- **Future:** Team plans, white-labelling for other roofing companies
+What the landing page sells, and what `PLANS` in `backend/server.js` enforces.
+Per business, not per seat — an office of three shares one price book, one job
+number counter and one set of jobs, and charging them three times for that
+makes no sense to them.
+
+| Plan | NZD/month + GST | Seats | Slug | Own domain | Fergus |
+|---|---|---|---|---|---|
+| Trial (14 days) | free | unlimited | ✓ | ✓ | ✓ |
+| Solo | 149 | 1 | — | — | — |
+| Team | 299 | 5 | ✓ | — | — |
+| Business | 549 | unlimited | ✓ | ✓ | ✓ |
+
+The trial deliberately unlocks everything, so a business can judge the whole
+product before choosing.
+
+These sit above the cheapest software in the category and well below what
+per-report measuring costs a busy shop — the overseas products charge roughly
+$40–65 a roof, so twenty roofs a month is past $1,000 before anything is
+priced. Undercutting everybody while being the only product that measures on
+the roof reads as a doubt, not a bargain.
+
+To change them: the three numbers on `frontend/landing.html`, and the limits
+in `PLANS`.
 
 ---
 
