@@ -31,5 +31,19 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/signup",
+      "destination": "/signup.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/terms.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    }
   ]
 }

@@ -235,7 +235,7 @@
       <a href="#features">What it does</a>
       <a href="#pricing">Pricing</a>
       <a href="/index.html" id="signInLink">Sign in</a>
-      <a href="#start" class="nav-cta">Start free trial</a>
+      <a href="/signup.html" class="nav-cta">Start free trial</a>
     </nav>
   </div>
 </header>
@@ -251,7 +251,7 @@
         order, cut lists for the crew, and a quote your customer can open, change and accept online.
       </p>
       <div class="hero-cta">
-        <a href="#start" class="btn btn-primary">Start your free trial →</a>
+        <a href="/signup.html" class="btn btn-primary">Start free trial</a>
         <a href="#how" class="btn btn-ghost">See how it works</a>
       </div>
       <p class="hero-note">14 days free · No credit card · One subscription covers your whole office</p>
@@ -416,7 +416,7 @@
           <li class="off">One login</li>
           <li class="off">Quotes sent on roofmap.co.nz</li>
         </ul>
-        <a href="#start" class="btn btn-dark">Start free trial</a>
+        <a href="/signup.html" class="btn btn-dark">Start free trial</a>
       </div>
 
       <div class="tier pick">
@@ -433,7 +433,7 @@
           <li><span>Your own address — <em>yourname</em>.roofmap.co.nz</span></li>
           <li class="off">Quotes on your own domain</li>
         </ul>
-        <a href="#start" class="btn btn-primary">Start free trial</a>
+        <a href="/signup.html" class="btn btn-primary">Start free trial</a>
       </div>
 
       <div class="tier">
@@ -448,7 +448,7 @@
           <li>Fergus job-system integration</li>
           <li>Priority support from a roofer, not a call centre</li>
         </ul>
-        <a href="#start" class="btn btn-dark">Start free trial</a>
+        <a href="/signup.html" class="btn btn-dark">Start free trial</a>
       </div>
     </div>
     <p class="tier-note">14 days free on every plan · No credit card to start · Cancel any time and your data stays yours</p>
@@ -456,56 +456,21 @@
   </div>
 </section>
 
+<!-- The page ends on the ask, not on a form. The form has its own page
+     (signup.html) so that a button saying "Start free trial" navigates
+     somewhere instead of scrolling ten screens on a phone. -->
 <section class="signup" id="start">
-  <div class="wrap signup-grid">
-    <div>
-      <div class="eyebrow">Get started</div>
-      <h2>Set up your business in about a minute.</h2>
-      <p style="margin-top:16px;font-size:17px">
-        You'll get your own account with your own jobs, your own price book and your own quote branding.
-        Nothing is shared with anyone else.
-      </p>
-      <ul style="display:grid;gap:13px;list-style:none;padding:0;margin:24px 0 0">
-        <li style="display:flex;gap:11px;font-size:16px"><span style="color:var(--accent);font-weight:800">✓</span> Free for 14 days, no card needed</li>
-        <li style="display:flex;gap:11px;font-size:16px"><span style="color:var(--accent);font-weight:800">✓</span> Invite your team once you're in</li>
-        <li style="display:flex;gap:11px;font-size:16px"><span style="color:var(--accent);font-weight:800">✓</span> Your first quote out the same day</li>
-      </ul>
-    </div>
-    <div class="form-card">
-      <form id="suForm" autocomplete="on" novalidate>
-        <div class="field">
-          <label for="suCompany">Business name</label>
-          <input id="suCompany" name="organization" type="text" placeholder="Acme Roofing Ltd" autocomplete="organization" required>
-        </div>
-        <div class="two">
-          <div class="field">
-            <label for="suName">Your name</label>
-            <input id="suName" name="name" type="text" placeholder="Sam" autocomplete="name" required>
-          </div>
-          <div class="field">
-            <label for="suEmail">Email</label>
-            <input id="suEmail" name="email" type="email" placeholder="sam@acmeroofing.co.nz" autocomplete="email" required>
-          </div>
-        </div>
-        <div class="field">
-          <label for="suPass">Choose a password</label>
-          <input id="suPass" type="password" placeholder="At least 8 characters" autocomplete="new-password" required>
-        </div>
-        <div class="field" id="suInviteWrap" style="display:none">
-          <label for="suInvite">Invite code</label>
-          <input id="suInvite" type="text" placeholder="The code you were given" autocomplete="off">
-        </div>
-        <button type="submit" class="btn btn-primary" id="suBtn">Create my account</button>
-        <div class="form-msg" id="suMsg"></div>
-        <div class="form-fine">
-          By creating an account you agree to our <a href="/terms.html">Terms of Service</a>
-          and <a href="/privacy.html">Privacy Policy</a>.
-        </div>
-        <div class="form-fine">
-          Already using RoofMap? <a href="/index.html">Sign in</a>
-        </div>
-      </form>
-    </div>
+  <div class="wrap" style="text-align:center;max-width:660px">
+    <div class="eyebrow">Get started</div>
+    <h2>Set up your business in about a minute.</h2>
+    <p style="margin-top:16px;font-size:17.5px">
+      Your own account, your own jobs, your own price book and your own quote branding.
+      Free for 14 days, and there's no credit card to start.
+    </p>
+    <a href="/signup.html" class="btn btn-primary" style="margin-top:28px;display:inline-block;padding:16px 34px;font-size:17px">Start free trial</a>
+    <p style="margin-top:18px;font-size:14px;color:var(--muted)">
+      Already using RoofMap? <a href="/index.html" id="signInLink2">Sign in</a>
+    </p>
   </div>
 </section>
 
@@ -521,70 +486,18 @@
 
 <script>
 (function(){
-  var API = 'https://flood-roofing-estimator-production.up.railway.app';
   var APP = '/index.html';
-
   // Someone already signed in should never be shown the sales pitch when they
   // meant to open the app. Only auto-forwards from the site root, so this page
   // stays viewable at /landing.html while it is being worked on.
   try {
     if (localStorage.getItem('fr_token')) {
-      var link = document.getElementById('signInLink');
-      if (link) link.textContent = 'Open RoofMap';
+      ['signInLink','signInLink2'].forEach(function(id){
+        var a = document.getElementById(id); if (a) a.textContent = 'Open RoofMap';
+      });
       if (location.pathname === '/' || location.pathname === '') location.replace(APP);
     }
   } catch(e){}
-
-  var form = document.getElementById('suForm');
-  var btn  = document.getElementById('suBtn');
-  var msg  = document.getElementById('suMsg');
-  function say(text, kind){
-    msg.style.display = text ? 'block' : 'none';
-    msg.textContent = text || '';
-    msg.style.color = kind === 'bad' ? '#b91c1c' : kind === 'good' ? '#15803d' : 'var(--muted)';
-  }
-  form.addEventListener('submit', async function(ev){
-    ev.preventDefault();
-    var company = document.getElementById('suCompany').value.trim();
-    var name    = document.getElementById('suName').value.trim();
-    var email   = document.getElementById('suEmail').value.trim();
-    var pass    = document.getElementById('suPass').value;
-    var invite  = (document.getElementById('suInvite') || {}).value || '';
-    if (!company || !name){ say('Please fill in your business and your name.', 'bad'); return; }
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ say('That doesn\'t look like an email address.', 'bad'); return; }
-    if (pass.length < 8){ say('Your password needs to be at least 8 characters.', 'bad'); return; }
-    btn.disabled = true; btn.textContent = 'Setting up your account…';
-    say('');
-    try {
-      var r = await fetch(API + '/auth/register', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ email:email, password:pass, name:name, company:company, invite:invite })
-      });
-      var d = await r.json().catch(function(){ return {}; });
-      if (!r.ok){
-        // Registration is invite-gated until it's deliberately opened. Rather
-        // than a dead end, show the code field and say what's needed.
-        if (r.status === 403){
-          document.getElementById('suInviteWrap').style.display = 'block';
-          say(invite ? 'That invite code wasn\'t right — check it and try again.'
-                     : 'RoofMap is invite-only at the moment. Enter your invite code, or email office@floodroofing.co.nz to ask for one.', 'bad');
-          btn.disabled = false; btn.textContent = 'Create my account';
-          return;
-        }
-        throw new Error(d.error || ('Something went wrong (' + r.status + ')'));
-      }
-      try {
-        localStorage.setItem('fr_token', d.token);
-        localStorage.setItem('fr_user', JSON.stringify(d.user || { email:email, name:name }));
-        if (d.company) localStorage.setItem('fr_company', JSON.stringify(d.company));
-      } catch(e){}
-      say('Account created — opening RoofMap…', 'good');
-      location.href = APP;
-    } catch(e){
-      say((e && e.message) || 'Could not create your account. Please try again.', 'bad');
-      btn.disabled = false; btn.textContent = 'Create my account';
-    }
-  });
 })();
 </script>
 </body>

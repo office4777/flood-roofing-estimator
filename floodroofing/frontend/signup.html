@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Start your RoofMap trial</title>
+<meta name="description" content="Set up your roofing business on RoofMap. Fourteen days free, no credit card, your first quote out the same day.">
+<meta name="robots" content="noindex,follow">
+<link rel="icon" href="brand/roofmap_icon.png">
+<style>
+  /* ── The sign-up page ──────────────────────────────────────────────
+     One job: take four fields. Everything that argues the case for
+     RoofMap lives on the landing page; by the time somebody is here they
+     have already decided, and the only thing that matters is that the
+     form is on screen without scrolling — on a phone as well as a
+     desktop. That constraint drives every decision below: a short
+     headline, no hero image, the reassurances reduced to one line, and
+     the "why" moved BELOW the form where it can't push it down.
+     ────────────────────────────────────────────────────────────────── */
+  *,*::before,*::after{ box-sizing:border-box }
+  :root{
+    --ink:#0a1628; --ink-2:#1c2b3f; --body:#3d4d61; --muted:#6b7c91;
+    --accent:#0099cc; --accent-2:#00b4d8; --accent-deep:#00719a;
+    --paper:#ffffff; --paper-2:#f4f7fa; --line:#dde5ee;
+  }
+  html{ -webkit-text-size-adjust:100% }
+  body{
+    margin:0; background:var(--paper-2); color:var(--body);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size:17px; line-height:1.6; overflow-x:hidden;
+  }
+  h1,h2{ color:var(--ink); margin:0; line-height:1.12; letter-spacing:-.022em; font-weight:800 }
+  a{ color:var(--accent) }
+  a:focus-visible,button:focus-visible,input:focus-visible{ outline:2px solid var(--accent); outline-offset:2px }
+  .wrap{ max-width:1080px; margin:0 auto; padding:0 24px }
+
+  /* ── masthead: deliberately slight, so it costs almost no height ── */
+  header{ background:var(--paper); border-bottom:1px solid var(--line) }
+  header .wrap{ display:flex; align-items:center; gap:14px; height:60px }
+  .brand{ display:flex; align-items:center; gap:9px; text-decoration:none; color:var(--ink); font-weight:800; font-size:17px }
+  .brand img{ width:26px; height:26px }
+  header .alt{ margin-left:auto; font-size:14.5px; color:var(--muted) }
+  header .alt a{ font-weight:600; text-decoration:none }
+
+  /* ── the fold: headline + form, side by side on a desktop ── */
+  .top{ padding-top:40px; padding-bottom:34px }   /* not the shorthand — .wrap owns the sides */
+  .cols{ display:grid; grid-template-columns:1fr 1fr; gap:52px; align-items:start }
+  .eyebrow{
+    font-size:12.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--accent); margin-bottom:14px;
+  }
+  h1{ font-size:clamp(28px,3.9vw,42px) }
+  .lede{ margin:18px 0 0; font-size:17px; max-width:34em }
+  .assure{
+    margin:26px 0 0; padding:0; list-style:none; display:grid; gap:11px;
+  }
+  .assure li{ display:flex; gap:11px; font-size:16px; align-items:flex-start }
+  .assure li::before{ content:'✓'; color:var(--accent); font-weight:800; flex-shrink:0 }
+
+  /* ── the form ── */
+  .card{
+    background:var(--paper); border:1px solid var(--line); border-radius:18px; padding:30px;
+    box-shadow:0 18px 48px rgba(10,22,40,.08);
+  }
+  .field{ margin-bottom:15px }
+  .field label{ display:block; font-size:13.5px; font-weight:700; color:var(--ink); margin-bottom:6px }
+  .field input{
+    width:100%; padding:13px 14px; font-size:16px; font-family:inherit; color:var(--ink);
+    background:var(--paper); border:1px solid var(--line); border-radius:10px;
+  }
+  .field input::placeholder{ color:#9fb0c2 }
+  .field input:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,153,204,.14) }
+  /* Stacked, a grid gap would add to each field's own margin and make this
+     one pair sit further apart than every other. */
+  .two{ display:grid; grid-template-columns:1fr 1fr; gap:13px }
+  @media (max-width:520px){ .two{ grid-template-columns:1fr; gap:0 } }
+  .btn{
+    display:block; width:100%; padding:15px 20px; border:none; border-radius:11px;
+    font-family:inherit; font-size:16.5px; font-weight:700; cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff;
+    box-shadow:0 10px 26px rgba(0,153,204,.3); margin-top:8px;
+  }
+  .btn:hover{ filter:brightness(1.05) }
+  .btn:disabled{ opacity:.65; cursor:default; filter:none }
+  .msg{ font-size:14.5px; margin-top:14px; line-height:1.5; display:none }
+  .fine{ font-size:13px; color:var(--muted); margin-top:14px; text-align:center; line-height:1.55 }
+  .fine a{ font-weight:600 }
+
+  /* ── below the fold: the reminder of what they're getting ── */
+  .under{ background:var(--paper); border-top:1px solid var(--line); margin-top:46px; padding:44px 0 52px }
+  .under h2{ font-size:21px }
+  .steps{ margin:22px 0 0; padding:0; list-style:none; display:grid; gap:20px; grid-template-columns:repeat(3,1fr) }
+  .steps li{ font-size:15px; line-height:1.55 }
+  .steps .n{
+    display:block; font-size:12px; font-weight:800; letter-spacing:.1em; color:var(--accent);
+    margin-bottom:5px;
+  }
+  .steps strong{ display:block; color:var(--ink); font-size:15.5px; margin-bottom:3px }
+
+  footer{ background:var(--paper); border-top:1px solid var(--line); padding:22px 0 30px }
+  footer .wrap{ display:flex; gap:8px 20px; flex-wrap:wrap; align-items:center; font-size:14px; color:var(--muted) }
+  footer a{ color:var(--muted); text-decoration:none }
+  footer a:hover{ color:var(--accent) }
+  footer .sp{ margin-left:auto }
+
+  @media (max-width:900px){
+    /* The form goes FIRST on a narrow screen — the whole point of this page
+       is that nobody has to scroll to reach it. The headline stays above it
+       but the reassurances move underneath. */
+    .top{ padding-top:26px; padding-bottom:30px }
+    .cols{ grid-template-columns:1fr; gap:22px }
+    .pitch{ display:contents }
+    .pitch .eyebrow{ order:1 } .pitch h1{ order:2 } .pitch .lede{ display:none }
+    .card{ order:3; padding:24px }
+    .assure{ order:4; margin-top:4px }
+    .steps{ grid-template-columns:1fr; gap:16px }
+    footer .sp{ margin-left:0 }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="/landing.html"><img src="brand/roofmap_icon.png" alt="">RoofMap</a>
+    <span class="alt">Already using RoofMap? <a href="/index.html" id="signInLink">Sign in</a></span>
+  </div>
+</header>
+
+<div class="wrap top">
+  <div class="cols">
+    <div class="pitch">
+      <div class="eyebrow">Start your free trial</div>
+      <h1>Set up your business in about a minute.</h1>
+      <p class="lede">
+        You'll get your own account with your own jobs, your own price book and your own quote
+        branding. Nothing is shared with anyone else.
+      </p>
+      <ul class="assure">
+        <li>Free for 14 days — no credit card</li>
+        <li>Invite your team once you're in</li>
+        <li>Cancel any time and your data stays yours</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <form id="suForm" autocomplete="on" novalidate>
+        <div class="field">
+          <label for="suCompany">Business name</label>
+          <input id="suCompany" name="organization" type="text" placeholder="Acme Roofing Ltd" autocomplete="organization" required>
+        </div>
+        <div class="two">
+          <div class="field">
+            <label for="suName">Your name</label>
+            <input id="suName" name="name" type="text" placeholder="Sam" autocomplete="name" required>
+          </div>
+          <div class="field">
+            <label for="suEmail">Email</label>
+            <input id="suEmail" name="email" type="email" placeholder="sam@acmeroofing.co.nz" autocomplete="email" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="suPass">Choose a password</label>
+          <input id="suPass" type="password" placeholder="At least 8 characters" autocomplete="new-password" required>
+        </div>
+        <div class="field" id="suInviteWrap" style="display:none">
+          <label for="suInvite">Invite code</label>
+          <input id="suInvite" type="text" placeholder="The code you were given" autocomplete="off">
+        </div>
+        <button type="submit" class="btn" id="suBtn">Create my account</button>
+        <div class="msg" id="suMsg"></div>
+        <div class="fine">
+          By creating an account you agree to our <a href="/terms.html">Terms of Service</a>
+          and <a href="/privacy.html">Privacy Policy</a>.
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Below the fold on purpose. Somebody who has already decided never sees
+     this; somebody hesitating gets one short reminder of what happens next
+     rather than the whole sales page again. -->
+<section class="under">
+  <div class="wrap">
+    <h2>What happens after you press the button</h2>
+    <ol class="steps">
+      <li><span class="n">First</span><strong>You land in your own account</strong>
+        Your business, your logins, your jobs. Nothing shared with anyone else.</li>
+      <li><span class="n">Then</span><strong>Open the sample job</strong>
+        A finished re-roof — measured, with a cut list, a material order and a priced proposal — so you can see the output before you draw anything.</li>
+      <li><span class="n">Same day</span><strong>Quote a real roof</strong>
+        Put your own supplier rates in, measure your next job, and send the customer a quote they can accept online.</li>
+    </ol>
+    <p style="margin-top:26px;font-size:15px">
+      Want the longer version first? <a href="/landing.html">Have a look at what RoofMap does →</a>
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="/landing.html" style="gap:8px;font-size:15px"><img src="brand/roofmap_icon.png" alt="" style="width:22px;height:22px">RoofMap</a>
+    <a href="/terms.html">Terms</a>
+    <a href="/privacy.html">Privacy</a>
+    <span class="sp">Built by <a href="https://floodroofing.co.nz" rel="noopener">Flood Roofing</a>, Kerikeri</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var API = 'https://flood-roofing-estimator-production.up.railway.app';
+  var APP = '/index.html';
+
+  // Somebody already signed in has no business on a sign-up page — send them
+  // straight to the app rather than inviting them to make a second account.
+  try {
+    if (localStorage.getItem('fr_token')) { location.replace(APP); return; }
+  } catch(e){}
+
+  var form = document.getElementById('suForm');
+  var btn  = document.getElementById('suBtn');
+  var msg  = document.getElementById('suMsg');
+  function say(text, kind){
+    msg.style.display = text ? 'block' : 'none';
+    msg.textContent = text || '';
+    msg.style.color = kind === 'bad' ? '#b91c1c' : kind === 'good' ? '#15803d' : 'var(--muted)';
+  }
+  form.addEventListener('submit', async function(ev){
+    ev.preventDefault();
+    var company = document.getElementById('suCompany').value.trim();
+    var name    = document.getElementById('suName').value.trim();
+    var email   = document.getElementById('suEmail').value.trim();
+    var pass    = document.getElementById('suPass').value;
+    var invite  = (document.getElementById('suInvite') || {}).value || '';
+    if (!company || !name){ say('Please fill in your business and your name.', 'bad'); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ say('That doesn\'t look like an email address.', 'bad'); return; }
+    if (pass.length < 8){ say('Your password needs to be at least 8 characters.', 'bad'); return; }
+    btn.disabled = true; btn.textContent = 'Setting up your account…';
+    say('');
+    try {
+      var r = await fetch(API + '/auth/register', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ email:email, password:pass, name:name, company:company, invite:invite })
+      });
+      var d = await r.json().catch(function(){ return {}; });
+      if (!r.ok){
+        // Registration is invite-gated until it's deliberately opened. Rather
+        // than a dead end, show the code field and say what's needed.
+        if (r.status === 403){
+          document.getElementById('suInviteWrap').style.display = 'block';
+          say(invite ? 'That invite code wasn\'t right — check it and try again.'
+                     : 'RoofMap is invite-only at the moment. Enter your invite code, or email office@floodroofing.co.nz to ask for one.', 'bad');
+          btn.disabled = false; btn.textContent = 'Create my account';
+          return;
+        }
+        throw new Error(d.error || ('Something went wrong (' + r.status + ')'));
+      }
+      try {
+        localStorage.setItem('fr_token', d.token);
+        localStorage.setItem('fr_user', JSON.stringify(d.user || { email:email, name:name }));
+        if (d.company) localStorage.setItem('fr_company', JSON.stringify(d.company));
+      } catch(e){}
+      say('Account created — opening RoofMap…', 'good');
+      location.href = APP;
+    } catch(e){
+      say((e && e.message) || 'Could not create your account. Please try again.', 'bad');
+      btn.disabled = false; btn.textContent = 'Create my account';
+    }
+  });
+})();
+</script>
+</body>
+</html>

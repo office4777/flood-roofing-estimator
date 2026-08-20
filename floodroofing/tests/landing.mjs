@@ -103,57 +103,28 @@ await pg.locator('.onsite').screenshot({ path: S+'/landing_onsite.png' });
 await pg.locator('#pricing').screenshot({ path: S+'/landing_pricing.png' });
 await pg.screenshot({ path: S+'/landing_full.png', fullPage: true });
 
-// ── the signup form validates before it bothers the server ──
-const before = posts.length;
-await pg.click('#suBtn');
-await pg.waitForTimeout(250);
-check('an empty form is caught here, not at the server',
-  posts.length === before && /business and your name/.test(await pg.evaluate(() => document.getElementById('suMsg').textContent)));
-await pg.fill('#suCompany','Acme Roofing Ltd'); await pg.fill('#suName','Sam');
-await pg.fill('#suEmail','not-an-email'); await pg.fill('#suPass','abcdefgh');
-await pg.click('#suBtn'); await pg.waitForTimeout(250);
-check('…so is a bad email address',
-  posts.length === before && /email address/.test(await pg.evaluate(() => document.getElementById('suMsg').textContent)));
-await pg.fill('#suEmail','sam@acmeroofing.co.nz'); await pg.fill('#suPass','short');
-await pg.click('#suBtn'); await pg.waitForTimeout(250);
-check('…and a short password',
-  posts.length === before && /8 characters/.test(await pg.evaluate(() => document.getElementById('suMsg').textContent)));
-
-// ── invite-gated backend gets a useful answer, not a dead end ──
-mode = 'invite';
-await pg.fill('#suPass','a-good-password');
-await pg.click('#suBtn'); await pg.waitForTimeout(600);
-v = await pg.evaluate(() => ({
-  msg: document.getElementById('suMsg').textContent,
-  inviteShown: getComputedStyle(document.getElementById('suInviteWrap')).display !== 'none',
-  btnBack: !document.getElementById('suBtn').disabled }));
-check('when registration is invite-only it says so and asks for the code',
-  v.inviteShown && /invite-only/.test(v.msg) && /office@floodroofing/.test(v.msg), JSON.stringify(v));
-check('…and the button comes back so they can try again', v.btnBack);
-
-// ── a real server error is shown in the server's own words ──
-mode = 'error';
-await pg.click('#suBtn'); await pg.waitForTimeout(600);
-check('a rejected signup shows the reason',
-  /already been registered/.test(await pg.evaluate(() => document.getElementById('suMsg').textContent)),
-  await pg.evaluate(() => document.getElementById('suMsg').textContent));
-
-// ── the happy path ──
-mode = 'ok';
-await pg.click('#suBtn');
-await pg.waitForURL(/index\.html/, { timeout: 5000 }).catch(()=>{});
-await pg.waitForTimeout(400);
-v = await pg.evaluate(() => ({
-  tok: localStorage.getItem('fr_token'),
-  co: localStorage.getItem('fr_company'),
-  url: location.pathname }));
-const sent = posts[posts.length-1] || {};
-check('a successful signup hands straight over to the app', /index\.html/.test(v.url), v.url);
-check('signing up posts the business, name, email and password',
-  sent.company === 'Acme Roofing Ltd' && sent.name === 'Sam' && sent.email === 'sam@acmeroofing.co.nz' && !!sent.password,
-  JSON.stringify(Object.assign({}, sent, {password:'***'})));
-check('…with the session and business stored, so the app opens signed in',
-  v.tok === 'tok' && /Acme Roofing/.test(v.co||''), JSON.stringify({tok:v.tok, co:v.co}));
+// ── the page's job is to send people to the sign-up page ──
+// The form itself moved to signup.html and is covered by signup.mjs. What
+// matters here is that every button that offers a trial is a real link to it
+// rather than an anchor that scrolls ten screens on a phone.
+v = await pg.evaluate(() => {
+  const ctas = Array.from(document.querySelectorAll('a.btn, a.nav-cta'));
+  return {
+    hrefs: Array.from(new Set(ctas.map(a => a.getAttribute('href')))),
+    labels: Array.from(new Set(ctas.filter(a => (a.getAttribute('href')||'') === '/signup.html')
+                                   .map(a => a.textContent.trim()))),
+    scrollers: ctas.filter(a => (a.getAttribute('href')||'').startsWith('#') &&
+                                /trial|sign ?up|account/i.test(a.textContent)).length,
+    toSignup: ctas.filter(a => (a.getAttribute('href')||'') === '/signup.html').length,
+    form: !!document.getElementById('suForm'),
+  };
+});
+check('every button offering a trial links to the sign-up page',
+  v.toSignup >= 4 && v.scrollers === 0, v.toSignup + ' links, ' + v.scrollers + ' scrollers');
+check('…all saying the same thing', v.labels.length === 1, JSON.stringify(v.labels));
+check('…and the form is not duplicated here', v.form === false);
+check('…with only the "see how it works" jump left as an anchor',
+  v.hrefs.filter(h => (h||'').startsWith('#')).length <= 1, JSON.stringify(v.hrefs));
 await ctx.close();
 
 // ── an existing session is offered the app, not the sales pitch ──
@@ -177,10 +148,14 @@ v = await pg.evaluate(() => ({
   wide: document.documentElement.scrollWidth > window.innerWidth + 1,
   overflow: document.documentElement.scrollWidth - window.innerWidth,
   ctaVisible: !!document.querySelector('.hero-cta a'),
-  formVisible: !!document.getElementById('suForm'),
+  ctaHref: (document.querySelector('.hero-cta a')||{}).getAttribute
+             ? document.querySelector('.hero-cta a').getAttribute('href') : null,
+  screens: +(document.documentElement.scrollHeight / innerHeight).toFixed(1),
 }));
 check('the phone layout does not scroll sideways', !v.wide, 'overflow ' + v.overflow + 'px');
-check('…and still leads with a call to action and carries the form', v.ctaVisible && v.formVisible);
+check('…and leads with a call to action that goes somewhere',
+  v.ctaVisible && v.ctaHref === '/signup.html', v.ctaHref);
+check('…on a page that is shorter now the form has its own', v.screens < 12, v.screens + ' screens');
 await pg.screenshot({ path: S+'/landing_phone.png', fullPage: true });
 await ctx.close();
 

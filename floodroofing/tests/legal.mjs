@@ -116,9 +116,13 @@ for (const [name, src] of [['terms.html', terms], ['privacy.html', privacy]]){
 check('(placeholders still to fill before publishing)', true, holes.length ? holes.join(', ') : 'none');
 
 // ── they are reachable from where somebody agrees to them ──
+// The form moved to its own page — that is where somebody agrees, so that is
+// where the agreement has to be visible.
+const signup = flat(await readFile(_j(DIR, 'signup.html'), 'utf8'));
 check('the sign-up form says what you are agreeing to',
-  /By creating an account you agree to our[\s\S]{0,120}terms\.html[\s\S]{0,120}privacy\.html/.test(landing));
-check('…and both are linked from the site footer', /footer[\s\S]*terms\.html/.test(landing) && /footer[\s\S]*privacy\.html/.test(landing));
+  /By creating an account you agree to our[\s\S]{0,120}terms\.html[\s\S]{0,120}privacy\.html/.test(signup));
+check('…and both are linked from the footer of every public page',
+  [landing, signup].every(pg => /footer[\s\S]*terms\.html/.test(pg) && /footer[\s\S]*privacy\.html/.test(pg)));
 check('…and from inside the app', /terms\.html/.test(app) && /privacy\.html/.test(app));
 
 // ── and they render ──

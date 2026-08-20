@@ -27,7 +27,7 @@ const API = [
 ];
 // The real index.html, driven by Playwright.
 const UI = [
-  'tenantbrand', 'ownbrand', 'pricebook', 'samplejob', 'crashui', 'landing', 'quotedomain',
+  'tenantbrand', 'ownbrand', 'pricebook', 'samplejob', 'crashui', 'landing', 'signup', 'quotedomain',
   'gutterprice', 'officebar', 'roofrename', 'acceptcarry', 'orgui', 'teamui', 'dupjobui', 'legal',
 ];
 
