@@ -1130,8 +1130,40 @@ app.post('/jobs/:id/order-sent', requireAuth, async (req, res) => {
   res.json({ ok: true, order_sent: Object.assign({}, stamp, { by_name: await _nameOf(req.user.id, req) }) });
 });
 
+// The job number a save is carrying, which lives inside the quote.
+function _jobRefOf(drawState){
+  try { return String(((drawState || {}).state || {}).quote.ref || '').trim(); } catch (e) { return ''; }
+}
+
+// Creating a job is where duplicates are born: a save that has lost track of
+// which job it was editing arrives with no id, so it becomes a SECOND record
+// carrying the same job number. You only notice later — a quote link dies, or
+// a search for the number returns two hits, and the work looks lost even
+// though it isn't. If the number is already in use, refuse and hand back the
+// job that has it, so the app can offer to open that one instead. A deliberate
+// second record is still possible with allowDuplicateRef.
 app.post('/jobs', requireAuth, requireSubscription, async (req, res) => {
   const { client_name, site_address, draw_state, settings } = req.body;
+  const ref = _jobRefOf(draw_state);
+  if (ref && !(req.body && req.body.allowDuplicateRef)) {
+    try {
+      const { data: clash } = await _scopeCompany(supabase.from('jobs')
+        .select('id, client_name, site_address, updated_at')
+        .eq('draw_state->state->quote->>ref', ref), req).limit(1);
+      if (clash && clash[0]) {
+        return res.status(409).json({
+          error: 'Job ' + ref + ' already exists.',
+          code: 'DUPLICATE_JOB_NO',
+          jobNo: ref,
+          existing: clash[0],
+        });
+      }
+    } catch (e) {
+      // A failed check must not block saving — losing the save would be worse
+      // than the duplicate this is trying to prevent.
+      console.warn('[jobs] duplicate-number check failed, allowing save:', e.message);
+    }
+  }
   const { data, error } = await supabase.from('jobs').insert({ user_id: req.user.id, company_id: req.companyId || null, client_name: client_name || '', site_address: site_address || '', draw_state: draw_state || {}, settings: settings || {}, status: 'draft' }).select().single();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
@@ -2981,6 +3013,8 @@ const _MIGRATION_SQL = [
   "alter table public.user_settings add column if not exists company_id uuid",
   "alter table public.profiles add column if not exists company_id uuid",
   "create index if not exists idx_jobs_company on public.jobs (company_id)",
+  // Job number lookup — backs the duplicate-job-number guard on create.
+  "create index if not exists idx_jobs_quote_ref on public.jobs ((draw_state->'state'->'quote'->>'ref'))",
   "create index if not exists idx_jobs_user on public.jobs (user_id)",
 
   // 3. backfill — a company for every user seen in profiles or jobs that has

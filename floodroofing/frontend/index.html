@@ -6587,7 +6587,16 @@ async function api(method, path, body) {
     // instead of leaving the app half-working with saves silently failing.
     try { window._frSessionExpired && window._frSessionExpired(); } catch(e){}
   }
-  if (!r.ok) { var t = await r.text().catch(function(){return '';}); throw new Error('HTTP ' + r.status + ' ' + t.slice(0,200)); }
+  if (!r.ok) {
+    var t = await r.text().catch(function(){return '';});
+    // Carry the server's own wording and code through, so callers can act on a
+    // specific failure (and the office reads "Job 3099 already exists." rather
+    // than "HTTP 409 {\"error\":…}").
+    var payload = null; try { payload = JSON.parse(t); } catch(e){}
+    var err = new Error((payload && payload.error) || ('HTTP ' + r.status + ' ' + t.slice(0,200)));
+    err.status = r.status; err.data = payload; err.code = payload && payload.code;
+    throw err;
+  }
   if (r.status === 204) return null;
   return r.json();
 }
@@ -9415,7 +9424,16 @@ async function saveCurrentJob(){
   try {
     var saved;
     if (S.currentJobId) saved = await api('PUT', '/jobs/' + S.currentJobId, body);
-    else                saved = await api('POST', '/jobs', body);
+    else {
+      try { saved = await api('POST', '/jobs', body); }
+      catch(e0){
+        // This save carries a job number another record already has — almost
+        // always the app having lost track of which job it was editing. Ask,
+        // rather than quietly creating a second record for the same job.
+        if (e0 && e0.code === 'DUPLICATE_JOB_NO'){ set('', ''); return _askDuplicateJob(e0.data, body, set); }
+        throw e0;
+      }
+    }
     S.currentJobId = saved.id;
     setCurrentJobLabel(saved);
     // Link this saved job to its Fergus job so re-selecting the Fergus job
@@ -9436,6 +9454,70 @@ async function saveCurrentJob(){
     _siteToast('⚡ Saved on this device — the server did not answer');
     try { await _writeLocalDraftNow(); } catch(e2){}
     try { _listLocalDrafts().then(function(l){ _syncCount(l); _renderSyncChip(); }); } catch(e2){}
+  }
+}
+
+/* Two records for one job number is how work goes missing: the quote link on
+   the original dies, a search returns two hits, and the job looks empty even
+   though the real one is sitting right there. Rather than guess which the
+   office meant, show both ways out — and write a local draft first, so
+   whichever they pick, nothing in the app right now is lost. */
+function _askDuplicateJob(info, body, set){
+  info = info || {};
+  var ex = info.existing || {};
+  var when = ex.updated_at ? new Date(ex.updated_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' }) : '';
+  var host = document.getElementById('dupJobModal');
+  if (host) host.remove();
+  host = document.createElement('div');
+  host.id = 'dupJobModal';
+  host.className = 'no-print';
+  host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.55);z-index:100002;display:flex;align-items:center;justify-content:center;padding:20px');
+  host.innerHTML =
+    '<div style="background:#fff;border-radius:14px;max-width:460px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:inherit">'+
+      '<div style="font-size:16px;font-weight:800;color:#0a1628;margin-bottom:4px">Job '+esc(info.jobNo || '')+' already exists</div>'+
+      '<div style="font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:12px">Saving now would make a <strong>second record</strong> with the same job number — which is how a job ends up looking empty while the real one sits elsewhere.</div>'+
+      '<div style="border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:14px;background:var(--surface-2)">'+
+        '<div style="font-size:13px;font-weight:700;color:#0a1628">'+esc(ex.client_name || '(untitled)')+'</div>'+
+        '<div style="font-size:12px;color:var(--text2)">'+esc(ex.site_address || '—')+(when ? ' · last saved '+esc(when) : '')+'</div>'+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;gap:7px">'+
+        '<button type="button" onclick="_dupJobOpen(\''+esc(ex.id || '')+'\')" style="padding:11px 16px;background:#0099cc;color:#fff;border:none;border-radius:9px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit">Open that job instead</button>'+
+        '<button type="button" onclick="_dupJobSaveAnyway()" style="padding:10px 16px;background:#fff;color:#0a1628;border:1px solid var(--border);border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Save as a separate record</button>'+
+        '<button type="button" onclick="_dupJobClose()" style="padding:8px 16px;background:none;color:var(--text2);border:none;font-size:12.5px;cursor:pointer;font-family:inherit">Cancel — keep working here</button>'+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5">Whatever you choose, what\'s on screen now is kept on this device first — Menu → Offline saves.</div>'+
+    '</div>';
+  document.body.appendChild(host);
+  window.__dupJobBody = body;
+  window.__dupJobSet = set;
+  return null;
+}
+function _dupJobClose(){
+  var h = document.getElementById('dupJobModal'); if (h) h.remove();
+  var set = window.__dupJobSet;
+  if (set) set('Not saved — job number already in use.', '#b45309');
+}
+async function _dupJobOpen(id){
+  // Keep what's on screen before loading the other job over the top of it.
+  try { await _writeLocalDraftNow(); } catch(e){}
+  var h = document.getElementById('dupJobModal'); if (h) h.remove();
+  try { await openJob(id); }
+  catch(e){ alert('Could not open that job: ' + (e && e.message || e)); }
+}
+async function _dupJobSaveAnyway(){
+  var body = window.__dupJobBody, set = window.__dupJobSet;
+  var h = document.getElementById('dupJobModal'); if (h) h.remove();
+  if (!body) return;
+  if (set) set('Saving as a separate record…', '');
+  try {
+    var saved = await api('POST', '/jobs', Object.assign({}, body, { allowDuplicateRef: true }));
+    S.currentJobId = saved.id;
+    setCurrentJobLabel(saved);
+    if (set) set('✓ Saved as a separate record ' + new Date().toLocaleTimeString('en-NZ', { hour:'2-digit', minute:'2-digit' }), '#15803d');
+    try { _draftMarkSynced(); } catch(e){}
+    refreshJobsList();
+  } catch(e){
+    if (set) set('⚠ Could not save (' + (e && e.message || e) + ')', '#b91c1c');
   }
 }
 
