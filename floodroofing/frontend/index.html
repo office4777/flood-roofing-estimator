@@ -2998,7 +2998,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <!-- SET MY PASSWORD (first-time setup) -->
     <div id="login-setup-view" style="display:none">
       <div style="font-size:16px;font-weight:700;color:#0a1628;margin-bottom:3px">Set my password</div>
-      <div style="font-size:12.5px;color:#666;margin-bottom:1.25rem;line-height:1.55">Create your RoofMap login. You'll need the <strong>invite code</strong> from Flood Roofing.</div>
+      <div style="font-size:12.5px;color:#666;margin-bottom:1.25rem;line-height:1.55">Create your RoofMap login. You'll need an <strong>invite code</strong> if your business hasn't opened sign-up yet.</div>
       <label class="li-label">Full name</label>
       <input id="su-name" type="text" placeholder="Matt" class="li-input">
       <label class="li-label">Company</label>
@@ -3051,7 +3051,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       _sp.setAttribute('style', 'position:fixed;inset:0;z-index:100050;background:#0a1628;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,-apple-system,\'Segoe UI\',sans-serif;padding:24px;text-align:center');
       _sp.innerHTML =
         '<style>@keyframes _spSlide{0%{left:-40%}50%{left:35%}100%{left:100%}}</style>'+
-        '<div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;font-weight:700;opacity:.7;margin-bottom:18px">Flood Roofing</div>'+
+        '<div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;font-weight:700;opacity:.7;margin-bottom:18px">Your quote</div>'+
         '<div style="font-size:17px;font-weight:600;margin-bottom:22px">Loading your quote…</div>'+
         '<div style="position:relative;width:min(280px,70vw);height:5px;border-radius:3px;background:rgba(255,255,255,.2);overflow:hidden"><i style="position:absolute;top:0;bottom:0;width:40%;border-radius:3px;background:#0099e0;animation:_spSlide 1.1s ease-in-out infinite"></i></div>'+
         '<div id="custSplashSub" style="font-size:12px;opacity:.6;margin-top:16px">Just a moment</div>';
@@ -3207,7 +3207,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   };
   window.doRegister=async function(){
     var name=document.getElementById('su-name').value.trim();
-    var companyName=(document.getElementById('su-company')||{value:''}).value.trim()||'Flood Roofing';
+    var companyName=(document.getElementById('su-company')||{value:''}).value.trim();
     var email=document.getElementById('su-email').value.trim();
     var invite=document.getElementById('su-invite').value.trim();
     var pass=document.getElementById('su-pass').value;
@@ -4796,7 +4796,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div class="card-hd"><span class="card-dot"></span>Customer report preview</div>
     <div class="report-preview">
       <div class="rp-header">
-        <div><div class="rp-logo-name">FLOOD ROOFING</div><div class="rp-logo-tag">NORTHLAND'S ROOFING SPECIALISTS</div><div class="rp-logo-stripe"></div><div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:6px">floodroofing.co.nz | Whangarei, NZ</div></div>
+        <div><div class="rp-logo-name">YOUR COMPANY</div><div class="rp-logo-tag"></div><div class="rp-logo-stripe"></div><div class="rp-logo-where" style="font-size:10px;color:rgba(255,255,255,.4);margin-top:6px"></div></div>
         <div class="rp-hdr-right"><strong>Roof Inspection &amp; Quote Report</strong><span id="rpDate"></span><br>Ref: <span id="rpRef">#FR-001</span></div>
       </div>
       <div class="rp-body">
@@ -4832,7 +4832,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div><div class="rp-total-lbl">Total estimate (incl. 15% GST)</div><div class="rp-total-val" id="rpTotal">$0.00</div></div>
         <div class="rp-breakdown" id="rpBreakdown">Labour + materials + GST<br>Quote valid 30 days</div>
       </div>
-      <div class="rp-footer"><span>Flood Roofing Ltd | Whangarei, Northland, NZ | floodroofing.co.nz</span><span id="rpGenDate"></span></div>
+      <div class="rp-footer"><span></span><span id="rpGenDate"></span></div>
     </div>
     <button class="sec-btn" onclick="refreshReport()" style="margin-top:1rem">Refresh report</button>
     <button class="out-btn" onclick="window.print()" style="margin-top:.5rem">Print / save as PDF</button>
@@ -5207,7 +5207,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button type="button" class="tab-sm" onclick="setDeliveryMode('site',this)">🚚 Deliver to site</button>
       </div>
       <input type="text" id="orderDeliveryAddr" placeholder="Site delivery address (street, suburb, city)" style="display:none">
-      <div id="orderYardNote" style="font-size:12px;color:var(--text2)">Picked up from / delivered to Flood Roofing yard — supplier picks the standard yard address from your supplier record.</div>
+      <div id="orderYardNote" style="font-size:12px;color:var(--text2)">Picked up from / delivered to your yard — the supplier uses the standard yard address on your supplier record.</div>
     </div>
   </div>
 
@@ -5779,13 +5779,13 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div><label>Tagline</label><input type="text" id="brTagline" placeholder="Northland's Roofing Specialists"></div>
       </div>
       <div class="f3">
-        <div><label>Phone</label><input type="tel" id="brPhone" placeholder="0800 4 FLOOD"></div>
-        <div><label>Email</label><input type="email" id="brEmail" placeholder="office@floodroofing.co.nz"></div>
-        <div><label>Website</label><input type="text" id="brWebsite" placeholder="floodroofing.co.nz"></div>
+        <div><label>Phone</label><input type="tel" id="brPhone" placeholder="0800 123 456"></div>
+        <div><label>Email</label><input type="email" id="brEmail" placeholder="office@yourcompany.co.nz"></div>
+        <div><label>Website</label><input type="text" id="brWebsite" placeholder="yourcompany.co.nz"></div>
       </div>
       <div class="f2">
         <div><label>Business address</label><input type="text" id="brAddress" placeholder="494C Kerikeri Road, Kerikeri 0293"></div>
-        <div><label>GST number</label><input type="text" id="brGstNumber" placeholder="120 543 997"></div>
+        <div><label>GST number</label><input type="text" id="brGstNumber" placeholder="123 456 789"></div>
       </div>
       <div class="f3" style="margin-top:8px">
         <div><label>Primary colour</label><input type="color" id="brPrimary" value="#0099cc" style="width:100%;height:38px;padding:2px"></div>
@@ -5836,21 +5836,21 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
     <!-- EMAIL -->
     <div class="sub-panel settings-sub" id="set-email" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Who gets copied on the emails the app sends. Separate multiple addresses with a comma (e.g. <code>office@floodroofing.co.nz, aron@floodroofing.co.nz</code>).</p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Who gets copied on the emails the app sends. Separate multiple addresses with a comma (e.g. <code>office@yourcompany.co.nz, sam@yourcompany.co.nz</code>).</p>
       <div style="display:grid;gap:14px;max-width:620px">
         <div>
           <label>Copy of quotes sent (CC)</label>
-          <input type="text" id="emQuoteCc" placeholder="office@floodroofing.co.nz" autocomplete="off">
+          <input type="text" id="emQuoteCc" placeholder="office@yourcompany.co.nz" autocomplete="off">
           <div style="font-size:11px;color:var(--text2);margin-top:3px">CC'd whenever a quote is emailed to a customer.</div>
         </div>
         <div>
           <label>Acceptance email goes to</label>
-          <input type="text" id="emAcceptTo" placeholder="office@floodroofing.co.nz" autocomplete="off">
+          <input type="text" id="emAcceptTo" placeholder="office@yourcompany.co.nz" autocomplete="off">
           <div style="font-size:11px;color:var(--text2);margin-top:3px">Notified when a customer accepts their quote online (with the accepted-quote PDF).</div>
         </div>
         <div>
           <label>Copy of orders sent (CC)</label>
-          <input type="text" id="emOrderCc" placeholder="office@floodroofing.co.nz" autocomplete="off">
+          <input type="text" id="emOrderCc" placeholder="office@yourcompany.co.nz" autocomplete="off">
           <div style="font-size:11px;color:var(--text2);margin-top:3px">CC'd whenever a material order is emailed to a supplier.</div>
         </div>
         <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
@@ -6603,12 +6603,21 @@ async function api(method, path, body) {
 
 // — Settings —
 function defaultSettings(){
+  // Neutral by design. These used to be Flood Roofing's own details — company
+  // name, GST number, 0800 number, the About-us story, the office email on
+  // every notification, and the real buy prices. That was fine while there was
+  // one company using this. The moment somebody else signs up it means their
+  // first quote goes out branded Flood Roofing, with Flood Roofing's GST
+  // number on it, CC'ing Flood Roofing's inbox, priced off Flood Roofing's
+  // supplier rates. So: a new business starts blank and fills its own in
+  // (see _needsSetup / openSetupWizard). Existing accounts are untouched —
+  // their real values live in their saved settings row and win over these.
   return {
-    branding: { company_name:'Flood Roofing LTD', tagline:"Northland's Roofing Specialists",
-                phone:'0800 4 FLOOD', email:'office@floodroofing.co.nz', website:'floodroofing.co.nz',
-                address:'494C Kerikeri Road, Kerikeri 0293',
-                gst_number:'120 543 997',
-                about_text:"Flood Roofing is a Kerikeri-based roofing company, proudly serving the Bay of Islands and the wider Northland region since 2016. Founded and led by Aron Flood, the business was built on strong team values — a focus on our people, our culture, and doing right by every customer.\nWe specialise in re-roofs, new roofs and long-run spouting, working only with genuine New Zealand steel including ColorSteel® MAXAM and Armorsteel® ColorZen. Our roofers are trade-qualified Licensed Building Practitioners, so every job is installed to the highest standard and signed off with confidence.\nBecause we run our own scaffolding and edge protection, there's no waiting on third parties and no separate scaffold quote — it's all included, done on time and left tidy. And our 100% price guarantee means the price we quote is the price you pay: no hidden extras, no surprises. From Kerikeri to Kaikohe, Kawakawa, Paihia and right across the Bay of Islands, we're the well-trusted name in Northland roofing — just ask around.",
+    branding: { company_name:'', tagline:'',
+                phone:'', email:'', website:'',
+                address:'',
+                gst_number:'',
+                about_text:'',
                 primary_color:'#0099cc', dark_color:'#0a1628', accent_color:'#1a3a5c',
                 logo_data_url:'',
                 // Reusable "stock" photos for every proposal — past Colorsteel
@@ -6627,9 +6636,10 @@ function defaultSettings(){
                       options: [], sections: [],
                       // Email recipients (comma-separate for more than one).
                       // Stored here so it persists without a DB migration.
-                      email: { quote_cc:'office@floodroofing.co.nz',
-                               accept_to:'office@floodroofing.co.nz',
-                               order_cc:'office@floodroofing.co.nz' } },
+                      // Blank on purpose — a hardcoded address here sent one
+                      // company's quote copies and acceptance alerts to
+                      // another company's inbox. Set in Settings → Email.
+                      email: { quote_cc:'', accept_to:'', order_cc:'' } },
     jms_keys: { fergus:'', servicem8:'', jobber:'', tradify:'' },
     // Price book — default unit prices that the Materials tab uses
     // to compute the materials cost automatically. Quantities come
@@ -6637,16 +6647,19 @@ function defaultSettings(){
     // screws/rivets); price book × quantity = the Materials line on
     // the Quote tab.
     price_book: {
+      // Structure, not prices. These are what a roofer PAYS their supplier —
+      // shipping Flood Roofing's negotiated rates as the default would hand
+      // them to every competitor who signs up. New businesses enter their own.
       sheets: [
-        { product: '0.40g Colorsteel Maxam', unit: 'm2', price: 26.84 },
+        { product: '0.40g Colorsteel Maxam', unit: 'm2', price: 0 },
         { product: '0.55g Colorsteel Maxam', unit: 'm2', price: 0 },
         { product: '0.40g Zincalume',        unit: 'm2', price: 0 },
         { product: '0.55g Zincalume',        unit: 'm2', price: 0 }
       ],
-      underlay: { '50': 120, '75': 0, '100': 0 },   // $ per roll, keyed by m²/roll
-      ridge_lm:       20,   // $/lm — used for ridge + hip cap (they share flashing)
-      valley_lm:      15,   // $/lm
-      gutter_lm:      20,   // $/lm
+      underlay: { '50': 0, '75': 0, '100': 0 },   // $ per roll, keyed by m²/roll
+      ridge_lm:        0,   // $/lm — used for ridge + hip cap (they share flashing)
+      valley_lm:       0,   // $/lm
+      gutter_lm:       0,   // $/lm
       barge_lm:        0,   // $/lm
       apron_lm:        0,   // $/lm
       changepitch_lm:  0,   // $/lm — change-of-pitch flashing (blank until you have a price)
@@ -6751,6 +6764,10 @@ async function loadSettings(){
     // Mirror to localStorage so it survives cloud outages
     try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e2){}
     applyBranding();
+    // Only prompt when the server genuinely answered with this account's
+    // settings. A failed or odd response means we don't know whether they're
+    // set up, and guessing wrong means nagging someone who already is.
+    if (s && typeof s === 'object' && !Array.isArray(s)) { try { maybeOpenSetup(); } catch(e2){} }
     return S.settings;
   } catch(e) {
     console.warn('settings cloud load failed:', e.message);
@@ -8169,6 +8186,144 @@ function clearLogo(){
   var f = document.getElementById('brLogoFile'); if (f) f.value = '';
 }
 
+// ── First-run setup ────────────────────────────────────────────────
+// A business that has just signed up has no branding of its own yet. Until it
+// does, every quote it sends carries whatever the defaults say — which is how
+// one company's name, GST number and phone number end up on another company's
+// quote. So: ask once, up front, before any of that can happen.
+function _needsSetup(){
+  try {
+    if (window.__CUSTOMER_MODE) return false;
+    if (!localStorage.getItem('fr_token')) return false;
+    var b = (S.settings && S.settings.branding) || {};
+    return !String(b.company_name || '').trim();
+  } catch(e){ return false; }
+}
+function maybeOpenSetup(){
+  if (!_needsSetup()) return;
+  // Give the app a beat to finish its own boot before taking the screen.
+  setTimeout(function(){ if (_needsSetup()) openSetupWizard(); }, 400);
+}
+function openSetupWizard(){
+  if (document.getElementById('setupWizard')) return;
+  var b = (S.settings && S.settings.branding) || {};
+  var qd = (S.settings && S.settings.quote_defaults) || {};
+  var me = {};
+  try { me = JSON.parse(localStorage.getItem('fr_user') || '{}') || {}; } catch(e){}
+  var co = '';
+  try { co = (JSON.parse(localStorage.getItem('fr_company') || '{}') || {}).name || ''; } catch(e){}
+  var host = document.createElement('div');
+  host.id = 'setupWizard';
+  host.className = 'no-print';
+  host.setAttribute('style','position:fixed;inset:0;background:rgba(10,22,40,.72);z-index:100003;display:flex;align-items:flex-start;justify-content:center;padding:28px 18px;overflow:auto');
+  var f = function(id, label, val, ph, type){
+    return '<div style="margin-bottom:13px"><label style="display:block;font-size:12.5px;font-weight:700;color:#0a1628;margin-bottom:5px">'+label+'</label>'+
+      '<input id="'+id+'" type="'+(type||'text')+'" value="'+esc(val||'')+'" placeholder="'+esc(ph||'')+'" '+
+      'style="width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;font-family:inherit;margin:0"></div>';
+  };
+  host.innerHTML =
+    '<div style="background:#fff;border-radius:16px;max-width:560px;width:100%;padding:30px 30px 26px;box-shadow:0 24px 70px rgba(0,0,0,.4);margin:auto">'+
+      '<div style="font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#0099cc;margin-bottom:8px">Welcome to RoofMap</div>'+
+      '<div style="font-size:21px;font-weight:800;color:#0a1628;letter-spacing:-.02em;margin-bottom:6px">Set your business up</div>'+
+      '<div style="font-size:13.5px;color:var(--text2);line-height:1.55;margin-bottom:20px">This is what goes on your quotes, your job packs and the emails your customers get. You can change any of it later in Settings.</div>'+
+      f('swCompany','Business name *', b.company_name || co, 'Acme Roofing Ltd')+
+      f('swTagline','Tagline', b.tagline, 'e.g. Northland\'s roofing specialists')+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+        f('swPhone','Phone *', b.phone, '09 123 4567')+
+        f('swEmail','Office email *', b.email || me.email, 'office@acmeroofing.co.nz')+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+        f('swWebsite','Website', b.website, 'acmeroofing.co.nz')+
+        f('swGst','GST number', b.gst_number, '123 456 789')+
+      '</div>'+
+      f('swAddress','Address', b.address, '12 Kauri Road, Kerikeri')+
+      f('swJobNo','Next job number', qd.next_job_no || '00001', '00001')+
+      '<div style="margin:4px 0 16px">'+
+        '<label style="display:block;font-size:12.5px;font-weight:700;color:#0a1628;margin-bottom:5px">Logo <span style="font-weight:400;color:var(--text2)">— optional, shows on every quote</span></label>'+
+        '<div style="display:flex;align-items:center;gap:11px">'+
+          '<input id="swLogo" type="file" accept="image/*" onchange="_swLogoPick(event)" style="flex:1;margin:0;font-size:13px">'+
+          '<img id="swLogoPrev" src="'+esc(b.logo_data_url||'')+'" style="max-height:40px;max-width:110px;object-fit:contain;'+(b.logo_data_url?'':'display:none')+'">'+
+        '</div>'+
+      '</div>'+
+      '<div id="swMsg" style="font-size:13px;margin-bottom:12px;min-height:17px"></div>'+
+      '<button type="button" onclick="_swSave()" id="swSaveBtn" style="width:100%;padding:14px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;border:none;border-radius:10px;font-size:15.5px;font-weight:700;font-family:inherit;cursor:pointer">Save and get started</button>'+
+      '<div style="font-size:12px;color:var(--text3);margin-top:12px;line-height:1.5;text-align:center">'+
+        'Next: put your own prices into <strong>Settings → Price book</strong>. RoofMap ships with the list of items but no prices — your rates are yours.'+
+      '</div>'+
+      // Somebody who just wants a look around shouldn't be trapped. It asks
+      // again next time, and until it's done their quotes carry no company.
+      '<div style="text-align:center;margin-top:10px">'+
+        '<button type="button" onclick="_swLater()" style="background:none;border:none;color:var(--text2);font-size:12.5px;cursor:pointer;font-family:inherit;text-decoration:underline">I\'ll set this up later</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(host);
+  setTimeout(function(){ var el = document.getElementById('swCompany'); if (el) el.focus(); }, 60);
+}
+function _swLater(){
+  var h = document.getElementById('setupWizard'); if (h) h.remove();
+  try { _siteToast('You can set your business up any time in Settings'); } catch(e){}
+}
+function _swLogoPick(ev){
+  var file = ev.target.files && ev.target.files[0]; if (!file) return;
+  if (file.size > 2*1024*1024){ _swMsg('That logo is over 2 MB — please use a smaller one.', false); ev.target.value=''; return; }
+  var r = new FileReader();
+  r.onload = function(e){
+    window.__swLogo = e.target.result;
+    var p = document.getElementById('swLogoPrev');
+    if (p){ p.src = e.target.result; p.style.display = 'inline-block'; }
+  };
+  r.readAsDataURL(file);
+}
+function _swMsg(t, ok){
+  var el = document.getElementById('swMsg'); if (!el) return;
+  el.textContent = t || ''; el.style.color = ok === false ? '#b91c1c' : ok === true ? '#15803d' : 'var(--text2)';
+}
+async function _swSave(){
+  var val = function(id){ return (document.getElementById(id) || {}).value || ''; };
+  var company = val('swCompany').trim(), phone = val('swPhone').trim(), email = val('swEmail').trim();
+  if (!company){ _swMsg('Your business name goes on every quote — please fill it in.', false); return; }
+  if (!phone && !email){ _swMsg('Add a phone number or an email so your customers can reach you.', false); return; }
+  var btn = document.getElementById('swSaveBtn');
+  if (btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+  _swMsg('Saving…');
+  try {
+    if (!S.settings) S.settings = defaultSettings();
+    var b = S.settings.branding = S.settings.branding || {};
+    b.company_name = company;
+    b.tagline = val('swTagline').trim();
+    b.phone = phone; b.email = email;
+    b.website = val('swWebsite').trim();
+    b.gst_number = val('swGst').trim();
+    b.address = val('swAddress').trim();
+    if (window.__swLogo) b.logo_data_url = window.__swLogo;
+    var qd = S.settings.quote_defaults = S.settings.quote_defaults || {};
+    var jn = val('swJobNo').trim(); if (jn) qd.next_job_no = jn;
+    // The office's own address is the sensible default for the copies the app
+    // sends itself — never someone else's.
+    qd.email = qd.email || {};
+    if (email){
+      if (!qd.email.quote_cc)  qd.email.quote_cc  = email;
+      if (!qd.email.accept_to) qd.email.accept_to = email;
+      if (!qd.email.order_cc)  qd.email.order_cc  = email;
+    }
+    // Write straight to the server rather than through the Settings form,
+    // which isn't on screen — collectSettingsFromUI would blank what we set.
+    await api('PUT', '/settings', {
+      branding: S.settings.branding, quote_defaults: S.settings.quote_defaults,
+      jms_keys: S.settings.jms_keys || {}, price_book: S.settings.price_book || {},
+      labour_pricing: S.settings.labour_pricing || {},
+    });
+    try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e){}
+    try { applyBranding(); } catch(e){}
+    try { refreshSettingsUI(); } catch(e){}
+    var h = document.getElementById('setupWizard'); if (h) h.remove();
+    try { _siteToast('✓ ' + company + ' is set up'); } catch(e){}
+  } catch(e){
+    _swMsg((e && e.message) || 'Could not save — please try again.', false);
+    if (btn){ btn.disabled = false; btn.textContent = 'Save and get started'; }
+  }
+}
+
 function applyBranding(){
   if (!S.settings) return;
   var b = S.settings.branding;
@@ -8205,6 +8360,12 @@ function applyBranding(){
   // refreshQuoteProposal() which reads b directly).
   var rpName = document.querySelector('.rp-logo-name'); if (rpName) rpName.textContent = (b.company_name || 'YOUR COMPANY').toUpperCase();
   var rpTag  = document.querySelector('.rp-logo-tag');  if (rpTag)  rpTag.textContent = b.tagline || '';
+  // The tagline and location line beside it — these used to be static markup
+  // naming one company, which is wrong the moment a second one uses the app.
+  var rpTag = document.querySelector('.rp-logo-tag');
+  if (rpTag) rpTag.textContent = (b.tagline || '').toUpperCase();
+  var rpWhere = document.querySelector('.rp-logo-where');
+  if (rpWhere) rpWhere.textContent = [b.website, b.address].filter(Boolean).join(' | ');
   var rpFooter = document.querySelector('.rp-footer span:first-child');
   if (rpFooter) rpFooter.textContent = [b.company_name, b.address, b.website].filter(Boolean).join(' | ');
 }
@@ -14741,7 +14902,9 @@ function _acceptQuoteFinalize(name){
         S.quote.accepted = null;
         refreshQuoteProposal();
         _custBusyBanner(false); _reenable();
-        alert('Sorry — your acceptance didn\'t reach Flood Roofing (connection problem).\n\nPlease try again in a moment, or reply to the email / phone 0800 4 FLOOD so we can record it for you.');
+        var _ab = (window.S && S.settings && S.settings.branding) || {};
+        alert('Sorry — your acceptance didn\'t reach ' + (_ab.company_name || 'the office') + ' (connection problem).\n\n' +
+              'Please try again in a moment, or reply to the email' + (_ab.phone ? ' / phone ' + _ab.phone : '') + ' so we can record it for you.');
         return;
       }
       refreshQuoteProposal();
@@ -15407,7 +15570,8 @@ function customerDecline(){
   if (S.quote && S.quote.accepted){ alert('You\'ve already accepted this quote.'); return; }
   if (!confirm('Decline this quote? You can still contact us if you change your mind.')) return;
   _postCustomerEvent('declined').then(function(r){
-    if (!r.ok){ alert('Sorry — that didn\'t reach Flood Roofing (connection problem). Please try again or reply to the email instead.'); return; }
+    if (!r.ok){ var _db=(window.S&&S.settings&&S.settings.branding)||{};
+      alert('Sorry — that didn\'t reach ' + (_db.company_name || 'the office') + ' (connection problem). Please try again or reply to the email instead.'); return; }
     if (S.quote){ S.quote.share = S.quote.share || {}; S.quote.share.status = 'declined'; }
     var bar = document.getElementById('custBar'); if (bar) bar.innerHTML = '<span style="font-size:13px">Thanks for letting us know — we\'ve recorded that you\'ve declined this quote.</span>';
   });
@@ -15859,19 +16023,30 @@ async function bootCustomerView(token){
     var body = unreachable
       ? 'We couldn\'t reach our server just now — it may have been waking up. Your quote is probably fine; give it another try.'
       : 'The link looks correct but the quote is no longer published — it may have been replaced with a newer version, or the office withdrew it.';
+    // Whose quote this is. The branding may not have loaded (that's often WHY
+    // we're on this page), so every line degrades to something a stranger can
+    // still act on rather than naming the wrong roofing company.
+    var _b = {};
+    try { _b = (window.S && S.settings && S.settings.branding) || {}; } catch(e){}
+    var _co = _b.company_name || '';
+    var _tel = _b.phone || '', _mail = _b.email || '';
+    var _contact = '';
+    if (_tel || _mail){
+      _contact = '<strong>Still stuck?</strong> get in touch and we\'ll send you a fresh link.'+
+        (_tel  ? '<br>📞 <a href="tel:'+esc2(_tel.replace(/[^0-9+]/g,''))+'" style="color:#0099cc;font-weight:700;text-decoration:none">'+esc2(_tel)+'</a>' : '')+
+        (_mail ? '<br>✉ <a href="mailto:'+esc2(_mail)+'" style="color:#0099cc;font-weight:700;text-decoration:none">'+esc2(_mail)+'</a>' : '');
+    } else {
+      _contact = '<strong>Still stuck?</strong> reply to the email this link came in and ask for a fresh one.';
+    }
     document.body.innerHTML =
       '<div style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:60px auto;color:#33414f;padding:0 24px">'+
-        '<div style="text-align:center;font-size:13px;color:#6b7280;letter-spacing:.04em;text-transform:uppercase;font-weight:700;margin-bottom:18px">Flood Roofing LTD</div>'+
+        (_co ? '<div style="text-align:center;font-size:13px;color:#6b7280;letter-spacing:.04em;text-transform:uppercase;font-weight:700;margin-bottom:18px">'+esc2(_co)+'</div>' : '')+
         '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:32px 28px;text-align:center;box-shadow:0 10px 30px rgba(10,22,40,.06)">'+
           '<div style="font-size:38px;line-height:1;margin-bottom:14px">'+icon+'</div>'+
           '<h2 style="font-weight:800;font-size:20px;margin:0 0 8px;color:#0a1628">'+heading+'</h2>'+
           '<p style="font-size:14px;line-height:1.55;margin:6px 0 18px;color:#475569">'+body+'</p>'+
           '<button onclick="retryCustomerView(this)" style="width:100%;padding:13px;background:#0099e0;border:none;color:#fff;border-radius:9px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:6px">↻ Try again</button>'+
-          '<div style="font-size:13px;color:#0a1628;background:#f1f5f9;border-radius:8px;padding:12px 14px;margin-top:14px;text-align:left;line-height:1.7">'+
-            '<strong>Still stuck?</strong> give us a quick call and we\'ll send you a fresh link.'+
-            '<br>📞 <a href="tel:08004FLOOD" style="color:#0099cc;font-weight:700;text-decoration:none">0800 4 FLOOD</a>'+
-            '<br>✉ <a href="mailto:office@floodroofing.co.nz" style="color:#0099cc;font-weight:700;text-decoration:none">office@floodroofing.co.nz</a>'+
-          '</div>'+
+          '<div style="font-size:13px;color:#0a1628;background:#f1f5f9;border-radius:8px;padding:12px 14px;margin-top:14px;text-align:left;line-height:1.7">'+_contact+'</div>'+
         '</div>'+
       '</div>';
   }
@@ -18725,7 +18900,7 @@ function refreshQuoteProposal(){
   var d = S.roofData || {};
   var br = (S.settings && S.settings.branding) || {};
   var company = br.company_name || 'FLOOD ROOFING';
-  var tagline = (br.tagline || "NORTHLAND'S ROOFING SPECIALISTS").toUpperCase();
+  var tagline = String(br.tagline || '').toUpperCase();
   var contactBits = [br.website, br.phone, br.email, br.address].filter(Boolean).join(' | ') || 'floodroofing.co.nz | Whangarei, NZ';
   var phone = (document.getElementById('jobPhone')||{}).value || '';
   var inspector = (document.getElementById('inspName')||{}).value || '';

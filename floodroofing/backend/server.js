@@ -1606,7 +1606,10 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
 // one-off notification containing the accepted details AND the PDF that shows
 // the customer's chosen options. The recipient is fixed to the office address
 // (never taken from the request), so this can't be abused as an open relay.
-const ACCEPT_NOTIFY_EMAIL = process.env.ACCEPT_NOTIFY_EMAIL || 'office@floodroofing.co.nz';
+// Last-resort recipient only — every acceptance should reach the business that
+// sent the quote (see the lookup in /q/:token/accept-email). This is what's
+// used when that business has no email on file at all.
+const ACCEPT_NOTIFY_EMAIL = process.env.ACCEPT_NOTIFY_EMAIL || '';
 app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
   try {
     if (!EMAIL_ENABLED) return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
@@ -1645,9 +1648,30 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
       ? 'The accepted quote PDF (showing the customer\'s selections) is attached.'
       : '(The quote PDF could not be attached automatically — see the customer link in the app.)');
     const subject = 'Quote accepted' + (ref ? ' — ' + ref : '') + ' — ' + client;
-    // Prefer the office's configured recipient(s) stashed on the quote
-    // (Settings → Email), falling back to the server default.
-    const acceptTo = (quote.acceptNotify && String(quote.acceptNotify).trim()) || ACCEPT_NOTIFY_EMAIL;
+    // Who hears about this acceptance. It has to be the business that SENT the
+    // quote — a fixed address here mailed every subscriber's acceptances to one
+    // inbox, which is a leak between competitors, not just a wrong recipient.
+    // Order: the recipient the office configured on the quote → that company's
+    // settings → the person whose job it is → the server default, last.
+    let acceptTo = (quote.acceptNotify && String(quote.acceptNotify).trim()) || '';
+    if (!acceptTo) {
+      try {
+        const { data: st } = await supabase.from('user_settings')
+          .select('quote_defaults').eq('user_id', job.user_id).maybeSingle();
+        acceptTo = String((((st || {}).quote_defaults || {}).email || {}).accept_to || '').trim();
+      } catch (e) {}
+    }
+    if (!acceptTo) {
+      try {
+        const { data: prof } = await supabase.from('profiles').select('email').eq('id', job.user_id).maybeSingle();
+        acceptTo = String((prof && prof.email) || '').trim();
+      } catch (e) {}
+    }
+    if (!acceptTo) acceptTo = ACCEPT_NOTIFY_EMAIL;
+    if (!acceptTo) {
+      console.warn('[accept-email] no recipient for job ' + job.id + ' — acceptance is still recorded');
+      return res.json({ ok: false, code: 'NO_RECIPIENT' });
+    }
     await _dispatchMail({ to: acceptTo, subject, text: lines.join('\n'), attachment });
     res.json({ ok: true });
   } catch (e) {
