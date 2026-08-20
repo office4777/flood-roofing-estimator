@@ -3548,6 +3548,19 @@ app.post('/usage', requireAuth, (req, res) => {
   recordUsage(name, req);
 });
 
+// The privacy policy says these are kept for 24 months. A retention period
+// nobody enforces is not a retention period, so this enforces it: once at
+// boot and daily after, anything older goes. Cheap — the table is nine event
+// names and a timestamp, and it is indexed on `at`.
+const USAGE_KEEP_DAYS = 730;
+async function _pruneUsage(){
+  try {
+    const cutoff = new Date(Date.now() - USAGE_KEEP_DAYS * 864e5).toISOString();
+    const { error } = await supabase.from('usage_events').delete().lt('at', cutoff);
+    if (error && !/does not exist/i.test(error.message || '')) throw new Error(error.message);
+  } catch(e){ console.warn('[usage] prune skipped:', e.message); }
+}
+
 // The funnel, and nothing else: of the businesses that signed up in a window,
 // how many reached each milestone. Gated on ADMIN_TOKEN like /admin/errors.
 app.get('/admin/usage', async (req, res) => {
@@ -3662,4 +3675,7 @@ app.listen(PORT, () => {
   // allowlist must not start empty for whoever asks first.
   _reloadVerifiedDomains().catch(function(){});
   _ensureSchema().catch(function(){});
+  // Enforce the retention period the privacy policy promises.
+  _pruneUsage().catch(function(){});
+  setInterval(function(){ _pruneUsage().catch(function(){}); }, 24 * 3600e3).unref();
 });

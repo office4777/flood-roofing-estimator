@@ -1,0 +1,124 @@
+/* Shared styling for the Terms and the Privacy Policy.
+ *
+ * These are documents, not marketing pages, so the job is legibility: one
+ * narrow column, numbered clauses a customer can quote back at us, and a
+ * plain-English summary at the top of each section that says what the clause
+ * below actually means. Anything a subscriber has to agree to should be
+ * readable on a phone in a ute.
+ *
+ * Palette and type match landing.html so they don't feel like somebody else's
+ * website, but with none of the hero treatment.
+ */
+*,*::before,*::after{ box-sizing:border-box }
+:root{
+  --ink:#0a1628; --ink-2:#1c2b3f; --body:#3d4d61; --muted:#6b7c91;
+  --accent:#0099cc; --accent-deep:#00719a;
+  --paper:#ffffff; --paper-2:#f4f7fa; --line:#dde5ee;
+  --note:#f1f8fb; --note-line:#bfe3f0;
+}
+html{ -webkit-text-size-adjust:100% }
+body{
+  margin:0; background:var(--paper); color:var(--body);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size:16.5px; line-height:1.65;
+}
+.wrap{ max-width:760px; margin:0 auto; padding:0 24px }
+
+/* ── masthead ── */
+header{ border-bottom:1px solid var(--line); background:var(--paper-2) }
+header .wrap{ display:flex; align-items:center; gap:14px; height:66px }
+header .brand{ display:flex; align-items:center; gap:9px; text-decoration:none; color:var(--ink); font-weight:800; font-size:17px }
+header .brand img{ width:28px; height:28px }
+header .back{ margin-left:auto; font-size:14px; color:var(--accent); text-decoration:none; font-weight:600 }
+header .back:hover{ color:var(--accent-deep) }
+
+/* ── title block ── */
+.doc-head{ padding:52px 0 30px; border-bottom:1px solid var(--line) }
+h1{ color:var(--ink); font-size:clamp(28px,4.4vw,40px); line-height:1.12; letter-spacing:-.022em; font-weight:800; margin:0 }
+.doc-head .sub{ margin:14px 0 0; font-size:17px; color:var(--body) }
+.doc-head .dates{ margin-top:18px; font-size:13.5px; color:var(--muted) }
+.doc-head .dates span + span::before{ content:'·'; margin:0 9px; color:var(--line) }
+
+/* ── contents ── */
+.toc{ margin:30px 0 0; padding:20px 24px; background:var(--paper-2); border:1px solid var(--line); border-radius:12px }
+.toc h2{ margin:0 0 10px; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--muted) }
+.toc ol{ margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:3px 26px; counter-reset:toc }
+.toc li{ counter-increment:toc; font-size:14.5px }
+.toc a{ color:var(--ink-2); text-decoration:none; display:block; padding:3px 0 }
+.toc a::before{ content:counter(toc) '.'; color:var(--muted); font-variant-numeric:tabular-nums; margin-right:8px }
+.toc a:hover{ color:var(--accent) }
+
+/* ── body ── */
+main{ counter-reset:sec; padding-bottom:40px }
+section{ padding-top:38px }
+section h2{
+  color:var(--ink); font-size:21px; font-weight:800; letter-spacing:-.015em;
+  line-height:1.25; margin:0 0 6px; scroll-margin-top:20px;
+}
+section h2::before{
+  counter-increment:sec; content:counter(sec) '.';
+  color:var(--accent); margin-right:10px; font-variant-numeric:tabular-nums;
+}
+section h3{ color:var(--ink-2); font-size:16px; font-weight:700; margin:22px 0 4px }
+p{ margin:12px 0 }
+ul,ol.plain{ margin:12px 0; padding-left:22px }
+li{ margin:6px 0 }
+strong{ color:var(--ink-2); font-weight:700 }
+a{ color:var(--accent) }
+a:hover{ color:var(--accent-deep) }
+a:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:2px }
+
+/* The one-line plain-English gloss under each heading. It is not a summary
+   for its own sake — a subscriber who reads only these should still know what
+   they have agreed to. */
+.gloss{
+  margin:0 0 14px; font-size:15px; color:var(--muted); font-style:italic;
+}
+
+/* A clause worth not missing. Used sparingly — measurements, liability,
+   whose customer data it is. */
+.callout{
+  margin:18px 0; padding:16px 20px; background:var(--note);
+  border:1px solid var(--note-line); border-left:4px solid var(--accent);
+  border-radius:0 10px 10px 0; font-size:15.5px; color:var(--ink-2);
+}
+.callout p:first-child{ margin-top:0 }
+.callout p:last-child{ margin-bottom:0 }
+
+/* ── tables (sub-processors, retention) ── */
+.tbl-wrap{ overflow-x:auto; margin:16px 0; position:relative }
+/* On a phone the table scrolls inside its own box rather than pushing the
+   page sideways. A reader who can't see the third column has to be told it
+   is there, so the hint appears exactly when the scroll does. */
+.tbl-wrap::after{
+  content:'Swipe the table sideways for the rest →';
+  display:none; padding-top:8px; font-size:12.5px; color:var(--muted); font-style:italic;
+}
+@media (max-width:620px){ .tbl-wrap::after{ display:block } }
+table{ border-collapse:collapse; width:100%; min-width:520px; font-size:14.5px }
+th,td{ text-align:left; vertical-align:top; padding:10px 14px 10px 0; border-bottom:1px solid var(--line) }
+th{ font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); white-space:nowrap }
+/* A provider's name, then what kind of thing it is. Two lines, always —
+   relying on a block <strong> and a bare text node put the subtitle on the
+   same line as a name that wrapped. */
+td strong{ display:block; color:var(--ink-2) }
+td .sub{ display:block; color:var(--muted); font-size:13px; line-height:1.4; margin-top:1px }
+
+/* ── footer ── */
+footer{ border-top:1px solid var(--line); background:var(--paper-2); margin-top:20px }
+footer .wrap{ padding-top:26px; padding-bottom:34px; font-size:14px; color:var(--muted);
+  display:flex; gap:8px 22px; flex-wrap:wrap; align-items:center }
+footer a{ color:var(--muted); text-decoration:none }
+footer a:hover{ color:var(--accent) }
+footer .sp{ margin-left:auto }
+
+@media (max-width:560px){
+  .doc-head{ padding-top:34px }
+  .toc ol{ grid-template-columns:1fr }
+  footer .sp{ margin-left:0 }
+}
+@media print{
+  header,footer,.toc,.back{ display:none }
+  body{ font-size:11pt } .wrap{ max-width:none; padding:0 }
+  section{ padding-top:20px; break-inside:avoid }
+}

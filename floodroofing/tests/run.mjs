@@ -28,7 +28,7 @@ const API = [
 // The real index.html, driven by Playwright.
 const UI = [
   'tenantbrand', 'ownbrand', 'pricebook', 'samplejob', 'crashui', 'landing', 'quotedomain',
-  'gutterprice', 'officebar', 'roofrename', 'acceptcarry', 'orgui', 'teamui', 'dupjobui',
+  'gutterprice', 'officebar', 'roofrename', 'acceptcarry', 'orgui', 'teamui', 'dupjobui', 'legal',
 ];
 
 const arg = (process.argv[2] || '').toLowerCase();

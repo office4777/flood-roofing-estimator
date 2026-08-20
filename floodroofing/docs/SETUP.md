@@ -157,23 +157,41 @@ in `PLANS`.
 
 ## What's Already Built
 
-✅ User registration + login  
-✅ 14-day free trial  
-✅ JWT authentication  
-✅ Job saving (cloud, per user)  
-✅ Stripe subscription checkout  
-✅ Stripe customer portal (manage/cancel)  
-✅ Claude AI proxy (keys server-side only)  
-✅ Fergus API proxy  
-✅ Satellite tile proxy  
-✅ Subscription enforcement  
-✅ Row-level security (users see only their data)  
+**Accounts and businesses**
 
-## Still To Build (Phase 2)
+✅ Registration, login, password reset  
+✅ 14-day free trial, everything unlocked  
+✅ Jobs, settings and price book shared across a whole business, not per user  
+✅ Team invites, roles, and a record of who made a job and who ordered material  
+✅ One shared job-number counter, handed out atomically  
+✅ Plan limits enforced on the server, not by hidden buttons  
+✅ Row-level security so one business can never see another's data  
+✅ Per-business branding — no new subscriber inherits ours  
+✅ `<slug>.roofmap.co.nz`, and automated custom domains on Business  
 
-- [ ] Login/register UI in the app
-- [ ] Job list / dashboard
-- [ ] Pricing page
-- [ ] Email notifications (welcome, trial ending)
-- [ ] Team/multi-seat plans
-- [ ] White-label for other roofing companies
+**The work**
+
+✅ Roof measuring from aerial imagery, on desktop and on a phone at the property  
+✅ Offline drawing and saving, syncing when the signal returns  
+✅ Cut lists, flashing schedules, back trays, material orders, job packs  
+✅ Customer proposals accepted online, with the customer's own selections  
+✅ Fergus push  
+✅ A seeded price book and a worked sample job, so day one isn't an empty screen  
+
+**Keeping it running**
+
+✅ Error monitoring — server, browser, and alerts  
+✅ Usage milestones — whether a trialist actually got anywhere  
+✅ 22 test suites in CI on every push  
+✅ Terms of Service and Privacy Policy  
+✅ Duplicate job-number guard  
+
+## Still To Build
+
+- [ ] **Stripe** — the code paths exist but billing is off (`BILLING_ENABLED=false`). Needs keys, price IDs, and a webhook.
+- [ ] **Open registration** — currently invite-only (`REGISTRATION_INVITE_CODE`).
+- [ ] **Paid hosting.** Vercel and Railway hobby tiers are non-commercial by licence. This has to change before the first invoice.
+- [ ] **A restore drill.** Backups exist and have never been restored under pressure. An untested backup is a hope.
+- [ ] Legal review of the Terms and Privacy Policy, and the placeholders in them filled in.
+- [ ] Trial-ending and welcome emails.
+- [ ] A colour/material visualiser — the one feature competitors sell hardest that RoofMap doesn't have.

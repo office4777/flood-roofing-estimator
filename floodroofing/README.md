@@ -66,6 +66,31 @@ no third party, no cookie, no page tracking — the browser can only report
 server at the route that does the thing. What is stored is which milestone a
 business reached and when: never a customer, an address or a price.
 
+## Terms and Privacy Policy
+
+`frontend/terms.html` and `frontend/privacy.html`, styled by `frontend/legal.css`
+and linked from the sign-up form, the site footer and Settings → Team.
+
+**Not yet reviewed by a lawyer, and five fields are still placeholders.** Search
+both files for `[` and fill in:
+
+| Placeholder | Where |
+|---|---|
+| `[NZBN]` | terms §1 |
+| `[GST number]` | terms §1 |
+| `[registered address]` | terms §1, terms §15, privacy §13 |
+| `[Supabase region]` | privacy §7 |
+
+`tests/legal.mjs` ties the documents to the code: it fails if a third-party
+host is called that the privacy policy doesn't name, if the AI stops being
+opt-in, if the milestone count drifts from `USAGE_EVENTS`, or if either page
+stops being reachable from the sign-up form. It also lists the remaining
+placeholders on every run.
+
+**When you add a provider — a new AI model, a different mail sender, Stripe
+going live, any analytics — add its row to the table in privacy §5 in the same
+commit.** A privacy policy that is out of date is worse than not having one.
+
 ## Tech Stack
 
 - Frontend: Vanilla HTML/JS/CSS (single file, no build step needed)
