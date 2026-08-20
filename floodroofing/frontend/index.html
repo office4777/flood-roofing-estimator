@@ -187,6 +187,18 @@ body[data-tab="select"] .content{
   margin-left:0;
   margin-right:0;
 }
+/* Settings + Send Feedback: hard-left like every other tab, so they read as
+   part of the same app instead of islands centred in the blueprint
+   background. The forms themselves stay capped (below) — a company-name
+   field the width of a monitor is not a better company-name field. */
+body[data-tab="settings"] .content,
+body[data-tab="feedback"] .content{
+  max-width:none;
+  margin-left:0;
+  margin-right:0;
+}
+body[data-tab="settings"] .card{ max-width:1080px; }
+body[data-tab="feedback"] .card{ max-width:760px; }
 
 /* ── SITE MODE CHROME ───────────────────────────────────────────
    html.tablet-mode now means exactly one thing: SITE mode is on. The
@@ -6210,7 +6222,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
 <!-- TAB: SEND FEEDBACK -->
 <div class="panel" id="tab-feedback">
-  <div class="card" style="max-width:720px;margin:0 auto">
+  <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Send feedback</div>
     <p style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-bottom:18px">Report a bug or request a feature — it goes straight to the team.</p>
 
