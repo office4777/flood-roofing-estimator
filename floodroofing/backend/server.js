@@ -1280,6 +1280,7 @@ app.post('/auth/register', async (req, res) => {
     if (serr) console.warn('[auth] trial row insert failed:', serr.message);
     const token = jwt.sign({ id: userId, email, cid }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: userId, email, name, company, company_id: cid }, company: await _companyBrief(cid, userId) });
+    recordUsage('signed_up', { companyId: cid, user: { id: userId } });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1419,6 +1420,7 @@ app.post('/jobs/:id/order-sent', requireAuth, async (req, res) => {
   }
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true, order_sent: Object.assign({}, stamp, { by_name: await _nameOf(req.user.id, req) }) });
+  recordUsage('order_sent', req);
 });
 
 // The job number a save is carrying, which lives inside the quote.
@@ -1458,6 +1460,7 @@ app.post('/jobs', requireAuth, requireSubscription, async (req, res) => {
   const { data, error } = await supabase.from('jobs').insert({ user_id: req.user.id, company_id: req.companyId || null, client_name: client_name || '', site_address: site_address || '', draw_state: draw_state || {}, settings: settings || {}, status: 'draft' }).select().single();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
+  recordUsage('job_saved', req);
 });
 
 app.put('/jobs/:id', requireAuth, async (req, res) => {
@@ -1520,7 +1523,9 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
         "updated_at = now() WHERE id = $4 AND (user_id = $5 OR ($6::uuid IS NOT NULL AND company_id = $6::uuid))";
       const r = await pool.query(sql, [JSON.stringify(quote), clientName, siteAddr, req.params.id, req.user.id, req.companyId || null]);
       if (r.rowCount === 0) return res.status(404).json({ error: 'Job not found' });
-      return res.json({ ok: true, id: req.params.id, fast: true });
+      res.json({ ok: true, id: req.params.id, fast: true });
+      if (quote.share && quote.share.token) recordUsage('quote_sent', req);
+      return;
     } catch (e) {
       console.error('quote fast-update failed, falling back to read-modify-write:', e.message);
       // fall through
@@ -1538,6 +1543,7 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
   const { error: uerr } = await supabase.from('jobs').update(patch).eq('id', job.id);
   if (uerr) return res.status(500).json({ error: uerr.message });
   res.json({ ok: true, id: job.id });
+  if (quote.share && quote.share.token) recordUsage('quote_sent', req);
 });
 
 app.delete('/jobs/:id', requireAuth, async (req, res) => {
@@ -1642,6 +1648,13 @@ app.put('/settings', requireAuth, async (req, res) => {
     }
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
+    // Two milestones ride on this one save. "setup_done" is the business
+    // putting its own name and a way to be contacted on its quotes — the
+    // point at which anything it sends is its own. "price_book_saved" is the
+    // roofer replacing our sample figures with their supplier's rates.
+    const _b = payload.branding || {};
+    if (_b.company_name && (_b.phone || _b.email)) recordUsage('setup_done', req);
+    if (payload.price_book && payload.price_book.list_prices === false) recordUsage('price_book_saved', req);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1889,6 +1902,9 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
     quote.share = share;
     await _saveQuoteBack(job, quote);
     res.json({ ok: true, status: share.status });
+    // A customer accepting is the milestone that matters most, and it belongs
+    // to the ROOFER's company, not to whoever opened the link.
+    if (type === 'accepted') recordUsage('quote_accepted', { companyId: job.company_id || null });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -3447,6 +3463,24 @@ const _MIGRATION_SQL = [
   "drop policy if exists job_revisions_company on public.job_revisions",
   "create policy job_revisions_company on public.job_revisions for select" +
   "  using (company_id in (select public.my_company_ids()) or user_id = auth.uid())",
+
+  // 6. Usage events — the answer to "did that trialist draw a roof, or did
+  //    they open the app once and never come back?". Nine event names, no
+  //    third party, no cookie, no page tracking. What is stored is which of a
+  //    handful of milestones a business reached and when; nothing about the
+  //    customer, the address or the price.
+  "create table if not exists public.usage_events (" +
+  "  id bigserial primary key," +
+  "  at timestamptz not null default now()," +
+  "  company_id uuid," +
+  "  user_id uuid," +
+  "  name text not null," +
+  "  props jsonb not null default '{}'::jsonb)",
+  "create index if not exists idx_usage_events_at on public.usage_events (at desc)",
+  "create index if not exists idx_usage_events_co on public.usage_events (company_id, name)",
+  "alter table public.usage_events enable row level security",
+  // Nobody reads this through PostgREST — it is written and read by the
+  // backend with the service key, so no policy grants access to a client.
 ];
 
 async function _ensureSchema(){
@@ -3465,6 +3499,85 @@ async function _ensureSchema(){
   } catch(e){ console.warn('[migrate] schema ensure skipped:', e.message); }
   finally { try { await c.end(); } catch(e){} }
 }
+
+// ══════════════════════════════════════════════════════════════════
+// USAGE — did they actually get anywhere?
+// ══════════════════════════════════════════════════════════════════
+// Before this there was no way to tell a trialist who drew a roof, priced it
+// and sent a quote from one who signed up, saw an empty screen and closed the
+// tab. Both looked identical: one row in `companies`. That is the difference
+// between "the product doesn't work" and "the first ten minutes don't work",
+// and it is not a question to answer by guessing.
+//
+// This is deliberately small. Nine milestone names, no third party, no
+// cookie, no page tracking, no funnel of everything anybody clicked. What
+// gets stored is which milestone a business reached and when — never a
+// customer, an address or a price.
+const USAGE_EVENTS = [
+  'signed_up',        // a business was created
+  'setup_done',       // they put their own name and contact details in
+  'sample_opened',    // they looked at the worked example
+  'roof_drawn',       // a roof with a scale on it — the first real milestone
+  'job_saved',        // it made it to the server
+  'price_book_saved', // they entered their own supplier rates
+  'quote_sent',       // a customer link went out
+  'quote_accepted',   // a customer accepted one
+  'order_sent',       // material ordered — the far end of the workflow
+];
+async function recordUsage(name, req, props){
+  try {
+    if (USAGE_EVENTS.indexOf(name) < 0) return;   // an allow-list, so this can never become page tracking
+    await supabase.from('usage_events').insert({
+      name,
+      company_id: (req && req.companyId) || null,
+      user_id: (req && req.user && req.user.id) || null,
+      props: props || {},
+    });
+  } catch(e){ /* never let a metric break a request */ }
+}
+
+// The two milestones only the browser knows about: opening the sample, and
+// finishing a roof. Everything else is recorded server-side where it happens.
+app.post('/usage', requireAuth, (req, res) => {
+  const name = String((req.body && req.body.name) || '');
+  // Only these two — every other name is recorded at the route that does the
+  // thing, and accepting arbitrary names here is how an event pipe turns into
+  // page tracking.
+  if (name !== 'sample_opened' && name !== 'roof_drawn') return res.status(400).json({ error: 'Unknown event' });
+  res.json({ ok: true });
+  recordUsage(name, req);
+});
+
+// The funnel, and nothing else: of the businesses that signed up in a window,
+// how many reached each milestone. Gated on ADMIN_TOKEN like /admin/errors.
+app.get('/admin/usage', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  const days = Math.min(365, Math.max(1, parseInt(req.query.days, 10) || 30));
+  const since = new Date(Date.now() - days * 864e5).toISOString();
+  let rows = [];
+  try {
+    const { data, error } = await supabase.from('usage_events')
+      .select('company_id, name, at').gte('at', since).limit(50000);
+    if (error) throw new Error(error.message);
+    rows = data || [];
+  } catch(e){
+    return res.status(500).json({ error: 'usage_events not available: ' + e.message });
+  }
+  // A company counts once per milestone, however many times it hit it —
+  // otherwise one busy subscriber drowns out ten who never got started.
+  const reached = new Map();   // milestone → Set(companyId)
+  for (const r of rows){
+    if (!reached.has(r.name)) reached.set(r.name, new Set());
+    reached.get(r.name).add(r.company_id || 'anon');
+  }
+  const signed = (reached.get('signed_up') || new Set()).size;
+  const funnel = USAGE_EVENTS.map(function (n){
+    const c = (reached.get(n) || new Set()).size;
+    return { milestone: n, businesses: c,
+             of_signups: signed ? Math.round((c / signed) * 100) + '%' : '—' };
+  });
+  res.json({ window_days: days, since, events: rows.length, signups: signed, funnel });
+});
 
 // ── Reading and receiving errors ────────────────────────────────────
 // A frontend crash is the half that was completely invisible: it happens on

@@ -6672,6 +6672,21 @@ function _reportClientError(message, stack, where){
                                      body: payload, keepalive: true }).catch(function(){});
   } catch(e){ /* a failed crash report must not itself crash anything */ }
 }
+// ── MILESTONES ───────────────────────────────────────────────────────
+// Two things only this side knows: whether they opened the sample job, and
+// whether they ever got a roof finished. Everything else is recorded on the
+// server at the route that does it. Once per session per milestone, because
+// what matters is "did they, ever" and not "how many times".
+var _usageSent = {};
+function _recordUsage(name){
+  try {
+    if (_usageSent[name]) return;
+    if (!localStorage.getItem('fr_token')) return;   // signed out — nothing to attribute it to
+    _usageSent[name] = 1;
+    api('POST', '/usage', { name: name }).catch(function(){});
+  } catch(e){}
+}
+
 window.addEventListener('error', function(e){
   // Ignore resource load failures (a missing image fires this too) — they
   // have no error object and are not what this is for.
@@ -10612,6 +10627,7 @@ async function openSampleJob(){
   S.currentJobId = null;
   restoreFromJob(job);
   S.isSampleJob = true;
+  try { _recordUsage('sample_opened'); } catch(e){}
   try { setCurrentJobLabel({ client_name: job.client_name, site_address: job.site_address }); } catch(e){}
   window._aerialLoadedAddr = null;
   _sampleJobStripSync();
@@ -43340,6 +43356,11 @@ function _updateRoofTypeHint(chosenType){
 function autoGenerateRoof(type, rotation) {
   if(!DRAW.outline||DRAW.outline.length<3){alert('Draw your building outline first.');return;}
   saveSnapshot();
+  // A roof with lines on it is the first milestone that says the product
+  // works for them. It's the one number worth knowing about a trial — and
+  // only counts when the drawing is to scale, since a shape with no
+  // calibration isn't a measurement.
+  if (!S.isSampleJob && DRAW.scaleMetresPerPx > 0) { try { _recordUsage('roof_drawn'); } catch(e){} }
   /* Picking a shape from the sheet (no rotation passed) is the one moment
      the roof's orientation is decided from the drawing. From then on it is
      remembered, so corner drags move the walls without spinning the roof —

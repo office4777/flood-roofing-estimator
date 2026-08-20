@@ -49,6 +49,23 @@ Errors are grouped by shape, so the same bug hitting forty times is one entry
 and one alert. Tokens, passwords and data-URIs are redacted before anything is
 stored or sent.
 
+## Usage
+
+`GET /admin/usage?days=30` (same `ADMIN_TOKEN`) answers one question: of the
+businesses that signed up, how many reached each milestone.
+
+```
+signed_up → setup_done → sample_opened → roof_drawn → job_saved
+          → price_book_saved → quote_sent → quote_accepted → order_sent
+```
+
+A business counts once per milestone however many times it hits it, so one
+busy subscriber can't hide ten who never got started. Nine allow-listed names,
+no third party, no cookie, no page tracking — the browser can only report
+`sample_opened` and `roof_drawn`, and every other milestone is recorded on the
+server at the route that does the thing. What is stored is which milestone a
+business reached and when: never a customer, an address or a price.
+
 ## Tech Stack
 
 - Frontend: Vanilla HTML/JS/CSS (single file, no build step needed)
