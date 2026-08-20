@@ -142,6 +142,48 @@
   .price-box .fine{ font-size:13.5px; color:rgba(255,255,255,.6); margin-top:14px; line-height:1.5 }
   @media (max-width:880px){ .price-card{ grid-template-columns:1fr; padding:34px 26px; gap:30px } }
 
+  /* ── onsite ── */
+  .onsite{ background:var(--ink); color:#fff; overflow:hidden }
+  .onsite h2{ color:#fff }
+  .onsite-grid{ display:grid; grid-template-columns:1fr 420px; gap:60px; align-items:center }
+  .onsite p{ color:rgba(255,255,255,.8) }
+  .onsite ul{ margin:26px 0 0; padding:0; list-style:none; display:grid; gap:15px }
+  .onsite li{ display:flex; gap:13px; align-items:flex-start; font-size:16px; color:rgba(255,255,255,.86) }
+  .onsite li b{ color:#fff; font-weight:700 }
+  .onsite li .d{ width:7px; height:7px; border-radius:50%; background:#54c8ee; flex-shrink:0; margin-top:9px }
+  .phone{
+    justify-self:center; width:100%; max-width:330px; border-radius:34px; padding:11px;
+    background:#0d1a2e; border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 34px 80px rgba(0,0,0,.5); position:relative;
+  }
+  .phone img{ border-radius:24px; display:block; width:100%; height:520px; object-fit:cover; object-position:top center }
+  @media (max-width:900px){ .onsite-grid{ grid-template-columns:1fr; gap:38px } }
+
+  /* ── tiers ── */
+  .tiers{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; align-items:stretch }
+  .tier{
+    background:#fff; border:1.5px solid var(--line); border-radius:16px; padding:30px 26px;
+    display:flex; flex-direction:column;
+  }
+  .tier.pick{ border-color:var(--accent); box-shadow:0 16px 44px rgba(0,153,204,.16); position:relative }
+  .tier .tag{
+    position:absolute; top:-12px; left:26px; background:var(--accent); color:#fff;
+    font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase;
+    padding:5px 12px; border-radius:20px;
+  }
+  .tier h3{ font-size:20px; margin-bottom:5px }
+  .tier .who{ font-size:14.5px; color:var(--muted); min-height:42px }
+  .tier .amt{ font-size:38px; font-weight:800; color:var(--ink); letter-spacing:-.03em; margin:14px 0 2px; line-height:1 }
+  .tier .per{ font-size:13.5px; color:var(--muted) }
+  .tier ul{ margin:22px 0 26px; padding:0; list-style:none; display:grid; gap:10px; flex:1 }
+  .tier li{ display:flex; gap:10px; font-size:15px; align-items:flex-start; line-height:1.45 }
+  .tier li::before{ content:'✓'; color:var(--accent); font-weight:800; flex-shrink:0 }
+  .tier li.off{ color:var(--muted) }
+  .tier li.off::before{ content:'—'; color:var(--line) }
+  .tier .btn{ width:100% }
+  .tier-note{ text-align:center; font-size:14.5px; color:var(--muted); margin-top:26px }
+  @media (max-width:900px){ .tiers{ grid-template-columns:1fr; gap:26px } .tier .who{ min-height:0 } }
+
   /* ── signup ── */
   .signup{ background:var(--paper-2); border-top:1px solid var(--line) }
   .signup-grid{ display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:start }
@@ -267,9 +309,9 @@
         <p>A real proposal with the roof plan on it. They choose their steel grade and guttering, watch the total move, and accept from their phone.</p>
       </div>
       <div class="feat">
-        <div class="ic">📶</div>
-        <h3>Built for the roof, not the desk</h3>
-        <p>Phone and tablet, pen or finger, gloves on. Out of range it saves to the device and uploads itself when the signal comes back.</p>
+        <div class="ic">🔗</div>
+        <h3>Feeds the system you already run</h3>
+        <p>Linked to Fergus today, so quotes and material orders land where your jobs already live instead of being typed in twice.</p>
       </div>
       <div class="feat">
         <div class="ic">👥</div>
@@ -277,6 +319,28 @@
         <p>Everyone shares the same jobs, price book and job numbers — and every job says who made it and who sent the order.</p>
       </div>
     </div>
+  </div>
+</section>
+
+<section class="onsite">
+  <div class="wrap onsite-grid">
+    <div>
+      <div class="eyebrow" style="color:#54c8ee">On the roof</div>
+      <h2>The measuring app goes up the ladder with you.</h2>
+      <p style="margin-top:18px;font-size:17.5px">
+        This is the part most quoting software doesn't have. Draw the roof on your phone or tablet
+        while you're standing on it — and every ridge, hip, valley, barge and gutter is measured as
+        you go, ready for the office before you're back in the ute.
+      </p>
+      <ul>
+        <li><span class="d"></span><span><b>Finger or pen, gloves on.</b> Big targets, no fiddly menus, and it ignores your palm resting on the screen.</span></li>
+        <li><span class="d"></span><span><b>Lock the screen.</b> One tap and the roof can't be redrawn by your leg while the phone's in your pocket.</span></li>
+        <li><span class="d"></span><span><b>Photos into the job.</b> Shoot the whole roof in one go — every shot lands on the job, not in your camera roll.</span></li>
+        <li><span class="d"></span><span><b>No signal, no problem.</b> It saves to the device and uploads itself the moment you have coverage.</span></li>
+        <li><span class="d"></span><span><b>The office picks it straight up.</b> Site drafts arrive named and stamped with who measured it and on what.</span></li>
+      </ul>
+    </div>
+    <div class="phone"><img src="brand/app_site_phone.png" alt="RoofMap on a phone, showing a hip roof with every line measured"></div>
   </div>
 </section>
 
@@ -306,31 +370,68 @@
 
 <section class="tint" id="pricing">
   <div class="wrap">
-    <div class="price-card">
-      <div>
-        <div class="eyebrow" style="color:#54c8ee">Pricing</div>
-        <h2>One subscription per business.</h2>
-        <p style="color:rgba(255,255,255,.8);margin-top:16px;font-size:17px">
-          Not per user. Add your estimator, your office manager and your foreman at no extra cost —
-          they share the same jobs, the same price book and the same job numbers.
-        </p>
+    <div class="sec-head" style="max-width:640px">
+      <div class="eyebrow">Pricing</div>
+      <h2>Priced per business, not per seat.</h2>
+      <p>Your estimator, your office manager and your foreman all work off the same jobs, the same
+         price book and the same job numbers. Every plan starts with 14 days free.</p>
+    </div>
+
+    <!-- ─────────────────────────────────────────────────────────────
+         PRICES ARE A STARTING PROPOSAL, NOT A DECISION. Change the three
+         numbers below and nothing else needs touching. Shown ex GST, which
+         is what a trade customer expects to compare on.
+         ───────────────────────────────────────────────────────────── -->
+    <div class="tiers">
+      <div class="tier">
+        <h3>Solo</h3>
+        <div class="who">One person doing the measuring, the quoting and the ordering.</div>
+        <div class="amt">$99</div>
+        <div class="per">per month + GST · 1 user</div>
         <ul>
-          <li>Everyone in your business included</li>
-          <li>Unlimited jobs, quotes and job packs</li>
-          <li>Your own domain for customer quotes</li>
-          <li>Cancel any time — your data stays yours</li>
+          <li>Roof measuring, onsite and in the office</li>
+          <li>Material orders and crew job packs</li>
+          <li>Quotes your customer accepts online</li>
+          <li>Your branding on every quote</li>
+          <li class="off">One login</li>
+          <li class="off">Quotes sent on roofmap.co.nz</li>
         </ul>
+        <a href="#start" class="btn btn-dark">Start free trial</a>
       </div>
-      <div class="price-box">
-        <div class="lead">Start with</div>
-        <!-- Set your monthly price here once you've decided it. Until then the
-             trial is the honest thing to lead with — no invented number. -->
-        <div class="big">14 days free</div>
-        <div class="lead">then a flat monthly subscription</div>
-        <a href="#start" class="btn btn-primary" style="width:100%;margin-top:18px">Create your account</a>
-        <div class="fine">No credit card to start. We'll talk pricing before your trial ends.</div>
+
+      <div class="tier pick">
+        <span class="tag">Most roofers</span>
+        <h3>Team</h3>
+        <div class="who">An office and a crew sharing one set of jobs.</div>
+        <div class="amt">$199</div>
+        <div class="per">per month + GST · up to 5 users</div>
+        <ul>
+          <li>Everything in Solo</li>
+          <li>Up to 5 logins, one shared price book</li>
+          <li>One job-number counter across the office</li>
+          <li>Every job shows who made it and who ordered</li>
+          <li>Your own address — <em>yourname</em>.roofmap.co.nz</li>
+          <li class="off">Quotes on your own domain</li>
+        </ul>
+        <a href="#start" class="btn btn-primary">Start free trial</a>
+      </div>
+
+      <div class="tier">
+        <h3>Business</h3>
+        <div class="who">More than one crew, or you want it on your own domain.</div>
+        <div class="amt">$349</div>
+        <div class="per">per month + GST · unlimited users</div>
+        <ul>
+          <li>Everything in Team</li>
+          <li>Unlimited logins</li>
+          <li>Quotes on your own domain, set up for you</li>
+          <li>Fergus job-system integration</li>
+          <li>Priority support from a roofer, not a call centre</li>
+        </ul>
+        <a href="#start" class="btn btn-dark">Start free trial</a>
       </div>
     </div>
+    <p class="tier-note">14 days free on every plan · No credit card to start · Cancel any time and your data stays yours</p>
   </div>
 </section>
 
