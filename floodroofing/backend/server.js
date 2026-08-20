@@ -510,6 +510,73 @@ async function requireSubscription(req, res, next) {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// PLANS — what each tier actually includes
+// ══════════════════════════════════════════════════════════════════
+// The boundaries here are the ones the pricing page sells, and they are
+// checked on the SERVER: a limit enforced only by a hidden button is not a
+// limit. A trial gets everything, so a business can judge the whole product
+// before choosing — and so that every account that predates plans keeps
+// working unchanged.
+const PLANS = {
+  trial:    { label: 'Trial',    seats: Infinity, slug: true,  domain: true,  jms: true  },
+  solo:     { label: 'Solo',     seats: 1,        slug: false, domain: false, jms: false },
+  team:     { label: 'Team',     seats: 5,        slug: true,  domain: false, jms: false },
+  business: { label: 'Business', seats: Infinity, slug: true,  domain: true,  jms: true  },
+};
+function _limitsFor(plan){ return PLANS[String(plan || '').toLowerCase()] || PLANS.trial; }
+// Cached briefly so a per-request plan check isn't a per-request query. The
+// cost is that a plan change (a Stripe webhook, say) takes up to this long to
+// bite, which is fine for an upgrade and acceptable for a downgrade.
+// PLAN_CACHE_MS=0 turns it off, which is what the tests do so they can move a
+// company between plans and see it immediately.
+const PLAN_CACHE_MS = process.env.PLAN_CACHE_MS != null ? Number(process.env.PLAN_CACHE_MS) : 60000;
+const _planCache = new Map();   // companyId → { at, plan }
+async function _planOf(companyId){
+  if (!companyId) return 'trial';
+  const hit = _planCache.get(companyId);
+  if (hit && PLAN_CACHE_MS > 0 && Date.now() - hit.at < PLAN_CACHE_MS) return hit.plan;
+  let plan = 'trial';
+  try {
+    const { data } = await supabase.from('companies').select('plan').eq('id', companyId).maybeSingle();
+    if (data && data.plan) plan = data.plan;
+  } catch (e) { /* column not migrated yet — treat as trial */ }
+  _planCache.set(companyId, { at: Date.now(), plan: plan });
+  return plan;
+}
+// How many seats a business is using: people in it, plus invitations still
+// outstanding. Counting only accepted members would let an owner invite ten
+// people onto a five-seat plan and have them all land.
+async function _seatsUsed(companyId){
+  let members = 0, pending = 0;
+  try {
+    const { data } = await supabase.from('company_users').select('user_id').eq('company_id', companyId);
+    members = (data || []).length;
+  } catch (e) {}
+  try {
+    const { data } = await supabase.from('company_invites').select('expires_at')
+      .eq('company_id', companyId).is('accepted_at', null);
+    pending = (data || []).filter(function (i) { return new Date(i.expires_at) > new Date(); }).length;
+  } catch (e) {}
+  return { members: members, pending: pending, total: members + pending };
+}
+function _planBlocked(res, what, needs){
+  return res.status(403).json({
+    error: what + ' isn\'t included on your plan — ' + needs + ' covers it.',
+    code: 'PLAN_LIMIT', needs: needs,
+  });
+}
+// Gate a whole route on a plan capability.
+function requirePlan(capability, what, needs){
+  return async function (req, res, next) {
+    try {
+      const lim = _limitsFor(await _planOf(req.companyId));
+      if (!lim[capability]) return _planBlocked(res, what, needs);
+      next();
+    } catch (e) { next(); }   // never let the check itself lock someone out
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════
 // TEAM — a business invites its OWN staff
 // ══════════════════════════════════════════════════════════════════
 // Someone's role in their company. 'owner' can invite, remove and rename;
@@ -563,6 +630,13 @@ async function _companyBrief(cid, userId){
         .eq('company_id', cid).eq('status', 'verified').limit(1);
       brief.domain = (doms && doms[0] && doms[0].domain) || '';
     } catch (e) { brief.domain = ''; }
+    // The plan, so the app can shape itself to it without another round trip.
+    try {
+      const plan = await _planOf(cid);
+      const lim = _limitsFor(plan);
+      brief.plan = plan;
+      brief.limits = { seats: lim.seats === Infinity ? null : lim.seats, slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms };
+    } catch (e) {}
     return brief;
   } catch (e) { return { id: cid, role: '' }; }
 }
@@ -588,7 +662,16 @@ app.get('/team', requireAuth, async (req, res) => {
         .eq('company_id', req.companyId).is('accepted_at', null);
       invites = (data || []).filter(function (i) { return new Date(i.expires_at) > new Date(); });
     } catch (e) { /* table not migrated yet — show the members we have */ }
-    res.json({ company: co || { id: req.companyId }, me: { id: req.user.id, role: await _roleOf(req.user.id) }, members, invites });
+    const plan = await _planOf(req.companyId);
+    const lim = _limitsFor(plan);
+    const seats = { used: members.length + invites.length, allowed: lim.seats === Infinity ? null : lim.seats };
+    res.json({
+      company: co || { id: req.companyId },
+      me: { id: req.user.id, role: await _roleOf(req.user.id) },
+      members, invites,
+      plan: { id: plan, label: lim.label, seats: seats,
+              slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms },
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -602,6 +685,18 @@ app.post('/team/invites', requireAuth, requireOwner, rateLimit(20, 3600000), asy
     const { data: existing } = await supabase.from('profiles').select('id, company_id').eq('email', email).maybeSingle();
     if (existing && String(existing.company_id) === String(req.companyId))
       return res.status(400).json({ error: 'They are already in your business.' });
+    const lim = _limitsFor(await _planOf(req.companyId));
+    if (lim.seats !== Infinity) {
+      const seats = await _seatsUsed(req.companyId);
+      if (seats.total >= lim.seats) {
+        return res.status(403).json({
+          error: 'Your plan covers ' + lim.seats + (lim.seats === 1 ? ' person' : ' people') +
+                 ' and you have ' + seats.total + ' (' + seats.members + ' in the business, ' +
+                 seats.pending + ' invited). Upgrade to add more.',
+          code: 'PLAN_SEATS', seats: seats, allowed: lim.seats,
+        });
+      }
+    }
     const raw = require('crypto').randomBytes(32).toString('hex');
     const row = { company_id: req.companyId, email: email, role: role, token_hash: _sha256(raw), created_by: req.user.id };
     const { data, error } = await supabase.from('company_invites').insert(row).select('id, email, role, created_at, expires_at').single();
@@ -685,7 +780,8 @@ app.get('/team/slug-available', requireAuth, async (req, res) => {
   const taken = await _slugTaken(slug, req.companyId);
   res.json({ slug: slug, ok: !taken, reason: taken ? 'taken' : '' });
 });
-app.post('/team/slug', requireAuth, requireOwner, async (req, res) => {
+app.post('/team/slug', requireAuth, requireOwner,
+  requirePlan('slug', 'Your own RoofMap address', 'Team'), async (req, res) => {
   const slug = _normSlug(req.body && req.body.slug);
   if (!slug) return res.status(400).json({ error: 'Use 3–30 letters, numbers or dashes — and not a name RoofMap reserves.' });
   if (await _slugTaken(slug, req.companyId)) return res.status(409).json({ error: 'Another business already has that address.' });
@@ -720,6 +816,19 @@ app.post('/auth/accept-invite', rateLimit(10, 900000), async (req, res) => {
       .select('*').eq('token_hash', _sha256(token)).maybeSingle();
     if (!inv || inv.accepted_at || new Date(inv.expires_at) <= new Date())
       return res.status(401).json({ error: 'This invitation has expired or already been used.' });
+    // Re-checked here, not just at invite time: an invitation is good for 14
+    // days, and a business can downgrade in between. Without this, a plan could
+    // be quietly exceeded by an old link being clicked.
+    const lim = _limitsFor(await _planOf(inv.company_id));
+    if (lim.seats !== Infinity) {
+      const { data: mem } = await supabase.from('company_users').select('user_id').eq('company_id', inv.company_id);
+      if ((mem || []).length >= lim.seats) {
+        return res.status(403).json({
+          error: 'That business has filled every seat on its plan. Ask them to upgrade, then use this link again.',
+          code: 'PLAN_SEATS',
+        });
+      }
+    }
     const email = String(inv.email).toLowerCase();
     let userId = null;
     const { data: existing } = await supabase.from('profiles').select('id').eq('email', email).maybeSingle();
@@ -881,7 +990,8 @@ app.get('/team/domains', requireAuth, async (req, res) => {
 });
 
 // Claim a domain: register it with Vercel and hand back the record to add.
-app.post('/team/domains', requireAuth, requireOwner, rateLimit(20, 3600000), async (req, res) => {
+app.post('/team/domains', requireAuth, requireOwner,
+  requirePlan('domain', 'Connecting your own domain', 'Business'), rateLimit(20, 3600000), async (req, res) => {
   if (!DOMAINS_ENABLED) return res.status(503).json({ error: 'Custom domains are not switched on yet.', code: 'DOMAINS_DISABLED' });
   const host = _normHost(req.body && req.body.domain);
   if (!host) return res.status(400).json({ error: 'Enter a domain like quote.yourcompany.co.nz.' });
@@ -1774,7 +1884,8 @@ app.post('/claude/*', requireAuth, requireSubscription, async (req, res) => {
 // are env-configurable so they can be fixed without a code change.
 const FERGUS_HOST   = process.env.FERGUS_HOST        || 'api.fergus.com';
 const FERGUS_PREFIX = process.env.FERGUS_PATH_PREFIX || '';
-app.all('/fergus/*', requireAuth, requireSubscription, async (req, res) => {
+app.all('/fergus/*', requireAuth, requireSubscription,
+  requirePlan('jms', 'The Fergus job-system link', 'Business'), async (req, res) => {
   if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
   const tail = req.url.replace(/^\/fergus/, '');           // keep the querystring
   const upstreamPath = FERGUS_PREFIX + tail;
@@ -1898,7 +2009,8 @@ async function _fergusUploadAttempt(pathTpl, jobId, buf, contentType, filename, 
   }
 }
 
-app.post('/fergus-files/upload', requireAuth, requireSubscription, async (req, res) => {
+app.post('/fergus-files/upload', requireAuth, requireSubscription,
+  requirePlan('jms', 'The Fergus job-system link', 'Business'), async (req, res) => {
   if (!process.env.FERGUS_API_KEY) return res.status(500).json({ error: 'Fergus not configured' });
   const { jobId, filename, contentType, base64, fieldName } = req.body || {};
   if (!jobId)    return res.status(400).json({ error: 'jobId required' });
@@ -2993,6 +3105,10 @@ const _MIGRATION_SQL = [
   "alter table public.user_settings add column if not exists updated_by uuid",
   // Each business's RoofMap address: <slug>.roofmap.co.nz. Unique, case-blind.
   "alter table public.companies add column if not exists slug text",
+  // Which plan a business is on. Everything already in use predates plans, so
+  // the default is 'trial' — full access — and nobody loses a feature the day
+  // this ships.
+  "alter table public.companies add column if not exists plan text not null default 'trial'",
   "create unique index if not exists idx_companies_slug on public.companies (lower(slug)) where slug is not null",
   // Per-company invitations. Replaces INVITE_COMPANY_ID, which could only ever
   // point at ONE company — so every invited person landed in that same

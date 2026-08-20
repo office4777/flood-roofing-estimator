@@ -15006,7 +15006,7 @@ function _qdQuoteDomainCheck(){
 // Jobs, the price book and every setting belong to the BUSINESS, so this is
 // the screen that decides who can see and work on them. Only an owner can
 // change who's in it; everyone else sees the same list, read-only.
-var TEAM = { company: null, me: {}, members: [], invites: [], domains: [], domainsEnabled: false, loading: false, err: '' };
+var TEAM = { company: null, me: {}, members: [], invites: [], domains: [], domainsEnabled: false, plan: null, loading: false, err: '' };
 async function loadTeam(){
   var wrap = document.getElementById('teamWrap'); if (!wrap) return;
   TEAM.loading = true; TEAM.err = ''; renderTeam();
@@ -15016,6 +15016,7 @@ async function loadTeam(){
     TEAM.me = d.me || {};
     TEAM.members = d.members || [];
     TEAM.invites = d.invites || [];
+    TEAM.plan = d.plan || null;
     try {
       var dom = await api('GET', '/team/domains');
       TEAM.domains = dom.domains || [];
@@ -15042,6 +15043,22 @@ function renderTeam(){
   var owner = (TEAM.me.role === 'owner');
   var slug = (TEAM.company && TEAM.company.slug) || '';
   var h = '';
+  var plan = TEAM.plan || {};
+  var seats = plan.seats || {};
+  var full = seats.allowed != null && seats.used >= seats.allowed;
+  // What they're on, and what it covers. Shown whether or not they're near a
+  // limit — finding out you can't add someone at the moment you try to is a
+  // bad way to learn what you're paying for.
+  h += '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid '+(full?'#fde68a':'var(--border)')+';background:'+(full?'#fffbeb':'#fff')+';border-radius:10px;padding:12px 15px;margin-bottom:16px">'+
+    '<span style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;padding:3px 10px;border-radius:20px;background:#0a1628;color:#fff">'+esc(plan.label || 'Trial')+'</span>'+
+    '<span style="font-size:13px;color:var(--text2)">'+
+      (seats.allowed == null
+        ? 'Unlimited people'
+        : esc(String(seats.used || 0)) + ' of ' + esc(String(seats.allowed)) + ' ' + (seats.allowed === 1 ? 'seat' : 'seats') + ' used')+
+      (plan.id === 'trial' ? ' · everything is unlocked while you\'re trialling' : '')+
+    '</span>'+
+    (full ? '<span style="font-size:12.5px;color:#b45309;font-weight:600">Every seat is taken — upgrade to add someone.</span>' : '')+
+  '</div>';
   // The business's address on RoofMap.
   h += '<div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;background:var(--surface-2)">'+
     '<div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:3px">Your RoofMap address</div>'+
