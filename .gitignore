@@ -20,3 +20,7 @@ floodroofing/docs/*_dump.json
 # Node
 node_modules/
 npm-debug.log*
+
+# Screenshots the test suites take on the way through — regenerate by
+# running them (node floodroofing/tests/run.mjs).
+.test-artifacts/

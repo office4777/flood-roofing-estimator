@@ -2,8 +2,11 @@
   "name": "flood-roofing-estimator",
   "version": "1.0.0",
   "private": true,
-  "description": "Sheet-layout engine CI harness for the Flood Roofing estimator frontend.",
+  "description": "RoofMap — test harness for the frontend, the backend and the sheet-layout engine.",
   "scripts": {
+    "test": "node floodroofing/tests/run.mjs",
+    "test:api": "node floodroofing/tests/run.mjs api",
+    "test:ui": "node floodroofing/tests/run.mjs ui",
     "test:sheets": "node floodroofing/docs/ci_sheet_tests.js"
   },
   "devDependencies": {

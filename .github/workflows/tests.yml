@@ -1,0 +1,70 @@
+name: Tests
+
+# The product suites — multi-tenancy, plans, team invites, custom domains,
+# the duplicate-job guard, error monitoring, tenant branding, the price book,
+# the sample job and the customer-facing quote flow.
+#
+# These existed before this workflow did, and were run by hand: which means
+# they were run when somebody remembered. A suite that only runs when you
+# remember is not a gate, and a bad deploy on a Friday is a subscriber's
+# whole weekend.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'floodroofing/frontend/**'
+      - 'floodroofing/backend/**'
+      - 'floodroofing/tests/**'
+      - 'package.json'
+      - '.github/workflows/tests.yml'
+  pull_request:
+    paths:
+      - 'floodroofing/frontend/**'
+      - 'floodroofing/backend/**'
+      - 'floodroofing/tests/**'
+  workflow_dispatch: {}
+
+jobs:
+  # Split in two so a browser flake never hides a backend regression, and so
+  # the fast half reports back in about two minutes.
+  api:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install backend dependencies
+        run: npm install --no-audit --no-fund
+        working-directory: floodroofing/backend
+      - name: Run the backend suites
+        run: node floodroofing/tests/run.mjs api
+
+  ui:
+    name: Browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run the browser suites
+        run: node floodroofing/tests/run.mjs ui
+      # Screenshots the suites take on the way through — the quickest way to
+      # see what a failure actually looked like.
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-screenshots
+          path: .test-artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
