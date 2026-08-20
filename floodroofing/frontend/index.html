@@ -3506,6 +3506,24 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     .hb-row-sub{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .hb-row-when{font-size:11px;color:var(--text2);white-space:nowrap}
     .hb-empty{font-size:12px;color:var(--text2);text-align:center;padding:20px 8px}
+    /* The sample job. An empty board is the moment a trial is lost — nobody
+       can tell whether the thing works from a screen with nothing on it. */
+    .sj-card{display:flex;align-items:center;gap:18px;padding:18px 22px;margin:0 0 18px;
+      background:linear-gradient(120deg,#0a1628,#123049);color:#fff;border-radius:14px}
+    .sj-card h3{margin:0 0 4px;font-size:16px;font-weight:800;color:#fff}
+    .sj-card p{margin:0;font-size:13px;line-height:1.55;color:rgba(255,255,255,.78)}
+    .sj-card .sj-go{flex-shrink:0;padding:12px 20px;background:#0099cc;color:#fff;border:none;
+      border-radius:10px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap}
+    .sj-card .sj-go:hover{background:#00b4d8}
+    .sj-card .sj-mark{flex-shrink:0;font-size:30px;line-height:1}
+    /* The strip that rides along the top while a sample job is open. */
+    .sj-open{display:flex;align-items:center;gap:12px;padding:9px 16px;background:#fff7ed;
+      border:1px solid #fed7aa;border-left:4px solid #d97706;border-radius:0 8px 8px 0;
+      font-size:12.5px;color:#7c2d12;margin:0 0 12px;line-height:1.55}
+    .sj-open strong{color:#7c2d12}
+    .sj-open button{margin-left:auto;flex-shrink:0;padding:6px 13px;background:#7c2d12;color:#fff;
+      border:none;border-radius:7px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
+    @media (max-width:640px){ .sj-card{flex-direction:column;align-items:flex-start;gap:12px} .sj-card .sj-go{width:100%} }
   </style>
   <div class="hb-topbar">
     <button type="button" class="hb-newjob" onclick="startNewJob()">＋ Create new job</button>
@@ -3516,6 +3534,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     </div>
     <button type="button" onclick="fetchQuoteActivity();fetchRecentDrafts()" title="Refresh the board" style="height:58px;padding:0 18px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:14px;font-size:14px;cursor:pointer;font-family:inherit">↻</button>
   </div>
+  <!-- Filled by _sampleJobBannerSync() while this account has no jobs of its
+       own. See openSampleJob(). -->
+  <div id="sampleJobBanner"></div>
   <div style="font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:2px 0 10px">Status board</div>
   <div class="hb-tiles" id="homeBoardTiles"></div>
   <div class="card" style="margin-top:0">
@@ -3528,6 +3549,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
 <!-- TAB 1: ROOF MAP -->
 <div class="panel" id="tab-roof">
+  <div data-sample-strip class="no-print"></div>
   <div class="card" id="roofBgCard">
     <!-- Collapsible "set roof image" step — auto-collapses once an image
          is chosen so the drawing canvas isn't buried two screens down.
@@ -4290,6 +4312,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
 <!-- TAB 3: MATERIALS -->
 <div class="panel" id="tab-materials">
+  <div data-sample-strip class="no-print"></div>
   <!-- ═══════════════════════════════════════════════════════════════
        JOB PACK DESIGNER — the sole user-facing editing surface for
        this tab.  Every editable thing (job header, roof map, sheet
@@ -4856,6 +4879,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 
 <!-- TAB 6: QUOTE -->
 <div class="panel" id="tab-quote">
+  <div data-sample-strip class="no-print"></div>
 
   <!-- Action bar -->
   <div class="card q-actionbar" style="display:flex;gap:8px;align-items:center;padding:12px 16px;flex-wrap:wrap">
@@ -6286,6 +6310,7 @@ function gotoTab(t) {
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
+  try { _sampleJobStripSync(); } catch(e){}
   try { _officePriceBarSync(); } catch(e){}   // shows on Quote, hides everywhere else
   if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{_jpRestorePanelState(true, true);}catch(e){}try{_syncCurrentToRoof&&_syncCurrentToRoof();}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpPreview(_jpPreviewPref());}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
   // Leaving Job Pack: hide the maps panel INSTANTLY — letting it slide out
@@ -8397,7 +8422,7 @@ function applyBranding(){
       inner = '<img src="'+ b.logo_data_url +'" style="max-height:42px;max-width:200px;object-fit:contain;display:block">';
     } else if (b.company_name){
       inner = '<div><div class="hdr-logo-text">'+ esc2(b.company_name) +'</div>'+
-              '<div class="hdr-logo-sub">'+ esc2(b.tagline || 'Quote &amp; proposal builder') +'</div></div>';
+              '<div class="hdr-logo-sub">'+ esc2(b.tagline || 'Quote & proposal builder') +'</div></div>';
     } else {
       inner = '<img class="hdr-logo-mark" src="brand/roofmap_icon.png" alt="RoofMap">'+
               '<div><div class="hdr-logo-text">Roof<span style="color:var(--accent)">Map</span></div>'+
@@ -8467,6 +8492,9 @@ function snapshotCurrentJob(){
 }
 function restoreFromJob(j){
   if (!j) return;
+  // Whatever we're loading, it is not the sample until somebody says so
+  // (openSampleJob sets the flag straight after this call).
+  S.isSampleJob = false;
   var snap = j.draw_state || {};
   if (snap.form) {
     Object.keys(snap.form).forEach(function(id){var el=document.getElementById(id); if(el) el.value=snap.form[id];});
@@ -8890,6 +8918,12 @@ function _snapHasSubstance(snap){
 }
 function _writeLocalDraftNow(){
   return new Promise(function(ok){
+    // The sample job is never left on somebody's device. Nine call sites
+    // write drafts — the debounce, the unload handler, every offline branch
+    // of Save — so the rule belongs here rather than at each of them. A
+    // deliberate Save clears the flag first, so saving the sample offline
+    // still keeps the work.
+    if (S.isSampleJob) return ok(false);
     var snap;
     try { snap = snapshotCurrentJob(); } catch(e){ return ok(false); }
     if (!_snapHasSubstance(snap)) return ok(false);
@@ -8964,6 +8998,11 @@ function _draftMarkSynced(){
 }
 function _isJobDirty(){
   try {
+    // The sample job is ours, not theirs. It must never turn itself into a
+    // local draft or an autosaved job behind their back — everything that
+    // writes work away goes through here, so this is the one place to say so.
+    // Pressing Save deliberately still works: saveCurrentJob clears the flag.
+    if (S.isSampleJob) return false;
     var snap = snapshotCurrentJob();
     if (!_snapHasSubstance(snap)) return false;
     return JSON.stringify(snap) !== DRAFTS._lastSnapJson;
@@ -9596,6 +9635,9 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
 async function saveCurrentJob(){
   var client = (document.getElementById('jobClient')||{}).value || '';
   var addr   = (document.getElementById('jobAddr')||{}).value || '';
+  // Deliberately saving the sample makes it an ordinary job of theirs — it
+  // stops being the sample from here on, and stops being exempt from autosave.
+  if (S.isSampleJob){ S.isSampleJob = false; try { _sampleJobStripSync(); } catch(e){} }
   // Saving a job whose number is still the Settings counter claims it.
   try { var _sjno = ((document.getElementById('jobNo')||{}).value || '').trim(); if (_sjno) _consumeJobNo(_sjno); } catch(e){}
   var msg = document.getElementById('saveJobMsg');
@@ -10055,6 +10097,7 @@ async function openJob(id){
     try { await _saveBeforeSwitch(); } catch(e){}
     var j = await api('GET', '/jobs/' + id);
     restoreFromJob(j);
+    S.isSampleJob = false; try { _sampleJobStripSync(); } catch(e){}
     refreshJobsList();
     // Forget the last satellite address so opening this job re-flies
     // the map to its site address on the next Map Roof entry.
@@ -10169,6 +10212,7 @@ async function startNewJob(){
   try { clearAll && clearAll(true); } catch(e){}
   S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[];
   S.orderSent = null;
+  S.isSampleJob = false; try { _sampleJobStripSync(); } catch(e){}
   _resetQuoteForFreshJob();
   window._aerialLoadedAddr = null;
   setCurrentJobLabel(null);
@@ -10448,9 +10492,81 @@ function _renderHomeBoard(){
   if (tEl) tEl.textContent = sel.title;
   if (cEl) cEl.textContent = sel.rows.length ? ('· ' + sel.rows.length) : '';
   host.innerHTML = sel.rows.length ? sel.rows.join('') : (sel.err || '<div class="hb-empty">' + sel.empty + '</div>');
+  try { _sampleJobBannerSync(); } catch(e){}
 }
 // Back-compat aliases — older call sites repaint the whole board now.
 function _renderRecentDrafts(){ _renderHomeBoard(); }
+
+// ── THE SAMPLE JOB ───────────────────────────────────────────────────
+// A trial that opens on an empty board has nothing to judge. Nobody buys a
+// quoting tool off a blank screen, and asking somebody to draw their first
+// roof before they have seen one finished is the wrong order.
+//
+// So a brand-new account gets one worked job: a real L-shaped hip-and-valley
+// house, measured, with a cut list, a material order and a priced proposal
+// they can page through in a minute. It is generated by driving the app (see
+// the demo-job generator in the test suite), so it is a genuine job snapshot,
+// not a mock-up that would drift away from the real thing.
+//
+// It is never written to their account. Opening it loads it into memory; if
+// they press Save it becomes an ordinary job of theirs, and if they don't,
+// nothing happened.
+var SAMPLE_JOB_URL = 'demo-job.json';
+var _sampleJobCache = null;
+function _hasOwnWork(){
+  return !!((window._recentDraftsRows || []).length) ||
+         !!((window._selectJobsCache || []).length);
+}
+function _sampleJobBannerHtml(){
+  return '<div class="sj-card">' +
+    '<span class="sj-mark" aria-hidden="true">📐</span>' +
+    '<div style="flex:1;min-width:0">' +
+      '<h3>Have a look at a finished job first</h3>' +
+      '<p>A real re-roof, measured and priced end to end — the roof plan, the cut list, ' +
+         'the material order and the quote your customer would open. Nothing is saved to ' +
+         'your account until you save it.</p>' +
+    '</div>' +
+    '<button type="button" class="sj-go" onclick="openSampleJob()">Open the sample job</button>' +
+  '</div>';
+}
+function _sampleJobBannerSync(){
+  var el = document.getElementById('sampleJobBanner');
+  if (!el) return;
+  el.innerHTML = _hasOwnWork() ? '' : _sampleJobBannerHtml();
+}
+// The strip that stays visible while the sample is open, so nobody emails it
+// to a customer thinking it is their own job.
+function _sampleJobStripSync(){
+  var html = S.isSampleJob
+    ? '<div class="sj-open"><span>📐</span><span><strong>This is the sample job.</strong> ' +
+      'Change anything you like — it is priced off the sample price book and it is not saved ' +
+      'to your account.</span><button type="button" onclick="startNewJob()">Start my own job</button></div>'
+    : '';
+  Array.from(document.querySelectorAll('[data-sample-strip]')).forEach(function(el){ el.innerHTML = html; });
+}
+async function openSampleJob(){
+  try { await _saveBeforeSwitch(); } catch(e){}
+  var job = _sampleJobCache;
+  if (!job){
+    try {
+      var r = await fetch(SAMPLE_JOB_URL, { cache: 'force-cache' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      job = _sampleJobCache = await r.json();
+    } catch(e){
+      alert('Could not open the sample job (' + e.message + '). Create a job of your own instead — the ＋ button above.');
+      return;
+    }
+  }
+  // Never let the sample adopt the id of whatever was open — a save must
+  // create a new job, not overwrite one of theirs.
+  S.currentJobId = null;
+  restoreFromJob(job);
+  S.isSampleJob = true;
+  try { setCurrentJobLabel({ client_name: job.client_name, site_address: job.site_address }); } catch(e){}
+  window._aerialLoadedAddr = null;
+  _sampleJobStripSync();
+  gotoTab('roof');
+}
 
 // ── Home "Select job" type-ahead ────────────────────────────────────
 // One search box over BOTH sources the Select Job modal covers: saved
@@ -13468,8 +13584,11 @@ function defaultQuote(){
     phone:  (document.getElementById('jobPhone')||{}).value || '',
     // Cover page — job/property headline + the salesperson who prepared it.
     jobTitle: '',
-    preparedByName: (S.settings && S.settings.branding && S.settings.branding.prepared_by_name) || 'Matthew Anderson-Smith',
-    preparedByRole: (S.settings && S.settings.branding && S.settings.branding.prepared_by_role) || 'Sales Manager',
+    // Whoever is logged in prepared it. It used to default to a named person
+    // at the company that built this, which put a stranger's name on every
+    // other subscriber's quotes.
+    preparedByName: (S.settings && S.settings.branding && S.settings.branding.prepared_by_name) || _signedInName(),
+    preparedByRole: (S.settings && S.settings.branding && S.settings.branding.prepared_by_role) || '',
     scope: scopeChips.length ? scopeChips.map(function(s){return '• '+s;}).join('\n') : '',
     notes: scopeNotes,
     terms: terms,
@@ -15653,8 +15772,9 @@ function customerQuery(){
   var m = window.prompt('What would you like to ask about this quote?');
   if (!m) return;
   _postCustomerEvent('queried', { message:m }).then(function(r){
-    if (!r.ok){ alert('Sorry — your question didn\'t reach Flood Roofing (connection problem). Please try again or reply to the email instead.'); return; }
-    alert('Thanks — your question has been sent to Flood Roofing. We\'ll be in touch shortly.');
+    var _co = _brandName('the office');
+    if (!r.ok){ alert('Sorry — your question didn\'t reach ' + _co + ' (connection problem). Please try again or reply to the email instead.'); return; }
+    alert('Thanks — your question has been sent to ' + _co + '. We\'ll be in touch shortly.');
   });
 }
 // Scale the A4-width proposal (#qpRoot) down so it fits the viewport in the
@@ -15917,7 +16037,7 @@ async function bootCustomerView(token){
       urlJobNo = (new URLSearchParams(location.search).get('j') || '').replace(/[^A-Za-z0-9\-]/g,'');
     } catch(e){}
     document.title = urlJobNo
-      ? ('Flood Roofing Quote #' + urlJobNo)
+      ? (_brandName('') + ' Quote #' + urlJobNo).replace(/^ /, '')
       : 'Your Roofing Proposal';
     // Two reasons the first hit can fail for a perfectly valid link:
     //  1. Supabase's read replica hasn't caught up yet (404 right after the
@@ -16069,7 +16189,7 @@ async function bootCustomerView(token){
     // header), falling back to the url ?j= and finally the generic name.
     var refForTitle = (S.quote && (S.quote.ref || S.quote.jobNo)) || urlJobNo || '';
     document.title = refForTitle
-      ? ('Flood Roofing Quote #' + String(refForTitle).replace(/^FR-?/i,''))
+      ? (_brandName('') + ' Quote #' + String(refForTitle).replace(/^FR-?/i,'')).replace(/^ /, '')
       : 'Your Roofing Proposal';
     refreshQuoteProposal();
     // Scale the A4 proposal down to fit the device width (phones especially),
@@ -16224,7 +16344,7 @@ function renderProposalSectionToggles(){
     ['condition', 'Existing roof condition',    'Condition + team photo'],
     ['inclusions','Price page',                 'Scope, options (incl. guttering), total'],
     ['colorsteel','Colorsteel® range',          'MAXAM with Activate™ + standard colours'],
-    ['terms',     'Terms & conditions',         'Flood Roofing T&Cs'],
+    ['terms',     'Terms & conditions',         'Your standard T&Cs'],
     ['signature', 'Acceptance signature',       'Client signature page'],
   ];
   host.innerHTML = labels.map(function(p){
@@ -16255,6 +16375,55 @@ function toggleShowLineItems(on){
   S.quote.showLineItemsInQuote = !!on;
   refreshQuoteProposal();
 }
+
+// ── WHOSE PHOTOS ARE THESE? ──────────────────────────────────────────
+// The files under /brand/ — the fleet, the crew, the logo — are one roofing
+// company's own photographs, with that company's name written down the side
+// of the utes. They were fine while one company used this. They are the worst
+// thing in the product the moment a second one signs up: a subscriber's
+// customer opens a proposal and sees a competitor's trucks and a stranger
+// named as the salesperson.
+//
+// So the built-in set renders only for the account it belongs to. Everybody
+// else gets their own uploaded gallery, and if they haven't uploaded one,
+// nothing — a proposal with no crew photo is fine; a proposal with somebody
+// else's crew photo is not.
+var STOCK_OWNER = 'floodroofing';
+function _stockSet(){
+  var br = (window.S && S.settings && S.settings.branding) || {};
+  // An explicit setting always wins, so this can be turned on or off by hand.
+  if (br.stock_photo_set != null && br.stock_photo_set !== '') return String(br.stock_photo_set);
+  if (br.stock_photo_set === '') return '';
+  var n = String(br.company_name || '').toLowerCase().replace(/[^a-z]/g, '');
+  return n.indexOf(STOCK_OWNER) === 0 ? STOCK_OWNER : '';
+}
+function _stockPhoto(file){ return _stockSet() === STOCK_OWNER ? ('brand/' + file) : ''; }
+// A photo band in the proposal: an explicit slot assignment wins, then the
+// account's own stock gallery, then the built-in set if it is theirs. Returns
+// '' when there is nothing this account is entitled to show — callers drop
+// the band rather than render an empty frame.
+function _proposalPhoto(slotId, galleryIdx, file){
+  try { var src = resolveSlotSrc(slotId); if (src) return src; } catch(e){}
+  try { var g = _galleryArr()[galleryIdx|0] || _galleryArr()[0]; if (g && g.src) return g.src; } catch(e){}
+  return _stockPhoto(file);
+}
+// Who is signed in, for "prepared by" on a proposal.
+function _signedInName(){
+  try {
+    var u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {};
+    return u.name || (u.email ? String(u.email).split('@')[0] : '');
+  } catch(e){ return ''; }
+}
+// The company's own name for the top of a proposal. Falls back to the
+// organisation they signed up as, never to ours.
+function _proposalCompanyName(br, fallback){
+  br = br || (window.S && S.settings && S.settings.branding) || {};
+  if (br.company_name) return br.company_name;
+  try { var c = _companyBrief(); if (c && c.name) return c.name; } catch(e){}
+  return fallback == null ? 'Your company' : fallback;
+}
+// Shorthand for the many places that just want "whoever is sending this".
+function _brandName(fallback){ return _proposalCompanyName(null, fallback); }
 
 // ── Stock proposal photos (shared across every proposal) ─────────────
 function _galleryArr(){
@@ -17820,7 +17989,7 @@ function edHeading(num, eyebrow, title, opts){
     '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:'+accent+';z-index:1"></div>'+
     tracker +
     '<div style="padding:18px 36px;position:relative">'+
-      '<img src="brand/logo_wide_white.png" onerror="this.style.display=\'none\'" alt="" style="position:absolute;right:36px;top:50%;transform:translateY(-50%);height:34px;width:auto;opacity:.9;pointer-events:none">'+
+      (_stockPhoto('logo_wide_white.png') ? '<img src="'+esc2(_stockPhoto('logo_wide_white.png'))+'" onerror="this.style.display=\'none\'" alt="" style="position:absolute;right:36px;top:50%;transform:translateY(-50%);height:34px;width:auto;opacity:.9;pointer-events:none">' : '')+
       '<div style="display:flex;align-items:center;gap:20px;position:relative;padding-right:150px">'+
         // Big chapter/page number with a small "of N pages" beside it.
         '<div class="ed-number" style="flex-shrink:0;color:'+accent+';line-height:1;display:flex;align-items:baseline;gap:8px;white-space:nowrap">'+
@@ -18193,9 +18362,9 @@ var POLESHED_DEFAULTS = {
     'Add 1800×800 Window $1,600 + GST (includes installation).'
   ],
   psSpecialNotes: [
-    "Flood Roofing doesn't supply kitsets; we source all products through our building supply partners to skip the 'kitset middleman'.",
+    _brandName('We') + " doesn't supply kitsets; we source all products through our building supply partners to skip the 'kitset middleman'.",
     'Price based on a flat section with no earthworks required.',
-    'Owner acknowledges all responsibility for building consent requirements as instructed by Flood Roofing.'
+    'Owner acknowledges all responsibility for building consent requirements as instructed by ' + _brandName('us') + '.'
   ],
   psIntro: 'Thank you for the opportunity to provide you with the following quote — we look forward to hearing from you.\nThe total price is shown at the bottom of the quote.\nPayment terms: a deposit invoice is issued on acceptance of the quote; once paid, your spot in the queue is locked in. Final payment is due no more than 7 days from completion of the work.\nOur lead-time is usually 5–8 weeks from quote acceptance to job start.',
   psDesignLink: ''
@@ -18673,7 +18842,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml){
         '<button type="button" class="no-print" onclick="_qpCondPhotoClear('+HERO_IDX+')" style="position:absolute;top:12px;right:112px;padding:6px 10px;background:rgba(10,24,40,.72);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Remove</button>'+
       '</div>'
     : '<div style="height:300px;background:linear-gradient(135deg,var(--ed-ink),#0f2740);position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:0 24px">'+
-        '<img src="brand/logo_wide_white.png" onerror="this.style.display=\'none\'" alt="" style="height:52px;width:auto;opacity:.92">'+
+        (_stockPhoto('logo_wide_white.png') ? '<img src="'+esc2(_stockPhoto('logo_wide_white.png'))+'" onerror="this.style.display=\'none\'" alt="" style="height:52px;width:auto;opacity:.92">' : '')+
         '<div class="no-print" style="font-family:var(--ed-serif);font-style:italic;color:rgba(255,255,255,.82);font-size:15px">Add your shed design render for the cover</div>'+
         '<div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'+
           '<button type="button" onclick="_qpCondPhotoFromFergus('+HERO_IDX+')" style="padding:8px 15px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">📷 Import from Fergus</button>'+
@@ -18972,9 +19141,9 @@ function refreshQuoteProposal(){
   }
   var d = S.roofData || {};
   var br = (S.settings && S.settings.branding) || {};
-  var company = br.company_name || 'FLOOD ROOFING';
+  var company = _proposalCompanyName(br);
   var tagline = String(br.tagline || '').toUpperCase();
-  var contactBits = [br.website, br.phone, br.email, br.address].filter(Boolean).join(' | ') || 'floodroofing.co.nz | Whangarei, NZ';
+  var contactBits = [br.website, br.phone, br.email, br.address].filter(Boolean).join(' | ');
   var phone = (document.getElementById('jobPhone')||{}).value || '';
   var inspector = (document.getElementById('inspName')||{}).value || '';
   var sec = S.quote.proposalSections || {};
@@ -19019,7 +19188,7 @@ function refreshQuoteProposal(){
   // /brand/logo_square.webp during setup) and falls back to the saved
   // branding logo data-url, then to plain company text.
   var html = '';
-  var brandLogo = 'brand/logo_square.png';
+  var brandLogo = _stockPhoto('logo_square.png');   // '' for everybody but its owner
   // The letterhead header is built into its own string and placed INSIDE
   // the cover page (below) so it shares the cover's single printed page
   // rather than sitting above the full-height cover and pushing an empty
@@ -19030,7 +19199,7 @@ function refreshQuoteProposal(){
   // double-logo the user flagged.
   var brandMarkHtml = br.logo_data_url
     ? '<img src="'+esc2(br.logo_data_url)+'" alt="logo" style="height:54px;max-width:180px;display:block;flex-shrink:0;object-fit:contain">'
-    : '<img src="'+esc2(brandLogo)+'" onerror="this.style.display=\'none\'" alt="" style="height:54px;width:54px;border-radius:6px;display:block;flex-shrink:0;object-fit:cover">';
+    : (brandLogo ? '<img src="'+esc2(brandLogo)+'" onerror="this.style.display=\'none\'" alt="" style="height:54px;width:54px;border-radius:6px;display:block;flex-shrink:0;object-fit:cover">' : '');
   var headerHtml = '<div class="rp-header" style="display:flex;align-items:center;justify-content:space-between;gap:18px;background:var(--ed-paper)">'+
     '<div style="display:flex;align-items:center;gap:14px">'+
       brandMarkHtml +
@@ -19084,24 +19253,27 @@ function refreshQuoteProposal(){
     // Default (1100×322 banner crop) is the real fleet-lineup shot — an EXISTING
     // brand file, so it can't 404 (the old brand/fleet_lineup.jpg didn't exist,
     // which is why the hero vanished in the PDF).
-    var hero = (_heroAsn && resolveSlotSrc('cover_hero')) || 'brand/fleet_trucks.jpg';
+    var hero = (_heroAsn && resolveSlotSrc('cover_hero')) || _stockPhoto('fleet_trucks.jpg');
     // Full-bleed hero photo + warm-cream title plate underneath.  All
     // type sits on the cream paper, not over the image, so it reads
     // clean regardless of how dark / colourful the photo is.  The
     // container aspect matches the crew band crop so it shows full
     // width with no further cropping.
     partCover =
+      // No hero at all when this account has nothing of its own to show —
+      // better a clean title plate than a competitor's fleet.
+      (!hero ? '' :
       '<div style="position:relative;aspect-ratio:1100/322;overflow:hidden;background:var(--ed-ink);margin:0">'+
-        '<img src="'+esc2(hero)+'" decoding="async" fetchpriority="high" onerror="this.onerror=null;this.src=\'brand/team_lineup_2026.jpg\'" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(1) contrast(1.02)">'+
+        '<img src="'+esc2(hero)+'" decoding="async" fetchpriority="high" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(1) contrast(1.02)">'+
         // Brand-blue gradient overlay at the bottom — ties hero to the
         // Flood Roofing electric-blue brand colour without obscuring
         // the photo content.
         // Subtle brand-blue gradient at the base (caption removed per request).
         '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 62%,rgba(0,153,224,.14) 85%,rgba(10,24,40,.45) 100%)"></div>'+
-      '</div>'+
+      '</div>')+
       // Title plate on cream paper underneath the photo
       (function(){
-        var _company = br.company_name || 'Flood Roofing';
+        var _company = _proposalCompanyName(br);
         // Clean editorial title plate: one headline block, then Client and
         // Prepared-by side by side (parallel treatment, not a mixed stack),
         // then What's inside + the reference meta row.
@@ -19126,9 +19298,12 @@ function refreshQuoteProposal(){
             esc2(S.quote.client || 'Client name'), 'client',
             (S.quote.phone ? esc2(S.quote.phone) : '<span style="font-style:italic;opacity:.6;pointer-events:none">Phone</span>'), 'phone',
             '<span class="qp-editable" contenteditable="true" data-qfield="email" spellcheck="false">'+(S.quote.email ? esc2(S.quote.email) : '<span style="font-style:italic;opacity:.6;pointer-events:none">client@email.co.nz</span>')+'</span>')+
+          // These are editable placeholders, so they must read as placeholders
+          // rather than as a real person at another roofing company.
           _detailCol('Prepared by',
-            esc2(S.quote.preparedByName || 'Matthew Anderson-Smith'), 'preparedByName',
-            esc2(S.quote.preparedByRole || 'Sales Manager'), 'preparedByRole',
+            esc2(S.quote.preparedByName || _signedInName() || 'Your name'), 'preparedByName',
+            (S.quote.preparedByRole ? esc2(S.quote.preparedByRole)
+              : '<span style="font-style:italic;opacity:.6">Your role</span>'), 'preparedByRole',
             esc2(_company))+
         '</div>'+
         // Meta footer — three columns, hairline divider
@@ -19162,7 +19337,7 @@ function refreshQuoteProposal(){
           '</div>'+
         '</div>'+
         '<div>'+
-          edPullquote('100% price guarantee — the price we quote is the price you pay. No hidden extras, scaffolding included.', (br.company_name || 'FLOOD ROOFING').toUpperCase())+
+          edPullquote('100% price guarantee — the price we quote is the price you pay. No hidden extras, scaffolding included.', _proposalCompanyName(br).toUpperCase())+
         '</div>'+
       '</div>'+
       // Feature row — minimalist, no icons, just numbered serif numerals
@@ -19180,10 +19355,17 @@ function refreshQuoteProposal(){
       // corner wedges below get the angled cuts).  Caption strip sits
       // on a brand-ink scrim at the bottom so the white serif italic
       // reads cleanly over the photo.
-      '<div style="margin:0 -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
-        '<img src="brand/team_lineup_ute.jpg" alt="The Flood Roofing crew" loading="lazy" decoding="async" style="display:block;width:100%;height:auto;aspect-ratio:21/6;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
-        '<div style="position:absolute;left:0;right:0;bottom:0;padding:10px 36px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.78));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:13.5px;letter-spacing:.02em">The Flood Roofing crew · Northland</div>'+
-      '</div>';
+      (function(){
+        // The crew band, from this account's own gallery — or from the
+        // built-in set if the built-in set is theirs. Otherwise the page
+        // simply ends, which is what it should do.
+        var _crew = _proposalPhoto('team_band', 1, 'team_lineup_ute.jpg');
+        if (!_crew) return '';
+        return '<div style="margin:0 -36px -38px;overflow:hidden;background:var(--ed-ink);position:relative">'+
+          '<img src="'+esc2(_crew)+'" alt="" loading="lazy" decoding="async" style="display:block;width:100%;height:auto;aspect-ratio:21/6;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
+          '<div style="position:absolute;left:0;right:0;bottom:0;padding:10px 36px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(10,24,40,.78));color:#fff;font-family:var(--ed-serif);font-style:italic;font-size:13.5px;letter-spacing:.02em">The '+esc2(_proposalCompanyName(br))+' crew</div>'+
+        '</div>';
+      })();
     void team;
   }
 
@@ -20110,7 +20292,7 @@ function refreshQuoteProposal(){
       edHeading('4','The material','Why We Recommend MAXAM',{chapter:PROPOSAL_CHAPTERS[3],chapters:PROPOSAL_CHAPTERS})+
       '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:start;margin-bottom:22px">'+
         '<div class="ed-body-lg">'+
-          '<p style="margin:0 0 10px">Flood Roofing uses <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® MAXAM</span> as standard — NZ Steel\'s newest pre-painted roofing product, rolled and painted at Glenbrook from New Zealand iron sand. MAXAM is built on <span class="ed-serif" style="font-style:italic;font-size:15px">Activate™</span> technology, a patented aluminium-zinc-magnesium coating that meaningfully slows corrosion.</p>'+
+          '<p style="margin:0 0 10px">'+esc2(_proposalCompanyName(br))+' uses <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® MAXAM</span> as standard — NZ Steel\'s newest pre-painted roofing product, rolled and painted at Glenbrook from New Zealand iron sand. MAXAM is built on <span class="ed-serif" style="font-style:italic;font-size:15px">Activate™</span> technology, a patented aluminium-zinc-magnesium coating that meaningfully slows corrosion.</p>'+
           '<p style="margin:0">For tighter budgets we also fit two alternatives at a lower price point — <span class="ed-serif" style="font-style:italic;font-size:15px">Armorsteel ColorZen</span> (30-yr warranty, mild environments) and plain-silver <span class="ed-serif" style="font-style:italic;font-size:15px">Zinc-Aluminium</span> (20-yr non-perforation). Detail and cost of each downgrade is shown on your pricing page.</p>'+
         '</div>'+
         '<div style="background:var(--ed-ink);color:#fff;padding:20px 22px 18px">'+
@@ -20223,9 +20405,12 @@ function refreshQuoteProposal(){
       // banners.  Aspect 21:4 (shorter) leaves room for the coloured
       // heading band + content below.  Uses the alt team-photo shot
       // because the winter-jacket version is now the cover hero.
-      '<div style="margin:-38px -36px 0;overflow:hidden;background:var(--ed-ink)">'+
-        '<img src="brand/team_photo.jpg" alt="The Flood Roofing crew" loading="lazy" decoding="async" style="display:block;width:100%;height:auto;aspect-ratio:21/4;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
-      '</div>'+
+      (function(){
+        var _t = _proposalPhoto('gutters_band', 2, 'team_photo.jpg');
+        return _t ? ('<div style="margin:-38px -36px 0;overflow:hidden;background:var(--ed-ink)">'+
+          '<img src="'+esc2(_t)+'" alt="" loading="lazy" decoding="async" style="display:block;width:100%;height:auto;aspect-ratio:21/4;object-fit:cover;object-position:center 40%;filter:saturate(.98) contrast(1.04)">'+
+        '</div>') : '';
+      })()+
       edHeading('07','The spouting — recommended upgrade','Colorsteel® 125mm Box Gutter',{afterBanner:true})+
       '<div class="ed-body-lg" style="margin-bottom:22px;max-width:60em">For larger roofs, or for added peace of mind on Northland\'s heavy rainfall events, we recommend stepping up from Marley Typhoon to a continuous <span class="ed-serif" style="font-style:italic;font-size:15px">Colorsteel® 125mm Box Gutter</span> — rolled on-site in 0.55bmt steel, no factory joins, much higher flow capacity than any PVC profile. Finished in the same Colorsteel colour family as your roof for a fully coordinated finish, with a <em>15-year paint film warranty</em> on top of the substrate cover.</div>'+
       // Profile grid
@@ -20354,11 +20539,11 @@ function refreshQuoteProposal(){
     // hidden defects, insurance, H&S, cancellation, photos, disputes.
     var dflt = [
       // ───── Flood Roofing core clauses (from the published T&Cs PDF)
-      { h:'1. Quote validity',    b:'This quote is valid for 60 days from the date quoted and is subject to Flood Roofing Limited\'s terms and conditions of sale. After that date materials and labour rates may be re-quoted.' },
+      { h:'1. Quote validity',    b:'This quote is valid for 60 days from the date quoted and is subject to \'+esc2(_proposalCompanyName(br))+\'\'s terms and conditions of sale. After that date materials and labour rates may be re-quoted.' },
       { h:'2. Standard Colorsteel colours', b:'The quoted price is based on standard Colorsteel® colours. Non-standard colours selected after quoting may attract additional cost; we\'ll confirm any uplift in writing before ordering.' },
       { h:'3. Colorsteel MAXAM warranty', b:'We install genuine Colorsteel® MAXAM as standard — NZ Steel\'s newest pre-painted roofing product. Perforation warranty by zone: 50 years Mild (5 km+ from breaking surf), 40 years Moderate (500–1,000 m), 30 years Severe (100–500 m), 20 years Very Severe (25–100 m). Full warranty info: https://www.colorsteel.co.nz/resources/warranty/' },
-      { h:'4. Title to materials', b:'All material supplied remains the property of Flood Roofing Limited until full payment has been received. Materials installed before payment may be removed at our cost in the event of cancellation, subject to the Construction Contracts Act 2002.' },
-      { h:'5. Removal of existing material', b:'All existing roofing material that Flood Roofing is removing has been quoted for disposal by Flood Roofing. If the client wishes to keep the existing material, an all-or-nothing rule applies — we either dispose of everything stripped, or the client takes the lot.' },
+      { h:'4. Title to materials', b:'All material supplied remains the property of \'+esc2(_proposalCompanyName(br))+\' until full payment has been received. Materials installed before payment may be removed at our cost in the event of cancellation, subject to the Construction Contracts Act 2002.' },
+      { h:'5. Removal of existing material', b:'All existing roofing material that \'+esc2(_proposalCompanyName(br))+\' is removing has been quoted for disposal. If the client wishes to keep the existing material, an all-or-nothing rule applies — we either dispose of everything stripped, or the client takes the lot.' },
       { h:'6. Deposit', b:'A 50% deposit of the total amount is required before materials are ordered. Work is scheduled once the deposit clears.' },
       { h:'7. Final payment',     b:'Final payment is to be made no more than 7 days after the work has been completed. Failure to pay within that period results in interest of 2.5% per month on the outstanding balance. We reserve the right to suspend further work for non-payment.' },
       { h:'8. GST',               b:'All prices in this quote are exclusive of GST unless explicitly marked "incl. GST". 15% GST is added at invoice. We are GST-registered (GST No. 120-543-997).' },
@@ -20498,9 +20683,13 @@ function refreshQuoteProposal(){
       // aspect-ratio) — html2canvas doesn't compute CSS aspect-ratio, which is
       // what distorted the photo in the PDF. background-size:cover renders
       // identically on screen and in the PDF.
-      '<div style="margin:12px -36px 6px;height:118px;overflow:hidden;background:var(--ed-ink) url(brand/fleet_wide.jpg) center 42%/cover no-repeat"></div>'+
-      // Caption sits BELOW the photo (dark text on the cream page), not overlaid.
-      '<div style="text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:12px;color:var(--ed-ink-2);letter-spacing:.03em">The Flood Roofing crew · Whangarei, Kerikeri &amp; the Bay of Islands</div>'+
+      (function(){
+        var _f = _proposalPhoto('signature_band', 3, 'fleet_wide.jpg');
+        if (!_f) return '';
+        return '<div style="margin:12px -36px 6px;height:118px;overflow:hidden;background:var(--ed-ink) url('+esc2(_f)+') center 42%/cover no-repeat"></div>'+
+          // Caption sits BELOW the photo (dark text on the cream page), not overlaid.
+          '<div style="text-align:center;font-family:var(--ed-serif);font-style:italic;font-size:12px;color:var(--ed-ink-2);letter-spacing:.03em">The '+esc2(_proposalCompanyName(br))+' crew</div>';
+      })()+
       '</div>';
   }
 
@@ -20510,13 +20699,19 @@ function refreshQuoteProposal(){
   // credentials. PNG paths live under /brand/; missing files self-hide
   // via onerror so they don't break the layout.
   var trustLogosHtml =
-    '<div class="rp-trust-strip" style="display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap;margin-top:14px">'+
-      '<img src="brand/ranz.png" alt="Member of Roofing Association NZ" onerror="this.style.display=\'none\'" style="height:46px;width:auto;object-fit:contain">'+
-      '<img src="brand/lbp.png" alt="Licensed Building Practitioner" onerror="this.style.display=\'none\'" style="height:42px;width:auto;object-fit:contain">'+
-      '<img src="brand/sitesafe.png" alt="Site Safe" onerror="this.style.display=\'none\'" style="height:40px;width:auto;object-fit:contain">'+
-      '<img src="brand/sitewise_gold.png" alt="Sitewise Gold 2025/26" onerror="this.style.display=\'none\'" style="height:36px;width:auto;object-fit:contain">'+
-      '<img src="brand/colorsteel.png" alt="Colorsteel" onerror="this.style.display=\'none\'" style="height:30px;width:auto;object-fit:contain">'+
-    '</div>';
+    '<div class="rp-trust-strip" style="display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap;margin-top:14px">'+(
+      // These are CLAIMS, not decoration: RANZ membership, an LBP licence,
+      // Site Safe, a Sitewise grade. Printing them on another company's quote
+      // asserts credentials they may not hold. They belong to the account that
+      // supplied them until there is a place in Settings to tick your own.
+      _stockPhoto('ranz.png') ? (
+        '<img src="brand/ranz.png" alt="Member of Roofing Association NZ" onerror="this.style.display=\'none\'" style="height:46px;width:auto;object-fit:contain">'+
+        '<img src="brand/lbp.png" alt="Licensed Building Practitioner" onerror="this.style.display=\'none\'" style="height:42px;width:auto;object-fit:contain">'+
+        '<img src="brand/sitesafe.png" alt="Site Safe" onerror="this.style.display=\'none\'" style="height:40px;width:auto;object-fit:contain">'+
+        '<img src="brand/sitewise_gold.png" alt="Sitewise Gold 2025/26" onerror="this.style.display=\'none\'" style="height:36px;width:auto;object-fit:contain">'+
+        '<img src="brand/colorsteel.png" alt="Colorsteel" onerror="this.style.display=\'none\'" style="height:30px;width:auto;object-fit:contain">'
+      ) : ''
+    )+'</div>';
   // Per-page footer — a slim company · ref line only. The trust logos now
   // live ONLY on the cover (page 1); removing them from every other page
   // de-clutters the document and frees vertical space.
@@ -20682,7 +20877,7 @@ async function emailQuote(){
   var q = S.quote || {};
   var msg = document.getElementById('qaMsg');
   var br = (S.settings && S.settings.branding) || {};
-  var company = br.company_name || 'Flood Roofing';
+  var company = _proposalCompanyName(br);
   var got = await _ensureCustomerLink(msg);
   if (!got) return;
   var M = _quoteMoney();
@@ -20877,7 +21072,7 @@ async function openQuoteEmail(){
   try { if (typeof readQuoteFromInputs === 'function') readQuoteFromInputs(); } catch(e){}
   var q = (window.S && S.quote) || {};
   var br = (window.S && S.settings && S.settings.branding) || {};
-  var company = br.company_name || 'Flood Roofing';
+  var company = _proposalCompanyName(br);
   var M = (typeof _quoteMoney === 'function') ? _quoteMoney() : { tot: 0 };
   var subject = 'Your roofing quote ' + (q.ref ? q.ref + ' ' : '') + '— ' + company;
   var link = '';
@@ -23995,7 +24190,7 @@ function emailOrderToSupplier(){
   }
   var b = S.settings && S.settings.branding || {};
   var lines = [];
-  lines.push('Material order from ' + (b.company_name || 'Flood Roofing'));
+  lines.push('Material order from ' + _proposalCompanyName(b));
   lines.push('');
   lines.push('Job number:    ' + (o.jobNumber || '—'));
   lines.push('Order ref:     ' + (o.ref || '—'));
@@ -34658,7 +34853,7 @@ function _jpRenderHeader(content, page, idx){
   var date   = new Date().toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' });
   var delMode = (S && S.order && S.order.deliveryMode) || 'site';
   var delAddr = (document.getElementById('matDeliveryAddr')||{}).value || addr;
-  var brand = (S && S.settings && S.settings.branding && S.settings.branding.company_name) || 'Flood Roofing';
+  var brand = _brandName('your roofer');
   // Compact header strip — sits at the top of page 1 and frees up
   // the rest of the page for the two roof-map pictures pre-dropped
   // on it.  All fields stay inline-editable: typing here mirrors
@@ -39502,7 +39697,7 @@ function _matJobHeaderHtml(includeDelivery) {
   var deliveryLine = includeDelivery
     ? '<div><strong>Delivery:</strong> '+ (delMode === 'site' ? 'To site — '+esc(delAddr) : 'To yard') +'</div>'
     : '';
-  var brand = (S && S.settings && S.settings.branding && S.settings.branding.company_name) || 'Flood Roofing';
+  var brand = _brandName('your roofer');
   return '<div class="left">'+esc(client)+'<div style="font-size:10.5px;font-weight:500;color:#374151;margin-top:2px">'+esc(addr)+'</div></div>'+
     '<div class="right">'+
       '<div><strong>Job #:</strong> '+esc(jobNum)+'</div>'+
@@ -41212,7 +41407,7 @@ function _orderEmailDefaults(){
     body: 'Hi ' + (first || 'there') + ',\n\n' +
       'Please find the attached order for job #' + (jobNum || '(tbc)') + '.\n' +
       'Please deliver to ' + deliverTo + (dateStr ? ' on ' + dateStr : '') + '.\n\n' +
-      'Thanks,\n' + (brand.company_name || 'Flood Roofing')
+      'Thanks,\n' + _proposalCompanyName(brand)
   };
 }
 // Re-prefill the visible subject + message from the template — called on
@@ -41515,7 +41710,7 @@ async function _orderRoofLegacyUnused() {
     'Delivery: ' + (deliveryMode === 'site' ? ('To site — ' + (deliveryAddr || '(address tbc)')) : 'To yard'),
     '',
     'Cheers,',
-    brand.company_name || 'Flood Roofing'
+    _proposalCompanyName(brand, '')
   ].filter(Boolean).join('\n');
 
   // Try Web Share API with the actual PDF file (mobile-native).

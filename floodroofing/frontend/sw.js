@@ -14,7 +14,7 @@
  * Bump SW_VERSION when the precache list changes; old caches are dropped
  * on activate.
  */
-var SW_VERSION = 'roofmap-v1';
+var SW_VERSION = 'roofmap-v2';
 var SHELL = SW_VERSION + '-shell';
 var ASSETS = SW_VERSION + '-assets';
 var NET_TIMEOUT = 5000;   // ms before we fall back to the cached copy
@@ -25,6 +25,7 @@ var PRECACHE = [
   '/sheet-plan.js',
   '/help-bot.js',
   '/manifest.webmanifest',
+  '/demo-job.json',
   '/brand/roofmap_icon.png',
   '/brand/pwa-192.png',
   '/brand/pwa-512.png',
