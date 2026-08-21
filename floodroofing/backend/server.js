@@ -1799,7 +1799,10 @@ async function _findJobByToken(token, jobIdHint){
   // needs just the quote, and NOT the job's photos / drawing aerial (state.photos
   // + state.img64), which are megabytes. Writes go back via _saveQuoteBack's
   // targeted jsonb update, so the full draw_state is never round-tripped.
-  const cols = 'id, user_id, client_name, site_address, quote:draw_state->state->quote';
+  // company_id rides along: the accepted event stamps the roofer's company
+  // on the usage milestone and the deposit invoice — without it both fell
+  // back to the owner's personal scope.
+  const cols = 'id, user_id, company_id, client_name, site_address, quote:draw_state->state->quote';
   // Fast path: the office link carries the job id (&i=), so we can fetch that
   // one row by primary key and just check the token matches — no full-table
   // scan that would decompress every job's photo-heavy draw_state. Falls back
@@ -1973,7 +1976,12 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
     res.json({ ok: true, status: share.status });
     // A customer accepting is the milestone that matters most, and it belongs
     // to the ROOFER's company, not to whoever opened the link.
-    if (type === 'accepted') recordUsage('quote_accepted', { companyId: job.company_id || null });
+    if (type === 'accepted') {
+      recordUsage('quote_accepted', { companyId: job.company_id || null });
+      // Raise (and maybe send) the deposit invoice — after the response, so
+      // an invoicing hiccup can never break the customer's accept.
+      _autoDepositInvoice(job, quote);
+    }
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -2055,6 +2063,271 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
     res.status(502).json({ error: 'Email send failed: ' + e.message });
   }
 });
+
+// ══════════════════════════════════════════════════════════════════
+// INVOICING — deposit on acceptance, progress claims, final on completion
+// ══════════════════════════════════════════════════════════════════
+// A quote that gets accepted and then never invoiced is the gap this closes.
+// The money fields are STORED at creation, never recomputed — an invoice is a
+// document, and a document that silently changes after it went out is how an
+// accountant loses a morning. What the business charges up front, whether the
+// deposit goes out by itself, and where the money lands all live in settings
+// (quote_defaults.invoicing):
+//   { deposit_percent: 50, auto_send_deposit: false, progress_enabled: false,
+//     due_days: 7, bank_account: '', footer: '' }
+const INVOICE_TYPES = ['deposit', 'progress', 'final'];
+const INVOICE_STATUSES = ['draft', 'sent', 'paid', 'void'];
+
+// The settings row that governs a job — needed on the UNAUTHENTICATED accept
+// path where there is no req, only the job row. Company row first (newest
+// wins, same rule as _companySettingsRow), then the job owner's.
+async function _settingsRowForJob(job){
+  try {
+    if (job.company_id){
+      const { data } = await supabase.from('user_settings').select('*')
+        .eq('company_id', job.company_id).order('updated_at', { ascending: false }).limit(1);
+      if (data && data[0]) return data[0];
+    }
+    const { data } = await supabase.from('user_settings').select('*').eq('user_id', job.user_id).maybeSingle();
+    return data || null;
+  } catch (e) { return null; }
+}
+function _invoiceSettingsOf(settingsRow){
+  const inv = (((settingsRow || {}).quote_defaults) || {}).invoicing || {};
+  const pct = Number(inv.deposit_percent);
+  return {
+    deposit_percent: (isFinite(pct) && pct > 0 && pct <= 100) ? pct : 50,
+    auto_send_deposit: inv.auto_send_deposit === true,
+    progress_enabled: inv.progress_enabled === true,
+    due_days: (isFinite(Number(inv.due_days)) && Number(inv.due_days) >= 0) ? Number(inv.due_days) : 7,
+    bank_account: String(inv.bank_account || '').slice(0, 60),
+    footer: String(inv.footer || '').slice(0, 1000),
+  };
+}
+// From a GST-inclusive figure to the stored triple. NZ practice on customer
+// invoices is to show the inclusive total with the GST called out.
+function _invoiceMoney(totalIncl, gstRate){
+  const rate = (isFinite(Number(gstRate)) && Number(gstRate) >= 0) ? Number(gstRate) : 15;
+  const total = Math.round(Number(totalIncl) * 100) / 100;
+  const amount = Math.round((total / (1 + rate / 100)) * 100) / 100;
+  return { amount: amount, gst: Math.round((total - amount) * 100) / 100, total: total, gst_rate: rate };
+}
+// Next number for the company: INV-1001, INV-1002… Read the highest suffix
+// and try the next; the UNIQUE (company_id, number) index turns a race into a
+// retry instead of a duplicate in somebody's accounts.
+async function _nextInvoiceNumber(companyId, userId){
+  let q = supabase.from('invoices').select('number');
+  q = companyId ? q.eq('company_id', companyId) : q.eq('user_id', userId);
+  const { data } = await q;
+  let max = 1000;
+  (data || []).forEach(function(r){
+    const m = /^INV-(\d+)$/.exec(String(r.number || ''));
+    if (m) max = Math.max(max, Number(m[1]));
+  });
+  return 'INV-' + (max + 1);
+}
+async function _createInvoice({ job, type, percent, totalIncl, gstRate, description, settingsRow }){
+  const money = _invoiceMoney(totalIncl, gstRate);
+  const quote = _quoteOf(job) || {};
+  const inv = _invoiceSettingsOf(settingsRow);
+  for (let attempt = 0; attempt < 3; attempt++){
+    const number = await _nextInvoiceNumber(job.company_id, job.user_id);
+    const row = {
+      id: require('crypto').randomUUID(),   // generated here, not left to the DB default — the id is in the response either way
+      company_id: job.company_id || null,
+      user_id: job.user_id,
+      job_id: job.id,
+      number: number,
+      type: type,
+      status: 'draft',
+      percent: (isFinite(Number(percent)) && Number(percent) > 0) ? Number(percent) : null,
+      amount: money.amount, gst: money.gst, total: money.total, gst_rate: money.gst_rate,
+      description: String(description || '').slice(0, 500),
+      client_name: String(job.client_name || quote.client || '').slice(0, 200),
+      client_email: String(quote.email || '').slice(0, 200),
+      site_address: String(job.site_address || quote.addr || '').slice(0, 300),
+      due_at: new Date(Date.now() + inv.due_days * 864e5).toISOString(),
+    };
+    const { data, error } = await supabase.from('invoices').insert(row).select('*').single();
+    if (!error) return data;
+    if (!/duplicate|unique/i.test(error.message || '')) throw new Error(error.message);
+  }
+  throw new Error('could not allocate an invoice number');
+}
+// The email the customer gets. Plain, bankable, no tracking pixels.
+function _invoiceEmail(invRow, branding, invSettings){
+  const b = branding || {};
+  const coName = String(b.company_name || 'Your roofer');
+  const lines = [
+    'Tax invoice ' + invRow.number + ' from ' + coName,
+    '',
+    'Site: ' + (invRow.site_address || '—'),
+    (invRow.description ? invRow.description : ''),
+    '',
+    'Amount (ex GST): ' + _money(invRow.amount),
+    'GST (' + invRow.gst_rate + '%): ' + _money(invRow.gst),
+    'TOTAL DUE: ' + _money(invRow.total),
+    '',
+    'Due: ' + (invRow.due_at ? new Date(invRow.due_at).toLocaleDateString('en-NZ') : 'on receipt'),
+    invSettings.bank_account ? 'Pay by bank transfer to: ' + invSettings.bank_account : '',
+    'Reference: ' + invRow.number,
+    '',
+    invSettings.footer || '',
+    b.gst_number ? 'GST number: ' + b.gst_number : '',
+  ].filter(function(l){ return l !== null; });
+  const esc = function(x){ return String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  const rowHtml = function(k, v, strong){
+    return '<tr><td style="padding:6px 14px 6px 0;color:#5f6b7a">' + esc(k) + '</td>' +
+           '<td style="padding:6px 0;text-align:right;font-weight:' + (strong ? '800' : '500') + ';color:#0a1628">' + esc(v) + '</td></tr>';
+  };
+  const html =
+    '<div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:14px;color:#1c2733;line-height:1.6;max-width:560px">' +
+    '<h2 style="margin:0 0 2px;color:#0a1628">Tax invoice ' + esc(invRow.number) + '</h2>' +
+    '<div style="color:#5f6b7a;margin-bottom:14px">' + esc(coName) + (b.gst_number ? ' · GST ' + esc(b.gst_number) : '') + '</div>' +
+    '<div style="margin-bottom:6px"><strong>Site:</strong> ' + esc(invRow.site_address || '—') + '</div>' +
+    (invRow.description ? '<div style="margin-bottom:12px">' + esc(invRow.description) + '</div>' : '') +
+    '<table style="border-collapse:collapse;width:100%;border-top:1px solid #e2e8f0;border-bottom:2px solid #0a1628;margin:10px 0">' +
+    rowHtml('Amount (ex GST)', _money(invRow.amount)) +
+    rowHtml('GST (' + invRow.gst_rate + '%)', _money(invRow.gst)) +
+    rowHtml('Total due', _money(invRow.total), true) +
+    '</table>' +
+    '<div><strong>Due:</strong> ' + esc(invRow.due_at ? new Date(invRow.due_at).toLocaleDateString('en-NZ') : 'on receipt') + '</div>' +
+    (invSettings.bank_account ? '<div><strong>Pay by bank transfer to:</strong> ' + esc(invSettings.bank_account) + '</div>' : '') +
+    '<div><strong>Reference:</strong> ' + esc(invRow.number) + '</div>' +
+    (invSettings.footer ? '<p style="color:#5f6b7a;font-size:12.5px">' + esc(invSettings.footer) + '</p>' : '') +
+    '</div>';
+  return { subject: 'Invoice ' + invRow.number + ' from ' + coName + (invRow.site_address ? ' — ' + invRow.site_address : ''),
+           text: lines.join('\n'), html: html };
+}
+async function _sendInvoice(invRow, settingsRow, to){
+  const invSettings = _invoiceSettingsOf(settingsRow);
+  const branding = (settingsRow || {}).branding || {};
+  const recipient = String(to || invRow.client_email || '').trim();
+  if (!recipient) throw new Error('No customer email on this invoice — add one and send again');
+  const mail = _invoiceEmail(invRow, branding, invSettings);
+  await _dispatchMail({ to: recipient, subject: mail.subject, text: mail.text, html: mail.html });
+  const patch = { status: 'sent', sent_at: new Date().toISOString(), client_email: recipient, updated_at: new Date().toISOString() };
+  const { data } = await supabase.from('invoices').update(patch).eq('id', invRow.id).select('*').single();
+  return data || Object.assign({}, invRow, patch);
+}
+function _scopeInvoices(q, req){
+  if (req.companyId) {
+    return q.or('company_id.eq.' + req.companyId + ',and(company_id.is.null,user_id.eq.' + req.user.id + ')');
+  }
+  return q.eq('user_id', req.user.id);
+}
+
+// All the company's invoices, newest first — the office overview.
+app.get('/invoices', requireAuth, async (req, res) => {
+  const { data, error } = await _scopeInvoices(
+    supabase.from('invoices').select('*'), req).order('created_at', { ascending: false }).limit(200);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+// This job's invoices.
+app.get('/jobs/:id/invoices', requireAuth, async (req, res) => {
+  const { data: job, error: je } = await _scopeCompany(
+    supabase.from('jobs').select('id').eq('id', req.params.id), req).single();
+  if (je || !job) return res.status(404).json({ error: 'Job not found' });
+  const { data, error } = await supabase.from('invoices').select('*')
+    .eq('job_id', req.params.id).order('created_at', { ascending: true });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+// Raise an invoice on a job. The office passes the GST-inclusive figure it is
+// charging (it knows the accepted total); percent is informational.
+app.post('/jobs/:id/invoices', requireAuth, async (req, res) => {
+  try {
+    const { type, percent, total_incl, gst_rate, description } = req.body || {};
+    if (INVOICE_TYPES.indexOf(String(type)) < 0) return res.status(400).json({ error: 'type must be deposit, progress or final' });
+    const totalIncl = Number(total_incl);
+    if (!isFinite(totalIncl) || totalIncl <= 0 || totalIncl > 10000000) return res.status(400).json({ error: 'total_incl must be a positive dollar figure' });
+    const { data: job, error: je } = await _scopeCompany(
+      supabase.from('jobs').select('id, user_id, company_id, client_name, site_address, draw_state').eq('id', req.params.id), req).single();
+    if (je || !job) return res.status(404).json({ error: 'Job not found' });
+    const settingsRow = await _companySettingsRow(req);
+    const row = await _createInvoice({ job: job, type: String(type), percent: percent, totalIncl: totalIncl,
+      gstRate: gst_rate, description: description, settingsRow: settingsRow });
+    res.json(row);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Edits: drafts can change; a sent invoice can only move to paid or void.
+app.put('/invoices/:id', requireAuth, async (req, res) => {
+  try {
+    const { data: cur, error: ce } = await _scopeInvoices(
+      supabase.from('invoices').select('*').eq('id', req.params.id), req).single();
+    if (ce || !cur) return res.status(404).json({ error: 'Invoice not found' });
+    const b = req.body || {};
+    const patch = { updated_at: new Date().toISOString() };
+    if (b.status != null){
+      const to = String(b.status);
+      if (INVOICE_STATUSES.indexOf(to) < 0) return res.status(400).json({ error: 'Unknown status' });
+      const allowed = { draft: ['void', 'paid', 'sent'], sent: ['paid', 'void'], paid: [], void: [] };
+      if (to !== cur.status && (allowed[cur.status] || []).indexOf(to) < 0)
+        return res.status(400).json({ error: 'A ' + cur.status + ' invoice cannot become ' + to });
+      patch.status = to;
+      if (to === 'paid') patch.paid_at = new Date().toISOString();
+      if (to === 'sent' && !cur.sent_at) patch.sent_at = new Date().toISOString();
+    }
+    if (cur.status === 'draft'){
+      if (b.total_incl != null){
+        const t = Number(b.total_incl);
+        if (!isFinite(t) || t <= 0 || t > 10000000) return res.status(400).json({ error: 'total_incl must be a positive dollar figure' });
+        Object.assign(patch, _invoiceMoney(t, b.gst_rate != null ? b.gst_rate : cur.gst_rate));
+      }
+      if (b.description != null) patch.description = String(b.description).slice(0, 500);
+      if (b.client_email != null) patch.client_email = String(b.client_email).slice(0, 200);
+      if (b.due_at != null && !isNaN(new Date(b.due_at))) patch.due_at = new Date(b.due_at).toISOString();
+    }
+    const { data, error } = await supabase.from('invoices').update(patch).eq('id', cur.id).select('*').single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Email the invoice to the customer and mark it sent.
+app.post('/invoices/:id/send', requireAuth, async (req, res) => {
+  try {
+    const { data: cur, error: ce } = await _scopeInvoices(
+      supabase.from('invoices').select('*').eq('id', req.params.id), req).single();
+    if (ce || !cur) return res.status(404).json({ error: 'Invoice not found' });
+    if (cur.status === 'void') return res.status(400).json({ error: 'This invoice is void' });
+    if (cur.status === 'paid') return res.status(400).json({ error: 'This invoice is already paid' });
+    const settingsRow = await _companySettingsRow(req);
+    const sent = await _sendInvoice(cur, settingsRow, (req.body || {}).to);
+    res.json(sent);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// The acceptance hook: when a customer accepts and the business has a deposit
+// configured, the deposit invoice raises itself — and goes straight out if
+// auto-send is on and there is an address to send it to. Idempotent: a second
+// accept event never raises a second deposit.
+async function _autoDepositInvoice(job, quote){
+  try {
+    const settingsRow = await _settingsRowForJob(job);
+    const inv = _invoiceSettingsOf(settingsRow);
+    const acceptedTotal = Number(((quote || {}).accepted || {}).total);
+    if (!isFinite(acceptedTotal) || acceptedTotal <= 0) return;
+    const { data: existing } = await supabase.from('invoices').select('id')
+      .eq('job_id', job.id).eq('type', 'deposit').limit(1);
+    if (existing && existing.length) return;
+    const row = await _createInvoice({
+      job: job, type: 'deposit', percent: inv.deposit_percent,
+      totalIncl: Math.round(acceptedTotal * inv.deposit_percent) / 100,
+      gstRate: (quote && quote.gstRate) || 15,
+      description: inv.deposit_percent + '% deposit on acceptance' + (job.site_address ? ' — ' + job.site_address : ''),
+      settingsRow: settingsRow,
+    });
+    if (inv.auto_send_deposit && (row.client_email || '').trim()){
+      try { await _sendInvoice(row, settingsRow); }
+      catch (e) { console.warn('[invoice] deposit raised but auto-send failed:', e.message); }
+    }
+  } catch (e) { console.warn('[invoice] auto-deposit failed:', e.message); }
+}
 
 // Office home-screen feed: every job that has a shared quote, with its
 // current status + last activity.
@@ -3550,6 +3823,42 @@ const _MIGRATION_SQL = [
   "alter table public.usage_events enable row level security",
   // Nobody reads this through PostgREST — it is written and read by the
   // backend with the service key, so no policy grants access to a client.
+
+  // 8. invoices — deposit on acceptance, progress claims, final on
+  //    completion. A row per invoice; the money fields are stored, not
+  //    recomputed, so an invoice never changes after it's sent.
+  "create table if not exists public.invoices (" +
+  "  id uuid primary key default gen_random_uuid()," +
+  "  company_id uuid references public.companies(id) on delete cascade," +
+  "  user_id uuid," +
+  "  job_id uuid references public.jobs(id) on delete set null," +
+  "  number text not null," +
+  "  type text not null default 'progress'," +          // deposit | progress | final
+  "  status text not null default 'draft'," +           // draft | sent | paid | void
+  "  percent numeric," +
+  "  amount numeric not null default 0," +              // ex GST
+  "  gst numeric not null default 0," +
+  "  total numeric not null default 0," +               // incl GST
+  "  gst_rate numeric not null default 15," +
+  "  description text not null default ''," +
+  "  client_name text not null default ''," +
+  "  client_email text not null default ''," +
+  "  site_address text not null default ''," +
+  "  issued_at timestamptz not null default now()," +
+  "  due_at timestamptz," +
+  "  sent_at timestamptz," +
+  "  paid_at timestamptz," +
+  "  created_at timestamptz not null default now()," +
+  "  updated_at timestamptz not null default now())",
+  "create unique index if not exists idx_invoices_co_no on public.invoices (company_id, number)",
+  "create index if not exists idx_invoices_job on public.invoices (job_id)",
+  "create index if not exists idx_invoices_co on public.invoices (company_id, created_at desc)",
+  "alter table public.invoices enable row level security",
+  "do $pol$ begin" +
+  "  if not exists (select 1 from pg_policies where schemaname='public' and tablename='invoices' and policyname='invoices_company') then" +
+  "    create policy invoices_company on public.invoices for all" +
+  "      using (company_id in (select company_id from public.company_users where user_id = auth.uid()));" +
+  "  end if; end $pol$",
 ];
 
 async function _ensureSchema(){
