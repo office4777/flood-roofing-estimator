@@ -6215,20 +6215,25 @@ function _setSaveStatus(text, color, sticky){
 }
 
 // Downscale a photo before it's stored on the job — full-resolution
-// phone photos (5-12 MB each) are what pushed saves past the backend's
-// 25 MB cap.  ~1600px JPEG is plenty for the proposal/inspection pages.
+// phone photos (2-5 MB each) are compressed to ~400 KB to reduce database
+// bloat at scale (1000s of jobs). Site photos ride in the job JSON and ship
+// whole to customer links, so smaller = faster proposal load, less DB space.
 function _downscalePhoto(dataUrl, cb){
   try {
     if (!/^data:image\//i.test(dataUrl)) return cb(dataUrl);
     var img = new Image();
     img.onload = function(){
-      var maxDim = 1600, w = img.width, h = img.height;
-      if (Math.max(w, h) <= maxDim && dataUrl.length < 900 * 1024) return cb(dataUrl);
+      var w = img.width, h = img.height;
+      var maxDim = 1200;
+      // Already small enough — skip if under 400 KB and native size is reasonable
+      if (Math.max(w, h) <= maxDim && dataUrl.length < 400 * 1024) return cb(dataUrl);
       var sc = Math.min(1, maxDim / Math.max(w, h));
       var c = document.createElement('canvas');
       c.width = Math.max(1, Math.round(w * sc)); c.height = Math.max(1, Math.round(h * sc));
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      var out = c.toDataURL('image/jpeg', 0.82);
+      // Compress to 0.55 quality (~2 MB → 400 KB), fallback to 0.4 if still huge
+      var out = c.toDataURL('image/jpeg', 0.55);
+      if (out.length > 600 * 1024) out = c.toDataURL('image/jpeg', 0.4);
       cb(out.length < dataUrl.length ? out : dataUrl);
     };
     img.onerror = function(){ cb(dataUrl); };
