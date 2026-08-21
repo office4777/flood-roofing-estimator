@@ -1213,6 +1213,12 @@ select{
 .active-tool{background:var(--ink);color:#fff;border-color:var(--ink)}
 
 .tab-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+/* A business with no job-management system linked should never be sold one
+   mid-task: html.no-jms (kept in step by _refreshJmsLinkUI) hides every
+   button and panel that only works against a linked Fergus job. The one
+   deliberate exception is Settings, where linking lives. */
+html.no-jms .jms-only{display:none!important}
+
 /* ── Settings: left section nav + content pane ─────────────────────
    Eleven chips in two wrapped rows read as a pile; every settings page a
    tradesperson already knows (ServiceM8, Tradify, Fergus, Xero) is a grouped
@@ -3357,7 +3363,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <button type="button" class="jps-act jps-primary" onclick="_sitePackAction('order')">
     <span class="jps-ico">🛒</span><span><b>Order roof</b><i>Check the material list, then email the supplier</i></span>
   </button>
-  <button type="button" class="jps-act" onclick="_sitePackAction('fergus')">
+  <button type="button" class="jps-act jms-only" onclick="_sitePackAction('fergus')">
     <span class="jps-ico">📤</span><span><b>Push to Fergus</b><i>Build the Job Pack PDF and put it on the job</i></span>
   </button>
   <button type="button" class="jps-act" onclick="_sitePackAction('pdf')">
@@ -3652,7 +3658,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
              ondragover="_roofUzDragOver(event)" ondragleave="_roofUzDragLeave(event)" ondrop="_roofUzDrop(event)"
              style="margin-top:6px;padding:14px 16px">
           <div class="uz-title" style="margin-bottom:2px">Drop your roof sketch / aerial photo here</div>
-          <div class="uz-sub" style="margin-bottom:10px">JPG or PNG — drag straight from a Fergus tab, or use the buttons below</div>
+          <div class="uz-sub" style="margin-bottom:10px">JPG or PNG — drag a photo straight in, or use the buttons below</div>
           <input type="file" id="roofFile" accept="image/*" onchange="onRoofImg(event)" style="display:none">
           <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center">
             <button type="button" onclick="document.getElementById('roofFile').click()"
@@ -3660,7 +3666,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
               <svg viewBox="0 0 16 16" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4 6l4-4 4 4"/><path d="M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"/></svg>
               Upload from PC
             </button>
-            <button type="button" onclick="openFergusPhotoPicker('canvas')"
+            <button type="button" class="jms-only" onclick="openFergusPhotoPicker('canvas')"
                     style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
               📷 Import from Fergus
             </button>
@@ -4297,8 +4303,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
        quote tab open for the client-facing version. -->
   <div class="card mat-actions">
     <button onclick="saveScopePricingAsPdf()" class="mat-btn mat-btn-dark">📄 Save pricing as PDF</button>
-    <button onclick="pushScopePricingToFergus()" class="mat-btn mat-btn-green">📤 Push pricing to Fergus</button>
-    <button onclick="openFergusJob()" class="mat-btn mat-btn-light">📂 Open in Fergus</button>
+    <button onclick="pushScopePricingToFergus()" class="mat-btn mat-btn-green jms-only">📤 Push pricing to Fergus</button>
+    <button onclick="openFergusJob()" class="mat-btn mat-btn-light jms-only">📂 Open in Fergus</button>
     <button onclick="gotoTab('quote')" class="mat-btn mat-btn-blue">📝 Open quote builder</button>
     <span id="scopeActionMsg" style="margin-left:auto;font-size:12px;color:var(--text2);align-self:center"></span>
   </div>
@@ -4334,7 +4340,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 <!-- Fergus job photos slide-out — Map Roof tab. Resizable (drag the left edge),
      photos auto-fit the width, zoom slider scales them. -->
 <aside id="fergusRoofPanel" class="no-print">
-  <button id="fergusRoofPanelToggle" onclick="_fergusPanelToggle()" title="Fergus job photos — compare while you draw">
+  <button id="fergusRoofPanelToggle" onclick="_fergusPanelToggle()" title="Job photos — compare while you draw">
     <span class="frp-arrow">◀</span>
     <span class="frp-text">PHOTOS</span>
   </button>
@@ -4365,18 +4371,18 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div class="jobFilesList" style="font-size:12px"></div>
     </div>
     <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
-      <span style="font-size:13px;font-weight:700">📷 Fergus job photos</span>
-      <span id="fergusRoofPanelCount" style="font-size:11px;font-weight:600;color:#0099cc"></span>
-      <button onclick="_loadFergusRoofPhotos(true)" title="Refresh from Fergus" style="margin-left:auto;background:#f1f5f9;border:1px solid var(--border);color:#475569;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:600;cursor:pointer">↻</button>
-      <button onclick="_fergusPanelClose()" title="Close" style="background:#f1f5f9;border:1px solid var(--border);color:#475569;border-radius:6px;width:26px;height:26px;font-size:14px;line-height:1;cursor:pointer">✕</button>
+      <span class="jms-only" style="font-size:13px;font-weight:700">📷 Fergus job photos</span>
+      <span class="jms-only" id="fergusRoofPanelCount" style="font-size:11px;font-weight:600;color:#0099cc"></span>
+      <button class="jms-only" onclick="_loadFergusRoofPhotos(true)" title="Refresh from Fergus" style="margin-left:auto;background:#f1f5f9;border:1px solid var(--border);color:#475569;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:600;cursor:pointer">↻</button>
+      <button onclick="_fergusPanelClose()" title="Close" style="margin-left:auto;background:#f1f5f9;border:1px solid var(--border);color:#475569;border-radius:6px;width:26px;height:26px;font-size:14px;line-height:1;cursor:pointer">✕</button>
     </div>
-    <div style="display:flex;align-items:center;gap:9px">
+    <div class="jms-only" style="display:flex;align-items:center;gap:9px">
       <span style="font-size:11px;color:var(--text2);white-space:nowrap">🔍 Zoom</span>
       <input id="fergusRoofPanelZoom" type="range" min="100" max="400" step="10" value="100" oninput="_fergusPanelZoom(this.value)" style="flex:1;accent-color:#0099cc">
       <span id="fergusRoofPanelZoomOut" style="font-size:11px;color:#0a1628;min-width:38px;text-align:right;font-variant-numeric:tabular-nums">100%</span>
     </div>
   </div>
-  <div id="fergusRoofPhotoScroll"><div id="fergusRoofPhotoGrid"></div></div>
+  <div id="fergusRoofPhotoScroll" class="jms-only"><div id="fergusRoofPhotoGrid"></div></div>
 </aside>
 
 <!-- TAB 3: MATERIALS -->
@@ -4404,7 +4410,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <button onclick="_jpTogglePreview()" id="jpPreviewBtn" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px" title="Switch between the printed page and the form that edits it"><span class="jp-pv-on">👁<span> Preview</span></span><span class="jp-pv-off">✏️<span> Edit</span></span></button>
       <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark" style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
       <button onclick="printJobPack()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
-      <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
+      <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green jms-only" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
       <button onclick="orderRoofViaSupplier()" class="mat-btn mat-btn-blue" style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
     </div>
   </div>
@@ -4479,7 +4485,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <button onclick="redoLast()" class="mat-btn mat-btn-light" style="padding:7px 12px;font-size:12px" title="Redo">↪ Redo</button>
       <button onclick="saveMaterialsAsPdf()"    class="mat-btn mat-btn-dark"  style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
       <button onclick="printJobPack()"          class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
-      <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
+      <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green jms-only" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
       <button onclick="orderRoofViaSupplier()"  class="mat-btn mat-btn-blue"  style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
     </div>
   </div>
@@ -4739,8 +4745,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <div class="card mat-actions jp-legacy">
     <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark">📄 Save as PDF</button>
     <button onclick="printJobPack()" class="mat-btn mat-btn-light">🖨 Print</button>
-    <button onclick="pushMaterialsToFergus()" class="mat-btn mat-btn-green">📤 Push to Fergus</button>
-    <button onclick="openFergusJob()" class="mat-btn mat-btn-light">📂 Open in Fergus</button>
+    <button onclick="pushMaterialsToFergus()" class="mat-btn mat-btn-green jms-only">📤 Push to Fergus</button>
+    <button onclick="openFergusJob()" class="mat-btn mat-btn-light jms-only">📂 Open in Fergus</button>
     <button onclick="orderRoofViaSupplier()" class="mat-btn mat-btn-blue">🛒 Order Roof</button>
     <span id="matActionMsg" style="margin-left:auto;font-size:12px;color:var(--text2);align-self:center"></span>
   </div>
@@ -4965,7 +4971,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     </div>
     <button onclick="saveQuote()" id="qaSaveBtn" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">💾 Save</button>
     <button onclick="openQuoteEmail()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Email Quote</button>
-    <button onclick="pushQuotePricingToFergus(this)" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines" style="padding:8px 14px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📤 Push pricing to Fergus</button>
+    <button onclick="pushQuotePricingToFergus(this)" class="jms-only" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines" style="padding:8px 14px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📤 Push pricing to Fergus</button>
     <button onclick="printQuote()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
     <button onclick="copyCustomerLink()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🔗 Customer link</button>
     <button onclick="saveAsDefaultTemplate()" title="Snapshot this proposal's cover title, about text, terms, inclusions and options as the default for every new quote" style="padding:8px 14px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⭐ Save as default template</button>
@@ -5645,7 +5651,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <div style="padding:10px 14px 0;border-bottom:1px solid #eee">
     <div class="tab-row" style="margin:0;align-items:center">
       <button type="button" class="tab-sm on" onclick="setSelectJobSource('local',this)">📁 Saved jobs</button>
-      <button type="button" class="tab-sm" onclick="setSelectJobSource('fergus',this)" id="selectJobFergBtn">🔗 Fergus jobs</button>
+      <button type="button" class="tab-sm jms-only" onclick="setSelectJobSource('fergus',this)" id="selectJobFergBtn">🔗 Fergus jobs</button>
       <button type="button" onclick="closeSelectJobModal();startNewJob()" title="Start a new blank job" style="margin-left:auto;margin-bottom:8px;border:none;background:#059669;color:#fff;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">＋ New job</button>
     </div>
   </div>
@@ -6659,6 +6665,7 @@ function _jmsLinked(){
 // the "Job Management" settings sub-tab once it is.
 function _refreshJmsLinkUI(){
   var linked = _jmsLinked();
+  try { document.documentElement.classList.toggle('no-jms', !linked); } catch(e){}
   var big    = document.getElementById('jmsBigLinkCard');
   var tabBtn = document.getElementById('jmsSubTabBtn');
   if (big)    big.style.display    = linked ? 'none' : '';
@@ -9737,6 +9744,8 @@ async function openSelectJobModal(opts){
   // opts === 'fergus' (or {fergus:true}) opens straight on the Fergus-jobs tab —
   // the common path, since most jobs come from Fergus.
   var toFergus = (opts === 'fergus') || (opts && opts.fergus === true);
+  // A business with no JMS linked has no Fergus tab to land on.
+  try { if (toFergus && !_jmsLinked()) toFergus = false; } catch(e){}
   var ov = document.getElementById('selectJobOverlay');
   var md = document.getElementById('selectJobModal');
   if (!ov || !md) return;

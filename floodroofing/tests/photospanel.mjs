@@ -69,7 +69,9 @@ check('on a laptop it scales down rather than sitting at a fixed width',
   v.photos > 320 && v.photos < 400, v.photos + 'px of ' + v.vw);
 const btns = await pg.evaluate(() => {
   const s = document.getElementById('jobPhotosSec');
-  const bs = s ? [...s.querySelectorAll('button')] : [];
+  // Just the two capture buttons — the section has since grown a files row
+  // with its own button, which is not part of this check.
+  const bs = s ? [...s.querySelectorAll('button')].filter(b => /Take photo|From gallery/.test(b.textContent)) : [];
   const r = bs.map(x => x.getBoundingClientRect());
   return { n: bs.length, sameRow: r.length === 2 && Math.abs(r[0].top - r[1].top) < 2,
            clipped: bs.some(x => x.scrollWidth > x.clientWidth + 1) };
