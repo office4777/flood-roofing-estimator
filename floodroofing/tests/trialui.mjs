@@ -72,7 +72,9 @@ await ctx.close();
 ({ ctx, txt } = await open(trial(0, true)));
 check('an expired trial says so, in red', /tb-out/.test(txt.cls) && /trial has ended/.test(txt.txt), txt.cls);
 check('…and reassures them their work is still there', /jobs are all still here/.test(txt.txt), txt.txt.slice(0,90));
-check('…and says how to carry on', /office@floodroofing/.test(txt.txt));
+// With billing ON the way to carry on is a button into Settings → Billing;
+// the email address is the billing-off fallback.
+check('…and says how to carry on', /Choose a plan/.test(txt.txt), txt.txt.slice(0,90));
 await ctx.close();
 
 // ── a paying subscriber is never nagged ──

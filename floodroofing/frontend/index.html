@@ -5848,6 +5848,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div class="set-grp">Business</div>
         <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Branding</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-team',this);loadTeam()">Team</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-billing',this);_billingRenderSection()">Billing</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-email',this)">Email</button>
         <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)" style="display:none">Job Management</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
@@ -5991,6 +5992,13 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div id="qdSectionsList"></div>
         <div style="font-size:11px;color:var(--text2);margin-top:6px">Extra sections appended to the inspection report (e.g. health &amp; safety statement, council compliance notes).</div>
       </div>
+    </div>
+
+    <!-- BILLING — the business's own subscription: where it stands and the
+         three ways up. Cards and cancellation live in Stripe's portal, so
+         no card number ever touches this page. -->
+    <div class="sub-panel settings-sub" id="set-billing" style="margin-top:14px">
+      <div id="billingBody" style="font-size:13px"></div>
     </div>
 
     <!-- INVOICING — what happens to the money after a quote is accepted.
@@ -8466,6 +8474,7 @@ function refreshSettingsUI(){
   try { renderPriceBookUI(); } catch(e) { console.warn('price book render:', e); }
   try { renderLabourPricingUI(); } catch(e) { console.warn('labour pricing render:', e); }
   try { _refreshJmsLinkUI(); } catch(e){}
+  try { _billingRenderSection(); } catch(e){}
 }
 
 function renderOptionsList(list){
@@ -10786,20 +10795,98 @@ function _trialBannerHtml(){
   var s = SUBSCRIPTION;
   if (!s || !s.trial || s.status === 'active') return '';
   var d = s.trial.days_left;
+  // Once billing is switched on, the way to keep going is a button, not an
+  // email address. Before then (billing:false) the email stays.
+  var cta = s.billing
+    ? '<button onclick="_billingOpen()" style="margin-left:10px;padding:6px 16px;background:#0a1628;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Choose a plan</button>'
+    : 'Email <a href="mailto:office@floodroofing.co.nz">office@floodroofing.co.nz</a> to keep going.';
   if (s.trial.expired){
     return '<div class="tb tb-out"><span class="tb-x">⏳</span><span>' +
-      '<strong>Your free trial has ended.</strong> Your jobs are all still here. ' +
-      'Email <a href="mailto:office@floodroofing.co.nz">office@floodroofing.co.nz</a> to keep going.' +
+      '<strong>Your free trial has ended.</strong> Your jobs are all still here. ' + cta +
       '</span></div>';
   }
   if (d > 7) return '';                                  // plenty of time — say nothing
   var cls = d <= 3 ? 'tb-soon' : 'tb-calm';
   var when = d === 1 ? 'ends tomorrow' : (d === 0 ? 'ends today' : 'has ' + d + ' days left');
   return '<div class="tb ' + cls + '"><span class="tb-x">⏳</span><span>' +
-    '<strong>Your free trial ' + when + '.</strong> Nothing is deleted when it does — ' +
-    'email <a href="mailto:office@floodroofing.co.nz">office@floodroofing.co.nz</a> to carry on.' +
+    '<strong>Your free trial ' + when + '.</strong> Nothing is deleted when it does — ' + cta +
     '</span></div>';
 }
+// Open Settings on the Billing section — the one place plans are chosen.
+function _billingOpen(){
+  gotoTab('settings');
+  try { switchSettingsSub('set-billing'); } catch(e){}
+}
+// Kick off a Stripe Checkout for a plan. The card page is Stripe's; we come
+// back to ?billing=success / ?billing=cancelled.
+async function _billingCheckout(plan, btn){
+  var msg = document.getElementById('billingMsg');
+  if (btn) btn.disabled = true;
+  try {
+    var r = await api('POST', '/billing/checkout', { plan: plan });
+    if (r && r.url) { location.href = r.url; return; }
+    if (msg) msg.textContent = 'No checkout link came back — try again.';
+  } catch(e){ if (msg){ msg.textContent = e.message; msg.style.color = '#b91c1c'; } }
+  if (btn) btn.disabled = false;
+}
+async function _billingPortal(btn){
+  var msg = document.getElementById('billingMsg');
+  if (btn) btn.disabled = true;
+  try {
+    var r = await api('POST', '/billing/portal', {});
+    if (r && r.url) { location.href = r.url; return; }
+  } catch(e){ if (msg){ msg.textContent = e.message; msg.style.color = '#b91c1c'; } }
+  if (btn) btn.disabled = false;
+}
+// The Billing section: where the business stands and the three ways up.
+function _billingRenderSection(){
+  var host = document.getElementById('billingBody');
+  if (!host) return;
+  var s = SUBSCRIPTION;
+  var tiers = [
+    { key: 'solo',     name: 'Solo',     price: '$149', blurb: '1 person · quoting, job packs, orders' },
+    { key: 'team',     name: 'Team',     price: '$299', blurb: 'Up to 5 people · everything in Solo + your own web address' },
+    { key: 'business', name: 'Business', price: '$549', blurb: 'Unlimited people · custom domain + job-management links' },
+  ];
+  var head;
+  if (!s) head = '<div style="font-size:12.5px;color:var(--text2)">Couldn\u2019t check the subscription \u2014 reload to try again.</div>';
+  else if (!s.billing) head = '<div style="font-size:12.5px;color:var(--text2)">Billing isn\u2019t switched on yet \u2014 plans below are what it will look like. Nothing can be charged.</div>';
+  else if (s.status === 'active') head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + '.</strong> <span style="color:var(--text2)">Card, invoices and cancellation are in the billing portal.</span></div>';
+  else if (s.trial && !s.trial.expired) head = '<div style="font-size:13px"><strong>Free trial \u2014 ' + s.trial.days_left + ' day' + (s.trial.days_left === 1 ? '' : 's') + ' left.</strong> <span style="color:var(--text2)">Pick a plan any time; the trial keeps running until it\u2019s paid.</span></div>';
+  else head = '<div style="font-size:13px;color:#7f1d1d"><strong>Your trial has ended.</strong> Pick a plan to carry on \u2014 every job is still here.</div>';
+  var canBuy = !!(s && s.billing);
+  host.innerHTML = head +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:14px">' +
+    tiers.map(function(t){
+      var current = s && s.status === 'active' && s.plan === t.key;
+      return '<div style="border:1.5px solid ' + (current ? '#0099cc' : 'var(--border)') + ';border-radius:12px;padding:16px 16px 14px;background:#fff">' +
+        '<div style="font-size:14px;font-weight:800">' + t.name + (current ? ' <span style="font-size:10px;color:#0099cc;font-weight:800;letter-spacing:.06em">CURRENT</span>' : '') + '</div>' +
+        '<div style="font-size:22px;font-weight:800;margin:4px 0 2px">' + t.price + '<span style="font-size:12px;font-weight:500;color:var(--text2)">/month + GST</span></div>' +
+        '<div style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-bottom:12px">' + t.blurb + '</div>' +
+        (current
+          ? '<button onclick="_billingPortal(this)" style="width:100%;padding:9px 0;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Manage billing</button>'
+          : '<button onclick="_billingCheckout(\'' + t.key + '\',this)"' + (canBuy ? '' : ' disabled') + ' style="width:100%;padding:9px 0;background:' + (canBuy ? '#0a1628' : '#e2e8f0') + ';color:' + (canBuy ? '#fff' : '#94a3b8') + ';border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:' + (canBuy ? 'pointer' : 'default') + ';font-family:inherit">Choose ' + t.name + '</button>') +
+        '</div>';
+    }).join('') + '</div>' +
+    (s && s.status === 'active' ? '' :
+      '<div style="font-size:11px;color:var(--text2);margin-top:10px">Payment is handled by Stripe \u2014 the card never touches RoofMap. Cancel any time from Manage billing; your jobs stay either way.</div>') +
+    '<div id="billingMsg" style="font-size:12px;color:var(--text2);margin-top:8px"></div>';
+}
+var PLAN_LABELS = { solo: 'Solo', team: 'Team', business: 'Business', trial: 'Trial' };
+// Back from Stripe: say what happened, then clean the address bar.
+(function(){
+  try {
+    var m = /[?&]billing=(success|cancelled)/.exec(location.search);
+    if (!m) return;
+    setTimeout(function(){
+      try {
+        if (m[1] === 'success') alert('Payment set up \u2014 you\u2019re all go. Thanks!');
+        loadSubscription().then(function(){ _trialBannerSync(); _billingRenderSection(); });
+      } catch(e){}
+    }, 1200);
+    history.replaceState(null, '', location.pathname);
+  } catch(e){}
+})();
 function _trialBannerSync(){
   var el = document.getElementById('trialBanner');
   if (el) el.innerHTML = _trialBannerHtml();

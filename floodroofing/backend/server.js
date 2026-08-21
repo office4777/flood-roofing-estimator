@@ -132,6 +132,12 @@ const corsDelegate = function(req, cb){
 };
 app.use(cors(corsDelegate));
 app.options('*', cors(corsDelegate));
+// Stripe signs the exact bytes it sends, so its webhook must see the RAW
+// body — registered before the JSON parser, delegating to the handler in
+// the billing section below (functions hoist; the route only runs later).
+app.post('/billing/webhook', express.raw({ type: 'application/json', limit: '1mb' }),
+  function (req, res) { return _stripeWebhook(req, res); });
+
 // 25mb cap so saved jobs can include a base64 roof image + photos
 app.use(express.json({ limit: '25mb' }));
 
@@ -1412,9 +1418,10 @@ app.get('/auth/me', requireAuth, async (req, res) => {
   res.json({ user: profile, subscription: sub, company: await _companyBrief(req.companyId, req.user.id) });
 });
 
-app.post('/billing/checkout', requireAuth, (req, res) => res.status(503).json({ error: 'Billing not configured yet' }));
-app.post('/billing/portal', requireAuth, (req, res) => res.status(503).json({ error: 'Billing not configured yet' }));
-app.post('/webhook', (req, res) => res.status(503).json({ error: 'Webhooks not configured yet' }));
+// The old "Billing not configured yet" stubs lived here — the real
+// /billing/checkout, /billing/portal and /billing/webhook are in the
+// STRIPE section further down. (The stubs answered first and made the
+// real routes unreachable.)
 
 // The list every board and job-picker reads. Jobs belong to the COMPANY, so a
 // teammate sees them all — but each row now says who made it, and who sent the
@@ -2063,6 +2070,181 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
     res.status(502).json({ error: 'Email send failed: ' + e.message });
   }
 });
+
+// ══════════════════════════════════════════════════════════════════
+// STRIPE — the money side of the plans
+// ══════════════════════════════════════════════════════════════════
+// Checkout happens on Stripe's page, the webhook writes the result into the
+// subscriptions row, and everything else in the product already keys off
+// that row (_subscriptionLive, _planOf, the seat limits). No Stripe SDK —
+// two POSTs and an HMAC don't need a dependency, and the tests can point
+// STRIPE_API_BASE at a local stand-in.
+//
+// Runs entirely in TEST MODE until real keys land: a Stripe account needs
+// no company, no bank account and no fee until live payments are activated,
+// so the whole flow can be exercised with test cards today and switched to
+// real money by swapping STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET and the
+// three price ids in Railway.
+const STRIPE_API_BASE = process.env.STRIPE_API_BASE || 'https://api.stripe.com';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+const STRIPE_PRICES = {
+  solo:     process.env.STRIPE_PRICE_SOLO     || '',
+  team:     process.env.STRIPE_PRICE_TEAM     || '',
+  business: process.env.STRIPE_PRICE_BUSINESS || '',
+};
+function _stripePlanOfPrice(priceId){
+  return Object.keys(STRIPE_PRICES).find(function(k){ return STRIPE_PRICES[k] && STRIPE_PRICES[k] === priceId; }) || '';
+}
+// One POST to Stripe, form-encoded the way its API wants. params is a flat
+// object whose keys may already carry Stripe's bracket syntax.
+async function _stripeCall(path, params){
+  const key = process.env.STRIPE_SECRET_KEY || '';
+  if (!key) { const e = new Error('Billing is not switched on yet.'); e.status = 400; throw e; }
+  const body = new URLSearchParams();
+  Object.keys(params || {}).forEach(function(k){
+    if (params[k] !== undefined && params[k] !== null && params[k] !== '') body.append(k, String(params[k]));
+  });
+  const r = await fetch(STRIPE_API_BASE + path, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  const j = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    const e = new Error((j.error && j.error.message) || ('Stripe refused (' + r.status + ')'));
+    e.status = 502; throw e;
+  }
+  return j;
+}
+// Billing is the owner's to touch — requireOwner's wording is about the team,
+// so this carries its own.
+async function _requireBillingOwner(req, res){
+  if (!req.companyId){ res.status(403).json({ error: 'You are not part of a company yet.' }); return false; }
+  const role = await _roleOf(req.user.id);
+  if (role !== 'owner'){ res.status(403).json({ error: 'Only the account owner can change the subscription.', code: 'OWNER_ONLY' }); return false; }
+  return true;
+}
+
+// Start a Checkout for a plan. Stripe hosts the card page; we hand back its
+// URL and wait for the webhook.
+app.post('/billing/checkout', requireAuth, async (req, res) => {
+  try {
+    if (!(await _requireBillingOwner(req, res))) return;
+    const plan = String((req.body || {}).plan || '').toLowerCase();
+    if (!PLANS[plan] || plan === 'trial') return res.status(400).json({ error: 'Pick a plan: solo, team or business.' });
+    if (!STRIPE_PRICES[plan]) return res.status(400).json({ error: 'That plan has no Stripe price configured yet (STRIPE_PRICE_' + plan.toUpperCase() + ').' });
+    // Don't sell a plan the business already doesn't fit in.
+    const lim = _limitsFor(plan);
+    const seats = await _seatsUsed(req.companyId);
+    if (seats.members > lim.seats)
+      return res.status(400).json({ error: 'Your business has ' + seats.members + ' people and ' + PLANS[plan].label + ' covers ' + lim.seats + '. Pick a bigger plan or remove members first.' });
+    const sub = await _companySubscription(req.companyId, req.user.id);
+    const params = {
+      mode: 'subscription',
+      'line_items[0][price]': STRIPE_PRICES[plan],
+      'line_items[0][quantity]': 1,
+      success_url: PUBLIC_APP_URL + '/index.html?billing=success',
+      cancel_url:  PUBLIC_APP_URL + '/index.html?billing=cancelled',
+      client_reference_id: req.companyId,
+      'metadata[company_id]': req.companyId,
+      'metadata[user_id]': req.user.id,
+      'metadata[plan]': plan,
+      'subscription_data[metadata][company_id]': req.companyId,
+      'subscription_data[metadata][plan]': plan,
+      allow_promotion_codes: 'true',
+    };
+    if (sub && sub.stripe_customer_id) params.customer = sub.stripe_customer_id;
+    else params.customer_email = req.user.email || undefined;
+    const session = await _stripeCall('/v1/checkout/sessions', params);
+    res.json({ url: session.url });
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// Stripe's customer portal: update the card, change plan, cancel. Their UI,
+// our link.
+app.post('/billing/portal', requireAuth, async (req, res) => {
+  try {
+    if (!(await _requireBillingOwner(req, res))) return;
+    const sub = await _companySubscription(req.companyId, req.user.id);
+    if (!sub || !sub.stripe_customer_id) return res.status(400).json({ error: 'No billing account yet — subscribe first.' });
+    const session = await _stripeCall('/v1/billing_portal/sessions', {
+      customer: sub.stripe_customer_id,
+      return_url: PUBLIC_APP_URL + '/index.html',
+    });
+    res.json({ url: session.url });
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// Stripe's word on what happened, verified by signature over the raw bytes.
+// v1 = HMAC-SHA256(secret, "<timestamp>.<payload>") per their scheme.
+function _stripeSigOk(rawBody, header){
+  if (!STRIPE_WEBHOOK_SECRET || !header) return false;
+  const parts = {};
+  String(header).split(',').forEach(function(p){ const i = p.indexOf('='); if (i > 0) parts[p.slice(0, i).trim()] = p.slice(i + 1).trim(); });
+  if (!parts.t || !parts.v1) return false;
+  if (Math.abs(Date.now() / 1000 - Number(parts.t)) > 300) return false;   // 5-minute replay window
+  const crypto = require('crypto');
+  const expected = crypto.createHmac('sha256', STRIPE_WEBHOOK_SECRET).update(parts.t + '.' + rawBody).digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(parts.v1, 'hex'));
+  } catch (e) { return false; }
+}
+async function _stripeWebhook(req, res){
+  try {
+    const raw = req.body instanceof Buffer ? req.body.toString('utf8') : String(req.body || '');
+    if (!_stripeSigOk(raw, req.headers['stripe-signature']))
+      return res.status(400).json({ error: 'Bad signature' });
+    let event; try { event = JSON.parse(raw); } catch (e) { return res.status(400).json({ error: 'Bad payload' }); }
+    const obj = (event.data && event.data.object) || {};
+
+    if (event.type === 'checkout.session.completed'){
+      const meta = obj.metadata || {};
+      const companyId = meta.company_id || obj.client_reference_id || null;
+      const userId = meta.user_id || null;
+      const plan = PLANS[meta.plan] && meta.plan !== 'trial' ? meta.plan : null;
+      if (userId){
+        const row = {
+          user_id: userId, company_id: companyId,
+          status: 'active', plan: plan || 'monthly',
+          stripe_customer_id: obj.customer || null,
+          stripe_subscription_id: obj.subscription || null,
+          trial_ends_at: null,
+          updated_at: new Date().toISOString(),
+        };
+        const { error } = await supabase.from('subscriptions').upsert(row, { onConflict: 'user_id' });
+        if (error) console.warn('[stripe] subscription upsert failed:', error.message);
+      }
+      if (companyId && plan){
+        await supabase.from('companies').update({ plan: plan }).eq('id', companyId);
+        _planCache.delete(companyId);
+      }
+      console.log('[stripe] checkout completed — company ' + companyId + ' on ' + plan);
+    }
+
+    if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted'){
+      const status = event.type === 'customer.subscription.deleted' ? 'canceled' : String(obj.status || 'active');
+      const patch = { status: status, updated_at: new Date().toISOString() };
+      if (obj.current_period_end) patch.current_period_end = new Date(obj.current_period_end * 1000).toISOString();
+      // A plan changed through the portal shows up as a new price on the sub.
+      const priceId = obj.items && obj.items.data && obj.items.data[0] && obj.items.data[0].price && obj.items.data[0].price.id;
+      const newPlan = _stripePlanOfPrice(priceId);
+      if (newPlan && status === 'active') patch.plan = newPlan;
+      const { data: rows } = await supabase.from('subscriptions').update(patch)
+        .eq('stripe_subscription_id', obj.id).select('company_id');
+      const companyId = rows && rows[0] && rows[0].company_id;
+      if (companyId){
+        if (newPlan && status === 'active') await supabase.from('companies').update({ plan: newPlan }).eq('id', companyId);
+        _planCache.delete(companyId);
+      }
+      console.log('[stripe] subscription ' + obj.id + ' → ' + status + (newPlan ? ' (' + newPlan + ')' : ''));
+    }
+
+    res.json({ received: true });
+  } catch (e) {
+    console.error('[stripe] webhook error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+}
 
 // ══════════════════════════════════════════════════════════════════
 // INVOICING — deposit on acceptance, progress claims, final on completion

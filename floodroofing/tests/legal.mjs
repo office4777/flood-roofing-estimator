@@ -44,7 +44,7 @@ check('…and names the two hosts it runs on',
 
 // A crude but effective canary: a new https host in the backend that nobody
 // has thought about is exactly what this page is supposed to catch.
-const KNOWN_HOSTS = ['api.anthropic.com','api.fergus.com','api.resend.com','api.vercel.com','smtp.gmail.com'];
+const KNOWN_HOSTS = ['api.anthropic.com','api.fergus.com','api.resend.com','api.vercel.com','smtp.gmail.com','api.stripe.com'];   // Stripe: disclosed in the sub-processor table (Payments)
 // Only hosts in a position that actually makes a request: the two request
 // helpers, a literal https:// URL, or an env-var fallback that names a host.
 // Matching every quoted domain in the file swept up the multi-part-TLD table
