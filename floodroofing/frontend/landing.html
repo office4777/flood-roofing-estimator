@@ -495,7 +495,10 @@
       ['signInLink','signInLink2'].forEach(function(id){
         var a = document.getElementById(id); if (a) a.textContent = 'Open RoofMap';
       });
-      if (location.pathname === '/' || location.pathname === '') location.replace(APP);
+      // ?preview lets the owner look at their own marketing page while
+      // signed in — roofmap.co.nz/?preview — instead of being forwarded.
+      var preview = /[?&]preview\b/.test(location.search);
+      if (!preview && (location.pathname === '/' || location.pathname === '')) location.replace(APP);
     }
   } catch(e){}
 })();

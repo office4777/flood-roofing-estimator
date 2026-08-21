@@ -215,7 +215,9 @@
   // Somebody already signed in has no business on a sign-up page — send them
   // straight to the app rather than inviting them to make a second account.
   try {
-    if (localStorage.getItem('fr_token')) { location.replace(APP); return; }
+    // ?preview lets a signed-in owner inspect the page; everyone else who is
+    // already signed in has no business here and goes to the app.
+    if (localStorage.getItem('fr_token') && !/[?&]preview\b/.test(location.search)) { location.replace(APP); return; }
   } catch(e){}
 
   var form = document.getElementById('suForm');

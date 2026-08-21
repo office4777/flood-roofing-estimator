@@ -156,6 +156,14 @@ await pg.waitForTimeout(400);
 check('a signed-in visitor is sent to the app instead', /\/index\.html$/.test(pg.url()), pg.url());
 await ctx.close();
 
+// …unless they asked to LOOK at the page — the owner checking their own
+// marketing must not be bounced into the app.
+({ ctx, pg } = await open('signup.html?preview', 1360, 900, true));
+await pg.waitForTimeout(400);
+check('?preview lets a signed-in owner inspect the sign-up page',
+  /signup\.html/.test(pg.url()) && await pg.evaluate(() => !!document.getElementById('suForm')), pg.url());
+await ctx.close();
+
 // ── and the landing page now points here ──
 ({ ctx, pg } = await open('landing.html', 390, 844));
 v = await pg.evaluate(() => ({
