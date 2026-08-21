@@ -4354,6 +4354,15 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button onclick="document.getElementById('jobPhotoGal').click()" style="flex:1;padding:10px 8px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🖼 From gallery</button>
       </div>
       <div id="jobPhotosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:7px"></div>
+      <!-- FILES ON THE JOB — for the businesses without a Fergus to hold
+           them: council plans, the old quote, a PDF from the homeowner.
+           They ride inside the job the same as photos. -->
+      <div style="display:flex;align-items:center;gap:8px;margin:12px 0 7px">
+        <span style="font-size:13px;font-weight:700">📎 Job files</span>
+        <span class="jobFilesCount" style="font-size:11px;font-weight:600;color:#0099cc"></span>
+        <button onclick="document.getElementById('jobFileInput').click()" style="margin-left:auto;padding:5px 12px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">＋ Add files</button>
+      </div>
+      <div class="jobFilesList" style="font-size:12px"></div>
     </div>
     <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
       <span style="font-size:13px;font-weight:700">📷 Fergus job photos</span>
@@ -4882,7 +4891,14 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
          side panel and the tablet toolbar. -->
     <input type="file" id="jobPhotoCam" accept="image/*" capture="environment" multiple style="display:none" onchange="_jobPhotosAdd(event, true)">
     <input type="file" id="jobPhotoGal" accept="image/*" multiple style="display:none" onchange="_jobPhotosAdd(event)">
+    <input type="file" id="jobFileInput" multiple style="display:none" onchange="_jobFilesAdd(event)">
     <div class="photo-grid" id="photoGrid"></div>
+    <div class="no-print" style="display:flex;align-items:center;gap:8px;margin:14px 0 6px">
+      <span style="font-size:13px;font-weight:700">📎 Job files</span>
+      <span class="jobFilesCount" style="font-size:11px;font-weight:600;color:#0099cc"></span>
+      <button onclick="document.getElementById('jobFileInput').click()" style="margin-left:auto;padding:6px 14px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">＋ Add files</button>
+    </div>
+    <div class="jobFilesList no-print" style="font-size:12.5px"></div>
   </div>
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Customer report preview</div>
@@ -6376,7 +6392,7 @@ var PROXY='https://flood-roofing-estimator-production.up.railway.app';
 // customer (or a teammate) that address. A company's own quote domain,
 // when configured, still wins over this.
 var CUSTOMER_QUOTE_BASE='https://roofmap.co.nz';
-var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],linkedJobId:null,linkedJobNo:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true,
+var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],files:[],linkedJobId:null,linkedJobNo:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true,
   quote:null /* {ref,date,validUntil,client,addr,email,scope,notes,terms,gstRate,lineItems:[{desc,qty,unit}]} — lazy-init in buildQuote */};
 var COLORS=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#ea580c','#65a30d'];
 var COLORS_BG=['#dbeafe','#d1fae5','#fef3c7','#fee2e2','#ede9fe','#cffafe','#ffedd5','#ecfccb'];
@@ -8706,7 +8722,7 @@ function snapshotCurrentJob(){
   return {
     form: form,
     state: { img64:S.img64, roofData:S.roofData, labour:S.labour, materials:S.materials,
-             condition:S.condition, photos:S.photos, linkedJobId:S.linkedJobId, linkedJobNo:S.linkedJobNo, linkedJobName:S.linkedJobName,
+             condition:S.condition, photos:S.photos, files:S.files, linkedJobId:S.linkedJobId, linkedJobNo:S.linkedJobNo, linkedJobName:S.linkedJobName,
              quote:S.quote, jpPdfRev:S.jpPdfRev||0, fergusSent:S.fergusSent||null, jpFlashAngles:S.jpFlashAngles||{},
              orderSent:S.orderSent||null },
     draw: { outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
@@ -8734,8 +8750,11 @@ function restoreFromJob(j){
   }
   if (snap.state) {
     S.orderSent = null;   // pre-stamp jobs: don't inherit the previous job's stamp
+    S.files = [];         // same leak: a job without files must not inherit the last job's
     Object.assign(S, snap.state);
     if (!Array.isArray(S.photos)) S.photos = [];
+    if (!Array.isArray(S.files)) S.files = [];   // Object.assign above carried them if the job has any
+    try { renderJobFiles(); } catch(e){}
     try { renderPhotos(); } catch(e){}   // refresh the photo grids (Quote card + side panel)
     if (S.img64) {
       var img = document.getElementById('roofPrevImg');
@@ -10372,7 +10391,7 @@ async function newJob(){
   S.currentJobId = null;
   ['jobClient','jobAddr','jobEmail','jobPhone'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
   try { clearAll && clearAll(true); } catch(e){}
-  S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[];
+  S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[]; S.files=[];
   _resetQuoteForFreshJob();
   window._aerialLoadedAddr = null;
   setCurrentJobLabel(null);
@@ -10444,7 +10463,7 @@ async function startNewJob(){
   S.currentJobId = null;
   ['jobClient','jobAddr','jobEmail','jobPhone','jobNo'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
   try { clearAll && clearAll(true); } catch(e){}
-  S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[];
+  S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[]; S.files=[];
   S.orderSent = null;
   S.isSampleJob = false; try { _sampleJobStripSync(); } catch(e){}
   _resetQuoteForFreshJob();
@@ -13098,7 +13117,7 @@ async function handlePriceFile(e){
 // ── INSPECTION ───────────────────────────────────────────────────
 function selectCond(el,c){document.querySelectorAll('.cond-opt').forEach(function(x){x.className='cond-opt';});el.classList.add('sel-'+c);S.condition=c;}
 function addPhotos(e){Array.from(e.target.files).forEach(function(f){var r=new FileReader();r.onload=function(ev){_downscalePhoto(ev.target.result,function(src){S.photos.push({src:src,caption:''});renderPhotos();});};r.readAsDataURL(f);});document.getElementById('photoInput').value='';}
-function renderPhotos(){var _pg=document.getElementById('photoGrid');if(_pg)_pg.innerHTML=S.photos.map(function(p,i){return '<div class="photo-thumb"><img src="'+p.src+'"><button class="photo-rm" onclick="removePhoto('+i+')">x</button><div class="photo-caption"><input type="text" placeholder="Caption..." value="'+p.caption+'" style="width:100%;margin:0;padding:3px 5px;font-size:11px" oninput="S.photos['+i+'].caption=this.value"></div></div>';}).join('');try{_renderJobPhotosGrid();}catch(e){}}
+function renderPhotos(){try{renderJobFiles();}catch(e){} var _pg=document.getElementById('photoGrid');if(_pg)_pg.innerHTML=S.photos.map(function(p,i){return '<div class="photo-thumb"><img src="'+p.src+'"><button class="photo-rm" onclick="removePhoto('+i+')">x</button><div class="photo-caption"><input type="text" placeholder="Caption..." value="'+p.caption+'" style="width:100%;margin:0;padding:3px 5px;font-size:11px" oninput="S.photos['+i+'].caption=this.value"></div></div>';}).join('');try{_renderJobPhotosGrid();}catch(e){}}
 function removePhoto(i){S.photos.splice(i,1);renderPhotos();}
 
 // ── JOB PHOTOS (camera / gallery → saved with the job) ─────────────
@@ -13155,8 +13174,98 @@ function _renderJobPhotosGrid(){
     return '<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--border);aspect-ratio:1;background:#f1f5f9">' +
       '<img src="' + p.src + '" onclick="_jobPhotoView(' + i + ')" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in">' +
       '<button onclick="_jobPhotoRemove(' + i + ')" title="Remove" style="position:absolute;top:3px;right:3px;width:20px;height:20px;border:none;border-radius:6px;background:rgba(10,22,40,.62);color:#fff;font-size:11px;line-height:1;cursor:pointer">✕</button>' +
+      '<button onclick="_jobPhotoUseAsBg(' + i + ')" title="Use as the roof drawing background" style="position:absolute;bottom:3px;left:3px;right:3px;height:20px;border:none;border-radius:6px;background:rgba(10,22,40,.62);color:#fff;font-size:10px;line-height:1;cursor:pointer;font-family:inherit">Use on canvas</button>' +
     '</div>';
   }).join('') : '<div style="grid-column:1/-1;font-size:11px;color:var(--text2);text-align:center;padding:4px 0 2px">No photos yet — take one on site, it saves with the job.</div>';
+}
+// ── FILES ON THE JOB ────────────────────────────────────────────────
+// A business with no JMS still gets council plans, the old quote, a PDF
+// from the homeowner. They ride inside the job file next to the photos —
+// on the office computer the moment the job saves. Images picked here are
+// routed into the photo pipeline instead (downscaled, in the photo grid);
+// everything else is kept byte-for-byte.
+var JOB_FILE_MAX = 8 * 1024 * 1024;   // per file, before base64 — a job is a jsonb row, not a file server
+function _jobFilesAdd(e){
+  var input = e.target;
+  var files = Array.from((input && input.files) || []);
+  input.value = '';
+  if (!files.length) return;
+  var added = 0, skipped = [];
+  var pending = files.length;
+  var done = function(){
+    if (--pending > 0) return;
+    renderJobFiles();
+    if (added) { try { _scheduleAutosave && _scheduleAutosave(); } catch(err){} }
+    var msg = added ? ('\ud83d\udcce ' + added + ' file' + (added>1?'s':'') + ' added \u2014 saved with the job.') : '';
+    if (skipped.length) msg += ' Skipped (over 8\u00a0MB): ' + skipped.join(', ');
+    try { _setSaveStatus && _setSaveStatus(msg, skipped.length ? '#b45309' : '#0369a1'); } catch(err){}
+  };
+  files.forEach(function(f){
+    if (/^image\//.test(f.type || '')){
+      var r0 = new FileReader();
+      r0.onload = function(ev){ _downscalePhoto(ev.target.result, function(src){ S.photos.push({ src: src, caption: '' }); added++; renderPhotos(); done(); }); };
+      r0.readAsDataURL(f);
+      return;
+    }
+    if (f.size > JOB_FILE_MAX){ skipped.push(f.name); done(); return; }
+    var r = new FileReader();
+    r.onload = function(ev){
+      if (!Array.isArray(S.files)) S.files = [];
+      S.files.push({ name: String(f.name || 'file').slice(0, 140), mime: f.type || 'application/octet-stream',
+                     size: f.size, data: ev.target.result, at: new Date().toISOString() });
+      added++;
+      done();
+    };
+    r.readAsDataURL(f);
+  });
+}
+function _jobFileFmtSize(n){
+  n = Number(n) || 0;
+  if (n > 1048576) return (n/1048576).toFixed(1) + ' MB';
+  if (n > 1024) return Math.round(n/1024) + ' KB';
+  return n + ' B';
+}
+function _jobFileIcon(mime, name){
+  if (/pdf/.test(mime)) return '\ud83d\udcc4';
+  if (/sheet|excel|csv/.test(mime) || /\.(xlsx?|csv)$/i.test(name)) return '\ud83d\udcca';
+  if (/word|document/.test(mime) || /\.docx?$/i.test(name)) return '\ud83d\udcdd';
+  if (/zip|compressed/.test(mime)) return '\ud83d\uddc4';
+  return '\ud83d\udcce';
+}
+function renderJobFiles(){
+  var fl = (window.S && S.files) || [];
+  document.querySelectorAll('.jobFilesCount').forEach(function(c){ c.textContent = fl.length ? String(fl.length) : ''; });
+  var html = fl.length ? fl.map(function(f, i){
+    return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">' +
+      '<span>' + _jobFileIcon(f.mime || '', f.name || '') + '</span>' +
+      '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + String(f.name).replace(/"/g,'&quot;') + '">' + String(f.name).replace(/</g,'&lt;') + '</span>' +
+      '<span style="color:var(--text2);font-size:11px;flex-shrink:0">' + _jobFileFmtSize(f.size) + '</span>' +
+      '<a href="' + f.data + '" download="' + String(f.name).replace(/"/g,'') + '" style="flex-shrink:0;padding:3px 10px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:6px;font-size:11px;font-weight:700;text-decoration:none">Open</a>' +
+      '<button onclick="_jobFileRemove(' + i + ')" title="Remove" style="flex-shrink:0;width:22px;height:22px;border:none;border-radius:6px;background:#f1f5f9;color:#64748b;font-size:11px;cursor:pointer">\u2715</button>' +
+      '</div>';
+  }).join('') : '<div style="color:var(--text2);font-size:11.5px;padding:2px 0 4px">No files yet \u2014 plans, the old quote, anything worth keeping with the job.</div>';
+  document.querySelectorAll('.jobFilesList').forEach(function(el){ el.innerHTML = html; });
+}
+function _jobFileRemove(i){
+  if (!confirm('Remove this file from the job?')) return;
+  S.files.splice(i, 1);
+  renderJobFiles();
+  try { _scheduleAutosave && _scheduleAutosave(); } catch(e){}
+}
+// A site photo becomes the Map Roof canvas background — the no-JMS answer
+// to "Import from Fergus". Same pipeline as Upload from PC.
+function _jobPhotoUseAsBg(i){
+  var pp = (S.photos || [])[i];
+  if (!pp || !pp.src) return;
+  _storeAerialCompressed(pp.src);
+  var pv = document.getElementById('roofPrevImg'); if (pv) pv.src = pp.src;
+  var pr = document.getElementById('roofPrev'); if (pr) pr.style.display = 'block';
+  var uz = document.getElementById('roofUZ'); if (uz) uz.style.display = 'none';
+  var ab = document.getElementById('analyseBtn'); if (ab) ab.disabled = false;
+  var at = document.getElementById('analyseTxt'); if (at) at.textContent = 'Analyse roof sketch with AI';
+  try { _collapseRoofBg(); } catch(e){}
+  try { gotoTab('roof'); } catch(e){}
+  try { _setSaveStatus && _setSaveStatus('\ud83d\uddfa Photo set as the roof background.', '#0369a1'); } catch(e){}
 }
 function _jobPhotoRemove(i){
   if (!confirm('Remove this photo from the job?')) return;
