@@ -4957,6 +4957,22 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <span id="qaMsg" style="font-size:12px;color:var(--text2);width:100%"></span>
   </div>
 
+  <!-- Invoices on this job — deposit / progress / final. Lists what has been
+       raised and what state it's in; the deposit usually raises itself when
+       the customer accepts (Settings → Invoicing). -->
+  <div class="card no-print" id="jobInvoicesCard">
+    <div class="card-hd"><span class="card-dot"></span>Invoices
+      <span id="invCardHint" style="margin-left:auto;font-size:11px;color:var(--text2);font-weight:400"></span>
+    </div>
+    <div id="invList" style="font-size:13px"></div>
+    <div id="invBtns" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button type="button" id="invBtnDeposit" onclick="_invCreate('deposit')" class="sec-btn" style="margin:0;width:auto;padding:8px 16px">Deposit invoice</button>
+      <button type="button" id="invBtnProgress" onclick="_invCreate('progress')" class="sec-btn" style="margin:0;width:auto;padding:8px 16px;display:none">Progress claim…</button>
+      <button type="button" id="invBtnFinal" onclick="_invCreate('final')" class="sec-btn" style="margin:0;width:auto;padding:8px 16px">Final invoice (balance)</button>
+      <span id="invMsg" style="font-size:12px;color:var(--text2);align-self:center"></span>
+    </div>
+  </div>
+
   <!-- Main scope picker — sits under the action bar. Drives the scope of
        work (page 3 of the proposal) and the detailed checklist in the
        Pricing slide-out. Re-Roof is the default. -->
@@ -5812,6 +5828,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button class="tab-sm" onclick="switchSettingsSub('set-flashings',this)">Flashing library</button>
         <div class="set-grp">Quoting</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
+        <button class="tab-sm" onclick="switchSettingsSub('set-invoicing',this)">Invoicing</button>
         <div class="set-grp">App</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-general',this)">General</button>
       </nav>
@@ -5943,6 +5960,52 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
         <div id="qdSectionsList"></div>
         <div style="font-size:11px;color:var(--text2);margin-top:6px">Extra sections appended to the inspection report (e.g. health &amp; safety statement, council compliance notes).</div>
+      </div>
+    </div>
+
+    <!-- INVOICING — what happens to the money after a quote is accepted.
+         The deposit raises itself on acceptance; whether it also SENDS
+         itself is the business's call, made here. -->
+    <div class="sub-panel settings-sub" id="set-invoicing" style="margin-top:14px">
+      <div class="set-row">
+        <div class="set-row-txt">
+          <b>Deposit on acceptance</b>
+          <span>When a customer accepts their quote online, a deposit invoice for this share of the accepted total is raised automatically. Set 0 to raise no deposit.</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <input type="number" id="invDepositPct" value="50" min="0" max="100" style="width:74px">
+          <span style="font-size:13px;color:var(--text2)">%</span>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-txt">
+          <b>Send the deposit invoice automatically</b>
+          <span>Emails the deposit invoice to the customer the moment they accept. Off means it waits as a draft on the job for you to check and send.</span>
+        </div>
+        <input type="checkbox" id="invAutoSend" style="width:20px;height:20px;margin:0;cursor:pointer;flex-shrink:0">
+      </div>
+      <div class="set-row">
+        <div class="set-row-txt">
+          <b>Progress payments</b>
+          <span>Shows a "Progress claim" button on every job so you can invoice stages between deposit and final — useful on bigger jobs.</span>
+        </div>
+        <input type="checkbox" id="invProgress" style="width:20px;height:20px;margin:0;cursor:pointer;flex-shrink:0">
+      </div>
+      <div class="set-row">
+        <div class="set-row-txt">
+          <b>Payment terms</b>
+          <span>Days until an invoice is due after it's sent.</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <input type="number" id="invDueDays" value="7" min="0" max="90" style="width:74px">
+          <span style="font-size:13px;color:var(--text2)">days</span>
+        </div>
+      </div>
+      <div style="margin-top:14px" class="f2">
+        <div><label>Bank account for payment</label><input type="text" id="invBankAccount" placeholder="00-0000-0000000-00" autocomplete="off">
+          <div style="font-size:10.5px;color:var(--text2);margin-top:3px">Printed on every invoice with the invoice number as reference.</div></div>
+        <div><label>Invoice footer</label><input type="text" id="invFooter" placeholder="Thanks for your business.">
+          <div style="font-size:10.5px;color:var(--text2);margin-top:3px">A line at the bottom of every invoice — payment terms, a thank-you, whatever you like.</div></div>
       </div>
     </div>
 
@@ -6389,7 +6452,7 @@ function gotoTab(t) {
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
-  if(t==='quote'){ try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
+  if(t==='quote'){ try{_invLoad();}catch(e){} try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
   try { _sampleJobStripSync(); } catch(e){}
   try { _officePriceBarSync(); } catch(e){}   // shows on Quote, hides everywhere else
   if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{_jpRestorePanelState(true, true);}catch(e){}try{_syncCurrentToRoof&&_syncCurrentToRoof();}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpPreview(_jpPreviewPref());}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
@@ -7101,6 +7164,14 @@ function collectSettingsFromUI(){
   q.email.quote_cc  = ((document.getElementById('emQuoteCc') ||{}).value || '').trim();
   q.email.accept_to = ((document.getElementById('emAcceptTo')||{}).value || '').trim();
   q.email.order_cc  = ((document.getElementById('emOrderCc') ||{}).value || '').trim();
+  q.invoicing = {
+    deposit_percent: Math.max(0, Math.min(100, parseFloat((document.getElementById('invDepositPct')||{}).value) || 0)),
+    auto_send_deposit: !!(document.getElementById('invAutoSend')||{}).checked,
+    progress_enabled:  !!(document.getElementById('invProgress')||{}).checked,
+    due_days: Math.max(0, parseInt((document.getElementById('invDueDays')||{}).value || 7, 10) || 0),
+    bank_account: ((document.getElementById('invBankAccount')||{}).value || '').trim(),
+    footer: ((document.getElementById('invFooter')||{}).value || '').trim(),
+  };
   var k = S.settings.jms_keys;
   k.fergus     = (document.getElementById('intFergus')||{}).value || '';
   k.servicem8  = (document.getElementById('intServiceM8')||{}).value || '';
@@ -8351,6 +8422,12 @@ function refreshSettingsUI(){
   set('qdQuoteDomain', q.quote_domain || '');
   var _em = q.email || {};
   set('emQuoteCc', _em.quote_cc); set('emAcceptTo', _em.accept_to); set('emOrderCc', _em.order_cc);
+  var _iv = q.invoicing || {};
+  set('invDepositPct', _iv.deposit_percent == null ? 50 : _iv.deposit_percent);
+  set('invDueDays', _iv.due_days == null ? 7 : _iv.due_days);
+  set('invBankAccount', _iv.bank_account); set('invFooter', _iv.footer);
+  var _ivA = document.getElementById('invAutoSend'); if (_ivA) _ivA.checked = _iv.auto_send_deposit === true;
+  var _ivP = document.getElementById('invProgress'); if (_ivP) _ivP.checked = _iv.progress_enabled === true;
   renderOptionsList(q.options || []);
   renderSectionsList(q.sections || []);
   set('intFergus', k.fergus); set('intServiceM8', k.servicem8); set('intJobber', k.jobber); set('intTradify', k.tradify); set('intFergusMatAcct', k.fergusMaterialsAccountId);
@@ -8742,6 +8819,7 @@ function restoreFromJob(j){
   }
   S.currentJobId = j.id;
   setCurrentJobLabel(j);
+  try { _invLoad(); } catch(e){}   // the Invoices card follows the open job
   // Keep the Fergus → saved-job link fresh whenever a linked job is opened.
   try { if (S.linkedJobId && j.id) _fergJobMapSet(S.linkedJobId, j.id); } catch(e){}
   // Next time the Map Roof canvas is shown, auto-fit the drawing so an opened
@@ -16019,6 +16097,190 @@ function _fitCustomerView(){
 // and picks, and tapping it opens the full breakdown. SAME maths as the
 // page-3 panel and the acceptance record (_qpBaseSub + _qpSelectionDeltaSum
 // with GST), so the figures can never disagree.
+// ── INVOICES on the open job ────────────────────────────────────────
+// Deposit / progress / final, listed on the Quote tab. The deposit usually
+// raises itself when the customer accepts (Settings → Invoicing); these
+// controls cover everything else — and the businesses that don't share
+// quotes online at all.
+var _INVOICES = { jobId: null, rows: [] };
+function _invSettings(){ return (((S.settings || {}).quote_defaults) || {}).invoicing || {}; }
+// The figure invoices are cut from: the accepted total when there is one
+// (that's the contract), the live quote total otherwise.
+function _invJobTotal(){
+  var acc = S.quote && S.quote.accepted;
+  if (acc && isFinite(Number(acc.total)) && Number(acc.total) > 0) return Number(acc.total);
+  try { return _custBarTotalValue(); } catch(e){ return 0; }
+}
+function _invOutstanding(){
+  var live = _INVOICES.rows.filter(function(r){ return r.status !== 'void'; });
+  var invoiced = live.reduce(function(a, r){ return a + (Number(r.total) || 0); }, 0);
+  return Math.max(0, Math.round((_invJobTotal() - invoiced) * 100) / 100);
+}
+async function _invLoad(){
+  var card = document.getElementById('jobInvoicesCard');
+  if (!card) return;
+  if (!S.currentJobId || S.isSampleJob){
+    _INVOICES = { jobId: null, rows: [] };
+    _invRender();
+    return;
+  }
+  try {
+    var rows = await api('GET', '/jobs/' + S.currentJobId + '/invoices');
+    _INVOICES = { jobId: S.currentJobId, rows: rows || [] };
+  } catch(e){ _INVOICES = { jobId: S.currentJobId, rows: [] }; }
+  _invRender();
+}
+function _invChip(st){
+  var c = { draft:'#64748b', sent:'#0369a1', paid:'#047857', void:'#b91c1c' }[st] || '#64748b';
+  var bg = { draft:'#f1f5f9', sent:'#e0f2fe', paid:'#d1fae5', void:'#fee2e2' }[st] || '#f1f5f9';
+  return '<span style="display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;color:' + c + ';background:' + bg + '">' + st.toUpperCase() + '</span>';
+}
+function _invRender(){
+  var list = document.getElementById('invList'), hint = document.getElementById('invCardHint');
+  var btns = document.getElementById('invBtns');
+  if (!list) return;
+  var inv = _invSettings();
+  if (!S.currentJobId || S.isSampleJob){
+    list.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:4px 0">' +
+      (S.isSampleJob ? 'The sample job doesn\u2019t carry invoices.' : 'Save the job first \u2014 invoices attach to a saved job.') + '</div>';
+    if (btns) btns.style.display = 'none';
+    if (hint) hint.textContent = '';
+    return;
+  }
+  if (btns) btns.style.display = 'flex';
+  var rows = _INVOICES.rows;
+  if (!rows.length){
+    var pct = inv.deposit_percent == null ? 50 : inv.deposit_percent;
+    list.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:4px 0">No invoices yet.' +
+      (pct > 0 ? ' When the customer accepts online, a ' + pct + '% deposit invoice raises itself.' : '') + '</div>';
+  } else {
+    list.innerHTML = rows.map(function(r){
+      var acts = [];
+      if (r.status === 'draft' || r.status === 'sent'){
+        acts.push('<button type="button" onclick="_invAction(\'' + r.id + '\',\'send\')" style="padding:4px 12px;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">' + (r.status === 'sent' ? 'Re-send' : 'Send') + '</button>');
+        acts.push('<button type="button" onclick="_invAction(\'' + r.id + '\',\'paid\')" style="padding:4px 12px;background:#fff;color:#047857;border:1.5px solid #047857;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Mark paid</button>');
+        acts.push('<button type="button" onclick="_invAction(\'' + r.id + '\',\'void\')" style="padding:4px 12px;background:#fff;color:#b91c1c;border:1.5px solid #fca5a5;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Void</button>');
+      }
+      acts.push('<button type="button" onclick="_invPrint(\'' + r.id + '\')" style="padding:4px 12px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Print / PDF</button>');
+      var label = { deposit: 'Deposit', progress: 'Progress claim', final: 'Final' }[r.type] || r.type;
+      return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">' +
+        '<strong style="min-width:76px">' + r.number + '</strong>' +
+        '<span style="min-width:104px;color:var(--text2)">' + label + (r.percent ? ' (' + r.percent + '%)' : '') + '</span>' +
+        _invChip(r.status) +
+        '<span style="margin-left:auto;font-weight:700">' + fmtMoney(Number(r.total)) + '</span>' +
+        '<span style="display:flex;gap:6px">' + acts.join('') + '</span>' +
+        '</div>';
+    }).join('');
+  }
+  var out = _invOutstanding();
+  if (hint) hint.textContent = rows.length ? ('Still to invoice: ' + fmtMoney(out)) : '';
+  var bp = document.getElementById('invBtnProgress');
+  if (bp) bp.style.display = inv.progress_enabled === true ? '' : 'none';
+  var bd = document.getElementById('invBtnDeposit');
+  if (bd){
+    var hasDeposit = rows.some(function(r){ return r.type === 'deposit' && r.status !== 'void'; });
+    bd.style.display = hasDeposit ? 'none' : '';
+    var pct2 = inv.deposit_percent == null ? 50 : inv.deposit_percent;
+    bd.textContent = 'Deposit invoice' + (pct2 > 0 ? ' (' + pct2 + '%)' : '');
+  }
+}
+function _invSay(m, isErr){
+  var el = document.getElementById('invMsg');
+  if (el){ el.textContent = m || ''; el.style.color = isErr ? '#b91c1c' : 'var(--text2)'; }
+}
+async function _invCreate(type){
+  if (!S.currentJobId){ _invSay('Save the job first.', true); return; }
+  var inv = _invSettings();
+  var jobTotal = _invJobTotal();
+  var body = { type: type };
+  if (type === 'deposit'){
+    var pct = inv.deposit_percent == null ? 50 : inv.deposit_percent;
+    if (!(pct > 0)){ _invSay('Deposit is set to 0% in Settings \u2192 Invoicing.', true); return; }
+    if (!(jobTotal > 0)){ _invSay('There\u2019s no quote total to take a deposit of yet.', true); return; }
+    body.percent = pct;
+    body.total_incl = Math.round(jobTotal * pct) / 100;
+    body.description = pct + '% deposit' + (S.quote && S.quote.addr ? ' \u2014 ' + S.quote.addr : '');
+  } else if (type === 'progress'){
+    var amt = parseFloat(prompt('Progress claim \u2014 amount including GST:', '') || '');
+    if (!isFinite(amt) || amt <= 0) return;
+    body.total_incl = amt;
+    body.description = 'Progress claim' + (S.quote && S.quote.addr ? ' \u2014 ' + S.quote.addr : '');
+  } else {
+    var bal = _invOutstanding();
+    if (!(bal > 0)){ _invSay('Nothing left to invoice \u2014 the job is fully invoiced.', true); return; }
+    body.total_incl = bal;
+    body.description = 'Final invoice on completion' + (S.quote && S.quote.addr ? ' \u2014 ' + S.quote.addr : '');
+  }
+  body.gst_rate = (S.quote && S.quote.gstRate) || 15;
+  try {
+    await api('POST', '/jobs/' + S.currentJobId + '/invoices', body);
+    _invSay('Invoice raised.');
+    await _invLoad();
+  } catch(e){ _invSay(e.message, true); }
+}
+async function _invAction(id, act){
+  try {
+    if (act === 'send'){
+      var row = _INVOICES.rows.find(function(r){ return r.id === id; }) || {};
+      var to = row.client_email || (S.quote && S.quote.email) || '';
+      to = prompt('Email this invoice to:', to || '');
+      if (to == null) return;
+      await api('POST', '/invoices/' + id + '/send', { to: to.trim() });
+      _invSay('Sent.');
+    } else if (act === 'paid'){
+      await api('PUT', '/invoices/' + id, { status: 'paid' });
+      _invSay('Marked paid.');
+    } else if (act === 'void'){
+      if (!confirm('Void this invoice? It stays in the list for the record but counts for nothing.')) return;
+      await api('PUT', '/invoices/' + id, { status: 'void' });
+      _invSay('Voided.');
+    }
+    await _invLoad();
+  } catch(e){ _invSay(e.message, true); }
+}
+// A printable tax invoice on the business's letterhead — browser print
+// handles the PDF.
+function _invPrint(id){
+  var r = _INVOICES.rows.find(function(x){ return x.id === id; });
+  if (!r) return;
+  var b = (S.settings && S.settings.branding) || {};
+  var inv = _invSettings();
+  var esc = function(x){ return String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  var w = window.open('', '_blank');
+  if (!w){ _invSay('Pop-up blocked \u2014 allow pop-ups to print invoices.', true); return; }
+  var fmt = function(n){ return fmtMoney(Number(n) || 0); };
+  var due = r.due_at ? new Date(r.due_at).toLocaleDateString('en-NZ') : 'on receipt';
+  w.document.write('<!doctype html><html><head><title>' + esc(r.number) + '</title><style>' +
+    'body{font-family:-apple-system,"Segoe UI",sans-serif;color:#1c2733;margin:48px;font-size:14px;line-height:1.6}' +
+    'h1{font-size:26px;margin:0;color:#0a1628}' +
+    'table{border-collapse:collapse;width:100%;margin:18px 0}' +
+    'td{padding:8px 0;border-bottom:1px solid #e2e8f0}' +
+    'td:last-child{text-align:right}' +
+    '.tot td{border-bottom:2px solid #0a1628;font-weight:800;font-size:16px}' +
+    '.mut{color:#5f6b7a}.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:26px}' +
+    'img{max-height:64px}@media print{body{margin:24px}}' +
+    '</style></head><body>' +
+    '<div class="hdr"><div>' +
+    (b.logo_data_url ? '<img src="' + b.logo_data_url + '" alt=""><br>' : '') +
+    '<strong>' + esc(b.company_name || '') + '</strong><br>' +
+    '<span class="mut">' + esc(b.address || '') + (b.phone ? ' \u00b7 ' + esc(b.phone) : '') + '</span><br>' +
+    '<span class="mut">' + (b.gst_number ? 'GST ' + esc(b.gst_number) : '') + '</span></div>' +
+    '<div style="text-align:right"><h1>Tax invoice</h1><div><strong>' + esc(r.number) + '</strong></div>' +
+    '<div class="mut">' + new Date(r.issued_at || r.created_at || Date.now()).toLocaleDateString('en-NZ') + '</div></div></div>' +
+    '<div><strong>Bill to:</strong> ' + esc(r.client_name || '') + (r.client_email ? ' \u00b7 ' + esc(r.client_email) : '') + '</div>' +
+    '<div><strong>Site:</strong> ' + esc(r.site_address || '') + '</div>' +
+    '<table><tr><td>' + esc(r.description || ({deposit:'Deposit',progress:'Progress claim',final:'Final invoice'}[r.type] || 'Invoice')) + '</td><td>' + fmt(r.amount) + '</td></tr>' +
+    '<tr><td class="mut">GST (' + esc(r.gst_rate) + '%)</td><td>' + fmt(r.gst) + '</td></tr>' +
+    '<tr class="tot"><td>Total due</td><td>' + fmt(r.total) + '</td></tr></table>' +
+    '<div><strong>Due:</strong> ' + esc(due) + '</div>' +
+    (inv.bank_account ? '<div><strong>Pay by bank transfer to:</strong> ' + esc(inv.bank_account) + '</div>' : '') +
+    '<div><strong>Reference:</strong> ' + esc(r.number) + '</div>' +
+    (inv.footer ? '<p class="mut">' + esc(inv.footer) + '</p>' : '') +
+    '</body></html>');
+  w.document.close();
+  setTimeout(function(){ try { w.print(); } catch(e){} }, 250);
+}
+
 function _custBarTotalValue(){
   var rate = ((S.quote && S.quote.gstRate) || 0) / 100;
   return (_qpBaseSub() + _qpSelectionDeltaSum()) * (1 + rate);
