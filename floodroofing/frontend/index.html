@@ -2494,6 +2494,14 @@ html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages .mat-section-hd
 /* ── Canvas wrapper ─────────────────────────────────────────── */
 .canvas-wrap{background:#fff;border-radius:var(--radius);padding:1rem;margin-bottom:1rem;border:1px solid var(--border);overflow:hidden}
 .canvas-wrap canvas{width:100%;height:auto;display:block}
+/* The drawing canvas used to stop at its 900×620 aspect ratio, which on a
+   tall window left a band of dead card under the drawing — and clipped the
+   bottom of a roof that ran past it. The wrap now takes the viewport height
+   (matching what tablet/site mode already do) and the canvas fills it;
+   fitCanvasToWrap sizes the backing store off the rendered box, so nothing
+   distorts. Tablet and site mode keep their own !important geometry. */
+body[data-tab="roof"] #canvasWrap{ height:calc(100vh - 190px); min-height:480px }
+body[data-tab="roof"] #canvasWrap #roofCanvas{ height:100% }
 
 /* ── Sheet legend ───────────────────────────────────────────── */
 .sheet-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:.75rem}
