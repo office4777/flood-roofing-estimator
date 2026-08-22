@@ -1916,6 +1916,52 @@ async function _saveQuoteBack(job, quote){
 
 // Customer opens the quote.  Rate-limited: the token is the only
 // credential, so cap per-IP guessing speed.
+// ── HOW LONG A QUOTE LINK STAYS A CREDENTIAL ────────────────────────
+// The link in a customer's inbox is a bearer credential, and since invoicing
+// went in, accepting raises a deposit invoice and may auto-send it. So an old
+// link forwarded on, or sitting in a mailbox someone else now reads, is a live
+// financial instrument.
+//
+// The "Valid until" box on a quote is free text a roofer types ("30 days"),
+// not a date, so it cannot be enforced — this is a backstop on the link's own
+// age instead. Opening an old link still WORKS, so a customer can re-read what
+// they were sent and what they accepted; it is only the state-changing actions
+// that stop, with a message telling them to get in touch.
+const SHARE_ACTION_DAYS = 90;
+
+function _shareSentAt(job, quote){
+  const sh = ((quote || {}).share) || {};
+  // sentAt is stamped by the office when the link is made. Links that predate
+  // it fall back to their first recorded event, then to the job's own age —
+  // never to now(), which would hand every ancient link a fresh 90 days.
+  const first = (Array.isArray(sh.events) && sh.events.length) ? sh.events[0].at : null;
+  const v = sh.sentAt || first || (job || {}).created_at || (job || {}).updated_at;
+  const d = v ? new Date(v) : null;
+  return (d && !isNaN(d.getTime())) ? d : null;
+}
+function _shareExpiresAt(job, quote){
+  const sent = _shareSentAt(job, quote);
+  return sent ? new Date(sent.getTime() + SHARE_ACTION_DAYS * 86400000) : null;
+}
+function _shareActionsExpired(job, quote){
+  const exp = _shareExpiresAt(job, quote);
+  // No usable date anywhere: leave the link working rather than locking a
+  // customer out on a guess.
+  return exp ? Date.now() > exp.getTime() : false;
+}
+
+// The customer's browser reports the total it computed. That figure decides a
+// deposit invoice, so it is checked against what the office actually sent
+// rather than taken on trust. The band is wide on purpose — a customer
+// legitimately drops a roof or picks a dearer grade — it is there to catch a
+// figure that cannot be a real answer to this quote.
+function _acceptedTotalPlausible(quote, acceptedTotal){
+  const sent = Number((((quote || {}).share) || {}).sentTotal);
+  if (!isFinite(sent) || sent <= 0) return true;      // no anchor to judge against
+  if (!isFinite(acceptedTotal) || acceptedTotal <= 0) return false;
+  return acceptedTotal >= sent * 0.2 && acceptedTotal <= sent * 5;
+}
+
 app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
   try {
     const job = await _findJobByToken(req.params.token, req.query.job);
@@ -1943,7 +1989,15 @@ app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
     // the fallback save round-trips the whole multi-MB draw_state, which is
     // exactly what made the quote link feel slow to open).
     if (changed) { quote.share = share; _saveQuoteBack(job, quote).catch(e => console.error('open-analytics save failed:', e.message)); }
-    res.json({ quote: quote, branding: (settings && settings.branding) || {} });
+    // Still served past 90 days — the customer may be re-reading what they
+    // accepted. The flag lets the page say so and hide the Accept button.
+    const _exp = _shareExpiresAt(job, quote);
+    res.json({
+      quote: quote,
+      branding: (settings && settings.branding) || {},
+      expired: _shareActionsExpired(job, quote),
+      expiresAt: _exp ? _exp.toISOString() : null,
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1960,6 +2014,18 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
     }
     name = String(name || '').slice(0, 120);
     total = Number(total);
+    // 'opened' is just analytics and stays allowed; everything else changes
+    // the state of a quote and is refused once the link is past its window.
+    if (String(type) !== 'opened') {
+      const _j = await _findJobByToken(req.params.token, req.query.job);
+      const _q = _quoteOf(_j);
+      if (_j && _q && _shareActionsExpired(_j, _q)) {
+        return res.status(410).json({
+          error: 'This quote link has expired. Please get in touch with us and we will send you a current one.',
+          code: 'QUOTE_LINK_EXPIRED',
+        });
+      }
+    }
     if (!isFinite(total) || total < 0 || total > 10000000) total = 0;
     if (!Array.isArray(acceptedOptions)) acceptedOptions = [];
     acceptedOptions = acceptedOptions.slice(0, 20).map(function (o) {
@@ -2026,7 +2092,13 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
       }
     }
     if (type === 'accepted') {
-      quote.accepted = { name: name || quote.client || 'Customer', at: now, total: total || 0, options: acceptedOptions || [], gutter: quote.gutterChoice || 'none' };
+      // Both numbers are kept: what the customer's browser reported, and what
+      // the office sent. The office screen can then show a disagreement rather
+      // than it being invisible.
+      quote.accepted = { name: name || quote.client || 'Customer', at: now, total: total || 0,
+        sentTotal: Number((share || {}).sentTotal) || null,
+        totalVerified: _acceptedTotalPlausible(quote, total),
+        options: acceptedOptions || [], gutter: quote.gutterChoice || 'none' };
       share.status = 'accepted'; share.acceptedAt = now;
     } else if (type === 'declined') {
       share.status = 'declined'; share.declinedAt = now;
@@ -2074,6 +2146,12 @@ app.post('/q/:token/accept-email', rateLimit(10, 60000), async (req, res) => {
     const job = await _findJobByToken(req.params.token, req.query.job);
     const quote = _quoteOf(job);
     if (!job || !quote) return res.status(404).json({ error: 'Quote not found' });
+    if (_shareActionsExpired(job, quote)) {
+      return res.status(410).json({
+        error: 'This quote link has expired. Please get in touch with us and we will send you a current one.',
+        code: 'QUOTE_LINK_EXPIRED',
+      });
+    }
     const acc = quote.accepted || {};
     const client = job.client_name || quote.client || acc.name || 'Customer';
     const addr = job.site_address || quote.addr || '';
@@ -2563,7 +2641,16 @@ async function _autoDepositInvoice(job, quote){
       description: inv.deposit_percent + '% deposit on acceptance' + (job.site_address ? ' — ' + job.site_address : ''),
       settingsRow: settingsRow,
     });
-    if (inv.auto_send_deposit && (row.client_email || '').trim()){
+    // An accepted total that cannot be a real answer to this quote still gets
+    // an invoice raised — nothing is lost, and the roofer can see it — but it
+    // is NEVER auto-emailed to the customer. Auto-send is the one step with no
+    // human between a number from someone else's browser and a bill.
+    const trustworthy = _acceptedTotalPlausible(quote, acceptedTotal);
+    if (!trustworthy) {
+      console.warn('[invoice] deposit left as a draft: accepted total ' + acceptedTotal +
+        ' is not plausible against the ' + (((quote || {}).share) || {}).sentTotal + ' that was sent');
+    }
+    if (trustworthy && inv.auto_send_deposit && (row.client_email || '').trim()){
       try { await _sendInvoice(row, settingsRow); }
       catch (e) { console.warn('[invoice] deposit raised but auto-send failed:', e.message); }
     }

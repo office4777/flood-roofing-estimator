@@ -15957,6 +15957,16 @@ function _customerLinkString(){
   if (!S.quote) return null;
   var token = _quoteShareToken();
   if (!token) return null;
+  // Stamp what the office is sending, at the moment it sends it. The customer's
+  // browser reports its own total when it accepts, and that total decides a
+  // deposit invoice — so the backend needs a number of ours to weigh it
+  // against. sentAt is the age the 90-day link window is measured from.
+  try {
+    S.quote.share = S.quote.share || {};
+    if (!S.quote.share.sentAt) S.quote.share.sentAt = new Date().toISOString();
+    var _sentTot = _custBarTotalValue();
+    if (isFinite(_sentTot) && _sentTot > 0) S.quote.share.sentTotal = Math.round(_sentTot * 100) / 100;
+  } catch (e) {}
   // saveCurrentJob bails out unless a client name OR address is filled in —
   // auto-populate from the quote so the office user doesn't have to retype.
   var jc = document.getElementById('jobClient'), ja = document.getElementById('jobAddr');
