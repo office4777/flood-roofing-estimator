@@ -108,6 +108,30 @@ check('…and promise 30 days\' notice before a price change',
 check('the price book is promised to stay private, in both documents',
   /never shown to\s*another subscriber/i.test(terms) && /never shown to another subscriber/i.test(privacy));
 
+// ── the warning rides on the documents, not just on this page ──
+// Clause 5 is the most important thing in the Terms, and a clause on a page
+// nobody reopens does not stop a wrong order reaching a merchant. These tie
+// the promise to the code that keeps it: if a disclaimer is dropped from the
+// supplier email or the job pack, this suite fails.
+check('the app defines the disclaimer once, so the wording cannot drift',
+  /var ORDER_DISCLAIMER =/.test(app) && /var ORDER_DISCLAIMER_SHORT =/.test(app));
+check('…and the supplier order email carries it',
+  /lines\.push\('IMPORTANT: ' \+ ORDER_DISCLAIMER\)/.test(app));
+check('…and the Order Material tab carries it on screen and in print',
+  /Check this order against the building before you send it/.test(app));
+const notes = (app.match(/_disclaimerHtml\(/g) || []).length;
+check('…and the job pack cut list, order and cover each carry it',
+  notes >= 4, (notes - 1) + ' call sites');
+check('…which is exactly what the terms say happens',
+  /printed on the\s*material order form, on the cut list, and on the cover of the job pack/.test(terms));
+
+// ── the two clauses added because a supplier and a plan both have limits ──
+check('the terms set out fair use of the service',
+  /Fair use/.test(terms) && /per business and per login/.test(terms) &&
+  /without telling you first/.test(terms));
+check('…and warn that supplier prices move under a saved price book',
+  /Supplier prices move/.test(terms) && /indicative retail figures/.test(terms));
+
 // ── nothing is left to fill in that would be wrong to publish ──
 const holes = [];
 for (const [name, src] of [['terms.html', terms], ['privacy.html', privacy]]){

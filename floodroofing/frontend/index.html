@@ -5312,6 +5312,13 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <button onclick="emailOrderToSupplier()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Email supplier</button>
       <button onclick="printOrder()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
     </div>
+    <!-- Rides on the printed order form too: print-order shows #tab-order and
+         hides only the buttons, so this is on the page the supplier gets. -->
+    <div class="est-note" style="display:flex;gap:8px;align-items:flex-start;background:#fffbeb;border:1px solid #fcd34d;border-left:4px solid #f59e0b;border-radius:8px;padding:10px 12px;margin:10px 0 0;color:#78350f;font-size:12px;line-height:1.45">
+      <span aria-hidden="true" style="flex-shrink:0">⚠️</span>
+      <span><strong>Check this order against the building before you send it.</strong>
+      Quantities, lengths and prices are estimated from your drawing. RoofMap has not measured the roof — you have.</span>
+    </div>
     <div class="f2" style="margin-top:10px">
       <div>
         <label style="font-size:11px;color:var(--text2);margin-bottom:4px">Supplier name <span style="color:var(--text3);font-weight:400">(pick a saved one or type a new name)</span></label>
@@ -5505,6 +5512,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div id="jpCover" style="padding:6px 0">
         <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;color:#0a1628" id="jpCoverTitle">Roofing — Job Pack</div>
         <div style="font-size:13px;color:var(--text2);margin-top:6px" id="jpCoverMeta">— pack will populate when you click Refresh preview —</div>
+        <div id="jpCoverNote"></div>
       </div>
     </div>
     <div class="card" data-jp-section="roofmap">
@@ -24802,6 +24810,29 @@ function deleteFlashingLibraryEntry(idx) {
 })();
 
 // — Print + email helpers —
+// ── "CHECK IT BEFORE YOU ORDER" ───────────────────────────────────
+// Clause 5 of the Terms says everything RoofMap produces is an estimate that
+// the roofer is responsible for checking. A clause on a page nobody reopens
+// does not stop a wrong order reaching a supplier, so the same sentence rides
+// on the documents that actually leave the building: the supplier email, the
+// printed order form, the cut list and the job pack the crew works off.
+// One constant, so the wording can never drift between them.
+var ORDER_DISCLAIMER = 'Quantities, lengths and prices are estimated from a drawing and have not ' +
+  'been checked against the building. Confirm every measurement on site before cutting or ordering.';
+var ORDER_DISCLAIMER_SHORT = 'Estimated from a drawing \u2014 check on site before cutting or ordering.';
+
+// Amber rather than red: this is a standing condition of the document, not an
+// error the user has just caused.
+function _disclaimerHtml(text, compact){
+  return '<div class="est-note" style="display:flex;gap:8px;align-items:flex-start;' +
+    'background:#fffbeb;border:1px solid #fcd34d;border-left:4px solid #f59e0b;' +
+    'border-radius:8px;padding:' + (compact ? '7px 10px' : '10px 12px') + ';margin:' +
+    (compact ? '8px 0 0' : '10px 0') + ';color:#78350f;font-size:' + (compact ? '11px' : '12px') +
+    ';line-height:1.45">' +
+    '<span aria-hidden="true" style="flex-shrink:0">\u26a0\ufe0f</span>' +
+    '<span>' + esc(text) + '</span></div>';
+}
+
 function _collectOrderFromUI(){
   var o = S.order;
   function v(id){ var el = document.getElementById(id); return el ? el.value : ''; }
@@ -24898,6 +24929,9 @@ function emailOrderToSupplier(){
     lines.push('');
   }
   if (o.extras) { lines.push('Extras / notes'); lines.push(o.extras); lines.push(''); }
+  lines.push('———');
+  lines.push('IMPORTANT: ' + ORDER_DISCLAIMER);
+  lines.push('');
   lines.push('— Generated from RoofMap. PDF order form attached (print/save separately and attach).');
 
   var subj = 'Material order ' + (o.ref || '') + ' — Job ' + (o.jobNumber || '');
@@ -25148,6 +25182,8 @@ function _formatJobPackCover(){
   ].filter(Boolean).join('  ·  ');
   document.getElementById('jpCoverTitle').textContent = title;
   document.getElementById('jpCoverMeta').textContent  = meta;
+  var cvNote = document.getElementById('jpCoverNote');
+  if (cvNote) cvNote.innerHTML = _disclaimerHtml(ORDER_DISCLAIMER, false);
   var lbl = document.getElementById('jpJobLabel');
   if (lbl) lbl.textContent = client ? (client + (addr ? ' — '+addr : '')) : '— new job';
 }
@@ -25180,7 +25216,7 @@ function _renderJobPackCutList(){
     '<thead><tr><th>Description</th><th style="width:70px">Qty</th><th style="width:110px">Length (mm)</th></tr></thead>'+
     '<tbody>'+ rows.map(function(r){
       return '<tr><td>'+ esc(r.desc||'') +'</td><td>'+ esc(r.qty||'') +'</td><td>'+ esc(r.length||'') +'</td></tr>';
-    }).join('') +'</tbody></table>';
+    }).join('') +'</tbody></table>' + _disclaimerHtml(ORDER_DISCLAIMER_SHORT, true);
 }
 
 function _renderJobPackOrder(){
@@ -25216,7 +25252,7 @@ function _renderJobPackOrder(){
       }).join('');
   }
   var extras = o.extras ? '<div style="margin-top:14px"><strong style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Extras / notes</strong><div style="font-size:12px;margin-top:4px;white-space:pre-wrap">'+esc(o.extras)+'</div></div>' : '';
-  box.innerHTML = spec + flashHtml + extras;
+  box.innerHTML = spec + flashHtml + extras + _disclaimerHtml(ORDER_DISCLAIMER, false);
 }
 
 function refreshJobPack(){
