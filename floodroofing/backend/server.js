@@ -9,6 +9,16 @@ const { createClient } = require('@supabase/supabase-js');
 const app = express();
 const PORT = process.env.PORT || 3456;
 
+// Railway terminates TLS at its edge and forwards to us over plain HTTP, so
+// without this every request arrives reporting the edge's address as req.ip.
+// That is not a cosmetic logging problem: every bucket in the rate limiter
+// below is keyed on req.ip, so ALL traffic shared one bucket — five password
+// resets per 15 minutes across the entire platform, and an attacker
+// indistinguishable from everybody else. '1' = trust exactly one hop, the
+// Railway edge, so a client cannot forge the address by sending its own
+// X-Forwarded-For.
+app.set('trust proxy', 1);
+
 // Auth signing secret. NEVER fall back to a hardcoded string — a known
 // default would let anyone forge a token for any user_id and read/write
 // every job. If the env var is missing we generate a random per-boot
@@ -24,17 +34,37 @@ const JWT_SECRET = process.env.JWT_SECRET || (function () {
 // auth by design — the token IS the credential — so cap how fast anyone
 // can hammer them per IP+route).  Single-process is fine on Railway.
 const _rateBuckets = new Map();
-function rateLimit(maxPerWindow, windowMs) {
+// `keyFn` lets a route add a dimension of its own. Login uses it to count per
+// email as well as per IP, so one attacker cannot lock out a whole office
+// sitting behind one address, and cannot spray a single account from many
+// addresses either — both limits have to pass.
+function rateLimit(maxPerWindow, windowMs, keyFn) {
   return function (req, res, next) {
-    const key = req.ip + '|' + req.route.path;
+    const key = (keyFn ? keyFn(req) : req.ip) + '|' + req.route.path;
     const now = Date.now();
     let b = _rateBuckets.get(key);
-    if (!b || now - b.start > windowMs) { b = { start: now, n: 0 }; _rateBuckets.set(key, b); }
+    if (!b || now - b.start > windowMs) { b = { start: now, n: 0, w: windowMs }; _rateBuckets.set(key, b); }
     b.n++;
-    if (_rateBuckets.size > 5000) _rateBuckets.clear();   // memory backstop
+    // Memory backstop. Drop windows that have already expired rather than
+    // wiping the map: a blanket clear() is itself the bypass, because anyone
+    // able to push the map past the cap resets everybody's counter — including
+    // their own. Each bucket remembers its own window so a long-window route
+    // is not pruned early by a short-window one.
+    if (_rateBuckets.size > 5000) {
+      for (const [k, v] of _rateBuckets) if (now - v.start > v.w) _rateBuckets.delete(k);
+      if (_rateBuckets.size > 20000) _rateBuckets.clear();   // last resort
+    }
     if (b.n > maxPerWindow) return res.status(429).json({ error: 'Too many requests — slow down.' });
     next();
   };
+}
+
+// Normalised so BOB@x.co.nz and bob@x.co.nz cannot be counted separately.
+// Falls back to the address when no email was sent, so a malformed request
+// still lands in a bucket rather than a shared empty-string one.
+function _emailKey(req) {
+  const e = (((req.body || {}).email) || '').toString().trim().toLowerCase();
+  return e ? 'email:' + e : 'ip:' + req.ip;
 }
 
 // Supabase data client — ALL .from() queries run through this. It must stay on
@@ -130,6 +160,28 @@ const corsDelegate = function(req, cb){
   if (_publicQuoteRoute(req)) return cb(null, { origin: true, credentials: false });
   cb(null, corsOptions);
 };
+// Security headers. Hand-rolled rather than pulling in helmet: this process
+// answers JSON and nothing else — no HTML, no static assets — so the handful
+// of headers that actually apply are easier to read than a dependency's
+// defaults, and match how rateLimit above is done.
+//
+// The pages a person actually looks at are served by Vercel, not from here,
+// so the anti-framing that protects the customer quote page is set in
+// frontend/vercel.json as well. This covers the API responses.
+app.use(function (req, res, next) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  // A quote share token travels in the URL path, so never let it ride out in
+  // a Referer header to somebody else's server.
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Nothing here is a document: if a browser is pointed straight at an API
+  // response, it may not load anything or be framed by anyone.
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+  if (req.secure || req.headers['x-forwarded-proto'] === 'https')
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  next();
+});
+
 app.use(cors(corsDelegate));
 app.options('*', cors(corsDelegate));
 // Stripe signs the exact bytes it sends, so its webhook must see the RAW
@@ -1288,7 +1340,10 @@ app.delete('/team/domains/:id', requireAuth, requireOwner, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/auth/register', async (req, res) => {
+// Registration creates a company and starts a trial, and sends mail. Teams
+// arrive through /auth/accept-invite rather than here, so a human never needs
+// more than a handful an hour.
+app.post('/auth/register', rateLimit(5, 3600000), async (req, res) => {
   const { email, password, name, company } = req.body;
   // Self-registration is invite-gated: with it open, a stranger could
   // mint a trial account and spend the owner's Anthropic / Fergus keys
@@ -1396,7 +1451,11 @@ app.post('/auth/reset', rateLimit(10, 900000), async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/auth/login', async (req, res) => {
+// Two limits, both of which must pass: 20 attempts per address per 15 minutes
+// stops a single machine grinding, and 10 per email per 15 minutes stops a
+// distributed attempt at one account. Neither reveals whether the account
+// exists — a 429 comes back the same either way.
+app.post('/auth/login', rateLimit(20, 900000), rateLimit(10, 900000, _emailKey), async (req, res) => {
   const { email, password } = req.body;
   try {
     const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
