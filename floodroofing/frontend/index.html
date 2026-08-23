@@ -15327,6 +15327,12 @@ function _selDownpipeDelta(){
 // grade / thickness / bracket changes show as "Included" until a
 // price is configured for them.
 function _qpSelectionChanges(){
+  // A quote that was SENT carries its sell prices; read those rather than
+  // recomputing from cost and mark-up, which the customer's copy no longer
+  // has. The office (no priced block yet) falls through to the live
+  // calculation below, and pricegold.mjs holds the two to the same numbers.
+  var _P = _qpPriced();
+  if (_P) return _qpSelectionChangesPriced(_P);
   var q = S.quote || {};
   var p = q.proposalOptions || {};
   var gp = q.gutterPrices || {};
@@ -15386,6 +15392,117 @@ function _qpSelectionChanges(){
   }
   return out;
 }
+// ── SELL PRICES, NOT COST AND MARKUP ────────────────────────────────
+// The customer's page runs this same file, and it used to recompute every
+// selection price locally — grade delta as a percentage of materialBase,
+// gutter charge off the unit prices and the mark-up, scaffolding off
+// scaffoldBase. Which meant the JSON their browser received had to contain
+// materialBase, roofMaterialMarkup, gutterMaterialMarkup, scaffoldBase and
+// labourRatesCustom. Open devtools on a quote and you could read the roofer's
+// cost and margin.
+//
+// The office prices every option ONCE, at send, and the quote carries the sell
+// prices only. The customer's page adds them up. Nothing about what a job cost
+// to buy needs to leave the office.
+//
+// Every entry here is a price the customer could already work out by clicking
+// the option, so the block itself discloses nothing new.
+function _qpBuildPriced(){
+  var q = (window.S && S.quote) || {};
+  var p = q.proposalOptions || {};
+  var lm = _selGutterLm();
+  var out = {
+    v: 1,
+    gstRate: (q.gstRate || 0),
+    base: _qpBaseSub(),
+    // Per grade, measured against baseGrade exactly as the live calc does.
+    grade: {}, gradeLabel: {},
+    // The gauge upgrade, whether reached through the gauge picker or through a
+    // profile that locks it.
+    gaugeUpgrade: _selGauge55Delta(),
+    profileLocks: {}, profileLabel: {},
+    // COMPUTED gutter charge per product. The office's lump-sum override is
+    // kept apart because it follows whichever gutter is picked — reproducing
+    // that quirk rather than quietly fixing it keeps prices identical.
+    gutter: {}, gutterLabel: {}, gutterUplift: {},
+    gutterOverride: null,
+    bracketExt: {},
+    scaffoldUplift: 0.25 * _selScaffoldBasePrice(),
+    // Priced independently of what is selected right now: _selDownpipeDelta()
+    // answers 0 while no gutter is picked, and building the block at that
+    // moment would freeze downpipes at nothing for the whole quote. The reader
+    // gates them on a gutter being chosen instead.
+    downpipes: (function(){
+      if (_gutterExcluded()) return 0;
+      var ov = parseFloat(q.downpipePriceOverride);
+      if (isFinite(ov) && ov >= 0) return ov;
+      return _downpipeUnitPrice() * _selGutterLineCount();
+    })(),
+    extraRoof: (q.extraRoofs || []).map(function(rr){ return parseFloat(rr.price) || 0; }),
+    extraRoofLabel: (q.extraRoofs || []).map(function(rr, i){ return rr.name || ('Roof ' + (i + 2)); }),
+    gutterExcluded: !!_gutterExcluded()
+  };
+  var ovRaw = parseFloat(q.gutterPriceOverride);
+  if (isFinite(ovRaw) && ovRaw >= 0) out.gutterOverride = ovRaw;
+  _selGradesAll().forEach(function(g){
+    out.grade[g.id] = _selGradeDelta(g.id);
+    out.gradeLabel[g.id] = g.name || g.id;
+  });
+  _selProfilesAll().forEach(function(pr){
+    out.profileLocks[pr.id] = _selProfileLocksGauge(pr.id);
+    out.profileLabel[pr.id] = pr.name || pr.id;
+  });
+  _selGuttersAll().forEach(function(gt){
+    out.gutter[gt.id] = _gutterExcluded() ? 0 : _gutterTotalCharge(gt.id, lm);
+    out.gutterLabel[gt.id] = gt.name || gt.id;
+    out.gutterUplift[gt.id] = (gt.scaffoldUplift !== false);
+    out.bracketExt[gt.id] = _gutterExcluded() ? 0 : (_bracketExtPerLm(gt.id) * lm);
+  });
+  // Downpipes are priced per gutter LINE and do not vary by product, but they
+  // are only charged once a gutter is on — mirrored by the reader.
+  return out;
+}
+// The priced block a customer page should read, if this quote carries one.
+function _qpPriced(){
+  var pr = (window.S && S.quote && S.quote.share && S.quote.share.priced);
+  return (pr && pr.v === 1) ? pr : null;
+}
+// The same selection list as the live calculation, built from stored sell
+// prices. Kept beside _qpSelectionChanges deliberately: the two must produce
+// identical labels and deltas, and pricegold.mjs is what proves they do.
+function _qpSelectionChangesPriced(P){
+  var q = (window.S && S.quote) || {};
+  var p = q.proposalOptions || {};
+  var out = [];
+  var erSel = (p.extraRoofsSel && typeof p.extraRoofsSel === 'object') ? p.extraRoofsSel : {};
+  (P.extraRoof || []).forEach(function(price, i){
+    if (erSel[i] && price > 0)
+      out.push({ label: 'Optional extra roof — ' + ((P.extraRoofLabel || [])[i] || ('Roof ' + (i + 2))), delta: price });
+  });
+  var baseG = q.baseGrade || 'maxam';
+  if (p.steelGrade && p.steelGrade !== baseG && P.grade[p.steelGrade] != null)
+    out.push({ label: (P.gradeLabel[p.steelGrade] || p.steelGrade) + ' steel', delta: P.grade[p.steelGrade] });
+  var lock = (P.profileLocks || {})[p.profile] || '';
+  if (lock)
+    out.push({ label: (P.profileLabel[p.profile] || p.profile) + ' profile (supplied in 0.' + lock + ' gauge)',
+               delta: P.gaugeUpgrade });
+  else if (p.steelThickness && p.steelThickness !== '40')
+    out.push({ label: '0.55 gauge steel', delta: P.gaugeUpgrade });
+  if (p.gutterType !== undefined && P.gutter[p.gutterType] != null) {
+    // The override follows the selection, exactly as the live calc does.
+    var gd = (P.gutterOverride != null && !P.gutterExcluded) ? P.gutterOverride : P.gutter[p.gutterType];
+    out.push({ label: P.gutterLabel[p.gutterType] || p.gutterType, delta: gd });
+    var up = (P.gutterUplift[p.gutterType] === false) ? 0 : P.scaffoldUplift;
+    if (up > 0)
+      out.push({ label: 'Platform scaffolding upgrade (from edge protection — required to install guttering safely)', delta: up });
+    if ((p.gutterBracket || 'internal') === 'external')
+      out.push({ label: 'External gutter brackets', delta: P.bracketExt[p.gutterType] || 0 });
+    if (p.downpipes === 'yes')
+      out.push({ label: 'New downpipes', delta: P.downpipes || 0 });
+  }
+  return out;
+}
+
 function _qpSelectionDeltaSum(){
   return _qpSelectionChanges().reduce(function(s, c){ return s + c.delta; }, 0);
 }
@@ -16435,6 +16552,14 @@ function _customerLinkString(){
   try {
     S.quote.selectablesSnapshot = JSON.parse(JSON.stringify(
       (S.settings && S.settings.selectables) || _defaultSelectables()));
+  } catch (e) {}
+  // Price every option the customer can pick, once, here. From this point the
+  // quote carries sell prices and the customer's copy has no need of the cost
+  // basis or the mark-ups — which is what lets the backend strip them.
+  // Rebuilt on every send, so a requoted job sends current prices.
+  try {
+    S.quote.share = S.quote.share || {};
+    S.quote.share.priced = _qpBuildPriced();
   } catch (e) {}
   try {
     S.quote.share = S.quote.share || {};

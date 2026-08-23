@@ -2019,11 +2019,89 @@ function _shareActionsExpired(job, quote){
 // rather than taken on trust. The band is wide on purpose — a customer
 // legitimately drops a roof or picks a dearer grade — it is there to catch a
 // figure that cannot be a real answer to this quote.
-function _acceptedTotalPlausible(quote, acceptedTotal){
+// Recompute what the picked options SHOULD cost, from the sell prices the
+// office stored at send. Mirrors _qpSelectionChangesPriced in the frontend;
+// pricegold.mjs is what holds the two together.
+// Returns null when the quote carries no priced block — nothing to check
+// against, so nothing is rejected on a guess.
+function _expectedTotalFor(quote, opts){
+  const P = ((quote || {}).share || {}).priced;
+  if (!P || P.v !== 1) return null;
+  const p = opts || {};
+  let sub = Number(P.base) || 0;
+  const sel = (p.extraRoofsSel && typeof p.extraRoofsSel === 'object') ? p.extraRoofsSel : {};
+  (P.extraRoof || []).forEach(function (price, i) { if (sel[i] && price > 0) sub += Number(price) || 0; });
+  const baseG = quote.baseGrade || 'maxam';
+  if (p.steelGrade && p.steelGrade !== baseG && P.grade && P.grade[p.steelGrade] != null)
+    sub += Number(P.grade[p.steelGrade]) || 0;
+  const lock = (P.profileLocks || {})[p.profile] || '';
+  if (lock) sub += Number(P.gaugeUpgrade) || 0;
+  else if (p.steelThickness && p.steelThickness !== '40') sub += Number(P.gaugeUpgrade) || 0;
+  if (p.gutterType && P.gutter && P.gutter[p.gutterType] != null) {
+    sub += (P.gutterOverride != null && !P.gutterExcluded)
+      ? Number(P.gutterOverride) || 0
+      : Number(P.gutter[p.gutterType]) || 0;
+    if ((P.gutterUplift || {})[p.gutterType] !== false) sub += Number(P.scaffoldUplift) || 0;
+    if ((p.gutterBracket || 'internal') === 'external') sub += Number((P.bracketExt || {})[p.gutterType]) || 0;
+    if (p.downpipes === 'yes') sub += Number(P.downpipes) || 0;
+  }
+  return sub * (1 + (Number(P.gstRate) || 0) / 100);
+}
+// The customer's browser reports the total it computed, and that figure sizes a
+// deposit invoice. With a priced block we can check it exactly rather than
+// guess at a plausible band — a cent of tolerance for floating point, no more.
+// Without one (a quote sent before this shipped) fall back to the band.
+function _acceptedTotalPlausible(quote, acceptedTotal, opts){
+  const expected = _expectedTotalFor(quote, opts || (quote || {}).proposalOptions);
+  if (expected != null && expected > 0) {
+    if (!isFinite(acceptedTotal) || acceptedTotal <= 0) return false;
+    return Math.abs(acceptedTotal - expected) <= 0.01;
+  }
   const sent = Number((((quote || {}).share) || {}).sentTotal);
   if (!isFinite(sent) || sent <= 0) return true;      // no anchor to judge against
   if (!isFinite(acceptedTotal) || acceptedTotal <= 0) return false;
   return acceptedTotal >= sent * 0.2 && acceptedTotal <= sent * 5;
+}
+
+// ── WHAT A CUSTOMER'S BROWSER IS ALLOWED TO SEE ─────────────────────
+// This route used to answer with the whole quote object, and the customer's
+// page recomputed every option price locally from it. That meant the JSON in
+// their browser carried the roofer's cost basis and margin: materialBase,
+// roofMaterialMarkup, gutterMaterialMarkup, scaffoldBase, labourRatesCustom,
+// roofLabour. Open devtools on a quote you were sent and you could read what
+// the job cost to buy and what the roofer was making on it.
+//
+// The office now prices every option before sending (share.priced), so the page
+// adds up stored sell prices and needs none of that. These fields are removed
+// on the way out.
+//
+// A DENYLIST rather than an allowlist, deliberately: the proposal is a large,
+// still-growing document — photos, maps, scope, terms, layout — and an
+// allowlist would silently blank a new display field the day someone added
+// one. The list below is the commercially sensitive set, and the test asserts
+// each name individually so adding a cost field without thinking about it
+// fails the suite.
+const CUSTOMER_HIDDEN_FIELDS = [
+  'materialBase', 'scaffoldBase', 'scaffoldCustom',
+  'roofMaterialMarkup', 'gutterMaterialMarkup',
+  'roofMatQtyBuffer', 'gutterMatQtyBuffer',
+  'labourRatesCustom', 'labourCalc', 'labourHrsManual', 'labour',
+  'roofLabour', 'roofLabourCalc', 'gutterLabour',
+  'gutterPrices', 'gutterUnitPrices', 'selectionPrices',
+  'psSubtotal', 'shedEst', 'showLabourCalc',
+];
+function _customerQuoteView(quote){
+  if (!quote || typeof quote !== 'object') return quote;
+  // Only strip once the quote actually carries sell prices. A quote sent
+  // before this shipped has no priced block, so its page still recomputes —
+  // stripping those would leave a customer looking at a broken proposal.
+  const priced = ((quote.share || {}).priced);
+  if (!priced || priced.v !== 1) return quote;
+  const out = {};
+  for (const k of Object.keys(quote)) {
+    if (CUSTOMER_HIDDEN_FIELDS.indexOf(k) < 0) out[k] = quote[k];
+  }
+  return out;
 }
 
 app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
@@ -2057,7 +2135,7 @@ app.get('/q/:token', rateLimit(60, 60000), async (req, res) => {
     // accepted. The flag lets the page say so and hide the Accept button.
     const _exp = _shareExpiresAt(job, quote);
     res.json({
-      quote: quote,
+      quote: _customerQuoteView(quote),
       branding: (settings && settings.branding) || {},
       expired: _shareActionsExpired(job, quote),
       expiresAt: _exp ? _exp.toISOString() : null,
