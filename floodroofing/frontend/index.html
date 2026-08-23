@@ -804,6 +804,8 @@ html.site-mode #fergusRoofPanel{width:100vw!important;max-width:100vw}
 html.site-mode #fergusRoofPanelToggle,
 html.site-mode #fergusRoofPanelResize{display:none!important}
 /* 4. Bottom toolbar tightened so all 8 fit a 390px screen. */
+.rl-site-only{display:none}
+html.site-mode .rl-site-only{display:flex}
 html.site-mode #tabletToolbar{gap:2px;padding-left:4px;padding-right:4px}
 html.site-mode .ttb-btn{font-size:9px;padding:6px 1px;gap:2px}
 html.site-mode .ttb-btn .ttb-ico{font-size:18px}
@@ -3820,6 +3822,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             <button onclick="setTool('boxedpen');closeRoofLinesMenu()" id="btn-boxedpen" onmouseenter="showTip('btn-boxedpen',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#475569;border-color:#475569;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">▭ Boxed Penetration</button>
             <button onclick="setTool('sheetmeas');closeRoofLinesMenu()" id="btn-sheetmeas" onmouseenter="showTip('btn-sheetmeas',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">📏 Sheet measure</button>
             <button onclick="setTool('info');closeRoofLinesMenu()" id="btn-info" onmouseenter="showTip('btn-info',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#d97706;border-color:#d97706;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0">✳ Add Info</button>
+            <div class="rl-site-only" style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:8px 6px 6px;border-top:1px solid #eef1f5;margin-top:6px">Material order</div>
+            <button onclick="_siteFlashSheet()" id="btn-siteflash" class="tool-btn rl-site-only" style="color:#14b8a6;border-color:#14b8a6;width:100%;justify-content:flex-start;text-align:left;margin:0">🧾 Add flashing</button>
           </div>
         </div>
 
@@ -28910,6 +28914,134 @@ function _phoneSetRoofImage(){
     var f = document.getElementById('roofFile');
     if (f) f.click();
   };
+}
+// Site mode: add a flashing to the material order without leaving the roof.
+// The Order tab's flashing card is a desktop table — fine at a desk, useless
+// on a roof with one hand on the ladder. This is the same data (S.order
+// .flashings, the list the material order and the supplier email read) put
+// behind thumb-sized controls, and it stays open so a whole elevation can be
+// walked and entered one flashing after another.
+function _siteFlashSheet(){
+  try { closeRoofLinesMenu(); } catch(e){}
+  try { _tabletNavToggle(false); } catch(e){}
+  if (!S.order) S.order = { deliveryMode:'yard', flashings:[], cutList:[], ridging:'standard' };
+  if (!Array.isArray(S.order.flashings)) S.order.flashings = [];
+  var prev = document.getElementById('_flashSheet'); if (prev) prev.remove();
+
+  var w = document.createElement('div');
+  w.id = '_flashSheet';
+  w.style.cssText = 'position:fixed;inset:0;z-index:100055;background:rgba(10,22,40,.5);display:flex;align-items:flex-end';
+  w.innerHTML =
+    '<div style="width:100%;max-height:92vh;overflow:auto;background:#fff;border-radius:16px 16px 0 0;' +
+         'padding:16px 14px calc(16px + env(safe-area-inset-bottom, 0px));font-family:inherit">' +
+      '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:3px">' +
+        '<div style="font-size:14px;font-weight:800;color:#0a1628">Flashings</div>' +
+        '<div id="_fsCount" style="font-size:11px;color:#64748b"></div>' +
+      '</div>' +
+      '<div style="font-size:12px;color:#64748b;margin-bottom:12px">Measured on the roof, straight onto the material order.</div>' +
+      '<div id="_fsList" style="margin-bottom:12px"></div>' +
+      '<div style="border-top:1px solid #e6eaf0;padding-top:12px">' +
+        '<label style="display:block;font-size:11px;font-weight:700;color:#0a1628;margin-bottom:4px">Type</label>' +
+        '<select id="_fsType" style="width:100%;margin:0 0 10px;font-size:14px;padding:11px 10px;border:1.5px solid #cbd5e1;border-radius:10px;font-family:inherit"></select>' +
+        '<label style="display:block;font-size:11px;font-weight:700;color:#0a1628;margin-bottom:4px">How many</label>' +
+        '<input id="_fsQty" type="number" inputmode="numeric" min="1" step="1" value="1" ' +
+          'style="width:100%;margin:0 0 10px;font-size:14px;padding:11px 10px;border:1.5px solid #cbd5e1;border-radius:10px;font-family:inherit">' +
+        '<label style="display:block;font-size:11px;font-weight:700;color:#0a1628;margin-bottom:4px">Faces — one per bend section (mm)</label>' +
+        '<div id="_fsFaces"></div>' +
+        '<button id="_fsAddFace" type="button" style="margin:2px 0 12px;padding:8px 12px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer">+ Another face</button>' +
+        '<button id="_fsAdd" type="button" style="width:100%;padding:13px;margin-bottom:9px;background:#0a1628;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer">Add to the order</button>' +
+        '<div id="_fsMsg" style="font-size:12px;font-weight:600;color:#15803d;min-height:16px;text-align:center;margin-bottom:4px"></div>' +
+      '</div>' +
+      '<button id="_fsDone" type="button" style="width:100%;padding:11px;background:transparent;color:#64748b;border:none;font-size:13px;font-family:inherit;cursor:pointer">Done</button>' +
+    '</div>';
+  document.body.appendChild(w);
+
+  var faceCount = 2;
+  function renderFaces(keep){
+    var box = w.querySelector('#_fsFaces');
+    var had = keep ? Array.prototype.map.call(box.querySelectorAll('[data-face]'), function(i){ return i.value; }) : [];
+    var html = '';
+    for (var i = 0; i < faceCount; i++){
+      html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:7px">' +
+        '<span style="width:56px;font-size:12px;font-weight:700;color:#64748b">Face ' + String.fromCharCode(65+i) + '</span>' +
+        '<input data-face="' + i + '" type="number" inputmode="numeric" min="0" placeholder="mm" value="' + (had[i] || '') + '" ' +
+          'style="flex:1;margin:0;font-size:14px;padding:11px 10px;border:1.5px solid #cbd5e1;border-radius:10px;font-family:inherit">' +
+        (i >= 2 ? '<button type="button" data-rmface="' + i + '" style="background:none;border:none;color:#b91c1c;font-size:20px;line-height:1;padding:4px 8px;cursor:pointer">×</button>' : '') +
+      '</div>';
+    }
+    box.innerHTML = html;
+    Array.prototype.forEach.call(box.querySelectorAll('[data-rmface]'), function(btn){
+      btn.onclick = function(){ faceCount = Math.max(2, faceCount - 1); renderFaces(true); };
+    });
+  }
+  // What is already on the order, so the roofer can see the elevation building
+  // up and spot a double-entry before it reaches the supplier.
+  function renderList(){
+    var list = S.order.flashings || [];
+    w.querySelector('#_fsCount').textContent = list.length ? (list.length + ' on this job') : '';
+    var box = w.querySelector('#_fsList');
+    if (!list.length){
+      box.innerHTML = '<div style="font-size:12px;color:#94a3b8;font-style:italic">Nothing on the order yet.</div>';
+      return;
+    }
+    box.innerHTML = list.map(function(f, i){
+      var lens = (f.faces || []).map(function(x){ return x.length; }).filter(function(x){ return x !== '' && x != null; }).join(' / ');
+      return '<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #f1f4f8">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:13px;font-weight:700;color:#0a1628">' + esc(f.type || 'Flashing') +
+            ((+f.qty > 1) ? ' <span style="color:#64748b;font-weight:600">×' + (+f.qty) + '</span>' : '') + '</div>' +
+          (lens ? '<div style="font-size:11.5px;color:#64748b">' + esc(lens) + ' mm</div>' : '') +
+        '</div>' +
+        '<button type="button" data-rmflash="' + i + '" style="background:none;border:none;color:#b91c1c;font-size:20px;line-height:1;padding:4px 8px;cursor:pointer">×</button>' +
+      '</div>';
+    }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('[data-rmflash]'), function(btn){
+      btn.onclick = function(){
+        S.order.flashings.splice(parseInt(btn.getAttribute('data-rmflash'), 10), 1);
+        _siteFlashSync(); renderList();
+      };
+    });
+  }
+
+  var types = (typeof _flashingTypeOptions === 'function') ? _flashingTypeOptions() : [];
+  w.querySelector('#_fsType').innerHTML = types.map(function(t){
+    return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
+  }).join('');
+  renderFaces(false);
+  renderList();
+
+  function close(){ w.remove(); }
+  w.onclick = function(ev){ if (ev.target === w) close(); };
+  w.querySelector('#_fsDone').onclick = close;
+  w.querySelector('#_fsAddFace').onclick = function(){ faceCount++; renderFaces(true); };
+  w.querySelector('#_fsAdd').onclick = function(){
+    var faces = Array.prototype.map.call(w.querySelectorAll('[data-face]'), function(inp, i){
+      return { label: 'Face ' + String.fromCharCode(65+i), length: inp.value };
+    });
+    var qty = parseInt(w.querySelector('#_fsQty').value, 10);
+    S.order.flashings.push({
+      type: w.querySelector('#_fsType').value || 'Flashing',
+      qty: (qty > 0 ? qty : 1),
+      faces: faces, lineBreaks: '', notes: '', sketch: ''
+    });
+    _siteFlashSync();
+    // The form empties but the sheet stays up — an elevation is several
+    // flashings, and reopening the sheet for each one is the reason nobody
+    // would use this on a roof.
+    faceCount = 2; renderFaces(false);
+    w.querySelector('#_fsQty').value = '1';
+    renderList();
+    var msg = w.querySelector('#_fsMsg');
+    msg.textContent = '\u2713 Added';
+    setTimeout(function(){ if (msg) msg.textContent = ''; }, 1600);
+  };
+}
+// One write, everywhere it has to land: the Order tab's own list (when that
+// tab has been rendered) and the job's saved copy.
+function _siteFlashSync(){
+  try { if (typeof _renderFlashings === 'function') _renderFlashings(); } catch(e){}
+  try { if (typeof _updateSavedFlashCount === 'function') _updateSavedFlashCount(); } catch(e){}
+  try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
 }
 // Phone: the roof-shape chooser is a sheet above the toolbar. Once a shape is
 // picked it collapses to a handle so the drawing gets the screen back; the
