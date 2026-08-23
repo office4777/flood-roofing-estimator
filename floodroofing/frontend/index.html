@@ -5861,6 +5861,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)" style="display:none">Job Management</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
         <div class="set-grp">Pricing</div>
+        <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI()">Products</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-pricebook',this)">Price book</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers &amp; materials</button>
@@ -6005,6 +6006,17 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <!-- BILLING — the business's own subscription: where it stands and the
          three ways up. Cards and cancellation live in Stripe's portal, so
          no card number ever touches this page. -->
+    <div class="sub-panel settings-sub" id="set-products" style="margin-top:14px">
+      <div class="card-hd"><span class="card-dot"></span>Products you sell</div>
+      <p style="font-size:12px;color:var(--text2);margin:0 0 12px">
+        The steel grades, roof profiles and gutters your customers choose from on a quote.
+        Remove what you don't sell, add what you do. <strong>Quotes you have already sent keep the
+        products they were sent with</strong> — removing something here only affects new quotes.
+      </p>
+      <div id="selectablesUI"></div>
+      <p style="font-size:11px;color:var(--text2);margin-top:10px">Click <strong>Save settings</strong> to keep any change.</p>
+    </div>
+
     <div class="sub-panel settings-sub" id="set-billing" style="margin-top:14px">
       <div id="billingBody" style="font-size:13px"></div>
     </div>
@@ -6945,6 +6957,11 @@ function defaultSettings(){
     // from the drawing (roof area + flashing totals + computed rolls/
     // screws/rivets); price book × quantity = the Materials line on
     // the Quote tab.
+    // Products this business sells — steel grades, sheet profiles and gutter
+    // profiles, editable in Settings → Products. null means "the shipped
+    // list", so an account that has never touched it still gets defaults from
+    // _defaultSelectables() rather than an empty picker.
+    selectables: null,
     price_book: {
       // ── Indicative list prices, NOT anybody's negotiated rates ──
       // These used to be zeroes, which was safe and useless: a business that
@@ -8187,12 +8204,14 @@ function renderMaterialPriceTable(){
 // the material subtotal so the quoted material cost reflects the chosen grade.
 function _gradeFactor(grade){
   if (grade == null) grade = (S.quote && S.quote.proposalOptions && S.quote.proposalOptions.steelGrade) || 'maxam';
-  var pct = (typeof SEL_GRADE_PCT !== 'undefined' && SEL_GRADE_PCT) ? SEL_GRADE_PCT[grade] : 0;
+  var pct = (typeof _selGradePctOf === 'function') ? _selGradePctOf(grade) : 0;
   return 1 + (pct || 0);
 }
 function _gradeLabel(grade){
-  var M = { maxam:'Colorsteel® MAXAM', colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume®' };
-  return M[grade] || 'MAXAM';
+  var g = (typeof _selGradeOf === 'function') ? _selGradeOf(grade) : null;
+  if (g && g.name) return g.name;
+  var first = (typeof _selGrades === 'function') ? _selGrades()[0] : null;
+  return (first && first.name) || 'MAXAM';
 }
 // Two separate percentages on materials, because they are two different
 // decisions an estimator makes:
@@ -13099,6 +13118,9 @@ function calcLabour(){
 // office ticks "Exclude gutter pricing" (on this card or on the Guttering
 // panel of the Selections page) and guttering stops being priced here AND
 // stops being offered anywhere on the customer's quote.
+// Live list of gutter product ids the office can price against.
+function GUTTER_PRICE_TYPES_LIST(){ return _selGutters().map(function(g){ return g.id; }); }
+// The shipped ids, kept as a fallback name; readers use the function above.
 var GUTTER_PRICE_TYPES = ['box125', 'marley_typhoon', 'marley_classic'];
 var GUTTER_TYPE_NAMES = { box125:'125mm Colorsteel Box Gutter', marley_typhoon:'Marley Typhoon (PVC)', marley_classic:'Marley Classic (PVC)' };
 function _gutterExcluded(){ return !!(window.S && S.quote && S.quote.gutterExcluded); }
@@ -13114,10 +13136,12 @@ function _gutterOnQuote(){
 function _gutterPricingType(){
   var q = (window.S && S.quote) || {}, p = q.proposalOptions || {};
   if (p.gutterType && p.gutterType !== 'none') return p.gutterType;
-  return (GUTTER_PRICE_TYPES.indexOf(q.gutterPricingType) >= 0) ? q.gutterPricingType : 'marley_typhoon';
+  var ids = GUTTER_PRICE_TYPES_LIST();
+  if (ids.indexOf(q.gutterPricingType) >= 0) return q.gutterPricingType;
+  return ids[0] || 'marley_typhoon';
 }
 function _setGutterPricingType(v){
-  if (!S.quote || GUTTER_PRICE_TYPES.indexOf(v) < 0) return;
+  if (!S.quote || GUTTER_PRICE_TYPES_LIST().indexOf(v) < 0) return;
   S.quote.gutterPricingType = v;
   // One control, one state: if a gutter is genuinely selected on the quote,
   // repricing against a different product means changing that selection too.
@@ -13251,7 +13275,7 @@ function renderGutterDownpipePricing(){
   // taken guttering up this IS their pick, so changing it changes their
   // selection; otherwise it's just the basis the office is costing against.
   var typePicker = '<select onchange="_setGutterPricingType(this.value)" style="font-size:12px;padding:5px 8px;max-width:250px">'+
-      GUTTER_PRICE_TYPES.map(function(id){
+      GUTTER_PRICE_TYPES_LIST().map(function(id){
         return '<option value="'+id+'"'+(id===gtype?' selected':'')+'>'+esc(GUTTER_TYPE_NAMES[id])+'</option>';
       }).join('')+
     '</select>';
@@ -14665,7 +14689,212 @@ function _gutterDelta(){
 // The base material cost + gutter lm are stashed on the quote when it's
 // built office-side (see refreshQuoteProposal) so the customer-facing
 // share link prices identically without the roof drawing.
-var SEL_GRADE_PCT   = { maxam: 0, colorzen: -0.138, colourcote: -0.07, zincalume: -0.327 };
+// ── THE PRODUCTS A ROOFING BUSINESS ACTUALLY SELLS ──────────────────
+// Steel grades, sheet profiles and gutter profiles were three hard-coded
+// constants, so every subscriber sold exactly what Flood Roofing sells. They
+// are a per-company list now, editable in Settings → Products.
+//
+// Two things make this more than a list of names and prices:
+//
+//  1. Some picks carry RULES, not just a rate. 5-Rib is only supplied in 0.55
+//     gauge, so choosing it locks the gauge and folds that upgrade into its
+//     own price. Choosing any gutter lifts the site from edge protection to a
+//     working platform — 25% on scaffolding. External brackets are charged per
+//     lm at a rate that differs by profile. A product added without those
+//     answers would quote without the upgrade, which is a real under-quote on
+//     a real roof, so the form asks for them rather than assuming.
+//
+//  2. A quote already SENT names its products by id. If the office later
+//     reprices or removes one, the customer has to keep seeing what they were
+//     sent. So sending stamps a snapshot onto the quote and every reader
+//     prefers that snapshot; removal only hides a product from NEW quotes.
+// ── SETTINGS → PRODUCTS ─────────────────────────────────────────────
+// Editing writes straight into S.settings.selectables and redraws. Nothing is
+// persisted until the roofer clicks Save settings, same as every other panel.
+function _selWorking(){
+  if (!S.settings) S.settings = {};
+  if (!S.settings.selectables) S.settings.selectables = _defaultSelectables();
+  var w = S.settings.selectables;
+  if (!Array.isArray(w.grades))   w.grades   = _defaultSelectables().grades;
+  if (!Array.isArray(w.profiles)) w.profiles = _defaultSelectables().profiles;
+  if (!Array.isArray(w.gutters))  w.gutters  = _defaultSelectables().gutters;
+  return w;
+}
+function _selKindList(kind){ var w = _selWorking(); return w[kind] || []; }
+function _selEdit(kind, i, field, val){
+  var list = _selKindList(kind), row = list[i]; if (!row) return;
+  if (field === 'pct' || field === 'extBracketLm') {
+    var n = parseFloat(val); row[field] = isFinite(n) ? n : 0;
+  } else if (field === 'scaffoldUplift' || field === 'base') {
+    row[field] = !!val;
+    // Exactly one grade is the base every other delta is measured from.
+    if (field === 'base' && val) list.forEach(function(o, j){ if (j !== i) o.base = false; });
+  } else {
+    row[field] = String(val == null ? '' : val);
+  }
+  renderSelectablesUI();
+  try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
+}
+// Removed, not deleted: a quote that already names this product still has to
+// resolve it. Hidden from new quotes, restorable here.
+function _selRemove(kind, i){
+  var row = _selKindList(kind)[i]; if (!row) return;
+  if (row.base) { alert('That is the grade every other price is measured against. Make another grade the base first.'); return; }
+  row.removed = true; renderSelectablesUI();
+}
+function _selRestore(kind, i){
+  var row = _selKindList(kind)[i]; if (!row) return;
+  delete row.removed; renderSelectablesUI();
+}
+function _selAdd(kind){
+  var list = _selKindList(kind);
+  var id = kind.slice(0, 1) + '_' + Date.now().toString(36);
+  if (kind === 'grades')        list.push({ id: id, name: 'New grade', pct: 0, desc: '' });
+  else if (kind === 'profiles') list.push({ id: id, name: 'New profile', locksGauge: '', desc: '' });
+  else                          list.push({ id: id, name: 'New gutter', scaffoldUplift: true, extBracketLm: 0, desc: '' });
+  renderSelectablesUI();
+}
+function _selResetAll(){
+  if (!confirm('Put the steel grades, profiles and gutters back to the ones RoofMap ships with?\n\nQuotes you have already sent are not affected.')) return;
+  S.settings.selectables = _defaultSelectables();
+  renderSelectablesUI();
+}
+function renderSelectablesUI(){
+  var box = document.getElementById('selectablesUI'); if (!box) return;
+  var w = _selWorking();
+  var inp = function(kind, i, f, v, ph, extra){
+    return '<input value="' + esc(v == null ? '' : String(v)) + '" placeholder="' + esc(ph || '') + '"' +
+      (extra || '') + ' onchange="_selEdit(\'' + kind + '\',' + i + ',\'' + f + '\',this.value)" ' +
+      'style="width:100%;font-size:12px;padding:5px 7px;margin:0">';
+  };
+  var section = function(kind, title, blurb, cols, rowCells){
+    var list = w[kind] || [];
+    var body = list.map(function(r, i){
+      var dim = r.removed ? 'opacity:.45' : '';
+      return '<tr style="' + dim + '">' + rowCells(r, i) +
+        '<td style="text-align:right;white-space:nowrap">' +
+          (r.removed
+            ? '<button type="button" onclick="_selRestore(\'' + kind + '\',' + i + ')" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline;padding:0">restore</button>'
+            : '<button type="button" onclick="_selRemove(\'' + kind + '\',' + i + ')" title="Remove" style="width:24px;height:24px;border:none;border-radius:6px;background:#f1f5f9;color:#64748b;font-size:12px;cursor:pointer">✕</button>') +
+        '</td></tr>';
+    }).join('');
+    return '<div style="margin-bottom:20px">' +
+      '<div style="font-size:12.5px;font-weight:700;margin-bottom:2px">' + title + '</div>' +
+      '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">' + blurb + '</div>' +
+      '<table class="price-tbl" style="table-layout:fixed"><thead><tr>' + cols + '<th style="width:52px"></th></tr></thead>' +
+      '<tbody>' + (body || '<tr><td colspan="9" style="color:var(--text2);font-size:11.5px;padding:10px">None yet.</td></tr>') + '</tbody></table>' +
+      '<button type="button" onclick="_selAdd(\'' + kind + '\')" style="margin-top:6px;padding:6px 14px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">＋ Add</button>' +
+      '</div>';
+  };
+
+  box.innerHTML =
+    section('grades', 'Steel grades',
+      'The price difference is a percentage of the material cost, measured against whichever grade is ticked as the base. A dearer grade is a positive number, a cheaper one negative.',
+      '<th>Name</th><th style="width:96px">Price diff %</th><th style="width:64px">Base</th><th>Shown to the customer as</th>',
+      function(r, i){
+        return '<td>' + inp('grades', i, 'name', r.name, 'Grade name') + '</td>' +
+          '<td>' + inp('grades', i, 'pct', (r.pct == null ? 0 : (r.pct * 100).toFixed(1)), '0', ' type="number" step="0.1"') + '</td>' +
+          '<td style="text-align:center"><input type="radio" name="selBaseGrade" ' + (r.base ? 'checked' : '') +
+            ' onchange="_selEdit(\'grades\',' + i + ',\'base\',true)" style="width:auto;margin:0"></td>' +
+          '<td>' + inp('grades', i, 'desc', r.desc, 'Short description') + '</td>';
+      }) +
+    section('profiles', 'Roof profiles',
+      'If a profile is only supplied in one gauge, put it here — choosing that profile then locks the gauge and folds the upgrade into its price, instead of the charge appearing from nowhere.',
+      '<th>Name</th><th style="width:110px">Locks gauge</th><th>Shown to the customer as</th>',
+      function(r, i){
+        return '<td>' + inp('profiles', i, 'name', r.name, 'Profile name') + '</td>' +
+          '<td><select onchange="_selEdit(\'profiles\',' + i + ',\'locksGauge\',this.value)" style="width:100%;font-size:12px;padding:4px 6px;margin:0">' +
+            '<option value=""' + (!r.locksGauge ? ' selected' : '') + '>No</option>' +
+            '<option value="40"' + (r.locksGauge === '40' ? ' selected' : '') + '>0.40 only</option>' +
+            '<option value="55"' + (r.locksGauge === '55' ? ' selected' : '') + '>0.55 only</option>' +
+          '</select></td>' +
+          '<td>' + inp('profiles', i, 'desc', r.desc, 'Short description') + '</td>';
+      }) +
+    section('gutters', 'Gutter profiles',
+      'Fitting a gutter usually lifts the site from edge protection to a working platform — 25% on the scaffolding. Leave that ticked unless this product genuinely does not. The bracket rate is the per-lm upcharge when the customer picks external brackets.',
+      '<th>Name</th><th style="width:96px">Scaffold +25%</th><th style="width:110px">Ext bracket $/lm</th><th>Shown to the customer as</th>',
+      function(r, i){
+        return '<td>' + inp('gutters', i, 'name', r.name, 'Gutter name') + '</td>' +
+          '<td style="text-align:center"><input type="checkbox" ' + (r.scaffoldUplift === false ? '' : 'checked') +
+            ' onchange="_selEdit(\'gutters\',' + i + ',\'scaffoldUplift\',this.checked)" style="width:auto;margin:0"></td>' +
+          '<td>' + inp('gutters', i, 'extBracketLm', (r.extBracketLm == null ? 0 : r.extBracketLm), '0', ' type="number" step="0.5" min="0"') + '</td>' +
+          '<td>' + inp('gutters', i, 'desc', r.desc, 'Short description') + '</td>';
+      }) +
+    '<button type="button" onclick="_selResetAll()" style="padding:6px 14px;background:none;border:none;color:#0099cc;font-size:11.5px;cursor:pointer;text-decoration:underline;font-family:inherit;padding-left:0">↻ Back to the products RoofMap ships with</button>';
+}
+
+function _defaultSelectables(){
+  return {
+    grades: [
+      { id:'maxam',      name:'Colorsteel® MAXAM',      pct:  0,     base: true },
+      { id:'colorzen',   name:'Armorsteel ColorZen',    pct: -0.138 },
+      { id:'colourcote', name:'ColorCote®',             pct: -0.07  },
+      { id:'zincalume',  name:'Zincalume® (unpainted)', pct: -0.327 }
+    ],
+    profiles: [
+      { id:'corrugate', name:'Corrugate', locksGauge: '',
+        desc:'The classic corrugated profile — proven, versatile and the standard choice for most homes.' },
+      { id:'5rib', name:'5-Rib', locksGauge: '55',
+        desc:'Bold trapezoidal rib. Supplied in 0.55 gauge only — the heavier steel resists denting. Price includes the compulsory 0.55 gauge upgrade.' }
+    ],
+    gutters: [
+      { id:'box125', name:'125mm Colorsteel Box Gutter', priceKey:'box125_lm',
+        scaffoldUplift:true, extBracketLm:6,
+        desc:'Roll-formed 125mm Colorsteel box gutter — matches the new roof for a clean finish.' },
+      { id:'marley_typhoon', name:'Marley Typhoon (PVC)', priceKey:'marley_typhoon_lm',
+        scaffoldUplift:true, extBracketLm:3, itemised:true,
+        desc:'Higher-capacity PVC profile — handles heavy downpours; UV-stabilised.' },
+      { id:'marley_classic', name:'Marley Classic (PVC)', priceKey:'marley_classic_lm',
+        scaffoldUplift:true, extBracketLm:3,
+        desc:'Classic half-round PVC profile — clean look, easy maintenance.' }
+    ]
+  };
+}
+// Snapshot on the quote wins, then the company's list, then the shipped
+// defaults. The shape check matters: a half-written snapshot must not strand a
+// quote with no products at all.
+function _selectables(){
+  var ok = function(o){ return o && Array.isArray(o.grades) && Array.isArray(o.profiles) && Array.isArray(o.gutters); };
+  var snap = (window.S && S.quote && S.quote.selectablesSnapshot);
+  if (ok(snap)) return snap;
+  var cfg = (window.S && S.settings && S.settings.selectables);
+  if (ok(cfg)) return cfg;
+  return _defaultSelectables();
+}
+// *All() includes removed products, so a quote that already names one can
+// still resolve it. The plain list is what a NEW quote may choose from.
+function _selGradesAll(){ return _selectables().grades || []; }
+function _selProfilesAll(){ return _selectables().profiles || []; }
+function _selGuttersAll(){ return _selectables().gutters || []; }
+function _selLive(list){ return list.filter(function(x){ return x && !x.removed; }); }
+function _selGrades(){ return _selLive(_selGradesAll()); }
+function _selProfiles(){ return _selLive(_selProfilesAll()); }
+function _selGutters(){ return _selLive(_selGuttersAll()); }
+function _selById(list, id){
+  for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === id) return list[i];
+  return null;
+}
+function _selGradeOf(id){ return _selById(_selGradesAll(), id); }
+function _selProfileOf(id){ return _selById(_selProfilesAll(), id); }
+function _selGutterOf(id){ return _selById(_selGuttersAll(), id); }
+// The grade every other grade's delta is measured against.
+function _selBaseGradeId(){
+  var g = _selGradesAll().filter(function(x){ return x && x.base; })[0];
+  return g ? g.id : ((_selGradesAll()[0] || {}).id || 'maxam');
+}
+function _selGradePctOf(id){
+  var g = _selGradeOf(id);
+  return (g && isFinite(parseFloat(g.pct))) ? parseFloat(g.pct) : 0;
+}
+// Does this profile force a steel gauge? '' / undefined = no.
+function _selProfileLocksGauge(id){
+  var p = _selProfileOf(id);
+  return (p && p.locksGauge) ? String(p.locksGauge) : '';
+}
+// Kept so anything still reading the old constant sees the live values.
+var SEL_GRADE_PCT = (function(){
+  var m = {}; _defaultSelectables().grades.forEach(function(g){ m[g.id] = g.pct; }); return m;
+})();
 var SEL_GAUGE55_PCT = 0.22;
 // Guttering is priced like the roof — MATERIAL ($/lm, per profile) + LABOUR
 // (hours by gutter run, charged at the lead + apprentice rates) — not a single
@@ -14708,9 +14937,16 @@ function _gutterTyphoonInv(){
 }
 // External-bracket upcharge ($/lm) for a gutter profile.
 function _bracketExtPerLm(id){
+  // The shipped products keep their price-book overrides, so an office that has
+  // already edited those rates keeps them. Anything else takes the rate set on
+  // the product. A product with no rate charges nothing, which reads correctly
+  // as "brackets included".
   if (id === 'box125') return _gutterPrice('ext_box125', 'ext_bracket_box125_lm', SEL_BRACKET_EXT_PER_LM.box125 || 0);
   if (id === 'marley_typhoon' || id === 'marley_classic')
     return _gutterPrice('ext_marley', 'ext_bracket_marley_lm', SEL_BRACKET_EXT_PER_LM[id] || 0);
+  var g = _selGutterOf(id);
+  var r = g ? parseFloat(g.extBracketLm) : NaN;
+  if (isFinite(r) && r >= 0) return r;
   return SEL_BRACKET_EXT_PER_LM[id] || 0;
 }
 // Downpipe unit price ($ per gutter line).
@@ -15013,13 +15249,13 @@ function _setRoofAttached(i, val){
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
 function _selGradeDelta(gradeId){
-  var pct = SEL_GRADE_PCT[gradeId];
-  if (pct == null) return 0;
+  if (!_selGradeOf(gradeId)) return 0;
+  var pct = _selGradePctOf(gradeId);
   // Delta is RELATIVE to the grade the base quote was built at (baseGrade,
   // default Maxam) so a base already priced at a non-Maxam grade shows that
   // grade as "Included" and the others as +/− from it — no double-counting.
   var q = (window.S && S.quote) || {};
-  var basePct = SEL_GRADE_PCT[q.baseGrade || 'maxam'] || 0;
+  var basePct = _selGradePctOf(q.baseGrade || _selBaseGradeId());
   return (pct - basePct) * _selMaterialBase();
 }
 function _selGauge55Delta(){ return SEL_GAUGE55_PCT * _selMaterialBase(); }
@@ -15104,32 +15340,32 @@ function _qpSelectionChanges(){
     if (_erSel[i] && parseFloat(rr.price) > 0)
       out.push({ label: 'Optional extra roof — ' + (rr.name || ('Roof ' + (i + 2))), delta: parseFloat(rr.price) });
   });
-  var gradeNames = { colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume® (unpainted)' };
-  if (p.steelGrade && p.steelGrade !== 'maxam')
-    out.push({ label: (gradeNames[p.steelGrade] || p.steelGrade) + ' steel', delta: _selGradeDelta(p.steelGrade) });
+  if (p.steelGrade && p.steelGrade !== _selBaseGradeId())
+    out.push({ label: _gradeLabel(p.steelGrade) + ' steel', delta: _selGradeDelta(p.steelGrade) });
   // 5-Rib is only supplied in 0.55 gauge, so the compulsory gauge upgrade is
   // charged (and labelled) as part of the 5-Rib pick — its card shows the
   // price and the locked gauge row reads "Included". A 0.55 pick under
   // Corrugate stays its own line.
-  if (p.profile === '5rib')
-    out.push({ label: '5-Rib profile (supplied in 0.55 gauge)', delta: _selGauge55Delta() });
+  // A profile that locks a gauge carries the gauge upgrade in its own price —
+  // otherwise the profile looks free and the charge appears from nowhere.
+  var _lockG = _selProfileLocksGauge(p.profile);
+  if (_lockG)
+    out.push({ label: (_selProfileOf(p.profile) || {}).name + ' profile (supplied in 0.' + _lockG + ' gauge)',
+               delta: _selGauge55Delta() });
   else if (p.steelThickness && p.steelThickness !== '40')
     out.push({ label: '0.55 gauge steel', delta: _selGauge55Delta() });
   if (p.gutterType !== undefined) {
     // Page-4 pick is canonical once made (including an explicit
     // "none") — it overrides the legacy Option-C gutter choice so the
     // add-on can never double-count.
-    var gmap = {
-      box125:         { name: '125mm Colorsteel Box Gutter', key: 'box' },
-      marley_typhoon: { name: 'Marley Typhoon (PVC)',        key: 'marley' },
-      marley_classic: { name: 'Marley Classic (PVC)',        key: 'marley' }
-    };
-    var gm = gmap[p.gutterType];
+    var gm = _selGutterOf(p.gutterType);
     if (gm) {
-      out.push({ label: gm.name, delta: _selGutterDelta(p.gutterType) });
-      // Selecting any gutter upgrades the site from edge protection to a full
-      // working platform — an extra 25% on the standard scaffolding price.
-      var _scUp = 0.25 * _selScaffoldBasePrice();
+      out.push({ label: gm.name || p.gutterType, delta: _selGutterDelta(p.gutterType) });
+      // A gutter lifts the site from edge protection to a full working
+      // platform — 25% on the scaffolding. Whether a given product does that
+      // is now the product's own answer, so a roofer adding one is asked
+      // rather than silently getting no uplift.
+      var _scUp = (gm.scaffoldUplift === false) ? 0 : (0.25 * _selScaffoldBasePrice());
       if (_scUp > 0)
         out.push({ label: 'Platform scaffolding upgrade (from edge protection — required to install guttering safely)', delta: _scUp });
       // Internal brackets are standard (no charge). External brackets add a
@@ -15331,7 +15567,8 @@ function _setProposalOption_thickness(v){ _setProposalOption('steelThickness', v
 function _setProposalOption_profile(v){
   if (!S.quote || _qpAcceptedLock()) return;
   if (!S.quote.proposalOptions) S.quote.proposalOptions = {};
-  if (v === '5rib')           S.quote.proposalOptions.steelThickness = '55';
+  var _lk = _selProfileLocksGauge(v);
+  if (_lk)                    S.quote.proposalOptions.steelThickness = _lk;
   else if (v === 'corrugate') S.quote.proposalOptions.steelThickness = '40';
   _setProposalOption('profile', v);
 }
@@ -16191,6 +16428,14 @@ function _customerLinkString(){
   // browser reports its own total when it accepts, and that total decides a
   // deposit invoice — so the backend needs a number of ours to weigh it
   // against. sentAt is the age the 90-day link window is measured from.
+  // The products as they stand right now ride with the quote. If the office
+  // later reprices a grade, renames a gutter or removes one entirely, the
+  // customer holding this link keeps seeing — and paying — what they were
+  // sent. Refreshed on every send, so an edited quote sends the current list.
+  try {
+    S.quote.selectablesSnapshot = JSON.parse(JSON.stringify(
+      (S.settings && S.settings.selectables) || _defaultSelectables()));
+  } catch (e) {}
   try {
     S.quote.share = S.quote.share || {};
     if (!S.quote.share.sentAt) S.quote.share.sentAt = new Date().toISOString();
@@ -20952,33 +21197,47 @@ function refreshQuoteProposal(){
       // it. Maxam was previously hard-pinned to "included", so when the quote
       // was built on a cheaper grade (e.g. Armorsteel) Maxam showed no figure.
       var _baseGrade = (S.quote.baseGrade) || 'maxam';
-      var GRADES = [
-        { id:'maxam',     label:'Colorsteel® MAXAM',     isDefault:(_baseGrade==='maxam'), delta:_dIncl(_selGradeDelta('maxam')), desc:'NZ Steel\'s newest, with the Activate™ aluminium-zinc-magnesium coating. Best corrosion resistance available.',
+      // The cards are built from the company's product list. The sales copy
+      // and warranty wording for the SHIPPED grades stays here, keyed by id —
+      // it is written by us and there is no reason to make a roofer retype it.
+      // A grade they add of their own supplies its own description.
+      var _GRADE_COPY = {
+        maxam: { desc:'NZ Steel\'s newest, with the Activate™ aluminium-zinc-magnesium coating. Best corrosion resistance available.',
           warranty:'<strong>Up to 50 yrs perforation</strong> in mild zones (>5km from breaking surf); 30/15/5 yr stepped warranty as exposure rises.' },
-        { id:'colorzen',  label:'Armorsteel ColorZen',   delta:_dIncl(_selGradeDelta('colorzen')), desc:'Solid mid-tier prepainted steel — proven coating, broad colour range.',
+        colorzen: { desc:'Solid mid-tier prepainted steel — proven coating, broad colour range.',
           warranty:'<strong>30 yr warranty</strong> in mild and very-mild environments (manufacturer specs).' },
-        { id:'colourcote',label:'ColorCote®',            delta:_dIncl(_selGradeDelta('colourcote')), desc:'Pacific Coilcoaters\' premium prepainted steel — excellent finish, comparable to MAXAM.',
+        colourcote: { desc:'Pacific Coilcoaters\' premium prepainted steel — excellent finish, comparable to MAXAM.',
           warranty:'<strong>Up to 30 yr</strong> perforation warranty, zone-dependent.' },
-        { id:'zincalume', label:'Zincalume® (unpainted)',delta:_dIncl(_selGradeDelta('zincalume')), desc:'Natural silver Al/Zn alloy — workhorse industrial finish, lowest price point.',
+        zincalume: { desc:'Natural silver Al/Zn alloy — workhorse industrial finish, lowest price point.',
           warranty:'<strong>20 yr non-perforation</strong> warranty (NZ Steel).' }
-      ];
+      };
+      var GRADES = _selGrades().map(function(g){
+        var c = _GRADE_COPY[g.id] || {};
+        return { id: g.id, label: g.name || g.id, isDefault: (_baseGrade === g.id),
+                 delta: _dIncl(_selGradeDelta(g.id)),
+                 desc: g.desc || c.desc || '', warranty: g.warranty || c.warranty || '' };
+      });
       var THICKS = [
         { id:'40', label:'0.40 gauge', isDefault:true, delta:0, desc:'Standard residential thickness — used on the bulk of NZ re-roofs.' },
         { id:'55', label:'0.55 gauge', delta:_dIncl(_selGauge55Delta()), desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }
       ];
-      var PROFILES = [
-        { id:'corrugate', label:'Corrugate', isDefault:true, delta:0, desc:'The classic corrugated profile — proven, versatile and the standard choice for most homes.' },
-        // 5-Rib forces the 0.55 gauge upgrade, so ITS card carries that price
-        // (the locked gauge row below then reads "Included") — otherwise the
-        // profile looks free and the charge appears to come from nowhere.
-        { id:'5rib',      label:'5-Rib',     delta:_dIncl(_selGauge55Delta()), desc:'Bold trapezoidal rib. Supplied in 0.55 gauge only — the heavier steel resists denting. Price includes the compulsory 0.55 gauge upgrade.' }
-      ];
-      var GUTTERS = [
-        { id:'none',          label:'No new gutter',                isDefault:true, delta:0, desc:'Existing gutter stays as-is.' },
-        { id:'box125',        label:'125mm Colorsteel Box Gutter',  delta:_dIncl(_selGutterDelta('box125')), desc:'Roll-formed 125mm Colorsteel box gutter — matches the new roof for a clean finish.' },
-        { id:'marley_typhoon',label:'Marley Typhoon (PVC)',         delta:_dIncl(_selGutterDelta('marley_typhoon')), desc:'Higher-capacity PVC profile — handles heavy downpours; UV-stabilised.' },
-        { id:'marley_classic',label:'Marley Classic (PVC)',         delta:_dIncl(_selGutterDelta('marley_classic')), desc:'Classic half-round PVC profile — clean look, easy maintenance.' }
-      ];
+      // A profile that LOCKS a gauge carries the gauge upgrade in its own card
+      // price (the locked gauge row below then reads "Included") — otherwise
+      // the profile looks free and the charge appears from nowhere. Which
+      // profiles do that is the product's own answer now.
+      var PROFILES = _selProfiles().map(function(pr, i){
+        return { id: pr.id, label: pr.name || pr.id, isDefault: (i === 0),
+                 delta: _selProfileLocksGauge(pr.id) ? _dIncl(_selGauge55Delta()) : 0,
+                 desc: pr.desc || '' };
+      });
+      // "No new gutter" is not a product — it is the absence of one — so it is
+      // always first and never editable.
+      var GUTTERS = [{ id:'none', label:'No new gutter', isDefault:true, delta:0,
+                       desc:'Existing gutter stays as-is.' }].concat(
+        _selGutters().map(function(gt){
+          return { id: gt.id, label: gt.name || gt.id,
+                   delta: _dIncl(_selGutterDelta(gt.id)), desc: gt.desc || '' };
+        }));
       var BRACKETS = [
         { id:'internal', label:'Internal brackets', isDefault:true, delta:0, desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below. Standard on your quote.' },
         { id:'external', label:'External brackets', delta:_dIncl(_selBracketExtDelta()), desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' }
