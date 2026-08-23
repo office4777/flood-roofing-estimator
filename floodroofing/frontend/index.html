@@ -6192,7 +6192,15 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <div><label>External bracket upcharge — Marley ($/lm)</label><input type="number" id="pbGutExtMarleyLm" step="0.01" min="0" placeholder="0.00"></div>
           <div></div>
         </div>
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">Back-tray prices ($/each) <span style="font-weight:400;color:var(--text3)">— pipe-penetration trays; auto-added to the order &amp; Fergus. Leave blank for $0.</span></div>
+      </div>
+
+      <!-- Pipe penetrations -->
+      <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+        <div style="margin-bottom:8px"><strong style="font-size:13px">Pipe penetrations</strong>
+          <span style="font-size:11px;color:var(--text2);margin-left:6px">— every flue, vent and pipe you draw picks its own boot size and back-tray</span></div>
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin:6px 0 6px">Pipe flashings — Aquaseal / Dektite ($/each) <span style="font-weight:400;color:var(--text3)">— the size is chosen from the pipe's outside diameter. Leave blank for $0.</span></div>
+        <div id="pbAquasealList" class="f3"></div>
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin:14px 0 6px">Back-trays ($/lm) <span style="font-weight:400;color:var(--text3)">— trays are folded to each pipe's own tray length, so this is a rate per metre, not per tray. Leave blank for $0.</span></div>
         <div id="pbBackTrayList" class="f3"></div>
       </div>
 
@@ -6913,6 +6921,51 @@ window.addEventListener('unhandledrejection', function(e){
 });
 
 // — Settings —
+// ── Pipe flashings (Aquaseal / Dektite) ──────────────────────────────
+// Every size the merchant sells, with the outside-pipe-diameter band it
+// covers. A penetration drawn at 100mm needs a No 3, one at 250mm needs a
+// No 6 — the same job can need three different boots, so the price book
+// holds a rate for each size rather than one "dektite" price.
+//
+// Bands overlap on purpose (that is how they are published), so the pick
+// is the SMALLEST size whose band contains the pipe. Ordering matters:
+// small to large.
+var AQUASEAL_SIZES = [
+  { id:'mini', label:'Aquaseal Mini',  minMm:  3, maxMm: 25 },
+  { id:'no1',  label:'Aquaseal No 1',  minMm:  3, maxMm: 60 },
+  { id:'no2',  label:'Aquaseal No 2',  minMm: 10, maxMm: 90 },
+  { id:'no3',  label:'Aquaseal No 3',  minMm: 40, maxMm:110 },
+  { id:'no4',  label:'Aquaseal No 4',  minMm: 75, maxMm:150 },
+  { id:'no5',  label:'Aquaseal No 5',  minMm:130, maxMm:200 },
+  { id:'no6',  label:'Aquaseal No 6',  minMm:150, maxMm:250 },
+  { id:'no7',  label:'Aquaseal No 7',  minMm:200, maxMm:300 },
+  { id:'no8',  label:'Aquaseal No 8',  minMm:280, maxMm:380 },
+  { id:'no9',  label:'Aquaseal No 9',  minMm:330, maxMm:450 },
+  { id:'no10', label:'Aquaseal No 10', minMm:400, maxMm:750 }
+];
+// "Aquaseal No 3 (40–110mm)" — the label the order and the price book show.
+function _aquasealLabel(sz){
+  if (!sz) return '';
+  return sz.label + ' (' + sz.minMm + '–' + sz.maxMm + 'mm)';
+}
+// Smallest boot that fits this pipe. Above the largest band there is no
+// stock size — return null rather than quietly selling a No 10 that does
+// not fit, so the order shows the gap.
+function _aquasealSizeFor(diamMm){
+  var d = parseFloat(diamMm);
+  if (!(d > 0)) return null;
+  for (var i = 0; i < AQUASEAL_SIZES.length; i++){
+    if (d >= AQUASEAL_SIZES[i].minMm && d <= AQUASEAL_SIZES[i].maxMm) return AQUASEAL_SIZES[i];
+  }
+  return null;
+}
+// $/each from the price book (0 when unset).
+function _aquasealPrice(id){
+  var m = (window.S && S.settings && S.settings.price_book && S.settings.price_book.aquaseal) || {};
+  var n = parseFloat(m[id]);
+  return (isFinite(n) && n >= 0) ? n : 0;
+}
+
 function defaultSettings(){
   // Neutral by design. These used to be Flood Roofing's own details — company
   // name, GST number, 0800 number, the About-us story, the office email on
@@ -7012,7 +7065,17 @@ function defaultSettings(){
         ext_bracket_marley_lm:   3   // external-bracket upcharge on either Marley PVC $/lm
       },
       downpipe_ea:   150,   // $ per downpipe (one per gutter line)
-      backtray_prices: {},  // { '<tray name>': $/each } — pipe-penetration back-trays
+      backtray_prices: {},  // { '<tray name>': $/lm } — back-trays are folded to the
+                            //   tray's own length, so the rate is per metre, not per tray
+      // Pipe flashings (Aquaseal / Dektite), $/each, keyed by AQUASEAL_SIZES id.
+      // The size is picked from the pipe's outside diameter, so a job with a
+      // 100mm flue and a 250mm flue orders a No 3 and a No 6 — not two of
+      // whatever size somebody typed once. Indicative retail; set your own.
+      aquaseal: {
+        mini:  14,   no1:  17,   no2:  21,   no3:  27,
+        no4:   32,   no5:  47,   no6:  70,   no7:  88,
+        no8:  132,   no9: 214,   no10: 419,  retro_clip: 3.30
+      },
       extras: []         // [{desc, unit, qty, price}] — custom price-book items the user adds
     },
     // Labour pricing — per-scope-item default hour budgets and the
@@ -7363,6 +7426,12 @@ function collectPriceBookFromUI(){
     var v = parseFloat(inp.value);
     if (nm && isFinite(v) && v > 0) pb.backtray_prices[nm] = v;
   });
+  pb.aquaseal = {};
+  Array.from(document.querySelectorAll('#pbAquasealList [data-aq-id]')).forEach(function(inp){
+    var id = inp.getAttribute('data-aq-id');
+    var v = parseFloat(inp.value);
+    if (id && isFinite(v) && v > 0) pb.aquaseal[id] = v;
+  });
   pb.extras = Array.from(document.querySelectorAll('#pbExtrasList > [data-pb-extra]')).map(function(row){
     return {
       desc:  (row.querySelector('input[data-f="desc"]')||{}).value || '',
@@ -7436,9 +7505,28 @@ function renderPriceBookUI(){
   setN('pbGutExtBox125Lm',     g.ext_bracket_box125_lm);
   setN('pbGutExtMarleyLm',     g.ext_bracket_marley_lm);
   _renderBackTrayPriceInputs();
+  _renderAquasealPriceInputs();
   renderPriceBookExtras(pb.extras || []);
 }
-// Render the back-tray $/each inputs (one per standard tray name).
+// Render the pipe-flashing $/each inputs — one per stock Aquaseal size,
+// labelled with the pipe diameters it covers so the office can read the
+// book without cross-referencing the merchant's catalogue.
+function _renderAquasealPriceInputs(){
+  var box = document.getElementById('pbAquasealList'); if (!box) return;
+  var m = (S.settings && S.settings.price_book && S.settings.price_book.aquaseal) || {};
+  var rows = AQUASEAL_SIZES.map(function(sz){
+    var v = parseFloat(m[sz.id]); v = (isFinite(v) && v > 0) ? v : '';
+    return '<div><label style="font-size:11px">'+esc(_aquasealLabel(sz))+'</label>'+
+      '<input type="number" step="0.01" min="0" data-aq-id="'+esc(sz.id)+'" value="'+v+'" placeholder="0.00"></div>';
+  });
+  // The retrofit clip has no pipe band — it is the fixing for an Aquaseal
+  // fitted to an existing roof — but it belongs with them in the book.
+  var rc = parseFloat(m.retro_clip); rc = (isFinite(rc) && rc > 0) ? rc : '';
+  rows.push('<div><label style="font-size:11px">Retrofit clip</label>'+
+    '<input type="number" step="0.01" min="0" data-aq-id="retro_clip" value="'+rc+'" placeholder="0.00"></div>');
+  box.innerHTML = rows.join('');
+}
+// Render the back-tray $/lm inputs (one per standard tray name).
 function _renderBackTrayPriceInputs(){
   var box = document.getElementById('pbBackTrayList'); if (!box) return;
   var names = (typeof BACKTRAY_NAMES !== 'undefined') ? BACKTRAY_NAMES : [];
@@ -7567,6 +7655,32 @@ var PB_CSV_TARGETS = [
   // Catch-all, deliberately last.
   { path: 'gutter_lm',       label: 'Gutter (generic $/lm)', unit: 'lm', re: /\bgutter(ing)?\b|spouting/i },
 ];
+// Pipe flashings and back-trays are mechanical — one target per stock size —
+// so they are generated from the same tables the rest of the app sizes off,
+// not hand-written twenty times and left to drift. They go to the FRONT of
+// the list: "800mm Corrugate back-tray" contains no word any other pattern
+// wants, but "Aquaseal No 2 EPDM Pipe Flashing" must not be read as a
+// flashing $/lm by anything downstream.
+(function(){
+  var add = AQUASEAL_SIZES.map(function(sz){
+    // "No 1" must not swallow "No 10" — \b after the digit does that, since
+    // the 0 in "10" is a word character.
+    var n = sz.id === 'mini' ? 'mini' : ('no\\.?\\s*' + sz.id.slice(2));
+    return { path: 'aquaseal.' + sz.id, label: _aquasealLabel(sz), unit: 'ea',
+             re: new RegExp('(?=.*(aquaseal|dektite))(?=.*\\b' + n + '\\b)', 'i') };
+  });
+  add.push({ path:'aquaseal.retro_clip', label:'Aquaseal retrofit clip', unit:'ea',
+             re: /(?=.*aquaseal)(?=.*(retrofit|\bclip\b))/i });
+  ['270mm Corrugate','340mm Corrugate','570mm Corrugate','725mm Corrugate','800mm Corrugate',
+   '250mm 5-Rib','420mm 5-Rib','610mm 5-Rib','800mm 5-Rib'].forEach(function(t){
+    var mm = t.split('mm')[0], prof = /5-Rib/.test(t) ? '5.?rib' : 'corrugate';
+    // No \b after the digits — the merchant writes "270mm", and mm is a word
+    // character, so a trailing \b never fires. (?!\d) keeps 270 off 2700.
+    add.push({ path: 'backtray_prices.' + t + ' back-tray', label: t + ' back-tray', unit: 'lm',
+               re: new RegExp('(?=.*back.?tray)(?=.*\\b' + mm + '(?!\\d))(?=.*' + prof + ')', 'i') });
+  });
+  PB_CSV_TARGETS.unshift.apply(PB_CSV_TARGETS, add);
+})();
 // Units a merchant might write for the same thing.
 function _pbUnitKind(u){
   u = String(u || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -8026,6 +8140,58 @@ function _buildMaterialPriceRows(){
     rows.push({ key:'rivets', label:'Rivets', autoQty:rivets, autoUnit:'each',
                 variants:[{ value:'Rivet', label:'Rivet', price:pb.rivets_each||0, unit:'each' }],
                 defaultVariant:'Rivet', note:totalFlashingLm.toFixed(1)+' lm flashings → '+rivets+' rivets', singleVariant:true });
+  }
+
+  // Pipe flashings — one row per pipe SIZE on the drawing, because a job
+  // with a 100mm flue and a 250mm vent needs two different boots. The size
+  // is picked from the diameter; the dropdown lets the office overrule it
+  // (a tight roof pitch sometimes wants the next size up).
+  (function(){
+    var dk = (typeof _matDektitesSynced === 'function') ? _matDektitesSynced() : [];
+    var aqVariants = AQUASEAL_SIZES.map(function(sz){
+      return { value:sz.id, label:_aquasealLabel(sz), price:_aquasealPrice(sz.id), unit:'each' };
+    });
+    dk.forEach(function(r){
+      if (!r || r.suppressed) return;
+      var qty = parseInt(r.qty, 10) || 0;
+      if (qty <= 0) return;
+      var mm = parseInt(r.sizeMm, 10) || 0;
+      var pick = _aquasealSizeFor(mm);
+      if (!pick){
+        // Outside every published band (or no size typed). Show the line so
+        // it reaches the order, but do not quietly price a boot that will not
+        // fit the pipe.
+        rows.push({ key:'aquaseal:'+mm, label: (mm > 0 ? mm + 'mm pipe flashing' : 'Pipe flashing — size not set'),
+                    autoQty:qty, autoUnit:'each',
+                    variants:[{ value:'none', label:'no stock size fits — order manually', price:0, unit:'each' }],
+                    defaultVariant:'none', singleVariant:true,
+                    note: mm > 0 ? ('Ø' + mm + 'mm falls outside every Aquaseal band') : 'set the pipe size on the drawing' });
+        return;
+      }
+      rows.push({ key:'aquaseal:'+mm, label: mm + 'mm pipe flashing',
+                  autoQty:qty, autoUnit:'each', variants:aqVariants, defaultVariant:pick.id,
+                  note:'Ø' + mm + 'mm → ' + pick.label });
+    });
+  })();
+
+  // Back-trays — one row per tray name + length + full/short split, priced
+  // by the metre against the tray's own length.
+  if (typeof _backTrayOrderList === 'function'){
+    _backTrayOrderList().forEach(function(bt){
+      var each = _backTrayEachPrice(bt);
+      var lm   = parseFloat(bt.lengthM) || 0;
+      // Keyed by what makes the group, not by its position — a qty override
+      // must not jump to a different tray because an earlier one was deleted.
+      var spec = (bt.lengthLabel ? bt.lengthLabel + ' ' : '') +
+                 (bt.mode === 'short' ? 'short (soft-edge one end)' : 'full length');
+      rows.push({ key:'backtray:'+bt.name+'|'+bt.mode+'|'+bt.lengthLabel,
+                  label:bt.name, autoQty:bt.qty, autoUnit:'each',
+                  variants:[{ value:spec, label:spec, price:each, unit:'each' }],
+                  defaultVariant:spec, singleVariant:true,
+                  note: lm > 0
+                    ? (lm.toFixed(1) + 'm × $' + _backTrayLmPrice(bt.name).toFixed(2) + '/lm')
+                    : 'tray length needs a calibrated map' });
+    });
   }
 
   // Custom extras — each price-book extra becomes its own row
@@ -33676,12 +33842,25 @@ var BACKTRAY_NAMES = [
   '725mm Corrugate back-tray','800mm Corrugate back-tray',
   '250mm 5-Rib back-tray','420mm 5-Rib back-tray','610mm 5-Rib back-tray','800mm 5-Rib back-tray'
 ];
-// $/each for a named back-tray from the price book (0 when unset).
-function _backTrayUnitPrice(name){
+// $/LM for a named back-tray from the price book (0 when unset). Per metre,
+// not per tray: a full-length tray on a 7m sheet is more than twice the steel
+// of a short tray on a 3m run, and pricing both the same was wrong on every
+// job where the two appeared together.
+function _backTrayLmPrice(name){
   var m = (window.S && S.settings && S.settings.price_book && S.settings.price_book.backtray_prices) || {};
   var n = parseFloat(m[name]);
   return (isFinite(n) && n >= 0) ? n : 0;
 }
+// What one tray costs: its $/lm × its own resolved length. A tray whose
+// length the drawing cannot give yet (uncalibrated map) prices at 0 rather
+// than at a length nobody chose.
+function _backTrayEachPrice(bt){
+  if (!bt) return 0;
+  var lm = parseFloat(bt.lengthM) || 0;
+  return lm > 0 ? _backTrayLmPrice(bt.name) * lm : 0;
+}
+// Kept for anything still calling the old name.
+function _backTrayUnitPrice(name){ return _backTrayLmPrice(name); }
 // Down-slope geometry for a penetration, from the calibrated map: the
 // sheet length of the run it sits on, and the distance from the TOP of
 // the sheet (ridge / high edge, opposite the gutter) down to the pipe.
@@ -33805,7 +33984,8 @@ function _backTrayOrderList(){
   _backTrayPenList().forEach(function(d){
     var lenLbl = d.hasGeom ? (d.lengthM.toFixed(1) + 'm') : '';
     var key = d.name + '|' + d.mode + '|' + lenLbl;
-    if (!groups[key]) groups[key] = { name:d.name, qty:0, mode:d.mode, lengthLabel:lenLbl, soft:d.soft };
+    if (!groups[key]) groups[key] = { name:d.name, qty:0, mode:d.mode, lengthLabel:lenLbl,
+                                      lengthM:(d.hasGeom ? d.lengthM : 0), soft:d.soft };
     groups[key].qty++;
   });
   return Object.keys(groups).map(function(k){ return groups[k]; });
@@ -39230,10 +39410,13 @@ function _matDektitePenSizes(){
   var counts = {};
   function addPens(pens){
     (pens || []).forEach(function(pn){
-      if (!pn) return;
-      var m = String(pn.sizeLabel || '').match(/(\d+)/);
-      if (!m) return;
-      var sz = parseInt(m[1], 10);
+      if (!pn || pn.kind === 'box') return;
+      // Same reader the back-tray schedule uses, so "0.25m", "25cm" and
+      // "250mm" all count as one 250mm pipe — and a boxed "150x150" opening
+      // is not counted as a 150mm round one, because it takes no boot.
+      var sz = (typeof _penDiamMm === 'function')
+        ? _penDiamMm(pn.sizeLabel)
+        : parseInt((String(pn.sizeLabel || '').match(/(\d+)/) || [])[1], 10);
       if (!(sz > 0)) return;
       counts[sz] = (counts[sz] || 0) + 1;
     });
@@ -40535,13 +40718,10 @@ function _buildFergusItemisedSections(){
   } else if ((+S.materials) > 0){
     roofMat.push(matLine('Materials', 1, +S.materials));   // fallback — S.materials already includes the markup
   }
-  // ── Back-trays (one line per pipe-penetration tray) ── added AFTER the
-  //    markup so they pass through at their set $/each, not marked up.
-  if (typeof _backTrayOrderList === 'function'){
-    _backTrayOrderList().forEach(function(bt){
-      roofMat.push(matLine(_backTrayLineDesc(bt), bt.qty, _backTrayUnitPrice(bt.name)));
-    });
-  }
+  // Back-trays used to be appended here, after the markup, at a flat $/each.
+  // They are now ordinary priced material rows (_buildMaterialPriceRows), so
+  // they arrive through _readFergusMaterialItems above at $/lm × the tray's
+  // own length — and carry the same buffer + mark-up as every other flashing.
 
   // ── Scaffolding (base — the platform upgrade delta is routed in below) ──
   var scaff = [];
