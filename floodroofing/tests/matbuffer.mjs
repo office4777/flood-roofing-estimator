@@ -97,6 +97,42 @@ check('the pricing table offers "Add quantity safety buffer"', v.buf >= 0);
 check('…and "Add mark-up" below it', v.mk >= 0 && v.mk > v.buf, 'buffer@' + v.buf + ' markup@' + v.mk);
 check('…and the old combined "Safety buffer / markup" row is gone', v.gone < 0);
 
+// ── the gutter card carries the same split ────────────────────────
+v = await pg.evaluate(() => ({
+  bufFn: typeof _gutterMatQtyBufferPct === 'function' && typeof _setGutterMatQtyBuffer === 'function',
+  mkFn:  typeof _gutterMatMarkupPct === 'function',
+}));
+check('the gutter card has a quantity-buffer control too', v.bufFn && v.mkFn);
+
+v = await pg.evaluate(() => {
+  delete S.quote.gutterMatQtyBuffer; delete S.quote.gutterMaterialMarkup;
+  return { buf: _gutterMatQtyBufferPct(), mk: _gutterMatMarkupPct() };
+});
+check('…its buffer defaults to 0, so no saved quote reprices', v.buf === 0, 'buffer ' + v.buf + '%');
+check('…while its mark-up keeps the 10% it always had', v.mk === 10, 'mark-up ' + v.mk + '%');
+
+// _gutterMaterialCharge is what reaches the CUSTOMER through _selGutterDelta,
+// so it has to compound in the same order as the card shows.
+v = await pg.evaluate(() => {
+  const lines = () => [{ desc: 'x', qty: 10, price: 100, lineTotal: 1000 }];
+  const real = window._gutterMaterialLines;
+  window._gutterMaterialLines = lines;          // fixed $1000 of gutter material
+  const out = {};
+  S.quote.gutterMatQtyBuffer = 0;  S.quote.gutterMaterialMarkup = 0;  out.plain   = _gutterMaterialCharge('marley_typhoon', 10, 1, 0);
+  S.quote.gutterMatQtyBuffer = 10; S.quote.gutterMaterialMarkup = 0;  out.bufOnly = _gutterMaterialCharge('marley_typhoon', 10, 1, 0);
+  S.quote.gutterMatQtyBuffer = 10; S.quote.gutterMaterialMarkup = 20; out.both    = _gutterMaterialCharge('marley_typhoon', 10, 1, 0);
+  window._gutterMaterialLines = real;
+  return out;
+});
+check('gutter material with both at zero is the raw cost', v.plain === 1000, '$' + v.plain);
+check('…a 10% buffer alone adds 10%', Math.abs(v.bufOnly - 1100) < 0.01, '$' + v.bufOnly);
+check('…and the mark-up compounds on the buffered cost, same as the roof',
+  Math.abs(v.both - 1320) < 0.01, '$' + v.both + ' (not 1300)');
+
+// the old combined label is gone from the whole app, both cards
+v = await pg.evaluate(() => document.documentElement.innerHTML.indexOf('Safety buffer / markup'));
+check('the old "Safety buffer / markup" wording is gone app-wide', v < 0);
+
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 
 await ctx.close();

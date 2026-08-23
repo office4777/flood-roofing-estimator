@@ -13023,8 +13023,10 @@ function renderGutterDownpipePricing(){
   var labCharge = gls.leadHrs * gls.leadPrice + gls.appHrs * gls.appPrice;
   var matLines = _gutterMaterialLines(gtype, lm, lines, corners);
   var matBase = matLines.reduce(function(s, r){ return s + (r.lineTotal||0); }, 0);
-  var mkPct = _gutterMatMarkupPct(), mkAmt = matBase * (mkPct/100);
-  var matCharge = matBase + mkAmt;
+  var bufPct = _gutterMatQtyBufferPct(), bufAmt = matBase * (bufPct/100);
+  var bufferedMat = matBase + bufAmt;
+  var mkPct = _gutterMatMarkupPct(), mkAmt = bufferedMat * (mkPct/100);
+  var matCharge = bufferedMat + mkAmt;
   var gComputed = matCharge + labCharge, dComputed = _downpipeUnitPrice() * lines;
   var gOv = parseFloat(q.gutterPriceOverride), dOv = parseFloat(q.downpipePriceOverride);
   var gVal = (isFinite(gOv) && gOv >= 0) ? gOv : gComputed;
@@ -13109,7 +13111,8 @@ function renderGutterDownpipePricing(){
       '<tbody>'+matRows+_qCustomTableRows('gutter',{totalCols:4,descColspan:2})+'</tbody>'+
       '<tfoot>'+
         '<tr><td colspan="3" style="text-align:right;color:var(--text2)">Material subtotal</td><td style="text-align:right;color:var(--text2)">'+money(matBase)+'</td></tr>'+
-        '<tr><td colspan="3" style="text-align:right"><span style="color:var(--text2)">Safety buffer / markup&nbsp;</span><input type="number" step="1" min="0" value="'+mkPct+'" onchange="_setGutterMatMarkup(this.value)" style="width:56px;font-size:12px;padding:3px 6px;text-align:right">&nbsp;%</td><td style="text-align:right">+'+money(mkAmt)+'</td></tr>'+
+        '<tr><td colspan="3" style="text-align:right"><span style="color:var(--text2)">Add quantity safety buffer&nbsp;</span><input type="number" step="1" min="0" value="'+bufPct+'" onchange="_setGutterMatQtyBuffer(this.value)" style="width:56px;font-size:12px;padding:3px 6px;text-align:right">&nbsp;%</td><td style="text-align:right">+'+money(bufAmt)+'</td></tr>'+
+        '<tr><td colspan="3" style="text-align:right"><span style="color:var(--text2)">Add mark-up&nbsp;</span><input type="number" step="1" min="0" value="'+mkPct+'" onchange="_setGutterMatMarkup(this.value)" style="width:56px;font-size:12px;padding:3px 6px;text-align:right">&nbsp;%</td><td style="text-align:right">+'+money(mkAmt)+'</td></tr>'+
         '<tr><td colspan="3" style="text-align:right;font-weight:700">Material</td><td style="text-align:right;font-weight:700;color:#2e7d32">'+money(matCharge)+'</td></tr>'+
       '</tfoot>'+
     '</table>'+
@@ -14197,6 +14200,7 @@ function defaultQuote(){
     // hours + crew rates) and material markup / safety buffer (%, default 10).
     gutterLabour: {},
     gutterMaterialMarkup: 10,
+    gutterMatQtyBuffer: 0,
     // Roof material mark-up (%, default 5) and the quantity safety buffer
     // (%, default 0 — see _roofMatQtyBufferPct for why they are separate).
     roofMaterialMarkup: 5,
@@ -14577,6 +14581,22 @@ var GUTTER_SOLVENT_PER_M      = 30;    // one 180g solvent tube per ~30 m of spo
 var GUTTER_LABOUR_LEAD_PRICE = 140;
 var GUTTER_LABOUR_APP_PRICE  = 70;
 // Gutter material markup / safety buffer (%). Default 10; editable per job.
+// Gutter material quantity safety buffer (%). Same split as the roof material
+// table: the buffer prices in extra material for offcuts, the mark-up is margin
+// on that cost, and the buffer moves the PRICE only — the itemised quantities
+// that reach a supplier order stay exact. Defaults to 0 so no saved quote
+// reprices; the mark-up keeps its 10%.
+function _gutterMatQtyBufferPct(){
+  var q = (window.S && S.quote) || {};
+  var v = parseFloat(q.gutterMatQtyBuffer);
+  return (isFinite(v) && v >= 0) ? v : 0;
+}
+function _setGutterMatQtyBuffer(val){
+  if (!S.quote) return;
+  var v = parseFloat(val);
+  S.quote.gutterMatQtyBuffer = (isFinite(v) && v >= 0) ? v : 0;
+  _gdChanged();
+}
 function _gutterMatMarkupPct(){
   var q = (window.S && S.quote) || {};
   var v = parseFloat(q.gutterMaterialMarkup);
@@ -14618,10 +14638,13 @@ function _gutterMaterialLines(id, lm, lines, corners){
   out.forEach(function(r){ r.lineTotal = (parseFloat(r.qty)||0) * (parseFloat(r.price)||0); });
   return out;
 }
-// Total gutter MATERIAL charge ($ ex-GST) = itemised lines + markup buffer.
+// Total gutter MATERIAL charge ($ ex-GST) = itemised lines, then the quantity
+// safety buffer, then the mark-up on that buffered cost. Same order as the roof
+// material table, and this is the figure that reaches the customer through
+// _selGutterDelta — so it has to match what the pricing card shows.
 function _gutterMaterialCharge(id, lm, lines, corners){
   var base = _gutterMaterialLines(id, lm, lines, corners).reduce(function(s, r){ return s + (r.lineTotal||0); }, 0);
-  return base * (1 + _gutterMatMarkupPct() / 100);
+  return base * (1 + _gutterMatQtyBufferPct() / 100) * (1 + _gutterMatMarkupPct() / 100);
 }
 // Angle (deg, 0–360) from vector u to vector v.
 function _gutterAngleBetween(u, v){
@@ -39969,7 +39992,7 @@ function _buildFergusItemisedSections(){
     var gls = _gutterLabourState(_glm);
     if ((+gls.leadHrs) > 0) gutterLabour.push(labLine('Gutter — Lead Roofer', gls.leadHrs, +gls.leadPrice || 0, +gls.leadCost || 0));
     if ((+gls.appHrs)  > 0) gutterLabour.push(labLine('Gutter — Apprentice',  gls.appHrs,  +gls.appPrice  || 0, +gls.appCost || 0));
-    var _mkMul = 1 + (_gutterMatMarkupPct() / 100);
+    var _mkMul = (1 + _gutterMatQtyBufferPct() / 100) * (1 + _gutterMatMarkupPct() / 100);
     _gutterMaterialLines(p.gutterType, _glm, _glines, _gcorn).forEach(function(r){
       gutterMat.push(matLine('Gutter — ' + r.desc, r.qty, (+r.price || 0) * _mkMul));
     });
