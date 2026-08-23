@@ -190,8 +190,45 @@ app.options('*', cors(corsDelegate));
 app.post('/billing/webhook', express.raw({ type: 'application/json', limit: '1mb' }),
   function (req, res) { return _stripeWebhook(req, res); });
 
-// 25mb cap so saved jobs can include a base64 roof image + photos
-app.use(express.json({ limit: '25mb' }));
+// Body size. A single 25mb cap across the whole API meant ANY path would
+// buffer 25mb into memory before a single line of the handler ran — including
+// unauthenticated ones like /auth/login and /client-error, and paths that do
+// not exist. A handful of concurrent posts is then a memory-exhaustion DoS
+// that costs the attacker nothing and needs no account.
+//
+// So the default is small, and the large cap is granted only to the routes
+// that have earned it: a whole job (photos + the aerial live in draw_state), a
+// price book with a logo and gallery, an emailed PDF, a file upload, or an
+// image on its way to the AI.
+const jsonSmall = express.json({ limit: '256kb' });
+const jsonLarge = express.json({ limit: '25mb' });
+const BIG_BODY = [
+  ['POST', /^\/jobs\/?$/],                        // create, carries draw_state
+  ['PUT',  /^\/jobs\/[^/]+\/?$/],                 // save, spreads the whole body
+  ['PUT',  /^\/jobs\/[^/]+\/quote\/?$/],          // quote holds its own photos
+  ['PUT',  /^\/settings\/?$/],                    // logo, gallery, price book
+  ['POST', /^\/q\/[^/]+\/accept-email\/?$/],      // the accepted-quote PDF
+  ['POST', /^\/fergus-files\/upload\/?$/],
+  ['POST', /^\/email\/send-order\/?$/],            // order PDF attachment
+  ['POST', /^\/claude\//],                        // aerial image to the model
+];
+function _wantsBigBody(req){
+  return BIG_BODY.some(function (e) { return req.method === e[0] && e[1].test(req.path); });
+}
+app.use(function (req, res, next) {
+  return (_wantsBigBody(req) ? jsonLarge : jsonSmall)(req, res, next);
+});
+// Over the cap is the caller's problem, not a crash: answer JSON, so the app
+// shows something useful instead of Express's HTML error page.
+app.use(function (err, req, res, next) {
+  if (err && (err.type === 'entity.too.large' || err.status === 413)) {
+    return res.status(413).json({
+      error: 'That request is too large for this endpoint.',
+      code: 'PAYLOAD_TOO_LARGE',
+    });
+  }
+  return next(err);
+});
 
 // ══════════════════════════════════════════════════════════════════
 // ERROR MONITORING — so a subscriber hitting a bug is not a secret
