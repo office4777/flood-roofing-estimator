@@ -474,15 +474,15 @@ async function _gasVerify() {
   if (r.ok && parsed && parsed.ok) return { ok: true };
   throw new Error('Google relay URL did not respond as expected (' + r.status + '). Make sure GAS_MAIL_URL is the deployed Apps Script web-app URL.');
 }
-async function _gasSendMail({ to, cc, subject, text, html, attachment }) {
-  const m = /^\s*"?([^"<]+?)"?\s*</.exec(EMAIL_FROM || '');
-  const fromName = (m && m[1].trim()) || 'Flood Roofing';
+async function _gasSendMail({ to, cc, subject, text, html, attachment, fromName, replyTo }) {
+  // The relay already took a display name and a reply-to; it was only ever
+  // handed the platform's.
   const payload = {
     token: GAS_MAIL_TOKEN,
     to, cc: cc || '',
     subject, text: text || '',
-    fromName,
-    replyTo: EMAIL_REPLYTO || '',
+    fromName: _mailFromName(fromName),
+    replyTo: replyTo || EMAIL_REPLYTO || '',
   };
   // Send the HTML body under both common keys so whichever the Apps Script
   // relay reads (html / htmlBody) picks it up and calls GmailApp with htmlBody.
@@ -507,10 +507,16 @@ async function _gasSendMail({ to, cc, subject, text, html, attachment }) {
   }
   return { messageId: parsed.id || null };
 }
-async function _resendSendMail({ to, cc, subject, text, html, attachment }) {
-  if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="Flood Roofing <office@floodroofing.co.nz>" (once that domain is verified in Resend → Domains).');
+async function _resendSendMail({ to, cc, subject, text, html, attachment, fromName, replyTo }) {
+  if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="RoofMap <noreply@roofmap.co.nz>" (once that domain is verified in Resend → Domains).');
   const _split = (v) => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
-  const payload = { from: EMAIL_FROM, to: _split(to), subject, text };
+  // Their name, our verified address — Resend will not send from a domain we
+  // have not proven we own, and nor should it.
+  const from = fromName
+    ? ('"' + _mailFromName(fromName).replace(/"/g, '') + '" <' + _mailFromAddress() + '>')
+    : EMAIL_FROM;
+  const payload = { from: from, to: _split(to), subject, text };
+  if (replyTo || EMAIL_REPLYTO) payload.reply_to = _split(replyTo || EMAIL_REPLYTO);
   if (html) payload.html = html;
   if (cc) payload.cc = _split(cc);
   if (attachment && attachment.base64) {
@@ -534,7 +540,31 @@ function _money(n) {
 // One place that picks whichever mail transport is configured (Google
 // relay → Resend → SMTP) and sends. Shared by /email/send-order and the
 // customer accept-notification route so both behave identically.
-async function _dispatchMail({ to, cc, subject, text, html, attachment }) {
+// ── WHOSE NAME IS ON THE EMAIL ──────────────────────────────────────
+// Every message the platform sent went out under one global address, so a
+// subscriber's tax invoice reached THEIR customer from ours. For a product
+// sold to roofers by a roofing company that is worse than impersonal: the
+// homeowner gets an invoice for their job, apparently from a competitor.
+//
+// We cannot send AS the roofer. Sending from their domain needs SPF and DKIM
+// on a domain we do not control, and forging it just lands in spam. What we
+// can do is what every SaaS does before per-tenant domain verification: keep
+// the envelope address ours, put THEIR business name on it, and point replies
+// at them. The homeowner sees their roofer's name and replies to their roofer.
+//
+// `fromName` and `replyTo` are per-message. Platform mail — password resets,
+// team invites, error alerts — passes neither and keeps the global identity,
+// which is correct: those really are from us.
+function _mailFromName(fallback){
+  const m = /^\s*"?([^"<]+?)"?\s*</.exec(EMAIL_FROM || '');
+  return String(fallback || (m && m[1].trim()) || 'RoofMap').slice(0, 120);
+}
+// The bare address out of EMAIL_FROM ("Name <a@b>" → "a@b").
+function _mailFromAddress(){
+  const m = /<\s*([^>\s]+)\s*>/.exec(EMAIL_FROM || '');
+  return (m && m[1]) || String(EMAIL_FROM || '').trim();
+}
+async function _dispatchMail({ to, cc, subject, text, html, attachment, fromName, replyTo }) {
   if (attachment && attachment.base64) {
     attachment.filename = String(attachment.filename || 'attachment.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
   }
@@ -542,16 +572,20 @@ async function _dispatchMail({ to, cc, subject, text, html, attachment }) {
   const body = String(text || '');
   const htmlBody = html ? String(html) : undefined;
   if (GAS_ENABLED) {
-    return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment });
+    return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo });
   } else if (RESEND_ENABLED) {
-    return _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment });
+    return _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo });
   }
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  // The display name is the tenant's; the address stays ours, because it is the
+  // only one we are authorised to send from.
+  const addr = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const from = fromName ? ('"' + _mailFromName(fromName).replace(/"/g, '') + '" <' + addr + '>') : addr;
   const attachments = (attachment && attachment.base64)
     ? [{ filename: attachment.filename, content: Buffer.from(attachment.base64, 'base64'), contentType: 'application/pdf' }]
     : [];
   const resolved = await _resolveMailTransport();
-  return resolved.transporter.sendMail({ from, to, cc: cc || undefined, subject: subj, text: body, html: htmlBody, attachments });
+  return resolved.transporter.sendMail({ from, to, cc: cc || undefined, subject: subj,
+    text: body, html: htmlBody, attachments, replyTo: replyTo || EMAIL_REPLYTO || undefined });
 }
 function _buildSmtpTransport(port, secure) {
   const nodemailer = require('nodemailer');
@@ -2660,13 +2694,25 @@ function _invoiceEmail(invRow, branding, invSettings){
   return { subject: 'Invoice ' + invRow.number + ' from ' + coName + (invRow.site_address ? ' — ' + invRow.site_address : ''),
            text: lines.join('\n'), html: html };
 }
+// The business a message should appear to come from, out of their branding.
+// Both blank (a tenant who has not filled in Settings → Branding) falls back
+// to the platform identity rather than sending something nameless.
+function _tenantMailIdentity(settingsRow){
+  const b = ((settingsRow || {}).branding) || {};
+  const name = String(b.company_name || '').trim();
+  const email = String(b.email || '').trim();
+  return { fromName: name || null, replyTo: /.@./.test(email) ? email : null };
+}
 async function _sendInvoice(invRow, settingsRow, to){
   const invSettings = _invoiceSettingsOf(settingsRow);
   const branding = (settingsRow || {}).branding || {};
   const recipient = String(to || invRow.client_email || '').trim();
   if (!recipient) throw new Error('No customer email on this invoice — add one and send again');
   const mail = _invoiceEmail(invRow, branding, invSettings);
-  await _dispatchMail({ to: recipient, subject: mail.subject, text: mail.text, html: mail.html });
+  // A tax invoice for their job, from their roofer — not from us.
+  const who = _tenantMailIdentity(settingsRow);
+  await _dispatchMail({ to: recipient, subject: mail.subject, text: mail.text, html: mail.html,
+                        fromName: who.fromName, replyTo: who.replyTo });
   const patch = { status: 'sent', sent_at: new Date().toISOString(), client_email: recipient, updated_at: new Date().toISOString() };
   const { data } = await supabase.from('invoices').update(patch).eq('id', invRow.id).select('*').single();
   return data || Object.assign({}, invRow, patch);
@@ -4013,7 +4059,14 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
       }
       attachment.filename = String(attachment.filename || 'order.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
     }
-    const mail = { to, cc, subject, text, html: (html ? String(html).slice(0, 200000) : undefined), attachment };
+    // Sent on the subscriber's behalf — to a supplier, their crew, or their
+    // customer — so it goes out under their name with replies pointed at them,
+    // not at us. A tenant who has not filled in Branding keeps the platform
+    // identity rather than sending something nameless.
+    let _who = { fromName: null, replyTo: null };
+    try { _who = _tenantMailIdentity(await _companySettingsRow(req)); } catch (e) {}
+    const mail = { to, cc, subject, text, html: (html ? String(html).slice(0, 200000) : undefined),
+                   attachment, fromName: _who.fromName, replyTo: _who.replyTo };
     // The Google Apps Script relay can take 10-20s to wake + send, which made
     // the office wait on the "Send" button. When the caller opts into
     // background mode, dispatch the send without blocking the response: this

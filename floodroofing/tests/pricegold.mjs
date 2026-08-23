@@ -35,7 +35,12 @@ const demo = JSON.parse(await readFile(_j(DIR, 'demo-job.json'), 'utf8'));
 
 // One fixture, used to generate the baseline and to check against it, so the
 // two can never drift apart.
-const matrix = await pg.evaluate((job) => {
+// Installed once, applied before each matrix. The office run mutates quote
+// state as it goes, and an async render can repopulate lineItems from the
+// restored job afterwards — so the second matrix has to start from the same
+// place as the first, not from wherever the first left off.
+await pg.evaluate((job) => {
+  window.__applyPriceFixture = function(){
   S.settings = S.settings || {};
   S.settings.price_book = {
     list_prices:false,
@@ -59,8 +64,20 @@ const matrix = await pg.evaluate((job) => {
   S.quote.gutterLm = 42;
   S.quote.gutterLines = 3;
   S.quote.extraRoofs = [{ name:'Garage', price: 4800 }, { name:'Veranda', price: 2150 }];
-  S.quote.lineItems = [{ desc:'Main scope', qty:1, price: 28500 }];
+  S.quote.share = S.quote.share || {};
+  S.quote.share.priced = null;
+  // quoteSubtotal() multiplies qty by UNIT, not price — a fixture using
+  // `price` gave a base of 0 and made every combination differ only by its
+  // add-ons, which is a much weaker test than it looks.
+  S.quote.lineItems = [{ desc:'Main scope', qty:1, unit: 28500 }];
 
+  };
+  window.__applyPriceFixture();
+}, demo);
+await pg.waitForTimeout(600);   // let any deferred render settle BEFORE capturing
+
+const matrix = await pg.evaluate(() => {
+  window.__applyPriceFixture();
   const GRADES  = ['maxam','colorzen','colourcote','zincalume'];
   const PROFS   = ['corrugate','5rib'];
   const THICKS  = ['40','55'];
@@ -86,7 +103,7 @@ const matrix = await pg.evaluate((job) => {
       }); }); }); }); }); });
   });
   return out;
-}, demo);
+});
 
 // The same 1024 combinations again, but priced the way a CUSTOMER's browser
 // prices them: from the sell prices the office stored at send, with no access
@@ -94,8 +111,7 @@ const matrix = await pg.evaluate((job) => {
 // office numbers by a cent, the leak has been closed by changing someone's
 // quote, which is not closing it.
 const priced = await pg.evaluate(() => {
-  S.quote.share = S.quote.share || {};
-  S.quote.share.priced = _qpBuildPriced();
+  window.__applyPriceFixture();
   const GRADES  = ['maxam','colorzen','colourcote','zincalume'];
   const PROFS   = ['corrugate','5rib'];
   const THICKS  = ['40','55'];
