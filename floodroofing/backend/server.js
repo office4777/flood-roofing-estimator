@@ -1520,13 +1520,18 @@ app.post('/jobs/:id/order-sent', requireAuth, async (req, res) => {
     supplier: String(b.supplier || '').slice(0, 200),
     by: req.user.id,
   };
-  let { error } = await _scopeCompany(supabase.from('jobs')
-    .update({ order_sent: stamp, status: 'ordered', updated_at: stamp.at }).eq('id', req.params.id), req);
+  // .select('id') so we can tell a real update from a scope that matched no
+  // rows. Without it this answered ok:true — and handed back a stamp — for a
+  // job belonging to someone else, telling the office an order had been marked
+  // sent when nothing was written.
+  let { data, error } = await _scopeCompany(supabase.from('jobs')
+    .update({ order_sent: stamp, status: 'ordered', updated_at: stamp.at }).eq('id', req.params.id), req).select('id');
   if (error && /order_sent/.test(error.message || '')) {
-    ({ error } = await _scopeCompany(supabase.from('jobs')
-      .update({ status: 'ordered', updated_at: stamp.at }).eq('id', req.params.id), req));
+    ({ data, error } = await _scopeCompany(supabase.from('jobs')
+      .update({ status: 'ordered', updated_at: stamp.at }).eq('id', req.params.id), req).select('id'));
   }
   if (error) return res.status(500).json({ error: error.message });
+  if (!data || !data.length) return res.status(404).json({ error: 'Job not found' });
   res.json({ ok: true, order_sent: Object.assign({}, stamp, { by_name: await _nameOf(req.user.id, req) }) });
   recordUsage('order_sent', req);
 });
@@ -1574,9 +1579,12 @@ app.post('/jobs', requireAuth, requireSubscription, async (req, res) => {
 app.put('/jobs/:id', requireAuth, async (req, res) => {
   const patch = { ...req.body, updated_at: new Date().toISOString() };
   delete patch.user_id; delete patch.company_id; delete patch.id;   // ownership fields are never client-writable
-  const { data, error } = await _scopeCompany(supabase.from('jobs').update(patch).eq('id', req.params.id), req).select().single();
+  const { data, error } = await _scopeCompany(supabase.from('jobs').update(patch).eq('id', req.params.id), req).select();
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  // No row matched: the job is gone, or it is not this company's. Either way
+  // 404 — .single() used to turn that into a 500, which reads as our fault.
+  if (!data || !data.length) return res.status(404).json({ error: 'Job not found' });
+  res.json(data[0]);
 });
 
 app.get('/jobs/:id', requireAuth, async (req, res) => {
@@ -1682,8 +1690,15 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
 });
 
 app.delete('/jobs/:id', requireAuth, async (req, res) => {
-  const { error } = await _scopeCompany(supabase.from('jobs').delete().eq('id', req.params.id), req);
+  // .select() so the deleted rows come back and we can tell "deleted it" from
+  // "matched nothing". The scope means another company's job matches nothing —
+  // which used to answer ok:true, telling the client a delete happened that
+  // did not. 404 rather than 403, so this still says nothing about whether a
+  // job with that id exists somewhere else.
+  const { data, error } = await _scopeCompany(
+    supabase.from('jobs').delete().eq('id', req.params.id), req).select('id');
   if (error) return res.status(500).json({ error: error.message });
+  if (!data || !data.length) return res.status(404).json({ error: 'Job not found' });
   res.json({ ok: true });
 });
 
@@ -1705,14 +1720,26 @@ app.post('/jobs/:id/revisions/:revId/restore', requireAuth, async (req, res) => 
     const { data: rev, error } = await _scopeCompany(
       supabase.from('job_revisions').select('*').eq('id', req.params.revId).eq('job_id', req.params.id), req).single();
     if (error || !rev) return res.status(404).json({ error: 'Revision not found' });
-    const { data: existing } = await supabase.from('jobs').select('id').eq('id', rev.job_id).maybeSingle();
+    // rev.job_id is only as trustworthy as the revision it came from, and a
+    // revision predating the multi-tenant migration carries a null company_id
+    // — which _scopeCompany matches through its user_id fallback. Without this
+    // check such a revision could be restored straight over a job that now
+    // belongs to a different company, destroying their work. 404 rather than
+    // 403 on somebody else's job, so this does not confirm it exists.
+    const { data: existing } = await _scopeCompany(
+      supabase.from('jobs').select('id').eq('id', rev.job_id), req).maybeSingle();
+    if (!existing) {
+      const { data: elsewhere } = await supabase.from('jobs').select('id').eq('id', rev.job_id).maybeSingle();
+      if (elsewhere) return res.status(404).json({ error: 'Revision not found' });
+    }
     const fields = {
       client_name: rev.client_name || '', site_address: rev.site_address || '',
       draw_state: rev.draw_state || {}, settings: rev.settings || {},
       status: rev.status || 'draft', updated_at: new Date().toISOString(),
     };
     if (existing) {
-      const { error: uerr } = await supabase.from('jobs').update(fields).eq('id', rev.job_id);
+      const { error: uerr } = await _scopeCompany(
+        supabase.from('jobs').update(fields).eq('id', rev.job_id), req);
       if (uerr) return res.status(500).json({ error: uerr.message });
     } else {
       const { error: ierr } = await supabase.from('jobs').insert({ id: rev.job_id, user_id: rev.user_id || req.user.id, company_id: rev.company_id || req.companyId || null, ...fields });
@@ -4108,6 +4135,17 @@ const _MIGRATION_SQL = [
   "alter table public.subscriptions enable row level security",
   "alter table public.jobs enable row level security",
   "alter table public.user_settings enable row level security",
+  // The other backfills run before this table exists, so job_revisions was
+  // missed and every pre-migration snapshot kept a null company_id. That is
+  // not cosmetic: a null company_id is matched by the user_id fallback in
+  // _scopeCompany, so those rows were scoped to a PERSON rather than to the
+  // business they belong to. Take the company from the job wherever the job
+  // is still there, and fall back to the author's company for snapshots whose
+  // job has since been deleted (which they deliberately outlive).
+  "update public.job_revisions r set company_id = j.company_id from public.jobs j" +
+  "  where r.company_id is null and j.id = r.job_id and j.company_id is not null",
+  "update public.job_revisions r set company_id = cu.company_id from public.company_users cu" +
+  "  where r.company_id is null and cu.user_id = r.user_id",
   "alter table public.job_revisions enable row level security",
   "drop policy if exists companies_member on public.companies",
   "create policy companies_member on public.companies for all" +
