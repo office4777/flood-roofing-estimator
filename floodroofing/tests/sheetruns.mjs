@@ -133,6 +133,22 @@ check('…and the shallow side still reads once',
   labels(r.filter(d => d.y < 500)).join(',') === '5.00m',
   labels(r.filter(d => d.y < 500)).join(', ') || '(none)');
 
+// ── F. A raking face — the eave does not sit under its own ridge ──
+// The north eave runs x 0-300; its ridge runs x 400-800, entirely to one
+// side of it. A hip closes the face at one end and a valley at the other.
+// It is still one plane with one sheet length (500 - 200 = 3 m), and every
+// perpendicular across it exits through one of those two rakes — which is
+// why the whole face used to go unmeasured.
+r = await build([[0,200],[1200,200],[1200,900],[0,900]],
+  [['gutter',[0,200],[300,200]], ['gutter',[0,900],[1200,900]],
+   ['ridge',[400,500],[800,500]],
+   ['hip',[0,200],[400,500]], ['valley',[300,200],[800,500]]]);
+check('a raking face gets its run even though the eave sits off to one side',
+  labels(r).join(',') === '3.00m,4.00m', labels(r).join(', ') || '(none)');
+check('…the short run is the one above the ridge',
+  (r.find(d => d.y < 500) || {}).label === '3.00m',
+  r.map(d => d.label+'@y'+d.y).join(', '));
+
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 
 await ctx.close();

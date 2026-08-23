@@ -31834,15 +31834,36 @@ function redrawAll() {
       var o4 = _orient(p3, p4, p2);
       return o1 !== o2 && o3 !== o4;
     }
-    function _crossesAnotherRoofLine(p1, p2, excludeRidge){
+    function _crossesAnotherRoofLine(p1, p2, excludeRidge, skip){
       for (var i = 0; i < DRAW.lines.length; i++) {
         var l = DRAW.lines[i];
         if (l === excludeRidge) continue;
+        if (skip && skip.indexOf(l) >= 0) continue;
         if (l.type !== 'ridge' && l.type !== 'hip' && l.type !== 'valley') continue;
         if (!l.pts || l.pts.length !== 2) continue;
         if (_segCross(p1, p2, l.pts[0], l.pts[1])) return true;
       }
       return false;
+    }
+    // The hips and valleys that CLOSE a face — one end on the ridge, the
+    // other on the gutter. They are the two raking edges of the face, so a
+    // sheet run inside that face is entitled to cross them; the run measures
+    // the perpendicular ridge-to-gutter distance and the hips simply rake the
+    // sheet ends. Treating them as separators is what left the offset faces
+    // on a hip-and-valley roof unmeasured: on a face where the eave does not
+    // sit square under its own ridge, EVERY perpendicular exits through one
+    // of the two rakes.
+    function _endNear(a, b){ return Math.abs(a[0]-b[0]) <= 12 && Math.abs(a[1]-b[1]) <= 12; }
+    function _faceConnectors(ridge, gutter, lines){
+      var out = [];
+      function endOf(p, seg){ return _endNear(p, seg.pts[0]) || _endNear(p, seg.pts[1]); }
+      lines.forEach(function(l){
+        if (!l || !l.pts || l.pts.length !== 2) return;
+        if (l.type !== 'hip' && l.type !== 'valley') return;
+        var a = l.pts[0], b = l.pts[1];
+        if ((endOf(a, ridge) && endOf(b, gutter)) || (endOf(b, ridge) && endOf(a, gutter))) out.push(l);
+      });
+      return out;
     }
 
     // Cache candidate elevation points + ridge angles once.
@@ -32023,7 +32044,14 @@ function redrawAll() {
             var g0 = (ga[0]-rmx)*rux + (ga[1]-rmy)*ruy;
             var g1 = (gb[0]-rmx)*rux + (gb[1]-rmy)*ruy;
             var lo = Math.min(g0,g1), hi = Math.max(g0,g1);
-            if (hi < -0.55*rL || lo > 0.55*rL) return;
+            // A gutter normally sits under some of its ridge's span. It does
+            // not have to: on a raking face the eave can sit entirely to one
+            // side of the ridge, joined to it by a hip at one end and a valley
+            // at the other. That face is still one plane with one sheet
+            // length, so accept the gutter when those two rakes close it.
+            var _conn = _faceConnectors(rl, g, lines);
+            var _spanOverlap = !(hi < -0.55*rL || lo > 0.55*rL);
+            if (!_spanOverlap && !_conn.length) return;
             // Source point on the ridge directly ABOVE this gutter's own
             // centre. Testing the cross-line filter straight down from
             // here (not diagonally from the ridge midpoint) is what lets
@@ -32039,7 +32067,11 @@ function redrawAll() {
             // hip and the whole run was thrown away. Most of the missing
             // sheet measures on a hip-and-valley roof were this one line.
             var _ovLo = Math.max(lo, -0.5*rL), _ovHi = Math.min(hi, 0.5*rL);
-            var cc = (_ovLo <= _ovHi) ? (_ovLo + _ovHi) / 2
+            // No overlap at all (the raking face above): measure over the
+            // middle of the ridge, which is where the face is widest and where
+            // a roofer would put the dimension by hand.
+            var cc = !_spanOverlap ? 0
+                   : (_ovLo <= _ovHi) ? (_ovLo + _ovHi) / 2
                                       : Math.max(-0.5*rL, Math.min(0.5*rL, (lo+hi)/2));
             var srcx = rmx + rux*cc, srcy = rmy + ruy*cc;
             // Re-measure the drop from THIS run's own source point to the
@@ -32054,7 +32086,7 @@ function redrawAll() {
               if (_pSrc > 4) perp = _pSrc;
             }
             var endx = srcx + dx*perp, endy = srcy + dy*perp;
-            if (lines === DRAW.lines && _crossesAnotherRoofLine([srcx,srcy], [endx,endy], rl)) return;
+            if (lines === DRAW.lines && _crossesAnotherRoofLine([srcx,srcy], [endx,endy], rl, _conn)) return;
             cand.push({ g:g, perp:perp, lo:lo, hi:hi, cc:cc, srcx:srcx, srcy:srcy });
           });
           if (!cand.length) return;
