@@ -32030,8 +32030,29 @@ function redrawAll() {
             // a stepped / offset gutter keep its label — the diagonal
             // path clipped a barge and wrongly dropped every south run
             // except the one nearest the ridge centre.
-            var cc = Math.max(-0.5*rL, Math.min(0.5*rL, (lo+hi)/2));
+            // Centre of the OVERLAP between the ridge and this gutter, not
+            // the gutter's own centre clamped onto the ridge. A gutter that
+            // runs past both ridge ends (every hip end, and any ridge that
+            // sits off-centre over a long eave) has its midpoint outside the
+            // ridge span, so the clamp parked the source ON a ridge end —
+            // which is exactly where the hips converge, so the drop grazed a
+            // hip and the whole run was thrown away. Most of the missing
+            // sheet measures on a hip-and-valley roof were this one line.
+            var _ovLo = Math.max(lo, -0.5*rL), _ovHi = Math.min(hi, 0.5*rL);
+            var cc = (_ovLo <= _ovHi) ? (_ovLo + _ovHi) / 2
+                                      : Math.max(-0.5*rL, Math.min(0.5*rL, (lo+hi)/2));
             var srcx = rmx + rux*cc, srcy = rmy + ruy*cc;
+            // Re-measure the drop from THIS run's own source point to the
+            // gutter's line, rather than ridge-midpoint to gutter-midpoint.
+            // A traced eave is never exactly parallel to the ridge, and the
+            // arrow now starts over the middle of the run it measures, so the
+            // two are not the same distance — the label has to be the one the
+            // arrow actually spans, right down to the gutter line.
+            var _gnx = -gdy/gL, _gny = gdx/gL, _den = dx*_gnx + dy*_gny;
+            if (Math.abs(_den) > 0.5){
+              var _pSrc = ((ga[0]-srcx)*_gnx + (ga[1]-srcy)*_gny) / _den;
+              if (_pSrc > 4) perp = _pSrc;
+            }
             var endx = srcx + dx*perp, endy = srcy + dy*perp;
             if (lines === DRAW.lines && _crossesAnotherRoofLine([srcx,srcy], [endx,endy], rl)) return;
             cand.push({ g:g, perp:perp, lo:lo, hi:hi, cc:cc, srcx:srcx, srcy:srcy });
@@ -32162,6 +32183,10 @@ function redrawAll() {
         _collectSheetDimsFor(r.outline, r.lines, _sheetDims, ri);
       });
     }
+    // The collected runs, exposed for the test suite. This geometry is
+    // otherwise trapped inside redrawAll with no way to assert on it, which
+    // is how a hip roof came to lose most of its sheet measures unnoticed.
+    window._lastSheetDims = _sheetDims;
     // Pass 2 — draw, scaling font + arrows to each dim's length relative
     // to the longest sheet so every label keeps the same size:length feel.
     var _maxSdl = 1;
