@@ -7537,7 +7537,10 @@ var PB_CSV_TARGETS = [
   // (An earlier version ranked by regex length instead, which quietly sent
   // every Typhoon fitting to the generic spouting rate.)
   { path: 'gutter.typhoon_expjoiner_ea', label: 'Typhoon expansion joiner', unit: 'ea', re: /(?=.*typhoon)(?=.*exp)(?=.*joiner)/i },
-  { path: 'gutter.typhoon_weldsolvent_ea', label: 'Typhoon weld solvent',   unit: 'ea', re: /(?=.*typhoon)(?=.*(weld|solvent))/i },
+  // Billed as "Weld Solvent White 180g Tube" — the brand name is on the
+  // spouting lines, not on the consumables, so requiring "typhoon" here missed
+  // it every time.
+  { path: 'gutter.typhoon_weldsolvent_ea', label: 'Weld solvent', unit: 'ea', re: /weld\s*solvent|solvent\s*cement/i },
   { path: 'gutter.typhoon_stopend_ea',   label: 'Typhoon stop-end',   unit: 'ea', re: /(?=.*typhoon)(?=.*stop\s*end)/i },
   { path: 'gutter.typhoon_corner_ea',    label: 'Typhoon corner',     unit: 'ea', re: /(?=.*typhoon)(?=.*(corner|angle))/i },
   { path: 'gutter.typhoon_outlet_ea',    label: 'Typhoon outlet',     unit: 'ea', re: /(?=.*typhoon)(?=.*outlet)/i },
