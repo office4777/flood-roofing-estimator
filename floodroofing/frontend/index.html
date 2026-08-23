@@ -7964,18 +7964,27 @@ function renderMaterialPriceTable(){
     '</tr>';
   }
   var _gradeTotal = total * _gf;
-  // Roof material markup / safety buffer (default 5%) — shown as an editable
-  // row and folded into the material total that feeds the quote.
-  var _mkPct = _roofMatMarkupPct(), _mkAmt = _gradeTotal * (_mkPct/100);
-  var _finalMat = _gradeTotal + _mkAmt;
-  html += '<tr style="background:#f7f8fa">'+
-    '<td style="font-weight:600">Safety buffer / markup'+
-      '<div style="font-size:10px;color:var(--text2);margin-top:2px">margin on material cost</div></td>'+
-    '<td colspan="2"><div style="display:flex;align-items:center;gap:4px"><input type="number" step="1" min="0" value="'+_mkPct+'" onchange="_setRoofMatMarkup(this.value)" style="width:64px;font-size:12px;padding:4px 6px;text-align:right"><span style="font-size:11px;color:var(--text2)">%</span></div></td>'+
-    '<td style="font-size:11px;color:var(--text2)">+'+_mkPct+'%</td>'+
-    '<td style="text-align:right;font-weight:600;color:#b45309">+$'+_mkAmt.toFixed(2)+'</td>'+
-    '<td></td>'+
-  '</tr>';
+  // Two editable rows, both folded into the material total that feeds the
+  // quote: the quantity buffer first (it is a cost), then the mark-up on top
+  // of the buffered cost (it is margin on that cost).
+  var _bufPct = _roofMatQtyBufferPct(), _bufAmt = _gradeTotal * (_bufPct/100);
+  var _bufferedMat = _gradeTotal + _bufAmt;
+  var _mkPct = _roofMatMarkupPct(), _mkAmt = _bufferedMat * (_mkPct/100);
+  var _finalMat = _bufferedMat + _mkAmt;
+  var _pctRow = function(label, sub, pct, amt, setter){
+    return '<tr style="background:#f7f8fa">'+
+      '<td style="font-weight:600">'+label+
+        '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+sub+'</div></td>'+
+      '<td colspan="2"><div style="display:flex;align-items:center;gap:4px"><input type="number" step="1" min="0" value="'+pct+'" onchange="'+setter+'(this.value)" style="width:64px;font-size:12px;padding:4px 6px;text-align:right"><span style="font-size:11px;color:var(--text2)">%</span></div></td>'+
+      '<td style="font-size:11px;color:var(--text2)">+'+pct+'%</td>'+
+      '<td style="text-align:right;font-weight:600;color:'+(amt > 0 ? '#b45309' : 'var(--text2)')+'">+$'+amt.toFixed(2)+'</td>'+
+      '<td></td>'+
+    '</tr>';
+  };
+  html += _pctRow('Add quantity safety buffer',
+    'prices in extra material for offcuts \u2014 the cut list and supplier order stay exact',
+    _bufPct, _bufAmt, '_setRoofMatQtyBuffer');
+  html += _pctRow('Add mark-up', 'margin on material cost', _mkPct, _mkAmt, '_setRoofMatMarkup');
   var _gradeSpan = (_grade !== 'maxam') ? ' <span style="font-weight:400;color:var(--text2)">· '+esc(_gradeLabel(_grade))+'</span>' : '';
   var _matRoofNm = (_multiMat ? _pricingRoofName(_matRi) : '');
   html += '</tbody></table>'+
@@ -8015,7 +8024,33 @@ function _gradeLabel(grade){
   var M = { maxam:'Colorsteel® MAXAM', colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume®' };
   return M[grade] || 'MAXAM';
 }
-// Roof material markup / safety buffer (%). Default 5; editable per job.
+// Two separate percentages on materials, because they are two different
+// decisions an estimator makes:
+//
+//   Quantity safety buffer — prices the job as though you bought a bit more
+//     material than the drawing calls for, to cover offcuts and a mis-cut.
+//     It moves the PRICE only: the cut list and the supplier order stay at
+//     the exact calculated quantity, so what you order is still what the
+//     roof measures.
+//   Mark-up — margin on the material cost, applied on top of the buffered
+//     cost (the buffer is a cost; the margin sits on it).
+//
+// Buffer defaults to 0 so no existing quote changes price the day this ships;
+// the mark-up keeps the 5% it has always had.
+function _roofMatQtyBufferPct(){
+  var q = (window.S && S.quote) || {};
+  var v = parseFloat(q.roofMatQtyBuffer);
+  return (isFinite(v) && v >= 0) ? v : 0;
+}
+function _setRoofMatQtyBuffer(val){
+  if (!S.quote) return;
+  var v = parseFloat(val);
+  S.quote.roofMatQtyBuffer = (isFinite(v) && v >= 0) ? v : 0;
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+}
+// Roof material mark-up (%). Default 5; editable per job.
 function _roofMatMarkupPct(){
   var q = (window.S && S.quote) || {};
   var v = parseFloat(q.roofMaterialMarkup);
@@ -8045,7 +8080,7 @@ function _materialsTotalFromRows(rows){
     var price = picked ? picked.price : 0;
     total += (qty || 0) * (price || 0);
   });
-  return total * (1 + _roofMatMarkupPct() / 100);
+  return total * (1 + _roofMatQtyBufferPct() / 100) * (1 + _roofMatMarkupPct() / 100);
 }
 // Maxam material cost ($, ex-GST) for ONE roof, independent of the Material
 // tab's view selection. Single-roof jobs just use the current build.
@@ -14162,8 +14197,10 @@ function defaultQuote(){
     // hours + crew rates) and material markup / safety buffer (%, default 10).
     gutterLabour: {},
     gutterMaterialMarkup: 10,
-    // Roof material markup / safety buffer (%, default 5).
+    // Roof material mark-up (%, default 5) and the quantity safety buffer
+    // (%, default 0 — see _roofMatQtyBufferPct for why they are separate).
     roofMaterialMarkup: 5,
+    roofMatQtyBuffer: 0,
     // Proposal roof-map display size on the inclusions page — 'sm' | 'md' |
     // 'lg'. Office-set, persists to the customer link. Default large.
     roofMapSize: 'lg',
@@ -39896,10 +39933,18 @@ function _buildFergusItemisedSections(){
   var roofMat = [];
   _readFergusMaterialItems().forEach(function(m){ roofMat.push(matLine(m.name, m.qty, m.price)); });
   if (roofMat.length){
-    var _rmk = (typeof _roofMatMarkupPct === 'function') ? _roofMatMarkupPct() : 0;
-    if (_rmk > 0){
+    var _rbuf = (typeof _roofMatQtyBufferPct === 'function') ? _roofMatQtyBufferPct() : 0;
+    var _rmk  = (typeof _roofMatMarkupPct === 'function') ? _roofMatMarkupPct() : 0;
+    if (_rbuf > 0 || _rmk > 0){
       var _rawMatTot = roofMat.reduce(function(s, li){ return s + (li.itemQuantity || 0) * (li.itemPrice || 0); }, 0);
-      if (_rawMatTot > 0) roofMat.push(matLine('Safety buffer / markup (' + _rmk + '%)', 1, _rawMatTot * (_rmk / 100)));
+      if (_rawMatTot > 0){
+        // Same order as the pricing table: buffer on the raw cost, mark-up on
+        // the buffered cost. These land in Fergus, which only the roofer sees.
+        var _bufAmt = _rawMatTot * (_rbuf / 100);
+        if (_bufAmt > 0) roofMat.push(matLine('Quantity safety buffer (' + _rbuf + '%)', 1, _bufAmt));
+        var _mkAmt2 = (_rawMatTot + _bufAmt) * (_rmk / 100);
+        if (_mkAmt2 > 0) roofMat.push(matLine('Mark-up (' + _rmk + '%)', 1, _mkAmt2));
+      }
     }
   } else if ((+S.materials) > 0){
     roofMat.push(matLine('Materials', 1, +S.materials));   // fallback — S.materials already includes the markup
