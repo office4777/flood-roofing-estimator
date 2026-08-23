@@ -7547,8 +7547,14 @@ var PB_CSV_TARGETS = [
   { path: 'gutter.box125_lm',            label: '125mm box gutter',   unit: 'lm', re: /(?=.*\bbox\b)(?=.*125)/i },
   { path: 'gutter.marley_classic_lm',    label: 'Marley Classic',     unit: 'lm', re: /(?=.*marley)(?=.*classic)/i },
   { path: 'gutter.marley_typhoon_lm',    label: 'Marley Typhoon ($/lm)', unit: 'lm', re: /(?=.*marley)(?=.*typhoon)/i },
+  // Underlay is billed per roll and the roll size is in the description.
+  { path: 'underlay.50',  label: 'Underlay (50 m² roll)',  unit: 'roll', re: /(?=.*(underlay|covertek|dristud|thermakraft))(?=.*\b50\s*m)/i },
+  { path: 'underlay.75',  label: 'Underlay (75 m² roll)',  unit: 'roll', re: /(?=.*(underlay|covertek|dristud|thermakraft))(?=.*\b75\s*m)/i },
+  { path: 'underlay.100', label: 'Underlay (100 m² roll)', unit: 'roll', re: /(?=.*(underlay|covertek|dristud|thermakraft))(?=.*\b100\s*m)/i },
   { path: 'changepitch_lm',  label: 'Change-of-pitch flashing', unit: 'lm', re: /change\s*(of\s*)?pitch|\bcop\b/i },
-  { path: 'ridge_lm',        label: 'Ridge / hip flashing', unit: 'lm', re: /\b(ridge|hip)\b/i },
+  // Merchants here write "Ridging", not "Ridge" — Roofing Industries bills
+  // "Roundtop Standard Ridging Maxam 63mm". \bridge\b does not match that word.
+  { path: 'ridge_lm',        label: 'Ridge / hip flashing', unit: 'lm', re: /\b(ridge|ridging|hip)\b/i },
   { path: 'valley_lm',       label: 'Valley flashing',      unit: 'lm', re: /\bvalley\b/i },
   { path: 'barge_lm',        label: 'Barge flashing',       unit: 'lm', re: /\bbarge\b/i },
   { path: 'apron_lm',        label: 'Apron flashing',       unit: 'lm', re: /\bapron\b/i },
