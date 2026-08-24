@@ -33,7 +33,7 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
   if (/\/settings/.test(u) && m === 'GET') return j(200, { user_id:'u1', quote_defaults:{}, branding:{ company_name:'Flood Roofing LTD' }, jms_keys:{} });
   return j(200, []);
 });
-await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_settings','null'); });
+await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null'); });
 await pg.goto('file://'+DIR+'/index.html');
 await pg.waitForTimeout(2500);
 

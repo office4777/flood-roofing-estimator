@@ -24,7 +24,7 @@ async function open(branding, co){
       quote_defaults:{ next_job_no:'06121' }, jms_keys:{} });
     return j([]);
   });
-  await pg.addInitScript((c) => { localStorage.setItem('fr_token','t'); localStorage.removeItem('fr_settings');
+  await pg.addInitScript((c) => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.removeItem('fr_settings');
     localStorage.setItem('fr_user', JSON.stringify({ email:'aron@floodroofing.co.nz', name:'Aron Flood' }));
     localStorage.setItem('fr_company', JSON.stringify(c)); }, co);
   await pg.goto('file://'+DIR+'/index.html');

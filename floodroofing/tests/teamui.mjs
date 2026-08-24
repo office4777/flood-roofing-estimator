@@ -57,7 +57,7 @@ async function open(role){
     return j([]);
   });
   await pg.addInitScript(() => {
-    localStorage.setItem('fr_token','t'); localStorage.setItem('fr_settings','null');
+    localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null');
     localStorage.setItem('fr_company', JSON.stringify({ id:'co1', name:'Flood Roofing', slug:'floodroofing', role:'owner' }));
   });
   await pg.goto('file://'+DIR+'/index.html');

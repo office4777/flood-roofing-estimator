@@ -30,7 +30,7 @@ async function boot(sub){
     return j([]);
   });
   await pg.route('https://checkout.stripe.test/**', r => r.fulfill({status:200,contentType:'text/html',body:'<title>stripe</title>checkout'}));
-  await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.removeItem('fr_settings'); });
+  await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.removeItem('fr_settings'); });
   await pg.goto('file://'+DIR+'/index.html');
   await pg.waitForTimeout(2600);
   await pg.evaluate(() => { const w = document.getElementById('setupWizard'); if (w) w.remove(); });

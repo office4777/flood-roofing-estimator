@@ -60,7 +60,7 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     jms_keys:{} });
   return j(/\/settings/.test(u.pathname) ? {} : []);
 });
-await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.removeItem('fr_settings'); });
+await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.removeItem('fr_settings'); });
 await pg.goto('file://' + _j(DIR, 'index.html'));
 await pg.waitForTimeout(2600);
 await pg.evaluate(() => { const w = document.getElementById('setupWizard'); if (w) w.remove(); });

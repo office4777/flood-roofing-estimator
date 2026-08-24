@@ -26,7 +26,7 @@ async function open(settings){
     if (/\/settings/.test(u)) return j(settings);
     return j([]);
   });
-  await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.removeItem('fr_settings');
+  await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.removeItem('fr_settings');
     localStorage.setItem('fr_user', JSON.stringify({ email:'sam@acmeroofing.co.nz', name:'Sam' }));
     localStorage.setItem('fr_company', JSON.stringify({ id:'c1', name:'Acme Roofing Ltd', role:'owner' })); });
   await pg.goto('file://'+DIR+'/index.html');
@@ -44,8 +44,14 @@ check('…and on underlay and every flashing',
   !/barge_lm:\s+0,/.test(defaults) && !/apron_lm:\s+0,/.test(defaults) &&
   !/changepitch_lm:\s*0,/.test(defaults) && !/underlay: \{ '50': 0/.test(defaults));
 check('…and says out loud that they are only list prices', /list_prices: true/.test(defaults));
-check('…and still ships nobody\'s negotiated rates',
-  !/26\.84/.test(defaults) && /Indicative list prices/.test(defaults));
+// The book ships REAL trade rates now, on purpose — a quote built on invented
+// round numbers is obviously invented, and the roofer stops trusting the total
+// instead of the price book. What the rates must never do is say whose they
+// are, so the guard is on identity, not on the numbers.
+check('…and the rates are attributed to nobody',
+  !/Flood/.test(defaults) && !/floodroofing/i.test(defaults));
+check('…with a disclaimer that names nobody either',
+  /PB_DISCLAIMER/.test(src) && !/PB_DISCLAIMER[\s\S]{0,2000}?Flood/.test(src));
 
 // ── a brand-new business ──
 let { ctx, pg } = await open({ user_id:'u1', branding:{}, quote_defaults:{}, jms_keys:{} });

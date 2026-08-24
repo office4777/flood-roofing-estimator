@@ -23,9 +23,24 @@ const errs = [];
 pg.on('pageerror', e => errs.push(e.message));
 await pg.route('**/flood-roofing-estimator-production.up.railway.app/**',
   r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
-await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_settings','null'); });
+await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null'); });
 await pg.goto('file://'+DIR+'/index.html');
 await pg.waitForTimeout(2500);
+
+// Seed our own "before" values rather than leaning on whatever the shipped
+// defaults happen to be. This suite is about what an import does to a rate,
+// not about what that rate started at — and when the shipped book changed
+// underneath it, two checks failed for a reason that had nothing to do with
+// importing. Sentinels no CSV row and no default can collide with.
+const BEFORE_RIDGE = 11.11, BEFORE_BOX = 99.99;
+await pg.evaluate((b) => {
+  S.settings = S.settings || {};
+  S.settings.price_book = S.settings.price_book || {};
+  S.settings.price_book.ridge_lm = b.r;
+  S.settings.price_book.gutter = S.settings.price_book.gutter || {};
+  S.settings.price_book.gutter.box125_lm = b.b;
+  try { refreshSettingsUI(); } catch(e){}
+}, { r: BEFORE_RIDGE, b: BEFORE_BOX });
 
 // A merchant export: recognisable rates, one wrong-unit row, one it can't know.
 const CSV = [
@@ -54,7 +69,8 @@ let v = await pg.evaluate(() => ({
   extras: _PB_CSV_PENDING.extras.length,
   previewShown: getComputedStyle(document.getElementById('pbCsvPreview')).display !== 'none',
 }));
-check('reading the file changes no rate on its own', v.ridge === 22, 'ridge still $' + v.ridge);
+check('reading the file changes no rate on its own', v.ridge === BEFORE_RIDGE,
+  'ridge $' + v.ridge + ' (was $' + BEFORE_RIDGE + ')');
 check('…it puts a preview up instead', v.previewShown);
 check('…with the rows it recognised', v.mapped === 7, v.mapped + ' matched');
 check('…and the one it could not place kept aside for Custom items',
@@ -91,7 +107,8 @@ check('the recognised rates are updated', v.ridge === 26.84 && v.valley === 31.2
   'ridge ' + v.ridge + ', valley ' + v.valley + ', barge ' + v.barge);
 check('…including the itemised gutter fittings',
   v.spout === 21.9 && v.expj === 23.5, 'spouting ' + v.spout + ', exp joiner ' + v.expj);
-check('the unticked wrong-unit row is NOT written', v.box === 30, 'box gutter still $' + v.box);
+check('the unticked wrong-unit row is NOT written', v.box === BEFORE_BOX,
+  'box gutter $' + v.box + ' (was $' + BEFORE_BOX + ')');
 check('the unrecognised row lands in Custom items', v.extras >= 1, v.extras + ' custom row(s)');
 check('…and the book stops calling itself indicative once real rates land',
   v.listFlag === false, 'list_prices=' + v.listFlag);

@@ -26,7 +26,7 @@ async function boot(width, seedWidth){
   await pg.route('**/flood-roofing-estimator-production.up.railway.app/**',
     r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
   await pg.addInitScript((w) => {
-    localStorage.setItem('fr_token','t');
+    localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */
     localStorage.setItem('fr_settings','null');
     // A fresh account has never dragged the edge — that's the case under test.
     localStorage.removeItem('fr_sidepop_w');

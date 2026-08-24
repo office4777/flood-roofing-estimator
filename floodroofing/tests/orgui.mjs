@@ -42,7 +42,7 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     return j({ user_id:'u1', branding:{}, quote_defaults:{ next_job_no:'06121', gst_rate:15 }, jms_keys:{}, price_book:{}, labour_pricing:{} });
   return j([]);
 });
-await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_settings','null'); });
+await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null'); });
 await pg.goto('file://'+DIR+'/index.html');
 await pg.waitForTimeout(2600);
 await pg.evaluate(() => { gotoTab('select'); fetchRecentDrafts(); });

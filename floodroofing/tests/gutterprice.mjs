@@ -17,7 +17,7 @@ const opg = await octx.newPage();
 opg.on('pageerror', e => console.log('PAGEERROR', e.message));
 await opg.route('**/flood-roofing-estimator-production.up.railway.app/**',
   r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
-await opg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_settings','null'); });
+await opg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null'); });
 await opg.goto('file://'+DIR+'/index.html');
 await opg.waitForTimeout(2600);
 

@@ -25,7 +25,7 @@ pg.on('pageerror', e => errs.push(e.message));
 await pg.route('**/flood-roofing-estimator-production.up.railway.app/**',
   r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
 await pg.addInitScript(() => {
-  localStorage.setItem('fr_token','t');
+  localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */
   localStorage.setItem('fr_settings','null');
   // Two pipes, two different sizes — the case one dektite price cannot serve.
   localStorage.setItem('fr_dektites_v2', JSON.stringify([{qty:2,sizeMm:100},{qty:1,sizeMm:250}]));
@@ -112,14 +112,18 @@ v = await pg.evaluate(() => ({
   full:  _backTrayEachPrice({ name:'270mm Corrugate back-tray', lengthM: 7.2 }),
   short: _backTrayEachPrice({ name:'270mm Corrugate back-tray', lengthM: 2.4 }),
   nolen: _backTrayEachPrice({ name:'270mm Corrugate back-tray', lengthM: 0 }),
-  unpriced: _backTrayEachPrice({ name:'570mm Corrugate back-tray', lengthM: 5 }),
+  // A profile the book has never heard of. Every tray the app offers now
+  // carries a shipped rate, so an unpriced one has to be genuinely unknown —
+  // the point of the check is that we return 0 rather than guess a rate.
+  unpriced: _backTrayEachPrice({ name:'1200mm Sawtooth back-tray', lengthM: 5 }),
 }));
 check('a 7.2m tray is 3× a 2.4m tray, not the same price',
   Math.abs(v.full - 120.96) < 0.005 && Math.abs(v.short - 40.32) < 0.005,
   '$' + v.full.toFixed(2) + ' vs $' + v.short.toFixed(2));
 check('a tray with no length yet prices at 0, not at a length nobody chose',
   v.nolen === 0, '$' + v.nolen);
-check('a tray with no rate set prices at 0', v.unpriced === 0, '$' + v.unpriced);
+check('a tray the book has no rate for prices at 0, never a guess',
+  v.unpriced === 0, '$' + v.unpriced);
 
 // ── and it all reaches the material table ─────────────────────────
 v = await pg.evaluate(() => {

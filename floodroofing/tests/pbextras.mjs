@@ -22,7 +22,7 @@ const pg = await ctx.newPage();
 const errs = []; pg.on('pageerror', e => errs.push(e.message));
 await pg.route('**/flood-roofing-estimator-production.up.railway.app/**',
   r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
-await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_settings','null'); });
+await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.setItem('fr_settings','null'); });
 await pg.goto('file://'+DIR+'/index.html');
 await pg.waitForTimeout(2400);
 

@@ -21,7 +21,7 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     body:JSON.stringify({user_id:'u1',branding:{company_name:'Acme Roofing Ltd',phone:'09 1',email:'o@a.co.nz'},quote_defaults:{},jms_keys:{}})});
   return r.fulfill({status:200,contentType:'application/json',body:'[]'});
 });
-await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.removeItem('fr_settings');
+await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); /* the first-run setup guide is modal — opt out unless the suite is about it */ localStorage.removeItem('fr_settings');
   localStorage.setItem('fr_user', JSON.stringify({ email:'sam@acmeroofing.co.nz', name:'Sam' }));
   localStorage.setItem('fr_company', JSON.stringify({ id:'c1', name:'Acme Roofing Ltd', role:'owner' })); });
 await pg.goto('file://'+DIR+'/index.html');
