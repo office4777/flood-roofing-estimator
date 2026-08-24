@@ -11602,24 +11602,29 @@ function onRoofImg(e){
   var r=new FileReader();
   r.onload=function(ev){
     _storeAerialCompressed(ev.target.result);
-    document.getElementById('roofPrevImg').src=ev.target.result;
-    document.getElementById('roofPrev').style.display='block';
-    document.getElementById('roofUZ').style.display='none';
-    document.getElementById('analyseBtn').disabled=false;
-    document.getElementById('analyseTxt').textContent='Analyse roof sketch with AI';
+    // Every one of these is optional: Site mode and the customer view drop
+    // parts of this card, and the AI-analyse button was removed outright.
+    // Reaching straight through getElementById threw on the removed button,
+    // and because this runs inside a FileReader callback the throw was
+    // silent — it just abandoned the rest of the handler, so the preview
+    // never appeared and the background card never collapsed.
+    var _pi = document.getElementById('roofPrevImg'); if (_pi) _pi.src = ev.target.result;
+    var _pv = document.getElementById('roofPrev');    if (_pv) _pv.style.display = 'block';
+    var _uz = document.getElementById('roofUZ');      if (_uz) _uz.style.display = 'none';
     try { _collapseRoofBg(); } catch(e){}
   };
   r.readAsDataURL(f);
 }
 function clearRoofImg(){
   S.img64=null;
-  document.getElementById('roofPrev').style.display='none';
-  document.getElementById('roofUZ').style.display='block';
-  document.getElementById('analyseBtn').disabled=true;
-  document.getElementById('analyseTxt').textContent='Upload a sketch to analyse';
-  document.getElementById('roofFile').value='';
-  document.getElementById('roofResults').style.display='none';
-  _refreshRoofFergusBtn();
+  // Same story as onRoofImg: it threw on the removed analyse button, after
+  // clearing S.img64 but before resetting the file input — so re-picking the
+  // SAME photo fired no change event and appeared to do nothing.
+  var _pv = document.getElementById('roofPrev');    if (_pv) _pv.style.display = 'none';
+  var _uz = document.getElementById('roofUZ');      if (_uz) _uz.style.display = 'block';
+  var _rf = document.getElementById('roofFile');    if (_rf) _rf.value = '';
+  var _rr = document.getElementById('roofResults'); if (_rr) _rr.style.display = 'none';
+  try { _refreshRoofFergusBtn(); } catch(e){}
 }
 // ── "Roof image" step collapse ────────────────────────────────────
 // The aerial finder + upload cards only matter until an image is on the
@@ -11717,8 +11722,6 @@ function _setRoofImgFromDataUrl(dataUrl){
   if (img) img.src = dataUrl;
   var prev = document.getElementById('roofPrev'); if (prev) prev.style.display = 'block';
   var uz   = document.getElementById('roofUZ');   if (uz)   uz.style.display   = 'none';
-  var ab   = document.getElementById('analyseBtn'); if (ab) ab.disabled = false;
-  var at   = document.getElementById('analyseTxt'); if (at) at.textContent = 'Analyse roof sketch with AI';
 }
 
 // Retired: the "Select photo from Fergus" picker is gone because the
@@ -13784,8 +13787,6 @@ function _jobPhotoUseAsBg(i){
   var pv = document.getElementById('roofPrevImg'); if (pv) pv.src = pp.src;
   var pr = document.getElementById('roofPrev'); if (pr) pr.style.display = 'block';
   var uz = document.getElementById('roofUZ'); if (uz) uz.style.display = 'none';
-  var ab = document.getElementById('analyseBtn'); if (ab) ab.disabled = false;
-  var at = document.getElementById('analyseTxt'); if (at) at.textContent = 'Analyse roof sketch with AI';
   try { _collapseRoofBg(); } catch(e){}
   try { gotoTab('roof'); } catch(e){}
   try { _setSaveStatus && _setSaveStatus('\ud83d\uddfa Photo set as the roof background.', '#0369a1'); } catch(e){}
