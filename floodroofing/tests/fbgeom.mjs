@@ -136,7 +136,16 @@ check('…named so it is obvious what it is',
 check('the report carries the title and what they reported',
   /Sheet measures missing/.test(pdfTxt) && /no run on them/.test(pdfTxt));
 check('…who sent it and what they were using',
-  /roofer@example\.co\.nz/.test(pdfTxt) && /Browser:/.test(pdfTxt) && /Office mode|Site mode/.test(pdfTxt));
+  /roofer@example\.co\.nz/.test(pdfTxt) && /Browser:/.test(pdfTxt) && /Mode: (Office|Site)/.test(pdfTxt));
+// The roofer is asked only to describe what looks wrong; the rest is captured
+// for them. If that block ever silently stops being written, this is what
+// notices — the report would still look fine and be half as useful.
+check('…and the state the app was actually in',
+  /Build:/.test(pdfTxt) && /Tab:/.test(pdfTxt) && /Tool in use:/.test(pdfTxt) &&
+  /Lines drawn:/.test(pdfTxt) && /Calibrated:/.test(pdfTxt),
+  (pdfTxt.match(/Lines drawn:.*/)||['(no drawing state)'])[0]);
+check('…and whether anything threw on them',
+  /JavaScript errors this session/.test(pdfTxt));
 check('…a brief telling Claude Code what to do with the file',
   /For Claude Code/.test(pdfTxt) && /reproduce/.test(pdfTxt) && /run\.mjs/.test(pdfTxt));
 check('…and the screenshots, one page each',
