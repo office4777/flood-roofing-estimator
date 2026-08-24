@@ -804,6 +804,22 @@ html.site-mode #fergusRoofPanel{width:100vw!important;max-width:100vw}
 html.site-mode #fergusRoofPanelToggle,
 html.site-mode #fergusRoofPanelResize{display:none!important}
 /* 4. Bottom toolbar tightened so all 8 fit a 390px screen. */
+/* Setup guide. Centred while it is talking; tucked into a corner once it has
+   sent the user to a settings screen, so they can see what it pointed at
+   without losing their place in the sequence. */
+#setupGuide{position:fixed;inset:0;z-index:100075;background:rgba(10,22,40,.55);
+  display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit}
+#setupGuide .sg-card{width:100%;max-width:560px;background:#fff;border-radius:16px;
+  padding:22px 22px 16px;box-shadow:0 26px 64px rgba(10,22,40,.32)}
+#setupGuide.sg-tucked{background:transparent;pointer-events:none;
+  align-items:flex-end;justify-content:flex-end;padding:16px}
+#setupGuide.sg-tucked .sg-card{pointer-events:auto;max-width:380px;
+  box-shadow:0 16px 44px rgba(10,22,40,.28)}
+#setupGuide.sg-tucked #sgBody{max-height:22vh}
+@media (max-width:700px){
+  #setupGuide.sg-tucked{align-items:flex-end;justify-content:center}
+  #setupGuide.sg-tucked .sg-card{max-width:none}
+}
 .rl-site-only{display:none}
 html.site-mode .rl-site-only{display:flex}
 html.site-mode #tabletToolbar{gap:2px;padding-left:4px;padding-right:4px}
@@ -5913,6 +5929,13 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <!-- General: autosave — one toggle and one number don't earn a card of
          their own at the top of the page. -->
     <div class="sub-panel settings-sub" id="set-general" style="margin-top:14px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f6f9fc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:12.5px;font-weight:700;color:var(--text)">Setup guide</div>
+          <div style="font-size:11.5px;color:var(--text2)">Walks through the price book, your branding, your products, your rates and Fergus.</div>
+        </div>
+        <button type="button" onclick="openSetupGuide(true)" class="tool-btn" style="font-size:11.5px">Run the setup guide</button>
+      </div>
       <div class="set-row">
         <div class="set-row-txt">
           <b>Autosave the open job</b>
@@ -6843,6 +6866,10 @@ function toggleIncludeReport(ev){
   }
 }
 function switchSettingsSub(id,btn){
+  // Opening the price book is the moment the disclaimer matters, so it is
+  // tied to that rather than to finishing the setup guide — which anyone
+  // can skip.
+  if (id === 'set-pricebook'){ try { setTimeout(_pbDisclaimerOnce, 220); } catch(e){} }
   document.querySelectorAll('#tab-settings .settings-sub').forEach(function(p){p.classList.remove('on');});
   var panel = document.getElementById(id);
   if (panel) panel.classList.add('on');
@@ -7065,21 +7092,28 @@ function defaultSettings(){
       // wrong-but-plausible number gets a real quote on screen in the first
       // ten minutes; a zero never does.
       list_prices: true,
+      // Sheet: anchored on a real 0.40g Colorsteel Maxam rate. The other three
+      // are derived from the differentials this app already carries — the
+      // grade percentages in _defaultSelectables() and SEL_GAUGE55_PCT — so
+      // the four rows stay consistent with the way a grade change is priced
+      // everywhere else, instead of drifting on their own.
       sheets: [
-        { product: '0.40g Colorsteel Maxam', unit: 'm2', price: 34 },
-        { product: '0.55g Colorsteel Maxam', unit: 'm2', price: 45 },
-        { product: '0.40g Zincalume',        unit: 'm2', price: 26 },
-        { product: '0.55g Zincalume',        unit: 'm2', price: 36 }
+        { product: '0.40g Colorsteel Maxam', unit: 'm2', price: 26.84 },
+        { product: '0.55g Colorsteel Maxam', unit: 'm2', price: 32.74 },  // +22% gauge
+        { product: '0.40g Zincalume',        unit: 'm2', price: 18.06 },  // -32.7% grade
+        { product: '0.55g Zincalume',        unit: 'm2', price: 22.03 }
       ],
-      underlay: { '50': 150, '75': 210, '100': 270 },   // $ per roll, keyed by m²/roll
-      ridge_lm:       22,   // $/lm — used for ridge + hip cap (they share flashing)
-      valley_lm:      26,   // $/lm
-      gutter_lm:      28,   // $/lm
-      barge_lm:       20,   // $/lm
-      apron_lm:       22,   // $/lm
-      changepitch_lm: 24,   // $/lm — change-of-pitch flashing
-      screws_each:  0.35,   // $ per 65mm Unitite / roofing screw ($35/100)
-      rivets_each:  0.15,   // $ per rivet ($15/100)
+      // Underlay: the 50 m² roll is a real rate; 75 and 100 are the same
+      // $/m² carried up, so a bigger roll is never cheaper than a smaller one.
+      underlay: { '50': 256.75, '75': 385.13, '100': 513.50 },   // $ per roll, keyed by m²/roll
+      ridge_lm:    21.97,   // $/lm — Roundtop standard ridging, used for ridge + hip
+      valley_lm:   19.70,   // $/lm — 400/3 fold
+      gutter_lm:   16.37,   // $/lm — 125 square
+      barge_lm:    17.87,   // $/lm — folded 300/4
+      apron_lm:    16.10,   // $/lm — 300/3 fold
+      changepitch_lm: 21.48,// $/lm — change-of-pitch, 400/4 fold
+      screws_each:  0.26,   // $ per 65mm coloured roof screw
+      rivets_each:  0.08,   // $ per coloured aluminium rivet
       // Long-run guttering + downpipe unit prices used by the customer
       // Selections page (Marley Typhoon is itemised off the supplier invoice;
       // the box/Classic profiles use a single $/lm). Blank fields fall back to
@@ -7093,23 +7127,33 @@ function defaultSettings(){
         typhoon_stopend_ea:   5.16,  // Typhoon stop-ends (LH/RH) $/ea
         typhoon_expjoiner_ea:21.92,  // Typhoon expansion joiners $/ea
         typhoon_weldsolvent_ea:20.87,// Typhoon weld solvent $/180g tube
-        box125_lm:              30,  // 125mm Colorsteel box gutter $/lm (all-in)
-        marley_classic_lm:      35,  // Marley Classic PVC $/lm (all-in)
+        box125_lm:           19.89,  // 125mm box gutter $/lm all-in (gutter + internal brackets)
+        marley_classic_lm:   29.53,  // Marley Classic PVC $/lm all-in (spouting + fittings)
         marley_typhoon_lm:      40,  // Marley Typhoon simple $/lm (fallback if not itemised)
-        ext_bracket_box125_lm:   6,  // external-bracket upcharge on box gutter $/lm
+        // External brackets on 125 square are dear: plain external against
+        // internal, at one every 500mm, is most of this figure.
+        ext_bracket_box125_lm:20.16, // external-bracket upcharge on box gutter $/lm
         ext_bracket_marley_lm:   3   // external-bracket upcharge on either Marley PVC $/lm
       },
       downpipe_ea:   150,   // $ per downpipe (one per gutter line)
-      backtray_prices: {},  // { '<tray name>': $/lm } — back-trays are folded to the
-                            //   tray's own length, so the rate is per metre, not per tray
+      // { '<tray name>': $/lm } — back-trays are folded to the tray's own
+      // length, so the rate is per metre, not per tray. Girth × the coil rate
+      // plus four folds, which is how a merchant prices a folded flashing.
+      backtray_prices: {
+        '270mm Corrugate back-tray': 16.80, '340mm Corrugate back-tray': 19.32,
+        '570mm Corrugate back-tray': 27.60, '725mm Corrugate back-tray': 33.18,
+        '800mm Corrugate back-tray': 35.88,
+        '250mm 5-Rib back-tray':     16.08, '420mm 5-Rib back-tray':     22.20,
+        '610mm 5-Rib back-tray':     29.04, '800mm 5-Rib back-tray':     35.88
+      },
       // Pipe flashings (Aquaseal / Dektite), $/each, keyed by AQUASEAL_SIZES id.
       // The size is picked from the pipe's outside diameter, so a job with a
       // 100mm flue and a 250mm flue orders a No 3 and a No 6 — not two of
       // whatever size somebody typed once. Indicative retail; set your own.
       aquaseal: {
-        mini:  14,   no1:  17,   no2:  21,   no3:  27,
-        no4:   32,   no5:  47,   no6:  70,   no7:  88,
-        no8:  132,   no9: 214,   no10: 419,  retro_clip: 3.30
+        mini: 11.30, no1: 13.36, no2:  16.55, no3:  21.69,
+        no4:  25.64, no5: 37.46, no6:  55.67, no7:  70.07,
+        no8: 105.61, no9:171.25, no10:335.36, retro_clip: 2.63
       },
       extras: []         // [{desc, unit, qty, price}] — custom price-book items the user adds
     },
@@ -11658,6 +11702,15 @@ function resumeSavedJob(id){ return openJob(id); }
     if (window.__CUSTOMER_TOKEN) return; // customer view — skip office boot
     if (!localStorage.getItem('fr_token')) { setTimeout(tryBoot, 1000); return; }
     loadSettings().catch(function(e){console.warn(e);});
+    // First run on this device: the setup guide. After loadSettings so the
+    // Settings screens it sends people to are populated when they arrive,
+    // and skipped in Site mode — nobody sets a price book up a ladder.
+    setTimeout(function(){
+      try {
+        if (document.documentElement.classList.contains('site-mode')) return;
+        openSetupGuide(false);
+      } catch(e){}
+    }, 1400);
     try { fetchQuoteActivity(); } catch(e){}
     try { fetchRecentDrafts(); } catch(e){}
     try { _refreshRoofFergusBtn(); } catch(e){}
@@ -29211,6 +29264,165 @@ function _phoneSetRoofImage(){
     if (f) f.click();
   };
 }
+// ── FIRST-RUN SETUP GUIDE ───────────────────────────────────────────
+// A roofer who signs up and lands on a blank canvas has no idea that the
+// quote comes from the price book, that the products list is theirs to
+// change, or that Fergus is optional. Seven cards, each with a button that
+// takes them to the screen it is talking about. Skippable, re-runnable from
+// Settings, and it never shows twice on the same device.
+var SETUP_STEPS = [
+  { key:'welcome', title:'Welcome to RoofMap',
+    body:'Four tabs, left to right, and that is the whole job.\n\n' +
+         'Map Roof — trace the roof over an aerial or a photo and it works out the areas, the flashing lengths and the sheet runs.\n' +
+         'Job Pack — the cut lists and the material order, ready to send to your merchant.\n' +
+         'Quote — the priced proposal your customer sees and accepts online.\n' +
+         'Settings — your prices, your products, your branding.\n\n' +
+         'This setup takes about ten minutes and you only do it once.' },
+  { key:'pricebook', title:'Your price book — read this one',
+    body:'__PB_DISCLAIMER__',
+    go:{ tab:'settings', sub:'set-pricebook' }, cta:'Open the price book' },
+  { key:'brand', title:'Make the quotes yours',
+    body:'Proposals go out under your name, not ours. Put your company name, logo, ' +
+         'phone and email in and every quote, job pack and material order picks them up.\n\n' +
+         'Until you do, the header just says RoofMap.',
+    go:{ tab:'settings', sub:'set-brand' }, cta:'Add your branding' },
+  { key:'products', title:'The products you actually fit',
+    body:'Steel grades, sheet profiles and gutter profiles — add, edit or remove them so the ' +
+         'options your customer sees are the ones you really offer, priced the way you price them.\n\n' +
+         'A grade you never fit should not be on the page.',
+    go:{ tab:'settings', sub:'set-products' }, cta:'Set up your products' },
+  { key:'labour', title:'Your labour and scaffolding',
+    body:'Charge-out rates for a lead roofer and an apprentice, and the hours a roof of a given ' +
+         'size takes you. RoofMap estimates the hours from the drawing; you can always type over them ' +
+         'on the job.\n\nThis is the half of the quote that is not materials, so it is worth ten minutes.',
+    go:{ tab:'settings', sub:'set-labour' }, cta:'Set your rates' },
+  { key:'jms', title:'Fergus — only if you use it',
+    body:'If your business runs on Fergus, paste your API key and RoofMap will pull your jobs in and ' +
+         'push the finished quote back out, so you are not typing it twice.\n\n' +
+         'If you do not use Fergus, skip this. Everything works without it — jobs, quotes, ' +
+         'material orders and invoices all live in RoofMap on their own.',
+    go:{ tab:'settings', sub:'set-jms' }, cta:'Connect Fergus' },
+  { key:'done', title:'That is it — go and quote a roof',
+    body:'There is a finished sample job in here already: open it to see what a completed quote, ' +
+         'cut list and material order look like before you do your own.\n\n' +
+         'When you are ready, Map Roof → set a roof image → trace the outline. On a phone or tablet ' +
+         'the app switches to Site mode on its own, with a bottom toolbar sized for a thumb.\n\n' +
+         'Anything wrong or missing, Send Feedback tells us — it sends the roof you were looking at ' +
+         'along with it, so we can reproduce it rather than guess.' }
+];
+// The one piece of wording that matters most in here. It has to be honest
+// about what the shipped rates are and blunt about replacing them, without
+// pretending they are anybody's published list.
+var PB_DISCLAIMER =
+  'RoofMap comes with a full price book already filled in — sheet, underlay, flashings, guttering, ' +
+  'pipe flashings, back-trays, screws and rivets. They are real New Zealand trade rates, in the ' +
+  'range a roofing company pays, so your very first quote is a believable number instead of zero.\n\n' +
+  'They are a starting point, not your prices. What you pay depends on your region, your merchant ' +
+  'and the deal you have negotiated, and it moves. Every rate in here is yours to change.\n\n' +
+  'Load your own supplier pricing before you send a quote to a customer: Settings → Price book → ' +
+  'Upload CSV takes a merchant price list straight in, or type over any number by hand.\n\n' +
+  'Until you do, you are quoting on somebody else’s rates. RoofMap marks the book as indicative ' +
+  'until you save your own, and every quote and order carries a note that materials should be checked.';
+
+var SETUP = { i:0 };
+function _setupDone(){ try { return localStorage.getItem('fr_setup_done') === '1'; } catch(e){ return false; } }
+function _setupMarkDone(){ try { localStorage.setItem('fr_setup_done','1'); } catch(e){} }
+function closeSetupGuide(skip){
+  var w = document.getElementById('setupGuide'); if (w) w.remove();
+  _setupMarkDone();
+  if (skip){
+    try { _setSaveStatus && _setSaveStatus('Setup skipped — you can run it again any time from Settings → General.', '#64748b'); } catch(e){}
+  }
+}
+function setupGuideStep(n){
+  SETUP.i = Math.max(0, Math.min(SETUP_STEPS.length - 1, n));
+  _setupRender();
+}
+function _setupRender(){
+  var w = document.getElementById('setupGuide'); if (!w) return;
+  var st = SETUP_STEPS[SETUP.i], last = (SETUP.i === SETUP_STEPS.length - 1);
+  var body = (st.body === '__PB_DISCLAIMER__') ? PB_DISCLAIMER : st.body;
+  w.querySelector('#sgTitle').textContent = st.title;
+  w.querySelector('#sgBody').textContent = body;
+  w.querySelector('#sgCount').textContent = 'Step ' + (SETUP.i + 1) + ' of ' + SETUP_STEPS.length;
+  var dots = SETUP_STEPS.map(function(_, i){
+    return '<span style="width:7px;height:7px;border-radius:50%;background:' +
+      (i === SETUP.i ? '#0a1628' : '#cbd5e1') + ';display:inline-block"></span>';
+  }).join('');
+  w.querySelector('#sgDots').innerHTML = dots;
+  var go = w.querySelector('#sgGo');
+  if (st.go){ go.style.display = ''; go.textContent = st.cta || 'Take me there'; }
+  else go.style.display = 'none';
+  w.querySelector('#sgBack').style.visibility = SETUP.i ? 'visible' : 'hidden';
+  w.querySelector('#sgNext').textContent = last ? 'Finish' : 'Next';
+}
+function _setupGo(){
+  var st = SETUP_STEPS[SETUP.i];
+  if (!st || !st.go) return;
+  try { if (st.go.tab) gotoTab(st.go.tab); } catch(e){}
+  try { if (st.go.sub) switchSettingsSub(st.go.sub); } catch(e){}
+  // The card stays up, moved out of the way, so they can look at the screen
+  // it sent them to and then carry on. Closing it would lose their place.
+  var w = document.getElementById('setupGuide');
+  if (w) w.classList.add('sg-tucked');
+}
+function openSetupGuide(force){
+  if (!force && _setupDone()) return;
+  if (document.getElementById('setupGuide')) return;
+  SETUP.i = 0;
+  var w = document.createElement('div');
+  w.id = 'setupGuide';
+  w.className = 'no-print';
+  w.innerHTML =
+    '<div class="sg-card">' +
+      '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:2px">' +
+        '<div style="font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#0099cc">Setting up RoofMap</div>' +
+        '<div id="sgCount" style="font-size:11px;color:#94a3b8;margin-left:auto"></div>' +
+      '</div>' +
+      '<div id="sgTitle" style="font-size:19px;font-weight:800;color:#0a1628;margin:6px 0 10px;line-height:1.25"></div>' +
+      '<div id="sgBody" style="font-size:13.5px;line-height:1.62;color:#334155;white-space:pre-line;max-height:46vh;overflow:auto"></div>' +
+      '<button type="button" id="sgGo" style="margin-top:14px;padding:10px 16px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer"></button>' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid #e6eaf0">' +
+        '<div id="sgDots" style="display:flex;gap:5px;align-items:center"></div>' +
+        '<button type="button" id="sgSkip" style="margin-left:auto;background:none;border:none;color:#94a3b8;font-size:12px;font-family:inherit;cursor:pointer">Skip setup</button>' +
+        '<button type="button" id="sgBack" style="padding:8px 13px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer">Back</button>' +
+        '<button type="button" id="sgNext" style="padding:8px 17px;background:#0099cc;color:#fff;border:none;border-radius:9px;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer">Next</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(w);
+  w.querySelector('#sgSkip').onclick = function(){ closeSetupGuide(true); };
+  w.querySelector('#sgBack').onclick = function(){ setupGuideStep(SETUP.i - 1); };
+  w.querySelector('#sgGo').onclick = _setupGo;
+  w.querySelector('#sgNext').onclick = function(){
+    if (SETUP.i === SETUP_STEPS.length - 1) closeSetupGuide(false);
+    else setupGuideStep(SETUP.i + 1);
+  };
+  _setupRender();
+}
+// Belt to the guide's brace: whoever skips the setup still meets the price
+// book disclaimer the first time they open that screen, because quoting on
+// rates you have not looked at is the one mistake here that reaches a customer.
+function _pbDisclaimerOnce(){
+  try { if (localStorage.getItem('fr_pb_disclaimer_seen') === '1') return; } catch(e){}
+  if (document.getElementById('pbDiscModal')) return;
+  var w = document.createElement('div');
+  w.id = 'pbDiscModal';
+  w.className = 'no-print';
+  w.style.cssText = 'position:fixed;inset:0;z-index:100065;background:rgba(10,22,40,.55);display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit';
+  w.innerHTML =
+    '<div style="max-width:560px;background:#fff;border-radius:14px;padding:22px 22px 18px;box-shadow:0 24px 60px rgba(10,22,40,.3)">' +
+      '<div style="font-size:17px;font-weight:800;color:#0a1628;margin-bottom:10px">About these prices</div>' +
+      '<div style="font-size:13.5px;line-height:1.62;color:#334155;white-space:pre-line;max-height:56vh;overflow:auto"></div>' +
+      '<button type="button" id="pbDiscOk" style="margin-top:16px;width:100%;padding:12px;background:#0a1628;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer">Got it</button>' +
+    '</div>';
+  w.querySelector('div > div:nth-child(2)').textContent = PB_DISCLAIMER;
+  document.body.appendChild(w);
+  w.querySelector('#pbDiscOk').onclick = function(){
+    try { localStorage.setItem('fr_pb_disclaimer_seen','1'); } catch(e){}
+    w.remove();
+  };
+}
+
 // ── RAPID CAMERA ────────────────────────────────────────────────────
 // A file input with capture="environment" hands the job to the phone's own
 // camera app, and that app insists on Use Photo / Retake after every shot.
