@@ -30941,6 +30941,33 @@ function onCanvasMove(e) {
   redrawAll();
 }
 
+// Put a boxed opening on the roof and ask what size it is. Two taps and a
+// traced stroke both land here, so a chimney drawn with the pen is the same
+// object as one tapped out corner to corner — same prompt, same undo, same
+// row on the order.
+function _placeBoxedPen(x0, y0, x1, y1){
+  var _penBox = {
+    type: 'penetration',
+    kind: 'box',
+    cx: (x0 + x1) / 2,
+    cy: (y0 + y1) / 2,
+    x0: x0, y0: y0, x1: x1, y1: y1,
+    widthMm: '', lengthMm: '', sizeLabel: ''
+  };
+  DRAW.penetrations.push(_penBox);
+  syncToRoofData();
+  redrawAll();
+  try { updateMeasTotals(); } catch(e){}
+  // Placed blank first, then labelled — Cancel leaves it on the roof
+  // unlabelled rather than throwing away the shape that was just drawn.
+  _styledPrompt({ title:'Boxed penetration size', message:'Width \u00d7 length in mm (e.g. 350 x 850).', value:'350x850', okLabel:'Set size' }, function(ans){
+    var m = String(ans||'').match(/(\d+(?:\.\d+)?)\s*[xX\u00d7*]\s*(\d+(?:\.\d+)?)/);
+    if (m){ _penBox.widthMm = m[1]; _penBox.lengthMm = m[2]; _penBox.sizeLabel = m[1]+'\u00d7'+m[2]+' mm';
+      try { syncToRoofData(); redrawAll(); updateMeasTotals(); } catch(e){} }
+  });
+  return _penBox;
+}
+
 function onCanvasClick(e) {
   if(e.detail>=2) return;
   document.getElementById('ctxMenu').style.display='none';
@@ -31099,25 +31126,7 @@ function onCanvasClick(e) {
       var y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
       DRAW.currentPts = [];
       saveSnapshot();
-      // Place the box immediately (blank size), then fill the size from a
-      // styled popup — Cancel leaves it unlabeled, matching the old prompt.
-      var _penBox = {
-        type: 'penetration',
-        kind: 'box',
-        cx: (x0 + x1) / 2,
-        cy: (y0 + y1) / 2,
-        x0: x0, y0: y0, x1: x1, y1: y1,
-        widthMm: '', lengthMm: '', sizeLabel: ''
-      };
-      DRAW.penetrations.push(_penBox);
-      syncToRoofData();
-      redrawAll();
-      updateMeasTotals();
-      _styledPrompt({ title:'Boxed penetration size', message:'Width × length in mm (e.g. 350 x 850).', value:'350x850', okLabel:'Set size' }, function(ans){
-        var m = String(ans||'').match(/(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)/);
-        if (m){ _penBox.widthMm = m[1]; _penBox.lengthMm = m[2]; _penBox.sizeLabel = m[1]+'×'+m[2]+' mm';
-          try { syncToRoofData(); redrawAll(); updateMeasTotals(); } catch(e){} }
-      });
+      _placeBoxedPen(x0, y0, x1, y1);
     } else {
       redrawAll();
     }
@@ -32263,7 +32272,8 @@ var INK_POLY_TOOLS = { outline:1, section:1 };
 function _inkModeOn(){ return !!window.__siteModeOn; }
 // Hip and valley keep their tap-two-points centre-snap magic — ink would
 // fight it — so they are deliberately not in this list.
-var INK_TOOLS = { outline:1, section:1, ridge:1, gutter:1, barge:1, apron:1, changepitch:1, addmeas:1 };
+var INK_TOOLS = { outline:1, section:1, ridge:1, gutter:1, barge:1, apron:1, changepitch:1, addmeas:1,
+                  boxedpen:1 };
 function _inkToolOk(t){ return !!INK_TOOLS[t]; }
 
 function _angDelta(a, b){
@@ -32623,6 +32633,39 @@ function _inkCancel(){ INK.active = false; INK.raw = []; INK.fit = null; INK.id 
 function _inkCommit(){
   if (!INK.active) return false;
   var tool = INK.tool, moved = INK.moved;
+
+  // A boxed penetration is a rectangle, so it does not go near the chain
+  // fitter — the bounding box of the ink IS the answer. Scribble round the
+  // chimney, drag a rough diagonal across the skylight, either way what lands
+  // is square to the building, which is the whole point of drawing it rather
+  // than tapping two corners with a glove on.
+  if (tool === 'boxedpen'){
+    var raw = INK.raw.slice();
+    _inkCancel();
+    if (moved < 12 || raw.length < 2) return false;      // a tap: let it place
+    var bx0 = raw[0][0], bx1 = raw[0][0], by0 = raw[0][1], by1 = raw[0][1];
+    for (var bi = 1; bi < raw.length; bi++){
+      if (raw[bi][0] < bx0) bx0 = raw[bi][0];
+      if (raw[bi][0] > bx1) bx1 = raw[bi][0];
+      if (raw[bi][1] < by0) by0 = raw[bi][1];
+      if (raw[bi][1] > by1) by1 = raw[bi][1];
+    }
+    // A stroke with no width in one axis is a line, not an opening. Rather
+    // than place a zero-height box nobody can grab again, give it the
+    // shorter side so there is something on the roof to correct.
+    var bw = bx1 - bx0, bh = by1 - by0;
+    if (bw < 1 && bh < 1) return false;
+    if (bw < 1){ bx0 -= bh*0.15; bx1 += bh*0.15; }
+    if (bh < 1){ by0 -= bw*0.15; by1 += bw*0.15; }
+    // The general snapshot, not _inkPushUndo — that one only remembers the
+    // outline chains in progress and has never heard of a penetration, so
+    // undoing a traced box would have left it on the roof.
+    saveSnapshot();
+    DRAW.currentPts = [];          // drop a half-finished two-tap box
+    _placeBoxedPen(bx0, by0, bx1, by1);
+    return true;
+  }
+
   var fit = _fitInk(INK.raw, tool);        // never the throttled preview
   // Where the pen physically stopped. "Did that close the building?" is a
   // question about the hand, and both fitting and squaring move the last
@@ -34232,7 +34275,24 @@ function redrawAll() {
     }
     ctx.strokeStyle = 'rgba(37,99,235,0.30)'; ctx.lineWidth = 3;
     ctx.stroke();
-    var _fit = INK.fit;
+    // A boxed penetration has no chain to fit — the rectangle around the ink
+    // IS the shape, so show that instead and let the roofer watch it square
+    // itself up while they scribble round the chimney.
+    if (INK.tool === 'boxedpen'){
+      var _bx0 = INK.raw[0][0], _bx1 = _bx0, _by0 = INK.raw[0][1], _by1 = _by0;
+      for (var _bi = 1; _bi < INK.raw.length; _bi++){
+        if (INK.raw[_bi][0] < _bx0) _bx0 = INK.raw[_bi][0];
+        if (INK.raw[_bi][0] > _bx1) _bx1 = INK.raw[_bi][0];
+        if (INK.raw[_bi][1] < _by0) _by0 = INK.raw[_bi][1];
+        if (INK.raw[_bi][1] > _by1) _by1 = INK.raw[_bi][1];
+      }
+      var _bA = _idp([_bx0, _by0]), _bB = _idp([_bx1, _by1]);
+      ctx.beginPath();
+      ctx.rect(_bA[0], _bA[1], _bB[0] - _bA[0], _bB[1] - _bA[1]);
+      ctx.fillStyle = 'rgba(5,150,105,0.10)'; ctx.fill();
+      ctx.strokeStyle = '#059669'; ctx.lineWidth = 2.5; ctx.stroke();
+    }
+    var _fit = (INK.tool === 'boxedpen') ? null : INK.fit;
     if (_fit && _fit.pts && _fit.pts.length >= 2){
       ctx.beginPath();
       for (var _fi = 0; _fi < _fit.pts.length; _fi++){
