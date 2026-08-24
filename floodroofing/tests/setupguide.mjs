@@ -58,7 +58,7 @@ let v = await pg.evaluate(() => ({
   dots: document.querySelectorAll('#sgDots span').length,
 }));
 check('a first login opens the setup guide', v.open, v.title);
-check('…at step one of eight', v.steps === 8 && v.dots === 8 && /Welcome/.test(v.title),
+check('…at step one of nine', v.steps === 9 && v.dots === 9 && /Welcome/.test(v.title),
   v.steps + ' steps');
 
 // ── the price-book card, and its wording ──────────────────────────
@@ -104,8 +104,8 @@ v = await pg.evaluate(() => {
   return { seen, last: document.getElementById('sgNext').textContent };
 });
 check('every step has a title', v.seen.every(x => x.t.length > 4), v.seen.length + ' steps');
-check('the six setup steps each offer a way there, the first and last do not',
-  v.seen.filter(x => x.go).length === 6, v.seen.filter(x => x.go).length + ' with a button');
+check('the seven setup steps each offer a way there, the first and last do not',
+  v.seen.filter(x => x.go).length === 7, v.seen.filter(x => x.go).length + ' with a button');
 check('the last step says Finish, not Next', v.last === 'Finish', v.last);
 check('Fergus is offered as optional',
   v.seen.some(x => /Fergus/.test(x.t)) &&
@@ -160,7 +160,9 @@ v = await pg.evaluate(() => {
 });
 const withGo = v.filter(r => r.hasGo);
 check('every step with a button tells you where that screen lives',
-  withGo.length === 6 && withGo.every(r => /Settings tab, in the .+ section/.test(r.txt)),
+  withGo.length === 7 &&
+  withGo.every(r => /Settings tab, in the .+ section/.test(r.txt) ||
+                    /Send Feedback is in the left-hand menu/.test(r.txt)),
   withGo.map(r => r.key).join(', '));
 check('…and it sits beside the button, not under it',
   withGo.every(r => r.sameLine && r.display === 'flex'),
@@ -177,6 +179,11 @@ check('…and when the card tucks into a corner it wraps under instead of vanish
     const shown = wh.offsetParent !== null && wh.getBoundingClientRect().width > 40;
     card.classList.remove('sg-tucked');
     return shown;
+  }));
+check('a card that sends you outside Settings brings its own sentence',
+  await pg.evaluate(() => {
+    const st = SETUP_STEPS.filter(s => s.key === 'feedback')[0];
+    return !st.where && /Send Feedback/.test(st.whereText || '');
   }));
 check('the section names match real Settings tabs', await pg.evaluate(() => {
   const tabs = [...document.querySelectorAll('.set-nav .tab-sm')].map(b => b.textContent.trim());
@@ -204,6 +211,37 @@ check('the material-ordering card explains suppliers and the order email',
 check('…and it is its own step, named Material ordering',
   await pg.evaluate(() => SETUP_STEPS.filter(s => s.key === 'suppliers')[0].title === 'Material ordering'));
 
+// ── the Send Feedback card ────────────────────────────────────────
+v = await pg.evaluate(() => {
+  const st = SETUP_STEPS.filter(s => s.key === 'feedback')[0];
+  return { title: st.title, body: st.body, tab: (st.go||{}).tab, cta: st.cta };
+});
+check('Send Feedback has a step of its own', !!v.title, v.title);
+check('…that promises the turnaround', /two hours/i.test(v.body), 'two hours');
+check('…and says detail is what makes the fix quick and thorough',
+  /more you tell us/i.test(v.body) && /faster/i.test(v.body) && /thoroughly/i.test(v.body));
+check('…with the cost of a vague report spelled out',
+  /guess/i.test(v.body) && /second round/i.test(v.body));
+check('…and its button opens the Send Feedback tab, not a Settings section',
+  v.tab === 'feedback');
+
+// The tab itself says the same, because most people never run the guide.
+v = await pg.evaluate(() => {
+  gotoTab('feedback');
+  const card = document.getElementById('tab-feedback');
+  return { txt: card.textContent.replace(/\s+/g, ' '),
+           ph: (document.getElementById('fbDetails')||{}).placeholder || '' };
+});
+check('the Send Feedback tab promises the same turnaround', /two hours/i.test(v.txt));
+check('…and asks for detail, with a reason', /more you tell us/i.test(v.txt) &&
+  /thoroughly/i.test(v.txt) && /guess/i.test(v.txt));
+check('…and the empty box prompts the three things',
+  /what i did/i.test(v.ph) && /expected/i.test(v.ph) && /happened instead/i.test(v.ph),
+  v.ph.split('\n')[0]);
+await pg.evaluate(() => gotoTab('settings'));
+
+await pg.evaluate(() => openSetupGuide(true));
+await pg.waitForTimeout(150);
 await pg.evaluate(() => setupGuideStep(SETUP.steps.length - 1));
 await pg.evaluate(() => closeSetupGuide(false));
 await pg.waitForTimeout(200);
@@ -276,9 +314,9 @@ v = await pg.evaluate(() => {
   return { n: SETUP.steps.length, keys: SETUP.steps.map(s => s.key) };
 });
 check('once the business is named, the branding card drops out',
-  v.n === 7 && v.keys.indexOf('brand') < 0, v.n + ' steps: ' + v.keys.join(','));
+  v.n === 8 && v.keys.indexOf('brand') < 0, v.n + ' steps: ' + v.keys.join(','));
 check('…and the count reflects what they will actually see',
-  await pg.evaluate(() => /of 7/.test(document.getElementById('sgCount').textContent)),
+  await pg.evaluate(() => /of 8/.test(document.getElementById('sgCount').textContent)),
   await pg.evaluate(() => document.getElementById('sgCount').textContent));
 check('…and Next still walks to the end without a dead card',
   await pg.evaluate(() => {

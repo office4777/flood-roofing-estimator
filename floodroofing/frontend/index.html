@@ -896,22 +896,50 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
   flex-shrink:0;
 }
 .hdr-logo img.hdr-logo-mark{
-  width:34px;height:34px;
+  width:46px;height:46px;
   flex-shrink:0;
   object-fit:contain;
   display:block;
 }
+/* The tenant's own logo, under the product's. Deliberately quieter than the
+   RoofMap block above it — this says whose account you are in, it is not the
+   masthead. Empty means no padding and no rule, so an unbranded account does
+   not get a blank gap. */
+.hdr-company{
+  padding:0 18px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.hdr-company:not(:empty){
+  padding:12px 18px;
+  border-bottom:1px solid var(--border);
+}
+.hdr-company img{
+  max-height:34px;max-width:150px;
+  object-fit:contain;display:block;flex:0 0 auto;
+}
+.hdr-company .hdr-co-name{
+  font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.2;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.hdr-company .hdr-co-lbl{
+  font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--text2);font-weight:700;margin-bottom:3px;
+}
 .hdr-logo-text{
   color:var(--ink);
-  font-size:15px;
+  font-size:20px;
   font-weight:700;
   letter-spacing:-.02em;
   line-height:1.1;
 }
 .hdr-logo-sub{
   color:var(--accent);
-  font-size:9px;
-  letter-spacing:.22em;
+  font-size:8.5px;
+  /* .22em broke "Quote & proposal builder" across two lines in the sidebar,
+     splitting the phrase mid-way. Tight enough to hold one line. */
+  letter-spacing:.10em;
   margin-top:3px;
   font-weight:600;
 }
@@ -3497,10 +3525,18 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 </div>
 <aside class="sidebar">
 <div class="hdr">
+  <!-- The top of the sidebar is the product's, not the tenant's. It used to be
+       overwritten with whatever company logo was uploaded, which left the app
+       looking like it belonged to the roofer's own business and gave a new
+       user nothing to recognise. The roofer's own branding lives below, where
+       it says whose account this is. -->
   <div class="hdr-logo">
-    <img class="hdr-logo-mark" src="brand/roofmap_icon.png" alt="RoofMap">
+    <img class="hdr-logo-mark" src="brand/roofmap_logo.png" alt="RoofMap">
     <div><div class="hdr-logo-text" id="hdrLogoText">Roof<span style="color:var(--accent)">Map</span></div><div class="hdr-logo-sub" id="hdrLogoSub">Quote &amp; proposal builder</div></div>
   </div>
+  <!-- Whose account this is. Filled by applyBranding(); stays empty, and takes
+       up no room, until a company has been set up. -->
+  <div class="hdr-company" id="hdrCompany"></div>
   <div class="hdr-info">
     <div><span class="hdr-field">System</span><span class="hdr-val">RoofMap v2</span></div>
     <div><span class="hdr-field">Region</span><span class="hdr-val">Whangarei, NZ</span></div>
@@ -5943,7 +5979,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <button class="tab-sm" onclick="switchSettingsSub('set-team',this);loadTeam()">Team</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-billing',this);_billingRenderSection()">Billing</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-email',this)">Email</button>
-        <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)" style="display:none">Job Management</button>
+        <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)" style="display:none">Job Management Software</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-int',this)">Integrations</button>
         <div class="set-grp">Pricing</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI()">Products</button>
@@ -6031,6 +6067,33 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       </div>
       <div id="jmsStatusLine" style="margin-top:10px;font-size:12px;color:var(--text2)"></div>
       <div id="jmsNoneMsg" style="display:none;margin-top:10px;padding:10px 14px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text2)">No JMS linked. Quotes will print/email locally only.</div>
+
+      <!-- The "coming soon" options in the list above are a guess at what
+           roofers run on. Asking is cheaper than guessing, and a request with
+           a real company behind it is what decides which one gets built next. -->
+      <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--border);max-width:640px">
+        <div style="font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:4px">Run on something else?</div>
+        <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:0 0 10px">
+          Tell us which job management software you use and we will look at building the integration.
+          Requests decide what gets built next, so it is worth naming yours even if it is already
+          listed as coming soon — that is how it moves up the list.
+        </p>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+          <div style="flex:1;min-width:220px">
+            <label for="jmsReqName">Which software?</label>
+            <input type="text" id="jmsReqName" placeholder="e.g. Tradify, ServiceM8, NextMinute" maxlength="80" style="margin:0">
+          </div>
+        </div>
+        <label for="jmsReqNotes">Anything else worth knowing — optional</label>
+        <textarea id="jmsReqNotes" rows="3" maxlength="1200"
+          placeholder="How you use it, how many jobs a week go through it, what you would want pushed across."
+          style="width:100%;resize:vertical;font-family:inherit;font-size:14px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box"></textarea>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap">
+          <button type="button" id="jmsReqBtn" onclick="_sendJmsRequest(this)" class="sec-btn"
+                  style="margin:0;width:auto;padding:11px 20px">Request an integration</button>
+          <span id="jmsReqMsg" style="font-size:12.5px;color:var(--text2)"></span>
+        </div>
+      </div>
     </div>
 
     <!-- BRANDING -->
@@ -6487,7 +6550,20 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
 <div class="panel" id="tab-feedback">
   <div class="card">
     <div class="card-hd"><span class="card-dot"></span>Send feedback</div>
-    <p style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-bottom:18px">Report a bug or request a feature — it goes straight to the team.</p>
+    <p style="font-size:12.5px;color:var(--text);line-height:1.6;margin-bottom:12px">
+      Report a bug or request a feature — it goes straight to the team, not into a ticket queue.
+      <strong>Most issues are fixed within about two hours</strong> of landing with us, and you will
+      get an email when yours is done.
+    </p>
+    <div style="font-size:12px;color:var(--text2);line-height:1.6;background:var(--surface-2,#f5f8fb);
+                border:1px solid var(--border);border-left:3px solid #0099cc;border-radius:8px;
+                padding:11px 13px;margin-bottom:18px">
+      <strong style="color:var(--text)">The more you tell us, the faster and more thoroughly it gets
+      fixed.</strong> A line like “pricing is wrong” means we have to guess which roof, which number
+      and which screen — and a guess usually means a second round. Tell us what you were doing, what
+      you expected, and what actually happened, and we can normally reproduce it on the first read
+      and fix the real cause rather than patching the symptom.
+    </div>
 
     <!-- Section 1 — Title -->
     <div style="margin-bottom:22px">
@@ -6505,8 +6581,14 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--fr-dark);color:#fff;font-size:13px;font-weight:800;flex-shrink:0">2</span>
         <span style="font-size:17px;font-weight:800;color:var(--text)">Details</span>
       </div>
-      <div style="font-size:11px;color:var(--text2);margin:0 0 8px 33px">For a bug: what you did, what you expected, what happened. The more detail, the faster we can act.</div>
-      <textarea id="fbDetails" rows="7" placeholder="Describe the issue or the feature you'd like…" style="width:100%;resize:vertical;font-family:inherit;font-size:15px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box"></textarea>
+      <div style="font-size:11.5px;color:var(--text2);margin:0 0 8px 33px;line-height:1.55">
+        Three things, and a fix usually comes back the same session: <strong style="color:var(--text)">what
+        you did</strong>, <strong style="color:var(--text)">what you expected</strong>, and
+        <strong style="color:var(--text)">what happened instead</strong>. Real numbers off the job help
+        most — “the gutter came out $898 on a 60m run, should be nearer $600” gets fixed properly;
+        “gutter price wrong” gets a guess.
+      </div>
+      <textarea id="fbDetails" rows="8" placeholder="What I did:&#10;What I expected:&#10;What happened instead:&#10;&#10;Which job / roof, and the numbers if it is a pricing one." style="width:100%;resize:vertical;font-family:inherit;font-size:15px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box"></textarea>
     </div>
 
     <!-- Section 3 — Screenshots -->
@@ -9304,24 +9386,34 @@ function applyBranding(){
   if (b.primary_color) root.setProperty('--fr-blue', b.primary_color);
   if (b.dark_color)    root.setProperty('--fr-dark', b.dark_color);
   if (b.accent_color)  root.setProperty('--fr-mid',  b.accent_color);
-  // Header logo block — custom logo image if uploaded, else company name
-  // text.  When neither is set we fall back to the RoofMap mark + name
-  // so the app stays branded before a company is configured.
-  var hdrLogo = document.querySelector('.hdr-logo');
-  if (hdrLogo) {
-    var inner;
+  // The masthead stays RoofMap's. This used to overwrite .hdr-logo with the
+  // tenant's logo, which meant that the moment a roofer uploaded theirs the
+  // product's own name vanished from the app entirely — the sidebar looked
+  // like their business's software, and a new user had nothing to recognise
+  // or to search for when something went wrong.
+  //
+  // The roofer's branding now sits in its own band underneath, labelled, so
+  // it still answers "whose account am I in" without taking the masthead.
+  var hdrCo = document.getElementById('hdrCompany');
+  if (hdrCo) {
     if (b.logo_data_url){
-      inner = '<img src="'+ b.logo_data_url +'" style="max-height:42px;max-width:200px;object-fit:contain;display:block">';
+      hdrCo.innerHTML = '<div style="min-width:0"><div class="hdr-co-lbl">Your company</div>' +
+                        '<img src="'+ b.logo_data_url +'" alt="'+ esc2(b.company_name || '') +'"></div>';
     } else if (b.company_name){
-      inner = '<div><div class="hdr-logo-text">'+ esc2(b.company_name) +'</div>'+
-              '<div class="hdr-logo-sub">'+ esc2(b.tagline || 'Quote & proposal builder') +'</div></div>';
+      hdrCo.innerHTML = '<div style="min-width:0"><div class="hdr-co-lbl">Your company</div>' +
+                        '<div class="hdr-co-name">'+ esc2(b.company_name) +'</div></div>';
     } else {
-      inner = '<img class="hdr-logo-mark" src="brand/roofmap_icon.png" alt="RoofMap">'+
-              '<div><div class="hdr-logo-text">Roof<span style="color:var(--accent)">Map</span></div>'+
-              '<div class="hdr-logo-sub">Add your company in Settings &middot; Branding</div></div>';
+      // Nothing set up yet: :empty collapses the band to nothing rather than
+      // leaving a labelled blank.
+      hdrCo.innerHTML = '';
     }
-    hdrLogo.innerHTML = inner;
   }
+  // The RoofMap sub-line is the one thing that still tracks setup state — it
+  // is where an unbranded account gets told where to go.
+  var hdrSub = document.getElementById('hdrLogoSub');
+  if (hdrSub) hdrSub.textContent = (b.company_name || b.logo_data_url)
+    ? 'Quote & proposal builder'
+    : 'Add your company in Settings · Branding';
   // Browser tab title — track the company name so it doesn't say
   // "RoofMap" once the user has branded.
   try {
@@ -22841,6 +22933,71 @@ async function _feedbackShotsToPdf(title, details, who, geom){
   var b64 = await new Promise(function(res, rej){ var fr = new FileReader(); fr.onload = function(){ res(String(fr.result).split(',')[1] || ''); }; fr.onerror = function(){ rej(fr.error); }; fr.readAsDataURL(blob); });
   return { base64: b64, filename: 'roofmap-feedback.pdf' };
 }
+// "Which job management software do you run on?" is the one question whose
+// answer decides what gets built next, and the dropdown above can only ever
+// list guesses. Same pipe as Send Feedback — straight to the team, with who
+// asked attached, because a request with a real company behind it counts for
+// more than a tally.
+async function _sendJmsRequest(btn){
+  var msg = document.getElementById('jmsReqMsg');
+  function show(t, ok){
+    if (!msg) return;
+    msg.textContent = t;
+    msg.style.color = ok === true ? '#15803d' : ok === false ? '#b91c1c' : 'var(--text2)';
+  }
+  var nameEl  = document.getElementById('jmsReqName');
+  var notesEl = document.getElementById('jmsReqNotes');
+  var name  = ((nameEl  || {}).value || '').trim();
+  var notes = ((notesEl || {}).value || '').trim();
+  if (!name){ show('Which software? Give us a name.', false); if (nameEl) nameEl.focus(); return; }
+
+  var who = '', company = '';
+  try { who = (JSON.parse(localStorage.getItem('fr_user') || '{}').email) || ''; } catch(e){}
+  try { company = (S.settings && S.settings.branding && S.settings.branding.company_name) || ''; } catch(e){}
+  if (!company){ try { company = (JSON.parse(localStorage.getItem('fr_company') || '{}').name) || ''; } catch(e){} }
+
+  var label = btn ? btn.textContent : '';
+  if (btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  show('Sending your request…');
+
+  var when = new Date().toLocaleString('en-NZ');
+  var text =
+    'RoofMap — job management software request\n\n' +
+    'Software: ' + name + '\n\n' +
+    (notes ? ('Notes:\n' + notes + '\n\n') : '') +
+    '— — —\n' +
+    'From: ' + (who || '(unknown user)') + '\n' +
+    'Company: ' + (company || '(not set)') + '\n' +
+    'Sent: ' + when;
+  var e = function(x){ return String(x == null ? '' : x)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  var html =
+    '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:640px">' +
+      '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">Integration request</div>' +
+      '<h2 style="font-size:18px;margin:8px 0 12px;color:#0a1628">' + e(name) + '</h2>' +
+      (notes ? '<div style="white-space:pre-wrap">' + e(notes) + '</div>' : '') +
+      '<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">' +
+      '<div style="font-size:12px;color:#475569">From: ' + e(who || '(unknown user)') +
+        '<br>Company: ' + e(company || '(not set)') +
+        '<br>Sent: ' + e(when) + '</div>' +
+    '</div>';
+
+  try {
+    await api('POST', '/email/send-order', {
+      to: 'Aron@floodroofing.co.nz',
+      subject: 'RoofMap JMS request: ' + name,
+      text: text, html: html
+    });
+    show('\u2713 Thanks — we have your request for ' + name + '.', true);
+    if (nameEl)  nameEl.value  = '';
+    if (notesEl) notesEl.value = '';
+  } catch(err){
+    show('Could not send that — ' + String((err && err.message) || err), false);
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = label || 'Request an integration'; }
+  }
+}
+
 async function _sendFeedback(btn){
   var msg = document.getElementById('fbMsg');
   function show(t, ok){ if (msg){ msg.textContent = t; msg.style.color = ok===true ? '#15803d' : ok===false ? '#b91c1c' : 'var(--text2)'; } }
@@ -29482,15 +29639,30 @@ var SETUP_STEPS = [
          'than overwriting what was there — so the history of what you quoted stays intact.\n\n' +
          'If you do not use Fergus, skip this. Everything works without it — jobs, quotes, ' +
          'material orders and invoices all live in RoofMap on their own.',
-    go:{ tab:'settings', sub:'set-jms' }, cta:'Connect Fergus', where:'Job Management' },
+    go:{ tab:'settings', sub:'set-jms' }, cta:'Connect Fergus', where:'Job Management Software' },
+
+  { key:'feedback', title:'Something wrong? Tell us — it gets fixed',
+    body:'This is the one worth knowing about, because it is the difference between a bug you have ' +
+         'to work around forever and one that is gone by the afternoon.\n\n' +
+         '**Send Feedback** goes straight to the team, not into a ticket queue. **Most issues are ' +
+         'fixed within about two hours** of landing with us, and you get an email when yours is done. ' +
+         'Real bugs found by roofers on real roofs are what this thing is built out of.\n\n' +
+         '**The more you tell us, the faster and more thoroughly we can fix it.** “Pricing is wrong” ' +
+         'means we have to guess which roof, which number and which screen, and a guess usually means ' +
+         'a second round. Give us what you did, what you expected and what actually happened — with ' +
+         'the real numbers off the job — and we can normally reproduce it on the first read and fix ' +
+         'the cause instead of patching the symptom.\n\n' +
+         'Your roof drawing goes with it automatically: outline, lines and scale only, so we can put ' +
+         'the same roof on our screen. No client, address, photos or prices.',
+    go:{ tab:'feedback' }, cta:'See Send Feedback',
+    whereText:'**Send Feedback** is in the left-hand menu, at the bottom, under Settings.' },
 
   { key:'done', title:'That is it — go and quote a roof',
     body:'There is a finished sample job in here already: open it to see what a completed quote, ' +
          'cut list and material order look like before you do your own.\n\n' +
          'When you are ready, Map Roof → set a roof image → trace the outline. On a phone or tablet ' +
          'the app switches to Site mode on its own, with a bottom toolbar sized for a thumb.\n\n' +
-         'Anything wrong or missing, Send Feedback tells us — it sends the roof you were looking at ' +
-         'along with it, so we can reproduce it rather than guess.' }
+         'And when something is wrong, Send Feedback — usually fixed the same day.' }
 ];
 // The one piece of wording that matters most in here. It has to be honest
 // about what the shipped rates are and blunt about replacing them, without
@@ -29560,10 +29732,14 @@ function _setupRender(){
     row.style.display = 'flex'; go.textContent = st.cta || 'Take me there';
     // The guide gets skipped and it gets finished; either way the reader has
     // to find this screen again on their own later. Name it.
-    where.innerHTML = st.where
-      ? ('This can be done in the <strong style="color:#0a1628">Settings</strong> tab, in the ' +
-         '<strong style="color:#0a1628">' + _setupBodyHtml(st.where) + '</strong> section.')
-      : '';
+    // Most cards send you to a section of Settings and can share one sentence.
+    // A card that sends you somewhere else entirely brings its own.
+    where.innerHTML = st.whereText
+      ? _setupBodyHtml(st.whereText)
+      : (st.where
+          ? ('This can be done in the <strong style="color:#0a1628">Settings</strong> tab, in the ' +
+             '<strong style="color:#0a1628">' + _setupBodyHtml(st.where) + '</strong> section.')
+          : '');
   } else row.style.display = 'none';
   w.querySelector('#sgBack').style.visibility = SETUP.i ? 'visible' : 'hidden';
   w.querySelector('#sgNext').textContent = last ? 'Finish' : 'Next';

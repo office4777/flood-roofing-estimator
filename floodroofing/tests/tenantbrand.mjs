@@ -94,8 +94,18 @@ saved = null;
 ({ ctx, pg } = await open({ user_id:'u1', branding:{ company_name:'Flood Roofing LTD', phone:'0800 4 FLOOD' }, quote_defaults:{}, jms_keys:{} }));
 check('a business that is already set up is not nagged',
   !(await pg.evaluate(() => !!document.getElementById('setupWizard'))));
+// Branding moved out of the masthead deliberately: the top of the sidebar
+// used to be replaced by the tenant's logo, so once a roofer branded their
+// account the product's own name vanished from the app. Theirs sits below,
+// labelled; RoofMap keeps the top.
 check('…and keeps its own branding on screen',
-  /Flood Roofing/.test(await pg.evaluate(() => (document.querySelector('.hdr-logo')||{}).textContent || '')),
+  /Flood Roofing/.test(await pg.evaluate(() => (document.getElementById('hdrCompany')||{}).textContent || '')),
+  await pg.evaluate(() => (document.getElementById('hdrCompany')||{}).textContent || ''));
+check('…without taking the RoofMap masthead with it',
+  await pg.evaluate(() => {
+    const l = document.querySelector('.hdr-logo');
+    return !!l && /RoofMap/.test(l.textContent || '') && !/Flood/.test(l.textContent || '');
+  }),
   await pg.evaluate(() => (document.querySelector('.hdr-logo')||{}).textContent || ''));
 await ctx.close();
 
