@@ -33007,8 +33007,14 @@ function redrawAll() {
     // saying which measurement it belongs to. Longest runs are placed first:
     // they have the most room to give, and a short run has almost none.
     (function _placeSheetLabels(){
-      if (_sheetDims.length < 2) return;
-      var boxes = [];
+      if (!_sheetDims.length) return;
+      // Seed with the line-length labels — the coloured pills on every ridge,
+      // hip, valley and gutter, already measured and boxed on the way past.
+      // Avoiding only OTHER SHEET labels was half a fix: on this roof the
+      // "17.98m" runs were landing on "25.89m" and "12.09m", which reads just
+      // as badly as landing on each other.
+      var boxes = ((window._roofCanvasHits && window._roofCanvasHits.measures) || [])
+        .map(function(m){ return { x:m.x, y:m.y, w:m.w, h:m.h }; });
       var order = _sheetDims.map(function(d, i){ return i; })
         .sort(function(a, b){ return _sheetDims[b].sdl - _sheetDims[a].sdl; });
       // Same size maths as the draw loop below, so what is measured here is
@@ -33019,16 +33025,23 @@ function redrawAll() {
         ctx.font = '600 ' + f.toFixed(1) + 'px Inter, -apple-system, sans-serif';
         return { w: ctx.measureText(d.label).width + f * 0.6, h: f * 1.5 };
       }
-      function hits(x, y, m){
+      // How badly a spot clashes: total overlapping area, in square pixels.
+      // A count of collisions treats a grazed corner like a direct hit; area
+      // is what the eye actually reads, and it gives the search something to
+      // minimise when — as on a busy roof — nothing is completely clear.
+      function clash(x, y, m){
+        var sum = 0;
         for (var i = 0; i < boxes.length; i++){
           var b = boxes[i];
-          if (Math.abs(x - b.x) < (m.w + b.w) / 2 && Math.abs(y - b.y) < (m.h + b.h) / 2) return true;
+          var ox = (m.w + b.w) / 2 - Math.abs(x - b.x);
+          var oy = (m.h + b.h) / 2 - Math.abs(y - b.y);
+          if (ox > 0 && oy > 0) sum += ox * oy;
         }
-        return false;
+        return sum;
       }
       // Middle first, then either side of it, then the ends. A label never
       // goes right to a tip — that is where the arrowhead is.
-      var TS = [0.5, 0.38, 0.62, 0.3, 0.7, 0.24, 0.76];
+      var TS = [0.5, 0.42, 0.58, 0.34, 0.66, 0.27, 0.73, 0.21, 0.79];
       order.forEach(function(i){
         var d = _sheetDims[i], m = metrics(d);
         // A label the user has dragged stays exactly where they put it, and
@@ -33040,21 +33053,48 @@ function redrawAll() {
           boxes.push({ x: d.lblX, y: d.lblY, w: m.w, h: m.h });
           return;
         }
-        var best = null;
-        for (var t = 0; t < TS.length && !best; t++){
-          var x = d.startX + d.ndx * d.sdl * TS[t];
-          var y = d.startY + d.ndy * d.sdl * TS[t];
-          if (!hits(x, y, m)) best = [x, y];
+        // Every spot the label is allowed to take, scored, best one wins.
+        // On a roof this busy a first-fit search runs out of clear spots and
+        // falls back to the middle — which is the worst spot, since that is
+        // where everything else already is.
+        var px = -d.ndy, py = d.ndx, best = null, bestScore = Infinity;
+        // A gentle preference for staying over the building — enough to
+        // break a tie, not enough to force a label back into the busiest part
+        // of the roof when its own arrow reaches somewhere clear.
+        var _t = (typeof getImgTransform === 'function') ? getImgTransform() : null;
+        function offRoof(x, y){
+          if (!_t || !_t.s || !DRAW.outline || DRAW.outline.length < 3) return 0;
+          return _pointInPoly((x - _t.ix) / _t.s, (y - _t.iy) / _t.s, DRAW.outline) ? 0 : 70;
         }
-        // Still nowhere on the arrow: step off it, square to the run, which
-        // keeps the label parallel to the thing it measures.
-        if (!best){
-          var px = -d.ndy, py = d.ndx;
-          var mx = d.startX + d.ndx * d.sdl * 0.5, my = d.startY + d.ndy * d.sdl * 0.5;
-          for (var k = 1; k <= 3 && !best; k++){
-            for (var sgn = 1; sgn >= -1 && !best; sgn -= 2){
-              var ox = mx + px * m.h * k * sgn, oy = my + py * m.h * k * sgn;
-              if (!hits(ox, oy, m)) best = [ox, oy];
+        function consider(x, y, penalty){
+          var sc = clash(x, y, m) + penalty + offRoof(x, y);
+          if (sc < bestScore){ bestScore = sc; best = [x, y]; }
+        }
+        for (var t = 0; t < TS.length; t++){
+          // A small penalty for straying from the middle of the run, so a
+          // clear spot near the centre beats an equally clear one at the end.
+          consider(d.startX + d.ndx * d.sdl * TS[t],
+                   d.startY + d.ndy * d.sdl * TS[t],
+                   Math.abs(TS[t] - 0.5) * 12);
+          if (bestScore === 0) break;                 // nothing beats clear
+        }
+        // Still clashing: step off the arrow, square to it, so the label
+        // stays parallel to the thing it measures. Costlier than sliding
+        // along, so it is only taken when sliding could not clear it.
+        if (bestScore > 0){
+          // Nothing along the arrow is clear: step off it, square to the run,
+          // at several points along it. Costlier than sliding, and costlier
+          // the further out it goes — but it has to be allowed to reach, or
+          // the label gets driven back into the middle of the roof, which is
+          // exactly where everything else already is.
+          for (var k = 1; k <= 5 && bestScore > 0; k++){
+            for (var ti = 0; ti < 3 && bestScore > 0; ti++){
+              var bt = [0.5, 0.35, 0.65][ti];
+              for (var sgn = 1; sgn >= -1; sgn -= 2){
+                consider(d.startX + d.ndx * d.sdl * bt + px * m.h * k * sgn,
+                         d.startY + d.ndy * d.sdl * bt + py * m.h * k * sgn,
+                         16 + k * 7 + Math.abs(bt - 0.5) * 12);
+              }
             }
           }
         }
@@ -33124,6 +33164,31 @@ function redrawAll() {
       if (arm >= 5 * af) {
         _shArrow(d.lblX + d.ndx*(clearance+gap), d.lblY + d.ndy*(clearance+gap), d.lblX + d.ndx*(clearance+gap+arm), d.lblY + d.ndy*(clearance+gap+arm), af);
         _shArrow(d.lblX - d.ndx*(clearance+gap), d.lblY - d.ndy*(clearance+gap), d.lblX - d.ndx*(clearance+gap+arm), d.lblY - d.ndy*(clearance+gap+arm), af);
+        // A label that had to step off its run gets a leader back to it —
+        // the drafting answer to the same problem. Without one, a dimension
+        // sitting clear of the building is unreadable in a different way:
+        // legible, but with nothing to say which face it belongs to.
+        (function(){
+          var mx = d.startX + d.ndx * d.sdl * 0.5, my = d.startY + d.ndy * d.sdl * 0.5;
+          // Distance from the label to its own run's centre line.
+          var vx = d.lblX - d.startX, vy = d.lblY - d.startY;
+          var along = vx * d.ndx + vy * d.ndy;
+          along = Math.max(0, Math.min(d.sdl, along));
+          var footX = d.startX + d.ndx * along, footY = d.startY + d.ndy * along;
+          var off = Math.hypot(d.lblX - footX, d.lblY - footY);
+          if (off < (d.boxH || fontPx * 1.5) * 0.9) return;    // still on its line
+          ctx.save();
+          ctx.strokeStyle = 'rgba(10,22,40,0.45)';
+          ctx.lineWidth = Math.max(0.8, af * 0.9);
+          ctx.setLineDash([af * 2.5, af * 2]);
+          ctx.beginPath();
+          // Start clear of the text, end on the run itself.
+          var ux = (footX - d.lblX) / (off || 1), uy = (footY - d.lblY) / (off || 1);
+          ctx.moveTo(d.lblX + ux * (clearance + gap), d.lblY + uy * (clearance + gap));
+          ctx.lineTo(footX, footY);
+          ctx.stroke();
+          ctx.restore();
+        })();
       }
     });
     ctx.restore();

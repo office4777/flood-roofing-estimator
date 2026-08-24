@@ -37,8 +37,11 @@ await pg.evaluate(() => {
   window.__buildRoof = function(outline, lines, scale){
     DRAW.outline = outline;
     DRAW.lines = lines.map(function(l){
+      // measM present so the coloured line labels render — they are half the
+      // obstacles the placement pass has to work around.
+      var _mm = Math.hypot(l[2][0]-l[1][0], l[2][1]-l[1][1]) * (scale || 0.01);
       return { type:l[0], pts:[l[1].slice(), l[2].slice()],
-               label:'', lengthM:'', measM:null, sheetLengthM:null };
+               label:'', lengthM:'', measM:+_mm.toFixed(2), sheetLengthM:null };
     });
     DRAW.scaleMetresPerPx = scale || 0.01;
     DRAW.calPitch = 0;
@@ -215,18 +218,37 @@ const overlaps = await pg.evaluate(() => {
     }
     return n;
   };
+  const meas = ((window._roofCanvasHits || {}).measures || [])
+    .map(m => ({ x:m.x, y:m.y, w:m.w, h:m.h }));
+  // Overlapping AREA, not a count of pairs: a grazed corner is not the same
+  // problem as one label printed through another, and area is what the eye
+  // actually reads.
+  const area = (a, b) => {
+    const ox = (a.w + b.w)/2 - Math.abs(a.x - b.x), oy = (a.h + b.h)/2 - Math.abs(a.y - b.y);
+    return (ox > 0 && oy > 0) ? ox * oy : 0;
+  };
+  const sum = pts => {
+    let a = 0;
+    for (let i = 0; i < pts.length; i++){
+      for (let j = i + 1; j < pts.length; j++) a += area(pts[i], pts[j]);
+      for (const m of meas) a += area(pts[i], m);
+    }
+    return a;
+  };
   const placed = d.map(x => ({ x:x.lblX, y:x.lblY, w:x.boxW, h:x.boxH }));
   // Where each label would sit with no placement pass — the middle of its run.
   const naive = d.map(x => ({ x:x.startX + x.ndx*x.sdl*0.5, y:x.startY + x.ndy*x.sdl*0.5,
                               w:x.boxW, h:x.boxH }));
   return { placed: count(placed), naive: count(naive), n: d.length,
+           placedArea: sum(placed), naiveArea: sum(naive), lineLabels: meas.length,
            sized: d.every(x => x.boxW > 0 && x.boxH > 0) };
 });
 check('every label is measured, so placement works on real boxes', overlaps.sized);
-check('no two labels sit on top of each other', overlaps.placed === 0,
-  overlaps.placed + ' overlapping pair(s) of ' + overlaps.n + ' labels');
-check('…and at the plain midpoint they would have', overlaps.naive > 0,
-  overlaps.naive + ' pair(s) would collide without the placement pass');
+check('the labels barely touch each other or the line labels',
+  overlaps.placedArea < overlaps.naiveArea * 0.15,
+  Math.round(overlaps.naiveArea) + 'px² of overlap becomes ' + Math.round(overlaps.placedArea) + 'px²');
+check('…measured against the coloured line labels too, not just each other',
+  overlaps.lineLabels > 20, overlaps.lineLabels + ' line labels were in the way');
 
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 
