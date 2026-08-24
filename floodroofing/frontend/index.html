@@ -29418,14 +29418,16 @@ function _phoneSetRoofImage(){
 var SETUP_STEPS = [
   { key:'welcome', title:'Welcome to RoofMap',
     body:'Four tabs, left to right, and that is the whole job.\n\n' +
-         'Map Roof — trace the roof over an aerial or a photo and it works out the areas, the flashing lengths and the sheet runs.\n' +
-         'Job Pack — the cut lists and the material order, ready to send to your merchant.\n' +
-         'Quote — the priced proposal your customer sees and accepts online.\n' +
-         'Settings — your prices, your products, your branding.\n\n' +
+         '**Map Roof** — trace the roof over an aerial or a photo and it works out the areas, the flashing lengths and the sheet runs.\n' +
+         '**Job Pack** — the cut lists and the material order, ready to send to your merchant.\n' +
+         '**Quote** — the priced proposal your customer sees and accepts online.\n' +
+         '**Settings** — your prices, your products, your branding.\n\n' +
          'This setup takes about ten minutes and you only do it once.' },
+
   { key:'pricebook', title:'Your price book — read this one',
     body:'__PB_DISCLAIMER__',
-    go:{ tab:'settings', sub:'set-pricebook' }, cta:'Open the price book' },
+    go:{ tab:'settings', sub:'set-pricebook' }, cta:'Open the price book', where:'Price book' },
+
   { key:'brand', title:'Make the quotes yours',
     // The branding wizard collects the same fields on first run. If it has
     // already been through, this card is a dead step — drop it.
@@ -29435,24 +29437,53 @@ var SETUP_STEPS = [
     },
     body:'Proposals go out under your name, not ours. Put your company name, logo, ' +
          'phone and email in and every quote, job pack and material order picks them up.\n\n' +
-         'Until you do, the header just says RoofMap.',
-    go:{ tab:'settings', sub:'set-brand' }, cta:'Add your branding' },
+         'Until you do, the header just says RoofMap.\n\n' +
+         '**How your customer gets it.** Quotes are sent and received through RoofMap\u2019s own ' +
+         'emailing system, so you are not copying files into Gmail and hoping.\n\n' +
+         'What lands in their inbox is a **live online quote**, not a boring PDF. They open it in a ' +
+         'browser and make their selections there — colour, profile, gutter, optional extras — and ' +
+         'the price updates in front of them as they change their mind.\n\n' +
+         'Their selections, any questions they ask and their acceptance all come **straight back to ' +
+         'you by email**, and show up on the RoofMap status board, so you can see what a customer ' +
+         'has actually looked at and chosen without ringing them.',
+    go:{ tab:'settings', sub:'set-brand' }, cta:'Add your branding', where:'Branding' },
+
   { key:'products', title:'The products you actually fit',
     body:'Steel grades, sheet profiles and gutter profiles — add, edit or remove them so the ' +
          'options your customer sees are the ones you really offer, priced the way you price them.\n\n' +
          'A grade you never fit should not be on the page.',
-    go:{ tab:'settings', sub:'set-products' }, cta:'Set up your products' },
+    go:{ tab:'settings', sub:'set-products' }, cta:'Set up your products', where:'Products' },
+
   { key:'labour', title:'Your labour and scaffolding',
     body:'Charge-out rates for a lead roofer and an apprentice, and the hours a roof of a given ' +
          'size takes you. RoofMap estimates the hours from the drawing; you can always type over them ' +
          'on the job.\n\nThis is the half of the quote that is not materials, so it is worth ten minutes.',
-    go:{ tab:'settings', sub:'set-labour' }, cta:'Set your rates' },
+    go:{ tab:'settings', sub:'set-labour' }, cta:'Set your rates', where:'Labour pricing' },
+
+  { key:'suppliers', title:'Material ordering',
+    body:'Set up the merchants you actually buy from — the branch, who the order goes to, and the ' +
+         'account you order on. Once they are in, they are a dropdown on every job.\n\n' +
+         'Then the built-in **material ordering** does the rest: the job pack IS the material order ' +
+         'form, so when the roof is drawn you pick your supplier and send it straight to them. No ' +
+         'retyping a cut list into an email, no rebuilding the order in the merchant\u2019s portal.\n\n' +
+         'A copy of every order also goes to whichever address you nominate, so you have the ' +
+         'confirmation in your own inbox and a record of exactly what was ordered and when.',
+    go:{ tab:'settings', sub:'set-supl' }, cta:'Set up your suppliers', where:'Suppliers & materials' },
+
   { key:'jms', title:'Fergus — only if you use it',
-    body:'If your business runs on Fergus, paste your API key and RoofMap will pull your jobs in and ' +
-         'push the finished quote back out, so you are not typing it twice.\n\n' +
+    body:'If your business runs on Fergus, paste your API key and RoofMap connects to it. What that ' +
+         'gets you, once a Fergus job is selected:\n\n' +
+         '**Photos and job details pull in.** The site photos and the customer and address details ' +
+         'already on that Fergus job come straight through, so you are not re-entering them or ' +
+         'emailing photos to yourself to get them onto the tablet.\n\n' +
+         '**The job pack pushes back as a PDF**, filed into that job\u2019s files in Fergus, where ' +
+         'your office and your crew already look for it.\n\n' +
+         '**Quote pricing pushes back too**, generating a new quote version on the Fergus job rather ' +
+         'than overwriting what was there — so the history of what you quoted stays intact.\n\n' +
          'If you do not use Fergus, skip this. Everything works without it — jobs, quotes, ' +
          'material orders and invoices all live in RoofMap on their own.',
-    go:{ tab:'settings', sub:'set-jms' }, cta:'Connect Fergus' },
+    go:{ tab:'settings', sub:'set-jms' }, cta:'Connect Fergus', where:'Job Management' },
+
   { key:'done', title:'That is it — go and quote a roof',
     body:'There is a finished sample job in here already: open it to see what a completed quote, ' +
          'cut list and material order look like before you do your own.\n\n' +
@@ -29500,21 +29531,40 @@ function setupGuideStep(n){
   SETUP.i = Math.max(0, Math.min(SETUP.steps.length - 1, n));
   _setupRender();
 }
+// Card copy is ours, not user input, but it still goes in escaped — the one
+// thing allowed through is **bold**, so a step can pick out the tab names and
+// the two or three phrases that carry the point. Newlines survive because
+// #sgBody is white-space:pre-line.
+function _setupBodyHtml(txt){
+  return String(txt == null ? '' : txt)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong style="color:#0a1628">$1</strong>');
+}
 function _setupRender(){
   var w = document.getElementById('setupGuide'); if (!w) return;
   var st = SETUP.steps[SETUP.i], last = (SETUP.i === SETUP.steps.length - 1);
   var body = (st.body === '__PB_DISCLAIMER__') ? PB_DISCLAIMER : st.body;
   w.querySelector('#sgTitle').textContent = st.title;
-  w.querySelector('#sgBody').textContent = body;
+  w.querySelector('#sgBody').innerHTML = _setupBodyHtml(body);
   w.querySelector('#sgCount').textContent = 'Step ' + (SETUP.i + 1) + ' of ' + SETUP.steps.length;
   var dots = SETUP.steps.map(function(_, i){
     return '<span style="width:7px;height:7px;border-radius:50%;background:' +
       (i === SETUP.i ? '#0a1628' : '#cbd5e1') + ';display:inline-block"></span>';
   }).join('');
   w.querySelector('#sgDots').innerHTML = dots;
-  var go = w.querySelector('#sgGo');
-  if (st.go){ go.style.display = ''; go.textContent = st.cta || 'Take me there'; }
-  else go.style.display = 'none';
+  var go = w.querySelector('#sgGo'), row = w.querySelector('#sgGoRow'),
+      where = w.querySelector('#sgWhere');
+  if (st.go){
+    // 'flex', not '' — the row IS its inline display:flex, so blanking it
+    // dropped the button and the where-line onto separate lines.
+    row.style.display = 'flex'; go.textContent = st.cta || 'Take me there';
+    // The guide gets skipped and it gets finished; either way the reader has
+    // to find this screen again on their own later. Name it.
+    where.innerHTML = st.where
+      ? ('This can be done in the <strong style="color:#0a1628">Settings</strong> tab, in the ' +
+         '<strong style="color:#0a1628">' + _setupBodyHtml(st.where) + '</strong> section.')
+      : '';
+  } else row.style.display = 'none';
   w.querySelector('#sgBack').style.visibility = SETUP.i ? 'visible' : 'hidden';
   w.querySelector('#sgNext').textContent = last ? 'Finish' : 'Next';
 }
@@ -29564,13 +29614,20 @@ function openSetupGuide(force){
   w.className = 'no-print';
   w.innerHTML =
     '<div class="sg-card">' +
-      '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:2px">' +
+      '<div style="display:flex;align-items:center;gap:9px;margin-bottom:2px">' +
+        '<img src="brand/roofmap_logo.png" alt="" aria-hidden="true" id="sgLogo" ' +
+             'style="width:26px;height:26px;flex:0 0 auto;border-radius:6px;object-fit:contain">' +
         '<div style="font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#0099cc">Setting up RoofMap</div>' +
         '<div id="sgCount" style="font-size:11px;color:#94a3b8;margin-left:auto"></div>' +
       '</div>' +
       '<div id="sgTitle" style="font-size:19px;font-weight:800;color:#0a1628;margin:6px 0 10px;line-height:1.25"></div>' +
       '<div id="sgBody" style="font-size:13.5px;line-height:1.62;color:#334155;white-space:pre-line;max-height:46vh;overflow:auto"></div>' +
-      '<button type="button" id="sgGo" style="margin-top:14px;padding:10px 16px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer"></button>' +
+      '<div id="sgGoRow" style="display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-top:14px">' +
+        '<button type="button" id="sgGo" style="flex:0 0 auto;padding:10px 16px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer"></button>' +
+        // Where the button goes, in words — so the reader can find it again
+        // next month without running the guide a second time.
+        '<div id="sgWhere" style="flex:1 1 190px;min-width:0;font-size:11.5px;line-height:1.45;color:#64748b"></div>' +
+      '</div>' +
       '<div style="display:flex;align-items:center;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid #e6eaf0">' +
         '<div id="sgDots" style="display:flex;gap:5px;align-items:center"></div>' +
         '<button type="button" id="sgSkip" style="margin-left:auto;background:none;border:none;color:#94a3b8;font-size:12px;font-family:inherit;cursor:pointer">Skip setup</button>' +

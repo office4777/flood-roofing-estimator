@@ -58,7 +58,7 @@ let v = await pg.evaluate(() => ({
   dots: document.querySelectorAll('#sgDots span').length,
 }));
 check('a first login opens the setup guide', v.open, v.title);
-check('…at step one of seven', v.steps === 7 && v.dots === 7 && /Welcome/.test(v.title),
+check('…at step one of eight', v.steps === 8 && v.dots === 8 && /Welcome/.test(v.title),
   v.steps + ' steps');
 
 // ── the price-book card, and its wording ──────────────────────────
@@ -96,20 +96,115 @@ v = await pg.evaluate(() => {
   const seen = [];
   for (let i = 0; i < SETUP.steps.length; i++){
     setupGuideStep(i);
+    // The button is shown and hidden as a ROW now (button + the line saying
+    // where that screen lives), so the row is what carries the state.
     seen.push({ t: document.getElementById('sgTitle').textContent,
-                go: document.getElementById('sgGo').style.display !== 'none' });
+                go: getComputedStyle(document.getElementById('sgGoRow')).display !== 'none' });
   }
   return { seen, last: document.getElementById('sgNext').textContent };
 });
 check('every step has a title', v.seen.every(x => x.t.length > 4), v.seen.length + ' steps');
-check('the five setup steps each offer a way there, the first and last do not',
-  v.seen.filter(x => x.go).length === 5, v.seen.filter(x => x.go).length + ' with a button');
+check('the six setup steps each offer a way there, the first and last do not',
+  v.seen.filter(x => x.go).length === 6, v.seen.filter(x => x.go).length + ' with a button');
 check('the last step says Finish, not Next', v.last === 'Finish', v.last);
 check('Fergus is offered as optional',
   v.seen.some(x => /Fergus/.test(x.t)) &&
   /only if you use it|skip/i.test(v.seen.find(x => /Fergus/.test(x.t)).t + ''),
   v.seen.find(x => /Fergus/.test(x.t)).t);
 
+// ── the logo, on every card ───────────────────────────────────────
+v = await pg.evaluate(() => {
+  const out = [];
+  for (let i = 0; i < SETUP.steps.length; i++){
+    setupGuideStep(i);
+    const img = document.getElementById('sgLogo');
+    out.push(!!img && /roofmap/i.test(img.getAttribute('src') || ''));
+  }
+  return { all: out.every(Boolean), n: out.length };
+});
+check('every step carries the RoofMap logo', v.all, v.n + ' steps checked');
+
+// ── step one names the tabs in bold ───────────────────────────────
+v = await pg.evaluate(() => {
+  setupGuideStep(0);
+  const b = document.getElementById('sgBody');
+  return { bold: [...b.querySelectorAll('strong')].map(x => x.textContent),
+           text: b.textContent };
+});
+check('the four tab names are bold on the welcome card',
+  ['Map Roof','Job Pack','Quote','Settings'].every(t => v.bold.indexOf(t) >= 0),
+  v.bold.join(', '));
+check('…and nothing leaks the ** markers into the copy', !/\*\*/.test(v.text));
+
+// ── every card with a button says where that screen lives ─────────
+v = await pg.evaluate(() => {
+  const rows = [];
+  // Untuck first: a tucked card is 380px, where the line SHOULD drop under
+  // the button. What is being checked here is the full-width card.
+  const card = document.getElementById('setupGuide');
+  if (card) card.classList.remove('sg-tucked');
+  for (let i = 0; i < SETUP.steps.length; i++){
+    setupGuideStep(i);
+    const st = SETUP.steps[i];
+    const row = document.getElementById('sgGoRow');
+    const wh = document.getElementById('sgWhere');
+    const go = document.getElementById('sgGo');
+    rows.push({ key: st.key, hasGo: !!st.go,
+                rowShown: getComputedStyle(row).display !== 'none',
+                display: getComputedStyle(row).display,
+                txt: wh.textContent.trim(),
+                sameLine: !!st.go && Math.abs(wh.getBoundingClientRect().top -
+                                              go.getBoundingClientRect().top) < 30 });
+  }
+  return rows;
+});
+const withGo = v.filter(r => r.hasGo);
+check('every step with a button tells you where that screen lives',
+  withGo.length === 6 && withGo.every(r => /Settings tab, in the .+ section/.test(r.txt)),
+  withGo.map(r => r.key).join(', '));
+check('…and it sits beside the button, not under it',
+  withGo.every(r => r.sameLine && r.display === 'flex'),
+  withGo.filter(r => !r.sameLine).map(r => r.key).join(',') || 'all beside');
+check('…while the cards with no button show no row at all',
+  v.filter(r => !r.hasGo).every(r => !r.rowShown),
+  v.filter(r => !r.hasGo).map(r => r.key).join(', '));
+check('…and when the card tucks into a corner it wraps under instead of vanishing',
+  await pg.evaluate(() => {
+    const card = document.getElementById('setupGuide');
+    setupGuideStep(1);
+    card.classList.add('sg-tucked');
+    const wh = document.getElementById('sgWhere');
+    const shown = wh.offsetParent !== null && wh.getBoundingClientRect().width > 40;
+    card.classList.remove('sg-tucked');
+    return shown;
+  }));
+check('the section names match real Settings tabs', await pg.evaluate(() => {
+  const tabs = [...document.querySelectorAll('.set-nav .tab-sm')].map(b => b.textContent.trim());
+  return SETUP_STEPS.filter(s => s.where).every(s => tabs.indexOf(s.where) >= 0);
+}), await pg.evaluate(() => SETUP_STEPS.filter(s => s.where).map(s => s.where).join(' | ')));
+
+// ── the three cards whose copy was written to explain the product ──
+v = await pg.evaluate(() => {
+  const find = k => SETUP_STEPS.filter(s => s.key === k)[0].body;
+  return { brand: find('brand'), jms: find('jms'), supl: find('suppliers') };
+});
+check('the quote card explains the live online quote, not a PDF',
+  /online quote/i.test(v.brand) && /not a boring PDF/i.test(v.brand) &&
+  /emailing system/i.test(v.brand), 'brand card');
+check('…and that selections, questions and acceptance come back',
+  /selections/i.test(v.brand) && /questions/i.test(v.brand) &&
+  /acceptance/i.test(v.brand) && /status board/i.test(v.brand));
+check('the Fergus card explains all three directions',
+  /[Pp]hotos/.test(v.jms) && /pull in/i.test(v.jms) &&
+  /job pack pushes back as a PDF/i.test(v.jms) &&
+  /new quote version/i.test(v.jms), 'jms card');
+check('the material-ordering card explains suppliers and the order email',
+  /suppliers?/i.test(v.supl) && /material order/i.test(v.supl) &&
+  /copy of every order/i.test(v.supl), 'suppliers card');
+check('…and it is its own step, named Material ordering',
+  await pg.evaluate(() => SETUP_STEPS.filter(s => s.key === 'suppliers')[0].title === 'Material ordering'));
+
+await pg.evaluate(() => setupGuideStep(SETUP.steps.length - 1));
 await pg.evaluate(() => closeSetupGuide(false));
 await pg.waitForTimeout(200);
 v = await pg.evaluate(() => ({ gone: !document.getElementById('setupGuide'),
@@ -181,9 +276,9 @@ v = await pg.evaluate(() => {
   return { n: SETUP.steps.length, keys: SETUP.steps.map(s => s.key) };
 });
 check('once the business is named, the branding card drops out',
-  v.n === 6 && v.keys.indexOf('brand') < 0, v.n + ' steps: ' + v.keys.join(','));
+  v.n === 7 && v.keys.indexOf('brand') < 0, v.n + ' steps: ' + v.keys.join(','));
 check('…and the count reflects what they will actually see',
-  await pg.evaluate(() => /of 6/.test(document.getElementById('sgCount').textContent)),
+  await pg.evaluate(() => /of 7/.test(document.getElementById('sgCount').textContent)),
   await pg.evaluate(() => document.getElementById('sgCount').textContent));
 check('…and Next still walks to the end without a dead card',
   await pg.evaluate(() => {
