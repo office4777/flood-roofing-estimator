@@ -159,6 +159,7 @@ check('…the short run is the one above the ridge',
 // three runs it used to lose are the 12.09m ridge's two faces and the west
 // face of the 5.2m ridge; each was killed by a hip or valley belonging to
 // the NEIGHBOURING face, crossing the drop line on its way past.
+await pg.evaluate(() => localStorage.setItem('fr_sheet_text_scale', '2'));
 r = await build([[1072,719],[1072,835],[956,835],[956,1136],[1057,1136],[1057,1203],[1118,1203],[1118,1441],[1381,1441],[1381,719]],
   [['hip',[1072,719],[1227,873]],
    ['valley',[1072,835],[1227,990]],
@@ -198,6 +199,34 @@ check('…and the west face of the short 5.2m ridge',
   got.filter(l => l === '19.35m').join(', '));
 check('…with no phantom run inventing a face that is not there',
   got.every(l => parseFloat(l) > 10 && parseFloat(l) < 40), got.join(', '));
+
+// ── H. …and the labels have to be readable once they are all there ──
+// Eight runs on one roof means eight labels, and every one of them wants the
+// middle of its own arrow. On a hip-and-valley roof the arrows cross, so at
+// any usable text size they land on top of each other — "17.98m" printed
+// through "18.44m", which is worse than the measure being missing.
+const overlaps = await pg.evaluate(() => {
+  const d = window._lastSheetDims || [];
+  const count = pts => {
+    let n = 0;
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++){
+      const a = pts[i], b = pts[j];
+      if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2) n++;
+    }
+    return n;
+  };
+  const placed = d.map(x => ({ x:x.lblX, y:x.lblY, w:x.boxW, h:x.boxH }));
+  // Where each label would sit with no placement pass — the middle of its run.
+  const naive = d.map(x => ({ x:x.startX + x.ndx*x.sdl*0.5, y:x.startY + x.ndy*x.sdl*0.5,
+                              w:x.boxW, h:x.boxH }));
+  return { placed: count(placed), naive: count(naive), n: d.length,
+           sized: d.every(x => x.boxW > 0 && x.boxH > 0) };
+});
+check('every label is measured, so placement works on real boxes', overlaps.sized);
+check('no two labels sit on top of each other', overlaps.placed === 0,
+  overlaps.placed + ' overlapping pair(s) of ' + overlaps.n + ' labels');
+check('…and at the plain midpoint they would have', overlaps.naive > 0,
+  overlaps.naive + ' pair(s) would collide without the placement pass');
 
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 

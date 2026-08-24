@@ -32851,6 +32851,10 @@ function redrawAll() {
             sink.push({
               lblX: sL[0], lblY: sL[1],
               lblImgX: lblImgX, lblImgY: lblImgY,
+              // Where the run starts on screen, so the label can be slid
+              // along its own arrow when it would otherwise sit on another.
+              startX: sR[0], startY: sR[1],
+              hasOffset: !!(lblOff[0] || lblOff[1]),
               ndx: sdx/sdl, ndy: sdy/sdl, sdl: sdl,
               label: displayedM.toFixed(2) + 'm',
               key: key,
@@ -32909,6 +32913,7 @@ function redrawAll() {
     // otherwise trapped inside redrawAll with no way to assert on it, which
     // is how a hip roof came to lose most of its sheet measures unnoticed.
     window._lastSheetDims = _sheetDims;
+
     // Pass 2 — draw, scaling font + arrows to each dim's length relative
     // to the longest sheet so every label keeps the same size:length feel.
     var _maxSdl = 1;
@@ -32924,6 +32929,75 @@ function redrawAll() {
     // makes 1.0× look right everywhere; the slider stays as a personal
     // fine-tune on top.
     var _shAutoBase = Math.min(44, Math.max(8, _maxSdl * 0.13));
+
+    // ── Keep the labels off each other ──────────────────────────────
+    // Every run puts its label at the middle of its own arrow, which is the
+    // right place right up until two arrows cross — and on a hip-and-valley
+    // roof they cross constantly. The result was "17.98m" sitting on top of
+    // "18.44m" with neither readable.
+    //
+    // A label slides ALONG its own arrow rather than being pushed anywhere
+    // free, because a dimension label that has wandered off its line stops
+    // saying which measurement it belongs to. Longest runs are placed first:
+    // they have the most room to give, and a short run has almost none.
+    (function _placeSheetLabels(){
+      if (_sheetDims.length < 2) return;
+      var boxes = [];
+      var order = _sheetDims.map(function(d, i){ return i; })
+        .sort(function(a, b){ return _sheetDims[b].sdl - _sheetDims[a].sdl; });
+      // Same size maths as the draw loop below, so what is measured here is
+      // what actually gets painted.
+      function metrics(d){
+        var per = (DRAW.sheetTextScale && DRAW.sheetTextScale[d.key]) || 1;
+        var f = Math.max(7, _shAutoBase) * _shTextScale * per;
+        ctx.font = '600 ' + f.toFixed(1) + 'px Inter, -apple-system, sans-serif';
+        return { w: ctx.measureText(d.label).width + f * 0.6, h: f * 1.5 };
+      }
+      function hits(x, y, m){
+        for (var i = 0; i < boxes.length; i++){
+          var b = boxes[i];
+          if (Math.abs(x - b.x) < (m.w + b.w) / 2 && Math.abs(y - b.y) < (m.h + b.h) / 2) return true;
+        }
+        return false;
+      }
+      // Middle first, then either side of it, then the ends. A label never
+      // goes right to a tip — that is where the arrowhead is.
+      var TS = [0.5, 0.38, 0.62, 0.3, 0.7, 0.24, 0.76];
+      order.forEach(function(i){
+        var d = _sheetDims[i], m = metrics(d);
+        // A label the user has dragged stays exactly where they put it, and
+        // everything else is placed around it.
+        // Kept on the dim so the suite can check placement against the SAME
+        // boxes the placer used, rather than a guess at the font size.
+        d.boxW = m.w; d.boxH = m.h;
+        if (d.hasOffset || d.manualIdx != null){
+          boxes.push({ x: d.lblX, y: d.lblY, w: m.w, h: m.h });
+          return;
+        }
+        var best = null;
+        for (var t = 0; t < TS.length && !best; t++){
+          var x = d.startX + d.ndx * d.sdl * TS[t];
+          var y = d.startY + d.ndy * d.sdl * TS[t];
+          if (!hits(x, y, m)) best = [x, y];
+        }
+        // Still nowhere on the arrow: step off it, square to the run, which
+        // keeps the label parallel to the thing it measures.
+        if (!best){
+          var px = -d.ndy, py = d.ndx;
+          var mx = d.startX + d.ndx * d.sdl * 0.5, my = d.startY + d.ndy * d.sdl * 0.5;
+          for (var k = 1; k <= 3 && !best; k++){
+            for (var sgn = 1; sgn >= -1 && !best; sgn -= 2){
+              var ox = mx + px * m.h * k * sgn, oy = my + py * m.h * k * sgn;
+              if (!hits(ox, oy, m)) best = [ox, oy];
+            }
+          }
+        }
+        if (!best) best = [d.startX + d.ndx * d.sdl * 0.5, d.startY + d.ndy * d.sdl * 0.5];
+        d.lblX = best[0]; d.lblY = best[1];
+        boxes.push({ x: d.lblX, y: d.lblY, w: m.w, h: m.h });
+      });
+    })();
+
     _sheetDims.forEach(function(d){
       // EVERY sheet-length label renders at the same default size — a
       // short run's "2.57m" is exactly as prominent as the longest run's
