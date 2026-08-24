@@ -3846,7 +3846,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             <div class="rl-site-only" style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:8px 6px 6px;border-top:1px solid #eef1f5;margin-top:6px">Material order</div>
             <button onclick="_siteFlashSheet()" id="btn-siteflash" class="tool-btn rl-site-only" style="color:#14b8a6;border-color:#14b8a6;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">🧾 Add flashing</button>
             <button onclick="openFreeDrawPad()" id="btn-notespad" class="tool-btn rl-site-only" style="color:#f59e0b;border-color:#f59e0b;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">✎ Notes page</button>
-            <button onclick="openRapidCamera()" id="btn-rapidcam" class="tool-btn rl-site-only" style="color:#0891b2;border-color:#0891b2;width:100%;justify-content:flex-start;text-align:left;margin:0">📸 Rapid photos</button>
+            <button onclick="openRapidCamera()" id="btn-rapidcam" class="tool-btn rl-site-only" style="color:#0891b2;border-color:#0891b2;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">📸 Rapid photos</button>
+            <button onclick="copyRoofGeometry()" id="btn-copygeom2" class="tool-btn rl-site-only" style="color:#64748b;border-color:#cbd5e1;width:100%;justify-content:flex-start;text-align:left;margin:0">📋 Copy roof geometry</button>
           </div>
         </div>
 
@@ -3877,6 +3878,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             <span aria-hidden="true" class="rt-emo">⚙</span><span>View</span><span style="font-size:10px;opacity:.7">▾</span>
           </button>
           <div id="viewMenu" style="display:none;position:absolute;top:calc(100% + 5px);left:0;z-index:300;background:#fff;border:1px solid #d6dbe2;border-radius:10px;box-shadow:0 12px 32px rgba(10,22,40,.20);padding:12px 14px;min-width:250px;font-size:12px;color:#334155;font-weight:400">
+            <button type="button" id="btn-copygeom" onclick="copyRoofGeometry()" style="width:100%;margin-bottom:10px;padding:7px 10px;background:#fff;border:1px solid #cbd5e1;border-radius:8px;color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">📋 Copy roof geometry <span style="font-weight:400;color:#94a3b8">— for a bug report</span></button>
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;margin-bottom:8px">Canvas view</div>
             <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px" title="Hold Shift while clicking to drop a point with no snap at all.">
               <input type="checkbox" id="snapGrid" checked> Snap to grid <span style="font-size:10px;color:#94a3b8">(Shift = off)</span>
@@ -27351,6 +27353,83 @@ document.addEventListener('click', function(e){
 // ⚙ View popover — holds the canvas display settings that used to sprawl
 // across the toolbar (grid, background, AI dims, transparency, sheet
 // text, photo rotate). Same open/close pattern as the roof-lines menu.
+// Hand the roof's geometry over, so a "measures are missing" report can be
+// reproduced exactly instead of guessed at from a screenshot. Numbers only —
+// no client, no address, no photos, no prices — so it is safe to send.
+function copyRoofGeometry(){
+  try { closeViewMenu(); } catch(e){}
+  var g;
+  try {
+    if (typeof _syncCurrentToRoof === 'function') _syncCurrentToRoof();
+    var strip = function(l){
+      return l && l.pts && l.pts.length === 2
+        ? { type:l.type, pts:[[Math.round(l.pts[0][0]), Math.round(l.pts[0][1])],
+                              [Math.round(l.pts[1][0]), Math.round(l.pts[1][1])]],
+            measM:(l.measM != null ? +(+l.measM).toFixed(3) : null),
+            subtype:(l.subtype || undefined) }
+        : null;
+    };
+    var roof = function(r){
+      return { name:(r && r.name) || '',
+               outline:((r && r.outline) || []).map(function(p){ return [Math.round(p[0]), Math.round(p[1])]; }),
+               lines:((r && r.lines) || []).map(strip).filter(Boolean),
+               calPitch:(r && r.calPitch) || 0 };
+    };
+    g = {
+      v: 1,
+      scaleMetresPerPx: DRAW.scaleMetresPerPx || 0,
+      calPitch: DRAW.calPitch || 0,
+      profile: (document.getElementById('matProfile') || {}).value || '',
+      outline: (DRAW.outline || []).map(function(p){ return [Math.round(p[0]), Math.round(p[1])]; }),
+      lines: (DRAW.lines || []).map(strip).filter(Boolean),
+      penetrations: (DRAW.penetrations || []).map(function(p){
+        return { cx:Math.round(p.cx), cy:Math.round(p.cy), size:p.sizeLabel || '', kind:p.kind || '' };
+      }),
+      roofs: (DRAW.roofs || []).map(roof),
+      activeRoofIdx: DRAW.activeRoofIdx,
+      sheetRuns: ((window._lastSheetDims || []).map(function(d){ return d.label; }))
+    };
+  } catch(e){ g = { error: String(e && e.message || e) }; }
+  var txt = JSON.stringify(g);
+  var done = function(){ try { _setSaveStatus && _setSaveStatus('📋 Roof geometry copied — paste it into the message.', '#0369a1'); } catch(e){} };
+  // Clipboard first; a tablet that refuses it gets the text on screen to
+  // select by hand, and a file to share.
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done, function(){ _geomFallback(txt); });
+  } else {
+    _geomFallback(txt);
+  }
+}
+function _geomFallback(txt){
+  var prev = document.getElementById('_geomSheet'); if (prev) prev.remove();
+  var w = document.createElement('div');
+  w.id = '_geomSheet';
+  w.style.cssText = 'position:fixed;inset:0;z-index:100080;background:rgba(10,22,40,.5);display:flex;align-items:center;justify-content:center;padding:18px';
+  w.innerHTML =
+    '<div style="width:100%;max-width:560px;background:#fff;border-radius:14px;padding:16px;font-family:inherit">' +
+      '<div style="font-size:14px;font-weight:800;color:#0a1628;margin-bottom:4px">Roof geometry</div>' +
+      '<div style="font-size:12px;color:#64748b;margin-bottom:10px">Select all and copy, or save it as a file to send.</div>' +
+      '<textarea id="_geomTxt" readonly style="width:100%;height:180px;font-family:ui-monospace,monospace;font-size:11px;padding:9px;border:1px solid #cbd5e1;border-radius:9px"></textarea>' +
+      '<div style="display:flex;gap:8px;margin-top:10px">' +
+        '<button type="button" id="_geomSave" style="flex:1;padding:11px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer">Save as a file</button>' +
+        '<button type="button" id="_geomClose" style="flex:0 0 auto;padding:11px 16px;background:#fff;color:#64748b;border:1.5px solid #cbd5e1;border-radius:9px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer">Close</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(w);
+  var ta = w.querySelector('#_geomTxt');
+  ta.value = txt;
+  ta.focus(); try { ta.setSelectionRange(0, txt.length); } catch(e){}
+  w.querySelector('#_geomClose').onclick = function(){ w.remove(); };
+  w.querySelector('#_geomSave').onclick = function(){
+    try {
+      var a = document.createElement('a');
+      a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(txt);
+      a.download = 'roof-geometry.json';
+      document.body.appendChild(a); a.click(); a.remove();
+    } catch(e){}
+  };
+}
+
 function toggleViewMenu(e){
   if(e){ e.stopPropagation(); }
   var m=document.getElementById('viewMenu'); if(!m) return;
