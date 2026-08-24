@@ -71,12 +71,12 @@ const btns = await pg.evaluate(() => {
   const s = document.getElementById('jobPhotosSec');
   // Just the two capture buttons — the section has since grown a files row
   // with its own button, which is not part of this check.
-  const bs = s ? [...s.querySelectorAll('button')].filter(b => /Take photo|From gallery/.test(b.textContent)) : [];
+  const bs = s ? [...s.querySelectorAll('button')].filter(b => /Rapid photos|From gallery/.test(b.textContent)) : [];
   const r = bs.map(x => x.getBoundingClientRect());
   return { n: bs.length, sameRow: r.length === 2 && Math.abs(r[0].top - r[1].top) < 2,
            clipped: bs.some(x => x.scrollWidth > x.clientWidth + 1) };
 });
-check('…and Take photo / From gallery stay on one row, untruncated',
+check('…and the two capture buttons stay on one row, untruncated',
   btns.n === 2 && btns.sameRow && !btns.clipped, JSON.stringify(btns));
 await ctx.close();
 
