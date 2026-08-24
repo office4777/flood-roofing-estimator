@@ -4632,6 +4632,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <span>📂 Maps</span>
         <small style="margin-left:auto">drag onto a page</small>
       </div>
+      <!-- Which maps this panel offers. Five per roof is a long scroll when
+           two of them are the ones anybody actually drags onto a job pack,
+           so the other three start off and are one tick away. -->
+      <div id="jpMapKinds" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap"></div>
       <div style="display:flex;align-items:center;gap:9px">
         <span style="font-size:11px;color:var(--text2);white-space:nowrap;font-weight:500">🔍 Zoom</span>
         <input id="jpMapPanelZoom" type="range" min="100" max="400" step="10" value="100" oninput="_jpMapPanelZoom(this.value)" style="flex:1;accent-color:#0099cc">
@@ -37753,11 +37757,60 @@ function _jpMapApplyZoom(){
   var sl = document.getElementById('jpMapPanelZoom');
   _jpMapPanelZoom(sl ? sl.value : 100);
 }
+// ── Which map kinds the panel shows ───────────────────────────────
+// Sheet calc check and Sheet layout are the two that go on a job pack; the
+// detailed / basic / flashing-ref maps are occasional. All five per roof made
+// the panel a scroll, so the occasional three start off and are one tick away.
+// The order here is the order they are offered in, calc check first.
+var JP_MAP_KINDS = [
+  { kind:'calccheck', label:'Sheet calc check', on:true  },
+  { kind:'sheetplan', label:'Sheet layout',     on:true  },
+  { kind:'detailed',  label:'Detailed map',     on:false },
+  { kind:'basic',     label:'Basic map',        on:false },
+  { kind:'flashref',  label:'Flashing ref',     on:false },
+];
+function _jpMapKindOn(kind){
+  var d = JP_MAP_KINDS.filter(function(k){ return k.kind === kind; })[0];
+  var def = d ? d.on : true;
+  try {
+    var raw = localStorage.getItem('fr_jp_map_kind_' + kind);
+    return raw == null ? def : raw === '1';
+  } catch(e){ return def; }
+}
+function _jpMapKindSet(kind, on){
+  try { localStorage.setItem('fr_jp_map_kind_' + kind, on ? '1' : '0'); } catch(e){}
+  var list = document.getElementById('jpMapPanelList');
+  if (list) list.__jpHtml = null;      // force the skip-when-unchanged guard open
+  try { renderJpMapPanel(); } catch(e){}
+}
+function _jpRenderMapKindToggles(){
+  var box = document.getElementById('jpMapKinds'); if (!box) return;
+  box.innerHTML = JP_MAP_KINDS.map(function(k){
+    var on = _jpMapKindOn(k.kind);
+    return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;' +
+      'padding:3px 8px 3px 6px;border-radius:20px;cursor:pointer;user-select:none;' +
+      'border:1px solid ' + (on ? '#0099cc' : 'var(--border)') + ';' +
+      'background:' + (on ? 'rgba(0,153,204,.10)' : '#fff') + ';' +
+      'color:' + (on ? '#0a1628' : 'var(--text2)') + '">' +
+      '<input type="checkbox" data-mapkind="' + esc(k.kind) + '"' + (on ? ' checked' : '') +
+        ' onchange="_jpMapKindSet(\'' + esc(k.kind) + '\', this.checked)"' +
+        ' style="width:auto;margin:0;accent-color:#0099cc">' +
+      esc(k.label) + '</label>';
+  }).join('');
+}
+
 function renderJpMapPanel(){
   var list = document.getElementById('jpMapPanelList'); if (!list) return;
-  var items = _jpMapPanelItems();
+  try { _jpRenderMapKindToggles(); } catch(e){}
+  var items = _jpMapPanelItems().filter(function(it){
+    return _jpMapKindOn(String(it.key).split(':')[0]);
+  });
   if (!items.length) {
-    list.innerHTML = '<div style="padding:14px 4px;font-size:11px;color:var(--text2);font-style:italic">Draw your roof on the Map Roof tab — maps will populate here.</div>';
+    var anyOn = JP_MAP_KINDS.some(function(k){ return _jpMapKindOn(k.kind); });
+    list.innerHTML = '<div style="padding:14px 4px;font-size:11px;color:var(--text2);font-style:italic">' +
+      (anyOn ? 'Draw your roof on the Map Roof tab — maps will populate here.'
+             : 'No map types ticked — turn one on above.') + '</div>';
+    list.__jpHtml = null;
     return;
   }
   var _html = items.map(function(it){
@@ -39290,9 +39343,12 @@ function _jpRenderCutLists(content, page, idx){
   var gTotalLm = gAutoRows.reduce(function(s, r){ return s + r.len * r.qty; }, 0)
     + gExtras.reduce(function(s, x){ return s + (+x.len || 0) * (+x.qty || 0); }, 0);
   var _gInclRaw = localStorage.getItem('fr_jp_gutter_include');
-  var gutterIncluded = _gInclRaw != null
-    ? _gInclRaw === '1'
-    : (gutterChoice !== 'none' || gRuns.length > 0 || gExtras.length > 0);   // sensible default until first tick
+  // Default OFF. Gutter is its own trade and its own decision: plenty of jobs
+  // are a re-roof with the existing spouting staying put, and having it
+  // arrive on the order by default meant noticing and removing it every time.
+  // Ticking Include (or picking a gutter type) puts it on, and that choice is
+  // remembered — see _matGutterChoose.
+  var gutterIncluded = (_gInclRaw === '1');
   // Default to 125mm Box Gutter the moment the section is included — the
   // spec-bar select follows so pricing/order stay in step.
   //

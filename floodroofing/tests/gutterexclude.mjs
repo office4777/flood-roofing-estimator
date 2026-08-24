@@ -97,15 +97,24 @@ check('…and ticking it back picks a real gutter rather than leaving None',
   v.stored === '1' && v.sel !== 'none' && v.sectionShown, 'sel=' + v.sel);
 await ctx.close();
 
-// ── the helpful default is intact for a roofer who never chooses ──
+// ── gutter is OFF until asked for ─────────────────────────────────
+// Gutter is its own trade and its own decision — plenty of jobs are a re-roof
+// with the existing spouting staying put. Arriving on the order by default
+// meant noticing and removing it every time.
 ({ ctx, pg, errs } = await open());
 await pg.evaluate(() => { renderJobPack(); });
 await pg.waitForTimeout(400);
 v = await state(pg);
-check('a roof with gutters drawn and no choice made still gets a gutter',
-  v.sel === 'colorsteel-box' && v.sectionShown, 'sel=' + v.sel);
+check('a roof with gutters drawn does NOT put gutter on the order by default',
+  !v.sectionShown, 'sel=' + v.sel + ' shown=' + v.sectionShown);
 check('…without silently recording a choice the roofer never made',
   v.stored === null, 'stored=' + v.stored);
+// …and one tick is all it takes to put it on.
+await pg.evaluate(() => _jpToggleGutterInclude(true));
+await pg.waitForTimeout(350);
+v = await state(pg);
+check('…and one tick puts it on, with a real gutter selected',
+  v.sectionShown && v.sel !== 'none' && v.stored === '1', 'sel=' + v.sel);
 
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await ctx.close();
