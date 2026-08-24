@@ -8147,10 +8147,44 @@ function openPriceSettings(){
   }, 0);
 }
 
+// ── Flashing wastage ──────────────────────────────────────────────
+// Flashings used to carry a flat 1.2x, which is wrong in both directions.
+// It under-covers a roof cut into lots of short runs, because each run needs
+// its own offcut whatever its length, and it badly over-covers a long clean
+// one: 20% of a 60m gutter is 12m of gutter nobody ever buys. On a commercial
+// job that single factor was adding $898 of guttering to the quote.
+//
+// What actually gets allowed on the order: half a metre on every run, plus a
+// lap every 8m, 8m being the longest stick that comes off the truck. Both are
+// per RUN, not per total — joins happen along a length, not across a job.
+var FLASH_WASTE_PER_RUN_M = 0.5;
+var FLASH_LAP_M           = 0.1;
+var FLASH_STOCK_M         = 8;
+function _flashWaste(lens, fallbackTotal){
+  var out = { net: 0, waste: 0, runs: 0, total: 0 };
+  var arr = (lens && lens.length) ? lens
+          : ((fallbackTotal > 0) ? [fallbackTotal] : []);   // pre-lineLens data
+  arr.forEach(function(L){
+    L = parseFloat(L) || 0;
+    if (!(L > 0)) return;
+    out.net += L;
+    out.runs++;
+    out.waste += FLASH_WASTE_PER_RUN_M + FLASH_LAP_M * Math.floor(L / FLASH_STOCK_M);
+  });
+  out.total = out.net + out.waste;
+  return out;
+}
+function _flashWasteNote(w){
+  if (!w || !w.runs) return '';
+  var laps = w.waste - (FLASH_WASTE_PER_RUN_M * w.runs);
+  return 'incl. ' + w.waste.toFixed(1) + 'm waste — 0.5m \u00d7 ' + w.runs +
+         ' run' + (w.runs === 1 ? '' : 's') +
+         (laps > 0.001 ? ', + ' + laps.toFixed(1) + 'm laps' : '');
+}
+
 // Builds the rows the Material Price table renders. Each row carries
 // its own qty (auto), $/unit, variant options, and a key so user
-// overrides can target it. Wastage factor of 1.2 is applied to
-// flashing qtys (ridge+hip / valley / gutter / barge / apron).
+// overrides can target it. Flashing qtys carry the per-run wastage above.
 function _buildMaterialPriceRows(){
   var rows = [];
   if (!S.settings || !S.settings.price_book || !window.DRAW) return rows;
@@ -8159,14 +8193,14 @@ function _buildMaterialPriceRows(){
   var sheetWidthMm = parseFloat((document.getElementById('sheetWidth')||{}).value) || 762;
   var sheetWidthM  = sheetWidthMm / 1000;
   var overlapM     = (parseFloat((document.getElementById('overlapMm')||{}).value)||150)/1000;
-  var WASTE_FACTOR = 1.2;
   // Sum totals across every selected roof (Materials tab picker drives
   // this). Falls through to current-roof-only when there's no multi-
   // roof archive yet.
   var d = (typeof _matDrawTotals === 'function') ? _matDrawTotals() : null;
-  var totals, ridgeHip, roofArea, pitch, pitchFactor;
+  var totals, lineLens, ridgeHip, roofArea, pitch, pitchFactor;
   if (d) {
     totals      = Object.assign({}, d.totals);
+    lineLens    = d.lineLens || {};
     ridgeHip    = d.ridgeHip;
     roofArea    = d.roofArea;
     pitch       = d.pitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
@@ -8175,8 +8209,12 @@ function _buildMaterialPriceRows(){
     pitch        = DRAW.calPitch || parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
     pitchFactor  = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
     totals       = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
+    lineLens     = {ridge:[], valley:[], gutter:[], hip:[], barge:[], apron:[], changepitch:[]};
     (DRAW.lines || []).forEach(function(l){
-      if (l.measM && totals[l.type] !== undefined) totals[l.type] += parseFloat(l.measM);
+      if (l.measM && totals[l.type] !== undefined) {
+        totals[l.type] += parseFloat(l.measM);
+        lineLens[l.type].push(parseFloat(l.measM));
+      }
     });
     ridgeHip = (totals.ridge||0) + (totals.hip||0);
     roofArea = 0;
@@ -8224,19 +8262,24 @@ function _buildMaterialPriceRows(){
                 note:'covers ' + (roofArea*1.2).toFixed(1) + ' m² (incl. 20% waste)' });
   }
 
-  // Flashings — single-variant rows. Wastage applied to auto qty.
-  function flashRow(key, label, qty, price){
+  // Flashings — single-variant rows, each carrying its own per-run wastage.
+  function flashRow(key, label, lens, qty, price){
     if (!qty) return;
-    rows.push({ key:key, label:label, autoQty: qty * WASTE_FACTOR, autoUnit:'lm',
+    var w = _flashWaste(lens, qty);
+    if (!(w.total > 0)) return;
+    rows.push({ key:key, label:label, autoQty: w.total, autoUnit:'lm',
                 variants: [{ value:label, label:label, price:price||0, unit:'lm' }],
-                defaultVariant:label, note:'incl. 1.2× wastage', singleVariant:true });
+                defaultVariant:label, note:_flashWasteNote(w), singleVariant:true });
   }
-  flashRow('ridge',  'Ridge / Hip cap',  ridgeHip,        pb.ridge_lm);
-  flashRow('valley', 'Valley iron',      totals.valley,   pb.valley_lm);
-  flashRow('gutter', 'Gutter',           totals.gutter,   pb.gutter_lm);
-  flashRow('barge',  'Barge flashing',   totals.barge,    pb.barge_lm);
-  flashRow('apron',  'Apron flashing',   totals.apron,    pb.apron_lm);
-  flashRow('changepitch', 'Change-of-pitch flashing', totals.changepitch, pb.changepitch_lm);
+  var _ll = lineLens || {};
+  // Ridge and hip share a row, so they share a wastage calculation — but they
+  // are still separate runs on the roof and each gets its own offcut.
+  flashRow('ridge',  'Ridge / Hip cap',  (_ll.ridge||[]).concat(_ll.hip||[]), ridgeHip, pb.ridge_lm);
+  flashRow('valley', 'Valley iron',      _ll.valley,      totals.valley,   pb.valley_lm);
+  flashRow('gutter', 'Gutter',           _ll.gutter,      totals.gutter,   pb.gutter_lm);
+  flashRow('barge',  'Barge flashing',   _ll.barge,       totals.barge,    pb.barge_lm);
+  flashRow('apron',  'Apron flashing',   _ll.apron,       totals.apron,    pb.apron_lm);
+  flashRow('changepitch', 'Change-of-pitch flashing', _ll.changepitch, totals.changepitch, pb.changepitch_lm);
 
   // Screws
   if (roofArea > 0 && (pb.screws_each || 0) >= 0) {
@@ -36194,11 +36237,18 @@ function _matEachSelectedRoof(fn) {
 // wrap this with _matEachSelectedRoof and aggregate the results.
 function _matDrawTotalsForCurrent() {
   var totals = {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0};
+  // Every run's own length, not just the sum. Wastage is per run — half a
+  // metre each, plus a lap every 8m — so a total is not enough to work it out:
+  // 30m as six 5m barges wants six offcuts, 30m as one run wants one.
+  var lineLens = {ridge:[], valley:[], gutter:[], hip:[], barge:[], apron:[], changepitch:[]};
   var pd = document.getElementById('pitchDeg');
   var pitch = DRAW.calPitch || (pd ? parseFloat(pd.value)||0 : 0);
   var pitchFactor = pitch > 0 ? 1/Math.cos(pitch*Math.PI/180) : 1;
   (DRAW.lines || []).forEach(function(l){
-    if (l.measM && totals[l.type] !== undefined) totals[l.type] += parseFloat(l.measM);
+    if (l.measM && totals[l.type] !== undefined) {
+      totals[l.type] += parseFloat(l.measM);
+      lineLens[l.type].push(parseFloat(l.measM));
+    }
   });
   var roofArea = 0;
   if (DRAW.scaleMetresPerPx && DRAW.outline && DRAW.outline.length >= 3) {
@@ -36217,7 +36267,7 @@ function _matDrawTotalsForCurrent() {
   }
   var ridgeHip = (totals.ridge || 0) + (totals.hip || 0);
   var flashingsLm = ridgeHip + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0);
-  return { totals: totals, ridgeHip: ridgeHip, flashingsLm: flashingsLm,
+  return { totals: totals, lineLens: lineLens, ridgeHip: ridgeHip, flashingsLm: flashingsLm,
            gutterLm: totals.gutter || 0, roofArea: roofArea, pitch: pitch };
 }
 
@@ -36226,11 +36276,17 @@ function _matDrawTotalsForCurrent() {
 // _matRenderConsumables, …) need zero changes.
 function _matDrawTotals() {
   var sum = { totals: {ridge:0, valley:0, gutter:0, hip:0, barge:0, apron:0, changepitch:0},
+              lineLens: {ridge:[], valley:[], gutter:[], hip:[], barge:[], apron:[], changepitch:[]},
               ridgeHip: 0, flashingsLm: 0, gutterLm: 0, roofArea: 0, pitch: 0 };
   var maxPitch = 0;
   _matEachSelectedRoof(function(){
     var d = _matDrawTotalsForCurrent();
     Object.keys(d.totals).forEach(function(k){ sum.totals[k] += d.totals[k]||0; });
+    // Runs stay separate across roofs — a barge on the garage is not the same
+    // stick as a barge on the house, and each needs its own offcut.
+    Object.keys(sum.lineLens).forEach(function(k){
+      sum.lineLens[k] = sum.lineLens[k].concat((d.lineLens && d.lineLens[k]) || []);
+    });
     sum.ridgeHip    += d.ridgeHip;
     sum.flashingsLm += d.flashingsLm;
     sum.gutterLm    += d.gutterLm;
