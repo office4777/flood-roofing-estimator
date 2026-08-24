@@ -7029,15 +7029,21 @@ function _aquasealPrice(id){
 }
 
 function defaultSettings(){
-  // Neutral by design. These used to be Flood Roofing's own details — company
-  // name, GST number, 0800 number, the About-us story, the office email on
-  // every notification, and the real buy prices. That was fine while there was
-  // one company using this. The moment somebody else signs up it means their
-  // first quote goes out branded Flood Roofing, with Flood Roofing's GST
-  // number on it, CC'ing Flood Roofing's inbox, priced off Flood Roofing's
-  // supplier rates. So: a new business starts blank and fills its own in
-  // (see _needsSetup / openSetupWizard). Existing accounts are untouched —
+  // Neutral by design. Every branding field here used to hold the first
+  // account's own details — company name, GST number, 0800 number, the
+  // About-us story, the office email on every notification. That was fine
+  // while one company used this. The moment a second one signs up, it means
+  // their first quote goes out under somebody else's name, with somebody
+  // else's GST number on it, CC'ing somebody else's inbox. So branding starts
+  // blank and each business fills its own in (see _needsSetup /
+  // openSetupWizard / openSetupGuide). Existing accounts are untouched —
   // their real values live in their saved settings row and win over these.
+  //
+  // The price book is the one deliberate exception: it ships with real trade
+  // rates rather than blanks, because a zeroed book gives a first-time user a
+  // $0 quote and no reason to come back. Rates are not identity — nothing
+  // here says whose they are, and list_prices keeps them flagged as
+  // provisional until the roofer loads their own. See price_book below.
   return {
     branding: { company_name:'', tagline:'',
                 phone:'', email:'', website:'',
@@ -7078,19 +7084,23 @@ function defaultSettings(){
     // _defaultSelectables() rather than an empty picker.
     selectables: null,
     price_book: {
-      // ── Indicative list prices, NOT anybody's negotiated rates ──
+      // ── A real starting book, NOT the reader's own rates ──
       // These used to be zeroes, which was safe and useless: a business that
       // signed up on Monday priced its first roof at nothing, decided the
       // thing didn't work, and left. Nobody evaluates a quoting tool that
-      // says the roof costs $0.
+      // says the roof costs $0. Round-number placeholders were the next
+      // attempt, and they were not much better — a quote built on invented
+      // figures is obviously invented, and the roofer stops trusting the
+      // total instead of the price book.
       //
-      // So the book ships with ballpark NZ retail figures — the sort of
-      // number a merchant quotes a stranger over the counter, not what any
-      // roofer actually pays. They are deliberately ROUND and deliberately
-      // high, and list_prices below keeps them labelled as a placeholder
-      // everywhere they show, until the roofer saves their own. A
-      // wrong-but-plausible number gets a real quote on screen in the first
-      // ten minutes; a zero never does.
+      // So the book now ships real New Zealand trade rates: figures in the
+      // band a roofing company actually pays a merchant, which puts a
+      // first-run quote inside striking distance of the truth. They are
+      // still somebody else's rates, not the reader's, so list_prices below
+      // keeps every one of them labelled until the roofer loads their own,
+      // and PB_DISCLAIMER says so in as many words the first time they open
+      // Settings → Price book. Nothing here names or identifies whose
+      // account the numbers came from.
       list_prices: true,
       // Sheet: anchored on a real 0.40g Colorsteel Maxam rate. The other three
       // are derived from the differentials this app already carries — the
@@ -29282,6 +29292,12 @@ var SETUP_STEPS = [
     body:'__PB_DISCLAIMER__',
     go:{ tab:'settings', sub:'set-pricebook' }, cta:'Open the price book' },
   { key:'brand', title:'Make the quotes yours',
+    // The branding wizard collects the same fields on first run. If it has
+    // already been through, this card is a dead step — drop it.
+    skipIf: function(){
+      try { var b = (S.settings && S.settings.branding) || {};
+            return !!String(b.company_name || '').trim(); } catch(e){ return false; }
+    },
     body:'Proposals go out under your name, not ours. Put your company name, logo, ' +
          'phone and email in and every quote, job pack and material order picks them up.\n\n' +
          'Until you do, the header just says RoofMap.',
@@ -29324,7 +29340,18 @@ var PB_DISCLAIMER =
   'Until you do, you are quoting on somebody else’s rates. RoofMap marks the book as indicative ' +
   'until you save your own, and every quote and order carries a note that materials should be checked.';
 
-var SETUP = { i:0 };
+// The cards actually shown this run. Steps carrying a skipIf() that is already
+// satisfied are dropped up front rather than shown and no-oped, so "Step 3 of
+// 6" counts what the reader will really see and Next never lands on a dead
+// card. Rebuilt on every open, because what is already set up changes.
+var SETUP = { i:0, steps: SETUP_STEPS.slice() };
+function _setupBuildSteps(){
+  SETUP.steps = SETUP_STEPS.filter(function(st){
+    try { return !st.skipIf || !st.skipIf(); } catch(e){ return true; }
+  });
+  if (!SETUP.steps.length) SETUP.steps = SETUP_STEPS.slice();
+  return SETUP.steps;
+}
 function _setupDone(){ try { return localStorage.getItem('fr_setup_done') === '1'; } catch(e){ return false; } }
 function _setupMarkDone(){ try { localStorage.setItem('fr_setup_done','1'); } catch(e){} }
 function closeSetupGuide(skip){
@@ -29335,17 +29362,17 @@ function closeSetupGuide(skip){
   }
 }
 function setupGuideStep(n){
-  SETUP.i = Math.max(0, Math.min(SETUP_STEPS.length - 1, n));
+  SETUP.i = Math.max(0, Math.min(SETUP.steps.length - 1, n));
   _setupRender();
 }
 function _setupRender(){
   var w = document.getElementById('setupGuide'); if (!w) return;
-  var st = SETUP_STEPS[SETUP.i], last = (SETUP.i === SETUP_STEPS.length - 1);
+  var st = SETUP.steps[SETUP.i], last = (SETUP.i === SETUP.steps.length - 1);
   var body = (st.body === '__PB_DISCLAIMER__') ? PB_DISCLAIMER : st.body;
   w.querySelector('#sgTitle').textContent = st.title;
   w.querySelector('#sgBody').textContent = body;
-  w.querySelector('#sgCount').textContent = 'Step ' + (SETUP.i + 1) + ' of ' + SETUP_STEPS.length;
-  var dots = SETUP_STEPS.map(function(_, i){
+  w.querySelector('#sgCount').textContent = 'Step ' + (SETUP.i + 1) + ' of ' + SETUP.steps.length;
+  var dots = SETUP.steps.map(function(_, i){
     return '<span style="width:7px;height:7px;border-radius:50%;background:' +
       (i === SETUP.i ? '#0a1628' : '#cbd5e1') + ';display:inline-block"></span>';
   }).join('');
@@ -29357,7 +29384,7 @@ function _setupRender(){
   w.querySelector('#sgNext').textContent = last ? 'Finish' : 'Next';
 }
 function _setupGo(){
-  var st = SETUP_STEPS[SETUP.i];
+  var st = SETUP.steps[SETUP.i];
   if (!st || !st.go) return;
   try { if (st.go.tab) gotoTab(st.go.tab); } catch(e){}
   try { if (st.go.sub) switchSettingsSub(st.go.sub); } catch(e){}
@@ -29369,7 +29396,34 @@ function _setupGo(){
 function openSetupGuide(force){
   if (!force && _setupDone()) return;
   if (document.getElementById('setupGuide')) return;
+  // The branding wizard owns the screen first. It is modal and it is the one
+  // thing a new account MUST finish, so the guide must never land on top of
+  // it — an overlay over #setupWizard swallows the clicks on its "Save and
+  // get started" button and locks a first-time user out of entering their own
+  // business details. Wait for it to go (saved, or "I'll set this up later"),
+  // then take the screen.
+  //
+  // A blank company name is NOT proof the wizard is coming: it only opens
+  // when the settings endpoint returns an object (see maybeOpenSetup), so on
+  // a fresh or offline account it may never appear. Hence a deadline — wait
+  // briefly for one to show up, then stop waiting and open regardless.
+  var seen = !!document.getElementById('setupWizard');
+  // "Run the setup guide" from Settings waits only for a wizard that is
+  // genuinely on screen — never for one that might yet appear, or the button
+  // would do nothing.
+  if (seen || (!force && !SETUP._waited && _needsSetup())){
+    var t0 = Date.now();
+    SETUP._waited = 1;
+    var iv = setInterval(function(){
+      if (document.getElementById('setupWizard')){ seen = true; return; }
+      if (!seen && Date.now() - t0 < 2000) return;   // give it a beat to appear
+      clearInterval(iv);
+      setTimeout(function(){ try { openSetupGuide(force); } catch(e){} }, seen ? 500 : 0);
+    }, 300);
+    return;
+  }
   SETUP.i = 0;
+  _setupBuildSteps();
   var w = document.createElement('div');
   w.id = 'setupGuide';
   w.className = 'no-print';
@@ -29394,7 +29448,7 @@ function openSetupGuide(force){
   w.querySelector('#sgBack').onclick = function(){ setupGuideStep(SETUP.i - 1); };
   w.querySelector('#sgGo').onclick = _setupGo;
   w.querySelector('#sgNext').onclick = function(){
-    if (SETUP.i === SETUP_STEPS.length - 1) closeSetupGuide(false);
+    if (SETUP.i === SETUP.steps.length - 1) closeSetupGuide(false);
     else setupGuideStep(SETUP.i + 1);
   };
   _setupRender();

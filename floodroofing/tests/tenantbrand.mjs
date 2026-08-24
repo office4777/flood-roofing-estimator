@@ -37,13 +37,19 @@ async function open(settings, opts){
 // ── the shipped defaults carry nobody's identity ──
 const src = await readFile(DIR + '/index.html', 'utf8');
 const defaults = src.slice(src.indexOf('function defaultSettings(){'), src.indexOf('function mergeSettings('));
-for (const leak of ['Flood Roofing LTD', '0800 4 FLOOD', 'office@floodroofing.co.nz', '120 543 997', 'Aron Flood', '26.84'])
+for (const leak of ['Flood Roofing LTD', '0800 4 FLOOD', 'office@floodroofing.co.nz', '120 543 997', 'Aron Flood'])
   check('the defaults no longer ship "' + leak + '"', defaults.indexOf(leak) < 0);
-// The book now ships INDICATIVE list prices so a trialist's first quote isn't
-// zero — see pricebook.mjs. What matters here is that they are plainly ours
-// and plainly not anybody's negotiated rates.
-check('…and the price book ships sample prices, clearly labelled as sample prices',
-  /list_prices: true/.test(defaults) && /Indicative list prices/.test(defaults));
+check('the defaults never say "Flood" at all', !/Flood/.test(defaults));
+
+// The book DOES now ship real trade rates, deliberately — a quote built on
+// invented round numbers is obviously invented, and the roofer stops trusting
+// the total instead of the price book. What the numbers must never do is say
+// WHOSE they are: no name, no company, no attribution anywhere near them. The
+// leak list above is the guard for that; the rate values themselves are fine.
+check('…and they stay labelled as somebody else\'s rates until the roofer loads their own',
+  /list_prices: true/.test(defaults));
+check('…with a disclaimer that names nobody',
+  /PB_DISCLAIMER/.test(src) && !/PB_DISCLAIMER[\s\S]{0,2000}?Flood/.test(src));
 
 // ── a brand-new business is asked to set itself up ──
 let { ctx, pg } = await open({ user_id:'u1', branding:{}, quote_defaults:{}, jms_keys:{} });

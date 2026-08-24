@@ -22,14 +22,30 @@ async function boot(opts){
   const pg = await ctx.newPage();
   const errs = []; pg.on('pageerror', e => errs.push(e.message));
   await pg.route('**/flood-roofing-estimator-production.up.railway.app/**',
-    r => r.fulfill({status:200,contentType:'application/json',body:'[]'}));
+    r => r.fulfill({status:200,contentType:'application/json',
+      // maybeOpenSetup() only fires when /settings answers with an OBJECT, so
+      // a test that wants the branding wizard has to be given one.
+      body: ((opts||{}).keepWizard && /\/settings/.test(r.request().url()))
+              ? JSON.stringify({ branding:{}, quote_defaults:{}, jms_keys:{} })
+              : '[]' }));
   await pg.addInitScript((o) => {
     localStorage.setItem('fr_token','t'); localStorage.setItem('fr_settings','null');
     if (o.done) localStorage.setItem('fr_setup_done','1');
     if (o.site) localStorage.setItem('fr_site_mode','on');
   }, opts || {});
   await pg.goto('file://'+DIR+'/index.html');
-  await pg.waitForTimeout(3200);      // past the 1.4s first-run delay
+  // 1.4s first-run delay, then the guide waits up to 2s for a branding wizard
+  // to show up before opening anyway. Clear both.
+  await pg.waitForTimeout(5200);
+  // A brand-new account also gets the branding wizard, which is modal and
+  // owns the screen first. Unless a test is specifically about that ordering,
+  // dismiss it the way a roofer would ("I'll set this up later") and let the
+  // guide take over — branding stays blank, so all seven cards still show.
+  if (!(opts||{}).keepWizard){
+    if (await pg.evaluate(() => { if (!document.getElementById('setupWizard')) return false;
+                                  _swLater(); return true; }))
+      await pg.waitForTimeout(1600);
+  }
   return { ctx, pg, errs };
 }
 
@@ -37,7 +53,7 @@ async function boot(opts){
 let { ctx, pg, errs } = await boot({});
 let v = await pg.evaluate(() => ({
   open: !!document.getElementById('setupGuide'),
-  steps: (window.SETUP_STEPS || []).length,
+  steps: ((window.SETUP && SETUP.steps) || []).length,
   title: (document.getElementById('sgTitle') || {}).textContent || '',
   dots: document.querySelectorAll('#sgDots span').length,
 }));
@@ -78,7 +94,7 @@ check('…and the card stays, tucked aside, so their place is not lost',
 // ── it walks and finishes ─────────────────────────────────────────
 v = await pg.evaluate(() => {
   const seen = [];
-  for (let i = 0; i < SETUP_STEPS.length; i++){
+  for (let i = 0; i < SETUP.steps.length; i++){
     setupGuideStep(i);
     seen.push({ t: document.getElementById('sgTitle').textContent,
                 go: document.getElementById('sgGo').style.display !== 'none' });
@@ -126,6 +142,58 @@ await pg.evaluate(() => { switchSettingsSub('set-general'); switchSettingsSub('s
 await pg.waitForTimeout(500);
 v = await pg.evaluate(() => !!document.getElementById('pbDiscModal'));
 check('…once, not every time', !v);
+await ctx.close();
+
+// ── it waits its turn behind the branding wizard ──────────────────
+// Regression: the guide used to open on a 1.4s timer regardless, landing an
+// overlay on top of the modal branding wizard. That swallowed the clicks on
+// its "Save and get started" button, so a first-time user could not enter
+// their own business details at all — the one thing they MUST do.
+({ ctx, pg, errs } = await boot({ keepWizard:true }));
+v = await pg.evaluate(() => ({
+  wiz: !!document.getElementById('setupWizard'),
+  guide: !!document.getElementById('setupGuide'),
+}));
+check('the branding wizard goes first, on its own', v.wiz && !v.guide,
+  'wizard=' + v.wiz + ' guide=' + v.guide);
+check('…so its Save button is actually clickable', await pg.evaluate(async () => {
+  const btn = document.getElementById('swSaveBtn'); if (!btn) return false;
+  const r = btn.getBoundingClientRect();
+  const top = document.elementFromPoint(r.left + r.width/2, r.top + r.height/2);
+  return !!top && (top === btn || btn.contains(top));
+}));
+// Dismiss it and the guide takes over.
+await pg.evaluate(() => _swLater());
+await pg.waitForTimeout(1800);
+v = await pg.evaluate(() => ({ wiz: !!document.getElementById('setupWizard'),
+                               guide: !!document.getElementById('setupGuide') }));
+check('…and the guide follows once the wizard is gone', !v.wiz && v.guide,
+  'wizard=' + v.wiz + ' guide=' + v.guide);
+check('nothing threw while they took turns', errs.length === 0, errs.join(' | ') || 'no page errors');
+await ctx.close();
+
+// ── it does not re-ask for what the wizard just collected ─────────
+({ ctx, pg, errs } = await boot({}));
+v = await pg.evaluate(() => {
+  // Stand in for a saved wizard: the business now has a name.
+  S.settings = S.settings || {}; S.settings.branding = { company_name:'Acme Roofing Ltd' };
+  closeSetupGuide(false); openSetupGuide(true);
+  return { n: SETUP.steps.length, keys: SETUP.steps.map(s => s.key) };
+});
+check('once the business is named, the branding card drops out',
+  v.n === 6 && v.keys.indexOf('brand') < 0, v.n + ' steps: ' + v.keys.join(','));
+check('…and the count reflects what they will actually see',
+  await pg.evaluate(() => /of 6/.test(document.getElementById('sgCount').textContent)),
+  await pg.evaluate(() => document.getElementById('sgCount').textContent));
+check('…and Next still walks to the end without a dead card',
+  await pg.evaluate(() => {
+    for (let i = 0; i < 8; i++){
+      const nx = document.getElementById('sgNext'); if (!nx) return false;
+      if (nx.textContent === 'Finish') return !!document.getElementById('sgTitle').textContent;
+      nx.click();
+    }
+    return false;
+  }));
 await ctx.close();
 
 // ── not up a ladder ───────────────────────────────────────────────
