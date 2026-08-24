@@ -3823,7 +3823,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             <button onclick="setTool('sheetmeas');closeRoofLinesMenu()" id="btn-sheetmeas" onmouseenter="showTip('btn-sheetmeas',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">📏 Sheet measure</button>
             <button onclick="setTool('info');closeRoofLinesMenu()" id="btn-info" onmouseenter="showTip('btn-info',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#d97706;border-color:#d97706;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0">✳ Add Info</button>
             <div class="rl-site-only" style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:8px 6px 6px;border-top:1px solid #eef1f5;margin-top:6px">Material order</div>
-            <button onclick="_siteFlashSheet()" id="btn-siteflash" class="tool-btn rl-site-only" style="color:#14b8a6;border-color:#14b8a6;width:100%;justify-content:flex-start;text-align:left;margin:0">🧾 Add flashing</button>
+            <button onclick="_siteFlashSheet()" id="btn-siteflash" class="tool-btn rl-site-only" style="color:#14b8a6;border-color:#14b8a6;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">🧾 Add flashing</button>
+            <button onclick="openFreeDrawPad()" id="btn-notespad" class="tool-btn rl-site-only" style="color:#f59e0b;border-color:#f59e0b;width:100%;justify-content:flex-start;text-align:left;margin:0">✎ Notes page</button>
           </div>
         </div>
 
@@ -4914,7 +4915,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div class="no-print" style="display:flex;align-items:center;gap:8px;margin:14px 0 6px">
       <span style="font-size:13px;font-weight:700">📎 Job files</span>
       <span class="jobFilesCount" style="font-size:11px;font-weight:600;color:#0099cc"></span>
-      <button onclick="document.getElementById('jobFileInput').click()" style="margin-left:auto;padding:6px 14px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">＋ Add files</button>
+      <button onclick="openFreeDrawPad()" id="jobFilesNoteBtn" style="margin-left:auto;padding:6px 14px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">✎ New note</button>
+      <button onclick="document.getElementById('jobFileInput').click()" style="padding:6px 14px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">＋ Add files</button>
     </div>
     <div class="jobFilesList no-print" style="font-size:12.5px"></div>
   </div>
@@ -28916,6 +28918,203 @@ function _phoneSetRoofImage(){
     if (f) f.click();
   };
 }
+// ── FREE-DRAW PAD ───────────────────────────────────────────────────
+// A notes page: blank sheet, pen, eraser, undo/redo, clear, save. It is a
+// SEPARATE surface from the roof map on purpose — the roof canvas fits every
+// stroke to a wall or a flashing line, which is exactly what you do not want
+// when scribbling "check the flue on the north face" over the top of it.
+//
+// Strokes are plain arrays of points in canvas coordinates. The eraser is a
+// stroke property rather than a rubbing-out of pixels, so undo works on an
+// erase the same as on a pen line, and nothing is ever destroyed until Clear.
+var FD = { strokes:[], redo:[], colour:'#0a1628', width:3, tool:'pen', drawing:null, canvas:null, ctx:null };
+var FD_COLOURS = ['#0a1628','#dc2626','#0891b2','#059669','#d97706','#7c3aed'];
+var FD_WIDTHS  = [2, 4, 8];
+
+function _fdRepaint(){
+  var c = FD.canvas, x = FD.ctx;
+  if (!c || !x) return;
+  x.setTransform(1,0,0,1,0,0);
+  x.clearRect(0,0,c.width,c.height);
+  x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height);
+  var dpr = window.devicePixelRatio || 1;
+  x.setTransform(dpr,0,0,dpr,0,0);
+  x.lineCap = 'round'; x.lineJoin = 'round';
+  var all = FD.strokes.concat(FD.drawing ? [FD.drawing] : []);
+  all.forEach(function(st){
+    if (!st || !st.pts || st.pts.length < 1) return;
+    // An eraser stroke paints the page colour over what is under it. Same
+    // geometry as a pen stroke, so it undoes like one.
+    x.strokeStyle = (st.tool === 'eraser') ? '#fff' : st.colour;
+    x.lineWidth   = (st.tool === 'eraser') ? Math.max(14, st.width * 6) : st.width;
+    x.beginPath();
+    if (st.pts.length === 1){
+      // A single tap still leaves a dot.
+      x.arc(st.pts[0][0], st.pts[0][1], Math.max(0.6, x.lineWidth/2), 0, Math.PI*2);
+      x.fillStyle = x.strokeStyle; x.fill();
+      return;
+    }
+    x.moveTo(st.pts[0][0], st.pts[0][1]);
+    for (var i = 1; i < st.pts.length; i++) x.lineTo(st.pts[i][0], st.pts[i][1]);
+    x.stroke();
+  });
+}
+function _fdSizeCanvas(){
+  var c = FD.canvas; if (!c) return;
+  var dpr = window.devicePixelRatio || 1;
+  var r = c.getBoundingClientRect();
+  c.width  = Math.max(1, Math.round(r.width  * dpr));
+  c.height = Math.max(1, Math.round(r.height * dpr));
+  _fdRepaint();
+}
+function _fdPt(e, c){
+  var r = c.getBoundingClientRect();
+  return [ e.clientX - r.left, e.clientY - r.top ];
+}
+function _fdSyncTools(){
+  var w = document.getElementById('freeDrawPad'); if (!w) return;
+  Array.prototype.forEach.call(w.querySelectorAll('[data-fdc]'), function(b){
+    b.style.outline = (b.getAttribute('data-fdc') === FD.colour && FD.tool === 'pen') ? '3px solid #0a1628' : 'none';
+  });
+  Array.prototype.forEach.call(w.querySelectorAll('[data-fdw]'), function(b){
+    b.style.background = (+b.getAttribute('data-fdw') === FD.width) ? '#e2e8f0' : 'transparent';
+  });
+  var er = w.querySelector('#fdEraser');
+  if (er) er.style.background = (FD.tool === 'eraser') ? '#0a1628' : 'transparent',
+          er.style.color = (FD.tool === 'eraser') ? '#fff' : '#0a1628';
+  var u = w.querySelector('#fdUndo'), r2 = w.querySelector('#fdRedo');
+  if (u)  u.style.opacity  = FD.strokes.length ? 1 : .35;
+  if (r2) r2.style.opacity = FD.redo.length ? 1 : .35;
+}
+function _fdUndo(){ if (!FD.strokes.length) return; FD.redo.push(FD.strokes.pop()); _fdRepaint(); _fdSyncTools(); }
+function _fdRedo(){ if (!FD.redo.length) return; FD.strokes.push(FD.redo.pop()); _fdRepaint(); _fdSyncTools(); }
+function _fdClear(){
+  if (!FD.strokes.length) return;
+  if (typeof confirm === 'function' && !confirm('Clear the whole page?')) return;
+  FD.strokes = []; FD.redo = []; _fdRepaint(); _fdSyncTools();
+}
+function _fdSetColour(c){ FD.colour = c; FD.tool = 'pen'; _fdSyncTools(); }
+function _fdSetWidth(w){ FD.width = +w || 3; _fdSyncTools(); }
+function _fdToggleEraser(){ FD.tool = (FD.tool === 'eraser') ? 'pen' : 'eraser'; _fdSyncTools(); }
+
+// Save the page into the job's files as a PNG, the same list "＋ Add files"
+// writes to, so it travels with the job and reaches the job pack.
+function _fdSave(){
+  var c = FD.canvas; if (!c) return;
+  if (!FD.strokes.length){ _fdMsg('Nothing drawn yet.', '#b45309'); return; }
+  var url;
+  try { url = c.toDataURL('image/png'); } catch(e){ _fdMsg('Could not save this page.', '#b91c1c'); return; }
+  if (!window.S) return;
+  if (!Array.isArray(S.files)) S.files = [];
+  var n = S.files.filter(function(f){ return f && /^Note /.test(f.name || ''); }).length + 1;
+  S.files.push({ name: 'Note ' + n + '.png', mime: 'image/png',
+                 size: Math.round((url.length - 22) * 3 / 4), data: url,
+                 at: new Date().toISOString() });
+  try { renderJobFiles(); } catch(e){}
+  try { _scheduleAutosave && _scheduleAutosave(); } catch(e){}
+  _fdMsg('✓ Saved to job files as "Note ' + n + '.png"', '#15803d');
+}
+function _fdMsg(t, col){
+  var m = document.getElementById('fdMsg'); if (!m) return;
+  m.textContent = t; m.style.color = col || '#15803d';
+  clearTimeout(FD._msgT); FD._msgT = setTimeout(function(){ if (m) m.textContent = ''; }, 2600);
+}
+function _fdClose(){
+  var w = document.getElementById('freeDrawPad');
+  window.removeEventListener('resize', _fdSizeCanvas);
+  if (w) w.remove();
+  FD.canvas = null; FD.ctx = null; FD.drawing = null;
+}
+function openFreeDrawPad(){
+  try { closeRoofLinesMenu(); } catch(e){}
+  try { _tabletNavToggle(false); } catch(e){}
+  if (document.getElementById('freeDrawPad')) return;
+  FD.strokes = []; FD.redo = []; FD.drawing = null; FD.tool = 'pen';
+
+  var btn = function(id, label, extra){
+    return '<button type="button" id="' + id + '" style="flex:0 0 auto;min-width:44px;height:40px;padding:0 11px;' +
+      'background:transparent;border:1.5px solid #cbd5e1;border-radius:10px;color:#0a1628;font-size:15px;' +
+      'font-weight:700;font-family:inherit;cursor:pointer;' + (extra || '') + '">' + label + '</button>';
+  };
+  var w = document.createElement('div');
+  w.id = 'freeDrawPad';
+  w.className = 'no-print';
+  w.style.cssText = 'position:fixed;inset:0;z-index:100060;background:#eef2f7;display:flex;flex-direction:column;' +
+                    'font-family:inherit;padding-top:env(safe-area-inset-top, 0px)';
+  w.innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#fff;border-bottom:1px solid #dbe2ea;flex:0 0 auto">' +
+      '<div style="font-size:14px;font-weight:800;color:#0a1628">Notes</div>' +
+      '<div id="fdMsg" style="font-size:11.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>' +
+      '<button type="button" id="fdSave" style="flex:0 0 auto;height:40px;padding:0 15px;background:#0a1628;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer">Save to job</button>' +
+      '<button type="button" id="fdClose" style="flex:0 0 auto;width:40px;height:40px;background:transparent;border:none;color:#64748b;font-size:26px;line-height:1;cursor:pointer;font-family:inherit">×</button>' +
+    '</div>' +
+    '<div style="flex:1;min-height:0;padding:10px;display:flex">' +
+      '<canvas id="fdCanvas" style="flex:1;min-width:0;background:#fff;border:1px solid #dbe2ea;border-radius:12px;' +
+        'touch-action:none;-webkit-tap-highlight-color:transparent;box-shadow:0 2px 10px rgba(10,22,40,.06)"></canvas>' +
+    '</div>' +
+    '<div style="display:flex;align-items:center;gap:7px;padding:9px 12px calc(9px + env(safe-area-inset-bottom, 0px));' +
+         'background:#fff;border-top:1px solid #dbe2ea;flex:0 0 auto;overflow-x:auto">' +
+      FD_COLOURS.map(function(c){
+        return '<button type="button" data-fdc="' + c + '" title="Pen colour" style="flex:0 0 auto;width:34px;height:34px;border-radius:50%;' +
+          'border:2px solid #fff;background:' + c + ';cursor:pointer;box-shadow:0 0 0 1px #cbd5e1;outline-offset:2px"></button>';
+      }).join('') +
+      '<div style="flex:0 0 auto;width:1px;height:28px;background:#e2e8f0;margin:0 3px"></div>' +
+      FD_WIDTHS.map(function(n){
+        return '<button type="button" data-fdw="' + n + '" title="Pen size" style="flex:0 0 auto;width:36px;height:36px;border:1.5px solid #cbd5e1;' +
+          'border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit">' +
+          '<span style="display:block;width:' + (n * 2 + 4) + 'px;height:' + (n * 2 + 4) + 'px;border-radius:50%;background:#0a1628"></span></button>';
+      }).join('') +
+      '<div style="flex:0 0 auto;width:1px;height:28px;background:#e2e8f0;margin:0 3px"></div>' +
+      btn('fdEraser', '⌫') + btn('fdUndo', '↺') + btn('fdRedo', '↻') +
+      btn('fdClear', 'Clear', 'color:#b91c1c;border-color:#f3c0c0;font-size:12.5px') +
+    '</div>';
+  document.body.appendChild(w);
+
+  var c = FD.canvas = w.querySelector('#fdCanvas');
+  FD.ctx = c.getContext('2d');
+  _fdSizeCanvas();
+  window.addEventListener('resize', _fdSizeCanvas);
+
+  // One pointer at a time: a second finger is a palm, not a second pen.
+  c.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    if (FD.drawing) return;
+    try { c.setPointerCapture(e.pointerId); } catch(err){}
+    FD.drawing = { id:e.pointerId, tool:FD.tool, colour:FD.colour, width:FD.width, pts:[_fdPt(e, c)] };
+    _fdRepaint();
+  });
+  c.addEventListener('pointermove', function(e){
+    if (!FD.drawing || e.pointerId !== FD.drawing.id) return;
+    e.preventDefault();
+    var p = _fdPt(e, c), last = FD.drawing.pts[FD.drawing.pts.length - 1];
+    if (Math.hypot(p[0]-last[0], p[1]-last[1]) < 1) return;   // no work for a shaky finger
+    FD.drawing.pts.push(p);
+    _fdRepaint();
+  });
+  function end(e){
+    if (!FD.drawing || e.pointerId !== FD.drawing.id) return;
+    // A redo stack survives only until the next stroke, same as everywhere.
+    FD.strokes.push(FD.drawing); FD.redo = []; FD.drawing = null;
+    _fdRepaint(); _fdSyncTools();
+  }
+  c.addEventListener('pointerup', end);
+  c.addEventListener('pointercancel', end);
+
+  Array.prototype.forEach.call(w.querySelectorAll('[data-fdc]'), function(b){
+    b.onclick = function(){ _fdSetColour(b.getAttribute('data-fdc')); };
+  });
+  Array.prototype.forEach.call(w.querySelectorAll('[data-fdw]'), function(b){
+    b.onclick = function(){ _fdSetWidth(b.getAttribute('data-fdw')); };
+  });
+  w.querySelector('#fdEraser').onclick = _fdToggleEraser;
+  w.querySelector('#fdUndo').onclick   = _fdUndo;
+  w.querySelector('#fdRedo').onclick   = _fdRedo;
+  w.querySelector('#fdClear').onclick  = _fdClear;
+  w.querySelector('#fdSave').onclick   = _fdSave;
+  w.querySelector('#fdClose').onclick  = _fdClose;
+  _fdSyncTools();
+}
+
 // Site mode: add a flashing to the material order without leaving the roof.
 // The Order tab's flashing card is a desktop table — fine at a desk, useless
 // on a roof with one hand on the ladder. This is the same data (S.order
