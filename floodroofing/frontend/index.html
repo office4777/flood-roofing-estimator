@@ -3414,6 +3414,26 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   </div>
 </div>
 <button id="roofSheetHandle" class="no-print" onclick="_phoneRoofSheet(true)">🏠 Roof shape <span style="font-size:10px;opacity:.7">▲</span></button>
+<!-- Notes bar — pen colours, sizes, eraser and clear for the freehand
+     overlay. Shown only while the Notes tool is armed. -->
+<div id="notesBar" class="no-print" style="display:none;position:fixed;left:50%;transform:translateX(-50%);
+     bottom:calc(var(--ttb-h, 0px) + env(safe-area-inset-bottom, 0px) + 14px);z-index:299;
+     align-items:center;gap:6px;padding:8px 10px;background:#fff;border:1px solid #dbe2ea;border-radius:14px;
+     box-shadow:0 8px 26px rgba(10,22,40,.18);max-width:calc(100vw - 20px);overflow-x:auto">
+  <span id="notesCount" style="font-size:11px;font-weight:700;color:#64748b;flex:0 0 auto;padding-right:2px"></span>
+  <button type="button" data-nc="#dc2626" onclick="setTool('notes');setNotesColour('#dc2626')" title="Red" style="flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:2px solid #fff;background:#dc2626;cursor:pointer;box-shadow:0 0 0 1px #cbd5e1;outline-offset:2px"></button>
+  <button type="button" data-nc="#0a1628" onclick="setTool('notes');setNotesColour('#0a1628')" title="Black" style="flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:2px solid #fff;background:#0a1628;cursor:pointer;box-shadow:0 0 0 1px #cbd5e1;outline-offset:2px"></button>
+  <button type="button" data-nc="#0891b2" onclick="setTool('notes');setNotesColour('#0891b2')" title="Blue" style="flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:2px solid #fff;background:#0891b2;cursor:pointer;box-shadow:0 0 0 1px #cbd5e1;outline-offset:2px"></button>
+  <button type="button" data-nc="#059669" onclick="setTool('notes');setNotesColour('#059669')" title="Green" style="flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:2px solid #fff;background:#059669;cursor:pointer;box-shadow:0 0 0 1px #cbd5e1;outline-offset:2px"></button>
+  <span style="flex:0 0 auto;width:1px;height:24px;background:#e2e8f0"></span>
+  <button type="button" data-nw="2" onclick="setNotesWidth(2)" title="Fine" style="flex:0 0 auto;width:32px;height:32px;border:1.5px solid #cbd5e1;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit"><span style="width:6px;height:6px;border-radius:50%;background:#0a1628;display:block"></span></button>
+  <button type="button" data-nw="4" onclick="setNotesWidth(4)" title="Medium" style="flex:0 0 auto;width:32px;height:32px;border:1.5px solid #cbd5e1;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit"><span style="width:10px;height:10px;border-radius:50%;background:#0a1628;display:block"></span></button>
+  <button type="button" data-nw="8" onclick="setNotesWidth(8)" title="Thick" style="flex:0 0 auto;width:32px;height:32px;border:1.5px solid #cbd5e1;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit"><span style="width:15px;height:15px;border-radius:50%;background:#0a1628;display:block"></span></button>
+  <span style="flex:0 0 auto;width:1px;height:24px;background:#e2e8f0"></span>
+  <button type="button" id="notesEraseBtn" onclick="toggleNotesErase()" title="Rub out a note" style="flex:0 0 auto;min-width:40px;height:34px;padding:0 10px;background:transparent;border:1.5px solid #cbd5e1;border-radius:10px;color:#0a1628;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer">⌫</button>
+  <button type="button" onclick="clearAllNotes()" title="Remove every note" style="flex:0 0 auto;height:34px;padding:0 11px;background:transparent;border:1.5px solid #f3c0c0;border-radius:10px;color:#b91c1c;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">Clear</button>
+  <button type="button" onclick="setTool('select')" title="Finished with notes" style="flex:0 0 auto;height:34px;padding:0 13px;background:#0a1628;border:none;border-radius:10px;color:#fff;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">Done</button>
+</div>
 <div id="tabletToolbar" class="no-print">
   <button class="ttb-btn" id="ttbMove"    onclick="setTool('select')"><span class="ttb-ico" data-ico="move">✋</span>Move</button>
   <button class="ttb-btn" id="ttbOutline" onclick="setTool('outline')"><span class="ttb-ico" data-ico="outline">🏠</span>Outline</button>
@@ -3821,10 +3841,12 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             <button onclick="setTool('penetration');closeRoofLinesMenu()" id="btn-penetration" onmouseenter="showTip('btn-penetration',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">⬛ Penetration</button>
             <button onclick="setTool('boxedpen');closeRoofLinesMenu()" id="btn-boxedpen" onmouseenter="showTip('btn-boxedpen',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#475569;border-color:#475569;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">▭ Boxed Penetration</button>
             <button onclick="setTool('sheetmeas');closeRoofLinesMenu()" id="btn-sheetmeas" onmouseenter="showTip('btn-sheetmeas',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">📏 Sheet measure</button>
+            <button onclick="setTool('notes');closeRoofLinesMenu()" id="btn-notes" class="tool-btn" style="color:#dc2626;border-color:#dc2626;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">✎ Free-draw note</button>
             <button onclick="setTool('info');closeRoofLinesMenu()" id="btn-info" onmouseenter="showTip('btn-info',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#d97706;border-color:#d97706;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0">✳ Add Info</button>
             <div class="rl-site-only" style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:8px 6px 6px;border-top:1px solid #eef1f5;margin-top:6px">Material order</div>
             <button onclick="_siteFlashSheet()" id="btn-siteflash" class="tool-btn rl-site-only" style="color:#14b8a6;border-color:#14b8a6;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">🧾 Add flashing</button>
-            <button onclick="openFreeDrawPad()" id="btn-notespad" class="tool-btn rl-site-only" style="color:#f59e0b;border-color:#f59e0b;width:100%;justify-content:flex-start;text-align:left;margin:0">✎ Notes page</button>
+            <button onclick="openFreeDrawPad()" id="btn-notespad" class="tool-btn rl-site-only" style="color:#f59e0b;border-color:#f59e0b;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">✎ Notes page</button>
+            <button onclick="openRapidCamera()" id="btn-rapidcam" class="tool-btn rl-site-only" style="color:#0891b2;border-color:#0891b2;width:100%;justify-content:flex-start;text-align:left;margin:0">📸 Rapid photos</button>
           </div>
         </div>
 
@@ -4369,7 +4391,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <span style="margin-left:auto;font-size:10px;color:var(--text2)">saved with the job</span>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:9px">
-        <button onclick="document.getElementById('jobPhotoCam').click()" style="flex:1;padding:10px 8px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📷 Take photo</button>
+        <button onclick="openRapidCamera()" style="flex:1;padding:10px 8px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📸 Rapid photos</button>
         <button onclick="document.getElementById('jobPhotoGal').click()" style="flex:1;padding:10px 8px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🖼 From gallery</button>
       </div>
       <div id="jobPhotosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:7px"></div>
@@ -4902,7 +4924,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <input type="file" id="photoInput" accept="image/*" multiple onchange="addPhotos(event)">
     </div>
     <div class="no-print" style="display:flex;gap:8px;margin:10px 0 4px">
-      <button onclick="document.getElementById('jobPhotoCam').click()" style="padding:10px 18px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">📷 Take photo</button>
+      <button onclick="openRapidCamera()" style="padding:10px 18px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">📸 Rapid photos</button>
+      <button onclick="document.getElementById('jobPhotoCam').click()" style="padding:10px 18px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">📷 Phone camera</button>
       <button onclick="document.getElementById('jobPhotoGal').click()" style="padding:10px 18px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">🖼 From gallery</button>
     </div>
     <!-- Shared hidden pickers: camera capture (phone/tablet rear camera) and
@@ -9138,6 +9161,77 @@ function applyBranding(){
 }
 
 // — Jobs —
+// ── LAST KNOWN GOOD DRAWING ─────────────────────────────────────────
+// A roof map is the most expensive thing in a job: an hour on a ladder, and
+// unlike a price it cannot be retyped from memory. Everything that persists
+// a job funnels through snapshotCurrentJob, so this sits there — the one
+// place a save can be checked before it goes anywhere, online or off.
+//
+// The rule: a job that HAS a drawing never saves an empty one. Only an
+// explicit clear (Clear, Delete roof, New job) is allowed to empty it, and
+// those say so by calling _lkgForget().
+var LKG = { byJob:{} };
+function _lkgKey(){
+  return String((window.S && (S.currentJobId || S.linkedJobId)) || 'draft');
+}
+function _drawIsEmpty(d){
+  if (!d) return true;
+  var roofsHaveWork = (d.roofs || []).some(function(r){
+    return r && (((r.outline || []).length >= 3) || ((r.lines || []).length > 0));
+  });
+  return (d.outline || []).length < 3 && (d.lines || []).length === 0 && !roofsHaveWork;
+}
+// Remember the drawing as it stands, if there is one worth remembering.
+function _lkgRemember(draw){
+  if (_drawIsEmpty(draw)) return;
+  try {
+    var copy = JSON.stringify(draw);
+    LKG.byJob[_lkgKey()] = copy;
+    // Also on disk, so a reload / crash / flat battery does not lose it.
+    // Geometry only — no photos — so this stays small enough to always fit.
+    localStorage.setItem('fr_lkg_' + _lkgKey(), copy);
+  } catch(e){}
+}
+// An explicit clear. After this an empty save is exactly what was asked for.
+function _lkgForget(key){
+  var k = key || _lkgKey();
+  try { delete LKG.byJob[k]; localStorage.removeItem('fr_lkg_' + k); } catch(e){}
+}
+// Opening a job re-bases the guard on what that job actually holds, so an
+// unsaved job's roof can never be resurrected onto a different one.
+function _lkgRebase(){
+  var d = { outline:DRAW.outline, lines:DRAW.lines, roofs:(Array.isArray(DRAW.roofs)?DRAW.roofs:[]) };
+  if (_drawIsEmpty(d)) _lkgForget();
+  else _lkgRemember({ outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
+                      penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels,
+                      infoItems:DRAW.infoItems, notes:DRAW.notes||[],
+                      scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone,
+                      roofs:(Array.isArray(DRAW.roofs)?DRAW.roofs:[]),
+                      activeRoofIdx:DRAW.activeRoofIdx });
+}
+function _lkgGet(){
+  var k = _lkgKey();
+  if (LKG.byJob[k]) return LKG.byJob[k];
+  try { return localStorage.getItem('fr_lkg_' + k); } catch(e){ return null; }
+}
+// The guard itself. Returns the drawing to actually save.
+function _lkgGuard(draw){
+  if (!_drawIsEmpty(draw)) { _lkgRemember(draw); return draw; }
+  var prev = _lkgGet();
+  if (!prev) return draw;                      // never had one — an empty save is honest
+  var restored;
+  try { restored = JSON.parse(prev); } catch(e){ return draw; }
+  if (_drawIsEmpty(restored)) return draw;
+  // Something emptied the drawing without anybody asking for it. Save what
+  // was really there and say so, rather than writing the blank over the top
+  // — which is the one mistake that cannot be undone from the roof.
+  try { _setSaveStatus && _setSaveStatus(
+    '⚠ The roof map had gone blank, so the last good one was saved instead. Check the Map Roof tab.',
+    '#b45309', true); } catch(e){}
+  try { _reportClientError && _reportClientError('empty drawing blocked at save', '', 'lkgGuard'); } catch(e){}
+  return restored;
+}
+
 function snapshotCurrentJob(){
   // Capture all in-memory state needed to fully restore a job: form fields,
   // S object (minus runtime flags), and the DRAW canvas state.
@@ -9162,8 +9256,9 @@ function snapshotCurrentJob(){
              condition:S.condition, photos:S.photos, files:S.files, linkedJobId:S.linkedJobId, linkedJobNo:S.linkedJobNo, linkedJobName:S.linkedJobName,
              quote:S.quote, jpPdfRev:S.jpPdfRev||0, fergusSent:S.fergusSent||null, jpFlashAngles:S.jpFlashAngles||{},
              orderSent:S.orderSent||null },
-    draw: { outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
+    draw: _lkgGuard({ outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
             penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
+            notes:DRAW.notes||[],
             scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step,
             sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[],
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
@@ -9172,7 +9267,7 @@ function snapshotCurrentJob(){
             monoBaseDeg:(typeof DRAW.monoBaseDeg==='number'?DRAW.monoBaseDeg:null),
             dutchGabletFrac:(typeof DRAW.dutchGabletFrac==='number'?DRAW.dutchGabletFrac:0.5),
             roofs: (Array.isArray(DRAW.roofs) ? DRAW.roofs : []),
-            activeRoofIdx: (typeof DRAW.activeRoofIdx === 'number' ? DRAW.activeRoofIdx : -1) },
+            activeRoofIdx: (typeof DRAW.activeRoofIdx === 'number' ? DRAW.activeRoofIdx : -1) }),
     scope: { mainScope: (typeof _currentMainScope !== 'undefined' ? _currentMainScope : null), items: scopeItems }
   };
 }
@@ -9208,6 +9303,7 @@ function restoreFromJob(j){
     DRAW.penetrations = snap.draw.penetrations || [];
     DRAW.dimLabels = snap.draw.dimLabels || [];
     DRAW.infoItems = snap.draw.infoItems || [];
+    DRAW.notes = snap.draw.notes || [];
     DRAW.scaleMetresPerPx = snap.draw.scaleMetresPerPx || 0;
     DRAW.outlineDone = !!snap.draw.outlineDone;
     DRAW.step = snap.draw.step || 'outline';
@@ -9244,6 +9340,7 @@ function restoreFromJob(j){
     try { redrawAll(); } catch(e){ _restoreErr = e; console.error('restore redraw failed', e); }
     try { syncToRoofData(); } catch(e){ if (!_restoreErr) _restoreErr = e; console.error('restore sync failed', e); }
     try { if (typeof renderRoofSwitcher === 'function') renderRoofSwitcher(); } catch(e){}
+    try { _lkgRebase(); } catch(e){}   // this job's roof is now the one to protect
     if (_restoreErr) {
       try { _setSaveStatus('⚠ This job loaded but its drawing failed to render (' + _restoreErr.message + ') — the data is intact; try re-opening it.', '#b91c1c', true); } catch(e){}
     }
@@ -10831,6 +10928,7 @@ async function newJob(){
   ['jobClient','jobAddr','jobEmail','jobPhone'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
   try { clearAll && clearAll(true); } catch(e){}
   S.img64=null; S.roofData=null; S.labour=0; S.materials=0; S.photos=[]; S.files=[];
+  try { _lkgForget('draft'); } catch(e){}   // a fresh job starts with no roof to protect
   _resetQuoteForFreshJob();
   window._aerialLoadedAddr = null;
   setCurrentJobLabel(null);
@@ -27115,6 +27213,10 @@ var DRAW = {
   sheetPlanDeletedIds: [],  // Phase-1 customisable sheet plan: user-removed sheet IDs
   dimLabels: [],        // [{text, x, y}] — AI-extracted dimension labels placed on canvas
   infoItems: [],        // [{cx, cy, note, num}] — numbered asterisk annotations
+  // Freehand notes over the map. Deliberately its OWN list: nothing that
+  // reads lines, outline or penetrations can pick a note up, so a scribble
+  // can never be measured, ordered, or fitted to a wall.
+  notes: [],            // [{pts:[[imgX,imgY],...], colour, width}]
   hoveredLine: -1,      // line index hovered in addmeas mode
   calibratePts: null,   // [pt1, pt2] in image space
   calibratePixels: 0,   // pixel distance of calibration line
@@ -27164,6 +27266,7 @@ function setTool(t) {
   DRAW.tool = t;
   DRAW.currentPts = [];
   try { _inkResetRuns(); } catch(e){}
+  try { _notesWireCanvas(); _notesSyncBar(); } catch(e){}
   document.querySelectorAll('.tool-btn').forEach(function(b){b.classList.remove('active-tool');});
   // Map tool names to button IDs
   var _btnMap = {addmeas:'btn-select', select:'btn-move'};
@@ -28857,7 +28960,7 @@ function _tabletNavToggle(force){
 function _syncTabletBar(){
   var bar = document.getElementById('tabletToolbar');
   if (!bar) return;
-  var lineTools = { ridge:1, valley:1, gutter:1, hip:1, barge:1, apron:1, changepitch:1, penetration:1, boxedpen:1, sheetmeas:1, info:1 };
+  var lineTools = { ridge:1, valley:1, gutter:1, hip:1, barge:1, apron:1, changepitch:1, penetration:1, boxedpen:1, sheetmeas:1, info:1, notes:1, noteserase:1 };
   var id = ({ select: 'ttbMove', outline: 'ttbOutline', calibrate: 'ttbCal' })[DRAW.tool] || (lineTools[DRAW.tool] ? 'ttbLines' : null);
   bar.querySelectorAll('.ttb-btn').forEach(function(b){ b.classList.remove('on'); });
   if (id){ var el = document.getElementById(id); if (el) el.classList.add('on'); }
@@ -28918,6 +29021,146 @@ function _phoneSetRoofImage(){
     if (f) f.click();
   };
 }
+// ── RAPID CAMERA ────────────────────────────────────────────────────
+// A file input with capture="environment" hands the job to the phone's own
+// camera app, and that app insists on Use Photo / Retake after every shot.
+// There is no flag to turn that off — it is the OS, not us. So for shooting
+// a whole roof quickly we run the camera INSIDE the app: a live preview and
+// a shutter that writes the frame straight to the job. Tap, tap, tap.
+//
+// Needs HTTPS (the live site is) and one permission grant. If either is
+// missing we fall back to the OS camera and say why.
+var CAM = { stream:null, video:null, shots:0, busy:false };
+
+function _camStop(){
+  try { (CAM.stream ? CAM.stream.getTracks() : []).forEach(function(t){ t.stop(); }); } catch(e){}
+  CAM.stream = null; CAM.video = null;
+}
+function _camClose(){
+  _camStop();
+  var w = document.getElementById('rapidCam'); if (w) w.remove();
+  if (CAM.shots){
+    try { renderPhotos(); } catch(e){}
+    try { _scheduleAutosave && _scheduleAutosave(); } catch(e){}
+    try { _setSaveStatus && _setSaveStatus('📸 ' + CAM.shots + ' photo' + (CAM.shots > 1 ? 's' : '') +
+      ' added (' + ((S.photos||[]).length) + ' on this job) — saved on this device, uploads with the job.', '#0369a1'); } catch(e){}
+  }
+  CAM.shots = 0;
+}
+// One frame, straight into the job. No confirm step, and deliberately no
+// await on the downscale — the shutter must be ready again immediately, so
+// the photo lands a moment later while you are already lining up the next.
+function _camShoot(){
+  var v = CAM.video;
+  if (!v || !v.videoWidth || CAM.busy) return;
+  CAM.busy = true;
+  try {
+    var c = document.createElement('canvas');
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+    var url = c.toDataURL('image/jpeg', 0.86);
+    CAM.shots++;
+    _camFlash();
+    _camBump();
+    _downscalePhoto(url, function(src){
+      if (!Array.isArray(S.photos)) S.photos = [];
+      S.photos.push({ src: src, caption: '' });
+      _camStrip();
+      // Each shot goes into the local draft as it lands, so a phone that
+      // dies in the middle of a roof loses nothing it has already taken.
+      try { _scheduleDraftWrite && _scheduleDraftWrite(); } catch(e){}
+    });
+  } catch(e){}
+  // Short lock only — long enough to stop one tap firing twice, not long
+  // enough to be felt.
+  setTimeout(function(){ CAM.busy = false; }, 120);
+}
+function _camFlash(){
+  var f = document.getElementById('camFlash'); if (!f) return;
+  f.style.transition = 'none'; f.style.opacity = '0.75';
+  requestAnimationFrame(function(){
+    f.style.transition = 'opacity .28s ease'; f.style.opacity = '0';
+  });
+}
+function _camBump(){
+  var n = document.getElementById('camCount');
+  if (n) n.textContent = CAM.shots + ' this session · ' + ((S.photos||[]).length + 1) + ' on the job';
+}
+function _camStrip(){
+  var st = document.getElementById('camStrip'); if (!st) return;
+  var ph = (S.photos || []).slice(-6).reverse();
+  st.innerHTML = ph.map(function(p){
+    return '<img src="' + p.src + '" style="width:46px;height:46px;object-fit:cover;border-radius:7px;border:1.5px solid rgba(255,255,255,.5);flex:0 0 auto">';
+  }).join('');
+  var n = document.getElementById('camCount');
+  if (n) n.textContent = CAM.shots + ' this session · ' + ((S.photos||[]).length) + ' on the job';
+}
+async function openRapidCamera(){
+  try { closeRoofLinesMenu(); } catch(e){}
+  try { _tabletNavToggle(false); } catch(e){}
+  if (document.getElementById('rapidCam')) return;
+  var haveApi = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  if (!haveApi){ _camFallback('This browser will not give the app its own camera.'); return; }
+
+  var w = document.createElement('div');
+  w.id = 'rapidCam';
+  w.className = 'no-print';
+  w.style.cssText = 'position:fixed;inset:0;z-index:100070;background:#000;display:flex;flex-direction:column;font-family:inherit';
+  w.innerHTML =
+    '<div id="camFlash" style="position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:3"></div>' +
+    '<video id="camVideo" playsinline autoplay muted style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000"></video>' +
+    '<div style="position:relative;z-index:2;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top, 0px)) 14px 10px">' +
+      '<div id="camCount" style="flex:1;min-width:0;font-size:12px;font-weight:700;color:#fff;text-shadow:0 1px 5px rgba(0,0,0,.7)"></div>' +
+      '<button type="button" id="camDone" style="flex:0 0 auto;height:38px;padding:0 16px;background:rgba(255,255,255,.92);color:#0a1628;border:none;border-radius:10px;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer">Done</button>' +
+    '</div>' +
+    '<div style="flex:1"></div>' +
+    '<div id="camStrip" style="position:relative;z-index:2;display:flex;gap:6px;padding:0 14px 8px;overflow-x:auto"></div>' +
+    '<div style="position:relative;z-index:2;display:flex;align-items:center;justify-content:center;gap:26px;padding:10px 14px calc(20px + env(safe-area-inset-bottom, 0px))">' +
+      '<button type="button" id="camFlip" title="Switch camera" style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.18);border:none;color:#fff;font-size:20px;cursor:pointer;font-family:inherit">⟳</button>' +
+      '<button type="button" id="camShoot" aria-label="Take photo" style="width:82px;height:82px;border-radius:50%;background:#fff;border:5px solid rgba(255,255,255,.45);cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.4)"></button>' +
+      '<div style="width:48px;height:48px"></div>' +
+    '</div>';
+  document.body.appendChild(w);
+
+  var msgEl = document.getElementById('camCount');
+  CAM.shots = 0; CAM.busy = false;
+  CAM._facing = 'environment';
+  try {
+    await _camStart();
+  } catch(e){
+    w.remove();
+    _camFallback(/NotAllowedError|Permission/i.test(String(e && e.name || e))
+      ? 'Camera permission was declined. Allow it in the browser settings for this site, or use the phone camera.'
+      : 'No camera available here.');
+    return;
+  }
+  _camStrip();
+  document.getElementById('camShoot').onclick = _camShoot;
+  document.getElementById('camDone').onclick  = _camClose;
+  document.getElementById('camFlip').onclick  = async function(){
+    CAM._facing = (CAM._facing === 'environment') ? 'user' : 'environment';
+    _camStop();
+    try { await _camStart(); } catch(e){ _camClose(); }
+  };
+}
+async function _camStart(){
+  var v = document.getElementById('camVideo');
+  var st = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: CAM._facing || 'environment' },
+             width: { ideal: 1920 }, height: { ideal: 1440 } },
+    audio: false
+  });
+  CAM.stream = st; CAM.video = v;
+  v.srcObject = st;
+  try { await v.play(); } catch(e){}
+}
+// No live camera: hand back to the OS one rather than leaving them stuck.
+function _camFallback(why){
+  try { _setSaveStatus && _setSaveStatus('📷 ' + why + ' Opening the phone camera instead.', '#b45309'); } catch(e){}
+  var cam = document.getElementById('jobPhotoCam');
+  if (cam) { try { cam.click(); } catch(e){} }
+}
+
 // ── FREE-DRAW PAD ───────────────────────────────────────────────────
 // A notes page: blank sheet, pen, eraser, undo/redo, clear, save. It is a
 // SEPARATE surface from the roof map on purpose — the roof canvas fits every
@@ -30928,6 +31171,7 @@ function _captureSnapState() {
     penetrations: DRAW.penetrations,
     outlineDone: DRAW.outlineDone,
     infoItems: DRAW.infoItems,
+    notes: DRAW.notes || [],
     dimLabels: DRAW.dimLabels,
     sheetGroupOverrides: DRAW.sheetGroupOverrides || {},
     sheetGroupQtyOverrides: DRAW.sheetGroupQtyOverrides || {},
@@ -30967,6 +31211,7 @@ function _applySnapState(snapStr) {
   DRAW.penetrations = s.penetrations || [];
   DRAW.outlineDone = !!s.outlineDone;
   DRAW.infoItems = s.infoItems || [];
+  DRAW.notes = s.notes || [];
   DRAW.dimLabels = s.dimLabels || [];
   DRAW.sheetPlanDeletedIds = s.sheetPlanDeletedIds || [];
   DRAW.sheetGroupOverrides = s.sheetGroupOverrides || {};
@@ -31055,7 +31300,8 @@ function redoLast() {
 
 function clearAll(silent) {
   if(!silent && !confirm('Clear everything? (outline, lines, penetrations, calibration + all sheet/flashing overrides)')) return;
-  DRAW.outline=[]; DRAW.sections=[]; DRAW.lines=[]; DRAW.penetrations=[];
+  try { _lkgForget(); } catch(e){}   // asked for — an empty save is now correct
+  DRAW.outline=[]; DRAW.sections=[]; DRAW.lines=[]; DRAW.penetrations=[]; DRAW.notes=[];
   DRAW.currentPts=[]; DRAW.outlineDone=false;
   try { _inkResetRuns(); } catch(e){}
   DRAW.selectedSection=-1; DRAW.selectedLine=-1; DRAW.selectedPen=-1;
@@ -32997,8 +33243,168 @@ function redrawAll() {
     ctx.restore();
   }
 
+  // Notes go on LAST, over everything, and are read from their own list —
+  // nothing below this line knows they exist.
+  try { _notesRender(ctx, dp); } catch(e){}
+
   ctx.restore(); // restore dpr scale transform
   try { syncInfoOverlays(); } catch(e){}
+}
+
+// ── NOTES OVERLAY ────────────────────────────────────────────────────
+// Freehand marks over the roof map, kept in DRAW.notes — a list of their
+// own, separate from DRAW.lines, DRAW.outline and DRAW.penetrations. That
+// separation is the whole feature: a note can never be picked up by the
+// line editor, counted as a flashing, measured, ordered, or fitted to a
+// wall, because none of that code reads this list.
+//
+// Points are stored in IMAGE coordinates, so a note stays stuck to the part
+// of the roof it was written on through any pan or zoom.
+function _notesRender(ctx, dp){
+  var list = (window.DRAW && DRAW.notes) || [];
+  var live = NOTE_DRAW.stroke ? list.concat([NOTE_DRAW.stroke]) : list;
+  if (!live.length) return;
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  var z = (DRAW.zoom || 1);
+  live.forEach(function(st){
+    if (!st || !st.pts || !st.pts.length) return;
+    var w = Math.max(1, (st.width || 3) * z);
+    ctx.strokeStyle = st.colour || '#dc2626';
+    ctx.lineWidth = w;
+    ctx.globalAlpha = 0.92;
+    ctx.beginPath();
+    var p0 = dp(st.pts[0]);
+    if (st.pts.length === 1){
+      ctx.arc(p0[0], p0[1], Math.max(0.8, w/2), 0, Math.PI*2);
+      ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+    } else {
+      ctx.moveTo(p0[0], p0[1]);
+      for (var i = 1; i < st.pts.length; i++){ var q = dp(st.pts[i]); ctx.lineTo(q[0], q[1]); }
+      ctx.stroke();
+    }
+  });
+  ctx.restore();
+}
+var NOTE_DRAW = { stroke:null, id:null, colour:'#dc2626', width:3 };
+function _notesOn(){ return DRAW.tool === 'notes' || DRAW.tool === 'noteserase'; }
+// Canvas point -> image point, using the same transform the drawing uses.
+function _notesImgPt(e, cv){
+  var rect = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  var cx = (e.clientX - rect.left) * (cv.width / rect.width) / dpr;
+  var cy = (e.clientY - rect.top)  * (cv.height / rect.height) / dpr;
+  var t = (typeof getImgTransform === 'function') ? getImgTransform() : null;
+  return t ? [ (cx - t.ix) / t.s, (cy - t.iy) / t.s ] : [cx, cy];
+}
+// Rub out whole notes under the finger. Only ever touches DRAW.notes.
+function _notesEraseAt(pt){
+  var list = DRAW.notes || [];
+  var t = (typeof getImgTransform === 'function') ? getImgTransform() : null;
+  var tol = 14 / ((t && t.s) || 1);
+  var hit = -1;
+  for (var i = list.length - 1; i >= 0 && hit < 0; i--){
+    var pts = list[i].pts || [];
+    for (var j = 0; j < pts.length; j++){
+      if (Math.hypot(pts[j][0]-pt[0], pts[j][1]-pt[1]) <= tol + (list[i].width || 3)){ hit = i; break; }
+    }
+  }
+  if (hit >= 0){ list.splice(hit, 1); return true; }
+  return false;
+}
+function setNotesColour(c){ NOTE_DRAW.colour = c; _notesSyncBar(); }
+function setNotesWidth(w){ NOTE_DRAW.width = +w || 3; _notesSyncBar(); }
+function clearAllNotes(){
+  if (!(DRAW.notes || []).length) return;
+  if (typeof confirm === 'function' && !confirm('Remove every note from this roof?')) return;
+  try { saveSnapshot(); } catch(e){}
+  DRAW.notes = [];
+  try { redrawAll(); } catch(e){}
+  _notesSyncBar();
+}
+function _notesSyncBar(){
+  var bar = document.getElementById('notesBar');
+  if (!bar) return;
+  bar.style.display = _notesOn() ? 'flex' : 'none';
+  Array.prototype.forEach.call(bar.querySelectorAll('[data-nc]'), function(b){
+    b.style.outline = (b.getAttribute('data-nc') === NOTE_DRAW.colour && DRAW.tool === 'notes') ? '3px solid #0a1628' : 'none';
+  });
+  Array.prototype.forEach.call(bar.querySelectorAll('[data-nw]'), function(b){
+    b.style.background = (+b.getAttribute('data-nw') === NOTE_DRAW.width) ? '#e2e8f0' : 'transparent';
+  });
+  var er = bar.querySelector('#notesEraseBtn');
+  if (er){
+    var on = (DRAW.tool === 'noteserase');
+    er.style.background = on ? '#0a1628' : 'transparent';
+    er.style.color = on ? '#fff' : '#0a1628';
+  }
+  var n = bar.querySelector('#notesCount');
+  if (n) n.textContent = (DRAW.notes || []).length ? ((DRAW.notes || []).length + ' note' + ((DRAW.notes||[]).length===1?'':'s')) : '';
+}
+function toggleNotesErase(){
+  DRAW.tool = (DRAW.tool === 'noteserase') ? 'notes' : 'noteserase';
+  _notesSyncBar();
+}
+// Capture-phase listeners on the canvas. While a notes tool is armed they
+// stopPropagation, so the drawing engine's own handlers never run at all —
+// a note cannot move a wall, start a line, or select anything, by
+// construction rather than by care.
+function _notesWireCanvas(){
+  var cv = document.getElementById('roofCanvas');
+  if (!cv || cv.__notesWired) return;
+  cv.__notesWired = true;
+  function down(e){
+    if (!_notesOn()) return;
+    e.stopPropagation(); e.preventDefault();
+    if (NOTE_DRAW.id != null) return;                 // one pointer; the rest is palm
+    NOTE_DRAW.id = e.pointerId;
+    var p = _notesImgPt(e, cv);
+    if (DRAW.tool === 'noteserase'){
+      try { saveSnapshot(); } catch(err){}
+      if (_notesEraseAt(p)) { redrawAll(); _notesSyncBar(); }
+      return;
+    }
+    try { saveSnapshot(); } catch(err){}              // one undo step per stroke
+    NOTE_DRAW.stroke = { pts:[p], colour:NOTE_DRAW.colour, width:NOTE_DRAW.width };
+    try { cv.setPointerCapture(e.pointerId); } catch(err){}
+    redrawAll();
+  }
+  function move(e){
+    if (!_notesOn() || NOTE_DRAW.id !== e.pointerId) return;
+    e.stopPropagation(); e.preventDefault();
+    var p = _notesImgPt(e, cv);
+    if (DRAW.tool === 'noteserase'){
+      if (_notesEraseAt(p)) { redrawAll(); _notesSyncBar(); }
+      return;
+    }
+    var st = NOTE_DRAW.stroke; if (!st) return;
+    var last = st.pts[st.pts.length - 1];
+    var t = (typeof getImgTransform === 'function') ? getImgTransform() : null;
+    var minStep = 1 / ((t && t.s) || 1);
+    if (Math.hypot(p[0]-last[0], p[1]-last[1]) < minStep) return;
+    st.pts.push(p);
+    redrawAll();
+  }
+  function up(e){
+    if (!_notesOn() || NOTE_DRAW.id !== e.pointerId) return;
+    e.stopPropagation();
+    NOTE_DRAW.id = null;
+    var st = NOTE_DRAW.stroke;
+    NOTE_DRAW.stroke = null;
+    if (st && st.pts.length){
+      if (!Array.isArray(DRAW.notes)) DRAW.notes = [];
+      DRAW.notes.push(st);
+      try { _scheduleAutosave && _scheduleAutosave(); } catch(err){}
+    }
+    redrawAll(); _notesSyncBar();
+  }
+  cv.addEventListener('pointerdown', down, true);
+  cv.addEventListener('pointermove', move, true);
+  cv.addEventListener('pointerup', up, true);
+  cv.addEventListener('pointercancel', up, true);
+  // Mouse compatibility events would otherwise reach the old handlers.
+  ['mousedown','mousemove','mouseup','click','dblclick','contextmenu'].forEach(function(t){
+    cv.addEventListener(t, function(e){ if (_notesOn()) { e.stopPropagation(); e.preventDefault(); } }, true);
+  });
 }
 
 function calcSectionArea(s) {
@@ -45303,7 +45709,7 @@ function clearRoofLines() {
 // DRAW.outline as before; the model is additive.
 DRAW.roofs = DRAW.roofs || [];
 DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
-var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg'];
+var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg'];
 // Defaults for the SCALAR per-roof fields. Used when loading a roof that
 // doesn't carry a value for one, so it resets to a clean default instead
 // of leaking the previously-active roof's value into the newly-loaded one
@@ -45319,7 +45725,7 @@ var ROOF_FIELD_DEFAULTS = {
 function _newEmptyRoof(name){
   return {
     name: name || ('Roof ' + (DRAW.roofs.length + 1)),
-    outline: [], lines: [], sections: [], penetrations: [], infoItems: [],
+    outline: [], lines: [], sections: [], penetrations: [], infoItems: [], notes: [],
     outlineDone: false, roofType: '', calPitch: 0, rotation: 0,
     gableRidgeOffset: 0, dutchGabletFrac: 0.5,
     roofBaseHoriz: undefined, monoBaseDeg: undefined,
@@ -45381,6 +45787,7 @@ function deleteRoof(idx){
   var wasActive = (idx === DRAW.activeRoofIdx);
   DRAW.roofs.splice(idx, 1);
   if (DRAW.roofs.length === 0) {
+    try { _lkgForget(); } catch(e){}   // the last roof was deleted on purpose
     DRAW.activeRoofIdx = -1;
     DRAW.outline = []; DRAW.lines = []; DRAW.sections = [];
     DRAW.penetrations = []; DRAW.infoItems = []; DRAW.currentPts = [];
