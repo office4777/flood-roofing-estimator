@@ -97,6 +97,61 @@ await pg.waitForTimeout(900);
 check('feedback still sends from a job with nothing drawn yet',
   !!sent && /"outline":\[\]/.test(sent.text || ''), sent ? 'sent' : '(nothing sent)');
 
+// ── the one-file report ───────────────────────────────────────────
+// jsPDF comes off a CDN, so the suite stands one in for it and reads back
+// what the report actually wrote. The point is not that jsPDF works — it is
+// that everything needed to fix the bug reaches the page.
+sent = null;
+await pg.evaluate(() => {
+  window.__pdf = { pages: 1, text: [], images: 0 };
+  function Fake(){ }
+  Fake.prototype.setFont = function(){}; Fake.prototype.setFontSize = function(){};
+  Fake.prototype.setTextColor = function(){};
+  Fake.prototype.addPage = function(){ window.__pdf.pages++; };
+  Fake.prototype.text = function(t){ window.__pdf.text.push(String(t)); };
+  Fake.prototype.addImage = function(){ window.__pdf.images++; };
+  Fake.prototype.splitTextToSize = function(t){ return String(t).split('\n'); };
+  Fake.prototype.output = function(){ return new Blob(['%PDF-1.4 stub'], {type:'application/pdf'}); };
+  window.jspdf = { jsPDF: Fake };
+  window._loadPdfLibs = function(){ return Promise.resolve(); };
+  // Two screenshots on the report.
+  _feedbackShots = ['data:image/png;base64,AAAA', 'data:image/png;base64,BBBB'];
+  DRAW.outline = [[0,0],[2000,0],[2000,1000],[0,1000]];
+  DRAW.lines = [['gutter',[0,0],[2000,0]],['ridge',[500,500],[1500,500]]]
+    .map(l => ({type:l[0], pts:[l[1],l[2]], label:'', lengthM:'', measM:null, sheetLengthM:null}));
+  DRAW.scaleMetresPerPx = 0.0125; DRAW.calPitch = 25;
+  gotoTab('feedback');
+  document.getElementById('fbTitle').value = 'Sheet measures missing';
+  document.getElementById('fbDetails').value = 'Two ridges have no run on them.';
+  return _sendFeedback(document.getElementById('fbSubmitBtn'));
+});
+await pg.waitForTimeout(900);
+v = await pg.evaluate(() => ({ pdf: window.__pdf }));
+const pdfTxt = (v.pdf.text || []).join('\n');
+
+check('a report PDF is attached', !!(sent && sent.attachment && sent.attachment.base64),
+  sent && sent.attachment ? sent.attachment.filename : '(none)');
+check('…named so it is obvious what it is',
+  sent.attachment.filename === 'roofmap-feedback.pdf', sent.attachment.filename);
+check('the report carries the title and what they reported',
+  /Sheet measures missing/.test(pdfTxt) && /no run on them/.test(pdfTxt));
+check('…who sent it and what they were using',
+  /roofer@example\.co\.nz/.test(pdfTxt) && /Browser:/.test(pdfTxt) && /Office mode|Site mode/.test(pdfTxt));
+check('…a brief telling Claude Code what to do with the file',
+  /For Claude Code/.test(pdfTxt) && /reproduce/.test(pdfTxt) && /run\.mjs/.test(pdfTxt));
+check('…and the screenshots, one page each',
+  v.pdf.images === 2 && v.pdf.pages === 3, v.pdf.images + ' image(s) over ' + v.pdf.pages + ' pages');
+
+// The one that would quietly ruin the whole idea.
+const geomLines = pdfTxt.split('\n').filter(l => /^[\[{]|^"|,$|^\}/.test(l.trim()) && /[:{\[]/.test(l));
+const rejoined = geomLines.join('');
+let parsed = null; try { parsed = JSON.parse(rejoined.slice(rejoined.indexOf('{"v"'))); } catch(e){}
+check('the printed geometry is still valid JSON after being wrapped to the page',
+  !!(parsed && Array.isArray(parsed.outline) && Array.isArray(parsed.lines)),
+  parsed ? (parsed.lines.length + ' lines parsed back') : 'did NOT parse');
+check('…with the numbers intact', !!(parsed && parsed.calPitch === 25 && parsed.scaleMetresPerPx === 0.0125),
+  parsed ? ('pitch ' + parsed.calPitch + ', scale ' + parsed.scaleMetresPerPx) : 'n/a');
+
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await ctx.close(); await b.close();
 const bad = results.filter(x => !x).length;

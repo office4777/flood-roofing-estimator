@@ -22569,25 +22569,90 @@ function _renderFeedbackShots(){
   }).join('');
 }
 function _feedbackRemoveShot(i){ _feedbackShots.splice(i, 1); _renderFeedbackShots(); }
-async function _feedbackShotsToPdf(){
-  if (!_feedbackShots.length) return null;
+// Break a JSON string into printable lines WITHOUT breaking it. Splitting
+// only after commas means the pasted-back text is still valid JSON —
+// whitespace between tokens is legal, whereas a wrap landing mid-number is
+// not. Letting the PDF library wrap it by width would do exactly that.
+function _fbWrapJson(txt, width){
+  var parts = String(txt).split(','), out = [], cur = '';
+  for (var i = 0; i < parts.length; i++){
+    var piece = parts[i] + (i < parts.length - 1 ? ',' : '');
+    if (cur && (cur.length + piece.length) > width){ out.push(cur); cur = piece; }
+    else cur += piece;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+// Everything about one report in a single file: what the user said, the roof
+// they said it about, and what they were looking at. The point is that it can
+// be handed straight to Claude Code — hence the brief at the top, which says
+// what the file is and what to do with it, so the fix does not start with a
+// round of "which job, what were you doing".
+async function _feedbackShotsToPdf(title, details, who, geom){
   // jsPDF is lazy-loaded from a CDN — make sure it's here before we build.
   try { if (typeof _loadPdfLibs === 'function') await _loadPdfLibs(); } catch(e){}
   var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
   if (!jsPDF) return null;
   var pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
-  var pageW = 210, pageH = 297, margin = 10;
+  var pageW = 210, pageH = 297, margin = 14, y = margin;
+  function room(n){ if (y + n > pageH - margin){ pdf.addPage(); y = margin; } }
+  function head(t){
+    room(12); pdf.setFont('helvetica','bold'); pdf.setFontSize(11);
+    pdf.setTextColor(10,22,40); pdf.text(t, margin, y); y += 6;
+  }
+  function body(t, size, mono){
+    pdf.setFont(mono ? 'courier' : 'helvetica','normal');
+    pdf.setFontSize(size || 10); pdf.setTextColor(51,65,85);
+    var lines = mono ? t : pdf.splitTextToSize(String(t || ''), pageW - 2*margin);
+    for (var i = 0; i < lines.length; i++){
+      room(size ? size*0.5 : 5);
+      pdf.text(lines[i], margin, y); y += (size ? size*0.48 : 4.8);
+    }
+  }
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(9); pdf.setTextColor(0,153,204);
+  pdf.text('ROOFMAP — FEEDBACK REPORT', margin, y); y += 8;
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(17); pdf.setTextColor(10,22,40);
+  pdf.splitTextToSize(String(title || '(no title)'), pageW - 2*margin).forEach(function(l){
+    room(9); pdf.text(l, margin, y); y += 8;
+  });
+  y += 2;
+  head('What the user reported');
+  body(details || '(no details)');
+  y += 4;
+  head('Where it came from');
+  body('From: ' + (who || '(unknown user)') +
+       '\nSent: ' + new Date().toLocaleString('en-NZ') +
+       '\nScreen: ' + (window.innerWidth || 0) + '×' + (window.innerHeight || 0) +
+       (document.documentElement.classList.contains('site-mode') ? '  (Site mode)' : '  (Office mode)') +
+       '\nBrowser: ' + String(navigator.userAgent || '').slice(0, 150));
+  y += 4;
+  head('For Claude Code');
+  body('This file is a bug report from a RoofMap user. Everything needed to reproduce it ' +
+       'is here: what they reported, the exact roof they were looking at, and their screenshots.\n\n' +
+       '1. Read the report above and the roof geometry below.\n' +
+       '2. Build that geometry as a test case and reproduce the fault before changing anything — ' +
+       'the geometry is valid JSON exactly as printed, line breaks included.\n' +
+       '3. Fix the cause, not the symptom, and keep the case in floodroofing/tests/ so it cannot come back.\n' +
+       '4. Run the full suite (node floodroofing/tests/run.mjs) before committing.\n\n' +
+       'The geometry is measurements only. There is no client, address, photo or price in it.');
+  y += 4;
+  if (geom){
+    head('Roof geometry (paste as JSON)');
+    body(_fbWrapJson(geom, 96), 7.5, true);
+  }
   for (var i = 0; i < _feedbackShots.length; i++){
-    if (i > 0) pdf.addPage();
+    pdf.addPage();
     var src = _feedbackShots[i];
     var dim = await new Promise(function(res){ var im = new Image(); im.onload = function(){ res({ w: im.width || 1, h: im.height || 1 }); }; im.onerror = function(){ res({ w: 1, h: 1 }); }; im.src = src; });
     var ratio = Math.min((pageW - 2*margin) / dim.w, (pageH - 2*margin) / dim.h);
     var w = dim.w * ratio, h = dim.h * ratio;
-    try { pdf.addImage(src, 'JPEG', (pageW - w)/2, margin, w, h, undefined, 'FAST'); } catch(e){}
+    try { pdf.addImage(src, 'JPEG', (pageW - w)/2, margin + 6, w, h, undefined, 'FAST'); } catch(e){}
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(9); pdf.setTextColor(100,116,139);
+    pdf.text('Screenshot ' + (i+1) + ' of ' + _feedbackShots.length, margin, margin + 1);
   }
   var blob = pdf.output('blob');
   var b64 = await new Promise(function(res, rej){ var fr = new FileReader(); fr.onload = function(){ res(String(fr.result).split(',')[1] || ''); }; fr.onerror = function(){ rej(fr.error); }; fr.readAsDataURL(blob); });
-  return { base64: b64, filename: 'feedback-screenshots.pdf' };
+  return { base64: b64, filename: 'roofmap-feedback.pdf' };
 }
 async function _sendFeedback(btn){
   var msg = document.getElementById('fbMsg');
@@ -22600,11 +22665,6 @@ async function _sendFeedback(btn){
   try { who = (JSON.parse(localStorage.getItem('fr_user') || '{}').email) || ''; } catch(e){}
   if (btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
   show('Sending your feedback…');
-  var attachment = null;
-  if (_feedbackShots.length){
-    show('Preparing ' + _feedbackShots.length + ' screenshot' + (_feedbackShots.length===1?'':'s') + '…');
-    try { attachment = await _feedbackShotsToPdf(); } catch(e){ attachment = null; }
-  }
   // The drawing on screen, as numbers. This is what turns "the sheet
   // measures are missing" into something reproducible — three rounds of that
   // report were diagnosed by measuring pixels off a screenshot before the
@@ -22612,9 +22672,15 @@ async function _sendFeedback(btn){
   var geom = null;
   try { geom = JSON.stringify(_roofGeometryPayload()); } catch(e){}
   if (geom && geom.length > 60000) geom = null;      // too big to be useful in an email
-  var shotsNote = !_feedbackShots.length ? 'none'
-    : attachment ? (_feedbackShots.length + ' attached (PDF)')
-    : (_feedbackShots.length + ' — could NOT be attached (image tools unavailable). Please email them separately.');
+  // One file per report — the words, the roof and the screenshots together,
+  // so fixing it starts from a single upload rather than a hunt.
+  var attachment = null;
+  show('Building the report…');
+  try { attachment = await _feedbackShotsToPdf(title, details, who, geom); } catch(e){ attachment = null; }
+  var shotsNote = (_feedbackShots.length ? _feedbackShots.length : 'no') +
+    ' screenshot' + (_feedbackShots.length === 1 ? '' : 's') +
+    (attachment ? ' — full report attached as roofmap-feedback.pdf'
+                : ' — the PDF could NOT be built, so the details are in this email only');
   var text =
     'RoofMap feedback\n\n' +
     'Title: ' + title + '\n\n' +
