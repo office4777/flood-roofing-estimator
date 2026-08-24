@@ -79,11 +79,35 @@ async function main() {
   // 3) run the sync (master is heavy — do it weekly; refresh nightly) and push
   console.log('Running ' + mode + ' sync…');
   const result = await page.evaluate(m => window.__teamHeadlessSync(m), mode);
-  console.log('Sync result:', JSON.stringify(result));
+  console.log('Sync result:', JSON.stringify({ ok: result && result.ok, pushed: result && result.pushed, mode: result && result.mode, fergusAdvanced: result && result.fergusAdvanced, error: result && result.error }));
+
+  // Per-step diagnostics — makes it obvious which part of the master actually synced vs failed,
+  // instead of a silent green run hiding a stale Fergus.
+  if (result && result.diag) {
+    const d = result.diag;
+    console.log('Sync diagnostics (' + (d.mode || mode) + '):');
+    (d.steps || []).forEach(s => console.log('  ' + (s.ok ? '✓' : '✗ FAILED') + ' ' + s.step + ' (' + s.s + 's)' + (s.err ? ' — ' + s.err : '')));
+    if (d.fatal) console.log('  ✗ FATAL: ' + d.fatal);
+    console.log('  Fergus stamp: ' + (d.fwBefore || '(none)') + ' -> ' + (d.fwAfter || '(UNCHANGED)') +
+      '   | jobs: ' + d.fwNBefore + ' -> ' + (d.fwNAfter != null ? d.fwNAfter : '?'));
+  }
+  if (result && result.before && result.after) {
+    console.log('Timestamps: Fergus ' + result.before.fw + ' -> ' + result.after.fw +
+      ' | Xero ' + result.before.xero + ' -> ' + result.after.xero +
+      ' | Mktg ' + result.before.mkt + ' -> ' + result.after.mkt);
+  }
 
   await browser.close();
-  if (result && result.pushed) { console.log('✓ Shared state updated.'); process.exit(0); }
-  throw new Error('Sync did not push state: ' + JSON.stringify(result));
+  if (!result || !result.pushed) throw new Error('Sync did not push state: ' + JSON.stringify(result));
+  console.log('✓ Shared state updated.');
+  // A master run that pushes but does NOT advance the Fergus stamp means the Fergus workload silently
+  // failed (rate-limit / proxy / endpoint). The Xero + marketing state was still saved, but flag the run
+  // RED so it's noticed instead of hidden behind a green tick.
+  if ((result.mode === 'master') && result.fergusAdvanced === false) {
+    console.error('✗ Fergus did NOT sync this run — fw_last_sync did not advance. Xero/marketing were still pushed. See diagnostics above for the failing step.');
+    process.exit(2);
+  }
+  process.exit(0);
 }
 
 main().catch(e => { console.error('✗ ' + (e && e.message || e)); process.exit(1); });

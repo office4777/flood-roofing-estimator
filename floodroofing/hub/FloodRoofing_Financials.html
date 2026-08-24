@@ -1397,12 +1397,15 @@ function teamPush(){clearTimeout(_teamT);_teamT=setTimeout(teamPushNow,2000);}  
 window.__teamFlush=teamPushNow;
 // Headless entry point for the nightly GitHub Action: run a sync, then push and report.
 window.__teamHeadlessSync=async function(mode){
+  const before={fw:S.get('fw_last_sync',''),xero:S.get('xero_last_sync',''),mkt:(typeof mkt!=='undefined'&&mkt&&mkt.ts)||''};
   try{
     if((mode||'refresh')==='master'){await masterRefresh(true);}else{await refreshAll(true);}
     await new Promise(r=>setTimeout(r,1500));
+    const after={fw:S.get('fw_last_sync',''),xero:S.get('xero_last_sync',''),mkt:(typeof mkt!=='undefined'&&mkt&&mkt.ts)||''};
+    const fergusAdvanced=!!(after.fw&&after.fw!==before.fw);
     const pushed=await teamPushNow();
-    return {ok:true,pushed:!!pushed,mode:mode||'refresh'};
-  }catch(e){return {ok:false,pushed:false,error:String(e&&e.message||e)};}   // do NOT push a half-synced snapshot — keep the last good shared state
+    return {ok:true,pushed:!!pushed,mode:mode||'refresh',fergusAdvanced,before,after,diag:window.__syncDiag||null};
+  }catch(e){return {ok:false,pushed:false,error:String(e&&e.message||e),diag:window.__syncDiag||null};}   // do NOT push a half-synced snapshot — keep the last good shared state
 };
 // ── Team-mode sign-in UI ──
 function teamApiSaved(){return (localStorage.getItem('fr3_hubApiUrl')||'').replace(/^"|"$/g,'').replace(/\/+$/,'').trim();}
@@ -1743,30 +1746,38 @@ async function masterRefresh(auto){
   if(auto)toast('Weekly full sync running in the background…');
   const btn=document.getElementById('dash-master-btn');if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Master…';}
   _syncActive=true;acquireWake();
+  // Per-step diagnostics — each step is resilient (a Fergus hiccup must not abort the rest of the
+  // master) BUT we now RECORD every failure so the nightly can report exactly what didn't sync,
+  // instead of swallowing it into a silent green run. Exposed on window.__syncDiag for the headless runner.
+  const _diag=[];
+  const _step=async(name,fn)=>{const t=Date.now();try{await fn();_diag.push({step:name,ok:true,s:Math.round((Date.now()-t)/1000)});}
+    catch(e){const msg=String(e&&e.message||e).slice(0,200);_diag.push({step:name,ok:false,s:Math.round((Date.now()-t)/1000),err:msg});console.warn('master '+name,msg);}};
+  window.__syncDiag={mode:'master',fwBefore:S.get('fw_last_sync',''),fwNBefore:(S.get('fwJobs',[])||[]).length,steps:_diag};
   syncProgress(1,'Master refresh — loading all jobs…');
   try{
     // 1) active workload (also fetches all active jobs into `active` for back-costing)
-    let active;
-    try{active=await fergusPaginate('/jobs?pageSize=100&sortField=lastModified&sortOrder=desc&filterJobStatus=Active',20);}catch(e){active=[];}
-    try{await syncWorkload({lo:2,hi:22});}catch(e){console.warn('master workload',e.message);}   // resilient: a Fergus hiccup must not abort the rest of the master
+    let active=[];
+    await _step('jobs-list',async()=>{active=await fergusPaginate('/jobs?pageSize=100&sortField=lastModified&sortOrder=desc&filterJobStatus=Active',20);});
+    await _step('workload',()=>syncWorkload({lo:2,hi:22}));   // sets fw_last_sync — the Fergus freshness stamp
     // 2) back-cost ALL completed jobs (deep), not just the recent few
     syncProgress(24,'Back costing every job…');
-    try{await syncBackCosting(active,frac=>syncProgress(24+30*frac,'Back costing (all)…'),true);}catch(e){console.warn('master bc',e.message);}
+    await _step('backcost',()=>syncBackCosting(active,frac=>syncProgress(24+30*frac,'Back costing (all)…'),true));
     // 3) full dated labour for every job
-    try{await syncLabourHistory({master:true,band:{lo:54,hi:82}});}catch(e){console.warn('master labour',e.message);}
+    await _step('labour',()=>syncLabourHistory({master:true,band:{lo:54,hi:82}}));
     // 4) full Xero P&L history (2018+) — idempotent, only pulls missing months
     syncProgress(84,'Xero history (2018+)…');
-    try{await syncXeroHistory();}catch(e){console.warn('master xero',e.message);}
+    await _step('xero-history',()=>syncXeroHistory());
     // 5) cash (Xero balance sheet + AR/AP) + marketing
     syncProgress(90,'Cash…');
-    try{await syncCash();}catch(e){console.warn('master cash',e.message);}
-    try{await syncBank();}catch(e){console.warn('master bank',e.message);}   // live Akahu bank balances (no-op if Akahu not configured on the proxy)
+    await _step('cash',()=>syncCash());
+    await _step('bank',()=>syncBank());   // live Akahu bank balances (no-op if Akahu not configured on the proxy)
     syncProgress(94,'Marketing…');
-    try{await syncMarketing();}catch(e){}
+    await _step('marketing',()=>syncMarketing());
     S.set('masterSyncMs',Date.now());
+    window.__syncDiag.fwAfter=S.get('fw_last_sync','');window.__syncDiag.fwNAfter=(S.get('fwJobs',[])||[]).length;
     syncProgressDone('Master refresh complete ✓');
     toast('Master refresh complete — full history loaded.','ok');
-  }catch(err){console.error(err);syncProgressDone('Master refresh failed');toast(fergusErrMsg(err).split('\n')[0],'err');}
+  }catch(err){console.error(err);if(window.__syncDiag)window.__syncDiag.fatal=String(err&&err.message||err).slice(0,200);syncProgressDone('Master refresh failed');toast(fergusErrMsg(err).split('\n')[0],'err');}
   finally{_syncActive=false;releaseWake();if(btn){btn.disabled=false;btn.innerHTML='⤓ Master refresh (all history)';}}
   renderAll();recordKpiSnapshot(true);
 }
