@@ -4798,7 +4798,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       </div>
       <div class="mat-sel jp-legacy">
         <label>Gutter</label>
-        <select id="matGutter" onchange="renderMaterialsCutLists()">
+        <select id="matGutter" onchange="_matGutterChoose(this.value)">
           <option value="none">None — no gutter required</option>
           <option value="colorsteel-box">Colorsteel 125mm Box Gutter</option>
           <option value="zincalume-box">Zincalume 125mm Box Gutter</option>
@@ -38840,6 +38840,14 @@ function _jpHeaderField(label, mirrorId, currentVal, full){
 }
 function _jpToggleGutterInclude(on){
   try { localStorage.setItem('fr_jp_gutter_include', on ? '1' : '0'); } catch(e){}
+  // Keep the spec-bar select telling the same story, so a roofer who unticks
+  // the section does not find a gutter type still selected above it — and so
+  // the pricing side, which reads the select, agrees.
+  var sel = document.getElementById('matGutter');
+  if (sel){
+    if (!on) sel.value = 'none';
+    else if (sel.value === 'none') sel.value = 'colorsteel-box';
+  }
   if (typeof renderJobPack === 'function') renderJobPack();
 }
 // Gutter runs straight from the drawing.  The lettered-flashing walk
@@ -38997,13 +39005,21 @@ function _matGutterExtraUpdate(i, field, val){
 function _matGutterExtraRemove(i){
   var a = _matGutterExtrasGet(); a.splice(i, 1); _matGutterExtrasSet(a);
 }
+// The gutter type select and the "Include in PDF" tick are two views of one
+// decision, and it has to be RECORDED rather than read back off the dropdown:
+// the select's "none" is both "not chosen yet" and "chosen none", and the Job
+// Pack's helpful default could not tell them apart. That is what made picking
+// "None, no gutter required" flip straight back to Colorsteel 125mm Box the
+// next time the page rendered.
+function _matGutterChoose(v){
+  try { localStorage.setItem('fr_jp_gutter_include', v === 'none' ? '0' : '1'); } catch(e){}
+  if (typeof renderMaterialsCutLists === 'function') renderMaterialsCutLists();
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
 function _matGutterTypeSet(v){
   var sel = document.getElementById('matGutter');
-  if (sel) {
-    sel.value = v;
-    try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
-  }
-  if (typeof renderJobPack === 'function') renderJobPack();
+  if (sel) sel.value = v;
+  _matGutterChoose(v);
 }
 function _jpRenderRoofMap(content, page, idx){
   var view = (page.opts && page.opts.view) || 'detailed';
@@ -39217,8 +39233,14 @@ function _jpRenderCutLists(content, page, idx){
   var gutterIncluded = _gInclRaw != null
     ? _gInclRaw === '1'
     : (gutterChoice !== 'none' || gRuns.length > 0 || gExtras.length > 0);   // sensible default until first tick
-  // Default to 125mm Box Gutter the moment the section is included —
-  // the spec-bar select follows so pricing/order stay in step.
+  // Default to 125mm Box Gutter the moment the section is included — the
+  // spec-bar select follows so pricing/order stay in step.
+  //
+  // This is safe ONLY because an explicit "None" is now recorded (see
+  // _matGutterChoose): that sets gutterIncluded false above, so this cannot
+  // run and cannot undo the choice. The select's own "none" is ambiguous —
+  // it is equally "not chosen yet" and "chosen none" — which is why the
+  // decision is recorded rather than read back off the dropdown.
   if (gutterIncluded && gutterChoice === 'none') {
     var _gSel = document.getElementById('matGutter');
     if (_gSel) { _gSel.value = 'colorsteel-box'; gutterChoice = 'colorsteel-box'; }
