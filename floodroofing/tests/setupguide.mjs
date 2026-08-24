@@ -219,7 +219,13 @@ v = await pg.evaluate(() => {
 check('Send Feedback has a step of its own', !!v.title, v.title);
 check('…that promises the turnaround', /two hours/i.test(v.body), 'two hours');
 check('…and says detail is what makes the fix quick and thorough',
-  /more you tell us/i.test(v.body) && /faster/i.test(v.body) && /thoroughly/i.test(v.body));
+  /more detail you give/i.test(v.body) && /faster/i.test(v.body) && /thoroughly/i.test(v.body));
+// The roofer describes the problem; the app supplies the rest. Asking somebody
+// on a roof for their browser and what tab they were on is how you get a
+// report that says "it's broken".
+check('…and that they only have to describe the problem',
+  /only have to describe the problem/i.test(v.body) &&
+  /captured and attached automatically/i.test(v.body));
 check('…with the cost of a vague report spelled out',
   /guess/i.test(v.body) && /second round/i.test(v.body));
 check('…and its button opens the Send Feedback tab, not a Settings section',
@@ -233,11 +239,14 @@ v = await pg.evaluate(() => {
            ph: (document.getElementById('fbDetails')||{}).placeholder || '' };
 });
 check('the Send Feedback tab promises the same turnaround', /two hours/i.test(v.txt));
-check('…and asks for detail, with a reason', /more you tell us/i.test(v.txt) &&
+check('…and asks for detail, with a reason', /more detail you give/i.test(v.txt) &&
   /thoroughly/i.test(v.txt) && /guess/i.test(v.txt));
-check('…and the empty box prompts the three things',
-  /what i did/i.test(v.ph) && /expected/i.test(v.ph) && /happened instead/i.test(v.ph),
-  v.ph.split('\n')[0]);
+check('…and tells them the context is captured for them',
+  /captured and attached/i.test(v.txt) && /automatically/i.test(v.txt));
+check('…while the empty box shows a real example, not a form to fill in',
+  /^example:/i.test(v.ph) && /ridge lines/i.test(v.ph) &&
+  !/what i did/i.test(v.ph) && !/happened instead/i.test(v.ph),
+  v.ph.slice(0, 60));
 await pg.evaluate(() => gotoTab('settings'));
 
 await pg.evaluate(() => openSetupGuide(true));

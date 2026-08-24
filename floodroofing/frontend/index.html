@@ -6558,11 +6558,14 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <div style="font-size:12px;color:var(--text2);line-height:1.6;background:var(--surface-2,#f5f8fb);
                 border:1px solid var(--border);border-left:3px solid #0099cc;border-radius:8px;
                 padding:11px 13px;margin-bottom:18px">
-      <strong style="color:var(--text)">The more you tell us, the faster and more thoroughly it gets
-      fixed.</strong> A line like “pricing is wrong” means we have to guess which roof, which number
-      and which screen — and a guess usually means a second round. Tell us what you were doing, what
-      you expected, and what actually happened, and we can normally reproduce it on the first read
-      and fix the real cause rather than patching the symptom.
+      <strong style="color:var(--text)">The more detail you give, the faster and more thoroughly we
+      can fix it.</strong> A line like “pricing is wrong” means we have to guess which roof and which
+      number, and a guess usually means a second round. Be specific about what looked wrong and what
+      it should have been, and we can normally reproduce it on the first read and fix the real cause
+      rather than patching the symptom.<br><br>
+      You do not need to write down your browser, your screen, which tab you were on or what the app
+      was doing — <strong style="color:var(--text)">that is all captured and attached for us
+      automatically</strong>, along with the roof you were looking at.
     </div>
 
     <!-- Section 1 — Title -->
@@ -6572,7 +6575,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <span style="font-size:17px;font-weight:800;color:var(--text)">Title</span>
       </div>
       <div style="font-size:11px;color:var(--text2);margin:0 0 8px 33px">A short summary of the issue or idea.</div>
-      <input type="text" id="fbTitle" placeholder="e.g. Gutter price wrong on 2-storey jobs" maxlength="140" style="font-size:15px;padding:12px 14px">
+      <input type="text" id="fbTitle" placeholder="example: Roof map didn't auto populate this roof shape properly" maxlength="140" style="font-size:15px;padding:12px 14px">
     </div>
 
     <!-- Section 2 — Details -->
@@ -6582,13 +6585,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <span style="font-size:17px;font-weight:800;color:var(--text)">Details</span>
       </div>
       <div style="font-size:11.5px;color:var(--text2);margin:0 0 8px 33px;line-height:1.55">
-        Three things, and a fix usually comes back the same session: <strong style="color:var(--text)">what
-        you did</strong>, <strong style="color:var(--text)">what you expected</strong>, and
-        <strong style="color:var(--text)">what happened instead</strong>. Real numbers off the job help
-        most — “the gutter came out $898 on a 60m run, should be nearer $600” gets fixed properly;
-        “gutter price wrong” gets a guess.
+        Just describe what looks wrong, in your own words — the more specific the better.
+        <strong style="color:var(--text)">Which lines, which measurement, which number</strong>, and
+        what it should have been. Everything else is captured for us automatically.
       </div>
-      <textarea id="fbDetails" rows="8" placeholder="What I did:&#10;What I expected:&#10;What happened instead:&#10;&#10;Which job / roof, and the numbers if it is a pricing one." style="width:100%;resize:vertical;font-family:inherit;font-size:15px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box"></textarea>
+      <textarea id="fbDetails" rows="8" placeholder="example: The roof lines aren't correct, it's missing two ridge lines and the hip line doesn't end where it should" style="width:100%;resize:vertical;font-family:inherit;font-size:15px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box"></textarea>
     </div>
 
     <!-- Section 3 — Screenshots -->
@@ -6603,7 +6604,9 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     </div>
 
     <div id="fbGeomNote" style="font-size:11.5px;color:var(--text2);border-top:1px solid var(--border);padding-top:14px;margin-bottom:2px">
-      Your roof drawing's measurements are sent with this so the issue can be reproduced — outline, lines and scale only. No client, address, photos or prices.
+      Sent with this so the issue can be reproduced: your roof drawing's measurements (outline, lines
+      and scale), which build and screen you were on, what the app was doing, and any errors from this
+      session. No client, address, photos or prices.
     </div>
     <div style="display:flex;align-items:center;gap:12px;padding-top:12px">
       <button type="button" id="fbSubmitBtn" onclick="_sendFeedback(this)" style="padding:12px 26px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:800;cursor:pointer">Submit feedback</button>
@@ -7088,10 +7091,28 @@ function _recordUsage(name){
   } catch(e){}
 }
 
+// A short ring of what has gone wrong this session. A roofer cannot be asked
+// to open a console and read a stack trace back to us, and by the time they
+// write the report the error is long gone — so keep the last few and let the
+// feedback PDF carry them. Bounded, in memory only, never sent anywhere except
+// with a report the user chooses to send.
+var FB_ERRS = [];
+function _fbNoteError(msg, stack, kind){
+  try {
+    FB_ERRS.push({
+      t: new Date().toLocaleTimeString('en-NZ'),
+      kind: kind || 'error',
+      msg: String(msg || '').slice(0, 300),
+      at: String((stack || '').split('\n')[1] || '').trim().slice(0, 200)
+    });
+    if (FB_ERRS.length > 8) FB_ERRS.shift();
+  } catch(e){}
+}
 window.addEventListener('error', function(e){
   // Ignore resource load failures (a missing image fires this too) — they
   // have no error object and are not what this is for.
   if (!e || !e.error) return;
+  _fbNoteError(e.message || String(e.error), e.error && e.error.stack);
   _reportClientError(e.message || String(e.error), e.error && e.error.stack);
 });
 window.addEventListener('unhandledrejection', function(e){
@@ -7099,6 +7120,7 @@ window.addEventListener('unhandledrejection', function(e){
   if (!r) return;
   // A rejected api() call the code already handles is not a crash — only
   // report rejections nobody caught, which is what this event means.
+  _fbNoteError((r && r.message) || String(r), r && r.stack, 'promise');
   _reportClientError((r && r.message) || String(r), r && r.stack, 'promise');
 });
 
@@ -22867,6 +22889,91 @@ function _fbWrapJson(txt, width){
 // be handed straight to Claude Code — hence the brief at the top, which says
 // what the file is and what to do with it, so the fix does not start with a
 // round of "which job, what were you doing".
+// Everything a roofer should not have to type. A bug report used to ask for
+// what you did, what you expected and what happened, which is a fair thing to
+// ask a developer and an unfair thing to ask somebody standing on a roof. The
+// app already knows which build it is, which screen and tool they were on,
+// what state the drawing is in and what has thrown this session — so it fills
+// that in itself and the roofer only has to say what looks wrong.
+//
+// Nothing identifying goes in here: no client name, address, photo or price.
+// Job identity is a yes/no and an internal id, never the customer's name.
+function _fbAutoContext(){
+  var L = [];
+  function add(k, v){ if (v !== '' && v != null) L.push(k + ': ' + v); }
+  try {
+    var build = '';
+    try { build = (document.querySelector('[title="App build"]')||{}).textContent || ''; } catch(e){}
+    add('Build', build.replace(/\s+/g,' ').trim() || '(unknown)');
+    add('Sent', new Date().toLocaleString('en-NZ'));
+    try { add('In this session for', Math.round(performance.now()/60000) + ' min'); } catch(e){}
+
+    var site = document.documentElement.classList.contains('site-mode');
+    add('Mode', site ? 'Site' : 'Office');
+    add('Tab', document.body.getAttribute('data-tab') || '(none)');
+    try { add('Tool in use', (window.DRAW && DRAW.tool) || '(none)'); } catch(e){}
+    add('Screen', (window.innerWidth||0) + '\u00d7' + (window.innerHeight||0) +
+        ' @' + (window.devicePixelRatio || 1) + 'x' +
+        ((window.innerWidth||0) > (window.innerHeight||0) ? ' landscape' : ' portrait'));
+    add('Input', (navigator.maxTouchPoints > 0 ? 'touch' : 'mouse') +
+        (window.matchMedia && matchMedia('(pointer:fine)').matches ? ' + fine pointer' : ''));
+    add('Online', navigator.onLine ? 'yes' : 'NO — offline when sent');
+    add('Browser', String(navigator.userAgent || '').slice(0, 160));
+  } catch(e){}
+
+  // What the drawing actually contains. "It is missing two ridge lines" is
+  // checkable against this without asking a second question.
+  try {
+    var d = window.DRAW || {};
+    var byType = {};
+    (d.lines || []).forEach(function(l){ byType[l.type] = (byType[l.type]||0) + 1; });
+    var kinds = Object.keys(byType).sort().map(function(k){ return k + '\u00d7' + byType[k]; });
+    L.push('');
+    add('Roofs on the job', (d.roofs && d.roofs.length) || 1);
+    add('Outline corners', (d.outline || []).length);
+    add('Lines drawn', (d.lines || []).length + (kinds.length ? '  (' + kinds.join(', ') + ')' : ''));
+    add('Penetrations', (d.penetrations || []).length);
+    add('Free-draw notes', (d.notes || []).length);
+    add('Calibrated', d.scaleMetresPerPx ? 'yes' : 'NO — no scale set');
+    add('Pitch', (d.calPitch || 0) + '\u00b0');
+    add('Roof image', d.img || d.bgImage ? 'loaded' : 'none');
+    try { add('Auto roof type', d.roofType || '(not set)'); } catch(e){}
+  } catch(e){}
+
+  // Account shape, which decides which code path they are on.
+  try {
+    var st = (window.S && S.settings) || {};
+    var pb = st.price_book || {};
+    L.push('');
+    add('Price book', pb.list_prices === false ? 'their own rates loaded' : 'still on the shipped rates');
+    add('Products customised', (st.selectables ? 'yes' : 'no — shipped list'));
+    // jms_keys ships with a key per platform and every value empty, so
+    // counting keys said "linked" on a brand-new account. Count the ones that
+    // actually hold a key.
+    var jk = st.jms_keys || {};
+    var linked = Object.keys(jk).filter(function(k){ return String(jk[k] || '').trim(); });
+    add('JMS linked', linked.length ? linked.join(', ') : 'no');
+    add('Suppliers set up', ((st.materials_catalog||{}).suppliers || []).length || 0);
+    var job = (window.S && S.job) || null;
+    add('Job selected', job ? ('yes (id ' + (job.id || job.job_id || '?') + ')') : 'no');
+  } catch(e){}
+
+  // And what has actually thrown while they were in here.
+  try {
+    if (FB_ERRS && FB_ERRS.length){
+      L.push('');
+      L.push('JavaScript errors this session (most recent last):');
+      FB_ERRS.forEach(function(e){
+        L.push('  [' + e.t + '] ' + e.kind + ': ' + e.msg + (e.at ? ('  @ ' + e.at) : ''));
+      });
+    } else {
+      L.push('');
+      L.push('JavaScript errors this session: none');
+    }
+  } catch(e){}
+  return L.join('\n');
+}
+
 async function _feedbackShotsToPdf(title, details, who, geom){
   // jsPDF is lazy-loaded from a CDN — make sure it's here before we build.
   try { if (typeof _loadPdfLibs === 'function') await _loadPdfLibs(); } catch(e){}
@@ -22898,16 +23005,20 @@ async function _feedbackShotsToPdf(title, details, who, geom){
   head('What the user reported');
   body(details || '(no details)');
   y += 4;
-  head('Where it came from');
-  body('From: ' + (who || '(unknown user)') +
-       '\nSent: ' + new Date().toLocaleString('en-NZ') +
-       '\nScreen: ' + (window.innerWidth || 0) + '×' + (window.innerHeight || 0) +
-       (document.documentElement.classList.contains('site-mode') ? '  (Site mode)' : '  (Office mode)') +
-       '\nBrowser: ' + String(navigator.userAgent || '').slice(0, 150));
+  head('Captured automatically');
+  body('From: ' + (who || '(unknown user)'));
+  var _ctx = '';
+  try { _ctx = _fbAutoContext(); } catch(e){ _ctx = '(context could not be captured)'; }
+  body(_ctx, 8.5, false);
   y += 4;
   head('For Claude Code');
   body('This file is a bug report from a RoofMap user. Everything needed to reproduce it ' +
-       'is here: what they reported, the exact roof they were looking at, and their screenshots.\n\n' +
+       'is here: what they reported, the state the app was in, the exact roof they were ' +
+       'looking at, and their screenshots.\n\n' +
+       'The user was asked only to describe what looked wrong. Build, mode, tab, active tool, ' +
+       'drawing state, account setup and any JavaScript errors from their session were captured ' +
+       'automatically — so treat the "Captured automatically" block as fact and the report as ' +
+       'the symptom.\n\n' +
        '1. Read the report above and the roof geometry below.\n' +
        '2. Build that geometry as a test case and reproduce the fault before changing anything — ' +
        'the geometry is valid JSON exactly as printed, line breaks included.\n' +
@@ -29647,13 +29758,14 @@ var SETUP_STEPS = [
          '**Send Feedback** goes straight to the team, not into a ticket queue. **Most issues are ' +
          'fixed within about two hours** of landing with us, and you get an email when yours is done. ' +
          'Real bugs found by roofers on real roofs are what this thing is built out of.\n\n' +
-         '**The more you tell us, the faster and more thoroughly we can fix it.** “Pricing is wrong” ' +
-         'means we have to guess which roof, which number and which screen, and a guess usually means ' +
-         'a second round. Give us what you did, what you expected and what actually happened — with ' +
-         'the real numbers off the job — and we can normally reproduce it on the first read and fix ' +
-         'the cause instead of patching the symptom.\n\n' +
-         'Your roof drawing goes with it automatically: outline, lines and scale only, so we can put ' +
-         'the same roof on our screen. No client, address, photos or prices.',
+         '**The more detail you give, the faster and more thoroughly we can fix it.** “Pricing is ' +
+         'wrong” means we have to guess which roof and which number, and a guess usually means a ' +
+         'second round. Be specific about what looked wrong and what it should have been, and we can ' +
+         'normally reproduce it on the first read and fix the cause instead of patching the symptom.\n\n' +
+         '**You only have to describe the problem.** Which build you are on, which screen and tool you ' +
+         'were using, what state the drawing was in and anything that errored are all captured and ' +
+         'attached automatically — along with the roof itself, so we can put the same one on our ' +
+         'screen. Measurements only: no client, address, photos or prices.',
     go:{ tab:'feedback' }, cta:'See Send Feedback',
     whereText:'**Send Feedback** is in the left-hand menu, at the bottom, under Settings.' },
 
