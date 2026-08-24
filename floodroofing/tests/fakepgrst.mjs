@@ -3,6 +3,7 @@
 // end without a database. Rows live in memory and can be inspected after.
 import http from 'node:http';
 
+let _genId = 0;
 export function startFakePostgrest(tables){
   const db = tables;
   const parseFilters = (params) => {
@@ -148,7 +149,14 @@ export function startFakePostgrest(tables){
         arr.forEach(r => {
           const ex = conflict ? db[table].find(x => String(x[conflict]) === String(r[conflict])) : null;
           if (ex){ Object.assign(ex, r); out.push(ex); }
-          else { db[table].push(r); out.push(r); }
+          else {
+            // Postgres fills a uuid default on insert. This used to hand the
+            // row back with no id at all, which is not what the real thing
+            // does — and it let an endpoint drop the new id unnoticed, which
+            // is the field the app keeps as S.currentJobId.
+            if (r.id == null) r.id = 'gen-' + (++_genId).toString().padStart(4, '0');
+            db[table].push(r); out.push(r);
+          }
         });
         return send(201, out);
       }

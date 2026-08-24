@@ -1641,21 +1641,88 @@ app.post('/jobs', requireAuth, requireSubscription, async (req, res) => {
       console.warn('[jobs] duplicate-number check failed, allowing save:', e.message);
     }
   }
-  const { data, error } = await supabase.from('jobs').insert({ user_id: req.user.id, company_id: req.companyId || null, client_name: client_name || '', site_address: site_address || '', draw_state: draw_state || {}, settings: settings || {}, status: 'draft' }).select().single();
+  // Light columns for the same reason as the PUT: the caller wants the new id
+  // and the labels, not the drawing it just uploaded sent straight back.
+  const { data, error } = await supabase.from('jobs').insert({ user_id: req.user.id, company_id: req.companyId || null, client_name: client_name || '', site_address: site_address || '', draw_state: draw_state || {}, settings: settings || {}, status: 'draft' }).select(JOB_LIGHT_COLS).single();
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  res.json(_jobLight(data));
   recordUsage('job_saved', req);
 });
 
+// What a save actually needs back. The old .select() returned the WHOLE row,
+// so every save shipped the multi-MB draw_state — aerial, site photos and all
+// — back down the wire for nothing: the two callers use id, the labels and the
+// timestamp, and already hold the drawing they just sent. Naming the columns
+// is most of the fix.
+const JOB_LIGHT_COLS = 'id, user_id, client_name, site_address, status, order_sent, created_at, updated_at';
+// Everything a client is allowed to write. Anything else in the body is
+// dropped rather than passed through to SQL.
+const JOB_WRITABLE = ['client_name','site_address','draw_state','settings','status','order_sent','updated_at'];
+const JOB_JSON_COLS = { draw_state:1, settings:1, order_sent:1 };
+
+// Whatever the row came back as, only these columns leave the building. The
+// .select() below already asks for them, but a projection here makes it true
+// of every path — including any future one that forgets.
+function _jobLight(row){
+  if (!row || typeof row !== 'object') return row;
+  const out = {};
+  JOB_LIGHT_COLS.split(',').forEach(k => { k = k.trim(); if (k in row) out[k] = row[k]; });
+  return out;
+}
+
 app.put('/jobs/:id', requireAuth, async (req, res) => {
-  const patch = { ...req.body, updated_at: new Date().toISOString() };
-  delete patch.user_id; delete patch.company_id; delete patch.id;   // ownership fields are never client-writable
-  const { data, error } = await _scopeCompany(supabase.from('jobs').update(patch).eq('id', req.params.id), req).select();
+  // Build the patch from the WHITELIST, not from the body. Filtering a copy
+  // and then sending the original is how a stray key reaches SQL.
+  const patch = {};
+  Object.keys(req.body || {}).forEach(k => { if (JOB_WRITABLE.indexOf(k) >= 0) patch[k] = req.body[k]; });
+  delete patch.updated_at;                       // ours to set, not theirs to claim
+  const cols = Object.keys(patch);
+  // A save with nothing in it but a new timestamp is a caller bug worth
+  // hearing about, not a row to touch.
+  if (!cols.length) return res.status(400).json({ error: 'Nothing to update' });
+  patch.updated_at = new Date().toISOString();
+  cols.push('updated_at');
+
+  // A job row runs to tens of MB once site photos and the aerial land in
+  // draw_state, and the PostgREST role carries Supabase's 8-second
+  // statement_timeout — which is how SAVING a big job produced "canceling
+  // statement due to statement timeout". GET already went round this; the
+  // write did not. The direct connection has no such ceiling, and the WHERE
+  // mirrors _scopeCompany exactly.
+  const pool = _pgPool();
+  if (pool) {
+    try {
+      const vals = cols.map(k => JOB_JSON_COLS[k] ? JSON.stringify(patch[k] == null ? null : patch[k]) : patch[k]);
+      const sets = cols.map((k, i) => '"' + k + '" = $' + (i + 1) + (JOB_JSON_COLS[k] ? '::jsonb' : ''));
+      const p = vals.slice();
+      let where;
+      if (req.companyId) {
+        p.push(req.params.id, req.companyId, req.user.id);
+        where = 'id = $' + (p.length - 2) + ' and (company_id = $' + (p.length - 1) +
+                ' or (company_id is null and user_id = $' + p.length + '))';
+      } else {
+        p.push(req.params.id, req.user.id);
+        where = 'id = $' + (p.length - 1) + ' and user_id = $' + p.length;
+      }
+      const r = await pool.query(
+        'update public.jobs set ' + sets.join(', ') + ' where ' + where +
+        ' returning ' + JOB_LIGHT_COLS, p);
+      if (!r.rows.length) return res.status(404).json({ error: 'Job not found' });
+      res.json(_jobLight(r.rows[0]));
+      return;
+    } catch (e) {
+      // Never lose a save to a bad pool — fall through to PostgREST, which is
+      // slower but is the path that worked before this existed.
+      console.warn('[jobs] direct write failed, falling back to PostgREST:', e.message);
+    }
+  }
+
+  const { data, error } = await _scopeCompany(supabase.from('jobs').update(patch).eq('id', req.params.id), req).select(JOB_LIGHT_COLS);
   if (error) return res.status(500).json({ error: error.message });
   // No row matched: the job is gone, or it is not this company's. Either way
   // 404 — .single() used to turn that into a 500, which reads as our fault.
   if (!data || !data.length) return res.status(404).json({ error: 'Job not found' });
-  res.json(data[0]);
+  res.json(_jobLight(data[0]));
 });
 
 app.get('/jobs/:id', requireAuth, async (req, res) => {
