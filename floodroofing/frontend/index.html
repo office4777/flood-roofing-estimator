@@ -32399,6 +32399,38 @@ function _bargesForSheetRun(hit, lines){
   });
   return out;
 }
+// The measured length of the barge belonging to a sheet run, or 0 if the run
+// has no rake on it. Same face/side/span matching as _bargesForSheetRun, but
+// callable from the dim collector, which is working with raw face vectors
+// rather than a finished canvas hit.
+//
+// Where two barges bound the run (a normal gable face) they are the same
+// slope and should agree; the longest is taken so a half-drawn one cannot
+// shorten the order.
+function _bargeLenForRun(lines, face){
+  var best = 0;
+  if (!face || !Array.isArray(lines)) return 0;
+  var dx = face.faceDx, dy = face.faceDy;
+  var rmx = face.ridgeMx, rmy = face.ridgeMy, rux = face.ridgeUx, ruy = face.ridgeUy;
+  var lo = Math.min(face.runLo, face.runHi), hi = Math.max(face.runLo, face.runHi);
+  var tol = Math.max(22, Math.max(1, hi - lo) * 0.12);
+  lines.forEach(function(b){
+    if (!b || b.type !== 'barge' || !b.pts || b.pts.length !== 2) return;
+    var m = parseFloat(b.measM);
+    if (!(m > 0)) return;                                    // unmeasured rake tells us nothing
+    var a0 = b.pts[0], a1 = b.pts[1];
+    var bdx = a1[0]-a0[0], bdy = a1[1]-a0[1], bl = Math.sqrt(bdx*bdx + bdy*bdy);
+    if (bl < 4) return;
+    if (Math.abs((bdx/bl)*dx + (bdy/bl)*dy) < 0.7) return;   // not a rake for this face
+    var bmx = (a0[0]+a1[0])/2, bmy = (a0[1]+a1[1])/2;
+    if (((bmx-rmx)*dx + (bmy-rmy)*dy) <= 2) return;          // wrong side of the ridge
+    var along = (bmx-rmx)*rux + (bmy-rmy)*ruy;
+    if (along < lo - tol || along > hi + tol) return;        // outside this run's span
+    if (m > best) best = m;
+  });
+  return best;
+}
+
 // Editing a barge → mirror the change onto only the sheet runs whose rake
 // includes this barge (same face/step), and the barges sharing those runs.
 // Returns the number of runs touched (0 → caller falls back).
@@ -34074,6 +34106,26 @@ function redrawAll() {
             var lblImgX = srcx + dx*bestPerp*0.5, lblImgY = srcy + dy*bestPerp*0.5;
             if (!_pointInPoly(lblImgX, lblImgY, outline)) return;
             var autoSheetM = _calibratedSheetM(bestPerp * (DRAW.scaleMetresPerPx || 0) * _rPitchF);
+            // ── The sheet IS its barge ─────────────────────────────
+            // A sheet runs down the slope from ridge to gutter; the barge
+            // (rake) runs down that same slope. They are the same length, and
+            // a roofer orders one number for both.
+            //
+            // The perpendicular drop above is not that number. On anything
+            // that is not perfectly square it comes out slightly SHORT — a
+            // 3.73m barge measuring 3.50m, a 1.97m barge measuring 1.85m —
+            // and then the cut list orders sheets that do not reach. Editing
+            // either one already mirrored onto the other; it was only the
+            // auto-derived value that drifted.
+            //
+            // So when this run has a barge, the barge's own measured length
+            // wins outright. Geometry is the fallback for a run with no rake
+            // on it (a mid-face run between two gutters).
+            var _bargeM = _bargeLenForRun(lines, {
+              faceDx: dx, faceDy: dy, ridgeMx: rmx, ridgeMy: rmy,
+              ridgeUx: rux, ridgeUy: ruy, runLo: c.lo, runHi: c.hi
+            });
+            if (_bargeM > 0) autoSheetM = _bargeM;
             // Face-based key (gutter + into-face direction) PLUS the
             // source ridge's midpoint hash, so two ridges that drop
             // perpendicular onto the same gutter on the same face get
