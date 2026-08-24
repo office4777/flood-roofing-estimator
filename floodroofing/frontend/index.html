@@ -299,6 +299,8 @@ html.tablet-mode #frHelpPanel{bottom:88px!important}
   --ico-undo: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M9.5 14.5 4.5 9.5l5-5'/><path d='M4.5 9.5h9.8a5.7 5.7 0 0 1 0 11.4H8.4'/></svg>");
   --ico-redo: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='m14.5 14.5 5-5-5-5'/><path d='M19.5 9.5H9.7a5.7 5.7 0 0 0 0 11.4h5.9'/></svg>");
   --ico-camera: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M3.4 8.9h3.2l1.6-2.3h7.6l1.6 2.3h3.2a1 1 0 0 1 1 1v8.5a1 1 0 0 1-1 1H3.4a1 1 0 0 1-1-1V9.9a1 1 0 0 1 1-1Z'/><circle cx='12' cy='13.6' r='3.4'/></svg>");
+  /* A folded flashing seen end-on — the same profile the sketch pad draws. */
+  --ico-flashing: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M3 18.5V9.2h9.6V5.5H21'/></svg>");
   --ico-save: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'><path d='M5 3.6h10.4L20.4 8.6V19.4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4.6a1 1 0 0 1 1-1Z'/><path d='M8.2 3.6v5h6.6v-5M8.2 14.4h7.6v6h-7.6z'/></svg>");
 }
 
@@ -324,6 +326,7 @@ html.site-mode .ttb-btn .ttb-ico[data-ico="lines"]{-webkit-mask-image:var(--ico-
 html.site-mode .ttb-btn .ttb-ico[data-ico="ruler"]{-webkit-mask-image:var(--ico-ruler);mask-image:var(--ico-ruler)}
 html.site-mode .ttb-btn .ttb-ico[data-ico="undo"]{-webkit-mask-image:var(--ico-undo);mask-image:var(--ico-undo)}
 html.site-mode .ttb-btn .ttb-ico[data-ico="redo"]{-webkit-mask-image:var(--ico-redo);mask-image:var(--ico-redo)}
+html.site-mode .ttb-btn .ttb-ico[data-ico="flashing"]{-webkit-mask-image:var(--ico-flashing);mask-image:var(--ico-flashing)}
 html.site-mode .ttb-btn .ttb-ico[data-ico="camera"]{-webkit-mask-image:var(--ico-camera);mask-image:var(--ico-camera)}
 html.site-mode .ttb-btn .ttb-ico[data-ico="save"]{-webkit-mask-image:var(--ico-save);mask-image:var(--ico-save)}
 /* active tool: a soft pill behind the icon, label picks up the accent */
@@ -423,6 +426,13 @@ html.site-mode #phoneTopBar{
   height:38px;padding:0 12px;border:1px solid rgba(255,255,255,.16);border-radius:10px;
   background:rgba(255,255,255,.07);color:#fff;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
 #phoneJobName{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#phoneNotesBtn{flex:0 0 auto;width:38px;height:38px;border:none;border-radius:10px;
+  background:rgba(255,255,255,.12);color:#fff;cursor:pointer;font-family:inherit;
+  display:flex;align-items:center;justify-content:center;padding:0}
+#phoneNotesBtn svg{width:19px;height:19px}
+/* Live tool: the pencil goes the same red the note ink is, so the bar says
+   which mode the next stroke lands in. */
+#phoneNotesBtn.on{background:#dc2626;color:#fff}
 html.site-mode .content{padding:58px 6px 92px!important}
 html.site-mode .card{padding:.5rem .4rem;margin-bottom:8px}
 html.site-mode .card-hd{font-size:12px}
@@ -822,8 +832,24 @@ html.site-mode #fergusRoofPanelResize{display:none!important}
 }
 .rl-site-only{display:none}
 html.site-mode .rl-site-only{display:flex}
+/* The mirror of rl-site-only: shown everywhere EXCEPT on site, where the
+   thing has its own home in the top or bottom bar. */
+html.site-mode .rl-office-only{display:none!important}
 html.site-mode #tabletToolbar{gap:2px;padding-left:4px;padding-right:4px}
 html.site-mode .ttb-btn{font-size:9px;padding:6px 1px;gap:2px}
+/* Nine buttons on a 360px phone gives each about 37px. A label wider than
+   that used to spill straight over its neighbour — "Calibrate Undo" and
+   "Flashings Photos" ran together as one word. Clip rather than overlap, and
+   drop a point of type on the narrowest phones so nothing needs clipping. */
+html.site-mode .ttb-btn{overflow:hidden;max-width:100%}
+html.site-mode .ttb-btn > .ttb-ico{flex:0 0 auto}
+@media (max-width:430px){
+  /* Content-sized rather than nine equal columns: "Undo" does not need the
+     same 37px as "Flashings", and handing the slack to the long labels is
+     what stops any of them being clipped at all. */
+  html.site-mode .ttb-btn{flex:1 1 auto;font-size:8.5px;letter-spacing:-.01em;white-space:nowrap}
+  html.site-mode #tabletToolbar{justify-content:space-between;gap:1px}
+}
 html.site-mode .ttb-btn .ttb-ico{font-size:18px}
 /* 5. Other tabs keep a normal scrolling page under the fixed header. */
 html.site-mode .hb-topbar{margin:6px 0 12px;gap:8px}
@@ -3370,6 +3396,14 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <!-- Carrying the device round a roof, a palm on the glass draws a wall.
        Lock it the way a video app does: the screen stops responding until
        the user slides the catch across. -->
+  <!-- Scribbling a note on the map is a thing you flick on and off while
+       looking at the roof, so it lives where you can reach it without
+       opening a menu. Toggle: tapping it again drops you back on the tool
+       you were using. -->
+  <button id="phoneNotesBtn" onclick="_siteNotesToggle()" aria-pressed="false"
+          aria-label="Free-draw a note on the map" title="Free-draw a note on the map">
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M11.4 2.4a1.5 1.5 0 0 1 2.2 2.1L6.2 11.9l-2.9.8.8-2.9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M10.2 3.7l2.1 2.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+  </button>
   <button id="screenLockBtn" onclick="_screenLock(true)" aria-label="Lock the screen" title="Lock the screen">
     <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.2" y="7" width="9.6" height="6.6" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
   </button>
@@ -3457,6 +3491,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
   <button class="ttb-btn" id="ttbCal"     onclick="setTool('calibrate')"><span class="ttb-ico" data-ico="ruler">📏</span>Calibrate</button>
   <button class="ttb-btn" onclick="undoLast()"><span class="ttb-ico" data-ico="undo">↺</span>Undo</button>
   <button class="ttb-btn" onclick="redoLast()"><span class="ttb-ico" data-ico="redo">↻</span>Redo</button>
+  <button class="ttb-btn" id="ttbFlash" onclick="_siteFlashSheet()"><span class="ttb-ico" data-ico="flashing">🧾</span>Flashings</button>
   <button class="ttb-btn" onclick="_tabletPhotos()"><span class="ttb-ico" data-ico="camera">📷</span>Photos</button>
   <button class="ttb-btn" onclick="saveCurrentJob()"><span class="ttb-ico" data-ico="save">💾</span>Save</button>
 </div>
@@ -3857,7 +3892,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             <button onclick="setTool('penetration');closeRoofLinesMenu()" id="btn-penetration" onmouseenter="showTip('btn-penetration',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">⬛ Penetration</button>
             <button onclick="setTool('boxedpen');closeRoofLinesMenu()" id="btn-boxedpen" onmouseenter="showTip('btn-boxedpen',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#475569;border-color:#475569;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">▭ Boxed Penetration</button>
             <button onclick="setTool('sheetmeas');closeRoofLinesMenu()" id="btn-sheetmeas" onmouseenter="showTip('btn-sheetmeas',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">📏 Sheet measure</button>
-            <button onclick="setTool('notes');closeRoofLinesMenu()" id="btn-notes" class="tool-btn" style="color:#dc2626;border-color:#dc2626;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">✎ Free-draw note</button>
+            <!-- Office only. On site this moved to the pencil in the top bar,
+                 but Office has no top bar, so removing it outright would leave
+                 free-draw with no way in at all. -->
+            <button onclick="setTool('notes');closeRoofLinesMenu()" id="btn-notes" class="tool-btn rl-office-only" style="color:#dc2626;border-color:#dc2626;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">✎ Free-draw note</button>
             <button onclick="setTool('info');closeRoofLinesMenu()" id="btn-info" onmouseenter="showTip('btn-info',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#d97706;border-color:#d97706;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0">✳ Add Info</button>
             <div class="rl-site-only" style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:8px 6px 6px;border-top:1px solid #eef1f5;margin-top:6px">Material order</div>
             <button onclick="_siteFlashSheet()" id="btn-siteflash" class="tool-btn rl-site-only" style="color:#14b8a6;border-color:#14b8a6;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">🧾 Add flashing</button>
@@ -29285,6 +29323,23 @@ function _tabletNavToggle(force){
   var open = (force === undefined) ? !root.classList.contains('tnav-open') : !!force;
   root.classList.toggle('tnav-open', open);
 }
+// The top-bar pencil. A toggle rather than a plain tool button: you flick
+// free-draw on, scribble a note over the roof, and flick it off — and off
+// means back on whatever you were drawing with, not dumped on Move.
+function _siteNotesToggle(){
+  var on = (DRAW.tool === 'notes' || DRAW.tool === 'noteserase');
+  if (on) setTool(DRAW._notesPrevTool || 'select');
+  else { DRAW._notesPrevTool = DRAW.tool; setTool('notes'); }
+  try { closeRoofLinesMenu(); } catch(e){}
+  _syncSiteNotesBtn();
+}
+function _syncSiteNotesBtn(){
+  var b = document.getElementById('phoneNotesBtn'); if (!b) return;
+  var on = !!(window.DRAW && (DRAW.tool === 'notes' || DRAW.tool === 'noteserase'));
+  b.classList.toggle('on', on);
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
 // Keep the bottom toolbar's active state in step with the current tool.
 function _syncTabletBar(){
   var bar = document.getElementById('tabletToolbar');
@@ -29293,6 +29348,10 @@ function _syncTabletBar(){
   var id = ({ select: 'ttbMove', outline: 'ttbOutline', calibrate: 'ttbCal' })[DRAW.tool] || (lineTools[DRAW.tool] ? 'ttbLines' : null);
   bar.querySelectorAll('.ttb-btn').forEach(function(b){ b.classList.remove('on'); });
   if (id){ var el = document.getElementById(id); if (el) el.classList.add('on'); }
+  // Free-draw now lives in the top bar, so it is no longer one of the bottom
+  // bar's own buttons — but it is still a tool, and the pencil has to follow
+  // every route into and out of it, not just its own tap.
+  _syncSiteNotesBtn();
 }
 // Phone: size the drawing canvas to EVERY pixel between the chrome above it
 // and the bottom toolbar, so it takes the phone's tall shape and nothing is
