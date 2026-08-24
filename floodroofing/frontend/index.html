@@ -6458,7 +6458,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div id="fbShotList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:12px;border-top:1px solid var(--border);padding-top:16px">
+    <div id="fbGeomNote" style="font-size:11.5px;color:var(--text2);border-top:1px solid var(--border);padding-top:14px;margin-bottom:2px">
+      Your roof drawing's measurements are sent with this so the issue can be reproduced — outline, lines and scale only. No client, address, photos or prices.
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;padding-top:12px">
       <button type="button" id="fbSubmitBtn" onclick="_sendFeedback(this)" style="padding:12px 26px;background:var(--fr-dark);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:800;cursor:pointer">Submit feedback</button>
       <span id="fbMsg" style="font-size:12.5px;color:var(--text2)"></span>
     </div>
@@ -22602,6 +22605,13 @@ async function _sendFeedback(btn){
     show('Preparing ' + _feedbackShots.length + ' screenshot' + (_feedbackShots.length===1?'':'s') + '…');
     try { attachment = await _feedbackShotsToPdf(); } catch(e){ attachment = null; }
   }
+  // The drawing on screen, as numbers. This is what turns "the sheet
+  // measures are missing" into something reproducible — three rounds of that
+  // report were diagnosed by measuring pixels off a screenshot before the
+  // geometry could be handed over directly.
+  var geom = null;
+  try { geom = JSON.stringify(_roofGeometryPayload()); } catch(e){}
+  if (geom && geom.length > 60000) geom = null;      // too big to be useful in an email
   var shotsNote = !_feedbackShots.length ? 'none'
     : attachment ? (_feedbackShots.length + ' attached (PDF)')
     : (_feedbackShots.length + ' — could NOT be attached (image tools unavailable). Please email them separately.');
@@ -22612,7 +22622,9 @@ async function _sendFeedback(btn){
     '— — —\n' +
     'From: ' + (who || '(unknown user)') + '\n' +
     'Sent: ' + new Date().toLocaleString('en-NZ') + '\n' +
-    'Screenshots: ' + shotsNote;
+    'Screenshots: ' + shotsNote + '\n\n' +
+    'Roof geometry (measurements only — no client, address, photos or prices):\n' +
+    (geom || '(none on screen)');
   var esc = function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
   var html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:640px">'+
     '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">RoofMap feedback</div>'+
@@ -22620,6 +22632,8 @@ async function _sendFeedback(btn){
     '<div style="white-space:pre-wrap">'+esc(details)+'</div>'+
     '<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">'+
     '<div style="font-size:12px;color:#475569">From: '+esc(who || '(unknown user)')+'<br>Sent: '+esc(new Date().toLocaleString('en-NZ'))+'<br>Screenshots: '+esc(shotsNote)+'</div>'+
+    (geom ? '<details style="margin-top:14px"><summary style="font-size:12px;color:#64748b;cursor:pointer">Roof geometry (measurements only)</summary>'+
+      '<pre style="font-size:10px;line-height:1.35;white-space:pre-wrap;word-break:break-all;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-top:6px;color:#334155">'+esc(geom)+'</pre></details>' : '')+
   '</div>';
   try {
     await api('POST', '/email/send-order', {
@@ -27356,8 +27370,7 @@ document.addEventListener('click', function(e){
 // Hand the roof's geometry over, so a "measures are missing" report can be
 // reproduced exactly instead of guessed at from a screenshot. Numbers only —
 // no client, no address, no photos, no prices — so it is safe to send.
-function copyRoofGeometry(){
-  try { closeViewMenu(); } catch(e){}
+function _roofGeometryPayload(){
   var g;
   try {
     if (typeof _syncCurrentToRoof === 'function') _syncCurrentToRoof();
@@ -27390,7 +27403,11 @@ function copyRoofGeometry(){
       sheetRuns: ((window._lastSheetDims || []).map(function(d){ return d.label; }))
     };
   } catch(e){ g = { error: String(e && e.message || e) }; }
-  var txt = JSON.stringify(g);
+  return g;
+}
+function copyRoofGeometry(){
+  try { closeViewMenu(); } catch(e){}
+  var txt = JSON.stringify(_roofGeometryPayload());
   var done = function(){ try { _setSaveStatus && _setSaveStatus('📋 Roof geometry copied — paste it into the message.', '#0369a1'); } catch(e){} };
   // Clipboard first; a tablet that refuses it gets the text on screen to
   // select by hand, and a file to share.
@@ -32491,12 +32508,13 @@ function redrawAll() {
       var o4 = _orient(p3, p4, p2);
       return o1 !== o2 && o3 !== o4;
     }
-    function _crossesAnotherRoofLine(p1, p2, excludeRidge, skip){
+    function _crossesAnotherRoofLine(p1, p2, excludeRidge, skip, ridgeOnly){
       for (var i = 0; i < DRAW.lines.length; i++) {
         var l = DRAW.lines[i];
         if (l === excludeRidge) continue;
         if (skip && skip.indexOf(l) >= 0) continue;
-        if (l.type !== 'ridge' && l.type !== 'hip' && l.type !== 'valley') continue;
+        if (ridgeOnly ? (l.type !== 'ridge')
+                      : (l.type !== 'ridge' && l.type !== 'hip' && l.type !== 'valley')) continue;
         if (!l.pts || l.pts.length !== 2) continue;
         if (_segCross(p1, p2, l.pts[0], l.pts[1])) return true;
       }
@@ -32709,6 +32727,13 @@ function redrawAll() {
             var _conn = _faceConnectors(rl, g, lines);
             var _spanOverlap = !(hi < -0.55*rL || lo > 0.55*rL);
             if (!_spanOverlap && !_conn.length) return;
+            // How far sideways this eave sits beyond the ridge's own ends.
+            // A hip or valley runs at roughly 45 degrees in plan, so a face
+            // can only shift sideways by about as much as it drops. Past
+            // that the "face" is a coincidence — a short ridge finding an
+            // eave right across the roof — and the run is a phantom.
+            // (Checked against perp below, once perp is measured properly.)
+            var _sideGap = Math.max(0, Math.max(lo - 0.5*rL, -0.5*rL - hi));
             // Source point on the ridge directly ABOVE this gutter's own
             // centre. Testing the cross-line filter straight down from
             // here (not diagonally from the ridge midpoint) is what lets
@@ -32742,8 +32767,16 @@ function redrawAll() {
               var _pSrc = ((ga[0]-srcx)*_gnx + (ga[1]-srcy)*_gny) / _den;
               if (_pSrc > 4) perp = _pSrc;
             }
+            if (_sideGap > perp) return;                 // see _sideGap above
             var endx = srcx + dx*perp, endy = srcy + dy*perp;
-            if (lines === DRAW.lines && _crossesAnotherRoofLine([srcx,srcy], [endx,endy], rl, _conn)) return;
+            // Once two rakes close a face, the plane between them is settled:
+            // a hip or valley crossing the drop line belongs to a NEIGHBOURING
+            // face and merely passes through the swept rectangle. Only another
+            // ridge means the run has climbed over onto a different plane.
+            // Without this, every face on a hip-and-valley roof whose eave is
+            // not square under its ridge was killed by its neighbour's rake.
+            if (lines === DRAW.lines &&
+                _crossesAnotherRoofLine([srcx,srcy], [endx,endy], rl, _conn, _conn.length > 0)) return;
             cand.push({ g:g, perp:perp, lo:lo, hi:hi, cc:cc, srcx:srcx, srcy:srcy });
           });
           if (!cand.length) return;

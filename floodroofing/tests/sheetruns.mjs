@@ -34,13 +34,13 @@ await pg.waitForTimeout(2500);
 // Roofs are built in image pixels at 1 px = 1 cm, flat pitch, so a label
 // reads back as plain metres and the arithmetic stays checkable by eye.
 await pg.evaluate(() => {
-  window.__buildRoof = function(outline, lines){
+  window.__buildRoof = function(outline, lines, scale){
     DRAW.outline = outline;
     DRAW.lines = lines.map(function(l){
       return { type:l[0], pts:[l[1].slice(), l[2].slice()],
                label:'', lengthM:'', measM:null, sheetLengthM:null };
     });
-    DRAW.scaleMetresPerPx = 0.01;
+    DRAW.scaleMetresPerPx = scale || 0.01;
     DRAW.calPitch = 0;
     DRAW.roofs = []; DRAW.activeRoofIdx = 0;
     DRAW.sheetOverrides = {}; DRAW.sheetLabelOffsets = {}; DRAW.manualSheetMeasures = [];
@@ -50,7 +50,7 @@ await pg.evaluate(() => {
     });
   };
 });
-const build = (outline, lines) => pg.evaluate(a => window.__buildRoof(a[0], a[1]), [outline, lines]);
+const build = (outline, lines, scale) => pg.evaluate(a => window.__buildRoof(a[0], a[1], a[2]), [outline, lines, scale || 0.01]);
 const labels = rs => rs.map(r => r.label).sort();
 
 // The four eaves of a rectangle, as gutters.
@@ -148,6 +148,56 @@ check('a raking face gets its run even though the eave sits off to one side',
 check('…the short run is the one above the ridge',
   (r.find(d => d.y < 500) || {}).label === '3.00m',
   r.map(d => d.label+'@y'+d.y).join(', '));
+
+// ── G. The roof that reported this, three times ───────────────────
+// Traced off a real job and handed over by View -> Copy roof geometry,
+// because the last case turned on whether two lines share a snapped point
+// or sit twenty pixels apart, and no screenshot can answer that.
+//
+// It carries every shape above at once — hip ends, raking faces, a stepped
+// eave, and a junction where five lines meet through a 1.3m ridge stub. The
+// three runs it used to lose are the 12.09m ridge's two faces and the west
+// face of the 5.2m ridge; each was killed by a hip or valley belonging to
+// the NEIGHBOURING face, crossing the drop line on its way past.
+r = await build([[1072,719],[1072,835],[956,835],[956,1136],[1057,1136],[1057,1203],[1118,1203],[1118,1441],[1381,1441],[1381,719]],
+  [['hip',[1072,719],[1227,873]],
+   ['valley',[1072,835],[1227,990]],
+   ['hip',[956,835],[1106,986]],
+   ['hip',[956,1136],[1106,986]],
+   ['valley',[1057,1136],[1208,986]],
+   ['hip',[1057,1203],[1219,1041]],
+   ['valley',[1118,1203],[1249,1071]],
+   ['hip',[1118,1441],[1249,1310]],
+   ['hip',[1381,1441],[1249,1310]],
+   ['hip',[1381,719],[1227,873]],
+   ['ridge',[1249,1310],[1249,1071]],
+   ['hip',[1249,1071],[1219,1041]],
+   ['hip',[1208,986],[1219,997]],
+   ['hip',[1227,990],[1219,997]],
+   ['ridge',[1219,1041],[1219,997]],
+   ['ridge',[1227,873],[1227,990]],
+   ['ridge',[1106,986],[1208,986]],
+   ['gutter',[1072,719],[1072,835]],
+   ['gutter',[1072,835],[956,835]],
+   ['gutter',[956,835],[956,1136]],
+   ['gutter',[956,1136],[1057,1136]],
+   ['gutter',[1057,1136],[1057,1203]],
+   ['gutter',[1057,1203],[1118,1203]],
+   ['gutter',[1118,1203],[1118,1441]],
+   ['gutter',[1118,1441],[1381,1441]],
+   ['gutter',[1381,1441],[1381,719]],
+   ['gutter',[1381,719],[1072,719]]], 0.11944943847665086);
+const got = labels(r);
+check('the real roof gets a run on both sides of every ridge', r.length === 8,
+  r.length + ': ' + got.join(', '));
+check('…including the two faces of the 12.09m ridge that used to vanish',
+  got.filter(l => /^1[78]\./.test(l)).length === 4,
+  got.filter(l => /^1[78]\./.test(l)).join(', '));
+check('…and the west face of the short 5.2m ridge',
+  got.filter(l => l === '19.35m').length === 2,
+  got.filter(l => l === '19.35m').join(', '));
+check('…with no phantom run inventing a face that is not there',
+  got.every(l => parseFloat(l) > 10 && parseFloat(l) < 40), got.join(', '));
 
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 
