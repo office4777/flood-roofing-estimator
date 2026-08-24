@@ -23517,13 +23517,21 @@ function addCatalogItem(key){
 // without rewriting them (monkey-patch style so we don't fight merges
 // against the existing settings code).
 (function(){
-  // Baked-in default suppliers (Roofing Industries is the main default —
-  // flagged so the Order Roof email pre-selects it).
-  var DEFAULT_SUPPLIERS = [
-    { name:'Roofing Industries', contact:'Steve',   email:'steveg@roof.co.nz',              phone:'', yard_addr:'', default:true },
-    { name:'Freeman Roofing',    contact:'Team',     email:'whangarei@freemanroofing.co.nz', phone:'', yard_addr:'' },
-    { name:'Armorsteel',         contact:'Phyllis',  email:'phyllis@armorsteel.co.nz',       phone:'', yard_addr:'' }
-  ];
+  // No baked-in suppliers.
+  //
+  // This used to ship three real Whangarei merchant reps — names and direct
+  // email addresses — to every account that signed up, with one of them set
+  // as the pre-selected default. Two things wrong with that. A roofer in
+  // Christchurch got somebody else's rep as their default supplier, and one
+  // mis-click on Order Roof would send a real-looking material order to a
+  // person who had never heard of them. And it handed one company's trade
+  // contacts to every stranger who signed up.
+  //
+  // Same class of thing as the branding that used to ship in these defaults.
+  // Suppliers are a business's own, so the list starts empty and the Material
+  // ordering step of the setup guide is where a roofer adds theirs. Accounts
+  // that already saved a list are untouched — saved settings win over these.
+  var DEFAULT_SUPPLIERS = [];
   var _origDefaults = defaultSettings;
   defaultSettings = function(){
     var d = _origDefaults();

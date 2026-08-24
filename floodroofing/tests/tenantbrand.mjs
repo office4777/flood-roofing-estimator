@@ -37,9 +37,19 @@ async function open(settings, opts){
 // ── the shipped defaults carry nobody's identity ──
 const src = await readFile(DIR + '/index.html', 'utf8');
 const defaults = src.slice(src.indexOf('function defaultSettings(){'), src.indexOf('function mergeSettings('));
-for (const leak of ['Flood Roofing LTD', '0800 4 FLOOD', 'office@floodroofing.co.nz', '120 543 997', 'Aron Flood'])
+// Suppliers belong to a business too. Three real Whangarei merchant reps —
+// names and direct emails — used to ship to every account with one set as the
+// pre-selected default, so a stranger's mis-click could send a real-looking
+// order to somebody who had never heard of them.
+for (const leak of ['Flood Roofing LTD', '0800 4 FLOOD', 'office@floodroofing.co.nz', '120 543 997', 'Aron Flood',
+                    'steveg@roof.co.nz', 'whangarei@freemanroofing.co.nz', 'phyllis@armorsteel.co.nz'])
   check('the defaults no longer ship "' + leak + '"', defaults.indexOf(leak) < 0);
 check('the defaults never say "Flood" at all', !/Flood/.test(defaults));
+// The supplier list is monkey-patched onto defaultSettings further down the
+// file, so it is checked against the whole source rather than the slice.
+check('…and no supplier is shipped pre-loaded, let alone pre-selected',
+  /var DEFAULT_SUPPLIERS = \[\]/.test(src),
+  (src.match(/var DEFAULT_SUPPLIERS = \[[^\]]{0,40}/)||[''])[0]);
 
 // The book DOES now ship real trade rates, deliberately — a quote built on
 // invented round numbers is obviously invented, and the roofer stops trusting
