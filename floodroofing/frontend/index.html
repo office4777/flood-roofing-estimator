@@ -8155,31 +8155,46 @@ function openPriceSettings(){
 // job that single factor was adding $898 of guttering to the quote.
 //
 // What actually gets allowed on the order: half a metre on every run, plus a
-// lap every 8m, 8m being the longest stick that comes off the truck. Both are
-// per RUN, not per total — joins happen along a length, not across a job.
+// lap for every JOIN, 8m being the longest stick that comes off the truck.
+// Both are per RUN, not per total — joins happen along a length, not across
+// a job.
+//
+// Joins, not eighths: an 8m run is one stick and needs no join at all, so it
+// carries nothing. 8.1m is two sticks and one join. A 60m run is eight sticks
+// and seven joins. ceil() rather than floor() is the whole difference, and it
+// matters most at the exact multiples a roofer is likely to have drawn.
 var FLASH_WASTE_PER_RUN_M = 0.5;
 var FLASH_LAP_M           = 0.1;
 var FLASH_STOCK_M         = 8;
+function _flashJoins(L){
+  if (!(L > 0)) return 0;
+  // The epsilon keeps a length that is 8m in every practical sense — but
+  // 8.0000000001 after a pitch multiply — from buying a join it does not need.
+  return Math.max(0, Math.ceil(L / FLASH_STOCK_M - 1e-9) - 1);
+}
 function _flashWaste(lens, fallbackTotal){
-  var out = { net: 0, waste: 0, runs: 0, total: 0 };
+  var out = { net: 0, waste: 0, runs: 0, joins: 0, total: 0 };
   var arr = (lens && lens.length) ? lens
           : ((fallbackTotal > 0) ? [fallbackTotal] : []);   // pre-lineLens data
   arr.forEach(function(L){
     L = parseFloat(L) || 0;
     if (!(L > 0)) return;
+    var j = _flashJoins(L);
     out.net += L;
     out.runs++;
-    out.waste += FLASH_WASTE_PER_RUN_M + FLASH_LAP_M * Math.floor(L / FLASH_STOCK_M);
+    out.joins += j;
+    out.waste += FLASH_WASTE_PER_RUN_M + FLASH_LAP_M * j;
   });
   out.total = out.net + out.waste;
   return out;
 }
 function _flashWasteNote(w){
   if (!w || !w.runs) return '';
-  var laps = w.waste - (FLASH_WASTE_PER_RUN_M * w.runs);
+  var laps = FLASH_LAP_M * w.joins;
   return 'incl. ' + w.waste.toFixed(1) + 'm waste — 0.5m \u00d7 ' + w.runs +
          ' run' + (w.runs === 1 ? '' : 's') +
-         (laps > 0.001 ? ', + ' + laps.toFixed(1) + 'm laps' : '');
+         (w.joins ? ', + ' + laps.toFixed(1) + 'm over ' + w.joins +
+                    ' join' + (w.joins === 1 ? '' : 's') : '');
 }
 
 // Builds the rows the Material Price table renders. Each row carries
