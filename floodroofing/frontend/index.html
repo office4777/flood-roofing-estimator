@@ -23637,6 +23637,24 @@ function saveFlashingToLibrary(orderIdx){
     notes:      src.notes || '',
     sketch:     src.sketch || ''
   };
+  // The drawing lives in polylines, not in the legacy raster `sketch` field.
+  // Leaving it out here meant "Save to library" kept the measurements and
+  // silently threw the shape away — and openFlashEditModal, which reads
+  // entry.polylines, then opened the saved flashing with a blank canvas.
+  if (src.polylines && src.polylines.length){
+    entry.polylines = src.polylines.map(function(pl){
+      return { vertices: (pl.vertices || []).map(function(v){ return v.slice(); }),
+               measurements: Object.assign({}, pl.measurements || {}),
+               measurementOffsets: Object.assign({}, pl.measurementOffsets || {}),
+               measurementFontPx: Object.assign({}, pl.measurementFontPx || {}),
+               crushFolds: Object.assign({}, pl.crushFolds || {}),
+               angleMarkers: Object.assign({}, pl.angleMarkers || {}),
+               kind: pl.kind || null };
+    });
+  }
+  if (src.paintedSide) entry.paintedSide = Object.assign({}, src.paintedSide);
+  if (src.flashGuard)  entry.flashGuard  = Object.assign({}, src.flashGuard);
+  if (src.flashGuards) entry.flashGuards = true;
   // If a saved flashing with the same name already exists, overwrite
   // — feels less surprising than silently creating duplicates.
   var existing = lib.findIndex(function(x){ return x.name === name; });
@@ -29846,6 +29864,10 @@ function _siteFlashSheet(){
         '<input id="_fsQty" type="number" inputmode="numeric" min="1" step="1" value="1" ' +
           'style="width:100%;margin:0 0 10px;font-size:14px;padding:11px 10px;border:1.5px solid #cbd5e1;border-radius:10px;font-family:inherit">' +
         '<label style="display:block;font-size:11px;font-weight:700;color:#0a1628;margin-bottom:4px">Faces — one per bend section (mm)</label>' +
+        '<button id="_fsDraw" type="button" style="width:100%;margin:0 0 9px;padding:11px;background:#fff;color:#0099cc;' +
+          'border:1.5px solid #0099cc;border-radius:10px;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer">' +
+          '\u270f Draw the profile</button>' +
+        '<div id="_fsDrawNote" style="display:none;font-size:11.5px;color:#15803d;font-weight:700;margin:-4px 0 8px"></div>' +
         '<div id="_fsFaces"></div>' +
         '<button id="_fsAddFace" type="button" style="margin:2px 0 12px;padding:8px 12px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer">+ Another face</button>' +
         '<button id="_fsAdd" type="button" style="width:100%;padding:13px;margin-bottom:9px;background:#0a1628;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer">Add to the order</button>' +
@@ -29891,6 +29913,8 @@ function _siteFlashSheet(){
             ((+f.qty > 1) ? ' <span style="color:#64748b;font-weight:600">×' + (+f.qty) + '</span>' : '') + '</div>' +
           (lens ? '<div style="font-size:11.5px;color:#64748b">' + esc(lens) + ' mm</div>' : '') +
         '</div>' +
+        '<button type="button" data-skflash="' + i + '" title="Sketch this flashing" style="background:none;border:none;' +
+          'color:' + (f.polylines && f.polylines.length ? '#0099cc' : '#94a3b8') + ';font-size:17px;line-height:1;padding:4px 7px;cursor:pointer">\u270f</button>' +
         '<button type="button" data-rmflash="' + i + '" style="background:none;border:none;color:#b91c1c;font-size:20px;line-height:1;padding:4px 8px;cursor:pointer">×</button>' +
       '</div>';
     }).join('');
@@ -29898,6 +29922,11 @@ function _siteFlashSheet(){
       btn.onclick = function(){
         S.order.flashings.splice(parseInt(btn.getAttribute('data-rmflash'), 10), 1);
         _siteFlashSync(); renderList();
+      };
+    });
+    Array.prototype.forEach.call(box.querySelectorAll('[data-skflash]'), function(btn){
+      btn.onclick = function(){
+        openSiteFlashPad(parseInt(btn.getAttribute('data-skflash'), 10), function(){ renderList(); });
       };
     });
   }
@@ -29909,20 +29938,57 @@ function _siteFlashSheet(){
   renderFaces(false);
   renderList();
 
+  // A profile drawn before the flashing is added waits here, and goes on with
+  // it. Cleared after each add so the next flashing starts from a blank sheet
+  // rather than quietly inheriting the last one's shape.
+  var pendingSketch = null;
+  function noteSketch(){
+    var n = w.querySelector('#_fsDrawNote');
+    if (!pendingSketch){ n.style.display = 'none'; return; }
+    var v = (pendingSketch.polylines[0] || {}).vertices || [];
+    n.style.display = 'block';
+    n.textContent = '\u2713 Profile drawn — ' + Math.max(0, v.length - 1) + ' faces, ' +
+                    Math.max(0, v.length - 2) + ' folds';
+  }
+
   function close(){ w.remove(); }
   w.onclick = function(ev){ if (ev.target === w) close(); };
   w.querySelector('#_fsDone').onclick = close;
   w.querySelector('#_fsAddFace').onclick = function(){ faceCount++; renderFaces(true); };
+  w.querySelector('#_fsDraw').onclick = function(){
+    openSiteFlashPad(-1, function(out){
+      pendingSketch = out;
+      // The drawing decides how many faces there are — one per leg.
+      faceCount = Math.max(2, (out.faces || []).length);
+      renderFaces(false);
+      Array.prototype.forEach.call(w.querySelectorAll('[data-face]'), function(inp, i){
+        if (out.faces[i]) inp.value = out.faces[i].length;
+      });
+      noteSketch();
+    });
+  };
   w.querySelector('#_fsAdd').onclick = function(){
     var faces = Array.prototype.map.call(w.querySelectorAll('[data-face]'), function(inp, i){
       return { label: 'Face ' + String.fromCharCode(65+i), length: inp.value };
     });
     var qty = parseInt(w.querySelector('#_fsQty').value, 10);
-    S.order.flashings.push({
+    var item = {
       type: w.querySelector('#_fsType').value || 'Flashing',
       qty: (qty > 0 ? qty : 1),
       faces: faces, lineBreaks: '', notes: '', sketch: ''
-    });
+    };
+    if (pendingSketch && pendingSketch.polylines && pendingSketch.polylines.length){
+      // Re-key the sketch labels off whatever is in the boxes NOW — the roofer
+      // may have corrected a face after drawing, and the girth that reaches
+      // the price has to be the corrected one.
+      var meas = {};
+      faces.forEach(function(f, i){ var n = +f.length; if (n > 0) meas[i] = n; });
+      item.polylines = pendingSketch.polylines.map(function(pl){
+        return Object.assign({}, pl, { measurements: meas });
+      });
+    }
+    S.order.flashings.push(item);
+    pendingSketch = null; noteSketch();
     _siteFlashSync();
     // The form empties but the sheet stays up — an elevation is several
     // flashings, and reopening the sheet for each one is the reason nobody
@@ -29942,6 +30008,339 @@ function _siteFlashSync(){
   try { if (typeof _updateSavedFlashCount === 'function') _updateSavedFlashCount(); } catch(e){}
   try { if (typeof autosaveJob === 'function') autosaveJob(); } catch(e){}
 }
+// ── The sketch pad you can use up a ladder ─────────────────────────
+// The office editor has twelve tools, a 720px canvas and a mouse. On a roof
+// you have a gloved finger, one hand, and a flashing nobody has drawn before
+// — an old parapet cap, somebody's odd head barge. Three actions is the
+// whole budget: tap the corners, type the millimetres, done.
+//
+// It writes the SAME polylines the office editor reads, in the same 720×380
+// logical space, so a profile sketched on the roof opens in the office tool
+// for tidying, carries its girth into flashPricePerLm, and reaches the cut
+// list and the supplier order without being redrawn. The face boxes and the
+// sketch labels are the same numbers — type a face and the drawing labels
+// itself, which is the bit the office flow never did.
+var SFP = { w: null, verts: [], snap: true, idx: -1, onDone: null, pxW: 720, pxH: 380 };
+var SFP_W = 720, SFP_H = 380;         // logical space, matching #flashCanvas
+
+function _sfpLetter(i){ return String.fromCharCode(65 + i); }
+function _sfpSegs(){ return Math.max(0, SFP.verts.length - 1); }
+
+// Girth is the sum of the typed faces; folds are the interior corners. Both
+// match _computeFlashStats so the office and the roof agree on the price.
+function _sfpStats(){
+  var girth = 0, faces = _sfpFaceValues();
+  faces.forEach(function(mm){ girth += (+mm || 0); });
+  return { girth: girth, folds: Math.max(0, SFP.verts.length - 2) };
+}
+function _sfpFaceValues(){
+  if (!SFP.w) return [];
+  return Array.prototype.map.call(SFP.w.querySelectorAll('[data-sfpface]'),
+    function(i){ return i.value; });
+}
+
+// Tap position → logical 720×380, so vertices are office-native from the off.
+function _sfpPt(ev){
+  var c = SFP.w.querySelector('#sfpCanvas'), r = c.getBoundingClientRect();
+  var t = (ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0]) || ev;
+  return { x: (t.clientX - r.left) * (SFP_W / r.width),
+           y: (t.clientY - r.top)  * (SFP_H / r.height) };
+}
+
+// Flashings are folded on a brake, so their corners are square far more often
+// than not. Snapping each new leg to 15° makes a one-finger sketch look like
+// the thing it represents instead of a wobble.
+function _sfpSnap(from, to){
+  if (!SFP.snap || !from) return to;
+  var dx = to.x - from.x, dy = to.y - from.y;
+  var len = Math.hypot(dx, dy); if (len < 1) return to;
+  var step = Math.PI / 12;                       // 15°
+  var a = Math.round(Math.atan2(dy, dx) / step) * step;
+  return { x: from.x + Math.cos(a) * len, y: from.y + Math.sin(a) * len };
+}
+
+function _sfpDraw(){
+  if (!SFP.w) return;
+  var c = SFP.w.querySelector('#sfpCanvas'); if (!c) return;
+  var g = c.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+  if (c.width !== Math.round(SFP_W * dpr)){
+    c.width = Math.round(SFP_W * dpr); c.height = Math.round(SFP_H * dpr);
+  }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, SFP_W, SFP_H);
+  g.fillStyle = '#fff'; g.fillRect(0, 0, SFP_W, SFP_H);
+
+  // Graph paper, so a profile drawn on a bright roof still reads as a shape.
+  g.strokeStyle = '#eef2f7'; g.lineWidth = 1;
+  for (var x = 0; x <= SFP_W; x += 20){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,SFP_H); g.stroke(); }
+  for (var y = 0; y <= SFP_H; y += 20){ g.beginPath(); g.moveTo(0,y); g.lineTo(SFP_W,y); g.stroke(); }
+
+  var v = SFP.verts;
+  if (!v.length){
+    g.fillStyle = '#94a3b8'; g.font = '600 17px system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.fillText('Tap each corner of the flashing', SFP_W/2, SFP_H/2 - 8);
+    g.font = '14px system-ui, sans-serif';
+    g.fillText('start at one edge and work across', SFP_W/2, SFP_H/2 + 16);
+    g.textAlign = 'left';
+    return;
+  }
+
+  var faces = _sfpFaceValues();
+  // Legs.
+  g.strokeStyle = '#0a1628'; g.lineWidth = 4;
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(v[0][0], v[0][1]);
+  for (var i = 1; i < v.length; i++) g.lineTo(v[i][0], v[i][1]);
+  g.stroke();
+
+  // Each leg carries its letter, and its millimetres once they are typed.
+  g.font = '700 15px system-ui, sans-serif';
+  for (var s = 0; s + 1 < v.length; s++){
+    var mx = (v[s][0] + v[s+1][0]) / 2, my = (v[s][1] + v[s+1][1]) / 2;
+    var dx = v[s+1][0] - v[s][0], dy = v[s+1][1] - v[s][1];
+    var L = Math.hypot(dx, dy) || 1;
+    var ox = -dy / L * 17, oy = dx / L * 17;     // sit the label off the leg
+    var mm = (faces[s] || '').toString().trim();
+    var txt = _sfpLetter(s) + (mm ? '  ' + mm : '');
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    var wdt = g.measureText(txt).width + 12;
+    g.fillStyle = 'rgba(255,255,255,.92)';
+    g.fillRect(mx + ox - wdt/2, my + oy - 11, wdt, 22);
+    g.fillStyle = mm ? '#0a1628' : '#94a3b8';
+    g.fillText(txt, mx + ox, my + oy);
+  }
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+
+  // Corners: the interior ones are the folds you are paying for.
+  for (var k = 0; k < v.length; k++){
+    var interior = k > 0 && k < v.length - 1;
+    g.beginPath(); g.arc(v[k][0], v[k][1], interior ? 7 : 6, 0, Math.PI*2);
+    g.fillStyle = interior ? '#0099cc' : '#0a1628'; g.fill();
+    g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.stroke();
+  }
+}
+
+// One mm box per leg, keeping whatever has already been typed.
+function _sfpRenderFaces(){
+  if (!SFP.w) return;
+  var box = SFP.w.querySelector('#sfpFaces');
+  var had = _sfpFaceValues();
+  var n = _sfpSegs(), html = '';
+  for (var i = 0; i < n; i++){
+    html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:7px">' +
+      '<span style="width:26px;height:26px;flex:0 0 auto;border-radius:7px;background:#0a1628;color:#fff;' +
+        'font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center">' + _sfpLetter(i) + '</span>' +
+      '<input data-sfpface="' + i + '" type="number" inputmode="numeric" min="0" placeholder="mm" ' +
+        'value="' + (had[i] == null ? '' : String(had[i]).replace(/"/g,'&quot;')) + '" ' +
+        'style="flex:1;margin:0;font-size:16px;padding:11px 10px;border:1.5px solid #cbd5e1;border-radius:10px;font-family:inherit">' +
+    '</div>';
+  }
+  box.innerHTML = html || '<div style="font-size:12.5px;color:#94a3b8;font-style:italic">Tap two corners to get your first face.</div>';
+  Array.prototype.forEach.call(box.querySelectorAll('[data-sfpface]'), function(inp){
+    inp.oninput = function(){ _sfpDraw(); _sfpStatsLine(); };
+  });
+  _sfpStatsLine();
+}
+
+function _sfpStatsLine(){
+  if (!SFP.w) return;
+  var el = SFP.w.querySelector('#sfpStats'); if (!el) return;
+  var s = _sfpStats();
+  el.innerHTML = '<strong>Girth</strong> ' + s.girth + ' mm' +
+                 ' &nbsp;·&nbsp; <strong>Folds</strong> ' + s.folds;
+}
+
+function _sfpUndo(){ if (SFP.verts.length){ SFP.verts.pop(); _sfpRenderFaces(); _sfpDraw(); } }
+function _sfpClear(){ SFP.verts = []; _sfpRenderFaces(); _sfpDraw(); }
+
+// What the office editor reads back. One polyline, measurements keyed by leg
+// index exactly as _computeFlashStats expects, so girth and angle changes come
+// out the same on both sides.
+function _sfpPolylines(){
+  if (SFP.verts.length < 2) return [];
+  var meas = {}, faces = _sfpFaceValues();
+  faces.forEach(function(mm, i){ var n = +mm; if (n > 0) meas[i] = n; });
+  return [{
+    vertices: SFP.verts.map(function(v){ return [Math.round(v[0]), Math.round(v[1])]; }),
+    measurements: meas, measurementOffsets: {}, measurementFontPx: {},
+    crushFolds: {}, angleMarkers: {}, kind: null
+  }];
+}
+function _sfpFaces(){
+  return _sfpFaceValues().map(function(mm, i){
+    return { label: 'Face ' + _sfpLetter(i), length: (mm == null ? '' : String(mm)) };
+  });
+}
+
+// Load a shape that already exists — from the order, or from the library.
+function _sfpLoad(src){
+  SFP.verts = [];
+  var p = src && src.polylines && src.polylines[0];
+  if (p && p.vertices && p.vertices.length){
+    SFP.verts = p.vertices.map(function(v){ return [v[0], v[1]]; });
+  }
+  _sfpRenderFaces();
+  // Faces first from the flashing's own list, else from the sketch labels.
+  var vals = (src && src.faces || []).map(function(f){ return f.length; });
+  if (!vals.length && p && p.measurements){
+    vals = Object.keys(p.measurements).sort(function(a,b){ return a-b; })
+                 .map(function(k){ return p.measurements[k]; });
+  }
+  Array.prototype.forEach.call(SFP.w.querySelectorAll('[data-sfpface]'), function(inp, i){
+    if (vals[i] != null) inp.value = vals[i];
+  });
+  _sfpDraw(); _sfpStatsLine();
+}
+
+// idx >= 0 edits that flashing on the order; idx === -1 draws a fresh one and
+// hands the result back through onDone so the Add form can use it.
+function openSiteFlashPad(idx, onDone){
+  var prev = document.getElementById('_sfp'); if (prev) prev.remove();
+  SFP = { w: null, verts: [], snap: true, idx: (idx == null ? -1 : idx), onDone: onDone || null };
+
+  var w = document.createElement('div');
+  w.id = '_sfp';
+  w.style.cssText = 'position:fixed;inset:0;z-index:100060;background:#0a1628;display:flex;' +
+    'flex-direction:column;font-family:inherit;padding-bottom:env(safe-area-inset-bottom,0px)';
+  w.innerHTML =
+    '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px 10px;color:#fff">' +
+      '<div style="font-size:15px;font-weight:800">Sketch the flashing</div>' +
+      '<div id="sfpStats" style="font-size:12px;color:#94a3b8;margin-left:auto;white-space:nowrap"></div>' +
+    '</div>' +
+    '<div style="padding:0 10px">' +
+      '<canvas id="sfpCanvas" style="width:100%;display:block;background:#fff;border-radius:12px;touch-action:none"></canvas>' +
+    '</div>' +
+    '<div style="display:flex;gap:7px;padding:10px 10px 6px;flex-wrap:wrap">' +
+      '<button type="button" id="sfpUndo" class="sfp-b">↶ Undo</button>' +
+      '<button type="button" id="sfpClear" class="sfp-b">Clear</button>' +
+      '<button type="button" id="sfpSnap" class="sfp-b">⊾ Square: on</button>' +
+      '<button type="button" id="sfpLib" class="sfp-b" style="margin-left:auto">☰ Saved</button>' +
+    '</div>' +
+    '<div style="flex:1;overflow:auto;background:#fff;border-radius:16px 16px 0 0;padding:14px 14px 10px;margin-top:4px">' +
+      '<div style="font-size:11px;font-weight:800;color:#0a1628;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">' +
+        'Face sizes</div>' +
+      '<div id="sfpFaces"></div>' +
+      '<div id="sfpMsg" style="font-size:12px;font-weight:700;color:#15803d;min-height:16px;text-align:center;margin:2px 0"></div>' +
+      '<div style="display:flex;gap:8px;margin-top:6px">' +
+        '<button type="button" id="sfpCancel" style="flex:0 0 auto;padding:13px 18px;background:#fff;color:#64748b;' +
+          'border:1.5px solid #cbd5e1;border-radius:11px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">Cancel</button>' +
+        '<button type="button" id="sfpSave" style="flex:1;padding:13px;background:#0a1628;color:#fff;border:none;' +
+          'border-radius:11px;font-size:14.5px;font-weight:800;font-family:inherit;cursor:pointer">Use this shape</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(w);
+  SFP.w = w;
+
+  if (!document.getElementById('sfpStyle')){
+    var st = document.createElement('style'); st.id = 'sfpStyle';
+    st.textContent = '.sfp-b{padding:9px 12px;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.22);' +
+      'border-radius:9px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer}' +
+      '.sfp-b:active{background:rgba(255,255,255,.2)}';
+    document.head.appendChild(st);
+  }
+
+  var c = w.querySelector('#sfpCanvas');
+  c.style.aspectRatio = SFP_W + ' / ' + SFP_H;
+
+  // A tap places a corner. A drag does nothing — on a roof, a finger that
+  // moves 4px while pressing is still a tap, and treating it as a drag is how
+  // you end up with a shape nobody asked for.
+  var down = null;
+  function place(ev){
+    var p = _sfpPt(ev);
+    var last = SFP.verts.length ? { x: SFP.verts[SFP.verts.length-1][0], y: SFP.verts[SFP.verts.length-1][1] } : null;
+    p = _sfpSnap(last, p);
+    p.x = Math.max(6, Math.min(SFP_W - 6, p.x));
+    p.y = Math.max(6, Math.min(SFP_H - 6, p.y));
+    SFP.verts.push([p.x, p.y]);
+    _sfpRenderFaces(); _sfpDraw();
+  }
+  c.addEventListener('pointerdown', function(ev){
+    ev.preventDefault();
+    down = { x: ev.clientX, y: ev.clientY };
+  }, { passive: false });
+  c.addEventListener('pointerup', function(ev){
+    ev.preventDefault();
+    if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) < 12) place(ev);
+    down = null;
+  }, { passive: false });
+
+  w.querySelector('#sfpUndo').onclick  = _sfpUndo;
+  w.querySelector('#sfpClear').onclick = _sfpClear;
+  w.querySelector('#sfpSnap').onclick  = function(){
+    SFP.snap = !SFP.snap;
+    this.textContent = '⊾ Square: ' + (SFP.snap ? 'on' : 'off');
+  };
+  w.querySelector('#sfpLib').onclick   = _sfpOpenLibrary;
+  w.querySelector('#sfpCancel').onclick = function(){ w.remove(); SFP.w = null; };
+  w.querySelector('#sfpSave').onclick  = function(){
+    if (SFP.verts.length < 2){
+      var m = w.querySelector('#sfpMsg');
+      m.style.color = '#b91c1c'; m.textContent = 'Tap at least two corners first';
+      setTimeout(function(){ if (m){ m.textContent = ''; m.style.color = '#15803d'; } }, 2200);
+      return;
+    }
+    var out = { polylines: _sfpPolylines(), faces: _sfpFaces() };
+    if (SFP.idx >= 0 && S.order && S.order.flashings && S.order.flashings[SFP.idx]){
+      var f = S.order.flashings[SFP.idx];
+      f.polylines = out.polylines; f.faces = out.faces;
+      try { _siteFlashSync(); } catch(e){}
+    }
+    var cb = SFP.onDone;
+    w.remove(); SFP.w = null;
+    if (cb) cb(out);
+  };
+
+  _sfpRenderFaces();
+  if (SFP.idx >= 0 && S.order && S.order.flashings && S.order.flashings[SFP.idx])
+    _sfpLoad(S.order.flashings[SFP.idx]);
+  else _sfpDraw();
+}
+
+// Draw it once in the shed, use it on every roof after that.
+function _sfpOpenLibrary(){
+  var lib = [];
+  try { lib = _getSavedFlashings() || []; } catch(e){}
+  var prev = document.getElementById('_sfpLib'); if (prev) prev.remove();
+  var w = document.createElement('div');
+  w.id = '_sfpLib';
+  w.style.cssText = 'position:fixed;inset:0;z-index:100070;background:rgba(10,22,40,.6);display:flex;align-items:flex-end';
+  var rows = lib.length ? lib.map(function(e, i){
+    var lens = (e.faces || []).map(function(f){ return f.length; })
+                 .filter(function(x){ return x !== '' && x != null; }).join(' / ');
+    var drawn = !!(e.polylines && e.polylines.length);
+    return '<button type="button" data-sfplib="' + i + '" style="width:100%;text-align:left;display:flex;align-items:center;gap:10px;' +
+        'padding:12px 4px;background:none;border:none;border-bottom:1px solid #f1f4f8;font-family:inherit;cursor:pointer">' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:14px;font-weight:700;color:#0a1628">' + esc(e.name || 'Untitled') + '</div>' +
+        '<div style="font-size:11.5px;color:#64748b">' + (lens ? esc(lens) + ' mm' : 'no sizes saved') +
+          (drawn ? '' : ' · <span style="color:#b45309">no drawing</span>') + '</div>' +
+      '</div><div style="color:#0099cc;font-size:19px">›</div></button>';
+  }).join('') : '<div style="font-size:13px;color:#94a3b8;font-style:italic;padding:14px 4px">' +
+      'Nothing saved yet. Draw one here, then save it to the library from the Order tab.</div>';
+  w.innerHTML =
+    '<div style="width:100%;max-height:80vh;overflow:auto;background:#fff;border-radius:16px 16px 0 0;' +
+         'padding:16px 14px calc(14px + env(safe-area-inset-bottom,0px))">' +
+      '<div style="font-size:14px;font-weight:800;color:#0a1628;margin-bottom:2px">Saved flashings</div>' +
+      '<div style="font-size:12px;color:#64748b;margin-bottom:10px">Tap one to load its shape and sizes.</div>' +
+      rows +
+      '<button type="button" id="sfpLibClose" style="width:100%;margin-top:12px;padding:12px;background:transparent;' +
+        'color:#64748b;border:none;font-size:13.5px;font-family:inherit;cursor:pointer">Close</button>' +
+    '</div>';
+  document.body.appendChild(w);
+  w.onclick = function(ev){ if (ev.target === w) w.remove(); };
+  w.querySelector('#sfpLibClose').onclick = function(){ w.remove(); };
+  Array.prototype.forEach.call(w.querySelectorAll('[data-sfplib]'), function(btn){
+    btn.onclick = function(){
+      var e = lib[parseInt(btn.getAttribute('data-sfplib'), 10)];
+      w.remove();
+      if (e) _sfpLoad(e);
+    };
+  });
+}
+
 // Phone: the roof-shape chooser is a sheet above the toolbar. Once a shape is
 // picked it collapses to a handle so the drawing gets the screen back; the
 // handle slides it up again.
