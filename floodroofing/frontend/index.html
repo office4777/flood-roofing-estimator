@@ -6250,7 +6250,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
           <strong style="font-size:13px">Custom price-book items</strong>
           <span style="font-size:11px;color:var(--text2)">— special items beyond the auto-quantified list (skylights, dektites, vents, etc.)</span>
-          <button type="button" onclick="addPriceBookExtra()" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add item</button>
+          <button type="button" onclick="clearPriceBookExtraQtys()" class="tool-btn" style="margin-left:auto;font-size:11px" title="Set every custom item's quantity to 0 so none of them are charged on a job">Clear all quantities</button>
+          <button type="button" onclick="addPriceBookExtra()" class="tool-btn" style="font-size:11px">+ Add item</button>
         </div>
         <div id="pbExtrasList"></div>
       </div>
@@ -7628,6 +7629,25 @@ function _pbExtraRowHtml(x){
     '<button type="button" onclick="this.parentNode.remove()" class="tool-btn" style="font-size:14px;color:#b91c1c;padding:4px 8px">×</button>'+
   '</div>';
 }
+// An imported price list arrives as dozens of rates. Before they carried a
+// quantity of 0 they carried 1, which charged every one of them on every job
+// — this puts a book in that state right without deleting the rates.
+function clearPriceBookExtraQtys(){
+  var rows = Array.from(document.querySelectorAll('#pbExtrasList [data-pb-extra]'));
+  var n = 0;
+  rows.forEach(function(r){
+    var q = r.querySelector('input[data-f="qty"]');
+    if (q && (parseFloat(q.value) || 0) !== 0){ q.value = 0; n++; }
+  });
+  try { collectPriceBookFromUI(); } catch(e){}
+  var msg = document.getElementById('pbUploadMsg');
+  if (msg){
+    msg.textContent = n
+      ? ('\u2713 ' + n + ' custom item' + (n === 1 ? '' : 's') + ' set to quantity 0 — the rates are kept, none of them are charged on a job. Click Save settings to keep this.')
+      : 'Every custom item is already at quantity 0.';
+    msg.style.color = '#15803d';
+  }
+}
 function addPriceBookExtra(){
   var box = document.getElementById('pbExtrasList'); if (!box) return;
   var wrap = document.createElement('div'); wrap.innerHTML = _pbExtraRowHtml({desc:'', unit:'ea', qty:1, price:0});
@@ -7782,7 +7802,12 @@ function handlePriceBookUpload(e){
             unitMismatch: !!(uk && uk !== t.unit),
           });
         } else {
-          _PB_CSV_PENDING.extras.push({ desc: desc, unit: unit || 'ea', qty: 1, price: price });
+          // Quantity 0, deliberately. A row the importer could not place is a
+          // RATE the merchant charges, not a thing this job needs one of.
+          // Importing at qty 1 put every unplaced row — every Aquaseal size,
+          // every back-tray, every fitting — on the material list of every
+          // job, which is exactly the "way too many materials" report.
+          _PB_CSV_PENDING.extras.push({ desc: desc, unit: unit || 'ea', qty: 0, price: price });
         }
       });
       var nM = _PB_CSV_PENDING.mapped.length, nX = _PB_CSV_PENDING.extras.length;
@@ -8228,8 +8253,11 @@ function _buildMaterialPriceRows(){
     });
   }
 
-  // Custom extras — each price-book extra becomes its own row
+  // Custom extras — a price-book extra joins the job only once it has a
+  // quantity. Zero means "a rate we hold", which is what an imported price
+  // list is; give it a number in Settings and it becomes a line.
   (pb.extras || []).forEach(function(x, i){
+    if ((parseFloat(x.qty) || 0) <= 0) return;
     rows.push({ key:'extra:'+i, label:x.desc, autoQty:parseFloat(x.qty)||0, autoUnit:x.unit||'ea',
                 variants:[{ value:x.desc, label:x.desc, price:parseFloat(x.price)||0, unit:x.unit||'ea' }],
                 defaultVariant:x.desc, isCustom:true, singleVariant:true });
