@@ -8326,7 +8326,7 @@ function computeMaterialsCost(){
   }
   flashLine('Ridge / Hip capping', ridgeHip,        pb.ridge_lm);
   flashLine('Valley iron',         totals.valley,   pb.valley_lm);
-  flashLine('Gutter',              totals.gutter,   pb.gutter_lm);
+  if (typeof _gutterOnJob !== 'function' || _gutterOnJob()) flashLine('Gutter', totals.gutter, pb.gutter_lm);
   flashLine('Barge flashing',      totals.barge,    pb.barge_lm);
   flashLine('Apron flashing',      totals.apron,    pb.apron_lm);
   // Boxed penetration sets — back, sides, front apron, saddle to the ridge.
@@ -8459,6 +8459,27 @@ function _flashWasteNote(w){
 // Builds the rows the Material Price table renders. Each row carries
 // its own qty (auto), $/unit, variant options, and a key so user
 // overrides can target it. Flashing qtys carry the per-run wastage above.
+// ── DOES THIS JOB BUY A GUTTER? ──────────────────────────────────
+// One answer, used by the job pack, the supplier order and the material price.
+// The job pack has always defaulted this OFF — plenty of re-roofs leave the
+// existing spouting where it is — but the priced material take-off charged the
+// drawn gutter metres regardless. So a job whose pack says "No Gutter required"
+// still had a gutter's worth of material in its price, and a customer who then
+// SELECTED a gutter on page 4 paid for it twice: once buried in the base, once
+// as the add-on. Gutter is an add-on and is priced as one; the base does not
+// carry it.
+function _gutterOnJob(){
+  try {
+    if (typeof _gutterExcluded === 'function' && _gutterExcluded()) return false;
+    var raw = localStorage.getItem('fr_jp_gutter_include');
+    if (raw != null) return raw === '1';
+  } catch(e){}
+  // Never asked: fall back to the spec-bar pick, same as the job pack does.
+  try {
+    var sel = (document.getElementById('matGutter') || {}).value || 'none';
+    return sel !== 'none';
+  } catch(e){ return false; }
+}
 function _buildMaterialPriceRows(){
   var rows = [];
   if (!S.settings || !S.settings.price_book || !window.DRAW) return rows;
@@ -8550,7 +8571,8 @@ function _buildMaterialPriceRows(){
   // are still separate runs on the roof and each gets its own offcut.
   flashRow('ridge',  'Ridge / Hip cap',  (_ll.ridge||[]).concat(_ll.hip||[]), ridgeHip, pb.ridge_lm);
   flashRow('valley', 'Valley iron',      _ll.valley,      totals.valley,   pb.valley_lm);
-  flashRow('gutter', 'Gutter',           _ll.gutter,      totals.gutter,   pb.gutter_lm);
+  // Only when the job actually orders one — see _gutterOnJob.
+  if (_gutterOnJob()) flashRow('gutter', 'Gutter', _ll.gutter, totals.gutter, pb.gutter_lm);
   flashRow('barge',  'Barge flashing',   _ll.barge,       totals.barge,    pb.barge_lm);
   flashRow('apron',  'Apron flashing',   _ll.apron,       totals.apron,    pb.apron_lm);
   flashRow('changepitch', 'Change-of-pitch flashing', _ll.changepitch, totals.changepitch, pb.changepitch_lm);
@@ -37752,6 +37774,39 @@ function _matDrawTotals() {
     if (d.pitch > maxPitch) maxPitch = d.pitch;
   });
   sum.pitch = maxPitch;
+  // ── SHARED EDGES ARE ONE FLASHING ────────────────────────────────
+  // Roofs are summed one at a time above, so where a lean-to abuts the house
+  // both roofs contribute the barge that sits on the wall they share — and it
+  // gets counted twice. The cut list has always known better: it collects
+  // every flashing line across the job and drops near-duplicates on a shared
+  // edge (_flashCollectLabelled), which is why the supplier order and the
+  // material price could disagree by several metres on the same building.
+  //
+  // The order is what actually gets bought, so the price follows it. This also
+  // picks up the per-line deletes: a flashing struck off the cut list stops
+  // being charged, instead of being ordered by nobody and paid for by someone.
+  //
+  // Gutters are left alone — the collector only sees them when the layout
+  // editor's "include gutters" box is ticked, so its silence is not an answer.
+  try {
+    var _lab = (typeof _flashCollectLabelled === 'function') ? _flashCollectLabelled() : null;
+    if (_lab && _lab.length) {
+      var _dd = { ridge:[], valley:[], hip:[], barge:[], apron:[], changepitch:[] };
+      _lab.forEach(function(o){
+        var t = o.line && o.line.type;
+        if (!_dd[t]) return;
+        var m = parseFloat(o.line.measM) || 0;
+        if (m > 0) _dd[t].push(m);
+      });
+      Object.keys(_dd).forEach(function(t){
+        sum.lineLens[t] = _dd[t];
+        sum.totals[t] = _dd[t].reduce(function(a, b){ return a + b; }, 0);
+      });
+      sum.ridgeHip = (sum.totals.ridge || 0) + (sum.totals.hip || 0);
+      sum.flashingsLm = sum.ridgeHip + (sum.totals.valley || 0) + (sum.totals.barge || 0) +
+                        (sum.totals.apron || 0) + (sum.totals.changepitch || 0);
+    }
+  } catch(e){}
   return sum;
 }
 
@@ -39611,7 +39666,96 @@ function _jpBasicEditorLabelUp(){
   document.removeEventListener('mouseup',   _jpBasicEditorLabelUp);
 }
 
+// ── THE ORDER FOLLOWS WHAT THE CUSTOMER BOUGHT ───────────────────
+// The Selections page and the job pack kept two separate ideas of the roof.
+// The customer could pick 5-Rib in Zincalume 0.55 with a box gutter, be
+// charged for all four, and the job pack would still order Corrugate
+// Colorsteel 0.40 and no gutter — so the crew turns up with the wrong steel
+// and no spouting on a job that was sold with both.
+//
+// The customer's pick is the specification. The spec bar follows it.
+function _specNorm(v){ return String(v == null ? '' : v).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+// Point a spec-bar select at a product, matching on value or label. A product
+// the list has never heard of (a company's own grade) is APPENDED rather than
+// dropped — the merchant has to be told what was actually sold.
+function _specSetSelect(id, wanted){
+  var el = document.getElementById(id);
+  if (!el || !wanted) return false;
+  var w = _specNorm(wanted);
+  if (!w) return false;
+  var best = null, bestRank = 99, bestLen = -1;
+  for (var i = 0; i < el.options.length; i++){
+    var o = el.options[i];
+    [_specNorm(o.value), _specNorm(o.textContent)].forEach(function(c){
+      if (!c) return;
+      var rank = (c === w) ? 0
+               : (w.indexOf(c) === 0 || c.indexOf(w) === 0) ? 1
+               : (w.indexOf(c) >= 0 || c.indexOf(w) >= 0) ? 2 : 99;
+      if (rank === 99) return;
+      var len = Math.min(c.length, w.length);
+      if (rank < bestRank || (rank === bestRank && len > bestLen)){
+        bestRank = rank; bestLen = len; best = o.value;
+      }
+    });
+  }
+  if (best === null){
+    var opt = document.createElement('option');
+    opt.value = wanted; opt.textContent = wanted;
+    el.appendChild(opt);
+    best = wanted;
+  }
+  if (el.value === best) return false;
+  el.value = best;
+  return true;
+}
+// Gutter ids are catalogue ids, not product names, so the shipped three map
+// straight across; anything a company added falls through to name matching.
+var _SPEC_GUTTER_IDS = { box125:'colorsteel-box', marley_typhoon:'marley-typhoon',
+                         marley_classic:'marley-classic', none:'none' };
+function _jpSyncSpecFromSelections(){
+  var p = (window.S && S.quote && S.quote.proposalOptions) || null;
+  if (!p) return false;
+  var changed = false;
+  try {
+    if (p.profile && typeof _selProfileOf === 'function'){
+      var pr = _selProfileOf(p.profile);
+      if (pr && pr.name) changed = _specSetSelect('matProfile', pr.name) || changed;
+    }
+    if (p.steelGrade && typeof _selGradeOf === 'function'){
+      var g = _selGradeOf(p.steelGrade);
+      if (g && g.name) changed = _specSetSelect('matGrade', g.name) || changed;
+    }
+    // A profile that only comes in one gauge wins over the gauge row — that is
+    // what "supplied in 0.55 gauge" on the customer's card means.
+    var lock = (p.profile && typeof _selProfileLocksGauge === 'function')
+      ? _selProfileLocksGauge(p.profile) : '';
+    var gauge = lock || p.steelThickness;
+    if (gauge){
+      var gs = String(gauge).replace(/[^0-9]/g, '');
+      if (gs) changed = _specSetSelect('matThickness', '0.' + gs.slice(-2) + 'g') || changed;
+    }
+    if (p.gutterType !== undefined){
+      var want = _SPEC_GUTTER_IDS[p.gutterType];
+      if (!want && typeof _selGutterOf === 'function'){
+        var gm = _selGutterOf(p.gutterType);
+        want = (gm && gm.name) || null;
+      }
+      if (p.gutterType === 'none' || p.gutterType === '' || p.gutterType === null){
+        changed = _specSetSelect('matGutter', 'none') || changed;
+        try { localStorage.setItem('fr_jp_gutter_include', '0'); } catch(e){}
+      } else if (want){
+        changed = _specSetSelect('matGutter', want) || changed;
+        // Picking a gutter turns the job pack's gutter section on — the two
+        // used to be able to disagree, which is how a paid-for gutter got left
+        // off the order.
+        try { localStorage.setItem('fr_jp_gutter_include', '1'); } catch(e){}
+      }
+    }
+  } catch(e){}
+  return changed;
+}
 function renderJobPack(){
+  _jpSyncSpecFromSelections();
   var mount = document.getElementById('jpPages'); if (!mount) return;
   // Preserve the page scroll position across the rebuild. Clearing #jpPages
   // collapses the document height, which snaps the window scroll to the top —
@@ -42365,6 +42509,15 @@ function _matBuildCutList(type, waste) {
   // route it through the shared _gutterCutRows so the Materials tab, the
   // supplier order PDF and the order-confirm dialog all match the Job Pack.
   if (type === 'gutter') {
+    // No gutter on the job, no gutter on the order. The job pack's section
+    // already knew to say "No Gutter required", but the cut list underneath it
+    // kept returning pieces — so the supplier order, the order-confirm dialog
+    // and the Fergus push could all ask for spouting the pack said wasn't
+    // wanted. Gated here, below every caller, for the same reason the flashing
+    // strike-off is: no surface gets to hold a different opinion.
+    if (typeof _gutterOnJob === 'function' && !_gutterOnJob()) {
+      return { rows: [], totalLm: 0, pieceCount: 0, typeKey: 'gutter' };
+    }
     var grows = (typeof _gutterCutRows === 'function') ? _gutterCutRows() : [];
     var gtot = grows.reduce(function(s, r){ return s + r.len * r.qty; }, 0);
     var gpc  = grows.reduce(function(s, r){ return s + r.qty; }, 0);
@@ -42621,6 +42774,7 @@ function _matFlashingDrawing(kind) {
 
 // Render the full Materials section (cut lists + consumables).
 function renderMaterialsCutLists() {
+  _jpSyncSpecFromSelections();
   var out = document.getElementById('matCutLists');
   if (!out) return;
   // This legacy card is CSS-hidden (.jp-legacy) — its sibling inputs
@@ -49090,12 +49244,23 @@ function _syncCurrentToRoof(){
   var r = DRAW.roofs[DRAW.activeRoofIdx];
   ROOF_FIELDS.forEach(function(k){ if (DRAW[k] !== undefined) r[k] = DRAW[k]; });
 }
+// Array fields on a roof. A roof built by _newEmptyRoof always carries all of
+// them, which is why they were left out of ROOF_FIELD_DEFAULTS — but a job
+// restored from an older save, or one handed over as JSON, may not. Loading
+// such a roof used to leave the PREVIOUS roof's array in DRAW, and the next
+// _syncCurrentToRoof then wrote it onto the roof for good: visit the main roof
+// on the way past and it quietly adopted the lean-to's flues. Every roof then
+// priced its own penetrations plus the ones it had picked up, and the drawing
+// was wrong on disk, not just on screen.
+var ROOF_ARRAY_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','clearlites'];
 function _loadRoofToCurrent(idx){
   if (idx < 0 || idx >= DRAW.roofs.length) return;
   var r = DRAW.roofs[idx];
   ROOF_FIELDS.forEach(function(k){
     if (r[k] !== undefined) DRAW[k] = r[k];
     else if (Object.prototype.hasOwnProperty.call(ROOF_FIELD_DEFAULTS, k)) DRAW[k] = ROOF_FIELD_DEFAULTS[k];  // reset, don't leak prior roof
+    // A roof with no array of its own has an EMPTY one, not the last roof's.
+    else if (ROOF_ARRAY_FIELDS.indexOf(k) >= 0) DRAW[k] = r[k] = [];
   });
   DRAW.activeRoofIdx = idx;
   DRAW.currentPts = [];
