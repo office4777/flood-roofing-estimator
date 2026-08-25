@@ -40207,10 +40207,8 @@ function _jpRenderCutLists(content, page, idx){
   html += '<div class="mat-section">';
   var sheetRows = _jpBuildSheetRows(sc);
   if (sheetRows.length || (Array.isArray(DRAW.matSheetExtras) && DRAW.matSheetExtras.length)) {
-    var totalSheets = 0;
     var rowsHtml = '';
     sheetRows.forEach(function(r){
-      totalSheets += r.qty;
       var qty = '<input type="number" min="0" step="1" value="'+r.qty+'" onfocus="this.select()" '+
         'onchange="_jpSheetSetQty('+r.origLen+',this.value)">';
       var lenInp = '<input type="number" min="0.5" step="0.001" value="'+_sheetLenM(r.len)+'" onfocus="this.select()" '+
@@ -40226,7 +40224,6 @@ function _jpRenderCutLists(content, page, idx){
     if (Array.isArray(DRAW.matSheetExtras)) {
       DRAW.matSheetExtras.forEach(function(x, xi){
         if (!x) return;
-        totalSheets += +x.qty || 0;
         var qty = '<input type="number" min="0" step="1" value="'+(x.qty||0)+'" onfocus="this.select()" '+
           'onchange="_jpSheetExtraUpdate('+xi+',\'qty\',this.value)">';
         var lenInp = '<input type="number" min="0.5" step="0.001" value="'+_sheetLenM(x.lenMm||3000)+'" onfocus="this.select()" '+
@@ -40242,7 +40239,7 @@ function _jpRenderCutLists(content, page, idx){
     }
     html += _matSectionHead('#0099cc', 'Roof sheets',
         esc(profile)+' · '+esc(grade)+' · '+esc(thickness)+(colour ? ' · '+esc(colour) : ''),
-        totalSheets+' sheets · '+d.roofArea.toFixed(1)+' m² roof')+
+        d.roofArea.toFixed(1)+' m² roof')+
       '<div class="mat-list">'+rowsHtml+'</div>';
   } else {
     html += _matSectionHead('#0099cc', 'Roof sheets', esc(profile)+' · '+esc(grade)+' · '+esc(thickness))+
@@ -40299,7 +40296,7 @@ function _jpRenderCutLists(content, page, idx){
       (clr.wholeRoofs.length ? ' · whole roof: ' + esc(clr.wholeRoofs.join(', ')) : '');
     html += '<div class="mat-section keep-in-preview">'+
       _matSectionHead('#0284c7', 'Clearlite sheets', clrMeta,
-        (clr.count ? clr.count+' sheets · '+clr.totalLm.toFixed(1)+' m' : '') +
+        (clr.count ? clr.totalLm.toFixed(1)+' m' : '') +
         _matSectionKillHtml('clearlite', 'Clearlite sheets'))+
       (clr.off ? '' :
         '<div class="cons-row"><div class="cons-row-label">Clear material</div>'+
@@ -40316,7 +40313,7 @@ function _jpRenderCutLists(content, page, idx){
   var _ridgeOff = (typeof _matFlashTypeOff === 'function') && _matFlashTypeOff('ridgehip');
   html += '<div class="mat-section keep-in-preview">'+
     _matSectionHead(ridgeSpec.colour, 'Ridging', _ridgeOff ? '' : ((ridgeType==='wide'?'Wide ridge':'Standard ridge')+' · '+esc(grade)),
-      (ridgeCl.pieceCount ? ridgeCl.pieceCount+' pcs · '+ridgeCl.totalLm.toFixed(1)+' m' : '')+
+      (ridgeCl.pieceCount ? ridgeCl.totalLm.toFixed(1)+' m' : '')+
       _matSectionKillHtml('ridgehip', 'Ridging'))+
     _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.', true)+
   '</div>';
@@ -40415,7 +40412,7 @@ function _jpRenderCutLists(content, page, idx){
   html += '<div class="mat-section keep-in-preview">'+
     _matSectionHead('#7c3aed', 'Gutters (Gutter, Brackets and Droppers)',
       gutterIncluded ? esc(gutterLabel) : '',
-      (gutterIncluded && gOrderPieceCount ? gOrderPieceCount+' pcs · '+gTotalLm.toFixed(1)+' m' : '') + gutterTick);
+      (gutterIncluded && gOrderPieceCount ? gTotalLm.toFixed(1)+' m' : '') + gutterTick);
   if (gutterIncluded) {
     // Gutter type picker (mirrors the spec-bar select).
     var gTypeSel = '<select onchange="_matGutterTypeSet(this.value)" '+
