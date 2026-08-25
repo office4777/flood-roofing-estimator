@@ -119,58 +119,57 @@ check('…and one tick puts it on, with a real gutter selected',
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await ctx.close();
 
-// ── the toggle has to survive Preview ─────────────────────────────
+// ── the toggle is there in the ordinary view ──────────────────────
 // Reported twice as "the gutter still doesn't have a toggle". Both times the
-// tick was there — Preview was hiding it. Preview strips the editing
-// furniture (.pdf-hide) and collapses sections with no rows, and an excluded
-// gutter section is by definition empty, so the one control that puts the
-// gutter back went with it. A roofer who has ever used Preview has the
-// preference saved, so flipping the default never reaches them.
+// tick was there — the Job Pack was in Preview, which stripped every control
+// on the page and collapsed the empty section the tick lived in. Preview has
+// since been removed altogether: the Job Pack is always the form, and the
+// printed treatment is applied only while a PDF or print is being produced.
 ({ ctx, pg, errs } = await open());
-// The Job Pack pages live in the Materials tab — open() only needs the DOM to
-// exist, but a visibility check needs the panel actually on screen.
-await pg.evaluate(() => { try { localStorage.setItem('fr_jp_preview','1'); } catch(e){} gotoTab('materials'); });
-await pg.waitForTimeout(1200);
+// A browser that still carries the old saved preference must not open locked.
+await pg.evaluate(() => { try { localStorage.setItem('fr_jp_preview','1'); } catch(e){} });
+await pg.evaluate(() => { gotoTab('materials'); });
+await pg.waitForTimeout(1400);
 const tick = () => pg.evaluate(() => {
   const i = document.querySelector('input[onchange*="_jpToggleGutterInclude"]');
   if (!i) return { found:false };
   const r = i.getBoundingClientRect();
   const lab = i.closest('label');
   return { found:true, visible: !!i.offsetParent && r.width > 0 && r.height > 0,
-           // Preview kills pointer-events across the page's inputs; this one
-           // is no use if it cannot be clicked.
            clickable: getComputedStyle(i).pointerEvents !== 'none',
+           locked: document.documentElement.classList.contains('jp-preview'),
            text: lab ? lab.textContent.trim() : '' };
 });
 let t = await tick();
-check('in Preview, with the gutter excluded, the Include tick is still on screen',
-  t.found && t.visible, JSON.stringify(t));
-check('…and it can still be clicked', t.clickable, JSON.stringify(t));
+check('a browser with the old Preview preference no longer opens locked', !t.locked);
+check('…the Include tick is on screen with the gutter excluded', t.found && t.visible,
+  JSON.stringify(t));
+check('…and it can be clicked', t.clickable, JSON.stringify(t));
 check('…and it reads as the way back in', /include gutter/i.test(t.text || ''), t.text);
 
-// Clicking it in Preview does the real thing.
 await pg.evaluate(() => document.querySelector('input[onchange*="_jpToggleGutterInclude"]').click());
 await pg.waitForTimeout(400);
 v = await state(pg);
-check('…and ticking it from Preview puts the gutter on the order',
+check('…and ticking it puts the gutter on the order',
   v.stored === '1' && v.sel !== 'none', 'sel=' + v.sel + ' stored=' + v.stored);
 t = await tick();
 check('…with the tick still there to take it off again',
   t.found && t.visible && /gutter included/i.test(t.text || ''), t.text);
 
-// Off the printed page and out of the PDF, though — it is a control, not
-// content, and an excluded section has nothing to say on paper.
+// It is a control, not content: off the printed page and out of the PDF.
+await pg.emulateMedia({ media: 'print' });
 const onPaper = await pg.evaluate(() => {
   document.documentElement.classList.add('print-jobpack');
   const i = document.querySelector('input[onchange*="_jpToggleGutterInclude"]');
   const lab = i && i.closest('label');
-  const hidden = !lab || getComputedStyle(lab).display === 'none';
+  const hidden = !lab || lab.getClientRects().length === 0;
   document.documentElement.classList.remove('print-jobpack');
   return hidden;
 });
+await pg.emulateMedia({ media: 'screen' });
 check('…but it does NOT print on the supplier order form', onPaper);
 
-check('and Preview threw nothing either', errs.length === 0, errs.join(' | ') || 'no page errors');
+check('and none of that threw either', errs.length === 0, errs.join(' | ') || 'no page errors');
 await ctx.close();
 await b.close();
 const bad = results.filter(x => !x).length;

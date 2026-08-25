@@ -624,9 +624,6 @@ html.site-mode #jpToolbar .mat-btn{
 html.site-mode #jpToolbar .mat-btn-blue{flex:1.35}
 /* The Preview/Edit switch is a mode, not an action — icon only onsite so the
    three things you actually DO keep their share of a phone's width. */
-html.site-mode #jpToolbar #jpPreviewBtn{flex:0 0 auto;width:44px;padding:11px 0!important;font-size:15px!important}
-html.site-mode #jpToolbar #jpPreviewBtn .jp-pv-on span,
-html.site-mode #jpToolbar #jpPreviewBtn .jp-pv-off span{display:none}
 /* The Maps pop-out is a drag-a-thumbnail-onto-a-page tool. On a phone there
    is nothing to drag it to and it took half the screen, sitting over the
    action bar. Gone onsite, and the page reserve with it so the A4 pages fit
@@ -1763,9 +1760,17 @@ html.no-jms .jms-only{display:none!important}
   margin-left:auto;
   background:none; border:none; color:#b91c1c;
   font-size:14px; cursor:pointer; padding:0 4px; font-weight:700;
-  opacity:0; transition:opacity .1s ease;
+  /* Visible at rest, not on hover. It used to be opacity:0 until the row was
+     hovered, which meant that on a tablet — where there is no hover at all —
+     every delete on the job pack was permanently invisible. It reads as
+     "these rows cannot be deleted", and that is exactly how it was reported.
+     Faint enough to stay out of the way of the numbers, solid on hover. */
+  opacity:.45; transition:opacity .1s ease;
 }
 .mat-list-row:hover .mat-list-del{ opacity:1; }
+.mat-list-del:focus-visible{ opacity:1; outline:2px solid #b91c1c; outline-offset:1px; }
+/* No hover to reveal it, so don't hide it in the first place. */
+@media (hover: none){ .mat-list-del{ opacity:.75; } }
 .mat-list-foot{
   margin-top:4px; padding:3px 6px;
   border-top:1px solid #e5e7eb;
@@ -2215,9 +2220,6 @@ html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .jp-page input,
 html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .jp-page select,
 html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .jp-page textarea,
 html.jp-preview:not(.pdf-rendering):not(.print-jobpack) .jp-page [contenteditable]{ pointer-events:none!important; }
-#jpPreviewBtn .jp-pv-off{ display:none; }
-html.jp-preview #jpPreviewBtn .jp-pv-off{ display:inline; }
-html.jp-preview #jpPreviewBtn .jp-pv-on{ display:none; }
 
 .jp-page-tools{
   position:absolute; top:-32px; left:0; right:0;
@@ -4602,7 +4604,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <span class="no-print" id="jpZoomOut" style="font-size:11px;color:#0a1628;min-width:34px;font-variant-numeric:tabular-nums;margin-right:4px">60%</span>
       <button onclick="undoLast()" class="mat-btn mat-btn-light no-print" style="padding:7px 12px;font-size:12px" title="Undo the last change (e.g. a deleted cut-list row)">↩ Undo</button>
       <button onclick="redoLast()" class="mat-btn mat-btn-light no-print" style="padding:7px 12px;font-size:12px" title="Redo">↪ Redo</button>
-      <button onclick="_jpTogglePreview()" id="jpPreviewBtn" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px" title="Switch between the printed page and the form that edits it"><span class="jp-pv-on">👁<span> Preview</span></span><span class="jp-pv-off">✏️<span> Edit</span></span></button>
+      <!-- No Preview / Edit button. The Job Pack is a form and stays one; the
+           printed treatment is applied automatically, for the length of the
+           capture, by Save as PDF / Print / Push to Fergus / Order Roof. A
+           mode you can be left stranded in is not worth the button. -->
       <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark" style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
       <button onclick="printJobPack()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
       <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green jms-only" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
@@ -6775,7 +6780,7 @@ function gotoTab(t) {
   if(t==='quote'){ try{_invLoad();}catch(e){} try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
   try { _sampleJobStripSync(); } catch(e){}
   try { _officePriceBarSync(); } catch(e){}   // shows on Quote, hides everywhere else
-  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{_jpRestorePanelState(true, true);}catch(e){}try{_syncCurrentToRoof&&_syncCurrentToRoof();}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpPreview(_jpPreviewPref());}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
+  if(t==='materials'){try{if(DRAW.roofs&&DRAW.roofs.length>1)DRAW.showAllRoofs=true;}catch(e){}try{_jpRestorePanelState(true, true);}catch(e){}try{_syncCurrentToRoof&&_syncCurrentToRoof();}catch(e){}try{buildSheetSections();}catch(e){console.warn(e);}try{_syncSheetOverhangUi();}catch(e){}try{_syncFlashDefaultAngleUi();}catch(e){}try{_syncMatRoofMapFontScaleUi();}catch(e){}try{_syncPrintHeightUi();}catch(e){}try{_syncMatMapToggles();}catch(e){}try{populateMaterialsFromLines();}catch(e){console.warn(e);}try{renderRoofSheetPlan();}catch(e){console.warn('sheet plan:',e);}try{populateMatJobInfo();}catch(e){console.warn('mat job info:',e);}try{renderMatRoofMap();}catch(e){console.warn('mat roof map:',e);}try{renderMatFlashingsGrid();}catch(e){console.warn('flashings grid:',e);}try{renderJobPack();}catch(e){console.warn('job pack:',e);}try{_jpPreview(false);}catch(e){}try{renderJpMapPanel();}catch(e){}try{if(sessionStorage.getItem('fr_jp_edit_return')){sessionStorage.removeItem('fr_jp_edit_return');setTimeout(function(){try{renderJobPack();renderJpMapPanel();}catch(e){}},120);}}catch(e){}}
   // Leaving Job Pack: hide the maps panel INSTANTLY — letting it slide out
   // over the incoming tab read as the pop-out "jumping around".
   if(t!=='materials'){
@@ -9631,6 +9636,10 @@ function snapshotCurrentJob(){
             notes:DRAW.notes||[],
             clearlites:DRAW.clearlites||[], sheetType:DRAW.sheetType||'steel-corrugate',
             matClearExtras:DRAW.matClearExtras||[],
+            matClearRowHidden:DRAW.matClearRowHidden||{}, matClearRowQty:DRAW.matClearRowQty||{},
+            matClearRowLen:DRAW.matClearRowLen||{}, matRowOff:DRAW.matRowOff||{},
+            matBackTrayOff:DRAW.matBackTrayOff||{}, matBackTrayQty:DRAW.matBackTrayQty||{},
+            matBackTrayLen:DRAW.matBackTrayLen||{}, matBackTrayExtras:DRAW.matBackTrayExtras||[],
             scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step,
             sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[],
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
@@ -9684,6 +9693,14 @@ function restoreFromJob(j){
     DRAW.notes = snap.draw.notes || [];
     DRAW.clearlites = snap.draw.clearlites || [];
     DRAW.matClearExtras = snap.draw.matClearExtras || [];
+    DRAW.matClearRowHidden = snap.draw.matClearRowHidden || {};
+    DRAW.matClearRowQty = snap.draw.matClearRowQty || {};
+    DRAW.matClearRowLen = snap.draw.matClearRowLen || {};
+    DRAW.matRowOff = snap.draw.matRowOff || {};
+    DRAW.matBackTrayOff = snap.draw.matBackTrayOff || {};
+    DRAW.matBackTrayQty = snap.draw.matBackTrayQty || {};
+    DRAW.matBackTrayLen = snap.draw.matBackTrayLen || {};
+    DRAW.matBackTrayExtras = snap.draw.matBackTrayExtras || [];
     DRAW.sheetType = snap.draw.sheetType || 'steel-corrugate';
     DRAW.scaleMetresPerPx = snap.draw.scaleMetresPerPx || 0;
     DRAW.outlineDone = !!snap.draw.outlineDone;
@@ -32843,6 +32860,12 @@ function _captureSnapState() {
     penetrations: DRAW.penetrations,
     clearlites: DRAW.clearlites || [],
     matClearExtras: DRAW.matClearExtras || [],
+    matClearRowHidden: DRAW.matClearRowHidden || {},
+    matClearRowQty: DRAW.matClearRowQty || {},
+    matClearRowLen: DRAW.matClearRowLen || {},
+    matRowOff: DRAW.matRowOff || {},
+    matBackTrayOff: DRAW.matBackTrayOff || {}, matBackTrayQty: DRAW.matBackTrayQty || {},
+    matBackTrayLen: DRAW.matBackTrayLen || {}, matBackTrayExtras: DRAW.matBackTrayExtras || [],
     outlineDone: DRAW.outlineDone,
     infoItems: DRAW.infoItems,
     notes: DRAW.notes || [],
@@ -32885,6 +32908,14 @@ function _applySnapState(snapStr) {
   DRAW.penetrations = s.penetrations || [];
   DRAW.clearlites = s.clearlites || [];
   DRAW.matClearExtras = s.matClearExtras || [];
+  DRAW.matClearRowHidden = s.matClearRowHidden || {};
+  DRAW.matClearRowQty = s.matClearRowQty || {};
+  DRAW.matClearRowLen = s.matClearRowLen || {};
+  DRAW.matRowOff = s.matRowOff || {};
+  DRAW.matBackTrayOff = s.matBackTrayOff || {};
+  DRAW.matBackTrayQty = s.matBackTrayQty || {};
+  DRAW.matBackTrayLen = s.matBackTrayLen || {};
+  DRAW.matBackTrayExtras = s.matBackTrayExtras || [];
   DRAW.outlineDone = !!s.outlineDone;
   DRAW.infoItems = s.infoItems || [];
   DRAW.notes = s.notes || [];
@@ -36839,6 +36870,67 @@ function _penBackTrayDetail(p, idx, ctx, roofIdx){
 // One entry per pipe penetration (across ALL selected roofs) that resolves
 // to a back-tray. Non-active roofs are read directly (their lines + own
 // pitch) so a flue on Roof 2 is priced + ordered, not just the active roof.
+// ── Back-tray rows the roofer can actually touch ─────────────────
+// A back-tray card showed a name, a picture and a length, and offered a
+// Full / Short toggle. That is the only thing on the job pack the roofer
+// could not re-quantity, re-length or take off — and a tray that is on the
+// drawing but supplied by someone else, or one the merchant only stocks in a
+// different length, is an ordinary Tuesday.
+//
+// Keyed by roof + penetration index, which is what identifies a tray. All on
+// DRAW, so it saves with the job and undoes with it.
+function _btKey(bt){ return (bt && bt.roofIdx != null ? bt.roofIdx : 0) + ':' + (bt ? bt.idx : 0); }
+function _btMap(kind){
+  var k = 'matBackTray' + kind;
+  if (!DRAW[k] || typeof DRAW[k] !== 'object') DRAW[k] = {};
+  return DRAW[k];
+}
+function _btLenOf(bt){
+  var ov = _btMap('Len')[_btKey(bt)];
+  return (ov != null && isFinite(ov)) ? +ov : (bt && bt.lengthM);
+}
+function _btQtyOf(bt){
+  var ov = _btMap('Qty')[_btKey(bt)];
+  return (ov != null && isFinite(ov)) ? +ov : 1;
+}
+function _btOff(bt){ return !!_btMap('Off')[_btKey(bt)]; }
+function _btSet(kind, key, v){
+  saveSnapshot();
+  var m = _btMap(kind);
+  var raw = String(v == null ? '' : v).trim();
+  if (raw === '') delete m[key]; else m[key] = parseFloat(raw) || 0;
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _btSetOff(key, off){
+  saveSnapshot();
+  var m = _btMap('Off');
+  if (off) m[key] = 1; else delete m[key];
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _btExtras(){
+  if (!Array.isArray(DRAW.matBackTrayExtras)) DRAW.matBackTrayExtras = [];
+  return DRAW.matBackTrayExtras;
+}
+function _btExtraAdd(){
+  saveSnapshot();
+  _btExtras().push({ name: 'Back-tray', qty: 1, len: 0 });
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _btExtraUpdate(i, field, v){
+  var a = _btExtras(); if (!a[i]) return;
+  a[i][field] = (field === 'name') ? String(v || '') : (parseFloat(v) || 0);
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _btExtraDelete(i){
+  saveSnapshot();
+  _btExtras().splice(i, 1);
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
 function _backTrayPenList(){
   var out = [];
   function add(pens, ctx, roofIdx){
@@ -39806,20 +39898,32 @@ function _jpRenderCutLists(content, page, idx){
   var clr = _clearOrderRows();
   // Still render the band when it has been struck off — it carries the only
   // way back, and an empty section is exactly what Preview collapses.
-  if (clr.count || clr.off || _clearExtrasGet().length){
+  if (clr.count || clr.off || (clr.offRows||[]).length || _clearExtrasGet().length){
     var clrMatSel = '<select onchange="_clearMaterialSet(this.value)" '+
       'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0;max-width:100%">'+
       CLEARLITE_MATERIALS.map(function(m){ return '<option value="'+m[0]+'"'+(m[0]===_clearMaterial()?' selected':'')+'>'+esc(m[1])+'</option>'; }).join('')+
     '</select>';
     var clrRows = '';
     clr.rows.forEach(function(r){
+      var k = esc(r.origKey);
       clrRows += '<div class="mat-list-row">'+
-        '<span class="mat-list-qty" style="font-weight:700">'+r.qty+'</span>'+
+        '<span class="mat-list-qty"><input type="number" min="0" step="1" value="'+r.qty+'" onfocus="this.select()" '+
+          'onchange="_clearRowSet(\'Qty\',\''+k+'\',this.value)"></span>'+
         '<span class="mat-list-at">@</span>'+
-        '<span class="mat-list-len" style="font-weight:700">'+r.len.toFixed(2)+'<span class="mat-list-unit">m</span></span>'+
-        '<span></span>'+
+        '<span class="mat-list-len"><input type="number" min="0" step="0.05" value="'+r.len.toFixed(2)+'" onfocus="this.select()" '+
+          'onchange="_clearRowSet(\'Len\',\''+k+'\',this.value)"><span class="mat-list-unit">m</span></span>'+
+        '<button class="mat-list-del" onclick="_clearRowHide(\''+k+'\')" title="Delete row">&times;</button>'+
       '</div>';
     });
+    var clrOff = (clr.offRows || []).length
+      ? '<div class="no-print jp-keep-ctl" style="flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding-top:7px;border-top:1px dashed #cbd5e1">'+
+          '<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#64748b">Removed</span>'+
+          clr.offRows.map(function(k){
+            return '<button onclick="_clearRowShow(\''+esc(k)+'\')" style="padding:2px 9px;border-radius:20px;border:1px solid #cbd5e1;'+
+              'background:#fff;font-size:11px;font-weight:700;color:#475569;cursor:pointer">'+esc(k)+'m <span style="color:#0099cc">+ restore</span></button>';
+          }).join('')+
+        '</div>'
+      : '';
     _clearExtrasGet().forEach(function(x, xi){
       clrRows += '<div class="mat-list-row is-extra">'+
         '<span class="mat-list-qty"><input type="number" min="0" step="1" value="'+(+x.qty||0)+'" onfocus="this.select()" '+
@@ -39840,7 +39944,8 @@ function _jpRenderCutLists(content, page, idx){
         '<div class="cons-row"><div class="cons-row-label">Clear material</div>'+
           '<div class="cons-row-qty" style="font-weight:400">'+clrMatSel+'</div><div class="cons-row-sub"></div></div>'+
         '<div class="mat-list">'+clrRows+'</div>'+
-        '<button class="mat-add-btn" onclick="_clearExtraAdd()">+ Add row</button>')+
+        '<button class="mat-add-btn" onclick="_clearExtraAdd()">+ Add row</button>'+
+        clrOff)+
     '</div>';
   }
 
@@ -40000,6 +40105,7 @@ function _jpRenderCutLists(content, page, idx){
       'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0">'+
       ['65','80','100'].map(function(s){ return '<option value="'+s+'"'+(s===dropSize?' selected':'')+'>'+s+'mm</option>'; }).join('')+
     '</select>';
+    if (!_matRowOff('gutterDroppers'))
     html += '<div class="gu-row"><span class="gu-name">Droppers</span>'+
       '<span class="gu-qty"><input type="number" min="0" step="1" value="'+dropQty+'" onfocus="this.select()" '+
         'onchange="_matGutterPref(\'fr_gutter_dropper_qty\',this.value)"></span>'+
@@ -40007,7 +40113,8 @@ function _jpRenderCutLists(content, page, idx){
       '<span class="gu-spec">'+dropSel+
         ((dropQtyRaw != null && dropQtyRaw !== '') ? ' <a class="pdf-hide" onclick="_matGutterPref(\'fr_gutter_dropper_qty\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>' : '')+
       '</span>'+
-      '<span class="gu-sub pdf-hide">auto '+dropAuto+' — one per gutter run</span></div>';
+      '<span class="gu-sub pdf-hide">auto '+dropAuto+' — one per gutter run</span>'+
+      _matRowDelBtn('gutterDroppers', 'Remove droppers from the job pack')+'</div>';
     // Brackets — internal/external + qty (auto: 800mm spacing + 1 per run).
     var brType = localStorage.getItem('fr_gutter_bracket_type') || 'internal';
     var brQtyRaw = localStorage.getItem('fr_gutter_bracket_qty');
@@ -40017,6 +40124,7 @@ function _jpRenderCutLists(content, page, idx){
       'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0">'+
       [['internal','Internal'],['external','External']].map(function(t){ return '<option value="'+t[0]+'"'+(t[0]===brType?' selected':'')+'>'+t[1]+'</option>'; }).join('')+
     '</select>';
+    if (!_matRowOff('gutterBrackets'))
     html += '<div class="gu-row"><span class="gu-name">Brackets</span>'+
       '<span class="gu-qty"><input type="number" min="0" step="1" value="'+brQty+'" onfocus="this.select()" '+
         'onchange="_matGutterPref(\'fr_gutter_bracket_qty\',this.value)"></span>'+
@@ -40024,7 +40132,9 @@ function _jpRenderCutLists(content, page, idx){
       '<span class="gu-spec">'+brSel+
         ((brQtyRaw != null && brQtyRaw !== '') ? ' <a class="pdf-hide" onclick="_matGutterPref(\'fr_gutter_bracket_qty\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>' : '')+
       '</span>'+
-      '<span class="gu-sub pdf-hide">auto '+brAuto+' — 800mm spacing + 1 per run</span></div>';
+      '<span class="gu-sub pdf-hide">auto '+brAuto+' — 800mm spacing + 1 per run</span>'+
+      _matRowDelBtn('gutterBrackets', 'Remove brackets from the job pack')+'</div>';
+    html += _matRowRestoreStrip([['gutterDroppers','Droppers'],['gutterBrackets','Brackets']]);
   } else {
     // .mat-list-row keeps the print empty-section heuristic happy so
     // this line actually reaches the PDF.
@@ -40091,28 +40201,71 @@ function _jpRenderCutLists(content, page, idx){
   //    diameter + roof profile. Each has a Full length / Short toggle;
   //    the drawing comes from the flashing library by name.
   var _btList2 = (typeof _backTrayPenList === 'function') ? _backTrayPenList() : [];
-  if (_btList2.length){
+  if (_btList2.length || _btExtras().length){
     var _btLib2 = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
     var _btUncal2 = !(DRAW.scaleMetresPerPx > 0);
-    html += '<div class="mat-section">'+
+    html += '<div class="mat-section keep-in-preview">'+
       _matSectionHead('#0891b2', 'Back-trays', 'auto-selected per pipe penetration')+
       '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">';
     _btList2.forEach(function(bt){
+      if (_btOff(bt)) return;
       var entry = _btLib2.find(function(e){ return e && e.name === bt.name; });
       var img = (entry && entry.sketch)
         ? '<img src="'+entry.sketch+'" alt="'+esc(bt.name)+'" style="display:block;width:100%;height:120px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:6px">'
         : '<div style="width:100%;height:120px;background:var(--surface-2);border:1px dashed #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--text3);font-size:11px;padding:8px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(bt.name)+'&rdquo; in Settings &rarr; Flashing library</div>';
-      var lenTxt = bt.hasGeom ? ('1 @ '+bt.lengthM.toFixed(1)+'m') : (_btUncal2 ? 'calibrate map to size' : '—');
+      var _btk = esc(_btKey(bt)), _btq = _btQtyOf(bt), _btl = _btLenOf(bt);
+      // The quantity and the length are inputs now, not a printed string. The
+      // derived value fills them in; typing over it wins and is remembered.
+      var lenTxt = '<span class="mat-list-qty" style="display:inline-block;width:44px"><input type="number" min="0" step="1" value="'+_btq+'" onfocus="this.select()" '+
+          'onchange="_btSet(\'Qty\',\''+_btk+'\',this.value)" style="width:100%;text-align:right;font-size:17px;font-weight:800;border:1px solid transparent;background:transparent;padding:0;margin:0"></span>'+
+        '<span style="color:#6f6a60;margin:0 6px">@</span>'+
+        '<span style="display:inline-block;width:66px"><input type="number" min="0" step="0.1" value="'+((_btl > 0) ? _btl.toFixed(1) : '')+'" '+
+          'placeholder="'+(_btUncal2 ? 'calibrate' : '—')+'" onfocus="this.select()" '+
+          'onchange="_btSet(\'Len\',\''+_btk+'\',this.value)" style="width:100%;text-align:right;font-size:17px;font-weight:800;border:1px solid transparent;background:transparent;padding:0;margin:0"></span>'+
+        '<span style="font-size:15px;font-weight:800;color:#0a1628">m</span>';
       var soft = (bt.mode==='short') ? '<span style="font-size:12px;font-weight:700;color:#b45309;margin-left:8px">Soft-edge one end</span>' : '';
       function _bt2(m, label){ var on=(bt.mode===m); return '<button onclick="_setPenBackTrayMode('+bt.idx+',\''+m+'\','+(bt.roofIdx)+')" style="flex:1;padding:5px 6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid '+(on?'#0a1628':'#cbd5e1')+';background:'+(on?'#0a1628':'#fff')+';color:'+(on?'#fff':'#475569')+';'+(m==='full'?'border-radius:6px 0 0 6px':'border-radius:0 6px 6px 0;border-left:none')+'">'+label+'</button>'; }
-      html += '<div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:#fafafa">'+
+      html += '<div style="position:relative;border:1px solid var(--border);border-radius:8px;padding:10px;background:#fafafa">'+
+        '<button class="no-print pdf-hide" onclick="_btSetOff(\''+_btk+'\',true)" title="Remove this back-tray from the job pack" '+
+          'style="position:absolute;top:4px;right:4px;background:none;border:none;color:#94a3b8;font-size:14px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:4px;z-index:2">&times;</button>'+
         img+
-        '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-top:6px">'+esc(bt.name)+'</div>'+
-        '<div style="font-size:18px;font-weight:800;color:#0a1628;margin-top:3px">'+esc(lenTxt)+soft+'</div>'+
+        '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-top:6px;padding-right:20px">'+esc(bt.name)+'</div>'+
+        '<div style="margin-top:3px">'+lenTxt+soft+'</div>'+
         '<div style="display:flex;margin-top:6px">'+_bt2('full','Full length')+_bt2('short','Short')+'</div>'+
       '</div>';
     });
-    html += '</div></div>';
+    html += '</div>';
+    // Trays typed in by hand — a tray the drawing doesn't know about still
+    // has to reach the merchant.
+    var _btEx = _btExtras();
+    if (_btEx.length){
+      html += '<div class="mat-list" style="margin-top:10px">';
+      _btEx.forEach(function(x, xi){
+        html += '<div class="mat-list-row is-extra">'+
+          '<span class="mat-list-qty"><input type="number" min="0" step="1" value="'+(+x.qty||0)+'" onfocus="this.select()" '+
+            'onchange="_btExtraUpdate('+xi+',\'qty\',this.value)"></span>'+
+          '<span class="mat-list-at">@</span>'+
+          '<span class="mat-list-len"><input type="number" min="0" step="0.1" value="'+(+x.len||0).toFixed(1)+'" onfocus="this.select()" '+
+            'onchange="_btExtraUpdate('+xi+',\'len\',this.value)"><span class="mat-list-unit">m</span></span>'+
+          '<button class="mat-list-del" onclick="_btExtraDelete('+xi+')" title="Delete row">&times;</button>'+
+        '</div>';
+      });
+      html += '</div>';
+    }
+    html += '<button class="mat-add-btn" onclick="_btExtraAdd()" style="margin-top:6px">+ Add back-tray</button>';
+    // Struck-off trays come back from here. jp-keep-ctl because striking the
+    // last one leaves an empty section, which Preview collapses.
+    var _btGone = _btList2.filter(function(x){ return _btOff(x); });
+    if (_btGone.length){
+      html += '<div class="no-print jp-keep-ctl" style="flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding-top:7px;border-top:1px dashed #cbd5e1">'+
+        '<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#64748b">Removed</span>'+
+        _btGone.map(function(x){
+          return '<button onclick="_btSetOff(\''+esc(_btKey(x))+'\',false)" style="padding:2px 9px;border-radius:20px;border:1px solid #cbd5e1;'+
+            'background:#fff;font-size:11px;font-weight:700;color:#475569;cursor:pointer">'+esc(x.name)+' <span style="color:#0099cc">+ restore</span></button>';
+        }).join('')+
+      '</div>';
+    }
+    html += '</div>';
   }
 
   content.innerHTML = html;
@@ -40415,7 +40568,10 @@ var UNDERLAY_TYPES = [
 function _matTypedLinesGet(key, seed){
   try {
     var a = JSON.parse(localStorage.getItem(key) || 'null');
-    if (Array.isArray(a) && a.length) return a;
+    // An EMPTY stored array is an answer, not a missing value: it means the
+    // roofer deleted every line because this job doesn't need any. Re-seeding
+    // it put the line straight back and made the delete look broken.
+    if (Array.isArray(a)) return a;
   } catch(e){}
   return seed();
 }
@@ -40459,9 +40615,56 @@ function _matTypedLineAdd(key, getFn, defType, defQty){
 function _matTypedLineRemove(key, getFn, i){
   var a = getFn();
   a.splice(i, 1);
-  if (!a.length) a.push({ type: (key === 'fr_screw_lines' ? SCREW_TYPES[0] : UNDERLAY_TYPES[0].name), qty: null });
+  // The list is allowed to go empty — a re-roof over sound existing paper
+  // needs no underlay line at all. The section keeps its "+ Add" button, so
+  // the way back is right there.
   _matTypedLinesSet(key, a);
   if (typeof renderJobPack === 'function') renderJobPack();
+}
+// ── Removing a row that isn't part of a list ──────────────────────
+// Some job-pack rows aren't list entries — Droppers, Brackets and Rivets are
+// each one fixed row the section always draws. They had a quantity you could
+// edit but no way to take them off the job at all, and typing 0 is not the
+// same thing: a 0 still prints on the supplier's order form as a line the
+// merchant has to read past.
+//
+// This lives on DRAW rather than localStorage so it saves with the job, comes
+// back with it, and rides the existing undo. (The dropper/bracket QUANTITIES
+// are still localStorage prefs — that predates this and is left alone.)
+function _matRowOffMap(){
+  if (!DRAW.matRowOff || typeof DRAW.matRowOff !== 'object') DRAW.matRowOff = {};
+  return DRAW.matRowOff;
+}
+function _matRowOff(id){ return !!_matRowOffMap()[id]; }
+function _matRowSetOff(id, off){
+  saveSnapshot();
+  var m = _matRowOffMap();
+  if (off) m[id] = 1; else delete m[id];
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+// The × itself, styled to match the delete on every list row.
+function _matRowDelBtn(id, title){
+  return '<button class="mat-list-del gu-del no-print pdf-hide" onclick="_matRowSetOff(\''+id+'\',true)" '+
+    'title="'+esc(title || 'Remove this from the job pack')+'" '+
+    'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700;padding:0 4px;opacity:1">&times;</button>';
+}
+// …and the way back. Editor-only, but it has to survive Preview: strike the
+// only row out of a section and the section is empty, which Preview collapses
+// — exactly how the gutter tick disappeared.
+function _matRowRestoreStrip(entries){
+  var off = (entries || []).filter(function(e){ return _matRowOff(e[0]); });
+  if (!off.length) return '';
+  return '<div class="no-print jp-keep-ctl" style="flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding-top:7px;border-top:1px dashed #cbd5e1">'+
+    '<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#64748b">Removed</span>'+
+    off.map(function(e){
+      return '<button onclick="_matRowSetOff(\''+e[0]+'\',false)" title="Put this back on the job pack" '+
+        'style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:20px;border:1px solid #cbd5e1;'+
+        'background:#fff;font-size:11px;font-weight:700;color:#475569;cursor:pointer">'+esc(e[1])+
+        '<span style="color:#0099cc">+ restore</span></button>';
+    }).join('')+
+  '</div>';
 }
 function _matUnderlayM2For(typeName){
   var t = UNDERLAY_TYPES.find(function(u){ return u.name === typeName; });
@@ -40496,13 +40699,14 @@ function _jpRenderConsumablesSection(d){
   // Per-banner row helper — unified aligned columns (name · qty · × ·
   // spec/unit · hint) shared with the gutter Droppers / Brackets rows so
   // every consumable row lines up in the same columns on screen and PDF.
-  function consRow(label, qtyHtml, unit, subHtml, resetHtml){
+  function consRow(label, qtyHtml, unit, subHtml, resetHtml, delHtml){
     return '<div class="gu-row">'+
       '<span class="gu-name">'+label+'</span>'+
       '<span class="gu-qty">'+qtyHtml+'</span>'+
       '<span class="gu-x"></span>'+
       '<span class="gu-spec">'+unit+(resetHtml||'')+'</span>'+
       '<span class="gu-sub pdf-hide">'+subHtml+'</span>'+
+      (delHtml||'')+
     '</div>';
   }
   // Typed multi-line row: product dropdown + qty + unit, with delete on
@@ -40519,10 +40723,11 @@ function _jpRenderConsumablesSection(d){
     var resetHtml = line.qty != null
       ? ' <a class="pdf-hide" onclick="_matTypedLineUpdate(\''+storeKey+'\','+getFnName+','+i+',\'qty\',\'\')" style="cursor:pointer;color:#3b82f6;font-size:10px;text-decoration:underline;margin-left:4px">↺ auto</a>'
       : '';
-    var del = i > 0
-      ? '<button class="mat-list-del gu-del" onclick="_matTypedLineRemove(\''+storeKey+'\','+getFnName+','+i+')" title="Delete line" '+
-          'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700;padding:0 4px;opacity:1">×</button>'
-      : '';
+    // Every line, including the first. It used to be i > 0, which read as
+    // "the first line is permanent" — but a re-roof over sound existing paper
+    // needs no underlay line at all, and the list is allowed to go empty.
+    var del = '<button class="mat-list-del gu-del" onclick="_matTypedLineRemove(\''+storeKey+'\','+getFnName+','+i+')" title="Delete line" '+
+        'style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;font-weight:700;padding:0 4px;opacity:1">&times;</button>';
     return '<div class="gu-row">'+
       '<span class="gu-name">'+typeSel+'</span>'+
       '<span class="gu-qty">'+qty+'</span>'+
@@ -40548,6 +40753,7 @@ function _jpRenderConsumablesSection(d){
     _matSectionHead('#10b981', 'Underlay', 'Roof paper / breather wrap')+
     '<div class="cons-body">'+
       underlayRows+
+      (underlayRows ? '' : '<div class="mat-list-row" style="font-weight:800;font-size:13px;color:#0a1628;padding:4px 6px">No underlay required</div>')+
       '<button class="mat-add-btn" onclick="_matTypedLineAdd(\'fr_underlay_lines\',_matUnderlayLinesGet,\''+esc(UNDERLAY_TYPES[0].name)+'\',1)" style="margin-top:4px">+ Add underlay line</button>'+
     '</div>'+
   '</div>';
@@ -40565,11 +40771,13 @@ function _jpRenderConsumablesSection(d){
     _matSectionHead('#0a1628', 'Screws & Rivets', 'Fasteners for sheets &amp; flashings')+
     '<div class="cons-body">'+
       screwRows+
-      consRow('Rivets',
+      (_matRowOff('rivets') ? '' : consRow('Rivets',
         qtyIn('fr_rivets_qty_override', rivetsAuto, 80), 'rivets',
         d.flashingsLm.toFixed(1)+' lm of flashings · auto '+rivetsAuto+' (100 / 60 lm minimum)',
-        resetLink('fr_rivets_qty_override'))+
+        resetLink('fr_rivets_qty_override'),
+        _matRowDelBtn('rivets', 'Remove rivets from the job pack')))+
       '<button class="mat-add-btn" onclick="_matTypedLineAdd(\'fr_screw_lines\',_matScrewLinesGet,\''+esc(SCREW_TYPES[1])+'\',100)" style="margin-top:4px">+ Add screw line</button>'+
+      _matRowRestoreStrip([['rivets','Rivets']])+
     '</div>'+
   '</div>';
 
@@ -40704,6 +40912,50 @@ function _jpBuildSheetRows(sc){
   if (!sc || !sc.groups || !sc.groups.length) return rows;
   var byLen = {};
   sc.groups.forEach(function(g){ byLen[g.orderedMm] = (byLen[g.orderedMm] || 0) + g.count; });
+  // ── Clear sheets come out of the steel FIRST ──────────────────────
+  //
+  // A clear sheet takes a steel sheet's place in the run. This has to happen
+  // here, on the tiler's own group lengths, and not further down: below this
+  // point the bump-out splitter moves sheets between lengths and the
+  // value-matcher rewrites the lengths to what the map drew. Deducting after
+  // that took four sheets off the wrong rows and left the clear roof's own
+  // four still sitting in the steel list — the same sheets ordered twice,
+  // with two other rows quietly short.
+  //
+  // Matching is nearest-length because the two sources disagree slightly by
+  // construction: the tiler works in its own perpendicular drop (1887 mm) and
+  // the map labels the run at its barge (1970 mm). Same sheets, two rulers.
+  (function(){
+    if (typeof _clearRoofIdxs !== 'function') return;
+    // Every roof in clear → there is no steel on this job at all.
+    if (typeof _clearAllRoofs === 'function' && _clearAllRoofs()){
+      Object.keys(byLen).forEach(function(k){ delete byLen[k]; });
+      return;
+    }
+    var want = {};
+    function add(mm, n){ if (mm > 0 && n > 0) want[mm] = (want[mm] || 0) + n; }
+    var wr = (typeof _clearWholeRoofRows === 'function') ? _clearWholeRoofRows() : {};
+    Object.keys(wr).forEach(function(k){ add(Math.round(parseFloat(k) * 1000), wr[k]); });
+    // Individually placed FULL-length clears stand in a sheet's place too. A
+    // short one does not — it is an infill, and the steel above and below it
+    // is still on the order.
+    if (typeof _clearAllPlaced === 'function') _clearAllPlaced().forEach(function(o){
+      var c = o && o.c; if (!c || c.mode === 'short') return;
+      var lm = (typeof _clearLenM === 'function') ? _clearLenM(c) : 0;
+      add(Math.round(lm * 1000), 1);
+    });
+    Object.keys(want).forEach(function(mmKey){
+      var mm = parseInt(mmKey, 10), left = want[mmKey];
+      Object.keys(byLen).map(Number)
+        .sort(function(a, b){ return Math.abs(a - mm) - Math.abs(b - mm); })
+        .forEach(function(k){
+          if (left <= 0) return;
+          var take = Math.min(left, byLen[k]);
+          byLen[k] -= take; left -= take;
+          if (byLen[k] <= 0) delete byLen[k];
+        });
+    });
+  })();
   var hidden = DRAW.matSheetRowHidden || {};
   var qtyOv = DRAW.sheetGroupQtyOverrides || {};
   var lenOv = DRAW.sheetGroupOverrides || {};
@@ -40764,8 +41016,15 @@ function _jpBuildSheetRows(sc){
       // measures carry no run geometry (runLo/runHi) — skip them; the
       // value-matcher below handles those.
       var _colsByMm = {};
+      // A run belonging to a roof sheeted in clear is not steel. Left in, the
+      // splitter sees a map length with no cut-list row (because it was just
+      // deducted), decides it was absorbed, and peels sheets out of another
+      // row to recreate it — putting the clear roof straight back on the
+      // steel order under a different heading.
+      var _clrIdx = (typeof _clearRoofIdxs === 'function') ? _clearRoofIdxs() : [];
       _bhits.forEach(function(h){
         if (!h || h.label == null || h.runLo == null || h.runHi == null) return;
+        if (h.roofIdx != null && _clrIdx.indexOf(h.roofIdx) >= 0) return;
         var _lm = parseFloat(String(h.label));
         if (!isFinite(_lm) || _lm <= 0) return;
         var _spanM = Math.abs(h.runHi - h.runLo) * _mpp;
@@ -40774,13 +41033,41 @@ function _jpBuildSheetRows(sc){
         var _mm = Math.round(_lm * 1000);
         _colsByMm[_mm] = (_colsByMm[_mm] || 0) + _cols;
       });
-      var _SPLIT_TOL = 100;   // mm — lengths within 10cm count as the same run
+      // Which map lengths already HAVE a cut-list row, decided by matching the
+      // two lists against each other rather than by a fixed tolerance.
+      //
+      // It used to be "any row within 100 mm". That number was fine while the
+      // cut list showed the tiler's own perpendicular drop, but a sheet run is
+      // now labelled at its BARGE — longer than the drop by 1/cos(pitch),
+      // which at 20° on a 3.6 m run is 110 mm. One roof fell ten millimetres
+      // outside the window, the splitter decided its run had been absorbed
+      // into another row, and peeled seven sheets off an unrelated length to
+      // recreate it. The job pack then showed a 3.73 m row that no roof had
+      // and a 2.23 m row split in two, with the real 3.62 m run relabelled
+      // 2.23 m by the value-matcher afterwards.
+      //
+      // Pairing them nearest-first instead has no magic number in it: each map
+      // length claims its closest unclaimed row, and only a length still
+      // unclaimed when every row is taken is a genuine bump-out. Equal counts
+      // — the ordinary case — now peel nothing at all.
+      var _claimPairs = [];
+      Object.keys(_colsByMm).forEach(function(k){
+        rows.forEach(function(r, ri){
+          _claimPairs.push({ mm: parseInt(k, 10), ri: ri, d: Math.abs(r.origLen - parseInt(k, 10)) });
+        });
+      });
+      _claimPairs.sort(function(a, b){ return a.d - b.d; });
+      var _mmClaimed = {}, _rowClaimed = {};
+      _claimPairs.forEach(function(p){
+        if (_mmClaimed[p.mm] || _rowClaimed[p.ri]) return;
+        _mmClaimed[p.mm] = 1; _rowClaimed[p.ri] = 1;
+      });
       Object.keys(_colsByMm).forEach(function(k){
         var _mm   = parseInt(k, 10);
         var _cols = _colsByMm[k];
-        // Already represented by a cut-list row? Then it wasn't absorbed —
-        // leave it for the value-matcher.
-        if (rows.some(function(r){ return Math.abs(r.origLen - _mm) <= _SPLIT_TOL; })) return;
+        // Claimed a row of its own? Then it wasn't absorbed — leave it for
+        // the value-matcher to label.
+        if (_mmClaimed[_mm]) return;
         // Source = the row this run was most likely folded into: prefer the
         // largest-qty SHORTER row (a bump protrudes past the main it sits
         // on, so its sheets are longer), else the largest row overall.
@@ -40836,57 +41123,6 @@ function _jpBuildSheetRows(sc){
     }
   } catch(e){}
   window._manualSheetLenMap = manualMap;
-  // ── Full-length clears displace steel ─────────────────────────────
-  // A clear sheet dropped on a steel roof takes a sheet's place in the run;
-  // it does not sit on top of one. Leaving the steel count alone would order
-  // a full roof of steel PLUS the clears, and the extra sheets turn up on the
-  // truck. So each full-length clear comes off the steel row nearest its own
-  // length — the row it is standing in.
-  //
-  // Short clears are NOT deducted: a 2.4 m clear in a 5 m run is an infill,
-  // and the steel above and below it is still on the order.
-  //
-  // A clear ROOF is handled the same way, one row at a time: whatever the
-  // Clearlite section orders for it comes off the steel, so a job with a
-  // clear lean-to and a steel main roof orders each once.
-  try {
-    // Every roof in clear → there is no steel on this job at all.
-    if (typeof _clearAllRoofs === 'function' && _clearAllRoofs()) rows = [];
-    else if (typeof _clearWholeRoofRows === 'function' && rows.length){
-      var _wr = _clearWholeRoofRows();
-      Object.keys(_wr).forEach(function(k){
-        var mm = Math.round(parseFloat(k) * 1000), left = _wr[k];
-        // Nearest-length row first, same rule as a placed clear.
-        var ordered = rows.slice().sort(function(a, b){
-          return Math.abs(a.origLen - mm) - Math.abs(b.origLen - mm);
-        });
-        ordered.forEach(function(r){
-          if (left <= 0 || r.qty <= 0) return;
-          var take = Math.min(left, r.qty);
-          r.qty -= take; left -= take;
-        });
-      });
-      rows = rows.filter(function(r){ return r.qty > 0; });
-    }
-  } catch(e){}
-  try {
-    if (typeof _clearAllPlaced === 'function' && rows.length){
-      _clearAllPlaced().forEach(function(o){
-        var c = o && o.c;
-        if (!c || c.mode === 'short') return;
-        var lm = (typeof _clearLenM === 'function') ? _clearLenM(c) : 0;
-        if (!(lm > 0)) return;
-        var mm = Math.round(lm * 1000), best = null, bestD = Infinity;
-        rows.forEach(function(r){
-          if (r.qty <= 0) return;
-          var d = Math.abs(r.origLen - mm);
-          if (d < bestD){ bestD = d; best = r; }
-        });
-        if (best) best.qty = Math.max(0, best.qty - 1);
-      });
-      rows = rows.filter(function(r){ return r.qty > 0; });
-    }
-  } catch(e){}
   rows.sort(function(a, b){ return b.len - a.len; });
   return rows;
 }
@@ -42707,6 +42943,36 @@ function _clearMaterialSet(v){
   try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
   try { renderJobPack && renderJobPack(); } catch(e){}
 }
+// Overrides for the AUTO clear rows, keyed by their original length. Same
+// shape the roof-sheet rows use: a typed quantity or length wins over the
+// derived one, and a hidden row drops off the order. Without these the auto
+// rows were the only lines on the whole job pack you could not touch.
+function _clearRowOvGet(kind){
+  var k = 'matClearRow' + kind;
+  if (!DRAW[k] || typeof DRAW[k] !== 'object') DRAW[k] = {};
+  return DRAW[k];
+}
+function _clearRowSet(kind, key, v){
+  saveSnapshot();
+  var m = _clearRowOvGet(kind);
+  var raw = String(v == null ? '' : v).trim();
+  if (raw === '') delete m[key];
+  else m[key] = parseFloat(raw) || 0;
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+function _clearRowHide(key){
+  saveSnapshot();
+  _clearRowOvGet('Hidden')[key] = 1;
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+function _clearRowShow(key){
+  saveSnapshot();
+  delete _clearRowOvGet('Hidden')[key];
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
 function _clearExtrasGet(){
   if (!Array.isArray(DRAW.matClearExtras)) DRAW.matClearExtras = [];
   return DRAW.matClearExtras;
@@ -42844,11 +43110,20 @@ function _clearOrderRows(){
   } catch(e){}
   // Manually added rows.
   _clearExtrasGet().forEach(function(x){ add(+x.len || 0, +x.qty || 0); });
-  var rows = order.map(function(k){ return buckets[k]; })
-                  .sort(function(a,b){ return b.len - a.len; });
+  // Hand the auto rows their overrides before anything totals them, so the
+  // card, the order form and the Fergus push all read the edited numbers.
+  var _hid = _clearRowOvGet('Hidden'), _qov = _clearRowOvGet('Qty'), _lov = _clearRowOvGet('Len');
+  var rows = order.filter(function(k){ return !_hid[k]; }).map(function(k){
+    var bk = buckets[k];
+    return { origKey: k,
+             len: (_lov[k] != null) ? +_lov[k] : bk.len,
+             qty: (_qov[k] != null) ? +_qov[k] : bk.qty };
+  }).filter(function(r){ return r.qty > 0 && r.len > 0; })
+    .sort(function(a,b){ return b.len - a.len; });
+  var offRows = order.filter(function(k){ return !!_hid[k]; });
   var count = rows.reduce(function(s2, r){ return s2 + r.qty; }, 0);
   var totalLm = rows.reduce(function(s2, r){ return s2 + r.len * r.qty; }, 0);
-  return { rows: rows, count: count, totalLm: totalLm, wholeRoofs: wholeRoofs };
+  return { rows: rows, count: count, totalLm: totalLm, wholeRoofs: wholeRoofs, offRows: offRows };
 }
 // ── Striking a whole flashing off the job ─────────────────────────
 // The × on an added flashing removes that slot. An auto-derived flashing —
@@ -43407,6 +43682,12 @@ async function _buildJobPackPdf() {
   ['print-quote','print-order','print-materials','print-report'].forEach(function(c){ htmlEl.classList.remove(c); });
   htmlEl.classList.add('print-jobpack');
   htmlEl.classList.add('pdf-rendering');
+  // A section with no rows — a Dektites band on a job with no penetrations —
+  // must not print as an orange bullet followed by white space. This used to
+  // ride on Preview being the default: the flag was already set by the time
+  // anyone hit Save as PDF. With Preview gone the capture has to do it
+  // itself, and undo it afterwards so the form keeps its empty-state hints.
+  try { _jpMarkEmptySections(true); } catch(e){}
 
   // Size every flattened input to its VALUE.  The pdf-rendering CSS
   // sets width:auto on inputs, which for an <input> means the browser
@@ -43592,6 +43873,7 @@ async function _buildJobPackPdf() {
     _jpUnswap();
     htmlEl.classList.remove('print-jobpack');
     htmlEl.classList.remove('pdf-rendering');
+    try { _jpMarkEmptySections(false); } catch(e){}
     _fitInputs.forEach(function(p){ p[0].style.width = p[1]; });
     try { window.scrollTo(0, _jpSavedScrollY); } catch(e){}
     return null;
@@ -43600,6 +43882,7 @@ async function _buildJobPackPdf() {
   _jpUnswap();
   htmlEl.classList.remove('print-jobpack');
   htmlEl.classList.remove('pdf-rendering');
+  try { _jpMarkEmptySections(false); } catch(e){}
   _fitInputs.forEach(function(p){ p[0].style.width = p[1]; });
   try { window.scrollTo(0, _jpSavedScrollY); } catch(e){}
 
@@ -45083,18 +45366,32 @@ window.addEventListener('beforeprint', function(){
    the capture uses, so the two cannot drift — and the pencil switches the
    form back on. It is the default view: what the Job Pack IS matters more
    than the controls that shape it, and the controls are one tap away. */
+// Kept as the one place that owns the class, but nothing on screen turns it
+// on any more — see _jpTogglePreview. The capture paths use pdf-rendering /
+// print-jobpack, which carry the same rules.
 function _jpPreview(on){
   on = !!on;
   document.documentElement.classList.toggle('jp-preview', on);
-  try { localStorage.setItem('fr_jp_preview', on ? '1' : '0'); } catch(e){}
+  try { localStorage.removeItem('fr_jp_preview'); } catch(e){}
   // Empty sections (a Dektites band with nothing in it) collapse in the PDF;
   // in the form they keep their "click + Add…" hint.
   try { _jpMarkEmptySections(on); } catch(e){}
   try { _fitDocZoom(); } catch(e){}
 }
-function _jpTogglePreview(){
-  _jpPreview(!document.documentElement.classList.contains('jp-preview'));
-}
+// The Job Pack no longer has a preview MODE. It was a state you could be left
+// stranded in: every input on the page is pointer-events:none in preview, so
+// a roofer who switched to it once — and the preference is saved for good —
+// opened the job pack ever after, tapped a quantity, nothing happened, and
+// concluded the job pack could not be edited. Reported three times.
+//
+// The printed treatment is not lost; it is applied automatically, for the
+// length of the capture, by Save as PDF, Print, Push to Fergus and Order
+// Roof. Those use pdf-rendering / print-jobpack, which carry the same rules
+// as preview did, so what comes out is identical — the roofer just never has
+// to know a mode existed.
+//
+// Left callable so anything still wired to it forces the editable state.
+function _jpTogglePreview(){ _jpPreview(false); }
 // Re-flag on every re-render: adding the first row to a section has to bring
 // that section back, and deleting the last one has to take it away again.
 function _jpPreviewRefresh(){
@@ -45102,7 +45399,23 @@ function _jpPreviewRefresh(){
     try { _jpMarkEmptySections(true); } catch(e){}
   }
 }
+// Preview used to be the default, so anyone who opened the Job Pack before
+// that changed still has '1' saved and still lands on a page where nothing
+// can be typed. Flipping the default never reached them — the whole point of
+// a saved preference is that it survives a new default. So clear it once, and
+// once only, then never touch their choice again.
+// The preference itself is gone. Clear it wherever it is still saved, and
+// drop the class if a stale one is on the document, so no browser can carry
+// the old locked-down state forward.
+function _jpPreviewMigrateOnce(){
+  try { localStorage.removeItem('fr_jp_preview'); } catch(e){}
+  try { document.documentElement.classList.remove('jp-preview'); } catch(e){}
+}
 function _jpPreviewPref(){
+  _jpPreviewMigrateOnce();
+  // Always the form. Kept as a function because other code calls it.
+  return false;
+  /* eslint-disable no-unreachable */
   var v = null;
   try { v = localStorage.getItem('fr_jp_preview'); } catch(e){}
   // EDIT unless told otherwise. Preview looks like the finished PDF, which

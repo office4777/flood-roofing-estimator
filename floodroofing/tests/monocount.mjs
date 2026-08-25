@@ -139,6 +139,60 @@ check('…the sixth roof being the little nine-sided bay, which needs sheets too
   byName.Roof6.sheets === total.raw - fiveRoofs && byName.Roof6.sheets > 0,
   byName.Roof6.sheets + ' for ' + byName.Roof6.name);
 
+// ── one row per roof, each at its own barge length ─────────────────
+// The cut list is what gets ordered, and it used to disagree with both the
+// map and the tiler: a run whose barge reading sat just past a fixed 100 mm
+// window was treated as a bump-out that had been folded into another row, so
+// seven sheets were peeled off an unrelated length to recreate it. The pack
+// then showed a 3.73 m row no roof had, a 2.23 m row split in two, and the
+// real 3.62 m run relabelled 2.23 m.
+const cut = await pg.evaluate(() => {
+  const sc = window._lastSheetCounts;
+  return _jpBuildSheetRows(sc).map(r => ({ qty: r.qty, m: +(r.len/1000).toFixed(2) }));
+});
+const want = [{qty:34,m:6.43},{qty:8,m:3.73},{qty:8,m:2.23},{qty:8,m:1.97},{qty:5,m:1.10}];
+check('the cut list has one row per sheet length, not a split pair',
+  cut.length === want.length, JSON.stringify(cut));
+want.forEach(w => {
+  check('  ' + w.qty + ' @ ' + w.m.toFixed(2) + 'm is on the order exactly once',
+    cut.filter(r => Math.abs(r.m - w.m) < 0.005).length === 1 &&
+    cut.some(r => Math.abs(r.m - w.m) < 0.005 && r.qty === w.qty),
+    JSON.stringify(cut.filter(r => Math.abs(r.m - w.m) < 0.06)));
+});
+check('…and no row carries a length no roof on the job has',
+  cut.every(r => want.some(w => Math.abs(w.m - r.m) < 0.005)), JSON.stringify(cut));
+check('…with the cut list adding up to the same 63 the tiler counted',
+  cut.reduce((s,r) => s + r.qty, 0) === 63, cut.reduce((s,r) => s + r.qty, 0) + '');
+
+// ── a roof sheeted in clear leaves the steel list ──────────────────
+// Reported: "I set the roof with the 1.97m sheets as clearlite 5-Rib and it's
+// still being counted in the colorsteel cut list." Those four sheets were on
+// the job twice — once as steel, once as clear.
+const mixed = await pg.evaluate(() => {
+  DRAW.roofs[4].sheetType = 'clearlite-5rib';   // Roof5, the 1.97m lean-to
+  renderJobPack();
+  const sc = window._lastSheetCounts;
+  const rows = _jpBuildSheetRows(sc).map(r => ({ qty: r.qty, m: +(r.len/1000).toFixed(2) }));
+  const clear = _clearOrderRows();
+  DRAW.roofs[4].sheetType = 'steel-corrugate';
+  renderJobPack();
+  return { rows, steel: rows.reduce((s,r) => s + r.qty, 0),
+           clear: clear.rows.map(r => r.qty + '@' + r.len.toFixed(2)),
+           clearN: clear.count };
+});
+check('the clear roof’s sheets are ordered as clear', mixed.clearN === 4,
+  mixed.clear.join(' | '));
+check('…and come OFF the steel list rather than sitting on it twice',
+  mixed.steel === 59, mixed.steel + ' steel, was 63');
+check('…taken off the 1.97m row, not off some other length',
+  (mixed.rows.find(r => Math.abs(r.m - 1.97) < 0.005) || {}).qty === 4,
+  JSON.stringify(mixed.rows));
+check('…leaving every other row untouched',
+  [[34,6.43],[8,3.73],[8,2.23],[5,1.10]].every(function(w){
+    var r = mixed.rows.find(x => Math.abs(x.m - w[1]) < 0.005);
+    return r && r.qty === w[0];
+  }), JSON.stringify(mixed.rows));
+
 // ── an explicit type always wins over the inference ────────────────
 const explicit = await pg.evaluate(() => {
   const all = DRAW.roofs.slice(), saveIdx = DRAW.activeRoofIdx, saveAll = DRAW.showAllRoofs;
