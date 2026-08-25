@@ -2318,7 +2318,7 @@ html.pdf-rendering .mat-spec-row,      html.jp-preview #jpPages .mat-spec-row,
 html.pdf-rendering .cons-row-sub,      html.jp-preview #jpPages .cons-row-sub,
 html.pdf-rendering .pdf-hide,          html.jp-preview #jpPages .pdf-hide,
 html.pdf-rendering .mat-section.is-empty-section,
-html.jp-preview #jpPages .mat-section.is-empty-section{
+html.jp-preview #jpPages .mat-section.is-empty-section:not(.keep-in-preview){
   display:none!important;
 }
 /* Inputs flatten to plain text so number / qty cells read as
@@ -2356,6 +2356,26 @@ html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages select{
 }
 html.pdf-rendering .jp-page input[type="checkbox"],
 html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages input[type="checkbox"]{ display:none!important; }
+
+/* One deliberate exception to everything above. Preview hides .no-print
+   controls, flattens checkboxes away and freezes pointer-events — right for
+   editing furniture, wrong for a control that decides whether a whole
+   section is on the job at all. Exclude the gutter and its section holds no
+   rows, so Preview collapsed the section AND hid the tick: the gutter went
+   away with no way back, which is exactly how it was reported, twice.
+
+   .no-print stays on the label, so the printed page and the PDF still lose
+   it — html.pdf-rendering and html.print-jobpack are not excepted here, only
+   the on-screen Preview is. */
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages .jp-keep-ctl{
+  display:inline-flex!important; pointer-events:auto!important;
+}
+html.jp-preview:not(.pdf-rendering):not(.print-jobpack) #jpPages .jp-keep-ctl input[type="checkbox"]{
+  display:inline-block!important; pointer-events:auto!important;
+  appearance:auto!important; -webkit-appearance:checkbox!important;
+  width:auto!important; height:auto!important; border:0!important;
+  background:none!important; padding:0!important;
+}
 /* Chrome keeps the number-input spin button INSIDE the box even when
    the input is flattened — it eats ~half of a value-fitted width and
    clips the last digit.  Kill it outright for capture + print. */
@@ -39367,12 +39387,27 @@ function _jpRenderCutLists(content, page, idx){
     var _gSel = document.getElementById('matGutter');
     if (_gSel) { _gSel.value = 'colorsteel-box'; gutterChoice = 'colorsteel-box'; }
   }
+  // no-print (not pdf-hide) plus jp-keep-ctl. Both classes are load-bearing:
+  // no-print keeps the tick off the printed order form and out of the PDF,
+  // and jp-keep-ctl is the one exception that keeps it on screen in Preview,
+  // where .no-print is otherwise hidden. Without the exception the only way
+  // back to an excluded gutter disappears the moment Preview is on — and a
+  // roofer who has used Preview once has that preference saved for good.
   var gutterTick =
-    '<label class="no-print pdf-hide" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#475569;cursor:pointer;margin-left:12px">'+
-      '<input type="checkbox" '+(gutterIncluded?'checked':'')+' onchange="_jpToggleGutterInclude(this.checked)" style="width:auto;margin:0"> Include in PDF'+
+    '<label class="no-print jp-keep-ctl" style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;' +
+      'cursor:pointer;margin-left:12px;padding:3px 10px 3px 7px;border-radius:20px;user-select:none;' +
+      'border:1px solid ' + (gutterIncluded ? '#0099cc' : '#cbd5e1') + ';' +
+      'background:' + (gutterIncluded ? 'rgba(0,153,204,.10)' : '#fff') + ';' +
+      'color:' + (gutterIncluded ? '#0a1628' : '#64748b') + '">'+
+      '<input type="checkbox" '+(gutterIncluded?'checked':'')+' onchange="_jpToggleGutterInclude(this.checked)" style="width:auto;margin:0;accent-color:#0099cc"> '+
+      (gutterIncluded ? 'Gutter included' : 'Include gutter') +
     '</label>';
   var gutterLabel = (GUTTER_TYPES.find(function(t){ return t[0] === gutterChoice; }) || [0, 'Gutter'])[1];
-  html += '<div class="mat-section">'+
+  // keep-in-preview: with the gutter excluded this section holds no rows, so
+  // the empty-section collapse would take it away in Preview — and with it the
+  // only control that puts the gutter back. It still collapses for the PDF and
+  // the printed page, where an excluded section genuinely has nothing to say.
+  html += '<div class="mat-section keep-in-preview">'+
     _matSectionHead('#7c3aed', 'Gutters (Gutter, Brackets and Droppers)',
       gutterIncluded ? esc(gutterLabel) : '',
       (gutterIncluded && gOrderPieceCount ? gOrderPieceCount+' pcs · '+gTotalLm.toFixed(1)+' m' : '') + gutterTick);
@@ -44223,7 +44258,13 @@ function _jpPreviewRefresh(){
 function _jpPreviewPref(){
   var v = null;
   try { v = localStorage.getItem('fr_jp_preview'); } catch(e){}
-  return v === null ? true : v === '1';       // preview unless told otherwise
+  // EDIT unless told otherwise. Preview looks like the finished PDF, which
+  // made it the obvious default — but every input on the page is
+  // pointer-events:none in preview, so landing there means landing on a job
+  // pack that cannot be changed. A roofer opening the Job Pack is far more
+  // often coming to correct a quantity than to admire the layout, and
+  // "Preview" is one click away when they do want the paper view.
+  return v === null ? false : v === '1';
 }
 
 // Lazy-load html2canvas + jsPDF from a CDN. Cached on window after the
