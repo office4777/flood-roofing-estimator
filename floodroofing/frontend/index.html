@@ -6384,6 +6384,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <div><label>Barge flashing ($/lm)</label><input type="number" id="pbBargeLm" step="0.01" min="0" placeholder="0.00"></div>
           <div><label>Apron flashing ($/lm)</label><input type="number" id="pbApronLm" step="0.01" min="0" placeholder="0.00"></div>
           <div><label>Change-of-pitch flashing ($/lm)</label><input type="number" id="pbChangepitchLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Boxed penetration flashing ($/lm)</label><input type="number" id="pbBoxPenLm" step="0.01" min="0" placeholder="same as apron"></div>
         </div>
         <div class="f3" style="margin-top:6px">
           <div><label>65mm Unitites / screws ($/each)</label><input type="number" id="pbScrewsEach" step="0.001" min="0" placeholder="0.00"></div>
@@ -7341,6 +7342,9 @@ function defaultSettings(){
       barge_lm:    17.87,   // $/lm — folded 300/4
       apron_lm:    16.10,   // $/lm — 300/3 fold
       changepitch_lm: 21.48,// $/lm — change-of-pitch, 400/4 fold
+      // Boxed penetrations (chimney / kerb) — back, sides, front apron and
+      // the saddle up to the ridge. Blank falls back to the apron rate.
+      box_pen_lm:  16.10,   // $/lm — boxed penetration flashing set
       screws_each:  0.26,   // $ per 65mm coloured roof screw
       rivets_each:  0.08,   // $ per coloured aluminium rivet
       // Long-run guttering + downpipe unit prices used by the customer
@@ -7738,6 +7742,7 @@ function collectPriceBookFromUI(){
   pb.barge_lm       = _num('pbBargeLm');
   pb.apron_lm       = _num('pbApronLm');
   pb.changepitch_lm = _num('pbChangepitchLm');
+  pb.box_pen_lm     = _num('pbBoxPenLm');
   pb.screws_each    = _num('pbScrewsEach');
   pb.rivets_each    = _num('pbRivetsEach');
   pb.downpipe_ea    = _num('pbDownpipeEach');
@@ -7823,6 +7828,7 @@ function renderPriceBookUI(){
   setN('pbBargeLm',       pb.barge_lm);
   setN('pbApronLm',       pb.apron_lm);
   setN('pbChangepitchLm', pb.changepitch_lm);
+  setN('pbBoxPenLm',      pb.box_pen_lm);
   setN('pbScrewsEach',    pb.screws_each);
   setN('pbRivetsEach',    pb.rivets_each);
   setN('pbDownpipeEach',  pb.downpipe_ea);
@@ -8003,6 +8009,7 @@ var PB_CSV_TARGETS = [
   { path: 'ridge_lm',        label: 'Ridge / hip flashing', unit: 'lm', re: /\b(ridge|ridging|hip)\b/i },
   { path: 'valley_lm',       label: 'Valley flashing',      unit: 'lm', re: /\bvalley\b/i },
   { path: 'barge_lm',        label: 'Barge flashing',       unit: 'lm', re: /\bbarge\b/i },
+  { path: 'box_pen_lm',      label: 'Boxed penetration flashing', unit: 'lm', re: /box(ed)?\s*(pen|penetration|flash|chimney|kerb)/i },
   { path: 'apron_lm',        label: 'Apron flashing',       unit: 'lm', re: /\bapron\b/i },
   { path: 'downpipe_ea',     label: 'Downpipe',             unit: 'ea', re: /down\s*pipe/i },
   { path: 'screws_each',     label: 'Roofing screws',       unit: 'ea', re: /screw|unitite/i },
@@ -8322,6 +8329,10 @@ function computeMaterialsCost(){
   flashLine('Gutter',              totals.gutter,   pb.gutter_lm);
   flashLine('Barge flashing',      totals.barge,    pb.barge_lm);
   flashLine('Apron flashing',      totals.apron,    pb.apron_lm);
+  // Boxed penetration sets — back, sides, front apron, saddle to the ridge.
+  if (typeof _boxFlashTotalLm === 'function'){
+    flashLine('Boxed penetration flashings', _boxFlashTotalLm(), _boxFlashLmPrice());
+  }
 
   // Screws — count = ceil(roofArea × 8 / 100) × 100
   if (roofArea > 0 && pb.screws_each > 0) {
@@ -8332,7 +8343,8 @@ function computeMaterialsCost(){
   }
 
   // Rivets — same rule as the Consumables tile
-  var totalFlashingLm = ridgeHip + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0);
+  var totalFlashingLm = ridgeHip + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0)
+    + ((typeof _boxFlashTotalLm === 'function') ? _boxFlashTotalLm() : 0);
   if (totalFlashingLm > 0 && pb.rivets_each > 0) {
     var rivets = Math.max(100, Math.ceil(totalFlashingLm / 60) * 100);
     var rivetsCost = rivets * pb.rivets_each;
@@ -8552,7 +8564,8 @@ function _buildMaterialPriceRows(){
   }
 
   // Rivets
-  var totalFlashingLm = ridgeHip + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0);
+  var totalFlashingLm = ridgeHip + (totals.valley||0) + (totals.barge||0) + (totals.apron||0) + (totals.changepitch||0)
+    + ((typeof _boxFlashTotalLm === 'function') ? _boxFlashTotalLm() : 0);
   if (totalFlashingLm > 0) {
     var rivets = Math.max(100, Math.ceil(totalFlashingLm / 60) * 100);
     rows.push({ key:'rivets', label:'Rivets', autoQty:rivets, autoUnit:'each',
@@ -8609,6 +8622,24 @@ function _buildMaterialPriceRows(){
                   note: lm > 0
                     ? (lm.toFixed(1) + 'm × $' + _backTrayLmPrice(bt.name).toFixed(2) + '/lm')
                     : 'tray length needs a calibrated map' });
+    });
+  }
+
+  // Boxed penetration flashings — the set every chimney / kerb takes. Same
+  // list the job pack draws, so an edited length is an edited price.
+  if (typeof _boxFlashOrderList === 'function'){
+    var _bfLm = _boxFlashLmPrice();
+    _boxFlashOrderList().forEach(function(g){
+      var len = parseFloat(g.lengthM) || 0;
+      var each = len > 0 ? _bfLm * len : 0;
+      var spec = len > 0 ? (len.toFixed(1) + 'm') : 'length not set';
+      rows.push({ key:'boxflash:'+g.name+'|'+spec, label:g.name,
+                  autoQty:g.qty, autoUnit:'each',
+                  variants:[{ value:spec, label:spec, price:each, unit:'each' }],
+                  defaultVariant:spec, singleVariant:true,
+                  note: len > 0
+                    ? (len.toFixed(1) + 'm \u00d7 $' + _bfLm.toFixed(2) + '/lm')
+                    : 'set the box size on the drawing' });
     });
   }
 
@@ -8692,7 +8723,30 @@ function renderMaterialPriceTable(){
         'cursor:pointer;padding:0 2px">&times;</button>'+
     '</div>';
   }
-  var html = _repairNote +
+  // The whole job's flashings, on the tab that prices one roof at a time. The
+  // aprons live on the lean-tos, so the main roof's tab shows ridge + barge
+  // and nothing else — which reads like the app has stopped counting.
+  var _flashStrip = '';
+  try {
+    var _fj = _jobFlashingLm();
+    if (_fj.total > 0){
+      var _fbits = [
+        ['Ridge / hip', _fj.ridge + _fj.hip], ['Barge', _fj.barge], ['Apron', _fj.apron],
+        ['Valley', _fj.valley], ['Change of pitch', _fj.changepitch], ['Boxed penetrations', _fj.box]
+      ].filter(function(b){ return b[1] > 0.05; });
+      _flashStrip = '<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:10px;'+
+        'padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);font-size:12px">'+
+        '<span style="font-weight:800;color:#0a1628">'+_fj.total.toFixed(1)+' lm of flashings on this job</span>'+
+        '<span style="color:var(--text2)">across '+_fj.roofs+' roof'+(_fj.roofs === 1 ? '' : 's')+', gutters excluded</span>'+
+        '<span style="flex-basis:100%;height:0"></span>'+
+        _fbits.map(function(b){
+          return '<span style="color:var(--text2)">'+esc(b[0])+' <strong style="color:#0a1628">'+b[1].toFixed(1)+'</strong></span>';
+        }).join('')+
+        (_fj.gutter > 0.05 ? '<span style="color:var(--text3)">Gutter '+_fj.gutter.toFixed(1)+'</span>' : '')+
+      '</div>';
+    }
+  } catch(e){}
+  var html = _repairNote + _flashStrip +
     '<table class="price-tbl" style="margin-bottom:8px;table-layout:fixed">'+
     '<thead><tr>'+
       '<th style="width:28%">Item</th>'+
@@ -8985,7 +9039,11 @@ function _labourCalcRate(key){
 function _roofMeasForIdx(idx){
   var grab = function(){
     var m = _matDrawTotalsForCurrent();
-    m.penetrations = (DRAW.penetrations || []).length;
+    // Count the pipes that SIT on this roof, not the ones saved against it —
+    // labour hours follow the building, same as the material does.
+    m.penetrations = (typeof _penAllOwned === 'function')
+      ? _penAllOwned().filter(function(e){ return e.ownerIdx === DRAW.activeRoofIdx; }).length
+      : (DRAW.penetrations || []).length;
     return m;
   };
   if (!(window.DRAW && DRAW.roofs && DRAW.roofs.length > 1)) return grab();
@@ -26681,6 +26739,10 @@ function emailOrderToSupplier(){
   if (_btOrder.length){
     lines.push('  Back-trays:  ' + _btOrder.map(function(b){ return b.qty + ' × ' + _backTrayLineDesc(b); }).join('; '));
   }
+  var _bfOrder = (typeof _boxFlashOrderList === 'function') ? _boxFlashOrderList() : [];
+  if (_bfOrder.length){
+    lines.push('  Box flash.:  ' + _bfOrder.map(function(b){ return b.qty + ' × ' + b.name + (b.lengthM > 0 ? (' @ ' + b.lengthM.toFixed(1) + 'm') : ''); }).join('; '));
+  }
   lines.push('  Ridging:     ' + (o.ridging === 'wide' ? 'Wide' : 'Standard'));
   lines.push('  Gutter:      ' + (o.gutter || '—'));
   lines.push('');
@@ -27004,6 +27066,7 @@ function _renderJobPackOrder(){
     row('Rivets',   o.rivets) +
     row('Dektites', o.dektites) +
     (function(){ var l=(typeof _backTrayOrderList==='function')?_backTrayOrderList():[]; return l.length ? row('Back-trays', l.map(function(b){return b.qty+' × '+_backTrayLineDesc(b);}).join('; ')) : ''; })() +
+    (function(){ var l=(typeof _boxFlashOrderList==='function')?_boxFlashOrderList():[]; return l.length ? row('Box flashings', l.map(function(b){return b.qty+' × '+b.name+(b.lengthM>0?(' @ '+b.lengthM.toFixed(1)+'m'):'');}).join('; ')) : ''; })() +
     row('Ridging',  o.ridging === 'wide' ? 'Wide' : 'Standard') +
     row('Gutter',   o.gutter) +
     '</div>';
@@ -36850,9 +36913,9 @@ function _backTrayUnitPrice(name){ return _backTrayLmPrice(name); }
 // ctx (optional) lets this run against a NON-active roof's data without
 // loading it into DRAW: { lines:[...], pitch:deg }. Scale is global so it
 // still comes from DRAW.scaleMetresPerPx.
-function _penSheetGeom(p, ctx){
+function _penSheetGeom(p, ctx, allowBox){
   var out = { ok:false, sheetM:0, topToPenM:0 };
-  if (!p || p.cx == null || p.kind === 'box') return out;
+  if (!p || p.cx == null || (p.kind === 'box' && !allowBox)) return out;
   var spp = DRAW.scaleMetresPerPx || 0;
   if (!(spp > 0)) return out;                        // not calibrated yet
   var pitch = (ctx && ctx.pitch != null) ? ctx.pitch : (DRAW.calPitch || 0);
@@ -36975,25 +37038,95 @@ function _btExtraDelete(i){
   try { autosaveJob && autosaveJob(); } catch(e){}
   if (typeof renderJobPack === 'function') renderJobPack();
 }
-function _backTrayPenList(){
+// ── WHICH ROOF A PENETRATION SITS ON ─────────────────────────────
+// A penetration is STORED against whichever roof happened to be active when
+// it was drawn. That is a fact about the mouse, not about the building: draw
+// the whole house first, then walk round dropping the flues on, and every
+// pipe lands on the last roof you touched. The Materials tab then prices
+// them all on that one roof's tab and none of the others — which is exactly
+// how an 80mm dektite and its back-tray go missing from a job.
+//
+// So ownership is decided by the drawing: the roof whose outline actually
+// contains the point. Storage is left alone (an edit still has to write back
+// where the pen lives), and a pen inside no outline keeps its stored roof.
+function _penPtInPoly(x, y, poly){
+  if (!poly || poly.length < 3) return false;
+  var inside = false;
+  for (var i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi)) inside = !inside;
+  }
+  return inside;
+}
+function _polyAreaAbs(poly){
+  if (!poly || poly.length < 3) return 0;
+  var a = 0;
+  for (var i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    a += (poly[j][0] + poly[i][0]) * (poly[j][1] - poly[i][1]);
+  }
+  return Math.abs(a / 2);
+}
+// Outlines overlap where a lean-to abuts the main roof, so the SMALLEST
+// containing outline wins — the most specific answer, not the first one.
+function _penOwnerRoofIdx(pn, storedIdx){
+  if (!pn || !DRAW.roofs || !DRAW.roofs.length) return storedIdx;
+  var x = +pn.cx, y = +pn.cy;
+  if (!isFinite(x) || !isFinite(y)) return storedIdx;
+  var best = -1, bestArea = Infinity;
+  DRAW.roofs.forEach(function(r, i){
+    var poly = (i === DRAW.activeRoofIdx && DRAW.outline && DRAW.outline.length >= 3)
+      ? DRAW.outline : (r && r.outline);
+    if (!_penPtInPoly(x, y, poly)) return;
+    var a = _polyAreaAbs(poly);
+    if (a > 0 && a < bestArea){ bestArea = a; best = i; }
+  });
+  return (best >= 0) ? best : storedIdx;
+}
+// Every penetration on the job, once, tagged with both roofs it answers to:
+// `ownerIdx` (the roof it sits on — what decides pricing and geometry) and
+// `storeIdx` (the roof it is saved against — what an edit writes back to).
+function _penAllOwned(){
   var out = [];
-  function add(pens, ctx, roofIdx){
-    (pens || []).forEach(function(p, i){
-      var d = _penBackTrayDetail(p, i, ctx, roofIdx);
-      if (d) out.push(d);
+  function push(pens, storeIdx){
+    (pens || []).forEach(function(pn, i){
+      if (!pn) return;
+      out.push({ pen: pn, idx: i, storeIdx: storeIdx, ownerIdx: _penOwnerRoofIdx(pn, storeIdx) });
     });
   }
-  var roofs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs : null;
-  if (roofs){
-    var selected = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
-    roofs.forEach(function(r, idx){
-      if (selected && selected.indexOf(idx) < 0) return;
-      if (idx === DRAW.activeRoofIdx) add(DRAW.penetrations, null, idx);            // live active context
-      else add(r && r.penetrations, { lines: (r && r.lines) || [], pitch: (+(r && r.calPitch) || 0) }, idx);
+  if (DRAW.roofs && DRAW.roofs.length){
+    DRAW.roofs.forEach(function(r, i){
+      push(i === DRAW.activeRoofIdx ? DRAW.penetrations : (r && r.penetrations), i);
     });
   } else {
-    add(DRAW.penetrations, null, DRAW.activeRoofIdx);
+    push(DRAW.penetrations, DRAW.activeRoofIdx);
   }
+  return out;
+}
+// Drawing context (lines + pitch) for the roof a penetration sits on — the
+// geometry a back-tray length is measured against. null means "the live
+// DRAW state", which is right when the owner IS the active roof.
+function _penOwnerCtx(ownerIdx){
+  if (!DRAW.roofs || !DRAW.roofs.length) return null;
+  if (ownerIdx === DRAW.activeRoofIdx) return null;
+  var r = DRAW.roofs[ownerIdx];
+  return { lines: (r && r.lines) || [], pitch: (+(r && r.calPitch) || 0) };
+}
+// Which roofs the Materials tab is currently scoped to, or null when the job
+// has no multi-roof archive to scope.
+function _penScopeIdxs(){
+  if (!DRAW.roofs || !DRAW.roofs.length) return null;
+  return (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : null;
+}
+function _backTrayPenList(){
+  var out = [];
+  var selected = _penScopeIdxs();
+  _penAllOwned().forEach(function(e){
+    if (selected && selected.indexOf(e.ownerIdx) < 0) return;
+    // Measured against the roof it sits on; edited back onto the roof it is
+    // stored on. Those are usually the same roof, and must not be assumed to be.
+    var d = _penBackTrayDetail(e.pen, e.idx, _penOwnerCtx(e.ownerIdx), e.storeIdx);
+    if (d) out.push(d);
+  });
   return out;
 }
 // Toggle a penetration's back-tray between full length and short, then
@@ -37033,6 +37166,192 @@ function _backTrayOrderList(){
     groups[key].qty++;
   });
   return Object.keys(groups).map(function(k){ return groups[k]; });
+}
+
+// ── BOXED PENETRATION FLASHING SET ───────────────────────────────
+// A chimney, a skylight kerb, a boxed vent — anything drawn with the Boxed
+// Penetration tool — takes no dektite, so until now it produced no flashing
+// at all. In the yard it takes four pieces round the kerb plus a saddle
+// running up to the ridge so the water splits above it, and every one of
+// those has to be on the order or the crew is standing on a roof waiting for
+// a truck.
+//
+// Names are fixed and shared: draw each one once in Settings → Flashing
+// library under exactly these names and the drawing shows up on every box on
+// every job, the same way back-trays already do.
+var BOX_FLASH_LAP_M = 0.3;                 // turn-up / lap allowance per END
+var BOX_FLASH_SET = [
+  { key:'back',   name:'Box back flashing',   span:'w',      qty:1, note:'upslope face' },
+  { key:'side',   name:'Box side flashing',   span:'d',      qty:2, note:'one each side' },
+  { key:'front',  name:'Box front apron',     span:'w',      qty:1, note:'downslope face' },
+  { key:'saddle', name:'Box saddle flashing', span:'saddle', qty:1, note:'ridge to top of box' },
+];
+// Box size in metres. The typed Width × Length wins (it is the tape measure);
+// the drawn rectangle is the fallback for a box placed but never labelled.
+function _penBoxSizeM(p){
+  var out = { w:0, d:0, ok:false };
+  if (!p) return out;
+  var w = parseFloat(p.widthMm), d = parseFloat(p.lengthMm);
+  if (!(w > 0) || !(d > 0)){
+    var m = String(p.sizeLabel || p.size || '').match(/(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)/i);
+    if (m){ w = parseFloat(m[1]); d = parseFloat(m[2]); }
+  }
+  if (w > 0 && d > 0){ out.w = w/1000; out.d = d/1000; out.ok = true; return out; }
+  // Nothing typed — measure the rectangle off the calibrated map.
+  var spp = DRAW.scaleMetresPerPx || 0;
+  if (spp > 0 && p.x0 != null && p.x1 != null){
+    out.w = Math.abs(p.x1 - p.x0) * spp;
+    out.d = Math.abs(p.y1 - p.y0) * spp;
+    out.ok = out.w > 0 && out.d > 0;
+  }
+  return out;
+}
+// The pieces one boxed penetration needs, each already lapped and rounded up
+// to the next 0.1m — flashings are folded to a cut length, not to the metre.
+function _boxFlashPieces(pen, ctx){
+  var sz = _penBoxSizeM(pen);
+  var lap = 2 * BOX_FLASH_LAP_M;
+  var geom = _penSheetGeom(pen, ctx, true);
+  // Ridge → TOP of the box, not to its centre, so the saddle stops where the
+  // kerb starts. Plus one lap to tuck under the ridge capping.
+  var saddle = (geom.ok && geom.topToPenM > 0)
+    ? Math.max(0, geom.topToPenM - sz.d / 2) + BOX_FLASH_LAP_M : 0;
+  return BOX_FLASH_SET.map(function(sp){
+    var raw = (sp.span === 'w') ? (sz.w + lap)
+            : (sp.span === 'd') ? (sz.d + lap)
+            : saddle;
+    var len = raw > 0 ? Math.ceil(raw * 10) / 10 : 0;
+    return { key:sp.key, name:sp.name, note:sp.note, qty:sp.qty, lengthM:len, hasGeom:len > 0 };
+  });
+}
+// Overrides — the same deal the back-tray cards get. A box flashing is a
+// derived quantity right up until the roofer knows better.
+function _bfKey(pc){ return (pc.roofIdx != null ? pc.roofIdx : 0) + ':' + pc.idx + ':' + pc.key; }
+function _bfMap(kind){
+  var k = 'matBoxFlash' + kind;
+  if (!DRAW[k] || typeof DRAW[k] !== 'object') DRAW[k] = {};
+  return DRAW[k];
+}
+function _bfLenOf(pc){ var v = _bfMap('Len')[_bfKey(pc)]; return (v != null && isFinite(v)) ? +v : pc.lengthM; }
+function _bfQtyOf(pc){ var v = _bfMap('Qty')[_bfKey(pc)]; return (v != null && isFinite(v)) ? +v : pc.qty; }
+function _bfOff(pc){ return !!_bfMap('Off')[_bfKey(pc)]; }
+function _bfSet(kind, key, v){
+  saveSnapshot();
+  var m = _bfMap(kind), raw = String(v == null ? '' : v).trim();
+  if (raw === '') delete m[key]; else m[key] = parseFloat(raw) || 0;
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+  try { if (typeof renderMaterialPriceTable === 'function') renderMaterialPriceTable(); } catch(e){}
+}
+function _bfSetOff(key, off){
+  saveSnapshot();
+  var m = _bfMap('Off');
+  if (off) m[key] = 1; else delete m[key];
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+  try { if (typeof renderMaterialPriceTable === 'function') renderMaterialPriceTable(); } catch(e){}
+}
+function _bfExtras(){
+  if (!Array.isArray(DRAW.matBoxFlashExtras)) DRAW.matBoxFlashExtras = [];
+  return DRAW.matBoxFlashExtras;
+}
+function _bfExtraAdd(){
+  saveSnapshot();
+  _bfExtras().push({ name:'Box flashing', qty:1, len:0 });
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _bfExtraUpdate(i, field, v){
+  var a = _bfExtras(); if (!a[i]) return;
+  a[i][field] = (field === 'name') ? String(v || '') : (parseFloat(v) || 0);
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+function _bfExtraDelete(i){
+  saveSnapshot();
+  _bfExtras().splice(i, 1);
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  if (typeof renderJobPack === 'function') renderJobPack();
+}
+// Every box flashing piece on the roofs currently in scope, overrides applied
+// and struck-off pieces dropped. One list feeding the job pack, the cut list,
+// the printed order and the priced material rows — so they cannot disagree.
+// allRoofs bypasses the Materials-tab roof scope — a whole-job total has to
+// see the boxes on roofs the current tab is not showing.
+function _boxFlashPenList(allRoofs){
+  var out = [];
+  var selected = allRoofs ? null : ((typeof _penScopeIdxs === 'function') ? _penScopeIdxs() : null);
+  ((typeof _penAllOwned === 'function') ? _penAllOwned() : []).forEach(function(e){
+    if (!e.pen || e.pen.kind !== 'box') return;
+    if (selected && selected.indexOf(e.ownerIdx) < 0) return;
+    var ctx = (typeof _penOwnerCtx === 'function') ? _penOwnerCtx(e.ownerIdx) : null;
+    _boxFlashPieces(e.pen, ctx).forEach(function(pc){
+      pc.idx = e.idx;
+      pc.roofIdx = e.storeIdx;
+      pc.penLabel = e.pen.sizeLabel || e.pen.size || 'boxed penetration';
+      out.push(pc);
+    });
+  });
+  return out;
+}
+function _boxFlashLiveList(allRoofs){
+  return _boxFlashPenList(allRoofs).filter(function(pc){ return !_bfOff(pc); });
+}
+// Grouped by name + length for the order and the priced rows, so four boxes
+// of the same size buy four identical pieces on one line.
+function _boxFlashOrderList(allRoofs){
+  var groups = {};
+  _boxFlashLiveList(allRoofs).forEach(function(pc){
+    var len = _bfLenOf(pc), qty = _bfQtyOf(pc);
+    if (!(qty > 0)) return;
+    var key = pc.name + '|' + (len > 0 ? len.toFixed(1) : '');
+    if (!groups[key]) groups[key] = { name:pc.name, qty:0, lengthM:len, key:pc.key };
+    groups[key].qty += qty;
+  });
+  _bfExtras().forEach(function(x, i){
+    var len = parseFloat(x.len) || 0, qty = parseFloat(x.qty) || 0;
+    if (!(qty > 0)) return;
+    var key = (x.name || 'Box flashing') + '|' + (len > 0 ? len.toFixed(1) : '') + '|x' + i;
+    groups[key] = { name:x.name || 'Box flashing', qty:qty, lengthM:len, key:'extra' };
+  });
+  return Object.keys(groups).map(function(k){ return groups[k]; });
+}
+// Total lineal metres of box flashing in scope — what the pricing charges.
+function _boxFlashTotalLm(allRoofs){
+  return _boxFlashOrderList(allRoofs).reduce(function(t, g){ return t + g.qty * (g.lengthM || 0); }, 0);
+}
+// ── WHAT THE WHOLE JOB'S FLASHINGS COME TO ───────────────────────
+// The Pricing tab prices one roof (or one folded group) at a time, which is
+// right — but it left nowhere to check the job against a number in your head.
+// Half the roofs carry the aprons, so the tab you happen to be on shows a
+// fraction of the job and reads like the app has lost them.
+function _jobFlashingLm(){
+  var out = { ridge:0, hip:0, valley:0, barge:0, apron:0, changepitch:0, gutter:0, box:0, total:0, roofs:1 };
+  var keys = ['ridge','hip','valley','barge','apron','changepitch','gutter'];
+  try {
+    if (DRAW.roofs && DRAW.roofs.length){
+      out.roofs = DRAW.roofs.length;
+      for (var i = 0; i < DRAW.roofs.length; i++){
+        var t = (_roofMeasForIdx(i) || {}).totals || {};
+        keys.forEach(function(k){ out[k] += t[k] || 0; });
+      }
+    } else {
+      var t0 = (_matDrawTotalsForCurrent() || {}).totals || {};
+      keys.forEach(function(k){ out[k] += t0[k] || 0; });
+    }
+    out.box = _boxFlashTotalLm(true);
+  } catch(e){}
+  // Gutters are deliberately out — the user counts flashings without them.
+  out.total = out.ridge + out.hip + out.valley + out.barge + out.apron + out.changepitch + out.box;
+  return out;
+}
+// $/lm for box flashings. Its own price-book field, falling back to the apron
+// rate — a box set is folded from the same coil off the same brake.
+function _boxFlashLmPrice(){
+  var pb = (S.settings && S.settings.price_book) || {};
+  var v = parseFloat(pb.box_pen_lm);
+  if (v > 0) return v;
+  return parseFloat(pb.apron_lm) || 0;
 }
 
 // ── INFO PANEL ───────────────────────────────────────────────────
@@ -40312,6 +40631,87 @@ function _jpRenderCutLists(content, page, idx){
     html += '</div>';
   }
 
+  // ── Boxed penetration flashings — the set a chimney / kerb takes.
+  //    Four pieces round the box plus a saddle up to the ridge, sized off
+  //    the drawn box and the calibrated map, every one of them editable.
+  var _bfList = (typeof _boxFlashPenList === 'function') ? _boxFlashPenList() : [];
+  if (_bfList.length || _bfExtras().length){
+    var _bfLib = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
+    var _bfUncal = !(DRAW.scaleMetresPerPx > 0);
+    html += '<div class="mat-section keep-in-preview">'+
+      _matSectionHead('#7c3aed', 'Boxed penetration flashings', 'one set per boxed penetration');
+    // Grouped by the box they belong to — a roofer carries one set up at a
+    // time, so the pack reads box by box.
+    var _bfByPen = [];
+    _bfList.forEach(function(pc){
+      var k = pc.roofIdx + ':' + pc.idx;
+      var g = _bfByPen.find(function(x){ return x.k === k; });
+      if (!g){ g = { k:k, label:pc.penLabel, pieces:[] }; _bfByPen.push(g); }
+      g.pieces.push(pc);
+    });
+    _bfByPen.forEach(function(g){
+      var live = g.pieces.filter(function(pc){ return !_bfOff(pc); });
+      var lm = live.reduce(function(t, pc){ return t + _bfQtyOf(pc) * _bfLenOf(pc); }, 0);
+      html += '<div style="font-size:12px;font-weight:700;color:#4c1d95;margin:10px 0 6px">'+
+        esc('Boxed penetration — ' + g.label)+
+        '<span style="font-weight:400;color:#6f6a60;margin-left:8px">'+lm.toFixed(1)+' lm</span></div>'+
+        '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">';
+      live.forEach(function(pc){
+        var entry = _bfLib.find(function(e){ return e && e.name === pc.name; });
+        var img = (entry && entry.sketch)
+          ? '<img src="'+entry.sketch+'" alt="'+esc(pc.name)+'" style="display:block;width:100%;height:120px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:6px">'
+          : '<div style="width:100%;height:120px;background:var(--surface-2);border:1px dashed #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--text3);font-size:11px;padding:8px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(pc.name)+'&rdquo; in Settings &rarr; Flashing library</div>';
+        var k = esc(_bfKey(pc)), q = _bfQtyOf(pc), L = _bfLenOf(pc);
+        html += '<div style="position:relative;border:1px solid var(--border);border-radius:8px;padding:10px;background:#fafafa">'+
+          '<button class="no-print pdf-hide" onclick="_bfSetOff(\''+k+'\',true)" title="Remove this flashing from the job pack" '+
+            'style="position:absolute;top:4px;right:4px;background:none;border:none;color:#94a3b8;font-size:14px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:4px;z-index:2">&times;</button>'+
+          img+
+          '<div style="font-size:12px;font-weight:700;color:#0a1628;margin-top:6px;padding-right:20px">'+esc(pc.name)+'</div>'+
+          '<div style="font-size:10.5px;color:#6f6a60">'+esc(pc.note)+'</div>'+
+          '<div style="margin-top:3px">'+
+            '<span class="mat-list-qty" style="display:inline-block;width:44px"><input type="number" min="0" step="1" value="'+q+'" onfocus="this.select()" '+
+              'onchange="_bfSet(\'Qty\',\''+k+'\',this.value)" style="width:100%;text-align:right;font-size:17px;font-weight:800;border:1px solid transparent;background:transparent;padding:0;margin:0"></span>'+
+            '<span style="color:#6f6a60;margin:0 6px">@</span>'+
+            '<span style="display:inline-block;width:66px"><input type="number" min="0" step="0.1" value="'+((L > 0) ? L.toFixed(1) : '')+'" '+
+              'placeholder="'+(_bfUncal ? 'calibrate' : '—')+'" onfocus="this.select()" '+
+              'onchange="_bfSet(\'Len\',\''+k+'\',this.value)" style="width:100%;text-align:right;font-size:17px;font-weight:800;border:1px solid transparent;background:transparent;padding:0;margin:0"></span>'+
+            '<span style="font-size:15px;font-weight:800;color:#0a1628">m</span>'+
+          '</div>'+
+        '</div>';
+      });
+      html += '</div>';
+    });
+    // Hand-typed pieces — a box the drawing doesn't know about, or a fifth
+    // piece this particular chimney happens to need.
+    var _bfEx = _bfExtras();
+    if (_bfEx.length){
+      html += '<div class="mat-list" style="margin-top:10px">';
+      _bfEx.forEach(function(x, xi){
+        html += '<div class="mat-list-row is-extra">'+
+          '<span class="mat-list-qty"><input type="number" min="0" step="1" value="'+(+x.qty||0)+'" onfocus="this.select()" '+
+            'onchange="_bfExtraUpdate('+xi+',\'qty\',this.value)"></span>'+
+          '<span class="mat-list-at">@</span>'+
+          '<span class="mat-list-len"><input type="number" min="0" step="0.1" value="'+(+x.len||0).toFixed(1)+'" onfocus="this.select()" '+
+            'onchange="_bfExtraUpdate('+xi+',\'len\',this.value)"><span class="mat-list-unit">m</span></span>'+
+          '<button class="mat-list-del" onclick="_bfExtraDelete('+xi+')" title="Delete row">&times;</button>'+
+        '</div>';
+      });
+      html += '</div>';
+    }
+    html += '<button class="mat-add-btn" onclick="_bfExtraAdd()" style="margin-top:6px">+ Add box flashing</button>';
+    var _bfGone = _bfList.filter(function(pc){ return _bfOff(pc); });
+    if (_bfGone.length){
+      html += '<div class="no-print jp-keep-ctl" style="flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding-top:7px;border-top:1px dashed #cbd5e1">'+
+        '<span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#64748b">Removed</span>'+
+        _bfGone.map(function(pc){
+          return '<button onclick="_bfSetOff(\''+esc(_bfKey(pc))+'\',false)" style="padding:2px 9px;border-radius:20px;border:1px solid #cbd5e1;'+
+            'background:#fff;font-size:11px;font-weight:700;color:#475569;cursor:pointer">'+esc(pc.name)+' <span style="color:#0099cc">+ restore</span></button>';
+        }).join('')+
+      '</div>';
+    }
+    html += '</div>';
+  }
+
   content.innerHTML = html;
   _jpCropFlashImgs(content);
 }
@@ -42839,16 +43239,13 @@ function _matDektitePenSizes(){
       counts[sz] = (counts[sz] || 0) + 1;
     });
   }
-  var _selD = (typeof _matSelectedRoofIndices === 'function' && DRAW.roofs && DRAW.roofs.length)
-    ? _matSelectedRoofIndices() : null;
-  if (_selD) {
-    DRAW.roofs.forEach(function(r, i){
-      if (_selD.indexOf(i) < 0) return;
-      addPens(i === DRAW.activeRoofIdx ? DRAW.penetrations : (r && r.penetrations));
-    });
-  } else {
-    addPens(DRAW.penetrations);
-  }
+  // Scoped by the roof each pipe SITS on, not the roof it happens to be
+  // stored against — see _penOwnerRoofIdx.
+  var _selD = (typeof _penScopeIdxs === 'function') ? _penScopeIdxs() : null;
+  ((typeof _penAllOwned === 'function') ? _penAllOwned() : []).forEach(function(e){
+    if (_selD && _selD.indexOf(e.ownerIdx) < 0) return;
+    addPens([e.pen]);
+  });
   return counts;
 }
 function _matDektitesSynced(){
@@ -45303,6 +45700,29 @@ function _matBuildPrintOrderDetails(mount) {
     html += '<h2 class="mp-h" style="margin-top:14px">Back-trays <span style="font-weight:400;font-size:11px;color:#6f6a60">&middot; auto-selected per pipe penetration</span></h2>'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px 12px;margin-top:6px">'+
         _btBlocks.join('')+
+      '</div>';
+  }
+
+  // Boxed penetration flashings — the merchant gets the same four pieces
+  // plus the saddle the crew will be asking for on site.
+  var _bfPrint = (typeof _boxFlashOrderList === 'function') ? _boxFlashOrderList() : [];
+  if (_bfPrint.length){
+    var _bfLibP = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
+    var _bfBlocks = _bfPrint.map(function(g){
+      var entry = _bfLibP.find(function(e){ return e && e.name === g.name; });
+      var img = (entry && entry.sketch)
+        ? '<img src="'+entry.sketch+'" alt="'+esc(g.name)+'" style="display:block;width:100%;height:84px;object-fit:contain;background:#fff;border:1px solid #e5e7eb;border-radius:4px">'
+        : '<div style="width:100%;height:84px;background:#fafaf7;border:1px dashed #cbd5e1;border-radius:4px;display:flex;align-items:center;justify-content:center;text-align:center;color:#94a3b8;font-size:9px;font-style:italic;padding:4px;box-sizing:border-box">Draw &amp; save &ldquo;'+esc(g.name)+'&rdquo; in the flashing library</div>';
+      var lenTxt = (g.lengthM > 0) ? (g.qty + ' @ ' + g.lengthM.toFixed(1) + 'm') : (g.qty + ' @ —');
+      return '<div style="break-inside:avoid">'+
+        img+
+        '<div style="font-size:10.5px;font-weight:700;color:#0a1628;margin-top:4px;text-align:center">'+esc(g.name)+'</div>'+
+        '<div style="font-size:13px;font-weight:800;color:#0a1628;text-align:center;margin-top:2px">'+esc(lenTxt)+'</div>'+
+      '</div>';
+    });
+    html += '<h2 class="mp-h" style="margin-top:14px">Boxed penetration flashings <span style="font-weight:400;font-size:11px;color:#6f6a60">&middot; one set per boxed penetration</span></h2>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px 12px;margin-top:6px">'+
+        _bfBlocks.join('')+
       '</div>';
   }
 
