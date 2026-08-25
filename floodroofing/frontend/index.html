@@ -15919,6 +15919,104 @@ function _setRoofAttached(i, val){
   try { if (typeof recalcQuoteTotals === 'function') recalcQuoteTotals(); } catch(e){}
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
+// ── The difference between an option and the standard, as a percentage ──
+//
+// Every card on the Selections page already showed what it does to the total
+// in dollars. A percentage is the number that actually travels: "the ColorZen
+// is about six percent less" is what gets said on the phone and remembered
+// afterwards, and it is comparable between a small job and a big one in a way
+// a dollar figure is not.
+//
+// The percentage a card starts at is derived, not typed — for a steel grade
+// it comes from the Price diff % on the product in Settings, for a gutter
+// from its $/lm, and so on. All of them reduce to the same thing once the job
+// is priced: this option's difference measured against the standard quote.
+// Measuring against the standard (not against the option's own material cost)
+// is what makes the number mean the same thing on every card.
+//
+// The office can then push any one card's difference up or down for THIS
+// quote, and the number the customer sees moves with it. That override is
+// stored as a percentage rather than a dollar figure, so it is still the
+// right proportion if the job is re-priced before the quote goes out.
+//
+// The gate lives inside each delta function, above every caller, so the card,
+// the running total in the customer's price bar, the acceptance breakdown,
+// the priced block frozen at send and the emailed quote cannot disagree about
+// what an option costs.
+function _selAdjMap(){
+  if (!S.quote) return {};
+  if (!S.quote.selAdj || typeof S.quote.selAdj !== 'object') S.quote.selAdj = {};
+  return S.quote.selAdj;
+}
+// The office's override for one card, as a percentage of the standard quote.
+// null = never touched, so the derived difference stands.
+function _selAdjPct(key){
+  var v = _selAdjMap()[key];
+  return (typeof v === 'number' && isFinite(v)) ? v : null;
+}
+// Base the percentages are measured against: the quote at its standard
+// selection, before any option changes it.
+var _SEL_ADJ_BASING = false;
+function _selAdjBase(){
+  // Re-entrancy guard. The base falls back to summing the option packages
+  // when a quote has no line items, and an option's total can reach a delta,
+  // which would come straight back here. One frame deep is enough to answer
+  // "no base yet"; recursing is a blank page.
+  if (_SEL_ADJ_BASING) return 0;
+  var b = 0;
+  _SEL_ADJ_BASING = true;
+  try { b = _qpBaseSub(); } catch(e){}
+  _SEL_ADJ_BASING = false;
+  return (b > 0) ? b : 0;
+}
+// One option's difference in dollars, after any office override.
+function _selAdjust(key, rawDelta){
+  var ov = _selAdjPct(key);
+  var base = _selAdjBase();
+  if (ov == null || !(base > 0)) return rawDelta;
+  return base * (ov / 100);
+}
+// …and the same difference as a percentage, which is what the card shows.
+function _selPctOfBase(delta){
+  var base = _selAdjBase();
+  if (!(base > 0)) return null;
+  return (parseFloat(delta) || 0) / base * 100;
+}
+function _selAdjApply(key, pct){
+  var m = _selAdjMap();
+  if (pct == null) delete m[key]; else m[key] = pct;
+  try { refreshQuoteProposal && refreshQuoteProposal(); } catch(e){}
+  try { recalcQuoteTotals && recalcQuoteTotals(); } catch(e){}
+  try { _scheduleAutosave && _scheduleAutosave(); } catch(e){}
+}
+// Nudge one card's difference by whole tenths of a percent. The first nudge
+// has to start from the derived figure, not from zero, or a single tap would
+// wipe the price the product's own settings worked out.
+function _selAdjNudge(key, rawDelta, step){
+  var cur = _selAdjPct(key);
+  if (cur == null) cur = _selPctOfBase(rawDelta);
+  if (cur == null) return;
+  _selAdjApply(key, Math.round((cur + step) * 10) / 10);
+}
+function _selAdjSetPct(key, v){
+  var n = parseFloat(v);
+  if (!isFinite(n)) return;
+  _selAdjApply(key, Math.round(n * 10) / 10);
+}
+// Typing a dollar figure is the same decision said the other way round, so it
+// converts and stores as a percentage like everything else.
+function _selAdjSetAmt(key, v, gstRate){
+  var n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+  if (!isFinite(n)) return;
+  var base = _selAdjBase();
+  if (!(base > 0)) return;
+  var ex = n / (1 + (gstRate || 0));      // cards show incl-GST money
+  // Kept to three decimal places, unlike the % box and the nudges, which work
+  // in tenths. A tenth of a percent is about $50 on a $50k job — round a typed
+  // dollar figure to that and the office types 2,300 and gets 2,285 back.
+  _selAdjApply(key, Math.round((ex / base) * 100000) / 1000);
+}
+function _selAdjReset(key){ _selAdjApply(key, null); }
 function _selGradeDelta(gradeId){
   if (!_selGradeOf(gradeId)) return 0;
   var pct = _selGradePctOf(gradeId);
@@ -15927,9 +16025,9 @@ function _selGradeDelta(gradeId){
   // grade as "Included" and the others as +/− from it — no double-counting.
   var q = (window.S && S.quote) || {};
   var basePct = _selGradePctOf(q.baseGrade || _selBaseGradeId());
-  return (pct - basePct) * _selMaterialBase();
+  return _selAdjust('grade:' + gradeId, (pct - basePct) * _selMaterialBase());
 }
-function _selGauge55Delta(){ return SEL_GAUGE55_PCT * _selMaterialBase(); }
+function _selGauge55Delta(){ return _selAdjust('gauge55', SEL_GAUGE55_PCT * _selMaterialBase()); }
 var SEL_DOWNPIPE_PER_LINE = 150; // $/gutter line ex-GST
 // Number of gutter lines (runs) drawn on the roof — one downpipe per line.
 // Stashed on the quote office-side so the customer share prices identically.
@@ -15958,7 +16056,7 @@ function _selBracketExtDelta(){
   if (!p.gutterType || p.gutterType === 'none') return 0;
   var rate = _bracketExtPerLm(p.gutterType);
   if (!rate) return 0;
-  return rate * _selGutterLm();
+  return _selAdjust('bracketExt', rate * _selGutterLm());
 }
 function _selGutterDelta(gutterId){
   if (typeof _gutterExcluded === 'function' && _gutterExcluded()) return 0;
@@ -15968,10 +16066,10 @@ function _selGutterDelta(gutterId){
   var p = q.proposalOptions || {};
   if (gutterId === p.gutterType){
     var ov = parseFloat(q.gutterPriceOverride);
-    if (isFinite(ov) && ov >= 0) return ov;
+    if (isFinite(ov) && ov >= 0) return _selAdjust('gutter:' + gutterId, ov);
   }
   // Material ($/lm × lm) + labour (hours by run × lead+apprentice rates).
-  return _gutterTotalCharge(gutterId, _selGutterLm());
+  return _selAdjust('gutter:' + gutterId, _gutterTotalCharge(gutterId, _selGutterLm()));
 }
 function _selDownpipesOn(){
   var p = (S.quote && S.quote.proposalOptions) || {};
@@ -15985,8 +16083,8 @@ function _selDownpipeDelta(){
   var p = q.proposalOptions || {};
   if (!p.gutterType || p.gutterType === 'none') return 0;
   var ov = parseFloat(q.downpipePriceOverride);
-  if (isFinite(ov) && ov >= 0) return ov;
-  return _downpipeUnitPrice() * _selGutterLineCount();
+  if (isFinite(ov) && ov >= 0) return _selAdjust('downpipes', ov);
+  return _selAdjust('downpipes', _downpipeUnitPrice() * _selGutterLineCount());
 }
 
 // ── "Selections" page pricing (page 4) ──────────────────────────
@@ -22010,20 +22108,26 @@ function refreshQuoteProposal(){
       var GRADES = _selGrades().map(function(g){
         var c = _GRADE_COPY[g.id] || {};
         return { id: g.id, label: g.name || g.id, isDefault: (_baseGrade === g.id),
-                 delta: _dIncl(_selGradeDelta(g.id)),
+                 delta: _dIncl(_selGradeDelta(g.id)), adjKey: 'grade:' + g.id,
+                 rawDelta: _selGradeDelta(g.id),
                  desc: g.desc || c.desc || '', warranty: g.warranty || c.warranty || '' };
       });
       var THICKS = [
         { id:'40', label:'0.40 gauge', isDefault:true, delta:0, desc:'Standard residential thickness — used on the bulk of NZ re-roofs.' },
-        { id:'55', label:'0.55 gauge', delta:_dIncl(_selGauge55Delta()), desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }
+        { id:'55', label:'0.55 gauge', delta:_dIncl(_selGauge55Delta()), adjKey:'gauge55', rawDelta:_selGauge55Delta(), desc:'Heavier-gauge steel — better hail / debris resilience and a slight rigidity bump.' }
       ];
       // A profile that LOCKS a gauge carries the gauge upgrade in its own card
       // price (the locked gauge row below then reads "Included") — otherwise
       // the profile looks free and the charge appears from nowhere. Which
       // profiles do that is the product's own answer now.
       var PROFILES = _selProfiles().map(function(pr, i){
+        var _locks = _selProfileLocksGauge(pr.id);
         return { id: pr.id, label: pr.name || pr.id, isDefault: (i === 0),
-                 delta: _selProfileLocksGauge(pr.id) ? _dIncl(_selGauge55Delta()) : 0,
+                 delta: _locks ? _dIncl(_selGauge55Delta()) : 0,
+                 // A locking profile carries the GAUGE upgrade, so its dial is
+                 // that upgrade's — nudging it here and on the gauge card is
+                 // the same decision, and they stay in step.
+                 adjKey: _locks ? 'gauge55' : '', rawDelta: _locks ? _selGauge55Delta() : 0,
                  desc: pr.desc || '' };
       });
       // "No new gutter" is not a product — it is the absence of one — so it is
@@ -22032,15 +22136,17 @@ function refreshQuoteProposal(){
                        desc:'Existing gutter stays as-is.' }].concat(
         _selGutters().map(function(gt){
           return { id: gt.id, label: gt.name || gt.id,
-                   delta: _dIncl(_selGutterDelta(gt.id)), desc: gt.desc || '' };
+                   delta: _dIncl(_selGutterDelta(gt.id)),
+                   adjKey: 'gutter:' + gt.id, rawDelta: _selGutterDelta(gt.id),
+                   desc: gt.desc || '' };
         }));
       var BRACKETS = [
         { id:'internal', label:'Internal brackets', isDefault:true, delta:0, desc:'Bracket sits BEHIND the fascia — cleaner facade line, hidden from below. Standard on your quote.' },
-        { id:'external', label:'External brackets', delta:_dIncl(_selBracketExtDelta()), desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' }
+        { id:'external', label:'External brackets', delta:_dIncl(_selBracketExtDelta()), adjKey:'bracketExt', rawDelta:_selBracketExtDelta(), desc:'Bracket clips to the FRONT of the fascia — quicker install, standard fit.' }
       ];
       var DOWNPIPES = [
         { id:'no',  label:'Keep existing downpipes', isDefault:true, delta:0, desc:'Re-use the current downpipes.' },
-        { id:'yes', label:'New downpipes',           delta:_dIncl(_selDownpipeDelta()), desc:'Supply & install new downpipes to match the new guttering.' }
+        { id:'yes', label:'New downpipes',           delta:_dIncl(_selDownpipeDelta()), adjKey:'downpipes', rawDelta:_selDownpipeDelta(), desc:'Supply & install new downpipes to match the new guttering.' }
       ];
       // Both disposal choices are $0 — the scrap value of the old steel just
       // offsets the labour/time to strip and cart it away, so it's a wash.
@@ -22091,11 +22197,62 @@ function refreshQuoteProposal(){
       // Price tag for a card: what picking it does to the total.
       // Default pick = "Standard · included"; a configured add-on shows
       // +$X / −$X incl. GST; an unpriced non-default shows "Included".
+      // The percentage rides UNDER the dollar figure, in the same colour, so
+      // the card reads "+$1,240" with "+3.2% on the standard" beneath it. The
+      // percentage is what gets repeated back on the phone; the dollars are
+      // what gets paid. Both, or the customer converts in their head and gets
+      // it wrong.
+      // GST cancels out of a ratio only if both sides carry it. The cards show
+      // money INCLUDING GST and the base is ex-GST, so the delta comes back
+      // out of GST before the division — otherwise the office dials in 9% and
+      // the customer reads 10.35%.
+      var _selPctEx = function(it){ return (parseFloat(it.rawDelta) != null && isFinite(it.rawDelta))
+        ? it.rawDelta : ((parseFloat(it.delta) || 0) / (1 + _selRate)); };
+      var _selPctTag = function(it){
+        if (it.isDefault) return '';
+        var pct = _selPctOfBase(_selPctEx(it));
+        if (pct == null || Math.abs(pct) < 0.05) return '';
+        var up = pct > 0;
+        return '<div style="font-family:var(--ed-sans);font-size:9.5px;font-weight:600;letter-spacing:.04em;margin-top:1px;'+
+          'color:'+(up ? 'var(--ed-text2)' : '#1a7f4e')+'">'+
+          (up ? '+' : '−')+Math.abs(pct).toFixed(1)+'% on the standard</div>';
+      };
       var _selPriceTag = function(it){
         if (it.isDefault) return '<span style="color:var(--ed-text2);font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600">Standard · included</span>';
         if (it.delta > 0.005)  return '<span style="color:var(--ed-ink);font-weight:700">+'+fmtMoney(it.delta)+'</span>';
         if (it.delta < -0.005) return '<span style="color:#1a7f4e;font-weight:700">−'+fmtMoney(Math.abs(it.delta))+'</span>';
         return '<span style="color:var(--ed-text2);font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600">Included</span>';
+      };
+      // The office's own row: nudge this card's difference for THIS quote.
+      // .no-print keeps it off the PDF and off the customer's copy — they see
+      // the number it produces, not the dial that produced it.
+      var _selAdjRow = function(it){
+        if (!it.adjKey || it.isDefault) return '';
+        var pct = _selPctOfBase(_selPctEx(it));
+        if (pct == null) return '';
+        var edited = _selAdjPct(it.adjKey) != null;
+        var k = esc2(it.adjKey);
+        var btn = function(lbl, step){
+          return '<button type="button" onclick="event.stopPropagation();_selAdjNudge(\''+k+'\','+(it.rawDelta||0)+','+step+')" '+
+            'style="width:20px;height:20px;line-height:1;border:1px solid var(--ed-line);background:#fff;color:var(--ed-ink-2);'+
+            'border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;padding:0">'+lbl+'</button>';
+        };
+        return '<div class="no-print" onclick="event.stopPropagation()" '+
+          'style="display:flex;align-items:center;gap:5px;margin-top:4px;padding-top:4px;border-top:1px dashed var(--ed-line)">'+
+          '<span style="font-family:var(--ed-sans);font-size:8.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ed-text2)">Difference</span>'+
+          btn('−', -0.5)+
+          '<input type="number" step="0.1" value="'+pct.toFixed(1)+'" onchange="_selAdjSetPct(\''+k+'\',this.value)" onclick="event.stopPropagation()" '+
+            'style="width:52px;padding:2px 4px;font-size:11px;text-align:right;border:1px solid var(--ed-line);border-radius:4px;margin:0;font-family:inherit">'+
+          '<span style="font-size:10px;color:var(--ed-text2)">%</span>'+
+          btn('+', 0.5)+
+          '<span style="font-size:10px;color:var(--ed-text2);margin-left:2px">or $</span>'+
+          '<input type="number" step="1" value="'+(Math.round(it.delta*100)/100)+'" onchange="_selAdjSetAmt(\''+k+'\',this.value,'+_selRate+')" onclick="event.stopPropagation()" '+
+            'style="width:72px;padding:2px 4px;font-size:11px;text-align:right;border:1px solid var(--ed-line);border-radius:4px;margin:0;font-family:inherit">'+
+          (edited
+            ? '<button type="button" onclick="event.stopPropagation();_selAdjReset(\''+k+'\')" title="Back to the difference the price book works out" '+
+              'style="margin-left:auto;background:none;border:none;color:var(--ed-accent);font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;padding:0">reset</button>'
+            : '')+
+        '</div>';
       };
       function selCard(group, items, current, onclickFn, cardOpts){
         cardOpts = cardOpts || {};
@@ -22128,12 +22285,13 @@ function refreshQuoteProposal(){
                 // hunting for the summary table.
                 '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">'+
                   '<div class="ed-serif" style="font-size:14px;font-style:italic;color:var(--ed-ink);line-height:1.2">'+esc2(it.label)+'</div>'+
-                  '<div class="ed-serif" style="font-size:13px;white-space:nowrap;flex-shrink:0">'+_selPriceTag(it)+'</div>'+
+                  '<div class="ed-serif" style="font-size:13px;white-space:nowrap;flex-shrink:0;text-align:right">'+_selPriceTag(it)+_selPctTag(it)+'</div>'+
                 '</div>'+
                 // Compact cards (gutter add-ons) drop the description/warranty
                 // so a whole extra row of options doesn't push the page tall.
                 (!compact && it.desc ? '<div class="ed-body" style="font-size:10.5px;color:var(--ed-ink-2);margin-top:1px;line-height:1.3">'+esc2(it.desc)+'</div>' : '')+
                 (!compact && !noWarranty && it.warranty ? '<div style="font-size:10px;color:var(--ed-text2);margin-top:2px;line-height:1.35">'+it.warranty+'</div>' : '')+
+                _selAdjRow(it)+
               '</div>'+
             '</div>'+
           '</div>';
