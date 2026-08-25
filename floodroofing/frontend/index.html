@@ -8841,15 +8841,20 @@ function _materialsTotalFromRows(rows){
 }
 // Maxam material cost ($, ex-GST) for ONE roof, independent of the Material
 // tab's view selection. Single-roof jobs just use the current build.
+// The material cost of one roof, or — for the main roof — of it and every
+// roof folded into it, taken off together. Together matters: two roofs priced
+// apart each round their lineal metres up to a full length, so the same job
+// buys two part-lengths of the same flashing instead of one.
 function _materialsCostForRoofIdx(idx){
   if (!window.DRAW || !DRAW.roofs || DRAW.roofs.length <= 1) {
     return _materialsTotalFromRows(_buildMaterialPriceRows());
   }
   var savedActive = DRAW.activeRoofIdx;
   var savedSel = _matSelectedRoofIndices();
+  var group = (typeof _pricingRoofGroup === 'function') ? _pricingRoofGroup(idx) : [idx];
   try {
     _syncCurrentToRoof();
-    _matSetSelectedRoofs([idx]);
+    _matSetSelectedRoofs(group);
     return _materialsTotalFromRows(_buildMaterialPriceRows());
   } catch(e){ return 0; }
   finally {
@@ -8942,7 +8947,26 @@ function _roofMeasForIdx(idx){
 }
 // Auto driver quantities from the drawing for one roof.
 function _labourCalcAutoQty(idx){
-  var m = _roofMeasForIdx(idx), t = m.totals || {};
+  // The main roof's drivers cover every roof folded into it — one crew, one
+  // building, one set of hours.
+  var group = (typeof _pricingRoofGroup === 'function') ? _pricingRoofGroup(idx) : [idx];
+  var m;
+  if (group.length > 1){
+    m = { totals:{}, ridgeHip:0, flashingsLm:0, gutterLm:0, roofArea:0, pitch:0, penetrations:0 };
+    group.forEach(function(gi){
+      var g = _roofMeasForIdx(gi), gt = g.totals || {};
+      Object.keys(gt).forEach(function(k){ m.totals[k] = (m.totals[k] || 0) + (gt[k] || 0); });
+      m.roofArea += g.roofArea || 0;
+      m.gutterLm += g.gutterLm || 0;
+      m.flashingsLm += g.flashingsLm || 0;
+      m.ridgeHip += g.ridgeHip || 0;
+      m.penetrations += g.penetrations || 0;
+      if ((g.pitch || 0) > m.pitch) m.pitch = g.pitch || 0;
+    });
+  } else {
+    m = _roofMeasForIdx(idx);
+  }
+  var t = m.totals || {};
   var cutsLm  = (t.ridge||0) + (t.hip||0) + (t.valley||0);                       // sheet cuts
   var flashLm = (t.barge||0) + (t.apron||0) + (t.changepitch||0) + (t.ridge||0) + (t.hip||0); // barge/apron/back tray/ridging
   var sheetsAcross = (m.gutterLm > 0) ? (m.gutterLm / LABOUR_CALC_SHEET_WIDTH_M) : 0; // gutter run ÷ cover width
@@ -9105,7 +9129,48 @@ function _labourCalcPanelHtml(ri){
 // state (not persisted) — resets to Roof 1 on load.
 var _PRICING_ROOF_IDX = 0;
 function _pricingRoofCount(){ return (window.DRAW && DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs.length : 1; }
-function _pricingRoofIdx(){ var n = _pricingRoofCount(); var i = _PRICING_ROOF_IDX || 0; return (i >= 0 && i < n) ? i : 0; }
+// ── Roofs that are part of the main roof are priced with it ───────
+//
+// A roof marked "Part of main" is not a separate thing the customer can add
+// or drop — it is part of the one building being re-roofed, and it always was
+// folded into the main price. But the Pricing tab still gave it its own tab,
+// its own material table and its own labour hours, so the office priced one
+// building two or three times over. That is the slow part of quoting a house
+// with a lean-to on it.
+//
+// So a tab now covers a GROUP: the main roof plus every roof folded into it.
+// A roof quoted as a separate extra keeps its own tab, because it genuinely
+// is its own price.
+function _pricingRoofGroup(i){
+  var n = _pricingRoofCount();
+  if (i !== 0) return [i];
+  var out = [0];
+  for (var k = 1; k < n; k++){
+    try { if (_roofQuoteMode(k) === 'folded') out.push(k); } catch(e){}
+  }
+  return out;
+}
+// Which roofs get a tab of their own: the main roof, and anything not folded
+// into it.
+function _pricingRoofTabIdxs(){
+  var n = _pricingRoofCount(), out = [0];
+  for (var k = 1; k < n; k++){
+    try { if (_roofQuoteMode(k) !== 'folded') out.push(k); } catch(e){}
+  }
+  return out;
+}
+// The names a tab covers beyond its own — "incl. Roof 2" under the main tab.
+function _pricingRoofGroupExtras(i){
+  return _pricingRoofGroup(i).slice(1).map(function(k){ return _pricingRoofName(k); });
+}
+function _pricingRoofIdx(){
+  var n = _pricingRoofCount(), i = _PRICING_ROOF_IDX || 0;
+  if (!(i >= 0 && i < n)) return 0;
+  // Fold the roof you were pricing into the main one and its tab disappears;
+  // land on the tab that now covers it rather than on a tab that is gone.
+  try { if (i !== 0 && _roofQuoteMode(i) === 'folded') return 0; } catch(e){}
+  return i;
+}
 function _pricingRoofName(i){ return (window.DRAW && DRAW.roofs && DRAW.roofs[i] && DRAW.roofs[i].name) || ('Roof ' + (i + 1)); }
 function _setPricingRoof(i){
   _PRICING_ROOF_IDX = i;
@@ -9124,17 +9189,21 @@ function _renderPricingRoofSwitchBar(){
   if (n < 2){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
   bar.style.display = 'flex';
   var cur = _pricingRoofIdx();
+  var tabs = _pricingRoofTabIdxs();
+  if (tabs.length < 2){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
   var html = '';
-  for (var i = 0; i < n; i++){
+  tabs.forEach(function(i){
     var on = (i === cur);
+    var extras = _pricingRoofGroupExtras(i);
     // Each roof is a column: the switch button, with its own Rename under it.
     html += '<div class="pr-roof-cell">' +
       '<button type="button" onclick="_setPricingRoof(' + i + ')" class="pr-roof-btn' + (on ? ' on' : '') + '">' +
         '<span class="pr-roof-nm">' + esc(_pricingRoofName(i)) + '</span>' +
-        '<span class="pr-roof-sub">' + (i === 0 ? 'Main · base' : 'Optional extra') + '</span>' +
+        '<span class="pr-roof-sub">' + (i === 0 ? 'Main · base' : 'Optional extra') +
+          (extras.length ? '<br>+ ' + esc(extras.join(', ')) : '') + '</span>' +
       '</button>' + _roofRenameLinkHtml(i, { size:'10.5px' }) +
     '</div>';
-  }
+  });
   bar.innerHTML = html;
   try { _renderPricingRoofMap(); } catch(e){}
 }
@@ -9148,7 +9217,9 @@ function _renderPricingRoofMap(){
   try {
     if (typeof _qpStashRoofGeom === 'function') _qpStashRoofGeom(false);
     if (typeof _qpRoofMapSvg === 'function'){
-      svg = _qpRoofMapSvg({ highlightIdx: _pricingRoofIdx(), showBg: false, maxH: 150 });
+      svg = _qpRoofMapSvg({ highlightIdx: _pricingRoofIdx(),
+                            highlightAlso: _pricingRoofGroup(_pricingRoofIdx()).slice(1),
+                            showBg: false, maxH: 150 });
     }
   } catch(e){ svg = ''; }
   if (!svg){ host.style.display = 'none'; host.innerHTML = ''; return; }
@@ -9158,7 +9229,8 @@ function _renderPricingRoofMap(){
       '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">' +
         '<span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;flex:0 0 auto"></span>' +
         '<span style="font-size:11px;font-weight:700;color:#78350f;letter-spacing:.02em">Pricing ' +
-          esc(_pricingRoofName(_pricingRoofIdx())) + '</span>' +
+          esc([_pricingRoofName(_pricingRoofIdx())]
+                .concat(_pricingRoofGroupExtras(_pricingRoofIdx())).join(' + ')) + '</span>' +
       '</div>' + svg +
     '</div>';
 }
@@ -9167,16 +9239,20 @@ function _pricingRoofTabsHtml(){
   var n = _pricingRoofCount();
   if (n < 2) return '';
   var cur = _pricingRoofIdx();
+  var tabs = _pricingRoofTabIdxs();
+  if (tabs.length < 2) return '';
   var btns = '';
-  for (var i = 0; i < n; i++){
+  tabs.forEach(function(i){
     var on = (i === cur);
+    var extras = _pricingRoofGroupExtras(i);
     btns += '<div style="flex:1 1 96px;min-width:88px;display:flex;flex-direction:column">' +
       '<button type="button" onclick="_setPricingRoof(' + i + ')" style="flex:1 1 auto;padding:13px 10px 10px;font-size:15px;font-weight:800;line-height:1.15;border-radius:11px;border:2px solid ' + (on ? '#0099cc' : 'var(--border)') + ';background:' + (on ? '#0099cc' : '#fff') + ';color:' + (on ? '#fff' : '#0a1628') + ';cursor:pointer;' + (on ? 'box-shadow:0 3px 12px rgba(0,153,204,.35)' : '') + '">' +
         esc(_pricingRoofName(i)) +
         '<div style="font-size:8px;font-weight:700;letter-spacing:.06em;margin-top:3px;opacity:.9">' + (i === 0 ? 'MAIN · BASE' : 'OPTIONAL EXTRA') + '</div>' +
+        (extras.length ? '<div style="font-size:8px;font-weight:700;letter-spacing:.04em;margin-top:2px;opacity:.85">+ ' + esc(extras.join(', ')) + '</div>' : '') +
       '</button>' + _roofRenameLinkHtml(i, { size:'9.5px' }) +
     '</div>';
-  }
+  });
   return '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">' + btns + '</div>';
 }
 // Per-roof scaffold. Roof 0 = the site scaffold (S.quote.scaffold). Each extra
@@ -13635,6 +13711,40 @@ function updateScaffold(field, val){
   calcLabour();
   try { refreshQuoteProposal(); } catch(e){}
 }
+// Scaffolding for the roofs folded into the main one. They have no tab of
+// their own any more (they are priced with the main roof), but their
+// scaffolding is still billed per building, so it is edited here.
+function _foldedScaffoldRowsHtml(){
+  var extras = [];
+  try {
+    _pricingRoofGroup(0).slice(1).forEach(function(k){ extras.push(k); });
+  } catch(e){}
+  if (!extras.length) return '';
+  var f = function(v){ return parseFloat(v) || 0; };
+  return '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--border)">'+
+    '<div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text2);margin-bottom:7px">'+
+      'Also on this price</div>'+
+    extras.map(function(k){
+      var sc = _roofScaffold(k);
+      return '<div style="margin-bottom:9px">'+
+        '<div style="font-size:11.5px;color:var(--text2);margin-bottom:4px">'+esc(_pricingRoofName(k))+' scaffolding</div>'+
+        '<div class="f2">'+
+          '<div><label>Cost ($)</label><input type="number" step="1" min="0" value="'+f(sc.cost)+'" '+
+            'onchange="_updateFoldedScaffold('+k+',\'cost\',this.value)"></div>'+
+          '<div><label>Price ($)</label><input type="number" step="1" min="0" value="'+f(sc.price)+'" '+
+            'onchange="_updateFoldedScaffold('+k+',\'price\',this.value)"></div>'+
+        '</div>'+
+      '</div>';
+    }).join('')+
+  '</div>';
+}
+function _updateFoldedScaffold(idx, field, val){
+  var sc = _roofScaffold(idx);
+  sc[field] = parseFloat(val) || 0;
+  try { calcLabour(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
 // Extra labourers (beyond Lead Roofer + Apprentice) — each is its own Fergus
 // labour line on push. Stored on S.quote.labour.extras.
 function _addLabourer(){
@@ -13780,6 +13890,13 @@ function calcLabour(){
       (_scPlat
         ? '<div style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 10px">Platform +'+_scPct+'% → charged <strong>$'+_scEff.price.toFixed(2)+'</strong> <span style="color:var(--text2)">(cost $'+_scEff.cost.toFixed(2)+')</span></div>'
         : '')+
+      // Roofs folded into the main one no longer have a tab of their own, so
+      // their scaffolding is edited here. It is deliberately still per
+      // building rather than rolled into one figure: a lean-to that needs its
+      // own edge protection needs it whether or not its sheets are quoted with
+      // the main roof, and folding it away would quietly take money off quotes
+      // that already exist. Set it to 0 for a lean-to the main scaffold reaches.
+      (isBaseRoof ? _foldedScaffoldRowsHtml() : '')+
       (isBaseRoof ? _qCustomRowsHtml('scaffold') : '');
   }
 
@@ -18972,8 +19089,15 @@ function _syncQuoteBaseLineItems(){
       // Only roofs that are part of the main structure fold into the base.
       // 'separate' → its own optional extra; 'excluded' → not priced at all.
       if (_roofQuoteMode(_fri) !== 'folded') continue;
-      _baseMat += _materialsCostForRoofIdx(_fri) * _gf;
-      _baseLab += _labourPriceForRoof(_fri);
+      // Materials and labour are NOT added per roof any more: they are priced
+      // on the main roof's own tab, which now takes off the whole group in one
+      // pass (_pricingRoofGroup). Adding them again here would bill the
+      // lean-to twice.
+      //
+      // Scaffolding still is. It is per BUILDING, not per price — a lean-to
+      // that needs its own edge protection needs it whether or not its sheets
+      // are quoted with the main roof — so folding it away would quietly drop
+      // money off quotes that already exist.
       if (typeof _scaffoldPriceForRoof === 'function') scaffP += _scaffoldPriceForRoof(_fri);
     }
   }
@@ -19533,6 +19657,10 @@ function _qpRoofMapSvg(opts){
   // disagreeing about the same roofs.
   var hi = (typeof opts.highlightIdx === 'number') ? opts.highlightIdx : null;
   var focus = (hi !== null);
+  // A tab can cover more than one roof — the main roof plus anything folded
+  // into it. All of them light up, because all of them are what you are
+  // pricing on that screen.
+  var alsoHi = Array.isArray(opts.highlightAlso) ? opts.highlightAlso : [];
   var fontSize=Math.max(11,Math.min(28,h/22)), subSize=Math.max(9,Math.min(18,h/32));
   var showGutters = !!opts.showGutters;
   var svg='<svg viewBox="'+minX+' '+minY+' '+w+' '+h+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-height:'+(opts.maxH||_qpRoofMapMaxH())+'px;background:#fff;border:1px solid var(--ed-line);border-radius:6px;font-family:Inter,-apple-system,sans-serif">';
@@ -19548,7 +19676,7 @@ function _qpRoofMapSvg(opts){
     // nothing else — the one in hand is bright, the rest are grey.
     var HI = { fill:'#fde68a', stroke:'#d97706', text:'#78350f' };
     var MUTE = { fill:'#e9edf3', stroke:'#b9c3d1', text:'#8b95a5' };
-    var _isHi = (!focus) || (r.idx === hi);
+    var _isHi = (!focus) || (r.idx === hi) || (alsoHi.indexOf(r.idx) >= 0);
     var c = focus ? (_isHi ? HI : MUTE) : (included ? INCL : EXCL);
     var pts = r.pts.map(function(p){ return p[0]+','+p[1]; }).join(' ');
     if (focus && !_isHi){
