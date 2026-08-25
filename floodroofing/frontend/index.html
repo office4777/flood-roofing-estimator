@@ -39310,9 +39310,11 @@ function _jpRenderCutLists(content, page, idx){
   // ── Ridging (ridge + hip capping) ──
   var ridgeSpec = _MAT_FLASHING_SPECS[0];
   var ridgeCl = _matBuildCutList('ridgehip', ridgeSpec.waste);
-  html += '<div class="mat-section">'+
-    _matSectionHead(ridgeSpec.colour, 'Ridging', (ridgeType==='wide'?'Wide ridge':'Standard ridge')+' · '+esc(grade),
-      ridgeCl.pieceCount ? ridgeCl.pieceCount+' pcs · '+ridgeCl.totalLm.toFixed(1)+' m' : '')+
+  var _ridgeOff = (typeof _matFlashTypeOff === 'function') && _matFlashTypeOff('ridgehip');
+  html += '<div class="mat-section keep-in-preview">'+
+    _matSectionHead(ridgeSpec.colour, 'Ridging', _ridgeOff ? '' : ((ridgeType==='wide'?'Wide ridge':'Standard ridge')+' · '+esc(grade)),
+      (ridgeCl.pieceCount ? ridgeCl.pieceCount+' pcs · '+ridgeCl.totalLm.toFixed(1)+' m' : '')+
+      _matSectionKillHtml('ridgehip', 'Ridging'))+
     _matCutListTable(ridgeCl, 'No ridge or hip lines drawn yet.', true)+
   '</div>';
 
@@ -39530,7 +39532,23 @@ function _jpRenderCutLists(content, page, idx){
   typeBoxes.forEach(function(box, bi){
     html += _jpRenderFlashingCell(box, bi);
   });
-  html += '</div></div>';
+  html += '</div>';
+  // Anything struck off gets a chip here, so a delete is never a one-way
+  // door. Editor-only — a removed flashing has nothing to say on the
+  // supplier's order form.
+  var _offSpecs = (typeof _matFlashTypeOffList === 'function') ? _matFlashTypeOffList() : [];
+  if (_offSpecs.length){
+    html += '<div class="no-print pdf-hide" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px dashed #cbd5e1">'+
+      '<span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em">Removed from this job</span>'+
+      _offSpecs.map(function(sp){
+        return '<button onclick="_matFlashTypeSetOff(\''+esc(sp.key)+'\',false)" title="Put this flashing back on the job pack" '+
+          'style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;border:1px solid #cbd5e1;background:#fff;'+
+          'font-size:11px;font-weight:700;color:#475569;cursor:pointer">'+
+          '<span class="mat-dot" style="background:'+sp.colour+'"></span>'+esc(sp.label)+'<span style="color:#0099cc">+ restore</span></button>';
+      }).join('')+
+    '</div>';
+  }
+  html += '</div>';
 
   // ── Back-trays — one card per pipe penetration, auto-selected by
   //    diameter + roof profile. Each has a Full length / Short toggle;
@@ -39776,8 +39794,15 @@ function _jpRenderFlashingCell(box, bi){
     '</div>';
   });
   var addRowBtn = '<button class="mat-add-btn" onclick="_matExtrasAdd(\''+esc(spec.key)+'\')" style="align-self:flex-start">+ Add row</button>';
-  return '<div class="mat-fl-card">'+
-    '<div class="mat-fl-head"><span class="mat-dot" style="background:'+spec.colour+'"></span><strong>'+esc(spec.label)+'</strong></div>'+
+  // Same × an added flashing has always had. Deleting rows one at a time
+  // left the drawing sitting there with nothing under it; this takes the
+  // whole flashing off the job. Reversible from the strip below the grid.
+  var killBtn = '<button class="no-print pdf-hide" onclick="_matFlashTypeDelete(\''+esc(spec.key)+'\',\''+esc(spec.label).replace(/'/g,"&#39;")+'\')" '+
+    'title="Remove this flashing from the job pack" '+
+    'style="position:absolute;top:4px;right:4px;background:none;border:none;color:#94a3b8;font-size:14px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:4px;z-index:2">&times;</button>';
+  return '<div class="mat-fl-card" style="position:relative">'+
+    killBtn +
+    '<div class="mat-fl-head" style="padding-right:22px"><span class="mat-dot" style="background:'+spec.colour+'"></span><strong>'+esc(spec.label)+'</strong></div>'+
     drawing +
     _jpFlashAngleChips(box) +
     '<div class="mat-fl-rows">'+rowsHtml+'</div>'+
@@ -41085,6 +41110,12 @@ function _matBuildCutList(type, waste) {
       totalLm: gtot, pieceCount: gpc, typeKey:'gutter'
     };
   }
+  // Struck off the job pack entirely — see _matFlashTypeDelete. Gated here,
+  // above every caller, so no surface can disagree about whether this
+  // flashing is on the job.
+  if (typeof _matFlashTypeOff === 'function' && _matFlashTypeOff(type)) {
+    return { rows: [], totalLm: 0, pieceCount: 0, typeKey: type };
+  }
   // Source rows from the Flashing layout labelled-line collection so
   // the cut list inherits the letter refs + uniform +0.4 m wastage
   // shown on the diagram. The `waste` arg is now ignored — auto length
@@ -42061,6 +42092,62 @@ function _matConsOverrideSet(key, v){
 function _matFlashingsArr(){
   if (!S.matFlashings) S.matFlashings = [];
   return S.matFlashings;
+}
+// ── Striking a whole flashing off the job ─────────────────────────
+// The × on an added flashing removes that slot. An auto-derived flashing —
+// barge, apron, ridge, the ones RoofMap works out from the drawing — had no
+// equivalent: you could delete its rows one at a time and the empty card
+// still sat there. "Delete the entire flashing drawing" is one decision, so
+// it gets one switch.
+//
+// The switch is read inside _matBuildCutList rather than at each render
+// point, so the card, the Materials cut lists, the supplier order form and
+// the Fergus push all agree the flashing is not on this job. It lives on S,
+// so it saves with the job and comes back with it.
+function _matFlashTypeOff(key){
+  try { return !!(S.jpFlashTypeOff && S.jpFlashTypeOff[key]); } catch(e){ return false; }
+}
+function _matFlashTypeOffList(){
+  var out = [];
+  try {
+    var m = S.jpFlashTypeOff || {};
+    (_MAT_FLASHING_SPECS || []).forEach(function(spec){
+      if (spec && m[spec.key]) out.push(spec);
+    });
+  } catch(e){}
+  return out;
+}
+function _matFlashTypeSetOff(key, off){
+  if (!S.jpFlashTypeOff) S.jpFlashTypeOff = {};
+  if (off) S.jpFlashTypeOff[key] = 1; else delete S.jpFlashTypeOff[key];
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  _matFlashingsRefreshAll();
+}
+// The delete / restore control for a whole flashing section, dressed for a
+// section heading. Two states, because they are two different jobs:
+//   on  — a plain × alongside the heading, editor furniture, hidden in
+//         Preview and off the printed order form with the rest of it.
+//   off — a restore chip, which carries jp-keep-ctl because it is the ONLY
+//         way back and a struck-off section is empty, so Preview would
+//         otherwise collapse it away. Same lesson the gutter tick taught.
+function _matSectionKillHtml(key, label){
+  var off = (typeof _matFlashTypeOff === 'function') && _matFlashTypeOff(key);
+  var lab = String(label || '').replace(/'/g, '&#39;');
+  if (off){
+    return '<button class="no-print jp-keep-ctl" onclick="_matFlashTypeSetOff(\''+key+'\',false)" '+
+      'title="Put this back on the job pack" '+
+      'style="align-items:center;gap:6px;margin-left:12px;padding:3px 10px;border-radius:20px;border:1px solid #cbd5e1;'+
+      'background:#fff;font-size:11px;font-weight:700;color:#64748b;cursor:pointer">Removed &middot; <span style="color:#0099cc">restore</span></button>';
+  }
+  return '<button class="no-print pdf-hide" onclick="_matFlashTypeDelete(\''+key+'\',\''+lab+'\')" '+
+    'title="Remove this from the job pack" '+
+    'style="background:none;border:none;color:#94a3b8;font-size:15px;line-height:1;cursor:pointer;padding:2px 6px;margin-left:10px;border-radius:4px">&times;</button>';
+}
+function _matFlashTypeDelete(key, label){
+  // Reversible — the restore chips sit right under the flashing cards — but
+  // it takes a whole flashing off the order, so it still asks.
+  if (!window.confirm('Remove "' + (label || 'this flashing') + '" from the job pack?\n\nIts drawing and every one of its cut-list rows come off the order. You can put it back from the strip under the flashing cards.')) return;
+  _matFlashTypeSetOff(key, true);
 }
 // After any slot change, refresh BOTH surfaces that show the slots:
 // the Flashings-page gallery AND the Job Pack cut-list cards (the
