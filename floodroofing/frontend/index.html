@@ -22481,8 +22481,12 @@ function refreshQuoteProposal(){
         // scrolled to this page — the bottom-bar price stays hidden until then.
         '<span id="qpSelPageAnchor"></span>'+
         edHeading('3','Your options & price','Choose Your Options',{chapter:PROPOSAL_CHAPTERS[2],chapters:PROPOSAL_CHAPTERS})+
-        // One-line "how this works" so the page explains itself.
-        '<div class="ed-body" style="margin:-8px 0 4px;font-size:12px;color:var(--ed-ink-2);line-height:1.4">Tap a card to change your selection. The price on each card shows how that choice changes your quote — your updated total is always shown in the price bar at the bottom of your screen, with the full breakdown on the acceptance page.</div>'+
+        // How this works, said plainly and said LOUD. Small grey type under a
+        // heading reads as boilerplate and gets skipped — and a customer who
+        // skips it never works out the cards are buttons.
+        '<div class="ed-body" style="margin:-6px 0 10px;font-size:19px;font-weight:800;color:var(--ed-ink);line-height:1.35;letter-spacing:-.01em">'+
+          'Tap the options below to make your selections.'+
+        '</div>'+
         _extraRoofsPanel+
         // LEFT column — steel grade, thickness, colour. RIGHT column —
         // guttering, brackets, downpipes. Each group is its own titled panel
