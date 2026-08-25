@@ -19746,9 +19746,39 @@ function _qpStashRoofGeom(showBg){
       bg = DRAW.bgImg._cachedGeomBg; bgW = DRAW.bgImg.naturalWidth; bgH = DRAW.bgImg.naturalHeight;
     } catch(e){ bg = null; }
   }
+  // ── THE QUOTE FRAMES THE PHOTO THE WAY THE CANVAS DOES ───────────
+  // Both maps draw the roofs in image-pixel coordinates, so they always AGREE
+  // about where a roof sits on the aerial. What they disagreed about was the
+  // crop: the canvas shows whatever the office panned and zoomed to, while the
+  // quote framed the roofs' own bounding box and nothing else — so the two
+  // pictures of the same house looked nothing alike.
+  //
+  // Capture the rectangle of the photo the canvas is actually showing, and the
+  // quote reproduces that view. Only meaningful when there IS an aerial; a
+  // line-drawing map still frames itself around the roofs.
+  var view = null;
+  if (bg){
+    try {
+      var _cv = document.getElementById('roofCanvas');
+      var _t  = (typeof getImgTransform === 'function') ? getImgTransform() : null;
+      if (_cv && _t && _t.s > 0){
+        var _dpr = window.devicePixelRatio || 1;
+        var _cw = _cv.width / _dpr, _ch = _cv.height / _dpr;
+        var _v = { x:(0 - _t.ix) / _t.s, y:(0 - _t.iy) / _t.s, w:_cw / _t.s, h:_ch / _t.s };
+        // A sane view only. Mid-gesture, or before the canvas has been sized,
+        // this can come out degenerate or absurd — fall back to the bbox crop
+        // rather than publish a quote framed on nothing.
+        if (isFinite(_v.x) && isFinite(_v.y) && _v.w > 1 && _v.h > 1 &&
+            _v.w < bgW * 40 && _v.h < bgH * 40) {
+          view = { x:+_v.x.toFixed(1), y:+_v.y.toFixed(1),
+                   w:+_v.w.toFixed(1), h:+_v.h.toFixed(1) };
+        }
+      }
+    } catch(e){ view = null; }
+  }
   var R2 = function(v){ return +(+v).toFixed(1); };
   S.quote.roofMapGeom = {
-    bbox: { minX:minX, minY:minY, maxX:maxX, maxY:maxY }, bg:bg, bgW:bgW, bgH:bgH,
+    bbox: { minX:minX, minY:minY, maxX:maxX, maxY:maxY }, bg:bg, bgW:bgW, bgH:bgH, view:view,
     roofs: roofs.map(function(r){
       return {
         idx: r.idx, name: r.name, area: +(r.areaM2||0), mode: _roofQuoteMode(r.idx),
@@ -19780,6 +19810,24 @@ function _qpRoofMapSvg(opts){
   var b = g.bbox;
   var pad = Math.max(20, (b.maxX-b.minX)*0.06, (b.maxY-b.minY)*0.06);
   var minX=b.minX-pad, minY=b.minY-pad, w=(b.maxX-b.minX)+2*pad, h=(b.maxY-b.minY)+2*pad;
+  // Frame it the way the canvas was framed — see _qpStashRoofGeom. Only when
+  // the aerial is actually being drawn; with the background off there is no
+  // photo to match and the roofs' own bounds are the better crop.
+  //
+  // Widened, if it has to be, to keep every roof in shot. The customer picks
+  // which roofs to include by tapping them ON THIS MAP, so a roof outside the
+  // frame is a roof they cannot buy — and the office panning close in on one
+  // corner before publishing must not be able to cause that. On a normal view,
+  // where the canvas already shows the whole building, this changes nothing
+  // and the framing is the canvas's exactly.
+  if (g.view && g.bg && opts.showBg !== false &&
+      g.view.w > 1 && g.view.h > 1){
+    var vx0 = Math.min(g.view.x, b.minX - pad);
+    var vy0 = Math.min(g.view.y, b.minY - pad);
+    var vx1 = Math.max(g.view.x + g.view.w, b.maxX + pad);
+    var vy1 = Math.max(g.view.y + g.view.h, b.maxY + pad);
+    minX = vx0; minY = vy0; w = vx1 - vx0; h = vy1 - vy0;
+  }
   var INCL={fill:'#dbeafe',stroke:'#1d4ed8',text:'#1e3a8a'};
   var EXCL={fill:'#fee2e2',stroke:'#dc2626',text:'#991b1b'};
   var sel = opts.sel || {};
