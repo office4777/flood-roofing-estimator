@@ -104,15 +104,43 @@ v = await pg.evaluate(() => {
 });
 check('no duplicate rename buttons left on the mode rows', v.renames === 0 && v.heading && !v.old, JSON.stringify(v));
 
+// A pencil that only appeared for a roof with no button of its own turned up
+// on one row and not the next, and pushed that row's controls out of line with
+// the rest. There is no rename in these rows at all now — it lives on the roof
+// switcher above the canvas, where every roof has one whatever it is quoted
+// as, so nothing becomes un-renameable.
 await pg.evaluate(() => { _setRoofMode(2,'folded'); refreshQuoteProposal(); });
 await pg.waitForTimeout(1000);
 v = await pg.evaluate(() => ({
   modeRow: document.querySelectorAll('#qpRoot button[onclick^="_renameRoof"]').length,
   // Scope to the FIRST block — the proposal renders the same include buttons
   // again on the Accept page, and counting both double-counts every cell.
-  cells: document.querySelector('#qpRoot .qp-incl-btns').children.length }));
-check('a roof folded into the main price keeps a pencil on its row, so it can still be renamed',
-  v.modeRow === 1 && v.cells === 2, JSON.stringify(v));
+  cells: document.querySelector('#qpRoot .qp-incl-btns').children.length,
+  onSwitcher: document.querySelectorAll('#roofSwitcher [onclick*="_renameRoof"]').length,
+  roofs: DRAW.roofs.length }));
+check('folding a roof in does not put a pencil back on its row',
+  v.modeRow === 0, JSON.stringify(v));
+check('…and it loses its Include button, since it is part of the main price now',
+  v.cells === 2, JSON.stringify(v));
+check('…but every roof still has a rename on the roof switcher',
+  v.onSwitcher === v.roofs, v.onSwitcher + ' of ' + v.roofs);
+
+// The controls that decide how a roof is charged are sized to be read.
+const sizes = await pg.evaluate(() => {
+  const b = [...document.querySelectorAll('#qpRoot button')]
+    .find(x => (x.textContent||'').trim() === 'Separate extra');
+  if (!b) return { missing: true };
+  const cs = getComputedStyle(b);
+  // The proposal preview is zoom-scaled to fit the pane, so a bounding rect
+  // reads whatever the current zoom is. Computed style is not scaled by a
+  // transform, so that is the honest measure of how big it was authored.
+  return { font: parseFloat(cs.fontSize),
+           padY: parseFloat(cs.paddingTop), padX: parseFloat(cs.paddingLeft),
+           weight: cs.fontWeight };
+});
+check('the quoted-as buttons are big enough to read and hit',
+  !sizes.missing && sizes.font >= 12 && sizes.padY >= 6 && sizes.padX >= 12,
+  JSON.stringify(sizes));
 await pg.evaluate(() => { _setRoofMode(2,'separate'); refreshQuoteProposal(); });
 await pg.waitForTimeout(900);
 await ctx.close();

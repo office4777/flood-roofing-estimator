@@ -19900,18 +19900,20 @@ function _buildRoofPreviewsHtml(opts){
     // the customer's Include buttons and the Selections page.
     var _modeToggles = '';
     if (_officeCtl && window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) {
-      // Renaming now lives UNDER each roof button above. These rows keep a
-      // pencil only for a roof that has no button of its own to sit under
-      // (folded into the main price, or excluded), so nothing becomes
-      // un-renameable from this page.
-      var _extrasN = ((S.quote && S.quote.extraRoofs) || []).length;
-      var _pencil = function(i){
-        return '<button type="button" onclick="_renameRoof('+i+')" title="Rename" style="font-size:9.5px;border:1px solid var(--ed-line);border-radius:4px;background:#fff;color:var(--ed-ink-2);cursor:pointer;padding:2px 7px;font-family:var(--ed-sans)">✎ Rename</button>';
-      };
+      // No rename here. It only ever appeared for a roof with no button of
+      // its own to sit under, so it turned up on one row and not the next and
+      // pushed that row's controls out of line with the others. Renaming now
+      // lives on the roof switcher above the canvas, where every roof has one
+      // whatever it is quoted as.
+      //
+      // These are the controls that decide how a roof is charged, so they are
+      // sized to be read and hit rather than squeezed into 9px.
+      var _rowCss = 'display:flex;align-items:center;gap:10px;font-size:13px;'+
+        'font-family:var(--ed-sans);color:var(--ed-ink-2);flex-wrap:wrap';
+      var _nameCss = 'min-width:92px;font-weight:700;font-size:13.5px;color:var(--ed-ink)';
       var _rows = [];
-      _rows.push('<div class="no-print" style="display:flex;align-items:center;gap:8px;font-size:10.5px;font-family:var(--ed-sans);color:var(--ed-ink-2)">'+
-        '<span style="min-width:64px;font-weight:600">'+esc2((DRAW.roofs[0] && DRAW.roofs[0].name) || 'Main Roof')+'</span>'+
-        (_extrasN ? '' : _pencil(0))+
+      _rows.push('<div class="no-print" style="'+_rowCss+'">'+
+        '<span style="'+_nameCss+'">'+esc2((DRAW.roofs[0] && DRAW.roofs[0].name) || 'Main Roof')+'</span>'+
         '<span style="color:var(--ed-text2)">— always included</span></div>');
       for (var _si = 1; _si < DRAW.roofs.length; _si++) {
         var _rn = (DRAW.roofs[_si] && DRAW.roofs[_si].name) || ('Roof ' + (_si + 1));
@@ -19919,7 +19921,7 @@ function _buildRoofPreviewsHtml(opts){
         var _seg = [['folded','Part of main'],['separate','Separate extra'],['excluded','Exclude']].map(function(p){
           var _on = (_cm === p[0]);
           var _col = (p[0] === 'excluded') ? '#dc2626' : 'var(--ed-accent)';
-          return '<button type="button" onclick="_setRoofMode('+_si+',\''+p[0]+'\')" style="padding:2px 9px;font-size:9.5px;border:none;border-left:'+(p[0]==='folded'?'0':'1px solid var(--ed-line)')+';background:'+(_on?_col:'#fff')+';color:'+(_on?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
+          return '<button type="button" onclick="_setRoofMode('+_si+',\''+p[0]+'\')" style="padding:7px 15px;font-size:12.5px;font-weight:'+(_on?'700':'600')+';border:none;border-left:'+(p[0]==='folded'?'0':'1px solid var(--ed-line)')+';background:'+(_on?_col:'#fff')+';color:'+(_on?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
         }).join('');
         // Gutter attachment — only meaningful for a separate roof: "with house"
         // (veranda — always guttered) vs "own gutters" (garage — guttered only
@@ -19927,21 +19929,21 @@ function _buildRoofPreviewsHtml(opts){
         var _gutSeg = '';
         if (_cm === 'separate') {
           var _att = _roofAttached(_si);
-          _gutSeg = '<span title="Attached roofs (veranda) share the house gutter run and are always guttered; detached roofs (garage) are guttered only when added as an extra" style="display:inline-flex;align-items:center;gap:5px;margin-left:2px">'+
-            '<span style="font-size:9px;color:var(--ed-text2)">gutter</span>'+
-            '<span style="display:inline-flex;border:1px solid var(--ed-line);border-radius:4px;overflow:hidden">'+
+          _gutSeg = '<span title="Attached roofs (veranda) share the house gutter run and are always guttered; detached roofs (garage) are guttered only when added as an extra" style="display:inline-flex;align-items:center;gap:7px;margin-left:4px">'+
+            '<span style="font-size:12px;color:var(--ed-text2)">gutter</span>'+
+            '<span style="display:inline-flex;border:1px solid var(--ed-line);border-radius:7px;overflow:hidden">'+
             [[true,'With house'],[false,'Own gutters']].map(function(p){
               var _on2 = (p[0] === _att);
-              return '<button type="button" onclick="_setRoofAttached('+_si+','+p[0]+')" style="padding:2px 8px;font-size:9px;border:none;border-left:'+(p[0]===true?'0':'1px solid var(--ed-line)')+';background:'+(_on2?'#7c3aed':'#fff')+';color:'+(_on2?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
+              return '<button type="button" onclick="_setRoofAttached('+_si+','+p[0]+')" style="padding:7px 14px;font-size:12.5px;font-weight:'+(_on2?'700':'600')+';border:none;border-left:'+(p[0]===true?'0':'1px solid var(--ed-line)')+';background:'+(_on2?'#7c3aed':'#fff')+';color:'+(_on2?'#fff':'var(--ed-ink-2)')+';cursor:pointer;font-family:var(--ed-sans);white-space:nowrap">'+p[1]+'</button>';
             }).join('')+'</span></span>';
         }
-        _rows.push('<div class="no-print" style="display:flex;align-items:center;gap:8px;font-size:10.5px;font-family:var(--ed-sans);color:var(--ed-ink-2);flex-wrap:wrap">'+
-          '<span style="min-width:64px;font-weight:600">'+esc2(_rn)+'</span>'+
-          (_cm === 'separate' ? '' : _pencil(_si))+
-          '<span style="display:inline-flex;border:1px solid var(--ed-line);border-radius:4px;overflow:hidden">'+_seg+'</span>'+_gutSeg+'</div>');
+        _rows.push('<div class="no-print" style="'+_rowCss+'">'+
+          '<span style="'+_nameCss+'">'+esc2(_rn)+'</span>'+
+          '<span style="display:inline-flex;border:1px solid var(--ed-line);border-radius:7px;overflow:hidden">'+_seg+'</span>'+_gutSeg+'</div>');
       }
-      _modeToggles = '<div class="no-print" style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--ed-line);display:flex;flex-direction:column;gap:7px">'+
-        '<div style="font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--ed-text2)">How each roof is quoted <span style="text-transform:none;letter-spacing:0">(part of main price · optional extra · excluded · gutter with house or its own — rename each roof under its button above)</span></div>'+
+      _modeToggles = '<div class="no-print" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--ed-line);display:flex;flex-direction:column;gap:11px">'+
+        '<div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ed-text2)">How each roof is quoted '+
+          '<span style="text-transform:none;letter-spacing:0;font-weight:400">(part of the main price · an optional extra · excluded · guttered with the house or on its own)</span></div>'+
         _rows.join('')+'</div>';
     }
     // Selection state (shared with the Selections page) + the customer's
@@ -48710,6 +48712,11 @@ function renderRoofSwitcher(){
     var label = _nthName(i + 1);
     html += '<span style="display:inline-flex;align-items:center;border:1px solid '+(isActive?'#0a1628':'#cbd5e1')+';border-radius:6px;overflow:hidden;'+(isActive?'background:#0a1628':'background:#fff')+'">'+
       '<button onclick="switchToRoof('+i+')" title="Set '+label+' as the active roof — new lines attach here" style="font-size:12px;padding:4px 10px;border:none;background:transparent;cursor:pointer;font-weight:'+(isActive?'700':'500')+';color:'+(isActive?'#fff':'#0a1628')+'">'+label+'</button>'+
+      // Rename lives here now, on the roof itself, rather than in the quote's
+      // "How each roof is quoted" rows — there it only appeared for roofs with
+      // no button of their own, so it turned up on one row and not the next.
+      // Every roof has a chip here whatever it is quoted as.
+      '<button onclick="event.stopPropagation();_renameRoof('+i+')" title="Rename '+label+'" style="font-size:11px;line-height:1;padding:4px 6px;border:none;background:transparent;cursor:pointer;color:'+(isActive?'rgba(255,255,255,.85)':'#94a3b8')+'">&#9998;</button>'+
       '<button onclick="deleteRoof('+i+')" title="Delete '+label+'" style="font-size:13px;line-height:1;padding:4px 8px 4px 2px;border:none;background:transparent;cursor:pointer;color:'+(isActive?'rgba(255,255,255,.85)':'#94a3b8')+'">✕</button>'+
     '</span>';
   });
