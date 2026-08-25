@@ -124,14 +124,28 @@ v = await pg.evaluate(() => {
     { type:'ridge', measM:'9' }, { type:'hip', measM:'4' },
   ];
   DRAW.outline = null; DRAW.scaleMetresPerPx = null;
-  const rows = _buildMaterialPriceRows();
-  const by = {}; rows.forEach(r => by[r.key] = r);
-  return {
-    barge:  by.barge  ? { q: by.barge.autoQty,  n: by.barge.note }  : null,
-    gutter: by.gutter ? { q: by.gutter.autoQty, n: by.gutter.note } : null,
-    ridge:  by.ridge  ? { q: by.ridge.autoQty,  n: by.ridge.note }  : null,
+  const read = () => {
+    const by = {}; _buildMaterialPriceRows().forEach(r => by[r.key] = r);
+    return {
+      barge:  by.barge  ? { q: by.barge.autoQty,  n: by.barge.note }  : null,
+      gutter: by.gutter ? { q: by.gutter.autoQty, n: by.gutter.note } : null,
+      ridge:  by.ridge  ? { q: by.ridge.autoQty,  n: by.ridge.note }  : null,
+    };
   };
+  // Drawing a gutter is not the same as buying one — plenty of re-roofs leave
+  // the existing spouting up, and the wastage model only gets a say once the
+  // job actually orders gutter. Read it both ways.
+  localStorage.setItem('fr_jp_gutter_include', '0');
+  const off = read();
+  localStorage.setItem('fr_jp_gutter_include', '1');
+  const on = read();
+  return Object.assign({}, on, { gutterOffRow: off.gutter, bargeOff: off.barge });
 });
+check('a gutter that is drawn but not being bought is not priced at all',
+  v.gutterOffRow === null, v.gutterOffRow ? ('still charged ' + v.gutterOffRow.q) : 'not charged');
+check('…while everything else on the roof still is',
+  v.bargeOff && Math.abs(v.bargeOff.q - 11) < 1e-9,
+  v.bargeOff ? String(v.bargeOff.q) : 'barge missing too');
 check('two 5m barges price at 11m, not 12m',
   Math.abs(v.barge.q - 11) < 1e-9, v.barge.q + ' — ' + v.barge.n);
 check('a 12m gutter prices at 12.6m, not 14.4m',
