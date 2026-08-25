@@ -7444,6 +7444,34 @@ function mergeSettings(s){
       pb.gutter   = Object.assign({}, d.price_book.gutter,   (s.price_book && s.price_book.gutter)   || {});
       if (!Array.isArray(pb.sheets) || !pb.sheets.length) pb.sheets = d.price_book.sheets.slice();
       if (!Array.isArray(pb.extras)) pb.extras = [];
+      // ── An imported price list is a set of RATES, not a shopping list ──
+      //
+      // A price-book extra that carries a quantity joins EVERY job. The CSV
+      // import used to give every imported rate a quantity of 1, so a roofer
+      // who loaded their merchant's list got the whole list on every quote —
+      // every Aquaseal size, every back-tray, every Marley fitting, one of
+      // each — around $1,500 of material the job never touches, sitting under
+      // the real take-off where it is easy to miss. Reported as "way too much
+      // and unnecessary material being added to the material price".
+      //
+      // The import writes 0 now, but a book imported before that is still in
+      // the old state, and there is no reason the roofer should have to know
+      // that or go hunting for the repair button in Settings. A book carrying
+      // that signature is fixed once, here, on load. The rates are KEPT —
+      // only the quantities go to 0, which is exactly what "a rate we hold"
+      // means. Nothing is deleted and nothing is unrecoverable.
+      //
+      // The signature is deliberately narrow, because someone may genuinely
+      // want a couple of items on every job. A hand-written list like that is
+      // short and its quantities vary; thirty identical 1s is an import.
+      try {
+        var _qtyd = pb.extras.filter(function(x){ return (parseFloat(x && x.qty) || 0) > 0; });
+        var _allOnes = _qtyd.length > 6 && _qtyd.every(function(x){ return parseFloat(x.qty) === 1; });
+        if (_allOnes){
+          _qtyd.forEach(function(x){ x.qty = 0; });
+          window.__pbExtrasRepaired = _qtyd.length;
+        }
+      } catch(e){}
       // The "these are only list prices" flag defaults to true, which is right
       // for a business that has never saved a price book — and wrong for
       // everybody who already has one. A saved book is somebody's own work
@@ -8644,7 +8672,28 @@ function renderMaterialPriceTable(){
     return true;
   });
 
-  var html = '<table class="price-tbl" style="margin-bottom:8px;table-layout:fixed">'+
+  // Say so when the book was repaired on load, rather than quietly changing
+  // somebody's prices. It stays up until it is dismissed: this table
+  // re-renders on every edit, so "show it once" meant it flashed past on the
+  // first render and was gone before anyone read it.
+  var _repairNote = '';
+  if (window.__pbExtrasRepaired && !window.__pbExtrasNoted){
+    _repairNote = '<div class="no-print" style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;'+
+      'padding:9px 12px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;font-size:12px;'+
+      'color:#92400e;line-height:1.45">'+
+      '<div style="flex:1;min-width:0">'+
+        '<strong>'+window.__pbExtrasRepaired+' price-book rates were being charged on every job.</strong> '+
+        'They came in from an imported price list with a quantity of 1 each, so one of every item was added to '+
+        'the material price whether the job used it or not. Their quantities are now 0 — the rates are still in '+
+        'your price book, and you can put a quantity back on any of them in Settings &rarr; Price book.'+
+      '</div>'+
+      '<button type="button" onclick="window.__pbExtrasNoted=true;renderMaterialPriceTable()" title="Dismiss" '+
+        'style="flex:0 0 auto;background:none;border:none;color:#92400e;font-size:15px;line-height:1;'+
+        'cursor:pointer;padding:0 2px">&times;</button>'+
+    '</div>';
+  }
+  var html = _repairNote +
+    '<table class="price-tbl" style="margin-bottom:8px;table-layout:fixed">'+
     '<thead><tr>'+
       '<th style="width:28%">Item</th>'+
       '<th style="width:28%">Variant</th>'+
