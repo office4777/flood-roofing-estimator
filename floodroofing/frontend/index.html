@@ -33996,13 +33996,12 @@ function redrawAll() {
           }
         });
       }
-      // Label the roof with its name (centred, in the TRANSFORMED space).
-      var lp = _dpv([_cxV, _cyV]);
-      ctx.setLineDash([]);
-      ctx.font = 'bold 12px Inter, -apple-system, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = _showAll ? 'rgba(10,22,40,0.65)' : 'rgba(10,22,40,0.40)';
-      ctx.fillText(r.name || _nthName(ri + 1), lp[0], lp[1]);
+      // No roof name stamped on the drawing. On a house with six roofs the
+      // names land in the middle of the very measurements they sit among, and
+      // a tape reading you cannot make out is worse than a roof you have to
+      // identify from the switcher. The name belongs on the customer's quote,
+      // where there are no dimensions to compete with; here the roof switcher
+      // above the canvas already says which roof you are on.
       ctx.restore();
     });
   }
@@ -38273,7 +38272,6 @@ function _renderMatRoofMapBasic(out, opts){
     hip:'#059669', barge:'#0891b2', apron:'#e11d48',
     changepitch:'#0ea5e9', drip:'#f59e0b', custom:'#475569'
   };
-  var fontSize = Math.max(11, Math.min(28, h / 22));
   var subSize  = Math.max(9,  Math.min(18, h / 32));
   // Optional background image overlay — Job Pack > Basic view is
   // often shown to the customer, who wants to see WHICH roof is
@@ -38369,15 +38367,16 @@ function _renderMatRoofMapBasic(out, opts){
     // Apply override (drag + per-text font scale).
     var ov = overrides[ri] || {};
     var ovDx = +ov.dx || 0, ovDy = +ov.dy || 0;
-    var nameScale = (+ov.nameScale > 0) ? +ov.nameScale : 1;
-    var subScale  = (+ov.subScale  > 0) ? +ov.subScale  : 1;
-    var nFs = fontSize * nameScale;
-    var sFs = subSize  * subScale;
+    var subScale = (+ov.subScale > 0) ? +ov.subScale : 1;
+    var sFs = subSize * subScale;
     var lx = cx + ovDx;
     var ly = cy + ovDy;
+    // Area only — the roof name is off every working map for the same reason
+    // it is off the canvas: it crowds the measurements. The job pack renders
+    // one map per roof and titles it with the roof's name, so the name in the
+    // middle of the shape was saying it twice.
     svg += '<g data-basic-label="'+ri+'">'+
-      '<text x="'+lx.toFixed(1)+'" y="'+(ly - 2).toFixed(1)+'" text-anchor="middle" font-size="'+nFs+'" font-weight="700" stroke="#fff" stroke-width="4" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+esc(r.name)+'</text>'+
-      '<text x="'+lx.toFixed(1)+'" y="'+(ly + nFs*0.95).toFixed(1)+'" text-anchor="middle" font-size="'+sFs+'" font-weight="500" stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+areaTxt+'</text>'+
+      '<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="'+sFs+'" font-weight="600" stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke" fill="'+c.text+'">'+areaTxt+'</text>'+
     '</g>';
     // Red X over an excluded / out-of-scope roof.
     if (crossSet && crossSet[_key]) {
@@ -39533,14 +39532,9 @@ function _jpEditBasicMap(pageIdx, imgId){
   var sliders = document.getElementById('jpBasicEditorSliders');
   sliders.innerHTML = roofs.map(function(r, ri){
     var ov = DRAW.basicLabelOverrides[ri] || {};
-    var nameScale = (+ov.nameScale > 0) ? +ov.nameScale : 1;
-    var subScale  = (+ov.subScale  > 0) ? +ov.subScale  : 1;
+    var subScale = (+ov.subScale > 0) ? +ov.subScale : 1;
     return '<div style="border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px">'+
       '<div style="font-weight:700;color:#0a1628;margin-bottom:6px;font-size:12px">'+esc(r.name || ('Roof '+(ri+1)))+'</div>'+
-      '<label style="display:flex;flex-direction:column;gap:3px;margin-bottom:6px">'+
-        '<span style="font-size:10.5px;color:#475569;display:flex;justify-content:space-between"><span>Label size</span><span id="jpBELblOut'+ri+'" style="font-variant-numeric:tabular-nums">'+nameScale.toFixed(2)+'×</span></span>'+
-        '<input type="range" min="0.5" max="3" step="0.05" value="'+nameScale+'" oninput="_jpBasicEditorSetScale('+ri+',\'nameScale\',this.value)" style="width:100%">'+
-      '</label>'+
       '<label style="display:flex;flex-direction:column;gap:3px">'+
         '<span style="font-size:10.5px;color:#475569;display:flex;justify-content:space-between"><span>Area size</span><span id="jpBESubOut'+ri+'" style="font-variant-numeric:tabular-nums">'+subScale.toFixed(2)+'×</span></span>'+
         '<input type="range" min="0.5" max="3" step="0.05" value="'+subScale+'" oninput="_jpBasicEditorSetScale('+ri+',\'subScale\',this.value)" style="width:100%">'+
