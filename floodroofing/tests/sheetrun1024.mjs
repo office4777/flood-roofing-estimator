@@ -76,6 +76,30 @@ check('…so nothing on the job is longer than its longest real run',
   Math.max.apply(null, asReported.labels.map(parseFloat)) < 6,
   'longest ' + Math.max.apply(null, asReported.labels.map(parseFloat)) + 'm');
 
+// He confirmed a second phantom on the same roof: a 6.09m run, which is the
+// main ridge reaching PAST its own west eave to the stepped one below it.
+// "That measure should have been 4.66m" — and it is: the west face's own run.
+// The area under the step belongs to the pocket ridge, not the main one, and
+// the pocket's two runs (3.71m north, 3.75m south) cover it.
+check('the 6.09m run on the same roof is gone as well',
+  !asReported.labels.some(l => /^6\./.test(l)), asReported.labels.join(', '));
+const faces = await pg.evaluate(() => (window._lastSheetDims || [])
+  .filter(x => x.roofIdx === 0)
+  .map(x => ({ label:x.label, into:[Math.round(x.faceDx||0), Math.round(x.faceDy||0)],
+               ridge:[Math.round(x.ridgeMx||0), Math.round(x.ridgeMy||0)] })));
+const west = faces.find(f => f.into[0] === -1);
+const east = faces.find(f => f.into[0] === 1);
+check('…and the west face reads 4.66m, which is what he said it should be',
+  west && /^4\.66/.test(west.label), west ? west.label : 'no west run');
+check('…with the east face the same, off the same ridge',
+  east && /^4\.66/.test(east.label) && east.ridge.join() === (west||{ridge:[]}).ridge.join(),
+  east ? east.label : 'no east run');
+check('…and the pocket under the step keeps its own two runs',
+  faces.filter(f => f.into[1] !== 0).length === 2,
+  faces.filter(f => f.into[1] !== 0).map(f => f.label).join(', '));
+check('…so the roof has four runs, one per face, and no phantoms',
+  faces.length === 4, faces.map(f => f.label).join(', '));
+
 // The whole point of the fix: the answer must not depend on which roof
 // happens to be active. It used to — the guard only ran on the active one.
 const perActive = [];
