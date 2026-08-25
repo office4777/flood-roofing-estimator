@@ -3953,6 +3953,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:8px 6px 6px;border-top:1px solid #eef1f5;margin-top:6px">Details</div>
             <button onclick="setTool('penetration');closeRoofLinesMenu()" id="btn-penetration" onmouseenter="showTip('btn-penetration',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0891b2;border-color:#0891b2;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">⬛ Penetration</button>
             <button onclick="setTool('boxedpen');closeRoofLinesMenu()" id="btn-boxedpen" onmouseenter="showTip('btn-boxedpen',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#475569;border-color:#475569;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">▭ Boxed Penetration</button>
+            <button onclick="setTool('clearlite');closeRoofLinesMenu()" id="btn-clearlite" onmouseenter="showTip('btn-clearlite',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0284c7;border-color:#0284c7;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">🔆 Clearlite sheet</button>
             <button onclick="setTool('sheetmeas');closeRoofLinesMenu()" id="btn-sheetmeas" onmouseenter="showTip('btn-sheetmeas',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;display:flex;width:100%;justify-content:flex-start;text-align:left;margin:0 0 4px">📏 Sheet measure</button>
             <!-- Office only. On site this moved to the pencil in the top bar,
                  but Office has no top bar, so removing it outright would leave
@@ -3968,6 +3969,20 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
 
 
+        <!-- Sheet type is a property of THIS roof, so it belongs beside the
+             drawing rather than buried in the Job Pack spec row. Steel vs
+             Clearlite changes what gets ordered; the profile half keeps the
+             flashing library and back-tray lookup pointed at the right
+             drawings, which is why picking here writes matProfile too. -->
+        <label id="roofSheetTypeWrap" style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#475569">
+          <span>Sheet</span>
+          <select id="roofSheetType" onchange="setRoofSheetType(this.value)" style="margin:0;padding:5px 8px;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#0a1628;width:auto">
+            <option value="steel-corrugate">Steel Corrugate</option>
+            <option value="steel-5rib">Steel 5-Rib</option>
+            <option value="clearlite-5rib">Clearlite 5-Rib</option>
+            <option value="clearlite-corrugate">Clearlite Corrugate</option>
+          </select>
+        </label>
         <button onclick="setTool('calibrate')" id="btn-calibrate" onmouseenter="showTip('btn-calibrate',event)" onmouseleave="hideTip()" class="tool-btn" style="color:#0a1628;border-color:#0a1628;font-weight:700;background:#f0f8fb;margin-left:auto">📏 Calibrate scale</button>
         <div style="display:flex;gap:6px">
           <button onclick="undoLast()" class="tool-btn">↩ Undo</button>
@@ -4250,6 +4265,33 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         </div>
       </div>
       <div id="penPopupOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:999" onclick="cancelPenPopup()"></div>
+
+      <!-- Clearlite sheet — same shape as the penetration popup, because it
+           is added the same way: click the roof, answer one question. A full
+           clear takes the sheet length of the run it lands in, so there is
+           nothing to type; a short one has to be told how long it is. -->
+      <div id="clearPopup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;padding:22px 26px;box-shadow:0 8px 32px rgba(0,0,0,.25);z-index:1000;min-width:300px">
+        <div style="font-weight:700;font-size:15px;margin-bottom:14px;color:#0a1628">Clearlite sheet</div>
+        <div style="font-size:12px;color:#475569;margin-bottom:4px">Length</div>
+        <div style="display:flex;margin-bottom:12px">
+          <button type="button" id="clearModeFull" onclick="_clearPopupSetMode('full')" style="flex:1;padding:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid #0a1628;background:#0a1628;color:#fff;border-radius:8px 0 0 8px">Full length</button>
+          <button type="button" id="clearModeShort" onclick="_clearPopupSetMode('short')" style="flex:1;padding:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid #cbd5e1;border-left:none;background:#fff;color:#475569;border-radius:0 8px 8px 0">Short</button>
+        </div>
+        <div id="clearFullNote" style="font-size:11.5px;color:#64748b;margin-bottom:16px;line-height:1.45">Runs the full sheet length of the run it sits in — taken from the roof map, so it changes with the roof.</div>
+        <div id="clearShortWrap" style="display:none;margin-bottom:16px">
+          <div style="font-size:12px;color:#475569;margin-bottom:4px">How long is it?</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="number" id="clearLenInput" step="0.05" min="0.1" placeholder="e.g. 2.4" style="flex:1;font-size:15px;padding:9px 11px;border:2px solid #0099cc;border-radius:8px;outline:none"
+              onkeydown="if(event.key==='Enter') confirmClearPopup()">
+            <span style="font-size:13px;font-weight:700;color:#475569">m</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="confirmClearPopup()" style="flex:1;padding:10px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">Add &#8629;</button>
+          <button onclick="cancelClearPopup()" style="padding:10px 16px;background:#f5f5f3;color:#666;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px">Cancel</button>
+        </div>
+      </div>
+      <div id="clearPopupOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:999" onclick="cancelClearPopup()"></div>
 
       <!-- Properties panel - shows context-sensitive editor -->
       <div id="propPanel" style="display:none;position:absolute;top:12px;right:12px;z-index:60;width:248px;max-height:calc(100% - 24px);overflow-y:auto;background:#fff;border-radius:10px;padding:12px 14px;border:1px solid #cfe6f2;border-left:3px solid #0099cc;box-shadow:0 8px 28px rgba(0,0,0,.18)">
@@ -9582,10 +9624,13 @@ function snapshotCurrentJob(){
     state: { img64:S.img64, roofData:S.roofData, labour:S.labour, materials:S.materials,
              condition:S.condition, photos:S.photos, files:S.files, linkedJobId:S.linkedJobId, linkedJobNo:S.linkedJobNo, linkedJobName:S.linkedJobName,
              quote:S.quote, jpPdfRev:S.jpPdfRev||0, fergusSent:S.fergusSent||null, jpFlashAngles:S.jpFlashAngles||{},
+             clearliteMaterial:S.clearliteMaterial||'fibreglass', jpFlashTypeOff:S.jpFlashTypeOff||{},
              orderSent:S.orderSent||null },
     draw: _lkgGuard({ outline:DRAW.outline, sections:DRAW.sections, lines:DRAW.lines,
             penetrations:DRAW.penetrations, dimLabels:DRAW.dimLabels, infoItems:DRAW.infoItems,
             notes:DRAW.notes||[],
+            clearlites:DRAW.clearlites||[], sheetType:DRAW.sheetType||'steel-corrugate',
+            matClearExtras:DRAW.matClearExtras||[],
             scaleMetresPerPx:DRAW.scaleMetresPerPx, outlineDone:DRAW.outlineDone, step:DRAW.step,
             sheetPlanDeletedIds:DRAW.sheetPlanDeletedIds||[],
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
@@ -9610,6 +9655,12 @@ function restoreFromJob(j){
   if (snap.state) {
     S.orderSent = null;   // pre-stamp jobs: don't inherit the previous job's stamp
     S.files = [];         // same leak: a job without files must not inherit the last job's
+    // Same leak again, and a worse one: a flashing struck off job A would
+    // arrive struck off job B, quietly missing from a supplier order nobody
+    // thought to re-check. Reset before the assign so a job that carries no
+    // decision gets the default, not the last job's.
+    S.jpFlashTypeOff = {};
+    S.clearliteMaterial = 'fibreglass';
     Object.assign(S, snap.state);
     if (!Array.isArray(S.photos)) S.photos = [];
     if (!Array.isArray(S.files)) S.files = [];   // Object.assign above carried them if the job has any
@@ -9631,6 +9682,9 @@ function restoreFromJob(j){
     DRAW.dimLabels = snap.draw.dimLabels || [];
     DRAW.infoItems = snap.draw.infoItems || [];
     DRAW.notes = snap.draw.notes || [];
+    DRAW.clearlites = snap.draw.clearlites || [];
+    DRAW.matClearExtras = snap.draw.matClearExtras || [];
+    DRAW.sheetType = snap.draw.sheetType || 'steel-corrugate';
     DRAW.scaleMetresPerPx = snap.draw.scaleMetresPerPx || 0;
     DRAW.outlineDone = !!snap.draw.outlineDone;
     DRAW.step = snap.draw.step || 'outline';
@@ -9660,6 +9714,7 @@ function restoreFromJob(j){
       DRAW.activeRoofIdx = -1;
     }
     try { _syncGableRidgeUI(); } catch(e){}
+    try { _syncSheetTypeUi(); } catch(e){}
     // A render/sync failure here used to be swallowed — the user saw a
     // blank canvas and assumed the drawing was gone.  Say what happened
     // (the data is still in the job; it's the render that failed).
@@ -27786,6 +27841,12 @@ var DRAW = {
   sections: [],
   lines: [],
   penetrations: [],     // [{type,cx,cy,penW,penWUnit,penD,penDUnit}] — single dot
+  // Individual clear sheets dropped onto a steel roof, placed the same way a
+  // penetration is: [{cx,cy,mode:'full'|'short',lenM}]. A roof that is ALL
+  // clear is sheetType instead — these are the one or two clears you put over
+  // a lean-to or a laundry.
+  clearlites: [],
+  sheetType: 'steel-corrugate',
   currentPts: [],
   // Walls drawn out of order that are not linked into currentPts yet, plus
   // the per-stroke Undo stack for them (see _inkCommit).
@@ -27836,7 +27897,8 @@ var STEP_INFO = {
   changepitch:  {icon:'🔷', title:'Draw change of pitch', hint:'Click start then end of change-of-pitch line. Each change-of-pitch line starts a new set of sheets above it.', btn:'Done ↵'},
   section:      {icon:'📐', title:'Draw roof section/face', hint:'Click corners of this roof face. Press Enter/Finish to complete section.', btn:'Finish section ↵'},
   penetration:  {icon:'⬛', title:'Draw penetration', hint:'Click one corner then drag/click opposite corner to define the penetration rectangle.', btn:'Done ↵'},
-  backtray:     {icon:'▬', title:'Draw back-tray', hint:'', btn:'Done ↵'}
+  backtray:     {icon:'▬', title:'Draw back-tray', hint:'', btn:'Done ↵'},
+  clearlite:    {icon:'🔆', title:'Add a clearlite', hint:'Click where the clear sheet goes. You are asked whether it runs the full sheet length or a short one — a short clear asks for its length.', btn:'Done ↵'}
 };
 
 function setTool(t) {
@@ -27895,7 +27957,7 @@ function setTool(t) {
 // ── "Add Roof Lines or Details" dropdown ──────────────────────────
 // The roof-line + detail tools live behind one black button to keep
 // the canvas toolbar tidy.  The button shows the active tool's name.
-var ROOF_LINE_TOOLS = {ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',apron:'Apron',changepitch:'Ch. Pitch',penetration:'Penetration',info:'Add Info'};
+var ROOF_LINE_TOOLS = {ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',apron:'Apron',changepitch:'Ch. Pitch',penetration:'Penetration',clearlite:'Clearlite',info:'Add Info'};
 function syncRoofLinesBtn(t){
   var b=document.getElementById('rlDropBtn'); if(!b) return;
   var lbl=b.querySelector('.rl-drop-label'); if(!lbl) return;
@@ -29650,7 +29712,7 @@ function _syncSiteNotesBtn(){
 function _syncTabletBar(){
   var bar = document.getElementById('tabletToolbar');
   if (!bar) return;
-  var lineTools = { ridge:1, valley:1, gutter:1, hip:1, barge:1, apron:1, changepitch:1, penetration:1, boxedpen:1, sheetmeas:1, info:1, notes:1, noteserase:1 };
+  var lineTools = { ridge:1, valley:1, gutter:1, hip:1, barge:1, apron:1, changepitch:1, penetration:1, boxedpen:1, clearlite:1, sheetmeas:1, info:1, notes:1, noteserase:1 };
   var id = ({ select: 'ttbMove', outline: 'ttbOutline', calibrate: 'ttbCal' })[DRAW.tool] || (lineTools[DRAW.tool] ? 'ttbLines' : null);
   bar.querySelectorAll('.ttb-btn').forEach(function(b){ b.classList.remove('on'); });
   if (id){ var el = document.getElementById(id); if (el) el.classList.add('on'); }
@@ -31516,6 +31578,20 @@ function onCanvasClick(e) {
       syncToRoofData(); redrawAll(); updateMeasTotals();
       return;
     }
+    // Clearlite under the cursor. Tested before sheet measures because a
+    // clear is a panel and a measure is a text label — the panel is the
+    // bigger target and the one the click was almost certainly aimed at.
+    var hitDC = hitClearlite(xy[0], xy[1]);
+    if (hitDC >= 0) {
+      saveSnapshot();
+      _clearArr().splice(hitDC, 1);
+      try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+      syncToRoofData(); redrawAll(); updateMeasTotals();
+      try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
+      try { renderJobPack && renderJobPack(); } catch(e){}
+      try { autosaveJob && autosaveJob(); } catch(e){}
+      return;
+    }
     // Sheet measure (auto OR manual) under the cursor — clear it.
     // Auto labels get a "-1" sentinel in DRAW.sheetOverrides so the
     // collector hides them next render; manual ones drop out of
@@ -31630,6 +31706,14 @@ function onCanvasClick(e) {
     } else {
       redrawAll();
     }
+    return;
+  }
+
+  // Clearlite: single click, then one question. Same shape as a
+  // penetration — click the roof, answer the popup — because that is how the
+  // user asked for it and it is the interaction they already know.
+  if(DRAW.tool==='clearlite') {
+    showClearPopup(xy[0], xy[1]);
     return;
   }
 
@@ -32174,6 +32258,40 @@ function hitPen(x,y) {
   }
   return -1;
 }
+// A clearlite is a panel, not a point — hit-test the panel it draws. Length
+// and direction are re-derived the same way the renderer does, so what you can
+// click is exactly what you can see. Uncalibrated roofs get the renderer's
+// fallback tile, and the same generous radius as a penetration.
+function hitClearlite(x,y){
+  var arr = (Array.isArray(DRAW.clearlites) ? DRAW.clearlites : []);
+  var mpp = DRAW.scaleMetresPerPx || 0;
+  var coverM = (parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762) / 1000;
+  for (var i = arr.length - 1; i >= 0; i--){
+    var c = arr[i]; if (!c) continue;
+    var lenM = _clearLenM(c);
+    if (!(mpp > 0) || !(lenM > 0)){
+      if (Math.hypot(c.cx - x, c.cy - y) < 22) return i;
+      continue;
+    }
+    var ux = 0, uy = 1, bestD = Infinity;
+    (DRAW.lines || []).forEach(function(g){
+      if (!g || g.type !== 'gutter' || !g.pts || g.pts.length !== 2) return;
+      var ga = g.pts[0], gb = g.pts[1];
+      var gdx = gb[0]-ga[0], gdy = gb[1]-ga[1];
+      var l2 = gdx*gdx + gdy*gdy; if (l2 < 1) return;
+      var t = ((c.cx-ga[0])*gdx + (c.cy-ga[1])*gdy) / l2;
+      var px = ga[0] + t*gdx, py = ga[1] + t*gdy;
+      var d = Math.hypot(c.cx - px, c.cy - py);
+      if (d < bestD){ bestD = d; var gl = Math.sqrt(l2); ux = -gdy/gl; uy = gdx/gl; }
+    });
+    // Project the click into the panel's own axes.
+    var vx = x - c.cx, vy = y - c.cy;
+    var along = Math.abs(vx*ux + vy*uy);
+    var across = Math.abs(vx*(-uy) + vy*ux);
+    if (along <= (lenM / mpp) / 2 && across <= (coverM / mpp) / 2) return i;
+  }
+  return -1;
+}
 function hitInfo(x,y) {
   for(var i=0;i<DRAW.infoItems.length;i++){
     var it=DRAW.infoItems[i];
@@ -32565,6 +32683,8 @@ function _captureSnapState() {
     sections: DRAW.sections,
     lines: DRAW.lines,
     penetrations: DRAW.penetrations,
+    clearlites: DRAW.clearlites || [],
+    matClearExtras: DRAW.matClearExtras || [],
     outlineDone: DRAW.outlineDone,
     infoItems: DRAW.infoItems,
     notes: DRAW.notes || [],
@@ -32605,6 +32725,8 @@ function _applySnapState(snapStr) {
   DRAW.sections = s.sections || [];
   DRAW.lines = s.lines || [];
   DRAW.penetrations = s.penetrations || [];
+  DRAW.clearlites = s.clearlites || [];
+  DRAW.matClearExtras = s.matClearExtras || [];
   DRAW.outlineDone = !!s.outlineDone;
   DRAW.infoItems = s.infoItems || [];
   DRAW.notes = s.notes || [];
@@ -34595,6 +34717,71 @@ function redrawAll() {
     }
   });
 
+  // Clearlite sheets — one translucent panel each, drawn across the sheet
+  // run rather than as a dot, so the crew can see WHERE the light lands.
+  // Cover width comes from the same sheet-width input the tiler uses, so a
+  // clear is exactly as wide on the plan as the steel sheet it replaces.
+  (function(){
+    var arr = (Array.isArray(DRAW.clearlites) ? DRAW.clearlites : []);
+    if (!arr.length) return;
+    var mpp = DRAW.scaleMetresPerPx || 0;
+    var coverMm = parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762;
+    var coverM = coverMm / 1000;
+    arr.forEach(function(c, i){
+      if (!c) return;
+      var lenM = _clearLenM(c);
+      var mid = dp([c.cx, c.cy]);
+      // Direction: along the sheet run, i.e. perpendicular to the nearest
+      // gutter. Same rule the Sheet-measure arrow uses, so a clear and a
+      // sheet measure drawn at the same spot point the same way.
+      var ux = 0, uy = 1;
+      var gutters = (DRAW.lines || []).filter(function(g){ return g && g.type === 'gutter' && g.pts && g.pts.length === 2; });
+      var bestD = Infinity;
+      gutters.forEach(function(g){
+        var ga = g.pts[0], gb = g.pts[1];
+        var gdx = gb[0]-ga[0], gdy = gb[1]-ga[1];
+        var l2 = gdx*gdx + gdy*gdy; if (l2 < 1) return;
+        var t = ((c.cx-ga[0])*gdx + (c.cy-ga[1])*gdy) / l2;
+        var px = ga[0] + t*gdx, py = ga[1] + t*gdy;
+        var d = Math.hypot(c.cx - px, c.cy - py);
+        if (d < bestD){ bestD = d; var gl = Math.sqrt(l2); ux = -gdy/gl; uy = gdx/gl; }
+      });
+      // Fall back to a square-ish tile when the roof isn't calibrated or the
+      // clear has no length yet — better a visible marker than nothing.
+      var t2 = getImgTransform();
+      var sPx = t2 ? t2.s : 1;
+      var halfL = (mpp > 0 && lenM > 0) ? (lenM / mpp) * sPx / 2 : 26;
+      var halfW = (mpp > 0) ? (coverM / mpp) * sPx / 2 : 10;
+      var pxv = -uy, pyv = ux;
+      var corners = [
+        [mid[0] + ux*halfL + pxv*halfW, mid[1] + uy*halfL + pyv*halfW],
+        [mid[0] + ux*halfL - pxv*halfW, mid[1] + uy*halfL - pyv*halfW],
+        [mid[0] - ux*halfL - pxv*halfW, mid[1] - uy*halfL - pyv*halfW],
+        [mid[0] - ux*halfL + pxv*halfW, mid[1] - uy*halfL + pyv*halfW],
+      ];
+      ctx.save();
+      ctx.beginPath();
+      corners.forEach(function(pt, j){ if (j===0) ctx.moveTo(pt[0],pt[1]); else ctx.lineTo(pt[0],pt[1]); });
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(56,189,248,0.22)';
+      ctx.fill();
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5,3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      var txt = lenM > 0 ? (lenM.toFixed(2) + 'm') : 'set length';
+      ctx.font = '600 10px Inter, -apple-system, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(255,255,255,0.92)'; ctx.lineWidth = 3;
+      ctx.strokeText(txt, mid[0], mid[1]);
+      ctx.fillStyle = '#075985';
+      ctx.fillText(txt, mid[0], mid[1]);
+      ctx.restore();
+    });
+  })();
+
   /* Loose runs — walls drawn out of order that have not been linked up yet.
      Same dashed style as the run being extended, with their free ends ringed
      so it is obvious where a stroke has to land to join them together. */
@@ -36237,6 +36424,152 @@ function _backTrayNameFor(diamMm, profile){
   if (diamMm >= 130) return '570mm Corrugate back-tray';
   if (diamMm >= 80)  return '340mm Corrugate back-tray';
   return '270mm Corrugate back-tray';
+}
+// ── Sheet type — steel or clearlite, corrugate or 5-rib ───────────
+// One roof, one sheet type. A lean-to roofed in Clearlite over a steel main
+// roof is the ordinary case here, not the exception, so this lives per roof
+// (ROOF_FIELDS) rather than per job.
+//
+// The pair is deliberately not two separate controls. "Clearlite 5-Rib" is
+// how it is ordered and how a roofer says it; splitting it into a material
+// select and a profile select would be two decisions where the trade makes
+// one. The profile half still writes through to matProfile, because the
+// flashing library and the back-tray schedule both look up drawings by
+// profile and neither cares whether the sheet is steel or clear.
+var SHEET_TYPES = [
+  { key:'steel-corrugate',     label:'Steel Corrugate',     material:'Steel',     profile:'Corrugate' },
+  { key:'steel-5rib',          label:'Steel 5-Rib',         material:'Steel',     profile:'5-Rib'     },
+  { key:'clearlite-5rib',      label:'Clearlite 5-Rib',     material:'Clearlite', profile:'5-Rib'     },
+  { key:'clearlite-corrugate', label:'Clearlite Corrugate', material:'Clearlite', profile:'Corrugate' },
+];
+function _sheetTypeDef(key){
+  for (var i = 0; i < SHEET_TYPES.length; i++) if (SHEET_TYPES[i].key === key) return SHEET_TYPES[i];
+  return SHEET_TYPES[0];
+}
+// The sheet type of a given roof (or the active one when idx is omitted).
+function _roofSheetType(idx){
+  try {
+    if (typeof idx === 'number' && idx >= 0 && idx !== DRAW.activeRoofIdx && DRAW.roofs && DRAW.roofs[idx])
+      return _sheetTypeDef(DRAW.roofs[idx].sheetType);
+  } catch(e){}
+  return _sheetTypeDef(DRAW.sheetType);
+}
+function _roofIsClearlite(idx){ return _roofSheetType(idx).material === 'Clearlite'; }
+function setRoofSheetType(key){
+  var def = _sheetTypeDef(key);
+  DRAW.sheetType = def.key;
+  try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+  // Keep the profile the flashing library and back-tray lookup read in step.
+  var mp = document.getElementById('matProfile');
+  if (mp && mp.value !== def.profile) { mp.value = def.profile; }
+  _syncSheetTypeUi();
+  try { redrawAll(); } catch(e){}
+  try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
+  try { renderJobPack && renderJobPack(); } catch(e){}
+  try { autosaveJob && autosaveJob(); } catch(e){}
+}
+// Put the picker back in step with whichever roof is active. Called on every
+// roof switch and after a job loads — a picker showing the previous roof's
+// sheet type is worse than no picker.
+function _syncSheetTypeUi(){
+  var sel = document.getElementById('roofSheetType');
+  if (!sel) return;
+  var def = _sheetTypeDef(DRAW.sheetType);
+  if (sel.value !== def.key) sel.value = def.key;
+}
+// ── Clearlite sheets placed on a steel roof ───────────────────────
+function _clearArr(){
+  if (!Array.isArray(DRAW.clearlites)) DRAW.clearlites = [];
+  return DRAW.clearlites;
+}
+var _pendingClearX = 0, _pendingClearY = 0, _clearPopupMode = 'full';
+function _clearPopupSetMode(m){
+  _clearPopupMode = (m === 'short') ? 'short' : 'full';
+  var f = document.getElementById('clearModeFull'), sh = document.getElementById('clearModeShort');
+  if (f){ f.style.background = _clearPopupMode==='full'?'#0a1628':'#fff'; f.style.color = _clearPopupMode==='full'?'#fff':'#475569'; f.style.borderColor = _clearPopupMode==='full'?'#0a1628':'#cbd5e1'; }
+  if (sh){ sh.style.background = _clearPopupMode==='short'?'#0a1628':'#fff'; sh.style.color = _clearPopupMode==='short'?'#fff':'#475569'; sh.style.borderColor = _clearPopupMode==='short'?'#0a1628':'#cbd5e1'; }
+  var w = document.getElementById('clearShortWrap'), n = document.getElementById('clearFullNote');
+  if (w) w.style.display = (_clearPopupMode === 'short') ? 'block' : 'none';
+  if (n) n.style.display = (_clearPopupMode === 'short') ? 'none' : 'block';
+  if (_clearPopupMode === 'short') { var i = document.getElementById('clearLenInput'); if (i) setTimeout(function(){ try { i.focus(); } catch(e){} }, 20); }
+}
+function showClearPopup(cx, cy){
+  _pendingClearX = cx; _pendingClearY = cy;
+  var i = document.getElementById('clearLenInput'); if (i) i.value = '';
+  _clearPopupSetMode('full');
+  var pop = document.getElementById('clearPopup'), ov = document.getElementById('clearPopupOverlay');
+  if (pop) pop.style.display = 'block';
+  if (ov) ov.style.display = 'block';
+}
+function cancelClearPopup(){
+  var pop = document.getElementById('clearPopup'), ov = document.getElementById('clearPopupOverlay');
+  if (pop) pop.style.display = 'none';
+  if (ov) ov.style.display = 'none';
+}
+function confirmClearPopup(){
+  var mode = _clearPopupMode === 'short' ? 'short' : 'full';
+  var lenM = 0;
+  if (mode === 'short'){
+    lenM = parseFloat((document.getElementById('clearLenInput')||{}).value) || 0;
+    // A short clear with no length is just a full one that lost its answer —
+    // keep the popup up rather than dropping a 0 m sheet on the order.
+    if (!(lenM > 0)) { var i = document.getElementById('clearLenInput'); if (i) i.focus(); return; }
+  }
+  cancelClearPopup();
+  saveSnapshot();
+  _clearArr().push({ cx: _pendingClearX, cy: _pendingClearY, mode: mode, lenM: lenM });
+  try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+  try { syncToRoofData(); } catch(e){}
+  try { redrawAll(); } catch(e){}
+  try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
+  try { renderJobPack && renderJobPack(); } catch(e){}
+  try { autosaveJob && autosaveJob(); } catch(e){}
+}
+// The sheet length a FULL-length clear inherits. It replaces one steel sheet
+// in a run, so it is that run's length — read off the nearest sheet-run label
+// the roof map drew rather than recomputed, so the clear and the sheet it
+// displaces can never disagree. Falls back to the longest ordered sheet row
+// when the map has not drawn this session, and to 0 (shown as "set length")
+// when there is nothing to go on at all.
+function _clearFullLenM(){
+  try {
+    var hits = (window._roofCanvasHits && window._roofCanvasHits.sheets) || [];
+    var best = 0;
+    hits.forEach(function(h){
+      var v = parseFloat(String(h && h.label));
+      if (isFinite(v) && v > best) best = v;
+    });
+    if (best > 0) return best;
+    var sc = window._lastSheetCounts;
+    if (sc && sc.groups && sc.groups.length){
+      var mm = 0;
+      sc.groups.forEach(function(g){ if (g.orderedMm > mm) mm = g.orderedMm; });
+      if (mm > 0) return mm / 1000;
+    }
+  } catch(e){}
+  return 0;
+}
+// Length of one placed clear, whichever way it was answered.
+function _clearLenM(c){
+  if (!c) return 0;
+  return (c.mode === 'short') ? (+c.lenM || 0) : _clearFullLenM();
+}
+// Every clear across every roof, with the roof it belongs to. The active
+// roof's live array wins over its archived copy — the archive only catches up
+// on the next _syncCurrentToRoof.
+function _clearAllPlaced(){
+  var out = [];
+  try {
+    if (Array.isArray(DRAW.roofs) && DRAW.roofs.length){
+      DRAW.roofs.forEach(function(r, i){
+        var arr = (i === DRAW.activeRoofIdx) ? _clearArr() : (r && r.clearlites);
+        (arr || []).forEach(function(c){ out.push({ c: c, roofIdx: i }); });
+      });
+    } else {
+      _clearArr().forEach(function(c){ out.push({ c: c, roofIdx: 0 }); });
+    }
+  } catch(e){}
+  return out;
 }
 // Current roof profile string ("Corrugate" / "5-Rib" / …).
 function _penRoofProfile(){
@@ -39307,6 +39640,52 @@ function _jpRenderCutLists(content, page, idx){
   html += '<button class="mat-add-btn" onclick="_jpSheetExtraAdd()">+ Add row</button>';
   html += '</div>';
 
+  // ── Clearlite sheets ──
+  // Renders whenever there is a clear on the job — one dropped with the
+  // Clearlite tool, a roof whose sheet type IS clear, or a row typed in by
+  // hand. Fibreglass vs polycarbonate is one choice for the whole order,
+  // which is how it is quoted and delivered.
+  var clr = _clearOrderRows();
+  // Still render the band when it has been struck off — it carries the only
+  // way back, and an empty section is exactly what Preview collapses.
+  if (clr.count || clr.off || _clearExtrasGet().length){
+    var clrMatSel = '<select onchange="_clearMaterialSet(this.value)" '+
+      'style="padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-size:12px;color:#0a1628;margin:0;max-width:100%">'+
+      CLEARLITE_MATERIALS.map(function(m){ return '<option value="'+m[0]+'"'+(m[0]===_clearMaterial()?' selected':'')+'>'+esc(m[1])+'</option>'; }).join('')+
+    '</select>';
+    var clrRows = '';
+    clr.rows.forEach(function(r){
+      clrRows += '<div class="mat-list-row">'+
+        '<span class="mat-list-qty" style="font-weight:700">'+r.qty+'</span>'+
+        '<span class="mat-list-at">@</span>'+
+        '<span class="mat-list-len" style="font-weight:700">'+r.len.toFixed(2)+'<span class="mat-list-unit">m</span></span>'+
+        '<span></span>'+
+      '</div>';
+    });
+    _clearExtrasGet().forEach(function(x, xi){
+      clrRows += '<div class="mat-list-row is-extra">'+
+        '<span class="mat-list-qty"><input type="number" min="0" step="1" value="'+(+x.qty||0)+'" onfocus="this.select()" '+
+          'onchange="_clearExtraUpdate('+xi+',\'qty\',this.value)"></span>'+
+        '<span class="mat-list-at">@</span>'+
+        '<span class="mat-list-len"><input type="number" min="0" step="0.05" value="'+(+x.len||0).toFixed(2)+'" onfocus="this.select()" '+
+          'onchange="_clearExtraUpdate('+xi+',\'len\',this.value)"><span class="mat-list-unit">m</span></span>'+
+        '<button class="mat-list-del" onclick="_clearExtraDelete('+xi+')" title="Delete row">&times;</button>'+
+      '</div>';
+    });
+    var clrMeta = esc(_clearMaterialLabel()) +
+      (clr.wholeRoofs.length ? ' · whole roof: ' + esc(clr.wholeRoofs.join(', ')) : '');
+    html += '<div class="mat-section keep-in-preview">'+
+      _matSectionHead('#0284c7', 'Clearlite sheets', clrMeta,
+        (clr.count ? clr.count+' sheets · '+clr.totalLm.toFixed(1)+' m' : '') +
+        _matSectionKillHtml('clearlite', 'Clearlite sheets'))+
+      (clr.off ? '' :
+        '<div class="cons-row"><div class="cons-row-label">Clear material</div>'+
+          '<div class="cons-row-qty" style="font-weight:400">'+clrMatSel+'</div><div class="cons-row-sub"></div></div>'+
+        '<div class="mat-list">'+clrRows+'</div>'+
+        '<button class="mat-add-btn" onclick="_clearExtraAdd()">+ Add row</button>')+
+    '</div>';
+  }
+
   // ── Ridging (ridge + hip capping) ──
   var ridgeSpec = _MAT_FLASHING_SPECS[0];
   var ridgeCl = _matBuildCutList('ridgehip', ridgeSpec.waste);
@@ -40299,6 +40678,57 @@ function _jpBuildSheetRows(sc){
     }
   } catch(e){}
   window._manualSheetLenMap = manualMap;
+  // ── Full-length clears displace steel ─────────────────────────────
+  // A clear sheet dropped on a steel roof takes a sheet's place in the run;
+  // it does not sit on top of one. Leaving the steel count alone would order
+  // a full roof of steel PLUS the clears, and the extra sheets turn up on the
+  // truck. So each full-length clear comes off the steel row nearest its own
+  // length — the row it is standing in.
+  //
+  // Short clears are NOT deducted: a 2.4 m clear in a 5 m run is an infill,
+  // and the steel above and below it is still on the order.
+  //
+  // A clear ROOF is handled the same way, one row at a time: whatever the
+  // Clearlite section orders for it comes off the steel, so a job with a
+  // clear lean-to and a steel main roof orders each once.
+  try {
+    // Every roof in clear → there is no steel on this job at all.
+    if (typeof _clearAllRoofs === 'function' && _clearAllRoofs()) rows = [];
+    else if (typeof _clearWholeRoofRows === 'function' && rows.length){
+      var _wr = _clearWholeRoofRows();
+      Object.keys(_wr).forEach(function(k){
+        var mm = Math.round(parseFloat(k) * 1000), left = _wr[k];
+        // Nearest-length row first, same rule as a placed clear.
+        var ordered = rows.slice().sort(function(a, b){
+          return Math.abs(a.origLen - mm) - Math.abs(b.origLen - mm);
+        });
+        ordered.forEach(function(r){
+          if (left <= 0 || r.qty <= 0) return;
+          var take = Math.min(left, r.qty);
+          r.qty -= take; left -= take;
+        });
+      });
+      rows = rows.filter(function(r){ return r.qty > 0; });
+    }
+  } catch(e){}
+  try {
+    if (typeof _clearAllPlaced === 'function' && rows.length){
+      _clearAllPlaced().forEach(function(o){
+        var c = o && o.c;
+        if (!c || c.mode === 'short') return;
+        var lm = (typeof _clearLenM === 'function') ? _clearLenM(c) : 0;
+        if (!(lm > 0)) return;
+        var mm = Math.round(lm * 1000), best = null, bestD = Infinity;
+        rows.forEach(function(r){
+          if (r.qty <= 0) return;
+          var d = Math.abs(r.origLen - mm);
+          if (d < bestD){ bestD = d; best = r; }
+        });
+        if (best) best.qty = Math.max(0, best.qty - 1);
+      });
+      rows = rows.filter(function(r){ return r.qty > 0; });
+    }
+  } catch(e){}
   rows.sort(function(a, b){ return b.len - a.len; });
   return rows;
 }
@@ -42093,6 +42523,175 @@ function _matFlashingsArr(){
   if (!S.matFlashings) S.matFlashings = [];
   return S.matFlashings;
 }
+// ── Clearlite on the order ────────────────────────────────────────
+// Two ways a clear reaches the job pack, and both end up here:
+//   - individual clears dropped on a steel roof with the Clearlite tool
+//   - a whole roof whose sheet type IS Clearlite, where every sheet in that
+//     roof's run is clear
+// Fibreglass or polycarbonate is one choice for the whole order — suppliers
+// quote and deliver it that way, and nobody mixes the two on one job.
+var CLEARLITE_MATERIALS = [
+  ['fibreglass',    'Fibreglass'],
+  ['polycarbonate', 'Polycarbonate'],
+];
+function _clearMaterial(){
+  var v = S.clearliteMaterial;
+  return (v === 'polycarbonate') ? 'polycarbonate' : 'fibreglass';
+}
+function _clearMaterialLabel(){
+  var k = _clearMaterial();
+  var hit = CLEARLITE_MATERIALS.filter(function(m){ return m[0] === k; })[0];
+  return hit ? hit[1] : 'Fibreglass';
+}
+function _clearMaterialSet(v){
+  S.clearliteMaterial = (v === 'polycarbonate') ? 'polycarbonate' : 'fibreglass';
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
+  try { renderJobPack && renderJobPack(); } catch(e){}
+}
+function _clearExtrasGet(){
+  if (!Array.isArray(DRAW.matClearExtras)) DRAW.matClearExtras = [];
+  return DRAW.matClearExtras;
+}
+function _clearExtraAdd(){
+  saveSnapshot();
+  _clearExtrasGet().push({ qty: 1, len: 0 });
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+function _clearExtraUpdate(i, field, v){
+  var arr = _clearExtrasGet(); if (!arr[i]) return;
+  arr[i][field] = parseFloat(v) || 0;
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+function _clearExtraDelete(i){
+  saveSnapshot();
+  _clearExtrasGet().splice(i, 1);
+  try { autosaveJob && autosaveJob(); } catch(e){}
+  renderJobPack();
+}
+// Which roofs on this job are sheeted in clearlite, by index.
+function _clearRoofIdxs(){
+  var out = [];
+  try {
+    if (Array.isArray(DRAW.roofs) && DRAW.roofs.length){
+      DRAW.roofs.forEach(function(r, i){ if (_roofIsClearlite(i)) out.push(i); });
+    } else if (_roofIsClearlite()) out.push(0);
+  } catch(e){}
+  return out;
+}
+// The sheets belonging to one roof, by length, worked out from the runs the
+// roof map actually drew for it: each run's along-ridge span divided by the
+// sheet cover width is that run's column count, and a gable contributes one
+// run per face. Same arithmetic the bump-out splitter uses.
+//
+// Per-roof numbers are needed because the tiler's groups are pooled across
+// the whole job — there is no per-roof breakdown in them — and a clear
+// lean-to beside a steel main roof has to take its own sheets out of the
+// steel order and no more.
+function _roofSheetColsByLen(roofIdx){
+  var out = {};
+  try {
+    var dims = window._lastSheetDims || [];
+    var mpp = DRAW.scaleMetresPerPx || 0;
+    var coverM = (parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762) / 1000;
+    if (!(mpp > 0) || !(coverM > 0)) return out;
+    dims.forEach(function(d){
+      if (!d || d.roofIdx !== roofIdx || d.runLo == null || d.runHi == null) return;
+      var lm = parseFloat(String(d.label));
+      if (!isFinite(lm) || lm <= 0) return;
+      var cols = Math.round((Math.abs(d.runHi - d.runLo) * mpp) / coverM);
+      if (cols <= 0) return;
+      var k = lm.toFixed(2);
+      out[k] = (out[k] || 0) + cols;
+    });
+  } catch(e){}
+  return out;
+}
+// Is every roof on this job sheeted in clear?
+function _clearAllRoofs(){
+  var total = (Array.isArray(DRAW.roofs) && DRAW.roofs.length) ? DRAW.roofs.length : 1;
+  var idxs = _clearRoofIdxs();
+  return idxs.length > 0 && idxs.length >= total;
+}
+// Every clear roof's sheets, pooled by length.
+//
+// Two paths, because they answer to different sources and only one of them
+// can be exact. When the WHOLE job is clear the ordered sheet list IS the
+// clear list — take the tiler's groups verbatim, and the steel section is
+// left with nothing. That is exact by construction and cannot drift.
+//
+// For a mixed job the tiler's groups are pooled across every roof with no
+// per-roof breakdown, so the clear roof's share is read off the runs the map
+// drew for it instead: each run's along-ridge span ÷ the sheet cover is its
+// column count. Those two sources do not always agree today — the tiler
+// counts some roofs as two faces where the map draws one — which is exactly
+// why the whole-job case does NOT go through here.
+function _clearWholeRoofRows(){
+  var pooled = {};
+  if (_clearAllRoofs()){
+    var sc = window._lastSheetCounts;
+    if (sc && sc.groups) sc.groups.forEach(function(g){
+      var lm = (g.orderedMm || 0) / 1000;
+      if (!(lm > 0) || !(g.count > 0)) return;
+      var k = lm.toFixed(2);
+      pooled[k] = (pooled[k] || 0) + g.count;
+    });
+    return pooled;
+  }
+  _clearRoofIdxs().forEach(function(i){
+    var byLen = _roofSheetColsByLen(i);
+    Object.keys(byLen).forEach(function(k){ pooled[k] = (pooled[k] || 0) + byLen[k]; });
+  });
+  return pooled;
+}
+// Ordered clear sheets, grouped by length the same way the steel rows are.
+// Returns { rows:[{len, qty}], count, totalLm, wholeRoofs:[names] }.
+function _clearOrderRows(){
+  var buckets = {}, order = [], wholeRoofs = [];
+  // Struck off the job pack the same way a flashing can be — one gate, read
+  // by every surface, so the order form cannot disagree with the card.
+  if (typeof _matFlashTypeOff === 'function' && _matFlashTypeOff('clearlite'))
+    return { rows: [], count: 0, totalLm: 0, wholeRoofs: [], off: true };
+  function add(lenM, qty){
+    if (!(lenM > 0) || !(qty > 0)) return;
+    var k = lenM.toFixed(2);
+    if (!buckets[k]) { buckets[k] = { len: +k, qty: 0 }; order.push(k); }
+    buckets[k].qty += qty;
+  }
+  // Individually placed clears.
+  _clearAllPlaced().forEach(function(o){ add(_clearLenM(o.c), 1); });
+  // A roof that is entirely clear: every sheet the tiler counted for it is a
+  // clear sheet. Only meaningful once the sheet plan has run.
+  try {
+    var anyWhole = false;
+    if (Array.isArray(DRAW.roofs) && DRAW.roofs.length){
+      DRAW.roofs.forEach(function(r, i){
+        if (!_roofIsClearlite(i)) return;
+        anyWhole = true;
+        wholeRoofs.push((r && r.name) || ('Roof ' + (i + 1)));
+      });
+    } else if (_roofIsClearlite()) {
+      anyWhole = true; wholeRoofs.push('Roof 1');
+    }
+    if (anyWhole){
+      var pooled = _clearWholeRoofRows();
+      // Empty on a mixed job whose map has not drawn this session: there are
+      // no per-roof runs to read and the pooled groups cannot be split, so
+      // say nothing rather than guess a number that lands on a supplier
+      // order. Opening the Job Pack draws the map and fills it in.
+      Object.keys(pooled).forEach(function(k){ add(parseFloat(k), pooled[k]); });
+    }
+  } catch(e){}
+  // Manually added rows.
+  _clearExtrasGet().forEach(function(x){ add(+x.len || 0, +x.qty || 0); });
+  var rows = order.map(function(k){ return buckets[k]; })
+                  .sort(function(a,b){ return b.len - a.len; });
+  var count = rows.reduce(function(s2, r){ return s2 + r.qty; }, 0);
+  var totalLm = rows.reduce(function(s2, r){ return s2 + r.len * r.qty; }, 0);
+  return { rows: rows, count: count, totalLm: totalLm, wholeRoofs: wholeRoofs };
+}
 // ── Striking a whole flashing off the job ─────────────────────────
 // The × on an added flashing removes that slot. An auto-derived flashing —
 // barge, apron, ridge, the ones RoofMap works out from the drawing — had no
@@ -42117,6 +42716,9 @@ function _matFlashTypeOffList(){
   } catch(e){}
   return out;
 }
+// Non-flashing sections that share the same on/off switch — Clearlite has its
+// own band and its own restore chip in its heading, so it stays out of the
+// flashing grid's strip.
 function _matFlashTypeSetOff(key, off){
   if (!S.jpFlashTypeOff) S.jpFlashTypeOff = {};
   if (off) S.jpFlashTypeOff[key] = 1; else delete S.jpFlashTypeOff[key];
@@ -47526,7 +48128,7 @@ function clearRoofLines() {
 // DRAW.outline as before; the model is additive.
 DRAW.roofs = DRAW.roofs || [];
 DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
-var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg'];
+var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites'];
 // Defaults for the SCALAR per-roof fields. Used when loading a roof that
 // doesn't carry a value for one, so it resets to a clean default instead
 // of leaking the previously-active roof's value into the newly-loaded one
@@ -47534,6 +48136,9 @@ var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','note
 // roof). Array fields aren't listed — they're always present on a roof.
 var ROOF_FIELD_DEFAULTS = {
   outlineDone:false, roofType:'', calPitch:0, rotation:0,
+  // Sheet type is per ROOF, not per job — a lean-to in Clearlite over a
+  // steel main roof is the ordinary case, not the exception.
+  sheetType:'steel-corrugate',
   gableRidgeOffset:0, dutchGabletFrac:0.5,
   // undefined = "not decided yet", so a fresh roof takes its orientation
   // from its own drawing instead of inheriting the last roof's.
@@ -47543,7 +48148,9 @@ function _newEmptyRoof(name){
   return {
     name: name || ('Roof ' + (DRAW.roofs.length + 1)),
     outline: [], lines: [], sections: [], penetrations: [], infoItems: [], notes: [],
+    clearlites: [],
     outlineDone: false, roofType: '', calPitch: 0, rotation: 0,
+    sheetType: 'steel-corrugate',
     gableRidgeOffset: 0, dutchGabletFrac: 0.5,
     roofBaseHoriz: undefined, monoBaseDeg: undefined,
   };
@@ -47592,6 +48199,7 @@ function switchToRoof(idx){
   var rtp = document.getElementById('roofTypePanel');
   if (rtp) rtp.style.display = DRAW.outlineDone ? 'block' : 'none';
   syncToRoofData(); redrawAll(); renderRoofSwitcher(); updateMeasTotals();
+  try { _syncSheetTypeUi(); } catch(e){}
 }
 // Delete a roof entirely (outline + lines + measurements).  If the
 // active roof is removed we fall back to the nearest remaining roof;
