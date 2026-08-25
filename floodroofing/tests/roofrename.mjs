@@ -58,7 +58,9 @@ check('…one per roof, in roof order', v.map(x=>x.roof).join(',') === 'Main Roo
 await pg.locator('#pricingRoofSwitchBar').screenshot({ path: S+'/rename_pricing.png' });
 
 // it actually renames the right roof
-await pg.evaluate(() => document.querySelectorAll('#pricingRoofSwitchBar button.no-print')[2].click());
+// Each cell now carries Rename AND Delete, so index by what the button DOES,
+// not by its position among every no-print button in the bar.
+await pg.evaluate(() => document.querySelectorAll('#pricingRoofSwitchBar button[onclick*="_renameRoof"]')[2].click());
 await pg.waitForTimeout(700);
 check('tapping the third one renames the third roof',
   await pg.evaluate(() => DRAW.roofs[2].name === 'Carport' && DRAW.roofs[0].name === 'Main Roof'),
@@ -106,9 +108,13 @@ check('no duplicate rename buttons left on the mode rows', v.renames === 0 && v.
 
 // A pencil that only appeared for a roof with no button of its own turned up
 // on one row and not the next, and pushed that row's controls out of line with
-// the rest. There is no rename in these rows at all now — it lives on the roof
-// switcher above the canvas, where every roof has one whatever it is quoted
-// as, so nothing becomes un-renameable.
+// the rest. There is no rename in these rows at all now — it lives on the
+// Pricing tab's roof bar, alongside Delete.
+//
+// Both used to sit on a roof-picker row above the canvas. That row is gone (it
+// put six chips with twelve controls in the middle of the drawing toolbar, and
+// picking one HID the other five), so the bar is the only home they have — and
+// a roof that can be neither renamed nor deleted is a roof you are stuck with.
 await pg.evaluate(() => { _setRoofMode(2,'folded'); refreshQuoteProposal(); });
 await pg.waitForTimeout(1000);
 v = await pg.evaluate(() => ({
@@ -116,14 +122,22 @@ v = await pg.evaluate(() => ({
   // Scope to the FIRST block — the proposal renders the same include buttons
   // again on the Accept page, and counting both double-counts every cell.
   cells: document.querySelector('#qpRoot .qp-incl-btns').children.length,
-  onSwitcher: document.querySelectorAll('#roofSwitcher [onclick*="_renameRoof"]').length,
+  onBar: document.querySelectorAll('#pricingRoofSwitchBar [onclick*="_renameRoof"]').length,
+  delOnBar: document.querySelectorAll('#pricingRoofSwitchBar [onclick*="deleteRoof"]').length,
+  onCanvas: document.querySelectorAll('#roofSwitcher [onclick*="_renameRoof"]').length,
+  canvasRow: (document.getElementById('roofSwitcher')||{}).style.display,
+  tabs: _pricingRoofTabIdxs().length,
   roofs: DRAW.roofs.length }));
 check('folding a roof in does not put a pencil back on its row',
   v.modeRow === 0, JSON.stringify(v));
 check('…and it loses its Include button, since it is part of the main price now',
   v.cells === 2, JSON.stringify(v));
-check('…but every roof still has a rename on the roof switcher',
-  v.onSwitcher === v.roofs, v.onSwitcher + ' of ' + v.roofs);
+check('…and the canvas carries no roof-picker row at all',
+  v.canvasRow === 'none' && v.onCanvas === 0, JSON.stringify({row:v.canvasRow, renames:v.onCanvas}));
+check('…every roof with a tab can still be renamed, on the Pricing bar',
+  v.onBar === v.tabs, v.onBar + ' of ' + v.tabs);
+check('…and deleted there too, so no roof is one you are stuck with',
+  v.delOnBar === v.tabs, v.delOnBar + ' of ' + v.tabs);
 
 // The controls that decide how a roof is charged are sized to be read.
 const sizes = await pg.evaluate(() => {

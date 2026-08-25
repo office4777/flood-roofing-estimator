@@ -3895,13 +3895,19 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <div id="roofTypePanel" style="display:none;margin:0 .75rem .5rem;padding:10px 14px;background:linear-gradient(135deg,#f0f8ff,#e8f4fd);border-radius:10px;border:1.5px solid #b3d4f0">
         <div id="roofTypeHeading" style="font-weight:700;font-size:12px;color:#0a1628;margin-bottom:8px">⚡ Auto-generate roof lines from outline</div>
         <button type="button" id="roofSheetClose" class="no-print" onclick="_phoneRoofSheet(false)" title="Collapse">▼</button>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-          <button onclick="autoGenerateRoof('hip')" class="tool-btn" style="background:#0099cc;color:#fff;border-color:#0099cc;font-weight:600"><span class="rt-emo">🔺 </span>Hip &amp; Valley</button>
-          <button onclick="autoGenerateRoof('gable')" class="tool-btn" style="background:#059669;color:#fff;border-color:#059669;font-weight:600"><span class="rt-emo">🏠 </span>Straight Gable</button>
-          <button onclick="autoGenerateRoof('gable-hv')" class="tool-btn" style="background:#047857;color:#fff;border-color:#047857;font-weight:600" title="Gable ends with a hip + valley at the L corner (instead of running longer sheets through it)"><span class="rt-emo">🏠 </span>Gable<span class="rt-long"> — hip+valley corner</span><span class="rt-short"> + HV</span></button>
-          <button onclick="autoGenerateRoof('dutch')" class="tool-btn" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:600"><span class="rt-emo">🏡 </span>Dutch Gable</button>
-          <button onclick="autoGenerateRoof('mono')" class="tool-btn" style="background:#d97706;color:#fff;border-color:#d97706;font-weight:600"><span class="rt-emo">📐 </span>Mono-Pitch</button>
-          <button onclick="clearRoofLines()" class="tool-btn" style="color:#dc2626;border-color:#dc2626;margin-left:4px"><span class="rt-emo">🗑 </span>Clear lines</button>
+        <!-- Five coloured roof-type buttons collapsed into one menu. They were
+             the loudest thing on a very busy toolbar, and after the outline
+             popup has run the type is already set — this is the "change my
+             mind" control, not the primary one. -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+          <div id="roofTypeDropWrap" style="position:relative;display:inline-block">
+            <button type="button" id="roofTypeDropBtn" onclick="toggleRoofTypeMenu(event)"
+              style="background:#0099cc;color:#fff;border:1px solid #0099cc;border-radius:6px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;line-height:1.2">
+              <span aria-hidden="true">🏠</span><span id="roofTypeDropLabel">Change roof type</span><span style="font-size:10px;opacity:.85">▾</span>
+            </button>
+            <div id="roofTypeDropMenu" style="display:none;position:absolute;top:calc(100% + 5px);left:0;z-index:300;background:#fff;border:1px solid #d6dbe2;border-radius:10px;box-shadow:0 12px 32px rgba(10,22,40,.20);padding:7px;min-width:250px"></div>
+          </div>
+          <button onclick="clearRoofLines()" class="tool-btn" style="color:#dc2626;border-color:#dc2626"><span class="rt-emo">🗑 </span>Clear lines</button>
           <button onclick="snapOutlineToSquare()" class="tool-btn" style="background:#fff;color:#0a1628;border-color:#0a1628;font-weight:600" title="Square up every corner of your existing outline (makes all angles 90°). Edges may get longer or shorter — nudge any corner afterwards if needed."><span class="rt-emo">📐 </span>Snap Square</button>
         </div>
         <!-- Auto roof-type suggestion / mismatch warning (populated by _updateRoofTypeHint) -->
@@ -3941,7 +3947,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
         <!-- Roof lines + details collapsed into one menu to keep the toolbar tidy -->
         <div id="rlDropWrap" style="position:relative;display:inline-block">
           <button type="button" id="rlDropBtn" onclick="toggleRoofLinesMenu(event)" style="background:#0a1628;color:#fff;border:1px solid #0a1628;border-radius:6px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;line-height:1.2">
-            <span aria-hidden="true">➕</span><span class="rl-drop-label">Add Roof Lines or Details</span><span style="font-size:10px;opacity:.85">▾</span>
+            <span aria-hidden="true">➕</span><span class="rl-drop-label">Add items/details</span><span style="font-size:10px;opacity:.85">▾</span>
           </button>
           <div id="rlDropMenu" style="display:none;position:absolute;top:calc(100% + 5px);left:0;z-index:300;background:#fff;border:1px solid #d6dbe2;border-radius:10px;box-shadow:0 12px 32px rgba(10,22,40,.20);padding:7px;min-width:210px">
             <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:2px 6px 6px">Roof lines</div>
@@ -19503,6 +19509,11 @@ function _setRoofMode(i, mode){
   ex[i]  = (mode === 'excluded');
   try { _autoSyncLabourMaterials(); } catch(e){}   // re-bakes folded roofs into the base line items
   try { refreshQuoteProposal(); } catch(e){}
+  // Folding a roof in takes away its own pricing tab, and unfolding gives it
+  // back — so the bar that lists those tabs has to redraw here. It used to
+  // wait for whatever happened to re-render next, which meant the Pricing tab
+  // could still be offering a tab for a roof that no longer has one.
+  try { if (typeof _renderPricingRoofSwitchBar === 'function') _renderPricingRoofSwitchBar(); } catch(e){}
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
 // Proposal roof-map size on the inclusions page. 'sm' | 'md' | 'lg' — drives
@@ -19894,7 +19905,15 @@ function _roofRenameLinkHtml(idx, opts){
       'title="Rename this roof" style="display:block;width:100%;margin-top:4px;padding:3px 6px;'+
       'font-family:'+(opts.font || 'inherit')+';font-size:'+(opts.size || '10px')+';font-weight:700;letter-spacing:.03em;'+
       'border:1px dashed '+(opts.line || 'var(--border)')+';border-radius:6px;background:transparent;'+
-      'color:'+(opts.color || 'var(--text2)')+';cursor:pointer">✎ Rename</button>';
+      'color:'+(opts.color || 'var(--text2)')+';cursor:pointer">✎ Rename</button>' +
+    // Delete lives beside Rename now. It used to sit on the canvas roof-picker
+    // row, and that row is gone — without a home here, a roof drawn by mistake
+    // could only be undone, never removed.
+    '<button type="button" class="no-print" onclick="event.stopPropagation();deleteRoof('+idx+')" '+
+      'title="Delete this roof — removes its outline, lines and measurements" '+
+      'style="display:block;width:100%;margin-top:3px;padding:3px 6px;'+
+      'font-family:'+(opts.font || 'inherit')+';font-size:'+(opts.size || '10px')+';font-weight:700;letter-spacing:.03em;'+
+      'border:1px dashed #f1b0b7;border-radius:6px;background:transparent;color:#b4232c;cursor:pointer">&#128465; Delete</button>';
 }
 function _renameRoof(i){
   if (!window.DRAW || !DRAW.roofs || !DRAW.roofs[i]) return;
@@ -28236,7 +28255,7 @@ function setTool(t) {
   var _btnId = _btnMap[t] || ('btn-'+t);
   var btn = document.getElementById(_btnId);
   if(btn) btn.classList.add('active-tool');
-  // Reflect the active tool on the collapsed "Add Roof Lines or Details"
+  // Reflect the active tool on the collapsed "Add items/details"
   // button so the selection is visible without opening the menu.
   syncRoofLinesBtn(t);
   updateStepUI();
@@ -28262,7 +28281,7 @@ function setTool(t) {
   if (t === 'calibrate') { try { _onCalibrateToolSelected(); } catch(e){} }
 }
 
-// ── "Add Roof Lines or Details" dropdown ──────────────────────────
+// ── "Add items/details" dropdown ──────────────────────────────────
 // The roof-line + detail tools live behind one black button to keep
 // the canvas toolbar tidy.  The button shows the active tool's name.
 var ROOF_LINE_TOOLS = {ridge:'Ridge',valley:'Valley',gutter:'Gutter',hip:'Hip',barge:'Barge',apron:'Apron',changepitch:'Ch. Pitch',penetration:'Penetration',clearlite:'Clearlite',info:'Add Info'};
@@ -28270,7 +28289,7 @@ function syncRoofLinesBtn(t){
   var b=document.getElementById('rlDropBtn'); if(!b) return;
   var lbl=b.querySelector('.rl-drop-label'); if(!lbl) return;
   if(ROOF_LINE_TOOLS[t]){ b.classList.add('active-tool'); lbl.textContent=ROOF_LINE_TOOLS[t]; }
-  else { b.classList.remove('active-tool'); lbl.textContent='Add Roof Lines or Details'; }
+  else { b.classList.remove('active-tool'); lbl.textContent='Add items/details'; }
 }
 /* Park the roof-lines menu where it can actually be seen: inside the tool
    row on desktop, and out on the body as a sheet onsite — the tool row is
@@ -28594,10 +28613,10 @@ var DRAG_EP = null;
 // rewrites either DRAW.manualSheetMeasures[idx].(x,y) for a manual
 // measure, or DRAW.sheetLabelOffsets[key] for an auto label.
 var DRAG_SHEET = null;
-// Per-roof "view drag" — pure visual reposition for non-active
-// roofs.  Updates DRAW.roofs[idx].viewOffset without touching
-// outline / lines / measurements.  Starts when the user presses
-// inside the displayed polygon of a non-active roof in Move mode.
+// The per-roof "view drag" is gone — a press inside any non-active roof used
+// to pick up that whole roof and slide it, which stole every press aimed at a
+// sheet label sitting on it. The variable stays so the older guards that name
+// it keep compiling; nothing ever sets it now.
 var DRAG_ROOF_VIEW = null;
 // Corner-drag state for the building outline. Set when the user
 // mouses down within OUTLINE_VERT_GRAB pixels of an outline vertex
@@ -29204,40 +29223,19 @@ function onCanvasMouseDown(e) {
       }
     }
   }
-  // Per-roof view drag (Move tool only) — for each non-active roof
-  // we cached r._displayedPoly in redrawAll. If the cursor (in image
-  // space) lands inside one, claim the mousedown and start a drag
-  // that only updates r.viewOffset. The transform is purely visual:
-  // outline / lines / measurements stay put in image coords.
-  if (DRAW.tool === 'select' && DRAW.roofs && DRAW.roofs.length > 1) {
-    var _hitXY = getXY(e);
-    function _pointInPoly(px, py, poly){
-      var inside = false, n = poly.length;
-      for (var k = 0, j = n - 1; k < n; j = k++) {
-        var xi = poly[k][0], yi = poly[k][1];
-        var xj = poly[j][0], yj = poly[j][1];
-        if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi + 1e-10) + xi)) inside = !inside;
-      }
-      return inside;
-    }
-    for (var _rri = DRAW.roofs.length - 1; _rri >= 0; _rri--) {
-      if (_rri === DRAW.activeRoofIdx) continue;
-      var _rrR = DRAW.roofs[_rri];
-      if (!_rrR || !_rrR._displayedPoly || _rrR._displayedPoly.length < 3) continue;
-      if (_pointInPoly(_hitXY[0], _hitXY[1], _rrR._displayedPoly)) {
-        DRAG_ROOF_VIEW = {
-          idx: _rri,
-          startMouseImg: _hitXY,
-          startOffset: (_rrR.viewOffset || [0, 0]).slice(),
-          moved: false,
-          preSnap: _captureSnapState()
-        };
-        document.getElementById('roofCanvas').style.cursor = 'grabbing';
-        e.preventDefault();
-        return;
-      }
-    }
-  }
+  // ── NO WHOLE-ROOF DRAG ───────────────────────────────────────────
+  // A press anywhere inside a non-active roof used to grab that whole roof
+  // and slide it. It was meant as a tidy-up for overlapping roofs, and it
+  // fired before the sheet-label handler — so pressing a sheet measure to
+  // move the LABEL picked up the entire outline instead and carried it off
+  // the aerial photo. With every roof now drawn at once, any press inside any
+  // roof did it.
+  //
+  // "The whole outline should never move all together; the only way to move
+  // the outline should be to move each individual corner." Quite right: a
+  // roof's coordinates are its measurements, and nothing that is not a
+  // deliberate corner edit has any business shifting them.
+
   // Sheet-label drag (Move tool only) — claim the mousedown if it
   // landed on a stashed sheet hit box so the user can reposition the
   // 4.35m / 0.00m tag. Mouseup uses SUPPRESS_NEXT_CLICK to make sure
@@ -29490,7 +29488,6 @@ function onCanvasMouseUp(e) {
     updateMeasTotals(); DRAG_EP=null; redrawAll(); return;
   }
   if(DRAG_ROOF_VIEW) {
-    if (DRAG_ROOF_VIEW.moved) { SUPPRESS_NEXT_CLICK = true; _pushSnap(DRAG_ROOF_VIEW.preSnap); }
     DRAG_ROOF_VIEW = null;
     var _cv3 = document.getElementById('roofCanvas');
     if (_cv3) _cv3.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
@@ -29593,7 +29590,6 @@ document.addEventListener('mouseup', function(e) {
     return;
   }
   if(DRAG_ROOF_VIEW){
-    if (DRAG_ROOF_VIEW.moved) { SUPPRESS_NEXT_CLICK = true; _pushSnap(DRAG_ROOF_VIEW.preSnap); }
     DRAG_ROOF_VIEW = null;
     var _cv4 = document.getElementById('roofCanvas');
     if (_cv4) _cv4.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
@@ -31639,17 +31635,6 @@ function onCanvasMove(e) {
   // auto labels accumulate a per-key offset.  We mark `moved` so the
   // trailing click handler can suppress the edit popup if the user
   // was genuinely dragging vs. tapping.
-  if (DRAG_ROOF_VIEW) {
-    var _rr = DRAW.roofs && DRAW.roofs[DRAG_ROOF_VIEW.idx];
-    if (_rr) {
-      var _dx = xy[0] - DRAG_ROOF_VIEW.startMouseImg[0];
-      var _dy = xy[1] - DRAG_ROOF_VIEW.startMouseImg[1];
-      if (Math.abs(_dx) + Math.abs(_dy) > 0.4) DRAG_ROOF_VIEW.moved = true;
-      _rr.viewOffset = [DRAG_ROOF_VIEW.startOffset[0] + _dx, DRAG_ROOF_VIEW.startOffset[1] + _dy];
-    }
-    redrawAll();
-    return;
-  }
   if (DRAG_SHEET) {
     var dxImg = xy[0] - DRAG_SHEET.startMouseImg[0];
     var dyImg = xy[1] - DRAG_SHEET.startMouseImg[1];
@@ -32427,6 +32412,9 @@ function finishCurrent() {
     var rtp=document.getElementById('roofTypePanel');
     if(rtp)rtp.style.display='block';
     try { _updateRoofTypeHint(''); } catch(e){}   // suggest a roof type as soon as the outline closes
+    // Ask the two questions the drawing cannot answer for itself — shape and
+    // sheet material — right here, while the roof is the thing in hand.
+    try { if (typeof _roofSetupPopup === 'function') setTimeout(function(){ _roofSetupPopup(); }, 60); } catch(e){}
     return;
   }
 
@@ -33919,11 +33907,11 @@ function redrawAll() {
     DRAW.roofs.forEach(function(r, ri){
       if (ri === DRAW.activeRoofIdx) return;
       if (!r || !r.outline || r.outline.length < 3) return;
-      // Per-roof view transform — pure visual reposition + zoom. Lives
-      // on r.viewOffset (image px) + r.viewZoom (scale, default 1).
-      // _viewXform(p) below applies the transform around the roof's
-      // OWN centroid so zooming feels anchored to the roof itself.
-      var _vOff = r.viewOffset || [0, 0];
+      // Per-roof view ZOOM still applies, anchored on the roof's own centroid.
+      // The OFFSET does not: any left behind by the removed whole-roof drag is
+      // ignored, so a roof that got nudged renders back at the coordinates it
+      // was actually drawn at — the drawing is its measurements.
+      var _vOff = [0, 0];
       var _vZ   = (typeof r.viewZoom === 'number' && r.viewZoom > 0) ? r.viewZoom : 1;
       var _cxV = 0, _cyV = 0;
       r.outline.forEach(function(pt){ _cxV += pt[0]; _cyV += pt[1]; });
@@ -34285,9 +34273,16 @@ function redrawAll() {
       var o4 = _orient(p3, p4, p2);
       return o1 !== o2 && o3 !== o4;
     }
-    function _crossesAnotherRoofLine(p1, p2, excludeRidge, skip, ridgeOnly){
-      for (var i = 0; i < DRAW.lines.length; i++) {
-        var l = DRAW.lines[i];
+    // `lines` is the roof being measured. It used to be hard-wired to
+    // DRAW.lines — the ACTIVE roof — so a run on any OTHER roof was tested
+    // against the wrong building's ridges and hips, and the caller only
+    // bothered to call it for the active roof at all. Every other roof was
+    // measured with no phantom guard whatsoever, which is how a 1.39m ridge
+    // came to find a gutter right across the house and report a 10.24m run.
+    function _crossesAnotherRoofLine(p1, p2, excludeRidge, skip, ridgeOnly, lines){
+      var src = lines || DRAW.lines;
+      for (var i = 0; i < src.length; i++) {
+        var l = src[i];
         if (l === excludeRidge) continue;
         if (skip && skip.indexOf(l) >= 0) continue;
         if (ridgeOnly ? (l.type !== 'ridge')
@@ -34552,8 +34547,7 @@ function redrawAll() {
             // ridge means the run has climbed over onto a different plane.
             // Without this, every face on a hip-and-valley roof whose eave is
             // not square under its ridge was killed by its neighbour's rake.
-            if (lines === DRAW.lines &&
-                _crossesAnotherRoofLine([srcx,srcy], [endx,endy], rl, _conn, _conn.length > 0)) return;
+            if (_crossesAnotherRoofLine([srcx,srcy], [endx,endy], rl, _conn, _conn.length > 0, lines)) return;
             cand.push({ g:g, perp:perp, lo:lo, hi:hi, cc:cc, srcx:srcx, srcy:srcy });
           });
           if (!cand.length) return;
@@ -47674,7 +47668,7 @@ function fitDrawingToCanvas(){
   // and an optional view transform). Include those so the fit sees every roof.
   (DRAW.roofs || []).forEach(function(r){
     if (!r || !r.outline || !r.outline.length) return;
-    var vo = r.viewOffset || [0, 0];
+    var vo = [0, 0];   // see redrawAll — stored view offsets are ignored
     var vz = (typeof r.viewZoom === 'number' && r.viewZoom > 0) ? r.viewZoom : 1;
     var cx = 0, cy = 0; r.outline.forEach(function(p){ cx += p[0]; cy += p[1]; }); cx /= r.outline.length; cy /= r.outline.length;
     var xf = function(p){ return [cx + (p[0] - cx) * vz + vo[0], cy + (p[1] - cy) * vz + vo[1]]; };
@@ -49079,6 +49073,185 @@ function _roofReflexCount(outline){
   }
   return { verts: n, reflex: reflex };
 }
+
+// ── "Change roof type" menu ──────────────────────────────────────
+function _roofTypeMenuHtml(){
+  var cur = '';
+  try { cur = (DRAW && DRAW.roofType) || ''; } catch(e){}
+  var sug = null;
+  try { sug = (typeof suggestRoofType === 'function') ? suggestRoofType() : null; } catch(e){}
+  return '<div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:2px 6px 6px">Roof shape</div>' +
+    ROOF_TYPE_CHOICES.map(function(c){
+      var on = (c.type === cur);
+      return '<button type="button" onclick="_pickRoofType(\'' + c.type + '\')" ' +
+        'style="display:block;width:100%;text-align:left;margin:0 0 4px;padding:7px 10px;cursor:pointer;' +
+        'border:1px solid ' + (on ? '#0099cc' : '#e5e9ef') + ';border-radius:7px;' +
+        'background:' + (on ? '#f0f9ff' : '#fff') + '">' +
+        '<span style="font-size:12.5px;font-weight:' + (on ? '800' : '600') + ';color:#0a1628">' + esc(c.label) + '</span>' +
+        (sug && c.type === sug.type && !on
+          ? '<span style="margin-left:6px;font-size:9.5px;font-weight:800;color:#0369a1">suggested</span>' : '') +
+        '<span style="display:block;font-size:10.5px;color:#64748b;margin-top:1px">' + esc(c.hint) + '</span>' +
+        '</button>';
+    }).join('') +
+    '<div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;font-weight:700;padding:8px 6px 6px;border-top:1px solid #eef1f5;margin-top:4px">Sheet material</div>' +
+    SHEET_TYPES.map(function(t){
+      var on = false;
+      try { on = ((_roofSheetType() || {}).key === t.key); } catch(e){}
+      return '<button type="button" onclick="_pickRoofSheet(\'' + t.key + '\')" ' +
+        'style="display:block;width:100%;text-align:left;margin:0 0 4px;padding:6px 10px;cursor:pointer;font-size:12px;' +
+        'font-weight:' + (on ? '800' : '600') + ';color:#0a1628;' +
+        'border:1px solid ' + (on ? '#0099cc' : '#e5e9ef') + ';border-radius:7px;' +
+        'background:' + (on ? '#f0f9ff' : '#fff') + '">' + esc(t.label) + '</button>';
+    }).join('');
+}
+function toggleRoofTypeMenu(ev){
+  if (ev) ev.stopPropagation();
+  var m = document.getElementById('roofTypeDropMenu'); if (!m) return;
+  if (m.style.display === 'block'){ m.style.display = 'none'; return; }
+  m.innerHTML = _roofTypeMenuHtml();
+  m.style.display = 'block';
+  setTimeout(function(){
+    document.addEventListener('mousedown', _roofTypeMenuAway);
+  }, 0);
+}
+function closeRoofTypeMenu(){
+  var m = document.getElementById('roofTypeDropMenu');
+  if (m) m.style.display = 'none';
+  document.removeEventListener('mousedown', _roofTypeMenuAway);
+}
+function _roofTypeMenuAway(ev){
+  var w = document.getElementById('roofTypeDropWrap');
+  if (w && !w.contains(ev.target)) closeRoofTypeMenu();
+}
+function _pickRoofType(t){
+  closeRoofTypeMenu();
+  try { autoGenerateRoof(t); } catch(e){}
+  _syncRoofTypeDropLabel();
+}
+function _pickRoofSheet(k){
+  closeRoofTypeMenu();
+  try { setRoofSheetType(k); } catch(e){}
+  _syncRoofTypeDropLabel();
+}
+// The button says what the roof currently IS, so the toolbar still answers
+// "what am I looking at" without five buttons shouting it.
+function _syncRoofTypeDropLabel(){
+  var lbl = document.getElementById('roofTypeDropLabel'); if (!lbl) return;
+  var cur = '';
+  try { cur = (DRAW && DRAW.roofType) || ''; } catch(e){}
+  var found = null;
+  for (var i = 0; i < ROOF_TYPE_CHOICES.length; i++)
+    if (ROOF_TYPE_CHOICES[i].type === cur) { found = ROOF_TYPE_CHOICES[i]; break; }
+  lbl.textContent = found ? found.label : 'Change roof type';
+}
+
+// ── ONE QUESTION WHEN THE OUTLINE CLOSES ─────────────────────────
+// Drawing an outline used to leave the roof unanswered: the type came from a
+// row of five coloured buttons the user had to notice, and the sheet material
+// from a select on the far side of the toolbar. Miss either and the roof was
+// generated as something it isn't, or ordered in the wrong steel — and both
+// only showed up much later, in the cut list.
+//
+// Close the outline and it asks, once, for the two things it cannot work out
+// on its own. The footprint's own suggestion is pre-picked, so the common case
+// is Enter.
+var ROOF_TYPE_CHOICES = [
+  { type:'hip',      label:'Hip & Valley',  hint:'hips all round; valleys at internal corners' },
+  { type:'gable',    label:'Straight Gable', hint:'one ridge, gable ends' },
+  { type:'gable-hv', label:'Gable + hip/valley corner', hint:'gable ends, hip + valley at an L corner' },
+  { type:'dutch',    label:'Dutch Gable',   hint:'hip with a small gablet at each end' },
+  { type:'mono',     label:'Mono-Pitch',    hint:'single slope — lean-to, skillion' },
+];
+function _roofSetupPopup(opts){
+  opts = opts || {};
+  var prev = document.getElementById('_rsModal'); if (prev) prev.remove();
+  var sug = null;
+  try { sug = (typeof suggestRoofType === 'function') ? suggestRoofType() : null; } catch(e){}
+  var pickedType = (opts.type || (sug && sug.type) || 'hip');
+  var pickedSheet = opts.sheetType || (function(){
+    try { return (_roofSheetType() || {}).key || 'steel-corrugate'; } catch(e){ return 'steel-corrugate'; }
+  })();
+
+  var wrap = document.createElement('div');
+  wrap.id = '_rsModal';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,22,40,0.45);' +
+    'display:flex;align-items:center;justify-content:center;padding:16px';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.32);' +
+    'max-width:460px;width:100%;max-height:92vh;overflow:auto;padding:20px 20px 16px;' +
+    'font-family:Inter,-apple-system,sans-serif';
+
+  function typeBtn(c){
+    var on = (c.type === pickedType);
+    return '<button type="button" data-rstype="' + c.type + '" ' +
+      'style="display:block;width:100%;text-align:left;margin:0 0 6px;padding:9px 12px;cursor:pointer;' +
+      'border:1.5px solid ' + (on ? '#0099cc' : '#dde3ea') + ';border-radius:9px;' +
+      'background:' + (on ? '#f0f9ff' : '#fff') + '">' +
+      '<span style="font-size:13.5px;font-weight:' + (on ? '800' : '600') + ';color:#0a1628">' + esc(c.label) + '</span>' +
+      (c.type === (sug && sug.type)
+        ? '<span style="margin-left:7px;font-size:10px;font-weight:800;color:#0369a1;background:#e0f2fe;border-radius:20px;padding:2px 7px">SUGGESTED</span>'
+        : '') +
+      '<span style="display:block;font-size:11px;color:#64748b;margin-top:2px">' + esc(c.hint) + '</span>' +
+      '</button>';
+  }
+  function sheetBtn(t){
+    var on = (t.key === pickedSheet);
+    return '<button type="button" data-rssheet="' + t.key + '" ' +
+      'style="flex:1 1 46%;padding:8px 10px;cursor:pointer;font-size:12.5px;font-weight:' + (on ? '800' : '600') + ';' +
+      'border:1.5px solid ' + (on ? '#0099cc' : '#dde3ea') + ';border-radius:9px;' +
+      'background:' + (on ? '#f0f9ff' : '#fff') + ';color:#0a1628">' + esc(t.label) + '</button>';
+  }
+  function paint(){
+    card.querySelector('#_rsTypes').innerHTML = ROOF_TYPE_CHOICES.map(typeBtn).join('');
+    card.querySelector('#_rsSheets').innerHTML = SHEET_TYPES.map(sheetBtn).join('');
+    wire();
+  }
+  function wire(){
+    card.querySelectorAll('[data-rstype]').forEach(function(b){
+      b.onclick = function(){ pickedType = b.getAttribute('data-rstype'); paint(); };
+    });
+    card.querySelectorAll('[data-rssheet]').forEach(function(b){
+      b.onclick = function(){ pickedSheet = b.getAttribute('data-rssheet'); paint(); };
+    });
+  }
+  card.innerHTML =
+    '<div style="font-size:16px;font-weight:800;color:#0a1628">' + esc(opts.title || 'What kind of roof is this?') + '</div>' +
+    '<div style="font-size:12px;color:#64748b;margin:3px 0 12px;line-height:1.45">' +
+      esc(opts.message || 'Pick the shape and the roof lines are drawn for you. You can change both later.') +
+      (sug && sug.reason ? ' <span style="color:#0369a1">Suggested: ' + esc(sug.label) + ' — ' + esc(sug.reason) + '.</span>' : '') +
+    '</div>' +
+    '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin-bottom:6px">Roof shape</div>' +
+    '<div id="_rsTypes"></div>' +
+    '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin:14px 0 6px">Main sheet material</div>' +
+    '<div id="_rsSheets" style="display:flex;flex-wrap:wrap;gap:6px"></div>' +
+    '<div style="font-size:11px;color:#64748b;margin-top:8px;line-height:1.45;background:#f8fafc;border:1px solid #eef1f5;border-radius:8px;padding:8px 10px">' +
+      'This is what the whole roof is sheeted in. For a few clear sheets in a steel roof, leave this on steel and add them one by one with <strong>Add items/details &rarr; Clearlite sheet</strong>.' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">' +
+      '<button id="_rsSkip" style="padding:9px 14px;font-size:13px;font-weight:600;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:9px;cursor:pointer">Skip for now</button>' +
+      '<button id="_rsOk" style="padding:9px 20px;font-size:13px;font-weight:800;background:#0099cc;color:#fff;border:none;border-radius:9px;cursor:pointer">' + esc(opts.okLabel || 'Draw the roof') + '</button>' +
+    '</div>';
+  wrap.appendChild(card);
+  document.body.appendChild(wrap);
+  paint();
+
+  function close(){ wrap.remove(); }
+  function apply(){
+    close();
+    try { if (typeof setRoofSheetType === 'function') setRoofSheetType(pickedSheet); } catch(e){}
+    try { if (typeof autoGenerateRoof === 'function') autoGenerateRoof(pickedType); } catch(e){}
+    try { if (typeof _syncRoofTypeDropLabel === 'function') _syncRoofTypeDropLabel(); } catch(e){}
+  }
+  card.querySelector('#_rsOk').onclick = apply;
+  card.querySelector('#_rsSkip').onclick = close;
+  wrap.addEventListener('mousedown', function(ev){ if (ev.target === wrap) close(); });
+  wrap.addEventListener('keydown', function(ev){
+    if (ev.key === 'Escape'){ ev.preventDefault(); close(); }
+    else if (ev.key === 'Enter'){ ev.preventDefault(); apply(); }
+  });
+  setTimeout(function(){ try { card.querySelector('#_rsOk').focus(); } catch(e){} }, 30);
+}
+
 // Best-guess roof type for the current outline.
 function suggestRoofType(){
   var o = DRAW.outline;
@@ -49284,10 +49457,10 @@ function _addAndSwitchToNewRoof(){
   renderRoofSwitcher();
 }
 function switchToRoof(idx){
-  // Picking a specific roof always turns the View-All overview off
-  // so the user sees only that roof's measures + new lines attach
-  // to it cleanly.
-  DRAW.showAllRoofs = false;
+  // The canvas is always in View-All now, so picking a roof no longer hides
+  // the others — it only decides which roof a new line attaches to. Clicking
+  // a roof's own line is the way in; there is no roof-picker row any more.
+  DRAW.showAllRoofs = true;
   if (idx === DRAW.activeRoofIdx) { renderRoofSwitcher(); redrawAll(); return; }
   _syncCurrentToRoof();
   _loadRoofToCurrent(idx);
@@ -49301,7 +49474,8 @@ function switchToRoof(idx){
 // deleting the last roof clears the canvas back to a blank outline.
 function deleteRoof(idx){
   if (idx < 0 || idx >= DRAW.roofs.length) return;
-  if (typeof confirm === 'function' && !confirm('Delete Roof ' + (idx + 1) + '? This removes its outline, lines and measurements.')) return;
+  var _dnm = (DRAW.roofs[idx] && DRAW.roofs[idx].name) || _nthName(idx + 1);
+  if (typeof confirm === 'function' && !confirm('Delete ' + _dnm + '? This removes its outline, lines and measurements.')) return;
   saveSnapshot();
   _syncCurrentToRoof();
   var wasActive = (idx === DRAW.activeRoofIdx);
@@ -49321,47 +49495,41 @@ function deleteRoof(idx){
     var rtp1 = document.getElementById('roofTypePanel'); if (rtp1) rtp1.style.display = DRAW.outlineDone ? 'block' : 'none';
   }
   syncToRoofData(); renderRoofSwitcher(); redrawAll(); updateMeasTotals();
+  // Delete is driven from the Pricing tab's roof bar now, so that bar (and the
+  // map under it) has to redraw or it keeps offering a roof that is gone.
+  try { if (typeof _renderPricingRoofSwitchBar === 'function') _renderPricingRoofSwitchBar(); } catch(e){}
+  try { if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal(); } catch(e){}
 }
 function _nthName(n){
   return 'Roof ' + n;
 }
+// ── NO ROOF PICKER ON THE CANVAS ─────────────────────────────────
+// A six-roof job put six chips, each with a rename and a delete, in the
+// middle of an already crowded toolbar — and picking one HID the other five,
+// which is the opposite of what you want while measuring a building. The
+// canvas now always shows every roof.
+//
+// Which roof a new line attaches to is still a real question, and it is
+// answered by clicking that roof's own outline or lines (see switchToRoof) —
+// the drawing itself is the picker. Renaming and deleting a roof moved to the
+// Pricing tab's roof bar, where the roofs are already listed.
 function renderRoofSwitcher(){
   var el = document.getElementById('roofSwitcher');
   if (!el) return;
-  if (DRAW.roofs.length === 0) { el.style.display = 'none'; return; }
-  el.style.display = 'flex';
-  // When more than one roof exists the View-All button toggles
-  // whether the inactive roofs' outlines + measures are drawn on
-  // the canvas. While ON, "Roofs:" deactivates (no single roof is
-  // active for new-line attachment until the user picks one).
-  var showAll = !!DRAW.showAllRoofs;
-  var html = '<div style="font-weight:600;font-size:12px;color:#475569;margin-right:6px">Roofs:</div>';
-  DRAW.roofs.forEach(function(r, i){
-    var isActive = !showAll && (i === DRAW.activeRoofIdx);
-    var label = _nthName(i + 1);
-    html += '<span style="display:inline-flex;align-items:center;border:1px solid '+(isActive?'#0a1628':'#cbd5e1')+';border-radius:6px;overflow:hidden;'+(isActive?'background:#0a1628':'background:#fff')+'">'+
-      '<button onclick="switchToRoof('+i+')" title="Set '+label+' as the active roof — new lines attach here" style="font-size:12px;padding:4px 10px;border:none;background:transparent;cursor:pointer;font-weight:'+(isActive?'700':'500')+';color:'+(isActive?'#fff':'#0a1628')+'">'+label+'</button>'+
-      // Rename lives here now, on the roof itself, rather than in the quote's
-      // "How each roof is quoted" rows — there it only appeared for roofs with
-      // no button of their own, so it turned up on one row and not the next.
-      // Every roof has a chip here whatever it is quoted as.
-      '<button onclick="event.stopPropagation();_renameRoof('+i+')" title="Rename '+label+'" style="font-size:11px;line-height:1;padding:4px 6px;border:none;background:transparent;cursor:pointer;color:'+(isActive?'rgba(255,255,255,.85)':'#94a3b8')+'">&#9998;</button>'+
-      '<button onclick="deleteRoof('+i+')" title="Delete '+label+'" style="font-size:13px;line-height:1;padding:4px 8px 4px 2px;border:none;background:transparent;cursor:pointer;color:'+(isActive?'rgba(255,255,255,.85)':'#94a3b8')+'">✕</button>'+
-    '</span>';
-  });
-  // View-All toggle — only useful when 2+ roofs are drawn.
-  if (DRAW.roofs.length > 1) {
-    html += '<button onclick="toggleShowAllRoofs()" title="Show every roof\'s outline, lines and measures on the canvas at once" style="margin-left:6px;font-size:12px;padding:4px 12px;border:1px solid '+(showAll?'#0a1628':'#cbd5e1')+';border-radius:6px;background:'+(showAll?'#0a1628':'#fff')+';color:'+(showAll?'#fff':'#0a1628')+';cursor:pointer;font-weight:'+(showAll?'700':'500')+'">'+ (showAll?'✓ Viewing all':'👁 View All') +'</button>';
-  }
-  el.innerHTML = html;
+  el.style.display = 'none';
+  el.innerHTML = '';
+  DRAW.showAllRoofs = true;          // the canvas has no other mode now
+  try { _syncRoofTypeDropLabel(); } catch(e){}
 }
 
 // Show-all mode: render every roof's outline + drawn lines + sheet
 // measurements simultaneously instead of just the active one. While
 // on, no roof is "active for editing" — clicking a roof switches focus
 // to it and turns the overview back off.
+// Kept for anything still calling it (saved jobs, older handlers): the canvas
+// only has one mode now, so this asserts it rather than flipping it.
 function toggleShowAllRoofs(){
-  DRAW.showAllRoofs = !DRAW.showAllRoofs;
+  DRAW.showAllRoofs = true;
   renderRoofSwitcher();
   redrawAll();
 }
