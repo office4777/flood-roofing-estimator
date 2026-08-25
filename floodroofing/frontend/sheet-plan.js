@@ -5293,6 +5293,33 @@ function _renderRoofSheetPlanInner() {
     var dk = s.color + ':' + s.orderedLengthMm;
     _delByKey[dk] = (_delByKey[dk] || 0) + 1;
   });
+  // ── What the tiler should COUNT this roof as ─────────────────────
+  //
+  // A lean-to is a single slope: one gutter along the bottom, an apron
+  // against the wall at the top, and no ridge. Counted as a gable it comes
+  // out at double the sheets and half the length — order 88 where the job
+  // needs 59 — because a gable splits its depth into two slopes and lays a
+  // column on each.
+  //
+  // The roofer only ever gets asked for a roof type when they pick one off
+  // the shape sheet. Draw the lean-to by hand, as most people do for a
+  // three-metre laundry roof, and DRAW.roofType is empty — and empty fell
+  // through to the gable arithmetic.
+  //
+  // So when the roofer has not said, the LINES say. A roof carrying gutter
+  // but no ridge, hip or valley is one slope; there is no other shape those
+  // lines can describe. This is only ever an inference: an explicit type
+  // always wins, and a roof with a ridge is still a gable.
+  function _rspRoofType(){
+    var t = (typeof DRAW !== 'undefined' && DRAW.roofType) || '';
+    if (t) return t;
+    var ls = (typeof DRAW !== 'undefined' && DRAW.lines) || [];
+    var has = function(k){ return ls.some(function(l){ return l && l.type === k; }); };
+    if (!has('gutter')) return '';                       // nothing to hang a guess on
+    if (has('hip') || has('valley')) return '';          // leave the complex path alone
+    return has('ridge') ? 'gable' : 'mono';
+  }
+  var _rspType = _rspRoofType();
   // Cookie-cutter strips encode their (group colour, ordered length) in the
   // deletion id itself ('cc|f97316|5137|…'), so a sheet deleted off the
   // cookie diagram reduces the order even though the legacy strip list this
@@ -5524,7 +5551,7 @@ function _renderRoofSheetPlanInner() {
     return { per: per, colOf: colOf, u0: u0 };
   }
   function _enumSimpleGableMono(){
-    var checkSecs = [], isMono = (DRAW.roofType === 'mono'), isDutch = (DRAW.roofType === 'dutch');
+    var checkSecs = [], isMono = (_rspType === 'mono'), isDutch = (_rspType === 'dutch');
     function addGroup(mm, cnt, sec){
       var key = COL_ORANGE + ':' + mm;
       if (!groups[key]) groups[key] = { color: COL_ORANGE, orderedMm: mm, count: 0 };
@@ -5689,12 +5716,12 @@ function _renderRoofSheetPlanInner() {
   var _sgmHasRidge = DRAW.lines.some(function(l){ return l && l.type==='ridge'; });
   var _sgmHasGutter = DRAW.lines.some(function(l){ return l && l.type==='gutter'; });
   var _simpleGM = (!_sgmHasHV && (
-    (DRAW.roofType==='mono'  && _sgmHasGutter) ||
-    (DRAW.roofType==='gable' && _sgmHasRidge && _sgmHasGutter)
+    (_rspType==='mono'  && _sgmHasGutter) ||
+    (_rspType==='gable' && _sgmHasRidge && _sgmHasGutter)
   )) || (
     // Dutch gable keeps its hips, but its centre is a plain gable and its
     // ends are short hip faces the enumerator handles explicitly.
-    DRAW.roofType==='dutch' && _sgmHasRidge && _sgmHasGutter
+    _rspType==='dutch' && _sgmHasRidge && _sgmHasGutter
   );
   if (_simpleGM) { _enumSimpleGableMono(); } else {
   var secData = [];
@@ -5896,7 +5923,7 @@ function _renderRoofSheetPlanInner() {
     // depth) into TWO slopes, so each sheet is half. A MONO-PITCH is a
     // SINGLE slope with no ridge — its sheet runs the FULL depth, so it
     // must NOT be halved (otherwise a lean-to orders sheets at half length).
-    var _monoRoof = (typeof DRAW !== 'undefined' && DRAW.roofType === 'mono');
+    var _monoRoof = (_rspType === 'mono');
     var _runPx = _monoRoof ? perpPx : (perpPx / 2);
     secData.push({
       col: sec.color || COL_ORANGE,
@@ -5973,7 +6000,7 @@ function _renderRoofSheetPlanInner() {
     // count one column per bay, not two — otherwise a lean-to orders ~2×
     // the sheets it needs. DRAW.roofType is per-roof (in ROOF_FIELDS) and
     // loaded before this runs, so it's the current roof's type.
-    var _mono = (typeof DRAW !== 'undefined' && DRAW.roofType === 'mono');
+    var _mono = (_rspType === 'mono');
     var n = (_mono ? 1 : 2) * perSide;
     if (i === primary && _valleyWings > 0) { n += _valleyWings; valleyExtra = _valleyWings; }  // long valley spares
     var key = s.col + ':' + s.mm;
