@@ -69,15 +69,22 @@ check('on a laptop it scales down rather than sitting at a fixed width',
   v.photos > 320 && v.photos < 400, v.photos + 'px of ' + v.vw);
 const btns = await pg.evaluate(() => {
   const s = document.getElementById('jobPhotosSec');
-  // Just the two capture buttons — the section has since grown a files row
-  // with its own button, which is not part of this check.
-  const bs = s ? [...s.querySelectorAll('button')].filter(b => /Rapid photos|From gallery/.test(b.textContent)) : [];
+  // The capture buttons only — the section has since grown a files row with
+  // its own button, which is not part of this check. Hidden ones are excluded
+  // by offsetParent: Rapid photos drives the in-app camera and is site-only,
+  // so in the office there is one capture button, not two.
+  const bs = s ? [...s.querySelectorAll('button')]
+    .filter(b => /Rapid photos|From gallery/.test(b.textContent))
+    .filter(b => b.offsetParent !== null) : [];
   const r = bs.map(x => x.getBoundingClientRect());
-  return { n: bs.length, sameRow: r.length === 2 && Math.abs(r[0].top - r[1].top) < 2,
+  return { n: bs.length, labels: bs.map(x => x.textContent.trim()),
+           sameRow: r.length < 2 || Math.abs(r[0].top - r[1].top) < 2,
            clipped: bs.some(x => x.scrollWidth > x.clientWidth + 1) };
 });
-check('…and the two capture buttons stay on one row, untruncated',
-  btns.n === 2 && btns.sameRow && !btns.clipped, JSON.stringify(btns));
+check('…and the capture buttons stay on one row, untruncated',
+  btns.n >= 1 && btns.sameRow && !btns.clipped, JSON.stringify(btns));
+check('…with Rapid photos NOT offered in the office — there is no camera to point',
+  btns.n === 1 && /gallery/i.test(btns.labels[0] || ''), btns.labels.join(' | '));
 await ctx.close();
 
 // ── a narrow window: the clamp floor stops it collapsing ─────────────

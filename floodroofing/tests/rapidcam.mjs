@@ -95,6 +95,19 @@ v = await pg.evaluate(() => (S.photos||[]).length);
 check('a second session adds to what was already there', v === 6, v + ' photos');
 
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
+// ── and it is offered ONLY here ───────────────────────────────────
+// Rapid photos drives the in-app camera: a phone or tablet held up at the
+// roof. An office desktop has none worth pointing at anything, so the button
+// used to offer something that could not work.
+check('site mode offers Rapid photos', await pg.evaluate(() =>
+  [...document.querySelectorAll('.rapidcam-btn')].some(b => b.offsetParent !== null)));
+check('…and the office does not', await pg.evaluate(() => {
+  document.documentElement.classList.remove('site-mode');
+  const any = [...document.querySelectorAll('.rapidcam-btn')].some(b => b.offsetParent !== null);
+  document.documentElement.classList.add('site-mode');
+  return !any;
+}));
+
 await ctx.close(); await b.close();
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
