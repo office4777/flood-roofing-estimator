@@ -35,6 +35,9 @@ barge, apron, change-of-pitch, coastal zones.
   grades, NZ coastal corrosion zones.
 - Plans: Solo NZ$149/month, Team NZ$299/month, Business NZ$549/month, plus GST.
   Priced per business, not per seat.
+- Early-access businesses pay 30% less for their first 12 months — NZ$104.30,
+  $209.30 and $384.30 respectively — and the standard rate after that. It is an
+  introductory discount with a stated end, not a permanent price.
 - Access at the time of writing is **early access, approved in batches**, not an
   open self-serve trial.
 - Integrates with Fergus job management. Works without any job-management

@@ -2516,6 +2516,14 @@ const STRIPE_PRICES = {
   team:     process.env.STRIPE_PRICE_TEAM     || '',
   business: process.env.STRIPE_PRICE_BUSINESS || '',
 };
+// The founding offer: 30% off for the first 12 months, for the businesses who
+// came in through early access. This is the id of a Stripe coupon created with
+// duration:'repeating' and duration_in_months:12 — Stripe then rolls them back
+// to the standard rate at month 13 by itself, with nothing to remember here.
+//
+// Unset is a valid state: no coupon simply means nobody is discounted, and
+// checkout carries on exactly as it did before.
+const EARLY_ACCESS_COUPON = (process.env.EARLY_ACCESS_COUPON || '').trim();
 function _stripePlanOfPrice(priceId){
   return Object.keys(STRIPE_PRICES).find(function(k){ return STRIPE_PRICES[k] && STRIPE_PRICES[k] === priceId; }) || '';
 }
@@ -2540,6 +2548,29 @@ async function _stripeCall(path, params){
   }
   return j;
 }
+// Did this business come in through early access? The waitlist row is the
+// record of that: somebody who was invited, or who went on to join, gets the
+// founding rate. Anyone who found the pricing page on their own does not.
+//
+// Looked up on the owner's email rather than stored on the company, because
+// the waitlist row predates the company by definition — there was no account
+// when they filled the form in.
+async function _earlyAccessEligible(email){
+  if (!EARLY_ACCESS_COUPON) return false;
+  const addr = String(email || '').trim().toLowerCase();
+  if (!addr) return false;
+  try {
+    const { data } = await supabase.from('waitlist')
+      .select('status').ilike('email', addr).maybeSingle();
+    return !!data && ['invited', 'joined'].indexOf(String(data.status || '')) >= 0;
+  } catch (e) {
+    // A lookup failure must not stop somebody paying. They fall through to the
+    // promotion-code box and we can apply the coupon by hand afterwards.
+    console.warn('[billing] early-access lookup failed:', e.message);
+    return false;
+  }
+}
+
 // Billing is the owner's to touch — requireOwner's wording is about the team,
 // so this carries its own.
 async function _requireBillingOwner(req, res){
@@ -2575,8 +2606,20 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
       'metadata[plan]': plan,
       'subscription_data[metadata][company_id]': req.companyId,
       'subscription_data[metadata][plan]': plan,
-      allow_promotion_codes: 'true',
     };
+    // The founding discount, applied without anybody having to remember a code.
+    //
+    // allow_promotion_codes and discounts are MUTUALLY EXCLUSIVE at Stripe —
+    // a session carrying both comes back 400 "You may only specify one of
+    // these parameters", which _stripeCall turns into a hard failure. So this
+    // is an either/or, never both, and the test suite asserts exactly that:
+    // the local Stripe stand-in answers any request, so it cannot catch the
+    // combination the real API refuses.
+    if (await _earlyAccessEligible(req.user.email)) {
+      params['discounts[0][coupon]'] = EARLY_ACCESS_COUPON;
+    } else {
+      params.allow_promotion_codes = 'true';
+    }
     if (sub && sub.stripe_customer_id) params.customer = sub.stripe_customer_id;
     else params.customer_email = req.user.email || undefined;
     const session = await _stripeCall('/v1/checkout/sessions', params);
@@ -4565,6 +4608,11 @@ app.post('/admin/waitlist/:id/invite', async (req, res) => {
         'It takes about a minute — business name, your name, a password. There is a\n' +
         'finished sample job waiting inside so you can see a completed quote, cut list\n' +
         'and material order before you do your own.\n\n' +
+        (EARLY_ACCESS_COUPON
+          ? ('As a founding business you get 30% off for your first 12 months, then the\n' +
+             'standard rate. It comes off automatically when you subscribe — there is no\n' +
+             'code to enter.\n\n')
+          : '') +
         'Reply to this email if anything is in your way.\n\n— RoofMap, by Flood Roofing\n',
       html: '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#0a1628;max-width:560px">' +
         '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
@@ -4572,6 +4620,13 @@ app.post('/admin/waitlist/:id/invite', async (req, res) => {
         '<p style="margin:0 0 18px">Setting your business up takes about a minute — business name, your name, a password. There is a finished sample job waiting inside, so you can see a completed quote, cut list and material order before you do your own.</p>' +
         '<p style="margin:0 0 16px"><a href="' + esc(link) + '" style="display:inline-block;background:#0099cc;color:#fff;padding:13px 26px;border-radius:9px;text-decoration:none;font-weight:700">Set up your business</a></p>' +
         (code ? ('<p style="margin:0 0 18px;font-size:14px">Your access code: <strong style="font-family:ui-monospace,Consolas,monospace;background:#f4f7fa;border:1px solid #dde5ee;border-radius:6px;padding:3px 8px">' + esc(code) + '</strong></p>') : '') +
+        // No code to paste, so no code to forget — but say so, because an
+        // unmentioned discount is one somebody assumes they have missed.
+        (EARLY_ACCESS_COUPON
+          ? ('<p style="margin:0 0 18px;padding:14px 16px;background:#f4f7fa;border-left:3px solid #0099cc;border-radius:0 8px 8px 0;font-size:14px;line-height:1.6">' +
+             '<strong>Founding rate: 30% off your first 12 months</strong>, then the standard rate. ' +
+             'It comes off automatically when you subscribe — there is no code to enter.</p>')
+          : '') +
         '<p style="font-size:13px;color:#5f6b7a;margin:0">Reply to this email if anything is in your way — it reaches a person.</p>' +
         '</div>',
       fromName: 'RoofMap', fromAddress: MAIL_SALES, replyTo: MAIL_SALES,

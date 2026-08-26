@@ -23,6 +23,10 @@ const db = {
   companies: [{ id: CO, name: 'Flood Roofing', plan: 'trial' }],
   company_users: [{ company_id: CO, user_id: U, role: 'owner' }, { company_id: CO, user_id: U2, role: 'member' }],
   profiles: [], invoices: [], usage_events: [], company_invites: [],
+  // The owner came in through early access; the member did not. That is what
+  // decides whether the founding discount is applied at checkout.
+  waitlist: [{ id: 1, email: 'aron@floodroofing.co.nz', status: 'invited' },
+             { id: 2, email: 'nobody@example.com', status: 'new' }],
   subscriptions: [{ user_id: U, company_id: CO, status: 'trialing', trial_ends_at: '2020-01-01T00:00:00Z' }],
   user_settings: [], jobs: [],
 };
@@ -55,6 +59,7 @@ process.env.STRIPE_WEBHOOK_SECRET = WH_SECRET;
 process.env.STRIPE_PRICE_SOLO = 'price_solo_149';
 process.env.STRIPE_PRICE_TEAM = 'price_team_299';
 process.env.STRIPE_PRICE_BUSINESS = 'price_biz_549';
+process.env.EARLY_ACCESS_COUPON = 'coupon_founding30';
 process.env.PLAN_CACHE_MS = '0';
 delete process.env.DATABASE_URL;
 const jwtLib = require('jsonwebtoken');
@@ -95,6 +100,38 @@ check('…for the right price, stamped with the company',
 check('…landing back on roofmap.co.nz either way',
   /roofmap\.co\.nz.*billing=success/.test(cc.body.get('success_url')) && /billing=cancelled/.test(cc.body.get('cancel_url')),
   cc.body.get('success_url'));
+
+// ── the founding discount ─────────────────────────────────────────
+// Stripe refuses a session carrying both allow_promotion_codes and discounts:
+// "You may only specify one of these parameters". The stand-in above answers
+// any request, so it cannot catch that — which is exactly why this is asserted
+// here rather than left to be discovered by a roofer whose checkout 500s.
+check('an early-access business gets the founding coupon applied for them',
+  cc.body.get('discounts[0][coupon]') === 'coupon_founding30', cc.body.get('discounts[0][coupon]'));
+check('…and NOT the promotion-code box, which Stripe refuses alongside it',
+  cc.body.get('allow_promotion_codes') === null,
+  'allow_promotion_codes=' + cc.body.get('allow_promotion_codes'));
+
+// Somebody who found the pricing page on their own is the other way round.
+// Their own company, not this one — adding a third seat to CO would push it
+// past Solo's limit and the request would be refused before it ever reached
+// Stripe, leaving the previous call as the one under inspection.
+const CO2 = 'cccccccc-2222-2222-2222-222222222222';
+const OUTSIDER = 'uuuuuuuu-0000-0000-0000-000000000009';
+db.companies.push({ id: CO2, name: 'Found Us Ourselves Ltd', plan: 'trial' });
+db.company_users.push({ company_id: CO2, user_id: OUTSIDER, role: 'owner' });
+const TO = jwtLib.sign({ id: OUTSIDER, email: 'nobody@example.com', cid: CO2 }, 'test-secret', { expiresIn: '1h' });
+const before = stripeCalls.length;
+r = await call('POST', '/billing/checkout', { plan: 'solo' }, TO);
+check('…and their checkout actually reached Stripe',
+  stripeCalls.length === before + 1, r.status + ' ' + JSON.stringify(r.body).slice(0, 80));
+const oc = stripeCalls[stripeCalls.length - 1];
+check('somebody who was not invited is not discounted',
+  r.status === 200 && oc.body.get('discounts[0][coupon]') === null, oc.body.get('discounts[0][coupon]'));
+check('…but can still type a promotion code by hand',
+  oc.body.get('allow_promotion_codes') === 'true', oc.body.get('allow_promotion_codes'));
+check('exactly one of the two is ever sent',
+  [cc, oc].every(c => (c.body.get('discounts[0][coupon]') === null) !== (c.body.get('allow_promotion_codes') === null)));
 
 r = await call('POST', '/billing/checkout', { plan: 'business' }, T2);
 check('a member cannot touch billing', r.status === 403 && r.body.code === 'OWNER_ONLY', r.status + '');

@@ -186,6 +186,18 @@ check('…and every page below the home page has breadcrumbs',
 const everything = Object.values(seen).map(p => p.html).join('\n');
 check('nothing on the site claims a rating it has not earned',
   !/aggregateRating|reviewCount|ratingValue/i.test(everything));
+// A discount stated without its duration is the kind of half-sentence that
+// reads as permanent and turns into an argument at month 13. Every page that
+// mentions the 30% has to say how long it lasts, in the same breath.
+const discountPages = Object.entries(seen).filter(([, p]) => /30\s*%|30 per cent/i.test(p.html));
+const undated = discountPages.filter(([, p]) =>
+  !/12\s*months|twelve months/i.test(p.html));
+check('the founding discount never appears without its 12-month term',
+  discountPages.length > 0 && undated.length === 0,
+  undated.length ? undated.map(([u]) => u).join(' ') : discountPages.length + ' pages mention it');
+check('…and every one of them says what happens afterwards',
+  discountPages.every(([, p]) => /standard rate|then the standard/i.test(p.html)),
+  discountPages.filter(([, p]) => !/standard rate|then the standard/i.test(p.html)).map(([u]) => u).join(' '));
 check('…or a customer count',
   !/(trusted by|used by|join)\s+[\d,]+\s*(\+)?\s*(roofers|businesses|companies)/i.test(everything));
 
