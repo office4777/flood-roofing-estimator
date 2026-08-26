@@ -29,7 +29,7 @@ async function open(branding){
   const errs = []; pg.on('pageerror', e => errs.push(e.message));
   await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     const u = r.request().url(), m = r.request().method();
-    if (/\/email\/send-order/.test(u) && m === 'POST'){
+    if (/\/feedback|\/email\/send-order/.test(u) && m === 'POST'){
       sent.push(r.request().postDataJSON());
       return r.fulfill({status:200,contentType:'application/json',body:'{"ok":true}'});
     }
@@ -129,8 +129,11 @@ v = await pg.evaluate(async () => {
 });
 check('a named request is sent', sent.length === 1, sent.length + ' email(s)');
 const m = sent[0] || {};
-check('…to the team', /floodroofing\.co\.nz$/i.test(m.to || ''), m.to);
-check('…with the software in the subject', /JMS request: Tradify/.test(m.subject || ''), m.subject);
+// No recipient in the body: the server routes support mail to the support
+// desk, so a request cannot be aimed anywhere else from the page.
+check('…without the page naming a recipient', m.to === undefined, JSON.stringify(m.to));
+check('…flagged as an integration request, with the software named',
+  m.kind === 'jms' && m.title === 'Tradify', m.kind + ' / ' + m.title);
 check('…and who asked, and from what company',
   /sam@acmeroofing\.co\.nz/.test(m.text || '') && /Acme Roofing Ltd/.test(m.text || ''));
 check('…carrying their notes', /12 jobs a week/.test(m.text || ''));

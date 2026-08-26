@@ -109,8 +109,51 @@ VERCEL_TEAM_ID=team_...
    STRIPE_WEBHOOK_SECRET=whsec_... (from Stripe webhook settings)
    ```
 4. In Stripe → Webhooks → Add endpoint:
-   - URL: `https://floodroofing-backend.railway.app/webhook`
-   - Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
+   - URL: `https://floodroofing-backend.railway.app/billing/webhook`
+   - Events: `checkout.session.completed`, `customer.subscription.updated`,
+     `customer.subscription.deleted`, `invoice.payment_succeeded`,
+     `invoice.payment_failed`
+5. Stripe → Settings → **Customer emails** → turn **"Successful payments" OFF**.
+   RoofMap sends its own tax invoice from `accounts@` (below); leaving Stripe's
+   receipt on means the subscriber gets two emails for one payment.
+
+---
+
+## Step 5b — The platform's own mailboxes
+
+Two things the platform sends are addressed differently from everything else,
+and both are now sent from their own mailbox rather than a shared `noreply@`:
+
+| What | From | Reply-To |
+|---|---|---|
+| Subscription tax invoice / declined payment | `accounts@roofmap.co.nz` | `accounts@roofmap.co.nz` |
+| Feedback and integration requests (`/feedback`) | `support@roofmap.co.nz` | **the user who sent it** |
+
+Railway environment variables (all optional — these are the defaults):
+
+```
+ACCOUNTS_EMAIL=accounts@roofmap.co.nz
+SUPPORT_EMAIL=support@roofmap.co.nz
+SUBSCRIPTION_GST_RATE=15        # 0 turns the GST lines off entirely
+SUBSCRIPTION_GST_NUMBER=        # printed on the subscription invoice when set
+```
+
+A From address is only honoured when it is on the **same domain** as
+`EMAIL_FROM` — we cannot send as a domain we have not proven we own, and a
+subscriber's address belongs in Reply-To, never in From.
+
+**If you send through the Google Apps Script relay** (`GAS_MAIL_URL`), both
+addresses must be set up in Gmail → Settings → **Accounts → Send mail as** on
+the account behind the relay, and the script has to pass the alias through:
+
+```js
+const opts = { htmlBody: p.html || p.htmlBody, name: p.fromName, replyTo: p.replyTo };
+if (p.from) opts.from = p.from;          // only works for a verified alias
+GmailApp.sendEmail(p.to, p.subject, p.text, opts);
+```
+
+Without that, Gmail quietly falls back to the relay account's own address —
+the mail still sends, it just does not carry the alias.
 
 ---
 

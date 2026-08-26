@@ -6639,6 +6639,11 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
       <strong>Most issues are fixed within about two hours</strong> of landing with us, and you will
       get an email when yours is done.
     </p>
+    <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:-4px 0 12px">
+      This reaches <strong style="color:var(--text)">support@roofmap.co.nz</strong>, and the reply
+      comes straight back to <strong style="color:var(--text)" id="fbReplyToAddr">your account
+      email</strong> — no ticket number to quote.
+    </p>
     <div style="font-size:12px;color:var(--text2);line-height:1.6;background:var(--surface-2,#f5f8fb);
                 border:1px solid var(--border);border-left:3px solid #0099cc;border-radius:8px;
                 padding:11px 13px;margin-bottom:18px">
@@ -6782,6 +6787,7 @@ function gotoTab(t) {
     setTimeout(function(){ try{ _syncPopReserveForTab(t); }catch(e){} try{ _syncDocZoomUi(); }catch(e){} }, 80);
   } catch(e){}
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} }
+  if(t==='feedback'){ try{ _syncFeedbackReplyTo(); }catch(e){} }
   if(t==='select'){ try{ fetchQuoteActivity(); }catch(e){} try{ fetchRecentDrafts(); }catch(e){} }
   if(t==='quote'||t==='materials'){ try{ _renderFergusSent(); }catch(e){} }
   if(t==='quote'){ try{_invLoad();}catch(e){} try{refreshReport();}catch(e){} buildQuote(); try{_autoSyncFromScope();}catch(e){} try{_autoSyncLabourMaterials();}catch(e){} try{ if(!_currentMainScope) setMainScope('reroof'); else setMainScope(_currentMainScope); }catch(e){} }
@@ -23300,6 +23306,17 @@ async function _sendTestEmail(btn){
     else show('Test failed: ' + m.slice(0, 200), false);
   } finally { if (btn) btn.disabled = false; }
 }
+// Name the address the answer will arrive at. Support replies to the signed-in
+// user, so showing that address is the difference between "somebody will look
+// at it" and knowing which inbox to watch.
+function _syncFeedbackReplyTo(){
+  var el = document.getElementById('fbReplyToAddr');
+  if (!el) return;
+  var who = '';
+  try { who = (JSON.parse(localStorage.getItem('fr_user') || '{}').email) || ''; } catch(e){}
+  el.textContent = who || 'your account email';
+}
+
 // ── Send feedback ─────────────────────────────────────────────────
 // Feedback goes by email to the team. Screenshots (optional) are downscaled
 // and stitched into a single PDF attachment, so they ride through the existing
@@ -23549,9 +23566,9 @@ async function _sendJmsRequest(btn){
     '</div>';
 
   try {
-    await api('POST', '/email/send-order', {
-      to: 'Aron@floodroofing.co.nz',
-      subject: 'RoofMap JMS request: ' + name,
+    await api('POST', '/feedback', {
+      kind: 'jms',
+      title: name,
       text: text, html: html
     });
     show('\u2713 Thanks — we have your request for ' + name + '.', true);
@@ -23612,13 +23629,19 @@ async function _sendFeedback(btn){
       '<pre style="font-size:10px;line-height:1.35;white-space:pre-wrap;word-break:break-all;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-top:6px;color:#334155">'+esc(geom)+'</pre></details>' : '')+
   '</div>';
   try {
-    await api('POST', '/email/send-order', {
-      to: 'Aron@floodroofing.co.nz',
-      subject: 'RoofMap Feedback: ' + title,
+    // /feedback, not /email/send-order: that route sends mail ON THE
+    // SUBSCRIBER'S BEHALF and stamps it with their business name and their
+    // branding address for replies. A bug report is the other direction. This
+    // one goes to the support desk from our support mailbox, with Reply-To set
+    // server-side to the signed-in user — so when it's fixed, support hits
+    // Reply and the answer lands with the person who reported it.
+    await api('POST', '/feedback', {
+      kind: 'feedback',
+      title: title,
       text: text, html: html,
       attachment: attachment || undefined
     });
-    show('✓ Thanks — your feedback has been sent to the team.', true);
+    show('✓ Thanks — sent to support. We\'ll reply to ' + (who || 'your account email') + ' when it\'s sorted.', true);
     // Reset the form for the next one.
     var t1 = document.getElementById('fbTitle'); if (t1) t1.value = '';
     var t2 = document.getElementById('fbDetails'); if (t2) t2.value = '';

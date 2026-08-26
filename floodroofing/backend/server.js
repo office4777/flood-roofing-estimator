@@ -210,6 +210,7 @@ const BIG_BODY = [
   ['POST', /^\/q\/[^/]+\/accept-email\/?$/],      // the accepted-quote PDF
   ['POST', /^\/fergus-files\/upload\/?$/],
   ['POST', /^\/email\/send-order\/?$/],            // order PDF attachment
+  ['POST', /^\/feedback\/?$/],                    // bug report + screenshot PDF
   ['POST', /^\/claude\//],                        // aerial image to the model
 ];
 function _wantsBigBody(req){
@@ -442,6 +443,35 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const RESEND_ENABLED = !!RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || '';
 const EMAIL_REPLYTO = process.env.EMAIL_REPLYTO || '';
+// ── THE PLATFORM'S OWN MAILBOXES ────────────────────────────────────
+// Not everything the platform sends is the same kind of message. A
+// subscription invoice is the accounts department writing; a bug report is
+// the support desk being written TO. Sending both out of one anonymous
+// noreply@ address means a subscriber who hits Reply on their invoice
+// reaches nobody, and a support reply arrives from the wrong mailbox.
+//
+// These are OUR addresses on OUR sending domain, so they are safe to put in
+// the From line — unlike a tenant's address, which we can only ever put in
+// Reply-To (see _tenantMailIdentity). Overridable per deployment because the
+// domain is not hardcoded anywhere else either.
+const MAIL_ACCOUNTS = (process.env.ACCOUNTS_EMAIL || 'accounts@roofmap.co.nz').trim();
+const MAIL_SUPPORT  = (process.env.SUPPORT_EMAIL  || 'support@roofmap.co.nz').trim();
+// The domain we are actually authorised to send from — whatever EMAIL_FROM
+// was verified as, falling back to the platform domain.
+function _mailSendingDomain(){
+  const m = /@([^>\s]+)/.exec(_mailFromAddress() || MAIL_ACCOUNTS);
+  return (m && m[1] || '').toLowerCase();
+}
+// A From address is only honoured when it is ours. Anything else — a
+// subscriber's address, a homeowner's — is silently dropped back to the
+// verified default, because sending as a domain we do not own is forgery
+// that lands in spam. Their address belongs in Reply-To.
+function _allowedFromAddress(addr){
+  const a = String(addr || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a)) return null;
+  const dom = _mailSendingDomain();
+  return (dom && a.endsWith('@' + dom)) ? a : null;
+}
 // Google Workspace relay (Apps Script web app that sends as office@ via
 // Gmail). Preferred when configured: it sends from the real address over
 // HTTPS, leans on the domain's already-live Google SPF/DKIM, and needs no
@@ -474,7 +504,7 @@ async function _gasVerify() {
   if (r.ok && parsed && parsed.ok) return { ok: true };
   throw new Error('Google relay URL did not respond as expected (' + r.status + '). Make sure GAS_MAIL_URL is the deployed Apps Script web-app URL.');
 }
-async function _gasSendMail({ to, cc, subject, text, html, attachment, fromName, replyTo }) {
+async function _gasSendMail({ to, cc, subject, text, html, attachment, fromName, replyTo, fromAddress }) {
   // The relay already took a display name and a reply-to; it was only ever
   // handed the platform's.
   const payload = {
@@ -484,6 +514,13 @@ async function _gasSendMail({ to, cc, subject, text, html, attachment, fromName,
     fromName: _mailFromName(fromName),
     replyTo: replyTo || EMAIL_REPLYTO || '',
   };
+  // Sent as one of our own mailboxes (accounts@, support@) when asked for.
+  // The Apps Script relay passes this to GmailApp as `from`, which Gmail
+  // honours only for an alias the sending account actually owns — so a
+  // mailbox that has not been set up as an alias simply falls back to the
+  // account's own address rather than failing the send.
+  const _fa = _allowedFromAddress(fromAddress);
+  if (_fa) payload.from = _fa;
   // Send the HTML body under both common keys so whichever the Apps Script
   // relay reads (html / htmlBody) picks it up and calls GmailApp with htmlBody.
   if (html) { payload.html = html; payload.htmlBody = html; }
@@ -507,13 +544,15 @@ async function _gasSendMail({ to, cc, subject, text, html, attachment, fromName,
   }
   return { messageId: parsed.id || null };
 }
-async function _resendSendMail({ to, cc, subject, text, html, attachment, fromName, replyTo }) {
+async function _resendSendMail({ to, cc, subject, text, html, attachment, fromName, replyTo, fromAddress }) {
   if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="RoofMap <noreply@roofmap.co.nz>" (once that domain is verified in Resend → Domains).');
   const _split = (v) => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
   // Their name, our verified address — Resend will not send from a domain we
-  // have not proven we own, and nor should it.
-  const from = fromName
-    ? ('"' + _mailFromName(fromName).replace(/"/g, '') + '" <' + _mailFromAddress() + '>')
+  // have not proven we own, and nor should it. A platform mailbox on that
+  // same verified domain (accounts@, support@) is allowed to replace it.
+  const _addr = _allowedFromAddress(fromAddress) || _mailFromAddress();
+  const from = (fromName || _allowedFromAddress(fromAddress))
+    ? ('"' + _mailFromName(fromName).replace(/"/g, '') + '" <' + _addr + '>')
     : EMAIL_FROM;
   const payload = { from: from, to: _split(to), subject, text };
   if (replyTo || EMAIL_REPLYTO) payload.reply_to = _split(replyTo || EMAIL_REPLYTO);
@@ -564,7 +603,7 @@ function _mailFromAddress(){
   const m = /<\s*([^>\s]+)\s*>/.exec(EMAIL_FROM || '');
   return (m && m[1]) || String(EMAIL_FROM || '').trim();
 }
-async function _dispatchMail({ to, cc, subject, text, html, attachment, fromName, replyTo }) {
+async function _dispatchMail({ to, cc, subject, text, html, attachment, fromName, replyTo, fromAddress }) {
   if (attachment && attachment.base64) {
     attachment.filename = String(attachment.filename || 'attachment.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
   }
@@ -572,14 +611,15 @@ async function _dispatchMail({ to, cc, subject, text, html, attachment, fromName
   const body = String(text || '');
   const htmlBody = html ? String(html) : undefined;
   if (GAS_ENABLED) {
-    return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo });
+    return _gasSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
   } else if (RESEND_ENABLED) {
-    return _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo });
+    return _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, fromName, replyTo, fromAddress });
   }
   // The display name is the tenant's; the address stays ours, because it is the
   // only one we are authorised to send from.
-  const addr = process.env.SMTP_FROM || process.env.SMTP_USER;
-  const from = fromName ? ('"' + _mailFromName(fromName).replace(/"/g, '') + '" <' + addr + '>') : addr;
+  const addr = _allowedFromAddress(fromAddress) || process.env.SMTP_FROM || process.env.SMTP_USER;
+  const from = (fromName || _allowedFromAddress(fromAddress))
+    ? ('"' + _mailFromName(fromName).replace(/"/g, '') + '" <' + addr + '>') : addr;
   const attachments = (attachment && attachment.base64)
     ? [{ filename: attachment.filename, content: Buffer.from(attachment.base64, 'base64'), contentType: 'application/pdf' }]
     : [];
@@ -2555,6 +2595,132 @@ app.post('/billing/portal', requireAuth, async (req, res) => {
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
+// ── THE SUBSCRIPTION RECEIPT, FROM ACCOUNTS ─────────────────────────
+// Stripe emails its own receipt from its own servers, which no amount of
+// dashboard configuration turns into a message from us — and a NZ business
+// putting a SaaS subscription through its books wants a tax invoice with a
+// GST line on it, not a Stripe receipt. So the platform sends its own, out of
+// accounts@, with replies landing where an accounts question should land.
+//
+// GST: Stripe's own `tax` figure wins whenever Stripe Tax is switched on. It
+// usually isn't, so the fallback treats the charged amount as GST-INCLUSIVE
+// at SUBSCRIPTION_GST_RATE (15 by default, matching the advertised plan
+// prices). Set SUBSCRIPTION_GST_RATE=0 for a deployment that is not GST
+// registered and the tax lines disappear entirely rather than being wrong.
+const SUB_GST_RATE = (function(){
+  const v = Number(process.env.SUBSCRIPTION_GST_RATE);
+  return isFinite(v) && v >= 0 ? v : 15;
+})();
+const SUB_GST_NUMBER = String(process.env.SUBSCRIPTION_GST_NUMBER || '').trim();
+// Stripe retries a webhook until it gets a 2xx, and a retry must not put a
+// second invoice in somebody's inbox. Keyed by what was SENT rather than by
+// event id, because one payment arrives as two different events. Bounded so a
+// long-running process cannot grow this without limit.
+const _mailedStripeEvents = new Set();
+function _stripeEventSeen(id){
+  if (!id) return false;
+  if (_mailedStripeEvents.has(id)) return true;
+  _mailedStripeEvents.add(id);
+  if (_mailedStripeEvents.size > 500) _mailedStripeEvents.delete(_mailedStripeEvents.values().next().value);
+  return false;
+}
+function _subInvoiceNumbers(inv){
+  const cents = (v) => (Number(v) || 0) / 100;
+  const total = cents(inv.amount_paid != null ? inv.amount_paid : (inv.total != null ? inv.total : inv.amount_due));
+  // Stripe Tax on → believe it. Off → derive from the GST-inclusive total.
+  const stripeTax = inv.tax != null ? cents(inv.tax) : null;
+  let gst, net;
+  if (stripeTax != null && stripeTax > 0) { gst = stripeTax; net = Math.round((total - gst) * 100) / 100; }
+  else if (SUB_GST_RATE > 0) { net = Math.round((total / (1 + SUB_GST_RATE / 100)) * 100) / 100; gst = Math.round((total - net) * 100) / 100; }
+  else { net = total; gst = 0; }
+  return { total, net, gst, currency: String(inv.currency || 'nzd').toUpperCase() };
+}
+function _subInvoiceEmail(inv){
+  const n = _subInvoiceNumbers(inv);
+  const num = inv.number || inv.id || '';
+  const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const when = inv.status_transitions && inv.status_transitions.paid_at
+    ? new Date(inv.status_transitions.paid_at * 1000) : new Date();
+  const period = (inv.lines && inv.lines.data && inv.lines.data[0] && inv.lines.data[0].period) || null;
+  const periodTxt = period && period.start && period.end
+    ? new Date(period.start * 1000).toLocaleDateString('en-NZ') + ' – ' + new Date(period.end * 1000).toLocaleDateString('en-NZ')
+    : '';
+  const desc = (inv.lines && inv.lines.data && inv.lines.data[0] && inv.lines.data[0].description) || 'RoofMap subscription';
+  const rows = [['Description', desc]];
+  if (periodTxt) rows.push(['Period', periodTxt]);
+  rows.push(['Invoice', num]);
+  rows.push(['Paid', when.toLocaleDateString('en-NZ')]);
+  const gstLine = n.gst > 0 ? ('GST (' + (SUB_GST_RATE || '') + '%)') : null;
+  const lines = [
+    'RoofMap — subscription tax invoice',
+    '',
+    desc,
+    periodTxt ? ('Period: ' + periodTxt) : '',
+    'Invoice: ' + num,
+    'Paid: ' + when.toLocaleDateString('en-NZ'),
+    '',
+    n.gst > 0 ? ('Subtotal: ' + _money(n.net) + ' ' + n.currency) : '',
+    n.gst > 0 ? (gstLine + ': ' + _money(n.gst) + ' ' + n.currency) : '',
+    'Total paid: ' + _money(n.total) + ' ' + n.currency,
+    SUB_GST_NUMBER ? ('GST number: ' + SUB_GST_NUMBER) : '',
+    '',
+    inv.invoice_pdf ? ('Stripe PDF: ' + inv.invoice_pdf) : '',
+    inv.hosted_invoice_url ? ('View online: ' + inv.hosted_invoice_url) : '',
+    '',
+    'Questions about this invoice — just reply to this email.',
+  ].filter(function(x){ return x !== ''; });
+  const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:640px">' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">RoofMap — tax invoice</div>' +
+    '<h2 style="font-size:19px;margin:8px 0 14px">' + esc(_money(n.total)) + ' ' + esc(n.currency) + ' paid — thank you</h2>' +
+    '<table style="border-collapse:collapse;font-size:13px;margin-bottom:14px">' +
+      rows.map(function(r){ return '<tr><td style="padding:3px 18px 3px 0;color:#5f6b7a">' + esc(r[0]) +
+        '</td><td style="padding:3px 0"><strong>' + esc(r[1]) + '</strong></td></tr>'; }).join('') +
+    '</table>' +
+    '<table style="border-collapse:collapse;font-size:13px;border-top:1px solid #e2e8f0;padding-top:8px">' +
+      (n.gst > 0 ? '<tr><td style="padding:3px 18px 3px 0;color:#5f6b7a">Subtotal</td><td style="padding:3px 0">' + esc(_money(n.net)) + '</td></tr>' +
+                   '<tr><td style="padding:3px 18px 3px 0;color:#5f6b7a">' + esc(gstLine) + '</td><td style="padding:3px 0">' + esc(_money(n.gst)) + '</td></tr>' : '') +
+      '<tr><td style="padding:5px 18px 3px 0;color:#5f6b7a"><strong>Total paid</strong></td><td style="padding:5px 0"><strong>' + esc(_money(n.total)) + ' ' + esc(n.currency) + '</strong></td></tr>' +
+    '</table>' +
+    (SUB_GST_NUMBER ? '<p style="font-size:12px;color:#5f6b7a">GST number: ' + esc(SUB_GST_NUMBER) + '</p>' : '') +
+    (inv.hosted_invoice_url ? '<p><a href="' + esc(inv.hosted_invoice_url) + '" style="display:inline-block;background:#0a1628;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">View or download the invoice</a></p>' : '') +
+    '<p style="font-size:12px;color:#5f6b7a">Questions about this invoice — just reply to this email.</p>' +
+  '</div>';
+  return { subject: 'RoofMap tax invoice ' + num + ' — ' + _money(n.total) + ' ' + n.currency,
+           text: lines.join('\n'), html: html };
+}
+function _subFailedEmail(inv){
+  const n = _subInvoiceNumbers(inv);
+  const when = inv.next_payment_attempt ? new Date(inv.next_payment_attempt * 1000) : null;
+  const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const retry = when ? ('We will try the card again on ' + when.toLocaleDateString('en-NZ') + '.') : '';
+  const text = ['RoofMap — subscription payment did not go through', '',
+    'The payment of ' + _money(n.total) + ' ' + n.currency + ' for your RoofMap subscription was declined.',
+    retry, '',
+    inv.hosted_invoice_url ? ('Update the card or pay it here:\n' + inv.hosted_invoice_url) : '',
+    '', 'Reply to this email if something looks wrong — it reaches our accounts desk.'].filter(Boolean).join('\n');
+  const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:640px">' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#b45309">RoofMap — payment declined</div>' +
+    '<p>The payment of <strong>' + esc(_money(n.total)) + ' ' + esc(n.currency) + '</strong> for your RoofMap subscription did not go through.' +
+    (retry ? ' ' + esc(retry) : '') + '</p>' +
+    (inv.hosted_invoice_url ? '<p><a href="' + esc(inv.hosted_invoice_url) + '" style="display:inline-block;background:#0a1628;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">Update the card</a></p>' : '') +
+    '<p style="font-size:12px;color:#5f6b7a">Reply to this email if something looks wrong — it reaches our accounts desk.</p></div>';
+  return { subject: 'RoofMap subscription payment declined', text: text, html: html };
+}
+// Send it as accounts@, with replies going to accounts@ too. Never throws:
+// a mail problem must not make the webhook fail and be retried forever.
+async function _sendSubscriptionMail(inv, build){
+  const to = String((inv && (inv.customer_email || (inv.customer_address && inv.customer_address.email))) || '').trim();
+  if (!to) { console.warn('[stripe] no customer_email on invoice ' + (inv && inv.id) + ' — nothing emailed'); return false; }
+  if (!EMAIL_ENABLED) { console.warn('[stripe] email not configured — subscription invoice not sent'); return false; }
+  const mail = build(inv);
+  try {
+    await _dispatchMail({ to: to, subject: mail.subject, text: mail.text, html: mail.html,
+                          fromName: 'RoofMap Accounts', fromAddress: MAIL_ACCOUNTS, replyTo: MAIL_ACCOUNTS });
+    console.log('[stripe] subscription mail sent to ' + to + ' from ' + MAIL_ACCOUNTS);
+    return true;
+  } catch (e) { console.error('[stripe] subscription mail failed:', e.message); return false; }
+}
+
 // Stripe's word on what happened, verified by signature over the raw bytes.
 // v1 = HMAC-SHA256(secret, "<timestamp>.<payload>") per their scheme.
 function _stripeSigOk(rawBody, header){
@@ -2617,6 +2783,20 @@ async function _stripeWebhook(req, res){
         _planCache.delete(companyId);
       }
       console.log('[stripe] subscription ' + obj.id + ' → ' + status + (newPlan ? ' (' + newPlan + ')' : ''));
+    }
+
+    // The money side. A paid invoice gets a RoofMap tax invoice out of
+    // accounts@; a failed one gets a heads-up from the same desk, so a
+    // subscriber never has to work out who to ask about their billing.
+    // Keyed on the INVOICE, not the event: Stripe fires both
+    // invoice.paid and invoice.payment_succeeded for the same payment, with
+    // different event ids, and nobody wants the same invoice twice.
+    if (event.type === 'invoice.payment_succeeded' || event.type === 'invoice.paid'){
+      if (!_stripeEventSeen('paid:' + (obj.id || event.id))) await _sendSubscriptionMail(obj, _subInvoiceEmail);
+    }
+    if (event.type === 'invoice.payment_failed'){
+      if (!_stripeEventSeen('failed:' + (obj.id || event.id) + ':' + (obj.attempt_count || 0)))
+        await _sendSubscriptionMail(obj, _subFailedEmail);
     }
 
     res.json({ received: true });
@@ -4150,6 +4330,62 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
     res.json({ ok: true, id: info.messageId || null });
   } catch (e) {
     console.error('send-order email failed:', e.message);
+    res.status(502).json({ error: 'Email send failed: ' + e.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// FEEDBACK — a bug report or an idea, straight to the support desk
+// ══════════════════════════════════════════════════════════════════
+// This used to ride on /email/send-order, which exists to send mail ON THE
+// SUBSCRIBER'S BEHALF: it stamps the message with their business name and
+// points replies at their branding address. That is exactly wrong here.
+// A bug report is addressed TO us, and the one thing support needs is to be
+// able to hit Reply and reach the person who hit the button — not the
+// company's generic office mailbox, and not a hardcoded address of ours.
+//
+// So: fixed recipient (the support desk), From our own support mailbox, and
+// Reply-To taken from the AUTHENTICATED session rather than the request body,
+// because a reply-to a caller can choose is a reply-to an attacker can choose.
+app.post('/feedback', requireAuth, rateLimit(6, 60000), async (req, res) => {
+  if (!EMAIL_ENABLED) {
+    return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
+  }
+  try {
+    const b = req.body || {};
+    const kind = String(b.kind || 'feedback').toLowerCase() === 'jms' ? 'jms' : 'feedback';
+    const title = String(b.title || '').trim().slice(0, 200);
+    if (!title) return res.status(400).json({ error: 'A short title is required' });
+    const attachment = (b.attachment && b.attachment.base64) ? b.attachment : null;
+    if (attachment && String(attachment.base64).length > 20 * 1024 * 1024) {
+      return res.status(413).json({ error: 'Attachment too large' });
+    }
+    if (attachment) attachment.filename = String(attachment.filename || 'feedback.pdf').replace(/[^\w.\- ]+/g, '_').slice(0, 100);
+    // Who sent it, from the token — not from anything the page claimed.
+    const from = String((req.user && req.user.email) || '').trim();
+    let company = '';
+    try {
+      const row = await _companySettingsRow(req);
+      company = String((((row || {}).branding) || {}).company_name || '').trim();
+    } catch (e) {}
+    const subject = (kind === 'jms' ? 'RoofMap JMS request: ' : 'RoofMap Feedback: ') + title;
+    // The support desk's inbox list is the first thing read, so the sender's
+    // name goes in the display name and their address in Reply-To.
+    const who = [company, from].filter(Boolean).join(' · ') || 'a RoofMap user';
+    const mail = {
+      to: MAIL_SUPPORT,
+      subject: subject,
+      text: String(b.text || title),
+      html: b.html ? String(b.html).slice(0, 200000) : undefined,
+      attachment: attachment || undefined,
+      fromName: 'RoofMap Feedback — ' + who,
+      fromAddress: MAIL_SUPPORT,
+      replyTo: /.@./.test(from) ? from : undefined,
+    };
+    const info = await _dispatchMail(mail);
+    res.json({ ok: true, id: (info && info.messageId) || null, to: MAIL_SUPPORT, replyTo: mail.replyTo || null });
+  } catch (e) {
+    console.error('feedback email failed:', e.message);
     res.status(502).json({ error: 'Email send failed: ' + e.message });
   }
 });

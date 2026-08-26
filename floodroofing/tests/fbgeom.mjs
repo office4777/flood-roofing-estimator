@@ -20,10 +20,11 @@ const b = await chromium.launch();
 const ctx = await b.newContext({ viewport:{width:1400,height:950} });
 const pg = await ctx.newPage();
 const errs = []; pg.on('pageerror', e => errs.push(e.message));
-let sent = null;
+let sent = null, sentUrl = '';
 await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async r => {
   const u = r.request().url();
-  if (/\/email\/send-order/.test(u)){
+  if (/\/feedback|\/email\/send-order/.test(u)){
+    sentUrl = u;
     try { sent = JSON.parse(r.request().postData() || '{}'); } catch(e){ sent = {}; }
     return r.fulfill({status:200,contentType:'application/json',body:'{"ok":true}'});
   }
@@ -66,9 +67,16 @@ await pg.evaluate(() => {
 await pg.evaluate(() => _sendFeedback(document.getElementById('fbSubmitBtn')));
 await pg.waitForTimeout(900);
 
-check('the feedback email went', !!sent, sent ? sent.subject : '(nothing sent)');
-check('…with the title and details', /Sheet measures missing/.test(sent.subject || '') &&
-  /no run on them/.test(sent.text || ''), sent && sent.subject);
+check('the feedback email went', !!sent, sent ? sent.title : '(nothing sent)');
+// It rides the support route, not the send-as-the-tenant one — that route
+// stamps the roofer's business name on the message and points replies at
+// their branding address, which is the wrong direction for a bug report.
+check('…on the support route, not the send-as-the-roofer one',
+  /\/feedback/.test(sentUrl) && !/send-order/.test(sentUrl), sentUrl.split('/').pop());
+check('…without naming a recipient — the server decides where support mail goes',
+  sent.to === undefined, JSON.stringify(sent.to));
+check('…with the title and details', /Sheet measures missing/.test(sent.title || '') &&
+  /no run on them/.test(sent.text || ''), sent && sent.title);
 
 const geomLine = (sent.text || '').split('Roof geometry')[1] || '';
 check('…and the roof geometry attached', /"outline"/.test(geomLine) && /"lines"/.test(geomLine),
