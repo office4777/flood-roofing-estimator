@@ -117,17 +117,24 @@ v = await pg.evaluate(() => {
   const ctas = Array.from(document.querySelectorAll('a.btn, a.nav-cta'));
   return {
     hrefs: Array.from(new Set(ctas.map(a => a.getAttribute('href')))),
-    labels: Array.from(new Set(ctas.filter(a => (a.getAttribute('href')||'') === '/signup.html')
+    labels: Array.from(new Set(ctas.filter(a => (a.getAttribute('href')||'') === '/early-access')
                                    .map(a => a.textContent.trim()))),
     scrollers: ctas.filter(a => (a.getAttribute('href')||'').startsWith('#') &&
-                                /trial|sign ?up|account/i.test(a.textContent)).length,
-    toSignup: ctas.filter(a => (a.getAttribute('href')||'') === '/signup.html').length,
+                                /trial|sign ?up|account|access/i.test(a.textContent)).length,
+    toSignup: ctas.filter(a => (a.getAttribute('href')||'') === '/early-access').length,
     form: !!document.getElementById('suForm'),
   };
 });
-check('every button offering a trial links to the sign-up page',
+// Registration is invite-gated, so every conversion button goes to the
+// early-access form. A button saying "start free trial" that lands on a signup
+// page which then refuses you is worse than no button.
+check('every conversion button leads to early access',
   v.toSignup >= 4 && v.scrollers === 0, v.toSignup + ' links, ' + v.scrollers + ' scrollers');
-check('…all saying the same thing', v.labels.length === 1, JSON.stringify(v.labels));
+// Two wordings, deliberately: the full ask everywhere, and the shorter
+// "Request access" inside each pricing tier where the column is narrow.
+check('…all asking for the same thing',
+  v.labels.length <= 2 && v.labels.every(l => /request/i.test(l) && /access/i.test(l)),
+  JSON.stringify(v.labels));
 check('…and the form is not duplicated here', v.form === false);
 check('…with only the "see how it works" jump left as an anchor',
   v.hrefs.filter(h => (h||'').startsWith('#')).length <= 1, JSON.stringify(v.hrefs));
@@ -160,7 +167,7 @@ v = await pg.evaluate(() => ({
 }));
 check('the phone layout does not scroll sideways', !v.wide, 'overflow ' + v.overflow + 'px');
 check('…and leads with a call to action that goes somewhere',
-  v.ctaVisible && v.ctaHref === '/signup.html', v.ctaHref);
+  v.ctaVisible && v.ctaHref === '/early-access', v.ctaHref);
 check('…on a page that is shorter now the form has its own', v.screens < 12, v.screens + ' screens');
 await pg.screenshot({ path: S+'/landing_phone.png', fullPage: true });
 await ctx.close();

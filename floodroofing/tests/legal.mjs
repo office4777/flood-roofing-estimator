@@ -79,7 +79,7 @@ check('…which the policy says out loud',
 const declared = (server.match(/const USAGE_EVENTS = \[([\s\S]*?)\];/) || [])[1] || '';
 const eventNames = (declared.match(/'([a-z_]+)'/g) || []).map(x => x.replace(/'/g,''));
 check('the policy says how many milestones there are, and is right',
-  eventNames.length === 9 && /[Nn]ine milestones/.test(privacy),
+  eventNames.length === 10 && /[Tt]en milestones/.test(privacy),
   eventNames.length + ' in the code');
 check('…and there is still no page tracking to disclose',
   !/page_view|pageview|session_recording/.test(server) && /no page tracking/.test(privacy));
@@ -144,9 +144,21 @@ check('(placeholders still to fill before publishing)', true, holes.length ? hol
 // where the agreement has to be visible.
 const signup = flat(await readFile(_j(DIR, 'signup.html'), 'utf8'));
 check('the sign-up form says what you are agreeing to',
-  /By creating an account you agree to our[\s\S]{0,120}terms\.html[\s\S]{0,120}privacy\.html/.test(signup));
+  /By creating an account you agree to our[\s\S]{0,120}"\/terms"[\s\S]{0,120}"\/privacy"/.test(signup));
+// Internal links use the clean URLs now — /terms.html 301s to /terms, and an
+// internal link should never spend a redirect. The list is every public page
+// rather than two of them, because "every public page" is what the sentence
+// above promises and there are nine of them now.
+const PUBLIC_PAGES = ['landing.html','signup.html','pricing.html','early-access.html',
+  'features-measuring.html','features-job-pack.html','features-quotes.html',
+  'fergus.html','about.html','guides-quote-a-re-roof.html'];
+const footless = [];
+for (const f of PUBLIC_PAGES){
+  const pg = flat(await readFile(_j(DIR, f), 'utf8'));
+  if (!(/<footer[\s\S]*"\/terms"/.test(pg) && /<footer[\s\S]*"\/privacy"/.test(pg))) footless.push(f);
+}
 check('…and both are linked from the footer of every public page',
-  [landing, signup].every(pg => /footer[\s\S]*terms\.html/.test(pg) && /footer[\s\S]*privacy\.html/.test(pg)));
+  footless.length === 0, footless.join(' '));
 check('…and from inside the app', /terms\.html/.test(app) && /privacy\.html/.test(app));
 
 // ── and they render ──

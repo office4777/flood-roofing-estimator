@@ -85,7 +85,9 @@ let v = await pg.evaluate(() => ({
   visible: Array.from(document.querySelectorAll('#suForm input')).filter(i => i.offsetParent).length,
   title: document.title,
   fine: (document.querySelector('.fine')||{}).textContent.replace(/\s+/g,' ').trim(),
-  legal: Array.from(document.querySelectorAll('a[href$=".html"]')).map(a=>a.getAttribute('href')),
+  // Every internal link, not just the .html ones — the legal pages are linked
+  // by their clean URLs now.
+  legal: Array.from(document.querySelectorAll('a[href^="/"]')).map(a=>a.getAttribute('href')),
   noindex: (document.querySelector('meta[name=robots]')||{}).content,
 }));
 check('it is a short page, not another sales pitch', v.words < 700, v.words + ' words');
@@ -93,7 +95,9 @@ check('…asking for four things', v.visible === 4, v.visible + ' visible fields
 check('…with the invite-code field kept out of the way until it is needed', v.fields === 5 && v.visible === 4);
 check('…and says what you are agreeing to, next to the button',
   /By creating an account you agree/.test(v.fine) && /Terms of Service/.test(v.fine) && /Privacy Policy/.test(v.fine));
-check('…links to both documents', v.legal.indexOf('/terms.html') >= 0 && v.legal.indexOf('/privacy.html') >= 0);
+// The clean URLs, not the .html ones — those 301 now, and an internal link
+// should never spend a redirect.
+check('…links to both documents', v.legal.indexOf('/terms') >= 0 && v.legal.indexOf('/privacy') >= 0);
 check('…and is kept out of search results, since the landing page is the front door',
   /noindex/.test(v.noindex || ''), v.noindex);
 
@@ -176,10 +180,18 @@ v = await pg.evaluate(() => ({
 }));
 check('every "start a trial" button on the landing page is a real link, not a scroll',
   v.anchorCtas === 0, JSON.stringify(v.ctas));
-check('…they all point at the sign-up page', v.ctas.some(c => c.startsWith('/signup.html')));
-check('…they all say the same thing',
-  new Set(v.ctas.filter(c=>c.startsWith('/signup.html')).map(c=>c.split('"')[1])).size === 1,
-  JSON.stringify(v.ctas.filter(c=>c.startsWith('/signup.html'))));
+// Registration is invite-gated, so the landing page sends people to the
+// early-access form rather than to a signup page that would refuse them.
+// This page is where they land once they have a code.
+check('…they all point at early access', v.ctas.some(c => c.startsWith('/early-access')));
+// Two wordings by design: the full ask everywhere, and a shorter one inside
+// each pricing tier where the column is narrow. Both have to be the same ask.
+check('…they all ask for the same thing',
+  (function(){
+    const labels = Array.from(new Set(v.ctas.filter(c => c.startsWith('/early-access')).map(c => c.split('"')[1])));
+    return labels.length > 0 && labels.length <= 2 && labels.every(l => /request/i.test(l) && /access/i.test(l));
+  })(),
+  JSON.stringify(v.ctas.filter(c => c.startsWith('/early-access'))));
 check('…and the form no longer lives on the landing page too', v.form === false);
 check('…which is shorter for it', v.screens < 12, v.screens + ' screens on a phone');
 await ctx.close();
