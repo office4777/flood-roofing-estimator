@@ -234,6 +234,14 @@ header.solid{ position:static; background:#fff; border-bottom:1px solid var(--li
 header.solid .brand span{ color:var(--ink) }
 header.solid .nav-links a{ color:var(--body) }
 header.solid .nav-links a:hover{ color:var(--ink) }
+/* .nav-cta is a translucent white pill designed to sit on the hero photo.
+   On a white header that is a white button on white — invisible. Give it the
+   solid treatment instead. */
+/* Qualified with a.nav-cta rather than .nav-cta: `header.solid .nav-links a`
+   above is (0,2,2) and would otherwise win the colour, leaving muted text on
+   a dark pill. */
+header.solid .nav-links a.nav-cta{ background:var(--ink); border-color:var(--ink); color:#fff; font-weight:700 }
+header.solid .nav-links a.nav-cta:hover{ background:var(--accent-deep); border-color:var(--accent-deep); color:#fff }
 
 /* ── page masthead ───────────────────────────────────────────────── */
 .masthead{ padding:60px 0 20px }
@@ -334,4 +342,12 @@ table.data td strong{ color:var(--ink) }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{ animation:none !important; transition:none !important }
   .btn:hover,.next-card:hover{ transform:none }
+}
+
+/* A heading that is there for the document outline rather than the design.
+   Not display:none — that hides it from screen readers too, which is the
+   opposite of the point. */
+.sr-only-head{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
 }

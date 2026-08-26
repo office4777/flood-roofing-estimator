@@ -23,13 +23,13 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // The real Express app against an in-memory stand-in for PostgREST. Fast,
 // no browser, and the place a multi-tenancy bug shows up first.
 const API = [
-  'orgapi', 'teamapi', 'domainapi', 'dupjob', 'jobsave', 'gutterexclude', 'sheetbarge', 'jpmaps', 'plans', 'cors', 'errmon', 'usage', 'trial', 'invoiceapi', 'stripeapi', 'security', 'sharetoken', 'crosstenant', 'bodylimit', 'markupleak', 'mailidentity', 'platformmail',
+  'orgapi', 'teamapi', 'domainapi', 'dupjob', 'jobsave', 'gutterexclude', 'sheetbarge', 'jpmaps', 'plans', 'cors', 'errmon', 'usage', 'trial', 'invoiceapi', 'stripeapi', 'security', 'sharetoken', 'crosstenant', 'bodylimit', 'markupleak', 'mailidentity', 'platformmail', 'waitlist',
 ];
 // The real index.html, driven by Playwright.
 const UI = [
   'tenantbrand', 'ownbrand', 'pricebook', 'samplejob', 'crashui', 'landing', 'signup', 'quotedomain',
   'gutterprice', 'officebar', 'roofrename', 'acceptcarry', 'orgui', 'teamui', 'dupjobui',
-  'trialui', 'legal', 'photospanel', 'aerialmap', 'invoiceui', 'jobfiles', 'nojms', 'billingui', 'disclaimers', 'matbuffer', 'pbcsv', 'selectables', 'pricegold', 'pipeflash', 'sheetruns', 'siteflash', 'siteflashpad', 'boxpentrace', 'flashwaste', 'sitebars', 'jmsrequest', 'fbcontext', 'roofimg', 'freedraw', 'roofnotes', 'rapidcam', 'roofsafe', 'fbgeom', 'pbextras', 'setupguide', 'flashdelete', 'clearlite', 'monocount', 'jpedit', 'pricingmap', 'foldedpricing', 'pbextraqty', 'boxpenflash', 'roofnamemap', 'chainwalk', 'canvassetup', 'sheetrun1024', 'bgmatch', 'tutorial',
+  'trialui', 'legal', 'photospanel', 'aerialmap', 'invoiceui', 'jobfiles', 'nojms', 'billingui', 'disclaimers', 'matbuffer', 'pbcsv', 'selectables', 'pricegold', 'pipeflash', 'sheetruns', 'siteflash', 'siteflashpad', 'boxpentrace', 'flashwaste', 'sitebars', 'jmsrequest', 'fbcontext', 'roofimg', 'freedraw', 'roofnotes', 'rapidcam', 'roofsafe', 'fbgeom', 'pbextras', 'setupguide', 'flashdelete', 'clearlite', 'monocount', 'jpedit', 'pricingmap', 'foldedpricing', 'pbextraqty', 'boxpenflash', 'roofnamemap', 'chainwalk', 'canvassetup', 'sheetrun1024', 'bgmatch', 'tutorial', 'seo',
 ];
 
 const arg = (process.argv[2] || '').toLowerCase();
