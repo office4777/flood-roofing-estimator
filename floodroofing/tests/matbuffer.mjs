@@ -127,6 +127,81 @@ check('…and turning the buffer off actually moves that number, so it is being 
   v.handedToQuote > v.noBuf + 0.01,
   '$' + v.handedToQuote + ' at 7% vs $' + v.noBuf + ' at 0%');
 
+// ── each roof carries its own buffer and its own mark-up ──────────
+// "if i set it to 3% on the main roof, then 5% on a different roof, is change
+// the main roof to 5% aswell". Both percentages were single numbers on the
+// quote, so the per-roof pricing tabs were all editing the same one — set a
+// roof's buffer and you silently repriced every other roof on the job.
+const GEOM = JSON.parse(await readFile(_j(_ROOT, 'tests', 'fixtures-sixroof.json'), 'utf8'));
+await pg.evaluate((g) => {
+  DRAW.scaleMetresPerPx = g.scaleMetresPerPx; DRAW.calPitch = g.calPitch;
+  DRAW.outline = g.outline; DRAW.outlineDone = true;
+  DRAW.lines = g.lines.map(l => Object.assign({}, l));
+  DRAW.roofs = g.roofs.map(r => Object.assign({}, r,
+    { lines: (r.lines || []).map(l => Object.assign({}, l)) }));
+  DRAW.activeRoofIdx = g.activeRoofIdx; DRAW.showAllRoofs = true;
+  S.quote.roofSeparate = {1:true,2:true,3:true,4:true,5:true};
+  S.quote.roofExcluded = {};
+  delete S.quote.roofMatQtyBuffer; delete S.quote.roofMaterialMarkup;
+  delete S.quote.roofMatQtyBufferByRoof; delete S.quote.roofMaterialMarkupByRoof;
+  try { redrawAll(); } catch(e){}
+  gotoTab('pricing');
+}, GEOM);
+await pg.waitForTimeout(1500);
+
+v = await pg.evaluate(() => {
+  _setPricingRoof(0); _setRoofMatQtyBuffer(3); _setRoofMatMarkup(11);
+  _setPricingRoof(2); _setRoofMatQtyBuffer(5); _setRoofMatMarkup(17);
+  return {
+    main:  (_setPricingRoof(0), { buf: _roofMatQtyBufferPct(), mk: _roofMatMarkupPct() }),
+    roof3: (_setPricingRoof(2), { buf: _roofMatQtyBufferPct(), mk: _roofMatMarkupPct() }),
+    // Asked for by index, from anywhere — this is what the pricing maths uses.
+    byIdx: { m: _roofMatQtyBufferPct(0), r: _roofMatQtyBufferPct(2),
+             mMk: _roofMatMarkupPct(0),  rMk: _roofMatMarkupPct(2) },
+  };
+});
+check('setting 5% on another roof leaves the main roof on its own 3%',
+  v.main.buf === 3 && v.roof3.buf === 5, JSON.stringify(v));
+check('…and the mark-up is per roof the same way',
+  v.main.mk === 11 && v.roof3.mk === 17, JSON.stringify(v));
+check('…and both read back by roof index, which is what the pricing maths uses',
+  v.byIdx.m === 3 && v.byIdx.r === 5 && v.byIdx.mMk === 11 && v.byIdx.rMk === 17,
+  JSON.stringify(v.byIdx));
+
+// The money has to follow the percentages, not just the read-back.
+v = await pg.evaluate(() => {
+  const a = _materialsCostForRoofIdx(2);
+  _setPricingRoof(0);                       // stand somewhere else entirely
+  const b = _materialsCostForRoofIdx(2);
+  _setRoofMatQtyBuffer(40);                 // move the MAIN roof's buffer hard
+  const c = _materialsCostForRoofIdx(2);
+  _setRoofMatQtyBuffer(3);
+  return { a, b, c };
+});
+check('a roof is costed with its own buffer wherever you happen to be standing',
+  Math.abs(v.a - v.b) < 0.02, '$' + v.a + ' vs $' + v.b);
+check('…and moving the main roof’s buffer does not move another roof’s cost',
+  Math.abs(v.b - v.c) < 0.02, '$' + v.b + ' before vs $' + v.c + ' after +40% on the main');
+
+// ── a new quote starts at 5%, an old one keeps what it was saved with ──
+v = await pg.evaluate(() => {
+  const fresh = defaultQuote();
+  const old = { roofMatQtyBuffer: 0 };            // saved before this shipped
+  const older = {};                                // saved before the field existed
+  const read = q => { const keep = S.quote; S.quote = q;
+    const out = { buf: _roofMatQtyBufferPct(0), mk: _roofMatMarkupPct(0) };
+    S.quote = keep; return out; };
+  return { fresh: { buf: fresh.roofMatQtyBuffer, mk: fresh.roofMaterialMarkup },
+           old: read(old), older: read(older) };
+});
+check('a new quote starts with a 5% buffer, as asked for',
+  v.fresh.buf === 5, 'buffer ' + v.fresh.buf + '%');
+check('…and a 5% mark-up alongside it', v.fresh.mk === 5, 'mark-up ' + v.fresh.mk + '%');
+check('a quote saved with an explicit 0 keeps its 0 and does not reprice',
+  v.old.buf === 0, 'buffer ' + v.old.buf + '%');
+check('…and one saved before the field existed stays at 0 too',
+  v.older.buf === 0, 'buffer ' + v.older.buf + '%');
+
 // ── the gutter card carries the same split ────────────────────────
 v = await pg.evaluate(() => ({
   bufFn: typeof _gutterMatQtyBufferPct === 'function' && typeof _setGutterMatQtyBuffer === 'function',

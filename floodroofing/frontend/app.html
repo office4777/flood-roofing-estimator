@@ -8904,9 +8904,11 @@ function renderMaterialPriceTable(){
   // Two editable rows, both folded into the material total that feeds the
   // quote: the quantity buffer first (it is a cost), then the mark-up on top
   // of the buffered cost (it is margin on that cost).
-  var _bufPct = _roofMatQtyBufferPct(), _bufAmt = _gradeTotal * (_bufPct/100);
+  // _matRi is -1 on a single-roof job; that job's one roof is roof 0.
+  var _pctIdx = (_multiMat && _matRi >= 0) ? _matRi : 0;
+  var _bufPct = _roofMatQtyBufferPct(_pctIdx), _bufAmt = _gradeTotal * (_bufPct/100);
   var _bufferedMat = _gradeTotal + _bufAmt;
-  var _mkPct = _roofMatMarkupPct(), _mkAmt = _bufferedMat * (_mkPct/100);
+  var _mkPct = _roofMatMarkupPct(_pctIdx), _mkAmt = _bufferedMat * (_mkPct/100);
   var _finalMat = _bufferedMat + _mkAmt;
   var _pctRow = function(label, sub, pct, amt, setter){
     return '<tr style="background:#f7f8fa">'+
@@ -8983,39 +8985,56 @@ function _gradeLabel(grade){
 //   Mark-up — margin on the material cost, applied on top of the buffered
 //     cost (the buffer is a cost; the margin sits on it).
 //
-// Buffer defaults to 0 so no existing quote changes price the day this ships;
-// the mark-up keeps the 5% it has always had.
-function _roofMatQtyBufferPct(){
+// BOTH are per roof, because the Pricing tab prices one roof at a time and
+// both controls sit in that roof's own material table. They used to be single
+// numbers on the quote, so every tab was editing the same one: set 5% on the
+// lean-to and the main roof silently went to 5% too.
+//
+// A tab covers a GROUP (the main roof plus everything folded into it), so the
+// key is the tab's roof index. Resolution runs per-roof value → the old
+// job-wide number a saved quote carries → the default, which keeps quotes
+// written before this shipped priced exactly as they were sent.
+function _roofPctByRoof(key, idx, legacyKey, dflt){
   var q = (window.S && S.quote) || {};
-  var v = parseFloat(q.roofMatQtyBuffer);
-  return (isFinite(v) && v >= 0) ? v : 0;
+  if (idx == null) { try { idx = _pricingRoofIdx(); } catch(e){ idx = 0; } }
+  var perRoof = q[key];
+  if (perRoof && typeof perRoof === 'object'){
+    var pv = parseFloat(perRoof[idx]);
+    if (isFinite(pv) && pv >= 0) return pv;
+  }
+  var lv = parseFloat(q[legacyKey]);
+  return (isFinite(lv) && lv >= 0) ? lv : dflt;
 }
-function _setRoofMatQtyBuffer(val){
+function _setRoofPctByRoof(key, legacyKey, val, idx){
   if (!S.quote) return;
-  var v = parseFloat(val);
-  S.quote.roofMatQtyBuffer = (isFinite(v) && v >= 0) ? v : 0;
+  if (idx == null) { try { idx = _pricingRoofIdx(); } catch(e){ idx = 0; } }
+  var v = parseFloat(val); v = (isFinite(v) && v >= 0) ? v : 0;
+  if (!S.quote[key] || typeof S.quote[key] !== 'object') S.quote[key] = {};
+  S.quote[key][idx] = v;
+  // Roof 0 also writes the job-wide number, so a quote saved now and opened by
+  // an older build still prices its main roof the way the office set it.
+  if (idx === 0) S.quote[legacyKey] = v;
   try { renderMaterialPriceTable(); } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
   try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
 }
-// Roof material mark-up (%). Default 5; editable per job.
-function _roofMatMarkupPct(){
-  var q = (window.S && S.quote) || {};
-  var v = parseFloat(q.roofMaterialMarkup);
-  return (isFinite(v) && v >= 0) ? v : 5;
+function _roofMatQtyBufferPct(idx){
+  return _roofPctByRoof('roofMatQtyBufferByRoof', idx, 'roofMatQtyBuffer', 0);
 }
-function _setRoofMatMarkup(val){
-  if (!S.quote) return;
-  var v = parseFloat(val);
-  S.quote.roofMaterialMarkup = (isFinite(v) && v >= 0) ? v : 0;
-  try { renderMaterialPriceTable(); } catch(e){}
-  try { refreshQuoteProposal(); } catch(e){}
-  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+function _setRoofMatQtyBuffer(val, idx){
+  _setRoofPctByRoof('roofMatQtyBufferByRoof', 'roofMatQtyBuffer', val, idx);
+}
+// Roof material mark-up (%). Default 5, per roof.
+function _roofMatMarkupPct(idx){
+  return _roofPctByRoof('roofMaterialMarkupByRoof', idx, 'roofMaterialMarkup', 5);
+}
+function _setRoofMatMarkup(val, idx){
+  _setRoofPctByRoof('roofMaterialMarkupByRoof', 'roofMaterialMarkup', val, idx);
 }
 // Sum a material-rows array to a $ total (Maxam / grade-neutral), honouring
 // per-row qty + variant overrides and deletions (mirrors the render loop) and
 // applying the roof material markup / safety buffer.
-function _materialsTotalFromRows(rows){
+function _materialsTotalFromRows(rows, idx){
   var total = 0;
   (rows || []).forEach(function(r){
     if (typeof MATERIAL_DELETED !== 'undefined' && MATERIAL_DELETED[r.key]) return;
@@ -9028,7 +9047,7 @@ function _materialsTotalFromRows(rows){
     var price = picked ? picked.price : 0;
     total += (qty || 0) * (price || 0);
   });
-  return total * (1 + _roofMatQtyBufferPct() / 100) * (1 + _roofMatMarkupPct() / 100);
+  return total * (1 + _roofMatQtyBufferPct(idx) / 100) * (1 + _roofMatMarkupPct(idx) / 100);
 }
 // Maxam material cost ($, ex-GST) for ONE roof, independent of the Material
 // tab's view selection. Single-roof jobs just use the current build.
@@ -9038,7 +9057,7 @@ function _materialsTotalFromRows(rows){
 // buys two part-lengths of the same flashing instead of one.
 function _materialsCostForRoofIdx(idx){
   if (!window.DRAW || !DRAW.roofs || DRAW.roofs.length <= 1) {
-    return _materialsTotalFromRows(_buildMaterialPriceRows());
+    return _materialsTotalFromRows(_buildMaterialPriceRows(), 0);
   }
   var savedActive = DRAW.activeRoofIdx;
   var savedSel = _matSelectedRoofIndices();
@@ -9046,7 +9065,7 @@ function _materialsCostForRoofIdx(idx){
   try {
     _syncCurrentToRoof();
     _matSetSelectedRoofs(group);
-    return _materialsTotalFromRows(_buildMaterialPriceRows());
+    return _materialsTotalFromRows(_buildMaterialPriceRows(), idx);
   } catch(e){ return 0; }
   finally {
     _matSetSelectedRoofs(savedSel);
@@ -15407,10 +15426,15 @@ function defaultQuote(){
     gutterLabour: {},
     gutterMaterialMarkup: 10,
     gutterMatQtyBuffer: 0,
-    // Roof material mark-up (%, default 5) and the quantity safety buffer
-    // (%, default 0 — see _roofMatQtyBufferPct for why they are separate).
+    // Roof material mark-up and quantity safety buffer, both 5% and both per
+    // roof (see _roofMatQtyBufferPct). These two are the job-wide seed and the
+    // roof-0 value; per-roof overrides live in the ByRoof maps beside them.
+    // A quote SAVED before this shipped carries its own roofMatQtyBuffer of 0
+    // and keeps it, so nothing already quoted reprices.
     roofMaterialMarkup: 5,
-    roofMatQtyBuffer: 0,
+    roofMatQtyBuffer: 5,
+    roofMatQtyBufferByRoof: {},
+    roofMaterialMarkupByRoof: {},
     // Proposal roof-map display size on the inclusions page — 'sm' | 'md' |
     // 'lg'. Office-set, persists to the customer link. Default large.
     roofMapSize: 'lg',
@@ -45406,8 +45430,10 @@ function _buildFergusItemisedSections(){
   var roofMat = [];
   _readFergusMaterialItems().forEach(function(m){ roofMat.push(matLine(m.name, m.qty, m.price)); });
   if (roofMat.length){
-    var _rbuf = (typeof _roofMatQtyBufferPct === 'function') ? _roofMatQtyBufferPct() : 0;
-    var _rmk  = (typeof _roofMatMarkupPct === 'function') ? _roofMatMarkupPct() : 0;
+    // What goes to Fergus is the base quote, so these are roof 0's numbers —
+    // not whichever pricing tab the office happens to have open.
+    var _rbuf = (typeof _roofMatQtyBufferPct === 'function') ? _roofMatQtyBufferPct(0) : 0;
+    var _rmk  = (typeof _roofMatMarkupPct === 'function') ? _roofMatMarkupPct(0) : 0;
     if (_rbuf > 0 || _rmk > 0){
       var _rawMatTot = roofMat.reduce(function(s, li){ return s + (li.itemQuantity || 0) * (li.itemPrice || 0); }, 0);
       if (_rawMatTot > 0){
