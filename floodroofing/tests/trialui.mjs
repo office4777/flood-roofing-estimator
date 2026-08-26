@@ -42,6 +42,9 @@ async function open(sub){
 }
 const trial = (d, expired) => ({ status: expired ? 'trialing' : 'trialing', billing:true, live: !expired,
   plan:'trial', trial:{ ends_at:new Date(Date.now()+d*864e5).toISOString(), days_left:d, expired: !!expired } });
+// What every business signing up now looks like: no trial object at all.
+const pending = (over) => ({ status:'pending', billing:true, live:false, plan:'trial',
+  trial:null, ...(over||{}) });
 
 // ── quiet when there's plenty of time ──
 let { ctx, txt } = await open(trial(14));
@@ -80,6 +83,37 @@ await ctx.close();
 // ── a paying subscriber is never nagged ──
 ({ ctx, txt } = await open({ status:'active', billing:true, live:true, plan:'business', trial:null }));
 check('a paying subscriber is never shown a countdown', txt.html === '', txt.txt.slice(0,40));
+await ctx.close();
+
+// ── the shape with no trial: a pending business must be PROMPTED, not
+//    left to discover the gate as a 403 on their first save ──
+({ ctx, txt } = await open(pending()));
+check('a business with no trial is told to pick a plan',
+  /Pick a plan to start saving jobs/.test(txt.txt), txt.txt.slice(0,80));
+check('…without being told a trial ended that it never had',
+  !/trial/i.test(txt.txt), txt.txt.slice(0,120));
+check('…and is told it can look around first, so the ask does not read as a wall',
+  /Look around/.test(txt.txt) && /demo job/.test(txt.txt), txt.txt.slice(0,140));
+// seo.mjs enforces this pairing on every public page; the in-app copy makes the
+// same promise, so it has to carry the same terms.
+check('…and the 30% is never stated without its term and what follows it',
+  /30% off your first 12 months/.test(txt.txt) && /standard rate/.test(txt.txt),
+  txt.txt.slice(0,200));
+check('…and it is a calm bar, not the red expired one',
+  /tb-calm/.test(txt.cls) && !/tb-out/.test(txt.cls), txt.cls);
+await ctx.close();
+
+// A paid-up account must never see it, whether or not a trial was ever set.
+({ ctx, txt } = await open(pending({ status:'active', live:true })));
+check('a paying business with no trial is shown nothing', txt.html === '', txt.txt.slice(0,60));
+await ctx.close();
+
+// Before billing is switched on the gate is open, so nagging would be a lie —
+// they can save. live:false here is deliberately a combination the backend
+// would never send (it returns live:true whenever billing is off), because the
+// bar must not depend on those two agreeing in order to stay honest.
+({ ctx, txt } = await open(pending({ billing:false })));
+check('…and nothing is said while billing is switched off', txt.html === '', txt.txt.slice(0,60));
 await ctx.close();
 
 // ── and a broken endpoint never breaks the app ──

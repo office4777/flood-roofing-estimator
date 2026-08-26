@@ -1,7 +1,17 @@
-// A trial has to end. 'trialing' used to short-circuit _subscriptionLive to
-// true and nothing ever wrote that status back, so every trial was permanent
-// the moment billing went on. This is the audit for that, and for the app
-// warning somebody before their fortnight runs out rather than after.
+// The subscription gate, in both the shapes it now has to handle.
+//
+// New businesses get NO trial — registration writes status 'pending' with a
+// null trial_ends_at, and the gate has to refuse them until they pick a plan.
+// Businesses that signed up before that change keep their fortnight and it
+// still has to END: 'trialing' used to short-circuit _subscriptionLive to true
+// and nothing ever wrote that status back, so every trial was permanent the
+// moment billing went on.
+//
+// The other half of this file is the asymmetry that IS the new user
+// experience: a pending business can read everything and save nothing. If
+// GET /jobs ever ends up behind requireSubscription, an invited roofer meets a
+// wall at the login screen instead of at the moment they try to keep a roof,
+// and nothing else in the suite would notice.
 // Resolved from this file, so the suite runs from any checkout.
 import { fileURLToPath as _f, pathToFileURL } from 'node:url';
 import { dirname as _d, join as _j } from 'node:path';
@@ -91,6 +101,34 @@ check('six hours left reads as one day, not none', r.body.trial.days_left === 1 
   JSON.stringify(r.body.trial));
 r = await save();
 check('…and still works', r.status === 200);
+
+// ── a business with no trial at all: the shape every new signup now has ──
+setSub({ status:'pending', trial_ends_at: null });
+r = await api('GET', '/subscription');
+check('a pending business is told it is not live', r.body.live === false, JSON.stringify(r.body.live));
+check('…and is shown no trial, rather than a zero-day one',
+  r.body.trial === null, JSON.stringify(r.body.trial));
+check('…and still reports its status honestly',
+  r.body.status === 'pending' && r.body.billing === true, JSON.stringify(r.body.status));
+r = await save();
+check('…and cannot save a job', r.status === 403, String(r.status));
+check('…with the code the app switches on, not a bare 403',
+  r.body && r.body.code === 'SUBSCRIPTION_REQUIRED', JSON.stringify(r.body));
+
+// This asymmetry is the whole point of shipping without a trial. An invited
+// roofer must be able to log in, run the tutorial and read the worked demo job
+// before they are asked for a card — they hit the wall on their own first roof.
+r = await api('GET', '/jobs');
+check('…but CAN still read: the app opens, the wall is only on saving',
+  r.status === 200, String(r.status));
+
+// ── paying still works from a pending start ──
+setSub({ status:'active', trial_ends_at: null });
+r = await save();
+check('a business that has paid works with no trial date at all', r.status === 200, String(r.status));
+r = await api('GET', '/subscription');
+check('…and is shown no countdown', r.body.trial === null && r.body.live === true,
+  JSON.stringify(r.body.trial));
 
 // ── with billing off, nothing is gated — but the truth is still reported ──
 process.env.BILLING_ENABLED = 'false';
