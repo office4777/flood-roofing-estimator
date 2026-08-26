@@ -18,27 +18,27 @@
   var FRQA = [
     // ---- Getting started / general ----
     { c:'Start', q:['what is roofmap','what is this app','what does this program do','what is this tool','how does roofmap work','explain the app','what can i do here'],
-      a:"**RoofMap** is Flood Roofing's estimator. It takes you from an aerial photo of a roof to a measured plan, a materials/Job Pack, a professional customer quote, and a supplier order — all in one place.\n\nThe workflow follows the tabs left to right:\n- **Home** — pick or start a job\n- **Map Roof** — trace and measure the roof\n- **Job Pack** — materials, cut lists, flashings\n- **Quote** — build and send the customer proposal\n- **Jobs** — every saved job\n- **Settings** — company details, suppliers, pricing" },
+      a:"**RoofMap** is Flood Roofing's estimator. It takes you from an aerial photo of a roof to a measured plan, a materials/Job Pack, a professional customer quote, and a supplier order — all in one place.\n\nThe workflow follows the menu top to bottom:\n- **Home** — the job board: start a job, pick one up, see where every quote is\n- **Map Roof** — trace and measure every roof on the property\n- **Job Pack** — cut lists, flashings, consumables, the merchant order\n- **Quote** — price it, then send the customer their proposal\n- **Settings** — branding, price book, products, rates, team, billing\n- **Send Feedback** — a bug or an idea, straight to the people who build it" },
     { c:'Start', q:['how do i start','where do i begin','how do i get started','first steps','how to begin a new estimate','getting started'],
       a:"Start on the **Home** tab:\n- Tap **New job**, enter the client name + address, and press Start.\n- You'll land on **Map Roof** — upload the aerial photo and trace the roof.\n- Move through **Job Pack** then **Quote** using the blue *Next* button at the bottom of each tab." },
     { c:'Start', q:['what order do i do things','workflow','what are the steps','process','steps to make a quote','full process'],
       a:"The normal flow is:\n1. **Home** → New job (client + address)\n2. **Map Roof** → trace the outline, add ridge/hip/valley lines, set the pitch\n3. **Job Pack** → check profile, grade, colour, gutter, flashings and cut lists\n4. **Quote** → review pricing, then **Customer link** or **Email quote**\n5. When accepted → **Order Roof** to the supplier and **Push to Fergus**" },
     { c:'Start', q:['is my work saved','does it save automatically','autosave','will i lose my work','does it save'],
-      a:"Yes — jobs **autosave** as you work, and you can press **Save** any time. Everything lives under the **Jobs** tab and in *Recent drafts* on Home. Because it saves to this browser, use the same device/login to pick a draft back up." },
+      a:"Yes — jobs **autosave** as you work, and you can press **Save** any time. Every job is on the **Home** board, and there is a second copy on the device: **Offline saves** in the menu holds the last saves made on this device, drawing and photos included. Lose signal on a roof and the app keeps saving locally, then sends everything up the moment you are back on the network." },
 
     // ---- Home / jobs / drafts ----
     { c:'Jobs', q:['how do i make a new job','create a job','start a new job','add a job','new job','new estimate','new quote job'],
       a:"On the **Home** tab tap **New job**. A popup asks for the client name, site address, email and phone. Fill those in and press Start — it creates the job and opens **Map Roof**." },
     { c:'Jobs', q:['where are my saved jobs','find a job','see all jobs','list of jobs','open an old job','past jobs','job history'],
-      a:"Open the **Jobs** tab for every saved job, or use **Recent drafts** on the Home tab for the latest ones. Tap any row to load it. There's a search box to filter by client or address." },
+      a:"Everything is on the **Home** board — a column per stage (drafts, quoted, accepted, ordered) with a card per job. Tap a card to open it. The search box at the top filters by client, address or job number across the lot." },
     { c:'Jobs', q:['recent drafts','what are drafts','draft jobs','unfinished jobs'],
       a:"**Recent drafts** on the Home tab lists your most recent unfinished jobs (5 at a time — scroll for more). Tap one to keep working, or use the delete button on a row to remove it." },
     { c:'Jobs', q:['how do i delete a job','remove a job','delete a draft','get rid of a job','delete estimate'],
-      a:"On the **Home** Recent-drafts list (or the Jobs tab) each row has a **delete** button. Tap it and confirm. Deleting a draft can't be undone, so make sure it's the right one." },
+      a:"On the **Home** board, open the job's card and use the delete button. Deleting can't be undone, so check it is the right one — and note the drawing may also still be in **Offline saves** on the device that made it." },
     { c:'Jobs', q:['how do i search for a job','find a client','search jobs','look up a job','filter jobs'],
-      a:"Both **Recent drafts** and **Quote activity** on Home have a search box — type a client name or address to filter the list instantly. The **Jobs** tab is also searchable." },
+      a:"The search box at the top of the **Home** board filters every job as you type — client name, site address or job number. It searches all the columns at once, so a job you quoted three months ago is two seconds away." },
     { c:'Jobs', q:['how do i switch jobs','change the current job','select a different job','load another job','switch to another job'],
-      a:"Tap **Select job** (or open the **Jobs** tab / a **Recent drafts** row) and choose the job. The selected job shows in the left sidebar so you always know which one you're editing." },
+      a:"Tap a card on the **Home** board, or use **New Job / Select Job** at the top of the menu. Whichever job is open is named in the left sidebar, so you always know what you are editing — and the app autosaves the one you are leaving before it opens the next." },
     { c:'Jobs', q:['how do i rename a job','change client name','edit job details','change the address','update client details'],
       a:"Open the job, then edit the client/address fields (they live in the New-job details and on the Job Pack header). Changes autosave. The quote reference (FR-####) stays with the job." },
     { c:'Jobs', q:['what is quote activity','quote activity feed','accepted quotes list','who accepted','track quotes'],
@@ -220,9 +220,9 @@
 
     // ---- Troubleshooting ----
     { c:'Help', q:['its not working','something is broken','bug','error','glitch','not responding','app broken'],
-      a:"Try these in order:\n- **Hard-refresh** the page (clears a cached old version)\n- Re-open the job from the Jobs tab\n- Check your internet connection\nIf it still misbehaves, tell the office exactly what you tapped and what happened." },
+      a:"Try these in order:\n- **Hard-refresh** the page (clears a cached old version)\n- Re-open the job from the **Home** board\n- Check your internet connection — and look in **Offline saves** if work seems missing\nIf it still misbehaves, use **Send Feedback**. It attaches the roof you were looking at, which screen you were on and anything that errored, so nobody has to ask what you were doing." },
     { c:'Help', q:['not saving','changes lost','work disappeared','didnt save','lost my job'],
-      a:"Jobs autosave, but they save to **this browser/login**. If work seems missing, open the same device/login and check the **Jobs** tab. Avoid private/incognito windows, which can clear storage." },
+      a:"Jobs autosave to your account, and a copy stays on the device. If work seems missing, check the **Home** board first, then **Offline saves** in the menu — that holds what this device saved, even the saves that had not been sent up yet. Avoid private/incognito windows, which clear device storage when you close them." },
     { c:'Help', q:['pdf not generating','pdf blank','pdf broken','cant make pdf','pdf failed','export not working'],
       a:"If a PDF won't build, hard-refresh and try again (the PDF tools load on demand and need a moment). Make sure images have loaded first. On a very large job give it a few seconds to render each page." },
     { c:'Help', q:['images not loading','photos missing','logo not showing','broken image','picture wont load'],
@@ -254,7 +254,7 @@
 
     // ---- Misc / meta ----
     { c:'Help', q:['who do i contact','support','help','phone number','contact flood roofing','call the office','get help'],
-      a:"For anything this assistant can't answer, contact the office — **office@floodroofing.co.nz** or **0800 4 FLOOD**. For a customer-facing question, the same details are on every proposal." },
+      a:"For anything this assistant can't answer, email **support@roofmap.co.nz** — it reaches the people who build RoofMap, and the reply comes back to you. Faster still: **Send Feedback** in the left-hand menu attaches your roof, your screen and any errors automatically, so nobody has to ask what you were doing." },
     { c:'Help', q:['what can you do','what can i ask','help me','options','what do you know','can you help'],
       a:"I can help with the whole app — jobs & drafts, mapping and measuring a roof, sheet plans and cut lists, the Job Pack materials, gutters and flashings, building and sending quotes, customer acceptance, Fergus, ordering from the supplier, settings, and general roofing/Colorsteel questions. Just ask in your own words." },
     { c:'Help', q:['thanks','thank you','cheers','ta','appreciate it'],
@@ -443,6 +443,102 @@
       a:"Tap the ✕ in the help panel's top corner to close it; the **Help** button returns at the bottom-right so you can re-open any time." }
   ]);
 
+  // ── What was built after the first release ────────────────────────────
+  // The app moved on and the answers above did not, which is worse than no
+  // answer: a confident description of a screen that no longer exists.
+  // Everything below covers what is actually on screen today.
+  Array.prototype.push.apply(FRQA, [
+    // ---- Drawing: the roof setup popup, roof types, items ----
+    { c:'Map', q:['popup after i close the outline','what kind of roof is this','roof setup popup','it asked me the roof type','window after drawing the outline','roof shape popup'],
+      a:"The moment an outline closes, RoofMap asks the only two things the drawing cannot work out on its own: the **roof shape** and the **main sheet material**.\n\nThe shape the footprint suggests is already picked — on an L-shaped plan it will say Hip & Valley and tell you a straight gable would leave the wing without a ridge — so the usual case is one click on **Draw the roof**. It then generates every ridge, hip, valley and barge for you.\n\n**Skip for now** leaves the outline bare if you would rather draw the lines yourself." },
+    { c:'Map', q:['change roof type','change the roof shape','where did the roof type buttons go','hip to gable','wrong roof shape','redo the roof lines'],
+      a:"**Change roof type** on the roof toolbar — one button, a dropdown, and it reads back what the roof currently is.\n\nInside it: Hip & Valley, Straight Gable, Gable + hip/valley corner, Dutch Gable and Mono-Pitch, plus the sheet material (Steel Corrugate, Steel 5-Rib, Clearlite Corrugate, Clearlite 5-Rib). Picking a shape redraws that roof's lines from the outline — anything you had hand-edited on it goes, which is the point when the auto-generated set came out wrong." },
+    { c:'Map', q:['add items details','add roof lines','where is add roof lines','items and details button','add a detail'],
+      a:"**Add items/details** on the roof toolbar — it used to be called Add roof lines. It covers everything that is not the outline: ridge, hip, valley, barge, apron and change-of-pitch lines, pipe and boxed penetrations, clearlite sheets, gutters, and note markers.\n\nDraw the outline first, let the setup popup generate the roof lines, then use this for the bits that are specific to the building." },
+    { c:'Map', q:['all the roofs at once','viewing all roofs','why can i see every roof','roof switcher gone','switch between roofs on the canvas'],
+      a:"The canvas always shows **every roof on the property** now — there is no per-roof view to switch between, because hiding four roofs to work on the fifth is how a shared ridge ends up counted twice.\n\nEach roof carries its own measurements, its own sheet runs and its own name. Where two roofs meet, the shared edge is counted once. Renaming and deleting a roof live on the **Pricing** tabs in the Quote tab." },
+    { c:'Map', q:['clearlite','clear sheet','translucent roof','polycarbonate','fibreglass sheet','clear roofing'],
+      a:"Clearlite comes two ways:\n- **A whole clearlite roof** — pick Clearlite Corrugate or Clearlite 5-Rib as the sheet material for that roof, in the setup popup or Change roof type. A veranda or a lean-to is usually this.\n- **A few clear sheets in a steel roof** — leave the roof on steel and place them with **Add items/details → Clearlite sheet**, the same way you drop a penetration.\n\nEither way they leave the steel cut list and get their own line, in fibreglass or polycarbonate." },
+    { c:'Map', q:['boxed penetration','box chimney','chimney flashing','boxed chimney','square penetration','box flashing set'],
+      a:"Place a **boxed penetration** for anything square — a boxed chimney, a plant platform, a lift shaft — and RoofMap adds the whole flashing set for it automatically:\n- **Box back flashing** — the upslope face\n- **Box side flashing** ×2 — one each side\n- **Box front apron** — the downslope face\n- **Box saddle flashing** — the run from the ridge down to the top of the box\n\nThe saddle length comes off the drawing: ridge to box, less half the box, plus a lap. Save a drawing against each of those four names in **Settings → Flashing library** and the profiles print on the job pack too." },
+    { c:'Map', q:['pipe flashing','dektite back tray','back tray','80mm pipe','pipe penetration flashing'],
+      a:"Every pipe penetration raises **two** lines, not one: the dektite for the pipe size, and a **back-tray** behind it. The tray length is worked out from the pipe and the sheet profile, and you can flip it between Full and Short on the penetration itself.\n\nBoth reach the cut list, the priced material and the merchant order — the back-tray being the one that used to get left off the order and found on the roof." },
+    { c:'Map', q:['which roof does the penetration belong to','penetration on the wrong roof','pen counted twice','penetration ownership'],
+      a:"A penetration belongs to the roof whose outline actually contains it — worked out from the drawing, not from which roof was selected when you placed it. Where outlines overlap, the **smallest** containing roof wins, because that is the most specific answer.\n\nSo a flue inside the garage footprint is priced on the garage, even if you dropped it while the main roof was active." },
+    { c:'Map', q:['free draw notes','draw on the map','annotate the roof','pen tool','markup the plan','sketch on the roof'],
+      a:"**Free-draw notes** is a layer over the roof map for the things a measurement cannot say — an arrow at the rotten purlin, a circle round the awkward corner, a note for the crew.\n\nDraw straight on the canvas, or open the full notes page for the whole toolset. It rides with the job, prints on the job pack, and never touches the measurements." },
+    { c:'Map', q:['job photos','take a photo','site photos','camera','rapid photos','photos with the job'],
+      a:"The **PHOTOS** tab on the right of Map Roof holds everything visual on the job.\n\n**Rapid photos** runs the camera inside the app — tap, tap, tap, every frame saved straight to the job, with no Use Photo / Retake between shots. **From gallery** picks existing ones, and **Job files** takes council plans, an old quote, a PDF from the homeowner.\n\nAll of it saves inside the job, so it is on the office computer as soon as the job saves." },
+    { c:'Map', q:['site mode','phone mode','tablet mode','on the roof','use it on site','thumb toolbar'],
+      a:"On a phone or tablet the app switches to **Site mode** by itself: a bottom toolbar sized for a thumb, bigger hit targets, pen and touch drawing with palm rejection, and pinch to zoom.\n\nThe **Site mode** button in the menu flips it by hand if you want it on a laptop with a touchscreen." },
+
+    // ---- Job Pack ----
+    { c:'JobPack', q:['job pack designer','edit the job pack','change a cut list row','add a page','delete a page','job pack pages'],
+      a:"The Job Pack is a **designer**, not a report — click any field and edit it, and what you change is what prints.\n\nEvery row can be re-quantified, re-lengthed, deleted, or added to by hand. Pages can be added, deleted and reordered. Drag a map out of the **MAPS** panel on the right onto any page and it drops in as a movable, resizable picture. **Save as PDF** prints exactly what is on screen." },
+    { c:'JobPack', q:['whole job flashing total','total flashing metres','how many metres of flashing','flashing lm for the whole job'],
+      a:"The strip along the top of the priced material shows the **whole job's** flashing metres — ridge, hip, valley, barge, apron, change-of-pitch and boxed-penetration sets added up across every roof, not just the one on screen.\n\nIt is there so a per-roof tab can never quietly hide what the building actually needs. If it reads low against what you paced out on site, a line is missing somewhere." },
+    { c:'JobPack', q:['job pack for one roof','filter the job pack by roof','roofs included in this job pack','only the garage'],
+      a:"The **Roofs included in this job pack** buttons at the top filter the whole pack — cut lists, consumables and the merchant order all follow. **All roofs** puts the property back.\n\nUseful when the garage is going on next month and you want its order on its own." },
+    { c:'JobPack', q:['flashing library','flashing drawings','profile drawing','saved flashings','flashing shapes'],
+      a:"**Settings → Flashing library** holds a folded-profile drawing per flashing name, with the crush and painted faces marked and each fold dimensioned.\n\nSave one under the exact name a flashing uses and it prints on the job pack beside that flashing's lengths, so the merchant folds what you meant and the crew can see it on the page." },
+    { c:'JobPack', q:['order roof','send the order','merchant order','supplier order','order material'],
+      a:"**Order Roof** on the Job Pack toolbar sends the merchant order. The checklist shows the cut-list summary — sheet lengths and flashing measures — inside the popup so you can eyeball the numbers before it goes.\n\nWhat goes out follows the customer's selections: if they chose 5-Rib in ColorCote 0.55 with a Marley Typhoon gutter, that is what the merchant is quoted, not the defaults you started from." },
+
+    // ---- Pricing ----
+    { c:'Quote', q:['price a second roof','optional extra roof','exclude a roof','per roof pricing','roof tabs on pricing','main price or extra'],
+      a:"Pricing has **a tab per roof**, and each roof is one of three things:\n- **Main / base** — part of the quoted price\n- **Optional extra** — priced separately, and the customer can add it themselves on the proposal\n- **Excluded** — measured and drawn, but not in this quote\n\nThe map underneath colours in the roof being priced and greys the rest, so there is no doubt which building the labour and material on screen belong to. **Rename** and **Delete** for each roof live on the same tabs." },
+    { c:'Quote', q:['rename a roof','name the roofs','roof1 roof2','call it the garage'],
+      a:"Rename a roof on its **Pricing** tab — Rename sits under the tab name. Call them Main Roof, Lean-to, Garage and the names carry through to the pricing, the customer's proposal and the roof plan they tap on.\n\nThe names deliberately do **not** print on the canvas or the job pack map: on a six-roof property they sat on top of the measurements and made the numbers unreadable." },
+    { c:'Quote', q:['labour hours','how are labour hours worked out','auto labour','change the hours','labour calculation'],
+      a:"Labour hours are calculated from what you drew — area, pitch, ridge and flashing metres, penetrations, storeys — using your own rates from **Settings → Labour pricing**.\n\nEvery calculated figure is editable: type over the hours and your number sticks. It is a starting point built from the drawing, not a black box." },
+    { c:'Quote', q:['custom line item','add a line to the price','extra charge','one off item','add my own cost'],
+      a:"Every pricing area — labour, scaffolding, materials, disposal — takes **custom line items**. Add a name and an amount and it joins the total and the customer's breakdown.\n\nUse it for the crane hire, the asbestos test, the extra day on a steep site." },
+    { c:'Quote', q:['scaffolding price','edge protection','scaffold cost'],
+      a:"Scaffolding is priced per roof, with a cost and a price so you can see the margin on it. Where the quote goes from edge protection to a full platform — a gutter replacement, say — the note about the uplift is on the scaffolding section." },
+
+    // ---- The customer's proposal ----
+    { c:'Customer', q:['customer selections','what can the customer choose','options on the quote','upgrade the steel','selections page'],
+      a:"Page 3 of the proposal is the customer's to play with: **profile, steel grade, gauge, guttering, gutter bracket, downpipes and colour**, each card showing what it adds to or takes off the price, as a dollar figure and a percentage.\n\nWhatever they pick is what reaches your job pack spec and the merchant order — you do not re-enter it anywhere." },
+    { c:'Customer', q:['customer picks the roofs','tap a roof on the quote','include the garage','roof plan on the proposal'],
+      a:"Page 2 is the **roof plan**, over the same aerial you drew on. The customer taps a roof to include it or leave it out and the price moves in front of them.\n\nThat is why the optional-extra roofs matter: the shed they were not sure about is one tap, priced, with no phone call and no revised quote." },
+    { c:'Customer', q:['condition report','inspection report','roof assessment','what is page 1'],
+      a:"Page 1 is the **roof condition report** — roof type, pitch, material, approximate age, fixing type, and a repair-versus-re-roof assessment with your recommendation written out.\n\nIt is what turns a price into a case: the customer can see why the roof needs doing, not just what it costs." },
+    { c:'Customer', q:['customer accepted','what happens on acceptance','they accepted the quote','accept online','deposit invoice'],
+      a:"The customer signs off on the last page of their own proposal — no printing, no scanning. You get the acceptance in **Quote activity** on Home, and the job moves along the board.\n\nIf you have the deposit set to auto-send in **Settings → Invoicing**, the deposit invoice is raised and sent on acceptance, from your business, with your bank account on it." },
+
+    // ---- Invoicing ----
+    { c:'Invoice', q:['invoicing','send an invoice','deposit invoice','progress claim','final invoice','invoice numbers'],
+      a:"RoofMap invoices the job it quoted. **Settings → Invoicing** sets the deposit percentage, whether it goes out by itself on acceptance, payment terms, your bank account and the footer.\n\nInvoices number themselves per business (INV-1001, INV-1002…), and the money on an invoice is **stored when it is created** — an invoice is a document, and a document that quietly changes after it went out is how an accountant loses a morning." },
+
+    // ---- Settings / account ----
+    { c:'Settings', q:['price book','change my prices','upload supplier prices','csv price list','my rates','merchant pricing'],
+      a:"**Settings → Price book** is every rate the quote is built from: sheet by profile and gauge, grade multipliers, flashings per metre, gutter, underlay, screws, rivets, aquaseal, dektites, back-trays.\n\n**Upload CSV** takes a merchant price list straight in — a Roofing Industries export drops in as-is — or type over any number by hand. RoofMap ships with real NZ trade rates so your first quote is a believable number, but they are a starting point, not your prices. The book is marked indicative until you save your own." },
+    { c:'Settings', q:['products','which grades do i offer','turn off a product','5 rib option','selectable products'],
+      a:"**Settings → Products** decides what the customer is offered: which profiles, which steel grades, which gutters, and what each one does to the price. Turn off what you do not sell and it stops appearing on the selections page." },
+    { c:'Settings', q:['team','add a user','invite someone','staff login','seats','remove a user'],
+      a:"**Settings → Team** invites people into the business by email — they set their own password from the link, and everything they quote lands in the same job board. One subscription covers the business, up to the seats on your plan.\n\nThe owner is the only one who can change the subscription." },
+    { c:'Settings', q:['billing','subscription','change plan','cancel','card details','how much does it cost'],
+      a:"**Settings → Billing** shows the plan and opens the card page. Plans are **Solo $149**, **Team $299** and **Business $549** a month, and the difference is seats and the extras — custom subdomain, priority support.\n\nSubscription invoices come from **accounts@roofmap.co.nz** with the GST broken out, and replying to one reaches the accounts desk." },
+    { c:'Settings', q:['branding','my logo','company details on the quote','put my name on it','white label'],
+      a:"**Settings → Branding** puts your business on everything the customer sees — logo, company name, address, contact details, GST number.\n\nMail sent on your behalf goes out under your business name with replies pointed at your address, so the homeowner sees their roofer, not the platform." },
+    { c:'Settings', q:['own domain','subdomain','my own web address','quote link with my name'],
+      a:"Business-plan subscribers get a **subdomain** — your own address for the customer quote links, so what you send reads as yours." },
+    { c:'Settings', q:['tutorial','run the tutorial','show me around','walkthrough','guided tour','how do i learn the app'],
+      a:"**Settings → General → Run the tutorial** walks you through the app: it points at each tab in turn and explains the parts of the screen as you land on them, with **Next** and **Cancel tutorial** on every step.\n\nIt runs once by itself after the first-run setup, and it is there any time you want it again. **Run the setup guide** beside it is the other one — that covers getting your prices, branding and products in." },
+    { c:'Settings', q:['job management software','fergus','tradify','servicem8','no jms','link my software'],
+      a:"If you run **Fergus**, link it in Settings and jobs, photos and job packs pass between the two.\n\nIf you run something else — or nothing — RoofMap works on its own: the Home board is the job list, **Job files** takes the documents, and nothing Fergus-shaped is in your way. Tell us which software you run in Settings → Job Management Software and it goes on the build list." },
+
+    // ---- Feedback ----
+    { c:'Help', q:['send feedback','report a bug','something is wrong','request a feature','feedback form','tell you about a problem'],
+      a:"**Send Feedback** in the menu. Write a title and describe what looked wrong and what it should have been — the more specific, the better: which roof, which line, which number.\n\nYou do not need to write down your browser, your screen, which tool you were on or what errored. All of that is captured and attached automatically, along with the roof geometry itself, so the same roof can be put on our screen. Measurements only — no client, address, photos or prices.\n\nIt reaches **support@roofmap.co.nz** and the reply comes straight back to your account email." },
+    { c:'Help', q:['who replies to feedback','will i hear back','how long does a fix take','do you reply'],
+      a:"Yes — the reply comes back to the email address you are signed in with, from **support@roofmap.co.nz**. No ticket number to quote.\n\nMost issues are fixed within a couple of hours of landing, and you get an email when yours is done." },
+
+    // ---- Offline ----
+    { c:'Help', q:['offline','no signal','no internet on site','does it work offline','lost connection','out of range'],
+      a:"Yes. The app keeps working with no signal — drawing, measuring, photos, the job pack — and saves everything to the device as you go. **Offline saves** in the menu shows what is held locally, stamped with who saved it, when, and on what device.\n\nThe moment you are back on the network the queued saves go up on their own. Nothing waits on you remembering." },
+  ]);
+
   // ── Matcher ───────────────────────────────────────────────────────────
   var STOP = {};
   ('a an the is are do does how i my me you your it this that of to in on for with can could would should what when where which who why will and or but if my our we us at be as by from get got any some').split(' ').forEach(function (w) { STOP[w] = 1; });
@@ -490,7 +586,7 @@
     return out.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   }
 
-  var CHIPS = ['How do I start a new job?', 'How do I trace the roof?', 'How is the price calculated?', 'How do I send the quote to a customer?', 'How do I order the roof?', 'What is Zincalume?'];
+  var CHIPS = ['How do I start a new job?', 'How do I trace the roof?', 'What is the roof setup popup?', 'How do I price a second roof?', 'How do I send the quote to a customer?', 'Run me through the app', 'How do I order the roof?', 'What is Zincalume?'];
 
   // ── UI ────────────────────────────────────────────────────────────────
   var openState = false;
@@ -586,7 +682,7 @@
           Array.prototype.forEach.call(rel.querySelectorAll('.fr-help-rel'), function (b) { b.onclick = function () { ask(b.getAttribute('data-q')); }; });
         }
       } else {
-        addMsg('bot', "I'm not certain I have an answer for that one. Try rephrasing, or tap a suggestion below.\n\nFor anything I can't cover, contact the office — **office@floodroofing.co.nz** or **0800 4 FLOOD**.");
+        addMsg('bot', "I'm not certain I have an answer for that one. Try rephrasing, or tap a suggestion below.\n\nFor anything I can't cover, use **Send Feedback** in the left-hand menu, or email **support@roofmap.co.nz**.");
       }
     }, 260);
   }

@@ -814,6 +814,28 @@ html.site-mode #fergusRoofPanelResize{display:none!important}
 /* Setup guide. Centred while it is talking; tucked into a corner once it has
    sent the user to a settings screen, so they can see what it pointed at
    without losing their place in the sequence. */
+/* ── The tutorial ──────────────────────────────────────────────
+   The backdrop is deliberately NOT a click-catcher. #tourWrap is
+   pointer-events:none from top to bottom and only #tourCard turns
+   them back on, so the app underneath stays completely usable and
+   nobody can be trapped inside a tutorial. The dark surround is a
+   9999px box-shadow on the ring, which gives a real hole with no
+   overlay panel in front of the thing it is pointing at. */
+#tourWrap{position:fixed;inset:0;z-index:100080;pointer-events:none;font-family:inherit}
+#tourRing{position:absolute;border-radius:10px;border:2.5px solid #0099cc;
+  box-shadow:0 0 0 9999px rgba(10,22,40,.55),0 0 0 5px rgba(0,153,204,.28);
+  transition:left .18s ease,top .18s ease,width .18s ease,height .18s ease;pointer-events:none}
+#tourHand{position:absolute;font-size:23px;line-height:1;pointer-events:none;
+  filter:drop-shadow(0 2px 4px rgba(10,22,40,.45));animation:tourNudge 1.15s ease-in-out infinite}
+@keyframes tourNudge{0%,100%{transform:translate(0,0)}50%{transform:translate(-4px,-2px)}}
+#tourCard{position:absolute;width:min(330px,92vw);background:#fff;border-radius:13px;
+  padding:15px 16px 13px;box-shadow:0 20px 52px rgba(10,22,40,.34);pointer-events:auto}
+@media (prefers-reduced-motion:reduce){
+  #tourRing{transition:none} #tourHand{animation:none}
+}
+@media (max-width:640px){
+  #tourCard{width:calc(100vw - 24px)}
+}
 #setupGuide{position:fixed;inset:0;z-index:100075;background:rgba(10,22,40,.55);
   display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit}
 #setupGuide .sg-card{width:100%;max-width:560px;background:#fff;border-radius:16px;
@@ -3735,7 +3757,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     @media (max-width:640px){ .sj-card{flex-direction:column;align-items:flex-start;gap:12px} .sj-card .sj-go{width:100%} }
   </style>
   <div class="hb-topbar">
-    <button type="button" class="hb-newjob" onclick="startNewJob()">＋ Create new job</button>
+    <button type="button" class="hb-newjob" data-tour="home-new" onclick="startNewJob()">＋ Create new job</button>
     <div class="hb-search-wrap">
       <input id="homeJobSearch" class="hb-search" type="text" placeholder="Select job — search saved &amp; Fergus jobs by client, address or job number…"
              oninput="_homeJobSearchInput()" onfocus="_homeJobSearchInput()" autocomplete="off">
@@ -4614,10 +4636,10 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
            printed treatment is applied automatically, for the length of the
            capture, by Save as PDF / Print / Push to Fergus / Order Roof. A
            mode you can be left stranded in is not worth the button. -->
-      <button onclick="saveMaterialsAsPdf()" class="mat-btn mat-btn-dark" style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
+      <button onclick="saveMaterialsAsPdf()" data-tour="jp-pdf" class="mat-btn mat-btn-dark" style="padding:7px 14px;font-size:12px">📄 Save as PDF</button>
       <button onclick="printJobPack()" class="mat-btn mat-btn-light" style="padding:7px 14px;font-size:12px">🖨 Print</button>
       <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green jms-only" style="padding:7px 14px;font-size:12px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
-      <button onclick="orderRoofViaSupplier()" class="mat-btn mat-btn-blue" style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
+      <button onclick="orderRoofViaSupplier()" data-tour="jp-order" class="mat-btn mat-btn-blue" style="padding:7px 14px;font-size:12px">🛒 Order Roof</button>
     </div>
   </div>
   <div class="jp-pages" id="jpPages"></div>
@@ -5185,7 +5207,7 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     <button onclick="openQuoteEmail()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📧 Email Quote</button>
     <button onclick="pushQuotePricingToFergus(this)" class="jms-only" title="Create a new quote version in the linked Fergus job with itemised labour, materials, scaffold and selection lines" style="padding:8px 14px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📤 Push pricing to Fergus</button>
     <button onclick="printQuote()" style="padding:8px 14px;background:#fff;color:#0a1628;border:1.5px solid #0a1628;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🖨 Print / PDF</button>
-    <button onclick="copyCustomerLink()" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🔗 Customer link</button>
+    <button onclick="copyCustomerLink()" data-tour="q-link" style="padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🔗 Customer link</button>
     <button onclick="saveAsDefaultTemplate()" title="Snapshot this proposal's cover title, about text, terms, inclusions and options as the default for every new quote" style="padding:8px 14px;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">⭐ Save as default template</button>
     <button onclick="unacceptQuote()" id="qaUnacceptBtn" title="This quote has been accepted, which locks the customer's selections. Undo it to let the customer change their selections again." style="display:none;padding:8px 14px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🔓 Undo acceptance (unlock selections)</button>
     <span id="qaMsg" style="font-size:12px;color:var(--text2);width:100%"></span>
@@ -6092,6 +6114,17 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
           <div style="font-size:11.5px;color:var(--text2)">Walks through the price book, your branding, your products, your rates and Fergus.</div>
         </div>
         <button type="button" onclick="openSetupGuide(true)" class="tool-btn" style="font-size:11.5px">Run the setup guide</button>
+      </div>
+      <!-- The other guide. The setup guide is about getting your prices,
+           branding and products IN; this one is about finding your way
+           around once they are. It runs itself once after the first-run
+           setup and lives here for every time after that. -->
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f6f9fc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:12.5px;font-weight:700;color:var(--text)">RoofMap tutorial</div>
+          <div style="font-size:11.5px;color:var(--text2)">Walks you through every tab and points out what each part of the screen does. Two minutes, and you can stop it at any step.</div>
+        </div>
+        <button type="button" data-tour="set-tutorial" onclick="openTour(true)" class="tool-btn" style="font-size:11.5px">Run the tutorial</button>
       </div>
       <div class="set-row">
         <div class="set-row-txt">
@@ -11926,7 +11959,7 @@ function _trialBannerHtml(){
   // email address. Before then (billing:false) the email stays.
   var cta = s.billing
     ? '<button onclick="_billingOpen()" style="margin-left:10px;padding:6px 16px;background:#0a1628;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Choose a plan</button>'
-    : 'Email <a href="mailto:office@floodroofing.co.nz">office@floodroofing.co.nz</a> to keep going.';
+    : 'Email <a href="mailto:accounts@roofmap.co.nz">accounts@roofmap.co.nz</a> to keep going.';
   if (s.trial.expired){
     return '<div class="tb tb-out"><span class="tb-x">⏳</span><span>' +
       '<strong>Your free trial has ended.</strong> Your jobs are all still here. ' + cta +
@@ -30285,6 +30318,10 @@ function closeSetupGuide(skip){
   if (skip){
     try { _setSaveStatus && _setSaveStatus('Setup skipped — you can run it again any time from Settings → General.', '#64748b'); } catch(e){}
   }
+  // Straight into the tour on the first login — the setup guide has just told
+  // them what to fill in, and this is where those things live. Once only, and
+  // it opens with a card they can decline; it does not seize the screen.
+  try { _tourMaybeAutoStart(); } catch(e){}
 }
 function setupGuideStep(n){
   SETUP.i = Math.max(0, Math.min(SETUP.steps.length - 1, n));
@@ -30430,6 +30467,330 @@ function _pbDisclaimerOnce(){
     try { localStorage.setItem('fr_pb_disclaimer_seen','1'); } catch(e){}
     w.remove();
   };
+}
+
+// ══════════════════════════════════════════════════════════════════
+// THE TUTORIAL — a guided walk round the app
+// ══════════════════════════════════════════════════════════════════
+// The setup guide gets your prices, branding and products IN. This is the
+// other half: where everything lives once they are. It points at real
+// elements on the real screen rather than describing them, because a written
+// description of a button is something you have to translate before you can
+// use it, and a ring round the actual button is not.
+//
+// Two rules it follows:
+//   1. The backdrop NEVER swallows clicks. It is pointer-events:none, so the
+//      app underneath stays fully usable and nobody can be trapped inside a
+//      tutorial they cannot get out of. Only the bubble is interactive.
+//   2. A step whose target is not on screen is skipped, not shown pointing at
+//      nothing. Site mode hides most of the menu; a tenant with no Fergus has
+//      no Fergus buttons. Both are normal, and neither should produce a
+//      finger pointing at the top-left corner of the page.
+//
+// Tab steps are "gated": the ring goes round the menu button and the step
+// advances when it is actually clicked. The bubble's own button does the same
+// thing, so the gate teaches the click without ever being a dead end.
+var TOUR_STEPS = [
+  { key:'welcome', centre:true, title:'A quick run round RoofMap',
+    body:'Two minutes. I will point at each part of the screen and say what it does, one tab at a time.\n\nYou can stop at any step — **Cancel tutorial** is on every one of them — and start it again later from **Settings → General**.',
+    next:'Start the tour' },
+
+  // ── HOME ────────────────────────────────────────────────────────
+  { key:'tab-home', gate:'#navHomeBtn', tab:'select', title:'Start on Home',
+    body:'Every tab you need is down this menu, in the order the work happens: **Home → Map Roof → Job Pack → Quote**.\n\nClick **Home** to begin.' },
+  { key:'home-new', sel:'[data-tour="home-new"]', tab:'select', title:'Every job starts here',
+    body:'**Create new job** asks for the client, the site address and their contact details, gives the job its number, and drops you straight on Map Roof.' },
+  { key:'home-search', sel:'#homeJobSearch', tab:'select', title:'And every old job comes back here',
+    body:'Type a client name, an address or a job number. It searches everything you have saved — and your Fergus jobs too, if you have linked it.' },
+  { key:'home-tiles', sel:'#homeBoardTiles', tab:'select', title:'The status board',
+    body:'A tile per stage — drafts, quoted, accepted, ordered. Tap one to see just those jobs.\n\nThis is the answer to "what did I send last week and did they ever reply".' },
+  { key:'home-board', sel:'#homeBoard', tab:'select', title:'The jobs themselves',
+    body:'A card per job. Tap one to open it — whatever you had open is saved on the way out.' },
+
+  // ── MAP ROOF ────────────────────────────────────────────────────
+  { key:'tab-roof', gate:'#navRoofBtn', tab:'roof', title:'Now the roof',
+    body:'This is where the measurements come from, and everything after it is built on them.\n\nClick **Map Roof**.' },
+  { key:'roof-bg', sel:'#roofBgCard', tab:'roof', title:'Start with the aerial',
+    body:'Search the address and grab the aerial, or upload your own image — a drone shot, a screenshot, a photo.\n\nYou can draw without one. The photo just makes tracing faster.' },
+  { key:'roof-outline', sel:'#btn-outline', tab:'roof', title:'Trace the outline',
+    body:'Click each corner of the roof perimeter, then press **Enter** to close it.\n\nThe moment it closes, RoofMap asks the two things it cannot work out on its own — the roof shape and the sheet material — and then draws every ridge, hip, valley and barge for you.' },
+  // The roof toolbar only exists once there is a roof, so on an empty job
+  // this step has nothing to ring. Rather than skip it — and quietly drop the
+  // feature it was written to explain — it falls back to the outline button
+  // and says where the control will appear.
+  { key:'roof-type', sel:'#roofTypeDropBtn', tab:'roof', title:'Got the shape wrong? Change it',
+    body:'Hip & valley, straight gable, gable with a hip/valley corner, dutch gable, mono-pitch — and the sheet material, including a **Clearlite** roof for a veranda.\n\nPicking a shape redraws that roof’s lines from the outline.',
+    alt:{ sel:'#btn-outline',
+          body:'Once an outline is closed, a **Change roof type** button appears on the roof toolbar just here.\n\nIt holds every shape — hip & valley, straight gable, gable with a hip/valley corner, dutch gable, mono-pitch — and the sheet material, including a **Clearlite** roof for a veranda. Picking a shape redraws that roof’s lines from the outline.' } },
+  { key:'roof-items', sel:'#rlDropBtn', tab:'roof', title:'Everything else goes on here',
+    body:'**Add items/details** covers the bits that are specific to the building: individual ridge, hip, valley, barge and apron lines, pipe penetrations, **boxed** penetrations like a chimney, clearlite sheets, gutters and notes.\n\nA boxed penetration brings its whole flashing set with it — back, two sides, front apron and the saddle up to the ridge.' },
+  { key:'roof-cal', sel:'#btn-calibrate', tab:'roof', title:'Tell it how big the roof is',
+    body:'Click one wall you know the length of and type that length in. Everything else on the drawing scales off it.\n\nGet this right and every measurement after it is right.' },
+  { key:'roof-canvas', sel:'#roofCanvas', tab:'roof', title:'All the roofs, all the time',
+    body:'Every roof on the property is drawn once and stays on screen. Each edge carries its own measurement, each face shows the sheet run that will be ordered, and where two roofs share an edge it is counted once.' },
+  { key:'roof-photos', sel:'#fergusRoofPanelToggle', tab:'roof', title:'Photos and files ride with the job',
+    body:'**Rapid photos** runs the camera inside the app — tap, tap, tap, no Use Photo / Retake between shots. Council plans and PDFs go in as job files.\n\nAll of it saves inside the job, so it is on the office computer as soon as the job saves.' },
+
+  // ── JOB PACK ────────────────────────────────────────────────────
+  { key:'tab-jp', gate:'#navJobPackBtn', tab:'materials', title:'What the crew and the merchant get',
+    body:'Click **Job Pack**.' },
+  { key:'jp-toolbar', sel:'#jpToolbar', tab:'materials', title:'It is a designer, not a report',
+    body:'Click any field on any page and edit it — quantities, lengths, headings, notes. What you change is what prints. Pages can be added, deleted and reordered.' },
+  { key:'jp-pdf', sel:'[data-tour="jp-pdf"]', tab:'materials', title:'Out to the crew',
+    body:'**Save as PDF** prints exactly what is on screen — sheet cut list, flashing schedule with the folded profiles, gutter, underlay, fasteners, pipe flashings and back-trays.' },
+  { key:'jp-order', sel:'[data-tour="jp-order"]', tab:'materials', title:'Out to the merchant',
+    body:'**Order Roof** sends the material order, and shows you the cut-list summary in the popup first so you can eyeball the numbers before it goes.\n\nIt follows the customer’s selections — if they upgraded the grade or the gutter, that is what the merchant is quoted.' },
+  { key:'jp-maps', sel:'#jpMapPanelToggle', tab:'materials', title:'Drag a map onto a page',
+    body:'The **MAPS** panel holds every view of the roof — detailed, basic, the sheet layout, the sheet calculation check. Drag one onto any page and it drops in as a movable, resizable picture.' },
+
+  // ── QUOTE ───────────────────────────────────────────────────────
+  { key:'tab-quote', gate:'#navQuoteBtn', tab:'quote', title:'The customer’s side',
+    body:'Click **Quote**.' },
+  { key:'q-pricing', sel:'#quotePricingPanelToggle', tab:'quote', title:'Where the price is built',
+    body:'Labour, scaffolding and materials, with **a tab per roof**. Each roof is either part of the main price, an optional extra the customer can add themselves, or excluded.\n\nRename and delete a roof from the same tabs. The strip above the material total gives the whole job’s flashing metres, so a per-roof tab can never hide what the building needs.' },
+  { key:'q-pages', sel:'#qpRoot', tab:'quote', title:'Six pages, all editable',
+    body:'Condition report, roof plan, selections, the material, terms, acceptance. Click any text to change it.\n\nOn the roof plan the customer taps a roof to include or leave it out and the price moves in front of them; on the selections page every option shows what it adds or takes off.' },
+  { key:'q-link', sel:'[data-tour="q-link"]', tab:'quote', title:'Send it',
+    body:'**Customer link** copies the address of their live proposal — paste it into an email or a text. They open it on their phone, choose their options and sign it off online.\n\nWhen they accept, it lands in Quote activity on Home, and the deposit invoice can go out on its own.' },
+
+  // ── SETTINGS ────────────────────────────────────────────────────
+  { key:'tab-set', gate:'#navSettingsBtn', tab:'settings', title:'Make it yours',
+    body:'Click **Settings**.' },
+  { key:'set-nav', sel:'.set-nav', tab:'settings', title:'Everything the quote is built from',
+    body:'**Branding** puts your business on what the customer sees. **Price book** is every rate — upload a merchant CSV or type over any number. **Products** decides what the customer is offered. **Labour pricing** sets your hours and rates. **Flashing library** holds the folded profiles. **Team**, **Billing** and **Invoicing** are here too.' },
+  { key:'set-tutorial', sel:'[data-tour="set-tutorial"]', tab:'settings', sub:'set-general',
+    title:'And this is how you get me back',
+    body:'**Settings → General → Run the tutorial.** Any time.\n\nThe **setup guide** beside it is the other one — that walks through getting your prices, branding and products in.' },
+
+  // ── FEEDBACK ────────────────────────────────────────────────────
+  { key:'tab-fb', gate:'#navFeedbackBtn', tab:'feedback', title:'When something is wrong',
+    body:'Click **Send Feedback**.' },
+  { key:'fb-submit', sel:'#fbSubmitBtn', tab:'feedback', title:'Tell us and it gets fixed',
+    body:'Describe what looked wrong and what it should have been. You do not need to write down your browser, your screen or what errored — that is attached automatically, along with the roof you were looking at, so we can put the same one up.\n\nIt goes to **support@roofmap.co.nz** and the reply comes back to your account email.',
+    next:'Nearly there' },
+
+  { key:'done', centre:true, title:'That is the whole app',
+    body:'**Home** to start it, **Map Roof** to measure it, **Job Pack** for the crew and the merchant, **Quote** for the customer.\n\nThere is a finished sample job in here already — open it and look at what a completed quote, cut list and order look like before you do your own.',
+    next:'Finish' },
+];
+
+var TOUR = { i:0, steps:[], open:false, _gateEl:null, _gateFn:null };
+function _tourDone(){ try { return localStorage.getItem('fr_tour_done') === '1'; } catch(e){ return false; } }
+function _tourMarkDone(){ try { localStorage.setItem('fr_tour_done','1'); } catch(e){} }
+// Same tiny markup as the setup guide: escaped, with **bold** allowed so a
+// step can pick out the two or three phrases that carry the point.
+function _tourBodyHtml(txt){
+  return String(txt == null ? '' : txt)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong style="color:#0a1628">$1</strong>');
+}
+function _tourFind(sel){
+  if (!sel) return null;
+  var el = null;
+  try { el = document.querySelector(sel); } catch(e){ return null; }
+  if (!el) return null;
+  var r = el.getBoundingClientRect();
+  // Zero-sized or display:none — present in the markup, not on the screen.
+  if (r.width < 2 || r.height < 2) return null;
+  return el;
+}
+// Which element this step is pointing at RIGHT NOW. A step may carry an
+// `alt` for the case where its real target does not exist yet — an empty job
+// has no roof toolbar — so the feature still gets explained instead of the
+// step silently disappearing.
+function _tourEl(st){
+  if (!st) return null;
+  var el = _tourFind(st.gate || st.sel);
+  if (el){ st._alt = false; return el; }
+  if (st.alt){
+    el = _tourFind(st.alt.sel);
+    if (el){ st._alt = true; return el; }
+  }
+  st._alt = false;
+  return null;
+}
+// The body that goes with whichever target was found.
+function _tourStepBody(st){
+  return (st && st._alt && st.alt && st.alt.body) ? st.alt.body : (st && st.body);
+}
+// Drop the steps this account/screen cannot show, so "Step 4 of 21" counts
+// what the reader will actually see and Next never lands on a dead card.
+function _tourBuildSteps(){
+  TOUR.steps = TOUR_STEPS.filter(function(st){
+    if (st.centre) return true;
+    // A step on another tab cannot be measured from here; keep it and let
+    // the renderer skip it if it turns out to be missing when we arrive.
+    return true;
+  });
+  return TOUR.steps;
+}
+function closeTour(cancelled){
+  _tourClearGate();
+  var w = document.getElementById('tourWrap'); if (w) w.remove();
+  TOUR.open = false;
+  _tourMarkDone();
+  window.removeEventListener('resize', _tourPlace);
+  window.removeEventListener('scroll', _tourPlace, true);
+  if (cancelled){
+    try { _setSaveStatus && _setSaveStatus('Tutorial stopped — Settings → General runs it again.', '#64748b'); } catch(e){}
+  }
+}
+function _tourClearGate(){
+  if (TOUR._gateEl && TOUR._gateFn){
+    try { TOUR._gateEl.removeEventListener('click', TOUR._gateFn, true); } catch(e){}
+  }
+  TOUR._gateEl = null; TOUR._gateFn = null;
+}
+// Forward from wherever we are, skipping anything that is not on screen.
+function tourStep(n){
+  if (!TOUR.open) return;
+  var dir = (n > TOUR.i) ? 1 : -1;
+  var i = Math.max(0, Math.min(TOUR.steps.length - 1, n));
+  var guard = 0;
+  while (guard++ < TOUR.steps.length){
+    var st = TOUR.steps[i];
+    if (!st) break;
+    if (st.centre){ TOUR.i = i; return _tourRender(); }
+    // Land on the step's tab first — the element only exists once its panel
+    // is the active one.
+    if (st.tab){ try { gotoTab(st.tab); } catch(e){} }
+    if (st.sub){ try { switchSettingsSub(st.sub); } catch(e){} }
+    if (_tourEl(st)){ TOUR.i = i; return _tourRender(); }
+    i += dir;
+    if (i < 0 || i >= TOUR.steps.length) break;
+  }
+  closeTour(false);
+}
+function _tourPlace(){
+  var w = document.getElementById('tourWrap'); if (!w) return;
+  var st = TOUR.steps[TOUR.i];
+  var ring = w.querySelector('#tourRing'), card = w.querySelector('#tourCard'),
+      hand = w.querySelector('#tourHand');
+  if (st && st.centre){
+    // No target to cut a hole around, so the dim moves onto the wrapper —
+    // which is pointer-events:none, so it still catches nothing.
+    ring.style.display = 'none'; hand.style.display = 'none';
+    w.style.background = 'rgba(10,22,40,.55)';
+    card.style.left = '50%'; card.style.top = '50%';
+    card.style.transform = 'translate(-50%,-50%)';
+    return;
+  }
+  w.style.background = '';
+  var el = _tourEl(st);
+  if (!el){ return tourStep(TOUR.i + 1); }
+  var r = el.getBoundingClientRect(), pad = 7;
+  ring.style.display = 'block';
+  ring.style.left = (r.left - pad) + 'px';   ring.style.top = (r.top - pad) + 'px';
+  ring.style.width = (r.width + pad * 2) + 'px';
+  ring.style.height = (r.height + pad * 2) + 'px';
+  // Where the card fits. Right of the target if there is room (the menu is on
+  // the left, so this is the common case), then left, then below, then above.
+  card.style.transform = 'none';
+  // The gap has to hold the pointing finger between the target and the card,
+  // or the finger ends up tucked under the card's edge and points at nothing.
+  var cw = card.offsetWidth || 320, ch = card.offsetHeight || 190, gap = 38, HAND = 26;
+  var vw = window.innerWidth, vh = window.innerHeight, side;
+  if (r.right + gap + cw < vw - 8) side = 'right';
+  else if (r.left - gap - cw > 8) side = 'left';
+  else if (r.bottom + gap + ch < vh - 8) side = 'bottom';
+  else side = 'top';
+  var L, T, hx, hy, ch2, midY = r.top + r.height / 2, midX = r.left + r.width / 2;
+  if (side === 'right'){ L = r.right + gap; T = midY - ch / 2; ch2 = '👈'; hx = r.right + 5; hy = midY - HAND / 2; }
+  else if (side === 'left'){ L = r.left - gap - cw; T = midY - ch / 2; ch2 = '👉'; hx = r.left - 5 - HAND; hy = midY - HAND / 2; }
+  else if (side === 'bottom'){ L = midX - cw / 2; T = r.bottom + gap; ch2 = '👆'; hx = midX - HAND / 2; hy = r.bottom + 5; }
+  else { L = midX - cw / 2; T = r.top - gap - ch; ch2 = '👇'; hx = midX - HAND / 2; hy = r.top - 5 - HAND; }
+  L = Math.max(8, Math.min(L, vw - cw - 8));
+  T = Math.max(8, Math.min(T, vh - ch - 8));
+  card.style.left = L + 'px'; card.style.top = T + 'px';
+  hand.style.display = 'block'; hand.textContent = ch2;
+  hand.style.left = Math.max(2, Math.min(hx, vw - 30)) + 'px';
+  hand.style.top  = Math.max(2, Math.min(hy, vh - 30)) + 'px';
+}
+function _tourRender(){
+  var w = document.getElementById('tourWrap'); if (!w) return;
+  var st = TOUR.steps[TOUR.i], last = (TOUR.i === TOUR.steps.length - 1);
+  _tourClearGate();
+  w.querySelector('#tourTitle').textContent = st.title;
+  // Resolve the target BEFORE the body, so an `alt` step words itself for the
+  // element it actually ended up ringing.
+  var el = st.centre ? null : _tourEl(st);
+  w.querySelector('#tourBody').innerHTML = _tourBodyHtml(_tourStepBody(st));
+  w.querySelector('#tourCount').textContent = 'Step ' + (TOUR.i + 1) + ' of ' + TOUR.steps.length;
+  w.querySelector('#tourBack').style.visibility = TOUR.i ? 'visible' : 'hidden';
+  var nextBtn = w.querySelector('#tourNext');
+  if (el && !st.centre){
+    // Bring it into view before we draw a ring round where it used to be.
+    try { el.scrollIntoView({ block:'center', inline:'nearest' }); } catch(e){}
+  }
+  if (st.gate && el){
+    // The gate: clicking the real menu button is what moves this on. The
+    // button below does the same thing, so nobody is stuck if they would
+    // rather read than click.
+    nextBtn.textContent = 'Click ' + (el.textContent || '').trim().replace(/\s+/g, ' ');
+    TOUR._gateEl = el;
+    TOUR._gateFn = function(){ setTimeout(function(){ tourStep(TOUR.i + 1); }, 260); };
+    el.addEventListener('click', TOUR._gateFn, true);
+  } else {
+    nextBtn.textContent = st.next || (last ? 'Finish' : 'Next');
+  }
+  _tourPlace();
+  // A second pass once the browser has laid the card out — the first placement
+  // measures a card that has not been sized yet on the very first step.
+  setTimeout(_tourPlace, 30);
+}
+function openTour(force){
+  if (document.getElementById('tourWrap')) return;
+  if (!force && _tourDone()) return;
+  // The setup wizard and the setup guide are modal and come first. Landing on
+  // top of either would put a ring round a button the reader cannot reach.
+  if (document.getElementById('setupWizard') || document.getElementById('setupGuide')) return;
+  _tourBuildSteps();
+  if (!TOUR.steps.length) return;
+  TOUR.i = 0; TOUR.open = true;
+  var w = document.createElement('div');
+  w.id = 'tourWrap';
+  w.className = 'no-print';
+  w.innerHTML =
+    '<div id="tourRing"></div>' +
+    '<div id="tourHand" aria-hidden="true"></div>' +
+    '<div id="tourCard" role="dialog" aria-live="polite">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">' +
+        '<div style="font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#0099cc">RoofMap tutorial</div>' +
+        '<div id="tourCount" style="font-size:11px;color:#94a3b8;margin-left:auto"></div>' +
+      '</div>' +
+      '<div id="tourTitle" style="font-size:16px;font-weight:800;color:#0a1628;margin:5px 0 8px;line-height:1.25"></div>' +
+      '<div id="tourBody" style="font-size:13px;line-height:1.6;color:#334155;white-space:pre-line;max-height:40vh;overflow:auto"></div>' +
+      '<div style="display:flex;align-items:center;gap:9px;margin-top:15px;padding-top:12px;border-top:1px solid #e6eaf0">' +
+        '<button type="button" id="tourCancel" style="background:none;border:none;color:#94a3b8;font-size:11.5px;font-family:inherit;cursor:pointer;padding:0">Cancel tutorial</button>' +
+        '<button type="button" id="tourBack" style="margin-left:auto;padding:7px 12px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer">Back</button>' +
+        '<button type="button" id="tourNext" style="padding:7px 15px;background:#0099cc;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer">Next</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(w);
+  w.querySelector('#tourCancel').onclick = function(){ closeTour(true); };
+  w.querySelector('#tourBack').onclick = function(){ tourStep(TOUR.i - 1); };
+  w.querySelector('#tourNext').onclick = function(){
+    var st = TOUR.steps[TOUR.i];
+    if (TOUR.i === TOUR.steps.length - 1) return closeTour(false);
+    // On a gated step the button does exactly what clicking the tab does, so
+    // the reader who presses it still lands where the tab would have put them.
+    if (st && st.gate){
+      var el = _tourEl(st);
+      if (el){ _tourClearGate(); try { el.click(); } catch(e){} }
+    }
+    tourStep(TOUR.i + 1);
+  };
+  window.addEventListener('resize', _tourPlace);
+  window.addEventListener('scroll', _tourPlace, true);
+  tourStep(0);
+}
+// First login, once, after the setup windows have had the screen. Never on a
+// phone or tablet: Site mode hides most of the menu the tour points at, and a
+// tutorial that skips two thirds of itself is worse than none.
+function _tourMaybeAutoStart(){
+  if (_tourDone()) return;
+  try { if (document.documentElement.classList.contains('site-mode')) return; } catch(e){}
+  setTimeout(function(){ try { openTour(false); } catch(e){} }, 600);
 }
 
 // ── RAPID CAMERA ────────────────────────────────────────────────────
