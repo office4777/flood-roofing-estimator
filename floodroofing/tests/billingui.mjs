@@ -94,6 +94,37 @@ check('an active subscriber sees their plan marked CURRENT with Manage billing',
 check('…and no trial banner at all', v.banner.trim() === '');
 await ctx.close();
 
+// ── a business with no trial: the shape every new signup now has ──────
+// The expired-trial path above still matters for accounts created before the
+// trial was dropped, but this is the one a new roofer actually meets.
+({ ctx, pg, checkouts } = await boot({ status:'pending', billing:true, live:false,
+  trial:null, plan:'trial' }));
+v = await pg.evaluate(() => (document.getElementById('trialBanner')||{}).textContent || '');
+check('a pending business is prompted rather than left to hit a 403',
+  /Pick a plan to start saving jobs/.test(v), v.replace(/\s+/g,' ').slice(0,90));
+check('…and the banner offers the same button, not an email address',
+  /Choose a plan/.test(v) && !/office@floodroofing/.test(v), v.replace(/\s+/g,' ').slice(0,90));
+await pg.click('#trialBanner button');
+await pg.waitForTimeout(700);
+v = await pg.evaluate(() => ({
+  tab: document.body.getAttribute('data-tab'),
+  on: document.getElementById('set-billing').classList.contains('on'),
+  body: document.getElementById('billingBody').textContent,
+}));
+check('…and that button still lands on Settings → Billing',
+  v.tab === 'settings' && v.on, JSON.stringify({tab:v.tab,on:v.on}));
+// The prices are the reason this suite exists — they must survive every
+// rewording of the screen around them.
+check('…which shows the three plans at the standard prices',
+  /\$149/.test(v.body) && /\$299/.test(v.body) && /\$549/.test(v.body), v.body.slice(0,80));
+check('…and does not tell them a trial ended that they never had',
+  !/trial has ended/i.test(v.body), v.body.slice(0,90));
+check('…and states the discount with its term and what follows it',
+  /30% off your first 12 months/.test(v.body) && /standard rate/.test(v.body), v.body.slice(0,180));
+check('…and says cancelling is possible, since the pricing page promises it',
+  /cancel any time/i.test(v.body), v.body.slice(0,180));
+await ctx.close();
+
 await b.close();
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

@@ -3776,7 +3776,8 @@ html.customer-mobile .qp-canvas{ min-height:0 !important; }
     </div>
     <button type="button" onclick="fetchQuoteActivity();fetchRecentDrafts()" title="Refresh the board" style="height:58px;padding:0 18px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:14px;font-size:14px;cursor:pointer;font-family:inherit">↻</button>
   </div>
-  <!-- Filled by _trialBannerSync() as the trial runs down. See loadSubscription(). -->
+  <!-- Filled by _planGateSync(): the "pick a plan" bar, or a legacy trial
+       countdown for accounts that were given one. See loadSubscription(). -->
   <div id="trialBanner"></div>
   <!-- Filled by _sampleJobBannerSync() while this account has no jobs of its
        own. See openSampleJob(). -->
@@ -11943,7 +11944,7 @@ function _renderHomeBoard(){
   if (cEl) cEl.textContent = sel.rows.length ? ('· ' + sel.rows.length) : '';
   host.innerHTML = sel.rows.length ? sel.rows.join('') : (sel.err || '<div class="hb-empty">' + sel.empty + '</div>');
   try { _sampleJobBannerSync(); } catch(e){}
-  try { _trialBannerSync(); } catch(e){}
+  try { _planGateSync(); } catch(e){}
 }
 // Back-compat aliases — older call sites repaint the whole board now.
 function _renderRecentDrafts(){ _renderHomeBoard(); }
@@ -11960,17 +11961,39 @@ var SUBSCRIPTION = null;
 async function loadSubscription(){
   try { SUBSCRIPTION = await api('GET', '/subscription'); }
   catch(e){ SUBSCRIPTION = null; }     // never let this block the app
-  try { _trialBannerSync(); } catch(e){}
+  try { _planGateSync(); } catch(e){}
 }
-function _trialBannerHtml(){
+// The bar across the top of the app when the business cannot yet save jobs.
+//
+// Driven off `live`, NOT off trial data. New accounts have no trial at all, so
+// keying this on `s.trial` — as it used to — meant a pending business was shown
+// nothing at all and discovered the gate as a 403 on their first save. Legacy
+// accounts inside or just past a trial keep the countdown wording, because a
+// fortnight is what they were promised when they signed up.
+function _planGateHtml(){
   var s = SUBSCRIPTION;
-  if (!s || !s.trial || s.status === 'active') return '';
-  var d = s.trial.days_left;
-  // Once billing is switched on, the way to keep going is a button, not an
+  if (!s || s.status === 'active') return '';
+  // Once billing is switched on, the way to start is a button, not an
   // email address. Before then (billing:false) the email stays.
   var cta = s.billing
     ? '<button onclick="_billingOpen()" style="margin-left:10px;padding:6px 16px;background:#0a1628;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Choose a plan</button>'
     : 'Email <a href="mailto:accounts@roofmap.co.nz">accounts@roofmap.co.nz</a> to keep going.';
+
+  // ── no trial: every business that signs up from here on ──
+  if (!s.trial){
+    // With billing off nothing is gated, so telling somebody to pick a plan
+    // before they can save is simply untrue — they can. The backend does say
+    // live:true in that case, but the bar must not depend on the two agreeing.
+    if (!s.billing || s.live) return '';
+    return '<div class="tb tb-calm"><span class="tb-x">⏳</span><span>' +
+      '<strong>Pick a plan to start saving jobs.</strong> Look around as long as you like first — ' +
+      'the demo job and every tab are open. <strong>30% off your first 12 months</strong>, then the ' +
+      'standard rate, and you can cancel any time. ' + cta +
+      '</span></div>';
+  }
+
+  // ── legacy: an account given 14 days before this changed ──
+  var d = s.trial.days_left;
   if (s.trial.expired){
     return '<div class="tb tb-out"><span class="tb-x">⏳</span><span>' +
       '<strong>Your free trial has ended.</strong> Your jobs are all still here. ' + cta +
@@ -11983,6 +12006,8 @@ function _trialBannerHtml(){
     '<strong>Your free trial ' + when + '.</strong> Nothing is deleted when it does — ' + cta +
     '</span></div>';
 }
+// Kept as an alias: existing call sites and trialui.mjs know this name.
+function _trialBannerHtml(){ return _planGateHtml(); }
 // Open Settings on the Billing section — the one place plans are chosen.
 function _billingOpen(){
   gotoTab('settings');
@@ -12024,7 +12049,8 @@ function _billingRenderSection(){
   else if (!s.billing) head = '<div style="font-size:12.5px;color:var(--text2)">Billing isn\u2019t switched on yet \u2014 plans below are what it will look like. Nothing can be charged.</div>';
   else if (s.status === 'active') head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + '.</strong> <span style="color:var(--text2)">Card, invoices and cancellation are in the billing portal.</span></div>';
   else if (s.trial && !s.trial.expired) head = '<div style="font-size:13px"><strong>Free trial \u2014 ' + s.trial.days_left + ' day' + (s.trial.days_left === 1 ? '' : 's') + ' left.</strong> <span style="color:var(--text2)">Pick a plan any time; the trial keeps running until it\u2019s paid.</span></div>';
-  else head = '<div style="font-size:13px;color:#7f1d1d"><strong>Your trial has ended.</strong> Pick a plan to carry on \u2014 every job is still here.</div>';
+  else if (s.trial) head = '<div style="font-size:13px;color:#7f1d1d"><strong>Your trial has ended.</strong> Pick a plan to carry on \u2014 every job is still here.</div>';
+  else head = '<div style="font-size:13px"><strong>Pick a plan to start saving jobs.</strong> <span style="color:var(--text2)">30% off your first 12 months, then the standard rate. Month to month \u2014 cancel any time from the billing portal and stop paying.</span></div>';
   var canBuy = !!(s && s.billing);
   host.innerHTML = head +
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:14px">' +
@@ -12052,15 +12078,15 @@ var PLAN_LABELS = { solo: 'Solo', team: 'Team', business: 'Business', trial: 'Tr
     setTimeout(function(){
       try {
         if (m[1] === 'success') alert('Payment set up \u2014 you\u2019re all go. Thanks!');
-        loadSubscription().then(function(){ _trialBannerSync(); _billingRenderSection(); });
+        loadSubscription().then(function(){ _planGateSync(); _billingRenderSection(); });
       } catch(e){}
     }, 1200);
     history.replaceState(null, '', location.pathname);
   } catch(e){}
 })();
-function _trialBannerSync(){
+function _planGateSync(){
   var el = document.getElementById('trialBanner');
-  if (el) el.innerHTML = _trialBannerHtml();
+  if (el) el.innerHTML = _planGateHtml();
 }
 
 // ── THE SAMPLE JOB ───────────────────────────────────────────────────
@@ -17298,7 +17324,7 @@ function renderTeam(){
       (seats.allowed == null
         ? 'Unlimited people'
         : esc(String(seats.used || 0)) + ' of ' + esc(String(seats.allowed)) + ' ' + (seats.allowed === 1 ? 'seat' : 'seats') + ' used')+
-      (plan.id === 'trial' ? ' · everything is unlocked while you\'re trialling' : '')+
+      (plan.id === 'trial' ? ' · no seat limit until you pick a plan' : '')+
     '</span>'+
     (full ? '<span style="font-size:12.5px;color:#b45309;font-weight:600">Every seat is taken — upgrade to add someone.</span>' : '')+
   '</div>';

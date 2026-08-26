@@ -1486,17 +1486,27 @@ app.post('/auth/register', rateLimit(5, 3600000), async (req, res) => {
     // signed up with the shared code landed in that same business — fine while
     // there was one, wrong the moment RoofMap has subscribers.
     const cid = await _companyOf(userId);
-    // The trial belongs to the BUSINESS. Everyone the owner invites is covered
-    // by it, and nobody gets a second one by being added to a team.
-    const trialEnd = new Date();
-    trialEnd.setDate(trialEnd.getDate() + 14);
-    const subRow = { user_id: userId, company_id: cid || null, status: 'trialing', trial_ends_at: trialEnd.toISOString() };
+    // No trial. Registration is invite-gated — by the time somebody reaches this
+    // line we have read their waitlist entry and decided they are a fit, so a
+    // fortnight's grace is a stranger-mechanism applied to somebody we already
+    // know. It also had a cliff in it: set up the price book, get busy on the
+    // tools, and the account died on day 15 without anybody noticing.
+    //
+    // 'pending' has no trial_ends_at, so _trialRemainingMs returns 0 and
+    // _subscriptionLive is false — the existing gate handles this with no
+    // change. requireSubscription covers POST /jobs and the integrations but
+    // NOT GET /jobs, so a pending account can log in, run the tutorial and read
+    // the worked demo job. The wall lands where it should: on keeping a roof.
+    //
+    // Accounts already mid-trial keep their trial_ends_at and run it out. This
+    // changes what new businesses get, not what existing ones were promised.
+    const subRow = { user_id: userId, company_id: cid || null, status: 'pending', trial_ends_at: null };
     let { error: serr } = await supabase.from('subscriptions').insert(subRow);
     if (serr && /company_id/.test(serr.message || '')) {
       delete subRow.company_id;   // column not migrated yet
       ({ error: serr } = await supabase.from('subscriptions').insert(subRow));
     }
-    if (serr) console.warn('[auth] trial row insert failed:', serr.message);
+    if (serr) console.warn('[auth] subscription row insert failed:', serr.message);
     const token = jwt.sign({ id: userId, email, cid }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: userId, email, name, company, company_id: cid }, company: await _companyBrief(cid, userId) });
     recordUsage('signed_up', { companyId: cid, user: { id: userId } });

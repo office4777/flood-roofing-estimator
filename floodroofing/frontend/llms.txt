@@ -40,6 +40,9 @@ barge, apron, change-of-pitch, coastal zones.
   introductory discount with a stated end, not a permanent price.
 - Access at the time of writing is **early access, approved in batches**, not an
   open self-serve trial.
+- There is no free trial. Subscriptions are month to month with no contract and no
+  minimum term; cancelling stops the next payment and takes effect at the end of the
+  month already paid for. Part months are not pro-rated.
 - Integrates with Fergus job management. Works without any job-management
   system at all.
 - Support: support@roofmap.co.nz. Accounts and billing: accounts@roofmap.co.nz.
