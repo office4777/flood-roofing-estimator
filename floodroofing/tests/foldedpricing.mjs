@@ -139,27 +139,46 @@ check('…and it is never the two roofs plus the group on top',
   after.mat < apart + after.groupMat - 0.02,
   '$' + r2(after.mat) + ' billed; double would be $' + r2(apart + after.groupMat));
 
-// Scaffolding is per BUILDING, and deliberately still counted per roof — a
-// lean-to that needs its own edge protection needs it either way. Folding
-// moves it from the roof's optional-extra price onto the base, but it must
-// still be charged.
-check('scaffolding for the folded roof is still charged, on the base now',
-  after.scaff >= before.scaff && after.scaff > 0,
+// Scaffolding used to be counted per BUILDING — one price for the main roof
+// and another for each roof folded into it, on the reasoning that a lean-to
+// needing its own edge protection needs it either way. In practice a house
+// and its lean-to are one scaffold job at one price, and the office was being
+// asked to fill in a box per roof to say so — while the customer's quote
+// showed only the main roof's figure beside a total carrying all of them.
+// One scaffold job, one price, covering the whole group.
+check('folding a roof in does not add a second scaffold price',
+  Math.abs(after.scaff - before.scaff) < 0.02,
   '$' + r2(after.scaff) + ' after vs $' + r2(before.scaff) + ' before');
+check('…and the base scaffold is exactly the main roof’s own price',
+  Math.abs(after.scaff - await pg.evaluate(() => _scaffoldPriceForRoof(0))) < 0.02,
+  '$' + r2(after.scaff));
 const scEdit = await pg.evaluate(() => {
   const wrap = document.getElementById('scaffoldWrap');
-  const has = !!(wrap && wrap.querySelector('[onchange*="_updateFoldedScaffold"]'));
-  const was = _roofScaffold(1).price;
-  _updateFoldedScaffold(1, 'price', was + 500);
-  _syncQuoteBaseLineItems();
-  const li = (S.quote.lineItems||[]).reduce((m,x) => (m[x.desc] = +x.unit, m), {});
-  _updateFoldedScaffold(1, 'price', was);
-  return { has, was, after: li.Scaffolding || 0 };
+  const txt = (wrap && wrap.innerText) || '';
+  return {
+    // No per-folded-roof boxes to fill in any more…
+    boxes: wrap ? wrap.querySelectorAll('[onchange*="_updateFoldedScaffold"]').length : -1,
+    // …but the card has to SAY what the one price covers, or it just looks
+    // like the lean-to was forgotten.
+    saysCovers: /one price covers the lot/i.test(txt),
+    namesFolded: /Roof ?2/.test(txt),
+  };
 });
-check('…and it is editable on the main tab, since Roof 2 has no tab any more',
-  scEdit.has, JSON.stringify(scEdit));
-check('…with the edit reaching the price', scEdit.after > after.scaff + 400,
-  '$' + r2(scEdit.after) + ' after +500');
+check('…so the main tab asks for one scaffold price, not one per roof',
+  scEdit.boxes === 0, JSON.stringify(scEdit));
+check('…and says out loud which roofs that price covers',
+  scEdit.saysCovers && scEdit.namesFolded, JSON.stringify(scEdit));
+// A roof quoted as its own extra is a separate price, and keeps its own
+// scaffolding — that half was never wrong and must not change.
+const sepScaff = await pg.evaluate(() => {
+  _setRoofMode(2, 'separate');
+  refreshQuoteProposal();
+  const er = (S.quote.extraRoofs || []).find(r => /Roof ?3/.test(r.name || ''));
+  return { own: _scaffoldPriceForRoof(2), inExtra: er ? er.scaffold : null };
+});
+check('a separately-priced roof still carries its own scaffolding',
+  sepScaff.inExtra > 0 && Math.abs(sepScaff.inExtra - sepScaff.own) < 0.02,
+  JSON.stringify(sepScaff));
 
 // ── labour covers the group ────────────────────────────────────────
 const lab = await pg.evaluate(() => {
@@ -191,6 +210,66 @@ check('both roofs in the group light up on the pricing map',
   mapv.bright === 2, JSON.stringify(mapv));
 check('…and the banner names them both',
   /\+/.test(mapv.banner || ''), mapv.banner);
+
+// ── the Pricing tab and the quote are the same numbers ─────────────
+// "the pricing tab doesnt match the quote numbers/total". The guard is the
+// whole identity, not one line: whatever the Pricing tab shows for the main
+// group plus every extra the customer has taken up IS the quote subtotal.
+// Anything that drifts — a buffer applied in one place and not the other, a
+// scaffold counted twice — shows up here rather than in a customer's inbox.
+const recon = await pg.evaluate(() => {
+  // A realistic mix: two roofs folded into the main one, two priced as their
+  // own extras, one excluded altogether.
+  _setRoofMode(1, 'folded'); _setRoofMode(2, 'folded');
+  _setRoofMode(3, 'separate'); _setRoofMode(4, 'separate');
+  _setRoofMode(5, 'excluded');
+  // Set a buffer and a mark-up, because a percentage applied on one side of
+  // the wall and not the other is exactly how these two drift apart.
+  _setRoofMatQtyBuffer(7);
+  _setRoofMatMarkup(12);
+  calcLabour();
+  refreshQuoteProposal();
+  _syncQuoteBaseLineItems();
+  const gf = _gradeFactor((S.quote && S.quote.baseGrade) || 'maxam');
+  // What the Pricing tab itself says the main group comes to.
+  const tabMain = _materialsCostForRoofIdx(0) * gf
+                + _labourPriceForRoof(0)
+                + _scaffoldPriceForRoof(0);
+  const li = (S.quote.lineItems || []).reduce((m, x) =>
+    (m[x.desc] = (m[x.desc] || 0) + (+x.qty || 1) * (+x.unit || 0), m), {});
+  const quoteBase = (li.Materials || 0) + (li.Labour || 0) + (li.Scaffolding || 0);
+  return {
+    tabMain, quoteBase, sub: quoteSubtotal(),
+    extras: (S.quote.extraRoofs || []).map(r => ({ name: r.name, price: r.price })),
+    excludedInExtras: (S.quote.extraRoofs || []).some(r => /Roof ?6/.test(r.name || '')),
+  };
+});
+check('the quote’s base is exactly what the Pricing tab shows for the main group',
+  Math.abs(recon.quoteBase - recon.tabMain) < 0.02,
+  '$' + r2(recon.quoteBase) + ' quoted vs $' + r2(recon.tabMain) + ' on the tab');
+check('…with the buffer reaching the quote, not just the pricing table',
+  recon.quoteBase > 0 && recon.tabMain > 0,
+  '$' + r2(recon.quoteBase));
+check('the two separately-priced roofs are the only optional extras',
+  recon.extras.length === 2, JSON.stringify(recon.extras));
+check('…and the excluded roof is priced nowhere', !recon.excludedInExtras,
+  JSON.stringify(recon.extras.map(e => e.name)));
+// The customer has taken up nothing extra yet, so the subtotal is the base.
+check('…so the quote subtotal is the base until the customer opts in',
+  Math.abs(recon.sub - recon.quoteBase) < 0.02,
+  '$' + r2(recon.sub) + ' vs $' + r2(recon.quoteBase));
+
+// Hand the job back the way the block below expects to find it: Roof 2 folded
+// into the main one, everything else its own extra, no buffer, stock mark-up.
+await pg.evaluate(() => {
+  _setRoofMode(1, 'folded');
+  [2, 3, 4, 5].forEach(i => _setRoofMode(i, 'separate'));
+  _setRoofMatQtyBuffer(0);
+  _setRoofMatMarkup(5);
+  calcLabour();
+  _syncQuoteBaseLineItems();
+});
+await pg.waitForTimeout(600);
 
 // ── unfolding puts everything back ─────────────────────────────────
 const undo = await pg.evaluate(() => {

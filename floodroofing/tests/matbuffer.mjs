@@ -97,6 +97,36 @@ check('the pricing table offers "Add quantity safety buffer"', v.buf >= 0);
 check('…and "Add mark-up" below it', v.mk >= 0 && v.mk > v.buf, 'buffer@' + v.buf + ' markup@' + v.mk);
 check('…and the old combined "Safety buffer / markup" row is gone', v.gone < 0);
 
+// ── and the figure on the table is the figure on the quote ────────
+// "the pricing tab doesnt match the quote numbers/total". S.materials is what
+// the table hands to the quote, and it used to apply the mark-up but not the
+// buffer — so the green "Total materials → Quote" line at the bottom of the
+// table and the quote's own Materials line disagreed by exactly the buffer,
+// the moment anybody set one. The table's own number is the contract.
+v = await pg.evaluate(() => {
+  S.quote.roofMatQtyBuffer = 7; S.quote.roofMaterialMarkup = 5;
+  renderMaterialPriceTable();
+  const box = document.getElementById('materialPriceTableWrap');
+  const t = box ? box.textContent : '';
+  // The last $ figure in the table is the green "Total materials → Quote".
+  const money = (t.match(/\$[\d,]+\.\d\d/g) || []).map(x => +x.slice(1).replace(/,/g, ''));
+  const shown = money.length ? money[money.length - 1] : 0;
+  // Same rows, no buffer — the difference proves the buffer is what moved.
+  S.quote.roofMatQtyBuffer = 0;
+  renderMaterialPriceTable();
+  const noBuf = +S.materials;
+  S.quote.roofMatQtyBuffer = 7;
+  renderMaterialPriceTable();
+  return { shown, handedToQuote: +S.materials, noBuf };
+});
+check('the materials table shows a total worth checking', v.shown > 100, '$' + v.shown);
+check('what the table shows is what it hands the quote',
+  Math.abs(v.shown - v.handedToQuote) < 0.02,
+  '$' + v.shown + ' shown vs $' + v.handedToQuote + ' handed over');
+check('…and turning the buffer off actually moves that number, so it is being applied',
+  v.handedToQuote > v.noBuf + 0.01,
+  '$' + v.handedToQuote + ' at 7% vs $' + v.noBuf + ' at 0%');
+
 // ── the gutter card carries the same split ────────────────────────
 v = await pg.evaluate(() => ({
   bufFn: typeof _gutterMatQtyBufferPct === 'function' && typeof _setGutterMatQtyBuffer === 'function',

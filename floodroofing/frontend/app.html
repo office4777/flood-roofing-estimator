@@ -8934,8 +8934,17 @@ function renderMaterialPriceTable(){
   }
   box.innerHTML = html;
   // Base quote materials stay Roof 1 even while viewing another roof. Store the
-  // grade-neutral figure WITH markup (grade is applied once at sync time).
-  S.materials = (_multiMat && _matRi !== 0) ? _materialsCostForRoofIdx(0) : (total * (1 + _mkPct/100));
+  // grade-neutral figure WITH the buffer and the markup, in that order (grade
+  // is applied once at sync time).
+  //
+  // The buffer used to be missing here while the green "Total materials →
+  // Quote" line above included it, so the Pricing tab and the quote disagreed
+  // by exactly the buffer the moment anybody set one. Same order as
+  // _materialsTotalFromRows: buffer on the raw cost, mark-up on the buffered
+  // cost.
+  S.materials = (_multiMat && _matRi !== 0)
+    ? _materialsCostForRoofIdx(0)
+    : (total * (1 + _bufPct/100) * (1 + _mkPct/100));
   try { renderProfitability(); } catch(e){}
   try { updateGlobalJobBarCosts(); } catch(e){}
   try { renderPerRoofBreakdown(); } catch(e){}
@@ -13931,30 +13940,17 @@ function _foldedScaffoldRowsHtml(){
     _pricingRoofGroup(0).slice(1).forEach(function(k){ extras.push(k); });
   } catch(e){}
   if (!extras.length) return '';
-  var f = function(v){ return parseFloat(v) || 0; };
-  return '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--border)">'+
-    '<div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text2);margin-bottom:7px">'+
-      'Also on this price</div>'+
-    extras.map(function(k){
-      var sc = _roofScaffold(k);
-      return '<div style="margin-bottom:9px">'+
-        '<div style="font-size:11.5px;color:var(--text2);margin-bottom:4px">'+esc(_pricingRoofName(k))+' scaffolding</div>'+
-        '<div class="f2">'+
-          '<div><label>Cost ($)</label><input type="number" step="1" min="0" value="'+f(sc.cost)+'" '+
-            'onchange="_updateFoldedScaffold('+k+',\'cost\',this.value)"></div>'+
-          '<div><label>Price ($)</label><input type="number" step="1" min="0" value="'+f(sc.price)+'" '+
-            'onchange="_updateFoldedScaffold('+k+',\'price\',this.value)"></div>'+
-        '</div>'+
-      '</div>';
-    }).join('')+
+  // One scaffold job, one price. The roofs folded into the main one are part
+  // of the same building going up in the same scaffold, so this says what the
+  // price above covers rather than asking for a figure per roof.
+  return '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--border);'+
+      'font-size:11.5px;color:var(--text2);line-height:1.5">'+
+    '<strong style="color:#0a1628">One price covers the lot.</strong> The figure above is the '+
+    'scaffolding for '+esc(_pricingRoofName(0))+' together with '+
+    esc(extras.map(_pricingRoofName).join(', '))+
+    ' \u2014 they are part of the same building, so they go up in the same scaffold. '+
+    'A roof priced as a separate extra keeps its own scaffolding on its own tab.'+
   '</div>';
-}
-function _updateFoldedScaffold(idx, field, val){
-  var sc = _roofScaffold(idx);
-  sc[field] = parseFloat(val) || 0;
-  try { calcLabour(); } catch(e){}
-  try { refreshQuoteProposal(); } catch(e){}
-  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
 // Extra labourers (beyond Lead Roofer + Apprentice) — each is its own Fergus
 // labour line on push. Stored on S.quote.labour.extras.
@@ -19305,11 +19301,15 @@ function _syncQuoteBaseLineItems(){
       // pass (_pricingRoofGroup). Adding them again here would bill the
       // lean-to twice.
       //
-      // Scaffolding still is. It is per BUILDING, not per price — a lean-to
-      // that needs its own edge protection needs it whether or not its sheets
-      // are quoted with the main roof — so folding it away would quietly drop
-      // money off quotes that already exist.
-      if (typeof _scaffoldPriceForRoof === 'function') scaffP += _scaffoldPriceForRoof(_fri);
+      // Scaffolding is NOT added per folded roof either. This used to sum
+      // one scaffold price per building, on the reasoning that a lean-to
+      // needing its own edge protection needs it whether or not its sheets
+      // are quoted with the main roof. In practice a house and its lean-to
+      // are one scaffold job with one price, and the office was being asked
+      // to fill in four boxes to say so — while the customer's quote showed
+      // only the main roof's figure beside a total that carried all four.
+      // The main roof's scaffold price now covers the whole group; a roof
+      // priced as a SEPARATE extra still carries its own (below).
     }
   }
   [['Labour', _baseLab], ['Materials', _baseMat], ['Scaffolding', scaffP]].forEach(function(pair){
