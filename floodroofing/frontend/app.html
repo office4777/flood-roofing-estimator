@@ -23740,7 +23740,6 @@ async function openQuoteEmail(){
   var q = (window.S && S.quote) || {};
   var br = (window.S && S.settings && S.settings.branding) || {};
   var company = _proposalCompanyName(br);
-  var M = (typeof _quoteMoney === 'function') ? _quoteMoney() : { tot: 0 };
   var subject = 'Your roofing quote ' + (q.ref ? q.ref + ' ' : '') + '— ' + company;
   var link = '';
   try { link = _customerLinkString() || ''; } catch(e){}
@@ -23749,8 +23748,11 @@ async function openQuoteEmail(){
     'Thanks for the opportunity to quote your roof' + (q.addr ? (' at ' + q.addr) : '') + '.\n\n' +
     'Your quote is ready — view it online, choose your options, and accept it right from your phone:\n' +
     (link ? link + '\n' : '') +
-    '\nTotal (incl. GST): ' + ((typeof fmtMoney === 'function') ? fmtMoney(M.tot) : ('$' + (M.tot || 0))) + '\n' +
-    (q.validUntil ? ('Quote valid until: ' + q.validUntil + '\n') : '') +
+    // No total here on purpose. The customer picks their own gutters, steel
+    // grade and gauge inside the quote, so any figure printed in the covering
+    // email is out of date the moment they change one — and the two
+    // disagreeing is worse than the email being quiet about price.
+    (q.validUntil ? ('\nQuote valid until: ' + q.validUntil + '\n') : '') +
     '\nAny questions, just reply to this email or give us a call.\n\n' +
     'Kind regards,\n' + company + '\n' +
     (br.phone ? br.phone + '\n' : '') + (br.email ? br.email + '\n' : '') + (br.website || '');

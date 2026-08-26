@@ -226,6 +226,16 @@
   "rewrites": [
     {
       "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "q"
+        }
+      ],
+      "destination": "/app.html"
+    },
+    {
+      "source": "/",
       "destination": "/landing.html"
     },
     {

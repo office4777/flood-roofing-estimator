@@ -3,6 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+/* __CUSTOMER_BAILOUT — a customer quote link is <host>/?q=<token>, and the
+   quote itself lives in app.html. vercel.json rewrites /?q=… straight there,
+   so this should never run. It is here for the case the rewrite cannot cover:
+   a landing page already sitting in somebody's browser cache, or this file
+   served from a host that does not carry our routing config. First thing in
+   <head>, before a byte of the marketing page is fetched, so the customer
+   never sees it flash up in front of their quote. */
+(function(){
+  try {
+    var p = new URLSearchParams(location.search);
+    if (p.get('q')) location.replace('/app.html' + location.search + location.hash);
+  } catch (e) {}
+})();
+</script>
 <title>RoofMap — roof estimating software for New Zealand roofers</title>
 <meta name="description" content="One scaled drawing becomes a job pack the crew can read, a merchant order sent with one button, and a live quote your customer changes themselves.">
 <link rel="canonical" href="https://roofmap.co.nz/">

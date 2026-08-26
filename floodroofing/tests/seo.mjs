@@ -237,8 +237,11 @@ const rootFiles = (await readdir(DIR)).filter(f => /^index\.html?$/i.test(f));
 check('no index.html sits at the root, where it would outrank the "/" rewrite',
   rootFiles.length === 0, rootFiles.join(' ') || 'clear');
 const vercelCfg = JSON.parse(await readFile(_j(DIR, 'vercel.json'), 'utf8'));
-const rootRw = (vercelCfg.rewrites || []).find(r => r.source === '/');
-check('…and "/" is rewritten to the landing page',
+// The *unconditional* "/" rewrite is the homepage. A conditional one may sit
+// in front of it — /?q=<token> is a customer quote link and belongs to the
+// app — so this must not simply take the first "/" rule it finds.
+const rootRw = (vercelCfg.rewrites || []).find(r => r.source === '/' && !r.has);
+check('…and a plain "/" is rewritten to the landing page',
   !!rootRw && rootRw.destination === '/landing.html', JSON.stringify(rootRw));
 // The app keeps its old URL as an alias so an installed PWA and any bookmark
 // still resolve. A redirect would work too, but a rewrite avoids the hop.
