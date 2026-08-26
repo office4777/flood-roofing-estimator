@@ -166,7 +166,7 @@ function render(p){
     `<meta property="og:image" content="${IMG}">`,
     '<meta property="og:image:width" content="1200">',
     '<meta property="og:image:height" content="630">',
-    '<meta property="og:image:alt" content="RoofMap — quote a re-roof before you leave the driveway">',
+    '<meta property="og:image:alt" content="RoofMap — one drawing becomes the job pack, the merchant order and the customer quote">',
     '<meta name="twitter:card" content="summary_large_image">',
     `<meta name="twitter:title" content="${esc(p.title)}">`,
     `<meta name="twitter:description" content="${esc(p.description)}">`,

@@ -69,9 +69,21 @@ let v = await pg.evaluate(() => ({
   broken: Array.from(document.images).filter(i => i.complete && i.naturalWidth === 0).map(i => i.getAttribute('src')),
   h2s: Array.from(document.querySelectorAll('h2')).map(x => x.textContent.trim()),
   wide: document.documentElement.scrollWidth > window.innerWidth + 1,
+  body: document.body.innerText.replace(/\s+/g, ' '),
 }));
 check('the page loads with a real title and description', /RoofMap/.test(v.title) && (v.desc||'').length > 60, v.title);
-check('the headline says what it does', /Quote a re-roof/.test(v.h1||''), v.h1);
+check('the headline says what it does', /One drawing/.test(v.h1||''), v.h1);
+// The page sells three specific things a roofing business loses money on, and
+// it used to sell speed instead. This is the guard against drifting back to a
+// feature list: each of the three has to be NAMED, not implied.
+const PAINS = [
+  ['the crew gets a readable plan', /crew can (actually )?read|hand-drawn maps/i],
+  ['the order goes with one button', /one button/i],
+  ['the customer changes it themselves', /changes their own|change the options themselves|customer changes it/i],
+];
+const missing = PAINS.filter(([, re]) => !re.test(v.body || '')).map(([n]) => n);
+check('…and the page names all three things it is actually for',
+  missing.length === 0, missing.join(' | '));
 check('every image resolves — no broken brand assets', v.broken.length === 0, JSON.stringify(v.broken));
 check('the hero uses the real roof photo', v.imgs.some(s => /roof_aerial_multipitch/.test(s)), JSON.stringify(v.imgs));
 check('it covers how it works, what it does, who built it and pricing',

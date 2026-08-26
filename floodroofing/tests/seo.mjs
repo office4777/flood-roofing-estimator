@@ -98,6 +98,7 @@ for (const [url, file] of Object.entries(PAGES)){
       ogLocale: meta('meta[property="og:locale"]'),
       twCard: meta('meta[name="twitter:card"]'),
       twImage: meta('meta[name="twitter:image"]'),
+      ogImageAlt: meta('meta[property="og:image:alt"]'),
       h1s: Array.from(document.querySelectorAll('h1')).map(h => h.textContent.trim()),
       headings: hs,
       ld: Array.from(document.querySelectorAll('script[type="application/ld+json"]')).map(s => s.textContent),
@@ -159,6 +160,16 @@ check('…with og:url matching the canonical',
   bad((p, u) => p.ogUrl === SITE + u).length === 0);
 check('…and a large-image Twitter card',
   bad(p => p.twCard === 'summary_large_image').length === 0);
+// There is ONE social card image, so there is one true description of it.
+// Three different wordings were in circulation — two describing a tagline the
+// card no longer carries, and one on the home page describing a roof plan the
+// card has never contained. An alt that describes the wrong picture is worse
+// than none: it is what a screen reader reads out.
+const alts = Object.values(seen).map(p => p.ogImageAlt);
+check('one card, one alt: every page describes the social image the same way',
+  new Set(alts).size === 1 && !!alts[0], JSON.stringify([...new Set(alts)]).slice(0, 220));
+check('…and describes what is actually on it',
+  /job pack/i.test(alts[0] || '') && /quote/i.test(alts[0] || ''), alts[0]);
 
 // ── structured data ───────────────────────────────────────────────
 let ldTypes = {};
